@@ -1,0 +1,552 @@
+{
+  "version": 2,
+  "note": "Una scena per ogni mese, mostrata nella barra in alto del planner. tree = forma degli alberi (bare, buds, blossom, leafy, lush, dry, autumn). particles = cosa cade o vola. drifters = insetti/animali che attraversano la barra. I colori sono pastello ma più saturi rispetto alla v1: le scene devono farsi notare e distinguersi bene mese per mese. sky = i due colori della fascia in alto: freddi d'inverno, caldi d'estate. Usati solo se alberi e insetti sono attivi; altrimenti la fascia segue il colore scelto nelle impostazioni.",
+  "shapes": {
+    "trees": [
+      "bare",
+      "buds",
+      "blossom",
+      "leafy",
+      "lush",
+      "dry",
+      "autumn"
+    ],
+    "particles": [
+      "snow",
+      "petal",
+      "leaf",
+      "seed",
+      "rain",
+      "mote",
+      "star"
+    ],
+    "drifters": [
+      "butterfly",
+      "bee",
+      "ladybug",
+      "dragonfly",
+      "firefly",
+      "bird",
+      "swallow"
+    ]
+  },
+  "months": {
+    "1": {
+      "label": "Gennaio, il silenzio della neve",
+      "tree": "bare",
+      "treeColor": "#7C93A0",
+      "particles": [
+        {
+          "type": "snow",
+          "count": 26,
+          "colors": [
+            "#FFFFFF",
+            "#E4EEF6"
+          ],
+          "size": [
+            4,
+            9
+          ],
+          "duration": [
+            12,
+            22
+          ],
+          "sway": 34
+        }
+      ],
+      "drifters": [
+        {
+          "type": "bird",
+          "count": 1,
+          "color": "#748696",
+          "duration": 46,
+          "size": 17
+        }
+      ],
+      "sky": [
+        "#E7EFF6",
+        "#F4F7FA"
+      ]
+    },
+    "2": {
+      "label": "Febbraio, le prime gemme",
+      "tree": "buds",
+      "treeColor": "#7E9A87",
+      "budColor": "#E8A6B4",
+      "particles": [
+        {
+          "type": "snow",
+          "count": 15,
+          "colors": [
+            "#FFFFFF",
+            "#E6EEF3"
+          ],
+          "size": [
+            4,
+            8
+          ],
+          "duration": [
+            14,
+            24
+          ],
+          "sway": 28
+        }
+      ],
+      "drifters": [
+        {
+          "type": "bird",
+          "count": 2,
+          "color": "#79899a",
+          "duration": 42,
+          "size": 17
+        },
+        {
+          "type": "bee",
+          "count": 1,
+          "color": "#C9A030",
+          "duration": 40,
+          "size": 16
+        }
+      ],
+      "sky": [
+        "#E9F0F4",
+        "#F5F7F6"
+      ]
+    },
+    "3": {
+      "label": "Marzo, i mandorli in fiore",
+      "tree": "blossom",
+      "treeColor": "#7FA184",
+      "budColor": "#EBAEBE",
+      "particles": [
+        {
+          "type": "petal",
+          "count": 22,
+          "colors": [
+            "#F0B9C8",
+            "#E79BB0",
+            "#FBDEE6"
+          ],
+          "size": [
+            5,
+            10
+          ],
+          "duration": [
+            10,
+            18
+          ],
+          "sway": 52
+        }
+      ],
+      "drifters": [
+        {
+          "type": "bee",
+          "count": 2,
+          "color": "#C9A030",
+          "duration": 38,
+          "size": 16
+        },
+        {
+          "type": "butterfly",
+          "count": 1,
+          "color": "#B486C4",
+          "duration": 34,
+          "size": 19
+        }
+      ],
+      "sky": [
+        "#F5EBF0",
+        "#FAF4F1"
+      ]
+    },
+    "4": {
+      "label": "Aprile, farfalle tra i rami",
+      "tree": "blossom",
+      "treeColor": "#77A17A",
+      "budColor": "#D9A6D0",
+      "particles": [
+        {
+          "type": "petal",
+          "count": 20,
+          "colors": [
+            "#F1C7DA",
+            "#E0B4DE"
+          ],
+          "size": [
+            5,
+            9
+          ],
+          "duration": [
+            11,
+            19
+          ],
+          "sway": 56
+        }
+      ],
+      "drifters": [
+        {
+          "type": "butterfly",
+          "count": 2,
+          "color": "#A870BE",
+          "duration": 32,
+          "size": 20
+        },
+        {
+          "type": "ladybug",
+          "count": 2,
+          "color": "#C4453F",
+          "duration": 44,
+          "size": 15
+        }
+      ],
+      "sky": [
+        "#F3EDF7",
+        "#F9F5F2"
+      ]
+    },
+    "5": {
+      "label": "Maggio, il ronzio del giardino",
+      "tree": "lush",
+      "treeColor": "#699268",
+      "budColor": "#EFBE6E",
+      "particles": [
+        {
+          "type": "petal",
+          "count": 16,
+          "colors": [
+            "#F8DE9E",
+            "#F1CE72"
+          ],
+          "size": [
+            5,
+            9
+          ],
+          "duration": [
+            12,
+            20
+          ],
+          "sway": 46
+        }
+      ],
+      "drifters": [
+        {
+          "type": "bee",
+          "count": 3,
+          "color": "#C9A030",
+          "duration": 30,
+          "size": 17
+        },
+        {
+          "type": "butterfly",
+          "count": 1,
+          "color": "#E0B84A",
+          "duration": 36,
+          "size": 19
+        }
+      ],
+      "sky": [
+        "#F2F3E6",
+        "#FAF8EE"
+      ]
+    },
+    "6": {
+      "label": "Giugno, coccinelle nell'erba alta",
+      "tree": "lush",
+      "treeColor": "#5F9161",
+      "particles": [
+        {
+          "type": "mote",
+          "count": 20,
+          "colors": [
+            "#FBEB9A",
+            "#F5DF74"
+          ],
+          "size": [
+            3,
+            6
+          ],
+          "duration": [
+            15,
+            24
+          ],
+          "sway": 22
+        }
+      ],
+      "drifters": [
+        {
+          "type": "ladybug",
+          "count": 3,
+          "color": "#C4453F",
+          "duration": 40,
+          "size": 15
+        },
+        {
+          "type": "butterfly",
+          "count": 2,
+          "color": "#79A85A",
+          "duration": 34,
+          "size": 19
+        }
+      ],
+      "sky": [
+        "#EFF3E4",
+        "#F9F9EC"
+      ]
+    },
+    "7": {
+      "label": "Luglio, libellule nella luce",
+      "tree": "lush",
+      "treeColor": "#5A8C5C",
+      "particles": [
+        {
+          "type": "mote",
+          "count": 22,
+          "colors": [
+            "#FDEBAE",
+            "#F7DD86"
+          ],
+          "size": [
+            3,
+            5
+          ],
+          "duration": [
+            16,
+            27
+          ],
+          "sway": 18
+        }
+      ],
+      "drifters": [
+        {
+          "type": "dragonfly",
+          "count": 2,
+          "color": "#4C9AB0",
+          "duration": 28,
+          "size": 21
+        },
+        {
+          "type": "swallow",
+          "count": 1,
+          "color": "#5A6B78",
+          "duration": 24,
+          "size": 18
+        }
+      ],
+      "sky": [
+        "#F6F1DC",
+        "#FCF7E7"
+      ]
+    },
+    "8": {
+      "label": "Agosto, lucciole dopo il tramonto",
+      "tree": "leafy",
+      "treeColor": "#6C8C55",
+      "particles": [
+        {
+          "type": "mote",
+          "count": 12,
+          "colors": [
+            "#F9E29B"
+          ],
+          "size": [
+            3,
+            5
+          ],
+          "duration": [
+            18,
+            28
+          ],
+          "sway": 16
+        },
+        {
+          "type": "star",
+          "count": 9,
+          "colors": [
+            "#FDF3C8"
+          ],
+          "size": [
+            4,
+            7
+          ],
+          "duration": [
+            20,
+            32
+          ],
+          "sway": 8
+        }
+      ],
+      "drifters": [
+        {
+          "type": "firefly",
+          "count": 7,
+          "color": "#F0DA6E",
+          "duration": 26,
+          "size": 10
+        }
+      ],
+      "sky": [
+        "#F7EDD8",
+        "#FBF4E4"
+      ]
+    },
+    "9": {
+      "label": "Settembre, semi che viaggiano",
+      "tree": "dry",
+      "treeColor": "#957B4E",
+      "particles": [
+        {
+          "type": "seed",
+          "count": 18,
+          "colors": [
+            "#F0E2B6",
+            "#E0CC8E"
+          ],
+          "size": [
+            6,
+            11
+          ],
+          "duration": [
+            12,
+            21
+          ],
+          "sway": 62
+        }
+      ],
+      "drifters": [
+        {
+          "type": "swallow",
+          "count": 2,
+          "color": "#6B6E62",
+          "duration": 26,
+          "size": 18
+        }
+      ],
+      "sky": [
+        "#F6EFDF",
+        "#FAF5EA"
+      ]
+    },
+    "10": {
+      "label": "Ottobre, la caduta delle foglie",
+      "tree": "autumn",
+      "treeColor": "#A6672E",
+      "budColor": "#D9812F",
+      "particles": [
+        {
+          "type": "leaf",
+          "count": 26,
+          "colors": [
+            "#D98A3D",
+            "#C06A28",
+            "#EBAA5C"
+          ],
+          "size": [
+            7,
+            13
+          ],
+          "duration": [
+            9,
+            16
+          ],
+          "sway": 66
+        }
+      ],
+      "drifters": [],
+      "sky": [
+        "#F7E9D9",
+        "#FBF2E7"
+      ]
+    },
+    "11": {
+      "label": "Novembre, pioggia sui rami spogli",
+      "tree": "dry",
+      "treeColor": "#6E7568",
+      "particles": [
+        {
+          "type": "rain",
+          "count": 26,
+          "colors": [
+            "#9FB4C2",
+            "#B9CBD6"
+          ],
+          "size": [
+            8,
+            15
+          ],
+          "duration": [
+            3,
+            6
+          ],
+          "sway": 6
+        },
+        {
+          "type": "leaf",
+          "count": 9,
+          "colors": [
+            "#A97C4C",
+            "#8F6A42"
+          ],
+          "size": [
+            7,
+            11
+          ],
+          "duration": [
+            11,
+            18
+          ],
+          "sway": 50
+        }
+      ],
+      "drifters": [],
+      "sky": [
+        "#E9EAEC",
+        "#F3F3F2"
+      ]
+    },
+    "12": {
+      "label": "Dicembre, neve e cielo di stelle",
+      "tree": "bare",
+      "treeColor": "#6C7F8C",
+      "particles": [
+        {
+          "type": "snow",
+          "count": 28,
+          "colors": [
+            "#FFFFFF",
+            "#E1ECF4"
+          ],
+          "size": [
+            4,
+            10
+          ],
+          "duration": [
+            11,
+            20
+          ],
+          "sway": 38
+        },
+        {
+          "type": "star",
+          "count": 10,
+          "colors": [
+            "#FBF3D6"
+          ],
+          "size": [
+            4,
+            7
+          ],
+          "duration": [
+            18,
+            30
+          ],
+          "sway": 6
+        }
+      ],
+      "drifters": [],
+      "sky": [
+        "#E4EBF3",
+        "#F1F5F9"
+      ]
+    }
+  }
+}

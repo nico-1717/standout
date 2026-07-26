@@ -1,0 +1,7 @@
+# File di configurazione con password e credenziali
+config.php
+
+# File temporanei di sistema (Windows/Mac)
+.DS_Store
+Thumbs.db
+*.log

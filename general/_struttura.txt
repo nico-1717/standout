@@ -1,0 +1,100 @@
+config
+
+AI:
+piano_helper -> aggiorna l'utilizzo dell'ia dell'utente (token usati, caratteri letti, immagini create)
+ai_example -> per generare esempi con AI
+examples_modal -> popup
+examples_api
+ai_generate_text -> per generare il testo con AI che poi verrà letto
+ai_shatter -> per fare il frantuma
+ai_tutor -> per leggere e spiegare
+script_read
+
+LOGIN:
+api_create_user -> controlla se esiste lo username, in caso contrario lo aggiunge al db ritornando l'id
+auth_check -> file da includere: se l'utente non è autenticato, lo rispedisce all'index
+auth_check_api -> Includi questo file in cima a OGNI endpoint AJAX/JSON che richiede il login. qui NON facciamo un redirect (avrebbe poco senso per una chiamata fetch/AJAX): rispondiamo con HTTP 401 e un JSON che il Javascript può intercettare per riaprire il popup di login. Se autenticato, mette a disposizione $utente_corrente come sopra.
+auth_core -> Cosa fa:
+ *  - Avvia una sessione PHP con cookie sicuri
+ *  - Gestisce il cookie "ricordami" (login persistente)
+ *  - Genera/verifica il token CSRF
+ *  - Applica un blocco temporaneo dopo troppi tentativi di login
+ *  - Espone nisama_utente_corrente() per sapere chi è loggato
+auth_modal -> tasti accedi, crea account gratis, ...
+login
+logout
+register
+
+INDEX:
+dashboard_content -> loggato
+index
+landign_content -> non loggato
+ai_trivia -> genera le flashcard in index
+
+sidebar
+
+big_edit_fc -> per modificare tutta una categoria
+big_edit_save -> quando si clicca su salva su big_edit_fc salva le modifiche
+inserimento_big_fc -> inserisce tante fc contemporaneamente
+inserimento_fc -> una
+modifica_immagine_fc
+
+categories_fc -> mostra le categorie delle fc in view
+category_selector -> tasto e popup per selezione categoria (false per non avere il tasto inserisci)
+
+fc_parser -> formatta fc (colori, list, latex)
+format_toolbar -> toolbar in modifica_immagine, inserisci, big
+visualizzazione_fc
+
+floating_player -> player audio
+
+api_get_counts_fc -> conta le fc
+
+1. history_fc -> fa vedere le partite giocate
+2. categories_game_fc -> mostra le categorie con cui giocare
+3. start_game_fc -> insert into games
+4. game_fc -> pagina di gioco
+5. result_fc -> risultati partita
+6. start_retry -> fa ripartire la partita con gli errori, sia qui che in vocaboli -> 4.
+
+voice_game_mode -> modalità microfono in game_fc
+game_timer -> non funziona
+
+stats_fc
+
+------------------------
+
+
+generate_ai_image -> genera immagini ai in vocaboli
+generate_ai_image_google -> genera immagini ai in vocaboli
+generate_ai_image_pollination -> genera immagini ai in vocaboli
+generate_ai_text -> genera esempio, traduzione, ...
+
+api_get_counts -> conta i vocaboli
+categories -> mostra le categorie dei vocaboli
+categories_flashcards -> seleziona la categoria dei vocaboli per giocare
+game_flashcards -> pagina gioco vocaboli
+game_flashcards_en_it -> pagina gioco vocaboli da eng a it
+history_flashcards -> fa vedere le partite giocate
+result_flashcards -> fine partita
+start_game_flashcards
+start_retry -> fa ripartire la partita con gli errori, sia qui che in vocaboli
+result
+modifica_immagine
+visualizzazione
+visualizzazione_edit
+
+import
+imports
+
+
+
+delete_game
+elimina_immagine
+elimina_immagine_fc
+end_flashcards
+inserimento
+update_learnt
+
+game_start
+

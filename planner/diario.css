@@ -1,0 +1,374 @@
+/* =====================================================================
+   NISAMA — DIARIO
+   Un quaderno, non un'interfaccia: carta calda a righe, titoli in serif
+   alto, tutto il resto disegnato a matita morbida. Nessun tasto vistoso:
+   gli strumenti stanno in fondo, piccoli, come una matita appoggiata.
+   ===================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&family=Caveat:wght@400;500;600&family=Kalam:wght@300;400&family=Patrick+Hand&display=swap');
+
+:root{
+    --dy-paper:#FDFCF9;
+    --dy-paper-2:#F7F3EC;
+    --dy-edge:#EFE8DD;
+    --dy-ink:#4A443D;
+    --dy-ink-2:#8A8177;
+    --dy-ink-3:#BAB1A6;
+    --dy-pencil:#8C857A;
+    --dy-rule:rgba(120,133,148,.20);
+    --dy-accent:#A9C3AE;
+    --dy-accent-2:#E7EFE8;
+    --dy-hair:rgba(74,68,61,.10);
+
+    --dy-line:30px;
+    --dy-size:18px;
+    --dy-hand:'Caveat', 'Segoe Script', cursive;
+    --dy-serif:'Cormorant Garamond', Georgia, serif;
+    --dy-sans:'Jost', -apple-system, system-ui, sans-serif;
+
+    --dy-ease:cubic-bezier(.22,.61,.36,1);
+    --dy-pop:cubic-bezier(.34,1.3,.64,1);
+    --safe-top:env(safe-area-inset-top, 0px);
+    --safe-bottom:env(safe-area-inset-bottom, 0px);
+}
+
+/* scritture selezionabili dall'utente */
+.dy-font-caveat   { --dy-hand:'Caveat', cursive; --dy-hand-lh:1.05; }
+.dy-font-kalam    { --dy-hand:'Kalam', cursive; --dy-hand-lh:1; }
+.dy-font-patrick  { --dy-hand:'Patrick Hand', cursive; --dy-hand-lh:1; }
+.dy-font-cormorant{ --dy-hand:'Cormorant Garamond', serif; --dy-hand-lh:1; }
+.dy-font-jost     { --dy-hand:'Jost', sans-serif; --dy-hand-lh:1; }
+
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html{
+    -webkit-text-size-adjust:100%; touch-action:manipulation;
+    background:var(--dy-edge); overscroll-behavior:none;
+}
+body.dy-body{
+    margin:0; min-height:100dvh; background:var(--dy-edge); color:var(--dy-ink);
+    font-family:var(--dy-sans); font-size:15px; line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+    overflow:hidden;
+}
+input, textarea{ user-select:text; -webkit-user-select:text; font-size:16px; }
+button{ font-family:inherit; border:none; background:none; color:inherit; padding:0; cursor:pointer; }
+:focus{ outline:none; }
+:focus-visible{ outline:2px solid var(--dy-accent); outline-offset:3px; border-radius:6px; }
+[hidden]{ display:none !important; }
+
+.dy-lab{
+    display:block; font-family:var(--dy-sans);
+    font-size:9px; font-weight:500; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--dy-ink-3);
+}
+
+/* ------------------------------------------------------------------ */
+/* Il quaderno: una pagina che si gira                                 */
+/* ------------------------------------------------------------------ */
+.dy-stage{
+    position:fixed; inset:0; perspective:1600px; perspective-origin:50% 42%;
+    padding:0; overflow:hidden;
+}
+.dy-page{
+    position:absolute; inset:0;
+    background:var(--dy-paper);
+    display:flex; flex-direction:column;
+    padding:calc(var(--safe-top) + 14px) 18px calc(74px + var(--safe-bottom));
+    transform-origin:left center;
+    backface-visibility:hidden;
+    box-shadow:inset 8px 0 14px -12px rgba(74,68,61,.28);
+}
+/* la costa del quaderno, appena accennata */
+.dy-page::before{
+    content:''; position:absolute; left:0; top:0; bottom:0; width:9px;
+    background:linear-gradient(90deg, rgba(74,68,61,.10), transparent);
+    pointer-events:none;
+}
+@keyframes dy-flip-next{
+    0%   { transform:rotateY(0deg); box-shadow:inset 8px 0 14px -12px rgba(74,68,61,.28); }
+    45%  { transform:rotateY(-14deg) translateX(-6px); box-shadow:-18px 0 40px -20px rgba(74,68,61,.5); }
+    100% { transform:rotateY(0deg); }
+}
+@keyframes dy-flip-prev{
+    0%   { transform:rotateY(0deg); }
+    45%  { transform:rotateY(14deg) translateX(6px); box-shadow:18px 0 40px -20px rgba(74,68,61,.5); }
+    100% { transform:rotateY(0deg); }
+}
+.dy-flip-next{ animation:dy-flip-next .52s var(--dy-ease); }
+.dy-flip-prev{ animation:dy-flip-prev .52s var(--dy-ease); }
+
+/* ------------------------------------------------------------------ */
+/* Testa della pagina: faccine, data, anello                           */
+/* ------------------------------------------------------------------ */
+.dy-head{ display:flex; align-items:flex-start; gap:12px; flex-shrink:0; }
+.dy-faces{ display:flex; flex-direction:column; gap:6px; flex-shrink:0; padding-top:2px; }
+.dy-face-btn{
+    width:40px; height:40px; color:var(--dy-pencil);
+    transition:transform .24s var(--dy-pop), color .24s;
+}
+.dy-face-btn svg{ width:100%; height:100%; display:block; }
+.dy-face-btn:active{ transform:scale(.9); }
+.dy-face-btn.dy-set{ color:var(--dy-ink); }
+
+.dy-title{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:0; padding-top:2px; }
+.dy-num{
+    font-family:var(--dy-serif); font-size:52px; font-weight:300; line-height:.86;
+    letter-spacing:-.02em; color:var(--dy-ink);
+}
+.dy-wd{
+    font-family:var(--dy-sans); font-size:10px; font-weight:400; letter-spacing:.26em;
+    text-transform:uppercase; color:var(--dy-ink-2); margin-top:5px;
+}
+.dy-month-btn{ margin-top:7px; padding:3px 2px; }
+.dy-month-btn span{
+    font-family:var(--dy-serif); font-style:italic; font-size:17px; color:var(--dy-ink-2);
+    border-bottom:.8px solid var(--dy-ink-3); padding-bottom:1px;
+}
+
+.dy-ring{
+    position:relative; width:54px; height:54px; flex-shrink:0; display:block;
+    text-decoration:none; color:var(--dy-pencil);
+}
+.dy-ring svg{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); }
+.dy-ring circle{ fill:none; stroke-width:2; stroke-linecap:round; }
+.dy-ring .dy-ring-bg{ stroke:currentColor; opacity:.4; stroke-dasharray:3 4; }
+.dy-ring .dy-ring-fg{ stroke:var(--dy-accent); stroke-width:2.6; transition:stroke-dashoffset .7s var(--dy-ease); }
+.dy-ring-n{
+    position:absolute; inset:0; display:grid; place-items:center;
+    font-family:var(--dy-serif); font-size:15px; color:var(--dy-ink-2); letter-spacing:-.02em;
+}
+
+/* ------------------------------------------------------------------ */
+/* I due elenchi                                                       */
+/* ------------------------------------------------------------------ */
+.dy-lists{ display:flex; gap:14px; margin:16px 0 12px; flex-shrink:0; }
+.dy-list-col{ flex:1; min-width:0; }
+.dy-list{ margin-top:5px; }
+.dy-li{ display:flex; align-items:baseline; gap:7px; padding:2px 0; }
+.dy-li-dot{
+    width:5px; height:5px; border-radius:50%; flex-shrink:0; margin-top:9px;
+    background:var(--dy-ink-3); transition:background-color .3s, transform .3s var(--dy-pop);
+}
+.dy-li-filled .dy-li-dot{ background:var(--dy-accent); transform:scale(1.4); }
+.dy-li input{
+    flex:1; min-width:0; border:none; background:none; outline:none; padding:2px 0;
+    font-family:var(--dy-hand); font-size:calc(var(--dy-size) * .92); line-height:1.35; color:var(--dy-ink);
+    border-bottom:.8px dotted var(--dy-hair);
+}
+.dy-li input::placeholder{ color:var(--dy-ink-3); font-size:12px; font-family:var(--dy-sans); }
+
+/* ------------------------------------------------------------------ */
+/* Le righe su cui si scrive                                           */
+/* ------------------------------------------------------------------ */
+.dy-write{ flex:1; min-height:0; display:flex; }
+.dy-write textarea{
+    flex:1; width:100%; border:none; outline:none; resize:none; background:transparent;
+    color:var(--dy-ink); font-family:var(--dy-hand);
+    font-size:var(--dy-size); line-height:var(--dy-line);
+    padding:0 2px 6px; margin:0;
+    background-image:linear-gradient(transparent calc(var(--dy-line) - 1px), var(--dy-rule) calc(var(--dy-line) - 1px), var(--dy-rule) var(--dy-line));
+    background-size:100% var(--dy-line);
+    background-attachment:local;
+    overflow-y:auto; scrollbar-width:none;
+}
+.dy-write textarea::-webkit-scrollbar{ width:0; height:0; }
+.dy-write textarea::placeholder{ color:var(--dy-ink-3); }
+.dy-body.dy-paper-plain .dy-write textarea{ background-image:none; }
+.dy-body.dy-paper-dotted .dy-write textarea{
+    background-image:radial-gradient(circle at 2px 50%, var(--dy-rule) .9px, transparent 1px);
+    background-size:14px var(--dy-line);
+}
+
+/* il microfono: sta sulla pagina come una matita appoggiata */
+.dy-mic{
+    position:absolute; left:20px; bottom:calc(48px + var(--safe-bottom));
+    width:40px; height:40px; border-radius:50%; display:grid; place-items:center;
+    background:var(--dy-paper-2); color:var(--dy-pencil); border:none; cursor:pointer;
+    box-shadow:inset 0 0 0 .5px var(--dy-hair);
+    transition:transform .2s var(--dy-ease), background-color .25s, color .25s;
+}
+.dy-mic svg{ width:19px; height:19px; }
+.dy-mic:active{ transform:scale(.9); }
+.dy-mic.dy-rec{ background:#F3DCDC; color:#8E5A5A; }
+.dy-mic.dy-rec svg{ animation:dy-mic-pulse 1.3s ease-in-out infinite; }
+@keyframes dy-mic-pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+
+.dy-page-foot{ position:absolute; right:20px; bottom:calc(52px + var(--safe-bottom)); }
+.dy-saved{
+    font-family:var(--dy-sans); font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--dy-ink-3); opacity:0; transition:opacity .35s var(--dy-ease);
+}
+.dy-saved.dy-show{ opacity:1; }
+
+/* ------------------------------------------------------------------ */
+/* Strumenti in fondo                                                  */
+/* ------------------------------------------------------------------ */
+.dy-tools{
+    position:fixed; left:0; right:0; bottom:0; z-index:20;
+    display:flex; align-items:center; justify-content:center; gap:22px;
+    padding:12px 18px calc(12px + var(--safe-bottom));
+    background:linear-gradient(to top, var(--dy-paper) 58%, rgba(253,252,249,0));
+}
+.dy-tool{
+    width:38px; height:38px; border-radius:50%; display:grid; place-items:center;
+    color:var(--dy-pencil); transition:transform .2s var(--dy-ease), color .2s;
+}
+.dy-tool svg{ width:19px; height:19px; }
+.dy-tool:active{ transform:scale(.88); color:var(--dy-ink); }
+.dy-tool[disabled]{ opacity:.35; }
+
+/* ------------------------------------------------------------------ */
+/* Piccoli fogliettini: scelta faccina e scrittura                     */
+/* ------------------------------------------------------------------ */
+.dy-pop{
+    position:fixed; z-index:40; padding:12px 14px 13px; border-radius:16px;
+    background:var(--dy-paper); box-shadow:0 20px 44px -18px rgba(74,68,61,.42), inset 0 0 0 .5px var(--dy-hair);
+    animation:dy-pop-in .3s var(--dy-pop);
+    max-width:min(92vw, 340px);
+}
+@keyframes dy-pop-in{ from{ opacity:0; transform:scale(.92) translateY(6px); } to{ opacity:1; transform:none; } }
+.dy-pop-lab{
+    display:block; font-size:9px; font-weight:500; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--dy-ink-3); margin-bottom:9px;
+}
+.dy-pop-row{ display:flex; gap:6px; }
+.dy-pop-face{
+    width:46px; height:46px; border-radius:50%; color:var(--dy-pencil); padding:2px;
+    transition:transform .24s var(--dy-pop), color .2s, background-color .2s;
+}
+.dy-pop-face svg{ width:100%; height:100%; display:block; }
+.dy-pop-face.dy-on{ color:var(--dy-ink); background:var(--dy-accent-2); transform:scale(1.08); }
+
+.dy-font-list{ display:flex; flex-direction:column; gap:2px; }
+.dy-font-opt{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:9px 10px; border-radius:12px; text-align:left;
+    transition:background-color .2s;
+}
+.dy-font-opt.dy-on{ background:var(--dy-accent-2); }
+.dy-font-opt span:first-child{ font-size:19px; color:var(--dy-ink); }
+.dy-font-opt span:last-child{ font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--dy-ink-3); }
+.dy-size-row{
+    display:flex; align-items:center; justify-content:center; gap:16px;
+    margin-top:10px; padding-top:10px; border-top:.5px solid var(--dy-hair);
+}
+.dy-size{ font-family:var(--dy-serif); font-size:17px; color:var(--dy-ink-2); }
+.dy-size span{ font-size:11px; vertical-align:super; }
+.dy-size-v{ font-family:var(--dy-serif); font-size:17px; color:var(--dy-ink); min-width:26px; text-align:center; }
+
+/* ------------------------------------------------------------------ */
+/* Pagina del mese                                                     */
+/* ------------------------------------------------------------------ */
+.dy-page-month{ overflow-y:auto; scrollbar-width:none; }
+.dy-page-month::-webkit-scrollbar{ width:0; }
+.dy-head-month{ align-items:center; }
+.dy-back{ width:34px; height:34px; display:grid; place-items:center; color:var(--dy-pencil); flex-shrink:0; }
+.dy-back svg{ width:18px; height:18px; }
+.dy-back-ghost{ visibility:hidden; }
+.dy-title-month{ gap:2px; }
+.dy-num-month{ font-size:36px; font-weight:300; }
+
+.dy-cal{ margin:20px 0 4px; flex-shrink:0; }
+.dy-cal-wd{ display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:6px; }
+.dy-cal-wd span{ text-align:center; font-size:8.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dy-ink-3); }
+.dy-cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px 3px; }
+.dy-cal-d{
+    aspect-ratio:1; border-radius:11px; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:1px; position:relative;
+    transition:transform .2s var(--dy-ease), background-color .3s;
+}
+.dy-cal-d:active{ transform:scale(.92); }
+.dy-cal-d span{ font-family:var(--dy-serif); font-size:13px; color:var(--dy-ink-2); line-height:1; }
+.dy-cal-d svg{ width:17px; height:17px; color:var(--dy-pencil); }
+.dy-cal-d.dy-out{ opacity:.3; }
+.dy-cal-d.dy-written{ background:var(--dy-accent-2); }
+.dy-cal-d.dy-written span{ color:var(--dy-ink); }
+.dy-cal-d.dy-today::after{
+    content:''; position:absolute; bottom:4px; width:4px; height:4px; border-radius:50%;
+    background:var(--dy-accent);
+}
+
+/* riquadro delle medie: scritto come a mano sul margine */
+.dy-stats{
+    display:grid; grid-template-columns:repeat(2, 1fr); gap:10px;
+    margin:18px 0 6px; padding:14px 4px; border-top:.8px solid var(--dy-hair); border-bottom:.8px solid var(--dy-hair);
+}
+.dy-stat{ display:flex; align-items:center; gap:9px; }
+.dy-stat-ico{ width:34px; height:34px; color:var(--dy-pencil); flex-shrink:0; }
+.dy-stat-ico svg{ width:100%; height:100%; display:block; }
+.dy-stat-t{ min-width:0; }
+.dy-stat-v{ font-family:var(--dy-serif); font-size:20px; line-height:1.1; color:var(--dy-ink); }
+.dy-stat-k{ font-size:8.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--dy-ink-3); }
+
+/* ------------------------------------------------------------------ */
+/* Il foglietto attaccato col nastro (versione carta, non giallo)      */
+/* ------------------------------------------------------------------ */
+.dy-taped{
+    position:relative; margin:26px 6px 40px; padding:18px 16px 14px;
+    background:var(--dy-paper-2); color:var(--dy-ink);
+    border-radius:3px 3px 12px 12px;
+    box-shadow:0 18px 40px -22px rgba(74,68,61,.45), inset 0 0 0 .5px var(--dy-hair);
+    transform:rotate(-.7deg);
+}
+.dy-tape{
+    position:absolute; top:-11px; left:50%; width:78px; height:22px;
+    transform:translateX(-50%) rotate(-2.4deg);
+    background:rgba(255,255,255,.62);
+    box-shadow:0 2px 6px rgba(74,68,61,.14), inset 0 0 0 .5px rgba(255,255,255,.8);
+    border-radius:1px;
+}
+.dy-tape::before, .dy-tape::after{
+    content:''; position:absolute; top:0; bottom:0; width:5px;
+    background:repeating-linear-gradient(180deg, rgba(74,68,61,.10) 0 2px, transparent 2px 4px);
+}
+.dy-tape::before{ left:0; } .dy-tape::after{ right:0; }
+.dy-taped-head{ display:flex; align-items:center; justify-content:space-between; width:100%; gap:10px; }
+.dy-taped-n{ font-family:var(--dy-serif); font-size:17px; color:var(--dy-ink-2); }
+.dy-taped-body{
+    max-height:0; overflow:hidden; transition:max-height .42s var(--dy-ease);
+    scrollbar-width:none;
+}
+.dy-taped-body::-webkit-scrollbar{ width:0; height:0; }
+.dy-taped.dy-open .dy-taped-body{ max-height:46vh; overflow-y:auto; }
+.dy-taped-li{ padding:9px 0 8px; border-bottom:.8px dotted var(--dy-hair); }
+.dy-taped-li:first-child{ margin-top:12px; }
+.dy-taped-li:last-child{ border-bottom:none; }
+.dy-taped-li p{
+    margin:0; font-family:var(--dy-hand); font-size:calc(var(--dy-size) * .95);
+    line-height:1.45; font-style:normal; color:var(--dy-ink);
+}
+.dy-taped-li small{
+    display:block; margin-top:2px; font-family:var(--dy-sans);
+    font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--dy-ink-3);
+}
+.dy-taped-empty{ margin-top:12px; font-family:var(--dy-serif); font-style:italic; color:var(--dy-ink-2); }
+
+/* ------------------------------------------------------------------ */
+/* Messaggino                                                          */
+/* ------------------------------------------------------------------ */
+.dy-toast{
+    position:fixed; left:50%; bottom:calc(76px + var(--safe-bottom)); z-index:60;
+    transform:translate(-50%, 12px); opacity:0; pointer-events:none;
+    padding:9px 16px; border-radius:999px; background:var(--dy-ink); color:var(--dy-paper);
+    font-size:12.5px; max-width:84vw; text-align:center;
+    transition:opacity .3s var(--dy-ease), transform .3s var(--dy-ease);
+}
+.dy-toast.dy-show{ opacity:.94; transform:translate(-50%, 0); }
+
+/* ------------------------------------------------------------------ */
+/* Schermi larghi: il quaderno resta un quaderno                       */
+/* ------------------------------------------------------------------ */
+@media (min-width:820px){
+    .dy-stage{ padding:26px; }
+    .dy-page{
+        inset:26px; max-width:760px; margin:0 auto; border-radius:4px 14px 14px 4px;
+        box-shadow:inset 10px 0 18px -14px rgba(74,68,61,.3), 0 30px 70px -34px rgba(74,68,61,.5);
+    }
+    .dy-num{ font-size:60px; }
+    .dy-lists{ gap:34px; }
+}
+
+@media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
+}

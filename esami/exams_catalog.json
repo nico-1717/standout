@@ -1,0 +1,1485 @@
+{
+  "version": 1,
+  "note": "national_avg = media indicativa di corso (stile AlmaLaurea/Alpha Test). Sono stime editabili: aggiornale con i dati reali del tuo ateneo. pass_fail = idoneita (conta i CFU, non fa media).",
+  "faculties": {
+    "psychology":    { "label": "Psicologia",            "color": "#AF52DE", "gradient": ["#AF52DE", "#FF2D55"], "emoji": "\ud83e\udde0" },
+    "engineering":   { "label": "Ingegneria",            "color": "#0A84FF", "gradient": ["#0A84FF", "#30B0C7"], "emoji": "\u2699\ufe0f" },
+    "architecture":  { "label": "Architettura",          "color": "#FF9500", "gradient": ["#FF9500", "#FF375F"], "emoji": "\ud83d\udcd0" },
+    "design":        { "label": "Design",                "color": "#FFCC00", "gradient": ["#FFD60A", "#FF9F0A"], "emoji": "\ud83c\udfa8" },
+    "computer":      { "label": "Informatica",           "color": "#5E5CE6", "gradient": ["#5E5CE6", "#0A84FF"], "emoji": "\ud83d\udcbb" },
+    "economics":     { "label": "Economia",              "color": "#34C759", "gradient": ["#34C759", "#30B0C7"], "emoji": "\ud83d\udcc8" },
+    "law":           { "label": "Giurisprudenza",        "color": "#B06A3B", "gradient": ["#B06A3B", "#8E4B2E"], "emoji": "\u2696\ufe0f" },
+    "medicine":      { "label": "Medicina",              "color": "#FF375F", "gradient": ["#FF375F", "#FF453A"], "emoji": "\ud83e\ude7a" },
+    "humanities":    { "label": "Lettere e Filosofia",   "color": "#BF5AF2", "gradient": ["#BF5AF2", "#5E5CE6"], "emoji": "\ud83d\udcda" },
+    "sciences":      { "label": "Scienze",               "color": "#30B0C7", "gradient": ["#30B0C7", "#34C759"], "emoji": "\ud83d\udd2c" },
+    "generic":       { "label": "Generico",              "color": "#0A84FF", "gradient": ["#0A84FF", "#5E5CE6"], "emoji": "\ud83c\udf93" }
+  },
+  "programs": {
+    "custom": {
+      "label": "Corso personalizzato",
+      "faculty": "generic",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 8 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": []
+    },
+
+    "psicologia_triennale": {
+      "label": "Psicologia (Triennale L-24)",
+      "faculty": "psychology",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 7 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "psi_gen",     "name": "Psicologia Generale",                        "cfu": 12, "year": 1, "ssd": "M-PSI/01", "national_avg": 26.1 },
+        { "code": "psicobio",    "name": "Psicobiologia",                              "cfu": 6,  "year": 1, "ssd": "M-PSI/02", "national_avg": 25.4 },
+        { "code": "eng_b1",      "name": "Inglese B1",                                 "cfu": 6,  "year": 1, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+        { "code": "sto_fil",     "name": "Storia del pensiero filosofico",             "cfu": 8,  "year": 1, "ssd": "M-FIL/06", "national_avg": 27.2 },
+        { "code": "metod_ric",   "name": "Metodologia della ricerca",                  "cfu": 8,  "year": 1, "ssd": "M-PSI/03", "national_avg": 25.0 },
+        { "code": "dim_soc",     "name": "Dimensioni sociali dei processi psicologici","cfu": 12, "year": 1, "ssd": "M-PSI/05", "national_avg": 26.8 },
+        { "code": "psi_svil",    "name": "Psicologia dello sviluppo",                  "cfu": 8,  "year": 2, "ssd": "M-PSI/04", "national_avg": 27.0 },
+        { "code": "colloquio",   "name": "Teoria e Tecnica del colloquio e dell'intervista", "cfu": 6, "year": 2, "ssd": "M-PSI/07", "national_avg": 28.3 },
+        { "code": "psicodiag",   "name": "Metodi e tecniche psicodiagnostiche",        "cfu": 6,  "year": 2, "ssd": "M-PSI/08", "national_avg": 28.0 },
+        { "code": "eng_b2",      "name": "Inglese B2",                                 "cfu": 6,  "year": 2, "ssd": "L-LIN/12", "national_avg": 27.5 },
+        { "code": "info_stat",   "name": "Informatica e statistica",                   "cfu": 6,  "year": 2, "ssd": "INF/01",   "national_avg": 26.4 },
+        { "code": "psi_lav",     "name": "Psicologia del lavoro",                      "cfu": 6,  "year": 2, "ssd": "M-PSI/06", "national_avg": 27.6 },
+        { "code": "antropo",     "name": "Antropologia",                               "cfu": 6,  "year": 2, "ssd": "M-DEA/01", "national_avg": 27.9 },
+        { "code": "psicometria", "name": "Psicometria 1",                              "cfu": 12, "year": 3, "ssd": "M-PSI/03", "national_avg": 26.2 },
+        { "code": "neuro",       "name": "Neuroscienze",                               "cfu": 6,  "year": 3, "ssd": "M-PSI/02", "national_avg": 25.8 },
+        { "code": "psi_clin",    "name": "Psicologia clinica",                         "cfu": 12, "year": 3, "ssd": "M-PSI/08", "national_avg": 27.1 },
+        { "code": "psi_din",     "name": "Psicologia dinamica",                        "cfu": 8,  "year": 3, "ssd": "M-PSI/07", "national_avg": 26.9 },
+        { "code": "tirocinio",   "name": "Tirocinio",                                  "cfu": 4,  "year": 3, "ssd": null,       "national_avg": null, "pass_fail": true },
+        { "code": "a_scelta",    "name": "A scelta dello studente",                    "cfu": 18, "year": 3, "ssd": null,       "national_avg": 28.5 },
+        { "code": "altre_att",   "name": "Altre attivita formative (lab, soft skills)","cfu": 15, "year": 3, "ssd": null,       "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale","name": "Prova finale (tesi)",                        "cfu": 9,  "year": 3, "ssd": null,       "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_informatica_triennale": {
+      "label": "Ingegneria Informatica (Triennale L-8)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 4 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1",   "name": "Analisi Matematica 1",                  "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 24.0 },
+        { "code": "analisi2",   "name": "Analisi Matematica 2",                  "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.6 },
+        { "code": "geometria",  "name": "Geometria e Algebra Lineare",           "cfu": 8,  "year": 1, "ssd": "MAT/03", "national_avg": 24.4 },
+        { "code": "fisica1",    "name": "Fisica",                                "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.9 },
+        { "code": "fond_info",  "name": "Fondamenti di Informatica",             "cfu": 10, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.2 },
+        { "code": "chimica",    "name": "Chimica",                               "cfu": 6,  "year": 1, "ssd": "CHIM/07", "national_avg": 25.8 },
+        { "code": "algoritmi",  "name": "Algoritmi e Principi dell'Informatica", "cfu": 10, "year": 2, "ssd": "ING-INF/05", "national_avg": 24.6 },
+        { "code": "calc_prob",  "name": "Calcolo delle Probabilita e Statistica","cfu": 8,  "year": 2, "ssd": "MAT/06", "national_avg": 24.1 },
+        { "code": "arch_elab",  "name": "Architettura degli Elaboratori",        "cfu": 8,  "year": 2, "ssd": "ING-INF/05", "national_avg": 25.0 },
+        { "code": "basi_dati",  "name": "Basi di Dati",                          "cfu": 8,  "year": 2, "ssd": "ING-INF/05", "national_avg": 26.3 },
+        { "code": "elettro",    "name": "Elettrotecnica",                        "cfu": 6,  "year": 2, "ssd": "ING-IND/31", "national_avg": 24.8 },
+        { "code": "reti_log",   "name": "Reti Logiche",                          "cfu": 6,  "year": 2, "ssd": "ING-INF/05", "national_avg": 25.5 },
+        { "code": "eng_b2",     "name": "Prova di Inglese B2",                   "cfu": 3,  "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "so",         "name": "Sistemi Operativi",                     "cfu": 8,  "year": 3, "ssd": "ING-INF/05", "national_avg": 25.7 },
+        { "code": "reti",       "name": "Reti di Calcolatori",                   "cfu": 8,  "year": 3, "ssd": "ING-INF/05", "national_avg": 26.0 },
+        { "code": "ing_sw",     "name": "Ingegneria del Software",               "cfu": 8,  "year": 3, "ssd": "ING-INF/05", "national_avg": 27.2 },
+        { "code": "auto",       "name": "Fondamenti di Automatica",              "cfu": 8,  "year": 3, "ssd": "ING-INF/04", "national_avg": 24.3 },
+        { "code": "econ",       "name": "Economia e Organizzazione Aziendale",   "cfu": 6,  "year": 3, "ssd": "ING-IND/35", "national_avg": 27.8 },
+        { "code": "tirocinio",  "name": "Tirocinio",                             "cfu": 5,  "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "a_scelta",   "name": "Insegnamenti a scelta",                 "cfu": 20, "year": 3, "ssd": null, "national_avg": 28.0 },
+        { "code": "altre_att",  "name": "Altre attivita formative",              "cfu": 11, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale","name": "Prova Finale",                         "cfu": 3,  "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "economia_aziendale_triennale": {
+      "label": "Economia Aziendale (Triennale L-18)",
+      "faculty": "economics",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 6 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "econ_az",    "name": "Economia Aziendale",              "cfu": 12, "year": 1, "ssd": "SECS-P/07", "national_avg": 25.6 },
+        { "code": "matematica", "name": "Matematica Generale",             "cfu": 9,  "year": 1, "ssd": "SECS-S/06", "national_avg": 24.2 },
+        { "code": "microecon",  "name": "Microeconomia",                   "cfu": 9,  "year": 1, "ssd": "SECS-P/01", "national_avg": 24.9 },
+        { "code": "diritto_pr", "name": "Diritto Privato",                 "cfu": 9,  "year": 1, "ssd": "IUS/01",     "national_avg": 26.1 },
+        { "code": "storia_econ","name": "Storia Economica",                "cfu": 6,  "year": 1, "ssd": "SECS-P/12", "national_avg": 27.0 },
+        { "code": "eng",        "name": "Lingua Inglese",                  "cfu": 6,  "year": 1, "ssd": null,         "national_avg": null, "pass_fail": true },
+        { "code": "ragioneria", "name": "Ragioneria Generale",            "cfu": 9,  "year": 2, "ssd": "SECS-P/07", "national_avg": 25.0 },
+        { "code": "statistica", "name": "Statistica",                      "cfu": 9,  "year": 2, "ssd": "SECS-S/01", "national_avg": 24.5 },
+        { "code": "macroecon",  "name": "Macroeconomia",                   "cfu": 9,  "year": 2, "ssd": "SECS-P/01", "national_avg": 25.3 },
+        { "code": "diritto_co", "name": "Diritto Commerciale",             "cfu": 9,  "year": 2, "ssd": "IUS/04",     "national_avg": 26.4 },
+        { "code": "mkt",        "name": "Marketing",                       "cfu": 9,  "year": 2, "ssd": "SECS-P/08", "national_avg": 27.5 },
+        { "code": "egi",        "name": "Economia e Gestione delle Imprese","cfu": 9, "year": 2, "ssd": "SECS-P/08", "national_avg": 26.5 },
+        { "code": "fin_az",     "name": "Finanza Aziendale",               "cfu": 9,  "year": 3, "ssd": "SECS-P/09", "national_avg": 26.0 },
+        { "code": "econ_ind",   "name": "Economia degli Intermediari",     "cfu": 9,  "year": 3, "ssd": "SECS-P/11", "national_avg": 26.8 },
+        { "code": "controllo",  "name": "Programmazione e Controllo",      "cfu": 9,  "year": 3, "ssd": "SECS-P/07", "national_avg": 27.0 },
+        { "code": "diritto_lav","name": "Diritto del Lavoro",              "cfu": 6,  "year": 3, "ssd": "IUS/07",     "national_avg": 27.2 },
+        { "code": "sistemi_inf","name": "Sistemi Informativi Aziendali",   "cfu": 6,  "year": 3, "ssd": "SECS-P/10", "national_avg": 27.4 },
+        { "code": "a_scelta",   "name": "Esami a scelta",                  "cfu": 24, "year": 3, "ssd": null,         "national_avg": 28.2 },
+        { "code": "stage",      "name": "Stage / Tirocinio",               "cfu": 6,  "year": 3, "ssd": null,         "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale","name": "Prova Finale",                   "cfu": 6,  "year": 3, "ssd": null,         "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "giurisprudenza_ciclo_unico": {
+      "label": "Giurisprudenza (Ciclo Unico LMG/01)",
+      "faculty": "law",
+      "total_cfu": 300,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 7 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "dir_priv", "name": "Istituzioni di Diritto Privato", "cfu": 9, "year": 1, "ssd": "IUS/01", "national_avg": 24.5 },
+        { "code": "dir_cost", "name": "Diritto Costituzionale", "cfu": 9, "year": 1, "ssd": "IUS/08", "national_avg": 25.1 },
+        { "code": "storia_rom", "name": "Storia del Diritto Romano", "cfu": 9, "year": 1, "ssd": "IUS/18", "national_avg": 26.3 },
+        { "code": "filo_dir", "name": "Filosofia del Diritto", "cfu": 9, "year": 1, "ssd": "IUS/20", "national_avg": 27.0 },
+        { "code": "dir_com", "name": "Diritto Commerciale", "cfu": 15, "year": 2, "ssd": "IUS/04", "national_avg": 23.9 },
+        { "code": "dir_lav", "name": "Diritto del Lavoro", "cfu": 9, "year": 2, "ssd": "IUS/07", "national_avg": 25.8 },
+        { "code": "dir_amm", "name": "Diritto Amministrativo", "cfu": 15, "year": 3, "ssd": "IUS/10", "national_avg": 24.2 },
+        { "code": "dir_pen", "name": "Diritto Penale", "cfu": 15, "year": 3, "ssd": "IUS/17", "national_avg": 24.6 },
+        { "code": "proc_civ", "name": "Diritto Processuale Civile", "cfu": 15, "year": 4, "ssd": "IUS/15", "national_avg": 23.5 },
+        { "code": "proc_pen", "name": "Diritto Processuale Penale", "cfu": 15, "year": 4, "ssd": "IUS/16", "national_avg": 24.1 },
+        { "code": "dir_ue", "name": "Diritto dell'Unione Europea", "cfu": 9, "year": 4, "ssd": "IUS/14", "national_avg": 26.5 },
+        { "code": "dir_int", "name": "Diritto Internazionale", "cfu": 9, "year": 5, "ssd": "IUS/13", "national_avg": 25.9 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 18, "year": 5, "ssd": null, "national_avg": 28.5 },
+        { "code": "prova_finale", "name": "Prova Finale (Tesi)", "cfu": 18, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "lettere_triennale": {
+      "label": "Lettere (Triennale L-10)",
+      "faculty": "humanities",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 6 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "lett_ita", "name": "Letteratura Italiana", "cfu": 12, "year": 1, "ssd": "L-FIL-LET/10", "national_avg": 26.5 },
+        { "code": "lett_lat", "name": "Letteratura Latina", "cfu": 9, "year": 1, "ssd": "L-FIL-LET/04", "national_avg": 25.2 },
+        { "code": "storia_rom", "name": "Storia Romana", "cfu": 9, "year": 1, "ssd": "L-ANT/03", "national_avg": 26.8 },
+        { "code": "glottologia", "name": "Glottologia e Linguistica", "cfu": 9, "year": 1, "ssd": "L-LIN/01", "national_avg": 25.7 },
+        { "code": "geo", "name": "Geografia", "cfu": 6, "year": 1, "ssd": "M-GGR/01", "national_avg": 27.4 },
+        { "code": "storia_med", "name": "Storia Medievale", "cfu": 9, "year": 2, "ssd": "M-STO/01", "national_avg": 26.1 },
+        { "code": "storia_cont", "name": "Storia Contemporanea", "cfu": 9, "year": 2, "ssd": "M-STO/04", "national_avg": 26.9 },
+        { "code": "filologia", "name": "Filologia Romanza", "cfu": 9, "year": 2, "ssd": "L-FIL-LET/09", "national_avg": 25.5 },
+        { "code": "storia_arte", "name": "Storia dell'Arte Medievale", "cfu": 9, "year": 2, "ssd": "L-ART/01", "national_avg": 27.5 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 2, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+        { "code": "lett_mod", "name": "Letteratura Italiana Contemporanea", "cfu": 9, "year": 3, "ssd": "L-FIL-LET/11", "national_avg": 27.8 },
+        { "code": "estetica", "name": "Estetica", "cfu": 6, "year": 3, "ssd": "M-FIL/04", "national_avg": 28.0 },
+        { "code": "a_scelta", "name": "Esami a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 28.5 },
+        { "code": "altre_att", "name": "Altre attività (Informatica, lab)", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "medicina_ciclo_unico": {
+      "label": "Medicina e Chirurgia (Ciclo Unico LM-41)",
+      "faculty": "medicine",
+      "total_cfu": 360,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 18 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "biologia", "name": "Biologia e Genetica", "cfu": 10, "year": 1, "ssd": "BIO/13", "national_avg": 26.2 },
+        { "code": "fisica_stat", "name": "Fisica e Statistica Medica", "cfu": 9, "year": 1, "ssd": "FIS/07", "national_avg": 25.5 },
+        { "code": "chimica", "name": "Chimica e Biochimica Propedeutica", "cfu": 7, "year": 1, "ssd": "BIO/10", "national_avg": 25.8 },
+        { "code": "istologia", "name": "Istologia ed Embriologia", "cfu": 8, "year": 1, "ssd": "BIO/17", "national_avg": 26.5 },
+        { "code": "eng_med", "name": "Inglese Scientifico", "cfu": 6, "year": 1, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+        
+        { "code": "anatomia", "name": "Anatomia Umana", "cfu": 18, "year": 2, "ssd": "BIO/16", "national_avg": 24.1 },
+        { "code": "fisiologia", "name": "Fisiologia Umana", "cfu": 15, "year": 2, "ssd": "BIO/09", "national_avg": 24.5 },
+        { "code": "biochimica", "name": "Biochimica", "cfu": 10, "year": 2, "ssd": "BIO/10", "national_avg": 24.8 },
+        { "code": "microbiologia", "name": "Microbiologia e Virologia", "cfu": 8, "year": 2, "ssd": "MED/07", "national_avg": 25.9 },
+        
+        { "code": "patologia_gen", "name": "Patologia e Fisiopatologia Generale", "cfu": 14, "year": 3, "ssd": "MED/04", "national_avg": 25.3 },
+        { "code": "semeiotica", "name": "Semeiotica e Metodologia Clinica", "cfu": 12, "year": 3, "ssd": "MED/09", "national_avg": 26.1 },
+        { "code": "farmacologia", "name": "Farmacologia", "cfu": 11, "year": 3, "ssd": "BIO/14", "national_avg": 25.1 },
+        
+        { "code": "anat_pat", "name": "Anatomia Patologica", "cfu": 10, "year": 4, "ssd": "MED/08", "national_avg": 26.0 },
+        { "code": "spec_1", "name": "Specialità Medico-Chirurgiche 1 (Testa-Collo e Sensi)", "cfu": 12, "year": 4, "ssd": "MED/30", "national_avg": 27.5 },
+        { "code": "spec_2", "name": "Specialità Medico-Chirurgiche 2 (Gastro, Endo, Nefro)", "cfu": 15, "year": 4, "ssd": "MED/12", "national_avg": 26.9 },
+        { "code": "infettive_derma", "name": "Malattie Infettive e Dermatologia", "cfu": 6, "year": 4, "ssd": "MED/17", "national_avg": 27.2 },
+        { "code": "diagnostica", "name": "Diagnostica per Immagini e Radioterapia", "cfu": 6, "year": 4, "ssd": "MED/36", "national_avg": 27.8 },
+        
+        { "code": "med_int", "name": "Medicina Interna", "cfu": 15, "year": 5, "ssd": "MED/09", "national_avg": 26.8 },
+        { "code": "chirurgia", "name": "Chirurgia Generale", "cfu": 15, "year": 5, "ssd": "MED/18", "national_avg": 27.1 },
+        { "code": "neuro_psich", "name": "Neurologia e Psichiatria", "cfu": 10, "year": 5, "ssd": "MED/26", "national_avg": 26.7 },
+        { "code": "ortopedia_reuma", "name": "Ortopedia e Reumatologia", "cfu": 8, "year": 5, "ssd": "MED/33", "national_avg": 27.0 },
+        { "code": "igiene", "name": "Igiene e Sanità Pubblica", "cfu": 8, "year": 5, "ssd": "MED/42", "national_avg": 27.2 },
+        
+        { "code": "pediatria", "name": "Pediatria", "cfu": 6, "year": 6, "ssd": "MED/38", "national_avg": 28.2 },
+        { "code": "gin", "name": "Ginecologia e Ostetricia", "cfu": 6, "year": 6, "ssd": "MED/40", "national_avg": 27.9 },
+        { "code": "med_legale", "name": "Medicina Legale e Sanità Pubblica", "cfu": 8, "year": 6, "ssd": "MED/43", "national_avg": 27.5 },
+        { "code": "emergenze", "name": "Emergenze e Pronto Soccorso", "cfu": 9, "year": 6, "ssd": "MED/09", "national_avg": 27.4 },
+        
+        { "code": "a_scelta", "name": "Esami a scelta dello studente", "cfu": 8, "year": 5, "ssd": null, "national_avg": 28.5 },
+        { "code": "altre_att", "name": "Attività laboratoriali e tirocini base", "cfu": 12, "year": 6, "ssd": null, "national_avg": null, "pass_fail": true },
+        
+        { "code": "tirocinio", "name": "Tirocinio Pratico Valutativo (TPV) / Abilitante", "cfu": 60, "year": 6, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Tesi di Laurea", "cfu": 18, "year": 6, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_meccanica_triennale": {
+      "label": "Ingegneria Meccanica (Triennale L-9)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 5 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.5 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.2 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.1 },
+        { "code": "fisica1", "name": "Fisica Sperimentale 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.8 },
+        { "code": "chimica", "name": "Chimica", "cfu": 8, "year": 1, "ssd": "CHIM/07", "national_avg": 25.1 },
+        { "code": "disegno", "name": "Disegno Tecnico Industriale", "cfu": 8, "year": 1, "ssd": "ING-IND/15", "national_avg": 26.3 },
+        { "code": "info", "name": "Informatica", "cfu": 6, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.5 },
+
+        { "code": "fisica2", "name": "Fisica Sperimentale 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 24.0 },
+        { "code": "mecc_raz", "name": "Meccanica Razionale", "cfu": 10, "year": 2, "ssd": "MAT/07", "national_avg": 23.1 },
+        { "code": "scienza_costr", "name": "Scienza delle Costruzioni", "cfu": 10, "year": 2, "ssd": "ICAR/08", "national_avg": 22.8 },
+        { "code": "fisica_tecnica", "name": "Fisica Tecnica / Termodinamica", "cfu": 8, "year": 2, "ssd": "ING-IND/10", "national_avg": 24.5 },
+        { "code": "metallurgia", "name": "Metallurgia e Materiali", "cfu": 8, "year": 2, "ssd": "ING-IND/21", "national_avg": 25.9 },
+        { "code": "elettro", "name": "Elettrotecnica", "cfu": 8, "year": 2, "ssd": "ING-IND/31", "national_avg": 24.2 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 3, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "altre_att_1", "name": "Altre Attività Formative", "cfu": 5, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "mecc_macchine", "name": "Meccanica delle Macchine", "cfu": 10, "year": 3, "ssd": "ING-IND/13", "national_avg": 24.3 },
+        { "code": "sistemi_energ", "name": "Macchine e Sistemi Energetici", "cfu": 10, "year": 3, "ssd": "ING-IND/09", "national_avg": 24.8 },
+        { "code": "tecn_mecc", "name": "Tecnologia Meccanica", "cfu": 10, "year": 3, "ssd": "ING-IND/16", "national_avg": 25.4 },
+        { "code": "misure", "name": "Misure Meccaniche e Termiche", "cfu": 8, "year": 3, "ssd": "ING-IND/12", "national_avg": 26.0 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 10, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 9, "year": 3, "ssd": null, "national_avg": 27.8 },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 3, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_gestionale_triennale": {
+      "label": "Ingegneria Gestionale (Triennale L-9)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 4 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.8 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 8, "year": 1, "ssd": "MAT/05", "national_avg": 23.5 },
+        { "code": "geometria", "name": "Geometria e Algebra", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.5 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 24.1 },
+        { "code": "info", "name": "Fondamenti di Informatica", "cfu": 8, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.8 },
+        { "code": "econ_org", "name": "Economia e Organizzazione Aziendale", "cfu": 8, "year": 1, "ssd": "ING-IND/35", "national_avg": 26.5 },
+        { "code": "chimica", "name": "Chimica", "cfu": 8, "year": 1, "ssd": "CHIM/07", "national_avg": 25.2 },
+
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 24.4 },
+        { "code": "ric_oper", "name": "Ricerca Operativa", "cfu": 10, "year": 2, "ssd": "MAT/09", "national_avg": 25.0 },
+        { "code": "statistica", "name": "Statistica", "cfu": 8, "year": 2, "ssd": "MAT/06", "national_avg": 25.5 },
+        { "code": "tecn_mecc", "name": "Tecnologie Speciali / Meccaniche", "cfu": 8, "year": 2, "ssd": "ING-IND/16", "national_avg": 26.1 },
+        { "code": "gestione_az", "name": "Gestione Aziendale", "cfu": 10, "year": 2, "ssd": "ING-IND/35", "national_avg": 26.8 },
+        { "code": "elettro", "name": "Elettrotecnica", "cfu": 8, "year": 2, "ssd": "ING-IND/31", "national_avg": 24.9 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 3, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "altre_att", "name": "Altre Attività", "cfu": 5, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "automatica", "name": "Fondamenti di Automatica", "cfu": 8, "year": 3, "ssd": "ING-INF/04", "national_avg": 24.7 },
+        { "code": "logistica", "name": "Logistica e Produzione", "cfu": 10, "year": 3, "ssd": "ING-IND/17", "national_avg": 26.4 },
+        { "code": "impianti", "name": "Impianti Industriali", "cfu": 10, "year": 3, "ssd": "ING-IND/17", "national_avg": 25.9 },
+        { "code": "basi_dati", "name": "Basi di Dati e Sistemi Informativi", "cfu": 8, "year": 3, "ssd": "ING-INF/05", "national_avg": 26.6 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 28.0 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 9, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 3, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_biomedica_triennale": {
+      "label": "Ingegneria Biomedica (Triennale L-8)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 5 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.9 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.4 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.6 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 24.0 },
+        { "code": "info", "name": "Informatica", "cfu": 8, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.5 },
+        { "code": "chimica_bio", "name": "Chimica Generale e Organica", "cfu": 14, "year": 1, "ssd": "CHIM/07", "national_avg": 24.8 },
+
+        { "code": "biologia", "name": "Biologia e Fisiologia", "cfu": 10, "year": 2, "ssd": "BIO/09", "national_avg": 26.2 },
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 24.3 },
+        { "code": "elettro", "name": "Elettrotecnica", "cfu": 8, "year": 2, "ssd": "ING-IND/31", "national_avg": 24.7 },
+        { "code": "elettronica", "name": "Elettronica e Strumentazione", "cfu": 10, "year": 2, "ssd": "ING-INF/01", "national_avg": 24.9 },
+        { "code": "fisica_tec", "name": "Termodinamica e Trasporto", "cfu": 8, "year": 2, "ssd": "ING-IND/10", "national_avg": 25.1 },
+        { "code": "biomat", "name": "Scienza dei Materiali / Biocompatibili", "cfu": 8, "year": 2, "ssd": "ING-IND/22", "national_avg": 26.4 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 3, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "altre_att", "name": "Altre Attività Formative", "cfu": 5, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "segnali", "name": "Elaborazione Segnali e Sistemi", "cfu": 10, "year": 3, "ssd": "ING-INF/03", "national_avg": 25.2 },
+        { "code": "bioing_ele", "name": "Bioingegneria Elettronica", "cfu": 12, "year": 3, "ssd": "ING-INF/06", "national_avg": 25.8 },
+        { "code": "bioing_mec", "name": "Meccanica per Bioingegneria", "cfu": 8, "year": 3, "ssd": "ING-IND/34", "national_avg": 24.5 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 15, "year": 3, "ssd": null, "national_avg": 28.1 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 3, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_civile_triennale": {
+      "label": "Ingegneria Civile (Triennale L-7)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 4 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.3 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.0 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.0 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.6 },
+        { "code": "chimica", "name": "Chimica", "cfu": 8, "year": 1, "ssd": "CHIM/07", "national_avg": 24.9 },
+        { "code": "disegno", "name": "Disegno e Rappresentazione", "cfu": 8, "year": 1, "ssd": "ICAR/17", "national_avg": 26.8 },
+        { "code": "info", "name": "Informatica", "cfu": 6, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.3 },
+
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 23.8 },
+        { "code": "mecc_raz", "name": "Meccanica Razionale", "cfu": 8, "year": 2, "ssd": "MAT/07", "national_avg": 23.4 },
+        { "code": "scienza_costr", "name": "Scienza delle Costruzioni", "cfu": 12, "year": 2, "ssd": "ICAR/08", "national_avg": 22.5 },
+        { "code": "topografia", "name": "Topografia", "cfu": 8, "year": 2, "ssd": "ICAR/06", "national_avg": 25.5 },
+        { "code": "idraulica", "name": "Idraulica", "cfu": 9, "year": 2, "ssd": "ICAR/01", "national_avg": 23.9 },
+        { "code": "arch_tec", "name": "Architettura Tecnica e Materiali", "cfu": 12, "year": 2, "ssd": "ICAR/10", "national_avg": 25.7 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 3, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "tec_costr", "name": "Tecnica delle Costruzioni", "cfu": 12, "year": 3, "ssd": "ICAR/09", "national_avg": 24.2 },
+        { "code": "geotecnica", "name": "Geotecnica", "cfu": 9, "year": 3, "ssd": "ICAR/07", "national_avg": 24.6 },
+        { "code": "infrastrutture", "name": "Infrastrutture Viarie e Strade", "cfu": 9, "year": 3, "ssd": "ICAR/04", "national_avg": 25.0 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 27.5 },
+        { "code": "altre_att", "name": "Altre Attività Formative", "cfu": 5, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 10, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 3, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "architettura_ciclo_unico": {
+      "label": "Architettura (Ciclo Unico LM-4)",
+      "faculty": "architecture",
+      "total_cfu": 300,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 8 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi_mat", "name": "Istituzioni di Matematiche", "cfu": 8, "year": 1, "ssd": "MAT/05", "national_avg": 24.2 },
+        { "code": "geometria_arch", "name": "Geometria e Algebra", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.9 },
+        { "code": "disegno_arch", "name": "Disegno dell'Architettura", "cfu": 12, "year": 1, "ssd": "ICAR/17", "national_avg": 27.1 },
+        { "code": "storia_arch1", "name": "Storia dell'Architettura 1", "cfu": 10, "year": 1, "ssd": "ICAR/18", "national_avg": 26.5 },
+        { "code": "fond_prog", "name": "Fondamenti di Progettazione Architettonica", "cfu": 12, "year": 1, "ssd": "ICAR/14", "national_avg": 27.5 },
+        { "code": "fisica_tec", "name": "Fisica Tecnica Ambientale", "cfu": 10, "year": 1, "ssd": "ING-IND/11", "national_avg": 25.4 },
+
+        { "code": "storia_arch2", "name": "Storia dell'Architettura 2", "cfu": 10, "year": 2, "ssd": "ICAR/18", "national_avg": 26.8 },
+        { "code": "statica", "name": "Statica e Meccanica delle Strutture", "cfu": 10, "year": 2, "ssd": "ICAR/08", "national_avg": 23.5 },
+        { "code": "lab_prog1", "name": "Laboratorio di Progettazione Architettonica 1", "cfu": 14, "year": 2, "ssd": "ICAR/14", "national_avg": 28.0 },
+        { "code": "rilievo", "name": "Rilievo dell'Architettura", "cfu": 8, "year": 2, "ssd": "ICAR/17", "national_avg": 27.2 },
+        { "code": "materiali", "name": "Tecnologia dei Materiali", "cfu": 8, "year": 2, "ssd": "ING-IND/22", "national_avg": 25.9 },
+        { "code": "urbanistica1", "name": "Fondamenti di Urbanistica", "cfu": 10, "year": 2, "ssd": "ICAR/20", "national_avg": 26.5 },
+
+        { "code": "scienza_costr", "name": "Scienza delle Costruzioni", "cfu": 10, "year": 3, "ssd": "ICAR/08", "national_avg": 23.1 },
+        { "code": "lab_prog2", "name": "Laboratorio di Progettazione Architettonica 2", "cfu": 14, "year": 3, "ssd": "ICAR/14", "national_avg": 28.2 },
+        { "code": "restauro", "name": "Fondamenti di Restauro Architettonico", "cfu": 10, "year": 3, "ssd": "ICAR/19", "national_avg": 27.4 },
+        { "code": "lab_urb", "name": "Laboratorio di Urbanistica", "cfu": 14, "year": 3, "ssd": "ICAR/21", "national_avg": 27.6 },
+        { "code": "impianti", "name": "Impianti Tecnici nell'Edilizia", "cfu": 8, "year": 3, "ssd": "ING-IND/11", "national_avg": 25.5 },
+        { "code": "eng_arch", "name": "Lingua Inglese", "cfu": 4, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "tec_costr", "name": "Tecnica delle Costruzioni", "cfu": 10, "year": 4, "ssd": "ICAR/09", "national_avg": 24.1 },
+        { "code": "lab_prog3", "name": "Laboratorio di Progettazione Architettonica 3", "cfu": 14, "year": 4, "ssd": "ICAR/14", "national_avg": 28.5 },
+        { "code": "estimo", "name": "Estimo e Valutazione Economica", "cfu": 8, "year": 4, "ssd": "ICAR/22", "national_avg": 26.0 },
+        { "code": "socio_urb", "name": "Sociologia Urbana / Diritto", "cfu": 8, "year": 4, "ssd": "SPS/10", "national_avg": 27.3 },
+        { "code": "a_scelta1", "name": "Insegnamenti a scelta 1", "cfu": 12, "year": 4, "ssd": null, "national_avg": 28.1 },
+        { "code": "tirocinio", "name": "Tirocinio Formativo", "cfu": 8, "year": 4, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "lab_sintesi", "name": "Laboratorio di Sintesi Finale", "cfu": 16, "year": 5, "ssd": "ICAR/14", "national_avg": 28.8 },
+        { "code": "a_scelta2", "name": "Insegnamenti a scelta 2", "cfu": 12, "year": 5, "ssd": null, "national_avg": 28.5 },
+        { "code": "altre_att", "name": "Ulteriori conoscenze e workshop", "cfu": 8, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale (Tesi)", "cfu": 24, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "design_triennale": {
+      "label": "Design (Triennale L-4)",
+      "faculty": "design",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 5 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "rappresentazione", "name": "Disegno e Rappresentazione", "cfu": 12, "year": 1, "ssd": "ICAR/17", "national_avg": 27.0 },
+        { "code": "storia_design", "name": "Storia del Design", "cfu": 8, "year": 1, "ssd": "ICAR/13", "national_avg": 26.5 },
+        { "code": "geometria_des", "name": "Elementi di Geometria / Matematica", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.8 },
+        { "code": "mat_design", "name": "Materiali per il Design", "cfu": 8, "year": 1, "ssd": "ING-IND/22", "national_avg": 25.8 },
+        { "code": "lab_metodi", "name": "Laboratorio Metodi del Progetto", "cfu": 16, "year": 1, "ssd": "ICAR/13", "national_avg": 27.8 },
+        { "code": "info_3d", "name": "Informatica e Modellazione 3D", "cfu": 8, "year": 1, "ssd": "INF/01", "national_avg": 26.9 },
+
+        { "code": "lab_prog1", "name": "Laboratorio di Progettazione 1", "cfu": 16, "year": 2, "ssd": "ICAR/13", "national_avg": 28.2 },
+        { "code": "socio_cons", "name": "Sociologia dei Consumi", "cfu": 8, "year": 2, "ssd": "SPS/08", "national_avg": 27.4 },
+        { "code": "semiotica", "name": "Semiotica e Comunicazione", "cfu": 8, "year": 2, "ssd": "M-FIL/05", "national_avg": 26.8 },
+        { "code": "tecn_prod", "name": "Tecnologie e Sistemi di Produzione", "cfu": 8, "year": 2, "ssd": "ING-IND/16", "national_avg": 25.6 },
+        { "code": "ergonomia", "name": "Ergonomia", "cfu": 8, "year": 2, "ssd": "M-EDF/01", "national_avg": 27.5 },
+        { "code": "a_scelta1", "name": "Insegnamenti a scelta", "cfu": 12, "year": 2, "ssd": null, "national_avg": 28.0 },
+
+        { "code": "lab_prog2", "name": "Laboratorio di Progettazione 2", "cfu": 16, "year": 3, "ssd": "ICAR/13", "national_avg": 28.5 },
+        { "code": "cultura_imp", "name": "Cultura d'Impresa e Marketing", "cfu": 8, "year": 3, "ssd": "SECS-P/08", "national_avg": 27.2 },
+        { "code": "eng_b2_des", "name": "Lingua Inglese B2", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "tirocinio_des", "name": "Tirocinio Formativo", "cfu": 16, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_des", "name": "Prova Finale", "cfu": 14, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "biologia_triennale": {
+      "label": "Scienze Biologiche (Triennale L-13)",
+      "faculty": "sciences",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 6 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "matematica_bio", "name": "Matematica e Statistica", "cfu": 8, "year": 1, "ssd": "MAT/05", "national_avg": 24.1 },
+        { "code": "fisica_bio", "name": "Fisica", "cfu": 8, "year": 1, "ssd": "FIS/07", "national_avg": 23.8 },
+        { "code": "chimica_gen", "name": "Chimica Generale e Inorganica", "cfu": 10, "year": 1, "ssd": "CHIM/03", "national_avg": 24.5 },
+        { "code": "citologia", "name": "Citologia e Istologia", "cfu": 12, "year": 1, "ssd": "BIO/06", "national_avg": 26.0 },
+        { "code": "botanica", "name": "Botanica Sistematica e Diversità", "cfu": 8, "year": 1, "ssd": "BIO/02", "national_avg": 25.5 },
+        { "code": "zoologia", "name": "Zoologia", "cfu": 8, "year": 1, "ssd": "BIO/05", "national_avg": 25.8 },
+        { "code": "eng_bio", "name": "Lingua Inglese", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "chimica_org", "name": "Chimica Organica", "cfu": 10, "year": 2, "ssd": "CHIM/06", "national_avg": 23.5 },
+        { "code": "biochimica_bio", "name": "Biochimica Generale", "cfu": 12, "year": 2, "ssd": "BIO/10", "national_avg": 24.3 },
+        { "code": "genetica", "name": "Genetica", "cfu": 12, "year": 2, "ssd": "BIO/18", "national_avg": 24.6 },
+        { "code": "microbiologia_bio", "name": "Microbiologia Generale", "cfu": 10, "year": 2, "ssd": "BIO/19", "national_avg": 25.2 },
+        { "code": "anat_comp", "name": "Anatomia Comparata", "cfu": 8, "year": 2, "ssd": "BIO/06", "national_avg": 26.1 },
+        { "code": "fisiologia_veg", "name": "Fisiologia Vegetale", "cfu": 8, "year": 2, "ssd": "BIO/04", "national_avg": 26.5 },
+
+        { "code": "fisiologia_gen", "name": "Fisiologia Generale", "cfu": 12, "year": 3, "ssd": "BIO/09", "national_avg": 24.8 },
+        { "code": "biologia_mol", "name": "Biologia Molecolare", "cfu": 10, "year": 3, "ssd": "BIO/11", "national_avg": 25.0 },
+        { "code": "ecologia", "name": "Ecologia", "cfu": 8, "year": 3, "ssd": "BIO/07", "national_avg": 26.7 },
+        { "code": "a_scelta_bio", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 27.8 },
+        { "code": "lab_tirocinio", "name": "Laboratorio / Tirocinio", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_bio", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "comunicazione_triennale": {
+      "label": "Scienze della Comunicazione (Triennale L-20)",
+      "faculty": "humanities",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 5 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "socio_gen", "name": "Sociologia Generale", "cfu": 10, "year": 1, "ssd": "SPS/07", "national_avg": 26.2 },
+        { "code": "semiotica_com", "name": "Semiotica", "cfu": 10, "year": 1, "ssd": "M-FIL/05", "national_avg": 25.8 },
+        { "code": "psi_soc", "name": "Psicologia Sociale", "cfu": 8, "year": 1, "ssd": "M-PSI/05", "national_avg": 26.8 },
+        { "code": "storia_contemp", "name": "Storia Contemporanea", "cfu": 10, "year": 1, "ssd": "M-STO/04", "national_avg": 26.5 },
+        { "code": "eng_com", "name": "Lingua Inglese", "cfu": 8, "year": 1, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+        { "code": "info_com", "name": "Informatica per la Comunicazione", "cfu": 6, "year": 1, "ssd": "INF/01", "national_avg": 27.0 },
+        { "code": "storia_media", "name": "Storia dei Media e del Giornalismo", "cfu": 8, "year": 1, "ssd": "M-STO/04", "national_avg": 27.5 },
+
+        { "code": "socio_com", "name": "Sociologia della Comunicazione", "cfu": 10, "year": 2, "ssd": "SPS/08", "national_avg": 27.1 },
+        { "code": "linguistica", "name": "Linguistica Italiana", "cfu": 10, "year": 2, "ssd": "L-FIL-LET/12", "national_avg": 26.4 },
+        { "code": "econ_pol", "name": "Economia Politica e Aziendale", "cfu": 10, "year": 2, "ssd": "SECS-P/01", "national_avg": 25.1 },
+        { "code": "diritto_info", "name": "Diritto dell'Informazione e Privacy", "cfu": 8, "year": 2, "ssd": "IUS/09", "national_avg": 26.6 },
+        { "code": "marketing", "name": "Marketing e Comunicazione d'Impresa", "cfu": 10, "year": 2, "ssd": "SECS-P/08", "national_avg": 27.3 },
+        { "code": "metodologia", "name": "Metodologia della Ricerca Sociale", "cfu": 12, "year": 2, "ssd": "SPS/07", "national_avg": 26.0 },
+
+        { "code": "com_impresa", "name": "Comunicazione Pubblica e d'Impresa", "cfu": 10, "year": 3, "ssd": "SPS/08", "national_avg": 27.8 },
+        { "code": "teoria_media", "name": "Teoria e Tecniche dei Nuovi Media", "cfu": 8, "year": 3, "ssd": "SPS/08", "national_avg": 28.1 },
+        { "code": "a_scelta_com", "name": "Insegnamenti a scelta", "cfu": 18, "year": 3, "ssd": null, "national_avg": 28.5 },
+        { "code": "stage_com", "name": "Stage / Tirocinio", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_com", "name": "Prova Finale", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "scienze_motorie_triennale": {
+      "label": "Scienze Motorie (Triennale L-22)",
+      "faculty": "sciences",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 6 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "anatomia_sm", "name": "Anatomia Umana", "cfu": 10, "year": 1, "ssd": "BIO/16", "national_avg": 24.3 },
+        { "code": "biologia_sm", "name": "Biologia e Genetica", "cfu": 8, "year": 1, "ssd": "BIO/13", "national_avg": 25.1 },
+        { "code": "chimica_sm", "name": "Biochimica e Chimica", "cfu": 8, "year": 1, "ssd": "BIO/10", "national_avg": 24.5 },
+        { "code": "biomeccanica", "name": "Fisica e Biomeccanica", "cfu": 8, "year": 1, "ssd": "FIS/07", "national_avg": 25.0 },
+        { "code": "teoria_mov", "name": "Teoria e Metodologia del Movimento", "cfu": 12, "year": 1, "ssd": "M-EDF/01", "national_avg": 27.5 },
+        { "code": "pedagogia_sm", "name": "Pedagogia e Psicologia Generale", "cfu": 12, "year": 1, "ssd": "M-PSI/01", "national_avg": 26.8 },
+        
+        { "code": "fisiologia_sm", "name": "Fisiologia Umana e dello Sport", "cfu": 10, "year": 2, "ssd": "BIO/09", "national_avg": 24.1 },
+        { "code": "sport_ind", "name": "Didattica degli Sport Individuali", "cfu": 10, "year": 2, "ssd": "M-EDF/02", "national_avg": 28.2 },
+        { "code": "sport_sq", "name": "Didattica degli Sport di Squadra", "cfu": 10, "year": 2, "ssd": "M-EDF/02", "national_avg": 28.5 },
+        { "code": "med_sport", "name": "Medicina dello Sport", "cfu": 10, "year": 2, "ssd": "MED/09", "national_avg": 27.0 },
+        { "code": "nutrizione", "name": "Scienze Tecniche Dietetiche", "cfu": 9, "year": 2, "ssd": "MED/49", "national_avg": 26.9 },
+        { "code": "eng_sm", "name": "Lingua Inglese", "cfu": 6, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "traumatologia", "name": "Traumatologia e Ortopedia", "cfu": 8, "year": 3, "ssd": "MED/33", "national_avg": 26.5 },
+        { "code": "endocrinologia", "name": "Endocrinologia", "cfu": 8, "year": 3, "ssd": "MED/13", "national_avg": 25.8 },
+        { "code": "igiene_sm", "name": "Igiene e Educazione alla Salute", "cfu": 6, "year": 3, "ssd": "MED/42", "national_avg": 27.1 },
+        { "code": "diritto_sport", "name": "Diritto dello Sport", "cfu": 8, "year": 3, "ssd": "IUS/01", "national_avg": 26.0 },
+        { "code": "a_scelta_sm", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 28.1 },
+        { "code": "tirocinio_sm", "name": "Tirocinio Formativo", "cfu": 20, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_sm", "name": "Prova Finale", "cfu": 5, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "scienze_politiche_triennale": {
+      "label": "Scienze Politiche (Triennale L-36)",
+      "faculty": "generic",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 6 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "storia_cont", "name": "Storia Contemporanea", "cfu": 10, "year": 1, "ssd": "M-STO/04", "national_avg": 26.2 },
+        { "code": "scienza_pol", "name": "Scienza Politica", "cfu": 10, "year": 1, "ssd": "SPS/04", "national_avg": 25.8 },
+        { "code": "dir_pubblico", "name": "Diritto Pubblico", "cfu": 10, "year": 1, "ssd": "IUS/09", "national_avg": 24.9 },
+        { "code": "micro_pol", "name": "Economia Politica", "cfu": 10, "year": 1, "ssd": "SECS-P/01", "national_avg": 24.1 },
+        { "code": "sociologia", "name": "Sociologia Generale", "cfu": 10, "year": 1, "ssd": "SPS/07", "national_avg": 26.5 },
+        { "code": "eng_pol", "name": "Lingua Inglese", "cfu": 8, "year": 1, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+
+        { "code": "storia_dottrine", "name": "Storia delle Dottrine Politiche", "cfu": 8, "year": 2, "ssd": "SPS/02", "national_avg": 27.0 },
+        { "code": "dir_privato_pol", "name": "Istituzioni di Diritto Privato", "cfu": 8, "year": 2, "ssd": "IUS/01", "national_avg": 24.5 },
+        { "code": "rel_int", "name": "Relazioni Internazionali", "cfu": 10, "year": 2, "ssd": "SPS/04", "national_avg": 26.8 },
+        { "code": "statistica_pol", "name": "Statistica per le Scienze Sociali", "cfu": 8, "year": 2, "ssd": "SECS-S/01", "national_avg": 24.4 },
+        { "code": "politica_econ", "name": "Politica Economica", "cfu": 10, "year": 2, "ssd": "SECS-P/02", "national_avg": 25.3 },
+        { "code": "lingua2", "name": "Seconda Lingua (es. Francese/Spagnolo)", "cfu": 8, "year": 2, "ssd": "L-LIN/04", "national_avg": 27.5 },
+
+        { "code": "storia_rel_int", "name": "Storia delle Relazioni Internazionali", "cfu": 8, "year": 3, "ssd": "SPS/06", "national_avg": 26.9 },
+        { "code": "dir_int", "name": "Diritto Internazionale", "cfu": 8, "year": 3, "ssd": "IUS/13", "national_avg": 25.1 },
+        { "code": "socio_pol", "name": "Sociologia Politica", "cfu": 8, "year": 3, "ssd": "SPS/11", "national_avg": 27.4 },
+        { "code": "dir_ue", "name": "Diritto dell'Unione Europea", "cfu": 6, "year": 3, "ssd": "IUS/14", "national_avg": 26.1 },
+        { "code": "info_pol", "name": "Abilità Informatiche", "cfu": 6, "year": 3, "ssd": "INF/01", "national_avg": null, "pass_fail": true },
+        { "code": "a_scelta_pol", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 28.0 },
+        { "code": "tirocinio_pol", "name": "Stage / Tirocinio", "cfu": 9, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_pol", "name": "Prova Finale", "cfu": 5, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "lingue_triennale": {
+      "label": "Lingue e Letterature Straniere (Triennale L-11)",
+      "faculty": "humanities",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 6 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "lingua_A1", "name": "Lingua e Traduzione A 1", "cfu": 12, "year": 1, "ssd": "L-LIN/12", "national_avg": 26.1 },
+        { "code": "lett_A1", "name": "Letteratura A 1", "cfu": 9, "year": 1, "ssd": "L-LIN/10", "national_avg": 26.8 },
+        { "code": "lingua_B1", "name": "Lingua e Traduzione B 1", "cfu": 12, "year": 1, "ssd": "L-LIN/04", "national_avg": 25.9 },
+        { "code": "lett_B1", "name": "Letteratura B 1", "cfu": 9, "year": 1, "ssd": "L-LIN/03", "national_avg": 26.5 },
+        { "code": "linguistica_gen", "name": "Glottologia e Linguistica Generale", "cfu": 9, "year": 1, "ssd": "L-LIN/01", "national_avg": 25.5 },
+        { "code": "lett_ita_lin", "name": "Letteratura Italiana", "cfu": 9, "year": 1, "ssd": "L-FIL-LET/10", "national_avg": 26.3 },
+
+        { "code": "lingua_A2", "name": "Lingua e Traduzione A 2", "cfu": 12, "year": 2, "ssd": "L-LIN/12", "national_avg": 26.4 },
+        { "code": "lett_A2", "name": "Letteratura A 2", "cfu": 9, "year": 2, "ssd": "L-LIN/10", "national_avg": 27.1 },
+        { "code": "lingua_B2", "name": "Lingua e Traduzione B 2", "cfu": 12, "year": 2, "ssd": "L-LIN/04", "national_avg": 26.2 },
+        { "code": "lett_B2", "name": "Letteratura B 2", "cfu": 9, "year": 2, "ssd": "L-LIN/03", "national_avg": 26.9 },
+        { "code": "filologia", "name": "Filologia Germanica o Romanza", "cfu": 9, "year": 2, "ssd": "L-FIL-LET/15", "national_avg": 25.0 },
+        { "code": "storia_lin", "name": "Storia Contemporanea", "cfu": 9, "year": 2, "ssd": "M-STO/04", "national_avg": 26.8 },
+
+        { "code": "lingua_A3", "name": "Lingua e Traduzione A 3", "cfu": 12, "year": 3, "ssd": "L-LIN/12", "national_avg": 27.5 },
+        { "code": "lett_A3", "name": "Letteratura A 3", "cfu": 9, "year": 3, "ssd": "L-LIN/10", "national_avg": 28.0 },
+        { "code": "lingua_B3", "name": "Lingua e Traduzione B 3", "cfu": 12, "year": 3, "ssd": "L-LIN/04", "national_avg": 27.3 },
+        { "code": "lett_B3", "name": "Letteratura B 3", "cfu": 9, "year": 3, "ssd": "L-LIN/03", "national_avg": 27.8 },
+        { "code": "a_scelta_lin", "name": "Esami a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 28.5 },
+        { "code": "altre_att_lin", "name": "Idoneità Informatiche", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_lin", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "infermieristica_triennale": {
+      "label": "Infermieristica (Triennale L-SNT1)",
+      "faculty": "medicine",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 7 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "scienze_biomediche", "name": "Anatomia e Istologia", "cfu": 6, "year": 1, "ssd": "BIO/16", "national_avg": 24.5 },
+        { "code": "fisiologia_inf", "name": "Fisiologia", "cfu": 6, "year": 1, "ssd": "BIO/09", "national_avg": 24.1 },
+        { "code": "biologia_inf", "name": "Biologia e Genetica", "cfu": 6, "year": 1, "ssd": "BIO/13", "national_avg": 25.2 },
+        { "code": "inf_generale", "name": "Infermieristica Generale e Teoria", "cfu": 8, "year": 1, "ssd": "MED/45", "national_avg": 27.1 },
+        { "code": "eng_inf", "name": "Inglese Scientifico", "cfu": 4, "year": 1, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+        { "code": "tirocinio_1", "name": "Tirocinio 1° Anno", "cfu": 16, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "patologia_inf", "name": "Patologia Generale e Clinica", "cfu": 8, "year": 2, "ssd": "MED/04", "national_avg": 25.0 },
+        { "code": "farmacologia_inf", "name": "Farmacologia", "cfu": 6, "year": 2, "ssd": "BIO/14", "national_avg": 24.8 },
+        { "code": "inf_clinica", "name": "Infermieristica Clinica 1", "cfu": 8, "year": 2, "ssd": "MED/45", "national_avg": 27.5 },
+        { "code": "med_interna", "name": "Medicina Interna", "cfu": 6, "year": 2, "ssd": "MED/09", "national_avg": 26.2 },
+        { "code": "chirurgia_inf", "name": "Chirurgia Generale", "cfu": 6, "year": 2, "ssd": "MED/18", "national_avg": 26.5 },
+        { "code": "malattie_inf", "name": "Malattie Infettive e Microbiologia", "cfu": 8, "year": 2, "ssd": "MED/17", "national_avg": 26.0 },
+        { "code": "tirocinio_2", "name": "Tirocinio 2° Anno", "cfu": 22, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "materno_infantile", "name": "Infermieristica Materno-Infantile", "cfu": 8, "year": 3, "ssd": "MED/45", "national_avg": 27.8 },
+        { "code": "psichiatria", "name": "Psichiatria e Psicologia Clinica", "cfu": 6, "year": 3, "ssd": "MED/25", "national_avg": 27.2 },
+        { "code": "igiene_inf", "name": "Igiene e Prevenzione", "cfu": 6, "year": 3, "ssd": "MED/42", "national_avg": 27.4 },
+        { "code": "area_critica", "name": "Infermieristica in Area Critica e Urgenza", "cfu": 8, "year": 3, "ssd": "MED/45", "national_avg": 27.9 },
+        { "code": "med_legale_inf", "name": "Medicina Legale e Diritto", "cfu": 6, "year": 3, "ssd": "MED/43", "national_avg": 26.8 },
+        { "code": "info_san", "name": "Informatica", "cfu": 4, "year": 3, "ssd": "INF/01", "national_avg": null, "pass_fail": true },
+        { "code": "a_scelta_inf", "name": "Insegnamenti a scelta", "cfu": 6, "year": 3, "ssd": null, "national_avg": 28.5 },
+        { "code": "tirocinio_3", "name": "Tirocinio 3° Anno", "cfu": 22, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_inf", "name": "Prova Finale / Esame di Stato", "cfu": 18, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_elettronica_triennale": {
+      "label": "Ingegneria Elettronica (Triennale L-8)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 6 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.5 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.1 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.3 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.8 },
+        { "code": "chimica", "name": "Chimica", "cfu": 8, "year": 1, "ssd": "CHIM/07", "national_avg": 25.0 },
+        { "code": "info", "name": "Fondamenti di Informatica", "cfu": 8, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.4 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 23.6 },
+        { "code": "elettrotecnica", "name": "Elettrotecnica", "cfu": 10, "year": 2, "ssd": "ING-IND/31", "national_avg": 24.1 },
+        { "code": "elettronica_an", "name": "Elettronica Analogica", "cfu": 12, "year": 2, "ssd": "ING-INF/01", "national_avg": 24.5 },
+        { "code": "reti_log", "name": "Reti Logiche e Sistemi Digitali", "cfu": 10, "year": 2, "ssd": "ING-INF/05", "national_avg": 25.7 },
+        { "code": "segnali", "name": "Teoria dei Segnali", "cfu": 10, "year": 2, "ssd": "ING-INF/03", "national_avg": 24.8 },
+        { "code": "misure", "name": "Misure Elettroniche", "cfu": 10, "year": 2, "ssd": "ING-INF/07", "national_avg": 25.9 },
+
+        { "code": "controlli", "name": "Controlli Automatici", "cfu": 10, "year": 3, "ssd": "ING-INF/04", "national_avg": 24.6 },
+        { "code": "campi_em", "name": "Campi Elettromagnetici", "cfu": 10, "year": 3, "ssd": "ING-INF/02", "national_avg": 23.9 },
+        { "code": "telecom", "name": "Telecomunicazioni", "cfu": 10, "year": 3, "ssd": "ING-INF/03", "national_avg": 25.2 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 27.8 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_aerospaziale_triennale": {
+      "label": "Ingegneria Aerospaziale (Triennale L-9)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 4 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.4 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.0 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.1 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.5 },
+        { "code": "chimica", "name": "Chimica", "cfu": 8, "year": 1, "ssd": "CHIM/07", "national_avg": 25.1 },
+        { "code": "disegno", "name": "Disegno Tecnico Aerospaziale", "cfu": 8, "year": 1, "ssd": "ING-IND/15", "national_avg": 26.5 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 23.8 },
+        { "code": "mecc_raz", "name": "Meccanica Razionale", "cfu": 10, "year": 2, "ssd": "MAT/07", "national_avg": 23.1 },
+        { "code": "info", "name": "Informatica per l'Ingegneria", "cfu": 6, "year": 2, "ssd": "ING-INF/05", "national_avg": 25.9 },
+        { "code": "scienza_costr", "name": "Scienza delle Costruzioni", "cfu": 10, "year": 2, "ssd": "ICAR/08", "national_avg": 22.5 },
+        { "code": "fisica_tec", "name": "Fisica Tecnica / Termodinamica", "cfu": 10, "year": 2, "ssd": "ING-IND/10", "national_avg": 24.3 },
+        { "code": "aerodinamica", "name": "Aerodinamica", "cfu": 8, "year": 2, "ssd": "ING-IND/06", "national_avg": 24.6 },
+        { "code": "materiali", "name": "Materiali Aerospaziali", "cfu": 8, "year": 2, "ssd": "ING-IND/22", "national_avg": 25.5 },
+
+        { "code": "mecc_volo", "name": "Meccanica del Volo", "cfu": 10, "year": 3, "ssd": "ING-IND/03", "national_avg": 24.9 },
+        { "code": "strutture", "name": "Strutture Aerospaziali", "cfu": 10, "year": 3, "ssd": "ING-IND/04", "national_avg": 24.1 },
+        { "code": "impianti", "name": "Impianti Aerospaziali", "cfu": 10, "year": 3, "ssd": "ING-IND/05", "national_avg": 25.3 },
+        { "code": "propulsione", "name": "Propulsione Aerospaziale", "cfu": 10, "year": 3, "ssd": "ING-IND/07", "national_avg": 24.4 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 28.0 },
+        { "code": "altre_att", "name": "Altre Attività / Laboratorio", "cfu": 5, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 3, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_chimica_triennale": {
+      "label": "Ingegneria Chimica (Triennale L-9)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 5 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.6 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.3 },
+        { "code": "geometria", "name": "Geometria e Algebra", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.4 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.9 },
+        { "code": "chimica_gen", "name": "Chimica Generale e Inorganica", "cfu": 10, "year": 1, "ssd": "CHIM/07", "national_avg": 24.5 },
+        { "code": "info", "name": "Informatica", "cfu": 6, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.8 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 24.1 },
+        { "code": "chimica_org", "name": "Chimica Organica", "cfu": 10, "year": 2, "ssd": "CHIM/06", "national_avg": 23.7 },
+        { "code": "chimica_fis", "name": "Chimica Fisica", "cfu": 10, "year": 2, "ssd": "CHIM/02", "national_avg": 23.5 },
+        { "code": "termo_chim", "name": "Termodinamica dell'Ing. Chimica", "cfu": 10, "year": 2, "ssd": "ING-IND/24", "national_avg": 24.0 },
+        { "code": "trasporto", "name": "Principi di Ing. Chimica (Trasporto)", "cfu": 12, "year": 2, "ssd": "ING-IND/24", "national_avg": 23.8 },
+        { "code": "prin_elettrica", "name": "Principi di Ingegneria Elettrica", "cfu": 10, "year": 2, "ssd": "ING-IND/31", "national_avg": 24.9 },
+
+        { "code": "scienza_mat", "name": "Scienza e Tecnologia dei Materiali", "cfu": 10, "year": 3, "ssd": "ING-IND/22", "national_avg": 25.7 },
+        { "code": "impianti_chim", "name": "Impianti Chimici", "cfu": 12, "year": 3, "ssd": "ING-IND/25", "national_avg": 25.1 },
+        { "code": "reattori", "name": "Reattori Chimici", "cfu": 10, "year": 3, "ssd": "ING-IND/24", "national_avg": 24.3 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 28.1 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 10, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_ambientale_triennale": {
+      "label": "Ingegneria per l'Ambiente e il Territorio (Triennale L-7)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 4 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.7 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.3 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.5 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 24.1 },
+        { "code": "chimica", "name": "Chimica", "cfu": 10, "year": 1, "ssd": "CHIM/07", "national_avg": 25.3 },
+        { "code": "info", "name": "Informatica", "cfu": 6, "year": 1, "ssd": "ING-INF/05", "national_avg": 26.0 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 24.2 },
+        { "code": "topografia", "name": "Topografia e Cartografia", "cfu": 10, "year": 2, "ssd": "ICAR/06", "national_avg": 25.8 },
+        { "code": "mecc_raz", "name": "Meccanica Razionale", "cfu": 8, "year": 2, "ssd": "MAT/07", "national_avg": 23.5 },
+        { "code": "idraulica", "name": "Idraulica", "cfu": 10, "year": 2, "ssd": "ICAR/01", "national_avg": 23.8 },
+        { "code": "scienza_costr", "name": "Scienza delle Costruzioni", "cfu": 10, "year": 2, "ssd": "ICAR/08", "national_avg": 22.8 },
+        { "code": "fisica_tec_amb", "name": "Fisica Tecnica Ambientale", "cfu": 8, "year": 2, "ssd": "ING-IND/11", "national_avg": 24.9 },
+        { "code": "geologia", "name": "Geologia Applicata", "cfu": 6, "year": 2, "ssd": "GEO/05", "national_avg": 26.5 },
+
+        { "code": "ing_sanitaria", "name": "Ingegneria Sanitaria Ambientale", "cfu": 10, "year": 3, "ssd": "ICAR/03", "national_avg": 25.0 },
+        { "code": "costr_idrauliche", "name": "Costruzioni Idrauliche", "cfu": 10, "year": 3, "ssd": "ICAR/02", "national_avg": 24.5 },
+        { "code": "geotecnica", "name": "Geotecnica", "cfu": 10, "year": 3, "ssd": "ICAR/07", "national_avg": 24.7 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 27.9 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_energetica_triennale": {
+      "label": "Ingegneria Energetica (Triennale L-9)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 5 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.4 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.1 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.0 },
+        { "code": "fisica1", "name": "Fisica Sperimentale 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.9 },
+        { "code": "chimica", "name": "Chimica", "cfu": 8, "year": 1, "ssd": "CHIM/07", "national_avg": 24.8 },
+        { "code": "info", "name": "Informatica", "cfu": 6, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.5 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "fisica2", "name": "Fisica Sperimentale 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 23.8 },
+        { "code": "fisica_tec", "name": "Fisica Tecnica e Termodinamica", "cfu": 12, "year": 2, "ssd": "ING-IND/10", "national_avg": 23.5 },
+        { "code": "mecc_raz", "name": "Meccanica Razionale", "cfu": 8, "year": 2, "ssd": "MAT/07", "national_avg": 23.2 },
+        { "code": "elettrotecnica", "name": "Elettrotecnica", "cfu": 10, "year": 2, "ssd": "ING-IND/31", "national_avg": 24.2 },
+        { "code": "macchine", "name": "Macchine a Fluido", "cfu": 10, "year": 2, "ssd": "ING-IND/09", "national_avg": 24.5 },
+        { "code": "materiali", "name": "Scienza dei Materiali", "cfu": 8, "year": 2, "ssd": "ING-IND/22", "national_avg": 25.9 },
+        { "code": "altre_att", "name": "Altre Attività Formative", "cfu": 4, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "sistemi_energ", "name": "Sistemi Energetici", "cfu": 12, "year": 3, "ssd": "ING-IND/09", "national_avg": 24.8 },
+        { "code": "impianti_termo", "name": "Impianti Termotecnici", "cfu": 10, "year": 3, "ssd": "ING-IND/11", "national_avg": 25.4 },
+        { "code": "misure", "name": "Misure e Strumentazione Industriale", "cfu": 10, "year": 3, "ssd": "ING-IND/12", "national_avg": 26.0 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 28.0 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_automazione_triennale": {
+      "label": "Ingegneria dell'Automazione (Triennale L-8)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 5 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.5 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.0 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.3 },
+        { "code": "fisica1", "name": "Fisica Sperimentale 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.7 },
+        { "code": "chimica", "name": "Chimica", "cfu": 8, "year": 1, "ssd": "CHIM/07", "national_avg": 25.1 },
+        { "code": "info", "name": "Fondamenti di Informatica", "cfu": 8, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.4 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "fisica2", "name": "Fisica Sperimentale 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 23.9 },
+        { "code": "elettrotecnica", "name": "Elettrotecnica", "cfu": 10, "year": 2, "ssd": "ING-IND/31", "national_avg": 24.2 },
+        { "code": "elettronica", "name": "Fondamenti di Elettronica", "cfu": 10, "year": 2, "ssd": "ING-INF/01", "national_avg": 24.6 },
+        { "code": "mecc_raz", "name": "Meccanica Razionale", "cfu": 8, "year": 2, "ssd": "MAT/07", "national_avg": 23.4 },
+        { "code": "reti_log", "name": "Reti Logiche", "cfu": 8, "year": 2, "ssd": "ING-INF/05", "national_avg": 25.8 },
+        { "code": "controlli", "name": "Fondamenti di Automatica", "cfu": 10, "year": 2, "ssd": "ING-INF/04", "national_avg": 24.1 },
+        { "code": "altre_att", "name": "Altre Attività Formative", "cfu": 6, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "sistemi_controllo", "name": "Sistemi di Controllo", "cfu": 12, "year": 3, "ssd": "ING-INF/04", "national_avg": 24.5 },
+        { "code": "mecc_macchine", "name": "Meccanica delle Macchine / Azionamenti", "cfu": 10, "year": 3, "ssd": "ING-IND/13", "national_avg": 25.1 },
+        { "code": "tecn_info", "name": "Tecnologie Informatiche per l'Automazione", "cfu": 10, "year": 3, "ssd": "ING-INF/05", "national_avg": 26.2 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 27.9 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 10, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_materiali_triennale": {
+      "label": "Ingegneria dei Materiali (Triennale L-9)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 5 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.6 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.2 },
+        { "code": "geometria", "name": "Geometria e Algebra", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.5 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 24.0 },
+        { "code": "chimica_gen", "name": "Chimica Generale e Inorganica", "cfu": 10, "year": 1, "ssd": "CHIM/07", "national_avg": 24.2 },
+        { "code": "disegno", "name": "Disegno CAD / Informatica", "cfu": 6, "year": 1, "ssd": "ING-IND/15", "national_avg": 26.5 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 23.8 },
+        { "code": "chimica_fis", "name": "Chimica Fisica dei Materiali", "cfu": 10, "year": 2, "ssd": "CHIM/02", "national_avg": 23.5 },
+        { "code": "metallurgia", "name": "Metallurgia", "cfu": 10, "year": 2, "ssd": "ING-IND/21", "national_avg": 24.8 },
+        { "code": "struttura_mat", "name": "Struttura della Materia", "cfu": 8, "year": 2, "ssd": "FIS/03", "national_avg": 24.1 },
+        { "code": "scienza_mat", "name": "Scienza dei Materiali", "cfu": 10, "year": 2, "ssd": "ING-IND/22", "national_avg": 25.5 },
+        { "code": "mecc_solidi", "name": "Meccanica dei Solidi", "cfu": 8, "year": 2, "ssd": "ICAR/08", "national_avg": 23.1 },
+        { "code": "altre_att", "name": "Altre Attività Formative", "cfu": 6, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "mat_polimerici", "name": "Materiali Polimerici", "cfu": 10, "year": 3, "ssd": "ING-IND/22", "national_avg": 25.9 },
+        { "code": "mat_ceramici", "name": "Materiali Ceramici e Compositi", "cfu": 8, "year": 3, "ssd": "ING-IND/22", "national_avg": 26.1 },
+        { "code": "tecnologie_mat", "name": "Tecnologie e Lavorazione dei Materiali", "cfu": 12, "year": 3, "ssd": "ING-IND/16", "national_avg": 25.4 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 27.8 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_elettrica_triennale": {
+      "label": "Ingegneria Elettrica (Triennale L-9)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 5 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.3 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.0 },
+        { "code": "geometria", "name": "Geometria e Algebra", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.2 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.7 },
+        { "code": "chimica", "name": "Chimica", "cfu": 8, "year": 1, "ssd": "CHIM/07", "national_avg": 24.9 },
+        { "code": "info", "name": "Informatica", "cfu": 8, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.6 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 23.8 },
+        { "code": "elettrotecnica1", "name": "Elettrotecnica 1", "cfu": 12, "year": 2, "ssd": "ING-IND/31", "national_avg": 23.5 },
+        { "code": "mecc_app", "name": "Meccanica Applicata", "cfu": 8, "year": 2, "ssd": "ING-IND/13", "national_avg": 24.4 },
+        { "code": "fisica_tec", "name": "Fisica Tecnica", "cfu": 8, "year": 2, "ssd": "ING-IND/10", "national_avg": 24.7 },
+        { "code": "misure_el", "name": "Misure Elettriche", "cfu": 10, "year": 2, "ssd": "ING-INF/07", "national_avg": 25.2 },
+        { "code": "macchine_el1", "name": "Macchine Elettriche 1", "cfu": 10, "year": 2, "ssd": "ING-IND/32", "national_avg": 24.1 },
+        { "code": "altre_att", "name": "Altre Attività Formative", "cfu": 4, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "elettrotecnica2", "name": "Elettrotecnica 2", "cfu": 10, "year": 3, "ssd": "ING-IND/31", "national_avg": 24.5 },
+        { "code": "impianti_el", "name": "Impianti Elettrici", "cfu": 12, "year": 3, "ssd": "ING-IND/33", "national_avg": 25.0 },
+        { "code": "elettronica_pot", "name": "Elettronica di Potenza", "cfu": 10, "year": 3, "ssd": "ING-INF/01", "national_avg": 24.8 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 27.5 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 10, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_meccatronica_triennale": {
+      "label": "Ingegneria Meccatronica (Triennale L-9)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 5 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.4 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.2 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.3 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.9 },
+        { "code": "chimica", "name": "Chimica", "cfu": 8, "year": 1, "ssd": "CHIM/07", "national_avg": 25.0 },
+        { "code": "info", "name": "Informatica", "cfu": 8, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.5 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 24.1 },
+        { "code": "elettrotecnica", "name": "Elettrotecnica", "cfu": 8, "year": 2, "ssd": "ING-IND/31", "national_avg": 24.5 },
+        { "code": "elettronica", "name": "Fondamenti di Elettronica", "cfu": 8, "year": 2, "ssd": "ING-INF/01", "national_avg": 24.7 },
+        { "code": "mecc_app", "name": "Meccanica Applicata alle Macchine", "cfu": 10, "year": 2, "ssd": "ING-IND/13", "national_avg": 23.8 },
+        { "code": "scienza_costr", "name": "Scienza delle Costruzioni", "cfu": 10, "year": 2, "ssd": "ICAR/08", "national_avg": 22.8 },
+        { "code": "controlli", "name": "Controlli Automatici", "cfu": 10, "year": 2, "ssd": "ING-INF/04", "national_avg": 24.4 },
+        { "code": "altre_att", "name": "Altre Attività Formative", "cfu": 6, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "azionamenti", "name": "Azionamenti Elettrici", "cfu": 10, "year": 3, "ssd": "ING-IND/32", "national_avg": 25.1 },
+        { "code": "costr_macchine", "name": "Costruzione di Macchine", "cfu": 10, "year": 3, "ssd": "ING-IND/14", "national_avg": 24.6 },
+        { "code": "robotica", "name": "Robotica Industriale", "cfu": 10, "year": 3, "ssd": "ING-INF/04", "national_avg": 25.8 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 27.9 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_telecomunicazioni_triennale": {
+      "label": "Ingegneria delle Telecomunicazioni (Triennale L-8)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 5 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.5 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.0 },
+        { "code": "geometria", "name": "Geometria e Algebra", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.1 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.7 },
+        { "code": "info", "name": "Fondamenti di Informatica", "cfu": 8, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.4 },
+        { "code": "elettrotecnica", "name": "Elettrotecnica", "cfu": 8, "year": 1, "ssd": "ING-IND/31", "national_avg": 24.0 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 23.8 },
+        { "code": "segnali", "name": "Teoria dei Segnali", "cfu": 10, "year": 2, "ssd": "ING-INF/03", "national_avg": 24.5 },
+        { "code": "campi_em", "name": "Campi Elettromagnetici", "cfu": 10, "year": 2, "ssd": "ING-INF/02", "national_avg": 23.9 },
+        { "code": "reti_tlc", "name": "Reti di Telecomunicazioni", "cfu": 10, "year": 2, "ssd": "ING-INF/03", "national_avg": 25.2 },
+        { "code": "elettronica", "name": "Elettronica", "cfu": 10, "year": 2, "ssd": "ING-INF/01", "national_avg": 24.3 },
+        { "code": "reti_logiche", "name": "Reti Logiche", "cfu": 8, "year": 2, "ssd": "ING-INF/05", "national_avg": 25.7 },
+        { "code": "altre_att", "name": "Altre Attività", "cfu": 4, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "comunicazioni", "name": "Comunicazioni Elettriche", "cfu": 10, "year": 3, "ssd": "ING-INF/03", "national_avg": 24.7 },
+        { "code": "elab_segnali", "name": "Elaborazione Numerica dei Segnali", "cfu": 10, "year": 3, "ssd": "ING-INF/03", "national_avg": 25.0 },
+        { "code": "antenne", "name": "Antenne e Propagazione", "cfu": 10, "year": 3, "ssd": "ING-INF/02", "national_avg": 24.9 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 28.1 },
+        { "code": "tirocinio", "name": "Tirocinio Formativo", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_navale_triennale": {
+      "label": "Ingegneria Navale (Triennale L-9)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 4 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.3 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.0 },
+        { "code": "geometria", "name": "Geometria e Algebra", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.0 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.6 },
+        { "code": "chimica", "name": "Chimica Generale", "cfu": 8, "year": 1, "ssd": "CHIM/07", "national_avg": 24.8 },
+        { "code": "disegno", "name": "Disegno Tecnico Navale", "cfu": 6, "year": 1, "ssd": "ING-IND/15", "national_avg": 26.5 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 8, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "mecc_raz", "name": "Meccanica Razionale", "cfu": 8, "year": 2, "ssd": "MAT/07", "national_avg": 23.4 },
+        { "code": "scienza_costr", "name": "Scienza delle Costruzioni", "cfu": 10, "year": 2, "ssd": "ICAR/08", "national_avg": 22.5 },
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 24.1 },
+        { "code": "arch_navale", "name": "Architettura Navale", "cfu": 12, "year": 2, "ssd": "ING-IND/01", "national_avg": 25.1 },
+        { "code": "fluidodinamica", "name": "Idrodinamica e Fluidodinamica", "cfu": 12, "year": 2, "ssd": "ING-IND/01", "national_avg": 24.5 },
+        { "code": "mecc_app", "name": "Meccanica Applicata", "cfu": 10, "year": 2, "ssd": "ING-IND/13", "national_avg": 23.9 },
+
+        { "code": "costr_navali", "name": "Costruzioni Navali", "cfu": 12, "year": 3, "ssd": "ING-IND/02", "national_avg": 24.2 },
+        { "code": "impianti_navali", "name": "Impianti Navali e Marini", "cfu": 12, "year": 3, "ssd": "ING-IND/02", "national_avg": 25.4 },
+        { "code": "allestimento", "name": "Allestimento Navale", "cfu": 8, "year": 3, "ssd": "ING-IND/02", "national_avg": 26.0 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 27.5 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 10, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_matematica_triennale": {
+      "label": "Ingegneria Matematica (Triennale L-8/L-9)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 4 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 12, "year": 1, "ssd": "MAT/05", "national_avg": 22.8 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 12, "year": 1, "ssd": "MAT/05", "national_avg": 22.5 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 10, "year": 1, "ssd": "MAT/03", "national_avg": 23.5 },
+        { "code": "fisica1", "name": "Fisica Sperimentale 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.8 },
+        { "code": "info", "name": "Fondamenti di Informatica", "cfu": 10, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.1 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "analisi3", "name": "Analisi Reale e Funzionale", "cfu": 8, "year": 2, "ssd": "MAT/05", "national_avg": 23.9 },
+        { "code": "statistica", "name": "Probabilità e Statistica", "cfu": 10, "year": 2, "ssd": "MAT/06", "national_avg": 24.3 },
+        { "code": "fisica2", "name": "Fisica Sperimentale 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 24.0 },
+        { "code": "anal_numerica", "name": "Analisi Numerica", "cfu": 10, "year": 2, "ssd": "MAT/08", "national_avg": 24.6 },
+        { "code": "mecc_raz", "name": "Meccanica Razionale / Analitica", "cfu": 12, "year": 2, "ssd": "MAT/07", "national_avg": 23.5 },
+        { "code": "ric_oper", "name": "Ricerca Operativa", "cfu": 8, "year": 2, "ssd": "MAT/09", "national_avg": 25.2 },
+        { "code": "altre_att", "name": "Laboratorio Informatico", "cfu": 4, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "edp", "name": "Equazioni alle Derivate Parziali", "cfu": 10, "year": 3, "ssd": "MAT/05", "national_avg": 24.8 },
+        { "code": "modelli_mat", "name": "Modellistica Matematica", "cfu": 10, "year": 3, "ssd": "MAT/08", "national_avg": 25.5 },
+        { "code": "statistica_app", "name": "Statistica Applicata / Data Science", "cfu": 10, "year": 3, "ssd": "MAT/06", "national_avg": 26.2 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 15, "year": 3, "ssd": null, "national_avg": 28.2 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 10, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 5, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_edile_architettura_cu": {
+      "label": "Ingegneria Edile-Architettura (Ciclo Unico LM-4 c.u.)",
+      "faculty": "engineering",
+      "total_cfu": 300,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 10 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.4 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.2 },
+        { "code": "disegno", "name": "Disegno e Rappresentazione", "cfu": 10, "year": 1, "ssd": "ICAR/17", "national_avg": 26.8 },
+        { "code": "storia_arch1", "name": "Storia dell'Architettura 1", "cfu": 8, "year": 1, "ssd": "ICAR/18", "national_avg": 26.1 },
+        { "code": "arch_tec1", "name": "Architettura Tecnica 1", "cfu": 10, "year": 1, "ssd": "ICAR/10", "national_avg": 25.5 },
+        { "code": "fisica1", "name": "Fisica Generale", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.8 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 4, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 8, "year": 2, "ssd": "MAT/05", "national_avg": 23.1 },
+        { "code": "fisica_tec", "name": "Fisica Tecnica Ambientale", "cfu": 10, "year": 2, "ssd": "ING-IND/11", "national_avg": 24.5 },
+        { "code": "storia_arch2", "name": "Storia dell'Architettura 2", "cfu": 8, "year": 2, "ssd": "ICAR/18", "national_avg": 26.5 },
+        { "code": "statica", "name": "Statica", "cfu": 10, "year": 2, "ssd": "ICAR/08", "national_avg": 23.0 },
+        { "code": "comp_arch1", "name": "Composizione Architettonica 1", "cfu": 14, "year": 2, "ssd": "ICAR/14", "national_avg": 27.5 },
+        { "code": "materiali", "name": "Tecnologia dei Materiali", "cfu": 10, "year": 2, "ssd": "ING-IND/22", "national_avg": 25.4 },
+
+        { "code": "scienza_costr", "name": "Scienza delle Costruzioni", "cfu": 10, "year": 3, "ssd": "ICAR/08", "national_avg": 22.8 },
+        { "code": "arch_tec2", "name": "Architettura Tecnica 2", "cfu": 12, "year": 3, "ssd": "ICAR/10", "national_avg": 25.2 },
+        { "code": "comp_arch2", "name": "Composizione Architettonica 2", "cfu": 14, "year": 3, "ssd": "ICAR/14", "national_avg": 27.8 },
+        { "code": "topografia", "name": "Topografia", "cfu": 8, "year": 3, "ssd": "ICAR/06", "national_avg": 25.8 },
+        { "code": "impianti", "name": "Impianti Tecnici per l'Edilizia", "cfu": 8, "year": 3, "ssd": "ING-IND/11", "national_avg": 24.9 },
+        { "code": "urbanistica", "name": "Tecnica Urbanistica", "cfu": 8, "year": 3, "ssd": "ICAR/20", "national_avg": 26.2 },
+
+        { "code": "tec_costr", "name": "Tecnica delle Costruzioni", "cfu": 12, "year": 4, "ssd": "ICAR/09", "national_avg": 23.9 },
+        { "code": "comp_arch3", "name": "Composizione Architettonica 3", "cfu": 14, "year": 4, "ssd": "ICAR/14", "national_avg": 28.1 },
+        { "code": "estimo", "name": "Estimo Edile", "cfu": 8, "year": 4, "ssd": "ICAR/22", "national_avg": 26.5 },
+        { "code": "diritto_urb", "name": "Diritto Urbanistico e Lavori Pubblici", "cfu": 6, "year": 4, "ssd": "IUS/10", "national_avg": 27.0 },
+        { "code": "restauro", "name": "Restauro Architettonico", "cfu": 12, "year": 4, "ssd": "ICAR/19", "national_avg": 27.4 },
+        { "code": "geotecnica", "name": "Geotecnica", "cfu": 8, "year": 4, "ssd": "ICAR/07", "national_avg": 24.3 },
+
+        { "code": "cantiere", "name": "Organizzazione e Sicurezza del Cantiere", "cfu": 8, "year": 5, "ssd": "ICAR/11", "national_avg": 26.8 },
+        { "code": "recupero", "name": "Recupero e Riqualificazione Edilizia", "cfu": 12, "year": 5, "ssd": "ICAR/10", "national_avg": 27.2 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 5, "ssd": null, "national_avg": 28.5 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 8, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 20, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_fisica_triennale": {
+      "label": "Ingegneria Fisica (Triennale L-8/L-9)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 4 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.0 },
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 22.8 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 23.5 },
+        { "code": "fisica1", "name": "Fisica Sperimentale 1", "cfu": 12, "year": 1, "ssd": "FIS/01", "national_avg": 23.2 },
+        { "code": "chimica", "name": "Chimica", "cfu": 8, "year": 1, "ssd": "CHIM/07", "national_avg": 24.5 },
+        { "code": "info", "name": "Informatica", "cfu": 6, "year": 1, "ssd": "ING-INF/05", "national_avg": 25.8 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "fisica2", "name": "Fisica Sperimentale 2", "cfu": 12, "year": 2, "ssd": "FIS/01", "national_avg": 23.4 },
+        { "code": "fisica_mod", "name": "Fisica Moderna e Quantistica", "cfu": 10, "year": 2, "ssd": "FIS/02", "national_avg": 23.8 },
+        { "code": "mecc_analitica", "name": "Meccanica Analitica", "cfu": 8, "year": 2, "ssd": "MAT/07", "national_avg": 23.9 },
+        { "code": "elettrotecnica", "name": "Elettrotecnica", "cfu": 8, "year": 2, "ssd": "ING-IND/31", "national_avg": 24.1 },
+        { "code": "elettronica", "name": "Elettronica", "cfu": 10, "year": 2, "ssd": "ING-INF/01", "national_avg": 24.6 },
+        { "code": "strut_materia", "name": "Struttura della Materia", "cfu": 8, "year": 2, "ssd": "FIS/03", "national_avg": 24.5 },
+        { "code": "altre_att", "name": "Laboratorio Informatico / Altre Att.", "cfu": 4, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "stato_solido", "name": "Fisica dello Stato Solido", "cfu": 10, "year": 3, "ssd": "FIS/03", "national_avg": 25.1 },
+        { "code": "ottica", "name": "Ottica e Fotonica", "cfu": 10, "year": 3, "ssd": "FIS/03", "national_avg": 25.5 },
+        { "code": "misure", "name": "Misure e Strumentazione Fisica", "cfu": 10, "year": 3, "ssd": "ING-INF/07", "national_avg": 26.0 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 28.2 },
+        { "code": "tirocinio", "name": "Tirocinio Formativo", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_edile_triennale": {
+      "label": "Ingegneria Edile (Triennale L-23)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 4 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.5 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.3 },
+        { "code": "disegno_ed", "name": "Disegno dell'Edilizia", "cfu": 10, "year": 1, "ssd": "ICAR/17", "national_avg": 26.5 },
+        { "code": "fisica1", "name": "Fisica 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.7 },
+        { "code": "chimica", "name": "Chimica", "cfu": 8, "year": 1, "ssd": "CHIM/07", "national_avg": 24.8 },
+        { "code": "storia_arch", "name": "Storia dell'Architettura", "cfu": 8, "year": 1, "ssd": "ICAR/18", "national_avg": 26.0 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 8, "year": 2, "ssd": "MAT/05", "national_avg": 23.3 },
+        { "code": "fisica_tec", "name": "Fisica Tecnica", "cfu": 10, "year": 2, "ssd": "ING-IND/11", "national_avg": 24.6 },
+        { "code": "statica", "name": "Statica", "cfu": 10, "year": 2, "ssd": "ICAR/08", "national_avg": 23.1 },
+        { "code": "arch_tec1", "name": "Architettura Tecnica 1", "cfu": 12, "year": 2, "ssd": "ICAR/10", "national_avg": 25.5 },
+        { "code": "topografia", "name": "Topografia", "cfu": 10, "year": 2, "ssd": "ICAR/06", "national_avg": 25.9 },
+        { "code": "mat_edile", "name": "Materiali per l'Edilizia", "cfu": 10, "year": 2, "ssd": "ING-IND/22", "national_avg": 25.7 },
+
+        { "code": "scienza_costr", "name": "Scienza delle Costruzioni", "cfu": 10, "year": 3, "ssd": "ICAR/08", "national_avg": 22.8 },
+        { "code": "arch_tec2", "name": "Architettura Tecnica 2", "cfu": 12, "year": 3, "ssd": "ICAR/10", "national_avg": 25.2 },
+        { "code": "impianti_tec", "name": "Impianti Tecnici", "cfu": 10, "year": 3, "ssd": "ING-IND/11", "national_avg": 25.0 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 27.9 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 10, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "ingegneria_sicurezza_triennale": {
+      "label": "Ingegneria della Sicurezza (Triennale L-7)",
+      "faculty": "engineering",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 4 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 23.6 },
+        { "code": "geometria", "name": "Geometria e Algebra Lineare", "cfu": 8, "year": 1, "ssd": "MAT/03", "national_avg": 24.3 },
+        { "code": "fisica", "name": "Fisica Generale", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.9 },
+        { "code": "chimica", "name": "Chimica Generale", "cfu": 10, "year": 1, "ssd": "CHIM/07", "national_avg": 24.9 },
+        { "code": "info", "name": "Informatica", "cfu": 6, "year": 1, "ssd": "ING-INF/05", "national_avg": 26.2 },
+        { "code": "disegno", "name": "Disegno", "cfu": 10, "year": 1, "ssd": "ICAR/17", "national_avg": 26.8 },
+        { "code": "eng_b2", "name": "Lingua Inglese B2", "cfu": 6, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 8, "year": 2, "ssd": "MAT/05", "national_avg": 23.1 },
+        { "code": "fisica2", "name": "Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 24.0 },
+        { "code": "mecc_raz", "name": "Meccanica Razionale", "cfu": 8, "year": 2, "ssd": "MAT/07", "national_avg": 23.4 },
+        { "code": "scienza_costr", "name": "Scienza delle Costruzioni", "cfu": 10, "year": 2, "ssd": "ICAR/08", "national_avg": 22.9 },
+        { "code": "sicurezza_ind", "name": "Impianti Industriali e Sicurezza", "cfu": 12, "year": 2, "ssd": "ING-IND/17", "national_avg": 25.5 },
+        { "code": "sicurezza_el", "name": "Elettrotecnica e Sicurezza Elettrica", "cfu": 8, "year": 2, "ssd": "ING-IND/31", "national_avg": 24.6 },
+        { "code": "altre_att", "name": "Altre Attività Formative", "cfu": 6, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "idraulica_rischio", "name": "Idraulica e Rischio Idrogeologico", "cfu": 10, "year": 3, "ssd": "ICAR/01", "national_avg": 24.2 },
+        { "code": "tec_costr", "name": "Tecnica delle Costruzioni", "cfu": 10, "year": 3, "ssd": "ICAR/09", "national_avg": 24.5 },
+        { "code": "antincendio", "name": "Prevenzione Incendi", "cfu": 8, "year": 3, "ssd": "ING-IND/11", "national_avg": 26.1 },
+        { "code": "a_scelta", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 27.9 },
+        { "code": "tirocinio", "name": "Tirocinio", "cfu": 15, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale", "name": "Prova Finale", "cfu": 5, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "farmacia_ciclo_unico": {
+      "label": "Farmacia (Ciclo Unico LM-13)",
+      "faculty": "medicine",
+      "total_cfu": 300,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 16 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "biologia_veg_an", "name": "Biologia Animale e Vegetale", "cfu": 10, "year": 1, "ssd": "BIO/15", "national_avg": 25.1 },
+        { "code": "chimica_gen_far", "name": "Chimica Generale e Inorganica", "cfu": 12, "year": 1, "ssd": "CHIM/03", "national_avg": 23.8 },
+        { "code": "fisica_far", "name": "Fisica", "cfu": 8, "year": 1, "ssd": "FIS/07", "national_avg": 24.5 },
+        { "code": "mat_stat_far", "name": "Matematica e Statistica", "cfu": 8, "year": 1, "ssd": "MAT/05", "national_avg": 24.2 },
+        { "code": "anatomia_far", "name": "Anatomia Umana", "cfu": 10, "year": 1, "ssd": "BIO/16", "national_avg": 25.4 },
+        { "code": "info_eng_far", "name": "Informatica e Inglese", "cfu": 12, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "chimica_org_far", "name": "Chimica Organica", "cfu": 12, "year": 2, "ssd": "CHIM/06", "national_avg": 22.9 },
+        { "code": "chimica_analitica", "name": "Chimica Analitica", "cfu": 10, "year": 2, "ssd": "CHIM/01", "national_avg": 23.5 },
+        { "code": "fisiologia_far", "name": "Fisiologia Generale", "cfu": 10, "year": 2, "ssd": "BIO/09", "national_avg": 24.1 },
+        { "code": "biochimica_far", "name": "Biochimica", "cfu": 12, "year": 2, "ssd": "BIO/10", "national_avg": 23.8 },
+        { "code": "microbiologia_far", "name": "Microbiologia", "cfu": 8, "year": 2, "ssd": "MED/07", "national_avg": 25.5 },
+        { "code": "botanica_far", "name": "Botanica Farmaceutica", "cfu": 8, "year": 2, "ssd": "BIO/15", "national_avg": 26.1 },
+
+        { "code": "chimica_farm1", "name": "Chimica Farmaceutica 1", "cfu": 12, "year": 3, "ssd": "CHIM/08", "national_avg": 23.0 },
+        { "code": "farmacologia1", "name": "Farmacologia e Farmacoterapia 1", "cfu": 10, "year": 3, "ssd": "BIO/14", "national_avg": 24.2 },
+        { "code": "patologia_far", "name": "Patologia Generale", "cfu": 10, "year": 3, "ssd": "MED/04", "national_avg": 24.8 },
+        { "code": "igiene_far", "name": "Igiene", "cfu": 8, "year": 3, "ssd": "MED/42", "national_avg": 26.5 },
+        { "code": "analisi_farm1", "name": "Analisi dei Farmaci 1", "cfu": 10, "year": 3, "ssd": "CHIM/08", "national_avg": 24.5 },
+        { "code": "tecnologia_farm1", "name": "Tecnologia Farmaceutica 1", "cfu": 10, "year": 3, "ssd": "CHIM/09", "national_avg": 25.1 },
+
+        { "code": "chimica_farm2", "name": "Chimica Farmaceutica 2", "cfu": 12, "year": 4, "ssd": "CHIM/08", "national_avg": 23.2 },
+        { "code": "farmacologia2", "name": "Farmacologia e Farmacoterapia 2", "cfu": 10, "year": 4, "ssd": "BIO/14", "national_avg": 24.5 },
+        { "code": "tossicologia", "name": "Tossicologia", "cfu": 8, "year": 4, "ssd": "BIO/14", "national_avg": 25.6 },
+        { "code": "analisi_farm2", "name": "Analisi dei Farmaci 2", "cfu": 10, "year": 4, "ssd": "CHIM/08", "national_avg": 24.1 },
+        { "code": "tecnologia_farm2", "name": "Tecnologia Farmaceutica 2", "cfu": 10, "year": 4, "ssd": "CHIM/09", "national_avg": 25.0 },
+        { "code": "a_scelta_far1", "name": "Insegnamenti a scelta", "cfu": 10, "year": 4, "ssd": null, "national_avg": 28.0 },
+
+        { "code": "legislazione", "name": "Legislazione Farmaceutica", "cfu": 8, "year": 5, "ssd": "CHIM/09", "national_avg": 26.2 },
+        { "code": "a_scelta_far2", "name": "Insegnamenti a scelta", "cfu": 6, "year": 5, "ssd": null, "national_avg": 28.5 },
+        { "code": "tirocinio_far", "name": "Tirocinio Professionale in Farmacia", "cfu": 30, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_far", "name": "Prova Finale", "cfu": 16, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "fisica_triennale": {
+      "label": "Fisica (Triennale L-30)",
+      "faculty": "sciences",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 6 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 12, "year": 1, "ssd": "MAT/05", "national_avg": 22.8 },
+        { "code": "geometria", "name": "Geometria e Algebra", "cfu": 10, "year": 1, "ssd": "MAT/03", "national_avg": 23.5 },
+        { "code": "fisica1_mec", "name": "Fisica 1 (Meccanica e Termodinamica)", "cfu": 12, "year": 1, "ssd": "FIS/01", "national_avg": 22.9 },
+        { "code": "lab_fisica1", "name": "Laboratorio di Fisica 1", "cfu": 8, "year": 1, "ssd": "FIS/01", "national_avg": 26.5 },
+        { "code": "info_fis", "name": "Informatica per la Fisica", "cfu": 8, "year": 1, "ssd": "INF/01", "national_avg": 26.1 },
+        { "code": "chimica_fis", "name": "Chimica Generale", "cfu": 6, "year": 1, "ssd": "CHIM/03", "national_avg": 24.8 },
+        { "code": "eng_fis", "name": "Lingua Inglese", "cfu": 4, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 10, "year": 2, "ssd": "MAT/05", "national_avg": 22.5 },
+        { "code": "fisica2_em", "name": "Fisica 2 (Elettromagnetismo e Ottica)", "cfu": 12, "year": 2, "ssd": "FIS/02", "national_avg": 22.7 },
+        { "code": "lab_fisica2", "name": "Laboratorio di Fisica 2", "cfu": 8, "year": 2, "ssd": "FIS/01", "national_avg": 26.8 },
+        { "code": "metodi_mat", "name": "Metodi Matematici della Fisica", "cfu": 10, "year": 2, "ssd": "MAT/07", "national_avg": 23.2 },
+        { "code": "mecc_analitica", "name": "Meccanica Analitica", "cfu": 10, "year": 2, "ssd": "MAT/07", "national_avg": 23.9 },
+        { "code": "termodinamica", "name": "Termodinamica Statistica", "cfu": 10, "year": 2, "ssd": "FIS/02", "national_avg": 24.1 },
+
+        { "code": "mecc_quantistica", "name": "Meccanica Quantistica", "cfu": 12, "year": 3, "ssd": "FIS/02", "national_avg": 23.5 },
+        { "code": "struttura_mat", "name": "Struttura della Materia", "cfu": 10, "year": 3, "ssd": "FIS/03", "national_avg": 24.2 },
+        { "code": "fisica_nucleare", "name": "Fisica Nucleare e Subnucleare", "cfu": 10, "year": 3, "ssd": "FIS/04", "national_avg": 24.8 },
+        { "code": "lab_fisica3", "name": "Laboratorio di Fisica 3 (Elettronica)", "cfu": 8, "year": 3, "ssd": "FIS/01", "national_avg": 27.1 },
+        { "code": "a_scelta_fis", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 28.3 },
+        { "code": "altre_att_fis", "name": "Tirocinio / Altre attività", "cfu": 4, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_fis", "name": "Prova Finale", "cfu": 4, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "agraria_triennale": {
+      "label": "Scienze e Tecnologie Agrarie (Triennale L-25)",
+      "faculty": "sciences",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 6 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "mat_fis_agr", "name": "Matematica e Fisica", "cfu": 10, "year": 1, "ssd": "MAT/05", "national_avg": 24.3 },
+        { "code": "chimica_agr", "name": "Chimica Generale e Inorganica", "cfu": 10, "year": 1, "ssd": "CHIM/03", "national_avg": 24.8 },
+        { "code": "biologia_veg", "name": "Biologia Vegetale e Botanica", "cfu": 10, "year": 1, "ssd": "BIO/15", "national_avg": 26.1 },
+        { "code": "genetica_agr", "name": "Genetica Agraria", "cfu": 8, "year": 1, "ssd": "AGR/07", "national_avg": 25.5 },
+        { "code": "agronomia", "name": "Agronomia", "cfu": 12, "year": 1, "ssd": "AGR/02", "national_avg": 26.4 },
+        { "code": "info_agr", "name": "Informatica", "cfu": 6, "year": 1, "ssd": "INF/01", "national_avg": 27.2 },
+        { "code": "eng_agr", "name": "Lingua Inglese", "cfu": 4, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "chimica_agraria", "name": "Chimica Agraria e Biochimica", "cfu": 10, "year": 2, "ssd": "AGR/13", "national_avg": 24.5 },
+        { "code": "microbiologia_agr", "name": "Microbiologia Agraria", "cfu": 8, "year": 2, "ssd": "AGR/16", "national_avg": 25.8 },
+        { "code": "patologia_veg", "name": "Patologia Vegetale", "cfu": 10, "year": 2, "ssd": "AGR/12", "national_avg": 25.1 },
+        { "code": "entomologia", "name": "Entomologia Generale e Applicata", "cfu": 8, "year": 2, "ssd": "AGR/11", "national_avg": 26.0 },
+        { "code": "mecc_agr", "name": "Meccanica Agraria", "cfu": 8, "year": 2, "ssd": "AGR/09", "national_avg": 26.5 },
+        { "code": "econ_agr", "name": "Economia ed Estimo Rurale", "cfu": 10, "year": 2, "ssd": "AGR/01", "national_avg": 25.7 },
+        { "code": "altre_att_agr", "name": "Altre Attività Formative", "cfu": 6, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "coltiv_erb", "name": "Coltivazioni Erbacee", "cfu": 10, "year": 3, "ssd": "AGR/02", "national_avg": 26.8 },
+        { "code": "coltiv_arb", "name": "Coltivazioni Arboree", "cfu": 10, "year": 3, "ssd": "AGR/03", "national_avg": 26.9 },
+        { "code": "zootecnica", "name": "Zootecnica Generale", "cfu": 10, "year": 3, "ssd": "AGR/19", "national_avg": 26.5 },
+        { "code": "a_scelta_agr", "name": "Insegnamenti a scelta", "cfu": 12, "year": 3, "ssd": null, "national_avg": 28.2 },
+        { "code": "tirocinio_agr", "name": "Tirocinio Pratico", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_agr", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "scienze_formazione_primaria_cu": {
+      "label": "Scienze della Formazione Primaria (Ciclo Unico LM-85bis)",
+      "faculty": "humanities",
+      "total_cfu": 300,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 9 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "pedagogia_gen", "name": "Pedagogia Generale e Sociale", "cfu": 10, "year": 1, "ssd": "M-PED/01", "national_avg": 27.5 },
+        { "code": "psicologia_sviluppo", "name": "Psicologia dello Sviluppo", "cfu": 10, "year": 1, "ssd": "M-PSI/04", "national_avg": 27.1 },
+        { "code": "lett_ita_sfp", "name": "Letteratura Italiana", "cfu": 8, "year": 1, "ssd": "L-FIL-LET/10", "national_avg": 26.8 },
+        { "code": "geografia_sfp", "name": "Geografia", "cfu": 8, "year": 1, "ssd": "M-GGR/01", "national_avg": 27.4 },
+        { "code": "didattica_gen", "name": "Didattica Generale", "cfu": 10, "year": 1, "ssd": "M-PED/03", "national_avg": 28.0 },
+        { "code": "storia_sfp", "name": "Storia Antica e Medievale", "cfu": 8, "year": 1, "ssd": "M-STO/01", "national_avg": 26.5 },
+        { "code": "inglese_1", "name": "Lingua Inglese 1", "cfu": 4, "year": 1, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+        { "code": "lab_1", "name": "Laboratori Pedagogici", "cfu": 2, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "pedagogia_speciale", "name": "Pedagogia Speciale", "cfu": 10, "year": 2, "ssd": "M-PED/03", "national_avg": 28.2 },
+        { "code": "lingua_ita", "name": "Linguistica Italiana", "cfu": 10, "year": 2, "ssd": "L-FIL-LET/12", "national_avg": 26.1 },
+        { "code": "matematica_sfp", "name": "Fondamenti di Matematica", "cfu": 10, "year": 2, "ssd": "MAT/04", "national_avg": 24.5 },
+        { "code": "storia_arte_sfp", "name": "Storia dell'Arte", "cfu": 8, "year": 2, "ssd": "L-ART/02", "national_avg": 27.6 },
+        { "code": "musica", "name": "Didattica della Musica", "cfu": 8, "year": 2, "ssd": "L-ART/07", "national_avg": 28.5 },
+        { "code": "tirocinio_t1", "name": "Tirocinio Diretto e Indiretto T1", "cfu": 8, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "inglese_2", "name": "Lingua Inglese 2", "cfu": 4, "year": 2, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+        { "code": "lab_2", "name": "Laboratori Didattici", "cfu": 2, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "didattica_mat", "name": "Didattica della Matematica", "cfu": 10, "year": 3, "ssd": "MAT/04", "national_avg": 25.8 },
+        { "code": "scienze_terra", "name": "Scienze della Terra e Biologia", "cfu": 10, "year": 3, "ssd": "BIO/05", "national_avg": 26.0 },
+        { "code": "didattica_ita", "name": "Didattica dell'Italiano", "cfu": 8, "year": 3, "ssd": "L-FIL-LET/12", "national_avg": 27.0 },
+        { "code": "psicologia_edu", "name": "Psicologia dell'Educazione", "cfu": 8, "year": 3, "ssd": "M-PSI/04", "national_avg": 27.5 },
+        { "code": "tirocinio_t2", "name": "Tirocinio T2", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "inglese_3", "name": "Lingua Inglese 3", "cfu": 4, "year": 3, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+        { "code": "ed_motoria", "name": "Didattica dell'Educazione Motoria", "cfu": 6, "year": 3, "ssd": "M-EDF/01", "national_avg": 28.8 },
+        { "code": "lab_3", "name": "Laboratori di Scienze e Matematica", "cfu": 2, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "didattica_scienze", "name": "Didattica delle Scienze", "cfu": 10, "year": 4, "ssd": "FIS/08", "national_avg": 26.5 },
+        { "code": "didattica_stor_geo", "name": "Didattica della Storia e Geografia", "cfu": 10, "year": 4, "ssd": "M-STO/04", "national_avg": 27.2 },
+        { "code": "diritto_scol", "name": "Legislazione Scolastica", "cfu": 8, "year": 4, "ssd": "IUS/09", "national_avg": 26.8 },
+        { "code": "tecnologie_did", "name": "Tecnologie Didattiche", "cfu": 8, "year": 4, "ssd": "M-PED/03", "national_avg": 28.1 },
+        { "code": "tirocinio_t3", "name": "Tirocinio T3", "cfu": 12, "year": 4, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "inglese_4", "name": "Lingua Inglese 4", "cfu": 4, "year": 4, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+        { "code": "igiene_sfp", "name": "Igiene ed Educazione alla Salute", "cfu": 6, "year": 4, "ssd": "MED/42", "national_avg": 27.9 },
+        { "code": "lab_4", "name": "Laboratori sulle Tecnologie", "cfu": 2, "year": 4, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "docimologia", "name": "Docimologia e Valutazione", "cfu": 8, "year": 5, "ssd": "M-PED/04", "national_avg": 27.6 },
+        { "code": "tirocinio_t4", "name": "Tirocinio T4 (Anno Finale)", "cfu": 16, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "a_scelta_sfp", "name": "Insegnamenti a scelta", "cfu": 16, "year": 5, "ssd": null, "national_avg": 28.5 },
+        { "code": "inglese_5", "name": "Lingua Inglese 5", "cfu": 4, "year": 5, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+        { "code": "lab_5", "name": "Laboratorio Inglese / Tesi", "cfu": 2, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_sfp", "name": "Prova Finale e Discussione Tesi", "cfu": 14, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "odontoiatria_ciclo_unico": {
+      "label": "Odontoiatria e Protesi Dentaria (Ciclo Unico LM-46)",
+      "faculty": "medicine",
+      "total_cfu": 360,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 12 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "biologia_odo", "name": "Biologia e Genetica", "cfu": 8, "year": 1, "ssd": "BIO/13", "national_avg": 25.8 },
+        { "code": "chimica_odo", "name": "Chimica Medica", "cfu": 8, "year": 1, "ssd": "BIO/10", "national_avg": 24.5 },
+        { "code": "fisica_odo", "name": "Fisica e Statistica", "cfu": 8, "year": 1, "ssd": "FIS/07", "national_avg": 25.1 },
+        { "code": "anatomia_odo", "name": "Anatomia Umana", "cfu": 12, "year": 1, "ssd": "BIO/16", "national_avg": 24.2 },
+        { "code": "istologia_odo", "name": "Istologia ed Embriologia", "cfu": 8, "year": 1, "ssd": "BIO/17", "national_avg": 26.0 },
+        { "code": "mat_dentari", "name": "Materiali Dentari", "cfu": 8, "year": 1, "ssd": "MED/28", "national_avg": 27.2 },
+        { "code": "info_eng_odo", "name": "Inglese Scientifico e Informatica", "cfu": 8, "year": 1, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "fisiologia_odo", "name": "Fisiologia", "cfu": 10, "year": 2, "ssd": "BIO/09", "national_avg": 24.1 },
+        { "code": "biochimica_odo", "name": "Biochimica", "cfu": 10, "year": 2, "ssd": "BIO/10", "national_avg": 23.8 },
+        { "code": "patologia_odo", "name": "Patologia Generale", "cfu": 10, "year": 2, "ssd": "MED/04", "national_avg": 24.5 },
+        { "code": "microbiologia_odo", "name": "Microbiologia e Igiene", "cfu": 8, "year": 2, "ssd": "MED/07", "national_avg": 25.4 },
+        { "code": "stomatologia", "name": "Scienze Odontostomatologiche", "cfu": 12, "year": 2, "ssd": "MED/28", "national_avg": 26.8 },
+        { "code": "tirocinio_odo1", "name": "Tirocinio Osservazionale", "cfu": 10, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "farmacologia_odo", "name": "Farmacologia", "cfu": 10, "year": 3, "ssd": "BIO/14", "national_avg": 24.9 },
+        { "code": "anat_pat_odo", "name": "Anatomia Patologica Speciale", "cfu": 10, "year": 3, "ssd": "MED/08", "national_avg": 25.3 },
+        { "code": "med_interna_odo", "name": "Medicina Interna", "cfu": 10, "year": 3, "ssd": "MED/09", "national_avg": 26.1 },
+        { "code": "chirurgia_gen_odo", "name": "Chirurgia Generale", "cfu": 10, "year": 3, "ssd": "MED/18", "national_avg": 26.5 },
+        { "code": "igiene_odo", "name": "Igiene e Odontoiatria Preventiva", "cfu": 8, "year": 3, "ssd": "MED/42", "national_avg": 27.4 },
+        { "code": "tirocinio_odo2", "name": "Tirocinio Preclinico", "cfu": 12, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "conservativa", "name": "Odontoiatria Conservativa", "cfu": 12, "year": 4, "ssd": "MED/28", "national_avg": 27.5 },
+        { "code": "endodonzia", "name": "Endodonzia", "cfu": 10, "year": 4, "ssd": "MED/28", "national_avg": 27.1 },
+        { "code": "chirurgia_orale", "name": "Chirurgia Speciale Odontostomatologica", "cfu": 10, "year": 4, "ssd": "MED/28", "national_avg": 26.9 },
+        { "code": "gnatologia", "name": "Gnatologia Clinica", "cfu": 8, "year": 4, "ssd": "MED/28", "national_avg": 26.5 },
+        { "code": "a_scelta_odo1", "name": "Insegnamenti a scelta", "cfu": 8, "year": 4, "ssd": null, "national_avg": 28.2 },
+        { "code": "tirocinio_odo3", "name": "Tirocinio Clinico 1", "cfu": 12, "year": 4, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "protesi", "name": "Protesi Dentaria", "cfu": 12, "year": 5, "ssd": "MED/28", "national_avg": 26.6 },
+        { "code": "parodontologia", "name": "Parodontologia", "cfu": 10, "year": 5, "ssd": "MED/28", "national_avg": 27.0 },
+        { "code": "ortodonzia", "name": "Ortognatodonzia", "cfu": 10, "year": 5, "ssd": "MED/28", "national_avg": 26.8 },
+        { "code": "pedodonzia", "name": "Odontoiatria Pediatrica", "cfu": 8, "year": 5, "ssd": "MED/28", "national_avg": 27.8 },
+        { "code": "med_legale_odo", "name": "Medicina Legale", "cfu": 8, "year": 5, "ssd": "MED/43", "national_avg": 27.2 },
+        { "code": "tirocinio_odo4", "name": "Tirocinio Clinico 2", "cfu": 12, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "clinica_odo", "name": "Clinica Odontostomatologica", "cfu": 12, "year": 6, "ssd": "MED/28", "national_avg": 27.7 },
+        { "code": "implantologia", "name": "Implantologia", "cfu": 8, "year": 6, "ssd": "MED/28", "national_avg": 27.5 },
+        { "code": "maxillo", "name": "Chirurgia Maxillo-Facciale", "cfu": 8, "year": 6, "ssd": "MED/29", "national_avg": 27.1 },
+        { "code": "tirocinio_odo5", "name": "Tirocinio Clinico Finale", "cfu": 22, "year": 6, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_odo", "name": "Tesi di Laurea", "cfu": 10, "year": 6, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "veterinaria_ciclo_unico": {
+      "label": "Medicina Veterinaria (Ciclo Unico LM-42)",
+      "faculty": "medicine",
+      "total_cfu": 300,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 10 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "biologia_vet", "name": "Zoologia e Botanica Veterinaria", "cfu": 10, "year": 1, "ssd": "BIO/05", "national_avg": 25.5 },
+        { "code": "chimica_vet", "name": "Chimica e Biochimica", "cfu": 10, "year": 1, "ssd": "BIO/10", "national_avg": 24.1 },
+        { "code": "fisica_vet", "name": "Fisica e Statistica Medica", "cfu": 8, "year": 1, "ssd": "FIS/07", "national_avg": 24.8 },
+        { "code": "anatomia_vet1", "name": "Anatomia Veterinaria Sistemica e Comparata", "cfu": 12, "year": 1, "ssd": "VET/01", "national_avg": 23.5 },
+        { "code": "istologia_vet", "name": "Istologia ed Embriologia", "cfu": 10, "year": 1, "ssd": "VET/01", "national_avg": 25.2 },
+        { "code": "eng_vet", "name": "Lingua Inglese", "cfu": 10, "year": 1, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+
+        { "code": "anatomia_vet2", "name": "Anatomia Topografica Veterinaria", "cfu": 10, "year": 2, "ssd": "VET/01", "national_avg": 23.8 },
+        { "code": "fisiologia_vet1", "name": "Fisiologia Veterinaria ed Etologia", "cfu": 10, "year": 2, "ssd": "VET/02", "national_avg": 24.2 },
+        { "code": "zootecnia", "name": "Genetica e Zootecnia Generale", "cfu": 12, "year": 2, "ssd": "AGR/17", "national_avg": 26.0 },
+        { "code": "microbiologia_vet", "name": "Microbiologia e Immunologia Veterinaria", "cfu": 12, "year": 2, "ssd": "VET/05", "national_avg": 24.9 },
+        { "code": "fisiologia_vet2", "name": "Endocrinologia Veterinaria", "cfu": 8, "year": 2, "ssd": "VET/02", "national_avg": 25.1 },
+        { "code": "tirocinio_vet1", "name": "Tirocinio Pratico", "cfu": 8, "year": 2, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "patologia_gen_vet", "name": "Patologia Generale e Fisiopatologia Vet.", "cfu": 10, "year": 3, "ssd": "VET/03", "national_avg": 24.0 },
+        { "code": "nutrizione_vet", "name": "Nutrizione Animale", "cfu": 10, "year": 3, "ssd": "AGR/18", "national_avg": 26.5 },
+        { "code": "farmacologia_vet", "name": "Farmacologia e Tossicologia Veterinaria", "cfu": 10, "year": 3, "ssd": "VET/07", "national_avg": 24.6 },
+        { "code": "infettive_vet", "name": "Malattie Infettive e Patologia Aviare", "cfu": 12, "year": 3, "ssd": "VET/05", "national_avg": 25.0 },
+        { "code": "parassitologia", "name": "Parassitologia Veterinaria", "cfu": 10, "year": 3, "ssd": "VET/06", "national_avg": 25.4 },
+        { "code": "tirocinio_vet2", "name": "Tirocinio Pratico", "cfu": 8, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "anat_pat_vet", "name": "Anatomia Patologica Veterinaria", "cfu": 10, "year": 4, "ssd": "VET/03", "national_avg": 24.2 },
+        { "code": "clinica_medica_vet", "name": "Clinica Medica Veterinaria", "cfu": 12, "year": 4, "ssd": "VET/08", "national_avg": 25.3 },
+        { "code": "clinica_chir_vet", "name": "Clinica Chirurgica Veterinaria", "cfu": 12, "year": 4, "ssd": "VET/09", "national_avg": 25.7 },
+        { "code": "ostetricia_vet", "name": "Ostetricia e Ginecologia Veterinaria", "cfu": 10, "year": 4, "ssd": "VET/10", "national_avg": 25.9 },
+        { "code": "ispezione_alimenti", "name": "Ispezione degli Alimenti", "cfu": 8, "year": 4, "ssd": "VET/04", "national_avg": 26.1 },
+        { "code": "tirocinio_vet3", "name": "Tirocinio Pratico", "cfu": 8, "year": 4, "ssd": null, "national_avg": null, "pass_fail": true },
+
+        { "code": "med_legale_vet", "name": "Medicina Legale e Sanità Pubblica Veterinaria", "cfu": 8, "year": 5, "ssd": "VET/08", "national_avg": 26.5 },
+        { "code": "clinica_ostetrica", "name": "Clinica Ostetrica e Patologia Riproduzione", "cfu": 10, "year": 5, "ssd": "VET/10", "national_avg": 26.8 },
+        { "code": "a_scelta_vet", "name": "Insegnamenti a scelta", "cfu": 12, "year": 5, "ssd": null, "national_avg": 28.0 },
+        { "code": "tirocinio_clinico", "name": "Tirocinio Clinico Pratico", "cfu": 20, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_vet", "name": "Prova Finale", "cfu": 10, "year": 5, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "matematica_triennale": {
+      "label": "Matematica (Triennale L-35)",
+      "faculty": "sciences",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 6 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "analisi1", "name": "Analisi Matematica 1", "cfu": 12, "year": 1, "ssd": "MAT/05", "national_avg": 22.0 },
+        { "code": "geometria1", "name": "Geometria 1", "cfu": 12, "year": 1, "ssd": "MAT/03", "national_avg": 22.5 },
+        { "code": "algebra1", "name": "Algebra 1", "cfu": 10, "year": 1, "ssd": "MAT/02", "national_avg": 23.1 },
+        { "code": "info_mat", "name": "Informatica", "cfu": 9, "year": 1, "ssd": "INF/01", "national_avg": 25.8 },
+        { "code": "fisica1_mat", "name": "Fisica Sperimentale 1", "cfu": 10, "year": 1, "ssd": "FIS/01", "national_avg": 23.5 },
+        { "code": "eng_mat", "name": "Lingua Inglese", "cfu": 7, "year": 1, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+
+        { "code": "analisi2", "name": "Analisi Matematica 2", "cfu": 12, "year": 2, "ssd": "MAT/05", "national_avg": 21.8 },
+        { "code": "geometria2", "name": "Geometria 2", "cfu": 12, "year": 2, "ssd": "MAT/03", "national_avg": 22.4 },
+        { "code": "fisica2_mat", "name": "Fisica Sperimentale 2", "cfu": 10, "year": 2, "ssd": "FIS/01", "national_avg": 23.0 },
+        { "code": "probabilita", "name": "Calcolo delle Probabilità", "cfu": 10, "year": 2, "ssd": "MAT/06", "national_avg": 24.1 },
+        { "code": "mecc_razionale_mat", "name": "Meccanica Razionale", "cfu": 10, "year": 2, "ssd": "MAT/07", "national_avg": 22.9 },
+        { "code": "algebra2", "name": "Algebra 2", "cfu": 6, "year": 2, "ssd": "MAT/02", "national_avg": 23.8 },
+
+        { "code": "analisi3", "name": "Analisi Reale e Complessa", "cfu": 10, "year": 3, "ssd": "MAT/05", "national_avg": 24.2 },
+        { "code": "calcolo_num", "name": "Calcolo Numerico", "cfu": 10, "year": 3, "ssd": "MAT/08", "national_avg": 25.1 },
+        { "code": "topologia", "name": "Topologia e Geometria Differenziale", "cfu": 10, "year": 3, "ssd": "MAT/03", "national_avg": 24.5 },
+        { "code": "a_scelta_mat", "name": "Insegnamenti a scelta", "cfu": 18, "year": 3, "ssd": null, "national_avg": 28.1 },
+        { "code": "lab_mat", "name": "Laboratorio di Programmazione / Tirocinio", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_mat", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    },
+
+    "beni_culturali_triennale": {
+      "label": "Beni Culturali (Triennale L-1)",
+      "faculty": "humanities",
+      "total_cfu": 180,
+      "grade_base": 110,
+      "thesis": { "min": 0, "max": 5 },
+      "defaults": { "honors_value": 30, "on_time_points": 2 },
+      "exams": [
+        { "code": "lett_ita_bc", "name": "Letteratura Italiana", "cfu": 12, "year": 1, "ssd": "L-FIL-LET/10", "national_avg": 26.5 },
+        { "code": "arte_med", "name": "Storia dell'Arte Medievale", "cfu": 12, "year": 1, "ssd": "L-ART/01", "national_avg": 27.2 },
+        { "code": "storia_med_bc", "name": "Storia Medievale", "cfu": 10, "year": 1, "ssd": "M-STO/01", "national_avg": 26.8 },
+        { "code": "archeo_classica", "name": "Archeologia Classica", "cfu": 10, "year": 1, "ssd": "L-ANT/07", "national_avg": 27.5 },
+        { "code": "geografia_bc", "name": "Geografia Storica", "cfu": 10, "year": 1, "ssd": "M-GGR/01", "national_avg": 27.8 },
+        { "code": "eng_bc", "name": "Lingua Inglese", "cfu": 6, "year": 1, "ssd": "L-LIN/12", "national_avg": null, "pass_fail": true },
+
+        { "code": "arte_mod", "name": "Storia dell'Arte Moderna", "cfu": 12, "year": 2, "ssd": "L-ART/02", "national_avg": 27.1 },
+        { "code": "storia_contemp_bc", "name": "Storia Contemporanea", "cfu": 10, "year": 2, "ssd": "M-STO/04", "national_avg": 26.9 },
+        { "code": "museologia", "name": "Museologia e Critica d'Arte", "cfu": 10, "year": 2, "ssd": "L-ART/04", "national_avg": 28.0 },
+        { "code": "archeo_cris", "name": "Archeologia Cristiana e Medievale", "cfu": 10, "year": 2, "ssd": "L-ANT/08", "national_avg": 27.4 },
+        { "code": "dir_bc", "name": "Legislazione dei Beni Culturali", "cfu": 8, "year": 2, "ssd": "IUS/10", "national_avg": 26.2 },
+        { "code": "paleografia", "name": "Paleografia e Archivistica", "cfu": 10, "year": 2, "ssd": "M-STO/09", "national_avg": 26.5 },
+
+        { "code": "arte_contemp", "name": "Storia dell'Arte Contemporanea", "cfu": 10, "year": 3, "ssd": "L-ART/03", "national_avg": 27.6 },
+        { "code": "estetica_bc", "name": "Estetica", "cfu": 8, "year": 3, "ssd": "M-FIL/04", "national_avg": 28.1 },
+        { "code": "antropologia_bc", "name": "Antropologia Culturale", "cfu": 8, "year": 3, "ssd": "M-DEA/01", "national_avg": 27.9 },
+        { "code": "a_scelta_bc", "name": "Insegnamenti a scelta", "cfu": 18, "year": 3, "ssd": null, "national_avg": 28.5 },
+        { "code": "tirocinio_bc", "name": "Tirocinio / Stage in Museo o Scavo", "cfu": 10, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true },
+        { "code": "prova_finale_bc", "name": "Prova Finale", "cfu": 6, "year": 3, "ssd": null, "national_avg": null, "pass_fail": true }
+      ]
+    }
+    
+  }
+}

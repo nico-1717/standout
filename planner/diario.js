@@ -1,0 +1,577 @@
+/* =====================================================================
+   NISAMA — DIARIO (logica della pagina)
+   Si sfoglia con lo swipe, si salva da sé, si annulla con la freccia.
+   Gli stessi dati del popup "diario del giorno": qui però è la casa.
+   ===================================================================== */
+(function () {
+'use strict';
+
+var B = window.DY_BOOT || {};
+var MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+var GIORNI = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
+var GIORNI_S = ['L','M','M','G','V','S','D'];
+var FONTS = [
+    { key: 'caveat',    label: 'Caveat',   sample: 'Oggi è andata così' },
+    { key: 'kalam',     label: 'Kalam',    sample: 'Oggi è andata così' },
+    { key: 'patrick',   label: 'Patrick',  sample: 'Oggi è andata così' },
+    { key: 'cormorant', label: 'Garamond', sample: 'Oggi è andata così' },
+    { key: 'jost',      label: 'Jost',     sample: 'Oggi è andata così' }
+];
+
+var MOOD_WORDS   = { 1: 'Dura', 2: 'Così così', 3: 'Normale', 4: 'Bella', 5: 'Splendida' };
+var ENERGY_WORDS = { 1: 'Scarica', 2: 'Bassa', 3: 'Media', 4: 'Buona', 5: 'Piena' };
+
+var S = {
+    csrf:  B.csrf || '',
+    today: B.today,
+    date:  B.date || B.today,
+    day:   { mood: null, energy: null, note: '', good: [], learned: [], habits: { done: 0, total: 0 } },
+    settings: { font: 'caveat', size: 18, paper: 'lined' },
+    monthCursor: (B.date || B.today).slice(0, 7),
+    month: null,
+    view: 'day',
+    undo: [],
+    timers: {}
+};
+
+/* ------------------------------------------------------------------ */
+/* Utility                                                            */
+/* ------------------------------------------------------------------ */
+function $(id) { return document.getElementById(id); }
+function el(tag, cls, txt) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (txt !== undefined && txt !== null) n.textContent = txt;
+    return n;
+}
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function parseIso(s) { var p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+function addDays(s, n) { var d = parseIso(s); d.setDate(d.getDate() + n); return iso(d); }
+function monday(s) { var d = parseIso(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); }
+function dow(s) { return (parseIso(s).getDay() + 6) % 7; }
+
+function later(key, ms, fn) {
+    if (S.timers[key]) clearTimeout(S.timers[key]);
+    S.timers[key] = setTimeout(fn, ms);
+}
+function haptic(ms) { if (navigator.vibrate) { try { navigator.vibrate(ms || 8); } catch (e) {} } }
+
+function api(action, data, query) {
+    var url = 'diary_api.php?ajax=' + encodeURIComponent(action);
+    if (query) { for (var k in query) if (query.hasOwnProperty(k)) url += '&' + k + '=' + encodeURIComponent(query[k]); }
+    var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': S.csrf } };
+    if (data) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(data); }
+    return fetch(url, opt).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
+}
+
+var toastTimer = null;
+function toast(msg) {
+    var t = $('dyToast');
+    t.textContent = msg;
+    t.classList.add('dy-show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('dy-show'); }, 2400);
+}
+function flashSaved() {
+    var n = $('dySaved');
+    n.classList.add('dy-show');
+    later('saved', 1500, function () { n.classList.remove('dy-show'); });
+}
+
+/* le faccine arrivano dal popup condiviso; se manca, un cerchio semplice */
+function face(kind, level, size) {
+    if (window.nisamaFace) return window.nisamaFace(kind, level, size);
+    /* senza il componente condiviso restiamo essenziali: un cerchio per
+       l'umore, una stellina per l'energia */
+    if (kind === 'energy') {
+        return '<svg viewBox="0 0 40 40" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">'
+             + '<path d="M20 4.6l4.2 8.8 9.6 1.3-7 6.7 1.7 9.5-8.5-4.7-8.5 4.7 1.7-9.5-7-6.7 9.6-1.3z"'
+             + (level ? '' : ' stroke-dasharray="3.4 3.6"') + '/></svg>';
+    }
+    return '<svg viewBox="0 0 40 40" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" stroke-width="1.5">'
+         + '<circle cx="20" cy="20" r="16.5"' + (level ? '' : ' stroke-dasharray="3.4 3.6"') + '/></svg>';
+}
+
+/* ------------------------------------------------------------------ */
+/* Annulla: una pila di azioni, ognuna sa come tornare indietro         */
+/* ------------------------------------------------------------------ */
+function pushUndo(label, revert) {
+    S.undo.push({ label: label, revert: revert });
+    if (S.undo.length > 40) S.undo.shift();
+    $('dyUndo').disabled = false;
+}
+$('dyUndo').addEventListener('click', function () {
+    var step = S.undo.pop();
+    if (!step) { this.disabled = true; return; }
+    haptic(10);
+    step.revert();
+    toast('Annullato: ' + step.label);
+    if (!S.undo.length) this.disabled = true;
+});
+
+/* ------------------------------------------------------------------ */
+/* Impostazioni: scrittura e corpo                                     */
+/* ------------------------------------------------------------------ */
+function applySettings() {
+    var body = document.body;
+    body.className = body.className.replace(/dy-font-\S+/g, '').replace(/dy-paper-\S+/g, '').trim();
+    body.classList.add('dy-body', 'dy-font-' + S.settings.font, 'dy-paper-' + S.settings.paper);
+    document.documentElement.style.setProperty('--dy-size', S.settings.size + 'px');
+    var line = Math.round(S.settings.size * 1.62);
+    document.documentElement.style.setProperty('--dy-line', line + 'px');
+    $('dySizeV').textContent = S.settings.size;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pagina del giorno                                                   */
+/* ------------------------------------------------------------------ */
+function renderDay() {
+    var d = parseIso(S.date);
+    $('dyNum').textContent = d.getDate();
+    $('dyWd').textContent = GIORNI[dow(S.date)];
+    $('dyMonthLabel').textContent = MESI[d.getMonth()] + ' ' + d.getFullYear();
+    $('dyRing').href = 'habits.php?data=' + S.date;
+
+    $('dyMoodBtn').innerHTML = face('mood', S.day.mood, 40);
+    $('dyMoodBtn').classList.toggle('dy-set', !!S.day.mood);
+    $('dyEnergyBtn').innerHTML = face('energy', S.day.energy, 40);
+    $('dyEnergyBtn').classList.toggle('dy-set', !!S.day.energy);
+
+    var h = S.day.habits || { done: 0, total: 0 };
+    var C = 138.2;
+    var frac = h.total ? Math.min(1, h.done / h.total) : 0;
+    $('dyRing').querySelector('.dy-ring-fg').style.strokeDashoffset = (C * (1 - frac)).toFixed(1);
+    $('dyRingN').textContent = h.total ? (h.done + '/' + h.total) : '–';
+
+    renderList('dyGood', 'good');
+    renderList('dyLearned', 'learned');
+
+    var ta = $('dyText');
+    if (document.activeElement !== ta) ta.value = S.day.note || '';
+}
+
+function renderList(hostId, type) {
+    var host = $(hostId);
+    var items = (S.day[type] || []).slice();
+    host.innerHTML = '';
+    items.push({ id: 0, content: '' });
+    items.forEach(function (it) { host.appendChild(listRow(it, type, hostId)); });
+}
+
+function listRow(it, type, hostId) {
+    var row = el('div', 'dy-li' + (it.content ? ' dy-li-filled' : ''));
+    row.appendChild(el('span', 'dy-li-dot'));
+    var input = el('input');
+    input.type = 'text';
+    input.value = it.content || '';
+    input.maxLength = 300;
+    input.placeholder = it.id ? '' : (type === 'good' ? 'una cosa bella' : 'una cosa imparata');
+    row.appendChild(input);
+
+    var before = it.content || '';
+    function save(redraw) {
+        var text = input.value.trim();
+        if (!it.id && !text) return;
+        if (text === before && it.id) return;
+        api('list_save', { date: S.date, list_type: type, item_id: it.id || 0, content: text }).then(function (r) {
+            if (!r.ok) return;
+            var wasId = it.id, wasText = before;
+            if (r.deleted) {
+                S.day[type] = S.day[type].filter(function (a) { return a.id !== it.id; });
+            } else if (r.id && !it.id) {
+                it.id = r.id; it.content = text;
+                S.day[type].push(it);
+            } else {
+                it.content = text;
+            }
+            before = text;
+            flashSaved();
+            var restoreId = r.deleted ? 0 : (r.id || wasId || 0);
+            var restoreDate = S.date;
+            pushUndo(type === 'good' ? 'cosa bella' : 'cosa imparata', function () {
+                api('list_save', { date: restoreDate, list_type: type, item_id: restoreId, content: wasText })
+                    .then(function () { loadDay(restoreDate, false); });
+            });
+            if (redraw) renderList(hostId, type);
+        });
+    }
+    input.addEventListener('input', function () {
+        row.classList.toggle('dy-li-filled', !!input.value.trim());
+        later('li' + type + (it.id || 'new'), 800, function () { save(!it.id); });
+    });
+    input.addEventListener('blur', function () { save(true); });
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    });
+    return row;
+}
+
+/* testo libero: si salva mentre scrivi */
+$('dyText').addEventListener('input', function () {
+    var v = this.value;
+    later('text', 900, function () { saveText(v); });
+});
+$('dyText').addEventListener('blur', function () { saveText(this.value); });
+
+function saveText(v) {
+    if (v === S.day.note) return;
+    var before = S.day.note || '';
+    var date = S.date;
+    S.day.note = v;
+    api('save_text', { date: date, note: v }).then(function (r) {
+        if (!r.ok) return;
+        flashSaved();
+        pushUndo('la scrittura', function () {
+            S.day.note = before;
+            if (S.date === date) { $('dyText').value = before; }
+            api('save_text', { date: date, note: before });
+        });
+    });
+}
+
+/* faccine: il fogliettino con le 5 scelte */
+function openFacePop(kind, anchor) {
+    var pop = $('dyFacePop');
+    $('dyPopLab').textContent = kind === 'mood' ? "Com'è andata" : 'Energia';
+    var row = $('dyPopRow');
+    row.innerHTML = '';
+    for (var lv = 1; lv <= 5; lv++) {
+        (function (level) {
+            var b = el('button', 'dy-pop-face' + (S.day[kind] === level ? ' dy-on' : ''));
+            b.type = 'button';
+            b.innerHTML = face(kind, level, 46);
+            b.addEventListener('click', function () {
+                var before = S.day[kind];
+                var next = before === level ? null : level;
+                S.day[kind] = next;
+                renderDay();
+                closePops();
+                haptic(10);
+                api('save_mood', { date: S.date, which: kind, value: next === null ? '' : next }).then(function () {
+                    flashSaved();
+                    pushUndo(kind === 'mood' ? "com'è andata" : "l'energia", function () {
+                        S.day[kind] = before;
+                        renderDay();
+                        api('save_mood', { date: S.date, which: kind, value: before === null ? '' : before });
+                    });
+                });
+            });
+            row.appendChild(b);
+        })(lv);
+    }
+    placePop(pop, anchor);
+}
+
+function placePop(pop, anchor) {
+    closePops(pop);
+    pop.hidden = false;
+    var r = anchor.getBoundingClientRect();
+    var w = pop.offsetWidth, h = pop.offsetHeight;
+    var left = Math.min(window.innerWidth - w - 12, Math.max(12, r.left + r.width / 2 - w / 2));
+    var top = r.bottom + 10;
+    if (top + h > window.innerHeight - 12) top = Math.max(12, r.top - h - 10);
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+}
+function closePops(except) {
+    ['dyFacePop', 'dyFontPop'].forEach(function (id) {
+        if ($(id) !== except) $(id).hidden = true;
+    });
+}
+document.addEventListener('click', function (e) {
+    if (e.target.closest('.dy-pop') || e.target.closest('.dy-face-btn') || e.target.closest('#dyFontBtn')) return;
+    closePops();
+});
+
+$('dyMoodBtn').addEventListener('click', function () { openFacePop('mood', this); });
+$('dyEnergyBtn').addEventListener('click', function () { openFacePop('energy', this); });
+
+/* scrittura */
+$('dyFontBtn').addEventListener('click', function () {
+    var pop = $('dyFontPop');
+    if (!pop.hidden) { closePops(); return; }
+    var list = $('dyFontList');
+    list.innerHTML = '';
+    FONTS.forEach(function (f) {
+        var b = el('button', 'dy-font-opt' + (S.settings.font === f.key ? ' dy-on' : ''));
+        b.type = 'button';
+        var sample = el('span', null, f.sample);
+        sample.style.fontFamily = f.key === 'caveat' ? "'Caveat', cursive"
+            : f.key === 'kalam' ? "'Kalam', cursive"
+            : f.key === 'patrick' ? "'Patrick Hand', cursive"
+            : f.key === 'cormorant' ? "'Cormorant Garamond', serif" : "'Jost', sans-serif";
+        b.appendChild(sample);
+        b.appendChild(el('span', null, f.label));
+        b.addEventListener('click', function () {
+            S.settings.font = f.key;
+            applySettings();
+            api('settings_save', { font: f.key });
+            Array.prototype.forEach.call(list.children, function (c) { c.classList.remove('dy-on'); });
+            b.classList.add('dy-on');
+        });
+        list.appendChild(b);
+    });
+    placePop(pop, this);
+});
+Array.prototype.forEach.call(document.querySelectorAll('.dy-size'), function (b) {
+    b.addEventListener('click', function () {
+        var step = parseInt(b.dataset.step, 10);
+        S.settings.size = Math.max(14, Math.min(26, S.settings.size + step));
+        applySettings();
+        api('settings_save', { size: S.settings.size });
+    });
+});
+
+/* ------------------------------------------------------------------ */
+/* Caricamento di un giorno e sfogliata                                */
+/* ------------------------------------------------------------------ */
+function loadDay(date, animate) {
+    S.date = date;
+    if (history.replaceState) history.replaceState(null, '', 'diario.php?data=' + date);
+    renderDay();
+    return api('day', null, { date: date }).then(function (r) {
+        if (!r.ok) return;
+        S.day = r.day;
+        if (r.settings) { S.settings = r.settings; applySettings(); }
+        renderDay();
+    });
+}
+
+function turnPage(delta) {
+    var page = S.view === 'month' ? $('dyMonthPage') : $('dyPage');
+    var cls = delta > 0 ? 'dy-flip-next' : 'dy-flip-prev';
+    page.classList.remove('dy-flip-next', 'dy-flip-prev');
+    void page.offsetWidth;
+    page.classList.add(cls);
+    setTimeout(function () { page.classList.remove(cls); }, 540);
+    haptic(8);
+
+    if (S.view === 'month') {
+        var c = parseIso(S.monthCursor + '-01');
+        var next = new Date(c.getFullYear(), c.getMonth() + delta, 1);
+        S.monthCursor = next.getFullYear() + '-' + pad(next.getMonth() + 1);
+        loadMonth();
+    } else {
+        loadDay(addDays(S.date, delta), true);
+    }
+}
+
+(function swipe() {
+    var stage = $('dyStage');
+    var x0 = null, y0 = 0, t0 = 0, fromField = false;
+    stage.addEventListener('touchstart', function (e) {
+        if (e.touches.length !== 1) return;
+        fromField = !!e.target.closest('textarea, input, .dy-taped-body');
+        x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now();
+    }, { passive: true });
+    stage.addEventListener('touchend', function (e) {
+        if (x0 === null) return;
+        var t = e.changedTouches[0];
+        var dx = t.clientX - x0, dy = t.clientY - y0;
+        x0 = null;
+        if (fromField) return;
+        if (Date.now() - t0 > 800) return;
+        if (Math.abs(dx) < 56 || Math.abs(dy) > Math.abs(dx) * .8) return;
+        turnPage(dx < 0 ? 1 : -1);
+    }, { passive: true });
+})();
+
+$('dyTodayBtn').addEventListener('click', function () {
+    if (S.view === 'month') { S.monthCursor = S.today.slice(0, 7); loadMonth(); return; }
+    if (S.date === S.today) { toast('Sei già sulla pagina di oggi.'); return; }
+    loadDay(S.today, true);
+});
+
+/* ------------------------------------------------------------------ */
+/* Pagina del mese                                                     */
+/* ------------------------------------------------------------------ */
+$('dyMonthBtn').addEventListener('click', function () { setView('month'); });
+$('dyMonthBack').addEventListener('click', function () { setView('day'); });
+
+function setView(v) {
+    S.view = v;
+    $('dyPage').hidden = v !== 'day';
+    $('dyMonthPage').hidden = v !== 'month';
+    if (v === 'month') {
+        S.monthCursor = S.date.slice(0, 7);
+        loadMonth();
+    } else {
+        renderDay();
+    }
+}
+
+function loadMonth() {
+    var c = parseIso(S.monthCursor + '-01');
+    $('dyMTitle').textContent = MESI[c.getMonth()];
+    $('dyMYear').textContent = c.getFullYear();
+    renderCal(null);
+    return api('month', null, { month: S.monthCursor }).then(function (r) {
+        if (!r.ok) return;
+        S.month = r;
+        renderCal(r);
+        renderStats(r.stats);
+        renderTaped(r.learned || []);
+    });
+}
+
+function renderCal(data) {
+    var host = $('dyCal');
+    host.innerHTML = '';
+    var wd = el('div', 'dy-cal-wd');
+    GIORNI_S.forEach(function (g) { wd.appendChild(el('span', null, g)); });
+    host.appendChild(wd);
+
+    var grid = el('div', 'dy-cal-grid');
+    var first = S.monthCursor + '-01';
+    var start = monday(first);
+    var fd = parseIso(first);
+    var month = fd.getMonth();
+    var daysInMonth = new Date(fd.getFullYear(), month + 1, 0).getDate();
+    var weeks = Math.ceil((dow(first) + daysInMonth) / 7);
+
+    for (var i = 0; i < weeks * 7; i++) {
+        (function (ds) {
+            var dd = parseIso(ds);
+            var inMonth = dd.getMonth() === month;
+            var info = data && data.days ? data.days[ds] : null;
+            var written = !!(info && (info.has_text || info.has_lists));
+            var cell = el('button', 'dy-cal-d' + (inMonth ? '' : ' dy-out') + (written ? ' dy-written' : '') + (ds === S.today ? ' dy-today' : ''));
+            cell.type = 'button';
+            cell.appendChild(el('span', null, String(dd.getDate())));
+            if (info && info.mood) {
+                var f = document.createElement('div');
+                f.innerHTML = face('mood', info.mood, 17);
+                cell.appendChild(f.firstChild);
+            }
+            cell.addEventListener('click', function () {
+                S.date = ds;
+                setView('day');
+                loadDay(ds, false);
+            });
+            grid.appendChild(cell);
+        })(addDays(start, i));
+    }
+    host.appendChild(grid);
+}
+
+function renderStats(st) {
+    var host = $('dyStats');
+    host.innerHTML = '';
+    if (!st) return;
+    function stat(iconHtml, value, label) {
+        var s = el('div', 'dy-stat');
+        var ico = el('div', 'dy-stat-ico');
+        ico.innerHTML = iconHtml;
+        s.appendChild(ico);
+        var t = el('div', 'dy-stat-t');
+        t.appendChild(el('div', 'dy-stat-v', value));
+        t.appendChild(el('div', 'dy-stat-k', label));
+        s.appendChild(t);
+        return s;
+    }
+    var moodAvgLevel = st.mood_avg ? Math.round(st.mood_avg) : null;
+    var enAvgLevel = st.energy_avg ? Math.round(st.energy_avg) : null;
+    var num = function (v) { return v === null || v === undefined ? '–' : String(v).replace('.', ','); };
+
+    host.appendChild(stat(face('mood', st.mood_mode, 34), st.mood_mode ? MOOD_WORDS[st.mood_mode] : '–', 'più frequente'));
+    host.appendChild(stat(face('mood', moodAvgLevel, 34), num(st.mood_avg), 'media di come è andata'));
+    host.appendChild(stat(face('energy', enAvgLevel, 34), num(st.energy_avg), 'energia media'));
+    host.appendChild(stat(
+        '<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11 6h14a3 3 0 013 3v25H14a3 3 0 01-3-3z"/><path d="M11 6v28"/><path d="M17 14h9M17 20h9M17 26h6"/></svg>',
+        st.filled + ' / ' + st.total, 'pagine scritte'));
+}
+
+function renderTaped(learned) {
+    $('dyTapedN').textContent = learned.length;
+    var body = $('dyTapedBody');
+    body.innerHTML = '';
+    if (!learned.length) {
+        body.appendChild(el('div', 'dy-taped-empty', 'Ancora niente scritto qui. Anche una riga conta.'));
+        return;
+    }
+    learned.forEach(function (l) {
+        var li = el('div', 'dy-taped-li');
+        li.appendChild(el('p', null, l.content));
+        var d = parseIso(l.date);
+        li.appendChild(el('small', null, d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()));
+        body.appendChild(li);
+    });
+}
+$('dyTapedHead').addEventListener('click', function () {
+    $('dyTaped').classList.toggle('dy-open');
+});
+
+/* se il popup del diario ha scritto qualcosa altrove, ricarichiamo */
+document.addEventListener('diaryupdated', function (e) {
+    if (!e.detail || e.detail.date === S.date) loadDay(S.date, false);
+    if (S.view === 'month') loadMonth();
+});
+
+/* ------------------------------------------------------------------ */
+/* Dettatura: la voce diventa testo, per riempire la pagina in fretta   */
+/* ------------------------------------------------------------------ */
+(function dictation() {
+    var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var btn = $('dyMic');
+    if (!Rec || !btn) return;           // dove non c'è, il tasto non compare
+    btn.hidden = false;
+
+    var rec = null, running = false, base = '';
+
+    function stop() {
+        running = false;
+        btn.classList.remove('dy-rec');
+        if (rec) { try { rec.stop(); } catch (e) {} }
+    }
+
+    btn.addEventListener('click', function () {
+        if (running) { stop(); return; }
+        rec = new Rec();
+        rec.lang = 'it-IT';
+        rec.continuous = true;
+        rec.interimResults = true;
+
+        var ta = $('dyText');
+        base = ta.value;
+
+        rec.onresult = function (e) {
+            var fin = '', interim = '';
+            for (var i = e.resultIndex; i < e.results.length; i++) {
+                var chunk = e.results[i][0].transcript;
+                if (e.results[i].isFinal) fin += chunk; else interim += chunk;
+            }
+            if (fin) base = (base ? base.replace(/\s+$/, '') + ' ' : '') + fin.trim();
+            ta.value = base + (interim ? (base ? ' ' : '') + interim : '');
+            ta.scrollTop = ta.scrollHeight;
+        };
+        rec.onerror = function () { stop(); toast('Dettatura non disponibile'); };
+        rec.onend = function () {
+            if (running) { try { rec.start(); } catch (e) { stop(); } return; }
+            saveText($('dyText').value);
+        };
+        try {
+            rec.start();
+            running = true;
+            btn.classList.add('dy-rec');
+            toast('Parla pure, ti ascolto');
+        } catch (e) { stop(); }
+    });
+})();
+
+/* ------------------------------------------------------------------ */
+/* Avvio                                                               */
+/* ------------------------------------------------------------------ */
+function boot() {
+    applySettings();
+    $('dyUndo').disabled = true;
+    renderDay();
+    loadDay(S.date, false);
+    document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+    document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
+    window.addEventListener('resize', function () { closePops(); });
+}
+boot();
+window.DY = { state: S, load: loadDay, toast: toast };
+
+})();

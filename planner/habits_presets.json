@@ -1,0 +1,1320 @@
+{
+  "version": 1,
+  "updated": "2026-07-22",
+  "palette": [
+    {
+      "key": "violet",
+      "name": "Viola",
+      "hex": "#7C5CFF",
+      "glow": "#B79BFF"
+    },
+    {
+      "key": "indigo",
+      "name": "Indaco",
+      "hex": "#5E5CE6",
+      "glow": "#9A99FF"
+    },
+    {
+      "key": "blue",
+      "name": "Blu",
+      "hex": "#0A84FF",
+      "glow": "#6EC1FF"
+    },
+    {
+      "key": "sky",
+      "name": "Cielo",
+      "hex": "#32ADE6",
+      "glow": "#8FD9FF"
+    },
+    {
+      "key": "cyan",
+      "name": "Ciano",
+      "hex": "#00C7BE",
+      "glow": "#6FF0E8"
+    },
+    {
+      "key": "mint",
+      "name": "Menta",
+      "hex": "#00E0A0",
+      "glow": "#7CFFD4"
+    },
+    {
+      "key": "green",
+      "name": "Verde",
+      "hex": "#34C759",
+      "glow": "#8CF0A6"
+    },
+    {
+      "key": "lime",
+      "name": "Lime",
+      "hex": "#A8E10C",
+      "glow": "#D6F76B"
+    },
+    {
+      "key": "yellow",
+      "name": "Giallo",
+      "hex": "#FFCC00",
+      "glow": "#FFE580"
+    },
+    {
+      "key": "amber",
+      "name": "Ambra",
+      "hex": "#FF9F0A",
+      "glow": "#FFC978"
+    },
+    {
+      "key": "orange",
+      "name": "Arancio",
+      "hex": "#FF6B35",
+      "glow": "#FFA98A"
+    },
+    {
+      "key": "red",
+      "name": "Rosso",
+      "hex": "#FF3B30",
+      "glow": "#FF8F88"
+    },
+    {
+      "key": "rose",
+      "name": "Rosa",
+      "hex": "#FF375F",
+      "glow": "#FF8FA6"
+    },
+    {
+      "key": "magenta",
+      "name": "Magenta",
+      "hex": "#FF2D8F",
+      "glow": "#FF87C0"
+    },
+    {
+      "key": "purple",
+      "name": "Porpora",
+      "hex": "#BF5AF2",
+      "glow": "#DDA5FF"
+    },
+    {
+      "key": "plum",
+      "name": "Prugna",
+      "hex": "#9D4EDD",
+      "glow": "#C89BF0"
+    },
+    {
+      "key": "sand",
+      "name": "Sabbia",
+      "hex": "#C9A227",
+      "glow": "#E6CE7E"
+    },
+    {
+      "key": "graphite",
+      "name": "Grafite",
+      "hex": "#8E8E93",
+      "glow": "#C4C4C9"
+    }
+  ],
+  "units": [
+    "min",
+    "ore",
+    "volte",
+    "bicchieri",
+    "litri",
+    "ml",
+    "pagine",
+    "capitoli",
+    "km",
+    "m",
+    "passi",
+    "ripetizioni",
+    "serie",
+    "kcal",
+    "g",
+    "€",
+    "sigarette",
+    "task",
+    "pomodori",
+    "parole",
+    "esercizi"
+  ],
+  "day_parts": [
+    {
+      "key": "any",
+      "name": "Tutto il giorno",
+      "icon": "🕐",
+      "from": null,
+      "to": null
+    },
+    {
+      "key": "morning",
+      "name": "Mattina",
+      "icon": "🌅",
+      "from": "05:00",
+      "to": "12:00"
+    },
+    {
+      "key": "afternoon",
+      "name": "Pomeriggio",
+      "icon": "☀️",
+      "from": "12:00",
+      "to": "18:00"
+    },
+    {
+      "key": "evening",
+      "name": "Sera",
+      "icon": "🌆",
+      "from": "18:00",
+      "to": "22:00"
+    },
+    {
+      "key": "night",
+      "name": "Notte",
+      "icon": "🌙",
+      "from": "22:00",
+      "to": "05:00"
+    }
+  ],
+  "icons": {
+    "Salute e corpo": [
+      "🩺",
+      "💊",
+      "🦷",
+      "🚿",
+      "🧴",
+      "🛁",
+      "🧘",
+      "🤸",
+      "🩹",
+      "💉",
+      "🧬",
+      "👁️",
+      "🫀",
+      "🫁",
+      "🦴",
+      "🧠",
+      "😴",
+      "🛌",
+      "⚖️",
+      "🩸"
+    ],
+    "Sport": [
+      "💪",
+      "🏋️",
+      "🏃",
+      "🚴",
+      "🏊",
+      "⚽️",
+      "🏀",
+      "🎾",
+      "🥊",
+      "🧗",
+      "⛹️",
+      "🤾",
+      "🚶",
+      "🥾",
+      "🛹",
+      "⛸️",
+      "🏓",
+      "🏐",
+      "🥋",
+      "🤼"
+    ],
+    "Cibo e bevande": [
+      "🥗",
+      "🍎",
+      "🥦",
+      "🥕",
+      "🍌",
+      "🍓",
+      "🥑",
+      "🐟",
+      "🍳",
+      "🥤",
+      "💧",
+      "☕️",
+      "🍵",
+      "🥛",
+      "🧃",
+      "🚫",
+      "🍰",
+      "🍟",
+      "🍺",
+      "🧂"
+    ],
+    "Studio e lavoro": [
+      "📚",
+      "📖",
+      "✏️",
+      "📝",
+      "🎓",
+      "🧮",
+      "💻",
+      "⌨️",
+      "🖥️",
+      "📊",
+      "📈",
+      "💼",
+      "🗂️",
+      "📅",
+      "⏱️",
+      "🍅",
+      "🎯",
+      "🧑‍💻",
+      "🔬",
+      "🗣️"
+    ],
+    "Mente e crescita": [
+      "🧘‍♂️",
+      "🕯️",
+      "🙏",
+      "☮️",
+      "🪷",
+      "📿",
+      "💭",
+      "🗒️",
+      "✨",
+      "🌱",
+      "🔮",
+      "🎧",
+      "📻",
+      "🎙️",
+      "🫶",
+      "🤍",
+      "🌈",
+      "☀️",
+      "🌊",
+      "🍀"
+    ],
+    "Creatività": [
+      "🎨",
+      "🖌️",
+      "🎸",
+      "🎹",
+      "🥁",
+      "🎤",
+      "🎬",
+      "📷",
+      "📸",
+      "✍️",
+      "🖊️",
+      "🧵",
+      "🪡",
+      "🎭",
+      "🪄",
+      "🎼",
+      "🧩",
+      "🖍️",
+      "🏺",
+      "🪆"
+    ],
+    "Casa e vita": [
+      "🏡",
+      "🧹",
+      "🧺",
+      "🍽️",
+      "🛒",
+      "🪴",
+      "🐕",
+      "🐈",
+      "🔧",
+      "🧽",
+      "🗑️",
+      "🛏️",
+      "💡",
+      "🔑",
+      "📦",
+      "🧾",
+      "🚗",
+      "⛽️",
+      "🌳",
+      "☂️"
+    ],
+    "Denaro": [
+      "💰",
+      "💸",
+      "🏦",
+      "📉",
+      "📊",
+      "🪙",
+      "💳",
+      "🧾",
+      "📈",
+      "🎯",
+      "🏷️",
+      "💵",
+      "🤑",
+      "🐖",
+      "⚖️",
+      "🔐",
+      "📑",
+      "🛍️",
+      "🧮",
+      "🏠"
+    ],
+    "Relazioni": [
+      "🫂",
+      "❤️",
+      "👨‍👩‍👧",
+      "👫",
+      "📞",
+      "💬",
+      "🎁",
+      "🥂",
+      "🤝",
+      "😊",
+      "🕊️",
+      "💌",
+      "🎂",
+      "🍻",
+      "👋",
+      "🧑‍🤝‍🧑",
+      "💐",
+      "📩",
+      "🫱",
+      "🎉"
+    ],
+    "Digitale": [
+      "📵",
+      "📱",
+      "🔕",
+      "🚫",
+      "⏳",
+      "🖥️",
+      "📴",
+      "🔌",
+      "🧿",
+      "⛔️",
+      "🔒",
+      "🕹️",
+      "📺",
+      "🎮",
+      "🔋",
+      "🛜",
+      "💤",
+      "🗿",
+      "⌛️",
+      "🔇"
+    ],
+    "Simboli": [
+      "⭐️",
+      "🔥",
+      "⚡️",
+      "💎",
+      "🏆",
+      "🥇",
+      "🎖️",
+      "🚀",
+      "🌟",
+      "💫",
+      "🎪",
+      "🧊",
+      "🌀",
+      "♾️",
+      "✅",
+      "🔺",
+      "🔷",
+      "🟣",
+      "🟢",
+      "🟡"
+    ]
+  },
+  "presets": [
+    {
+      "key": "drink_water",
+      "name": "Bere acqua",
+      "icon": "💧",
+      "color": "#32ADE6",
+      "category": "health",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 8,
+      "step": 1,
+      "unit": "bicchieri",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Il corpo funziona meglio idratato: parti da qui."
+    },
+    {
+      "key": "morning_workout",
+      "name": "Allenamento",
+      "icon": "💪",
+      "color": "#FF6B35",
+      "category": "fitness",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 30,
+      "step": 10,
+      "unit": "min",
+      "frequency": {
+        "type": "weekly",
+        "times_per_week": 4
+      },
+      "day_part": "morning",
+      "motivation": "Energizza il corpo e schiarisce la mente."
+    },
+    {
+      "key": "gym",
+      "name": "Palestra",
+      "icon": "🏋️",
+      "color": "#BF5AF2",
+      "category": "fitness",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "weekly",
+        "times_per_week": 3
+      },
+      "day_part": "any",
+      "motivation": "Ogni serie è un mattone: il fisico si costruisce così."
+    },
+    {
+      "key": "run",
+      "name": "Corsa",
+      "icon": "🏃",
+      "color": "#FF9F0A",
+      "category": "fitness",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 3,
+      "step": 1,
+      "unit": "km",
+      "frequency": {
+        "type": "weekly",
+        "times_per_week": 3
+      },
+      "day_part": "morning",
+      "motivation": "I primi chilometri sono i più difficili. Poi vola."
+    },
+    {
+      "key": "steps_10k",
+      "name": "10.000 passi",
+      "icon": "🚶",
+      "color": "#34C759",
+      "category": "fitness",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 10000,
+      "step": 1000,
+      "unit": "passi",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Camminare è la scorciatoia più sottovalutata."
+    },
+    {
+      "key": "stretching",
+      "name": "Stretching",
+      "icon": "🤸",
+      "color": "#00C7BE",
+      "category": "fitness",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 10,
+      "step": 5,
+      "unit": "min",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "evening",
+      "motivation": "Dieci minuti oggi, zero contratture domani."
+    },
+    {
+      "key": "meditation",
+      "name": "Meditazione",
+      "icon": "🧘",
+      "color": "#7C5CFF",
+      "category": "mind",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 10,
+      "step": 5,
+      "unit": "min",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "morning",
+      "motivation": "Dieci minuti di silenzio valgono un'ora di caos in meno."
+    },
+    {
+      "key": "gratitude",
+      "name": "Gratitudine",
+      "icon": "🙏",
+      "color": "#FFCC00",
+      "category": "mind",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 3,
+      "step": 1,
+      "unit": "volte",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "evening",
+      "motivation": "Tre cose belle al giorno riscrivono la giornata."
+    },
+    {
+      "key": "journaling",
+      "name": "Diario",
+      "icon": "📝",
+      "color": "#9D4EDD",
+      "category": "mind",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "night",
+      "motivation": "Scrivere la giornata è il modo più veloce per capirla."
+    },
+    {
+      "key": "cold_shower",
+      "name": "Doccia fredda",
+      "icon": "🚿",
+      "color": "#0A84FF",
+      "category": "mind",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "morning",
+      "motivation": "Trenta secondi scomodi, tutto il giorno lucido."
+    },
+    {
+      "key": "sleep_early",
+      "name": "A letto presto",
+      "icon": "😴",
+      "color": "#5E5CE6",
+      "category": "sleep",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "night",
+      "motivation": "Il giorno buono inizia la sera prima."
+    },
+    {
+      "key": "wake_early",
+      "name": "Sveglia presto",
+      "icon": "🌅",
+      "color": "#FF9F0A",
+      "category": "sleep",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "morning",
+      "motivation": "Un'ora al mattino vale tre alla sera."
+    },
+    {
+      "key": "sleep_8h",
+      "name": "Dormire 8 ore",
+      "icon": "🛌",
+      "color": "#5E5CE6",
+      "category": "sleep",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 8,
+      "step": 1,
+      "unit": "ore",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "night",
+      "motivation": "Il sonno è l'integratore più potente che esista."
+    },
+    {
+      "key": "healthy_meal",
+      "name": "Mangiare sano",
+      "icon": "🥗",
+      "color": "#34C759",
+      "category": "food",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Un piatto colorato batte qualsiasi integratore."
+    },
+    {
+      "key": "breakfast",
+      "name": "Fare colazione",
+      "icon": "🍳",
+      "color": "#FF9F0A",
+      "category": "food",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "morning",
+      "motivation": "Il primo pasto decide il ritmo della giornata."
+    },
+    {
+      "key": "fruit_veg",
+      "name": "Frutta e verdura",
+      "icon": "🍎",
+      "color": "#FF375F",
+      "category": "food",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 5,
+      "step": 1,
+      "unit": "volte",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Cinque porzioni: la regola più semplice che funziona."
+    },
+    {
+      "key": "no_sugar",
+      "name": "Niente dolci",
+      "icon": "🍰",
+      "color": "#FF2D8F",
+      "category": "food",
+      "kind": "quit",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Ogni giorno senza zucchero è un giorno di lucidità in più."
+    },
+    {
+      "key": "no_alcohol",
+      "name": "Niente alcol",
+      "icon": "🍺",
+      "color": "#C9A227",
+      "category": "food",
+      "kind": "quit",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Sobrio è un superpotere silenzioso."
+    },
+    {
+      "key": "no_smoking",
+      "name": "Niente sigarette",
+      "icon": "🚫",
+      "color": "#FF3B30",
+      "category": "health",
+      "kind": "quit",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Ogni giorno pulito i polmoni ringraziano."
+    },
+    {
+      "key": "no_junk_food",
+      "name": "Niente cibo spazzatura",
+      "icon": "🍟",
+      "color": "#FF6B35",
+      "category": "food",
+      "kind": "quit",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Il fast food costa poco e si fa pagare dopo."
+    },
+    {
+      "key": "read",
+      "name": "Leggere",
+      "icon": "📖",
+      "color": "#00C7BE",
+      "category": "study",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 20,
+      "step": 5,
+      "unit": "pagine",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "night",
+      "motivation": "Venti pagine al giorno fanno venti libri all'anno."
+    },
+    {
+      "key": "study_session",
+      "name": "Studiare",
+      "icon": "📚",
+      "color": "#32ADE6",
+      "category": "study",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 2,
+      "step": 1,
+      "unit": "ore",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111110"
+      },
+      "day_part": "afternoon",
+      "motivation": "Costanza batte intensità, sempre."
+    },
+    {
+      "key": "english",
+      "name": "Inglese",
+      "icon": "🗣️",
+      "color": "#0A84FF",
+      "category": "study",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 15,
+      "step": 5,
+      "unit": "min",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Quindici minuti al giorno e in un anno lo parli."
+    },
+    {
+      "key": "flashcards",
+      "name": "Ripasso flashcard",
+      "icon": "🧮",
+      "color": "#7C5CFF",
+      "category": "study",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Il ripasso spaziato è il trucco più economico che esista."
+    },
+    {
+      "key": "podcast",
+      "name": "Podcast formativo",
+      "icon": "🎧",
+      "color": "#BF5AF2",
+      "category": "study",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 20,
+      "step": 10,
+      "unit": "min",
+      "frequency": {
+        "type": "weekly",
+        "times_per_week": 4
+      },
+      "day_part": "any",
+      "motivation": "Tempi morti trasformati in tempo pieno."
+    },
+    {
+      "key": "deep_work",
+      "name": "Deep work",
+      "icon": "🍅",
+      "color": "#FF3B30",
+      "category": "productivity",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 4,
+      "step": 1,
+      "unit": "pomodori",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111100"
+      },
+      "day_part": "morning",
+      "motivation": "Quattro blocchi senza distrazioni valgono una giornata intera."
+    },
+    {
+      "key": "plan_day",
+      "name": "Pianificare la giornata",
+      "icon": "📅",
+      "color": "#FF9F0A",
+      "category": "productivity",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "morning",
+      "motivation": "Cinque minuti di piano risparmiano un'ora di caos."
+    },
+    {
+      "key": "inbox_zero",
+      "name": "Svuotare la inbox",
+      "icon": "📩",
+      "color": "#32ADE6",
+      "category": "productivity",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "weekly",
+        "times_per_week": 5
+      },
+      "day_part": "afternoon",
+      "motivation": "Una inbox vuota è una mente vuota (nel senso buono)."
+    },
+    {
+      "key": "weekly_review",
+      "name": "Revisione settimanale",
+      "icon": "🗂️",
+      "color": "#8E8E93",
+      "category": "productivity",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "weekly",
+        "times_per_week": 1
+      },
+      "day_part": "evening",
+      "motivation": "Guardare indietro una volta a settimana cambia la direzione."
+    },
+    {
+      "key": "side_project",
+      "name": "Progetto personale",
+      "icon": "🚀",
+      "color": "#5E5CE6",
+      "category": "career",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 1,
+      "step": 1,
+      "unit": "ore",
+      "frequency": {
+        "type": "weekly",
+        "times_per_week": 5
+      },
+      "day_part": "evening",
+      "motivation": "Un'ora al giorno costruisce quello che nessuno vede arrivare."
+    },
+    {
+      "key": "network",
+      "name": "Coltivare contatti",
+      "icon": "🤝",
+      "color": "#00C7BE",
+      "category": "career",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 1,
+      "step": 1,
+      "unit": "volte",
+      "frequency": {
+        "type": "weekly",
+        "times_per_week": 2
+      },
+      "day_part": "any",
+      "motivation": "Le opportunità arrivano dalle persone, non dagli algoritmi."
+    },
+    {
+      "key": "track_expenses",
+      "name": "Segnare le spese",
+      "icon": "🧾",
+      "color": "#00C7BE",
+      "category": "money",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "night",
+      "motivation": "Quello che misuri smette di sparire."
+    },
+    {
+      "key": "no_impulse_buy",
+      "name": "Niente acquisti impulsivi",
+      "icon": "🛍️",
+      "color": "#FF2D8F",
+      "category": "money",
+      "kind": "quit",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Aspetta 24 ore: nove volte su dieci non lo vuoi più."
+    },
+    {
+      "key": "save_money",
+      "name": "Mettere da parte",
+      "icon": "🐖",
+      "color": "#34C759",
+      "category": "money",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 10,
+      "step": 5,
+      "unit": "€",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Piccole cifre, ripetute, diventano libertà."
+    },
+    {
+      "key": "call_family",
+      "name": "Sentire la famiglia",
+      "icon": "📞",
+      "color": "#FF9F0A",
+      "category": "family",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "weekly",
+        "times_per_week": 2
+      },
+      "day_part": "evening",
+      "motivation": "Una chiamata dura cinque minuti e vale mesi."
+    },
+    {
+      "key": "quality_time",
+      "name": "Tempo di qualità",
+      "icon": "🫂",
+      "color": "#FF2D8F",
+      "category": "social",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 1,
+      "step": 1,
+      "unit": "ore",
+      "frequency": {
+        "type": "weekly",
+        "times_per_week": 3
+      },
+      "day_part": "evening",
+      "motivation": "Presenza vera, telefono in un'altra stanza."
+    },
+    {
+      "key": "compliment",
+      "name": "Fare un complimento",
+      "icon": "💐",
+      "color": "#FF375F",
+      "category": "social",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Costa zero e cambia la giornata a due persone."
+    },
+    {
+      "key": "no_social",
+      "name": "Zero social",
+      "icon": "📵",
+      "color": "#FF3B30",
+      "category": "digital",
+      "kind": "quit",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Il feed non finisce mai. La tua giornata sì."
+    },
+    {
+      "key": "screen_limit",
+      "name": "Meno di 2h di schermo",
+      "icon": "📱",
+      "color": "#8E8E93",
+      "category": "digital",
+      "kind": "quit",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "any",
+      "motivation": "Il tempo speso è l'unica valuta che non torna."
+    },
+    {
+      "key": "no_phone_morning",
+      "name": "Niente telefono al risveglio",
+      "icon": "🔕",
+      "color": "#5E5CE6",
+      "category": "digital",
+      "kind": "quit",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "morning",
+      "motivation": "I primi trenta minuti sono tuoi, non del telefono."
+    },
+    {
+      "key": "tidy_home",
+      "name": "Riordinare casa",
+      "icon": "🧹",
+      "color": "#32ADE6",
+      "category": "home",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 15,
+      "step": 5,
+      "unit": "min",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "evening",
+      "motivation": "Quindici minuti al giorno e non serve mai la giornata di pulizie."
+    },
+    {
+      "key": "make_bed",
+      "name": "Rifare il letto",
+      "icon": "🛏️",
+      "color": "#32ADE6",
+      "category": "home",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "morning",
+      "motivation": "Il primo compito completato della giornata."
+    },
+    {
+      "key": "water_plants",
+      "name": "Annaffiare le piante",
+      "icon": "🪴",
+      "color": "#34C759",
+      "category": "home",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "interval",
+        "interval_days": 3
+      },
+      "day_part": "any",
+      "motivation": "Piccola cura, grande differenza."
+    },
+    {
+      "key": "play_instrument",
+      "name": "Suonare",
+      "icon": "🎸",
+      "color": "#BF5AF2",
+      "category": "creativity",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 20,
+      "step": 10,
+      "unit": "min",
+      "frequency": {
+        "type": "weekly",
+        "times_per_week": 4
+      },
+      "day_part": "evening",
+      "motivation": "Venti minuti al giorno e in sei mesi non ti riconosci."
+    },
+    {
+      "key": "draw",
+      "name": "Disegnare",
+      "icon": "🎨",
+      "color": "#FF6B35",
+      "category": "creativity",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "weekly",
+        "times_per_week": 3
+      },
+      "day_part": "any",
+      "motivation": "Il talento è solo pratica accumulata."
+    },
+    {
+      "key": "write",
+      "name": "Scrivere",
+      "icon": "✍️",
+      "color": "#9D4EDD",
+      "category": "creativity",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 500,
+      "step": 100,
+      "unit": "parole",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "morning",
+      "motivation": "Scrivere male tutti i giorni batte scrivere bene mai."
+    },
+    {
+      "key": "skincare",
+      "name": "Skincare",
+      "icon": "🧴",
+      "color": "#FF375F",
+      "category": "health",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "night",
+      "motivation": "Due minuti oggi, dieci anni guadagnati domani."
+    },
+    {
+      "key": "floss",
+      "name": "Filo interdentale",
+      "icon": "🦷",
+      "color": "#00E0A0",
+      "category": "health",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "night",
+      "motivation": "L'abitudine più piccola con il miglior ritorno."
+    },
+    {
+      "key": "vitamins",
+      "name": "Integratori",
+      "icon": "💊",
+      "color": "#FFCC00",
+      "category": "health",
+      "kind": "build",
+      "goal_type": "completion",
+      "target": 1,
+      "step": 1,
+      "unit": "",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "morning",
+      "motivation": "Funzionano solo se li prendi davvero."
+    },
+    {
+      "key": "sunlight",
+      "name": "Luce del sole",
+      "icon": "☀️",
+      "color": "#FF9F0A",
+      "category": "mind",
+      "kind": "build",
+      "goal_type": "quantity",
+      "target": 15,
+      "step": 5,
+      "unit": "min",
+      "frequency": {
+        "type": "daily",
+        "weekdays": "1111111"
+      },
+      "day_part": "morning",
+      "motivation": "Quindici minuti di sole al mattino sistemano il sonno della notte."
+    }
+  ]
+}
