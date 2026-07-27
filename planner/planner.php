@@ -527,6 +527,11 @@ if ($ajax !== '') {
         if (!empty($ev['habit_id'])) {
             pl_sync_habit_log($current_user_id, (int)$ev['habit_id'], $ev['event_date'], $newState === 1);
         }
+        /* Se l'evento nasce da un'attività del to do, la spunta vale anche là:
+           il collegamento finora funzionava solo nell'altro verso. */
+        @sec_q("UPDATE todos SET is_done = ?, done_at = " . ($newState ? 'NOW()' : 'NULL') . "
+                WHERE planner_event_id = ? AND user_id = ?",
+               [$newState, $id, $current_user_id], 'iii');
         sec_json(['ok' => true, 'done' => $newState === 1]);
     }
 

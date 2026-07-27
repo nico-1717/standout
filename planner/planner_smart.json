@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "note": "Regole con cui la barra intelligente del planner capisce data e ora da una frase scritta a mano libera. Nessuna intelligenza artificiale: solo elenchi di parole e schemi. Aggiungendo voci qui, la barra impara nuove espressioni senza toccare il codice.",
+
+  "giorni_relativi": {
+    "oggi": 0,
+    "stamattina": 0,
+    "stamane": 0,
+    "stasera": 0,
+    "stanotte": 0,
+    "domani": 1,
+    "dmn": 1,
+    "domattina": 1,
+    "domani mattina": 1,
+    "domani sera": 1,
+    "dopodomani": 2,
+    "dopo domani": 2,
+    "ieri": -1
+  },
+
+  "giorni_settimana": {
+    "lunedì": 1, "lunedi": 1, "lun": 1,
+    "martedì": 2, "martedi": 2, "mar": 2,
+    "mercoledì": 3, "mercoledi": 3, "mer": 3,
+    "giovedì": 4, "giovedi": 4, "gio": 4,
+    "venerdì": 5, "venerdi": 5, "ven": 5,
+    "sabato": 6, "sab": 6,
+    "domenica": 7, "dom": 7
+  },
+
+  "mesi": {
+    "gennaio": 1, "gen": 1,
+    "febbraio": 2, "feb": 2,
+    "marzo": 3, "mar": 3,
+    "aprile": 4, "apr": 4,
+    "maggio": 5, "mag": 5,
+    "giugno": 6, "giu": 6,
+    "luglio": 7, "lug": 7,
+    "agosto": 8, "ago": 8,
+    "settembre": 9, "set": 9, "sett": 9,
+    "ottobre": 10, "ott": 10,
+    "novembre": 11, "nov": 11,
+    "dicembre": 12, "dic": 12
+  },
+
+  "fasce_orarie": {
+    "stamattina": "09:00",
+    "stamane": "09:00",
+    "domattina": "09:00",
+    "mattina": "09:00",
+    "mattino": "09:00",
+    "mezzogiorno": "12:00",
+    "pranzo": "13:00",
+    "pomeriggio": "15:00",
+    "merenda": "16:30",
+    "sera": "20:00",
+    "stasera": "20:00",
+    "cena": "20:00",
+    "notte": "22:00",
+    "stanotte": "22:00"
+  },
+
+  "parole_da_togliere": [
+    "alle", "alla", "all'", "il", "lo", "la", "i", "gli", "le", "di", "del", "della",
+    "a", "ad", "per", "the", "ore", "ora", "verso", "circa", "prossimo", "prossima",
+    "questo", "questa", "questi", "queste"
+  ],
+
+  "settimana_prossima": ["prossimo", "prossima", "che viene", "prossima settimana"],
+
+  "durata_predefinita_minuti": 60,
+
+  "esempi": [
+    "domani pranzo 15",
+    "martedì partita 12:30",
+    "13 agosto dentista alle 12",
+    "stasera cinema",
+    "dopodomani riunione alle 9:30",
+    "venerdì prossimo esame 8",
+    "3/9 visita 16:45"
+  ]
+}

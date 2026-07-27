@@ -333,7 +333,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
     function api(action, data, query) {
         var url = 'diary_api.php?ajax=' + encodeURIComponent(action);
         if (query) { for (var k in query) if (query.hasOwnProperty(k)) url += '&' + k + '=' + encodeURIComponent(query[k]); }
-        var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': CSRF } };
+        var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.NISAMA_CSRF || CSRF } };
         if (data) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(data); }
         return fetch(url, opt).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
     }
@@ -451,6 +451,51 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         if (document.activeElement !== ta) ta.value = state.data.note || '';
     }
 
+    /* ---------- punteggiatura automatica della dettatura ----------
+       Il riconoscimento del browser consegna le frasi già con la maiuscola
+       dopo una pausa, ma senza chiudere quella precedente. Qui indoviniamo
+       il segno da mettere guardando come finisce e come comincia la frase:
+       niente intelligenza artificiale, solo regole di italiano.
+
+       In dubbio si mette il punto: è il caso più frequente e il meno
+       fastidioso da correggere. */
+    var CONTINUA = [
+        /* congiunzioni e preposizioni: la frase non è finita, ci vuole la virgola */
+        'e','ed','ma','però','perché','perche','quindi','allora','mentre','se','che',
+        'oppure','anche','inoltre','cioè','cioe','ovvero','dunque','infatti','comunque',
+        'con','per','di','da','in','su','tra','fra','a','al','allo','alla','ai','agli','alle',
+        'del','dello','della','dei','degli','delle','nel','nello','nella','nei','negli','nelle',
+        'sul','sullo','sulla','sui','sugli','sulle','come','quando','dove','mentre','finché','finche'
+    ];
+    var DOMANDA = [
+        'chi','cosa','che','come','quando','dove','perché','perche','quale','quali',
+        'quanto','quanta','quanti','quante','sono','è','e\u0300','ho','hai','ha'
+    ];
+
+    function nisamaPunctuate(phrase) {
+        var s = String(phrase || '').trim();
+        if (!s) return s;
+        /* già chiusa da chi parlava ("punto", "virgola"…): non tocchiamo */
+        if (/[.,;:!?…]$/.test(s)) return s;
+
+        var words = s.toLowerCase().replace(/[^a-zàèéìòùü'\s]/g, ' ').split(/\s+/).filter(Boolean);
+        if (!words.length) return s;
+        var last = words[words.length - 1];
+        var first = words[0];
+
+        /* comincia con una parola da domanda e non è troppo lunga: punto interrogativo */
+        if (DOMANDA.indexOf(first) !== -1 && words.length <= 12) return s + '?';
+
+        /* finisce con una parola che regge un seguito: la frase continua */
+        if (CONTINUA.indexOf(last) !== -1) return s + ',';
+
+        /* frase molto corta: probabilmente un inciso, meglio la virgola */
+        if (words.length <= 2) return s + ',';
+
+        return s + '.';
+    }
+    window.nisamaPunctuate = nisamaPunctuate;
+
     /* ---------- dettatura ----------
        Usa il riconoscimento vocale del browser (Safari e Chrome): la voce
        diventa testo mentre si parla e finisce in fondo a quello che c'è già.
@@ -487,7 +532,11 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
                     if (e.results[i].isFinal) finalTxt += chunk;
                     else interim += chunk;
                 }
-                if (finalTxt) baseText = (baseText ? baseText.replace(/\s+$/, '') + ' ' : '') + finalTxt.trim();
+                if (finalTxt) {
+                    /* la frase appena conclusa viene chiusa con il segno giusto */
+                    var chiusa = nisamaPunctuate(finalTxt.trim());
+                    baseText = (baseText ? baseText.replace(/\s+$/, '') + ' ' : '') + chiusa;
+                }
                 ta.value = baseText + (interim ? (baseText ? ' ' : '') + interim : '');
                 state.data.note = ta.value;
             };

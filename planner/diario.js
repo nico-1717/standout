@@ -60,7 +60,7 @@ function haptic(ms) { if (navigator.vibrate) { try { navigator.vibrate(ms || 8);
 function api(action, data, query) {
     var url = 'diary_api.php?ajax=' + encodeURIComponent(action);
     if (query) { for (var k in query) if (query.hasOwnProperty(k)) url += '&' + k + '=' + encodeURIComponent(query[k]); }
-    var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': S.csrf } };
+    var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.NISAMA_CSRF || S.csrf } };
     if (data) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(data); }
     return fetch(url, opt).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
 }
@@ -541,7 +541,11 @@ document.addEventListener('diaryupdated', function (e) {
                 var chunk = e.results[i][0].transcript;
                 if (e.results[i].isFinal) fin += chunk; else interim += chunk;
             }
-            if (fin) base = (base ? base.replace(/\s+$/, '') + ' ' : '') + fin.trim();
+            if (fin) {
+                /* punteggiatura indovinata dal componente condiviso */
+                var chiusa = window.nisamaPunctuate ? window.nisamaPunctuate(fin.trim()) : fin.trim();
+                base = (base ? base.replace(/\s+$/, '') + ' ' : '') + chiusa;
+            }
             ta.value = base + (interim ? (base ? ' ' : '') + interim : '');
             ta.scrollTop = ta.scrollHeight;
         };

@@ -35,6 +35,8 @@ var S = {
     prioSlim:    false,
     weekCache:   {},          // 'lunedì' -> { week, lists }
     shift:       { on: false, dir: 'late', picked: {} },
+    interacting: false,       // un dito sta trascinando o creando: non ridisegnare
+    renderPending: false,
     draft:       null,        // evento in lavorazione nel popup
     miniCursor:  null         // mese mostrato nel popup calendario (null = quello del giorno a fuoco)
 };
@@ -747,6 +749,177 @@ function summaryDiary(d) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Barra intelligente: da una frase a un evento                        */
+/* ------------------------------------------------------------------ */
+var SMART = null;
+function loadSmart() {
+    return fetch('planner_smart.json', { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { SMART = d; })
+        .catch(function () { /* senza il file la barra resta muta */ });
+}
+
+/* Legge la frase e ne ricava data, ora e titolo. Le parti riconosciute
+   vengono tolte dal testo: quello che avanza è il titolo dell'evento. */
+function smartParse(raw) {
+    if (!SMART) return null;
+    var text = ' ' + String(raw).toLowerCase().trim() + ' ';
+    var used = [];
+    var date = null, time = null;
+
+    function eat(re) {
+        var m = text.match(re);
+        if (m) { used.push(m[0].trim()); text = text.replace(m[0], ' '); }
+        return m;
+    }
+
+    /* --- ora: 12:30, 12.30, "alle 15", "ore 9" --- */
+    var mTime = eat(/\s(?:alle|alla|ore|ora|verso)?\s*([01]?\d|2[0-3])[:.]([0-5]\d)\s/);
+    if (mTime) {
+        time = pad(parseInt(mTime[1], 10)) + ':' + mTime[2];
+    } else {
+        var mHour = eat(/\s(?:alle|ore|ora|verso)\s+([01]?\d|2[0-3])\s/);
+        if (!mHour) mHour = eat(/\s([01]?\d|2[0-3])\s*$/);
+        if (mHour) time = pad(parseInt(mHour[1], 10)) + ':00';
+    }
+
+    /* --- data esplicita: 13 agosto, 13/8, 13-08-2026 --- */
+    var mNum = eat(/\s(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\s/);
+    if (mNum) {
+        var yy = mNum[3] ? parseInt(mNum[3], 10) : parseIso(S.today).getFullYear();
+        if (yy < 100) yy += 2000;
+        date = yy + '-' + pad(parseInt(mNum[2], 10)) + '-' + pad(parseInt(mNum[1], 10));
+    }
+    if (!date) {
+        for (var mese in SMART.mesi) {
+            if (!SMART.mesi.hasOwnProperty(mese)) continue;
+            var re = new RegExp('\\s(\\d{1,2})\\s+' + mese + '\\s', 'i');
+            var mm = text.match(re);
+            if (mm) {
+                var y = parseIso(S.today).getFullYear();
+                var cand = y + '-' + pad(SMART.mesi[mese]) + '-' + pad(parseInt(mm[1], 10));
+                /* se è già passata, si intende l'anno prossimo */
+                if (cand < S.today) cand = (y + 1) + '-' + pad(SMART.mesi[mese]) + '-' + pad(parseInt(mm[1], 10));
+                date = cand;
+                used.push(mm[0].trim());
+                text = text.replace(mm[0], ' ');
+                break;
+            }
+        }
+    }
+
+    /* --- giorni relativi: oggi, domani, dopodomani --- */
+    if (!date) {
+        var rel = Object.keys(SMART.giorni_relativi).sort(function (a, b) { return b.length - a.length; });
+        for (var i = 0; i < rel.length; i++) {
+            if (text.indexOf(' ' + rel[i] + ' ') !== -1) {
+                date = addDays(S.today, SMART.giorni_relativi[rel[i]]);
+                used.push(rel[i]);
+                text = text.replace(' ' + rel[i] + ' ', ' ');
+                break;
+            }
+        }
+    }
+
+    /* --- giorni della settimana: il prossimo che capita --- */
+    if (!date) {
+        var wd = Object.keys(SMART.giorni_settimana).sort(function (a, b) { return b.length - a.length; });
+        for (var k = 0; k < wd.length; k++) {
+            if (text.indexOf(' ' + wd[k] + ' ') === -1) continue;
+            var target = SMART.giorni_settimana[wd[k]];          // 1 = lunedì
+            var oggiDow = dowIndex(S.today) + 1;
+            var delta = (target - oggiDow + 7) % 7;
+            if (delta === 0) delta = 7;                           // "martedì" detto di martedì = il prossimo
+            /* "prossimo" sposta di un'altra settimana */
+            var piu = false;
+            (SMART.settimana_prossima || []).forEach(function (w) { if (text.indexOf(w) !== -1) piu = true; });
+            if (piu) delta += 7;
+            date = addDays(S.today, delta);
+            used.push(wd[k]);
+            text = text.replace(' ' + wd[k] + ' ', ' ');
+            break;
+        }
+    }
+
+    /* --- fasce del giorno: pranzo, sera, mezzogiorno --- */
+    if (!time) {
+        for (var fascia in SMART.fasce_orarie) {
+            if (!SMART.fasce_orarie.hasOwnProperty(fascia)) continue;
+            if (text.indexOf(' ' + fascia + ' ') !== -1) {
+                time = SMART.fasce_orarie[fascia];
+                /* la parola resta nel titolo: "pranzo" è il nome dell'evento */
+                break;
+            }
+        }
+    }
+
+    /* --- quello che resta è il titolo --- */
+    var parole = text.split(/\s+/).filter(Boolean).filter(function (w) {
+        return (SMART.parole_da_togliere || []).indexOf(w) === -1;
+    });
+    var titolo = parole.join(' ').trim();
+    if (titolo) titolo = titolo.charAt(0).toUpperCase() + titolo.slice(1);
+
+    return {
+        title: titolo,
+        date: date || S.focusDate,
+        time: time,
+        dateGuessed: !date,
+        timeGuessed: !time,
+        used: used
+    };
+}
+
+function smartCreate(input) {
+    var raw = (input.value || '').trim();
+    if (!raw) return;
+    var p = smartParse(raw);
+    if (!p || !p.title) { toast('Non ho capito cosa scrivere come titolo.'); return; }
+
+    var dur = (SMART && SMART.durata_predefinita_minuti) || 60;
+    var start = p.time || toHM(firstFreeMinute(dur));
+    var end = toHM(Math.min(1439, toMin(start) + dur));
+
+    api('event_save', {
+        title: p.title, date: p.date, start: start, end: end,
+        type: 'event', notify: 'h1'
+    }).then(function (r) {
+        if (!r.ok) { toast(r.message || 'Non è stato possibile creare l\'evento.'); return; }
+        indexEvents([r.event]);
+        input.value = '';
+        input.blur();
+        if (p.date !== S.focusDate) goToDate(p.date, true); else renderDays();
+        haptic(12);
+        smartReport(p, start, end);
+        scheduleSync();
+    });
+}
+
+/* Il riepilogo di quello che ha capito: resta qualche secondo e se ne va. */
+function smartReport(p, start, end) {
+    var d = parseIso(p.date);
+    var quando = GIORNI[dowIndex(p.date)] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase();
+    var box = $('plSmartReport');
+    if (!box) {
+        box = el('div', 'pl-smart-report');
+        box.id = 'plSmartReport';
+        document.body.appendChild(box);
+    }
+    box.innerHTML = '';
+    box.appendChild(el('div', 'pl-smart-title', '“' + p.title + '”'));
+    box.appendChild(el('div', 'pl-smart-line', quando + ', dalle ' + start + ' alle ' + end));
+    var note = [];
+    if (p.dateGuessed) note.push('data non indicata: ho usato il giorno che stavi guardando');
+    if (p.timeGuessed) note.push('ora non indicata: ho preso il primo momento libero');
+    if (note.length) box.appendChild(el('div', 'pl-smart-note', note.join(' · ')));
+
+    box.classList.add('pl-open');
+    if (S._smartTimer) clearTimeout(S._smartTimer);
+    S._smartTimer = setTimeout(function () { box.classList.remove('pl-open'); }, 5200);
+    box.addEventListener('click', function () { box.classList.remove('pl-open'); });
+}
+
+/* ------------------------------------------------------------------ */
 /* Fascia priorità (fissa, appartiene al giorno a fuoco)               */
 /* ------------------------------------------------------------------ */
 function prioOf(date) {
@@ -990,6 +1163,12 @@ function renderAllDay() {
 }
 
 function renderDays() {
+    /* Mentre si trascina un blocco (o se ne sta creando uno) la griglia non
+       si tocca: ridisegnarla distrugge il nodo sotto le dita e lo rimette
+       dov'era. Era questo a far "tornare indietro" un evento tenuto premuto
+       a lungo: ogni minuto la linea dell'ora fa ridisegnare tutto. */
+    if (S.interacting) { S.renderPending = true; return; }
+    S.renderPending = false;
     var z = zoomCfg(S.zoom);
     var cols = document.querySelectorAll('.pl-col[data-date]');
     for (var i = 0; i < cols.length; i++) renderCol(cols[i], z);
@@ -1754,6 +1933,16 @@ function refreshZoomDial() {
             if (!S.shift.on && !isAgenda() && canvas && evNode.style.position !== 'static') {
                 startEventDrag(e, evNode, canvas);
             }
+            /* Il dito è partito sopra un evento, ma se scorre in orizzontale
+               vuole cambiare giorno: teniamo aperta quella possibilità invece
+               di ignorare del tutto il gesto. Il trascinamento del blocco si
+               attiva solo dopo la pressione prolungata, quindi i due non si
+               pestano i piedi. */
+            st = {
+                canvas: canvas, date: canvas ? canvas.dataset.date : S.focusDate, id: e.pointerId,
+                x0: e.clientX, y0: e.clientY, phase: 'pending', fromEvent: true,
+                startMin: 0, endMin: 0, ghost: null, baseX: 0, focusAtStart: S.focusDate
+            };
             return;
         }
         if (S.shift.on || !canvas) return;
@@ -1770,6 +1959,7 @@ function refreshZoomDial() {
             if (!st || st.phase !== 'pending' || isAgenda()) return;
             if (S.pinching) { st = null; return; }   // due dita: si sta zoomando
             st.phase = 'create';
+            S.interacting = true;
             haptic(12);
             st.ghost = el('div', 'pl-ev pl-ghost');
             st.ghost.style.setProperty('--ev', S.defaultCat ? (catById(S.defaultCat) || {}).color || NEUTRAL : NEUTRAL);
@@ -1797,8 +1987,9 @@ function refreshZoomDial() {
                gesto orizzontale dichiarato: più lungo e netto (almeno il
                doppio dello spostamento verticale). Così un dito che scorre
                le ore non finisce mai per cambiare giorno o settimana. */
-            if (ady > 8) { st.phase = 'scrolling'; clearTimeout(st.timer); return; }
+            if (ady > 8) { st.phase = 'scrolling'; if (st.timer) clearTimeout(st.timer); return; }
             if (adx > 10 && adx > ady * 1.4) {
+                if (S.movingEvent) return;   // il blocco è già in mano al dito
                 st.phase = 'paging';
                 st.baseX = trackNow();
                 st.startedAt = Date.now();
@@ -1860,7 +2051,9 @@ function refreshZoomDial() {
 
     function releaseScroll() {
         sc.style.touchAction = '';
+        S.interacting = false;
         if (st && st.raf) { cancelAnimationFrame(st.raf); st.raf = null; }
+        if (S.renderPending) setTimeout(renderDays, 0);
     }
 
     function finish(e) {
@@ -1890,6 +2083,8 @@ function refreshZoomDial() {
         // 'pending' (tocco rapido, il blocco non ha fatto in tempo a comparire)
         // oppure 'create' (tenuto premuto e allungato): in entrambi i casi si apre
         // il popup, con l'orario di default o quello allungato dal trascinamento
+        /* partito da un evento: niente creazione, il tocco lo gestisce il click */
+        if (st.fromEvent) { st = null; return; }
         var data = { date: st.date, start: toHM(st.startMin), end: toHM(st.endMin) };
         if (st.ghost && st.ghost.parentNode) st.ghost.parentNode.removeChild(st.ghost);
         st = null;
@@ -1992,6 +2187,7 @@ function startEventDrag(e, node, canvas) {
         node.classList.add('pl-dragging');
         /* da qui il dito muove il blocco, non la pagina */
         S.movingEvent = true;
+        S.interacting = true;
         sc.style.touchAction = 'none';
         lastY = y0; scrolled = 0;
         try { sc.setPointerCapture(e.pointerId); } catch (err) {}
@@ -2073,8 +2269,10 @@ function startEventDrag(e, node, canvas) {
     }
     function cleanup() {
         S.movingEvent = false;
+        S.interacting = false;
         sc.style.touchAction = '';
         if (raf) { cancelAnimationFrame(raf); raf = null; }
+        if (S.renderPending) renderDays();   // recuperiamo il ridisegno rimandato
         sc.removeEventListener('pointermove', move);
         sc.removeEventListener('pointerup', up);
         sc.removeEventListener('pointercancel', up);
@@ -3282,8 +3480,8 @@ function editCategory(c) {
         fc.appendChild(el('label', 'pl-label', 'Colore'));
         var sw = el('div', 'pl-swatches');
         ['#C7DED6', '#F0D3D6', '#D8D3E8', '#F3E4C0', '#CFDDEA', '#E8D5C7', '#DCE7C8', '#E4DDD3',
-         '#F2C9C0', '#CFE3D2', '#D4C9E8', '#F6E0B8', '#BFD8E3', '#E9D5E2', '#CEDDB8', '#E7CFC0',
-         '#B9D6D2', '#F1D8E4', '#C6C9E6', '#EFE3C6', '#D9E4EE', '#E5D2C2'].forEach(function (col) {
+         '#E9A7A0', '#A9C8B4', '#B3A8D8', '#F2CE8A', '#8FB6CE', '#D9A8C6', '#AEC98A', '#C9A88E',
+         '#7FB0AB', '#E7B7CF', '#9AA0D2', '#D8C48E'].forEach(function (col) {
             var b = el('button', 'pl-sw' + (data.color === col ? ' pl-on' : ''));
             b.type = 'button';
             b.style.setProperty('--ev', col);
@@ -3297,6 +3495,13 @@ function editCategory(c) {
         fc.appendChild(sw);
         body.appendChild(fc);
 
+        /* due tasti affiancati: si può uscire senza salvare, prima non c'era
+           modo di annullare una modifica iniziata per sbaglio */
+        var acts = el('div', 'pl-alert-acts');
+        acts.style.marginTop = '4px';
+        var cancel = el('button', 'pl-btn', 'Annulla');
+        cancel.type = 'button';
+        cancel.addEventListener('click', function () { openSettings(); });
         var save = el('button', 'pl-btn pl-btn-primary', isNew ? 'Crea categoria' : 'Salva');
         save.type = 'button';
         save.addEventListener('click', function () {
@@ -3307,7 +3512,8 @@ function editCategory(c) {
                 openSettings();
             });
         });
-        body.appendChild(save);
+        acts.appendChild(cancel); acts.appendChild(save);
+        body.appendChild(acts);
 
         if (!isNew) {
             var fk = el('div', 'pl-field');
@@ -3757,7 +3963,16 @@ function monthCell(date, inMonth) {
     var cell = el('div', 'pl-mcell' + (inMonth ? '' : ' pl-out')
         + (date < S.today ? ' pl-past-d' : '') + (date === S.today ? ' pl-today-d' : ''));
     cell.appendChild(el('div', 'pl-mcell-n pl-serif', String(parseIso(date).getDate())));
-    var list = eventsOf(date);
+    /* nella casella del mese contano prima gli importantissimi, poi gli
+       importanti, e all'interno di ciascun gruppo l'ordine dell'orario */
+    var rank = { highest: 0, high: 1, normal: 2 };
+    var list = eventsOf(date).slice().sort(function (a, b) {
+        var ra = rank[a.importance] !== undefined ? rank[a.importance] : 2;
+        var rb = rank[b.importance] !== undefined ? rank[b.importance] : 2;
+        if (ra !== rb) return ra - rb;
+        if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
+        return toMin(a.start) - toMin(b.start);
+    });
     list.slice(0, 3).forEach(function (ev) {
         var e = el('div', 'pl-mev', ev.title);
         e.style.setProperty('--ev', evColor(ev));
@@ -3885,6 +4100,25 @@ function buildDayBar() {
     yes.addEventListener('click', openCopyDay);
     ask.appendChild(no); ask.appendChild(yes);
     bar.appendChild(ask);
+
+    /* barra intelligente: si scrive in italiano e nasce l'evento */
+    var smart = el('div', 'pl-smart');
+    var smartIn = el('input', 'pl-smart-in');
+    smartIn.type = 'text';
+    smartIn.id = 'plSmartIn';
+    smartIn.placeholder = 'Domani pranzo 15…';
+    smartIn.maxLength = 200;
+    var smartGo = el('button', 'pl-smart-go');
+    smartGo.type = 'button';
+    smartGo.setAttribute('aria-label', 'Crea');
+    smartGo.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="M12.5 6l6 6-6 6"/></svg>';
+    smart.appendChild(smartIn);
+    smart.appendChild(smartGo);
+    smartGo.addEventListener('click', function () { smartCreate(smartIn); });
+    smartIn.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); smartCreate(smartIn); }
+    });
+    bar.appendChild(smart);
 
     var wrap = el('div', 'pl-prio-wrap');
     var wpBtn = el('button', 'pl-wp-btn');
@@ -4072,6 +4306,7 @@ function boot() {
 
     ensureStartScroll();
     loadAmbient();
+    loadSmart();
 
     /* all'apertura: se l'ultimo allineamento con Google è vecchio, se ne fa
        uno in sottofondo senza disturbare */

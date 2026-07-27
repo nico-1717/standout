@@ -121,6 +121,21 @@ if ($ajax === 'list') {
         if ($projId > 0 && !sec_owns('projects', $projId, $uid)) sec_die_json('Progetto non trovato.', 404, 'not_found');
         $sql .= " AND t.project_id = ?";
         $params[] = $projId;
+    } elseif ($scope === 'pomodoro') {
+        /* Senza un progetto selezionato il post-it parte davvero vuoto: si
+           vedono solo le attività create in questa sessione, non quelle
+           rimaste senza progetto da altre volte. Il client passa l'elenco
+           degli identificativi creati adesso. */
+        $only = sec_in('ids');
+        $keep = [];
+        if (is_array($only)) {
+            foreach (array_slice($only, 0, 100) as $raw) {
+                $tid = sec_int($raw, 1, PHP_INT_MAX, 0);
+                if ($tid > 0) $keep[] = $tid;
+            }
+        }
+        if (empty($keep)) sec_json(['ok' => true, 'todos' => [], 'today' => date('Y-m-d'), 'now' => date('H:i')]);
+        $sql .= " AND t.id IN (" . implode(',', array_map('intval', $keep)) . ")";
     }
     /* Ordine: prima quelle da fare prima. Le attività senza data restano in
        fondo, ma non spariscono: si ordinano tra loro come le hai messe. */

@@ -214,6 +214,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         this.compact = !!this.opts.compact;
         this.selectable = !!this.opts.selectable;
         this.items = [];
+        this.sessionIds = [];
         this.picked = {};
         this.selecting = false;
         this.timers = {};
@@ -249,7 +250,11 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
 
     Todo.prototype.load = function () {
         var self = this;
-        return api('list', null, { scope: this.scope, project_id: this.projectId }).then(function (r) {
+        var q = { scope: this.scope, project_id: this.projectId };
+        /* nel pomodoro senza progetto si chiedono solo le attività create
+           in questa sessione: l'elenco parte vuoto e si riempie scrivendo */
+        var body = (this.scope === 'pomodoro') ? { ids: this.sessionIds || [] } : null;
+        return api('list', body, q).then(function (r) {
             if (!r.ok) {
                 /* Prima, se la lettura falliva, non disegnavo niente: restava un
                    riquadro vuoto senza nemmeno il tasto per aggiungere, e senza
@@ -523,6 +528,10 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         api('save', payload).then(function (r) {
             if (!r.ok) return;
             var newId = r.todo ? r.todo.id : 0;
+            if (newId && self.scope === 'pomodoro') {
+                self.sessionIds = self.sessionIds || [];
+                self.sessionIds.push(newId);
+            }
             self.load().then(function () {
                 var inputs = self.list.querySelectorAll('.td-title');
                 for (var i = 0; i < inputs.length; i++) {
