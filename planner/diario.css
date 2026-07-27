@@ -131,9 +131,73 @@ button{ font-family:inherit; border:none; background:none; color:inherit; paddin
     text-decoration:none; color:var(--dy-pencil);
 }
 .dy-ring svg{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); }
+.dy-ring{ border:none; background:none; cursor:pointer; padding:0; }
 .dy-ring circle{ fill:none; stroke-width:2; stroke-linecap:round; }
 .dy-ring .dy-ring-bg{ stroke:currentColor; opacity:.4; stroke-dasharray:3 4; }
-.dy-ring .dy-ring-fg{ stroke:var(--dy-accent); stroke-width:2.6; transition:stroke-dashoffset .7s var(--dy-ease); }
+.dy-ring .dy-ring-fg{ stroke:var(--dy-accent); stroke-width:3; transition:stroke-dashoffset .7s var(--dy-ease); }
+/* anello interno: le abitudini settimanali, in tinta più scura per
+   distinguerle bene da quelle del giorno */
+.dy-ring .dy-ring-bg-w{ stroke:currentColor; opacity:.28; stroke-dasharray:2.5 3.5; }
+.dy-ring .dy-ring-week{ stroke:#6E8C74; stroke-width:2.6; transition:stroke-dashoffset .7s var(--dy-ease); }
+
+/* frecce laterali: si vedono solo dove c'è un mouse */
+.dy-arrow{
+    position:fixed; top:50%; transform:translateY(-50%);
+    width:38px; height:38px; border-radius:50%; border:none; cursor:pointer;
+    display:none; place-items:center; z-index:15;
+    background:var(--dy-paper-2); color:var(--dy-pencil);
+    box-shadow:inset 0 0 0 .5px var(--dy-hair);
+    transition:transform .18s var(--dy-ease), background-color .2s;
+}
+.dy-arrow svg{ width:18px; height:18px; }
+.dy-arrow:active{ transform:translateY(-50%) scale(.9); }
+.dy-arrow-prev{ left:14px; }
+.dy-arrow-next{ right:14px; }
+@media (pointer:fine){ .dy-arrow{ display:grid; } }
+
+/* popup del quaderno: usato dal riepilogo delle abitudini */
+.dy-modal{
+    position:fixed; inset:0; z-index:60; display:grid; place-items:center; padding:24px;
+    background:rgba(74,68,61,.28); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+    animation:dy-fade .22s ease;
+}
+@keyframes dy-fade{ from{ opacity:0; } to{ opacity:1; } }
+.dy-card{
+    width:100%; max-width:340px; max-height:78dvh; overflow-y:auto; scrollbar-width:none;
+    background:var(--dy-paper); border-radius:22px; padding:20px 18px 14px;
+    box-shadow:0 26px 56px -22px rgba(74,68,61,.5);
+    animation:dy-pop .3s var(--dy-pop);
+}
+.dy-card::-webkit-scrollbar{ width:0; }
+@keyframes dy-pop{ from{ transform:scale(.93); } to{ transform:none; } }
+.dy-card-t{ font-family:var(--dy-serif); font-size:22px; margin-bottom:2px; }
+.dy-card-s{
+    font-size:9px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--dy-ink-3); margin-bottom:6px;
+}
+.dy-card-acts{ display:flex; gap:8px; margin-top:18px; }
+.dy-card-acts button{
+    flex:1; padding:11px; border-radius:13px; border:none; cursor:pointer;
+    background:var(--dy-paper-2); color:var(--dy-ink-2); font:inherit; font-size:14px;
+}
+.dy-card-acts button.dy-primary{ background:var(--dy-accent); color:#FFFDFA; }
+
+/* riepilogo delle abitudini, nello stile del quaderno */
+.dy-hb-sec{ margin-top:14px; }
+.dy-hb-lab{
+    font-size:9px; font-weight:500; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--dy-ink-3); margin-bottom:6px;
+}
+.dy-hb-row{
+    display:flex; align-items:center; gap:9px; padding:7px 0;
+    border-bottom:.8px dotted var(--dy-hair);
+}
+.dy-hb-row:last-child{ border-bottom:none; }
+.dy-hb-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.dy-hb-name{ flex:1; min-width:0; font-size:14.5px; }
+.dy-hb-row.is-done .dy-hb-name{ color:var(--dy-ink-3); text-decoration:line-through; text-decoration-thickness:.7px; }
+.dy-hb-val{ font-family:var(--dy-serif); font-size:15px; color:var(--dy-ink-2); font-variant-numeric:tabular-nums; }
+.dy-hb-check{ width:17px; height:17px; color:var(--dy-accent); flex-shrink:0; }
 .dy-ring-n{
     position:absolute; inset:0; display:grid; place-items:center;
     font-family:var(--dy-serif); font-size:15px; color:var(--dy-ink-2); letter-spacing:-.02em;

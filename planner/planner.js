@@ -17,6 +17,7 @@ var S = {
     today:       B.today,
     settings:    B.settings || {},
     categories:  B.categories || [],
+    calendars:   B.calendars || [],
     routines:    B.routines || [],
     favorites:   B.favorites || [],
     week:        B.week || {},
@@ -24,7 +25,8 @@ var S = {
     diary:       B.diary || {},
     events:      {},          // 'YYYY-MM-DD' -> [evento]
     prio:        {},          // 'YYYY-MM-DD' -> [priorità]
-    habits:      {},          // 'YYYY-MM-DD' -> [abitudine]
+    habits:      {},          // 'YYYY-MM-DD' -> [abitudine del giorno]
+    weekly:      {},          // 'lunedì' -> [abitudine settimanale]
     focusDate:   B.today,
     centerWeek:  null,
     zoom:        (B.settings && B.settings.zoom) || 'm30',
@@ -105,7 +107,20 @@ function evColor(ev) {
     if (ev.habit_color) return ev.habit_color;
     return NEUTRAL;
 }
-function evHidden(ev) { return !!(ev.category_id && S.hiddenCats[ev.category_id]); }
+function calById(id) {
+    for (var i = 0; i < S.calendars.length; i++) if (S.calendars[i].id === id) return S.calendars[i];
+    return null;
+}
+function evHidden(ev) {
+    if (ev.category_id && S.hiddenCats[ev.category_id]) return true;
+    /* un evento senza calendario appartiene a quello predefinito, che è
+       sempre visibile finché non lo si nasconde di proposito */
+    if (ev.calendar_id) {
+        var c = calById(ev.calendar_id);
+        if (c && !c.visible) return true;
+    }
+    return false;
+}
 
 function haptic(ms) { if (navigator.vibrate) { try { navigator.vibrate(ms || 8); } catch (e) {} } }
 
@@ -220,6 +235,14 @@ function loadWeek(weekStart, force) {
         renderDays();
         renderPrio();
         maybeAskCopy();
+        /* se l'elenco del mese è aperto, si ricompone con i giorni appena
+           arrivati invece di restare a metà */
+        var ag = $('plMonthAgenda');
+        if (ag && ag.classList.contains('pl-open') && S.agendaFrom) {
+            var y = $('plMagendaBody').scrollTop;
+            openMonthAgenda(S.agendaFrom);
+            $('plMagendaBody').scrollTop = y;
+        }
     });
 }
 
@@ -227,9 +250,11 @@ function loadHabits(date) {
     if (S.habits[date]) return Promise.resolve(S.habits[date]);
     return api('habits_day', null, { date: date }).then(function (r) {
         S.habits[date] = r.ok ? r.habits : [];
+        S.weekly[monday(date)] = r.ok ? (r.weekly || []) : [];
         return S.habits[date];
     });
 }
+function weeklyOf(date) { return S.weekly[monday(date)] || []; }
 
 /* ------------------------------------------------------------------ */
 /* Cielo, insetto, palette                                             */
@@ -238,13 +263,59 @@ function loadHabits(date) {
 var AMB = null, ambMonth = null;
 
 var TREES = {
-    bare:   '<path d="M30 80V30"/><path d="M30 44c-8-3-13-10-14-18 8 2 13 8 14 14"/><path d="M30 38c8-4 12-12 12-20-8 2-12 8-12 14"/><path d="M30 56c-6-2-10-7-11-13 6 1 10 4 11 8"/>',
-    buds:   '<path d="M30 80V30"/><path d="M30 44c-8-3-13-10-14-18 8 2 13 8 14 14"/><path d="M30 38c8-4 12-12 12-20-8 2-12 8-12 14"/>',
-    blossom:'<path d="M30 80V32"/><path d="M30 46c-9-3-14-11-15-19 9 2 14 9 15 15"/><path d="M30 40c9-4 13-12 13-21-9 3-13 9-13 15"/>',
-    leafy:  '<path d="M30 80V36"/><ellipse cx="30" cy="22" rx="15" ry="12"/><ellipse cx="19" cy="33" rx="10" ry="8"/><ellipse cx="42" cy="32" rx="9" ry="7"/>',
-    lush:   '<path d="M30 80V40"/><ellipse cx="30" cy="20" rx="17" ry="14"/><ellipse cx="16" cy="34" rx="11" ry="9"/><ellipse cx="44" cy="33" rx="11" ry="9"/><ellipse cx="30" cy="36" rx="13" ry="8"/>',
-    dry:    '<path d="M30 80V34"/><path d="M30 48c-7-3-11-9-12-16 7 2 11 7 12 12"/><path d="M30 42c7-3 10-10 10-17-7 2-10 7-10 12"/><path d="M30 60c-5-1-8-5-9-9 5 1 8 3 9 6"/>',
-    autumn: '<path d="M30 80V38"/><path d="M30 40c-11-2-17-10-18-19 11 2 17 9 18 16"/><path d="M30 36c10-3 15-11 15-20-10 3-15 9-15 15"/>'
+    /* Alberi disegnati a tratto: tronco che si assottiglia, rami che si
+       biforcano più volte e chioma a lobi. Prima erano tre curve appena
+       accennate e si vedeva che erano un simbolo, non un albero. */
+    bare:
+        '<path d="M30 80c-.6-9 .2-15 .4-21 .2-6 .1-11-.4-16"/>' +
+        '<path d="M30.2 52c-3-2.6-6.4-4-10.4-4.4"/><path d="M19.8 47.6c-2.6-1.4-4.4-3.4-5.6-6"/>' +
+        '<path d="M22.6 49c-.6-2.6-2-4.6-4-6.2"/>' +
+        '<path d="M30 44c3.4-3 5.6-6.6 6.6-11"/><path d="M36.6 33c2.2-1.2 4.6-1.6 7-1.2"/>' +
+        '<path d="M34.4 37.6c2.4.4 4.6 0 6.6-1.2"/>' +
+        '<path d="M30.2 34c-2.4-3-3.6-6.4-3.6-10"/><path d="M26.6 24c-1.8-1.6-3-3.6-3.6-6"/>' +
+        '<path d="M30 26c2.6-2.2 4.2-5 4.8-8.4"/>' +
+        '<path d="M30.4 62c-3.4-1.4-6-3.6-7.8-6.6"/>',
+    buds:
+        '<path d="M30 80c-.6-9 .2-15 .4-21 .2-6 .1-11-.4-16"/>' +
+        '<path d="M30.2 52c-3.4-3-7.2-4.6-11.6-5"/><path d="M18.6 47c-2.4-1.6-4-3.8-5-6.4"/>' +
+        '<path d="M30 44c3.6-3.2 6-7 7-11.6"/><path d="M37 32.4c2.4-1.2 4.8-1.6 7.4-1"/>' +
+        '<path d="M30.2 34c-2.6-3.2-3.8-6.8-3.8-10.6"/>' +
+        '<path d="M30.4 62c-3.6-1.6-6.4-3.8-8.2-7"/>',
+    blossom:
+        '<path d="M30 80c-.6-10 .2-17 .4-24 .2-6 .1-11-.4-16"/>' +
+        '<path d="M30.2 48c-4-3.6-8.4-5.4-13.4-5.6"/><path d="M16.8 42.4c-2.6-2-4.2-4.6-5-7.6"/>' +
+        '<path d="M30 40c4-3.6 6.8-8 8-13.2"/><path d="M38 26.8c2.6-1.6 5.4-2.2 8.4-1.8"/>' +
+        '<path d="M30.2 30c-2.8-3.6-4-7.6-4-12"/>' +
+        '<path d="M30.4 60c-4-1.8-7-4.4-9-8"/>',
+    leafy:
+        '<path d="M30 80c-.6-10 0-17 .2-24"/>' +
+        '<path d="M30.2 56c-3.4-2-6-4.6-7.8-7.8"/><path d="M30 50c3.2-2 5.6-4.6 7.2-7.8"/>' +
+        /* chioma a lobi, non un ovale liscio */
+        '<path d="M14 32c-1.6-5.6 1.6-10.8 7-12 2-4.6 6.6-7.2 11.6-6.4 4.4-2 9.6-.4 12.2 3.6 4.6.8 7.6 5 7 9.6-.4 3.4-2.8 6.2-6 7.2"/>' +
+        '<path d="M14 32c1.2 4 4.8 6.6 9 6.6h22.8"/>' +
+        '<path d="M22 31c1.8 2.2 4.2 3.4 7 3.4"/><path d="M38 30c-1.4 2.4-3.6 4-6.2 4.4"/>',
+    lush:
+        '<path d="M30 80c-.8-11 0-18 .2-25"/>' +
+        '<path d="M30.2 58c-3.8-2.2-6.8-5-8.8-8.6"/><path d="M30 52c3.6-2.2 6.2-5.2 8-8.8"/>' +
+        '<path d="M11 30c-2-6.4 1.6-12.6 8-14 2.4-5.4 7.8-8.4 13.6-7.4 5.2-2.2 11.2-.4 14.2 4.4 5.4 1 8.8 6 8 11.4-.6 4-3.4 7.2-7.2 8.4"/>' +
+        '<path d="M11 30c1.4 4.8 5.6 7.8 10.6 7.8h26"/>' +
+        '<path d="M19 28c2 2.6 5 4.2 8.2 4.2"/><path d="M41 27c-1.6 2.8-4.2 4.6-7.2 5.2"/>' +
+        '<path d="M27 20c1.8-2 4.4-3 7-2.8"/>',
+    dry:
+        '<path d="M30 80c-1-8 0-14 .2-19 .2-5 0-9-.6-13"/>' +
+        '<path d="M29.6 50c-3-3.4-5-7.2-6-11.4"/><path d="M23.6 38.6c-2-1-3.6-2.6-4.6-4.6"/>' +
+        '<path d="M30 46c3.2-3.4 5-7.4 5.6-12"/><path d="M35.6 34c2-1 4-1.4 6.2-1.2"/>' +
+        '<path d="M30.2 62c-2.6-1.2-4.6-3-6-5.4"/>',
+    autumn:
+        '<path d="M30 80c-.8-10 0-17 .2-23"/>' +
+        '<path d="M30.2 54c-4.2-3-8-4.6-12.6-5"/><path d="M17.6 49c-2.4-1.8-4-4.2-4.8-7"/>' +
+        '<path d="M30 46c4-3.4 6.8-7.6 8-12.6"/><path d="M38 33.4c2.6-1.4 5.2-2 8-1.6"/>' +
+        '<path d="M30.2 36c-2.8-3.4-4-7.2-4-11.4"/>',
+    /* abete: per i mesi in cui gli altri alberi sono spogli */
+    conifer:
+        '<path d="M30 80V62"/>' +
+        '<path d="M30 8l-9 15h5l-8 13h6l-9 14h30l-9-14h6l-8-13h5z"/>' +
+        '<path d="M24 51h12"/><path d="M22 38h16"/>'
 };
 var BUDS = {
     buds:   [[18,26],[24,20],[38,22],[43,16],[22,36],[40,34]],
@@ -280,7 +351,52 @@ var DRIFT_SVG = {
     ladybug:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="12" cy="13" r="5.6"/><path d="M12 7.4v11"/><circle cx="9" cy="11.6" r=".9" fill="currentColor"/><circle cx="15" cy="14.4" r=".9" fill="currentColor"/><path d="M10 6.4l-.8-1.6M14 6.4l.8-1.6"/></svg>',
     dragonfly:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"><path d="M12 7v11"/><circle cx="12" cy="6" r="1.4"/><path d="M12 9.4c-3.4-2-6.6-2-8 0 1.4 1.6 4.6 1.8 8 .6"/><path d="M12 9.4c3.4-2 6.6-2 8 0-1.4 1.6-4.6 1.8-8 .6"/><path d="M12 12.6c-2.6-1.4-5-1.4-6 0 1 1.2 3.4 1.4 6 .5"/><path d="M12 12.6c2.6-1.4 5-1.4 6 0-1 1.2-3.4 1.4-6 .5"/></svg>',
     bird:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M3 13c3-4 6-4 9 0 3-4 6-4 9 0"/></svg>',
-    swallow:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2 11c4-3.6 7.4-3 10 1 2.6-4 6-4.6 10-1"/><path d="M12 12v3.4"/></svg>'
+    swallow:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2 11c4-3.6 7.4-3 10 1 2.6-4 6-4.6 10-1"/><path d="M12 12v3.4"/></svg>',
+
+    /* --- abitanti delle stagioni fredde --- */
+    penguin:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">'
+            + '<path d="M12 3.2c3.1 0 5.2 2.4 5.2 5.6v7.4c0 2.6-2.2 4.4-5.2 4.4s-5.2-1.8-5.2-4.4V8.8c0-3.2 2.1-5.6 5.2-5.6z"/>'
+            + '<path d="M12 6.4c1.7 0 2.8 1.3 2.8 3.1v6.2c0 1.6-1.2 2.6-2.8 2.6s-2.8-1-2.8-2.6V9.5c0-1.8 1.1-3.1 2.8-3.1z"/>'
+            + '<circle cx="10.3" cy="7.4" r=".55" fill="currentColor" stroke="none"/>'
+            + '<circle cx="13.7" cy="7.4" r=".55" fill="currentColor" stroke="none"/>'
+            + '<path d="M11 9.1h2l-1 1.5z"/>'
+            + '<path d="M6.8 10.5c-1.2 1.3-1.4 3.3-.6 5"/><path d="M17.2 10.5c1.2 1.3 1.4 3.3.6 5"/>'
+            + '<path d="M9.6 20.6l-1.6 1.4M14.4 20.6l1.6 1.4"/></svg>',
+
+    sleigh:   '<svg viewBox="0 0 30 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">'
+            /* la slitta */
+            + '<path d="M6 15h11a2 2 0 002-2v-3H8a2 2 0 00-2 2z"/>'
+            + '<path d="M5 18h13c1.6 0 2.6-.8 3-2"/>'
+            + '<path d="M5 18c-1.2 0-2-.7-1.8-1.8"/>'
+            /* i regali sopra */
+            + '<path d="M9.5 10V7.4h3V10M11 7.4V6"/>'
+            + '<path d="M14 10V8.4h2.4V10"/>'
+            /* le redini e la scia */
+            + '<path d="M19 11.5c2.4-.6 4.4-1.8 5.8-3.6"/>'
+            + '<path d="M2 12.5h2.6M1 15.5h2.2M3 9.5h2" opacity=".6"/></svg>',
+
+    reindeer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">'
+            + '<path d="M7.5 16.5v3M11 16.5v3M14.5 16.5v3M18 16.5v2.6"/>'
+            + '<path d="M6.5 11.5h11a2 2 0 012 2v1.4a1.6 1.6 0 01-1.6 1.6H8a1.6 1.6 0 01-1.6-1.6z"/>'
+            + '<path d="M6.5 12.4L4.6 9.6a1.7 1.7 0 011.4-2.7h1.3"/>'
+            + '<path d="M6 7.2c-.7-1-1.9-1.5-3-1.3M6.6 6.6c-.2-1.2.2-2.3 1-3.1"/>'
+            + '<circle cx="4.6" cy="9.4" r=".5" fill="currentColor" stroke="none"/></svg>',
+
+    squirrel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">'
+            + '<path d="M11 19h6c1 0 1.6-.7 1.6-1.6 0-2.6-1.8-4.6-4.2-5.2"/>'
+            + '<path d="M14.4 12.2a3.2 3.2 0 10-.6-6.2 3.2 3.2 0 00.6 6.2z"/>'
+            + '<path d="M13 6.2c-.3-1-.1-1.9.5-2.6"/>'
+            + '<circle cx="15.6" cy="8.4" r=".55" fill="currentColor" stroke="none"/>'
+            /* la coda folta */
+            + '<path d="M11 19c-3.4 0-5.6-2.4-5.6-5.4 0-3.6 2.6-6.2 5.6-6.2"/>'
+            + '<path d="M11 17c-2 0-3.4-1.6-3.4-3.5 0-2.2 1.4-4 3.2-4.2"/></svg>',
+
+    hedgehog: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">'
+            + '<path d="M4.5 16.5c0-4 3-7 7-7s7 2.4 7 6c0 1.6-1.2 2.6-3 2.6H7c-1.6 0-2.5-.6-2.5-1.6z"/>'
+            + '<path d="M18.5 15.5c1.2-.4 2-1 2.4-1.9"/>'
+            + '<path d="M6.6 11.6l-1.4-2M9.4 9.9l-.7-2.3M12.6 9.6l.5-2.3M15.6 10.6l1.5-1.9"/>'
+            + '<circle cx="19.4" cy="14.6" r=".5" fill="currentColor" stroke="none"/>'
+            + '<path d="M7.5 19v1.4M11 19v1.4M14.5 19v1.4"/></svg>'
 };
 
 function rand(a, b) { return a + Math.random() * (b - a); }
@@ -320,7 +436,14 @@ function renderAmbient(cfg) {
     (cfg.drifters || []).forEach(function (d) {
         for (var n = 0; n < (d.count || 1); n++) {
             var isFly = d.type === 'firefly';
-            var wrap = el('div', 'pl-drift' + (isFly ? ' pl-firefly' : '') + (d.type === 'bird' || d.type === 'swallow' ? ' pl-drift-slow' : ''));
+            /* chi cammina o scivola non batte le ali: niente ondeggio veloce */
+            var terrestre = ['penguin', 'squirrel', 'hedgehog', 'reindeer'].indexOf(d.type) !== -1;
+            var slitta = d.type === 'sleigh';   // questa svolazza, come da richiesta
+            var wrap = el('div', 'pl-drift'
+                + (isFly ? ' pl-firefly' : '')
+                + (d.type === 'bird' || d.type === 'swallow' ? ' pl-drift-slow' : '')
+                + (terrestre ? ' pl-drift-walk' : '')
+                + (slitta ? ' pl-drift-walk pl-drift-fly' : ''));
             var size = d.size || 15;
             wrap.style.top = rand(8, 62).toFixed(0) + '%';
             wrap.style.width = size + 'px';
@@ -749,14 +872,241 @@ function summaryDiary(d) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Meteo (Open-Meteo, dati CC BY 4.0)                                  */
+/* ------------------------------------------------------------------ */
+var WX = { on: false, giorni: {}, place: null, fonte: null, fonte_url: null, nota: null };
+
+var WX_ICONE = {
+    'sole':            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>',
+    'sole-nubi':       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8.5" cy="8.5" r="3"/><path d="M8.5 3.5v1.4M3.5 8.5h1.4M5 5l1 1"/><path d="M12 19h6a2.6 2.6 0 100-5.2 3.4 3.4 0 00-6.5-1A2.4 2.4 0 0012 19z"/></svg>',
+    'nubi':            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 18h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 18z"/></svg>',
+    'nebbia':          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 10h16M6 14h12M4 18h16"/></svg>',
+    'pioggia-leggera': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 15h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 15z"/><path d="M10 18.5v1.5M14 18.5v1.5"/></svg>',
+    'pioggia':         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 14h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 14z"/><path d="M9 17v3M12.5 17v3M16 17v3"/></svg>',
+    'pioggia-forte':   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 13h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 13z"/><path d="M8 16v4.5M12 16v4.5M16 16v4.5"/></svg>',
+    'neve':            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 13h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 13z"/><path d="M9.5 17.5h.01M13 19h.01M16 17.5h.01"/></svg>',
+    'temporale':       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 13h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 13z"/><path d="M13 15l-3 4h3l-1 3"/></svg>'
+};
+function wxClasse(icona) {
+    if (icona === 'sole' || icona === 'sole-nubi') return ' pl-wx-sun';
+    if (icona === 'neve') return ' pl-wx-snow';
+    if (icona === 'temporale') return ' pl-wx-storm';
+    if (icona.indexOf('pioggia') === 0) return ' pl-wx-rain';
+    return '';
+}
+
+function wxCall(action, data) {
+    var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': S.csrf } };
+    if (data) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(data); }
+    return fetch('meteo_api.php?ajax=' + action, opt)
+        .then(function (r) { return r.json(); })
+        .catch(function () { return { ok: false }; });
+}
+
+function wxApply(r) {
+    if (!r || !r.ok) return;
+    WX.on = !!r.enabled;
+    WX.giorni = r.giorni || {};
+    WX.place = r.place || null;
+    WX.fonte = r.fonte || null;
+    WX.fonte_url = r.fonte_url || null;
+    if (r.nota_affidabilita) WX.nota = r.nota_affidabilita;
+    $('plWeatherBtn').classList.toggle('pl-weather-on', WX.on);
+    renderDays();
+    if (S.view === 'month') renderMonth();
+}
+
+function wxLoad() {
+    return wxCall('status').then(wxApply);
+}
+
+/* Il tag da mettere in una cella: solo per i giorni che abbiamo. */
+function wxTag(date) {
+    if (!WX.on) return null;
+    var g = WX.giorni[date];
+    if (!g) return null;
+    var b = el('button', 'pl-wx' + wxClasse(g.icon));
+    b.type = 'button';
+    b.innerHTML = WX_ICONE[g.icon] || WX_ICONE.nubi;
+    if (g.tmax !== null && g.tmax !== undefined) b.appendChild(el('span', null, g.tmax + '°'));
+    b.setAttribute('aria-label', g.label);
+    b.addEventListener('click', function (e) { e.stopPropagation(); wxPopup(date); });
+    return b;
+}
+
+function wxPopup(date) {
+    var g = WX.giorni[date];
+    if (!g) return;
+    var d = parseIso(date);
+    openSheet('Meteo', function (body) {
+        body.appendChild(el('div', 'pl-label',
+            GIORNI[dowIndex(date)] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()
+            + (WX.place ? '  ·  ' + WX.place : '')));
+
+        var big = el('div', 'pl-row');
+        big.style.margin = '10px 0 14px';
+        var ico = el('div');
+        ico.style.cssText = 'width:44px;height:44px;color:var(--ink-2);flex-shrink:0';
+        ico.innerHTML = WX_ICONE[g.icon] || WX_ICONE.nubi;
+        big.appendChild(ico);
+        var txt = el('div');
+        txt.appendChild(el('div', 'pl-sheet-title pl-serif', g.label));
+        if (g.tmax !== null) {
+            txt.appendChild(el('div', 'pl-row-sub',
+                'massima ' + g.tmax + '°' + (g.tmin !== null ? ', minima ' + g.tmin + '°' : '')));
+        }
+        big.appendChild(txt);
+        body.appendChild(big);
+
+        function riga(k, v) {
+            var r = el('div', 'pl-row-sb');
+            r.appendChild(el('span', 'pl-row-lab', k));
+            r.appendChild(el('span', 'pl-row-sub', v));
+            body.appendChild(r);
+        }
+        if (g.pioggia !== null && g.pioggia !== undefined) riga('Probabilità di pioggia', g.pioggia + '%');
+        if (g.vento !== null && g.vento !== undefined) riga('Vento massimo', g.vento + ' km/h');
+        riga('Attendibilità stimata', g.affidabilita + '%');
+
+        if (WX.nota) {
+            var nota = el('div', 'pl-row-sub', WX.nota);
+            nota.style.marginTop = '12px';
+            body.appendChild(nota);
+        }
+
+        /* attribuzione: i dati sono CC BY 4.0, citare la fonte è dovuto */
+        var fonte = el('div', 'pl-row-sub');
+        fonte.style.marginTop = '14px';
+        fonte.appendChild(document.createTextNode('Dati '));
+        var a = el('a', null, WX.fonte || 'Open-Meteo');
+        a.href = WX.fonte_url || 'https://open-meteo.com';
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.style.color = 'var(--accent-ink)';
+        fonte.appendChild(a);
+        fonte.appendChild(document.createTextNode(' · licenza CC BY 4.0 · previsioni fino a 5 giorni'));
+        body.appendChild(fonte);
+
+        var off = el('button', 'pl-btn', 'Disattiva il meteo');
+        off.type = 'button';
+        off.style.marginTop = '18px';
+        off.addEventListener('click', function () {
+            wxCall('disable', {}).then(function () {
+                WX.on = false; WX.giorni = {};
+                $('plWeatherBtn').classList.remove('pl-weather-on');
+                closeOv('plSheetOv');
+                renderDays();
+                if (S.view === 'month') renderMonth();
+                toast('Meteo disattivato.');
+            });
+        });
+        body.appendChild(off);
+    });
+}
+
+$('plWeatherBtn').addEventListener('click', function () {
+    if (WX.on) {
+        /* già attivo: si apre il meteo del giorno che si sta guardando */
+        if (WX.giorni[S.focusDate]) wxPopup(S.focusDate);
+        else {
+            var primo = Object.keys(WX.giorni)[0];
+            if (primo) wxPopup(primo); else toast('Previsioni non disponibili.');
+        }
+        return;
+    }
+    if (!navigator.geolocation) { toast('Questo browser non sa dire la posizione.'); return; }
+    toast('Chiedo la posizione…');
+    navigator.geolocation.getCurrentPosition(function (pos) {
+        wxCall('enable', {
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude
+        }).then(function (r) {
+            if (!r.ok) { toast('Meteo non attivato.'); return; }
+            wxApply(r);
+            toast('Meteo attivo' + (r.place ? ' per ' + r.place : '') + '.');
+        });
+    }, function () {
+        toast('Senza la posizione non posso dare le previsioni.');
+    }, { timeout: 12000, maximumAge: 600000 });
+});
+
+/* ------------------------------------------------------------------ */
 /* Barra intelligente: da una frase a un evento                        */
 /* ------------------------------------------------------------------ */
 var SMART = null;
+var RUBRICA = [];
+
+/* La rubrica serve alla barra intelligente per riconoscere "con luchino".
+   È un elenco corto, quindi lo teniamo in memoria invece di interrogare il
+   server a ogni frase scritta. */
+function loadRubrica() {
+    return api('contacts').then(function (r) {
+        RUBRICA = (r && r.ok) ? r.contacts : [];
+    }).catch(function () { RUBRICA = []; });
+}
+
 function loadSmart() {
     return fetch('planner_smart.json', { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (d) { SMART = d; })
         .catch(function () { /* senza il file la barra resta muta */ });
+}
+
+/* La Pasqua dell'anno chiesto (algoritmo di Meeus): serve per Pasquetta,
+   Carnevale e le altre feste che si spostano ogni anno. */
+function pasquaDi(anno) {
+    var a = anno % 19, b = Math.floor(anno / 100), c = anno % 100;
+    var dd = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    var g = Math.floor((b - f + 1) / 3), h = (19 * a + b - dd - g + 15) % 30;
+    var i = Math.floor(c / 4), k = c % 4;
+    var l = (32 + 2 * e + 2 * i - h - k) % 7;
+    var m = Math.floor((a + 11 * h + 22 * l) / 451);
+    var mese = Math.floor((h + l - 7 * m + 114) / 31);
+    var giorno = ((h + l - 7 * m + 114) % 31) + 1;
+    return anno + '-' + pad(mese) + '-' + pad(giorno);
+}
+
+/* Quante correzioni servono per passare da una parola all'altra: serve per
+   perdonare gli errori di battitura ("agsoto" invece di "agosto"). */
+function distanzaParole(a, b) {
+    a = String(a); b = String(b);
+    if (Math.abs(a.length - b.length) > 3) return 99;
+    var prev = [], cur = [];
+    for (var j2 = 0; j2 <= b.length; j2++) prev[j2] = j2;
+    for (var i2 = 1; i2 <= a.length; i2++) {
+        cur[0] = i2;
+        for (var k2 = 1; k2 <= b.length; k2++) {
+            var costo = a.charAt(i2 - 1) === b.charAt(k2 - 1) ? 0 : 1;
+            cur[k2] = Math.min(cur[k2 - 1] + 1, prev[k2] + 1, prev[k2 - 1] + costo);
+        }
+        prev = cur.slice();
+    }
+    return prev[b.length];
+}
+
+/* Cerca nel testo una delle chiavi date, perdonando qualche lettera sbagliata.
+   Ritorna { key, match } oppure null. Le chiavi più lunghe hanno la
+   precedenza, così "san valentino" vince su "valentino". */
+function trovaChiave(text, chiavi, tolleranza) {
+    var ordinate = chiavi.slice().sort(function (x, y) { return y.length - x.length; });
+    /* prima le corrispondenze esatte */
+    for (var i = 0; i < ordinate.length; i++) {
+        if (text.indexOf(' ' + ordinate[i] + ' ') !== -1) return { key: ordinate[i], match: ordinate[i] };
+    }
+    if (!tolleranza) return null;
+    /* poi quelle con qualche svista, parola per parola */
+    var parole = text.split(/\s+/).filter(Boolean);
+    for (var p = 0; p < parole.length; p++) {
+        if (parole[p].length < 4) continue;          // troppo corta: rischio di scambi
+        for (var c = 0; c < ordinate.length; c++) {
+            if (ordinate[c].indexOf(' ') !== -1) continue;   // solo parole singole
+            var limite = ordinate[c].length <= 5 ? 1 : tolleranza;
+            if (distanzaParole(parole[p], ordinate[c]) <= limite) {
+                return { key: ordinate[c], match: parole[p] };
+            }
+        }
+    }
+    return null;
 }
 
 /* Legge la frase e ne ricava data, ora e titolo. Le parti riconosciute
@@ -765,7 +1115,7 @@ function smartParse(raw) {
     if (!SMART) return null;
     var text = ' ' + String(raw).toLowerCase().trim() + ' ';
     var used = [];
-    var date = null, time = null;
+    var date = null, time = null, mealFound = false;
 
     function eat(re) {
         var m = text.match(re);
@@ -783,74 +1133,130 @@ function smartParse(raw) {
         if (mHour) time = pad(parseInt(mHour[1], 10)) + ':00';
     }
 
-    /* --- data esplicita: 13 agosto, 13/8, 13-08-2026 --- */
+    /* --- feste a data fissa: ferragosto, natale, capodanno… --- */
+    var tol = SMART.tolleranza_errori_battitura || 0;
+    if (!date && SMART.festivita) {
+        var f = trovaChiave(text, Object.keys(SMART.festivita), tol);
+        if (f) {
+            var info = SMART.festivita[f.key];
+            var y1 = parseIso(S.today).getFullYear();
+            var cand1 = y1 + '-' + pad(info.mese) + '-' + pad(info.giorno);
+            if (cand1 < S.today) cand1 = (y1 + 1) + '-' + pad(info.mese) + '-' + pad(info.giorno);
+            date = cand1;
+            used.push(f.key);
+            text = text.replace(' ' + f.match + ' ', ' ');
+        }
+    }
+
+    /* --- feste che si spostano: pasqua, pasquetta, carnevale --- */
+    if (!date && SMART.festivita_mobili) {
+        var fm = trovaChiave(text, Object.keys(SMART.festivita_mobili), tol);
+        if (fm) {
+            var y2 = parseIso(S.today).getFullYear();
+            var cand2 = addDays(pasquaDi(y2), SMART.festivita_mobili[fm.key]);
+            if (cand2 < S.today) cand2 = addDays(pasquaDi(y2 + 1), SMART.festivita_mobili[fm.key]);
+            date = cand2;
+            used.push(fm.key);
+            text = text.replace(' ' + fm.match + ' ', ' ');
+        }
+    }
+
+    /* --- data esplicita: 13/8, 13-08-2026 --- */
     var mNum = eat(/\s(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\s/);
     if (mNum) {
         var yy = mNum[3] ? parseInt(mNum[3], 10) : parseIso(S.today).getFullYear();
         if (yy < 100) yy += 2000;
         date = yy + '-' + pad(parseInt(mNum[2], 10)) + '-' + pad(parseInt(mNum[1], 10));
     }
+
+    /* --- giorno e mese scritti: "13 agosto", anche con qualche svista --- */
     if (!date) {
-        for (var mese in SMART.mesi) {
-            if (!SMART.mesi.hasOwnProperty(mese)) continue;
-            var re = new RegExp('\\s(\\d{1,2})\\s+' + mese + '\\s', 'i');
-            var mm = text.match(re);
-            if (mm) {
-                var y = parseIso(S.today).getFullYear();
-                var cand = y + '-' + pad(SMART.mesi[mese]) + '-' + pad(parseInt(mm[1], 10));
-                /* se è già passata, si intende l'anno prossimo */
-                if (cand < S.today) cand = (y + 1) + '-' + pad(SMART.mesi[mese]) + '-' + pad(parseInt(mm[1], 10));
-                date = cand;
-                used.push(mm[0].trim());
-                text = text.replace(mm[0], ' ');
-                break;
+        var mm2 = text.match(/\s(\d{1,2})\s+([a-zàèéìòù]{3,12})\s/);
+        if (mm2) {
+            var mese = trovaChiave(' ' + mm2[2] + ' ', Object.keys(SMART.mesi), tol);
+            if (mese) {
+                var y3 = parseIso(S.today).getFullYear();
+                var cand3 = y3 + '-' + pad(SMART.mesi[mese.key]) + '-' + pad(parseInt(mm2[1], 10));
+                if (cand3 < S.today) cand3 = (y3 + 1) + '-' + pad(SMART.mesi[mese.key]) + '-' + pad(parseInt(mm2[1], 10));
+                date = cand3;
+                used.push(mm2[1] + ' ' + mese.key);
+                text = text.replace(mm2[0], ' ');
             }
         }
+    }
+
+    /* --- fasce del giorno: si guardano PRIMA di togliere le parole del
+           giorno relativo. Era questo il difetto: "stasera" vale sia come
+           giorno (oggi) sia come ora (20:00), ma veniva cancellata dal testo
+           come giorno e poi non si trovava più come ora. Così "cena stasera"
+           funzionava (l'ora arrivava da "cena") e "mangio bene stasera" no. --- */
+    if (!time && SMART.fasce_orarie) {
+        var fa = trovaChiave(text, Object.keys(SMART.fasce_orarie), 0);
+        if (fa) time = SMART.fasce_orarie[fa.key];
+    }
+    /* i pasti hanno la precedenza: sono più specifici di "sera" o "mattina" */
+    if (SMART.pasti) {
+        var pa = trovaChiave(text, Object.keys(SMART.pasti), tol);
+        if (pa) { time = SMART.pasti[pa.key]; mealFound = true; }
     }
 
     /* --- giorni relativi: oggi, domani, dopodomani --- */
     if (!date) {
         var rel = Object.keys(SMART.giorni_relativi).sort(function (a, b) { return b.length - a.length; });
         for (var i = 0; i < rel.length; i++) {
-            if (text.indexOf(' ' + rel[i] + ' ') !== -1) {
-                date = addDays(S.today, SMART.giorni_relativi[rel[i]]);
-                used.push(rel[i]);
-                text = text.replace(' ' + rel[i] + ' ', ' ');
-                break;
-            }
+            if (text.indexOf(' ' + rel[i] + ' ') === -1) continue;
+            date = addDays(S.today, SMART.giorni_relativi[rel[i]]);
+            used.push(rel[i]);
+            /* le parole che dicono anche l'ora restano nel titolo solo se non
+               sono già state usate come tali */
+            var conserva = (SMART.fasce_da_conservare || []).indexOf(rel[i]) !== -1;
+            if (!conserva) text = text.replace(' ' + rel[i] + ' ', ' ');
+            else text = text.replace(' ' + rel[i] + ' ', ' ');
+            break;
         }
     }
 
     /* --- giorni della settimana: il prossimo che capita --- */
     if (!date) {
-        var wd = Object.keys(SMART.giorni_settimana).sort(function (a, b) { return b.length - a.length; });
-        for (var k = 0; k < wd.length; k++) {
-            if (text.indexOf(' ' + wd[k] + ' ') === -1) continue;
-            var target = SMART.giorni_settimana[wd[k]];          // 1 = lunedì
+        var wdKeys = Object.keys(SMART.giorni_settimana);
+        var wd = trovaChiave(text, wdKeys, tol);
+        if (wd) {
+            var target = SMART.giorni_settimana[wd.key];      // 1 = lunedì
             var oggiDow = dowIndex(S.today) + 1;
             var delta = (target - oggiDow + 7) % 7;
-            if (delta === 0) delta = 7;                           // "martedì" detto di martedì = il prossimo
-            /* "prossimo" sposta di un'altra settimana */
+            if (delta === 0) delta = 7;                        // "martedì" detto di martedì = il prossimo
             var piu = false;
             (SMART.settimana_prossima || []).forEach(function (w) { if (text.indexOf(w) !== -1) piu = true; });
             if (piu) delta += 7;
             date = addDays(S.today, delta);
-            used.push(wd[k]);
-            text = text.replace(' ' + wd[k] + ' ', ' ');
-            break;
+            used.push(wd.key);
+            text = text.replace(' ' + wd.match + ' ', ' ');
         }
     }
 
-    /* --- fasce del giorno: pranzo, sera, mezzogiorno --- */
-    if (!time) {
-        for (var fascia in SMART.fasce_orarie) {
-            if (!SMART.fasce_orarie.hasOwnProperty(fascia)) continue;
-            if (text.indexOf(' ' + fascia + ' ') !== -1) {
-                time = SMART.fasce_orarie[fascia];
-                /* la parola resta nel titolo: "pranzo" è il nome dell'evento */
-                break;
+    /* --- con chi: "con luchino" invita luchino, e il nome resta nel titolo
+           perché l'evento si chiama davvero "pranzo con luchino" --- */
+    var invitati = [];
+    if (RUBRICA.length) {
+        var tol2 = SMART.tolleranza_errori_battitura || 0;
+        RUBRICA.forEach(function (c) {
+            var nome = String(c.name || '').toLowerCase().trim();
+            if (!nome) return;
+            if (invitati.some(function (g) { return g.email === c.email; })) return;
+
+            /* "con luchino" è il caso sicuro: la preposizione dice che si
+               parla di una persona e non di una parola qualsiasi */
+            if (text.indexOf(' con ' + nome + ' ') !== -1) {
+                invitati.push({ email: c.email, name: c.name });
+                return;
             }
-        }
+            /* il nome da solo vale solo se è abbastanza lungo da non
+               confondersi con una parola comune */
+            if (nome.length >= 4) {
+                var trovato = trovaChiave(text, [nome], tol2);
+                if (trovato) invitati.push({ email: c.email, name: c.name });
+            }
+        });
     }
 
     /* --- quello che resta è il titolo --- */
@@ -862,8 +1268,12 @@ function smartParse(raw) {
 
     return {
         title: titolo,
+        guests: invitati,
         date: date || S.focusDate,
         time: time,
+        /* senza un'ora indicata l'evento dura tutto il giorno, a meno che la
+           frase parlasse di un pasto: "pranzo" senza ora va a mezzogiorno */
+        allDay: !time && SMART.tutto_il_giorno_se_manca_ora !== false && !mealFound,
         dateGuessed: !date,
         timeGuessed: !time,
         used: used
@@ -877,12 +1287,14 @@ function smartCreate(input) {
     if (!p || !p.title) { toast('Non ho capito cosa scrivere come titolo.'); return; }
 
     var dur = (SMART && SMART.durata_predefinita_minuti) || 60;
-    var start = p.time || toHM(firstFreeMinute(dur));
-    var end = toHM(Math.min(1439, toMin(start) + dur));
+    var start = p.allDay ? '00:00' : (p.time || toHM(firstFreeMinute(dur)));
+    var end = p.allDay ? '23:59' : toHM(Math.min(1439, toMin(start) + dur));
 
     api('event_save', {
         title: p.title, date: p.date, start: start, end: end,
-        type: 'event', notify: 'h1'
+        all_day: p.allDay ? 1 : 0,
+        guests: p.guests || [],
+        type: 'event', notify: p.allDay ? 'none' : 'h1'
     }).then(function (r) {
         if (!r.ok) { toast(r.message || 'Non è stato possibile creare l\'evento.'); return; }
         indexEvents([r.event]);
@@ -890,13 +1302,64 @@ function smartCreate(input) {
         input.blur();
         if (p.date !== S.focusDate) goToDate(p.date, true); else renderDays();
         haptic(12);
-        smartReport(p, start, end);
+        smartReport(p, start, end, r.event);
         scheduleSync();
     });
 }
 
+/* Dettatura della barra: si parla, e dopo un paio di secondi di silenzio
+   l'evento viene creato da sé. Se non si dice niente, si spegne e basta. */
+function setupSmartMic(btn, input) {
+    var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Rec) return;                 // dove non c'è, il tasto resta nascosto
+    btn.hidden = false;
+
+    var rec = null, running = false, silence = null, spoken = false;
+
+    function stop(andCreate) {
+        running = false;
+        btn.classList.remove('pl-rec');
+        if (silence) { clearTimeout(silence); silence = null; }
+        if (rec) { try { rec.stop(); } catch (e) {} }
+        if (andCreate && input.value.trim()) smartCreate(input);
+    }
+
+    function armSilence() {
+        if (silence) clearTimeout(silence);
+        /* due secondi e mezzo di silenzio: se qualcosa è stato detto lo si
+           inserisce, altrimenti si spegne senza fare nulla */
+        silence = setTimeout(function () { stop(spoken); }, 2500);
+    }
+
+    btn.addEventListener('click', function () {
+        if (running) { stop(false); return; }
+        rec = new Rec();
+        rec.lang = 'it-IT';
+        rec.continuous = true;
+        rec.interimResults = true;
+        spoken = false;
+
+        rec.onresult = function (e) {
+            var testo = '';
+            for (var i = 0; i < e.results.length; i++) testo += e.results[i][0].transcript;
+            testo = testo.trim();
+            if (testo) { input.value = testo; spoken = true; }
+            armSilence();
+        };
+        rec.onerror = function () { stop(false); };
+        rec.onend = function () { if (running) { try { rec.start(); } catch (e) { stop(spoken); } } };
+
+        try {
+            rec.start();
+            running = true;
+            btn.classList.add('pl-rec');
+            armSilence();
+        } catch (e) { stop(false); }
+    });
+}
+
 /* Il riepilogo di quello che ha capito: resta qualche secondo e se ne va. */
-function smartReport(p, start, end) {
+function smartReport(p, start, end, created) {
     var d = parseIso(p.date);
     var quando = GIORNI[dowIndex(p.date)] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase();
     var box = $('plSmartReport');
@@ -907,16 +1370,27 @@ function smartReport(p, start, end) {
     }
     box.innerHTML = '';
     box.appendChild(el('div', 'pl-smart-title', '“' + p.title + '”'));
-    box.appendChild(el('div', 'pl-smart-line', quando + ', dalle ' + start + ' alle ' + end));
+    box.appendChild(el('div', 'pl-smart-line', quando + (p.allDay ? ', tutto il giorno' : ', dalle ' + start + ' alle ' + end)));
+    if (p.guests && p.guests.length) {
+        box.appendChild(el('div', 'pl-smart-line',
+            'con ' + p.guests.map(function (g) { return g.name || g.email; }).join(', ') + ' · invito inviato'));
+    }
     var note = [];
-    if (p.dateGuessed) note.push('data non indicata: ho usato il giorno che stavi guardando');
-    if (p.timeGuessed) note.push('ora non indicata: ho preso il primo momento libero');
-    if (note.length) box.appendChild(el('div', 'pl-smart-note', note.join(' · ')));
+    if (p.dateGuessed) note.push('giorno non indicato: ho usato quello che stavi guardando');
+    if (p.timeGuessed && p.allDay) note.push('ora non indicata: messo su tutto il giorno');
+    else if (p.timeGuessed) note.push('ora dedotta dalla frase');
+    note.push('tocca per sistemarlo');
+    box.appendChild(el('div', 'pl-smart-note', note.join(' · ')));
 
     box.classList.add('pl-open');
     if (S._smartTimer) clearTimeout(S._smartTimer);
-    S._smartTimer = setTimeout(function () { box.classList.remove('pl-open'); }, 5200);
-    box.addEventListener('click', function () { box.classList.remove('pl-open'); });
+    /* qualche secondo in più: il tempo di leggere e decidere se ritoccarlo */
+    S._smartTimer = setTimeout(function () { box.classList.remove('pl-open'); }, 9000);
+    /* toccandolo si apre la modifica, per dargli una categoria o correggerlo */
+    box.onclick = function () {
+        box.classList.remove('pl-open');
+        if (created) openEventSheet(created, null);
+    };
 }
 
 /* ------------------------------------------------------------------ */
@@ -1086,6 +1560,8 @@ function buildHeadTrack() {
                 lab.appendChild(el('span', 'pl-col-wd', GIORNI[dowIndex(ds)].slice(0, 3)));
                 cell.appendChild(lab);
             }
+            var wt = wxTag(ds);
+            if (wt) cell.appendChild(wt);
             cell.appendChild(el('div', 'pl-hcol-ad'));   // eventi di tutto il giorno
             track.appendChild(cell);
         }
@@ -1485,6 +1961,22 @@ function buildEvent(ev, flow) {
             : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 15l7-7 7 7"/></svg>';
         row.appendChild(fold);
     }
+    /* con chi è, e dove: due tastini subito dopo il titolo */
+    if (ev.guests && ev.guests.length && !S.shift.on) {
+        var who = ev.guests.map(function (g) { return g.name || g.email.split('@')[0]; });
+        var tagW = el('span', 'pl-ev-with', who.length === 1 ? who[0] : who.length + ' persone');
+        tagW.title = ev.guests.map(function (g) { return g.email; }).join(', ');
+        row.appendChild(tagW);
+    }
+    if (ev.location && !S.shift.on) {
+        var mapBtn = el('button', 'pl-ev-map');
+        mapBtn.type = 'button';
+        mapBtn.dataset.act = 'map';
+        mapBtn.dataset.place = ev.location;
+        mapBtn.setAttribute('aria-label', 'Portami a ' + ev.location);
+        mapBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-10a6.5 6.5 0 1113 0c0 4.4-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg>';
+        row.appendChild(mapBtn);
+    }
     if (ev.project_id && !S.shift.on) {
         var pomo = el('button', 'pl-ev-pomo');
         pomo.type = 'button';
@@ -1662,6 +2154,17 @@ function renderRing() {
         if (date < S.today) planFrac = doneFrac;
         ring.querySelector('.pl-ring-done').style.strokeDashoffset = (C * (1 - doneFrac)).toFixed(1);
         ring.querySelector('.pl-ring-plan').style.strokeDashoffset = (C * (1 - planFrac)).toFixed(1);
+
+        /* anello interno: le settimanali, sul totale delle volte previste.
+           Il conto può superare l'obiettivo (5 palestre su 4): l'anello si
+           ferma al pieno, ma il numero nel menù dice la verità. */
+        var sett = weeklyOf(date);
+        var Cw = 91.1;
+        var fatte = 0, previste = 0;
+        sett.forEach(function (h) { fatte += h.done; previste += h.target; });
+        var wFrac = previste ? Math.min(1, fatte / previste) : 0;
+        var wRing = ring.querySelector('.pl-ring-week');
+        if (wRing) wRing.style.strokeDashoffset = (Cw * (1 - wFrac)).toFixed(1);
     });
 }
 
@@ -1766,6 +2269,10 @@ document.addEventListener('pointerdown', function (e) {
 function pageDays(delta) {
     goToDate(addDays(S.focusDate, delta), true);
 }
+
+/* frecce laterali: cambiano giorno dove non si può scorrere col dito */
+$('plPrevDay').addEventListener('click', function () { pageDays(-1); });
+$('plNextDay').addEventListener('click', function () { pageDays(1); });
 
 $('plTodayBtn').addEventListener('click', function () {
     if (S.view === 'month') { S.monthCursor = S.today.slice(0, 7) + '-01'; renderMonth(); return; }
@@ -2526,6 +3033,16 @@ function handleEventTap(e, node, ev) {
         });
         return;
     }
+    if (kind === 'map') {
+        /* su telefono apre l'app di navigazione predefinita, su computer la
+           mappa nel browser: la scelta la fa il sistema operativo */
+        var q = encodeURIComponent(act.dataset.place || '');
+        var isApple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent);
+        window.open(isApple ? 'maps://?q=' + q
+                            : 'https://www.google.com/maps/search/?api=1&query=' + q,
+                    '_blank', 'noopener');
+        return;
+    }
     if (kind === 'pomo') {
         /* il pomodoro legge "project_id": con il vecchio nome arrivava senza
            progetto selezionato */
@@ -2546,7 +3063,10 @@ function handleEventTap(e, node, ev) {
 /* ------------------------------------------------------------------ */
 function openEventSheet(existing, seed) {
     var d = existing ? {
-        id: existing.id, title: existing.title, notes: existing.notes || '', date: existing.date,
+        id: existing.id, title: existing.title, notes: existing.notes || '',
+        location: existing.location || '', guests: (existing.guests || []).slice(),
+        calendar_id: existing.calendar_id || null,
+        date: existing.date,
         start: existing.start, end: existing.end, all_day: existing.all_day,
         category_id: existing.category_id, project_id: existing.project_id,
         project_name: existing.project_name, project_color: existing.project_color,
@@ -2556,7 +3076,8 @@ function openEventSheet(existing, seed) {
         repeat_unit: existing.repeat_unit, repeat_until: existing.repeat_until,
         habit_id: existing.habit_id
     } : {
-        id: 0, title: '', notes: '', date: seed.date, start: seed.start, end: seed.end,
+        id: 0, title: '', notes: '', location: '', guests: [], calendar_id: null,
+        date: seed.date, start: seed.start, end: seed.end,
         all_day: false, category_id: S.defaultCat, project_id: null, importance: 'normal',
         color: null, type: 'event', notify: 'h1', notify_min: 60,
         repeat: 'none', repeat_interval: 1, repeat_unit: 'week', repeat_until: null
@@ -2695,6 +3216,23 @@ function renderEventSheet() {
     }
     body.appendChild(fr);
 
+    /* calendario */
+    if (S.calendars.length > 1) {
+        var fcal = el('div', 'pl-field');
+        fcal.appendChild(el('label', 'pl-label', 'Calendario'));
+        var calTags = el('div', 'pl-tags');
+        alpha(S.calendars, 'name').forEach(function (c) {
+            var attivo = d.calendar_id ? d.calendar_id === c.id : c.is_default;
+            calTags.appendChild(tag(c.name, c.color, attivo, function () {
+                d.calendar_id = c.id;
+                S.draft.dirty = true;
+                renderEventSheet();
+            }));
+        });
+        fcal.appendChild(calTags);
+        body.appendChild(fcal);
+    }
+
     /* categoria */
     var fc = el('div', 'pl-field');
     fc.appendChild(el('label', 'pl-label', 'Categoria'));
@@ -2763,6 +3301,75 @@ function renderEventSheet() {
     ft.appendChild(seg([['event', 'Evento'], ['task', 'Task']], d.type, function (v) { d.type = v; S.draft.dirty = true; renderEventSheet(); }));
     body.appendChild(ft);
 
+    /* luogo */
+    var floc = el('div', 'pl-field');
+    floc.appendChild(el('label', 'pl-label', 'Luogo'));
+    var locRow = el('div', 'pl-title-row');
+    var locIn = el('input', 'pl-in');
+    locIn.type = 'text';
+    locIn.placeholder = 'Indirizzo o nome del posto';
+    locIn.maxLength = 255;
+    locIn.value = d.location || '';
+    locIn.addEventListener('input', function () { d.location = locIn.value; S.draft.dirty = true; });
+    locRow.appendChild(locIn);
+    var locBtn = el('button', 'pl-icon-btn');
+    locBtn.type = 'button';
+    locBtn.setAttribute('aria-label', 'Cerca su Google Maps');
+    locBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-10a6.5 6.5 0 1113 0c0 4.4-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg>';
+    locBtn.addEventListener('click', function () {
+        var q = (locIn.value || '').trim();
+        window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q || 'vicino a me'),
+                    '_blank', 'noopener');
+    });
+    locRow.appendChild(locBtn);
+    floc.appendChild(locRow);
+    body.appendChild(floc);
+
+    /* invitati */
+    var fg = el('div', 'pl-field');
+    fg.appendChild(el('label', 'pl-label', 'Invitati'));
+    var gTags = el('div', 'pl-tags');
+    function drawGuests() {
+        gTags.innerHTML = '';
+        (d.guests || []).forEach(function (g) {
+            var t = el('button', 'pl-tag pl-on');
+            t.type = 'button';
+            t.style.setProperty('--ev', '#CFDDEA');
+            t.appendChild(el('span', null, g.name || g.email));
+            var x = el('span', 'pl-chip-x');
+            x.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+            t.appendChild(x);
+            t.addEventListener('click', function () {
+                d.guests = d.guests.filter(function (y) { return y.email !== g.email; });
+                S.draft.dirty = true;
+                drawGuests();
+            });
+            gTags.appendChild(t);
+        });
+    }
+    drawGuests();
+    fg.appendChild(gTags);
+
+    var gRow = el('div', 'pl-row');
+    gRow.style.marginTop = '8px';
+    var gIn = el('input', 'pl-in');
+    gIn.type = 'email';
+    gIn.placeholder = 'nome@esempio.it';
+    gIn.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        addGuest(d, gIn.value, null, drawGuests);
+        gIn.value = '';
+    });
+    var gBook = el('button', 'pl-icon-btn');
+    gBook.type = 'button';
+    gBook.setAttribute('aria-label', 'Apri la rubrica');
+    gBook.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h11a1 1 0 011 1v14a1 1 0 01-1 1H7z"/><path d="M4 8h3M4 12h3M4 16h3"/><circle cx="12.5" cy="10" r="2"/><path d="M9.5 16c.4-1.6 1.6-2.5 3-2.5s2.6.9 3 2.5"/></svg>';
+    gBook.addEventListener('click', function () { openRubrica(d, drawGuests); });
+    gRow.appendChild(gIn); gRow.appendChild(gBook);
+    fg.appendChild(gRow);
+    body.appendChild(fg);
+
     /* note */
     var fnote = el('div', 'pl-field');
     fnote.appendChild(el('label', 'pl-label', 'Note'));
@@ -2781,6 +3388,96 @@ function renderEventSheet() {
         del.addEventListener('click', function () { confirmDeleteEvent(d); });
         body.appendChild(del);
     }
+}
+
+/* Aggiunge un invitato alla bozza, evitando i doppioni. */
+function addGuest(d, email, name, redraw) {
+    var mail = String(email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { toast('Indirizzo non valido.'); return; }
+    d.guests = d.guests || [];
+    if (d.guests.some(function (g) { return g.email === mail; })) return;
+    d.guests.push({ email: mail, name: name || null });
+    S.draft.dirty = true;
+    if (redraw) redraw();
+}
+
+/* La rubrica: in ordine alfabetico, con la ricerca che guarda sia il nome
+   sia l'indirizzo. Da qui si invita, si aggiunge e si cancella. */
+function openRubrica(draft, redraw) {
+    openSheet('Rubrica', function (body) {
+        var cerca = el('input', 'pl-in');
+        cerca.type = 'search';
+        cerca.placeholder = 'Cerca per nome o indirizzo';
+        body.appendChild(cerca);
+
+        var rows = el('div', 'pl-rows');
+        rows.style.marginTop = '12px';
+        body.appendChild(rows);
+
+        function carica(q) {
+            api('contacts', null, q ? { q: q } : null).then(function (r) {
+                rows.innerHTML = '';
+                if (!r.ok || !r.contacts.length) {
+                    rows.appendChild(el('div', 'pl-quote pl-serif',
+                        q ? 'Nessun contatto con questo nome.' : 'La rubrica è ancora vuota.'));
+                    return;
+                }
+                r.contacts.forEach(function (c) {
+                    var row = el('div', 'pl-srow');
+                    var inner = el('div', 'pl-srow-in');
+                    var txt = el('div');
+                    txt.style.flex = '1';
+                    txt.appendChild(el('div', 'pl-row-lab', c.name));
+                    txt.appendChild(el('div', 'pl-row-sub', c.email));
+                    inner.appendChild(txt);
+                    inner.addEventListener('click', function () {
+                        if (row.classList.contains('pl-swiped')) return;
+                        if (draft) { addGuest(draft, c.email, c.name, redraw); closeOv('plSheetOv'); }
+                    });
+                    var acts = el('div', 'pl-srow-acts');
+                    var del = el('button', 'pl-srow-act pl-del');
+                    del.type = 'button';
+                    del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>';
+                    del.addEventListener('click', function () {
+                        api('contact_delete', { id: c.id }).then(function () { carica(cerca.value.trim()); });
+                    });
+                    acts.appendChild(del);
+                    row.appendChild(inner); row.appendChild(acts);
+                    enableSwipe(row, inner);
+                    rows.appendChild(row);
+                });
+            });
+        }
+        carica('');
+        cerca.addEventListener('input', function () {
+            debounceSave('rubrica', 250, function () { carica(cerca.value.trim()); });
+        });
+
+        /* aggiungere un contatto nuovo */
+        var f = el('div', 'pl-field');
+        f.style.marginTop = '18px';
+        f.appendChild(el('label', 'pl-label', 'Nuovo contatto'));
+        var nome = el('input', 'pl-in');
+        nome.type = 'text'; nome.placeholder = 'Come lo chiami: luchino'; nome.maxLength = 80;
+        var mail = el('input', 'pl-in');
+        mail.type = 'email'; mail.placeholder = 'lucapercassi@esempio.it';
+        mail.style.marginTop = '8px';
+        f.appendChild(nome); f.appendChild(mail);
+        var add = el('button', 'pl-btn pl-btn-primary', 'Salva in rubrica');
+        add.type = 'button';
+        add.style.marginTop = '10px';
+        add.addEventListener('click', function () {
+            api('contact_save', { name: nome.value, email: mail.value }).then(function (r) {
+                if (!r.ok) { toast(r.message || 'Non salvato.'); return; }
+                nome.value = ''; mail.value = '';
+                carica(cerca.value.trim());
+                loadRubrica();   // così la barra intelligente lo riconosce subito
+                toast('Contatto salvato.');
+            });
+        });
+        f.appendChild(add);
+        body.appendChild(f);
+    });
 }
 
 /* pezzi riusabili del popup */
@@ -2910,7 +3607,9 @@ function saveEvent() {
         habit_id: d.habit_id || 0, importance: d.importance, color: d.color || '',
         type: d.type, notify: d.notify, notify_min: d.notify_min,
         repeat: d.repeat, repeat_interval: d.repeat_interval, repeat_unit: d.repeat_unit,
-        repeat_until: d.repeat_until || ''
+        repeat_until: d.repeat_until || '',
+        location: d.location || '', guests: d.guests || [],
+        calendar_id: d.calendar_id || 0
     };
     closeOv('plEventOv');
     S.draft = null;
@@ -3067,28 +3766,25 @@ $('plHabitRing').addEventListener('click', function () {
     if (!open) { menu.classList.remove('pl-open'); menu.style.maxHeight = ''; return; }
     menu.innerHTML = '';
     loadHabits(S.focusDate).then(function (habits) {
-        if (!habits.length) {
+        var sett = weeklyOf(S.focusDate);
+        if (!habits.length && !sett.length) {
             var none = el('div', 'pl-chip');
             none.appendChild(el('span', null, 'Nessuna abitudine per oggi'));
             menu.appendChild(none);
+            sizeMenu(menu);
             return;
         }
-        habits.forEach(function (h) {
-            var chip = el('button', 'pl-chip');
-            chip.type = 'button';
-            chip.style.setProperty('--ev', h.color);
-            chip.appendChild(el('span', 'pl-dot'));
-            if (h.icon) chip.appendChild(el('span', 'pl-ev-icon', h.icon));
-            chip.appendChild(el('span', null, h.name));
-            chip.addEventListener('click', function () {
-                closeMenus();
-                var slot = zoomCfg(S.zoom).slot || 30;
-                /* durata: quella stimata scritta in habits; se manca, lo scatto */
-                var dur = h.minutes && h.minutes > 0 ? h.minutes : slot;
-                confirmHabitTime(h, toHM(firstFreeMinute(dur)), dur);
-            });
-            menu.appendChild(chip);
-        });
+
+        /* prima quelle di oggi */
+        habits.forEach(function (h) { menu.appendChild(habitChip(h, false)); });
+
+        /* poi una linea sottile, e sotto le settimanali */
+        if (sett.length) {
+            if (habits.length) menu.appendChild(el('div', 'pl-chip-sep'));
+            menu.appendChild(el('div', 'pl-chip-lab', 'Questa settimana'));
+            sett.forEach(function (h) { menu.appendChild(habitChip(h, true)); });
+        }
+        sizeMenu(menu);
     });
     menu.classList.add('pl-open');
     sizeMenu(menu);
@@ -3164,6 +3860,41 @@ function confirmProjectTime(p, defaultStart, defaultDur) {
     });
     acts.appendChild(no); acts.appendChild(yes);
     ov.classList.add('pl-open');
+}
+
+/* Un'abitudine nel menù. Quelle settimanali portano il loro anellino con
+   "1/4" dentro: si vede a colpo d'occhio quanto manca all'obiettivo. */
+function habitChip(h, settimanale) {
+    var chip = el('button', 'pl-chip');
+    chip.type = 'button';
+    chip.style.setProperty('--ev', h.color);
+
+    if (settimanale) {
+        var C = 62.8, frac = h.target ? Math.min(1, h.done / h.target) : 0;
+        var r = el('span', 'pl-chip-ring');
+        r.innerHTML = '<svg viewBox="0 0 22 22">'
+            + '<circle class="bg" cx="11" cy="11" r="10"/>'
+            + '<circle class="fg" cx="11" cy="11" r="10" stroke-dasharray="' + C + '" stroke-dashoffset="'
+            + (C * (1 - frac)).toFixed(1) + '"/></svg>';
+        r.appendChild(el('span', null, h.done + '/' + h.target));
+        chip.appendChild(r);
+    } else {
+        chip.appendChild(el('span', 'pl-dot'));
+    }
+    if (h.icon) chip.appendChild(el('span', 'pl-ev-icon', h.icon));
+    chip.appendChild(el('span', null, h.name));
+    if (settimanale && h.done > h.target) {
+        /* oltre l'obiettivo non è un errore: è un merito */
+        chip.appendChild(el('span', 'pl-chip-sub', 'oltre'));
+    }
+
+    chip.addEventListener('click', function () {
+        var slot = zoomCfg(S.zoom).slot || 30;
+        var dur = h.minutes && h.minutes > 0 ? h.minutes : slot;
+        closeMenus();
+        confirmHabitTime(h, toHM(firstFreeMinute(dur)), dur);
+    });
+    return chip;
 }
 
 /* modalità anticipi / ritardi */
@@ -3293,7 +4024,42 @@ $('plSearchBtn').addEventListener('click', function () {
 });
 
 $('plFilterBtn').addEventListener('click', function () {
-    openSheet('Mostra categorie', function (body) {
+    openSheet('Cosa mostrare', function (body) {
+        /* ---- calendari ---- */
+        var fc = el('div', 'pl-field');
+        var head = el('div', 'pl-row-sb');
+        head.appendChild(el('span', 'pl-label', 'Calendari'));
+        var tutti = el('button', 'pl-mini-btn', 'Mostra tutti');
+        tutti.type = 'button';
+        tutti.addEventListener('click', function () {
+            api('calendar_only', { id: 0 }).then(function (r) {
+                if (!r.ok) return;
+                S.calendars = r.calendars;
+                renderDays();
+                if (S.view === 'month') renderMonth();
+                closeOv('plSheetOv');
+            });
+        });
+        head.appendChild(tutti);
+        fc.appendChild(head);
+
+        var rows = el('div', 'pl-rows');
+        alpha(S.calendars, 'name').forEach(function (c) { rows.appendChild(calendarRow(c)); });
+        fc.appendChild(rows);
+
+        var addCal = el('button', 'pl-addlist');
+        addCal.type = 'button';
+        addCal.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+        addCal.appendChild(el('span', null, 'Nuovo calendario'));
+        addCal.style.marginTop = '8px';
+        addCal.addEventListener('click', function () { editCalendar(null); });
+        fc.appendChild(addCal);
+        body.appendChild(fc);
+
+        /* ---- categorie ---- */
+        var lab = el('div', 'pl-label', 'Categorie');
+        lab.style.marginTop = '20px';
+        body.appendChild(lab);
         body.appendChild(el('div', 'pl-row-sub', 'Tocca una categoria per nasconderne gli eventi.'));
         var tags = el('div', 'pl-tags');
         tags.style.marginTop = '12px';
@@ -3413,6 +4179,126 @@ function openSettings(focus) {
         drawGoogle(gBox);
 
         if (focus === 'routines') setTimeout(function () { $('plSetRoutines').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
+    });
+}
+
+/* Una riga della lista calendari: si accende e si spegne, si tocca il nome
+   per vedere solo quello, e scorrendo compaiono modifica ed elimina. */
+function calendarRow(c) {
+    var row = el('div', 'pl-srow');
+    var inner = el('div', 'pl-srow-in');
+
+    var sw = el('span', 'pl-cal-dot' + (c.visible ? ' pl-on' : ''));
+    sw.style.setProperty('--ev', c.color);
+    sw.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
+    sw.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var next = !c.visible;
+        c.visible = next;
+        sw.classList.toggle('pl-on', next);
+        api('calendar_visible', { id: c.id, visible: next });
+        renderDays();
+        if (S.view === 'month') renderMonth();
+    });
+    inner.appendChild(sw);
+
+    var txt = el('div');
+    txt.style.flex = '1';
+    txt.appendChild(el('div', 'pl-row-lab', c.name));
+    var note = [];
+    if (c.is_default) note.push('predefinito');
+    if (c.from_google) note.push('da Google');
+    if (note.length) txt.appendChild(el('div', 'pl-row-sub', note.join(' · ')));
+    inner.appendChild(txt);
+
+    var solo = el('button', 'pl-mini-btn', 'Solo questo');
+    solo.type = 'button';
+    solo.addEventListener('click', function (e) {
+        e.stopPropagation();
+        api('calendar_only', { id: c.id }).then(function (r) {
+            if (!r.ok) return;
+            S.calendars = r.calendars;
+            renderDays();
+            if (S.view === 'month') renderMonth();
+            closeOv('plSheetOv');
+        });
+    });
+    inner.appendChild(solo);
+
+    var acts = el('div', 'pl-srow-acts');
+    var edit = el('button', 'pl-srow-act');
+    edit.type = 'button';
+    edit.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 19h3l9.5-9.5-3-3L5 16z"/></svg>';
+    edit.addEventListener('click', function () { editCalendar(c); });
+    var del = el('button', 'pl-srow-act pl-del');
+    del.type = 'button';
+    del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>';
+    del.addEventListener('click', function () {
+        alertBox('Elimino ' + c.name + '?', 'Gli eventi non si perdono: passano al calendario predefinito.', [
+            { label: 'Annulla' },
+            { label: 'Elimina', kind: 'danger', onClick: function () {
+                api('calendar_delete', { id: c.id }).then(function (r) {
+                    if (!r.ok) { toast(r.message || 'Non eliminato.'); return; }
+                    S.calendars = r.calendars;
+                    S.weekCache = {};
+                    loadWeek(monday(S.focusDate), true);
+                    closeOv('plSheetOv');
+                });
+            } }
+        ]);
+    });
+    acts.appendChild(edit); acts.appendChild(del);
+    row.appendChild(inner); row.appendChild(acts);
+    enableSwipe(row, inner);
+    return row;
+}
+
+function editCalendar(c) {
+    var isNew = !c;
+    var data = c ? { id: c.id, name: c.name, color: c.color }
+                 : { id: 0, name: '', color: '#A9C3AE' };
+    openSheet(isNew ? 'Nuovo calendario' : data.name, function (body) {
+        var f = el('div', 'pl-field');
+        var name = el('input', 'pl-in');
+        name.type = 'text'; name.placeholder = 'Compleanni, Vacanze, Lavoro…';
+        name.value = data.name; name.maxLength = 80;
+        f.appendChild(name);
+        body.appendChild(f);
+
+        var fc = el('div', 'pl-field');
+        fc.appendChild(el('label', 'pl-label', 'Colore'));
+        var sw = el('div', 'pl-swatches');
+        ['#A9C3AE', '#E7B9C0', '#C2B8DC', '#E8D4A2', '#B0C7DD', '#DDBCA6',
+         '#9FC2C6', '#BFC49B', '#C3A9BE', '#DFAFB4'].forEach(function (col) {
+            var b = el('button', 'pl-sw' + (data.color === col ? ' pl-on' : ''));
+            b.type = 'button';
+            b.style.setProperty('--ev', col);
+            b.addEventListener('click', function () {
+                data.color = col;
+                Array.prototype.forEach.call(sw.children, function (x) { x.classList.remove('pl-on'); });
+                b.classList.add('pl-on');
+            });
+            sw.appendChild(b);
+        });
+        fc.appendChild(sw);
+        body.appendChild(fc);
+
+        var acts = el('div', 'pl-alert-acts');
+        var no = el('button', 'pl-btn', 'Annulla');
+        no.type = 'button';
+        no.addEventListener('click', function () { closeOv('plSheetOv'); });
+        var yes = el('button', 'pl-btn pl-btn-primary', isNew ? 'Crea' : 'Salva');
+        yes.type = 'button';
+        yes.addEventListener('click', function () {
+            api('calendar_save', { id: data.id, name: name.value, color: data.color }).then(function (r) {
+                if (!r.ok) { toast(r.message || 'Non salvato.'); return; }
+                S.calendars = r.calendars;
+                closeOv('plSheetOv');
+                renderDays();
+            });
+        });
+        acts.appendChild(no); acts.appendChild(yes);
+        body.appendChild(acts);
     });
 }
 
@@ -3896,6 +4782,7 @@ function setView(v) {
         S.monthCursor = S.focusDate.slice(0, 7) + '-01';
         renderMonth();
     } else {
+        closeMonthAgenda();
         $('plMonthsBar').classList.remove('pl-open');
         buildTrack();
         renderWeekBits();
@@ -3979,6 +4866,8 @@ function monthCell(date, inMonth) {
         cell.appendChild(e);
     });
     if (list.length > 3) cell.appendChild(el('div', 'pl-mmore', '+' + (list.length - 3)));
+    var wtag = wxTag(date);
+    if (wtag) cell.appendChild(wtag);
 
     var dj = S.diary[date];
     if (dj && (dj.has_text || dj.has_lists)) {
@@ -3994,18 +4883,130 @@ function monthCell(date, inMonth) {
         foot.appendChild(tag2);
         cell.appendChild(foot);
     }
+    /* Un tocco apre l'elenco degli eventi da quel giorno in avanti, due tocchi
+       aprono il giorno. Il primo tocco aspetta un attimo per capire se ne
+       arriva un secondo. */
+    var tapTimer = null;
     cell.addEventListener('click', function () {
-        cell.classList.add('pl-anim-open');
-        setTimeout(function () {
-            S.focusDate = date;
-            setView('day');
-            renderWeekBits();
-            renderPrio();
-            loadWeek(monday(date));
-        }, 140);
+        if (tapTimer) {          // secondo tocco: si entra nel giorno
+            clearTimeout(tapTimer);
+            tapTimer = null;
+            closeMonthAgenda();
+            cell.classList.add('pl-anim-open');
+            setTimeout(function () {
+                S.focusDate = date;
+                setView('day');
+                renderWeekBits();
+                renderPrio();
+                loadWeek(monday(date));
+            }, 140);
+            return;
+        }
+        tapTimer = setTimeout(function () {
+            tapTimer = null;
+            openMonthAgenda(date);
+        }, 240);
     });
     return cell;
 }
+
+/* ------------------------------------------------------------------ */
+/* Elenco degli eventi dal giorno scelto in avanti                     */
+/* ------------------------------------------------------------------ */
+function closeMonthAgenda() {
+    var box = $('plMonthAgenda');
+    if (!box) return;
+    box.classList.remove('pl-open');
+    box.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('pl-magenda-open');
+}
+
+function openMonthAgenda(fromDate) {
+    var box = $('plMonthAgenda'), body = $('plMagendaBody');
+    if (!box || !body) return;
+    S.agendaFrom = fromDate;
+    body.innerHTML = '';
+    body.scrollTop = 0;
+
+    /* trenta giorni in avanti: quanto basta per farsi un'idea senza
+       trascinare in memoria mesi interi */
+    var giorni = 30, trovati = 0, mancanti = {};
+    for (var i = 0; i < giorni; i++) {
+        var ds = addDays(fromDate, i);
+        if (!S.events[ds]) mancanti[monday(ds)] = true;
+    }
+    Object.keys(mancanti).forEach(function (w) { loadWeek(w); });
+
+    for (var k = 0; k < giorni; k++) {
+        var d2 = addDays(fromDate, k);
+        var lista = eventsOf(d2);
+        if (!lista.length) continue;
+        body.appendChild(agendaDayHeader(d2));
+        lista.sort(function (a, b) {
+            if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
+            return toMin(a.start) - toMin(b.start);
+        }).forEach(function (ev) { body.appendChild(agendaRow(ev)); });
+        trovati++;
+    }
+    if (!trovati) {
+        body.appendChild(agendaDayHeader(fromDate));
+        body.appendChild(el('div', 'pl-ma-empty', 'Niente in programma nei prossimi giorni.'));
+    }
+
+    box.classList.add('pl-open');
+    box.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('pl-magenda-open');
+}
+
+/* "OGGI 15/9", "DOMANI 16/9", poi il giorno della settimana */
+function agendaDayHeader(date) {
+    var d = parseIso(date);
+    var head = el('div', 'pl-ma-day');
+    var etichetta;
+    if (date === S.today) etichetta = 'Oggi';
+    else if (date === addDays(S.today, 1)) etichetta = 'Domani';
+    else if (date === addDays(S.today, -1)) etichetta = 'Ieri';
+    else etichetta = GIORNI[dowIndex(date)];
+
+    var when = el('span', 'pl-ma-when' + (date < S.today ? ' pl-ma-past' : ''), etichetta);
+    head.appendChild(when);
+    head.appendChild(el('span', 'pl-ma-date', d.getDate() + '/' + (d.getMonth() + 1)));
+    var wt = wxTag(date);
+    if (wt) head.appendChild(wt);
+    return head;
+}
+
+function agendaRow(ev) {
+    var row = el('button', 'pl-ma-ev' + (ev.done ? ' pl-ma-done' : ''));
+    row.type = 'button';
+    var dot = el('span', 'pl-ma-dot');
+    dot.style.background = evColor(ev);
+    row.appendChild(dot);
+
+    var mid = el('div');
+    mid.style.cssText = 'flex:1;min-width:0;display:flex;gap:10px;align-items:flex-start';
+    if (ev.all_day) {
+        var chip = el('span', 'pl-ma-allday', 'tutto il giorno');
+        chip.style.flexShrink = '0';
+        mid.appendChild(chip);
+    } else {
+        mid.appendChild(el('span', 'pl-ma-hours', ev.start + ' – ' + ev.end));
+    }
+    var txt = el('div');
+    txt.style.cssText = 'flex:1;min-width:0';
+    txt.appendChild(el('div', 'pl-ma-t', ev.title));
+    var sotto = [];
+    if (ev.project_name) sotto.push(ev.project_name);
+    if (ev.category_id) { var c = catById(ev.category_id); if (c) sotto.push(c.name); }
+    if (sotto.length) txt.appendChild(el('div', 'pl-ma-sub', sotto.join(' · ')));
+    mid.appendChild(txt);
+    row.appendChild(mid);
+
+    row.addEventListener('click', function () { openEventSheet(ev, null); });
+    return row;
+}
+
+$('plMagendaClose').addEventListener('click', closeMonthAgenda);
 
 /* su e giù cambia mese, destra e sinistra cambia anno */
 function monthStep(months, years, dir) {
@@ -4018,6 +5019,7 @@ function monthStep(months, years, dir) {
         S.monthCursor = iso(next);
         renderMonth();
         mv.classList.remove(cls);
+        if ($('plMonthAgenda').classList.contains('pl-open')) closeMonthAgenda();
     }, 210);
 }
 
@@ -4112,8 +5114,16 @@ function buildDayBar() {
     smartGo.type = 'button';
     smartGo.setAttribute('aria-label', 'Crea');
     smartGo.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="M12.5 6l6 6-6 6"/></svg>';
+    var smartMic = el('button', 'pl-smart-mic');
+    smartMic.type = 'button';
+    smartMic.id = 'plSmartMic';
+    smartMic.hidden = true;
+    smartMic.setAttribute('aria-label', 'Dettalo invece di scriverlo');
+    smartMic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0013 0"/><path d="M12 18v3"/></svg>';
     smart.appendChild(smartIn);
+    smart.appendChild(smartMic);
     smart.appendChild(smartGo);
+    setupSmartMic(smartMic, smartIn);
     smartGo.addEventListener('click', function () { smartCreate(smartIn); });
     smartIn.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') { e.preventDefault(); smartCreate(smartIn); }
@@ -4295,6 +5305,7 @@ function boot() {
     indexEvents(B.events, B.range ? { from: B.range.from, to: B.range.to } : null);
     indexPrio(B.priorities || {});
     S.habits[S.today] = B.habits || [];
+    S.weekly[monday(S.today)] = B.weekly || [];
     S.weekCache[monday(S.today)] = { week: B.week || {}, lists: B.lists || [] };
 
     buildDayBar();
@@ -4307,6 +5318,8 @@ function boot() {
     ensureStartScroll();
     loadAmbient();
     loadSmart();
+    loadRubrica();
+    wxLoad();
 
     /* all'apertura: se l'ultimo allineamento con Google è vecchio, se ne fa
        uno in sottofondo senza disturbare */

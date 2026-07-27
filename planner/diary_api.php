@@ -58,13 +58,89 @@ function dg_day(int $uid, string $date): array {
         'good'    => $good,
         'learned' => $learned,
         'habits'  => dg_habit_progress($uid, $date),
+        'weekly'  => dg_weekly_progress($uid, $date),
+        'habits_list' => dg_habits_today($uid, $date),
     ];
 }
 
+/**
+ * Le abitudini settimanali: quelle con un obiettivo di volte a settimana.
+ * Non hanno un tetto: cinque palestre su quattro contano cinque.
+ */
+function dg_weekly_progress(int $uid, string $date): array {
+    $d = new DateTime($date);
+    $dow = (int)$d->format('N');
+    $start = (clone $d)->modify('-' . ($dow - 1) . ' days')->format('Y-m-d');
+    $end   = (new DateTime($start))->modify('+6 days')->format('Y-m-d');
+
+    $rows = sec_all("SELECT id, name, icon, color, times_per_week, start_date, end_date
+                     FROM habits
+                     WHERE user_id = ? AND habit_kind = 'build' AND is_archived = 0
+                       AND frequency_type = 'weekly'
+                     ORDER BY sort_order, id", [$uid], 'i');
+    if (empty($rows)) return [];
+
+    $fatti = sec_all("SELECT habit_id, COUNT(*) AS c FROM habit_logs
+                      WHERE user_id = ? AND log_date BETWEEN ? AND ? AND status = 'done'
+                      GROUP BY habit_id", [$uid, $start, $end], 'iss');
+    $conta = [];
+    foreach ($fatti as $f) { $conta[(int)$f['habit_id']] = (int)$f['c']; }
+
+    $out = [];
+    foreach ($rows as $h) {
+        if ($h['start_date'] > $end) continue;
+        if (!empty($h['end_date']) && $h['end_date'] < $start) continue;
+        $target = max(1, (int)$h['times_per_week']);
+        $done = $conta[(int)$h['id']] ?? 0;
+        $out[] = [
+            'id' => (int)$h['id'], 'name' => $h['name'], 'icon' => $h['icon'],
+            'color' => $h['color'], 'done' => $done, 'target' => $target,
+        ];
+    }
+    return $out;
+}
+
 /** Abitudini "da fare" del giorno e quante sono già spuntate. */
+/** Elenco delle abitudini di oggi con nome e stato, per il riepilogo. */
+function dg_habits_today(int $uid, string $date): array {
+    $rows = sec_all("SELECT id, name, icon, color, frequency_type, weekdays, interval_days,
+                            start_date, end_date, is_archived
+                     FROM habits WHERE user_id = ? AND habit_kind = 'build'
+                       AND frequency_type <> 'weekly' AND is_archived = 0
+                     ORDER BY sort_order, id", [$uid], 'i');
+    $dow = (int)date('N', strtotime($date));
+    $due = [];
+    foreach ($rows as $h) {
+        if ($h['start_date'] > $date) continue;
+        if (!empty($h['end_date']) && $h['end_date'] < $date) continue;
+        if ($h['frequency_type'] === 'daily') {
+            $mask = (string)$h['weekdays'];
+            if (isset($mask[$dow - 1]) && $mask[$dow - 1] !== '1') continue;
+        } elseif ($h['frequency_type'] === 'interval') {
+            $step = max(1, (int)$h['interval_days']);
+            $delta = (int)round((strtotime($date) - strtotime($h['start_date'])) / 86400);
+            if ($delta < 0 || $delta % $step !== 0) continue;
+        }
+        $due[(int)$h['id']] = ['id' => (int)$h['id'], 'name' => $h['name'],
+                               'icon' => $h['icon'], 'color' => $h['color'], 'done' => false];
+    }
+    if (empty($due)) return [];
+    $logs = sec_all("SELECT habit_id, status, amount, target_amount FROM habit_logs
+                     WHERE user_id = ? AND log_date = ?", [$uid, $date], 'is');
+    foreach ($logs as $l) {
+        $hid = (int)$l['habit_id'];
+        if (!isset($due[$hid])) continue;
+        if ($l['status'] === 'done' || (float)$l['amount'] >= (float)$l['target_amount']) $due[$hid]['done'] = true;
+    }
+    return array_values($due);
+}
+
 function dg_habit_progress(int $uid, string $date): array {
+    /* le settimanali hanno un conto tutto loro: qui risulterebbero mancate
+       ogni giorno tranne quelli in cui le si fa */
     $rows = sec_all("SELECT id, frequency_type, weekdays, interval_days, start_date, end_date, is_archived
-                     FROM habits WHERE user_id = ? AND habit_kind = 'build'", [$uid], 'i');
+                     FROM habits WHERE user_id = ? AND habit_kind = 'build'
+                       AND frequency_type <> 'weekly'", [$uid], 'i');
     $due = [];
     $dow = (int)date('N', strtotime($date));
     foreach ($rows as $h) {

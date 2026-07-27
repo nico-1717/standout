@@ -1,7 +1,6 @@
 {
   "version": 1,
   "note": "Regole con cui la barra intelligente del planner capisce data e ora da una frase scritta a mano libera. Nessuna intelligenza artificiale: solo elenchi di parole e schemi. Aggiungendo voci qui, la barra impara nuove espressioni senza toccare il codice.",
-
   "giorni_relativi": {
     "oggi": 0,
     "stamattina": 0,
@@ -17,32 +16,54 @@
     "dopo domani": 2,
     "ieri": -1
   },
-
   "giorni_settimana": {
-    "lunedì": 1, "lunedi": 1, "lun": 1,
-    "martedì": 2, "martedi": 2, "mar": 2,
-    "mercoledì": 3, "mercoledi": 3, "mer": 3,
-    "giovedì": 4, "giovedi": 4, "gio": 4,
-    "venerdì": 5, "venerdi": 5, "ven": 5,
-    "sabato": 6, "sab": 6,
-    "domenica": 7, "dom": 7
+    "lunedì": 1,
+    "lunedi": 1,
+    "lun": 1,
+    "martedì": 2,
+    "martedi": 2,
+    "mar": 2,
+    "mercoledì": 3,
+    "mercoledi": 3,
+    "mer": 3,
+    "giovedì": 4,
+    "giovedi": 4,
+    "gio": 4,
+    "venerdì": 5,
+    "venerdi": 5,
+    "ven": 5,
+    "sabato": 6,
+    "sab": 6,
+    "domenica": 7,
+    "dom": 7
   },
-
   "mesi": {
-    "gennaio": 1, "gen": 1,
-    "febbraio": 2, "feb": 2,
-    "marzo": 3, "mar": 3,
-    "aprile": 4, "apr": 4,
-    "maggio": 5, "mag": 5,
-    "giugno": 6, "giu": 6,
-    "luglio": 7, "lug": 7,
-    "agosto": 8, "ago": 8,
-    "settembre": 9, "set": 9, "sett": 9,
-    "ottobre": 10, "ott": 10,
-    "novembre": 11, "nov": 11,
-    "dicembre": 12, "dic": 12
+    "gennaio": 1,
+    "gen": 1,
+    "febbraio": 2,
+    "feb": 2,
+    "marzo": 3,
+    "mar": 3,
+    "aprile": 4,
+    "apr": 4,
+    "maggio": 5,
+    "mag": 5,
+    "giugno": 6,
+    "giu": 6,
+    "luglio": 7,
+    "lug": 7,
+    "agosto": 8,
+    "ago": 8,
+    "settembre": 9,
+    "set": 9,
+    "sett": 9,
+    "ottobre": 10,
+    "ott": 10,
+    "novembre": 11,
+    "nov": 11,
+    "dicembre": 12,
+    "dic": 12
   },
-
   "fasce_orarie": {
     "stamattina": "09:00",
     "stamane": "09:00",
@@ -59,24 +80,151 @@
     "notte": "22:00",
     "stanotte": "22:00"
   },
-
   "parole_da_togliere": [
-    "alle", "alla", "all'", "il", "lo", "la", "i", "gli", "le", "di", "del", "della",
-    "a", "ad", "per", "the", "ore", "ora", "verso", "circa", "prossimo", "prossima",
-    "questo", "questa", "questi", "queste"
+    "alle",
+    "alla",
+    "all'",
+    "il",
+    "lo",
+    "la",
+    "i",
+    "gli",
+    "le",
+    "di",
+    "del",
+    "della",
+    "a",
+    "ad",
+    "per",
+    "the",
+    "ore",
+    "ora",
+    "verso",
+    "circa",
+    "prossimo",
+    "prossima",
+    "questo",
+    "questa",
+    "questi",
+    "queste"
   ],
-
-  "settimana_prossima": ["prossimo", "prossima", "che viene", "prossima settimana"],
-
+  "settimana_prossima": [
+    "prossimo",
+    "prossima",
+    "che viene",
+    "prossima settimana"
+  ],
   "durata_predefinita_minuti": 60,
-
   "esempi": [
     "domani pranzo 15",
     "martedì partita 12:30",
     "13 agosto dentista alle 12",
     "stasera cinema",
+    "mangio bene stasera",
+    "ferragosto mare",
+    "pasqua pranzo dai nonni",
+    "natale regali",
     "dopodomani riunione alle 9:30",
     "venerdì prossimo esame 8",
-    "3/9 visita 16:45"
-  ]
+    "3/9 visita 16:45",
+    "13 agsoto dentista (con errore di battitura)"
+  ],
+  "festivita": {
+    "capodanno": {
+      "mese": 1,
+      "giorno": 1
+    },
+    "epifania": {
+      "mese": 1,
+      "giorno": 6
+    },
+    "befana": {
+      "mese": 1,
+      "giorno": 6
+    },
+    "san valentino": {
+      "mese": 2,
+      "giorno": 14
+    },
+    "festa della donna": {
+      "mese": 3,
+      "giorno": 8
+    },
+    "liberazione": {
+      "mese": 4,
+      "giorno": 25
+    },
+    "primo maggio": {
+      "mese": 5,
+      "giorno": 1
+    },
+    "festa del lavoro": {
+      "mese": 5,
+      "giorno": 1
+    },
+    "repubblica": {
+      "mese": 6,
+      "giorno": 2
+    },
+    "ferragosto": {
+      "mese": 8,
+      "giorno": 15
+    },
+    "ognissanti": {
+      "mese": 11,
+      "giorno": 1
+    },
+    "halloween": {
+      "mese": 10,
+      "giorno": 31
+    },
+    "immacolata": {
+      "mese": 12,
+      "giorno": 8
+    },
+    "vigilia": {
+      "mese": 12,
+      "giorno": 24
+    },
+    "natale": {
+      "mese": 12,
+      "giorno": 25
+    },
+    "santo stefano": {
+      "mese": 12,
+      "giorno": 26
+    },
+    "san silvestro": {
+      "mese": 12,
+      "giorno": 31
+    }
+  },
+  "festivita_mobili": {
+    "pasqua": 0,
+    "pasquetta": 1,
+    "lunedi dell'angelo": 1,
+    "venerdi santo": -2,
+    "carnevale": -47,
+    "martedi grasso": -47
+  },
+  "note_festivita": "Le festività mobili sono espresse in giorni di scarto dalla Pasqua, che il planner calcola da sé per l'anno giusto.",
+  "fasce_da_conservare": [
+    "stasera",
+    "stamattina",
+    "stamane",
+    "stanotte",
+    "domattina"
+  ],
+  "pasti": {
+    "colazione": "08:00",
+    "pranzo": "12:30",
+    "brunch": "11:30",
+    "merenda": "16:30",
+    "aperitivo": "18:30",
+    "apericena": "19:00",
+    "cena": "20:00",
+    "spuntino": "17:00"
+  },
+  "tutto_il_giorno_se_manca_ora": true,
+  "tolleranza_errori_battitura": 2
 }

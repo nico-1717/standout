@@ -181,6 +181,35 @@ function pl_categories(int $userId): array {
     return $out;
 }
 
+/** I calendari dell'utente, in ordine alfabetico. */
+function pl_calendars(int $userId): array {
+    $rows = sec_all("SELECT id, name, color, is_visible, is_default, google_ref
+                     FROM planner_calendars WHERE user_id = ? ORDER BY name", [$userId], 'i');
+    if (empty($rows)) {
+        /* chi arriva ora parte con un calendario suo */
+        sec_q("INSERT INTO planner_calendars (user_id, name, color, is_default, sort_order)
+               VALUES (?, 'Personale', '#A9C3AE', 1, 1)", [$userId], 'i');
+        $rows = sec_all("SELECT id, name, color, is_visible, is_default, google_ref
+                         FROM planner_calendars WHERE user_id = ?", [$userId], 'i');
+    }
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = [
+            'id' => (int)$r['id'], 'name' => $r['name'], 'color' => $r['color'],
+            'visible' => (int)$r['is_visible'] === 1,
+            'is_default' => (int)$r['is_default'] === 1,
+            'from_google' => !empty($r['google_ref']),
+        ];
+    }
+    return $out;
+}
+
+/** L'id del calendario predefinito: ci finisce chi non ne sceglie uno. */
+function pl_default_calendar(int $userId): ?int {
+    $r = sec_one("SELECT id FROM planner_calendars WHERE user_id = ? ORDER BY is_default DESC, id LIMIT 1", [$userId], 'i');
+    return $r ? (int)$r['id'] : null;
+}
+
 function pl_routines(int $userId): array {
     $rows = sec_all("SELECT id, name, color FROM planner_routines WHERE user_id = ? ORDER BY sort_order, id", [$userId], 'i');
     $items = sec_all("SELECT id, routine_id, name, duration_minutes FROM planner_routine_items
@@ -232,11 +261,14 @@ function pl_event_out(array $r): array {
         'id'          => (int)$r['id'],
         'title'       => $r['title'],
         'notes'       => $r['notes'] ?? '',
+        'location'    => $r['location'] ?? '',
+        'guests'      => [],   // riempito da pl_attach_guests
         'date'        => $r['event_date'],
         'start'       => substr($r['start_time'], 0, 5),
         'end'         => substr($r['end_time'], 0, 5),
         'all_day'     => (int)$r['is_all_day'] === 1,
         'category_id' => $r['category_id'] !== null ? (int)$r['category_id'] : null,
+        'calendar_id' => $r['calendar_id'] !== null ? (int)$r['calendar_id'] : null,
         'project_id'  => $r['project_id'] !== null ? (int)$r['project_id'] : null,
         'project_name'=> $r['project_name'] ?? null,
         'project_color'=> $r['project_color'] ?? null,
@@ -261,6 +293,25 @@ function pl_event_out(array $r): array {
     ];
 }
 
+/** Attacca agli eventi la lista degli invitati, con una sola query. */
+function pl_attach_guests(int $userId, array $events): array {
+    if (empty($events)) return $events;
+    $ids = [];
+    foreach ($events as $e) { $ids[] = (int)$e['id']; }
+    $in = implode(',', array_map('intval', $ids));
+    $rows = sec_all("SELECT event_id, email, name FROM event_guests
+                     WHERE user_id = ? AND event_id IN ($in)", [$userId], 'i');
+    if (empty($rows)) return $events;
+    $byEvent = [];
+    foreach ($rows as $g) {
+        $byEvent[(int)$g['event_id']][] = ['email' => $g['email'], 'name' => $g['name']];
+    }
+    foreach ($events as $k => $e) {
+        if (isset($byEvent[(int)$e['id']])) $events[$k]['guests'] = $byEvent[(int)$e['id']];
+    }
+    return $events;
+}
+
 function pl_events_range(int $userId, string $from, string $to): array {
     $rows = sec_all(
         "SELECT e.*, p.name AS project_name, p.color AS project_color,
@@ -273,7 +324,7 @@ function pl_events_range(int $userId, string $from, string $to): array {
          ORDER BY e.event_date, e.is_all_day DESC, e.start_time, e.sort_order, e.id",
         [$userId, $from, $to], 'iss'
     );
-    return array_map('pl_event_out', $rows);
+    return pl_attach_guests($userId, array_map('pl_event_out', $rows));
 }
 
 /* --- priorità ------------------------------------------------------- */
@@ -338,10 +389,52 @@ function pl_habit_due(array $h, string $date): bool {
     return true; // weekly/monthly: proponibile ogni giorno
 }
 
+/**
+ * Le abitudini settimanali: quelle con un obiettivo di volte a settimana,
+ * come "palestra 4 volte". Non contano per il giorno singolo ma per la
+ * settimana intera, e non c'è un tetto: se vai in palestra 5 volte su 4,
+ * il conto dice 5 su 4 e va benissimo.
+ */
+function pl_habits_weekly(int $userId, string $date): array {
+    $weekStart = pl_monday($date);
+    $weekEnd   = pl_add_days($weekStart, 6);
+
+    $rows = sec_all("SELECT id, name, icon, color, times_per_week, planner_minutes,
+                            start_date, end_date, is_archived
+                     FROM habits
+                     WHERE user_id = ? AND habit_kind = 'build' AND is_archived = 0
+                       AND frequency_type = 'weekly'
+                     ORDER BY sort_order, id", [$userId], 'i');
+    if (empty($rows)) return [];
+
+    $fatti = sec_all("SELECT habit_id, COUNT(*) AS c FROM habit_logs
+                      WHERE user_id = ? AND log_date BETWEEN ? AND ? AND status = 'done'
+                      GROUP BY habit_id", [$userId, $weekStart, $weekEnd], 'iss');
+    $conta = [];
+    foreach ($fatti as $f) { $conta[(int)$f['habit_id']] = (int)$f['c']; }
+
+    $out = [];
+    foreach ($rows as $h) {
+        if ($h['start_date'] > $weekEnd) continue;
+        if (!empty($h['end_date']) && $h['end_date'] < $weekStart) continue;
+        $obiettivo = max(1, (int)$h['times_per_week']);
+        $done = $conta[(int)$h['id']] ?? 0;
+        $out[] = [
+            'id' => (int)$h['id'], 'name' => $h['name'], 'icon' => $h['icon'],
+            'color' => $h['color'],
+            'done' => $done, 'target' => $obiettivo,
+            'complete' => $done >= $obiettivo,
+            'minutes' => $h['planner_minutes'] !== null ? (int)$h['planner_minutes'] : null,
+        ];
+    }
+    return $out;
+}
+
 function pl_habits_for_date(int $userId, string $date): array {
     $rows = sec_all("SELECT id, name, icon, color, habit_kind, target_amount, frequency_type,
                             weekdays, interval_days, start_date, end_date, is_archived, planner_minutes
-                     FROM habits WHERE user_id = ? AND habit_kind = 'build' ORDER BY sort_order, id", [$userId], 'i');
+                     FROM habits WHERE user_id = ? AND habit_kind = 'build'
+                       AND frequency_type <> 'weekly' ORDER BY sort_order, id", [$userId], 'i');
     $logs = sec_all("SELECT habit_id, status, amount, target_amount FROM habit_logs
                      WHERE user_id = ? AND log_date = ?", [$userId, $date], 'is');
     $byId = [];
@@ -417,7 +510,11 @@ if ($ajax !== '') {
     /* ---------------- habit di un giorno ---------------- */
     if ($ajax === 'habits_day') {
         $date = sec_date(sec_in('date'), date('Y-m-d'));
-        sec_json(['ok' => true, 'date' => $date, 'habits' => pl_habits_for_date($current_user_id, $date)]);
+        sec_json([
+            'ok' => true, 'date' => $date,
+            'habits' => pl_habits_for_date($current_user_id, $date),
+            'weekly' => pl_habits_weekly($current_user_id, $date),
+        ]);
     }
 
     /* ---------------- salvataggio evento ---------------- */
@@ -425,6 +522,7 @@ if ($ajax !== '') {
         $id      = sec_int(sec_in('id'), 0, PHP_INT_MAX, 0);
         $title   = sec_str(sec_in('title'), 180);
         $notes   = sec_text(sec_in('notes'), 4000);
+        $luogo   = sec_str(sec_in('location'), 255);
         $date    = sec_date(sec_in('date'), date('Y-m-d'));
         $allDay  = sec_bool(sec_in('all_day'));
         $start   = sec_time(sec_in('start'), '09:00:00');
@@ -433,6 +531,9 @@ if ($ajax !== '') {
             $end = pl_time(min(1439, pl_minutes($start) + 30));
         }
         $catId   = sec_int(sec_in('category_id'), 0, PHP_INT_MAX, 0);
+        $calId   = sec_int(sec_in('calendar_id'), 0, PHP_INT_MAX, 0);
+        if ($calId > 0 && !sec_owns('planner_calendars', $calId, $current_user_id)) $calId = 0;
+        if ($calId === 0) { $def = pl_default_calendar($current_user_id); $calId = $def ?: 0; }
         $projId  = sec_int(sec_in('project_id'), 0, PHP_INT_MAX, 0);
         $habitId = sec_int(sec_in('habit_id'), 0, PHP_INT_MAX, 0);
         $imp     = sec_enum(sec_in('importance'), ['normal', 'high', 'highest'], 'normal');
@@ -459,8 +560,9 @@ if ($ajax !== '') {
         if ($title === '') $title = $habitId > 0 ? 'Abitudine' : 'Senza titolo';
 
         $params = [
-            $title, $notes, $date, $start, $end, $allDay ? 1 : 0,
-            $catId > 0 ? $catId : null, $projId > 0 ? $projId : null, $habitId > 0 ? $habitId : null,
+            $title, $notes, $luogo, $date, $start, $end, $allDay ? 1 : 0,
+            $catId > 0 ? $catId : null, $calId > 0 ? $calId : null,
+            $projId > 0 ? $projId : null, $habitId > 0 ? $habitId : null,
             $imp, $color, $type, $notify, $nMin, $rep, $repInt, $repUnit, $repUntil,
         ];
 
@@ -469,18 +571,18 @@ if ($ajax !== '') {
                 sec_die_json('Evento non trovato.', 404, 'not_found');
             }
             $params[] = $id; $params[] = $current_user_id;
-            sec_q("UPDATE planner_events SET title=?, notes=?, event_date=?, start_time=?, end_time=?, is_all_day=?,
-                          category_id=?, project_id=?, habit_id=?, importance=?, color=?, item_type=?,
+            sec_q("UPDATE planner_events SET title=?, notes=?, location=?, event_date=?, start_time=?, end_time=?, is_all_day=?,
+                          category_id=?, calendar_id=?, project_id=?, habit_id=?, importance=?, color=?, item_type=?,
                           notify_type=?, notify_minutes=?, repeat_type=?, repeat_interval=?, repeat_unit=?, repeat_until=?
                    WHERE id=? AND user_id=?", $params);
             $newId = $id;
         } else {
             $params[] = $current_user_id;
             sec_q("INSERT INTO planner_events
-                   (title, notes, event_date, start_time, end_time, is_all_day, category_id, project_id, habit_id,
-                    importance, color, item_type, notify_type, notify_minutes, repeat_type, repeat_interval,
-                    repeat_unit, repeat_until, user_id)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", $params);
+                   (title, notes, location, event_date, start_time, end_time, is_all_day, category_id, calendar_id,
+                    project_id, habit_id, importance, color, item_type, notify_type, notify_minutes,
+                    repeat_type, repeat_interval, repeat_unit, repeat_until, user_id)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", $params);
             $newId = sec_insert_id();
             if ($rep !== 'none') {
                 sec_q("UPDATE planner_events SET series_id = ? WHERE id = ? AND user_id = ?",
@@ -488,6 +590,24 @@ if ($ajax !== '') {
                 pl_materialize_repeats($current_user_id, $newId);
             }
         }
+        /* Invitati: si riscrive l'elenco da capo. Il nome viene copiato adesso,
+           così un evento passato ricorda come si chiamava il contatto allora. */
+        $guests = sec_in('guests');
+        if (is_array($guests)) {
+            sec_q("DELETE FROM event_guests WHERE event_id = ? AND user_id = ?", [$newId, $current_user_id], 'ii');
+            foreach (array_slice($guests, 0, 30) as $g) {
+                $mail = sec_email(is_array($g) ? ($g['email'] ?? '') : $g);
+                if (!$mail) continue;
+                $nome = is_array($g) ? sec_str($g['name'] ?? '', 80) : '';
+                if ($nome === '') {
+                    $c = sec_one("SELECT name FROM contacts WHERE user_id = ? AND email = ?", [$current_user_id, $mail], 'is');
+                    $nome = $c['name'] ?? null;
+                }
+                @sec_q("INSERT IGNORE INTO event_guests (event_id, user_id, email, name) VALUES (?,?,?,?)",
+                       [$newId, $current_user_id, $mail, $nome !== '' ? $nome : null], 'iiss');
+            }
+        }
+
         $row = sec_one("SELECT e.*, p.name AS project_name, p.color AS project_color,
                                h.icon AS habit_icon, h.color AS habit_color, r.name AS routine_name
                         FROM planner_events e
@@ -495,7 +615,9 @@ if ($ajax !== '') {
                         LEFT JOIN habits h ON h.id = e.habit_id AND h.user_id = e.user_id
                         LEFT JOIN planner_routines r ON r.id = e.routine_id AND r.user_id = e.user_id
                         WHERE e.id = ? AND e.user_id = ?", [$newId, $current_user_id], 'ii');
-        sec_json(['ok' => true, 'event' => $row ? pl_event_out($row) : null]);
+        $uscita = $row ? pl_event_out($row) : null;
+        if ($uscita) { $tmp = pl_attach_guests($current_user_id, [$uscita]); $uscita = $tmp[0]; }
+        sec_json(['ok' => true, 'event' => $uscita]);
     }
 
     /* ---------------- spostamento rapido (drag) ---------------- */
@@ -990,6 +1112,100 @@ if ($ajax !== '') {
         ]);
     }
 
+    /* ---------------- calendari ---------------- */
+    if ($ajax === 'calendar_save') {
+        $id    = sec_int(sec_in('id'), 0, PHP_INT_MAX, 0);
+        $name  = sec_str(sec_in('name'), 80);
+        $color = sec_color(sec_in('color'));
+        if ($name === '') sec_die_json('Serve un nome per il calendario.', 422, 'invalid');
+        if ($id > 0) {
+            if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json('Calendario non trovato.', 404, 'not_found');
+            sec_q("UPDATE planner_calendars SET name = ?, color = ? WHERE id = ? AND user_id = ?",
+                  [$name, $color, $id, $current_user_id], 'ssii');
+        } else {
+            sec_q("INSERT INTO planner_calendars (user_id, name, color, sort_order)
+                   VALUES (?,?,?,(SELECT COALESCE(MAX(x.so),0)+1 FROM (SELECT sort_order AS so FROM planner_calendars WHERE user_id=?) x))",
+                  [$current_user_id, $name, $color, $current_user_id], 'issi');
+        }
+        sec_json(['ok' => true, 'calendars' => pl_calendars($current_user_id)]);
+    }
+
+    if ($ajax === 'calendar_visible') {
+        $id  = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
+        $vis = sec_bool(sec_in('visible')) ? 1 : 0;
+        if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json('Calendario non trovato.', 404, 'not_found');
+        sec_q("UPDATE planner_calendars SET is_visible = ? WHERE id = ? AND user_id = ?",
+              [$vis, $id, $current_user_id], 'iii');
+        sec_json(['ok' => true]);
+    }
+
+    /* mostra solo questo, oppure tutti */
+    if ($ajax === 'calendar_only') {
+        $id = sec_int(sec_in('id'), 0, PHP_INT_MAX, 0);
+        if ($id === 0) {
+            sec_q("UPDATE planner_calendars SET is_visible = 1 WHERE user_id = ?", [$current_user_id], 'i');
+        } else {
+            if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json('Calendario non trovato.', 404, 'not_found');
+            sec_q("UPDATE planner_calendars SET is_visible = (id = ?) WHERE user_id = ?", [$id, $current_user_id], 'ii');
+        }
+        sec_json(['ok' => true, 'calendars' => pl_calendars($current_user_id)]);
+    }
+
+    if ($ajax === 'calendar_delete') {
+        $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
+        if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json('Calendario non trovato.', 404, 'not_found');
+        $quanti = sec_one("SELECT COUNT(*) AS c FROM planner_calendars WHERE user_id = ?", [$current_user_id], 'i');
+        if ((int)($quanti['c'] ?? 0) <= 1) sec_die_json('Serve almeno un calendario.', 422, 'last_one');
+        /* gli eventi non si perdono: passano al calendario predefinito */
+        sec_q("UPDATE planner_events SET calendar_id = NULL WHERE calendar_id = ? AND user_id = ?",
+              [$id, $current_user_id], 'ii');
+        sec_q("DELETE FROM planner_calendars WHERE id = ? AND user_id = ?", [$id, $current_user_id], 'ii');
+        sec_json(['ok' => true, 'calendars' => pl_calendars($current_user_id)]);
+    }
+
+    /* ---------------- rubrica ---------------- */
+    if ($ajax === 'contacts') {
+        $q = sec_str(sec_in('q'), 60);
+        if ($q !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
+            /* si cerca sia per nome sia per indirizzo */
+            $rows = sec_all("SELECT id, name, email FROM contacts
+                             WHERE user_id = ? AND (name LIKE ? OR email LIKE ?)
+                             ORDER BY name LIMIT 60", [$current_user_id, $like, $like], 'iss');
+        } else {
+            $rows = sec_all("SELECT id, name, email FROM contacts
+                             WHERE user_id = ? ORDER BY name LIMIT 200", [$current_user_id], 'i');
+        }
+        $out = [];
+        foreach ($rows as $r) $out[] = ['id' => (int)$r['id'], 'name' => $r['name'], 'email' => $r['email']];
+        sec_json(['ok' => true, 'contacts' => $out]);
+    }
+
+    if ($ajax === 'contact_save') {
+        $id    = sec_int(sec_in('id'), 0, PHP_INT_MAX, 0);
+        $nome  = sec_str(sec_in('name'), 80);
+        $mail  = sec_email(sec_in('email'));
+        if (!$mail) sec_die_json('Indirizzo non valido.', 422, 'invalid');
+        if ($nome === '') $nome = explode('@', $mail)[0];
+        if ($id > 0) {
+            if (!sec_owns('contacts', $id, $current_user_id)) sec_die_json('Contatto non trovato.', 404, 'not_found');
+            sec_q("UPDATE contacts SET name = ?, email = ? WHERE id = ? AND user_id = ?",
+                  [$nome, $mail, $id, $current_user_id], 'ssii');
+        } else {
+            sec_q("INSERT INTO contacts (user_id, name, email) VALUES (?,?,?)
+                   ON DUPLICATE KEY UPDATE name = VALUES(name)",
+                  [$current_user_id, $nome, $mail], 'iss');
+        }
+        sec_json(['ok' => true]);
+    }
+
+    if ($ajax === 'contact_delete') {
+        $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
+        if (!sec_owns('contacts', $id, $current_user_id)) sec_die_json('Contatto non trovato.', 404, 'not_found');
+        sec_q("DELETE FROM contacts WHERE id = ? AND user_id = ?", [$id, $current_user_id], 'ii');
+        sec_json(['ok' => true]);
+    }
+
     /* ---------------- ricerca per titolo ---------------- */
     if ($ajax === 'search') {
         $q = sec_str(sec_in('q'), 60);
@@ -1099,6 +1315,7 @@ $boot = [
     'user'       => ['id' => $current_user_id, 'name' => $utente_corrente['username'] ?? ''],
     'settings'   => $settings,
     'categories' => pl_categories($current_user_id),
+    'calendars'  => pl_calendars($current_user_id),
     'routines'   => pl_routines($current_user_id),
     'favorites'  => pl_favorites($current_user_id),
     'week'       => pl_week_row($current_user_id, $weekStart, $settings),
@@ -1107,6 +1324,7 @@ $boot = [
     'lists'      => pl_week_lists($current_user_id, $weekStart),
     'diary'      => pl_diary_dates($current_user_id, $rangeFrom, $rangeTo),
     'habits'     => pl_habits_for_date($current_user_id, $today),
+    'weekly'     => pl_habits_weekly($current_user_id, $today),
     'range'      => ['from' => $rangeFrom, 'to' => $rangeTo],
 ];
 ?>
@@ -1149,6 +1367,9 @@ $boot = [
         </button>
         <button type="button" class="pl-tool" id="plFilterBtn" aria-label="Filtra per categoria">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
+        </button>
+        <button type="button" class="pl-tool" id="plWeatherBtn" aria-label="Meteo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="3.2"/><path d="M9 3.4v1.2M9 13.4v1.2M3.4 9h1.2M13.4 9h1.2M5 5l.9.9M12.1 12.1l.9.9M5 13l.9-.9M12.1 5.9l.9-.9"/><path d="M13 19.5h5.5a2.75 2.75 0 100-5.5 3.6 3.6 0 00-6.9-1 2.5 2.5 0 00.4 6.5z"/></svg>
         </button>
         <button type="button" class="pl-tool" id="plSettingsBtn" aria-label="Impostazioni">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M4.8 7.9l1.9 1.1M17.3 15l1.9 1.1M4.8 16.1l1.9-1.1M17.3 9l1.9-1.1"/></svg>
@@ -1197,13 +1418,24 @@ $boot = [
     <div class="pl-mgrid" id="plMonthGrid"></div>
 </section>
 
+<!-- Elenco degli eventi dal giorno scelto in avanti: entra dal basso con un
+     tocco su un giorno della vista mese. Con due tocchi si apre il giorno. -->
+<section class="pl-magenda" id="plMonthAgenda" aria-hidden="true">
+    <button type="button" class="pl-magenda-grab" id="plMagendaClose" aria-label="Chiudi l'elenco"></button>
+    <div class="pl-magenda-body" id="plMagendaBody"></div>
+</section>
+
 <!-- ============ PULSANTI FLOTTANTI ============ -->
 <div class="pl-fabs" id="plFabs">
-    <button type="button" class="pl-ring" id="plHabitRing" aria-label="Abitudini del giorno">
+    <button type="button" class="pl-ring" id="plHabitRing" aria-label="Abitudini del giorno e della settimana">
         <svg viewBox="0 0 46 46">
+            <!-- anello esterno: le abitudini di oggi -->
             <circle class="pl-ring-bg"   cx="23" cy="23" r="20"/>
             <circle class="pl-ring-plan" cx="23" cy="23" r="20" stroke-dasharray="125.6" stroke-dashoffset="125.6"/>
             <circle class="pl-ring-done" cx="23" cy="23" r="20" stroke-dasharray="125.6" stroke-dashoffset="125.6"/>
+            <!-- anello interno: quelle settimanali, come la palestra -->
+            <circle class="pl-ring-bg-w" cx="23" cy="23" r="14.5"/>
+            <circle class="pl-ring-week" cx="23" cy="23" r="14.5" stroke-dasharray="91.1" stroke-dashoffset="91.1"/>
         </svg>
         <span class="pl-ring-face">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 12.5l4 4L19 7"/></svg>
@@ -1237,6 +1469,14 @@ $boot = [
 
 <!-- rotellina degli scatti: la costruisce planner.js -->
 <div class="pl-zoom" id="plZoom" aria-label="Scatti degli orari"></div>
+
+<!-- da computer non si può scorrere: due frecce discrete per cambiare giorno -->
+<button type="button" class="pl-arrow pl-arrow-prev" id="plPrevDay" aria-label="Giorno precedente">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M14.5 5L8 12l6.5 7"/></svg>
+</button>
+<button type="button" class="pl-arrow pl-arrow-next" id="plNextDay" aria-label="Giorno successivo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M9.5 5L16 12l-6.5 7"/></svg>
+</button>
 
 <button type="button" class="pl-plus" id="plPlus" aria-label="Nuovo evento">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -1335,6 +1575,7 @@ include 'diario_giorno.php';
 ?>
 
 <script>window.PL_BOOT = <?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
+<?php include 'sidebar.php'; ?>
 <script src="planner.js?v=<?php echo @filemtime(__DIR__ . '/planner.js') ?: time(); ?>"></script>
 </body>
 </html>

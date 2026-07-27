@@ -131,7 +131,7 @@ function renderDay() {
     $('dyNum').textContent = d.getDate();
     $('dyWd').textContent = GIORNI[dow(S.date)];
     $('dyMonthLabel').textContent = MESI[d.getMonth()] + ' ' + d.getFullYear();
-    $('dyRing').href = 'habits.php?data=' + S.date;
+    /* non porta più via subito: apre il riepilogo, e da lì si sceglie */
 
     $('dyMoodBtn').innerHTML = face('mood', S.day.mood, 40);
     $('dyMoodBtn').classList.toggle('dy-set', !!S.day.mood);
@@ -143,6 +143,14 @@ function renderDay() {
     var frac = h.total ? Math.min(1, h.done / h.total) : 0;
     $('dyRing').querySelector('.dy-ring-fg').style.strokeDashoffset = (C * (1 - frac)).toFixed(1);
     $('dyRingN').textContent = h.total ? (h.done + '/' + h.total) : '–';
+
+    /* anello interno: le settimanali, sul totale delle volte previste */
+    var sett = S.day.weekly || [];
+    var Cw = 100.5, fatte = 0, previste = 0;
+    sett.forEach(function (x) { fatte += x.done; previste += x.target; });
+    var wFrac = previste ? Math.min(1, fatte / previste) : 0;
+    var wRing = $('dyRing').querySelector('.dy-ring-week');
+    if (wRing) wRing.style.strokeDashoffset = (Cw * (1 - wFrac)).toFixed(1);
 
     renderList('dyGood', 'good');
     renderList('dyLearned', 'learned');
@@ -372,7 +380,9 @@ function turnPage(delta) {
         x0 = null;
         if (fromField) return;
         if (Date.now() - t0 > 800) return;
-        if (Math.abs(dx) < 56 || Math.abs(dy) > Math.abs(dx) * .8) return;
+        /* più pronto di prima: bastano 30 pixel e un movimento chiaramente
+           orizzontale, invece dei 56 di prima che rendevano faticoso sfogliare */
+        if (Math.abs(dx) < 30 || Math.abs(dy) > Math.abs(dx) * 1.1) return;
         turnPage(dx < 0 ? 1 : -1);
     }, { passive: true });
 })();
@@ -507,6 +517,77 @@ document.addEventListener('diaryupdated', function (e) {
     if (!e.detail || e.detail.date === S.date) loadDay(S.date, false);
     if (S.view === 'month') loadMonth();
 });
+
+/* ------------------------------------------------------------------ */
+/* Riepilogo delle abitudini: cosa c'era e cosa è stato fatto           */
+/* ------------------------------------------------------------------ */
+$('dyRing').addEventListener('click', function () {
+    var giorno = S.day.habits_list || [];
+    var sett = S.day.weekly || [];
+    var d = parseIso(S.date);
+
+    var ov = el('div', 'dy-modal');
+    var card = el('div', 'dy-card');
+    card.style.maxWidth = '340px';
+    card.appendChild(el('div', 'dy-card-t', 'Abitudini'));
+    card.appendChild(el('div', 'dy-card-s',
+        GIORNI[dow(S.date)].toLowerCase() + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()));
+
+    var CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
+
+    if (giorno.length) {
+        var s1 = el('div', 'dy-hb-sec');
+        var fatte = giorno.filter(function (x) { return x.done; }).length;
+        s1.appendChild(el('div', 'dy-hb-lab', 'Di oggi · ' + fatte + ' su ' + giorno.length));
+        giorno.forEach(function (x) {
+            var r = el('div', 'dy-hb-row' + (x.done ? ' is-done' : ''));
+            var dot = el('span', 'dy-hb-dot');
+            dot.style.background = x.color || '#B7AEA3';
+            r.appendChild(dot);
+            r.appendChild(el('span', 'dy-hb-name', (x.icon ? x.icon + ' ' : '') + x.name));
+            if (x.done) { var ck = el('span', 'dy-hb-check'); ck.innerHTML = CHECK; r.appendChild(ck); }
+            s1.appendChild(r);
+        });
+        card.appendChild(s1);
+    }
+
+    if (sett.length) {
+        var s2 = el('div', 'dy-hb-sec');
+        s2.appendChild(el('div', 'dy-hb-lab', 'Questa settimana'));
+        sett.forEach(function (x) {
+            var r = el('div', 'dy-hb-row');
+            var dot = el('span', 'dy-hb-dot');
+            dot.style.background = x.color || '#B7AEA3';
+            r.appendChild(dot);
+            r.appendChild(el('span', 'dy-hb-name', (x.icon ? x.icon + ' ' : '') + x.name));
+            r.appendChild(el('span', 'dy-hb-val', x.done + '/' + x.target));
+            s2.appendChild(r);
+        });
+        card.appendChild(s2);
+    }
+
+    if (!giorno.length && !sett.length) {
+        card.appendChild(el('div', 'dy-hb-sec', 'Nessuna abitudine per questo giorno.'));
+    }
+
+    var acts = el('div', 'dy-card-acts');
+    var close = el('button', null, 'Chiudi');
+    close.type = 'button';
+    close.addEventListener('click', function () { ov.remove(); });
+    var go = el('button', 'dy-primary', 'Vai alle abitudini');
+    go.type = 'button';
+    go.addEventListener('click', function () { window.location.href = 'habits.php?data=' + S.date; });
+    acts.appendChild(close); acts.appendChild(go);
+    card.appendChild(acts);
+
+    ov.appendChild(card);
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    document.body.appendChild(ov);
+});
+
+/* frecce da computer, dove lo scorrimento con il dito non c'è */
+$('dyPrev').addEventListener('click', function () { turnPage(-1); });
+$('dyNext').addEventListener('click', function () { turnPage(1); });
 
 /* ------------------------------------------------------------------ */
 /* Dettatura: la voce diventa testo, per riempire la pagina in fretta   */

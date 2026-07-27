@@ -547,10 +547,28 @@ usort($rootIds, function ($a, $b) use ($byId) {
 $rootProjects = [];
 foreach ($rootIds as $rid) { if (isset($byId[$rid])) $rootProjects[] = $byId[$rid]; }
 
+/* La vista "Preferiti": non è un progetto vero, è un elenco costruito al
+   volo con i progetti segnati con la stellina. I loro sottoprogetti si
+   aprono come sempre, così si arriva in fondo senza cambiare pagina. */
+$viewFavorites = isset($_GET['view']) && $_GET['view'] === 'fav';
+$favProjects = [];
+foreach ($byId as $fid => $fp) {
+    if ((int)($fp['is_favorite'] ?? 0) === 1) $favProjects[] = (int)$fid;
+}
+usort($favProjects, function ($a, $b) use ($byId) {
+    return strcasecmp($byId[$a]['name'] ?? '', $byId[$b]['name'] ?? '');
+});
+
 $selectedId = intval($_GET['id'] ?? 0);
-if ($selectedId === 0 && !empty($rootIds)) { $selectedId = $rootIds[0]; }
-$selectedProject = $byId[$selectedId] ?? null;
+if ($selectedId === 0 && !$viewFavorites && !empty($rootIds)) { $selectedId = $rootIds[0]; }
+$selectedProject = $viewFavorites ? null : ($byId[$selectedId] ?? null);
 $selectedTree = $selectedProject ? prog_build_branch($selectedId, $byId, $childrenOf) : null;
+
+/* i rami dei preferiti, ciascuno completo dei suoi figli */
+$favTrees = [];
+if ($viewFavorites) {
+    foreach ($favProjects as $fid) $favTrees[] = prog_build_branch($fid, $byId, $childrenOf);
+}
 
 $ancestorChain = [];
 if ($selectedProject) {
@@ -653,14 +671,16 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                                 }
                                 echo $nameEsc;
                             ?></span></span>
-                            <button type="button" class="pr-inline-add-btn" onclick="prShowInlineInput(event, <?php echo (int)$node['id']; ?>, this)" aria-label="Aggiungi sottoprogetto rapido">
-                                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M9 5v10a2 2 0 0 0 2 2h8"/>
-                                    <path d="m16 14 3 3-3 3"/>
-                                </svg>
-                            </button>
-                            <?php if ($durata): ?><span class="pr-duration"><?php echo $durata; ?></span><?php endif; ?>
                         </div>
+                        <?php /* Il tasto per il sottoprogetto è passato sotto al nome:
+                                 in riga rubava larghezza al titolo, che sui
+                                 sottoprogetti profondi restava tagliato. */ ?>
+                        <button type="button" class="pr-inline-add-btn" onclick="prShowInlineInput(event, <?php echo (int)$node['id']; ?>, this)" aria-label="Aggiungi sottoprogetto rapido">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 5v10a2 2 0 0 0 2 2h8"/>
+                                <path d="m16 14 3 3-3 3"/>
+                            </svg>
+                        </button>
                     </div>
                     <?php if ($cat || $noteEsc !== '' || $dateTags): ?>
                     <div class="pr-tags-row">
@@ -685,9 +705,13 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                     </div>
                     <?php endif; ?>
                 </div>
+                <div class="pr-pomo-wrap">
                 <button type="button" class="pr-pomo-btn"<?php echo $pomoInCorso ? ' disabled aria-label="Hai già un pomodoro in corso"' : ' onclick="window.location.href=\'pomodoro.php?project_id=' . (int)$node['id'] . '\'" aria-label="Avvia pomodoro"'; ?>>
                     <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>
                 </button>
+                <?php /* le ore stanno sotto al pulsante, non più accanto al nome */ ?>
+                <?php if ($durata): ?><span class="pr-duration"><?php echo $durata; ?></span><?php endif; ?>
+                </div>
             </div>
             <div class="swipe-actions">
                 <button type="button" class="swipe-btn swipe-btn-edit" onclick="prOpenEdit(<?php echo (int)$node['id']; ?>)">
@@ -800,6 +824,19 @@ button{ font-family:inherit; }
 .pr-hero-title.pr-name-done{ text-decoration:line-through; color:var(--text-2); }
 .pr-hero-dates{ display:flex; gap:14px; margin-top:8px; flex-wrap:wrap; }
 .pr-hero-date{ font-size:12.5px; color:var(--text-2); font-weight:600; display:flex; align-items:center; gap:4px; }
+.pr-fav-head{
+    display:flex; align-items:center; gap:9px; padding:16px 4px 10px;
+    color:var(--text);
+}
+.pr-fav-head svg{ width:20px; height:20px; color:#E0B84A; flex-shrink:0; }
+.pr-fav-head span{ font-size:21px; font-weight:800; }
+.pr-fav-head small{
+    margin-left:auto; font-size:12px; color:var(--text-2);
+    background:var(--surface-2); padding:3px 10px; border-radius:999px;
+}
+.hdr-pill-fav{ display:inline-flex; align-items:center; gap:5px; }
+.hdr-pill-fav svg{ color:#E0B84A; }
+
 .pr-fav-btn{
     display:flex; align-items:center; gap:8px; width:100%;
     padding:11px 13px; border-radius:14px; border:none; cursor:pointer;
@@ -984,9 +1021,10 @@ button{ font-family:inherit; }
     min-width: 0;
 }
 .pr-star{
-    width:13px; height:13px; vertical-align:-1px; margin-right:5px;
+    width:16px; height:16px; vertical-align:-2px; margin-right:6px;
     color:#E0B84A; flex-shrink:0;
 }
+.pr-star-hero{ width:19px; height:19px; vertical-align:-3px; margin-right:7px; }
 .pr-name-container {
     display: inline-flex;
     align-items: center;
@@ -994,7 +1032,7 @@ button{ font-family:inherit; }
     min-width: 0;
     gap: 2px;
 }
-.pr-name-container .pr-duration{ margin-left:auto; padding-left:8px; }
+/* la durata non è più in questa riga: il nome si prende tutto lo spazio */
 .pr-name {
     font-size: 15px;
     font-weight: 600;
@@ -1014,6 +1052,18 @@ button{ font-family:inherit; }
 .pr-arrow svg{ width:14px; height:14px; flex-shrink:0; }
 .pr-arrow.open{ transform:rotate(90deg); }
 .pr-arrow-spacer{ width:26px; flex-shrink:0; }
+/* pulsante pomodoro con le ore sotto: incolonnati e centrati */
+.pr-pomo-wrap{
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    flex-shrink:0; min-width:38px;
+}
+.pr-pomo-wrap .pr-duration{
+    font-size:9.5px; line-height:1.1; color:var(--text-2); text-align:center;
+    white-space:nowrap; margin:0; padding:0;
+}
+/* il tasto per il sottoprogetto, sotto il nome e discreto */
+.pr-inline-add-btn{ margin-top:2px; }
+
 .pr-pomo-btn{ width:30px; height:30px; border-radius:50%; border:none; background:var(--row-color); color:#fff; flex-shrink:0; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px -1px color-mix(in srgb, var(--row-color) 60%, transparent); transition:transform .15s var(--spring), opacity .2s; }
 .pr-pomo-btn:active{ transform:scale(.88); }
 .pr-pomo-btn[disabled]{ background:var(--text-3); box-shadow:none; opacity:.5; }
@@ -1025,7 +1075,17 @@ button{ font-family:inherit; }
 .swipe-btn:active{ filter:brightness(.92); }
 
 .pr-note-preview{ font-size:12.5px; color:var(--text-2); padding:0 10px 8px; line-height:1.4; max-height:38px; overflow:hidden; }
-.pr-children{ margin-left:30px; border-left:1.5px solid var(--hairline); padding-left:4px; overflow:hidden; max-height:4000px; transition:max-height .35s var(--spring), opacity .28s; }
+/* Indentazione ridotta: i sottoprogetti profondi finivano schiacciati a
+   destra con pochissimo spazio per il nome. La linea verticale prende il
+   colore del progetto padre, così si capisce comunque di chi sono figli, e
+   parte sotto la freccetta di espansione invece che più a destra. */
+.pr-children{
+    /* La freccetta è larga 26px: il suo centro cade a 13px, ed è lì che
+       nasce la linea. Prima partiva più a destra e rubava spazio. */
+    margin-left:12px; padding-left:9px; overflow:hidden;
+    border-left:2px solid color-mix(in srgb, var(--row-color, var(--hairline)) 55%, transparent);
+    max-height:4000px; transition:max-height .35s var(--spring), opacity .28s;
+}
 .pr-children.collapsed{ max-height:0; opacity:0; pointer-events:none; }
 .pr-row-wrap.dragging{ opacity:.5; }
 .pr-row-wrap.drag-ghost{ position:fixed; z-index:500; pointer-events:none; box-shadow:0 12px 34px rgba(0,0,0,.28); border-radius:13px; opacity:.96; }
@@ -1245,6 +1305,21 @@ button{ font-family:inherit; }
             <span class="hdr-root-pill-dot"></span><?php echo htmlspecialchars($rp['name'], ENT_QUOTES); ?>
         </button>
         <?php endforeach; ?>
+        <?php if (!empty($favProjects)): ?>
+        <button type="button" class="hdr-root-pill hdr-pill-fav<?php echo $viewFavorites ? ' active' : ''; ?>"
+                style="--pill-color:#E0B84A;" onclick="window.location.href='progetti.php?view=fav'">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
+            Preferiti
+        </button>
+        <?php endif; ?>
+    </div>
+    <?php elseif (!empty($favProjects)): ?>
+    <div class="hdr-root-pills">
+        <button type="button" class="hdr-root-pill hdr-pill-fav<?php echo $viewFavorites ? ' active' : ''; ?>"
+                style="--pill-color:#E0B84A;" onclick="window.location.href='progetti.php?view=fav'">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
+            Preferiti
+        </button>
     </div>
     <?php endif; ?>
     <button type="button" class="hdr-drawer-btn" onclick="prOpenDrawer()">
@@ -1256,7 +1331,24 @@ button{ font-family:inherit; }
 <?php include 'sidebar.html'; ?>
 
 <div class="page">
-<?php if (!$selectedProject): ?>
+<?php if ($viewFavorites): ?>
+    <?php /* I preferiti: ognuno con il suo ramo, apribile come sempre. */ ?>
+    <div class="pr-fav-head">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
+        <span>Preferiti</span>
+        <small><?php echo count($favTrees); ?></small>
+    </div>
+    <?php if (empty($favTrees)): ?>
+        <div class="pr-empty">
+            <div class="pr-empty-title">Nessun preferito</div>
+            <div>Apri un progetto, tocca modifica e premi la stellina: comparirà qui.</div>
+        </div>
+    <?php else: ?>
+        <div class="pr-list" id="prList">
+            <?php foreach ($favTrees as $ft) { prog_render_row($ft, $childrenOf, $totalMemo, 0, $pomoInCorso); } ?>
+        </div>
+    <?php endif; ?>
+<?php elseif (!$selectedProject): ?>
     <div class="pr-empty">
         <svg class="pr-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M8 3v4"/></svg>
         <div class="pr-empty-title">Nessun progetto ancora</div>
@@ -1288,7 +1380,12 @@ button{ font-family:inherit; }
                 <svg class="pr-ic-planned" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>
             </button>
             <div class="pr-hero-title-wrap">
-                <span class="pr-hero-title<?php echo $selectedProject['stato'] === 'completed' ? ' pr-name-done' : ''; ?>"><?php echo htmlspecialchars($selectedProject['name'], ENT_QUOTES); ?></span>
+                <span class="pr-hero-title<?php echo $selectedProject['stato'] === 'completed' ? ' pr-name-done' : ''; ?>"><?php
+                    if ((int)($selectedProject['is_favorite'] ?? 0) === 1) {
+                        echo '<svg class="pr-star pr-star-hero" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>';
+                    }
+                    echo htmlspecialchars($selectedProject['name'], ENT_QUOTES);
+                ?></span>
                 <button type="button" class="pr-inline-add-btn pr-hero-quickadd" onclick="prHeroQuickAdd(event, this)" aria-label="Aggiungi sottoprogetto rapido" title="Aggiungi sotto-progetto rapido">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5v10a2 2 0 0 0 2 2h8"/><path d="m16 14 3 3-3 3"/></svg>
                 </button>

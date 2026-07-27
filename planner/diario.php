@@ -54,13 +54,15 @@ $boot = [
                 </button>
             </div>
 
-            <a class="dy-ring" id="dyRing" href="habits.php" aria-label="Abitudini del giorno">
+            <button type="button" class="dy-ring" id="dyRing" aria-label="Abitudini del giorno e della settimana">
                 <svg viewBox="0 0 54 54" aria-hidden="true">
                     <circle class="dy-ring-bg" cx="27" cy="27" r="22"/>
                     <circle class="dy-ring-fg" cx="27" cy="27" r="22" stroke-dasharray="138.2" stroke-dashoffset="138.2"/>
+                    <circle class="dy-ring-bg-w" cx="27" cy="27" r="16"/>
+                    <circle class="dy-ring-week" cx="27" cy="27" r="16" stroke-dasharray="100.5" stroke-dashoffset="100.5"/>
                 </svg>
                 <span class="dy-ring-n" id="dyRingN">–</span>
-            </a>
+            </button>
         </header>
 
         <div class="dy-lists">
@@ -145,6 +147,14 @@ $boot = [
     </div>
 </div>
 
+<!-- da computer non si può scorrere: due frecce discrete ai lati -->
+<button type="button" class="dy-arrow dy-arrow-prev" id="dyPrev" aria-label="Pagina precedente">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M14.5 5L8 12l6.5 7"/></svg>
+</button>
+<button type="button" class="dy-arrow dy-arrow-next" id="dyNext" aria-label="Pagina successiva">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M9.5 5L16 12l-6.5 7"/></svg>
+</button>
+
 <div class="dy-toast" id="dyToast"></div>
 
 <?php
@@ -152,6 +162,7 @@ $boot = [
 include 'diario_giorno.php';
 ?>
 <script>window.DY_BOOT = <?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
+<?php include 'sidebar.php'; ?>
 <script src="diario.js?v=<?php echo @filemtime(__DIR__ . '/diario.js') ?: time(); ?>"></script>
 </body>
 </html>

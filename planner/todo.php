@@ -53,7 +53,7 @@ body{
 }
 </style>
 </head>
-<body>
+<body class="tp-body">
 
 <a class="tp-back" href="planner.php">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M14.5 5L8 12l6.5 7"/></svg>
@@ -85,6 +85,7 @@ echo '<style>#ps-widget-todo{ display:none; }</style>';
 
 include 'todo_widget.php';
 ?>
+<?php include 'sidebar.php'; ?>
 <script>
 nisamaTodo.mount(document.getElementById('tpList'), {
     scope: 'all',

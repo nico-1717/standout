@@ -170,9 +170,50 @@ function totalCheckins(h) {
 }
 
 /* abitudini attive in un giorno, filtrate dalla UI */
+/* Il lunedì della settimana a cui appartiene una data. */
+function weekStartOf(date) {
+    var d = new Date(date + 'T00:00:00');
+    var dow = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - dow);
+    return d.toISOString().slice(0, 10);
+}
+
+/* Quante volte un'abitudine settimanale è stata fatta in quella settimana.
+   Non c'è tetto: cinque palestre su quattro contano cinque. */
+function weeklyProgress(h, date) {
+    var start = weekStartOf(date);
+    var end = new Date(start + 'T00:00:00');
+    end.setDate(end.getDate() + 6);
+    var endStr = end.toISOString().slice(0, 10);
+    var n = 0;
+    for (var k in S.logs) {
+        if (!S.logs.hasOwnProperty(k)) continue;
+        var l = S.logs[k];
+        if (l.habit_id !== h.id || l.status !== 'done') continue;
+        if (l.date >= start && l.date <= endStr) n++;
+    }
+    return { done: n, target: Math.max(1, h.times_per_week || 1) };
+}
+
+/* Le abitudini settimanali non dipendono dal giorno: valgono per la
+   settimana intera, quindi si mostrano sempre nella loro sezione. */
+function weeklyHabits(applyFilter) {
+    return S.habits.filter(function (h) {
+        if (h.is_archived || h.frequency_type !== 'weekly') return false;
+        if (applyFilter && S.filter !== 'all') {
+            if (S.filter.indexOf('cat:') === 0) return h.category_id === +S.filter.slice(4);
+            if (S.filter.indexOf('part:') === 0) return h.day_part === S.filter.slice(5);
+        }
+        return true;
+    });
+}
+
 function habitsForDay(date, applyFilter) {
     return S.habits.filter(function (h) {
         if (h.is_archived) return false;
+        /* le settimanali hanno una sezione tutta loro: qui darebbero
+           l'impressione di essere mancate ogni giorno */
+        if (h.frequency_type === 'weekly') return false;
         if (!isDue(h, date)) return false;
         if (applyFilter && S.filter !== 'all') {
             if (S.filter.indexOf('cat:') === 0) return h.category_id === +S.filter.slice(4);
@@ -619,6 +660,30 @@ function renderFilters() {
     }).join('');
 }
 
+/* La riga di un'abitudine settimanale: è la stessa riga di sempre, con
+   dentro l'anellino del progresso. Riusare rowHTML invece di riscriverla
+   significa che spunta, scorrimento e pressione prolungata continuano a
+   funzionare identici, senza doverli mantenere in due posti. */
+function weeklyRowHTML(h, date) {
+    var p = weeklyProgress(h, date);
+    var C = 75.4;                                  // 2πr con r = 12
+    var frac = Math.min(1, p.done / p.target);
+    var oltre = p.done > p.target;
+
+    var ring = '<span class="hb-week-ring' + (oltre ? ' is-over' : '') + '" aria-label="'
+        + p.done + ' su ' + p.target + ' questa settimana">'
+        + '<svg viewBox="0 0 28 28">'
+        + '<circle class="bg" cx="14" cy="14" r="12"/>'
+        + '<circle class="fg" cx="14" cy="14" r="12" stroke-dasharray="' + C
+        + '" stroke-dashoffset="' + (C * (1 - frac)).toFixed(1) + '"/>'
+        + '</svg><b>' + p.done + '/' + p.target + '</b></span>';
+
+    var html = rowHTML(h, date);
+    html = html.replace('class="hb-row', 'class="hb-row hb-row-week');
+    /* subito dopo il tasto della spunta */
+    return html.replace('</button>', '</button>' + ring);
+}
+
 function rowHTML(h, date) {
     var st = stateOf(h, date);
     var cls = 'hb-row';
@@ -691,21 +756,30 @@ function renderList() {
     }
     empty.hidden = true;
 
+    var settimanali = weeklyHabits(true);
+    var html = '';
+
     if (S.settings.group_by_day_part) {
         var order = ['morning','afternoon','evening','night','any'];
-        var html = '';
         order.forEach(function (p) {
             var group = items.filter(function (h) { return h.day_part === p; });
             if (!group.length) return;
             html += '<div class="hb-group-label">' + DAY_PART_ICON[p] + ' ' + DAY_PARTS[p] + '</div>';
             html += group.map(function (h) { return rowHTML(h, S.selected); }).join('');
         });
-        list.innerHTML = html || '<div class="hb-none">Nessuna abitudine con questo filtro.</div>';
     } else {
-        list.innerHTML = items.length
-            ? items.map(function (h) { return rowHTML(h, S.selected); }).join('')
-            : '<div class="hb-none">Nessuna abitudine con questo filtro.</div>';
+        /* l'intestazione "Giornalieri" ha senso solo se ci sono anche le
+           settimanali, altrimenti sarebbe un titolo per l'unico elenco */
+        if (items.length && settimanali.length) html += '<div class="hb-group-label">Giornalieri</div>';
+        html += items.map(function (h) { return rowHTML(h, S.selected); }).join('');
     }
+
+    if (settimanali.length) {
+        html += '<div class="hb-group-label hb-group-week">Settimanali</div>';
+        html += settimanali.map(function (h) { return weeklyRowHTML(h, S.selected); }).join('');
+    }
+
+    list.innerHTML = html || '<div class="hb-none">Nessuna abitudine con questo filtro.</div>';
     var prog = dayProgress(S.selected);
     document.getElementById('hbListTitle').textContent = prog.done + ' di ' + prog.total + ' completate';
 }

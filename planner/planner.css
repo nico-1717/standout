@@ -372,6 +372,117 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-col.pl-is-past .pl-col-day{ opacity:.5; }
 
 /* priorità del giorno: due per riga, si apre e si chiude */
+/* ------------------------------------------------------------------ */
+/* Vista mese: elenco degli eventi che entra dal basso                 */
+/* ------------------------------------------------------------------ */
+.pl-magenda{
+    position:fixed; left:0; right:0; bottom:0; z-index:52;
+    height:58dvh; display:none; flex-direction:column;
+    background:var(--card); border-radius:var(--r-xl) var(--r-xl) 0 0;
+    box-shadow:var(--sh-sheet);
+    transform:translateY(101%); transition:transform .42s var(--ease);
+    padding-bottom:var(--safe-bottom);
+}
+.pl-view-month .pl-magenda{ display:flex; }
+.pl-magenda.pl-open{ transform:none; }
+.pl-magenda-grab{
+    width:100%; padding:10px 0 6px; border:none; background:none; cursor:pointer;
+    display:flex; justify-content:center; flex-shrink:0;
+}
+.pl-magenda-grab::before{
+    content:''; width:36px; height:4px; border-radius:99px; background:var(--hair-2);
+}
+.pl-magenda-body{
+    flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;
+    padding:0 16px 24px; scrollbar-width:none;
+}
+.pl-magenda-body::-webkit-scrollbar{ width:0; }
+
+/* intestazione di ogni giorno, con il meteo a destra */
+.pl-ma-day{
+    display:flex; align-items:baseline; gap:8px;
+    padding:14px 0 8px; border-top:.5px solid var(--hair);
+}
+.pl-ma-day:first-child{ border-top:none; padding-top:6px; }
+.pl-ma-when{
+    font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--accent-ink);
+}
+.pl-ma-when.pl-ma-past{ color:var(--ink-3); }
+.pl-ma-date{ font-size:11px; color:var(--ink-3); font-variant-numeric:tabular-nums; }
+.pl-ma-day .pl-wx{ margin-left:auto; }
+
+/* una riga per evento */
+.pl-ma-ev{
+    display:flex; align-items:flex-start; gap:10px; width:100%;
+    padding:8px 0; border:none; background:none; text-align:left; cursor:pointer;
+}
+.pl-ma-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; margin-top:5px; }
+.pl-ma-hours{
+    font-size:11.5px; color:var(--ink-2); font-variant-numeric:tabular-nums;
+    white-space:nowrap; flex-shrink:0; min-width:82px;
+}
+.pl-ma-t{ flex:1; min-width:0; font-size:14.5px; color:var(--ink); line-height:1.3; }
+.pl-ma-ev.pl-ma-done .pl-ma-t{ color:var(--ink-3); text-decoration:line-through; text-decoration-thickness:.6px; }
+.pl-ma-sub{ font-size:11.5px; color:var(--ink-3); margin-top:1px; }
+.pl-ma-allday{
+    display:inline-block; padding:2px 8px; border-radius:var(--r-pill);
+    font-size:11px; background:var(--paper-2); color:var(--ink-2);
+}
+.pl-ma-empty{
+    font-family:'Cormorant Garamond',serif; font-style:italic; font-size:14px;
+    color:var(--ink-3); padding:4px 0 10px;
+}
+/* con l'elenco aperto la griglia del mese si stringe in alto */
+.pl-view-month.pl-magenda-open .pl-mgrid{ max-height:42dvh; }
+
+/* pallino acceso/spento della lista calendari */
+.pl-cal-dot{
+    width:20px; height:20px; border-radius:6px; flex-shrink:0; cursor:pointer;
+    display:grid; place-items:center; color:transparent;
+    box-shadow:inset 0 0 0 1.4px color-mix(in srgb, var(--ev) 70%, var(--hair-2));
+    transition:background-color .25s, color .25s;
+}
+.pl-cal-dot svg{ width:11px; height:11px; }
+.pl-cal-dot.pl-on{ background:var(--ev); color:#FFFDFA; box-shadow:none; }
+
+/* frecce per cambiare giorno da computer: si vedono solo con un mouse */
+.pl-arrow{
+    position:fixed; top:50%; transform:translateY(-50%); z-index:53;
+    width:34px; height:34px; border-radius:var(--r-pill);
+    display:none; place-items:center; color:var(--ink-2);
+    background:rgba(255,253,250,.72); box-shadow:var(--sh-soft), inset 0 0 0 .5px var(--hair);
+    -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    transition:transform var(--t-fast) var(--ease), background-color var(--t-fast);
+}
+.pl-arrow svg{ width:16px; height:16px; }
+.pl-arrow:active{ transform:translateY(-50%) scale(.9); }
+.pl-arrow-prev{ left:10px; }
+.pl-arrow-next{ right:10px; }
+@media (pointer:fine){ .pl-arrow{ display:grid; } }
+/* nella vista mese le frecce non servono: lì si cambia mese e anno */
+.pl-view-month .pl-arrow{ display:none !important; }
+
+/* ---- meteo ---- */
+.pl-tool.pl-weather-on{ background:#DCEAF3; color:#3E6B86; }
+.pl-wx{
+    display:inline-flex; align-items:center; gap:3px; padding:2px 6px;
+    border-radius:var(--r-pill); background:var(--paper-2); color:var(--ink-2);
+    font-size:9.5px; line-height:1.2; border:none; cursor:pointer; white-space:nowrap;
+    transition:transform var(--t-fast) var(--ease);
+}
+.pl-wx:active{ transform:scale(.93); }
+.pl-wx svg{ width:12px; height:12px; flex-shrink:0; }
+.pl-wx-rain{ background:#DCEAF3; color:#3E6B86; }
+.pl-wx-sun{ background:#F8EFD4; color:#7A6127; }
+.pl-wx-snow{ background:#EAF0F6; color:#5B7284; }
+.pl-wx-storm{ background:#E7E2F0; color:#5A4E76; }
+/* nella casella del mese sta stretto: solo l'icona */
+.pl-mcell .pl-wx{ padding:1px 3px; font-size:8px; align-self:flex-start; }
+.pl-mcell .pl-wx svg{ width:10px; height:10px; }
+/* nella striscia dei giorni, accanto al nome */
+.pl-hcol .pl-wx{ margin-top:2px; }
+
 /* barra intelligente: una riga in cui scrivere l'evento a parole */
 .pl-smart{
     display:flex; align-items:center; gap:6px; margin:6px 0 0;
@@ -383,6 +494,18 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     font-size:14px; color:var(--ink); padding:7px 0;
 }
 .pl-smart-in::placeholder{ color:var(--ink-3); font-style:italic; }
+.pl-smart-mic{
+    width:30px; height:30px; border-radius:var(--r-pill); flex-shrink:0;
+    display:grid; place-items:center; color:var(--ink-2); background:var(--paper-2);
+    transition:transform var(--t-fast) var(--ease), background-color var(--t-fast), color var(--t-fast);
+}
+.pl-smart-mic svg{ width:15px; height:15px; }
+.pl-smart-mic:active{ transform:scale(.9); }
+.pl-smart-mic.pl-rec{ background:#F3DCDC; color:#8E5A5A; }
+.pl-smart-mic.pl-rec svg{ animation:pl-mic-pulse 1.3s ease-in-out infinite; }
+@keyframes pl-mic-pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+
+.pl-smart-report{ cursor:pointer; }
 .pl-smart-go{
     width:30px; height:30px; border-radius:var(--r-pill); flex-shrink:0;
     display:grid; place-items:center; color:var(--accent-ink); background:var(--accent-soft);
@@ -557,6 +680,22 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-ev-box.pl-picked{ background:var(--accent); color:#FFFDFA; box-shadow:none; }
 .pl-ev.pl-sel{ box-shadow:inset 0 0 0 1.6px var(--accent); }
 .pl-ev.pl-done .pl-ev-t{ color:var(--ink-2); text-decoration:line-through; text-decoration-thickness:.6px; }
+/* con chi è l'evento, e il tastino della mappa: entrambi comodi da toccare */
+.pl-ev-with{
+    flex-shrink:0; max-width:38%; padding:1px 7px; border-radius:var(--r-pill);
+    background:rgba(255,253,250,.72); box-shadow:inset 0 0 0 .5px var(--hair);
+    font-size:10px; color:var(--ink-2); white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis;
+}
+.pl-ev-map{
+    width:19px; height:19px; border-radius:var(--r-pill); flex-shrink:0; position:relative;
+    display:grid; place-items:center; color:var(--ink-2);
+    background:rgba(255,253,250,.7); box-shadow:inset 0 0 0 .5px var(--hair);
+}
+.pl-ev-map svg{ width:11px; height:11px; }
+/* zona di tocco più larga dei bordi, come per la casellina */
+.pl-ev-map::after{ content:''; position:absolute; left:-9px; right:-9px; top:-9px; bottom:-9px; }
+
 .pl-ev-pomo{
     width:19px; height:19px; border-radius:var(--r-pill); flex-shrink:0;
     display:grid; place-items:center; color:var(--ink-2);
@@ -695,10 +834,42 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 /* anello degli habit */
 .pl-ring{ width:46px; height:46px; position:relative; }
 .pl-ring svg{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); }
-.pl-ring circle{ fill:none; stroke-width:3.2; stroke-linecap:round; }
-.pl-ring .pl-ring-bg{ stroke:var(--hair); }
-.pl-ring .pl-ring-plan{ stroke:var(--accent-soft); transition:stroke-dashoffset var(--t-slow) var(--ease); }
-.pl-ring .pl-ring-done{ stroke:var(--accent); transition:stroke-dashoffset var(--t-slow) var(--ease); }
+/* Due anelli: fuori le abitudini di oggi, dentro quelle della settimana.
+   Colori più marcati di prima, dove si vedevano appena. */
+.pl-ring circle{ fill:none; stroke-linecap:round; }
+.pl-ring .pl-ring-bg{ stroke:var(--hair-2); stroke-width:3.4; }
+.pl-ring .pl-ring-plan{
+    stroke:color-mix(in srgb, var(--accent) 45%, var(--card)); stroke-width:3.4;
+    transition:stroke-dashoffset var(--t-slow) var(--ease);
+}
+.pl-ring .pl-ring-done{
+    stroke:color-mix(in srgb, var(--accent) 100%, transparent); stroke-width:3.4;
+    transition:stroke-dashoffset var(--t-slow) var(--ease);
+}
+.pl-ring .pl-ring-bg-w{ stroke:var(--hair-2); stroke-width:2.8; }
+.pl-ring .pl-ring-week{
+    stroke:var(--accent-ink); stroke-width:2.8;
+    transition:stroke-dashoffset var(--t-slow) var(--ease);
+}
+
+/* separatore fra le abitudini di oggi e quelle settimanali, nel menù */
+.pl-chip-sep{
+    align-self:stretch; height:1px; background:var(--hair-2);
+    margin:3px 8px 3px auto; width:60%;
+}
+.pl-chip-lab{
+    font-size:8.5px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--ink-3); padding:0 12px 2px; align-self:flex-end;
+}
+.pl-chip-ring{
+    width:22px; height:22px; flex-shrink:0; position:relative;
+    display:grid; place-items:center;
+}
+.pl-chip-ring svg{ position:absolute; inset:0; transform:rotate(-90deg); }
+.pl-chip-ring circle{ fill:none; stroke-width:2.6; stroke-linecap:round; }
+.pl-chip-ring .bg{ stroke:var(--hair-2); }
+.pl-chip-ring .fg{ stroke:var(--accent-ink); transition:stroke-dashoffset .5s var(--ease); }
+.pl-chip-ring span{ font-size:7.5px; color:var(--ink-2); font-variant-numeric:tabular-nums; }
 .pl-ring-face{
     position:absolute; inset:0; display:grid; place-items:center; color:var(--ink-2);
 }
@@ -1075,6 +1246,18 @@ textarea.pl-in{ resize:none; min-height:76px; line-height:1.5; }
 .pl-drift-in{ display:block; animation:pl-bob ease-in-out infinite alternate; }
 .pl-drift-in svg{ display:block; width:100%; height:100%; animation:pl-wing 1.1s ease-in-out infinite alternate; }
 .pl-drift-slow .pl-drift-in svg{ animation-duration:2.6s; }
+/* Pinguini, scoiattoli, ricci e la slitta non hanno ali: al posto del
+   battito fanno un passo ondeggiante, e restano più in basso, appoggiati
+   alla riga degli alberi invece di svolazzare a mezz'aria. */
+.pl-drift-walk{ top:auto !important; bottom:2px; }
+.pl-drift-walk .pl-drift-in{ animation:pl-step 1.1s ease-in-out infinite alternate; }
+.pl-drift-walk .pl-drift-in svg{ animation:none; }
+@keyframes pl-step{
+    from{ transform:translateY(0) rotate(-2.5deg); }
+    to{ transform:translateY(-3px) rotate(2.5deg); }
+}
+/* la slitta invece plana: sta in alto e ondeggia piano */
+.pl-drift-walk.pl-drift-fly{ bottom:auto; }
 @keyframes pl-cross{ from{ transform:translateX(0); } to{ transform:translateX(calc(100vw + 60px)); } }
 @keyframes pl-bob{ from{ transform:translateY(0) rotate(-5deg); } to{ transform:translateY(-16px) rotate(5deg); } }
 @keyframes pl-wing{ from{ transform:scaleX(1); } to{ transform:scaleX(.62); } }
