@@ -263,59 +263,89 @@ function weeklyOf(date) { return S.weekly[monday(date)] || []; }
 var AMB = null, ambMonth = null;
 
 var TREES = {
-    /* Alberi disegnati a tratto: tronco che si assottiglia, rami che si
-       biforcano più volte e chioma a lobi. Prima erano tre curve appena
-       accennate e si vedeva che erano un simbolo, non un albero. */
+    /* Sagome ispirate agli alberi spogli disegnati a inchiostro: tronco che
+       si allarga alla base con le radici accennate, rami principali che si
+       biforcano tre volte e si assottigliano fino a rametti sottili. Sono
+       riempiti, non tracciati: è il pieno a dare la sagoma riconoscibile. */
     bare:
-        '<path d="M30 80c-.6-9 .2-15 .4-21 .2-6 .1-11-.4-16"/>' +
-        '<path d="M30.2 52c-3-2.6-6.4-4-10.4-4.4"/><path d="M19.8 47.6c-2.6-1.4-4.4-3.4-5.6-6"/>' +
-        '<path d="M22.6 49c-.6-2.6-2-4.6-4-6.2"/>' +
-        '<path d="M30 44c3.4-3 5.6-6.6 6.6-11"/><path d="M36.6 33c2.2-1.2 4.6-1.6 7-1.2"/>' +
-        '<path d="M34.4 37.6c2.4.4 4.6 0 6.6-1.2"/>' +
-        '<path d="M30.2 34c-2.4-3-3.6-6.4-3.6-10"/><path d="M26.6 24c-1.8-1.6-3-3.6-3.6-6"/>' +
-        '<path d="M30 26c2.6-2.2 4.2-5 4.8-8.4"/>' +
-        '<path d="M30.4 62c-3.4-1.4-6-3.6-7.8-6.6"/>',
+        '<g fill="currentColor" stroke="none">'
+        + '<path d="M27.6 80c.3-4 .6-9 .8-14 .2-5.4.3-10.4.2-15l3 0c-.1 4.6 0 9.6.2 15 .2 5 .5 10 .8 14 -1.7.6-3.3.6-5 0z"/>'
+        + '<path d="M22.5 80c1.6-3.4 3.6-5.4 5.9-6.2l.3 6.2z"/>'
+        + '<path d="M37.5 80c-1.6-3.4-3.6-5.4-5.9-6.2l-.3 6.2z"/>'
+        /* ramo grande a sinistra */
+        + '<path d="M28.4 52.6c-3.6-1.6-6.8-3.8-9.4-6.8-1.9-2.2-3.2-4.7-3.9-7.5.9 2.5 2.3 4.6 4.2 6.4 2.3 2.2 5.1 3.8 8.3 4.9z"/>'
+        + '<path d="M19.6 46.4c-2.4-.3-4.4-1.4-6-3.2 1.8 1.2 3.7 1.9 5.8 2z"/>'
+        + '<path d="M23.4 49c-1.1-1.9-1.6-3.9-1.6-6 .4 2 1.2 3.8 2.4 5.4z"/>'
+        /* ramo grande a destra */
+        + '<path d="M31.4 46.4c3.3-2.2 5.8-5 7.5-8.5 1.2-2.5 1.8-5.1 1.9-7.8.2 2.7-.2 5.3-1.2 7.9-1.3 3.4-3.6 6.3-6.8 8.7z"/>'
+        + '<path d="M38.6 33.2c1.9-1.2 4-1.7 6.2-1.5-2 .3-3.8 1.1-5.4 2.3z"/>'
+        + '<path d="M35.4 38.8c2 .1 3.9-.4 5.6-1.5-1.4 1.4-3.1 2.3-5 2.6z"/>'
+        /* ramo centrale alto */
+        + '<path d="M28.6 36c-2.1-2.6-3.3-5.5-3.6-8.7-.2-2.3 0-4.5.7-6.7-.4 2.2-.4 4.3 0 6.5.5 3 1.7 5.7 3.6 8.1z"/>'
+        + '<path d="M25.4 25.4c-1.5-1.2-2.5-2.7-3.1-4.5 1 1.6 2.2 2.9 3.7 3.9z"/>'
+        + '<path d="M31 27.6c2-1.7 3.4-3.8 4.2-6.3-.4 2.6-1.5 4.9-3.2 6.9z"/>'
+        + '<path d="M30.4 62.4c-2.9-1.1-5.2-2.9-6.9-5.4 1.9 2.1 4.3 3.6 7.1 4.5z"/>'
+        + '</g>',
     buds:
-        '<path d="M30 80c-.6-9 .2-15 .4-21 .2-6 .1-11-.4-16"/>' +
-        '<path d="M30.2 52c-3.4-3-7.2-4.6-11.6-5"/><path d="M18.6 47c-2.4-1.6-4-3.8-5-6.4"/>' +
-        '<path d="M30 44c3.6-3.2 6-7 7-11.6"/><path d="M37 32.4c2.4-1.2 4.8-1.6 7.4-1"/>' +
-        '<path d="M30.2 34c-2.6-3.2-3.8-6.8-3.8-10.6"/>' +
-        '<path d="M30.4 62c-3.6-1.6-6.4-3.8-8.2-7"/>',
+        '<g fill="currentColor" stroke="none">'
+        + '<path d="M27.6 80c.3-4 .6-9 .8-14 .2-5.4.3-10.4.2-15l3 0c-.1 4.6 0 9.6.2 15 .2 5 .5 10 .8 14 -1.7.6-3.3.6-5 0z"/>'
+        + '<path d="M22.8 80c1.5-3.2 3.4-5.1 5.6-5.9l.2 5.9z"/>'
+        + '<path d="M37.2 80c-1.5-3.2-3.4-5.1-5.6-5.9l-.2 5.9z"/>'
+        + '<path d="M28.4 51c-4-1.8-7.4-4.3-10.1-7.6 2.5 2.5 5.6 4.4 9.2 5.8z"/>'
+        + '<path d="M31.4 45c3.6-2.5 6.2-5.7 7.9-9.6-1.1 4-3.4 7.3-6.7 10z"/>'
+        + '<path d="M28.6 34c-2.2-2.9-3.4-6.1-3.6-9.6.4 3.3 1.6 6.3 3.6 8.9z"/>'
+        + '<path d="M30.4 61c-3-1.2-5.4-3.1-7.1-5.7 2 2.2 4.4 3.8 7.3 4.7z"/>'
+        + '</g>',
     blossom:
-        '<path d="M30 80c-.6-10 .2-17 .4-24 .2-6 .1-11-.4-16"/>' +
-        '<path d="M30.2 48c-4-3.6-8.4-5.4-13.4-5.6"/><path d="M16.8 42.4c-2.6-2-4.2-4.6-5-7.6"/>' +
-        '<path d="M30 40c4-3.6 6.8-8 8-13.2"/><path d="M38 26.8c2.6-1.6 5.4-2.2 8.4-1.8"/>' +
-        '<path d="M30.2 30c-2.8-3.6-4-7.6-4-12"/>' +
-        '<path d="M30.4 60c-4-1.8-7-4.4-9-8"/>',
+        '<g fill="currentColor" stroke="none">'
+        + '<path d="M27.6 80c.3-5 .6-11 .8-17 .2-5.4.3-10 .2-14l3 0c-.1 4 0 8.6.2 14 .2 6 .5 12 .8 17 -1.7.6-3.3.6-5 0z"/>'
+        + '<path d="M22.6 80c1.6-3.3 3.5-5.2 5.8-6l.2 6z"/>'
+        + '<path d="M37.4 80c-1.6-3.3-3.5-5.2-5.8-6l-.2 6z"/>'
+        + '<path d="M28.4 47c-4.6-2-8.4-4.8-11.4-8.4 2.8 2.8 6.4 5 10.6 6.6z"/>'
+        + '<path d="M31.4 41c4-2.8 6.9-6.4 8.7-10.8-1.2 4.5-3.8 8.2-7.5 11.2z"/>'
+        + '<path d="M28.6 31c-2.4-3.2-3.7-6.7-3.9-10.5.4 3.6 1.7 6.9 3.9 9.8z"/>'
+        + '</g>',
     leafy:
-        '<path d="M30 80c-.6-10 0-17 .2-24"/>' +
-        '<path d="M30.2 56c-3.4-2-6-4.6-7.8-7.8"/><path d="M30 50c3.2-2 5.6-4.6 7.2-7.8"/>' +
-        /* chioma a lobi, non un ovale liscio */
-        '<path d="M14 32c-1.6-5.6 1.6-10.8 7-12 2-4.6 6.6-7.2 11.6-6.4 4.4-2 9.6-.4 12.2 3.6 4.6.8 7.6 5 7 9.6-.4 3.4-2.8 6.2-6 7.2"/>' +
-        '<path d="M14 32c1.2 4 4.8 6.6 9 6.6h22.8"/>' +
-        '<path d="M22 31c1.8 2.2 4.2 3.4 7 3.4"/><path d="M38 30c-1.4 2.4-3.6 4-6.2 4.4"/>',
+        '<g fill="currentColor" stroke="none">'
+        + '<path d="M28 80c.2-6 .5-13 .6-20l2.8 0c.1 7 .4 14 .6 20 -1.4.5-2.6.5-4 0z"/>'
+        + '<path d="M29 58c-2.6-1.5-4.6-3.5-6-6 1.7 2 3.7 3.6 6.2 4.7z"/>'
+        + '<path d="M31 52c2.5-1.6 4.4-3.7 5.7-6.3-1 2.7-2.7 4.9-5 6.6z"/>'
+        + '</g>'
+        /* chioma: lobi sovrapposti, non un ovale */
+        + '<path d="M14 32c-1.8-6 1.6-11.6 7.4-12.9 2.2-4.9 7-7.6 12.3-6.7 4.7-2.1 10.2-.4 13 3.9 4.9.9 8.1 5.4 7.4 10.3-.5 3.5-3 6.4-6.4 7.4"/>'
+        + '<path d="M14 32c1.3 4.3 5.1 7 9.6 7h23.6"/>',
     lush:
-        '<path d="M30 80c-.8-11 0-18 .2-25"/>' +
-        '<path d="M30.2 58c-3.8-2.2-6.8-5-8.8-8.6"/><path d="M30 52c3.6-2.2 6.2-5.2 8-8.8"/>' +
-        '<path d="M11 30c-2-6.4 1.6-12.6 8-14 2.4-5.4 7.8-8.4 13.6-7.4 5.2-2.2 11.2-.4 14.2 4.4 5.4 1 8.8 6 8 11.4-.6 4-3.4 7.2-7.2 8.4"/>' +
-        '<path d="M11 30c1.4 4.8 5.6 7.8 10.6 7.8h26"/>' +
-        '<path d="M19 28c2 2.6 5 4.2 8.2 4.2"/><path d="M41 27c-1.6 2.8-4.2 4.6-7.2 5.2"/>' +
-        '<path d="M27 20c1.8-2 4.4-3 7-2.8"/>',
+        '<g fill="currentColor" stroke="none">'
+        + '<path d="M28 80c.2-7 .5-15 .6-23l2.8 0c.1 8 .4 16 .6 23 -1.4.5-2.6.5-4 0z"/>'
+        + '<path d="M29 60c-3-1.8-5.3-4.1-6.9-7 1.9 2.3 4.3 4.2 7.1 5.5z"/>'
+        + '<path d="M31 54c2.9-1.8 5.1-4.2 6.6-7.2-1.2 3.1-3.2 5.6-5.9 7.6z"/>'
+        + '</g>'
+        + '<path d="M11 30c-2.1-6.8 1.7-13.4 8.5-14.9 2.6-5.7 8.3-8.9 14.5-7.9 5.5-2.3 11.9-.4 15.1 4.7 5.7 1.1 9.4 6.4 8.5 12.1-.6 4.2-3.6 7.7-7.7 8.9"/>'
+        + '<path d="M11 30c1.5 5.1 6 8.3 11.3 8.3h27.6"/>'
+        + '<path d="M20 28c2.1 2.8 5.3 4.5 8.7 4.5"/><path d="M42 27c-1.7 3-4.5 4.9-7.7 5.5"/>',
     dry:
-        '<path d="M30 80c-1-8 0-14 .2-19 .2-5 0-9-.6-13"/>' +
-        '<path d="M29.6 50c-3-3.4-5-7.2-6-11.4"/><path d="M23.6 38.6c-2-1-3.6-2.6-4.6-4.6"/>' +
-        '<path d="M30 46c3.2-3.4 5-7.4 5.6-12"/><path d="M35.6 34c2-1 4-1.4 6.2-1.2"/>' +
-        '<path d="M30.2 62c-2.6-1.2-4.6-3-6-5.4"/>',
+        '<g fill="currentColor" stroke="none">'
+        + '<path d="M28.2 80c.3-4 .5-8.5.6-13 .2-4.6.2-8.8.1-12.4l2.2 0c-.1 3.6-.1 7.8.1 12.4.1 4.5.3 9 .6 13 -1.2.4-2.4.4-3.6 0z"/>'
+        + '<path d="M28.6 50c-2.6-2.9-4.3-6.2-5.2-9.8 1.2 3.4 3.1 6.3 5.6 8.8z"/>'
+        + '<path d="M24 39.4c-1.7-.8-3-2-4-3.6 1.3 1.4 2.7 2.4 4.4 3z"/>'
+        + '<path d="M31 46c2.8-3 4.4-6.5 5-10.5-.3 3.7-1.6 7-3.9 9.9z"/>'
+        + '<path d="M36 34.6c1.7-.9 3.5-1.2 5.4-1-1.7.2-3.3.8-4.7 1.7z"/>'
+        + '<path d="M30.4 62c-2.3-1-4-2.5-5.3-4.6 1.5 1.8 3.4 3.1 5.6 3.9z"/>'
+        + '</g>',
     autumn:
-        '<path d="M30 80c-.8-10 0-17 .2-23"/>' +
-        '<path d="M30.2 54c-4.2-3-8-4.6-12.6-5"/><path d="M17.6 49c-2.4-1.8-4-4.2-4.8-7"/>' +
-        '<path d="M30 46c4-3.4 6.8-7.6 8-12.6"/><path d="M38 33.4c2.6-1.4 5.2-2 8-1.6"/>' +
-        '<path d="M30.2 36c-2.8-3.4-4-7.2-4-11.4"/>',
-    /* abete: per i mesi in cui gli altri alberi sono spogli */
+        '<g fill="currentColor" stroke="none">'
+        + '<path d="M27.8 80c.3-5 .6-11 .7-17 .2-5 .2-9.4.1-13l2.8 0c-.1 3.6-.1 8 .1 13 .1 6 .4 12 .7 17 -1.5.5-2.9.5-4.4 0z"/>'
+        + '<path d="M22.8 80c1.5-3.2 3.4-5.1 5.6-5.9l.2 5.9z"/>'
+        + '<path d="M37.2 80c-1.5-3.2-3.4-5.1-5.6-5.9l-.2 5.9z"/>'
+        + '<path d="M28.4 53c-4.4-2-8.1-4.6-11-7.9 2.7 2.6 6.1 4.7 10.1 6.3z"/>'
+        + '<path d="M31.4 45c3.9-2.7 6.7-6.2 8.4-10.4-1.1 4.3-3.6 7.9-7.2 10.8z"/>'
+        + '<path d="M28.6 36c-2.3-3-3.5-6.4-3.7-10 .4 3.4 1.6 6.6 3.7 9.3z"/>'
+        + '</g>',
     conifer:
-        '<path d="M30 80V62"/>' +
-        '<path d="M30 8l-9 15h5l-8 13h6l-9 14h30l-9-14h6l-8-13h5z"/>' +
-        '<path d="M24 51h12"/><path d="M22 38h16"/>'
+        '<g fill="currentColor" stroke="none">'
+        + '<path d="M28.6 80c.2-4.5.4-9.4.5-14l2.6 0c.1 4.6.3 9.5.5 14 -1.2.4-2.4.4-3.6 0z"/>'
+        + '<path d="M30 6l-8.6 15.4h4.6L17.2 35.4h5.6L13 50h34l-9.8-14.6h5.6L34 21.4h4.6z"/>'
+        + '</g>'
 };
 var BUDS = {
     buds:   [[18,26],[24,20],[38,22],[43,16],[22,36],[40,34]],
@@ -1006,12 +1036,14 @@ function wxPopup(date) {
 
 $('plWeatherBtn').addEventListener('click', function () {
     if (WX.on) {
-        /* già attivo: si apre il meteo del giorno che si sta guardando */
-        if (WX.giorni[S.focusDate]) wxPopup(S.focusDate);
-        else {
-            var primo = Object.keys(WX.giorni)[0];
-            if (primo) wxPopup(primo); else toast('Previsioni non disponibili.');
-        }
+        /* il tasto accende e spegne: le informazioni si aprono dai tag */
+        wxCall('disable', {}).then(function () {
+            WX.on = false; WX.giorni = {};
+            $('plWeatherBtn').classList.remove('pl-weather-on');
+            renderDays();
+            if (S.view === 'month') renderMonth();
+            toast('Meteo disattivato.');
+        });
         return;
     }
     if (!navigator.geolocation) { toast('Questo browser non sa dire la posizione.'); return; }
@@ -1116,6 +1148,8 @@ function smartParse(raw) {
     var text = ' ' + String(raw).toLowerCase().trim() + ' ';
     var used = [];
     var date = null, time = null, mealFound = false;
+    /* segna se l'ora è stata scritta davvero, invece di essere dedotta */
+    var timeExplicit = false;
 
     function eat(re) {
         var m = text.match(re);
@@ -1127,10 +1161,11 @@ function smartParse(raw) {
     var mTime = eat(/\s(?:alle|alla|ore|ora|verso)?\s*([01]?\d|2[0-3])[:.]([0-5]\d)\s/);
     if (mTime) {
         time = pad(parseInt(mTime[1], 10)) + ':' + mTime[2];
+        timeExplicit = true;
     } else {
         var mHour = eat(/\s(?:alle|ore|ora|verso)\s+([01]?\d|2[0-3])\s/);
         if (!mHour) mHour = eat(/\s([01]?\d|2[0-3])\s*$/);
-        if (mHour) time = pad(parseInt(mHour[1], 10)) + ':00';
+        if (mHour) { time = pad(parseInt(mHour[1], 10)) + ':00'; timeExplicit = true; }
     }
 
     /* --- feste a data fissa: ferragosto, natale, capodanno… --- */
@@ -1194,10 +1229,15 @@ function smartParse(raw) {
         var fa = trovaChiave(text, Object.keys(SMART.fasce_orarie), 0);
         if (fa) time = SMART.fasce_orarie[fa.key];
     }
-    /* i pasti hanno la precedenza: sono più specifici di "sera" o "mattina" */
+    /* I pasti danno un'ora solo se non è stata scritta: "domani pranzo alle
+       18" deve finire alle 18, non alle 12:30. L'orario detto dall'utente
+       vince sempre su quello dedotto da una parola. */
     if (SMART.pasti) {
         var pa = trovaChiave(text, Object.keys(SMART.pasti), tol);
-        if (pa) { time = SMART.pasti[pa.key]; mealFound = true; }
+        if (pa) {
+            mealFound = true;                    // basta a non farlo diventare "tutto il giorno"
+            if (!timeExplicit) time = SMART.pasti[pa.key];
+        }
     }
 
     /* --- giorni relativi: oggi, domani, dopodomani --- */
@@ -3368,6 +3408,33 @@ function renderEventSheet() {
     gBook.addEventListener('click', function () { openRubrica(d, drawGuests); });
     gRow.appendChild(gIn); gRow.appendChild(gBook);
     fg.appendChild(gRow);
+
+    /* Code degli indirizzi più comuni: compaiono solo mentre si scrive nel
+       campo, e toccandone una completa l'indirizzo. Spariscono appena si
+       esce, per non tenere occupata la schermata. */
+    var domini = el('div', 'pl-tags pl-hidden');
+    domini.style.marginTop = '7px';
+    ['@gmail.com', '@icloud.com', '@outlook.it', '@libero.it', '@hotmail.it', '@yahoo.it', '@virgilio.it']
+        .forEach(function (dom) {
+            var t = el('button', 'pl-tag');
+            t.type = 'button';
+            t.appendChild(el('span', null, dom));
+            t.addEventListener('pointerdown', function (e) {
+                /* pointerdown e non click: altrimenti il campo perde il fuoco
+                   e le code spariscono prima che il tocco arrivi */
+                e.preventDefault();
+                var v = (gIn.value || '').split('@')[0];
+                gIn.value = v + dom;
+                gIn.focus();
+            });
+            domini.appendChild(t);
+        });
+    fg.appendChild(domini);
+    gIn.addEventListener('focus', function () { domini.classList.remove('pl-hidden'); });
+    gIn.addEventListener('blur', function () {
+        setTimeout(function () { domini.classList.add('pl-hidden'); }, 120);
+    });
+
     body.appendChild(fg);
 
     /* note */
@@ -3435,13 +3502,17 @@ function openRubrica(draft, redraw) {
                         if (draft) { addGuest(draft, c.email, c.name, redraw); closeOv('plSheetOv'); }
                     });
                     var acts = el('div', 'pl-srow-acts');
+                    var edit = el('button', 'pl-srow-act');
+                    edit.type = 'button';
+                    edit.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 19h3l9.5-9.5-3-3L5 16z"/></svg>';
+                    edit.addEventListener('click', function () { editContact(c, function () { carica(cerca.value.trim()); }); });
                     var del = el('button', 'pl-srow-act pl-del');
                     del.type = 'button';
                     del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>';
                     del.addEventListener('click', function () {
                         api('contact_delete', { id: c.id }).then(function () { carica(cerca.value.trim()); });
                     });
-                    acts.appendChild(del);
+                    acts.appendChild(edit); acts.appendChild(del);
                     row.appendChild(inner); row.appendChild(acts);
                     enableSwipe(row, inner);
                     rows.appendChild(row);
@@ -3478,6 +3549,37 @@ function openRubrica(draft, redraw) {
         f.appendChild(add);
         body.appendChild(f);
     });
+}
+
+/* Modifica di un contatto: nome e indirizzo, in un avviso semplice. */
+function editContact(c, done) {
+    var ov = $('plAlertOv');
+    $('plAlertTitle').textContent = 'Modifica contatto';
+    $('plAlertMsg').innerHTML = '';
+    var wrap = el('div');
+    var nome = el('input', 'pl-in');
+    nome.type = 'text'; nome.value = c.name; nome.maxLength = 80;
+    nome.placeholder = 'Nome';
+    var mail = el('input', 'pl-in');
+    mail.type = 'email'; mail.value = c.email; mail.style.marginTop = '8px';
+    wrap.appendChild(nome); wrap.appendChild(mail);
+    $('plAlertMsg').appendChild(wrap);
+
+    var acts = $('plAlertActs');
+    acts.innerHTML = '';
+    var no = el('button', 'pl-btn', 'Annulla'); no.type = 'button';
+    no.addEventListener('click', function () { ov.classList.remove('pl-open'); });
+    var si = el('button', 'pl-btn pl-btn-primary', 'Salva'); si.type = 'button';
+    si.addEventListener('click', function () {
+        api('contact_save', { id: c.id, name: nome.value, email: mail.value }).then(function (r) {
+            ov.classList.remove('pl-open');
+            if (!r.ok) { toast(r.message || 'Non salvato.'); return; }
+            loadRubrica();
+            if (done) done();
+        });
+    });
+    acts.appendChild(no); acts.appendChild(si);
+    ov.classList.add('pl-open');
 }
 
 /* pezzi riusabili del popup */
@@ -4849,6 +4951,8 @@ function renderMonth() {
 function monthCell(date, inMonth) {
     var cell = el('div', 'pl-mcell' + (inMonth ? '' : ' pl-out')
         + (date < S.today ? ' pl-past-d' : '') + (date === S.today ? ' pl-today-d' : ''));
+    var wtag = wxTag(date);
+    if (wtag) cell.appendChild(wtag);   // sta nell'angolo, fuori dal flusso
     cell.appendChild(el('div', 'pl-mcell-n pl-serif', String(parseIso(date).getDate())));
     /* nella casella del mese contano prima gli importantissimi, poi gli
        importanti, e all'interno di ciascun gruppo l'ordine dell'orario */
@@ -4866,8 +4970,6 @@ function monthCell(date, inMonth) {
         cell.appendChild(e);
     });
     if (list.length > 3) cell.appendChild(el('div', 'pl-mmore', '+' + (list.length - 3)));
-    var wtag = wxTag(date);
-    if (wtag) cell.appendChild(wtag);
 
     var dj = S.diary[date];
     if (dj && (dj.has_text || dj.has_lists)) {
@@ -5007,6 +5109,29 @@ function agendaRow(ev) {
 }
 
 $('plMagendaClose').addEventListener('click', closeMonthAgenda);
+
+/* Si chiude anche trascinando la maniglia verso il basso, o toccando la
+   griglia del mese sopra: prima l'unico modo era centrare quel trattino
+   sottile, e da telefono era una piccola tortura. */
+(function magendaClose() {
+    var grab = $('plMagendaClose'), box = $('plMonthAgenda');
+    if (!grab || !box) return;
+    var y0 = null;
+    grab.addEventListener('touchstart', function (e) {
+        if (e.touches.length === 1) y0 = e.touches[0].clientY;
+    }, { passive: true });
+    grab.addEventListener('touchmove', function (e) {
+        if (y0 === null) return;
+        if (e.touches[0].clientY - y0 > 40) { y0 = null; closeMonthAgenda(); }
+    }, { passive: true });
+    grab.addEventListener('touchend', function () { y0 = null; }, { passive: true });
+
+    /* un tocco sulla griglia del mese, sopra al pannello, lo richiude */
+    var grid = $('plMonthGrid');
+    if (grid) grid.addEventListener('pointerdown', function () {
+        if (box.classList.contains('pl-open')) closeMonthAgenda();
+    }, true);
+})();
 
 /* su e giù cambia mese, destra e sinistra cambia anno */
 function monthStep(months, years, dir) {

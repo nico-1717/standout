@@ -367,10 +367,16 @@ function turnPage(delta) {
 
 (function swipe() {
     var stage = $('dyStage');
-    var x0 = null, y0 = 0, t0 = 0, fromField = false;
+    var x0 = null, y0 = 0, t0 = 0, fromField = false, fromText = false;
     stage.addEventListener('touchstart', function (e) {
         if (e.touches.length !== 1) return;
-        fromField = !!e.target.closest('textarea, input, .dy-taped-body');
+        /* Lo scorrimento per cambiare pagina funzionava solo in alto, perché
+           partendo dall'area di scrittura il gesto veniva scartato del tutto.
+           Ora dal testo si accetta comunque, purché sia chiaramente
+           orizzontale: scrivere e sfogliare non si pestano i piedi. */
+        var t = e.target;
+        fromField = !!(t.closest && t.closest('.dy-taped-body'));
+        fromText = !!(t.closest && t.closest('textarea, input'));
         x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now();
     }, { passive: true });
     stage.addEventListener('touchend', function (e) {
@@ -380,9 +386,11 @@ function turnPage(delta) {
         x0 = null;
         if (fromField) return;
         if (Date.now() - t0 > 800) return;
-        /* più pronto di prima: bastano 30 pixel e un movimento chiaramente
-           orizzontale, invece dei 56 di prima che rendevano faticoso sfogliare */
-        if (Math.abs(dx) < 30 || Math.abs(dy) > Math.abs(dx) * 1.1) return;
+        /* dal testo serve un gesto più deciso, per non cambiare pagina mentre
+           si sposta il cursore; altrove bastano trenta pixel */
+        var soglia = fromText ? 70 : 30;
+        var rapporto = fromText ? 2 : 1.1;
+        if (Math.abs(dx) < soglia || Math.abs(dy) > Math.abs(dx) * rapporto) return;
         turnPage(dx < 0 ? 1 : -1);
     }, { passive: true });
 })();

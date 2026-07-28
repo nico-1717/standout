@@ -1104,6 +1104,8 @@ button{ font-family:inherit; }
 .pd-head{ padding:calc(var(--safe-top) + 18px) 18px 12px; font-size:19px; font-weight:800; border-bottom:.5px solid var(--hairline); display:flex; justify-content:space-between; align-items:center; }
 .pd-close{ width:30px; height:30px; border-radius:50%; border:none; background:var(--surface-2); color:var(--text-2); display:flex; align-items:center; justify-content:center; }
 .pd-list{ flex:1; overflow-y:auto; padding:10px 10px calc(20px + var(--safe-bottom)); }
+.pd-fav-star{ width:17px; height:17px; color:#E0B84A; flex-shrink:0; }
+.pd-item-fav.active .pd-fav-star{ color:#fff; }
 .pd-item{ display:flex; align-items:center; gap:10px; padding:12px 12px; border-radius:13px; margin-bottom:2px; cursor:pointer; }
 .pd-item:active{ background:var(--surface-2); }
 .pd-item.active{ background:var(--row-color, var(--blue)); }
@@ -1323,8 +1325,7 @@ button{ font-family:inherit; }
     </div>
     <?php endif; ?>
     <button type="button" class="hdr-drawer-btn" onclick="prOpenDrawer()">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-        Elenco
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
     </button>
 </div>
 
@@ -1524,6 +1525,15 @@ button{ font-family:inherit; }
 <div class="pd-panel" id="pdPanel">
     <div class="pd-head">I tuoi progetti <button type="button" class="pd-close" onclick="prCloseDrawer()">✕</button></div>
     <div class="pd-list">
+        <?php if (!empty($favProjects)): ?>
+        <?php /* i preferiti in cima all'elenco, prima dei progetti principali */ ?>
+        <div class="pd-item pd-item-fav<?php echo $viewFavorites ? ' active' : ''; ?>" style="--row-color:#E0B84A;"
+             onclick="window.location.href='progetti.php?view=fav'">
+            <svg class="pd-fav-star" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
+            <span class="pd-item-name">Preferiti</span>
+            <span class="pd-item-count"><?php echo count($favProjects); ?></span>
+        </div>
+        <?php endif; ?>
         <?php foreach ($rootProjects as $rp):
             $rcolor = (!empty($rp['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $rp['color'])) ? $rp['color'] : '#8E8E93';
             $rdur = prog_fmt_duration($totalMemo[$rp['id']] ?? 0);
@@ -2624,6 +2634,15 @@ window.prSubmitEdit = function(){
        Il riconoscimento è il campo del nome dentro lo stesso pannello. */
     function fromEditSheet(e){
         if (!e.target || !e.target.closest) return false;
+        /* Deve esserci un progetto davvero in modifica e il pannello davvero
+           aperto: senza questi due controlli bastava un evento "change"
+           generato da altro codice al caricamento della pagina per far
+           partire un salvataggio, che a sua volta rimandava alla pagina del
+           progetto — ed era questo a far "tornare indietro" la vista
+           preferiti appena aperta. */
+        if (!editingId) return false;
+        var overlay = e.target.closest('.pr-sheet-overlay');
+        if (overlay && !overlay.classList.contains('show')) return false;
         var sheet = e.target.closest('.pr-sheet, #prEditModal, .pr-edit-modal');
         return !!(sheet && sheet.querySelector('#prFieldName'));
     }
@@ -2783,19 +2802,49 @@ window.prDoDelete = function(deleteSessions){
    ================================================================ */
 (function(){
     var drag = null;
+    /* Il trascinamento parte solo dopo mezzo secondo di pressione: prima
+       scattava al primo tocco e rendeva impossibile scorrere l'elenco
+       partendo dalla maniglia. Se nel frattempo il dito si muove, vince
+       lo scorrimento e il trascinamento non parte. */
+    var dragArm = null;
     document.addEventListener('pointerdown', function(e){
         var grip = e.target.closest('.pr-grip');
         if (!grip) return;
         var wrap = grip.closest('.pr-row-wrap');
         var list = wrap.parentElement;
-        drag = { wrap: wrap, list: list, pid: e.pointerId, startY: e.clientY, moved:false };
-        wrap.classList.add('dragging');
-        buzz(15);
-        e.preventDefault();
-    }, { passive:false });
+        var startY = e.clientY, startX = e.clientX, pid = e.pointerId;
+
+        dragArm = {
+            pid: pid, startY: startY, startX: startX,
+            timer: setTimeout(function(){
+                dragArm = null;
+                drag = { wrap: wrap, list: list, pid: pid, startY: startY, moved:false };
+                wrap.classList.add('dragging');
+                /* da qui il dito muove la riga, non la pagina */
+                document.body.style.touchAction = 'none';
+                buzz(15);
+            }, 500)
+        };
+    }, { passive:true });
+
+    /* se il dito scorre prima che scatti, il trascinamento si annulla */
+    document.addEventListener('pointermove', function(e){
+        if (!dragArm || e.pointerId !== dragArm.pid) return;
+        if (Math.abs(e.clientY - dragArm.startY) > 8 || Math.abs(e.clientX - dragArm.startX) > 8) {
+            clearTimeout(dragArm.timer);
+            dragArm = null;
+        }
+    }, { passive:true });
+    document.addEventListener('pointerup', function(){
+        if (dragArm) { clearTimeout(dragArm.timer); dragArm = null; }
+    }, { passive:true });
+    document.addEventListener('pointercancel', function(){
+        if (dragArm) { clearTimeout(dragArm.timer); dragArm = null; }
+    }, { passive:true });
 
     document.addEventListener('pointermove', function(e){
         if (!drag || e.pointerId !== drag.pid) return;
+        e.preventDefault();
         drag.moved = true;
         var siblings = Array.prototype.filter.call(drag.list.children, function(el){ return el.classList.contains('pr-row-wrap') && el !== drag.wrap; });
         for (var i = 0; i < siblings.length; i++) {
@@ -2807,6 +2856,7 @@ window.prDoDelete = function(deleteSessions){
     });
 
     function endDrag(){
+        document.body.style.touchAction = '';
         if (!drag) return;
         var d = drag; drag = null;
         d.wrap.classList.remove('dragging');

@@ -389,8 +389,13 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     width:100%; padding:10px 0 6px; border:none; background:none; cursor:pointer;
     display:flex; justify-content:center; flex-shrink:0;
 }
+.pl-magenda-grab{
+    /* area di presa generosa: il trattino è sottile, ma quello che si tocca
+       è tutta la fascia in cima al pannello */
+    padding:14px 0 10px !important; touch-action:none;
+}
 .pl-magenda-grab::before{
-    content:''; width:36px; height:4px; border-radius:99px; background:var(--hair-2);
+    content:''; width:44px; height:5px; border-radius:99px; background:var(--hair-2);
 }
 .pl-magenda-body{
     flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;
@@ -477,9 +482,16 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-wx-sun{ background:#F8EFD4; color:#7A6127; }
 .pl-wx-snow{ background:#EAF0F6; color:#5B7284; }
 .pl-wx-storm{ background:#E7E2F0; color:#5A4E76; }
-/* nella casella del mese sta stretto: solo l'icona */
-.pl-mcell .pl-wx{ padding:1px 3px; font-size:8px; align-self:flex-start; }
-.pl-mcell .pl-wx svg{ width:10px; height:10px; }
+/* Nella casella del mese il meteo non è un evento: è un simbolo appoggiato
+   nell'angolo in alto a destra, senza fondo e senza temperatura, così non
+   ruba la riga a un evento vero. */
+.pl-mcell{ position:relative; }
+.pl-mcell .pl-wx{
+    position:absolute; top:2px; right:3px; z-index:2;
+    padding:0; background:none; box-shadow:none; border-radius:0;
+}
+.pl-mcell .pl-wx svg{ width:11px; height:11px; }
+.pl-mcell .pl-wx span{ display:none; }
 /* nella striscia dei giorni, accanto al nome */
 .pl-hcol .pl-wx{ margin-top:2px; }
 
@@ -808,7 +820,7 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-fabs{
     position:fixed; right:12px; z-index:55;
     top:calc(var(--topbar-h) + 8px);
-    display:flex; flex-direction:column; align-items:flex-end; gap:7px;
+    display:flex; flex-direction:column; align-items:flex-end; gap:3px;
     /* il contenitore è trasparente ai tocchi: solo i pulsanti e i menù li
        ricevono. Senza questo, la sua area invisibile finiva per rubare lo
        scorrimento verticale degli orari dopo aver aperto un menù. */
@@ -1050,7 +1062,11 @@ textarea.pl-in{ resize:none; min-height:76px; line-height:1.5; }
 }
 .pl-srow-acts{
     position:absolute; right:0; top:0; bottom:0; display:flex; align-items:center; gap:6px; padding-left:10px;
+    /* nascosti finché la riga non viene scostata: prima si vedevano sempre
+       e lo scorrimento sembrava non servire a niente */
+    opacity:0; pointer-events:none; transition:opacity .2s ease;
 }
+.pl-srow.pl-swiped .pl-srow-acts{ opacity:1; pointer-events:auto; }
 .pl-srow-act{ width:38px; height:calc(100% - 10px); border-radius:var(--r-md); display:grid; place-items:center; color:var(--ink-2); background:var(--paper-2); }
 .pl-srow-act svg{ width:15px; height:15px; }
 .pl-srow-act.pl-del{ background:#F3DCDC; color:#8E5A5A; }
