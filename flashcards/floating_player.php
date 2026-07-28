@@ -382,28 +382,20 @@ function attachFloatingPlayer(audioObj) {
 
 
 
-    // Teniamo un riferimento LOCALE: il gestore può scattare anche dopo che
-    // hideFloatingPlayer() ha azzerato activeAudioElement, e leggere .duration
-    // da null farebbe esplodere lo script.
-    var el = audioObj;
-
     activeAudioElement.ontimeupdate = () => {
 
-        if (!el || el !== activeAudioElement || !el.duration) return;
+        if (!activeAudioElement.duration) return;
 
-        fpProgressBar.value = (el.currentTime / el.duration) * 100;
+        fpProgressBar.value = (activeAudioElement.currentTime / activeAudioElement.duration) * 100;
 
-        fpTime.innerText = formatTime(el.currentTime);
+        fpTime.innerText = formatTime(activeAudioElement.currentTime);
 
-        fpDuration.innerText = formatTime(el.duration);
+        fpDuration.innerText = formatTime(activeAudioElement.duration);
 
     };
 
 
 
-    // Con Piper questo <audio> è condiviso e Piper si aggancia con
-    // addEventListener (non con onended), quindi possiamo usare onended per il
-    // player senza calpestare la sua logica: i due meccanismi convivono.
     activeAudioElement.onended = () => { hideFloatingPlayer(); };
 
 }
@@ -568,15 +560,7 @@ function hideFloatingPlayer() {
 
     fpContainer.style.display = 'none';
 
-    if (activeAudioElement) {
-        activeAudioElement.pause();
-        // Era "onupdate", un gestore che non esiste: quello vero si chiama
-        // "ontimeupdate", quindi non veniva mai staccato e continuava a scattare
-        // dopo che activeAudioElement era già stato azzerato qui sotto
-        // -> "Cannot read properties of null (reading 'duration')".
-        activeAudioElement.ontimeupdate = null;
-        activeAudioElement.onended = null;
-    }
+    if (activeAudioElement) { activeAudioElement.pause(); activeAudioElement.onupdate = null; activeAudioElement.onended = null; }
 
     activeAudioElement = null;
 

@@ -744,10 +744,6 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
             var r = e.reason;
             show('Promise non gestita: ' + ((r && r.message) ? r.message : String(r)));
         });
-
-        // Reso disponibile al resto del sito: serve a mostrare a schermo errori che
-        // altrimenti finirebbero solo in console, invisibili su iPhone.
-        window.mostraErroreASchermo = show;
     })();
     </script>
 
@@ -2049,12 +2045,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                     </select>
 
-                    <div class="field-hint" id="tts-voice-hint">Le voci di bassa qualità (Eloquence e simili) sono raggruppate in fondo. Le voci <b>Piper</b> sono neurali e vengono generate dal telefono stesso: si scaricano una volta e poi suonano uguali ovunque, anche su iPhone.</div>
-
-                    <div class="piper-dl" id="piper-dl">
-                        <div class="piper-dl-bar"><div class="piper-dl-fill" id="piper-dl-fill"></div></div>
-                        <div class="piper-dl-text" id="piper-dl-text"></div>
-                    </div>
+                    <div class="field-hint" id="tts-voice-hint">Usata solo se il motore è "Voce del dispositivo". Le voci di bassa qualità (Eloquence e simili) sono raggruppate in fondo.</div>
 
                     <div class="field-hint field-warn" id="tts-voice-warn" style="display:none;"></div>
 
@@ -2886,7 +2877,6 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
             if (e.target.id === 'tts-voice') {
                 ttsSettings.nativeVoice = e.target.value;
                 aggiornaAvvisoVoce();
-                scaricaVocePiperSeServe(e.target.value);
             }
             if (e.target.id === 'tts-speed') {
                 aggiornaAvvisoVoce();
@@ -2894,90 +2884,6 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
         });
 
 
-
-        // Scaricare il modello è il momento delicato: sono decine di MB e l'utente
-        // deve capire cosa sta succedendo, non restare davanti a un menu che non fa
-        // nulla. Lo facciamo QUI, quando sceglie la voce, e non alla prima lettura:
-        // così l'attesa è dove se l'aspetta e non a metà di una domanda.
-        function scaricaVocePiperSeServe(valore) {
-            let box = document.getElementById('piper-dl');
-            let fill = document.getElementById('piper-dl-fill');
-            let testo = document.getElementById('piper-dl-text');
-            if (!box || !fill || !testo) return;
-
-            if (!window.PiperTTS || !window.PiperTTS.isPiperVoice(valore)) {
-                box.classList.remove('show');
-                return;
-            }
-
-            let voiceId = window.PiperTTS.voiceIdDa(valore);
-            box.classList.add('show');
-            fill.style.width = '0%';
-            testo.textContent = 'Preparazione…';
-
-            window.PiperTTS.assicuraModello(voiceId, function (perc) {
-                fill.style.width = perc + '%';
-                testo.textContent = perc >= 100
-                    ? 'Voce pronta ✅ Da ora in poi è immediata, anche senza rete.'
-                    : 'Scaricamento voce… ' + perc + '% (si scarica una volta sola)';
-            }).then(function () {
-                fill.style.width = '100%';
-                testo.textContent = 'Voce pronta ✅ Da ora in poi è immediata, anche senza rete.';
-                populateNativeVoiceSelect(); // aggiorna l'etichetta in "pronta"
-            }).catch(function (err) {
-                console.warn('Piper: download fallito', err);
-                testo.innerHTML = '⚠️ Non è stato possibile preparare la voce. Verrà usata quella di sistema.';
-                fill.style.width = '0%';
-                if (typeof window.mostraErroreASchermo === 'function') {
-                    window.mostraErroreASchermo('PIPER — download voce fallito.\n\nMotivo: ' + descriviErrorePiper(err));
-                }
-            });
-        }
-
-        // Traduce l'errore di Piper in qualcosa di leggibile, e allega lo stato delle
-        // funzioni del browser da cui dipende. Il sospetto principale su iPhone è
-        // l'archiviazione dei modelli: Safari sa LEGGERE dall'Origin Private File
-        // System ma non scriverci con createWritable, che è quello che la libreria usa.
-        function descriviErrorePiper(err) {
-            let msg = (err && err.message) ? err.message : String(err);
-            let righe = [msg];
-
-            let indizi = [];
-            try { indizi.push('OPFS presente: ' + (!!(navigator.storage && navigator.storage.getDirectory) ? 'sì' : 'NO')); } catch (e) {}
-            try {
-                let scrivibile = (typeof FileSystemFileHandle !== 'undefined') &&
-                                 FileSystemFileHandle.prototype &&
-                                 typeof FileSystemFileHandle.prototype.createWritable === 'function';
-                indizi.push('createWritable: ' + (scrivibile ? 'sì' : 'NO ← Safari non ce l\'ha: è il sospetto n.1'));
-            } catch (e) { indizi.push('createWritable: non verificabile'); }
-            try {
-                let sync = (typeof FileSystemFileHandle !== 'undefined') &&
-                           FileSystemFileHandle.prototype &&
-                           typeof FileSystemFileHandle.prototype.createSyncAccessHandle === 'function';
-                // Da qui risulta assente anche dove c'è: è esposto solo nei Web Worker.
-                indizi.push('createSyncAccessHandle (visibile da qui): ' + (sync ? 'sì' : 'no — normale, esiste solo nei worker'));
-            } catch (e) {}
-            try {
-                if (window.PiperTTS) {
-                    indizi.push('ponte di scrittura per Safari: ' +
-                        (window.PiperTTS.ponteScritturaAttivo ? 'ATTIVO' :
-                         (window.PiperTTS.serviva && window.PiperTTS.serviva() ? 'servirebbe ma non si è potuto attivare' : 'non serve')));
-                    // La libreria nasconde gli errori di scrittura dentro un
-                    // console.error: questo è il motivo VERO del mancato salvataggio.
-                    let errPonte = window.PiperTTS.ultimoErrorePonte && window.PiperTTS.ultimoErrorePonte();
-                    if (errPonte) indizi.push('>>> ERRORE DEL PONTE: ' + errPonte);
-                }
-            } catch (e) {}
-            try { indizi.push('WebAssembly: ' + (typeof WebAssembly !== 'undefined' ? 'sì' : 'NO')); } catch (e) {}
-            try { indizi.push('SharedArrayBuffer: ' + (typeof SharedArrayBuffer !== 'undefined' ? 'sì' : 'no')); } catch (e) {}
-            try { indizi.push('isolamento cross-origin: ' + (window.crossOriginIsolated ? 'sì' : 'no')); } catch (e) {}
-
-            righe.push('');
-            righe.push(indizi.join('\n'));
-            righe.push('');
-            righe.push(navigator.userAgent);
-            return righe.join('\n');
-        }
 
         // 3. PARSER LaTeX AVANZATO E DEFINITIVO (V3)
 
@@ -3291,73 +3197,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
             sel.value = ttsSettings.nativeVoice || '';
             if (sel.value !== (ttsSettings.nativeVoice || '')) sel.value = ''; // la voce salvata non esiste più
 
-            aggiungiVociPiper(sel);
-
             aggiornaAvvisoVoce();
-        }
-
-        // Le voci Piper (neurali, generate nel browser) finiscono nello STESSO menu
-        // delle voci di sistema: per l'utente è semplicemente "quale voce legge",
-        // non serve un altro selettore. Si distinguono per il prefisso "piper:".
-        // È tutto opzionale: se piper_voice.php non c'è o la libreria non risponde,
-        // il menu resta quello di prima e non cambia nulla.
-        //
-        // Il contatore serve contro i doppioni: populateNativeVoiceSelect() svuota il
-        // menu subito, mentre questa funzione aggiunge il gruppo dopo (è asincrona).
-        // Siccome refreshVoices() viene richiamata più volte (evento voci, timeout,
-        // apertura del popup), più inserimenti restavano "in volo" e atterravano tutti
-        // sullo stesso menu ricostruito: da qui i due gruppi Piper identici.
-        let piperGenerazione = 0;
-
-        function aggiungiVociPiper(sel) {
-            if (!window.PiperTTS) return;
-
-            let miaGen = ++piperGenerazione;
-
-            Promise.all([window.PiperTTS.listaVoci(), window.PiperTTS.giaScaricate()])
-                .then(function (res) {
-                    // Nel frattempo il menu è stato ricostruito da un'altra chiamata:
-                    // questo risultato è vecchio, lasciamo fare a quella più recente.
-                    if (miaGen !== piperGenerazione) return;
-
-                    let selAttuale = document.getElementById('tts-voice');
-                    if (!selAttuale) return;
-
-                    let voci = res[0] || [];
-                    let scaricate = res[1] || [];
-                    if (!voci.length) {
-                        // Catalogo non leggibile: meglio non offrire nulla che offrire
-                        // una voce che non potrà mai scaricarsi (vedi piper_voice.php).
-                        let hint = document.getElementById('piper-dl-text');
-                        let box = document.getElementById('piper-dl');
-                        if (hint && box) {
-                            box.classList.add('show');
-                            hint.textContent = 'Voci Piper non raggiungibili in questo momento (serve la rete al primo utilizzo).';
-                        }
-                        return;
-                    }
-
-                    // Cintura di sicurezza: se un gruppo Piper c'è già, via.
-                    selAttuale.querySelectorAll('optgroup[data-piper]').forEach(function (g) { g.remove(); });
-
-                    let g = document.createElement('optgroup');
-                    g.label = 'Offline, stessa voce ovunque (Piper)';
-                    g.setAttribute('data-piper', '1');
-
-                    voci.forEach(function (v) {
-                        let o = document.createElement('option');
-                        o.value = 'piper:' + v.id;
-                        let pronta = scaricate.indexOf(v.id) !== -1;
-                        o.textContent = v.nome + (pronta ? ' ✅ pronta' : ' ⬇️ ' + v.peso + ' da scaricare');
-                        g.appendChild(o);
-                    });
-
-                    selAttuale.appendChild(g);
-                    // Rimettiamo la selezione: l'abbiamo aggiunta dopo, quindi se
-                    // l'utente aveva scelto una voce Piper ora esiste davvero.
-                    selAttuale.value = ttsSettings.nativeVoice || '';
-                })
-                .catch(function (e) { console.warn('Piper: elenco voci non disponibile', e); });
         }
 
         // Le voci di rete di Chrome ("Google italiano") sono le più belle ma hanno un
@@ -3506,73 +3346,6 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
             }
 
 
-
-            // --- BIVIO: voce Piper (neurale, generata qui nel browser) oppure
-            // voce di sistema. Il testo è già passato da ttsCleanText(), quindi
-            // entrambe leggono esattamente le stesse parole.
-            //
-            // Se Piper fallisce per qualunque motivo (libreria non caricata,
-            // download interrotto, dispositivo senza memoria) NON lasciamo
-            // l'utente in silenzio: ripieghiamo sulla voce di sistema.
-
-            if (window.PiperTTS && window.PiperTTS.isPiperVoice(ttsSettings.nativeVoice)) {
-
-                let voiceId = window.PiperTTS.voiceIdDa(ttsSettings.nativeVoice);
-
-                window.speechSynthesis.cancel(); // niente doppie voci
-
-                // La sintesi richiede qualche secondo: senza un segnale, dopo il tap
-                // ci sarebbe solo silenzio e sembrerebbe rotto. Avvisiamo solo se ci
-                // mette più di mezzo secondo, per non far lampeggiare il messaggio.
-
-                let avviso = setTimeout(function () {
-
-                    mostraToast('🧠 Sto generando la voce…');
-
-                }, 500);
-
-                window.PiperTTS.parla(window.currentCleanTextForTTS, voiceId, onEndCallback)
-
-                    .then(function () { clearTimeout(avviso); nascondiToast(); })
-
-                    .catch(function (err) {
-
-                        clearTimeout(avviso);
-
-                        console.warn('Piper non disponibile, uso la voce di sistema:', err);
-
-                        // Su iPhone non c'è una console: il motivo VERO del fallimento
-                        // va mostrato a schermo, altrimenti resta solo un generico
-                        // "non disponibile" che non dice nulla a nessuno.
-
-                        if (typeof window.mostraErroreASchermo === 'function') {
-
-                            window.mostraErroreASchermo('PIPER non ha funzionato — uso la voce di sistema.\n\nMotivo: ' + descriviErrorePiper(err));
-
-                        }
-
-                        mostraToast('⚠️ Voce Piper non disponibile: uso quella di sistema');
-
-                        parlaConVoceDiSistema(rawText, onEndCallback, resumeFromIndex);
-
-                    });
-
-                return;
-
-            }
-
-
-
-            parlaConVoceDiSistema(rawText, onEndCallback, resumeFromIndex);
-
-        }
-
-
-
-        // La lettura con la voce di sistema, esattamente com'era: l'ho solo separata
-        // per poterla riusare come riserva quando Piper non ce la fa.
-
-        function parlaConVoceDiSistema(rawText, onEndCallback, resumeFromIndex) {
 
             window.currentUtterance = null; 
 
@@ -3796,11 +3569,6 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
             clearTimeout(window.ttsStartWatchdog);
 
-            // Piper riproduce un audio vero: va fermato anche lui, altrimenti
-            // continuerebbe a parlare dopo aver cambiato card o chiuso un popup.
-
-            try { if (window.PiperTTS) window.PiperTTS.ferma(); } catch (e) {}
-
             window.currentUtterance = null;
 
             window.isSpeakingNative = false;
@@ -3816,12 +3584,6 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
         };
 
         function pauseNativeTTS() {
-
-            // Con Piper è un audio vero: basta metterlo in pausa e riprende dal
-            // punto esatto, senza le acrobazie necessarie con la voce di sistema
-            // (che non sa mettersi in pausa e va ri-sintetizzata dal carattere N).
-
-            if (window.PiperTTS && window.PiperTTS.pausa()) return;
 
             if (window.isSpeakingNative && window.currentUtterance !== null) {
 
@@ -3839,8 +3601,6 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
         function resumeNativeTTS() {
 
-            if (window.PiperTTS && window.PiperTTS.riprendi()) return;
-
             if (window.currentCleanTextForTTS) {
 
                 speakText(window.lastRawTextForTTS, window.lastTTSCallback, window.currentTTSCharIndex);
@@ -3854,10 +3614,6 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
         // --- LA NUOVA LOGICA DI SKIP ---
 
         function skipNativeTTS(seconds) {
-
-            // Con Piper il salto è reale (è un file audio), non una stima sui caratteri.
-
-            if (window.PiperTTS && window.PiperTTS.attivo() && window.PiperTTS.salta(seconds)) return;
 
             if (window.currentCleanTextForTTS) {
 
@@ -4170,29 +3926,11 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
         let apiSlowToastTimer = null;
         function showApiSlowToast() {
-            mostraToast('⏳ Le API di Google sembrano più lente del solito');
-        }
-
-        // Piccolo avviso in alto, riusa il toast già presente. Con testo esplicito
-        // così serve a più cose (API lente, generazione voce Piper, ripieghi).
-        function mostraToast(testo, durataMs) {
             let el = document.getElementById('api-slow-toast');
             if (!el) return;
-            let span = el.querySelector('span:last-child');
-            if (span) span.textContent = testo.replace(/^\S+\s/, '');
-            let icona = el.querySelector('span:first-child');
-            if (icona) icona.textContent = (testo.match(/^\S+/) || [''])[0];
             el.classList.add('show');
             clearTimeout(apiSlowToastTimer);
-            if (durataMs !== 0) {
-                apiSlowToastTimer = setTimeout(() => el.classList.remove('show'), durataMs || 5000);
-            }
-        }
-
-        function nascondiToast() {
-            let el = document.getElementById('api-slow-toast');
-            if (el) el.classList.remove('show');
-            clearTimeout(apiSlowToastTimer);
+            apiSlowToastTimer = setTimeout(() => el.classList.remove('show'), 5000);
         }
 
         // Timer "0s · di solito ≈ Xs" mostrato dentro il modale AI mentre si aspetta
@@ -5899,8 +5637,6 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
     </script>
 
     <?php include 'floating_player.php'; ?>
-
-    <?php include 'piper_voice.php'; // dopo floating_player: riusa attachFloatingPlayer ?>
 
     <?php include 'examples_modal.php'; ?>
 
