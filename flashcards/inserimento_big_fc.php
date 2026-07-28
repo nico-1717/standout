@@ -467,7 +467,8 @@ if (isset($_GET['category_id'])) {
 
 <head>
 
-
+    <meta name="csrf-token" content="<?php echo sec_csrf_token(); ?>">
+    <script src="nisama_fetch.js"></script>
 
     <meta charset="UTF-8">
 
@@ -5652,39 +5653,36 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-            fd.append('q_desc[]', row.querySelector('.q-desc').value);
+            // Recuperiamo l'ID univoco della riga (es. 123456789) impostato dal sistema
+            const rid = row.dataset.rid; 
+            
+            // 1. Puntiamo all'elemento esatto usando l'ID, che sia un <input> o una <textarea>
+            const qDescEl = document.getElementById('q-desc-' + rid);
+            const aDescEl = document.getElementById('a-desc-' + rid);
+            
+            const qImgNameEl = row.querySelector('.q-img-name');
+            const aImgNameEl = row.querySelector('.a-img-name');
 
+            // 2. Estraiamo il valore. 
+            // Aggiungiamo un fallback: se il campo nascosto è vuoto, proviamo a leggere 
+            // il testo direttamente dal div dell'editor visibile (il cui ID termina con _editor)
+            let qVal = qDescEl ? qDescEl.value : '';
+            if (!qVal && document.getElementById('q-desc-' + rid + '_editor')) {
+                const qEd = document.getElementById('q-desc-' + rid + '_editor');
+                qVal = qEd.value || qEd.innerText || '';
+            }
+            
+            let aVal = aDescEl ? aDescEl.value : '';
+            if (!aVal && document.getElementById('a-desc-' + rid + '_editor')) {
+                const aEd = document.getElementById('a-desc-' + rid + '_editor');
+                aVal = aEd.value || aEd.innerText || '';
+            }
 
-
-            fd.append('a_desc[]', row.querySelector('.a-desc').value);
-
-
-
-            fd.append('q_img_name[]', row.querySelector('.q-img-name').value);
-
-
-
-            fd.append('a_img_name[]', row.querySelector('.a-img-name').value);
-
-
-
-
-
-
-
-            if (row.qAudioBlob) fd.append('audio_q[' + index + ']', row.qAudioBlob, 'q_' + index + '.' + row.qAudioExt);
-
-
-
-            if (row.aAudioBlob) fd.append('audio_a[' + index + ']', row.aAudioBlob, 'a_' + index + '.' + row.aAudioExt);
-
-
-
-            if (row.qNewImgFile) fd.append('row_q_img[' + index + ']', row.qNewImgFile);
-
-
-
-            if (row.aNewImgFile) fd.append('row_a_img[' + index + ']', row.aNewImgFile);
+            // Aggiungiamo i dati corretti al payload da inviare al PHP
+            fd.append('q_desc[]', qVal);
+            fd.append('a_desc[]', aVal);
+            fd.append('q_img_name[]', qImgNameEl ? qImgNameEl.value : '');
+            fd.append('a_img_name[]', aImgNameEl ? aImgNameEl.value : '');
 
 
 

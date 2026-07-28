@@ -81,9 +81,9 @@ function sec_boot_headers(): void {
          . "frame-ancestors 'self'; "
          . "form-action 'self'; "
          . "img-src 'self' data: blob: https:; "
-         . "font-src 'self' data: https://fonts.gstatic.com; "
+         . "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; "         
          . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-         . "script-src 'self' 'unsafe-inline'; "
+         . "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
          . "connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com";
     header('Content-Security-Policy: ' . $csp);
 }
