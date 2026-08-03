@@ -80,6 +80,13 @@ function sec_boot_headers(): void {
          . "object-src 'none'; "
          . "frame-ancestors 'self'; "
          . "form-action 'self'; "
+         /* Riquadri di terze parti: solo la mappa incorporata di Google, nel
+            popup dell'evento del planner. Senza questa riga valeva il
+            default-src 'self' e il browser rifiutava la mappa mostrando un
+            riquadro grigio ("This content is blocked"). L'elenco resta corto
+            apposta: ogni voce qui e' un sito a cui si permette di disegnare
+            dentro le nostre pagine. */
+         . "frame-src https://www.google.com; "
          . "img-src 'self' data: blob: https:; "
          . "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; "         
          . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "

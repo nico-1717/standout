@@ -138,19 +138,7 @@ function renderDay() {
     $('dyEnergyBtn').innerHTML = face('energy', S.day.energy, 40);
     $('dyEnergyBtn').classList.toggle('dy-set', !!S.day.energy);
 
-    var h = S.day.habits || { done: 0, total: 0 };
-    var C = 138.2;
-    var frac = h.total ? Math.min(1, h.done / h.total) : 0;
-    $('dyRing').querySelector('.dy-ring-fg').style.strokeDashoffset = (C * (1 - frac)).toFixed(1);
-    $('dyRingN').textContent = h.total ? (h.done + '/' + h.total) : '–';
-
-    /* anello interno: le settimanali, sul totale delle volte previste */
-    var sett = S.day.weekly || [];
-    var Cw = 100.5, fatte = 0, previste = 0;
-    sett.forEach(function (x) { fatte += x.done; previste += x.target; });
-    var wFrac = previste ? Math.min(1, fatte / previste) : 0;
-    var wRing = $('dyRing').querySelector('.dy-ring-week');
-    if (wRing) wRing.style.strokeDashoffset = (Cw * (1 - wFrac)).toFixed(1);
+    disegnaAnelli(S.day.rings || []);
 
     renderList('dyGood', 'good');
     renderList('dyLearned', 'learned');
@@ -334,11 +322,73 @@ Array.prototype.forEach.call(document.querySelectorAll('.dy-size'), function (b)
 /* ------------------------------------------------------------------ */
 /* Caricamento di un giorno e sfogliata                                */
 /* ------------------------------------------------------------------ */
+/* Ogni caricamento porta un numero progressivo: se si sfoglia in fretta e le
+   risposte tornano fuori ordine, quelle vecchie vengono scartate invece di
+   sovrascrivere la pagina giusta. */
+var dayReq = 0;
+
+/* Gli anelli concentrici delle abitudini.
+
+   Uno per famiglia di frequenza, e solo per le famiglie che hanno almeno
+   un'abitudine: il più interno è il giornaliero, poi verso l'esterno
+   settimanale, mensile, personalizzate. Il conto lo fa il server (dg_rings),
+   perché settimana e mese hanno bisogno di tutti i registri, non solo di
+   quelli del giorno aperto.
+
+   Le corsie sono attaccate e divise da un filo sottilissimo. Quante siano
+   dipende da chi legge, quindi il disegno si costruisce qui invece di stare
+   fisso nel markup della pagina. */
+var DY_LARGHEZZA = 3.6;   // spessore di ogni corsia
+var DY_STACCO    = 1;     // il filo che divide una corsia dall'altra
+var DY_ESTERNO   = 24;    // raggio della corsia più esterna
+
+function disegnaAnelli(dati) {
+    var ring = $('dyRing');
+    if (!ring) return;
+    var svg = ring.querySelector('svg');
+    if (!svg) return;
+    dati = dati || [];
+
+    var pezzi = '';
+    for (var i = 0; i < dati.length; i++) {
+        /* i = 0 è il più interno: si parte da dentro e si viene fuori */
+        var r = DY_ESTERNO - (dati.length - 1 - i) * (DY_LARGHEZZA + DY_STACCO);
+        if (r < 3.5) break;                       // troppe famiglie: non ci sta più
+        var C = 2 * Math.PI * r;
+        var frac = dati[i].total > 0 ? Math.min(1, dati[i].done / dati[i].total) : 0;
+        pezzi += '<circle class="dy-ring-track" cx="27" cy="27" r="' + r.toFixed(2)
+              + '" stroke-width="' + DY_LARGHEZZA + '"/>'
+              + '<circle class="dy-ring-fill dy-ring-' + dati[i].key + '" cx="27" cy="27" r="' + r.toFixed(2)
+              + '" stroke-width="' + DY_LARGHEZZA + '"'
+              + ' stroke-dasharray="' + C.toFixed(1) + '"'
+              + ' stroke-dashoffset="' + (C * (1 - frac)).toFixed(1) + '"/>';
+    }
+    svg.innerHTML = pezzi;
+    ring.dataset.n = dati.length;
+
+    /* Al centro resta il numero, ma di quello che conta di più: il giorno.
+       Se non ci sono giornaliere si mostra la prima famiglia che c'è. */
+    var primo = dati.length ? dati[0] : null;
+    $('dyRingN').textContent = primo ? (primo.done + '/' + primo.total) : '–';
+
+    var descr = dati.map(function (d) { return d.label + ' ' + d.done + ' su ' + d.total; }).join(', ');
+    ring.setAttribute('aria-label', descr || 'Nessuna abitudine');
+}
+
 function loadDay(date, animate) {
+    var myReq = ++dayReq;
     S.date = date;
     if (history.replaceState) history.replaceState(null, '', 'diario.php?data=' + date);
+
+    /* L'anello si azzera subito. Prima renderDay() girava con i dati del
+       giorno appena lasciato: per tutto il tempo del fetch si vedevano le
+       abitudini di ieri, ed era questo il "ritardo" delle barre. */
+    S.day = { mood: null, energy: null, note: '', good: [], learned: [],
+              habits: { done: 0, total: 0 }, habits_list: [], weekly: [], rings: [], loading: true };
     renderDay();
+
     return api('day', null, { date: date }).then(function (r) {
+        if (myReq !== dayReq) return;          // è arrivata tardi: la pagina è già un'altra
         if (!r.ok) return;
         S.day = r.day;
         if (r.settings) { S.settings = r.settings; applySettings(); }

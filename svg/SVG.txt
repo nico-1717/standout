@@ -1,0 +1,18 @@
+https://www.adobe.com/express/feature/image/remove-background
+https://www.photopea.com/
+
+1. File → Open e apri il PNG (quello vero, non l'SVG).
+2. Selezione rettangolare attorno a una sola figura, poi Image → Crop.
+3. Image → Trim per togliere il bordo vuoto rimasto attorno.
+4. (solo se i bordi non sono definiti)Image → Adjustments → Threshold. Sono sagome nere: così diventano nero pieno su bianco pieno e il tracciato viene pulito invece che sfrangiato.
+5. Image → Vectorize Bitmap. Questo è il passaggio che mancava. Metti il numero di colori al minimo (2). Guarda l'anteprima a destra: se i contorni ballano, alza un po' il dettaglio; se il file esce enorme, abbassalo.
+6. File → Export as → SVG.
+
+alternativa: SVGcode, su svgco.de
+
+Il motivo: dietro SVGcode c'è Potrace, che è nato apposta per il bianco e nero a due livelli, cioè esattamente le tue sagome. Il vettorizzatore di Photopea è pensato per immagini a più colori e su una silhouette tende a lasciare i bordi più sporchi. In più SVGcode passa già i risultati per svgo, quindi ti restituisce file ottimizzati senza altri passaggi. Photopea però resta indispensabile per ritagliare: SVGcode non ritaglia. 
+Store
+
+Passaggi in Photopea (punti 1–4 di prima): apri il PNG grande, selezione rettangolare attorno a una figura sola, Image → Crop, Image → Trim, poi Image → Adjustments → Threshold per avere nero pieno su bianco pieno. Qui non fai Vectorize Bitmap: esporti con File → Export as → PNG.
+
+Passaggi in SVGcode: apri svgco.de, trascini dentro il PNG ritagliato. A sinistra vedi l'originale, a destra il risultato. I due comandi che contano sono Turd size (elimina le macchioline: alzalo finché spariscono i puntini sparsi senza mangiare i rametti sottili) e Alpha max (quanto sono arrotondati gli angoli). Se il tracciato viene troppo dettagliato o troppo pesante, alza Turd size. Metti la modalità in bianco e nero, non a colori. Poi scarichi l'SVG.

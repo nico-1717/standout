@@ -1,16 +1,20 @@
 {
-  "version": 2,
-  "note": "Una scena per ogni mese, mostrata nella barra in alto del planner. tree = forma degli alberi (bare, buds, blossom, leafy, lush, dry, autumn). particles = cosa cade o vola. drifters = insetti/animali che attraversano la barra. I colori sono pastello ma più saturi rispetto alla v1: le scene devono farsi notare e distinguersi bene mese per mese. sky = i due colori della fascia in alto: freddi d'inverno, caldi d'estate. Usati solo se alberi e insetti sono attivi; altrimenti la fascia segue il colore scelto nelle impostazioni. Alcuni mesi hanno abitanti propri: pinguini a gennaio fra gli abeti, scoiattoli a ottobre, la slitta con la renna a dicembre.",
+  "version": 3,
+  "note": "Una scena per ogni mese, mostrata nella barra in alto del planner. tree e animal sono nomi di file dentro la cartella ambient/: sono disegni veri, caricati come maschera CSS e colorati con treeColor / animalColor, cosi' un solo file serve per qualunque tinta. particles = cosa cade o vola, disegnate a codice. drifters = insetti e uccelli che attraversano la barra, anch'essi a codice: pinguino, slitta, renna, scoiattolo e riccio sono usciti da qui perche' ora sono l'animale del mese. sky = i due colori della fascia in alto.",
   "shapes": {
     "trees": [
-      "bare",
-      "buds",
-      "blossom",
-      "leafy",
-      "lush",
-      "dry",
-      "autumn",
-      "conifer"
+      "albero-gennaio",
+      "albero-febbraio",
+      "albero-marzo",
+      "albero-aprile",
+      "albero-maggio",
+      "albero-giugno",
+      "albero-luglio",
+      "albero-agosto",
+      "albero-settembre",
+      "albero-ottobre",
+      "albero-novembre",
+      "albero-dicembre"
     ],
     "particles": [
       "snow",
@@ -28,18 +32,28 @@
       "dragonfly",
       "firefly",
       "bird",
-      "swallow",
-      "penguin",
-      "sleigh",
-      "reindeer",
-      "squirrel",
-      "hedgehog"
+      "swallow"
+    ],
+    "animals": [
+      "pinguino",
+      "volpe",
+      "coniglio",
+      "anatra",
+      "talpa",
+      "tartaruga",
+      "gatto_dorme",
+      "criceto",
+      "scoiattolo",
+      "riccio",
+      "cane",
+      "slitta"
     ]
   },
   "months": {
     "1": {
       "label": "Gennaio, il silenzio della neve",
-      "tree": "conifer",
+      "tree": "albero-gennaio",
+      "animal": "pinguino",
       "treeColor": "#5C7A6B",
       "particles": [
         {
@@ -62,13 +76,6 @@
       ],
       "drifters": [
         {
-          "type": "penguin",
-          "count": 2,
-          "color": "#3E4A55",
-          "duration": 54,
-          "size": 20
-        },
-        {
           "type": "bird",
           "count": 1,
           "color": "#748696",
@@ -79,11 +86,13 @@
       "sky": [
         "#E7EFF6",
         "#F4F7FA"
-      ]
+      ],
+      "animalColor": "#3E4A55"
     },
     "2": {
       "label": "Febbraio, le prime gemme",
-      "tree": "buds",
+      "tree": "albero-febbraio",
+      "animal": "volpe",
       "treeColor": "#7E9A87",
       "budColor": "#E8A6B4",
       "particles": [
@@ -119,23 +128,18 @@
           "color": "#C9A030",
           "duration": 40,
           "size": 16
-        },
-        {
-          "type": "hedgehog",
-          "count": 1,
-          "color": "#8A7A66",
-          "duration": 60,
-          "size": 18
         }
       ],
       "sky": [
         "#E9F0F4",
         "#F5F7F6"
-      ]
+      ],
+      "animalColor": "#B4643C"
     },
     "3": {
       "label": "Marzo, i mandorli in fiore",
-      "tree": "blossom",
+      "tree": "albero-marzo",
+      "animal": "coniglio",
       "treeColor": "#7FA184",
       "budColor": "#EBAEBE",
       "particles": [
@@ -177,11 +181,13 @@
       "sky": [
         "#F5EBF0",
         "#FAF4F1"
-      ]
+      ],
+      "animalColor": "#8A7F73"
     },
     "4": {
       "label": "Aprile, farfalle tra i rami",
-      "tree": "blossom",
+      "tree": "albero-aprile",
+      "animal": "anatra",
       "treeColor": "#77A17A",
       "budColor": "#D9A6D0",
       "particles": [
@@ -222,11 +228,13 @@
       "sky": [
         "#F3EDF7",
         "#F9F5F2"
-      ]
+      ],
+      "animalColor": "#6E7F8C"
     },
     "5": {
       "label": "Maggio, il ronzio del giardino",
-      "tree": "lush",
+      "tree": "albero-maggio",
+      "animal": "talpa",
       "treeColor": "#699268",
       "budColor": "#EFBE6E",
       "particles": [
@@ -267,11 +275,13 @@
       "sky": [
         "#F2F3E6",
         "#FAF8EE"
-      ]
+      ],
+      "animalColor": "#6B6156"
     },
     "6": {
       "label": "Giugno, coccinelle nell'erba alta",
-      "tree": "lush",
+      "tree": "albero-giugno",
+      "animal": "tartaruga",
       "treeColor": "#5F9161",
       "particles": [
         {
@@ -311,11 +321,13 @@
       "sky": [
         "#EFF3E4",
         "#F9F9EC"
-      ]
+      ],
+      "animalColor": "#6E7A5A"
     },
     "7": {
       "label": "Luglio, libellule nella luce",
-      "tree": "lush",
+      "tree": "albero-luglio",
+      "animal": "gatto_dorme",
       "treeColor": "#5A8C5C",
       "particles": [
         {
@@ -355,11 +367,13 @@
       "sky": [
         "#F6F1DC",
         "#FCF7E7"
-      ]
+      ],
+      "animalColor": "#7C7266"
     },
     "8": {
       "label": "Agosto, lucciole dopo il tramonto",
-      "tree": "leafy",
+      "tree": "albero-agosto",
+      "animal": "criceto",
       "treeColor": "#6C8C55",
       "particles": [
         {
@@ -407,11 +421,13 @@
       "sky": [
         "#F7EDD8",
         "#FBF4E4"
-      ]
+      ],
+      "animalColor": "#9A7B52"
     },
     "9": {
       "label": "Settembre, semi che viaggiano",
-      "tree": "dry",
+      "tree": "albero-settembre",
+      "animal": "scoiattolo",
       "treeColor": "#957B4E",
       "particles": [
         {
@@ -444,11 +460,13 @@
       "sky": [
         "#F6EFDF",
         "#FAF5EA"
-      ]
+      ],
+      "animalColor": "#8A6034"
     },
     "10": {
       "label": "Ottobre, la caduta delle foglie",
-      "tree": "autumn",
+      "tree": "albero-ottobre",
+      "animal": "riccio",
       "treeColor": "#A6672E",
       "budColor": "#D9812F",
       "particles": [
@@ -471,23 +489,17 @@
           "sway": 66
         }
       ],
-      "drifters": [
-        {
-          "type": "squirrel",
-          "count": 2,
-          "color": "#A9682F",
-          "duration": 46,
-          "size": 19
-        }
-      ],
+      "drifters": [],
       "sky": [
         "#F7E9D9",
         "#FBF2E7"
-      ]
+      ],
+      "animalColor": "#6E5F4E"
     },
     "11": {
       "label": "Novembre, pioggia sui rami spogli",
-      "tree": "dry",
+      "tree": "albero-novembre",
+      "animal": "cane",
       "treeColor": "#6E7568",
       "particles": [
         {
@@ -525,23 +537,17 @@
           "sway": 50
         }
       ],
-      "drifters": [
-        {
-          "type": "hedgehog",
-          "count": 1,
-          "color": "#7E7263",
-          "duration": 58,
-          "size": 18
-        }
-      ],
+      "drifters": [],
       "sky": [
         "#E9EAEC",
         "#F3F3F2"
-      ]
+      ],
+      "animalColor": "#7A6F64"
     },
     "12": {
       "label": "Dicembre, neve e cielo di stelle",
-      "tree": "conifer",
+      "tree": "albero-dicembre",
+      "animal": "slitta",
       "treeColor": "#4F6B5C",
       "particles": [
         {
@@ -578,26 +584,12 @@
           "sway": 6
         }
       ],
-      "drifters": [
-        {
-          "type": "reindeer",
-          "count": 1,
-          "color": "#8A6A4E",
-          "duration": 40,
-          "size": 20
-        },
-        {
-          "type": "sleigh",
-          "count": 1,
-          "color": "#A8483F",
-          "duration": 36,
-          "size": 26
-        }
-      ],
+      "drifters": [],
       "sky": [
         "#E4EBF3",
         "#F1F5F9"
-      ]
+      ],
+      "animalColor": "#A8483F"
     }
   }
 }

@@ -26,6 +26,7 @@ var S = {
     events:      {},          // 'YYYY-MM-DD' -> [evento]
     prio:        {},          // 'YYYY-MM-DD' -> [priorità]
     habits:      {},          // 'YYYY-MM-DD' -> [abitudine del giorno]
+    rings:       {},          // 'YYYY-MM-DD' -> [anelli per famiglia di frequenza]
     weekly:      {},          // 'lunedì' -> [abitudine settimanale]
     focusDate:   B.today,
     centerWeek:  null,
@@ -36,6 +37,9 @@ var S = {
     hiddenCats:  {},
     prioSlim:    false,
     weekCache:   {},          // 'lunedì' -> { week, lists }
+    todos:       null,        // 'todo'|'buy'|'study' -> [voce], letto da todo_api.php
+    todoTab:     'todo',      // linguetta aperta nel pannello settimana
+    todoOthers:  false,       // "mostra anche gli altri" premuto
     shift:       { on: false, dir: 'late', picked: {} },
     interacting: false,       // un dito sta trascinando o creando: non ridisegnare
     renderPending: false,
@@ -57,6 +61,7 @@ var MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Ag
 var GIORNI = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
 var GIORNI_S = ['L','M','M','G','V','S','D'];
 var LIST_LABEL = { todo: 'To do', buy: 'To buy', study: 'To study' };
+var TODO_TIPI = ['todo', 'buy', 'study'];
 
 /* ------------------------------------------------------------------ */
 /* Piccole utility                                                     */
@@ -127,23 +132,84 @@ function haptic(ms) { if (navigator.vibrate) { try { navigator.vibrate(ms || 8);
 /* ------------------------------------------------------------------ */
 /* Chiamate al server                                                  */
 /* ------------------------------------------------------------------ */
-function api(action, data, query) {
+/* Una richiesta al server. `opt.keepalive` serve nell'ultimo istante di vita
+   della pagina: dice al browser di portare a termine l'invio anche se la
+   scheda si sta chiudendo. `opt.retry` riprova una volta sola quando è caduta
+   la rete — non quando il server ha risposto "no", che è una risposta valida
+   e ripeterla non cambierebbe nulla. */
+function api(action, data, query, opt) {
+    opt = opt || {};
+    if (savingNow) opt.keepalive = true;   // stiamo svuotando la coda alla chiusura
     var url = 'planner.php?ajax=' + encodeURIComponent(action);
     if (query) { for (var k in query) if (query.hasOwnProperty(k)) url += '&' + k + '=' + encodeURIComponent(query[k]); }
-    var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.NISAMA_CSRF || S.csrf } };
-    if (data) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(data); }
-    return fetch(url, opt).then(function (r) {
-        return r.json().catch(function () { return { ok: false, message: 'Risposta non valida.' }; });
+
+    function invia() {
+        var req = {
+            method: data ? 'POST' : 'GET',
+            credentials: 'same-origin',
+            headers: { 'X-CSRF-Token': window.NISAMA_CSRF || S.csrf }
+        };
+        if (data) { req.headers['Content-Type'] = 'application/json'; req.body = JSON.stringify(data); }
+        if (opt.keepalive) req.keepalive = true;
+        return fetch(url, req).then(function (r) {
+            return r.json().catch(function () { return { ok: false, message: 'Risposta non valida.' }; });
+        });
+    }
+
+    return invia().catch(function () {
+        if (!data || opt.keepalive || opt.noRetry) throw 0;
+        /* La rete è caduta a metà. Una sola ripetizione, dopo un attimo:
+           basta a coprire il buco di copertura in ascensore o il cambio di
+           cella, senza rischiare di applicare due volte la stessa cosa. */
+        return new Promise(function (res) { setTimeout(res, 900); }).then(invia);
     }).catch(function () {
         return { ok: false, message: 'Connessione non riuscita.' };
     });
 }
 
+/* I salvataggi rimandati.
+
+   PERCHÉ SI PERDEVANO. Scrivendo in una priorità o in una nota, il salvataggio
+   parte 650ms dopo l'ultimo tasto. Se in quei 650ms si chiudeva la pagina, si
+   passava a un'altra app o si bloccava lo schermo, il timer moriva con la
+   pagina e quello che era stato scritto non arrivava mai al server. Nessun
+   errore, nessun avviso: semplicemente non c'era più. È questo il "a volte non
+   vengono salvate".
+
+   Ora ogni salvataggio in attesa viene mandato subito quando la pagina sta per
+   sparire, con keepalive perché parta davvero anche mentre si chiude. */
 var saveQueue = {};
 function debounceSave(key, ms, fn) {
-    if (saveQueue[key]) clearTimeout(saveQueue[key]);
-    saveQueue[key] = setTimeout(function () { saveQueue[key] = null; fn(); }, ms || 700);
+    if (saveQueue[key]) clearTimeout(saveQueue[key].timer);
+    saveQueue[key] = {
+        fn: fn,
+        timer: setTimeout(function () { saveQueue[key] = null; fn(); }, ms || 700)
+    };
 }
+
+/* Manda tutto quello che è in attesa, adesso. */
+function flushSaves(chiusura) {
+    savingNow = !!chiusura;
+    for (var key in saveQueue) {
+        if (!saveQueue.hasOwnProperty(key) || !saveQueue[key]) continue;
+        var voce = saveQueue[key];
+        saveQueue[key] = null;
+        clearTimeout(voce.timer);
+        try { voce.fn(); } catch (e) {}
+    }
+    savingNow = false;
+}
+/* Le funzioni di salvataggio chiamano api(): questa spia dice loro di usare
+   keepalive, senza doverle riscrivere una per una. */
+var savingNow = false;
+
+/* pagehide copre la chiusura e il passaggio ad altra app su iPhone;
+   visibilitychange copre il blocco schermo e il cambio di scheda. Servono
+   entrambi: nessuno dei due da solo copre tutti i casi. */
+window.addEventListener('pagehide', function () { flushSaves(true); });
+document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') flushSaves(true);
+});
 
 /* ------------------------------------------------------------------ */
 /* Avvisi e messaggi                                                   */
@@ -260,111 +326,18 @@ function weeklyOf(date) { return S.weekly[monday(date)] || []; }
 /* Cielo, insetto, palette                                             */
 /* ------------------------------------------------------------------ */
 /* ---- alberi, foglie, insetti: una scena diversa per ogni mese ---- */
-var AMB = null, ambMonth = null;
+/* ambKey: che cosa c'è disegnato adesso nella barra ('mese|7', 'wx|2026-08-01|3').
+   Serve a non ricostruire la scena a ogni ridisegno, ma solo quando cambia. */
+var AMB = null, ambKey = null;
 
-var TREES = {
-    /* Sagome ispirate agli alberi spogli disegnati a inchiostro: tronco che
-       si allarga alla base con le radici accennate, rami principali che si
-       biforcano tre volte e si assottigliano fino a rametti sottili. Sono
-       riempiti, non tracciati: è il pieno a dare la sagoma riconoscibile. */
-    bare:
-        '<g fill="currentColor" stroke="none">'
-        + '<path d="M27.6 80c.3-4 .6-9 .8-14 .2-5.4.3-10.4.2-15l3 0c-.1 4.6 0 9.6.2 15 .2 5 .5 10 .8 14 -1.7.6-3.3.6-5 0z"/>'
-        + '<path d="M22.5 80c1.6-3.4 3.6-5.4 5.9-6.2l.3 6.2z"/>'
-        + '<path d="M37.5 80c-1.6-3.4-3.6-5.4-5.9-6.2l-.3 6.2z"/>'
-        /* ramo grande a sinistra */
-        + '<path d="M28.4 52.6c-3.6-1.6-6.8-3.8-9.4-6.8-1.9-2.2-3.2-4.7-3.9-7.5.9 2.5 2.3 4.6 4.2 6.4 2.3 2.2 5.1 3.8 8.3 4.9z"/>'
-        + '<path d="M19.6 46.4c-2.4-.3-4.4-1.4-6-3.2 1.8 1.2 3.7 1.9 5.8 2z"/>'
-        + '<path d="M23.4 49c-1.1-1.9-1.6-3.9-1.6-6 .4 2 1.2 3.8 2.4 5.4z"/>'
-        /* ramo grande a destra */
-        + '<path d="M31.4 46.4c3.3-2.2 5.8-5 7.5-8.5 1.2-2.5 1.8-5.1 1.9-7.8.2 2.7-.2 5.3-1.2 7.9-1.3 3.4-3.6 6.3-6.8 8.7z"/>'
-        + '<path d="M38.6 33.2c1.9-1.2 4-1.7 6.2-1.5-2 .3-3.8 1.1-5.4 2.3z"/>'
-        + '<path d="M35.4 38.8c2 .1 3.9-.4 5.6-1.5-1.4 1.4-3.1 2.3-5 2.6z"/>'
-        /* ramo centrale alto */
-        + '<path d="M28.6 36c-2.1-2.6-3.3-5.5-3.6-8.7-.2-2.3 0-4.5.7-6.7-.4 2.2-.4 4.3 0 6.5.5 3 1.7 5.7 3.6 8.1z"/>'
-        + '<path d="M25.4 25.4c-1.5-1.2-2.5-2.7-3.1-4.5 1 1.6 2.2 2.9 3.7 3.9z"/>'
-        + '<path d="M31 27.6c2-1.7 3.4-3.8 4.2-6.3-.4 2.6-1.5 4.9-3.2 6.9z"/>'
-        + '<path d="M30.4 62.4c-2.9-1.1-5.2-2.9-6.9-5.4 1.9 2.1 4.3 3.6 7.1 4.5z"/>'
-        + '</g>',
-    buds:
-        '<g fill="currentColor" stroke="none">'
-        + '<path d="M27.6 80c.3-4 .6-9 .8-14 .2-5.4.3-10.4.2-15l3 0c-.1 4.6 0 9.6.2 15 .2 5 .5 10 .8 14 -1.7.6-3.3.6-5 0z"/>'
-        + '<path d="M22.8 80c1.5-3.2 3.4-5.1 5.6-5.9l.2 5.9z"/>'
-        + '<path d="M37.2 80c-1.5-3.2-3.4-5.1-5.6-5.9l-.2 5.9z"/>'
-        + '<path d="M28.4 51c-4-1.8-7.4-4.3-10.1-7.6 2.5 2.5 5.6 4.4 9.2 5.8z"/>'
-        + '<path d="M31.4 45c3.6-2.5 6.2-5.7 7.9-9.6-1.1 4-3.4 7.3-6.7 10z"/>'
-        + '<path d="M28.6 34c-2.2-2.9-3.4-6.1-3.6-9.6.4 3.3 1.6 6.3 3.6 8.9z"/>'
-        + '<path d="M30.4 61c-3-1.2-5.4-3.1-7.1-5.7 2 2.2 4.4 3.8 7.3 4.7z"/>'
-        + '</g>',
-    blossom:
-        '<g fill="currentColor" stroke="none">'
-        + '<path d="M27.6 80c.3-5 .6-11 .8-17 .2-5.4.3-10 .2-14l3 0c-.1 4 0 8.6.2 14 .2 6 .5 12 .8 17 -1.7.6-3.3.6-5 0z"/>'
-        + '<path d="M22.6 80c1.6-3.3 3.5-5.2 5.8-6l.2 6z"/>'
-        + '<path d="M37.4 80c-1.6-3.3-3.5-5.2-5.8-6l-.2 6z"/>'
-        + '<path d="M28.4 47c-4.6-2-8.4-4.8-11.4-8.4 2.8 2.8 6.4 5 10.6 6.6z"/>'
-        + '<path d="M31.4 41c4-2.8 6.9-6.4 8.7-10.8-1.2 4.5-3.8 8.2-7.5 11.2z"/>'
-        + '<path d="M28.6 31c-2.4-3.2-3.7-6.7-3.9-10.5.4 3.6 1.7 6.9 3.9 9.8z"/>'
-        + '</g>',
-    leafy:
-        '<g fill="currentColor" stroke="none">'
-        + '<path d="M28 80c.2-6 .5-13 .6-20l2.8 0c.1 7 .4 14 .6 20 -1.4.5-2.6.5-4 0z"/>'
-        + '<path d="M29 58c-2.6-1.5-4.6-3.5-6-6 1.7 2 3.7 3.6 6.2 4.7z"/>'
-        + '<path d="M31 52c2.5-1.6 4.4-3.7 5.7-6.3-1 2.7-2.7 4.9-5 6.6z"/>'
-        + '</g>'
-        /* chioma: lobi sovrapposti, non un ovale */
-        + '<path d="M14 32c-1.8-6 1.6-11.6 7.4-12.9 2.2-4.9 7-7.6 12.3-6.7 4.7-2.1 10.2-.4 13 3.9 4.9.9 8.1 5.4 7.4 10.3-.5 3.5-3 6.4-6.4 7.4"/>'
-        + '<path d="M14 32c1.3 4.3 5.1 7 9.6 7h23.6"/>',
-    lush:
-        '<g fill="currentColor" stroke="none">'
-        + '<path d="M28 80c.2-7 .5-15 .6-23l2.8 0c.1 8 .4 16 .6 23 -1.4.5-2.6.5-4 0z"/>'
-        + '<path d="M29 60c-3-1.8-5.3-4.1-6.9-7 1.9 2.3 4.3 4.2 7.1 5.5z"/>'
-        + '<path d="M31 54c2.9-1.8 5.1-4.2 6.6-7.2-1.2 3.1-3.2 5.6-5.9 7.6z"/>'
-        + '</g>'
-        + '<path d="M11 30c-2.1-6.8 1.7-13.4 8.5-14.9 2.6-5.7 8.3-8.9 14.5-7.9 5.5-2.3 11.9-.4 15.1 4.7 5.7 1.1 9.4 6.4 8.5 12.1-.6 4.2-3.6 7.7-7.7 8.9"/>'
-        + '<path d="M11 30c1.5 5.1 6 8.3 11.3 8.3h27.6"/>'
-        + '<path d="M20 28c2.1 2.8 5.3 4.5 8.7 4.5"/><path d="M42 27c-1.7 3-4.5 4.9-7.7 5.5"/>',
-    dry:
-        '<g fill="currentColor" stroke="none">'
-        + '<path d="M28.2 80c.3-4 .5-8.5.6-13 .2-4.6.2-8.8.1-12.4l2.2 0c-.1 3.6-.1 7.8.1 12.4.1 4.5.3 9 .6 13 -1.2.4-2.4.4-3.6 0z"/>'
-        + '<path d="M28.6 50c-2.6-2.9-4.3-6.2-5.2-9.8 1.2 3.4 3.1 6.3 5.6 8.8z"/>'
-        + '<path d="M24 39.4c-1.7-.8-3-2-4-3.6 1.3 1.4 2.7 2.4 4.4 3z"/>'
-        + '<path d="M31 46c2.8-3 4.4-6.5 5-10.5-.3 3.7-1.6 7-3.9 9.9z"/>'
-        + '<path d="M36 34.6c1.7-.9 3.5-1.2 5.4-1-1.7.2-3.3.8-4.7 1.7z"/>'
-        + '<path d="M30.4 62c-2.3-1-4-2.5-5.3-4.6 1.5 1.8 3.4 3.1 5.6 3.9z"/>'
-        + '</g>',
-    autumn:
-        '<g fill="currentColor" stroke="none">'
-        + '<path d="M27.8 80c.3-5 .6-11 .7-17 .2-5 .2-9.4.1-13l2.8 0c-.1 3.6-.1 8 .1 13 .1 6 .4 12 .7 17 -1.5.5-2.9.5-4.4 0z"/>'
-        + '<path d="M22.8 80c1.5-3.2 3.4-5.1 5.6-5.9l.2 5.9z"/>'
-        + '<path d="M37.2 80c-1.5-3.2-3.4-5.1-5.6-5.9l-.2 5.9z"/>'
-        + '<path d="M28.4 53c-4.4-2-8.1-4.6-11-7.9 2.7 2.6 6.1 4.7 10.1 6.3z"/>'
-        + '<path d="M31.4 45c3.9-2.7 6.7-6.2 8.4-10.4-1.1 4.3-3.6 7.9-7.2 10.8z"/>'
-        + '<path d="M28.6 36c-2.3-3-3.5-6.4-3.7-10 .4 3.4 1.6 6.6 3.7 9.3z"/>'
-        + '</g>',
-    conifer:
-        '<g fill="currentColor" stroke="none">'
-        + '<path d="M28.6 80c.2-4.5.4-9.4.5-14l2.6 0c.1 4.6.3 9.5.5 14 -1.2.4-2.4.4-3.6 0z"/>'
-        + '<path d="M30 6l-8.6 15.4h4.6L17.2 35.4h5.6L13 50h34l-9.8-14.6h5.6L34 21.4h4.6z"/>'
-        + '</g>'
-};
-var BUDS = {
-    buds:   [[18,26],[24,20],[38,22],[43,16],[22,36],[40,34]],
-    blossom:[[17,25],[23,18],[30,14],[37,20],[43,15],[20,34],[40,32],[27,28],[34,30]],
-    autumn: [[16,24],[24,17],[33,15],[41,19],[45,26],[21,32],[38,30]]
-};
 
 function svgWrap(inner, extra) {
     return '<svg viewBox="0 0 60 80" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">'
          + inner + (extra || '') + '</svg>';
 }
-function treeMarkup(kind, budColor) {
-    var body = TREES[kind] || TREES.leafy;
-    var dots = '';
-    (BUDS[kind] || []).forEach(function (p) {
-        dots += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="1.9" fill="' + (budColor || 'currentColor') + '" stroke="none"/>';
-    });
-    return svgWrap(body, dots);
-}
+/* (treeMarkup, TREES e BUDS sono spariti: gli alberi non si disegnano più a
+   codice, sono file dentro ambient/ — uno per mese, disegni veri invece di
+   quattro curve approssimate.) */
 
 var PART_SVG = {
     snow:  '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.6" fill="currentColor"/></svg>',
@@ -381,69 +354,71 @@ var DRIFT_SVG = {
     ladybug:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="12" cy="13" r="5.6"/><path d="M12 7.4v11"/><circle cx="9" cy="11.6" r=".9" fill="currentColor"/><circle cx="15" cy="14.4" r=".9" fill="currentColor"/><path d="M10 6.4l-.8-1.6M14 6.4l.8-1.6"/></svg>',
     dragonfly:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"><path d="M12 7v11"/><circle cx="12" cy="6" r="1.4"/><path d="M12 9.4c-3.4-2-6.6-2-8 0 1.4 1.6 4.6 1.8 8 .6"/><path d="M12 9.4c3.4-2 6.6-2 8 0-1.4 1.6-4.6 1.8-8 .6"/><path d="M12 12.6c-2.6-1.4-5-1.4-6 0 1 1.2 3.4 1.4 6 .5"/><path d="M12 12.6c2.6-1.4 5-1.4 6 0-1 1.2-3.4 1.4-6 .5"/></svg>',
     bird:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M3 13c3-4 6-4 9 0 3-4 6-4 9 0"/></svg>',
-    swallow:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2 11c4-3.6 7.4-3 10 1 2.6-4 6-4.6 10-1"/><path d="M12 12v3.4"/></svg>',
-
-    /* --- abitanti delle stagioni fredde --- */
-    penguin:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">'
-            + '<path d="M12 3.2c3.1 0 5.2 2.4 5.2 5.6v7.4c0 2.6-2.2 4.4-5.2 4.4s-5.2-1.8-5.2-4.4V8.8c0-3.2 2.1-5.6 5.2-5.6z"/>'
-            + '<path d="M12 6.4c1.7 0 2.8 1.3 2.8 3.1v6.2c0 1.6-1.2 2.6-2.8 2.6s-2.8-1-2.8-2.6V9.5c0-1.8 1.1-3.1 2.8-3.1z"/>'
-            + '<circle cx="10.3" cy="7.4" r=".55" fill="currentColor" stroke="none"/>'
-            + '<circle cx="13.7" cy="7.4" r=".55" fill="currentColor" stroke="none"/>'
-            + '<path d="M11 9.1h2l-1 1.5z"/>'
-            + '<path d="M6.8 10.5c-1.2 1.3-1.4 3.3-.6 5"/><path d="M17.2 10.5c1.2 1.3 1.4 3.3.6 5"/>'
-            + '<path d="M9.6 20.6l-1.6 1.4M14.4 20.6l1.6 1.4"/></svg>',
-
-    sleigh:   '<svg viewBox="0 0 30 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">'
-            /* la slitta */
-            + '<path d="M6 15h11a2 2 0 002-2v-3H8a2 2 0 00-2 2z"/>'
-            + '<path d="M5 18h13c1.6 0 2.6-.8 3-2"/>'
-            + '<path d="M5 18c-1.2 0-2-.7-1.8-1.8"/>'
-            /* i regali sopra */
-            + '<path d="M9.5 10V7.4h3V10M11 7.4V6"/>'
-            + '<path d="M14 10V8.4h2.4V10"/>'
-            /* le redini e la scia */
-            + '<path d="M19 11.5c2.4-.6 4.4-1.8 5.8-3.6"/>'
-            + '<path d="M2 12.5h2.6M1 15.5h2.2M3 9.5h2" opacity=".6"/></svg>',
-
-    reindeer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">'
-            + '<path d="M7.5 16.5v3M11 16.5v3M14.5 16.5v3M18 16.5v2.6"/>'
-            + '<path d="M6.5 11.5h11a2 2 0 012 2v1.4a1.6 1.6 0 01-1.6 1.6H8a1.6 1.6 0 01-1.6-1.6z"/>'
-            + '<path d="M6.5 12.4L4.6 9.6a1.7 1.7 0 011.4-2.7h1.3"/>'
-            + '<path d="M6 7.2c-.7-1-1.9-1.5-3-1.3M6.6 6.6c-.2-1.2.2-2.3 1-3.1"/>'
-            + '<circle cx="4.6" cy="9.4" r=".5" fill="currentColor" stroke="none"/></svg>',
-
-    squirrel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">'
-            + '<path d="M11 19h6c1 0 1.6-.7 1.6-1.6 0-2.6-1.8-4.6-4.2-5.2"/>'
-            + '<path d="M14.4 12.2a3.2 3.2 0 10-.6-6.2 3.2 3.2 0 00.6 6.2z"/>'
-            + '<path d="M13 6.2c-.3-1-.1-1.9.5-2.6"/>'
-            + '<circle cx="15.6" cy="8.4" r=".55" fill="currentColor" stroke="none"/>'
-            /* la coda folta */
-            + '<path d="M11 19c-3.4 0-5.6-2.4-5.6-5.4 0-3.6 2.6-6.2 5.6-6.2"/>'
-            + '<path d="M11 17c-2 0-3.4-1.6-3.4-3.5 0-2.2 1.4-4 3.2-4.2"/></svg>',
-
-    hedgehog: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">'
-            + '<path d="M4.5 16.5c0-4 3-7 7-7s7 2.4 7 6c0 1.6-1.2 2.6-3 2.6H7c-1.6 0-2.5-.6-2.5-1.6z"/>'
-            + '<path d="M18.5 15.5c1.2-.4 2-1 2.4-1.9"/>'
-            + '<path d="M6.6 11.6l-1.4-2M9.4 9.9l-.7-2.3M12.6 9.6l.5-2.3M15.6 10.6l1.5-1.9"/>'
-            + '<circle cx="19.4" cy="14.6" r=".5" fill="currentColor" stroke="none"/>'
-            + '<path d="M7.5 19v1.4M11 19v1.4M14.5 19v1.4"/></svg>'
+    swallow:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2 11c4-3.6 7.4-3 10 1 2.6-4 6-4.6 10-1"/><path d="M12 12v3.4"/></svg>'
 };
 
 function rand(a, b) { return a + Math.random() * (b - a); }
+
+/* La cartella dei disegni veri di alberi e animali: un file per mese, esterni
+   e non scritti a mano nel codice, così il browser scarica solo quello che
+   serve e se lo tiene in cache.
+
+   Si caricano come MASCHERA, non come immagine: la maschera ritaglia la forma
+   e il colore lo mette il fondo. Un solo file basta quindi per qualunque
+   tinta, e l'albero di ottobre può essere ramato senza avere un file ramato. */
+/* La cartella dei disegni di alberi e animali. Il percorso è relativo alla
+   PAGINA, non a questo file: viene risolto a partire dall'indirizzo di
+   planner.php, perché gli indirizzi delle maschere sono impostati qui via
+   JavaScript. Quindi 'svg/' significa la cartella svg accanto a planner.php.
+   Se un giorno sposti i disegni, cambia solo questa riga. */
+var AMBIENT_DIR = 'svg/';
+
+function fondale(nome, colore, classe) {
+    var n = el('div', classe);
+    var u = 'url("' + AMBIENT_DIR + nome + '.svg")';
+    n.style.webkitMaskImage = u;
+    n.style.maskImage = u;
+    n.style.backgroundColor = colore;
+    return n;
+}
+
+/* Chi si muove e chi no.
+
+   Quasi tutti stanno fermi: sono animali che, visti dal vero, se ne stanno
+   lì — il gatto dorme, la talpa spunta dalla terra, il pinguino guarda. Un
+   pinguino che sfreccia da un lato all'altro sembrava una lepre.
+   Camminano solo quelli che camminando ci si vedono davvero, e piano.
+   La slitta è l'unica che vola, e plana come i gabbiani. */
+var ANIMALI_CHE_CAMMINANO = ['cane', 'tartaruga', 'riccio'];
+var ANIMALI_CHE_VOLANO    = ['slitta'];
 
 function renderAmbient(cfg) {
     var host = $('plAmbient');
     if (!host) return;
     host.innerHTML = '';
+    /* solo questa scena obbedisce alla barra dell'opacità */
+    host.classList.add('pl-amb-natura');
     var color = cfg.treeColor || '#9BAA9C';
 
-    ['pl-tree-a', 'pl-tree-b'].forEach(function (cls, i) {
-        var t = el('div', 'pl-tree ' + cls);
-        t.style.color = color;
-        if (i === 1) t.style.animationDelay = '-4s';
-        t.innerHTML = treeMarkup(cfg.tree || 'leafy', cfg.budColor);
-        host.appendChild(t);
-    });
+    /* Un albero solo, verso il primo quarto della barra. Prima ce n'erano due,
+       uno per lato, ed erano due copie della stessa sagoma: con un disegno
+       vero la ripetizione si notava. */
+    host.appendChild(fondale(cfg.tree || 'albero-giugno', color, 'pl-tree'));
+
+    /* l'animale del mese */
+    if (cfg.animal) {
+        var moto = '';
+        if (ANIMALI_CHE_CAMMINANO.indexOf(cfg.animal) !== -1) moto = ' pl-animal-cammina';
+        else if (ANIMALI_CHE_VOLANO.indexOf(cfg.animal) !== -1) moto = ' pl-animal-vola';
+        /* Una classe col nome della bestia (pl-animal-cane, pl-animal-volpe…)
+           così nel CSS si può ritoccare posizione e dimensione di una sola
+           senza toccare le altre: un cane e una tartaruga non stanno bene
+           nello stesso riquadro. */
+        var a = fondale(cfg.animal, cfg.animalColor || '#7A6F64',
+                        'pl-animal pl-animal-' + cfg.animal + moto);
+        if (moto) a.style.animationDelay = '-' + rand(0, 20).toFixed(1) + 's';
+        host.appendChild(a);
+    }
 
     (cfg.particles || []).forEach(function (p) {
         var still = p.type === 'star';
@@ -467,8 +442,11 @@ function renderAmbient(cfg) {
         for (var n = 0; n < (d.count || 1); n++) {
             var isFly = d.type === 'firefly';
             /* chi cammina o scivola non batte le ali: niente ondeggio veloce */
-            var terrestre = ['penguin', 'squirrel', 'hedgehog', 'reindeer'].indexOf(d.type) !== -1;
-            var slitta = d.type === 'sleigh';   // questa svolazza, come da richiesta
+            /* pinguino, scoiattolo, riccio, renna e slitta non passano più di
+               qui: sono diventati l'animale del mese, disegnato da file.
+               Restano insetti e uccelli. */
+            var terrestre = false;
+            var slitta = false;
             var wrap = el('div', 'pl-drift'
                 + (isFly ? ' pl-firefly' : '')
                 + (d.type === 'bird' || d.type === 'swallow' ? ' pl-drift-slow' : '')
@@ -492,18 +470,247 @@ function renderAmbient(cfg) {
     });
 }
 
+/* ------------------------------------------------------------------ */
+/* La barra in alto quando il meteo è acceso                           */
+/* ------------------------------------------------------------------ */
+
+/* Sagome della scena. Sono qui e non in `svg/` perché non sono disegni:
+   sono forme geometriche di poche righe, e caricarle come file vorrebbe
+   dire una richiesta in più per ogni nuvola. */
+var WXA_SVG = {
+    nuvola: '<svg viewBox="0 0 100 46" preserveAspectRatio="none"><path d="M20 44h58c11 0 18-7 18-15 0-9-8-15-17-14-2-9-10-14-19-14-11 0-19 7-21 16-9 0-16 6-16 14 0 7 5 13 10 13z" fill="currentColor"/></svg>',
+    sole:   '<svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="13" fill="currentColor"/><g stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M30 4v8M30 48v8M4 30h8M48 30h8M11.6 11.6l5.6 5.6M42.8 42.8l5.6 5.6M11.6 48.4l5.6-5.6M42.8 17.2l5.6-5.6"/></g></svg>',
+    luna:   '<svg viewBox="0 0 60 60"><path d="M38 6a24 24 0 100 48 20 20 0 010-48z" fill="currentColor"/></svg>'
+};
+
+/* Quante gocce (o fiocchi) per ciascun tipo di tempo: la quantità è il
+   modo più immediato per far sentire la differenza fra pioviggine e
+   rovescio, più delle icone. */
+/* I numeri sono raddoppiati abbondanti rispetto a prima: la scena era così
+   discreta che a colpo d'occhio pioggia e nuvolo si somigliavano, e la barra
+   non diceva niente. Ora un rovescio si vede che è un rovescio. Restano
+   elementi animati solo con `transform` e `opacity`, quindi il costo cresce
+   di poco anche a sessanta gocce. */
+var WXA_SCENA = {
+    'sole':            { sole: true,  nuvole: 0, gocce: 0,  tipo: null },
+    'sole-nubi':       { sole: true,  nuvole: 3, gocce: 0,  tipo: null },
+    'nubi':            { sole: false, nuvole: 7, gocce: 0,  tipo: null, coperto: true },
+    'nebbia':          { sole: false, nuvole: 2, gocce: 0,  tipo: null, nebbia: true },
+    'pioggia-leggera': { sole: false, nuvole: 4, gocce: 22, tipo: 'rain' },
+    'pioggia':         { sole: false, nuvole: 6, gocce: 40, tipo: 'rain', coperto: true },
+    'pioggia-forte':   { sole: false, nuvole: 7, gocce: 56, tipo: 'rain', coperto: true },
+    'neve':            { sole: false, nuvole: 5, gocce: 34, tipo: 'snow' },
+    'temporale':       { sole: false, nuvole: 7, gocce: 46, tipo: 'rain', lampo: true, coperto: true }
+};
+
+/* Quanto fa caldo, in tre gradini. Il colore lo decide la massima del giorno
+   e non l'icona, perché una giornata di sole a 18° e una a 38° hanno la
+   stessa icona ma non sono affatto la stessa cosa. */
+function wxCaldo(g) {
+    var t = (g && g.tmax !== null && g.tmax !== undefined) ? g.tmax : null;
+    if (t === null) return 0;
+    if (t >= 36) return 3;
+    if (t >= 32) return 2;
+    if (t >= 28) return 1;
+    return 0;
+}
+
+/* Vale la pena sostituire alberi e bestie con il cielo del giorno solo
+   quando si guarda un giorno solo: con più giorni davanti, una scena sola
+   racconterebbe il tempo di uno e mentirebbe sugli altri. */
+function ambientMeteo() {
+    if (!WX.on || S.view === 'month' || visibleDays() >= 2) return null;
+    var g = WX.giorni[S.focusDate];
+    if (!g) return null;
+    /* Su oggi conta che tempo fa adesso, non il riassunto della giornata: una
+       giornata segnata "poco nuvolosa" che alle sei di sera sta piovendo deve
+       mostrare la pioggia, se no la barra racconta una cosa che non c'è più.
+       Sugli altri giorni il riassunto è l'unica cosa che si possa dire. */
+    if (S.focusDate === S.today && WX.adesso && WX.adesso.icon) {
+        return { icon: WX.adesso.icon, code: 'ora-' + WX.adesso.icon,
+                 tmax: g.tmax, tmin: g.tmin, label: WX.adesso.label || g.label };
+    }
+    return g;
+}
+
+/* Sera e notte. Vale solo su oggi: sugli altri giorni non c'è un'ora
+   corrente da guardare, e una previsione non è né di giorno né di notte. */
+function wxNotte(date) {
+    if (date !== S.today) return false;
+    /* Il server manda già se è giorno o notte lì dove ci si trova, calcolato
+       su alba e tramonto veri: a dicembre alle sei di sera è buio, a giugno
+       no, e un orario fisso avrebbe sbagliato mezzo anno. L'orologio resta
+       come ripiego se quel dato non arriva. */
+    if (WX.adesso && WX.adesso.giorno !== null && WX.adesso.giorno !== undefined) {
+        return WX.adesso.giorno === false;
+    }
+    var h = new Date().getHours();
+    return h < 6 || h >= 20;
+}
+
+function renderAmbientMeteo(g, date) {
+    var host = $('plAmbient');
+    if (!host) return;
+    host.innerHTML = '';
+    host.classList.remove('pl-amb-natura');
+    var s = WXA_SCENA[g.icon] || WXA_SCENA['nubi'];
+
+    /* Il rosso del caldo va per primo, così sole e nuvole gli restano sopra
+       invece di finirci sotto. Al terzo gradino la barra è tutta rossa: è
+       esattamente il colpo d'occhio che deve dare una giornata a 36 gradi. */
+    var caldo = wxCaldo(g);
+    if (caldo) host.appendChild(el('div', 'pl-wxa-caldo pl-wxa-caldo-' + caldo));
+    /* cielo coperto: un velo grigio dietro le nuvole, se no fra tre nuvole e
+       sette si vede solo che sono di più, non che il cielo è chiuso */
+    if (s.coperto) host.appendChild(el('div', 'pl-wxa-coperto'));
+
+    /* Di sera e di notte la scena cambia registro: un velo scuro sopra tutto
+       e, a cielo libero, qualche stella. Senza, alle undici di sera la barra
+       sembrava un pomeriggio d'estate. */
+    var notte = wxNotte(date);
+    if (notte) {
+        host.appendChild(el('div', 'pl-wxa-notte'));
+        if (!s.coperto && !s.gocce && !s.nebbia) {
+            for (var st = 0; st < 12; st++) {
+                var stella = el('div', 'pl-part pl-part-still pl-wxa-stella');
+                stella.style.left = rand(2, 96).toFixed(1) + '%';
+                stella.style.top = rand(6, 62).toFixed(0) + '%';
+                var sz = rand(4, 8);
+                stella.style.width = sz.toFixed(1) + 'px';
+                stella.style.height = sz.toFixed(1) + 'px';
+                stella.style.animationDuration = rand(2.4, 5.5).toFixed(1) + 's';
+                stella.style.animationDelay = '-' + rand(0, 4).toFixed(1) + 's';
+                stella.innerHTML = PART_SVG.star;
+                host.appendChild(stella);
+            }
+        }
+    }
+
+    /* Sole o luna secondo l'ora: alle nove di sera un sole pieno nella
+       barra è la cosa più stonata che si possa vedere. */
+    if (s.sole) {
+        var astro = el('div', 'pl-wxa-sun' + (notte ? ' pl-wxa-moon' : '')
+                       + (!notte && caldo >= 2 ? ' pl-wxa-sun-caldo' : ''));
+        astro.innerHTML = notte ? WXA_SVG.luna : WXA_SVG.sole;
+        host.appendChild(astro);
+    }
+
+    for (var n = 0; n < s.nuvole; n++) {
+        var c = el('div', 'pl-wxa-cloud');
+        c.innerHTML = WXA_SVG.nuvola;
+        c.style.top = rand(4, 34).toFixed(0) + '%';
+        c.style.width = rand(78, 132).toFixed(0) + 'px';
+        /* durate lunghe e sfasate: due nuvole che viaggiano appaiate si
+           vedrebbero come un blocco unico */
+        c.style.animationDuration = rand(90, 150).toFixed(0) + 's';
+        c.style.animationDelay = '-' + rand(0, 80).toFixed(0) + 's';
+        c.style.opacity = (0.62 + Math.random() * 0.34).toFixed(2);
+        host.appendChild(c);
+    }
+
+    if (s.nebbia) {
+        for (var f = 0; f < 3; f++) {
+            var banda = el('div', 'pl-wxa-fog');
+            banda.style.top = (24 + f * 20) + '%';
+            banda.style.animationDuration = rand(28, 46).toFixed(0) + 's';
+            banda.style.animationDelay = '-' + rand(0, 20).toFixed(0) + 's';
+            host.appendChild(banda);
+        }
+    }
+
+    for (var i = 0; i < s.gocce; i++) {
+        var neve = s.tipo === 'snow';
+        var p = el('div', 'pl-part ' + (neve ? 'pl-part-fall' : 'pl-part-rain'));
+        var size = neve ? rand(4, 7.5) : rand(7, 13);
+        p.style.left = rand(-2, 98).toFixed(1) + '%';
+        p.style.width = (neve ? size : size / 3.4).toFixed(1) + 'px';
+        p.style.height = size.toFixed(1) + 'px';
+        p.style.color = neve ? '#FFFFFF' : '#6F9BB8';
+        p.style.animationDuration = (neve ? rand(9, 16) : rand(1.1, 2.2)).toFixed(1) + 's';
+        p.style.animationDelay = '-' + rand(0, 12).toFixed(1) + 's';
+        p.style.setProperty('--sway', rand(-14, 14).toFixed(0) + 'px');
+        p.innerHTML = neve ? PART_SVG.snow : PART_SVG.rain;
+        host.appendChild(p);
+    }
+
+    if (s.lampo) {
+        var lampo = el('div', 'pl-wxa-flash');
+        host.appendChild(lampo);
+    }
+
+    /* Niente riassunto al centro: copriva la scena ed era un doppione, il
+       popup si apre già dal tag accanto al giorno, dalla striscia sotto le
+       priorità e dal tastino del meteo. Così la barra torna tutta decorazione
+       e lascia passare i tocchi (le regole `.pl-wxa-tag` restano nel foglio
+       di stile, semmai il riassunto dovesse tornare). */
+}
+
+/* Decide che cosa mettere nella barra: la scena del meteo se il meteo è
+   acceso su un giorno solo, altrimenti l'albero e la bestia del mese.
+   La chiave serve a non ridisegnare tutto a ogni scorrimento: si ricostruisce
+   solo quando cambia davvero la scena (mese diverso, o tempo diverso). */
+/* Quanto si vede la scena del mese: 0 invisibile, 10 piena. C'è chi la trova
+   invadente ma non la vuole spegnere del tutto, e prima l'unica scelta era
+   fra tutto e niente. Il valore di partenza è 9 — quasi il massimo — cioè
+   com'era prima che la barra esistesse. Il meteo non è compreso: quella
+   scena dice che tempo fa, non è una decorazione. */
+function ambOpacita() {
+    var v = S.settings.ambient_opacity;
+    return (v === 0 || v) ? Math.max(0, Math.min(10, v)) : 9;
+}
+function applyAmbientOpacity() {
+    document.documentElement.style.setProperty('--ambiente-op', (ambOpacita() / 10).toFixed(2));
+}
+
+/* La carta d'identità della scena di un giorno: due giorni con la stessa
+   chiave hanno la stessa barra. Serve a due cose — non ricostruirla quando
+   non è cambiato niente, e sapere se la copia fatta per il giorno vicino
+   durante il cambio pagina va bene o va buttata. Prima il conto stava dentro
+   applyAmbient e nessun altro poteva farlo: è il motivo per cui oltre
+   l'ultimo giorno di previsione si continuava a vedere il tempo di prima. */
+function ambChiave(date) {
+    if (S.settings.ambient_enabled === false) return 'niente';
+    var g = (WX.on && S.view !== 'month' && visibleDays() < 2) ? WX.giorni[date] : null;
+    if (g) {
+        var w = (date === S.today && WX.adesso && WX.adesso.icon)
+            ? { icon: WX.adesso.icon, code: 'ora-' + WX.adesso.icon, tmax: g.tmax, tmin: g.tmin }
+            : g;
+        return 'wx|' + date + '|' + w.code + '|' + wxCaldo(w) + '|' + (wxNotte(date) ? 'n' : 'g');
+    }
+    if (!AMB) return 'niente';
+    var base = S.view === 'month' ? (S.monthCursor || date) : date;
+    return 'mese|' + (parseIso(base).getMonth() + 1);
+}
+
 function applyAmbient(force) {
     var host = $('plAmbient');
     if (!host) return;
-    if (S.settings.ambient_enabled === false) { host.innerHTML = ''; ambMonth = null; return; }
+    if (S.settings.ambient_enabled === false) { host.innerHTML = ''; ambKey = 'niente'; return; }
+
+    var chiave = ambChiave(S.focusDate);
+    if (!force && chiave === ambKey) return;
+    ambKey = chiave;
+
+    var wxg = ambientMeteo();
+    if (wxg) { renderAmbientMeteo(wxg, S.focusDate); return; }
+
     if (!AMB) return;
-    var base = S.view === 'month' ? (S.monthCursor || S.focusDate) : S.focusDate;
-    var m = parseIso(base).getMonth() + 1;
-    if (!force && m === ambMonth) return;
-    ambMonth = m;
     /* mese nuovo, cielo nuovo */
     setTimeout(applySky, 0);
-    renderAmbient((AMB.months && AMB.months[String(m)]) || {});
+    var base = S.view === 'month' ? (S.monthCursor || S.focusDate) : S.focusDate;
+    renderAmbient((AMB.months && AMB.months[String(parseIso(base).getMonth() + 1)]) || {});
+}
+
+/* Tutto quello che il meteo tocca, rifatto in una volta sola. Prima ogni
+   punto che accendeva o spegneva il meteo si ricordava a mano quali cinque
+   cose ridisegnare, e bastava dimenticarne una perché un tag o una scena
+   restassero indietro fino al ridisegno successivo. */
+function wxRedraw() {
+    renderDays();
+    renderWeekBits();
+    renderGutterMeteo(null, S.focusDate);
+    applyAmbient(true);
+    if (S.view === 'month') renderMonth();
 }
 
 function loadAmbient() {
@@ -551,6 +758,10 @@ function renderWeekBits() {
         $('plMonthYear').textContent = d.getFullYear();
     }
     var nd = visibleDays();
+    /* il tag del meteo si rifà da capo a ogni giro: senza toglierlo, cambiando
+       giorno se ne accumulerebbe uno accanto all'altro */
+    var wxVecchio = $('plDayWx');
+    if (wxVecchio && wxVecchio.parentNode) wxVecchio.parentNode.removeChild(wxVecchio);
     if (S.view === 'month') {
         // nella vista mese il giorno non ha senso: si guarda il mese intero
         $('plDayNum').textContent = '';
@@ -573,6 +784,17 @@ function renderWeekBits() {
     } else {
         $('plDayNum').textContent = String(d.getDate());
         $('plDayWd').textContent = GIORNI[dowIndex(S.focusDate)];
+        /* Con un giorno solo il meteo si appoggia qui, accanto al nome del
+           giorno: è l'unico posto dove si vede sempre. Sta *fuori* dal
+           pulsante del giorno e non dentro: un tasto dentro un altro tasto
+           confonde i lettori di schermo e rende ambiguo il tocco. */
+        var wtop = wxTag(S.focusDate);
+        if (wtop) {
+            wtop.id = 'plDayWx';
+            wtop.classList.add('pl-day-wx');
+            var btn = $('plDayBtn');
+            btn.parentNode.insertBefore(wtop, btn.nextSibling);
+        }
     }
     $('plTodayBtn').textContent = String(parseIso(S.today).getDate());
     $('plWeekN').textContent = S.week.number || 1;
@@ -904,7 +1126,7 @@ function summaryDiary(d) {
 /* ------------------------------------------------------------------ */
 /* Meteo (Open-Meteo, dati CC BY 4.0)                                  */
 /* ------------------------------------------------------------------ */
-var WX = { on: false, giorni: {}, place: null, fonte: null, fonte_url: null, nota: null };
+var WX = { on: false, giorni: {}, adesso: null, place: null, lat: null, lon: null, fonte: null, fonte_url: null, nota: null };
 
 var WX_ICONE = {
     'sole':            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>',
@@ -937,13 +1159,20 @@ function wxApply(r) {
     if (!r || !r.ok) return;
     WX.on = !!r.enabled;
     WX.giorni = r.giorni || {};
-    WX.place = r.place || null;
+    WX.adesso = r.adesso || null;
+    /* La posizione arriva quando si accende il meteo; se un aggiornamento
+       successivo non la ripete, quella di prima resta buona invece di
+       sparire dal popup. */
+    if (r.place) WX.place = r.place;
+    if (r.lat !== undefined && r.lat !== null) { WX.lat = r.lat; WX.lon = r.lon; }
     WX.fonte = r.fonte || null;
     WX.fonte_url = r.fonte_url || null;
     if (r.nota_affidabilita) WX.nota = r.nota_affidabilita;
     $('plWeatherBtn').classList.toggle('pl-weather-on', WX.on);
-    renderDays();
-    if (S.view === 'month') renderMonth();
+    /* scena, tag del giorno e tag nella colonna degli orari: renderDays() da
+       solo non li tocca tutti, e appena acceso il meteo i gradi orari
+       comparivano solo al ridisegno dopo */
+    wxRedraw();
 }
 
 function wxLoad() {
@@ -958,20 +1187,245 @@ function wxTag(date) {
     var b = el('button', 'pl-wx' + wxClasse(g.icon));
     b.type = 'button';
     b.innerHTML = WX_ICONE[g.icon] || WX_ICONE.nubi;
-    if (g.tmax !== null && g.tmax !== undefined) b.appendChild(el('span', null, g.tmax + '°'));
-    b.setAttribute('aria-label', g.label);
+    var t = wxTagTesto(date, g);
+    if (t) b.appendChild(el('span', null, t));
+    b.setAttribute('aria-label', g.label + (t ? ' · ' + t : ''));
     b.addEventListener('click', function (e) { e.stopPropagation(); wxPopup(date); });
     return b;
+}
+
+/* I gradi accanto all'icona. Guardando un giorno solo c'è posto per dire
+   tutto: su oggi prima quanto fa adesso e poi la forbice della giornata, sugli
+   altri giorni la forbice e basta. Con più giorni davanti i tag stanno in fila
+   e resta spazio per un numero solo, che è la massima. */
+function wxTagTesto(date, g) {
+    var pezzi = [];
+    var uno = visibleDays() === 1 && S.view !== 'month';
+    if (uno && date === S.today && WX.adesso
+        && WX.adesso.temp !== null && WX.adesso.temp !== undefined) {
+        pezzi.push(WX.adesso.temp + '°');
+    }
+    var min = g.tmin, max = g.tmax;
+    if (uno && min !== null && min !== undefined && max !== null && max !== undefined) {
+        pezzi.push(min + '/' + max + '°');
+    } else if (max !== null && max !== undefined) {
+        pezzi.push(max + '°');
+    }
+    return pezzi.join(' · ');
+}
+
+/* L'indice UV da solo non dice niente: 7 è tanto o poco? */
+function wxUvTesto(uv) {
+    if (uv === null || uv === undefined) return null;
+    if (uv < 3) return 'basso';
+    if (uv < 6) return 'moderato';
+    if (uv < 8) return 'alto';
+    if (uv < 11) return 'molto alto';
+    return 'estremo';
+}
+/* minuti → "6 h 20 min": più leggibile di 380 */
+function wxDurata(min) {
+    if (min === null || min === undefined) return null;
+    var h = Math.floor(min / 60), m = min % 60;
+    if (!h) return m + ' min';
+    return h + ' h' + (m ? ' ' + m + ' min' : '');
+}
+
+/* La striscia ora per ora. Per oggi parte dall'ora corrente: le ore già
+   passate occuperebbero il posto migliore per niente. */
+/* ------------------------------------------------------------------ */
+/* Il grafico ora per ora                                              */
+/* ------------------------------------------------------------------ */
+/* Una striscia di caselle diceva i numeri ma non l'andamento: per capire se
+   la giornata si sta scaldando o raffreddando bisognava leggerli tutti e
+   confrontarli a mente. La curva lo dice a colpo d'occhio, e i numeri
+   restano lì sotto per chi li vuole.
+
+   Ci sono tutte le ventiquattro ore, non solo quelle che restano: si scorre
+   in orizzontale, e aprendo il popup su oggi la vista si porta da sé
+   sull'ora corrente. */
+var WXC = { w: 54, h: 84, pad: 13 };
+
+function wxGrafico(g, date) {
+    if (!g.ore || !g.ore.length) return null;
+    var ore = g.ore, W = WXC.w, H = WXC.h;
+    var largh = ore.length * W;
+    var oraBase = parseInt(ore[0].h, 10) || 0;
+    var adesso = date === S.today ? new Date().getHours() : -1;
+
+    /* la scala verticale si adatta alla giornata: con l'escursione di un
+       giorno d'agosto schiacciata su un asse fisso 0–40 la curva sarebbe
+       piatta e non racconterebbe niente */
+    var temp = ore.map(function (o) { return o.t; }).filter(function (t) { return t !== null && t !== undefined; });
+    var tMin = Math.min.apply(null, temp), tMax = Math.max.apply(null, temp);
+    if (!temp.length) { tMin = 0; tMax = 1; }
+    if (tMax - tMin < 3) { tMax = tMin + 3; }   // giornate senza sbalzi: un minimo di respiro
+
+    function xDi(i) { return i * W + W / 2; }
+    function yDi(t) { return H - WXC.pad - ((t - tMin) / (tMax - tMin)) * (H - WXC.pad * 2); }
+
+    /* `pl-wxh` resta il nome di fuori: è quello che lo sfoglia-giorni del
+       popup riconosce per non rubare lo scorrimento orizzontale a questo. */
+    var box = el('div', 'pl-wxh pl-wxc');
+    var dentro = el('div', 'pl-wxc-in');
+    dentro.style.width = largh + 'px';
+
+    /* --- riga di sopra: ora e icona --- */
+    var su = el('div', 'pl-wxc-riga');
+    ore.forEach(function (o, i) {
+        var c = el('div', 'pl-wxc-cell' + (parseInt(o.h, 10) === adesso ? ' pl-ora' : ''));
+        c.style.width = W + 'px';
+        c.appendChild(el('div', 'pl-wxc-h', parseInt(o.h, 10) === adesso ? 'ADESSO' : parseInt(o.h, 10) + ''));
+        var ic = el('div', 'pl-wxc-ic' + wxClasse(o.i));
+        ic.innerHTML = WX_ICONE[o.i] || WX_ICONE.nubi;
+        c.appendChild(ic);
+        su.appendChild(c);
+    });
+    dentro.appendChild(su);
+
+    /* --- la curva --- */
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'pl-wxc-svg');
+    svg.setAttribute('width', largh);
+    svg.setAttribute('height', H);
+    svg.setAttribute('viewBox', '0 0 ' + largh + ' ' + H);
+
+    /* Le etichette di alba e tramonto stanno in un contenitore insieme alla
+       curva, non nel grafico intero: appese in cima a tutto finirebbero
+       sopra i nomi delle ore. */
+    var area = el('div', 'pl-wxc-area');
+
+    function tag(nome, attrs) {
+        var n = document.createElementNS('http://www.w3.org/2000/svg', nome);
+        Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+        return n;
+    }
+
+    var punti = [];
+    ore.forEach(function (o, i) {
+        svg.appendChild(tag('line', { x1: xDi(i), y1: 0, x2: xDi(i), y2: H, class: 'pl-wxc-guida' }));
+        if (o.t === null || o.t === undefined) return;
+        punti.push({ x: xDi(i), y: yDi(o.t), i: i });
+    });
+
+    /* Alba e tramonto: una riga tratteggiata dove cadono davvero, non
+       incollata all'ora più vicina — un tramonto alle 20:41 non è alle 21. */
+    [['alba', g.alba, 'Alba'], ['tramonto', g.tramonto, 'Tramonto']].forEach(function (v) {
+        if (!v[1]) return;
+        var x = (toMin(v[1]) / 60 - oraBase) * W + W / 2;
+        if (x < 0 || x > largh) return;
+        svg.appendChild(tag('line', { x1: x, y1: 0, x2: x, y2: H, class: 'pl-wxc-sole pl-wxc-' + v[0] }));
+        var et = el('div', 'pl-wxc-et pl-wxc-et-' + v[0], (v[0] === 'alba' ? '↑ ' : '↓ ') + v[1]);
+        et.style.left = x + 'px';
+        area.appendChild(et);
+    });
+
+    if (punti.length > 1) {
+        /* curva morbida: ogni tratto è una cubica con le maniglie a metà
+           strada, che è il modo più semplice per non avere spigoli sui punti */
+        var d = 'M' + punti[0].x + ',' + punti[0].y.toFixed(1);
+        for (var k = 1; k < punti.length; k++) {
+            var a = punti[k - 1], b = punti[k], mx = (a.x + b.x) / 2;
+            d += ' C' + mx + ',' + a.y.toFixed(1) + ' ' + mx + ',' + b.y.toFixed(1)
+               + ' ' + b.x + ',' + b.y.toFixed(1);
+        }
+        svg.appendChild(tag('path', { d: d, class: 'pl-wxc-curva' }));
+    }
+    punti.forEach(function (p) {
+        svg.appendChild(tag('circle', {
+            cx: p.x, cy: p.y.toFixed(1), r: ore[p.i] && parseInt(ore[p.i].h, 10) === adesso ? 5 : 3.6,
+            class: 'pl-wxc-punto'
+        }));
+    });
+    area.appendChild(svg);
+    dentro.appendChild(area);
+
+    /* --- riga di sotto: gradi e pioggia --- */
+    var giu = el('div', 'pl-wxc-riga');
+    ore.forEach(function (o) {
+        var c = el('div', 'pl-wxc-cell' + (parseInt(o.h, 10) === adesso ? ' pl-ora' : ''));
+        c.style.width = W + 'px';
+        c.appendChild(el('div', 'pl-wxc-t', (o.t !== null && o.t !== undefined) ? o.t + '°' : '—'));
+        /* la probabilità si scrive solo quando c'è: una colonna di zeri
+           riempirebbe il grafico di rumore */
+        c.appendChild(el('div', 'pl-wxc-p', o.p ? o.p + '%' : ''));
+        c.title = o.l + (o.ap !== null && o.ap !== undefined ? ' · percepiti ' + o.ap + '°' : '')
+                + (o.v !== null && o.v !== undefined ? ' · vento ' + o.v + ' km/h' : '')
+                + (o.u !== null && o.u !== undefined ? ' · umidità ' + o.u + '%' : '');
+        giu.appendChild(c);
+    });
+    dentro.appendChild(giu);
+
+    box.appendChild(dentro);
+    /* su oggi si parte da adesso, ma indietro si può tornare: le ore passate
+       ci sono tutte, semplicemente non sono quelle che interessano per prime */
+    if (adesso >= 0) {
+        setTimeout(function () {
+            box.scrollLeft = Math.max(0, (adesso - oraBase) * W - W);
+        }, 0);
+    }
+    return box;
+}
+
+/* Su quale posto è calcolata la previsione. Il nome se il server è riuscito
+   a trovarlo, altrimenti le coordinate: sono meno belle da leggere ma sono
+   pur sempre una risposta, e "non lo so" non lo è. */
+function wxDove() {
+    if (WX.place) return WX.place;
+    if (WX.lat !== null && WX.lat !== undefined && WX.lon !== null && WX.lon !== undefined) {
+        return WX.lat.toFixed(2).replace('.', ',') + ' / ' + WX.lon.toFixed(2).replace('.', ',');
+    }
+    return null;
+}
+
+/* Un giorno avanti o indietro dentro il popup del meteo: si riscrive il
+   contenuto di quello aperto invece di impilarne un secondo sopra. */
+function wxVaiA(date, passo) {
+    var nuovo = addDays(date, passo);
+    if (!WX.giorni[nuovo]) return;
+    wxPopup(nuovo);
 }
 
 function wxPopup(date) {
     var g = WX.giorni[date];
     if (!g) return;
     var d = parseIso(date);
-    openSheet('Meteo', function (body) {
-        body.appendChild(el('div', 'pl-label',
-            GIORNI[dowIndex(date)] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()
-            + (WX.place ? '  ·  ' + WX.place : '')));
+    openSheet('Meteo', function (root) {
+        /* Tutto dentro un contenitore nostro invece che direttamente nel
+           corpo del popup: gli ascoltatori dello scorrimento se ne vanno con
+           lui quando il contenuto si riscrive, e non si accumulano a ogni
+           giorno sfogliato. */
+        var body = el('div', 'pl-wx-sheet');
+        root.appendChild(body);
+
+        /* Che giorno è e su quale posto è calcolata: senza, la previsione è
+           un numero che non si sa a cosa si riferisca. Le frecce servono su
+           computer, dove lo scorrimento con il dito non c'è. */
+        var testa = el('div', 'pl-wx-nav');
+        var prima = el('button', 'pl-wx-nav-b');
+        prima.type = 'button';
+        prima.setAttribute('aria-label', 'Giorno precedente');
+        prima.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+        var dopo = el('button', 'pl-wx-nav-b');
+        dopo.type = 'button';
+        dopo.setAttribute('aria-label', 'Giorno successivo');
+        dopo.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+        prima.disabled = !WX.giorni[addDays(date, -1)];
+        dopo.disabled  = !WX.giorni[addDays(date, 1)];
+        prima.addEventListener('click', function () { wxVaiA(date, -1); });
+        dopo.addEventListener('click', function () { wxVaiA(date, 1); });
+        testa.appendChild(prima);
+        testa.appendChild(el('div', 'pl-label',
+            GIORNI[dowIndex(date)] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()));
+        testa.appendChild(dopo);
+        body.appendChild(testa);
+
+        /* La posizione su una riga sua e non appesa alla data: infilata lì in
+           mezzo alle frecce spariva, ed era proprio la cosa che serviva
+           sapere per fidarsi del numero dei gradi. */
+        var dove = wxDove();
+        body.appendChild(el('div', 'pl-wx-dove', dove ? 'previsione per ' + dove
+                                                     : 'posizione non disponibile'));
 
         var big = el('div', 'pl-row');
         big.style.margin = '10px 0 14px';
@@ -985,17 +1439,51 @@ function wxPopup(date) {
             txt.appendChild(el('div', 'pl-row-sub',
                 'massima ' + g.tmax + '°' + (g.tmin !== null ? ', minima ' + g.tmin + '°' : '')));
         }
+        if (g.percepita_max !== null && g.percepita_max !== undefined) {
+            txt.appendChild(el('div', 'pl-row-sub',
+                'percepiti ' + g.percepita_max + '°'
+                + (g.percepita_min !== null && g.percepita_min !== undefined ? ' / ' + g.percepita_min + '°' : '')));
+        }
         big.appendChild(txt);
         body.appendChild(big);
 
+        /* Adesso: ha senso solo sul giorno di oggi, altrove sarebbe un dato
+           che parla di un altro giorno. */
+        if (date === S.today && WX.adesso && WX.adesso.temp !== null) {
+            var ora = el('div', 'pl-wx-now' + wxClasse(WX.adesso.icon));
+            var oIco = el('span', 'pl-wx-now-ic');
+            oIco.innerHTML = WX_ICONE[WX.adesso.icon] || WX_ICONE.nubi;
+            ora.appendChild(oIco);
+            var pezzi = ['adesso ' + WX.adesso.temp + '°'];
+            if (WX.adesso.percepita !== null && WX.adesso.percepita !== undefined) pezzi.push('percepiti ' + WX.adesso.percepita + '°');
+            if (WX.adesso.vento !== null && WX.adesso.vento !== undefined) pezzi.push(WX.adesso.vento + ' km/h');
+            if (WX.adesso.umidita !== null && WX.adesso.umidita !== undefined) pezzi.push('umidità ' + WX.adesso.umidita + '%');
+            ora.appendChild(el('span', null, WX.adesso.label + ' · ' + pezzi.join(' · ')));
+            body.appendChild(ora);
+        }
+
+        var strip = wxGrafico(g, date);
+        if (strip) {
+            body.appendChild(el('div', 'pl-label', 'Ora per ora'));
+            body.appendChild(strip);
+        }
+
         function riga(k, v) {
+            if (v === null || v === undefined || v === '') return;
             var r = el('div', 'pl-row-sb');
             r.appendChild(el('span', 'pl-row-lab', k));
             r.appendChild(el('span', 'pl-row-sub', v));
             body.appendChild(r);
         }
-        if (g.pioggia !== null && g.pioggia !== undefined) riga('Probabilità di pioggia', g.pioggia + '%');
-        if (g.vento !== null && g.vento !== undefined) riga('Vento massimo', g.vento + ' km/h');
+        riga('Probabilità di pioggia', (g.pioggia !== null && g.pioggia !== undefined) ? g.pioggia + '%' : null);
+        riga('Pioggia prevista', (g.pioggia_mm !== null && g.pioggia_mm !== undefined && g.pioggia_mm > 0)
+            ? g.pioggia_mm + ' mm' + (g.pioggia_ore ? ' in ' + g.pioggia_ore + (g.pioggia_ore === 1 ? ' ora' : ' ore') : '') : null);
+        riga('Vento massimo', (g.vento !== null && g.vento !== undefined)
+            ? g.vento + ' km/h' + (g.vento_da ? ' da ' + g.vento_da : '') : null);
+        riga('Raffiche fino a', (g.raffiche !== null && g.raffiche !== undefined) ? g.raffiche + ' km/h' : null);
+        riga('Indice UV', (g.uv !== null && g.uv !== undefined) ? g.uv + ' (' + wxUvTesto(g.uv) + ')' : null);
+        riga('Alba e tramonto', g.alba && g.tramonto ? g.alba + ' — ' + g.tramonto : null);
+        riga('Ore di sole', wxDurata(g.sole_min));
         riga('Attendibilità stimata', g.affidabilita + '%');
 
         if (WX.nota) {
@@ -1021,29 +1509,45 @@ function wxPopup(date) {
         off.type = 'button';
         off.style.marginTop = '18px';
         off.addEventListener('click', function () {
-            wxCall('disable', {}).then(function () {
-                WX.on = false; WX.giorni = {};
-                $('plWeatherBtn').classList.remove('pl-weather-on');
-                closeOv('plSheetOv');
-                renderDays();
-                if (S.view === 'month') renderMonth();
-                toast('Meteo disattivato.');
-            });
+            /* Si spegne subito e si avvisa il server dopo. Aspettando la
+               risposta, tag e animazione restavano in vista per tutto il
+               tempo del giro in rete: spegnere una cosa deve sembrare
+               immediato, perché la decisione è già stata presa. */
+            WX.on = false; WX.giorni = {}; WX.adesso = null;
+            $('plWeatherBtn').classList.remove('pl-weather-on');
+            closeOv('plSheetOv');
+            wxRedraw();   // tornano l'albero e la bestia del mese
+            wxCall('disable', {}).then(function () { toast('Meteo disattivato.'); });
         });
         body.appendChild(off);
+
+        /* Scorrimento orizzontale per sfogliare i giorni. La striscia ora per
+           ora scorre già per conto suo in orizzontale: se il dito parte da lì
+           il gesto è suo, e rubarglielo renderebbe la striscia inservibile. */
+        var sx = 0, sy = 0, vivo = false;
+        body.addEventListener('pointerdown', function (e) {
+            vivo = !(e.target.closest && e.target.closest('.pl-wxh'));
+            sx = e.clientX; sy = e.clientY;
+        });
+        body.addEventListener('pointerup', function (e) {
+            if (!vivo) return;
+            vivo = false;
+            var dx = e.clientX - sx, dy = e.clientY - sy;
+            /* più orizzontale che verticale, se no si cambierebbe giorno
+               ogni volta che si scorre il popup per leggerlo fino in fondo */
+            if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+            wxVaiA(date, dx < 0 ? 1 : -1);
+        });
     });
 }
 
 $('plWeatherBtn').addEventListener('click', function () {
     if (WX.on) {
         /* il tasto accende e spegne: le informazioni si aprono dai tag */
-        wxCall('disable', {}).then(function () {
-            WX.on = false; WX.giorni = {};
-            $('plWeatherBtn').classList.remove('pl-weather-on');
-            renderDays();
-            if (S.view === 'month') renderMonth();
-            toast('Meteo disattivato.');
-        });
+        WX.on = false; WX.giorni = {}; WX.adesso = null;
+        $('plWeatherBtn').classList.remove('pl-weather-on');
+        wxRedraw();
+        wxCall('disable', {}).then(function () { toast('Meteo disattivato.'); });
         return;
     }
     if (!navigator.geolocation) { toast('Questo browser non sa dire la posizione.'); return; }
@@ -1449,7 +1953,16 @@ function prioOf(date) {
 function renderPrio() {
     var host = $('plPrioRows');
     if (!host) return;
-    var data = prioOf(S.focusDate);
+    renderPrioInto(host, S.focusDate);
+    $('plPrio').classList.toggle('pl-slim', S.prioSlim);
+    syncScrollerTop();
+}
+
+/* Il disegno vero e proprio sta qui, staccato dal nodo fisso della pagina:
+   serve anche per la pagina del giorno vicino che entra con lo scorrimento,
+   che ha le sue caselle e non può usare quelle in uso adesso. */
+function renderPrioInto(host, giorno) {
+    var data = prioOf(giorno);
     host.innerHTML = '';
 
     var cells = [];
@@ -1481,8 +1994,6 @@ function renderPrio() {
         for (var c = r; c < Math.min(r + 2, shown.length); c++) row.appendChild(prioCell(shown[c]));
         host.appendChild(row);
     }
-    $('plPrio').classList.toggle('pl-slim', S.prioSlim);
-    syncScrollerTop();
 }
 
 function prioCell(data) {
@@ -1571,6 +2082,9 @@ function buildTrack() {
     });
     renderGutter();
     renderDays();
+    /* ruotando il telefono si passa da uno a più giorni: la scena del meteo
+       vale solo con un giorno solo, quindi va rivalutata qui */
+    applyAmbient();
     scrollToDate(S.focusDate, false);
 }
 
@@ -1599,9 +2113,12 @@ function buildHeadTrack() {
                 lab.appendChild(el('span', 'pl-col-num pl-serif', String(d.getDate())));
                 lab.appendChild(el('span', 'pl-col-wd', GIORNI[dowIndex(ds)].slice(0, 3)));
                 cell.appendChild(lab);
+                /* Il meteo sta qui solo quando i giorni sono più d'uno: con un
+                   giorno solo la striscia spesso non compare nemmeno, e il tag
+                   va accanto alla scritta del giorno nella barra in alto. */
+                var wt = wxTag(ds);
+                if (wt) cell.appendChild(wt);
             }
-            var wt = wxTag(ds);
-            if (wt) cell.appendChild(wt);
             cell.appendChild(el('div', 'pl-hcol-ad'));   // eventi di tutto il giorno
             track.appendChild(cell);
         }
@@ -1637,6 +2154,64 @@ function renderGutter() {
         lab.style.top = (HEAD_H + m * pxMin()) + 'px';
         g.appendChild(lab);
     }
+    renderGutterMeteo(g, S.focusDate);
+}
+
+/* Il tag della previsione sotto l'orario, nella colonna delle ore: sotto le
+   8 che tempo fa alle 8, sotto le 9 che tempo fa alle 9. Vale solo con un
+   giorno davanti — la colonna degli orari è una sola e con più giorni
+   racconterebbe il tempo di uno spacciandolo per quello di tutti.
+
+   Sta in una funzione a sé, e non dentro il ciclo degli orari, perché il
+   meteo cambia molto più spesso dello scatto: rifare tutte le etichette a
+   ogni ridisegno vorrebbe dire ricostruire fino a trecento nodi per
+   aggiornarne ventiquattro. */
+function renderGutterMeteo(host, date) {
+    host = host || $('plGutter');
+    if (!host) return;
+    /* la copia usata dal cambio giorno è il contenitore esterno */
+    if (!host.classList.contains('pl-gutter-canvas')) {
+        host = host.querySelector('.pl-gutter-canvas');
+        if (!host) return;
+    }
+    var vecchi = host.querySelectorAll('.pl-wxg');
+    for (var k = 0; k < vecchi.length; k++) vecchi[k].parentNode.removeChild(vecchi[k]);
+
+    if (!WX.on || isAgenda() || visibleDays() >= 2) return;
+    date = date || S.focusDate;
+    var g = WX.giorni[date];
+    if (!g || !g.ore || !g.ore.length) return;
+
+    var z = zoomCfg(S.zoom), px = pxMin();
+    /* Ogni quante ore mettere un tag. Due condizioni: che ci stia (sotto i
+       26 px si sovrappongono) e che accanto ci sia davvero un orario scritto,
+       perché un tag appeso al nulla non si capisce a che ora si riferisce. */
+    var passo = Math.max(1, Math.ceil(26 / (60 * px)), Math.ceil(z.slot / 60));
+
+    var perOra = {};
+    g.ore.forEach(function (o) { perOra[parseInt(o.h, 10)] = o; });
+
+    for (var h = 0; h < 24; h += passo) {
+        var o = perOra[h];
+        if (!o) continue;
+        var b = el('button', 'pl-wxg' + wxClasse(o.i));
+        b.type = 'button';
+        var ic = el('span', 'pl-wxg-ic');
+        ic.innerHTML = WX_ICONE[o.i] || WX_ICONE.nubi;
+        b.appendChild(ic);
+        /* Con gli scatti da 5 minuti gli orari sono uno ogni 26 px e i gradi
+           finiscono addosso a quello dopo: resta la sola icona, che dice già
+           che tempo fa. Con tutti gli altri scatti lo spazio c'è. */
+        if (z.slot > 5 && o.t !== null && o.t !== undefined) b.appendChild(el('span', 'pl-wxg-t', o.t + '°'));
+        b.style.top = (HEAD_H + h * 60 * px + 6) + 'px';
+        b.setAttribute('aria-label', (o.l || '') + ' alle ' + h);
+        b.dataset.wxDate = date;
+        b.addEventListener('click', function (e) {
+            e.stopPropagation();
+            wxPopup(this.dataset.wxDate);
+        });
+        host.appendChild(b);
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1671,9 +2246,12 @@ function renderAllDay() {
         list.forEach(function (ev) { box.appendChild(buildEvent(ev, true)); });
         if (list.length && ds >= firstVisible && ds <= lastVisible) anyAllDay = true;
     }
-    /* la striscia resta solo se ha davvero qualcosa da mostrare: le etichette
-       dei giorni (schermi larghi) o un evento di tutto il giorno qui davanti */
-    row.classList.toggle('pl-hidden', isAgenda() || (!many && !anyAllDay));
+    /* La striscia resta solo se ha davvero qualcosa da mostrare: le etichette
+       dei giorni (schermi larghi) o un evento di tutto il giorno qui davanti.
+       Nella vista a lista gli eventi di tutto il giorno stanno in mezzo agli
+       altri, ma con più giorni affiancati l'etichetta serve eccome: senza, si
+       vedono tre elenchi e nessuno dice a che giorno appartiene. */
+    row.classList.toggle('pl-hidden', isAgenda() ? !many : (!many && !anyAllDay));
     row.classList.toggle('pl-noad', !anyAllDay);
     syncScrollerTop();
 }
@@ -1688,6 +2266,11 @@ function renderDays() {
     var z = zoomCfg(S.zoom);
     var cols = document.querySelectorAll('.pl-col[data-date]');
     for (var i = 0; i < cols.length; i++) renderCol(cols[i], z);
+    renderGutterMeteo(null, S.focusDate);
+    /* Il controllo della rotellina si fa qui, cioè sempre: era l'unico modo
+       per essere certi che non resti in vista dopo un passaggio da "lista",
+       qualunque strada abbia preso il cambio di scatto. */
+    refreshZoomDial();
     renderAllDay();
     renderWeekPanel();
     renderRing();
@@ -1775,13 +2358,25 @@ function renderCol(col, z) {
         item._start = s; item._end = e;
     });
 
+    /* Gli eventi troppo bassi per mostrare il titolo cambiano forma prima di
+       spartirsi lo spazio: un gruppo compattato copre il tempo di tutti i
+       suoi eventi e alle corsie deve presentarsi come uno solo. */
+    render = compattaMini(render);
+
     /* Chi si accavalla si divide lo spazio invece di coprirsi: raggruppiamo
        gli eventi che si toccano nel tempo e diamo a ciascuno la sua colonnina. */
     layoutOverlaps(render);
 
     render.forEach(function (item) {
+        if (item.miniGroup) {
+            var gn = buildMiniGroup(item.miniGroup, item._start, item._end);
+            applyLane(gn, item);
+            canvas.appendChild(gn);
+            return;
+        }
         if (item.ev) {
-            var n = positioned(buildEvent(item.ev), item.ev.start, item.ev.end);
+            var n = item.mini ? buildMiniEvent(item.ev)
+                              : positioned(buildEvent(item.ev), item.ev.start, item.ev.end);
             applyLane(n, item);
             canvas.appendChild(n);
             return;
@@ -1865,42 +2460,295 @@ function canFoldRoutine(items) {
 /* Sotto il titolo del blocco compatto: l'elenco dei passaggi per esteso se
    c'è spazio, altrimenti una riga sola che scorre da sé avanti e indietro. */
 function addRoutinePreview(node, items, heightPx) {
-    if (isAgenda() || heightPx < 30) return;
-    var perLine = 13;
-    var roomLines = Math.floor((heightPx - 30) / perLine);
+    var righe = items.map(function (x, i) {
+        return (i + 1) + '. ' + x.title + ' (' + (toMin(x.end) - toMin(x.start)) + ')';
+    });
+    /* i 30 pixel riservati sono il nome della routine più la sua riga di
+       orario: quello spazio è già occupato e ai passaggi non resta */
+    addPreviewLines(node, righe, heightPx, 30);
+}
 
-    if (roomLines >= items.length) {
+/* Le righe di dettaglio dentro un blocco compatto. Sapeva farle solo la
+   routine, ma il blocco che raccoglie gli eventi bassi ha lo stesso identico
+   problema (starci per esteso oppure scorrere), quindi chi chiama passa le
+   righe già scritte e i pixel già occupati in cima. */
+function addPreviewLines(node, righe, heightPx, riservato) {
+    if (isAgenda() || heightPx < riservato) return;
+    var perLine = 13;
+    var roomLines = Math.floor((heightPx - riservato) / perLine);
+
+    if (roomLines >= righe.length) {
         var box = el('div', 'pl-ev-sub');
-        items.forEach(function (x, i) {
-            box.appendChild(el('div', null, (i + 1) + '. ' + x.title
-                + ' (' + (toMin(x.end) - toMin(x.start)) + ')'));
+        righe.forEach(function (t) {
+            /* anche qui niente puntini: la riga che non ci sta scorre, come
+               il titolo dei blocchi. Le misure finiscono nella stessa coda,
+               quindi restano un calcolo di layout solo per fotogramma. */
+            var riga = el('div', 'pl-ev-riga');
+            var dentro = el('span', null, t);
+            riga.appendChild(dentro);
+            box.appendChild(riga);
+            misuraStriscia(riga, dentro);
         });
         node.appendChild(box);
         return;
     }
 
-    var text = items.map(function (x, i) {
-        return (i + 1) + '. ' + x.title + ' (' + (toMin(x.end) - toMin(x.start)) + ')';
-    }).join('; ');
-
     var strip = el('div', 'pl-ev-strip');
-    var span = el('span', null, text);
+    var span = el('span', null, righe.join('; '));
     strip.appendChild(span);
     node.appendChild(strip);
 
     /* la riga parte ferma, scorre fino in fondo, si ferma di nuovo e torna.
        Toccandola si può scorrere a mano: in quel caso l'andirivieni si spegne. */
-    requestAnimationFrame(function () {
-        var over = span.scrollWidth - strip.clientWidth;
-        if (over <= 4) return;
-        strip.style.setProperty('--shift', over + 'px');
-        strip.style.setProperty('--dur', Math.max(9, Math.round(over / 14) + 7) + 's');
-        strip.classList.add('pl-run');
-    });
+    misuraStriscia(strip, span);
     strip.addEventListener('pointerdown', function () { strip.classList.remove('pl-run'); });
 
     /* lo scorrimento a mano non deve trascinare via il giorno o le ore */
     strip.addEventListener('touchmove', function (e) { e.stopPropagation(); }, { passive: true });
+}
+
+/* Quanto deborda il testo si sa solo misurandolo, e misurare costa un
+   ricalcolo del layout. Con gli scatti larghi le strisce da misurare in un
+   ridisegno diventano parecchie, quindi si accodano tutte a un solo
+   fotogramma e lì si fanno prima tutte le letture e poi tutte le scritture:
+   alternandole, il browser rifarebbe i conti a ogni giro. */
+var stripPending = [], stripRaf = 0;
+function misuraStriscia(strip, span) {
+    stripPending.push({ strip: strip, span: span });
+    if (stripRaf) return;
+    stripRaf = requestAnimationFrame(function () {
+        stripRaf = 0;
+        var lista = stripPending; stripPending = [];
+        var over = lista.map(function (p) { return p.span.scrollWidth - p.strip.clientWidth; });
+        lista.forEach(function (p, i) {
+            if (over[i] <= 4) return;    // ci sta tutto, o è un nodo già buttato via
+            p.strip.style.setProperty('--shift', over[i] + 'px');
+            p.strip.style.setProperty('--dur', Math.max(9, Math.round(over[i] / 14) + 7) + 's');
+            p.strip.classList.add('pl-run');
+        });
+    });
+}
+
+/* ------------------------------------------------------------------ */
+/* Eventi troppo bassi per il proprio titolo (compattamento a vista)   */
+/* ------------------------------------------------------------------ */
+/* Con scatti fitti un evento da 15 minuti si legge benissimo; con scatti da
+   un'ora o da tre diventa una lineetta schiacciata che sporge sul vicino,
+   perché il blocco ha comunque un'altezza minima. Qui sotto la soglia gli
+   eventi cambiano veste: uno solo diventa un tastino, più d'uno vicino
+   diventa un blocco unico con l'elenco dentro.
+
+   Vale solo per il disegno: nel database non cambia niente e rizoomando gli
+   eventi tornano separati com'erano. */
+
+/* Tarato sui due casi indicati: scatti da 30 minuti, evento da 15 → 22 px e
+   il titolo si legge ancora; scatti da un'ora, stesso evento → 11,5 px e non
+   si legge più. Il titolo occupa una riga da ~16 px più i 10 px di
+   imbottitura del blocco, quindi qualunque valore fra i due estremi rispetta
+   entrambi i casi: 20 sta appena sotto quello che ancora si legge. */
+var MINI_ALTEZZA = 20;
+
+/* Due eventi bassi si uniscono solo se sono vicini *sullo schermo*: la
+   distanza si misura in pixel e non in minuti, perché è la scala a decidere
+   se fra due blocchi resta un buco visibile oppure no. */
+var MINI_STACCO = 12;
+
+/* Il blocco che li raccoglie non può essere più basso di una riga di testo,
+   anche quando gli eventi dentro durano in tutto pochi minuti. */
+var MINI_GRUPPO_H = 24;
+
+function evAltezzaPx(ev) {
+    var s = toMin(ev.start), e = Math.max(toMin(ev.end), s + 5);
+    return (e - s) * pxMin();
+}
+
+/* Riscrive l'elenco da disegnare sostituendo gli eventi bassi con la loro
+   forma compatta. Va chiamata prima di spartire le corsie: un gruppo occupa
+   il tempo di tutti i suoi eventi e deve contare come uno solo. */
+function compattaMini(render) {
+    /* in elenco non c'è una scala e il problema non esiste; durante la scelta
+       per ritardo/anticipo servono le caselline dei singoli eventi, quindi lì
+       si preferisce la vista schiacciata a una selezione che non si può fare */
+    if (isAgenda() || S.shift.on) return render;
+
+    var bassi = [], altri = [];
+    render.forEach(function (item) {
+        if (item.ev && evAltezzaPx(item.ev) < MINI_ALTEZZA) bassi.push(item.ev);
+        else altri.push(item);
+    });
+    if (!bassi.length) return render;
+
+    bassi.sort(function (a, b) { return toMin(a.start) - toMin(b.start); });
+
+    var gruppi = [], corrente = null, fine = 0;
+    bassi.forEach(function (ev) {
+        var s = toMin(ev.start), e = Math.max(toMin(ev.end), s + 5);
+        if (corrente && (s - fine) * pxMin() <= MINI_STACCO) {
+            corrente.push(ev);
+            fine = Math.max(fine, e);
+        } else {
+            corrente = [ev];
+            gruppi.push(corrente);
+            fine = e;
+        }
+    });
+
+    gruppi.forEach(function (g) {
+        if (g.length === 1) { altri.push({ ev: g[0], mini: true }); return; }
+        var s = 1440, e = 0;
+        g.forEach(function (x) {
+            var xs = toMin(x.start);
+            s = Math.min(s, xs);
+            e = Math.max(e, Math.max(toMin(x.end), xs + 5));
+        });
+        altri.push({ miniGroup: g, _start: s, _end: e });
+    });
+    return altri;
+}
+
+/* La riga che descrive un evento quando il suo titolo non ci sta: è la stessa
+   nell'elenco dentro il blocco e nel popup, così si legge la stessa cosa nei
+   due posti. */
+function miniRiga(ev, soloOrario) {
+    var d = Math.max(5, toMin(ev.end) - toMin(ev.start));
+    return (soloOrario ? '' : ((ev.title || 'Senza titolo') + ' · '))
+        + ev.start + ' – ' + ev.end + ' · ' + wxDurata(d);
+}
+
+/* Evento basso e isolato: resta alto quanto i suoi minuti — senza altezza
+   minima, che è proprio quella che gli faceva coprire il vicino — e perde il
+   titolo, che sarebbe comunque tagliato a metà. Al suo posto un tastino, che
+   non rischia di affollare la giornata: se gli eventi bassi fossero più
+   d'uno verrebbero compattati e il tastino non comparirebbe. */
+function buildMiniEvent(ev) {
+    var node = el('div', 'pl-ev pl-ev-mini');
+    node.style.setProperty('--ev', evColor(ev));
+    if (ev.importance === 'high') node.classList.add('pl-ev-high');
+    if (ev.importance === 'highest') node.classList.add('pl-ev-highest');
+    if (ev.done) node.classList.add('pl-done');
+    node.dataset.id = ev.id;
+    node.dataset.date = ev.date || S.focusDate;
+
+    var s = toMin(ev.start), e = Math.max(toMin(ev.end), s + 5);
+    node.style.top = (s * pxMin()) + 'px';
+    node.style.height = Math.max(5, (e - s) * pxMin()) + 'px';
+
+    node.appendChild(bottoneMini((ev.title || 'Evento') + ', ' + miniRiga(ev, true)));
+    return node;
+}
+
+/* Il tastino a tre pallini: lo usano l'evento isolato e il gruppo che non ha
+   spazio nemmeno per una riga. */
+function bottoneMini(etichetta) {
+    var b = el('button', 'pl-ev-mini-btn');
+    b.type = 'button';
+    b.dataset.act = 'mini';
+    b.setAttribute('aria-label', etichetta);
+    b.innerHTML = '<svg viewBox="0 0 22 6" fill="currentColor"><circle cx="4" cy="3" r="1.7"/><circle cx="11" cy="3" r="1.7"/><circle cx="18" cy="3" r="1.7"/></svg>';
+    return b;
+}
+
+/* Più eventi bassi ravvicinati: un blocco solo con dentro l'elenco, uno per
+   riga se c'è spazio e una riga che scorre se non ce n'è. Stessa veste del
+   blocco di routine, ma senza il nome in cima: qui non c'è una routine, e un
+   titolo inventato direbbe una cosa falsa. */
+/* La durata vera di un gruppo di eventi: quanto tempo occupano davvero, non
+   la distanza fra il primo inizio e l'ultima fine. Se fra due eventi c'è un
+   buco, quel buco non è occupato da niente e non deve gonfiare il blocco; e
+   se due si accavallano, il tempo in comune si conta una volta sola. */
+function minutiUnione(items) {
+    var seg = items.map(function (x) {
+        var s = toMin(x.start);
+        return [s, Math.max(toMin(x.end), s + 5)];
+    }).sort(function (a, b) { return a[0] - b[0]; });
+
+    var tot = 0, ini = seg[0][0], fin = seg[0][1];
+    for (var i = 1; i < seg.length; i++) {
+        if (seg[i][0] <= fin) { fin = Math.max(fin, seg[i][1]); continue; }
+        tot += fin - ini;
+        ini = seg[i][0]; fin = seg[i][1];
+    }
+    return tot + (fin - ini);
+}
+
+function buildMiniGroup(items, startMin, endMin) {
+    var node = el('div', 'pl-ev pl-ev-mini-gruppo');
+
+    /* il colore è quello degli eventi solo se vanno d'accordo: altrimenti il
+       neutro, che non fa credere a una categoria comune che non c'è */
+    var c = evColor(items[0]), uguale = true;
+    items.forEach(function (x) { if (evColor(x) !== c) uguale = false; });
+    node.style.setProperty('--ev', uguale ? c : NEUTRAL);
+
+    /* l'identificativo serve al gestore del tocco, che parte sempre da un
+       evento vero; l'elenco completo viaggia a parte */
+    node.dataset.id = items[0].id;
+    node.dataset.date = items[0].date || S.focusDate;
+    node.dataset.miniGroup = '1';
+    node.dataset.miniIds = items.map(function (x) { return x.id; }).join(',');
+
+    node.style.top = (startMin * pxMin()) + 'px';
+    /* L'altezza è quella della durata vera, non dell'intervallo dal primo
+       inizio all'ultima fine: allungare il blocco fino a coprire i buchi
+       direbbe che quel tempo è occupato quando non lo è. */
+    var h = Math.max(5, minutiUnione(items) * pxMin());
+    node.style.height = h + 'px';
+
+    /* Se non ci sta nemmeno una riga di testo, il testo non ci va: si fa come
+       con l'evento isolato, un tastino che apre l'elenco. Una scritta che
+       scorre dentro un blocco alto otto pixel non si legge comunque, e
+       intanto si mangia lo spazio del blocco che viene dopo. */
+    if (h < MINI_GRUPPO_H) {
+        node.classList.add('pl-ev-mini');
+        node.appendChild(bottoneMini(items.length + ' eventi ravvicinati'));
+        return node;
+    }
+
+    addPreviewLines(node, items.map(function (x) { return miniRiga(x, false); }), h, 8);
+    return node;
+}
+
+/* Gli eventi di un blocco compatto, ripescati dai dati veri: nel nodo ci
+   sono solo gli identificativi, così se qualcosa cambia nel frattempo si
+   legge la versione aggiornata e non una copia vecchia. */
+function miniEventiDi(node) {
+    var lista = S.events[node.dataset.date] || [];
+    var out = [];
+    (node.dataset.miniIds || '').split(',').forEach(function (raw) {
+        var id = parseInt(raw, 10);
+        lista.forEach(function (x) { if (x.id === id) out.push(x); });
+    });
+    return out;
+}
+
+/* Il riepilogo di quello che il blocco non riesce a scrivere: nome, orario e
+   durata. Da qui si arriva all'evento vero, se no il tastino sarebbe un
+   vicolo cieco. */
+function miniPopup(items) {
+    if (!items.length) return;
+    if (items.length === 1) {
+        var ev = items[0];
+        alertBox(ev.title || 'Senza titolo', miniRiga(ev, true), [
+            { label: 'Chiudi' },
+            { label: 'Apri', kind: 'primary', onClick: function () { openEventSheet(ev, null); } }
+        ]);
+        return;
+    }
+    /* con pochi eventi ognuno ha il suo pulsante e ci si arriva in un tocco;
+       con tanti la fila di pulsanti sarebbe più lunga del popup, quindi resta
+       il solo elenco scritto */
+    var azioni = [{ label: 'Chiudi' }];
+    if (items.length <= 4) {
+        items.forEach(function (ev) {
+            azioni.push({
+                label: ev.title || 'Senza titolo', kind: 'primary',
+                onClick: function () { openEventSheet(ev, null); }
+            });
+        });
+    }
+    alertBox(items.length + ' eventi ravvicinati',
+        items.map(function (x) { return miniRiga(x, false); }).join('\n'),
+        azioni);
 }
 
 /* Assegna a ogni elemento una corsia, così due cose alla stessa ora stanno
@@ -1945,13 +2793,22 @@ function layoutOverlaps(render) {
     closeGroup();
 }
 
+/* Lo spazio che i blocchi accavallati si dividono non è tutta la colonna ma
+   il 95%: l'ultimo pezzo resta vuoto perché non arrivino a filo del bordo
+   destro dello schermo. È la sola aria voluta — a sinistra si parte attaccati
+   alla barra degli orari, e fra una corsia e l'altra i blocchi si toccano,
+   senza fessure che facevano sembrare due parti dello stesso evento due cose
+   diverse. La stessa quota sta in `--ev-coda` nel foglio di stile, per i
+   blocchi che una corsia non ce l'hanno. */
+var EV_CODA = 5;   // per cento di colonna lasciato libero in fondo a destra
+
 function applyLane(node, item) {
     var lanes = item._lanes || 1;
     if (lanes < 2) return;
     var lane = item._lane || 0;
-    var w = 100 / lanes;
-    node.style.left = 'calc(' + (lane * w) + '% + 5px)';
-    node.style.width = 'calc(' + w + '% - 7px)';
+    var w = (100 - EV_CODA) / lanes;
+    node.style.left = (lane * w) + '%';
+    node.style.width = w + '%';
     node.style.right = 'auto';
 }
 
@@ -1987,7 +2844,15 @@ function buildEvent(ev, flow) {
     }
     if (ev.habit_icon) row.appendChild(el('span', 'pl-ev-icon', ev.habit_icon));
 
-    var t = el('span', 'pl-ev-t', ev.title);
+    /* Il titolo non si tronca con i puntini: quello che non ci sta scorre
+       avanti e indietro, come le righe dei blocchi compatti. I puntini
+       tolgono proprio la parte che serve a distinguere due eventi che
+       cominciano allo stesso modo. La misura costa un calcolo di layout, per
+       questo passa dalla stessa coda che le raggruppa in un fotogramma solo. */
+    var t = el('span', 'pl-ev-t');
+    var tIn = el('span', null, ev.title);
+    t.appendChild(tIn);
+    misuraStriscia(t, tIn);
     row.appendChild(t);
 
     if (ev.routine_group && ev.canFold) {
@@ -2034,40 +2899,88 @@ function buildEvent(ev, flow) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Liste della settimana                                               */
+/* Liste della settimana: to do, to buy, to study                      */
 /* ------------------------------------------------------------------ */
+/* Il pannello non tiene più liste sue. Mostra gli stessi dati della pagina
+   attività, filtrati sulla settimana che si sta guardando: prima esistevano
+   due elenchi con lo stesso nome che non sapevano l'uno dell'altro, e una
+   cosa scritta di qua non compariva di là.
+
+   Le vecchie tabelle `planner_week_lists` restano com'erano, insieme ai loro
+   endpoint: non si cancella niente finché non si è sicuri di non averne più
+   bisogno, e quello che c'è dentro è comunque recuperabile. */
+
+/* Le attività non passano da planner.php: todo_api.php è già l'unico punto
+   di scrittura di quei dati, e duplicare qui la validazione vorrebbe dire
+   avere due posti in cui sbagliarla. */
+function todoApi(action, data, query) {
+    var url = 'todo_api.php?ajax=' + encodeURIComponent(action);
+    if (query) { for (var k in query) if (query.hasOwnProperty(k)) url += '&' + k + '=' + encodeURIComponent(query[k]); }
+    var req = {
+        method: data ? 'POST' : 'GET',
+        credentials: 'same-origin',
+        headers: { 'X-CSRF-Token': window.NISAMA_CSRF || S.csrf }
+    };
+    if (data) { req.headers['Content-Type'] = 'application/json'; req.body = JSON.stringify(data); }
+    return fetch(url, req)
+        .then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
+        .catch(function () { return { ok: false }; });
+}
+
+/* Una lettura per linguetta, tenuta in memoria: il pannello si ridisegna a
+   ogni render della pagina e non può chiedere l'elenco al server ogni volta. */
+function loadWeekTodos(type, force) {
+    S.todos = S.todos || {};
+    if (S.todos[type] && !force) return Promise.resolve();
+    return todoApi('list', null, { scope: 'all', list_type: type }).then(function (r) {
+        if (!r.ok) return;
+        S.todos[type] = r.todos || [];
+        S.todosToday = r.today;
+        renderWeekPanel();
+        updateWeekPanelBtn();
+    });
+}
+
+function weekTodoRange() {
+    var from = monday(S.focusDate);
+    return { from: from, to: addDays(from, 6) };
+}
+
 function renderWeekPanel() {
     var wrap = $('plWeekPanelBody');
     if (!wrap) return;
-    var week = monday(S.focusDate);
+    /* finché il pannello è chiuso non c'è niente da disegnare: render() passa
+       di qui a ogni ridisegno della pagina, anche mentre si trascina */
+    var ov = $('plWeekPanelOv');
+    if (!ov || !ov.classList.contains('pl-open')) return;
+
+    var rg = weekTodoRange();
     wrap.innerHTML = '';
+
+    var d1 = parseIso(rg.from), d2 = parseIso(rg.to);
+    var range = d1.getDate() + ' ' + MESI[d1.getMonth()].toLowerCase() + ' – ' + d2.getDate() + ' ' + MESI[d2.getMonth()].toLowerCase();
+    wrap.appendChild(el('div', 'pl-label', range));
+
+    /* le tre linguette: gli elenchi ci sono tutti e tre, non c'è più niente
+       da aggiungere o da togliere */
+    var tabs = el('div', 'pl-wl-tabs');
+    TODO_TIPI.forEach(function (t) {
+        var b = el('button', 'pl-wl-tab' + (t === S.todoTab ? ' pl-on' : ''), LIST_LABEL[t]);
+        b.type = 'button';
+        b.addEventListener('click', function () {
+            if (S.todoTab === t) return;
+            S.todoTab = t;
+            S.todoOthers = false;
+            renderWeekPanel();
+            loadWeekTodos(t);
+        });
+        tabs.appendChild(b);
+    });
+    wrap.appendChild(tabs);
+
     var host = el('div', 'pl-lists');
     wrap.appendChild(host);
-    var d1 = parseIso(week), d2 = parseIso(addDays(week, 6));
-    var range = d1.getDate() + ' ' + MESI[d1.getMonth()].toLowerCase() + ' – ' + d2.getDate() + ' ' + MESI[d2.getMonth()].toLowerCase();
-    wrap.insertBefore(el('div', 'pl-label', range), host);
-
-    var used = {};
-    (S.lists || []).forEach(function (l) {
-        used[l.type] = true;
-        host.appendChild(listCard(l));
-    });
-    ['todo', 'buy', 'study'].forEach(function (t) {
-        if (used[t]) return;
-        var add = el('button', 'pl-addlist');
-        add.type = 'button';
-        add.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
-        add.appendChild(el('span', null, 'Aggiungi ' + LIST_LABEL[t]));
-        add.addEventListener('click', function () {
-            api('list_add', { week_start: week, type: t }).then(function (r) {
-                if (!r.ok) return;
-                S.lists = r.lists;
-                if (S.weekCache[week]) S.weekCache[week].lists = r.lists;
-                renderWeekPanel();
-            });
-        });
-        host.appendChild(add);
-    });
+    host.appendChild(weekTodoList());
 
     var learned = el('div', 'pl-learned');
     learned.appendChild(el('div', 'pl-label', 'Cosa ho imparato'));
@@ -2078,12 +2991,342 @@ function renderWeekPanel() {
     ta.addEventListener('input', function () {
         S.week.learned = ta.value;
         debounceSave('learned', 900, function () {
-            api('week_save', { week_start: week, learned: ta.value });
+            api('week_save', { week_start: rg.from, learned: ta.value });
         });
     });
     learned.appendChild(ta);
     host.appendChild(learned);
-    updateWeekPanelBtn();
+}
+
+function weekTodoList() {
+    var rg = weekTodoRange();
+    var tipo = S.todoTab;
+    var card = el('div', 'pl-list-card');
+
+    var head = el('div', 'pl-list-head');
+    head.appendChild(el('div', 'pl-list-title pl-serif', LIST_LABEL[tipo] || tipo));
+    var link = el('a', 'pl-wl-link', 'apri');
+    link.href = 'todo.php';
+    head.appendChild(link);
+    card.appendChild(head);
+
+    var tutti = (S.todos && S.todos[tipo]) || null;
+    if (tutti === null) {
+        card.appendChild(el('div', 'pl-wl-empty', 'Un momento…'));
+        return card;
+    }
+    /* le sotto-attività seguono la principale nella pagina attività: qui
+       sarebbero righe orfane, senza il loro contesto */
+    var roots = tutti.filter(function (t) { return !t.parent_id; });
+
+    var dentro = roots.filter(function (t) { return t.date && t.date >= rg.from && t.date <= rg.to; });
+    dentro.sort(function (a, b) {
+        /* Nel "to buy" comanda la priorità: la spesa non si fa in ordine di
+           data, si fa cominciando da quello che serve davvero. Negli altri
+           elenchi la data resta la chiave, perché lì è una scadenza. */
+        if (tipo === 'buy') {
+            var pa = a.priority || 3, pb = b.priority || 3;
+            if (pa !== pb) return pa - pb;
+        }
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+        return (a.time || '99:99') < (b.time || '99:99') ? -1 : 1;
+    });
+
+    var box = el('div', 'pl-list-items');
+    if (!dentro.length) {
+        box.appendChild(el('div', 'pl-wl-empty', 'Niente in questa settimana.'));
+    } else {
+        dentro.forEach(function (t) { box.appendChild(weekTodoRow(t, false)); });
+    }
+    card.appendChild(box);
+
+    /* aggiungerne una qui dà per scontata la data mostrata: è il motivo per
+       cui si sta guardando questa settimana e non un'altra */
+    var add = el('button', 'pl-wl-add');
+    add.type = 'button';
+    add.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+    add.appendChild(el('span', null, 'Aggiungi al ' + parseIso(S.focusDate).getDate() + ' ' + MESI[parseIso(S.focusDate).getMonth()].toLowerCase()));
+    add.addEventListener('click', function () {
+        todoApi('save', {
+            id: 0, title: ' ', list_type: tipo, parent_id: 0, project_id: 0,
+            date: S.focusDate, time: '', minutes: 30, source: 'page'
+        }).then(function (r) {
+            if (!r.ok) return;
+            loadWeekTodos(tipo, true).then(function () {
+                /* il campo nuovo è quello rimasto vuoto: ci si scrive dentro
+                   senza doverlo cercare */
+                var ins = $('plWeekPanelBody').querySelectorAll('.pl-li-in');
+                for (var i = 0; i < ins.length; i++) {
+                    if (!ins[i].value.trim()) { ins[i].focus(); break; }
+                }
+            });
+            loadWeek(monday(S.focusDate), true);
+        });
+    });
+    card.appendChild(add);
+
+    /* il resto sta sotto e si chiede: senza data, poi più avanti, poi quelle
+       rimaste indietro — che non sono nominate nella richiesta ma sono
+       esattamente quelle che si vuole tirare dentro la settimana */
+    var senza  = roots.filter(function (t) { return !t.date; });
+    var dopo   = roots.filter(function (t) { return t.date && t.date > rg.to; });
+    var prima  = roots.filter(function (t) { return t.date && t.date < rg.from; });
+    dopo.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    prima.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+
+    if (senza.length || dopo.length || prima.length) {
+        var more = el('button', 'pl-wl-more', S.todoOthers ? 'Nascondi gli altri' : 'Mostra anche gli altri');
+        more.type = 'button';
+        more.addEventListener('click', function () {
+            S.todoOthers = !S.todoOthers;
+            renderWeekPanel();
+        });
+        card.appendChild(more);
+
+        if (S.todoOthers) {
+            var altri = el('div', 'pl-wl-others');
+            function gruppo(label, list) {
+                if (!list.length) return;
+                altri.appendChild(el('div', 'pl-wl-glab', label));
+                list.forEach(function (t) { altri.appendChild(weekTodoRow(t, true)); });
+            }
+            gruppo('senza data', senza);
+            gruppo('più avanti', dopo);
+            gruppo('rimaste indietro', prima);
+            card.appendChild(altri);
+        }
+    }
+    return card;
+}
+
+/* Una riga. Dentro la settimana si spunta e si modifica; fuori si tocca e
+   basta, perché lì il gesto ha un altro significato: prendere la voce e
+   portarla al giorno che si sta guardando. */
+function weekTodoRow(t, isOther) {
+    var row = el('div', 'pl-li' + (t.done ? ' pl-done' : '') + (isOther ? ' pl-li-other' : ''));
+
+    var box = el('span', 'pl-li-box');
+    box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
+    row.appendChild(box);
+
+    if (isOther) {
+        row.appendChild(el('span', 'pl-li-txt', t.title || 'senza titolo'));
+        if (t.date) {
+            var d = parseIso(t.date);
+            row.appendChild(el('span', 'pl-li-when', d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()));
+        }
+        row.addEventListener('click', function () { takeIntoWeek(t); });
+        return row;
+    }
+
+    var inp = el('input', 'pl-li-in');
+    inp.type = 'text';
+    inp.value = t.title || '';
+    inp.placeholder = 'Aggiungi…';
+    inp.maxLength = 300;
+    inp.addEventListener('change', function () { salvaTitolo(); });
+    inp.addEventListener('blur', function () { salvaTitolo(); });
+    function salvaTitolo() {
+        if (inp.value === t.title) return;
+        t.title = inp.value;
+        todoApi('save', {
+            id: t.id, title: inp.value, list_type: t.list_type || S.todoTab,
+            parent_id: t.parent_id || 0, project_id: t.project_id || 0,
+            date: t.date || '', time: t.time || '', minutes: t.minutes || 30, source: 'page'
+        }).then(function () {
+            loadWeekTodos(S.todoTab, true);
+            loadWeek(monday(S.focusDate), true);
+        });
+    }
+    row.appendChild(inp);
+
+    /* La priorità nel "to buy": si legge e si cambia da qui, senza passare
+       dalla pagina attività. Gira 1 → 2 → 3 → 1, come là: con tre soli valori
+       un menù sarebbe più lavoro del giro. */
+    if (S.todoTab === 'buy') {
+        var prio = el('button', 'pl-li-prio pl-prio-' + (t.priority || 3));
+        prio.type = 'button';
+        prio.textContent = String(t.priority || 3);
+        prio.setAttribute('aria-label', 'Priorità ' + (t.priority || 3));
+        prio.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var next = (t.priority || 3) % 3 + 1;
+            t.priority = next;
+            prio.className = 'pl-li-prio pl-prio-' + next;
+            prio.textContent = String(next);
+            haptic(6);
+            todoApi('save', {
+                id: t.id, title: t.title || '', list_type: t.list_type || S.todoTab,
+                parent_id: t.parent_id || 0, project_id: t.project_id || 0,
+                date: t.date || '', time: t.time || '', minutes: t.minutes || 30,
+                source: 'page', buy_set: ['priority'], priority: next
+            }).then(function () { loadWeekTodos(S.todoTab, true); });
+        });
+        row.appendChild(prio);
+    }
+
+    /* Data e ora si toccano e si cambiano da qui: prima erano una scritta
+       morta, e per spostare una voce di un giorno bisognava andare nella
+       pagina attività. Con l'ora si mostra l'ora, altrimenti il giorno della
+       settimana — dentro la settimana mostrata il numero del giorno sarebbe
+       una ripetizione. */
+    var when = el('button', 'pl-li-when');
+    when.type = 'button';
+    when.textContent = t.time ? t.time : (t.date ? GIORNI[dowIndex(t.date)].slice(0, 3) : 'quando');
+    when.addEventListener('click', function (e) { e.stopPropagation(); todoQuando(t); });
+    row.appendChild(when);
+
+    if (S.todoTab === 'buy' && t.cents !== null && t.cents !== undefined) {
+        row.appendChild(el('span', 'pl-li-price', (t.cents / 100).toFixed(2).replace('.', ',') + ' €'));
+    }
+
+    box.addEventListener('click', function () {
+        t.done = !t.done;
+        row.classList.toggle('pl-done', t.done);
+        haptic(8);
+        todoApi('toggle', { id: t.id }).then(function () {
+            loadWeekTodos(S.todoTab, true);
+            loadWeek(monday(S.focusDate), true);
+        });
+    });
+
+    /* Il cestino sta sotto la riga e si scopre scorrendola, come nella pagina
+       attività: stesso gesto nei due posti, così non c'è niente da imparare
+       due volte. Su computer lo scorrimento con il mouse funziona lo stesso,
+       ma i campi di testo restano esclusi — lì trascinare vuol dire
+       selezionare, non spostare. */
+    var wrap = el('div', 'pl-li-wrap');
+    var trash = el('button', 'pl-li-trash');
+    trash.type = 'button';
+    trash.setAttribute('aria-label', 'Elimina');
+    trash.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>';
+    trash.addEventListener('click', function () {
+        alertBox('Elimino?', '«' + (t.title || 'senza titolo') + '» sparisce dagli elenchi e dal planner.', [
+            { label: 'Lascia stare' },
+            { label: 'Elimina', kind: 'danger', onClick: function () {
+                todoApi('delete', { id: t.id }).then(function () {
+                    loadWeekTodos(S.todoTab, true);
+                    loadWeek(monday(S.focusDate), true);
+                });
+            } }
+        ]);
+    });
+    wrap.appendChild(trash);
+    wrap.appendChild(row);
+    abilitaSwipeLi(wrap, row);
+    return wrap;
+}
+
+/* Scorrendo la riga verso destra spunta il cestino; scorrendo indietro, o
+   toccando un'altra riga, si richiude. */
+function abilitaSwipeLi(wrap, row) {
+    var x0 = null, y0 = 0, pid = null, daCampo = false;
+    function chiudiAltre() {
+        var aperte = document.querySelectorAll('.pl-li-wrap.pl-swiped');
+        for (var i = 0; i < aperte.length; i++) if (aperte[i] !== wrap) aperte[i].classList.remove('pl-swiped');
+    }
+    row.addEventListener('pointerdown', function (e) {
+        daCampo = !!(e.target.closest && e.target.closest('input, textarea'));
+        if (daCampo && e.pointerType === 'mouse') { x0 = null; return; }
+        x0 = e.clientX; y0 = e.clientY; pid = e.pointerId;
+    });
+    row.addEventListener('pointermove', function (e) {
+        if (x0 === null || e.pointerId !== pid) return;
+        var dx = e.clientX - x0, dy = e.clientY - y0;
+        /* orizzontale dichiarato: scorrendo il pannello in verticale con il
+           dito appoggiato su una riga, il cestino non deve spuntare */
+        if (Math.abs(dx) < Math.abs(dy) * 1.3) return;
+        var soglia = daCampo ? 26 : 14;
+        if (dx > soglia) { chiudiAltre(); wrap.classList.add('pl-swiped'); }
+        if (dx < -soglia) wrap.classList.remove('pl-swiped');
+    });
+    function stop() { x0 = null; pid = null; }
+    row.addEventListener('pointerup', stop);
+    row.addEventListener('pointercancel', stop);
+    row.addEventListener('pointerleave', stop);
+}
+
+/* Data, ora e durata di un'attività, cambiate da dove la si sta guardando.
+   L'ora vuota vuol dire "in giornata": è la stessa convenzione del
+   database (due_time NULL) e della pagina attività. */
+function todoQuando(t) {
+    var ov = $('plAlertOv');
+    $('plAlertTitle').textContent = t.title || 'Senza titolo';
+    $('plAlertMsg').innerHTML = '';
+    var wrap = el('div');
+
+    function riga(lab, campo) {
+        var r = el('div', 'pl-row-sb');
+        r.appendChild(el('span', 'pl-row-lab', lab));
+        r.appendChild(campo);
+        wrap.appendChild(r);
+    }
+    var dIn = el('input', 'pl-pick'); dIn.type = 'date'; dIn.value = t.date || S.focusDate;
+    var oIn = el('input', 'pl-pick'); oIn.type = 'time'; oIn.step = '300'; oIn.value = t.time || '';
+    var mIn = el('input', 'pl-pick');
+    mIn.type = 'number'; mIn.min = '5'; mIn.max = '1440'; mIn.step = '5';
+    mIn.value = String(t.minutes || 30);
+    riga('Data', dIn);
+    riga('Ora', oIn);
+    riga('Durata (minuti)', mIn);
+    /* senza orario l'attività vale per tutto il giorno: serve un modo per
+       tornare indietro, perché un campo orario svuotato a mano non sempre
+       si lascia svuotare */
+    var senza = el('button', 'pl-linkish', 'Togli l\'orario');
+    senza.type = 'button';
+    senza.addEventListener('click', function () { oIn.value = ''; });
+    wrap.appendChild(senza);
+    $('plAlertMsg').appendChild(wrap);
+
+    var acts = $('plAlertActs');
+    acts.innerHTML = '';
+    var no = el('button', 'pl-btn', 'Annulla'); no.type = 'button';
+    no.addEventListener('click', function () { ov.classList.remove('pl-open'); });
+    var si = el('button', 'pl-btn pl-btn-primary', 'Salva'); si.type = 'button';
+    si.addEventListener('click', function () {
+        ov.classList.remove('pl-open');
+        t.date = dIn.value || t.date;
+        t.time = oIn.value || null;
+        t.minutes = Math.max(5, Math.min(1440, parseInt(mIn.value, 10) || 30));
+        todoApi('save', {
+            id: t.id, title: t.title || '', list_type: t.list_type || S.todoTab,
+            parent_id: t.parent_id || 0, project_id: t.project_id || 0,
+            date: t.date || '', time: t.time || '', minutes: t.minutes, source: 'page'
+        }).then(function (r) {
+            if (!r.ok) { toast('Non è stato possibile salvare.'); return; }
+            loadWeekTodos(S.todoTab, true);
+            /* la stessa attività è anche un evento in agenda: il planner va
+               riletto, se no la riga si sposta e il blocco resta dov'era */
+            loadWeek(monday(S.focusDate), true);
+        });
+    });
+    acts.appendChild(no); acts.appendChild(si);
+    ov.classList.add('pl-open');
+}
+
+/* Portare una voce nella settimana. Se una data ce l'aveva già si chiede
+   conferma: spostarla può voler dire mancare una scadenza, e un tocco preso
+   per sbaglio non deve poterlo fare in silenzio. */
+function takeIntoWeek(t) {
+    function applica() {
+        todoApi('save', {
+            id: t.id, title: t.title, list_type: t.list_type || S.todoTab,
+            parent_id: t.parent_id || 0, project_id: t.project_id || 0,
+            date: S.focusDate, time: t.time || '', minutes: t.minutes || 30, source: 'page'
+        }).then(function (r) {
+            if (!r.ok) return;
+            loadWeekTodos(S.todoTab, true);
+            loadWeek(monday(S.focusDate), true);
+        });
+    }
+    if (!t.date) { applica(); return; }
+    var d = parseIso(t.date), n = parseIso(S.focusDate);
+    alertBox('Cambio la data?',
+        '«' + (t.title || 'senza titolo') + '» è al ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase() +
+        '. Passa al ' + n.getDate() + ' ' + MESI[n.getMonth()].toLowerCase() + '.', [
+        { label: 'Lascia stare' },
+        { label: 'Sposta', kind: 'primary', onClick: applica }
+    ]);
 }
 
 /* il pulsantino a sinistra di "Priorità" si accende se la settimana è compilata */
@@ -2091,121 +3334,112 @@ function updateWeekPanelBtn() {
     var btn = $('plWeekPanelBtn');
     if (!btn) return;
     var filled = !!(S.week.learned && S.week.learned.trim());
-    (S.lists || []).forEach(function (l) {
-        (l.items || []).forEach(function (i) { if (i.content && i.content.trim()) filled = true; });
-    });
+    if (!filled && S.todos) {
+        var rg = weekTodoRange();
+        for (var k in S.todos) if (S.todos.hasOwnProperty(k)) {
+            var hit = (S.todos[k] || []).some(function (t) {
+                return !t.parent_id && t.date && t.date >= rg.from && t.date <= rg.to;
+            });
+            if (hit) { filled = true; break; }
+        }
+    }
     btn.classList.toggle('pl-filled', filled);
 }
 
 function openWeekPanel() {
-    renderWeekPanel();
+    /* la classe prima del disegno: renderWeekPanel non lavora a pannello
+       chiuso, e verrebbe chiamato a vuoto */
     $('plWeekPanelOv').classList.add('pl-open');
     document.documentElement.classList.add('pl-locked');
+    renderWeekPanel();
+    loadWeekTodos(S.todoTab, true);
 }
 function closeWeekPanel() {
     $('plWeekPanelOv').classList.remove('pl-open');
     if (!document.querySelector('.pl-ov.pl-open')) document.documentElement.classList.remove('pl-locked');
 }
 
-function listCard(l) {
-    var card = el('div', 'pl-list-card');
-    var head = el('div', 'pl-list-head');
-    head.appendChild(el('div', 'pl-list-title pl-serif', LIST_LABEL[l.type] || l.type));
-    var del = el('button', 'pl-icon-btn');
-    del.type = 'button';
-    del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>';
-    del.addEventListener('click', function () {
-        alertBox('Elimino la lista?', 'Le voci di ' + (LIST_LABEL[l.type] || l.type) + ' andranno perse.', [
-            { label: 'Annulla' },
-            { label: 'Elimina', kind: 'danger', onClick: function () {
-                api('list_remove', { list_id: l.id }).then(function (r) {
-                    if (!r.ok) return;
-                    S.lists = S.lists.filter(function (x) { return x.id !== l.id; });
-                    renderWeekPanel();
-                });
-            } }
-        ]);
-    });
-    head.appendChild(del);
-    card.appendChild(head);
-
-    var box = el('div', 'pl-list-items');
-    (l.items || []).forEach(function (it) { box.appendChild(listItem(l, it)); });
-    box.appendChild(listItem(l, { id: 0, content: '', done: false }));
-    card.appendChild(box);
-    return card;
-}
-
-function listItem(l, it) {
-    var row = el('div', 'pl-li' + (it.done ? ' pl-done' : ''));
-    var box = el('span', 'pl-li-box');
-    box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
-    var inp = el('input', 'pl-li-in');
-    inp.type = 'text';
-    inp.value = it.content || '';
-    inp.placeholder = it.id ? '' : 'Aggiungi…';
-    inp.maxLength = 200;
-    row.appendChild(box); row.appendChild(inp);
-
-    box.addEventListener('click', function () {
-        if (!it.id) return;
-        it.done = !it.done;
-        row.classList.toggle('pl-done', it.done);
-        haptic(8);
-        api('list_item_save', { item_id: it.id, content: inp.value, done: it.done });
-    });
-    inp.addEventListener('change', function () { saveItem(); });
-    inp.addEventListener('blur', function () { saveItem(); });
-    function saveItem() {
-        var text = inp.value.trim();
-        if (!it.id && !text) return;
-        api('list_item_save', { item_id: it.id || 0, list_id: l.id, content: text, done: it.done })
-            .then(function (r) {
-                if (!r.ok) return;
-                if (r.deleted) { it.id = 0; }
-                else if (r.id) { it.id = r.id; }
-                it.content = text;
-                var arr = l.items || (l.items = []);
-                if (it.id && arr.indexOf(it) === -1) arr.push(it);
-                if (!text) l.items = arr.filter(function (x) { return x !== it; });
-                renderWeekPanel();
-            });
-    }
-    return row;
-}
-
 /* ------------------------------------------------------------------ */
 /* Anello delle abitudini                                              */
 /* ------------------------------------------------------------------ */
+/* Gli anelli concentrici delle abitudini.
+
+   Uno per famiglia di frequenza, e solo per le famiglie che hanno almeno
+   un'abitudine: il più interno è il giornaliero, poi andando verso l'esterno
+   settimanale, mensile, personalizzate. Il conto arriva già fatto dal server
+   (pl_rings): da qui non si potrebbe sapere quante volte una mensile è stata
+   fatta nel mese, perché al client arrivano solo le abitudini del giorno
+   mostrato.
+
+   Gli anelli sono attaccati: ognuno occupa una corsia dello stesso spessore,
+   separata dalla successiva da un filo sottilissimo. Il numero di anelli
+   cambia da utente a utente, quindi il disegno si costruisce qui invece di
+   stare fisso nel markup. */
+var RING_LARGHEZZA = 3.4;    // spessore di ogni corsia
+var RING_STACCO    = 0.9;    // il filo che divide una corsia dall'altra
+var RING_ESTERNO   = 21;     // raggio della corsia più esterna
+
 function renderRing() {
     var ring = $('plHabitRing');
     if (!ring) return;
     var date = S.focusDate;
-    loadHabits(date).then(function (habits) {
-        var total = habits.length || 1;
-        var doneN = 0;
-        habits.forEach(function (h) { if (h.done) doneN++; });
-        var planned = 0;
-        (S.events[date] || []).forEach(function (ev) { if (ev.habit_id && !ev.done) planned++; });
+    /* Il giorno chiesto viene appuntato qui: se nel frattempo se ne sfoglia un
+       altro, la risposta che arriva tardi non ridisegna più l'anello del
+       giorno sbagliato. */
+    ring.dataset.want = date;
 
-        var C = 125.6;
-        var doneFrac = Math.min(1, doneN / total);
-        var planFrac = Math.min(1, (doneN + planned) / total);
-        if (date < S.today) planFrac = doneFrac;
-        ring.querySelector('.pl-ring-done').style.strokeDashoffset = (C * (1 - doneFrac)).toFixed(1);
-        ring.querySelector('.pl-ring-plan').style.strokeDashoffset = (C * (1 - planFrac)).toFixed(1);
+    var pronti = S.rings[date];
+    if (pronti) { disegnaAnelli(ring, pronti); return; }
 
-        /* anello interno: le settimanali, sul totale delle volte previste.
-           Il conto può superare l'obiettivo (5 palestre su 4): l'anello si
-           ferma al pieno, ma il numero nel menù dice la verità. */
-        var sett = weeklyOf(date);
-        var Cw = 91.1;
-        var fatte = 0, previste = 0;
-        sett.forEach(function (h) { fatte += h.done; previste += h.target; });
-        var wFrac = previste ? Math.min(1, fatte / previste) : 0;
-        var wRing = ring.querySelector('.pl-ring-week');
-        if (wRing) wRing.style.strokeDashoffset = (Cw * (1 - wFrac)).toFixed(1);
+    /* Finché non si sa, si svuota: meglio niente che i dati di ieri. */
+    disegnaAnelli(ring, null);
+    loadRings(date).then(function (dati) {
+        if (ring.dataset.want !== date) return;
+        disegnaAnelli(ring, dati);
     });
+}
+
+function loadRings(date) {
+    if (S.rings[date]) return Promise.resolve(S.rings[date]);
+    return api('habits_day', null, { date: date }).then(function (r) {
+        S.habits[date] = r.ok ? r.habits : [];
+        if (r.ok && r.weekly) S.weekly[monday(date)] = r.weekly;
+        S.rings[date] = r.ok && r.rings ? r.rings : [];
+        return S.rings[date];
+    });
+}
+
+function disegnaAnelli(ring, dati) {
+    var svg = ring.querySelector('svg');
+    if (!svg) return;
+    dati = dati || [];
+
+    var pezzi = '';
+    for (var i = 0; i < dati.length; i++) {
+        /* i = 0 è il più interno, quindi si parte da dentro e si esce */
+        var r = RING_ESTERNO - (dati.length - 1 - i) * (RING_LARGHEZZA + RING_STACCO);
+        if (r < 3) break;                       // troppe famiglie: non ci sta più
+        var C = 2 * Math.PI * r;
+        var frac = dati[i].total > 0 ? Math.min(1, dati[i].done / dati[i].total) : 0;
+        pezzi += '<circle class="pl-ring-track" cx="23" cy="23" r="' + r.toFixed(2)
+              + '" stroke-width="' + RING_LARGHEZZA + '"/>'
+              + '<circle class="pl-ring-fill pl-ring-' + dati[i].key + '" cx="23" cy="23" r="' + r.toFixed(2)
+              + '" stroke-width="' + RING_LARGHEZZA + '"'
+              + ' stroke-dasharray="' + C.toFixed(1) + '"'
+              + ' stroke-dashoffset="' + (C * (1 - frac)).toFixed(1) + '"/>';
+    }
+    svg.innerHTML = pezzi;
+    /* Quante corsie ci sono decide quanto spazio resta al centro: con quattro
+       famiglie il foro interno scende a circa 13px, e la spunta da 17px ci
+       finirebbe sopra. Il numero passa al CSS, che rimpicciolisce l'icona. */
+    ring.dataset.n = dati.length;
+
+    /* tutto completo: la spunta al centro si accende */
+    var tutto = dati.length > 0 && dati.every(function (d) { return d.total > 0 && d.done >= d.total; });
+    ring.classList.toggle('pl-ring-full', tutto);
+
+    var descr = dati.map(function (d) { return d.label + ' ' + d.done + ' su ' + d.total; }).join(', ');
+    ring.setAttribute('aria-label', descr || 'Nessuna abitudine');
 }
 
 /* ------------------------------------------------------------------ */
@@ -2241,9 +3475,35 @@ function setTrackX(x, smooth) {
         t.style.transform = 'translateX(' + x + 'px)';
     });
 }
+/* Porta il minuto indicato esattamente a quell'altezza dello schermo.
+   Serve al pinch: il punto in mezzo alle due dita deve restare dov'è mentre
+   gli scatti si stringono o si allargano, altrimenti si perde il segno di
+   dove si stava guardando e bisogna ricercarlo ogni volta.
+   `box.top + scrollTop` è il punto in cui starebbe la mezzanotte se non ci
+   fosse scorrimento: non cambia con lo zoom, quindi si può misurare dopo il
+   ridisegno senza sbagliare il conto. */
+/* Quanto in basso si può arrivare. Allargando gli scatti la giornata si
+   accorcia, e la posizione di prima può cadere sotto la mezzanotte: lì non
+   c'è più niente da mostrare e la sezione diventava una pagina bianca.
+   Il fondo va riportato alla fine della giornata. */
+function scrollMax(sc) {
+    return Math.max(0, sc.scrollHeight - sc.clientHeight);
+}
+
+function scrollToMinuteAt(min, clientY) {
+    var sc = $('plScroller');
+    var canvas = document.querySelector('.pl-canvas');
+    if (!canvas || !pxMin()) { scrollToMinute(min, false); return; }
+    var box = canvas.getBoundingClientRect();
+    var zero = box.top + sc.scrollTop;
+    var y = zero - clientY + Math.min(1440, min) * pxMin();
+    sc.scrollTo({ top: Math.max(0, Math.min(scrollMax(sc), y)), behavior: 'auto' });
+}
+
 function scrollToMinute(min, smooth) {
     var sc = $('plScroller');
-    sc.scrollTo({ top: Math.max(0, min * pxMin() - 10), behavior: smooth ? 'smooth' : 'auto' });
+    var y = Math.min(1440, min) * pxMin() - 10;
+    sc.scrollTo({ top: Math.max(0, Math.min(scrollMax(sc), y)), behavior: smooth ? 'smooth' : 'auto' });
 }
 /* la giornata si apre già scesa all'orario di partenza (di base le 06:00):
    lo riapplichiamo qualche volta perché l'altezza della barra cambia mentre
@@ -2281,6 +3541,11 @@ function goToDate(date, smooth) {
     renderWeekBits();
     renderPrio();
     renderAllDay();   // la fascia compare o sparisce secondo il giorno mostrato
+    /* L'anello delle abitudini si aggiorna qui, con il giorno. Prima toccava
+       solo a renderDays(), che cambiando giorno non passa: l'anello restava
+       fermo sul giorno precedente finché non scattava il timer del minuto o
+       non tornava loadWeek. Era questo il ritardo delle barre. */
+    renderRing();
     maybeAskCopy();
     applyAmbient();
     loadWeek(monday(date));
@@ -2323,28 +3588,311 @@ $('plTodayBtn').addEventListener('click', function () {
     }, 260);
 });
 
+/* ------------------------------------------------------------------ */
+/* Cambio giorno a pagina intera (un solo giorno visibile)             */
+/* ------------------------------------------------------------------ */
+/* Con una colonna sola davanti, far scorrere la sola striscia dei giorni
+   mostrava mezza pagina in movimento: gli orari a sinistra, la barra in alto
+   e la fascia delle priorità restavano ferme e cambiavano di scatto alla
+   fine. Qui si muove tutta la pagina, come sul calendario di Google.
+
+   Come è fatto, in tre idee:
+   - le parti fisse (barra in alto e fascia sotto) si spostano tutte con la
+     stessa variabile CSS `--pl-swipe-x`: a ogni movimento del dito si scrive
+     un valore solo e il resto lo compone il browser, senza toccare il
+     layout e senza una riga di JavaScript per elemento;
+   - la pagina che entra è un clone della barra in alto e della fascia,
+     riempito con i dati del giorno vicino e messo a una schermata di
+     distanza. La colonna del giorno vicino, invece, è già dentro la striscia
+     e non va clonata: basta lasciarla scorrere;
+   - la colonna degli orari che deve entrare insieme al giorno nuovo è una
+     copia infilata *dentro la striscia*, fra una colonna e l'altra. Così
+     viaggia insieme alle colonne senza calcoli di posizione, e quella vera
+     resta al suo posto (solo invisibile) per non far ballare l'impaginazione.
+
+   Limite noto e accettato: il clone porta con sé l'ambiente della barra
+   (albero, bestia o scena del meteo) così com'è adesso. Per due giorni
+   dentro lo stesso mese è identico; a cavallo di un mese, o con il meteo
+   acceso, l'ambiente giusto compare alla fine della transizione. Ricostruirlo
+   nel clone vorrebbe dire duplicare tutto il disegno dell'ambiente per un
+   dettaglio che dura tre decimi di secondo. */
+var PS = { on: false, anim: false, W: 0, T0: 0, dx: 0, dir: 0, spacers: [], panes: {}, timer: 0, pending: null };
+
+/* Vale solo con un giorno davanti: con più colonne lo scorrimento attuale va
+   già bene ed è quello che la consegna dice di non toccare. */
+function psAble() {
+    return visibleDays() === 1 && S.view !== 'month' && !S.movingEvent && !S.pinching;
+}
+
+/* Un clone non deve portarsi dietro gli identificativi: sarebbero doppi, e
+   ogni $('...') della pagina rischierebbe di finire sul clone invece che
+   sull'originale. */
+function psStripIds(root) {
+    if (root.id) root.removeAttribute('id');
+    var n = root.querySelectorAll('[id]');
+    for (var i = 0; i < n.length; i++) n[i].removeAttribute('id');
+}
+
+/* Se una transizione è ancora in volo e il dito riparte, la si chiude subito
+   invece di lasciarla a metà: due gesti sovrapposti lascerebbero in giro
+   cloni e copie degli orari. */
+function psFlush() {
+    if (!PS.anim) return;
+    clearTimeout(PS.timer);
+    psFinish(PS.pending);
+}
+
+function psBegin() {
+    psFlush();
+    if (PS.on) return true;
+    var track = $('plTrack');
+    var gut = document.querySelector('.pl-gutter');
+    var cur = track ? track.querySelector('.pl-col[data-date="' + S.focusDate + '"]') : null;
+    /* Se manca uno solo dei pezzi (pagina non ancora montata del tutto) si
+       rinuncia e resta il comportamento di prima: meglio un gesto vecchio che
+       una pagina a metà. */
+    if (!track || !gut || !cur || !$('plTopbar') || !$('plDayBar')) return false;
+
+    PS.W = window.innerWidth;
+    PS.dx = 0; PS.dir = 0; PS.spacers = []; PS.panes = {}; PS.pending = null;
+
+    /* Una copia degli orari davanti alle tre colonne in gioco (quella di
+       adesso e le due vicine): senza, il giorno nuovo entrerebbe attaccato a
+       quello vecchio, senza la sua colonna degli orari davanti. */
+    var cols = track.querySelectorAll('.pl-col[data-date]');
+    for (var i = 0; i < cols.length; i++) {
+        var ds = cols[i].dataset.date;
+        if (ds !== S.focusDate && ds !== addDays(S.focusDate, 1) && ds !== addDays(S.focusDate, -1)) continue;
+        var copia = gut.cloneNode(true);
+        psStripIds(copia);
+        copia.classList.add('pl-swipe-gutter');
+        /* la copia porta i tag del giorno a fuoco: sulla colonna del giorno
+           vicino direbbero il tempo sbagliato, quindi si riscrivono */
+        renderGutterMeteo(copia, ds);
+        track.insertBefore(copia, cols[i]);
+        PS.spacers.push(copia);
+    }
+
+    document.documentElement.classList.add('pl-swipe1');
+    /* La posizione di partenza si misura invece di calcolarla: le copie appena
+       infilate hanno spostato le colonne, e rifare il conto a mano sarebbe un
+       secondo posto in cui sbagliarsi. È una lettura sola, all'inizio del
+       gesto, non una per fotogramma. */
+    PS.T0 = gut.getBoundingClientRect().width - cur.offsetLeft;
+
+    track.style.transition = 'none';
+    PS.on = true;
+    psPlace();
+    return true;
+}
+
+/* La pagina del giorno vicino. Si costruisce quando si capisce da che parte
+   sta andando il dito, non prima: nella maggior parte dei gesti l'altra metà
+   non serve. */
+function psPane(dir) {
+    if (PS.panes[dir]) return PS.panes[dir];
+    var date = addDays(S.focusDate, dir);
+    var d = parseIso(date);
+    var pane = el('div', 'pl-swipe-page' + (dir < 0 ? ' pl-swipe-prev' : ''));
+    pane.setAttribute('aria-hidden', 'true');
+
+    var tb = $('plTopbar').cloneNode(true);
+    var db = $('plDayBar').cloneNode(true);
+    psStripIds(tb); psStripIds(db);
+
+    var num = tb.querySelector('.pl-day-num');    if (num) num.textContent = String(d.getDate());
+    var wd  = tb.querySelector('.pl-day-wd');     if (wd)  wd.textContent  = GIORNI[dowIndex(date)];
+    var mn  = tb.querySelector('.pl-month-name'); if (mn)  mn.textContent  = MESI[d.getMonth()];
+    var yr  = tb.querySelector('.pl-month-year'); if (yr)  yr.textContent  = String(d.getFullYear());
+
+    /* Il tag del meteo è del giorno, non della pagina: quello copiato va tolto
+       e rifatto per il giorno vicino, se una previsione c'è. */
+    var wxOld = tb.querySelector('.pl-day-wx');
+    if (wxOld && wxOld.parentNode) wxOld.parentNode.removeChild(wxOld);
+    var wxNew = wxTag(date);
+    if (wxNew) {
+        wxNew.classList.add('pl-day-wx');
+        var dayBtn = tb.querySelector('.pl-day-btn');
+        if (dayBtn && dayBtn.parentNode) dayBtn.parentNode.insertBefore(wxNew, dayBtn.nextSibling);
+    }
+
+    var rows = db.querySelector('.pl-prio-rows');
+    if (rows) renderPrioInto(rows, date);
+    var smart = db.querySelector('.pl-smart-in');
+    if (smart) smart.value = '';
+    var ask = db.querySelector('.pl-copyask');
+    if (ask) ask.classList.add('pl-hidden');
+
+    /* La fascia degli eventi di tutta la giornata appartiene alla pagina che
+       entra, quindi la sua striscia porta solo la cella del giorno vicino,
+       ferma a zero: qui la finestra che ritaglia si muove insieme al clone,
+       e una striscia che scorre per conto suo finirebbe fuori vista. */
+    var ht = db.querySelector('.pl-headtrack');
+    if (ht) {
+        ht.style.transform = 'none';
+        ht.innerHTML = '';
+        var cella = document.querySelector('#plHeadTrack .pl-hcol[data-date="' + date + '"]');
+        if (cella) ht.appendChild(cella.cloneNode(true));
+    }
+
+    /* La scena della barra è del giorno, non della pagina. La copia porta
+       quella del giorno a fuoco: se il giorno vicino ne vuole un'altra —
+       succede sempre oltre l'ultimo giorno di previsione, dove il meteo non
+       c'è più — va svuotata, se no si vede la pioggia di ieri su un giorno
+       per cui nessuno ha previsto niente. */
+    var amb = tb.querySelector('.pl-ambient');
+    if (amb && ambChiave(date) !== ambChiave(S.focusDate)) amb.innerHTML = '';
+
+    /* Il clone si porta dietro anche lo stile scritto a mano sull'originale,
+       trasformazione compresa: qui la togliamo, perché a muovere le due parti
+       ci pensa il clone che le contiene. */
+    tb.style.removeProperty('transform');
+    db.style.removeProperty('transform');
+
+    pane.appendChild(tb);
+    pane.appendChild(db);
+    document.body.appendChild(pane);
+    PS.panes[dir] = pane;
+    psPlace();
+    return pane;
+}
+
+function psMove(dx) {
+    if (!PS.on) return;
+    /* Oltre una schermata non si va: un gesto = un giorno, come su Google.
+       Prima un lancio veloce poteva saltare fino a una settimana, e con la
+       pagina intera in movimento non ci sarebbe niente da mostrare in mezzo. */
+    dx = Math.max(-PS.W, Math.min(PS.W, dx));
+    PS.dx = dx;
+    var dir = dx < 0 ? 1 : (dx > 0 ? -1 : 0);
+    if (dir && dir !== PS.dir) { PS.dir = dir; psPane(dir); }
+    psPlace();
+}
+
+/* Le trasformazioni si scrivono direttamente sui pochi elementi in gioco.
+   Passare da una variabile CSS sulla radice sarebbe stato più corto da
+   scrivere, ma obbliga il browser a rivedere lo stile di tutta la pagina a
+   ogni movimento del dito: qui sono cinque scritture e nessuna rilettura. */
+function psPlace() {
+    var dx = PS.dx;
+    var tb = $('plTopbar'), db = $('plDayBar'), track = $('plTrack');
+    if (tb) tb.style.transform = 'translateX(' + dx + 'px)';
+    if (db) db.style.transform = 'translateX(' + dx + 'px)';
+    if (track) track.style.transform = 'translateX(' + (PS.T0 + dx) + 'px)';
+    if (PS.panes[1]) PS.panes[1].style.transform = 'translateX(' + (dx + PS.W) + 'px)';
+    if (PS.panes[-1]) PS.panes[-1].style.transform = 'translateX(' + (dx - PS.W) + 'px)';
+}
+
+function psEnd(dx) {
+    if (!PS.on) { if (PS.anim) return; psFinish(null); return; }
+    dx = Math.max(-PS.W, Math.min(PS.W, dx || 0));
+    /* Un quarto di schermata basta per cambiare giorno: sotto, la pagina
+       torna indietro. È la stessa soglia morbida del trascinamento di prima,
+       detta in frazione di schermo invece che in pixel. */
+    var passo = Math.abs(dx) >= PS.W * 0.25 ? (dx < 0 ? 1 : -1) : 0;
+    if (passo) { psPane(passo); haptic(6); }
+
+    PS.on = false;
+    PS.anim = true;
+    PS.pending = passo ? addDays(S.focusDate, passo) : null;
+
+    document.documentElement.classList.add('pl-swipe-anim');
+    var track = $('plTrack');
+    if (track) track.style.transition = 'transform .3s var(--ease)';
+    /* l'ultimo tratto lo fa il CSS: PS.on è già falso, quindi psPlace() va
+       chiamato a mano dopo aver messo il valore d'arrivo */
+    PS.dx = passo ? -passo * PS.W : 0;
+    psPlace();
+    PS.timer = setTimeout(function () { psFinish(PS.pending); }, 320);
+}
+
+/* Fine della transizione: si smonta tutto e solo adesso cambia il giorno a
+   fuoco. Da qui in poi ci pensa la strada normale (goToDate), che rimette la
+   striscia al suo posto e ridisegna barra, priorità e ambiente: il clone
+   sparisce nello stesso istante in cui la pagina vera è già giusta, quindi
+   non si vede nessuno scatto. */
+function psFinish(date) {
+    clearTimeout(PS.timer);
+    var track = $('plTrack');
+    for (var k in PS.panes) {
+        if (PS.panes.hasOwnProperty(k) && PS.panes[k] && PS.panes[k].parentNode) {
+            PS.panes[k].parentNode.removeChild(PS.panes[k]);
+        }
+    }
+    PS.panes = {};
+    PS.spacers.forEach(function (s) { if (s.parentNode) s.parentNode.removeChild(s); });
+    PS.spacers = [];
+    var html = document.documentElement;
+    var tb = $('plTopbar'), db = $('plDayBar');
+    /* Lo spostamento va tolto *senza* animarlo. Togliendo le classi si
+       riaccende la transizione scritta nel foglio di stile, e la barra, che in
+       quel momento è ancora fuori schermo a sinistra, tornerebbe indietro
+       scivolando sopra la pagina nuova. Si spegne qui a mano e si riaccende al
+       fotogramma dopo, quando ormai è ferma al suo posto. */
+    if (tb) tb.style.transition = 'none';
+    if (db) db.style.transition = 'none';
+    html.classList.remove('pl-swipe1', 'pl-swipe-anim');
+    if (tb) tb.style.removeProperty('transform');
+    if (db) db.style.removeProperty('transform');
+    requestAnimationFrame(function () {
+        if (tb) tb.style.removeProperty('transition');
+        if (db) db.style.removeProperty('transition');
+    });
+    if (track) track.style.transition = 'none';
+    PS.on = false; PS.anim = false; PS.pending = null; PS.dir = 0; PS.dx = 0;
+
+    if (date) {
+        goToDate(date, false);
+        /* Il giorno è cambiato: scena e tag orari sono ancora quelli di
+           prima. goToDate ridisegna la griglia, non il meteo — ed è il motivo
+           per cui i tag comparivano durante lo scorrimento e sparivano
+           appena la pagina si fermava. */
+        renderGutterMeteo(null, S.focusDate);
+        applyAmbient(false);
+    }
+    else setTrackX(trackOffset(S.focusDate), false);
+}
+
+/* Girando lo schermo cambia sia la larghezza sia il numero di giorni davanti:
+   una transizione cominciata prima non avrebbe più senso, si chiude dov'è. */
+window.addEventListener('resize', function () {
+    if (PS.on || PS.anim) psFinish(null);
+});
+
 /* Anche la barra in alto cambia giorno con uno scorrimento orizzontale:
    è la zona più comoda da raggiungere col pollice. */
 (function topbarSwipe() {
     var bar = $('plTopbar');
     if (!bar) return;
-    var x0 = null, y0 = 0, horiz = false;
+    var x0 = null, y0 = 0, horiz = false, pagina = false;
     bar.addEventListener('touchstart', function (e) {
         if (e.touches.length !== 1 || S.view === 'month') return;
-        x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; horiz = false;
+        x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; horiz = false; pagina = false;
     }, { passive: true });
     bar.addEventListener('touchmove', function (e) {
         if (x0 === null) return;
         var dx = e.touches[0].clientX - x0, dy = e.touches[0].clientY - y0;
-        if (Math.abs(dx) > 16 && Math.abs(dx) > Math.abs(dy) * 1.6) horiz = true;
+        if (!horiz && Math.abs(dx) > 16 && Math.abs(dx) > Math.abs(dy) * 1.6) {
+            horiz = true;
+            /* Con un giorno solo anche da qui la pagina segue il dito: è lo
+               stesso movimento che parte dalla griglia, quindi il gesto si
+               comporta allo stesso modo ovunque lo si cominci. */
+            pagina = psAble() ? psBegin() : false;
+        }
+        if (pagina) psMove(dx);
     }, { passive: true });
     bar.addEventListener('touchend', function (e) {
         if (x0 === null) return;
         var dx = e.changedTouches[0].clientX - x0;
         x0 = null;
+        if (pagina) { pagina = false; psEnd(dx); return; }
         if (!horiz || Math.abs(dx) < 34) return;
         pageDays(dx < 0 ? 1 : -1);
         haptic(6);
+    }, { passive: true });
+    bar.addEventListener('touchcancel', function () {
+        x0 = null;
+        if (pagina) { pagina = false; psEnd(0); }
     }, { passive: true });
 })();
 
@@ -2353,44 +3901,133 @@ $('plTodayBtn').addEventListener('click', function () {
 /* ------------------------------------------------------------------ */
 (function pinch() {
     var sc = $('plScroller');
-    var start = 0, startZoom = 0, active = false;
+    var start = 0, startZoom = 0, active = false, ancoraMin = 0;
     function dist(t) {
         var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
         return Math.hypot(dx, dy);
     }
-    sc.addEventListener('touchstart', function (e) {
-        if (e.touches.length !== 2) return;
+    function metaY(t) { return (t[0].clientY + t[1].clientY) / 2; }
+    /* Che minuto si trova adesso sotto un certo punto dello schermo. Si
+       misura sul canvas, che parte esattamente dalla mezzanotte. */
+    function minutoA(clientY) {
+        var canvas = document.querySelector('.pl-canvas');
+        if (!canvas || !pxMin()) return firstVisibleMinute();
+        var box = canvas.getBoundingClientRect();
+        return Math.max(0, Math.min(1439, (clientY - box.top) / pxMin()));
+    }
+    /* ------------------------------------------------------------------
+       Il gesto a due dita, con la presa dei puntatori.
+
+       Prima si ascoltavano i `touch`, e c'era un guaio di fondo: cambiando
+       scatto la pagina viene ridisegnata da capo e il nodo su cui il dito era
+       appoggiato finisce nel cestino. I tocchi di quel dito continuano ad
+       andare a lui, che non è più attaccato a niente: allo scorrevole non
+       arriva più nulla, il gesto muore dopo il primo scatto e nessuno lo
+       chiude. Da qui la rotellina che restava in vista e il pizzico che da
+       "lista" non riusciva a passare oltre le tre ore.
+
+       Con i `pointer` si può chiedere la *presa*: da quel momento tutti gli
+       spostamenti di quei due diti vengono consegnati allo scorrevole
+       qualunque cosa succeda alla pagina sotto. È esattamente il rimedio
+       pensato per questo caso. Restano il riaggancio e il guardiano come
+       reti di sicurezza, perché la presa il browser può sempre toglierla.
+       ------------------------------------------------------------------ */
+    var punti = {}, watch = null, zoomIniziale = null;
+
+    function dueDita() {
+        var ids = Object.keys(punti);
+        return ids.length === 2 ? [punti[ids[0]], punti[ids[1]]] : null;
+    }
+
+    function avvia(t) {
         active = true;
-        start = dist(e.touches);
+        start = dist(t);
         startZoom = ZOOM.findIndex(function (z) { return z.key === S.zoom; });
+        /* il minuto sotto le dita al momento in cui si comincia: è quello che
+           deve restare fermo per tutto il gesto */
+        ancoraMin = minutoA(metaY(t));
         S.pinching = true;
-        showZoomDial('hold');   // resta finché le dita non si alzano
-    }, { passive: true });
-    sc.addEventListener('touchmove', function (e) {
-        if (!active || e.touches.length !== 2) return;
-        var ratio = dist(e.touches) / (start || 1);
+        S.pinchAt = Date.now();
+        /* O si cambia scatto o si cambia giorno: mai tutt'e due insieme.
+           Partendo con uno scorrimento orizzontale e aggiungendo il secondo
+           dito si finiva per fare le due cose in una volta. */
+        if (window.plAnnullaScorrimento) window.plAnnullaScorrimento();
+        document.documentElement.classList.add('pl-zoomando');
+        showZoomDial('hold');
+        if (!watch) {
+            watch = setInterval(function () {
+                if (Date.now() - (S.pinchAt || 0) < 800) return;
+                chiudi();
+            }, 300);
+        }
+    }
+
+    function chiudi() {
+        if (watch) { clearInterval(watch); watch = null; }
+        /* durante il gesto nessuno degli scatti attraversati viene salvato:
+           si salva qui, una volta sola, e solo se si è finiti altrove */
+        if (active && zoomIniziale && zoomIniziale !== S.zoom) {
+            api('settings_save', { zoom: S.zoom });
+        }
+        active = false;
+        zoomIniziale = null;
+        S.pinching = false;
+        document.documentElement.classList.remove('pl-zoomando');
+        hideZoomDial();
+    }
+
+    sc.addEventListener('pointerdown', function (e) {
+        if (e.pointerType !== 'touch') return;
+        punti[e.pointerId] = { clientX: e.clientX, clientY: e.clientY };
+        var t = dueDita();
+        if (!t) return;
+        Object.keys(punti).forEach(function (id) {
+            /* la presa può essere rifiutata (dito già alzato, per esempio):
+               non è un errore da fermare tutto, il gesto funziona lo stesso */
+            try { sc.setPointerCapture(Number(id)); } catch (err) {}
+        });
+        zoomIniziale = S.zoom;
+        avvia(t);
+    });
+
+    sc.addEventListener('pointermove', function (e) {
+        if (!(e.pointerId in punti)) return;
+        punti[e.pointerId] = { clientX: e.clientX, clientY: e.clientY };
+        var t = dueDita();
+        if (!t) return;
+        /* due dita sullo schermo ma nessun gesto in corso: il filo si era
+           spezzato, si riparte da qui con la distanza di adesso come zero */
+        if (!active) { avvia(t); return; }
+        S.pinchAt = Date.now();
+        var ratio = dist(t) / (start || 1);
         var steps = ratio > 1 ? Math.floor((ratio - 1) / 0.22) : -Math.floor((1 / ratio - 1) / 0.22);
         var next = Math.max(0, Math.min(ZOOM.length - 1, startZoom + steps));
-        if (ZOOM[next].key !== S.zoom) setZoom(ZOOM[next].key);
-    }, { passive: true });
-    sc.addEventListener('touchend', function (e) {
-        if (e.touches.length >= 2) return;
-        active = false;
-        /* finché resta un dito appoggiato consideriamo il gesto in corso:
-           la rotellina se ne va solo quando lo schermo è libero */
-        if (e.touches.length === 0) { S.pinching = false; hideZoomDial(); }
-    }, { passive: true });
-    sc.addEventListener('touchcancel', function () {
-        active = false; S.pinching = false; hideZoomDial();
-    }, { passive: true });
+        if (ZOOM[next].key !== S.zoom) {
+            setZoom(ZOOM[next].key, true, { min: ancoraMin, y: metaY(t) });
+        }
+    });
+
+    function via(e) {
+        if (!(e.pointerId in punti)) return;
+        delete punti[e.pointerId];
+        /* basta che un dito si alzi: il gesto a due dita è finito comunque */
+        if (active) chiudi();
+    }
+    sc.addEventListener('pointerup', via);
+    sc.addEventListener('pointercancel', via);
 })();
 
-function setZoom(key, quiet) {
+/* `ancora` = { min: minuto da tenere fermo, y: a che altezza dello schermo }.
+   Se non c'è, si tiene fermo il primo minuto visibile in alto, come prima:
+   è il comportamento giusto quando lo scatto lo si cambia dalla rotellina,
+   dove non esistono dita a cui restare agganciati. */
+function setZoom(key, quiet, ancora) {
     var anchor = firstVisibleMinute();
     S.zoom = key;
     renderGutter();
     renderDays();
-    scrollToMinute(anchor, false);
+    if (ancora) scrollToMinuteAt(ancora.min, ancora.y);
+    else scrollToMinute(anchor, false);
     renderZoomDial();
     refreshZoomDial();   // in vista lista resta visibile anche su telefono
     if (!quiet) api('settings_save', { zoom: key });
@@ -2409,7 +4046,12 @@ function renderZoomDial() {
             : z.key === 'm30' ? "30'" : z.key === 'm15' ? "15'" : "5'";
         var b = el('button', 'pl-zoom-step' + (z.key === S.zoom ? ' pl-on' : ''), short);
         b.type = 'button';
-        b.addEventListener('click', function () { setZoom(z.key); showZoomDial(zoomHideDial_keep() ? 'stay' : 'temporary'); });
+        b.addEventListener('click', function () {
+            setZoom(z.key);
+            /* dopo il cambio: se lo scatto nuovo non è di quelli che la
+               tengono a portata, si rivede solo un istante e poi va via */
+            showZoomDial(zoomHideDial_keep() ? 'stay' : 'temporary');
+        });
         box.appendChild(b);
     });
 }
@@ -2419,7 +4061,11 @@ function renderZoomDial() {
    giù), 'temporary' sparisce da sé, 'stay' resta sempre (PC e vista lista) */
 function placeZoomDial() {
     var box = $('plZoom'), ref = $('plFabRoutine');
-    if (!box || !ref) return;
+    if (!box) return;
+    /* A colonna richiusa il tasto delle routine non ha più altezza: ci si
+       appoggia alle abitudini, l'unico che resta sempre in vista. */
+    if (!ref || !ref.getBoundingClientRect().height) ref = $('plHabitRing');
+    if (!ref) return;
     var r = ref.getBoundingClientRect();
     if (r.height) box.style.top = r.top + 'px';   // stessa partenza del tasto routine
 }
@@ -2430,22 +4076,43 @@ function showZoomDial(mode) {
     box.classList.add('pl-show');
     if (zoomHideTimer) { clearTimeout(zoomHideTimer); zoomHideTimer = null; }
     if (mode === 'temporary') {
-        zoomHideTimer = setTimeout(function () { box.classList.remove('pl-show'); }, 1400);
+        zoomHideTimer = setTimeout(function () {
+            /* il timer si spegne da sé prima di agire, se no resta in giro un
+               riferimento a una sveglia già suonata; e ricontrolla, perché
+               nel frattempo si può essere finiti dove la rotellina deve
+               restare in vista */
+            zoomHideTimer = null;
+            if (!zoomHideDial_keep()) box.classList.remove('pl-show');
+        }, 650);
     }
 }
 function hideZoomDial() {
     var box = $('plZoom');
     if (!box) return;
     if (zoomHideDial_keep()) return;   // su PC, o in vista lista, resta
-    if (zoomHideTimer) clearTimeout(zoomHideTimer);
+    if (zoomHideTimer) { clearTimeout(zoomHideTimer); zoomHideTimer = null; }
     box.classList.remove('pl-show');   // le dita si sono alzate: via subito
 }
 /* la rotellina resta sempre a portata su PC e nella vista a lista, dove
    non c'è una griglia da pizzicare */
 function zoomHideDial_keep() { return S.pointerFine || isAgenda(); }
+/* Il controllo si fa sempre e la decisione è una sola: la rotellina resta
+   solo dove serve (su computer e in vista lista), altrove sparisce. Prima,
+   passando da "lista" a un altro scatto, poteva restare in vista perché era
+   ancora appeso un timer di quelli "temporanei" acceso poco prima: ora
+   nascondendola il timer viene spento, così non può riaccenderla dopo. */
 function refreshZoomDial() {
-    if (zoomHideDial_keep() || S.pinching) showZoomDial('stay');
-    else { var b = $('plZoom'); if (b) b.classList.remove('pl-show'); }
+    var b = $('plZoom');
+    if (!b) return;
+    /* Rete di sicurezza sul pizzico. Mentre si zooma le colonne vengono
+       ridisegnate, e il dito che si alza da un nodo ormai staccato non fa
+       arrivare il touchend allo scorrevole: lo stato "si sta zoomando"
+       restava acceso per sempre e la rotellina non se ne andava più. Se non
+       arrivano più notizie del gesto da un secondo e mezzo, è finito. */
+    if (S.pinching && Date.now() - (S.pinchAt || 0) > 1500) S.pinching = false;
+    if (zoomHideDial_keep() || S.pinching) { showZoomDial('stay'); return; }
+    if (zoomHideTimer) { clearTimeout(zoomHideTimer); zoomHideTimer = null; }
+    b.classList.remove('pl-show');
 }
 
 /* ------------------------------------------------------------------ */
@@ -2471,13 +4138,21 @@ function refreshZoomDial() {
     }
 
     sc.addEventListener('pointerdown', function (e) {
+        /* secondo dito appoggiato mentre si cambia scatto: non comincia
+           nessun gesto nuovo, il pizzico ha la precedenza */
+        if (S.pinching) return;
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         var evNode = e.target.closest('.pl-ev');
         var canvas = canvasAt(e.target);
         if (evNode) {
             // un blocco posizionato sulla griglia si sposta tenendolo premuto;
             // il tocco semplice lo gestisce il click qui sotto
-            if (!S.shift.on && !isAgenda() && canvas && evNode.style.position !== 'static') {
+            /* Il blocco che raccoglie più eventi bassi resta fermo: sotto ci
+               sono cose diverse e trascinarlo sposterebbe solo la prima,
+               facendo credere di averle spostate tutte. Per muoverli si
+               rizooma, e tornano separati. */
+            if (!S.shift.on && !isAgenda() && canvas && evNode.style.position !== 'static'
+                && evNode.dataset.miniGroup !== '1') {
                 startEventDrag(e, evNode, canvas);
             }
             /* Il dito è partito sopra un evento, ma se scorre in orizzontale
@@ -2525,6 +4200,8 @@ function refreshZoomDial() {
 
     sc.addEventListener('pointermove', function (e) {
         if (!st || e.pointerId !== st.id) return;
+        /* due dita: si sta cambiando scatto, il giorno resta dov'è */
+        if (S.pinching) { annulla(); return; }
 
         if (st.phase === 'pending') {
             var dx = e.clientX - st.x0, dy = e.clientY - st.y0;
@@ -2540,6 +4217,9 @@ function refreshZoomDial() {
                 st.phase = 'paging';
                 st.baseX = trackNow();
                 st.startedAt = Date.now();
+                /* Con un giorno solo davanti non scorre la striscia ma tutta
+                   la pagina: orari, barra in alto e priorità comprese. */
+                st.page1 = psAble() ? psBegin() : false;
                 track.style.transition = 'none';
                 clearTimeout(st.timer);
                 try { sc.setPointerCapture(st.id); } catch (err) {}
@@ -2550,6 +4230,7 @@ function refreshZoomDial() {
         if (st.phase === 'paging') {
             e.preventDefault();
             var raw = e.clientX - st.x0;
+            if (st.page1) { psMove(raw); return; }
             var cw = colWidth();
             var clamped = Math.max(-9 * cw, Math.min(9 * cw, raw));   // resta dentro le colonne già pronte
             setTrackX(st.baseX + clamped, false);
@@ -2610,8 +4291,9 @@ function refreshZoomDial() {
         var phase = st.phase;
 
         if (phase === 'paging') {
-            var cw = colWidth();
             var dx = e ? (e.clientX - st.x0) : 0;
+            if (st.page1) { st = null; psEnd(dx); return; }
+            var cw = colWidth();
             var steps = -dx / cw;
             /* zona morta: uno scivolamento breve torna al punto di partenza.
                E comunque non si va oltre una settimana per gesto: è questo
@@ -2657,15 +4339,26 @@ function refreshZoomDial() {
         }
     }, { passive: false });
 
-    sc.addEventListener('pointerup', finish);
-    sc.addEventListener('pointercancel', function () {
+    /* Chiude il gesto orizzontale dov'è, riportando la striscia al suo posto.
+       Serve al browser quando ci toglie il puntatore, e serve al pizzico: da
+       quando si è capito che si sta cambiando scatto, il giorno non si cambia
+       più. O una cosa o l'altra, non le due insieme. */
+    function annulla() {
         if (!st) return;
         clearTimeout(st.timer);
         releaseScroll();
-        if (st.phase === 'paging') { setTrackX(trackOffset(S.focusDate), true); }
+        if (st.phase === 'paging') {
+            if (st.page1) psEnd(0);
+            else setTrackX(trackOffset(S.focusDate), true);
+        }
         if (st.ghost && st.ghost.parentNode) st.ghost.parentNode.removeChild(st.ghost);
         st = null;
-    });
+        S.interacting = false;
+    }
+    window.plAnnullaScorrimento = annulla;
+
+    sc.addEventListener('pointerup', finish);
+    sc.addEventListener('pointercancel', annulla);
 })();
 
 /* Rotella del mouse / trackpad: verticale = scorrono le ore (nativo, non
@@ -2728,6 +4421,19 @@ function startEventDrag(e, node, canvas) {
     var dur = blockEnd - blockStart;
     var startTop = parseFloat(node.style.top) || 0;
     var y0 = e.clientY, held = false, moved = false;
+
+    /* Spostamento a un giorno vicino. Ha senso solo con più colonne davanti:
+       con un giorno solo il gesto orizzontale è il cambio pagina, e ruberglielo
+       renderebbe impossibile scorrere i giorni partendo da sopra un evento.
+       I blocchi compatti di routine restano nella loro colonna: si spostano con
+       `events_shift`, che sposta i minuti di tutti i passaggi ma non conosce la
+       data, quindi meglio non offrire un movimento che poi non possiamo salvare. */
+    var canMoveDay = visibleDays() > 1 && group.length === 1;
+    var x0 = e.clientX, lastX = x0;
+    var colBoxes = null;          // geometria delle colonne, letta una volta sola
+    var curDate = date;           // giorno sotto il dito adesso
+    var reparented = false;       // il blocco ha cambiato colonna almeno una volta
+
     var timer = setTimeout(function () {
         held = true;
         haptic(14);
@@ -2736,12 +4442,50 @@ function startEventDrag(e, node, canvas) {
         S.movingEvent = true;
         S.interacting = true;
         sc.style.touchAction = 'none';
-        lastY = y0; scrolled = 0;
+        lastY = y0; lastX = x0; scrolled = 0;
+        if (canMoveDay) measureCols();
         try { sc.setPointerCapture(e.pointerId); } catch (err) {}
         edge();
     }, 300);
 
     var lastY = 0, raf = null, scrolled = 0;
+
+    /* Le posizioni delle colonne si leggono qui, una volta sola, all'inizio del
+       trascinamento: mentre il blocco è in mano al dito la striscia dei giorni
+       non si sposta in orizzontale (il cambio pagina è bloccato da
+       S.movingEvent), quindi le misure restano buone fino alla fine del gesto e
+       non serve rileggere il layout a ogni fotogramma. */
+    function measureCols() {
+        colBoxes = [];
+        var cols = document.querySelectorAll('#plTrack .pl-col[data-date]');
+        for (var i = 0; i < cols.length; i++) {
+            var r = cols[i].getBoundingClientRect();
+            if (r.width <= 0) continue;
+            colBoxes.push({
+                date: cols[i].dataset.date,
+                left: r.left, right: r.right,
+                canvas: cols[i].querySelector('.pl-canvas')
+            });
+        }
+    }
+
+    /* Il blocco passa davvero nell'altra colonna invece di limitarsi a
+       sconfinare: così si vede subito dove finirà, e la posizione orizzontale
+       (che è in percentuale sulla colonna) resta giusta senza ricalcoli. */
+    function maybeChangeDay() {
+        if (!colBoxes) return;
+        for (var i = 0; i < colBoxes.length; i++) {
+            var b = colBoxes[i];
+            if (lastX < b.left || lastX >= b.right) continue;
+            if (b.date === curDate || !b.canvas) return;
+            b.canvas.appendChild(node);
+            curDate = b.date;
+            node.dataset.date = curDate;
+            reparented = true;
+            haptic(8);
+            return;
+        }
+    }
 
     function place() {
         var slot = zoomCfg(S.zoom).slot || 30;
@@ -2778,6 +4522,8 @@ function startEventDrag(e, node, canvas) {
         if (!held) { if (Math.abs(ev2.clientY - y0) > 8) { moved = true; clearTimeout(timer); cleanup(); } return; }
         ev2.preventDefault();
         lastY = ev2.clientY;
+        lastX = ev2.clientX;
+        maybeChangeDay();
         place();
     }
     function up(ev2) {
@@ -2787,8 +4533,17 @@ function startEventDrag(e, node, canvas) {
         cleanup();
         if (!held) return;
         suppressClick = Date.now();
-        var ns = node.dataset.newStart;
-        if (!ns || toMin(ns) === blockStart) { node.style.top = startTop + 'px'; return; }
+        var dayChanged = curDate !== date;
+        /* Il giorno può cambiare senza che cambi l'ora: in quel caso l'orario da
+           salvare è quello di partenza, che altrimenti non sarebbe mai scritto
+           in dataset.newStart (place() lo scrive solo se il dito sale o scende). */
+        var ns = node.dataset.newStart || toHM(blockStart);
+        if (!dayChanged && toMin(ns) === blockStart) {
+            /* niente da salvare: se il blocco era passato da un'altra colonna e
+               poi è tornato, lo rimette a posto il ridisegno */
+            if (reparented) renderDays(); else node.style.top = startTop + 'px';
+            return;
+        }
 
         if (group.length > 1) {
             /* tutti i passaggi si spostano dello stesso scarto, così le
@@ -2800,6 +4555,10 @@ function startEventDrag(e, node, canvas) {
                 direction: shift > 0 ? 'late' : 'early'
             }).then(function (r) {
                 if (!r.ok) { node.style.top = startTop + 'px'; return; }
+                /* Il server limita lo scarto una volta sola guardando il pezzo
+                   più estremo: contro la mezzanotte il blocco non si muove
+                   affatto e tornerebbe dov'era senza spiegazioni. */
+                if (r.moved === 0) toast('Il blocco non ci sta più in giornata.');
                 S.weekCache = {};
                 loadWeek(monday(date), true).then(renderDays);
                 scheduleSync();
@@ -2807,9 +4566,38 @@ function startEventDrag(e, node, canvas) {
             return;
         }
 
-        api('event_move', { id: id, date: date, start: ns }).then(function (r) {
-            if (!r.ok) { node.style.top = startTop + 'px'; return; }
+        api('event_move', { id: id, date: curDate, start: ns }).then(function (r) {
+            if (!r.ok) {
+                /* rifiutato dal server: il blocco torna dov'era, colonna compresa */
+                node.style.top = startTop + 'px';
+                if (reparented) { node.dataset.date = date; renderDays(); }
+                return;
+            }
             ev.start = r.start; ev.end = r.end;
+            if (dayChanged) {
+                /* La copia in memoria è indicizzata per data: senza spostarla di
+                   mano il ridisegno successivo rimetterebbe l'evento nella
+                   colonna di partenza, e il giorno nuovo resterebbe vuoto fino
+                   al prossimo caricamento. Il confronto è sull'identificativo e
+                   non sull'oggetto: se nel frattempo è arrivata una ricarica di
+                   sfondo, la copia in elenco non è più quella che abbiamo in
+                   mano. */
+                var vecchi = S.events[date] || [];
+                for (var vi = vecchi.length - 1; vi >= 0; vi--) {
+                    if (vecchi[vi] === ev || vecchi[vi].id === id) vecchi.splice(vi, 1);
+                }
+                ev.date = curDate;
+                if (!S.events[curDate]) S.events[curDate] = [];
+                S.events[curDate] = S.events[curDate].filter(function (x) { return x.id !== id; });
+                S.events[curDate].push(ev);
+                /* Il pannello settimana e i conteggi vengono dalla cache della
+                   settimana: se il giorno nuovo cade in un'altra settimana quella
+                   cache non è più vera e va rifatta. */
+                if (monday(curDate) !== monday(date)) {
+                    S.weekCache = {};
+                    loadWeek(monday(S.focusDate), true).then(renderDays);
+                }
+            }
             renderDays();
             scheduleSync();
         });
@@ -2969,6 +4757,22 @@ function openRoutineInstance(group, date) {
     });
 }
 
+/* Dopo aver tolto o accorciato un passaggio, i successivi si riattaccano al
+   precedente: il blocco dura quanto la somma dei passaggi rimasti, invece di
+   conservare la durata della routine originale con un buco dentro.
+   Il conto lo fa il server, che è l'unico a poterlo fare in un colpo solo. */
+function ricompattaRoutine(group, date, poi) {
+    return api('routine_recompact', { routine_group: group, date: date }).then(function (r) {
+        if (r && r.ok && r.events) {
+            /* si riparte dalla risposta: gli orari vecchi non valgono più */
+            S.events[date] = (S.events[date] || []).filter(function (e) { return e.routine_group !== group; });
+            indexEvents(r.events);
+        }
+        renderDays();
+        if (poi) poi(r);
+    });
+}
+
 function routineStepRow(it, group, date) {
     var row = el('div', 'pl-srow');
     var inner = el('div', 'pl-srow-in');
@@ -2997,7 +4801,9 @@ function routineStepRow(it, group, date) {
             it.end = r.event.end;
             indexEvents([r.event]);
             sub.textContent = it.start + ' – ' + it.end;
-            renderDays();
+            /* cambiata la durata di un passaggio, i seguenti si rimettono in
+               fila: l'elenco si riapre già aggiornato */
+            ricompattaRoutine(group, date, function () { openRoutineInstance(group, date); });
         });
     });
     inner.appendChild(dur);
@@ -3010,9 +4816,11 @@ function routineStepRow(it, group, date) {
         api('event_delete', { id: it.id, scope: 'one' }).then(function (r) {
             if (!r.ok) { toast('Non è stato possibile eliminare.'); return; }
             S.events[date] = (S.events[date] || []).filter(function (e) { return e.id !== it.id; });
-            renderDays();
             var remain = (S.events[date] || []).filter(function (e) { return e.routine_group === group; });
-            if (remain.length) openRoutineInstance(group, date); else closeOv('plSheetOv');
+            if (!remain.length) { renderDays(); closeOv('plSheetOv'); return; }
+            /* il buco lasciato dal passaggio tolto si chiude: gli altri
+               risalgono e il blocco si accorcia di conseguenza */
+            ricompattaRoutine(group, date, function () { openRoutineInstance(group, date); });
         });
     });
     inner.appendChild(del);
@@ -3048,6 +4856,16 @@ function handleEventTap(e, node, ev) {
         haptic(6);
         return;
     }
+    /* le due forme del compattamento: il tastino dell'evento isolato e il
+       blocco che ne raccoglie più d'uno. Vanno intercettate prima di tutto il
+       resto, perché il nodo del gruppo porta l'identificativo del solo primo
+       evento e qualunque altra azione finirebbe per riguardare quello. */
+    /* Il gruppo va guardato per primo: il suo tastino è identico a quello
+       dell'evento isolato, e chiedendo prima del tastino si finiva per
+       mostrare solo il primo evento del gruppo invece di tutti. */
+    if (node.dataset.miniGroup === '1') { miniPopup(miniEventiDi(node)); return; }
+    if (kind === 'mini') { miniPopup([ev]); return; }
+
     if (kind === 'toggle') {
         api('event_toggle', { id: ev.id }).then(function (r) {
             if (!r.ok) return;
@@ -3055,6 +4873,10 @@ function handleEventTap(e, node, ev) {
             node.classList.toggle('pl-done', r.done);
             if (ev.habit_id && S.habits[ev.date]) {
                 S.habits[ev.date].forEach(function (h) { if (h.id === ev.habit_id) h.done = r.done; });
+                /* la spunta cambia il conto degli anelli: il conto lo fa il
+                   server, quindi qui si butta via la copia e si richiede */
+                delete S.rings[ev.date];
+                if (ev.date === S.focusDate) renderRing();
             }
             haptic(12);
             renderRing();
@@ -3105,6 +4927,13 @@ function openEventSheet(existing, seed) {
     var d = existing ? {
         id: existing.id, title: existing.title, notes: existing.notes || '',
         location: existing.location || '', guests: (existing.guests || []).slice(),
+        place_name: existing.place_name || null,
+        place_lat: (existing.place_lat === 0 || existing.place_lat) ? existing.place_lat : null,
+        place_lon: (existing.place_lon === 0 || existing.place_lon) ? existing.place_lon : null,
+        place_ref: existing.place_ref || null,
+        /* il lucchetto arriva dal server; per gli eventi salvati prima della
+           colonna il valore manca, e allora vale chiuso come per i nuovi */
+        duration_locked: existing.duration_locked !== false,
         calendar_id: existing.calendar_id || null,
         date: existing.date,
         start: existing.start, end: existing.end, all_day: existing.all_day,
@@ -3117,6 +4946,8 @@ function openEventSheet(existing, seed) {
         habit_id: existing.habit_id
     } : {
         id: 0, title: '', notes: '', location: '', guests: [], calendar_id: null,
+        place_name: null, place_lat: null, place_lon: null, place_ref: null,
+        duration_locked: true,   // di base la durata è fissa, come chiede l'uso comune
         date: seed.date, start: seed.start, end: seed.end,
         all_day: false, category_id: S.defaultCat, project_id: null, importance: 'normal',
         color: null, type: 'event', notify: 'h1', notify_min: 60,
@@ -3158,7 +4989,13 @@ function renderEventSheet() {
     var title = el('input', 'pl-in');
     title.type = 'text'; title.id = 'plEvTitle'; title.placeholder = 'Titolo'; title.maxLength = 180;
     title.value = d.title;
-    title.addEventListener('input', function () { d.title = title.value; S.draft.dirty = true; });
+    title.addEventListener('input', function () {
+        d.title = title.value;
+        S.draft.dirty = true;
+        /* il luogo può arrivare da solo, se il titolo nomina un posto della
+           rubrica (la funzione sta più in basso, nella parte del luogo) */
+        agganciaLuogo();
+    });
     trow.appendChild(title);
     var pbtn = el('button', 'pl-icon-btn');
     pbtn.type = 'button';
@@ -3184,7 +5021,17 @@ function renderEventSheet() {
     fd.appendChild(rDate);
 
     var allRow = rowSB('Tutto il giorno', toggle(d.all_day, function (v) {
-        d.all_day = v; S.draft.dirty = true; renderEventSheet();
+        d.all_day = v;
+        /* Togliendo la spunta restavano 00:00–23:59, cioè un evento di tutto
+           il giorno con un altro nome. Gli si dà un'ora vera: la prima libera
+           a partire da quella che si sta guardando. Il controllo sugli orari
+           serve a non buttare via un orario già scelto e poi ripreso. */
+        if (!v && (!d.start || d.start === '00:00') && (!d.end || d.end === '23:59')) {
+            var inizio = firstFreeMinute(60);
+            d.start = toHM(inizio);
+            d.end = toHM(Math.min(1439, inizio + 60));
+        }
+        S.draft.dirty = true; renderEventSheet();
     }));
     fd.appendChild(allRow);
 
@@ -3200,15 +5047,33 @@ function renderEventSheet() {
             tintSheet();
         }
         sIn = timeInput(d.start, function (v) {
-            var dur = toMin(d.end) - toMin(d.start);
+            var dur = Math.max(5, toMin(d.end) - toMin(d.start));
             d.start = v;
-            d.end = toHM(Math.min(1439, toMin(v) + Math.max(5, dur)));
+            if (d.duration_locked) {
+                /* lucchetto chiuso: la durata è il dato fermo, la fine segue */
+                d.end = toHM(Math.min(1439, toMin(v) + dur));
+            } else if (toMin(d.end) <= toMin(v)) {
+                /* aperto: la fine resta dov'è, ma non può cadere prima
+                   dell'inizio, altrimenti l'evento avrebbe durata negativa */
+                d.end = toHM(Math.min(1439, toMin(v) + 5));
+            }
             S.draft.dirty = true;
             refreshTimes('start');
         });
         eIn = timeInput(d.end, function (v) {
-            if (toMin(v) <= toMin(d.start)) v = toHM(toMin(d.start) + 5);
-            d.end = v; S.draft.dirty = true;
+            if (d.duration_locked) {
+                /* chiuso: spostando la fine si trascina anche l'inizio */
+                var dur2 = Math.max(5, toMin(d.end) - toMin(d.start));
+                var fine = Math.min(1439, toMin(v));
+                var inizio = fine - dur2;
+                if (inizio < 0) { inizio = 0; fine = Math.min(1439, dur2); }
+                d.start = toHM(inizio);
+                d.end = toHM(fine);
+            } else {
+                if (toMin(v) <= toMin(d.start)) v = toHM(toMin(d.start) + 5);
+                d.end = v;
+            }
+            S.draft.dirty = true;
             refreshTimes('end');
         });
         fd.appendChild(rowSB('Inizio', sIn));
@@ -3224,11 +5089,40 @@ function renderEventSheet() {
         durIn.addEventListener('change', function () {
             var mins = toMin(durIn.value);
             if (!mins) { durIn.value = toHM(toMin(d.end) - toMin(d.start)); return; }
+            /* cambiare la durata a mano muove sempre la fine: è l'inizio il
+               riferimento che l'utente ha già fissato */
             d.end = toHM(Math.min(1439, toMin(d.start) + mins));
             S.draft.dirty = true;
             refreshTimes('dur');
         });
-        fd.appendChild(rowSB('Durata', durIn));
+
+        /* Il lucchetto non ridisegna il popup: cambia solo il proprio aspetto,
+           così non si perde il fuoco su un campo orario aperto a metà. */
+        var lock = el('button', 'pl-lock');
+        lock.type = 'button';
+        function drawLock() {
+            var chiuso = !!d.duration_locked;
+            lock.classList.toggle('pl-on', chiuso);
+            lock.setAttribute('aria-pressed', chiuso ? 'true' : 'false');
+            lock.title = chiuso
+                ? 'Durata bloccata: spostando un orario si sposta anche l’altro'
+                : 'Durata libera: spostando un orario l’altro resta fermo';
+            lock.setAttribute('aria-label', lock.title);
+            lock.innerHTML = chiuso
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.2"/><path d="M8.5 11V8a3.5 3.5 0 017 0v3"/></svg>'
+                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.2"/><path d="M8.5 11V8a3.5 3.5 0 016.9-1.2"/></svg>';
+        }
+        drawLock();
+        lock.addEventListener('click', function () {
+            d.duration_locked = !d.duration_locked;
+            S.draft.dirty = true;
+            drawLock();
+            haptic(8);
+        });
+        var durWrap = el('div', 'pl-row');
+        durWrap.appendChild(lock);
+        durWrap.appendChild(durIn);
+        fd.appendChild(rowSB('Durata', durWrap));
     }
     body.appendChild(fd);
 
@@ -3307,7 +5201,21 @@ function renderEventSheet() {
     fn.appendChild(rowSB('Avvisami', select([
         ['none', 'Nessuna'], ['at_time', 'Nel momento'], ['m30', '30 minuti prima'],
         ['h1', "Un'ora prima"], ['d1', 'Un giorno prima'], ['custom', 'Personalizzata']
-    ], d.notify, function (v) { d.notify = v; S.draft.dirty = true; renderEventSheet(); })));
+    ], d.notify, function (v) {
+        d.notify = v; S.draft.dirty = true;
+        /* Scegliere un avviso è il momento buono per chiedere il permesso:
+           qui la richiesta si spiega da sé, all'apertura della pagina no. */
+        if (v !== 'none') PL_NOTIFY.chiediPermesso();
+        renderEventSheet();
+    })));
+    if (d.notify !== 'none' && 'Notification' in window && Notification.permission !== 'granted') {
+        var avviso = el('div', 'pl-row-sub');
+        avviso.style.margin = '4px 2px 0';
+        avviso.textContent = Notification.permission === 'denied'
+            ? 'Gli avvisi sono bloccati per questo sito: si riattivano dalle impostazioni del browser.'
+            : 'Per ricevere gli avvisi serve dare il permesso al browser.';
+        fn.appendChild(avviso);
+    }
     if (d.notify === 'custom') {
         var nm = el('input', 'pl-pick');
         nm.type = 'number'; nm.min = '0'; nm.max = '40320'; nm.value = d.notify_min || 60; nm.style.width = '96px';
@@ -3347,22 +5255,311 @@ function renderEventSheet() {
     var locRow = el('div', 'pl-title-row');
     var locIn = el('input', 'pl-in');
     locIn.type = 'text';
-    locIn.placeholder = 'Indirizzo o nome del posto';
+    locIn.placeholder = 'Cerca un indirizzo o un posto';
     locIn.maxLength = 255;
+    locIn.autocomplete = 'off';
     locIn.value = d.location || '';
-    locIn.addEventListener('input', function () { d.location = locIn.value; S.draft.dirty = true; });
     locRow.appendChild(locIn);
     var locBtn = el('button', 'pl-icon-btn');
     locBtn.type = 'button';
-    locBtn.setAttribute('aria-label', 'Cerca su Google Maps');
+    locBtn.setAttribute('aria-label', 'Apri nella mappa');
     locBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-10a6.5 6.5 0 1113 0c0 4.4-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg>';
     locBtn.addEventListener('click', function () {
-        var q = (locIn.value || '').trim();
-        window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q || 'vicino a me'),
+        /* con le coordinate si apre il punto esatto; senza, resta la ricerca
+           per testo, che è quello che si poteva fare prima */
+        var q = (d.place_lat !== null && d.place_lat !== undefined && d.place_lon !== null)
+            ? (d.place_lat + ',' + d.place_lon)
+            : ((locIn.value || '').trim() || 'vicino a me');
+        window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q),
                     '_blank', 'noopener');
     });
     locRow.appendChild(locBtn);
+
+    /* Rubrica: i posti di tutti i giorni non si cercano ogni volta. Da qui si
+       sceglie uno di quelli salvati e si salva quello agganciato adesso. */
+    var rubBtn = el('button', 'pl-icon-btn');
+    rubBtn.type = 'button';
+    rubBtn.setAttribute('aria-label', 'Luoghi salvati');
+    rubBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10a1 1 0 011 1v15l-6-3.5L6 20V5a1 1 0 011-1z"/></svg>';
+    rubBtn.addEventListener('click', apriRubrica);
+    locRow.appendChild(rubBtn);
     floc.appendChild(locRow);
+
+    /* Riga sotto il campo: dice se il posto è agganciato a una posizione vera
+       o è solo testo scritto a mano. Senza questa riga non si capisce se il
+       pulsante della mappa aprirà il punto giusto. */
+    var locStato = el('div', 'pl-row-sub pl-loc-stato');
+    var locSugg = el('div', 'pl-sugg pl-hidden');
+    var locMappa = el('div', 'pl-loc-mappa pl-hidden');
+    var richiesta = 0;   // le risposte lente non devono coprire quelle nuove
+    var timerLuogo = null;
+    var inAttesa = false;   // coordinate del posto scelto: chiamata in corso
+
+    /* La mappa vera del posto, quella che si vede sui siti dei ristoranti.
+       È un riquadro di Google (servizio Embed): l'unico che può stare in
+       pagina, perché la sua chiave è legata al dominio e non si paga. Se la
+       chiave non c'è in config.php il riquadro non compare e basta.
+       Attenzione: questo riquadro lo carica il browser, quindi qui Google
+       vede chi sta guardando — la ricerca, invece, continua a passare dal
+       server. Si mostra solo a posto agganciato, mai mentre si scrive. */
+    function drawMappa() {
+        var chiave = B.map_key || '';
+        var ok = chiave && d.place_lat !== null && d.place_lat !== undefined && d.place_lon !== null;
+        locMappa.classList.toggle('pl-hidden', !ok);
+        if (!ok) { locMappa.innerHTML = ''; locMappa.dataset.src = ''; return; }
+        /* con l'identificativo del posto si vede la scheda giusta (nome e
+           recensioni); con le sole coordinate, il punto sulla mappa */
+        var q = d.place_ref ? ('place_id:' + d.place_ref) : (d.place_lat + ',' + d.place_lon);
+        var src = 'https://www.google.com/maps/embed/v1/place?key=' + encodeURIComponent(chiave)
+                + '&q=' + encodeURIComponent(q) + '&language=it&zoom=16';
+        if (locMappa.dataset.src === src) return;   // è già quella giusta: non ricaricarla
+        locMappa.dataset.src = src;
+        locMappa.innerHTML = '';
+        var f = document.createElement('iframe');
+        f.src = src;
+        f.loading = 'lazy';
+        f.title = 'Mappa del luogo';
+        f.setAttribute('allowfullscreen', '');
+        /* la chiave è ristretta al dominio: se il browser non lo dichiara,
+           Google rifiuta il riquadro */
+        f.referrerPolicy = 'no-referrer-when-downgrade';
+        locMappa.appendChild(f);
+    }
+
+    function drawStato() {
+        locStato.innerHTML = '';
+        if (inAttesa) {
+            locStato.textContent = 'Cerco la posizione…';
+            drawMappa();
+            return;
+        }
+        if (d.place_lat === null || d.place_lat === undefined || d.place_lon === null) {
+            locStato.textContent = locIn.value.trim() ? 'Posto scritto a mano, senza posizione.' : '';
+            drawMappa();
+            return;
+        }
+        var pin = el('span', null, '📍 ' + (d.place_name || 'Posizione salvata'));
+        var via = el('button', 'pl-linkish', 'togli');
+        via.type = 'button';
+        via.addEventListener('click', function () {
+            /* il testo resta: si toglie solo l'aggancio alla mappa */
+            d.place_lat = null; d.place_lon = null; d.place_ref = null; d.place_name = null;
+            S.draft.dirty = true;
+            drawStato();
+        });
+        locStato.appendChild(pin);
+        locStato.appendChild(via);
+        drawMappa();
+    }
+
+    function chiudiSugg() { locSugg.classList.add('pl-hidden'); locSugg.innerHTML = ''; }
+
+    function cercaLuoghi(q) {
+        var mia = ++richiesta;
+        api('place_search', null, { q: q }).then(function (r) {
+            if (mia !== richiesta || !S.draft) return;      // risposta sorpassata
+            locSugg.innerHTML = '';
+            if (!r.ok || !r.places || !r.places.length) {
+                locSugg.appendChild(el('div', 'pl-sugg-vuoto', 'Nessun posto trovato.'));
+                locSugg.classList.remove('pl-hidden');
+                return;
+            }
+            r.places.forEach(function (p) {
+                var b = el('button', 'pl-sugg-row');
+                b.type = 'button';
+                b.appendChild(el('div', 'pl-row-lab', p.name));
+                if (p.detail) b.appendChild(el('div', 'pl-row-sub', p.detail));
+                /* pointerdown e non click: il campo perde il fuoco appena si
+                   tocca, e con il click l'elenco sarebbe già sparito */
+                b.addEventListener('pointerdown', function (e) {
+                    e.preventDefault();
+                    d.location = p.full || p.name;
+                    d.place_name = p.name;
+                    d.place_ref = p.ref || null;
+                    locIn.value = d.location;
+                    S.draft.dirty = true;
+                    chiudiSugg();
+                    haptic(8);
+
+                    if (p.lat !== null && p.lat !== undefined) {
+                        /* la scorta (OpenStreetMap) manda già le coordinate
+                           insieme ai suggerimenti: niente seconda chiamata */
+                        d.place_lat = p.lat;
+                        d.place_lon = p.lon;
+                        drawStato();
+                        return;
+                    }
+
+                    /* Google le dà solo per il posto che si sceglie davvero:
+                       è questa la chiamata che si paga (quando si pagherà), e
+                       parte una volta sola, non per tutti i suggerimenti. */
+                    d.place_lat = null; d.place_lon = null;
+                    inAttesa = true;
+                    drawStato();
+                    var quale = d.place_ref;
+                    api('place_details', null, { ref: quale }).then(function (r) {
+                        inAttesa = false;
+                        /* nel frattempo si può aver scelto un altro posto o
+                           chiuso la scheda: la risposta vecchia non comanda */
+                        if (!S.draft || d.place_ref !== quale) return;
+                        if (r.ok && r.place) {
+                            d.place_lat = r.place.lat;
+                            d.place_lon = r.place.lon;
+                            S.draft.dirty = true;
+                        } else {
+                            toast('Posizione non trovata: resta il testo.');
+                        }
+                        drawStato();
+                    });
+                });
+                locSugg.appendChild(b);
+            });
+            locSugg.classList.remove('pl-hidden');
+        });
+    }
+
+    locIn.addEventListener('input', function () {
+        d.location = locIn.value;
+        /* Scrivendo a mano si perde l'aggancio: tenere le vecchie coordinate
+           accanto a un indirizzo diverso sarebbe peggio che non averle. */
+        if (d.place_lat !== null && d.place_lat !== undefined) {
+            d.place_lat = null; d.place_lon = null; d.place_ref = null; d.place_name = null;
+        }
+        /* se una ricerca di coordinate era in volo, quando torna non troverà
+           più il suo posto e si fermerà da sola: qui si toglie solo l'attesa */
+        inAttesa = false;
+        S.draft.dirty = true;
+        drawStato();
+        var q = locIn.value.trim();
+        clearTimeout(timerLuogo);
+        if (q.length < 3) { chiudiSugg(); return; }
+        /* mezzo secondo di attesa: si cerca a frase finita, non a ogni lettera,
+           per non tempestare il servizio delle mappe. Timer suo e non la coda
+           dei salvataggi: alla chiusura della pagina una ricerca non ha senso
+           che parta lo stesso. */
+        timerLuogo = setTimeout(function () { cercaLuoghi(q); }, 500);
+    });
+    locIn.addEventListener('blur', function () { setTimeout(chiudiSugg, 150); });
+
+    /* Mette nell'evento un posto della rubrica: testo, nome e coordinate in
+       un colpo solo, come se lo avessi appena scelto dalla ricerca. */
+    function applicaPosto(p) {
+        d.location   = p.address || p.name || p.label;
+        d.place_name = p.name || p.label;
+        d.place_lat  = (p.lat === 0 || p.lat) ? p.lat : null;
+        d.place_lon  = (p.lon === 0 || p.lon) ? p.lon : null;
+        d.place_ref  = p.ref || null;
+        locIn.value  = d.location;
+        inAttesa = false;
+        S.draft.dirty = true;
+        chiudiSugg();
+        drawStato();
+    }
+
+    /* Aggancio automatico dal titolo: "palestra alle 18" si porta dietro la
+       palestra. Vale solo a campo del luogo ancora vuoto — correggere una
+       scelta già fatta sarebbe peggio che non aiutare — e con parole di almeno
+       tre lettere, perché "a" o "in" starebbero dentro qualunque titolo. */
+    function agganciaLuogo() {
+        if ((locIn.value || '').trim() !== '') return;
+        var t = ' ' + (d.title || '').toLowerCase() + ' ';
+        var trovato = null;
+        (B.places || []).forEach(function (p) {
+            (p.keywords || '').split(',').forEach(function (k) {
+                k = k.trim().toLowerCase();
+                if (!trovato && k.length >= 3 && t.indexOf(k) >= 0) trovato = p;
+            });
+        });
+        if (trovato) applicaPosto(trovato);
+    }
+
+    function apriRubrica() {
+        openSheet('Luoghi salvati', function (bd) {
+            var lista = el('div', 'pl-places');
+
+            function draw() {
+                lista.innerHTML = '';
+                var ps = B.places || [];
+                if (!ps.length) {
+                    lista.appendChild(el('div', 'pl-row-sub',
+                        'Ancora nessun posto. Scegline uno dalla ricerca e salvalo qui sotto: da allora basterà nominarlo nel titolo.'));
+                }
+                ps.forEach(function (p) {
+                    var r = el('div', 'pl-place-row');
+                    var pick = el('button', 'pl-place-pick');
+                    pick.type = 'button';
+                    pick.appendChild(el('div', 'pl-row-lab', p.label));
+                    var sotto = (p.address || p.name || '');
+                    if (p.keywords) sotto += (sotto ? '  ·  ' : '') + p.keywords;
+                    if (sotto) pick.appendChild(el('div', 'pl-row-sub', sotto));
+                    pick.addEventListener('click', function () {
+                        applicaPosto(p);
+                        closeOv('plSheetOv');
+                        haptic(8);
+                    });
+                    var x = el('button', 'pl-icon-btn');
+                    x.type = 'button';
+                    x.setAttribute('aria-label', 'Togli dalla rubrica');
+                    x.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+                    x.addEventListener('click', function () {
+                        api('place_book_delete', { id: p.id }).then(function (rr) {
+                            if (!rr.ok) return;
+                            B.places = rr.places || [];
+                            draw();
+                        });
+                    });
+                    r.appendChild(pick); r.appendChild(x);
+                    lista.appendChild(r);
+                });
+            }
+            draw();
+            bd.appendChild(lista);
+
+            /* Si salva solo un posto agganciato a una posizione vera: senza
+               coordinate la rubrica servirebbe a poco, e il pulsante della
+               mappa tornerebbe a cercare per testo. */
+            if (d.place_lat === null || d.place_lat === undefined) {
+                bd.appendChild(el('div', 'pl-row-sub',
+                    'Per salvarne uno nuovo, scegli prima un posto dalla ricerca qui sopra: servono le sue coordinate.'));
+                return;
+            }
+            bd.appendChild(el('div', 'pl-label', 'Salva questo posto'));
+            var nome = el('input', 'pl-in');
+            nome.type = 'text'; nome.maxLength = 60;
+            nome.placeholder = 'Come lo chiami (casa, lavoro…)';
+            nome.value = d.place_name || '';
+            var kw = el('input', 'pl-in');
+            kw.type = 'text'; kw.maxLength = 255;
+            kw.placeholder = 'Parole che lo agganciano, separate da virgola';
+            var salva = el('button', 'pl-btn pl-btn-primary', 'Salva nella rubrica');
+            salva.type = 'button';
+            salva.addEventListener('click', function () {
+                var lab = nome.value.trim();
+                if (!lab) { nome.focus(); return; }
+                salva.disabled = true;
+                api('place_book_save', {
+                    id: 0, label: lab, keywords: kw.value,
+                    name: d.place_name || '', address: locIn.value || '',
+                    lat: d.place_lat, lon: d.place_lon, ref: d.place_ref || ''
+                }).then(function (rr) {
+                    salva.disabled = false;
+                    if (!rr.ok) { toast('Non sono riuscito a salvarlo.'); return; }
+                    B.places = rr.places || [];
+                    kw.value = '';
+                    draw();
+                    haptic(10);
+                });
+            });
+            bd.appendChild(nome);
+            bd.appendChild(kw);
+            bd.appendChild(salva);
+        });
+    }
+
+    floc.appendChild(locSugg);
+    floc.appendChild(locStato);
+    floc.appendChild(locMappa);
+    drawStato();
     body.appendChild(floc);
 
     /* invitati */
@@ -3440,13 +5637,23 @@ function renderEventSheet() {
     /* note */
     var fnote = el('div', 'pl-field');
     fnote.appendChild(el('label', 'pl-label', 'Note'));
-    var ta = el('textarea', 'pl-in');
+    var ta = el('textarea', 'pl-in pl-note');
     ta.placeholder = 'Qualcosa da ricordare…';
     ta.value = d.notes || '';
     ta.maxLength = 4000;
-    ta.addEventListener('input', function () { d.notes = ta.value; S.draft.dirty = true; });
+    /* Il campo si allarga con quello che ci si scrive, fino al tetto messo dal
+       CSS: da lì in poi scorre. Così una nota lunga non si legge più da una
+       fessura di tre righe. */
+    function growNote() {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(ta.scrollHeight + 2, Math.round(window.innerHeight * 0.52)) + 'px';
+    }
+    ta.addEventListener('input', function () {
+        d.notes = ta.value; S.draft.dirty = true; growNote();
+    });
     fnote.appendChild(ta);
     body.appendChild(fnote);
+    requestAnimationFrame(growNote);
 
     if (d.id) {
         var del = el('button', 'pl-btn pl-btn-danger', 'Elimina evento');
@@ -3711,6 +5918,13 @@ function saveEvent() {
         repeat: d.repeat, repeat_interval: d.repeat_interval, repeat_unit: d.repeat_unit,
         repeat_until: d.repeat_until || '',
         location: d.location || '', guests: d.guests || [],
+        place_name: d.place_name || '',
+        /* stringa vuota e non 0: 0 è una latitudine valida, e il server deve
+           poter distinguere "nessuna coordinata" da "coordinata zero" */
+        place_lat: (d.place_lat === 0 || d.place_lat) ? d.place_lat : '',
+        place_lon: (d.place_lon === 0 || d.place_lon) ? d.place_lon : '',
+        place_ref: d.place_ref || '',
+        duration_locked: d.duration_locked ? 1 : 0,
         calendar_id: d.calendar_id || 0
     };
     closeOv('plEventOv');
@@ -3720,6 +5934,10 @@ function saveEvent() {
         indexEvents([r.event]);
         if (payload.repeat !== 'none') { S.weekCache = {}; loadWeek(monday(S.focusDate), true); }
         renderDays();
+        /* Un task è anche un'attività: il server gli ha appena creato (o
+           aggiornato) la sua riga negli elenchi, quindi la copia che il
+           pannello tiene in memoria è vecchia di un istante. */
+        if (r.event && r.event.type === 'task' && S.todos) loadWeekTodos(S.todoTab, true);
         haptic(10);
         scheduleSync();
     });
@@ -3932,13 +6150,29 @@ function confirmProjectTime(p, defaultStart, defaultDur) {
     r1.appendChild(startIn);
     wrap.appendChild(r1);
 
+    /* Qui c'era una "Durata" scritta in un campo orario: l'orologio di
+       sistema mostra un'ora del giorno, e chi lo apriva scriveva l'orario di
+       fine. Con inizio 15:00 e "16:00" letto come durata l'evento finiva a
+       31:00, che il limite del giorno riportava a 23:59 — l'ora di fine
+       sembrava ignorata. Adesso il campo è quello che tutti ci leggevano. */
     var r2 = el('div', 'pl-row-sb');
-    r2.appendChild(el('span', 'pl-row-lab', 'Durata'));
-    var durIn = el('input', 'pl-pick');
-    durIn.type = 'time'; durIn.step = '300'; durIn.value = toHM(defaultDur);
-    r2.appendChild(durIn);
+    r2.appendChild(el('span', 'pl-row-lab', 'Fine'));
+    var endIn = el('input', 'pl-pick');
+    endIn.type = 'time'; endIn.step = '300';
+    endIn.value = toHM(Math.min(1439, toMin(defaultStart) + defaultDur));
+    r2.appendChild(endIn);
     wrap.appendChild(r2);
     $('plAlertMsg').appendChild(wrap);
+
+    /* Spostando l'inizio la fine lo segue, così la durata resta quella
+       proposta: solo finché la fine non viene toccata a mano, se no si
+       cancellerebbe una scelta appena fatta. */
+    var fineToccata = false;
+    endIn.addEventListener('input', function () { fineToccata = true; });
+    startIn.addEventListener('input', function () {
+        if (fineToccata) return;
+        endIn.value = toHM(Math.min(1439, toMin(startIn.value || defaultStart) + defaultDur));
+    });
 
     var acts = $('plAlertActs');
     acts.innerHTML = '';
@@ -3947,11 +6181,14 @@ function confirmProjectTime(p, defaultStart, defaultDur) {
     var yes = el('button', 'pl-btn pl-btn-primary', 'Inserisci'); yes.type = 'button';
     yes.addEventListener('click', function () {
         var start = toMin(startIn.value || defaultStart);
-        var dur = Math.max(5, toMin(durIn.value || toHM(defaultDur)));
+        var end = toMin(endIn.value || toHM(Math.min(1439, start + defaultDur)));
+        /* fine prima dell'inizio: non si indovina cosa intendesse, si dice
+           che non va e si lascia il popup aperto per correggere */
+        if (end <= start) { toast('La fine deve venire dopo l\'inizio.'); return; }
         ov.classList.remove('pl-open');
         api('event_save', {
             title: p.name, date: S.focusDate, start: toHM(start),
-            end: toHM(Math.min(1439, start + dur)),
+            end: toHM(Math.min(1439, end)),
             project_id: p.id, type: 'event', notify: 'none'
         }).then(function (r) {
             if (!r.ok) { toast('Non è stato possibile inserire il progetto.'); return; }
@@ -3970,6 +6207,15 @@ function habitChip(h, settimanale) {
     var chip = el('button', 'pl-chip');
     chip.type = 'button';
     chip.style.setProperty('--ev', h.color);
+
+    /* Se l'abitudine è già in agenda nel giorno mostrato, il chip si spegne su
+       un fondo grigio: dice "questa sarebbe la seconda volta di oggi" senza
+       impedire niente, perché a volte è proprio quello che si vuole.
+       Solo per quelle a completamento: su un'abitudine a quantità mettere più
+       passaggi nella giornata è il modo normale di usarla, e avvisare
+       sarebbe un falso allarme. */
+    var giaInserita = eventsOf(S.focusDate).some(function (e) { return e.habit_id === h.id; });
+    if (giaInserita && h.a_completamento) chip.classList.add('pl-chip-messa');
 
     if (settimanale) {
         var C = 62.8, frac = h.target ? Math.min(1, h.done / h.target) : 0;
@@ -4008,19 +6254,45 @@ $('plShiftSwitch').addEventListener('click', function (e) {
     S.shift.dir = b.dataset.dir;
     Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) { x.classList.toggle('pl-on', x === b); });
 });
+/* Il tasto che applica anticipi e ritardi.
+
+   PERCHÉ SBAGLIAVA. Spostare molti eventi richiede tempo, e il tasto restava
+   vivo e identico per tutta l'attesa: sembrava non aver fatto niente, quindi
+   lo si premeva ancora. Ogni pressione mandava una richiesta completa, e il
+   server le eseguiva tutte: tre pressioni = tre ritardi sommati.
+   Ora alla prima pressione il tasto si spegne e lo dice. */
 $('plShiftSave').addEventListener('click', function () {
+    var btn = this;
+    if (btn.disabled) return;                       // già in corso: si ignora
+
     var ids = Object.keys(S.shift.picked).map(Number);
     if (!ids.length) { toast('Scegli almeno un evento.'); return; }
     var parts = String($('plShiftTime').value || '00:10').split(':');
     var minutes = (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
     if (!minutes) { toast('Indica di quanto spostarli.'); return; }
-    api('events_shift', { ids: ids, minutes: minutes, direction: S.shift.dir }).then(function (r) {
-        if (!r.ok) { toast(r.message || 'Spostamento non riuscito.'); return; }
-        setShift(false);
-        S.weekCache = {};
-        loadWeek(monday(S.focusDate), true);
-        toast(r.moved + (r.moved === 1 ? ' evento spostato' : ' eventi spostati'));
-    });
+
+    var testo = btn.textContent;
+    btn.disabled = true;
+    btn.classList.add('pl-busy');
+    btn.textContent = 'Caricamento…';
+
+    function libera() {
+        btn.disabled = false;
+        btn.classList.remove('pl-busy');
+        btn.textContent = testo;
+    }
+
+    /* niente ripetizione automatica: spostare due volte gli stessi eventi è
+       proprio il danno che stiamo evitando */
+    api('events_shift', { ids: ids, minutes: minutes, direction: S.shift.dir }, null, { noRetry: true })
+        .then(function (r) {
+            if (!r.ok) { libera(); toast(r.message || 'Spostamento non riuscito.'); return; }
+            setShift(false);
+            libera();
+            S.weekCache = {};
+            loadWeek(monday(S.focusDate), true);
+            toast(r.moved + (r.moved === 1 ? ' evento spostato' : ' eventi spostati'));
+        });
 });
 function setShift(on) {
     S.shift.on = on;
@@ -4185,6 +6457,34 @@ $('plFilterBtn').addEventListener('click', function () {
 
 $('plSettingsBtn').addEventListener('click', function () { openSettings(); });
 
+/* Una sezione delle impostazioni che si apre e si chiude. Categorie e routine
+   aperte riempivano da sole tutto il popup: le voci sotto c'erano, ma per
+   arrivarci bisognava scorrere oltre elenchi che quasi sempre non si stava
+   cercando. Chiuse restano una riga, con quante ce ne sono. */
+function sezionePieghevole(titolo, quante) {
+    var field = el('div', 'pl-field');
+    var head = el('button', 'pl-fold-head');
+    head.type = 'button';
+    head.appendChild(el('span', 'pl-label', titolo));
+    head.appendChild(el('span', 'pl-fold-n', quante ? String(quante) : ''));
+    var arrow = el('span', 'pl-fold-arrow');
+    arrow.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+    head.appendChild(arrow);
+
+    var corpo = el('div', 'pl-fold-body pl-hidden');
+    field.appendChild(head);
+    field.appendChild(corpo);
+
+    function apri(on) {
+        corpo.classList.toggle('pl-hidden', !on);
+        head.classList.toggle('pl-open', on);
+        head.setAttribute('aria-expanded', on ? 'true' : 'false');
+    }
+    apri(false);
+    head.addEventListener('click', function () { apri(corpo.classList.contains('pl-hidden')); });
+    return { field: field, corpo: corpo, apri: apri };
+}
+
 function openSettings(focus) {
     openSheet('Impostazioni', function (body) {
         /* palette */
@@ -4211,35 +6511,33 @@ function openSettings(focus) {
         body.appendChild(fp);
 
         /* categorie */
-        var fc = el('div', 'pl-field');
-        fc.appendChild(el('label', 'pl-label', 'Categorie'));
+        var sc2 = sezionePieghevole('Categorie', (S.categories || []).length);
         var rows = el('div', 'pl-rows');
         alpha(S.categories, 'name').forEach(function (c) { rows.appendChild(categoryRow(c)); });
-        fc.appendChild(rows);
+        sc2.corpo.appendChild(rows);
         var addCat = el('button', 'pl-addlist');
         addCat.type = 'button';
         addCat.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
         addCat.appendChild(el('span', null, 'Nuova categoria'));
         addCat.style.marginTop = '8px';
         addCat.addEventListener('click', function () { editCategory(null); });
-        fc.appendChild(addCat);
-        body.appendChild(fc);
+        sc2.corpo.appendChild(addCat);
+        body.appendChild(sc2.field);
 
         /* routine */
-        var fr = el('div', 'pl-field');
-        fr.id = 'plSetRoutines';
-        fr.appendChild(el('label', 'pl-label', 'Routine'));
+        var sr2 = sezionePieghevole('Routine', (S.routines || []).length);
+        sr2.field.id = 'plSetRoutines';
         var rr = el('div', 'pl-rows');
         alpha(S.routines, 'name').forEach(function (r) { rr.appendChild(routineRow(r)); });
-        fr.appendChild(rr);
+        sr2.corpo.appendChild(rr);
         var addR = el('button', 'pl-addlist');
         addR.type = 'button';
         addR.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
         addR.appendChild(el('span', null, 'Nuova routine'));
         addR.style.marginTop = '8px';
         addR.addEventListener('click', function () { editRoutine(null); });
-        fr.appendChild(addR);
-        body.appendChild(fr);
+        sr2.corpo.appendChild(addR);
+        body.appendChild(sr2.field);
 
         /* frasi + zoom + ambiente */
         var fo = el('div', 'pl-field');
@@ -4250,10 +6548,20 @@ function openSettings(focus) {
         fo.appendChild(rowSB('Affermazioni positive', toggle(S.settings.show_affirmations !== false, function (v) {
             S.settings.show_affirmations = v; api('settings_save', { show_affirmations: v }); renderWeekBits();
         })));
-        fo.appendChild(rowSB('Alberi e insetti', toggle(S.settings.ambient_enabled !== false, function (v) {
+        /* La barra vive sotto la spunta e sparisce con lei: regolare quanto si
+           vede una cosa spenta non vuol dire niente. */
+        var rigaAmb = rowSB('Quanto si vedono', slider(0, 10, ambOpacita(), function (v) {
+            S.settings.ambient_opacity = v;
+            applyAmbientOpacity();
+            debounceSave('ambop', 500, function () { api('settings_save', { ambient_opacity: v }); });
+        }));
+        fo.appendChild(rowSB('Alberi e animali', toggle(S.settings.ambient_enabled !== false, function (v) {
             S.settings.ambient_enabled = v; api('settings_save', { ambient_enabled: v });
+            rigaAmb.classList.toggle('pl-hidden', !v);
             applyAmbient(true); applySky();
         })));
+        rigaAmb.classList.toggle('pl-hidden', S.settings.ambient_enabled === false);
+        fo.appendChild(rigaAmb);
         fo.appendChild(rowSB('Scatti degli orari', select(ZOOM.map(function (z) { return [z.key, z.label]; }), S.zoom, function (v) {
             setZoom(v);
         })));
@@ -4280,7 +6588,12 @@ function openSettings(focus) {
         body.appendChild(fg);
         drawGoogle(gBox);
 
-        if (focus === 'routines') setTimeout(function () { $('plSetRoutines').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
+        /* chi arriva qui per le routine le sta cercando: chiuse gli
+           mostrerebbero una riga sola con dentro niente */
+        if (focus === 'routines') {
+            sr2.apri(true);
+            setTimeout(function () { $('plSetRoutines').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
+        }
     });
 }
 
@@ -4985,31 +7298,43 @@ function monthCell(date, inMonth) {
         foot.appendChild(tag2);
         cell.appendChild(foot);
     }
-    /* Un tocco apre l'elenco degli eventi da quel giorno in avanti, due tocchi
-       aprono il giorno. Il primo tocco aspetta un attimo per capire se ne
-       arriva un secondo. */
-    var tapTimer = null;
+    /* Un tocco entra nel giorno, e basta: è l'unica cosa che ci si aspetta
+       toccando una casella del calendario. L'elenco degli eventi ha adesso la
+       sua maniglia sotto la griglia, così i due gesti non si contendono più
+       lo stesso tocco. */
     cell.addEventListener('click', function () {
-        if (tapTimer) {          // secondo tocco: si entra nel giorno
-            clearTimeout(tapTimer);
-            tapTimer = null;
-            closeMonthAgenda();
-            cell.classList.add('pl-anim-open');
-            setTimeout(function () {
-                S.focusDate = date;
-                setView('day');
-                renderWeekBits();
-                renderPrio();
-                loadWeek(monday(date));
-            }, 140);
-            return;
-        }
-        tapTimer = setTimeout(function () {
-            tapTimer = null;
-            openMonthAgenda(date);
-        }, 240);
+        /* Con l'elenco aperto, toccare fuori vuol dire "chiudi" e basta: è il
+           primo gesto che viene in mente per far sparire un pannello. */
+        if (monthAgendaAperta()) { closeMonthAgenda(); return; }
+        if (Date.now() - magendaChiusaA < 400) return;
+        entraNelGiorno(date, cell);
     });
     return cell;
+}
+
+/* Da quanto il pannello è stato chiuso. Serve perché sul telefono la
+   chiusura avviene già al `pointerdown` sulla griglia, e il `click` che
+   arriva subito dopo trovava il pannello chiuso: apriva il giorno su cui il
+   dito si era appoggiato per chiudere, che non è quello che si voleva. */
+var magendaChiusaA = 0;
+
+function monthAgendaAperta() {
+    var box = $('plMonthAgenda');
+    return !!(box && box.classList.contains('pl-open'));
+}
+
+/* Dal mese al giorno: l'elenco si chiude, la casella fa la sua animazione e
+   poi si passa alla vista settimanale su quel giorno. */
+function entraNelGiorno(date, cell) {
+    closeMonthAgenda();
+    if (cell) cell.classList.add('pl-anim-open');
+    setTimeout(function () {
+        S.focusDate = date;
+        setView('day');
+        renderWeekBits();
+        renderPrio();
+        loadWeek(monday(date));
+    }, 140);
 }
 
 /* ------------------------------------------------------------------ */
@@ -5021,7 +7346,39 @@ function closeMonthAgenda() {
     box.classList.remove('pl-open');
     box.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('pl-magenda-open');
+    magendaChiusaA = Date.now();
+    var pull = $('plMonthPull');
+    if (pull) pull.classList.remove('pl-aperto');
 }
+
+/* La maniglia sotto il calendario tira su l'elenco. Parte da oggi se oggi è
+   nel mese che si sta guardando, se no dal suo primo giorno: è il punto da cui
+   uno si aspetta che l'elenco cominci. */
+(function maniglia() {
+    var b = $('plMonthPull');
+    if (!b) return;
+    b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (monthAgendaAperta()) { closeMonthAgenda(); return; }
+        var c = parseIso(S.monthCursor);
+        var primo = iso(new Date(c.getFullYear(), c.getMonth(), 1));
+        var oggiQui = parseIso(S.today).getMonth() === c.getMonth()
+                   && parseIso(S.today).getFullYear() === c.getFullYear();
+        openMonthAgenda(oggiQui ? S.today : primo);
+    });
+})();
+
+/* Toccare fuori dal pannello lo chiude, non solo sulle caselle: il dito può
+   finire anche sullo sfondo della griglia o sull'intestazione del mese. */
+(function chiudiMeseFuori() {
+    var mv = $('plMonthView');
+    if (!mv) return;
+    mv.addEventListener('click', function (e) {
+        if (!monthAgendaAperta()) return;
+        if (e.target.closest && e.target.closest('#plMonthAgenda')) return;
+        closeMonthAgenda();
+    });
+})();
 
 function openMonthAgenda(fromDate) {
     var box = $('plMonthAgenda'), body = $('plMagendaBody');
@@ -5058,6 +7415,8 @@ function openMonthAgenda(fromDate) {
     box.classList.add('pl-open');
     box.setAttribute('aria-hidden', 'false');
     document.body.classList.add('pl-magenda-open');
+    var pull = $('plMonthPull');
+    if (pull) pull.classList.add('pl-aperto');
 }
 
 /* "OGGI 15/9", "DOMANI 16/9", poi il giorno della settimana */
@@ -5070,9 +7429,19 @@ function agendaDayHeader(date) {
     else if (date === addDays(S.today, -1)) etichetta = 'Ieri';
     else etichetta = GIORNI[dowIndex(date)];
 
-    var when = el('span', 'pl-ma-when' + (date < S.today ? ' pl-ma-past' : ''), etichetta);
-    head.appendChild(when);
-    head.appendChild(el('span', 'pl-ma-date', d.getDate() + '/' + (d.getMonth() + 1)));
+    /* Il nome del giorno è un pulsante: toccandolo si va a vedere quel giorno
+       nella vista settimanale. Il tag del meteo resta fuori, che ha già il
+       suo tocco e aprirebbe due cose insieme. */
+    var vai = el('button', 'pl-ma-goto');
+    vai.type = 'button';
+    vai.setAttribute('aria-label', 'Vai a ' + etichetta + ' ' + d.getDate() + '/' + (d.getMonth() + 1));
+    vai.appendChild(el('span', 'pl-ma-when' + (date < S.today ? ' pl-ma-past' : ''), etichetta));
+    vai.appendChild(el('span', 'pl-ma-date', d.getDate() + '/' + (d.getMonth() + 1)));
+    vai.addEventListener('click', function (e) {
+        e.stopPropagation();
+        entraNelGiorno(date, null);
+    });
+    head.appendChild(vai);
     var wt = wxTag(date);
     if (wt) head.appendChild(wt);
     return head;
@@ -5413,9 +7782,224 @@ function openCopyDay() {
 /* ------------------------------------------------------------------ */
 /* Avvio                                                               */
 /* ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
+/* Notifiche                                                           */
+/* ------------------------------------------------------------------ */
+/* Finora "Avvisami" si limitava a salvare la preferenza: nessuno la leggeva
+   mai, quindi non è mai arrivato un avviso. Qui c'è chi la legge.
+
+   Come funziona: ogni mezzo minuto si guarda quali eventi hanno un orario di
+   avviso ormai passato ma non ancora suonato, e li si annuncia. Niente timer
+   lunghi (il telefono che si addormenta li manda a monte) e niente coda da
+   ricostruire: basta l'orologio. Ciò che è già suonato resta segnato, così
+   riaprendo la pagina non ripiove tutto insieme.
+
+   Limite da sapere: così gli avvisi arrivano quando il planner è aperto (anche
+   solo in sottofondo, se installato come app). Per riceverli a pagina chiusa
+   serve un push dal server, che è un lavoro a parte. */
+var PL_NOTIFY = (function () {
+
+    var OFFSET = { none: null, at_time: 0, m30: 30, h1: 60, d1: 1440 };
+    var STORE = 'plNotifiedV1';
+    var GRACE = 10 * 60 * 1000;      // oltre dieci minuti di ritardo non si annuncia più
+    var swReg = null;
+    var fired = {};
+    var ticker = null;
+
+    function load() {
+        try { fired = JSON.parse(localStorage.getItem(STORE) || '{}') || {}; }
+        catch (e) { fired = {}; }
+    }
+    function save() {
+        /* si tiene solo l'ultima giornata: la memoria non deve crescere per sempre */
+        var limite = Date.now() - 36 * 3600 * 1000, pulito = {};
+        for (var k in fired) if (fired.hasOwnProperty(k) && fired[k] > limite) pulito[k] = fired[k];
+        fired = pulito;
+        try { localStorage.setItem(STORE, JSON.stringify(fired)); } catch (e) {}
+    }
+
+    /* quanti minuti prima va dato l'avviso, oppure null se non ne vuole */
+    function minutiPrima(ev) {
+        if (!ev || ev.done) return null;
+        var t = ev.notify || 'none';
+        if (t === 'custom') {
+            var m = parseInt(ev.notify_min, 10);
+            return isNaN(m) ? null : Math.max(0, m);
+        }
+        var o = OFFSET[t];
+        return (o === undefined || o === null) ? null : o;
+    }
+
+    /* il momento esatto in cui suonare, in millisecondi */
+    function quando(ev) {
+        var off = minutiPrima(ev);
+        if (off === null) return null;
+        var p = String(ev.date || '').split('-');
+        if (p.length !== 3) return null;
+        /* gli eventi di giornata intera si annunciano alle nove del mattino,
+           non a mezzanotte: un avviso nel sonno non serve a nessuno */
+        var min = ev.all_day ? 9 * 60 : toMin(ev.start || '00:00');
+        var d = new Date(+p[0], +p[1] - 1, +p[2], 0, min - off, 0, 0);
+        return d.getTime();
+    }
+
+    function testo(ev, off) {
+        if (ev.all_day) return 'Oggi';
+        if (off === 0) return 'Adesso, ' + ev.start;
+        if (off === 30) return 'Tra mezz\'ora, alle ' + ev.start;
+        if (off === 60) return 'Tra un\'ora, alle ' + ev.start;
+        if (off === 1440) return 'Domani alle ' + ev.start;
+        if (off < 60) return 'Tra ' + off + ' minuti, alle ' + ev.start;
+        var h = Math.floor(off / 60), m = off % 60;
+        return 'Tra ' + h + 'h' + (m ? ' ' + m + 'm' : '') + ', alle ' + ev.start;
+    }
+
+    /* Su Android il costruttore Notification non è ammesso: bisogna passare
+       dal service worker. Qui si prova prima quella strada e si ripiega
+       sull'altra solo dove funziona (desktop, iOS installato). */
+    function mostra(ev, off) {
+        var titolo = ev.title || 'Promemoria';
+        var opz = {
+            body: testo(ev, off),
+            tag: 'pl-ev-' + ev.id,
+            icon: 'icon-192.png',
+            badge: 'icon-192.png',
+            data: { date: ev.date, id: ev.id },
+            requireInteraction: false
+        };
+        if (swReg && swReg.showNotification) {
+            swReg.showNotification(titolo, opz).catch(function () {});
+            return;
+        }
+        try { new Notification(titolo, opz); } catch (e) {}
+    }
+
+    function giro() {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        var ora = Date.now(), cambiato = false;
+
+        /* si guardano solo ieri, oggi e domani: più in là non c'è nulla da
+           annunciare adesso, e l'archivio degli eventi può essere grosso */
+        [addDays(S.today, -1), S.today, addDays(S.today, 1)].forEach(function (giorno) {
+            (S.events[giorno] || []).forEach(function (ev) {
+                var off = minutiPrima(ev);
+                if (off === null) return;
+                var t = quando(ev);
+                if (t === null || t > ora || ora - t > GRACE) return;
+                var chiave = ev.id + '@' + t;
+                if (fired[chiave]) return;
+                fired[chiave] = ora;
+                cambiato = true;
+                mostra(ev, off);
+            });
+        });
+        if (cambiato) save();
+    }
+
+    /* Il permesso si chiede solo quando ha senso chiederlo: nel momento in cui
+       si sceglie "Avvisami" su un evento. Una richiesta a freddo all'apertura
+       della pagina viene rifiutata quasi sempre, e poi non si può più tornare
+       indietro. */
+    function chiediPermesso() {
+        if (!('Notification' in window)) {
+            toast('Questo browser non sa mostrare avvisi.');
+            return Promise.resolve(false);
+        }
+        if (Notification.permission === 'granted') return Promise.resolve(true);
+        if (Notification.permission === 'denied') {
+            toast('Gli avvisi sono bloccati nelle impostazioni del browser.');
+            return Promise.resolve(false);
+        }
+        return Notification.requestPermission().then(function (p) {
+            if (p === 'granted') { avvia(); toast('Avvisi attivi.'); return true; }
+            return false;
+        }).catch(function () { return false; });
+    }
+
+    function avvia() {
+        if (ticker) return;
+        giro();
+        ticker = setInterval(giro, 30 * 1000);
+    }
+
+    function init() {
+        if (!('Notification' in window)) return;
+        load();
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(function (reg) {
+                swReg = reg;
+            }).catch(function () { /* senza service worker si ripiega sul resto */ });
+        }
+        if (Notification.permission === 'granted') avvia();
+        /* tornando sulla pagina dopo un po' si recupera subito quel che era
+           maturato mentre era in sottofondo */
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') giro();
+        });
+    }
+
+    return { init: init, chiediPermesso: chiediPermesso, giro: giro };
+})();
+
+/* ------------------------------------------------------------------ */
+/* La colonna dei tastini che si richiude                              */
+/* ------------------------------------------------------------------ */
+/* Le abitudini restano sempre in vista: sono l'unica cosa che si guarda
+   senza doverla cercare. Tutto il resto sta dentro `plFabGroup` e scende da
+   sotto il tondo delle abitudini quando si apre.
+
+   L'altezza si anima con `max-height`, che chiede un ritaglio: ma i menù dei
+   tastini escono dal gruppo, e ritagliati sparirebbero. Quindi il ritaglio
+   c'è solo mentre la cosa si muove, e a fine corsa il gruppo torna libero.
+   È il motivo della classe `pl-libero` e del suo ritardo. */
+var fabTimer = null;
+function applyFabs(aperto, animato) {
+    var g = $('plFabGroup'), t = $('plFabToggle');
+    if (!g || !t) return;
+    if (fabTimer) { clearTimeout(fabTimer); fabTimer = null; }
+
+    t.classList.toggle('pl-aperto', aperto);
+    t.setAttribute('aria-expanded', aperto ? 'true' : 'false');
+    if (!animato) g.classList.add('pl-nomoto');
+
+    if (aperto) {
+        g.classList.remove('pl-libero');      // si richiude il ritaglio per la corsa
+        g.classList.add('pl-open');
+        fabTimer = setTimeout(function () { g.classList.add('pl-libero'); }, animato ? 340 : 0);
+    } else {
+        /* prima si toglie la libertà, se no il ritaglio non c'è e i tastini
+           invece di rientrare sotto le abitudini svanirebbero sul posto */
+        g.classList.remove('pl-libero');
+        closeMenus(null);
+        void g.offsetHeight;                  // una misura sola, per far partire la transizione
+        g.classList.remove('pl-open');
+    }
+    if (!animato) {
+        void g.offsetHeight;
+        g.classList.remove('pl-nomoto');
+    }
+}
+
+function initFabs() {
+    var t = $('plFabToggle');
+    if (!t) return;
+    applyFabs(S.settings.fabs_open !== false, false);
+    t.addEventListener('click', function () {
+        var aperto = !$('plFabGroup').classList.contains('pl-open');
+        S.settings.fabs_open = aperto;
+        applyFabs(aperto, true);
+        haptic(8);
+        api('settings_save', { fabs_open: aperto });
+        /* la rotellina si appoggia al tasto delle routine, che ora è altrove */
+        setTimeout(placeZoomDial, 360);
+    });
+}
+
 function boot() {
     applyPalette(S.settings.palette || 'sage');
     applyContrast();
+    applyAmbientOpacity();
+    initFabs();
     document.documentElement.style.setProperty('--days-visible', Math.max(1, Math.min(7, S.settings.days_visible || 3)));
     S.pointerFine = window.matchMedia('(pointer:fine)').matches;
     renderZoomDial();
@@ -5430,6 +8014,7 @@ function boot() {
     indexEvents(B.events, B.range ? { from: B.range.from, to: B.range.to } : null);
     indexPrio(B.priorities || {});
     S.habits[S.today] = B.habits || [];
+    S.rings[S.today]  = B.rings || [];
     S.weekly[monday(S.today)] = B.weekly || [];
     S.weekCache[monday(S.today)] = { week: B.week || {}, lists: B.lists || [] };
 
@@ -5445,6 +8030,7 @@ function boot() {
     loadSmart();
     loadRubrica();
     wxLoad();
+    PL_NOTIFY.init();
 
     /* all'apertura: se l'ultimo allineamento con Google è vecchio, se ne fa
        uno in sottofondo senza disturbare */
@@ -5474,6 +8060,7 @@ function boot() {
 document.addEventListener('visibilitychange', function () {
     if (document.visibilityState !== 'visible') return;
     S.habits = {};
+    S.rings = {};              // tornando da habits le spunte possono essere cambiate
     S.weekCache = {};
     loadWeek(monday(S.focusDate), true).then(renderRing);
 });

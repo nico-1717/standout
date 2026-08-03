@@ -195,11 +195,63 @@ function weeklyProgress(h, date) {
     return { done: n, target: Math.max(1, h.times_per_week || 1) };
 }
 
+/* Il primo giorno del mese di quella data. */
+function monthStartOf(date) { return date.slice(0, 7) + '-01'; }
+
+/* Quante volte un'abitudine mensile è stata fatta in quel mese.
+   Come per le settimanali, non c'è tetto: farne di più è un merito. */
+function monthlyProgress(h, date) {
+    var mese = date.slice(0, 7);
+    var n = 0;
+    for (var k in S.logs) {
+        if (!S.logs.hasOwnProperty(k)) continue;
+        var l = S.logs[k];
+        if (l.habit_id !== h.id || l.status !== 'done') continue;
+        if (l.date.slice(0, 7) === mese) n++;
+    }
+    return { done: n, target: Math.max(1, h.times_per_month || 1) };
+}
+
+/* Le abitudini a intervallo ("ogni 3 giorni") non hanno un obiettivo da
+   contare: hanno un turno. Qui si guarda il turno in corso, cioè la finestra
+   di giorni che va dall'ultima scadenza alla prossima, e si dice se dentro
+   quella finestra è già stata fatta. */
+function intervalProgress(h, date) {
+    var passo = Math.max(1, h.interval_days || 1);
+    var dal = daysBetween(h.start_date, date);
+    if (dal < 0) return { done: 0, target: 1, giorniAlProssimo: -dal };
+
+    var inizioTurno = dal - (dal % passo);          // giorni dall'inizio, arrotondati al turno
+    var d0 = new Date(h.start_date + 'T00:00:00');
+    d0.setDate(d0.getDate() + inizioTurno);
+    var inizio = d0.toISOString().slice(0, 10);
+    d0.setDate(d0.getDate() + passo - 1);
+    var fine = d0.toISOString().slice(0, 10);
+
+    var n = 0;
+    for (var k in S.logs) {
+        if (!S.logs.hasOwnProperty(k)) continue;
+        var l = S.logs[k];
+        if (l.habit_id !== h.id || l.status !== 'done') continue;
+        if (l.date >= inizio && l.date <= fine) n++;
+    }
+    return { done: Math.min(1, n), target: 1, giorniAlProssimo: passo - (dal % passo), passo: passo };
+}
+
 /* Le abitudini settimanali non dipendono dal giorno: valgono per la
    settimana intera, quindi si mostrano sempre nella loro sezione. */
 function weeklyHabits(applyFilter) {
+    return habitsOfKind('weekly', applyFilter);
+}
+function monthlyHabits(applyFilter) { return habitsOfKind('monthly', applyFilter); }
+function intervalHabits(applyFilter) { return habitsOfKind('interval', applyFilter); }
+
+/* Un solo filtro per tutte e tre le famiglie: prima era ricopiato, e ogni
+   volta che si aggiungeva un tipo di frequenza bisognava ricordarsi di
+   ricopiarlo ancora. */
+function habitsOfKind(tipo, applyFilter) {
     return S.habits.filter(function (h) {
-        if (h.is_archived || h.frequency_type !== 'weekly') return false;
+        if (h.is_archived || h.frequency_type !== tipo) return false;
         if (applyFilter && S.filter !== 'all') {
             if (S.filter.indexOf('cat:') === 0) return h.category_id === +S.filter.slice(4);
             if (S.filter.indexOf('part:') === 0) return h.day_part === S.filter.slice(5);
@@ -211,9 +263,18 @@ function weeklyHabits(applyFilter) {
 function habitsForDay(date, applyFilter) {
     return S.habits.filter(function (h) {
         if (h.is_archived) return false;
-        /* le settimanali hanno una sezione tutta loro: qui darebbero
-           l'impressione di essere mancate ogni giorno */
-        if (h.frequency_type === 'weekly') return false;
+        /* Settimanali, mensili e a intervallo hanno una sezione tutta loro.
+
+           Le mensili qui erano un bug vero: isDue() risponde "sì" per loro
+           ogni singolo giorno, quindi finivano nell'elenco dei giornalieri e
+           risultavano mancate ogni giorno tranne quelli in cui le spuntavi.
+           Le settimanali erano già state tolte per questo stesso motivo; le
+           mensili erano rimaste indietro.
+
+           Le a intervallo invece erano corrette (compaiono solo nei loro
+           giorni), ma tenute in mezzo alle giornaliere non si distinguevano:
+           ora hanno la loro sezione, con il turno in corso. */
+        if (h.frequency_type !== 'daily') return false;
         if (!isDue(h, date)) return false;
         if (applyFilter && S.filter !== 'all') {
             if (S.filter.indexOf('cat:') === 0) return h.category_id === +S.filter.slice(4);
@@ -660,18 +721,18 @@ function renderFilters() {
     }).join('');
 }
 
-/* La riga di un'abitudine settimanale: è la stessa riga di sempre, con
-   dentro l'anellino del progresso. Riusare rowHTML invece di riscriverla
-   significa che spunta, scorrimento e pressione prolungata continuano a
-   funzionare identici, senza doverli mantenere in due posti. */
-function weeklyRowHTML(h, date) {
-    var p = weeklyProgress(h, date);
+/* La riga di un'abitudine con l'anellino del progresso dentro. È la stessa
+   riga di sempre: riusare rowHTML invece di riscriverla significa che spunta,
+   scorrimento e pressione prolungata continuano a funzionare identici, senza
+   doverli mantenere in più posti. `p` è {done, target}; `extra` è
+   l'eventuale scritta piccola in coda (per esempio "fra 2 giorni"). */
+function ringRowHTML(h, date, p, extra) {
     var C = 75.4;                                  // 2πr con r = 12
     var frac = Math.min(1, p.done / p.target);
     var oltre = p.done > p.target;
 
     var ring = '<span class="hb-week-ring' + (oltre ? ' is-over' : '') + '" aria-label="'
-        + p.done + ' su ' + p.target + ' questa settimana">'
+        + p.done + ' su ' + p.target + '">'
         + '<svg viewBox="0 0 28 28">'
         + '<circle class="bg" cx="14" cy="14" r="12"/>'
         + '<circle class="fg" cx="14" cy="14" r="12" stroke-dasharray="' + C
@@ -681,7 +742,30 @@ function weeklyRowHTML(h, date) {
     var html = rowHTML(h, date);
     html = html.replace('class="hb-row', 'class="hb-row hb-row-week');
     /* subito dopo il tasto della spunta */
-    return html.replace('</button>', '</button>' + ring);
+    html = html.replace('</button>', '</button>' + ring);
+    if (extra) {
+        /* La nota viaggia come attributo e la disegna il CSS. Infilare un
+           altro div dentro la riga significherebbe indovinare un punto esatto
+           del markup di rowHTML, e romperlo alla prima modifica di quello. */
+        html = html.replace('<div class="hb-row-main">',
+                            '<div class="hb-row-main" data-extra="' + esc(extra) + '">');
+    }
+    return html;
+}
+
+function weeklyRowHTML(h, date) {
+    return ringRowHTML(h, date, weeklyProgress(h, date));
+}
+function monthlyRowHTML(h, date) {
+    return ringRowHTML(h, date, monthlyProgress(h, date));
+}
+function intervalRowHTML(h, date) {
+    var p = intervalProgress(h, date);
+    var nota = 'ogni ' + p.passo + (p.passo === 1 ? ' giorno' : ' giorni');
+    if (!p.done && p.giorniAlProssimo > 0 && p.giorniAlProssimo < p.passo) {
+        nota += ' · prossima fra ' + p.giorniAlProssimo;
+    }
+    return ringRowHTML(h, date, p, nota);
 }
 
 function rowHTML(h, date) {
@@ -757,6 +841,9 @@ function renderList() {
     empty.hidden = true;
 
     var settimanali = weeklyHabits(true);
+    var mensili     = monthlyHabits(true);
+    var intervalli  = intervalHabits(true).filter(function (h) { return isDue(h, S.selected) || !isSuccess(h, S.selected); });
+    var altreSezioni = settimanali.length + mensili.length + intervalli.length;
     var html = '';
 
     if (S.settings.group_by_day_part) {
@@ -768,15 +855,26 @@ function renderList() {
             html += group.map(function (h) { return rowHTML(h, S.selected); }).join('');
         });
     } else {
-        /* l'intestazione "Giornalieri" ha senso solo se ci sono anche le
-           settimanali, altrimenti sarebbe un titolo per l'unico elenco */
-        if (items.length && settimanali.length) html += '<div class="hb-group-label">Giornalieri</div>';
+        /* l'intestazione "Giornalieri" ha senso solo se c'è almeno un'altra
+           sezione, altrimenti sarebbe un titolo per l'unico elenco */
+        if (items.length && altreSezioni) html += '<div class="hb-group-label">Giornalieri</div>';
         html += items.map(function (h) { return rowHTML(h, S.selected); }).join('');
     }
 
+    /* Ogni sezione compare solo se ha almeno un'abitudine. L'ordine va dal
+       ritmo più stretto al più largo: giornaliere, settimanali, mensili,
+       personalizzate. */
     if (settimanali.length) {
         html += '<div class="hb-group-label hb-group-week">Settimanali</div>';
         html += settimanali.map(function (h) { return weeklyRowHTML(h, S.selected); }).join('');
+    }
+    if (mensili.length) {
+        html += '<div class="hb-group-label hb-group-month">Mensili</div>';
+        html += mensili.map(function (h) { return monthlyRowHTML(h, S.selected); }).join('');
+    }
+    if (intervalli.length) {
+        html += '<div class="hb-group-label hb-group-interval">Personalizzate</div>';
+        html += intervalli.map(function (h) { return intervalRowHTML(h, S.selected); }).join('');
     }
 
     list.innerHTML = html || '<div class="hb-none">Nessuna abitudine con questo filtro.</div>';

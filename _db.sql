@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Creato il: Lug 23, 2026 alle 11:53
+-- Creato il: Ago 02, 2026 alle 17:19
 -- Versione del server: 8.0.45
 -- Versione PHP: 8.0.22
 
@@ -53,6 +53,51 @@ CREATE TABLE `categories` (
 -- --------------------------------------------------------
 
 --
+-- Struttura della tabella `contacts`
+--
+
+CREATE TABLE `contacts` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `name` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'come lo chiami tu: "luchino"',
+  `email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `diary_list_items`
+--
+
+CREATE TABLE `diary_list_items` (
+  `id` bigint UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `entry_date` date NOT NULL,
+  `list_type` enum('good','learned') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `content` varchar(300) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `sort_order` int NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `diary_settings`
+--
+
+CREATE TABLE `diary_settings` (
+  `user_id` int NOT NULL,
+  `font_key` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'caveat' COMMENT 'caveat | kalam | patrick | cormorant | jost',
+  `paper_key` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'lined',
+  `font_size` tinyint UNSIGNED NOT NULL DEFAULT '18',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Struttura della tabella `english_child_words`
 --
 
@@ -65,6 +110,22 @@ CREATE TABLE `english_child_words` (
   `meaning` text,
   `example` text
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `event_guests`
+--
+
+CREATE TABLE `event_guests` (
+  `id` bigint UNSIGNED NOT NULL,
+  `event_id` bigint UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `contact_id` int UNSIGNED DEFAULT NULL COMMENT 'NULL se l indirizzo è stato scritto a mano',
+  `email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -250,6 +311,57 @@ CREATE TABLE `game_fc_categories` (
 -- --------------------------------------------------------
 
 --
+-- Struttura della tabella `google_calendar_accounts`
+--
+
+CREATE TABLE `google_calendar_accounts` (
+  `user_id` int NOT NULL,
+  `google_email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `access_token` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'cifrato con GC_ENC_KEY',
+  `refresh_token` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'cifrato con GC_ENC_KEY',
+  `token_expires` datetime DEFAULT NULL,
+  `calendar_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'primary',
+  `sync_token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `last_sync_at` datetime DEFAULT NULL,
+  `is_enabled` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `google_sync_log`
+--
+
+CREATE TABLE `google_sync_log` (
+  `id` bigint UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `direction` enum('pull','push','delete','auth') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `outcome` enum('ok','error') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ok',
+  `items` int NOT NULL DEFAULT '0',
+  `detail` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `google_sync_queue`
+--
+
+CREATE TABLE `google_sync_queue` (
+  `id` bigint UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `google_event_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `google_calendar_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `action` enum('delete') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'delete',
+  `attempts` tinyint UNSIGNED NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Struttura della tabella `habits`
 --
 
@@ -281,7 +393,8 @@ CREATE TABLE `habits` (
   `is_archived` tinyint(1) NOT NULL DEFAULT '0',
   `archived_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `planner_minutes` smallint UNSIGNED DEFAULT NULL COMMENT 'durata stimata in minuti, usata dal planner. NULL = usa lo scatto corrente'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -482,6 +595,307 @@ CREATE TABLE `login_attempts` (
 -- --------------------------------------------------------
 
 --
+-- Struttura della tabella `pill_doses`
+--
+
+CREATE TABLE `pill_doses` (
+  `id` bigint UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `plan_id` int UNSIGNED NOT NULL,
+  `due_date` date NOT NULL,
+  `due_time` time NOT NULL,
+  `seq` tinyint UNSIGNED NOT NULL DEFAULT '1' COMMENT 'quale delle prese previste per quell ora',
+  `status` enum('pending','taken','skipped') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `taken_at` datetime DEFAULT NULL COMMENT 'l ora vera della spunta, che non è quella prevista',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `pill_plans`
+--
+
+CREATE TABLE `pill_plans` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `name` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `dose` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'mezza compressa, 10 gocce, 1 bustina',
+  `notes` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'a stomaco pieno, lontano dal caffè...',
+  `color` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '#B7A6D6',
+  `freq_type` enum('daily','monthly','interval') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'daily' COMMENT 'daily = certi giorni della settimana; monthly = certi giorni del mese; interval = ogni N giorni',
+  `weekdays` char(7) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '1111111' COMMENT 'lun..dom, come in habits',
+  `month_days` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'giorni del mese separati da virgola: 13,27',
+  `interval_days` smallint UNSIGNED NOT NULL DEFAULT '1' COMMENT 'ogni quanti giorni, contati dalla data di inizio',
+  `times` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '08:00x1' COMMENT 'orari e quante volte per orario: 10:00x2,20:00x1',
+  `start_date` date NOT NULL,
+  `end_date` date DEFAULT NULL COMMENT 'NULL = a tempo indeterminato; una cura di sette giorni finisce da sola',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `sort_order` int NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `place_cache`
+--
+
+CREATE TABLE `place_cache` (
+  `id` int UNSIGNED NOT NULL,
+  `q_key` char(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'sha1 della ricerca in minuscolo',
+  `payload` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'risultati già ripuliti, in JSON',
+  `fetched_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `planner_calendars`
+--
+
+CREATE TABLE `planner_calendars` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `name` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `color` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '#A9C3AE',
+  `is_visible` tinyint(1) NOT NULL DEFAULT '1',
+  `is_default` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = ci finiscono gli eventi senza calendario scelto',
+  `google_ref` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'calendario Google da cui arrivano questi eventi',
+  `sort_order` int NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `planner_categories`
+--
+
+CREATE TABLE `planner_categories` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `name` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `color` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '#C8DAD3',
+  `sort_order` int NOT NULL DEFAULT '0',
+  `is_hidden` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'filtro rapido: 1 = eventi nascosti',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `planner_category_keywords`
+--
+
+CREATE TABLE `planner_category_keywords` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `category_id` int UNSIGNED NOT NULL,
+  `keyword` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'salvata minuscola, senza accenti doppi',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `planner_events`
+--
+
+CREATE TABLE `planner_events` (
+  `id` bigint UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `title` varchar(180) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `notes` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `place_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `place_lat` decimal(10,7) DEFAULT NULL,
+  `place_lon` decimal(10,7) DEFAULT NULL,
+  `place_ref` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'identificativo del luogo restituito dal servizio di mappe',
+  `duration_locked` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'lucchetto: 1 = durata fissa, spostando un estremo si muove l altro',
+  `location` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'indirizzo o nome del posto',
+  `event_date` date NOT NULL,
+  `start_time` time NOT NULL DEFAULT '09:00:00',
+  `end_time` time NOT NULL DEFAULT '10:00:00',
+  `is_all_day` tinyint(1) NOT NULL DEFAULT '0',
+  `category_id` int UNSIGNED DEFAULT NULL,
+  `calendar_id` int UNSIGNED DEFAULT NULL COMMENT 'calendario di appartenenza',
+  `project_id` int DEFAULT NULL,
+  `habit_id` int UNSIGNED DEFAULT NULL COMMENT 'evento generato da un habit: la spunta si sincronizza con habit_logs',
+  `routine_id` int UNSIGNED DEFAULT NULL,
+  `routine_group` char(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'stesso valore per tutti i pezzi di un blocco routine inserito',
+  `routine_collapsed` tinyint(1) NOT NULL DEFAULT '1' COMMENT '1 = blocco unico, 0 = eventi separati',
+  `importance` enum('normal','high','highest') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'normal',
+  `color` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'NULL = eredita da categoria/progetto',
+  `item_type` enum('event','task') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'event',
+  `is_completed` tinyint(1) NOT NULL DEFAULT '0',
+  `completed_at` datetime DEFAULT NULL,
+  `notify_type` enum('none','at_time','m30','h1','d1','custom') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'h1',
+  `notify_minutes` int NOT NULL DEFAULT '60' COMMENT 'minuti di anticipo effettivi, calcolati anche per i preset',
+  `repeat_type` enum('none','daily','weekly','monthly','yearly','custom') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'none',
+  `repeat_interval` smallint UNSIGNED NOT NULL DEFAULT '1',
+  `repeat_unit` enum('day','week','month','year') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'week',
+  `repeat_until` date DEFAULT NULL,
+  `series_id` bigint UNSIGNED DEFAULT NULL COMMENT 'id del primo evento della serie ripetuta',
+  `google_event_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `google_calendar_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'calendario Google in cui vive questo evento',
+  `google_synced_at` datetime DEFAULT NULL COMMENT 'ultimo allineamento con Google',
+  `google_origin` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = nato su Google, non nel planner',
+  `sort_order` int NOT NULL DEFAULT '0' COMMENT 'ordine tra eventi sovrapposti / eventi tutto il giorno',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `planner_places`
+--
+
+CREATE TABLE `planner_places` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `label` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'come lo chiami tu: casa, lavoro, palestra',
+  `keywords` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'parole separate da virgola: se una compare nel titolo, il luogo si aggancia da solo',
+  `place_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'nome del posto come lo chiama la mappa',
+  `address` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'testo da scrivere nel campo luogo dell evento',
+  `place_lat` decimal(10,7) DEFAULT NULL,
+  `place_lon` decimal(10,7) DEFAULT NULL,
+  `place_ref` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'identificativo del luogo sul servizio di mappe',
+  `sort_order` int NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `planner_priorities`
+--
+
+CREATE TABLE `planner_priorities` (
+  `id` bigint UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `priority_date` date NOT NULL,
+  `position` tinyint UNSIGNED NOT NULL DEFAULT '1' COMMENT '1..6, due per riga',
+  `content` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `is_done` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `planner_routines`
+--
+
+CREATE TABLE `planner_routines` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `name` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `color` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '#E3D9EE',
+  `sort_order` int NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `planner_routine_items`
+--
+
+CREATE TABLE `planner_routine_items` (
+  `id` int UNSIGNED NOT NULL,
+  `routine_id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `name` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `duration_minutes` smallint UNSIGNED NOT NULL DEFAULT '5',
+  `sort_order` int NOT NULL DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `planner_settings`
+--
+
+CREATE TABLE `planner_settings` (
+  `user_id` int NOT NULL,
+  `palette_key` varchar(24) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'sage' COMMENT 'sage | mint | blush | lavender | butter | sky | clay',
+  `default_zoom` enum('agenda','h3','h1','m30','m15','m5') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'm30',
+  `day_start_hour` tinyint UNSIGNED NOT NULL DEFAULT '6' COMMENT 'primo orario mostrato allo scroll iniziale',
+  `show_motivational` tinyint(1) NOT NULL DEFAULT '1',
+  `show_affirmations` tinyint(1) NOT NULL DEFAULT '1',
+  `default_view` enum('day','month') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'day',
+  `first_week_start` date DEFAULT NULL COMMENT 'lunedi della settimana 1 del planner',
+  `first_week_number` int NOT NULL DEFAULT '1',
+  `ambient_enabled` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'insetti/alberi animati nella barra',
+  `contrast_level` tinyint UNSIGNED NOT NULL DEFAULT '3' COMMENT '1 = molto tenue ... 5 = molto marcato',
+  `days_visible` tinyint UNSIGNED NOT NULL DEFAULT '3' COMMENT 'quanti giorni affiancati su schermi larghi (1..7)',
+  `google_sync_enabled` tinyint(1) NOT NULL DEFAULT '0',
+  `gc_dedicated_mode` enum('none','all','high','highest') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'all' COMMENT 'quali eventi vanno nel calendario dedicato',
+  `gc_primary_mode` enum('none','high','highest') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'none' COMMENT 'quali eventi vanno invece nel calendario principale di Google',
+  `weather_enabled` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = modalità meteo attiva',
+  `weather_lat` decimal(8,5) DEFAULT NULL,
+  `weather_lon` decimal(8,5) DEFAULT NULL,
+  `weather_place` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'nome della località, se lo ricaviamo',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `planner_weeks`
+--
+
+CREATE TABLE `planner_weeks` (
+  `id` bigint UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `week_start` date NOT NULL COMMENT 'sempre il lunedi',
+  `week_number` int NOT NULL DEFAULT '1' COMMENT 'progressivo del planner, modificabile a mano',
+  `number_edited` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = impostato a mano: da qui in avanti si ricalcola',
+  `is_completed` tinyint(1) NOT NULL DEFAULT '0',
+  `learned_note` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'cosa ho imparato questa settimana',
+  `quote_id` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'frase motivazionale estratta dal json',
+  `affirmation_id` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `planner_week_lists`
+--
+
+CREATE TABLE `planner_week_lists` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `week_start` date NOT NULL,
+  `list_type` enum('todo','buy','study') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'todo',
+  `sort_order` int NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `planner_week_list_items`
+--
+
+CREATE TABLE `planner_week_list_items` (
+  `id` bigint UNSIGNED NOT NULL,
+  `list_id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `content` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `is_done` tinyint(1) NOT NULL DEFAULT '0',
+  `sort_order` int NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Struttura della tabella `plans`
 --
 
@@ -577,7 +991,9 @@ CREATE TABLE `projects` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `target_date` date DEFAULT NULL,
   `due_date` date DEFAULT NULL,
-  `custom_order` int NOT NULL DEFAULT '0'
+  `custom_order` int NOT NULL DEFAULT '0',
+  `todo_enabled` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = mostra la sezione attività dentro il progetto',
+  `is_favorite` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = preferito: compare nel selettore e nel planner'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -610,6 +1026,19 @@ CREATE TABLE `push_subscriptions` (
 -- --------------------------------------------------------
 
 --
+-- Struttura della tabella `rate_limits`
+--
+
+CREATE TABLE `rate_limits` (
+  `id` bigint UNSIGNED NOT NULL,
+  `bucket` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'es. planner_write:42 oppure register:1.2.3.4',
+  `ip_address` varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Struttura della tabella `remember_tokens`
 --
 
@@ -626,6 +1055,37 @@ CREATE TABLE `remember_tokens` (
 -- --------------------------------------------------------
 
 --
+-- Struttura della tabella `roles`
+--
+
+CREATE TABLE `roles` (
+  `id` tinyint UNSIGNED NOT NULL,
+  `level` tinyint UNSIGNED NOT NULL COMMENT '0 = base, valori piu alti = piu permessi',
+  `code` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `security_audit_log`
+--
+
+CREATE TABLE `security_audit_log` (
+  `id` bigint UNSIGNED NOT NULL,
+  `user_id` int DEFAULT NULL,
+  `action` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `outcome` enum('ok','denied','error') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ok',
+  `detail` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ip_address` varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `user_agent` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Struttura della tabella `session_durations`
 --
 
@@ -636,6 +1096,51 @@ CREATE TABLE `session_durations` (
   `duration_seconds` int UNSIGNED NOT NULL DEFAULT '0',
   `updated_at` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `todos`
+--
+
+CREATE TABLE `todos` (
+  `id` bigint UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `list_type` enum('todo','buy','study') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'todo',
+  `parent_id` bigint UNSIGNED DEFAULT NULL COMMENT 'sotto-attività: punta a un altro todo',
+  `project_id` int DEFAULT NULL COMMENT 'progetto collegato',
+  `buy_category_id` int UNSIGNED DEFAULT NULL,
+  `buy_priority` tinyint UNSIGNED NOT NULL DEFAULT '3' COMMENT '1 = più alta, 3 = più bassa',
+  `buy_price_cents` int UNSIGNED DEFAULT NULL COMMENT 'in centesimi: i totali devono tornare al centesimo',
+  `buy_url` varchar(2048) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `buy_image` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'nome del file caricato, non il percorso completo',
+  `title` varchar(300) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `is_done` tinyint(1) NOT NULL DEFAULT '0',
+  `done_at` datetime DEFAULT NULL,
+  `due_date` date DEFAULT NULL COMMENT 'quando va fatta. NULL = senza data',
+  `due_time` time DEFAULT NULL COMMENT 'a che ora. NULL = tutto il giorno',
+  `duration_minutes` smallint UNSIGNED NOT NULL DEFAULT '30',
+  `sort_order` int NOT NULL DEFAULT '0',
+  `source` enum('page','project','pomodoro') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'page' COMMENT 'da dove è stata creata',
+  `planner_event_id` bigint UNSIGNED DEFAULT NULL COMMENT 'evento del planner collegato, se ha una data',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `todo_buy_categories`
+--
+
+CREATE TABLE `todo_buy_categories` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `name` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `color` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '#B7AEA3',
+  `sort_order` int NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -695,7 +1200,12 @@ CREATE TABLE `university_exam_groups` (
   `id` int NOT NULL,
   `user_id` int NOT NULL,
   `name` varchar(120) NOT NULL DEFAULT 'Gruppo',
+  `group_type` enum('choice','split') NOT NULL DEFAULT 'choice',
   `cfu` decimal(4,1) NOT NULL DEFAULT '0.0' COMMENT 'CFU conteggiati una sola volta per tutto il gruppo',
+  `overall_grade` tinyint DEFAULT NULL,
+  `overall_honors` tinyint(1) NOT NULL DEFAULT '0',
+  `overall_predicted_grade` tinyint DEFAULT NULL,
+  `overall_predicted_honors` tinyint(1) NOT NULL DEFAULT '0',
   `sort_order` int NOT NULL DEFAULT '0',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -786,6 +1296,32 @@ CREATE TABLE `user_plans` (
   `historical_avg_tokens_per_call` decimal(10,2) DEFAULT NULL COMMENT 'Media storica (media delle medie mensili) di token spesi per chiamata IA testuale'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `user_roles`
+--
+
+CREATE TABLE `user_roles` (
+  `user_id` int NOT NULL,
+  `role_level` tinyint UNSIGNED NOT NULL DEFAULT '0',
+  `assigned_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `assigned_by` int DEFAULT NULL COMMENT 'user_id di chi ha assegnato il ruolo, NULL = automatico'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `weather_cache`
+--
+
+CREATE TABLE `weather_cache` (
+  `id` int UNSIGNED NOT NULL,
+  `grid_key` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'coordinate arrotondate: la cache è condivisa fra utenti vicini',
+  `payload` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'risposta del servizio, in JSON',
+  `fetched_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 --
 -- Indici per le tabelle scaricate
 --
@@ -803,11 +1339,40 @@ ALTER TABLE `categories`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indici per le tabelle `contacts`
+--
+ALTER TABLE `contacts`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_contact_email` (`user_id`,`email`),
+  ADD KEY `idx_contact_name` (`user_id`,`name`);
+
+--
+-- Indici per le tabelle `diary_list_items`
+--
+ALTER TABLE `diary_list_items`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_dli_user_date` (`user_id`,`entry_date`,`list_type`,`sort_order`);
+
+--
+-- Indici per le tabelle `diary_settings`
+--
+ALTER TABLE `diary_settings`
+  ADD PRIMARY KEY (`user_id`);
+
+--
 -- Indici per le tabelle `english_child_words`
 --
 ALTER TABLE `english_child_words`
   ADD PRIMARY KEY (`id_child`),
   ADD KEY `fk_english_child_parent` (`parent_id`);
+
+--
+-- Indici per le tabelle `event_guests`
+--
+ALTER TABLE `event_guests`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_guest` (`event_id`,`email`),
+  ADD KEY `idx_guest_user` (`user_id`);
 
 --
 -- Indici per le tabelle `fc_ai_data`
@@ -892,6 +1457,26 @@ ALTER TABLE `game_categories`
 ALTER TABLE `game_fc_categories`
   ADD PRIMARY KEY (`game_id`,`fc_category_id`),
   ADD KEY `fk_gfc_category` (`fc_category_id`);
+
+--
+-- Indici per le tabelle `google_calendar_accounts`
+--
+ALTER TABLE `google_calendar_accounts`
+  ADD PRIMARY KEY (`user_id`);
+
+--
+-- Indici per le tabelle `google_sync_log`
+--
+ALTER TABLE `google_sync_log`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_gsl_user` (`user_id`,`created_at`);
+
+--
+-- Indici per le tabelle `google_sync_queue`
+--
+ALTER TABLE `google_sync_queue`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_gsq_user` (`user_id`,`created_at`);
 
 --
 -- Indici per le tabelle `habits`
@@ -987,6 +1572,124 @@ ALTER TABLE `login_attempts`
   ADD KEY `idx_ip_time` (`ip_address`,`attempted_at`);
 
 --
+-- Indici per le tabelle `pill_doses`
+--
+ALTER TABLE `pill_doses`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `presa_unica` (`plan_id`,`due_date`,`due_time`,`seq`),
+  ADD KEY `user_giorno` (`user_id`,`due_date`);
+
+--
+-- Indici per le tabelle `pill_plans`
+--
+ALTER TABLE `pill_plans`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `user_id` (`user_id`);
+
+--
+-- Indici per le tabelle `place_cache`
+--
+ALTER TABLE `place_cache`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_ricerca` (`q_key`),
+  ADD KEY `idx_eta` (`fetched_at`);
+
+--
+-- Indici per le tabelle `planner_calendars`
+--
+ALTER TABLE `planner_calendars`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_cal_user` (`user_id`,`sort_order`),
+  ADD KEY `idx_cal_google` (`user_id`,`google_ref`(64));
+
+--
+-- Indici per le tabelle `planner_categories`
+--
+ALTER TABLE `planner_categories`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_pcat_user` (`user_id`,`sort_order`);
+
+--
+-- Indici per le tabelle `planner_category_keywords`
+--
+ALTER TABLE `planner_category_keywords`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_pkw_user_keyword` (`user_id`,`keyword`) COMMENT 'una parola appartiene a una sola categoria',
+  ADD KEY `idx_pkw_cat` (`category_id`);
+
+--
+-- Indici per le tabelle `planner_events`
+--
+ALTER TABLE `planner_events`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_pev_user_date` (`user_id`,`event_date`),
+  ADD KEY `idx_pev_user_title` (`user_id`,`title`(40)),
+  ADD KEY `idx_pev_series` (`series_id`),
+  ADD KEY `idx_pev_habit` (`habit_id`,`event_date`),
+  ADD KEY `idx_pev_project` (`project_id`),
+  ADD KEY `idx_pev_google` (`google_event_id`(64)),
+  ADD KEY `idx_pev_gsync` (`user_id`,`google_synced_at`),
+  ADD KEY `idx_pev_calendar` (`user_id`,`calendar_id`),
+  ADD KEY `idx_gc_event` (`user_id`,`google_event_id`);
+
+--
+-- Indici per le tabelle `planner_places`
+--
+ALTER TABLE `planner_places`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `user_id` (`user_id`);
+
+--
+-- Indici per le tabelle `planner_priorities`
+--
+ALTER TABLE `planner_priorities`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_pprio_slot` (`user_id`,`priority_date`,`position`);
+
+--
+-- Indici per le tabelle `planner_routines`
+--
+ALTER TABLE `planner_routines`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_prout_user` (`user_id`,`sort_order`);
+
+--
+-- Indici per le tabelle `planner_routine_items`
+--
+ALTER TABLE `planner_routine_items`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_prit_routine` (`routine_id`,`sort_order`),
+  ADD KEY `idx_prit_user` (`user_id`);
+
+--
+-- Indici per le tabelle `planner_settings`
+--
+ALTER TABLE `planner_settings`
+  ADD PRIMARY KEY (`user_id`);
+
+--
+-- Indici per le tabelle `planner_weeks`
+--
+ALTER TABLE `planner_weeks`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_pweek` (`user_id`,`week_start`);
+
+--
+-- Indici per le tabelle `planner_week_lists`
+--
+ALTER TABLE `planner_week_lists`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_pwlist` (`user_id`,`week_start`,`list_type`);
+
+--
+-- Indici per le tabelle `planner_week_list_items`
+--
+ALTER TABLE `planner_week_list_items`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_pwli_list` (`list_id`,`sort_order`),
+  ADD KEY `idx_pwli_user` (`user_id`);
+
+--
 -- Indici per le tabelle `plans`
 --
 ALTER TABLE `plans`
@@ -1030,7 +1733,8 @@ ALTER TABLE `pomodoro_settings`
 ALTER TABLE `projects`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_progetti_user` (`user_id`),
-  ADD KEY `idx_progetti_parent_order` (`parent_id`,`custom_order`);
+  ADD KEY `idx_progetti_parent_order` (`parent_id`,`custom_order`),
+  ADD KEY `idx_proj_fav` (`user_id`,`is_favorite`);
 
 --
 -- Indici per le tabelle `project_fc_categories`
@@ -1048,6 +1752,13 @@ ALTER TABLE `push_subscriptions`
   ADD KEY `idx_push_user` (`user_id`);
 
 --
+-- Indici per le tabelle `rate_limits`
+--
+ALTER TABLE `rate_limits`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_rate_bucket_time` (`bucket`,`created_at`);
+
+--
 -- Indici per le tabelle `remember_tokens`
 --
 ALTER TABLE `remember_tokens`
@@ -1056,11 +1767,48 @@ ALTER TABLE `remember_tokens`
   ADD KEY `idx_remember_tokens_user_id` (`user_id`);
 
 --
+-- Indici per le tabelle `roles`
+--
+ALTER TABLE `roles`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_roles_level` (`level`),
+  ADD UNIQUE KEY `uq_roles_code` (`code`);
+
+--
+-- Indici per le tabelle `security_audit_log`
+--
+ALTER TABLE `security_audit_log`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_audit_user_time` (`user_id`,`created_at`),
+  ADD KEY `idx_audit_action` (`action`,`created_at`);
+
+--
 -- Indici per le tabelle `session_durations`
 --
 ALTER TABLE `session_durations`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_durata_sessione_game` (`game_id`);
+
+--
+-- Indici per le tabelle `todos`
+--
+ALTER TABLE `todos`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_todo_user_due` (`user_id`,`due_date`,`due_time`),
+  ADD KEY `idx_todo_user_done` (`user_id`,`is_done`,`done_at`),
+  ADD KEY `idx_todo_parent` (`parent_id`),
+  ADD KEY `idx_todo_project` (`project_id`),
+  ADD KEY `idx_todo_event` (`planner_event_id`),
+  ADD KEY `idx_lista` (`user_id`,`list_type`,`is_done`),
+  ADD KEY `idx_buy` (`user_id`,`list_type`,`buy_category_id`,`buy_priority`);
+
+--
+-- Indici per le tabelle `todo_buy_categories`
+--
+ALTER TABLE `todo_buy_categories`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_utente_nome` (`user_id`,`name`),
+  ADD KEY `idx_utente` (`user_id`,`sort_order`);
 
 --
 -- Indici per le tabelle `university_bonuses`
@@ -1120,6 +1868,21 @@ ALTER TABLE `user_plans`
   ADD KEY `idx_user_piano_piano_id` (`piano_id`);
 
 --
+-- Indici per le tabelle `user_roles`
+--
+ALTER TABLE `user_roles`
+  ADD PRIMARY KEY (`user_id`),
+  ADD KEY `idx_user_roles_level` (`role_level`);
+
+--
+-- Indici per le tabelle `weather_cache`
+--
+ALTER TABLE `weather_cache`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_weather_grid` (`grid_key`),
+  ADD KEY `idx_weather_time` (`fetched_at`);
+
+--
 -- AUTO_INCREMENT per le tabelle scaricate
 --
 
@@ -1130,10 +1893,28 @@ ALTER TABLE `categories`
   MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT per la tabella `contacts`
+--
+ALTER TABLE `contacts`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `diary_list_items`
+--
+ALTER TABLE `diary_list_items`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT per la tabella `english_child_words`
 --
 ALTER TABLE `english_child_words`
   MODIFY `id_child` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `event_guests`
+--
+ALTER TABLE `event_guests`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT per la tabella `fc_categories`
@@ -1182,6 +1963,18 @@ ALTER TABLE `gameplays`
 --
 ALTER TABLE `games`
   MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `google_sync_log`
+--
+ALTER TABLE `google_sync_log`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `google_sync_queue`
+--
+ALTER TABLE `google_sync_queue`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT per la tabella `habits`
@@ -1244,6 +2037,90 @@ ALTER TABLE `login_attempts`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT per la tabella `pill_doses`
+--
+ALTER TABLE `pill_doses`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `pill_plans`
+--
+ALTER TABLE `pill_plans`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `place_cache`
+--
+ALTER TABLE `place_cache`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `planner_calendars`
+--
+ALTER TABLE `planner_calendars`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `planner_categories`
+--
+ALTER TABLE `planner_categories`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `planner_category_keywords`
+--
+ALTER TABLE `planner_category_keywords`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `planner_events`
+--
+ALTER TABLE `planner_events`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `planner_places`
+--
+ALTER TABLE `planner_places`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `planner_priorities`
+--
+ALTER TABLE `planner_priorities`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `planner_routines`
+--
+ALTER TABLE `planner_routines`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `planner_routine_items`
+--
+ALTER TABLE `planner_routine_items`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `planner_weeks`
+--
+ALTER TABLE `planner_weeks`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `planner_week_lists`
+--
+ALTER TABLE `planner_week_lists`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `planner_week_list_items`
+--
+ALTER TABLE `planner_week_list_items`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT per la tabella `plans`
 --
 ALTER TABLE `plans`
@@ -1274,15 +2151,45 @@ ALTER TABLE `push_subscriptions`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT per la tabella `rate_limits`
+--
+ALTER TABLE `rate_limits`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT per la tabella `remember_tokens`
 --
 ALTER TABLE `remember_tokens`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT per la tabella `roles`
+--
+ALTER TABLE `roles`
+  MODIFY `id` tinyint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `security_audit_log`
+--
+ALTER TABLE `security_audit_log`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT per la tabella `session_durations`
 --
 ALTER TABLE `session_durations`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `todos`
+--
+ALTER TABLE `todos`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `todo_buy_categories`
+--
+ALTER TABLE `todo_buy_categories`
   MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
@@ -1308,6 +2215,12 @@ ALTER TABLE `university_exam_groups`
 --
 ALTER TABLE `users`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `weather_cache`
+--
+ALTER TABLE `weather_cache`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- Limiti per le tabelle scaricate

@@ -542,6 +542,18 @@
                 (fab.contains && fab.contains(el)) || sidebar.contains(el) || scrim.contains(el));
         }
 
+        // Non tutto quello che copre lo schermo è un popup: certe pagine hanno viste
+        // intere disegnate con `position:fixed; inset:0` (la vista mese del planner, per
+        // dirne una), che geometricamente sono identiche a un overlay ma sono la pagina.
+        // Nascondere lì il FAB significa lasciare l'utente senza menu finché non torna
+        // indietro. Chi ha una vista così la dichiara con `data-sb-not-overlay` (o con la
+        // classe `.sb-not-overlay`) e l'euristica la salta, insieme a tutto quello che
+        // contiene. È una scelta della pagina, quindi non cambia nulla per chi non la usa.
+        var NOT_OVERLAY_SELECTOR = '.sb-not-overlay,[data-sb-not-overlay]';
+        function isOptedOut(el) {
+            return !!(el && el.closest && el.closest(NOT_OVERLAY_SELECTOR));
+        }
+
         function isVisible(el) {
             if (!el || el === document.body || el === document.documentElement) return false;
             var cs = getComputedStyle(el);
@@ -556,7 +568,7 @@
         }
 
         function looksLikeOverlay(el) {
-            if (!el || isOwnUi(el) || !isVisible(el)) return false;
+            if (!el || isOwnUi(el) || isOptedOut(el) || !isVisible(el)) return false;
             var cs = getComputedStyle(el);
             if (cs.position !== 'fixed' && cs.position !== 'absolute') return false;
             var z = parseInt(cs.zIndex, 10);
@@ -569,7 +581,7 @@
             var explicitNodes;
             try { explicitNodes = document.querySelectorAll(EXPLICIT_OVERLAY_SELECTOR); } catch (e) { explicitNodes = []; }
             for (var i = 0; i < explicitNodes.length; i++) {
-                if (!isOwnUi(explicitNodes[i]) && isVisible(explicitNodes[i])) return true;
+                if (!isOwnUi(explicitNodes[i]) && !isOptedOut(explicitNodes[i]) && isVisible(explicitNodes[i])) return true;
             }
             var heuristicNodes;
             try { heuristicNodes = document.querySelectorAll(HEURISTIC_OVERLAY_SELECTOR); } catch (e) { heuristicNodes = []; }

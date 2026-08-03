@@ -59,6 +59,7 @@ function dg_day(int $uid, string $date): array {
         'learned' => $learned,
         'habits'  => dg_habit_progress($uid, $date),
         'weekly'  => dg_weekly_progress($uid, $date),
+        'rings'   => dg_rings($uid, $date),
         'habits_list' => dg_habits_today($uid, $date),
     ];
 }
@@ -136,25 +137,19 @@ function dg_habits_today(int $uid, string $date): array {
 }
 
 function dg_habit_progress(int $uid, string $date): array {
-    /* le settimanali hanno un conto tutto loro: qui risulterebbero mancate
-       ogni giorno tranne quelli in cui le si fa */
+    /* Settimanali e mensili hanno un conto tutto loro: qui risulterebbero
+       mancate ogni giorno tranne quelli in cui le si fa. Le settimanali erano
+       già escluse; le mensili no, ed era un errore — la query le lasciava
+       passare e abbassavano la percentuale del giorno tutti i giorni. */
     $rows = sec_all("SELECT id, frequency_type, weekdays, interval_days, start_date, end_date, is_archived
                      FROM habits WHERE user_id = ? AND habit_kind = 'build'
-                       AND frequency_type <> 'weekly'", [$uid], 'i');
+                       AND frequency_type IN ('daily','interval')", [$uid], 'i');
     $due = [];
-    $dow = (int)date('N', strtotime($date));
     foreach ($rows as $h) {
         if ((int)$h['is_archived'] === 1) continue;
         if ($h['start_date'] > $date) continue;
         if (!empty($h['end_date']) && $h['end_date'] < $date) continue;
-        if ($h['frequency_type'] === 'daily') {
-            $mask = (string)$h['weekdays'];
-            if (isset($mask[$dow - 1]) && $mask[$dow - 1] !== '1') continue;
-        } elseif ($h['frequency_type'] === 'interval') {
-            $step = max(1, (int)$h['interval_days']);
-            $delta = (int)round((strtotime($date) - strtotime($h['start_date'])) / 86400);
-            if ($delta < 0 || $delta % $step !== 0) continue;
-        }
+        if (!dg_due($h, $date)) continue;
         $due[(int)$h['id']] = true;
     }
     $total = count($due);
@@ -168,6 +163,94 @@ function dg_habit_progress(int $uid, string $date): array {
         if ($l['status'] === 'done' || (float)$l['amount'] >= (float)$l['target_amount']) $done++;
     }
     return ['done' => $done, 'total' => $total];
+}
+
+/* Gli anelli concentrici: un cerchio per famiglia di frequenza, e solo per le
+   famiglie che hanno almeno un'abitudine. Stessa logica di pl_rings nel
+   planner, perché i due devono dire la stessa cosa nello stesso giorno.
+   L'ordine è dal ritmo più stretto al più largo: il primo dell'elenco va
+   disegnato più all'interno. */
+function dg_rings(int $uid, string $date): array {
+    $d      = new DateTime($date);
+    $dow    = (int)$d->format('N');
+    $lunedi = (clone $d)->modify('-' . ($dow - 1) . ' days')->format('Y-m-d');
+    $domenica = (new DateTime($lunedi))->modify('+6 days')->format('Y-m-d');
+    $mese   = substr($date, 0, 7);
+
+    $habits = sec_all("SELECT id, frequency_type, weekdays, interval_days, start_date, end_date,
+                              times_per_week, times_per_month
+                       FROM habits
+                       WHERE user_id = ? AND habit_kind = 'build' AND is_archived = 0", [$uid], 'i');
+    if (empty($habits)) return [];
+
+    /* un solo giro di registri per giorno, settimana e mese */
+    $da = min($lunedi, $mese . '-01');
+    $a  = max($domenica, date('Y-m-t', strtotime($date)));
+    $logs = sec_all("SELECT habit_id, log_date, status, amount, target_amount
+                     FROM habit_logs WHERE user_id = ? AND log_date BETWEEN ? AND ?",
+                    [$uid, $da, $a], 'iss');
+    $fatto = [];
+    foreach ($logs as $l) {
+        $ok = $l['status'] === 'done' || (float)$l['amount'] >= (float)$l['target_amount'];
+        if ($ok) $fatto[(int)$l['habit_id']][$l['log_date']] = true;
+    }
+
+    $conto = [
+        'daily'    => ['done' => 0, 'total' => 0, 'label' => 'Oggi'],
+        'weekly'   => ['done' => 0, 'total' => 0, 'label' => 'Settimana'],
+        'monthly'  => ['done' => 0, 'total' => 0, 'label' => 'Mese'],
+        'interval' => ['done' => 0, 'total' => 0, 'label' => 'Personalizzate'],
+    ];
+
+    foreach ($habits as $h) {
+        $tipo = $h['frequency_type'];
+        $suoi = $fatto[(int)$h['id']] ?? [];
+        if ($date < $h['start_date']) continue;
+        if (!empty($h['end_date']) && $date > $h['end_date']) continue;
+
+        if ($tipo === 'daily' || $tipo === 'interval') {
+            if (!dg_due($h, $date)) continue;
+            $conto[$tipo]['total']++;
+            if (!empty($suoi[$date])) $conto[$tipo]['done']++;
+        } elseif ($tipo === 'weekly') {
+            $n = 0;
+            foreach ($suoi as $g => $_) if ($g >= $lunedi && $g <= $domenica) $n++;
+            $obiettivo = max(1, (int)$h['times_per_week']);
+            $conto['weekly']['total'] += $obiettivo;
+            $conto['weekly']['done']  += min($n, $obiettivo);   // oltre l'obiettivo non gonfia l'anello
+        } elseif ($tipo === 'monthly') {
+            $n = 0;
+            foreach ($suoi as $g => $_) if (substr($g, 0, 7) === $mese) $n++;
+            $obiettivo = max(1, (int)$h['times_per_month']);
+            $conto['monthly']['total'] += $obiettivo;
+            $conto['monthly']['done']  += min($n, $obiettivo);
+        }
+    }
+
+    $out = [];
+    foreach (['daily', 'weekly', 'monthly', 'interval'] as $k) {
+        if ($conto[$k]['total'] <= 0) continue;
+        $out[] = ['key' => $k, 'label' => $conto[$k]['label'],
+                  'done' => (int)$conto[$k]['done'], 'total' => (int)$conto[$k]['total']];
+    }
+    return $out;
+}
+
+/* L'abitudine è prevista in quel giorno? Vale per giornaliere e a intervallo;
+   settimanali e mensili sono libere e non passano di qui. Prima questa
+   verifica era ricopiata in tre funzioni. */
+function dg_due(array $h, string $date): bool {
+    if ($h['frequency_type'] === 'daily') {
+        $dow  = (int)date('N', strtotime($date));
+        $mask = (string)$h['weekdays'];
+        return !isset($mask[$dow - 1]) || $mask[$dow - 1] === '1';
+    }
+    if ($h['frequency_type'] === 'interval') {
+        $step  = max(1, (int)$h['interval_days']);
+        $delta = (int)round((strtotime($date) - strtotime($h['start_date'])) / 86400);
+        return $delta >= 0 && $delta % $step === 0;
+    }
+    return true;
 }
 
 /* ===================== ENDPOINT ===================== */

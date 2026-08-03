@@ -132,13 +132,23 @@ button{ font-family:inherit; border:none; background:none; color:inherit; paddin
 }
 .dy-ring svg{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); }
 .dy-ring{ border:none; background:none; cursor:pointer; padding:0; }
-.dy-ring circle{ fill:none; stroke-width:2; stroke-linecap:round; }
-.dy-ring .dy-ring-bg{ stroke:currentColor; opacity:.4; stroke-dasharray:3 4; }
-.dy-ring .dy-ring-fg{ stroke:var(--dy-accent); stroke-width:3; transition:stroke-dashoffset .7s var(--dy-ease); }
-/* anello interno: le abitudini settimanali, in tinta più scura per
-   distinguerle bene da quelle del giorno */
-.dy-ring .dy-ring-bg-w{ stroke:currentColor; opacity:.28; stroke-dasharray:2.5 3.5; }
-.dy-ring .dy-ring-week{ stroke:#6E8C74; stroke-width:2.6; transition:stroke-dashoffset .7s var(--dy-ease); }
+/* Un anello per famiglia di frequenza, disegnati da diario.js perché quanti
+   sono dipende da quali abitudini hai. Dal centro verso fuori: giornaliere,
+   settimanali, mensili, personalizzate.
+
+   Le corsie sono attaccate: spessore e stacco stanno in diario.js
+   (DY_LARGHEZZA e DY_STACCO), e lo stacco è più sottile della corsia, così
+   si leggono come un blocco unico diviso da un filo. Estremità squadrate:
+   con corsie così vicine, le punte tonde si toccavano fra un anello e
+   l'altro. */
+.dy-ring circle{ fill:none; stroke-linecap:butt; }
+/* fondo grigio chiarissimo: dice che la corsia c'è, senza contendere */
+.dy-ring .dy-ring-track{ stroke:var(--dy-ink); opacity:.07; }
+.dy-ring .dy-ring-fill{ transition:stroke-dashoffset .7s var(--dy-ease); }
+.dy-ring .dy-ring-daily{    stroke:var(--dy-accent); }
+.dy-ring .dy-ring-weekly{   stroke:#6E8C74; }
+.dy-ring .dy-ring-monthly{  stroke:#8A9E7E; }
+.dy-ring .dy-ring-interval{ stroke:#AFB79A; }
 
 /* frecce laterali: si vedono solo dove c'è un mouse */
 .dy-arrow{
@@ -155,10 +165,13 @@ button{ font-family:inherit; border:none; background:none; color:inherit; paddin
 .dy-arrow-next{ right:14px; }
 @media (pointer:fine){ .dy-arrow{ display:grid; } }
 
-/* popup del quaderno: usato dal riepilogo delle abitudini */
+/* popup del quaderno: usato dal riepilogo delle abitudini.
+   Il fondo non è più una tenda scura: è la stessa carta della pagina, appena
+   velata e sfocata. Il popup si stacca per la sua ombra, non per il buio
+   intorno — sul quaderno chiaro una tenda scura stonava. */
 .dy-modal{
     position:fixed; inset:0; z-index:60; display:grid; place-items:center; padding:24px;
-    background:rgba(74,68,61,.28); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+    background:rgba(253,252,249,.62); -webkit-backdrop-filter:blur(7px) saturate(1.1); backdrop-filter:blur(7px) saturate(1.1);
     animation:dy-fade .22s ease;
 }
 @keyframes dy-fade{ from{ opacity:0; } to{ opacity:1; } }
@@ -194,14 +207,27 @@ button{ font-family:inherit; border:none; background:none; color:inherit; paddin
 }
 .dy-hb-row:last-child{ border-bottom:none; }
 .dy-hb-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
-.dy-hb-name{ flex:1; min-width:0; font-size:14.5px; }
+/* Il nome sta su una riga sola e, se non ci sta, sfuma nei puntini: prima
+   andava a capo e le settimanali con il nome lungo spingevano il "2/4"
+   fuori asse, sfilacciando l'elenco. */
+.dy-hb-name{
+    flex:1 1 auto; min-width:0; font-size:14.5px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
 .dy-hb-row.is-done .dy-hb-name{ color:var(--dy-ink-3); text-decoration:line-through; text-decoration-thickness:.7px; }
-.dy-hb-val{ font-family:var(--dy-serif); font-size:15px; color:var(--dy-ink-2); font-variant-numeric:tabular-nums; }
+.dy-hb-val{
+    flex-shrink:0; font-family:var(--dy-serif); font-size:15px;
+    color:var(--dy-ink-2); font-variant-numeric:tabular-nums;
+}
 .dy-hb-check{ width:17px; height:17px; color:var(--dy-accent); flex-shrink:0; }
 .dy-ring-n{
     position:absolute; inset:0; display:grid; place-items:center;
     font-family:var(--dy-serif); font-size:15px; color:var(--dy-ink-2); letter-spacing:-.02em;
+    transition:font-size .3s var(--dy-ease);
 }
+/* più corsie, meno foro al centro: il numero si stringe per starci dentro */
+.dy-ring[data-n="3"] .dy-ring-n{ font-size:12px; }
+.dy-ring[data-n="4"] .dy-ring-n{ font-size:10px; }
 
 /* ------------------------------------------------------------------ */
 /* I due elenchi                                                       */

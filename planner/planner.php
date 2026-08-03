@@ -58,6 +58,13 @@ function pl_settings(int $userId): array {
         'first_week_start'   => $row['first_week_start'] ?: pl_monday(date('Y-m-d')),
         'first_week_number'  => (int)$row['first_week_number'],
         'ambient_enabled'    => (int)$row['ambient_enabled'] === 1,
+        /* Quanto si vede la scena del mese: 0 invisibile, 10 piena.
+           Il ?? 9 non è pigrizia: finché la migrazione non è stata
+           eseguita la colonna non c'è, e senza questo la pagina si
+           spegnerebbe invece di comportarsi come prima. */
+        'ambient_opacity'    => (int)($row['ambient_opacity'] ?? 9),
+        /* colonna dei tastini a destra aperta o richiusa sotto le abitudini */
+        'fabs_open'          => (int)($row['fabs_open'] ?? 1) === 1,
         'contrast_level'     => (int)($row['contrast_level'] ?? 3),
         'days_visible'       => (int)($row['days_visible'] ?? 3),
         'google_sync'        => (int)$row['google_sync_enabled'] === 1,
@@ -255,6 +262,25 @@ function pl_auto_category(int $userId, string $title): ?int {
     return null;
 }
 
+/**
+ * Il campo è arrivato davvero nella richiesta, oppure non è stato spedito?
+ *
+ * Serve perché non tutti i salvataggi mandano l'evento intero: la modifica
+ * rapida della durata di un passaggio di routine, per esempio, manda solo gli
+ * orari. Senza questa distinzione un campo mancante viene letto come stringa
+ * vuota e cancella quello che c'era (era già così per il luogo).
+ * Il corpo della richiesta è JSON, quindi non basta guardare $_POST.
+ */
+function pl_inviato(string $k): bool {
+    static $body = null;
+    if ($body === null) {
+        $raw = (string)file_get_contents('php://input');
+        $j = $raw !== '' ? json_decode($raw, true) : null;
+        $body = is_array($j) ? $j : [];
+    }
+    return array_key_exists($k, $body) || array_key_exists($k, $_POST) || array_key_exists($k, $_GET);
+}
+
 /* --- eventi --------------------------------------------------------- */
 function pl_event_out(array $r): array {
     return [
@@ -262,6 +288,15 @@ function pl_event_out(array $r): array {
         'title'       => $r['title'],
         'notes'       => $r['notes'] ?? '',
         'location'    => $r['location'] ?? '',
+        /* Il luogo scelto dalla ricerca sulle mappe viaggia separato dal testo
+           libero: `location` resta quello che l'utente vede e può correggere a
+           mano, le coordinate servono per aprire la mappa nel punto esatto
+           anche quando il nome è ambiguo (quante "Via Roma" ci sono). */
+        'place_name'  => $r['place_name'] ?? null,
+        'place_lat'   => isset($r['place_lat']) && $r['place_lat'] !== null ? (float)$r['place_lat'] : null,
+        'place_lon'   => isset($r['place_lon']) && $r['place_lon'] !== null ? (float)$r['place_lon'] : null,
+        'place_ref'   => $r['place_ref'] ?? null,
+        'duration_locked' => (int)($r['duration_locked'] ?? 1) === 1,
         'guests'      => [],   // riempito da pl_attach_guests
         'date'        => $r['event_date'],
         'start'       => substr($r['start_time'], 0, 5),
@@ -431,7 +466,7 @@ function pl_habits_weekly(int $userId, string $date): array {
 }
 
 function pl_habits_for_date(int $userId, string $date): array {
-    $rows = sec_all("SELECT id, name, icon, color, habit_kind, target_amount, frequency_type,
+    $rows = sec_all("SELECT id, name, icon, color, habit_kind, goal_type, target_amount, frequency_type,
                             weekdays, interval_days, start_date, end_date, is_archived, planner_minutes
                      FROM habits WHERE user_id = ? AND habit_kind = 'build'
                        AND frequency_type <> 'weekly' ORDER BY sort_order, id", [$userId], 'i');
@@ -450,6 +485,97 @@ function pl_habits_for_date(int $userId, string $date): array {
             'color' => $h['color'], 'done' => (bool)$done,
             // durata stimata scritta in habits: se manca, il planner usa lo scatto
             'minutes' => $h['planner_minutes'] !== null ? (int)$h['planner_minutes'] : null,
+            /* A completamento = si spunta e basta, non si conta quanto se n'è
+               fatto. Serve al planner per dire, con il fondo del chip, che
+               quella di oggi sarebbe una ripetizione: su un'abitudine a
+               quantità (tre bicchieri, dieci pagine) rimetterla in agenda è
+               invece del tutto normale, e segnalarlo sarebbe un falso allarme. */
+            'a_completamento' => ($h['goal_type'] ?? 'completion') === 'completion',
+        ];
+    }
+    return $out;
+}
+
+/* Gli anelli concentrici: un cerchio per famiglia di frequenza, e solo per le
+   famiglie che hanno almeno un'abitudine.
+
+   Il conto lo fa il server perché è l'unico che ha tutti i registri sotto
+   mano: al client arrivano solo le abitudini previste per il giorno mostrato,
+   quindi da lì non si potrebbe sapere quante volte una mensile è stata fatta
+   nel mese. Restituisce l'ordine giusto, dal ritmo più stretto al più largo:
+   il primo dell'elenco è quello che va disegnato più all'interno. */
+function pl_rings(int $userId, string $date): array {
+    $lunedi   = date('Y-m-d', strtotime($date . ' monday this week'));
+    $domenica = date('Y-m-d', strtotime($lunedi . ' +6 days'));
+    $mese     = substr($date, 0, 7);
+
+    $habits = sec_all("SELECT id, frequency_type, weekdays, interval_days, start_date, end_date,
+                              times_per_week, times_per_month
+                       FROM habits
+                       WHERE user_id = ? AND habit_kind = 'build' AND is_archived = 0", [$userId], 'i');
+    if (empty($habits)) return [];
+
+    /* Un solo giro di registri per tutto: giorno, settimana e mese stanno
+       dentro l'intervallo del mese allargato alla settimana che lo attraversa. */
+    $da = min($lunedi, $mese . '-01');
+    $a  = max($domenica, date('Y-m-t', strtotime($date)));
+    $logs = sec_all("SELECT habit_id, log_date, status, amount, target_amount
+                     FROM habit_logs WHERE user_id = ? AND log_date BETWEEN ? AND ?",
+                    [$userId, $da, $a], 'iss');
+
+    $fatto = [];      // habit_id => [data => true]
+    foreach ($logs as $l) {
+        $ok = $l['status'] === 'done' || (float)$l['amount'] >= (float)$l['target_amount'];
+        if ($ok) $fatto[(int)$l['habit_id']][$l['log_date']] = true;
+    }
+
+    $conto = [
+        'daily'    => ['done' => 0, 'total' => 0, 'label' => 'Oggi'],
+        'weekly'   => ['done' => 0, 'total' => 0, 'label' => 'Settimana'],
+        'monthly'  => ['done' => 0, 'total' => 0, 'label' => 'Mese'],
+        'interval' => ['done' => 0, 'total' => 0, 'label' => 'Personalizzate'],
+    ];
+
+    foreach ($habits as $h) {
+        $id   = (int)$h['id'];
+        $tipo = $h['frequency_type'];
+        $suoi = $fatto[$id] ?? [];
+
+        if ($tipo === 'daily' || $tipo === 'interval') {
+            /* contano solo nei giorni in cui sono previste */
+            if (!pl_habit_due($h, $date)) continue;
+            $conto[$tipo]['total']++;
+            if (!empty($suoi[$date])) $conto[$tipo]['done']++;
+            continue;
+        }
+
+        if ($date < $h['start_date']) continue;
+        if (!empty($h['end_date']) && $date > $h['end_date']) continue;
+
+        if ($tipo === 'weekly') {
+            $n = 0;
+            foreach ($suoi as $d => $_) if ($d >= $lunedi && $d <= $domenica) $n++;
+            $obiettivo = max(1, (int)$h['times_per_week']);
+            $conto['weekly']['total'] += $obiettivo;
+            $conto['weekly']['done']  += min($n, $obiettivo);   // oltre l'obiettivo non gonfia l'anello
+        } elseif ($tipo === 'monthly') {
+            $n = 0;
+            foreach ($suoi as $d => $_) if (substr($d, 0, 7) === $mese) $n++;
+            $obiettivo = max(1, (int)$h['times_per_month']);
+            $conto['monthly']['total'] += $obiettivo;
+            $conto['monthly']['done']  += min($n, $obiettivo);
+        }
+    }
+
+    /* Dall'interno verso l'esterno, e solo chi ha davvero qualcosa. */
+    $out = [];
+    foreach (['daily', 'weekly', 'monthly', 'interval'] as $k) {
+        if ($conto[$k]['total'] <= 0) continue;
+        $out[] = [
+            'key'   => $k,
+            'label' => $conto[$k]['label'],
+            'done'  => (int)$conto[$k]['done'],
+            'total' => (int)$conto[$k]['total'],
         ];
     }
     return $out;
@@ -474,6 +600,305 @@ function pl_diary_dates(int $userId, string $from, string $to): array {
     foreach ($lists as $l) {
         if (!isset($out[$l['entry_date']])) $out[$l['entry_date']] = ['mood' => null, 'energy' => null, 'has_text' => false];
         $out[$l['entry_date']]['has_lists'] = (int)$l['c'] > 0;
+    }
+    return $out;
+}
+
+/* =====================================================================
+   LUOGHI — ricerca su Google Places, con OpenStreetMap come rete di scorta
+
+   PERCHÉ SI È CAMBIATO SERVIZIO. Nominatim è un geocodificatore di indirizzi:
+   sa dov'è una via, non sa che esiste un ristorante che si chiama in un certo
+   modo, e sui civici copre solo quello che gli volontari di OSM hanno mappato.
+   Cercando i posti per nome non si trovava quasi niente.
+
+   COME FUNZIONA ADESSO. Due passaggi, come li fa Google Maps:
+   1. mentre si scrive, `places:autocomplete` propone i posti (solo nomi e
+      identificativi, nessuna coordinata: è la chiamata a buon mercato);
+   2. quando se ne sceglie uno, `places/{id}` restituisce le coordinate.
+   Il nome da mostrare lo abbiamo già dal primo passaggio, quindi al secondo
+   chiediamo solo indirizzo e posizione: sono campi della fascia "Essentials",
+   la meno cara, mentre il nome commerciale starebbe in quella sopra.
+
+   Le chiamate partono dal server e non dal browser, come per il meteo: la
+   chiave resta qui dentro e l'indirizzo IP di chi cerca non arriva a Google.
+   ===================================================================== */
+
+/**
+ * La cache dei luoghi è facoltativa: se la tabella non c'è (migrazione non
+ * eseguita) la ricerca funziona lo stesso, solo senza risparmiare chiamate.
+ * Meglio una funzione più lenta che una pagina che smette di funzionare
+ * perché manca una ALTER TABLE.
+ */
+function pl_place_cache_c_e(): bool {
+    static $c_e = null;
+    if ($c_e === null) {
+        $r = sec_one("SHOW TABLES LIKE 'place_cache'");
+        $c_e = !empty($r);
+    }
+    return $c_e;
+}
+
+/** Chiave della cache: la stessa ricerca scritta con maiuscole o spazi
+    diversi non deve contare come una ricerca nuova. */
+function pl_place_key(string $q): string {
+    return sha1(mb_strtolower(trim($q), 'UTF-8'));
+}
+
+/** Legge dalla cache, se la tabella c'è e la risposta non è troppo vecchia. */
+function pl_place_cache_get(string $key, int $giorni): ?array {
+    if (!pl_place_cache_c_e()) return null;
+    /* I giorni si scrivono dentro la query e non come segnaposto: non è un
+       dato che arriva dal browser (lo decide il codice qui sopra), e alcuni
+       driver storcono il naso su un segnaposto dentro INTERVAL. */
+    $giorni = max(1, min(365, $giorni));
+    $row = sec_one("SELECT payload FROM place_cache
+                    WHERE q_key = ? AND fetched_at > (NOW() - INTERVAL " . (int)$giorni . " DAY)", [$key], 's');
+    if (!$row) return null;
+    $c = json_decode($row['payload'], true);
+    return is_array($c) ? $c : null;
+}
+
+function pl_place_cache_put(string $key, array $dati): void {
+    if (!pl_place_cache_c_e()) return;
+    sec_q("INSERT INTO place_cache (q_key, payload) VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE payload = VALUES(payload), fetched_at = NOW()",
+          [$key, json_encode($dati, JSON_UNESCAPED_UNICODE)], 'ss');
+    /* pulizia saltuaria: le ricerche vecchie non servono più a nessuno, e le
+       condizioni di Google chiedono di non conservare a lungo i dati dei posti
+       (fa eccezione l'identificativo, che infatti finisce sull'evento). */
+    if (random_int(1, 50) === 1) {
+        sec_q("DELETE FROM place_cache WHERE fetched_at < (NOW() - INTERVAL 30 DAY)");
+    }
+}
+
+/** Una chiamata sola a Google, in JSON. Restituisce null se qualcosa va storto:
+    chi chiama decide cosa fare, e in ogni caso la pagina non deve rompersi. */
+function pl_google_call(string $url, ?array $body, array $headers): ?array {
+    $raw = null;
+    $headers[] = 'Accept: application/json';
+    if ($body !== null) $headers[] = 'Content-Type: application/json';
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        $opt = [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_CONNECTTIMEOUT => 4,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_HTTPHEADER     => $headers,
+        ];
+        if ($body !== null) {
+            $opt[CURLOPT_POST] = true;
+            $opt[CURLOPT_POSTFIELDS] = json_encode($body, JSON_UNESCAPED_UNICODE);
+        }
+        curl_setopt_array($ch, $opt);
+        $raw = curl_exec($ch);
+        if ($raw === false) sec_log_error('luoghi', curl_error($ch));
+        curl_close($ch);
+    } else {
+        $ctx = stream_context_create(['http' => [
+            'method'  => $body !== null ? 'POST' : 'GET',
+            'timeout' => 8, 'ignore_errors' => true,
+            'header'  => implode("\r\n", $headers) . "\r\n",
+            'content' => $body !== null ? json_encode($body, JSON_UNESCAPED_UNICODE) : null,
+        ]]);
+        $raw = @file_get_contents($url, false, $ctx);
+    }
+    if (!$raw) return null;
+    $data = json_decode((string)$raw, true);
+    if (!is_array($data)) return null;
+    /* Google dice cosa non gli è piaciuto: finisce nel registro degli errori,
+       se no una chiave sbagliata sembra semplicemente "nessun risultato". */
+    if (isset($data['error'])) {
+        sec_log_error('luoghi', 'Google: ' . ($data['error']['message'] ?? 'errore'));
+        return null;
+    }
+    return $data;
+}
+
+/**
+ * I suggerimenti mentre si scrive. Niente coordinate: quelle costano una
+ * chiamata a parte e si chiedono solo per il posto che viene davvero scelto.
+ */
+function pl_place_google(string $q): array {
+    $key = pl_place_key('g:' . $q);
+    /* Cache corta: è una scorciatoia per chi torna sulla stessa ricerca dopo
+       un attimo, non un archivio. */
+    $c = pl_place_cache_get($key, 1);
+    if ($c !== null) return $c;
+
+    $data = pl_google_call(
+        'https://places.googleapis.com/v1/places:autocomplete',
+        ['input' => $q, 'languageCode' => 'it', 'regionCode' => 'it'],
+        ['X-Goog-Api-Key: ' . GOOGLE_PLACES_KEY]
+    );
+    if ($data === null) return [];
+
+    $out = [];
+    foreach (($data['suggestions'] ?? []) as $s) {
+        $p = $s['placePrediction'] ?? null;
+        if (!$p || empty($p['placeId'])) continue;
+        $main = $p['structuredFormat']['mainText']['text'] ?? ($p['text']['text'] ?? '');
+        $sec  = $p['structuredFormat']['secondaryText']['text'] ?? '';
+        if ($main === '') continue;
+        $out[] = [
+            'name'   => mb_substr($main, 0, 120, 'UTF-8'),
+            'detail' => mb_substr($sec, 0, 200, 'UTF-8'),
+            'full'   => mb_substr(trim($main . ($sec !== '' ? ', ' . $sec : '')), 0, 255, 'UTF-8'),
+            /* le coordinate arrivano dopo, con pl_place_punto() */
+            'lat'    => null,
+            'lon'    => null,
+            'ref'    => (string)$p['placeId'],
+        ];
+    }
+    pl_place_cache_put($key, $out);
+    return $out;
+}
+
+/**
+ * Le coordinate del posto scelto. Si chiedono solo i campi della fascia
+ * economica (posizione e indirizzo): il nome ce l'ha già la pagina, presa dal
+ * suggerimento, e chiederlo qui farebbe scivolare la chiamata in una fascia
+ * più cara per un dato che abbiamo già.
+ */
+function pl_place_punto(string $placeId): ?array {
+    $key = pl_place_key('p:' . $placeId);
+    $c = pl_place_cache_get($key, 30);
+    if ($c !== null) return $c;
+
+    $data = pl_google_call(
+        'https://places.googleapis.com/v1/places/' . rawurlencode($placeId) . '?languageCode=it',
+        null,
+        ['X-Goog-Api-Key: ' . GOOGLE_PLACES_KEY,
+         'X-Goog-FieldMask: id,location,formattedAddress']
+    );
+    if ($data === null || !isset($data['location']['latitude'])) return null;
+
+    $punto = [
+        'lat'  => round((float)$data['location']['latitude'], 7),
+        'lon'  => round((float)$data['location']['longitude'], 7),
+        'full' => mb_substr((string)($data['formattedAddress'] ?? ''), 0, 255, 'UTF-8'),
+        'ref'  => (string)($data['id'] ?? $placeId),
+    ];
+    pl_place_cache_put($key, $punto);
+    return $punto;
+}
+
+/** Con la chiave si va su Google; senza, si continua con OpenStreetMap come
+    prima. Serve il giorno in cui la chiave scade o viene tolta: meglio una
+    ricerca meno brava che un campo che non risponde più. */
+function pl_place_lookup(string $q): array {
+    if (defined('GOOGLE_PLACES_KEY') && GOOGLE_PLACES_KEY !== '') return pl_place_google($q);
+    return pl_place_osm($q);
+}
+
+function pl_place_osm(string $q): array {
+    $key = pl_place_key($q);
+
+    $c = pl_place_cache_get($key, 30);
+    if ($c !== null) return $c;
+
+    $url = 'https://nominatim.openstreetmap.org/search?' . http_build_query([
+        'q'              => $q,
+        'format'         => 'jsonv2',
+        'addressdetails' => 1,
+        'limit'          => 6,
+        'accept-language'=> 'it',
+    ]);
+
+    $raw = null;
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_CONNECTTIMEOUT => 4,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            /* Nominatim rifiuta chi non si presenta: è nelle sue condizioni
+               d'uso, non un dettaglio facoltativo. */
+            CURLOPT_USERAGENT      => 'Nisama planner (uso personale)',
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+        $raw = curl_exec($ch);
+        if ($raw === false) sec_log_error('luoghi', curl_error($ch));
+        curl_close($ch);
+    } else {
+        $ctx = stream_context_create(['http' => [
+            'timeout' => 8, 'ignore_errors' => true,
+            'header'  => "User-Agent: Nisama planner (uso personale)\r\nAccept: application/json\r\n",
+        ]]);
+        $raw = @file_get_contents($url, false, $ctx);
+    }
+    if (!$raw) return [];
+
+    $data = json_decode((string)$raw, true);
+    if (!is_array($data)) return [];
+
+    $out = [];
+    foreach ($data as $p) {
+        if (!isset($p['lat'], $p['lon'])) continue;
+        $completo = (string)($p['display_name'] ?? '');
+        /* Nominatim restituisce il nome per esteso, con nazione e CAP: come
+           titolo del suggerimento tengo solo la prima parte, il resto va
+           sotto in piccolo. Così l'elenco resta leggibile sul telefono. */
+        $pezzi  = array_map('trim', explode(',', $completo));
+        $titolo = ($p['name'] ?? '') !== '' ? (string)$p['name'] : (string)array_shift($pezzi);
+        if (($p['name'] ?? '') !== '' && count($pezzi) && $pezzi[0] === $p['name']) array_shift($pezzi);
+        $out[] = [
+            'name'   => mb_substr($titolo, 0, 120, 'UTF-8'),
+            'detail' => mb_substr(implode(', ', $pezzi), 0, 200, 'UTF-8'),
+            'full'   => mb_substr($completo, 0, 255, 'UTF-8'),
+            'lat'    => round((float)$p['lat'], 7),
+            'lon'    => round((float)$p['lon'], 7),
+            /* riferimento stabile del luogo: serve a ritrovarlo domani anche
+               se il nome cambia (osm_type + osm_id sono l'identificativo) */
+            'ref'    => isset($p['osm_type'], $p['osm_id'])
+                        ? substr((string)$p['osm_type'], 0, 1) . (int)$p['osm_id'] : null,
+        ];
+    }
+
+    pl_place_cache_put($key, $out);
+    return $out;
+}
+
+/* ---------------------------------------------------------------------
+   RUBRICA DEI LUOGHI
+
+   I posti di tutti i giorni (casa, lavoro, palestra) non si cercano ogni
+   volta: si salvano una volta e si riusano. Le parole d'aggancio servono a
+   compilarli da soli quando compaiono nel titolo dell'evento.
+
+   Come per la cache, la tabella è facoltativa: se la migrazione non è stata
+   eseguita la rubrica resta vuota e il resto del planner non se ne accorge.
+   --------------------------------------------------------------------- */
+function pl_places_c_e(): bool {
+    static $c_e = null;
+    if ($c_e === null) {
+        $r = sec_one("SHOW TABLES LIKE 'planner_places'");
+        $c_e = !empty($r);
+    }
+    return $c_e;
+}
+
+function pl_places(int $userId): array {
+    if (!pl_places_c_e()) return [];
+    $rows = sec_all("SELECT id, label, keywords, place_name, address, place_lat, place_lon, place_ref
+                     FROM planner_places WHERE user_id = ? ORDER BY sort_order, id", [$userId], 'i');
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = [
+            'id'       => (int)$r['id'],
+            'label'    => $r['label'],
+            'keywords' => $r['keywords'],
+            'name'     => $r['place_name'],
+            'address'  => $r['address'],
+            'lat'      => $r['place_lat'] !== null ? (float)$r['place_lat'] : null,
+            'lon'      => $r['place_lon'] !== null ? (float)$r['place_lon'] : null,
+            'ref'      => $r['place_ref'],
+        ];
     }
     return $out;
 }
@@ -514,7 +939,125 @@ if ($ajax !== '') {
             'ok' => true, 'date' => $date,
             'habits' => pl_habits_for_date($current_user_id, $date),
             'weekly' => pl_habits_weekly($current_user_id, $date),
+            'rings'  => pl_rings($current_user_id, $date),
         ]);
+    }
+
+    /* ---------------- routine: passaggi da riattaccare ----------------
+       Togliendo o accorciando un passaggio, quelli dopo restavano dov'erano:
+       il blocco continuava a durare quanto la routine originale, con un buco
+       dentro. Qui i passaggi si rimettono in fila a partire dal primo, ognuno
+       con la sua durata. Ogni UPDATE porta `user_id` nella WHERE, quindi non
+       si può ricompattare la routine di un altro. */
+    if ($ajax === 'routine_recompact') {
+        $group = sec_str(sec_in('routine_group'), 32);
+        if (!preg_match('/^[A-Za-z0-9]{1,32}$/', $group)) {
+            sec_die_json('Routine non trovata.', 404, 'not_found');
+        }
+        $date = sec_date(sec_in('date'), date('Y-m-d'));
+        $passi = sec_all("SELECT id, start_time, end_time FROM planner_events
+                          WHERE user_id = ? AND event_date = ? AND routine_group = ?
+                          ORDER BY start_time, id", [$current_user_id, $date, $group], 'iss');
+        if (empty($passi)) sec_json(['ok' => true, 'events' => []]);
+
+        $cursore = pl_minutes($passi[0]['start_time']);
+        foreach ($passi as $p) {
+            $durata = max(1, pl_minutes($p['end_time']) - pl_minutes($p['start_time']));
+            $inizio = min(1439, $cursore);
+            $fine   = min(1439, $inizio + $durata);
+            if ($inizio !== pl_minutes($p['start_time']) || $fine !== pl_minutes($p['end_time'])) {
+                sec_q("UPDATE planner_events SET start_time = ?, end_time = ?
+                       WHERE id = ? AND user_id = ?",
+                      [pl_time($inizio), pl_time($fine), (int)$p['id'], $current_user_id], 'ssii');
+            }
+            $cursore = $fine;
+        }
+
+        $rows = sec_all("SELECT e.*, p.name AS project_name, p.color AS project_color,
+                                h.icon AS habit_icon, h.color AS habit_color, r.name AS routine_name
+                         FROM planner_events e
+                         LEFT JOIN projects p ON p.id = e.project_id AND p.user_id = e.user_id
+                         LEFT JOIN habits h ON h.id = e.habit_id AND h.user_id = e.user_id
+                         LEFT JOIN planner_routines r ON r.id = e.routine_id AND r.user_id = e.user_id
+                         WHERE e.user_id = ? AND e.event_date = ? AND e.routine_group = ?
+                         ORDER BY e.start_time, e.id", [$current_user_id, $date, $group], 'iss');
+        $out = [];
+        foreach ($rows as $r) { $out[] = pl_event_out($r); }
+        sec_json(['ok' => true, 'events' => pl_attach_guests($current_user_id, $out)]);
+    }
+
+    /* ---------------- ricerca del luogo (mappe) ----------------
+       Passa dal server e non dal browser per gli stessi motivi del meteo:
+       l'indirizzo IP dell'utente non arriva al servizio esterno, la chiave
+       resta qui e le risposte si possono tenere in cache. Il limite per
+       utente, la cache e il minimo di tre lettere servono a non consumare
+       chiamate per niente: si cerca a frase quasi finita, non a ogni lettera. */
+    if ($ajax === 'place_search') {
+        sec_guard_write($current_user_id, 'geocode', 0, 40, 60);
+        $q = sec_str(sec_in('q'), 120);
+        $q = trim(preg_replace('/\s+/u', ' ', $q));
+        if (mb_strlen($q, 'UTF-8') < 3) sec_json(['ok' => true, 'places' => []]);
+        sec_json(['ok' => true, 'places' => pl_place_lookup($q)]);
+    }
+
+    /* ---------------- coordinate del posto scelto ----------------
+       Secondo passo della ricerca: parte una volta sola, sul posto che è stato
+       davvero toccato, non su tutti quelli proposti. È qui che si consuma la
+       chiamata "cara" delle due, e infatti chiede solo posizione e indirizzo. */
+    if ($ajax === 'place_details') {
+        sec_guard_write($current_user_id, 'geocode', 0, 40, 60);
+        $ref = sec_str(sec_in('ref'), 300);
+        if ($ref === '') sec_die_json('Posto non indicato.', 422, 'empty');
+        $punto = pl_place_punto($ref);
+        if (!$punto) sec_die_json('Posizione non trovata.', 404, 'not_found');
+        sec_json(['ok' => true, 'place' => $punto]);
+    }
+
+    /* ---------------- rubrica: salva un posto ----------------
+       Le coordinate arrivano già validate dal campo del luogo, ma qui si
+       rivalidano lo stesso: quello che entra dal browser non è mai buono per
+       partito preso, nemmeno quando l'abbiamo mandato noi un attimo prima. */
+    if ($ajax === 'place_book_save') {
+        if (!pl_places_c_e()) sec_die_json('Rubrica dei luoghi non installata.', 400, 'no_table');
+        $id    = sec_int(sec_in('id'), 0, PHP_INT_MAX, 0);
+        $label = sec_str(sec_in('label'), 60);
+        /* le parole d'aggancio si confrontano in minuscolo: chi le scrive non
+           deve stare attento alle maiuscole */
+        $keys  = mb_strtolower(sec_str(sec_in('keywords'), 255), 'UTF-8');
+        $pname = sec_str(sec_in('name'), 255);
+        $addr  = sec_str(sec_in('address'), 255);
+        $ref   = sec_str(sec_in('ref'), 255);
+        $lat   = sec_float(sec_in('lat'), -90, 90, 999);
+        $lon   = sec_float(sec_in('lon'), -180, 180, 999);
+        if ($lat === 999.0 || $lon === 999.0) { $lat = null; $lon = null; }
+        if ($label === '') sec_die_json('Manca il nome del posto.', 422, 'empty');
+
+        if ($id > 0) {
+            if (!sec_owns('planner_places', $id, $current_user_id)) {
+                sec_die_json('Posto non trovato.', 404, 'not_found');
+            }
+            sec_q("UPDATE planner_places
+                      SET label=?, keywords=?, place_name=?, address=?, place_lat=?, place_lon=?, place_ref=?
+                    WHERE id=? AND user_id=?",
+                  [$label, $keys, $pname, $addr, $lat, $lon, $ref, $id, $current_user_id], 'ssssddsii');
+        } else {
+            sec_q("INSERT INTO planner_places
+                      (user_id, label, keywords, place_name, address, place_lat, place_lon, place_ref)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                  [$current_user_id, $label, $keys, $pname, $addr, $lat, $lon, $ref], 'issssdds');
+        }
+        sec_json(['ok' => true, 'places' => pl_places($current_user_id)]);
+    }
+
+    /* ---------------- rubrica: togli un posto ---------------- */
+    if ($ajax === 'place_book_delete') {
+        if (!pl_places_c_e()) sec_die_json('Rubrica dei luoghi non installata.', 400, 'no_table');
+        $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
+        if (!sec_owns('planner_places', $id, $current_user_id)) {
+            sec_die_json('Posto non trovato.', 404, 'not_found');
+        }
+        sec_q("DELETE FROM planner_places WHERE id=? AND user_id=?", [$id, $current_user_id], 'ii');
+        sec_json(['ok' => true, 'places' => pl_places($current_user_id)]);
     }
 
     /* ---------------- salvataggio evento ---------------- */
@@ -547,6 +1090,34 @@ if ($ajax !== '') {
         $repUnit = sec_enum(sec_in('repeat_unit'), ['day', 'week', 'month', 'year'], 'week');
         $repUntil= sec_date(sec_in('repeat_until'), null);
 
+        /* Luogo dalle mappe e lucchetto della durata.
+           Le coordinate arrivano dalla nostra ricerca, ma vengono comunque
+           riportate dentro i limiti validi: quello che manda il browser non
+           fa testo. 999 è il valore di ripiego di sec_float, e significa
+           "non è un numero utilizzabile" → nessuna coordinata. */
+        $placeName = sec_str(sec_in('place_name'), 255);
+        $placeLat  = sec_float(sec_in('place_lat'), -90, 90, 999);
+        $placeLon  = sec_float(sec_in('place_lon'), -180, 180, 999);
+        $placeRef  = sec_str(sec_in('place_ref'), 255);
+        if ($placeLat === 999.0 || $placeLon === 999.0) { $placeLat = null; $placeLon = null; }
+        $durLock   = sec_bool(sec_in('duration_locked')) ? 1 : 0;
+
+        /* Su una modifica, i campi che il chiamante non ha spedito restano
+           come sono: alcuni salvataggi rapidi mandano solo una parte. */
+        $vecchio = null;
+        if ($id > 0) {
+            $vecchio = sec_one("SELECT location, place_name, place_lat, place_lon, place_ref, duration_locked
+                                FROM planner_events WHERE id = ? AND user_id = ?", [$id, $current_user_id], 'ii');
+            if ($vecchio) {
+                if (!pl_inviato('location'))   $luogo     = (string)($vecchio['location'] ?? '');
+                if (!pl_inviato('place_name')) $placeName = (string)($vecchio['place_name'] ?? '');
+                if (!pl_inviato('place_lat'))  $placeLat  = $vecchio['place_lat'] !== null ? (float)$vecchio['place_lat'] : null;
+                if (!pl_inviato('place_lon'))  $placeLon  = $vecchio['place_lon'] !== null ? (float)$vecchio['place_lon'] : null;
+                if (!pl_inviato('place_ref'))  $placeRef  = (string)($vecchio['place_ref'] ?? '');
+                if (!pl_inviato('duration_locked')) $durLock = (int)($vecchio['duration_locked'] ?? 1);
+            }
+        }
+
         // proprietà delle chiavi esterne
         if ($catId > 0 && !sec_owns('planner_categories', $catId, $current_user_id)) $catId = 0;
         if ($projId > 0 && !sec_owns('projects', $projId, $current_user_id)) $projId = 0;
@@ -564,6 +1135,10 @@ if ($ajax !== '') {
             $catId > 0 ? $catId : null, $calId > 0 ? $calId : null,
             $projId > 0 ? $projId : null, $habitId > 0 ? $habitId : null,
             $imp, $color, $type, $notify, $nMin, $rep, $repInt, $repUnit, $repUntil,
+            $placeName !== '' ? $placeName : null,
+            $placeLat, $placeLon,
+            $placeRef !== '' ? $placeRef : null,
+            $durLock,
         ];
 
         if ($id > 0) {
@@ -573,7 +1148,8 @@ if ($ajax !== '') {
             $params[] = $id; $params[] = $current_user_id;
             sec_q("UPDATE planner_events SET title=?, notes=?, location=?, event_date=?, start_time=?, end_time=?, is_all_day=?,
                           category_id=?, calendar_id=?, project_id=?, habit_id=?, importance=?, color=?, item_type=?,
-                          notify_type=?, notify_minutes=?, repeat_type=?, repeat_interval=?, repeat_unit=?, repeat_until=?
+                          notify_type=?, notify_minutes=?, repeat_type=?, repeat_interval=?, repeat_unit=?, repeat_until=?,
+                          place_name=?, place_lat=?, place_lon=?, place_ref=?, duration_locked=?
                    WHERE id=? AND user_id=?", $params);
             $newId = $id;
         } else {
@@ -581,8 +1157,9 @@ if ($ajax !== '') {
             sec_q("INSERT INTO planner_events
                    (title, notes, location, event_date, start_time, end_time, is_all_day, category_id, calendar_id,
                     project_id, habit_id, importance, color, item_type, notify_type, notify_minutes,
-                    repeat_type, repeat_interval, repeat_unit, repeat_until, user_id)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", $params);
+                    repeat_type, repeat_interval, repeat_unit, repeat_until,
+                    place_name, place_lat, place_lon, place_ref, duration_locked, user_id)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", $params);
             $newId = sec_insert_id();
             if ($rep !== 'none') {
                 sec_q("UPDATE planner_events SET series_id = ? WHERE id = ? AND user_id = ?",
@@ -607,6 +1184,10 @@ if ($ajax !== '') {
                        [$newId, $current_user_id, $mail, $nome !== '' ? $nome : null], 'iiss');
             }
         }
+
+        /* un task appena salvato è un'attività: se non ce l'ha ancora, adesso
+           ha la sua riga in `todos`, già collegata (vedi pl_task_to_todo) */
+        pl_task_to_todo($current_user_id, $newId);
 
         $row = sec_one("SELECT e.*, p.name AS project_name, p.color AS project_color,
                                h.icon AS habit_icon, h.color AS habit_color, r.name AS routine_name
@@ -634,6 +1215,9 @@ if ($ajax !== '') {
         if ($newStart + $dur > 1439) $newStart = max(0, 1439 - $dur);
         sec_q("UPDATE planner_events SET start_time=?, end_time=?, event_date=? WHERE id=? AND user_id=?",
               [pl_time($newStart), pl_time($newStart + $dur), $date ?: $ev['event_date'], $id, $current_user_id]);
+        /* trascinare un task lo sposta anche negli elenchi: data e ora sono
+           la stessa cosa vista da due parti */
+        pl_task_to_todo($current_user_id, $id);
         sec_json(['ok' => true, 'start' => substr(pl_time($newStart), 0, 5), 'end' => substr(pl_time($newStart + $dur), 0, 5)]);
     }
 
@@ -676,6 +1260,18 @@ if ($ajax !== '') {
         }
         // prima di cancellare, mettiamo in coda gli eventi che vivono anche
         // su Google: alla sincronizzazione successiva spariranno anche là
+        /* Prima di cancellare: i task portano via anche l'attività di cui
+           erano la faccia in agenda. Lasciarla vorrebbe dire ritrovarsi negli
+           elenchi una riga che nel planner non c'è più, e senza modo di
+           capire da dove sia sbucata. */
+        $spariti = sec_all("SELECT id FROM planner_events WHERE " . $where, $params);
+        if (!empty($spariti)) {
+            $ids = [];
+            foreach ($spariti as $sp) $ids[] = (int)$sp['id'];
+            $segn = implode(',', array_fill(0, count($ids), '?'));
+            sec_q("DELETE FROM todos WHERE user_id = ? AND planner_event_id IN ($segn)",
+                  array_merge([$current_user_id], $ids));
+        }
         pl_queue_google_delete($current_user_id, $where, $params);
         sec_q("DELETE FROM planner_events WHERE " . $where, $params);
         sec_json(['ok' => true]);
@@ -693,29 +1289,65 @@ if ($ajax !== '') {
            UNA volta sola guardando il più estremo. Limitando ciascuno per conto
            suo, una routine a ridosso della mezzanotte si sarebbe schiacciata:
            alcuni pezzi si fermavano al limite e altri no, perdendo le distanze
-           che avevano fra loro. */
-        $chosen = [];
+           che avevano fra loro.
+
+           PERCHÉ ORA È VELOCE. Prima ogni evento costava una sec_owns() più una
+           SELECT, e poi una UPDATE a testa: con cinquanta eventi erano centocinquanta
+           query, e l'attesa era tale che si finiva per premere il tasto più volte.
+           Ora sono due query in tutto: una lettura sola per l'intero gruppo (che
+           fa già da controllo di proprietà, perché filtra per user_id) e una
+           scrittura sola, dato che lo scarto è identico per tutti. */
+        $puliti = [];
         foreach (array_slice($ids, 0, 200) as $raw) {
             $eid = sec_int($raw, 1, PHP_INT_MAX, 0);
-            if ($eid === 0 || !sec_owns('planner_events', $eid, $current_user_id)) continue;
-            $ev = sec_one("SELECT start_time, end_time FROM planner_events WHERE id=? AND user_id=?", [$eid, $current_user_id], 'ii');
-            if (!$ev) continue;
-            $chosen[] = ['id' => $eid, 's' => pl_minutes($ev['start_time']), 'e' => pl_minutes($ev['end_time'])];
+            if ($eid > 0) $puliti[$eid] = true;      // le chiavi tolgono i doppioni
         }
+        $puliti = array_keys($puliti);
+        if (empty($puliti)) sec_json(['ok' => true, 'moved' => 0]);
+
+        $segnaposto = implode(',', array_fill(0, count($puliti), '?'));
+
+        /* Il filtro su user_id è il controllo di proprietà: un identificativo
+           di un altro utente semplicemente non torna indietro. */
+        $chosen = sec_all(
+            "SELECT id, start_time, end_time FROM planner_events
+              WHERE user_id = ? AND id IN ($segnaposto)",
+            array_merge([$current_user_id], $puliti)
+        );
         if (empty($chosen)) sec_json(['ok' => true, 'moved' => 0]);
 
         $minStart = 1440; $maxEnd = 0;
-        foreach ($chosen as $c) { $minStart = min($minStart, $c['s']); $maxEnd = max($maxEnd, $c['e']); }
+        $validi = [];
+        foreach ($chosen as $c) {
+            $s = pl_minutes($c['start_time']); $e = pl_minutes($c['end_time']);
+            $minStart = min($minStart, $s); $maxEnd = max($maxEnd, $e);
+            $validi[] = (int)$c['id'];
+        }
         if ($delta < 0) $delta = max($delta, -$minStart);          // non si va prima di mezzanotte
         if ($delta > 0) $delta = min($delta, 1439 - $maxEnd);      // né oltre la fine del giorno
+        if ($delta === 0) sec_json(['ok' => true, 'moved' => 0]);
 
-        $moved = 0;
-        foreach ($chosen as $c) {
-            sec_q("UPDATE planner_events SET start_time=?, end_time=? WHERE id=? AND user_id=?",
-                  [pl_time($c['s'] + $delta), pl_time($c['e'] + $delta), $c['id'], $current_user_id]);
-            $moved++;
-        }
-        sec_json(['ok' => true, 'moved' => $moved]);
+        $segnaposto2 = implode(',', array_fill(0, count($validi), '?'));
+        $secondi = $delta * 60;
+        sec_q(
+            "UPDATE planner_events
+                SET start_time = ADDTIME(start_time, SEC_TO_TIME(?)),
+                    end_time   = ADDTIME(end_time,   SEC_TO_TIME(?))
+              WHERE user_id = ? AND id IN ($segnaposto2)",
+            array_merge([$secondi, $secondi, $current_user_id], $validi)
+        );
+        /* Le attività collegate seguono, in una query sola: se restassero
+           indietro la pagina attività direbbe un'ora e il planner un'altra,
+           e non ci sarebbe modo di sapere quale delle due ha ragione. */
+        sec_q(
+            "UPDATE todos t
+               JOIN planner_events e ON e.id = t.planner_event_id AND e.user_id = t.user_id
+                SET t.due_date = e.event_date,
+                    t.due_time = IF(e.is_all_day = 1, NULL, e.start_time)
+              WHERE t.user_id = ? AND e.id IN ($segnaposto2)",
+            array_merge([$current_user_id], $validi)
+        );
+        sec_json(['ok' => true, 'moved' => count($validi)]);
     }
 
     /* ---------------- copia un altro giorno ---------------- */
@@ -964,6 +1596,8 @@ if ($ajax !== '') {
             'show_affirmations' => ['show_affirmations', 'bool'],
             'default_view'      => ['default_view', 'enum', ['day','month'], 'day'],
             'ambient_enabled'   => ['ambient_enabled', 'bool'],
+            'ambient_opacity'   => ['ambient_opacity', 'int', 0, 10],
+            'fabs_open'         => ['fabs_open', 'bool'],
             'contrast_level'    => ['contrast_level', 'int', 1, 5],
             'days_visible'      => ['days_visible', 'int', 1, 7],
             'gc_dedicated'      => ['gc_dedicated_mode', 'enum', ['none','all','high','highest'], 'all'],
@@ -1248,15 +1882,21 @@ function pl_materialize_repeats(int $userId, int $masterId): void {
     while ($count < PL_MAX_OCCURRENCES) {
         $date = date('Y-m-d', strtotime($date . ' +' . $step . ' ' . $unit));
         if ($date > $until) break;
+        /* Le occorrenze copiano anche luogo e lucchetto: un corso settimanale
+           che si tiene sempre nello stesso posto lo perdeva dalla seconda
+           volta in poi. */
         sec_q("INSERT INTO planner_events
                (user_id, title, notes, event_date, start_time, end_time, is_all_day, category_id, project_id,
                 habit_id, importance, color, item_type, notify_type, notify_minutes,
-                repeat_type, repeat_interval, repeat_unit, repeat_until, series_id)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                repeat_type, repeat_interval, repeat_unit, repeat_until, series_id,
+                location, place_name, place_lat, place_lon, place_ref, duration_locked)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                [$userId, $m['title'], $m['notes'], $date, $m['start_time'], $m['end_time'], (int)$m['is_all_day'],
                 $m['category_id'], $m['project_id'], $m['habit_id'], $m['importance'], $m['color'], $m['item_type'],
                 $m['notify_type'], (int)$m['notify_minutes'], $m['repeat_type'], (int)$m['repeat_interval'],
-                $m['repeat_unit'], $m['repeat_until'], $masterId]);
+                $m['repeat_unit'], $m['repeat_until'], $masterId,
+                $m['location'], $m['place_name'], $m['place_lat'], $m['place_lon'], $m['place_ref'],
+                (int)($m['duration_locked'] ?? 1)]);
         $count++;
     }
 }
@@ -1276,6 +1916,68 @@ function pl_queue_google_delete(int $userId, string $where, array $params): void
 }
 
 /** Spunta/despunta un'abitudine nelle tabelle di habits (fonte unica). */
+/* ----------------------------------------------------------------
+   DOVE STA LA VERITÀ: in `todos`.
+
+   Un evento con item_type='task' non è una cosa a sé, è la faccia in
+   agenda di una riga di `todos`; il filo che li tiene insieme è la
+   colonna `todos.planner_event_id`. Il verso attività → evento esisteva
+   già (td_sync_planner, in todo_api.php); questo è il verso che mancava,
+   per i task creati direttamente dal planner.
+
+   È questa scelta a togliere di mezzo i doppioni: l'attività nasce GIÀ
+   collegata all'evento che l'ha generata, quindi quando verrà risalvata
+   dalla pagina attività td_sync_planner troverà il collegamento e
+   aggiornerà quell'evento invece di crearne un secondo. Chi scrive
+   codice nuovo si regoli così: si scrive nell'attività e l'evento
+   segue, oppure si scrive nell'evento e si chiama questa. Mai le due
+   cose insieme sullo stesso dato. */
+function pl_task_to_todo(int $uid, int $eventId): void {
+    $ev = sec_one("SELECT * FROM planner_events WHERE id = ? AND user_id = ?", [$eventId, $uid], 'ii');
+    if (!$ev) return;
+
+    /* Abitudini e routine restano fuori. Sono spunte generate da altro,
+       non cose scritte a mano: farne attività vorrebbe dire riempire gli
+       elenchi di una riga al giorno per ogni abitudine. */
+    if (!empty($ev['habit_id']) || !empty($ev['routine_id']) || !empty($ev['routine_group'])) return;
+
+    $collegata = sec_one("SELECT id FROM todos WHERE user_id = ? AND planner_event_id = ? LIMIT 1",
+                         [$uid, $eventId], 'ii');
+
+    if (($ev['item_type'] ?? 'event') !== 'task') {
+        /* declassato a evento normale: l'attività collegata non si
+           cancella — è roba scritta dall'utente — ma smette di essere
+           l'ombra di questo evento, se no resterebbero legate per sempre */
+        if ($collegata) {
+            sec_q("UPDATE todos SET planner_event_id = NULL WHERE id = ? AND user_id = ?",
+                  [(int)$collegata['id'], $uid], 'ii');
+        }
+        return;
+    }
+
+    $allDay = (int)$ev['is_all_day'] === 1;
+    $ora    = $allDay ? null : $ev['start_time'];
+    $durata = max(5, min(1440, pl_minutes($ev['end_time']) - pl_minutes($ev['start_time'])));
+    $fatta  = (int)$ev['is_completed'];
+    $prog   = $ev['project_id'] !== null ? (int)$ev['project_id'] : null;
+
+    if ($collegata) {
+        sec_q("UPDATE todos SET title=?, due_date=?, due_time=?, duration_minutes=?, project_id=?,
+                      is_done=?, done_at=" . ($fatta ? 'NOW()' : 'NULL') . "
+               WHERE id=? AND user_id=?",
+              [$ev['title'], $ev['event_date'], $ora, $durata, $prog, $fatta,
+               (int)$collegata['id'], $uid]);
+        return;
+    }
+
+    $next = sec_one("SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM todos WHERE user_id = ?", [$uid], 'i');
+    sec_q("INSERT INTO todos (user_id, list_type, title, due_date, due_time, duration_minutes,
+                              project_id, is_done, done_at, sort_order, source, planner_event_id)
+           VALUES (?, 'todo', ?, ?, ?, ?, ?, ?, " . ($fatta ? 'NOW()' : 'NULL') . ", ?, 'page', ?)",
+          [$uid, $ev['title'], $ev['event_date'], $ora, $durata, $prog, $fatta,
+           (int)($next['n'] ?? 1), $eventId]);
+}
+
 function pl_sync_habit_log(int $userId, int $habitId, string $date, bool $done): void {
     $h = sec_one("SELECT target_amount, step_amount FROM habits WHERE id=? AND user_id=?", [$habitId, $userId], 'ii');
     if (!$h) return;
@@ -1325,7 +2027,14 @@ $boot = [
     'diary'      => pl_diary_dates($current_user_id, $rangeFrom, $rangeTo),
     'habits'     => pl_habits_for_date($current_user_id, $today),
     'weekly'     => pl_habits_weekly($current_user_id, $today),
+    'rings'      => pl_rings($current_user_id, $today),
     'range'      => ['from' => $rangeFrom, 'to' => $rangeTo],
+    /* Chiave della sola mappa incorporata: è l'unica che può stare in pagina,
+       perché è legata al dominio e al servizio Embed, che non si paga. Quella
+       delle ricerche resta nel server e non compare mai qui. Se non è stata
+       messa in config.php, la mappa semplicemente non si mostra. */
+    'map_key'    => defined('GOOGLE_EMBED_KEY') ? GOOGLE_EMBED_KEY : '',
+    'places'     => pl_places($current_user_id),
 ];
 ?>
 <!DOCTYPE html>
@@ -1414,34 +2123,48 @@ $boot = [
 </main>
 
 <!-- ============ VISTA MESE ============ -->
-<section class="pl-month" id="plMonthView">
+<!-- `data-sb-not-overlay`: la vista mese è a schermo intero (position:fixed;
+     inset:0), quindi il rilevatore della sidebar la scambiava per una finestra
+     aperta e nascondeva il pulsante del menu. Con questo attributo la sidebar
+     sa che è una pagina e non si toglie di mezzo. Il pulsante sta comunque
+     sopra (z-index 10000 contro 50), quindi non serve altro. -->
+<section class="pl-month" id="plMonthView" data-sb-not-overlay>
     <div class="pl-mgrid" id="plMonthGrid"></div>
+    <!-- La maniglia che tira su l'elenco degli eventi. Prima l'elenco si
+         apriva toccando un giorno, ma quel tocco serve per entrare nel
+         giorno: due significati sullo stesso gesto non stanno in piedi. -->
+    <button type="button" class="pl-mpull" id="plMonthPull" aria-label="Mostra l'elenco degli eventi">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+    </button>
 </section>
 
-<!-- Elenco degli eventi dal giorno scelto in avanti: entra dal basso con un
-     tocco su un giorno della vista mese. Con due tocchi si apre il giorno. -->
+<!-- Elenco degli eventi dal giorno scelto in avanti: sale dal basso con la
+     maniglia sotto il calendario, e si richiude toccando fuori. -->
 <section class="pl-magenda" id="plMonthAgenda" aria-hidden="true">
-    <button type="button" class="pl-magenda-grab" id="plMagendaClose" aria-label="Chiudi l'elenco"></button>
+    <button type="button" class="pl-magenda-grab" id="plMagendaClose" aria-label="Chiudi l'elenco">
+        <!-- la stessa freccetta della maniglia sotto il calendario, girata:
+             è lo stesso comando, e cambia solo il verso -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
     <div class="pl-magenda-body" id="plMagendaBody"></div>
 </section>
 
 <!-- ============ PULSANTI FLOTTANTI ============ -->
 <div class="pl-fabs" id="plFabs">
-    <button type="button" class="pl-ring" id="plHabitRing" aria-label="Abitudini del giorno e della settimana">
-        <svg viewBox="0 0 46 46">
-            <!-- anello esterno: le abitudini di oggi -->
-            <circle class="pl-ring-bg"   cx="23" cy="23" r="20"/>
-            <circle class="pl-ring-plan" cx="23" cy="23" r="20" stroke-dasharray="125.6" stroke-dashoffset="125.6"/>
-            <circle class="pl-ring-done" cx="23" cy="23" r="20" stroke-dasharray="125.6" stroke-dashoffset="125.6"/>
-            <!-- anello interno: quelle settimanali, come la palestra -->
-            <circle class="pl-ring-bg-w" cx="23" cy="23" r="14.5"/>
-            <circle class="pl-ring-week" cx="23" cy="23" r="14.5" stroke-dasharray="91.1" stroke-dashoffset="91.1"/>
-        </svg>
+    <button type="button" class="pl-ring" id="plHabitRing" aria-label="Abitudini">
+        <?php /* I cerchi li disegna planner.js: quanti sono dipende da quali
+                 famiglie di frequenza hai davvero (giornaliera, settimanale,
+                 mensile, personalizzata), quindi non possono stare fissi qui. */ ?>
+        <svg viewBox="0 0 46 46"></svg>
         <span class="pl-ring-face">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 12.5l4 4L19 7"/></svg>
         </span>
     </button>
     <div class="pl-fab-menu" id="plMenuHabit"></div>
+
+    <!-- Tutto quello che si può richiudere sta qui dentro. Le abitudini no:
+         sono l'unica cosa che si guarda senza doverla cercare, e restano. -->
+    <div class="pl-fab-group" id="plFabGroup">
 
     <button type="button" class="pl-fab" id="plFabRoutine" aria-label="Routine">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 6h10M4 12h13M4 18h8"/><circle cx="19" cy="6" r="1.6"/><circle cx="21" cy="12" r="1.6"/></svg>
@@ -1464,6 +2187,15 @@ $boot = [
 
     <button type="button" class="pl-fab" id="plFabDiary" aria-label="Diario del giorno">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 4h10a2 2 0 012 2v14H8a2 2 0 01-2-2z"/><path d="M6 4v16"/><path d="M10 9h5M10 13h5"/></svg>
+    </button>
+    </div>
+
+    <!-- La freccetta chiude e riapre la colonna. Sta in fondo al gruppo, non
+         in cima: da chiusa si trova subito sotto le abitudini, da aperta
+         resta l'ultima della fila, dove il pollice la ritrova. -->
+    <button type="button" class="pl-fab pl-fab-toggle" id="plFabToggle"
+            aria-label="Mostra o nascondi i tastini" aria-expanded="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
     </button>
 </div>
 
@@ -1509,7 +2241,11 @@ $boot = [
         <button type="button" data-dir="early">Anticipo</button>
         <button type="button" data-dir="late" class="pl-on">Ritardo</button>
     </div>
-    <input type="text" class="pl-time-in" id="plShiftTime" value="00:10" inputmode="numeric" maxlength="5" aria-label="Ore e minuti">
+    <!-- Orario vero e proprio, non testo: così si tocca e si apre l'orologio
+         del telefono invece di dover scrivere "00:10" con i due punti al posto
+         giusto. Il valore letto resta della stessa forma (hh:mm), quindi il
+         conto dei minuti in planner.js non cambia di una riga. -->
+    <input type="time" class="pl-time-in" id="plShiftTime" value="00:10" step="60" aria-label="Di quanto spostarli (ore e minuti)">
     <button type="button" class="pl-txt-btn pl-strong" id="plShiftSave">Salva</button>
 </div>
 

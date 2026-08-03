@@ -54,13 +54,10 @@ $boot = [
                 </button>
             </div>
 
-            <button type="button" class="dy-ring" id="dyRing" aria-label="Abitudini del giorno e della settimana">
-                <svg viewBox="0 0 54 54" aria-hidden="true">
-                    <circle class="dy-ring-bg" cx="27" cy="27" r="22"/>
-                    <circle class="dy-ring-fg" cx="27" cy="27" r="22" stroke-dasharray="138.2" stroke-dashoffset="138.2"/>
-                    <circle class="dy-ring-bg-w" cx="27" cy="27" r="16"/>
-                    <circle class="dy-ring-week" cx="27" cy="27" r="16" stroke-dasharray="100.5" stroke-dashoffset="100.5"/>
-                </svg>
+            <button type="button" class="dy-ring" id="dyRing" aria-label="Abitudini">
+                <?php /* I cerchi li disegna diario.js: quanti sono dipende da
+                         quali famiglie di frequenza esistono davvero. */ ?>
+                <svg viewBox="0 0 54 54" aria-hidden="true"></svg>
                 <span class="dy-ring-n" id="dyRingN">–</span>
             </button>
         </header>

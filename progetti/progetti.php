@@ -596,6 +596,17 @@ if (!$pomoInCorso) {
     if ($pausaChk && mysqli_num_rows($pausaChk) > 0) { $pomoInCorso = true; }
 }
 
+/* La stella in due versioni: piena quando è fra i preferiti, tratteggiata e
+   spenta quando no. Sta in una funzione perché la stessa forma serve al PHP
+   che disegna la pagina e al JavaScript che la cambia al volo. */
+function prog_star_svg(bool $piena): string {
+    $d = 'M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z';
+    if ($piena) {
+        return '<svg class="pr-star pr-star-hero" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="' . $d . '"/></svg>';
+    }
+    return '<svg class="pr-star pr-star-hero pr-star-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-dasharray="3 2.2" aria-hidden="true"><path d="' . $d . '"/></svg>';
+}
+
 function prog_fmt_duration($seconds) {
     $seconds = (int)$seconds;
     if ($seconds <= 0) return '';
@@ -672,18 +683,19 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                                 echo $nameEsc;
                             ?></span></span>
                         </div>
-                        <?php /* Il tasto per il sottoprogetto è passato sotto al nome:
-                                 in riga rubava larghezza al titolo, che sui
-                                 sottoprogetti profondi restava tagliato. */ ?>
+                    </div>
+                    <?php /* La riga dei tag c'è sempre, perché ospita il tasto
+                             per il sottoprogetto: prima stava sulla riga del
+                             titolo, accanto al pomodoro, dove rubava larghezza
+                             al nome e stonava con gli altri comandi. */ ?>
+                    <div class="pr-tags-row">
+                        <?php /* sempre per primo a sinistra, prima di nota, categoria e date */ ?>
                         <button type="button" class="pr-inline-add-btn" onclick="prShowInlineInput(event, <?php echo (int)$node['id']; ?>, this)" aria-label="Aggiungi sottoprogetto rapido">
                             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M9 5v10a2 2 0 0 0 2 2h8"/>
                                 <path d="m16 14 3 3-3 3"/>
                             </svg>
                         </button>
-                    </div>
-                    <?php if ($cat || $noteEsc !== '' || $dateTags): ?>
-                    <div class="pr-tags-row">
                         <?php if ($noteEsc !== ''): ?>
                         <button type="button" class="pr-note-tag" data-note-raw="<?php echo $noteEsc; ?>" data-note-id="<?php echo (int)$node['id']; ?>"
                                 onclick="event.stopPropagation(); prOpenNotePeek(<?php echo (int)$node['id']; ?>, this)" aria-label="Mostra nota">
@@ -703,7 +715,6 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                         </span>
                         <?php endforeach; ?>
                     </div>
-                    <?php endif; ?>
                 </div>
                 <div class="pr-pomo-wrap">
                 <button type="button" class="pr-pomo-btn"<?php echo $pomoInCorso ? ' disabled aria-label="Hai già un pomodoro in corso"' : ' onclick="window.location.href=\'pomodoro.php?project_id=' . (int)$node['id'] . '\'" aria-label="Avvia pomodoro"'; ?>>
@@ -866,16 +877,20 @@ button{ font-family:inherit; }
     background:color-mix(in srgb, var(--cat-color) 14%, var(--surface)); color:var(--cat-color); font-size:12px; font-weight:800;
     box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--cat-color) 30%, transparent); transition:transform .15s var(--spring); }
 .pr-hero-cat-chip:active{ transform:scale(.95); }
-.pr-hero-actions{ display:flex; gap:10px; margin-top:14px; }
+/* Con il tondo in più i pulsanti non ci stavano più in riga e spingevano fuori
+   il bordo, facendo scorrere l'intera pagina in orizzontale. Più piccoli, meno
+   distanti, e se ancora non bastasse vanno a capo invece di uscire. */
+.pr-hero-actions{ display:flex; flex-wrap:wrap; gap:8px; row-gap:8px; margin-top:14px; max-width:100%; }
 .pr-hero-quickadd{ width:26px; height:26px; border-radius:8px; flex-shrink:0; align-self:center; }
 .pr-hero-quickadd svg{ width:14px; height:14px; }
-.pr-hero-btn{ display:flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; border:none; flex-shrink:0; }
-.pr-hero-btn svg{ width:18px; height:18px; }
+.pr-hero-btn{ display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; border:none; flex-shrink:0; }
+.pr-hero-btn svg{ width:17px; height:17px; }
 .pr-hero-btn-pomo{ background:var(--accent); color:#fff; box-shadow:var(--btn-hl), 0 6px 16px -6px color-mix(in srgb, var(--accent) 70%, transparent); transition:transform .15s var(--spring), opacity .2s; }
 .pr-hero-btn-pomo[disabled]{ background:var(--surface-2); color:var(--text-3); box-shadow:none; opacity:.7; }
 .pr-hero-btn-stats{ background:var(--surface-2); color:var(--text); transition:background-color .2s, color .2s; }
 .pr-hero-btn-stats.active{ background:var(--blue); color:#fff; }
 .pr-hero-btn-add{ background:var(--blue-soft); color:var(--blue); }
+.pr-hero-btn-quick{ background:var(--surface-2); color:var(--text-2); }
 .pr-hero-btn:active{ transform:scale(.9); }
 
 /* ---------- righe progetto ---------- */
@@ -942,24 +957,41 @@ button{ font-family:inherit; }
 .pr-note-peek-overlay{ position:fixed; inset:0; z-index:9760; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.4);
     -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); opacity:0; pointer-events:none; transition:opacity .24s var(--ease-out); padding:24px; }
 .pr-note-peek-overlay.show{ opacity:1; pointer-events:auto; }
-.pr-note-peek{ position:relative; width:100%; max-width:300px; background:linear-gradient(160deg, #FFF7CC, #FFE79A);
-    color:#4A3C00; border-radius:6px 6px 14px 14px; padding:18px 16px 14px; box-shadow:0 22px 50px -18px rgba(120,90,0,.6), 0 2px 0 rgba(0,0,0,.05);
-    transform:scale(.85) rotate(-1.4deg); opacity:0; transition:transform .4s var(--pop), opacity .24s; }
-.pr-note-peek-overlay.show .pr-note-peek{ transform:scale(1) rotate(-1.4deg); opacity:1; }
-.pr-note-peek::before{ content:""; position:absolute; top:-9px; left:50%; transform:translateX(-50%) rotate(-3deg); width:66px; height:18px;
-    background:rgba(255,255,255,.5); box-shadow:0 2px 5px rgba(0,0,0,.12); border-radius:2px; }
-.pr-note-peek-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
-.pr-note-peek-title{ font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; color:#8A6D00; }
+/* Il post-it era giallo squillante con il carattere a mano: bello da vedere di
+   sfuggita, faticoso da leggere quando la nota è lunga — ed è per leggerla che
+   lo si apre. Fondo neutro, carattere di sistema, e più largo su schermo
+   grande. Resta la piega dell'angolo e la leggera inclinazione: quel tanto che
+   basta a farlo sembrare un foglietto. */
+.pr-note-peek{ position:relative; width:100%; max-width:340px; background:#FBF9F4;
+    color:var(--text, #262523); border-radius:4px 4px 14px 14px; padding:16px 18px 16px; box-shadow:0 24px 54px -20px rgba(0,0,0,.45), inset 0 0 0 .5px rgba(0,0,0,.06);
+    transform:scale(.85) rotate(-1deg); opacity:0; transition:transform .4s var(--pop), opacity .24s; }
+@media (min-width:700px){ .pr-note-peek{ max-width:460px; padding:20px 22px; } }
+.pr-note-peek-overlay.show .pr-note-peek{ transform:scale(1) rotate(-1deg); opacity:1; }
+.pr-note-peek::before{ content:""; position:absolute; top:-8px; left:50%; transform:translateX(-50%) rotate(-2deg); width:70px; height:16px;
+    background:rgba(255,255,255,.65); box-shadow:0 2px 5px rgba(0,0,0,.10); border-radius:2px; }
+.pr-note-peek-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
+.pr-note-peek-title{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.4px; color:var(--text-3, #9A958C); }
 .pr-note-peek-actions{ display:flex; gap:6px; }
 .pr-note-peek-btn{ width:28px; height:28px; border-radius:8px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
-    background:rgba(74,60,0,.1); color:#4A3C00; transition:transform .15s var(--spring), background-color .2s; }
+    background:rgba(0,0,0,.06); color:var(--text-2, #5C574F); transition:transform .15s var(--spring), background-color .2s; }
 .pr-note-peek-btn:active{ transform:scale(.9); }
-.pr-note-peek-body{ font-size:14px; line-height:1.5; white-space:pre-wrap; word-break:break-word; max-height:52vh; overflow-y:auto;
-    font-family:"Bradley Hand","Segoe Print",-apple-system,system-ui,sans-serif; }
+.pr-note-peek-body{ font-size:15px; line-height:1.6; white-space:pre-wrap; word-break:break-word; max-height:60vh; overflow-y:auto;
+    font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif; }
+/* Su computer la barra di scorrimento resta sempre in vista e taglia il
+   foglietto in due. Qui diventa sottile e incolore, e si accende solo quando
+   il dito o il mouse stanno lavorando lì dentro. */
+.pr-note-peek-body{ scrollbar-width:thin; scrollbar-color:transparent transparent; }
+.pr-note-peek-body:hover, .pr-note-peek-body:focus-within{ scrollbar-color:rgba(0,0,0,.22) transparent; }
+.pr-note-peek-body::-webkit-scrollbar{ width:6px; }
+.pr-note-peek-body::-webkit-scrollbar-track{ background:transparent; }
+.pr-note-peek-body::-webkit-scrollbar-thumb{ background:transparent; border-radius:99px; }
+.pr-note-peek-body:hover::-webkit-scrollbar-thumb{ background:rgba(0,0,0,.20); }
 @media (prefers-color-scheme: dark){
-    .pr-note-peek{ background:linear-gradient(160deg, #4a4526, #3b3720); color:#F2E9C4; box-shadow:0 22px 50px -18px rgba(0,0,0,.7); }
-    .pr-note-peek-title{ color:#D8C77A; }
-    .pr-note-peek-btn{ background:rgba(242,233,196,.14); color:#F2E9C4; }
+    .pr-note-peek{ background:#2A2925; color:#EAE6DE; box-shadow:0 24px 54px -20px rgba(0,0,0,.75), inset 0 0 0 .5px rgba(255,255,255,.06); }
+    .pr-note-peek::before{ background:rgba(255,255,255,.18); }
+    .pr-note-peek-title{ color:#9A958C; }
+    .pr-note-peek-btn{ background:rgba(255,255,255,.10); color:#EAE6DE; }
+    .pr-note-peek-body:hover::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.22); }
 }
 .pr-grid-empty{ grid-column:1/-1; text-align:center; padding:30px 16px; color:var(--text-2); font-size:13.5px; }
 .pr-row-wrap{ position:relative; animation:prIn .4s var(--spring) both; }
@@ -968,7 +1000,13 @@ button{ font-family:inherit; }
 .pr-row-wrap:nth-child(5){ animation-delay:.14s; } .pr-row-wrap:nth-child(n+6){ animation-delay:.16s; }
 .pr-row{ position:relative; overflow:hidden; border-radius:13px; }
 .pr-row-content{ position:relative; background:var(--surface); display:flex; align-items:center; gap:6px; padding:9px 6px; z-index:2; transition:transform .05s linear; }
-.pr-grip{ color:var(--text-3); display:flex; touch-action:none; cursor:grab; padding:4px; flex-shrink:0; }
+/* Freccetta, maniglia e checkbox stanno insieme in testa alla riga: fra loro
+   lo spazio è quasi nullo, così si leggono come un gruppo solo e lasciano più
+   respiro al nome del progetto. Il distacco vero comincia dopo la checkbox. */
+.pr-arrow + .pr-grip, .pr-arrow-spacer + .pr-grip{ margin-left:-5px; }
+.pr-grip + .pr-check{ margin-left:-5px; }
+.pr-check{ margin-right:1px; }
+.pr-grip{ color:var(--text-3); display:flex; touch-action:none; cursor:grab; padding:4px 2px; flex-shrink:0; }
 .pr-check{ width:26px; height:26px; border:none; background:none; padding:0; flex-shrink:0; position:relative; color:var(--text-3); }
 .pr-check svg{ position:absolute; inset:0; width:100%; height:100%; opacity:0; transition:opacity .2s, transform .3s var(--spring); }
 .pr-check .pr-ic-empty{ opacity:1; }
@@ -1025,6 +1063,15 @@ button{ font-family:inherit; }
     color:#E0B84A; flex-shrink:0;
 }
 .pr-star-hero{ width:19px; height:19px; vertical-align:-3px; margin-right:7px; }
+/* non preferito: contorno tratteggiato e colore spento — si vede che il posto
+   della stella c'è, e che è vuoto */
+.pr-star-off{ color:var(--text-3); opacity:.75; }
+/* il pulsante non deve sembrare un pulsante: è la stella stessa a essere
+   toccabile, con un'area un po' più larga del disegno per il dito */
+.pr-star-btn{ border:none; background:none; padding:0 2px 0 0; margin:0; cursor:pointer; line-height:0;
+    color:#E0B84A; vertical-align:baseline; transition:transform .18s var(--spring); }
+.pr-star-btn:not(.is-fav){ color:var(--text-3); }
+.pr-star-btn:active{ transform:scale(.82); }
 .pr-name-container {
     display: inline-flex;
     align-items: center;
@@ -1048,10 +1095,12 @@ button{ font-family:inherit; }
 .pr-name-track{ display:inline-block; white-space:nowrap; will-change:transform; }
 .pr-name-done{ color:var(--text-2); text-decoration:line-through; }
 .pr-duration{ font-size:11.5px; color:var(--text-2); font-weight:700; font-variant-numeric:tabular-nums; flex-shrink:0; }
-.pr-arrow{ width:26px; height:26px; border:none; background:none; color:var(--text-3); flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:transform .28s var(--spring); }
+/* stretta: 26px per una freccia da 14 erano dieci pixel di aria per parte, e
+   in un elenco annidato quello spazio moltiplica a ogni livello */
+.pr-arrow{ width:18px; height:26px; padding:0; border:none; background:none; color:var(--text-3); flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:transform .28s var(--spring); }
 .pr-arrow svg{ width:14px; height:14px; flex-shrink:0; }
 .pr-arrow.open{ transform:rotate(90deg); }
-.pr-arrow-spacer{ width:26px; flex-shrink:0; }
+.pr-arrow-spacer{ width:18px; flex-shrink:0; }
 /* pulsante pomodoro con le ore sotto: incolonnati e centrati */
 .pr-pomo-wrap{
     display:flex; flex-direction:column; align-items:center; gap:3px;
@@ -1062,7 +1111,7 @@ button{ font-family:inherit; }
     white-space:nowrap; margin:0; padding:0;
 }
 /* il tasto per il sottoprogetto, sotto il nome e discreto */
-.pr-inline-add-btn{ margin-top:2px; }
+.pr-inline-add-btn{ margin-top:0; order:-1; flex-shrink:0; align-self:center; }
 
 .pr-pomo-btn{ width:30px; height:30px; border-radius:50%; border:none; background:var(--row-color); color:#fff; flex-shrink:0; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px -1px color-mix(in srgb, var(--row-color) 60%, transparent); transition:transform .15s var(--spring), opacity .2s; }
 .pr-pomo-btn:active{ transform:scale(.88); }
@@ -1087,7 +1136,34 @@ button{ font-family:inherit; }
     max-height:4000px; transition:max-height .35s var(--spring), opacity .28s;
 }
 .pr-children.collapsed{ max-height:0; opacity:0; pointer-events:none; }
-.pr-row-wrap.dragging{ opacity:.5; }
+/* IL PROBLEMA: la riga trascinata si svuotava di continuo. La causa non era il
+   trascinamento ma l'animazione d'ingresso qui sopra: ogni volta che la riga
+   viene rimessa fra le altre (e succede a ogni scambio, decine di volte in un
+   gesto) il browser la considera appena inserita e **fa ripartire l'animazione
+   dall'inizio** — che con `both` e un ritardo significa restare invisibile per
+   qualche decimo di secondo. Da qui il lampeggio.
+   Durante il trascinamento l'animazione si spegne per tutte le righe. */
+body.pr-dragging-now .pr-row-wrap{ animation:none !important; }
+
+/* e la riga in mano si vede bene: sollevata, non sbiadita — prima con opacità
+   .5 sembrava già sparita per conto suo */
+.pr-row-wrap.dragging{
+    opacity:1; z-index:5;
+    transform:scale(1.015);
+    box-shadow:0 12px 28px -12px rgba(0,0,0,.35);
+    border-radius:14px;
+}
+/* Mentre si trascina, niente selezione del testo e niente lente di
+   ingrandimento: tenendo premuto, il telefono cercava di selezionare il nome
+   sotto il dito invece di far partire lo spostamento. */
+body.pr-dragging-now{
+    -webkit-user-select:none; -moz-user-select:none; user-select:none;
+    -webkit-touch-callout:none;
+}
+body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
+/* La maniglia non è mai selezionabile, nemmeno prima che il gesto scatti:
+   è lì che si tiene premuto, ed è lì che partiva la selezione. */
+.pr-grip, .pr-check, .pr-arrow{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
 .pr-row-wrap.drag-ghost{ position:fixed; z-index:500; pointer-events:none; box-shadow:0 12px 34px rgba(0,0,0,.28); border-radius:13px; opacity:.96; }
 
 .pr-empty{ text-align:center; padding:60px 20px; color:var(--text-2); }
@@ -1299,6 +1375,16 @@ button{ font-family:inherit; }
     <div class="hdr-title">Progetti</div>
     <?php if (!empty($rootProjects)): ?>
     <div class="hdr-root-pills" id="hdrRootPills">
+        <?php if (!empty($favProjects)): ?>
+        <!-- Preferiti sempre in testa: la barra scorre in orizzontale e con
+             molti progetti finiva fuori vista, proprio la voce che si cerca
+             più spesso. -->
+        <button type="button" class="hdr-root-pill hdr-pill-fav<?php echo $viewFavorites ? ' active' : ''; ?>"
+                style="--pill-color:#E0B84A;" onclick="window.location.href='progetti.php?view=fav'">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
+            Preferiti
+        </button>
+        <?php endif; ?>
         <?php foreach ($rootProjects as $rp):
             $rpColor = (!empty($rp['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $rp['color'])) ? $rp['color'] : '#8E8E93';
         ?>
@@ -1307,13 +1393,6 @@ button{ font-family:inherit; }
             <span class="hdr-root-pill-dot"></span><?php echo htmlspecialchars($rp['name'], ENT_QUOTES); ?>
         </button>
         <?php endforeach; ?>
-        <?php if (!empty($favProjects)): ?>
-        <button type="button" class="hdr-root-pill hdr-pill-fav<?php echo $viewFavorites ? ' active' : ''; ?>"
-                style="--pill-color:#E0B84A;" onclick="window.location.href='progetti.php?view=fav'">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
-            Preferiti
-        </button>
-        <?php endif; ?>
     </div>
     <?php elseif (!empty($favProjects)): ?>
     <div class="hdr-root-pills">
@@ -1382,14 +1461,22 @@ button{ font-family:inherit; }
             </button>
             <div class="pr-hero-title-wrap">
                 <span class="pr-hero-title<?php echo $selectedProject['stato'] === 'completed' ? ' pr-name-done' : ''; ?>"><?php
-                    if ((int)($selectedProject['is_favorite'] ?? 0) === 1) {
-                        echo '<svg class="pr-star pr-star-hero" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>';
-                    }
+                    /* La stella c'è sempre, così la sua assenza non si confonde
+                       con "questo progetto non ne ha una": piena e colorata se è
+                       fra i preferiti, vuota e tratteggiata se no. */
+                    /* La stella si tocca: prima era solo un disegno e restava
+                       lì a far finta di essere un comando. Il verso lo decide
+                       il JavaScript, che riusa l'endpoint toggle_favorite già
+                       esistente (quello della scheda di modifica). */
+                    $stellaPiena = (int)($selectedProject['is_favorite'] ?? 0) === 1;
+                    echo '<button type="button" class="pr-star-btn' . ($stellaPiena ? ' is-fav' : '') . '"'
+                       . ' data-id="' . (int)$selectedProject['id'] . '"'
+                       . ' onclick="prToggleHeroFav(event, this)"'
+                       . ' aria-pressed="' . ($stellaPiena ? 'true' : 'false') . '"'
+                       . ' title="' . ($stellaPiena ? 'Togli dai preferiti' : 'Metti tra i preferiti') . '"'
+                       . ' aria-label="Preferito">' . prog_star_svg($stellaPiena) . '</button>';
                     echo htmlspecialchars($selectedProject['name'], ENT_QUOTES);
                 ?></span>
-                <button type="button" class="pr-inline-add-btn pr-hero-quickadd" onclick="prHeroQuickAdd(event, this)" aria-label="Aggiungi sottoprogetto rapido" title="Aggiungi sotto-progetto rapido">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5v10a2 2 0 0 0 2 2h8"/><path d="m16 14 3 3-3 3"/></svg>
-                </button>
             </div>
         </div>
         <?php $linkedCat = $catLinks[$selectedProject['id']] ?? null; if ($linkedCat): ?>
@@ -1412,6 +1499,12 @@ button{ font-family:inherit; }
         <div class="pr-hero-todo<?php echo $heroTodo ? '' : ' pr-hidden'; ?>" id="prHeroTodo"></div>
         <?php if ($heroNote !== ''): ?><div class="pr-hero-note raw-text-content" data-raw="<?php echo $heroNote; ?>"></div><?php endif; ?>
         <div class="pr-hero-actions">
+            <!-- Il sotto-progetto rapido stava attaccato al titolo, dove sembrava
+                 parte del nome e schiacciava la riga. Qui è un tondo come gli
+                 altri, primo della fila: è l'azione che si usa più spesso. -->
+            <button type="button" class="pr-hero-btn pr-hero-btn-quick" onclick="prHeroQuickAdd(event, this)" aria-label="Aggiungi sotto-progetto rapido" title="Aggiungi sotto-progetto rapido">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5v10a2 2 0 0 0 2 2h8"/><path d="m16 14 3 3-3 3"/></svg>
+            </button>
             <button type="button" class="pr-hero-btn pr-hero-btn-pomo"<?php echo $pomoInCorso ? ' disabled aria-label="Hai già un pomodoro in corso" title="Hai già un pomodoro in corso"' : (' onclick="window.location.href=\'pomodoro.php?project_id=' . (int)$selectedProject['id'] . '\'" aria-label="Avvia pomodoro" title="Avvia pomodoro"'); ?>>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>
             </button>
@@ -1805,14 +1898,21 @@ button{ font-family:inherit; }
     try {
         var params = new URLSearchParams(window.location.search);
         var cur = <?php echo (int)($selectedProject['id'] ?? 0); ?>;
-        if (!params.has('id')) {
+        /* I preferiti non hanno un id nell'indirizzo: senza questa guardia
+           "?view=fav" veniva scambiato per "nessun progetto scelto" e la
+           pagina rimbalzava subito sull'ultimo progetto aperto. Era il motivo
+           per cui i preferiti non si aprivano mai. */
+        var vista = params.get('view');
+        if (!params.has('id') && !vista) {
             var last = localStorage.getItem('pr_last_project');
             if (last && parseInt(last, 10) > 0 && parseInt(last, 10) !== cur) {
                 window.location.replace('progetti.php?id=' + parseInt(last, 10));
                 return;
             }
         }
-        if (cur > 0) localStorage.setItem('pr_last_project', String(cur));
+        /* stando nei preferiti non si sovrascrive l'ultimo progetto aperto:
+           uscendo di lì si torna dov'eri davvero */
+        if (cur > 0 && !vista) localStorage.setItem('pr_last_project', String(cur));
     } catch (e) {}
 })();
 
@@ -1929,6 +2029,37 @@ window.prOpenNotePeek = function(id, el){
     document.getElementById('prNotePeekOverlay').classList.add('show');
 };
 window.prCloseNotePeek = function(){ document.getElementById('prNotePeekOverlay').classList.remove('show'); };
+
+/* ---------------- stella dei preferiti nell'intestazione ---------------- */
+/* Cambia subito e salva dopo: aspettare la risposta per far vedere che la
+   stella si è accesa farebbe sembrare il tocco andato a vuoto. Se il salvataggio
+   non riesce, la stella torna com'era e lo dice. */
+window.prToggleHeroFav = function(e, btn){
+    e.stopPropagation();
+    var D = 'M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z';
+    function disegna(on){
+        btn.classList.toggle('is-fav', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('title', on ? 'Togli dai preferiti' : 'Metti tra i preferiti');
+        btn.innerHTML = on
+            ? '<svg class="pr-star pr-star-hero" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="' + D + '"/></svg>'
+            : '<svg class="pr-star pr-star-hero pr-star-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-dasharray="3 2.2" aria-hidden="true"><path d="' + D + '"/></svg>';
+    }
+    var id = parseInt(btn.getAttribute('data-id'), 10) || 0;
+    if (!id) return;
+    var next = !btn.classList.contains('is-fav');
+    disegna(next);
+    if (typeof buzz === 'function') buzz(8);
+    fetch('progetti.php?ajax=toggle_favorite', {
+        method:'POST', credentials:'same-origin',
+        headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ project_id: id, value: next ? 1 : 0 }).toString()
+    }).then(function(r){ return r.json(); }).then(function(r){
+        if (!r || !r.ok) { disegna(!next); toast('Non salvato'); return; }
+        /* la scheda di modifica, se è aperta o si aprirà, deve concordare */
+        if (PROJ_LOOKUP[id]) PROJ_LOOKUP[id].is_favorite = next ? 1 : 0;
+    }).catch(function(){ disegna(!next); toast('Errore di rete'); });
+};
 
 /* ---------------- inserimento rapido dall'hero (richiesta 15) ---------------- */
 window.prHeroQuickAdd = function(e, btn){
@@ -2754,14 +2885,43 @@ window.prDoDelete = function(deleteSessions){
     document.addEventListener('pointerdown', function(e){
         var content = e.target.closest('.pr-row-content');
         if (!content || prSubSelecting) return;
-        if (e.target.closest('.pr-grip, .pr-check, .pr-arrow, .pr-pomo-btn, .pr-name')) return;
+        /* Resta escluso solo il pomodoro, perché porta via dalla pagina.
+           Freccia, maniglia e spunta invece lasciano passare il gesto: sono
+           tre bersagli larghi in mezzo alla riga, e partendo da lì lo
+           scorrimento sembrava rotto a caso. Il tocco secco su di loro
+           continua a funzionare: lo scorrimento si accorge di esistere solo
+           dopo sei pixel di movimento, e il trascinamento dalla maniglia si
+           annulla da solo appena il dito si sposta. */
+        if (e.target.closest('.pr-pomo-btn')) return;
+        /* Il titolo NON è più escluso in blocco. Prima lo era, e siccome il
+           titolo occupa quasi tutta la riga, lo scorrimento non partiva quasi
+           mai: sembrava rotto. Ora si esclude solo il titolo che è davvero
+           più lungo dello spazio disponibile, perché su quello il gesto
+           orizzontale serve a leggere il resto del nome. Un titolo corto non
+           ha niente da scorrere, quindi lascia passare lo scorrimento della
+           riga come tutto il resto. */
+        var nome = e.target.closest('.pr-name');
+        if (nome && nome._prMarquee) return;
+        /* un trascinamento in corso ha la precedenza su tutto */
+        if (window.prDragging) return;
         closeAllSwipes(content.closest('.pr-row'));
         var row = content.closest('.pr-row');
         var actions = row.querySelector('.swipe-actions');
         pend = { row: row, content: content, pid: e.pointerId, startX: e.clientX, startTranslate: row._swipeX || 0, maxReveal: actions ? actions.offsetWidth : 156, moved:false };
         content.style.transition = 'none';
     });
+    /* Chiamata dal trascinamento quando scatta: lo scorrimento in corso si
+       annulla e la riga torna dov'era, senza animazione da inseguire mentre il
+       dito la sta già portando altrove. */
+    window.prCancelSwipe = function(){
+        if (!pend) return;
+        var p = pend; pend = null;
+        p.content.style.transition = '';
+        p.content.style.transform = 'translateX(' + (p.startTranslate || 0) + 'px)';
+    };
+
     document.addEventListener('pointermove', function(e){
+        if (window.prDragging) { pend = null; return; }
         if (!pend || e.pointerId !== pend.pid) return;
         var dx = e.clientX - pend.startX;
         if (!pend.moved && Math.abs(dx) < 6) return;
@@ -2780,17 +2940,42 @@ window.prDoDelete = function(deleteSessions){
         var final = openIt ? p.maxReveal : 0;
         p.content.style.transform = 'translateX(' + final + 'px)';
         p.row._swipeX = final;
-        if (openIt) buzz(10);
+        if (openIt) { window.prNoteSwipeOpen(p.row); buzz(10); }
+        /* Ora che il gesto può partire dalla freccia, dalla maniglia e dalla
+           spunta, al rilascio arriverebbe anche il clic su quel pulsante: si
+           aprirebbero i sotto-progetti, o peggio cambierebbe lo stato del
+           progetto, senza che nessuno l'abbia chiesto. Dopo uno scorrimento
+           vero il primo clic si ferma qui. */
+        if (p.moved) {
+            var fermaClic = function(ev){ ev.stopPropagation(); ev.preventDefault(); };
+            document.addEventListener('click', fermaClic, true);
+            /* si toglie da solo: se il clic non arriva mai (col mouse capita),
+               l'ascoltatore non deve restare lì a mangiarsi i tocchi dopo */
+            setTimeout(function(){ document.removeEventListener('click', fermaClic, true); }, 320);
+        }
     }
     document.addEventListener('pointerup', endSwipe);
     document.addEventListener('pointercancel', endSwipe);
 
+    /* Le righe aperte si contano sulle dita: tenerne l'elenco costa nulla ed
+       evita di passare in rassegna tutte le righe della pagina a ogni tocco e
+       a ogni click (era una scansione dell'intero elenco per ogni gesto). */
+    var aperte = [];
+    window.prNoteSwipeOpen = function(row){ if (aperte.indexOf(row) === -1) aperte.push(row); };
+
     window.closeAllSwipes = function(except){
-        document.querySelectorAll('.pr-row').forEach(function(row){
-            if (row === except) return;
+        if (!aperte.length) return;
+        var restano = [];
+        aperte.forEach(function(row){
+            if (row === except) { restano.push(row); return; }
             var content = row.querySelector('.pr-row-content');
-            if (content && row._swipeX) { content.style.transition = 'transform .25s var(--spring)'; content.style.transform = 'translateX(0)'; row._swipeX = 0; }
+            if (content && row._swipeX) {
+                content.style.transition = 'transform .25s var(--spring)';
+                content.style.transform = 'translateX(0)';
+            }
+            row._swipeX = 0;
         });
+        aperte = restano;
     };
     document.addEventListener('click', function(e){
         if (!e.target.closest('.pr-row')) closeAllSwipes(null);
@@ -2818,10 +3003,41 @@ window.prDoDelete = function(deleteSessions){
             pid: pid, startY: startY, startX: startX,
             timer: setTimeout(function(){
                 dragArm = null;
-                drag = { wrap: wrap, list: list, pid: pid, startY: startY, moved:false };
+                drag = { wrap: wrap, list: list, pid: pid, startY: startY, moved:false, rects:null, rectsAt:0 };
                 wrap.classList.add('dragging');
                 /* da qui il dito muove la riga, non la pagina */
                 document.body.style.touchAction = 'none';
+                /* Tenendo premuto, il telefono cercava di selezionare il testo
+                   sotto il dito (e faceva comparire la lente e il menù
+                   copia/incolla). Con la pagina in stato di trascinamento la
+                   selezione è disattivata via CSS, e qui si cancella anche
+                   quella eventualmente già iniziata. */
+                document.body.classList.add('pr-dragging-now');
+                /* Il gesto è cominciato come uno scorrimento orizzontale (lo
+                   swipe si arma sullo stesso tocco): da qui in poi comanda il
+                   trascinamento, quindi la riga torna al suo posto e i tasti
+                   modifica/elimina non devono più comparire. */
+                window.prDragging = true;
+                if (window.prCancelSwipe) window.prCancelSwipe();
+                /* Il titolo della riga che si sta spostando torna al suo
+                   inizio. Lo scorrimento automatico del nome lo lasciava
+                   spesso a metà corsa, cioè tradotto fuori dalla riga: nel
+                   momento in cui si prendeva la riga, il testo spariva.
+                   Qui l'animazione si ferma e il nome torna in vista. */
+                try {
+                    var titolo = wrap.querySelector('.pr-name');
+                    if (titolo && titolo._prMarquee) {
+                        var m = titolo._prMarquee;
+                        if (m.anim) { m.anim.cancel(); m.anim = null; }
+                        if (m.resumeTimer) { clearTimeout(m.resumeTimer); m.resumeTimer = null; }
+                        m.offset = 0;
+                        m.track.style.transform = 'translateX(0)';
+                    }
+                } catch (err) {}
+                try {
+                    var sel = window.getSelection();
+                    if (sel && sel.removeAllRanges) sel.removeAllRanges();
+                } catch (err) {}
                 buzz(15);
             }, 500)
         };
@@ -2842,22 +3058,56 @@ window.prDoDelete = function(deleteSessions){
         if (dragArm) { clearTimeout(dragArm.timer); dragArm = null; }
     }, { passive:true });
 
+    /* Le posizioni delle righe si misurano una volta e si tengono da parte per
+       un attimo. Prima ogni singolo movimento del dito rimisurava tutte le
+       righe dell'elenco una per una: con molti sottoprogetti il trascinamento
+       diventava una melassa. Le misure si rifanno solo dopo uno scambio (che
+       le rende vecchie) o dopo 250ms. */
+    function misureRighe(){
+        var ora = Date.now();
+        if (drag.rects && ora - drag.rectsAt < 250) return drag.rects;
+        var out = [];
+        var figli = drag.list.children;
+        for (var i = 0; i < figli.length; i++) {
+            var el = figli[i];
+            if (!el.classList.contains('pr-row-wrap') || el === drag.wrap) continue;
+            var r = el.getBoundingClientRect();
+            out.push({ el: el, mid: r.top + r.height / 2 });
+        }
+        drag.rects = out; drag.rectsAt = ora;
+        return out;
+    }
+
     document.addEventListener('pointermove', function(e){
         if (!drag || e.pointerId !== drag.pid) return;
         e.preventDefault();
         drag.moved = true;
-        var siblings = Array.prototype.filter.call(drag.list.children, function(el){ return el.classList.contains('pr-row-wrap') && el !== drag.wrap; });
-        for (var i = 0; i < siblings.length; i++) {
-            var r = siblings[i].getBoundingClientRect();
-            var mid = r.top + r.height / 2;
-            if (e.clientY < mid) { drag.list.insertBefore(drag.wrap, siblings[i]); return; }
-        }
-        drag.list.appendChild(drag.wrap);
+        /* un solo riposizionamento per fotogramma: gli eventi del puntatore
+           arrivano più fitti di quanto lo schermo sappia disegnare */
+        if (drag.raf) return;
+        var y = e.clientY;
+        drag.raf = requestAnimationFrame(function(){
+            if (!drag) return;
+            drag.raf = null;
+            var righe = misureRighe();
+            for (var i = 0; i < righe.length; i++) {
+                if (y < righe[i].mid) {
+                    drag.list.insertBefore(drag.wrap, righe[i].el);
+                    drag.rects = null;              // spostando, le misure non valgono più
+                    return;
+                }
+            }
+            drag.list.appendChild(drag.wrap);
+            drag.rects = null;
+        });
     });
 
     function endDrag(){
         document.body.style.touchAction = '';
+        document.body.classList.remove('pr-dragging-now');
+        window.prDragging = false;
         if (!drag) return;
+        if (drag.raf) cancelAnimationFrame(drag.raf);
         var d = drag; drag = null;
         d.wrap.classList.remove('dragging');
         if (!d.moved) return;
@@ -3022,16 +3272,9 @@ window.prShowInlineInput = function(e, parentId, btn) {
         return 0;
     }
 
-    function buildEntry(el){
-        var track = el.querySelector('.pr-name-track');
-        if (!track) return null;
-        var max = track.offsetWidth - el.clientWidth;
-        if (max <= 2) return null;
-        var scrollMs = Math.min(MAX_SCROLL_MS, Math.max(MIN_SCROLL_MS, (max / SPEED) * 1000));
-        return { el: el, track: track, max: max, scrollMs: scrollMs,
-                 total: PAUSE_START + scrollMs + PAUSE_END + RESET_MS,
-                 anim: null, resumeTimer: null, offset: 0, justDragged: false };
-    }
+    /* (la vecchia buildEntry è sparita: misurava una riga alla volta, ed è
+       proprio quello che si voleva smettere di fare. Ora misura in blocco
+       misuraInBlocco, più sotto.) */
 
     function startAutoAnim(entry){
         var total = entry.total, max = entry.max;
@@ -3060,6 +3303,7 @@ window.prShowInlineInput = function(e, parentId, btn) {
         if (entry.resumeTimer) clearTimeout(entry.resumeTimer);
         entry.resumeTimer = setTimeout(function(){
             var from = entry.offset;
+            if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
             if (Math.abs(from) < 1) { startAutoAnim(entry); return; }
             var back = entry.track.animate(
                 [{ transform: 'translateX(' + from + 'px)' }, { transform: 'translateX(0px)' }],
@@ -3109,18 +3353,125 @@ window.prShowInlineInput = function(e, parentId, btn) {
         }, true);
     }
 
+    /* ------------------------------------------------------------------
+       PERCHÉ QUESTA PARTE È FATTA COSÌ (era la causa della lentezza)
+
+       Prima, al caricamento, si passava su OGNI titolo della pagina e per
+       ognuno si leggevano offsetWidth e clientWidth: ogni lettura obbliga il
+       browser a ricalcolare il layout lì per lì, e con un elenco lungo sono
+       centinaia di ricalcoli in fila prima ancora che la pagina si veda.
+       Poi ogni titolo troncato si portava dietro un'animazione infinita e
+       cinque ascoltatori, anche a chilometri sotto lo schermo: decine di
+       animazioni sempre in moto, per niente.
+
+       Ora: nessuno tocca un titolo finché non entra davvero in vista. Chi
+       entra viene misurato insieme agli altri in un colpo solo (prima tutte
+       le letture, poi tutte le scritture: nessun ricalcolo a catena), e chi
+       esce dallo schermo mette in pausa la sua animazione invece di
+       continuare a girare al buio.
+       ------------------------------------------------------------------ */
+
+    var ridotto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var osservatore = null;
+    var inAttesa = [];      // entrati in vista, ancora da misurare
+    var misuraProgrammata = false;
+
+    function misuraInBlocco(){
+        misuraProgrammata = false;
+        var lotto = inAttesa;
+        inAttesa = [];
+        if (!lotto.length) return;
+
+        /* 1) SOLO letture: il layout si calcola una volta per tutto il lotto */
+        var misure = lotto.map(function(el){
+            var track = el.querySelector('.pr-name-track');
+            if (!track) return null;
+            return { el: el, track: track, max: track.offsetWidth - el.clientWidth };
+        });
+
+        /* 2) SOLO scritture: da qui in poi nessuno rilegge più niente */
+        misure.forEach(function(m){
+            if (!m || m.max <= 2) {
+                /* non serve scorrere: si smette di guardarlo del tutto,
+                   altrimenti l'osservatore continuerebbe a riferire di una
+                   riga su cui non c'è più niente da fare */
+                if (m) {
+                    m.el._prMarqueeSkip = true;
+                    if (osservatore) osservatore.unobserve(m.el);
+                }
+                return;
+            }
+            var scrollMs = Math.min(MAX_SCROLL_MS, Math.max(MIN_SCROLL_MS, (m.max / SPEED) * 1000));
+            var entry = { el: m.el, track: m.track, max: m.max, scrollMs: scrollMs,
+                          total: PAUSE_START + scrollMs + PAUSE_END + RESET_MS,
+                          anim: null, resumeTimer: null, offset: 0, justDragged: false };
+            m.el._prMarquee = entry;
+            attachDrag(entry);
+            if (!ridotto) startAutoAnim(entry);
+        });
+    }
+
+    function programmaMisura(el){
+        if (el._prMarqueeSkip || el._prMarquee) return;
+        inAttesa.push(el);
+        if (misuraProgrammata) return;
+        misuraProgrammata = true;
+        requestAnimationFrame(misuraInBlocco);
+    }
+
+    function creaOsservatore(){
+        if (osservatore || !('IntersectionObserver' in window)) return osservatore;
+        osservatore = new IntersectionObserver(function(voci){
+            voci.forEach(function(v){
+                var el = v.target;
+                if (v.isIntersecting) {
+                    if (el._prMarquee) {
+                        /* già misurato: riparte da dov'era */
+                        if (el._prMarquee.anim && el._prMarquee.anim.playState === 'paused') el._prMarquee.anim.play();
+                    } else {
+                        programmaMisura(el);
+                    }
+                } else if (el._prMarquee && el._prMarquee.anim) {
+                    /* fuori dallo schermo non ha senso animare: si mette in
+                       pausa, non si annulla, così tornando riprende il filo */
+                    el._prMarquee.anim.pause();
+                }
+            });
+        }, { rootMargin: '200px 0px' });   // un po' di anticipo: entra già in moto
+        return osservatore;
+    }
+
     window.prInitNameMarquees = function(root){
         var scope = root || document;
         var els = scope.querySelectorAll('.pr-name, .pr-dates-item-name');
-        els.forEach(function(el){
+        var io = creaOsservatore();
+        Array.prototype.forEach.call(els, function(el){
             if (el._prMarqueeInit) return;
             el._prMarqueeInit = true;
-            var entry = buildEntry(el);
-            if (!entry) return;
-            attachDrag(entry);
-            startAutoAnim(entry);
+            if (io) { io.observe(el); return; }
+            /* senza IntersectionObserver (browser vecchi) si torna al modo di
+               prima, ma solo per i titoli già nello schermo */
+            var r = el.getBoundingClientRect();
+            if (r.top < window.innerHeight + 200 && r.bottom > -200) programmaMisura(el);
         });
     };
+
+    /* il ripasso serve solo a chi non ha l'osservatore */
+    if (!('IntersectionObserver' in window)) {
+        var ripassoTimer = null;
+        window.addEventListener('scroll', function(){
+            if (ripassoTimer) return;
+            ripassoTimer = setTimeout(function(){
+                ripassoTimer = null;
+                var els = document.querySelectorAll('.pr-name, .pr-dates-item-name');
+                Array.prototype.forEach.call(els, function(el){
+                    if (el._prMarquee || el._prMarqueeSkip) return;
+                    var r = el.getBoundingClientRect();
+                    if (r.top < window.innerHeight + 200 && r.bottom > -200) programmaMisura(el);
+                });
+            }, 260);
+        }, { passive: true });
+    }
 
     window.prInitNameMarquees();
 })();

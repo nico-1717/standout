@@ -88,8 +88,12 @@ function wx_attendibilita(int $giorniAvanti): int {
    -------------------------------------------------------------------- */
 function wx_grid(float $lat, float $lon): string {
     /* due decimali ≈ un chilometro: abbastanza preciso per una previsione
-       giornaliera, e abbastanza largo per condividere la cache */
-    return number_format($lat, 2, '.', '') . ',' . number_format($lon, 2, '.', '');
+       giornaliera, e abbastanza largo per condividere la cache.
+       Il prefisso è la versione della richiesta: avendo aggiunto campi, una
+       risposta salvata prima sarebbe incompleta e mostrerebbe caselle vuote
+       per un'ora. Cambiando prefisso, le vecchie semplicemente non si
+       trovano più e scadono da sole. */
+    return 'v2:' . number_format($lat, 2, '.', '') . ',' . number_format($lon, 2, '.', '');
 }
 
 function wx_fetch(float $lat, float $lon): ?array {
@@ -106,8 +110,15 @@ function wx_fetch(float $lat, float $lon): ?array {
     $url = 'https://api.open-meteo.com/v1/forecast?' . http_build_query([
         'latitude'      => number_format($lat, 4, '.', ''),
         'longitude'     => number_format($lon, 4, '.', ''),
-        'daily'         => 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max',
-        'hourly'        => 'weather_code,precipitation_probability,temperature_2m',
+        'daily'         => 'weather_code,temperature_2m_max,temperature_2m_min,'
+                         . 'apparent_temperature_max,apparent_temperature_min,'
+                         . 'precipitation_probability_max,precipitation_sum,precipitation_hours,'
+                         . 'wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,'
+                         . 'uv_index_max,sunrise,sunset,sunshine_duration',
+        'hourly'        => 'weather_code,precipitation_probability,precipitation,temperature_2m,'
+                         . 'apparent_temperature,relative_humidity_2m,wind_speed_10m',
+        'current'       => 'weather_code,temperature_2m,apparent_temperature,relative_humidity_2m,'
+                         . 'wind_speed_10m,precipitation,is_day',
         'timezone'      => 'Europe/Rome',
         'forecast_days' => WX_GIORNI,
     ]);
@@ -145,10 +156,140 @@ function wx_fetch(float $lat, float $lon): ?array {
     return $data;
 }
 
+/** Da 250° al punto cardinale: "ovest" si legge, "250°" va interpretato. */
+function wx_direzione(?float $gradi): ?string {
+    if ($gradi === null) return null;
+    $rosa = ['nord', 'nord-est', 'est', 'sud-est', 'sud', 'sud-ovest', 'ovest', 'nord-ovest'];
+    return $rosa[((int)round($gradi / 45)) % 8];
+}
+
+/**
+ * Le previsioni ora per ora, raggruppate per giorno.
+ * Le chiavi sono corte di proposito: sono 24 voci per ogni giorno e i nomi
+ * per esteso peserebbero più dei dati che accompagnano. Il significato è
+ * documentato qui e usato solo dal planner.
+ *   h = ora, c = codice, i = icona, l = descrizione, t = temperatura,
+ *   ap = percepita, p = probabilità di pioggia, mm = pioggia prevista,
+ *   u = umidità, v = vento
+ */
+function wx_ore(array $data): array {
+    if (empty($data['hourly']['time'])) return [];
+    $o = $data['hourly'];
+    $out = [];
+    foreach ($o['time'] as $i => $t) {
+        $giorno = substr($t, 0, 10);
+        $code = (int)($o['weather_code'][$i] ?? 3);
+        [$testo, $icona] = wx_codice($code);
+        $out[$giorno][] = [
+            'h'  => substr($t, 11, 5),
+            'c'  => $code,
+            'i'  => $icona,
+            'l'  => $testo,
+            't'  => isset($o['temperature_2m'][$i]) ? round($o['temperature_2m'][$i]) : null,
+            'ap' => isset($o['apparent_temperature'][$i]) ? round($o['apparent_temperature'][$i]) : null,
+            'p'  => isset($o['precipitation_probability'][$i]) ? (int)$o['precipitation_probability'][$i] : null,
+            'mm' => isset($o['precipitation'][$i]) ? round((float)$o['precipitation'][$i], 1) : null,
+            'u'  => isset($o['relative_humidity_2m'][$i]) ? (int)$o['relative_humidity_2m'][$i] : null,
+            'v'  => isset($o['wind_speed_10m'][$i]) ? round($o['wind_speed_10m'][$i]) : null,
+        ];
+    }
+    return $out;
+}
+
+/** Le condizioni di adesso, quando il servizio le manda. */
+/* ---------------------------------------------------------------------
+   Il nome del posto da due coordinate.
+
+   Qui c'era una chiamata a /v1/search di Open-Meteo passandogli latitudine e
+   longitudine: quella però è la ricerca *per nome*, non sa che farsene delle
+   coordinate e non risponde niente. È il motivo per cui `weather_place`
+   restava vuoto e il popup non diceva mai su quale posto stava calcolando.
+
+   Adesso si usa la ricerca all'incontrario di Nominatim, che è già il
+   ripiego dei luoghi del planner: nessun servizio nuovo da autorizzare.
+   Nominatim vuole che ci si presenti — è nelle sue condizioni d'uso — e non
+   vuole essere tempestato, quindi la risposta finisce nella cache del meteo,
+   compreso il caso in cui non arrivi niente: così un posto senza nome viene
+   richiesto una volta al giorno e non a ogni apertura della pagina.
+   --------------------------------------------------------------------- */
+function wx_place_nome(float $lat, float $lon): ?string {
+    $key = 'nome:' . wx_grid($lat, $lon);
+
+    $row = sec_one("SELECT payload FROM weather_cache
+                    WHERE grid_key = ? AND fetched_at > (NOW() - INTERVAL 1440 MINUTE)",
+                   [$key], 's');
+    if ($row) {
+        $c = json_decode($row['payload'], true);
+        return (is_array($c) && !empty($c['place'])) ? $c['place'] : null;
+    }
+
+    $url = 'https://nominatim.openstreetmap.org/reverse?' . http_build_query([
+        'lat'             => number_format($lat, 5, '.', ''),
+        'lon'             => number_format($lon, 5, '.', ''),
+        'format'          => 'jsonv2',
+        'zoom'            => 12,          // paese o quartiere: la via non serve
+        'addressdetails'  => 1,
+        'accept-language' => 'it',
+    ]);
+
+    $raw = null;
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_CONNECTTIMEOUT => 4,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_USERAGENT      => 'Nisama planner (uso personale)',
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+        $raw = curl_exec($ch);
+        if ($raw === false) sec_log_error('meteo_luogo', curl_error($ch));
+        curl_close($ch);
+    }
+
+    $nome = null;
+    if ($raw) {
+        $d = json_decode((string)$raw, true);
+        $a = is_array($d) && isset($d['address']) && is_array($d['address']) ? $d['address'] : [];
+        /* dal più preciso al più largo: si tiene il primo che c'è */
+        foreach (['village', 'town', 'city', 'municipality', 'county', 'state'] as $campo) {
+            if (!empty($a[$campo])) { $nome = sec_str((string)$a[$campo], 120); break; }
+        }
+        if ($nome === null && !empty($d['name'])) $nome = sec_str((string)$d['name'], 120);
+    }
+
+    sec_q("INSERT INTO weather_cache (grid_key, payload) VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE payload = VALUES(payload), fetched_at = NOW()",
+          [$key, json_encode(['place' => $nome], JSON_UNESCAPED_UNICODE)], 'ss');
+    return $nome;
+}
+
+function wx_adesso(array $data): ?array {
+    if (empty($data['current'])) return null;
+    $c = $data['current'];
+    $code = (int)($c['weather_code'] ?? 3);
+    [$testo, $icona] = wx_codice($code);
+    return [
+        'ora'       => isset($c['time']) ? substr((string)$c['time'], 11, 5) : null,
+        'code'      => $code,
+        'label'     => $testo,
+        'icon'      => $icona,
+        'temp'      => isset($c['temperature_2m']) ? round($c['temperature_2m']) : null,
+        'percepita' => isset($c['apparent_temperature']) ? round($c['apparent_temperature']) : null,
+        'umidita'   => isset($c['relative_humidity_2m']) ? (int)$c['relative_humidity_2m'] : null,
+        'vento'     => isset($c['wind_speed_10m']) ? round($c['wind_speed_10m']) : null,
+        'pioggia_mm'=> isset($c['precipitation']) ? round((float)$c['precipitation'], 1) : null,
+        'giorno'    => isset($c['is_day']) ? ((int)$c['is_day'] === 1) : null,
+    ];
+}
+
 /** Dalla risposta grezza ai giorni pronti da mostrare. */
 function wx_giorni(array $data): array {
     $out = [];
     $d = $data['daily'];
+    $ore = wx_ore($data);
     $oggi = date('Y-m-d');
     for ($i = 0; $i < count($d['time']); $i++) {
         $giorno = $d['time'][$i];
@@ -165,6 +306,19 @@ function wx_giorni(array $data): array {
             'tmin'      => isset($d['temperature_2m_min'][$i]) ? round($d['temperature_2m_min'][$i]) : null,
             'pioggia'   => isset($d['precipitation_probability_max'][$i]) ? (int)$d['precipitation_probability_max'][$i] : null,
             'vento'     => isset($d['wind_speed_10m_max'][$i]) ? round($d['wind_speed_10m_max'][$i]) : null,
+            /* dati aggiunti: il servizio li dava già, li stavamo buttando via */
+            'percepita_max' => isset($d['apparent_temperature_max'][$i]) ? round($d['apparent_temperature_max'][$i]) : null,
+            'percepita_min' => isset($d['apparent_temperature_min'][$i]) ? round($d['apparent_temperature_min'][$i]) : null,
+            'pioggia_mm'    => isset($d['precipitation_sum'][$i]) ? round((float)$d['precipitation_sum'][$i], 1) : null,
+            'pioggia_ore'   => isset($d['precipitation_hours'][$i]) ? (int)$d['precipitation_hours'][$i] : null,
+            'raffiche'      => isset($d['wind_gusts_10m_max'][$i]) ? round($d['wind_gusts_10m_max'][$i]) : null,
+            'vento_da'      => wx_direzione(isset($d['wind_direction_10m_dominant'][$i]) ? (float)$d['wind_direction_10m_dominant'][$i] : null),
+            'uv'            => isset($d['uv_index_max'][$i]) ? round((float)$d['uv_index_max'][$i], 1) : null,
+            'alba'          => isset($d['sunrise'][$i]) ? substr((string)$d['sunrise'][$i], 11, 5) : null,
+            'tramonto'      => isset($d['sunset'][$i]) ? substr((string)$d['sunset'][$i], 11, 5) : null,
+            /* il servizio dà i secondi di sole: in ore e minuti si capisce */
+            'sole_min'      => isset($d['sunshine_duration'][$i]) ? (int)round($d['sunshine_duration'][$i] / 60) : null,
+            'ore'           => $ore[$giorno] ?? [],
             'affidabilita' => wx_attendibilita($avanti),
             'giorni_avanti' => $avanti,
         ];
@@ -179,10 +333,26 @@ if ($ajax === 'status') {
                   FROM planner_settings WHERE user_id = ?", [$uid], 'i');
     $on = $s && (int)$s['weather_enabled'] === 1 && $s['weather_lat'] !== null;
 
+    /* Chi ha acceso il meteo prima che la ricerca del nome funzionasse ha in
+       archivio un posto senza nome: si riprova qui, una volta, e da allora
+       resta scritto. Senza questo, l'unico modo per rimediare sarebbe
+       spegnere e riaccendere il meteo. */
+    $place = $s['weather_place'] ?? null;
+    if ($on && ($place === null || $place === '')) {
+        $place = wx_place_nome((float)$s['weather_lat'], (float)$s['weather_lon']);
+        if ($place !== null) {
+            sec_q("UPDATE planner_settings SET weather_place = ? WHERE user_id = ?", [$place, $uid], 'si');
+        }
+    }
+
     $risposta = [
         'ok'      => true,
         'enabled' => $on,
-        'place'   => $s['weather_place'] ?? null,
+        'place'   => $place,
+        /* le coordinate viaggiano sempre: se il nome non si trova, dire
+           "46,07 / 11,12" è comunque una risposta a "su dove sta calcolando" */
+        'lat'     => $on ? (float)$s['weather_lat'] : null,
+        'lon'     => $on ? (float)$s['weather_lon'] : null,
         'fonte'   => WX_FONTE,
         'fonte_url' => WX_FONTE_URL,
         'giorni'  => [],
@@ -190,8 +360,10 @@ if ($ajax === 'status') {
     ];
     if ($on) {
         $data = wx_fetch((float)$s['weather_lat'], (float)$s['weather_lon']);
-        if ($data) $risposta['giorni'] = wx_giorni($data);
-        else $risposta['errore'] = 'Previsioni non raggiungibili in questo momento.';
+        if ($data) {
+            $risposta['giorni'] = wx_giorni($data);
+            $risposta['adesso'] = wx_adesso($data);
+        } else $risposta['errore'] = 'Previsioni non raggiungibili in questo momento.';
     }
     sec_json($risposta);
 }
@@ -201,21 +373,7 @@ if ($ajax === 'enable') {
     $lon = sec_float(sec_in('lon'), -180, 180, 999);
     if ($lat === 999.0 || $lon === 999.0) sec_die_json('Posizione non valida.', 422, 'invalid');
 
-    /* nome della località: comodo da mostrare, e se non arriva non è grave */
-    $place = null;
-    $geo = 'https://geocoding-api.open-meteo.com/v1/search?' . http_build_query([
-        'latitude' => $lat, 'longitude' => $lon, 'count' => 1, 'language' => 'it',
-    ]);
-    if (function_exists('curl_init')) {
-        $ch = curl_init($geo);
-        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 8, CURLOPT_SSL_VERIFYPEER => true]);
-        $g = curl_exec($ch);
-        curl_close($ch);
-        if ($g) {
-            $gd = json_decode((string)$g, true);
-            if (!empty($gd['results'][0]['name'])) $place = sec_str($gd['results'][0]['name'], 120);
-        }
-    }
+    $place = wx_place_nome($lat, $lon);
 
     sec_q("UPDATE planner_settings SET weather_enabled = 1, weather_lat = ?, weather_lon = ?, weather_place = ?
            WHERE user_id = ?", [$lat, $lon, $place, $uid], 'ddsi');
@@ -223,9 +381,11 @@ if ($ajax === 'enable') {
 
     $data = wx_fetch($lat, $lon);
     sec_json([
-        'ok' => true, 'enabled' => true, 'place' => $place,
+        'ok' => true, 'enabled' => true, 'place' => $place, 'lat' => $lat, 'lon' => $lon,
         'fonte' => WX_FONTE, 'fonte_url' => WX_FONTE_URL,
         'giorni' => $data ? wx_giorni($data) : [],
+        'adesso' => $data ? wx_adesso($data) : null,
+        'nota_affidabilita' => 'Stima nostra basata su quanto è lontana la previsione: il servizio non pubblica un indice di confidenza.',
     ]);
 }
 

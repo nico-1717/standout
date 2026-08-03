@@ -63,10 +63,10 @@ body{
 <main class="tp-sheet">
     <div class="tp-head">
         <span class="tp-title">Attività</span>
-        <span class="tp-sub">to do</span>
+        <span class="tp-sub">tre elenchi</span>
     </div>
     <p class="tp-note">
-        Le attività con una data finiscono anche nel planner.
+        Le voci con una data finiscono anche nel planner.
         Quelle spuntate spariscono da sole il giorno dopo.
     </p>
     <div id="tpList"></div>
@@ -89,7 +89,8 @@ include 'todo_widget.php';
 <script>
 nisamaTodo.mount(document.getElementById('tpList'), {
     scope: 'all',
-    selectable: true
+    selectable: true,
+    tabs: true          // to do / to buy / to study
 });
 </script>
 </body>

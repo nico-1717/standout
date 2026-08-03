@@ -85,6 +85,10 @@
 /* 2. RESET + regole "app": niente zoom, niente selezione            */
 /* ------------------------------------------------------------------ */
 *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+/* Quanto della colonna resta libero in fondo a destra. Lo stesso numero sta
+   in EV_CODA dentro planner.js, che lo usa per spartire le corsie: se si
+   cambia qui va cambiato anche là. */
+:root{ --ev-coda:5%; }
 html{
     -webkit-text-size-adjust:100%; text-size-adjust:100%;
     touch-action:manipulation;               /* il doppio tap non zooma */
@@ -124,7 +128,9 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     padding:calc(var(--safe-top) + 8px) 14px 9px;
     background:var(--sky-grad, linear-gradient(170deg, #F2F5F2 0%, var(--paper) 78%));
     box-shadow:0 1px 0 var(--hair), 0 14px 28px -26px rgba(76,70,63,.4);
-    transition:background 1.6s var(--ease-soft);
+    /* la barra sa anche uscire di scena: nel mese, con l'elenco degli eventi
+       aperto, scorre in alto per lasciare il posto al calendario */
+    transition:background 1.6s var(--ease-soft), transform .42s var(--ease);
     overflow:hidden;
 }
 /* luci del giorno: la classe la mette planner.js sull'orario reale */
@@ -137,13 +143,157 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 
 /* alberi: due silhouette morbidissime che respirano col vento */
 .pl-ambient{ position:absolute; inset:0; pointer-events:none; overflow:hidden; }
-.pl-tree{
-    position:absolute; bottom:-6px; opacity:.38; color:var(--accent-ink);
-    transform-origin:50% 100%;
-    animation:pl-wind 11s var(--ease-soft) infinite alternate;
+/* Quanto si vede la scena del mese: la barra nelle impostazioni scrive
+   --ambiente-op. La classe c'è solo sulla scena degli alberi, non su quella
+   del meteo: quella dice che tempo fa e sbiadirla vorrebbe dire nasconderla. */
+.pl-ambient.pl-amb-natura{
+    opacity:var(--ambiente-op, .9);
+    transition:opacity var(--t) var(--ease);
 }
-.pl-tree-a{ left:-10px; width:120px; }
-.pl-tree-b{ right:-6px; width:98px; opacity:.28; animation-duration:14s; animation-delay:-3s; }
+
+/* intestazione di una sezione delle impostazioni che si apre e si chiude */
+.pl-fold-head{
+    width:100%; display:flex; align-items:center; gap:8px;
+    padding:2px 2px 6px; margin:0; background:none; border:none;
+    cursor:pointer; text-align:left; color:inherit;
+}
+.pl-fold-n{ font-size:11.5px; color:var(--ink-3); }
+.pl-fold-arrow{
+    margin-left:auto; display:grid; place-items:center; color:var(--ink-3);
+    transition:transform var(--t-fast) var(--ease);
+}
+.pl-fold-arrow svg{ width:15px; height:15px; }
+.pl-fold-head.pl-open .pl-fold-arrow{ transform:rotate(90deg); }
+/* Alberi e animale sono disegni veri caricati come maschera: la forma la
+   ritaglia il file, il colore lo mette il fondo. Un file solo serve per
+   qualunque tinta, quindi la stessa sagoma vale per tutti i mesi in cui
+   ricompare, cambiando solo il colore della stagione. */
+.pl-tree, .pl-animal{
+    -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+}
+/* ==================================================================
+   L'ALBERO — le manopole da girare sono le quattro righe qui sotto.
+
+     --albero-x       posizione orizzontale. 0% tutto a sinistra,
+                      50% al centro, 100% tutto a destra.
+     --albero-largo   quanto è largo (più alto = più ciccione).
+     --albero-alto    quanto è alto.
+     --albero-giu     quanto scende sotto il bordo. 0px = appoggiato
+                      esattamente in fondo, valori negativi lo affondano.
+
+   Larghezza e altezza sono indipendenti grazie a mask-size:100% 100%,
+   che allarga il disegno fino a riempire il riquadro. Con "contain"
+   (che usano gli animali) sarebbe il lato più stretto a comandare, e
+   allargare soltanto la larghezza non cambierebbe nulla.
+
+   Tutte le proprietà dell'albero stanno in QUESTO blocco: se ne
+   avanzasse un altro sparso altrove, uno dei due vincerebbe a seconda
+   dell'ordine e le manopole sembrerebbero non funzionare.
+   ================================================================== */
+.pl-tree{
+    --albero-x: 34%;
+    --albero-largo: 190px;
+    --albero-alto: 160px;
+    --albero-giu: -32px;
+
+    position:absolute;
+    bottom:var(--albero-giu);
+    left:var(--albero-x);
+    width:var(--albero-largo);
+    height:var(--albero-alto);
+    margin-left:calc(-1 * var(--albero-largo) / 2);   /* il tronco cade su --albero-x */
+    opacity:.38;
+    transform-origin:50% 100%;   /* il vento lo piega dai piedi, non lo trascina */
+    animation:pl-wind 11s var(--ease-soft) infinite alternate;
+
+    -webkit-mask-size:100% 100%; mask-size:100% 100%;
+    -webkit-mask-position:bottom center; mask-position:bottom center;
+}
+
+/* ==================================================================
+   GLI ANIMALI — le manopole sono le quattro righe qui sotto.
+
+     --bestia-x       posizione orizzontale (ignorata da chi cammina:
+                      quelli attraversano tutta la barra).
+     --bestia-giu     quanto sta in basso. Più è alto, più sale.
+                      Metti 0px per appoggiarlo al bordo inferiore.
+     --bestia-largo   larghezza del riquadro.
+     --bestia-alto    altezza del riquadro.
+
+   Qui mask-size è "contain": il disegno entra nel riquadro senza
+   deformarsi, quindi comanda il lato più stretto dei due. In pratica
+   per ingrandire un animale conviene alzare ENTRAMBI i valori, perché
+   alzarne uno solo lascia spazio vuoto e non lo fa crescere.
+
+   Per una singola bestia si sovrascrive solo la sua manopola, come nei
+   due esempi qui sotto: valgono solo per quel mese e non toccano gli
+   altri.
+   ================================================================== */
+.pl-animal{
+    --bestia-x: 62%;
+    --bestia-giu: 2px;
+    --bestia-largo: 38px;
+    --bestia-alto: 34px;
+
+    position:absolute;
+    bottom:var(--bestia-giu);
+    left:var(--bestia-x);
+    width:var(--bestia-largo);
+    height:var(--bestia-alto);
+    opacity:.5;
+    -webkit-mask-size:contain; mask-size:contain;
+    -webkit-mask-position:bottom center; mask-position:bottom center;
+}
+
+/* Ritocchi per singolo animale. Il nome della classe è quello del file,
+   senza .svg: aggiungine altri sulla stessa falsariga.
+   Esempi già pronti da modificare: */
+.pl-animal-cane{      --bestia-giu:-5px;  --bestia-largo:46px; --bestia-alto:40px; }
+.pl-animal-tartaruga{ --bestia-giu:-3px;  --bestia-largo:33px; --bestia-alto:30px; }
+.pl-animal-riccio{    --bestia-giu:-3px;  --bestia-largo:30px; --bestia-alto:20px; }
+.pl-animal-gatto_dorme{ --bestia-x: 33%; --bestia-giu:-2px; --bestia-largo:48px; --bestia-alto:22px; }
+.pl-animal-slitta{    --bestia-largo:70px; --bestia-alto:45px; }
+.pl-animal-scoiattolo{ --bestia-x: 40%; --bestia-giu:-4px; --bestia-largo:55px; --bestia-alto:27px; }
+.pl-animal-criceto{ --bestia-x: 20%; --bestia-giu:-5px; --bestia-largo:55px; --bestia-alto:27px; }
+.pl-animal-anatra{ --bestia-x: 37%; --bestia-giu:-5px; --bestia-largo:50px; --bestia-alto:23px; }
+.pl-animal-coniglio{ --bestia-x: 30%; --bestia-giu:-5px; --bestia-largo:55px; --bestia-alto:27px; }
+.pl-animal-talpa{ --bestia-x: 33%; --bestia-giu:-7px; --bestia-largo:40px; --bestia-alto:22px; }
+.pl-animal-pinguino{ --bestia-x: 35%; --bestia-giu:-5px; --bestia-largo:55px; --bestia-alto:27px; }
+.pl-animal-volpe{ --bestia-x: 35%; --bestia-giu:-5px; --bestia-largo:55px; --bestia-alto:27px; }
+
+
+/* Chi cammina: attraversa e torna, l'andata a testa avanti e il ritorno
+   specchiato, così non scivola mai all'indietro. Molto lento: sono un cane a
+   spasso, una tartaruga e un riccio, non hanno fretta. */
+.pl-animal-cammina{
+    left:0;   /* la posizione la detta l'animazione, non --bestia-x */
+    animation:pl-passeggia 150s linear infinite;
+}
+@keyframes pl-passeggia{
+    0%   { transform:translateX(-46px) scaleX(1); }
+    48%  { transform:translateX(calc(100vw + 10px)) scaleX(1); }
+    50%  { transform:translateX(calc(100vw + 10px)) scaleX(-1); }
+    98%  { transform:translateX(-46px) scaleX(-1); }
+    100% { transform:translateX(-46px) scaleX(1); }
+}
+
+/* La slitta plana: attraversa in alto e insieme ondeggia su e giù, come i
+   gabbiani. Sono due animazioni sovrapposte — una porta, l'altra fa il
+   saliscendi — perché una sola non può avere due ritmi diversi. */
+.pl-animal-vola{
+    left:-60px; bottom:auto;
+    width:52px; height:32px; opacity:.55;
+    /* Due animazioni insieme, ma su proprietà DIVERSE: pl-cross muove il
+       transform, pl-plana muove il top. Se agissero entrambe sul transform la
+       seconda cancellerebbe la prima, e la slitta scivolerebbe di lato senza
+       mai salire. */
+    animation:pl-cross 46s linear infinite,
+              pl-plana 5.5s var(--ease-soft) infinite alternate;
+}
+@keyframes pl-plana{
+    from{ top:10%; }
+    to{   top:30%; }
+}
 @keyframes pl-wind{
     0%   { transform:rotate(-1.1deg) translateY(0); }
     50%  { transform:rotate(.6deg) translateY(-1px); }
@@ -202,6 +352,9 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     margin-top:9px; min-height:46px;
 }
 .pl-day-btn{ display:flex; align-items:baseline; gap:6px; flex-shrink:0; align-self:flex-end; }
+/* il meteo del giorno: allineato in basso come il nome del giorno, così i due
+   stanno sulla stessa riga ottica invece che uno a mezz'aria */
+.pl-day-wx{ align-self:flex-end; margin-bottom:4px; flex-shrink:0; }
 .pl-day-num{ font-size:40px; font-weight:400; line-height:.9; letter-spacing:-.015em; }
 .pl-day-wd{
     font-size:12px; letter-spacing:.15em; text-transform:uppercase; color:var(--ink-2);
@@ -339,6 +492,7 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     display:flex; flex-direction:column;
     border-left:.5px solid var(--hair);
 }
+
 /* striscia fissa con i giorni: vive nella fascia sotto le priorità, quindi
    non scorre via con gli orari, e si muove di lato insieme alla griglia */
 .pl-headrow{ display:flex; align-items:stretch; margin:8px 0 0; }
@@ -394,9 +548,8 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
        è tutta la fascia in cima al pannello */
     padding:14px 0 10px !important; touch-action:none;
 }
-.pl-magenda-grab::before{
-    content:''; width:44px; height:5px; border-radius:99px; background:var(--hair-2);
-}
+.pl-magenda-grab{ color:var(--ink-3); }
+.pl-magenda-grab svg{ width:30px; height:30px; display:block; }
 .pl-magenda-body{
     flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;
     padding:0 16px 24px; scrollbar-width:none;
@@ -409,6 +562,30 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     padding:14px 0 8px; border-top:.5px solid var(--hair);
 }
 .pl-ma-day:first-child{ border-top:none; padding-top:6px; }
+
+/* La maniglia sotto il calendario: tira su l'elenco degli eventi. Sta sopra
+   il pannello, che quando sale la copre — la freccia gira per dire che il
+   secondo tocco la fa tornare giù. */
+.pl-mpull{
+    position:absolute; left:50%; bottom:8px; transform:translateX(-50%);
+    width:64px; height:34px; border:none; padding:0; cursor:pointer;
+    display:grid; place-items:center;
+    background:none; color:var(--ink-3);
+    z-index:3; transition:opacity var(--t) var(--ease);
+}
+.pl-mpull svg{ width:30px; height:30px; }
+/* a pannello aperto la freccetta non sta più qui: sta in cima al pannello,
+   al posto del trattino che c'era prima, girata verso il basso */
+.pl-mpull.pl-aperto{ opacity:0; pointer-events:none; }
+/* il nome del giorno è un pulsante che porta a quel giorno: si veste da
+   testo, ma la zona che risponde al tocco è tutta la sua */
+.pl-ma-goto{
+    display:flex; align-items:baseline; gap:8px;
+    background:none; border:none; padding:2px 4px; margin:-2px -4px;
+    font:inherit; color:inherit; text-align:left; cursor:pointer;
+    border-radius:var(--r-sm);
+}
+.pl-ma-goto:active{ background:var(--accent-wash); }
 .pl-ma-when{
     font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
     color:var(--accent-ink);
@@ -438,8 +615,18 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     font-family:'Cormorant Garamond',serif; font-style:italic; font-size:14px;
     color:var(--ink-3); padding:4px 0 10px;
 }
-/* con l'elenco aperto la griglia del mese si stringe in alto */
-.pl-view-month.pl-magenda-open .pl-mgrid{ max-height:42dvh; }
+/* Con l'elenco aperto la barra in alto se ne va fuori schermo e il calendario
+   prende tutto lo spazio che resta, schiacciandosi quanto serve: prima la
+   griglia veniva tagliata a 42dvh e restavano visibili tre righe su sei,
+   mentre in cima continuavano a scorrere alberi e insetti. */
+.pl-view-month.pl-magenda-open .pl-topbar{ transform:translateY(-100%); }
+.pl-view-month.pl-magenda-open .pl-month{
+    padding-top:calc(var(--safe-top) + 6px);
+    bottom:58dvh;                      /* quanto è alto il pannello dell'elenco */
+}
+.pl-view-month.pl-magenda-open .pl-mgrid{
+    max-height:none; padding-bottom:6px;
+}
 
 /* pallino acceso/spento della lista calendari */
 .pl-cal-dot{
@@ -452,21 +639,49 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-cal-dot.pl-on{ background:var(--ev); color:#FFFDFA; box-shadow:none; }
 
 /* frecce per cambiare giorno da computer: si vedono solo con un mouse */
+/* Stanno in fondo alla fascia sotto le priorità, sulla riga dove sono scritti
+   i giorni: è lì che si guarda per capire dove si è, e a metà schermo finivano
+   invece sopra gli eventi, proprio dove serve poterli toccare. La posizione si
+   ricava dalle due altezze che il planner tiene già aggiornate, così le frecce
+   seguono la barra quando cresce (calendarietto aperto, eventi di tutto il
+   giorno) senza bisogno di misurare niente.
+   z-index sopra la fascia (56), o resterebbero dietro. */
 .pl-arrow{
-    position:fixed; top:50%; transform:translateY(-50%); z-index:53;
-    width:34px; height:34px; border-radius:var(--r-pill);
+    position:fixed; z-index:57;
+    top:calc(var(--topbar-h) + var(--daybar-h) - 33px);
+    width:26px; height:26px; border-radius:var(--r-pill);
     display:none; place-items:center; color:var(--ink-2);
     background:rgba(255,253,250,.72); box-shadow:var(--sh-soft), inset 0 0 0 .5px var(--hair);
     -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
     transition:transform var(--t-fast) var(--ease), background-color var(--t-fast);
 }
-.pl-arrow svg{ width:16px; height:16px; }
-.pl-arrow:active{ transform:translateY(-50%) scale(.9); }
-.pl-arrow-prev{ left:10px; }
-.pl-arrow-next{ right:10px; }
+.pl-arrow svg{ width:14px; height:14px; }
+.pl-arrow:active{ transform:scale(.9); }
+.pl-arrow-prev{ left:8px; }
+.pl-arrow-next{ right:8px; }
 @media (pointer:fine){ .pl-arrow{ display:grid; } }
 /* nella vista mese le frecce non servono: lì si cambia mese e anno */
 .pl-view-month .pl-arrow{ display:none !important; }
+
+/* rubrica dei luoghi: righe toccabili con il cestino a destra, senza swipe —
+   qui si entra apposta, non ci si passa per sbaglio come nell'elenco eventi */
+.pl-places{ display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+.pl-place-row{ display:flex; align-items:center; gap:8px; }
+.pl-place-pick{
+    flex:1; min-width:0; text-align:left; padding:9px 12px;
+    border:none; border-radius:var(--r-md); font:inherit; cursor:pointer;
+    background:var(--paper-2); color:var(--ink);
+    box-shadow:inset 0 0 0 .5px var(--hair);
+}
+.pl-place-pick:active{ transform:scale(.99); }
+
+/* riquadro della mappa sotto il campo del luogo: si vede solo a posto
+   agganciato, quindi non ruba spazio mentre si scrive */
+.pl-loc-mappa{
+    margin-top:8px; border-radius:var(--r-md); overflow:hidden;
+    box-shadow:inset 0 0 0 .5px var(--hair); background:var(--paper-2);
+}
+.pl-loc-mappa iframe{ display:block; width:100%; height:148px; border:0; }
 
 /* ---- meteo ---- */
 .pl-tool.pl-weather-on{ background:#DCEAF3; color:#3E6B86; }
@@ -482,6 +697,42 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-wx-sun{ background:#F8EFD4; color:#7A6127; }
 .pl-wx-snow{ background:#EAF0F6; color:#5B7284; }
 .pl-wx-storm{ background:#E7E2F0; color:#5A4E76; }
+
+/* Il tag della previsione dentro la colonna degli orari, sotto l'ora a cui
+   si riferisce. La colonna è larga 48 px: icona e gradi stanno incolonnati,
+   non affiancati, se no i gradi finiscono fuori. */
+.pl-wxg{
+    position:absolute; left:1px; right:1px; padding:0; margin:0;
+    border:none; background:none; cursor:pointer; line-height:1;
+    display:flex; flex-direction:column; align-items:center;
+    color:var(--ink-3); opacity:.9;
+}
+.pl-wxg-ic{ width:15px; height:15px; display:block; }
+.pl-wxg-ic svg{ width:100%; height:100%; display:block; }
+.pl-wxg-t{ font-size:9px; font-variant-numeric:tabular-nums; margin-top:1px; letter-spacing:.02em; }
+/* la zona che risponde al tocco è più larga del disegno: il tag è minuscolo */
+.pl-wxg::after{ content:''; position:absolute; left:-4px; right:-4px; top:-7px; bottom:-7px; }
+.pl-wxg.pl-wx-rain{ color:#3E6B86; }
+.pl-wxg.pl-wx-sun{ color:#96762F; }
+.pl-wxg.pl-wx-snow{ color:#5B7284; }
+.pl-wxg.pl-wx-storm{ color:#5A4E76; }
+
+/* popup del meteo: testa con giorno e luogo, frecce ai lati */
+.pl-wx-sheet{ touch-action:pan-y; }
+.pl-wx-nav{ display:flex; align-items:center; gap:6px; }
+.pl-wx-nav .pl-label{ flex:1; text-align:center; }
+.pl-wx-nav-b{
+    width:30px; height:30px; flex-shrink:0; border:none; padding:0; margin:0;
+    background:none; border-radius:var(--r-pill); cursor:pointer;
+    display:grid; place-items:center; color:var(--ink-3);
+}
+.pl-wx-nav-b svg{ width:16px; height:16px; }
+.pl-wx-nav-b:disabled{ opacity:.22; cursor:default; }
+/* la riga che dice su quale posto è calcolata la previsione */
+.pl-wx-dove{
+    font-size:11.5px; color:var(--ink-3); text-align:center;
+    margin:2px 0 10px; font-style:italic;
+}
 /* Nella casella del mese il meteo non è un evento: è un simbolo appoggiato
    nell'angolo in alto a destra, senza fondo e senza temperatura, così non
    ruba la riga a un evento vero. */
@@ -494,6 +745,68 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-mcell .pl-wx span{ display:none; }
 /* nella striscia dei giorni, accanto al nome */
 .pl-hcol .pl-wx{ margin-top:2px; }
+
+/* Popup del meteo: la striscia ora per ora scorre di lato invece di
+   allungare la pagina, così le altre voci restano raggiungibili. */
+.pl-wxh{
+    overflow-x:auto; overscroll-behavior-x:contain;
+    scrollbar-width:none; -webkit-overflow-scrolling:touch;
+    margin:8px 0 14px; padding-bottom:2px;
+}
+.pl-wxh::-webkit-scrollbar{ display:none; }
+/* Il grafico ora per ora. Lo scorrimento orizzontale è suo — la classe
+   .pl-wxh serve anche a questo: lo sfoglia-giorni del popup la riconosce e
+   non gli ruba il gesto. Le due righe di testo e la curva in mezzo stanno
+   incolonnate perché tutte usano la stessa larghezza di cella, scritta da
+   planner.js insieme al resto della geometria. */
+.pl-wxc{ display:block; }
+.pl-wxc-in{ position:relative; }
+.pl-wxc-riga{ display:flex; }
+.pl-wxc-cell{ flex:0 0 auto; text-align:center; color:var(--ink-2); }
+.pl-wxc-h{
+    font-size:9.5px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ink-3); font-variant-numeric:tabular-nums;
+}
+.pl-wxc-ic{ height:22px; margin:4px 0 2px; }
+.pl-wxc-ic svg{ width:20px; height:20px; }
+.pl-wxc-ic.pl-wx-rain{ color:#3E6B86; }
+.pl-wxc-ic.pl-wx-sun{ color:#B08A2E; }
+.pl-wxc-ic.pl-wx-snow{ color:#5B7284; }
+.pl-wxc-ic.pl-wx-storm{ color:#5A4E76; }
+.pl-wxc-t{ font-size:13.5px; font-variant-numeric:tabular-nums; color:var(--ink); }
+.pl-wxc-p{ font-size:9.5px; color:#3E6B86; min-height:12px; font-variant-numeric:tabular-nums; }
+
+/* l'ora corrente: è la colonna che si guarda per prima */
+.pl-wxc-cell.pl-ora .pl-wxc-h{ color:var(--accent-ink); font-weight:600; }
+.pl-wxc-cell.pl-ora .pl-wxc-t{ font-weight:600; }
+
+.pl-wxc-area{ position:relative; }
+.pl-wxc-svg{ display:block; overflow:visible; }
+.pl-wxc-guida{ stroke:var(--hair); stroke-width:1; }
+.pl-wxc-curva{ fill:none; stroke:#C4703F; stroke-width:2; stroke-linecap:round; }
+.pl-wxc-punto{ fill:#C4703F; }
+/* alba e tramonto cadono dove cadono davvero, non sull'ora più vicina */
+.pl-wxc-sole{ stroke:#D9A441; stroke-width:1.4; stroke-dasharray:3 3; }
+.pl-wxc-tramonto{ stroke:#8A7BA8; }
+.pl-wxc-et{
+    position:absolute; top:1px; transform:translateX(-50%);
+    font-size:9px; letter-spacing:.05em; color:#9A7C3E; white-space:nowrap;
+    pointer-events:none;
+}
+.pl-wxc-et-tramonto{ color:#7A6C97; }
+.pl-wx-now{
+    display:flex; align-items:center; gap:7px; margin:0 0 14px;
+    padding:8px 11px; border-radius:var(--r-md); background:var(--paper-2);
+    font-size:12px; color:var(--ink-2);
+}
+.pl-wx-now-ic{ width:18px; height:18px; flex-shrink:0; }
+.pl-wx-now-ic svg{ width:18px; height:18px; }
+/* ripetute qui perché .pl-wx-now viene dopo e altrimenti scavalcherebbe la
+   tinta con il suo fondo neutro */
+.pl-wx-now.pl-wx-rain{ background:#DCEAF3; color:#3E6B86; }
+.pl-wx-now.pl-wx-sun{ background:#F8EFD4; color:#7A6127; }
+.pl-wx-now.pl-wx-snow{ background:#EAF0F6; color:#5B7284; }
+.pl-wx-now.pl-wx-storm{ background:#E7E2F0; color:#5A4E76; }
 
 /* barra intelligente: una riga in cui scrivere l'evento a parole */
 .pl-smart{
@@ -645,7 +958,9 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 /* 5. EVENTI                                                          */
 /* ------------------------------------------------------------------ */
 .pl-ev{
-    position:absolute; left:5px; right:7px; z-index:6;
+    /* attaccati alla barra degli orari a sinistra; l'unica aria è in fondo a
+       destra, così i blocchi non finiscono a filo dello schermo */
+    position:absolute; left:0; right:var(--ev-coda); z-index:6;
     border-radius:12px; padding:5px 8px; overflow:hidden;
     background:color-mix(in srgb, var(--ev) 30%, var(--card));
     box-shadow:inset 0 0 0 .5px color-mix(in srgb, var(--ev) 55%, transparent);
@@ -665,10 +980,14 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-ev.pl-ghost{ opacity:.9; z-index:40; }
 
 .pl-ev-row{ display:flex; align-items:flex-start; gap:6px; }
+/* Niente puntini: il titolo che non ci sta scorre. È dentro uno span suo,
+   che è quello che si muove; il contenitore fa solo da finestra. */
 .pl-ev-t{
     flex:0 1 auto; min-width:0; font-size:12.5px; font-weight:400; line-height:1.25;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    overflow:hidden; white-space:nowrap;
 }
+.pl-ev-t > span{ display:inline-block; white-space:nowrap; will-change:transform; }
+.pl-ev-t.pl-run > span{ animation:pl-marquee var(--dur, 12s) ease-in-out infinite; }
 .pl-ev-row .pl-ev-spacer{ flex:1; min-width:0; }
 .pl-ev-h{ font-size:9.5px; color:var(--ink-2); letter-spacing:.04em; font-variant-numeric:tabular-nums; margin-top:1px; }
 .pl-ev.pl-tall .pl-ev-t{ white-space:normal; }
@@ -718,7 +1037,7 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-ev-fold svg{ width:12px; height:12px; }
 
 /* blocco routine aperto: etichetta verticale in corsivo */
-.pl-routine-wrap{ position:absolute; left:5px; right:7px; z-index:5; }
+.pl-routine-wrap{ position:absolute; left:0; right:var(--ev-coda); z-index:5; }
 .pl-routine-label{
     position:absolute; left:-1px; top:0; bottom:0; width:15px;
     display:grid; place-items:center;
@@ -739,10 +1058,17 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     margin-top:3px; display:flex; flex-direction:column; gap:1px;
     font-size:9.5px; line-height:1.35; color:var(--ink-2); overflow:hidden;
 }
-.pl-ev-sub div{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pl-ev-sub div{ overflow:hidden; white-space:nowrap; }
+.pl-ev-riga > span{ display:inline-block; white-space:nowrap; will-change:transform; }
+.pl-ev-riga.pl-run > span{ animation:pl-marquee var(--dur, 12s) ease-in-out infinite; }
 .pl-ev-strip{
     margin-top:2px; overflow-x:auto; overflow-y:hidden; scrollbar-width:none;
     -webkit-overflow-scrolling:touch; touch-action:pan-x;
+    /* Il carattere va dichiarato anche qui, non solo sullo span dentro:
+       senza, la riga viene costruita sulla misura grande ereditata dal
+       blocco e il testo piccolo ci galleggia in fondo, con una fascia vuota
+       sopra alta quanto una riga intera. */
+    font-size:9.5px; line-height:1.35;
 }
 .pl-ev-strip::-webkit-scrollbar{ width:0; height:0; }
 .pl-ev-strip span{
@@ -755,6 +1081,41 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     46%, 58%  { transform:translateX(calc(-1 * var(--shift, 0px))); }
     94%, 100% { transform:translateX(0); }
 }
+
+/* eventi troppo bassi per il proprio titolo.
+   Isolato: il blocco torna alto quanto i suoi minuti — l'altezza minima è
+   proprio quella che gli faceva coprire il vicino — e al centro tiene il
+   tastino che apre il riepilogo. L'overflow qui deve restare visibile: la
+   zona di tocco del tastino deborda apposta, e ritagliata non servirebbe. */
+.pl-ev.pl-ev-mini{
+    min-height:0; padding:0 6px; overflow:visible;
+    display:flex; align-items:center; justify-content:center;
+}
+.pl-ev-mini-btn{
+    position:relative; align-self:center; border:none; padding:0; cursor:pointer;
+    width:28px; height:100%; max-height:13px; min-height:8px;
+    border-radius:var(--r-pill); display:grid; place-items:center;
+    color:var(--ink-2); background:rgba(255,253,250,.78);
+    box-shadow:inset 0 0 0 .5px var(--hair);
+}
+.pl-ev-mini-btn svg{ width:15px; height:5px; }
+/* il blocco è alto pochi pixel: senza una zona di tocco più larga dei suoi
+   bordi il tastino si centrerebbe solo con la punta di uno spillo */
+.pl-ev-mini-btn::after{
+    content:''; position:absolute; left:-16px; right:-16px; top:-6px; bottom:-6px;
+}
+
+/* Più eventi bassi vicini: un blocco solo, stessa veste di quello della
+   routine ma senza il nome in cima, quindi le righe partono da subito. */
+.pl-ev.pl-ev-mini-gruppo{ padding:4px 8px; }
+/* gruppo che non ha spazio nemmeno per una riga: stessa veste dell'evento
+   isolato, cioè il solo tastino al centro */
+.pl-ev.pl-ev-mini-gruppo.pl-ev-mini{
+    padding:0 6px; overflow:visible;
+    display:flex; align-items:center; justify-content:center;
+}
+.pl-ev-mini-gruppo .pl-ev-sub,
+.pl-ev-mini-gruppo .pl-ev-strip{ margin-top:0; }
 
 /* eventi di tutto il giorno: nella fascia fissa, sopra le priorità */
 /* vista a lista: gli eventi di tutto il giorno compaiono in elenco con gli
@@ -796,6 +1157,87 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 }
 .pl-addlist svg{ width:14px; height:14px; }
 
+/* --- pannello settimana: le tre linguette e le voci vere ------------ */
+.pl-wl-tabs{
+    display:flex; gap:4px; padding:3px; margin:6px 0 12px;
+    background:var(--paper-2); border-radius:var(--r-pill);
+}
+.pl-wl-tab{
+    flex:1; border:none; background:none; cursor:pointer; font:inherit; font-size:12.5px;
+    color:var(--ink-2); padding:8px 4px; border-radius:var(--r-pill);
+    transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.pl-wl-tab.pl-on{ background:var(--card); color:var(--ink); box-shadow:0 1px 3px rgba(76,70,63,.09); }
+.pl-wl-link{ font-size:12px; color:var(--ink-3); text-decoration:none; }
+.pl-wl-empty{
+    font-family:'Cormorant Garamond',serif; font-style:italic; font-size:15px;
+    color:var(--ink-3); padding:10px 0; text-align:center;
+}
+.pl-wl-add{
+    display:flex; align-items:center; gap:7px; width:100%; margin-top:6px;
+    padding:8px 0; border:none; background:none; cursor:pointer;
+    font:inherit; font-size:13px; color:var(--ink-3);
+}
+.pl-wl-add svg{ width:14px; height:14px; }
+.pl-wl-more{
+    width:100%; margin-top:8px; padding:8px; border:none; cursor:pointer;
+    border-radius:var(--r-md); background:var(--paper-2); color:var(--ink-2);
+    font:inherit; font-size:12.5px;
+}
+.pl-wl-others{ margin-top:6px; }
+.pl-wl-glab{
+    font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3);
+    padding:10px 0 3px;
+}
+/* le voci fuori settimana si toccano per portarle qui: niente campo di
+   testo, o il tocco finirebbe nel cursore invece che nel gesto */
+.pl-li-other{ cursor:pointer; }
+.pl-li-other:active{ background:var(--accent-wash); border-radius:var(--r-sm); }
+.pl-li-txt{
+    flex:1; min-width:0; font-size:14px; color:var(--ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.pl-li.pl-done .pl-li-txt{ color:var(--ink-3); text-decoration:line-through; text-decoration-thickness:.6px; }
+.pl-li-price{ font-size:11.5px; color:var(--ink-2); flex-shrink:0; }
+
+/* La riga sta dentro un involucro che ritaglia: il cestino aspetta fuori
+   quadro a sinistra e scorrendo la riga entra in vista. */
+.pl-li-wrap{ position:relative; overflow:hidden; }
+.pl-li-wrap .pl-li{ background:var(--card); transition:transform var(--t) var(--ease); }
+/* il bordo dell'ultima riga lo toglie l'involucro, non la riga */
+.pl-li-wrap:last-child .pl-li{ border-bottom:none; }
+.pl-li-trash{
+    position:absolute; left:0; top:0; bottom:0; width:56px;
+    display:flex; align-items:center; justify-content:center;
+    background:#F3DCDC; color:#8E5A5A; border:none; cursor:pointer; padding:0;
+    /* nascosto finché la riga non è scostata: se qualcosa andasse storto
+       nello scorrimento, non può restare in vista */
+    opacity:0; pointer-events:none; transition:opacity .2s ease;
+}
+.pl-li-trash svg{ width:16px; height:16px; }
+.pl-li-wrap.pl-swiped .pl-li{ transform:translateX(56px); }
+.pl-li-wrap.pl-swiped .pl-li-trash{ opacity:1; pointer-events:auto; }
+
+/* data e ora: sono un pulsante, non una scritta, perché da qui si cambiano */
+.pl-li-when{
+    font-size:11px; color:var(--ink-3); flex-shrink:0;
+    border:none; background:none; padding:2px 5px; margin:0; cursor:pointer;
+    border-radius:var(--r-pill); font-family:inherit;
+}
+.pl-li-when:active{ background:var(--accent-wash); }
+
+/* la priorità del "to buy": più è alta, più il pallino è caldo. Gli stessi
+   tre colori della pagina attività, così il numero 1 vuol dire la stessa
+   cosa nei due posti. */
+.pl-li-prio{
+    flex-shrink:0; width:19px; height:19px; border:none; cursor:pointer;
+    border-radius:var(--r-pill); font: inherit; font-size:10.5px; line-height:19px;
+    padding:0; text-align:center; font-variant-numeric:tabular-nums;
+}
+.pl-prio-1{ background:#EADCD9; color:#8E5A5A; }
+.pl-prio-2{ background:#EDE7DC; color:#8A7B5F; }
+.pl-prio-3{ background:#E6EAE6; color:#6F7D6F; }
+
 .pl-learned{ border-radius:var(--r-lg); background:var(--accent-wash); padding:11px 12px; }
 .pl-learned textarea{
     width:100%; border:none; background:none; resize:none; color:var(--accent-ink);
@@ -828,6 +1270,30 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 }
 .pl-fabs > *{ pointer-events:auto; }
 .pl-fab-menu:not(.pl-open){ pointer-events:none !important; }
+
+/* La colonna che si richiude sotto le abitudini. L'altezza si anima con
+   max-height, che per funzionare ha bisogno del ritaglio: ma i menù dei
+   tastini escono dal gruppo e ritagliati sparirebbero, quindi a corsa finita
+   il gruppo torna libero (classe messa da planner.js con il suo ritardo). */
+.pl-fab-group{
+    display:flex; flex-direction:column; align-items:flex-end; gap:3px;
+    max-height:0; opacity:0; overflow:hidden;
+    transition:max-height .34s var(--ease), opacity .26s var(--ease);
+}
+.pl-fab-group.pl-open{ max-height:420px; opacity:1; }
+.pl-fab-group.pl-libero{ overflow:visible; }
+/* al primo disegno la posizione va presa senza farla vedere in movimento */
+.pl-fab-group.pl-nomoto{ transition:none; }
+.pl-fab-group:not(.pl-open){ pointer-events:none; }
+
+/* la freccetta gira mentre la colonna scende, e da aperta punta in su */
+.pl-fab-toggle svg{ transition:transform .34s var(--ease); }
+.pl-fab-toggle.pl-aperto svg{ transform:rotate(180deg); }
+
+/* Mentre si cambia scatto lo scorrevole non deve provare a scorrere per conto
+   suo: se il browser si prende il gesto, la presa dei puntatori salta e il
+   pizzico muore a metà. */
+.pl-zoomando #plScroller{ touch-action:none; }
 .pl-fab{
     width:36px; height:36px; border-radius:var(--r-pill); display:grid; place-items:center;
     background:rgba(255,253,250,.82); color:var(--ink-2); box-shadow:var(--sh-soft), inset 0 0 0 .5px var(--hair);
@@ -846,23 +1312,27 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 /* anello degli habit */
 .pl-ring{ width:46px; height:46px; position:relative; }
 .pl-ring svg{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); }
-/* Due anelli: fuori le abitudini di oggi, dentro quelle della settimana.
-   Colori più marcati di prima, dove si vedevano appena. */
-.pl-ring circle{ fill:none; stroke-linecap:round; }
-.pl-ring .pl-ring-bg{ stroke:var(--hair-2); stroke-width:3.4; }
-.pl-ring .pl-ring-plan{
-    stroke:color-mix(in srgb, var(--accent) 45%, var(--card)); stroke-width:3.4;
-    transition:stroke-dashoffset var(--t-slow) var(--ease);
-}
-.pl-ring .pl-ring-done{
-    stroke:color-mix(in srgb, var(--accent) 100%, transparent); stroke-width:3.4;
-    transition:stroke-dashoffset var(--t-slow) var(--ease);
-}
-.pl-ring .pl-ring-bg-w{ stroke:var(--hair-2); stroke-width:2.8; }
-.pl-ring .pl-ring-week{
-    stroke:var(--accent-ink); stroke-width:2.8;
-    transition:stroke-dashoffset var(--t-slow) var(--ease);
-}
+/* Un anello per famiglia di frequenza, disegnati da planner.js perché quanti
+   sono dipende da quali abitudini hai. Dal centro verso fuori: giornaliere,
+   settimanali, mensili, personalizzate.
+
+   Le corsie sono attaccate: lo spessore e lo stacco stanno in planner.js
+   (RING_LARGHEZZA e RING_STACCO), e lo stacco è volutamente più sottile della
+   corsia, così le corsie si leggono come un blocco unico diviso da un filo.
+   Le estremità sono squadrate, non arrotondate: con corsie così sottili e
+   vicine, le punte tonde si toccavano fra un anello e l'altro. */
+.pl-ring circle{ fill:none; stroke-linecap:butt; }
+/* Il fondo è un grigio chiarissimo: deve dire "qui c'è una corsia" senza
+   competere con la parte piena. */
+.pl-ring .pl-ring-track{ stroke:color-mix(in srgb, var(--ink) 8%, transparent); }
+.pl-ring .pl-ring-fill{ transition:stroke-dashoffset var(--t-slow) var(--ease); }
+/* Ogni famiglia ha la sua intensità dello stesso colore: si distinguono fra
+   loro senza introdurre una tavolozza nuova. */
+.pl-ring .pl-ring-daily{    stroke:var(--accent); }
+.pl-ring .pl-ring-weekly{   stroke:var(--accent-ink); }
+.pl-ring .pl-ring-monthly{  stroke:color-mix(in srgb, var(--accent-ink) 62%, var(--card)); }
+.pl-ring .pl-ring-interval{ stroke:color-mix(in srgb, var(--accent-ink) 38%, var(--card)); }
+.pl-ring.pl-ring-full .pl-ring-face{ color:var(--accent); }
 
 /* separatore fra le abitudini di oggi e quelle settimanali, nel menù */
 .pl-chip-sep{
@@ -885,7 +1355,10 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-ring-face{
     position:absolute; inset:0; display:grid; place-items:center; color:var(--ink-2);
 }
-.pl-ring-face svg{ position:static; width:17px; height:17px; transform:none; }
+.pl-ring-face svg{ position:static; width:17px; height:17px; transform:none; transition:width var(--t) var(--ease), height var(--t) var(--ease); }
+/* più corsie, meno foro: l'icona si stringe per non finirci sopra */
+.pl-ring[data-n="3"] .pl-ring-face svg{ width:13px; height:13px; }
+.pl-ring[data-n="4"] .pl-ring-face svg{ width:10px; height:10px; }
 
 /* menù a tendina sotto un fab */
 .pl-fab-menu{
@@ -907,6 +1380,16 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     transition:transform var(--t-fast) var(--ease);
 }
 .pl-chip:active{ transform:scale(.95); }
+/* Abitudine a completamento già messa nel giorno: fondo grigio e scritta
+   smorzata. Prima prendeva il colore dell'abitudine, e un chip colorato
+   sembrava un invito invece di un avviso: qui deve dire "questa sarebbe la
+   seconda volta di oggi", quindi il grigio è il messaggio. */
+.pl-chip-messa{
+    background:#EDEAE4;
+    color:var(--ink-3);
+    box-shadow:var(--sh-soft), inset 0 0 0 .5px var(--hair);
+}
+.pl-chip-messa .pl-chip-sub{ color:var(--ink-3); }
 .pl-chip .pl-dot{ width:9px; height:9px; border-radius:50%; background:var(--ev,var(--accent)); flex-shrink:0; }
 .pl-chip-sub{ font-size:10.5px; color:var(--ink-3); }
 .pl-chip-x{ width:16px; height:16px; display:grid; place-items:center; color:var(--ink-3); }
@@ -998,7 +1481,15 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     padding:12px 13px; color:var(--ink); box-shadow:inset 0 0 0 .5px var(--hair);
 }
 .pl-in::placeholder{ color:var(--ink-3); }
-textarea.pl-in{ resize:none; min-height:76px; line-height:1.5; }
+/* Le note partono già alte come mezzo foglietto e crescono da sé mentre si
+   scrive (l'altezza la regola planner.js): 76px bastavano per tre righe, e
+   per una nota vera si finiva a scrivere dentro una fessura. */
+textarea.pl-in{
+    resize:none; min-height:168px; max-height:52dvh; line-height:1.55;
+    overflow-y:auto; scrollbar-width:thin;
+    transition:height var(--t-fast) var(--ease);
+}
+textarea.pl-in.pl-note{ min-height:200px; }
 .pl-title-row{ display:flex; align-items:center; gap:8px; background:var(--paper-2); border-radius:var(--r-md); box-shadow:inset 0 0 0 .5px var(--hair); padding-right:6px; }
 .pl-title-row .pl-in{ background:none; box-shadow:none; font-family:'Cormorant Garamond',serif; font-size:19px; }
 .pl-icon-btn{ width:32px; height:32px; border-radius:var(--r-pill); display:grid; place-items:center; color:var(--ink-2); flex-shrink:0; background:var(--card); box-shadow:inset 0 0 0 .5px var(--hair); }
@@ -1013,6 +1504,34 @@ textarea.pl-in{ resize:none; min-height:76px; line-height:1.5; }
     padding:8px 12px; border-radius:var(--r-md); background:var(--paper-2); font-size:14px; color:var(--ink);
     box-shadow:inset 0 0 0 .5px var(--hair); font-variant-numeric:tabular-nums;
 }
+/* lucchetto della durata: chiuso è lo stato normale, quindi si fa notare
+   poco; aperto deve invece saltare all'occhio, perché è l'eccezione */
+.pl-lock{
+    width:30px; height:30px; border-radius:var(--r-pill); display:grid; place-items:center;
+    flex-shrink:0; color:var(--ink-3); background:var(--card);
+    box-shadow:inset 0 0 0 .5px var(--hair);
+    transition:color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.pl-lock svg{ width:15px; height:15px; }
+.pl-lock.pl-on{ color:var(--ink); background:var(--paper-2); }
+
+/* suggerimenti della ricerca del luogo */
+.pl-sugg{
+    margin-top:6px; border-radius:var(--r-md); background:var(--card);
+    box-shadow:inset 0 0 0 .5px var(--hair); overflow:hidden;
+    max-height:min(38dvh, 300px); overflow-y:auto; scrollbar-width:thin;
+}
+.pl-sugg-row{
+    display:block; width:100%; text-align:left; padding:10px 12px;
+    border-bottom:.5px solid var(--hair); background:none;
+}
+.pl-sugg-row:last-child{ border-bottom:none; }
+.pl-sugg-row:active{ background:var(--paper-2); }
+.pl-sugg-row .pl-row-sub{ margin-top:2px; }
+.pl-sugg-vuoto{ padding:10px 12px; font-size:12.5px; color:var(--ink-3); }
+.pl-loc-stato{ display:flex; align-items:center; gap:8px; margin:7px 2px 0; min-height:14px; }
+.pl-linkish{ font-size:11.5px; color:var(--ink-2); text-decoration:underline; background:none; padding:0; }
+
 .pl-toggle{
     width:44px; height:26px; border-radius:var(--r-pill); background:var(--paper-3); position:relative; flex-shrink:0;
     transition:background var(--t) var(--ease);
@@ -1071,6 +1590,50 @@ textarea.pl-in{ resize:none; min-height:76px; line-height:1.5; }
 .pl-srow-act svg{ width:15px; height:15px; }
 .pl-srow-act.pl-del{ background:#F3DCDC; color:#8E5A5A; }
 .pl-srow.pl-swiped .pl-srow-in{ transform:translateX(-88px); }
+
+/* ------------------------------------------------------------------ */
+/* Cambio giorno a pagina intera (un giorno solo)                     */
+/* ------------------------------------------------------------------ */
+/* Le trasformazioni le scrive planner.js sui pochi elementi in gioco (barra
+   in alto, fascia, striscia dei giorni, pagina che entra). Qui restano solo
+   le regole che cambiano la forma della pagina mentre il gesto è in corso. */
+
+/* La finestra dei giorni si allarga fin sotto la colonna degli orari, che nel
+   frattempo diventa invisibile ma tiene il suo posto: al suo posto scorre la
+   copia infilata dentro la striscia, così orari e giorno viaggiano insieme
+   invece di lasciare una fessura vuota sul bordo sinistro. */
+.pl-swipe1 .pl-hclip{ margin-left:calc(-1 * var(--gutter-w)); }
+/* la copia dentro la striscia porta la stessa classe dell'originale, quindi
+   va tenuta fuori da questa regola: se no sparirebbero tutte e due */
+.pl-swipe1 .pl-gutter:not(.pl-swipe-gutter){ visibility:hidden; }
+.pl-swipe-gutter{ flex-shrink:0; }
+
+/* La pagina del giorno vicino: un clone senza vita, a una schermata di
+   distanza. Ha una trasformazione propria, quindi le sue parti a posizione
+   fissa si appoggiano a lei e non allo schermo: è questo che le fa entrare
+   tutte insieme. Non riceve tocchi, nemmeno nei suoi pulsanti finti. */
+.pl-swipe-page{
+    position:fixed; inset:0; z-index:59; pointer-events:none;
+    transform:translateX(100vw);
+}
+.pl-swipe-page.pl-swipe-prev{ transform:translateX(-100vw); }
+.pl-swipe-page *{ pointer-events:none !important; }
+/* dentro il clone la barra e la fascia non si spostano da sole: le muove il
+   clone che le contiene, e sommare i due movimenti le farebbe correre doppie */
+.pl-swipe-page .pl-topbar,
+.pl-swipe-page .pl-daybar{ transform:none !important; }
+
+/* La barra in alto ha una sua transizione sulla trasformazione (le serve per
+   uscire di scena nella vista mese). Durante il gesto va spenta: con quella
+   accesa la barra arrivava mezzo secondo dopo il dito, e alla fine, quando le
+   si toglieva lo spostamento, rientrava da sinistra come una tendina. */
+.pl-swipe1 .pl-topbar{ transition:none; }
+
+/* solo al rilascio il movimento diventa un'animazione: durante il gesto deve
+   restare incollato al dito */
+.pl-swipe-anim .pl-topbar,
+.pl-swipe-anim .pl-daybar,
+.pl-swipe-anim .pl-swipe-page{ transition:transform .3s var(--ease); }
 
 /* ------------------------------------------------------------------ */
 /* 10. VISTA MESE                                                     */
@@ -1138,8 +1701,10 @@ textarea.pl-in{ resize:none; min-height:76px; line-height:1.5; }
 }
 .pl-alert-ov.pl-open .pl-alert{ transform:none; }
 .pl-alert-t{ font-family:'Cormorant Garamond',serif; font-size:20px; margin-bottom:6px; }
-.pl-alert-m{ font-size:14px; color:var(--ink-2); line-height:1.5; margin-bottom:16px; }
-.pl-alert-acts{ display:flex; gap:8px; }
+/* pre-line: il riepilogo degli eventi compattati è un elenco, una riga per
+   evento, e senza questo andrebbe tutto di seguito */
+.pl-alert-m{ font-size:14px; color:var(--ink-2); line-height:1.5; margin-bottom:16px; white-space:pre-line; }
+.pl-alert-acts{ display:flex; gap:8px; flex-wrap:wrap; }
 .pl-btn{
     flex:1; padding:12px; border-radius:var(--r-md); font-size:14.5px; font-weight:500;
     background:var(--paper-2); color:var(--ink-2);
@@ -1148,6 +1713,10 @@ textarea.pl-in{ resize:none; min-height:76px; line-height:1.5; }
 .pl-btn:active{ transform:scale(.97); }
 .pl-btn-primary{ background:var(--accent); color:#FFFDFA; }
 .pl-btn-danger{ background:#F3DCDC; color:#8E5A5A; }
+/* Un tasto che sta lavorando: si vede che è spento, e non risponde più al
+   tocco. Serve a non far premere due volte un'operazione lenta. */
+.pl-busy, button:disabled{ opacity:.5; pointer-events:none; cursor:default; }
+.pl-busy{ font-style:italic; }
 
 .pl-toast{
     position:fixed; left:50%; bottom:calc(88px + var(--safe-bottom)); z-index:140;
@@ -1257,6 +1826,101 @@ textarea.pl-in{ resize:none; min-height:76px; line-height:1.5; }
 .pl-part-rain{ animation:pl-rainfall linear infinite; }
 .pl-part-still{ animation:pl-twinkle var(--ease-soft) infinite; }
 
+/* ------------------------------------------------------------------ */
+/* Scena del meteo nella barra in alto (prende il posto di albero e     */
+/* bestia quando si guarda un giorno solo)                              */
+/* ------------------------------------------------------------------ */
+.pl-wxa-sun{
+    position:absolute; top:14%; left:16%; width:46px; height:46px;
+    color:#E8C874; opacity:.75;
+    animation:pl-wxa-gira 90s linear infinite;
+}
+.pl-wxa-sun.pl-wxa-moon{ color:#CFD8E4; animation:none; }
+/* una giornata rovente non ha lo stesso sole di aprile: più grande e più
+   rosso, così il colpo d'occhio dice caldo prima ancora dei gradi */
+.pl-wxa-sun.pl-wxa-sun-caldo{ color:#E8532A; transform:scale(1.28); }
+
+/* Il rosso del caldo. Sta sotto il sole e sopra lo sfondo, e cresce in tre
+   gradini decisi dalla massima del giorno: al terzo la barra è tutta rossa. */
+.pl-wxa-caldo{
+    position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(135% 170% at 76% 0%,
+        #E24A22 0%, rgba(228,110,44,.62) 40%, rgba(232,160,70,0) 80%);
+    opacity:.3;
+}
+.pl-wxa-caldo-2{ opacity:.52; }
+.pl-wxa-caldo-3{ opacity:.74; }
+
+/* cielo chiuso: senza questo velo, fra tre nuvole e sette si nota solo che
+   sono di più, non che il cielo è coperto */
+/* Sera e notte: un velo scuro sopra lo sfondo e sotto quello che si muove.
+   Le nuvole che vengono dopo si smorzano da sé, se no di notte sarebbero
+   bianche come a mezzogiorno. */
+.pl-wxa-notte{
+    position:absolute; inset:0; pointer-events:none;
+    background:linear-gradient(180deg, rgba(22,30,52,.66), rgba(32,40,64,.44));
+}
+.pl-wxa-notte ~ .pl-wxa-cloud{ filter:brightness(.5) saturate(.7); }
+.pl-wxa-stella{ color:#FFF3D2; }
+
+.pl-wxa-coperto{
+    position:absolute; inset:0; pointer-events:none;
+    background:linear-gradient(180deg, rgba(120,133,146,.42), rgba(150,161,172,.18));
+}
+.pl-wxa-sun svg{ width:100%; height:100%; display:block; }
+@keyframes pl-wxa-gira{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+
+/* Le nuvole attraversano tutta la barra e rientrano dall'altra parte.
+   Partono da fuori schermo a sinistra, quindi la prima comparsa non è un
+   pop ma un ingresso. */
+.pl-wxa-cloud{
+    position:absolute; left:-140px; color:#FFFFFF; pointer-events:none;
+    animation:pl-wxa-passa linear infinite; will-change:transform;
+}
+.pl-wxa-cloud svg{ width:100%; height:auto; display:block; }
+@keyframes pl-wxa-passa{ from{ transform:translateX(0); } to{ transform:translateX(calc(100vw + 200px)); } }
+
+/* la nebbia non è fatta di gocce: sono veli che scorrono piano */
+.pl-wxa-fog{
+    position:absolute; left:-30%; width:160%; height:16px; pointer-events:none;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.55) 40%, rgba(255,255,255,.55) 60%, transparent);
+    filter:blur(3px);
+    animation:pl-wxa-velo linear infinite;
+}
+@keyframes pl-wxa-velo{ from{ transform:translateX(-12%); } to{ transform:translateX(12%); } }
+
+/* Il lampo è raro di proposito: un temporale che sfarfalla di continuo
+   diventa fastidioso dopo dieci secondi di sguardo. */
+.pl-wxa-flash{
+    position:absolute; inset:0; background:#FFFFFF; opacity:0; pointer-events:none;
+    animation:pl-wxa-lampo 9s ease-out infinite;
+}
+@keyframes pl-wxa-lampo{
+    0%, 88%, 100%{ opacity:0; }
+    89%{ opacity:.5; }
+    91%{ opacity:0; }
+    93%{ opacity:.28; }
+    95%{ opacity:0; }
+}
+
+/* il riassunto: l'unica cosa toccabile della scena */
+.pl-wxa-tag{
+    position:absolute; left:50%; top:50%; transform:translate(-50%, -50%);
+    display:inline-flex; align-items:center; gap:7px; padding:6px 13px;
+    border-radius:var(--r-pill); background:var(--card); color:var(--ink-2);
+    font-size:12px; line-height:1.2; white-space:nowrap; border:none; cursor:pointer;
+    box-shadow:0 1px 6px rgba(76,70,63,.14), inset 0 0 0 .5px var(--hair);
+    pointer-events:auto; z-index:3;
+    transition:transform var(--t-fast) var(--ease);
+}
+.pl-wxa-tag:active{ transform:translate(-50%, -50%) scale(.95); }
+.pl-wxa-tag-ic{ width:16px; height:16px; flex-shrink:0; }
+.pl-wxa-tag-ic svg{ width:16px; height:16px; display:block; }
+.pl-wxa-tag.pl-wx-rain{ background:#DCEAF3; color:#3E6B86; }
+.pl-wxa-tag.pl-wx-sun{ background:#F8EFD4; color:#7A6127; }
+.pl-wxa-tag.pl-wx-snow{ background:#EAF0F6; color:#5B7284; }
+.pl-wxa-tag.pl-wx-storm{ background:#E7E2F0; color:#5A4E76; }
+
 /* chi attraversa la barra: un contenitore che va di lato, dentro uno che ondeggia */
 .pl-drift{ position:absolute; left:-30px; pointer-events:none; will-change:transform; animation:pl-cross linear infinite; opacity:.85; }
 .pl-drift-in{ display:block; animation:pl-bob ease-in-out infinite alternate; }
@@ -1336,5 +2000,8 @@ textarea.pl-in{ resize:none; min-height:76px; line-height:1.5; }
         transition-duration:.01ms !important;
     }
     .pl-part, .pl-drift{ display:none; }
-    .pl-tree{ animation:none; }
+    /* del meteo resta il riassunto, che è informazione; la scena che si muove
+       (nuvole, veli, lampo) sparisce */
+    .pl-wxa-cloud, .pl-wxa-fog, .pl-wxa-flash{ display:none; }
+    .pl-tree{ animation:none; } .pl-animal-cammina, .pl-animal-vola{ animation:none; }
 }

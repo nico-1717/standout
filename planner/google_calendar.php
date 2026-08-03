@@ -232,6 +232,10 @@ function gc_to_google(array $ev): array {
         'summary'     => $ev['title'] !== '' ? $ev['title'] : 'Senza titolo',
         'description' => (string)$ev['notes'],
     ];
+    /* Il luogo va passato come testo: Google lo riconosce da sé e lo rende
+       navigabile. Le coordinate nostre non gli servono, e mandare un campo
+       in più che lui non usa significherebbe solo altro da tenere allineato. */
+    if (!empty($ev['location'])) $out['location'] = (string)$ev['location'];
     if ((int)$ev['is_all_day'] === 1) {
         $out['start'] = ['date' => $ev['event_date']];
         $out['end']   = ['date' => date('Y-m-d', strtotime($ev['event_date'] . ' +1 day'))];
@@ -325,12 +329,17 @@ function gc_pull(int $uid, string $token, array $acc): array {
                    lo teniamo e lo rimanderemo noi */
                 sec_q("DELETE FROM planner_events WHERE user_id = ? AND google_event_id = ?
                        AND google_synced_at IS NOT NULL
-                       AND updated_at <= google_synced_at + INTERVAL 2 SECOND", [$uid, $gid], 'is');
+                       AND updated_at <= google_synced_at", [$uid, $gid], 'is');
                 if (sec_affected() > 0) $removed++;
                 continue;
             }
             $data = gc_from_google($g);
             if (!$data) continue;
+
+            /* Il calendario da cui questo evento arriva davvero. Non annotarlo
+               era la causa dei doppioni: senza, più avanti gc_push non sapeva
+               dove l'evento vive e finiva per ricrearlo altrove. */
+            $sorgente = (string)($acc['calendar_id'] ?: 'primary');
 
             /* Un evento appena toccato qui non va sovrascritto con la versione
                di Google: la lettura avviene PRIMA dell'invio, quindi
@@ -339,7 +348,7 @@ function gc_pull(int $uid, string $token, array $acc): array {
                Se è "sporco" lo saltiamo: lo manderemo noi subito dopo. */
             $existing = sec_one(
                 "SELECT id, (google_synced_at IS NULL
-                             OR updated_at > google_synced_at + INTERVAL 2 SECOND) AS dirty
+                             OR updated_at > google_synced_at) AS dirty
                  FROM planner_events WHERE user_id = ? AND google_event_id = ? LIMIT 1",
                 [$uid, $gid], 'is');
             if ($existing && (int)$existing['dirty'] === 1) {
@@ -347,17 +356,18 @@ function gc_pull(int $uid, string $token, array $acc): array {
             }
             if ($existing) {
                 sec_q("UPDATE planner_events SET title = ?, notes = ?, event_date = ?, start_time = ?, end_time = ?,
-                              is_all_day = ?, google_synced_at = NOW()
+                              is_all_day = ?, google_calendar_id = ?, google_synced_at = NOW(), updated_at = updated_at
                        WHERE id = ? AND user_id = ?",
                       [$data['title'], $data['notes'], $data['date'], $data['start'], $data['end'],
-                       $data['all_day'], (int)$existing['id'], $uid]);
+                       $data['all_day'], $sorgente, (int)$existing['id'], $uid]);
             } else {
                 sec_q("INSERT INTO planner_events
                        (user_id, title, notes, event_date, start_time, end_time, is_all_day,
-                        notify_type, notify_minutes, google_event_id, google_synced_at, google_origin)
-                       VALUES (?,?,?,?,?,?,?,'none',0,?,NOW(),1)",
+                        notify_type, notify_minutes, google_event_id, google_calendar_id,
+                        google_synced_at, google_origin)
+                       VALUES (?,?,?,?,?,?,?,'none',0,?,?,NOW(),1)",
                       [$uid, $data['title'], $data['notes'], $data['date'], $data['start'], $data['end'],
-                       $data['all_day'], $gid]);
+                       $data['all_day'], $gid, $sorgente]);
             }
             $changed++;
         }
@@ -380,6 +390,16 @@ function gc_pull(int $uid, string $token, array $acc): array {
  * Ritorna l'id del calendario, oppure null se l'evento non va sincronizzato.
  */
 function gc_target_for(array $ev, array $modes, string $dedicatedId): ?string {
+    /* REGOLA PRIMA DI TUTTE LE ALTRE.
+       Un evento nato su Google resta dov'è nato, sempre. È già là: mandarlo
+       in un altro calendario non lo sposta, ne crea una copia — ed è
+       esattamente così che sono nati i doppioni. Le regole per importanza
+       valgono solo per gli eventi nati nel planner. */
+    if ((int)($ev['google_origin'] ?? 0) === 1) {
+        $suo = $ev['google_calendar_id'] ?? null;
+        return $suo !== null && $suo !== '' ? (string)$suo : null;
+    }
+
     $imp = $ev['importance'] ?? 'normal';
     $isHigh    = ($imp === 'high' || $imp === 'highest');
     $isHighest = ($imp === 'highest');
@@ -411,13 +431,18 @@ function gc_push(int $uid, string $token, array $acc): array {
     $from = date('Y-m-d', strtotime('-' . GC_WINDOW_BACK . ' days'));
     $to   = date('Y-m-d', strtotime('+' . GC_WINDOW_FWD . ' days'));
 
-    /* Due secondi di tolleranza: il salvataggio di google_synced_at fa
-       muovere anche updated_at, e senza margine gli eventi risulterebbero
-       sempre "da mandare". */
+    /* "Da mandare" vuol dire toccato qui dopo l'ultimo allineamento.
+       Il confronto è stretto perché le scritture di servizio (quelle che
+       segnano google_synced_at) rimettono updated_at al valore che aveva:
+       prima lo facevano muovere anche loro e serviva una tolleranza di due
+       secondi, che però apriva una finestra in cui una modifica appena
+       fatta non risultava "da mandare" — e siccome la lettura da Google
+       viene prima dell'invio, quella modifica veniva sovrascritta e
+       l'evento tornava dov'era dopo qualche secondo. */
     $rows = sec_all(
         "SELECT * FROM planner_events
          WHERE user_id = ? AND event_date BETWEEN ? AND ?
-           AND (google_synced_at IS NULL OR updated_at > google_synced_at + INTERVAL 2 SECOND)
+           AND (google_synced_at IS NULL OR updated_at > google_synced_at)
          ORDER BY event_date LIMIT " . GC_PUSH_LIMIT,
         [$uid, $from, $to], 'iss'
     );
@@ -431,23 +456,37 @@ function gc_push(int $uid, string $token, array $acc): array {
         /* Non deve più stare su Google: se c'era, lo togliamo. Succede quando
            si abbassa l'importanza o si cambiano le scelte nelle impostazioni. */
         if ($target === null) {
+            /* Eccezione importante: un evento IMPORTATO da Google non si
+               cancella mai da Google. Qui ci finiscono le righe vecchie, quelle
+               importate prima che si annotasse il calendario di provenienza:
+               senza questa guardia il primo giro dopo l'aggiornamento
+               cancellerebbe dal calendario dell'utente gli eventi veri.
+               Si segnano come viste e si lasciano stare. */
+            if ((int)($ev['google_origin'] ?? 0) === 1) {
+                sec_q("UPDATE planner_events SET google_synced_at = NOW(), updated_at = updated_at WHERE id = ? AND user_id = ?",
+                      [(int)$ev['id'], $uid], 'ii');
+                continue;
+            }
             if (!empty($oldId)) {
                 gc_http('DELETE', 'https://www.googleapis.com/calendar/v3/calendars/'
                         . rawurlencode($oldCal ?: $dedicated) . '/events/' . rawurlencode($oldId), null, $token);
                 sec_q("UPDATE planner_events SET google_event_id = NULL, google_calendar_id = NULL,
-                              google_synced_at = NOW() WHERE id = ? AND user_id = ?", [(int)$ev['id'], $uid], 'ii');
+                              google_synced_at = NOW(), updated_at = updated_at WHERE id = ? AND user_id = ?", [(int)$ev['id'], $uid], 'ii');
                 $removed++;
             } else {
                 /* niente da fare, ma lo segniamo come visto per non riesaminarlo a ogni giro */
-                sec_q("UPDATE planner_events SET google_synced_at = NOW() WHERE id = ? AND user_id = ?", [(int)$ev['id'], $uid], 'ii');
+                sec_q("UPDATE planner_events SET google_synced_at = NOW(), updated_at = updated_at WHERE id = ? AND user_id = ?", [(int)$ev['id'], $uid], 'ii');
             }
             continue;
         }
 
         /* Ha cambiato calendario: si cancella da quello vecchio e si ricrea
            nel nuovo. Google non permette di spostare un evento fra calendari
-           mantenendo lo stesso identificativo in modo affidabile. */
-        if (!empty($oldId) && $oldCal !== null && $oldCal !== $target) {
+           mantenendo lo stesso identificativo in modo affidabile.
+           Vale solo per gli eventi nati qui: quelli nati su Google non
+           cambiano mai calendario (vedi gc_target_for). */
+        if (!empty($oldId) && (int)($ev['google_origin'] ?? 0) === 0
+            && $oldCal !== null && $oldCal !== '' && $oldCal !== $target) {
             gc_http('DELETE', 'https://www.googleapis.com/calendar/v3/calendars/'
                     . rawurlencode($oldCal) . '/events/' . rawurlencode($oldId), null, $token);
             $oldId = null;
@@ -458,9 +497,25 @@ function gc_push(int $uid, string $token, array $acc): array {
 
         if (!empty($oldId)) {
             $res = gc_http('PATCH', $base . '/' . rawurlencode($oldId), $payload, $token);
-            if ($res['code'] === 404 || $res['code'] === 410) $oldId = null;   // sparito di là: si ricrea
+            if ($res['code'] === 404 || $res['code'] === 410) {
+                /* Non c'è più a quell'indirizzo. Prima si ricreava senza
+                   pensarci, e se l'evento in realtà viveva in un ALTRO
+                   calendario (caso normale per gli eventi importati) la
+                   "ricreazione" era un doppione bello e buono.
+                   Ora si ricrea solo se l'evento è nato qui; altrimenti si
+                   lascia stare e si annota, così il caso si vede nel log
+                   invece di moltiplicarsi in silenzio. */
+                if ((int)($ev['google_origin'] ?? 0) === 1) {
+                    sec_q("UPDATE planner_events SET google_synced_at = NOW(), updated_at = updated_at WHERE id = ? AND user_id = ?",
+                          [(int)$ev['id'], $uid], 'ii');
+                    gc_log($uid, 'push', 'error', 'evento importato non più su Google: id ' . (int)$ev['id']);
+                    $failed++;
+                    continue;
+                }
+                $oldId = null;   // nato qui: si può ricreare senza rischio di doppioni
+            }
             elseif ($res['code'] >= 200 && $res['code'] < 300) {
-                sec_q("UPDATE planner_events SET google_calendar_id = ?, google_synced_at = NOW()
+                sec_q("UPDATE planner_events SET google_calendar_id = ?, google_synced_at = NOW(), updated_at = updated_at
                        WHERE id = ? AND user_id = ?", [$target, (int)$ev['id'], $uid], 'sii');
                 $updated++;
                 continue;
@@ -469,7 +524,7 @@ function gc_push(int $uid, string $token, array $acc): array {
 
         $res = gc_http('POST', $base, $payload, $token);
         if ($res['code'] >= 200 && $res['code'] < 300 && !empty($res['body']['id'])) {
-            sec_q("UPDATE planner_events SET google_event_id = ?, google_calendar_id = ?, google_synced_at = NOW()
+            sec_q("UPDATE planner_events SET google_event_id = ?, google_calendar_id = ?, google_synced_at = NOW(), updated_at = updated_at
                    WHERE id = ? AND user_id = ?", [(string)$res['body']['id'], $target, (int)$ev['id'], $uid], 'ssii');
             $created++;
         } else { $failed++; }
@@ -480,13 +535,19 @@ function gc_push(int $uid, string $token, array $acc): array {
 
 /** Cancellazioni fatte qui, da riportare là. */
 function gc_flush_deletions(int $uid, string $token, array $acc): int {
-    $calendar = rawurlencode($acc['calendar_id'] ?: 'primary');
-    $rows = sec_all("SELECT id, google_event_id FROM google_sync_queue
+    $fallback = $acc['calendar_id'] ?: 'primary';
+    /* Si cancella dal calendario in cui l'evento viveva davvero. Prima si
+       cancellava sempre da quello dedicato: per un evento che stava altrove
+       Google rispondeva 404, il codice lo prendeva per "fatto" e l'evento
+       restava su Google per sempre. */
+    $rows = sec_all("SELECT id, google_event_id, google_calendar_id FROM google_sync_queue
                      WHERE user_id = ? AND action = 'delete' AND attempts < 3 ORDER BY id LIMIT 60", [$uid], 'i');
     $done = 0;
     foreach ($rows as $r) {
+        $cal = !empty($r['google_calendar_id']) ? $r['google_calendar_id'] : $fallback;
         $res = gc_http('DELETE',
-            'https://www.googleapis.com/calendar/v3/calendars/' . $calendar . '/events/' . rawurlencode($r['google_event_id']),
+            'https://www.googleapis.com/calendar/v3/calendars/' . rawurlencode($cal)
+            . '/events/' . rawurlencode($r['google_event_id']),
             null, $token);
         // 410 e 404 vanno bene: là non c'è più comunque
         if (($res['code'] >= 200 && $res['code'] < 300) || $res['code'] === 404 || $res['code'] === 410) {

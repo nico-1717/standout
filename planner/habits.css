@@ -31,6 +31,12 @@
     --ink-chip-shadow:inset 0 0 0 1px rgba(255,255,255,.75), 0 6px 16px -10px rgba(31,41,55,.28);
     --ink-blur:blur(26px) saturate(190%);
 
+    /* Fondo dei popup. Era un nero al 45-62%: sulla pagina chiara sembrava di
+       spegnere la luce ogni volta che si apriva qualcosa. Ora è una velatura
+       fredda e leggera, e il popup si stacca per la sua ombra. */
+    --scrim:rgba(28,28,30,.22);
+    --scrim-strong:rgba(28,28,30,.30);
+
     --accent:#7C5CFF;
     --r-card:24px; --r-pill:999px; --r-btn:16px;
     --spring:cubic-bezier(.32,.72,0,1);
@@ -56,6 +62,9 @@
     --ink-row-shadow:0 16px 32px -20px color-mix(in srgb, var(--h) 85%, #000);
     --ink-chip-shadow:none;
     --ink-blur:none;
+    /* al buio la velatura può essere più decisa senza pesare */
+    --scrim:rgba(0,0,0,.46);
+    --scrim-strong:rgba(0,0,0,.58);
 }}
 
 *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -390,7 +399,7 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
    ===================================================================== */
 .hb-sheet-overlay{
     position:fixed; inset:0; z-index:9700; display:flex; align-items:flex-end; justify-content:center;
-    background:rgba(0,0,0,.45); -webkit-backdrop-filter:blur(12px) saturate(140%); backdrop-filter:blur(12px) saturate(140%);
+    background:var(--scrim); -webkit-backdrop-filter:blur(12px) saturate(140%); backdrop-filter:blur(12px) saturate(140%);
     opacity:0; pointer-events:none; transition:opacity .34s var(--ease-out);
 }
 .hb-sheet-overlay.show{ opacity:1; pointer-events:auto; }
@@ -410,6 +419,15 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .hb-sheet-close:active{ transform:scale(.86); }
 /* ---- abitudini settimanali ---- */
 .hb-group-week{ margin-top:18px; }
+/* le altre due famiglie si staccano dalla precedente come le settimanali */
+.hb-group-month, .hb-group-interval{ margin-top:18px; }
+/* La nota delle personalizzate ("ogni 3 giorni · prossima fra 2"): sta sotto
+   al nome, piccola e sbiadita, senza rubare la riga. */
+.hb-row-main[data-extra]::after{
+    content:attr(data-extra);
+    display:block; margin-top:2px;
+    font-size:10.5px; font-weight:700; letter-spacing:.02em; color:var(--text-3);
+}
 .hb-week-ring{
     position:relative; width:34px; height:34px; flex-shrink:0;
     display:grid; place-items:center; margin-right:2px;
@@ -705,7 +723,7 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
    ===================================================================== */
 .hb-confirm-overlay{
     position:fixed; inset:0; z-index:9800; display:flex; align-items:center; justify-content:center; padding:22px;
-    background:rgba(0,0,0,.5); -webkit-backdrop-filter:blur(9px); backdrop-filter:blur(9px);
+    background:var(--scrim); -webkit-backdrop-filter:blur(9px); backdrop-filter:blur(9px);
     opacity:0; pointer-events:none; transition:opacity .26s var(--ease-out);
 }
 .hb-confirm-overlay.show{ opacity:1; pointer-events:auto; }
@@ -723,7 +741,7 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 
 .hb-award-overlay{
     position:fixed; inset:0; z-index:9900; display:flex; align-items:center; justify-content:center; padding:24px;
-    background:rgba(0,0,0,.62); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+    background:var(--scrim-strong); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
     opacity:0; pointer-events:none; transition:opacity .3s var(--ease-out);
 }
 .hb-award-overlay.show{ opacity:1; pointer-events:auto; }
