@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Creato il: Ago 03, 2026 alle 19:53
+-- Creato il: Ago 06, 2026 alle 22:31
 -- Versione del server: 8.0.45
 -- Versione PHP: 8.0.22
 
@@ -325,6 +325,26 @@ CREATE TABLE `google_calendar_accounts` (
   `last_sync_at` datetime DEFAULT NULL,
   `is_enabled` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `google_calendar_map`
+--
+
+CREATE TABLE `google_calendar_map` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `google_ref` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'id del calendario su Google',
+  `google_name` varchar(160) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `google_color` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_primary` tinyint(1) NOT NULL DEFAULT '0',
+  `can_write` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'se si può anche scrivere su questo calendario (falso per compleanni/festività)',
+  `calendar_id` int UNSIGNED DEFAULT NULL COMMENT 'mio calendario di destinazione; NULL = non importare',
+  `decided` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0 = mai scelto, va chiesto',
+  `sync_token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `last_seen_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -659,10 +679,11 @@ CREATE TABLE `planner_calendars` (
   `id` int UNSIGNED NOT NULL,
   `user_id` int NOT NULL,
   `name` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `color` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '#A9C3AE',
+  `color` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'NULL = nessun colore proprio (il principale)',
   `is_visible` tinyint(1) NOT NULL DEFAULT '1',
   `is_default` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = ci finiscono gli eventi senza calendario scelto',
   `google_ref` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'calendario Google da cui arrivano questi eventi',
+  `google_push_ref` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'id del calendario Google in cui mandare questi eventi; NULL = quello principale',
   `sort_order` int NOT NULL DEFAULT '0',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -739,6 +760,7 @@ CREATE TABLE `planner_events` (
   `series_id` bigint UNSIGNED DEFAULT NULL COMMENT 'id del primo evento della serie ripetuta',
   `google_event_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `google_calendar_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'calendario Google in cui vive questo evento',
+  `google_source_ref` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'calendario Google da cui è stato importato',
   `google_synced_at` datetime DEFAULT NULL COMMENT 'ultimo allineamento con Google',
   `google_origin` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = nato su Google, non nel planner',
   `sort_order` int NOT NULL DEFAULT '0' COMMENT 'ordine tra eventi sovrapposti / eventi tutto il giorno',
@@ -1467,6 +1489,14 @@ ALTER TABLE `google_calendar_accounts`
   ADD PRIMARY KEY (`user_id`);
 
 --
+-- Indici per le tabelle `google_calendar_map`
+--
+ALTER TABLE `google_calendar_map`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_gcm` (`user_id`,`google_ref`),
+  ADD KEY `idx_gcm_cal` (`calendar_id`);
+
+--
 -- Indici per le tabelle `google_sync_log`
 --
 ALTER TABLE `google_sync_log`
@@ -1632,7 +1662,8 @@ ALTER TABLE `planner_events`
   ADD KEY `idx_pev_google` (`google_event_id`(64)),
   ADD KEY `idx_pev_gsync` (`user_id`,`google_synced_at`),
   ADD KEY `idx_pev_calendar` (`user_id`,`calendar_id`),
-  ADD KEY `idx_gc_event` (`user_id`,`google_event_id`);
+  ADD KEY `idx_gc_event` (`user_id`,`google_event_id`),
+  ADD KEY `idx_pev_gsource` (`user_id`,`google_source_ref`);
 
 --
 -- Indici per le tabelle `planner_places`
@@ -1964,6 +1995,12 @@ ALTER TABLE `gameplays`
 -- AUTO_INCREMENT per la tabella `games`
 --
 ALTER TABLE `games`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `google_calendar_map`
+--
+ALTER TABLE `google_calendar_map`
   MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --

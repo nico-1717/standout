@@ -116,7 +116,37 @@ function evColor(ev) {
     if (ev.category_id) { var c = catById(ev.category_id); if (c) return c.color; }
     if (ev.project_color) return ev.project_color;
     if (ev.habit_color) return ev.habit_color;
+    /* Il colore del calendario arriva per ultimo, quando l'evento non ne ha
+       già uno suo: un evento dentro «vacanze» e senza categoria è verde come
+       il suo calendario, che è quello che uno si aspetta creandolo lì. */
+    var cc = calColor(ev);
+    if (cc) return cc;
     return NEUTRAL;
+}
+
+/* Il colore del calendario di un evento, se ne ha uno. Il principale non ne
+   ha, ed è giusto così: i suoi eventi restano come sono sempre stati. */
+function calColor(ev) {
+    if (!ev.calendar_id) return null;
+    var c = calById(ev.calendar_id);
+    return (c && c.color) ? c.color : null;
+}
+
+/* Il calendario dipinge il bordo, la categoria il blocco.
+
+   Quando l'evento ha già un colore suo — la categoria «spostamenti» è rossa —
+   il verde di «vacanze» non può prendersi anche il fondo, se no una delle due
+   informazioni sparisce. Va sul contorno, ma non come una riga verde piantata
+   sul rosso: il bordo è il colore del calendario *mescolato al fondo del
+   blocco*, così si legge come una cornice imparentata con quello che
+   racchiude invece che come un ritaglio incollato sopra.
+   Se il colore del calendario è già quello del blocco non si fa niente:
+   sarebbe un contorno dello stesso colore, cioè niente. */
+function applicaCalendario(node, ev) {
+    var cc = calColor(ev);
+    if (!cc || cc === evColor(ev)) return;
+    node.style.setProperty('--cal', cc);
+    node.classList.add('pl-ev-cal');
 }
 function calById(id) {
     for (var i = 0; i < S.calendars.length; i++) if (S.calendars[i].id === id) return S.calendars[i];
@@ -2306,7 +2336,15 @@ function renderPrioInto(host, giorno) {
     host.innerHTML = '';
 
     var cells = [];
-    data.autos.forEach(function (a) { cells.push({ auto: true, content: a.content }); });
+    /* la cella automatica si porta dietro tutto quello che il server ha
+       detto del progetto: è quello che poi il popup ha da raccontare */
+    data.autos.forEach(function (a) {
+        cells.push({
+            auto: true, content: a.content, project_id: a.project_id, project: a.project,
+            notes: a.notes, stato: a.stato, color: a.color,
+            target_date: a.target_date, due_date: a.due_date
+        });
+    });
 
     /* Obiettivi e scadenze dei progetti occupano una casella come le altre:
        vanno contati nel totale, altrimenti restano in giro due caselle vuote
@@ -2372,6 +2410,78 @@ function renderPrioInto(host, giorno) {
     }
 }
 
+/* Il riassunto di un progetto, aperto da una priorità automatica.
+
+   Piccolo di proposito: quello che serve qui è capire in un colpo d'occhio
+   di che progetto si tratta e se è ancora vivo, non gestirlo. Per gestirlo
+   c'è la sua pagina, e il tasto in fondo ci porta già aperto su quello — che
+   è poi la ragione per cui l'identificativo viaggia insieme alla priorità. */
+function prioProgetto(data) {
+    var ov = el('div', 'pl-ov');
+    var sheet = el('div', 'pl-sheet pl-sheet-auto');
+    sheet.appendChild(el('div', 'pl-grab'));
+
+    var head = el('div', 'pl-sheet-head');
+    head.appendChild(el('span', 'pl-sheet-title pl-serif', data.project || 'Progetto'));
+    var chiudi = el('button', 'pl-txt-btn', 'Chiudi');
+    chiudi.type = 'button';
+    chiudi.addEventListener('click', function () { ov.remove(); });
+    head.appendChild(chiudi);
+    sheet.appendChild(head);
+
+    var body = el('div', 'pl-sheet-body');
+
+    /* il pallino del colore accanto allo stato: è il colore con cui quel
+       progetto si riconosce dappertutto, e ritrovarlo qui evita di dover
+       leggere il nome per capire quale sia */
+    var riga = el('div', 'pl-prj-stato');
+    var pallino = el('span', 'pl-prj-dot');
+    pallino.style.background = data.color || 'var(--accent)';
+    riga.appendChild(pallino);
+    riga.appendChild(el('span', null, STATI_PRJ[data.stato] || 'in corso'));
+    body.appendChild(riga);
+
+    if (data.target_date) body.appendChild(rowInfo('Obiettivo', dataLunga(data.target_date)));
+    if (data.due_date)    body.appendChild(rowInfo('Scadenza', dataLunga(data.due_date)));
+
+    /* Le note per intero e non tagliate: sono poche righe e sono la ragione
+       per cui uno apre il riassunto invece di andare direttamente alla
+       pagina. Se non ci sono, non si scrive niente: una riga vuota che dice
+       «nessuna nota» occupa lo stesso spazio e non aggiunge nulla. */
+    if (data.notes) {
+        var note = el('div', 'pl-prj-note');
+        note.textContent = data.notes;
+        body.appendChild(note);
+    }
+
+    var vai = el('a', 'pl-btn pl-btn-primary pl-prj-vai', 'Apri il progetto');
+    vai.href = 'progetti_2.php?id=' + encodeURIComponent(data.project_id);
+    body.appendChild(vai);
+
+    sheet.appendChild(body);
+    ov.appendChild(sheet);
+    document.body.appendChild(ov);
+    requestAnimationFrame(function () { ov.classList.add('pl-open'); });
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+}
+
+/* gli stessi tre stati che gira la pagina progetti, in parole */
+var STATI_PRJ = { in_progress: 'in corso', completed: 'completato', planned: 'da iniziare' };
+
+/* una riga «etichetta — valore», che qui serve due o tre volte */
+function rowInfo(lab, val) {
+    var r = el('div', 'pl-prj-riga');
+    r.appendChild(el('span', 'pl-prj-lab', lab));
+    r.appendChild(el('span', 'pl-prj-val', val));
+    return r;
+}
+
+function dataLunga(iso) {
+    var d = parseIso(iso);
+    return GIORNI[dowIndex(iso)] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()
+         + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '');
+}
+
 /* Il giro delle righe da chiusa. Quattro secondi: il tempo di leggere due
    priorità senza doverle rincorrere, e abbastanza perché anche un'occhiata
    di passaggio ne prenda comunque una.
@@ -2414,7 +2524,16 @@ function prioCell(data, compatta) {
         cell.appendChild(dot);
         cell.appendChild(tx);
         misuraStriscia(tx, dentro);
-        if (data.auto) return cell;
+        if (data.auto) {
+            if (data.project_id) {
+                tx.style.cursor = 'pointer';
+                tx.addEventListener('click', function (e) {
+                    e.stopPropagation();   // se no il tocco aprirebbe la sezione
+                    prioProgetto(data);
+                });
+            }
+            return cell;
+        }
         dot.addEventListener('click', function (e) {
             e.stopPropagation();     // se no il tocco aprirebbe anche la sezione
             var now = !cell.classList.contains('pl-done');
@@ -2434,7 +2553,17 @@ function prioCell(data, compatta) {
     if (data.auto) inp.readOnly = true;
     cell.appendChild(dot);
     cell.appendChild(inp);
-    if (data.auto) return cell;
+    if (data.auto) {
+        /* Un campo di sola lettura non riceve il tocco come un tasto: si
+           ascolta lo stesso e si apre il riassunto del progetto. È l'unico
+           punto del planner in cui un progetto si affaccia, e fin qui si
+           poteva solo leggerlo. */
+        if (data.project_id) {
+            inp.style.cursor = 'pointer';
+            inp.addEventListener('click', function () { prioProgetto(data); });
+        }
+        return cell;
+    }
 
     dot.addEventListener('click', function () {
         var now = !cell.classList.contains('pl-done');
@@ -3124,6 +3253,7 @@ function miniRiga(ev, soloOrario) {
 function buildMiniEvent(ev) {
     var node = el('div', 'pl-ev pl-ev-mini');
     node.style.setProperty('--ev', evColor(ev));
+    applicaCalendario(node, ev);
     if (ev.importance === 'high') node.classList.add('pl-ev-high');
     if (ev.importance === 'highest') node.classList.add('pl-ev-highest');
     if (ev.done) node.classList.add('pl-done');
@@ -3328,6 +3458,7 @@ function buildEvent(ev, flow) {
     var node = el('div', 'pl-ev');
     if (flow) node.style.position = 'static';
     node.style.setProperty('--ev', evColor(ev));
+    applicaCalendario(node, ev);
     if (ev.importance === 'high') node.classList.add('pl-ev-high');
     if (ev.importance === 'highest') node.classList.add('pl-ev-highest');
     if (ev.done) node.classList.add('pl-done');
@@ -6030,16 +6161,25 @@ function renderEventSheet() {
     if (S.calendars.length > 1) {
         var fcal = el('div', 'pl-field');
         fcal.appendChild(el('label', 'pl-label', 'Calendario'));
-        var calTags = el('div', 'pl-tags');
+        
+        var calOptions = [];
+        var activeCalStr = '';
+        
         alpha(S.calendars, 'name').forEach(function (c) {
-            var attivo = d.calendar_id ? d.calendar_id === c.id : c.is_default;
-            calTags.appendChild(tag(c.name, c.color, attivo, function () {
-                d.calendar_id = c.id;
-                S.draft.dirty = true;
-                renderEventSheet();
-            }));
+            calOptions.push([String(c.id), c.name]);
+            if (d.calendar_id ? d.calendar_id === c.id : c.is_default) {
+                activeCalStr = String(c.id);
+            }
         });
-        fcal.appendChild(calTags);
+        
+        var calSel = select(calOptions, activeCalStr, function (v) {
+            d.calendar_id = parseInt(v, 10);
+            S.draft.dirty = true;
+            renderEventSheet();
+        });
+        calSel.style.width = '100%';
+        
+        fcal.appendChild(calSel);
         body.appendChild(fcal);
     }
 
@@ -7884,10 +8024,10 @@ function editRoutine(r) {
 /* ------------------------------------------------------------------ */
 /* Google Calendar                                                     */
 /* ------------------------------------------------------------------ */
-function gcall(action, write) {
+function gcall(action, write, dati) {
     var opt = { method: write ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.NISAMA_CSRF || S.csrf } };
     if (write) opt.headers['Content-Type'] = 'application/json';
-    if (write) opt.body = '{}';
+    if (write) opt.body = JSON.stringify(dati || {});
     return fetch('google_calendar.php?ajax=' + action, opt)
         .then(function (r) { return r.json(); })
         .catch(function () { return { ok: false, message: 'Connessione non riuscita.' }; });
@@ -7997,6 +8137,168 @@ function drawGoogle(box) {
         f2.appendChild(el('div', 'pl-row-sub',
             'Quello che mandi qui non finisce nel dedicato: sta solo nel principale.'));
         box.appendChild(f2);
+
+        /* i due elenchi dei calendari, che si caricano da soli */
+        var ponte = el('div', 'pl-gc-ponte');
+        box.appendChild(ponte);
+        drawCalendarBridge(ponte);
+
+        /* Riparazione, in fondo e con l'aria di quello che è: un attrezzo, non
+           una funzione di tutti i giorni. Serve dopo un pasticcio — di solito
+           uno scollegamento e ricollegamento — e toglie da Google le copie in
+           più che abbiamo creato noi. */
+        var fr = el('div', 'pl-field');
+        fr.style.marginTop = '22px';
+        fr.appendChild(el('label', 'pl-label', 'Se qualcosa è andato storto'));
+        var rip = el('button', 'pl-btn', 'Cerca e togli i doppioni su Google');
+        rip.type = 'button';
+        rip.style.width = '100%';
+        rip.addEventListener('click', function () {
+            alertBox('Cercare i doppioni?',
+                'Guardo nel calendario dedicato e nel principale di Google. Tolgo solo le copie '
+                + 'in più di eventi che il planner riconosce: quello che c\'era prima, o che hai '
+                + 'scritto direttamente su Google, non lo tocco.', [
+                { label: 'Annulla' },
+                { label: 'Cerca', kind: 'primary', onClick: function () {
+                    rip.disabled = true;
+                    rip.textContent = 'Sto guardando…';
+                    gcall('repair', true).then(function (r) {
+                        rip.disabled = false;
+                        rip.textContent = 'Cerca e togli i doppioni su Google';
+                        if (!r || !r.ok) { toast((r && r.message) || 'Non riuscito.'); return; }
+                        toast(r.removed ? r.removed + ' copie tolte da Google.' : 'Nessun doppione trovato.');
+                    });
+                } }
+            ]);
+        });
+        fr.appendChild(rip);
+        /* Il marcatore di versione: senza, non c'è modo di sapere da fuori se
+           il file che risponde è quello caricato per ultimo — ed è una
+           domanda che ci si fa spesso quando qualcosa non cambia. */
+        if (st.build) fr.appendChild(el('div', 'pl-row-sub', 'Versione: ' + st.build));
+        box.appendChild(fr);
+    });
+}
+
+/* ------------------------------------------------------------------ */
+/* I calendari di Google e i miei: chi va dove                         */
+/* ------------------------------------------------------------------ */
+/* Due elenchi e non uno, perché sono due domande diverse e vanno tenute
+   separate: «gli eventi di questo calendario di Google dove li metto?» e
+   «gli eventi di questo mio calendario dove li mando?». Metterle sulla
+   stessa riga sembrava più compatto ma faceva credere che fossero la stessa
+   cosa al contrario, e non lo sono — si può leggere un calendario senza
+   scriverci, e viceversa. */
+function drawCalendarBridge(host) {
+    host.innerHTML = '';
+    host.appendChild(el('div', 'pl-row-sub', 'Cerco i tuoi calendari su Google…'));
+
+    gcall('calendars').then(function (r) {
+        host.innerHTML = '';
+        if (!r || !r.ok) {
+            host.appendChild(el('div', 'pl-row-sub', r && r.message ? r.message : 'Elenco non disponibile.'));
+            return;
+        }
+        var miei = r.mine || [];
+
+        /* --- da Google a qui --- */
+        var s1 = el('div', 'pl-field');
+        s1.style.marginTop = '20px';
+        s1.appendChild(el('label', 'pl-label', 'Dai calendari di Google'));
+        s1.appendChild(el('div', 'pl-row-sub',
+            'Per ognuno, in quale dei tuoi calendari far entrare i suoi eventi. '
+            + 'Scegliendo «nessuno» quegli eventi non entrano — e se ce n\'erano già, se ne vanno.'));
+
+        (r.google || []).forEach(function (g) {
+            var riga = el('div', 'pl-gc-riga');
+            var testa = el('div', 'pl-gc-nome');
+            var pallino = el('span', 'pl-gc-dot');
+            pallino.style.background = g.color || 'var(--hair-2)';
+            testa.appendChild(pallino);
+            testa.appendChild(el('span', null, g.name || g.ref));
+            /* il calendario che scriviamo noi si segnala: cambiarne la
+               destinazione è legittimo, ma bisogna sapere che quelli sono i
+               propri eventi che tornano indietro */
+            if (g.is_ours) testa.appendChild(el('span', 'pl-gc-tag', 'nostro'));
+            else if (g.is_primary) testa.appendChild(el('span', 'pl-gc-tag', 'principale'));
+            /* Quanti ne sono già entrati da lì. È la risposta alla domanda che
+               uno si fa guardando l'elenco — «e allora questi da dove sono
+               arrivati?» — e dice anche cosa si sta per buttare scegliendo
+               «nessuno». */
+            if (g.entrati) testa.appendChild(el('span', 'pl-gc-conta', g.entrati + ' qui'));
+            riga.appendChild(testa);
+
+            var opzioni = [['0', 'Nessuno']];
+            miei.forEach(function (m) { opzioni.push([String(m.id), m.name]); });
+            riga.appendChild(select(opzioni, String(g.calendar_id || 0), function (v) {
+                var dest = parseInt(v, 10) || 0;
+                if (dest === 0 && (g.calendar_id || g.entrati)) {
+                    /* si chiede conferma solo quando c'è davvero qualcosa da
+                       perdere: è l'unica scelta di questa pagina che cancella
+                       roba già entrata, e non si torna indietro */
+                    alertBox('Togliere ' + (g.name || 'questo calendario') + '?',
+                        (g.entrati ? g.entrati + ' eventi arrivati da qui spariranno dal planner, '
+                                   : 'Gli eventi arrivati da qui spariranno dal planner, ')
+                        + 'anche quelli passati. Su Google restano dove sono.', [
+                        { label: 'Annulla', onClick: function () { drawCalendarBridge(host); } },
+                        { label: 'Togli', kind: 'danger', onClick: function () { mapSet(g, 0, host); } }
+                    ]);
+                    return;
+                }
+                mapSet(g, dest, host);
+            }));
+            s1.appendChild(riga);
+        });
+        host.appendChild(s1);
+
+        /* --- da qui a Google --- */
+        var s2 = el('div', 'pl-field');
+        s2.appendChild(el('label', 'pl-label', 'Dai tuoi calendari a Google'));
+        s2.appendChild(el('div', 'pl-row-sub',
+            'Dove finiscono su Google gli eventi che scrivi qui. '
+            + 'Lasciando «come impostato sopra» valgono le scelte per importanza.'));
+
+        var refs = [['', 'Come impostato sopra']];
+        /* i calendari di sola lettura non compaiono: Google rifiuta sempre chi
+           prova a scriverci, e una scelta che fallirà comunque è peggio che
+           una scelta in meno */
+        (r.google || []).forEach(function (g) {
+            if (g.can_write) refs.push([g.ref, g.name || g.ref]);
+        });
+
+        miei.forEach(function (m) {
+            var riga = el('div', 'pl-gc-riga');
+            var testa = el('div', 'pl-gc-nome');
+            var p2 = el('span', 'pl-gc-dot');
+            /* il principale non ha colore: si mostra un cerchietto vuoto
+               invece di inventargliene uno */
+            if (m.color) p2.style.background = m.color;
+            else p2.classList.add('pl-gc-dot-vuoto');
+            testa.appendChild(p2);
+            testa.appendChild(el('span', null, m.name));
+            riga.appendChild(testa);
+            riga.appendChild(select(refs, m.push_ref || '', function (v) {
+                gcall('push_set', true, { calendar_id: m.id, ref: v }).then(function (rr) {
+                    if (!rr || !rr.ok) { toast((rr && rr.message) || 'Scelta non salvata.'); return; }
+                    toast('Scelta salvata. Si allinea al prossimo giro.');
+                });
+            }));
+            s2.appendChild(riga);
+        });
+        host.appendChild(s2);
+    });
+}
+
+function mapSet(g, dest, host) {
+    gcall('map_set', true, { ref: g.ref, calendar_id: dest }).then(function (rr) {
+        if (!rr || !rr.ok) { toast((rr && rr.message) || 'Scelta non salvata.'); drawCalendarBridge(host); return; }
+        if (rr.removed) toast(rr.removed + ' eventi tolti dal planner.');
+        else if (rr.moved) toast(rr.moved + ' eventi spostati.');
+        else toast('Scelta salvata.');
+        /* la lettura riparte da capo per quel calendario, quindi conviene
+           allineare subito invece di far aspettare il giro automatico */
+        S.weekCache = {};
+        runSync(true).then(function () { drawCalendarBridge(host); });
     });
 }
 

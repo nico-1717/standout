@@ -193,16 +193,25 @@ function pl_calendars(int $userId): array {
     $rows = sec_all("SELECT id, name, color, is_visible, is_default, google_ref
                      FROM planner_calendars WHERE user_id = ? ORDER BY name", [$userId], 'i');
     if (empty($rows)) {
-        /* chi arriva ora parte con un calendario suo */
+        /* Chi apre il planner per la prima volta ha già il suo Principale:
+           non è un calendario come gli altri, è il posto dove va a finire
+           tutto quello che non ne ha scelto uno, e non si può eliminare.
+           Senza colore di proposito — i suoi eventi restano esattamente come
+           sono sempre stati, con il colore della categoria o quello neutro:
+           un colore proprio vorrebbe dire ridipingere di verde tutto quello
+           che è già stato scritto. */
         sec_q("INSERT INTO planner_calendars (user_id, name, color, is_default, sort_order)
-               VALUES (?, 'Personale', '#A9C3AE', 1, 1)", [$userId], 'i');
+               VALUES (?, 'Principale', NULL, 1, 0)", [$userId], 'i');
         $rows = sec_all("SELECT id, name, color, is_visible, is_default, google_ref
                          FROM planner_calendars WHERE user_id = ?", [$userId], 'i');
     }
     $out = [];
     foreach ($rows as $r) {
         $out[] = [
-            'id' => (int)$r['id'], 'name' => $r['name'], 'color' => $r['color'],
+            'id' => (int)$r['id'], 'name' => $r['name'],
+            /* il colore può mancare: è il caso del principale, e chi disegna
+               deve poter distinguere «nessun colore» da «un colore chiaro» */
+            'color' => ($r['color'] !== null && $r['color'] !== '') ? $r['color'] : null,
             'visible' => (int)$r['is_visible'] === 1,
             'is_default' => (int)$r['is_default'] === 1,
             'from_google' => !empty($r['google_ref']),
@@ -373,16 +382,33 @@ function pl_priorities_range(int $userId, string $from, string $to): array {
             'position' => (int)$r['position'], 'content' => $r['content'], 'done' => (int)$r['is_done'] === 1,
         ];
     }
-    // priorità automatiche dai progetti con obiettivo/scadenza nel periodo
-    $proj = sec_all("SELECT name, target_date, due_date FROM projects
+    /* Priorità automatiche dai progetti con obiettivo o scadenza nel periodo.
+       Oltre al testo si manda anche di quale progetto si tratta e le poche
+       cose che servono a riassumerlo: quella riga è l'unico punto del planner
+       in cui un progetto si affaccia, e senza l'identificativo l'unica cosa
+       che si poteva farci era leggerla. */
+    $proj = sec_all("SELECT id, name, notes, status, color, target_date, due_date FROM projects
                      WHERE user_id = ? AND ((target_date BETWEEN ? AND ?) OR (due_date BETWEEN ? AND ?))",
                      [$userId, $from, $to, $from, $to], 'issss');
     foreach ($proj as $p) {
+        $info = [
+            'project_id'  => (int)$p['id'],
+            'project'     => $p['name'],
+            'notes'       => $p['notes'],
+            'stato'       => $p['status'],
+            'color'       => $p['color'],
+            'target_date' => $p['target_date'],
+            'due_date'    => $p['due_date'],
+        ];
         if (!empty($p['target_date']) && $p['target_date'] >= $from && $p['target_date'] <= $to) {
-            $out[$p['target_date']][] = ['position' => 0, 'content' => 'Obiettivo: ' . $p['name'], 'done' => false, 'auto' => true];
+            $out[$p['target_date']][] = array_merge($info, [
+                'position' => 0, 'content' => 'Obiettivo: ' . $p['name'], 'done' => false, 'auto' => true,
+            ]);
         }
         if (!empty($p['due_date']) && $p['due_date'] >= $from && $p['due_date'] <= $to) {
-            $out[$p['due_date']][] = ['position' => 0, 'content' => 'SCADENZA: ' . $p['name'], 'done' => false, 'auto' => true];
+            $out[$p['due_date']][] = array_merge($info, [
+                'position' => 0, 'content' => 'SCADENZA: ' . $p['name'], 'done' => false, 'auto' => true,
+            ]);
         }
     }
     return $out;
@@ -1076,7 +1102,10 @@ if ($ajax !== '') {
         $catId   = sec_int(sec_in('category_id'), 0, PHP_INT_MAX, 0);
         $calId   = sec_int(sec_in('calendar_id'), 0, PHP_INT_MAX, 0);
         if ($calId > 0 && !sec_owns('planner_calendars', $calId, $current_user_id)) $calId = 0;
-        if ($calId === 0) { $def = pl_default_calendar($current_user_id); $calId = $def ?: 0; }
+        /* Chi non sceglie finisce nel principale, e ci finisce *scritto*: un
+           calendario nullo vorrebbe dire un evento che il filtro non può né
+           accendere né spegnere, cioè fuori da ogni calendario. */
+        if ($calId === 0) $calId = (int)(pl_default_calendar($current_user_id) ?: 0);
         $projId  = sec_int(sec_in('project_id'), 0, PHP_INT_MAX, 0);
         $habitId = sec_int(sec_in('habit_id'), 0, PHP_INT_MAX, 0);
         $imp     = sec_enum(sec_in('importance'), ['normal', 'high', 'highest'], 'normal');
@@ -1788,11 +1817,18 @@ if ($ajax !== '') {
     if ($ajax === 'calendar_delete') {
         $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
         if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json('Calendario non trovato.', 404, 'not_found');
-        $quanti = sec_one("SELECT COUNT(*) AS c FROM planner_calendars WHERE user_id = ?", [$current_user_id], 'i');
-        if ((int)($quanti['c'] ?? 0) <= 1) sec_die_json('Serve almeno un calendario.', 422, 'last_one');
-        /* gli eventi non si perdono: passano al calendario predefinito */
-        sec_q("UPDATE planner_events SET calendar_id = NULL WHERE calendar_id = ? AND user_id = ?",
-              [$id, $current_user_id], 'ii');
+        /* Il principale non si elimina: è il fondo del secchio, il posto in
+           cui finisce quello che non ne ha scelto un altro. Senza, gli eventi
+           che ci stanno dentro non avrebbero dove andare. */
+        $chi = sec_one("SELECT is_default FROM planner_calendars WHERE id = ? AND user_id = ?",
+                       [$id, $current_user_id], 'ii');
+        if ($chi && (int)$chi['is_default'] === 1) {
+            sec_die_json('Il calendario principale non si può eliminare.', 422, 'is_default');
+        }
+        /* gli eventi non si perdono: passano al principale */
+        $princ = pl_default_calendar($current_user_id);
+        sec_q("UPDATE planner_events SET calendar_id = ? WHERE calendar_id = ? AND user_id = ?",
+              [$princ, $id, $current_user_id], 'iii');
         sec_q("DELETE FROM planner_calendars WHERE id = ? AND user_id = ?", [$id, $current_user_id], 'ii');
         sec_json(['ok' => true, 'calendars' => pl_calendars($current_user_id)]);
     }
@@ -1907,11 +1943,20 @@ function pl_materialize_repeats(int $userId, int $masterId): void {
  * il planner continua a funzionare comunque.
  */
 function pl_queue_google_delete(int $userId, string $where, array $params): void {
-    $rows = sec_all("SELECT google_event_id FROM planner_events WHERE " . $where . " AND google_event_id IS NOT NULL", $params);
+    /* Si annota anche IN QUALE calendario Google viveva l'evento. Senza, chi
+       smaltisce la coda poteva solo tentare il calendario dedicato: per un
+       evento che stava altrove — uno importato dai compleanni, o mandato in
+       un calendario suo dal verso di ritorno — Google rispondeva 404, la
+       riga veniva presa per fatta e l'evento restava là per sempre.
+       Con più calendari in gioco quel caso non è più l'eccezione: è la
+       norma. */
+    $rows = sec_all("SELECT google_event_id, google_calendar_id FROM planner_events
+                     WHERE " . $where . " AND google_event_id IS NOT NULL", $params);
     if (empty($rows)) return;
     foreach ($rows as $r) {
-        @sec_q("INSERT INTO google_sync_queue (user_id, google_event_id, action) VALUES (?,?,'delete')",
-               [$userId, $r['google_event_id']], 'is');
+        @sec_q("INSERT INTO google_sync_queue (user_id, google_event_id, google_calendar_id, action)
+                VALUES (?,?,?,'delete')",
+               [$userId, $r['google_event_id'], $r['google_calendar_id']], 'iss');
     }
 }
 
