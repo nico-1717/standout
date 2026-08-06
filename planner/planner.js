@@ -39,6 +39,7 @@ var S = {
     weekCache:   {},          // 'lunedì' -> { week, lists }
     todos:       null,        // 'todo'|'buy'|'study' -> [voce], letto da todo_api.php
     todoTab:     'todo',      // linguetta aperta nel pannello settimana
+    pills:       null,        // prese del giorno a fuoco, lette da todo_api.php
     todoOthers:  false,       // "mostra anche gli altri" premuto
     shift:       { on: false, dir: 'late', picked: {} },
     interacting: false,       // un dito sta trascinando o creando: non ridisegnare
@@ -60,8 +61,13 @@ var NEUTRAL = '#E4DDD3';
 var MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 var GIORNI = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
 var GIORNI_S = ['L','M','M','G','V','S','D'];
-var LIST_LABEL = { todo: 'To do', buy: 'To buy', study: 'To study' };
+var LIST_LABEL = { todo: 'To do', buy: 'To buy', study: 'To study', pills: 'Pastiglie' };
+/* I tipi di elenco che todo_api.php conosce come `list_type`: le pastiglie
+   NON sono uno di questi — stanno in tabelle loro e hanno endpoint loro —
+   quindi restano fuori di qui e compaiono solo fra le linguette. Mescolarle
+   vorrebbe dire mandare `list_type=pills` a un endpoint che non lo accetta. */
 var TODO_TIPI = ['todo', 'buy', 'study'];
+var PANEL_TABS = ['todo', 'buy', 'study', 'pills'];
 
 /* ------------------------------------------------------------------ */
 /* Piccole utility                                                     */
@@ -518,8 +524,20 @@ function wxCaldo(g) {
 /* Vale la pena sostituire alberi e bestie con il cielo del giorno solo
    quando si guarda un giorno solo: con più giorni davanti, una scena sola
    racconterebbe il tempo di uno e mentirebbe sugli altri. */
+/* La scena della barra racconta il tempo di *un* giorno, quindi vale solo
+   dove se ne guarda uno: la vista giorno con una colonna sola e la vista
+   settimanale, dove il giorno scelto è quello agganciato a sinistra. Con più
+   colonne davanti direbbe il tempo di una spacciandolo per quello di tutte.
+   `visibleDays()` non basta a dirlo: in vista settimana non conta quante
+   colonne si vedono, perché il giorno scelto è comunque uno solo. */
+function ambUnGiorno() {
+    if (S.view === 'month') return false;
+    if (S.view === 'week') return true;
+    return visibleDays() < 2;
+}
+
 function ambientMeteo() {
-    if (!WX.on || S.view === 'month' || visibleDays() >= 2) return null;
+    if (!WX.on || !ambUnGiorno()) return null;
     var g = WX.giorni[S.focusDate];
     if (!g) return null;
     /* Su oggi conta che tempo fa adesso, non il riassunto della giornata: una
@@ -670,7 +688,7 @@ function applyAmbientOpacity() {
    l'ultimo giorno di previsione si continuava a vedere il tempo di prima. */
 function ambChiave(date) {
     if (S.settings.ambient_enabled === false) return 'niente';
-    var g = (WX.on && S.view !== 'month' && visibleDays() < 2) ? WX.giorni[date] : null;
+    var g = (WX.on && ambUnGiorno()) ? WX.giorni[date] : null;
     if (g) {
         var w = (date === S.today && WX.adesso && WX.adesso.icon)
             ? { icon: WX.adesso.icon, code: 'ora-' + WX.adesso.icon, tmax: g.tmax, tmin: g.tmin }
@@ -709,6 +727,9 @@ function wxRedraw() {
     renderDays();
     renderWeekBits();
     renderGutterMeteo(null, S.focusDate);
+    /* la colonna delle ore della settimana è un'altra: accendendo il meteo
+       da lì, senza questo i tag comparivano solo al ridisegno dopo */
+    if (S.view === 'week') renderGutterMeteo($('plWeekGut'), S.focusDate);
     applyAmbient(true);
     if (S.view === 'month') renderMonth();
 }
@@ -1126,7 +1147,15 @@ function summaryDiary(d) {
 /* ------------------------------------------------------------------ */
 /* Meteo (Open-Meteo, dati CC BY 4.0)                                  */
 /* ------------------------------------------------------------------ */
-var WX = { on: false, giorni: {}, adesso: null, place: null, lat: null, lon: null, fonte: null, fonte_url: null, nota: null };
+/* `manuale` dice che il luogo l'ha scelto l'utente dal popup, non il
+   telefono. DECISIONE (la stessa è scritta anche nell'endpoint `preview` di
+   meteo_api.php): quel luogo NON si salva da nessuna parte. Vive nella
+   pagina aperta e muore ricaricandola, o spegnendo e riaccendendo il meteo.
+   È controintuitivo — di solito quello che si sceglie resta — ma è quello
+   che serve: cambiare posto qui vuol dire sbirciare che tempo fa dove si
+   andrà domani, non trasferirsi. In archivio `weather_lat/lon/place`
+   continuano a dire dove si è davvero. */
+var WX = { on: false, giorni: {}, adesso: null, place: null, lat: null, lon: null, fonte: null, fonte_url: null, nota: null, manuale: false };
 
 var WX_ICONE = {
     'sole':            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>',
@@ -1137,14 +1166,59 @@ var WX_ICONE = {
     'pioggia':         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 14h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 14z"/><path d="M9 17v3M12.5 17v3M16 17v3"/></svg>',
     'pioggia-forte':   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 13h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 13z"/><path d="M8 16v4.5M12 16v4.5M16 16v4.5"/></svg>',
     'neve':            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 13h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 13z"/><path d="M9.5 17.5h.01M13 19h.01M16 17.5h.01"/></svg>',
-    'temporale':       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 13h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 13z"/><path d="M13 15l-3 4h3l-1 3"/></svg>'
+    'temporale':       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 13h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 13z"/><path d="M13 15l-3 4h3l-1 3"/></svg>',
+    /* Le due notturne. Non arrivano mai dal server — il servizio manda solo
+       'sole' e 'sole-nubi' — ma ci arriva sopra `wxIconaNome()` quando l'ora
+       di cui si sta parlando cade fra il tramonto e l'alba. Sono qui e non in
+       WXA_SVG perché quelle sono le sagome della scena della barra, disegnate
+       piene: qui serve lo stesso tratto delle altre icone, se no la luna
+       stonerebbe accanto a una nuvola. */
+    'luna':            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.6A8.6 8.6 0 019.4 4a7.6 7.6 0 1010.6 10.6z"/></svg>',
+    'luna-nubi':       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.6 9.4A5.1 5.1 0 016.2 3a4.5 4.5 0 106.4 6.4z"/><path d="M12 19h6a2.6 2.6 0 100-5.2 3.4 3.4 0 00-6.5-1A2.4 2.4 0 0012 19z"/></svg>'
 };
 function wxClasse(icona) {
     if (icona === 'sole' || icona === 'sole-nubi') return ' pl-wx-sun';
+    /* la notte ha un colore suo: il giallo del sole su una luna sembra un
+       errore di stampa, e il grigio delle nuvole non distingue più niente */
+    if (icona === 'luna' || icona === 'luna-nubi') return ' pl-wx-moon';
     if (icona === 'neve') return ' pl-wx-snow';
     if (icona === 'temporale') return ' pl-wx-storm';
     if (icona.indexOf('pioggia') === 0) return ' pl-wx-rain';
     return '';
+}
+
+/* Fra il tramonto e l'alba il sole non c'è: disegnarlo lo stesso faceva
+   sembrare pieno giorno un cielo che a quell'ora è soltanto sereno e buio.
+   Cambiano solo le due icone che hanno il sole dentro — la pioggia delle
+   undici di sera resta pioggia come quella di mezzogiorno.
+
+   `minuti` è l'ora di cui si sta parlando, contata dalla mezzanotte. Quando
+   manca vuol dire "il riassunto della giornata": su oggi vale l'ora corrente,
+   come già fa la scena della barra in alto, mentre sugli altri giorni si
+   resta di giorno, perché il riassunto di un giorno intero non ha un'ora sua
+   e mostrarlo con la luna direbbe una cosa falsa.
+
+   Alba e tramonto si prendono dal giorno *di cui si parla* e non da oggi: a
+   dicembre il buio arriva due ore prima che a giugno, e una soglia fissa
+   avrebbe sbagliato metà anno. */
+function wxIconaNome(nome, date, minuti) {
+    if (nome !== 'sole' && nome !== 'sole-nubi') return nome;
+    if (minuti === null || minuti === undefined) {
+        if (date !== S.today) return nome;
+        var adesso = new Date();
+        minuti = adesso.getHours() * 60 + adesso.getMinutes();
+    }
+    var g = WX.giorni[date];
+    /* se il servizio non manda alba e tramonto restano le sei e le venti:
+       sbagliano di poco e mai di molto, ed è meglio di non decidere */
+    var alba = (g && g.alba) ? toMin(g.alba) : 6 * 60;
+    var tramonto = (g && g.tramonto) ? toMin(g.tramonto) : 20 * 60;
+    if (minuti >= alba && minuti < tramonto) return nome;
+    return nome === 'sole' ? 'luna' : 'luna-nubi';
+}
+function wxIcona(nome, date, minuti) {
+    var n = wxIconaNome(nome, date, minuti);
+    return WX_ICONE[n] || WX_ICONE.nubi;
 }
 
 function wxCall(action, data) {
@@ -1163,8 +1237,13 @@ function wxApply(r) {
     /* La posizione arriva quando si accende il meteo; se un aggiornamento
        successivo non la ripete, quella di prima resta buona invece di
        sparire dal popup. */
-    if (r.place) WX.place = r.place;
+    /* Con il luogo scelto a mano il nome va scritto anche quando è vuoto: se
+       di quel punto non si sa il nome, tenere quello di prima direbbe che la
+       previsione è di una città in cui non si sta guardando. */
+    if (r.manuale) WX.place = r.place || null;
+    else if (r.place) WX.place = r.place;
     if (r.lat !== undefined && r.lat !== null) { WX.lat = r.lat; WX.lon = r.lon; }
+    WX.manuale = !!r.manuale;
     WX.fonte = r.fonte || null;
     WX.fonte_url = r.fonte_url || null;
     if (r.nota_affidabilita) WX.nota = r.nota_affidabilita;
@@ -1175,7 +1254,13 @@ function wxApply(r) {
     wxRedraw();
 }
 
+/* Se il luogo è stato scelto a mano, ricaricare vuol dire ricaricare
+   *quello*: chiedere `status` riporterebbe la posizione rilevata e il posto
+   scelto sparirebbe da sotto le mani senza che nessuno l'abbia chiesto. */
 function wxLoad() {
+    if (WX.manuale && WX.lat !== null && WX.lat !== undefined) {
+        return wxCall('preview', { lat: WX.lat, lon: WX.lon, place: WX.place || '' }).then(wxApply);
+    }
     return wxCall('status').then(wxApply);
 }
 
@@ -1184,9 +1269,12 @@ function wxTag(date) {
     if (!WX.on) return null;
     var g = WX.giorni[date];
     if (!g) return null;
-    var b = el('button', 'pl-wx' + wxClasse(g.icon));
+    /* niente minuti: è il riassunto del giorno, e wxIconaNome() sa già che
+       su oggi vuol dire "adesso" e sugli altri giorni vuol dire "di giorno" */
+    var nome = wxIconaNome(g.icon, date, null);
+    var b = el('button', 'pl-wx' + wxClasse(nome));
     b.type = 'button';
-    b.innerHTML = WX_ICONE[g.icon] || WX_ICONE.nubi;
+    b.innerHTML = WX_ICONE[nome] || WX_ICONE.nubi;
     var t = wxTagTesto(date, g);
     if (t) b.appendChild(el('span', null, t));
     b.setAttribute('aria-label', g.label + (t ? ' · ' + t : ''));
@@ -1270,18 +1358,61 @@ function wxGrafico(g, date) {
     var dentro = el('div', 'pl-wxc-in');
     dentro.style.width = largh + 'px';
 
-    /* --- riga di sopra: ora e icona --- */
+    /* Dove cade sull'asse un certo orario. Vale per alba, tramonto e per la
+       riga di adesso: tutte e tre stanno dove stanno davvero, non sull'ora
+       più vicina. */
+    function xDiOra(hhmm) {
+        if (!hhmm) return null;
+        return (toMin(hhmm) / 60 - oraBase) * W + W / 2;
+    }
+
+    /* --- riga di sopra: le ore --- */
     var su = el('div', 'pl-wxc-riga');
-    ore.forEach(function (o, i) {
+    ore.forEach(function (o) {
         var c = el('div', 'pl-wxc-cell' + (parseInt(o.h, 10) === adesso ? ' pl-ora' : ''));
         c.style.width = W + 'px';
-        c.appendChild(el('div', 'pl-wxc-h', parseInt(o.h, 10) === adesso ? 'ADESSO' : parseInt(o.h, 10) + ''));
-        var ic = el('div', 'pl-wxc-ic' + wxClasse(o.i));
-        ic.innerHTML = WX_ICONE[o.i] || WX_ICONE.nubi;
-        c.appendChild(ic);
+        /* l'ora e basta, anche sulla colonna di adesso: a dire dove siamo
+           c'è già la riga verticale, e la parola al posto del numero toglieva
+           l'unica cosa che quella colonna doveva dire */
+        c.appendChild(el('div', 'pl-wxc-h', parseInt(o.h, 10) + ''));
         su.appendChild(c);
     });
     dentro.appendChild(su);
+
+    /* --- riga delle icone, con la fascia del giorno e della notte ---
+       La fascia era il fondo delle icone stesse, quindi cambiava colore al
+       bordo della casella: con il tramonto alle 20:45 il blu cominciava alle
+       20:30, mezz'ora prima del buio. Ora è una sfumatura a gradini netti
+       messa sotto tutta la riga, e i due gradini cadono esattamente dove
+       cadono le righe tratteggiate dell'alba e del tramonto. */
+    var righeIc = el('div', 'pl-wxc-riga pl-wxc-icone');
+    var xAlba = xDiOra(g.alba), xTram = xDiOra(g.tramonto);
+    var GIORNO = '#F8EFD4', NOTTE = '#E3E6F1';
+    var dA = (xAlba === null) ? 0 : Math.max(0, Math.min(largh, xAlba));
+    var dT = (xTram === null) ? largh : Math.max(0, Math.min(largh, xTram));
+    if (dT < dA) dT = dA;
+    var tappe = [];
+    function tratto(da, a, colore) {
+        if (a <= da) return;
+        tappe.push(colore + ' ' + da.toFixed(1) + 'px', colore + ' ' + a.toFixed(1) + 'px');
+    }
+    tratto(0, dA, NOTTE);
+    tratto(dA, dT, GIORNO);
+    tratto(dT, largh, NOTTE);
+    if (tappe.length) righeIc.style.background = 'linear-gradient(to right, ' + tappe.join(', ') + ')';
+
+    ore.forEach(function (o) {
+        var c = el('div', 'pl-wxc-cell');
+        c.style.width = W + 'px';
+        /* qui l'ora c'è, ed è quella della casella: le colonne dopo il
+           tramonto passano alla luna una per una, come nella realtà */
+        var iNome = wxIconaNome(o.i, date, parseInt(o.h, 10) * 60);
+        var ic = el('div', 'pl-wxc-ic' + wxClasse(iNome));
+        ic.innerHTML = WX_ICONE[iNome] || WX_ICONE.nubi;
+        c.appendChild(ic);
+        righeIc.appendChild(c);
+    });
+    dentro.appendChild(righeIc);
 
     /* --- la curva --- */
     var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1319,6 +1450,21 @@ function wxGrafico(g, date) {
         et.style.left = x + 'px';
         area.appendChild(et);
     });
+
+    /* La riga di adesso, solo su oggi. Le colonne dicono le ore tonde, ma
+       quello che si cerca guardando il grafico è dove si è in questo momento:
+       senza una riga bisognava contare a mente fra le nove e le dieci. Sta
+       dove sta davvero, come alba e tramonto. */
+    if (date === S.today) {
+        var oraOra = new Date();
+        var xOra = (oraOra.getHours() + oraOra.getMinutes() / 60 - oraBase) * W + W / 2;
+        if (xOra >= 0 && xOra <= largh) {
+            svg.appendChild(tag('line', { x1: xOra, y1: 0, x2: xOra, y2: H, class: 'pl-wxc-adesso' }));
+            var eo = el('div', 'pl-wxc-et pl-wxc-et-adesso', 'adesso');
+            eo.style.left = xOra + 'px';
+            area.appendChild(eo);
+        }
+    }
 
     if (punti.length > 1) {
         /* curva morbida: ogni tratto è una cubica con le maniglie a metà
@@ -1386,6 +1532,92 @@ function wxVaiA(date, passo) {
     wxPopup(nuovo);
 }
 
+/* ------------------------------------------------------------------ */
+/* Cambio del luogo dal popup                                          */
+/* ------------------------------------------------------------------ */
+/* Il pannellino di ricerca vive dentro la testa del popup, non in un foglio
+   suo: aprire un secondo foglio sopra il primo avrebbe voluto dire perdere
+   di vista la previsione che si sta guardando, che è proprio la cosa che si
+   vuole confrontare con quella dell'altro posto. */
+function wxCambiaLuogo(date, testa) {
+    var aperto = testa.querySelector('.pl-wx-cerca');
+    /* secondo tocco sulla posizione: si richiude, come ci si aspetta da una
+       cosa che si è aperta toccandola */
+    if (aperto) { aperto.parentNode.removeChild(aperto); return; }
+
+    var box = el('div', 'pl-wx-cerca');
+    var inp = el('input', 'pl-in');
+    inp.type = 'search';
+    inp.placeholder = 'Città o paese';
+    inp.maxLength = 60;
+    box.appendChild(inp);
+
+    var res = el('div', 'pl-wx-cerca-res');
+    box.appendChild(res);
+
+    /* La via del ritorno c'è solo quando serve. Non si tiene in memoria la
+       posizione vera: la sa il server, che non l'ha mai cambiata, e
+       richiederla è più onesto che fidarsi di una copia. */
+    if (WX.manuale) {
+        var back = el('button', 'pl-wx-cerca-back', 'Torna alla posizione rilevata');
+        back.type = 'button';
+        back.addEventListener('click', function () { wxPosizioneVera(date); });
+        box.appendChild(back);
+    }
+
+    testa.appendChild(box);
+    inp.focus();
+
+    inp.addEventListener('input', function () {
+        var q = inp.value.trim();
+        if (q.length < 3) { res.innerHTML = ''; return; }
+        /* si aspetta che smetta di scrivere: una chiamata per lettera
+           battuta sarebbe otto chiamate per «milano» */
+        debounceSave('wxluogo', 350, function () {
+            wxCall('place_search', { q: q }).then(function (r) {
+                res.innerHTML = '';
+                if (!r || !r.ok || !r.luoghi || !r.luoghi.length) {
+                    res.appendChild(el('div', 'pl-row-sub', 'Nessun posto con questo nome.'));
+                    return;
+                }
+                r.luoghi.forEach(function (p) {
+                    var b = el('button', 'pl-wx-cerca-row');
+                    b.type = 'button';
+                    b.appendChild(el('span', 'pl-row-lab', p.nome));
+                    if (p.dove) b.appendChild(el('span', 'pl-row-sub', p.dove));
+                    b.addEventListener('click', function () {
+                        wxUsaLuogo(p.lat, p.lon, p.nome, date);
+                    });
+                    res.appendChild(b);
+                });
+            });
+        });
+    });
+}
+
+/* Il posto scelto vale per la pagina aperta e basta: niente scrittura in
+   archivio, né qui né nell'endpoint. Vedi il commento su WX.manuale. */
+function wxUsaLuogo(lat, lon, nome, date) {
+    wxCall('preview', { lat: lat, lon: lon, place: nome || '' }).then(function (r) {
+        if (!r || !r.ok) { toast('Previsione non disponibile per quel posto.'); return; }
+        wxApply(r);
+        /* si riapre sullo stesso giorno se in quel posto c'è ancora: la
+           finestra dei giorni è la stessa dappertutto, ma su un giorno vuoto
+           il popup non avrebbe niente da dire */
+        wxPopup(WX.giorni[date] ? date : S.today);
+        toast('Previsione per ' + (r.place || 'il posto scelto') + '.');
+    });
+}
+
+function wxPosizioneVera(date) {
+    wxCall('status').then(function (r) {
+        if (!r || !r.ok) return;
+        wxApply(r);
+        wxPopup(WX.giorni[date] ? date : S.today);
+        toast('Torno alla posizione rilevata.');
+    });
+}
+
 function wxPopup(date) {
     var g = WX.giorni[date];
     if (!g) return;
@@ -1398,10 +1630,20 @@ function wxPopup(date) {
         var body = el('div', 'pl-wx-sheet');
         root.appendChild(body);
 
+        /* Giorno e posizione restano in vista mentre si scorre: sono la
+           didascalia di tutto il resto — senza sapere di che giorno e di che
+           posto si parla, i numeri qui sotto non vogliono dire niente — e
+           scorrendo fino in fondo sparivano proprio mentre servivano.
+           Si appiccica al riquadro che scorre, che è il corpo del foglio:
+           qui non c'è nessuna griglia che possa trattenerlo dentro una cella
+           come succedeva alla colonna delle ore. */
+        var testa = el('div', 'pl-wx-testa');
+        body.appendChild(testa);
+
         /* Che giorno è e su quale posto è calcolata: senza, la previsione è
            un numero che non si sa a cosa si riferisca. Le frecce servono su
            computer, dove lo scorrimento con il dito non c'è. */
-        var testa = el('div', 'pl-wx-nav');
+        var nav = el('div', 'pl-wx-nav');
         var prima = el('button', 'pl-wx-nav-b');
         prima.type = 'button';
         prima.setAttribute('aria-label', 'Giorno precedente');
@@ -1414,24 +1656,33 @@ function wxPopup(date) {
         dopo.disabled  = !WX.giorni[addDays(date, 1)];
         prima.addEventListener('click', function () { wxVaiA(date, -1); });
         dopo.addEventListener('click', function () { wxVaiA(date, 1); });
-        testa.appendChild(prima);
-        testa.appendChild(el('div', 'pl-label',
+        nav.appendChild(prima);
+        nav.appendChild(el('div', 'pl-label',
             GIORNI[dowIndex(date)] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()));
-        testa.appendChild(dopo);
-        body.appendChild(testa);
+        nav.appendChild(dopo);
+        testa.appendChild(nav);
 
         /* La posizione su una riga sua e non appesa alla data: infilata lì in
            mezzo alle frecce spariva, ed era proprio la cosa che serviva
-           sapere per fidarsi del numero dei gradi. */
+           sapere per fidarsi del numero dei gradi.
+           Ed è un tasto: toccandola si cerca un altro posto. Il gesto è
+           quello che viene da sé — si tocca quello che si vuole cambiare —
+           e non serve un tastino in più in una testa già piena. */
         var dove = wxDove();
-        body.appendChild(el('div', 'pl-wx-dove', dove ? 'previsione per ' + dove
-                                                     : 'posizione non disponibile'));
+        var bDove = el('button', 'pl-wx-dove' + (WX.manuale ? ' pl-wx-dove-man' : ''));
+        bDove.type = 'button';
+        bDove.setAttribute('aria-label', 'Cambia il luogo della previsione');
+        bDove.appendChild(el('span', null, dove ? 'previsione per ' + dove
+                                                : 'posizione non disponibile'));
+        bDove.innerHTML += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>';
+        bDove.addEventListener('click', function () { wxCambiaLuogo(date, testa); });
+        testa.appendChild(bDove);
 
         var big = el('div', 'pl-row');
         big.style.margin = '10px 0 14px';
         var ico = el('div');
         ico.style.cssText = 'width:44px;height:44px;color:var(--ink-2);flex-shrink:0';
-        ico.innerHTML = WX_ICONE[g.icon] || WX_ICONE.nubi;
+        ico.innerHTML = wxIcona(g.icon, date, null);
         big.appendChild(ico);
         var txt = el('div');
         txt.appendChild(el('div', 'pl-sheet-title pl-serif', g.label));
@@ -1450,9 +1701,14 @@ function wxPopup(date) {
         /* Adesso: ha senso solo sul giorno di oggi, altrove sarebbe un dato
            che parla di un altro giorno. */
         if (date === S.today && WX.adesso && WX.adesso.temp !== null) {
-            var ora = el('div', 'pl-wx-now' + wxClasse(WX.adesso.icon));
+            /* la riga di adesso ha un'ora precisa: quella del server se c'è,
+               se no quella dell'orologio. Alle nove di sera qui ci va la luna. */
+            var oMin = WX.adesso.ora ? toMin(WX.adesso.ora)
+                                     : (new Date().getHours() * 60 + new Date().getMinutes());
+            var oNome = wxIconaNome(WX.adesso.icon, date, oMin);
+            var ora = el('div', 'pl-wx-now' + wxClasse(oNome));
             var oIco = el('span', 'pl-wx-now-ic');
-            oIco.innerHTML = WX_ICONE[WX.adesso.icon] || WX_ICONE.nubi;
+            oIco.innerHTML = WX_ICONE[oNome] || WX_ICONE.nubi;
             ora.appendChild(oIco);
             var pezzi = ['adesso ' + WX.adesso.temp + '°'];
             if (WX.adesso.percepita !== null && WX.adesso.percepita !== undefined) pezzi.push('percepiti ' + WX.adesso.percepita + '°');
@@ -1513,7 +1769,9 @@ function wxPopup(date) {
                risposta, tag e animazione restavano in vista per tutto il
                tempo del giro in rete: spegnere una cosa deve sembrare
                immediato, perché la decisione è già stata presa. */
-            WX.on = false; WX.giorni = {}; WX.adesso = null;
+            /* si torna anche alla posizione vera: riaccendendolo dopo, il
+               posto sbirciato ieri sera non deve tornare da solo */
+            WX.on = false; WX.giorni = {}; WX.adesso = null; WX.manuale = false;
             $('plWeatherBtn').classList.remove('pl-weather-on');
             closeOv('plSheetOv');
             wxRedraw();   // tornano l'albero e la bestia del mese
@@ -1526,7 +1784,10 @@ function wxPopup(date) {
            il gesto è suo, e rubarglielo renderebbe la striscia inservibile. */
         var sx = 0, sy = 0, vivo = false;
         body.addEventListener('pointerdown', function (e) {
-            vivo = !(e.target.closest && e.target.closest('.pl-wxh'));
+            /* Dalla testa il gesto non parte: lì dentro ci sono il campo di
+               ricerca del luogo e i suoi risultati, e trascinare per scegliere
+               una parola cambiava giorno. */
+            vivo = !(e.target.closest && e.target.closest('.pl-wxh, .pl-wx-testa'));
             sx = e.clientX; sy = e.clientY;
         });
         body.addEventListener('pointerup', function (e) {
@@ -1535,7 +1796,10 @@ function wxPopup(date) {
             var dx = e.clientX - sx, dy = e.clientY - sy;
             /* più orizzontale che verticale, se no si cambierebbe giorno
                ogni volta che si scorre il popup per leggerlo fino in fondo */
-            if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+            /* soglia bassa: sfogliare i giorni è la cosa che si fa più
+               spesso qui dentro, e chiederla con un gesto ampio la rendeva
+               faticosa */
+            if (Math.abs(dx) < 26 || Math.abs(dx) < Math.abs(dy)) return;
             wxVaiA(date, dx < 0 ? 1 : -1);
         });
     });
@@ -1544,13 +1808,13 @@ function wxPopup(date) {
 $('plWeatherBtn').addEventListener('click', function () {
     if (WX.on) {
         /* il tasto accende e spegne: le informazioni si aprono dai tag */
-        WX.on = false; WX.giorni = {}; WX.adesso = null;
+        WX.on = false; WX.giorni = {}; WX.adesso = null; WX.manuale = false;
         $('plWeatherBtn').classList.remove('pl-weather-on');
         wxRedraw();
         wxCall('disable', {}).then(function () { toast('Meteo disattivato.'); });
         return;
     }
-    if (!navigator.geolocation) { toast('Questo browser non sa dire la posizione.'); return; }
+    if (!navigator.geolocation) { wxChiediLuogo('Questo browser non sa dire la posizione.'); return; }
     toast('Chiedo la posizione…');
     navigator.geolocation.getCurrentPosition(function (pos) {
         wxCall('enable', {
@@ -1562,9 +1826,85 @@ $('plWeatherBtn').addEventListener('click', function () {
             toast('Meteo attivo' + (r.place ? ' per ' + r.place : '') + '.');
         });
     }, function () {
-        toast('Senza la posizione non posso dare le previsioni.');
+        /* Il permesso negato non è la fine del discorso: il posto lo si sa,
+           basta poterlo scrivere. Prima qui c'era solo il dispiacere, e
+           l'unico modo di avere le previsioni era andare a cambiare i
+           permessi del browser — cioè, in pratica, rinunciare. */
+        wxChiediLuogo('Non riesco a rilevare la posizione.');
     }, { timeout: 12000, maximumAge: 600000 });
 });
+
+/* Il luogo scritto a mano quando il telefono non lo dice. A differenza del
+   cambio luogo dal popup, QUESTO si salva: non è una sbirciata a un'altra
+   città, è la posizione che vale per questa pagina e per le prossime, e
+   ritrovarsi il meteo spento a ogni ricarica sarebbe come non averlo. */
+function wxChiediLuogo(perche) {
+    /* Stesso foglio degli altri, costruito a mano perché è l'unico che nasce
+       da un rifiuto e non da un tocco: non ha un posto suo in planner.php e
+       non ne merita uno, visto che quasi sempre non serve. */
+    var ov = el('div', 'pl-ov');
+    ov.id = 'plWxLuogoOv';
+    var sheet = el('div', 'pl-sheet pl-sheet-auto');
+    sheet.appendChild(el('div', 'pl-grab'));
+    var head = el('div', 'pl-sheet-head');
+    head.appendChild(el('span', 'pl-sheet-title pl-serif', 'Dove sei?'));
+    var chiudi = el('button', 'pl-txt-btn', 'Chiudi');
+    chiudi.type = 'button';
+    chiudi.addEventListener('click', function () { ov.remove(); });
+    head.appendChild(chiudi);
+    sheet.appendChild(head);
+
+    var body = el('div', 'pl-sheet-body');
+    body.appendChild(el('div', 'pl-row-sub', perche + ' Scrivi il posto e le previsioni partono lo stesso.'));
+
+    var box = el('div', 'pl-wx-cerca');
+    var inp = el('input', 'pl-in');
+    inp.type = 'search';
+    inp.placeholder = 'Città o paese';
+    inp.maxLength = 60;
+    box.appendChild(inp);
+    var res = el('div', 'pl-wx-cerca-res');
+    box.appendChild(res);
+    body.appendChild(box);
+    sheet.appendChild(body);
+    ov.appendChild(sheet);
+    document.body.appendChild(ov);
+    /* la classe che lo fa salire va messa dopo l'inserimento, se no il foglio
+       comparirebbe già su e la salita non si vedrebbe */
+    requestAnimationFrame(function () { ov.classList.add('pl-open'); });
+    setTimeout(function () { inp.focus(); }, 260);
+
+    inp.addEventListener('input', function () {
+        var q = inp.value.trim();
+        if (q.length < 3) { res.innerHTML = ''; return; }
+        debounceSave('wxluogo', 350, function () {
+            wxCall('place_search', { q: q }).then(function (r) {
+                res.innerHTML = '';
+                if (!r || !r.ok || !r.luoghi || !r.luoghi.length) {
+                    res.appendChild(el('div', 'pl-row-sub', 'Nessun posto con questo nome.'));
+                    return;
+                }
+                r.luoghi.forEach(function (p) {
+                    var b = el('button', 'pl-wx-cerca-row');
+                    b.type = 'button';
+                    b.appendChild(el('span', 'pl-row-lab', p.nome));
+                    if (p.dove) b.appendChild(el('span', 'pl-row-sub', p.dove));
+                    b.addEventListener('click', function () {
+                        /* `enable` e non `preview`: qui la posizione la si sta
+                           dichiarando, non sbirciando */
+                        wxCall('enable', { lat: p.lat, lon: p.lon }).then(function (rr) {
+                            if (!rr || !rr.ok) { toast('Meteo non attivato.'); return; }
+                            ov.remove();
+                            wxApply(rr);
+                            toast('Meteo attivo per ' + (rr.place || p.nome) + '.');
+                        });
+                    });
+                    res.appendChild(b);
+                });
+            });
+        });
+    });
+}
 
 /* ------------------------------------------------------------------ */
 /* Barra intelligente: da una frase a un evento                        */
@@ -1989,17 +2329,103 @@ function renderPrioInto(host, giorno) {
     if (!shown.length && S.prioSlim) {
         host.appendChild(el('div', 'pl-row-sub', 'Nessuna priorità. Tocca per aggiungerne.'));
     }
+    /* Due per riga sempre, aperta o chiusa: tre affiancate su un telefono
+       sarebbero tre parole tagliate. Da chiusa, però, di righe se ne vede una
+       sola per volta, e le altre passano da sé. */
+    var righe = [];
     for (var r = 0; r < shown.length; r += 2) {
         var row = el('div', 'pl-prio-row');
-        for (var c = r; c < Math.min(r + 2, shown.length); c++) row.appendChild(prioCell(shown[c]));
+        for (var c = r; c < Math.min(r + 2, shown.length); c++) {
+            row.appendChild(prioCell(shown[c], S.prioSlim));
+        }
         host.appendChild(row);
+        righe.push(row);
+    }
+
+    /* Da chiusa si vede una riga per volta e le righe girano da sé: con sei
+       priorità e una riga sola in vista, le altre quattro sarebbero
+       invisibili e tanto varrebbe non averle scritte. La colonnina di pallini
+       dice quante righe ci sono e a che punto siamo: senza, il cambio
+       sembrerebbe un difetto invece che un giro.
+       Si parte sempre dalla prima riga — quello che si è scritto per primo è
+       quello che conta di più, e deve essere la prima cosa che si vede. */
+    var aGiro = S.prioSlim && righe.length > 1;
+    righe.forEach(function (riga, i) { riga.classList.toggle('pl-on', !aGiro || i === 0); });
+
+    var padre = host.parentNode;
+    if (padre) {
+        var vecchi = padre.querySelector('.pl-prio-pal');
+        if (vecchi) vecchi.parentNode.removeChild(vecchi);
+    }
+    /* il giro e i pallini valgono per la fascia vera e non per la copia della
+       pagina vicina che entra con lo scorrimento: due giri contemporanei si
+       darebbero il cambio a caso */
+    if (aGiro && padre && host.id === 'plPrioRows') {
+        var pal = el('div', 'pl-prio-pal');
+        righe.forEach(function (_, i) {
+            pal.appendChild(el('span', 'pl-prio-pallino' + (i ? '' : ' pl-on')));
+        });
+        padre.appendChild(pal);
+        avviaGiroPrio(righe, pal);
+    } else if (host.id === 'plPrioRows') {
+        fermaGiroPrio();
     }
 }
 
-function prioCell(data) {
+/* Il giro delle righe da chiusa. Quattro secondi: il tempo di leggere due
+   priorità senza doverle rincorrere, e abbastanza perché anche un'occhiata
+   di passaggio ne prenda comunque una.
+   Il timer si spegne da sé quando le righe non sono più attaccate alla
+   pagina — succede a ogni ridisegno — così non se ne accumulano uno sopra
+   l'altro senza che nessuno li fermi. */
+var prioGiro = null;
+function fermaGiroPrio() {
+    if (prioGiro) { clearInterval(prioGiro); prioGiro = null; }
+}
+function avviaGiroPrio(righe, pal) {
+    fermaGiroPrio();
+    if (righe.length < 2) return;
+    var i = 0;
+    prioGiro = setInterval(function () {
+        if (!S.prioSlim || !righe[0].isConnected) { fermaGiroPrio(); return; }
+        i = (i + 1) % righe.length;
+        righe.forEach(function (r, k) { r.classList.toggle('pl-on', k === i); });
+        for (var k = 0; k < pal.children.length; k++) {
+            pal.children[k].classList.toggle('pl-on', k === i);
+        }
+    }, 4000);
+}
+
+function prioCell(data, compatta) {
     var cell = el('div', 'pl-prio-cell' + (data.done ? ' pl-done' : '') + (data.auto ? ' pl-auto' : ''));
     var dot = el('span', 'pl-prio-dot' + (data.done ? ' pl-on' : ''));
     dot.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
+
+    /* Da chiusa non è un campo ma una scritta, e la scritta che non ci sta
+       scorre invece di finire nei puntini, come i titoli degli eventi. Con
+       un campo di testo non si potrebbe: un `input` il testo lo taglia e
+       basta, e non c'è niente dentro da far scivolare. Non è una perdita —
+       da chiusa non si scrive comunque, il tocco apre la sezione — e in
+       cambio in una riga sola ci sta anche una priorità lunga. */
+    if (compatta) {
+        var tx = el('span', 'pl-prio-tx');
+        var dentro = el('span', null, data.content || '');
+        tx.appendChild(dentro);
+        cell.appendChild(dot);
+        cell.appendChild(tx);
+        misuraStriscia(tx, dentro);
+        if (data.auto) return cell;
+        dot.addEventListener('click', function (e) {
+            e.stopPropagation();     // se no il tocco aprirebbe anche la sezione
+            var now = !cell.classList.contains('pl-done');
+            cell.classList.toggle('pl-done', now);
+            dot.classList.toggle('pl-on', now);
+            haptic(8);
+            savePrio(data.position, data.content || '', now);
+        });
+        return cell;
+    }
+
     var inp = el('input', 'pl-prio-in');
     inp.type = 'text';
     inp.value = data.content || '';
@@ -2026,6 +2452,24 @@ function prioCell(data) {
         savePrio(data.position, inp.value, cell.classList.contains('pl-done'));
         renderPrio();
     });
+
+    /* La crocetta c'è solo da aperta e solo su una casella scritta: svuotare
+       il campo a mano cancellava già la priorità, ma bisognava saperlo, e su
+       una riga lunga voleva dire selezionare tutto e cancellare. Su una
+       casella vuota non ci sarebbe niente da togliere. */
+    if (data.content) {
+        var via = el('button', 'pl-prio-x');
+        via.type = 'button';
+        via.setAttribute('aria-label', 'Elimina questa priorità');
+        via.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+        via.addEventListener('click', function (e) {
+            e.stopPropagation();
+            haptic(8);
+            savePrio(data.position, '', false);
+            renderPrio();
+        });
+        cell.appendChild(via);
+    }
     return cell;
 }
 
@@ -2169,6 +2613,13 @@ function renderGutter() {
 function renderGutterMeteo(host, date) {
     host = host || $('plGutter');
     if (!host) return;
+    /* La vista settimanale ha una colonna delle ore tutta sua: righe alte
+       un'ora, non pixel al minuto, e niente canvas sotto. Il conto dove
+       mettere il tag è talmente diverso da non poter stare nello stesso
+       ciclo, ma il resto — quali ore, quale icona, quando i gradi ci stanno —
+       è lo stesso, e passa da qui perché chi chiama non debba sapere in che
+       vista si trova. */
+    if (host.id === 'plWeekGut') { renderWeekGutMeteo(date || S.focusDate); return; }
     /* la copia usata dal cambio giorno è il contenitore esterno */
     if (!host.classList.contains('pl-gutter-canvas')) {
         host = host.querySelector('.pl-gutter-canvas');
@@ -2194,10 +2645,11 @@ function renderGutterMeteo(host, date) {
     for (var h = 0; h < 24; h += passo) {
         var o = perOra[h];
         if (!o) continue;
-        var b = el('button', 'pl-wxg' + wxClasse(o.i));
+        var gNome = wxIconaNome(o.i, date, h * 60);
+        var b = el('button', 'pl-wxg' + wxClasse(gNome));
         b.type = 'button';
         var ic = el('span', 'pl-wxg-ic');
-        ic.innerHTML = WX_ICONE[o.i] || WX_ICONE.nubi;
+        ic.innerHTML = WX_ICONE[gNome] || WX_ICONE.nubi;
         b.appendChild(ic);
         /* Con gli scatti da 5 minuti gli orari sono uno ogni 26 px e i gradi
            finiscono addosso a quello dopo: resta la sola icona, che dice già
@@ -2211,6 +2663,52 @@ function renderGutterMeteo(host, date) {
             wxPopup(this.dataset.wxDate);
         });
         host.appendChild(b);
+    }
+}
+
+/* Il tempo di quell'ora dentro la colonna delle ore della vista
+   settimanale, accanto al numero. Vale sul giorno scelto — la colonna è una
+   sola e sette giorni diversi non ci stanno — che è lo stesso patto della
+   vista giorno.
+
+   Sotto una certa altezza di riga il tag non entra e si toglie del tutto:
+   meglio niente che un'icona schiacciata sul numero dell'ora. I gradi
+   arrivano più tardi ancora, quando c'è posto per due righe. */
+function renderWeekGutMeteo(date) {
+    var gut = $('plWeekGut');
+    if (!gut) return;
+    var vecchi = gut.querySelectorAll('.pl-wk-wxg');
+    for (var v = 0; v < vecchi.length; v++) vecchi[v].parentNode.removeChild(vecchi[v]);
+
+    if (!WX.on || WK.riga < 38) return;
+    var g = WX.giorni[date];
+    if (!g || !g.ore || !g.ore.length) return;
+
+    var righe = gut.querySelectorAll('.pl-wk-ora');
+    if (!righe.length) return;
+
+    var perOra = {};
+    g.ore.forEach(function (o) { perOra[parseInt(o.h, 10)] = o; });
+
+    for (var h = 0; h < 24 && h < righe.length; h++) {
+        var o = perOra[h];
+        if (!o) continue;
+        var nome = wxIconaNome(o.i, date, h * 60);
+        var b = el('button', 'pl-wxg pl-wk-wxg' + wxClasse(nome));
+        b.type = 'button';
+        var ic = el('span', 'pl-wxg-ic');
+        ic.innerHTML = WX_ICONE[nome] || WX_ICONE.nubi;
+        b.appendChild(ic);
+        if (WK.riga >= 56 && o.t !== null && o.t !== undefined) {
+            b.appendChild(el('span', 'pl-wxg-t', o.t + '\u00B0'));
+        }
+        b.setAttribute('aria-label', (o.l || '') + ' alle ' + h);
+        b.dataset.wxDate = date;
+        b.addEventListener('click', function (e) {
+            e.stopPropagation();
+            wxPopup(this.dataset.wxDate);
+        });
+        righe[h].appendChild(b);
     }
 }
 
@@ -2545,8 +3043,11 @@ function misuraStriscia(strip, span) {
    il titolo si legge ancora; scatti da un'ora, stesso evento → 11,5 px e non
    si legge più. Il titolo occupa una riga da ~16 px più i 10 px di
    imbottitura del blocco, quindi qualunque valore fra i due estremi rispetta
-   entrambi i casi: 20 sta appena sotto quello che ancora si legge. */
-var MINI_ALTEZZA = 20;
+   entrambi i casi. Sta a 14 e non più a 20 perché con gli scatti da tre ore
+   un evento di un'ora fa 18 px: il titolo ci sta ancora, rimpicciolito, e
+   toglierlo per sostituirlo con un tastino era una perdita secca. Sotto i 26
+   px il carattere si stringe da sé (classe `pl-ev-stretto`). */
+var MINI_ALTEZZA = 14;
 
 /* Due eventi bassi si uniscono solo se sono vicini *sullo schermo*: la
    distanza si misura in pixel e non in minuti, perché è la scala a decidere
@@ -2815,8 +3316,11 @@ function applyLane(node, item) {
 function positioned(node, start, end) {
     var s = toMin(start), e = Math.max(toMin(end), s + 5);
     node.style.top = (s * pxMin()) + 'px';
-    node.style.height = Math.max(16, (e - s) * pxMin() - 2) + 'px';
-    if ((e - s) * pxMin() > 44) node.classList.add('pl-tall');
+    var h = (e - s) * pxMin();
+    node.style.height = Math.max(16, h - 2) + 'px';
+    if (h > 44) node.classList.add('pl-tall');
+    /* casi al limite: il titolo ci sta ma per un pelo, quindi si stringe */
+    else if (h < 26) node.classList.add('pl-ev-stretto');
     return node;
 }
 
@@ -2961,10 +3465,11 @@ function renderWeekPanel() {
     var range = d1.getDate() + ' ' + MESI[d1.getMonth()].toLowerCase() + ' – ' + d2.getDate() + ' ' + MESI[d2.getMonth()].toLowerCase();
     wrap.appendChild(el('div', 'pl-label', range));
 
-    /* le tre linguette: gli elenchi ci sono tutti e tre, non c'è più niente
-       da aggiungere o da togliere */
+    /* Le linguette: i tre elenchi più le pastiglie. Nella pagina attività ci
+       sono tutte e quattro, e qui ne mancava una sola — che è poi quella che
+       si guarda più spesso durante la giornata. */
     var tabs = el('div', 'pl-wl-tabs');
-    TODO_TIPI.forEach(function (t) {
+    PANEL_TABS.forEach(function (t) {
         var b = el('button', 'pl-wl-tab' + (t === S.todoTab ? ' pl-on' : ''), LIST_LABEL[t]);
         b.type = 'button';
         b.addEventListener('click', function () {
@@ -2972,7 +3477,8 @@ function renderWeekPanel() {
             S.todoTab = t;
             S.todoOthers = false;
             renderWeekPanel();
-            loadWeekTodos(t);
+            if (t === 'pills') loadWeekPills(S.focusDate);
+            else loadWeekTodos(t);
         });
         tabs.appendChild(b);
     });
@@ -2980,7 +3486,7 @@ function renderWeekPanel() {
 
     var host = el('div', 'pl-lists');
     wrap.appendChild(host);
-    host.appendChild(weekTodoList());
+    host.appendChild(S.todoTab === 'pills' ? weekPillsCard() : weekTodoList());
 
     var learned = el('div', 'pl-learned');
     learned.appendChild(el('div', 'pl-label', 'Cosa ho imparato'));
@@ -3006,7 +3512,9 @@ function weekTodoList() {
     var head = el('div', 'pl-list-head');
     head.appendChild(el('div', 'pl-list-title pl-serif', LIST_LABEL[tipo] || tipo));
     var link = el('a', 'pl-wl-link', 'apri');
-    link.href = 'todo.php';
+    /* la linguetta viaggia con il collegamento: si sta guardando questo
+       elenco, e aprirne un altro sarebbe un salto che non ha chiesto nessuno */
+    link.href = 'todo.php?tab=' + encodeURIComponent(tipo);
     head.appendChild(link);
     card.appendChild(head);
 
@@ -3099,6 +3607,280 @@ function weekTodoList() {
     return card;
 }
 
+/* ------------------------------------------------------------------ */
+/* Pastiglie: le prese del giorno                                      */
+/* ------------------------------------------------------------------ */
+/* Le prese si leggono e si spuntano da todo_api.php, che è già l'unico posto
+   che le scrive e l'unico che sa quando una terapia tocca un giorno (giorni
+   della settimana, giorni del mese, ogni N giorni, orari e quante volte per
+   orario). Rifare quel conto qui vorrebbe dire avere due calendari delle
+   prese che possono non essere d'accordo, ed è esattamente l'errore che il
+   pannello settimana ha già fatto una volta con gli elenchi.
+
+   A differenza delle altre tre linguette qui si mostra UN GIORNO, quello a
+   fuoco, e non la settimana: una presa la si spunta il giorno stesso, e sette
+   giorni di prese sarebbero venti righe di cui diciotto non toccabili.
+   L'endpoint stesso è fatto per un giorno solo — è lui che crea le prese
+   mancanti di quella data — e chiedergliene sette vorrebbe dire scrivere in
+   archivio una settimana di prese solo per aver aperto un pannello. */
+function loadWeekPills(date, force) {
+    date = date || S.focusDate;
+    if (S.pills && S.pills.date === date && !force) return Promise.resolve();
+    return todoApi('pills', null, { date: date }).then(function (r) {
+        if (!r || !r.ok) return;
+        S.pills = {
+            date: date,
+            installed: r.installed !== false,
+            doses: r.doses || [],
+            /* le arretrate non appartengono al giorno chiesto: sono di ieri
+               comunque, e il server le manda sempre le stesse */
+            late: r.late || [],
+            stats: r.stats || null
+        };
+        renderWeekPanel();
+    });
+}
+
+function weekPillsCard() {
+    var date = S.focusDate;
+    var card = el('div', 'pl-list-card');
+
+    var head = el('div', 'pl-list-head');
+    head.appendChild(el('div', 'pl-list-title pl-serif', 'Pastiglie'));
+    var link = el('a', 'pl-wl-link', 'apri');
+    link.href = 'todo.php?tab=pills';
+    head.appendChild(link);
+    card.appendChild(head);
+
+    /* Il giorno scritto per esteso: le altre linguette parlano di tutta la
+       settimana, e senza dirlo qui si crederebbe di vedere le prese di
+       tutt'e sette. */
+    var d = parseIso(date);
+    card.appendChild(el('div', 'pl-pill-day',
+        'prese di ' + (date === S.today ? 'oggi' : GIORNI[dowIndex(date)].toLowerCase())
+        + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()));
+
+    if (!S.pills || S.pills.date !== date) {
+        card.appendChild(el('div', 'pl-wl-empty', 'Un momento…'));
+        /* il giorno a fuoco può essere cambiato mentre il pannello era
+           aperto: si chiede quello giusto invece di mostrare l'altro */
+        loadWeekPills(date);
+        return card;
+    }
+    if (!S.pills.installed) {
+        card.appendChild(el('div', 'pl-wl-empty', 'Le pastiglie non sono installate.'));
+        return card;
+    }
+
+    /* --- quelle rimaste indietro ---
+       Stanno anche qui e non solo nella pagina attività: se il planner mostra
+       le pastiglie, deve mostrare per prima l'unica su cui si può ancora fare
+       qualcosa. Non dipendono dal giorno che si sta guardando — sono di ieri
+       comunque — quindi compaiono anche sfogliando la settimana. */
+    var late = S.pills.late || [];
+    if (late.length) {
+        card.appendChild(el('div', 'pl-label pl-pill-lasect',
+            late.length === 1 ? 'Rimasta indietro' : 'Rimaste indietro'));
+        var lbox = el('div', 'pl-list-items');
+        late.forEach(function (p) { lbox.appendChild(pillRow(p, 'arretrata')); });
+        card.appendChild(lbox);
+    }
+
+    var box = el('div', 'pl-list-items');
+    if (!S.pills.doses.length) {
+        box.appendChild(el('div', 'pl-wl-empty', 'Nessuna presa prevista.'));
+    } else {
+        /* Le prese si spuntano il giorno stesso: su un giorno futuro le
+           caselle restano da guardare e non da toccare. Segnare oggi una
+           pastiglia di dopodomani non vuol dire niente, e l'ora della presa
+           che ne uscirebbe sarebbe una data inventata. */
+        var futuro = date > S.today;
+        S.pills.doses.forEach(function (p) { box.appendChild(pillRow(p, futuro ? 'futura' : null)); });
+        if (futuro) {
+            box.appendChild(el('div', 'pl-row-sub', 'Si spuntano il giorno stesso.'));
+        }
+    }
+    card.appendChild(box);
+
+    /* Quante ne sono state saltate o dimenticate negli ultimi trenta giorni:
+       è il numero per cui vale la pena tenere le prese una per una, e in
+       fondo all'elenco non ruba spazio a quelle di oggi. */
+    var st = S.pills.stats;
+    if (st && (st.taken || st.skipped || st.missed)) {
+        card.appendChild(el('div', 'pl-pill-stats',
+            'ultimi 30 giorni: ' + st.taken + ' prese'
+            + (st.skipped ? ', ' + st.skipped + ' saltate' : '')
+            + (st.missed ? ', ' + st.missed + ' dimenticate' : '')));
+    }
+    return card;
+}
+
+/* Una presa. Tre casi, e il modo che è che cambia:
+
+   - OGGI: solo la casella. La crocetta che c'era prima non serviva a niente
+     — quello che segnava lo si toglieva già togliendo il flag — e in una
+     riga stretta un tastino che non aggiunge niente è solo un modo in più
+     per sbagliare.
+   - GIORNO FUTURO: niente da toccare. Spuntare oggi la pastiglia di
+     dopodomani non vuol dire nulla, e l'ora della presa che ne verrebbe
+     fuori sarebbe inventata.
+   - ARRETRATA: casella *e* crocetta, e qui la crocetta serve davvero. La
+     casella dice «l'ho presa» e chiede quando, perché su una presa di ieri
+     l'orologio di adesso sbaglierebbe di sicuro; la crocetta dice «non l'ho
+     presa» e la toglie dall'elenco, se no resterebbe lì per sempre. */
+function pillRow(p, modo) {
+    var arretrata = modo === 'arretrata';
+    var futura = modo === 'futura';
+    var row = el('div', 'pl-li pl-pill'
+        + (p.status === 'taken' ? ' pl-done' : '')
+        + (p.status === 'skipped' ? ' pl-pill-skip' : '')
+        + (arretrata ? ' pl-pill-late' : '')
+        + (futura ? ' pl-pill-futura' : ''));
+
+    var box = el('span', 'pl-li-box');
+    box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
+    row.appendChild(box);
+
+    row.appendChild(el('span', 'pl-pill-h', p.time || ''));
+
+    var pallino = el('span', 'pl-pill-dot');
+    pallino.style.setProperty('--ev', p.color || 'var(--accent)');
+    row.appendChild(pallino);
+
+    var txt = el('div', 'pl-pill-txt');
+    /* di che giorno parliamo: tre righe uguali di tre giorni diversi, senza,
+       non si distinguono */
+    if (arretrata && p.date) txt.appendChild(el('div', 'pl-pill-quando', pillGiornoBreve(p.date)));
+    txt.appendChild(el('div', 'pl-pill-name', p.name || 'senza nome'));
+    /* dose e avvertenze sulla stessa riga: sono la cosa che si dimentica
+       ("mezza compressa", "a stomaco pieno") e sta bene sotto il nome */
+    var sotto = [p.dose, p.notes].filter(Boolean).join(' · ');
+    if (sotto) txt.appendChild(el('div', 'pl-pill-dose', sotto));
+    row.appendChild(txt);
+
+    if (futura) return row;   // da guardare, non da toccare
+
+    function segna(stato, quando) {
+        p.status = stato;
+        row.classList.toggle('pl-done', stato === 'taken');
+        row.classList.toggle('pl-pill-skip', stato === 'skipped');
+        haptic(8);
+        var dati = { id: p.id, status: stato };
+        if (stato === 'taken' && quando) {
+            dati.at_date = quando.slice(0, 10);
+            dati.at_time = quando.slice(11, 16);
+        }
+        /* si segna subito e si avvisa il server dopo: la spunta di una
+           pastiglia deve sembrare immediata come tutte le altre */
+        todoApi('pill_mark', dati);
+        /* un'arretrata sistemata non è più arretrata: sparisce dall'elenco
+           alla lettura dopo, che si chiede qui */
+        if (arretrata) setTimeout(function () { loadWeekPills(S.focusDate, true); }, 400);
+    }
+
+    box.addEventListener('click', function () {
+        if (p.status === 'taken') { segna('pending'); return; }
+        if (arretrata) { pillQuandoPresa(p, function (q) { segna('taken', q); }); return; }
+        segna('taken');
+    });
+
+    if (arretrata) {
+        var salta = el('button', 'pl-pill-x');
+        salta.type = 'button';
+        salta.setAttribute('aria-label', 'Non l\'ho presa');
+        salta.title = 'Non l\'ho presa: toglila dall\'elenco';
+        salta.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+        salta.addEventListener('click', function (e) {
+            e.stopPropagation();
+            segna(p.status === 'skipped' ? 'pending' : 'skipped');
+        });
+        row.appendChild(salta);
+    }
+    return row;
+}
+
+/* «ieri» quando è ieri, se no «lun 3». Il nome del giorno da solo, su una
+   cosa passata, si legge come il giorno che deve venire. */
+function pillGiornoBreve(iso) {
+    if (iso === addDays(S.today, -1)) return 'ieri';
+    var d = parseIso(iso);
+    return GIORNI[dowIndex(iso)].slice(0, 3) + ' ' + d.getDate();
+}
+
+/* Quando l'hai presa davvero. Si chiede solo sulle arretrate: su quelle di
+   oggi l'orologio va già bene, e una domanda in più a ogni pastiglia sarebbe
+   un pedaggio su un gesto che si fa tre volte al giorno.
+   Si parte dall'ora prevista e non da adesso: quasi sempre la pastiglia è
+   stata presa lì o poco dopo, e così spesso basta confermare. */
+function pillQuandoPresa(p, poi) {
+    /* Nasce da dentro il pannello della settimana, che sta più in alto di
+       tutti i fogli normali: senza la classe in più finiva sotto la barra
+       delle linguette, e si vedeva spuntare a metà. */
+    var ov = el('div', 'pl-ov pl-ov-sopra');
+    var sheet = el('div', 'pl-sheet pl-sheet-auto');
+    sheet.appendChild(el('div', 'pl-grab'));
+    var head = el('div', 'pl-sheet-head');
+    head.appendChild(el('span', 'pl-sheet-title pl-serif', 'Quando l\'hai presa?'));
+    var no = el('button', 'pl-txt-btn', 'Annulla');
+    no.type = 'button';
+    no.addEventListener('click', function () { ov.remove(); });
+    head.appendChild(no);
+    sheet.appendChild(head);
+
+    var body = el('div', 'pl-sheet-body');
+    body.appendChild(el('div', 'pl-row-sub',
+        (p.name || 'la pastiglia') + ' di ' + pillGiornoBreve(p.date || S.today)));
+
+    /* Il giorno c'è perché una presa di lunedì spuntata mercoledì appartiene
+       a lunedì: scriverla su mercoledì sposterebbe il buco invece di
+       chiuderlo. */
+    var iData = el('input', 'pl-pick');
+    iData.type = 'date';
+    iData.value = p.date || S.today;
+    body.appendChild(rowSB('Giorno', iData));
+
+    var iOra = el('input', 'pl-pick');
+    iOra.type = 'time'; iOra.step = '60';
+    iOra.value = p.time || '08:00';
+    body.appendChild(rowSB('Ora', iOra));
+
+    var ok = el('button', 'pl-btn pl-btn-primary pl-pill-ok', 'Segna come presa');
+    ok.type = 'button';
+    ok.addEventListener('click', function () {
+        var g = iData.value || p.date || S.today;
+        var o = (iOra.value || p.time || '08:00').slice(0, 5);
+        ov.remove();
+        poi(g + ' ' + o + ':00');
+    });
+    body.appendChild(ok);
+
+    sheet.appendChild(body);
+    ov.appendChild(sheet);
+    document.body.appendChild(ov);
+    requestAnimationFrame(function () { ov.classList.add('pl-open'); });
+}
+
+/* Che cosa scrivere nel tastino «quando» di una voce.
+
+   L'ora, da sola, vale solo per oggi: su una cosa di giovedì un «18:30»
+   secco fa credere che sia per stasera, ed è l'equivoco che costa di più
+   perché ci si accorge solo dopo. Quindi: oggi l'ora, gli altri giorni il
+   giorno.
+
+   Entro una settimana il nome del giorno dice tutto e si legge di colpo
+   («mer» è più immediato di «6 ago»); oltre, il nome torna ambiguo — fra
+   sei settimane è comunque un mercoledì — e allora ci vuole il numero.
+   All'indietro il numero sempre: «mar» su una cosa scaduta si leggerebbe
+   come il martedì che deve venire. */
+function todoQuandoTesto(t) {
+    if (!t.date) return t.time ? t.time : 'quando';
+    var avanti = diffDays(S.today, t.date);
+    if (avanti === 0) return t.time ? t.time : 'oggi';
+    if (avanti > 0 && avanti <= 7) return GIORNI[dowIndex(t.date)].slice(0, 3);
+    var d = parseIso(t.date);
+    return d.getDate() + ' ' + MESI[d.getMonth()].slice(0, 3).toLowerCase();
+}
+
 /* Una riga. Dentro la settimana si spunta e si modifica; fuori si tocca e
    basta, perché lì il gesto ha un altro significato: prendere la voce e
    portarla al giorno che si sta guardando. */
@@ -3111,10 +3893,7 @@ function weekTodoRow(t, isOther) {
 
     if (isOther) {
         row.appendChild(el('span', 'pl-li-txt', t.title || 'senza titolo'));
-        if (t.date) {
-            var d = parseIso(t.date);
-            row.appendChild(el('span', 'pl-li-when', d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()));
-        }
+        if (t.date) row.appendChild(el('span', 'pl-li-when', todoQuandoTesto(t)));
         row.addEventListener('click', function () { takeIntoWeek(t); });
         return row;
     }
@@ -3167,12 +3946,10 @@ function weekTodoRow(t, isOther) {
 
     /* Data e ora si toccano e si cambiano da qui: prima erano una scritta
        morta, e per spostare una voce di un giorno bisognava andare nella
-       pagina attività. Con l'ora si mostra l'ora, altrimenti il giorno della
-       settimana — dentro la settimana mostrata il numero del giorno sarebbe
-       una ripetizione. */
+       pagina attività. */
     var when = el('button', 'pl-li-when');
     when.type = 'button';
-    when.textContent = t.time ? t.time : (t.date ? GIORNI[dowIndex(t.date)].slice(0, 3) : 'quando');
+    when.textContent = todoQuandoTesto(t);
     when.addEventListener('click', function (e) { e.stopPropagation(); todoQuando(t); });
     row.appendChild(when);
 
@@ -3352,7 +4129,8 @@ function openWeekPanel() {
     $('plWeekPanelOv').classList.add('pl-open');
     document.documentElement.classList.add('pl-locked');
     renderWeekPanel();
-    loadWeekTodos(S.todoTab, true);
+    if (S.todoTab === 'pills') loadWeekPills(S.focusDate, true);
+    else loadWeekTodos(S.todoTab, true);
 }
 function closeWeekPanel() {
     $('plWeekPanelOv').classList.remove('pl-open');
@@ -3490,6 +4268,19 @@ function scrollMax(sc) {
     return Math.max(0, sc.scrollHeight - sc.clientHeight);
 }
 
+/* Il fondo vero della giornata, che non è il fondo del contenuto.
+
+   Allargando gli scatti la giornata si accorcia: quello che prima erano
+   tremila pixel diventano cinquecento, e una posizione presa da prima cade
+   sotto la mezzanotte, dove non c'è più niente da disegnare — schermo bianco.
+   `scrollMax()` da solo non basta a impedirlo, perché sotto l'ultima riga
+   c'è comunque il riempimento del fondo pagina: il limite giusto è l'ultimo
+   minuto del giorno, e sotto quello non si scende. */
+function scrollMaxGiorno(sc) {
+    var fineGiorno = 1440 * pxMin();
+    return Math.max(0, Math.min(scrollMax(sc), fineGiorno - sc.clientHeight));
+}
+
 function scrollToMinuteAt(min, clientY) {
     var sc = $('plScroller');
     var canvas = document.querySelector('.pl-canvas');
@@ -3497,13 +4288,36 @@ function scrollToMinuteAt(min, clientY) {
     var box = canvas.getBoundingClientRect();
     var zero = box.top + sc.scrollTop;
     var y = zero - clientY + Math.min(1440, min) * pxMin();
-    sc.scrollTo({ top: Math.max(0, Math.min(scrollMax(sc), y)), behavior: 'auto' });
+    sc.scrollTo({ top: Math.max(0, Math.min(scrollMaxGiorno(sc), y)), behavior: 'auto' });
 }
 
 function scrollToMinute(min, smooth) {
     var sc = $('plScroller');
     var y = Math.min(1440, min) * pxMin() - 10;
-    sc.scrollTo({ top: Math.max(0, Math.min(scrollMax(sc), y)), behavior: smooth ? 'smooth' : 'auto' });
+    sc.scrollTo({ top: Math.max(0, Math.min(scrollMaxGiorno(sc), y)), behavior: smooth ? 'smooth' : 'auto' });
+}
+
+/* Il minuto che si vede al centro dello schermo e a che altezza sta.
+   Serve a chi cambia scatto senza dita e senza cursore — i tastini degli
+   scatti — perché anche lì qualcosa deve restare fermo, e la cosa che uno
+   sta guardando è quella in mezzo, non quella in cima. */
+function ancoraCentro() {
+    var sc = $('plScroller');
+    var canvas = document.querySelector('.pl-canvas');
+    if (!sc || !canvas || !pxMin()) return null;
+    var box = sc.getBoundingClientRect();
+    var y = box.top + sc.clientHeight / 2;
+    var cv = canvas.getBoundingClientRect();
+    return { min: Math.max(0, Math.min(1439, (y - cv.top) / pxMin())), y: y };
+}
+
+/* Il minuto sotto un punto qualsiasi dello schermo: per lo zoom da computer,
+   dove il punto fermo è il cursore. */
+function ancoraA(clientY) {
+    var canvas = document.querySelector('.pl-canvas');
+    if (!canvas || !pxMin()) return null;
+    var cv = canvas.getBoundingClientRect();
+    return { min: Math.max(0, Math.min(1439, (clientY - cv.top) / pxMin())), y: clientY };
 }
 /* la giornata si apre già scesa all'orario di partenza (di base le 06:00):
    lo riapplichiamo qualche volta perché l'altezza della barra cambia mentre
@@ -3581,6 +4395,9 @@ $('plNextDay').addEventListener('click', function () { pageDays(1); });
 
 $('plTodayBtn').addEventListener('click', function () {
     if (S.view === 'month') { S.monthCursor = S.today.slice(0, 7) + '-01'; renderMonth(); return; }
+    /* in settimana "oggi" vuol dire portarlo a sinistra e segnarlo scelto,
+       non scorrere le ore: qui le ore ci sono già tutte sotto gli occhi */
+    if (S.view === 'week') { S.focusDate = S.today; renderWeek(); renderWeekBits(); return; }
     goToDate(S.today, true);
     setTimeout(function () {
         var now = new Date();
@@ -3901,7 +4718,7 @@ window.addEventListener('resize', function () {
 /* ------------------------------------------------------------------ */
 (function pinch() {
     var sc = $('plScroller');
-    var start = 0, startZoom = 0, active = false, ancoraMin = 0;
+    var start = 0, startZoom = 0, active = false, ancoraMin = 0, ancoraY = 0;
     function dist(t) {
         var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
         return Math.hypot(dx, dy);
@@ -3943,9 +4760,15 @@ window.addEventListener('resize', function () {
         active = true;
         start = dist(t);
         startZoom = ZOOM.findIndex(function (z) { return z.key === S.zoom; });
-        /* il minuto sotto le dita al momento in cui si comincia: è quello che
-           deve restare fermo per tutto il gesto */
-        ancoraMin = minutoA(metaY(t));
+        /* Il minuto sotto le dita al momento in cui si comincia, e *dove*
+           stava sullo schermo. Servono tutt'e due, e il secondo è quello che
+           mancava: si teneva fermo il minuto giusto ma lo si riportava ogni
+           volta in mezzo alle dita di adesso, così l'orario agganciato
+           scivolava su e giù seguendo la mano invece di restare inchiodato
+           al punto in cui era al primo tocco. L'altezza si prende una volta
+           qui e non si guarda più. */
+        ancoraY = metaY(t);
+        ancoraMin = minutoA(ancoraY);
         S.pinching = true;
         S.pinchAt = Date.now();
         /* O si cambia scatto o si cambia giorno: mai tutt'e due insieme.
@@ -4003,7 +4826,9 @@ window.addEventListener('resize', function () {
         var steps = ratio > 1 ? Math.floor((ratio - 1) / 0.22) : -Math.floor((1 / ratio - 1) / 0.22);
         var next = Math.max(0, Math.min(ZOOM.length - 1, startZoom + steps));
         if (ZOOM[next].key !== S.zoom) {
-            setZoom(ZOOM[next].key, true, { min: ancoraMin, y: metaY(t) });
+            /* `ancoraY` e non `metaY(t)`: il punto dello schermo è quello di
+               partenza, le dita nel frattempo si sono allontanate */
+            setZoom(ZOOM[next].key, true, { min: ancoraMin, y: ancoraY });
         }
     });
 
@@ -4047,7 +4872,11 @@ function renderZoomDial() {
         var b = el('button', 'pl-zoom-step' + (z.key === S.zoom ? ' pl-on' : ''), short);
         b.type = 'button';
         b.addEventListener('click', function () {
-            setZoom(z.key);
+            /* Qui non c'è né un dito né un cursore sulla griglia: il punto
+               fermo è quello che si sta guardando, cioè il centro. Prima
+               restava fermo il primo minuto in alto, e cambiando scatto
+               l'ora che si stava guardando scappava fuori dallo schermo. */
+            setZoom(z.key, false, ancoraCentro());
             /* dopo il cambio: se lo scatto nuovo non è di quelli che la
                tengono a portata, si rivede solo un istante e poi va via */
             showZoomDial(zoomHideDial_keep() ? 'stay' : 'temporary');
@@ -4376,7 +5205,13 @@ function refreshZoomDial() {
             lock = now2;
             var i = ZOOM.findIndex(function (z) { return z.key === S.zoom; });
             var next = Math.max(0, Math.min(ZOOM.length - 1, i + (e.deltaY > 0 ? -1 : 1)));
-            if (ZOOM[next].key !== S.zoom) { setZoom(ZOOM[next].key); showZoomDial(zoomHideDial_keep() ? 'stay' : 'temporary'); }
+            if (ZOOM[next].key !== S.zoom) {
+                /* Il cursore è il dito del computer: l'orario che sta sotto
+                   deve restare dov'è, come sotto le due dita sul telefono.
+                   L'ancora si prende adesso, con lo scatto ancora vecchio. */
+                setZoom(ZOOM[next].key, false, ancoraA(e.clientY));
+                showZoomDial(zoomHideDial_keep() ? 'stay' : 'temporary');
+            }
             return;
         }
         /* Niente cambio giorno con lo scorrimento orizzontale del trackpad:
@@ -4947,7 +5782,7 @@ function openEventSheet(existing, seed) {
     } : {
         id: 0, title: '', notes: '', location: '', guests: [], calendar_id: null,
         place_name: null, place_lat: null, place_lon: null, place_ref: null,
-        duration_locked: true,   // di base la durata è fissa, come chiede l'uso comune
+        duration_locked: false,  // si parte da 'auto': la durata segue l'inizio, non la fine
         date: seed.date, start: seed.start, end: seed.end,
         all_day: false, category_id: S.defaultCat, project_id: null, importance: 'normal',
         color: null, type: 'event', notify: 'h1', notify_min: 60,
@@ -5040,6 +5875,23 @@ function renderEventSheet() {
            ricostruirlo a ogni cambio faceva perdere il fuoco al campo e
            rimetteva il valore di partenza appena si staccava il dito. */
         var sIn, eIn, durIn;
+        /* TRE STATI, non due.
+           - 'auto' (leggerissimo, chiuso): spostando l'inizio la durata resta
+             e la fine segue; spostando la fine l'inizio non si muove e la
+             durata cambia. È il comportamento che ci si aspetta senza
+             pensarci, ed è quello di partenza.
+           - 'chiuso' (deciso): la durata è ferma sempre, quindi spostando la
+             fine si trascina anche l'inizio.
+           - 'aperto' (chiaro): la durata non è mai ferma, quindi anche
+             spostando l'inizio la fine resta dov'è.
+           Aprendo un evento si riparte sempre da 'auto', anche se l'ultima
+           volta era stato chiuso: il lucchetto dice come si comporteranno i
+           campi *adesso*, non che aria tirava l'altra volta, e ritrovarselo
+           chiuso senza averlo toccato spostava orari che non si volevano
+           spostare. Nel database resta il sì/no `duration_locked`, che ormai
+           serve solo a chi legge l'evento da fuori. */
+        var stato = 'auto';
+        d.duration_locked = false;
         function refreshTimes(skip) {
             if (sIn && skip !== 'start') sIn.value = d.start;
             if (eIn && skip !== 'end') eIn.value = d.end;
@@ -5049,8 +5901,9 @@ function renderEventSheet() {
         sIn = timeInput(d.start, function (v) {
             var dur = Math.max(5, toMin(d.end) - toMin(d.start));
             d.start = v;
-            if (d.duration_locked) {
-                /* lucchetto chiuso: la durata è il dato fermo, la fine segue */
+            /* con il lucchetto aperto la fine resta dov'è; negli altri due
+               stati spostare l'inizio porta con sé la fine */
+            if (stato !== 'aperto') {
                 d.end = toHM(Math.min(1439, toMin(v) + dur));
             } else if (toMin(d.end) <= toMin(v)) {
                 /* aperto: la fine resta dov'è, ma non può cadere prima
@@ -5061,7 +5914,9 @@ function renderEventSheet() {
             refreshTimes('start');
         });
         eIn = timeInput(d.end, function (v) {
-            if (d.duration_locked) {
+            /* solo il lucchetto chiuso trascina l'inizio: negli altri due
+               stati la fine si sposta da sola e la durata cambia */
+            if (stato === 'chiuso') {
                 /* chiuso: spostando la fine si trascina anche l'inizio */
                 var dur2 = Math.max(5, toMin(d.end) - toMin(d.start));
                 var fine = Math.min(1439, toMin(v));
@@ -5076,11 +5931,10 @@ function renderEventSheet() {
             S.draft.dirty = true;
             refreshTimes('end');
         });
-        fd.appendChild(rowSB('Inizio', sIn));
-        fd.appendChild(rowSB('Fine', eIn));
-
-        /* la durata è un vero campo orario: toccandolo si aprono ore e minuti,
-           invece di dover scrivere "1h 30" a mano */
+        /* Durata in mezzo, fra inizio e fine: è quello che sta fra i due,
+           e vederla altrove costringeva a ricostruire l'ordine a mente. La
+           scritta \"Durata\" sta a destra insieme al campo, in corsivo, per
+           non farsi scambiare per una terza voce alla pari delle altre. */
         var dur = toMin(d.end) - toMin(d.start);
         durIn = el('input', 'pl-pick');
         durIn.type = 'time'; durIn.step = '300';
@@ -5096,33 +5950,55 @@ function renderEventSheet() {
             refreshTimes('dur');
         });
 
-        /* Il lucchetto non ridisegna il popup: cambia solo il proprio aspetto,
-           così non si perde il fuoco su un campo orario aperto a metà. */
         var lock = el('button', 'pl-lock');
         lock.type = 'button';
         function drawLock() {
-            var chiuso = !!d.duration_locked;
-            lock.classList.toggle('pl-on', chiuso);
-            lock.setAttribute('aria-pressed', chiuso ? 'true' : 'false');
-            lock.title = chiuso
+            lock.className = 'pl-lock pl-lock-' + stato;
+            lock.title = stato === 'chiuso'
                 ? 'Durata bloccata: spostando un orario si sposta anche l’altro'
-                : 'Durata libera: spostando un orario l’altro resta fermo';
+                : (stato === 'aperto'
+                    ? 'Durata libera: spostando un orario l’altro resta fermo'
+                    : 'Spostando l’inizio la durata resta; spostando la fine cambia');
             lock.setAttribute('aria-label', lock.title);
-            lock.innerHTML = chiuso
-                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.2"/><path d="M8.5 11V8a3.5 3.5 0 017 0v3"/></svg>'
-                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.2"/><path d="M8.5 11V8a3.5 3.5 0 016.9-1.2"/></svg>';
+            lock.setAttribute('aria-pressed', stato === 'chiuso' ? 'true' : 'false');
+            /* Tre stati, tre disegni. Il corpo del lucchetto è sempre lo
+               stesso: cambia l'archetto (chiuso o scostato) e, sul terzo
+               stato, una riga che lo sbarra.
+               La sbarra sta sullo stato leggerissimo perché è l'unico in cui
+               la durata non è né sempre ferma né mai ferma: dipende da quale
+               dei due orari si tocca. Un lucchetto e basta, per quanto
+               pallido, sembrava una via di mezzo fra gli altri due; sbarrato
+               si legge come «non deciso», che è quello che è. */
+            var arco = stato === 'aperto'
+                ? '<path d="M8.5 11V8a3.5 3.5 0 016.9-1.2"/>'
+                : '<path d="M8.5 11V8a3.5 3.5 0 017 0v3"/>';
+            var sbarra = stato === 'auto' ? '<path d="M4.6 19.4L19.4 4.6"/>' : '';
+            lock.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+                + 'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+                + '<rect x="5" y="11" width="14" height="9" rx="2.2"/>' + arco + sbarra + '</svg>';
         }
         drawLock();
         lock.addEventListener('click', function () {
-            d.duration_locked = !d.duration_locked;
+            /* Il giro: leggerissimo → deciso → chiaro → leggerissimo. */
+            stato = stato === 'auto' ? 'chiuso' : (stato === 'chiuso' ? 'aperto' : 'auto');
+            d.duration_locked = (stato === 'chiuso');
             S.draft.dirty = true;
             drawLock();
             haptic(8);
         });
-        var durWrap = el('div', 'pl-row');
-        durWrap.appendChild(lock);
-        durWrap.appendChild(durIn);
-        fd.appendChild(rowSB('Durata', durWrap));
+
+        fd.appendChild(rowSB('Inizio', sIn));
+
+        var durRow = el('div', 'pl-row-sb');
+        durRow.appendChild(el('span', 'pl-row-lab'));   // vuota: la scritta sta a destra
+        var durBox = el('div', 'pl-durbox');
+        durBox.appendChild(el('span', 'pl-dur-lab', 'Durata'));
+        durBox.appendChild(lock);
+        durBox.appendChild(durIn);
+        durRow.appendChild(durBox);
+        fd.appendChild(durRow);
+
+        fd.appendChild(rowSB('Fine', eIn));
     }
     body.appendChild(fd);
 
@@ -7185,15 +8061,19 @@ function runSync(quiet) {
 /* ------------------------------------------------------------------ */
 /* Vista mese                                                          */
 /* ------------------------------------------------------------------ */
-$('plViewBtn').addEventListener('click', function () { setView(S.view === 'day' ? 'month' : 'day'); });
 
 function setView(v) {
     S.view = v;
     document.body.classList.toggle('pl-view-month', v === 'month');
+    document.body.classList.toggle('pl-view-week', v === 'week');
     var vb = $('plViewBtn');
     vb.classList.toggle('pl-on', v === 'month');
     vb.setAttribute('aria-label', v === 'month' ? 'Torna alla settimana' : 'Passa alla vista mese');
-    if (v === 'month') {
+    if (v === 'week') {
+        closeMonthAgenda();
+        $('plMonthsBar').classList.remove('pl-open');
+        renderWeek();
+    } else if (v === 'month') {
         S.monthCursor = S.focusDate.slice(0, 7) + '-01';
         renderMonth();
     } else {
@@ -7209,6 +8089,580 @@ function setView(v) {
     applySky();
     renderWeekBits();
 }
+
+/* ------------------------------------------------------------------ */
+/* Vista settimanale a tabella (solo telefono in verticale)            */
+/* ------------------------------------------------------------------ */
+/* Sette giorni in colonna e le ore in riga. Serve dove la griglia a orari è
+   troppo stretta per leggersi e il mese troppo grosso per dire a che ora
+   sono le cose.
+
+   Si disegna una finestra di WK_GIORNI giorni con il giorno scelto in mezzo,
+   e si scorre di giorno in giorno con l'aggancio dello scorrimento: il giorno
+   scelto è quello che si ferma a sinistra. Quando ci si avvicina a un bordo
+   la finestra viene ridisegnata intorno al nuovo giorno, così lo scorrimento
+   non finisce mai. */
+var WK_GIORNI = 21, WK_PRIMA = 7;   // quanti giorni in tutto, e quanti prima
+/* `zoomando` dice che due dita stanno cambiando l'altezza della riga: in quel
+   momento la posizione verticale la scrive l'ancoraggio dello zoom, e il
+   trascinamento a un dito deve stare fermo. Il verso del gesto non sta qui
+   ma dentro il gesto stesso, che dura quanto il dito. */
+var WK = { riga: 44, inizio: null, zoomando: false };
+var wkScrollTimer = null;
+
+/* Porta l'orario `min` all'altezza `clientY` dello schermo. È il gemello di
+   scrollToMinuteAt() della vista giorno, ma contato in altezze di riga
+   invece che in pixel al minuto: qui una riga è un'ora, ed è quella la
+   misura che lo zoom cambia.
+   `scTop` e `scH` arrivano da fuori perché si misurano una volta sola,
+   all'inizio del gesto: leggerli a ogni fotogramma vorrebbe dire far rifare
+   i conti al browser proprio mentre sta disegnando. Anche il fondo si
+   calcola invece di misurarlo — il contenuto è alto ventiquattro righe e non
+   c'è niente da chiedere a nessuno. */
+function wkScrollToMinuteAt(min, clientY, scTop, scH) {
+    var sc = $('plWeekScroll');
+    if (!sc) return;
+    var y = (min / 60) * WK.riga - (clientY - scTop);
+    var giu = Math.max(0, 24 * WK.riga - scH);
+    sc.scrollTop = Math.max(0, Math.min(giu, y));
+}
+
+function isSchermoStretto() {
+    return window.matchMedia('(max-width: 700px) and (orientation: portrait)').matches;
+}
+
+function renderWeek() {
+    var grid = $('plWeekGrid'), heads = $('plWeekHeads'), gut = $('plWeekGut');
+    if (!grid || !heads || !gut) return;
+    var inizio = addDays(S.focusDate, -WK_PRIMA);
+    WK.inizio = inizio;
+
+    /* La finestra copre più settimane di quella caricata. Si guarda quali
+       mancano davvero e si chiedono solo quelle: al ritorno si ridisegna una
+       volta sola, e siccome al secondo giro non ne manca più nessuna il giro
+       si ferma da sé invece di rincorrersi. */
+    var viste = {}, mancanti = [];
+    for (var d = 0; d < WK_GIORNI; d += 1) {
+        var m = monday(addDays(inizio, d));
+        if (viste[m]) continue;
+        viste[m] = 1;
+        if (!S.weekCache[m]) mancanti.push(m);
+    }
+    if (mancanti.length) {
+        Promise.all(mancanti.map(function (x) { return loadWeek(x); })).then(function () {
+            if (S.view === 'week') renderWeek();
+        });
+    }
+
+    var colonne = 'repeat(' + WK_GIORNI + ', var(--wk-col))';
+    grid.style.gridTemplateColumns = colonne;
+    heads.style.gridTemplateColumns = colonne;
+    grid.style.setProperty('--wk-row', WK.riga + 'px');
+
+    /* --- intestazioni --- */
+    heads.innerHTML = '';
+    for (var i = 0; i < WK_GIORNI; i++) {
+        var date = addDays(inizio, i);
+        var dd = parseIso(date);
+        var head = el('button', 'pl-wk-head' + (date === S.today ? ' pl-oggi' : ''));
+        head.type = 'button';
+        head.dataset.date = date;
+        head.appendChild(el('span', 'pl-wk-dow', GIORNI[dowIndex(date)].slice(0, 3)));
+        head.appendChild(el('span', 'pl-wk-num', String(dd.getDate())));
+        var tutti = (S.events[date] || []).filter(function (x) { return x.all_day; });
+        if (tutti.length) {
+            var pt = el('span', 'pl-wk-allday');
+            pt.style.setProperty('--ev', evColor(tutti[0]));
+            head.appendChild(pt);
+        }
+        head.addEventListener('click', function () {
+            S.focusDate = this.dataset.date;
+            setView('day');
+        });
+        heads.appendChild(head);
+    }
+
+    /* --- colonna delle ore --- */
+    gut.innerHTML = '';
+    gut.style.setProperty('--wk-row', WK.riga + 'px');
+    for (var o = 0; o < 24; o++) {
+        var riga = el('div', 'pl-wk-ora');
+        riga.appendChild(el('span', 'pl-wk-ora-n', (o < 10 ? '0' : '') + o));
+        gut.appendChild(riga);
+    }
+    /* il tempo di quell'ora accanto all'ora, come nella vista giorno */
+    renderGutterMeteo(gut, S.focusDate);
+
+    /* Rifare la griglia azzera lo scorrimento verticale: dopo uno zoom si
+       tornava a mezzanotte proprio mentre si stava guardando il pomeriggio.
+       Lo si tiene da parte e lo si rimette, con le righe già alte quanto
+       devono essere. */
+    var scPrima = $('plWeekScroll');
+    var altezzaPrima = scPrima ? scPrima.scrollTop : 0;
+
+    /* --- celle --- */
+    grid.innerHTML = '';
+    for (var h = 0; h < 24; h++) {
+        for (var k = 0; k < WK_GIORNI; k++) {
+            grid.appendChild(wkCella(addDays(inizio, k), h));
+        }
+    }
+
+    var sc = $('plWeekScroll');
+    if (sc) {
+        sc.scrollLeft = WK_PRIMA * wkLarghezzaCol();
+        sc.scrollTop = Math.max(0, Math.min(24 * WK.riga - sc.clientHeight, altezzaPrima));
+        wkSegue();
+    }
+    wkSegnaScelto();
+    wkLineaAdesso();
+    /* la scena della barra in alto racconta il giorno scelto anche qui */
+    applyAmbient();
+}
+
+/* La riga di adesso, che nella vista giorno c'è da sempre e qui mancava.
+
+   Sono due righe e non una. Quella pallida attraversa tutta la striscia
+   perché l'ora è la stessa in tutte le colonne, e serve a leggere «a che
+   altezza siamo» anche mentre si guarda giovedì; quella marcata, con il
+   pallino, sta solo sulla colonna di oggi, perché è lì e solo lì che quella
+   riga vuol dire «adesso» e non «la stessa ora di un altro giorno».
+
+   La posizione orizzontale si scrive con `calc(var(--wk-col) * n)` invece di
+   misurare la colonna: la larghezza la sa già il CSS, e chiederla al browser
+   in un ridisegno sarebbe un calcolo di layout in più per niente. */
+function wkLineaAdesso() {
+    var grid = $('plWeekGrid');
+    if (!grid) return;
+    var vecchie = grid.querySelectorAll('.pl-wk-now');
+    for (var v = 0; v < vecchie.length; v++) vecchie[v].parentNode.removeChild(vecchie[v]);
+    if (!WK.inizio) return;
+
+    var ora = new Date();
+    var min = ora.getHours() * 60 + ora.getMinutes();
+    var top = (min / 60) * WK.riga;
+
+    var riga = el('div', 'pl-wk-now');
+    riga.style.top = top + 'px';
+    grid.appendChild(riga);
+
+    /* oggi può essere fuori dalla finestra disegnata: in quel caso la riga
+       marcata non c'è, e resta solo quella pallida */
+    var i = diffDays(WK.inizio, S.today);
+    if (i < 0 || i >= WK_GIORNI) return;
+    var oggi = el('div', 'pl-wk-now pl-wk-now-oggi');
+    oggi.style.top = top + 'px';
+    oggi.style.left = 'calc(var(--wk-col) * ' + i + ')';
+    oggi.style.width = 'var(--wk-col)';
+    grid.appendChild(oggi);
+}
+
+/* Una casella: gli eventi che cominciano in quell'ora. Quando sono troppi
+   per lo spazio, i meno importanti si stringono in un solo mucchietto —
+   toccandolo si aprono tutti. È la stessa idea del compattamento nella
+   griglia a orari: in una casella alta quaranta pixel tre nomi non ci
+   stanno, e stamparli lo stesso vorrebbe dire non leggerne nessuno. */
+function wkCella(giorno, h) {
+    var cella = el('div', 'pl-wk-cell'
+        + (giorno === S.today ? ' pl-oggi' : '')
+        + (giorno === S.focusDate ? ' pl-scelto' : ''));
+    cella.dataset.date = giorno;
+    cella.dataset.ora = h;
+
+    var dentro = (S.events[giorno] || []).filter(function (ev) {
+        return !ev.all_day && Math.floor(toMin(ev.start) / 60) === h;
+    });
+    /* prima i più importanti, e a parità i più lunghi: se qualcosa deve
+       finire nel mucchietto, che sia il meno significativo */
+    var peso = { highest: 0, high: 1, normal: 2, low: 3 };
+    dentro.sort(function (a, b) {
+        var pa = peso[a.importance] !== undefined ? peso[a.importance] : 2;
+        var pb = peso[b.importance] !== undefined ? peso[b.importance] : 2;
+        if (pa !== pb) return pa - pb;
+        return (toMin(b.end) - toMin(b.start)) - (toMin(a.end) - toMin(a.start));
+    });
+
+    var posti = Math.max(1, Math.floor((WK.riga - 2) / 13));
+    var mostrati = dentro.length > posti ? dentro.slice(0, posti - 1) : dentro;
+
+    mostrati.forEach(function (ev) {
+        var chip = el('div', 'pl-wk-chip');
+        chip.style.setProperty('--ev', evColor(ev));
+        if (ev.done) chip.classList.add('pl-done');
+        chip.textContent = ev.title || 'Senza titolo';
+        chip.addEventListener('click', function (e) {
+            e.stopPropagation();
+            openEventSheet(ev, null);
+        });
+        cella.appendChild(chip);
+    });
+
+    var restano = dentro.slice(mostrati.length);
+    if (restano.length) {
+        var piu = el('div', 'pl-wk-piu', '+' + restano.length);
+        piu.addEventListener('click', function (e) {
+            e.stopPropagation();
+            miniPopup(restano);
+        });
+        cella.appendChild(piu);
+    }
+
+    cella.addEventListener('click', function () {
+        var oo = parseInt(this.dataset.ora, 10);
+        openEventSheet(null, {
+            date: this.dataset.date,
+            start: toHM(oo * 60), end: toHM(Math.min(1439, oo * 60 + 60))
+        });
+    });
+    return cella;
+}
+
+function wkLarghezzaCol() {
+    var h = $('plWeekHeads');
+    var c = h ? h.querySelector('.pl-wk-head') : null;
+    return c ? c.getBoundingClientRect().width : 1;
+}
+
+/* Intestazioni e colonna delle ore seguono lo scorrimento a mano: è il
+   prezzo per averle fuori dalla griglia, ed è una scrittura sola per gesto. */
+function wkSegue() {
+    var sc = $('plWeekScroll'), heads = $('plWeekHeads'), gut = $('plWeekGut');
+    if (!sc || !heads || !gut) return;
+    heads.style.transform = 'translateX(' + (-sc.scrollLeft) + 'px)';
+    gut.style.transform = 'translateY(' + (-sc.scrollTop) + 'px)';
+}
+
+(function wkScorrimento() {
+    var sc = $('plWeekScroll');
+    if (!sc) return;
+
+    /* ==================================================================
+       Lo scorrimento della settimana è fatto a mano, con i puntatori, e
+       non è più quello del browser. Tre cose lo chiedevano insieme, e
+       nessuna delle tre si poteva ottenere con lo scorrimento nativo:
+
+       - UN VERSO PER VOLTA. Con lo scorrimento del browser il verso
+         perdente si può solo rimettere a posto *dopo* che si è mosso, e su
+         iOS toccare la posizione in mezzo a un lancio lo interrompe: si
+         finiva a scorrere in diagonale, e certi lanci morivano a metà (era
+         questo, e non un limite di giorni, a far sembrare che oltre il
+         terzo giorno la striscia fosse bloccata).
+       - IL GIORNO SI SCEGLIE QUANDO SI ALZA IL DITO. A metà strada fra due
+         colonne non c'è nessun giorno da scegliere; sceglierlo lo stesso a
+         ogni fotogramma faceva ballare intestazioni, colonna delle ore e
+         scena in alto mentre il dito era ancora giù.
+       - L'AGGANCIO ALLA COLONNA DEVE ESSERE NOSTRO, se no lo scatto del
+         browser (`scroll-snap`) e il nostro si contendono la stessa
+         posizione e vince a caso uno dei due.
+
+       In cambio si perde lo slancio nativo, e quindi ce lo facciamo noi:
+       sono venti righe, e almeno si ferma dove diciamo. Il riquadro ha
+       `overflow:hidden` e `touch-action:none` nel CSS — resta scorrevole da
+       codice, che è tutto quello che serve.
+       ================================================================== */
+    var g = null;      // il gesto in corso, con tutte le misure prese all'inizio
+    var anim = null;   // slancio o aggancio in corso
+
+    function fermaAnim() { if (anim) { cancelAnimationFrame(anim); anim = null; } }
+
+    /* Un'animazione sola per tutt'e due i versi: si parte da dove si è e si
+       arriva dove si deve, con la frenata dolce. `poi` scatta a fine corsa —
+       ed è lì, e solo lì, che il giorno cambia. */
+    function animaA(x, y, ms, poi) {
+        fermaAnim();
+        var x0 = sc.scrollLeft, y0 = sc.scrollTop, t0 = 0;
+        function passo(t) {
+            if (!t0) t0 = t;
+            var k = Math.min(1, (t - t0) / ms);
+            var e = 1 - Math.pow(1 - k, 3);
+            if (x !== null) sc.scrollLeft = x0 + (x - x0) * e;
+            if (y !== null) sc.scrollTop = y0 + (y - y0) * e;
+            wkSegue();
+            if (k < 1) { anim = requestAnimationFrame(passo); return; }
+            anim = null;
+            if (poi) poi();
+        }
+        anim = requestAnimationFrame(passo);
+    }
+
+    /* Il giorno scelto. Si arriva qui a gesto finito e a striscia ferma:
+       l'indice della colonna è esatto, non c'è niente da indovinare. */
+    function scegliGiorno(i) {
+        var nuovo = addDays(WK.inizio, i);
+        if (nuovo === S.focusDate) return;
+        S.focusDate = nuovo;
+        renderWeekBits();
+        /* Vicino a un bordo la finestra si rifà intorno al giorno nuovo.
+
+           Il bordo destro non è l'ultima colonna disegnata ma l'ultima a cui
+           si può *arrivare*: con ventun colonne e sette in vista, la striscia
+           si ferma alla quattordicesima, e la soglia scritta sul totale
+           (`i > 17`) non veniva mai raggiunta. Risultato: la finestra non si
+           rifaceva mai in avanti e dopo qualche giorno si sbatteva contro il
+           muro, mentre all'indietro tutto funzionava. Qui l'ultima colonna
+           raggiungibile si calcola da quante ne stanno sullo schermo. */
+        var largh = wkLarghezzaCol();
+        var inVista = Math.max(1, Math.round(sc.clientWidth / Math.max(1, largh)));
+        var ultima = Math.max(1, WK_GIORNI - inVista);
+        if (i < 3 || i > ultima - 3) renderWeek();
+        else {
+            wkSegnaScelto();
+            /* colonna delle ore e scena in alto parlano del giorno scelto:
+               senza questo restavano su quello di prima */
+            renderGutterMeteo($('plWeekGut'), S.focusDate);
+            applyAmbient();
+        }
+    }
+
+    sc.addEventListener('pointerdown', function (e) {
+        if (WK.zoomando) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        fermaAnim();
+        /* tutte le misure del gesto si prendono qui, una volta: dentro il
+           movimento si fanno solo conti e scritture */
+        var w = wkLarghezzaCol();
+        g = {
+            id: e.pointerId,
+            x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: e.timeStamp,
+            left: sc.scrollLeft, top: sc.scrollTop, w: w,
+            mx: Math.max(0, WK_GIORNI * w - sc.clientWidth),
+            my: Math.max(0, 24 * WK.riga - sc.clientHeight),
+            asse: null, vx: 0, vy: 0, mosso: false
+        };
+        try { sc.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    sc.addEventListener('pointermove', function (e) {
+        if (!g || e.pointerId !== g.id || WK.zoomando) return;
+        var dx = e.clientX - g.x, dy = e.clientY - g.y;
+        if (g.asse === null) {
+            /* sei pixel di soglia: sotto, il verso non lo sa nemmeno chi sta
+               toccando, e deciderlo lì vorrebbe dire tirare a sorte */
+            if (Math.max(Math.abs(dx), Math.abs(dy)) < 6) return;
+            g.asse = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+            g.mosso = true;
+        }
+        var dt = Math.max(1, e.timeStamp - g.t);
+        g.vx = (e.clientX - g.lx) / dt;
+        g.vy = (e.clientY - g.ly) / dt;
+        g.t = e.timeStamp; g.lx = e.clientX; g.ly = e.clientY;
+        if (g.asse === 'x') sc.scrollLeft = Math.max(0, Math.min(g.mx, g.left - dx));
+        else                sc.scrollTop  = Math.max(0, Math.min(g.my, g.top - dy));
+        wkSegue();
+    });
+
+    function fine(e) {
+        if (!g || e.pointerId !== g.id) return;
+        var gg = g; g = null;
+        if (!gg.asse) return;              // un tocco fermo: era un tocco, non un gesto
+        if (gg.asse === 'x') {
+            var w = Math.max(1, gg.w);
+            var i = Math.round(sc.scrollLeft / w);
+            /* un colpo secco vale un giorno anche se il dito non è arrivato a
+               metà colonna: è il gesto con cui si sfoglia, e pretendere metà
+               strada lo farebbe sembrare rotto */
+            if (Math.abs(gg.vx) > 0.4) {
+                i = gg.vx < 0 ? Math.ceil(sc.scrollLeft / w) : Math.floor(sc.scrollLeft / w);
+            }
+            i = Math.max(0, Math.min(WK_GIORNI - 1, i));
+            animaA(i * w, null, 220, function () { scegliGiorno(i); });
+        } else {
+            /* slancio verticale con attrito: si ferma da sé o contro il
+               fondo, e non c'è nessun giorno da scegliere */
+            var v = gg.vy * 16;
+            (function passo() {
+                v *= 0.94;
+                if (Math.abs(v) < 0.4) { anim = null; return; }
+                var y = sc.scrollTop - v;
+                var lim = Math.max(0, Math.min(gg.my, y));
+                sc.scrollTop = lim;
+                wkSegue();
+                if (Math.abs(lim - y) > 0.5) { anim = null; return; }   // muro
+                anim = requestAnimationFrame(passo);
+            })();
+        }
+    }
+    sc.addEventListener('pointerup', fine);
+    sc.addEventListener('pointercancel', fine);
+
+    /* Con il riquadro non più scorrevole da sé, la rotellina e il tappetino
+       del computer resterebbero senza risposta. */
+    sc.addEventListener('wheel', function (e) {
+        if (WK.zoomando) return;
+        fermaAnim();
+        var my = Math.max(0, 24 * WK.riga - sc.clientHeight);
+        var mx = Math.max(0, WK_GIORNI * wkLarghezzaCol() - sc.clientWidth);
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+            sc.scrollLeft = Math.max(0, Math.min(mx, sc.scrollLeft + e.deltaX));
+        } else {
+            sc.scrollTop = Math.max(0, Math.min(my, sc.scrollTop + e.deltaY));
+        }
+        wkSegue();
+        e.preventDefault();
+        if (wkScrollTimer) clearTimeout(wkScrollTimer);
+        wkScrollTimer = setTimeout(function () {
+            scegliGiorno(Math.max(0, Math.min(WK_GIORNI - 1,
+                Math.round(sc.scrollLeft / Math.max(1, wkLarghezzaCol())))));
+        }, 200);
+    }, { passive: false });
+
+    /* Zoom a due dita: cambia l'altezza della riga, che qui è l'unica cosa
+       che voglia dire "più vicino". Niente ridisegno durante il gesto —
+       basta la variabile — quindi il gesto non può morirci sotto.
+
+       L'orario che sta in mezzo alle due dita al primo tocco resta inchiodato
+       all'altezza dello schermo in cui era, esattamente come nella vista
+       giorno: l'altezza si prende una volta all'inizio e non la si guarda
+       più. Tenerlo agganciato al centro delle dita di adesso vorrebbe dire
+       farlo scivolare via proprio mentre lo si sta guardando. */
+    var punti = {}, base = 0, rigaBase = 0;
+    var ancoraMin = 0, ancoraY = 0, scTop = 0, scH = 0;
+    function dist2() {
+        var k = Object.keys(punti);
+        if (k.length !== 2) return 0;
+        var a = punti[k[0]], b = punti[k[1]];
+        return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+    function meta2() {
+        var k = Object.keys(punti);
+        if (k.length !== 2) return 0;
+        return (punti[k[0]].y + punti[k[1]].y) / 2;
+    }
+    sc.addEventListener('pointerdown', function (e) {
+        if (e.pointerType !== 'touch') return;
+        punti[e.pointerId] = { x: e.clientX, y: e.clientY };
+        if (Object.keys(punti).length === 2) {
+            /* arrivato il secondo dito, il trascinamento a uno solo non c'è
+               più: se no si sposterebbe e si zoomerebbe insieme */
+            g = null;
+            fermaAnim();
+            Object.keys(punti).forEach(function (id) {
+                try { sc.setPointerCapture(Number(id)); } catch (err) {}
+            });
+            base = dist2(); rigaBase = WK.riga;
+            WK.zoomando = true;
+            var box = sc.getBoundingClientRect();
+            scTop = box.top; scH = sc.clientHeight;
+            ancoraY = meta2();
+            ancoraMin = ((sc.scrollTop + (ancoraY - scTop)) / Math.max(1, rigaBase)) * 60;
+            document.documentElement.classList.add('pl-zoomando');
+        }
+    });
+    sc.addEventListener('pointermove', function (e) {
+        if (!(e.pointerId in punti)) return;
+        punti[e.pointerId] = { x: e.clientX, y: e.clientY };
+        if (Object.keys(punti).length !== 2 || !base) return;
+        WK.riga = Math.max(28, Math.min(130, Math.round(rigaBase * dist2() / base)));
+        $('plWeekGrid').style.setProperty('--wk-row', WK.riga + 'px');
+        $('plWeekGut').style.setProperty('--wk-row', WK.riga + 'px');
+        /* con le righe che cambiano altezza cambia anche dove cade adesso:
+           lasciarla ferma la farebbe scivolare su un'ora che non è la sua */
+        wkLineaAdesso();
+        wkScrollToMinuteAt(ancoraMin, ancoraY, scTop, scH);
+        wkSegue();
+    });
+    function su(e) {
+        if (!(e.pointerId in punti)) return;
+        delete punti[e.pointerId];
+        if (Object.keys(punti).length < 2 && base) {
+            base = 0;
+            WK.zoomando = false;
+            document.documentElement.classList.remove('pl-zoomando');
+            /* con la riga cambiata cambia anche quanto ci sta dentro: le
+               caselle vanno rifatte, ma a gesto finito */
+            if (S.view === 'week') renderWeek();
+        }
+    }
+    sc.addEventListener('pointerup', su);
+    sc.addEventListener('pointercancel', su);
+})();
+
+/* Il giorno su cui lo scorrimento si è fermato, segnato in modo diverso da
+   oggi: sono due cose diverse e confonderle toglierebbe senso a tutt'e due. */
+function wkSegnaScelto() {
+    ['plWeekGrid', 'plWeekHeads'].forEach(function (id) {
+        var box = $(id);
+        if (!box) return;
+        var vecchi = box.querySelectorAll('.pl-scelto');
+        for (var i = 0; i < vecchi.length; i++) vecchi[i].classList.remove('pl-scelto');
+        var nuovi = box.querySelectorAll('[data-date="' + S.focusDate + '"]');
+        for (var k = 0; k < nuovi.length; k++) nuovi[k].classList.add('pl-scelto');
+    });
+}
+
+/* ------------------------------------------------------------------ */
+/* Il menu delle viste                                                 */
+/* ------------------------------------------------------------------ */
+/* Su schermo largo il pulsante resta l'interruttore di sempre fra mese e
+   griglia a orari. Su telefono in verticale le viste sono tre, e un
+   interruttore non sa dire tre cose: si apre un menu, con la voce di adesso
+   tinta del colore della pagina. */
+(function menuViste() {
+    var btn = $('plViewBtn'), menu = $('plViewMenu');
+    if (!btn || !menu) return;
+
+    function chiudi() {
+        if (!menu.classList.contains('pl-open')) return;
+        menu.classList.remove('pl-open');
+        menu.setAttribute('aria-hidden', 'true');
+        /* in vista mese il tastino resta acceso di suo: chiudendo il menu
+           non gli si spegne addosso il segno che non era nostro */
+        btn.classList.toggle('pl-on', S.view === 'month');
+    }
+
+    function apri() {
+        var voci = menu.querySelectorAll('button');
+        for (var i = 0; i < voci.length; i++) {
+            voci[i].classList.toggle('pl-on', voci[i].dataset.v === S.view);
+        }
+        menu.classList.add('pl-open');
+        menu.setAttribute('aria-hidden', 'false');
+        /* il tastino resta premuto: è da lì che il menu è sceso, e senza
+           quel segno sembra comparso da nessuna parte */
+        btn.classList.add('pl-on');
+
+        /* La posizione si prende dal tastino, una volta sola all'apertura.
+           Serve `fixed` perché dentro la barra in alto il menu veniva
+           ritagliato, e perché deve passare sopra la fascia delle priorità. */
+        var r = btn.getBoundingClientRect();
+        menu.style.top = (r.bottom + 6) + 'px';
+        menu.style.left = '0px';
+        var w = menu.getBoundingClientRect().width;
+        var x = r.left + r.width / 2 - w / 2;
+        menu.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x)) + 'px';
+    }
+
+    btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (!isSchermoStretto()) { setView(S.view === 'day' ? 'month' : 'day'); return; }
+        if (menu.classList.contains('pl-open')) chiudi();
+        else apri();
+    });
+
+    menu.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('button') : null;
+        if (!b) return;
+        e.stopPropagation();
+        chiudi();
+        setView(b.dataset.v);
+    });
+
+    /* Qualunque altra cosa lo chiude: un tocco altrove, uno scorrimento, la
+       rotella. Il menu è appeso al tastino, e appena si guarda da un'altra
+       parte non ha più motivo di stare lì. Si ascolta in fase di cattura per
+       arrivare prima di chi si ferma il gesto per sé. */
+    function altrove(e) {
+        if (!menu.classList.contains('pl-open')) return;
+        var t = e && e.target;
+        if (t && t.closest && (t.closest('#plViewMenu') || t.closest('#plViewBtn'))) return;
+        chiudi();
+    }
+    document.addEventListener('pointerdown', altrove, true);
+    document.addEventListener('wheel', function () { chiudi(); }, { passive: true, capture: true });
+    document.addEventListener('touchmove', function () { chiudi(); }, { passive: true, capture: true });
+    document.addEventListener('scroll', function () { chiudi(); }, true);
+    window.addEventListener('resize', chiudi);
+})();
 
 function renderMonth() {
     var cursor = parseIso(S.monthCursor);
@@ -8047,7 +9501,13 @@ function boot() {
     if (S.settings.default_view === 'month') setView('month');
 
     // la linea dell'ora si aggiorna da sola
-    setInterval(function () { if (S.view === 'day') renderDays(); }, 60000);
+    setInterval(function () {
+        if (S.view === 'day') renderDays();
+        /* nella settimana basta spostare la riga: rifare la griglia ogni
+           minuto vorrebbe dire rifare anche tutte le caselle, e lo scorrimento
+           in corso ne uscirebbe scosso */
+        else if (S.view === 'week') wkLineaAdesso();
+    }, 60000);
 
     // niente zoom del browser con due dita fuori dalla griglia
     document.addEventListener('gesturestart', function (e) { e.preventDefault(); });

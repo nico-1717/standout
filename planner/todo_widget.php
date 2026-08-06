@@ -118,6 +118,90 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
 .td-pill-name{ font-size:14.5px; }
 .td-pill-sub{ font-size:11.5px; color:var(--td-ink-3); }
 .td-pill-stats{ margin-top:14px; font-size:11.5px; color:var(--td-ink-3); }
+
+/* --- prese rimaste indietro --- */
+/* Rosso e non grigio: è l'unica cosa in questa pagina su cui si può ancora
+   rimediare, e deve chiamare. Il colore sta sul bordo e sul giorno, non su
+   tutto il blocco: un riquadro rosso pieno tutte le mattine diventerebbe
+   allarme di sottofondo, e dopo tre giorni non lo si vedrebbe più. */
+.td-pill-lasect{ color:#A96A6A; }
+.td-pill-late-row{
+    border-left:2px solid #C98F8F; padding-left:9px; margin-bottom:2px;
+}
+.td-pill-late-row .td-pill-check{ border-color:#C98F8F; }
+.td-pill-lab-day{ font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:#A96A6A; }
+.td-pill-scorda{
+    margin-left:auto; flex-shrink:0; border:none; cursor:pointer; font:inherit;
+    font-size:11.5px; color:var(--td-ink-3); background:var(--td-panel);
+    border-radius:999px; padding:5px 10px;
+}
+/* l'ora della presa è un tasto, si tocca e si corregge */
+.td-pill-when{
+    border:none; background:none; cursor:pointer; font:inherit; padding:0;
+    font-size:11.5px; color:var(--td-ink-3); text-decoration:underline;
+    text-decoration-style:dotted; text-underline-offset:2px; text-align:left;
+}
+
+/* --- come è andata: un mese di calendario --- */
+/* Stessa forma del calendario delle abitudini: la colonna del lunedì è
+   sempre la stessa colonna, e un buco si vede senza contare niente. Il
+   colore è quello della terapia (--cc), non il verde e rosso degli altri
+   grafici: su una cura direbbero «bravo» e «male», e non è quello il punto. */
+.td-pill-cal-box{ margin:6px 0 18px; }
+.td-pill-cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.td-pill-cal-mese{ font-size:14px; font-weight:500; text-transform:capitalize; }
+.td-pill-cal-nav{
+    width:30px; height:30px; border-radius:10px; border:none; cursor:pointer;
+    background:var(--td-panel); color:var(--td-ink-2);
+    display:flex; align-items:center; justify-content:center;
+}
+.td-pill-cal-nav svg{ width:14px; height:14px; }
+.td-pill-cal-nav:disabled{ opacity:.3; cursor:default; }
+.td-pill-cal-dows{ display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; margin-bottom:5px; }
+.td-pill-cal-dow{
+    text-align:center; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--td-ink-3);
+}
+.td-pill-cal{ display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; min-height:150px; }
+.td-pill-cal-c{
+    aspect-ratio:1; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:12px; color:var(--td-ink-3); font-variant-numeric:tabular-nums;
+}
+.td-pill-cal-c.td-vuoto{ visibility:hidden; }
+/* presa tutte le volte previste: pieno del colore della terapia */
+.td-pill-cal-c.td-ok{ background:var(--cc, #B7A6D6); color:#FFFDFA; }
+/* Presa in parte: due su tre è una cosa diversa da nessuna e diversa da
+   tutte. Due gradini e non uno per numero — fino a metà e oltre metà — perché
+   con cinque prese al giorno quattro sfumature nessuno le distinguerebbe.
+   Il contorno è più marcato del riempimento: su un pallino piccolo il bordo
+   si vede anche quando il colore dentro è appena accennato. */
+.td-pill-cal-c.td-mezzo{
+    background:color-mix(in srgb, var(--cc, #B7A6D6) 22%, transparent);
+    color:var(--td-ink-2);
+    box-shadow:inset 0 0 0 1.4px color-mix(in srgb, var(--cc, #B7A6D6) 45%, transparent);
+}
+.td-pill-cal-c.td-mezzo2{
+    background:color-mix(in srgb, var(--cc, #B7A6D6) 55%, transparent);
+    color:var(--td-ink);
+    box-shadow:inset 0 0 0 1.4px color-mix(in srgb, var(--cc, #B7A6D6) 75%, transparent);
+}
+/* non presa: l'unico posto in cui il rosso ci vuole */
+.td-pill-cal-c.td-no{ background:#F3DFDF; color:#A96A6A; }
+/* prevista ma il giorno non è ancora finito */
+.td-pill-cal-c.td-attesa{ box-shadow:inset 0 0 0 1.2px var(--td-hair); }
+.td-pill-cal-c.td-oggi{ box-shadow:inset 0 0 0 1.8px var(--td-ink-2); }
+.td-pill-cal-c.td-futuro{ opacity:.35; }
+/* la legenda: pallini veri, non quadratini finti, se no il colore che si
+   vede qui non è lo stesso che si vede là sopra */
+.td-pill-cal-leg{
+    margin-top:12px; display:flex; flex-direction:column; gap:5px;
+    font-size:11.5px; color:var(--td-ink-3);
+}
+.td-pill-cal-legv{ display:flex; align-items:center; gap:8px; }
+.td-pill-cal-legv .td-pill-cal-c{
+    width:14px; height:14px; flex:0 0 14px; aspect-ratio:auto; font-size:0;
+}
+.td-pill-cal-nota{ margin-top:10px; font-size:11.5px; color:var(--td-ink-2); }
 .td-pill-sect{
     margin:22px 0 8px; font-size:10px; letter-spacing:.2em;
     text-transform:uppercase; color:var(--td-ink-3);
@@ -453,6 +537,11 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
                 var memo = localStorage.getItem('nisama_todo_tab');
                 if (TIPI.indexOf(memo) >= 0) this.listType = memo;
             } catch (e) {}
+            /* Chi arriva da fuori dice su quale elenco vuole aprire, e vince
+               sull'ultimo usato: se dal planner si tocca «apri» stando sulle
+               pastiglie, ritrovarsi sul to do perché era quello di ieri
+               sarebbe un salto che non ha chiesto nessuno. */
+            if (this.opts.tab && TIPI.indexOf(this.opts.tab) >= 0) this.listType = this.opts.tab;
         }
         this.items = [];
         this.cats = [];
@@ -1697,6 +1786,17 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         var d = new Date();
         return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     }
+    /* L'ora della spunta scritta come la scrive il server: «2026-08-04
+       09:15:00», ora locale. Prima si usava toISOString(), che è UTC: alle
+       9:15 di agosto la riga diceva «presa alle 07:15», due ore prima, e
+       sembrava che il registro sbagliasse. Il valore vero sul database era
+       giusto — a sbagliare era solo questa copia mostrata subito. */
+    function pillAdesso() {
+        var d = new Date();
+        return pillOggi() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':00';
+    }
+    function pillOraDi(stamp) { return String(stamp || '').slice(11, 16); }
+    function pillGiornoDi(stamp) { return String(stamp || '').slice(0, 10); }
 
     Todo.prototype.loadPills = function () {
         var self = this;
@@ -1716,6 +1816,18 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
             this.list.appendChild(el('div', 'td-empty',
                 'Sezione non ancora installata: manca la tabella delle pastiglie sul database.'));
             return;
+        }
+
+        /* --- quelle rimaste indietro ---
+           Vanno in cima e in rosso perché sono l'unica cosa qui dentro su cui
+           si può ancora fare qualcosa di utile: le prese di oggi le si spunta
+           quando arriva l'ora, una dimenticata di ieri invece o la si sistema
+           adesso o resta un buco. */
+        var late = p.late || [];
+        if (late.length) {
+            self.list.appendChild(el('div', 'td-pill-sect td-pill-lasect',
+                late.length === 1 ? 'Rimasta indietro' : 'Rimaste indietro'));
+            late.forEach(function (d) { self.list.appendChild(self.pillDoseRow(d, true)); });
         }
 
         /* --- le prese di oggi, in ordine di orologio --- */
@@ -1801,9 +1913,228 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         return q.join('  ·  ');
     }
 
-    Todo.prototype.pillDoseRow = function (d) {
+    /* ==================================================================
+       Il calendario delle prese: un mese per volta, un pallino per giorno,
+       le frecce per cambiare mese.
+
+       La striscia di quadratini di prima non si leggeva: sessanta giorni di
+       fila senza sabati, domeniche né numeri sono sessanta quadratini uguali,
+       e per capire *quando* era saltata una presa bisognava contarli a dito.
+       Un mese disposto come un calendario invece si legge da sé — la colonna
+       del lunedì è sempre la stessa colonna — ed è la stessa forma che hanno
+       già le abitudini, quindi non c'è niente di nuovo da imparare.
+
+       Il colore è quello della terapia: il verde e il rosso di tutti gli
+       altri grafici qui direbbero “bravo” e “male”, e su una cura non è
+       quello il punto.
+       ================================================================== */
+    var CAL_GG = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
+    var CAL_MESI = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio',
+                    'agosto','settembre','ottobre','novembre','dicembre'];
+
+    /* Quante prese prevede in un giorno: «10:00x2,20:00x1» fa tre. È il
+       numero da cui dipende tutto il resto — quanti colori hanno senso e
+       come si chiamano. */
+    function pillPerGiorno(pl) {
+        var n = 0;
+        String((pl && pl.times) || '').split(',').forEach(function (t) {
+            if (!t.trim()) return;
+            var p = t.split('x');
+            n += Math.max(1, parseInt(p[1] || '1', 10));
+        });
+        return Math.max(1, n);
+    }
+
+    /* Che colore prende un giorno.
+
+       Le vie di mezzo si dividono in due sole categorie — fino a metà e oltre
+       metà — e non una per numero: con cinque prese al giorno servirebbero
+       quattro sfumature, che nessuno distinguerebbe a colpo d'occhio e che
+       nella legenda diventerebbero un elenco più lungo del calendario.
+       Con due prese al giorno di via di mezzo ce n'è una sola, e infatti di
+       colore ne esce uno solo; con una sola presa non ce ne sono affatto. */
+    function pillLivello(prese, tot) {
+        if (tot <= 0) return '';
+        if (prese >= tot) return 'td-ok';
+        if (prese <= 0) return 'td-no';
+        return prese * 2 <= tot ? 'td-mezzo' : 'td-mezzo2';
+    }
+
+    /* La legenda si scrive sulla terapia che si sta guardando, non in
+       generale: spiegare il colore «presa in parte» a chi prende una
+       pastiglia al giorno vuol dire descrivere una cosa che non gli
+       succederà mai, e da lì in poi la legenda non la legge più nessuno. */
+    function pillVolte(lista, tot) {
+        var q = lista.length === 1
+            ? lista[0] + (lista[0] === 1 ? ' volta' : ' volte')
+            : lista[0] + '–' + lista[lista.length - 1] + ' volte';
+        return q + ' su ' + tot;
+    }
+    function pillLegenda(tot) {
+        var voci = [['td-ok', tot > 1 ? 'presa tutte e ' + tot + ' le volte' : 'presa']];
+        var basso = [], alto = [];
+        for (var k = 1; k < tot; k++) (k * 2 <= tot ? basso : alto).push(k);
+        if (basso.length) voci.push(['td-mezzo', 'presa ' + pillVolte(basso, tot)]);
+        if (alto.length) voci.push(['td-mezzo2', 'presa ' + pillVolte(alto, tot)]);
+        voci.push(['td-no', 'non presa']);
+        voci.push(['td-attesa', 'prevista, il giorno non è ancora finito']);
+        return voci;
+    }
+
+    function pillCalendario(pl, titolo) {
+        var box = el('div', 'td-pill-cal-box');
+        box.style.setProperty('--cc', pl.color || '#B7A6D6');
+
+        var oggi = pillOggi();
+        var mese = oggi.slice(0, 7);
+
+        var testa = el('div', 'td-pill-cal-head');
+        var giu = el('button', 'td-pill-cal-nav'); giu.type = 'button';
+        giu.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+        var su = el('button', 'td-pill-cal-nav'); su.type = 'button';
+        su.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+        var lab = el('div', 'td-pill-cal-mese');
+        testa.appendChild(giu); testa.appendChild(lab); testa.appendChild(su);
+        box.appendChild(testa);
+
+        if (titolo) box.appendChild(el('div', 'td-pill-sub', titolo));
+
+        var dows = el('div', 'td-pill-cal-dows');
+        CAL_GG.forEach(function (g) { dows.appendChild(el('span', 'td-pill-cal-dow', g)); });
+        box.appendChild(dows);
+
+        var griglia = el('div', 'td-pill-cal');
+        box.appendChild(griglia);
+
+        /* La legenda, scritta sulla terapia che si sta guardando: nessuno
+           indovina i colori da solo, e senza, un giorno sfumato si legge come
+           «mezzo cancellato» invece che «una delle due presa». Sta sotto e non
+           sopra perché la si guarda una volta e poi non serve più. */
+        var perGiorno = pillPerGiorno(pl);
+        var leg = el('div', 'td-pill-cal-leg');
+        pillLegenda(perGiorno).forEach(function (v) {
+            var r = el('div', 'td-pill-cal-legv');
+            var q = el('i', 'td-pill-cal-c ' + v[0]);
+            q.style.setProperty('--cc', pl.color || '#B7A6D6');
+            r.appendChild(q);
+            r.appendChild(el('span', null, v[1]));
+            leg.appendChild(r);
+        });
+        box.appendChild(leg);
+
+        var nota = el('div', 'td-pill-cal-nota');
+        box.appendChild(nota);
+
+        function passoMese(n) {
+            var y = +mese.slice(0, 4), m = +mese.slice(5, 7) - 1 + n;
+            var d = new Date(y, m, 1);
+            mese = d.getFullYear() + '-' + pad(d.getMonth() + 1);
+            disegna();
+        }
+        giu.addEventListener('click', function () { passoMese(-1); });
+        su.addEventListener('click', function () { passoMese(1); });
+
+        /* Si sfoglia anche col dito, come ci si aspetta da un calendario:
+           trascinare verso sinistra porta avanti, come voltare una pagina.
+           Quaranta pixel di soglia, se no basterebbe un dito appena storto
+           mentre si guarda un giorno per cambiare mese senza volerlo.
+           Il gesto sta sulla griglia e non sulla scheda intera: la scheda in
+           verticale scorre, e rubarle il movimento vorrebbe dire non poter
+           più arrivare in fondo. */
+        var px = 0, py = 0, vivo = false;
+        griglia.addEventListener('pointerdown', function (e) {
+            px = e.clientX; py = e.clientY; vivo = true;
+        });
+        griglia.addEventListener('pointerup', function (e) {
+            if (!vivo) return;
+            vivo = false;
+            var dx = e.clientX - px, dy = e.clientY - py;
+            if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+            /* indietro sempre; avanti solo se c'è un mese da vedere, cioè
+               mai oltre quello in corso */
+            if (dx < 0) { if (!su.disabled) passoMese(1); }
+            else passoMese(-1);
+        });
+        griglia.addEventListener('pointercancel', function () { vivo = false; });
+
+        function disegna() {
+            lab.textContent = CAL_MESI[+mese.slice(5, 7) - 1] + ' ' + mese.slice(0, 4);
+            /* avanti oltre il mese in corso non c'è niente da vedere: le
+               prese future non sono ancora state né prese né saltate */
+            su.disabled = mese >= oggi.slice(0, 7);
+            griglia.innerHTML = '';
+            nota.textContent = '';
+
+            api('pill_history', null, { plan_id: pl.id, month: mese }).then(function (r) {
+                griglia.innerHTML = '';
+                var per = {};
+                if (r && r.ok) (r.days || []).forEach(function (g) { per[g.date] = g; });
+
+                var y = +mese.slice(0, 4), m = +mese.slice(5, 7) - 1;
+                var primo = new Date(y, m, 1);
+                var quanti = new Date(y, m + 1, 0).getDate();
+                /* la settimana comincia di lunedì, come dappertutto qui */
+                var vuoti = (primo.getDay() + 6) % 7;
+                for (var v = 0; v < vuoti; v++) griglia.appendChild(el('div', 'td-pill-cal-c td-vuoto'));
+
+                var prese = 0, buchi = 0;
+                for (var d = 1; d <= quanti; d++) {
+                    var iso = y + '-' + pad(m + 1) + '-' + pad(d);
+                    var g = per[iso];
+                    var cls = 'td-pill-cal-c';
+                    if (g) {
+                        var tot = (g.taken || 0) + (g.skipped || 0) + (g.pending || 0);
+                        /* niente da dire su un giorno ancora in corso in cui
+                           non è successo ancora niente: non è un buco */
+                        if (!g.taken && !g.skipped && iso >= oggi) {
+                            cls += ' td-attesa';
+                        } else {
+                            var liv = pillLivello(g.taken || 0, tot);
+                            cls += ' ' + liv;
+                            if (liv === 'td-ok') prese++;
+                            else if (liv === 'td-no') buchi++;
+                        }
+                    }
+                    if (iso === oggi) cls += ' td-oggi';
+                    if (iso > oggi) cls += ' td-futuro';
+                    var c = el('div', cls, String(d));
+                    if (g) {
+                        c.title = iso + ': ' + (g.taken || 0) + ' su '
+                                + ((g.taken || 0) + (g.skipped || 0) + (g.pending || 0));
+                    }
+                    griglia.appendChild(c);
+                }
+                nota.textContent = buchi
+                    ? prese + ' giorni presa, ' + buchi + ' no'
+                    : (prese ? 'presa tutti i giorni previsti' : 'nessuna presa registrata');
+            });
+        }
+        disegna();
+        return box;
+    }
+
+    /* Il calendario da solo, senza la scheda della terapia intorno: si apre
+       toccando una presa nell'elenco del giorno, che è il momento in cui
+       viene da chiedersi “ma quante ne ho saltate?”. */
+    Todo.prototype.pillGrafico = function (plan) {
+        var ov = el('div', 'td-modal');
+        var card = el('div', 'td-card td-card-wide');
+        card.appendChild(el('div', 'td-card-t', plan.name || 'Terapia'));
+        card.appendChild(pillCalendario(plan, plan.dose || ''));
+        var acts = el('div', 'td-card-acts');
+        var ok = el('button', 'td-primary', 'Chiudi');
+        ok.type = 'button';
+        ok.addEventListener('click', function () { ov.remove(); });
+        acts.appendChild(ok);
+        card.appendChild(acts);
+        ov.appendChild(card);
+        ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+        document.body.appendChild(ov);
+    };
+
+    Todo.prototype.pillDoseRow = function (d, arretrata) {
         var self = this;
-        var r = el('div', 'td-pill-row td-pill-' + d.status);
+        var r = el('div', 'td-pill-row td-pill-' + d.status + (arretrata ? ' td-pill-late-row' : ''));
 
         var box = el('button', 'td-pill-check');
         box.type = 'button';
@@ -1815,15 +2146,23 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
             box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>';
         }
 
-        function segna(stato) {
+        function segna(stato, quando) {
             /* la riga cambia subito e la chiamata parte dopo: qui l'attesa di
                una risposta dal server si sentirebbe tutta */
             d.status = stato;
-            d.taken_at = stato === 'taken' ? new Date().toISOString() : null;
+            d.taken_at = stato === 'taken' ? (quando || pillAdesso()) : null;
             self.renderLater(120);
-            api('pill_mark', { id: d.id, status: stato });
+            var dati = { id: d.id, status: stato };
+            if (stato === 'taken' && quando) {
+                dati.at_date = pillGiornoDi(quando);
+                dati.at_time = pillOraDi(quando);
+            }
+            api('pill_mark', dati);
             if (navigator.vibrate) { try { navigator.vibrate(stato === 'taken' ? 12 : 6); } catch (e) {} }
         }
+        /* la riga la conosce solo chi la disegna: si appende qui perché la
+           possano usare anche le arretrate, che hanno tastini in più */
+        r.pillSegna = segna;
 
         var lungo = null;
         box.addEventListener('pointerdown', function () {
@@ -1843,15 +2182,125 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         box2.appendChild(el('div', 'td-pill-name', d.name + (d.dose ? '  ·  ' + d.dose : '')));
         var sotto = [];
         if (d.notes) sotto.push(d.notes);
-        if (d.status === 'taken' && d.taken_at) {
-            sotto.push('presa alle ' + String(d.taken_at).slice(11, 16));
-        }
-        if (d.status === 'skipped') sotto.push('saltata');
+        if (d.status === 'skipped') sotto.push('non presa');
         if (sotto.length) box2.appendChild(el('div', 'td-pill-sub', sotto.join('  ·  ')));
+
+        /* L'ora della presa si corregge toccandola. Il caso non è raro, è
+           quello normale: la pastiglia si prende al mattino e ci si ricorda
+           di spuntarla nel pomeriggio, e senza poterla correggere il registro
+           racconterebbe un ritardo che non c'è mai stato. */
+        if (d.status === 'taken' && d.taken_at) {
+            var quando = el('button', 'td-pill-sub td-pill-when');
+            quando.type = 'button';
+            quando.textContent = 'presa ' + (d.date && d.date !== pillOggi()
+                ? 'il ' + pillGiornoDi(d.taken_at).slice(8, 10) + '/' + pillGiornoDi(d.taken_at).slice(5, 7) + ' alle '
+                : 'alle ') + pillOraDi(d.taken_at);
+            quando.addEventListener('click', function () {
+                self.pillQuando(d, function (nuovoQuando) { segna('taken', nuovoQuando); });
+            });
+            box2.appendChild(quando);
+        }
+
+        /* Toccando il nome si apre il calendario di quella terapia. La
+           casella resta quello che è — la si tocca per spuntare — ma il nome
+           non faceva niente, ed è proprio lì che uno tocca chiedendosi come
+           sta andando. */
+        box2.style.cursor = 'pointer';
+        box2.addEventListener('click', function (e) {
+            if (e.target.closest('.td-pill-when')) return;   // quella corregge l'ora
+            /* La terapia intera e non solo nome e colore: al calendario serve
+               `times` per sapere quante prese prevede un giorno, ed è da lì
+               che dipendono i colori e la legenda. Nella riga della presa
+               quel dato non c'è, ma nell'elenco delle terapie sì. */
+            var pieno = null;
+            ((self.pills && self.pills.plans) || []).forEach(function (p) {
+                if (+p.id === +d.plan_id) pieno = p;
+            });
+            self.pillGrafico(pieno || { id: d.plan_id, name: d.name, dose: d.dose, color: d.color });
+        });
 
         r.appendChild(box);
         r.appendChild(box2);
+
+        if (arretrata) {
+            /* Il giorno di cui si sta parlando, scritto: senza, tre righe
+               tutte uguali di tre giorni diversi non si distinguono. */
+            box2.insertBefore(el('div', 'td-pill-lab-day', pillGiornoLungo(d.date)), box2.firstChild);
+
+            /* Spuntarla qui chiede *quando*: su una presa di ieri l'ora
+               dell'orologio sarebbe sicuramente sbagliata, ed è il dato che
+               poi si guarda per capire se la terapia sta reggendo. */
+            box.addEventListener('click', function (e) {
+                if (d.status === 'taken') return;
+                e.stopPropagation();
+                self.pillQuando(d, function (quando) { r.pillSegna('taken', quando); }, true);
+            }, true);
+
+            var scorda = el('button', 'td-pill-scorda', 'dimenticata');
+            scorda.type = 'button';
+            scorda.title = 'Non l\'ho presa: toglila dall\'elenco';
+            scorda.addEventListener('click', function () { r.pillSegna('skipped'); });
+            r.appendChild(scorda);
+        }
         return r;
+    };
+
+    /* «lunedì 3 agosto», per dire di che giorno è una presa arretrata. */
+    function pillGiornoLungo(iso) {
+        var GG = ['domenica','lunedì','martedì','mercoledì','giovedì','venerdì','sabato'];
+        var MM = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio',
+                  'agosto','settembre','ottobre','novembre','dicembre'];
+        var d = new Date(iso + 'T12:00:00');
+        var ieri = new Date(); ieri.setDate(ieri.getDate() - 1);
+        var isoIeri = ieri.getFullYear() + '-' + pad(ieri.getMonth() + 1) + '-' + pad(ieri.getDate());
+        if (iso === isoIeri) return 'ieri';
+        return GG[d.getDay()] + ' ' + d.getDate() + ' ' + MM[d.getMonth()];
+    }
+
+    /* Quando l'hai presa davvero. Sulle arretrate si chiede anche il giorno,
+       perché una presa di lunedì spuntata mercoledì appartiene a lunedì e
+       scriverla su mercoledì sposterebbe il buco invece di chiuderlo.
+       Si parte dall'ora prevista e non da adesso: nove volte su dieci la
+       pastiglia è stata presa lì o poco dopo, e così spesso basta confermare. */
+    Todo.prototype.pillQuando = function (d, poi, chiediGiorno) {
+        var ov = el('div', 'td-modal');
+        var card = el('div', 'td-card');
+        card.appendChild(el('div', 'td-card-t', 'Quando l\'hai presa?'));
+
+        var iData = null;
+        if (chiediGiorno) {
+            var fd = el('div', 'td-pill-field');
+            fd.appendChild(el('label', 'td-pill-lab', 'Giorno'));
+            iData = el('input', 'td-in');
+            iData.type = 'date';
+            iData.value = pillGiornoDi(d.taken_at) || d.date || pillOggi();
+            fd.appendChild(iData);
+            card.appendChild(fd);
+        }
+        var ft = el('div', 'td-pill-field');
+        ft.appendChild(el('label', 'td-pill-lab', 'Ora'));
+        var iOra = el('input', 'td-in');
+        iOra.type = 'time'; iOra.step = '60';
+        iOra.value = pillOraDi(d.taken_at) || d.time || '08:00';
+        ft.appendChild(iOra);
+        card.appendChild(ft);
+
+        var az = el('div', 'td-card-az');
+        var no = el('button', 'td-b', 'Annulla'); no.type = 'button';
+        var si = el('button', 'td-b td-b-p', 'Salva'); si.type = 'button';
+        no.addEventListener('click', function () { ov.remove(); });
+        si.addEventListener('click', function () {
+            var g = iData ? (iData.value || d.date || pillOggi()) : (d.date || pillOggi());
+            var o = iOra.value || d.time || '08:00';
+            ov.remove();
+            poi(g + ' ' + o.slice(0, 5) + ':00');
+        });
+        az.appendChild(no); az.appendChild(si);
+        card.appendChild(az);
+        ov.appendChild(card);
+        ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+        document.body.appendChild(ov);
+        iOra.focus();
     };
 
     /* La scheda della terapia. Un campo per volta, nell'ordine in cui uno ci
@@ -1995,6 +2444,12 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
             att.textContent = on ? 'Attiva' : 'Sospesa';
         });
         campo('Stato', att);
+
+        /* Come è andata, in fondo e non in cima: la scheda si apre per
+           cambiare la terapia, e la storia è quello che si guarda dopo aver
+           finito di guardare le regole. Sopra i tasti, però, perché con i
+           tasti a metà scheda si perde di vista dove si salva. */
+        if (!nuovo && pl.id) card.appendChild(pillCalendario(pl));
 
         var acts = el('div', 'td-card-acts');
         var ann = el('button', null, 'Annulla');

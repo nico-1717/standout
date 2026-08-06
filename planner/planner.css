@@ -567,7 +567,10 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
    il pannello, che quando sale la copre — la freccia gira per dire che il
    secondo tocco la fa tornare giù. */
 .pl-mpull{
-    position:absolute; left:50%; bottom:8px; transform:translateX(-50%);
+    /* a metà esatta della fascia che resta fra l'ultima riga del calendario
+       e il fondo dello schermo: la griglia si ferma 96 px prima */
+    position:absolute; left:50%; bottom:calc((96px + var(--safe-bottom)) / 2);
+    transform:translate(-50%, 50%);
     width:64px; height:34px; border:none; padding:0; cursor:pointer;
     display:grid; place-items:center;
     background:none; color:var(--ink-3);
@@ -697,6 +700,11 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-wx-sun{ background:#F8EFD4; color:#7A6127; }
 .pl-wx-snow{ background:#EAF0F6; color:#5B7284; }
 .pl-wx-storm{ background:#E7E2F0; color:#5A4E76; }
+/* Notte: la luna prende il posto del sole fra il tramonto e l'alba, e con
+   lei un blu di sera. Con il giallo del sole addosso sembrava un errore di
+   stampa, e lasciandola grigia come le nuvole non si sarebbe distinta da un
+   cielo coperto. */
+.pl-wx-moon{ background:#E3E6F1; color:#4C5473; }
 
 /* Il tag della previsione dentro la colonna degli orari, sotto l'ora a cui
    si riferisce. La colonna è larga 48 px: icona e gradi stanno incolonnati,
@@ -716,9 +724,36 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-wxg.pl-wx-sun{ color:#96762F; }
 .pl-wxg.pl-wx-snow{ color:#5B7284; }
 .pl-wxg.pl-wx-storm{ color:#5A4E76; }
+.pl-wxg.pl-wx-moon{ color:#4C5473; }
 
 /* popup del meteo: testa con giorno e luogo, frecce ai lati */
 .pl-wx-sheet{ touch-action:pan-y; }
+/* La testa resta in vista mentre si scorre. Si appiccica al corpo del foglio
+   (`.pl-sheet-body`, che è il riquadro che scorre): qui non c'è nessuna
+   griglia di mezzo, quindi `sticky` fa quello che promette invece di restare
+   prigioniero di una cella come nella vista settimanale.
+   I margini negativi con il rispettivo riempimento servono perché il velo
+   copra tutta la larghezza: senza, il contenuto passava di lato. */
+/* Il margine negativo in alto la faceva scendere: `sticky` misura la
+   posizione sul riquadro *comprensivo* dei margini, quindi con -10px di
+   margine il bordo si fermava dieci pixel sotto il bordo del riquadro che
+   scorre, e in quella fessura passava il testo — si vedeva scorrere fra la
+   barra e la riga del “chiudi”. Senza margine in alto si appiccica
+   davvero al bordo e sopra non ci passa più niente; il riempimento del corpo
+   del foglio se lo mangia lei con il proprio. */
+/* Il riquadro che scorre ha dieci pixel di riempimento in alto, e a seconda
+   del browser `top:0` può voler dire «al bordo del riquadro» oppure «al
+   bordo del contenuto», cioè dieci pixel più in basso: in quel secondo caso
+   sopra la barra restava una fessura, e lì dentro si vedeva passare il testo
+   che scorre. Con `top:-10px` la barra si aggancia comunque al bordo vero;
+   nel caso in cui il browser fosse già a posto, i dieci pixel di troppo se li
+   mangia il riempimento in alto, che è solo fondo colorato. */
+.pl-wx-testa{
+    position:sticky; top:-10px; z-index:20;
+    margin:0 -14px; padding:16px 14px 4px;
+    background:var(--card);
+    box-shadow:0 6px 10px -10px rgba(76,70,63,.55);
+}
 .pl-wx-nav{ display:flex; align-items:center; gap:6px; }
 .pl-wx-nav .pl-label{ flex:1; text-align:center; }
 .pl-wx-nav-b{
@@ -728,10 +763,34 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 }
 .pl-wx-nav-b svg{ width:16px; height:16px; }
 .pl-wx-nav-b:disabled{ opacity:.22; cursor:default; }
-/* la riga che dice su quale posto è calcolata la previsione */
+/* la riga che dice su quale posto è calcolata la previsione: è un tasto,
+   toccandolo si cambia posto */
 .pl-wx-dove{
     font-size:11.5px; color:var(--ink-3); text-align:center;
     margin:2px 0 10px; font-style:italic;
+    display:flex; align-items:center; justify-content:center; gap:4px;
+    width:100%; border:none; background:none; padding:2px 0; cursor:pointer;
+    font-family:inherit;
+}
+.pl-wx-dove svg{ width:12px; height:12px; flex-shrink:0; opacity:.75; }
+/* il luogo scelto a mano si vede che è scelto a mano: è l'unico modo per
+   ricordarsi che i gradi non sono quelli di casa */
+.pl-wx-dove-man{ color:var(--accent-ink); font-style:normal; }
+.pl-wx-dove:active{ opacity:.6; }
+
+/* il pannellino per cercare un altro posto, dentro la testa del popup */
+.pl-wx-cerca{ padding:0 0 8px; }
+.pl-wx-cerca-res{ display:flex; flex-direction:column; margin-top:6px; max-height:210px; overflow-y:auto; }
+.pl-wx-cerca-row{
+    display:flex; flex-direction:column; align-items:flex-start; gap:1px;
+    border:none; background:none; cursor:pointer; text-align:left;
+    padding:7px 8px; border-radius:var(--r-sm); font:inherit;
+}
+.pl-wx-cerca-row:active{ background:var(--paper-2); }
+.pl-wx-cerca-back{
+    margin-top:8px; width:100%; border:none; cursor:pointer; font:inherit;
+    font-size:12.5px; color:var(--accent-ink); background:var(--accent-soft);
+    border-radius:var(--r-pill); padding:7px 10px;
 }
 /* Nella casella del mese il meteo non è un evento: è un simbolo appoggiato
    nell'angolo in alto a destra, senza fondo e senza temperatura, così non
@@ -767,12 +826,19 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     font-size:9.5px; letter-spacing:.08em; text-transform:uppercase;
     color:var(--ink-3); font-variant-numeric:tabular-nums;
 }
-.pl-wxc-ic{ height:22px; margin:4px 0 2px; }
+/* La riga delle icone porta la fascia del giorno e della notte, dipinta da
+   planner.js con i gradini esattamente su alba e tramonto. Le icone dentro
+   non devono avere fondo proprio: ce l'avevano perché condividono le classi
+   dei tag (.pl-wx-sun, .pl-wx-moon), ed è per quello che il colore cambiava
+   al bordo della casella invece che all'ora vera. */
+.pl-wxc-icone{ padding:3px 0 2px; }
+.pl-wxc-ic{ height:22px; margin:4px 0 2px; background:none; }
 .pl-wxc-ic svg{ width:20px; height:20px; }
 .pl-wxc-ic.pl-wx-rain{ color:#3E6B86; }
 .pl-wxc-ic.pl-wx-sun{ color:#B08A2E; }
 .pl-wxc-ic.pl-wx-snow{ color:#5B7284; }
 .pl-wxc-ic.pl-wx-storm{ color:#5A4E76; }
+.pl-wxc-ic.pl-wx-moon{ color:#4C5473; }
 .pl-wxc-t{ font-size:13.5px; font-variant-numeric:tabular-nums; color:var(--ink); }
 .pl-wxc-p{ font-size:9.5px; color:#3E6B86; min-height:12px; font-variant-numeric:tabular-nums; }
 
@@ -794,6 +860,10 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     pointer-events:none;
 }
 .pl-wxc-et-tramonto{ color:#7A6C97; }
+/* adesso: riga piena e non tratteggiata, perché non è una previsione ma un
+   fatto, ed è la prima cosa che si cerca guardando il grafico di oggi */
+.pl-wxc-adesso{ stroke:#C4703F; stroke-width:1.6; }
+.pl-wxc-et-adesso{ color:#B4652F; font-weight:500; top:auto; bottom:1px; }
 .pl-wx-now{
     display:flex; align-items:center; gap:7px; margin:0 0 14px;
     padding:8px 11px; border-radius:var(--r-md); background:var(--paper-2);
@@ -807,6 +877,7 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-wx-now.pl-wx-sun{ background:#F8EFD4; color:#7A6127; }
 .pl-wx-now.pl-wx-snow{ background:#EAF0F6; color:#5B7284; }
 .pl-wx-now.pl-wx-storm{ background:#E7E2F0; color:#5A4E76; }
+.pl-wx-now.pl-wx-moon{ background:#E3E6F1; color:#4C5473; }
 
 /* barra intelligente: una riga in cui scrivere l'evento a parole */
 .pl-smart{
@@ -892,12 +963,63 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-prio-cell.pl-done .pl-prio-in{ color:var(--ink-3); text-decoration:line-through; text-decoration-thickness:.6px; }
 .pl-prio-cell.pl-auto{ background:var(--accent-wash); }
 .pl-prio-cell.pl-auto .pl-prio-in{ color:var(--accent-ink); font-size:12px; }
-/* stato compatto: mostra solo la prima riga */
-/* da chiusa mostriamo al massimo una riga: le altre e le caselle vuote le
-   toglie già il js, questa è solo la sicurezza sul lato dello stile */
-.pl-prio.pl-slim .pl-prio-row:nth-child(n+2){ display:none; }
-.pl-prio.pl-slim{ padding-top:6px; padding-bottom:6px; }
-.pl-prio.pl-slim .pl-prio-k{ margin-bottom:4px; }
+/* stato compatto: una riga per volta, titolo compreso */
+/* Da chiusa si vede solo la riga di turno. Non è più «la prima»: le righe
+   girano da sé e la classe la sposta il js, quindi qui si dice soltanto che
+   una si vede e le altre no. */
+.pl-prio.pl-slim .pl-prio-row{ display:none; }
+.pl-prio.pl-slim .pl-prio-row.pl-on{ display:flex; }
+/* La scritta va di fianco alle caselle e non sopra: da chiusa la sezione
+   deve rubare meno altezza possibile alla griglia degli orari, e una riga di
+   titolo tutta per sé costava quanto le priorità stesse. I tre si spartiscono
+   la larghezza, con il titolo che prende solo quello che gli serve. */
+.pl-prio.pl-slim{
+    display:flex; align-items:center; gap:8px;
+    padding-top:5px; padding-bottom:5px;
+}
+.pl-prio.pl-slim .pl-prio-k{ margin-bottom:0; flex:0 0 auto; }
+/* più piccola e più stretta: è un'etichetta, non una voce, e in orizzontale
+   ogni millimetro che prende lo toglie alle priorità */
+.pl-prio.pl-slim .pl-prio-k .pl-label{ font-size:8px; letter-spacing:.08em; }
+.pl-prio.pl-slim .pl-prio-rows{ flex:1; min-width:0; }
+.pl-prio.pl-slim .pl-prio-row{ gap:5px; }
+.pl-prio.pl-slim .pl-prio-cell{ padding:4px 6px; }
+
+/* Niente puntini nemmeno qui: la priorità che non ci sta scorre avanti e
+   indietro da sé, come il titolo di un evento. Lo span dentro è quello che
+   si muove, il contenitore fa solo da finestra. */
+.pl-prio-tx{
+    flex:1; min-width:0; overflow:hidden; white-space:nowrap;
+    font-size:12.5px; color:var(--ink); line-height:1.3;
+}
+.pl-prio-tx > span{ display:inline-block; white-space:nowrap; will-change:transform; }
+.pl-prio-tx.pl-run > span{ animation:pl-marquee var(--dur, 12s) ease-in-out infinite; }
+.pl-prio-cell.pl-done .pl-prio-tx{ color:var(--ink-3); text-decoration:line-through; text-decoration-thickness:.6px; }
+.pl-prio-cell.pl-auto .pl-prio-tx{ color:var(--accent-ink); font-size:12px; }
+
+/* La colonnina dei pallini, uno per riga, in fondo a destra. Dice due cose
+   in pochissimo spazio: quante righe di priorità ci sono e quale si sta
+   vedendo. Senza, il cambio automatico sembrerebbe un difetto. */
+.pl-prio-pal{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:4px; flex:0 0 auto; padding-left:2px;
+}
+.pl-prio-pallino{
+    width:4px; height:4px; border-radius:99px; background:var(--hair-2);
+    transition:width var(--t) var(--ease), height var(--t) var(--ease),
+               background var(--t) var(--ease);
+}
+.pl-prio-pallino.pl-on{ width:6px; height:6px; background:var(--accent); }
+
+/* la crocetta per togliere una priorità: solo da aperta, appena accennata,
+   perché è un gesto che non si fa spesso e non deve chiamare l'occhio */
+.pl-prio-x{
+    width:20px; height:20px; flex-shrink:0; display:grid; place-items:center;
+    border-radius:var(--r-pill); color:var(--ink-3); opacity:.55;
+    transition:opacity var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.pl-prio-x svg{ width:11px; height:11px; }
+.pl-prio-x:active{ opacity:1; background:var(--paper-2); }
 
 /* domanda "copia un altro giorno" */
 .pl-copyask{
@@ -988,6 +1110,9 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 }
 .pl-ev-t > span{ display:inline-block; white-space:nowrap; will-change:transform; }
 .pl-ev-t.pl-run > span{ animation:pl-marquee var(--dur, 12s) ease-in-out infinite; }
+/* blocco basso ma non bassissimo: il titolo ci sta ancora, stretto */
+.pl-ev-stretto{ padding:2px 8px; }
+.pl-ev-stretto .pl-ev-t{ font-size:11px; line-height:1.1; }
 .pl-ev-row .pl-ev-spacer{ flex:1; min-width:0; }
 .pl-ev-h{ font-size:9.5px; color:var(--ink-2); letter-spacing:.04em; font-variant-numeric:tabular-nums; margin-top:1px; }
 .pl-ev.pl-tall .pl-ev-t{ white-space:normal; }
@@ -1169,6 +1294,52 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 }
 .pl-wl-tab.pl-on{ background:var(--card); color:var(--ink); box-shadow:0 1px 3px rgba(76,70,63,.09); }
 .pl-wl-link{ font-size:12px; color:var(--ink-3); text-decoration:none; }
+
+/* --- pastiglie nel pannello: le prese di un giorno --- */
+/* Le linguette sono quattro e non tre: su schermo stretto "Pastiglie" è la
+   parola più lunga, quindi le linguette respirano un po' meno di prima. */
+.pl-wl-tabs .pl-wl-tab{ padding:8px 2px; font-size:12px; }
+.pl-pill-day{
+    font-family:'Cormorant Garamond',serif; font-style:italic;
+    font-size:13.5px; color:var(--ink-3); padding:2px 0 6px;
+}
+.pl-pill{ gap:7px; }
+/* l'orario davanti a tutto: l'elenco si legge come un orologio, dall'alto in
+   basso, ed è il primo dato che si cerca */
+.pl-pill-h{
+    font-size:12px; color:var(--ink-2); font-variant-numeric:tabular-nums;
+    width:36px; flex-shrink:0;
+}
+.pl-pill-dot{ width:8px; height:8px; border-radius:99px; background:var(--ev, var(--accent)); flex-shrink:0; }
+.pl-pill-txt{ flex:1; min-width:0; }
+.pl-pill-name{ font-size:14px; color:var(--ink); line-height:1.25; }
+.pl-pill-dose{ font-size:11.5px; color:var(--ink-3); line-height:1.3; }
+.pl-pill.pl-done .pl-pill-name{ color:var(--ink-3); text-decoration:line-through; text-decoration-thickness:.6px; }
+/* saltata non è fatta e non è dimenticata: si vede che è stata una scelta,
+   quindi resta leggibile ma spenta, senza la spunta addosso */
+.pl-pill-skip{ opacity:.5; }
+.pl-pill-skip .pl-pill-name{ text-decoration:line-through; text-decoration-thickness:.6px; }
+.pl-pill-x{
+    width:26px; height:26px; flex-shrink:0; border:none; background:none; cursor:pointer;
+    border-radius:var(--r-pill); display:grid; place-items:center; color:var(--ink-3);
+    transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.pl-pill-x svg{ width:13px; height:13px; }
+.pl-pill-skip .pl-pill-x{ background:var(--paper-2); color:var(--ink-2); }
+.pl-pill-stats{ font-size:11.5px; color:var(--ink-3); padding:8px 0 2px; }
+
+/* --- prese rimaste indietro, dentro il pannello --- */
+/* Rosso solo sul bordo e sul giorno: un riquadro rosso pieno tutte le
+   mattine diventa allarme di sottofondo, e dopo tre giorni non lo si vede
+   più. Deve chiamare, non gridare. */
+.pl-pill-lasect{ color:#A96A6A; padding:8px 0 2px; }
+.pl-pill-late{ border-left:2px solid #C98F8F; padding-left:8px; }
+.pl-pill-late .pl-li-box{ box-shadow:inset 0 0 0 1.1px #C98F8F; }
+.pl-pill-quando{ font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:#A96A6A; }
+/* un giorno che non è ancora arrivato: si legge, non si tocca */
+.pl-pill-futura{ opacity:.62; }
+.pl-pill-futura .pl-li-box{ opacity:.5; }
+.pl-pill-ok{ width:100%; margin-top:16px; }
 .pl-wl-empty{
     font-family:'Cormorant Garamond',serif; font-style:italic; font-size:15px;
     color:var(--ink-3); padding:10px 0; text-align:center;
@@ -1450,6 +1621,11 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     padding-bottom:var(--safe-bottom);
 }
 .pl-ov.pl-open .pl-sheet{ transform:none; }
+/* Un foglio che nasce da dentro il pannello della settimana (105) deve
+   stargli sopra, se no compare a metà sotto le linguette. Resta comunque
+   sotto agli avvisi (130) e ai messaggini (140), che devono poter
+   interrompere anche lui. */
+.pl-ov-sopra{ z-index:126; }
 .pl-sheet-tall{ height:88dvh; }
 .pl-sheet-auto{ height:auto; max-height:88dvh; }
 .pl-sheet-tinted{ background:color-mix(in srgb, var(--ev, var(--accent)) 12%, var(--card)); transition:background var(--t-slow) var(--ease); }
@@ -1513,7 +1689,22 @@ textarea.pl-in.pl-note{ min-height:200px; }
     transition:color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
 .pl-lock svg{ width:15px; height:15px; }
-.pl-lock.pl-on{ color:var(--ink); background:var(--paper-2); }
+/* Chiuso e aperto sono due decisioni prese, e si vestono uguale: sono due
+   modi di dire “so cosa voglio”, e a distinguerli basta il disegno del
+   lucchetto. Sbiadire l'aperto lo faceva sembrare uno stato a metà, cioè
+   proprio quello che non è.
+   A restare in disparte è il primo stato, quello di partenza: pallido e con
+   la riga che sbarra il lucchetto, perché lì la durata non è né sempre ferma
+   né mai ferma e la sbarra dice “non deciso” meglio di qualunque tinta. */
+.pl-lock{ opacity:1; }
+.pl-lock-auto{ opacity:.34; }
+.pl-lock-aperto,
+.pl-lock-chiuso{ color:var(--accent-ink); background:var(--accent-soft); box-shadow:inset 0 0 0 .5px var(--accent); }
+
+/* la durata sta fra inizio e fine, con la sua scritta a destra insieme al
+   campo: in corsivo, per non farsi scambiare per una voce alla pari */
+.pl-durbox{ display:flex; align-items:center; gap:7px; }
+.pl-dur-lab{ font-size:13px; font-style:italic; color:var(--ink-3); }
 
 /* suggerimenti della ricerca del luogo */
 .pl-sugg{
@@ -1647,6 +1838,142 @@ textarea.pl-in.pl-note{ min-height:200px; }
 .pl-view-month .pl-month{ display:flex; }
 .pl-view-month .pl-body-scroll,
 .pl-view-month .pl-fabs{ display:none; }
+
+/* ------------------------------------------------------------------ */
+/* Vista settimanale a tabella                                         */
+/* ------------------------------------------------------------------ */
+/* Si chiama .pl-wkview e non .pl-week: quel nome era già del blocco della
+   settimana nella barra in alto, e riusarlo lo trasformava in un riquadro a
+   tutto schermo.
+
+   Intestazioni e colonna delle ore stanno fuori dal riquadro che scorre e lo
+   seguono per trasformazione: dentro non potevano restare ferme, perché un
+   elemento appiccicato dentro una griglia si può muovere solo entro la sua
+   cella e la colonna delle ore se ne andava appena si scorreva. */
+.pl-wkview{
+    --wk-gut:34px;
+    --wk-col:calc((100vw - var(--wk-gut)) / 7);
+    position:fixed; inset:0; z-index:50; background:var(--paper);
+    display:none; flex-direction:column;
+    padding-top:calc(var(--topbar-h) + 4px);
+}
+.pl-view-week .pl-wkview{ display:flex; }
+.pl-view-week .pl-body-scroll,
+.pl-view-week .pl-fabs{ display:none; }
+/* qui non servono: la settimana si guarda per sapere dove stanno le cose */
+.pl-view-week .pl-smart,
+.pl-view-week .pl-prio-wrap,
+.pl-view-week .pl-copyask{ display:none !important; }
+
+.pl-wk-top{ display:flex; flex-shrink:0; border-bottom:.5px solid var(--hair); }
+.pl-wk-corner{ width:var(--wk-gut); flex-shrink:0; }
+.pl-wk-topclip{ flex:1; overflow:hidden; }
+.pl-wk-heads{ display:grid; will-change:transform; }
+.pl-wk-head{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:1px; border:none; background:none; color:inherit; cursor:pointer;
+    padding:5px 0 6px; border-left:.5px solid var(--hair);
+}
+.pl-wk-dow{ font-size:8px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); }
+.pl-wk-num{ font-size:15px; font-variant-numeric:tabular-nums; color:var(--ink); }
+.pl-wk-allday{ width:5px; height:5px; border-radius:99px; background:var(--ev, var(--accent)); }
+
+/* oggi e il giorno scelto sono due cose diverse e si vedono diverse */
+.pl-wk-head.pl-oggi .pl-wk-num{ color:var(--accent-ink); font-weight:600; }
+.pl-wk-head.pl-oggi{ background:var(--accent-wash); }
+.pl-wk-head.pl-scelto{ box-shadow:inset 0 -2.5px 0 var(--ink-2); }
+
+.pl-wk-main{ flex:1; display:flex; min-height:0; }
+.pl-wk-gutclip{ width:var(--wk-gut); flex-shrink:0; overflow:hidden; }
+.pl-wk-gut{ will-change:transform; }
+/* La riga dell'ora tiene in colonna il numero e, quando c'è posto, il tempo
+   di quell'ora: affiancati, in trentaquattro pixel di larghezza, si
+   sovrapporrebbero. `overflow:hidden` perché stringendo le righe con lo zoom
+   il tag non debba sbordare su quella di sotto. */
+.pl-wk-ora{
+    height:var(--wk-row, 44px); font-size:9px; color:var(--ink-3);
+    font-variant-numeric:tabular-nums;
+    display:flex; flex-direction:column; align-items:center; gap:1px;
+    padding-top:2px; border-top:.5px solid var(--hair); overflow:hidden;
+}
+.pl-wk-ora-n{ line-height:1; }
+/* Il tag del meteo nella colonna della settimana: stessa roba della vista
+   giorno, ma qui la riga lo tiene già al posto suo e non serve appenderlo a
+   una coordinata. I colori restano quelli di `.pl-wxg`. */
+.pl-wk-wxg{
+    position:static; left:auto; right:auto; opacity:.95;
+}
+.pl-wk-wxg .pl-wxg-ic{ width:13px; height:13px; }
+.pl-wk-wxg .pl-wxg-t{ font-size:8px; margin-top:0; }
+
+/* Non scorre da sé: lo scorrimento lo guida il codice con i puntatori, per
+   poter tenere un verso per volta, scegliere il giorno solo quando il dito si
+   alza e agganciare la colonna a modo nostro. `overflow:hidden` non toglie la
+   possibilità di spostarlo da codice, che è tutto quello che serve, e toglie
+   di mezzo lo scatto del browser che si contendeva la stessa posizione. */
+.pl-wk-scroll{
+    flex:1; overflow:hidden; overscroll-behavior:contain; touch-action:none;
+    scrollbar-width:none;
+    padding-bottom:calc(18px + var(--safe-bottom));
+}
+.pl-wk-scroll::-webkit-scrollbar{ display:none; }
+/* `relative` per la riga di adesso, che è l'unico figlio fuori dalla griglia */
+.pl-wk-grid{ display:grid; grid-auto-rows:var(--wk-row, 44px); position:relative; }
+/* La riga di adesso. Pallida attraversa tutta la striscia — l'ora è la stessa
+   in ogni colonna, e serve a sapere a che altezza si è anche guardando
+   giovedì; marcata e col pallino solo sulla colonna di oggi, perché è lì che
+   vuol dire davvero «adesso». */
+.pl-wk-now{
+    position:absolute; left:0; right:0; height:1px; z-index:14;
+    pointer-events:none; background:var(--accent-ink); opacity:.18;
+}
+.pl-wk-now-oggi{ right:auto; opacity:.75; height:1.4px; }
+.pl-wk-now-oggi::after{
+    content:''; position:absolute; left:-3px; top:-2.5px; width:6px; height:6px;
+    border-radius:50%; background:var(--accent-ink);
+    animation:pl-pulse 3.4s var(--ease-soft) infinite;
+}
+.pl-wk-cell{
+    border-left:.5px solid var(--hair); border-top:.5px solid var(--hair);
+    overflow:hidden; padding:1px; display:flex; flex-direction:column; gap:1px;
+}
+.pl-wk-cell.pl-oggi{ background:var(--accent-wash); }
+.pl-wk-cell.pl-scelto{ background:var(--paper-2); }
+.pl-wk-cell.pl-oggi.pl-scelto{ background:var(--accent-soft); }
+.pl-wk-chip{
+    font-size:8.5px; line-height:1.3; border-radius:3px; padding:0 2px;
+    background:var(--ev, var(--accent-soft)); color:var(--ink);
+    overflow:hidden; white-space:nowrap; cursor:pointer; flex-shrink:0;
+}
+.pl-wk-chip.pl-done{ opacity:.5; text-decoration:line-through; }
+/* il mucchietto di quelli che non ci stanno: toccandolo si aprono tutti */
+.pl-wk-piu{
+    font-size:8.5px; line-height:1.3; color:var(--ink-3); text-align:center;
+    cursor:pointer; flex-shrink:0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Menu delle viste                                                    */
+/* ------------------------------------------------------------------ */
+/* Posizione `fixed` decisa da planner.js sotto al tastino: dentro la barra
+   in alto veniva ritagliata e non si vedeva per intero, e comunque doveva
+   passare sopra la fascia delle priorità. Piccolo e stretto, che lassù lo
+   spazio è quello che è. */
+.pl-viewmenu{
+    position:fixed; z-index:200;
+    padding:4px; border-radius:var(--r-md);
+    background:var(--card); box-shadow:0 12px 30px -12px rgba(76,70,63,.55), inset 0 0 0 .5px var(--hair);
+    display:none; flex-direction:column; gap:0;
+}
+.pl-viewmenu.pl-open{ display:flex; }
+.pl-viewmenu button{
+    border:none; background:none; cursor:pointer; text-align:left;
+    padding:7px 10px; border-radius:8px; font:inherit;
+    font-size:13px; line-height:1.1; color:var(--ink); white-space:nowrap;
+}
+/* la vista di adesso porta il colore della pagina: si vede dov'è senza
+   dover ricordare da dove si è arrivati */
+.pl-viewmenu button.pl-on{ background:var(--accent-soft); color:var(--accent-ink); font-weight:600; }
 .pl-mchip{
     padding:6px 14px; border-radius:var(--r-pill); font-size:12.5px; color:var(--ink-2);
     background:var(--paper-2); white-space:nowrap; flex-shrink:0;

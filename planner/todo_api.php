@@ -15,6 +15,9 @@
      todo_api.php?ajax=cat_delete(POST)
      todo_api.php?ajax=image     (POST)  immagine di un articolo (multipart)
      todo_api.php?ajax=image_del (POST)
+     todo_api.php?ajax=pills     (GET)   prese di un giorno + arretrate
+     todo_api.php?ajax=pill_mark (POST)  presa / saltata, con l'ora a mano
+     todo_api.php?ajax=pill_history (GET) come è andata una terapia
 
    Un'attività con una data finisce anche nel planner come task: con
    l'ora diventa un blocco della sua durata, senza ora diventa un evento
@@ -648,21 +651,77 @@ function td_pill_due(array $p, string $date): bool {
     return substr($w, $i, 1) === '1';
 }
 
-/** Scrive le prese mancanti di quel giorno. Ripetibile senza danni: la chiave
-    doppia della tabella fa cadere i doppioni invece di crearli. */
-function td_pills_ensure(int $uid, string $date): void {
-    if (!td_pills_c_e()) return;
+/** Scrive le prese mancanti di uno o più giorni. Ripetibile senza danni: la
+    chiave doppia della tabella fa cadere i doppioni invece di crearli.
+
+    Le terapie si leggono una volta sola anche quando i giorni sono sette:
+    sono le stesse per tutti, e rileggerle a ogni giro sarebbe sette volte la
+    stessa domanda al database. */
+function td_pills_ensure_giorni(int $uid, array $dates): void {
+    if (!td_pills_c_e() || !$dates) return;
     $plans = sec_all("SELECT * FROM pill_plans WHERE user_id = ? AND is_active = 1", [$uid], 'i');
+    if (!$plans) return;
     foreach ($plans as $p) {
-        if (!td_pill_due($p, $date)) continue;
-        foreach (td_pill_times((string)$p['times']) as $t) {
-            for ($seq = 1; $seq <= $t[1]; $seq++) {
-                sec_q("INSERT IGNORE INTO pill_doses (user_id, plan_id, due_date, due_time, seq)
-                       VALUES (?, ?, ?, ?, ?)",
-                      [$uid, (int)$p['id'], $date, $t[0], $seq], 'iissi');
+        $ore = td_pill_times((string)$p['times']);
+        foreach ($dates as $date) {
+            if (!td_pill_due($p, $date)) continue;
+            foreach ($ore as $t) {
+                for ($seq = 1; $seq <= $t[1]; $seq++) {
+                    sec_q("INSERT IGNORE INTO pill_doses (user_id, plan_id, due_date, due_time, seq)
+                           VALUES (?, ?, ?, ?, ?)",
+                          [$uid, (int)$p['id'], $date, $t[0], $seq], 'iissi');
+                }
             }
         }
     }
+}
+
+function td_pills_ensure(int $uid, string $date): void {
+    td_pills_ensure_giorni($uid, [$date]);
+}
+
+/** Le prese rimaste in sospeso nei giorni scorsi.
+
+    Prima sparivano insieme al loro giorno, ed è esattamente il contrario di
+    quello che serve: una pastiglia dimenticata è la cosa che deve tornare a
+    galla, non quella che deve sparire. Quattordici giorni indietro e non di
+    più — oltre non ci si ricorda davvero se la si è presa, e spuntarla a
+    caso è peggio che lasciarla in bianco.
+
+    Si generano anche le prese dei giorni scorsi che nessuno ha ancora
+    scritto: chi non ha aperto l'app per una settimana, se no, non avrebbe
+    niente da recuperare proprio nel caso in cui serve. */
+function td_pills_arretrate(int $uid): array {
+    if (!td_pills_c_e()) return [];
+    $oggi = date('Y-m-d');
+    $giorni = [];
+    for ($i = 1; $i <= 7; $i++) $giorni[] = date('Y-m-d', strtotime($oggi . ' -' . $i . ' day'));
+    td_pills_ensure_giorni($uid, $giorni);
+
+    $da = date('Y-m-d', strtotime($oggi . ' -14 day'));
+    $rows = sec_all("SELECT d.id, d.plan_id, d.due_date, d.due_time, d.seq, d.status,
+                            p.name, p.dose, p.color, p.notes
+                     FROM pill_doses d
+                     JOIN pill_plans p ON p.id = d.plan_id AND p.user_id = d.user_id
+                     WHERE d.user_id = ? AND d.status = 'pending'
+                       AND d.due_date < ? AND d.due_date >= ?
+                     ORDER BY d.due_date DESC, d.due_time", [$uid, $oggi, $da], 'iss');
+    $out = [];
+    foreach ($rows as $d) {
+        $out[] = [
+            'id'      => (int)$d['id'],
+            'plan_id' => (int)$d['plan_id'],
+            'date'    => $d['due_date'],
+            'time'    => substr((string)$d['due_time'], 0, 5),
+            'seq'     => (int)$d['seq'],
+            'status'  => 'pending',
+            'name'    => $d['name'],
+            'dose'    => $d['dose'],
+            'notes'   => $d['notes'],
+            'color'   => $d['color'],
+        ];
+    }
+    return $out;
 }
 
 function td_pill_plans(int $uid): array {
@@ -722,6 +781,7 @@ if ($ajax === 'pills') {
                    FROM pill_doses WHERE user_id = ? AND due_date > (CURDATE() - INTERVAL 30 DAY)", [$uid], 'i');
     sec_json(['ok' => true, 'installed' => true, 'date' => $date,
               'plans' => td_pill_plans($uid), 'doses' => $out,
+              'late' => td_pills_arretrate($uid),
               'stats' => ['taken' => (int)($st['prese'] ?? 0),
                           'skipped' => (int)($st['saltate'] ?? 0),
                           'missed' => (int)($st['dimenticate'] ?? 0)]]);
@@ -733,11 +793,67 @@ if ($ajax === 'pill_mark') {
     $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
     if (!sec_owns('pill_doses', $id, $uid)) sec_die_json('Presa non trovata.', 404, 'not_found');
     $st = sec_enum(sec_in('status'), ['pending', 'taken', 'skipped'], 'taken');
+
     /* L'ora vera della spunta, non quella prevista: è la differenza fra le due
-       che dice se la terapia sta reggendo davvero. */
+       che dice se la terapia sta reggendo davvero.
+
+       Ora si può anche dettarla. Il caso che conta è quello di tutti i
+       giorni: la pastiglia la si prende la mattina e la si spunta il
+       pomeriggio, e senza poterla correggere il registro direbbe che è stata
+       presa con sei ore di ritardo. Sulle arretrate serve anche il giorno,
+       perché quella presa appartiene a ieri.
+       Se non arriva niente vale l'orologio, come prima. */
+    $atD = sec_date(sec_in('at_date'), '');
+    $atT = sec_time(sec_in('at_time'), '');
+    $quando = null;
+    if ($st === 'taken') {
+        $quando = ($atD !== '' && $atT !== '')
+            ? $atD . ' ' . substr($atT, 0, 5) . ':00'
+            : date('Y-m-d H:i:s');
+    }
     sec_q("UPDATE pill_doses SET status = ?, taken_at = ? WHERE id = ? AND user_id = ?",
-          [$st, $st === 'taken' ? date('Y-m-d H:i:s') : null, $id, $uid], 'ssii');
-    sec_json(['ok' => true]);
+          [$st, $quando, $id, $uid], 'ssii');
+    sec_json(['ok' => true, 'taken_at' => $quando]);
+}
+
+/* ---------------- come è andata, giorno per giorno ----------------
+   Serve al grafico che si apre toccando una terapia: non "quante ne ho
+   prese", che è un numero e non dice niente, ma *quando* non l'ho presa.
+   Si torna un giorno per riga con quante prese erano previste e come sono
+   finite; i giorni in cui la terapia non toccava non compaiono affatto,
+   perché un buco lì non è una dimenticanza. */
+if ($ajax === 'pill_history') {
+    if (!td_pills_c_e()) sec_die_json('Sezione non installata.', 400, 'no_table');
+    $id = sec_int(sec_in('plan_id'), 1, PHP_INT_MAX, 0);
+    if (!sec_owns('pill_plans', $id, $uid)) sec_die_json('Terapia non trovata.', 404, 'not_found');
+    /* Un mese per volta quando il calendario lo chiede, altrimenti gli ultimi
+       N giorni. Il mese si valida con l'espressione e non con sec_date,
+       perché qui manca il giorno e sec_date rifiuterebbe la stringa. */
+    $mese = sec_str(sec_in('month'), 7);
+    if (preg_match('/^[0-9]{4}-[0-9]{2}$/', $mese)) {
+        $da = $mese . '-01';
+        $a  = date('Y-m-t', strtotime($da));
+    } else {
+        $gg = sec_int(sec_in('days'), 7, 180, 60);
+        /* la data si calcola qui e si passa come valore: un INTERVAL con un
+           segnaposto dentro non è portabile quanto un confronto fra date */
+        $da = date('Y-m-d', strtotime(date('Y-m-d') . ' -' . ($gg - 1) . ' day'));
+        $a  = date('Y-m-d');
+    }
+
+    $rows = sec_all("SELECT due_date, status, COUNT(*) AS n
+                     FROM pill_doses
+                     WHERE user_id = ? AND plan_id = ? AND due_date >= ? AND due_date <= ?
+                     GROUP BY due_date, status
+                     ORDER BY due_date", [$uid, $id, $da, $a], 'iiss');
+    $per = [];
+    foreach ($rows as $r) {
+        $d = $r['due_date'];
+        if (!isset($per[$d])) $per[$d] = ['date' => $d, 'taken' => 0, 'skipped' => 0, 'pending' => 0];
+        $per[$d][$r['status']] = (int)$r['n'];
+    }
+    sec_json(['ok' => true, 'from' => $da, 'to' => $a, 'oggi' => date('Y-m-d'),
+              'days' => array_values($per)]);
 }
 
 /* ---------------- terapia: crea o modifica ---------------- */

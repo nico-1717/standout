@@ -2070,6 +2070,13 @@ $boot = [
         <button type="button" class="pl-tool" id="plViewBtn" aria-label="Passa alla vista mese">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2.4"/><path d="M4 10h16M9 5V3M15 5V3"/></svg>
         </button>
+        <!-- Su telefono in verticale il pulsante non fa più da interruttore fra
+             due viste: le viste sono tre, e un interruttore non le dice. -->
+        <div class="pl-viewmenu" id="plViewMenu" role="menu" aria-hidden="true">
+            <button type="button" role="menuitem" data-v="month">Mese</button>
+            <button type="button" role="menuitem" data-v="week">Settimana</button>
+            <button type="button" role="menuitem" data-v="day">Giorno</button>
+        </div>
         <button type="button" class="pl-tool pl-tool-today" id="plTodayBtn" aria-label="Vai a oggi">1</button>
         <button type="button" class="pl-tool" id="plSearchBtn" aria-label="Cerca">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
@@ -2128,6 +2135,30 @@ $boot = [
      aperta e nascondeva il pulsante del menu. Con questo attributo la sidebar
      sa che è una pagina e non si toglie di mezzo. Il pulsante sta comunque
      sopra (z-index 10000 contro 50), quindi non serve altro. -->
+<!-- Vista settimanale a tabella: sette giorni in colonna, le ore in riga.
+     Vive solo su telefono in verticale, dove la griglia a orari di tre giorni
+     è troppo stretta per leggersi e quella del mese troppo grossa per dire
+     a che ora sono le cose. Intestazione e colonna delle ore restano ferme
+     con `position:sticky` dentro un riquadro solo che scorre nei due sensi:
+     due scorrimenti annidati sarebbero stati una lotta continua. -->
+<section class="pl-wkview" id="plWeekView" data-sb-not-overlay>
+    <!-- Intestazione e colonna delle ore stanno FUORI dal riquadro che
+         scorre. Dentro non potevano restare ferme: un elemento appiccicato
+         dentro una griglia può muoversi solo entro la sua cella, quindi la
+         colonna delle ore se ne andava appena si scorreva oltre la sua
+         larghezza. Qui le si trascina a mano seguendo lo scorrimento. -->
+    <div class="pl-wk-top">
+        <div class="pl-wk-corner"></div>
+        <div class="pl-wk-topclip"><div class="pl-wk-heads" id="plWeekHeads"></div></div>
+    </div>
+    <div class="pl-wk-main">
+        <div class="pl-wk-gutclip"><div class="pl-wk-gut" id="plWeekGut"></div></div>
+        <div class="pl-wk-scroll" id="plWeekScroll">
+            <div class="pl-wk-grid" id="plWeekGrid"></div>
+        </div>
+    </div>
+</section>
+
 <section class="pl-month" id="plMonthView" data-sb-not-overlay>
     <div class="pl-mgrid" id="plMonthGrid"></div>
     <!-- La maniglia che tira su l'elenco degli eventi. Prima l'elenco si

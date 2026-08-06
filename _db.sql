@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Creato il: Ago 02, 2026 alle 17:19
+-- Creato il: Ago 03, 2026 alle 19:53
 -- Versione del server: 8.0.45
 -- Versione PHP: 8.0.22
 
@@ -830,6 +830,7 @@ CREATE TABLE `planner_settings` (
   `first_week_start` date DEFAULT NULL COMMENT 'lunedi della settimana 1 del planner',
   `first_week_number` int NOT NULL DEFAULT '1',
   `ambient_enabled` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'insetti/alberi animati nella barra',
+  `ambient_opacity` tinyint UNSIGNED NOT NULL DEFAULT '9' COMMENT 'quanto si vede la scena del mese: 0 invisibile, 10 piena',
   `contrast_level` tinyint UNSIGNED NOT NULL DEFAULT '3' COMMENT '1 = molto tenue ... 5 = molto marcato',
   `days_visible` tinyint UNSIGNED NOT NULL DEFAULT '3' COMMENT 'quanti giorni affiancati su schermi larghi (1..7)',
   `google_sync_enabled` tinyint(1) NOT NULL DEFAULT '0',
@@ -839,7 +840,8 @@ CREATE TABLE `planner_settings` (
   `weather_lat` decimal(8,5) DEFAULT NULL,
   `weather_lon` decimal(8,5) DEFAULT NULL,
   `weather_place` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'nome della località, se lo ricaviamo',
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `fabs_open` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'colonna dei tastini a destra: 1 aperta, 0 richiusa sotto le abitudini'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------

@@ -11,6 +11,13 @@ require_once 'auth_check.php';
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
 date_default_timezone_set('Europe/Rome');
+
+/* Su quale elenco aprire. Arriva da fuori — dal pannello settimana del
+   planner, che manda la linguetta che si stava guardando quando si è toccato
+   «apri»: ritrovarsi sul to do dopo aver chiesto di aprire le pastiglie è un
+   salto che non ha chiesto nessuno. Vale l'ultima usata se non arriva niente,
+   e il valore si rivalida qui come qualunque cosa venga dal browser. */
+$tab = sec_enum(sec_in('tab'), ['todo', 'buy', 'study', 'pills'], '');
 ?>
 <!DOCTYPE html>
 <html lang="it">
@@ -63,7 +70,7 @@ body{
 <main class="tp-sheet">
     <div class="tp-head">
         <span class="tp-title">Attività</span>
-        <span class="tp-sub">tre elenchi</span>
+        <span class="tp-sub">tre elenchi e le pastiglie</span>
     </div>
     <p class="tp-note">
         Le voci con una data finiscono anche nel planner.
@@ -90,7 +97,8 @@ include 'todo_widget.php';
 nisamaTodo.mount(document.getElementById('tpList'), {
     scope: 'all',
     selectable: true,
-    tabs: true          // to do / to buy / to study
+    tabs: true,         // to do / to buy / to study / pastiglie
+    tab: <?php echo json_encode($tab); ?>   // vuoto = l'ultima usata
 });
 </script>
 </body>

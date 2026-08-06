@@ -13,9 +13,12 @@
       all'ora invece di mille.
 
    Chiamate:
-     meteo_api.php?ajax=status     (GET)   stato + previsioni se attivo
-     meteo_api.php?ajax=enable     (POST)  lat, lon → attiva
-     meteo_api.php?ajax=disable    (POST)
+     meteo_api.php?ajax=status       (GET)   stato + previsioni se attivo
+     meteo_api.php?ajax=enable       (POST)  lat, lon → attiva
+     meteo_api.php?ajax=disable      (POST)
+     meteo_api.php?ajax=place_search (POST)  q → luoghi che si chiamano così
+     meteo_api.php?ajax=preview      (POST)  lat, lon → previsione per quel
+                                             punto SENZA toccare le impostazioni
    ===================================================================== */
 require_once 'config.php';
 require_once 'security_core.php';
@@ -29,7 +32,7 @@ if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 }
 $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
 
-define('WX_GIORNI', 5);        // oggi più i quattro successivi, non oltre
+define('WX_GIORNI', 10);       // oggi più nove: Open-Meteo ne dà fino a 16 senza costi in più
 define('WX_CACHE_MINUTI', 60);
 define('WX_FONTE', 'Open-Meteo');
 define('WX_FONTE_URL', 'https://open-meteo.com');
@@ -97,7 +100,10 @@ function wx_grid(float $lat, float $lon): string {
 }
 
 function wx_fetch(float $lat, float $lon): ?array {
-    $key = wx_grid($lat, $lon);
+    /* Quanti giorni si chiedono fa parte della chiave: alzando WX_GIORNI la
+       risposta vecchia in archivio non è più quella giusta, e senza questo
+       si continuerebbe a servire cinque giorni finché non scade da sé. */
+    $key = wx_grid($lat, $lon) . '|g' . WX_GIORNI;
 
     $row = sec_one("SELECT payload FROM weather_cache
                     WHERE grid_key = ? AND fetched_at > (NOW() - INTERVAL ? MINUTE)",
@@ -266,6 +272,89 @@ function wx_place_nome(float $lat, float $lon): ?string {
     return $nome;
 }
 
+/* --------------------------------------------------------------------
+   Ricerca di un luogo per nome (per il cambio posizione dal popup)
+
+   Qui si usa /v1/search di Open-Meteo, che è la ricerca *per nome* e come
+   tale funziona benissimo: era usarla all'incontrario, passandole delle
+   coordinate, a non dare mai risposta. Per il senso opposto — coordinate
+   verso nome — resta Nominatim, qui sopra.
+
+   Si preferisce Open-Meteo a Nominatim perché è già la fonte delle
+   previsioni (nessun servizio nuovo, nessuna condizione d'uso in più da
+   rispettare) e perché restituisce già latitudine, longitudine, regione e
+   paese, cioè esattamente quello che serve per distinguere due paesi che si
+   chiamano uguale.
+
+   La risposta finisce in cache per un giorno: i luoghi non si spostano, e
+   chi scrive «mil», «mila», «milan», «milano» farebbe quattro chiamate
+   per la stessa cosa. La chiave è un riassunto della domanda perché
+   `grid_key` è lungo 32 caratteri e un nome di città lungo non ci starebbe.
+   -------------------------------------------------------------------- */
+function wx_cerca(string $q): array {
+    $key = 'q:' . substr(md5(mb_strtolower($q, 'UTF-8')), 0, 24);
+
+    $row = sec_one("SELECT payload FROM weather_cache
+                    WHERE grid_key = ? AND fetched_at > (NOW() - INTERVAL 1440 MINUTE)",
+                   [$key], 's');
+    if ($row) {
+        $c = json_decode($row['payload'], true);
+        if (is_array($c) && isset($c['luoghi'])) return $c['luoghi'];
+    }
+
+    $url = 'https://geocoding-api.open-meteo.com/v1/search?' . http_build_query([
+        'name'     => $q,
+        'count'    => 8,
+        'language' => 'it',
+        'format'   => 'json',
+    ]);
+
+    $raw = null;
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_CONNECTTIMEOUT => 4,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+        ]);
+        $raw = curl_exec($ch);
+        if ($raw === false) sec_log_error('meteo_cerca', curl_error($ch));
+        curl_close($ch);
+    } else {
+        $ctx = stream_context_create(['http' => ['timeout' => 8, 'ignore_errors' => true]]);
+        $raw = @file_get_contents($url, false, $ctx);
+    }
+
+    $luoghi = [];
+    if ($raw) {
+        $d = json_decode((string)$raw, true);
+        $lista = (is_array($d) && !empty($d['results']) && is_array($d['results'])) ? $d['results'] : [];
+        foreach ($lista as $r) {
+            if (!isset($r['latitude'], $r['longitude'], $r['name'])) continue;
+            /* Regione e paese non sono un vezzo: senza, in un elenco di otto
+               «San Giovanni» non si capisce quale sia il proprio. */
+            $dove = [];
+            if (!empty($r['admin1']))  $dove[] = sec_str((string)$r['admin1'], 80);
+            if (!empty($r['country'])) $dove[] = sec_str((string)$r['country'], 80);
+            $luoghi[] = [
+                'nome'  => sec_str((string)$r['name'], 120),
+                'dove'  => implode(', ', $dove),
+                'lat'   => round((float)$r['latitude'], 4),
+                'lon'   => round((float)$r['longitude'], 4),
+            ];
+        }
+    }
+
+    /* si salva anche l'elenco vuoto: una parola che non è un posto non deve
+       far ripartire la chiamata a ogni lettera battuta di nuovo */
+    sec_q("INSERT INTO weather_cache (grid_key, payload) VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE payload = VALUES(payload), fetched_at = NOW()",
+          [$key, json_encode(['luoghi' => $luoghi], JSON_UNESCAPED_UNICODE)], 'ss');
+    return $luoghi;
+}
+
 function wx_adesso(array $data): ?array {
     if (empty($data['current'])) return null;
     $c = $data['current'];
@@ -393,6 +482,61 @@ if ($ajax === 'disable') {
     sec_q("UPDATE planner_settings SET weather_enabled = 0 WHERE user_id = ?", [$uid], 'i');
     /* le coordinate restano, così riattivandolo non si richiede il permesso */
     sec_json(['ok' => true, 'enabled' => false]);
+}
+
+/* ---------------- ricerca del luogo scritto a mano ----------------
+   Primo passo del cambio posizione dal popup: si scrive un nome e si
+   ricevono i posti che si chiamano così. Nessuna scrittura in archivio: qui
+   non si decide niente, si guarda soltanto. */
+if ($ajax === 'place_search') {
+    /* stessa briglia della ricerca luoghi del planner: la chiamata è verso
+       un servizio esterno, e chi la ripete a raffica la paga a tutti */
+    sec_guard_write($uid, 'meteo_cerca', 0, 40, 60);
+    $q = sec_str(sec_in('q'), 120);
+    $q = trim(preg_replace('/\s+/u', ' ', $q));
+    /* sotto le tre lettere la ricerca restituisce mezzo mondo e non serve
+       a nessuno: si risponde vuoto senza nemmeno uscire di casa */
+    if (mb_strlen($q, 'UTF-8') < 3) sec_json(['ok' => true, 'luoghi' => []]);
+    sec_json(['ok' => true, 'luoghi' => wx_cerca($q)]);
+}
+
+/* ---------------- previsione per un punto qualsiasi ----------------
+   Secondo passo: la previsione per il posto scelto a mano.
+
+   DECISIONE (vale anche per il codice del browser, dove è ripetuta):
+   il luogo scelto a mano NON si salva in `planner_settings`. Questo
+   endpoint non scrive niente: legge, e basta. Vale per la pagina aperta
+   in quel momento e finisce ricaricandola, oppure spegnendo e riaccendendo
+   il meteo. È controintuitivo — di solito quello che si sceglie resta —
+   quindi va detto: `weather_lat/lon/place` continuano a descrivere *dove si
+   è davvero*, e sono quelle che decidono la previsione alla prossima
+   apertura. Se un giorno si volesse rendere permanente il cambio, il posto
+   dove metterlo è `enable`, non qui: mescolare le due cose vorrebbe dire
+   perdere per sempre la posizione vera dopo una sbirciata a una città
+   qualsiasi.
+
+   La cache invece è condivisa come sempre: sbirciare che tempo fa a Lisbona
+   costa una chiamata sola anche se lo fanno in dieci. */
+if ($ajax === 'preview') {
+    $lat = sec_float(sec_in('lat'), -90, 90, 999);
+    $lon = sec_float(sec_in('lon'), -180, 180, 999);
+    if ($lat === 999.0 || $lon === 999.0) sec_die_json('Posizione non valida.', 422, 'invalid');
+
+    /* Il nome arriva dal browser ma si rivalida lo stesso, come tutto il
+       resto: l'abbiamo mandato noi un attimo prima, e non basta. Se manca,
+       si chiede a Nominatim come per la posizione rilevata. */
+    $place = sec_str(sec_in('place'), 120);
+    if ($place === '') $place = wx_place_nome($lat, $lon);
+
+    $data = wx_fetch($lat, $lon);
+    sec_json([
+        'ok' => true, 'enabled' => true, 'manuale' => true,
+        'place' => $place, 'lat' => $lat, 'lon' => $lon,
+        'fonte' => WX_FONTE, 'fonte_url' => WX_FONTE_URL,
+        'giorni' => $data ? wx_giorni($data) : [],
+        'adesso' => $data ? wx_adesso($data) : null,
+        'nota_affidabilita' => 'Stima nostra basata su quanto è lontana la previsione: il servizio non pubblica un indice di confidenza.',
+    ]);
 }
 
 sec_die_json('Richiesta non riconosciuta.', 404, 'unknown_action');
