@@ -53,6 +53,7 @@
     --gutter-w:48px;
     --head-h:26px;
     --daybar-h:0px;
+    --headrow-h:0px;
     --topbar-h:calc(126px + env(safe-area-inset-top, 0px));
     --safe-top:env(safe-area-inset-top, 0px);
     --safe-bottom:env(safe-area-inset-bottom, 0px);
@@ -89,6 +90,12 @@
    in EV_CODA dentro planner.js, che lo usa per spartire le corsie: se si
    cambia qui va cambiato anche là. */
 :root{ --ev-coda:5%; }
+/* La densità degli orari: quanto vale un minuto in pixel. Tutto quello che
+   sta sulla griglia si posiziona con `calc(var(--pxm) * minuti)`, così
+   pizzicando basta riscrivere questo numero e si sposta tutto insieme senza
+   ricostruire un solo nodo. Il valore di partenza è quello dello scatto da
+   mezz'ora; planner.js lo aggiorna appena parte. */
+:root{ --pxm:1.4667px; }
 html{
     -webkit-text-size-adjust:100%; text-size-adjust:100%;
     touch-action:manipulation;               /* il doppio tap non zooma */
@@ -1446,8 +1453,19 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 /* 7. PULSANTI FLOTTANTI                                              */
 /* ------------------------------------------------------------------ */
 .pl-fabs{
-    position:fixed; right:12px; z-index:55;
-    top:calc(var(--topbar-h) + 8px);
+    position:fixed; right:12px;
+    /* Sopra la fascia dei giorni (56), non sotto: la sezione degli eventi di
+       tutto il giorno vive lì dentro e occupa tutta la larghezza, quindi i
+       tastini le passano sopra invece di farsi togliere il posto. */
+    z-index:61;
+    /* Ancorati alla FINE DELLE PRIORITÀ, non alla fine di tutta la fascia
+       in alto. `--daybar-h` comprende anche la sezione degli eventi di tutto
+       il giorno: usandola così com'è, i tastini scivolavano giù di venti
+       pixel ogni volta che compariva un evento di tutto il giorno e
+       risalivano quando spariva. Togliendo l'altezza di quella sezione, la
+       loro posizione non dipende più da quanto c'è dentro: restano dove
+       sono e le passano sopra. */
+    /* top:calc(var(--topbar-h) + var(--daybar-h) - var(--headrow-h, 0px) + 8px); */
     display:flex; flex-direction:column; align-items:flex-end; gap:3px;
     /* il contenitore è trasparente ai tocchi: solo i pulsanti e i menù li
        ricevono. Senza questo, la sua area invisibile finiva per rubare lo
@@ -1583,7 +1601,7 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 @keyframes pl-chip-in{ from{ opacity:0; transform:translateX(10px) scale(.94); } to{ opacity:1; transform:none; } }
 
 .pl-plus{
-    position:fixed; right:14px; bottom:calc(18px + var(--safe-bottom)); z-index:55;
+    position:fixed; right:14px; bottom:calc(18px + var(--safe-bottom)); z-index:61;
     width:54px; height:54px; border-radius:var(--r-pill); display:grid; place-items:center;
     background:var(--accent); color:#FFFDFA;
     box-shadow:0 6px 20px -8px color-mix(in srgb, var(--accent-ink) 60%, transparent);
@@ -2394,27 +2412,125 @@ textarea.pl-in.pl-note{ min-height:200px; }
     .pl-wxa-cloud, .pl-wxa-fog, .pl-wxa-flash{ display:none; }
     .pl-tree{ animation:none; } .pl-animal-cammina, .pl-animal-vola{ animation:none; }
 }
-/* --- priorità arretrate ---------------------------------------------
-   Quello che è scaduto e nessuno ha spuntato. Il rosso è sul bordo e sul
-   testo, non sul fondo: una casella piena di rosso accanto alle altre
-   sposterebbe l'occhio su di sé e basta, e queste stanno in mezzo a cose
-   che vanno lette insieme. */
-.pl-prio-cell.pl-late{
-    box-shadow:inset 0 0 0 1px var(--pl-late, #C0574C);
-    background:color-mix(in srgb, var(--pl-late, #C0574C) 7%, var(--card));
+/* --- blocchi troppo bassi per gli orari ------------------------------
+   Sotto i 32px la riga degli orari verrebbe tagliata a metà: una cifra
+   mozzata non dice niente e toglie spazio al titolo, che è l'unica cosa
+   che serve a riconoscere il blocco a colpo d'occhio. */
+.pl-ev.pl-ev-senzaora .pl-ev-h{ display:none; }
+.pl-ev.pl-ev-senzaora{
+    display:flex; flex-direction:column; justify-content:center;
+    padding-top:0; padding-bottom:0;
 }
-.pl-prio-cell.pl-late .pl-prio-in,
-.pl-prio-cell.pl-late .pl-prio-tx{ color:var(--pl-late, #C0574C); }
-.pl-prio-cell.pl-late .pl-prio-dot{ border-color:var(--pl-late, #C0574C); }
+.pl-ev.pl-ev-senzaora .pl-ev-t{
+    font-size:10.5px; line-height:1.05;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
 
-/* Spuntata: si sbarra e sbiadisce, e se ne va da sola dopo qualche secondo.
-   Sparire nell'istante del tocco toglie la conferma che il tocco sia
-   arrivato, e su un elenco che si accorcia sotto il dito il tocco successivo
-   finisce sulla riga sbagliata. */
-.pl-prio-cell.pl-late-out{
-    text-decoration:line-through;
-    opacity:.45;
-    transition:opacity 1.6s var(--ease);
+/* --- riga «Tipo» nel popup dell'evento -------------------------------
+   Una scelta fra due parole non merita un campo intero con l'etichetta
+   sopra: sta su una riga sola, sotto il titolo, con il selettore rimpicciolito
+   di fianco all'etichetta invece che a capo. */
+.pl-tipo-riga{
+    display:flex; align-items:center; gap:10px;
+    margin:8px 2px 0;
 }
-.pl-prio-cell.pl-late-out .pl-prio-in,
-.pl-prio-cell.pl-late-out .pl-prio-tx{ text-decoration:line-through; }
+.pl-tipo-lab{
+    font-size:9px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-3); flex-shrink:0;
+}
+.pl-tipo-riga .pl-seg{ flex:0 0 auto; padding:2px; }
+.pl-tipo-riga .pl-seg button{ font-size:10.5px; padding:3px 12px; }
+
+/* --- vista settimanale: gli eventi di tutto il giorno -----------------
+   Stavano nella fascia in alto, la stessa della vista giorno, e coprivano la
+   riga che dice quali sono i giorni — proprio la cosa che qui serve di più.
+
+   Non sono una riga della griglia: dentro la griglia `grid-auto-rows` li
+   stirava a un'ora intera, e da lì le righe degli orari smettevano di
+   corrispondere a quelle scritte a sinistra. Sono una striscia a sé, con le
+   stesse colonne, appiccicata in alto mentre si scorre. */
+.pl-wk-ad{
+    display:grid; will-change:transform;
+    background:var(--card);
+    border-bottom:.5px solid var(--hair-2);
+}
+.pl-wk-adcell{
+    border-left:.5px solid var(--hair);
+    overflow:hidden; padding:1px; display:flex; flex-direction:column; gap:1px;
+    background:var(--paper-2);
+}
+.pl-wk-adcell.pl-oggi{ background:var(--accent-wash); }
+.pl-wk-adcell.pl-scelto{ background:var(--paper); }
+.pl-wk-chip.pl-wk-chip-ad{ font-style:italic; }
+/* l'etichetta nella colonna delle ore: «gg», non un orario, perché questa
+   striscia non appartiene a nessuna ora. Si appiccica come la striscia,
+   se no scorrerebbe via e la fascia resterebbe senza nome. */
+.pl-wk-adlab{
+    display:flex; align-items:center; justify-content:flex-end;
+    padding-right:5px;
+    background:var(--card);
+    border-bottom:.5px solid var(--hair-2);
+    font-size:8px; letter-spacing:.1em; color:var(--ink-3);
+}
+/* l'angolo in alto a sinistra ospita il nome della fascia: da colonna a
+   colonna, se no l'etichetta e la striscia si scollano */
+.pl-wk-corner{ display:flex; flex-direction:column; justify-content:flex-end; }
+.pl-wk-topclip{ display:flex; flex-direction:column; justify-content:flex-end; }
+
+/* --- vista giorno: gli eventi di tutto il giorno, sezione a sé -------
+   Occupa tutta la larghezza, come deve: le colonne dei giorni sono spostate
+   di lato da una translateX scritta in JS, e togliere il posto della colonna
+   degli orari faceva finire i blocchi fuori dallo schermo a sinistra.
+
+   Sono invece i tastini a passarci sopra: sono fissi e galleggiano su tutto
+   il resto, quindi il posto per loro non va tolto a nessuno. */
+.pl-headrow{
+    border-top:.5px solid var(--hair);
+    padding-top:5px;
+    background:var(--paper);
+    position:relative; z-index:1;
+}
+
+/* Un attrezzo armato si riconosce dal tastino, che smette di essere
+   un'icona e diventa l'etichetta di quello che sta per essere inserito.
+   Stessa forma e stessa misura del tastino delle categorie: sono tre
+   risposte alla stessa domanda, e farle sembrare cose diverse non aiuta. */
+#plHabitRing.pl-picked,
+#plFabFav.pl-picked{
+    width:auto; height:34px; padding:0 11px; gap:6px;
+    font-size:12px; font-weight:500;
+    display:flex; align-items:center;
+    border-radius:var(--r-pill);
+    background:var(--card); color:var(--ink);
+    max-width:46vw; overflow:hidden; white-space:nowrap;
+}
+#plHabitRing.pl-picked .pl-dot,
+#plFabFav.pl-picked .pl-dot{
+    width:8px; height:8px; border-radius:50%;
+    background:var(--ev, var(--accent)); flex-shrink:0;
+}
+/* L'anello degli habit disegna i suoi archi con `position:absolute; inset:0`
+   su un quadrato di 46px. Quella regola prendeva anche la x del tastino
+   armato e la sparava nell'angolo in alto a sinistra: qui gli si ridà una
+   posizione normale, dentro la riga insieme al pallino e al nome. */
+#plHabitRing.pl-picked svg{
+    position:static; inset:auto; transform:none;
+    width:12px; height:12px;
+}
+#plFabFav.pl-picked svg{ width:12px; height:12px; }
+/* Rimuove lo spazio vuoto a sinistra negli eventi di tutto il giorno su smartphone */
+@media (max-width: 759px) {
+    .pl-headgutter {
+        display: none !important;
+    }
+    .pl-hcol {
+        width: 100vw !important;
+        border-left: none !important;
+        padding-left: 12px !important;
+    }
+}
+/* Nasconde il contenuto degli eventi tutto il giorno per i giorni non a fuoco,
+   evitando che dilatino la riga creando spazi bianchi inutili */
+.pl-hcol-hidden .pl-hcol-ad {
+    display: none !important;
+}

@@ -31,16 +31,18 @@ var S = {
     focusDate:   B.today,
     centerWeek:  null,
     zoom:        (B.settings && B.settings.zoom) || 'm30',
+    pxm:         0,           // pixel per minuto: la grandezza continua dello zoom
+    /* L'attrezzo armato: un'abitudine o un progetto preferito scelto dal
+       tastino e in attesa che si tocchi il calendario per dire DOVE. È lo
+       stesso modo di lavorare della categoria — si sceglie prima cosa, poi
+       dove — invece del popup che chiedeva l'orario a scatola chiusa. */
+    armato:      null,        // { kind:'habit'|'project', item, dur }
     view:        'day',
     monthCursor: null,
     defaultCat:  null,
     hiddenCats:  {},
     prioSlim:    false,
     weekCache:   {},          // 'lunedì' -> { week, lists }
-    loaded:      {},          // 'YYYY-MM-DD' -> true, giorni già scaricati almeno una volta
-    monthReq:    0,           // contrassegno della richiesta di mese in corso
-    late:        B.late || [],// scaduti e non spuntati: to do, pastiglie, progetti
-    lateDone:    {},          // arretrati appena spuntati, in attesa di sparire
     todos:       null,        // 'todo'|'buy'|'study' -> [voce], letto da todo_api.php
     todoTab:     'todo',      // linguetta aperta nel pannello settimana
     pills:       null,        // prese del giorno a fuoco, lette da todo_api.php
@@ -96,9 +98,127 @@ function diffDays(a, b) { return Math.round((parseIso(b) - parseIso(a)) / 864000
 function toMin(hhmm) { var p = String(hhmm || '0:0').split(':'); return (+p[0]) * 60 + (+p[1] || 0); }
 function toHM(min) { min = Math.max(0, Math.min(1439, Math.round(min))); return pad(Math.floor(min / 60)) + ':' + pad(min % 60); }
 function zoomCfg(key) { for (var i = 0; i < ZOOM.length; i++) if (ZOOM[i].key === key) return ZOOM[i]; return ZOOM[3]; }
-function pxMin() { var z = zoomCfg(S.zoom); return z.slot ? z.h / z.slot : 0; }
+
+/* ---- densità degli orari ------------------------------------------------
+   Prima l'altezza era una proprietà dello scatto: sei valori fissi, e il
+   pizzico saltava dall'uno all'altro. Ora la grandezza vera è UNA sola e
+   continua — quanti pixel vale un minuto — e lo scatto si RICAVA da lei:
+   si mostra il passo più fitto le cui righe restano abbastanza distanti da
+   leggersi. Allargando le dita gli orari si allontanano davvero, e quando
+   c'è spazio comparaiono da sé quelli di mezzo.
+   Le altezze in ZOOM restano: sono la densità naturale di ogni scatto,
+   quella che si ottiene premendo il tastino invece di pizzicare. */
+/* Il fondo è la densità naturale dello scatto da tre ore, non meno: sotto
+   quella gli orari si accavallano e la giornata diventa una striscia
+   illeggibile. Chi stringe ancora non vuole orari più piccoli, vuole
+   un'altra cosa — e quella cosa è la vista a lista. */
+/* Il fondo è la densità naturale dello scatto da tre ore, non meno: sotto
+   quella gli orari si accavallano e la giornata diventa una striscia
+   illeggibile. Chi stringe ancora non vuole orari più piccoli, vuole
+   un'altra cosa — e quella cosa è la vista a lista. */
+var PXM_MIN = 54 / 180;
+var PXM_MAX = 400 / 60;      // un'ora alta 400px: oltre, si vede solo vuoto
+
+/* Il passo più fitto che a questa densità resta leggibile.
+
+   La soglia di ogni scatto è la SUA altezza naturale, quella scritta in ZOOM,
+   non un numero unico per tutti. Con una soglia unica bassa lo scatto da
+   un'ora entrava in scena quando fra le 16 e le 17 c'erano ventisei pixel:
+   tecnicamente leggibile, in pratica appiccicato. Così invece ogni scatto
+   comincia dove il suo tastino lo mette e finisce dove comincia il
+   successivo — lo scatto largo arriva prima, quello fitto più tardi, e la
+   distanza fra due orari non scende mai sotto quella di partenza. */
+function scattoPer(pxm) {
+    for (var i = ZOOM.length - 1; i >= 0; i--) {
+        if (!ZOOM[i].slot) continue;                       // 'agenda' non è un passo
+        if (ZOOM[i].slot * pxm >= ZOOM[i].h) return ZOOM[i];
+    }
+    return zoomCfg('h3');
+}
+
+function pxMin() {
+    if (S.zoom === 'agenda') return 0;
+    if (!S.pxm) {
+        var z = zoomCfg(S.zoom);
+        applicaDensita(z.slot ? z.h / z.slot : 0);
+    }
+    return S.pxm;
+}
 function dayHeight() { return Math.round(1440 * pxMin()); }
 function isAgenda() { return S.zoom === 'agenda'; }
+
+/* Cambia la densità e, se serve, il passo. Ritorna true se il passo è
+   cambiato, cioè se sono comparsi o spariti degli orari: è il momento in cui
+   la rotellina deve accendere un'altra tacca. */
+/* La densità vive anche come variabile CSS, e tutto quello che sta sulla
+   griglia si posiziona a partire da lei: `top: calc(var(--pxm) * 480)` invece
+   di `top: 368px` scritto in JS.
+
+   PERCHÉ. Prima ogni millimetro di pizzico ricostruiva il DOM: fino a 288
+   etichette di orari più tutti i blocchi di ventuno colonne, sessanta volte al
+   secondo. Su iPhone il browser non regge e butta giù la scheda — è quello il
+   «this web page was reloaded because a problem occurred». Scrivendo un solo
+   numero, invece, si sposta tutto senza toccare un nodo, e il ridisegno vero
+   serve solo quando cambia lo scatto, cioè tre o quattro volte per gesto. */
+function applicaDensita(pxm) {
+    S.pxm = pxm;
+    document.documentElement.style.setProperty('--pxm', pxm + 'px');
+}
+
+var densitaInAttesa = null, densitaRaf = 0;
+
+/* Cambia la densità. Il lavoro vero è rimandato al fotogramma successivo:
+   il dito manda molti più eventi di quanti schermi il telefono disegni, e
+   rispondere a tutti vuol dire fare tre volte lo stesso calcolo e buttarne
+   via due. */
+function setDensita(pxm, ancora) {
+    pxm = Math.max(PXM_MIN, Math.min(PXM_MAX, pxm));
+    var nuovo = scattoPer(pxm).key;
+    var cambiato = nuovo !== S.zoom;
+
+    applicaDensita(pxm);
+    S.zoom = nuovo;
+    /* `cambiato` si SOMMA a quello già in attesa. Le dita mandano più
+       movimenti per fotogramma: se lo scatto cambiava al secondo e il terzo
+       diceva «no», l'ultimo vinceva e il ridisegno degli orari non avveniva
+       mai. Da qui il pizzico che non passava mai allo scatto successivo pur
+       avendo già cambiato S.zoom. */
+    densitaInAttesa = {
+        ancora: ancora,
+        cambiato: (densitaInAttesa ? densitaInAttesa.cambiato : false) || cambiato
+    };
+
+    if (!densitaRaf) {
+        densitaRaf = requestAnimationFrame(function () {
+            densitaRaf = 0;
+            var d = densitaInAttesa; densitaInAttesa = null;
+            if (!d) return;
+            /* Solo un cambio di scatto richiede DOM nuovo: gli orari da
+               scrivere sono altri. Fuori da quel caso basta la variabile. */
+            /* Le etichette degli orari cambiano solo cambiando scatto: fuori
+               da quel caso le sposta la variabile e non c'è niente da
+               ricostruire. La colonna a fuoco invece si rifà sempre, perché
+               il compattamento dei blocchi piccoli dipende da quanto sono
+               alti adesso, e quello nessuna variabile lo sa calcolare. */
+            aggiornaAltezzaCanvas();
+            if (d.cambiato) { renderGutter(); renderZoomDial(); }
+            renderDays(true);
+            if (d.ancora) scrollToMinuteAt(d.ancora.min, d.ancora.y);
+        });
+    }
+    return cambiato;
+}
+
+/* L'altezza della giornata segue la densità: è l'unica misura che non si può
+   scrivere in `calc` perché serve anche allo scorrimento. */
+function aggiornaAltezzaCanvas() {
+    if (isAgenda()) return;
+    var h = dayHeight() + 'px';
+    var g = $('plGutter');
+    if (g) g.style.height = h;
+    var cs = document.querySelectorAll('.pl-canvas');
+    for (var i = 0; i < cs.length; i++) cs[i].style.height = h;
+}
 
 /* elenchi sempre in ordine alfabetico: categorie, routine e preferiti */
 function alpha(list, key) {
@@ -187,11 +307,6 @@ function api(action, data, query, opt) {
         var req = {
             method: data ? 'POST' : 'GET',
             credentials: 'same-origin',
-            /* Le letture sono GET su un indirizzo che non cambia mai: subito
-               dopo un salvataggio il browser può rispondere con la copia di
-               dieci secondi prima, e sullo schermo resta il titolo vecchio
-               finché non si ricarica la pagina. */
-            cache: 'no-store',
             headers: { 'X-CSRF-Token': window.NISAMA_CSRF || S.csrf }
         };
         if (data) { req.headers['Content-Type'] = 'application/json'; req.body = JSON.stringify(data); }
@@ -313,84 +428,6 @@ function indexEvents(list, clearRange) {
 function indexPrio(map) {
     for (var k in map) if (map.hasOwnProperty(k)) S.prio[k] = map[k];
 }
-function indexLate(list) {
-    if (!list) return;
-    S.late = list;
-    /* Quello che il server non manda più è stato spuntato per davvero: si
-       toglie anche dalla memoria di quelli in uscita, se no resterebbe
-       sbarrato in eterno. */
-    var vivi = {};
-    list.forEach(function (x) { vivi[x.kind + ':' + x.ref_id] = 1; });
-    Object.keys(S.lateDone).forEach(function (k) { if (!vivi[k]) delete S.lateDone[k]; });
-}
-
-/* Il primo e l'ultimo giorno non ancora scaricati dentro un periodo, oppure
-   null se c'è già tutto. Chiedere l'intervallo che li contiene può rileggere
-   qualche giorno già noto, ma è una richiesta sola invece di sei. */
-function spanMancante(from, to) {
-    var primo = null, ultimo = null;
-    for (var d = from; d <= to; d = addDays(d, 1)) {
-        if (S.loaded[d]) continue;
-        if (primo === null) primo = d;
-        ultimo = d;
-    }
-    return primo === null ? null : { from: primo, to: ultimo };
-}
-
-/* Le richieste di periodo si mettono in fila invece di partire tutte insieme.
-   `indexEvents` azzera il periodo che sta per riempire: due risposte
-   sovrapposte in volo si cancellavano a vicenda, ed era il motivo per cui gli
-   eventi del mese comparivano e sparivano a seconda di chi arrivava per
-   ultimo. In fila, ogni richiesta guarda cosa manca *in quel momento* e chiede
-   solo quello: se nel frattempo un'altra ha già coperto il periodo, salta. */
-var plCodaRange = Promise.resolve();
-function loadRange(from, to, force) {
-    plCodaRange = plCodaRange.then(function () {
-        var a = from, b = to;
-        if (!force) {
-            var manca = spanMancante(a, b);
-            if (!manca) return null;
-            a = manca.from; b = manca.to;
-        }
-        return api('range', null, { from: a, to: b }).then(function (r) {
-            if (!r.ok) return null;
-            indexEvents(r.events, { from: r.from, to: r.to });
-            indexPrio(r.priorities || {});
-            indexLate(r.late);
-            for (var g in r.diary) if (r.diary.hasOwnProperty(g)) S.diary[g] = r.diary[g];
-            for (var d = r.from; d <= r.to; d = addDays(d, 1)) S.loaded[d] = true;
-            /* La riga della settimana e gli elenchi arrivano solo per la
-               settimana in cui cade `from`: le altre restano da chiedere. */
-            var lun = monday(r.from);
-            if (!S.weekCache[lun] || force) S.weekCache[lun] = { week: r.week, lists: r.lists || [] };
-            return r;
-        });
-    }).catch(function () { return null; });
-    return plCodaRange;
-}
-
-/* Svuotare la cache delle settimane non basta più. Da quando le occorrenze
-   dei ripetuti nascono in lettura, toccare una regola può cambiare giorni
-   lontanissimi da quello che si sta guardando: si butta via anche il registro
-   dei giorni scaricati, così il mese aperto dopo torna a chiedere. */
-function invalidaDati() {
-    invalidaDati();
-    S.loaded = {};
-}
-
-/* Ricarica quello che l'utente ha davvero sotto gli occhi. Dopo una modifica
-   a una serie non basta rinfrescare la settimana a fuoco: se si sta guardando
-   il mese, è la griglia del mese che deve tornare vera. */
-function ricaricaVista() {
-    invalidaDati();
-    if (S.view === 'month') {
-        return ensureMonth(true).then(function () { renderDays(); });
-    }
-    return loadWeek(monday(S.focusDate), true).then(function () {
-        if (S.view === 'week') renderWeek();
-        renderDays();
-    });
-}
 function eventsOf(date) {
     var list = (S.events[date] || []).filter(function (e) { return !evHidden(e); });
     list.sort(function (a, b) {
@@ -414,12 +451,13 @@ function loadWeek(weekStart, force) {
         if (monday(S.focusDate) === weekStart) applyWeek(weekStart);
         return Promise.resolve();
     }
-    /* Sette giorni, non sessanta. Allargare la finestra della settimana per
-       riempire il mese sembrava una scorciatoia, ma faceva partire una
-       richiesta da due mesi a ogni cambio di giorno e le risposte si
-       azzeravano fra loro. Il mese ha una strada sua (ensureMonth). */
-    return loadRange(weekStart, addDays(weekStart, 6), true).then(function (r) {
-        if (!r) return;
+    // FIX 4: Scarica 60 giorni per popolare in automatico la griglia della vista mensile
+    return api('range', null, { from: addDays(weekStart, -14), to: addDays(weekStart, 45) }).then(function (r) {
+        if (!r.ok) return;
+        indexEvents(r.events, { from: r.from, to: r.to });
+        indexPrio(r.priorities || {});
+        for (var d in r.diary) if (r.diary.hasOwnProperty(d)) S.diary[d] = r.diary[d];
+        S.weekCache[weekStart] = { week: r.week, lists: r.lists || [] };
         if (monday(S.focusDate) === weekStart) applyWeek(weekStart);
         renderDays();
         renderPrio();
@@ -2402,17 +2440,6 @@ function prioOf(date) {
     list.forEach(function (p) {
         if (p.auto) autos.push(p); else manual[p.position] = p;
     });
-    /* Gli arretrati stanno davanti a tutto e solo su oggi. Un arretrato è in
-       ritardo rispetto a adesso: mostrarlo anche sfogliando il mese scorso
-       riempirebbe di rosso giorni in cui quella cosa non era ancora scaduta.
-       Quelli appena spuntati restano in elenco ancora qualche secondo: vedere
-       la riga sbarrarsi è la conferma che il tocco è arrivato, sparire di
-       colpo sembra un errore. */
-    if (date === S.today) {
-        autos = (S.late || []).filter(function (x) {
-            return !S.lateDone[x.kind + ':' + x.ref_id] || S.lateDone[x.kind + ':' + x.ref_id] === 'in-uscita';
-        }).concat(autos);
-    }
     return { manual: manual, autos: autos };
 }
 
@@ -2438,9 +2465,7 @@ function renderPrioInto(host, giorno) {
         cells.push({
             auto: true, content: a.content, project_id: a.project_id, project: a.project,
             notes: a.notes, stato: a.stato, color: a.color,
-            target_date: a.target_date, due_date: a.due_date,
-            late: a.late, kind: a.kind, list_type: a.list_type,
-            ref_id: a.ref_id, was_due: a.was_due
+            target_date: a.target_date, due_date: a.due_date
         });
     });
 
@@ -2506,59 +2531,6 @@ function renderPrioInto(host, giorno) {
     } else if (host.id === 'plPrioRows') {
         fermaGiroPrio();
     }
-}
-
-/* Un arretrato spuntato dalla fascia priorità.
-
-   Non sparisce subito. Si spunta, si sbarra, e se ne va dopo qualche secondo:
-   sparire nell'istante del tocco toglie la conferma che il tocco sia arrivato,
-   e su una lista che si accorcia sotto il dito il secondo tocco finisce sulla
-   riga sbagliata. */
-function spuntaArretrato(data) {
-    var chiave = data.kind + ':' + data.ref_id;
-    if (S.lateDone[chiave]) return;
-    S.lateDone[chiave] = 'in-uscita';
-    haptic(8);
-
-    /* Spuntando a sezione stretta si vede una riga sola, e la voce appena
-       spuntata può stare in un'altra: sparirebbe senza che si sia mai vista
-       sbarrare, cioè senza conferma che il tocco sia arrivato. Quindi la
-       sezione si apre e la mostra. */
-    if (S.prioSlim) setPrioSlim(false); else renderPrio();
-
-    /* Si passa da todo_api.php, che è l'unico punto di scrittura di quei
-       dati: rifare la stessa cosa in planner.php vorrebbe dire avere due
-       posti in cui sbagliarla. */
-    var chiamata = data.kind === 'pill'
-        ? todoApi('pill_mark', { id: data.ref_id, status: 'taken' })
-        : todoApi('toggle', { id: data.ref_id });
-
-    chiamata.then(function (r) {
-        if (r && r.ok === false) {
-            // non è passata: si rimette com'era invece di far finta di niente
-            delete S.lateDone[chiave];
-            renderPrio();
-            toast((r && r.message) || 'Non e stato possibile spuntarlo.');
-            return;
-        }
-        setTimeout(function () {
-            S.late = (S.late || []).filter(function (x) { return (x.kind + ':' + x.ref_id) !== chiave; });
-            delete S.lateDone[chiave];
-            renderPrio();
-        }, 6000);
-    });
-}
-
-/* Toccando un arretrato si va dove quella cosa vive davvero, con la linguetta
-   già aperta — lo stesso posto in cui porta il tasto del pannello settimana.
-   Si imposta la linguetta PRIMA di aprire, perché openWeekPanel legge
-   S.todoTab per decidere cosa caricare: cambiandola dopo si vedrebbe per un
-   attimo l'elenco sbagliato, e con le pastiglie si chiamerebbe l'endpoint
-   che non le conosce. */
-function apriArretrato(data) {
-    if (data.kind === 'project') { prioProgetto(data); return; }
-    S.todoTab = data.list_type || 'todo';
-    openWeekPanel();
 }
 
 /* Il riassunto di un progetto, aperto da una priorità automatica.
@@ -2654,9 +2626,7 @@ function avviaGiroPrio(righe, pal) {
         for (var k = 0; k < pal.children.length; k++) {
             pal.children[k].classList.toggle('pl-on', k === i);
         }
-    /* Cinque secondi, non quattro: una riga con due priorità va letta, non
-       intravista, e il giro non deve costringere a rincorrerla. */
-    }, 5000);
+    }, 4000);
 }
 
 function prioCell(data, compatta) {
@@ -2678,33 +2648,11 @@ function prioCell(data, compatta) {
         cell.appendChild(tx);
         misuraStriscia(tx, dentro);
         if (data.auto) {
-            if (data.late) {
-                cell.classList.add('pl-late');
-                if (S.lateDone[data.kind + ':' + data.ref_id]) cell.classList.add('pl-done', 'pl-late-out');
-                tx.style.cursor = 'pointer';
-                tx.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                    /* Il popup si apre subito — è quello che si è chiesto — ma
-                       la sezione si allarga lo stesso: chiudendo il popup si
-                       torna a una fascia che mostra il contesto di quello che
-                       si è appena aperto, non una riga sola a caso. */
-                    apriArretrato(data);
-                    setPrioSlim(false);
-                });
-                if (data.kind !== 'project') {
-                    dot.addEventListener('click', function (e) {
-                        e.stopPropagation();
-                        spuntaArretrato(data);
-                    });
-                }
-                return cell;
-            }
             if (data.project_id) {
                 tx.style.cursor = 'pointer';
                 tx.addEventListener('click', function (e) {
-                    e.stopPropagation();   // il tocco non deve fare due cose per caso
+                    e.stopPropagation();   // se no il tocco aprirebbe la sezione
                     prioProgetto(data);
-                    setPrioSlim(false);    // ma allargare la sezione sì, di proposito
                 });
             }
             return cell;
@@ -2729,19 +2677,6 @@ function prioCell(data, compatta) {
     cell.appendChild(dot);
     cell.appendChild(inp);
     if (data.auto) {
-        if (data.late) {
-            cell.classList.add('pl-late');
-            if (S.lateDone[data.kind + ':' + data.ref_id]) cell.classList.add('pl-done', 'pl-late-out');
-            inp.style.cursor = 'pointer';
-            inp.addEventListener('click', function () { apriArretrato(data); });
-            if (data.kind !== 'project') {
-                dot.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                    spuntaArretrato(data);
-                });
-            }
-            return cell;
-        }
         /* Un campo di sola lettura non riceve il tocco come un tasto: si
            ascolta lo stesso e si apre il riassunto del progetto. È l'unico
            punto del planner in cui un progetto si affaccia, e fin qui si
@@ -2912,7 +2847,7 @@ function renderGutter() {
         if (m === 1440) break;
         var isMajor = (m / z.slot) % majorEvery === 0;
         var lab = el('div', 'pl-gutter-t' + (isMajor ? ' pl-major' : ''), toHM(m));
-        lab.style.top = (HEAD_H + m * pxMin()) + 'px';
+        lab.style.top = 'calc(' + HEAD_H + 'px + var(--pxm) * ' + m + ')';
         g.appendChild(lab);
     }
     renderGutterMeteo(g, S.focusDate);
@@ -2946,6 +2881,12 @@ function renderGutterMeteo(host, date) {
     for (var k = 0; k < vecchi.length; k++) vecchi[k].parentNode.removeChild(vecchi[k]);
 
     if (!WX.on || isAgenda() || visibleDays() >= 2) return;
+    /* Il tag dei gradi sta sotto l'orario e occupa la sua riga: quando gli
+       orari si avvicinano finisce sopra a quello dopo. Succedeva soprattutto
+       stringendo, poco prima di passare allo scatto più largo, dove la
+       distanza fra due orari si riduce di molto. Sotto i 34px di spazio non
+       si disegna: meglio niente meteo che un orario illeggibile. */
+    if (60 * pxMin() < 34) return;
     date = date || S.focusDate;
     var g = WX.giorni[date];
     if (!g || !g.ore || !g.ore.length) return;
@@ -2972,7 +2913,11 @@ function renderGutterMeteo(host, date) {
            finiscono addosso a quello dopo: resta la sola icona, che dice già
            che tempo fa. Con tutti gli altri scatti lo spazio c'è. */
         if (z.slot > 5 && o.t !== null && o.t !== undefined) b.appendChild(el('span', 'pl-wxg-t', o.t + '°'));
-        b.style.top = (HEAD_H + h * 60 * px + 6) + 'px';
+        /* Alla densità, non a un pixel già calcolato: le etichette degli
+           orari si posizionano così, e un tag scritto in pixel restava fermo
+           mentre loro si muovevano — da qui i gradi che scivolavano addosso
+           all'orario sbagliato durante il pizzico. */
+        b.style.top = 'calc(' + HEAD_H + 'px + var(--pxm) * ' + (h * 60) + ' + 6px)';
         b.setAttribute('aria-label', (o.l || '') + ' alle ' + h);
         b.dataset.wxDate = date;
         b.addEventListener('click', function (e) {
@@ -3053,25 +2998,78 @@ function renderAllDay() {
         var box = cell.querySelector('.pl-hcol-ad');
         if (!box) continue;
         box.innerHTML = '';
-        /* nella vista a lista gli eventi di tutto il giorno stanno in mezzo
-           agli altri, quindi qui non ne mettiamo nessuno */
         if (isAgenda()) continue;
+        
         var ds = cell.dataset.date;
+        var isVis = (ds >= firstVisible && ds <= lastVisible);
+        
+        // Applica la classe per azzerare l'ingombro dei giorni fuori schermo
+        cell.classList.toggle('pl-hcol-hidden', !isVis);
+        
         var list = eventsOf(ds).filter(function (e) { return e.all_day; });
         list.forEach(function (ev) { box.appendChild(buildEvent(ev, true)); });
-        if (list.length && ds >= firstVisible && ds <= lastVisible) anyAllDay = true;
+        if (list.length && isVis) anyAllDay = true;
     }
     /* La striscia resta solo se ha davvero qualcosa da mostrare: le etichette
        dei giorni (schermi larghi) o un evento di tutto il giorno qui davanti.
        Nella vista a lista gli eventi di tutto il giorno stanno in mezzo agli
        altri, ma con più giorni affiancati l'etichetta serve eccome: senza, si
        vedono tre elenchi e nessuno dice a che giorno appartiene. */
+    /* In vista settimanale la fascia in alto non ci va: si sovrappone alla
+       riga che dice quali sono i giorni, che è la cosa che serve di più là.
+       Gli eventi di tutto il giorno hanno una riga tutta loro sopra le 00,
+       dentro la griglia (vedi wkFasciaTuttoIlGiorno). */
+    if (S.view === 'week') { row.classList.add('pl-hidden'); syncScrollerTop(); return; }
+
     row.classList.toggle('pl-hidden', isAgenda() ? !many : (!many && !anyAllDay));
     row.classList.toggle('pl-noad', !anyAllDay);
     syncScrollerTop();
+    /* Quanto spazio si prende la sezione degli eventi di tutto il giorno.
+       Serve ai tastini, che se ne scontano l'altezza e restano dove sono
+       invece di scivolare giù ogni volta che compare un evento di tutto il
+       giorno: le passano sopra, così quella può occupare tutta la larghezza.
+
+       Il margine va contato: `offsetHeight` non lo comprende, e senza
+       restavano otto pixel di sfasamento fra la fascia che c'è e la fascia
+       che non c'è.
+
+       Con più giorni affiancati non si sconta niente: là quella riga porta i
+       nomi dei giorni ed esiste comunque, e i tastini devono starle sotto
+       invece di coprirla. */
+    /* --- PULIZIA TOTALE DEI VECCHI OBSERVER --- */
+    if (window.plHeadRowObserver) {
+        window.plHeadRowObserver.disconnect();
+        window.plHeadRowObserver = null;
+    }
+    if (window.plFabsObserver) {
+        window.plFabsObserver.disconnect();
+        window.plFabsObserver = null;
+    }
+
+    /* --- OBSERVER DEFINITIVO A COORDINATE FISICHE --- */
+    window.plFabsObserver = new ResizeObserver(function() {
+        var fabs = document.getElementById('plFabs');
+        var isDesk = window.matchMedia('(min-width:760px)').matches;
+        
+        // L'ancora a cui appenderci: la barra tutto il giorno (su PC) o la sezione priorità (su Smartphone)
+        var anchor = isDesk ? document.getElementById('plHeadRow') : document.querySelector('.pl-prio-wrap');
+        
+        if (fabs && anchor) {
+            // Misuriamo la coordinata Y reale in cui finisce l'elemento sullo schermo
+            var bottomY = anchor.getBoundingClientRect().bottom;
+            
+            // Inchiodiamo i tastini esattamente 8 pixel sotto quella linea
+            fabs.style.top = (bottomY + 16) + 'px';
+        }
+    });
+    
+    // Osserviamo l'intera barra superiore: se ruotano le priorità o cambiano i dati,
+    // l'observer legge le nuove coordinate e sposta i tastini in una frazione di millisecondo.
+    var db = document.getElementById('plDayBar');
+    if (db) window.plFabsObserver.observe(db);
 }
 
-function renderDays() {
+function renderDays(soloVisibile) {
     /* Mentre si trascina un blocco (o se ne sta creando uno) la griglia non
        si tocca: ridisegnarla distrugge il nodo sotto le dita e lo rimette
        dov'era. Era questo a far "tornare indietro" un evento tenuto premuto
@@ -3079,8 +3077,21 @@ function renderDays() {
     if (S.interacting) { S.renderPending = true; return; }
     S.renderPending = false;
     var z = zoomCfg(S.zoom);
-    var cols = document.querySelectorAll('.pl-col[data-date]');
+    /* Durante il pizzico si ridisegna SOLO il giorno che si sta guardando.
+       La striscia ne tiene pronti ventuno: rifarli tutti a ogni fotogramma
+       era il lavoro che faceva cadere la pagina, e diciannove di quelli non
+       sono nemmeno sullo schermo. Gli altri si rifanno quando le dita si
+       alzano. */
+    var cols = soloVisibile
+        ? document.querySelectorAll('.pl-col[data-date="' + S.focusDate + '"]')
+        : document.querySelectorAll('.pl-col[data-date]');
     for (var i = 0; i < cols.length; i++) renderCol(cols[i], z);
+    /* Fermarsi qui durante il pizzico. Quello che segue rilegge il DOM per
+       misurarlo — la larghezza dei tastini, l'altezza della lista — e ogni
+       lettura obbliga il browser a ricalcolare il foglio di stile mentre lo
+       stiamo cambiando. Sessanta volte al secondo è il conto che fa cadere
+       la pagina, e nessuna di quelle cose cambia mentre si zooma. */
+    if (soloVisibile) return;
     renderGutterMeteo(null, S.focusDate);
     /* Il controllo della rotellina si fa qui, cioè sempre: era l'unico modo
        per essere certi che non resti in vista dopo un passaggio da "lista",
@@ -3089,6 +3100,38 @@ function renderDays() {
     renderAllDay();
     renderWeekPanel();
     renderRing();
+    adattaAltezzaLista();
+}
+
+/* In vista a lista la pagina diventava altissima.
+
+   Il motivo è che le colonne dei giorni stanno affiancate nella stessa riga:
+   la riga è alta quanto la più alta delle colonne, e basta un giorno pieno
+   tre schermate più in là perché su un giorno con due voci si possa scendere
+   nel vuoto per mezzo minuto. Con gli orari non si vedeva, perché lì tutte le
+   colonne sono alte uguali — 1440 minuti — ed è per questo che salta fuori
+   solo passando a «lista».
+
+   Si tiene la riga sull'altezza del giorno a fuoco, più un po' d'aria sotto
+   l'ultima voce. Se ci stanno tutte, non c'è niente da scorrere. */
+function adattaAltezzaLista() {
+    var row = document.querySelector('.pl-row');
+    if (!row) return;
+    if (!isAgenda() || visibleDays() !== 1) {
+        row.style.height = '';
+        row.style.overflow = '';
+        return;
+    }
+    var canvas = document.querySelector('.pl-col[data-date="' + S.focusDate + '"] .pl-canvas');
+    if (!canvas) { row.style.height = ''; row.style.overflow = ''; return; }
+    row.style.height = '';
+    row.style.overflow = '';
+    var h = canvas.scrollHeight + 28;   // l'aria sotto: la lista non finisce incollata al bordo
+    row.style.height = h + 'px';
+    /* Le colonne dei giorni vicini possono essere più alte di questa: senza
+       il taglio tornerebbero a tirare su lo scorrimento, ed è proprio quello
+       che si sta togliendo. Si rimisura a ogni cambio di giorno. */
+    row.style.overflow = 'hidden';
 }
 
 function renderCol(col, z) {
@@ -3096,7 +3139,10 @@ function renderCol(col, z) {
     var canvas = col.querySelector('.pl-canvas');
     canvas.innerHTML = '';
 
-    canvas.style.setProperty('--slot-h', z.h + 'px');
+    /* L'altezza di una riga adesso è calcolata, non presa da ZOOM: è il passo
+       moltiplicato per la densità corrente, se no le righe dipinte sul fondo
+       resterebbero ferme mentre gli eventi si allargano. */
+    canvas.style.setProperty('--slot-h', z.slot ? 'calc(var(--pxm) * ' + z.slot + ')' : '0px');
     canvas.style.setProperty('--major-every', z.slot === 30 ? 2 : (z.slot === 15 ? 4 : (z.slot === 5 ? 12 : 1)));
     canvas.classList.toggle('pl-major-lines', z.slot < 60 && z.slot > 0);
     canvas.classList.toggle('pl-agenda-canvas', isAgenda());
@@ -3220,8 +3266,8 @@ function renderCol(col, z) {
             /* aperta: ogni passaggio ha il suo blocco. La freccetta per
                richiuderla la mettiamo sul primo, così resta raggiungibile. */
             var wrapper = el('div', 'pl-routine-wrap');
-            wrapper.style.top = (startMin * pxMin()) + 'px';
-            wrapper.style.height = ((endMin - startMin) * pxMin()) + 'px';
+            wrapper.style.top = 'calc(var(--pxm) * ' + startMin + ')';
+            wrapper.style.height = 'calc(var(--pxm) * ' + (endMin - startMin) + ')';
             var lab = el('button', 'pl-routine-label');
             lab.type = 'button';
             var rr = routineById(g.base.routine_id);
@@ -3238,7 +3284,7 @@ function renderCol(col, z) {
                 for (var k in x) if (x.hasOwnProperty(k)) copy[k] = x[k];
                 copy.canFold = idx === 0;     // la freccetta solo sul primo passaggio
                 var node = positioned(buildEvent(copy), x.start, x.end);
-                node.style.top = ((toMin(x.start) - startMin) * pxMin()) + 'px';
+                node.style.top = 'calc(var(--pxm) * ' + (toMin(x.start) - startMin) + ')';
                 wrapper.appendChild(node);
             });
             canvas.appendChild(wrapper);
@@ -3248,16 +3294,16 @@ function renderCol(col, z) {
     // velo sul passato e linea dell'ora
     if (date < S.today) {
         var veil = el('div', 'pl-past');
-        veil.style.height = dayHeight() + 'px';
+        veil.style.height = 'calc(var(--pxm) * 1440)';
         canvas.appendChild(veil);
     } else if (date === S.today) {
         var now = new Date();
         var nowMin = now.getHours() * 60 + now.getMinutes();
         var v2 = el('div', 'pl-past');
-        v2.style.height = (nowMin * pxMin()) + 'px';
+        v2.style.height = 'calc(var(--pxm) * ' + nowMin + ')';
         canvas.appendChild(v2);
         var line = el('div', 'pl-now');
-        line.style.top = (nowMin * pxMin()) + 'px';
+        line.style.top = 'calc(var(--pxm) * ' + nowMin + ')';
         canvas.appendChild(line);
     }
 }
@@ -3449,8 +3495,8 @@ function buildMiniEvent(ev) {
     node.dataset.date = ev.date || S.focusDate;
 
     var s = toMin(ev.start), e = Math.max(toMin(ev.end), s + 5);
-    node.style.top = (s * pxMin()) + 'px';
-    node.style.height = Math.max(5, (e - s) * pxMin()) + 'px';
+    node.style.top = 'calc(var(--pxm) * ' + s + ')';
+    node.style.height = 'max(5px, calc(var(--pxm) * ' + (e - s) + '))';
 
     node.appendChild(bottoneMini((ev.title || 'Evento') + ', ' + miniRiga(ev, true)));
     return node;
@@ -3506,7 +3552,7 @@ function buildMiniGroup(items, startMin, endMin) {
     node.dataset.miniGroup = '1';
     node.dataset.miniIds = items.map(function (x) { return x.id; }).join(',');
 
-    node.style.top = (startMin * pxMin()) + 'px';
+    node.style.top = 'calc(var(--pxm) * ' + startMin + ')';
     /* L'altezza è quella della durata vera, non dell'intervallo dal primo
        inizio all'ultima fine: allungare il blocco fino a coprire i buchi
        direbbe che quel tempo è occupato quando non lo è. */
@@ -3633,12 +3679,24 @@ function applyLane(node, item) {
 
 function positioned(node, start, end) {
     var s = toMin(start), e = Math.max(toMin(end), s + 5);
-    node.style.top = (s * pxMin()) + 'px';
+    /* In `calc` sulla densità, non in pixel già fatti: così pizzicando basta
+       cambiare `--pxm` e il blocco si sposta da solo, senza che nessuno lo
+       riscriva. È questo che rende il pizzico gratis invece che un ridisegno
+       di tutta la pagina a ogni fotogramma. */
+    node.style.top = 'calc(var(--pxm) * ' + s + ')';
     var h = (e - s) * pxMin();
-    node.style.height = Math.max(16, h - 2) + 'px';
+    node.style.height = 'max(16px, calc(var(--pxm) * ' + (e - s) + ' - 2px))';
     if (h > 44) node.classList.add('pl-tall');
     /* casi al limite: il titolo ci sta ma per un pelo, quindi si stringe */
     else if (h < 26) node.classList.add('pl-ev-stretto');
+
+    /* Sotto una certa altezza gli orari non ci stanno interi e uscivano
+       tagliati a metà riga — un quarto d'ora con gli scatti da mezz'ora, una
+       mezz'ora con quelli da un'ora. Mezza cifra non dice l'orario e ruba lo
+       spazio al titolo, che è l'unica cosa che serve a riconoscere il blocco:
+       meglio toglierli e lasciare il titolo da solo, in mezzo. L'orario esatto
+       si legge aprendo l'evento, o allargando lo zoom. */
+    node.classList.toggle('pl-ev-senzaora', h < 32);
     return node;
 }
 
@@ -3742,6 +3800,12 @@ function todoApi(action, data, query) {
     var req = {
         method: data ? 'POST' : 'GET',
         credentials: 'same-origin',
+        /* La lettura degli elenchi è una GET su un indirizzo che non cambia
+           mai: subito dopo un salvataggio il browser rispondeva con la copia
+           di prima. È per questo che la priorità del to buy cambiava per un
+           attimo e poi tornava indietro — non era il salvataggio a fallire,
+           era la rilettura a non arrivare mai al server. */
+        cache: 'no-store',
         headers: { 'X-CSRF-Token': window.NISAMA_CSRF || S.csrf }
     };
     if (data) { req.headers['Content-Type'] = 'application/json'; req.body = JSON.stringify(data); }
@@ -4512,20 +4576,40 @@ function disegnaAnelli(ring, dati) {
     dati = dati || [];
 
     var pezzi = '';
+    var offsetFinali = []; // Memorizziamo qui i valori finali
+
     for (var i = 0; i < dati.length; i++) {
         /* i = 0 è il più interno, quindi si parte da dentro e si esce */
         var r = RING_ESTERNO - (dati.length - 1 - i) * (RING_LARGHEZZA + RING_STACCO);
         if (r < 3) break;                       // troppe famiglie: non ci sta più
         var C = 2 * Math.PI * r;
         var frac = dati[i].total > 0 ? Math.min(1, dati[i].done / dati[i].total) : 0;
+        
+        // Salviamo l'offset che l'anello dovrà raggiungere alla fine
+        offsetFinali.push((C * (1 - frac)).toFixed(1));
+
+        // INSERIAMO L'ANELLO VUOTO: stroke-dashoffset uguale all'intera circonferenza (C)
         pezzi += '<circle class="pl-ring-track" cx="23" cy="23" r="' + r.toFixed(2)
               + '" stroke-width="' + RING_LARGHEZZA + '"/>'
               + '<circle class="pl-ring-fill pl-ring-' + dati[i].key + '" cx="23" cy="23" r="' + r.toFixed(2)
               + '" stroke-width="' + RING_LARGHEZZA + '"'
               + ' stroke-dasharray="' + C.toFixed(1) + '"'
-              + ' stroke-dashoffset="' + (C * (1 - frac)).toFixed(1) + '"/>';
+              + ' stroke-dashoffset="' + C.toFixed(1) + '"/>'; 
     }
+    
     svg.innerHTML = pezzi;
+
+    /* Diamo il tempo al browser di disegnare gli anelli vuoti, poi applichiamo i valori 
+       reali. Questo fa scattare la transizione CSS morbida e li vedi riempirsi. */
+    requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+            var cerchiAnimati = svg.querySelectorAll('.pl-ring-fill');
+            for (var j = 0; j < cerchiAnimati.length; j++) {
+                cerchiAnimati[j].style.strokeDashoffset = offsetFinali[j];
+            }
+        });
+    });
+
     /* Quante corsie ci sono decide quanto spazio resta al centro: con quattro
        famiglie il foro interno scende a circa 13px, e la spunta da 17px ci
        finirebbe sopra. Il numero passa al CSS, che rimpicciolisce l'icona. */
@@ -4566,11 +4650,28 @@ function scrollToDate(date, smooth) {
 /* sposta griglia ed etichette insieme: sono due strisce diverse ma devono
    restare incolonnate */
 function setTrackX(x, smooth) {
-    [$('plTrack'), $('plHeadTrack')].forEach(function (t) {
-        if (!t) return;
-        t.style.transition = smooth ? 'transform .38s var(--ease)' : 'none';
-        t.style.transform = 'translateX(' + x + 'px)';
-    });
+    var isMobile = window.innerWidth < 760;
+    var cw = colWidth();
+    var headX = x;
+    
+    /* Su smartphone la fascia degli eventi di tutto il giorno occupa il
+       100% dello schermo (avendo rimosso la finta colonna orari). 
+       Dobbiamo ricalcolare l'offset di scorrimento per quella specifica striscia. */
+    if (isMobile && cw > 0) {
+        var passi = x / cw;
+        headX = passi * window.innerWidth;
+    }
+
+    var tr = $('plTrack');
+    if (tr) {
+        tr.style.transition = smooth ? 'transform .38s var(--ease)' : 'none';
+        tr.style.transform = 'translateX(' + x + 'px)';
+    }
+    var ht = $('plHeadTrack');
+    if (ht) {
+        ht.style.transition = smooth ? 'transform .38s var(--ease)' : 'none';
+        ht.style.transform = 'translateX(' + headX + 'px)';
+    }
 }
 /* Porta il minuto indicato esattamente a quell'altezza dello schermo.
    Serve al pinch: il punto in mezzo alle due dita deve restare dov'è mentre
@@ -4681,6 +4782,10 @@ function goToDate(date, smooth) {
     renderRing();
     maybeAskCopy();
     applyAmbient();
+    /* Cambiando giorno cambia anche l'altezza della lista: renderDays() qui
+       non passa, quindi il taglio va rifatto a mano o resterebbe quello del
+       giorno precedente. */
+    adattaAltezzaLista();
     loadWeek(monday(date));
 }
 
@@ -4691,7 +4796,6 @@ function goToDate(date, smooth) {
 $('plScroller').addEventListener('scroll', function () {
     /* scorrendo, le priorità si stringono e ci restano: si riaprono solo
        toccandole. Prima si riaprivano da sole appena finito lo scroll. */
-    if (document.querySelector('.pl-ov.pl-open, .pl-wp-ov.pl-open')) return;   // c'è un popup aperto: non è l'utente che scorre la pagina
     setPrioSlim(true);
 }, { passive: true });
 
@@ -4699,13 +4803,6 @@ $('plScroller').addEventListener('scroll', function () {
 document.addEventListener('pointerdown', function (e) {
     if (S.prioSlim) return;
     if (e.target.closest('#plPrio')) return;
-    /* Un tocco dentro un popup non è «fuori». Quei popup li ha aperti la
-       sezione stessa — il riassunto di un progetto, il pannello delle
-       attività — e premere «Chiudi» richiudeva anche la fascia sotto: si
-       tornava a una riga sola senza averlo chiesto. Ora la sezione resta
-       aperta finché non si tocca davvero da un'altra parte. */
-    if (e.target.closest('.pl-ov, .pl-wp-ov, .pl-sheet, .pl-alert')) return;
-    if (document.querySelector('.pl-ov.pl-open, .pl-wp-ov.pl-open')) return;
     setPrioSlim(true);
 }, true);
 
@@ -4876,7 +4973,11 @@ function psPane(dir) {
         ht.style.transform = 'none';
         ht.innerHTML = '';
         var cella = document.querySelector('#plHeadTrack .pl-hcol[data-date="' + date + '"]');
-        if (cella) ht.appendChild(cella.cloneNode(true));
+        if (cella) {
+            var cloneCol = cella.cloneNode(true);
+            cloneCol.classList.remove('pl-hcol-hidden'); // <-- LA MODIFICA È QUI
+            ht.appendChild(cloneCol);
+        }
     }
 
     /* La scena della barra è del giorno, non della pagina. La copia porta
@@ -5076,7 +5177,7 @@ window.addEventListener('resize', function () {
        pensato per questo caso. Restano il riaggancio e il guardiano come
        reti di sicurezza, perché la presa il browser può sempre toglierla.
        ------------------------------------------------------------------ */
-    var punti = {}, watch = null, zoomIniziale = null;
+    var punti = {}, watch = null, zoomIniziale = null, pxmIniziale = 0;
 
     function dueDita() {
         var ids = Object.keys(punti);
@@ -5087,6 +5188,7 @@ window.addEventListener('resize', function () {
         active = true;
         start = dist(t);
         startZoom = ZOOM.findIndex(function (z) { return z.key === S.zoom; });
+        pxmIniziale = pxMin();
         /* Il minuto sotto le dita al momento in cui si comincia, e *dove*
            stava sullo schermo. Servono tutt'e due, e il secondo è quello che
            mancava: si teneva fermo il minuto giusto ma lo si riportava ogni
@@ -5114,6 +5216,11 @@ window.addEventListener('resize', function () {
 
     function chiudi() {
         if (watch) { clearInterval(watch); watch = null; }
+        /* Alzate le dita, si rifanno anche le colonne che durante il gesto
+           erano rimaste indietro: dal vivo se ne teneva aggiornata una sola,
+           e scorrendo di lato le altre mostrerebbero il compattamento
+           dello scatto di prima. */
+        if (active) { renderGutter(); renderDays(); }
         /* durante il gesto nessuno degli scatti attraversati viene salvato:
            si salva qui, una volta sola, e solo se si è finiti altrove */
         if (active && zoomIniziale && zoomIniziale !== S.zoom) {
@@ -5150,13 +5257,28 @@ window.addEventListener('resize', function () {
         if (!active) { avvia(t); return; }
         S.pinchAt = Date.now();
         var ratio = dist(t) / (start || 1);
-        var steps = ratio > 1 ? Math.floor((ratio - 1) / 0.22) : -Math.floor((1 / ratio - 1) / 0.22);
-        var next = Math.max(0, Math.min(ZOOM.length - 1, startZoom + steps));
-        if (ZOOM[next].key !== S.zoom) {
-            /* `ancoraY` e non `metaY(t)`: il punto dello schermo è quello di
-               partenza, le dita nel frattempo si sono allontanate */
-            setZoom(ZOOM[next].key, true, { min: ancoraMin, y: ancoraY });
+
+        /* Da 'lista' non c'è densità da moltiplicare: si rientra negli orari
+           al passo più largo e da lì si continua a pizzicare. */
+        if (isAgenda()) {
+            if (ratio > 1.18) setZoom('h3', true, { min: ancoraMin, y: ancoraY });
+            return;
         }
+
+        /* La densità segue le dita in modo continuo: allargandole gli orari si
+           allontanano davvero, invece di restare fermi fino allo scatto
+           successivo. `ancoraY` e non `metaY(t)`: il punto dello schermo è
+           quello del primo tocco, le dita nel frattempo si sono mosse, ed è
+           l'orario di partenza che deve restare inchiodato dov'era. */
+        var pxm = pxmIniziale * ratio;
+
+        /* Sotto il minimo si esce dagli orari e si passa alla lista: è il
+           seguito naturale dello stringere, non un caso a parte. */
+        if (pxm <= PXM_MIN * 0.92 && S.zoom === 'h3') {
+            setZoom('agenda', true);
+            return;
+        }
+        if (setDensita(pxm, { min: ancoraMin, y: ancoraY })) haptic(6);
     });
 
     function via(e) {
@@ -5173,15 +5295,109 @@ window.addEventListener('resize', function () {
    Se non c'è, si tiene fermo il primo minuto visibile in alto, come prima:
    è il comportamento giusto quando lo scatto lo si cambia dalla rotellina,
    dove non esistono dita a cui restare agganciati. */
+/* Arma o disarma l'abitudine / il progetto scelto dal tastino. */
+/* Riporta il tastino delle categorie all'icona di partenza. */
+function posaCategoria() {
+    if (!S.defaultCat) return;
+    S.defaultCat = null;
+    var b = $('plFabCat');
+    if (!b) return;
+    b.classList.remove('pl-picked', 'pl-on');
+    b.style.removeProperty('--ev');
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6.5 4h7.7L20 10.3 13.3 17 6 9.7z"/><circle cx="10" cy="8.5" r="1.2"/></svg>';
+}
+
+function armaAttrezzo(kind, item, dur) {
+    /* Uno solo alla volta fra i tre. Sono tutti e tre risposte alla stessa
+       domanda — «cosa sto per mettere sul calendario» — e tenerne due accesi
+       vorrebbe dire non sapere quale delle due vince al tocco successivo. */
+    if (item) posaCategoria();
+    S.armato = item ? { kind: kind, item: item, dur: dur || 0 } : null;
+    document.documentElement.classList.toggle('pl-armato', !!S.armato);
+
+    [['plHabitRing', 'habit'], ['plFabFav', 'project']].forEach(function (par) {
+        var b = $(par[0]);
+        if (!b) return;
+        var mio = S.armato && S.armato.kind === par[1];
+        b.classList.toggle('pl-picked', !!mio);
+        if (mio) {
+            /* Il tastino mostra COSA si è scelto, come fa quello delle
+               categorie: con la sola icona di prima non si capiva se
+               l'abitudine fosse davvero armata, e si restava a toccare il
+               calendario aspettandosi il popup di prima. */
+            if (b.dataset.iconaBase === undefined) b.dataset.iconaBase = b.innerHTML;
+            b.style.setProperty('--ev', S.armato.item.color || NEUTRAL);
+            b.innerHTML = '';
+            b.appendChild(el('span', 'pl-dot'));
+            if (par[1] === 'habit' && S.armato.item.icon) b.appendChild(el('span', 'pl-ev-icon', S.armato.item.icon));
+            b.appendChild(el('span', null, S.armato.item.name));
+            var x = el('span', 'pl-chip-x');
+            x.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+            b.appendChild(x);
+        } else if (b.dataset.iconaBase !== undefined) {
+            b.innerHTML = b.dataset.iconaBase;
+            b.style.removeProperty('--ev');
+        }
+    });
+}
+
+/* La durata che l'attrezzo armato porta con sé.
+   L'abitudine ha la sua, decisa nelle impostazioni; il progetto no, e prende
+   quella dello scatto come fa una categoria. */
+function durataArmato() {
+    if (!S.armato) return 0;
+    if (S.armato.kind === 'habit') {
+        return S.armato.item.minutes > 0 ? S.armato.item.minutes : (zoomCfg(S.zoom).slot || 30);
+    }
+    return zoomCfg(S.zoom).slot || 30;
+}
+
+/* Inserisce l'attrezzo armato nel punto toccato.
+   A differenza della categoria, che resta selezionata per infilarne diverse
+   di fila, questi due si disarmano subito: un'abitudine o un progetto si
+   mettono in agenda una volta, e restare armati vorrebbe dire creare un
+   doppione al primo tocco distratto. */
+function inserisciArmato(date, startMin, endMin) {
+    var a = S.armato;
+    if (!a) return;
+    var payload = a.kind === 'habit'
+        ? { title: a.item.name, habit_id: a.item.id, type: 'task', color: a.item.color, notify: 'none' }
+        : { title: a.item.name, project_id: a.item.id, type: 'event', notify: 'none' };
+    payload.date = date;
+    payload.start = toHM(startMin);
+    payload.end = toHM(Math.min(1439, endMin));
+    armaAttrezzo(null, null);
+    api('event_save', payload).then(function (r) {
+        if (!r.ok) { toast('Non è stato possibile inserirlo.'); return; }
+        indexEvents([r.event]);
+        renderDays();
+        if (a.kind === 'habit') { delete S.rings[date]; renderRing(); }
+        haptic(12);
+        scheduleSync();
+    });
+}
+
+/* Uscendo dalla vista giorno l'attrezzo si posa da sé: puntava a una griglia
+   che non c'è più, e restare armati senza un posto dove appoggiarlo confonde
+   e basta. */
+function disarmaSeFuoriPosto() {
+    if (S.armato && (S.view !== 'day' || isAgenda())) armaAttrezzo(null, null);
+}
+
 function setZoom(key, quiet, ancora) {
     var anchor = firstVisibleMinute();
     S.zoom = key;
+    /* Premendo un tastino si torna alla densità naturale di quello scatto:
+       è la differenza fra scegliere un passo e pizzicare. */
+    var zz = zoomCfg(key);
+    applicaDensita(zz.slot ? zz.h / zz.slot : 0);
     renderGutter();
     renderDays();
     if (ancora) scrollToMinuteAt(ancora.min, ancora.y);
     else scrollToMinute(anchor, false);
     renderZoomDial();
     refreshZoomDial();   // in vista lista resta visibile anche su telefono
+    disarmaSeFuoriPosto();
     if (!quiet) api('settings_save', { zoom: key });
 }
 
@@ -5293,6 +5509,94 @@ function refreshZoomDial() {
         return m ? parseFloat(m[1]) : trackOffset(S.focusDate);
     }
 
+    /* I tastini che galleggiano sopra la griglia stanno FUORI dallo
+       scorrevole — nel markup sono fratelli di <main>, non figli — quindi
+       nessun gesto registrato là li vedeva mai: partendo dalla metà destra
+       dello schermo, dove i tastini sono aperti, non si cambiava giorno né si
+       scorrevano gli orari, e il dito sembrava appoggiato sul vetro.
+
+       Il gesto vive tutto qui e non tocca la macchina a stati della griglia:
+       provarci l'altra volta faceva credere a `finish()` che ci fosse un
+       blocco da creare, e un semplice tocco su un tastino apriva un evento
+       nuovo a mezzanotte. */
+    ['plFabs', 'plZoom'].forEach(function (id) {
+        var host = $(id);
+        if (!host) return;
+        var g = null;
+
+        host.addEventListener('pointerdown', function (e) {
+            if (S.pinching || S.shift.on) return;
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            g = { id: e.pointerId, x0: e.clientX, y0: e.clientY, top0: sc.scrollTop,
+                  dir: null, base: 0, page1: false, focus0: S.focusDate };
+        });
+
+        host.addEventListener('pointermove', function (e) {
+            if (!g || e.pointerId !== g.id) return;
+            var dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+
+            if (!g.dir) {
+                if (Math.abs(dy) > 8 && Math.abs(dy) >= Math.abs(dx)) {
+                    g.dir = 'v';
+                } else if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+                    g.dir = 'h';
+                    g.base = trackNow();
+                    g.page1 = psAble() ? psBegin() : false;
+                    track.style.transition = 'none';
+                } else {
+                    return;   // ancora indeciso: potrebbe essere un tocco
+                }
+                try { host.setPointerCapture(g.id); } catch (err) {}
+                return;
+            }
+
+            if (g.dir === 'v') {
+                /* Gli orari si scorrono a mano: il dito è appoggiato fuori
+                   dallo scorrevole, e da lì il browser non muove niente. */
+                e.preventDefault();
+                sc.scrollTop = g.top0 - dy;
+                return;
+            }
+
+            e.preventDefault();
+            if (g.page1) { psMove(dx); return; }
+            var cw = colWidth();
+            setTrackX(g.base + Math.max(-9 * cw, Math.min(9 * cw, dx)), false);
+        }, { passive: false });
+
+        function fine(e) {
+            if (!g || (e && e.pointerId !== g.id)) return;
+            var gg = g; g = null;
+            if (gg.dir !== 'h') return;   // verticale o tocco: non c'è niente da chiudere
+
+            /* Il tocco che segue non deve anche premere il tastino da cui il
+               gesto è partito: il browser manda il click comunque, e si
+               finiva per cambiare giorno e aprire la rotellina in un colpo. */
+            S.sfogliatoA = Date.now();
+
+            var dx = e ? (e.clientX - gg.x0) : 0;
+            if (gg.page1) { psEnd(dx); return; }
+            var cw = colWidth();
+            var passi = -dx / cw;
+            var giorni = Math.abs(passi) < 0.16 ? 0
+                : (passi > 0 ? Math.max(1, Math.round(passi)) : Math.min(-1, Math.round(passi)));
+            track.style.transition = '';
+            goToDate(addDays(gg.focus0, Math.max(-7, Math.min(7, giorni))), true);
+        }
+        host.addEventListener('pointerup', fine);
+        host.addEventListener('pointercancel', fine);
+    });
+
+    /* Solo dopo una sfogliata partita dai tastini: fuori da quella finestra
+       i tocchi passano come sempre, se no si perderebbero i click sugli
+       eventi. */
+    document.addEventListener('click', function (e) {
+        if (Date.now() - (S.sfogliatoA || 0) > 350) return;
+        S.sfogliatoA = 0;
+        e.stopPropagation();
+        e.preventDefault();
+    }, true);
+
     sc.addEventListener('pointerdown', function (e) {
         /* secondo dito appoggiato mentre si cambia scatto: non comincia
            nessun gesto nuovo, il pizzico ha la precedenza */
@@ -5327,10 +5631,14 @@ function refreshZoomDial() {
 
         var slot = zoomCfg(S.zoom).slot || 30;
         var startMin = snap(minuteAt(canvas, e.clientY), false);
+        /* Con un attrezzo armato la durata non è quella dello scatto ma la
+           sua: l'abitudine dura quanto dice la sua scheda. */
+        var durIniziale = S.armato ? durataArmato() : slot;
         st = {
             canvas: canvas, date: canvas.dataset.date, id: e.pointerId,
-            x0: e.clientX, y0: e.clientY, startMin: startMin, endMin: Math.min(1440, startMin + slot),
+            x0: e.clientX, y0: e.clientY, startMin: startMin, endMin: Math.min(1440, startMin + durIniziale),
             ghost: null, phase: 'pending',   // 'pending' -> 'create' | 'paging' | 'scrolling'
+            armato: S.armato ? S.armato.kind : null,
             baseX: 0, focusAtStart: S.focusDate
         };
         st.timer = setTimeout(function () {
@@ -5340,7 +5648,8 @@ function refreshZoomDial() {
             S.interacting = true;
             haptic(12);
             st.ghost = el('div', 'pl-ev pl-ghost');
-            st.ghost.style.setProperty('--ev', S.defaultCat ? (catById(S.defaultCat) || {}).color || NEUTRAL : NEUTRAL);
+            st.ghost.style.setProperty('--ev', S.armato ? (S.armato.item.color || NEUTRAL)
+            : (S.defaultCat ? (catById(S.defaultCat) || {}).color || NEUTRAL : NEUTRAL));
             st.ghost.appendChild(el('div', 'pl-ev-h', toHM(st.startMin) + ' – ' + toHM(st.endMin)));
             positioned(st.ghost, toHM(st.startMin), toHM(st.endMin));
             st.canvas.appendChild(st.ghost);
@@ -5354,7 +5663,7 @@ function refreshZoomDial() {
         }, 190);
     });
 
-    sc.addEventListener('pointermove', function (e) {
+    document.addEventListener('pointermove', function (e) {
         if (!st || e.pointerId !== st.id) return;
         /* due dita: si sta cambiando scatto, il giorno resta dov'è */
         if (S.pinching) { annulla(); return; }
@@ -5404,6 +5713,20 @@ function refreshZoomDial() {
     /* ricalcola la fine del blocco dalla posizione attuale del dito */
     function growGhost() {
         if (!st || st.phase !== 'create' || !st.ghost) return;
+        /* L'abitudine ha una durata sua e trascinando si SPOSTA, non si
+           allunga: la durata sta nella sua scheda, e chi la vuole diversa
+           apre il blocco dopo e la cambia lì. Il progetto preferito invece
+           fa come una categoria e si allunga. */
+        if (st.armato === 'habit') {
+            var dur = st.endMin - st.startMin;
+            var nuovo = snap(minuteAt(st.canvas, st.lastY), false);
+            st.startMin = Math.max(0, Math.min(1440 - dur, nuovo));
+            st.endMin = st.startMin + dur;
+            positioned(st.ghost, toHM(st.startMin), toHM(st.endMin));
+            var hh = st.ghost.querySelector('.pl-ev-h');
+            if (hh) hh.textContent = toHM(st.startMin) + ' – ' + toHM(st.endMin);
+            return;
+        }
         var m = snap(minuteAt(st.canvas, st.lastY), true);
         st.endMin = Math.max(st.startMin + (zoomCfg(S.zoom).slot || 30), Math.min(1440, m));
         positioned(st.ghost, toHM(st.startMin), toHM(st.endMin));
@@ -5472,7 +5795,15 @@ function refreshZoomDial() {
         if (st.fromEvent) { st = null; return; }
         var data = { date: st.date, start: toHM(st.startMin), end: toHM(st.endMin) };
         if (st.ghost && st.ghost.parentNode) st.ghost.parentNode.removeChild(st.ghost);
+        var eraArmato = st.armato;
         st = null;
+        /* Con un attrezzo armato non si apre nessun popup: si è già detto
+           cosa mettere scegliendolo dal tastino, e adesso si è detto dove.
+           Chiedere ancora sarebbe far ripetere una cosa già decisa. */
+        if (eraArmato && S.armato) {
+            inserisciArmato(data.date, toMin(data.start), toMin(data.end));
+            return;
+        }
         openEventSheet(null, data);
     }
     /* Il vero interruttore dello scorrimento sui touchscreen.
@@ -5513,8 +5844,8 @@ function refreshZoomDial() {
     }
     window.plAnnullaScorrimento = annulla;
 
-    sc.addEventListener('pointerup', finish);
-    sc.addEventListener('pointercancel', annulla);
+    document.addEventListener('pointerup', finish);
+    document.addEventListener('pointercancel', annulla);
 })();
 
 /* Rotella del mouse / trackpad: verticale = scorrono le ore (nativo, non
@@ -5532,6 +5863,22 @@ function refreshZoomDial() {
             lock = now2;
             var i = ZOOM.findIndex(function (z) { return z.key === S.zoom; });
             var next = Math.max(0, Math.min(ZOOM.length - 1, i + (e.deltaY > 0 ? -1 : 1)));
+            if (!isAgenda()) {
+                /* Anche con la rotella la distanza fra gli orari cambia poco
+                   per volta: un passo per scatto del mouse era una scalinata,
+                   e l'orario sotto il cursore saltava invece di scorrere. */
+                var canvasW = document.querySelector('.pl-canvas');
+                var ancoraW = null;
+                if (canvasW && pxMin()) {
+                    var boxW = canvasW.getBoundingClientRect();
+                    ancoraW = { min: Math.max(0, Math.min(1439, (e.clientY - boxW.top) / pxMin())), y: e.clientY };
+                }
+                var pxmW = pxMin() * (e.deltaY > 0 ? 0.88 : 1.14);
+                if (pxmW <= PXM_MIN * 0.92 && S.zoom === 'h3') { setZoom('agenda'); return; }
+                if (setDensita(pxmW, ancoraW)) refreshZoomDial();
+                showZoomDial('stay');
+                return;
+            }
             if (ZOOM[next].key !== S.zoom) {
                 /* Il cursore è il dito del computer: l'orario che sta sotto
                    deve restare dov'è, come sotto le due dita sul telefono.
@@ -5721,7 +6068,7 @@ function startEventDrag(e, node, canvas) {
                    più estremo: contro la mezzanotte il blocco non si muove
                    affatto e tornerebbe dov'era senza spiegazioni. */
                 if (r.moved === 0) toast('Il blocco non ci sta più in giornata.');
-                invalidaDati();
+                S.weekCache = {};
                 loadWeek(monday(date), true).then(renderDays);
                 scheduleSync();
             });
@@ -5756,7 +6103,7 @@ function startEventDrag(e, node, canvas) {
                    settimana: se il giorno nuovo cade in un'altra settimana quella
                    cache non è più vera e va rifatta. */
                 if (monday(curDate) !== monday(date)) {
-                    invalidaDati();
+                    S.weekCache = {};
                     loadWeek(monday(S.focusDate), true).then(renderDays);
                 }
             }
@@ -5842,6 +6189,9 @@ function confirmRoutineTime(r, defaultStart) {
 
 /* Come per le routine: prima di mettere un'abitudine in agenda si conferma
    l'orario, con la durata già proposta da quella stimata in habits. */
+/* NON PIÙ IN USO: le abitudini ora si armano dal tastino e si posano toccando
+   il calendario, come le categorie. Resta qui perché è il popup di conferma
+   già scritto e collaudato, nel caso si voglia tornare a chiedere l'orario. */
 function confirmHabitTime(h, defaultStart, dur) {
     var ov = $('plAlertOv');
     $('plAlertTitle').textContent = h.name;
@@ -6042,6 +6392,11 @@ function handleEventTap(e, node, ev) {
             }
             haptic(12);
             renderRing();
+            /* La stessa cosa vive in due posti: sul calendario e negli
+               elenchi. Spuntandola qui il pannello restava con la voce non
+               sbarrata finché non lo si riapriva, e i due posti raccontavano
+               storie diverse dello stesso to do. */
+            if (ev.type === 'task' && S.todos) loadWeekTodos(S.todoTab, true);
         });
         return;
     }
@@ -6116,19 +6471,12 @@ function openEventSheet(existing, seed) {
         repeat: 'none', repeat_interval: 1, repeat_unit: 'week', repeat_until: null
     };
     S.draft = { data: d, dirty: false, isNew: !existing };
-    /* Di quale ripetizione stiamo guardando: va fermata ADESSO, perché se
-       l'utente sposta l'evento a un altro giorno `d.date` cambia, e il
-       server non saprebbe più quale occorrenza della serie scavalcare. */
-    S.draft.occDate = existing ? (existing.occ_date || existing.date) : null;
-    /* L'id da mandare è quello del master: le occorrenze sono cloni calcolati
-       in lettura e non hanno una riga tutta loro. */
-    S.draft.masterId = existing ? (existing.master_id || existing.id) : 0;
-    // Fotografia della regola, per capire dopo se è stata cambiata
+    // Salviamo la regola originale per capire se viene modificata
     S.draft.origRepeat = existing ? {
-        repeat: existing.repeat || 'none',
-        repeat_interval: existing.repeat_interval || 1,
-        repeat_unit: existing.repeat_unit || 'week',
-        repeat_until: existing.repeat_until || ''
+        repeat: existing.repeat,
+        repeat_interval: existing.repeat_interval,
+        repeat_unit: existing.repeat_unit,
+        repeat_until: existing.repeat_until
     } : null;
 
     $('plEvKicker').textContent = existing ? 'Modifica' : 'Nuovo evento';
@@ -6189,6 +6537,17 @@ function renderEventSheet() {
         pn.style.margin = '6px 2px 0';
         f1.appendChild(pn);
     }
+    /* Evento o task, subito sotto il titolo e su una riga sola.
+       Stava in fondo, in un campo con l'etichetta sopra e il selettore a capo:
+       occupava l'altezza di un campo intero per una scelta fra due parole, e
+       si trovava dopo aver scorso tutto il popup. Qui è la seconda cosa che si
+       decide di un evento, ed è giusto che stia dove la si decide. */
+    var trow2 = el('div', 'pl-tipo-riga');
+    trow2.appendChild(el('span', 'pl-tipo-lab', 'Tipo'));
+    trow2.appendChild(seg([['event', 'Evento'], ['task', 'Task']], d.type, function (v) {
+        d.type = v; S.draft.dirty = true; renderEventSheet();
+    }));
+    f1.appendChild(trow2);
     body.appendChild(f1);
 
     /* data, orari, durata */
@@ -6506,12 +6865,6 @@ function renderEventSheet() {
     });
     fcol.appendChild(sw);
     body.appendChild(fcol);
-
-    /* evento o task */
-    var ft = el('div', 'pl-field');
-    ft.appendChild(el('label', 'pl-label', 'Tipo'));
-    ft.appendChild(seg([['event', 'Evento'], ['task', 'Task']], d.type, function (v) { d.type = v; S.draft.dirty = true; renderEventSheet(); }));
-    body.appendChild(ft);
 
     /* luogo */
     var floc = el('div', 'pl-field');
@@ -7172,37 +7525,10 @@ document.addEventListener('projectselected', function (e) {
 });
 
 /* salvataggio, annullamento, chiusura toccando fuori */
-/* I campi che, cambiati sul master, cambiano per tutte le sue occorrenze.
-   `date` non c'è dentro apposta: spostare la serie di giorno vuol dire
-   ricalcolare quali occorrenze esistono, e quello lo sa fare solo il server. */
-var CAMPI_SERIE = ['title', 'notes', 'location', 'start', 'end', 'all_day', 'importance',
-    'color', 'type', 'category_id', 'project_id', 'habit_id', 'calendar_id',
-    'notify', 'notify_min', 'repeat', 'repeat_interval', 'repeat_unit', 'repeat_until',
-    'place_name', 'place_lat', 'place_lon', 'place_ref', 'duration_locked'];
-
-/* Riscrive subito in memoria tutte le occorrenze di una serie.
-   Le occorrenze sono cloni calcolati dal server: finché non si torna a
-   chiederli, quelli in memoria continuano a dire il titolo vecchio. Aspettare
-   il giro di rete è la differenza fra «ha funzionato» e «non ha funzionato» —
-   e riaprendo il popup prima della risposta si rileggeva il dato vecchio. */
-function patchSerieLocale(ev) {
-    if (!ev) return;
-    var master = ev.master_id || ev.id;
-    Object.keys(S.events).forEach(function (g) {
-        (S.events[g] || []).forEach(function (x) {
-            if ((x.master_id || x.id) !== master) return;
-            CAMPI_SERIE.forEach(function (k) {
-                if (ev[k] !== undefined) x[k] = ev[k];
-            });
-        });
-    });
-}
-
 function saveEvent() {
     var d = S.draft.data;
-    var occDate = S.draft.occDate;            // quale ripetizione era aperta
     var payload = {
-        id: S.draft.masterId || d.id, title: d.title, notes: d.notes, date: d.date, start: d.start, end: d.end,
+        id: d.id, title: d.title, notes: d.notes, date: d.date, start: d.start, end: d.end,
         all_day: d.all_day, category_id: d.category_id || 0, project_id: d.project_id || 0,
         habit_id: d.habit_id || 0, importance: d.importance, color: d.color || '',
         type: d.type, notify: d.notify, notify_min: d.notify_min,
@@ -7217,76 +7543,53 @@ function saveEvent() {
         calendar_id: d.calendar_id || 0
     };
 
-    /* La data d'origine viaggia sempre, non solo con "solo questo": serve
-       anche a "tutta la serie" per capire di quanto è stato spostato
-       l'evento rispetto al giorno che l'utente aveva aperto. */
-    if (occDate) payload.original_date = occDate;
-
-    /* Cambio di regola: qui non c'è niente da chiedere. Chiedere "solo questo
-       o tutta la serie" dopo che si è passati da ogni giorno a ogni settimana
-       è un controsenso — una regola nuova riguarda per forza tutta la serie,
-       e "solo questo" produrrebbe un'eccezione che non si ripete, cioè
-       esattamente il contrario di quello che l'utente ha chiesto. */
-    var regolaCambiata = false;
+    // Controlliamo se la frequenza è stata alterata
+    var repeatChanged = false;
     if (S.draft.origRepeat) {
-        var o = S.draft.origRepeat;
-        regolaCambiata =
-            (d.repeat || 'none') !== o.repeat ||
-            (d.repeat_interval || 1) !== o.repeat_interval ||
-            (d.repeat_unit || 'week') !== o.repeat_unit ||
-            (d.repeat_until || '') !== o.repeat_until;
+        if (d.repeat !== S.draft.origRepeat.repeat ||
+            d.repeat_interval !== S.draft.origRepeat.repeat_interval ||
+            d.repeat_unit !== S.draft.origRepeat.repeat_unit ||
+            d.repeat_until !== S.draft.origRepeat.repeat_until) {
+            repeatChanged = true;
+        }
     }
 
     function eseguiSalvataggio(dati) {
         closeOv('plEventOv');
-        var eraRipetuto = (dati.repeat && dati.repeat !== 'none') || !!dati.edit_mode;
         S.draft = null;
         return api('event_save', dati).then(function (r) {
             if (!r.ok) { toast(r.message || 'Non è stato possibile salvare.'); return; }
-            if (eraRipetuto) {
-                if (dati.edit_mode === 'one' && dati.original_date) {
-                    /* Quella data adesso ha una riga vera: il clone virtuale
-                       del master va tolto, se no quel giorno si vedono in due. */
-                    S.events[dati.original_date] = (S.events[dati.original_date] || []).filter(function (x) {
-                        return !(x.is_occurrence && (x.master_id || x.id) === dati.id);
-                    });
-                    indexEvents([r.event]);
-                } else {
-                    patchSerieLocale(r.event);
-                }
-                renderDays();
-                if (S.view === 'month') renderMonthGrid();
-                /* Poi si rilegge davvero: toccare una regola può far comparire
-                   o sparire giorni che non sono sullo schermo, e quello la
-                   riscrittura in memoria non può indovinarlo. */
-                ricaricaVista();
-            } else {
-                indexEvents([r.event]);
-                renderDays();
-            }
+            indexEvents([r.event]);
+            if (dati.repeat !== 'none' || dati.edit_mode === 'all') { S.weekCache = {}; loadWeek(monday(S.focusDate), true); }
+            renderDays();
             if (r.event && r.event.type === 'task' && S.todos) loadWeekTodos(S.todoTab, true);
             haptic(10);
             scheduleSync();
         });
     }
 
-    // si chiede solo quando c'è davvero una scelta: stessa regola, dato diverso
-    if (payload.id > 0 && d.repeat && d.repeat !== 'none' && !regolaCambiata && occDate) {
+    if (d.id > 0 && d.repeat && d.repeat !== 'none') {
+        if (repeatChanged) {
+            // Se ha toccato le regole di frequenza, è ovvio che voglia modificare l'intera serie
+            payload.edit_mode = 'all';
+            eseguiSalvataggio(payload);
+            return;
+        }
         alertBox('Modifica evento ripetuto', 'Vuoi modificare solo questa data o l\'intera serie?', [
             { label: 'Annulla' },
-            { label: 'Tutta la serie', onClick: function () {
+            { label: 'Tutta la serie', onClick: function() {
                 payload.edit_mode = 'all';
                 eseguiSalvataggio(payload);
-            } },
-            { label: 'Solo questo', kind: 'primary', onClick: function () {
+            }},
+            { label: 'Solo questo', kind: 'primary', onClick: function() {
                 payload.edit_mode = 'one';
+                payload.original_date = d.date;
                 eseguiSalvataggio(payload);
-            } }
+            }}
         ]);
         return;
     }
 
-    if (payload.id > 0 && regolaCambiata) payload.edit_mode = 'all';
     eseguiSalvataggio(payload);
 }
 /* chiede conferma prima di eliminare: un tocco sbagliato sul cestino non
@@ -7307,20 +7610,13 @@ function confirmDeleteEvent(d) {
 }
 
 function deleteEvent(d, scopeParam) {
-    var occDate = (S.draft && S.draft.occDate) || d.occ_date || d.date;
-    var masterId = (S.draft && S.draft.masterId) || d.master_id || d.id;
-    var eraRipetuto = (d.repeat && d.repeat !== 'none') || scopeParam === 'series';
     closeOv('plEventOv');
     S.draft = null;
-    api('event_delete', { id: masterId, scope: scopeParam || 'one', original_date: occDate }).then(function (r) {
+    api('event_delete', { id: d.id, scope: scopeParam || 'one', original_date: d.date }).then(function (r) {
         if (!r.ok) { toast('Non è stato possibile eliminare.'); return; }
-        if (eraRipetuto) {
-            ricaricaVista();
-        } else {
-            S.events[d.date] = (S.events[d.date] || []).filter(function (x) { return x.id !== d.id; });
-            invalidaDati();
-            loadWeek(monday(S.focusDate), true).then(renderDays);
-        }
+        S.events[d.date] = (S.events[d.date] || []).filter(function (x) { return x.id !== d.id; });
+        S.weekCache = {}; 
+        loadWeek(monday(S.focusDate), true).then(renderDays);
         scheduleSync();
     });
 }
@@ -7403,12 +7699,7 @@ $('plFabRoutine').addEventListener('click', function () {
 
 $('plFabCat').addEventListener('click', function () {
     var btn = this;
-    if (S.defaultCat) {
-        S.defaultCat = null;
-        btn.classList.remove('pl-picked', 'pl-on');
-        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6.5 4h7.7L20 10.3 13.3 17 6 9.7z"/><circle cx="10" cy="8.5" r="1.2"/></svg>';
-        return;
-    }
+    if (S.defaultCat) { posaCategoria(); return; }
     var menu = $('plMenuCat');
     var open = !menu.classList.contains('pl-open');
     closeMenus(open ? 'plMenuCat' : null);
@@ -7422,6 +7713,7 @@ $('plFabCat').addEventListener('click', function () {
         chip.appendChild(el('span', 'pl-dot'));
         chip.appendChild(el('span', null, c.name));
         chip.addEventListener('click', function () {
+            armaAttrezzo(null, null);   // l'abitudine o il progetto armati si posano
             S.defaultCat = c.id;
             btn.classList.add('pl-picked');
             btn.classList.remove('pl-on');
@@ -7442,6 +7734,10 @@ $('plFabCat').addEventListener('click', function () {
 });
 
 $('plHabitRing').addEventListener('click', function () {
+    /* Ritoccando il tastino con l'abitudine già armata la si posa, come si fa
+       con la categoria: se no non ci sarebbe modo di cambiare idea senza
+       inserirla da qualche parte. */
+    if (S.armato && S.armato.kind === 'habit') { armaAttrezzo(null, null); return; }
     var menu = $('plMenuHabit');
     var open = !menu.classList.contains('pl-open');
     closeMenus(open ? 'plMenuHabit' : null);
@@ -7475,6 +7771,7 @@ $('plHabitRing').addEventListener('click', function () {
 
 /* progetti preferiti: il tastino compare solo se ce n'è almeno uno */
 $('plFabFav').addEventListener('click', function () {
+    if (S.armato && S.armato.kind === 'project') { armaAttrezzo(null, null); return; }
     var menu = $('plMenuFav');
     var open = !menu.classList.contains('pl-open');
     closeMenus(open ? 'plMenuFav' : null);
@@ -7489,8 +7786,8 @@ $('plFabFav').addEventListener('click', function () {
         chip.appendChild(el('span', null, p.name));
         chip.addEventListener('click', function () {
             closeMenus();
-            var slot = zoomCfg(S.zoom).slot || 30;
-            confirmProjectTime(p, toHM(firstFreeMinute(slot)), slot);
+            armaAttrezzo('project', p, 0);
+            toast('Tocca il calendario dove metterlo.');
         });
         menu.appendChild(chip);
     });
@@ -7500,6 +7797,9 @@ $('plFabFav').addEventListener('click', function () {
 
 /* Conferma di orario e durata prima di mettere un progetto in agenda.
    Il titolo è il nome del progetto e il colore è il suo. */
+/* NON PIÙ IN USO: le progetti preferiti ora si armano dal tastino e si posano toccando
+   il calendario, come le categorie. Resta qui perché è il popup di conferma
+   già scritto e collaudato, nel caso si voglia tornare a chiedere l'orario. */
 function confirmProjectTime(p, defaultStart, defaultDur) {
     var ov = $('plAlertOv');
     $('plAlertTitle').textContent = p.name;
@@ -7600,10 +7900,12 @@ function habitChip(h, settimanale) {
     }
 
     chip.addEventListener('click', function () {
-        var slot = zoomCfg(S.zoom).slot || 30;
-        var dur = h.minutes && h.minutes > 0 ? h.minutes : slot;
+        /* Niente più popup che chiede l'ora a scatola chiusa: si arma
+           l'abitudine e poi si tocca il calendario nel punto voluto, che è
+           il modo in cui si sceglie un orario guardandolo. */
         closeMenus();
-        confirmHabitTime(h, toHM(firstFreeMinute(dur)), dur);
+        armaAttrezzo('habit', h, h.minutes && h.minutes > 0 ? h.minutes : (zoomCfg(S.zoom).slot || 30));
+        toast('Tocca il calendario dove metterla.');
     });
     return chip;
 }
@@ -7652,7 +7954,7 @@ $('plShiftSave').addEventListener('click', function () {
             if (!r.ok) { libera(); toast(r.message || 'Spostamento non riuscito.'); return; }
             setShift(false);
             libera();
-            invalidaDati();
+            S.weekCache = {};
             loadWeek(monday(S.focusDate), true);
             toast(r.moved + (r.moved === 1 ? ' evento spostato' : ' eventi spostati'));
         });
@@ -7673,7 +7975,7 @@ $('plFabDiary').addEventListener('click', function () {
 
 /* quando il diario cambia, i tag della vista mese si aggiornano */
 document.addEventListener('diaryupdated', function () {
-    invalidaDati();
+    S.weekCache = {};
     loadWeek(monday(S.focusDate), true).then(function () { if (S.view === 'month') renderMonth(); });
 });
 
@@ -8033,7 +8335,7 @@ function calendarRow(c) {
                 api('calendar_delete', { id: c.id }).then(function (r) {
                     if (!r.ok) { toast(r.message || 'Non eliminato.'); return; }
                     S.calendars = r.calendars;
-                    invalidaDati();
+                    S.weekCache = {};
                     loadWeek(monday(S.focusDate), true);
                     closeOv('plSheetOv');
                 });
@@ -8163,7 +8465,7 @@ function openCalendarRules(c) {
                 closeOv('plSheetOv');
                 toast('Regole speciali salvate.');
                 if (retroCheck.checked) {
-                    invalidaDati();
+                    S.weekCache = {};
                     loadWeek(monday(S.focusDate), true);
                 }
             });
@@ -8539,12 +8841,44 @@ function drawGoogle(box) {
                 : '')
             + 'Si allinea da ' + st.window.back + ' giorni prima a ' + st.window.forward + ' giorni dopo oggi, da solo a ogni modifica.'));
 
-        /* Le due tendine «nel calendario dedicato» e «nel calendario
-           principale» non ci sono più: decidevano solo *se* mandare qualcosa,
-           e poi bisognava comunque scendere sotto per dire *dove*. Ora la
-           destinazione si sceglie in un posto solo, qui sotto, e importanti e
-           importantissimi stanno nello stesso elenco come fossero calendari
-           loro. */
+        /* Cosa mandare, e dove. Il calendario principale ha la precedenza:
+           se scegli di mandare là gli importanti, quelli non vanno nel
+           dedicato ma solo nel principale. */
+        var modes = st.modes || { dedicated: 'all', primary: 'none' };
+
+        var f1 = el('div', 'pl-field');
+        f1.style.marginTop = '16px';
+        f1.appendChild(el('label', 'pl-label', 'Nel calendario dedicato'));
+        f1.appendChild(select([
+            ['all', 'Tutti gli eventi'],
+            ['high', 'Solo importanti e importantissimi'],
+            ['highest', 'Solo importantissimi'],
+            ['none', 'Nessuno']
+        ], modes.dedicated, function (v) {
+            S.settings.gc_dedicated = v;
+            api('settings_save', { gc_dedicated: v }).then(function () {
+                toast('Scelta salvata. Si allinea al prossimo giro.');
+                drawGoogle(box);
+            });
+        }));
+        box.appendChild(f1);
+
+        var f2 = el('div', 'pl-field');
+        f2.appendChild(el('label', 'pl-label', 'Nel calendario principale di Google'));
+        f2.appendChild(select([
+            ['none', 'Nessuno'],
+            ['high', 'Importanti e importantissimi'],
+            ['highest', 'Solo importantissimi']
+        ], modes.primary, function (v) {
+            S.settings.gc_primary = v;
+            api('settings_save', { gc_primary: v }).then(function () {
+                toast('Scelta salvata. Si allinea al prossimo giro.');
+                drawGoogle(box);
+            });
+        }));
+        f2.appendChild(el('div', 'pl-row-sub',
+            'Quello che mandi qui non finisce nel dedicato: sta solo nel principale.'));
+        box.appendChild(f2);
 
         /* i due elenchi dei calendari, che si caricano da soli */
         var ponte = el('div', 'pl-gc-ponte');
@@ -8608,16 +8942,11 @@ function drawCalendarBridge(host) {
             return;
         }
         var miei = r.mine || [];
-        var livelli = r.levels || { high: '', highest: '' };
-        /* Aprire una sezione richiude l'altra: sono due elenchi lunghi e
-           averli tutti e due spiegati costringeva a scorrere il popup per
-           arrivare agli attrezzi che stanno in fondo. */
-        var sez1, sez2;
 
         /* --- da Google a qui --- */
-        sez1 = sezionePieghevole('Dai calendari di Google', (r.google || []).length);
-        sez1.field.style.marginTop = '20px';
-        var s1 = sez1.corpo;
+        var s1 = el('div', 'pl-field');
+        s1.style.marginTop = '20px';
+        s1.appendChild(el('label', 'pl-label', 'Dai calendari di Google'));
         s1.appendChild(el('div', 'pl-row-sub',
             'Per ognuno, in quale dei tuoi calendari far entrare i suoi eventi. '
             + 'Scegliendo «nessuno» quegli eventi non entrano — e se ce n\'erano già, se ne vanno.'));
@@ -8662,18 +8991,16 @@ function drawCalendarBridge(host) {
             }));
             s1.appendChild(riga);
         });
-        host.appendChild(sez1.field);
+        host.appendChild(s1);
 
         /* --- da qui a Google --- */
-        sez2 = sezionePieghevole('Dai tuoi calendari a Google', miei.length + 2);
-        var s2 = sez2.corpo;
+        var s2 = el('div', 'pl-field');
+        s2.appendChild(el('label', 'pl-label', 'Dai tuoi calendari a Google'));
         s2.appendChild(el('div', 'pl-row-sub',
             'Dove finiscono su Google gli eventi che scrivi qui. '
-            + 'Importanti e importantissimi hanno la precedenza sul calendario in cui stanno.'));
+            + 'Lasciando «come impostato sopra» valgono le scelte per importanza.'));
 
-        /* «No» invece di «come impostato sopra»: sopra non c'è più niente da
-           cui ereditare, quindi la voce vuota vuol dire quello che dice. */
-        var refs = [['', 'No']];
+        var refs = [['', 'Come impostato sopra']];
         /* i calendari di sola lettura non compaiono: Google rifiuta sempre chi
            prova a scriverci, e una scelta che fallirà comunque è peggio che
            una scelta in meno */
@@ -8681,59 +9008,26 @@ function drawCalendarBridge(host) {
             if (g.can_write) refs.push([g.ref, g.name || g.ref]);
         });
 
-        function rigaDestinazione(nome, colore, valore, onScelta, tag) {
+        miei.forEach(function (m) {
             var riga = el('div', 'pl-gc-riga');
             var testa = el('div', 'pl-gc-nome');
             var p2 = el('span', 'pl-gc-dot');
             /* il principale non ha colore: si mostra un cerchietto vuoto
                invece di inventargliene uno */
-            if (colore) p2.style.background = colore;
+            if (m.color) p2.style.background = m.color;
             else p2.classList.add('pl-gc-dot-vuoto');
             testa.appendChild(p2);
-            testa.appendChild(el('span', null, nome));
-            if (tag) testa.appendChild(el('span', 'pl-gc-tag', tag));
+            testa.appendChild(el('span', null, m.name));
             riga.appendChild(testa);
-            riga.appendChild(select(refs, valore || '', onScelta));
-            return riga;
-        }
-
-        function salvaPush(dati) {
-            gcall('push_set', true, dati).then(function (rr) {
-                if (!rr || !rr.ok) { toast((rr && rr.message) || 'Scelta non salvata.'); return; }
-                toast('Scelta salvata. Si allinea al prossimo giro.');
-            });
-        }
-
-        /* L'ordine conta: prima il principale, poi i due livelli di
-           importanza, poi gli altri calendari. Importanti e importantissimi
-           non sono calendari veri, ma qui si scelgono allo stesso modo — e
-           stando in alto si vede subito che scavalcano quelli sotto. */
-        var predefinito = miei.filter(function (m) { return m.is_default; });
-        var altri = miei.filter(function (m) { return !m.is_default; });
-
-        predefinito.forEach(function (m) {
-            s2.appendChild(rigaDestinazione(m.name, m.color, m.push_ref, function (v) {
-                salvaPush({ calendar_id: m.id, ref: v });
+            riga.appendChild(select(refs, m.push_ref || '', function (v) {
+                gcall('push_set', true, { calendar_id: m.id, ref: v }).then(function (rr) {
+                    if (!rr || !rr.ok) { toast((rr && rr.message) || 'Scelta non salvata.'); return; }
+                    toast('Scelta salvata. Si allinea al prossimo giro.');
+                });
             }));
+            s2.appendChild(riga);
         });
-
-        s2.appendChild(rigaDestinazione('Importanti', 'var(--imp-high, #E0B75E)', livelli.high, function (v) {
-            salvaPush({ level: 'high', ref: v });
-        }, 'importanza'));
-        s2.appendChild(rigaDestinazione('Importantissimi', 'var(--imp-highest, #D08A72)', livelli.highest, function (v) {
-            salvaPush({ level: 'highest', ref: v });
-        }, 'importanza'));
-
-        altri.forEach(function (m) {
-            s2.appendChild(rigaDestinazione(m.name, m.color, m.push_ref, function (v) {
-                salvaPush({ calendar_id: m.id, ref: v });
-            }));
-        });
-        host.appendChild(sez2.field);
-
-        // una sola aperta per volta
-        sez1.field.querySelector('.pl-fold-head').addEventListener('click', function () { sez2.apri(false); });
-        sez2.field.querySelector('.pl-fold-head').addEventListener('click', function () { sez1.apri(false); });
+        host.appendChild(s2);
     });
 }
 
@@ -8745,7 +9039,7 @@ function mapSet(g, dest, host) {
         else toast('Scelta salvata.');
         /* la lettura riparte da capo per quel calendario, quindi conviene
            allineare subito invece di far aspettare il giro automatico */
-        invalidaDati();
+        S.weekCache = {};
         runSync(true).then(function () { drawCalendarBridge(host); });
     });
 }
@@ -8787,7 +9081,7 @@ function runSync(quiet) {
             else toast(arrived + ' novità da Google · ' + sent + ' mandati');
             if (r.failed) toast(r.failed + ' eventi non sono stati accettati da Google.');
         }
-        invalidaDati();
+        S.weekCache = {};
         loadWeek(monday(S.focusDate), true).then(function () { if (S.view === 'month') renderMonth(); });
         return r;
     });
@@ -8814,6 +9108,7 @@ function runSync(quiet) {
 
 function setView(v) {
     S.view = v;
+    disarmaSeFuoriPosto();
     document.body.classList.toggle('pl-view-month', v === 'month');
     document.body.classList.toggle('pl-view-week', v === 'week');
     var vb = $('plViewBtn');
@@ -8857,7 +9152,7 @@ var WK_GIORNI = 21, WK_PRIMA = 7;   // quanti giorni in tutto, e quanti prima
    momento la posizione verticale la scrive l'ancoraggio dello zoom, e il
    trascinamento a un dito deve stare fermo. Il verso del gesto non sta qui
    ma dentro il gesto stesso, che dura quanto il dito. */
-var WK = { riga: 44, inizio: null, zoomando: false };
+var WK = { riga: 44, inizio: null, zoomando: false, adH: 0 };
 var wkScrollTimer = null;
 
 /* Porta l'orario `min` all'altezza `clientY` dello schermo. È il gemello di
@@ -8887,16 +9182,10 @@ function renderWeek() {
     var inizio = addDays(S.focusDate, -WK_PRIMA);
     WK.inizio = inizio;
 
-    /* La finestra copre più settimane di quella caricata. Si chiede in un
-       colpo solo il pezzo che manca davvero e al ritorno si ridisegna una
-       volta sola; siccome al secondo giro non manca più niente, il giro si
-       ferma da sé invece di rincorrersi. Le righe di settimana servono
-       comunque una per una, e quelle restano a carico di loadWeek. */
-    if (spanMancante(inizio, addDays(inizio, WK_GIORNI - 1))) {
-        loadRange(inizio, addDays(inizio, WK_GIORNI - 1)).then(function () {
-            if (S.view === 'week') renderWeek();
-        });
-    }
+    /* La finestra copre più settimane di quella caricata. Si guarda quali
+       mancano davvero e si chiedono solo quelle: al ritorno si ridisegna una
+       volta sola, e siccome al secondo giro non ne manca più nessuna il giro
+       si ferma da sé invece di rincorrersi. */
     var viste = {}, mancanti = [];
     for (var d = 0; d < WK_GIORNI; d += 1) {
         var m = monday(addDays(inizio, d));
@@ -8938,6 +9227,20 @@ function renderWeek() {
         heads.appendChild(head);
     }
 
+    /* --- la riga di tutto il giorno, sopra le 00 --- */
+    var adPerGiorno = [], adQualcuno = false;
+    for (var a = 0; a < WK_GIORNI; a++) {
+        var dAd = addDays(inizio, a);
+        var listAd = (S.events[dAd] || []).filter(function (x) { return x.all_day; });
+        adPerGiorno.push({ date: dAd, list: listAd });
+        if (listAd.length) adQualcuno = true;
+    }
+    /* La riga esiste solo se c'è qualcosa da metterci: una fascia vuota sopra
+       le 00 ruberebbe altezza agli orari tutti i giorni per niente. */
+    WK.adH = adQualcuno ? Math.min(3, adPerGiorno.reduce(function (m, g) {
+        return Math.max(m, g.list.length);
+    }, 0)) * 15 + 6 : 0;
+
     /* --- colonna delle ore --- */
     gut.innerHTML = '';
     gut.style.setProperty('--wk-row', WK.riga + 'px');
@@ -8961,6 +9264,54 @@ function renderWeek() {
     for (var h = 0; h < 24; h++) {
         for (var k = 0; k < WK_GIORNI; k++) {
             grid.appendChild(wkCella(addDays(inizio, k), h));
+        }
+    }
+
+    /* La fascia di tutto il giorno NON è una riga della griglia.
+       Dentro la griglia veniva stirata a un'ora intera da `grid-auto-rows`, e
+       da lì le righe degli orari smettevano di corrispondere a quelle scritte
+       nella colonna a sinistra. Adesso è una striscia sua, appiccicata in alto
+       mentre si scorre — in sovraimpressione, come chiesto — con le stesse
+       colonne della griglia così resta allineata. */
+    var vecchiaAd = $('plWeekAllDay');
+    if (vecchiaAd) vecchiaAd.parentNode.removeChild(vecchiaAd);
+    var vecchiaEt = $('plWeekAllDayLab');
+    if (vecchiaEt) vecchiaEt.parentNode.removeChild(vecchiaEt);
+    if (WK.adH) {
+        var fascia = el('div', 'pl-wk-ad');
+        fascia.id = 'plWeekAllDay';
+        fascia.style.gridTemplateColumns = colonne;
+        fascia.style.height = WK.adH + 'px';
+        adPerGiorno.forEach(function (g) {
+            var cAd = el('div', 'pl-wk-adcell'
+                + (g.date === S.today ? ' pl-oggi' : '')
+                + (g.date === S.focusDate ? ' pl-scelto' : ''));
+            cAd.dataset.date = g.date;
+            g.list.slice(0, 3).forEach(function (ev) {
+                var b2 = el('div', 'pl-wk-chip pl-wk-chip-ad' + (ev.done ? ' pl-done' : ''), ev.title || 'senza titolo');
+                b2.style.setProperty('--ev', evColor(ev));
+                b2.dataset.id = ev.id;
+                b2.dataset.date = ev.date || g.date;
+                cAd.appendChild(b2);
+            });
+            if (g.list.length > 3) cAd.appendChild(el('div', 'pl-wk-piu', '+' + (g.list.length - 3)));
+            fascia.appendChild(cAd);
+        });
+        /* Va nell'intestazione, non dentro lo scorrevole.
+           `position: sticky` non poteva funzionare: la colonna delle ore non
+           scorre davvero, la sposta una translateY scritta a mano, e sticky
+           non sa niente di quella. Risultato: la fascia scorreva via con gli
+           orari e gli eventi di tutto il giorno sembravano avere un orario.
+           Qui invece sta sopra la griglia e non si muove mai in verticale. */
+        var clip = document.querySelector('.pl-wk-topclip');
+        if (clip) clip.appendChild(fascia);
+
+        var corner = document.querySelector('.pl-wk-corner');
+        if (corner) {
+            var et = el('div', 'pl-wk-adlab', 'gg');
+            et.id = 'plWeekAllDayLab';
+            et.style.height = WK.adH + 'px';
+            corner.appendChild(et);
         }
     }
 
@@ -8996,6 +9347,8 @@ function wkLineaAdesso() {
 
     var ora = new Date();
     var min = ora.getHours() * 60 + ora.getMinutes();
+    /* Nessun correttivo per la fascia di tutto il giorno: sta fuori dalla
+       griglia e la riga si misura dentro la griglia, che comincia sotto. */
     var top = (min / 60) * WK.riga;
 
     var riga = el('div', 'pl-wk-now');
@@ -9085,6 +9438,8 @@ function wkSegue() {
     var sc = $('plWeekScroll'), heads = $('plWeekHeads'), gut = $('plWeekGut');
     if (!sc || !heads || !gut) return;
     heads.style.transform = 'translateX(' + (-sc.scrollLeft) + 'px)';
+    var fascia = $('plWeekAllDay');
+    if (fascia) fascia.style.transform = 'translateX(' + (-sc.scrollLeft) + 'px)';
     gut.style.transform = 'translateY(' + (-sc.scrollTop) + 'px)';
 }
 
@@ -9420,64 +9775,6 @@ function wkSegnaScelto() {
     window.addEventListener('resize', chiudi);
 })();
 
-/* Il lunedì da cui parte la griglia di 42 caselle del mese a fuoco. */
-function monthGridStart() {
-    var c = parseIso(S.monthCursor);
-    return monday(iso(new Date(c.getFullYear(), c.getMonth(), 1)));
-}
-
-/* Il mese si disegna subito con quello che c'è in memoria e non aspetta la
-   rete: saltare all'anno dopo deve restare istantaneo anche a griglia vuota.
-   In parallelo parte UNA richiesta per i 42 giorni mostrati; quando torna, si
-   ridisegnano le caselle. Il contrassegno serve perché se nel frattempo
-   l'utente è già andato tre mesi più avanti, la risposta vecchia non deve
-   riportarlo indietro né ridisegnare sopra il mese nuovo. */
-function ensureMonth(force) {
-    var start = monthGridStart();
-    var to = addDays(start, 41);
-    if (!force && !spanMancante(start, to)) return Promise.resolve();
-
-    var mio = ++S.monthReq;
-    var atteso = S.monthCursor;
-    var grid = $('plMonthGrid');
-    if (grid) grid.classList.add('pl-mloading');
-
-    return loadRange(start, to, force).then(function () {
-        if (mio !== S.monthReq) return;               // ne è partita una più recente
-        if (grid) grid.classList.remove('pl-mloading');
-        if (S.view !== 'month' || S.monthCursor !== atteso) return;
-        renderMonthGrid();
-        /* I mesi accanto si scaricano dopo, in coda: costano una richiesta
-           ciascuno e rendono immediato lo scorrimento avanti e indietro. */
-        var prima = addDays(start, -42), dopo = addDays(to, 1);
-        if (spanMancante(prima, addDays(start, -1))) loadRange(prima, addDays(start, -1));
-        if (spanMancante(dopo, addDays(dopo, 41))) loadRange(dopo, addDays(dopo, 41));
-    });
-}
-
-/* Solo le 42 caselle: la barra dei mesi e il titolo restano dove sono, così
-   un ridisegno dopo la risposta non fa saltare lo scorrimento della barra. */
-function renderMonthGrid() {
-    var grid = $('plMonthGrid');
-    if (!grid) return;
-    var cursor = parseIso(S.monthCursor);
-    var start = monthGridStart();
-
-    grid.innerHTML = '';
-    var wd = el('div', 'pl-mwd');
-    GIORNI_S.forEach(function (g) { wd.appendChild(el('span', null, g)); });
-    grid.appendChild(wd);
-
-    for (var r = 0; r < 6; r++) {
-        var row = el('div', 'pl-mrow');
-        for (var c = 0; c < 7; c++) {
-            var ds = addDays(start, r * 7 + c);
-            row.appendChild(monthCell(ds, parseIso(ds).getMonth() === cursor.getMonth()));
-        }
-        grid.appendChild(row);
-    }
-}
-
 function renderMonth() {
     var cursor = parseIso(S.monthCursor);
     var bar = $('plMonthsBar');
@@ -9506,8 +9803,27 @@ function renderMonth() {
     $('plMonthYear').textContent = cursor.getFullYear();
     applyAmbient();
 
-    renderMonthGrid();   // prima si mostra, poi si cerca
-    ensureMonth();
+    var grid = $('plMonthGrid');
+    grid.innerHTML = '';
+    var wd = el('div', 'pl-mwd');
+    GIORNI_S.forEach(function (g) { wd.appendChild(el('span', null, g)); });
+    grid.appendChild(wd);
+
+    var start = monday(iso(new Date(cursor.getFullYear(), cursor.getMonth(), 1)));
+    var need = [];
+    for (var i = 0; i < 42; i++) need.push(addDays(start, i));
+    var missing = {};
+    need.forEach(function (d) { if (!S.events[d]) missing[monday(d)] = true; });
+    Object.keys(missing).forEach(function (w) { loadWeek(w); });
+
+    for (var r = 0; r < 6; r++) {
+        var row = el('div', 'pl-mrow');
+        for (var c = 0; c < 7; c++) {
+            var ds = addDays(start, r * 7 + c);
+            row.appendChild(monthCell(ds, parseIso(ds).getMonth() === cursor.getMonth()));
+        }
+        grid.appendChild(row);
+    }
 }
 
 function monthCell(date, inMonth) {
@@ -9637,22 +9953,13 @@ function openMonthAgenda(fromDate) {
     body.scrollTop = 0;
 
     /* trenta giorni in avanti: quanto basta per farsi un'idea senza
-       trascinare in memoria mesi interi. Una richiesta sola per tutti,
-       invece di una per settimana: le occorrenze dei ripetuti nascono in
-       lettura e chiedere a pezzi le faceva comparire a scaglioni. */
-    var giorni = 30, trovati = 0;
-    if (spanMancante(fromDate, addDays(fromDate, giorni - 1))) {
-        loadRange(fromDate, addDays(fromDate, giorni - 1)).then(function (r) {
-            if (!r) return;
-            // solo se l'agenda è ancora aperta sullo stesso giorno
-            var b = $('plMonthAgenda');
-            if (b && b.classList.contains('pl-open') && S.agendaFrom === fromDate) {
-                var y = $('plMagendaBody').scrollTop;
-                openMonthAgenda(fromDate);
-                $('plMagendaBody').scrollTop = y;
-            }
-        });
+       trascinare in memoria mesi interi */
+    var giorni = 30, trovati = 0, mancanti = {};
+    for (var i = 0; i < giorni; i++) {
+        var ds = addDays(fromDate, i);
+        if (!S.events[ds]) mancanti[monday(ds)] = true;
     }
+    Object.keys(mancanti).forEach(function (w) { loadWeek(w); });
 
     for (var k = 0; k < giorni; k++) {
         var d2 = addDays(fromDate, k);
@@ -10325,11 +10632,11 @@ document.addEventListener('visibilitychange', function () {
     if (document.visibilityState !== 'visible') return;
     S.habits = {};
     S.rings = {};              // tornando da habits le spunte possono essere cambiate
-    invalidaDati();
+    S.weekCache = {};
     loadWeek(monday(S.focusDate), true).then(renderRing);
 });
 
 boot();
-window.PL = { state: S, api: api, reload: function () { invalidaDati(); loadWeek(monday(S.focusDate), true); }, toast: toast };
+window.PL = { state: S, api: api, reload: function () { S.weekCache = {}; loadWeek(monday(S.focusDate), true); }, toast: toast };
 
 })();
