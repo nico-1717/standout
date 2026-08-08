@@ -321,14 +321,12 @@ function gc_log(int $uid, string $direction, string $outcome = 'ok', ?string $de
    4. CONVERSIONI TRA I DUE MONDI
    ===================================================================== */
 /** Un evento del planner nel formato che vuole Google. */
+/** Un evento del planner nel formato che vuole Google. */
 function gc_to_google(array $ev): array {
     $out = [
         'summary'     => $ev['title'] !== '' ? $ev['title'] : 'Senza titolo',
         'description' => (string)$ev['notes'],
     ];
-    /* Il luogo va passato come testo: Google lo riconosce da sé e lo rende
-       navigabile. Le coordinate nostre non gli servono, e mandare un campo
-       in più che lui non usa significherebbe solo altro da tenere allineato. */
     if (!empty($ev['location'])) $out['location'] = (string)$ev['location'];
     if ((int)$ev['is_all_day'] === 1) {
         $out['start'] = ['date' => $ev['event_date']];
@@ -343,7 +341,94 @@ function gc_to_google(array $ev): array {
             'overrides'  => [['method' => 'popup', 'minutes' => max(0, (int)$ev['notify_minutes'])]],
         ];
     }
+    
+    /* La ripetizione, nel formato che Google riconosce come sua.
+       Si parte dalla colonna `rrule`, che è la verità sulla serie: le colonne
+       repeat_* restano per gli eventi vecchi e per l'interfaccia, ma ricavare
+       la regola da lì vorrebbe dire tenere in piedi due traduzioni che prima
+       o poi si allontanano. */
+    $rrule = trim((string)($ev['rrule'] ?? ''));
+    if ($rrule === '' && !empty($ev['repeat_type']) && $ev['repeat_type'] !== 'none') {
+        $freqMap = ['daily' => 'DAILY', 'weekly' => 'WEEKLY', 'monthly' => 'MONTHLY', 'yearly' => 'YEARLY'];
+        $freq = $freqMap[$ev['repeat_type']] ?? null;
+        $interval = 1;
+        if ($ev['repeat_type'] === 'custom') {
+            $customMap = ['day' => 'DAILY', 'week' => 'WEEKLY', 'month' => 'MONTHLY', 'year' => 'YEARLY'];
+            $freq = $customMap[$ev['repeat_unit'] ?? 'week'] ?? 'WEEKLY';
+            $interval = max(1, (int)($ev['repeat_interval'] ?? 1));
+        }
+        if ($freq) {
+            $rrule = "FREQ=$freq";
+            if ($interval > 1) $rrule .= ";INTERVAL=$interval";
+        }
+    }
+
+    if ($rrule !== '') {
+        $rrule = preg_replace('/^RRULE:/i', '', $rrule);
+        /* L'UNTIL può stare già dentro la regola o solo nella colonna: si
+           aggiunge solo se manca, se no si finisce con due limiti in una
+           regola sola e Google la rifiuta.
+           strtotime() su una data vuota o storta torna false, che date()
+           legge come il 1970: la regola partirebbe già scaduta e Google
+           cancellerebbe la ripetizione. Meglio nessun UNTIL che uno sbagliato. */
+        if (stripos($rrule, 'UNTIL=') === false && stripos($rrule, 'COUNT=') === false) {
+            $fineRip = !empty($ev['repeat_until']) ? strtotime((string)$ev['repeat_until']) : false;
+            if ($fineRip !== false) $rrule .= ";UNTIL=" . date('Ymd\T235959\Z', $fineRip);
+        }
+        $out['recurrence'] = ['RRULE:' . $rrule];
+    } else {
+        /* Esplicito, non omesso: con una PATCH un campo che manca resta com'è,
+           quindi togliendo la ripetizione qui l'evento su Google continuerebbe
+           a ripetersi per sempre. */
+        $out['recurrence'] = null;
+    }
+
     return $out;
+}
+
+/**
+ * La ripetizione di un evento di Google riportata alle colonne del planner.
+ * Google manda un array `recurrence` che può contenere anche RDATE ed EXDATE:
+ * qui interessa solo la RRULE, che è l'unica cosa che il planner sa generare.
+ */
+function gc_recurrence_in(array $g): array {
+    $vuoto = ['rrule' => null, 'type' => 'none', 'interval' => 1, 'unit' => 'week', 'until' => null];
+    $righe = $g['recurrence'] ?? null;
+    if (!is_array($righe)) return $vuoto;
+
+    $rrule = '';
+    foreach ($righe as $r) {
+        if (stripos((string)$r, 'RRULE:') === 0) { $rrule = substr((string)$r, 6); break; }
+    }
+    if ($rrule === '') return $vuoto;
+
+    $freq = ''; $interval = 1; $until = null; $daily = false;
+    foreach (explode(';', $rrule) as $pezzo) {
+        if (!str_contains($pezzo, '=')) continue;
+        [$k, $v] = explode('=', $pezzo, 2);
+        switch (strtoupper(trim($k))) {
+            case 'FREQ':     $freq = strtoupper(trim($v)); break;
+            case 'INTERVAL': $interval = max(1, (int)$v); break;
+            case 'UNTIL':
+                $solo = substr(preg_replace('/[^0-9]/', '', $v), 0, 8);
+                if (strlen($solo) === 8) $until = substr($solo, 0, 4) . '-' . substr($solo, 4, 2) . '-' . substr($solo, 6, 2);
+                break;
+        }
+    }
+    $unita = ['DAILY' => 'day', 'WEEKLY' => 'week', 'MONTHLY' => 'month', 'YEARLY' => 'year'];
+    if (!isset($unita[$freq])) return $vuoto;   // regole che non sappiamo generare: meglio non fingere
+
+    /* Con intervallo 1 si usa il tipo semplice, che l'interfaccia sa mostrare
+       come «ogni settimana»; sopra 1 serve «personalizzata», che è l'unica
+       forma con un intervallo. */
+    $semplice = ['day' => 'daily', 'week' => 'weekly', 'month' => 'monthly', 'year' => 'yearly'];
+    return [
+        'rrule'    => $rrule,
+        'type'     => $interval > 1 ? 'custom' : $semplice[$unita[$freq]],
+        'interval' => $interval,
+        'unit'     => $unita[$freq],
+        'until'    => $until,
+    ];
 }
 
 /** Un evento di Google riportato ai campi del planner. */
@@ -402,13 +487,17 @@ function gc_pull(int $uid, string $token, array $acc): array {
         ];
     }
     if (!$daLeggere) {
-        $princ = sec_one("SELECT id FROM planner_calendars WHERE user_id = ? ORDER BY is_default DESC, id LIMIT 1",
-                         [$uid], 'i');
-        $daLeggere[] = [
-            'ref'   => (string)($acc['calendar_id'] ?: 'primary'),
-            'dest'  => $princ ? (int)$princ['id'] : null,
-            'token' => $acc['sync_token'],
-        ];
+        // Controlla se l'utente ha fatto delle scelte. Se ha scelto "Nessuno" ovunque, rispettiamo la scelta.
+        $ha_scelto = sec_one("SELECT 1 FROM google_calendar_map WHERE user_id = ? AND decided = 1 LIMIT 1", [$uid], 'i');
+        if (!$ha_scelto) {
+            $princ = sec_one("SELECT id FROM planner_calendars WHERE user_id = ? ORDER BY is_default DESC, id LIMIT 1",
+                             [$uid], 'i');
+            $daLeggere[] = [
+                'ref'   => (string)($acc['calendar_id'] ?: 'primary'),
+                'dest'  => $princ ? (int)$princ['id'] : null,
+                'token' => $acc['sync_token'],
+            ];
+        }
     }
 
     $ok = true; $changed = 0; $removed = 0;
@@ -427,13 +516,19 @@ function gc_pull_one(int $uid, string $token, string $ref, ?string $syncToken, ?
     $calendar = rawurlencode($ref ?: 'primary');
     $base = 'https://www.googleapis.com/calendar/v3/calendars/' . $calendar . '/events';
 
-    $params = ['singleEvents' => 'true', 'maxResults' => '250', 'showDeleted' => 'true'];
+    /* singleEvents = false: si chiedono i master con la loro regola, non le
+       occorrenze già srotolate. Con `true` Google ne mandava una per data e
+       qui diventavano righe vere — cioè esattamente la materializzazione da
+       cui siamo usciti, rifatta dall'altra parte. Così invece i due sistemi
+       hanno la stessa forma: un master con la RRULE, più le eccezioni.
+       Nota: con singleEvents = false Google accetta solo orderBy = updated. */
+    $params = ['singleEvents' => 'false', 'maxResults' => '250', 'showDeleted' => 'true'];
     if (!empty($acc['sync_token'])) {
         $params['syncToken'] = $acc['sync_token'];
     } else {
         $params['timeMin'] = date('c', strtotime('-' . GC_WINDOW_BACK . ' days'));
         $params['timeMax'] = date('c', strtotime('+' . GC_WINDOW_FWD . ' days'));
-        $params['orderBy'] = 'startTime';
+        $params['orderBy'] = 'updated';
     }
 
     $changed = 0; $removed = 0; $pageToken = null; $newSync = null; $guard = 0;
@@ -460,17 +555,109 @@ function gc_pull_one(int $uid, string $token, string $ref, ?string $syncToken, ?
             $gid = (string)($g['id'] ?? '');
             if ($gid === '') continue;
 
+            $sorgenteRef = $ref !== '' ? $ref : 'primary';
+
+            /* Un'eccezione di serie: Google la manda come voce a sé, con
+               `recurringEventId` che punta al master e `originalStartTime`
+               che dice quale occorrenza sostituisce. È la stessa forma che
+               usiamo noi — series_id più original_date — quindi si traduce
+               riga per riga invece di entrare come evento slegato. */
+            $padreG = (string)($g['recurringEventId'] ?? '');
+            $dataOrig = null;
+            if ($padreG !== '') {
+                $os = $g['originalStartTime'] ?? [];
+                if (!empty($os['date'])) {
+                    $dataOrig = (string)$os['date'];
+                } elseif (!empty($os['dateTime'])) {
+                    $ts = strtotime((string)$os['dateTime']);
+                    if ($ts !== false) $dataOrig = date('Y-m-d', $ts);
+                }
+            }
+
+            /* Google non cancella: marca. Un evento tolto — o una singola
+               occorrenza tolta da una serie — torna nel flusso con
+               status = 'cancelled', e spesso si porta ancora dietro il suo
+               titolo. Senza questo controllo entravano qui come eventi veri:
+               è così che sono comparsi 25 sabati "CANCELLED" alle 05:00 che
+               su Google non si vedono, perché là sono nascosti. */
             if (($g['status'] ?? '') === 'cancelled') {
-                /* stessa prudenza: se l'evento è stato appena modificato qui,
-                   lo teniamo e lo rimanderemo noi */
-                sec_q("DELETE FROM planner_events WHERE user_id = ? AND google_event_id = ?
-                       AND google_synced_at IS NOT NULL
-                       AND updated_at <= google_synced_at", [$uid, $gid], 'is');
-                if (sec_affected() > 0) $removed++;
+                if ($padreG !== '' && $dataOrig !== null) {
+                    /* Occorrenza tolta da una serie che vive su Google: qui
+                       diventa un marker, esattamente come quando si cancella
+                       una sola data dal planner. Cancellare la riga e basta
+                       non basterebbe — il master la rigenererebbe al primo
+                       giro di lettura. */
+                    $padre = sec_one("SELECT id FROM planner_events
+                                      WHERE user_id = ? AND google_event_id = ? LIMIT 1",
+                                     [$uid, $padreG], 'is');
+                    if ($padre) {
+                        $capo = (int)$padre['id'];
+                        $gia = sec_one("SELECT id FROM planner_events
+                                        WHERE user_id = ? AND series_id = ? AND original_date = ? LIMIT 1",
+                                       [$uid, $capo, $dataOrig], 'iis');
+                        if ($gia) {
+                            sec_q("UPDATE planner_events SET is_cancelled = 1, google_synced_at = NOW(), updated_at = updated_at
+                                   WHERE id = ? AND user_id = ?", [(int)$gia['id'], $uid], 'ii');
+                        } else {
+                            sec_q("INSERT INTO planner_events
+                                   (user_id, title, event_date, start_time, end_time, series_id, original_date,
+                                    is_cancelled, google_origin, google_source_ref, google_synced_at)
+                                   VALUES (?, 'Cancellato', ?, '00:00:00', '00:00:00', ?, ?, 1, 1, ?, NOW())",
+                                  [$uid, $dataOrig, $capo, $dataOrig, $sorgenteRef], 'isiss');
+                        }
+                        $removed++;
+                    }
+                    continue;
+                }
+                $via = sec_one("SELECT id FROM planner_events
+                                WHERE user_id = ? AND google_event_id = ? AND google_origin = 1 LIMIT 1",
+                               [$uid, $gid], 'is');
+                if ($via) {
+                    sec_q("DELETE FROM planner_events WHERE id = ? AND user_id = ?",
+                          [(int)$via['id'], $uid], 'ii');
+                    $removed++;
+                }
                 continue;
+            }
+
+            /* Un'eccezione di una serie che è NOSTRA si salta: quella serie
+               qui esiste già come master, e le sue eccezioni le decide il
+               planner. Quello che arriva da Google sarebbe solo l'eco di
+               quanto gli abbiamo appena mandato. */
+            if ($padreG !== '') {
+                static $our_series = [];
+                if (!isset($our_series[$padreG])) {
+                    $is_ours = sec_one("SELECT id FROM planner_events WHERE google_event_id = ? AND user_id = ? AND google_origin = 0 LIMIT 1", [$padreG, $uid], 'si');
+                    $our_series[$padreG] = $is_ours ? true : false;
+                }
+                if ($our_series[$padreG]) {
+                    continue;
+                }
             }
             $data = gc_from_google($g);
             if (!$data) continue;
+
+            /* La regola di ripetizione, tradotta nelle colonne del planner.
+               Da qui in poi un evento ripetuto di Google è indistinguibile da
+               uno nato qui: una riga sola con la sua RRULE, e le occorrenze
+               le calcola pl_events_range in lettura. */
+            $rip = gc_recurrence_in($g);
+
+            /* Un'eccezione va agganciata al master già presente qui. Se il
+               master non c'è ancora — Google può mandarli in qualsiasi
+               ordine — l'eccezione si salta: tornerà al giro dopo, quando il
+               padre esiste, invece di entrare slegata e comparire due volte. */
+            $serieId = null;
+            if ($padreG !== '') {
+                if ($dataOrig === null) continue;
+                $padre = sec_one("SELECT id FROM planner_events
+                                  WHERE user_id = ? AND google_event_id = ? LIMIT 1",
+                                 [$uid, $padreG], 'is');
+                if (!$padre) continue;
+                $serieId = (int)$padre['id'];
+                /* l'eccezione non si ripete a sua volta: sostituisce una data */
+                $rip = ['rrule' => null, 'type' => 'none', 'interval' => 1, 'unit' => 'week', 'until' => null];
+            }
 
             /* Il calendario da cui questo evento arriva davvero. Non annotarlo
                era la causa dei doppioni: senza, più avanti gc_push non sapeva
@@ -513,20 +700,47 @@ function gc_pull_one(int $uid, string $token, string $ref, ?string $syncToken, ?
                identici in tutto — capita, ma è molto più raro del doppione, e
                fra i due errori quello che si nota, e che dà fastidio ogni
                giorno, è il doppione. */
-            if (!$existing) {
+            if (!$existing && $padreG === '') {
+                /* Un'eccezione non passa di qui: sappiamo già a quale serie
+                   appartiene, e cercarle un gemello per titolo e orario la
+                   farebbe fondere con l'occorrenza che deve sostituire. */
+                $gemello = null;
+
+                /* I master ripetuti si riconoscono per ricorrenza, non per
+                   data d'inizio.
+
+                   È il caso dei compleanni. Lo stesso compleanno arriva due
+                   volte — dal calendario Birthdays e dalla copia che era
+                   finita nel dedicato — ma i due master partono da anni
+                   diversi: quello di Google dal primo compleanno, la nostra
+                   copia dall'anno in cui fu creata. Confrontando la data
+                   piena non si somigliano affatto, e ne entravano due.
+                   Quello che coincide è il giorno dell'anniversario, non
+                   l'anno: si confronta quello. */
+                if ($rip['rrule'] !== null) {
+                    $gemello = sec_one(
+                        "SELECT id FROM planner_events
+                          WHERE user_id = ? AND title = ? AND is_all_day = ?
+                            AND rrule IS NOT NULL
+                            AND DATE_FORMAT(event_date, '%m-%d') = ?
+                            AND (google_event_id IS NULL OR google_event_id <> ?)
+                          LIMIT 1",
+                        [$uid, $data['title'], $data['all_day'],
+                         date('m-d', strtotime($data['date'])), $gid], 'isiss');
+                }
+                if (!$gemello) {
                 $gemello = sec_one(
                     "SELECT id FROM planner_events
                      WHERE user_id = ? AND event_date = ?
                        AND title = ? AND is_all_day = ?
                        AND (start_time <=> ?)
-                       AND (google_event_id IS NULL
-                            OR (google_origin = 1 AND google_event_id <> ?))
+                       AND (google_event_id IS NULL OR google_event_id <> ?)
                      LIMIT 1",
                     [$uid, $data['date'], $data['title'], $data['all_day'], $data['start'], $gid],
-                    /* `<=>` confronta anche i nulli: un evento di tutto il
-                       giorno non ha ora d'inizio, e con `=` non si troverebbe
-                       mai il suo gemello */
+                    /* Tolto il blocco "google_origin = 1" per permettere ai task e abitudini nativi
+                       con vecchi ID di essere riagganciati correttamente ai nuovi eventi Google */
                     'ississ');
+                }
                 if ($gemello) {
                     /* si prende in carico la riga che c'è già: da qui in poi
                        quell'evento risponde a questo calendario, e la prossima
@@ -536,7 +750,11 @@ function gc_pull_one(int $uid, string $token, string $ref, ?string $syncToken, ?
                                google_synced_at = NOW(), updated_at = updated_at
                            WHERE id = ? AND user_id = ?",
                           [$gid, $sorgente, $sorgente, (int)$gemello['id'], $uid], 'sssii');
-                    continue;
+                    /* E poi si scrive anche il contenuto, invece di fermarsi
+                       qui. Fermandosi, la riga restava con i dati vecchi — in
+                       particolare senza la regola di ripetizione — ed è così
+                       che nascevano i compleanni «uno giusto e uno no». */
+                    $existing = ['id' => (int)$gemello['id'], 'dirty' => 0];
                 }
             }
             if ($existing) {
@@ -547,18 +765,37 @@ function gc_pull_one(int $uid, string $token, string $ref, ?string $syncToken, ?
                    è un fatto e non una scelta. */
                 sec_q("UPDATE planner_events SET title = ?, notes = ?, event_date = ?, start_time = ?, end_time = ?,
                               is_all_day = ?, google_calendar_id = ?, google_source_ref = ?,
+                              rrule = ?, repeat_type = ?, repeat_interval = ?, repeat_unit = ?, repeat_until = ?,
+                              series_id = ?, original_date = ?, is_cancelled = 0,
                               google_synced_at = NOW(), updated_at = updated_at
                        WHERE id = ? AND user_id = ?",
                       [$data['title'], $data['notes'], $data['date'], $data['start'], $data['end'],
-                       $data['all_day'], $sorgente, $sorgente, (int)$existing['id'], $uid]);
+                       $data['all_day'], $sorgente, $sorgente,
+                       $rip['rrule'], $rip['type'], $rip['interval'], $rip['unit'], $rip['until'],
+                       $serieId, $dataOrig, (int)$existing['id'], $uid]);
+                /* Un master deve essere capo della propria serie: senza
+                   series_id le sue eccezioni non hanno a cosa agganciarsi. */
+                if ($rip['rrule'] !== null && $serieId === null) {
+                    sec_q("UPDATE planner_events SET series_id = id, updated_at = updated_at
+                           WHERE id = ? AND user_id = ?", [(int)$existing['id'], $uid], 'ii');
+                }
             } else {
                 sec_q("INSERT INTO planner_events
                        (user_id, title, notes, event_date, start_time, end_time, is_all_day,
                         notify_type, notify_minutes, google_event_id, google_calendar_id,
-                        google_source_ref, calendar_id, google_synced_at, google_origin)
-                       VALUES (?,?,?,?,?,?,?,'none',0,?,?,?,?,NOW(),1)",
+                        google_source_ref, calendar_id, google_synced_at, google_origin,
+                        rrule, repeat_type, repeat_interval, repeat_unit, repeat_until,
+                        series_id, original_date)
+                       VALUES (?,?,?,?,?,?,?,'none',0,?,?,?,?,NOW(),1,?,?,?,?,?,?,?)",
                       [$uid, $data['title'], $data['notes'], $data['date'], $data['start'], $data['end'],
-                       $data['all_day'], $gid, $sorgente, $sorgente, $dest]);
+                       $data['all_day'], $gid, $sorgente, $sorgente, $dest,
+                       $rip['rrule'], $rip['type'], $rip['interval'], $rip['unit'], $rip['until'],
+                       $serieId, $dataOrig]);
+                $nuovoId = sec_insert_id();
+                if ($rip['rrule'] !== null && $serieId === null) {
+                    sec_q("UPDATE planner_events SET series_id = ? WHERE id = ? AND user_id = ?",
+                          [$nuovoId, $nuovoId, $uid], 'iii');
+                }
             }
             $changed++;
         }
@@ -589,36 +826,31 @@ function gc_target_for(array $ev, array $modes, string $dedicatedId, array $push
     /* REGOLA PRIMA DI TUTTE LE ALTRE.
        Un evento nato su Google resta dov'è nato, sempre. È già là: mandarlo
        in un altro calendario non lo sposta, ne crea una copia — ed è
-       esattamente così che sono nati i doppioni. Le regole per importanza
-       valgono solo per gli eventi nati nel planner. */
+       esattamente così che sono nati i doppioni. */
     if ((int)($ev['google_origin'] ?? 0) === 1) {
         $suo = $ev['google_calendar_id'] ?? null;
         return $suo !== null && $suo !== '' ? (string)$suo : null;
     }
 
-    /* Il verso di ritorno: se il calendario di questo evento ha un
-       calendario Google suo, è là che va, e le regole per importanza qui non
-       c'entrano. È una scelta esplicita — «le vacanze vanno nelle vacanze» —
-       e batte una regola generale che l'utente ha impostato pensando ad
-       altro. */
+    /* «Importanti» e «importantissimi» si scelgono come fossero calendari a
+       sé, e battono il calendario di appartenenza: dire «gli importantissimi
+       vanno nel principale di Google» è una regola più mirata di «il
+       calendario Lavoro va là», e chi la imposta la vuole valida anche per
+       gli importantissimi che stanno in Lavoro. */
+    $imp = (string)($ev['importance'] ?? 'normal');
+    if ($imp === 'highest' && !empty($push['livello_highest'])) return (string)$push['livello_highest'];
+    if (($imp === 'high' || $imp === 'highest') && !empty($push['livello_high'])) return (string)$push['livello_high'];
+
+    /* Poi il calendario di questo evento, se ne ha uno suo su Google. */
     $suoCal = $ev['calendar_id'] ?? null;
     if ($suoCal !== null && !empty($push[(int)$suoCal])) {
         return (string)$push[(int)$suoCal];
     }
 
-    $imp = $ev['importance'] ?? 'normal';
-    $isHigh    = ($imp === 'high' || $imp === 'highest');
-    $isHighest = ($imp === 'highest');
-
-    $primary = $modes['primary'] ?? 'none';
-    if (($primary === 'high' && $isHigh) || ($primary === 'highest' && $isHighest)) {
-        return 'primary';
-    }
-    $ded = $modes['dedicated'] ?? 'all';
-    if ($ded === 'all') return $dedicatedId;
-    if ($ded === 'high' && $isHigh) return $dedicatedId;
-    if ($ded === 'highest' && $isHighest) return $dedicatedId;
-    return null;   // questo evento resta solo nel planner
+    /* Niente più «tutti nel dedicato» come comportamento di partenza: da
+       quando ogni calendario ha la sua destinazione, un evento non scelto
+       non deve finire su Google di nascosto. */
+    return null;
 }
 
 /** Le scelte dell'utente, lette dalle impostazioni del planner. */
@@ -627,6 +859,20 @@ function gc_modes(int $uid): array {
     return [
         'dedicated' => $row['gc_dedicated_mode'] ?? 'all',
         'primary'   => $row['gc_primary_mode'] ?? 'none',
+    ];
+}
+
+/**
+ * Dove finiscono su Google gli eventi importanti e importantissimi.
+ * Stringa vuota = non ci vanno. Prima erano due tendine con «tutti / solo
+ * importanti / nessuno» che decidevano solo *se* mandare, non dove: ora sono
+ * destinazioni vere, scelte nello stesso elenco degli altri calendari.
+ */
+function gc_push_livelli(int $uid): array {
+    $row = sec_one("SELECT gc_push_high, gc_push_highest FROM planner_settings WHERE user_id = ?", [$uid], 'i');
+    return [
+        'high'    => (string)($row['gc_push_high'] ?? ''),
+        'highest' => (string)($row['gc_push_highest'] ?? ''),
     ];
 }
 
@@ -678,6 +924,98 @@ function gc_find_twin(string $token, string $cal, array $ev): ?string {
     return null;
 }
 
+/**
+ * L'identificativo che Google dà a una singola occorrenza di una serie.
+ *
+ * Si potrebbe costruire a mano — è {master}_{data d'origine in UTC} — ma la
+ * conversione del fuso è proprio il punto in cui si sbaglia: un'ora di
+ * differenza e la PATCH cade su un'occorrenza che non c'entra, o su nessuna.
+ * Meglio chiederlo a Google indicandogli quale data ci interessa.
+ */
+function gc_instance_id(string $token, string $cal, string $masterGid, string $dataOrig, bool $allDay): ?string {
+    $url = 'https://www.googleapis.com/calendar/v3/calendars/' . rawurlencode($cal)
+         . '/events/' . rawurlencode($masterGid) . '/instances?'
+         . http_build_query([
+             'timeMin' => $dataOrig . 'T00:00:00Z',
+             'timeMax' => date('Y-m-d', strtotime($dataOrig . ' +2 days')) . 'T00:00:00Z',
+             'maxResults' => 10, 'showDeleted' => 'true',
+         ]);
+    $res = gc_http('GET', $url, null, $token);
+    if ($res['code'] !== 200 || empty($res['body']['items'])) return null;
+
+    foreach ($res['body']['items'] as $it) {
+        $os = $it['originalStartTime'] ?? ($it['start'] ?? []);
+        $suo = null;
+        if (!empty($os['date'])) $suo = (string)$os['date'];
+        elseif (!empty($os['dateTime'])) {
+            $ts = strtotime((string)$os['dateTime']);
+            if ($ts !== false) $suo = date('Y-m-d', $ts);
+        }
+        if ($suo === $dataOrig && !empty($it['id'])) return (string)$it['id'];
+    }
+    return null;
+}
+
+/**
+ * Le eccezioni fatte qui, portate su Google.
+ *
+ * Fin qui viaggiavano in un verso solo: cancellando o spostando una singola
+ * data nel planner, su Google la serie restava intatta e al giro dopo la
+ * lettura rimetteva dentro l'occorrenza. Una serie con un'eccezione è, per
+ * Google, il master più una PATCH sulla singola istanza: `status: cancelled`
+ * per toglierla, oppure start ed end nuovi per spostarla.
+ */
+function gc_push_eccezioni(int $uid, string $token, string $from, string $to): array {
+    $fatte = 0; $falliti = 0;
+
+    /* Si guarda la data d'origine, non quella nuova: un'occorrenza spostata
+       fuori dal periodo va comunque tolta dal giorno in cui stava. */
+    $righe = sec_all(
+        "SELECT e.*, m.google_event_id AS master_gid, m.google_calendar_id AS master_cal
+           FROM planner_events e
+           JOIN planner_events m ON m.id = e.series_id AND m.user_id = e.user_id
+          WHERE e.user_id = ? AND e.original_date BETWEEN ? AND ?
+            AND e.series_id IS NOT NULL AND e.series_id <> e.id
+            AND (e.google_synced_at IS NULL OR e.updated_at > e.google_synced_at)
+            AND m.google_event_id IS NOT NULL
+          ORDER BY e.original_date LIMIT " . GC_PUSH_LIMIT,
+        [$uid, $from, $to], 'iss'
+    );
+
+    foreach ($righe as $ecc) {
+        $cal = (string)($ecc['master_cal'] ?? '');
+        if ($cal === '') continue;   // il master non è ancora su Google: al prossimo giro
+        $istanza = gc_instance_id($token, $cal, (string)$ecc['master_gid'],
+                                  (string)$ecc['original_date'], (int)$ecc['is_all_day'] === 1);
+        if ($istanza === null) { $falliti++; continue; }
+
+        if ((int)$ecc['is_cancelled'] === 1) {
+            $corpo = ['status' => 'cancelled'];
+        } else {
+            $corpo = gc_to_google($ecc);
+            /* Un'istanza non porta una regola sua: la ripetizione è del
+               master, e mandare qui `recurrence` la farebbe rifiutare. */
+            unset($corpo['recurrence']);
+        }
+
+        $res = gc_http('PATCH',
+            'https://www.googleapis.com/calendar/v3/calendars/' . rawurlencode($cal)
+            . '/events/' . rawurlencode($istanza), $corpo, $token);
+
+        if ($res['code'] >= 200 && $res['code'] < 300) {
+            sec_q("UPDATE planner_events
+                   SET google_event_id = ?, google_calendar_id = ?, google_synced_at = NOW(), updated_at = updated_at
+                   WHERE id = ? AND user_id = ?",
+                  [$istanza, $cal, (int)$ecc['id'], $uid], 'ssii');
+            $fatte++;
+        } else {
+            $falliti++;
+            gc_log($uid, 'push', 'error', 'eccezione ' . $ecc['original_date'] . ': ' . $res['code']);
+        }
+    }
+    return ['fatte' => $fatte, 'falliti' => $falliti];
+}
+
 function gc_push(int $uid, string $token, array $acc): array {
     $dedicated = $acc['calendar_id'] ?: 'primary';
     $modes = gc_modes($uid);
@@ -687,6 +1025,12 @@ function gc_push(int $uid, string $token, array $acc): array {
     foreach (sec_all("SELECT id, google_push_ref FROM planner_calendars WHERE user_id = ? AND google_push_ref IS NOT NULL",
                      [$uid], 'i') as $c) {
         $push[(int)$c['id']] = (string)$c['google_push_ref'];
+    }
+    /* I due «calendari» che non sono calendari: le destinazioni scelte per
+       importanza. Stanno nella stessa mappa con chiavi che non possono
+       scontrarsi con un id, così gc_target_for legge un posto solo. */
+    foreach (gc_push_livelli($uid) as $liv => $ref) {
+        if ($ref !== '') $push['livello_' . $liv] = $ref;
     }
     $from = date('Y-m-d', strtotime('-' . GC_WINDOW_BACK . ' days'));
     $to   = date('Y-m-d', strtotime('+' . GC_WINDOW_FWD . ' days'));
@@ -703,6 +1047,7 @@ function gc_push(int $uid, string $token, array $acc): array {
         "SELECT * FROM planner_events
          WHERE user_id = ? AND event_date BETWEEN ? AND ?
            AND (google_synced_at IS NULL OR updated_at > google_synced_at)
+           AND (series_id IS NULL OR series_id = id)
          ORDER BY event_date LIMIT " . GC_PUSH_LIMIT,
         [$uid, $from, $to], 'iss'
     );
@@ -804,6 +1149,12 @@ function gc_push(int $uid, string $token, array $acc): array {
         } else { $failed++; }
     }
     gc_log($uid, 'push', $failed > 0 ? 'error' : 'ok', $failed > 0 ? $failed . ' non riusciti' : null, $created + $updated);
+    /* Le eccezioni vanno per ultime: hanno bisogno che il master sia già su
+       Google, e il giro qui sopra è proprio quello che ce lo manda. */
+    $ecc = gc_push_eccezioni($uid, $token, $from, $to);
+    $updated += $ecc['fatte'];
+    $failed  += $ecc['falliti'];
+
     return ['created' => $created, 'updated' => $updated, 'failed' => $failed, 'removed_far' => $removed];
 }
 
@@ -986,12 +1337,20 @@ function gc_repair_cross_calendars(int $uid, string $token, string $dedicato): a
             if ($res['code'] !== 200) return ['ok' => false, 'removed' => 0];
             foreach (($res['body']['items'] ?? []) as $it) {
                 if (empty($it['id'])) continue;
+                if (($it['status'] ?? '') === 'cancelled') continue;
                 $inizio = $it['start']['date'] ?? ($it['start']['dateTime'] ?? '');
                 $chiave = trim((string)($it['summary'] ?? '')) . '|' . substr((string)$inizio, 0, 16);
+                /* Di una serie si cancella il master, non la singola occorrenza.
+                   Cancellando l'istanza Google si limita a nascondere QUEL
+                   giorno e la serie resta: il doppione tornerebbe la settimana
+                   dopo, ed è il motivo per cui i compleanni doppi non se ne
+                   andavano nemmeno premendo il tasto. */
+                $capo = (string)($it['recurringEventId'] ?? '');
                 $tutti[$chiave][] = [
-                    'id' => (string)$it['id'],
-                    'cal' => $cal,
-                    'noto' => isset($noti[(string)$it['id']])
+                    'id'    => $capo !== '' ? $capo : (string)$it['id'],
+                    'cal'   => $cal,
+                    'serie' => $capo !== '',
+                    'noto'  => isset($noti[(string)$it['id']]) || ($capo !== '' && isset($noti[$capo])),
                 ];
             }
             $page = $res['body']['nextPageToken'] ?? null;
@@ -1002,22 +1361,46 @@ function gc_repair_cross_calendars(int $uid, string $token, string $dedicato): a
     foreach ($tutti as $chiave => $copie) {
         if (count($copie) < 2) continue; // Non è un doppione
 
-        // 1. Scegliamo quale copia tenere. Priorità massima: Calendario Dedicato.
+        /* Ogni master si tocca una volta sola: di una serie ripetuta lo stesso
+           evento compare una volta per occorrenza, e senza questo filtro si
+           proverebbe a cancellarlo venti volte. */
+        $visti = [];
+        $unici = [];
+        foreach ($copie as $c) {
+            $k = $c['cal'] . '|' . $c['id'];
+            if (isset($visti[$k])) continue;
+            $visti[$k] = true;
+            $unici[] = $c;
+        }
+        $copie = $unici;
+        if (count($copie) < 2) continue;
+
+        /* Quale copia tenere.
+
+           Prima era il contrario: vinceva quella nel calendario dedicato. Ma
+           il dedicato è NOSTRO — ci finisce solo quello che ci abbiamo messo
+           noi — quindi se lo stesso evento esiste anche altrove su Google,
+           l'originale è quello di fuori e la copia da togliere è la nostra.
+           Era questo a far sopravvivere i compleanni doppi: la riparazione
+           cancellava quello vero di Birthdays e teneva la nostra copia.
+
+           Resta davanti a tutto quella che il planner sta ancora puntando:
+           cancellarla lascerebbe una riga qui agganciata al vuoto. */
         $da_tenere = $copie[0];
         $punteggio = -1;
         foreach ($copie as $c) {
             $p = 0;
-            if ($c['noto']) $p += 2;
-            if ($c['cal'] === $dedicato) $p += 5; // Punteggio altissimo se è nel dedicato
-            if ($p > $punteggio) { 
-                $punteggio = $p; 
-                $da_tenere = $c; 
+            if ($c['noto']) $p += 5;
+            if ($c['cal'] !== $dedicato) $p += 2;
+            if ($p > $punteggio) {
+                $punteggio = $p;
+                $da_tenere = $c;
             }
         }
 
         // 2. Eliminiamo tutte le altre copie da Google
         foreach ($copie as $c) {
-            if ($c['id'] === $da_tenere['id']) continue;
+            if ($c['id'] === $da_tenere['id'] && $c['cal'] === $da_tenere['cal']) continue;
             
             $del = gc_http('DELETE', 'https://www.googleapis.com/calendar/v3/calendars/'
                    . rawurlencode($c['cal']) . '/events/' . rawurlencode($c['id']), null, $token);
@@ -1106,7 +1489,7 @@ if ($ajax === 'calendars') {
             'push_ref'   => $c['google_push_ref'],
         ];
     }
-    sec_json(['ok' => true, 'google' => $out, 'mine' => $miei]);
+    sec_json(['ok' => true, 'google' => $out, 'mine' => $miei, 'levels' => gc_push_livelli($uid)]);
 }
 
 /* ---------- dove far finire gli eventi di un calendario Google ----------
@@ -1157,9 +1540,18 @@ if ($ajax === 'map_set') {
 /* ---------- dove finiscono su Google gli eventi di un mio calendario ---------- */
 if ($ajax === 'push_set') {
     sec_guard_write($uid, 'google_sync', 0, 30, 60);
+    $ref = sec_str(sec_in('ref'), 255);
+    /* «importanti» e «importantissimi» arrivano da qui come fossero
+       calendari: non hanno un id, si riconoscono dal livello. */
+    $liv = sec_enum((string)(sec_in('level') ?? ''), ['', 'high', 'highest'], '');
+    if ($liv !== '') {
+        $colonna = $liv === 'high' ? 'gc_push_high' : 'gc_push_highest';
+        sec_q("UPDATE planner_settings SET $colonna = ? WHERE user_id = ?",
+              [$ref !== '' ? $ref : null, $uid], 'si');
+        sec_json(['ok' => true]);
+    }
     $mio = sec_int(sec_in('calendar_id'), 1, PHP_INT_MAX, 0);
     if (!sec_owns('planner_calendars', $mio, $uid)) sec_die_json('Calendario non trovato.', 404, 'not_found');
-    $ref = sec_str(sec_in('ref'), 255);
     sec_q("UPDATE planner_calendars SET google_push_ref = ? WHERE id = ? AND user_id = ?",
           [$ref !== '' ? $ref : null, $mio, $uid], 'sii');
     sec_json(['ok' => true]);

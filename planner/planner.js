@@ -37,6 +37,10 @@ var S = {
     hiddenCats:  {},
     prioSlim:    false,
     weekCache:   {},          // 'lunedì' -> { week, lists }
+    loaded:      {},          // 'YYYY-MM-DD' -> true, giorni già scaricati almeno una volta
+    monthReq:    0,           // contrassegno della richiesta di mese in corso
+    late:        B.late || [],// scaduti e non spuntati: to do, pastiglie, progetti
+    lateDone:    {},          // arretrati appena spuntati, in attesa di sparire
     todos:       null,        // 'todo'|'buy'|'study' -> [voce], letto da todo_api.php
     todoTab:     'todo',      // linguetta aperta nel pannello settimana
     pills:       null,        // prese del giorno a fuoco, lette da todo_api.php
@@ -183,6 +187,11 @@ function api(action, data, query, opt) {
         var req = {
             method: data ? 'POST' : 'GET',
             credentials: 'same-origin',
+            /* Le letture sono GET su un indirizzo che non cambia mai: subito
+               dopo un salvataggio il browser può rispondere con la copia di
+               dieci secondi prima, e sullo schermo resta il titolo vecchio
+               finché non si ricarica la pagina. */
+            cache: 'no-store',
             headers: { 'X-CSRF-Token': window.NISAMA_CSRF || S.csrf }
         };
         if (data) { req.headers['Content-Type'] = 'application/json'; req.body = JSON.stringify(data); }
@@ -304,6 +313,84 @@ function indexEvents(list, clearRange) {
 function indexPrio(map) {
     for (var k in map) if (map.hasOwnProperty(k)) S.prio[k] = map[k];
 }
+function indexLate(list) {
+    if (!list) return;
+    S.late = list;
+    /* Quello che il server non manda più è stato spuntato per davvero: si
+       toglie anche dalla memoria di quelli in uscita, se no resterebbe
+       sbarrato in eterno. */
+    var vivi = {};
+    list.forEach(function (x) { vivi[x.kind + ':' + x.ref_id] = 1; });
+    Object.keys(S.lateDone).forEach(function (k) { if (!vivi[k]) delete S.lateDone[k]; });
+}
+
+/* Il primo e l'ultimo giorno non ancora scaricati dentro un periodo, oppure
+   null se c'è già tutto. Chiedere l'intervallo che li contiene può rileggere
+   qualche giorno già noto, ma è una richiesta sola invece di sei. */
+function spanMancante(from, to) {
+    var primo = null, ultimo = null;
+    for (var d = from; d <= to; d = addDays(d, 1)) {
+        if (S.loaded[d]) continue;
+        if (primo === null) primo = d;
+        ultimo = d;
+    }
+    return primo === null ? null : { from: primo, to: ultimo };
+}
+
+/* Le richieste di periodo si mettono in fila invece di partire tutte insieme.
+   `indexEvents` azzera il periodo che sta per riempire: due risposte
+   sovrapposte in volo si cancellavano a vicenda, ed era il motivo per cui gli
+   eventi del mese comparivano e sparivano a seconda di chi arrivava per
+   ultimo. In fila, ogni richiesta guarda cosa manca *in quel momento* e chiede
+   solo quello: se nel frattempo un'altra ha già coperto il periodo, salta. */
+var plCodaRange = Promise.resolve();
+function loadRange(from, to, force) {
+    plCodaRange = plCodaRange.then(function () {
+        var a = from, b = to;
+        if (!force) {
+            var manca = spanMancante(a, b);
+            if (!manca) return null;
+            a = manca.from; b = manca.to;
+        }
+        return api('range', null, { from: a, to: b }).then(function (r) {
+            if (!r.ok) return null;
+            indexEvents(r.events, { from: r.from, to: r.to });
+            indexPrio(r.priorities || {});
+            indexLate(r.late);
+            for (var g in r.diary) if (r.diary.hasOwnProperty(g)) S.diary[g] = r.diary[g];
+            for (var d = r.from; d <= r.to; d = addDays(d, 1)) S.loaded[d] = true;
+            /* La riga della settimana e gli elenchi arrivano solo per la
+               settimana in cui cade `from`: le altre restano da chiedere. */
+            var lun = monday(r.from);
+            if (!S.weekCache[lun] || force) S.weekCache[lun] = { week: r.week, lists: r.lists || [] };
+            return r;
+        });
+    }).catch(function () { return null; });
+    return plCodaRange;
+}
+
+/* Svuotare la cache delle settimane non basta più. Da quando le occorrenze
+   dei ripetuti nascono in lettura, toccare una regola può cambiare giorni
+   lontanissimi da quello che si sta guardando: si butta via anche il registro
+   dei giorni scaricati, così il mese aperto dopo torna a chiedere. */
+function invalidaDati() {
+    invalidaDati();
+    S.loaded = {};
+}
+
+/* Ricarica quello che l'utente ha davvero sotto gli occhi. Dopo una modifica
+   a una serie non basta rinfrescare la settimana a fuoco: se si sta guardando
+   il mese, è la griglia del mese che deve tornare vera. */
+function ricaricaVista() {
+    invalidaDati();
+    if (S.view === 'month') {
+        return ensureMonth(true).then(function () { renderDays(); });
+    }
+    return loadWeek(monday(S.focusDate), true).then(function () {
+        if (S.view === 'week') renderWeek();
+        renderDays();
+    });
+}
 function eventsOf(date) {
     var list = (S.events[date] || []).filter(function (e) { return !evHidden(e); });
     list.sort(function (a, b) {
@@ -327,18 +414,16 @@ function loadWeek(weekStart, force) {
         if (monday(S.focusDate) === weekStart) applyWeek(weekStart);
         return Promise.resolve();
     }
-    return api('range', null, { from: weekStart, to: addDays(weekStart, 6) }).then(function (r) {
-        if (!r.ok) return;
-        indexEvents(r.events, { from: r.from, to: r.to });
-        indexPrio(r.priorities || {});
-        for (var d in r.diary) if (r.diary.hasOwnProperty(d)) S.diary[d] = r.diary[d];
-        S.weekCache[weekStart] = { week: r.week, lists: r.lists || [] };
+    /* Sette giorni, non sessanta. Allargare la finestra della settimana per
+       riempire il mese sembrava una scorciatoia, ma faceva partire una
+       richiesta da due mesi a ogni cambio di giorno e le risposte si
+       azzeravano fra loro. Il mese ha una strada sua (ensureMonth). */
+    return loadRange(weekStart, addDays(weekStart, 6), true).then(function (r) {
+        if (!r) return;
         if (monday(S.focusDate) === weekStart) applyWeek(weekStart);
         renderDays();
         renderPrio();
         maybeAskCopy();
-        /* se l'elenco del mese è aperto, si ricompone con i giorni appena
-           arrivati invece di restare a metà */
         var ag = $('plMonthAgenda');
         if (ag && ag.classList.contains('pl-open') && S.agendaFrom) {
             var y = $('plMagendaBody').scrollTop;
@@ -2317,6 +2402,17 @@ function prioOf(date) {
     list.forEach(function (p) {
         if (p.auto) autos.push(p); else manual[p.position] = p;
     });
+    /* Gli arretrati stanno davanti a tutto e solo su oggi. Un arretrato è in
+       ritardo rispetto a adesso: mostrarlo anche sfogliando il mese scorso
+       riempirebbe di rosso giorni in cui quella cosa non era ancora scaduta.
+       Quelli appena spuntati restano in elenco ancora qualche secondo: vedere
+       la riga sbarrarsi è la conferma che il tocco è arrivato, sparire di
+       colpo sembra un errore. */
+    if (date === S.today) {
+        autos = (S.late || []).filter(function (x) {
+            return !S.lateDone[x.kind + ':' + x.ref_id] || S.lateDone[x.kind + ':' + x.ref_id] === 'in-uscita';
+        }).concat(autos);
+    }
     return { manual: manual, autos: autos };
 }
 
@@ -2342,7 +2438,9 @@ function renderPrioInto(host, giorno) {
         cells.push({
             auto: true, content: a.content, project_id: a.project_id, project: a.project,
             notes: a.notes, stato: a.stato, color: a.color,
-            target_date: a.target_date, due_date: a.due_date
+            target_date: a.target_date, due_date: a.due_date,
+            late: a.late, kind: a.kind, list_type: a.list_type,
+            ref_id: a.ref_id, was_due: a.was_due
         });
     });
 
@@ -2410,6 +2508,59 @@ function renderPrioInto(host, giorno) {
     }
 }
 
+/* Un arretrato spuntato dalla fascia priorità.
+
+   Non sparisce subito. Si spunta, si sbarra, e se ne va dopo qualche secondo:
+   sparire nell'istante del tocco toglie la conferma che il tocco sia arrivato,
+   e su una lista che si accorcia sotto il dito il secondo tocco finisce sulla
+   riga sbagliata. */
+function spuntaArretrato(data) {
+    var chiave = data.kind + ':' + data.ref_id;
+    if (S.lateDone[chiave]) return;
+    S.lateDone[chiave] = 'in-uscita';
+    haptic(8);
+
+    /* Spuntando a sezione stretta si vede una riga sola, e la voce appena
+       spuntata può stare in un'altra: sparirebbe senza che si sia mai vista
+       sbarrare, cioè senza conferma che il tocco sia arrivato. Quindi la
+       sezione si apre e la mostra. */
+    if (S.prioSlim) setPrioSlim(false); else renderPrio();
+
+    /* Si passa da todo_api.php, che è l'unico punto di scrittura di quei
+       dati: rifare la stessa cosa in planner.php vorrebbe dire avere due
+       posti in cui sbagliarla. */
+    var chiamata = data.kind === 'pill'
+        ? todoApi('pill_mark', { id: data.ref_id, status: 'taken' })
+        : todoApi('toggle', { id: data.ref_id });
+
+    chiamata.then(function (r) {
+        if (r && r.ok === false) {
+            // non è passata: si rimette com'era invece di far finta di niente
+            delete S.lateDone[chiave];
+            renderPrio();
+            toast((r && r.message) || 'Non e stato possibile spuntarlo.');
+            return;
+        }
+        setTimeout(function () {
+            S.late = (S.late || []).filter(function (x) { return (x.kind + ':' + x.ref_id) !== chiave; });
+            delete S.lateDone[chiave];
+            renderPrio();
+        }, 6000);
+    });
+}
+
+/* Toccando un arretrato si va dove quella cosa vive davvero, con la linguetta
+   già aperta — lo stesso posto in cui porta il tasto del pannello settimana.
+   Si imposta la linguetta PRIMA di aprire, perché openWeekPanel legge
+   S.todoTab per decidere cosa caricare: cambiandola dopo si vedrebbe per un
+   attimo l'elenco sbagliato, e con le pastiglie si chiamerebbe l'endpoint
+   che non le conosce. */
+function apriArretrato(data) {
+    if (data.kind === 'project') { prioProgetto(data); return; }
+    S.todoTab = data.list_type || 'todo';
+    openWeekPanel();
+}
+
 /* Il riassunto di un progetto, aperto da una priorità automatica.
 
    Piccolo di proposito: quello che serve qui è capire in un colpo d'occhio
@@ -2455,7 +2606,7 @@ function prioProgetto(data) {
     }
 
     var vai = el('a', 'pl-btn pl-btn-primary pl-prj-vai', 'Apri il progetto');
-    vai.href = 'progetti_2.php?id=' + encodeURIComponent(data.project_id);
+    vai.href = 'progetti.php?id=' + encodeURIComponent(data.project_id);
     body.appendChild(vai);
 
     sheet.appendChild(body);
@@ -2503,7 +2654,9 @@ function avviaGiroPrio(righe, pal) {
         for (var k = 0; k < pal.children.length; k++) {
             pal.children[k].classList.toggle('pl-on', k === i);
         }
-    }, 4000);
+    /* Cinque secondi, non quattro: una riga con due priorità va letta, non
+       intravista, e il giro non deve costringere a rincorrerla. */
+    }, 5000);
 }
 
 function prioCell(data, compatta) {
@@ -2525,11 +2678,33 @@ function prioCell(data, compatta) {
         cell.appendChild(tx);
         misuraStriscia(tx, dentro);
         if (data.auto) {
+            if (data.late) {
+                cell.classList.add('pl-late');
+                if (S.lateDone[data.kind + ':' + data.ref_id]) cell.classList.add('pl-done', 'pl-late-out');
+                tx.style.cursor = 'pointer';
+                tx.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    /* Il popup si apre subito — è quello che si è chiesto — ma
+                       la sezione si allarga lo stesso: chiudendo il popup si
+                       torna a una fascia che mostra il contesto di quello che
+                       si è appena aperto, non una riga sola a caso. */
+                    apriArretrato(data);
+                    setPrioSlim(false);
+                });
+                if (data.kind !== 'project') {
+                    dot.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        spuntaArretrato(data);
+                    });
+                }
+                return cell;
+            }
             if (data.project_id) {
                 tx.style.cursor = 'pointer';
                 tx.addEventListener('click', function (e) {
-                    e.stopPropagation();   // se no il tocco aprirebbe la sezione
+                    e.stopPropagation();   // il tocco non deve fare due cose per caso
                     prioProgetto(data);
+                    setPrioSlim(false);    // ma allargare la sezione sì, di proposito
                 });
             }
             return cell;
@@ -2554,6 +2729,19 @@ function prioCell(data, compatta) {
     cell.appendChild(dot);
     cell.appendChild(inp);
     if (data.auto) {
+        if (data.late) {
+            cell.classList.add('pl-late');
+            if (S.lateDone[data.kind + ':' + data.ref_id]) cell.classList.add('pl-done', 'pl-late-out');
+            inp.style.cursor = 'pointer';
+            inp.addEventListener('click', function () { apriArretrato(data); });
+            if (data.kind !== 'project') {
+                dot.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    spuntaArretrato(data);
+                });
+            }
+            return cell;
+        }
         /* Un campo di sola lettura non riceve il tocco come un tasto: si
            ascolta lo stesso e si apre il riassunto del progetto. È l'unico
            punto del planner in cui un progetto si affaccia, e fin qui si
@@ -4503,6 +4691,7 @@ function goToDate(date, smooth) {
 $('plScroller').addEventListener('scroll', function () {
     /* scorrendo, le priorità si stringono e ci restano: si riaprono solo
        toccandole. Prima si riaprivano da sole appena finito lo scroll. */
+    if (document.querySelector('.pl-ov.pl-open, .pl-wp-ov.pl-open')) return;   // c'è un popup aperto: non è l'utente che scorre la pagina
     setPrioSlim(true);
 }, { passive: true });
 
@@ -4510,6 +4699,13 @@ $('plScroller').addEventListener('scroll', function () {
 document.addEventListener('pointerdown', function (e) {
     if (S.prioSlim) return;
     if (e.target.closest('#plPrio')) return;
+    /* Un tocco dentro un popup non è «fuori». Quei popup li ha aperti la
+       sezione stessa — il riassunto di un progetto, il pannello delle
+       attività — e premere «Chiudi» richiudeva anche la fascia sotto: si
+       tornava a una riga sola senza averlo chiesto. Ora la sezione resta
+       aperta finché non si tocca davvero da un'altra parte. */
+    if (e.target.closest('.pl-ov, .pl-wp-ov, .pl-sheet, .pl-alert')) return;
+    if (document.querySelector('.pl-ov.pl-open, .pl-wp-ov.pl-open')) return;
     setPrioSlim(true);
 }, true);
 
@@ -5525,7 +5721,7 @@ function startEventDrag(e, node, canvas) {
                    più estremo: contro la mezzanotte il blocco non si muove
                    affatto e tornerebbe dov'era senza spiegazioni. */
                 if (r.moved === 0) toast('Il blocco non ci sta più in giornata.');
-                S.weekCache = {};
+                invalidaDati();
                 loadWeek(monday(date), true).then(renderDays);
                 scheduleSync();
             });
@@ -5560,7 +5756,7 @@ function startEventDrag(e, node, canvas) {
                    settimana: se il giorno nuovo cade in un'altra settimana quella
                    cache non è più vera e va rifatta. */
                 if (monday(curDate) !== monday(date)) {
-                    S.weekCache = {};
+                    invalidaDati();
                     loadWeek(monday(S.focusDate), true).then(renderDays);
                 }
             }
@@ -5920,6 +6116,21 @@ function openEventSheet(existing, seed) {
         repeat: 'none', repeat_interval: 1, repeat_unit: 'week', repeat_until: null
     };
     S.draft = { data: d, dirty: false, isNew: !existing };
+    /* Di quale ripetizione stiamo guardando: va fermata ADESSO, perché se
+       l'utente sposta l'evento a un altro giorno `d.date` cambia, e il
+       server non saprebbe più quale occorrenza della serie scavalcare. */
+    S.draft.occDate = existing ? (existing.occ_date || existing.date) : null;
+    /* L'id da mandare è quello del master: le occorrenze sono cloni calcolati
+       in lettura e non hanno una riga tutta loro. */
+    S.draft.masterId = existing ? (existing.master_id || existing.id) : 0;
+    // Fotografia della regola, per capire dopo se è stata cambiata
+    S.draft.origRepeat = existing ? {
+        repeat: existing.repeat || 'none',
+        repeat_interval: existing.repeat_interval || 1,
+        repeat_unit: existing.repeat_unit || 'week',
+        repeat_until: existing.repeat_until || ''
+    } : null;
+
     $('plEvKicker').textContent = existing ? 'Modifica' : 'Nuovo evento';
     $('plEvTrash').classList.toggle('pl-hidden', !existing);
     renderEventSheet();
@@ -6153,7 +6364,44 @@ function renderEventSheet() {
         fr.appendChild(rowSB('Intervallo', wrap));
     }
     if (d.repeat !== 'none') {
-        fr.appendChild(rowSB('Fino al', dateInput(d.repeat_until || '', function (v) { d.repeat_until = v; S.draft.dirty = true; })));
+        var untilWrap = el('div');
+        if (!d.repeat_until && !S.draft.editing_until) {
+            var infBtn = el('button', 'pl-pick');
+            infBtn.type = 'button';
+            infBtn.textContent = '∞ Infinito';
+            infBtn.addEventListener('click', function() {
+                S.draft.editing_until = true;
+                renderEventSheet();
+            });
+            untilWrap.appendChild(infBtn);
+        } else {
+            var dInp = el('input', 'pl-pick');
+            dInp.type = 'date';
+            dInp.value = d.repeat_until || '';
+            dInp.addEventListener('change', function() {
+                d.repeat_until = dInp.value;
+                S.draft.dirty = true;
+                S.draft.editing_until = false;
+                renderEventSheet();
+            });
+            dInp.addEventListener('blur', function() {
+                // Se l'utente clicca fuori e ha lasciato il campo vuoto, torna a infinito
+                if (!dInp.value) {
+                    S.draft.editing_until = false;
+                    renderEventSheet();
+                }
+            });
+            untilWrap.appendChild(dInp);
+            
+            // Auto-focus e apertura del calendario nativo se è stato appena cliccato
+            if (S.draft.editing_until) {
+                setTimeout(function() { 
+                    dInp.focus(); 
+                    try { dInp.showPicker(); } catch(e) {} 
+                }, 50);
+            }
+        }
+        fr.appendChild(rowSB('Fino al', untilWrap));
     }
     body.appendChild(fr);
 
@@ -6924,10 +7172,37 @@ document.addEventListener('projectselected', function (e) {
 });
 
 /* salvataggio, annullamento, chiusura toccando fuori */
+/* I campi che, cambiati sul master, cambiano per tutte le sue occorrenze.
+   `date` non c'è dentro apposta: spostare la serie di giorno vuol dire
+   ricalcolare quali occorrenze esistono, e quello lo sa fare solo il server. */
+var CAMPI_SERIE = ['title', 'notes', 'location', 'start', 'end', 'all_day', 'importance',
+    'color', 'type', 'category_id', 'project_id', 'habit_id', 'calendar_id',
+    'notify', 'notify_min', 'repeat', 'repeat_interval', 'repeat_unit', 'repeat_until',
+    'place_name', 'place_lat', 'place_lon', 'place_ref', 'duration_locked'];
+
+/* Riscrive subito in memoria tutte le occorrenze di una serie.
+   Le occorrenze sono cloni calcolati dal server: finché non si torna a
+   chiederli, quelli in memoria continuano a dire il titolo vecchio. Aspettare
+   il giro di rete è la differenza fra «ha funzionato» e «non ha funzionato» —
+   e riaprendo il popup prima della risposta si rileggeva il dato vecchio. */
+function patchSerieLocale(ev) {
+    if (!ev) return;
+    var master = ev.master_id || ev.id;
+    Object.keys(S.events).forEach(function (g) {
+        (S.events[g] || []).forEach(function (x) {
+            if ((x.master_id || x.id) !== master) return;
+            CAMPI_SERIE.forEach(function (k) {
+                if (ev[k] !== undefined) x[k] = ev[k];
+            });
+        });
+    });
+}
+
 function saveEvent() {
     var d = S.draft.data;
+    var occDate = S.draft.occDate;            // quale ripetizione era aperta
     var payload = {
-        id: d.id, title: d.title, notes: d.notes, date: d.date, start: d.start, end: d.end,
+        id: S.draft.masterId || d.id, title: d.title, notes: d.notes, date: d.date, start: d.start, end: d.end,
         all_day: d.all_day, category_id: d.category_id || 0, project_id: d.project_id || 0,
         habit_id: d.habit_id || 0, importance: d.importance, color: d.color || '',
         type: d.type, notify: d.notify, notify_min: d.notify_min,
@@ -6935,45 +7210,117 @@ function saveEvent() {
         repeat_until: d.repeat_until || '',
         location: d.location || '', guests: d.guests || [],
         place_name: d.place_name || '',
-        /* stringa vuota e non 0: 0 è una latitudine valida, e il server deve
-           poter distinguere "nessuna coordinata" da "coordinata zero" */
         place_lat: (d.place_lat === 0 || d.place_lat) ? d.place_lat : '',
         place_lon: (d.place_lon === 0 || d.place_lon) ? d.place_lon : '',
         place_ref: d.place_ref || '',
         duration_locked: d.duration_locked ? 1 : 0,
         calendar_id: d.calendar_id || 0
     };
-    closeOv('plEventOv');
-    S.draft = null;
-    return api('event_save', payload).then(function (r) {
-        if (!r.ok) { toast(r.message || 'Non è stato possibile salvare.'); return; }
-        indexEvents([r.event]);
-        if (payload.repeat !== 'none') { S.weekCache = {}; loadWeek(monday(S.focusDate), true); }
-        renderDays();
-        /* Un task è anche un'attività: il server gli ha appena creato (o
-           aggiornato) la sua riga negli elenchi, quindi la copia che il
-           pannello tiene in memoria è vecchia di un istante. */
-        if (r.event && r.event.type === 'task' && S.todos) loadWeekTodos(S.todoTab, true);
-        haptic(10);
-        scheduleSync();
-    });
+
+    /* La data d'origine viaggia sempre, non solo con "solo questo": serve
+       anche a "tutta la serie" per capire di quanto è stato spostato
+       l'evento rispetto al giorno che l'utente aveva aperto. */
+    if (occDate) payload.original_date = occDate;
+
+    /* Cambio di regola: qui non c'è niente da chiedere. Chiedere "solo questo
+       o tutta la serie" dopo che si è passati da ogni giorno a ogni settimana
+       è un controsenso — una regola nuova riguarda per forza tutta la serie,
+       e "solo questo" produrrebbe un'eccezione che non si ripete, cioè
+       esattamente il contrario di quello che l'utente ha chiesto. */
+    var regolaCambiata = false;
+    if (S.draft.origRepeat) {
+        var o = S.draft.origRepeat;
+        regolaCambiata =
+            (d.repeat || 'none') !== o.repeat ||
+            (d.repeat_interval || 1) !== o.repeat_interval ||
+            (d.repeat_unit || 'week') !== o.repeat_unit ||
+            (d.repeat_until || '') !== o.repeat_until;
+    }
+
+    function eseguiSalvataggio(dati) {
+        closeOv('plEventOv');
+        var eraRipetuto = (dati.repeat && dati.repeat !== 'none') || !!dati.edit_mode;
+        S.draft = null;
+        return api('event_save', dati).then(function (r) {
+            if (!r.ok) { toast(r.message || 'Non è stato possibile salvare.'); return; }
+            if (eraRipetuto) {
+                if (dati.edit_mode === 'one' && dati.original_date) {
+                    /* Quella data adesso ha una riga vera: il clone virtuale
+                       del master va tolto, se no quel giorno si vedono in due. */
+                    S.events[dati.original_date] = (S.events[dati.original_date] || []).filter(function (x) {
+                        return !(x.is_occurrence && (x.master_id || x.id) === dati.id);
+                    });
+                    indexEvents([r.event]);
+                } else {
+                    patchSerieLocale(r.event);
+                }
+                renderDays();
+                if (S.view === 'month') renderMonthGrid();
+                /* Poi si rilegge davvero: toccare una regola può far comparire
+                   o sparire giorni che non sono sullo schermo, e quello la
+                   riscrittura in memoria non può indovinarlo. */
+                ricaricaVista();
+            } else {
+                indexEvents([r.event]);
+                renderDays();
+            }
+            if (r.event && r.event.type === 'task' && S.todos) loadWeekTodos(S.todoTab, true);
+            haptic(10);
+            scheduleSync();
+        });
+    }
+
+    // si chiede solo quando c'è davvero una scelta: stessa regola, dato diverso
+    if (payload.id > 0 && d.repeat && d.repeat !== 'none' && !regolaCambiata && occDate) {
+        alertBox('Modifica evento ripetuto', 'Vuoi modificare solo questa data o l\'intera serie?', [
+            { label: 'Annulla' },
+            { label: 'Tutta la serie', onClick: function () {
+                payload.edit_mode = 'all';
+                eseguiSalvataggio(payload);
+            } },
+            { label: 'Solo questo', kind: 'primary', onClick: function () {
+                payload.edit_mode = 'one';
+                eseguiSalvataggio(payload);
+            } }
+        ]);
+        return;
+    }
+
+    if (payload.id > 0 && regolaCambiata) payload.edit_mode = 'all';
+    eseguiSalvataggio(payload);
 }
 /* chiede conferma prima di eliminare: un tocco sbagliato sul cestino non
    deve far sparire un evento senza appello */
 function confirmDeleteEvent(d) {
+    if (d.repeat && d.repeat !== 'none') {
+        alertBox('Elimina evento', 'Vuoi eliminare solo questa data o l\'intera serie?', [
+            { label: 'Annulla' },
+            { label: 'Tutta la serie', kind: 'danger', onClick: function() { deleteEvent(d, 'series'); } },
+            { label: 'Solo questo', kind: 'danger', onClick: function() { deleteEvent(d, 'one'); } }
+        ]);
+        return;
+    }
     alertBox('Elimino questo evento?', (d.title ? '"' + d.title + '" ' : '') + 'verrà rimosso dal planner.', [
         { label: 'Annulla' },
-        { label: 'Elimina', kind: 'danger', onClick: function () { deleteEvent(d); } }
+        { label: 'Elimina', kind: 'danger', onClick: function () { deleteEvent(d, 'one'); } }
     ]);
 }
 
-function deleteEvent(d) {
+function deleteEvent(d, scopeParam) {
+    var occDate = (S.draft && S.draft.occDate) || d.occ_date || d.date;
+    var masterId = (S.draft && S.draft.masterId) || d.master_id || d.id;
+    var eraRipetuto = (d.repeat && d.repeat !== 'none') || scopeParam === 'series';
     closeOv('plEventOv');
     S.draft = null;
-    api('event_delete', { id: d.id, scope: 'one' }).then(function (r) {
+    api('event_delete', { id: masterId, scope: scopeParam || 'one', original_date: occDate }).then(function (r) {
         if (!r.ok) { toast('Non è stato possibile eliminare.'); return; }
-        S.events[d.date] = (S.events[d.date] || []).filter(function (x) { return x.id !== d.id; });
-        renderDays();
+        if (eraRipetuto) {
+            ricaricaVista();
+        } else {
+            S.events[d.date] = (S.events[d.date] || []).filter(function (x) { return x.id !== d.id; });
+            invalidaDati();
+            loadWeek(monday(S.focusDate), true).then(renderDays);
+        }
         scheduleSync();
     });
 }
@@ -7305,7 +7652,7 @@ $('plShiftSave').addEventListener('click', function () {
             if (!r.ok) { libera(); toast(r.message || 'Spostamento non riuscito.'); return; }
             setShift(false);
             libera();
-            S.weekCache = {};
+            invalidaDati();
             loadWeek(monday(S.focusDate), true);
             toast(r.moved + (r.moved === 1 ? ' evento spostato' : ' eventi spostati'));
         });
@@ -7326,7 +7673,7 @@ $('plFabDiary').addEventListener('click', function () {
 
 /* quando il diario cambia, i tag della vista mese si aggiornano */
 document.addEventListener('diaryupdated', function () {
-    S.weekCache = {};
+    invalidaDati();
     loadWeek(monday(S.focusDate), true).then(function () { if (S.view === 'month') renderMonth(); });
 });
 
@@ -7620,7 +7967,7 @@ function calendarRow(c) {
     var inner = el('div', 'pl-srow-in');
 
     var sw = el('span', 'pl-cal-dot' + (c.visible ? ' pl-on' : ''));
-    sw.style.setProperty('--ev', c.color);
+    sw.style.setProperty('--ev', c.color || '#B7AEA3'); // FIX checkbox invisibile
     sw.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
     sw.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -7635,7 +7982,22 @@ function calendarRow(c) {
 
     var txt = el('div');
     txt.style.flex = '1';
-    txt.appendChild(el('div', 'pl-row-lab', c.name));
+    
+    // Riga dedicata a Nome del calendario + Bottone delle Regole
+    var tRow = el('div', 'pl-row-sb');
+    tRow.style.padding = '0'; tRow.style.borderBottom = 'none';
+    tRow.appendChild(el('div', 'pl-row-lab', c.name));
+    
+    var rulesBtn = el('button', 'pl-icon-btn');
+    rulesBtn.type = 'button';
+    rulesBtn.style.width = '24px'; rulesBtn.style.height = '24px'; rulesBtn.style.background = 'none'; rulesBtn.style.boxShadow = 'none';
+    rulesBtn.setAttribute('aria-label', 'Regole speciali');
+    rulesBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>';
+    rulesBtn.addEventListener('click', function(e) { e.stopPropagation(); openCalendarRules(c); });
+    tRow.appendChild(rulesBtn);
+    
+    txt.appendChild(tRow);
+
     var note = [];
     if (c.is_default) note.push('predefinito');
     if (c.from_google) note.push('da Google');
@@ -7671,7 +8033,7 @@ function calendarRow(c) {
                 api('calendar_delete', { id: c.id }).then(function (r) {
                     if (!r.ok) { toast(r.message || 'Non eliminato.'); return; }
                     S.calendars = r.calendars;
-                    S.weekCache = {};
+                    invalidaDati();
                     loadWeek(monday(S.focusDate), true);
                     closeOv('plSheetOv');
                 });
@@ -7729,6 +8091,84 @@ function editCalendar(c) {
             });
         });
         acts.appendChild(no); acts.appendChild(yes);
+        body.appendChild(acts);
+    });
+}
+
+function openCalendarRules(c) {
+    openSheet('Regole: ' + c.name, function(body) {
+        var f1 = el('div', 'pl-field');
+        f1.appendChild(el('label', 'pl-label', 'Auto-assegnazione'));
+        f1.appendChild(el('div', 'pl-row-sub', 'Se il titolo contiene una di queste parole (es. "compleanno, bday"), finirà automaticamente in questo calendario.'));
+        var kwIn = el('input', 'pl-in');
+        kwIn.type = 'text'; kwIn.value = c.keywords || ''; kwIn.placeholder = 'Parole separate da virgola';
+        kwIn.style.marginTop = '6px';
+        f1.appendChild(kwIn);
+        body.appendChild(f1);
+        
+        var f2 = el('div', 'pl-field');
+        f2.style.marginTop = '20px';
+        f2.appendChild(el('label', 'pl-label', 'Proprietà di Default'));
+        f2.appendChild(el('div', 'pl-row-sub', 'I nuovi eventi in questo calendario si compileranno da soli con queste impostazioni:'));
+        
+        var repSel = select([
+            ['none', 'Nessuna'], ['daily', 'Ogni giorno'], ['weekly', 'Ogni settimana'],
+            ['monthly', 'Ogni mese'], ['yearly', 'Ogni anno']
+        ], c.def_repeat || 'none', function() {});
+        repSel.style.maxWidth = '55%';
+        f2.appendChild(rowSB('Ripetizione', repSel));
+        
+        var notSel = select([
+            ['none', 'Nessuna'], ['at_time', 'Nel momento'], ['m30', '30 minuti prima'],
+            ['h1', "Un'ora prima"], ['d1', 'Un giorno prima']
+        ], c.def_notify || 'none', function() {});
+        notSel.style.maxWidth = '55%';
+        f2.appendChild(rowSB('Notifica', notSel));
+        body.appendChild(f2);
+        
+        var f3 = el('div', 'pl-field');
+        f3.style.marginTop = '20px';
+        var retroLabel = el('label', 'pl-row');
+        var retroCheck = el('input');
+        retroCheck.type = 'checkbox';
+        retroCheck.style.width = '18px'; retroCheck.style.height = '18px';
+        retroLabel.appendChild(retroCheck);
+        var spanLab = el('span', null, 'Applica retroattivamente agli eventi già esistenti');
+        spanLab.style.fontSize = '14px'; spanLab.style.color = 'var(--ink)';
+        retroLabel.appendChild(spanLab);
+        f3.appendChild(retroLabel);
+        body.appendChild(f3);
+        
+        var acts = el('div', 'pl-alert-acts');
+        acts.style.marginTop = '20px';
+        var cancel = el('button', 'pl-btn', 'Annulla');
+        cancel.type = 'button';
+        cancel.addEventListener('click', function() { closeOv('plSheetOv'); });
+        var save = el('button', 'pl-btn pl-btn-primary', 'Salva regole');
+        save.type = 'button';
+        save.addEventListener('click', function() {
+            save.disabled = true;
+            save.textContent = 'Salvataggio...';
+            api('calendar_rules_save', {
+                id: c.id,
+                keywords: kwIn.value.trim(),
+                def_repeat: repSel.value,
+                def_notify: notSel.value,
+                apply_retro: retroCheck.checked
+            }).then(function(r) {
+                save.disabled = false;
+                save.textContent = 'Salva regole';
+                if (!r.ok) { toast('Errore nel salvataggio'); return; }
+                S.calendars = r.calendars;
+                closeOv('plSheetOv');
+                toast('Regole speciali salvate.');
+                if (retroCheck.checked) {
+                    invalidaDati();
+                    loadWeek(monday(S.focusDate), true);
+                }
+            });
+        });
+        acts.appendChild(cancel); acts.appendChild(save);
         body.appendChild(acts);
     });
 }
@@ -8099,44 +8539,12 @@ function drawGoogle(box) {
                 : '')
             + 'Si allinea da ' + st.window.back + ' giorni prima a ' + st.window.forward + ' giorni dopo oggi, da solo a ogni modifica.'));
 
-        /* Cosa mandare, e dove. Il calendario principale ha la precedenza:
-           se scegli di mandare là gli importanti, quelli non vanno nel
-           dedicato ma solo nel principale. */
-        var modes = st.modes || { dedicated: 'all', primary: 'none' };
-
-        var f1 = el('div', 'pl-field');
-        f1.style.marginTop = '16px';
-        f1.appendChild(el('label', 'pl-label', 'Nel calendario dedicato'));
-        f1.appendChild(select([
-            ['all', 'Tutti gli eventi'],
-            ['high', 'Solo importanti e importantissimi'],
-            ['highest', 'Solo importantissimi'],
-            ['none', 'Nessuno']
-        ], modes.dedicated, function (v) {
-            S.settings.gc_dedicated = v;
-            api('settings_save', { gc_dedicated: v }).then(function () {
-                toast('Scelta salvata. Si allinea al prossimo giro.');
-                drawGoogle(box);
-            });
-        }));
-        box.appendChild(f1);
-
-        var f2 = el('div', 'pl-field');
-        f2.appendChild(el('label', 'pl-label', 'Nel calendario principale di Google'));
-        f2.appendChild(select([
-            ['none', 'Nessuno'],
-            ['high', 'Importanti e importantissimi'],
-            ['highest', 'Solo importantissimi']
-        ], modes.primary, function (v) {
-            S.settings.gc_primary = v;
-            api('settings_save', { gc_primary: v }).then(function () {
-                toast('Scelta salvata. Si allinea al prossimo giro.');
-                drawGoogle(box);
-            });
-        }));
-        f2.appendChild(el('div', 'pl-row-sub',
-            'Quello che mandi qui non finisce nel dedicato: sta solo nel principale.'));
-        box.appendChild(f2);
+        /* Le due tendine «nel calendario dedicato» e «nel calendario
+           principale» non ci sono più: decidevano solo *se* mandare qualcosa,
+           e poi bisognava comunque scendere sotto per dire *dove*. Ora la
+           destinazione si sceglie in un posto solo, qui sotto, e importanti e
+           importantissimi stanno nello stesso elenco come fossero calendari
+           loro. */
 
         /* i due elenchi dei calendari, che si caricano da soli */
         var ponte = el('div', 'pl-gc-ponte');
@@ -8200,11 +8608,16 @@ function drawCalendarBridge(host) {
             return;
         }
         var miei = r.mine || [];
+        var livelli = r.levels || { high: '', highest: '' };
+        /* Aprire una sezione richiude l'altra: sono due elenchi lunghi e
+           averli tutti e due spiegati costringeva a scorrere il popup per
+           arrivare agli attrezzi che stanno in fondo. */
+        var sez1, sez2;
 
         /* --- da Google a qui --- */
-        var s1 = el('div', 'pl-field');
-        s1.style.marginTop = '20px';
-        s1.appendChild(el('label', 'pl-label', 'Dai calendari di Google'));
+        sez1 = sezionePieghevole('Dai calendari di Google', (r.google || []).length);
+        sez1.field.style.marginTop = '20px';
+        var s1 = sez1.corpo;
         s1.appendChild(el('div', 'pl-row-sub',
             'Per ognuno, in quale dei tuoi calendari far entrare i suoi eventi. '
             + 'Scegliendo «nessuno» quegli eventi non entrano — e se ce n\'erano già, se ne vanno.'));
@@ -8249,16 +8662,18 @@ function drawCalendarBridge(host) {
             }));
             s1.appendChild(riga);
         });
-        host.appendChild(s1);
+        host.appendChild(sez1.field);
 
         /* --- da qui a Google --- */
-        var s2 = el('div', 'pl-field');
-        s2.appendChild(el('label', 'pl-label', 'Dai tuoi calendari a Google'));
+        sez2 = sezionePieghevole('Dai tuoi calendari a Google', miei.length + 2);
+        var s2 = sez2.corpo;
         s2.appendChild(el('div', 'pl-row-sub',
             'Dove finiscono su Google gli eventi che scrivi qui. '
-            + 'Lasciando «come impostato sopra» valgono le scelte per importanza.'));
+            + 'Importanti e importantissimi hanno la precedenza sul calendario in cui stanno.'));
 
-        var refs = [['', 'Come impostato sopra']];
+        /* «No» invece di «come impostato sopra»: sopra non c'è più niente da
+           cui ereditare, quindi la voce vuota vuol dire quello che dice. */
+        var refs = [['', 'No']];
         /* i calendari di sola lettura non compaiono: Google rifiuta sempre chi
            prova a scriverci, e una scelta che fallirà comunque è peggio che
            una scelta in meno */
@@ -8266,26 +8681,59 @@ function drawCalendarBridge(host) {
             if (g.can_write) refs.push([g.ref, g.name || g.ref]);
         });
 
-        miei.forEach(function (m) {
+        function rigaDestinazione(nome, colore, valore, onScelta, tag) {
             var riga = el('div', 'pl-gc-riga');
             var testa = el('div', 'pl-gc-nome');
             var p2 = el('span', 'pl-gc-dot');
             /* il principale non ha colore: si mostra un cerchietto vuoto
                invece di inventargliene uno */
-            if (m.color) p2.style.background = m.color;
+            if (colore) p2.style.background = colore;
             else p2.classList.add('pl-gc-dot-vuoto');
             testa.appendChild(p2);
-            testa.appendChild(el('span', null, m.name));
+            testa.appendChild(el('span', null, nome));
+            if (tag) testa.appendChild(el('span', 'pl-gc-tag', tag));
             riga.appendChild(testa);
-            riga.appendChild(select(refs, m.push_ref || '', function (v) {
-                gcall('push_set', true, { calendar_id: m.id, ref: v }).then(function (rr) {
-                    if (!rr || !rr.ok) { toast((rr && rr.message) || 'Scelta non salvata.'); return; }
-                    toast('Scelta salvata. Si allinea al prossimo giro.');
-                });
+            riga.appendChild(select(refs, valore || '', onScelta));
+            return riga;
+        }
+
+        function salvaPush(dati) {
+            gcall('push_set', true, dati).then(function (rr) {
+                if (!rr || !rr.ok) { toast((rr && rr.message) || 'Scelta non salvata.'); return; }
+                toast('Scelta salvata. Si allinea al prossimo giro.');
+            });
+        }
+
+        /* L'ordine conta: prima il principale, poi i due livelli di
+           importanza, poi gli altri calendari. Importanti e importantissimi
+           non sono calendari veri, ma qui si scelgono allo stesso modo — e
+           stando in alto si vede subito che scavalcano quelli sotto. */
+        var predefinito = miei.filter(function (m) { return m.is_default; });
+        var altri = miei.filter(function (m) { return !m.is_default; });
+
+        predefinito.forEach(function (m) {
+            s2.appendChild(rigaDestinazione(m.name, m.color, m.push_ref, function (v) {
+                salvaPush({ calendar_id: m.id, ref: v });
             }));
-            s2.appendChild(riga);
         });
-        host.appendChild(s2);
+
+        s2.appendChild(rigaDestinazione('Importanti', 'var(--imp-high, #E0B75E)', livelli.high, function (v) {
+            salvaPush({ level: 'high', ref: v });
+        }, 'importanza'));
+        s2.appendChild(rigaDestinazione('Importantissimi', 'var(--imp-highest, #D08A72)', livelli.highest, function (v) {
+            salvaPush({ level: 'highest', ref: v });
+        }, 'importanza'));
+
+        altri.forEach(function (m) {
+            s2.appendChild(rigaDestinazione(m.name, m.color, m.push_ref, function (v) {
+                salvaPush({ calendar_id: m.id, ref: v });
+            }));
+        });
+        host.appendChild(sez2.field);
+
+        // una sola aperta per volta
+        sez1.field.querySelector('.pl-fold-head').addEventListener('click', function () { sez2.apri(false); });
+        sez2.field.querySelector('.pl-fold-head').addEventListener('click', function () { sez1.apri(false); });
     });
 }
 
@@ -8297,7 +8745,7 @@ function mapSet(g, dest, host) {
         else toast('Scelta salvata.');
         /* la lettura riparte da capo per quel calendario, quindi conviene
            allineare subito invece di far aspettare il giro automatico */
-        S.weekCache = {};
+        invalidaDati();
         runSync(true).then(function () { drawCalendarBridge(host); });
     });
 }
@@ -8339,7 +8787,7 @@ function runSync(quiet) {
             else toast(arrived + ' novità da Google · ' + sent + ' mandati');
             if (r.failed) toast(r.failed + ' eventi non sono stati accettati da Google.');
         }
-        S.weekCache = {};
+        invalidaDati();
         loadWeek(monday(S.focusDate), true).then(function () { if (S.view === 'month') renderMonth(); });
         return r;
     });
@@ -8439,10 +8887,16 @@ function renderWeek() {
     var inizio = addDays(S.focusDate, -WK_PRIMA);
     WK.inizio = inizio;
 
-    /* La finestra copre più settimane di quella caricata. Si guarda quali
-       mancano davvero e si chiedono solo quelle: al ritorno si ridisegna una
-       volta sola, e siccome al secondo giro non ne manca più nessuna il giro
-       si ferma da sé invece di rincorrersi. */
+    /* La finestra copre più settimane di quella caricata. Si chiede in un
+       colpo solo il pezzo che manca davvero e al ritorno si ridisegna una
+       volta sola; siccome al secondo giro non manca più niente, il giro si
+       ferma da sé invece di rincorrersi. Le righe di settimana servono
+       comunque una per una, e quelle restano a carico di loadWeek. */
+    if (spanMancante(inizio, addDays(inizio, WK_GIORNI - 1))) {
+        loadRange(inizio, addDays(inizio, WK_GIORNI - 1)).then(function () {
+            if (S.view === 'week') renderWeek();
+        });
+    }
     var viste = {}, mancanti = [];
     for (var d = 0; d < WK_GIORNI; d += 1) {
         var m = monday(addDays(inizio, d));
@@ -8966,6 +9420,64 @@ function wkSegnaScelto() {
     window.addEventListener('resize', chiudi);
 })();
 
+/* Il lunedì da cui parte la griglia di 42 caselle del mese a fuoco. */
+function monthGridStart() {
+    var c = parseIso(S.monthCursor);
+    return monday(iso(new Date(c.getFullYear(), c.getMonth(), 1)));
+}
+
+/* Il mese si disegna subito con quello che c'è in memoria e non aspetta la
+   rete: saltare all'anno dopo deve restare istantaneo anche a griglia vuota.
+   In parallelo parte UNA richiesta per i 42 giorni mostrati; quando torna, si
+   ridisegnano le caselle. Il contrassegno serve perché se nel frattempo
+   l'utente è già andato tre mesi più avanti, la risposta vecchia non deve
+   riportarlo indietro né ridisegnare sopra il mese nuovo. */
+function ensureMonth(force) {
+    var start = monthGridStart();
+    var to = addDays(start, 41);
+    if (!force && !spanMancante(start, to)) return Promise.resolve();
+
+    var mio = ++S.monthReq;
+    var atteso = S.monthCursor;
+    var grid = $('plMonthGrid');
+    if (grid) grid.classList.add('pl-mloading');
+
+    return loadRange(start, to, force).then(function () {
+        if (mio !== S.monthReq) return;               // ne è partita una più recente
+        if (grid) grid.classList.remove('pl-mloading');
+        if (S.view !== 'month' || S.monthCursor !== atteso) return;
+        renderMonthGrid();
+        /* I mesi accanto si scaricano dopo, in coda: costano una richiesta
+           ciascuno e rendono immediato lo scorrimento avanti e indietro. */
+        var prima = addDays(start, -42), dopo = addDays(to, 1);
+        if (spanMancante(prima, addDays(start, -1))) loadRange(prima, addDays(start, -1));
+        if (spanMancante(dopo, addDays(dopo, 41))) loadRange(dopo, addDays(dopo, 41));
+    });
+}
+
+/* Solo le 42 caselle: la barra dei mesi e il titolo restano dove sono, così
+   un ridisegno dopo la risposta non fa saltare lo scorrimento della barra. */
+function renderMonthGrid() {
+    var grid = $('plMonthGrid');
+    if (!grid) return;
+    var cursor = parseIso(S.monthCursor);
+    var start = monthGridStart();
+
+    grid.innerHTML = '';
+    var wd = el('div', 'pl-mwd');
+    GIORNI_S.forEach(function (g) { wd.appendChild(el('span', null, g)); });
+    grid.appendChild(wd);
+
+    for (var r = 0; r < 6; r++) {
+        var row = el('div', 'pl-mrow');
+        for (var c = 0; c < 7; c++) {
+            var ds = addDays(start, r * 7 + c);
+            row.appendChild(monthCell(ds, parseIso(ds).getMonth() === cursor.getMonth()));
+        }
+        grid.appendChild(row);
+    }
+}
+
 function renderMonth() {
     var cursor = parseIso(S.monthCursor);
     var bar = $('plMonthsBar');
@@ -8994,27 +9506,8 @@ function renderMonth() {
     $('plMonthYear').textContent = cursor.getFullYear();
     applyAmbient();
 
-    var grid = $('plMonthGrid');
-    grid.innerHTML = '';
-    var wd = el('div', 'pl-mwd');
-    GIORNI_S.forEach(function (g) { wd.appendChild(el('span', null, g)); });
-    grid.appendChild(wd);
-
-    var start = monday(iso(new Date(cursor.getFullYear(), cursor.getMonth(), 1)));
-    var need = [];
-    for (var i = 0; i < 42; i++) need.push(addDays(start, i));
-    var missing = {};
-    need.forEach(function (d) { if (!S.events[d]) missing[monday(d)] = true; });
-    Object.keys(missing).forEach(function (w) { loadWeek(w); });
-
-    for (var r = 0; r < 6; r++) {
-        var row = el('div', 'pl-mrow');
-        for (var c = 0; c < 7; c++) {
-            var ds = addDays(start, r * 7 + c);
-            row.appendChild(monthCell(ds, parseIso(ds).getMonth() === cursor.getMonth()));
-        }
-        grid.appendChild(row);
-    }
+    renderMonthGrid();   // prima si mostra, poi si cerca
+    ensureMonth();
 }
 
 function monthCell(date, inMonth) {
@@ -9144,13 +9637,22 @@ function openMonthAgenda(fromDate) {
     body.scrollTop = 0;
 
     /* trenta giorni in avanti: quanto basta per farsi un'idea senza
-       trascinare in memoria mesi interi */
-    var giorni = 30, trovati = 0, mancanti = {};
-    for (var i = 0; i < giorni; i++) {
-        var ds = addDays(fromDate, i);
-        if (!S.events[ds]) mancanti[monday(ds)] = true;
+       trascinare in memoria mesi interi. Una richiesta sola per tutti,
+       invece di una per settimana: le occorrenze dei ripetuti nascono in
+       lettura e chiedere a pezzi le faceva comparire a scaglioni. */
+    var giorni = 30, trovati = 0;
+    if (spanMancante(fromDate, addDays(fromDate, giorni - 1))) {
+        loadRange(fromDate, addDays(fromDate, giorni - 1)).then(function (r) {
+            if (!r) return;
+            // solo se l'agenda è ancora aperta sullo stesso giorno
+            var b = $('plMonthAgenda');
+            if (b && b.classList.contains('pl-open') && S.agendaFrom === fromDate) {
+                var y = $('plMagendaBody').scrollTop;
+                openMonthAgenda(fromDate);
+                $('plMagendaBody').scrollTop = y;
+            }
+        });
     }
-    Object.keys(mancanti).forEach(function (w) { loadWeek(w); });
 
     for (var k = 0; k < giorni; k++) {
         var d2 = addDays(fromDate, k);
@@ -9823,11 +10325,11 @@ document.addEventListener('visibilitychange', function () {
     if (document.visibilityState !== 'visible') return;
     S.habits = {};
     S.rings = {};              // tornando da habits le spunte possono essere cambiate
-    S.weekCache = {};
+    invalidaDati();
     loadWeek(monday(S.focusDate), true).then(renderRing);
 });
 
 boot();
-window.PL = { state: S, api: api, reload: function () { S.weekCache = {}; loadWeek(monday(S.focusDate), true); }, toast: toast };
+window.PL = { state: S, api: api, reload: function () { invalidaDati(); loadWeek(monday(S.focusDate), true); }, toast: toast };
 
 })();

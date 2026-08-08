@@ -2394,3 +2394,27 @@ textarea.pl-in.pl-note{ min-height:200px; }
     .pl-wxa-cloud, .pl-wxa-fog, .pl-wxa-flash{ display:none; }
     .pl-tree{ animation:none; } .pl-animal-cammina, .pl-animal-vola{ animation:none; }
 }
+/* --- priorità arretrate ---------------------------------------------
+   Quello che è scaduto e nessuno ha spuntato. Il rosso è sul bordo e sul
+   testo, non sul fondo: una casella piena di rosso accanto alle altre
+   sposterebbe l'occhio su di sé e basta, e queste stanno in mezzo a cose
+   che vanno lette insieme. */
+.pl-prio-cell.pl-late{
+    box-shadow:inset 0 0 0 1px var(--pl-late, #C0574C);
+    background:color-mix(in srgb, var(--pl-late, #C0574C) 7%, var(--card));
+}
+.pl-prio-cell.pl-late .pl-prio-in,
+.pl-prio-cell.pl-late .pl-prio-tx{ color:var(--pl-late, #C0574C); }
+.pl-prio-cell.pl-late .pl-prio-dot{ border-color:var(--pl-late, #C0574C); }
+
+/* Spuntata: si sbarra e sbiadisce, e se ne va da sola dopo qualche secondo.
+   Sparire nell'istante del tocco toglie la conferma che il tocco sia
+   arrivato, e su un elenco che si accorcia sotto il dito il tocco successivo
+   finisce sulla riga sbagliata. */
+.pl-prio-cell.pl-late-out{
+    text-decoration:line-through;
+    opacity:.45;
+    transition:opacity 1.6s var(--ease);
+}
+.pl-prio-cell.pl-late-out .pl-prio-in,
+.pl-prio-cell.pl-late-out .pl-prio-tx{ text-decoration:line-through; }
