@@ -41,7 +41,14 @@ var S = {
     monthCursor: null,
     defaultCat:  null,
     hiddenCats:  {},
-    prioSlim:    false,
+    /* Chiuse all'apertura della pagina, non aperte: appena caricata quello che
+       serve è vedere la giornata, e due sezioni spiegate mangiano mezzo
+       schermo di orari prima ancora di aver guardato niente. Si aprono al
+       tocco. */
+    prioSlim:    true,
+    adSlim:      true,        // stessa cosa per la fascia di tutto il giorno
+    pillsDue:    B.pills_due || [],   // prese la cui ora è passata e nessuno ha risposto
+    pillsChiuse: {},          // chiuse con la x: tornano al prossimo caricamento
     weekCache:   {},          // 'lunedì' -> { week, lists }
     todos:       null,        // 'todo'|'buy'|'study' -> [voce], letto da todo_api.php
     todoTab:     'todo',      // linguetta aperta nel pannello settimana
@@ -162,10 +169,21 @@ function isAgenda() { return S.zoom === 'agenda'; }
    serve solo quando cambia lo scatto, cioè tre o quattro volte per gesto. */
 function applicaDensita(pxm) {
     S.pxm = pxm;
-    document.documentElement.style.setProperty('--pxm', pxm + 'px');
+    /* NON sulla radice.
+
+       Una proprietà personalizzata scritta su <html> invalida lo stile
+       dell'INTERO documento: il browser non sa chi la eredita, quindi
+       ricalcola tutto — barra in alto, pannelli, popup, griglia del mese,
+       quella della settimana. Sessanta volte al secondo su diecimila nodi.
+       Qui sotto invece la riga che contiene righello e colonne è l'unica
+       parte che ha bisogno del numero, e il resto della pagina non viene
+       nemmeno guardato. Il valore di scorta resta nel :root del CSS per il
+       primo disegno. */
+    var riga = document.querySelector('.pl-row');
+    if (riga) riga.style.setProperty('--pxm', pxm + 'px');
 }
 
-var densitaInAttesa = null, densitaRaf = 0;
+var densitaInAttesa = null, densitaRaf = 0, ultimoRidisegno = 0;
 
 /* Cambia la densità. Il lavoro vero è rimandato al fotogramma successivo:
    il dito manda molti più eventi di quanti schermi il telefono disegni, e
@@ -200,9 +218,24 @@ function setDensita(pxm, ancora) {
                ricostruire. La colonna a fuoco invece si rifà sempre, perché
                il compattamento dei blocchi piccoli dipende da quanto sono
                alti adesso, e quello nessuna variabile lo sa calcolare. */
-            aggiornaAltezzaCanvas();
-            if (d.cambiato) { renderGutter(); renderZoomDial(); }
-            renderDays(true);
+            if (d.cambiato) {
+                renderGutter();
+                renderZoomDial();
+                riallineaStriscia();
+            }
+
+            /* Il compattamento dei blocchi piccoli dipende da quanto sono
+               alti adesso, e quello nessuna variabile CSS lo sa calcolare:
+               va rifatto il DOM della colonna. Ma non sessanta volte al
+               secondo — ricostruire migliaia di nodi al secondo riempie la
+               memoria più in fretta di quanto il browser la liberi, ed è
+               questo che dopo un po' fa cadere la scheda. Otto volte al
+               secondo l'occhio non vede differenza e la memoria respira. */
+            var ora = Date.now();
+            if (d.cambiato || ora - ultimoRidisegno > 120) {
+                ultimoRidisegno = ora;
+                renderDays(true);
+            }
             if (d.ancora) scrollToMinuteAt(d.ancora.min, d.ancora.y);
         });
     }
@@ -211,13 +244,17 @@ function setDensita(pxm, ancora) {
 
 /* L'altezza della giornata segue la densità: è l'unica misura che non si può
    scrivere in `calc` perché serve anche allo scorrimento. */
+/* L'altezza della giornata la calcola il CSS da sola, con la stessa
+   variabile: `height: calc(var(--pxm) * 1440)`. Prima la riscriveva il JS su
+   ventidue elementi a ogni fotogramma, e ogni scrittura obbliga il browser a
+   rimisurare tutto prima della successiva. Resta qui solo per i casi in cui
+   qualcuno aveva messo un'altezza fissa a mano. */
 function aggiornaAltezzaCanvas() {
     if (isAgenda()) return;
-    var h = dayHeight() + 'px';
     var g = $('plGutter');
-    if (g) g.style.height = h;
+    if (g && g.style.height) g.style.height = '';
     var cs = document.querySelectorAll('.pl-canvas');
-    for (var i = 0; i < cs.length; i++) cs[i].style.height = h;
+    for (var i = 0; i < cs.length; i++) if (cs[i].style.height) cs[i].style.height = '';
 }
 
 /* elenchi sempre in ordine alfabetico: categorie, routine e preferiti */
@@ -428,6 +465,12 @@ function indexEvents(list, clearRange) {
 function indexPrio(map) {
     for (var k in map) if (map.hasOwnProperty(k)) S.prio[k] = map[k];
 }
+
+function indexPills(list) {
+    if (!list) return;
+    S.pillsDue = list;
+    renderAvvisi();
+}
 function eventsOf(date) {
     var list = (S.events[date] || []).filter(function (e) { return !evHidden(e); });
     list.sort(function (a, b) {
@@ -456,6 +499,7 @@ function loadWeek(weekStart, force) {
         if (!r.ok) return;
         indexEvents(r.events, { from: r.from, to: r.to });
         indexPrio(r.priorities || {});
+        indexPills(r.pills_due);
         for (var d in r.diary) if (r.diary.hasOwnProperty(d)) S.diary[d] = r.diary[d];
         S.weekCache[weekStart] = { week: r.week, lists: r.lists || [] };
         if (monday(S.focusDate) === weekStart) applyWeek(weekStart);
@@ -2841,7 +2885,7 @@ function renderGutter() {
     g.style.paddingTop = HEAD_H + 'px';
     if (isAgenda()) { g.style.height = '0px'; return; }
     var z = zoomCfg(S.zoom);
-    g.style.height = dayHeight() + 'px';
+    g.style.height = '';   // la calcola il CSS dalla densità
     var majorEvery = z.slot >= 60 ? 1 : (z.slot === 30 ? 2 : (z.slot === 15 ? 4 : 12));
     for (var m = 0; m <= 1440; m += z.slot) {
         if (m === 1440) break;
@@ -2979,7 +3023,58 @@ function renderWeekGutMeteo(date) {
 /* ------------------------------------------------------------------ */
 /* gli eventi di tutta la giornata stanno sopra alle priorità: così il
    righello degli orari resta allineato a tutte le colonne */
+/* I giri in corso, uno per contenitore: senza questa mappa un secondo giro
+   sullo stesso posto si sovrapporrebbe al primo e i due si darebbero il
+   cambio a caso. */
+var giriAllDay = [];
+
+function fermaGiro(box) {
+    if (box) box.classList.remove('pl-ad-giro'); // Rimuove la modalità carosello
+    giriAllDay = giriAllDay.filter(function (g) {
+        if (g.box !== box) return true;
+        clearInterval(g.t);
+        return false;
+    });
+}
+
+function giroTuttoIlGiorno(box) {
+    fermaGiro(box);
+    var voci = Array.prototype.slice.call(box.children);
+    if (voci.length < 2) return;
+
+    box.classList.add('pl-ad-giro');
+    voci.forEach(function (v, k) { v.classList.toggle('pl-on', k === 0); });
+
+    var pal = el('div', 'pl-ad-pal');
+    voci.forEach(function (_, k) {
+        pal.appendChild(el('span', 'pl-ad-pallino' + (k ? '' : ' pl-on')));
+    });
+    /* A sinistra, prima della voce: si legge da lì in poi, e i pallini dicono
+       «di quanti» prima di dire «cosa», non dopo averlo già letto. */
+    box.insertBefore(pal, box.firstChild);
+
+    var i = 0;
+    var t = setInterval(function () {
+        /* Se il contenitore è stato buttato via da un ridisegno, il giro si
+           spegne da solo invece di restare acceso a vuoto per sempre. */
+        if (!box.isConnected) { fermaGiro(box); return; }
+        i = (i + 1) % voci.length;
+        voci.forEach(function (v, k) { v.classList.toggle('pl-on', k === i); });
+        for (var k = 0; k < pal.children.length; k++) {
+            pal.children[k].classList.toggle('pl-on', k === i);
+        }
+    }, 4000);
+    giriAllDay.push({ box: box, t: t });
+}
+
 function renderAllDay() {
+    /* I giri della volta scorsa muoiono qui: i contenitori vengono svuotati
+       poco sotto, e un cronometro che punta a nodi buttati resta acceso a
+       vuoto. È il modo in cui questi timer si moltiplicano senza che si
+       veda, finché la pagina non rallenta. */
+    giriAllDay.forEach(function (g) { clearInterval(g.t); });
+    giriAllDay = [];
+
     var row = $('plHeadRow'), track = $('plHeadTrack');
     if (!row || !track) return;
     var many = visibleDays() >= 2;
@@ -3002,13 +3097,41 @@ function renderAllDay() {
         
         var ds = cell.dataset.date;
         var isVis = (ds >= firstVisible && ds <= lastVisible);
-        
-        // Applica la classe per azzerare l'ingombro dei giorni fuori schermo
-        cell.classList.toggle('pl-hcol-hidden', !isVis);
+
+        /* I due giorni ai lati vanno riempiti anche se non sono a fuoco:
+           sono quelli che si vedono entrare mentre il dito sfoglia. Prima si
+           riempivano solo dopo, e la fascia del giorno in arrivo compariva
+           vuota per poi popolarsi a scorrimento finito — o restava lì vuota
+           quando il giorno nuovo non aveva niente. */
+        var isAccanto = (ds >= addDays(firstVisible, -1) && ds <= addDays(lastVisible, 1));
+
+        /* L'ingombro si azzera solo per i giorni davvero lontani: azzerarlo
+           anche ai vicini faceva saltare l'altezza della fascia a metà
+           scorrimento. */
+        cell.classList.toggle('pl-hcol-hidden', !isAccanto);
+        if (!isAccanto) continue;
         
         var list = eventsOf(ds).filter(function (e) { return e.all_day; });
         list.forEach(function (ev) { box.appendChild(buildEvent(ev, true)); });
         if (list.length && isVis) anyAllDay = true;
+
+        /* Uno per volta, a turno, come le priorità.
+
+           Prima ci stavano tutti incolonnati e la fascia cresceva a ogni
+           evento, rubando altezza agli orari e spostando tutto quello che
+           sta sotto. Così invece l'altezza è sempre quella di una riga: si
+           mostra il primo, ogni tanto passa al successivo, e i pallini di
+           fianco dicono quanti sono e a che punto siamo — se no il cambio
+           sembrerebbe un difetto invece che un giro. */
+        /* Da chiusa una voce per volta a turno; aperta, tutte incolonnate.
+           Come le priorità: si apre al tocco e si richiude toccando fuori. */
+        box.classList.toggle('pl-ad-aperta', !S.adSlim);
+        
+        // FIX: Attiviamo il carosello (giroTuttoIlGiorno) anche per i giorni "accanto".
+        // Se li escludessimo, i giorni adiacenti con più eventi si impilerebbero in verticale 
+        // di nascosto, allungando in modo anomalo l'intera riga per colpa del flex-stretch.
+        if (isAccanto && list.length > 1 && !many && S.adSlim) giroTuttoIlGiorno(box);
+        else fermaGiro(box);
     }
     /* La striscia resta solo se ha davvero qualcosa da mostrare: le etichette
        dei giorni (schermi larghi) o un evento di tutto il giorno qui davanti.
@@ -3116,23 +3239,36 @@ function renderDays(soloVisibile) {
    l'ultima voce. Se ci stanno tutte, non c'è niente da scorrere. */
 function adattaAltezzaLista() {
     var row = document.querySelector('.pl-row');
-    if (!row) return;
-    if (!isAgenda() || visibleDays() !== 1) {
-        row.style.height = '';
-        row.style.overflow = '';
-        return;
+    var tutte = document.querySelectorAll('.pl-col[data-date] .pl-canvas');
+    var i;
+
+    /* L'inline di prima va sempre via, anche quando non siamo in vista a
+       lista: se no resta appiccicato addosso al passaggio successivo. */
+    if (row) { row.style.height = ''; row.style.overflow = ''; }
+    for (i = 0; i < tutte.length; i++) { tutte[i].style.height = ''; tutte[i].style.overflow = ''; }
+
+    if (!isAgenda() || visibleDays() !== 1) return;
+
+    var mia = document.querySelector('.pl-col[data-date="' + S.focusDate + '"] .pl-canvas');
+    if (!mia) return;
+
+    /* Prima si tagliava la riga intera con `overflow: hidden`, e la riga
+       contiene ANCHE la colonna che si sta guardando: bastava che la misura
+       arrivasse un po' corta perché la cima della lista finisse fuori dal
+       taglio — i primi eventi spariti, la scritta «nessun evento» invisibile
+       e il colore del foglio troncato in alto.
+
+       Si limitano invece le colonne dei giorni VICINI, che sono quelle che
+       tiravano su lo scorrimento senza essere sullo schermo. Quella a fuoco
+       non viene toccata: cresce quanto le serve e la riga cresce con lei. */
+    var h = mia.scrollHeight;
+    for (i = 0; i < tutte.length; i++) {
+        if (tutte[i] === mia) continue;
+        tutte[i].style.height = h + 'px';
+        tutte[i].style.overflow = 'hidden';
     }
-    var canvas = document.querySelector('.pl-col[data-date="' + S.focusDate + '"] .pl-canvas');
-    if (!canvas) { row.style.height = ''; row.style.overflow = ''; return; }
-    row.style.height = '';
-    row.style.overflow = '';
-    var h = canvas.scrollHeight + 28;   // l'aria sotto: la lista non finisce incollata al bordo
-    row.style.height = h + 'px';
-    /* Le colonne dei giorni vicini possono essere più alte di questa: senza
-       il taglio tornerebbero a tirare su lo scorrimento, ed è proprio quello
-       che si sta togliendo. Si rimisura a ogni cambio di giorno. */
-    row.style.overflow = 'hidden';
 }
+
 
 function renderCol(col, z) {
     var date = col.dataset.date;
@@ -3146,7 +3282,19 @@ function renderCol(col, z) {
     canvas.style.setProperty('--major-every', z.slot === 30 ? 2 : (z.slot === 15 ? 4 : (z.slot === 5 ? 12 : 1)));
     canvas.classList.toggle('pl-major-lines', z.slot < 60 && z.slot > 0);
     canvas.classList.toggle('pl-agenda-canvas', isAgenda());
-    canvas.style.height = isAgenda() ? 'auto' : dayHeight() + 'px';
+    /* In vista a lista la colonna degli orari non ha niente da scrivere: la
+       sua altezza era già azzerata, ma la LARGHEZZA restava, ed è quella la
+       striscia vuota che si vedeva a sinistra dell'elenco.
+
+       Si tocca la VARIABILE, non le tre regole che la usano. Il righello, la
+       sua intestazione e la larghezza della colonna partono tutti da
+       `--gutter-w`: cambiandone solo alcune, le colonne restavano larghe
+       quanto prima mentre lo scorrimento le contava di un'altra misura, ed è
+       per questo che sfogliando in orizzontale gli eventi finivano nel giorno
+       accanto. Un numero solo e i tre conti tornano insieme. */
+    document.body.classList.toggle('pl-lista', isAgenda());
+    document.body.style.setProperty('--gutter-w', isAgenda() ? '0px' : '');
+    canvas.style.height = '';   // idem: calc(var(--pxm) * 1440), o auto in vista a lista
     canvas.style.minHeight = isAgenda() ? '60vh' : '';
 
     var list = eventsOf(date);
@@ -4344,6 +4492,18 @@ function weekTodoRow(t, isOther) {
         t.done = !t.done;
         row.classList.toggle('pl-done', t.done);
         haptic(8);
+        /* Il blocco sul calendario si sbarra subito, senza aspettare la
+           rilettura: la stessa cosa vive in due posti, e vederla spuntata di
+           qua e intatta di là per mezzo secondo fa dubitare che il tocco sia
+           arrivato. La rilettura poi conferma. */
+        if (t.event_id) {
+            Object.keys(S.events).forEach(function (g) {
+                (S.events[g] || []).forEach(function (x) {
+                    if (x.id === t.event_id) x.done = !t.done;
+                });
+            });
+            renderDays();
+        }
         todoApi('toggle', { id: t.id }).then(function () {
             loadWeekTodos(S.todoTab, true);
             loadWeek(monday(S.focusDate), true);
@@ -4549,13 +4709,21 @@ function renderRing() {
        giorno sbagliato. */
     ring.dataset.want = date;
 
+    /* L'animazione degli anelli racconta «è cambiato il giorno». Zoomando il
+       giorno è lo stesso, e vederli ripartire da zero a ogni pizzico faceva
+       sembrare che fosse successo qualcosa che non era successo. Se il giorno
+       disegnato è già questo e i dati sono gli stessi, non si ridisegna. */
     var pronti = S.rings[date];
-    if (pronti) { disegnaAnelli(ring, pronti); return; }
+    if (pronti && ring.dataset.drawn === date && ring.querySelector('.pl-ring-fill')) return;
+
+    if (pronti) { ring.dataset.drawn = date; disegnaAnelli(ring, pronti); return; }
+    ring.dataset.drawn = '';
 
     /* Finché non si sa, si svuota: meglio niente che i dati di ieri. */
     disegnaAnelli(ring, null);
     loadRings(date).then(function (dati) {
         if (ring.dataset.want !== date) return;
+        ring.dataset.drawn = date;
         disegnaAnelli(ring, dati);
     });
 }
@@ -4782,6 +4950,11 @@ function goToDate(date, smooth) {
     renderRing();
     maybeAskCopy();
     applyAmbient();
+    /* Il righello si rifà adesso, non quando torna la rete. Gli orari
+       venivano ridisegnati due volte — prima senza i gradi, poi con — e la
+       seconda volta le etichette si spostavano di qualche pixel: era quello
+       lo scattino a sinistra subito dopo aver cambiato giorno. */
+    renderGutter();
     /* Cambiando giorno cambia anche l'altezza della lista: renderDays() qui
        non passa, quindi il taglio va rifatto a mano o resterebbe quello del
        giorno precedente. */
@@ -4798,6 +4971,40 @@ $('plScroller').addEventListener('scroll', function () {
        toccandole. Prima si riaprivano da sole appena finito lo scroll. */
     setPrioSlim(true);
 }, { passive: true });
+
+/* La fascia di tutto il giorno si apre e si chiude come le priorità. */
+function setAdSlim(v) {
+    if (S.adSlim === v) return;
+    S.adSlim = v;
+    renderAllDay();
+}
+/* Stesso gesto delle priorità, e sullo stesso evento: `pointerdown`, non
+   `click`. Con il click il tocco poteva essere ingoiato da chi lo intercetta
+   prima (la sfogliata partita dai tastini ne mangia uno), e la sezione
+   restava aperta senza un motivo visibile. */
+document.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('.pl-hcol-ad')) {
+        /* Da chiusa il primo tocco apre la sezione e non fa altro, anche se
+           cade su un evento: da chiusa se ne vede uno solo a turno, e quale
+           sia dipende da dove è arrivato il giro — si finirebbe per aprire un
+           evento che non si era ancora deciso di aprire. Da aperta invece si
+           vedono tutti e toccarne uno significa proprio quello. */
+        if (S.adSlim) {
+            e.preventDefault();
+            e.stopPropagation();
+            /* Fermare il pointerdown non basta: il popup dell'evento si apre
+               sul `click`, che arriva dopo ed è un evento a sé. Si segna
+               l'istante, e chi ascolta i click ingoia quello che segue. */
+            S.adApertaA = Date.now();
+            setAdSlim(false);
+        }
+        return;
+    }
+    if (S.adSlim) return;
+    if (e.target.closest('.pl-ov, .pl-wp-ov, .pl-sheet, .pl-alert')) return;
+    if (document.querySelector('.pl-ov.pl-open, .pl-wp-ov.pl-open')) return;
+    setAdSlim(true);
+}, true);
 
 /* un tocco fuori dalla sezione priorità la richiude */
 document.addEventListener('pointerdown', function (e) {
@@ -4914,6 +5121,12 @@ function psBegin() {
         PS.spacers.push(copia);
     }
 
+    /* Dov'è UN orario nel righello vero, misurato prima di nascondere
+       l'originale. Serve subito sotto, per rimettere le copie esattamente
+       sopra di lui. */
+    var campione = gut.querySelector('.pl-gutter-t');
+    var xVero = campione ? campione.getBoundingClientRect().left : null;
+
     document.documentElement.classList.add('pl-swipe1');
     /* La posizione di partenza si misura invece di calcolarla: le copie appena
        infilate hanno spostato le colonne, e rifare il conto a mano sarebbe un
@@ -4924,6 +5137,27 @@ function psBegin() {
     track.style.transition = 'none';
     PS.on = true;
     psPlace();
+
+    /* Gli orari delle copie vanno inchiodati dove stanno quelli veri. */
+    if (xVero !== null) {
+        var difetto = 0;
+        // Misuriamo il piccolo difetto sub-pixel solo sulla copia del giorno centrale, 
+        // che si trova già nella posizione giusta.
+        for (var k = 0; k < PS.spacers.length; k++) {
+            var ds = PS.spacers[k].nextElementSibling.dataset.date;
+            if (ds === S.focusDate) {
+                var camp2 = PS.spacers[k].querySelector('.pl-gutter-t');
+                if (camp2) difetto = xVero - camp2.getBoundingClientRect().left;
+                break;
+            }
+        }
+        // Riapplichiamo questo minuscolo scarto a tutte le copie per allinearle
+        if (Math.abs(difetto) > 0.4) {
+            for (var k = 0; k < PS.spacers.length; k++) {
+                PS.spacers[k].style.transform = 'translateX(' + difetto + 'px)';
+            }
+        }
+    }
     return true;
 }
 
@@ -4946,6 +5180,51 @@ function psPane(dir) {
     var mn  = tb.querySelector('.pl-month-name'); if (mn)  mn.textContent  = MESI[d.getMonth()];
     var yr  = tb.querySelector('.pl-month-year'); if (yr)  yr.textContent  = String(d.getFullYear());
 
+    /* Sincronizza ed impagina gli eventi di tutto il giorno della pagina che entra,
+       lasciando che la fascia prenda naturalmente l'altezza che le serve e mostri le righe. */
+    var hrow = db.querySelector('.pl-headrow');
+    var ht = db.querySelector('.pl-headtrack');
+
+    if (hrow && ht) {
+        // Pulisci tutti gli stili inline che ingabbiavano l'altezza
+        hrow.style.height = '';
+        hrow.style.marginTop = '';
+        hrow.style.overflow = '';
+        hrow.style.boxSizing = '';
+        hrow.style.borderTop = '';
+        hrow.style.background = '';
+
+        var suoi = eventsOf(date).filter(function (e) { return e.all_day; });
+        var many = visibleDays() >= 2;
+
+        // Gestione corretta della visibilità per il giorno che entra
+        hrow.classList.toggle('pl-hidden', isAgenda() ? !many : (!many && !suoi.length));
+        hrow.classList.toggle('pl-noad', !suoi.length);
+
+        ht.style.transform = 'none';
+        ht.innerHTML = '';
+
+        // Cloniamo la colonna dal documento reale e reiniettiamo gli eventi
+        var cella = document.querySelector('#plHeadTrack .pl-hcol[data-date="' + date + '"]');
+        if (cella) {
+            var cloneCol = cella.cloneNode(true);
+            cloneCol.classList.remove('pl-hcol-hidden');
+            ht.appendChild(cloneCol);
+
+            // Popola e attiva il carosello del clone
+            var adBox = cloneCol.querySelector('.pl-hcol-ad');
+            if (adBox) {
+                adBox.innerHTML = '';
+                suoi.forEach(function (ev) { adBox.appendChild(buildEvent(ev, true)); });
+                adBox.classList.toggle('pl-ad-aperta', !S.adSlim);
+                
+                // Se la sezione deve ciclare da chiusa, avviamo il giro anche sul clone
+                if (suoi.length > 1 && !many && S.adSlim) giroTuttoIlGiorno(adBox);
+                else fermaGiro(adBox);
+            }
+        }
+    }
+
     /* Il tag del meteo è del giorno, non della pagina: quello copiato va tolto
        e rifatto per il giorno vicino, se una previsione c'è. */
     var wxOld = tb.querySelector('.pl-day-wx');
@@ -4963,22 +5242,6 @@ function psPane(dir) {
     if (smart) smart.value = '';
     var ask = db.querySelector('.pl-copyask');
     if (ask) ask.classList.add('pl-hidden');
-
-    /* La fascia degli eventi di tutta la giornata appartiene alla pagina che
-       entra, quindi la sua striscia porta solo la cella del giorno vicino,
-       ferma a zero: qui la finestra che ritaglia si muove insieme al clone,
-       e una striscia che scorre per conto suo finirebbe fuori vista. */
-    var ht = db.querySelector('.pl-headtrack');
-    if (ht) {
-        ht.style.transform = 'none';
-        ht.innerHTML = '';
-        var cella = document.querySelector('#plHeadTrack .pl-hcol[data-date="' + date + '"]');
-        if (cella) {
-            var cloneCol = cella.cloneNode(true);
-            cloneCol.classList.remove('pl-hcol-hidden'); // <-- LA MODIFICA È QUI
-            ht.appendChild(cloneCol);
-        }
-    }
 
     /* La scena della barra è del giorno, non della pagina. La copia porta
        quella del giorno a fuoco: se il giorno vicino ne vuole un'altra —
@@ -4998,6 +5261,41 @@ function psPane(dir) {
     pane.appendChild(db);
     document.body.appendChild(pane);
     PS.panes[dir] = pane;
+
+    /* ALLINEAMENTO VERTICALE DEGLI ORARI DURANTE LO SWIPE */
+    var realDb = $('plDayBar');
+    var sc = $('plScroller');
+    if (realDb && sc) {
+        var dy = db.offsetHeight - realDb.offsetHeight;
+        var colIn = document.querySelector('#plTrack .pl-col[data-date="' + date + '"]');
+        var colCurr = document.querySelector('#plTrack .pl-col[data-date="' + S.focusDate + '"]');
+
+        var spIn = colIn && colIn.previousElementSibling && colIn.previousElementSibling.classList.contains('pl-swipe-gutter') ? colIn.previousElementSibling : null;
+        var spCurr = colCurr && colCurr.previousElementSibling && colCurr.previousElementSibling.classList.contains('pl-swipe-gutter') ? colCurr.previousElementSibling : null;
+
+        // Reset eventuali margini precedenti (es. se cambi direzione durante lo swipe)
+        if (colIn) colIn.style.marginTop = '0px';
+        if (spIn) spIn.style.marginTop = '0px';
+        if (colCurr) colCurr.style.marginTop = '0px';
+        if (spCurr) spCurr.style.marginTop = '0px';
+        sc.style.top = '';
+
+        if (dy < 0) {
+            // Il giorno in arrivo è più CORTO. 
+            // Alziamo il tetto dello scroller per far arrivare la griglia fino alla nuova barra,
+            // e spingiamo in giù la colonna corrente di pari passo per farla rimanere ferma visivamente.
+            sc.style.top = (realDb.getBoundingClientRect().bottom + dy) + 'px';
+            if (colCurr) colCurr.style.marginTop = Math.abs(dy) + 'px';
+            if (spCurr) spCurr.style.marginTop = Math.abs(dy) + 'px';
+        } else if (dy > 0) {
+            // Il giorno in arrivo è più LUNGO. 
+            // Lo scroller rimane dov'è, ma spingiamo in giù solo la colonna in arrivo
+            // per non farla sovrapporre visivamente alla sua barra più grande.
+            if (colIn) colIn.style.marginTop = dy + 'px';
+            if (spIn) spIn.style.marginTop = dy + 'px';
+        }
+    }
+
     psPlace();
     return pane;
 }
@@ -5067,6 +5365,16 @@ function psFinish(date) {
     PS.panes = {};
     PS.spacers.forEach(function (s) { if (s.parentNode) s.parentNode.removeChild(s); });
     PS.spacers = [];
+    
+    /* Puliamo i margini verticali temporanei che avevamo applicato alle colonne */
+    var sc = $('plScroller');
+    if (sc) sc.style.top = ''; // Rimuove l'allungamento forzato dello scroller
+
+    if (track) {
+        var cols = track.querySelectorAll('.pl-col');
+        for (var i = 0; i < cols.length; i++) cols[i].style.marginTop = '';
+    }
+
     var html = document.documentElement;
     var tb = $('plTopbar'), db = $('plDayBar');
     /* Lo spostamento va tolto *senza* animarlo. Togliendo le classi si
@@ -5177,7 +5485,7 @@ window.addEventListener('resize', function () {
        pensato per questo caso. Restano il riaggancio e il guardiano come
        reti di sicurezza, perché la presa il browser può sempre toglierla.
        ------------------------------------------------------------------ */
-    var punti = {}, watch = null, zoomIniziale = null, pxmIniziale = 0;
+    var punti = {}, watch = null, zoomIniziale = null, pxmIniziale = 0, cambiatoModo = false;
 
     function dueDita() {
         var ids = Object.keys(punti);
@@ -5244,6 +5552,7 @@ window.addEventListener('resize', function () {
             try { sc.setPointerCapture(Number(id)); } catch (err) {}
         });
         zoomIniziale = S.zoom;
+        cambiatoModo = false;
         avvia(t);
     });
 
@@ -5259,9 +5568,22 @@ window.addEventListener('resize', function () {
         var ratio = dist(t) / (start || 1);
 
         /* Da 'lista' non c'è densità da moltiplicare: si rientra negli orari
-           al passo più largo e da lì si continua a pizzicare. */
+           al passo più largo. Basta un accenno di apertura — 1.18 voleva dire
+           allargare le dita di un quinto prima che succedesse qualcosa, e nel
+           frattempo sembrava rotto. */
         if (isAgenda()) {
-            if (ratio > 1.18) setZoom('h3', true, { min: ancoraMin, y: ancoraY });
+            if (ratio > 1.05 && !cambiatoModo) {
+                cambiatoModo = true;
+                setZoom('h3', true, { min: ancoraMin, y: ancoraY });
+                /* Il gesto riparte da qui: senza azzerare, il rapporto resta
+                   sopra la soglia e al movimento dopo si tornerebbe indietro. */
+                start = dist(t);
+                pxmIniziale = pxMin();
+                /* Da adesso il gesto è come se fosse cominciato sulle tre ore:
+                   allargando ancora si sale di scatto senza doverlo rifare. */
+                zoomIniziale = 'h3';
+                cambiatoModo = false;
+            }
             return;
         }
 
@@ -5272,9 +5594,17 @@ window.addEventListener('resize', function () {
            l'orario di partenza che deve restare inchiodato dov'era. */
         var pxm = pxmIniziale * ratio;
 
-        /* Sotto il minimo si esce dagli orari e si passa alla lista: è il
-           seguito naturale dello stringere, non un caso a parte. */
-        if (pxm <= PXM_MIN * 0.92 && S.zoom === 'h3') {
+        /* Sotto il minimo si esce dagli orari e si passa alla lista.
+
+           Ma solo se si era GIÀ sulle tre ore quando il gesto è cominciato, e
+           solo una volta per gesto. Prima bastava stringere un po' da mezz'ora:
+           la densità toccava il fondo, lo scatto diventava tre ore e al
+           movimento successivo la stessa stretta valeva come «vai alla lista».
+           Da lì si rimbalzava avanti e indietro fra tre ore e lista finché non
+           si alzavano le dita. Adesso passare a tre ore è un traguardo: per
+           andare oltre bisogna mollare e ristringere. */
+        if (!cambiatoModo && zoomIniziale === 'h3' && pxm <= PXM_MIN * 0.8) {
+            cambiatoModo = true;
             setZoom('agenda', true);
             return;
         }
@@ -5384,6 +5714,25 @@ function disarmaSeFuoriPosto() {
     if (S.armato && (S.view !== 'day' || isAgenda())) armaAttrezzo(null, null);
 }
 
+/* Riporta la striscia dei giorni sul giorno a fuoco.
+
+   Cambiando scatto cambia la LARGHEZZA della colonna — entrando in vista a
+   lista sparisce il righello e la colonna si allarga — mentre lo spostamento
+   laterale resta quello calcolato con la larghezza di prima: da lì la lista
+   che si apre a cavallo fra due giorni. E da una striscia storta il gesto
+   successivo parte da un punto che non corrisponde a nessun giorno, che è
+   anche l'origine del ricaricamento con errore.
+
+   Va fatto DOPO il ridisegno e sul fotogramma dopo: `trackOffset` MISURA la
+   colonna, e prima che il browser abbia applicato la larghezza nuova
+   misurerebbe ancora quella vecchia, cioè rifarebbe lo stesso errore. Era
+   questo il motivo per cui il riallineamento della volta scorsa non bastava. */
+function riallineaStriscia() {
+    requestAnimationFrame(function () {
+        if (S.view === 'day') scrollToDate(S.focusDate, false);
+    });
+}
+
 function setZoom(key, quiet, ancora) {
     var anchor = firstVisibleMinute();
     S.zoom = key;
@@ -5398,6 +5747,7 @@ function setZoom(key, quiet, ancora) {
     renderZoomDial();
     refreshZoomDial();   // in vista lista resta visibile anche su telefono
     disarmaSeFuoriPosto();
+    riallineaStriscia();
     if (!quiet) api('settings_save', { zoom: key });
 }
 
@@ -5591,6 +5941,16 @@ function refreshZoomDial() {
        i tocchi passano come sempre, se no si perderebbero i click sugli
        eventi. */
     document.addEventListener('click', function (e) {
+        /* Il click subito dopo l'apertura della fascia di tutto il giorno non
+           deve aprire anche l'evento che stava sotto il dito: quel tocco
+           serviva solo ad aprire la sezione. Fermare il pointerdown non
+           basta, il popup si apre sul click, che è un evento a sé. */
+        if (Date.now() - (S.adApertaA || 0) < 500 && e.target.closest('.pl-hcol-ad')) {
+            S.adApertaA = 0;
+            e.stopPropagation();
+            e.preventDefault();
+            return;
+        }
         if (Date.now() - (S.sfogliatoA || 0) > 350) return;
         S.sfogliatoA = 0;
         e.stopPropagation();
@@ -5745,9 +6105,32 @@ function refreshZoomDial() {
            davvero la sezione degli orari, cioè sotto priorità e striscia dei
            giorni. Sopra quella riga il dito è già fuori dalla griglia. */
         var top = sc.getBoundingClientRect().top;
-        var zone = 110, max = 16, speed = 0;
-        if (y > vh - zone)        speed =  Math.min(max, (y - (vh - zone)) / 4);
-        else if (y < top + zone)  speed = -Math.min(max, ((top + zone) - y) / 4);
+
+        /* Quanto deve avvicinarsi il dito prima che gli orari comincino a
+           scorrere da soli.
+
+           Erano 110px fissi sopra e sotto: un terzo dello schermo utile su un
+           telefono, e la griglia partiva a scorrere mentre si stava ancora
+           scegliendo dove mettere il blocco. I due bordi ora si misurano su
+           quello che c'è davvero lì: sotto, la metà del tasto +; sopra, lo
+           spazio fra il primo e il secondo tastino. Sono i punti che l'utente
+           riconosce guardando lo schermo, invece di un numero uguale
+           dappertutto. */
+        var zoneGiu = 70, zoneSu = 60;
+        var plus = $('plPlus');
+        if (plus) {
+            var bp = plus.getBoundingClientRect();
+            zoneGiu = Math.max(24, vh - (bp.top + bp.height / 2));
+        }
+        var tastini = $('plFabs') && $('plFabs').querySelectorAll('.pl-fab, .pl-ring');
+        if (tastini && tastini.length >= 2) {
+            var b1 = tastini[0].getBoundingClientRect(), b2 = tastini[1].getBoundingClientRect();
+            zoneSu = Math.max(24, (b1.bottom + b2.top) / 2 - top);
+        }
+
+        var max = 16, speed = 0;
+        if (y > vh - zoneGiu)      speed =  Math.min(max, (y - (vh - zoneGiu)) / 4);
+        else if (y < top + zoneSu) speed = -Math.min(max, ((top + zoneSu) - y) / 4);
         if (speed) {
             var before = sc.scrollTop;
             sc.scrollTop += speed;
@@ -6470,7 +6853,7 @@ function openEventSheet(existing, seed) {
         color: null, type: 'event', notify: 'h1', notify_min: 60,
         repeat: 'none', repeat_interval: 1, repeat_unit: 'week', repeat_until: null
     };
-    S.draft = { data: d, dirty: false, isNew: !existing };
+    S.draft = { data: d, dirty: false, isNew: !existing, origDate: existing ? existing.date : null };
     // Salviamo la regola originale per capire se viene modificata
     S.draft.origRepeat = existing ? {
         repeat: existing.repeat,
@@ -7555,10 +7938,49 @@ function saveEvent() {
     }
 
     function eseguiSalvataggio(dati) {
+        var oldDate = S.draft.origDate;
+        var eventId = dati.id;
+        
         closeOv('plEventOv');
         S.draft = null;
+
+        /* OTTIMIZZAZIONE FLUIDITÀ (Optimistic Update):
+           Spostiamo istantaneamente l'evento in locale così non si avverte lag, 
+           mentre il server macina il salvataggio in background. */
+        if (eventId && S.events[oldDate]) {
+            var idx = S.events[oldDate].findIndex(function(x) { return x.id === eventId; });
+            if (idx > -1) {
+                var oldEv = S.events[oldDate][idx];
+                S.events[oldDate].splice(idx, 1); // Lo togliamo dalla vecchia data
+                
+                // Creiamo un fantasma temporaneo nel nuovo giorno/orario
+                var tempEv = Object.assign({}, oldEv, {
+                    date: dati.date,
+                    start: dati.start,
+                    end: dati.end,
+                    all_day: dati.all_day,
+                    title: dati.title
+                });
+                
+                if (!S.events[dati.date]) S.events[dati.date] = [];
+                S.events[dati.date].push(tempEv);
+            }
+        }
+        renderDays(); // Ridisegna tutto lo schermo all'istante senza attese
+
         return api('event_save', dati).then(function (r) {
-            if (!r.ok) { toast(r.message || 'Non è stato possibile salvare.'); return; }
+            if (!r.ok) { 
+                toast(r.message || 'Non è stato possibile salvare.'); 
+                // Se fallisce, ricarichiamo per annullare la modifica istantanea
+                loadWeek(monday(S.focusDate), true);
+                return; 
+            }
+            
+            // PULIZIA: Rimuoviamo gli eventuali cloni
+            if (oldDate && r.event && oldDate !== r.event.date && S.events[oldDate]) {
+                S.events[oldDate] = S.events[oldDate].filter(function (x) { return x.id !== r.event.id; });
+            }
+            
             indexEvents([r.event]);
             if (dati.repeat !== 'none' || dati.edit_mode === 'all') { S.weekCache = {}; loadWeek(monday(S.focusDate), true); }
             renderDays();
@@ -10249,13 +10671,153 @@ function syncScrollerTopAnimated(ms) {
     })();
 }
 
+/* ==================================================================
+   Gli avvisi in basso: una riga sola all'altezza del tasto +.
+
+   Ci finiscono le pastiglie la cui ora è passata e la domanda «vuoi partire
+   copiando un altro giorno?». Quest'ultima stava in cima alla pagina e
+   allungava la barra ogni volta che compariva, spostando gli orari e tutto
+   quello che sta sotto: un avviso non deve rimettere in fila la pagina per
+   farsi leggere.
+   ================================================================== */
+function avvisiHost() {
+    var h = $('plAvvisi');
+    if (h) return h;
+    h = el('div', 'pl-avvisi');
+    h.id = 'plAvvisi';
+    document.body.appendChild(h);
+    return h;
+}
+
+function renderAvvisi() {
+    var host = avvisiHost();
+    host.innerHTML = '';
+
+    var pastiglie = (S.pillsDue || []).filter(function (d) { return !S.pillsChiuse[d.id]; });
+
+    /* La copia del giorno vale solo per un giorno futuro e vuoto: è l'unico
+       momento in cui la domanda ha senso. */
+    var copia = !(S.events[S.focusDate] || []).length && S.focusDate > S.today
+                && S.view === 'day' && !S.copiaChiusa;
+
+    if (!pastiglie.length && !copia) { host.classList.add('pl-hidden'); return; }
+    host.classList.remove('pl-hidden');
+
+    /* Una x sola che li chiude tutti, quando ce n'è più di uno: con cinque
+       arretrate, cinque tocchi per liberare lo schermo sono cinque troppi. */
+    if (pastiglie.length > 1) {
+        var tutte = el('button', 'pl-avviso-tutte', 'Chiudi tutti');
+        tutte.type = 'button';
+        tutte.addEventListener('click', function () {
+            pastiglie.forEach(function (d) { S.pillsChiuse[d.id] = true; });
+            renderAvvisi();
+        });
+        host.appendChild(tutte);
+    }
+
+    pastiglie.forEach(function (d) {
+        var riga = el('div', 'pl-avviso');
+        riga.style.setProperty('--ev', d.color || 'var(--accent)');
+
+        /* La spunta scrive nel registro delle prese, quindi risulta spuntata
+           anche nella sezione pastiglie e negli elenchi: è la stessa presa,
+           non una copia. */
+        var ok = el('button', 'pl-avviso-ok');
+        ok.type = 'button';
+        ok.setAttribute('aria-label', 'Presa');
+        ok.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
+        ok.addEventListener('click', function () {
+            rispondiPastiglia(d, 'taken', riga);
+        });
+        riga.appendChild(ok);
+
+        var quando = d.oggi ? ('alle ' + d.time)
+                            : (nomeGiornoBreve(d.date) + ' alle ' + d.time);
+        /* Il nome della terapia in grassetto: è quello che si cerca leggendo,
+           e con tre riquadri impilati la differenza fra uno e l'altro sta
+           tutta lì. */
+        var t = el('span', 'pl-avviso-t');
+        t.appendChild(document.createTextNode('Hai preso ' + (d.dose ? d.dose + ' di ' : '')));
+        t.appendChild(el('b', null, d.name));
+        t.appendChild(document.createTextNode(' ' + quando + '?'));
+        riga.appendChild(t);
+
+        /* «Saltato» scrive nel database, non chiude e basta: quella presa non
+           deve tornare nemmeno ricaricando la pagina. Se la stessa pastiglia
+           è prevista un'altra volta, quella è un'altra presa e la chiederà. */
+        var salta = el('button', 'pl-avviso-salta', 'Saltato');
+        salta.type = 'button';
+        salta.addEventListener('click', function () {
+            rispondiPastiglia(d, 'skipped', riga);
+        });
+        riga.appendChild(salta);
+
+        /* La x invece chiude solo per adesso: al prossimo caricamento la
+           domanda torna, perché la pastiglia resta da prendere. */
+        var x = el('button', 'pl-avviso-x');
+        x.type = 'button';
+        x.setAttribute('aria-label', 'Chiudi per ora');
+        x.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+        x.addEventListener('click', function () {
+            S.pillsChiuse[d.id] = true;
+            renderAvvisi();
+        });
+        riga.appendChild(x);
+
+        host.appendChild(riga);
+    });
+
+    if (copia) {
+        /* Stesse classi di prima — `pl-copyask`, il testo, i due tastini con
+           sì e no — così si porta dietro il colore scelto per la pagina e
+           l'aspetto che aveva. È cambiato solo dove sta: qui sotto invece che
+           in cima, dove allungava la barra ogni volta che compariva. */
+        var c = el('div', 'pl-copyask pl-copyask-basso');
+        c.appendChild(el('div', 'pl-copyask-t', 'Vuoi partire copiando un altro giorno?'));
+        var no = el('button', 'pl-mini-btn', 'No');
+        no.type = 'button';
+        no.addEventListener('click', function () { S.copiaChiusa = true; renderAvvisi(); });
+        var si = el('button', 'pl-mini-btn pl-primary', 'Sì');
+        si.type = 'button';
+        si.addEventListener('click', function () { openCopyDay(); });
+        c.appendChild(no); c.appendChild(si);
+        host.appendChild(c);
+    }
+}
+
+function rispondiPastiglia(d, stato, riga) {
+    riga.classList.add('pl-avviso-via');
+    haptic(8);
+    todoApi('pill_mark', { id: d.id, status: stato }).then(function (r) {
+        if (r && r.ok === false) {
+            riga.classList.remove('pl-avviso-via');
+            toast((r && r.message) || 'Non e stato possibile registrarlo.');
+            return;
+        }
+        S.pillsDue = (S.pillsDue || []).filter(function (x) { return x.id !== d.id; });
+        /* la presa risulta spuntata anche negli elenchi, se sono aperti */
+        if (S.todos && S.todos.pills) loadWeekTodos('pills', true);
+        setTimeout(renderAvvisi, 260);
+    });
+}
+
+/* Il giorno a tre lettere, per le arretrate: «mar alle 09:00» dice più di una
+   data intera in un riquadro alto una riga. */
+function nomeGiornoBreve(ds) {
+    /* Tre lettere da GIORNI, non la sigla di GIORNI_S: là lunedì e martedì
+       sono entrambi «M» e in una domanda su una presa dimenticata non si
+       capirebbe di quale giorno si parla. */
+    var d = parseIso(ds);
+    return GIORNI[(d.getDay() + 6) % 7].slice(0, 3).toLowerCase();
+}
+
 function maybeAskCopy() {
+    /* Il riquadro in cima non esiste più: la domanda è scesa in fondo, fra
+       gli avvisi, così la barra sopra resta sempre della stessa altezza.
+       La funzione resta perché la chiamano in cinque posti diversi. */
     var ask = $('plCopyAsk');
-    if (!ask) return;
-    var empty = !(S.events[S.focusDate] || []).length;
-    var future = S.focusDate > S.today;
-    ask.classList.toggle('pl-hidden', !(empty && future));
-    syncScrollerTop();
+    if (ask) ask.classList.add('pl-hidden');
+    renderAvvisi();
 }
 
 function openCopyDay() {

@@ -474,6 +474,13 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-gutter{
     flex-shrink:0; width:var(--gutter-w); align-self:stretch;
     background:var(--paper);
+    /* Gli orari dentro sono `position:absolute; right:7px`, quindi si
+       appoggiano al primo antenato posizionato. Senza questa riga il righello
+       vero e le sue copie usate durante la sfogliata si appoggiavano a due
+       antenati DIVERSI — la copia sta dentro la striscia dei giorni, l'altro
+       no — e gli orari saltavano di qualche pixel nell'istante in cui la
+       copia veniva tolta. Era quello lo scatto a sinistra a fine gesto. */
+    position:relative;
 }
 
 /* area visibile dei giorni: ritaglia la striscia più larga che scorre dentro */
@@ -485,10 +492,26 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-track{ display:flex; align-items:flex-start; width:max-content; will-change:transform; }
 .pl-gutter-canvas{ position:relative; }
 .pl-gutter-t{
-    position:absolute; right:7px; transform:translateY(-50%);
+    /* Ancorati a SINISTRA con una larghezza propria, non a destra.
+
+       Con `right:7px` la posizione dell'orario dipendeva da dov'è il bordo
+       destro del contenitore, e durante la sfogliata il contenitore non è
+       quello vero ma una copia infilata dentro la striscia dei giorni: bastava
+       mezzo pixel di differenza fra i due perché al cambio di giorno gli orari
+       scattassero di lato. Ancorati a sinistra e con la larghezza presa dalla
+       stessa variabile del righello, la loro posizione non dipende più da
+       nessuna misura: è la stessa nella copia e nell'originale. */
+    position:absolute; left:0; right:auto;
+    width:var(--gutter-w); padding-right:7px;
+    box-sizing:border-box; text-align:right;
+    transform:translateY(-50%);
     font-size:9.5px; letter-spacing:.06em; color:var(--ink-3);
     font-variant-numeric:tabular-nums; white-space:nowrap;
 }
+/* Tiene l'ingombro della fascia di tutto il giorno nella pagina copiata quando
+   il giorno in arrivo non ne ha: senza, sotto la sua barra più corta si apriva
+   un buco fino agli orari, che sono condivisi fra le due pagine. */
+.pl-headrow-vuoto{ flex-shrink:0; pointer-events:none; }
 .pl-gutter-t.pl-major{ color:var(--ink-2); font-weight:500; }
 
 /* una colonna = un giorno */
@@ -1046,10 +1069,20 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 /* tela degli eventi */
 .pl-canvas{
     position:relative; flex:0 0 auto;
+    /* L'altezza della giornata la calcola il CSS dalla stessa variabile della
+       densità. Prima la riscriveva il JS su ventidue elementi a ogni
+       fotogramma del pizzico, e ogni scrittura obbliga il browser a
+       rimisurare tutto prima di poter fare la successiva. Qui il numero è uno
+       solo e il resto viene da sé. */
+    height:calc(var(--pxm) * 1440);
     background-image:repeating-linear-gradient(
         to bottom, var(--hair) 0 .5px, transparent .5px var(--slot-h));
     background-position:0 0;
 }
+.pl-gutter-canvas{ height:calc(var(--pxm) * 1440); }
+/* in vista a lista non c'è una giornata alta 1440 minuti: l'altezza la
+   decidono le voci */
+.pl-canvas.pl-agenda-canvas{ height:auto; }
 /* In vista a lista lo scatto è 0: quel pattern a ripetizione diventava un
    passo degenere e il browser lo riempiva di grigio pieno invece delle righe
    sottili. Niente pattern qui, e uno sfondo chiaro coerente con la palette
@@ -1472,7 +1505,17 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
        scorrimento verticale degli orari dopo aver aperto un menù. */
     pointer-events:none;
 }
-.pl-fabs > *{ pointer-events:auto; }
+/* Il contenitore era già trasparente ai tocchi, ma i suoi FIGLI no — e uno
+   di quei figli è il gruppo dei tastini, una colonna alta che con i tastini
+   aperti copre mezzo schermo. Nei buchi fra un tastino e l'altro non c'è
+   niente da premere, eppure il tocco finiva lì: da qui lo zoom che non
+   partiva e gli eventi che non si riuscivano a creare tenendo premuto.
+   Ricevono il tocco solo le cose che si possono davvero premere. */
+.pl-fabs > *{ pointer-events:none; }
+.pl-fabs button,
+.pl-fabs .pl-ring,
+.pl-fabs .pl-fab,
+.pl-fabs .pl-fab-menu.pl-open{ pointer-events:auto; }
 .pl-fab-menu:not(.pl-open){ pointer-events:none !important; }
 
 /* La colonna che si richiude sotto le abitudini. L'altezza si anima con
@@ -2534,3 +2577,146 @@ textarea.pl-in.pl-note{ min-height:200px; }
 .pl-hcol-hidden .pl-hcol-ad {
     display: none !important;
 }
+/* --- eventi di tutto il giorno: uno per volta, a turno -----------------
+   Prima stavano incolonnati e la fascia cresceva a ogni evento, rubando
+   altezza agli orari e spostando tutto quello che sta sotto. Adesso è alta
+   sempre una riga: si vede il primo, ogni tanto passa al successivo, e i
+   pallini dicono quanti sono. Stesso modo delle priorità, così non c'è
+   niente di nuovo da capire. */
+.pl-hcol-ad.pl-ad-giro{
+    flex-direction:row; align-items:center; gap:6px;
+    position:relative;
+}
+/* Le voci restano tutte nel documento e si scambiano la visibilità invece di
+   essere ricostruite: ricostruirle a ogni cambio farebbe perdere il tocco a
+   chi stava premendo, e il giro va avanti da solo mentre si guarda. */
+.pl-hcol-ad.pl-ad-giro > .pl-ev{ display:none; flex:1; min-width:0; }
+.pl-hcol-ad.pl-ad-giro > .pl-ev.pl-on{ display:block; }
+/* In colonna, non in fila: uno per voce, e in verticale si legge «quante
+   righe ci sono» invece di sembrare tre puntini di sospensione. Sono gli
+   stessi pallini della fascia priorità, con lo stesso verso. */
+.pl-ad-pal{
+    display:flex; flex-direction:column; gap:2px;
+    flex-shrink:0; padding-right:3px; align-items:center;
+}
+.pl-ad-pallino{
+    width:4px; height:4px; border-radius:50%;
+    background:var(--hair-2); transition:background var(--t-fast) var(--ease);
+}
+.pl-ad-pallino.pl-on{ background:var(--ink-3); }
+
+/* --- avvisi in basso, una riga ciascuno --------------------------------
+   Stanno all'altezza del tasto +, in sovraimpressione. Qui finiscono le
+   pastiglie la cui ora è passata e la domanda sulla copia del giorno, che
+   prima stava in cima e allungava la barra ogni volta che compariva: un
+   avviso non deve rimettere in fila la pagina per farsi leggere. */
+.pl-avvisi{
+    position:fixed; z-index:58;
+    /* più largo: la domanda deve starci tutta, orario compreso */
+    /* A sinistra si lascia libero il tastino della barra laterale, a destra
+       il tasto +: l'avviso è una cosa in più, non deve mettersi davanti a
+       due comandi che servono sempre. E sta più in alto del + invece che
+       alla sua stessa altezza, se no da fermo lo copre comunque. */
+    left:58px; right:82px;
+    bottom:calc(34px + var(--safe-bottom, 0px));
+    display:flex; flex-direction:column-reverse; gap:5px;
+    pointer-events:none;
+}
+.pl-avvisi > *{ pointer-events:auto; }
+.pl-avviso{
+    display:flex; align-items:center; gap:8px;
+    padding:6px 8px 6px 6px;
+    background:var(--card); border-radius:var(--r-pill);
+    /* Un filo del colore della terapia sul bordo, non un blocco di colore
+       addosso: la riga deve dire quale pastiglia è con un'occhiata, senza
+       diventare l'unica cosa che si vede sulla pagina. */
+    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ev, var(--accent)) 40%, transparent),
+               0 2px 4px rgba(76,70,63,.05), 0 14px 30px -18px rgba(76,70,63,.30);
+    animation:plAvvisoEntra .3s var(--ease) both;
+}
+@keyframes plAvvisoEntra{ from{ opacity:0; transform:translateY(8px) scale(.97); } }
+/* Uscendo si sfila di lato invece di sparire: la riga sopra scende al suo
+   posto e si capisce che è stata registrata, non che il tocco è andato perso. */
+.pl-avviso.pl-avviso-via{
+    opacity:0; transform:translateX(-14px);
+    transition:opacity .24s var(--ease), transform .24s var(--ease);
+}
+/* Il testo su due righe al massimo, con la domanda che resta leggibile:
+   il nome della terapia in evidenza e il resto più tenue, così l'occhio
+   trova subito di cosa si parla senza rileggere tutta la frase. */
+.pl-avviso-t{
+    flex:1; min-width:0;
+    font-size:11px; line-height:1.25; color:var(--ink-2);
+    text-align:left;
+    /* Niente taglio a due righe: mancava proprio l'orario, cioè la parte che
+       distingue una presa dall'altra, e i tre puntini al suo posto rendevano
+       la domanda inutile. Va a capo quanto serve, il riquadro cresce. */
+    overflow-wrap:anywhere;
+}
+.pl-avviso-t b{ font-weight:600; color:var(--ink); }
+.pl-avviso-link{
+    background:none; border:none; padding:0; cursor:pointer;
+    color:var(--accent-ink); text-decoration:underline; text-decoration-thickness:.5px;
+}
+/* La spunta è il gesto principale: è la più grande delle tre e l'unica
+   colorata, così il pollice ci va sopra senza cercare. */
+.pl-avviso-ok{
+    width:26px; height:26px; flex-shrink:0; border-radius:50%;
+    border:none; cursor:pointer;
+    background:color-mix(in srgb, var(--ev, var(--accent)) 16%, var(--card));
+    color:var(--ev, var(--accent));
+    display:grid; place-items:center;
+    transition:transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.pl-avviso-ok svg{ width:12px; height:12px; }
+.pl-avviso-ok:active{ transform:scale(.88); }
+.pl-avviso-salta{
+    flex-shrink:0; border:none; background:none; cursor:pointer;
+    padding:3px 2px; font-size:10px; letter-spacing:.05em;
+    color:var(--ink-3); text-decoration:underline; text-decoration-thickness:.5px;
+    text-underline-offset:2px;
+}
+.pl-avviso-x{
+    width:20px; height:20px; flex-shrink:0; border:none; background:none;
+    color:var(--hair-2); display:grid; place-items:center; cursor:pointer;
+}
+.pl-avviso-x svg{ width:11px; height:11px; }
+/* Una x sola per liberare lo schermo quando le arretrate sono tante: sta
+   sopra la pila e non dentro nessuna riga, se no sembrerebbe riferita a
+   quella. */
+.pl-avviso-tutte{
+    align-self:flex-start; border:none; cursor:pointer;
+    background:color-mix(in srgb, var(--ink) 78%, transparent); color:var(--card);
+    border-radius:var(--r-pill); padding:3px 10px; font-size:10px; letter-spacing:.04em;
+    box-shadow:0 2px 4px rgba(76,70,63,.05);
+}
+/* in vista mese e settimana non c'è un giorno a cui si riferiscono */
+.pl-view-month .pl-avvisi, .pl-view-week .pl-avvisi{ display:none; }
+
+/* --- fascia di tutto il giorno: pallini a sinistra, aperta o chiusa --- */
+.pl-hcol-ad.pl-ad-aperta{ flex-direction:column; align-items:stretch; }
+.pl-hcol-ad.pl-ad-aperta > .pl-ev{ display:block; }
+.pl-hcol-ad.pl-ad-aperta .pl-ad-pal{ display:none; }
+
+
+/* --- vista a lista: l'elenco prende tutta la larghezza ------------------
+   La colonna degli orari in vista a lista non ha niente da scrivere. La sua
+   altezza era già azzerata, ma restava la larghezza: era quella la striscia
+   vuota a sinistra dell'elenco, che sembrava un margine sbagliato e invece
+   era un righello senza numeri. */
+/* `--gutter-w` va a zero e basta: righello, intestazione e larghezza della
+   colonna la usano tutti e tre, quindi si spostano insieme e restano
+   d'accordo. Forzarne solo alcune faceva sfogliare i giorni con una misura
+   e disegnarli con un'altra. */
+body.pl-lista .pl-gutter{ display:none; }
+body.pl-lista .pl-col{ border-left:none; }
+
+/* Il riquadro della copia mantiene l'aspetto di sempre — il colore scelto
+   per la pagina, la domanda, sì e no — ma sta in fondo insieme agli altri
+   avvisi invece che in cima, dove allungava la barra ogni volta. */
+.pl-copyask.pl-copyask-basso{
+    margin:0; box-shadow:var(--sh-card);
+    border-radius:var(--r-pill); padding:6px 8px 6px 12px;
+}
+.pl-copyask.pl-copyask-basso .pl-copyask-t{ font-size:11.5px; }
+.pl-copyask.pl-copyask-basso .pl-mini-btn{ padding:4px 12px; font-size:11.5px; }

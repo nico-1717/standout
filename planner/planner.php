@@ -347,9 +347,8 @@ function pl_event_out(array $r): array {
         'series_id'   => $r['series_id'] !== null ? (int)$r['series_id'] : null,
         /* Le occorrenze di una serie non esistono nel database: sono cloni
            calcolati in lettura e portano tutte lo stesso `id`, quello del
-           master. Da sole non si distinguono, e il frontend le sovrascriveva
-           l'una con l'altra. `occ_date` dice di quale ripetizione si tratta,
-           `uid` è la chiave che le tiene separate in memoria. */
+           master. Da sole non si distinguono. `occ_date` dice di quale
+           ripetizione si tratta, `master_id` a chi appartiene. */
         'occ_date'    => $r['occ_date'] ?? $r['event_date'],
         'master_id'   => isset($r['master_id']) ? (int)$r['master_id'] : (int)$r['id'],
         'is_occurrence' => !empty($r['rrule']) && isset($r['occ_date']),
@@ -392,8 +391,7 @@ function pl_date_or_null(mixed $v): ?string {
 
 /* La RRULE salvata sul master è la verità sulla ripetizione: le colonne
    repeat_* restano per compatibilità con gli eventi vecchi e con Google,
-   ma se c'è la regola scritta è quella a comandare. Leggerne una sola
-   evita che i due lati si allontanino nel tempo. */
+   ma se c'è la regola scritta è quella a comandare. */
 function pl_rrule_parse(?string $rrule): ?array {
     if ($rrule === null || trim($rrule) === '') return null;
     $out = ['unit' => null, 'interval' => 1, 'until' => null, 'count' => null];
@@ -410,8 +408,6 @@ function pl_rrule_parse(?string $rrule): ?array {
                 $out['interval'] = max(1, (int)$v);
                 break;
             case 'UNTIL':
-                /* Google scrive 20261231T235959Z: teniamo solo il giorno,
-                   perché qui le occorrenze ragionano a date intere. */
                 $solaData = substr(preg_replace('/[^0-9]/', '', $v), 0, 8);
                 if (strlen($solaData) === 8) $out['until'] = substr($solaData, 0, 4) . '-' . substr($solaData, 4, 2) . '-' . substr($solaData, 6, 2);
                 break;
@@ -426,19 +422,17 @@ function pl_rrule_parse(?string $rrule): ?array {
 /**
  * Le date generate da un master dentro un periodo.
  *
- * Il punto delicato è che NON si parte dall'inizio della serie avanzando di
- * un passo per volta: un evento quotidiano nato tre anni fa richiederebbe
- * mille giri prima di arrivare al mese che stiamo guardando, e con un tetto
- * di sicurezza sul ciclo il mese resterebbe vuoto senza dire perché.
- * Calcoliamo invece quanti passi servono per atterrare dentro il periodo e
- * saltiamo lì in un colpo solo: da quel momento i giri sono al massimo
- * quanti sono i giorni mostrati.
+ * Il punto delicato: NON si parte dall'inizio della serie avanzando di un
+ * passo per volta. Un evento quotidiano nato tre anni fa richiederebbe mille
+ * giri prima di arrivare al mese che stiamo guardando, e con un tetto di
+ * sicurezza sul ciclo quel mese resterebbe vuoto senza dire perché. Si
+ * calcola quanti passi servono per atterrare dentro il periodo e si salta lì.
  */
 function pl_occurrences(array $r, string $from, string $to): array {
     $regola = pl_rrule_parse($r['rrule'] ?? null);
 
     if ($regola === null) {
-        // evento vecchio senza RRULE: ricostruiamo la regola dalle colonne
+        // evento vecchio senza RRULE: si ricostruisce la regola dalle colonne
         $tipo = (string)($r['repeat_type'] ?? 'none');
         if ($tipo === 'none' || $tipo === '') return [];
         $unita = ['daily' => 'day', 'weekly' => 'week', 'monthly' => 'month', 'yearly' => 'year'];
@@ -497,8 +491,8 @@ function pl_occurrences(array $r, string $from, string $to): array {
             $anno = $aI + intdiv($mI - 1 + $off, 12);
             $mese = (($mI - 1 + $off) % 12) + 1;
             $n++;
-            /* Il 31 di un mese che non ce l'ha si salta, non si arrotonda:
-               è quello che fa anche Google. Arrotondare al 1º del mese dopo
+            /* Il 31 di un mese che non ce l'ha si salta, non si arrotonda: è
+               quello che fa anche Google. Arrotondare al 1º del mese dopo
                farebbe scivolare l'evento in avanti a ogni febbraio. */
             if (!checkdate($mese, $gI, $anno)) {
                 if (sprintf('%04d-%02d-01', $anno, $mese) > $limite) break;
@@ -510,9 +504,6 @@ function pl_occurrences(array $r, string $from, string $to): array {
         }
     }
 
-    /* COUNT non si può rispettare guardando solo una finestra: qui teniamo
-       il taglio grossolano, il conteggio esatto andrà fatto se e quando
-       l'interfaccia permetterà di scrivere "per N volte". */
     if ($regola['count'] !== null && count($date) > $regola['count']) {
         $date = array_slice($date, 0, $regola['count']);
     }
@@ -591,6 +582,56 @@ function pl_events_range(int $userId, string $from, string $to): array {
 }
 
 /* --- priorità ------------------------------------------------------- */
+/** Le tabelle delle pastiglie possono non esserci: la sezione è opzionale. */
+function pl_pills_c_e(): bool {
+    static $c_e = null;
+    if ($c_e === null) {
+        $r = sec_one("SHOW TABLES LIKE 'pill_plans'");
+        $c_e = !empty($r);
+    }
+    return $c_e;
+}
+
+/**
+ * Le prese la cui ora è già passata e su cui nessuno ha ancora detto niente.
+ *
+ * «Niente» vuol dire status vuoto o 'pending': 'taken' e 'skipped' sono
+ * entrambe risposte, e chi ha detto «saltata» non se la deve ritrovare
+ * davanti al ricaricamento successivo — è la ragione per cui il tasto
+ * «saltato» scrive nel database invece di limitarsi a chiudere il riquadro.
+ *
+ * Si guardano anche i giorni prima: una pastiglia dimenticata martedì va
+ * chiesta oggi, non sepolta in un giorno che non si guarda più.
+ */
+function pl_pills_due(int $userId, string $oggi, string $oraOra): array {
+    if (!pl_pills_c_e()) return [];
+    $rows = sec_all(
+        "SELECT d.id, d.due_date, d.due_time, p.name, p.dose, p.color
+           FROM pill_doses d
+           JOIN pill_plans p ON p.id = d.plan_id AND p.user_id = d.user_id
+          WHERE d.user_id = ?
+            AND (d.status IS NULL OR d.status = '' OR d.status = 'pending')
+            AND (d.due_date < ? OR (d.due_date = ? AND d.due_time <= ?))
+            AND d.due_date >= DATE_SUB(?, INTERVAL 7 DAY)
+          ORDER BY d.due_date ASC, d.due_time ASC
+          LIMIT 6",
+        [$userId, $oggi, $oggi, $oraOra, $oggi], 'issss'
+    );
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = [
+            'id'    => (int)$r['id'],
+            'name'  => $r['name'],
+            'dose'  => (string)($r['dose'] ?? ''),
+            'color' => $r['color'],
+            'date'  => (string)$r['due_date'],
+            'time'  => substr((string)$r['due_time'], 0, 5),
+            'oggi'  => (string)$r['due_date'] === $oggi,
+        ];
+    }
+    return $out;
+}
+
 function pl_priorities_range(int $userId, string $from, string $to): array {
     $rows = sec_all("SELECT priority_date, position, content, is_done FROM planner_priorities
                      WHERE user_id = ? AND priority_date BETWEEN ? AND ? ORDER BY priority_date, position",
@@ -633,76 +674,7 @@ function pl_priorities_range(int $userId, string $from, string $to): array {
     return $out;
 }
 
-/**
- * Quello che è scaduto e nessuno ha spuntato.
- *
- * Compare tutto sul giorno a fuoco, non sul giorno in cui era in scadenza:
- * una cosa dimenticata martedì deve stare davanti agli occhi oggi, se no
- * resta sepolta in un giorno che non si guarda più. Si calcola solo per il
- * giorno di oggi — un arretrato è arretrato rispetto a adesso, e mostrarlo
- * anche sfogliando il mese scorso vorrebbe dire riempire di rosso giorni in
- * cui quella cosa non era ancora in ritardo.
- */
-function pl_arretrati(int $userId, string $oggi): array {
-    $out = [];
-
-    /* To do, to buy, to study: scaduti, non fatti, con una data.
-       Il limite tiene la fascia leggibile: chi ha duecento arretrati non ha
-       bisogno di vederli tutti qui, ha bisogno di aprire l'elenco. */
-    foreach (sec_all("SELECT id, list_type, title, due_date, due_time
-                        FROM todos
-                       WHERE user_id = ? AND is_done = 0
-                         AND due_date IS NOT NULL AND due_date < ?
-                       ORDER BY due_date DESC LIMIT 12",
-                     [$userId, $oggi], 'is') as $t) {
-        $out[] = [
-            'position' => 0, 'content' => $t['title'], 'done' => false,
-            'auto' => true, 'late' => true,
-            'kind' => 'todo', 'list_type' => $t['list_type'],
-            'ref_id' => (int)$t['id'], 'was_due' => $t['due_date'],
-        ];
-    }
-
-    /* Pastiglie: una presa è in ritardo finché non ha uno stato. */
-    foreach (sec_all("SELECT d.id, d.due_date, d.due_time, p.name
-                        FROM pill_doses d
-                        JOIN pill_plans p ON p.id = d.plan_id AND p.user_id = d.user_id
-                       WHERE d.user_id = ? AND d.due_date < ?
-                         AND (d.status IS NULL OR d.status = '' OR d.status = 'pending')
-                       ORDER BY d.due_date DESC LIMIT 12",
-                     [$userId, $oggi], 'is') as $d) {
-        $out[] = [
-            'position' => 0, 'content' => $d['name'], 'done' => false,
-            'auto' => true, 'late' => true,
-            'kind' => 'pill', 'list_type' => 'pills',
-            'ref_id' => (int)$d['id'], 'was_due' => $d['due_date'],
-        ];
-    }
-
-    /* Progetti con obiettivo o scadenza passati e non ancora chiusi. */
-    foreach (sec_all("SELECT id, name, notes, status, color, target_date, due_date
-                        FROM projects
-                       WHERE user_id = ? AND status <> 'done'
-                         AND ((target_date IS NOT NULL AND target_date < ?)
-                           OR (due_date    IS NOT NULL AND due_date    < ?))
-                       ORDER BY COALESCE(due_date, target_date) DESC LIMIT 12",
-                     [$userId, $oggi, $oggi], 'iss') as $p) {
-        $base = [
-            'position' => 0, 'done' => false, 'auto' => true, 'late' => true,
-            'kind' => 'project', 'ref_id' => (int)$p['id'],
-            'project_id' => (int)$p['id'], 'project' => $p['name'],
-            'notes' => $p['notes'], 'stato' => $p['status'], 'color' => $p['color'],
-            'target_date' => $p['target_date'], 'due_date' => $p['due_date'],
-        ];
-        if (!empty($p['due_date']) && $p['due_date'] < $oggi) {
-            $out[] = array_merge($base, ['content' => 'SCADENZA: ' . $p['name'], 'was_due' => $p['due_date']]);
-        } elseif (!empty($p['target_date']) && $p['target_date'] < $oggi) {
-            $out[] = array_merge($base, ['content' => 'Obiettivo: ' . $p['name'], 'was_due' => $p['target_date']]);
-        }
-    }
-
-    return $out;
-}
+/* --- liste della settimana ------------------------------------------ */
 function pl_week_lists(int $userId, string $weekStart): array {
     $lists = sec_all("SELECT id, list_type, sort_order FROM planner_week_lists
                       WHERE user_id = ? AND week_start = ? ORDER BY sort_order, id", [$userId, $weekStart], 'is');
@@ -1240,9 +1212,7 @@ if ($ajax !== '') {
             'from'       => $from, 'to' => $to,
             'events'     => pl_events_range($current_user_id, $from, $to),
             'priorities' => pl_priorities_range($current_user_id, $from, $to),
-            /* Gli arretrati non appartengono a un giorno del periodo chiesto:
-               vanno sul giorno di oggi, ed è oggi che il frontend li mostra. */
-            'late'       => pl_arretrati($current_user_id, date('Y-m-d')),
+            'pills_due'  => pl_pills_due($current_user_id, date('Y-m-d'), date('H:i:s')),
             'week'       => pl_week_row($current_user_id, $weekStart, $settings),
             'lists'      => pl_week_lists($current_user_id, $weekStart),
             'diary'      => pl_diary_dates($current_user_id, $from, $to),
@@ -1411,14 +1381,17 @@ if ($ajax !== '') {
 
         /* Le due date facoltative passano dal normalizzatore: arrivano vuote
            tutte le volte che l'evento non si ripete, e su PHP 8 la stringa
-           vuota dentro sec_date/strtotime era il Fatal Error del salvataggio. */
+           vuota dentro strtotime era il Fatal Error del salvataggio. */
         $repUntil = pl_date_or_null(sec_in('repeat_until'));
         $origDate = pl_date_or_null(sec_in('original_date'));
+
         $editMode = sec_str((string)(sec_in('edit_mode') ?? ''), 10);
         if ($editMode !== 'one' && $editMode !== 'all') $editMode = '';
 
         /* Luogo e lucchetto: la loro lettura era andata persa nel refactoring
-           e le variabili finivano nei parametri della query senza esistere. */
+           e le variabili finivano nei parametri della query senza esistere.
+           È questo che faceva rispondere «Errore nella richiesta al database»
+           a ogni salvataggio. */
         $placeName = sec_str(sec_in('place_name'), 255);
         $placeRef  = sec_str(sec_in('place_ref'), 255);
         $placeLat  = sec_float(sec_in('place_lat'), -90, 90, 999);
@@ -1493,90 +1466,35 @@ if ($ajax !== '') {
             if (!sec_owns('planner_events', $id, $current_user_id)) {
                 sec_die_json('Evento non trovato.', 404, 'not_found');
             }
-
-            if ($editMode === 'one' && $origDate !== null) {
-                /* --- una sola data della serie --- */
-                $master = sec_one("SELECT series_id FROM planner_events WHERE id=? AND user_id=?",
-                                  [$id, $current_user_id], 'ii');
-                $serie = !empty($master['series_id']) ? (int)$master['series_id'] : $id;
-
-                /* Modificare due volte la stessa occorrenza non deve produrre
-                   due righe: se l'eccezione per quella data d'origine esiste
-                   già la si riscrive, altrimenti quel giorno mostrerebbe due
-                   eventi sovrapposti e nessuno dei due cancellabile del tutto. */
-                $vecchia = sec_one("SELECT id FROM planner_events
-                                    WHERE user_id=? AND series_id=? AND original_date=? LIMIT 1",
-                                   [$current_user_id, $serie, $origDate], 'iis');
-
-                $campiEcc = [
+            
+            // SE STIAMO CREANDO UN'ECCEZIONE SINGOLA
+            if ($editMode === 'one' && $origDate) {
+                $params_exc = [
                     $title, $notes, $luogo, $date, $start, $end, $allDay ? 1 : 0,
                     $catId > 0 ? $catId : null, $calId > 0 ? $calId : null,
                     $projId > 0 ? $projId : null, $habitId > 0 ? $habitId : null,
-                    $imp, $color, $type, $notify, $nMin,
-                    // staccata dalla serie: l'eccezione non si ripete a sua volta
-                    'none', 1, 'week', null,
-                    $placeName !== '' ? $placeName : null, $placeLat, $placeLon,
-                    $placeRef !== '' ? $placeRef : null, $durLock, null,
+                    $imp, $color, $type, $notify, $nMin, 
+                    'none', 1, 'week', null, // L'eccezione isolata non si ripete più a sua volta
+                    $placeName !== '' ? $placeName : null, $placeLat, $placeLon, $placeRef !== '' ? $placeRef : null,
+                    $durLock, null, $current_user_id, $id, $origDate
                 ];
-
-                if ($vecchia) {
-                    $pEcc = $campiEcc;
-                    $pEcc[] = (int)$vecchia['id']; $pEcc[] = $current_user_id;
-                    sec_q("UPDATE planner_events SET title=?, notes=?, location=?, event_date=?, start_time=?, end_time=?,
-                                  is_all_day=?, category_id=?, calendar_id=?, project_id=?, habit_id=?, importance=?,
-                                  color=?, item_type=?, notify_type=?, notify_minutes=?, repeat_type=?, repeat_interval=?,
-                                  repeat_unit=?, repeat_until=?, place_name=?, place_lat=?, place_lon=?, place_ref=?,
-                                  duration_locked=?, rrule=?, is_cancelled=0
-                           WHERE id=? AND user_id=?", $pEcc);
-                    $newId = (int)$vecchia['id'];
-                } else {
-                    $pEcc = $campiEcc;
-                    $pEcc[] = $current_user_id; $pEcc[] = $serie; $pEcc[] = $origDate;
-                    sec_q("INSERT INTO planner_events
-                           (title, notes, location, event_date, start_time, end_time, is_all_day, category_id, calendar_id,
-                            project_id, habit_id, importance, color, item_type, notify_type, notify_minutes,
-                            repeat_type, repeat_interval, repeat_unit, repeat_until,
-                            place_name, place_lat, place_lon, place_ref, duration_locked, rrule,
-                            user_id, series_id, original_date)
-                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", $pEcc);
-                    $newId = sec_insert_id();
-                }
+                
+                sec_q("INSERT INTO planner_events
+                       (title, notes, location, event_date, start_time, end_time, is_all_day, category_id, calendar_id,
+                        project_id, habit_id, importance, color, item_type, notify_type, notify_minutes,
+                        repeat_type, repeat_interval, repeat_unit, repeat_until,
+                        place_name, place_lat, place_lon, place_ref, duration_locked, rrule, user_id, series_id, original_date)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", $params_exc);
+                $newId = sec_insert_id();
             } else {
-                /* --- tutta la serie, oppure evento singolo --- */
-                $pUp = $params;
-
-                if ($editMode === 'all' && $origDate !== null) {
-                    /* `$date` è la data dell'occorrenza che l'utente aveva
-                       aperto, non l'inizio della serie. Scriverla dritta nel
-                       master sposterebbe l'intera ripetizione su quel giorno
-                       ogni volta che si cambia anche solo il titolo. Quello
-                       che va riportato al master è lo scostamento. */
-                    $ini = sec_one("SELECT event_date FROM planner_events WHERE id=? AND user_id=?",
-                                   [$id, $current_user_id], 'ii');
-                    $iniData = pl_date_or_null($ini['event_date'] ?? null);
-                    if ($iniData !== null) {
-                        $scarto = (int)(new DateTimeImmutable($origDate))->diff(new DateTimeImmutable($date))->format('%r%a');
-                        $pUp[3] = $scarto === 0
-                            ? $iniData
-                            : (new DateTimeImmutable($iniData))->modify(($scarto >= 0 ? '+' : '') . $scarto . ' days')->format('Y-m-d');
-                    }
-                }
-
-                $pUp[] = $id; $pUp[] = $current_user_id;
+                // MODIFICA NORMALE O "TUTTA LA SERIE"
+                $params[] = $id; $params[] = $current_user_id;
                 sec_q("UPDATE planner_events SET title=?, notes=?, location=?, event_date=?, start_time=?, end_time=?, is_all_day=?,
                               category_id=?, calendar_id=?, project_id=?, habit_id=?, importance=?, color=?, item_type=?,
                               notify_type=?, notify_minutes=?, repeat_type=?, repeat_interval=?, repeat_unit=?, repeat_until=?,
                               place_name=?, place_lat=?, place_lon=?, place_ref=?, duration_locked=?, rrule=?
-                       WHERE id=? AND user_id=?", $pUp);
+                       WHERE id=? AND user_id=?", $params);
                 $newId = $id;
-
-                /* Un evento singolo che diventa ripetuto deve diventare capo
-                   della propria serie: senza series_id le eccezioni future non
-                   avrebbero nulla a cui agganciarsi. */
-                if ($rep !== 'none') {
-                    sec_q("UPDATE planner_events SET series_id = ? WHERE id = ? AND user_id = ? AND series_id IS NULL",
-                          [$id, $id, $current_user_id], 'iii');
-                }
             }
         } else {
             $params[] = $current_user_id;
@@ -1590,10 +1508,15 @@ if ($ajax !== '') {
             if ($rep !== 'none') {
                 sec_q("UPDATE planner_events SET series_id = ? WHERE id = ? AND user_id = ?",
                       [$newId, $newId, $current_user_id], 'iii');
-                /* Niente pl_materialize_repeats: le occorrenze non esistono più
-                   come righe, le calcola pl_events_range in lettura. */
+                /* La chiamata a pl_materialize_repeats è stata volutamente rimossa da qui */
             }
         }
+
+        /* Qui sotto c'era un SECONDO blocco di salvataggio, il vecchio, rimasto
+           in piedi accanto a quello nuovo. Girava comunque, e riaggiungeva
+           $id e $current_user_id a un $params a cui erano già stati aggiunti:
+           ventinove parametri contro ventisei segnaposto, cioè «Errore nella
+           richiesta al database» a ogni singolo salvataggio. Rimosso. */
         /* Invitati: si riscrive l'elenco da capo. Il nome viene copiato adesso,
            così un evento passato ricorda come si chiamava il contatto allora. */
         $guests = sec_in('guests');
@@ -1687,7 +1610,7 @@ if ($ajax !== '') {
             $params = [$current_user_id, $capo, $capo];
         } elseif ($scope === 'one' && !empty($ev['rrule']) && $origDate !== null) {
             /* Una sola occorrenza di un master: non esiste una riga da
-               cancellare, quindi se ne scrive una che dice "qui no". */
+               cancellare, quindi se ne scrive una che dice «qui no». */
             $capo = !empty($ev['series_id']) ? (int)$ev['series_id'] : $id;
             $gia = sec_one("SELECT id FROM planner_events
                             WHERE user_id=? AND series_id=? AND original_date=? LIMIT 1",
@@ -2536,7 +2459,7 @@ $boot = [
     'week'       => pl_week_row($current_user_id, $weekStart, $settings),
     'events'     => pl_events_range($current_user_id, $rangeFrom, $rangeTo),
     'priorities' => pl_priorities_range($current_user_id, $rangeFrom, $rangeTo),
-    'late'       => pl_arretrati($current_user_id, $today),
+    'pills_due'  => pl_pills_due($current_user_id, date('Y-m-d'), date('H:i:s')),
     'lists'      => pl_week_lists($current_user_id, $weekStart),
     'diary'      => pl_diary_dates($current_user_id, $rangeFrom, $rangeTo),
     'habits'     => pl_habits_for_date($current_user_id, $today),

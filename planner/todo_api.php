@@ -133,6 +133,11 @@ function td_out(array $r): array {
         'project_color' => $r['project_color'] ?? null,
         'title'      => $r['title'],
         'done'       => (int)$r['is_done'] === 1,
+        /* Il blocco che questa attività ha sul calendario. Serve al planner
+           per sbarrarne il titolo appena si spunta, senza aspettare il giro
+           di rilettura: senza questo riferimento non sapeva quale blocco
+           toccare e restava scritto normale finché non si ricaricava. */
+        'event_id'   => !empty($r['planner_event_id']) ? (int)$r['planner_event_id'] : null,
         'date'       => $r['due_date'],
         'time'       => $r['due_time'] !== null ? substr($r['due_time'], 0, 5) : null,
         'minutes'    => (int)$r['duration_minutes'],
