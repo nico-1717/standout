@@ -6397,9 +6397,25 @@ function startEventDrag(e, node, canvas) {
         if (!held) { raf = null; return; }
         var vh = window.innerHeight;
         var top = sc.getBoundingClientRect().top;
-        var zone = 110, max = 16, speed = 0;
-        if (lastY > vh - zone)       speed =  Math.min(max, (lastY - (vh - zone)) / 4);
-        else if (lastY < top + zone) speed = -Math.min(max, ((top + zone) - lastY) / 4);
+
+        // Calcoliamo dinamicamente i margini "morti" basandoci sugli elementi reali della UI
+        // (stessa identica logica usata durante la creazione di un nuovo evento)
+        var zoneGiu = 70, zoneSu = 60;
+        var plus = $('plPlus');
+        if (plus) {
+            var bp = plus.getBoundingClientRect();
+            zoneGiu = Math.max(24, vh - (bp.top + bp.height / 2));
+        }
+        var tastini = $('plFabs') && $('plFabs').querySelectorAll('.pl-fab, .pl-ring');
+        if (tastini && tastini.length >= 2) {
+            var b1 = tastini[0].getBoundingClientRect(), b2 = tastini[1].getBoundingClientRect();
+            zoneSu = Math.max(24, (b1.bottom + b2.top) / 2 - top);
+        }
+
+        var max = 16, speed = 0;
+        if (lastY > vh - zoneGiu)      speed =  Math.min(max, (lastY - (vh - zoneGiu)) / 4);
+        else if (lastY < top + zoneSu) speed = -Math.min(max, ((top + zoneSu) - lastY) / 4);
+        
         if (speed) {
             var before = sc.scrollTop;
             sc.scrollTop += speed;
@@ -6431,9 +6447,10 @@ function startEventDrag(e, node, canvas) {
            in dataset.newStart (place() lo scrive solo se il dito sale o scende). */
         var ns = node.dataset.newStart || toHM(blockStart);
         if (!dayChanged && toMin(ns) === blockStart) {
-            /* niente da salvare: se il blocco era passato da un'altra colonna e
-               poi è tornato, lo rimette a posto il ridisegno */
-            if (reparented) renderDays(); else node.style.top = startTop + 'px';
+            /* Niente da salvare: l'evento è tornato esattamente da dove era partito. 
+               Invece di affidarci a un calcolo fallato dei pixel CSS, ricarichiamo 
+               direttamente la griglia in modo solido dalla memoria. */
+            renderDays();
             return;
         }
 
@@ -6446,10 +6463,7 @@ function startEventDrag(e, node, canvas) {
                 minutes: Math.abs(shift),
                 direction: shift > 0 ? 'late' : 'early'
             }).then(function (r) {
-                if (!r.ok) { node.style.top = startTop + 'px'; return; }
-                /* Il server limita lo scarto una volta sola guardando il pezzo
-                   più estremo: contro la mezzanotte il blocco non si muove
-                   affatto e tornerebbe dov'era senza spiegazioni. */
+                if (!r.ok) { renderDays(); return; } // Rollback solido in caso di errore
                 if (r.moved === 0) toast('Il blocco non ci sta più in giornata.');
                 S.weekCache = {};
                 loadWeek(monday(date), true).then(renderDays);
@@ -6458,39 +6472,41 @@ function startEventDrag(e, node, canvas) {
             return;
         }
 
+        /* --- OTTIMIZZAZIONE FLUIDITÀ (Optimistic Update) ---
+           Spostiamo istantaneamente l'evento in locale prima di aspettare la 
+           risposta del server. Questo impedisce che l'evento sparisca se un 
+           ridisegno interrompe l'attesa! */
+        ev.start = ns; 
+        ev.end = toHM(Math.min(1439, toMin(ns) + dur));
+        if (dayChanged) {
+            var vecchi = S.events[date] || [];
+            for (var vi = vecchi.length - 1; vi >= 0; vi--) {
+                if (vecchi[vi] === ev || vecchi[vi].id === id) vecchi.splice(vi, 1);
+            }
+            ev.date = curDate;
+            if (!S.events[curDate]) S.events[curDate] = [];
+            S.events[curDate] = S.events[curDate].filter(function (x) { return x.id !== id; });
+            S.events[curDate].push(ev);
+        }
+        renderDays(); // Renderizziamo subito la nuova posizione
+
         api('event_move', { id: id, date: curDate, start: ns }).then(function (r) {
             if (!r.ok) {
-                /* rifiutato dal server: il blocco torna dov'era, colonna compresa */
-                node.style.top = startTop + 'px';
-                if (reparented) { node.dataset.date = date; renderDays(); }
+                /* In caso di errore (es. no rete), facciamo rollback ricaricando dal server */
+                loadWeek(monday(S.focusDate), true).then(renderDays);
                 return;
             }
-            ev.start = r.start; ev.end = r.end;
-            if (dayChanged) {
-                /* La copia in memoria è indicizzata per data: senza spostarla di
-                   mano il ridisegno successivo rimetterebbe l'evento nella
-                   colonna di partenza, e il giorno nuovo resterebbe vuoto fino
-                   al prossimo caricamento. Il confronto è sull'identificativo e
-                   non sull'oggetto: se nel frattempo è arrivata una ricarica di
-                   sfondo, la copia in elenco non è più quella che abbiamo in
-                   mano. */
-                var vecchi = S.events[date] || [];
-                for (var vi = vecchi.length - 1; vi >= 0; vi--) {
-                    if (vecchi[vi] === ev || vecchi[vi].id === id) vecchi.splice(vi, 1);
-                }
-                ev.date = curDate;
-                if (!S.events[curDate]) S.events[curDate] = [];
-                S.events[curDate] = S.events[curDate].filter(function (x) { return x.id !== id; });
-                S.events[curDate].push(ev);
-                /* Il pannello settimana e i conteggi vengono dalla cache della
-                   settimana: se il giorno nuovo cade in un'altra settimana quella
-                   cache non è più vera e va rifatta. */
-                if (monday(curDate) !== monday(date)) {
-                    S.weekCache = {};
-                    loadWeek(monday(S.focusDate), true).then(renderDays);
-                }
+            
+            // Confermiamo i dati esatti ritornati dal server
+            ev.start = r.start; 
+            ev.end = r.end;
+            
+            if (dayChanged && monday(curDate) !== monday(date)) {
+                S.weekCache = {};
+                loadWeek(monday(S.focusDate), true).then(renderDays);
+            } else {
+                renderDays();
             }
-            renderDays();
             scheduleSync();
         });
     }
