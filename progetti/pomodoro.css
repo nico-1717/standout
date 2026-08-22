@@ -45,14 +45,29 @@
 
 *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 .is-hidden{ display:none !important; }
+/* La pagina del pomodoro non scorre: ci deve stare tutta in una schermata.
+   Prima scorreva per un motivo banale — lo spazio in fondo era contato due
+   volte, 90px qui sul body piu' altri 30 sulla .page, e quei 120px di vuoto
+   bastavano a far sforare la schermata su un telefono. Ora l'allowance per la
+   barra in basso sta in un posto solo, dentro .page. */
+html{ height:100%; }
 body{
-    margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+    margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,Roboto,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
-    padding-bottom:calc(90px + var(--safe-bottom)); overscroll-behavior-y:none;
+    overscroll-behavior:none;
     transition:background-color .6s var(--ease-out);
     /* accento attivo: pomodoro o pausa. Tutto il resto legge var(--pomo-live) */
     --pomo-live: var(--pomo-accent);
+
+    position: fixed;
+    width: 100%;
+    -webkit-user-select: none;
+    user-select: none;
+}
+input, textarea {
+    -webkit-user-select: auto;
+    user-select: auto;
 }
 body.pausa-mode{ --pomo-live: var(--pausa-accent); }
 button{ font-family:inherit; cursor:pointer; }
@@ -77,7 +92,18 @@ body::before{
     transition:transform .2s var(--spring), background-color .2s; }
 .hdr-history-btn:active{ transform:scale(.94); background:var(--surface-3); }
 
-.page{ position:relative; z-index:1; max-width:520px; margin:0 auto; padding:6px 20px calc(30px + var(--safe-bottom)); display:flex; flex-direction:column; align-items:center; }
+.page{ position:relative; z-index:1; max-width:520px; margin:0 auto; padding:6px 20px calc(96px + var(--safe-bottom)); display:flex; flex-direction:column; align-items:center; }
+
+/* Su schermi bassi il cerchio e i margini si stringono invece di far
+   ricomparire lo scorrimento: meglio un timer un po' piu' piccolo che un tasto
+   di partenza tagliato fuori dallo schermo. */
+@media (max-height: 740px){
+    .ring-wrap{ width:min(58vw, 232px); height:min(58vw, 232px); margin:6px 0 0; }
+    .mode-switch{ margin:8px 0 6px; }
+    .pomo-project-row{ margin:4px 0 8px; }
+    .pomo-actions{ margin-top:10px; }
+    .page{ padding-bottom:calc(84px + var(--safe-bottom)); }
+}
 
 /* ---- mode switch (segmented control con thumb scorrevole) ---- */
 .mode-switch{ position:relative; display:flex; background:var(--surface-2); border-radius:15px; padding:3px; margin:14px 0 8px;
@@ -114,7 +140,16 @@ body.pomo-locked .mode-switch{ opacity:.4; filter:saturate(.55); pointer-events:
     background:var(--pomo-live) !important;
     box-shadow:var(--btn-hl), 0 8px 22px -10px color-mix(in srgb, var(--pomo-live) 85%, transparent) !important;
     padding-top:8px !important; padding-bottom:8px !important;
+    justify-content:center !important; text-align:center !important;
 }
+/* Quello che scentrava il testo: `.ps-trigger::before` di project_selector.php,
+   il puntino del colore del progetto largo 11px più il suo spazio. Non è un
+   figlio del tasto ma uno pseudo-elemento, quindi dal JavaScript non si tocca
+   e va spento da qui. Solo a progetto collegato: sul fondo pieno il puntino
+   sarebbe dello stesso colore dello sfondo, cioè invisibile e basta — mentre
+   con il segnaposto "nessun progetto" la pillola resta di vetro e il puntino
+   serve ancora. */
+.pomo-project-row.pomo-ha-progetto .ps-trigger::before{ display:none !important; }
 .pomo-project-row #ps-trigger-text-pomo{
     display:flex; flex-direction:column; align-items:center; gap:1px; min-width:0; text-align:center;
 }

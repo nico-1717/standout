@@ -278,8 +278,36 @@ if (!defined('TODO_WIDGET_CSS')) {
     };
 
     Todo.prototype.later = function (key, ms, fn) {
-        if (this.timers[key]) clearTimeout(this.timers[key]);
-        this.timers[key] = setTimeout(fn, ms);
+        var self = this;
+        if (this.timers[key]) clearTimeout(this.timers[key].id);
+        /* si tiene anche la funzione e non solo il numero del rinvio: senza,
+           svuotaRinvii() potrebbe soltanto annullarli, e annullare il
+           salvataggio di un titolo è esattamente il modo di perderlo */
+        this.timers[key] = {
+            fn: fn,
+            id: setTimeout(function () { self.timers[key] = null; fn(); }, ms)
+        };
+    };
+
+    /* Fa scattare SUBITO tutti i rinvii in attesa invece di aspettarli.
+       Serve prima di creare una voce nuova: il salvataggio del titolo che si
+       stava scrivendo è dentro un rinvio da 700ms, e partire senza aspettarlo
+       vuol dire scavalcarlo. */
+    Todo.prototype.svuotaRinvii = function () {
+        for (var k in this.timers) {
+            if (!this.timers.hasOwnProperty(k) || !this.timers[k]) continue;
+            var t = this.timers[k];
+            this.timers[k] = null;
+            clearTimeout(t.id);
+            try { t.fn(); } catch (e) {}
+        }
+    };
+
+    /* L'ultimo salvataggio partito, così chi deve accodarsi può aspettarlo.
+       Sempre una promessa, anche quando non c'è niente in volo: chi chiama non
+       deve controllare ogni volta se esiste. */
+    Todo.prototype.attesaSalvataggi = function () {
+        return this._inVolo || Promise.resolve();
     };
 
     Todo.prototype.load = function () {
@@ -388,6 +416,13 @@ if (!defined('TODO_WIDGET_CSS')) {
         if (this.listType === 'buy') { this.renderBuy(); return; }
 
         var roots = this.ordina(this.items).filter(function (t) { return !t.parent_id; });
+        /* Un "+" anche in cima, oltre a quello in fondo. Con venti attività in
+           elenco il tasto in fondo è lontano uno schermo e mezzo, e aggiungere
+           una cosa nuova è il gesto più frequente di tutti: deve stare dove il
+           pollice è già. Compare solo quando l'elenco è abbastanza lungo da
+           rendere scomodo quello in fondo — sotto le cinque righe due tasti
+           uguali a due dita di distanza sarebbero solo confusione. */
+        if (roots.length >= 5 && !this.selecting) this.list.appendChild(this.addButton(true));
         if (!roots.length) this.list.appendChild(el('div', 'td-empty', this.emptyText()));
 
         roots.forEach(function (t) {
@@ -405,11 +440,11 @@ if (!defined('TODO_WIDGET_CSS')) {
         return T('todo.niente_da_fare');
     };
 
-    Todo.prototype.addButton = function () {
+    Todo.prototype.addButton = function (inCima) {
         var self = this;
         var lab = this.listType === 'buy' ? T('todo.nuovo_articolo')
                 : (this.listType === 'study' ? T('todo.nuovo_argomento') : T('todo.nuova_attivita'));
-        var add = el('button', 'td-add');
+        var add = el('button', 'td-add' + (inCima ? ' td-add-top' : ''));
         add.type = 'button';
         add.innerHTML = ICON_PLUS;
         add.appendChild(el('span', null, lab));
@@ -469,6 +504,18 @@ if (!defined('TODO_WIDGET_CSS')) {
             }
             head.appendChild(el('div', 'td-gname', g.cat ? g.cat.name : T('todo.senza_categoria')));
             head.appendChild(el('div', 'td-gtot', euro(sumCents(g.items))));
+            /* Il "+" sull'intestazione: l'articolo nasce già dentro questa
+               categoria. Prima si poteva solo aggiungerlo in fondo, fra quelli
+               senza categoria, e poi spostarcelo — due passaggi per una cosa
+               che si sa già mentre si guarda il gruppo giusto. */
+            if (g.cat) {
+                var piu = el('button', 'td-gadd');
+                piu.type = 'button';
+                piu.innerHTML = ICON_PLUS;
+                piu.setAttribute('aria-label', T('todo.nuovo_articolo'));
+                piu.addEventListener('click', function () { self.addNew(null, { cat_id: g.cat.id }); });
+                head.appendChild(piu);
+            }
             box.appendChild(head);
 
             [1, 2, 3].forEach(function (p) {
@@ -1105,7 +1152,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         if (changes.url !== undefined)      { payload.url = changes.url;           toccati.push('url'); }
         if (toccati.length) payload.buy_set = toccati;
 
-        return api('save', payload).then(function (r) {
+        return this._inVolo = api('save', payload).then(function (r) {
             if (!r.ok) return;
             if (r.todo) {
                 /* teniamo aggiornata la copia in memoria senza toccare il DOM */
@@ -1118,30 +1165,52 @@ if (!defined('TODO_WIDGET_CSS')) {
         });
     };
 
-    Todo.prototype.addNew = function (parentId) {
+    Todo.prototype.addNew = function (parentId, extra) {
         var self = this;
-        /* nasce senza titolo: è il segnaposto a suggerire cosa scrivere,
-           così non bisogna cancellare "Nuova attività" ogni volta */
-        var payload = {
-            id: 0, title: ' ', parent_id: parentId || 0,
-            list_type: this.listType,
-            project_id: this.scope === 'project' ? this.projectId : (this.opts.defaultProjectId || 0),
-            date: this.opts.defaultDate || '', time: this.opts.defaultTime || '',
-            minutes: 30,
-            source: this.scope === 'pomodoro' ? 'pomodoro' : (this.scope === 'project' ? 'project' : 'page')
-        };
-        api('save', payload).then(function (r) {
-            if (!r.ok) return;
-            var newId = r.todo ? r.todo.id : 0;
-            if (newId && self.scope === 'pomodoro') {
-                self.sessionIds = self.sessionIds || [];
-                self.sessionIds.push(newId);
-            }
-            self.load().then(function () {
-                var inputs = self.list.querySelectorAll('.td-title');
-                for (var i = 0; i < inputs.length; i++) {
-                    if (!inputs[i].value.trim()) { inputs[i].focus(); break; }
+        /* LE VOCI DEL TO BUY CHE SPARIVANO.
+           Era una corsa fra due richieste. Toccando "+" mentre si stava ancora
+           scrivendo un titolo partivano insieme il salvataggio del titolo e la
+           creazione della voce nuova; se la creazione tornava per prima, la
+           rilettura riportava la voce di prima ancora SENZA titolo, e il fuoco
+           andava "sulla prima casella vuota" — che era quella di prima, non
+           quella nuova. Si scriveva il secondo articolo sopra al primo, e del
+           primo non restava niente.
+           Due correzioni: si aspetta che il salvataggio in corso sia finito, e
+           il fuoco va sulla riga con l'id che il server ha appena restituito,
+           non su "una casella vuota qualsiasi". */
+        this.svuotaRinvii();
+        return this.attesaSalvataggi().then(function () {
+            /* nasce senza titolo: è il segnaposto a suggerire cosa scrivere,
+               così non bisogna cancellare "Nuova attività" ogni volta */
+            var payload = {
+                id: 0, title: ' ', parent_id: parentId || 0,
+                list_type: self.listType,
+                project_id: self.scope === 'project' ? self.projectId : (self.opts.defaultProjectId || 0),
+                date: self.opts.defaultDate || '', time: self.opts.defaultTime || '',
+                minutes: 30,
+                source: self.scope === 'pomodoro' ? 'pomodoro' : (self.scope === 'project' ? 'project' : 'page')
+            };
+            /* usato dal "+" sull'intestazione di una categoria del to buy: la
+               voce nasce già dentro quella categoria invece di finire in fondo
+               fra quelle senza, da dove andrebbe poi spostata a mano */
+            if (extra && extra.cat_id) { payload.cat_id = extra.cat_id; payload.buy_set = ['cat_id']; }
+
+            return api('save', payload).then(function (r) {
+                if (!r.ok) return;
+                var newId = r.todo ? r.todo.id : 0;
+                if (newId && self.scope === 'pomodoro') {
+                    self.sessionIds = self.sessionIds || [];
+                    self.sessionIds.push(newId);
                 }
+                return self.load().then(function () {
+                    var riga = newId ? self.list.querySelector('.td-item[data-id="' + newId + '"] .td-title') : null;
+                    if (riga) { riga.focus(); return; }
+                    // ripiego: se la riga non è a schermo (filtro, gruppo chiuso)
+                    var inputs = self.list.querySelectorAll('.td-title');
+                    for (var i = 0; i < inputs.length; i++) {
+                        if (!inputs[i].value.trim()) { inputs[i].focus(); break; }
+                    }
+                });
             });
         });
     };

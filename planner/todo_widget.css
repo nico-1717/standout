@@ -320,6 +320,18 @@
     background:none; border:none; font:inherit; font-size:14px; cursor:pointer; width:100%;
 }
 .td-add svg{ width:15px; height:15px; }
+/* Il "+" in cima all'elenco: stesso tasto di quello in fondo, ma più discreto.
+   Deve essere una scorciatoia per chi ce l'ha già sotto il pollice, non un
+   secondo invito che compete con il primo. */
+.td-add-top{ padding:4px 2px 10px; font-size:13px; border-bottom:1px solid var(--td-hair); margin-bottom:6px; }
+/* Il "+" sull'intestazione di una categoria del to buy. */
+.td-gadd{
+    flex-shrink:0; width:26px; height:26px; border-radius:9px; border:none; cursor:pointer;
+    background:none; color:var(--td-ink-3); display:flex; align-items:center; justify-content:center;
+    transition:background-color .2s, color .2s, transform .15s;
+}
+.td-gadd svg{ width:15px; height:15px; }
+.td-gadd:active{ transform:scale(.88); background:var(--td-panel); color:var(--td-ink); }
 .td-empty{
     font-family:var(--td-serif); font-style:italic; font-size:15px;
     color:var(--td-ink-2); padding:14px 2px; text-align:center;

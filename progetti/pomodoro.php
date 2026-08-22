@@ -748,7 +748,8 @@ function pomoUpdateProjectPill(){
     var riga = document.querySelector('.pomo-project-row');
     if (!el) return;
     if (!projectId) {
-        // nessun progetto: lascia il placeholder gestito dal selettore
+        // nessun progetto: lascia il placeholder gestito dal selettore, puntino
+        // compreso — a toglierlo ci pensa il CSS, ma solo con la classe attiva
         if (riga) riga.classList.remove('pomo-ha-progetto');
         return;
     }

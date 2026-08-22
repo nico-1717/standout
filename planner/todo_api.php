@@ -668,7 +668,19 @@ function td_pills_ensure_giorni(int $uid, array $dates): void {
     if (!$plans) return;
     foreach ($plans as $p) {
         $ore = td_pill_times((string)$p['times']);
+        /* IL BUG DELLE PRESE CHE RITORNAVANO.
+           Cambiando l'orario di una terapia da 10:00 a 12:00, tutte le prese
+           già spuntate tornavano a galla come "rimaste indietro". Il motivo:
+           qui si rigenerano i sette giorni scorsi, e li si rigenerava con gli
+           orari di ADESSO. La presa delle 10:00 di ieri restava spuntata dov'era,
+           ma ne nasceva una nuova alle 12:00, in sospeso, per un giorno in cui
+           quell'orario non è mai esistito.
+           Da qui in poi ogni terapia porta la data da cui vale l'orario
+           corrente: prima di quella, le prese non si toccano più, perché
+           appartengono a un ritmo che non c'è più. */
+        $valeDa = !empty($p['schedule_from']) ? (string)$p['schedule_from'] : (string)$p['start_date'];
         foreach ($dates as $date) {
+            if ($valeDa !== '' && $date < $valeDa) continue;
             if (!td_pill_due($p, $date)) continue;
             foreach ($ore as $t) {
                 for ($seq = 1; $seq <= $t[1]; $seq++) {
@@ -889,21 +901,40 @@ if ($ajax === 'pill_save') {
 
     if ($id > 0) {
         if (!sec_owns('pill_plans', $id, $uid)) sec_die_json('Terapia non trovata.', 404, 'not_found');
+
+        /* Il ritmo è cambiato? Si guarda PRIMA di scrivere. Solo se cambia
+           davvero si sposta schedule_from a oggi: correggere il nome o il
+           colore non deve buttare via la storia delle prese passate, mentre
+           cambiare gli orari sì — da oggi in poi vale il ritmo nuovo, prima
+           valeva quello vecchio e le prese di allora restano com'erano. */
+        $prima = sec_one("SELECT times, freq_type, weekdays, month_days, interval_days, schedule_from, start_date
+                          FROM pill_plans WHERE id=? AND user_id=?", [$id, $uid], 'ii');
+        $ritmoCambiato = !$prima
+            || (string)$prima['times']         !== $times
+            || (string)$prima['freq_type']     !== $freq
+            || (string)$prima['weekdays']      !== $wd
+            || (string)$prima['month_days']    !== $md
+            || (int)$prima['interval_days']    !== $int;
+        $valeDa = $ritmoCambiato
+            ? date('Y-m-d')
+            : (!empty($prima['schedule_from']) ? (string)$prima['schedule_from'] : (string)$prima['start_date']);
+
         sec_q("UPDATE pill_plans SET name=?, dose=?, notes=?, color=?, freq_type=?, weekdays=?,
-                      month_days=?, interval_days=?, times=?, start_date=?, end_date=?, is_active=?
+                      month_days=?, interval_days=?, times=?, start_date=?, end_date=?, is_active=?,
+                      schedule_from=?
                WHERE id=? AND user_id=?",
-              [$name, $dose, $notes, $color, $freq, $wd, $md, $int, $times, $start, $end, $att, $id, $uid],
-              'sssssssisssiii');
+              [$name, $dose, $notes, $color, $freq, $wd, $md, $int, $times, $start, $end, $att, $valeDa, $id, $uid],
+              'sssssssisssisii');
         /* Le prese future di oggi in poi si rifanno con il ritmo nuovo; quelle
            già spuntate non si toccano, sono un fatto avvenuto. */
         sec_q("DELETE FROM pill_doses WHERE plan_id=? AND user_id=? AND due_date >= CURDATE() AND status='pending'",
               [$id, $uid], 'ii');
     } else {
         sec_q("INSERT INTO pill_plans (user_id, name, dose, notes, color, freq_type, weekdays,
-                                       month_days, interval_days, times, start_date, end_date, is_active)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-              [$uid, $name, $dose, $notes, $color, $freq, $wd, $md, $int, $times, $start, $end, $att],
-              'isssssssisssi');
+                                       month_days, interval_days, times, start_date, end_date, is_active, schedule_from)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+              [$uid, $name, $dose, $notes, $color, $freq, $wd, $md, $int, $times, $start, $end, $att, $start],
+              'isssssssisssis');
     }
     td_pills_ensure($uid, date('Y-m-d'));
     sec_json(['ok' => true, 'plans' => td_pill_plans($uid)]);
