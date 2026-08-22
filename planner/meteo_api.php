@@ -42,36 +42,36 @@ define('WX_FONTE_URL', 'https://open-meteo.com');
    -------------------------------------------------------------------- */
 function wx_codice(int $c): array {
     $m = [
-        0  => ['Sereno', 'sole'],
-        1  => ['Poco nuvoloso', 'sole-nubi'],
-        2  => ['Parzialmente nuvoloso', 'sole-nubi'],
-        3  => ['Coperto', 'nubi'],
-        45 => ['Nebbia', 'nebbia'],
-        48 => ['Nebbia con brina', 'nebbia'],
-        51 => ['Pioviggine leggera', 'pioggia-leggera'],
-        53 => ['Pioviggine', 'pioggia-leggera'],
-        55 => ['Pioviggine intensa', 'pioggia'],
-        56 => ['Pioviggine gelata', 'pioggia'],
-        57 => ['Pioviggine gelata intensa', 'pioggia'],
-        61 => ['Pioggia leggera', 'pioggia-leggera'],
-        63 => ['Pioggia', 'pioggia'],
-        65 => ['Pioggia forte', 'pioggia-forte'],
-        66 => ['Pioggia gelata', 'pioggia'],
-        67 => ['Pioggia gelata forte', 'pioggia-forte'],
-        71 => ['Neve leggera', 'neve'],
-        73 => ['Neve', 'neve'],
-        75 => ['Neve abbondante', 'neve'],
-        77 => ['Granelli di neve', 'neve'],
-        80 => ['Rovesci leggeri', 'pioggia-leggera'],
-        81 => ['Rovesci', 'pioggia'],
-        82 => ['Rovesci violenti', 'pioggia-forte'],
-        85 => ['Rovesci di neve', 'neve'],
-        86 => ['Rovesci di neve forti', 'neve'],
-        95 => ['Temporale', 'temporale'],
-        96 => ['Temporale con grandine', 'temporale'],
-        99 => ['Temporale con grandine forte', 'temporale'],
+        0  => [t('planner.wx_sereno'), 'sole'],
+        1  => [t('planner.wx_poco_nuvoloso'), 'sole-nubi'],
+        2  => [t('planner.wx_parz_nuvoloso'), 'sole-nubi'],
+        3  => [t('planner.wx_coperto'), 'nubi'],
+        45 => [t('planner.wx_nebbia'), 'nebbia'],
+        48 => [t('planner.wx_nebbia_brina'), 'nebbia'],
+        51 => [t('planner.wx_piovig_leggera'), 'pioggia-leggera'],
+        53 => [t('planner.wx_pioviggine'), 'pioggia-leggera'],
+        55 => [t('planner.wx_piovig_intensa'), 'pioggia'],
+        56 => [t('planner.wx_piovig_gelata'), 'pioggia'],
+        57 => [t('planner.wx_piovig_gelata_int'), 'pioggia'],
+        61 => [t('planner.wx_pioggia_leggera'), 'pioggia-leggera'],
+        63 => [t('planner.wx_pioggia'), 'pioggia'],
+        65 => [t('planner.wx_pioggia_forte'), 'pioggia-forte'],
+        66 => [t('planner.wx_pioggia_gelata'), 'pioggia'],
+        67 => [t('planner.wx_pioggia_gelata_forte'), 'pioggia-forte'],
+        71 => [t('planner.wx_neve_leggera'), 'neve'],
+        73 => [t('planner.wx_neve'), 'neve'],
+        75 => [t('planner.wx_neve_abbondante'), 'neve'],
+        77 => [t('planner.wx_granelli'), 'neve'],
+        80 => [t('planner.wx_rovesci_leggeri'), 'pioggia-leggera'],
+        81 => [t('planner.wx_rovesci'), 'pioggia'],
+        82 => [t('planner.wx_rovesci_violenti'), 'pioggia-forte'],
+        85 => [t('planner.wx_rovesci_neve'), 'neve'],
+        86 => [t('planner.wx_rovesci_neve_forti'), 'neve'],
+        95 => [t('planner.wx_temporale'), 'temporale'],
+        96 => [t('planner.wx_temporale_grandine'), 'temporale'],
+        99 => [t('planner.wx_temporale_grandine_forte'), 'temporale'],
     ];
-    return $m[$c] ?? ['Non disponibile', 'nubi'];
+    return $m[$c] ?? [t('planner.wx_non_disponibile'), 'nubi'];
 }
 
 /**
@@ -165,7 +165,8 @@ function wx_fetch(float $lat, float $lon): ?array {
 /** Da 250° al punto cardinale: "ovest" si legge, "250°" va interpretato. */
 function wx_direzione(?float $gradi): ?string {
     if ($gradi === null) return null;
-    $rosa = ['nord', 'nord-est', 'est', 'sud-est', 'sud', 'sud-ovest', 'ovest', 'nord-ovest'];
+    $rosa = [t('planner.dir_nord'), t('planner.dir_nord_est'), t('planner.dir_est'), t('planner.dir_sud_est'),
+             t('planner.dir_sud'), t('planner.dir_sud_ovest'), t('planner.dir_ovest'), t('planner.dir_nord_ovest')];
     return $rosa[((int)round($gradi / 45)) % 8];
 }
 
@@ -305,7 +306,9 @@ function wx_cerca(string $q): array {
     $url = 'https://geocoding-api.open-meteo.com/v1/search?' . http_build_query([
         'name'     => $q,
         'count'    => 8,
-        'language' => 'it',
+        /* la lingua dei nomi di luogo segue quella scelta: prima "Lombardia, Italia"
+           usciva cosi' anche in inglese */
+        'language' => nisama_lingua(),
         'format'   => 'json',
     ]);
 
@@ -445,14 +448,14 @@ if ($ajax === 'status') {
         'fonte'   => WX_FONTE,
         'fonte_url' => WX_FONTE_URL,
         'giorni'  => [],
-        'nota_affidabilita' => 'Stima nostra basata su quanto è lontana la previsione: il servizio non pubblica un indice di confidenza.',
+        'nota_affidabilita' => t('planner.wx_nota_affidabilita'),
     ];
     if ($on) {
         $data = wx_fetch((float)$s['weather_lat'], (float)$s['weather_lon']);
         if ($data) {
             $risposta['giorni'] = wx_giorni($data);
             $risposta['adesso'] = wx_adesso($data);
-        } else $risposta['errore'] = 'Previsioni non raggiungibili in questo momento.';
+        } else $risposta['errore'] = t('planner.wx_non_raggiungibili');
     }
     sec_json($risposta);
 }
@@ -460,7 +463,7 @@ if ($ajax === 'status') {
 if ($ajax === 'enable') {
     $lat = sec_float(sec_in('lat'), -90, 90, 999);
     $lon = sec_float(sec_in('lon'), -180, 180, 999);
-    if ($lat === 999.0 || $lon === 999.0) sec_die_json('Posizione non valida.', 422, 'invalid');
+    if ($lat === 999.0 || $lon === 999.0) sec_die_json(t('planner.wx_posizione_non_valida'), 422, 'invalid');
 
     $place = wx_place_nome($lat, $lon);
 
@@ -474,7 +477,7 @@ if ($ajax === 'enable') {
         'fonte' => WX_FONTE, 'fonte_url' => WX_FONTE_URL,
         'giorni' => $data ? wx_giorni($data) : [],
         'adesso' => $data ? wx_adesso($data) : null,
-        'nota_affidabilita' => 'Stima nostra basata su quanto è lontana la previsione: il servizio non pubblica un indice di confidenza.',
+        'nota_affidabilita' => t('planner.wx_nota_affidabilita'),
     ]);
 }
 
@@ -520,7 +523,7 @@ if ($ajax === 'place_search') {
 if ($ajax === 'preview') {
     $lat = sec_float(sec_in('lat'), -90, 90, 999);
     $lon = sec_float(sec_in('lon'), -180, 180, 999);
-    if ($lat === 999.0 || $lon === 999.0) sec_die_json('Posizione non valida.', 422, 'invalid');
+    if ($lat === 999.0 || $lon === 999.0) sec_die_json(t('planner.wx_posizione_non_valida'), 422, 'invalid');
 
     /* Il nome arriva dal browser ma si rivalida lo stesso, come tutto il
        resto: l'abbiamo mandato noi un attimo prima, e non basta. Se manca,
@@ -530,13 +533,13 @@ if ($ajax === 'preview') {
 
     $data = wx_fetch($lat, $lon);
     sec_json([
-        'ok' => true, 'enabled' => true, 'manuale' => true,
+        'ok' => true, 'enabled' => true, t('planner.wx_manuale') => true,
         'place' => $place, 'lat' => $lat, 'lon' => $lon,
         'fonte' => WX_FONTE, 'fonte_url' => WX_FONTE_URL,
         'giorni' => $data ? wx_giorni($data) : [],
         'adesso' => $data ? wx_adesso($data) : null,
-        'nota_affidabilita' => 'Stima nostra basata su quanto è lontana la previsione: il servizio non pubblica un indice di confidenza.',
+        'nota_affidabilita' => t('planner.wx_nota_affidabilita'),
     ]);
 }
 
-sec_die_json('Richiesta non riconosciuta.', 404, 'unknown_action');
+sec_die_json(t('planner.wx_richiesta_non_riconosciuta'), 404, 'unknown_action');

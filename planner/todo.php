@@ -25,56 +25,27 @@ $tab = sec_enum(sec_in('tab'), ['todo', 'buy', 'study', 'pills'], '');
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#FDFCF9">
-<title>Attività</title>
+<title><?php te('todo.titolo'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap');
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; background:#F4EFE9; }
-body{
-    margin:0; min-height:100dvh; background:#F4EFE9; color:#4A443D;
-    font-family:'Jost', -apple-system, system-ui, sans-serif; font-size:15px; line-height:1.45;
-    -webkit-font-smoothing:antialiased;
-    padding:calc(env(safe-area-inset-top, 0px) + 18px) 16px calc(env(safe-area-inset-bottom, 0px) + 40px);
-}
-.tp-sheet{
-    max-width:680px; margin:0 auto; background:#FDFCF9; border-radius:26px;
-    padding:22px 18px 26px;
-    box-shadow:0 2px 4px rgba(74,68,61,.05), 0 22px 50px -26px rgba(74,68,61,.35);
-}
-.tp-head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:4px; }
-.tp-title{ font-family:'Cormorant Garamond', Georgia, serif; font-size:34px; font-weight:400; line-height:1; }
-.tp-sub{
-    font-size:9.5px; letter-spacing:.2em; text-transform:uppercase; color:#B7AEA3;
-}
-.tp-back{
-    display:inline-flex; align-items:center; gap:6px; margin-bottom:16px;
-    color:#8A8177; text-decoration:none; font-size:13px;
-}
-.tp-back svg{ width:15px; height:15px; }
-.tp-note{
-    font-family:'Cormorant Garamond', serif; font-style:italic; font-size:15px;
-    color:#8A8177; margin:2px 0 16px; line-height:1.5;
-}
-</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>todo.css?v=<?php echo @filemtime(dirname(__FILE__) . '/todo.css') ?: 1; ?>">
 </head>
 <body class="tp-body">
 
 <a class="tp-back" href="planner.php">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M14.5 5L8 12l6.5 7"/></svg>
-    <span>Planner</span>
+    <span><?php te('todo.planner'); ?></span>
 </a>
 
 <main class="tp-sheet">
     <div class="tp-head">
-        <span class="tp-title">Attività</span>
-        <span class="tp-sub">tre elenchi e le pastiglie</span>
+        <span class="tp-title"><?php te('todo.titolo'); ?></span>
+        <span class="tp-sub"><?php te('todo.sottotitolo'); ?></span>
     </div>
     <p class="tp-note">
-        Le voci con una data finiscono anche nel planner.
-        Quelle spuntate spariscono da sole il giorno dopo.
+        <?php te('todo.nota'); ?>
     </p>
     <div id="tpList"></div>
 </main>
@@ -82,17 +53,19 @@ body{
 <?php
 /* selettore progetti condiviso, usato dal componente attività */
 $ps_id = 'todo'; $ps_selected_id = 0; $ps_selected_name = '';
-$ps_placeholder = 'Nessun progetto'; $ps_title = 'Collega a un progetto';
-$ps_show_all_option = true; $ps_all_option_label = 'Nessun progetto'; $ps_allow_create = false;
+$ps_placeholder = t('todo.nessun_progetto'); $ps_title = t('todo.collega_progetto');
+$ps_show_all_option = true; $ps_all_option_label = t('todo.nessun_progetto'); $ps_allow_create = false;
 $ps_hidden_name = 'todo_project_id';
 include 'project_selector.php';
 /* del selettore ci serve solo il popup: il pulsante inline qui non ha senso,
    il progetto si sceglie dalla riga dell'attività */
-echo '<style>#ps-widget-todo{ display:none; }</style>';
+/* la regola sta in todo.css: uno <style> stampato da PHP e' comunque uno stile
+   inline, quindi bloccherebbe la CSP esattamente come gli altri */
 
 include 'todo_widget.php';
 ?>
 <?php include 'sidebar.php'; ?>
+<?php echo nisama_i18n_json(['comune', 'todo']); ?>
 <script>
 nisamaTodo.mount(document.getElementById('tpList'), {
     scope: 'all',

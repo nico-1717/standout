@@ -1,10 +1,41 @@
 <?php
 
 require_once 'config.php';
-
 require_once 'auth_check.php';
+$current_user_id = (int)$utente_corrente['id'];
+/* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
+$conn = sec_db();
 
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
+/* Filtra un elenco di id di carte tenendo solo quelle di questo utente.
+   Prima non c'era: gli id del modulo finivano nelle query senza controllo, e
+   cambiando i numeri si cancellavano le flashcard di un altro. */
+function fc_solo_mie(array $ids, int $userId): array {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (empty($ids)) return [];
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $ok = [];
+    foreach (sec_all("SELECT i.id FROM fc_images i
+                      JOIN fc_categories c ON c.id = i.category_id
+                      WHERE i.id IN ($ph) AND c.user_id = ?", array_merge($ids, [$userId])) as $r) {
+        $ok[] = (int)$r['id'];
+    }
+    return $ok;
+}
+
+/* Come sopra per le sotto-carte: la proprieta' si verifica passando dal padre. */
+function fc_figli_miei(array $ids, int $userId): array {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (empty($ids)) return [];
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $ok = [];
+    foreach (sec_all("SELECT ch.id_child FROM fc_child_cards ch
+                      JOIN fc_images i ON i.id = ch.parent_id
+                      JOIN fc_categories c ON c.id = i.category_id
+                      WHERE ch.id_child IN ($ph) AND c.user_id = ?", array_merge($ids, [$userId])) as $r) {
+        $ok[] = (int)$r['id_child'];
+    }
+    return $ok;
+}
 
 
 
@@ -21,25 +52,28 @@ $current_user_id = $utente_corrente['id'];
 // ==========================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'fc_link_project') {
     header('Content-Type: application/json');
-    $catId = intval($_POST['category_id'] ?? 0);
-    $projectId = intval($_POST['project_id'] ?? 0);
+        /* Token di sessione, origine e limite di frequenza. */
+    sec_guard_write($current_user_id, 'fc_vis', 0, 120, 60);
 
-    // la categoria deve esistere ed essere dell'utente
-    $chkCat = mysqli_query($conn, "SELECT id FROM fc_categories WHERE id = $catId AND user_id = $current_user_id");
-    if (!$chkCat || mysqli_num_rows($chkCat) === 0) { echo json_encode(['success' => false, 'error' => 'Categoria non valida']); exit(); }
-    // il progetto scelto deve esistere ed essere dell'utente
-    $chkPrj = mysqli_query($conn, "SELECT id, color, color_edited FROM projects WHERE id = $projectId AND user_id = $current_user_id");
-    $prjRow = $chkPrj ? mysqli_fetch_assoc($chkPrj) : null;
-    if (!$prjRow) { echo json_encode(['success' => false, 'error' => 'Progetto non valido']); exit(); }
+    $catId = sec_int($_POST['category_id'] ?? 0, 1);
+    $projectId = sec_int($_POST['project_id'] ?? 0, 1);
+    // la categoria deve essere dell'utente
+    if (!sec_owns('fc_categories', $catId, $current_user_id)) {
+        echo json_encode(['success' => false, 'error' => t('fc.vis_categoria_non_valida')]); exit();
+    }
+    // e anche il progetto scelto
+    $prjRow = sec_one("SELECT id, color, color_edited FROM projects WHERE id = ? AND user_id = ?",
+                      [$projectId, $current_user_id]);
+    if (!$prjRow) { echo json_encode(['success' => false, 'error' => t('fc.vis_progetto_non_valido')]); exit(); }
 
     // colore ereditato dal progetto scelto (catena dei padri, come fa project_selector)
     if (!function_exists('fc_resolve_project_color')) {
-        function fc_resolve_project_color($conn, $parentId, $userId) {
+                function fc_resolve_project_color($parentId, $userId) {
             $parentId = intval($parentId); $guard = 0;
             while ($parentId > 0 && $guard < 50) {
                 $guard++;
-                $res = mysqli_query($conn, "SELECT parent_id, color, color_edited FROM projects WHERE id = $parentId AND user_id = " . intval($userId));
-                $row = $res ? mysqli_fetch_assoc($res) : null;
+                $row = sec_one("SELECT parent_id, color, color_edited FROM projects WHERE id = ? AND user_id = ?",
+                               [$parentId, (int)$userId]);
                 if (!$row) break;
                 if (intval($row['color_edited']) === 1 && !empty($row['color'])) return $row['color'];
                 $parentId = intval($row['parent_id']);
@@ -47,8 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             return '#8E8E93';
         }
     }
-    $newColor = (intval($prjRow['color_edited']) === 1 && !empty($prjRow['color'])) ? $prjRow['color'] : fc_resolve_project_color($conn, $projectId, $current_user_id);
-    $newColorEsc = mysqli_real_escape_string($conn, $newColor);
+        $newColor = (intval($prjRow['color_edited']) === 1 && !empty($prjRow['color']))
+        ? $prjRow['color'] : fc_resolve_project_color($projectId, $current_user_id);
 
     // Prima di creare, controlla se esiste già un progetto "Flashcards" da riutilizzare:
     // 1) il progetto cliccato è già chiamato "Flashcards" -> lega quello
@@ -58,8 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $targetName = 'Flashcards';
 
     $selfName = '';
-    $selfRes = mysqli_query($conn, "SELECT name FROM projects WHERE id = $projectId AND user_id = $current_user_id");
-    if ($selfRes && ($sr = mysqli_fetch_assoc($selfRes))) { $selfName = $sr['name']; }
+        $sr = sec_one("SELECT name FROM projects WHERE id = ? AND user_id = ?", [$projectId, $current_user_id]);
+    if ($sr) { $selfName = $sr['name']; }
 
     if (mb_strtolower(trim($selfName)) === 'flashcards') {
         // il progetto scelto è già "Flashcards"
@@ -67,8 +101,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $targetName = $selfName;
     } else {
         // cerca un sotto-progetto diretto chiamato "Flashcards"
-        $childRes = mysqli_query($conn, "SELECT id, name FROM projects WHERE user_id = $current_user_id AND parent_id = $projectId AND LOWER(name) = 'flashcards' LIMIT 1");
-        if ($childRes && ($cr = mysqli_fetch_assoc($childRes))) {
+                $cr = sec_one("SELECT id, name FROM projects WHERE user_id = ? AND parent_id = ? AND LOWER(name) = 'flashcards' LIMIT 1",
+                      [$current_user_id, $projectId]);
+        if ($cr) {
             $targetProjectId = (int)$cr['id'];
             $targetName = $cr['name'];
         }
@@ -76,20 +111,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     if ($targetProjectId === 0) {
         // nessuno esistente: crea il sotto-progetto "Flashcards"
-        $ordRes = mysqli_query($conn, "SELECT COALESCE(MAX(custom_order), -1) + 1 AS next_order FROM projects WHERE user_id = $current_user_id AND parent_id = $projectId");
-        $nextOrder = $ordRes ? intval(mysqli_fetch_assoc($ordRes)['next_order']) : 0;
-        mysqli_query($conn, "INSERT INTO projects (user_id, parent_id, name, color, color_edited, status, custom_order, created_at)
-                              VALUES ($current_user_id, $projectId, 'Flashcards', '$newColorEsc', 0, 'in_progress', $nextOrder, NOW())");
-        $targetProjectId = mysqli_insert_id($conn);
-        if ($targetProjectId <= 0) { echo json_encode(['success' => false, 'error' => 'Creazione non riuscita']); exit(); }
+                $nextOrder = (int)(sec_one("SELECT COALESCE(MAX(custom_order), -1) + 1 AS next_order FROM projects WHERE user_id = ? AND parent_id = ?",
+                                   [$current_user_id, $projectId])['next_order'] ?? 0);
+        sec_q("INSERT INTO projects (user_id, parent_id, name, color, color_edited, status, custom_order, created_at)
+               VALUES (?, ?, 'Flashcards', ?, 0, 'in_progress', ?, NOW())",
+              [$current_user_id, $projectId, $newColor, $nextOrder]);
+        $targetProjectId = sec_insert_id();
+        if ($targetProjectId <= 0) { echo json_encode(['success' => false, 'error' => t('fc.vis_creazione_fallita')]); exit(); }
         $created = true;
     } else {
         $created = false;
     }
 
     // collega il progetto (nuovo o riutilizzato) a questa categoria (evita doppioni)
-    mysqli_query($conn, "DELETE FROM project_fc_categories WHERE fc_category_id = $catId AND project_id IN (SELECT id FROM projects WHERE user_id = $current_user_id)");
-    mysqli_query($conn, "INSERT INTO project_fc_categories (project_id, fc_category_id) VALUES ($targetProjectId, $catId)");
+        sec_q("DELETE FROM project_fc_categories WHERE fc_category_id = ? AND project_id IN (SELECT id FROM projects WHERE user_id = ?)",
+          [$catId, $current_user_id]);
+    sec_q("INSERT INTO project_fc_categories (project_id, fc_category_id) VALUES (?, ?)", [$targetProjectId, $catId]);
 
     echo json_encode(['success' => true, 'project_id' => $targetProjectId, 'name' => $targetName, 'color' => $newColor, 'created' => $created]);
     exit();
@@ -105,61 +142,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] == 'swap_order') {
 
-    $id = intval($_POST['id']);
+    $id = sec_int($_POST['id'] ?? 0, 1);
 
     $type = $_POST['type']; // 'parent' o 'child'
 
-    $dir = $_POST['direction']; // 'up' o 'down'
+        $dir = sec_enum($_POST['direction'] ?? null, ['up', 'down'], 'up');
+    $padre = ($type == 'parent');
 
-
-
-    $table = ($type == 'parent') ? 'fc_images' : 'fc_child_cards';
-    $id_col = 'id'; // Standardizzato a 'id' per entrambe le tabelle
-    
-    $res = mysqli_query($conn, "SELECT * FROM $table WHERE $id_col = $id");
-
-    $current = mysqli_fetch_assoc($res);
-
-    
+    /* La carta dev'essere sua: prima l'id arrivava dal modulo e finiva nella
+       UPDATE senza nessun controllo. */
+    $mie = $padre ? fc_solo_mie([$id], $current_user_id) : fc_figli_miei([$id], $current_user_id);
+    $current = !empty($mie)
+        ? ($padre ? sec_one("SELECT * FROM fc_images WHERE id = ?", [$id])
+                  : sec_one("SELECT * FROM fc_child_cards WHERE id = ?", [$id]))
+        : null;
 
     if ($current) {
-
-        $current_order = intval($current['custom_order']);
-
-        $where = ($type == 'parent') ? "category_id = " . intval($current['category_id']) : "parent_id = " . intval($current['parent_id']);
-
-
-
-        if ($dir == 'up') {
-
-            $q_adj = "SELECT $id_col, custom_order FROM $table WHERE $where AND custom_order < $current_order ORDER BY custom_order DESC LIMIT 1";
-
+        $current_order = (int)$current['custom_order'];
+        $scope = $padre ? (int)$current['category_id'] : (int)$current['parent_id'];
+        /* Quattro forme scritte per esteso invece di comporre "$table" e
+           "$where": i nomi di tabella non si legano a un segnaposto, quindi
+           meno se ne scrivono a runtime meglio e'. */
+        if ($padre) {
+            $adjacent = ($dir == 'up')
+                ? sec_one("SELECT id, custom_order FROM fc_images WHERE category_id = ? AND custom_order < ? ORDER BY custom_order DESC LIMIT 1", [$scope, $current_order])
+                : sec_one("SELECT id, custom_order FROM fc_images WHERE category_id = ? AND custom_order > ? ORDER BY custom_order ASC LIMIT 1", [$scope, $current_order]);
         } else {
-
-            $q_adj = "SELECT $id_col, custom_order FROM $table WHERE $where AND custom_order > $current_order ORDER BY custom_order ASC LIMIT 1";
-
+            $adjacent = ($dir == 'up')
+                ? sec_one("SELECT id, custom_order FROM fc_child_cards WHERE parent_id = ? AND custom_order < ? ORDER BY custom_order DESC LIMIT 1", [$scope, $current_order])
+                : sec_one("SELECT id, custom_order FROM fc_child_cards WHERE parent_id = ? AND custom_order > ? ORDER BY custom_order ASC LIMIT 1", [$scope, $current_order]);
         }
-
-        
-
-        $adj_res = mysqli_query($conn, $q_adj);
-
-        $adjacent = mysqli_fetch_assoc($adj_res);
-
-        
-
         if ($adjacent) {
-
-            $adj_id = $adjacent[$id_col];
-
-            $adj_order = $adjacent['custom_order'];
-
-            mysqli_query($conn, "UPDATE $table SET custom_order = $adj_order WHERE $id_col = $id");
-
-            mysqli_query($conn, "UPDATE $table SET custom_order = $current_order WHERE $id_col = $adj_id");
-
+            $adj_id = (int)$adjacent['id'];
+            $adj_order = (int)$adjacent['custom_order'];
+            if ($padre) {
+                sec_q("UPDATE fc_images SET custom_order = ? WHERE id = ?", [$adj_order, $id]);
+                sec_q("UPDATE fc_images SET custom_order = ? WHERE id = ?", [$current_order, $adj_id]);
+            } else {
+                sec_q("UPDATE fc_child_cards SET custom_order = ? WHERE id = ?", [$adj_order, $id]);
+                sec_q("UPDATE fc_child_cards SET custom_order = ? WHERE id = ?", [$current_order, $adj_id]);
+            }
         }
-
     }
 
     exit;
@@ -178,46 +201,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     header('Content-Type: application/json');
 
-    $type = isset($_POST['type']) ? $_POST['type'] : '';
+        sec_guard_write($current_user_id, 'fc_vis', 0, 300, 60);
 
-    $scope_id = isset($_POST['scope_id']) ? intval($_POST['scope_id']) : -1;
-
+    $type = sec_enum($_POST['type'] ?? null, ['parent', 'child'], '');
+    $scope_id = sec_int($_POST['scope_id'] ?? -1, 0, PHP_INT_MAX, -1);
     $ordered_ids = (isset($_POST['ordered_ids']) && is_array($_POST['ordered_ids'])) ? $_POST['ordered_ids'] : [];
-
-
-
     $ok = false;
 
-    if (count($ordered_ids) > 0 && $scope_id >= 0) {
-
-        if ($type === 'parent') {
-            $table = 'fc_images'; $id_col = 'id'; $scope_col = 'category_id';
-        } elseif ($type === 'child') {
-            $table = 'fc_child_cards'; $id_col = 'id'; $scope_col = 'parent_id';
-        } else {
-            $table = null;
-        }
-
-
-
-        if ($table) {
-
-            $pos = 0;
-
-            foreach ($ordered_ids as $oid) {
-
-                $oid = intval($oid);
-
-                mysqli_query($conn, "UPDATE $table SET custom_order = $pos WHERE $id_col = $oid AND $scope_col = $scope_id");
-
-                $pos++;
-
+    if (count($ordered_ids) > 0 && $scope_id >= 0 && $type !== '') {
+        /* Solo le carte davvero sue: prima gli id del modulo finivano nella
+           UPDATE senza controllo. Il filtro qui e' la difesa; la clausola sullo
+           scope resta come seconda rete. */
+        $miei = ($type === 'parent')
+            ? fc_solo_mie($ordered_ids, $current_user_id)
+            : fc_figli_miei($ordered_ids, $current_user_id);
+        /* si conserva l'ordine scelto dall'utente, non quello del database */
+        $ordine = array_values(array_filter(array_map('intval', $ordered_ids),
+                                            function ($x) use ($miei) { return in_array($x, $miei, true); }));
+        $pos = 0;
+        foreach ($ordine as $oid) {
+            if ($type === 'parent') {
+                sec_q("UPDATE fc_images SET custom_order = ? WHERE id = ? AND category_id = ?", [$pos, $oid, $scope_id]);
+            } else {
+                sec_q("UPDATE fc_child_cards SET custom_order = ? WHERE id = ? AND parent_id = ?", [$pos, $oid, $scope_id]);
             }
-
-            $ok = true;
-
+            $pos++;
         }
-
+        $ok = true;
     }
 
     echo json_encode(['success' => $ok]);
@@ -236,85 +246,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
 
-    $action = $_POST['bulk_action'];
+        sec_guard_write($current_user_id, 'fc_vis', 0, 120, 60);
 
-    $cat_param = isset($_GET['category_id']) ? "?category_id=" . intval($_GET['category_id']) . "&user_id=$current_user_id" : "?user_id=$current_user_id";
-
-    
+    $action = sec_enum($_POST['bulk_action'] ?? null, ['delete', 'move', 'join', 'unjoin'], '');
+    $cat_param = isset($_GET['category_id'])
+        ? "?category_id=" . sec_int($_GET['category_id'], 0)
+        : "?";
 
     if ($action === 'delete') {
-        if (isset($_POST['selected_ids']) && is_array($_POST['selected_ids'])) {
-            $ids_str = implode(',', array_map('intval', $_POST['selected_ids']));
-            mysqli_query($conn, "DELETE FROM fc_images WHERE id IN ($ids_str)");
+        $miei = fc_solo_mie($_POST['selected_ids'] ?? [], $current_user_id);
+        if (!empty($miei)) {
+            $ph = implode(',', array_fill(0, count($miei), '?'));
+            sec_q("DELETE FROM fc_images WHERE id IN ($ph)", $miei);
         }
-        if (isset($_POST['selected_child_ids']) && is_array($_POST['selected_child_ids'])) {
-            $c_ids_str = implode(',', array_map('intval', $_POST['selected_child_ids']));
-            mysqli_query($conn, "DELETE FROM fc_child_cards WHERE id IN ($c_ids_str)");
+        $figli = fc_figli_miei($_POST['selected_child_ids'] ?? [], $current_user_id);
+        if (!empty($figli)) {
+            $ph = implode(',', array_fill(0, count($figli), '?'));
+            sec_q("DELETE FROM fc_child_cards WHERE id IN ($ph)", $figli);
+        }
+    }
+    elseif ($action === 'move' && isset($_POST['target_category'])) {
+        $target_cat = sec_int($_POST['target_category'], 1);
+        $miei = fc_solo_mie($_POST['selected_ids'] ?? [], $current_user_id);
+        /* anche la categoria di destinazione dev'essere sua */
+        if (!empty($miei) && sec_owns('fc_categories', $target_cat, $current_user_id)) {
+            $ph = implode(',', array_fill(0, count($miei), '?'));
+            sec_q("UPDATE fc_images SET category_id = ? WHERE id IN ($ph)", array_merge([$target_cat], $miei));
         }
     } 
-    elseif ($action === 'move' && isset($_POST['target_category']) && isset($_POST['selected_ids']) && is_array($_POST['selected_ids'])) {
-        $target_cat = intval($_POST['target_category']);
-        $ids_str = implode(',', array_map('intval', $_POST['selected_ids']));
-        mysqli_query($conn, "UPDATE fc_images SET category_id = $target_cat WHERE id IN ($ids_str)");
-    } 
-    elseif ($action === 'join' && isset($_POST['father_id']) && isset($_POST['selected_ids'])) {
-        $father_id = intval($_POST['father_id']);
-        
-        $max_c = mysqli_query($conn, "SELECT MAX(custom_order) as m FROM fc_child_cards WHERE parent_id = $father_id");
-        $c_order = intval(mysqli_fetch_assoc($max_c)['m']) + 1;
-
-        foreach ($_POST['selected_ids'] as $child_id) {
-            $child_id = intval($child_id);
-            if ($child_id == $father_id) continue;
-            
-            $res = mysqli_query($conn, "SELECT * FROM fc_images WHERE id = $child_id");
-            if ($row = mysqli_fetch_assoc($res)) {
-                $qd = mysqli_real_escape_string($conn, $row['question_desc']);
-                $qi = mysqli_real_escape_string($conn, $row['question_image']);
-                $qa = mysqli_real_escape_string($conn, $row['question_audio']);
-                $ad = mysqli_real_escape_string($conn, $row['answer_desc']);
-                $ai = mysqli_real_escape_string($conn, $row['answer_image']);
-                $aa = mysqli_real_escape_string($conn, $row['answer_audio']);
-                
-                mysqli_query($conn, "INSERT INTO fc_child_cards (parent_id, question_desc, question_image, question_audio, answer_desc, answer_image, answer_audio, custom_order) VALUES ($father_id, '$qd', '$qi', '$qa', '$ad', '$ai', '$aa', $c_order)");
-                mysqli_query($conn, "DELETE FROM fc_images WHERE id = $child_id");
+        elseif ($action === 'join' && isset($_POST['father_id'])) {
+        $father_id = sec_int($_POST['father_id'], 1);
+        $miei = fc_solo_mie($_POST['selected_ids'] ?? [], $current_user_id);
+        /* anche il padre dev'essere una carta sua */
+        if (!empty($miei) && fc_solo_mie([$father_id], $current_user_id)) {
+            $c_order = (int)(sec_one("SELECT MAX(custom_order) AS m FROM fc_child_cards WHERE parent_id = ?",
+                                     [$father_id])['m'] ?? 0) + 1;
+            foreach ($miei as $child_id) {
+                if ($child_id === $father_id) continue;
+                $row = sec_one("SELECT * FROM fc_images WHERE id = ?", [$child_id]);
+                if (!$row) continue;
+                sec_q("INSERT INTO fc_child_cards (parent_id, question_desc, question_image, question_audio,
+                                                   answer_desc, answer_image, answer_audio, custom_order)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                      [$father_id, $row['question_desc'], $row['question_image'], $row['question_audio'],
+                       $row['answer_desc'], $row['answer_image'], $row['answer_audio'], $c_order]);
+                sec_q("DELETE FROM fc_images WHERE id = ?", [$child_id]);
                 $c_order++;
             }
+            sec_q("UPDATE fc_images SET is_father = 1 WHERE id = ?", [$father_id]);
         }
-        mysqli_query($conn, "UPDATE fc_images SET is_father = 1 WHERE id = $father_id");
     } 
-    elseif ($action === 'unjoin' && isset($_POST['selected_child_ids'])) {
+    elseif ($action === 'unjoin') {
         $parents_to_check = [];
-        foreach ($_POST['selected_child_ids'] as $child_id) {
-            $child_id = intval($child_id);
-            $res = mysqli_query($conn, "SELECT * FROM fc_child_cards WHERE id = $child_id");
-            if ($row = mysqli_fetch_assoc($res)) {
-                $parent_id = $row['parent_id'];
-                $parents_to_check[$parent_id] = true;
-                
-                $p_res = mysqli_query($conn, "SELECT category_id FROM fc_images WHERE id = $parent_id");
-                $p_row = mysqli_fetch_assoc($p_res);
-                $cat_id = $p_row ? $p_row['category_id'] : 0;
+        foreach (fc_figli_miei($_POST['selected_child_ids'] ?? [], $current_user_id) as $child_id) {
+            $row = sec_one("SELECT * FROM fc_child_cards WHERE id = ?", [$child_id]);
+            if (!$row) continue;
+            $parent_id = (int)$row['parent_id'];
+            $parents_to_check[$parent_id] = true;
 
-                $max_p = mysqli_query($conn, "SELECT MAX(custom_order) as m FROM fc_images WHERE category_id = $cat_id");
-                $p_order = intval(mysqli_fetch_assoc($max_p)['m']) + 1;
-                
-                $qd = mysqli_real_escape_string($conn, $row['question_desc']);
-                $qi = mysqli_real_escape_string($conn, $row['question_image']);
-                $qa = mysqli_real_escape_string($conn, $row['question_audio']);
-                $ad = mysqli_real_escape_string($conn, $row['answer_desc']);
-                $ai = mysqli_real_escape_string($conn, $row['answer_image']);
-                $aa = mysqli_real_escape_string($conn, $row['answer_audio']);
-                
-                mysqli_query($conn, "INSERT INTO fc_images (question_desc, question_image, question_audio, answer_desc, answer_image, answer_audio, category_id, is_father, custom_order) VALUES ('$qd', '$qi', '$qa', '$ad', '$ai', '$aa', $cat_id, 0, $p_order)");
-                mysqli_query($conn, "DELETE FROM fc_child_cards WHERE id = $child_id");
-            }
+            $p_row = sec_one("SELECT category_id FROM fc_images WHERE id = ?", [$parent_id]);
+            $cat_id = $p_row ? (int)$p_row['category_id'] : 0;
+            $p_order = (int)(sec_one("SELECT MAX(custom_order) AS m FROM fc_images WHERE category_id = ?",
+                                     [$cat_id])['m'] ?? 0) + 1;
+
+            sec_q("INSERT INTO fc_images (question_desc, question_image, question_audio,
+                                          answer_desc, answer_image, answer_audio, category_id, is_father, custom_order)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
+                  [$row['question_desc'], $row['question_image'], $row['question_audio'],
+                   $row['answer_desc'], $row['answer_image'], $row['answer_audio'], $cat_id, $p_order]);
+            sec_q("DELETE FROM fc_child_cards WHERE id = ?", [$child_id]);
         }
-        foreach(array_keys($parents_to_check) as $pid) {
-            $c_res = mysqli_query($conn, "SELECT COUNT(*) as c FROM fc_child_cards WHERE parent_id = $pid");
-            if (mysqli_fetch_assoc($c_res)['c'] == 0) {
-                mysqli_query($conn, "UPDATE fc_images SET is_father = 0 WHERE id = $pid");
-            }
+        foreach (array_keys($parents_to_check) as $pid) {
+            $n = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_child_cards WHERE parent_id = ?", [$pid])['c'] ?? 0);
+            if ($n === 0) sec_q("UPDATE fc_images SET is_father = 0 WHERE id = ?", [$pid]);
         }
     }
 
@@ -330,7 +334,7 @@ $categoryID = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
 
 
 
-$cat_query = mysqli_query($conn, "SELECT id, name, color, parent_id FROM fc_categories WHERE user_id = $current_user_id ORDER BY name");
+$cat_query = sec_all("SELECT id, name, color, parent_id FROM fc_categories WHERE user_id = ? ORDER BY name", [$current_user_id]);
 $categories_list = [];
 
 $current_cat_name = 'Tutte le Categorie';
@@ -339,7 +343,7 @@ $current_cat_color = '#5E5CE6'; // Colore neutro di default (vista "tutte le cat
 
 
 
-while ($c = mysqli_fetch_assoc($cat_query)) { 
+foreach ($cat_query as $c) { 
 
     $categories_list[] = $c; 
 
@@ -429,7 +433,7 @@ if ($categoryID != 0) {
 
         foreach ($subcat_ids as $sid) { $subcat_card_counts[$sid] = 0; }
 
-        $subcat_ids_str = implode(',', $subcat_ids);
+                $subcat_ph = implode(',', array_fill(0, count($subcat_ids), '?'));
 
 
 
@@ -439,9 +443,7 @@ if ($categoryID != 0) {
 
         $all_image_ids_in_subcats = [];
 
-        $res_sc_images = mysqli_query($conn, "SELECT id, category_id FROM fc_images WHERE category_id IN ($subcat_ids_str)");
-
-        while ($r = mysqli_fetch_assoc($res_sc_images)) {
+                foreach (sec_all("SELECT id, category_id FROM fc_images WHERE category_id IN ($subcat_ph)", $subcat_ids) as $r) {
 
             $cid = (int)$r['category_id'];
 
@@ -459,11 +461,9 @@ if ($categoryID != 0) {
 
         if (!empty($all_image_ids_in_subcats)) {
 
-            $img_ids_str = implode(',', $all_image_ids_in_subcats);
-
-            $res_sc_children = mysqli_query($conn, "SELECT parent_id, COUNT(*) as c FROM fc_child_cards WHERE parent_id IN ($img_ids_str) GROUP BY parent_id");
-
-            while ($r = mysqli_fetch_assoc($res_sc_children)) {
+                        $img_ph = implode(',', array_fill(0, count($all_image_ids_in_subcats), '?'));
+            foreach (sec_all("SELECT parent_id, COUNT(*) AS c FROM fc_child_cards WHERE parent_id IN ($img_ph) GROUP BY parent_id",
+                             $all_image_ids_in_subcats) as $r) {
 
                 $pid_img = (int)$r['parent_id'];
 
@@ -508,16 +508,18 @@ $fc_total_cards = 0;
         }
     }
     if (!empty($fc_count_cat_ids)) {
-        $fc_count_ids_str = implode(',', array_map('intval', $fc_count_cat_ids));
-        $r_cnt = mysqli_query($conn, "SELECT COUNT(*) AS c FROM fc_images WHERE category_id IN ($fc_count_ids_str)");
-        if ($r_cnt && ($row_cnt = mysqli_fetch_assoc($r_cnt))) { $fc_total_cards += (int)$row_cnt['c']; }
-        $r_img = mysqli_query($conn, "SELECT id FROM fc_images WHERE category_id IN ($fc_count_ids_str)");
+                $conteggio_ids = array_map('intval', $fc_count_cat_ids);
+        $conteggio_ph = implode(',', array_fill(0, count($conteggio_ids), '?'));
+        $fc_total_cards += (int)(sec_one("SELECT COUNT(*) AS c FROM fc_images WHERE category_id IN ($conteggio_ph)",
+                                         $conteggio_ids)['c'] ?? 0);
         $img_ids = [];
-        while ($r_img && ($ri = mysqli_fetch_assoc($r_img))) { $img_ids[] = (int)$ri['id']; }
+        foreach (sec_all("SELECT id FROM fc_images WHERE category_id IN ($conteggio_ph)", $conteggio_ids) as $ri) {
+            $img_ids[] = (int)$ri['id'];
+        }
         if (!empty($img_ids)) {
-            $img_ids_str2 = implode(',', $img_ids);
-            $r_ch = mysqli_query($conn, "SELECT COUNT(*) AS c FROM fc_child_cards WHERE parent_id IN ($img_ids_str2)");
-            if ($r_ch && ($row_ch = mysqli_fetch_assoc($r_ch))) { $fc_total_cards += (int)$row_ch['c']; }
+            $img_ph2 = implode(',', array_fill(0, count($img_ids), '?'));
+            $fc_total_cards += (int)(sec_one("SELECT COUNT(*) AS c FROM fc_child_cards WHERE parent_id IN ($img_ph2)",
+                                             $img_ids)['c'] ?? 0);
         }
     }
 }
@@ -535,14 +537,16 @@ if ($categoryID != 0) {
     $cur = $categoryID; $guard = 0;
     while ($cur > 0 && $guard < 60) { $fc_chain[] = $cur; $cur = $fc_parent_of[$cur] ?? 0; $guard++; }
     if (!empty($fc_chain)) {
-        $chain_str = implode(',', array_map('intval', $fc_chain));
-        $lpRes = mysqli_query($conn, "SELECT pfc.fc_category_id, p.id AS pid, p.name AS pname, p.color AS pcolor, pp.name AS parent_name
-                                      FROM project_fc_categories pfc
-                                      INNER JOIN projects p ON p.id = pfc.project_id AND p.user_id = $current_user_id
-                                      LEFT JOIN projects pp ON pp.id = p.parent_id AND pp.user_id = $current_user_id
-                                      WHERE pfc.fc_category_id IN ($chain_str)");
+                $chain_ids = array_map('intval', $fc_chain);
+        $chain_ph = implode(',', array_fill(0, count($chain_ids), '?'));
+        $lpRes = sec_all("SELECT pfc.fc_category_id, p.id AS pid, p.name AS pname, p.color AS pcolor, pp.name AS parent_name
+                          FROM project_fc_categories pfc
+                          INNER JOIN projects p ON p.id = pfc.project_id AND p.user_id = ?
+                          LEFT JOIN projects pp ON pp.id = p.parent_id AND pp.user_id = ?
+                          WHERE pfc.fc_category_id IN ($chain_ph)",
+                         array_merge([$current_user_id, $current_user_id], $chain_ids));
         $by_cat = [];
-        while ($lpRes && ($lp = mysqli_fetch_assoc($lpRes))) {
+        foreach ($lpRes as $lp) {
             $pcol = (!empty($lp['pcolor']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $lp['pcolor'])) ? $lp['pcolor'] : '#8E8E93';
             $by_cat[(int)$lp['fc_category_id']] = ['id' => (int)$lp['pid'], 'name' => $lp['pname'], 'parent_name' => $lp['parent_name'], 'color' => $pcol];
         }
@@ -558,9 +562,8 @@ if ($categoryID != 0) {
 }
 
 // Cerca i duplicati SOLO tra le carte che appartengono alle categorie dell'utente loggato
-$res_all_words = mysqli_query($conn, "SELECT i.question_desc FROM fc_images i JOIN fc_categories c ON i.category_id = c.id WHERE c.user_id = $current_user_id");
-
-while($r = mysqli_fetch_assoc($res_all_words)) {
+foreach (sec_all("SELECT i.question_desc FROM fc_images i JOIN fc_categories c ON i.category_id = c.id WHERE c.user_id = ?",
+                 [$current_user_id]) as $r) {
 
     $qk = strtolower(trim($r['question_desc']));
 
@@ -577,11 +580,12 @@ while($r = mysqli_fetch_assoc($res_all_words)) {
 $query = "SELECT i.*, c.name AS category_name, c.color AS category_color, (CASE WHEN ul.fc_image_id IS NOT NULL THEN 1 ELSE 0 END) as is_learnt 
           FROM fc_images AS i 
           JOIN fc_categories AS c ON i.category_id = c.id 
-          LEFT JOIN user_learnt_fc ul ON i.id = ul.fc_image_id AND ul.user_id = $current_user_id 
-          WHERE c.user_id = $current_user_id";
+          LEFT JOIN user_learnt_fc ul ON i.id = ul.fc_image_id AND ul.user_id = ? 
+          WHERE c.user_id = ?";
 
 // Se è selezionata una categoria specifica, aggiunge la condizione con AND invece di WHERE
-if ($categoryID != 0) { $query .= " AND i.category_id = $categoryID"; }
+$par = [$current_user_id, $current_user_id];
+if ($categoryID != 0) { $query .= " AND i.category_id = ?"; $par[] = $categoryID; }
 
 
 
@@ -589,7 +593,7 @@ if ($categoryID != 0) { $query .= " AND i.category_id = $categoryID"; }
 if ($categoryID == 0 && !isset($_GET['sort'])) {
     $sort = 'id_desc';
 } else {
-    $sort = isset($_GET['sort']) ? $_GET['sort'] : 'custom_asc';
+        $sort = sec_enum($_GET['sort'] ?? null, ['custom_asc', 'id_desc', 'id_asc', 'q_asc'], 'custom_asc');
 }
 
 $order_by = "i.custom_order ASC"; 
@@ -597,19 +601,13 @@ if ($sort === 'id_desc') { $order_by = "i.id DESC"; }
 elseif ($sort === 'id_asc') { $order_by = "i.id ASC"; }
 elseif ($sort === 'q_asc') { $order_by = "TRIM(LOWER(i.question_desc)) ASC"; }
 
+/* $order_by non e' un valore ma un pezzo di SQL, e non puo' essere un
+   segnaposto: nasce dall'if qui sopra a quattro rami, quindi non arriva
+   dall'esterno. */
 $query .= " ORDER BY $order_by";
-
-
-
-$result = mysqli_query($conn, $query);
-
-
-
 $images_data = [];
-
 $ids_array = [];
-
-while ($row = mysqli_fetch_assoc($result)) {
+foreach (sec_all($query, $par) as $row) {
 
     $row['children'] = [];
 
@@ -623,11 +621,9 @@ while ($row = mysqli_fetch_assoc($result)) {
 
 if (count($ids_array) > 0) {
 
-    $ids_str = implode(',', $ids_array);
-
-    $res_children = mysqli_query($conn, "SELECT * FROM fc_child_cards WHERE parent_id IN ($ids_str) ORDER BY custom_order ASC");
-
-    while ($c = mysqli_fetch_assoc($res_children)) {
+        $ids_ph = implode(',', array_fill(0, count($ids_array), '?'));
+    foreach (sec_all("SELECT * FROM fc_child_cards WHERE parent_id IN ($ids_ph) ORDER BY custom_order ASC",
+                     array_map('intval', $ids_array)) as $c) {
 
         $images_data[$c['parent_id']]['children'][] = $c;
 
@@ -651,11 +647,11 @@ foreach ($images_data as $row) {
 
 if (count($lookup_ids) > 0) {
 
-    $lookup_str = implode(',', $lookup_ids);
-
-    $res_ex = mysqli_query($conn, "SELECT fc_image_id, COUNT(*) as c FROM fc_examples WHERE fc_image_id IN ($lookup_str) GROUP BY fc_image_id");
-
-    while ($ex = mysqli_fetch_assoc($res_ex)) { $examples_counts[intval($ex['fc_image_id'])] = intval($ex['c']); }
+        $lookup_ph = implode(',', array_fill(0, count($lookup_ids), '?'));
+    foreach (sec_all("SELECT fc_image_id, COUNT(*) AS c FROM fc_examples WHERE fc_image_id IN ($lookup_ph) GROUP BY fc_image_id",
+                     array_map('intval', $lookup_ids)) as $ex) {
+        $examples_counts[(int)$ex['fc_image_id']] = (int)$ex['c'];
+    }
 
 }
 
@@ -683,9 +679,9 @@ function render_examples_section($realId, $type, $lookupId, $examples_counts) {
 
     <div class="qa-examples">
 
-        <div class="qa-label">Examples (<?= $count ?>)</div>
+        <div class="qa-label"><?php te('fc.vis_n_esempi', ['n' => (int)$count]); ?></div>
 
-        <div class="qa-examples-box" data-fc-id="<?= (int)$realId ?>" data-fc-type="<?= htmlspecialchars($type) ?>"></div>
+        <div class="qa-examples-box" data-fc-id="<?= (int)$realId ?>" data-fc-type="<?= sec_h($type) ?>"></div>
 
     </div>
 
@@ -741,21 +737,21 @@ function render_qa_side($label, $text, $image, $audio) {
 
     <div class="qa-side">
 
-        <div class="qa-label"><?= htmlspecialchars($label) ?></div>
+        <div class="qa-label"><?= sec_h($label) ?></div>
 
         <?php if ($hasText || $hasImage): ?>
 
-        <div class="qa-content <?= $contentClass ?>">
+        <div class="qa-content <?= sec_h($contentClass) ?>">
 
             <?php if ($hasText): ?>
 
-                <div class="qa-text raw-text-content" data-raw="<?= htmlspecialchars($text, ENT_QUOTES) ?>"></div>
+                <div class="qa-text raw-text-content" data-raw="<?= sec_h($text) ?>"></div>
 
             <?php endif; ?>
 
             <?php if ($hasImage): ?>
 
-                <img class="qa-image" src="fc_Images/<?= htmlspecialchars($image) ?>" alt="" loading="lazy" onclick="event.stopPropagation(); openImageZoom(this.src);">
+                <img class="qa-image" src="fc_Images/<?= sec_h($image) ?>" alt="" loading="lazy" onclick="event.stopPropagation(); openImageZoom(this.src);">
 
             <?php endif; ?>
 
@@ -767,7 +763,7 @@ function render_qa_side($label, $text, $image, $audio) {
 
         <?php endif; ?>
 
-        <?php if ($hasAudio): render_audio_player('fc_audio/' . htmlspecialchars($audio)); endif; ?>
+        <?php if ($hasAudio): render_audio_player('fc_audio/' . sec_h($audio)); endif; ?>
 
     </div>
 
@@ -781,9 +777,9 @@ function render_audio_player($src) {
 
     ?>
 
-    <div class="audio-player" data-src="<?= $src ?>">
+    <div class="audio-player" data-src="<?= sec_h($src) ?>">
 
-        <button type="button" class="ap-btn" aria-label="Riproduci audio" onclick="event.stopPropagation(); toggleAudioPlayer(this);">
+        <button type="button" class="ap-btn" aria-label="<?php te('fc.vis_riproduci'); ?>" onclick="event.stopPropagation(); toggleAudioPlayer(this);">
 
             <svg class="ap-ic ap-ic-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72c0 .84.91 1.36 1.63.93l11.32-6.86a1.08 1.08 0 0 0 0-1.86L9.63 4.21A1.08 1.08 0 0 0 8 5.14Z"/></svg>
 
@@ -801,7 +797,7 @@ function render_audio_player($src) {
 
         <span class="ap-time">0:00</span>
 
-        <audio preload="none" src="<?= $src ?>"></audio>
+        <audio preload="none" src="<?= sec_h($src) ?>"></audio>
 
     </div>
 
@@ -813,7 +809,7 @@ function render_audio_player($src) {
 
 <!DOCTYPE html>
 
-<html lang="it" style="--cat-color: <?= htmlspecialchars(fc_color_or_default($current_cat_color)) ?>;">
+<html lang="it" style="--cat-color: <?= sec_h(fc_color_or_default($current_cat_color)) ?>;">
 
 <head>
 
@@ -831,10 +827,11 @@ function render_audio_player($src) {
 
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 
-<title>Visualizzazione Dati Materie</title>
+<title><?php te('fc.vis_titolo'); ?></title>
 
 
 
+<?php echo nisama_i18n_json(['comune', 'fc', 'vocab']); ?>
 <script>
 
     window.MathJax = {
@@ -857,1062 +854,7 @@ function render_audio_player($src) {
 
 
 
-<style>
-
-/* ================================================================
-
-   DESIGN SYSTEM — iOS nativo, light+dark automatico, colore-per-categoria
-
-   ================================================================ */
-
-:root{
-
-    color-scheme: light dark;
-
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7; --surface-3:#FAFAFC;
-
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-
-    --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12); --orange-soft:rgba(255,149,0,.14);
-
-    --header-glass:rgba(249,249,251,.82);
-
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 26px rgba(0,0,0,.07);
-
-    --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
-
-    --pill-hl:inset 0 0 0 .5px var(--hairline);
-
-    --r-card:20px; --r-btn:14px; --r-chip:100px;
-
-    --spring:cubic-bezier(.32,.72,0,1);
-
-    --bounce:cubic-bezier(.34,1.56,.64,1);
-
-    --safe-top:env(safe-area-inset-top,0px);
-
-    --safe-bottom:env(safe-area-inset-bottom,0px);
-
-    --header-h:150px;
-
-
-
-    --cat-soft: color-mix(in srgb, var(--cat-color), transparent 88%);
-
-    --cat-soft-2: color-mix(in srgb, var(--cat-color), transparent 74%);
-
-    --cat-line: color-mix(in srgb, var(--cat-color), transparent 35%);
-
-    --cat-dark: color-mix(in srgb, var(--cat-color), black 22%);
-
-    --cat-light: color-mix(in srgb, var(--cat-color), white 22%);
-
-}
-
-@media (prefers-color-scheme: dark){
-
-    :root{
-
-        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E; --surface-3:#242426;
-
-        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-
-        --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-
-        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-
-        --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17); --orange-soft:rgba(255,159,10,.18);
-
-        --header-glass:rgba(16,16,18,.78);
-
-        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-
-        --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
-
-        --pill-hl:inset 0 0 0 .5px var(--hairline);
-
-    }
-
-}
-
-
-
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
-html,body{ height:100%; }
-
-html{ -webkit-text-size-adjust:100%; }
-
-body{
-
-    margin:0; background:var(--bg); color:var(--text);
-
-    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-
-    font-size:16px; line-height:1.45; -webkit-font-smoothing:antialiased;
-
-    overscroll-behavior-y:none;
-
-}
-
-body.no-select, body.no-select *{ -webkit-user-select:none !important; user-select:none !important; }
-
-:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
-
-a{ color:inherit; }
-
-button{ font-family:inherit; }
-
-img{ -webkit-touch-callout:none; }
-
-
-
-/* ================================================================
-
-   HEADER
-
-   ================================================================ */
-
-.app-header{
-
-    position:fixed; top:0; left:0; right:0; z-index:200;
-
-    padding-top:var(--safe-top);
-
-    background:var(--header-glass);
-
-    -webkit-backdrop-filter:saturate(1.8) blur(22px); backdrop-filter:saturate(1.8) blur(22px);
-
-    border-bottom:.5px solid var(--hairline);
-
-    box-shadow:0 1px 0 rgba(0,0,0,.02);
-
-}
-
-.header-top{ display:flex; align-items:center; gap:10px; padding:10px 14px 8px; }
-
-.icon-btn{
-
-    width:38px; height:38px; border-radius:50%; border:none; cursor:pointer; padding:0; flex-shrink:0;
-
-    background:var(--surface); color:var(--text-2); text-decoration:none;
-
-    display:flex; align-items:center; justify-content:center;
-
-    box-shadow:var(--pill-hl), var(--raise-sm);
-
-    transition:transform .15s var(--spring), box-shadow .2s var(--spring);
-
-}
-
-.icon-btn:active{ transform:scale(.88); box-shadow:var(--pill-hl), inset 0 2px 5px rgba(0,0,0,.1); }
-
-.icon-btn svg{ width:18px; height:18px; }
-
-
-
-.cat-pill{
-
-    flex:1; min-width:0; display:flex; align-items:center; gap:10px;
-
-    padding:8px 14px; border-radius:16px; color:#fff; text-decoration:none; cursor:pointer;
-
-    background:linear-gradient(135deg, var(--cat-light), var(--cat-color) 55%, var(--cat-dark));
-
-    box-shadow:0 8px 20px -8px var(--cat-line), inset 0 1px 0 rgba(255,255,255,.25);
-
-    text-shadow:0 1px 3px rgba(0,0,0,.28);
-
-    transition:background 1.1s var(--spring), box-shadow .5s var(--spring);
-
-    animation:catPillIn .55s var(--spring) both;
-
-}
-
-@keyframes catPillIn{ from{ opacity:0; transform:translateY(-8px) scale(.97); } }
-
-.cat-pill-dot{ width:9px; height:9px; border-radius:50%; background:#fff; flex-shrink:0; box-shadow:0 0 0 4px rgba(255,255,255,.28); animation:dotPulse 2.4s ease-in-out infinite; }
-
-@keyframes dotPulse{ 0%,100%{ transform:scale(1); opacity:1; } 50%{ transform:scale(1.35); opacity:.65; } }
-
-.cat-pill-text{ min-width:0; flex:1; }
-
-.cat-pill-label{ font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; opacity:.78; }
-
-.cat-pill-name{ font-size:16px; font-weight:800; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-.cat-pill-count{
-
-    flex-shrink:0; font-size:11.5px; font-weight:800; padding:5px 10px; border-radius:99px;
-
-    background:rgba(255,255,255,.22); font-variant-numeric:tabular-nums;
-
-}
-.cat-proj-chip{ display:inline-flex; align-items:center; gap:5px; margin-top:6px; max-width:100%;
-    padding:4px 10px 4px 8px; border-radius:99px; cursor:pointer; border:none;
-    background:rgba(255,255,255,.24); color:#fff; font-size:11px; font-weight:800; letter-spacing:-.1px;
-    line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    -webkit-tap-highlight-color:transparent; transition:transform .15s ease, background .2s; }
-.cat-proj-chip svg{ flex-shrink:0; }
-.cat-proj-chip:active{ transform:scale(.95); }
-.cat-proj-chip.via-ancestor{ background:rgba(255,255,255,.16); opacity:.92; }
-.cat-proj-chip.cat-proj-link{ background:rgba(255,255,255,.16); border:1px dashed rgba(255,255,255,.55); }
-.cat-proj-chip .cp-anc{ opacity:.72; font-weight:700; }
-.cat-proj-chip .cp-sep{ opacity:.6; margin:0 3px; }
-.cat-proj-chip .cp-leaf{ font-weight:800; }
-
-
-
-.header-row2{ display:flex; align-items:center; gap:8px; padding:0 14px 10px; }
-
-.big-edit-btn{ background:linear-gradient(180deg, color-mix(in srgb, var(--green), white 18%), var(--green) 55%, color-mix(in srgb, var(--green), black 10%)); color:#fff; box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 6px 16px -6px rgba(52,199,89,.6); }
-
-.quick-add-btn{ background:linear-gradient(180deg, color-mix(in srgb, var(--blue), white 18%), var(--blue) 55%, color-mix(in srgb, var(--blue), black 10%)); color:#fff; box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 6px 16px -6px rgba(0,122,255,.6); }
-
-.play-cat-btn{ background:linear-gradient(180deg, var(--cat-light), var(--cat-color) 55%, var(--cat-dark)); color:#fff; box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 6px 16px -6px var(--cat-line); }
-
-
-
-/* ---- Percorso categorie (breadcrumb scorrevole in header-row2) ---- */
-.cat-path{
-    flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:3px;
-    overflow-x:auto; overflow-y:hidden; scrollbar-width:none; -webkit-overflow-scrolling:touch;
-    scroll-behavior:auto; padding:2px 0; margin:0;
-    -webkit-mask-image:linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 4px), transparent 100%);
-            mask-image:linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 4px), transparent 100%);
-}
-.cat-path::-webkit-scrollbar{ display:none; }
-.cat-path-home{
-    flex-shrink:0; display:flex; align-items:center; justify-content:center;
-    width:26px; height:26px; border-radius:8px; color:var(--text-2);
-    transition:opacity .15s var(--spring), transform .15s var(--spring);
-}
-.cat-path-home svg{ width:15px; height:15px; }
-.cat-path-home:active{ opacity:.5; transform:scale(.9); }
-.cat-path-item{
-    flex-shrink:0; white-space:nowrap; text-decoration:none; line-height:1;
-    font-size:13.5px; font-weight:800; letter-spacing:-.01em;
-    color:color-mix(in srgb, var(--cat-color) 62%, var(--text));
-    padding:5px 4px; border-radius:8px;
-    transition:opacity .15s var(--spring), transform .15s var(--spring);
-}
-.cat-path-item:active{ opacity:.5; transform:scale(.96); }
-.cat-path-current{
-    color:color-mix(in srgb, var(--cat-color) 52%, var(--text)); background:var(--cat-soft);
-    padding:5px 11px; border-radius:99px;
-}
-.cat-path-sep{
-    flex-shrink:0; color:var(--text-3); font-size:13px; font-weight:600;
-    padding:0 1px; -webkit-user-select:none; user-select:none;
-}
-
-        .toolbar-row{ display:flex; align-items:center; gap:8px; padding:0 14px 12px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
-
-.toolbar-row::-webkit-scrollbar{ display:none; }
-
-.search-wrap{ position:relative; flex:1 1 140px; min-width:120px; }
-
-.search-wrap svg{ position:absolute; left:12px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:var(--text-3); pointer-events:none; }
-
-.search-input{
-
-    width:100%; padding:9px 12px 9px 34px; border-radius:var(--r-chip); border:none;
-
-    font-family:inherit; font-size:14px; font-weight:600; color:var(--text);
-
-    background:var(--surface-2); box-shadow:inset 0 0 0 1px transparent;
-
-    transition:box-shadow .25s var(--spring), background .25s;
-
-}
-
-.search-input:focus{ background:var(--surface); box-shadow:inset 0 0 0 1.5px var(--cat-color), 0 0 0 4px var(--cat-soft); }
-
-.search-input::placeholder{ color:var(--text-3); font-weight:500; }
-
-.tb-select-wrap{ position:relative; flex-shrink:0; }
-
-.tb-select-wrap::after{
-
-    content:''; position:absolute; right:9px; top:50%; width:6px; height:6px; pointer-events:none;
-
-    border-right:1.6px solid var(--text-2); border-bottom:1.6px solid var(--text-2);
-
-    transform:translateY(-70%) rotate(45deg);
-
-}
-
-select.tb-select{
-
-    padding:9px 24px 9px 12px; border-radius:var(--r-chip); border:none;
-
-    font-family:inherit; font-size:13px; font-weight:700; color:var(--text);
-
-    background:var(--surface-2); -webkit-appearance:none; appearance:none; cursor:pointer;
-
-    max-width:132px; text-overflow:ellipsis;
-
-}
-
-.select-mode-btn{
-
-    flex-shrink:0; display:flex; align-items:center; gap:6px; padding:9px 14px; border:none; border-radius:var(--r-chip);
-
-    font-family:inherit; font-size:13px; font-weight:800; cursor:pointer; color:#fff;
-
-    background:linear-gradient(180deg, var(--cat-light), var(--cat-color) 55%, var(--cat-dark));
-
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 6px 16px -6px var(--cat-line);
-
-    transition:transform .15s var(--spring);
-
-}
-
-.select-mode-btn:active{ transform:scale(.94); }
-
-.select-mode-btn svg{ width:14px; height:14px; }
-
-
-
-/* Toolbar di selezione — sostituisce la toolbar normale con un morph animato */
-
-.select-toolbar{
-
-    display:flex; align-items:center; gap:8px; padding:0 14px 12px;
-
-}
-
-.st-cancel{
-
-    width:34px; height:34px; border-radius:50%; border:none; background:var(--surface-2); color:var(--text-2);
-
-    display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;
-
-    transition:transform .15s var(--spring);
-
-}
-
-.st-cancel:active{ transform:scale(.85); }
-
-.st-cancel svg{ width:15px; height:15px; }
-
-.st-selectall{
-
-    flex-shrink:0; padding:8px 13px; border:none; border-radius:var(--r-chip); cursor:pointer;
-
-    font-size:12.5px; font-weight:800; color:var(--text); background:var(--surface-2);
-
-    transition:transform .15s var(--spring);
-
-}
-
-.st-selectall:active{ transform:scale(.93); }
-
-.st-count{
-
-    flex-shrink:0; padding:7px 12px; border-radius:var(--r-chip); font-size:12.5px; font-weight:800;
-
-    color:#fff; background:var(--cat-color); font-variant-numeric:tabular-nums;
-
-    box-shadow:0 4px 12px -4px var(--cat-line);
-
-    transition:background .3s;
-
-}
-
-.st-actions{ display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; flex:1; }
-
-.st-actions::-webkit-scrollbar{ display:none; }
-
-.st-action{
-
-    flex-shrink:0; display:flex; align-items:center; gap:5px; padding:8px 12px; border:none; border-radius:var(--r-chip);
-
-    font-size:12.5px; font-weight:800; cursor:pointer; color:var(--blue); background:var(--blue-soft);
-
-    transition:transform .15s var(--spring), filter .15s;
-
-}
-
-.st-action:active{ transform:scale(.93); }
-
-.st-action svg{ width:13px; height:13px; }
-
-.st-action.danger{ color:var(--red); background:var(--red-soft); }
-
-.st-action.active-pick{ color:#fff; background:var(--cat-color); box-shadow:0 4px 12px -4px var(--cat-line); }
-
-
-
-.join-banner{
-
-    margin:0 14px 10px; padding:10px 14px; border-radius:16px; background:var(--purple);
-
-    color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; gap:8px;
-
-    animation:revealIn .4s var(--spring) both;
-
-    box-shadow:0 8px 20px -8px rgba(175,82,222,.55);
-
-}
-
-
-
-@keyframes revealIn{ from{ opacity:0; transform:translateY(10px) scale(.98); } }
-
-
-
-/* ================================================================
-
-   FEED / LISTA
-
-   ================================================================ */
-
-.feed{ padding-top:calc(var(--header-h) + 12px); padding-bottom:calc(90px + var(--safe-bottom)); min-height:100%; }
-
-.feed-inner{ max-width:640px; margin:0 auto; padding:0 12px; }
-
-
-
-.item-counter{
-
-    display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:var(--text-2);
-
-    padding:2px 4px 12px;
-
-}
-
-.item-counter b{ color:var(--text); font-variant-numeric:tabular-nums; }
-
-.item-counter .ic-dot{ width:6px; height:6px; border-radius:50%; background:var(--cat-color); }
-
-
-
-/* ================================================================
-
-   SOTTOCATEGORIE (mini-griglia "sottocartelle" dentro una categoria)
-
-   ================================================================ */
-
-.fc-subcats{ margin:0 0 18px; }
-
-.fc-subcats-label{
-
-    display:flex; align-items:center; gap:6px;
-
-    font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase;
-
-    color:var(--text-3); padding:0 4px 10px;
-
-}
-
-.fc-subcats-label svg{ width:13px; height:13px; opacity:.85; }
-
-.fc-subcats-grid{
-
-    display:grid; grid-template-columns:repeat(auto-fill, minmax(136px, 1fr)); gap:10px;
-
-}
-
-.fc-subcat-card{
-
-    position:relative; display:block; text-align:left; text-decoration:none; color:inherit;
-
-    background:var(--surface); border-radius:16px; padding:14px 14px 12px;
-
-    box-shadow:var(--shadow-card); overflow:hidden;
-
-    animation:revealIn .45s var(--spring) both;
-
-    transition:transform .15s var(--spring), box-shadow .2s var(--spring);
-
-}
-
-.fc-subcats-grid .fc-subcat-card:nth-child(1){ animation-delay:.02s; }
-
-.fc-subcats-grid .fc-subcat-card:nth-child(2){ animation-delay:.05s; }
-
-.fc-subcats-grid .fc-subcat-card:nth-child(3){ animation-delay:.08s; }
-
-.fc-subcats-grid .fc-subcat-card:nth-child(4){ animation-delay:.11s; }
-
-.fc-subcats-grid .fc-subcat-card:nth-child(n+5){ animation-delay:.14s; }
-
-.fc-subcat-card::before{ content:""; position:absolute; top:0; left:0; right:0; height:4px; background:var(--sc-color); }
-
-.fc-subcat-card:active{ transform:scale(.96); }
-
-.fc-subcat-dot{
-
-    width:32px; height:32px; border-radius:10px; flex-shrink:0;
-
-    background:color-mix(in srgb, var(--sc-color) 16%, var(--surface)); color:var(--sc-color);
-
-    display:flex; align-items:center; justify-content:center; margin-bottom:10px;
-
-}
-
-.fc-subcat-dot svg{ width:16px; height:16px; }
-
-.fc-subcat-name{
-
-    font-size:14.5px; font-weight:800; letter-spacing:-.01em; color:var(--text);
-
-    line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-
-    overflow:hidden; margin-bottom:9px; min-height:37px;
-
-}
-
-.fc-subcat-meta{ display:flex; align-items:center; gap:10px; font-size:11.5px; font-weight:700; color:var(--text-2); flex-wrap:wrap; }
-
-.fc-subcat-meta span{ display:flex; align-items:center; gap:4px; font-variant-numeric:tabular-nums; }
-
-.fc-subcat-meta svg{ opacity:.8; flex-shrink:0; }
-
-
-
-.empty-state{
-
-    text-align:center; padding:60px 20px; color:var(--text-2);
-
-    animation:revealIn .5s var(--spring) both;
-
-}
-
-.empty-state .es-icon{ font-size:44px; margin-bottom:10px; }
-
-.empty-state h3{ margin:0 0 6px; color:var(--text); font-size:17px; font-weight:800; }
-
-.empty-state p{ margin:0; font-size:14px; }
-
-
-
-/* ================================================================
-
-   GRUPPO (padre + figli) — unita' di trascinamento per i padri
-
-   ================================================================ */
-
-.fc-group{
-
-    --row-color: var(--cat-color);
-
-    margin-bottom:14px;
-
-}
-
-
-
-.fc-children{
-
-    margin:8px 0 0 20px; padding-left:14px;
-
-    border-left:2px dashed color-mix(in srgb, var(--row-color), transparent 55%);
-
-    display:flex; flex-direction:column; gap:8px;
-
-}
-
-
-
-/* Riordino: placeholder che fa spazio + ghost che segue il dito (fixed) */
-
-.fc-drag-placeholder{
-
-    border-radius:var(--r-card); border:2px dashed var(--hairline-2);
-
-    background:var(--surface-2); opacity:.7;
-
-}
-
-.fc-drag-ghost{ position:fixed; z-index:9999; pointer-events:none; cursor:grabbing; }
-
-.fc-drag-ghost .fc-card{ box-shadow:0 22px 44px -12px rgba(0,0,0,.38), 0 4px 14px rgba(0,0,0,.16); }
-
-.fc-drag-ghost .swipe-content{ box-shadow:0 0 0 2px var(--row-color); }
-
-
-
-/* ================================================================
-
-   CARD
-
-   ================================================================ */
-
-.fc-card{
-
-    position:relative; border-radius:var(--r-card); box-shadow:var(--shadow-card);
-
-}
-
-.fc-card.duplicate-flag .card-head{ padding-right:4px; }
-
-
-
-.swipe-actions{
-
-    position:absolute; top:0; right:0; bottom:0; z-index:1;
-
-    display:flex; align-items:stretch; border-radius:0 var(--r-card) var(--r-card) 0; overflow:hidden;
-
-}
-
-.swipe-act{
-
-    width:78px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
-
-    border:none; cursor:pointer; color:#fff; font-size:11px; font-weight:800;
-
-}
-
-.swipe-act svg{ width:20px; height:20px; }
-
-.swipe-act.act-edit{ background:linear-gradient(180deg, color-mix(in srgb, var(--row-color), white 15%), var(--row-color)); }
-
-.swipe-act.act-delete{ background:linear-gradient(180deg, #FF6961, var(--red)); }
-
-
-
-.swipe-content{
-
-    position:relative; z-index:2; border-radius:var(--r-card); overflow:hidden;
-
-    background:var(--surface); border:.5px solid var(--hairline);
-
-    padding:14px 14px 12px 16px;
-
-    border-left:4px solid var(--row-color);
-
-    touch-action:pan-y;
-
-}
-
-.fc-card.fc-child .swipe-content{ border-left:3px dashed color-mix(in srgb, var(--row-color), transparent 25%); padding-left:14px; }
-
-.fc-card.is-learnt .swipe-content{
-
-    background:color-mix(in srgb, var(--green), var(--surface) 88%);
-
-}
-
-.fc-card.selected-row .swipe-content{
-
-    box-shadow:inset 0 0 0 2px var(--row-color);
-
-    background:var(--cat-soft);
-
-}
-
-body.select-mode .swipe-actions{ opacity:0; }
-
-
-
-.card-head{ display:flex; align-items:center; gap:8px; margin-bottom:10px; min-height:28px; }
-
-.card-head-spacer{ flex:1; min-width:0; }
-
-.child-tag{ display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:800; color:color-mix(in srgb, var(--row-color) 55%, var(--text)); }
-
-.child-tag svg{ width:13px; height:13px; }
-
-.cat-badge{
-
-    display:inline-flex; align-items:center; gap:5px; padding:4px 9px; border-radius:99px;
-
-    font-size:10.5px; font-weight:800; color:#fff; background:var(--row-color); white-space:nowrap;
-
-    box-shadow:0 3px 8px -3px var(--cat-line);
-
-}
-
-.dup-badge{
-
-    display:inline-flex; align-items:center; gap:4px; padding:4px 8px; border-radius:99px;
-
-    font-size:10px; font-weight:800; color:var(--orange); background:var(--orange-soft); white-space:nowrap;
-
-}
-
-
-
-/* Toggle "Imparato" */
-
-.learnt-wrapper{ position:relative; width:30px; height:30px; cursor:pointer; user-select:none; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-
-.learnt-cb{ display:none; }
-
-.learnt-emoji, .learnt-check{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; transition:all .35s var(--bounce); }
-
-.learnt-emoji{ font-size:21px; opacity:1; }
-
-.learnt-check{ opacity:0; transform:scale(.3); pointer-events:none; }
-
-.learnt-check svg{ width:26px; height:26px; color:var(--green); filter:drop-shadow(0 2px 4px rgba(0,0,0,.18)); }
-
-.learnt-cb:checked ~ .learnt-emoji{ opacity:0; transform:scale(.2) rotate(-25deg); }
-
-.learnt-cb:checked ~ .learnt-check{ opacity:1; transform:scale(1); }
-
-.learnt-disabled{ color:var(--text-3); font-size:20px; font-weight:800; width:30px; text-align:center; flex-shrink:0; }
-
-
-
-/* Cerchio di selezione (select mode) */
-
-.select-circle{ position:relative; width:28px; height:28px; flex-shrink:0; display:none; align-items:center; justify-content:center; cursor:pointer; }
-
-body.select-mode .select-circle{ display:flex; }
-
-body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select-mode .child-tag{ display:none; }
-
-.select-circle input{ position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; }
-
-.select-circle .cc-visual{
-
-    position:absolute; inset:0; border-radius:50%; border:2px solid var(--hairline-2); background:var(--surface);
-
-    display:flex; align-items:center; justify-content:center; transition:all .25s var(--bounce);
-
-}
-
-.select-circle input:checked ~ .cc-visual{ background:var(--row-color); border-color:var(--row-color); transform:scale(1.06); }
-
-.select-circle .cc-visual svg{ width:14px; height:14px; color:#fff; opacity:0; transform:scale(.4); transition:all .2s var(--bounce); }
-
-.select-circle input:checked ~ .cc-visual svg{ opacity:1; transform:scale(1); }
-
-.select-circle.is-radio .cc-visual{ border-radius:10px; }
-
-
-
-/* ================================================================
-
-   CONTENUTO DOMANDA / RISPOSTA
-
-   ================================================================ */
-
-.qa-side{ margin-bottom:12px; }
-
-.qa-side:last-of-type{ margin-bottom:0; }
-
-.qa-label{
-
-    font-size:10.5px; font-weight:800; letter-spacing:.11em; text-transform:uppercase; color:var(--text-3);
-
-    margin-bottom:6px; display:flex; align-items:center; gap:6px;
-
-}
-
-.qa-label::after{ content:''; flex:1; height:.5px; background:var(--hairline); }
-
-.qa-content{ display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
-
-.qa-content.qa-split .qa-text{ flex:1 1 130px; min-width:0; }
-
-.qa-content.qa-split .qa-image{ flex:0 0 76px; width:76px; height:76px; }
-
-.qa-content.qa-solo .qa-text{ flex:1 1 100%; font-size:16.5px; }
-
-.qa-content.qa-solo .qa-image{ flex:1 1 100%; width:100%; max-height:230px; height:auto; }
-
-.qa-content.qa-empty{ color:var(--text-3); font-size:14px; }
-
-.qa-text{
-
-    font-size:15.5px; font-weight:550; line-height:1.48; letter-spacing:-.008em; color:var(--text);
-
-    white-space:pre-wrap; word-wrap:break-word; max-height:190px; overflow-y:auto; padding-right:4px;
-
-}
-
-.qa-text::-webkit-scrollbar{ width:5px; }
-
-.qa-text::-webkit-scrollbar-thumb{ background:var(--hairline-2); border-radius:4px; }
-
-.qa-image{
-
-    border-radius:14px; object-fit:cover; cursor:zoom-in; display:block;
-
-    border:.5px solid var(--hairline); box-shadow:0 3px 10px rgba(0,0,0,.08);
-
-    transition:transform .2s var(--spring);
-
-}
-
-.qa-content.qa-solo .qa-image{ object-fit:contain; background:var(--surface-2); }
-
-.qa-image:active{ transform:scale(.97); }
-
-
-
-/* ================================================================
-
-   PLAYER AUDIO CUSTOM
-
-   ================================================================ */
-
-.audio-player{
-
-    display:flex; align-items:center; gap:9px; margin-top:9px; padding:7px 10px 7px 6px;
-
-    background:var(--surface-2); border-radius:99px; box-shadow:inset 0 0 0 .5px var(--hairline);
-
-}
-
-.ap-btn{
-
-    width:30px; height:30px; border-radius:50%; border:none; cursor:pointer; flex-shrink:0;
-
-    background:var(--row-color); color:#fff; display:flex; align-items:center; justify-content:center;
-
-    box-shadow:0 3px 8px -2px var(--cat-line); transition:transform .15s var(--spring);
-
-}
-
-.ap-btn:active{ transform:scale(.88); }
-
-.ap-ic{ width:14px; height:14px; }
-
-.ap-track{ position:relative; flex:1; height:20px; display:flex; align-items:center; cursor:pointer; }
-
-.ap-track::before{ content:''; position:absolute; left:0; right:0; height:4px; border-radius:99px; background:var(--hairline-2); }
-
-.ap-fill{ position:absolute; left:0; height:4px; width:0%; border-radius:99px; background:var(--row-color); }
-
-.ap-knob{ position:absolute; left:0%; width:11px; height:11px; border-radius:50%; background:var(--row-color); box-shadow:0 1px 4px rgba(0,0,0,.3); transform:translateX(-50%); transition:opacity .15s; opacity:0; }
-
-.audio-player.is-playing .ap-knob, .audio-player:hover .ap-knob{ opacity:1; }
-
-.ap-time{ font-size:11px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums; flex-shrink:0; min-width:32px; text-align:right; }
-
-
-
-/* ================================================================
-
-   SEZIONE EXAMPLES (placeholder, da completare)
-
-   ================================================================ */
-
-.qa-examples{ margin-top:12px; }
-
-.qa-examples .qa-label{ color:var(--purple); opacity:.75; }
-
-.qa-examples-box{
-
-    border:1.5px dashed color-mix(in srgb, var(--purple), transparent 55%);
-
-    border-radius:14px; padding:12px; min-height:38px;
-
-    display:flex; align-items:center; justify-content:center;
-
-    color:var(--text-3); font-size:12.5px; font-weight:600;
-
-    background:color-mix(in srgb, var(--purple), transparent 95%);
-
-}
-
-
-
-/* ================================================================
-
-   OVERLAY ZOOM IMMAGINI
-
-   ================================================================ */
-
-#image-overlay{
-
-    position:fixed; inset:0; z-index:9999; display:none;
-
-    justify-content:center; align-items:center; background:rgba(0,0,0,.94);
-
-    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
-
-}
-
-#overlay-img{ max-width:100%; max-height:100%; object-fit:contain; animation:zoomIn .3s var(--spring); }
-
-@keyframes zoomIn{ from{ transform:scale(.85); opacity:0; } }
-
-#close-overlay{
-
-    position:absolute; top:calc(var(--safe-top) + 12px); right:14px; z-index:10000;
-
-    width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.16); color:#fff;
-
-    font-size:17px; display:flex; align-items:center; justify-content:center; cursor:pointer;
-
-    -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
-
-}
-
-
-
-/* ================================================================
-
-   SHEET MODALI (stile iOS dal basso)
-
-   ================================================================ */
-
-.sheet-overlay{
-
-    position:fixed; inset:0; z-index:10001; display:none; justify-content:center; align-items:flex-end;
-
-    background:rgba(0,0,0,.45); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
-
-}
-
-.sheet-panel{
-
-    position:relative; width:100%; max-width:600px; max-height:80vh; overflow-y:auto;
-
-    background:var(--surface); color:var(--text); border-radius:26px 26px 0 0;
-
-    padding:26px 20px calc(20px + var(--safe-bottom));
-
-    box-shadow:0 -10px 50px rgba(0,0,0,.35);
-
-    animation:sheetUp .42s var(--spring) both;
-
-}
-
-@keyframes sheetUp{ from{ transform:translateY(60%); opacity:.4; } to{ transform:none; opacity:1; } }
-
-.sheet-panel::before{
-
-    content:''; position:absolute; top:8px; left:50%; transform:translateX(-50%);
-
-    width:38px; height:5px; border-radius:99px; background:var(--hairline-2);
-
-}
-
-.sheet-panel h3{ margin:2px 0 4px; font-size:19px; font-weight:800; letter-spacing:-.02em; }
-
-.sheet-panel p.sheet-sub{ margin:0 0 16px; font-size:13.5px; color:var(--text-2); font-weight:500; }
-
-.sheet-warn{
-
-    margin:0 0 14px; padding:10px 12px; border-radius:12px; background:var(--orange-soft); color:var(--orange);
-
-    font-size:12.5px; font-weight:700; display:none;
-
-}
-
-.sheet-actions{ display:flex; gap:10px; margin-top:6px; }
-
-.sheet-btn{
-
-    flex:1; padding:14px; border:none; border-radius:var(--r-btn); cursor:pointer;
-
-    font-family:inherit; font-size:15.5px; font-weight:800; color:var(--text); background:var(--surface-2);
-
-    transition:transform .15s var(--spring);
-
-}
-
-.sheet-btn:active{ transform:scale(.97); }
-
-.sheet-btn.danger{ color:#fff; background:linear-gradient(180deg, #FF6961, var(--red)); }
-
-.cat-pick-list{ display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow-y:auto; }
-
-.cat-pick-item{
-
-    display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:14px; cursor:pointer;
-
-    background:var(--surface-2); border:none; width:100%; text-align:left; font-family:inherit;
-
-    transition:transform .15s var(--spring), background .15s;
-
-}
-
-.cat-pick-item:active{ transform:scale(.98); }
-
-.cat-pick-dot{ width:12px; height:12px; border-radius:50%; flex-shrink:0; box-shadow:0 0 0 3px rgba(0,0,0,.04); }
-
-.cat-pick-name{ font-size:15px; font-weight:700; }
-
-
-
-/* ================================================================
-
-   TOAST
-
-   ================================================================ */
-
-#toast-host{ position:fixed; left:50%; bottom:calc(var(--safe-bottom) + 22px); z-index:10500; transform:translateX(-50%); display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none; }
-
-.toast{
-
-    padding:12px 18px; border-radius:99px; background:var(--text); color:var(--bg);
-
-    font-size:13.5px; font-weight:700; text-align:center; box-shadow:0 12px 30px rgba(0,0,0,.3);
-
-    animation:toastIn .4s var(--bounce) both; max-width:88vw;
-
-}
-
-.toast.leaving{ transition:.3s; opacity:0; transform:translateY(10px) scale(.9); }
-
-@keyframes toastIn{ from{ opacity:0; transform:translateY(16px) scale(.85); } }
-
-
-
-/* ================================================================
-
-   BARRA FLOTTANTE DI CONFERMA (join)
-
-   ================================================================ */
-
-.confirm-bar{
-
-    position:fixed; left:0; right:0; bottom:0; z-index:250; display:none;
-
-    padding:12px 14px calc(12px + var(--safe-bottom)); background:var(--header-glass);
-
-    -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px); border-top:.5px solid var(--hairline);
-
-    animation:revealIn .3s var(--spring) both;
-
-}
-
-.confirm-bar .cb-btn{
-
-    width:100%; padding:15px; border:none; border-radius:var(--r-btn); cursor:pointer;
-
-    font-family:inherit; font-size:16px; font-weight:800; color:#fff;
-
-    background:linear-gradient(180deg, var(--cat-light), var(--cat-color) 55%, var(--cat-dark));
-
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.25), 0 10px 24px -8px var(--cat-line);
-
-    transition:transform .15s var(--spring), opacity .2s;
-
-}
-
-.confirm-bar .cb-btn:disabled{ opacity:.4; box-shadow:none; }
-
-.confirm-bar .cb-btn:active:not(:disabled){ transform:scale(.98); }
-
-
-
-@media (prefers-reduced-motion: reduce){
-
-    *, *::before, *::after{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
-
-}
-
-@media (min-width:700px){
-
-    .qa-content.qa-split .qa-image{ flex:0 0 96px; width:96px; height:96px; }
-
-}
-
-</style>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>visualizzazione_fc.css?v=<?php echo @filemtime(dirname(__FILE__) . '/visualizzazione_fc.css') ?: 1; ?>">
 
 </head>
 
@@ -1940,21 +882,21 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
             <div class="cat-pill-text">
 
-                <div class="cat-pill-label">Categoria</div>
+                <div class="cat-pill-label"><?php te('vocab.cat_categoria'); ?></div>
 
-                <div class="cat-pill-name"><?= htmlspecialchars($current_cat_name) ?></div>
+                <div class="cat-pill-name"><?= sec_h($current_cat_name) ?></div>
                 <?php if ($categoryID != 0): ?>
                     <?php if ($fc_linked_project): ?>
                     <button type="button" class="cat-proj-chip<?= !empty($fc_linked_project['via_ancestor']) ? ' via-ancestor' : '' ?>"
-                            style="--cp-color:<?= htmlspecialchars($fc_linked_project['color']) ?>;"
+                            style="--cp-color:<?= sec_h($fc_linked_project['color']) ?>;"
                             onclick="event.stopPropagation(); window.location.href='progetti.php?id=<?= (int)$fc_linked_project['id'] ?>';">
                         <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
-                        <?php if (!empty($fc_linked_project['parent_name'])): ?><span class="cp-anc"><?= htmlspecialchars($fc_linked_project['parent_name']) ?></span><span class="cp-sep">•</span><?php endif; ?><span class="cp-leaf"><?= htmlspecialchars($fc_linked_project['name']) ?></span>
+                        <?php if (!empty($fc_linked_project['parent_name'])): ?><span class="cp-anc"><?= sec_h($fc_linked_project['parent_name']) ?></span><span class="cp-sep">•</span><?php endif; ?><span class="cp-leaf"><?= sec_h($fc_linked_project['name']) ?></span>
                     </button>
                     <?php else: ?>
                     <button type="button" class="cat-proj-chip cat-proj-link" onclick="event.stopPropagation(); fcOpenLinkProject();">
                         <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                        Collega progetto
+                        <?php te('fc.vis_collega_progetto'); ?>
                     </button>
                     <?php endif; ?>
                 <?php endif; ?>
@@ -1971,33 +913,33 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
     <div class="header-row2">
 
-        <nav class="cat-path" id="catPath" aria-label="Percorso categorie">
-            <a href="categories_fc.php" class="cat-path-home" aria-label="Home — torna alle categorie" title="Torna alle categorie">
+        <nav class="cat-path" id="catPath" aria-label="<?php te('vocab.vi_percorso'); ?>">
+            <a href="categories_fc.php" class="cat-path-home" aria-label="<?php te('vocab.vi_home'); ?>" title="<?php te('vocab.vi_torna_cat'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
             </a>
             <span class="cat-path-sep" aria-hidden="true">&rsaquo;</span>
             <?php if ($categoryID == 0): ?>
-            <span class="cat-path-item cat-path-current">Tutte le Categorie</span>
+            <span class="cat-path-item cat-path-current"><?php te('fc.vis_tutte_categorie'); ?></span>
             <?php else: ?>
                 <?php foreach ($fc_path_ltr as $__anc): ?>
-                <a class="cat-path-item" href="visualizzazione_fc.php?category_id=<?= (int)$__anc['id'] ?>"><?= htmlspecialchars($__anc['name'], ENT_QUOTES) ?></a>
+                <a class="cat-path-item" href="visualizzazione_fc.php?category_id=<?= (int)$__anc['id'] ?>"><?= sec_h($__anc['name']) ?></a>
                 <span class="cat-path-sep" aria-hidden="true">&rsaquo;</span>
                 <?php endforeach; ?>
-            <span class="cat-path-item cat-path-current"><?= htmlspecialchars($current_cat_name, ENT_QUOTES) ?></span>
+            <span class="cat-path-item cat-path-current"><?= sec_h($current_cat_name) ?></span>
             <?php endif; ?>
         </nav>
 
-        <a href="inserimento_fc.php?category_id=<?= $categoryID ?>" class="icon-btn quick-add-btn" aria-label="Aggiungi flashcard" title="Aggiungi flashcard in questa categoria">
+        <a href="inserimento_fc.php?category_id=<?= sec_h($categoryID) ?>" class="icon-btn quick-add-btn" aria-label="<?php te('fc.vis_aggiungi_fc'); ?>" title="<?php te('fc.vis_aggiungi_in_cat'); ?>">
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
 
         </a>
 
         <?php if ($categoryID != 0): ?>
-        <a href="categories_game_fc.php?preselect_category=<?= $categoryID ?>" class="icon-btn play-cat-btn" aria-label="Gioca con questa categoria" title="Gioca con questa categoria">
+        <a href="categories_game_fc.php?preselect_category=<?= sec_h($categoryID) ?>" class="icon-btn play-cat-btn" aria-label="<?php te('vocab.vi_gioca'); ?>" title="Gioca con questa categoria">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>
         </a>
-        <a href="big_edit_fc.php?category_id=<?= $categoryID ?>" class="icon-btn big-edit-btn" aria-label="Big Edit" title="Big Edit">
+        <a href="big_edit_fc.php?category_id=<?= sec_h($categoryID) ?>" class="icon-btn big-edit-btn" aria-label="<?php te('vocab.vi_big_edit'); ?>" title="Big Edit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
         </a>
         <?php endif; ?>
@@ -2012,7 +954,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
 
-            <input id="filterText" class="search-input" type="text" placeholder="Cerca in domanda o risposta..." oninput="visibleLimit=30; filterList()">
+            <input id="filterText" class="search-input" type="text" placeholder="<?php te('fc.vis_cerca'); ?>" oninput="visibleLimit=30; filterList()">
 
         </div>
 
@@ -2020,13 +962,13 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
             <select id="filterSort" class="tb-select" onchange="changeSort()">
 
-                <option value="custom_asc" <?= $sort == 'custom_asc' ? 'selected' : '' ?>>Posizione</option>
+                <option value="custom_asc" <?= $sort == 'custom_asc' ? 'selected' : '' ?>><?php te('fc.vis_posizione'); ?></option>
 
-                <option value="id_desc" <?= $sort == 'id_desc' ? 'selected' : '' ?>>ID recenti</option>
+                <option value="id_desc" <?= $sort == 'id_desc' ? 'selected' : '' ?>><?php te('fc.vis_id_recenti'); ?></option>
 
-                <option value="id_asc" <?= $sort == 'id_asc' ? 'selected' : '' ?>>ID meno recenti</option>
+                <option value="id_asc" <?= $sort == 'id_asc' ? 'selected' : '' ?>><?php te('fc.vis_id_meno_recenti'); ?></option>
 
-                <option value="q_asc" <?= $sort == 'q_asc' ? 'selected' : '' ?>>Domanda A-Z</option>
+                <option value="q_asc" <?= $sort == 'q_asc' ? 'selected' : '' ?>><?php te('fc.vis_domanda_az'); ?></option>
 
             </select>
 
@@ -2036,13 +978,13 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
             <select id="filterStatus" class="tb-select" onchange="visibleLimit=30; filterList()">
 
-                <option value="all">Tutte le carte</option>
+                <option value="all"><?php te('fc.vis_tutte_carte'); ?></option>
 
-                <option value="not_learnt">Da imparare</option>
+                <option value="not_learnt"><?php te('vocab.vi_da_imparare'); ?></option>
 
-                <option value="learnt">Imparate</option>
+                <option value="learnt"><?php te('vocab.vi_imparate'); ?></option>
 
-                <option value="duplicates">Duplicati</option>
+                <option value="duplicates"><?php te('vocab.vi_duplicati'); ?></option>
 
             </select>
 
@@ -2052,7 +994,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="6"/></svg>
 
-            Seleziona
+            <?php te('vocab.vi_seleziona'); ?>
 
         </button>
 
@@ -2062,13 +1004,13 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
     <div class="select-toolbar" id="selectToolbar" style="display:none;">
 
-        <button type="button" class="st-cancel" onclick="exitSelectMode()" aria-label="Annulla selezione">
+        <button type="button" class="st-cancel" onclick="exitSelectMode()" aria-label="<?php te('fc.vis_annulla_sel'); ?>">
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
 
         </button>
 
-        <button type="button" class="st-selectall" id="selectAllBtn" onclick="toggleSelectAll()">Tutte</button>
+        <button type="button" class="st-selectall" id="selectAllBtn" onclick="toggleSelectAll()"><?php te('vocab.vi_tutte'); ?></button>
 
         <div class="st-count" id="selectCount">0</div>
 
@@ -2078,7 +1020,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/><path d="M17 22v-6M14 19h6"/></svg>
 
-                Sposta
+                <?php te('vocab.cat_sposta_attr'); ?>
 
             </button>
 
@@ -2086,7 +1028,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="12" r="3"/><circle cx="17" cy="6" r="3"/><circle cx="17" cy="18" r="3"/><path d="M9.6 10.5 14.5 7.7M9.6 13.5l4.9 2.8"/></svg>
 
-                Unisci
+                <?php te('vocab.vi_unisci'); ?>
 
             </button>
 
@@ -2094,7 +1036,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></svg>
 
-                Separa
+                <?php te('vocab.vi_separa'); ?>
 
             </button>
 
@@ -2102,7 +1044,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
 
-                Elimina
+                <?php te('comune.elimina'); ?>
 
             </button>
 
@@ -2116,7 +1058,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
 
-        Ora tocca la carta che diventerà il padre del gruppo
+        <?php te('fc.vis_tocca_padre'); ?>
 
     </div>
 
@@ -2142,7 +1084,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
 
-                Sottocategorie
+                <?php te('vocab.vi_sottocategorie'); ?>
 
             </div>
 
@@ -2158,7 +1100,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                 ?>
 
-                <a href="visualizzazione_fc.php?category_id=<?= (int)$sc['id'] ?>" class="fc-subcat-card" style="--sc-color: <?= htmlspecialchars($scColor) ?>;">
+                <a href="visualizzazione_fc.php?category_id=<?= (int)$sc['id'] ?>" class="fc-subcat-card" style="--sc-color: <?= sec_h($scColor) ?>;">
 
                     <span class="fc-subcat-dot">
 
@@ -2166,25 +1108,25 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                     </span>
 
-                    <div class="fc-subcat-name"><?= htmlspecialchars($sc['name'], ENT_QUOTES) ?></div>
+                    <div class="fc-subcat-name"><?= sec_h($sc['name']) ?></div>
 
                     <div class="fc-subcat-meta">
 
-                        <span title="<?= $scCardCount ?> carte">
+                        <span title="<?php te('fc.vis_n_carte', ['n' => (int)$scCardCount]); ?>">
 
                             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="2.2"/><path d="M7.5 7V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/></svg>
 
-                            <?= $scCardCount ?>
+                            <?= sec_h($scCardCount) ?>
 
                         </span>
 
                         <?php if ($scFolderCount > 0): ?>
 
-                        <span title="<?= $scFolderCount ?> sottocategorie">
+                        <span title="<?php te('fc.vis_n_sottocategorie', ['n' => (int)$scFolderCount]); ?>">
 
                             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.5l1.5 2H19a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
 
-                            <?= $scFolderCount ?>
+                            <?= sec_h($scFolderCount) ?>
 
                         </span>
 
@@ -2204,7 +1146,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
 
 
-        <div class="item-counter" id="itemCounter"><span class="ic-dot"></span> <b id="itemCounterNum">0</b> carte mostrate</div>
+        <div class="item-counter" id="itemCounter"><span class="ic-dot"></span> <?php th('fc.vis_n_carte_mostrate', ['n' => '<b id="itemCounterNum">0</b>']); ?></div>
 
 
 
@@ -2225,8 +1167,8 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
                     $group_counter++;
                     $isLearnt = $row['is_learnt'] == 1;
                     $catColor = fc_color_or_default($row['category_color']);
-                    $catName = $row['category_name'] ? $row['category_name'] : 'Nessuna';
-                    $searchString = htmlspecialchars(strtolower($row['question_desc'] . ' ' . $row['answer_desc']), ENT_QUOTES);
+                    $catName = $row['category_name'] ? $row['category_name'] : T('vocab.vi_nessuna');
+                    $searchString = sec_h(strtolower($row['question_desc'] . ' ' . $row['answer_desc']));
                     $qk = strtolower(trim($row['question_desc']));
                     $isDuplicate = (isset($global_fc_counts[$qk]) && $global_fc_counts[$qk] > 1);
                     $childCount = count($row['children']);
@@ -2234,7 +1176,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
                     // Pre-nascondi via PHP per evitare rendering lag
                     $hide_style = ($categoryID == 0 && $group_counter > 30) ? 'display: none;' : '';
                 ?>
-                <div class="fc-group" data-parent-id="<?= (int)$row['id'] ?>" data-category-id="<?= (int)$row['category_id'] ?>" data-reorderable="<?= $parent_reorder_enabled ? '1' : '0' ?>" style="--row-color:<?= htmlspecialchars($catColor) ?>; <?= $hide_style ?>">
+                <div class="fc-group" data-parent-id="<?= (int)$row['id'] ?>" data-category-id="<?= (int)$row['category_id'] ?>" data-reorderable="<?= $parent_reorder_enabled ? '1' : '0' ?>" style="--row-color:<?= sec_h($catColor) ?>; <?= sec_h($hide_style) ?>">
 
 
 
@@ -2242,7 +1184,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                          data-id="<?= (int)$row['id'] ?>" data-type="parent"
 
-                         data-search="<?= $searchString ?>" data-duplicate="<?= $isDuplicate ? 'true' : 'false' ?>"
+                         data-search="<?= sec_h($searchString) ?>" data-duplicate="<?= $isDuplicate ? 'true' : 'false' ?>"
 
                          data-edit-url="modifica_immagine_fc.php?fc_id=<?= (int)$row['id'] ?>&previous_catid=<?= (int)$categoryID ?>"
 
@@ -2256,7 +1198,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
 
-                                Modifica
+                                <?php te('comune.modifica'); ?>
 
                             </button>
 
@@ -2264,7 +1206,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
 
-                                Elimina
+                                <?php te('comune.elimina'); ?>
 
                             </button>
 
@@ -2304,17 +1246,17 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                                 <div class="card-head-spacer"></div>
 
-                                <?php if ($isDuplicate): ?><span class="dup-badge">⧉ Duplicato</span><?php endif; ?>
+                                <?php if ($isDuplicate): ?><span class="dup-badge"><?php te('fc.vis_duplicato'); ?></span><?php endif; ?>
 
-                                <?php if ($categoryID == 0): ?><span class="cat-badge" style="background:<?= htmlspecialchars($catColor) ?>"><?= htmlspecialchars($catName) ?></span><?php endif; ?>
+                                <?php if ($categoryID == 0): ?><span class="cat-badge" style="background:<?= sec_h($catColor) ?>"><?= sec_h($catName) ?></span><?php endif; ?>
 
                             </div>
 
 
 
-                            <?php render_qa_side('Domanda', $row['question_desc'], $row['question_image'], $row['question_audio']); ?>
+                            <?php render_qa_side(T('fc.ifc_domanda'), $row['question_desc'], $row['question_image'], $row['question_audio']); ?>
 
-                            <?php render_qa_side('Risposta', $row['answer_desc'], $row['answer_image'], $row['answer_audio']); ?>
+                            <?php render_qa_side(T('fc.ifc_risposta'), $row['answer_desc'], $row['answer_image'], $row['answer_audio']); ?>
 
 
 
@@ -2332,13 +1274,13 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                         <?php foreach ($row['children'] as $child):
 
-                            $searchChild = htmlspecialchars(strtolower($child['question_desc'] . ' ' . $child['answer_desc']), ENT_QUOTES);
+                            $searchChild = sec_h(strtolower($child['question_desc'] . ' ' . $child['answer_desc']));
 
                         ?>
 
                         <div class="fc-card fc-child" data-id="<?= (int)$child['id'] ?>" data-type="child" data-parent-id="<?= (int)$row['id'] ?>"
 
-                             data-search="<?= $searchChild ?>" data-duplicate="false" data-reorderable="<?= $child_reorder_enabled ? '1' : '0' ?>"
+                             data-search="<?= sec_h($searchChild) ?>" data-duplicate="false" data-reorderable="<?= $child_reorder_enabled ? '1' : '0' ?>"
 
                              data-edit-url="modifica_immagine_fc.php?child_id=<?= (int)$child['id'] ?>&previous_catid=<?= (int)$categoryID ?>">
 
@@ -2350,7 +1292,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
 
-                                    Modifica
+                                    <?php te('vocab.cat_modifica_attr'); ?>
 
                                 </button>
 
@@ -2358,7 +1300,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
 
-                                    Elimina
+                                    <?php te('comune.elimina'); ?>
 
                                 </button>
 
@@ -2386,9 +1328,9 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
 
 
-                                <?php render_qa_side('Domanda', $child['question_desc'], $child['question_image'], $child['question_audio']); ?>
+                                <?php render_qa_side(T('fc.ifc_domanda'), $child['question_desc'], $child['question_image'], $child['question_audio']); ?>
 
-                                <?php render_qa_side('Risposta', $child['answer_desc'], $child['answer_image'], $child['answer_audio']); ?>
+                                <?php render_qa_side(T('fc.ifc_risposta'), $child['answer_desc'], $child['answer_image'], $child['answer_audio']); ?>
 
 
 
@@ -2411,7 +1353,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
             
             <?php if ($categoryID == 0): ?>
                 <button type="button" id="loadMoreBtn" style="display: none; width: calc(100% - 24px); margin: 0 auto 20px auto; padding: 14px; background: var(--surface); color: var(--blue); border: none; border-radius: var(--r-btn); font-size: 15.5px; font-weight: 800; cursor: pointer; box-shadow: var(--shadow-card), inset 0 0 0 .5px var(--hairline); transition: transform .15s var(--spring); text-align: center;" onclick="loadMoreCards()" onmousedown="this.style.transform='scale(.97)'" onmouseup="this.style.transform='scale(1)'" onmouseleave="this.style.transform='scale(1)'">
-                    Carica altre 30 carte
+                    <?php te('fc.vis_carica_altre'); ?>
                 </button>
             <?php endif; ?>
 
@@ -2421,9 +1363,9 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                 <div class="es-icon">🗂️</div>
 
-                <h3>Nessuna carta trovata</h3>
+                <h3><?php te('fc.vis_nessuna_carta'); ?></h3>
 
-                <p>Non ci sono flashcard in questa categoria.</p>
+                <p><?php te('fc.vis_nessuna_carta_txt'); ?></p>
 
             </div>
 
@@ -2439,7 +1381,7 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
 <div class="confirm-bar" id="joinConfirmBar">
 
-    <button type="button" class="cb-btn" id="joinConfirmBtn" disabled onclick="confirmJoinExecution()">Confermo il padre selezionato</button>
+    <button type="button" class="cb-btn" id="joinConfirmBtn" disabled onclick="confirmJoinExecution()"><?php te('fc.vis_confermo_padre'); ?></button>
 
 </div>
 
@@ -2449,17 +1391,17 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
     <div class="sheet-panel">
 
-        <h3 id="deleteSheetTitle">Eliminare questa carta?</h3>
+        <h3 id="deleteSheetTitle"><?php te('fc.vis_eliminare_carta'); ?></h3>
 
-        <p class="sheet-sub" id="deleteSheetSub">L'operazione non può essere annullata.</p>
+        <p class="sheet-sub" id="deleteSheetSub"><?php te('fc.vis_non_annullabile'); ?></p>
 
         <div class="sheet-warn" id="deleteSheetWarn"></div>
 
         <div class="sheet-actions">
 
-            <button type="button" class="sheet-btn" onclick="closeSheet('deleteSheet')">Annulla</button>
+            <button type="button" class="sheet-btn" onclick="closeSheet('deleteSheet')"><?php te('comune.annulla'); ?></button>
 
-            <button type="button" class="sheet-btn danger" id="deleteSheetConfirm">Elimina</button>
+            <button type="button" class="sheet-btn danger" id="deleteSheetConfirm"><?php te('comune.elimina'); ?></button>
 
         </div>
 
@@ -2473,9 +1415,9 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
     <div class="sheet-panel">
 
-        <h3>Sposta in quale categoria?</h3>
+        <h3><?php te('fc.vis_sposta_dove'); ?></h3>
 
-        <p class="sheet-sub">Le carte selezionate verranno spostate.</p>
+        <p class="sheet-sub"><?php te('fc.vis_sposta_txt'); ?></p>
 
         <div class="cat-pick-list" id="moveCatList">
 
@@ -2483,9 +1425,9 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
                 <button type="button" class="cat-pick-item" onclick="pickMoveCategory(<?= (int)$c['id'] ?>)">
 
-                    <span class="cat-pick-dot" style="background:<?= htmlspecialchars(fc_color_or_default($c['color'])) ?>"></span>
+                    <span class="cat-pick-dot" style="background:<?= sec_h(fc_color_or_default($c['color'])) ?>"></span>
 
-                    <span class="cat-pick-name"><?= htmlspecialchars($c['name']) ?></span>
+                    <span class="cat-pick-name"><?= sec_h($c['name']) ?></span>
 
                 </button>
 
@@ -3060,7 +2002,7 @@ function toggleSelectAll(){
 
     });
 
-    document.getElementById('selectAllBtn').textContent = allChecked ? 'Tutte' : 'Nessuna';
+    document.getElementById('selectAllBtn').textContent = allChecked ? 'Tutte' : T('vocab.vi_nessuna');
 
     updateSelectCount();
 
@@ -3072,7 +2014,7 @@ function onBulkActionPick(action){
 
     const totalChecked = $all('.record-cb:checked').length;
 
-    if (totalChecked === 0) { showToast('Seleziona almeno una carta'); return; }
+    if (totalChecked === 0) { showToast(T('fc.vis_serve_carta')); return; }
 
     $all('.st-action').forEach(function(b){ b.classList.toggle('active-pick', b.dataset.action === action); });
 
@@ -3098,7 +2040,7 @@ function onBulkActionPick(action){
 
         if ($all('.standalone-cb:checked').length > 0) {
 
-            showToast('Per separare, seleziona solo sotto-carte');
+            showToast(T('fc.vis_solo_sottocarte'));
 
             return;
 
@@ -3120,9 +2062,9 @@ function onBulkActionPick(action){
 
         });
 
-        if (checkedFatherExists) { showToast('Non puoi aggregare una carta che ha già sotto-carte'); return; }
+        if (checkedFatherExists) { showToast(T('fc.vis_no_padre_con_figli')); return; }
 
-        if ($all('.child-cb:checked').length > 0) { showToast('Non puoi aggregare carte già figlie'); return; }
+        if ($all('.child-cb:checked').length > 0) { showToast(T('fc.vis_no_figlie')); return; }
 
 
 
@@ -3162,7 +2104,7 @@ function onBulkActionPick(action){
 
 function confirmJoinExecution(){
 
-    if (!document.querySelector('.father-radio:checked')) { showToast('Seleziona una carta padre'); return; }
+    if (!document.querySelector('.father-radio:checked')) { showToast(T('fc.vis_serve_padre')); return; }
 
     submitBulkForm('join');
 
@@ -3204,9 +2146,9 @@ function closeSheet(id){
 
 function openDeleteConfirm(count, warnText, onConfirm){
 
-    document.getElementById('deleteSheetTitle').textContent = (count === 1) ? 'Eliminare questa carta?' : ('Eliminare ' + count + ' carte?');
+    document.getElementById('deleteSheetTitle').textContent = (count === 1) ? T('fc.vis_eliminare_carta') : T('fc.vis_eliminare_n_carte', {n: count});
 
-    document.getElementById('deleteSheetSub').textContent = "L'operazione non può essere annullata.";
+    document.getElementById('deleteSheetSub').textContent = T('fc.vis_non_annullabile');
 
     const warnEl = document.getElementById('deleteSheetWarn');
 
@@ -3262,9 +2204,9 @@ function askDeleteCard(btn){
 
         warn = (childCount === 1)
 
-            ? "Questa carta ha 1 sotto-carta collegata: rimarrà orfana nel database."
+            ? T('fc.vis_una_orfana')
 
-            : ("Questa carta ha " + childCount + " sotto-carte collegate: rimarranno orfane nel database.");
+            : T('fc.vis_n_orfane', {n: childCount});
 
     }
 
@@ -3294,7 +2236,7 @@ function performSingleDelete(card){
 
         .then(function(){ animateCardOut(target); })
 
-        .catch(function(){ showToast('Errore di rete: la carta non è stata eliminata'); if (window.resetSwipeCard) window.resetSwipeCard(card); });
+        .catch(function(){ showToast(T('fc.vis_errore_elimina')); if (window.resetSwipeCard) window.resetSwipeCard(card); });
 
 }
 
@@ -3860,7 +2802,7 @@ function animateCardOut(el){
 
         fetch('visualizzazione_fc.php', { method: 'POST', body: fd }).catch(function(){
 
-            showToast('Ordine non salvato: controlla la connessione');
+            showToast(T('fc.vis_ordine_non_salvato'));
 
         });
 
@@ -3964,7 +2906,7 @@ window.fcOpenLinkProject = function(){
     
     // 1. Controllo di sicurezza base
     if (!modal) {
-        alert("Errore tecnico: Il codice HTML del selettore progetti non è presente nella pagina.");
+        alert(T('fc.vis_errore_selettore'));
         return;
     }
     

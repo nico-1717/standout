@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Senza rete - Standout</title>
+<meta name="theme-color" content="#EFE0AE">
+<style>
+  /* Pagina volutamente autosufficiente: e' l'unica che deve funzionare quando
+     non si puo' scaricare nessun altro file. Nessun CSS esterno, nessun font. */
+  :root { --giallo: #EFE0AE; --fondo: #FBF7EC; --inchiostro: #3A3426; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--fondo); color: var(--inchiostro);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 24px; text-align: center;
+  }
+  .scheda { max-width: 22rem; }
+  .segno {
+    width: 84px; height: 84px; margin: 0 auto 20px;
+    border-radius: 22px; background: var(--giallo);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 46px; font-weight: 700; font-family: Georgia, "Times New Roman", serif;
+  }
+  h1 { font-size: 1.35rem; margin: 0 0 10px; font-weight: 600; }
+  p { margin: 0 0 22px; line-height: 1.5; opacity: .78; font-size: .98rem; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer;
+    padding: 11px 26px; border: 0; border-radius: 999px;
+    background: var(--giallo); color: var(--inchiostro);
+  }
+  button:focus-visible { outline: 3px solid var(--inchiostro); outline-offset: 3px; }
+</style>
+</head>
+<body>
+  <div class="scheda">
+    <div class="segno">S</div>
+    <h1>Sei senza rete</h1>
+    <p>Standout ha bisogno del collegamento per mostrarti i tuoi dati. Riprova appena torna la linea.</p>
+    <button type="button" onclick="location.reload()">Riprova</button>
+  </div>
+</body>
+</html>

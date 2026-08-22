@@ -1,0 +1,90 @@
+/* Standout - la fascetta che invita a installare l'app su iOS.
+ *
+ * Perche' un file a parte e non stili scritti dentro pwa.js: gli stili inline
+ * sono esattamente cio' che impedisce di togliere 'unsafe-inline' dalla CSP.
+ * Qui dentro non c'e' nient'altro, cosi' il giorno che l'invito non serve piu'
+ * si toglie un <link> e si cancella un file.
+ */
+
+.pwa-invito {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  /* env(): sugli iPhone senza tasto fisico la striscia in fondo coprirebbe la
+     fascetta. Il valore vale 0 dove la tacca non c'e', quindi non serve un caso
+     a parte per i modelli vecchi. */
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 99999;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+
+  background: #EFE0AE;
+  color: #3A3426;
+  border-radius: 16px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .22);
+
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: .92rem;
+  line-height: 1.35;
+
+  /* parte fuori campo: la classe .pwa-invito-dentro la fa salire */
+  transform: translateY(140%);
+  opacity: 0;
+  transition: transform .32s ease, opacity .32s ease;
+}
+
+.pwa-invito-dentro {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.pwa-invito-icona {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: rgba(58, 52, 38, .12);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.pwa-invito-testo {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.pwa-invito-chiudi {
+  flex: 0 0 auto;
+  /* 34px: sotto questa misura il bersaglio diventa difficile da centrare col
+     pollice, e una x che non si riesce a chiudere e' peggio di nessun avviso */
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pwa-invito-chiudi:active {
+  background: rgba(58, 52, 38, .14);
+}
+
+.pwa-invito-chiudi:focus-visible {
+  outline: 2px solid #3A3426;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pwa-invito { transition: none; }
+}

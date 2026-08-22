@@ -2,34 +2,52 @@
 require_once 'config.php';
 require_once 'auth_check.php'; // 1. Protezione con login obbligatorio
 
-$current_user_id = $utente_corrente['id']; // 2. ID Utente sicuro dal server
+$current_user_id = (int)$utente_corrente['id']; // 2. ID Utente sicuro dal server
 
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-if (!$conn) { die("Connessione fallita."); }
+/* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php, dove
+   le sec_* sono definite. */
+$conn = sec_db();
 
-// Mappa riutilizzabile BLINDATA: incrocia i dati solo con le categorie possedute dall'utente
+// Mappa riutilizzabile BLINDATA: incrocia i dati solo con le categorie dell'utente
 $CCMAP = "(
     SELECT i.id AS card_id, i.category_id 
     FROM fc_images i 
     JOIN fc_categories c ON i.category_id = c.id 
-    WHERE c.user_id = $current_user_id
+    WHERE c.user_id = ?
     UNION ALL
     SELECT -cc.id_child AS card_id, fi.category_id 
     FROM fc_child_cards cc 
     JOIN fc_images fi ON cc.parent_id = fi.id 
     JOIN fc_categories c2 ON fi.category_id = c2.id 
-    WHERE c2.user_id = $current_user_id
+    WHERE c2.user_id = ?
 ) AS ccmap";
+/* $CCMAP porta con se' due segnaposto: ogni query che lo usa deve passarli, e
+   nella posizione in cui $CCMAP compare nel testo della query. */
+$CCP = [$current_user_id, $current_user_id];
 
 // ==========================================
 // AJAX: SALVA OBIETTIVO GIORNALIERO
 // ==========================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'set_goal') {
     header('Content-Type: application/json');
-    $uid = $current_user_id; // 3. Sicurezza: ignoriamo l'input del client e forziamo l'utente loggato
-    $goal = max(1, intval($_POST['daily_goal']));
-    $ok = @mysqli_query($conn, "INSERT INTO fc_user_goals (user_id, daily_goal) VALUES ($uid, $goal) ON DUPLICATE KEY UPDATE daily_goal = $goal");
-    echo json_encode(['ok' => (bool)$ok, 'daily_goal' => $goal]);
+    /* Token di sessione, origine e limite di frequenza: prima non c'erano. */
+    sec_guard_write($current_user_id, 'fc_stats', 0, 60, 60);
+
+    // Sicurezza: l'utente e' quello della sessione, non quello che dice il client
+    $goal = sec_int($_POST['daily_goal'] ?? 1, 1, 1000, 1);
+    /* La tabella potrebbe non esserci ancora (vedi migrazione_fc_user_goals.sql):
+        in quel caso si risponde che non e' stato salvato, invece di far cadere
+        la pagina con un 500. Nell'originale l'errore era zittito da una
+        chiocciola e l'obiettivo spariva in silenzio. */
+    $salvato = true;
+    try {
+        sec_q("INSERT INTO fc_user_goals (user_id, daily_goal) VALUES (?, ?) ON DUPLICATE KEY UPDATE daily_goal = ?",
+              [$current_user_id, $goal, $goal]);
+    } catch (Throwable $e) {
+        sec_log_error('stats_fc', 'fc_user_goals mancante: ' . $e->getMessage());
+        $salvato = false;
+    }
+    echo json_encode(['ok' => $salvato, 'daily_goal' => $goal]);
     exit;
 }
 
@@ -52,11 +70,11 @@ function badgeIconSvg($type) {
 // ATTIVITA' GIORNALIERA (storia completa)
 // ==========================================
 $dailyData = [];
-$dq = mysqli_query($conn, "SELECT DATE(gp.play_date) AS d, COUNT(*) AS played, SUM(gp.user_answer='Correct') AS correct
+$dq = sec_all("SELECT DATE(gp.play_date) AS d, COUNT(*) AS played, SUM(gp.user_answer='Correct') AS correct
     FROM fc_gameplays gp JOIN games gm ON gp.game_id = gm.id
-    WHERE gm.user_id = $current_user_id AND gp.play_date IS NOT NULL AND gp.user_answer IN ('Correct','Wrong')
-    GROUP BY d ORDER BY d ASC");
-while ($row = mysqli_fetch_assoc($dq)) {
+    WHERE gm.user_id = ? AND gp.play_date IS NOT NULL AND gp.user_answer IN ('Correct','Wrong')
+    GROUP BY d ORDER BY d ASC", [$current_user_id]);
+foreach ($dq as $row) {
     $dailyData[$row['d']] = ['played' => (int)$row['played'], 'correct' => (int)$row['correct']];
 }
 $totalPlayedAllTime = 0;
@@ -66,25 +84,25 @@ foreach ($dailyData as $dd) { $totalPlayedAllTime += $dd['played']; }
 // DISTRIBUZIONE ORARIA / GIORNO SETTIMANA (0=Lun)
 // ==========================================
 $hourData = array_fill(0, 24, 0);
-$hq = mysqli_query($conn, "SELECT HOUR(gp.play_date) AS h, COUNT(*) AS c
+$hq = sec_all("SELECT HOUR(gp.play_date) AS h, COUNT(*) AS c
     FROM fc_gameplays gp JOIN games gm ON gp.game_id = gm.id
-    WHERE gm.user_id = $current_user_id AND gp.play_date IS NOT NULL AND gp.user_answer IN ('Correct','Wrong')
-    GROUP BY h");
-while ($row = mysqli_fetch_assoc($hq)) { $hourData[(int)$row['h']] = (int)$row['c']; }
+    WHERE gm.user_id = ? AND gp.play_date IS NOT NULL AND gp.user_answer IN ('Correct','Wrong')
+    GROUP BY h", [$current_user_id]);
+foreach ($hq as $row) { $hourData[(int)$row['h']] = (int)$row['c']; }
 
 $weekdayData = array_fill(0, 7, 0);
-$wq = mysqli_query($conn, "SELECT WEEKDAY(gp.play_date) AS w, COUNT(*) AS c
+$wq = sec_all("SELECT WEEKDAY(gp.play_date) AS w, COUNT(*) AS c
     FROM fc_gameplays gp JOIN games gm ON gp.game_id = gm.id
-    WHERE gm.user_id = $current_user_id AND gp.play_date IS NOT NULL AND gp.user_answer IN ('Correct','Wrong')
-    GROUP BY w");
-while ($row = mysqli_fetch_assoc($wq)) { $weekdayData[(int)$row['w']] = (int)$row['c']; }
+    WHERE gm.user_id = ? AND gp.play_date IS NOT NULL AND gp.user_answer IN ('Correct','Wrong')
+    GROUP BY w", [$current_user_id]);
+foreach ($wq as $row) { $weekdayData[(int)$row['w']] = (int)$row['c']; }
 
 // ==========================================
 // CATEGORIE (albero completo)
 // ==========================================
 $categoriesFlat = [];
-$cq = mysqli_query($conn, "SELECT id, name, parent_id, color FROM fc_categories WHERE user_id = $current_user_id ORDER BY name ASC");
-while ($row = mysqli_fetch_assoc($cq)) { $categoriesFlat[] = $row; }
+$cq = sec_all("SELECT id, name, parent_id, color FROM fc_categories WHERE user_id = ? ORDER BY name ASC", [$current_user_id]);
+foreach ($cq as $row) { $categoriesFlat[] = $row; }
 $macro_cats = array_values(array_filter($categoriesFlat, function($c){ return $c['parent_id'] == 0; }));
 
 // ==========================================
@@ -97,7 +115,7 @@ $macro_cats = array_values(array_filter($categoriesFlat, function($c){ return $c
 // categoria pur restando contate nei totali globali.
 // ==========================================
 $resolvedPlays = [];
-$rpq = mysqli_query($conn, "SELECT gp.fc_image_id AS card, DATE(gp.play_date) AS d, gp.user_answer AS ans,
+$rpq = sec_all("SELECT gp.fc_image_id AS card, DATE(gp.play_date) AS d, gp.user_answer AS ans,
         COALESCE(
             ccmap.category_id,
             gc_single.category_id
@@ -108,9 +126,9 @@ $rpq = mysqli_query($conn, "SELECT gp.fc_image_id AS card, DATE(gp.play_date) AS
     LEFT JOIN (
         SELECT game_id, MIN(category_id) AS category_id FROM game_categories GROUP BY game_id HAVING COUNT(*) = 1
     ) gc_single ON gc_single.game_id = gp.game_id
-    WHERE gm.user_id = $current_user_id AND gp.play_date IS NOT NULL AND gp.user_answer IN ('Correct','Wrong')
-    ORDER BY gp.fc_image_id ASC, gp.play_date ASC, gp.id ASC");
-while ($row = mysqli_fetch_assoc($rpq)) {
+    WHERE gm.user_id = ? AND gp.play_date IS NOT NULL AND gp.user_answer IN ('Correct','Wrong')
+    ORDER BY gp.fc_image_id ASC, gp.play_date ASC, gp.id ASC", array_merge($CCP, [$current_user_id]));
+foreach ($rpq as $row) {
     $resolvedPlays[] = [
         'card' => (int)$row['card'],
         'd' => $row['d'],
@@ -134,23 +152,23 @@ $catDailyData = array_values($catDailyMap);
 // CARTE TOTALI / IMPARATE PER CATEGORIA
 // ==========================================
 $catCardTotals = [];
-$ctq = mysqli_query($conn, "SELECT category_id, COUNT(*) AS total FROM $CCMAP GROUP BY category_id");
-while ($row = mysqli_fetch_assoc($ctq)) { $catCardTotals[(int)$row['category_id']] = (int)$row['total']; }
+$ctq = sec_all("SELECT category_id, COUNT(*) AS total FROM $CCMAP GROUP BY category_id", $CCP);
+foreach ($ctq as $row) { $catCardTotals[(int)$row['category_id']] = (int)$row['total']; }
 
 $catLearnt = [];
-$clq = mysqli_query($conn, "SELECT ccmap.category_id AS cat_id, COUNT(DISTINCT ulf.fc_image_id) AS learnt
+$clq = sec_all("SELECT ccmap.category_id AS cat_id, COUNT(DISTINCT ulf.fc_image_id) AS learnt
     FROM user_learnt_fc ulf JOIN $CCMAP ON ulf.fc_image_id = ccmap.card_id
-    WHERE ulf.user_id = $current_user_id GROUP BY ccmap.category_id");
-while ($row = mysqli_fetch_assoc($clq)) { $catLearnt[(int)$row['cat_id']] = (int)$row['learnt']; }
+    WHERE ulf.user_id = ? GROUP BY ccmap.category_id", array_merge($CCP, [$current_user_id]));
+foreach ($clq as $row) { $catLearnt[(int)$row['cat_id']] = (int)$row['learnt']; }
 
 // ==========================================
 // STORICO APPRENDIMENTO GIORNALIERO PER CATEGORIA (per previsioni scoped al ramo)
 // ==========================================
 $catLearntDaily = [];
-$cldq = mysqli_query($conn, "SELECT ccmap.category_id AS cat_id, ulf.learnt_date AS d, COUNT(*) AS c
+$cldq = sec_all("SELECT ccmap.category_id AS cat_id, ulf.learnt_date AS d, COUNT(*) AS c
     FROM user_learnt_fc ulf JOIN $CCMAP ON ulf.fc_image_id = ccmap.card_id
-    WHERE ulf.user_id = $current_user_id GROUP BY ccmap.category_id, d");
-while ($row = mysqli_fetch_assoc($cldq)) {
+    WHERE ulf.user_id = ? GROUP BY ccmap.category_id, d", array_merge($CCP, [$current_user_id]));
+foreach ($cldq as $row) {
     $catLearntDaily[] = ['cat' => (int)$row['cat_id'], 'd' => $row['d'], 'count' => (int)$row['c']];
 }
 
@@ -169,7 +187,7 @@ foreach ($categoriesFlat as $c) {
     if (!isset($catIdByName[$nm]) || (int)$c['id'] < $catIdByName[$nm]) { $catIdByName[$nm] = (int)$c['id']; }
 }
 $gamePartitaCat = [];
-$gpcq = mysqli_query($conn, "SELECT gp.game_id,
+$gpcq = sec_all("SELECT gp.game_id,
         COUNT(DISTINCT ccmap.category_id) AS n_distinct_direct,
         MIN(ccmap.category_id) AS direct_cat,
         MIN(gc_single.category_id) AS single_cat
@@ -179,9 +197,9 @@ $gpcq = mysqli_query($conn, "SELECT gp.game_id,
     LEFT JOIN (
         SELECT game_id, MIN(category_id) AS category_id FROM game_categories GROUP BY game_id HAVING COUNT(*) = 1
     ) gc_single ON gc_single.game_id = gp.game_id
-    WHERE gm.user_id = $current_user_id
-    GROUP BY gp.game_id");
-while ($row = mysqli_fetch_assoc($gpcq)) {
+    WHERE gm.user_id = ?
+    GROUP BY gp.game_id", array_merge($CCP, [$current_user_id]));
+foreach ($gpcq as $row) {
     $pid = (int)$row['game_id'];
     $cat = null;
     if ((int)$row['n_distinct_direct'] === 1 && $row['direct_cat'] !== null) { $cat = (int)$row['direct_cat']; }
@@ -194,18 +212,18 @@ while ($row = mysqli_fetch_assoc($gpcq)) {
 //    gonfiare le somme con un JOIN diretto fra le due tabelle a granularità diversa.
 $gameTimeByDate = []; // idpartita => [ 'YYYY-MM-DD' => secondi ]
 $gameTimeTotal = [];  // idpartita => secondi totali
-$dtq = mysqli_query($conn, "SELECT ds.game_id, DATE(ds.start_time) AS d, SUM(ds.duration_seconds) AS secs
+$dtq = sec_all("SELECT ds.game_id, DATE(ds.start_time) AS d, SUM(ds.duration_seconds) AS secs
     FROM session_durations ds JOIN games gm ON gm.id = ds.game_id
-    WHERE gm.user_id = $current_user_id GROUP BY ds.game_id, d");
-while ($row = mysqli_fetch_assoc($dtq)) {
+    WHERE gm.user_id = ? GROUP BY ds.game_id, d", [$current_user_id]);
+foreach ($dtq as $row) {
     $gid = (int)$row['game_id']; $secs = (int)$row['secs'];
     if (!isset($gameTimeByDate[$gid])) $gameTimeByDate[$gid] = [];
     $gameTimeByDate[$gid][$row['d']] = ($gameTimeByDate[$gid][$row['d']] ?? 0) + $secs;
     $gameTimeTotal[$gid] = ($gameTimeTotal[$gid] ?? 0) + $secs;
 }
 $gameCardCount = []; // idpartita => numero di carte giocate
-$gccq = mysqli_query($conn, "SELECT gp.game_id, COUNT(*) AS n FROM fc_gameplays gp JOIN games gm ON gp.game_id = gm.id WHERE gm.user_id = $current_user_id GROUP BY gp.game_id");
-while ($row = mysqli_fetch_assoc($gccq)) { $gameCardCount[(int)$row['game_id']] = (int)$row['n']; }
+$gccq = sec_all("SELECT gp.game_id, COUNT(*) AS n FROM fc_gameplays gp JOIN games gm ON gp.game_id = gm.id WHERE gm.user_id = ? GROUP BY gp.game_id", [$current_user_id]);
+foreach ($gccq as $row) { $gameCardCount[(int)$row['game_id']] = (int)$row['n']; }
 
 // 3) Combiniamo tutto: tempo per categoria/giorno, tempo globale/giorno, e "punti di
 //    velocità" (secondi per carta di ogni singola partita) per i trend di miglioramento.
@@ -253,15 +271,18 @@ foreach ($catGameSizes as $cat => $sizes) { $catAvgGameSize[$cat] = round(array_
 //    unificato studio-flashcard + focus-progetto. Avvolto in @ + controllo esistenza:
 //    se la tabella non è stata ancora creata, la pagina degrada senza errori.
 $catProjectLink = []; // cat => ['progetto_id'=>, 'progetto_nome'=>, 'pomodoro_secondi'=>]
-$plq = @mysqli_query($conn, "SELECT pcf.fc_category_id, pcf.progetto_id, p.name,
-        COALESCE((SELECT SUM(ps.duration_seconds) FROM pomodoro_sessions ps WHERE ps.progetto_id = pcf.progetto_id AND ps.user_id = $current_user_id), 0) AS pomo_secs
+$plq = sec_all("SELECT pcf.fc_category_id, pcf.project_id, p.name,
+        COALESCE((SELECT SUM(ps.duration_seconds) FROM pomodoro_sessions ps WHERE ps.project_id = pcf.project_id AND ps.user_id = ?), 0) AS pomo_secs
     FROM project_fc_categories pcf
-    JOIN projects p ON p.id = pcf.progetto_id AND p.user_id = $current_user_id
-    JOIN fc_categories c ON c.id = pcf.fc_category_id AND c.user_id = $current_user_id");
+    JOIN projects p ON p.id = pcf.project_id AND p.user_id = ?
+    JOIN fc_categories c ON c.id = pcf.fc_category_id AND c.user_id = ?", [$current_user_id, $current_user_id, $current_user_id]);
 if ($plq) {
-    while ($row = mysqli_fetch_assoc($plq)) {
+    foreach ($plq as $row) {
         $catProjectLink[(int)$row['fc_category_id']] = [
-            'progetto_id' => (int)$row['progetto_id'],
+            /* La query ora seleziona project_id (il nome vero della colonna): la chiave
+               dell'array in uscita resta 'progetto_id' perche' e' quella che legge il
+               JavaScript piu' sotto. */
+            'progetto_id' => (int)$row['project_id'],
             'progetto_nome' => $row['name'],
             'pomodoro_secondi' => (int)$row['pomo_secs'],
         ];
@@ -300,16 +321,25 @@ foreach ($cardStats as $cs) {
     if ($cs['card'] > 0) { $posIds[$cs['card']] = true; } else { $negIds[abs($cs['card'])] = true; }
 }
 if (!empty($posIds)) {
-    $idsStr = implode(',', array_map('intval', array_keys($posIds)));
-    $res = mysqli_query($conn, "SELECT id, question_desc, question_image FROM fc_images WHERE id IN ($idsStr)");
-    while ($row = mysqli_fetch_assoc($res)) {
+    /* Segnaposto, e la JOIN sulle categorie dell'utente: senza, un id qualsiasi
+       avrebbe restituito la scheda di un altro. */
+    $ids = array_map('intval', array_keys($posIds));
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $res = sec_all("SELECT i.id, i.question_desc, i.question_image FROM fc_images i
+                    JOIN fc_categories c ON c.id = i.category_id
+                    WHERE i.id IN ($ph) AND c.user_id = ?", array_merge($ids, [$current_user_id]));
+    foreach ($res as $row) {
         $cardInfo[(int)$row['id']] = ['desc' => $row['question_desc'], 'img' => $row['question_image']];
     }
 }
 if (!empty($negIds)) {
-    $absIdsStr = implode(',', array_map('intval', array_keys($negIds)));
-    $res = mysqli_query($conn, "SELECT id_child, question_desc, question_image FROM fc_child_cards WHERE id_child IN ($absIdsStr)");
-    while ($row = mysqli_fetch_assoc($res)) {
+    $ids = array_map('intval', array_keys($negIds));
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $res = sec_all("SELECT cc.id_child, cc.question_desc, cc.question_image FROM fc_child_cards cc
+                    JOIN fc_images fi ON fi.id = cc.parent_id
+                    JOIN fc_categories c ON c.id = fi.category_id
+                    WHERE cc.id_child IN ($ph) AND c.user_id = ?", array_merge($ids, [$current_user_id]));
+    foreach ($res as $row) {
         $cardInfo[-1 * (int)$row['id_child']] = ['desc' => $row['question_desc'], 'img' => $row['question_image']];
     }
 }
@@ -334,29 +364,29 @@ foreach ($resolvedPlays as $p) {
 // ==========================================
 // MASTERY COMPLESSIVA
 // ==========================================
-$totalCardsRes = mysqli_query($conn, "SELECT COUNT(*) AS c FROM (
-    SELECT i.id FROM fc_images i JOIN fc_categories c ON i.category_id = c.id WHERE i.is_father = 0 AND c.user_id = $current_user_id
+$totalCardsRes = sec_one("SELECT COUNT(*) AS c FROM (
+    SELECT i.id FROM fc_images i JOIN fc_categories c ON i.category_id = c.id WHERE i.is_father = 0 AND c.user_id = ?
     UNION ALL
-    SELECT cc.id_child FROM fc_child_cards cc JOIN fc_images fi ON cc.parent_id = fi.id JOIN fc_categories c2 ON fi.category_id = c2.id WHERE c2.user_id = $current_user_id
-) t");
-$totalCards = (int)mysqli_fetch_assoc($totalCardsRes)['c'];
+    SELECT cc.id_child FROM fc_child_cards cc JOIN fc_images fi ON cc.parent_id = fi.id JOIN fc_categories c2 ON fi.category_id = c2.id WHERE c2.user_id = ?
+) t", [$current_user_id, $current_user_id]);
+$totalCards = (int)($totalCardsRes['c'] ?? 0);
 
-$learntCardsRes = mysqli_query($conn, "SELECT COUNT(DISTINCT fc_image_id) AS c FROM user_learnt_fc WHERE user_id = $current_user_id");
-$learntCards = (int)mysqli_fetch_assoc($learntCardsRes)['c'];
+$learntCardsRes = sec_one("SELECT COUNT(DISTINCT fc_image_id) AS c FROM user_learnt_fc WHERE user_id = ?", [$current_user_id]);
+$learntCards = (int)($learntCardsRes['c'] ?? 0);
 
-$attemptedNotLearntRes = mysqli_query($conn, "SELECT COUNT(DISTINCT gp.fc_image_id) AS c
+$attemptedNotLearntRes = sec_one("SELECT COUNT(DISTINCT gp.fc_image_id) AS c
     FROM fc_gameplays gp JOIN games gm ON gp.game_id = gm.id
-    WHERE gm.user_id = $current_user_id AND gp.user_answer IN ('Correct','Wrong')
-    AND gp.fc_image_id NOT IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = $current_user_id)");
-$attemptedNotLearnt = (int)mysqli_fetch_assoc($attemptedNotLearntRes)['c'];
+    WHERE gm.user_id = ? AND gp.user_answer IN ('Correct','Wrong')
+    AND gp.fc_image_id NOT IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = ?)", [$current_user_id, $current_user_id]);
+$attemptedNotLearnt = (int)($attemptedNotLearntRes['c'] ?? 0);
 $neverTried = max(0, $totalCards - $learntCards - $attemptedNotLearnt);
 
 // ==========================================
 // ANDAMENTO PUNTEGGIO PARTITE
 // ==========================================
 $scoreTrend = [];
-$sq = mysqli_query($conn, "SELECT game_date, score, type FROM games WHERE user_id = $current_user_id AND score IS NOT NULL ORDER BY game_date ASC");
-while ($row = mysqli_fetch_assoc($sq)) {
+$sq = sec_all("SELECT game_date, score, type FROM games WHERE user_id = ? AND score IS NOT NULL ORDER BY game_date ASC", [$current_user_id]);
+foreach ($sq as $row) {
     $scoreTrend[] = ['date' => $row['game_date'], 'score' => (float)$row['score'], 'type' => $row['type'], 'cat' => null];
 }
 
@@ -364,8 +394,8 @@ while ($row = mysqli_fetch_assoc($sq)) {
 // STORICO APPRENDIMENTO CUMULATIVO
 // ==========================================
 $learntTrend = [];
-$ltq = mysqli_query($conn, "SELECT learnt_date AS d, COUNT(*) AS c FROM user_learnt_fc WHERE user_id = $current_user_id GROUP BY d ORDER BY d ASC");
-while ($row = mysqli_fetch_assoc($ltq)) { $learntTrend[] = ['date' => $row['d'], 'count' => (int)$row['c']]; }
+$ltq = sec_all("SELECT learnt_date AS d, COUNT(*) AS c FROM user_learnt_fc WHERE user_id = ? GROUP BY d ORDER BY d ASC", [$current_user_id]);
+foreach ($ltq as $row) { $learntTrend[] = ['date' => $row['d'], 'count' => (int)$row['c']]; }
 
 // ==========================================
 // STREAK
@@ -417,9 +447,15 @@ if ($learntCards > 0 && count($learntTrend) >= 2 && $totalCards > $learntCards) 
 // OBIETTIVO GIORNALIERO
 // ==========================================
 $dailyGoal = 20;
-$goalRes = @mysqli_query($conn, "SELECT daily_goal FROM fc_user_goals WHERE user_id = $current_user_id");
-if ($goalRes && mysqli_num_rows($goalRes) > 0) {
-    $dailyGoal = (int)mysqli_fetch_assoc($goalRes)['daily_goal'];
+/* Come sopra: se la tabella non c'e' si usa l'obiettivo predefinito. */
+$goalRes = null;
+try {
+    $goalRes = sec_one("SELECT daily_goal FROM fc_user_goals WHERE user_id = ?", [$current_user_id]);
+} catch (Throwable $e) {
+    sec_log_error('stats_fc', 'fc_user_goals mancante: ' . $e->getMessage());
+}
+if ($goalRes) {
+    $dailyGoal = (int)($goalRes['daily_goal'] ?? 0);
 }
 $todayStr = $today->format('Y-m-d');
 $todayPlayed = isset($dailyData[$todayStr]) ? $dailyData[$todayStr]['played'] : 0;
@@ -433,15 +469,15 @@ foreach ($catCardTotals as $cid => $tot) {
     if ($tot > 0 && isset($catLearnt[$cid]) && $catLearnt[$cid] >= $tot) { $anyCategoryComplete = true; break; }
 }
 $badges = [
-    ['type' => 'target', 'label' => '10 carte giocate', 'done' => $totalPlayedAllTime >= 10],
-    ['type' => 'flame', 'label' => 'Streak di 3 giorni', 'done' => $bestStreak >= 3],
-    ['type' => 'flame', 'label' => 'Streak di 7 giorni', 'done' => $bestStreak >= 7],
-    ['type' => 'flame', 'label' => 'Streak di 30 giorni', 'done' => $bestStreak >= 30],
-    ['type' => 'book', 'label' => '50 carte imparate', 'done' => $learntCards >= 50],
-    ['type' => 'book', 'label' => '100 carte imparate', 'done' => $learntCards >= 100],
-    ['type' => 'trophy', 'label' => 'Categoria completata', 'done' => $anyCategoryComplete],
-    ['type' => 'target', 'label' => '500 carte giocate', 'done' => $totalPlayedAllTime >= 500],
-    ['type' => 'star', 'label' => '1000 carte giocate', 'done' => $totalPlayedAllTime >= 1000],
+    ['type' => 'target', 'label' => t('fc.bdg_10_giocate'), 'done' => $totalPlayedAllTime >= 10],
+    ['type' => 'flame', 'label' => t('fc.bdg_streak3'), 'done' => $bestStreak >= 3],
+    ['type' => 'flame', 'label' => t('fc.bdg_streak7'), 'done' => $bestStreak >= 7],
+    ['type' => 'flame', 'label' => t('fc.bdg_streak30'), 'done' => $bestStreak >= 30],
+    ['type' => 'book', 'label' => t('fc.bdg_50_imparate'), 'done' => $learntCards >= 50],
+    ['type' => 'book', 'label' => t('fc.bdg_100_imparate'), 'done' => $learntCards >= 100],
+    ['type' => 'trophy', 'label' => t('fc.bdg_categoria'), 'done' => $anyCategoryComplete],
+    ['type' => 'target', 'label' => t('fc.bdg_500_giocate'), 'done' => $totalPlayedAllTime >= 500],
+    ['type' => 'star', 'label' => t('fc.bdg_1000_giocate'), 'done' => $totalPlayedAllTime >= 1000],
 ];
 
 // ==========================================
@@ -455,7 +491,7 @@ $debugMode = isset($_GET['debug']) && $_GET['debug'] == '1';
 $debugRows = [];
 $debugCats = [];
 if ($debugMode) {
-    $dbgQ = mysqli_query($conn, "SELECT
+    $dbgQ = sec_all("SELECT
             gp.id AS idgioco, gp.game_id AS idpartita, gp.fc_image_id AS idimmagine,
             gp.play_date AS play_date, gp.user_answer AS user_answer,
             gm.type AS game_type, gm.parent_id AS game_parent_id,
@@ -473,387 +509,43 @@ if ($debugMode) {
         LEFT JOIN (
             SELECT game_id, GROUP_CONCAT(category_id ORDER BY category_id) AS cats FROM game_categories GROUP BY game_id
         ) gc_all ON gc_all.game_id = gp.game_id
-        WHERE gm.user_id = $current_user_id
+        WHERE gm.user_id = ?
         ORDER BY gp.play_date DESC, gp.id DESC
-        LIMIT 30");
-    while ($row = mysqli_fetch_assoc($dbgQ)) { $debugRows[] = $row; }
+        LIMIT 30", array_merge($CCP, [$current_user_id]));
+    foreach ($dbgQ as $row) { $debugRows[] = $row; }
 
     // Dump completo dell'albero categorie così com'è ORA, per verificare a mano
     // se una categoria è davvero dentro il ramo atteso oppure è stata spostata.
-    $dcq = mysqli_query($conn, "SELECT id, name, parent_id, color FROM fc_categories ORDER BY id ASC");
-    while ($row = mysqli_fetch_assoc($dcq)) { $debugCats[] = $row; }
+    /* Solo le proprie: questa query leggeva le categorie di tutti gli utenti. */
+    $dcq = sec_all("SELECT id, name, parent_id, color FROM fc_categories WHERE user_id = ? ORDER BY id ASC",
+                   [$current_user_id]);
+    foreach ($dcq as $row) { $debugCats[] = $row; }
 }
-
-mysqli_close($conn);
 ?>
 <!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
-<title>Statistiche · Flashcards</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<title><?php te('fc.statistiche_flashcards'); ?></title>
+<?php /* Chart.js dalla nostra cartella vendor, non da cdnjs: la CSP del sito
+         consente gli script solo da 'self' e da cdn.jsdelivr.net, quindi
+         cdnjs veniva bloccato. Senza Chart.js la pagina lanciava
+         "Chart is not defined" al primo grafico e restava vuota. */ ?>
+<script src="<?php echo PWA_BASE; ?>vendor/chart.umd.js"></script>
 <script src="fc_parser.js"></script>
-<style>
-/* ================================================================
-   DESIGN SYSTEM — coerente con categories_fc.php / game_fc.php
-   ================================================================ */
-:root{
-    color-scheme: light dark;
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-    --teal:#30B0C7; --pink:#FF2D55; --indigo:#5856D6; --yellow:#FFCC00;
-    --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
-    --orange-soft:rgba(255,149,0,.14); --purple-soft:rgba(175,82,222,.12);
-    --teal-soft:rgba(48,176,199,.14); --indigo-soft:rgba(88,86,214,.12);
-    --header-glass:rgba(249,249,251,.82);
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-    --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
-    --r-card:22px; --r-btn:15px;
-    --spring:cubic-bezier(.32,.72,0,1);
-    --safe-top:env(safe-area-inset-top, 0px);
-    --safe-bottom:env(safe-area-inset-bottom, 0px);
-}
-@media (prefers-color-scheme: dark){
-    :root{
-        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-        --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-        --teal:#40C8E0; --pink:#FF375F; --indigo:#5E5CE6; --yellow:#FFD60A;
-        --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17);
-        --orange-soft:rgba(255,159,10,.18); --purple-soft:rgba(191,90,242,.18);
-        --teal-soft:rgba(64,200,224,.18); --indigo-soft:rgba(94,92,230,.18);
-        --header-glass:rgba(16,16,18,.78);
-        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-        --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-        --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
-    }
-}
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html{ -webkit-text-size-adjust:100%; }
-body{
-    margin:0; min-height:100vh;
-    background:var(--bg); color:var(--text);
-    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size:16px; line-height:1.4; -webkit-font-smoothing:antialiased;
-    padding-bottom:calc(24px + var(--safe-bottom));
-}
-a{ color:inherit; } button{ font-family:inherit; }
-:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
-
-@keyframes cardIn{ from{ opacity:0; transform:translateY(14px) scale(.985); } to{ opacity:1; transform:none; } }
-@keyframes rowIn{ from{ opacity:0; transform:translateY(-6px); } to{ opacity:1; transform:none; } }
-@keyframes popIn{ from{ opacity:0; transform:scale(.7); } to{ opacity:1; transform:scale(1); } }
-
-/* ---------- Header ---------- */
-.app-header{
-    position:sticky; top:0; z-index:100;
-    padding:calc(var(--safe-top) + 12px) 16px 12px;
-    background:var(--header-glass);
-    -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px);
-    border-bottom:.5px solid var(--hairline);
-}
-.hdr-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.hdr-title{ font-size:28px; font-weight:800; letter-spacing:-.02em; }
-.user-pills{ display:flex; gap:6px; }
-.user-pill{
-    width:38px; height:38px; border-radius:50%; border:none; cursor:pointer;
-    background:var(--surface-2); color:var(--text-2); font-weight:800; font-size:15px;
-    display:flex; align-items:center; justify-content:center;
-    box-shadow:inset 0 0 0 .5px var(--hairline); transition:transform .16s var(--spring), background .2s, color .2s;
-}
-.user-pill.active{ background:linear-gradient(135deg, var(--blue), var(--indigo)); color:#fff; transform:scale(1.08); box-shadow:0 6px 14px -4px rgba(10,132,255,.55); }
-.user-pill:active{ transform:scale(.9); }
-
-.page{ max-width:640px; margin:0 auto; padding:14px 14px calc(28px + var(--safe-bottom)); }
-
-/* ---------- Segmented control (riutilizzato ovunque) ---------- */
-.segmented{
-    position:relative; display:flex; background:var(--surface-2); border-radius:12px; padding:3px;
-    box-shadow:inset 0 0 0 .5px var(--hairline);
-}
-.segmented input{ position:absolute; opacity:0; width:0; height:0; pointer-events:none; }
-.segmented label{
-    position:relative; z-index:2; flex:1; text-align:center; padding:9px 4px;
-    font-size:13.5px; font-weight:700; color:var(--text-2); border-radius:9px;
-    cursor:pointer; transition:color .3s; user-select:none; white-space:nowrap;
-}
-.segmented input:checked + label{ color:var(--text); }
-.segmented-thumb{
-    position:absolute; top:3px; bottom:3px; left:3px; border-radius:9px;
-    background:var(--surface); box-shadow:var(--raise-sm);
-    transition:transform .4s var(--spring); z-index:1;
-}
-.seg-4 .segmented-thumb{ width:calc(25% - 3px); }
-.seg-period:has(#per_30:checked) .segmented-thumb{ transform:translateX(100%); }
-.seg-period:has(#per_90:checked) .segmented-thumb{ transform:translateX(200%); }
-.seg-period:has(#per_all:checked) .segmented-thumb{ transform:translateX(300%); }
-.seg-tabs:has(#tab_cat:checked) .segmented-thumb{ transform:translateX(100%); }
-.seg-tabs:has(#tab_trend:checked) .segmented-thumb{ transform:translateX(200%); }
-.seg-tabs:has(#tab_goals:checked) .segmented-thumb{ transform:translateX(300%); }
-.segmented-tabs label{ font-size:12.5px; padding:10px 2px; }
-
-/* ---------- Hero stat cards ---------- */
-.hero-scroll{
-    display:flex; gap:10px; overflow-x:auto; -webkit-overflow-scrolling:touch;
-    scroll-snap-type:x mandatory; margin:14px -14px 16px; padding:2px 14px 6px;
-}
-.hero-scroll::-webkit-scrollbar{ display:none; }
-.hero-stat{
-    scroll-snap-align:start; flex:0 0 132px; background:var(--surface); border-radius:18px;
-    padding:14px; box-shadow:var(--shadow-card); animation:cardIn .5s var(--spring) both;
-    position:relative; overflow:hidden;
-}
-.hero-stat-icon{
-    width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; margin-bottom:10px;
-}
-.hero-stat-icon svg{ width:16px; height:16px; }
-.hero-stat-num{ font-size:22px; font-weight:800; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
-.hero-stat-label{ font-size:11.5px; color:var(--text-2); font-weight:600; margin-top:1px; }
-.hero-stat-sub{ font-size:10.5px; color:var(--text-3); font-weight:600; margin-top:4px; }
-.flame-icon{ animation:flicker 1.8s ease-in-out infinite; transform-origin:50% 90%; }
-@keyframes flicker{ 0%,100%{ transform:scale(1) rotate(0deg); } 25%{ transform:scale(1.06) rotate(-2deg); } 50%{ transform:scale(0.97) rotate(1deg); } 75%{ transform:scale(1.04) rotate(1deg); } }
-
-/* ---------- Card generiche ---------- */
-.card{ background:var(--surface); border-radius:var(--r-card); padding:18px; box-shadow:var(--shadow-card); margin-bottom:16px; animation:cardIn .5s var(--spring) both; }
-.section-title{ font-size:17px; font-weight:800; letter-spacing:-.01em; margin:0 0 4px; }
-.section-sub{ font-size:12.5px; color:var(--text-2); font-weight:500; margin:0 0 14px; }
-.chart-box{ position:relative; height:230px; margin-top:6px; }
-.chart-box.tall{ height:270px; }
-.chart-box.short{ height:180px; }
-.empty-hint{ text-align:center; padding:30px 10px; color:var(--text-2); font-size:14px; font-weight:500; }
-
-/* ---------- Tab content ---------- */
-.stats-tab-content{ display:none; }
-.stats-tab-content.active{ display:block; animation:cardIn .35s var(--spring) both; }
-
-/* ---------- Calendario GitHub-style ---------- */
-.cal-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
-.cal-nav-btn{
-    width:34px; height:34px; border-radius:50%; border:none; background:var(--surface-2); color:var(--text);
-    display:flex; align-items:center; justify-content:center; cursor:pointer;
-    box-shadow:inset 0 0 0 .5px var(--hairline); transition:transform .15s var(--spring);
-}
-.cal-nav-btn:active{ transform:scale(.85); }
-.cal-nav-btn svg{ width:15px; height:15px; }
-#cal-month-title{ font-size:16px; font-weight:800; margin:0; transition:opacity .2s; }
-.cal-grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:5px; }
-.cal-day-label{ text-align:center; font-weight:700; color:var(--text-2); font-size:11px; padding-bottom:4px; }
-.cal-cell{
-    aspect-ratio:1; border-radius:8px; display:flex; justify-content:center; align-items:center;
-    font-weight:700; font-size:12px; position:relative; cursor:pointer;
-    transition:transform .15s var(--spring);
-    animation:popIn .3s var(--spring) both;
-}
-.cal-cell:active{ transform:scale(.85); }
-.cal-empty{ background:transparent; cursor:default; }
-.cal-legend{ margin-top:16px; display:flex; align-items:center; justify-content:center; gap:6px; font-size:11px; color:var(--text-2); font-weight:600; flex-wrap:wrap; }
-.cal-legend-box{ width:13px; height:13px; border-radius:4px; display:inline-block; }
-#calSelectedInfo{
-    margin-top:14px; text-align:center; font-size:13.5px; font-weight:700; color:var(--text);
-    background:var(--surface-2); border-radius:12px; padding:10px; min-height:18px;
-    transition:opacity .2s;
-}
-
-/* ---------- Filtro categorie ---------- */
-.cat-pills-scroll{ display:flex; gap:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding:2px 2px 4px; margin-bottom:12px; }
-.cat-pills-scroll::-webkit-scrollbar{ display:none; }
-.pill-cat{
-    flex-shrink:0; padding:9px 16px; border-radius:99px; border:none; cursor:pointer;
-    background:var(--surface-2); color:var(--text-2); font-weight:700; font-size:13.5px;
-    box-shadow:inset 0 0 0 .5px var(--hairline); transition:transform .15s var(--spring), background .2s, color .2s;
-}
-.pill-cat.active{ background:var(--blue); color:#fff; box-shadow:0 6px 14px -4px rgba(10,132,255,.5); }
-.pill-cat:active{ transform:scale(.94); }
-.date-range-row{ display:flex; gap:10px; margin-bottom:14px; }
-.date-field{ flex:1; }
-.date-field label{ display:block; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text-2); margin-bottom:5px; }
-.date-field input{
-    width:100%; padding:10px 10px; font-family:inherit; font-size:14.5px; font-weight:700;
-    color:var(--text); background:var(--surface-2); border:.5px solid var(--hairline-2); border-radius:12px;
-}
-
-/* ---------- Albero categorie (stesso linguaggio delle altre pagine) ---------- */
-.materia-card{ position:relative; background:var(--surface); border-radius:18px; margin-bottom:12px; overflow:hidden; box-shadow:var(--shadow-card); border-left:3px solid var(--accent, var(--blue)); animation:cardIn .45s var(--spring) both; }
-.cat-row{ display:block; }
-.cat-row-main{ display:flex; align-items:center; gap:9px; padding:13px 12px 13px 0; }
-.cat-row:not([data-level="0"]) .cat-row-main{ border-top:.5px solid var(--hairline); padding:10px 12px 10px 0; }
-.cat-arrow, .cat-arrow-spacer{ width:20px; height:20px; flex-shrink:0; }
-.cat-arrow{ display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:var(--text-3); cursor:pointer; border-radius:50%; padding:0; transition:transform .3s var(--spring), color .2s; }
-.cat-arrow svg{ width:14px; height:14px; }
-.cat-arrow.open{ transform:rotate(90deg); color:var(--row-color, var(--blue)); }
-.cat-icon{ width:30px; height:30px; border-radius:9px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-.cat-icon svg{ width:15px; height:15px; }
-.cat-icon.lvl0{ background:color-mix(in srgb, var(--row-color, var(--blue)) 18%, var(--surface)); color:var(--row-color, var(--blue)); width:34px; height:34px; border-radius:10px; }
-.cat-icon.lvl0 svg{ width:16px; height:16px; }
-.cat-icon.lvln{ background:color-mix(in srgb, var(--row-color, var(--text-2)) 16%, var(--surface)); color:var(--row-color, var(--text-2)); }
-.cat-info{ flex:1; min-width:0; }
-.cat-name{ font-size:14.5px; font-weight:600; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.cat-row[data-level="0"] .cat-name{ font-size:16px; font-weight:800; }
-.cat-mastery-bar{ height:4px; border-radius:99px; background:var(--surface-2); margin-top:5px; overflow:hidden; }
-.cat-mastery-fill{ height:100%; border-radius:99px; background:var(--row-color, var(--blue)); transition:width .6s var(--spring); }
-.cat-stats-mini{ flex-shrink:0; display:flex; align-items:center; gap:6px; }
-.cat-time-mini{ font-size:10.5px; font-weight:700; color:var(--teal); display:flex; align-items:center; gap:2px; white-space:nowrap; }
-.cat-time-mini svg{ width:11px; height:11px; flex-shrink:0; }
-.cat-played-num{ font-size:13px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums; }
-.cat-acc-pill{ font-size:11.5px; font-weight:800; padding:4px 8px; border-radius:99px; font-variant-numeric:tabular-nums; }
-.acc-good{ background:var(--green-soft); color:var(--green); }
-.acc-mid{ background:var(--orange-soft); color:var(--orange); }
-.acc-bad{ background:var(--red-soft); color:var(--red); }
-.acc-none{ background:var(--surface-2); color:var(--text-3); }
-.cat-children{ max-height:0; overflow:hidden; transition:max-height .35s var(--spring); }
-.cat-row-main.tappable{ cursor:pointer; }
-.cat-row-main.tappable:active{ background:var(--surface-2); }
-
-/* ---------- Deep-dive categoria ---------- */
-.dd-back-btn{
-    display:inline-flex; align-items:center; gap:6px; border:none; background:none; cursor:pointer;
-    color:var(--blue); font-size:14.5px; font-weight:700; padding:6px 2px; margin-bottom:10px;
-}
-.dd-back-btn svg{ width:16px; height:16px; }
-.dd-header{ display:flex; align-items:center; gap:12px; margin-bottom:14px; }
-.dd-icon{ width:44px; height:44px; border-radius:13px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--row-color, var(--blue)) 18%, var(--surface)); color:var(--row-color, var(--blue)); }
-.dd-icon svg{ width:21px; height:21px; }
-.dd-breadcrumb{ font-size:11.5px; color:var(--text-2); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
-.dd-title{ font-size:21px; font-weight:800; letter-spacing:-.02em; }
-.dd-period-scroll{ display:flex; gap:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding:2px 2px 4px; margin-bottom:14px; }
-.dd-period-scroll::-webkit-scrollbar{ display:none; }
-.dd-hero-scroll{ display:flex; gap:10px; overflow-x:auto; -webkit-overflow-scrolling:touch; scroll-snap-type:x mandatory; margin:0 -14px 16px; padding:2px 14px 6px; }
-.dd-hero-scroll::-webkit-scrollbar{ display:none; }
-.dd-hero-stat{ scroll-snap-align:start; flex:0 0 124px; background:var(--surface); border-radius:16px; padding:12px; box-shadow:var(--shadow-card); }
-.dd-hero-num{ font-size:19px; font-weight:800; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
-.dd-hero-label{ font-size:11px; color:var(--text-2); font-weight:600; margin-top:2px; }
-.dd-hero-sub{ font-size:10.5px; font-weight:800; margin-top:3px; display:flex; align-items:center; gap:2px; }
-.dd-hero-sub.trend-up{ color:var(--green); }
-.dd-hero-sub.trend-down{ color:var(--red); }
-.dd-hero-sub.trend-flat{ color:var(--text-3); }
-.dd-hero-bar{ height:4px; border-radius:99px; background:var(--surface-2); margin-top:8px; overflow:hidden; }
-.dd-hero-bar-fill{ height:100%; border-radius:99px; background:var(--blue); transition:width .6s var(--spring); }
-.subcat-row{
-    display:flex; align-items:center; gap:10px; padding:10px 2px; cursor:pointer; border-radius:12px; transition:background .15s;
-}
-.subcat-row:active{ background:var(--surface-2); }
-.subcat-row + .subcat-row{ border-top:.5px solid var(--hairline); }
-.subcat-icon{ width:30px; height:30px; border-radius:9px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-.subcat-icon svg{ width:15px; height:15px; }
-.subcat-info{ flex:1; min-width:0; }
-.subcat-name{ font-size:14.5px; font-weight:700; }
-.subcat-chev{ flex-shrink:0; color:var(--text-3); }
-.subcat-chev svg{ width:14px; height:14px; }
-.retry-stat-row{ display:flex; align-items:center; gap:16px; }
-.retry-ring-box{ position:relative; width:76px; height:76px; flex-shrink:0; }
-.retry-ring-box svg{ width:100%; height:100%; transform:rotate(-90deg); }
-.retry-ring-num{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:800; }
-.retry-text{ font-size:14px; font-weight:600; color:var(--text-2); line-height:1.4; }
-.retry-text b{ color:var(--text); font-weight:800; }
-.worst-card-row{ display:flex; align-items:center; gap:11px; padding:9px 2px; }
-.worst-card-row + .worst-card-row{ border-top:.5px solid var(--hairline); }
-.worst-card-thumb{ width:40px; height:40px; border-radius:9px; object-fit:cover; flex-shrink:0; background:var(--surface-2); }
-.worst-card-thumb-fallback{ width:40px; height:40px; border-radius:9px; flex-shrink:0; background:var(--surface-2); color:var(--text-3); display:flex; align-items:center; justify-content:center; }
-.worst-card-thumb-fallback svg{ width:18px; height:18px; }
-.worst-card-info{ flex:1; min-width:0; }
-.worst-card-desc{ font-size:13.5px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.3; }
-.worst-card-meta{ font-size:11px; color:var(--text-2); font-weight:600; margin-top:2px; }
-.worst-card-wrong{ flex-shrink:0; font-size:13px; font-weight:800; color:var(--red); background:var(--red-soft); padding:5px 9px; border-radius:99px; }
-
-/* ---------- Donut mastery ---------- */
-.donut-box{ position:relative; height:200px; }
-.donut-center{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
-.donut-pct{ font-size:28px; font-weight:800; letter-spacing:-.02em; }
-.donut-label{ font-size:12px; color:var(--text-2); font-weight:600; }
-.mastery-legend{ display:flex; justify-content:center; gap:16px; margin-top:14px; flex-wrap:wrap; }
-.mastery-legend-item{ display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:var(--text-2); }
-.mastery-dot{ width:10px; height:10px; border-radius:50%; }
-
-/* ---------- Forecast ---------- */
-.forecast-card{ display:flex; align-items:center; gap:14px; padding:16px; border-radius:18px; background:linear-gradient(135deg, var(--indigo), var(--purple)); color:#fff; margin-bottom:16px; }
-
-.dd-project-card{ background:linear-gradient(180deg, color-mix(in srgb, var(--orange) 6%, var(--surface)), var(--surface)); }
-.dd-project-split{ display:flex; gap:18px; margin:14px 0 6px; }
-.dd-project-half{ flex:1; text-align:center; }
-.dd-project-bar-track{ height:8px; border-radius:99px; background:var(--surface-2); overflow:hidden; margin-bottom:8px; }
-.dd-project-bar-fill{ height:100%; border-radius:99px; width:0%; transition:width 1s var(--spring); }
-.dd-project-bar-fill.fc{ background:linear-gradient(90deg, var(--teal), var(--blue)); }
-.dd-project-bar-fill.pomo{ background:linear-gradient(90deg, var(--orange), #FF6B35); }
-.dd-project-num{ font-size:19px; font-weight:800; font-variant-numeric:tabular-nums; }
-.dd-project-label{ font-size:11px; color:var(--text-2); font-weight:700; margin-top:1px; }
-.dd-project-total{ text-align:center; font-size:12.5px; color:var(--text-2); padding-top:10px; border-top:.5px solid var(--hairline); }
-.dd-project-total b{ color:var(--text); font-variant-numeric:tabular-nums; }
-.forecast-icon{ width:44px; height:44px; border-radius:13px; background:rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.forecast-icon svg{ width:22px; height:22px; }
-.forecast-text{ font-size:14px; font-weight:600; line-height:1.4; }
-.forecast-text b{ font-weight:800; }
-
-/* ---------- Obiettivo giornaliero ---------- */
-.goal-row{ display:flex; align-items:center; gap:18px; }
-.goal-ring-box{ position:relative; width:110px; height:110px; flex-shrink:0; }
-.goal-ring-box svg{ width:100%; height:100%; transform:rotate(-90deg); }
-.ring-bg{ fill:none; stroke:var(--surface-2); stroke-width:3; }
-.ring-fill{ fill:none; stroke:var(--green); stroke-width:3; stroke-linecap:round; transition:stroke-dasharray .6s var(--spring), stroke .3s; }
-.goal-ring-center{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-.goal-ring-num{ font-size:22px; font-weight:800; }
-.goal-ring-sub{ font-size:10.5px; color:var(--text-2); font-weight:700; }
-.goal-controls{ flex:1; }
-.goal-controls-label{ font-size:12px; font-weight:700; color:var(--text-2); margin-bottom:8px; }
-.stepper{ display:flex; align-items:center; gap:14px; }
-.stepper-btn{
-    width:38px; height:38px; border-radius:50%; border:none; cursor:pointer;
-    background:var(--surface-2); color:var(--blue); display:flex; align-items:center; justify-content:center;
-    box-shadow:inset 0 0 0 .5px var(--hairline); transition:transform .15s var(--spring);
-}
-.stepper-btn:active{ transform:scale(.85); }
-.stepper-btn svg{ width:16px; height:16px; }
-.stepper-value{ font-size:22px; font-weight:800; min-width:40px; text-align:center; font-variant-numeric:tabular-nums; }
-.goal-saved-note{ font-size:11px; color:var(--green); font-weight:700; margin-top:8px; height:14px; opacity:0; transition:opacity .3s; }
-.goal-saved-note.show{ opacity:1; }
-
-/* ---------- Streak dettaglio ---------- */
-.streak-detail-row{ display:flex; gap:12px; }
-.streak-box{ flex:1; text-align:center; padding:16px 8px; border-radius:16px; background:var(--surface-2); }
-.streak-box-num{ font-size:26px; font-weight:800; letter-spacing:-.02em; }
-.streak-box-label{ font-size:11.5px; color:var(--text-2); font-weight:700; margin-top:2px; }
-.streak-next{ margin-top:14px; text-align:center; font-size:13px; color:var(--text-2); font-weight:600; }
-.streak-next b{ color:var(--text); }
-
-/* ---------- Badge / traguardi ---------- */
-.badge-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }
-.badge-chip{ display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px 6px; border-radius:14px; background:var(--surface-2); text-align:center; transition:transform .2s var(--spring); }
-.badge-chip.unlocked{ background:var(--blue-soft); animation:popIn .4s var(--spring) both; }
-.badge-icon{ width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--surface); color:var(--text-3); }
-.badge-chip.unlocked .badge-icon{ background:var(--blue); color:#fff; }
-.badge-icon svg{ width:17px; height:17px; }
-.badge-label{ font-size:10.5px; font-weight:700; color:var(--text-2); line-height:1.25; }
-.badge-chip.unlocked .badge-label{ color:var(--text); }
-
-/* ---------- Leaderboard famiglia ---------- */
-.leaderboard-row{ display:flex; align-items:center; gap:12px; padding:10px 4px; }
-.leaderboard-row + .leaderboard-row{ border-top:.5px solid var(--hairline); }
-.lb-rank{ width:24px; height:24px; border-radius:50%; background:var(--surface-2); color:var(--text-2); font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.leaderboard-row.you .lb-rank{ background:var(--blue); color:#fff; }
-.lb-name{ flex:1; min-width:0; font-size:14.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.leaderboard-row.you .lb-name{ color:var(--blue); }
-.lb-bar-track{ flex:1.4; height:8px; border-radius:99px; background:var(--surface-2); overflow:hidden; }
-.lb-bar-fill{ height:100%; border-radius:99px; background:var(--blue); transition:width .6s var(--spring); }
-.lb-count{ font-size:13px; font-weight:800; min-width:34px; text-align:right; font-variant-numeric:tabular-nums; }
-
-@media (prefers-reduced-motion: reduce){
-    *, *::before, *::after{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
-}
-</style>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>stats_fc.css?v=<?php echo @filemtime(dirname(__FILE__) . '/stats_fc.css') ?: 1; ?>">
 </head>
 <body>
 
 <div class="app-header">
     <div class="hdr-row">
         <div>
-            <div class="hdr-title">Statistiche</div>
+            <div class="hdr-title"><?php te('fc.statistiche'); ?></div>
         </div>
         <div class="user-pills">
-            <div class="user-pill active"><?php echo strtoupper(substr(htmlspecialchars($utente_corrente['username'], ENT_QUOTES), 0, 1)); ?></div>
+            <div class="user-pill active"><?php /* mb_substr sul testo grezzo, poi sec_h: tagliare DOPO l'escape puo'
+         spezzare un'entita' come &amp; a meta' e mandare in pagina "&am". */ ?><?php echo sec_h(mb_strtoupper(mb_substr($utente_corrente['username'] ?? 'U', 0, 1))); ?></div>
         </div>
     </div>
 </div>
@@ -862,7 +554,7 @@ a{ color:inherit; } button{ font-family:inherit; }
 
 <?php if ($debugMode): ?>
 <div style="max-width:100%; overflow-x:auto; background:#fff; margin:12px; padding:12px; border-radius:12px; font-size:11px; font-family:monospace; color:#111; border:2px solid #FF3B30;">
-    <b>DEBUG — ultime 30 giocate (utente id <?php echo $current_user_id; ?>)</b>
+    <b>DEBUG — ultime 30 giocate (utente id <?php echo (int)$current_user_id; ?>)</b>
     <table style="border-collapse:collapse; width:100%; margin-top:8px; white-space:nowrap;">
         <tr style="text-align:left; border-bottom:1px solid #999;">
             <th style="padding:4px 6px;">idgioco</th>
@@ -881,19 +573,19 @@ a{ color:inherit; } button{ font-family:inherit; }
         </tr>
         <?php foreach ($debugRows as $r): ?>
         <tr style="border-bottom:1px solid #eee;">
-            <td style="padding:4px 6px;"><?php echo htmlspecialchars((string)$r['idgioco'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo htmlspecialchars((string)$r['idpartita'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo htmlspecialchars((string)$r['idimmagine'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo htmlspecialchars((string)$r['play_date'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo htmlspecialchars((string)$r['user_answer'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo htmlspecialchars($r['game_category_name'] === null ? 'NULL' : (string)$r['game_category_name'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo htmlspecialchars((string)$r['game_type'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px; <?php echo $r['ccmap_cat'] === null ? 'color:#FF3B30; font-weight:bold;' : ''; ?>"><?php echo $r['ccmap_cat'] === null ? 'NULL' : htmlspecialchars((string)$r['ccmap_cat'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px; font-weight:bold;"><?php echo htmlspecialchars($r['ccmap_cat_name'] === null ? 'NULL' : (string)$r['ccmap_cat_name'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo $r['ccmap_cat_parent'] === null ? 'NULL' : htmlspecialchars((string)$r['ccmap_cat_parent'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo $r['gc_single_cat'] === null ? 'NULL' : htmlspecialchars((string)$r['gc_single_cat'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo htmlspecialchars($r['gc_all_cats'] === null ? 'NULL' : (string)$r['gc_all_cats'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo $r['name_match_cat'] === null ? 'NULL' : htmlspecialchars((string)$r['name_match_cat'], ENT_QUOTES); ?></td>
+            <td style="padding:4px 6px;"><?php echo sec_h((string)$r['idgioco']); ?></td>
+            <td style="padding:4px 6px;"><?php echo sec_h((string)$r['idpartita']); ?></td>
+            <td style="padding:4px 6px;"><?php echo sec_h((string)$r['idimmagine']); ?></td>
+            <td style="padding:4px 6px;"><?php echo sec_h((string)$r['play_date']); ?></td>
+            <td style="padding:4px 6px;"><?php echo sec_h((string)$r['user_answer']); ?></td>
+            <td style="padding:4px 6px;"><?php echo sec_h($r['game_category_name'] === null ? 'NULL' : (string)$r['game_category_name']); ?></td>
+            <td style="padding:4px 6px;"><?php echo sec_h((string)$r['game_type']); ?></td>
+            <td style="padding:4px 6px; <?php echo $r['ccmap_cat'] === null ? 'color:#FF3B30; font-weight:bold;' : ''; ?>"><?php echo $r['ccmap_cat'] === null ? 'NULL' : sec_h((string)$r['ccmap_cat']); ?></td>
+            <td style="padding:4px 6px; font-weight:bold;"><?php echo sec_h($r['ccmap_cat_name'] === null ? 'NULL' : (string)$r['ccmap_cat_name']); ?></td>
+            <td style="padding:4px 6px;"><?php echo $r['ccmap_cat_parent'] === null ? 'NULL' : sec_h((string)$r['ccmap_cat_parent']); ?></td>
+            <td style="padding:4px 6px;"><?php echo $r['gc_single_cat'] === null ? 'NULL' : sec_h((string)$r['gc_single_cat']); ?></td>
+            <td style="padding:4px 6px;"><?php echo sec_h($r['gc_all_cats'] === null ? 'NULL' : (string)$r['gc_all_cats']); ?></td>
+            <td style="padding:4px 6px;"><?php echo $r['name_match_cat'] === null ? 'NULL' : sec_h((string)$r['name_match_cat']); ?></td>
         </tr>
         <?php endforeach; ?>
     </table>
@@ -915,13 +607,13 @@ a{ color:inherit; } button{ font-family:inherit; }
         $catsById = [];
         foreach ($debugCats as $dc) { $catsById[$dc['id']] = $dc; }
         foreach ($debugCats as $dc):
-            $parentName = ($dc['parent_id'] != 0 && isset($catsById[$dc['parent_id']])) ? $catsById[$dc['parent_id']]['name'] : ($dc['parent_id'] == 0 ? '(radice)' : '??? mancante');
+            $parentName = ($dc['parent_id'] != 0 && isset($catsById[$dc['parent_id']])) ? $catsById[$dc['parent_id']]['name'] : ($dc['parent_id'] == 0 ? T('fc.js_radice') : '??? mancante');
         ?>
         <tr style="border-bottom:1px solid #eee;">
-            <td style="padding:4px 6px;"><?php echo htmlspecialchars((string)$dc['id'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo htmlspecialchars((string)$dc['name'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo htmlspecialchars((string)$dc['parent_id'], ENT_QUOTES); ?></td>
-            <td style="padding:4px 6px;"><?php echo htmlspecialchars((string)$parentName, ENT_QUOTES); ?></td>
+            <td style="padding:4px 6px;"><?php echo sec_h((string)$dc['id']); ?></td>
+            <td style="padding:4px 6px;"><?php echo sec_h((string)$dc['name']); ?></td>
+            <td style="padding:4px 6px;"><?php echo sec_h((string)$dc['parent_id']); ?></td>
+            <td style="padding:4px 6px;"><?php echo sec_h((string)$parentName); ?></td>
         </tr>
         <?php endforeach; ?>
     </table>
@@ -933,13 +625,13 @@ a{ color:inherit; } button{ font-family:inherit; }
 
     <div class="segmented seg-4 seg-period">
         <input type="radio" id="per_7" name="period" value="7" onchange="setPeriod(7)">
-        <label for="per_7">7 giorni</label>
+        <label for="per_7"><?php te('fc.7_giorni'); ?></label>
         <input type="radio" id="per_30" name="period" value="30" checked onchange="setPeriod(30)">
-        <label for="per_30">30 giorni</label>
+        <label for="per_30"><?php te('fc.30_giorni'); ?></label>
         <input type="radio" id="per_90" name="period" value="90" onchange="setPeriod(90)">
-        <label for="per_90">90 giorni</label>
+        <label for="per_90"><?php te('fc.90_giorni'); ?></label>
         <input type="radio" id="per_all" name="period" value="0" onchange="setPeriod(0)">
-        <label for="per_all">Tutto</label>
+        <label for="per_all"><?php te('fc.tutto'); ?></label>
         <span class="segmented-thumb"></span>
     </div>
 
@@ -948,53 +640,53 @@ a{ color:inherit; } button{ font-family:inherit; }
             <div class="hero-stat-icon" style="background:var(--orange-soft); color:var(--orange);">
                 <svg class="flame-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
             </div>
-            <div class="hero-stat-num"><?php echo $currentStreak; ?></div>
-            <div class="hero-stat-label">Streak attuale</div>
-            <div class="hero-stat-sub">Record: <?php echo $bestStreak; ?> giorni</div>
+            <div class="hero-stat-num"><?php echo (int)$currentStreak; ?></div>
+            <div class="hero-stat-label"><?php te('fc.streak_attuale'); ?></div>
+            <div class="hero-stat-sub"><?php te('fc.record_n_giorni', ['n' => (int)$bestStreak]); ?></div>
         </div>
         <div class="hero-stat">
             <div class="hero-stat-icon" style="background:var(--blue-soft); color:var(--blue);">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
             </div>
             <div class="hero-stat-num" id="heroPlayed">0</div>
-            <div class="hero-stat-label">Carte giocate</div>
-            <div class="hero-stat-sub" id="heroPlayedSub">nel periodo</div>
+            <div class="hero-stat-label"><?php te('fc.carte_giocate'); ?></div>
+            <div class="hero-stat-sub" id="heroPlayedSub"><?php te('fc.nel_periodo'); ?></div>
         </div>
         <div class="hero-stat">
             <div class="hero-stat-icon" style="background:var(--green-soft); color:var(--green);">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
             </div>
             <div class="hero-stat-num" id="heroAccuracy">—</div>
-            <div class="hero-stat-label">Precisione</div>
-            <div class="hero-stat-sub">nel periodo</div>
+            <div class="hero-stat-label"><?php te('fc.precisione'); ?></div>
+            <div class="hero-stat-sub"><?php te('fc.nel_periodo'); ?></div>
         </div>
         <div class="hero-stat">
             <div class="hero-stat-icon" style="background:var(--purple-soft); color:var(--purple);">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
             </div>
-            <div class="hero-stat-num"><?php echo $learntCards; ?><span style="font-size:13px; color:var(--text-3);">/<?php echo $totalCards; ?></span></div>
-            <div class="hero-stat-label">Carte imparate</div>
-            <div class="hero-stat-sub"><?php echo $totalCards > 0 ? round(($learntCards/$totalCards)*100) : 0; ?>% del totale</div>
+            <div class="hero-stat-num"><?php echo (int)$learntCards; ?><span style="font-size:13px; color:var(--text-3);">/<?php echo (int)$totalCards; ?></span></div>
+            <div class="hero-stat-label"><?php te('fc.carte_imparate'); ?></div>
+            <div class="hero-stat-sub"><?php te('fc.pct_del_totale', ['pct' => $totalCards > 0 ? round(($learntCards/$totalCards)*100) : 0]); ?></div>
         </div>
         <div class="hero-stat">
             <div class="hero-stat-icon" style="background:var(--teal-soft); color:var(--teal);">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
             </div>
             <div class="hero-stat-num" id="heroTime">0m</div>
-            <div class="hero-stat-label">Tempo di studio</div>
-            <div class="hero-stat-sub" id="heroTimeSub">nel periodo</div>
+            <div class="hero-stat-label"><?php te('fc.tempo_di_studio'); ?></div>
+            <div class="hero-stat-sub" id="heroTimeSub"><?php te('fc.nel_periodo'); ?></div>
         </div>
     </div>
 
     <div class="segmented seg-4 seg-tabs segmented-tabs" style="margin-bottom:16px;">
         <input type="radio" id="tab_activity" name="stattab" value="activity" checked onchange="switchStatsTab('activity')">
-        <label for="tab_activity">Attività</label>
+        <label for="tab_activity"><?php te('fc.attivita'); ?></label>
         <input type="radio" id="tab_cat" name="stattab" value="cat" onchange="switchStatsTab('cat')">
-        <label for="tab_cat">Categorie</label>
+        <label for="tab_cat"><?php te('fc.categorie'); ?></label>
         <input type="radio" id="tab_trend" name="stattab" value="trend" onchange="switchStatsTab('trend')">
-        <label for="tab_trend">Andamento</label>
+        <label for="tab_trend"><?php te('fc.andamento'); ?></label>
         <input type="radio" id="tab_goals" name="stattab" value="goals" onchange="switchStatsTab('goals')">
-        <label for="tab_goals">Obiettivi</label>
+        <label for="tab_goals"><?php te('fc.obiettivi'); ?></label>
         <span class="segmented-thumb"></span>
     </div>
 
@@ -1003,41 +695,41 @@ a{ color:inherit; } button{ font-family:inherit; }
 
         <div class="card">
             <div class="cal-header">
-                <button type="button" class="cal-nav-btn" onclick="changeMonth(-1)" aria-label="Mese precedente">
+                <button type="button" class="cal-nav-btn" onclick="changeMonth(-1)" aria-label="<?php te('fc.mese_precedente'); ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                 </button>
-                <h3 id="cal-month-title">Mese Anno</h3>
-                <button type="button" class="cal-nav-btn" onclick="changeMonth(1)" aria-label="Mese successivo">
+                <h3 id="cal-month-title"><?php te('fc.mese_anno'); ?></h3>
+                <button type="button" class="cal-nav-btn" onclick="changeMonth(1)" aria-label="<?php te('fc.mese_successivo'); ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                 </button>
             </div>
             <div class="cal-grid" id="cal-grid"></div>
             <div class="cal-legend">
-                Meno
+                <?php te('fc.meno'); ?>
                 <span class="cal-legend-box" style="background:#ebedf0;"></span>
                 <span class="cal-legend-box" style="background:#9be9a8;"></span>
                 <span class="cal-legend-box" style="background:#40c463;"></span>
                 <span class="cal-legend-box" style="background:#30a14e;"></span>
                 <span class="cal-legend-box" style="background:#216e39;"></span>
-                Più
+                <?php te('fc.piu'); ?>
             </div>
-            <div id="calSelectedInfo">Tocca un giorno per i dettagli</div>
+            <div id="calSelectedInfo"><?php te('fc.tocca_un_giorno_per_i'); ?></div>
         </div>
 
         <div class="card">
-            <div class="section-title">Andamento carte giocate</div>
-            <div class="section-sub">Nel periodo selezionato sopra</div>
+            <div class="section-title"><?php te('fc.andamento_carte_giocate'); ?></div>
+            <div class="section-sub"><?php te('fc.nel_periodo_selezionato_sopra'); ?></div>
             <div class="chart-box"><canvas id="dailyTrendChart"></canvas></div>
         </div>
 
         <div class="card">
-            <div class="section-title">Quando giochi di più</div>
-            <div class="section-sub">Abitudini generali, su tutta la cronologia</div>
+            <div class="section-title"><?php te('fc.quando_giochi_di_piu'); ?></div>
+            <div class="section-sub"><?php te('fc.abitudini_generali_su_tutta_la'); ?></div>
             <div class="chart-box short"><canvas id="weekdayChart"></canvas></div>
         </div>
 
         <div class="card">
-            <div class="section-title">Fasce orarie preferite</div>
+            <div class="section-title"><?php te('fc.fasce_orarie_preferite'); ?></div>
             <div class="chart-box short"><canvas id="hourChart"></canvas></div>
         </div>
 
@@ -1049,21 +741,21 @@ a{ color:inherit; } button{ font-family:inherit; }
       <div id="catOverviewSection">
 
         <div class="card">
-            <div class="section-title">Filtra per materia</div>
-            <div class="section-sub">Tocca una materia per l'analisi dettagliata, o una riga qualsiasi dell'albero</div>
+            <div class="section-title"><?php te('fc.filtra_per_materia'); ?></div>
+            <div class="section-sub"><?php te('fc.tocca_una_materia_per_l'); ?></div>
             <div class="cat-pills-scroll" id="catRootPills">
-                <button type="button" class="pill-cat active" data-id="all" onclick="selectCatPill(this)">Tutte</button>
+                <button type="button" class="pill-cat active" data-id="all" onclick="selectCatPill(this)"><?php te('fc.tutte'); ?></button>
                 <?php foreach ($macro_cats as $mc): ?>
-                <button type="button" class="pill-cat" data-id="<?php echo $mc['id']; ?>" onclick="selectCatPill(this)"><?php echo htmlspecialchars($mc['name'], ENT_QUOTES); ?></button>
+                <button type="button" class="pill-cat" data-id="<?php echo sec_h($mc['id']); ?>" onclick="selectCatPill(this)"><?php echo sec_h($mc['name']); ?></button>
                 <?php endforeach; ?>
             </div>
             <div class="date-range-row">
                 <div class="date-field">
-                    <label>Dal</label>
+                    <label><?php te('fc.dal'); ?></label>
                     <input type="date" id="catStart" value="<?php echo date('Y-m-d', strtotime('-30 days')); ?>" onchange="renderCategoryTab()">
                 </div>
                 <div class="date-field">
-                    <label>Al</label>
+                    <label><?php te('fc.al'); ?></label>
                     <input type="date" id="catEnd" value="<?php echo date('Y-m-d'); ?>" onchange="renderCategoryTab()">
                 </div>
             </div>
@@ -1071,22 +763,22 @@ a{ color:inherit; } button{ font-family:inherit; }
         </div>
 
         <div class="card">
-            <div class="section-title">Migliori e da ripassare</div>
-            <div class="section-sub">Precisione per categoria nel periodo selezionato (minimo 3 carte giocate) · tocca una barra per approfondire</div>
+            <div class="section-title"><?php te('fc.migliori_e_da_ripassare'); ?></div>
+            <div class="section-sub"><?php te('fc.precisione_per_categoria_nel_periodo'); ?></div>
             <div class="chart-box tall"><canvas id="bestWorstChart"></canvas></div>
-            <div class="empty-hint" id="bestWorstEmpty" style="display:none;">Non ci sono ancora abbastanza dati in questo periodo.</div>
+            <div class="empty-hint" id="bestWorstEmpty" style="display:none;"><?php te('fc.non_ci_sono_ancora_abbastanza'); ?></div>
         </div>
 
         <div class="card">
-            <div class="section-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--teal)" stroke-width="2.4" style="vertical-align:-2px; margin-right:3px;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Tempo per materia</div>
-            <div class="section-sub">Minuti investiti per categoria nel periodo selezionato · tocca una barra per approfondire</div>
+            <div class="section-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--teal)" stroke-width="2.4" style="vertical-align:-2px; margin-right:3px;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><?php te('fc.tempo_per_materia'); ?></div>
+            <div class="section-sub"><?php te('fc.minuti_investiti_per_categoria_nel'); ?></div>
             <div class="chart-box tall"><canvas id="timeChart"></canvas></div>
-            <div class="empty-hint" id="timeChartEmpty" style="display:none;">Non ci sono ancora sessioni cronometrate in questo periodo.</div>
+            <div class="empty-hint" id="timeChartEmpty" style="display:none;"><?php te('fc.non_ci_sono_ancora_sessioni'); ?></div>
         </div>
 
         <div class="card" id="speedChartCard" style="display:none;">
-            <div class="section-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--indigo)" stroke-width="2.4" style="vertical-align:-2px; margin-right:3px;"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>Più veloci e da allenare</div>
-            <div class="section-sub">Secondi medi per carta (tutta la cronologia, minimo 3 partite) · più basso è meglio</div>
+            <div class="section-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--indigo)" stroke-width="2.4" style="vertical-align:-2px; margin-right:3px;"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg><?php te('fc.piu_veloci_e_da_allenare'); ?></div>
+            <div class="section-sub"><?php te('fc.secondi_medi_per_carta_tutta'); ?></div>
             <div class="chart-box tall"><canvas id="speedChart"></canvas></div>
         </div>
 
@@ -1096,96 +788,96 @@ a{ color:inherit; } button{ font-family:inherit; }
 
         <button type="button" class="dd-back-btn" onclick="closeCatDeepDive()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-            Panoramica categorie
+            <?php te('fc.panoramica_categorie'); ?>
         </button>
 
         <div class="card">
             <div class="dd-header">
                 <span class="dd-icon" id="ddIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg></span>
                 <div>
-                    <div class="dd-breadcrumb" id="ddBreadcrumb">Materia</div>
-                    <div class="dd-title" id="ddTitle">Nome categoria</div>
+                    <div class="dd-breadcrumb" id="ddBreadcrumb"><?php te('fc.materia'); ?></div>
+                    <div class="dd-title" id="ddTitle"><?php te('fc.nome_categoria'); ?></div>
                 </div>
             </div>
             <div class="dd-period-scroll" id="ddPeriodPills">
-                <button type="button" class="pill-cat" data-days="1" onclick="setDeepDivePeriod(1, this)">Oggi</button>
-                <button type="button" class="pill-cat" data-days="3" onclick="setDeepDivePeriod(3, this)">3 giorni</button>
-                <button type="button" class="pill-cat" data-days="7" onclick="setDeepDivePeriod(7, this)">7 giorni</button>
-                <button type="button" class="pill-cat" data-days="30" onclick="setDeepDivePeriod(30, this)">30 giorni</button>
-                <button type="button" class="pill-cat" data-days="90" onclick="setDeepDivePeriod(90, this)">90 giorni</button>
-                <button type="button" class="pill-cat active" data-days="0" onclick="setDeepDivePeriod(0, this)">Tutto</button>
+                <button type="button" class="pill-cat" data-days="1" onclick="setDeepDivePeriod(1, this)"><?php te('fc.comune.oggi'); ?></button>
+                <button type="button" class="pill-cat" data-days="3" onclick="setDeepDivePeriod(3, this)"><?php te('fc.3_giorni'); ?></button>
+                <button type="button" class="pill-cat" data-days="7" onclick="setDeepDivePeriod(7, this)"><?php te('fc.7_giorni'); ?></button>
+                <button type="button" class="pill-cat" data-days="30" onclick="setDeepDivePeriod(30, this)"><?php te('fc.30_giorni'); ?></button>
+                <button type="button" class="pill-cat" data-days="90" onclick="setDeepDivePeriod(90, this)"><?php te('fc.90_giorni'); ?></button>
+                <button type="button" class="pill-cat active" data-days="0" onclick="setDeepDivePeriod(0, this)"><?php te('fc.tutto'); ?></button>
             </div>
 
             <div class="dd-hero-scroll">
                 <div class="dd-hero-stat">
                     <div class="dd-hero-num" id="ddStreak">0</div>
-                    <div class="dd-hero-label">Streak in questa materia</div>
+                    <div class="dd-hero-label"><?php te('fc.streak_in_questa_materia'); ?></div>
                 </div>
                 <div class="dd-hero-stat">
                     <div class="dd-hero-num" id="ddPlayed">0</div>
-                    <div class="dd-hero-label">Carte testate</div>
+                    <div class="dd-hero-label"><?php te('fc.carte_testate'); ?></div>
                 </div>
                 <div class="dd-hero-stat">
                     <div class="dd-hero-num" id="ddAccuracy">—</div>
-                    <div class="dd-hero-label">Precisione</div>
+                    <div class="dd-hero-label"><?php te('fc.precisione'); ?></div>
                 </div>
                 <div class="dd-hero-stat">
                     <div class="dd-hero-num" id="ddMastery">0/0</div>
-                    <div class="dd-hero-label">Imparate</div>
+                    <div class="dd-hero-label"><?php te('fc.imparate'); ?></div>
                     <div class="dd-hero-bar"><div class="dd-hero-bar-fill" id="ddMasteryBar" style="width:0%;"></div></div>
                 </div>
                 <div class="dd-hero-stat">
                     <div class="dd-hero-num" id="ddTime">0m</div>
-                    <div class="dd-hero-label">Tempo totale</div>
+                    <div class="dd-hero-label"><?php te('fc.tempo_totale'); ?></div>
                 </div>
                 <div class="dd-hero-stat">
                     <div class="dd-hero-num" id="ddSpeed">—</div>
-                    <div class="dd-hero-label">Velocità media</div>
+                    <div class="dd-hero-label"><?php te('fc.velocita_media'); ?></div>
                     <div class="dd-hero-sub" id="ddSpeedTrend"></div>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <div class="section-title">Andamento nel periodo</div>
-            <div class="section-sub" id="ddTrendSub">Carte testate al giorno</div>
+            <div class="section-title"><?php te('fc.andamento_nel_periodo'); ?></div>
+            <div class="section-sub" id="ddTrendSub"><?php te('fc.carte_testate_al_giorno'); ?></div>
             <div class="chart-box"><canvas id="ddTrendChart"></canvas></div>
-            <div class="empty-hint" id="ddTrendEmpty" style="display:none;">Nessuna attività in questo periodo. Prova ad allargare l'intervallo con le pillole qui sopra.</div>
+            <div class="empty-hint" id="ddTrendEmpty" style="display:none;"><?php te('fc.nessuna_attivita_in_questo_periodo'); ?></div>
         </div>
 
         <div class="card" id="ddSpeedCard" style="display:none;">
-            <div class="section-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--teal)" stroke-width="2.4" style="vertical-align:-2px; margin-right:3px;"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>Velocità di risposta</div>
-            <div class="section-sub">Secondi medi per carta, partita dopo partita · in calo = miglioramento</div>
+            <div class="section-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--teal)" stroke-width="2.4" style="vertical-align:-2px; margin-right:3px;"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg><?php te('fc.velocita_di_risposta'); ?></div>
+            <div class="section-sub"><?php te('fc.secondi_medi_per_carta_partita'); ?></div>
             <div class="chart-box"><canvas id="ddSpeedChart"></canvas></div>
         </div>
 
         <div class="card dd-project-card" id="ddProjectCard" style="display:none;">
-            <div class="section-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--orange)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>Tempo investito in questa materia</div>
-            <div class="section-sub" id="ddProjectSub">Flashcard + progetto pomodoro collegato</div>
+            <div class="section-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--orange)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px; margin-right:3px;"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg><?php te('fc.tempo_investito_in_questa_materia'); ?></div>
+            <div class="section-sub" id="ddProjectSub"><?php te('fc.flashcard_progetto_pomodoro_collegato'); ?></div>
             <div class="dd-project-split">
                 <div class="dd-project-half">
                     <div class="dd-project-bar-track"><div class="dd-project-bar-fill fc" id="ddProjectFcBar" style="width:0%;"></div></div>
                     <div class="dd-project-num" id="ddProjectFcNum">0m</div>
-                    <div class="dd-project-label">Flashcard</div>
+                    <div class="dd-project-label"><?php te('fc.flashcard'); ?></div>
                 </div>
                 <div class="dd-project-half">
                     <div class="dd-project-bar-track"><div class="dd-project-bar-fill pomo" id="ddProjectPomoBar" style="width:0%;"></div></div>
                     <div class="dd-project-num" id="ddProjectPomoNum">0m</div>
-                    <div class="dd-project-label" id="ddProjectPomoLabel">Pomodoro</div>
+                    <div class="dd-project-label" id="ddProjectPomoLabel"><?php te('fc.pomodoro'); ?></div>
                 </div>
             </div>
-            <div class="dd-project-total">Totale: <b id="ddProjectTotalNum">0m</b></div>
+            <div class="dd-project-total"><?php te('fc.totale'); ?> <b id="ddProjectTotalNum">0m</b></div>
         </div>
 
         <div class="card" id="ddSubcatCard" style="display:none;">
-            <div class="section-title">Sottocategorie a confronto</div>
-            <div class="section-sub">Nel periodo selezionato · tocca per approfondire ulteriormente</div>
+            <div class="section-title"><?php te('fc.sottocategorie_a_confronto'); ?></div>
+            <div class="section-sub"><?php te('fc.nel_periodo_selezionato_tocca_per'); ?></div>
             <div id="ddSubcatList"></div>
         </div>
 
         <div class="card">
-            <div class="section-title">Miglioramento dopo un errore</div>
-            <div class="section-sub">Su tutta la cronologia in questa materia</div>
+            <div class="section-title"><?php te('fc.miglioramento_dopo_un_errore'); ?></div>
+            <div class="section-sub"><?php te('fc.su_tutta_la_cronologia_in'); ?></div>
             <div class="retry-stat-row" id="ddRetryRow">
                 <div class="retry-ring-box">
                     <svg viewBox="0 0 36 36">
@@ -1194,13 +886,13 @@ a{ color:inherit; } button{ font-family:inherit; }
                     </svg>
                     <div class="retry-ring-num" id="ddRetryPct">—</div>
                 </div>
-                <div class="retry-text" id="ddRetryText">Non ci sono ancora abbastanza dati.</div>
+                <div class="retry-text" id="ddRetryText"><?php te('fc.non_ci_sono_ancora_abbastanza_2'); ?></div>
             </div>
         </div>
 
         <div class="card" id="ddWorstCard" style="display:none;">
-            <div class="section-title">Carte più sbagliate</div>
-            <div class="section-sub">In questa materia, su tutta la cronologia</div>
+            <div class="section-title"><?php te('fc.carte_piu_sbagliate'); ?></div>
+            <div class="section-sub"><?php te('fc.in_questa_materia_su_tutta'); ?></div>
             <div id="ddWorstList"></div>
         </div>
 
@@ -1208,14 +900,14 @@ a{ color:inherit; } button{ font-family:inherit; }
             <div class="forecast-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4 20-7z"/></svg>
             </div>
-            <div class="forecast-text" id="ddForecastText">Continua a giocare per sbloccare una previsione.</div>
+            <div class="forecast-text" id="ddForecastText"><?php te('fc.continua_a_giocare_per_sbloccare'); ?></div>
         </div>
 
         <div class="card">
-            <div class="section-title">Proiezione apprendimento</div>
-            <div class="section-sub">Storico e proiezione futura per questa materia</div>
+            <div class="section-title"><?php te('fc.proiezione_apprendimento'); ?></div>
+            <div class="section-sub"><?php te('fc.storico_e_proiezione_futura_per'); ?></div>
             <div class="chart-box"><canvas id="ddForecastChart"></canvas></div>
-            <div class="empty-hint" id="ddForecastEmpty" style="display:none;">Servono più dati storici per calcolare una proiezione.</div>
+            <div class="empty-hint" id="ddForecastEmpty" style="display:none;"><?php te('fc.servono_piu_dati_storici_per'); ?></div>
         </div>
 
         <div class="forecast-card" id="ddTimeForecastCard" style="display:none; background:linear-gradient(135deg, var(--teal), var(--blue));">
@@ -1234,36 +926,36 @@ a{ color:inherit; } button{ font-family:inherit; }
     <div id="tabpanel-trend" class="stats-tab-content">
 
         <div class="card">
-            <div class="section-title">Precisione nel tempo</div>
-            <div class="section-sub">Media settimanale di risposte corrette</div>
+            <div class="section-title"><?php te('fc.precisione_nel_tempo'); ?></div>
+            <div class="section-sub"><?php te('fc.media_settimanale_di_risposte_corrette'); ?></div>
             <div class="chart-box"><canvas id="accuracyTrendChart"></canvas></div>
         </div>
 
         <div class="card" id="timeTrendCard" style="display:none;">
-            <div class="section-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--teal)" stroke-width="2.4" style="vertical-align:-2px; margin-right:3px;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Tempo di studio nel tempo</div>
-            <div class="section-sub">Minuti totali per settimana, tutte le materie</div>
+            <div class="section-title"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--teal)" stroke-width="2.4" style="vertical-align:-2px; margin-right:3px;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><?php te('fc.tempo_di_studio_nel_tempo'); ?></div>
+            <div class="section-sub"><?php te('fc.minuti_totali_per_settimana_tutte'); ?></div>
             <div class="chart-box"><canvas id="timeTrendChart"></canvas></div>
         </div>
 
         <div class="card">
-            <div class="section-title">Punteggio partite</div>
-            <div class="section-sub">Ogni punto è una partita giocata</div>
+            <div class="section-title"><?php te('fc.punteggio_partite'); ?></div>
+            <div class="section-sub"><?php te('fc.ogni_punto_e_una_partita'); ?></div>
             <div class="chart-box"><canvas id="scoreTrendChart"></canvas></div>
         </div>
 
         <div class="card">
-            <div class="section-title">Padronanza carte</div>
-            <div class="section-sub">Su tutto l'archivio flashcard disponibile</div>
+            <div class="section-title"><?php te('fc.padronanza_carte'); ?></div>
+            <div class="section-sub"><?php te('fc.su_tutto_l_archivio_flashcard'); ?></div>
             <div class="donut-box"><canvas id="masteryChart"></canvas>
                 <div class="donut-center">
                     <div class="donut-pct"><?php echo $totalCards > 0 ? round(($learntCards/$totalCards)*100) : 0; ?>%</div>
-                    <div class="donut-label">completato</div>
+                    <div class="donut-label"><?php te('fc.completato'); ?></div>
                 </div>
             </div>
             <div class="mastery-legend">
-                <div class="mastery-legend-item"><span class="mastery-dot" style="background:var(--green);"></span> Imparate (<?php echo $learntCards; ?>)</div>
-                <div class="mastery-legend-item"><span class="mastery-dot" style="background:var(--orange);"></span> In corso (<?php echo $attemptedNotLearnt; ?>)</div>
-                <div class="mastery-legend-item"><span class="mastery-dot" style="background:var(--hairline-2);"></span> Da provare (<?php echo $neverTried; ?>)</div>
+                <div class="mastery-legend-item"><span class="mastery-dot" style="background:var(--green);"></span> <?php te('fc.leg_imparate', ['n' => (int)$learntCards]); ?></div>
+                <div class="mastery-legend-item"><span class="mastery-dot" style="background:var(--orange);"></span> <?php te('fc.leg_in_corso', ['n' => (int)$attemptedNotLearnt]); ?></div>
+                <div class="mastery-legend-item"><span class="mastery-dot" style="background:var(--hairline-2);"></span> <?php te('fc.leg_da_provare', ['n' => (int)$neverTried]); ?></div>
             </div>
         </div>
 
@@ -1273,20 +965,20 @@ a{ color:inherit; } button{ font-family:inherit; }
             </div>
             <div class="forecast-text">
                 <?php if ($forecastWeeks !== null): ?>
-                    Al ritmo attuale, finirai tutte le carte tra circa <b><?php echo $forecastWeeks; ?> settimane</b> (~<?php echo $forecastDate; ?>)
+                    <?php th('fc.previsione_fine', ['settimane' => '<b>' . sec_h(t('fc.n_settimane', ['n' => $forecastWeeks])) . '</b>', 'data' => sec_h($forecastDate)]); ?>
                 <?php elseif ($totalCards > 0 && $learntCards >= $totalCards): ?>
-                    Hai imparato tutte le carte disponibili! Straordinario lavoro.
+                    <?php te('fc.tutte_imparate'); ?>
                 <?php else: ?>
-                    Continua a giocare per sbloccare una previsione personalizzata sui tuoi progressi.
+                    <?php te('fc.continua_previsione'); ?>
                 <?php endif; ?>
             </div>
         </div>
 
         <div class="card">
-            <div class="section-title">Proiezione apprendimento</div>
-            <div class="section-sub">Storico (linea piena) e proiezione futura (tratteggiata)</div>
+            <div class="section-title"><?php te('fc.proiezione_apprendimento'); ?></div>
+            <div class="section-sub"><?php te('fc.storico_linea_piena_e_proiezione'); ?></div>
             <div class="chart-box"><canvas id="forecastChart"></canvas></div>
-            <div class="empty-hint" id="forecastEmpty" style="display:none;">Servono più dati storici per calcolare una proiezione.</div>
+            <div class="empty-hint" id="forecastEmpty" style="display:none;"><?php te('fc.servono_piu_dati_storici_per'); ?></div>
         </div>
 
     </div>
@@ -1295,7 +987,7 @@ a{ color:inherit; } button{ font-family:inherit; }
     <div id="tabpanel-goals" class="stats-tab-content">
 
         <div class="card">
-            <div class="section-title">Obiettivo di oggi</div>
+            <div class="section-title"><?php te('fc.obiettivo_di_oggi'); ?></div>
             <div class="goal-row">
                 <div class="goal-ring-box">
                     <svg viewBox="0 0 36 36">
@@ -1303,50 +995,53 @@ a{ color:inherit; } button{ font-family:inherit; }
                         <path class="ring-fill" id="goalRingFill" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
                     </svg>
                     <div class="goal-ring-center">
-                        <div class="goal-ring-num" id="goalRingNum"><?php echo $todayPlayed; ?></div>
-                        <div class="goal-ring-sub">/ <?php echo $dailyGoal; ?></div>
+                        <div class="goal-ring-num" id="goalRingNum"><?php echo sec_h($todayPlayed); ?></div>
+                        <div class="goal-ring-sub">/ <?php echo (int)$dailyGoal; ?></div>
                     </div>
                 </div>
                 <div class="goal-controls">
-                    <div class="goal-controls-label">Obiettivo carte al giorno</div>
+                    <div class="goal-controls-label"><?php te('fc.obiettivo_carte_al_giorno'); ?></div>
                     <div class="stepper">
-                        <button type="button" class="stepper-btn" onclick="adjustGoal(-5)" aria-label="Diminuisci">
+                        <button type="button" class="stepper-btn" onclick="adjustGoal(-5)" aria-label="<?php te('fc.diminuisci'); ?>">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg>
                         </button>
-                        <div class="stepper-value" id="goalStepperValue"><?php echo $dailyGoal; ?></div>
-                        <button type="button" class="stepper-btn" onclick="adjustGoal(5)" aria-label="Aumenta">
+                        <div class="stepper-value" id="goalStepperValue"><?php echo (int)$dailyGoal; ?></div>
+                        <button type="button" class="stepper-btn" onclick="adjustGoal(5)" aria-label="<?php te('fc.aumenta'); ?>">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
                         </button>
                     </div>
-                    <div class="goal-saved-note" id="goalSavedNote">Obiettivo salvato ✓</div>
+                    <div class="goal-saved-note" id="goalSavedNote"><?php te('fc.obiettivo_salvato'); ?></div>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <div class="section-title">Streak di studio</div>
+            <div class="section-title"><?php te('fc.streak_di_studio'); ?></div>
             <div class="streak-detail-row">
                 <div class="streak-box">
-                    <div class="streak-box-num"><?php echo $currentStreak; ?></div>
-                    <div class="streak-box-label">Attuale</div>
+                    <div class="streak-box-num"><?php echo (int)$currentStreak; ?></div>
+                    <div class="streak-box-label"><?php te('fc.attuale'); ?></div>
                 </div>
                 <div class="streak-box">
-                    <div class="streak-box-num"><?php echo $bestStreak; ?></div>
-                    <div class="streak-box-label">Record</div>
+                    <div class="streak-box-num"><?php echo (int)$bestStreak; ?></div>
+                    <div class="streak-box-label"><?php te('fc.record'); ?></div>
                 </div>
             </div>
             <?php if ($nextMilestone !== null): ?>
-            <div class="streak-next">Ancora <b><?php echo $nextMilestone - $currentStreak; ?> giorni</b> per il traguardo di <b><?php echo $nextMilestone; ?> giorni</b></div>
+            <div class="streak-next"><?php th('fc.ancora_n_per_traguardo', [
+                    'mancano'   => '<b>' . sec_h(t('fc.n_giorni', ['n' => (int)($nextMilestone - $currentStreak)])) . '</b>',
+                    'traguardo' => '<b>' . sec_h(t('fc.n_giorni', ['n' => (int)$nextMilestone])) . '</b>',
+                ]); ?></div>
             <?php endif; ?>
         </div>
 
         <div class="card">
-            <div class="section-title">Traguardi</div>
+            <div class="section-title"><?php te('fc.traguardi'); ?></div>
             <div class="badge-grid">
                 <?php foreach ($badges as $b): ?>
                 <div class="badge-chip <?php echo $b['done'] ? 'unlocked' : 'locked'; ?>">
                     <span class="badge-icon"><?php echo badgeIconSvg($b['type']); ?></span>
-                    <span class="badge-label"><?php echo htmlspecialchars($b['label'], ENT_QUOTES); ?></span>
+                    <span class="badge-label"><?php echo sec_h($b['label']); ?></span>
                 </div>
                 <?php endforeach; ?>
             </div>
@@ -1356,6 +1051,7 @@ a{ color:inherit; } button{ font-family:inherit; }
 
 </div>
 
+<?php echo nisama_i18n_json(['comune', 'fc']); ?>
 <script>
 // ==========================================
 // DATI EMBEDDATI DAL SERVER
@@ -1511,7 +1207,7 @@ function updateHeroStats(){
 // ==========================================
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
-const monthNames = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+const monthNames = [T('fc.mese_1'),T('fc.mese_2'),T('fc.mese_3'),T('fc.mese_4'),T('fc.mese_5'),T('fc.mese_6'),T('fc.mese_7'),T('fc.mese_8'),T('fc.mese_9'),T('fc.mese_10'),T('fc.mese_11'),T('fc.mese_12')];
 const dayNames = ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 
 function getColorForCount(count){
@@ -1572,8 +1268,8 @@ function renderCalendar(){
             el.style.opacity = 0;
             setTimeout(() => {
                 el.textContent = info.played > 0
-                    ? `${day} ${monthNames[currentMonth]}: ${info.played} carte, ${acc}% precisione`
-                    : `${day} ${monthNames[currentMonth]}: nessuna attività`;
+                    ? T('fc.giorno_dettaglio', {giorno: day, mese: monthNames[currentMonth], carte: info.played, pct: acc})
+                    : T('fc.giorno_vuoto', {giorno: day, mese: monthNames[currentMonth]});
                 el.style.opacity = 1;
             }, 120);
         };
@@ -1609,8 +1305,8 @@ function renderDailyTrendChart(){
     dailyTrendChartInstance = new Chart(ctx, {
         type: 'line',
         data: { labels, datasets: [
-            { label:'Giocate', data:played, borderColor:cBlue(), backgroundColor:hexToRgba(cBlue(),.15), fill:true, tension:.35, pointRadius:0, borderWidth:2.5 },
-            { label:'Corrette', data:correct, borderColor:cGreen(), backgroundColor:'transparent', fill:false, tension:.35, pointRadius:0, borderWidth:2 }
+            { label:T('fc.js_giocate'), data:played, borderColor:cBlue(), backgroundColor:hexToRgba(cBlue(),.15), fill:true, tension:.35, pointRadius:0, borderWidth:2.5 },
+            { label:T('fc.js_corrette'), data:correct, borderColor:cGreen(), backgroundColor:'transparent', fill:false, tension:.35, pointRadius:0, borderWidth:2 }
         ]},
         options: {
             responsive:true, maintainAspectRatio:false,
@@ -1911,7 +1607,7 @@ function renderBestWorstChart(stats){
         options:{
             indexAxis:'y', responsive:true, maintainAspectRatio:false,
             onClick:(evt, elements) => { if (elements.length) { openCatDeepDive(combined[elements[0].index].id); } },
-            plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(c) => c.raw + '% precisione' } } },
+            plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(c) => c.raw + T('fc.pct_precisione') } } },
             scales:{
                 x:{ min:0, max:100, grid:{ color:cGrid() }, ticks:{ color:cText2(), font:{size:10} } },
                 y:{ grid:{ display:false }, ticks:{ color:cText(), font:{size:11} } }
@@ -2025,7 +1721,7 @@ function renderAccuracyTrendChart(){
         weekMap[key].correct += dailyData[d].correct;
     });
     const weekKeys = Object.keys(weekMap).sort().slice(-16);
-    const labels = weekKeys.map(k => k.split('-W')[1] + 'ª sett.');
+    const labels = weekKeys.map(k => k.split('-W')[1] + T('fc.ordinale_sett'));
     const accData = weekKeys.map(k => weekMap[k].played > 0 ? Math.round((weekMap[k].correct/weekMap[k].played)*100) : null);
 
     const ctx = document.getElementById('accuracyTrendChart');
@@ -2041,7 +1737,7 @@ function renderAccuracyTrendChart(){
         data:{ labels, datasets:[{ data:accData, borderColor:cGreen(), backgroundColor:hexToRgba(cGreen(),.18), fill:true, tension:.4, pointRadius:3, pointBackgroundColor:cGreen(), spanGaps:true }] },
         options:{
             responsive:true, maintainAspectRatio:false,
-            plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(c) => c.raw + '% precisione' } } },
+            plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(c) => c.raw + T('fc.pct_precisione') } } },
             scales:{
                 x:{ grid:{ display:false }, ticks:{ color:cText2(), font:{size:9}, maxTicksLimit:8 } },
                 y:{ min:0, max:100, grid:{ color:cGrid() }, ticks:{ color:cText2(), font:{size:10} } }
@@ -2065,7 +1761,7 @@ function renderTimeTrendChart(){
         weekMap[key] = (weekMap[key] || 0) + dailyTimeData[d];
     });
     const weekKeys = Object.keys(weekMap).sort().slice(-16);
-    const labels = weekKeys.map(k => k.split('-W')[1] + 'ª sett.');
+    const labels = weekKeys.map(k => k.split('-W')[1] + T('fc.ordinale_sett'));
     const card = document.getElementById('timeTrendCard');
 
     if (weekKeys.length === 0) { card.style.display = 'none'; return; }
@@ -2130,7 +1826,7 @@ function renderMasteryChart(){
     masteryChartInstance = new Chart(ctx, {
         type:'doughnut',
         data:{
-            labels:['Imparate','In corso','Da provare'],
+            labels:[T('fc.js_imparate'),T('fc.js_in_corso'),T('fc.js_da_provare')],
             datasets:[{ data:[learntCardsCount, attemptedNotLearntCount, neverTriedCount], backgroundColor:[cGreen(), cOrange(), cHairline2()], borderWidth:0 }]
         },
         options:{
@@ -2201,8 +1897,8 @@ function renderForecastChart(){
     forecastChartInstance = new Chart(ctx, {
         type:'line',
         data:{ labels: labels.map(d => d.slice(5)), datasets:[
-            { label:'Storico', data:histSeries, borderColor:cGreen(), backgroundColor:hexToRgba(cGreen(),.15), fill:true, tension:.3, pointRadius:0, borderWidth:2.5 },
-            { label:'Proiezione', data:projSeries, borderColor:cGreen(), backgroundColor:'transparent', borderDash:[6,6], fill:false, tension:.3, pointRadius:0, borderWidth:2 }
+            { label:T('fc.js_storico'), data:histSeries, borderColor:cGreen(), backgroundColor:hexToRgba(cGreen(),.15), fill:true, tension:.3, pointRadius:0, borderWidth:2.5 },
+            { label:T('fc.js_proiezione'), data:projSeries, borderColor:cGreen(), backgroundColor:'transparent', borderDash:[6,6], fill:false, tension:.3, pointRadius:0, borderWidth:2 }
         ]},
         options:{
             responsive:true, maintainAspectRatio:false,
@@ -2270,7 +1966,7 @@ function openCatDeepDive(id){
     const cat = catById[id];
     document.getElementById('ddTitle').textContent = cat.name;
     const crumb = getBreadcrumb(id);
-    document.getElementById('ddBreadcrumb').textContent = crumb.length > 1 ? crumb.slice(0, -1).join(' › ') : 'Materia';
+    document.getElementById('ddBreadcrumb').textContent = crumb.length > 1 ? crumb.slice(0, -1).join(' › ') : T('fc.js_materia');
     document.getElementById('ddIcon').style.setProperty('--row-color', cat.color || '#007AFF');
 
     renderDeepDiveAll();
@@ -2344,13 +2040,13 @@ function renderDeepDiveHero(subtreeIds, idSet, start, end){
     if (speed) {
         speedEl.textContent = fmtSecPerCard(speed.recentAvg);
         if (speed.improvementPct === null) {
-            trendEl.className = 'dd-hero-sub trend-flat'; trendEl.textContent = 'poche partite';
+            trendEl.className = 'dd-hero-sub trend-flat'; trendEl.textContent = T('fc.js_poche_partite');
         } else if (speed.trend === 'up') {
-            trendEl.className = 'dd-hero-sub trend-up'; trendEl.textContent = '▲ ' + speed.improvementPct + '% più veloce';
+            trendEl.className = 'dd-hero-sub trend-up'; trendEl.textContent = '▲ ' + speed.improvementPct + T('fc.pct_piu_veloce');
         } else if (speed.trend === 'down') {
-            trendEl.className = 'dd-hero-sub trend-down'; trendEl.textContent = '▼ ' + Math.abs(speed.improvementPct) + '% più lento';
+            trendEl.className = 'dd-hero-sub trend-down'; trendEl.textContent = '▼ ' + Math.abs(speed.improvementPct) + T('fc.pct_piu_lento');
         } else {
-            trendEl.className = 'dd-hero-sub trend-flat'; trendEl.textContent = 'stabile';
+            trendEl.className = 'dd-hero-sub trend-flat'; trendEl.textContent = T('fc.js_stabile');
         }
     } else {
         speedEl.textContent = '—'; trendEl.className = 'dd-hero-sub trend-flat'; trendEl.textContent = '';
@@ -2382,8 +2078,8 @@ function renderDeepDiveTrendChart(idSet, start, end){
     ddTrendChartInstance = new Chart(ctx, {
         type:'line',
         data:{ labels: dates.map(d => d.slice(5)), datasets:[
-            { label:'Testate', data: dates.map(d => byDate[d].played), borderColor:cBlue(), backgroundColor:hexToRgba(cBlue(),.15), fill:true, tension:.35, pointRadius:0, borderWidth:2.5 },
-            { label:'Corrette', data: dates.map(d => byDate[d].correct), borderColor:cGreen(), backgroundColor:'transparent', fill:false, tension:.35, pointRadius:0, borderWidth:2 }
+            { label:T('fc.js_testate'), data: dates.map(d => byDate[d].played), borderColor:cBlue(), backgroundColor:hexToRgba(cBlue(),.15), fill:true, tension:.35, pointRadius:0, borderWidth:2.5 },
+            { label:T('fc.js_corrette'), data: dates.map(d => byDate[d].correct), borderColor:cGreen(), backgroundColor:'transparent', fill:false, tension:.35, pointRadius:0, borderWidth:2 }
         ]},
         options:{
             responsive:true, maintainAspectRatio:false,
@@ -2416,8 +2112,8 @@ function renderDeepDiveSpeedChart(idSet){
             responsive:true, maintainAspectRatio:false,
             interaction:{ mode:'index', intersect:false },
             plugins:{ legend:{ display:false }, tooltip:{ callbacks:{
-                title:(items) => 'Partita del ' + items[0].label,
-                label:(c) => fmtSecPerCard(c.raw) + ' (' + pts[c.dataIndex].cards + ' carte)'
+                title:(items) => T('fc.partita_del') + items[0].label,
+                label:(c) => fmtSecPerCard(c.raw) + ' (' + pts[c.dataIndex].cards + T('fc.n_carte_par')
             } } },
             scales:{
                 x:{ grid:{ display:false }, ticks:{ color:cText2(), maxTicksLimit:6, font:{size:10} } },
@@ -2443,12 +2139,12 @@ function renderDeepDiveProjectCard(subtreeIds, idSet, start, end){
     const fcPct = total > 0 ? Math.round((fcSeconds/total)*100) : 0;
     const pomoPct = total > 0 ? 100 - fcPct : 0;
 
-    document.getElementById('ddProjectSub').textContent = 'Flashcard (nel periodo) + progetto "' + link.progetto_nome + '" (da sempre)';
+    document.getElementById('ddProjectSub').textContent = T('fc.flashcard_piu_progetto') + link.progetto_nome + T('fc.da_sempre_par');
     document.getElementById('ddProjectFcBar').style.width = fcPct + '%';
     document.getElementById('ddProjectPomoBar').style.width = pomoPct + '%';
     animateCountText(document.getElementById('ddProjectFcNum'), fcSeconds, fmtDuration);
     animateCountText(document.getElementById('ddProjectPomoNum'), pomoSeconds, fmtDuration);
-    document.getElementById('ddProjectPomoLabel').textContent = 'Pomodoro · ' + link.progetto_nome;
+    document.getElementById('ddProjectPomoLabel').textContent = T('fc.pomodoro_sep') + link.progetto_nome;
     animateCountText(document.getElementById('ddProjectTotalNum'), total, fmtDuration);
 }
 
@@ -2605,7 +2301,7 @@ function renderDeepDiveForecast(subtreeIds){
 
     const textEl = document.getElementById('ddForecastText');
     if (total > 0 && learnt >= total) {
-        textEl.innerHTML = 'Hai imparato tutte le carte di questa materia! Ottimo lavoro.';
+        textEl.innerHTML = T('fc.js_tutte_materia');
     } else if (trendArr.length >= 2 && learnt > 0) {
         const firstDate = new Date(trendArr[0].date);
         const lastDate = new Date(trendArr[trendArr.length - 1].date);
@@ -2649,8 +2345,8 @@ function renderDeepDiveForecast(subtreeIds){
     ddForecastChartInstance = new Chart(ctx, {
         type:'line',
         data:{ labels: labels.map(d => d.slice(5)), datasets:[
-            { label:'Storico', data:histSeries, borderColor:cGreen(), backgroundColor:hexToRgba(cGreen(),.15), fill:true, tension:.3, pointRadius:0, borderWidth:2.5 },
-            { label:'Proiezione', data:projSeries, borderColor:cGreen(), backgroundColor:'transparent', borderDash:[6,6], fill:false, tension:.3, pointRadius:0, borderWidth:2 }
+            { label:T('fc.js_storico'), data:histSeries, borderColor:cGreen(), backgroundColor:hexToRgba(cGreen(),.15), fill:true, tension:.3, pointRadius:0, borderWidth:2.5 },
+            { label:T('fc.js_proiezione'), data:projSeries, borderColor:cGreen(), backgroundColor:'transparent', borderDash:[6,6], fill:false, tension:.3, pointRadius:0, borderWidth:2 }
         ]},
         options:{
             responsive:true, maintainAspectRatio:false,

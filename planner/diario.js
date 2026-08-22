@@ -7,19 +7,21 @@
 'use strict';
 
 var B = window.DY_BOOT || {};
-var MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
-var GIORNI = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
-var GIORNI_S = ['L','M','M','G','V','S','D'];
+var MESI = [T('diario.mese_1'), T('diario.mese_2'), T('diario.mese_3'), T('diario.mese_4'), T('diario.mese_5'), T('diario.mese_6'), T('diario.mese_7'), T('diario.mese_8'), T('diario.mese_9'), T('diario.mese_10'), T('diario.mese_11'), T('diario.mese_12')];
+var GIORNI = [T('diario.gg_1'), T('diario.gg_2'), T('diario.gg_3'), T('diario.gg_4'), T('diario.gg_5'), T('diario.gg_6'), T('diario.gg_7')];
+/* le iniziali della griglia del mese: in inglese sono M T W T F S S */
+var GIORNI_S = [T('diario.ggs_1'), T('diario.ggs_2'), T('diario.ggs_3'), T('diario.ggs_4'), T('diario.ggs_5'), T('diario.ggs_6'), T('diario.ggs_7')];
+var ESEMPIO = T('diario.esempio_scrittura');
 var FONTS = [
-    { key: 'caveat',    label: 'Caveat',   sample: 'Oggi è andata così' },
-    { key: 'kalam',     label: 'Kalam',    sample: 'Oggi è andata così' },
-    { key: 'patrick',   label: 'Patrick',  sample: 'Oggi è andata così' },
-    { key: 'cormorant', label: 'Garamond', sample: 'Oggi è andata così' },
-    { key: 'jost',      label: 'Jost',     sample: 'Oggi è andata così' }
+    { key: 'caveat',    label: 'Caveat',   sample: ESEMPIO },
+    { key: 'kalam',     label: 'Kalam',    sample: ESEMPIO },
+    { key: 'patrick',   label: 'Patrick',  sample: ESEMPIO },
+    { key: 'cormorant', label: 'Garamond', sample: ESEMPIO },
+    { key: 'jost',      label: 'Jost',     sample: ESEMPIO }
 ];
 
-var MOOD_WORDS   = { 1: 'Dura', 2: 'Così così', 3: 'Normale', 4: 'Bella', 5: 'Splendida' };
-var ENERGY_WORDS = { 1: 'Scarica', 2: 'Bassa', 3: 'Media', 4: 'Buona', 5: 'Piena' };
+var MOOD_WORDS   = { 1: T('diario.umore_1'), 2: T('diario.umore_2'), 3: T('diario.umore_3'), 4: T('diario.umore_4'), 5: T('diario.umore_5') };
+var ENERGY_WORDS = { 1: T('diario.energia_1'), 2: T('diario.energia_2'), 3: T('diario.energia_3'), 4: T('diario.energia_4'), 5: T('diario.energia_5') };
 
 var S = {
     csrf:  B.csrf || '',
@@ -162,7 +164,7 @@ function listRow(it, type, hostId) {
     input.type = 'text';
     input.value = it.content || '';
     input.maxLength = 300;
-    input.placeholder = it.id ? '' : (type === 'good' ? 'una cosa bella' : 'una cosa imparata');
+    input.placeholder = it.id ? '' : (type === 'good' ? T('diario.una_cosa_bella') : T('diario.una_cosa_imparata'));
     row.appendChild(input);
 
     var before = it.content || '';
@@ -185,7 +187,7 @@ function listRow(it, type, hostId) {
             flashSaved();
             var restoreId = r.deleted ? 0 : (r.id || wasId || 0);
             var restoreDate = S.date;
-            pushUndo(type === 'good' ? 'cosa bella' : 'cosa imparata', function () {
+            pushUndo(type === 'good' ? T('diario.cosa_bella') : T('diario.cosa_imparata'), function () {
                 api('list_save', { date: restoreDate, list_type: type, item_id: restoreId, content: wasText })
                     .then(function () { loadDay(restoreDate, false); });
             });
@@ -218,7 +220,7 @@ function saveText(v) {
     api('save_text', { date: date, note: v }).then(function (r) {
         if (!r.ok) return;
         flashSaved();
-        pushUndo('la scrittura', function () {
+        pushUndo(T('diario.la_scrittura_u'), function () {
             S.day.note = before;
             if (S.date === date) { $('dyText').value = before; }
             api('save_text', { date: date, note: before });
@@ -229,7 +231,7 @@ function saveText(v) {
 /* faccine: il fogliettino con le 5 scelte */
 function openFacePop(kind, anchor) {
     var pop = $('dyFacePop');
-    $('dyPopLab').textContent = kind === 'mood' ? "Com'è andata" : 'Energia';
+    $('dyPopLab').textContent = T(kind === 'mood' ? 'diario.com_e_andata' : 'diario.energia');
     var row = $('dyPopRow');
     row.innerHTML = '';
     for (var lv = 1; lv <= 5; lv++) {
@@ -246,7 +248,7 @@ function openFacePop(kind, anchor) {
                 haptic(10);
                 api('save_mood', { date: S.date, which: kind, value: next === null ? '' : next }).then(function () {
                     flashSaved();
-                    pushUndo(kind === 'mood' ? "com'è andata" : "l'energia", function () {
+                    pushUndo(T(kind === 'mood' ? 'diario.com_e_andata_u' : 'diario.l_energia_u'), function () {
                         S.day[kind] = before;
                         renderDay();
                         api('save_mood', { date: S.date, which: kind, value: before === null ? '' : before });
@@ -447,7 +449,7 @@ function turnPage(delta) {
 
 $('dyTodayBtn').addEventListener('click', function () {
     if (S.view === 'month') { S.monthCursor = S.today.slice(0, 7); loadMonth(); return; }
-    if (S.date === S.today) { toast('Sei già sulla pagina di oggi.'); return; }
+    if (S.date === S.today) { toast(T('diario.gia_su_oggi')); return; }
     loadDay(S.today, true);
 });
 
@@ -542,12 +544,12 @@ function renderStats(st) {
     var enAvgLevel = st.energy_avg ? Math.round(st.energy_avg) : null;
     var num = function (v) { return v === null || v === undefined ? '–' : String(v).replace('.', ','); };
 
-    host.appendChild(stat(face('mood', st.mood_mode, 34), st.mood_mode ? MOOD_WORDS[st.mood_mode] : '–', 'più frequente'));
-    host.appendChild(stat(face('mood', moodAvgLevel, 34), num(st.mood_avg), 'media di come è andata'));
-    host.appendChild(stat(face('energy', enAvgLevel, 34), num(st.energy_avg), 'energia media'));
+    host.appendChild(stat(face('mood', st.mood_mode, 34), st.mood_mode ? MOOD_WORDS[st.mood_mode] : '–', T('diario.piu_frequente')));
+    host.appendChild(stat(face('mood', moodAvgLevel, 34), num(st.mood_avg), T('diario.media_come_andata')));
+    host.appendChild(stat(face('energy', enAvgLevel, 34), num(st.energy_avg), T('diario.energia_media')));
     host.appendChild(stat(
         '<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M11 6h14a3 3 0 013 3v25H14a3 3 0 01-3-3z"/><path d="M11 6v28"/><path d="M17 14h9M17 20h9M17 26h6"/></svg>',
-        st.filled + ' / ' + st.total, 'pagine scritte'));
+        st.filled + ' / ' + st.total, T('diario.pagine_scritte')));
 }
 
 function renderTaped(learned) {
@@ -555,7 +557,7 @@ function renderTaped(learned) {
     var body = $('dyTapedBody');
     body.innerHTML = '';
     if (!learned.length) {
-        body.appendChild(el('div', 'dy-taped-empty', 'Ancora niente scritto qui. Anche una riga conta.'));
+        body.appendChild(el('div', 'dy-taped-empty', T('diario.ancora_niente_scritto')));
         return;
     }
     learned.forEach(function (l) {
@@ -596,7 +598,7 @@ $('dyRing').addEventListener('click', function () {
     if (giorno.length) {
         var s1 = el('div', 'dy-hb-sec');
         var fatte = giorno.filter(function (x) { return x.done; }).length;
-        s1.appendChild(el('div', 'dy-hb-lab', 'Di oggi · ' + fatte + ' su ' + giorno.length));
+        s1.appendChild(el('div', 'dy-hb-lab', T('diario.di_oggi_su', {fatte: fatte, totale: giorno.length})));
         giorno.forEach(function (x) {
             var r = el('div', 'dy-hb-row' + (x.done ? ' is-done' : ''));
             var dot = el('span', 'dy-hb-dot');
@@ -611,7 +613,7 @@ $('dyRing').addEventListener('click', function () {
 
     if (sett.length) {
         var s2 = el('div', 'dy-hb-sec');
-        s2.appendChild(el('div', 'dy-hb-lab', 'Questa settimana'));
+        s2.appendChild(el('div', 'dy-hb-lab', T('diario.questa_settimana')));
         sett.forEach(function (x) {
             var r = el('div', 'dy-hb-row');
             var dot = el('span', 'dy-hb-dot');
@@ -625,14 +627,14 @@ $('dyRing').addEventListener('click', function () {
     }
 
     if (!giorno.length && !sett.length) {
-        card.appendChild(el('div', 'dy-hb-sec', 'Nessuna abitudine per questo giorno.'));
+        card.appendChild(el('div', 'dy-hb-sec', T('diario.nessuna_abitudine')));
     }
 
     var acts = el('div', 'dy-card-acts');
-    var close = el('button', null, 'Chiudi');
+    var close = el('button', null, T('comune.chiudi'));
     close.type = 'button';
     close.addEventListener('click', function () { ov.remove(); });
-    var go = el('button', 'dy-primary', 'Vai alle abitudini');
+    var go = el('button', 'dy-primary', T('diario.vai_alle_abitudini'));
     go.type = 'button';
     go.addEventListener('click', function () { window.location.href = 'habits.php?data=' + S.date; });
     acts.appendChild(close); acts.appendChild(go);
@@ -688,7 +690,7 @@ $('dyNext').addEventListener('click', function () { turnPage(1); });
             ta.value = base + (interim ? (base ? ' ' : '') + interim : '');
             ta.scrollTop = ta.scrollHeight;
         };
-        rec.onerror = function () { stop(); toast('Dettatura non disponibile'); };
+        rec.onerror = function () { stop(); toast(T('diario.dettatura_non_disponibile')); };
         rec.onend = function () {
             if (running) { try { rec.start(); } catch (e) { stop(); } return; }
             saveText($('dyText').value);

@@ -312,6 +312,13 @@ if (!function_exists('ie_header_aliases')) {
         return [
             'start' => ['starttime','startdatetime','startdate','start','datetimestart','inizio','datainizio','oradiinizio','begin','datetime','when','createdat','date','data'],
             'end'   => ['endtime','enddatetime','enddate','end','fine','datafine','finish','completedat'],
+            /* La colonna data a se' stante, per i file scritti a mano: una
+               colonna "data" e due colonne "inizio"/"fine" con la sola ora.
+               Viene DOPO start ed end apposta: se il file ha una sola colonna
+               con data e ora insieme, quella se la prende start (che ha 'date'
+               e 'data' in fondo ai suoi alias) e qui non resta niente da
+               prendere — che e' il comportamento giusto. */
+            'date'  => ['data','date','giorno','day','datasessione','dataseduta'],
             'type'  => ['type','tipo','kind','sessiontype','tiposessione','modalita','mode'],
             'dur'   => ['duration','durata','durationmin','durationmins','durationminute','durationminutes','durationsec','durationseconds','minutes','minuti','mins','min','length','lunghezza','elapsed','tempo','time'],
             'title' => ['title','titolo','task','taskname','name','nome','activity','attivita','subject','item','todo'],
@@ -334,7 +341,9 @@ if (!function_exists('ie_detect_columns')) {
        Terza: posizioni standard per i campi rimasti scoperti. */
     function ie_detect_columns($headerRow, &$matched) {
         $aliases = ie_header_aliases();
-        $cols = ['start' => -1, 'end' => -1, 'type' => -1, 'dur' => -1, 'title' => -1, 'list' => -1];
+        /* 'date' non compare in ie_positional_cols(): non ha una posizione
+           standard nel formato esportato, esiste solo se il file la nomina. */
+        $cols = ['start' => -1, 'end' => -1, 'date' => -1, 'type' => -1, 'dur' => -1, 'title' => -1, 'list' => -1];
         $norms = [];
         foreach ($headerRow as $i => $cell) { $norms[$i] = ie_norm($cell['v']); }
 
@@ -468,6 +477,45 @@ if (!function_exists('ie_parse_datetime')) {
     }
 }
 
+if (!function_exists('ie_parse_ora_sola')) {
+    /* Secondi dalla mezzanotte se la cella contiene SOLO un'ora, altrimenti
+       null.
+
+       Serve perche' una cella "10:38" letta come data diventa il 30 dicembre
+       1899: e' l'origine del calendario di Excel, cioe' il giorno zero a cui
+       si somma la frazione di giornata. Era quello che si vedeva nell'anteprima
+       dell'import. Con la data in una colonna a parte, il pezzo utile di questa
+       cella e' solo l'ora, e va ricongiunto alla sua data.
+
+       Due strade perche' due sono i modi in cui arriva: il foglio Excel manda
+       un numero sotto l'uno (0,4430 = le 10:38), il CSV manda il testo. */
+    function ie_parse_ora_sola($cell) {
+        if (!empty($cell['date']) && is_numeric($cell['raw'])) {
+            $f = (float)$cell['raw'];
+            if ($f >= 0 && $f < 1) return (int)round($f * 86400);
+            return null;   // ha una parte intera: e' una data vera, non un'ora
+        }
+        $s = trim((string)$cell['v']);
+        if ($s === '') return null;
+        if (!preg_match('/^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?\s*(am|pm)?$/i', $s, $m)) return null;
+        $h = (int)$m[1];
+        $ap = isset($m[4]) ? strtolower($m[4]) : '';
+        if ($ap === 'pm' && $h < 12) $h += 12;
+        if ($ap === 'am' && $h === 12) $h = 0;
+        if ($h > 23) return null;
+        return $h * 3600 + (int)$m[2] * 60 + (isset($m[3]) ? (int)$m[3] : 0);
+    }
+}
+
+if (!function_exists('ie_unisci_data_ora')) {
+    /* "2026-08-18 00:00:00" + 38280 secondi -> "2026-08-18 10:38:00" */
+    function ie_unisci_data_ora($giorno, $secondi) {
+        $ts = strtotime($giorno);
+        if ($ts === false) return null;
+        return date('Y-m-d', $ts) . ' ' . gmdate('H:i:s', $secondi);
+    }
+}
+
 if (!function_exists('ie_parse_duration')) {
     /* Restituisce SECONDI. Gestisce: celle ora di Excel (0,0173 = 25 min),
        "25", "25 min", "1:30:00", "1h 30m", "90s". L'unita' dei numeri nudi
@@ -597,10 +645,14 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'parse') {
         if (!ie_row_empty($r)) $dataRows[] = $r;   // le righe vuote non sono righe scartate
     }
 
-    // formato data: deciso guardando tutta la colonna, non riga per riga
+    /* formato data: deciso guardando tutta la colonna, non riga per riga.
+       Si guarda la colonna della data quando c'e': se le date stanno li',
+       nella colonna di inizio ci sono solo orari e non si capirebbe niente
+       (e comparirebbe l'avviso "date ambigue" a sproposito). */
+    $colDate = ($cols['date'] >= 0) ? $cols['date'] : $cols['start'];
     $samples = [];
     foreach ($dataRows as $r) {
-        if (isset($r[$cols['start']]) && empty($r[$cols['start']]['date'])) $samples[] = (string)$r[$cols['start']]['v'];
+        if (isset($r[$colDate]) && empty($r[$colDate]['date'])) $samples[] = (string)$r[$colDate]['v'];
     }
     $dateOrder = ie_detect_date_order($samples);
     $ambiguousDates = ($dateOrder === null && count($samples) > 0);
@@ -623,11 +675,38 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'parse') {
         };
 
         $start = ie_parse_datetime($get('start'), $dateOrder);
+
+        /* Quando la data sta in una colonna a parte, l'ora da sola non basta:
+           senza questo passaggio ogni riga finiva al 30 dicembre 1899. */
+        $giorno = null;
+        $oraInizio = null;
+        if ($cols['date'] >= 0) {
+            $giorno = ie_parse_datetime($get('date'), $dateOrder);
+            $oraInizio = ie_parse_ora_sola($get('start'));
+            if ($giorno !== null && $oraInizio !== null) {
+                $start = ie_unisci_data_ora($giorno, $oraInizio);
+            }
+        }
         if ($start === null) { $skipped++; continue; }
 
         $dur = ie_parse_duration($get('dur'), $durHeaderNorm, $durUnit);
         if ($dur <= 0 && $cols['end'] >= 0) {
-            $end = ie_parse_datetime($get('end'), $dateOrder);
+            $end = null;
+            $oraFine = ($giorno !== null) ? ie_parse_ora_sola($get('end')) : null;
+            if ($oraFine !== null) {
+                $end = ie_unisci_data_ora($giorno, $oraFine);
+                /* 23:30 -> 00:10 non e' una riga sbagliata, e' una sessione a
+                   cavallo della mezzanotte: la fine sta sul giorno dopo. Prima
+                   veniva scartata perche' la durata usciva negativa. Vale solo
+                   quando la fine e' una sola ora appesa alla stessa data: con
+                   due date scritte per esteso, una fine prima dell'inizio e'
+                   un dato sbagliato e resta tale. */
+                if ($end !== null && strtotime($end) <= strtotime($start)) {
+                    $end = date('Y-m-d H:i:s', strtotime($end) + 86400);
+                }
+            } else {
+                $end = ie_parse_datetime($get('end'), $dateOrder);
+            }
             if ($end !== null) $dur = max(0, strtotime($end) - strtotime($start));
         }
         if ($dur <= 0) { $skipped++; continue; }
@@ -697,6 +776,8 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'parse') {
         ],
         'columns' => [
             'start' => $cols['start'] >= 0 && isset($headerNames[$cols['start']]) ? $headerNames[$cols['start']] : ('colonna ' . ($cols['start'] + 1)),
+            // stringa vuota = colonna assente: il JS in quel caso non scrive la voce
+            'date' => $cols['date'] >= 0 && isset($headerNames[$cols['date']]) ? $headerNames[$cols['date']] : '',
             'type' => $cols['type'] >= 0 && isset($headerNames[$cols['type']]) ? $headerNames[$cols['type']] : ('colonna ' . ($cols['type'] + 1)),
             'dur' => $cols['dur'] >= 0 && isset($headerNames[$cols['dur']]) ? $headerNames[$cols['dur']] : ('colonna ' . ($cols['dur'] + 1)),
             'title' => $cols['title'] >= 0 && isset($headerNames[$cols['title']]) ? $headerNames[$cols['title']] : ('colonna ' . ($cols['title'] + 1)),
@@ -1399,7 +1480,9 @@ define('IE_RENDERED', true);
         });
 
         var c = d.columns || {};
-        var cols = '<div class="ie-cols">Colonne lette: <b>' + esc(c.start) + '</b> = inizio · <b>' + esc(c.dur) +
+        var cols = '<div class="ie-cols">Colonne lette: '
+            + (c.date ? '<b>' + esc(c.date) + '</b> = data · ' : '')
+            + '<b>' + esc(c.start) + '</b> = inizio · <b>' + esc(c.dur) +
             '</b> = durata · <b>' + esc(c.type) + '</b> = tipo · <b>' + esc(c.title) + '</b> = sotto-progetto · <b>' +
             esc(c.list) + '</b> = progetto</div>';
 

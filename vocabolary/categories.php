@@ -1,9 +1,8 @@
 <?php
 require_once 'config.php';
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
-
 require_once 'auth_check.php';
+/* sec_db() riusa la connessione gia' aperta e la configura da sola. */
+$conn = sec_db();
 $current_user_id = $utente_corrente['id'];
 
 /* ==========================================================================
@@ -15,13 +14,13 @@ $current_user_id = $utente_corrente['id'];
                           ripropagato ai discendenti che ereditano.
    ========================================================================== */
 if (!function_exists('en_resolve_color')) {
-    function en_resolve_color($conn, $parentId, $userId) {
+    function en_resolve_color($parentId, $userId) {
         $parentId = intval($parentId);
         $guard = 0;
         while ($parentId > 0 && $guard < 50) {
             $guard++;
-            $res = mysqli_query($conn, "SELECT parent_id, color, color_edited FROM categories WHERE id = " . $parentId . " AND user_id = " . intval($userId));
-            $row = $res ? mysqli_fetch_assoc($res) : null;
+            $row = sec_one("SELECT parent_id, color, color_edited FROM categories WHERE id = ? AND user_id = ?",
+                           [$parentId, (int)$userId]);
             if (!$row) break;
             if (intval($row['color_edited']) === 1 && !empty($row['color'])) return $row['color'];
             $parentId = intval($row['parent_id']);
@@ -30,77 +29,94 @@ if (!function_exists('en_resolve_color')) {
     }
 }
 if (!function_exists('en_cascade_color')) {
-    function en_cascade_color($conn, $categoryId, $color, $userId, $depth = 0) {
+    function en_cascade_color($categoryId, $color, $userId, $depth = 0) {
         if ($depth > 50) return;
-        $res = mysqli_query($conn, "SELECT id, color_edited FROM categories WHERE parent_id = " . intval($categoryId) . " AND user_id = " . intval($userId));
-        if (!$res) return;
-        $children = [];
-        while ($row = mysqli_fetch_assoc($res)) { $children[] = $row; }
-        $colorEsc = mysqli_real_escape_string($conn, $color);
+        $children = sec_all("SELECT id, color_edited FROM categories WHERE parent_id = ? AND user_id = ?",
+                            [(int)$categoryId, (int)$userId]);
         foreach ($children as $child) {
             if (intval($child['color_edited']) === 0) {
-                mysqli_query($conn, "UPDATE categories SET color = '$colorEsc' WHERE id = " . intval($child['id']) . " AND user_id = " . intval($userId));
-                en_cascade_color($conn, $child['id'], $color, $userId, $depth + 1);
+                sec_q("UPDATE categories SET color = ? WHERE id = ? AND user_id = ?",
+                      [$color, (int)$child['id'], (int)$userId]);
+                en_cascade_color($child['id'], $color, $userId, $depth + 1);
             }
         }
     }
 }
 if (!function_exists('en_apply_parent_color_update')) {
-    function en_apply_parent_color_update($conn, $catId, $newParentId, $userId) {
-        $res = mysqli_query($conn, "SELECT color_edited FROM categories WHERE id = " . intval($catId) . " AND user_id = " . intval($userId));
-        $row = $res ? mysqli_fetch_assoc($res) : null;
+    function en_apply_parent_color_update($catId, $newParentId, $userId) {
+        $row = sec_one("SELECT color_edited FROM categories WHERE id = ? AND user_id = ?", [(int)$catId, (int)$userId]);
         if (!$row || intval($row['color_edited']) !== 0) return;
-        $newColor = en_resolve_color($conn, $newParentId, $userId);
-        $colorEsc = mysqli_real_escape_string($conn, $newColor);
-        mysqli_query($conn, "UPDATE categories SET color = '$colorEsc' WHERE id = " . intval($catId) . " AND user_id = " . intval($userId));
-        en_cascade_color($conn, $catId, $newColor, $userId);
+        $newColor = en_resolve_color($newParentId, $userId);
+        sec_q("UPDATE categories SET color = ? WHERE id = ? AND user_id = ?", [$newColor, (int)$catId, (int)$userId]);
+        en_cascade_color($catId, $newColor, $userId);
     }
 }
 
 // --- AZIONI (salva / elimina / sposta / colore) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    $action = $_POST['action'];
+    /* Token di sessione, origine riconosciuta e limite di frequenza. Prima non
+       c'era niente: un altro sito poteva far partire dal browser di chi e'
+       connesso una richiesta che cancella una categoria. */
+    sec_guard_write((int)$current_user_id, 'categorie', 0, 120, 60);
+
+    /* elenco chiuso: un'azione non prevista non arriva agli if */
+    $action = sec_enum($_POST['action'] ?? null, ['save', 'delete', 'move', 'color'], '');
     $okParam = '';
 
     if ($action === 'save') {
-        $catId    = intval($_POST['category_id']);
-        $catName  = mysqli_real_escape_string($conn, trim($_POST['category_name']));
-        $parentId = intval($_POST['parent_id']);
-        $colorMode   = (($_POST['color_mode'] ?? 'auto') === 'manual') ? 'manual' : 'auto';
-        $manualColor = trim($_POST['category_color'] ?? '');
+        $catId    = sec_int($_POST['category_id'] ?? 0, 0);
+        $catName  = sec_str($_POST['category_name'] ?? '', 120);
+        $parentId = sec_int($_POST['parent_id'] ?? 0, 0);
+        $colorMode   = sec_enum($_POST['color_mode'] ?? null, ['auto', 'manual'], 'auto');
+        $manualColor = sec_str($_POST['category_color'] ?? '', 7);
+
+        /* Il padre dev'essere suo: senza questo controllo si poteva agganciare
+           una propria categoria sotto quella di un altro utente. */
+        if ($parentId > 0 && !sec_owns('categories', $parentId, (int)$current_user_id)) $parentId = 0;
+        if ($catId > 0 && !sec_owns('categories', $catId, (int)$current_user_id)) {
+            header('Location: categories.php'); exit;
+        }
 
         if ($colorMode === 'manual' && preg_match('/^#[0-9A-Fa-f]{6}$/', $manualColor)) {
             $finalColor = $manualColor; $colorEditedFlag = 1;
         } else {
-            $finalColor = en_resolve_color($conn, $parentId, $current_user_id); $colorEditedFlag = 0;
+            $finalColor = en_resolve_color($parentId, $current_user_id); $colorEditedFlag = 0;
         }
-        $colorEsc = mysqli_real_escape_string($conn, $finalColor);
 
         if ($catId === 0) {
-            mysqli_query($conn, "INSERT INTO categories (name, parent_id, color, color_edited, user_id) VALUES ('$catName', $parentId, '$colorEsc', $colorEditedFlag, $current_user_id)");
+            sec_q("INSERT INTO categories (name, parent_id, color, color_edited, user_id) VALUES (?, ?, ?, ?, ?)",
+                  [$catName, $parentId, $finalColor, $colorEditedFlag, (int)$current_user_id]);
             $okParam = 'added';
         } else {
-            mysqli_query($conn, "UPDATE categories SET name = '$catName', parent_id = $parentId, color = '$colorEsc', color_edited = $colorEditedFlag WHERE id = $catId AND user_id = $current_user_id");
-            en_cascade_color($conn, $catId, $finalColor, $current_user_id);
+            sec_q("UPDATE categories SET name = ?, parent_id = ?, color = ?, color_edited = ? WHERE id = ? AND user_id = ?",
+                  [$catName, $parentId, $finalColor, $colorEditedFlag, $catId, (int)$current_user_id]);
+            en_cascade_color($catId, $finalColor, $current_user_id);
             $okParam = 'saved';
         }
     } elseif ($action === 'delete' && isset($_POST['delete_category_id'])) {
-        $catId = intval($_POST['delete_category_id']);
-        mysqli_query($conn, "DELETE FROM categories WHERE id = $catId AND user_id = $current_user_id");
-        $okParam = 'deleted';
+        $catId = sec_int($_POST['delete_category_id'] ?? 0, 1);
+        if (sec_owns('categories', $catId, (int)$current_user_id)) {
+            sec_q("DELETE FROM categories WHERE id = ? AND user_id = ?", [$catId, (int)$current_user_id]);
+            $okParam = 'deleted';
+        }
     } elseif ($action === 'move' && isset($_POST['move_category_id']) && isset($_POST['target_parent_id'])) {
-        $moveId = intval($_POST['move_category_id']);
-        $targetParentId = intval($_POST['target_parent_id']);
-        mysqli_query($conn, "UPDATE categories SET parent_id = $targetParentId WHERE id = $moveId AND user_id = $current_user_id");
-        en_apply_parent_color_update($conn, $moveId, $targetParentId, $current_user_id);
-        $okParam = 'moved';
+        $moveId = sec_int($_POST['move_category_id'] ?? 0, 1);
+        $targetParentId = sec_int($_POST['target_parent_id'] ?? 0, 0);
+        /* sia la categoria spostata sia la destinazione devono essere sue */
+        if (sec_owns('categories', $moveId, (int)$current_user_id)
+            && ($targetParentId === 0 || sec_owns('categories', $targetParentId, (int)$current_user_id))) {
+            sec_q("UPDATE categories SET parent_id = ? WHERE id = ? AND user_id = ?",
+                  [$targetParentId, $moveId, (int)$current_user_id]);
+            en_apply_parent_color_update($moveId, $targetParentId, $current_user_id);
+            $okParam = 'moved';
+        }
     } elseif ($action === 'color' && isset($_POST['category_id']) && isset($_POST['category_color'])) {
-        $catId = intval($_POST['category_id']);
-        $color = trim($_POST['category_color']);
-        if (preg_match('/^#[0-9A-Fa-f]{6}$/', $color)) {
-            $colorEsc = mysqli_real_escape_string($conn, $color);
-            mysqli_query($conn, "UPDATE categories SET color = '$colorEsc', color_edited = 1 WHERE id = $catId AND user_id = $current_user_id");
-            en_cascade_color($conn, $catId, $color, $current_user_id);
+        $catId = sec_int($_POST['category_id'] ?? 0, 1);
+        $color = sec_color($_POST['category_color'] ?? null, '');
+        if ($color !== '' && sec_owns('categories', $catId, (int)$current_user_id)) {
+            sec_q("UPDATE categories SET color = ?, color_edited = 1 WHERE id = ? AND user_id = ?",
+                  [$color, $catId, (int)$current_user_id]);
+            en_cascade_color($catId, $color, $current_user_id);
             $okParam = 'colored';
         }
     }
@@ -110,18 +126,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Categorie (di questo utente) + conteggio parole (tabella images) per categoria
-$query = "SELECT c.*, IFNULL(im.word_count, 0) AS word_count
+$result = sec_all("SELECT c.*, IFNULL(im.word_count, 0) AS word_count
           FROM categories AS c
           LEFT JOIN (
               SELECT category_id, COUNT(*) AS word_count FROM images GROUP BY category_id
           ) AS im ON c.id = im.category_id
-          WHERE c.user_id = $current_user_id
-          ORDER BY c.name";
-$result = mysqli_query($conn, $query);
+          WHERE c.user_id = ?
+          ORDER BY c.name", [(int)$current_user_id]);
 
 $all_categories = [];
 $categories_by_parent = [];
-while ($row = mysqli_fetch_assoc($result)) {
+foreach ($result as $row) {
     $all_categories[$row['id']] = $row;
     $categories_by_parent[$row['parent_id']][] = $row['id'];
 }
@@ -131,15 +146,14 @@ while ($row = mysqli_fetch_assoc($result)) {
 // "sporchi" rimasti nel DB (es. il grigio/blu di default della colonna).
 foreach ($all_categories as $cid => $c) {
     if (intval($c['color_edited']) === 0) {
-        $all_categories[$cid]['color'] = en_resolve_color($conn, $c['parent_id'], $current_user_id);
+        $all_categories[$cid]['color'] = en_resolve_color($c['parent_id'], $current_user_id);
     }
 }
 
-$q_all = mysqli_query($conn, "SELECT COUNT(*) AS total FROM images AS i INNER JOIN categories AS c ON i.category_id = c.id WHERE c.user_id = $current_user_id");
-$totalWords = mysqli_fetch_assoc($q_all)['total'];
+$totalWords = (int)(sec_one("SELECT COUNT(*) AS total FROM images AS i INNER JOIN categories AS c ON i.category_id = c.id WHERE c.user_id = ?",
+                            [(int)$current_user_id])['total'] ?? 0);
 $catCount = count($all_categories);
 $rootIds = isset($categories_by_parent[0]) ? $categories_by_parent[0] : [];
-mysqli_close($conn);
 
 $colorPalette = ['#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#00C7BE', '#30B0C7', '#32ADE6', '#007AFF', '#5856D6', '#AF52DE', '#FF2D55', '#A2845E'];
 
@@ -156,32 +170,33 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent) {
     $can_delete = ($cat['word_count'] == 0 && !$has_children) ? 1 : 0;
     $display = ($level === 0) ? 'flex' : 'none';
     $pad = 12 + $level * 22;
-    $nameEsc = htmlspecialchars($cat['name'], ENT_QUOTES);
+    $nameEsc = sec_h($cat['name']);
     $color = (!empty($cat['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $cat['color'])) ? $cat['color'] : '#A0A0A0';
     $parentId = (int)$cat['parent_id'];
     $isColorEdited = (!empty($cat['color_edited']) && $cat['color_edited'] == 1) ? 'true' : 'false';
 ?>
-<div class="cat-row" data-id="<?php echo $id; ?>" data-parent="<?php echo $parentId; ?>" data-level="<?php echo $level; ?>" data-name="<?php echo $nameEsc; ?>" style="display:<?php echo $display; ?>; --row-color:<?php echo $color; ?>;">
+<div class="cat-row" data-id="<?php echo (int)$id; ?>" data-parent="<?php echo (int)$parentId; ?>" data-level="<?php echo (int)$level; ?>" data-name="<?php echo $nameEsc; ?>" style="display:<?php echo sec_h($display); ?>; --row-color:<?php echo sec_h($color); ?>;">
     <div class="cat-swipe-actions">
-        <button type="button" class="swipe-btn swipe-edit" aria-label="Modifica"
-            onclick="chiudiTuttiSwipe(); apriModalSalva({id:<?php echo $id; ?>, name:'<?php echo addslashes($nameEsc); ?>', parentId:<?php echo $parentId; ?>, color:'<?php echo $color; ?>', colorEdited:<?php echo $isColorEdited; ?>})">
+        <button type="button" class="swipe-btn swipe-edit" aria-label="<?php te('vocab.cat_modifica_attr'); ?>"
+            data-color="<?php echo sec_h($color); ?>" data-coloredited="<?php echo sec_h($isColorEdited); ?>"
+            onclick="chiudiTuttiSwipe(); apriModalSalvaDaRiga(this)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
         </button>
-        <button type="button" class="swipe-btn swipe-move" aria-label="Sposta"
-            onclick="chiudiTuttiSwipe(); apriSposta(<?php echo $id; ?>, '<?php echo addslashes($nameEsc); ?>')">
+        <button type="button" class="swipe-btn swipe-move" aria-label="<?php te('vocab.cat_sposta_attr'); ?>"
+            onclick="chiudiTuttiSwipe(); apriSpostaDaRiga(this)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3M19 9l3 3-3 3M2 12h20"/></svg>
         </button>
         <?php if ($can_delete): ?>
-        <button type="button" class="swipe-btn swipe-delete" aria-label="Elimina"
-            onclick="chiudiTuttiSwipe(); apriConfermaElimina(<?php echo $id; ?>, '<?php echo addslashes($nameEsc); ?>')">
+        <button type="button" class="swipe-btn swipe-delete" aria-label="<?php te('vocab.cat_elimina_attr'); ?>"
+            onclick="chiudiTuttiSwipe(); apriConfermaEliminaDaRiga(this)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
         </button>
         <?php endif; ?>
     </div>
 
-    <div class="cat-row-main" style="padding-left:<?php echo $pad; ?>px;" data-cat-link="visualizzazione.php?category_id=<?php echo $id; ?>" onclick="catRowNavigate(event, this)">
+    <div class="cat-row-main" style="padding-left:<?php echo (int)$pad; ?>px;" data-cat-link="visualizzazione.php?category_id=<?php echo (int)$id; ?>" onclick="catRowNavigate(event, this)">
         <?php if ($has_children): ?>
-        <button type="button" class="cat-arrow" onclick="event.stopPropagation(); toggleBranch(<?php echo $id; ?>)" aria-label="Espandi">
+        <button type="button" class="cat-arrow" onclick="event.stopPropagation(); toggleBranch(<?php echo (int)$id; ?>)" aria-label="<?php te('vocab.cat_espandi'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
         </button>
         <?php else: ?>
@@ -195,9 +210,9 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent) {
         <span class="cat-name"><?php echo $nameEsc; ?></span>
 
         <span class="cat-badge"><?php echo (int)$cat['word_count']; ?></span>
-        <button type="button" class="cat-kebab" aria-label="Altre azioni"
-            data-id="<?php echo $id; ?>" data-name="<?php echo $nameEsc; ?>" data-parent="<?php echo $parentId; ?>"
-            data-candelete="<?php echo $can_delete; ?>" data-color="<?php echo $color; ?>" data-color-edited="<?php echo (int)($cat['color_edited'] ?? 0); ?>"
+        <button type="button" class="cat-kebab" aria-label="<?php te('vocab.cat_altre_azioni'); ?>"
+            data-id="<?php echo (int)$id; ?>" data-name="<?php echo $nameEsc; ?>" data-parent="<?php echo (int)$parentId; ?>"
+            data-candelete="<?php echo (int)$can_delete; ?>" data-color="<?php echo sec_h($color); ?>" data-color-edited="<?php echo (int)($cat['color_edited'] ?? 0); ?>"
             onclick="event.stopPropagation(); apriAzioni(this);">
             <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
         </button>
@@ -227,7 +242,7 @@ function renderMoveList($parentId, $all_cats, $cats_by_parent, $level = 0) {
     if (!isset($cats_by_parent[$parentId])) return;
     foreach ($cats_by_parent[$parentId] as $id) {
         $cat = $all_cats[$id];
-        $nameEsc = htmlspecialchars($cat['name'], ENT_QUOTES);
+        $nameEsc = sec_h($cat['name']);
         $color = (!empty($cat['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $cat['color'])) ? $cat['color'] : '#A0A0A0';
         $pad = 14 + $level * 20;
         echo "<button type='button' class='cat-pick-item' data-id='{$id}' style='padding-left:{$pad}px' onclick='selezionaNuovoPadre({$id})'>";
@@ -245,249 +260,18 @@ function renderMoveList($parentId, $all_cats, $cats_by_parent, $level = 0) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<title>Categorie · Inglese</title>
-<style>
-:root{
-    color-scheme: light dark;
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-    --indigo:#5856D6;
-    --blue-soft:rgba(0,122,255,.09); --red-soft:rgba(255,59,48,.12);
-    --header-glass:rgba(249,249,251,.82);
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-    --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
-    --r-card:22px; --r-btn:15px;
-    --spring:cubic-bezier(.32,.72,0,1); --bounce:cubic-bezier(.34,1.56,.64,1);
-    --safe-top:env(safe-area-inset-top, 0px);
-    --safe-bottom:env(safe-area-inset-bottom, 0px);
-}
-@media (prefers-color-scheme: dark){
-    :root{
-        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-        --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-        --indigo:#5E5CE6;
-        --blue-soft:rgba(10,132,255,.16); --red-soft:rgba(255,69,58,.17);
-        --header-glass:rgba(16,16,18,.78);
-        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-        --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-        --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
-    }
-}
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html{ -webkit-text-size-adjust:100%; }
-body{
-    margin:0; min-height:100vh; background:var(--bg); color:var(--text);
-    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size:16px; line-height:1.4; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-    padding-bottom:calc(24px + var(--safe-bottom)); overscroll-behavior-y:none;
-}
-a{ color:inherit; } button{ font-family:inherit; }
-:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
-
-/* HEADER */
-.app-header{
-    position:sticky; top:0; z-index:100; padding:calc(var(--safe-top) + 12px) 16px 12px;
-    background:var(--header-glass);
-    -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px);
-    border-bottom:.5px solid var(--hairline);
-}
-.hdr-title{ font-size:28px; font-weight:800; letter-spacing:-.02em; display:flex; align-items:center; gap:9px; }
-.hdr-flag{ font-size:22px; }
-.hdr-sub{ margin-top:2px; font-size:13px; color:var(--text-2); font-weight:500; font-variant-numeric:tabular-nums; }
-.search-box{
-    margin-top:12px; display:flex; align-items:center; gap:8px; background:var(--surface-2);
-    border-radius:12px; padding:10px 12px; box-shadow:inset 0 0 0 .5px var(--hairline);
-}
-.search-box svg{ width:17px; height:17px; color:var(--text-2); flex-shrink:0; }
-.search-box input{ flex:1; min-width:0; border:none; outline:none; background:transparent; color:var(--text); font-size:16px; font-family:inherit; font-weight:500; }
-.search-box input::placeholder{ color:var(--text-3); }
-.search-clear{ display:none; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; border:none; cursor:pointer; background:var(--text-3); color:var(--surface); flex-shrink:0; padding:0; }
-.search-clear svg{ width:10px; height:10px; }
-
-/* LAYOUT */
-.page{ max-width:640px; margin:0 auto; padding:16px 14px calc(112px + var(--safe-bottom)); }
-@keyframes cardIn{ from{ opacity:0; transform:translateY(14px) scale(.985); } to{ opacity:1; transform:none; } }
-
-/* HERO */
-.hero-card{
-    display:flex; align-items:center; gap:14px; padding:20px; border-radius:var(--r-card); margin-bottom:18px;
-    background:linear-gradient(135deg, var(--blue), var(--indigo)); color:#fff; text-decoration:none;
-    box-shadow:0 1px 1px rgba(0,0,0,.05), 0 16px 34px -12px rgba(10,132,255,.5);
-    animation:cardIn .5s var(--spring) both; transition:transform .16s var(--spring);
-}
-.hero-card:active{ transform:scale(.98); }
-.hero-icon{ width:50px; height:50px; border-radius:14px; flex-shrink:0; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; }
-.hero-icon svg{ width:25px; height:25px; }
-.hero-text{ flex:1; min-width:0; }
-.hero-num{ font-size:25px; font-weight:800; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
-.hero-label{ font-size:13.5px; font-weight:600; opacity:.88; margin-top:1px; }
-.hero-chev{ flex-shrink:0; opacity:.75; display:flex; }
-.hero-chev svg{ width:18px; height:18px; }
-
-/* MATERIA CARD */
-.materia-card{
-    position:relative; background:var(--surface); border-radius:var(--r-card); margin-bottom:14px; overflow:hidden;
-    box-shadow:var(--shadow-card); border-left:3px solid var(--accent, var(--blue)); animation:cardIn .5s var(--spring) both;
-}
-.cat-row{ position:relative; overflow:hidden; background:var(--surface); }
-.cat-row-main{ display:flex; align-items:center; gap:10px; padding:15px 12px 15px 0; transition:background .15s; flex:1; width:100%; position:relative; z-index:2; background:var(--surface); will-change:transform; cursor:pointer; touch-action:pan-y; }
-.cat-row:not([data-level="0"]) .cat-row-main{ border-top:.5px solid var(--hairline); padding:12px 12px 12px 0; }
-.cat-row-main:active{ background:var(--surface-2); }
-@keyframes rowIn{ from{ opacity:0; transform:translateY(-6px); } to{ opacity:1; transform:none; } }
-.cat-row.row-anim{ animation:rowIn .3s var(--spring) both; }
-.cat-arrow, .cat-arrow-spacer{ width:22px; height:22px; flex-shrink:0; }
-.cat-arrow{ display:flex; align-items:center; justify-content:center; border:none; background:transparent; color:var(--text-3); cursor:pointer; border-radius:50%; padding:0; transition:transform .3s var(--spring), color .2s, background .15s; }
-.cat-arrow svg{ width:16px; height:16px; }
-.cat-arrow.open{ transform:rotate(90deg); color:var(--row-color, var(--blue)); }
-.cat-arrow:active{ background:var(--surface-2); }
-.cat-icon{ width:32px; height:32px; border-radius:9px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-.cat-icon svg{ width:16px; height:16px; }
-.cat-icon.lvl0{ background:color-mix(in srgb, var(--row-color, var(--blue)) 18%, var(--surface)); color:var(--row-color, var(--blue)); width:36px; height:36px; border-radius:10px; transition:background .3s, color .3s; }
-.cat-icon.lvl0 svg{ width:18px; height:18px; }
-.cat-icon.lvln{ background:color-mix(in srgb, var(--row-color, var(--text-2)) 16%, var(--surface)); color:var(--row-color, var(--text-2)); transition:background .3s, color .3s; }
-.cat-name{ flex:1; min-width:0; text-decoration:none; color:var(--text); font-size:15.5px; font-weight:600; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.cat-row[data-level="0"] .cat-name{ font-size:17px; font-weight:800; }
-.cat-badge{ flex-shrink:0; background:var(--surface-2); color:var(--text-2); font-size:12px; font-weight:700; padding:4px 9px; border-radius:99px; box-shadow:inset 0 0 0 .5px var(--hairline); font-variant-numeric:tabular-nums; }
-.cat-kebab{ flex-shrink:0; width:30px; height:30px; border:none; border-radius:50%; background:transparent; color:var(--text-3); cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; transition:background .15s; }
-.cat-kebab svg{ width:18px; height:18px; }
-.cat-kebab:active{ background:var(--surface-2); }
-
-/* SWIPE */
-.cat-swipe-actions{ position:absolute; top:0; left:0; bottom:0; display:none; align-items:stretch; z-index:1; }
-.swipe-btn{ border:none; margin:0; padding:0; cursor:pointer; width:68px; display:flex; align-items:center; justify-content:center; color:#fff; }
-.swipe-btn svg{ width:22px; height:22px; }
-.swipe-edit{ background:var(--blue); } .swipe-move{ background:var(--orange); } .swipe-delete{ background:var(--red); }
-body.touch-device .cat-swipe-actions{ display:flex; }
-body.touch-device .cat-kebab{ display:none; }
-
-/* FAB */
-.fab{
-    position:fixed; right:20px; bottom:calc(22px + var(--safe-bottom)); z-index:60;
-    width:58px; height:58px; border-radius:50%; border:none; cursor:pointer; color:#fff; background:var(--blue);
-    background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%));
-    display:flex; align-items:center; justify-content:center;
-    box-shadow:var(--btn-hl), 0 2px 6px rgba(0,0,0,.18), 0 14px 30px -8px rgba(10,132,255,.6);
-    animation:fabIn .5s var(--spring) .35s both; transition:transform .16s var(--spring);
-}
-.fab svg{ width:25px; height:25px; }
-.fab:active{ transform:scale(.9); }
-@keyframes fabIn{ from{ opacity:0; transform:scale(.4) rotate(-25deg); } to{ opacity:1; transform:none; } }
-
-/* EMPTY */
-.empty-state{ text-align:center; padding:60px 20px 30px; animation:cardIn .5s var(--spring) both; }
-.empty-icon{ width:72px; height:72px; margin:0 auto 18px; border-radius:20px; background:var(--blue-soft); color:var(--blue); display:flex; align-items:center; justify-content:center; }
-.empty-icon svg{ width:32px; height:32px; }
-.empty-title{ font-size:19px; font-weight:800; margin-bottom:6px; }
-.empty-sub{ font-size:14.5px; color:var(--text-2); max-width:280px; margin:0 auto 20px; line-height:1.5; }
-.btn-create-first{
-    display:inline-flex; align-items:center; gap:8px; padding:13px 22px; border:none; border-radius:var(--r-btn); cursor:pointer; color:#fff; font-size:15.5px; font-weight:700;
-    background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%));
-    box-shadow:var(--btn-hl), 0 12px 26px -8px rgba(10,132,255,.55); transition:transform .16s var(--spring);
-}
-.btn-create-first:active{ transform:scale(.96); }
-
-/* SHEET */
-.modal-overlay{ display:none; position:fixed; inset:0; z-index:1000; justify-content:center; align-items:flex-end; background:rgba(0,0,0,.45); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
-.modal-overlay.closing{ animation:overlayOut .22s ease both; }
-@keyframes overlayOut{ to{ opacity:0; } }
-.sheet-panel{
-    position:relative; width:100%; max-width:600px; max-height:88vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
-    background:var(--surface); color:var(--text); border-radius:24px 24px 0 0; padding:26px 20px calc(22px + var(--safe-bottom));
-    box-shadow:0 -10px 50px rgba(0,0,0,.35); animation:sheetUp .38s var(--spring) both;
-}
-.modal-overlay.closing .sheet-panel{ animation:sheetDown .24s ease both; }
-@keyframes sheetUp{ from{ transform:translateY(60%); opacity:.4; } to{ transform:none; opacity:1; } }
-@keyframes sheetDown{ to{ transform:translateY(60%); opacity:0; } }
-.sheet-panel::before{ content:""; position:absolute; top:8px; left:50%; transform:translateX(-50%); width:38px; height:5px; border-radius:99px; background:var(--hairline-2); }
-.sheet-title{ margin:6px 0 18px; font-size:19px; font-weight:800; letter-spacing:-.01em; text-align:center; }
-.sheet-sub{ margin:-12px 0 16px; font-size:13.5px; color:var(--text-2); text-align:center; }
-@media (min-width:640px){ .modal-overlay{ align-items:center; padding:20px; } .sheet-panel{ border-radius:24px; } }
-
-.field{ margin-bottom:16px; }
-.field label{ display:block; margin-bottom:7px; font-size:11.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--text-2); }
-.field input[type="text"], .field select{
-    width:100%; padding:13px 14px; font-family:inherit; font-size:16px; font-weight:600; color:var(--text);
-    background:var(--surface-2); border:.5px solid var(--hairline-2); border-radius:14px; -webkit-appearance:none; appearance:none;
-}
-.field select{ padding-right:38px; background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A8A8E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 13px center; }
-.field input:focus, .field select:focus{ outline:none; box-shadow:0 0 0 2.5px var(--blue-soft), inset 0 0 0 1.5px var(--blue); }
-
-.sheet-actions{ display:flex; gap:10px; margin-top:6px; }
-.btn{ flex:1; display:flex; align-items:center; justify-content:center; gap:7px; padding:14px 16px; border:none; border-radius:var(--r-btn); cursor:pointer; font-family:inherit; font-size:16px; font-weight:700; letter-spacing:-.01em; text-decoration:none; transition:transform .16s var(--spring), filter .2s; }
-.btn:active{ transform:scale(.97); filter:brightness(.95); }
-.btn-cancel{ background:var(--surface-2); color:var(--text); }
-.btn-primary{ color:#fff; background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%)); box-shadow:var(--btn-hl), 0 10px 22px -8px rgba(10,132,255,.55); }
-.btn-danger{ color:#fff; background:linear-gradient(180deg, color-mix(in srgb, var(--red), #fff 16%), var(--red) 52%, color-mix(in srgb, var(--red), #000 10%)); box-shadow:var(--btn-hl), 0 10px 22px -8px rgba(255,59,48,.55); }
-
-/* ACTION SHEET */
-.action-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
-.action-item{ display:flex; align-items:center; gap:12px; width:100%; padding:12px 12px; border:none; border-radius:14px; cursor:pointer; background:var(--surface-2); color:var(--text); font-family:inherit; font-size:16px; font-weight:600; text-align:left; transition:transform .15s var(--spring), background .15s; }
-.action-item:active{ transform:scale(.98); background:var(--hairline); }
-.action-item.danger{ color:var(--red); }
-.action-item .a-ic{ width:34px; height:34px; border-radius:9px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:var(--blue-soft); color:var(--blue); }
-.action-item .a-ic svg{ width:17px; height:17px; }
-.action-item.danger .a-ic{ background:var(--red-soft); color:var(--red); }
-.a-ic.color-wheel{ background:conic-gradient(from 180deg, #FF3B30, #FF9500, #FFCC00, #34C759, #00C7BE, #30B0C7, #32ADE6, #007AFF, #5856D6, #AF52DE, #FF2D55, #FF3B30); }
-
-/* CONFIRM DELETE */
-.confirm-icon{ width:56px; height:56px; margin:4px auto 14px; border-radius:16px; background:var(--red-soft); color:var(--red); display:flex; align-items:center; justify-content:center; }
-.confirm-icon svg{ width:26px; height:26px; }
-.confirm-text{ text-align:center; font-size:15px; color:var(--text-2); margin-bottom:18px; line-height:1.5; }
-.confirm-text b{ color:var(--text); }
-
-/* MOVE LIST */
-.cat-pick-list{ display:flex; flex-direction:column; gap:6px; max-height:52vh; overflow-y:auto; margin-top:4px; }
-.cat-pick-item{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:14px; cursor:pointer; background:var(--surface-2); border:none; width:100%; text-align:left; font-family:inherit; transition:transform .15s var(--spring), background .15s; }
-.cat-pick-item:active{ transform:scale(.98); }
-.cat-pick-dot{ width:12px; height:12px; border-radius:50%; flex-shrink:0; box-shadow:0 0 0 3px rgba(0,0,0,.04); }
-.cat-pick-name{ font-size:15px; font-weight:700; color:var(--text); }
-.cat-pick-root{ background:var(--blue-soft); }
-.cat-pick-root .cat-pick-name{ color:var(--blue); }
-
-/* COLOR PICKER */
-.color-preview-row{ display:flex; align-items:center; gap:12px; padding:14px; margin-bottom:18px; background:var(--surface-2); border-radius:16px; }
-.color-preview-icon{ width:44px; height:44px; border-radius:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--row-color, var(--blue)) 18%, var(--surface)); color:var(--row-color, var(--blue)); transition:background .25s, color .25s; }
-.color-preview-icon svg{ width:22px; height:22px; }
-.color-preview-name{ font-size:16px; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.color-grid{ display:grid; grid-template-columns:repeat(6, 1fr); gap:10px; margin-bottom:18px; }
-.color-swatch{ position:relative; width:100%; aspect-ratio:1; border-radius:50%; border:none; cursor:pointer; padding:0; background:var(--sw); box-shadow:inset 0 0 0 .5px rgba(0,0,0,.1); animation:swatchIn .4s var(--spring) both; transition:transform .18s var(--spring), box-shadow .2s; }
-@keyframes swatchIn{ from{ opacity:0; transform:scale(0); } to{ opacity:1; transform:scale(1); } }
-.color-swatch:active{ transform:scale(.82); }
-.color-swatch.selected{ transform:scale(1.08); box-shadow:0 0 0 3px var(--surface), 0 0 0 5.5px var(--sw); }
-.color-swatch .check-ic{ position:absolute; inset:0; margin:auto; width:16px; height:16px; opacity:0; transform:scale(.3); filter:drop-shadow(0 1px 2px rgba(0,0,0,.4)); transition:opacity .2s var(--spring), transform .3s var(--spring); }
-.color-swatch.selected .check-ic{ opacity:1; transform:scale(1); }
-.color-swatch-auto{ background:var(--surface); border:1.6px dashed var(--text-3); box-shadow:none; color:var(--text-2); display:flex; align-items:center; justify-content:center; }
-.color-swatch-auto svg{ width:15px; height:15px; }
-.color-swatch-auto.selected{ border:1.6px solid var(--blue); color:var(--blue); transform:scale(1.08); box-shadow:0 0 0 3px var(--surface), 0 0 0 5.5px var(--blue); }
-.custom-color-row{ display:flex; align-items:center; gap:12px; padding:10px 2px 4px; margin-bottom:6px; }
-.custom-color-row input[type="color"]{ width:42px; height:42px; border-radius:50%; border:none; padding:0; cursor:pointer; -webkit-appearance:none; appearance:none; background:none; flex-shrink:0; box-shadow:inset 0 0 0 .5px var(--hairline-2); }
-.custom-color-row input[type="color"]::-webkit-color-swatch-wrapper{ padding:0; border-radius:50%; }
-.custom-color-row input[type="color"]::-webkit-color-swatch{ border:none; border-radius:50%; }
-.custom-color-row .cc-label{ font-size:14.5px; font-weight:600; color:var(--text); }
-.custom-color-row .cc-hex{ margin-left:auto; font-size:14px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums; letter-spacing:.02em; }
-
-/* TOAST */
-.toast{ position:fixed; top:calc(var(--safe-top) + 14px); left:50%; z-index:20000; display:flex; align-items:center; gap:8px; padding:12px 18px; border-radius:99px; background:var(--text); color:var(--bg); font-size:14px; font-weight:700; box-shadow:0 12px 30px rgba(0,0,0,.28); transform:translateX(-50%) translateY(-20px); opacity:0; transition:transform .4s var(--spring), opacity .3s; }
-.toast.show{ transform:translateX(-50%) translateY(0); opacity:1; }
-.toast svg{ width:16px; height:16px; flex-shrink:0; }
-
-@media (prefers-reduced-motion: reduce){ *, *::before, *::after{ animation-duration:.01ms !important; transition-duration:.01ms !important; } }
-</style>
+<title><?php te('vocab.cat_titolo'); ?></title>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>categories.css?v=<?php echo @filemtime(dirname(__FILE__) . '/categories.css') ?: 1; ?>">
 </head>
 <body>
 
 <div class="app-header">
-    <div class="hdr-title"><span class="hdr-flag">🇬🇧</span> Categorie</div>
-    <div class="hdr-sub"><?php echo $catCount; ?> categorie · <?php echo $totalWords; ?> parole totali</div>
+    <div class="hdr-title"><span class="hdr-flag">🇬🇧</span> <?php te('vocab.cat_categorie'); ?></div>
+    <div class="hdr-sub"><?php te('vocab.cat_conteggio', ['categorie' => (int)$catCount, 'parole' => (int)$totalWords]); ?></div>
     <div class="search-box">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="text" id="searchInput" placeholder="Cerca categoria" oninput="filterCategories(this.value)" autocomplete="off">
-        <button type="button" class="search-clear" id="searchClear" onclick="clearSearch()" aria-label="Cancella ricerca">
+        <input type="text" id="searchInput" placeholder="<?php te('vocab.cat_cerca'); ?>" oninput="filterCategories(this.value)" autocomplete="off">
+        <button type="button" class="search-clear" id="searchClear" onclick="clearSearch()" aria-label="<?php te('vocab.cat_cancella_ricerca'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
     </div>
@@ -501,8 +285,8 @@ body.touch-device .cat-kebab{ display:none; }
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a14.5 14.5 0 0 1 0 18M12 3a14.5 14.5 0 0 0 0 18"/></svg>
         </div>
         <div class="hero-text">
-            <div class="hero-num"><?php echo $totalWords; ?></div>
-            <div class="hero-label">Tutte le parole</div>
+            <div class="hero-num"><?php echo (int)$totalWords; ?></div>
+            <div class="hero-label"><?php te('vocab.cat_tutte_parole'); ?></div>
         </div>
         <div class="hero-chev">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
@@ -514,11 +298,11 @@ body.touch-device .cat-kebab{ display:none; }
             <div class="empty-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
             </div>
-            <div class="empty-title">Nessuna categoria</div>
-            <div class="empty-sub">Crea la tua prima categoria per iniziare a organizzare le parole inglesi.</div>
+            <div class="empty-title"><?php te('vocab.cat_nessuna'); ?></div>
+            <div class="empty-sub"><?php te('vocab.cat_nessuna_txt'); ?></div>
             <button type="button" class="btn-create-first" onclick="apriModalSalva({id:0,name:'',parentId:0,color:'#A0A0A0',colorEdited:false})">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                Crea categoria
+                <?php te('vocab.cat_crea'); ?>
             </button>
         </div>
     <?php else: ?>
@@ -527,21 +311,21 @@ body.touch-device .cat-kebab{ display:none; }
             $rootColor = (!empty($rootCat['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $rootCat['color'])) ? $rootCat['color'] : '#A0A0A0';
             $delay = min($i * 45, 300);
         ?>
-        <div class="materia-card" style="--accent:<?php echo $rootColor; ?>; animation-delay:<?php echo $delay; ?>ms;">
+        <div class="materia-card" style="--accent:<?php echo sec_h($rootColor); ?>; animation-delay:<?php echo (int)$delay; ?>ms;">
             <?php renderCatRow($rid, 0, $all_categories, $categories_by_parent); ?>
         </div>
         <?php endforeach; ?>
     <?php endif; ?>
 </div>
 
-<button type="button" class="fab" onclick="apriModalSalva({id:0,name:'',parentId:0,color:'#A0A0A0',colorEdited:false})" aria-label="Aggiungi categoria">
+<button type="button" class="fab" onclick="apriModalSalva({id:0,name:'',parentId:0,color:'#A0A0A0',colorEdited:false})" aria-label="<?php te('vocab.cat_aggiungi'); ?>">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
 </button>
 
 <!-- SHEET: Nuova / Modifica categoria -->
 <div id="sheetForm" class="modal-overlay">
     <div class="sheet-panel">
-        <h3 class="sheet-title" id="modalSalvaTitolo">Nuova categoria</h3>
+        <h3 class="sheet-title" id="modalSalvaTitolo"><?php te('vocab.cat_nuova'); ?></h3>
         <form id="formSalva" method="POST">
             <input type="hidden" name="action" value="save">
             <input type="hidden" name="category_id" id="form_cat_id" value="0">
@@ -549,46 +333,46 @@ body.touch-device .cat-kebab{ display:none; }
             <input type="hidden" name="category_color" id="form_color_value" value="#A0A0A0">
 
             <div class="field">
-                <label for="form_cat_name">Nome</label>
-                <input type="text" name="category_name" id="form_cat_name" required placeholder="Es. Verbi irregolari">
+                <label for="form_cat_name"><?php te('vocab.cat_nome'); ?></label>
+                <input type="text" name="category_name" id="form_cat_name" required placeholder="<?php te('vocab.cat_es_nome'); ?>">
             </div>
 
             <div class="field">
-                <label for="form_parent_id">Categoria padre</label>
+                <label for="form_parent_id"><?php te('vocab.cat_padre'); ?></label>
                 <select name="parent_id" id="form_parent_id">
-                    <option value="0">Nessuna (categoria principale)</option>
+                    <option value="0"><?php te('vocab.cat_nessuna_padre'); ?></option>
                     <?php renderParentOptions(0, $all_categories, $categories_by_parent); ?>
                 </select>
             </div>
 
             <div class="field">
-                <label>Colore</label>
+                <label><?php te('vocab.cat_colore'); ?></label>
                 <div class="color-preview-row">
                     <span class="color-preview-icon" id="formColorPreviewIcon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
                     </span>
-                    <span class="color-preview-name" id="formColorPreviewName">Automatico (eredita dal padre)</span>
+                    <span class="color-preview-name" id="formColorPreviewName"><?php te('vocab.cat_auto_eredita'); ?></span>
                 </div>
                 <div class="color-grid" id="formColorGrid">
                     <button type="button" class="color-swatch color-swatch-auto selected" data-auto="1" onclick="setFormColorAuto()" title="Automatico">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v8h8"/></svg>
                     </button>
                     <?php foreach ($colorPalette as $ci => $hex): ?>
-                    <button type="button" class="color-swatch" style="--sw:<?php echo $hex; ?>; animation-delay:<?php echo $ci * 22; ?>ms;" data-hex="<?php echo $hex; ?>" onclick="setFormColorManual('<?php echo $hex; ?>')">
+                    <button type="button" class="color-swatch" style="--sw:<?php echo sec_h($hex); ?>; animation-delay:<?php echo (int)($ci * 22); ?>ms;" data-hex="<?php echo sec_h($hex); ?>" onclick="setFormColorManual('<?php echo sec_h($hex); ?>')">
                         <svg class="check-ic" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                     </button>
                     <?php endforeach; ?>
                 </div>
                 <div class="custom-color-row">
                     <input type="color" id="formCustomColorInput" value="#007AFF" oninput="setFormColorManual(this.value)">
-                    <span class="cc-label">Colore personalizzato</span>
+                    <span class="cc-label"><?php te('vocab.cat_colore_pers'); ?></span>
                     <span class="cc-hex" id="formCustomColorHex">#A0A0A0</span>
                 </div>
             </div>
 
             <div class="sheet-actions">
-                <button type="button" class="btn btn-cancel" onclick="chiudiModals()">Annulla</button>
-                <button type="submit" class="btn btn-primary">Salva</button>
+                <button type="button" class="btn btn-cancel" onclick="chiudiModals()"><?php te('comune.annulla'); ?></button>
+                <button type="submit" class="btn btn-primary"><?php te('comune.salva'); ?></button>
             </div>
         </form>
     </div>
@@ -597,49 +381,49 @@ body.touch-device .cat-kebab{ display:none; }
 <!-- SHEET: Azioni (kebab) -->
 <div id="sheetActions" class="modal-overlay">
     <div class="sheet-panel">
-        <h3 class="sheet-title" id="azioniTitolo">Categoria</h3>
+        <h3 class="sheet-title" id="azioniTitolo"><?php te('vocab.cat_categoria'); ?></h3>
         <div class="action-list">
             <button type="button" class="action-item" id="azioneModifica">
                 <span class="a-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
-                Modifica
+                <?php te('vocab.cat_modifica_attr'); ?>
             </button>
             <button type="button" class="action-item" id="azioneColore">
                 <span class="a-ic color-wheel"></span>
-                Colore
+                <?php te('vocab.cat_colore'); ?>
             </button>
             <button type="button" class="action-item" id="azioneSposta">
                 <span class="a-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3M19 9l3 3-3 3M2 12h20"/></svg></span>
-                Sposta
+                <?php te('vocab.cat_sposta_attr'); ?>
             </button>
             <button type="button" class="action-item danger" id="azioneElimina">
                 <span class="a-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg></span>
-                Elimina
+                <?php te('comune.elimina'); ?>
             </button>
         </div>
-        <button type="button" class="btn btn-cancel" style="width:100%;" onclick="chiudiModals()">Chiudi</button>
+        <button type="button" class="btn btn-cancel" style="width:100%;" onclick="chiudiModals()"><?php te('comune.chiudi'); ?></button>
     </div>
 </div>
 
 <!-- SHEET: Colore -->
 <div id="sheetColor" class="modal-overlay">
     <div class="sheet-panel">
-        <h3 class="sheet-title">Colore categoria</h3>
+        <h3 class="sheet-title"><?php te('vocab.cat_colore_categoria'); ?></h3>
         <div class="color-preview-row">
             <span class="color-preview-icon" id="colorPreviewIcon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
             </span>
-            <span class="color-preview-name" id="colorPreviewName">Categoria</span>
+            <span class="color-preview-name" id="colorPreviewName"><?php te('vocab.cat_categoria'); ?></span>
         </div>
         <div class="color-grid" id="colorGrid">
             <?php foreach ($colorPalette as $ci => $hex): ?>
-            <button type="button" class="color-swatch" style="--sw:<?php echo $hex; ?>; animation-delay:<?php echo $ci * 22; ?>ms;" data-hex="<?php echo $hex; ?>" onclick="selectColor('<?php echo $hex; ?>')">
+            <button type="button" class="color-swatch" style="--sw:<?php echo sec_h($hex); ?>; animation-delay:<?php echo (int)($ci * 22); ?>ms;" data-hex="<?php echo sec_h($hex); ?>" onclick="selectColor('<?php echo sec_h($hex); ?>')">
                 <svg class="check-ic" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
             </button>
             <?php endforeach; ?>
         </div>
         <div class="custom-color-row">
             <input type="color" id="customColorInput" value="#007AFF" oninput="selectColor(this.value)">
-            <span class="cc-label">Colore personalizzato</span>
+            <span class="cc-label"><?php te('vocab.cat_colore_pers'); ?></span>
             <span class="cc-hex" id="customColorHex">#007AFF</span>
         </div>
         <form id="formColor" method="POST" style="display:none;">
@@ -648,8 +432,8 @@ body.touch-device .cat-kebab{ display:none; }
             <input type="hidden" name="category_color" id="color_cat_value">
         </form>
         <div class="sheet-actions">
-            <button type="button" class="btn btn-cancel" onclick="annullaColore()">Annulla</button>
-            <button type="button" class="btn btn-primary" onclick="salvaColore()">Salva</button>
+            <button type="button" class="btn btn-cancel" onclick="annullaColore()"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="btn btn-primary" onclick="salvaColore()"><?php te('comune.salva'); ?></button>
         </div>
     </div>
 </div>
@@ -657,12 +441,12 @@ body.touch-device .cat-kebab{ display:none; }
 <!-- SHEET: Sposta -->
 <div id="sheetMove" class="modal-overlay">
     <div class="sheet-panel">
-        <h3 class="sheet-title">Sposta <span id="moveTargetName" style="color:var(--blue);"></span></h3>
-        <p class="sheet-sub">Scegli la nuova posizione.</p>
+        <h3 class="sheet-title"><?php th('vocab.cat_sposta_titolo', ['nome' => '<span id="moveTargetName" style="color:var(--blue);"></span>']); ?></h3>
+        <p class="sheet-sub"><?php te('vocab.cat_scegli_posizione'); ?></p>
         <div class="cat-pick-list" id="moveList">
             <button type="button" class="cat-pick-item cat-pick-root" data-id="0" onclick="selezionaNuovoPadre(0)">
                 <span class="cat-pick-dot" style="background:var(--blue)"></span>
-                <span class="cat-pick-name">Porta in cima (nessun padre)</span>
+                <span class="cat-pick-name"><?php te('vocab.cat_in_cima'); ?></span>
             </button>
             <?php renderMoveList(0, $all_categories, $categories_by_parent); ?>
         </div>
@@ -675,11 +459,11 @@ body.touch-device .cat-kebab{ display:none; }
         <div class="confirm-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
         </div>
-        <h3 class="sheet-title">Eliminare categoria?</h3>
-        <p class="confirm-text">Stai per eliminare <b id="confermaEliminaNome"></b>. L'operazione non può essere annullata.</p>
+        <h3 class="sheet-title"><?php te('vocab.cat_eliminare'); ?></h3>
+        <p class="confirm-text"><?php th('vocab.cat_stai_eliminando', ['nome' => '<b id="confermaEliminaNome"></b>']); ?></p>
         <div class="sheet-actions">
-            <button type="button" class="btn btn-cancel" onclick="chiudiModals()">Annulla</button>
-            <button type="button" class="btn btn-danger" onclick="confermaEliminaSubmit()">Elimina</button>
+            <button type="button" class="btn btn-cancel" onclick="chiudiModals()"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="btn btn-danger" onclick="confermaEliminaSubmit()"><?php te('comune.elimina'); ?></button>
         </div>
     </div>
 </div>
@@ -694,7 +478,39 @@ body.touch-device .cat-kebab{ display:none; }
     <input type="hidden" name="delete_category_id" id="delete_cat_id">
 </form>
 
+<?php echo nisama_i18n_json(['comune', 'vocab']); ?>
 <script>
+
+/* ======================================================================
+   Il nome della categoria non entra piu' dentro onclick.
+   Prima ci finiva passato da addslashes(), che protegge dagli apici ma non dal
+   carattere "<": bastava chiamare una categoria con un tag di chiusura di script
+   per far finire li' il blocco, e il resto della pagina veniva interpretato come
+   HTML. (Per lo stesso motivo quella sequenza non si puo' scrivere nemmeno in un
+   commento come questo: il browser la vede lo stesso.) Ora il dato sta nell'attributo
+   data-name della riga - dove PHP lo scrive con sec_h() - e da li' il
+   JavaScript lo legge come testo, senza passare dal codice.
+   ====================================================================== */
+function rigaDi(el) { return el.closest('.cat-row'); }
+
+function apriModalSalvaDaRiga(btn) {
+    var riga = rigaDi(btn);
+    apriModalSalva({
+        id: parseInt(riga.dataset.id, 10),
+        name: riga.dataset.name,
+        parentId: parseInt(riga.dataset.parent, 10),
+        color: btn.dataset.color,
+        colorEdited: btn.dataset.coloredited === 'true'
+    });
+}
+function apriSpostaDaRiga(btn) {
+    var riga = rigaDi(btn);
+    apriSposta(parseInt(riga.dataset.id, 10), riga.dataset.name);
+}
+function apriConfermaEliminaDaRiga(btn) {
+    var riga = rigaDi(btn);
+    apriConfermaElimina(parseInt(riga.dataset.id, 10), riga.dataset.name);
+}
 if (window.matchMedia("(pointer:coarse)").matches) { document.body.classList.add("touch-device"); }
 
 var CAT_COLOR_MAP = <?php echo json_encode($catColorMap); ?>;
@@ -774,7 +590,7 @@ var formColorManual=false, formColorValue='#A0A0A0', formParentColor='#A0A0A0';
 function apriModalSalva(opts){
     document.getElementById('form_cat_id').value = opts.id;
     document.getElementById('form_cat_name').value = opts.name;
-    document.getElementById('modalSalvaTitolo').textContent = (opts.id==0) ? 'Nuova categoria' : 'Modifica categoria';
+    document.getElementById('modalSalvaTitolo').textContent = (opts.id==0) ? T('vocab.cat_nuova') : T('vocab.cat_modifica_titolo');
 
     var sel = document.getElementById('form_parent_id');
     sel.value = opts.parentId;
@@ -800,7 +616,7 @@ function updateFormColorUI(){
     document.getElementById('form_color_mode').value = formColorManual ? 'manual' : 'auto';
     document.getElementById('form_color_value').value = formColorValue;
     document.getElementById('formColorPreviewIcon').style.setProperty('--row-color', formColorValue);
-    document.getElementById('formColorPreviewName').textContent = formColorManual ? 'Colore personalizzato' : 'Automatico (eredita dal padre)';
+    document.getElementById('formColorPreviewName').textContent = formColorManual ? T('vocab.cat_colore_pers') : T('vocab.cat_auto_eredita');
     document.getElementById('formCustomColorInput').value = formColorValue;
     document.getElementById('formCustomColorHex').textContent = formColorValue.toUpperCase();
     document.querySelectorAll('#formColorGrid .color-swatch').forEach(function(sw){
@@ -888,7 +704,7 @@ function showToast(text){
 }
 (function(){
     var ok = new URLSearchParams(window.location.search).get('ok');
-    var messages = { added:'Categoria creata', saved:'Modifiche salvate', deleted:'Categoria eliminata', moved:'Categoria spostata', colored:'Colore aggiornato' };
+    var messages = { added:T('vocab.cat_creata'), saved:T('vocab.cat_salvate'), deleted:T('vocab.cat_eliminata'), moved:T('vocab.cat_spostata'), colored:T('vocab.cat_colore_ok') };
     if (ok && messages[ok]){ showToast(messages[ok]); history.replaceState(null, '', window.location.pathname); }
 })();
 

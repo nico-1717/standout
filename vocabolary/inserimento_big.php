@@ -3,8 +3,8 @@ require_once 'config.php';
 require_once 'auth_check.php';
 $current_user_id = $utente_corrente['id'];
 
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
+/* sec_db() riusa la connessione gia' aperta e la configura da sola. */
+$conn = sec_db();
 
 // ============================================================
 // RICEVITORE AJAX PER L'INSERIMENTO MULTIPLO
@@ -12,42 +12,60 @@ if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'insert_bulk') {
     header('Content-Type: application/json');
 
+    /* Token di sessione, origine riconosciuta e limite di frequenza: prima non
+       c'erano. 60 al minuto perche' un inserimento multiplo e' una richiesta
+       sola, per quante righe contenga. */
+    sec_guard_write((int)$current_user_id, 'vocab_ins_big', 0, 60, 60);
+
     if (!is_dir(IMAGE_PATH_INSERT)) { mkdir(IMAGE_PATH_INSERT, 0777, true); }
 
-    $categoryId = intval($_POST['category_id']);
-
-    // --- SICUREZZA: verifica che la categoria appartenga all'utente loggato ---
-    $check_cat = mysqli_query($conn, "SELECT user_id FROM categories WHERE id = $categoryId");
-    $row_cat = $check_cat ? mysqli_fetch_assoc($check_cat) : null;
-    if (!$row_cat || (int)$row_cat['user_id'] !== $current_user_id) {
-        echo json_encode(['success' => false, 'error' => 'Non sei autorizzato ad aggiungere parole a questa categoria.']);
-        mysqli_close($conn);
+    $categoryId = sec_int($_POST['category_id'] ?? 0, 1);
+    if (!sec_owns('categories', $categoryId, (int)$current_user_id)) {
+        echo json_encode(['success' => false, 'error' => t('vocab.non_autorizzato_aggiungere')]);
         exit;
     }
+
+    /* Una riga del modulo, oppure un file del gruppo abbinato per nome.
+       In entrambi i casi il contenuto viene guardato con finfo e il nome lo
+       genera il server: prima l'estensione arrivava dal nome del client, e nel
+       secondo caso bastava chiamare un .php come il nome scritto in una riga
+       per farselo salvare nella cartella delle immagini. */
+    $salva_immagine = function (array $file): string {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) return '';
+        $ris = sec_file($file);
+        if (empty($ris['ok'])) return '';
+        $nome = sec_safe_filename($ris['ext']);
+        return move_uploaded_file($ris['tmp'], IMAGE_PATH_INSERT . $nome) ? $nome : '';
+    };
 
     $rows_count = isset($_POST['en_desc']) ? count($_POST['en_desc']) : 0;
     $inserted_count = 0;
 
     for ($i = 0; $i < $rows_count; $i++) {
-        $en      = trim($_POST['en_desc'][$i] ?? '');
-        $it      = trim($_POST['it_desc'][$i] ?? '');
-        $meaning = trim($_POST['meaning'][$i] ?? '');
-        $example = trim($_POST['example'][$i] ?? '');
-        $img_name = $_POST['img_name'][$i] ?? '';
+        $en      = sec_str($_POST['en_desc'][$i] ?? '', 200);
+        $it      = sec_str($_POST['it_desc'][$i] ?? '', 200);
+        $meaning = sec_text($_POST['meaning'][$i] ?? '', 1000);
+        $example = sec_text($_POST['example'][$i] ?? '', 1000);
+        $img_name = sec_str($_POST['img_name'][$i] ?? '', 255);
 
-        // --- GESTIONE IMMAGINE: prima il file caricato direttamente su questa riga,
-        //     poi (fallback) il pool di immagini multiple abbinate per nome file ---
-        $final_img = "";
-        if (isset($_FILES['row_img']['name'][$i]) && $_FILES['row_img']['error'][$i] == 0) {
-            $ext = pathinfo($_FILES['row_img']['name'][$i], PATHINFO_EXTENSION);
-            $final_img = time() . "_row_$i." . $ext;
-            move_uploaded_file($_FILES['row_img']['tmp_name'][$i], IMAGE_PATH_INSERT . $final_img);
-        } else if (!empty($img_name) && isset($_FILES['bulk_images'])) {
+        // --- IMMAGINE: prima il file caricato su questa riga, poi (ripiego) il
+        //     gruppo di immagini abbinate per nome file ---
+        $final_img = '';
+        if (isset($_FILES['row_img']['name'][$i])) {
+            $final_img = $salva_immagine([
+                'tmp_name' => $_FILES['row_img']['tmp_name'][$i],
+                'error'    => $_FILES['row_img']['error'][$i],
+                'size'     => $_FILES['row_img']['size'][$i],
+            ]);
+        }
+        if ($final_img === '' && $img_name !== '' && isset($_FILES['bulk_images'])) {
             foreach ($_FILES['bulk_images']['name'] as $idx => $fname) {
-                if ($fname == $img_name) {
-                    $ext = pathinfo($fname, PATHINFO_EXTENSION);
-                    $final_img = time() . "_bulk_$i." . $ext;
-                    move_uploaded_file($_FILES['bulk_images']['tmp_name'][$idx], IMAGE_PATH_INSERT . $final_img);
+                if ($fname === $img_name) {
+                    $final_img = $salva_immagine([
+                        'tmp_name' => $_FILES['bulk_images']['tmp_name'][$idx],
+                        'error'    => $_FILES['bulk_images']['error'][$idx],
+                        'size'     => $_FILES['bulk_images']['size'][$idx],
+                    ]);
                     break;
                 }
             }
@@ -61,19 +79,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
         $meaning = ucfirst(str_replace("'", "’", $meaning));
         $example = ucfirst(str_replace("'", "’", $example));
 
-        $enEsc   = mysqli_real_escape_string($conn, $en);
-        $itEsc   = mysqli_real_escape_string($conn, $it);
-        $meanEsc = mysqli_real_escape_string($conn, $meaning);
-        $exEsc   = mysqli_real_escape_string($conn, $example);
-        $imgEsc  = mysqli_real_escape_string($conn, $final_img);
-
-        $ok = mysqli_query($conn, "INSERT INTO images (category_id, description_en, description_it, meaning, example, image, is_father)
-                                    VALUES ($categoryId, '$enEsc', '$itEsc', '$meanEsc', '$exEsc', '$imgEsc', 0)");
-        if ($ok) { $inserted_count++; }
+        sec_q("INSERT INTO images (category_id, description_en, description_it, meaning, example, image, is_father)
+               VALUES (?, ?, ?, ?, ?, ?, 0)",
+              [$categoryId, $en, $it, $meaning, $example, $final_img]);
+        $inserted_count++;
     }
 
     echo json_encode(['success' => true, 'count' => $inserted_count, 'category_id' => $categoryId]);
-    mysqli_close($conn);
     exit;
 }
 
@@ -82,8 +94,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
 // ============================================================
 $all_categories = [];
 $categories_by_parent = [];
-$cq = mysqli_query($conn, "SELECT id, name, parent_id, color FROM categories WHERE user_id = $current_user_id ORDER BY name");
-while ($row = mysqli_fetch_assoc($cq)) {
+foreach (sec_all("SELECT id, name, parent_id, color FROM categories WHERE user_id = ? ORDER BY name",
+                 [(int)$current_user_id]) as $row) {
     $all_categories[$row['id']] = $row;
     $categories_by_parent[$row['parent_id']][] = $row['id'];
 }
@@ -92,14 +104,13 @@ while ($row = mysqli_fetch_assoc($cq)) {
 $preselected_cat_id = 0;
 $preselected_cat_name = '';
 if (isset($_GET['category_id'])) {
-    $preselected_cat_id = intval($_GET['category_id']);
+    $preselected_cat_id = sec_int($_GET['category_id'] ?? 0, 0);
     if ($preselected_cat_id > 0 && isset($all_categories[$preselected_cat_id])) {
         $preselected_cat_name = $all_categories[$preselected_cat_id]['name'];
     } else {
         $preselected_cat_id = 0;
     }
 }
-mysqli_close($conn);
 
 // Lista indentata per il foglio "Categoria" (stessa estetica di categories.php / inserimento.php)
 function big_render_cat_list($parentId, $all_cats, $cats_by_parent, $level = 0) {
@@ -125,243 +136,8 @@ function big_render_cat_list($parentId, $all_cats, $cats_by_parent, $level = 0) 
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<title>Inserimento multiplo · Vocabolario</title>
-<style>
-/* ================================================================
-   DESIGN SYSTEM — iOS nativo · light + dark automatico
-   (coerente con inserimento.php / categories.php / visualizzazione.php)
-   ================================================================ */
-:root{
-    color-scheme: light dark;
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7; --surface-3:#EDEDF2;
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE; --pink:#FF2D55; --gray:#8E8E93;
-    --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
-    --orange-soft:rgba(255,149,0,.14); --purple-soft:rgba(175,82,222,.12); --gray-soft:rgba(142,142,147,.14);
-    --header-glass:rgba(249,249,251,.82);
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-    --chip-bg:#FFFFFF;
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-    --raise:0 1px 2px rgba(0,0,0,.07), 0 10px 22px -6px rgba(0,0,0,.16);
-    --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
-    --pill-hl:inset 0 0 0 .5px var(--hairline);
-    --r-card:22px; --r-btn:15px; --r-chip:100px;
-    --spring:cubic-bezier(.32,.72,0,1);
-    --snap:cubic-bezier(.24,1.3,.35,1);
-    --safe-top:env(safe-area-inset-top, 0px);
-    --safe-bottom:env(safe-area-inset-bottom, 0px);
-}
-@media (prefers-color-scheme: dark){
-    :root{
-        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E; --surface-3:#333336;
-        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-        --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2; --pink:#FF375F; --gray:#98989F;
-        --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17);
-        --orange-soft:rgba(255,159,10,.18); --purple-soft:rgba(191,90,242,.18); --gray-soft:rgba(152,152,159,.18);
-        --header-glass:rgba(16,16,18,.78);
-        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-        --chip-bg:#3A3A3C;
-        --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-        --raise:0 1px 2px rgba(0,0,0,.5), 0 12px 26px -6px rgba(0,0,0,.65);
-        --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
-        --pill-hl:inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 .5px var(--hairline);
-    }
-}
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html{ -webkit-text-size-adjust:100%; }
-html, body{ min-height:100%; overflow-x:hidden; }
-body{
-    margin:0; background:var(--bg); color:var(--text);
-    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size:16px; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-    padding-bottom:calc(60px + var(--safe-bottom));
-}
-:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
-a{ color:var(--blue); }
-
-/* ================================================================
-   HEADER
-   ================================================================ */
-.app-header{
-    position:sticky; top:0; left:0; right:0; z-index:200;
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding:calc(var(--safe-top) + 12px) 16px 12px;
-    background:var(--header-glass);
-    -webkit-backdrop-filter:saturate(1.8) blur(22px); backdrop-filter:saturate(1.8) blur(22px);
-    border-bottom:.5px solid var(--hairline);
-}
-.app-header .hdr-text{ min-width:0; }
-.app-header h1{ margin:0; font-size:19px; font-weight:800; letter-spacing:-.02em; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.app-header .hdr-sub{ margin-top:1px; font-size:12px; font-weight:600; color:var(--text-2); }
-.hdr-chip{ flex-shrink:0; display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border-radius:var(--r-chip); font-size:12.5px; font-weight:800; background:var(--blue-soft); color:var(--blue); font-variant-numeric:tabular-nums; }
-
-.page-wrap{ max-width:760px; margin:0 auto; padding:16px 14px calc(24px + var(--safe-bottom)); }
-
-/* ================================================================
-   BOTTONI
-   ================================================================ */
-.btn{
-    display:flex; align-items:center; justify-content:center; gap:8px;
-    width:100%; padding:15px 16px; margin:0;
-    border:none; border-radius:var(--r-btn); cursor:pointer;
-    font-family:inherit; font-size:16px; font-weight:700; letter-spacing:-.01em;
-    color:#fff; background:var(--text);
-    text-decoration:none; text-align:center; -webkit-user-select:none; user-select:none;
-    --glow:rgba(0,0,0,.3);
-    box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 12px 26px -8px var(--glow);
-    transition:transform .16s var(--spring), box-shadow .2s var(--spring), filter .2s, opacity .2s;
-}
-.btn:active{ transform:translateY(1.5px) scale(.985); filter:brightness(.95); }
-.btn:disabled{ opacity:.55; cursor:not-allowed; transform:none !important; filter:none !important; }
-.btn-primary{ --glow:rgba(10,132,255,.5); background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%)); }
-.btn-success{ --glow:rgba(52,199,89,.5); background:linear-gradient(180deg, color-mix(in srgb, var(--green), #fff 18%), var(--green) 52%, color-mix(in srgb, var(--green), #000 10%)); }
-.btn-warn{ --glow:rgba(255,149,0,.5); background:linear-gradient(180deg, color-mix(in srgb, var(--orange), #fff 16%), var(--orange) 52%, color-mix(in srgb, var(--orange), #000 10%)); }
-.btn-flat-warn{ color:var(--gray); background:var(--gray-soft); box-shadow:inset 0 0 0 1.5px var(--hairline-2); --glow:transparent; }
-.btn-ghost{ color:var(--text); background:var(--surface); box-shadow:var(--pill-hl), var(--raise); }
-.btn-ghost:active{ filter:none; box-shadow:var(--pill-hl), inset 0 2px 6px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.08); }
-.btn-sm{ padding:11px 14px; font-size:14.5px; }
-.btn svg{ width:18px; height:18px; flex-shrink:0; }
-
-/* ================================================================
-   CARD / SETUP
-   ================================================================ */
-.card-surface{ background:var(--surface); border-radius:var(--r-card); border:.5px solid var(--hairline); box-shadow:var(--shadow-card); padding:18px 16px; }
-.setup-grid{ display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:14px; }
-@media (min-width:680px){ .setup-grid{ grid-template-columns:1fr 1fr; } .setup-grid .full{ grid-column:1/-1; } }
-.setup-card{ padding:16px; }
-.setup-card .sc-label{ display:flex; align-items:center; gap:8px; font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--blue); margin-bottom:12px; }
-.setup-card .sc-label .ic{ width:20px; height:20px; border-radius:7px; background:var(--blue-soft); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.setup-card .sc-label .ic svg{ width:12.5px; height:12.5px; color:var(--blue); }
-.mini-label{ font-size:12.5px; font-weight:700; color:var(--text-2); margin:0 0 6px; display:block; }
-
-input[type="file"]{ font-size:13px; color:var(--text-2); }
-input[type="file"]::file-selector-button{ border:none; padding:8px 12px; margin-right:8px; border-radius:10px; background:var(--blue-soft); color:var(--blue); font-weight:700; font-size:12.5px; cursor:pointer; }
-textarea, select, input[type="text"]{
-    width:100%; box-sizing:border-box; font-family:inherit; color:var(--text);
-    background:var(--surface-2); border:1px solid var(--hairline-2); border-radius:12px;
-    padding:11px 12px; font-size:16px; resize:vertical;
-}
-select{ -webkit-appearance:none; appearance:none; padding-right:34px;
-    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A8A8E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-    background-repeat:no-repeat; background-position:right 11px center;
-}
-textarea:focus, select:focus, input:focus{ outline:none; border-color:var(--blue); }
-
-.category-btn{
-    width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding:15px 16px; border-radius:14px; border:1.5px dashed var(--hairline-2);
-    background:var(--surface-2); color:var(--text-3); font-weight:700; font-size:15.5px;
-    cursor:pointer; font-family:inherit; text-align:left; transition:border-color .2s, background .2s, transform .15s var(--spring);
-}
-.category-btn.is-set{ color:var(--text); border-style:solid; border-color:var(--blue); background:var(--blue-soft); }
-.category-btn:active{ transform:scale(.99); }
-.category-btn .cb-ic{ width:34px; height:34px; border-radius:10px; background:var(--surface); box-shadow:var(--pill-hl), var(--raise-sm); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.category-btn .cb-ic svg{ width:17px; height:17px; color:var(--blue); }
-.category-btn .cb-chev{ color:var(--text-3); flex-shrink:0; display:flex; }
-.category-btn .cb-chev svg{ width:16px; height:16px; }
-
-.import-row{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
-.import-row > div{ flex:1; min-width:130px; }
-.ai-prompt-box{ background:var(--surface-2); border:1.5px dashed var(--hairline-2); border-radius:14px; margin-top:10px; overflow:hidden; position:relative; }
-.ai-prompt-box textarea{ width:100%; height:150px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12.5px; line-height:1.55; border:none; background:transparent; resize:vertical; outline:none; cursor:copy; padding:14px; }
-.ai-copy-hint{ position:absolute; top:8px; right:8px; font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--purple); background:var(--purple-soft); padding:4px 9px; border-radius:99px; pointer-events:none; }
-.format-help{ background:var(--purple-soft); border-radius:var(--r-card); padding:16px; margin-bottom:14px; border:.5px solid transparent; }
-.format-help strong{ color:var(--purple); font-size:14.5px; }
-.format-help p{ margin:6px 0 0; font-size:13px; color:var(--text-2); line-height:1.5; }
-#success-msg{ display:none; background:var(--green-soft); color:var(--green); padding:22px 18px; text-align:center; border-radius:var(--r-card); margin:0 0 16px; font-size:16px; font-weight:700; line-height:1.5; animation:popIn .4s var(--spring) both; }
-#success-msg small{ display:block; margin-top:6px; font-weight:600; color:var(--text-2); font-size:13px; }
-@keyframes popIn{ from{ opacity:0; transform:translateY(-8px) scale(.97); } }
-
-/* ================================================================
-   TOAST
-   ================================================================ */
-.app-toast{
-    position:fixed; left:50%; bottom:calc(24px + var(--safe-bottom)); z-index:11000;
-    transform:translateX(-50%) translateY(20px); opacity:0;
-    max-width:88%; padding:13px 20px; border-radius:16px;
-    background:var(--text); color:var(--bg); font-size:14px; font-weight:600; text-align:center;
-    box-shadow:0 14px 40px rgba(0,0,0,.3); transition:opacity .3s var(--spring), transform .3s var(--spring);
-}
-.app-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
-.app-toast.toast-error{ background:var(--red); color:#fff; }
-
-/* ================================================================
-   MODALE CONFERMA
-   ================================================================ */
-.confirm-overlay{ position:fixed; inset:0; z-index:10500; display:none; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.4); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
-.confirm-overlay.show{ display:flex; }
-.confirm-panel{ width:100%; max-width:440px; background:var(--surface); color:var(--text); border-radius:24px 24px 0 0; padding:26px 20px calc(20px + var(--safe-bottom)); box-shadow:0 -10px 50px rgba(0,0,0,.3); animation:sheetUp .4s var(--snap) both; position:relative; }
-@keyframes sheetUp{ from{ transform:translateY(40%); opacity:.3; } to{ transform:none; opacity:1; } }
-.confirm-panel::before{ content:""; position:absolute; top:8px; left:50%; transform:translateX(-50%); width:38px; height:5px; border-radius:99px; background:var(--hairline-2); }
-.confirm-panel h3{ margin:4px 0 8px; font-size:18.5px; font-weight:800; letter-spacing:-.01em; }
-.confirm-panel p{ margin:0 0 18px; font-size:14.5px; color:var(--text-2); line-height:1.5; }
-.confirm-actions{ display:flex; gap:10px; }
-.confirm-actions .btn{ flex:1; }
-@media (min-width:480px){ .confirm-overlay{ align-items:center; } .confirm-panel{ border-radius:24px; } }
-
-/* ================================================================
-   FOGLIO CATEGORIA (stessa estetica di categories.php / inserimento.php)
-   ================================================================ */
-.modal-overlay{ display:none; position:fixed; inset:0; z-index:900; background:rgba(0,0,0,.5); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); justify-content:center; align-items:flex-end; }
-.modal-overlay.show{ display:flex; }
-.modal-content{ background:var(--surface); color:var(--text); padding:22px 20px calc(24px + var(--safe-bottom)); border-radius:26px 26px 0 0; max-width:540px; width:100%; position:relative; max-height:80vh; overflow-y:auto; box-shadow:0 -12px 50px rgba(0,0,0,.4); animation:sheetUp .42s var(--spring) both; }
-.modal-content::before{ content:""; position:absolute; top:9px; left:50%; transform:translateX(-50%); width:38px; height:5px; border-radius:99px; background:var(--hairline-2); }
-.modal-title{ margin:6px 0 14px; font-size:19px; font-weight:800; letter-spacing:-.02em; text-align:center; }
-@media (min-width:640px){ .modal-overlay{ align-items:center; padding:20px; } .modal-content{ border-radius:26px; } }
-.cat-pick-list{ display:flex; flex-direction:column; gap:6px; max-height:56vh; overflow-y:auto; }
-.cat-pick-item{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:14px; cursor:pointer; background:var(--surface-2); border:none; width:100%; text-align:left; font-family:inherit; transition:transform .15s var(--spring); }
-.cat-pick-item:active{ transform:scale(.98); }
-.cat-pick-dot{ width:12px; height:12px; border-radius:50%; flex-shrink:0; }
-.cat-pick-name{ font-size:15px; font-weight:700; color:var(--text); }
-.cat-pick-empty{ text-align:center; padding:24px 12px; color:var(--text-2); font-size:14px; }
-.cat-pick-empty a{ font-weight:700; }
-
-/* ================================================================
-   LISTA RIGHE — card eleganti, coerenti con visualizzazione.php
-   ================================================================ */
-.fc-rows{ display:flex; flex-direction:column; gap:14px; margin:16px 0; }
-.fc-rows:empty{ display:none; }
-.fc-row{ position:relative; border-radius:var(--r-card); overflow:hidden; box-shadow:var(--shadow-card); animation:rowIn .35s var(--spring) both; }
-@keyframes rowIn{ from{ opacity:0; transform:translateY(10px) scale(.98); } }
-.fc-row-content{ position:relative; background:var(--surface); border-radius:var(--r-card); border:.5px solid var(--hairline); }
-.fc-row-strip{ display:flex; align-items:center; gap:10px; padding:12px 14px 8px; }
-.row-badge{ display:inline-flex; align-items:center; gap:6px; font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--text-2); background:var(--surface-3); padding:4px 10px; border-radius:99px; }
-.row-badge::before{ content:""; width:5px; height:5px; border-radius:50%; background:var(--blue); flex-shrink:0; }
-.strip-spacer{ flex:1; }
-.row-del-btn{ flex-shrink:0; width:28px; height:28px; border-radius:50%; border:none; cursor:pointer; background:var(--red-soft); color:var(--red); display:flex; align-items:center; justify-content:center; transition:transform .15s var(--spring); }
-.row-del-btn:active{ transform:scale(.88); }
-.row-del-btn svg{ width:14px; height:14px; }
-
-.row-bilingual{ display:grid; grid-template-columns:1fr 1fr; gap:0; margin:0 14px 10px; border-radius:14px; overflow:hidden; box-shadow:inset 0 0 0 .5px var(--hairline); }
-.row-col{ padding:10px 11px; background:var(--surface-2); min-width:0; }
-.row-col.col-en{ border-right:.5px solid var(--hairline); background:var(--blue-soft); }
-.row-eyebrow{ display:flex; align-items:center; gap:5px; font-size:9.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text-3); margin-bottom:5px; }
-.col-en .row-eyebrow{ color:var(--blue); }
-.row-col input[type="text"]{ background:var(--surface); border-color:transparent; box-shadow:inset 0 0 0 1px var(--hairline-2); padding:9px 10px; font-weight:700; font-size:14.5px; }
-.row-col input[type="text"]:focus{ box-shadow:inset 0 0 0 1.5px var(--blue); }
-@media (max-width:420px){ .row-bilingual{ grid-template-columns:1fr; } .row-col.col-en{ border-right:none; border-bottom:.5px solid var(--hairline); } }
-
-.row-field{ margin:0 14px 10px; }
-.row-field .field-label{ font-size:9.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text-3); margin:0 0 5px; display:block; }
-.row-field input[type="text"]{ font-size:14.5px; padding:9px 11px; }
-
-.media-row{ display:flex; gap:8px; margin:2px 14px 14px; flex-wrap:wrap; align-items:center; }
-.media-chip{ display:flex; align-items:center; gap:7px; padding:8px 12px 8px 8px; border-radius:99px; background:var(--surface-2); box-shadow:var(--pill-hl), var(--raise-sm); cursor:pointer; font-size:12.5px; font-weight:700; color:var(--text-2); border:none; font-family:inherit; transition:transform .15s var(--spring); }
-.media-chip:active{ transform:scale(.95); }
-.media-chip input[type=file]{ display:none; }
-.media-chip.has-img{ background:var(--blue-soft); color:var(--blue); }
-.chip-thumb{ width:26px; height:26px; border-radius:50%; overflow:hidden; flex-shrink:0; background:var(--surface-3); display:flex; align-items:center; justify-content:center; color:var(--text-3); }
-.chip-thumb img{ width:100%; height:100%; object-fit:cover; }
-.chip-thumb svg{ width:14px; height:14px; }
-.img-name-tag{ max-width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-.empty-hint{ text-align:center; padding:30px 16px; color:var(--text-3); font-size:14px; font-weight:600; line-height:1.5; }
-.action-stack{ display:flex; flex-direction:column; gap:10px; margin-top:8px; }
-
-@media (prefers-reduced-motion: reduce){ *, *::before, *::after{ animation-duration:.01ms !important; transition-duration:.01ms !important; } }
-</style>
+<title><?php te('vocab.ib_titolo'); ?></title>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>inserimento_big.css?v=<?php echo @filemtime(dirname(__FILE__) . '/inserimento_big.css') ?: 1; ?>">
 </head>
 <body>
 
@@ -369,24 +145,24 @@ textarea:focus, select:focus, input:focus{ outline:none; border-color:var(--blue
 
 <header class="app-header">
     <div class="hdr-text">
-        <h1>Inserimento multiplo</h1>
-        <div class="hdr-sub">Vocabolario</div>
+        <h1><?php te('vocab.ins_multiplo'); ?></h1>
+        <div class="hdr-sub"><?php te('vocab.ins_vocabolario'); ?></div>
     </div>
-    <div class="hdr-chip" id="row-count-chip">0 parole</div>
+    <div class="hdr-chip" id="row-count-chip"><?php te('vocab.ib_n_parole', ['n' => 0]); ?></div>
 </header>
 
 <div class="page-wrap">
 
     <div id="success-msg">
-        ✅ Inserimento completato — <strong id="success-count">0</strong> parole salvate.
-        <small>Ritorno alla categoria in corso…</small>
+        <?php th('vocab.ib_completato', ['n' => '<strong id="success-count">0</strong>']); ?>
+        <small><?php te('vocab.ib_ritorno'); ?></small>
     </div>
 
     <div class="format-help">
-        <strong>🤖 Prompt IA per la generazione automatica</strong>
-        <p>Tocca il riquadro sottostante per copiare il testo e incollalo su ChatGPT/Gemini per generare parole già compatibili.</p>
+        <strong><?php te('vocab.ib_prompt_titolo'); ?></strong>
+        <p><?php te('vocab.ib_prompt_sub'); ?></p>
         <div class="ai-prompt-box">
-            <span class="ai-copy-hint">Tocca per copiare</span>
+            <span class="ai-copy-hint"><?php te('vocab.ib_tocca_copiare'); ?></span>
             <textarea id="ai_prompt_textarea" readonly onclick="this.select(); navigator.clipboard.writeText(this.value).then(() => showToast('Copiato negli appunti')).catch(() => { document.execCommand('copy'); showToast('Copiato negli appunti'); });"></textarea>
         </div>
     </div>
@@ -394,11 +170,11 @@ textarea:focus, select:focus, input:focus{ outline:none; border-color:var(--blue
     <form id="bigForm">
         <div class="setup-grid">
             <div class="card-surface setup-card full">
-                <div class="sc-label"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></span>Categoria di destinazione</div>
+                <div class="sc-label"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></span><?php te('vocab.ib_categoria_dest'); ?></div>
                 <button type="button" class="category-btn <?php echo $preselected_cat_id ? 'is-set' : ''; ?>" id="categoryBtn" onclick="openCatSheet()">
                     <span style="display:flex; align-items:center; gap:10px; min-width:0;">
                         <span class="cb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></span>
-                        <span id="categoryBtnLabel" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><?php echo $preselected_cat_name !== '' ? htmlspecialchars($preselected_cat_name) : 'Tocca per selezionare…'; ?></span>
+                        <span id="categoryBtnLabel" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><?php echo $preselected_cat_name !== '' ? sec_h($preselected_cat_name) : sec_h(t('vocab.ib_ph_seleziona')); ?></span>
                     </span>
                     <span class="cb-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
                 </button>
@@ -406,16 +182,16 @@ textarea:focus, select:focus, input:focus{ outline:none; border-color:var(--blue
             </div>
 
             <div class="card-surface setup-card">
-                <div class="sc-label"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M4 7h2.2L8 4h8l1.8 3H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/></svg></span>Immagini (opzionale)</div>
-                <label class="mini-label">Un'immagine per ogni parola, nello stesso ordine</label>
+                <div class="sc-label"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M4 7h2.2L8 4h8l1.8 3H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/></svg></span><?php te('vocab.ib_immagini_opz'); ?></div>
+                <label class="mini-label"><?php te('vocab.ib_una_per_parola'); ?></label>
                 <input type="file" id="bulk_images" accept="image/*" multiple>
             </div>
 
             <div class="card-surface setup-card">
-                <div class="sc-label"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>Importa da testo</div>
+                <div class="sc-label"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span><?php te('vocab.ib_importa_testo'); ?></div>
 
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; background:var(--surface-2); padding:10px 12px; border-radius:12px; border:1px solid var(--hairline-2);">
-                    <label class="mini-label" style="margin:0; font-size:13.5px;">Usa separatori personalizzati (### e @@@)</label>
+                    <label class="mini-label" style="margin:0; font-size:13.5px;"><?php te('vocab.ib_separatori_pers'); ?></label>
                     <input type="checkbox" id="format_switch" style="transform:scale(1.2); accent-color:var(--blue); cursor:pointer;" onchange="toggleImportFormat()">
                 </div>
 
@@ -423,42 +199,42 @@ textarea:focus, select:focus, input:focus{ outline:none; border-color:var(--blue
 
                 <div class="import-row" id="custom_separators_row" style="display:none;">
                     <div>
-                        <label class="mini-label">Separatore Parole</label>
+                        <label class="mini-label"><?php te('vocab.ib_sep_parole'); ?></label>
                         <select id="import_row_separator" onchange="updatePlaceholder()">
-                            <option value="@@@" selected>Tre chiocciole ( @@@ )</option>
-                            <option value="@">Chiocciola singola ( @ )</option>
-                            <option value="\n">A capo (Invio)</option>
+                            <option value="@@@" selected><?php te('vocab.ib_sep_tre_chiocciole'); ?></option>
+                            <option value="@"><?php te('vocab.ib_sep_chiocciola'); ?></option>
+                            <option value="\n"><?php te('vocab.ib_sep_a_capo'); ?></option>
                         </select>
                     </div>
                     <div>
-                        <label class="mini-label">Separatore Campi</label>
+                        <label class="mini-label"><?php te('vocab.ib_sep_campi'); ?></label>
                         <select id="import_separator" onchange="updatePlaceholder()">
-                            <option value="###" selected>Tre hash ( ### )</option>
-                            <option value="|">Pipe ( | )</option>
-                            <option value=";">Punto e virgola ( ; )</option>
+                            <option value="###" selected><?php te('vocab.ib_sep_tre_hash'); ?></option>
+                            <option value="|"><?php te('vocab.ib_sep_pipe'); ?></option>
+                            <option value=";"><?php te('vocab.ib_sep_punto_virgola'); ?></option>
                         </select>
                     </div>
                 </div>
-                <p class="mini-label" style="margin-top:10px; font-weight:600;">Ordine campi: Inglese, Italiano, Significato, Esempio.</p>
+                <p class="mini-label" style="margin-top:10px; font-weight:600;"><?php te('vocab.ib_ordine_campi'); ?></p>
             </div>
         </div>
 
         <button type="button" id="btn-generate-table" class="btn btn-warn" onclick="generateTable()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
-            Genera Tabella Dati
+            <?php te('vocab.ib_genera_tabella'); ?>
         </button>
 
         <div class="fc-rows" id="fcRows"></div>
-        <div class="empty-hint" id="emptyHint">Nessuna parola ancora — genera dai dati importati oppure aggiungine una vuota qui sotto.</div>
+        <div class="empty-hint" id="emptyHint"><?php te('vocab.ib_nessuna_parola'); ?></div>
 
         <div class="action-stack">
             <button type="button" class="btn btn-primary" onclick="addSingleRow()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                Aggiungi Parola Vuota
+                <?php te('vocab.ib_aggiungi_vuota'); ?>
             </button>
             <button type="submit" id="submitBtn" class="btn btn-success" disabled>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>
-                Salva Tutto nel Database
+                <?php te('vocab.ib_salva_tutto'); ?>
             </button>
         </div>
     </form>
@@ -467,10 +243,10 @@ textarea:focus, select:focus, input:focus{ outline:none; border-color:var(--blue
 <!-- ============== FOGLIO CATEGORIA ============== -->
 <div id="catSheet" class="modal-overlay">
     <div class="modal-content">
-        <h3 class="modal-title">Scegli una categoria</h3>
+        <h3 class="modal-title"><?php te('vocab.ins_scegli_cat'); ?></h3>
         <div class="cat-pick-list">
             <?php if (empty($all_categories)): ?>
-                <div class="cat-pick-empty">Non hai ancora nessuna categoria.<br><a href="categories.php">Creane una da qui</a>.</div>
+                <div class="cat-pick-empty"><?php te('vocab.ins_nessuna_cat'); ?><br><a href="categories.php"><?php te('vocab.ins_creane_una'); ?></a>.</div>
             <?php else: ?>
                 <?php big_render_cat_list(0, $all_categories, $categories_by_parent); ?>
             <?php endif; ?>
@@ -480,15 +256,16 @@ textarea:focus, select:focus, input:focus{ outline:none; border-color:var(--blue
 
 <div class="confirm-overlay" id="confirmOverlay">
     <div class="confirm-panel">
-        <h3 id="confirmTitle">Sei sicuro?</h3>
+        <h3 id="confirmTitle"><?php te('vocab.ib_sei_sicuro'); ?></h3>
         <p id="confirmMessage"></p>
         <div class="confirm-actions">
-            <button type="button" class="btn btn-ghost btn-sm" id="confirmCancelBtn">Annulla</button>
-            <button type="button" class="btn btn-warn btn-sm" id="confirmOkBtn">Conferma</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="confirmCancelBtn"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="btn btn-warn btn-sm" id="confirmOkBtn"><?php te('vocab.conferma_b'); ?></button>
         </div>
     </div>
 </div>
 
+<?php echo nisama_i18n_json(['comune', 'vocab']); ?>
 <script>
 const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m2 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7"/></svg>';
 const ICON_IMG   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-4 4-3-3-6 6"/></svg>';
@@ -553,8 +330,8 @@ function updateAIPrompt(){
     let rule, exampleOutput;
 
     if (!isCustom) {
-        rule = `L'output deve essere ESATTAMENTE ed UNICAMENTE un array JSON. Ogni elemento deve avere queste 4 chiavi: "en" (parola inglese), "it" (traduzione italiana), "meaning" (breve spiegazione in inglese, max 15 parole), "example" (una frase di esempio in inglese dove la parola è sostituita da un singolo underscore "_").`;
-        exampleOutput = `Esempio di output perfetto:
+        rule = T('vocab.ib_rule_json');
+        exampleOutput = `${T('vocab.ib_esempio_output')}
 [
 {"en": "Run", "it": "Correre", "meaning": "To move fast using your legs", "example": "I like to _ every morning"},
 {"en": "Table", "it": "Tavolo", "meaning": "A piece of furniture with a flat top", "example": "Put the book on the _"}
@@ -562,22 +339,22 @@ function updateAIPrompt(){
     } else {
         const rowSepVal = document.getElementById('import_row_separator').value;
         const colSepVal = document.getElementById('import_separator').value;
-        const rowSepText = rowSepVal === '\\n' ? "un invio (a capo)" : `"${rowSepVal}"`;
-        const colSepText = colSepVal === '\\t' ? "una tabulazione" : `"${colSepVal}"`;
+        const rowSepText = rowSepVal === '\\n' ? T('vocab.ib_un_invio') : `"${rowSepVal}"`;
+        const colSepText = colSepVal === '\\t' ? T('vocab.ib_una_tab') : `"${colSepVal}"`;
         const actualRowSep = rowSepVal === '\\n' ? '\n' : rowSepVal;
 
-        rule = `L'output deve essere un testo grezzo. Per ogni parola scrivi, nell'ordine, Inglese, Italiano, Significato ed Esempio, separati SEMPRE e SOLO da ${colSepText}. Tra una parola e la successiva inserisci SEMPRE e SOLO ${rowSepText}. Nell'Esempio sostituisci la parola con un singolo underscore "_".`;
-        exampleOutput = `Esempio di output perfetto:
+        rule = T('vocab.ib_rule_testo', {colonne: colSepText, righe: rowSepText});
+        exampleOutput = `${T('vocab.ib_esempio_output')}
 Run ${colSepVal} Correre ${colSepVal} To move fast using your legs ${colSepVal} I like to _ every morning${actualRowSep}Table ${colSepVal} Tavolo ${colSepVal} A piece of furniture with a flat top ${colSepVal} Put the book on the _`;
     }
 
-    const finalPrompt = `Sto utilizzando un sito personalizzato per il mio vocabolario di inglese. Vorrei che mi generassi un elenco completo di flashcards sull'argomento che ti scrivo alla fine del prompt. Questo elenco deve essere esaustivo e completo, garantendo a chi conosce questo elenco, di potersi reputare un C1.
+    const finalPrompt = `${T('vocab.ib_prompt_intro')}
 
 ${rule}
 
 ${exampleOutput}
 
-le parole che dovrai generare, dovranno riguardare questo argomento:`;
+${T('vocab.ib_prompt_argomento')}`;
 
     document.getElementById('ai_prompt_textarea').value = finalPrompt;
 }
@@ -608,7 +385,7 @@ window.addEventListener('DOMContentLoaded', () => { updatePlaceholder(); });
 async function generateTable(){
     const list = document.getElementById('fcRows');
     if (list.children.length > 0){
-        const ok = await showConfirm('Ricreare la tabella?', 'Hai già delle parole. Continuando, tutti i dati inseriti o modificati qui sotto andranno persi per fare spazio ai nuovi.', 'Sì, ricrea');
+        const ok = await showConfirm(T('vocab.ib_ricreare'), T('vocab.ib_ricreare_txt'), T('vocab.ib_si_ricrea'));
         if (!ok) return;
     }
     list.innerHTML = '';
@@ -624,7 +401,7 @@ async function generateTable(){
             try {
                 let safeText = textContent.replace(/\n(?!\s*[\}\]\s]*\s*(?:,|\]|"en"|"it"|"meaning"|"example"|\{))/g, '\\n');
                 const jsonArr = JSON.parse(safeText);
-                if (!Array.isArray(jsonArr)) throw new Error("Il JSON deve essere un array.");
+                if (!Array.isArray(jsonArr)) throw new Error(T('vocab.ib_json_array'));
                 parsedData = jsonArr.map(item => ({
                     en: item.en || item.english || item.word || item.description_en || '',
                     it: item.it || item.italian || item.description_it || '',
@@ -633,7 +410,7 @@ async function generateTable(){
                 }));
             } catch (error) {
                 showToast('Errore: il testo non è un JSON valido. Controlla la formattazione.', 'error');
-                console.error("Dettaglio errore JSON:", error);
+                console.error(T('vocab.ib_json_dettaglio'), error);
                 return;
             }
         } else {
@@ -685,33 +462,33 @@ function appendRowHTML(id, en, it, meaning, example, imgUrl, imgName){
     wrap.innerHTML = `
         <div class="fc-row-content">
             <div class="fc-row-strip">
-                <span class="row-badge">Parola</span>
+                <span class="row-badge">${T('vocab.parola')}</span>
                 <span class="strip-spacer"></span>
-                <button type="button" class="row-del-btn" onclick="deleteRow(this)" aria-label="Elimina">${ICON_TRASH}</button>
+                <button type="button" class="row-del-btn" onclick="deleteRow(this)" aria-label="<?php te('vocab.elimina_attr'); ?>">${ICON_TRASH}</button>
             </div>
             <div class="row-bilingual">
                 <div class="row-col col-en">
-                    <div class="row-eyebrow">🇬🇧 English</div>
-                    <input type="text" class="row-en" value="${escAttr(en)}" placeholder="parola">
+                    <div class="row-eyebrow">${T('vocab.lbl_en')}</div>
+                    <input type="text" class="row-en" value="${escAttr(en)}" placeholder="${T('vocab.ph_parola')}">
                 </div>
                 <div class="row-col col-it">
-                    <div class="row-eyebrow">🇮🇹 Italiano</div>
-                    <input type="text" class="row-it" value="${escAttr(it)}" placeholder="traduzione">
+                    <div class="row-eyebrow">${T('vocab.lbl_it')}</div>
+                    <input type="text" class="row-it" value="${escAttr(it)}" placeholder="${T('vocab.ph_traduzione')}">
                 </div>
             </div>
             <div class="row-field">
-                <div class="field-label">Significato</div>
-                <input type="text" class="row-meaning" value="${escAttr(meaning)}" placeholder="breve spiegazione">
+                <div class="field-label">${T('vocab.significato')}</div>
+                <input type="text" class="row-meaning" value="${escAttr(meaning)}" placeholder="${T('vocab.ph_spiegazione')}">
             </div>
             <div class="row-field">
-                <div class="field-label">Esempio</div>
-                <input type="text" class="row-example" value="${escAttr(example || '_')}" placeholder="frase con _ al posto della parola">
+                <div class="field-label">${T('vocab.esempio')}</div>
+                <input type="text" class="row-example" value="${escAttr(example || '_')}" placeholder="${T('vocab.ph_frase')}">
             </div>
             <div class="media-row">
                 <label class="media-chip img-chip ${imgUrl ? 'has-img' : ''}">
                     <input type="file" accept="image/*" onchange="previewRowImage(this, '${id}')">
                     <span class="chip-thumb" id="img-preview-${id}">${thumb}</span>
-                    <span class="img-name-tag">${imgName ? escAttr(imgName) : 'Immagine'}</span>
+                    <span class="img-name-tag">${imgName ? escAttr(imgName) : T('vocab.immagine')}</span>
                 </label>
             </div>
             <input type="hidden" class="row-img-name" value="${imgName ? escAttr(imgName) : ''}">
@@ -749,7 +526,7 @@ function deleteRow(btn){
 function updateRowCountChip(){
     const n = document.querySelectorAll('#fcRows .fc-row').length;
     const chip = document.getElementById('row-count-chip');
-    if (chip) chip.textContent = n + (n === 1 ? ' parola' : ' parole');
+    if (chip) chip.textContent = n + T(n === 1 ? 'vocab.n_parola' : 'vocab.n_parole');
 }
 function toggleEmptyHint(){
     const hint = document.getElementById('emptyHint');
@@ -760,10 +537,10 @@ function updateGenerateButtonState(){
     const btn = document.getElementById('btn-generate-table');
     if (list.children.length > 0){
         btn.classList.remove('btn-warn'); btn.classList.add('btn-flat-warn');
-        btn.innerHTML = '⚠️ Tabella piena — tocca per ricreare';
+        btn.innerHTML = T('vocab.ib_tabella_piena');
     } else {
         btn.classList.add('btn-warn'); btn.classList.remove('btn-flat-warn');
-        btn.innerHTML = ICON_GEN + ' Genera Tabella Dati';
+        btn.innerHTML = ICON_GEN + T('vocab.ib_genera_tabella');
     }
     updateRowCountChip();
     toggleEmptyHint();
@@ -778,15 +555,15 @@ document.getElementById('bigForm').addEventListener('submit', async function(e){
     e.preventDefault();
 
     const catId = document.getElementById('categoryInput').value;
-    if (!catId || catId === '0') { showToast('Scegli prima una categoria', 'error'); openCatSheet(); return; }
+    if (!catId || catId === '0') { showToast(T('vocab.ib_prima_categoria'), 'error'); openCatSheet(); return; }
 
     const rows = document.querySelectorAll('#fcRows .fc-row');
-    if (rows.length === 0) { showToast('Aggiungi almeno una parola', 'error'); return; }
+    if (rows.length === 0) { showToast(T('vocab.ib_almeno_una'), 'error'); return; }
 
     const subBtn = document.getElementById('submitBtn');
     const originalHTML = subBtn.innerHTML;
     subBtn.disabled = true;
-    subBtn.innerHTML = 'Salvataggio in corso…';
+    subBtn.innerHTML = T('vocab.mi_salvataggio');
 
     const fd = new FormData();
     fd.append('action', 'insert_bulk');
@@ -816,12 +593,12 @@ document.getElementById('bigForm').addEventListener('submit', async function(e){
             window.scrollTo({ top: 0, behavior: 'smooth' });
             setTimeout(() => { window.location.href = 'visualizzazione.php?category_id=' + data.category_id; }, 2200);
         } else {
-            showToast('Errore: ' + (data.error || 'sconosciuto'), 'error');
+            showToast('Errore: ' + (data.error || T('vocab.ib_sconosciuto')), 'error');
             subBtn.disabled = false;
             subBtn.innerHTML = originalHTML;
         }
     } catch (err) {
-        showToast('Errore di connessione', 'error');
+        showToast(T('vocab.ib_errore_conn'), 'error');
         subBtn.disabled = false;
         subBtn.innerHTML = originalHTML;
     }

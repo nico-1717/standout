@@ -8,35 +8,11 @@ require_once 'auth_check.php'; // 1. Protezione della pagina con login obbligato
 
 
 
-$current_user_id = $utente_corrente['id']; // 2. ID Utente sicuro dal server
-
-
-
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+$current_user_id = (int)$utente_corrente['id']; // 2. ID Utente sicuro dal server
+/* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
+$conn = sec_db();
 if (!isset($_GET['game_id'])) { header('Location: index.php'); exit; }
-
-
-
-
-
-
-
-$game_id = intval($_GET['game_id']);
+$game_id = sec_int($_GET['game_id'] ?? 0, 1);
 
 
 
@@ -53,52 +29,33 @@ $game_id = intval($_GET['game_id']);
 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_user_id'])) {
+    /* Token di sessione, origine e limite di frequenza. L'id dell'utente viene
+       dalla sessione (il new_user_id del modulo si ignora), quindi non c'era una
+       falla; ma senza CSRF un altro sito poteva far assegnare a te una partita
+       orfana dal tuo browser. */
+    sec_guard_write($current_user_id, 'fc_result', 0, 30, 60);
 
-    // SICUREZZA: Sovrascriviamo l'ID del form usando solo l'ID dell'utente autenticato
-    $new_user_id = $current_user_id;
-
-    // Controlliamo che la partita appartenga già a lui o sia attualmente non assegnata (0 o NULL)
-    $check_stmt = $conn->prepare("SELECT user_id FROM games WHERE id = ?");
-    $check_stmt->bind_param("i", $game_id);
-    $check_stmt->execute();
-    $res_check = $check_stmt->get_result()->fetch_assoc();
-    $check_stmt->close();
-
-    if ($res_check && ($res_check['user_id'] == null || intval($res_check['user_id']) === 0 || intval($res_check['user_id']) === $current_user_id)) {
-        $upd_stmt = $conn->prepare("UPDATE games SET user_id = ? WHERE id = ?");
-        $upd_stmt->bind_param("ii", $new_user_id, $game_id);
-        $upd_stmt->execute();
-        $upd_stmt->close();
+    /* Si adotta solo una partita che e' gia' tua, o che non ha proprietario. */
+    $res_check = sec_one("SELECT user_id FROM games WHERE id = ?", [$game_id]);
+    if ($res_check && ($res_check['user_id'] === null || (int)$res_check['user_id'] === 0
+                       || (int)$res_check['user_id'] === $current_user_id)) {
+        sec_q("UPDATE games SET user_id = ? WHERE id = ?", [$current_user_id, $game_id]);
     } else {
-        die("Errore di sicurezza: Non sei autorizzato a modificare questa partita.");
+        die(sec_h(t('fc.res_non_autorizzato')));
     }
 }
 
-$query = "SELECT g.*, u.username FROM games g LEFT JOIN users u ON g.user_id = u.id WHERE g.id = ?";
-
-$stmt = $conn->prepare($query);
-$stmt->bind_param("i", $game_id);
-$stmt->execute();
-$game = $stmt->get_result()->fetch_assoc();
-$stmt->close(); // Chiudi lo statement
-
-// --- INIZIO CONTROLLO PROPRIETÀ ---
-if ($game) {
-    if (intval($game['user_id']) !== $current_user_id) {
-        die("Errore di sicurezza: Non sei il proprietario di questa partita.");
-    }
-} else {
-    die("Partita non trovata.");
-}
+$game = sec_one("SELECT g.*, u.username FROM games g LEFT JOIN users u ON g.user_id = u.id WHERE g.id = ?",
+                [$game_id]);
+// --- CONTROLLO PROPRIETÀ ---
+if (!$game) { die(sec_h(t('fc.res_partita_non_trovata'))); }
+if ((int)$game['user_id'] !== $current_user_id) { die(sec_h(t('fc.res_non_proprietario'))); }
 // --- FINE CONTROLLO PROPRIETÀ ---
 
 // ================= DURATA TOTALE PARTITA (somma di tutte le sessioni) =================
 
-$q_durata = mysqli_query($conn, "SELECT COALESCE(SUM(duration_seconds),0) as tot FROM session_durations WHERE game_id = $game_id");
-
-
-
-$durata_totale_secondi = $q_durata ? (int) mysqli_fetch_assoc($q_durata)['tot'] : 0;
+$durata_totale_secondi = (int)(sec_one("SELECT COALESCE(SUM(duration_seconds),0) AS tot FROM session_durations WHERE game_id = ?",
+                                       [$game_id])['tot'] ?? 0);
 
 
 
@@ -151,30 +108,38 @@ $durata_display = fc_formatta_durata($durata_totale_secondi);
 
 
 // FETCH DI TUTTI I GAMEPLAYS (Padri e Figli) - Aggiornato su fc_gameplays
-$q_play = "SELECT * FROM fc_gameplays WHERE game_id = $game_id ORDER BY position ASC, id ASC";
-
-$res_play = mysqli_query($conn, $q_play);
-
+$gameplays = sec_all("SELECT * FROM fc_gameplays WHERE game_id = ? ORDER BY position ASC, id ASC", [$game_id]);
 $cards = [];
 $played_items = 0;
 $correct_count = 0;
 $error_count = 0;
 $positions_played = [];
 
-while ($gp = mysqli_fetch_assoc($res_play)) {
+/* Le schede si prendono con DUE query invece di una per carta giocata: con
+   cinquanta carte erano cinquanta viaggi al database, uno dietro l'altro. */
+$idPadri = []; $idFigli = [];
+foreach ($gameplays as $gp) {
+    if (!empty($gp['fc_image_id']) && (int)$gp['fc_image_id'] > 0) $idPadri[] = (int)$gp['fc_image_id'];
+    elseif (!empty($gp['fc_child_id']) && (int)$gp['fc_child_id'] > 0) $idFigli[] = (int)$gp['fc_child_id'];
+}
+$padri = []; $figli = [];
+if ($idPadri) {
+    $ph = implode(',', array_fill(0, count($idPadri), '?'));
+    foreach (sec_all("SELECT id, question_image, question_desc, answer_image, answer_desc
+                      FROM fc_images WHERE id IN ($ph)", $idPadri) as $r) $padri[(int)$r['id']] = $r;
+}
+if ($idFigli) {
+    $ph = implode(',', array_fill(0, count($idFigli), '?'));
+    foreach (sec_all("SELECT id_child, question_image, question_desc, answer_image, answer_desc
+                      FROM fc_child_cards WHERE id_child IN ($ph)", $idFigli) as $r) $figli[(int)$r['id_child']] = $r;
+}
 
-    // Se fc_image_id è valorizzato, stiamo leggendo un concetto principale (Padre)
-    if (!empty($gp['fc_image_id']) && intval($gp['fc_image_id']) > 0) {
-        $id = intval($gp['fc_image_id']);
-        $c_res = mysqli_query($conn, "SELECT question_image, question_desc, answer_image, answer_desc FROM fc_images WHERE id = $id");
-        $card = mysqli_fetch_assoc($c_res);
+foreach ($gameplays as $gp) {
+    if (!empty($gp['fc_image_id']) && (int)$gp['fc_image_id'] > 0) {
+        $card = $padri[(int)$gp['fc_image_id']] ?? null;
         if ($card) $card['is_child'] = false;
-        
-    // Altrimenti, se è valorizzato fc_child_id, stiamo leggendo una sotto-carta (Figlio)
-    } else if (!empty($gp['fc_child_id']) && intval($gp['fc_child_id']) > 0) {
-        $real_id = intval($gp['fc_child_id']);
-        $c_res = mysqli_query($conn, "SELECT question_image, question_desc, answer_image, answer_desc FROM fc_child_cards WHERE id_child = $real_id");
-        $card = mysqli_fetch_assoc($c_res);
+    } elseif (!empty($gp['fc_child_id']) && (int)$gp['fc_child_id'] > 0) {
+        $card = $figli[(int)$gp['fc_child_id']] ?? null;
         if ($card) $card['is_child'] = true;
     } else {
         $card = null;
@@ -322,21 +287,21 @@ $stmt_up->close();
 
 $is_learnt = (strpos($game['type'], '_L') !== false) ? 1 : 0;
 $total_pages = $game['total_father_words'] > 0 ? $game['total_father_words'] : max($played_positions_count, 1);
-$display_username = isset($game['username']) ? htmlspecialchars($game['username']) : 'Utente Sconosciuto';
+$display_username = isset($game['username']) ? sec_h($game['username']) : t('fc.res_utente_sconosciuto');
 
 // ==========================================
 // FIX RESUME INTELLIGENTE "CONTINUA PARTITA"
 // ==========================================
 
-$q_resume = mysqli_query($conn, "SELECT MIN(position) as resume_pos FROM fc_gameplays WHERE game_id = $game_id AND user_answer = ''");
-$row_resume = mysqli_fetch_assoc($q_resume);
+$q_resume = sec_one("SELECT MIN(position) AS resume_pos FROM fc_gameplays WHERE game_id = ? AND user_answer = ''", [$game_id]);
+$row_resume = $q_resume;
 if ($row_resume && $row_resume['resume_pos']) {
     // C'è una domanda (o figlio) non risposta, riprendiamo da qui!
     $resume_position = $row_resume['resume_pos'];
 } else {
     // Tutte le domande attuali sono risposte, passiamo alla prossima posizione inedita
-    $q_max = mysqli_query($conn, "SELECT MAX(position) as max_pos FROM fc_gameplays WHERE game_id = $game_id");
-    $row_max = mysqli_fetch_assoc($q_max);
+    $q_max = sec_one("SELECT MAX(position) AS max_pos FROM fc_gameplays WHERE game_id = ?", [$game_id]);
+    $row_max = $q_max;
     $resume_position = ($row_max && $row_max['max_pos']) ? $row_max['max_pos'] + 1 : 1;
 }
 ?>
@@ -371,7 +336,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-    <title>Risultato · Materie</title>
+    <title><?php te('fc.res_titolo'); ?></title>
 
 
 
@@ -393,7 +358,8 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-    <script>
+    <?php echo nisama_i18n_json(['comune', 'fc', 'vocab']); ?>
+<script>
 
 
 
@@ -433,1639 +399,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-    <style>
-
-
-
-        /* ================================================================
-
-
-
-           DESIGN SYSTEM — stesso linguaggio di game_fc (iOS, light+dark)
-
-
-
-           ================================================================ */
-
-
-
-        :root{
-
-
-
-            color-scheme: light dark;
-
-
-
-            --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-
-
-
-            --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-
-
-
-            --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-
-
-
-            --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-
-
-
-            --blue-soft:rgba(0,122,255,.09);
-
-
-
-            --g-fill:#E7F8ED; --g-ink:#1E8A44; --g-line:rgba(52,199,89,.85); --g-sh:rgba(52,199,89,.34);
-
-
-
-            --r-fill:#FDECEC; --r-ink:#D70015; --r-line:rgba(255,59,48,.8);  --r-sh:rgba(255,59,48,.3);
-
-
-
-            --w-fill:#FFF3E0; --w-ink:#C77700; --w-line:rgba(255,149,0,.7);  --w-sh:rgba(255,149,0,.28);
-
-
-
-            --chip-bg:#FFFFFF;
-
-
-
-            --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-
-
-
-            --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
-
-
-
-            --pill-hl:inset 0 0 0 .5px var(--hairline);
-
-
-
-            --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-
-
-
-            --header-glass:rgba(249,249,251,.82);
-
-
-
-            --spring:cubic-bezier(.32,.72,0,1);
-
-
-
-            --safe-top:env(safe-area-inset-top, 0px);
-
-
-
-            --safe-bottom:env(safe-area-inset-bottom, 0px);
-
-
-
-        }
-
-
-
-        @media (prefers-color-scheme: dark){
-
-
-
-            :root{
-
-
-
-                --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-
-
-
-                --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-
-
-
-                --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-
-
-
-                --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-
-
-
-                --blue-soft:rgba(10,132,255,.16);
-
-
-
-                --g-fill:rgba(48,209,88,.15); --g-ink:#4CE07E; --g-line:rgba(48,209,88,.75); --g-sh:rgba(48,209,88,.5);
-
-
-
-                --r-fill:rgba(255,69,58,.16); --r-ink:#FF6F68; --r-line:rgba(255,69,58,.75); --r-sh:rgba(255,69,58,.45);
-
-
-
-                --w-fill:rgba(255,159,10,.16); --w-ink:#FFB340; --w-line:rgba(255,159,10,.65); --w-sh:rgba(255,159,10,.4);
-
-
-
-                --chip-bg:#3A3A3C;
-
-
-
-                --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-
-
-
-                --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
-
-
-
-                --pill-hl:inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 .5px var(--hairline);
-
-
-
-                --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-
-
-
-                --header-glass:rgba(16,16,18,.78);
-
-
-
-            }
-
-
-
-        }
-
-
-
-
-
-
-
-        *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
-
-
-        html{ -webkit-text-size-adjust:100%; }
-
-
-
-        body{
-
-
-
-            margin:0; background:var(--bg); color:var(--text);
-
-
-
-            font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
-
-
-
-            font-size:16px; line-height:1.45; -webkit-font-smoothing:antialiased;
-
-
-
-        }
-
-
-
-
-
-
-
-        /* ---------------- Header vetro ---------------- */
-
-
-
-        .app-header{
-
-
-
-            position:sticky; top:0; z-index:400;
-
-
-
-            padding:calc(var(--safe-top) + 12px) 16px 12px; text-align:center;
-
-
-
-            background:var(--header-glass);
-
-
-
-            -webkit-backdrop-filter:saturate(1.8) blur(22px); backdrop-filter:saturate(1.8) blur(22px);
-
-
-
-            border-bottom:.5px solid var(--hairline);
-
-
-
-        }
-
-
-
-        .hd-eyebrow{ font-size:10.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--text-3); }
-
-
-
-        h1{ margin:2px 0 0; font-size:21px; font-weight:800; letter-spacing:-.02em; color:var(--text); }
-
-
-
-
-
-
-
-        .page{ max-width:700px; margin:0 auto; padding:16px 14px calc(120px + var(--safe-bottom)); }
-
-
-
-
-
-
-
-        /* ---------------- Hero punteggio ---------------- */
-
-
-
-        .hero-card{
-
-
-
-            position:relative; overflow:hidden;
-
-
-
-            background:var(--surface); border-radius:26px; border:.5px solid var(--hairline);
-
-
-
-            box-shadow:var(--shadow-card); padding:26px 16px 16px; text-align:center;
-
-
-
-        }
-
-
-
-        .hero-card::before{ content:""; position:absolute; inset:0; pointer-events:none; }
-
-
-
-        .hero-card.s-high::before{ background:radial-gradient(70% 45% at 50% 0%, rgba(48,209,88,.13), transparent 70%); }
-
-
-
-        .hero-card.s-mid::before { background:radial-gradient(70% 45% at 50% 0%, rgba(255,159,10,.13), transparent 70%); }
-
-
-
-        .hero-card.s-low::before { background:radial-gradient(70% 45% at 50% 0%, rgba(255,69,58,.12), transparent 70%); }
-
-
-
-
-
-
-
-        .ring-wrap{ position:relative; width:176px; height:176px; margin:0 auto 8px; }
-
-
-
-        .s-high .ring-wrap, .ring-wrap.s-high{ color:var(--green); }
-
-
-
-        .s-mid  .ring-wrap, .ring-wrap.s-mid { color:var(--orange); }
-
-
-
-        .s-low  .ring-wrap, .ring-wrap.s-low { color:var(--red); }
-
-
-
-        .ring-wrap svg{ width:100%; height:100%; transform:rotate(-90deg); display:block; }
-
-
-
-        .ring-bg{ fill:none; stroke:var(--hairline); stroke-width:11; }
-
-
-
-        .ring-fg{ fill:none; stroke-width:11; stroke-linecap:round; }
-
-
-
-        .s-high .ring-fg{ filter:drop-shadow(0 0 9px rgba(48,209,88,.45)); }
-
-
-
-        .s-mid  .ring-fg{ filter:drop-shadow(0 0 9px rgba(255,159,10,.4)); }
-
-
-
-        .s-low  .ring-fg{ filter:drop-shadow(0 0 9px rgba(255,69,58,.4)); }
-
-
-
-        .ring-center{
-
-
-
-            position:absolute; inset:0; display:flex; flex-direction:column;
-
-
-
-            align-items:center; justify-content:center; gap:2px;
-
-
-
-        }
-
-
-
-        .score-line{ display:flex; align-items:baseline; gap:2px; color:currentColor; font-variant-numeric:tabular-nums; }
-
-
-
-        .score-line #scoreNum{ font-size:42px; font-weight:800; letter-spacing:-.03em; line-height:1; }
-
-
-
-        .score-line .pct{ font-size:19px; font-weight:800; }
-
-
-
-        .score-eyebrow{ font-size:10px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--text-2); }
-
-
-
-
-
-
-
-        /* utente */
-
-
-
-        .user-line{
-
-
-
-            display:inline-flex; align-items:center; gap:7px; margin-top:4px;
-
-
-
-            font-size:15px; font-weight:700; color:var(--text);
-
-
-
-        }
-
-
-
-        .user-line .u-ic{ font-size:14px; }
-
-
-
-        .edit-icon{ cursor:pointer; font-size:13px; opacity:.55; transition:opacity .2s; }
-
-
-
-        .edit-icon:hover{ opacity:1; }
-
-
-
-        .edit-input{
-
-
-
-            flex:1; min-width:0; padding:11px 34px 11px 13px; font-family:inherit; font-size:15px; font-weight:600;
-
-
-
-            color:var(--text); background-color:var(--surface-2);
-
-
-
-            border:.5px solid var(--hairline-2); border-radius:12px;
-
-
-
-            -webkit-appearance:none; appearance:none;
-
-
-
-            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%238A8A8E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-
-
-
-            background-repeat:no-repeat; background-position:right 11px center;
-
-
-
-        }
-
-
-
-        .save-btn{
-
-
-
-            border:none; border-radius:12px; padding:11px 16px; cursor:pointer;
-
-
-
-            font-family:inherit; font-size:14px; font-weight:800; color:var(--g-ink);
-
-
-
-            background:var(--g-fill);
-
-
-
-            box-shadow:inset 0 0 0 1.5px var(--g-line), 0 5px 14px -5px var(--g-sh);
-
-
-
-            transition:transform .15s var(--spring);
-
-
-
-        }
-
-
-
-        .cancel-btn{
-
-
-
-            border:none; border-radius:12px; padding:11px 14px; cursor:pointer;
-
-
-
-            font-family:inherit; font-size:14px; font-weight:700; color:var(--text-2);
-
-
-
-            background:var(--chip-bg); box-shadow:var(--pill-hl), var(--raise-sm);
-
-
-
-            transition:transform .15s var(--spring);
-
-
-
-        }
-
-
-
-        .save-btn:active, .cancel-btn:active{ transform:scale(.94); }
-
-
-
-
-
-
-
-        /* statistiche */
-
-
-
-        .stats-grid{ display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-top:18px; }
-
-
-
-        .stats-grid .stat.tm{ grid-column:1 / -1; }
-
-
-
-        @media (min-width:560px){
-
-
-
-            .stats-grid{ grid-template-columns:repeat(5, 1fr); }
-
-
-
-            .stats-grid .stat.tm{ grid-column:auto; }
-
-
-
-        }
-
-
-
-        .stat{
-
-
-
-            background:var(--surface-2); border-radius:16px; padding:13px 8px 11px;
-
-
-
-            box-shadow:inset 0 0 0 .5px var(--hairline);
-
-
-
-        }
-
-
-
-        .stat-num{ font-size:24px; font-weight:800; letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1.1; color:var(--text); }
-
-
-
-        .stat-num span{ font-size:14px; font-weight:700; color:var(--text-3); }
-
-
-
-        .stat-lab{ margin-top:3px; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--text-2); }
-
-
-
-        .stat.ok .stat-num{ color:var(--g-ink); }
-
-
-
-        .stat.ko .stat-num{ color:var(--r-ink); }
-
-
-
-        .stat.pg .stat-num{ color:var(--blue); }
-
-
-
-        .stat.tm .stat-num{ color:var(--purple); font-size:20px; }
-
-
-
-
-
-
-
-        /* ---------------- Revisione carte ---------------- */
-
-
-
-        .sec-title{
-
-
-
-            display:flex; align-items:center; gap:9px; margin:26px 4px 12px;
-
-
-
-            font-size:11.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--text-2);
-
-
-
-        }
-
-
-
-        .sec-title::after{ content:""; flex:1; height:.5px; background:var(--hairline); }
-
-
-
-        .sec-count{
-
-
-
-            background:var(--surface-2); color:var(--text-2);
-
-
-
-            padding:3px 10px; border-radius:99px; font-size:11px; font-weight:800; letter-spacing:0;
-
-
-
-            box-shadow:inset 0 0 0 .5px var(--hairline);
-
-
-
-        }
-
-
-
-
-
-
-
-        .rev-card{
-
-
-
-            background:var(--surface); border-radius:22px; border:.5px solid var(--hairline);
-
-
-
-            box-shadow:var(--shadow-card); padding:15px 16px 12px; margin-bottom:14px;
-
-
-
-        }
-
-
-
-        .rev-head{
-
-
-
-            display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:2px;
-
-
-
-        }
-
-
-
-        .rev-head-l{
-
-
-
-            display:flex; align-items:center; gap:7px;
-
-
-
-            font-size:10.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--text-3);
-
-
-
-        }
-
-
-
-        .rev-head-l::before{ content:""; width:5px; height:5px; border-radius:50%; background:var(--blue); flex-shrink:0; }
-
-
-
-        .rev-jump{
-
-
-
-            display:inline-flex; align-items:center; gap:3px; text-decoration:none;
-
-
-
-            font-size:12px; font-weight:800; color:var(--blue);
-
-
-
-            padding:6px 11px; border-radius:99px; background:var(--blue-soft);
-
-
-
-            transition:transform .15s var(--spring);
-
-
-
-        }
-
-
-
-        .rev-jump:active{ transform:scale(.92); }
-
-
-
-        .rev-jump svg{ width:12px; height:12px; }
-
-
-
-
-
-
-
-        .rev-entry{ padding:11px 0 6px; }
-
-
-
-        .rev-entry + .rev-entry{ border-top:1px dashed var(--hairline-2); margin-top:6px; }
-
-
-
-        .rev-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
-
-
-
-        .numb{
-
-
-
-            display:inline-flex; align-items:center; justify-content:center; gap:3px;
-
-
-
-            min-width:26px; height:24px; padding:0 8px; border-radius:9px;
-
-
-
-            font-size:11.5px; font-weight:800; font-variant-numeric:tabular-nums;
-
-
-
-        }
-
-
-
-        .numb.padre{ background:var(--blue-soft); color:var(--blue); }
-
-
-
-        .numb.figlio{ background:rgba(255,149,0,.13); color:var(--orange); }
-
-
-
-
-
-
-
-        .oc-pill{
-
-
-
-            display:inline-flex; align-items:center; gap:6px;
-
-
-
-            padding:6px 12px; border-radius:99px;
-
-
-
-            font-size:12.5px; font-weight:800; letter-spacing:.01em;
-
-
-
-        }
-
-
-
-        .oc-pill .gi{ font-size:13px; font-weight:800; line-height:1; }
-
-
-
-        .oc-pill.ok{ color:var(--g-ink); background:var(--g-fill); box-shadow:inset 0 0 0 1.5px var(--g-line), 0 4px 10px -4px var(--g-sh); }
-
-
-
-        .oc-pill.ko{ color:var(--r-ink); background:var(--r-fill); box-shadow:inset 0 0 0 1.5px var(--r-line), 0 4px 10px -4px var(--r-sh); }
-
-
-
-        .oc-pill.wait{ color:var(--w-ink); background:var(--w-fill); box-shadow:inset 0 0 0 1.5px var(--w-line), 0 4px 10px -4px var(--w-sh); }
-
-
-
-
-
-
-
-        .fc-img{ max-height:130px; max-width:100%; border-radius:12px; display:block; margin:0 0 8px; border:.5px solid var(--hairline); }
-
-
-
-        .raw-text{
-
-
-
-            font-size:15.5px; font-weight:600; line-height:1.5; letter-spacing:-.01em;
-
-
-
-            color:var(--text); margin:0; text-align:left;
-
-
-
-            white-space:pre-wrap; word-wrap:break-word;
-
-
-
-        }
-
-
-
-        .raw-text mjx-container{ max-width:100%; overflow-x:auto; overflow-y:hidden; }
-
-
-
-        .scroll-text{ max-height:160px; overflow-y:auto; padding-right:4px; }
-
-
-
-        .scroll-text::-webkit-scrollbar{ width:4px; }
-
-
-
-        .scroll-text::-webkit-scrollbar-thumb{ background:var(--hairline-2); border-radius:4px; }
-
-
-
-
-
-
-
-        .rev-a{
-
-
-
-            margin-top:10px; padding:11px 12px 10px;
-
-
-
-            background:var(--blue-soft); border-radius:14px;
-
-
-
-        }
-
-
-
-        .rev-a-label{
-
-
-
-            display:flex; align-items:center; gap:7px; margin-bottom:6px;
-
-
-
-            font-size:10px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; color:var(--blue);
-
-
-
-        }
-
-
-
-        .rev-a-label::after{ content:""; flex:1; height:.5px; background:var(--hairline); }
-
-
-
-        .rev-a .raw-text{ font-size:14.5px; font-weight:450; }
-
-
-
-
-
-
-
-        .empty-card{
-
-
-
-            background:var(--surface); border-radius:22px; border:.5px solid var(--hairline);
-
-
-
-            box-shadow:var(--shadow-card); padding:34px 20px; text-align:center; color:var(--text-2);
-
-
-
-            font-size:15px; font-weight:600;
-
-
-
-        }
-
-
-
-
-
-
-
-        /* ---------------- Barra inferiore fissa ---------------- */
-
-
-
-        .bottom-bar{
-
-
-
-            position:fixed; left:0; right:0; bottom:0; z-index:500;
-
-
-
-            padding:12px 16px calc(12px + var(--safe-bottom));
-
-
-
-            background:var(--header-glass);
-
-
-
-            -webkit-backdrop-filter:saturate(1.8) blur(22px); backdrop-filter:saturate(1.8) blur(22px);
-
-
-
-            border-top:.5px solid var(--hairline);
-
-
-
-        }
-
-
-
-        .btn-continue{
-
-
-
-            display:flex; align-items:center; justify-content:center; gap:8px;
-
-
-
-            width:100%; max-width:668px; margin:0 auto; padding:16px;
-
-
-
-            border-radius:16px; text-decoration:none; cursor:pointer;
-
-
-
-            font-size:17px; font-weight:800; letter-spacing:-.01em; color:#fff;
-
-
-
-            background:var(--blue);
-
-
-
-            background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%));
-
-
-
-            box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 12px 26px -8px rgba(10,132,255,.55);
-
-
-
-            transition:transform .16s var(--spring), box-shadow .2s var(--spring), filter .2s;
-
-
-
-        }
-
-
-
-        .btn-continue svg{ width:17px; height:17px; }
-
-
-
-        .btn-continue:active{
-
-
-
-            transform:translateY(1.5px) scale(.985); filter:brightness(.96);
-
-
-
-            box-shadow:inset 0 1px 0 rgba(255,255,255,.1), inset 0 3px 8px rgba(0,0,0,.18), 0 4px 10px -5px rgba(10,132,255,.5);
-
-
-
-        }
-
-
-
-        .btn-continue.is-done{
-
-
-
-            pointer-events:none; color:var(--text-3); background:var(--surface-2);
-
-
-
-            box-shadow:inset 0 0 0 .5px var(--hairline);
-
-
-
-        }
-
-
-
-
-
-
-
-        .sec-sub{ margin:-6px 4px 12px; font-size:12px; font-weight:600; color:var(--text-3); }
-
-
-
-
-
-
-
-        /* ---------------- Tiles azione (pulsanti rivoluzionati) ---------------- */
-
-
-
-        .act-grid{ display:grid; gap:10px; margin-top:18px; }
-
-
-
-        .act-grid.cols-3{ grid-template-columns:repeat(3, 1fr); }
-
-
-
-        .act-grid.cols-2{ grid-template-columns:repeat(2, 1fr); }
-
-
-
-        .act-tile{
-
-
-
-            position:relative; display:flex; flex-direction:column; align-items:center; gap:8px;
-
-
-
-            padding:15px 6px 12px; border:none; border-radius:18px; cursor:pointer; text-decoration:none;
-
-
-
-            font-family:inherit; background:var(--chip-bg);
-
-
-
-            box-shadow:var(--pill-hl), var(--raise-sm);
-
-
-
-            transition:transform .18s var(--spring), box-shadow .2s var(--spring);
-
-
-
-        }
-
-
-
-        .act-tile:active{ transform:scale(.93); box-shadow:var(--pill-hl), inset 0 2px 6px rgba(0,0,0,.09); }
-
-
-
-        .t-ic{
-
-
-
-            width:42px; height:42px; border-radius:14px;
-
-
-
-            display:flex; align-items:center; justify-content:center;
-
-
-
-        }
-
-
-
-        .t-ic svg{ width:21px; height:21px; }
-
-
-
-        .t-lab{ font-size:12.5px; font-weight:800; letter-spacing:-.01em; color:var(--text); }
-
-
-
-        .t-purple .t-ic{ color:var(--purple); background:rgba(175,82,222,.13); box-shadow:inset 0 0 0 1.5px rgba(175,82,222,.5), 0 4px 10px -4px rgba(175,82,222,.45); }
-
-
-
-        .t-red .t-ic{ color:var(--r-ink); background:var(--r-fill); box-shadow:inset 0 0 0 1.5px var(--r-line), 0 4px 10px -4px var(--r-sh); }
-
-
-
-        .t-blue .t-ic{ color:var(--blue); background:var(--blue-soft); box-shadow:inset 0 0 0 1.5px rgba(0,122,255,.45), 0 4px 10px -4px rgba(10,132,255,.4); }
-
-
-
-        .t-badge{
-
-
-
-            position:absolute; top:7px; right:9px; min-width:20px; height:20px; padding:0 6px;
-
-
-
-            border-radius:99px; display:flex; align-items:center; justify-content:center;
-
-
-
-            font-size:11px; font-weight:800; color:#fff;
-
-
-
-            background:linear-gradient(180deg, #FF6B60, #FF3B30);
-
-
-
-            box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 3px 8px -2px rgba(255,59,48,.6);
-
-
-
-        }
-
-
-
-
-
-
-
-        /* Le carte della revisione invitano al tocco */
-
-
-
-        .rev-entry{ cursor:pointer; transition:transform .15s var(--spring); }
-
-
-
-        .rev-entry:active{ transform:scale(.988); }
-
-
-
-
-
-
-
-        /* ---------------- CTA "Continua" viva: respiro + riflesso + spinta ---------------- */
-
-
-
-        .btn-continue{ position:relative; overflow:hidden; }
-
-
-
-        .btn-continue:not(.is-done){ animation:ctaBreathe 3.4s ease-in-out 1.4s infinite; }
-
-
-
-        .btn-continue:not(.is-done)::after{
-
-
-
-            content:""; position:absolute; inset:-2px; pointer-events:none;
-
-
-
-            background:linear-gradient(115deg, transparent 32%, rgba(255,255,255,.35) 48%, transparent 62%);
-
-
-
-            transform:translateX(-160%);
-
-
-
-            animation:ctaSheen 3.4s ease-in-out 2s infinite;
-
-
-
-        }
-
-
-
-        .btn-continue:not(.is-done) svg{ animation:ctaNudge 3.4s ease-in-out infinite; }
-
-
-
-        @keyframes ctaBreathe{
-
-
-
-            0%, 100%{ box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 12px 26px -8px rgba(10,132,255,.55); }
-
-
-
-            50%{ box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 17px 36px -8px rgba(10,132,255,.85); }
-
-
-
-        }
-
-
-
-        @keyframes ctaSheen{ 0%, 58%{ transform:translateX(-160%); } 84%, 100%{ transform:translateX(160%); } }
-
-
-
-        @keyframes ctaNudge{ 0%, 60%, 100%{ transform:translateX(0); } 72%{ transform:translateX(4px); } 84%{ transform:translateX(0); } }
-
-
-
-
-
-
-
-        /* ================================================================
-
-
-
-           VISORE FLASHCARD — flip 3D, swipe, trascina giù per chiudere
-
-
-
-           ================================================================ */
-
-
-
-        body.fcv-lock{ overflow:hidden; }
-
-
-
-        .fcv{
-
-
-
-            position:fixed; inset:0; z-index:3000;
-
-
-
-            display:flex; flex-direction:column;
-
-
-
-            visibility:hidden; pointer-events:none;
-
-
-
-            transition:visibility 0s .36s;
-
-
-
-        }
-
-
-
-        .fcv.on{ visibility:visible; pointer-events:auto; transition:visibility 0s 0s; }
-
-
-
-        .fcv-back{
-
-
-
-            position:absolute; inset:0;
-
-
-
-            background:rgba(8,8,10,.62);
-
-
-
-            -webkit-backdrop-filter:blur(16px) saturate(1.3); backdrop-filter:blur(16px) saturate(1.3);
-
-
-
-            opacity:0; transition:opacity .32s ease;
-
-
-
-        }
-
-
-
-        .fcv.on .fcv-back{ opacity:1; }
-
-
-
-        .fcv-top, .fcv-progress, .fcv-nav{ opacity:0; transition:opacity .3s ease .06s; }
-
-
-
-        .fcv.on .fcv-top, .fcv.on .fcv-progress, .fcv.on .fcv-nav{ opacity:1; }
-
-
-
-
-
-
-
-        .fcv-top{
-
-
-
-            position:relative; display:flex; align-items:center; justify-content:space-between; gap:10px;
-
-
-
-            padding:calc(var(--safe-top) + 12px) 16px 10px;
-
-
-
-        }
-
-
-
-        #fcvClose{
-
-
-
-            width:36px; height:36px; border:none; border-radius:50%; cursor:pointer; padding:0;
-
-
-
-            background:rgba(255,255,255,.16); color:#fff; font-size:14px; font-weight:700;
-
-
-
-            display:flex; align-items:center; justify-content:center;
-
-
-
-            -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
-
-
-
-        }
-
-
-
-        .fcv-count{ color:#fff; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:.02em; text-shadow:0 1px 8px rgba(0,0,0,.4); }
-
-
-
-        .fcv-progress{ position:relative; height:3px; margin:0 16px; border-radius:99px; background:rgba(255,255,255,.2); overflow:hidden; }
-
-
-
-        #fcvBar{ position:absolute; left:0; top:0; bottom:0; width:0; display:block; border-radius:99px; background:#fff; transition:width .35s var(--spring); }
-
-
-
-
-
-
-
-        .fcv-stage{
-
-
-
-            position:relative; flex:1; min-height:0;
-
-
-
-            display:flex; align-items:center; justify-content:center;
-
-
-
-            padding:16px; perspective:1500px;
-
-
-
-        }
-
-
-
-        .fcv-card{ position:relative; width:100%; max-width:540px; height:100%; max-height:min(64vh, 560px); }
-
-
-
-        .fcv-inner{
-
-
-
-            position:absolute; inset:0; transform-style:preserve-3d;
-
-
-
-            transition:transform .62s cubic-bezier(.34,1.22,.4,1);
-
-
-
-        }
-
-
-
-        .fcv-inner.flipped{ transform:rotateY(180deg); }
-
-
-
-        .fcv-face{
-
-
-
-            position:absolute; inset:0; overflow:hidden;
-
-
-
-            backface-visibility:hidden; -webkit-backface-visibility:hidden;
-
-
-
-            background:var(--surface); border-radius:26px; border:.5px solid var(--hairline);
-
-
-
-            box-shadow:0 26px 70px -18px rgba(0,0,0,.55);
-
-
-
-            padding:18px 18px 14px; display:flex; flex-direction:column;
-
-
-
-        }
-
-
-
-        .fcv-backface{
-
-
-
-            transform:rotateY(180deg);
-
-
-
-            background:var(--surface);
-
-
-
-            background:color-mix(in srgb, var(--surface), var(--blue) 6%);
-
-
-
-        }
-
-
-
-        .fcv-eyebrow{
-
-
-
-            display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-shrink:0;
-
-
-
-            font-size:11px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; color:var(--text-2);
-
-
-
-        }
-
-
-
-        .fcv-eyebrow::after{ content:""; flex:1; height:.5px; background:var(--hairline); }
-
-
-
-        .fcv-eyebrow.ans{ color:var(--blue); }
-
-
-
-        .fcv-body{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:2px 2px 6px; }
-
-
-
-        .fcv-body .scroll-text{ max-height:none; overflow:visible; padding:0; }
-
-
-
-        .fcv-body .fc-img{ max-height:34vh; margin:8px auto; border-radius:14px; }
-
-
-
-        .fcv-front .raw-text{ font-size:19px; font-weight:650; }
-
-
-
-        .fcv-backface .raw-text{ font-size:16.5px; font-weight:480; }
-
-
-
-        .fcv-hint{
-
-
-
-            flex-shrink:0; margin-top:8px; text-align:center;
-
-
-
-            font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--text-3);
-
-
-
-            animation:hintPulse 2.4s ease-in-out infinite;
-
-
-
-        }
-
-
-
-        @keyframes hintPulse{ 0%, 100%{ opacity:.5; } 50%{ opacity:1; } }
-
-
-
-
-
-
-
-        .fcv-nav{
-
-
-
-            position:relative; display:flex; align-items:center; justify-content:center; gap:26px;
-
-
-
-            padding:12px 16px calc(16px + var(--safe-bottom));
-
-
-
-        }
-
-
-
-        .fcv-nb{
-
-
-
-            width:52px; height:52px; border:none; border-radius:50%; cursor:pointer; padding:0;
-
-
-
-            background:rgba(255,255,255,.15); color:#fff;
-
-
-
-            display:flex; align-items:center; justify-content:center;
-
-
-
-            -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
-
-
-
-            box-shadow:inset 0 0 0 .5px rgba(255,255,255,.25);
-
-
-
-            transition:transform .15s var(--spring), opacity .2s;
-
-
-
-        }
-
-
-
-        .fcv-nb:active{ transform:scale(.86); }
-
-
-
-        .fcv-nb svg{ width:22px; height:22px; }
-
-
-
-        .fcv-nb.off{ opacity:.3; pointer-events:none; }
-
-
-
-        #fcvFlip{
-
-
-
-            width:66px; height:66px;
-
-
-
-            background:var(--purple);
-
-
-
-            background:linear-gradient(180deg, color-mix(in srgb, var(--purple), #fff 18%), var(--purple) 55%, color-mix(in srgb, var(--purple), #000 12%));
-
-
-
-            box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 12px 28px -6px rgba(175,82,222,.65);
-
-
-
-        }
-
-
-
-        #fcvFlip svg{ width:26px; height:26px; }
-
-
-
-
-
-
-
-        @media (prefers-reduced-motion: reduce){
-
-
-
-            *, *::before, *::after{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
-
-
-
-        }
-
-
-
-    </style>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>result_fc.css?v=<?php echo @filemtime(dirname(__FILE__) . '/result_fc.css') ?: 1; ?>">
 
 
 
@@ -2093,11 +427,11 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-        <div class="hd-eyebrow">Materie · Flashcard</div>
+        <div class="hd-eyebrow"><?php te('fc.res_materie_fc'); ?></div>
 
 
 
-        <h1>Risultato</h1>
+        <h1><?php te('fc.res_risultato'); ?></h1>
 
 
 
@@ -2129,7 +463,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-        <section class="hero-card <?php echo $score_class; ?>">
+        <section class="hero-card <?php echo sec_h($score_class); ?>">
 
 
 
@@ -2165,7 +499,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                    <circle class="ring-fg" id="scoreRing" cx="60" cy="60" r="52" stroke="url(#grad-<?php echo $score_class; ?>)"/>
+                    <circle class="ring-fg" id="scoreRing" cx="60" cy="60" r="52" stroke="url(#grad-<?php echo sec_h($score_class); ?>)"/>
 
 
 
@@ -2181,7 +515,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                    <div class="score-eyebrow">Punteggio</div>
+                    <div class="score-eyebrow"><?php te('fc.res_punteggio'); ?></div>
 
 
 
@@ -2207,11 +541,11 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                    <div class="stat-num"><span class="cnt" data-val="<?php echo $correct_count; ?>"><?php echo $correct_count; ?></span></div>
+                    <div class="stat-num"><span class="cnt" data-val="<?php echo (int)$correct_count; ?>"><?php echo (int)$correct_count; ?></span></div>
 
 
 
-                    <div class="stat-lab">Corrette</div>
+                    <div class="stat-lab"><?php te('fc.js_corrette'); ?></div>
 
 
 
@@ -2223,11 +557,11 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                    <div class="stat-num"><span class="cnt" data-val="<?php echo $error_count; ?>"><?php echo $error_count; ?></span></div>
+                    <div class="stat-num"><span class="cnt" data-val="<?php echo (int)$error_count; ?>"><?php echo (int)$error_count; ?></span></div>
 
 
 
-                    <div class="stat-lab">Errori</div>
+                    <div class="stat-lab"><?php te('fc.res_errori'); ?></div>
 
 
 
@@ -2239,11 +573,11 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                    <div class="stat-num"><span class="cnt" data-val="<?php echo $played_items; ?>"><?php echo $played_items; ?></span></div>
+                    <div class="stat-num"><span class="cnt" data-val="<?php echo (int)$played_items; ?>"><?php echo (int)$played_items; ?></span></div>
 
 
 
-                    <div class="stat-lab">Valutate</div>
+                    <div class="stat-lab"><?php te('fc.res_valutate'); ?></div>
 
 
 
@@ -2255,11 +589,11 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                    <div class="stat-num"><span class="cnt" data-val="<?php echo $played_positions_count; ?>"><?php echo $played_positions_count; ?></span><span> / <?php echo $total_pages; ?></span></div>
+                    <div class="stat-num"><span class="cnt" data-val="<?php echo (int)$played_positions_count; ?>"><?php echo (int)$played_positions_count; ?></span><span> / <?php echo (int)$total_pages; ?></span></div>
 
 
 
-                    <div class="stat-lab">Pagine</div>
+                    <div class="stat-lab"><?php te('fc.res_pagine'); ?></div>
 
 
 
@@ -2271,11 +605,11 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                    <div class="stat-num"><?php echo htmlspecialchars($durata_display); ?></div>
+                    <div class="stat-num"><?php echo sec_h($durata_display); ?></div>
 
 
 
-                    <div class="stat-lab">Durata</div>
+                    <div class="stat-lab"><?php te('fc.res_durata'); ?></div>
 
 
 
@@ -2303,7 +637,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                    <span class="t-lab">Flashcard</span>
+                    <span class="t-lab"><?php te('fc.flashcard'); ?></span>
 
 
 
@@ -2315,11 +649,11 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                    <a href="start_retry.php?parent_id=<?php echo $game_id; ?>" class="act-tile t-red">
+                    <a href="start_retry.php?parent_id=<?php echo (int)$game_id; ?>" class="act-tile t-red">
 
 
 
-                        <span class="t-badge"><?php echo $error_count; ?></span>
+                        <span class="t-badge"><?php echo (int)$error_count; ?></span>
 
 
 
@@ -2327,7 +661,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                        <span class="t-lab">Rigioca errori</span>
+                        <span class="t-lab"><?php te('fc.res_rigioca'); ?></span>
 
 
 
@@ -2347,7 +681,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                    <span class="t-lab">Storico</span>
+                    <span class="t-lab"><?php te('fc.js_storico'); ?></span>
 
 
 
@@ -2371,11 +705,11 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-        <div class="sec-title">Revisione carte <span class="sec-count"><?php echo count($cards); ?></span></div>
+        <div class="sec-title"><?php te('fc.res_revisione'); ?> <span class="sec-count"><?php echo count($cards); ?></span></div>
 
 
 
-        <div class="sec-sub">Tocca una carta per sfogliarla a schermo intero</div>
+        <div class="sec-sub"><?php te('fc.res_tocca_carta'); ?></div>
 
 
 
@@ -2387,7 +721,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-            <div class="empty-card">Nessuna carta giocata in questa partita.</div>
+            <div class="empty-card"><?php te('fc.res_nessuna_carta'); ?></div>
 
 
 
@@ -2426,9 +760,9 @@ if ($row_resume && $row_resume['resume_pos']) {
                 }
                 // Mettiamo colore e badge in base all'esito. Se vuoto = Da fare
                 if ($c['user_answer'] == 'Correct') {
-                    $oc_class = "ok"; $oc_icon = "&#10003;"; $oc_text = "Corretto";
+                    $oc_class = "ok"; $oc_icon = "&#10003;"; $oc_text = t('fc.res_corretto');
                 } elseif ($c['user_answer'] == 'Wrong') {
-                    $oc_class = "ko"; $oc_icon = "&#10005;"; $oc_text = "Errato";
+                    $oc_class = "ko"; $oc_icon = "&#10005;"; $oc_text = t('fc.res_errato');
                 } else {
                     $oc_class = "wait"; $oc_icon = "&#9203;"; $oc_text = "Da fare";
                 }
@@ -2448,11 +782,11 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                        <span class="rev-head-l">Pagina <?php echo $current_pos; ?></span>
+                        <span class="rev-head-l"><?php te('fc.res_pagina_n', ['n' => (int)$current_pos]); ?></span>
 
 
 
-                        <a class="rev-jump" href="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $current_pos; ?>&status=<?php echo $is_learnt; ?>">Rivedi <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></a>
+                        <a class="rev-jump" href="game_fc.php?game_id=<?php echo (int)$game_id; ?>&position=<?php echo sec_h($current_pos); ?>&status=<?php echo sec_h($is_learnt); ?>"><?php te('fc.res_rivedi'); ?> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></a>
 
 
 
@@ -2480,7 +814,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                                <span class="numb figlio"><?php echo $child_counter; ?> &#8627;</span>
+                                <span class="numb figlio"><?php echo sec_h($child_counter); ?> &#8627;</span>
 
 
 
@@ -2496,7 +830,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                            <span class="oc-pill <?php echo $oc_class; ?>"><span class="gi"><?php echo $oc_icon; ?></span> <?php echo $oc_text; ?></span>
+                            <span class="oc-pill <?php echo sec_h($oc_class); ?>"><span class="gi"><?php echo sec_h($oc_icon); ?></span> <?php echo sec_h($oc_text); ?></span>
 
 
 
@@ -2516,7 +850,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                                <img src="fc_Images/<?php echo $c['question_image']; ?>" class="fc-img">
+                                <img src="fc_Images/<?php echo sec_h($c['question_image']); ?>" class="fc-img">
 
 
 
@@ -2528,7 +862,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                                <span class="raw-text" data-raw="<?php echo htmlspecialchars($c['question_desc'] ?? '', ENT_QUOTES); ?>"></span>
+                                <span class="raw-text" data-raw="<?php echo sec_h($c['question_desc'] ?? ''); ?>"></span>
 
 
 
@@ -2548,7 +882,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                            <div class="rev-a-label">Risposta</div>
+                            <div class="rev-a-label"><?php te('fc.ifc_risposta'); ?></div>
 
 
 
@@ -2560,7 +894,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                                    <img src="fc_Images/<?php echo $c['answer_image']; ?>" class="fc-img">
+                                    <img src="fc_Images/<?php echo sec_h($c['answer_image']); ?>" class="fc-img">
 
 
 
@@ -2572,7 +906,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                                    <span class="raw-text" data-raw="<?php echo htmlspecialchars($c['answer_desc'] ?? '', ENT_QUOTES); ?>"></span>
+                                    <span class="raw-text" data-raw="<?php echo sec_h($c['answer_desc'] ?? ''); ?>"></span>
 
 
 
@@ -2636,7 +970,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-            <a href="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $resume_position; ?>&status=<?php echo $is_learnt; ?>&newsession=1" class="btn-continue">Continua partita <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></a>
+            <a href="game_fc.php?game_id=<?php echo (int)$game_id; ?>&position=<?php echo sec_h($resume_position); ?>&status=<?php echo sec_h($is_learnt); ?>&newsession=1" class="btn-continue"><?php te('fc.res_continua'); ?> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></a>
 
 
 
@@ -2644,7 +978,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-            <a href="#" class="btn-continue is-done">🏁 Categoria finita</a>
+            <a href="#" class="btn-continue is-done"><?php te('fc.res_categoria_finita'); ?></a>
 
 
 
@@ -2676,7 +1010,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-            <button id="fcvClose" type="button" aria-label="Chiudi">&#10005;</button>
+            <button id="fcvClose" type="button" aria-label="<?php te('comune.chiudi'); ?>">&#10005;</button>
 
 
 
@@ -2712,7 +1046,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                        <div class="fcv-eyebrow">Domanda</div>
+                        <div class="fcv-eyebrow"><?php te('fc.ifc_domanda'); ?></div>
 
 
 
@@ -2720,7 +1054,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                        <div class="fcv-hint">Tocca per girare</div>
+                        <div class="fcv-hint"><?php te('fc.res_tocca_girare'); ?></div>
 
 
 
@@ -2732,7 +1066,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                        <div class="fcv-eyebrow ans">Risposta</div>
+                        <div class="fcv-eyebrow ans"><?php te('fc.ifc_risposta'); ?></div>
 
 
 
@@ -2760,15 +1094,15 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-            <button id="fcvPrev" class="fcv-nb" type="button" aria-label="Precedente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+            <button id="fcvPrev" class="fcv-nb" type="button" aria-label="<?php te('fc.res_precedente'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
 
 
 
-            <button id="fcvFlip" class="fcv-nb" type="button" aria-label="Gira la carta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v5h-5"/></svg></button>
+            <button id="fcvFlip" class="fcv-nb" type="button" aria-label="<?php te('fc.res_gira'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v5h-5"/></svg></button>
 
 
 
-            <button id="fcvNext" class="fcv-nb" type="button" aria-label="Successiva"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button id="fcvNext" class="fcv-nb" type="button" aria-label="<?php te('fc.res_successiva'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
 
 
 

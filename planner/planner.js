@@ -62,19 +62,20 @@ var S = {
 };
 
 var ZOOM = [
-    { key: 'agenda', label: 'Solo eventi', slot: 0,   h: 0  },
-    { key: 'h3',     label: '3 ore',       slot: 180, h: 54 },
-    { key: 'h1',     label: '1 ora',       slot: 60,  h: 46 },
-    { key: 'm30',    label: '30 minuti',   slot: 30,  h: 44 },
-    { key: 'm15',    label: '15 minuti',   slot: 15,  h: 38 },
-    { key: 'm5',     label: '5 minuti',    slot: 5,   h: 26 }
+    { key: 'agenda', label: T('planner.solo_eventi'), slot: 0,   h: 0  },
+    { key: 'h3',     label: T('planner.3_ore'),       slot: 180, h: 54 },
+    { key: 'h1',     label: T('planner.1_ora'),       slot: 60,  h: 46 },
+    { key: 'm30',    label: T('planner.30_minuti'),   slot: 30,  h: 44 },
+    { key: 'm15',    label: T('planner.15_minuti'),   slot: 15,  h: 38 },
+    { key: 'm5',     label: T('planner.5_minuti'),    slot: 5,   h: 26 }
 ];
 var HEAD_H = 0;   // le colonne non hanno più un'intestazione propria
 var NEUTRAL = '#E4DDD3';
-var MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
-var GIORNI = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
-var GIORNI_S = ['L','M','M','G','V','S','D'];
-var LIST_LABEL = { todo: 'To do', buy: 'To buy', study: 'To study', pills: 'Pastiglie' };
+var MESI = [T('planner.mese_1'),T('planner.mese_2'),T('planner.mese_3'),T('planner.mese_4'),T('planner.mese_5'),T('planner.mese_6'),T('planner.mese_7'),T('planner.mese_8'),T('planner.mese_9'),T('planner.mese_10'),T('planner.mese_11'),T('planner.mese_12')];
+var GIORNI = [T('planner.gg_1'),T('planner.gg_2'),T('planner.gg_3'),T('planner.gg_4'),T('planner.gg_5'),T('planner.gg_6'),T('planner.gg_7')];
+/* iniziali della griglia: in inglese sono M T W T F S S */
+var GIORNI_S = [T('planner.gs_1'),T('planner.gs_2'),T('planner.gs_3'),T('planner.gs_4'),T('planner.gs_5'),T('planner.gs_6'),T('planner.gs_7')];
+var LIST_LABEL = { todo: T('planner.to_do'), buy: T('planner.to_buy'), study: T('planner.to_study'), pills: T('planner.pastiglie') };
 /* I tipi di elenco che todo_api.php conosce come `list_type`: le pastiglie
    NON sono uno di questi — stanno in tabelle loro e hanno endpoint loro —
    quindi restano fuori di qui e compaiono solo fra le linguette. Mescolarle
@@ -349,7 +350,7 @@ function api(action, data, query, opt) {
         if (data) { req.headers['Content-Type'] = 'application/json'; req.body = JSON.stringify(data); }
         if (opt.keepalive) req.keepalive = true;
         return fetch(url, req).then(function (r) {
-            return r.json().catch(function () { return { ok: false, message: 'Risposta non valida.' }; });
+            return r.json().catch(function () { return { ok: false, message: T('planner.risposta_non_valida') }; });
         });
     }
 
@@ -360,7 +361,7 @@ function api(action, data, query, opt) {
            cella, senza rischiare di applicare due volte la stessa cosa. */
         return new Promise(function (res) { setTimeout(res, 900); }).then(invia);
     }).catch(function () {
-        return { ok: false, message: 'Connessione non riuscita.' };
+        return { ok: false, message: T('planner.connessione_non_riuscita') };
     });
 }
 
@@ -426,7 +427,7 @@ function alertBox(title, msg, actions) {
     $('plAlertMsg').textContent = msg;
     var acts = $('plAlertActs');
     acts.innerHTML = '';
-    (actions || [{ label: 'Ho capito' }]).forEach(function (a) {
+    (actions || [{ label: T('planner.ho_capito') }]).forEach(function (a) {
         var b = el('button', 'pl-btn' + (a.kind === 'primary' ? ' pl-btn-primary' : (a.kind === 'danger' ? ' pl-btn-danger' : '')), a.label);
         b.type = 'button';
         b.addEventListener('click', function () {
@@ -1189,12 +1190,12 @@ $('plWeekBtn').addEventListener('click', function (e) {
    com'è andato il diario (quest'ultimo solo da martedì in avanti). */
 function askWeekNumber() {
     var week = monday(S.focusDate);
-    openSheet('La settimana', function (body) {
+    openSheet(T('planner.la_settimana'), function (body) {
         /* numero, in piccolo e modificabile */
         var top = el('div', 'pl-row-sb');
         var lab = el('div');
-        lab.appendChild(el('div', 'pl-label', 'Settimana numero'));
-        lab.appendChild(el('div', 'pl-row-sub', 'Cambiandolo, le successive si rinumerano da sole.'));
+        lab.appendChild(el('div', 'pl-label', T('planner.settimana_numero')));
+        lab.appendChild(el('div', 'pl-row-sub', T('planner.cambiandolo_le_successive_si_rinumerano')));
         top.appendChild(lab);
         var num = el('input', 'pl-pick');
         num.type = 'number'; num.min = '1'; num.max = '9999';
@@ -1214,13 +1215,13 @@ function askWeekNumber() {
         body.appendChild(top);
 
         var box = el('div');
-        box.appendChild(el('div', 'pl-quote pl-serif', 'Sto mettendo insieme i conti…'));
+        box.appendChild(el('div', 'pl-quote pl-serif', T('planner.sto_mettendo_insieme_i_conti')));
         body.appendChild(box);
 
         api('week_summary', null, { week_start: week }).then(function (r) {
             box.innerHTML = '';
             if (!r.ok) {
-                box.appendChild(el('div', 'pl-quote pl-serif', 'Riepilogo non disponibile.'));
+                box.appendChild(el('div', 'pl-quote pl-serif', T('planner.riepilogo_non_disponibile')));
                 return;
             }
             box.appendChild(summaryHabits(r));
@@ -1261,65 +1262,67 @@ function sumSection(title, note) {
 }
 function hoursLabel(min) {
     if (!min) return '—';
-    if (min < 60) return min + ' min';
+    if (min < 60) return T('planner.n_min', {n: min});
     var h = Math.floor(min / 60), m = min % 60;
     return h + 'h' + (m ? ' ' + pad(m) : '');
 }
 
 function summaryHabits(r) {
-    var f = sumSection('Abitudini');
+    var f = sumSection(T('planner.abitudini_t'));
     var any = false;
     (r.habits || []).forEach(function (h) {
         if (!h.planned && !h.minutes) return;
         any = true;
-        var goal = h.goal ? ' su ' + h.goal + ' volte' : '';
-        var detail = h.planned + ' volt' + (h.planned === 1 ? 'a' : 'e') + goal
-                   + (h.done ? '  ·  ' + h.done + ' fatt' + (h.done === 1 ? 'a' : 'e') : '');
+        /* "1 volta su 3 · 2 fatte": in inglese il plurale non si fa attaccando una
+               lettera, quindi ogni forma e' una chiave intera. */
+            var goal = h.goal ? T('planner.su_n_volte', {n: h.goal}) : '';
+            var detail = T(h.planned === 1 ? 'planner.n_volta' : 'planner.n_volte', {n: h.planned}) + goal
+                + (h.done ? '  ·  ' + T(h.done === 1 ? 'planner.n_fatta' : 'planner.n_fatte', {n: h.done}) : '');
         f.appendChild(sumRow(h.color, (h.icon ? h.icon + ' ' : '') + h.name, detail, hoursLabel(h.minutes)));
     });
     if (!any) {
-        f.appendChild(el('div', 'pl-row-sub', 'Nessuna abitudine messa in agenda questa settimana.'));
+        f.appendChild(el('div', 'pl-row-sub', T('planner.nessuna_abitudine_messa_in_agenda')));
         return f;
     }
-    var tot = sumRow(null, 'In tutto sulle abitudini', null, hoursLabel(r.habit_minutes));
+    var tot = sumRow(null, T('planner.in_tutto_sulle_abitudini'), null, hoursLabel(r.habit_minutes));
     tot.style.borderTop = '.5px solid var(--hair)';
     f.appendChild(tot);
     return f;
 }
 
 function summaryCats(r) {
-    var f = sumSection('Categorie');
+    var f = sumSection(T('planner.categorie'));
     var any = false;
     (r.categories || []).forEach(function (c) {
         if (!c.minutes && !c.count) return;
         any = true;
         f.appendChild(sumRow(c.color, c.name,
-            c.count + ' event' + (c.count === 1 ? 'o' : 'i'), hoursLabel(c.minutes)));
+                T(c.count === 1 ? 'planner.n_evento' : 'planner.n_eventi', {n: c.count}), hoursLabel(c.minutes)));
     });
-    if (!any) f.appendChild(el('div', 'pl-row-sub', 'Ancora niente in agenda.'));
+    if (!any) f.appendChild(el('div', 'pl-row-sub', T('planner.ancora_niente_in_agenda')));
     return f;
 }
 
 function summaryRoutines(r) {
-    var f = sumSection('Routine');
+    var f = sumSection(T('planner.routine_t'));
     var any = false;
     (r.routines || []).forEach(function (x) {
         if (!x.times && !x.minutes) return;
         any = true;
         f.appendChild(sumRow(x.color, x.name,
-            x.times + ' volt' + (x.times === 1 ? 'a' : 'e'), hoursLabel(x.minutes)));
+            T(x.times === 1 ? 'planner.n_volta_r' : 'planner.n_volte_r', {n: x.times}), hoursLabel(x.minutes)));
     });
-    if (!any) f.appendChild(el('div', 'pl-row-sub', 'Nessuna routine inserita.'));
+    if (!any) f.appendChild(el('div', 'pl-row-sub', T('planner.nessuna_routine_inserita')));
     return f;
 }
 
 function summaryDiary(d) {
-    var f = sumSection('Diario');
-    f.appendChild(sumRow(null, 'Giorni scritti', null, d.days + ' su 7'));
+    var f = sumSection(T('planner.diario_t'));
+    f.appendChild(sumRow(null, T('planner.giorni_scritti'), null, T('planner.n_su_7', {n: d.days})));
     var faces = window.nisamaFace;
-    var moodRow = sumRow(null, 'Come è andata, in media', null,
+    var moodRow = sumRow(null, T('planner.come_e_andata_in_media'), null,
         d.mood_avg !== null ? String(d.mood_avg).replace('.', ',') : '—');
-    var enRow = sumRow(null, 'Energia, in media', null,
+    var enRow = sumRow(null, T('planner.energia_in_media'), null,
         d.energy_avg !== null ? String(d.energy_avg).replace('.', ',') : '—');
     if (faces) {
         /* le stesse faccine e stelline del diario, disegnate a matita */
@@ -1502,17 +1505,17 @@ function wxTagTesto(date, g) {
 /* L'indice UV da solo non dice niente: 7 è tanto o poco? */
 function wxUvTesto(uv) {
     if (uv === null || uv === undefined) return null;
-    if (uv < 3) return 'basso';
-    if (uv < 6) return 'moderato';
-    if (uv < 8) return 'alto';
-    if (uv < 11) return 'molto alto';
-    return 'estremo';
+    if (uv < 3) return T('planner.uv_basso');
+    if (uv < 6) return T('planner.uv_moderato');
+    if (uv < 8) return T('planner.uv_alto');
+    if (uv < 11) return T('planner.uv_molto_alto');
+    return T('planner.uv_estremo');
 }
 /* minuti → "6 h 20 min": più leggibile di 380 */
 function wxDurata(min) {
     if (min === null || min === undefined) return null;
     var h = Math.floor(min / 60), m = min % 60;
-    if (!h) return m + ' min';
+    if (!h) return T('planner.n_min', {n: m});
     return h + ' h' + (m ? ' ' + m + ' min' : '');
 }
 
@@ -1638,7 +1641,7 @@ function wxGrafico(g, date) {
 
     /* Alba e tramonto: una riga tratteggiata dove cadono davvero, non
        incollata all'ora più vicina — un tramonto alle 20:41 non è alle 21. */
-    [['alba', g.alba, 'Alba'], ['tramonto', g.tramonto, 'Tramonto']].forEach(function (v) {
+    [['alba', g.alba, T('planner.alba')], ['tramonto', g.tramonto, T('planner.tramonto')]].forEach(function (v) {
         if (!v[1]) return;
         var x = (toMin(v[1]) / 60 - oraBase) * W + W / 2;
         if (x < 0 || x > largh) return;
@@ -1657,7 +1660,7 @@ function wxGrafico(g, date) {
         var xOra = (oraOra.getHours() + oraOra.getMinutes() / 60 - oraBase) * W + W / 2;
         if (xOra >= 0 && xOra <= largh) {
             svg.appendChild(tag('line', { x1: xOra, y1: 0, x2: xOra, y2: H, class: 'pl-wxc-adesso' }));
-            var eo = el('div', 'pl-wxc-et pl-wxc-et-adesso', 'adesso');
+            var eo = el('div', 'pl-wxc-et pl-wxc-et-adesso', T('planner.adesso'));
             eo.style.left = xOra + 'px';
             area.appendChild(eo);
         }
@@ -1692,9 +1695,9 @@ function wxGrafico(g, date) {
         /* la probabilità si scrive solo quando c'è: una colonna di zeri
            riempirebbe il grafico di rumore */
         c.appendChild(el('div', 'pl-wxc-p', o.p ? o.p + '%' : ''));
-        c.title = o.l + (o.ap !== null && o.ap !== undefined ? ' · percepiti ' + o.ap + '°' : '')
-                + (o.v !== null && o.v !== undefined ? ' · vento ' + o.v + ' km/h' : '')
-                + (o.u !== null && o.u !== undefined ? ' · umidità ' + o.u + '%' : '');
+        c.title = o.l + (o.ap !== null && o.ap !== undefined ? T('planner.percepiti') + o.ap + '°' : '')
+                + (o.v !== null && o.v !== undefined ? T('planner.vento_lbl') + o.v + T('planner.km_h') : '')
+                + (o.u !== null && o.u !== undefined ? T('planner.wx_umidita', {n: o.u}) : '');
         giu.appendChild(c);
     });
     dentro.appendChild(giu);
@@ -1745,7 +1748,7 @@ function wxCambiaLuogo(date, testa) {
     var box = el('div', 'pl-wx-cerca');
     var inp = el('input', 'pl-in');
     inp.type = 'search';
-    inp.placeholder = 'Città o paese';
+    inp.placeholder = T('planner.citta_o_paese');
     inp.maxLength = 60;
     box.appendChild(inp);
 
@@ -1756,7 +1759,7 @@ function wxCambiaLuogo(date, testa) {
        posizione vera: la sa il server, che non l'ha mai cambiata, e
        richiederla è più onesto che fidarsi di una copia. */
     if (WX.manuale) {
-        var back = el('button', 'pl-wx-cerca-back', 'Torna alla posizione rilevata');
+        var back = el('button', 'pl-wx-cerca-back', T('planner.torna_alla_posizione_rilevata'));
         back.type = 'button';
         back.addEventListener('click', function () { wxPosizioneVera(date); });
         box.appendChild(back);
@@ -1774,7 +1777,7 @@ function wxCambiaLuogo(date, testa) {
             wxCall('place_search', { q: q }).then(function (r) {
                 res.innerHTML = '';
                 if (!r || !r.ok || !r.luoghi || !r.luoghi.length) {
-                    res.appendChild(el('div', 'pl-row-sub', 'Nessun posto con questo nome.'));
+                    res.appendChild(el('div', 'pl-row-sub', T('planner.nessun_posto_con_questo_nome')));
                     return;
                 }
                 r.luoghi.forEach(function (p) {
@@ -1796,13 +1799,13 @@ function wxCambiaLuogo(date, testa) {
    archivio, né qui né nell'endpoint. Vedi il commento su WX.manuale. */
 function wxUsaLuogo(lat, lon, nome, date) {
     wxCall('preview', { lat: lat, lon: lon, place: nome || '' }).then(function (r) {
-        if (!r || !r.ok) { toast('Previsione non disponibile per quel posto.'); return; }
+        if (!r || !r.ok) { toast(T('planner.previsione_non_disponibile_per_quel')); return; }
         wxApply(r);
         /* si riapre sullo stesso giorno se in quel posto c'è ancora: la
            finestra dei giorni è la stessa dappertutto, ma su un giorno vuoto
            il popup non avrebbe niente da dire */
         wxPopup(WX.giorni[date] ? date : S.today);
-        toast('Previsione per ' + (r.place || 'il posto scelto') + '.');
+        toast(T('planner.previsione_per', {posto: (r.place || T('planner.il_posto_scelto'))}));
     });
 }
 
@@ -1811,7 +1814,7 @@ function wxPosizioneVera(date) {
         if (!r || !r.ok) return;
         wxApply(r);
         wxPopup(WX.giorni[date] ? date : S.today);
-        toast('Torno alla posizione rilevata.');
+        toast(T('planner.torno_alla_posizione_rilevata'));
     });
 }
 
@@ -1819,7 +1822,7 @@ function wxPopup(date) {
     var g = WX.giorni[date];
     if (!g) return;
     var d = parseIso(date);
-    openSheet('Meteo', function (root) {
+    openSheet(T('planner.meteo'), function (root) {
         /* Tutto dentro un contenitore nostro invece che direttamente nel
            corpo del popup: gli ascoltatori dello scorrimento se ne vanno con
            lui quando il contenuto si riscrive, e non si accumulano a ogni
@@ -1843,11 +1846,11 @@ function wxPopup(date) {
         var nav = el('div', 'pl-wx-nav');
         var prima = el('button', 'pl-wx-nav-b');
         prima.type = 'button';
-        prima.setAttribute('aria-label', 'Giorno precedente');
+        prima.setAttribute('aria-label', T('planner.giorno_precedente'));
         prima.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
         var dopo = el('button', 'pl-wx-nav-b');
         dopo.type = 'button';
-        dopo.setAttribute('aria-label', 'Giorno successivo');
+        dopo.setAttribute('aria-label', T('planner.giorno_successivo'));
         dopo.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
         prima.disabled = !WX.giorni[addDays(date, -1)];
         dopo.disabled  = !WX.giorni[addDays(date, 1)];
@@ -1868,9 +1871,8 @@ function wxPopup(date) {
         var dove = wxDove();
         var bDove = el('button', 'pl-wx-dove' + (WX.manuale ? ' pl-wx-dove-man' : ''));
         bDove.type = 'button';
-        bDove.setAttribute('aria-label', 'Cambia il luogo della previsione');
-        bDove.appendChild(el('span', null, dove ? 'previsione per ' + dove
-                                                : 'posizione non disponibile'));
+        bDove.setAttribute('aria-label', T('planner.cambia_il_luogo_della_previsione'));
+        bDove.appendChild(el('span', null, dove ? T('planner.previsione_per_breve', {posto: dove}) : T('planner.posizione_non_disponibile')));
         bDove.innerHTML += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.6 7-11a7 7 0 10-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>';
         bDove.addEventListener('click', function () { wxCambiaLuogo(date, testa); });
         testa.appendChild(bDove);
@@ -1885,11 +1887,11 @@ function wxPopup(date) {
         txt.appendChild(el('div', 'pl-sheet-title pl-serif', g.label));
         if (g.tmax !== null) {
             txt.appendChild(el('div', 'pl-row-sub',
-                'massima ' + g.tmax + '°' + (g.tmin !== null ? ', minima ' + g.tmin + '°' : '')));
+                T('planner.massima', {t: g.tmax}) + (g.tmin !== null ? T('planner.minima') + g.tmin + '°' : '')));
         }
         if (g.percepita_max !== null && g.percepita_max !== undefined) {
             txt.appendChild(el('div', 'pl-row-sub',
-                'percepiti ' + g.percepita_max + '°'
+                T('planner.percepiti_t', {t: g.percepita_max})
                 + (g.percepita_min !== null && g.percepita_min !== undefined ? ' / ' + g.percepita_min + '°' : '')));
         }
         big.appendChild(txt);
@@ -1907,17 +1909,17 @@ function wxPopup(date) {
             var oIco = el('span', 'pl-wx-now-ic');
             oIco.innerHTML = WX_ICONE[oNome] || WX_ICONE.nubi;
             ora.appendChild(oIco);
-            var pezzi = ['adesso ' + WX.adesso.temp + '°'];
+            var pezzi = [T('planner.adesso_t', {t: WX.adesso.temp})];
             if (WX.adesso.percepita !== null && WX.adesso.percepita !== undefined) pezzi.push('percepiti ' + WX.adesso.percepita + '°');
-            if (WX.adesso.vento !== null && WX.adesso.vento !== undefined) pezzi.push(WX.adesso.vento + ' km/h');
-            if (WX.adesso.umidita !== null && WX.adesso.umidita !== undefined) pezzi.push('umidità ' + WX.adesso.umidita + '%');
+            if (WX.adesso.vento !== null && WX.adesso.vento !== undefined) pezzi.push(WX.adesso.vento + T('planner.km_h'));
+            if (WX.adesso.umidita !== null && WX.adesso.umidita !== undefined) pezzi.push(T('planner.umidita_lbl') + WX.adesso.umidita + '%');
             ora.appendChild(el('span', null, WX.adesso.label + ' · ' + pezzi.join(' · ')));
             body.appendChild(ora);
         }
 
         var strip = wxGrafico(g, date);
         if (strip) {
-            body.appendChild(el('div', 'pl-label', 'Ora per ora'));
+            body.appendChild(el('div', 'pl-label', T('planner.ora_per_ora')));
             body.appendChild(strip);
         }
 
@@ -1928,16 +1930,16 @@ function wxPopup(date) {
             r.appendChild(el('span', 'pl-row-sub', v));
             body.appendChild(r);
         }
-        riga('Probabilità di pioggia', (g.pioggia !== null && g.pioggia !== undefined) ? g.pioggia + '%' : null);
-        riga('Pioggia prevista', (g.pioggia_mm !== null && g.pioggia_mm !== undefined && g.pioggia_mm > 0)
-            ? g.pioggia_mm + ' mm' + (g.pioggia_ore ? ' in ' + g.pioggia_ore + (g.pioggia_ore === 1 ? ' ora' : ' ore') : '') : null);
-        riga('Vento massimo', (g.vento !== null && g.vento !== undefined)
-            ? g.vento + ' km/h' + (g.vento_da ? ' da ' + g.vento_da : '') : null);
-        riga('Raffiche fino a', (g.raffiche !== null && g.raffiche !== undefined) ? g.raffiche + ' km/h' : null);
-        riga('Indice UV', (g.uv !== null && g.uv !== undefined) ? g.uv + ' (' + wxUvTesto(g.uv) + ')' : null);
-        riga('Alba e tramonto', g.alba && g.tramonto ? g.alba + ' — ' + g.tramonto : null);
-        riga('Ore di sole', wxDurata(g.sole_min));
-        riga('Attendibilità stimata', g.affidabilita + '%');
+        riga(T('planner.probabilita_di_pioggia'), (g.pioggia !== null && g.pioggia !== undefined) ? g.pioggia + '%' : null);
+        riga(T('planner.pioggia_prevista'), (g.pioggia_mm !== null && g.pioggia_mm !== undefined && g.pioggia_mm > 0)
+            ? g.pioggia_mm + ' mm' + (g.pioggia_ore ? ' in ' + T(g.pioggia_ore === 1 ? 'planner.n_ora' : 'planner.n_ore', {n: g.pioggia_ore}) : '') : null);
+        riga(T('planner.vento_massimo'), (g.vento !== null && g.vento !== undefined)
+            ? g.vento + T('planner.km_h') + (g.vento_da ? ' da ' + g.vento_da : '') : null);
+        riga(T('planner.raffiche_fino_a'), (g.raffiche !== null && g.raffiche !== undefined) ? g.raffiche + T('planner.km_h') : null);
+        riga(T('planner.indice_uv'), (g.uv !== null && g.uv !== undefined) ? g.uv + ' (' + wxUvTesto(g.uv) + ')' : null);
+        riga(T('planner.alba_e_tramonto'), g.alba && g.tramonto ? g.alba + ' — ' + g.tramonto : null);
+        riga(T('planner.ore_di_sole'), wxDurata(g.sole_min));
+        riga(T('planner.attendibilita_stimata'), g.affidabilita + '%');
 
         if (WX.nota) {
             var nota = el('div', 'pl-row-sub', WX.nota);
@@ -1948,17 +1950,17 @@ function wxPopup(date) {
         /* attribuzione: i dati sono CC BY 4.0, citare la fonte è dovuto */
         var fonte = el('div', 'pl-row-sub');
         fonte.style.marginTop = '14px';
-        fonte.appendChild(document.createTextNode('Dati '));
+        fonte.appendChild(document.createTextNode(T('planner.dati_lbl')));
         var a = el('a', null, WX.fonte || 'Open-Meteo');
         a.href = WX.fonte_url || 'https://open-meteo.com';
         a.target = '_blank';
         a.rel = 'noopener';
         a.style.color = 'var(--accent-ink)';
         fonte.appendChild(a);
-        fonte.appendChild(document.createTextNode(' · licenza CC BY 4.0 · previsioni fino a 5 giorni'));
+        fonte.appendChild(document.createTextNode(T('planner.licenza')));
         body.appendChild(fonte);
 
-        var off = el('button', 'pl-btn', 'Disattiva il meteo');
+        var off = el('button', 'pl-btn', T('planner.disattiva_il_meteo'));
         off.type = 'button';
         off.style.marginTop = '18px';
         off.addEventListener('click', function () {
@@ -1972,7 +1974,7 @@ function wxPopup(date) {
             $('plWeatherBtn').classList.remove('pl-weather-on');
             closeOv('plSheetOv');
             wxRedraw();   // tornano l'albero e la bestia del mese
-            wxCall('disable', {}).then(function () { toast('Meteo disattivato.'); });
+            wxCall('disable', {}).then(function () { toast(T('planner.meteo_disattivato')); });
         });
         body.appendChild(off);
 
@@ -2008,26 +2010,26 @@ $('plWeatherBtn').addEventListener('click', function () {
         WX.on = false; WX.giorni = {}; WX.adesso = null; WX.manuale = false;
         $('plWeatherBtn').classList.remove('pl-weather-on');
         wxRedraw();
-        wxCall('disable', {}).then(function () { toast('Meteo disattivato.'); });
+        wxCall('disable', {}).then(function () { toast(T('planner.meteo_disattivato')); });
         return;
     }
-    if (!navigator.geolocation) { wxChiediLuogo('Questo browser non sa dire la posizione.'); return; }
-    toast('Chiedo la posizione…');
+    if (!navigator.geolocation) { wxChiediLuogo(T('planner.questo_browser_non_sa_dire')); return; }
+    toast(T('planner.chiedo_la_posizione'));
     navigator.geolocation.getCurrentPosition(function (pos) {
         wxCall('enable', {
             lat: pos.coords.latitude,
             lon: pos.coords.longitude
         }).then(function (r) {
-            if (!r.ok) { toast('Meteo non attivato.'); return; }
+            if (!r.ok) { toast(T('planner.meteo_non_attivato')); return; }
             wxApply(r);
-            toast('Meteo attivo' + (r.place ? ' per ' + r.place : '') + '.');
+            toast(r.place ? T('planner.meteo_attivo_per', {posto: r.place}) : T('planner.meteo_attivo'));
         });
     }, function () {
         /* Il permesso negato non è la fine del discorso: il posto lo si sa,
            basta poterlo scrivere. Prima qui c'era solo il dispiacere, e
            l'unico modo di avere le previsioni era andare a cambiare i
            permessi del browser — cioè, in pratica, rinunciare. */
-        wxChiediLuogo('Non riesco a rilevare la posizione.');
+        wxChiediLuogo(T('planner.non_riesco_a_rilevare_la'));
     }, { timeout: 12000, maximumAge: 600000 });
 });
 
@@ -2044,20 +2046,20 @@ function wxChiediLuogo(perche) {
     var sheet = el('div', 'pl-sheet pl-sheet-auto');
     sheet.appendChild(el('div', 'pl-grab'));
     var head = el('div', 'pl-sheet-head');
-    head.appendChild(el('span', 'pl-sheet-title pl-serif', 'Dove sei?'));
-    var chiudi = el('button', 'pl-txt-btn', 'Chiudi');
+    head.appendChild(el('span', 'pl-sheet-title pl-serif', T('planner.dove_sei')));
+    var chiudi = el('button', 'pl-txt-btn', T('planner.chiudi'));
     chiudi.type = 'button';
     chiudi.addEventListener('click', function () { ov.remove(); });
     head.appendChild(chiudi);
     sheet.appendChild(head);
 
     var body = el('div', 'pl-sheet-body');
-    body.appendChild(el('div', 'pl-row-sub', perche + ' Scrivi il posto e le previsioni partono lo stesso.'));
+    body.appendChild(el('div', 'pl-row-sub', perche + T('planner.scrivi_posto')));
 
     var box = el('div', 'pl-wx-cerca');
     var inp = el('input', 'pl-in');
     inp.type = 'search';
-    inp.placeholder = 'Città o paese';
+    inp.placeholder = T('planner.citta_o_paese');
     inp.maxLength = 60;
     box.appendChild(inp);
     var res = el('div', 'pl-wx-cerca-res');
@@ -2078,7 +2080,7 @@ function wxChiediLuogo(perche) {
             wxCall('place_search', { q: q }).then(function (r) {
                 res.innerHTML = '';
                 if (!r || !r.ok || !r.luoghi || !r.luoghi.length) {
-                    res.appendChild(el('div', 'pl-row-sub', 'Nessun posto con questo nome.'));
+                    res.appendChild(el('div', 'pl-row-sub', T('planner.nessun_posto_con_questo_nome')));
                     return;
                 }
                 r.luoghi.forEach(function (p) {
@@ -2090,10 +2092,10 @@ function wxChiediLuogo(perche) {
                         /* `enable` e non `preview`: qui la posizione la si sta
                            dichiarando, non sbirciando */
                         wxCall('enable', { lat: p.lat, lon: p.lon }).then(function (rr) {
-                            if (!rr || !rr.ok) { toast('Meteo non attivato.'); return; }
+                            if (!rr || !rr.ok) { toast(T('planner.meteo_non_attivato')); return; }
                             ov.remove();
                             wxApply(rr);
-                            toast('Meteo attivo per ' + (rr.place || p.nome) + '.');
+                            toast(T('planner.meteo_attivo_per', {posto: (rr.place || p.nome)}));
                         });
                     });
                     res.appendChild(b);
@@ -2365,7 +2367,7 @@ function smartCreate(input) {
     var raw = (input.value || '').trim();
     if (!raw) return;
     var p = smartParse(raw);
-    if (!p || !p.title) { toast('Non ho capito cosa scrivere come titolo.'); return; }
+    if (!p || !p.title) { toast(T('planner.non_ho_capito_cosa_scrivere')); return; }
 
     var dur = (SMART && SMART.durata_predefinita_minuti) || 60;
     var start = p.allDay ? '00:00' : (p.time || toHM(firstFreeMinute(dur)));
@@ -2377,7 +2379,7 @@ function smartCreate(input) {
         guests: p.guests || [],
         type: 'event', notify: p.allDay ? 'none' : 'h1'
     }).then(function (r) {
-        if (!r.ok) { toast(r.message || 'Non è stato possibile creare l\'evento.'); return; }
+        if (!r.ok) { toast(r.message || T('planner.non_e_stato_possibile_creare')); return; }
         indexEvents([r.event]);
         input.value = '';
         input.blur();
@@ -2451,16 +2453,16 @@ function smartReport(p, start, end, created) {
     }
     box.innerHTML = '';
     box.appendChild(el('div', 'pl-smart-title', '“' + p.title + '”'));
-    box.appendChild(el('div', 'pl-smart-line', quando + (p.allDay ? ', tutto il giorno' : ', dalle ' + start + ' alle ' + end)));
+    box.appendChild(el('div', 'pl-smart-line', quando + (p.allDay ? T('planner.virgola_tutto_il_giorno') : T('planner.dalle_alle', {da: start, a: end}))));
     if (p.guests && p.guests.length) {
         box.appendChild(el('div', 'pl-smart-line',
-            'con ' + p.guests.map(function (g) { return g.name || g.email; }).join(', ') + ' · invito inviato'));
+            T('planner.con_invitati', {chi: p.guests.map(function (g) { return g.name || g.email; }).join(', ')}) + T('planner.invito_inviato')));
     }
     var note = [];
-    if (p.dateGuessed) note.push('giorno non indicato: ho usato quello che stavi guardando');
-    if (p.timeGuessed && p.allDay) note.push('ora non indicata: messo su tutto il giorno');
-    else if (p.timeGuessed) note.push('ora dedotta dalla frase');
-    note.push('tocca per sistemarlo');
+    if (p.dateGuessed) note.push(T('planner.giorno_non_indicato_ho_usato'));
+    if (p.timeGuessed && p.allDay) note.push(T('planner.ora_non_indicata_messo_su'));
+    else if (p.timeGuessed) note.push(T('planner.ora_dedotta'));
+    note.push(T('planner.tocca_sistemarlo'));
     box.appendChild(el('div', 'pl-smart-note', note.join(' · ')));
 
     box.classList.add('pl-open');
@@ -2509,7 +2511,9 @@ function renderPrioInto(host, giorno) {
         cells.push({
             auto: true, content: a.content, project_id: a.project_id, project: a.project,
             notes: a.notes, stato: a.stato, color: a.color,
-            target_date: a.target_date, due_date: a.due_date
+            target_date: a.target_date, due_date: a.due_date,
+            overdue: a.overdue,
+            todo_id: a.todo_id, list_type: a.list_type // <-- AGGIUNGI QUESTA RIGA
         });
     });
 
@@ -2532,7 +2536,7 @@ function renderPrioInto(host, giorno) {
         ? cells.filter(function (x) { return x.auto || (x.content && x.content.trim()); })
         : cells;
     if (!shown.length && S.prioSlim) {
-        host.appendChild(el('div', 'pl-row-sub', 'Nessuna priorità. Tocca per aggiungerne.'));
+        host.appendChild(el('div', 'pl-row-sub', T('planner.nessuna_priorita_tocca_per_aggiungerne')));
     }
     /* Due per riga sempre, aperta o chiusa: tre affiancate su un telefono
        sarebbero tre parole tagliate. Da chiusa, però, di righe se ne vede una
@@ -2589,10 +2593,12 @@ function prioProgetto(data) {
     sheet.appendChild(el('div', 'pl-grab'));
 
     var head = el('div', 'pl-sheet-head');
-    head.appendChild(el('span', 'pl-sheet-title pl-serif', data.project || 'Progetto'));
-    var chiudi = el('button', 'pl-txt-btn', 'Chiudi');
+    head.appendChild(el('span', 'pl-sheet-title pl-serif', data.project || T('planner.progetto')));
+    var chiudi = el('button', 'pl-txt-btn', T('planner.chiudi'));
     chiudi.type = 'button';
-    chiudi.addEventListener('click', function () { ov.remove(); });
+    /* si chiude e basta: le priorità restano come stavano (ci pensa
+       daPannello) e il tocco non prosegue verso la pagina sotto */
+    chiudi.addEventListener('click', function () { ov.remove(); assorbiDopoChiusura(); });
     head.appendChild(chiudi);
     sheet.appendChild(head);
 
@@ -2605,11 +2611,11 @@ function prioProgetto(data) {
     var pallino = el('span', 'pl-prj-dot');
     pallino.style.background = data.color || 'var(--accent)';
     riga.appendChild(pallino);
-    riga.appendChild(el('span', null, STATI_PRJ[data.stato] || 'in corso'));
+    riga.appendChild(el('span', null, STATI_PRJ[data.stato] || T('planner.prj_in_corso')));
     body.appendChild(riga);
 
-    if (data.target_date) body.appendChild(rowInfo('Obiettivo', dataLunga(data.target_date)));
-    if (data.due_date)    body.appendChild(rowInfo('Scadenza', dataLunga(data.due_date)));
+    if (data.target_date) body.appendChild(rowInfo(T('planner.obiettivo_t'), dataLunga(data.target_date)));
+    if (data.due_date)    body.appendChild(rowInfo(T('planner.scadenza'), dataLunga(data.due_date)));
 
     /* Le note per intero e non tagliate: sono poche righe e sono la ragione
        per cui uno apre il riassunto invece di andare direttamente alla
@@ -2621,7 +2627,7 @@ function prioProgetto(data) {
         body.appendChild(note);
     }
 
-    var vai = el('a', 'pl-btn pl-btn-primary pl-prj-vai', 'Apri il progetto');
+    var vai = el('a', 'pl-btn pl-btn-primary pl-prj-vai', T('planner.apri_il_progetto'));
     vai.href = 'progetti.php?id=' + encodeURIComponent(data.project_id);
     body.appendChild(vai);
 
@@ -2629,11 +2635,15 @@ function prioProgetto(data) {
     ov.appendChild(sheet);
     document.body.appendChild(ov);
     requestAnimationFrame(function () { ov.classList.add('pl-open'); });
-    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    ov.addEventListener('click', function (e) {
+        if (e.target !== ov) return;
+        ov.remove();
+        assorbiDopoChiusura();
+    });
 }
 
 /* gli stessi tre stati che gira la pagina progetti, in parole */
-var STATI_PRJ = { in_progress: 'in corso', completed: 'completato', planned: 'da iniziare' };
+var STATI_PRJ = { in_progress: T('planner.prj_in_corso'), completed: T('planner.prj_completato'), planned: T('planner.prj_da_iniziare') };
 
 /* una riga «etichetta — valore», che qui serve due o tre volte */
 function rowInfo(lab, val) {
@@ -2649,9 +2659,10 @@ function dataLunga(iso) {
          + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '');
 }
 
-/* Il giro delle righe da chiusa. Quattro secondi: il tempo di leggere due
-   priorità senza doverle rincorrere, e abbastanza perché anche un'occhiata
-   di passaggio ne prenda comunque una.
+/* Il giro delle righe da chiusa. Sei secondi: quattro bastavano a leggere
+   due priorità corte, ma non una lunga che sta ancora scorrendo — la riga
+   cambiava a metà frase e bisognava aspettare tutto il giro per finirla.
+   Sei danno il tempo di leggere e anche di decidere se toccarla.
    Il timer si spegne da sé quando le righe non sono più attaccate alla
    pagina — succede a ogni ridisegno — così non se ne accumulano uno sopra
    l'altro senza che nessuno li fermi. */
@@ -2670,7 +2681,7 @@ function avviaGiroPrio(righe, pal) {
         for (var k = 0; k < pal.children.length; k++) {
             pal.children[k].classList.toggle('pl-on', k === i);
         }
-    }, 4000);
+    }, 6000);
 }
 
 function prioCell(data, compatta) {
@@ -2678,12 +2689,13 @@ function prioCell(data, compatta) {
     var dot = el('span', 'pl-prio-dot' + (data.done ? ' pl-on' : ''));
     dot.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
 
-    /* Da chiusa non è un campo ma una scritta, e la scritta che non ci sta
-       scorre invece di finire nei puntini, come i titoli degli eventi. Con
-       un campo di testo non si potrebbe: un `input` il testo lo taglia e
-       basta, e non c'è niente dentro da far scivolare. Non è una perdita —
-       da chiusa non si scrive comunque, il tocco apre la sezione — e in
-       cambio in una riga sola ci sta anche una priorità lunga. */
+    // Stile soft: sfondo e testo restano standard, solo i bordi diventano rossi per richiamare l'attenzione
+    if (data.overdue) {
+        cell.style.boxShadow = 'inset 0 0 0 1.2px #C98F8F';
+        dot.style.boxShadow = 'inset 0 0 0 1.2px #C98F8F';
+    }
+
+    /* Da chiusa non è un campo ma una scritta, e la scritta che non ci sta scorre */
     if (compatta) {
         var tx = el('span', 'pl-prio-tx');
         var dentro = el('span', null, data.content || '');
@@ -2697,6 +2709,14 @@ function prioCell(data, compatta) {
                 tx.addEventListener('click', function (e) {
                     e.stopPropagation();   // se no il tocco aprirebbe la sezione
                     prioProgetto(data);
+                });
+            } else if (data.todo_id) {
+                tx.style.cursor = 'pointer';
+                tx.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    S.todoTab = data.list_type; // Imposta la linguetta corretta (es. To Buy)
+                    S.todoOthers = true;        // Assicurati di espandere le voci "rimaste indietro"
+                    openWeekPanel();            // Apri il pannello
                 });
             }
             return cell;
@@ -2712,25 +2732,51 @@ function prioCell(data, compatta) {
         return cell;
     }
 
-    var inp = el('input', 'pl-prio-in');
-    inp.type = 'text';
-    inp.value = data.content || '';
-    inp.placeholder = data.auto ? '' : 'Priorità';
-    inp.maxLength = 200;
-    if (data.auto) inp.readOnly = true;
-    cell.appendChild(dot);
-    cell.appendChild(inp);
+    /* Da aperta le automatiche non sono più un campo ma una scritta, come da
+       chiusa. Nessuno le può correggere — erano già di sola lettura — e da
+       scritte possono scorrere quando non ci stanno, che è il caso normale:
+       elenco, stato e titolo tutti insieme ("TO DO SCADUTO: …") non entrano
+       mai in mezza riga, e aprendo la sezione si finiva per leggere sempre e
+       solo le prime tre parole. */
     if (data.auto) {
-        /* Un campo di sola lettura non riceve il tocco come un tasto: si
-           ascolta lo stesso e si apre il riassunto del progetto. È l'unico
-           punto del planner in cui un progetto si affaccia, e fin qui si
-           poteva solo leggerlo. */
+        var txAp = el('span', 'pl-prio-tx');
+        var dentroAp = el('span', null, data.content || '');
+        txAp.appendChild(dentroAp);
+        cell.appendChild(dot);
+        cell.appendChild(txAp);
+        misuraStriscia(txAp, dentroAp);
         if (data.project_id) {
-            inp.style.cursor = 'pointer';
-            inp.addEventListener('click', function () { prioProgetto(data); });
+            txAp.style.cursor = 'pointer';
+            txAp.addEventListener('click', function (e) {
+                e.stopPropagation();
+                prioProgetto(data);
+            });
+        } else if (data.todo_id) {
+            txAp.style.cursor = 'pointer';
+            txAp.addEventListener('click', function (e) {
+                e.stopPropagation();
+                S.todoTab = data.list_type;
+                S.todoOthers = true;
+                openWeekPanel();
+            });
         }
         return cell;
     }
+
+    var inp = el('input', 'pl-prio-in');
+    inp.type = 'text';
+    inp.value = data.content || '';
+    inp.placeholder = T('planner.priorita');
+    cell.appendChild(dot);
+    cell.appendChild(inp);
+
+    /* Anche una priorità scritta a mano scorre se non ci sta. Qui però non
+       c'è un figlio da spostare — dentro un campo di testo non ce ne sono —
+       e allora si muove il rientro della prima riga, che trascina il testo
+       dentro la finestra del campo. Mentre ci si scrive l'animazione si ferma
+       (regola :focus nel CSS), se no il cursore scapperebbe di lato proprio
+       sotto il dito. */
+    misuraStriscia(inp, inp);
 
     dot.addEventListener('click', function () {
         var now = !cell.classList.contains('pl-done');
@@ -2756,7 +2802,7 @@ function prioCell(data, compatta) {
     if (data.content) {
         var via = el('button', 'pl-prio-x');
         via.type = 'button';
-        via.setAttribute('aria-label', 'Elimina questa priorità');
+        via.setAttribute('aria-label', T('planner.elimina_questa_priorita'));
         via.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
         via.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -2962,7 +3008,7 @@ function renderGutterMeteo(host, date) {
            mentre loro si muovevano — da qui i gradi che scivolavano addosso
            all'orario sbagliato durante il pizzico. */
         b.style.top = 'calc(' + HEAD_H + 'px + var(--pxm) * ' + (h * 60) + ' + 6px)';
-        b.setAttribute('aria-label', (o.l || '') + ' alle ' + h);
+        b.setAttribute('aria-label', T('planner.x_alle_ora', {cosa: (o.l || ''), ora: h}));
         b.dataset.wxDate = date;
         b.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -3008,7 +3054,7 @@ function renderWeekGutMeteo(date) {
         if (WK.riga >= 56 && o.t !== null && o.t !== undefined) {
             b.appendChild(el('span', 'pl-wxg-t', o.t + '\u00B0'));
         }
-        b.setAttribute('aria-label', (o.l || '') + ' alle ' + h);
+        b.setAttribute('aria-label', T('planner.x_alle_ora', {cosa: (o.l || ''), ora: h}));
         b.dataset.wxDate = date;
         b.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -3174,14 +3220,27 @@ function renderAllDay() {
         var fabs = document.getElementById('plFabs');
         var isDesk = window.matchMedia('(min-width:760px)').matches;
         
-        // L'ancora a cui appenderci: la barra tutto il giorno (su PC) o la sezione priorità (su Smartphone)
-        var anchor = isDesk ? document.getElementById('plHeadRow') : document.querySelector('.pl-prio-wrap');
+        var headRow = document.getElementById('plHeadRow');
+        var prioWrap = document.querySelector('.pl-prio-wrap');
+        var rightArrow = document.getElementById('plNextDay');
+        
+        // L'ancora a cui appenderci: la barra tutto il giorno (su PC) o la sezione priorità (su Smartphone).
+        var anchor = (isDesk && headRow && headRow.offsetHeight > 0) ? headRow : prioWrap;
         
         if (fabs && anchor) {
             // Misuriamo la coordinata Y reale in cui finisce l'elemento sullo schermo
             var bottomY = anchor.getBoundingClientRect().bottom;
             
-            // Inchiodiamo i tastini esattamente 8 pixel sotto quella linea
+            // Su PC dobbiamo garantire che i tastini stiano SEMPRE sotto la freccia destra, 
+            // per evitare accavallamenti se la barra superiore dovesse risultare più corta.
+            if (isDesk && rightArrow && getComputedStyle(rightArrow).display !== 'none') {
+                var arrowBottom = rightArrow.getBoundingClientRect().bottom;
+                if (arrowBottom > bottomY) {
+                    bottomY = arrowBottom;
+                }
+            }
+            
+            // Inchiodiamo i tastini esattamente 16 pixel sotto la linea di ingombro massima
             fabs.style.top = (bottomY + 16) + 'px';
         }
     });
@@ -3324,7 +3383,7 @@ function renderCol(col, z) {
                 g.items.forEach(function (x) { startMin = Math.min(startMin, toMin(x.start)); endMin = Math.max(endMin, toMin(x.end)); });
                 var r = routineById(g.base.routine_id);
                 var fake = {
-                    id: g.base.id, date: g.base.date, title: (r ? r.name : 'Routine'),
+                    id: g.base.id, date: g.base.date, title: (r ? r.name : T('planner.routine_t')),
                     start: toHM(startMin), end: toHM(endMin),
                     color: g.base.color, importance: 'normal', type: 'event', done: false,
                     routine_group: item, routine_collapsed: true, count: g.items.length
@@ -3334,7 +3393,7 @@ function renderCol(col, z) {
                 g.items.forEach(function (x) { wrap.appendChild(buildEvent(x, true)); });
             }
         });
-        if (!list.length) wrap.appendChild(el('div', 'pl-quote pl-serif', 'Nessun evento in programma.'));
+        if (!list.length) wrap.appendChild(el('div', 'pl-quote pl-serif', T('planner.nessun_evento_in_programma')));
         canvas.appendChild(wrap);
         return;
     }
@@ -3400,7 +3459,7 @@ function renderCol(col, z) {
         if (item.group || forceCompact) {
             var r = routineById(g.base.routine_id);
             var fake = {
-                id: g.base.id, date: g.base.date, title: (r ? r.name : 'Routine'),
+                id: g.base.id, date: g.base.date, title: (r ? r.name : T('planner.routine_t')),
                 start: toHM(startMin), end: toHM(endMin),
                 color: g.base.color, importance: 'normal', type: 'event', done: false,
                 routine_group: item.group || item.groupOpen, routine_collapsed: true,
@@ -3419,7 +3478,7 @@ function renderCol(col, z) {
             var lab = el('button', 'pl-routine-label');
             lab.type = 'button';
             var rr = routineById(g.base.routine_id);
-            lab.appendChild(el('span', null, rr ? rr.name : 'Routine'));
+            lab.appendChild(el('span', null, rr ? rr.name : T('planner.routine_t')));
             var thisGroup = item.groupOpen, thisDate = date;
             lab.addEventListener('click', function (ev2) {
                 ev2.stopPropagation();
@@ -3623,7 +3682,7 @@ function compattaMini(render) {
    due posti. */
 function miniRiga(ev, soloOrario) {
     var d = Math.max(5, toMin(ev.end) - toMin(ev.start));
-    return (soloOrario ? '' : ((ev.title || 'Senza titolo') + ' · '))
+    return (soloOrario ? '' : ((ev.title || T('planner.senza_titolo')) + ' · '))
         + ev.start + ' – ' + ev.end + ' · ' + wxDurata(d);
 }
 
@@ -3646,7 +3705,7 @@ function buildMiniEvent(ev) {
     node.style.top = 'calc(var(--pxm) * ' + s + ')';
     node.style.height = 'max(5px, calc(var(--pxm) * ' + (e - s) + '))';
 
-    node.appendChild(bottoneMini((ev.title || 'Evento') + ', ' + miniRiga(ev, true)));
+    node.appendChild(bottoneMini((ev.title || T('planner.evento')) + ', ' + miniRiga(ev, true)));
     return node;
 }
 
@@ -3713,7 +3772,7 @@ function buildMiniGroup(items, startMin, endMin) {
        intanto si mangia lo spazio del blocco che viene dopo. */
     if (h < MINI_GRUPPO_H) {
         node.classList.add('pl-ev-mini');
-        node.appendChild(bottoneMini(items.length + ' eventi ravvicinati'));
+        node.appendChild(bottoneMini(T('planner.n_eventi_ravvicinati', {n: items.length})));
         return node;
     }
 
@@ -3741,25 +3800,25 @@ function miniPopup(items) {
     if (!items.length) return;
     if (items.length === 1) {
         var ev = items[0];
-        alertBox(ev.title || 'Senza titolo', miniRiga(ev, true), [
-            { label: 'Chiudi' },
-            { label: 'Apri', kind: 'primary', onClick: function () { openEventSheet(ev, null); } }
+        alertBox(ev.title || T('planner.senza_titolo'), miniRiga(ev, true), [
+            { label: T('planner.chiudi') },
+            { label: T('planner.apri'), kind: 'primary', onClick: function () { openEventSheet(ev, null); } }
         ]);
         return;
     }
     /* con pochi eventi ognuno ha il suo pulsante e ci si arriva in un tocco;
        con tanti la fila di pulsanti sarebbe più lunga del popup, quindi resta
        il solo elenco scritto */
-    var azioni = [{ label: 'Chiudi' }];
+    var azioni = [{ label: T('planner.chiudi') }];
     if (items.length <= 4) {
         items.forEach(function (ev) {
             azioni.push({
-                label: ev.title || 'Senza titolo', kind: 'primary',
+                label: ev.title || T('planner.senza_titolo'), kind: 'primary',
                 onClick: function () { openEventSheet(ev, null); }
             });
         });
     }
-    alertBox(items.length + ' eventi ravvicinati',
+    alertBox(T('planner.n_eventi_ravvicinati', {n: items.length}),
         items.map(function (x) { return miniRiga(x, false); }).join('\n'),
         azioni);
 }
@@ -3898,7 +3957,7 @@ function buildEvent(ev, flow) {
     /* con chi è, e dove: due tastini subito dopo il titolo */
     if (ev.guests && ev.guests.length && !S.shift.on) {
         var who = ev.guests.map(function (g) { return g.name || g.email.split('@')[0]; });
-        var tagW = el('span', 'pl-ev-with', who.length === 1 ? who[0] : who.length + ' persone');
+        var tagW = el('span', 'pl-ev-with', who.length === 1 ? who[0] : T('planner.n_persone', {n: who.length}));
         tagW.title = ev.guests.map(function (g) { return g.email; }).join(', ');
         row.appendChild(tagW);
     }
@@ -3907,7 +3966,7 @@ function buildEvent(ev, flow) {
         mapBtn.type = 'button';
         mapBtn.dataset.act = 'map';
         mapBtn.dataset.place = ev.location;
-        mapBtn.setAttribute('aria-label', 'Portami a ' + ev.location);
+        mapBtn.setAttribute('aria-label', T('planner.portami_a', {posto: ev.location}));
         mapBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-10a6.5 6.5 0 1113 0c0 4.4-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg>';
         row.appendChild(mapBtn);
     }
@@ -3922,7 +3981,7 @@ function buildEvent(ev, flow) {
     row.appendChild(el('span', 'pl-ev-spacer'));   // lo spazio avanzato resta in coda
     node.appendChild(row);
     if (!ev.all_day && (!flow || ev.start)) {
-        node.appendChild(el('div', 'pl-ev-h', ev.start + ' – ' + ev.end + (ev.count ? '  ·  ' + ev.count + ' passaggi' : '')));
+        node.appendChild(el('div', 'pl-ev-h', ev.start + ' – ' + ev.end + (ev.count ? '  ·  ' + T('planner.n_passaggi', {n: ev.count}) : '')));
     }
     return node;
 }
@@ -4020,9 +4079,9 @@ function renderWeekPanel() {
     host.appendChild(S.todoTab === 'pills' ? weekPillsCard() : weekTodoList());
 
     var learned = el('div', 'pl-learned');
-    learned.appendChild(el('div', 'pl-label', 'Cosa ho imparato'));
+    learned.appendChild(el('div', 'pl-label', T('planner.cosa_ho_imparato')));
     var ta = el('textarea');
-    ta.placeholder = 'Questa settimana mi ha insegnato…';
+    ta.placeholder = T('planner.questa_settimana_mi_ha_insegnato');
     ta.value = S.week.learned || '';
     ta.maxLength = 4000;
     ta.addEventListener('input', function () {
@@ -4042,7 +4101,7 @@ function weekTodoList() {
 
     var head = el('div', 'pl-list-head');
     head.appendChild(el('div', 'pl-list-title pl-serif', LIST_LABEL[tipo] || tipo));
-    var link = el('a', 'pl-wl-link', 'apri');
+    var link = el('a', 'pl-wl-link', T('planner.apri_2'));
     /* la linguetta viaggia con il collegamento: si sta guardando questo
        elenco, e aprirne un altro sarebbe un salto che non ha chiesto nessuno */
     link.href = 'todo.php?tab=' + encodeURIComponent(tipo);
@@ -4051,7 +4110,7 @@ function weekTodoList() {
 
     var tutti = (S.todos && S.todos[tipo]) || null;
     if (tutti === null) {
-        card.appendChild(el('div', 'pl-wl-empty', 'Un momento…'));
+        card.appendChild(el('div', 'pl-wl-empty', T('planner.un_momento')));
         return card;
     }
     /* le sotto-attività seguono la principale nella pagina attività: qui
@@ -4073,7 +4132,7 @@ function weekTodoList() {
 
     var box = el('div', 'pl-list-items');
     if (!dentro.length) {
-        box.appendChild(el('div', 'pl-wl-empty', 'Niente in questa settimana.'));
+        box.appendChild(el('div', 'pl-wl-empty', T('planner.niente_in_questa_settimana')));
     } else {
         dentro.forEach(function (t) { box.appendChild(weekTodoRow(t, false)); });
     }
@@ -4084,7 +4143,7 @@ function weekTodoList() {
     var add = el('button', 'pl-wl-add');
     add.type = 'button';
     add.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
-    add.appendChild(el('span', null, 'Aggiungi al ' + parseIso(S.focusDate).getDate() + ' ' + MESI[parseIso(S.focusDate).getMonth()].toLowerCase()));
+    add.appendChild(el('span', null, T('planner.aggiungi_al', {giorno: parseIso(S.focusDate).getDate(), mese: MESI[parseIso(S.focusDate).getMonth()].toLowerCase()})));
     add.addEventListener('click', function () {
         todoApi('save', {
             id: 0, title: ' ', list_type: tipo, parent_id: 0, project_id: 0,
@@ -4102,19 +4161,32 @@ function weekTodoList() {
             loadWeek(monday(S.focusDate), true);
         });
     });
-    card.appendChild(add);
 
-    /* il resto sta sotto e si chiede: senza data, poi più avanti, poi quelle
-       rimaste indietro — che non sono nominate nella richiesta ma sono
-       esattamente quelle che si vuole tirare dentro la settimana */
+    /* il resto sta sotto: prima quelle rimaste indietro, che si vedono
+       comunque, poi il tasto per aggiungerne una e infine le due che si
+       chiedono — senza data e più avanti */
     var senza  = roots.filter(function (t) { return !t.date; });
     var dopo   = roots.filter(function (t) { return t.date && t.date > rg.to; });
     var prima  = roots.filter(function (t) { return t.date && t.date < rg.from; });
     dopo.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
     prima.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
 
-    if (senza.length || dopo.length || prima.length) {
-        var more = el('button', 'pl-wl-more', S.todoOthers ? 'Nascondi gli altri' : 'Mostra anche gli altri');
+    /* Le rimaste indietro non stanno più sotto «mostra anche gli altri»: sono
+       l'unica cosa dell'elenco su cui bisogna decidere qualcosa oggi, e
+       tenerle dietro a un tasto voleva dire non vederle mai. Le altre due —
+       senza data e più avanti — restano nascoste: quelle si vanno a cercare
+       quando si ha voglia di tirarle dentro la settimana, non prima. */
+    if (prima.length) {
+        card.appendChild(el('div', 'pl-label pl-wl-lasect',
+            prima.length === 1 ? T('planner.rimasta_indietro') : T('planner.rimaste_indietro')));
+        var vecchie = el('div', 'pl-list-items');
+        prima.forEach(function (t) { vecchie.appendChild(weekTodoRow(t, true)); });
+        card.appendChild(vecchie);
+    }
+    card.appendChild(add);
+
+    if (senza.length || dopo.length) {
+        var more = el('button', 'pl-wl-more', S.todoOthers ? T('planner.nascondi_altri') : T('planner.mostra_anche_gli_altri'));
         more.type = 'button';
         more.addEventListener('click', function () {
             S.todoOthers = !S.todoOthers;
@@ -4129,9 +4201,8 @@ function weekTodoList() {
                 altri.appendChild(el('div', 'pl-wl-glab', label));
                 list.forEach(function (t) { altri.appendChild(weekTodoRow(t, true)); });
             }
-            gruppo('senza data', senza);
-            gruppo('più avanti', dopo);
-            gruppo('rimaste indietro', prima);
+            gruppo(T('planner.senza_data'), senza);
+            gruppo(T('planner.piu_avanti'), dopo);
             card.appendChild(altri);
         }
     }
@@ -4177,8 +4248,8 @@ function weekPillsCard() {
     var card = el('div', 'pl-list-card');
 
     var head = el('div', 'pl-list-head');
-    head.appendChild(el('div', 'pl-list-title pl-serif', 'Pastiglie'));
-    var link = el('a', 'pl-wl-link', 'apri');
+    head.appendChild(el('div', 'pl-list-title pl-serif', T('planner.pastiglie')));
+    var link = el('a', 'pl-wl-link', T('planner.apri_2'));
     link.href = 'todo.php?tab=pills';
     head.appendChild(link);
     card.appendChild(head);
@@ -4187,19 +4258,17 @@ function weekPillsCard() {
        settimana, e senza dirlo qui si crederebbe di vedere le prese di
        tutt'e sette. */
     var d = parseIso(date);
-    card.appendChild(el('div', 'pl-pill-day',
-        'prese di ' + (date === S.today ? 'oggi' : GIORNI[dowIndex(date)].toLowerCase())
-        + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()));
+    card.appendChild(el('div', 'pl-pill-day', T('planner.prese_di', {quando: (date === S.today ? T('comune.oggi').toLowerCase() : GIORNI[dowIndex(date)].toLowerCase()), giorno: d.getDate(), mese: MESI[d.getMonth()].toLowerCase()})));
 
     if (!S.pills || S.pills.date !== date) {
-        card.appendChild(el('div', 'pl-wl-empty', 'Un momento…'));
+        card.appendChild(el('div', 'pl-wl-empty', T('planner.un_momento')));
         /* il giorno a fuoco può essere cambiato mentre il pannello era
            aperto: si chiede quello giusto invece di mostrare l'altro */
         loadWeekPills(date);
         return card;
     }
     if (!S.pills.installed) {
-        card.appendChild(el('div', 'pl-wl-empty', 'Le pastiglie non sono installate.'));
+        card.appendChild(el('div', 'pl-wl-empty', T('planner.le_pastiglie_non_sono_installate')));
         return card;
     }
 
@@ -4211,24 +4280,24 @@ function weekPillsCard() {
     var late = S.pills.late || [];
     if (late.length) {
         card.appendChild(el('div', 'pl-label pl-pill-lasect',
-            late.length === 1 ? 'Rimasta indietro' : 'Rimaste indietro'));
+            late.length === 1 ? T('planner.rimasta_indietro') : T('planner.rimaste_indietro')));
         var lbox = el('div', 'pl-list-items');
-        late.forEach(function (p) { lbox.appendChild(pillRow(p, 'arretrata')); });
+        late.forEach(function (p) { lbox.appendChild(pillRow(p, T('planner.arretrata'))); });
         card.appendChild(lbox);
     }
 
     var box = el('div', 'pl-list-items');
     if (!S.pills.doses.length) {
-        box.appendChild(el('div', 'pl-wl-empty', 'Nessuna presa prevista.'));
+        box.appendChild(el('div', 'pl-wl-empty', T('planner.nessuna_presa_prevista')));
     } else {
         /* Le prese si spuntano il giorno stesso: su un giorno futuro le
            caselle restano da guardare e non da toccare. Segnare oggi una
            pastiglia di dopodomani non vuol dire niente, e l'ora della presa
            che ne uscirebbe sarebbe una data inventata. */
         var futuro = date > S.today;
-        S.pills.doses.forEach(function (p) { box.appendChild(pillRow(p, futuro ? 'futura' : null)); });
+        S.pills.doses.forEach(function (p) { box.appendChild(pillRow(p, futuro ? T('planner.futura') : null)); });
         if (futuro) {
-            box.appendChild(el('div', 'pl-row-sub', 'Si spuntano il giorno stesso.'));
+            box.appendChild(el('div', 'pl-row-sub', T('planner.si_spuntano_il_giorno_stesso')));
         }
     }
     card.appendChild(box);
@@ -4239,9 +4308,9 @@ function weekPillsCard() {
     var st = S.pills.stats;
     if (st && (st.taken || st.skipped || st.missed)) {
         card.appendChild(el('div', 'pl-pill-stats',
-            'ultimi 30 giorni: ' + st.taken + ' prese'
-            + (st.skipped ? ', ' + st.skipped + ' saltate' : '')
-            + (st.missed ? ', ' + st.missed + ' dimenticate' : '')));
+            T('planner.ultimi30_prese', {n: st.taken})
+            + (st.skipped ? T('planner.ultimi30_saltate', {n: st.skipped}) : '')
+            + (st.missed ? T('planner.ultimi30_dimenticate', {n: st.missed}) : '')));
     }
     return card;
 }
@@ -4260,8 +4329,8 @@ function weekPillsCard() {
      l'orologio di adesso sbaglierebbe di sicuro; la crocetta dice «non l'ho
      presa» e la toglie dall'elenco, se no resterebbe lì per sempre. */
 function pillRow(p, modo) {
-    var arretrata = modo === 'arretrata';
-    var futura = modo === 'futura';
+    var arretrata = modo === T('planner.arretrata');
+    var futura = modo === T('planner.futura');
     var row = el('div', 'pl-li pl-pill'
         + (p.status === 'taken' ? ' pl-done' : '')
         + (p.status === 'skipped' ? ' pl-pill-skip' : '')
@@ -4282,7 +4351,7 @@ function pillRow(p, modo) {
     /* di che giorno parliamo: tre righe uguali di tre giorni diversi, senza,
        non si distinguono */
     if (arretrata && p.date) txt.appendChild(el('div', 'pl-pill-quando', pillGiornoBreve(p.date)));
-    txt.appendChild(el('div', 'pl-pill-name', p.name || 'senza nome'));
+    txt.appendChild(el('div', 'pl-pill-name', p.name || T('planner.senza_nome')));
     /* dose e avvertenze sulla stessa riga: sono la cosa che si dimentica
        ("mezza compressa", "a stomaco pieno") e sta bene sotto il nome */
     var sotto = [p.dose, p.notes].filter(Boolean).join(' · ');
@@ -4316,14 +4385,21 @@ function pillRow(p, modo) {
     });
 
     if (arretrata) {
-        var salta = el('button', 'pl-pill-x');
+        /* La parola al posto della crocetta. Una x si legge come «togli
+           questa riga», e non è quello che succede: qui si sta dicendo una
+           cosa precisa — quella pastiglia non è stata presa e non lo sarà —
+           che il conto degli ultimi trenta giorni tiene da parte, saltate da
+           una parte e dimenticate dall'altra. Con la crocetta bisognava
+           saperlo; con la parola no. */
+        var salta = el('button', 'pl-pill-salta' + (p.status === 'skipped' ? ' pl-on' : ''), T('planner.saltata'));
         salta.type = 'button';
-        salta.setAttribute('aria-label', 'Non l\'ho presa');
-        salta.title = 'Non l\'ho presa: toglila dall\'elenco';
-        salta.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+        salta.setAttribute('aria-label', T('planner.segna_come_saltata'));
+        salta.title = T('planner.non_l_ho_presa_e');
         salta.addEventListener('click', function (e) {
             e.stopPropagation();
-            segna(p.status === 'skipped' ? 'pending' : 'skipped');
+            var ora = p.status === 'skipped' ? 'pending' : 'skipped';
+            salta.classList.toggle('pl-on', ora === 'skipped');
+            segna(ora);
         });
         row.appendChild(salta);
     }
@@ -4333,7 +4409,7 @@ function pillRow(p, modo) {
 /* «ieri» quando è ieri, se no «lun 3». Il nome del giorno da solo, su una
    cosa passata, si legge come il giorno che deve venire. */
 function pillGiornoBreve(iso) {
-    if (iso === addDays(S.today, -1)) return 'ieri';
+    if (iso === addDays(S.today, -1)) return T('comune.ieri').toLowerCase();
     var d = parseIso(iso);
     return GIORNI[dowIndex(iso)].slice(0, 3) + ' ' + d.getDate();
 }
@@ -4351,8 +4427,8 @@ function pillQuandoPresa(p, poi) {
     var sheet = el('div', 'pl-sheet pl-sheet-auto');
     sheet.appendChild(el('div', 'pl-grab'));
     var head = el('div', 'pl-sheet-head');
-    head.appendChild(el('span', 'pl-sheet-title pl-serif', 'Quando l\'hai presa?'));
-    var no = el('button', 'pl-txt-btn', 'Annulla');
+    head.appendChild(el('span', 'pl-sheet-title pl-serif', T('planner.quando_l_hai_presa')));
+    var no = el('button', 'pl-txt-btn', T('planner.annulla'));
     no.type = 'button';
     no.addEventListener('click', function () { ov.remove(); });
     head.appendChild(no);
@@ -4360,7 +4436,7 @@ function pillQuandoPresa(p, poi) {
 
     var body = el('div', 'pl-sheet-body');
     body.appendChild(el('div', 'pl-row-sub',
-        (p.name || 'la pastiglia') + ' di ' + pillGiornoBreve(p.date || S.today)));
+        T('planner.pastiglia_di', {nome: (p.name || T('planner.la_pastiglia_l')), quando: pillGiornoBreve(p.date || S.today)})));
 
     /* Il giorno c'è perché una presa di lunedì spuntata mercoledì appartiene
        a lunedì: scriverla su mercoledì sposterebbe il buco invece di
@@ -4368,14 +4444,14 @@ function pillQuandoPresa(p, poi) {
     var iData = el('input', 'pl-pick');
     iData.type = 'date';
     iData.value = p.date || S.today;
-    body.appendChild(rowSB('Giorno', iData));
+    body.appendChild(rowSB(T('planner.giorno_t'), iData));
 
     var iOra = el('input', 'pl-pick');
     iOra.type = 'time'; iOra.step = '60';
     iOra.value = p.time || '08:00';
-    body.appendChild(rowSB('Ora', iOra));
+    body.appendChild(rowSB(T('planner.ora_t'), iOra));
 
-    var ok = el('button', 'pl-btn pl-btn-primary pl-pill-ok', 'Segna come presa');
+    var ok = el('button', 'pl-btn pl-btn-primary pl-pill-ok', T('planner.segna_come_presa'));
     ok.type = 'button';
     ok.addEventListener('click', function () {
         var g = iData.value || p.date || S.today;
@@ -4406,7 +4482,7 @@ function pillQuandoPresa(p, poi) {
 function todoQuandoTesto(t) {
     if (!t.date) return t.time ? t.time : 'quando';
     var avanti = diffDays(S.today, t.date);
-    if (avanti === 0) return t.time ? t.time : 'oggi';
+    if (avanti === 0) return t.time ? t.time : T('comune.oggi').toLowerCase();
     if (avanti > 0 && avanti <= 7) return GIORNI[dowIndex(t.date)].slice(0, 3);
     var d = parseIso(t.date);
     return d.getDate() + ' ' + MESI[d.getMonth()].slice(0, 3).toLowerCase();
@@ -4416,14 +4492,22 @@ function todoQuandoTesto(t) {
    basta, perché lì il gesto ha un altro significato: prendere la voce e
    portarla al giorno che si sta guardando. */
 function weekTodoRow(t, isOther) {
-    var row = el('div', 'pl-li' + (t.done ? ' pl-done' : '') + (isOther ? ' pl-li-other' : ''));
+    /* Rosso su quelle dei giorni passati e non ancora spuntate: sono le
+       stesse che il planner tira su in priorità, e qui dentro sembravano
+       righe come tutte le altre — ci si passava sopra senza vederle. Solo il
+       bordo e la data, come sulle pastiglie arretrate: un riquadro rosso
+       pieno tutte le mattine diventa allarme di sottofondo e dopo tre giorni
+       non lo si guarda più. */
+    var tardi = !t.done && !!t.date && t.date < S.today;
+    var row = el('div', 'pl-li' + (t.done ? ' pl-done' : '') + (isOther ? ' pl-li-other' : '')
+        + (tardi ? ' pl-li-late' : ''));
 
     var box = el('span', 'pl-li-box');
     box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
     row.appendChild(box);
 
     if (isOther) {
-        row.appendChild(el('span', 'pl-li-txt', t.title || 'senza titolo'));
+        row.appendChild(el('span', 'pl-li-txt', t.title || T('planner.senza_titolo_l')));
         if (t.date) row.appendChild(el('span', 'pl-li-when', todoQuandoTesto(t)));
         row.addEventListener('click', function () { takeIntoWeek(t); });
         return row;
@@ -4432,7 +4516,7 @@ function weekTodoRow(t, isOther) {
     var inp = el('input', 'pl-li-in');
     inp.type = 'text';
     inp.value = t.title || '';
-    inp.placeholder = 'Aggiungi…';
+    inp.placeholder = T('planner.aggiungi');
     inp.maxLength = 300;
     inp.addEventListener('change', function () { salvaTitolo(); });
     inp.addEventListener('blur', function () { salvaTitolo(); });
@@ -4457,7 +4541,7 @@ function weekTodoRow(t, isOther) {
         var prio = el('button', 'pl-li-prio pl-prio-' + (t.priority || 3));
         prio.type = 'button';
         prio.textContent = String(t.priority || 3);
-        prio.setAttribute('aria-label', 'Priorità ' + (t.priority || 3));
+        prio.setAttribute('aria-label', T('planner.priorita_n', {n: (t.priority || 3)}));
         prio.addEventListener('click', function (e) {
             e.stopPropagation();
             var next = (t.priority || 3) % 3 + 1;
@@ -4518,12 +4602,12 @@ function weekTodoRow(t, isOther) {
     var wrap = el('div', 'pl-li-wrap');
     var trash = el('button', 'pl-li-trash');
     trash.type = 'button';
-    trash.setAttribute('aria-label', 'Elimina');
+    trash.setAttribute('aria-label', T('planner.elimina'));
     trash.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>';
     trash.addEventListener('click', function () {
-        alertBox('Elimino?', '«' + (t.title || 'senza titolo') + '» sparisce dagli elenchi e dal planner.', [
-            { label: 'Lascia stare' },
-            { label: 'Elimina', kind: 'danger', onClick: function () {
+        alertBox(T('planner.elimino'), '«' + (t.title || T('planner.senza_titolo_l')) + T('planner.sparisce_elenchi'), [
+            { label: T('planner.lascia_stare') },
+            { label: T('planner.elimina'), kind: 'danger', onClick: function () {
                 todoApi('delete', { id: t.id }).then(function () {
                     loadWeekTodos(S.todoTab, true);
                     loadWeek(monday(S.focusDate), true);
@@ -4571,7 +4655,7 @@ function abilitaSwipeLi(wrap, row) {
    database (due_time NULL) e della pagina attività. */
 function todoQuando(t) {
     var ov = $('plAlertOv');
-    $('plAlertTitle').textContent = t.title || 'Senza titolo';
+    $('plAlertTitle').textContent = t.title || T('planner.senza_titolo');
     $('plAlertMsg').innerHTML = '';
     var wrap = el('div');
 
@@ -4586,13 +4670,13 @@ function todoQuando(t) {
     var mIn = el('input', 'pl-pick');
     mIn.type = 'number'; mIn.min = '5'; mIn.max = '1440'; mIn.step = '5';
     mIn.value = String(t.minutes || 30);
-    riga('Data', dIn);
-    riga('Ora', oIn);
-    riga('Durata (minuti)', mIn);
+    riga(T('planner.data_t'), dIn);
+    riga(T('planner.ora_t'), oIn);
+    riga(T('planner.durata_minuti'), mIn);
     /* senza orario l'attività vale per tutto il giorno: serve un modo per
        tornare indietro, perché un campo orario svuotato a mano non sempre
        si lascia svuotare */
-    var senza = el('button', 'pl-linkish', 'Togli l\'orario');
+    var senza = el('button', 'pl-linkish', T('planner.togli_l_orario'));
     senza.type = 'button';
     senza.addEventListener('click', function () { oIn.value = ''; });
     wrap.appendChild(senza);
@@ -4600,9 +4684,9 @@ function todoQuando(t) {
 
     var acts = $('plAlertActs');
     acts.innerHTML = '';
-    var no = el('button', 'pl-btn', 'Annulla'); no.type = 'button';
+    var no = el('button', 'pl-btn', T('planner.annulla')); no.type = 'button';
     no.addEventListener('click', function () { ov.classList.remove('pl-open'); });
-    var si = el('button', 'pl-btn pl-btn-primary', 'Salva'); si.type = 'button';
+    var si = el('button', 'pl-btn pl-btn-primary', T('planner.salva')); si.type = 'button';
     si.addEventListener('click', function () {
         ov.classList.remove('pl-open');
         t.date = dIn.value || t.date;
@@ -4613,7 +4697,7 @@ function todoQuando(t) {
             parent_id: t.parent_id || 0, project_id: t.project_id || 0,
             date: t.date || '', time: t.time || '', minutes: t.minutes, source: 'page'
         }).then(function (r) {
-            if (!r.ok) { toast('Non è stato possibile salvare.'); return; }
+            if (!r.ok) { toast(T('planner.non_e_stato_possibile_salvare')); return; }
             loadWeekTodos(S.todoTab, true);
             /* la stessa attività è anche un evento in agenda: il planner va
                riletto, se no la riga si sposta e il blocco resta dov'era */
@@ -4641,11 +4725,9 @@ function takeIntoWeek(t) {
     }
     if (!t.date) { applica(); return; }
     var d = parseIso(t.date), n = parseIso(S.focusDate);
-    alertBox('Cambio la data?',
-        '«' + (t.title || 'senza titolo') + '» è al ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase() +
-        '. Passa al ' + n.getDate() + ' ' + MESI[n.getMonth()].toLowerCase() + '.', [
-        { label: 'Lascia stare' },
-        { label: 'Sposta', kind: 'primary', onClick: applica }
+    alertBox(T('planner.cambio_la_data'), T('planner.e_al_passa_al', {titolo: (t.title || T('planner.senza_titolo')), g1: d.getDate(), m1: MESI[d.getMonth()].toLowerCase(), g2: n.getDate(), m2: MESI[n.getMonth()].toLowerCase()}), [
+        { label: T('planner.lascia_stare') },
+        { label: T('planner.sposta'), kind: 'primary', onClick: applica }
     ]);
 }
 
@@ -4678,6 +4760,8 @@ function openWeekPanel() {
 function closeWeekPanel() {
     $('plWeekPanelOv').classList.remove('pl-open');
     if (!document.querySelector('.pl-ov.pl-open')) document.documentElement.classList.remove('pl-locked');
+    /* il tocco che l'ha chiuso finisce qui e non prosegue verso la griglia */
+    assorbiDopoChiusura();
 }
 
 /* ------------------------------------------------------------------ */
@@ -4787,8 +4871,8 @@ function disegnaAnelli(ring, dati) {
     var tutto = dati.length > 0 && dati.every(function (d) { return d.total > 0 && d.done >= d.total; });
     ring.classList.toggle('pl-ring-full', tutto);
 
-    var descr = dati.map(function (d) { return d.label + ' ' + d.done + ' su ' + d.total; }).join(', ');
-    ring.setAttribute('aria-label', descr || 'Nessuna abitudine');
+    var descr = dati.map(function (d) { return T('planner.etichetta_n_su_n', {label: d.label, fatti: d.done, totale: d.total}); }).join(', ');
+    ring.setAttribute('aria-label', descr || T('planner.nessuna_abitudine'));
 }
 
 /* ------------------------------------------------------------------ */
@@ -5006,10 +5090,38 @@ document.addEventListener('pointerdown', function (e) {
     setAdSlim(true);
 }, true);
 
+/* Un tocco che cade su un velo, o dentro un pannello aperto, appartiene a
+   quel pannello e a nessun altro: serve solo a chiuderlo, e la pagina sotto
+   non deve accorgersene. Senza questo, chiudere le liste della settimana (o
+   il riassunto del progetto) compattava anche le priorità — e chi il
+   pannello l'aveva aperto proprio da una priorità se le ritrovava chiuse
+   senza aver toccato niente. */
+function daPannello(e) {
+    var t = e.target;
+    if (t && t.closest && t.closest('.pl-ov, .pl-wp-ov, .pl-wp, .pl-sheet, .pl-alert')) return true;
+    return !!document.querySelector('.pl-ov.pl-open, .pl-wp-ov.pl-open');
+}
+
+/* …e nemmeno il click che chiude deve arrivare a qualcos'altro. Sui telefoni
+   il velo sparisce mentre il dito è ancora giù, e il click che segue viene
+   riassegnato a quello che si trova sotto: un evento che si apre, un'ora
+   vuota che ne crea uno. Si segna l'istante della chiusura e per mezzo
+   secondo si ingoia ogni click che non nasca da un pannello. */
+var chiusuraA = 0;
+function assorbiDopoChiusura() { chiusuraA = Date.now(); }
+document.addEventListener('click', function (e) {
+    if (Date.now() - chiusuraA > 450) return;
+    if (daPannello(e)) return;
+    chiusuraA = 0;
+    e.stopPropagation();
+    e.preventDefault();
+}, true);
+
 /* un tocco fuori dalla sezione priorità la richiude */
 document.addEventListener('pointerdown', function (e) {
     if (S.prioSlim) return;
     if (e.target.closest('#plPrio')) return;
+    if (daPannello(e)) return;
     setPrioSlim(true);
 }, true);
 
@@ -5567,7 +5679,7 @@ window.addEventListener('resize', function () {
         S.pinchAt = Date.now();
         var ratio = dist(t) / (start || 1);
 
-        /* Da 'lista' non c'è densità da moltiplicare: si rientra negli orari
+        /* Da T('planner.lista') non c'è densità da moltiplicare: si rientra negli orari
            al passo più largo. Basta un accenno di apertura — 1.18 voleva dire
            allargare le dita di un quinto prima che succedesse qualcosa, e nel
            frattempo sembrava rotto. */
@@ -5698,7 +5810,7 @@ function inserisciArmato(date, startMin, endMin) {
     payload.end = toHM(Math.min(1439, endMin));
     armaAttrezzo(null, null);
     api('event_save', payload).then(function (r) {
-        if (!r.ok) { toast('Non è stato possibile inserirlo.'); return; }
+        if (!r.ok) { toast(T('planner.non_e_stato_possibile_inserirlo')); return; }
         indexEvents([r.event]);
         renderDays();
         if (a.kind === 'habit') { delete S.rings[date]; renderRing(); }
@@ -5757,9 +5869,9 @@ function renderZoomDial() {
     var box = $('plZoom');
     if (!box) return;
     box.innerHTML = '';
-    box.appendChild(el('div', 'pl-zoom-lab', 'Scatti'));
+    box.appendChild(el('div', 'pl-zoom-lab', T('planner.scatti')));
     ZOOM.forEach(function (z) {
-        var short = z.key === 'agenda' ? 'lista'
+        var short = z.key === 'agenda' ? T('planner.lista')
             : z.key === 'h3' ? '3 h' : z.key === 'h1' ? '1 h'
             : z.key === 'm30' ? "30'" : z.key === 'm15' ? "15'" : "5'";
         var b = el('button', 'pl-zoom-step' + (z.key === S.zoom ? ' pl-on' : ''), short);
@@ -6464,7 +6576,7 @@ function startEventDrag(e, node, canvas) {
                 direction: shift > 0 ? 'late' : 'early'
             }).then(function (r) {
                 if (!r.ok) { renderDays(); return; } // Rollback solido in caso di errore
-                if (r.moved === 0) toast('Il blocco non ci sta più in giornata.');
+                if (r.moved === 0) toast(T('planner.il_blocco_non_ci_sta'));
                 S.weekCache = {};
                 loadWeek(monday(date), true).then(renderDays);
                 scheduleSync();
@@ -6559,7 +6671,7 @@ function confirmRoutineTime(r, defaultStart) {
     $('plAlertTitle').textContent = r.name;
     $('plAlertMsg').innerHTML = '';
     var wrap = el('div');
-    wrap.appendChild(el('div', 'pl-row-sub', durLabel(r.total) + ' in tutto, ' + r.items.length + ' passaggi. A che ora inizia?'));
+    wrap.appendChild(el('div', 'pl-row-sub', T('planner.routine_quanti_passaggi', {durata: durLabel(r.total), n: r.items.length})));
     var inp = el('input', 'pl-in');
     inp.type = 'time'; inp.step = '300'; inp.value = defaultStart;
     inp.style.marginTop = '10px'; inp.style.textAlign = 'center';
@@ -6568,14 +6680,14 @@ function confirmRoutineTime(r, defaultStart) {
 
     var acts = $('plAlertActs');
     acts.innerHTML = '';
-    var no = el('button', 'pl-btn', 'Annulla'); no.type = 'button';
+    var no = el('button', 'pl-btn', T('planner.annulla')); no.type = 'button';
     no.addEventListener('click', function () { ov.classList.remove('pl-open'); });
-    var yes = el('button', 'pl-btn pl-btn-primary', 'Inserisci'); yes.type = 'button';
+    var yes = el('button', 'pl-btn pl-btn-primary', T('planner.inserisci')); yes.type = 'button';
     yes.addEventListener('click', function () {
         var start = inp.value || defaultStart;
         ov.classList.remove('pl-open');
         api('routine_insert', { routine_id: r.id, date: S.focusDate, start: start }).then(function (res) {
-            if (!res.ok) { toast(res.message || 'Non è stato possibile inserire la routine.'); return; }
+            if (!res.ok) { toast(res.message || T('planner.non_e_stato_possibile_inserire')); return; }
             indexEvents(res.events, { from: S.focusDate, to: S.focusDate });
             renderDays();
             haptic(14);
@@ -6596,7 +6708,7 @@ function confirmHabitTime(h, defaultStart, dur) {
     $('plAlertTitle').textContent = h.name;
     $('plAlertMsg').innerHTML = '';
     var wrap = el('div');
-    wrap.appendChild(el('div', 'pl-row-sub', 'Durata ' + durLabel(dur) + '. A che ora la metto?'));
+    wrap.appendChild(el('div', 'pl-row-sub', T('planner.durata_a_che_ora', {durata: durLabel(dur)})));
     var inp = el('input', 'pl-in');
     inp.type = 'time'; inp.step = '300'; inp.value = defaultStart;
     inp.style.marginTop = '10px'; inp.style.textAlign = 'center';
@@ -6605,9 +6717,9 @@ function confirmHabitTime(h, defaultStart, dur) {
 
     var acts = $('plAlertActs');
     acts.innerHTML = '';
-    var no = el('button', 'pl-btn', 'Annulla'); no.type = 'button';
+    var no = el('button', 'pl-btn', T('planner.annulla')); no.type = 'button';
     no.addEventListener('click', function () { ov.classList.remove('pl-open'); });
-    var yes = el('button', 'pl-btn pl-btn-primary', 'Inserisci'); yes.type = 'button';
+    var yes = el('button', 'pl-btn pl-btn-primary', T('planner.inserisci')); yes.type = 'button';
     yes.addEventListener('click', function () {
         var start = toMin(inp.value || defaultStart);
         ov.classList.remove('pl-open');
@@ -6616,7 +6728,7 @@ function confirmHabitTime(h, defaultStart, dur) {
             end: toHM(Math.min(1439, start + dur)), habit_id: h.id,
             type: 'task', color: h.color, notify: 'none'
         }).then(function (r) {
-            if (!r.ok) { toast('Non è stato possibile aggiungere l\'abitudine.'); return; }
+            if (!r.ok) { toast(T('planner.non_e_stato_possibile_aggiungere')); return; }
             indexEvents([r.event]);
             renderDays();
             haptic(12);
@@ -6638,7 +6750,7 @@ function openRoutineInstance(group, date) {
     if (!items.length) return;
     var routine = routineById(items[0].routine_id);
 
-    openSheet(routine ? routine.name : 'Routine', function (body) {
+    openSheet(routine ? routine.name : T('planner.routine_t'), function (body) {
         var d = parseIso(date);
         body.appendChild(el('div', 'pl-row-sub', d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()
             + '  ·  ' + items[0].start + ' – ' + items[items.length - 1].end));
@@ -6648,15 +6760,15 @@ function openRoutineInstance(group, date) {
         items.forEach(function (it) { rows.appendChild(routineStepRow(it, group, date)); });
         body.appendChild(rows);
 
-        var delAll = el('button', 'pl-btn pl-btn-danger', 'Elimina tutta la routine');
+        var delAll = el('button', 'pl-btn pl-btn-danger', T('planner.elimina_tutta_la_routine'));
         delAll.type = 'button';
         delAll.style.marginTop = '18px';
         delAll.addEventListener('click', function () {
-            alertBox('Elimino tutta la routine?', 'Tutti i passaggi di questo blocco spariranno dall\'agenda.', [
-                { label: 'Annulla' },
-                { label: 'Elimina', kind: 'danger', onClick: function () {
+            alertBox(T('planner.elimino_tutta_la_routine'), T('planner.tutti_i_passaggi_di_questo'), [
+                { label: T('planner.annulla') },
+                { label: T('planner.elimina'), kind: 'danger', onClick: function () {
                     api('event_delete', { id: items[0].id, scope: 'routine' }).then(function (r) {
-                        if (!r.ok) { toast('Non è stato possibile eliminare.'); return; }
+                        if (!r.ok) { toast(T('planner.non_e_stato_possibile_eliminare')); return; }
                         S.events[date] = (S.events[date] || []).filter(function (e) { return e.routine_group !== group; });
                         closeOv('plSheetOv');
                         renderDays();
@@ -6708,7 +6820,7 @@ function routineStepRow(it, group, date) {
             notify: it.notify || 'none', notify_min: it.notify_min || 0,
             repeat: 'none', repeat_interval: 1, repeat_unit: 'week', repeat_until: ''
         }).then(function (r) {
-            if (!r.ok) { toast('Non salvato.'); dur.value = toMin(it.end) - toMin(it.start); return; }
+            if (!r.ok) { toast(T('planner.non_salvato')); dur.value = toMin(it.end) - toMin(it.start); return; }
             it.end = r.event.end;
             indexEvents([r.event]);
             sub.textContent = it.start + ' – ' + it.end;
@@ -6725,7 +6837,7 @@ function routineStepRow(it, group, date) {
     del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>';
     del.addEventListener('click', function () {
         api('event_delete', { id: it.id, scope: 'one' }).then(function (r) {
-            if (!r.ok) { toast('Non è stato possibile eliminare.'); return; }
+            if (!r.ok) { toast(T('planner.non_e_stato_possibile_eliminare')); return; }
             S.events[date] = (S.events[date] || []).filter(function (e) { return e.id !== it.id; });
             var remain = (S.events[date] || []).filter(function (e) { return e.routine_group === group; });
             if (!remain.length) { renderDays(); closeOv('plSheetOv'); return; }
@@ -6878,7 +6990,7 @@ function openEventSheet(existing, seed) {
         repeat_until: existing.repeat_until
     } : null;
 
-    $('plEvKicker').textContent = existing ? 'Modifica' : 'Nuovo evento';
+    $('plEvKicker').textContent = existing ? T('planner.modifica') : T('planner.nuovo_evento');
     $('plEvTrash').classList.toggle('pl-hidden', !existing);
     renderEventSheet();
     openOv('plEventOv');
@@ -6911,7 +7023,7 @@ function renderEventSheet() {
     var f1 = el('div', 'pl-field');
     var trow = el('div', 'pl-title-row');
     var title = el('input', 'pl-in');
-    title.type = 'text'; title.id = 'plEvTitle'; title.placeholder = 'Titolo'; title.maxLength = 180;
+    title.type = 'text'; title.id = 'plEvTitle'; title.placeholder = T('planner.titolo'); title.maxLength = 180;
     title.value = d.title;
     title.addEventListener('input', function () {
         d.title = title.value;
@@ -6927,12 +7039,12 @@ function renderEventSheet() {
     pbtn.addEventListener('click', function () {
         var modal = $('ps-modal-plev');
         if (modal && window.psOpen) window.psOpen(modal);
-        else toast('Selettore progetti non disponibile.');
+        else toast(T('planner.selettore_progetti_non_disponibile'));
     });
     trow.appendChild(pbtn);
     f1.appendChild(trow);
     if (d.project_name) {
-        var pn = el('div', 'pl-row-sub', 'Progetto: ' + d.project_name);
+        var pn = el('div', 'pl-row-sub', T('planner.progetto_due') + d.project_name);
         pn.style.margin = '6px 2px 0';
         f1.appendChild(pn);
     }
@@ -6942,8 +7054,8 @@ function renderEventSheet() {
        si trovava dopo aver scorso tutto il popup. Qui è la seconda cosa che si
        decide di un evento, ed è giusto che stia dove la si decide. */
     var trow2 = el('div', 'pl-tipo-riga');
-    trow2.appendChild(el('span', 'pl-tipo-lab', 'Tipo'));
-    trow2.appendChild(seg([['event', 'Evento'], ['task', 'Task']], d.type, function (v) {
+    trow2.appendChild(el('span', 'pl-tipo-lab', T('planner.tipo')));
+    trow2.appendChild(seg([['event', T('planner.evento')], ['task', T('planner.task')]], d.type, function (v) {
         d.type = v; S.draft.dirty = true; renderEventSheet();
     }));
     f1.appendChild(trow2);
@@ -6951,11 +7063,11 @@ function renderEventSheet() {
 
     /* data, orari, durata */
     var fd = el('div', 'pl-field');
-    fd.appendChild(el('label', 'pl-label', 'Quando'));
-    var rDate = rowSB('Data', dateInput(d.date, function (v) { d.date = v; S.draft.dirty = true; }));
+    fd.appendChild(el('label', 'pl-label', T('planner.quando')));
+    var rDate = rowSB(T('planner.data_t'), dateInput(d.date, function (v) { d.date = v; S.draft.dirty = true; }));
     fd.appendChild(rDate);
 
-    var allRow = rowSB('Tutto il giorno', toggle(d.all_day, function (v) {
+    var allRow = rowSB(T('planner.tutto_il_giorno'), toggle(d.all_day, function (v) {
         d.all_day = v;
         /* Togliendo la spunta restavano 00:00–23:59, cioè un evento di tutto
            il giorno con un altro nome. Gli si dà un'ora vera: la prima libera
@@ -7055,10 +7167,10 @@ function renderEventSheet() {
         function drawLock() {
             lock.className = 'pl-lock pl-lock-' + stato;
             lock.title = stato === 'chiuso'
-                ? 'Durata bloccata: spostando un orario si sposta anche l’altro'
+                ? T('planner.durata_bloccata_spostando_un_orario')
                 : (stato === 'aperto'
-                    ? 'Durata libera: spostando un orario l’altro resta fermo'
-                    : 'Spostando l’inizio la durata resta; spostando la fine cambia');
+                    ? T('planner.durata_libera_spostando_un_orario')
+                    : T('planner.spostando_linizio_la_durata_resta'));
             lock.setAttribute('aria-label', lock.title);
             lock.setAttribute('aria-pressed', stato === 'chiuso' ? 'true' : 'false');
             /* Tre stati, tre disegni. Il corpo del lucchetto è sempre lo
@@ -7087,46 +7199,46 @@ function renderEventSheet() {
             haptic(8);
         });
 
-        fd.appendChild(rowSB('Inizio', sIn));
+        fd.appendChild(rowSB(T('planner.inizio_t'), sIn));
 
         var durRow = el('div', 'pl-row-sb');
         durRow.appendChild(el('span', 'pl-row-lab'));   // vuota: la scritta sta a destra
         var durBox = el('div', 'pl-durbox');
-        durBox.appendChild(el('span', 'pl-dur-lab', 'Durata'));
+        durBox.appendChild(el('span', 'pl-dur-lab', T('planner.durata')));
         durBox.appendChild(lock);
         durBox.appendChild(durIn);
         durRow.appendChild(durBox);
         fd.appendChild(durRow);
 
-        fd.appendChild(rowSB('Fine', eIn));
+        fd.appendChild(rowSB(T('planner.fine_t'), eIn));
     }
     body.appendChild(fd);
 
     /* ripetizione */
     var fr = el('div', 'pl-field');
-    fr.appendChild(el('label', 'pl-label', 'Ripeti'));
+    fr.appendChild(el('label', 'pl-label', T('planner.ripeti')));
     var repSel = select([
-        ['none', 'Mai'], ['daily', 'Ogni giorno'], ['weekly', 'Ogni settimana'],
-        ['monthly', 'Ogni mese'], ['yearly', 'Ogni anno'], ['custom', 'Personalizzato']
+        ['none', T('planner.mai_t')], ['daily', T('planner.ogni_giorno')], ['weekly', T('planner.ogni_settimana')],
+        ['monthly', T('planner.ogni_mese')], ['yearly', T('planner.ogni_anno')], ['custom', T('planner.personalizzato')]
     ], d.repeat, function (v) { d.repeat = v; S.draft.dirty = true; renderEventSheet(); });
-    fr.appendChild(rowSB('Frequenza', repSel));
+    fr.appendChild(rowSB(T('planner.frequenza_t'), repSel));
     if (d.repeat === 'custom') {
         var wrap = el('div', 'pl-row');
         var n = el('input', 'pl-pick');
         n.type = 'number'; n.min = '1'; n.max = '365'; n.value = d.repeat_interval || 1; n.style.width = '76px';
         n.addEventListener('change', function () { d.repeat_interval = Math.max(1, parseInt(n.value, 10) || 1); S.draft.dirty = true; });
-        wrap.appendChild(el('span', 'pl-row-sub', 'ogni'));
+        wrap.appendChild(el('span', 'pl-row-sub', T('planner.ogni')));
         wrap.appendChild(n);
-        wrap.appendChild(select([['day', 'giorni'], ['week', 'settimane'], ['month', 'mesi'], ['year', 'anni']], d.repeat_unit,
+        wrap.appendChild(select([['day', T('planner.u_giorni')], ['week', T('planner.u_settimane')], ['month', T('planner.u_mesi')], ['year', T('planner.u_anni')]], d.repeat_unit,
             function (v) { d.repeat_unit = v; S.draft.dirty = true; }));
-        fr.appendChild(rowSB('Intervallo', wrap));
+        fr.appendChild(rowSB(T('planner.intervallo'), wrap));
     }
     if (d.repeat !== 'none') {
         var untilWrap = el('div');
         if (!d.repeat_until && !S.draft.editing_until) {
             var infBtn = el('button', 'pl-pick');
             infBtn.type = 'button';
-            infBtn.textContent = '∞ Infinito';
+            infBtn.textContent = T('planner.infinito');
             infBtn.addEventListener('click', function() {
                 S.draft.editing_until = true;
                 renderEventSheet();
@@ -7159,14 +7271,14 @@ function renderEventSheet() {
                 }, 50);
             }
         }
-        fr.appendChild(rowSB('Fino al', untilWrap));
+        fr.appendChild(rowSB(T('planner.fino_al'), untilWrap));
     }
     body.appendChild(fr);
 
     /* calendario */
     if (S.calendars.length > 1) {
         var fcal = el('div', 'pl-field');
-        fcal.appendChild(el('label', 'pl-label', 'Calendario'));
+        fcal.appendChild(el('label', 'pl-label', T('planner.calendario')));
         
         var calOptions = [];
         var activeCalStr = '';
@@ -7191,7 +7303,7 @@ function renderEventSheet() {
 
     /* categoria */
     var fc = el('div', 'pl-field');
-    fc.appendChild(el('label', 'pl-label', 'Categoria'));
+    fc.appendChild(el('label', 'pl-label', T('planner.categoria')));
     var tags = el('div', 'pl-tags');
     if (d.project_id && d.project_name) {
         tags.appendChild(tag(d.project_name, d.project_color || NEUTRAL, d.category_id === null, function () {
@@ -7211,18 +7323,18 @@ function renderEventSheet() {
 
     /* importanza */
     var fi = el('div', 'pl-field');
-    fi.appendChild(el('label', 'pl-label', 'Importanza'));
-    fi.appendChild(seg([['normal', 'Normale'], ['high', 'Importante'], ['highest', 'Importantissimo']], d.importance, function (v) {
+    fi.appendChild(el('label', 'pl-label', T('planner.importanza')));
+    fi.appendChild(seg([['normal', T('planner.normale')], ['high', T('planner.importante')], ['highest', T('planner.importantissimo')]], d.importance, function (v) {
         d.importance = v; S.draft.dirty = true; renderEventSheet();
     }));
     body.appendChild(fi);
 
     /* notifica */
     var fn = el('div', 'pl-field');
-    fn.appendChild(el('label', 'pl-label', 'Notifica'));
-    fn.appendChild(rowSB('Avvisami', select([
-        ['none', 'Nessuna'], ['at_time', 'Nel momento'], ['m30', '30 minuti prima'],
-        ['h1', "Un'ora prima"], ['d1', 'Un giorno prima'], ['custom', 'Personalizzata']
+    fn.appendChild(el('label', 'pl-label', T('planner.notifica')));
+    fn.appendChild(rowSB(T('planner.avvisami'), select([
+        ['none', T('planner.nessuna')], ['at_time', T('planner.nel_momento')], ['m30', T('planner.30_minuti_prima')],
+        ['h1', T('planner.un_ora_prima')], ['d1', T('planner.un_giorno_prima')], ['custom', T('planner.personalizzata')]
     ], d.notify, function (v) {
         d.notify = v; S.draft.dirty = true;
         /* Scegliere un avviso è il momento buono per chiedere il permesso:
@@ -7234,21 +7346,21 @@ function renderEventSheet() {
         var avviso = el('div', 'pl-row-sub');
         avviso.style.margin = '4px 2px 0';
         avviso.textContent = Notification.permission === 'denied'
-            ? 'Gli avvisi sono bloccati per questo sito: si riattivano dalle impostazioni del browser.'
-            : 'Per ricevere gli avvisi serve dare il permesso al browser.';
+            ? T('planner.gli_avvisi_sono_bloccati_per')
+            : T('planner.per_ricevere_gli_avvisi_serve');
         fn.appendChild(avviso);
     }
     if (d.notify === 'custom') {
         var nm = el('input', 'pl-pick');
         nm.type = 'number'; nm.min = '0'; nm.max = '40320'; nm.value = d.notify_min || 60; nm.style.width = '96px';
         nm.addEventListener('change', function () { d.notify_min = Math.max(0, parseInt(nm.value, 10) || 0); S.draft.dirty = true; });
-        fn.appendChild(rowSB('Minuti prima', nm));
+        fn.appendChild(rowSB(T('planner.minuti_prima'), nm));
     }
     body.appendChild(fn);
 
     /* colore */
     var fcol = el('div', 'pl-field');
-    fcol.appendChild(el('label', 'pl-label', 'Colore'));
+    fcol.appendChild(el('label', 'pl-label', T('planner.colore')));
     var sw = el('div', 'pl-swatches');
     var base = d.category_id ? (catById(d.category_id) || {}).color : (d.project_color || NEUTRAL);
     [base, '#C7DED6', '#F0D3D6', '#D8D3E8', '#F3E4C0', '#CFDDEA', '#E8D5C7', '#DCE7C8'].forEach(function (c, i) {
@@ -7267,25 +7379,25 @@ function renderEventSheet() {
 
     /* luogo */
     var floc = el('div', 'pl-field');
-    floc.appendChild(el('label', 'pl-label', 'Luogo'));
+    floc.appendChild(el('label', 'pl-label', T('planner.luogo')));
     var locRow = el('div', 'pl-title-row');
     var locIn = el('input', 'pl-in');
     locIn.type = 'text';
-    locIn.placeholder = 'Cerca un indirizzo o un posto';
+    locIn.placeholder = T('planner.cerca_un_indirizzo_o_un');
     locIn.maxLength = 255;
     locIn.autocomplete = 'off';
     locIn.value = d.location || '';
     locRow.appendChild(locIn);
     var locBtn = el('button', 'pl-icon-btn');
     locBtn.type = 'button';
-    locBtn.setAttribute('aria-label', 'Apri nella mappa');
+    locBtn.setAttribute('aria-label', T('planner.apri_nella_mappa'));
     locBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-10a6.5 6.5 0 1113 0c0 4.4-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg>';
     locBtn.addEventListener('click', function () {
         /* con le coordinate si apre il punto esatto; senza, resta la ricerca
            per testo, che è quello che si poteva fare prima */
         var q = (d.place_lat !== null && d.place_lat !== undefined && d.place_lon !== null)
             ? (d.place_lat + ',' + d.place_lon)
-            : ((locIn.value || '').trim() || 'vicino a me');
+            : ((locIn.value || '').trim() || T('planner.vicino_a_me'));
         window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q),
                     '_blank', 'noopener');
     });
@@ -7295,7 +7407,7 @@ function renderEventSheet() {
        sceglie uno di quelli salvati e si salva quello agganciato adesso. */
     var rubBtn = el('button', 'pl-icon-btn');
     rubBtn.type = 'button';
-    rubBtn.setAttribute('aria-label', 'Luoghi salvati');
+    rubBtn.setAttribute('aria-label', T('planner.luoghi_salvati'));
     rubBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10a1 1 0 011 1v15l-6-3.5L6 20V5a1 1 0 011-1z"/></svg>';
     rubBtn.addEventListener('click', apriRubrica);
     locRow.appendChild(rubBtn);
@@ -7334,7 +7446,7 @@ function renderEventSheet() {
         var f = document.createElement('iframe');
         f.src = src;
         f.loading = 'lazy';
-        f.title = 'Mappa del luogo';
+        f.title = T('planner.mappa_del_luogo');
         f.setAttribute('allowfullscreen', '');
         /* la chiave è ristretta al dominio: se il browser non lo dichiara,
            Google rifiuta il riquadro */
@@ -7345,17 +7457,17 @@ function renderEventSheet() {
     function drawStato() {
         locStato.innerHTML = '';
         if (inAttesa) {
-            locStato.textContent = 'Cerco la posizione…';
+            locStato.textContent = T('planner.cerco_la_posizione');
             drawMappa();
             return;
         }
         if (d.place_lat === null || d.place_lat === undefined || d.place_lon === null) {
-            locStato.textContent = locIn.value.trim() ? 'Posto scritto a mano, senza posizione.' : '';
+            locStato.textContent = locIn.value.trim() ? T('planner.posto_a_mano') : '';
             drawMappa();
             return;
         }
-        var pin = el('span', null, '📍 ' + (d.place_name || 'Posizione salvata'));
-        var via = el('button', 'pl-linkish', 'togli');
+        var pin = el('span', null, '📍 ' + (d.place_name || T('planner.posizione_salvata')));
+        var via = el('button', 'pl-linkish', T('planner.togli'));
         via.type = 'button';
         via.addEventListener('click', function () {
             /* il testo resta: si toglie solo l'aggancio alla mappa */
@@ -7376,7 +7488,7 @@ function renderEventSheet() {
             if (mia !== richiesta || !S.draft) return;      // risposta sorpassata
             locSugg.innerHTML = '';
             if (!r.ok || !r.places || !r.places.length) {
-                locSugg.appendChild(el('div', 'pl-sugg-vuoto', 'Nessun posto trovato.'));
+                locSugg.appendChild(el('div', 'pl-sugg-vuoto', T('planner.nessun_posto_trovato')));
                 locSugg.classList.remove('pl-hidden');
                 return;
             }
@@ -7423,7 +7535,7 @@ function renderEventSheet() {
                             d.place_lon = r.place.lon;
                             S.draft.dirty = true;
                         } else {
-                            toast('Posizione non trovata: resta il testo.');
+                            toast(T('planner.posizione_non_trovata_resta_il'));
                         }
                         drawStato();
                     });
@@ -7490,7 +7602,7 @@ function renderEventSheet() {
     }
 
     function apriRubrica() {
-        openSheet('Luoghi salvati', function (bd) {
+        openSheet(T('planner.luoghi_salvati'), function (bd) {
             var lista = el('div', 'pl-places');
 
             function draw() {
@@ -7498,7 +7610,7 @@ function renderEventSheet() {
                 var ps = B.places || [];
                 if (!ps.length) {
                     lista.appendChild(el('div', 'pl-row-sub',
-                        'Ancora nessun posto. Scegline uno dalla ricerca e salvalo qui sotto: da allora basterà nominarlo nel titolo.'));
+                        T('planner.ancora_nessun_posto_scegline_uno')));
                 }
                 ps.forEach(function (p) {
                     var r = el('div', 'pl-place-row');
@@ -7515,7 +7627,7 @@ function renderEventSheet() {
                     });
                     var x = el('button', 'pl-icon-btn');
                     x.type = 'button';
-                    x.setAttribute('aria-label', 'Togli dalla rubrica');
+                    x.setAttribute('aria-label', T('planner.togli_dalla_rubrica'));
                     x.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
                     x.addEventListener('click', function () {
                         api('place_book_delete', { id: p.id }).then(function (rr) {
@@ -7536,18 +7648,18 @@ function renderEventSheet() {
                mappa tornerebbe a cercare per testo. */
             if (d.place_lat === null || d.place_lat === undefined) {
                 bd.appendChild(el('div', 'pl-row-sub',
-                    'Per salvarne uno nuovo, scegli prima un posto dalla ricerca qui sopra: servono le sue coordinate.'));
+                    T('planner.per_salvarne_uno_nuovo_scegli')));
                 return;
             }
-            bd.appendChild(el('div', 'pl-label', 'Salva questo posto'));
+            bd.appendChild(el('div', 'pl-label', T('planner.salva_questo_posto')));
             var nome = el('input', 'pl-in');
             nome.type = 'text'; nome.maxLength = 60;
-            nome.placeholder = 'Come lo chiami (casa, lavoro…)';
+            nome.placeholder = T('planner.come_lo_chiami_casa_lavoro');
             nome.value = d.place_name || '';
             var kw = el('input', 'pl-in');
             kw.type = 'text'; kw.maxLength = 255;
-            kw.placeholder = 'Parole che lo agganciano, separate da virgola';
-            var salva = el('button', 'pl-btn pl-btn-primary', 'Salva nella rubrica');
+            kw.placeholder = T('planner.parole_che_lo_agganciano_separate');
+            var salva = el('button', 'pl-btn pl-btn-primary', T('planner.salva_nella_rubrica'));
             salva.type = 'button';
             salva.addEventListener('click', function () {
                 var lab = nome.value.trim();
@@ -7559,7 +7671,7 @@ function renderEventSheet() {
                     lat: d.place_lat, lon: d.place_lon, ref: d.place_ref || ''
                 }).then(function (rr) {
                     salva.disabled = false;
-                    if (!rr.ok) { toast('Non sono riuscito a salvarlo.'); return; }
+                    if (!rr.ok) { toast(T('planner.non_sono_riuscito_a_salvarlo')); return; }
                     B.places = rr.places || [];
                     kw.value = '';
                     draw();
@@ -7580,7 +7692,7 @@ function renderEventSheet() {
 
     /* invitati */
     var fg = el('div', 'pl-field');
-    fg.appendChild(el('label', 'pl-label', 'Invitati'));
+    fg.appendChild(el('label', 'pl-label', T('planner.invitati')));
     var gTags = el('div', 'pl-tags');
     function drawGuests() {
         gTags.innerHTML = '';
@@ -7607,7 +7719,7 @@ function renderEventSheet() {
     gRow.style.marginTop = '8px';
     var gIn = el('input', 'pl-in');
     gIn.type = 'email';
-    gIn.placeholder = 'nome@esempio.it';
+    gIn.placeholder = T('planner.ph_email');
     gIn.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter') return;
         e.preventDefault();
@@ -7616,7 +7728,7 @@ function renderEventSheet() {
     });
     var gBook = el('button', 'pl-icon-btn');
     gBook.type = 'button';
-    gBook.setAttribute('aria-label', 'Apri la rubrica');
+    gBook.setAttribute('aria-label', T('planner.apri_la_rubrica'));
     gBook.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h11a1 1 0 011 1v14a1 1 0 01-1 1H7z"/><path d="M4 8h3M4 12h3M4 16h3"/><circle cx="12.5" cy="10" r="2"/><path d="M9.5 16c.4-1.6 1.6-2.5 3-2.5s2.6.9 3 2.5"/></svg>';
     gBook.addEventListener('click', function () { openRubrica(d, drawGuests); });
     gRow.appendChild(gIn); gRow.appendChild(gBook);
@@ -7652,9 +7764,9 @@ function renderEventSheet() {
 
     /* note */
     var fnote = el('div', 'pl-field');
-    fnote.appendChild(el('label', 'pl-label', 'Note'));
+    fnote.appendChild(el('label', 'pl-label', T('planner.note')));
     var ta = el('textarea', 'pl-in pl-note');
-    ta.placeholder = 'Qualcosa da ricordare…';
+    ta.placeholder = T('planner.qualcosa_da_ricordare');
     ta.value = d.notes || '';
     ta.maxLength = 4000;
     /* Il campo si allarga con quello che ci si scrive, fino al tetto messo dal
@@ -7672,7 +7784,7 @@ function renderEventSheet() {
     requestAnimationFrame(growNote);
 
     if (d.id) {
-        var del = el('button', 'pl-btn pl-btn-danger', 'Elimina evento');
+        var del = el('button', 'pl-btn pl-btn-danger', T('planner.elimina_evento'));
         del.type = 'button';
         del.style.marginTop = '4px';
         del.addEventListener('click', function () { confirmDeleteEvent(d); });
@@ -7683,7 +7795,7 @@ function renderEventSheet() {
 /* Aggiunge un invitato alla bozza, evitando i doppioni. */
 function addGuest(d, email, name, redraw) {
     var mail = String(email || '').trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { toast('Indirizzo non valido.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { toast(T('planner.indirizzo_non_valido')); return; }
     d.guests = d.guests || [];
     if (d.guests.some(function (g) { return g.email === mail; })) return;
     d.guests.push({ email: mail, name: name || null });
@@ -7694,10 +7806,10 @@ function addGuest(d, email, name, redraw) {
 /* La rubrica: in ordine alfabetico, con la ricerca che guarda sia il nome
    sia l'indirizzo. Da qui si invita, si aggiunge e si cancella. */
 function openRubrica(draft, redraw) {
-    openSheet('Rubrica', function (body) {
+    openSheet(T('planner.rubrica'), function (body) {
         var cerca = el('input', 'pl-in');
         cerca.type = 'search';
-        cerca.placeholder = 'Cerca per nome o indirizzo';
+        cerca.placeholder = T('planner.cerca_per_nome_o_indirizzo');
         body.appendChild(cerca);
 
         var rows = el('div', 'pl-rows');
@@ -7709,7 +7821,7 @@ function openRubrica(draft, redraw) {
                 rows.innerHTML = '';
                 if (!r.ok || !r.contacts.length) {
                     rows.appendChild(el('div', 'pl-quote pl-serif',
-                        q ? 'Nessun contatto con questo nome.' : 'La rubrica è ancora vuota.'));
+                        q ? T('planner.nessun_contatto') : T('planner.la_rubrica_e_ancora_vuota')));
                     return;
                 }
                 r.contacts.forEach(function (c) {
@@ -7750,23 +7862,23 @@ function openRubrica(draft, redraw) {
         /* aggiungere un contatto nuovo */
         var f = el('div', 'pl-field');
         f.style.marginTop = '18px';
-        f.appendChild(el('label', 'pl-label', 'Nuovo contatto'));
+        f.appendChild(el('label', 'pl-label', T('planner.nuovo_contatto')));
         var nome = el('input', 'pl-in');
-        nome.type = 'text'; nome.placeholder = 'Come lo chiami: luchino'; nome.maxLength = 80;
+        nome.type = 'text'; nome.placeholder = T('planner.come_lo_chiami_luchino'); nome.maxLength = 80;
         var mail = el('input', 'pl-in');
-        mail.type = 'email'; mail.placeholder = 'lucapercassi@esempio.it';
+        mail.type = 'email'; mail.placeholder = T('planner.ph_email_contatto');
         mail.style.marginTop = '8px';
         f.appendChild(nome); f.appendChild(mail);
-        var add = el('button', 'pl-btn pl-btn-primary', 'Salva in rubrica');
+        var add = el('button', 'pl-btn pl-btn-primary', T('planner.salva_in_rubrica'));
         add.type = 'button';
         add.style.marginTop = '10px';
         add.addEventListener('click', function () {
             api('contact_save', { name: nome.value, email: mail.value }).then(function (r) {
-                if (!r.ok) { toast(r.message || 'Non salvato.'); return; }
+                if (!r.ok) { toast(r.message || T('planner.non_salvato')); return; }
                 nome.value = ''; mail.value = '';
                 carica(cerca.value.trim());
                 loadRubrica();   // così la barra intelligente lo riconosce subito
-                toast('Contatto salvato.');
+                toast(T('planner.contatto_salvato'));
             });
         });
         f.appendChild(add);
@@ -7777,12 +7889,12 @@ function openRubrica(draft, redraw) {
 /* Modifica di un contatto: nome e indirizzo, in un avviso semplice. */
 function editContact(c, done) {
     var ov = $('plAlertOv');
-    $('plAlertTitle').textContent = 'Modifica contatto';
+    $('plAlertTitle').textContent = T('planner.modifica_contatto');
     $('plAlertMsg').innerHTML = '';
     var wrap = el('div');
     var nome = el('input', 'pl-in');
     nome.type = 'text'; nome.value = c.name; nome.maxLength = 80;
-    nome.placeholder = 'Nome';
+    nome.placeholder = T('planner.nome');
     var mail = el('input', 'pl-in');
     mail.type = 'email'; mail.value = c.email; mail.style.marginTop = '8px';
     wrap.appendChild(nome); wrap.appendChild(mail);
@@ -7790,13 +7902,13 @@ function editContact(c, done) {
 
     var acts = $('plAlertActs');
     acts.innerHTML = '';
-    var no = el('button', 'pl-btn', 'Annulla'); no.type = 'button';
+    var no = el('button', 'pl-btn', T('planner.annulla')); no.type = 'button';
     no.addEventListener('click', function () { ov.classList.remove('pl-open'); });
-    var si = el('button', 'pl-btn pl-btn-primary', 'Salva'); si.type = 'button';
+    var si = el('button', 'pl-btn pl-btn-primary', T('planner.salva')); si.type = 'button';
     si.addEventListener('click', function () {
         api('contact_save', { id: c.id, name: nome.value, email: mail.value }).then(function (r) {
             ov.classList.remove('pl-open');
-            if (!r.ok) { toast(r.message || 'Non salvato.'); return; }
+            if (!r.ok) { toast(r.message || T('planner.non_salvato')); return; }
             loadRubrica();
             if (done) done();
         });
@@ -7899,7 +8011,7 @@ function tag(label, color, on, onClick) {
     return t;
 }
 function durLabel(min) {
-    if (min < 60) return min + ' min';
+    if (min < 60) return T('planner.n_min', {n: min});
     var h = Math.floor(min / 60), m = min % 60;
     return h + 'h' + (m ? ' ' + pad(m) : '');
 }
@@ -7986,7 +8098,7 @@ function saveEvent() {
 
         return api('event_save', dati).then(function (r) {
             if (!r.ok) { 
-                toast(r.message || 'Non è stato possibile salvare.'); 
+                toast(r.message || T('planner.non_e_stato_possibile_salvare')); 
                 // Se fallisce, ricarichiamo per annullare la modifica istantanea
                 loadWeek(monday(S.focusDate), true);
                 return; 
@@ -8013,13 +8125,13 @@ function saveEvent() {
             eseguiSalvataggio(payload);
             return;
         }
-        alertBox('Modifica evento ripetuto', 'Vuoi modificare solo questa data o l\'intera serie?', [
-            { label: 'Annulla' },
-            { label: 'Tutta la serie', onClick: function() {
+        alertBox(T('planner.modifica_evento_ripetuto'), T('planner.vuoi_modificare_solo_questa_data'), [
+            { label: T('planner.annulla') },
+            { label: T('planner.tutta_la_serie'), onClick: function() {
                 payload.edit_mode = 'all';
                 eseguiSalvataggio(payload);
             }},
-            { label: 'Solo questo', kind: 'primary', onClick: function() {
+            { label: T('planner.solo_questo'), kind: 'primary', onClick: function() {
                 payload.edit_mode = 'one';
                 payload.original_date = d.date;
                 eseguiSalvataggio(payload);
@@ -8034,16 +8146,16 @@ function saveEvent() {
    deve far sparire un evento senza appello */
 function confirmDeleteEvent(d) {
     if (d.repeat && d.repeat !== 'none') {
-        alertBox('Elimina evento', 'Vuoi eliminare solo questa data o l\'intera serie?', [
-            { label: 'Annulla' },
-            { label: 'Tutta la serie', kind: 'danger', onClick: function() { deleteEvent(d, 'series'); } },
-            { label: 'Solo questo', kind: 'danger', onClick: function() { deleteEvent(d, 'one'); } }
+        alertBox(T('planner.elimina_evento'), T('planner.vuoi_eliminare_solo_questa_data'), [
+            { label: T('planner.annulla') },
+            { label: T('planner.tutta_la_serie'), kind: 'danger', onClick: function() { deleteEvent(d, 'series'); } },
+            { label: T('planner.solo_questo'), kind: 'danger', onClick: function() { deleteEvent(d, 'one'); } }
         ]);
         return;
     }
-    alertBox('Elimino questo evento?', (d.title ? '"' + d.title + '" ' : '') + 'verrà rimosso dal planner.', [
-        { label: 'Annulla' },
-        { label: 'Elimina', kind: 'danger', onClick: function () { deleteEvent(d, 'one'); } }
+    alertBox(T('planner.elimino_questo_evento'), d.title ? T('planner.titolo_rimosso', {titolo: d.title}) : T('planner.sara_rimosso'), [
+        { label: T('planner.annulla') },
+        { label: T('planner.elimina'), kind: 'danger', onClick: function () { deleteEvent(d, 'one'); } }
     ]);
 }
 
@@ -8051,7 +8163,7 @@ function deleteEvent(d, scopeParam) {
     closeOv('plEventOv');
     S.draft = null;
     api('event_delete', { id: d.id, scope: scopeParam || 'one', original_date: d.date }).then(function (r) {
-        if (!r.ok) { toast('Non è stato possibile eliminare.'); return; }
+        if (!r.ok) { toast(T('planner.non_e_stato_possibile_eliminare')); return; }
         S.events[d.date] = (S.events[d.date] || []).filter(function (x) { return x.id !== d.id; });
         S.weekCache = {}; 
         loadWeek(monday(S.focusDate), true).then(renderDays);
@@ -8128,7 +8240,7 @@ $('plFabRoutine').addEventListener('click', function () {
     });
     var manage = el('button', 'pl-chip');
     manage.type = 'button';
-    manage.appendChild(el('span', null, 'Gestisci routine'));
+    manage.appendChild(el('span', null, T('planner.gestisci_routine')));
     manage.addEventListener('click', function () { closeMenus(); openSettings('routines'); });
     menu.appendChild(manage);
     menu.classList.add('pl-open');
@@ -8186,7 +8298,7 @@ $('plHabitRing').addEventListener('click', function () {
         var sett = weeklyOf(S.focusDate);
         if (!habits.length && !sett.length) {
             var none = el('div', 'pl-chip');
-            none.appendChild(el('span', null, 'Nessuna abitudine per oggi'));
+            none.appendChild(el('span', null, T('planner.nessuna_abitudine_per_oggi')));
             menu.appendChild(none);
             sizeMenu(menu);
             return;
@@ -8198,7 +8310,7 @@ $('plHabitRing').addEventListener('click', function () {
         /* poi una linea sottile, e sotto le settimanali */
         if (sett.length) {
             if (habits.length) menu.appendChild(el('div', 'pl-chip-sep'));
-            menu.appendChild(el('div', 'pl-chip-lab', 'Questa settimana'));
+            menu.appendChild(el('div', 'pl-chip-lab', T('planner.questa_settimana')));
             sett.forEach(function (h) { menu.appendChild(habitChip(h, true)); });
         }
         sizeMenu(menu);
@@ -8225,7 +8337,7 @@ $('plFabFav').addEventListener('click', function () {
         chip.addEventListener('click', function () {
             closeMenus();
             armaAttrezzo('project', p, 0);
-            toast('Tocca il calendario dove metterlo.');
+            toast(T('planner.tocca_il_calendario_dove_metterlo'));
         });
         menu.appendChild(chip);
     });
@@ -8245,7 +8357,7 @@ function confirmProjectTime(p, defaultStart, defaultDur) {
     var wrap = el('div');
 
     var r1 = el('div', 'pl-row-sb');
-    r1.appendChild(el('span', 'pl-row-lab', 'Inizio'));
+    r1.appendChild(el('span', 'pl-row-lab', T('planner.inizio')));
     var startIn = el('input', 'pl-pick');
     startIn.type = 'time'; startIn.step = '300'; startIn.value = defaultStart;
     r1.appendChild(startIn);
@@ -8257,7 +8369,7 @@ function confirmProjectTime(p, defaultStart, defaultDur) {
        31:00, che il limite del giorno riportava a 23:59 — l'ora di fine
        sembrava ignorata. Adesso il campo è quello che tutti ci leggevano. */
     var r2 = el('div', 'pl-row-sb');
-    r2.appendChild(el('span', 'pl-row-lab', 'Fine'));
+    r2.appendChild(el('span', 'pl-row-lab', T('planner.fine')));
     var endIn = el('input', 'pl-pick');
     endIn.type = 'time'; endIn.step = '300';
     endIn.value = toHM(Math.min(1439, toMin(defaultStart) + defaultDur));
@@ -8277,22 +8389,22 @@ function confirmProjectTime(p, defaultStart, defaultDur) {
 
     var acts = $('plAlertActs');
     acts.innerHTML = '';
-    var no = el('button', 'pl-btn', 'Annulla'); no.type = 'button';
+    var no = el('button', 'pl-btn', T('planner.annulla')); no.type = 'button';
     no.addEventListener('click', function () { ov.classList.remove('pl-open'); });
-    var yes = el('button', 'pl-btn pl-btn-primary', 'Inserisci'); yes.type = 'button';
+    var yes = el('button', 'pl-btn pl-btn-primary', T('planner.inserisci')); yes.type = 'button';
     yes.addEventListener('click', function () {
         var start = toMin(startIn.value || defaultStart);
         var end = toMin(endIn.value || toHM(Math.min(1439, start + defaultDur)));
         /* fine prima dell'inizio: non si indovina cosa intendesse, si dice
            che non va e si lascia il popup aperto per correggere */
-        if (end <= start) { toast('La fine deve venire dopo l\'inizio.'); return; }
+        if (end <= start) { toast(T('planner.la_fine_deve_venire_dopo')); return; }
         ov.classList.remove('pl-open');
         api('event_save', {
             title: p.name, date: S.focusDate, start: toHM(start),
             end: toHM(Math.min(1439, end)),
             project_id: p.id, type: 'event', notify: 'none'
         }).then(function (r) {
-            if (!r.ok) { toast('Non è stato possibile inserire il progetto.'); return; }
+            if (!r.ok) { toast(T('planner.non_e_stato_possibile_inserire_2')); return; }
             indexEvents([r.event]);
             renderDays();
             haptic(12);
@@ -8334,7 +8446,7 @@ function habitChip(h, settimanale) {
     chip.appendChild(el('span', null, h.name));
     if (settimanale && h.done > h.target) {
         /* oltre l'obiettivo non è un errore: è un merito */
-        chip.appendChild(el('span', 'pl-chip-sub', 'oltre'));
+        chip.appendChild(el('span', 'pl-chip-sub', T('planner.oltre')));
     }
 
     chip.addEventListener('click', function () {
@@ -8343,7 +8455,7 @@ function habitChip(h, settimanale) {
            il modo in cui si sceglie un orario guardandolo. */
         closeMenus();
         armaAttrezzo('habit', h, h.minutes && h.minutes > 0 ? h.minutes : (zoomCfg(S.zoom).slot || 30));
-        toast('Tocca il calendario dove metterla.');
+        toast(T('planner.tocca_il_calendario_dove_metterla'));
     });
     return chip;
 }
@@ -8369,15 +8481,15 @@ $('plShiftSave').addEventListener('click', function () {
     if (btn.disabled) return;                       // già in corso: si ignora
 
     var ids = Object.keys(S.shift.picked).map(Number);
-    if (!ids.length) { toast('Scegli almeno un evento.'); return; }
+    if (!ids.length) { toast(T('planner.scegli_almeno_un_evento')); return; }
     var parts = String($('plShiftTime').value || '00:10').split(':');
     var minutes = (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
-    if (!minutes) { toast('Indica di quanto spostarli.'); return; }
+    if (!minutes) { toast(T('planner.indica_di_quanto_spostarli')); return; }
 
     var testo = btn.textContent;
     btn.disabled = true;
     btn.classList.add('pl-busy');
-    btn.textContent = 'Caricamento…';
+    btn.textContent = T('planner.caricamento');
 
     function libera() {
         btn.disabled = false;
@@ -8389,12 +8501,12 @@ $('plShiftSave').addEventListener('click', function () {
        proprio il danno che stiamo evitando */
     api('events_shift', { ids: ids, minutes: minutes, direction: S.shift.dir }, null, { noRetry: true })
         .then(function (r) {
-            if (!r.ok) { libera(); toast(r.message || 'Spostamento non riuscito.'); return; }
+            if (!r.ok) { libera(); toast(r.message || T('planner.spostamento_non_riuscito')); return; }
             setShift(false);
             libera();
             S.weekCache = {};
             loadWeek(monday(S.focusDate), true);
-            toast(r.moved + (r.moved === 1 ? ' evento spostato' : ' eventi spostati'));
+            toast(T(r.moved === 1 ? 'planner.n_evento_spostato' : 'planner.n_eventi_spostati', {n: r.moved}));
         });
 });
 function setShift(on) {
@@ -8408,7 +8520,7 @@ function setShift(on) {
 /* diario del giorno */
 $('plFabDiary').addEventListener('click', function () {
     if (window.nisamaOpenDiary) { window.nisamaOpenDiary(S.focusDate, 'planner'); return; }
-    toast('Manca il file diario_giorno.php.');
+    toast(T('planner.manca_il_file_diario_giorno'));
 });
 
 /* quando il diario cambia, i tag della vista mese si aggiornano */
@@ -8436,7 +8548,7 @@ $('plWeekPanelOv').addEventListener('click', function (e) { if (e.target === thi
         if (dx > 44 && Math.abs(dy) < 40) {
             x0 = null;
             if (dowIndex(S.focusDate) === 0) openWeekPanel();
-            else toast('Le liste della settimana si aprono dal lunedì o dal tasto accanto a Priorità.');
+            else toast(T('planner.le_liste_della_settimana_si'));
         }
     }, { passive: true });
     edge.addEventListener('touchend', function () { x0 = null; }, { passive: true });
@@ -8454,9 +8566,9 @@ function openSheet(title, build) {
 }
 
 $('plSearchBtn').addEventListener('click', function () {
-    openSheet('Cerca', function (body) {
+    openSheet(T('planner.cerca'), function (body) {
         var inp = el('input', 'pl-in');
-        inp.type = 'search'; inp.placeholder = 'Titolo dell\'evento'; inp.maxLength = 60;
+        inp.type = 'search'; inp.placeholder = T('planner.titolo_dell_evento'); inp.maxLength = 60;
         body.appendChild(inp);
         var res = el('div', 'pl-rows');
         res.style.marginTop = '12px';
@@ -8467,7 +8579,7 @@ $('plSearchBtn').addEventListener('click', function () {
                 api('search', null, { q: inp.value.trim() }).then(function (r) {
                     res.innerHTML = '';
                     if (!r.ok || !r.results.length) {
-                        res.appendChild(el('div', 'pl-quote pl-serif', 'Nessun evento con questa parola.'));
+                        res.appendChild(el('div', 'pl-quote pl-serif', T('planner.nessun_evento_con_questa_parola')));
                         return;
                     }
                     r.results.forEach(function (x) {
@@ -8501,12 +8613,12 @@ $('plSearchBtn').addEventListener('click', function () {
 });
 
 $('plFilterBtn').addEventListener('click', function () {
-    openSheet('Cosa mostrare', function (body) {
+    openSheet(T('planner.cosa_mostrare'), function (body) {
         /* ---- calendari ---- */
         var fc = el('div', 'pl-field');
         var head = el('div', 'pl-row-sb');
-        head.appendChild(el('span', 'pl-label', 'Calendari'));
-        var tutti = el('button', 'pl-mini-btn', 'Mostra tutti');
+        head.appendChild(el('span', 'pl-label', T('planner.calendari')));
+        var tutti = el('button', 'pl-mini-btn', T('planner.mostra_tutti'));
         tutti.type = 'button';
         tutti.addEventListener('click', function () {
             api('calendar_only', { id: 0 }).then(function (r) {
@@ -8527,17 +8639,17 @@ $('plFilterBtn').addEventListener('click', function () {
         var addCal = el('button', 'pl-addlist');
         addCal.type = 'button';
         addCal.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
-        addCal.appendChild(el('span', null, 'Nuovo calendario'));
+        addCal.appendChild(el('span', null, T('planner.nuovo_calendario')));
         addCal.style.marginTop = '8px';
         addCal.addEventListener('click', function () { editCalendar(null); });
         fc.appendChild(addCal);
         body.appendChild(fc);
 
         /* ---- categorie ---- */
-        var lab = el('div', 'pl-label', 'Categorie');
+        var lab = el('div', 'pl-label', T('planner.categorie'));
         lab.style.marginTop = '20px';
         body.appendChild(lab);
-        body.appendChild(el('div', 'pl-row-sub', 'Tocca una categoria per nasconderne gli eventi.'));
+        body.appendChild(el('div', 'pl-row-sub', T('planner.tocca_una_categoria_per_nasconderne')));
         var tags = el('div', 'pl-tags');
         tags.style.marginTop = '12px';
         alpha(S.categories, 'name').forEach(function (c) {
@@ -8589,10 +8701,10 @@ function sezionePieghevole(titolo, quante) {
 }
 
 function openSettings(focus) {
-    openSheet('Impostazioni', function (body) {
+    openSheet(T('planner.impostazioni'), function (body) {
         /* palette */
         var fp = el('div', 'pl-field');
-        fp.appendChild(el('label', 'pl-label', 'Colore della pagina'));
+        fp.appendChild(el('label', 'pl-label', T('planner.colore_della_pagina')));
         var sw = el('div', 'pl-swatches');
         [['sage', '#A9C3AE'], ['mint', '#A5CCC4'], ['blush', '#E7B9C0'], ['lavender', '#C2B8DC'],
          ['butter', '#E8D4A2'], ['sky', '#B0C7DD'], ['clay', '#DDBCA6'], ['rose', '#DFAFB4'],
@@ -8614,21 +8726,21 @@ function openSettings(focus) {
         body.appendChild(fp);
 
         /* categorie */
-        var sc2 = sezionePieghevole('Categorie', (S.categories || []).length);
+        var sc2 = sezionePieghevole(T('planner.categorie'), (S.categories || []).length);
         var rows = el('div', 'pl-rows');
         alpha(S.categories, 'name').forEach(function (c) { rows.appendChild(categoryRow(c)); });
         sc2.corpo.appendChild(rows);
         var addCat = el('button', 'pl-addlist');
         addCat.type = 'button';
         addCat.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
-        addCat.appendChild(el('span', null, 'Nuova categoria'));
+        addCat.appendChild(el('span', null, T('planner.nuova_categoria')));
         addCat.style.marginTop = '8px';
         addCat.addEventListener('click', function () { editCategory(null); });
         sc2.corpo.appendChild(addCat);
         body.appendChild(sc2.field);
 
         /* routine */
-        var sr2 = sezionePieghevole('Routine', (S.routines || []).length);
+        var sr2 = sezionePieghevole(T('planner.routine_t'), (S.routines || []).length);
         sr2.field.id = 'plSetRoutines';
         var rr = el('div', 'pl-rows');
         alpha(S.routines, 'name').forEach(function (r) { rr.appendChild(routineRow(r)); });
@@ -8636,7 +8748,7 @@ function openSettings(focus) {
         var addR = el('button', 'pl-addlist');
         addR.type = 'button';
         addR.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
-        addR.appendChild(el('span', null, 'Nuova routine'));
+        addR.appendChild(el('span', null, T('planner.nuova_routine')));
         addR.style.marginTop = '8px';
         addR.addEventListener('click', function () { editRoutine(null); });
         sr2.corpo.appendChild(addR);
@@ -8644,37 +8756,37 @@ function openSettings(focus) {
 
         /* frasi + zoom + ambiente */
         var fo = el('div', 'pl-field');
-        fo.appendChild(el('label', 'pl-label', 'Sulla pagina'));
-        fo.appendChild(rowSB('Frasi motivazionali', toggle(S.settings.show_motivational !== false, function (v) {
+        fo.appendChild(el('label', 'pl-label', T('planner.sulla_pagina')));
+        fo.appendChild(rowSB(T('planner.frasi_motivazionali'), toggle(S.settings.show_motivational !== false, function (v) {
             S.settings.show_motivational = v; api('settings_save', { show_motivational: v }); renderWeekBits();
         })));
-        fo.appendChild(rowSB('Affermazioni positive', toggle(S.settings.show_affirmations !== false, function (v) {
+        fo.appendChild(rowSB(T('planner.affermazioni_positive'), toggle(S.settings.show_affirmations !== false, function (v) {
             S.settings.show_affirmations = v; api('settings_save', { show_affirmations: v }); renderWeekBits();
         })));
         /* La barra vive sotto la spunta e sparisce con lei: regolare quanto si
            vede una cosa spenta non vuol dire niente. */
-        var rigaAmb = rowSB('Quanto si vedono', slider(0, 10, ambOpacita(), function (v) {
+        var rigaAmb = rowSB(T('planner.quanto_si_vedono'), slider(0, 10, ambOpacita(), function (v) {
             S.settings.ambient_opacity = v;
             applyAmbientOpacity();
             debounceSave('ambop', 500, function () { api('settings_save', { ambient_opacity: v }); });
         }));
-        fo.appendChild(rowSB('Alberi e animali', toggle(S.settings.ambient_enabled !== false, function (v) {
+        fo.appendChild(rowSB(T('planner.alberi_e_animali'), toggle(S.settings.ambient_enabled !== false, function (v) {
             S.settings.ambient_enabled = v; api('settings_save', { ambient_enabled: v });
             rigaAmb.classList.toggle('pl-hidden', !v);
             applyAmbient(true); applySky();
         })));
         rigaAmb.classList.toggle('pl-hidden', S.settings.ambient_enabled === false);
         fo.appendChild(rigaAmb);
-        fo.appendChild(rowSB('Scatti degli orari', select(ZOOM.map(function (z) { return [z.key, z.label]; }), S.zoom, function (v) {
+        fo.appendChild(rowSB(T('planner.scatti_degli_orari'), select(ZOOM.map(function (z) { return [z.key, z.label]; }), S.zoom, function (v) {
             setZoom(v);
         })));
-        fo.appendChild(rowSB('Quanto marcato', slider(1, 5, S.settings.contrast_level || 3, function (v) {
+        fo.appendChild(rowSB(T('planner.quanto_marcato'), slider(1, 5, S.settings.contrast_level || 3, function (v) {
             S.settings.contrast_level = v;
             applyContrast();
             debounceSave('contrast', 500, function () { api('settings_save', { contrast_level: v }); });
         })));
         if (window.matchMedia('(min-width:760px)').matches) {
-            fo.appendChild(rowSB('Giorni affiancati', slider(1, 7, S.settings.days_visible || 3, function (v) {
+            fo.appendChild(rowSB(T('planner.giorni_affiancati'), slider(1, 7, S.settings.days_visible || 3, function (v) {
                 S.settings.days_visible = v;
                 applyDaysVisible();
                 debounceSave('daysv', 500, function () { api('settings_save', { days_visible: v }); });
@@ -8684,9 +8796,9 @@ function openSettings(focus) {
 
         /* ---- Google Calendar ---- */
         var fg = el('div', 'pl-field');
-        fg.appendChild(el('label', 'pl-label', 'Google Calendar'));
+        fg.appendChild(el('label', 'pl-label', T('planner.google_calendar')));
         var gBox = el('div');
-        gBox.appendChild(el('div', 'pl-row-sub', 'Controllo del collegamento…'));
+        gBox.appendChild(el('div', 'pl-row-sub', T('planner.controllo_del_collegamento')));
         fg.appendChild(gBox);
         body.appendChild(fg);
         drawGoogle(gBox);
@@ -8731,7 +8843,7 @@ function calendarRow(c) {
     var rulesBtn = el('button', 'pl-icon-btn');
     rulesBtn.type = 'button';
     rulesBtn.style.width = '24px'; rulesBtn.style.height = '24px'; rulesBtn.style.background = 'none'; rulesBtn.style.boxShadow = 'none';
-    rulesBtn.setAttribute('aria-label', 'Regole speciali');
+    rulesBtn.setAttribute('aria-label', T('planner.regole_speciali'));
     rulesBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>';
     rulesBtn.addEventListener('click', function(e) { e.stopPropagation(); openCalendarRules(c); });
     tRow.appendChild(rulesBtn);
@@ -8739,12 +8851,12 @@ function calendarRow(c) {
     txt.appendChild(tRow);
 
     var note = [];
-    if (c.is_default) note.push('predefinito');
-    if (c.from_google) note.push('da Google');
+    if (c.is_default) note.push(T('planner.predefinito'));
+    if (c.from_google) note.push(T('planner.da_google'));
     if (note.length) txt.appendChild(el('div', 'pl-row-sub', note.join(' · ')));
     inner.appendChild(txt);
 
-    var solo = el('button', 'pl-mini-btn', 'Solo questo');
+    var solo = el('button', 'pl-mini-btn', T('planner.solo_questo'));
     solo.type = 'button';
     solo.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -8767,11 +8879,11 @@ function calendarRow(c) {
     del.type = 'button';
     del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>';
     del.addEventListener('click', function () {
-        alertBox('Elimino ' + c.name + '?', 'Gli eventi non si perdono: passano al calendario predefinito.', [
-            { label: 'Annulla' },
-            { label: 'Elimina', kind: 'danger', onClick: function () {
+        alertBox(T('planner.elimino_nome', {nome: c.name}), T('planner.gli_eventi_non_si_perdono'), [
+            { label: T('planner.annulla') },
+            { label: T('planner.elimina'), kind: 'danger', onClick: function () {
                 api('calendar_delete', { id: c.id }).then(function (r) {
-                    if (!r.ok) { toast(r.message || 'Non eliminato.'); return; }
+                    if (!r.ok) { toast(r.message || T('planner.non_eliminato')); return; }
                     S.calendars = r.calendars;
                     S.weekCache = {};
                     loadWeek(monday(S.focusDate), true);
@@ -8790,16 +8902,16 @@ function editCalendar(c) {
     var isNew = !c;
     var data = c ? { id: c.id, name: c.name, color: c.color }
                  : { id: 0, name: '', color: '#A9C3AE' };
-    openSheet(isNew ? 'Nuovo calendario' : data.name, function (body) {
+    openSheet(isNew ? T('planner.nuovo_calendario_l') : data.name, function (body) {
         var f = el('div', 'pl-field');
         var name = el('input', 'pl-in');
-        name.type = 'text'; name.placeholder = 'Compleanni, Vacanze, Lavoro…';
+        name.type = 'text'; name.placeholder = T('planner.compleanni_vacanze_lavoro');
         name.value = data.name; name.maxLength = 80;
         f.appendChild(name);
         body.appendChild(f);
 
         var fc = el('div', 'pl-field');
-        fc.appendChild(el('label', 'pl-label', 'Colore'));
+        fc.appendChild(el('label', 'pl-label', T('planner.colore')));
         var sw = el('div', 'pl-swatches');
         ['#A9C3AE', '#E7B9C0', '#C2B8DC', '#E8D4A2', '#B0C7DD', '#DDBCA6',
          '#9FC2C6', '#BFC49B', '#C3A9BE', '#DFAFB4'].forEach(function (col) {
@@ -8817,14 +8929,14 @@ function editCalendar(c) {
         body.appendChild(fc);
 
         var acts = el('div', 'pl-alert-acts');
-        var no = el('button', 'pl-btn', 'Annulla');
+        var no = el('button', 'pl-btn', T('planner.annulla'));
         no.type = 'button';
         no.addEventListener('click', function () { closeOv('plSheetOv'); });
-        var yes = el('button', 'pl-btn pl-btn-primary', isNew ? 'Crea' : 'Salva');
+        var yes = el('button', 'pl-btn pl-btn-primary', isNew ? T('planner.crea') : T('comune.salva'));
         yes.type = 'button';
         yes.addEventListener('click', function () {
             api('calendar_save', { id: data.id, name: name.value, color: data.color }).then(function (r) {
-                if (!r.ok) { toast(r.message || 'Non salvato.'); return; }
+                if (!r.ok) { toast(r.message || T('planner.non_salvato')); return; }
                 S.calendars = r.calendars;
                 closeOv('plSheetOv');
                 renderDays();
@@ -8836,34 +8948,34 @@ function editCalendar(c) {
 }
 
 function openCalendarRules(c) {
-    openSheet('Regole: ' + c.name, function(body) {
+    openSheet(T('planner.regole_di', {nome: c.name}), function(body) {
         var f1 = el('div', 'pl-field');
         f1.appendChild(el('label', 'pl-label', 'Auto-assegnazione'));
-        f1.appendChild(el('div', 'pl-row-sub', 'Se il titolo contiene una di queste parole (es. "compleanno, bday"), finirà automaticamente in questo calendario.'));
+        f1.appendChild(el('div', 'pl-row-sub', T('planner.se_il_titolo_contiene_una')));
         var kwIn = el('input', 'pl-in');
-        kwIn.type = 'text'; kwIn.value = c.keywords || ''; kwIn.placeholder = 'Parole separate da virgola';
+        kwIn.type = 'text'; kwIn.value = c.keywords || ''; kwIn.placeholder = T('planner.parole_separate_da_virgola');
         kwIn.style.marginTop = '6px';
         f1.appendChild(kwIn);
         body.appendChild(f1);
         
         var f2 = el('div', 'pl-field');
         f2.style.marginTop = '20px';
-        f2.appendChild(el('label', 'pl-label', 'Proprietà di Default'));
-        f2.appendChild(el('div', 'pl-row-sub', 'I nuovi eventi in questo calendario si compileranno da soli con queste impostazioni:'));
+        f2.appendChild(el('label', 'pl-label', T('planner.proprieta_di_default')));
+        f2.appendChild(el('div', 'pl-row-sub', T('planner.i_nuovi_eventi_in_questo')));
         
         var repSel = select([
-            ['none', 'Nessuna'], ['daily', 'Ogni giorno'], ['weekly', 'Ogni settimana'],
-            ['monthly', 'Ogni mese'], ['yearly', 'Ogni anno']
+            ['none', T('planner.nessuna')], ['daily', T('planner.ogni_giorno')], ['weekly', T('planner.ogni_settimana')],
+            ['monthly', T('planner.ogni_mese')], ['yearly', T('planner.ogni_anno')]
         ], c.def_repeat || 'none', function() {});
         repSel.style.maxWidth = '55%';
-        f2.appendChild(rowSB('Ripetizione', repSel));
+        f2.appendChild(rowSB(T('planner.ripetizione'), repSel));
         
         var notSel = select([
-            ['none', 'Nessuna'], ['at_time', 'Nel momento'], ['m30', '30 minuti prima'],
-            ['h1', "Un'ora prima"], ['d1', 'Un giorno prima']
+            ['none', T('planner.nessuna')], ['at_time', T('planner.nel_momento')], ['m30', T('planner.30_minuti_prima')],
+            ['h1', T('planner.un_ora_prima')], ['d1', T('planner.un_giorno_prima')]
         ], c.def_notify || 'none', function() {});
         notSel.style.maxWidth = '55%';
-        f2.appendChild(rowSB('Notifica', notSel));
+        f2.appendChild(rowSB(T('planner.notifica'), notSel));
         body.appendChild(f2);
         
         var f3 = el('div', 'pl-field');
@@ -8873,7 +8985,7 @@ function openCalendarRules(c) {
         retroCheck.type = 'checkbox';
         retroCheck.style.width = '18px'; retroCheck.style.height = '18px';
         retroLabel.appendChild(retroCheck);
-        var spanLab = el('span', null, 'Applica retroattivamente agli eventi già esistenti');
+        var spanLab = el('span', null, T('planner.applica_retroattivamente_agli_eventi_gia'));
         spanLab.style.fontSize = '14px'; spanLab.style.color = 'var(--ink)';
         retroLabel.appendChild(spanLab);
         f3.appendChild(retroLabel);
@@ -8881,14 +8993,14 @@ function openCalendarRules(c) {
         
         var acts = el('div', 'pl-alert-acts');
         acts.style.marginTop = '20px';
-        var cancel = el('button', 'pl-btn', 'Annulla');
+        var cancel = el('button', 'pl-btn', T('planner.annulla'));
         cancel.type = 'button';
         cancel.addEventListener('click', function() { closeOv('plSheetOv'); });
-        var save = el('button', 'pl-btn pl-btn-primary', 'Salva regole');
+        var save = el('button', 'pl-btn pl-btn-primary', T('planner.salva_regole'));
         save.type = 'button';
         save.addEventListener('click', function() {
             save.disabled = true;
-            save.textContent = 'Salvataggio...';
+            save.textContent = T('planner.salvataggio');
             api('calendar_rules_save', {
                 id: c.id,
                 keywords: kwIn.value.trim(),
@@ -8897,11 +9009,11 @@ function openCalendarRules(c) {
                 apply_retro: retroCheck.checked
             }).then(function(r) {
                 save.disabled = false;
-                save.textContent = 'Salva regole';
-                if (!r.ok) { toast('Errore nel salvataggio'); return; }
+                save.textContent = T('planner.salva_regole');
+                if (!r.ok) { toast(T('planner.errore_nel_salvataggio')); return; }
                 S.calendars = r.calendars;
                 closeOv('plSheetOv');
-                toast('Regole speciali salvate.');
+                toast(T('planner.regole_speciali_salvate'));
                 if (retroCheck.checked) {
                     S.weekCache = {};
                     loadWeek(monday(S.focusDate), true);
@@ -8922,7 +9034,7 @@ function categoryRow(c) {
     var txt = el('div');
     txt.style.flex = '1';
     txt.appendChild(el('div', 'pl-row-lab', c.name));
-    txt.appendChild(el('div', 'pl-row-sub', c.keywords.length ? c.keywords.join(' · ') : 'nessuna parola chiave'));
+    txt.appendChild(el('div', 'pl-row-sub', c.keywords.length ? c.keywords.join(' · ') : T('planner.nessuna_parola_l')));
     inner.appendChild(txt);
     var acts = el('div', 'pl-srow-acts');
     var edit = el('button', 'pl-srow-act');
@@ -8933,9 +9045,9 @@ function categoryRow(c) {
     del.type = 'button';
     del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>';
     del.addEventListener('click', function () {
-        alertBox('Elimino ' + c.name + '?', 'Gli eventi resteranno, ma senza categoria.', [
-            { label: 'Annulla' },
-            { label: 'Elimina', kind: 'danger', onClick: function () {
+        alertBox(T('planner.elimino_nome', {nome: c.name}), T('planner.gli_eventi_resteranno_ma_senza'), [
+            { label: T('planner.annulla') },
+            { label: T('planner.elimina'), kind: 'danger', onClick: function () {
                 api('category_delete', { id: c.id }).then(function (r) {
                     if (!r.ok) return;
                     S.categories = r.categories;
@@ -8966,15 +9078,15 @@ function enableSwipe(row, inner) {
 function editCategory(c) {
     var isNew = !c;
     var data = c ? { id: c.id, name: c.name, color: c.color, keywords: c.keywords.slice() } : { id: 0, name: '', color: '#C7DED6', keywords: [] };
-    openSheet(isNew ? 'Nuova categoria' : data.name, function (body) {
+    openSheet(isNew ? T('planner.nuova_categoria_l') : data.name, function (body) {
         var f = el('div', 'pl-field');
         var name = el('input', 'pl-in');
-        name.type = 'text'; name.placeholder = 'Nome'; name.value = data.name; name.maxLength = 60;
+        name.type = 'text'; name.placeholder = T('planner.nome'); name.value = data.name; name.maxLength = 60;
         f.appendChild(name);
         body.appendChild(f);
 
         var fc = el('div', 'pl-field');
-        fc.appendChild(el('label', 'pl-label', 'Colore'));
+        fc.appendChild(el('label', 'pl-label', T('planner.colore')));
         var sw = el('div', 'pl-swatches');
         ['#C7DED6', '#F0D3D6', '#D8D3E8', '#F3E4C0', '#CFDDEA', '#E8D5C7', '#DCE7C8', '#E4DDD3',
          '#E9A7A0', '#A9C8B4', '#B3A8D8', '#F2CE8A', '#8FB6CE', '#D9A8C6', '#AEC98A', '#C9A88E',
@@ -8996,14 +9108,14 @@ function editCategory(c) {
            modo di annullare una modifica iniziata per sbaglio */
         var acts = el('div', 'pl-alert-acts');
         acts.style.marginTop = '4px';
-        var cancel = el('button', 'pl-btn', 'Annulla');
+        var cancel = el('button', 'pl-btn', T('planner.annulla'));
         cancel.type = 'button';
         cancel.addEventListener('click', function () { openSettings(); });
-        var save = el('button', 'pl-btn pl-btn-primary', isNew ? 'Crea categoria' : 'Salva');
+        var save = el('button', 'pl-btn pl-btn-primary', isNew ? T('planner.crea_categoria') : T('comune.salva'));
         save.type = 'button';
         save.addEventListener('click', function () {
             api('category_save', { id: data.id, name: name.value, color: data.color }).then(function (r) {
-                if (!r.ok) { toast(r.message || 'Non salvato.'); return; }
+                if (!r.ok) { toast(r.message || T('planner.non_salvato')); return; }
                 S.categories = r.categories;
                 renderDays();
                 openSettings();
@@ -9015,7 +9127,7 @@ function editCategory(c) {
         if (!isNew) {
             var fk = el('div', 'pl-field');
             fk.style.marginTop = '18px';
-            fk.appendChild(el('label', 'pl-label', 'Parole che assegnano questa categoria'));
+            fk.appendChild(el('label', 'pl-label', T('planner.parole_che_assegnano_questa_categoria')));
             var tags = el('div', 'pl-tags');
             function drawTags() {
                 tags.innerHTML = '';
@@ -9043,8 +9155,8 @@ function editCategory(c) {
             var kwRow = el('div', 'pl-row');
             kwRow.style.marginTop = '10px';
             var kw = el('input', 'pl-in');
-            kw.type = 'text'; kw.placeholder = 'es. palestra'; kw.maxLength = 60;
-            var addKw = el('button', 'pl-btn pl-btn-primary', 'Aggiungi');
+            kw.type = 'text'; kw.placeholder = T('planner.es_palestra'); kw.maxLength = 60;
+            var addKw = el('button', 'pl-btn pl-btn-primary', T('planner.aggiungi_2'));
             addKw.type = 'button';
             addKw.style.flex = '0 0 auto';
             addKw.style.padding = '12px 18px';
@@ -9060,9 +9172,9 @@ function editCategory(c) {
                         return;
                     }
                     if (r.error === 'duplicate') {
-                        alertBox('Parola già usata', '"' + word + '" è già assegnata alla categoria ' + r.category_name + '. Una parola può appartenere a una sola categoria.', [{ label: 'Ho capito' }]);
+                        alertBox(T('planner.parola_gia_usata'), T('planner.parola_gia_assegnata', {parola: word, categoria: r.category_name}), [{ label: T('planner.ho_capito') }]);
                     } else {
-                        toast(r.message || 'Non è stato possibile aggiungere la parola.');
+                        toast(r.message || T('planner.non_e_stato_possibile_aggiungere_2'));
                     }
                 });
             });
@@ -9082,7 +9194,7 @@ function routineRow(r) {
     var txt = el('div');
     txt.style.flex = '1';
     txt.appendChild(el('div', 'pl-row-lab', r.name));
-    txt.appendChild(el('div', 'pl-row-sub', durLabel(r.total) + ' · ' + r.items.length + ' passaggi'));
+    txt.appendChild(el('div', 'pl-row-sub', durLabel(r.total) + ' · ' + T('planner.n_passaggi', {n: r.items.length})));
     inner.appendChild(txt);
     var acts = el('div', 'pl-srow-acts');
     var edit = el('button', 'pl-srow-act');
@@ -9093,9 +9205,9 @@ function routineRow(r) {
     del.type = 'button';
     del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>';
     del.addEventListener('click', function () {
-        alertBox('Elimino ' + r.name + '?', 'Gli eventi già inseriti restano dove sono.', [
-            { label: 'Annulla' },
-            { label: 'Elimina', kind: 'danger', onClick: function () {
+        alertBox(T('planner.elimino_nome', {nome: r.name}), T('planner.gli_eventi_gia_inseriti_restano'), [
+            { label: T('planner.annulla') },
+            { label: T('planner.elimina'), kind: 'danger', onClick: function () {
                 api('routine_delete', { id: r.id }).then(function (res) {
                     if (!res.ok) return;
                     S.routines = res.routines;
@@ -9115,15 +9227,15 @@ function editRoutine(r) {
     var isNew = !r;
     var data = r ? { id: r.id, name: r.name, color: r.color, items: r.items.map(function (i) { return { name: i.name, minutes: i.minutes }; }) }
                  : { id: 0, name: '', color: '#F6EBD2', items: [{ name: '', minutes: 5 }] };
-    openSheet(isNew ? 'Nuova routine' : data.name, function (body) {
+    openSheet(isNew ? T('planner.nuova_routine_l') : data.name, function (body) {
         var f = el('div', 'pl-field');
         var name = el('input', 'pl-in');
-        name.type = 'text'; name.placeholder = 'Nome della routine'; name.value = data.name; name.maxLength = 80;
+        name.type = 'text'; name.placeholder = T('planner.nome_della_routine'); name.value = data.name; name.maxLength = 80;
         f.appendChild(name);
         body.appendChild(f);
 
         var fc = el('div', 'pl-field');
-        fc.appendChild(el('label', 'pl-label', 'Colore'));
+        fc.appendChild(el('label', 'pl-label', T('planner.colore')));
         var sw = el('div', 'pl-swatches');
         ['#F6EBD2', '#E6E1F1', '#D7EAE5', '#F6E1E4', '#DCE7F0', '#F1E0D3',
          '#EFE1C4', '#DDD6EE', '#C9E2DC', '#F2D6DA', '#CFDEEC', '#E9D6C6',
@@ -9143,7 +9255,7 @@ function editRoutine(r) {
 
         var fi = el('div', 'pl-field');
         var head = el('div', 'pl-row-sb');
-        head.appendChild(el('span', 'pl-label', 'Passaggi'));
+        head.appendChild(el('span', 'pl-label', T('planner.passaggi')));
         var totalLab = el('span', 'pl-row-sub', '');
         head.appendChild(totalLab);
         fi.appendChild(head);
@@ -9153,7 +9265,7 @@ function editRoutine(r) {
         function total() {
             var t = 0;
             data.items.forEach(function (i) { t += (parseInt(i.minutes, 10) || 0); });
-            totalLab.textContent = durLabel(t) + ' in tutto';
+            totalLab.textContent = T('planner.durata_in_tutto', {durata: durLabel(t)});
         }
         function drawItems() {
             itemsBox.innerHTML = '';
@@ -9161,7 +9273,7 @@ function editRoutine(r) {
                 var row = el('div', 'pl-row');
                 row.style.margin = '7px 0';
                 var n = el('input', 'pl-in');
-                n.type = 'text'; n.placeholder = 'Passaggio'; n.value = it.name; n.maxLength = 120;
+                n.type = 'text'; n.placeholder = T('planner.passaggio'); n.value = it.name; n.maxLength = 120;
                 n.addEventListener('input', function () { it.name = n.value; });
                 var m = el('input', 'pl-pick');
                 m.type = 'number'; m.min = '1'; m.max = '600'; m.value = it.minutes; m.style.width = '78px';
@@ -9179,12 +9291,12 @@ function editRoutine(r) {
         var addIt = el('button', 'pl-addlist');
         addIt.type = 'button';
         addIt.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
-        addIt.appendChild(el('span', null, 'Aggiungi passaggio'));
+        addIt.appendChild(el('span', null, T('planner.aggiungi_passaggio')));
         addIt.addEventListener('click', function () { data.items.push({ name: '', minutes: 5 }); drawItems(); total(); });
         fi.appendChild(addIt);
         body.appendChild(fi);
 
-        var save = el('button', 'pl-btn pl-btn-primary', isNew ? 'Crea routine' : 'Salva');
+        var save = el('button', 'pl-btn pl-btn-primary', isNew ? T('planner.crea_routine') : T('comune.salva'));
         save.type = 'button';
         save.style.marginTop = '14px';
         save.addEventListener('click', function () {
@@ -9192,7 +9304,7 @@ function editRoutine(r) {
                 id: data.id, name: name.value, color: data.color,
                 items: data.items.filter(function (i) { return i.name.trim(); })
             }).then(function (res) {
-                if (!res.ok) { toast(res.message || 'Non salvata.'); return; }
+                if (!res.ok) { toast(res.message || T('planner.non_salvata')); return; }
                 S.routines = res.routines;
                 openSettings('routines');
             });
@@ -9210,25 +9322,25 @@ function gcall(action, write, dati) {
     if (write) opt.body = JSON.stringify(dati || {});
     return fetch('google_calendar.php?ajax=' + action, opt)
         .then(function (r) { return r.json(); })
-        .catch(function () { return { ok: false, message: 'Connessione non riuscita.' }; });
+        .catch(function () { return { ok: false, message: T('planner.connessione_non_riuscita') }; });
 }
 
 function drawGoogle(box) {
     gcall('status').then(function (st) {
         box.innerHTML = '';
         if (!st.ok) {
-            box.appendChild(el('div', 'pl-row-sub', 'Stato non disponibile.'));
+            box.appendChild(el('div', 'pl-row-sub', T('planner.stato_non_disponibile')));
             return;
         }
         if (!st.configured) {
             box.appendChild(el('div', 'pl-row-sub',
-                'Non ancora configurato su questo sito: servono le credenziali Google in config.php.'));
+                T('planner.non_ancora_configurato_su_questo')));
             return;
         }
         if (!st.connected) {
             box.appendChild(el('div', 'pl-row-sub',
-                'Collegando il tuo account, gli eventi del planner finiscono in Google Calendar e quelli di Google compaiono qui.'));
-            var connect = el('button', 'pl-btn pl-btn-primary', 'Collega Google Calendar');
+                T('planner.collegando_il_tuo_account_gli')));
+            var connect = el('button', 'pl-btn pl-btn-primary', T('planner.collega_google_calendar'));
             connect.type = 'button';
             connect.style.marginTop = '10px';
             connect.addEventListener('click', function () {
@@ -9240,32 +9352,32 @@ function drawGoogle(box) {
 
         var info = el('div', 'pl-row-sb');
         var left = el('div');
-        left.appendChild(el('div', 'pl-row-lab', st.email || 'Account collegato'));
+        left.appendChild(el('div', 'pl-row-lab', st.email || T('planner.account_collegato')));
         var when = st.last_sync ? new Date(st.last_sync.replace(' ', 'T')) : null;
         left.appendChild(el('div', 'pl-row-sub', when
-            ? 'ultima sincronizzazione: ' + when.getDate() + ' ' + MESI[when.getMonth()].toLowerCase() +
+            ? T('planner.ultima_sync') + when.getDate() + ' ' + MESI[when.getMonth()].toLowerCase() +
               ', ' + pad(when.getHours()) + ':' + pad(when.getMinutes())
-            : 'mai sincronizzato'));
+            : T('planner.mai_sincronizzato')));
         info.appendChild(left);
 
         /* piccoli e accanto all'account, non grandi in fondo alla pagina:
            presi per sbaglio potevano sembrare il pulsante di salvataggio */
         var actsSmall = el('div', 'pl-row');
         actsSmall.style.flexShrink = '0';
-        var sync = el('button', 'pl-mini-btn pl-primary', 'Sincronizza');
+        var sync = el('button', 'pl-mini-btn pl-primary', T('planner.sincronizza'));
         sync.type = 'button';
         sync.addEventListener('click', function () {
             sync.textContent = '…';
             sync.disabled = true;
             runSync().then(function () { drawGoogle(box); });
         });
-        var off = el('button', 'pl-mini-btn', 'Scollega');
+        var off = el('button', 'pl-mini-btn', T('planner.scollega'));
         off.type = 'button';
         off.addEventListener('click', function () {
-            alertBox('Scollego Google Calendar?', 'Gli eventi già scritti restano dove sono, da entrambe le parti. Semplicemente non si parleranno più.', [
-                { label: 'Annulla' },
-                { label: 'Scollega', kind: 'danger', onClick: function () {
-                    gcall('disconnect', true).then(function () { drawGoogle(box); toast('Google Calendar scollegato.'); });
+            alertBox(T('planner.scollego_google_calendar'), T('planner.gli_eventi_gia_scritti_restano'), [
+                { label: T('planner.annulla') },
+                { label: T('planner.scollega'), kind: 'danger', onClick: function () {
+                    gcall('disconnect', true).then(function () { drawGoogle(box); toast(T('planner.google_calendar_scollegato')); });
                 } }
             ]);
         });
@@ -9275,9 +9387,9 @@ function drawGoogle(box) {
 
         box.appendChild(el('div', 'pl-row-sub',
             (st.calendar
-                ? 'Il calendario dedicato si chiama "' + st.calendar + '": puoi nasconderlo o cancellarlo da Google quando vuoi. '
+                ? T('planner.calendario_dedicato', {nome: st.calendar})
                 : '')
-            + 'Si allinea da ' + st.window.back + ' giorni prima a ' + st.window.forward + ' giorni dopo oggi, da solo a ogni modifica.'));
+            + T('planner.si_allinea_da_a', {prima: st.window.back, dopo: st.window.forward})));
 
         /* Cosa mandare, e dove. Il calendario principale ha la precedenza:
            se scegli di mandare là gli importanti, quelli non vanno nel
@@ -9286,36 +9398,36 @@ function drawGoogle(box) {
 
         var f1 = el('div', 'pl-field');
         f1.style.marginTop = '16px';
-        f1.appendChild(el('label', 'pl-label', 'Nel calendario dedicato'));
+        f1.appendChild(el('label', 'pl-label', T('planner.nel_calendario_dedicato')));
         f1.appendChild(select([
-            ['all', 'Tutti gli eventi'],
-            ['high', 'Solo importanti e importantissimi'],
-            ['highest', 'Solo importantissimi'],
-            ['none', 'Nessuno']
+            ['all', T('planner.tutti_gli_eventi')],
+            ['high', T('planner.solo_importanti_e_importantissimi')],
+            ['highest', T('planner.solo_importantissimi')],
+            ['none', T('planner.nessuno')]
         ], modes.dedicated, function (v) {
             S.settings.gc_dedicated = v;
             api('settings_save', { gc_dedicated: v }).then(function () {
-                toast('Scelta salvata. Si allinea al prossimo giro.');
+                toast(T('planner.scelta_salvata_si_allinea_al'));
                 drawGoogle(box);
             });
         }));
         box.appendChild(f1);
 
         var f2 = el('div', 'pl-field');
-        f2.appendChild(el('label', 'pl-label', 'Nel calendario principale di Google'));
+        f2.appendChild(el('label', 'pl-label', T('planner.nel_calendario_principale_di_google')));
         f2.appendChild(select([
-            ['none', 'Nessuno'],
-            ['high', 'Importanti e importantissimi'],
-            ['highest', 'Solo importantissimi']
+            ['none', T('planner.nessuno')],
+            ['high', T('planner.importanti_e_importantissimi')],
+            ['highest', T('planner.solo_importantissimi')]
         ], modes.primary, function (v) {
             S.settings.gc_primary = v;
             api('settings_save', { gc_primary: v }).then(function () {
-                toast('Scelta salvata. Si allinea al prossimo giro.');
+                toast(T('planner.scelta_salvata_si_allinea_al'));
                 drawGoogle(box);
             });
         }));
         f2.appendChild(el('div', 'pl-row-sub',
-            'Quello che mandi qui non finisce nel dedicato: sta solo nel principale.'));
+            T('planner.quello_che_mandi_qui_non')));
         box.appendChild(f2);
 
         /* i due elenchi dei calendari, che si caricano da soli */
@@ -9329,24 +9441,22 @@ function drawGoogle(box) {
            più che abbiamo creato noi. */
         var fr = el('div', 'pl-field');
         fr.style.marginTop = '22px';
-        fr.appendChild(el('label', 'pl-label', 'Se qualcosa è andato storto'));
-        var rip = el('button', 'pl-btn', 'Cerca e togli i doppioni su Google');
+        fr.appendChild(el('label', 'pl-label', T('planner.se_qualcosa_e_andato_storto')));
+        var rip = el('button', 'pl-btn', T('planner.cerca_e_togli_i_doppioni'));
         rip.type = 'button';
         rip.style.width = '100%';
         rip.addEventListener('click', function () {
-            alertBox('Cercare i doppioni?',
-                'Guardo nel calendario dedicato e nel principale di Google. Tolgo solo le copie '
-                + 'in più di eventi che il planner riconosce: quello che c\'era prima, o che hai '
-                + 'scritto direttamente su Google, non lo tocco.', [
-                { label: 'Annulla' },
-                { label: 'Cerca', kind: 'primary', onClick: function () {
+            alertBox(T('planner.cercare_i_doppioni'),
+                T('planner.spiega_doppioni'), [
+                { label: T('planner.annulla') },
+                { label: T('planner.cerca'), kind: 'primary', onClick: function () {
                     rip.disabled = true;
-                    rip.textContent = 'Sto guardando…';
+                    rip.textContent = T('planner.sto_guardando');
                     gcall('repair', true).then(function (r) {
                         rip.disabled = false;
-                        rip.textContent = 'Cerca e togli i doppioni su Google';
-                        if (!r || !r.ok) { toast((r && r.message) || 'Non riuscito.'); return; }
-                        toast(r.removed ? r.removed + ' copie tolte da Google.' : 'Nessun doppione trovato.');
+                        rip.textContent = T('planner.cerca_e_togli_i_doppioni');
+                        if (!r || !r.ok) { toast((r && r.message) || T('planner.non_riuscito')); return; }
+                        toast(r.removed ? r.removed + T('planner.copie_tolte') : T('planner.nessun_doppione_trovato'));
                     });
                 } }
             ]);
@@ -9355,7 +9465,7 @@ function drawGoogle(box) {
         /* Il marcatore di versione: senza, non c'è modo di sapere da fuori se
            il file che risponde è quello caricato per ultimo — ed è una
            domanda che ci si fa spesso quando qualcosa non cambia. */
-        if (st.build) fr.appendChild(el('div', 'pl-row-sub', 'Versione: ' + st.build));
+        if (st.build) fr.appendChild(el('div', 'pl-row-sub', T('planner.versione', {v: st.build})));
         box.appendChild(fr);
     });
 }
@@ -9371,12 +9481,12 @@ function drawGoogle(box) {
    scriverci, e viceversa. */
 function drawCalendarBridge(host) {
     host.innerHTML = '';
-    host.appendChild(el('div', 'pl-row-sub', 'Cerco i tuoi calendari su Google…'));
+    host.appendChild(el('div', 'pl-row-sub', T('planner.cerco_i_tuoi_calendari_su')));
 
     gcall('calendars').then(function (r) {
         host.innerHTML = '';
         if (!r || !r.ok) {
-            host.appendChild(el('div', 'pl-row-sub', r && r.message ? r.message : 'Elenco non disponibile.'));
+            host.appendChild(el('div', 'pl-row-sub', r && r.message ? r.message : T('planner.elenco_non_disponibile')));
             return;
         }
         var miei = r.mine || [];
@@ -9384,10 +9494,8 @@ function drawCalendarBridge(host) {
         /* --- da Google a qui --- */
         var s1 = el('div', 'pl-field');
         s1.style.marginTop = '20px';
-        s1.appendChild(el('label', 'pl-label', 'Dai calendari di Google'));
-        s1.appendChild(el('div', 'pl-row-sub',
-            'Per ognuno, in quale dei tuoi calendari far entrare i suoi eventi. '
-            + 'Scegliendo «nessuno» quegli eventi non entrano — e se ce n\'erano già, se ne vanno.'));
+        s1.appendChild(el('label', 'pl-label', T('planner.dai_calendari_di_google')));
+        s1.appendChild(el('div', 'pl-row-sub', T('planner.spiega_da_google')));
 
         (r.google || []).forEach(function (g) {
             var riga = el('div', 'pl-gc-riga');
@@ -9399,16 +9507,16 @@ function drawCalendarBridge(host) {
             /* il calendario che scriviamo noi si segnala: cambiarne la
                destinazione è legittimo, ma bisogna sapere che quelli sono i
                propri eventi che tornano indietro */
-            if (g.is_ours) testa.appendChild(el('span', 'pl-gc-tag', 'nostro'));
-            else if (g.is_primary) testa.appendChild(el('span', 'pl-gc-tag', 'principale'));
+            if (g.is_ours) testa.appendChild(el('span', 'pl-gc-tag', T('planner.nostro')));
+            else if (g.is_primary) testa.appendChild(el('span', 'pl-gc-tag', T('planner.principale')));
             /* Quanti ne sono già entrati da lì. È la risposta alla domanda che
                uno si fa guardando l'elenco — «e allora questi da dove sono
                arrivati?» — e dice anche cosa si sta per buttare scegliendo
                «nessuno». */
-            if (g.entrati) testa.appendChild(el('span', 'pl-gc-conta', g.entrati + ' qui'));
+            if (g.entrati) testa.appendChild(el('span', 'pl-gc-conta', T('planner.n_qui', {n: g.entrati})));
             riga.appendChild(testa);
 
-            var opzioni = [['0', 'Nessuno']];
+            var opzioni = [['0', T('planner.nessuno')]];
             miei.forEach(function (m) { opzioni.push([String(m.id), m.name]); });
             riga.appendChild(select(opzioni, String(g.calendar_id || 0), function (v) {
                 var dest = parseInt(v, 10) || 0;
@@ -9416,12 +9524,10 @@ function drawCalendarBridge(host) {
                     /* si chiede conferma solo quando c'è davvero qualcosa da
                        perdere: è l'unica scelta di questa pagina che cancella
                        roba già entrata, e non si torna indietro */
-                    alertBox('Togliere ' + (g.name || 'questo calendario') + '?',
-                        (g.entrati ? g.entrati + ' eventi arrivati da qui spariranno dal planner, '
-                                   : 'Gli eventi arrivati da qui spariranno dal planner, ')
-                        + 'anche quelli passati. Su Google restano dove sono.', [
-                        { label: 'Annulla', onClick: function () { drawCalendarBridge(host); } },
-                        { label: 'Togli', kind: 'danger', onClick: function () { mapSet(g, 0, host); } }
+                    alertBox(T('planner.togliere_calendario', {nome: (g.name || T('planner.questo_calendario'))}),
+                (g.entrati ? T('planner.n_eventi_spariranno', {n: g.entrati}) : T('planner.eventi_spariranno')) + T('planner.anche_passati'), [
+                        { label: T('planner.annulla'), onClick: function () { drawCalendarBridge(host); } },
+                        { label: T('planner.togli_2'), kind: 'danger', onClick: function () { mapSet(g, 0, host); } }
                     ]);
                     return;
                 }
@@ -9433,12 +9539,10 @@ function drawCalendarBridge(host) {
 
         /* --- da qui a Google --- */
         var s2 = el('div', 'pl-field');
-        s2.appendChild(el('label', 'pl-label', 'Dai tuoi calendari a Google'));
-        s2.appendChild(el('div', 'pl-row-sub',
-            'Dove finiscono su Google gli eventi che scrivi qui. '
-            + 'Lasciando «come impostato sopra» valgono le scelte per importanza.'));
+        s2.appendChild(el('label', 'pl-label', T('planner.dai_tuoi_calendari_a_google')));
+        s2.appendChild(el('div', 'pl-row-sub', T('planner.spiega_verso_google')));
 
-        var refs = [['', 'Come impostato sopra']];
+        var refs = [['', T('planner.come_impostato_sopra')]];
         /* i calendari di sola lettura non compaiono: Google rifiuta sempre chi
            prova a scriverci, e una scelta che fallirà comunque è peggio che
            una scelta in meno */
@@ -9459,8 +9563,8 @@ function drawCalendarBridge(host) {
             riga.appendChild(testa);
             riga.appendChild(select(refs, m.push_ref || '', function (v) {
                 gcall('push_set', true, { calendar_id: m.id, ref: v }).then(function (rr) {
-                    if (!rr || !rr.ok) { toast((rr && rr.message) || 'Scelta non salvata.'); return; }
-                    toast('Scelta salvata. Si allinea al prossimo giro.');
+                    if (!rr || !rr.ok) { toast((rr && rr.message) || T('planner.scelta_non_salvata')); return; }
+                    toast(T('planner.scelta_salvata_si_allinea_al'));
                 });
             }));
             s2.appendChild(riga);
@@ -9471,10 +9575,10 @@ function drawCalendarBridge(host) {
 
 function mapSet(g, dest, host) {
     gcall('map_set', true, { ref: g.ref, calendar_id: dest }).then(function (rr) {
-        if (!rr || !rr.ok) { toast((rr && rr.message) || 'Scelta non salvata.'); drawCalendarBridge(host); return; }
-        if (rr.removed) toast(rr.removed + ' eventi tolti dal planner.');
-        else if (rr.moved) toast(rr.moved + ' eventi spostati.');
-        else toast('Scelta salvata.');
+        if (!rr || !rr.ok) { toast((rr && rr.message) || T('planner.scelta_non_salvata')); drawCalendarBridge(host); return; }
+        if (rr.removed) toast(T('planner.n_eventi_tolti', {n: rr.removed}));
+                    else if (rr.moved) toast(T('planner.n_eventi_spostati', {n: rr.moved}));
+        else toast(T('planner.scelta_salvata'));
         /* la lettura riparte da capo per quel calendario, quindi conviene
            allineare subito invece di far aspettare il giro automatico */
         S.weekCache = {};
@@ -9501,23 +9605,23 @@ function runSync(quiet) {
         if (!r.ok) {
             if (quiet && r.error !== 'reauth') return r;   // in silenzio: riproverà
             if (r.error === 'reauth') {
-                alertBox('Serve ricollegare Google', 'Il permesso è scaduto o è stato revocato dal tuo account Google.', [
-                    { label: 'Più tardi' },
-                    { label: 'Ricollega', kind: 'primary', onClick: function () {
+                alertBox(T('planner.serve_ricollegare_google'), T('planner.il_permesso_e_scaduto_o'), [
+                    { label: T('planner.piu_tardi') },
+                    { label: T('planner.ricollega'), kind: 'primary', onClick: function () {
                         window.location.href = 'google_calendar.php?action=connect';
                     } }
                 ]);
             } else {
-                toast(r.message || 'Sincronizzazione non riuscita.');
+                toast(r.message || T('planner.sincronizzazione_non_riuscita'));
             }
             return r;
         }
         var arrived = r.pulled + r.removed_here;
         var sent = r.created + r.updated + r.removed_there;
         if (!quiet) {
-            if (!arrived && !sent) toast('Già tutto allineato.');
-            else toast(arrived + ' novità da Google · ' + sent + ' mandati');
-            if (r.failed) toast(r.failed + ' eventi non sono stati accettati da Google.');
+            if (!arrived && !sent) toast(T('planner.gia_tutto_allineato'));
+            else toast(T('planner.novita_da_google', {ricevuti: arrived, mandati: sent}));
+            if (r.failed) toast(T('planner.eventi_non_accettati', {n: r.failed}));
         }
         S.weekCache = {};
         loadWeek(monday(S.focusDate), true).then(function () { if (S.view === 'month') renderMonth(); });
@@ -9531,12 +9635,12 @@ function runSync(quiet) {
     if (!m) return;
     if (history.replaceState) history.replaceState(null, '', 'planner.php');
     if (m[1] === 'collegato') {
-        toast('Google Calendar collegato. Sto allineando gli eventi…');
+        toast(T('planner.google_calendar_collegato_sto_allineando'));
         setTimeout(runSync, 600);
     } else if (m[1] === 'annullato') {
-        toast('Collegamento annullato.');
+        toast(T('planner.collegamento_annullato'));
     } else {
-        toast('Collegamento non riuscito. Riprova dalle impostazioni.');
+        toast(T('planner.collegamento_non_riuscito_riprova_dalle'));
     }
 })();
 
@@ -9551,7 +9655,7 @@ function setView(v) {
     document.body.classList.toggle('pl-view-week', v === 'week');
     var vb = $('plViewBtn');
     vb.classList.toggle('pl-on', v === 'month');
-    vb.setAttribute('aria-label', v === 'month' ? 'Torna alla settimana' : 'Passa alla vista mese');
+    vb.setAttribute('aria-label', v === 'month' ? T('planner.torna_alla_settimana') : T('planner.passa_alla_vista_mese'));
     if (v === 'week') {
         closeMonthAgenda();
         $('plMonthsBar').classList.remove('pl-open');
@@ -9726,7 +9830,7 @@ function renderWeek() {
                 + (g.date === S.focusDate ? ' pl-scelto' : ''));
             cAd.dataset.date = g.date;
             g.list.slice(0, 3).forEach(function (ev) {
-                var b2 = el('div', 'pl-wk-chip pl-wk-chip-ad' + (ev.done ? ' pl-done' : ''), ev.title || 'senza titolo');
+                var b2 = el('div', 'pl-wk-chip pl-wk-chip-ad' + (ev.done ? ' pl-done' : ''), ev.title || T('planner.senza_titolo_l'));
                 b2.style.setProperty('--ev', evColor(ev));
                 b2.dataset.id = ev.id;
                 b2.dataset.date = ev.date || g.date;
@@ -9836,7 +9940,7 @@ function wkCella(giorno, h) {
         var chip = el('div', 'pl-wk-chip');
         chip.style.setProperty('--ev', evColor(ev));
         if (ev.done) chip.classList.add('pl-done');
-        chip.textContent = ev.title || 'Senza titolo';
+        chip.textContent = ev.title || T('planner.senza_titolo');
         chip.addEventListener('click', function (e) {
             e.stopPropagation();
             openEventSheet(ev, null);
@@ -10292,7 +10396,7 @@ function monthCell(date, inMonth) {
         var foot = el('div', 'pl-mcell-foot');
         var tag2 = el('button', 'pl-mtag');
         tag2.type = 'button';
-        tag2.setAttribute('aria-label', 'Leggi il diario di questo giorno');
+        tag2.setAttribute('aria-label', T('planner.leggi_il_diario_di_questo'));
         tag2.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 4h12v16H8a2 2 0 01-2-2z"/></svg>';
         tag2.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -10412,7 +10516,7 @@ function openMonthAgenda(fromDate) {
     }
     if (!trovati) {
         body.appendChild(agendaDayHeader(fromDate));
-        body.appendChild(el('div', 'pl-ma-empty', 'Niente in programma nei prossimi giorni.'));
+        body.appendChild(el('div', 'pl-ma-empty', T('planner.niente_in_programma_nei_prossimi')));
     }
 
     box.classList.add('pl-open');
@@ -10427,9 +10531,9 @@ function agendaDayHeader(date) {
     var d = parseIso(date);
     var head = el('div', 'pl-ma-day');
     var etichetta;
-    if (date === S.today) etichetta = 'Oggi';
-    else if (date === addDays(S.today, 1)) etichetta = 'Domani';
-    else if (date === addDays(S.today, -1)) etichetta = 'Ieri';
+    if (date === S.today) etichetta = T('comune.oggi');
+    else if (date === addDays(S.today, 1)) etichetta = T('comune.domani');
+    else if (date === addDays(S.today, -1)) etichetta = T('planner.ieri_t');
     else etichetta = GIORNI[dowIndex(date)];
 
     /* Il nome del giorno è un pulsante: toccandolo si va a vedere quel giorno
@@ -10437,7 +10541,7 @@ function agendaDayHeader(date) {
        suo tocco e aprirebbe due cose insieme. */
     var vai = el('button', 'pl-ma-goto');
     vai.type = 'button';
-    vai.setAttribute('aria-label', 'Vai a ' + etichetta + ' ' + d.getDate() + '/' + (d.getMonth() + 1));
+    vai.setAttribute('aria-label', T('planner.vai_a', {giorno: etichetta + ' ' + d.getDate() + '/' + (d.getMonth() + 1)}));
     vai.appendChild(el('span', 'pl-ma-when' + (date < S.today ? ' pl-ma-past' : ''), etichetta));
     vai.appendChild(el('span', 'pl-ma-date', d.getDate() + '/' + (d.getMonth() + 1)));
     vai.addEventListener('click', function (e) {
@@ -10460,7 +10564,7 @@ function agendaRow(ev) {
     var mid = el('div');
     mid.style.cssText = 'flex:1;min-width:0;display:flex;gap:10px;align-items:flex-start';
     if (ev.all_day) {
-        var chip = el('span', 'pl-ma-allday', 'tutto il giorno');
+        var chip = el('span', 'pl-ma-allday', T('planner.tutto_il_giorno_l'));
         chip.style.flexShrink = '0';
         mid.appendChild(chip);
     } else {
@@ -10590,7 +10694,7 @@ function buildDayBar() {
 
     var ask = el('div', 'pl-copyask pl-hidden');
     ask.id = 'plCopyAsk';
-    ask.appendChild(el('div', 'pl-copyask-t', 'Vuoi partire copiando un altro giorno?'));
+    ask.appendChild(el('div', 'pl-copyask-t', T('planner.vuoi_partire_copiando_un_altro')));
     var no = el('button', 'pl-mini-btn', 'No');
     no.type = 'button';
     no.addEventListener('click', function () { ask.classList.add('pl-hidden'); syncScrollerTop(); });
@@ -10605,17 +10709,17 @@ function buildDayBar() {
     var smartIn = el('input', 'pl-smart-in');
     smartIn.type = 'text';
     smartIn.id = 'plSmartIn';
-    smartIn.placeholder = 'Domani pranzo 15…';
+    smartIn.placeholder = T('planner.domani_pranzo_15');
     smartIn.maxLength = 200;
     var smartGo = el('button', 'pl-smart-go');
     smartGo.type = 'button';
-    smartGo.setAttribute('aria-label', 'Crea');
+    smartGo.setAttribute('aria-label', T('planner.crea'));
     smartGo.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="M12.5 6l6 6-6 6"/></svg>';
     var smartMic = el('button', 'pl-smart-mic');
     smartMic.type = 'button';
     smartMic.id = 'plSmartMic';
     smartMic.hidden = true;
-    smartMic.setAttribute('aria-label', 'Dettalo invece di scriverlo');
+    smartMic.setAttribute('aria-label', T('planner.dettalo_invece_di_scriverlo'));
     smartMic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0013 0"/><path d="M12 18v3"/></svg>';
     smart.appendChild(smartIn);
     smart.appendChild(smartMic);
@@ -10631,7 +10735,7 @@ function buildDayBar() {
     var wpBtn = el('button', 'pl-wp-btn');
     wpBtn.type = 'button';
     wpBtn.id = 'plWeekPanelBtn';
-    wpBtn.setAttribute('aria-label', 'Liste della settimana');
+    wpBtn.setAttribute('aria-label', T('planner.liste_della_settimana'));
     wpBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 7h10M5 12h10M5 17h7"/><path d="M18.5 6.6l1.6 1.6M18.5 11.6l1.6 1.6"/></svg>';
     wpBtn.addEventListener('click', openWeekPanel);
     wrap.appendChild(wpBtn);
@@ -10639,7 +10743,7 @@ function buildDayBar() {
     var prio = el('div', 'pl-prio');
     prio.id = 'plPrio';
     var k = el('div', 'pl-prio-k');
-    k.appendChild(el('span', 'pl-label', 'Priorità'));
+    k.appendChild(el('span', 'pl-label', T('planner.priorita')));
     prio.appendChild(k);
     var rows = el('div', 'pl-prio-rows');
     rows.id = 'plPrioRows';
@@ -10722,7 +10826,7 @@ function renderAvvisi() {
     /* Una x sola che li chiude tutti, quando ce n'è più di uno: con cinque
        arretrate, cinque tocchi per liberare lo schermo sono cinque troppi. */
     if (pastiglie.length > 1) {
-        var tutte = el('button', 'pl-avviso-tutte', 'Chiudi tutti');
+        var tutte = el('button', 'pl-avviso-tutte', T('planner.chiudi_tutti'));
         tutte.type = 'button';
         tutte.addEventListener('click', function () {
             pastiglie.forEach(function (d) { S.pillsChiuse[d.id] = true; });
@@ -10740,20 +10844,20 @@ function renderAvvisi() {
            non una copia. */
         var ok = el('button', 'pl-avviso-ok');
         ok.type = 'button';
-        ok.setAttribute('aria-label', 'Presa');
+        ok.setAttribute('aria-label', T('planner.presa'));
         ok.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
         ok.addEventListener('click', function () {
             rispondiPastiglia(d, 'taken', riga);
         });
         riga.appendChild(ok);
 
-        var quando = d.oggi ? ('alle ' + d.time)
-                            : (nomeGiornoBreve(d.date) + ' alle ' + d.time);
+        var quando = d.oggi ? T('planner.alle_ora', {ora: d.time})
+                            : T('planner.giorno_alle_ora', {giorno: nomeGiornoBreve(d.date), ora: d.time});
         /* Il nome della terapia in grassetto: è quello che si cerca leggendo,
            e con tre riquadri impilati la differenza fra uno e l'altro sta
            tutta lì. */
         var t = el('span', 'pl-avviso-t');
-        t.appendChild(document.createTextNode('Hai preso ' + (d.dose ? d.dose + ' di ' : '')));
+        t.appendChild(document.createTextNode(d.dose ? T('planner.hai_preso_dose', {dose: d.dose}) : T('planner.hai_preso')));
         t.appendChild(el('b', null, d.name));
         t.appendChild(document.createTextNode(' ' + quando + '?'));
         riga.appendChild(t);
@@ -10761,7 +10865,7 @@ function renderAvvisi() {
         /* «Saltato» scrive nel database, non chiude e basta: quella presa non
            deve tornare nemmeno ricaricando la pagina. Se la stessa pastiglia
            è prevista un'altra volta, quella è un'altra presa e la chiederà. */
-        var salta = el('button', 'pl-avviso-salta', 'Saltato');
+        var salta = el('button', 'pl-avviso-salta', T('planner.saltato'));
         salta.type = 'button';
         salta.addEventListener('click', function () {
             rispondiPastiglia(d, 'skipped', riga);
@@ -10772,7 +10876,7 @@ function renderAvvisi() {
            domanda torna, perché la pastiglia resta da prendere. */
         var x = el('button', 'pl-avviso-x');
         x.type = 'button';
-        x.setAttribute('aria-label', 'Chiudi per ora');
+        x.setAttribute('aria-label', T('planner.chiudi_per_ora'));
         x.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
         x.addEventListener('click', function () {
             S.pillsChiuse[d.id] = true;
@@ -10789,7 +10893,7 @@ function renderAvvisi() {
            l'aspetto che aveva. È cambiato solo dove sta: qui sotto invece che
            in cima, dove allungava la barra ogni volta che compariva. */
         var c = el('div', 'pl-copyask pl-copyask-basso');
-        c.appendChild(el('div', 'pl-copyask-t', 'Vuoi partire copiando un altro giorno?'));
+        c.appendChild(el('div', 'pl-copyask-t', T('planner.vuoi_partire_copiando_un_altro')));
         var no = el('button', 'pl-mini-btn', 'No');
         no.type = 'button';
         no.addEventListener('click', function () { S.copiaChiusa = true; renderAvvisi(); });
@@ -10807,7 +10911,7 @@ function rispondiPastiglia(d, stato, riga) {
     todoApi('pill_mark', { id: d.id, status: stato }).then(function (r) {
         if (r && r.ok === false) {
             riga.classList.remove('pl-avviso-via');
-            toast((r && r.message) || 'Non e stato possibile registrarlo.');
+            toast((r && r.message) || T('planner.non_e_stato_possibile_registrarlo'));
             return;
         }
         S.pillsDue = (S.pillsDue || []).filter(function (x) { return x.id !== d.id; });
@@ -10837,9 +10941,9 @@ function maybeAskCopy() {
 }
 
 function openCopyDay() {
-    openSheet('Copia un altro giorno', function (body) {
+    openSheet(T('planner.copia_un_altro_giorno'), function (body) {
         var picked = null;
-        body.appendChild(el('div', 'pl-row-sub', 'Scegli il giorno da cui copiare gli eventi.'));
+        body.appendChild(el('div', 'pl-row-sub', T('planner.scegli_il_giorno_da_cui')));
         var grid = el('div');
         grid.style.marginTop = '10px';
         var cursor = parseIso(S.focusDate);
@@ -10878,7 +10982,7 @@ function openCopyDay() {
 
         var acts = el('div', 'pl-alert-acts');
         acts.style.marginTop = '16px';
-        var cancel = el('button', 'pl-btn', 'Annulla');
+        var cancel = el('button', 'pl-btn', T('planner.annulla'));
         cancel.type = 'button';
         cancel.addEventListener('click', function () { closeOv('plSheetOv'); });
         acts.appendChild(cancel);
@@ -10891,12 +10995,12 @@ function openCopyDay() {
             preview.appendChild(el('div', 'pl-label', d.getDate() + ' ' + MESI[d.getMonth()]));
             var list = eventsOf(picked);
             if (!list.length) {
-                preview.appendChild(el('div', 'pl-quote pl-serif', 'Questo giorno è vuoto.'));
+                preview.appendChild(el('div', 'pl-quote pl-serif', T('planner.questo_giorno_e_vuoto')));
                 return;
             }
             list.forEach(function (ev) {
                 var row = el('div', 'pl-li');
-                row.appendChild(el('div', 'pl-row-sub', ev.all_day ? 'tutto il giorno' : ev.start + ' – ' + ev.end));
+                row.appendChild(el('div', 'pl-row-sub', ev.all_day ? T('planner.tutto_il_giorno_l') : ev.start + ' – ' + ev.end));
                 var t = el('div', 'pl-row-lab', ev.title);
                 t.style.flex = '1';
                 t.style.marginLeft = '8px';
@@ -10904,16 +11008,16 @@ function openCopyDay() {
                 preview.appendChild(row);
             });
             if (!acts.querySelector('.pl-btn-primary')) {
-                var copy = el('button', 'pl-btn pl-btn-primary', 'Copia');
+                var copy = el('button', 'pl-btn pl-btn-primary', T('planner.copia'));
                 copy.type = 'button';
                 copy.addEventListener('click', function () {
                     api('copy_day', { from: picked, to: S.focusDate }).then(function (r) {
-                        if (!r.ok) { toast(r.message || 'Copia non riuscita.'); return; }
+                        if (!r.ok) { toast(r.message || T('planner.copia_non_riuscita')); return; }
                         indexEvents(r.events, { from: S.focusDate, to: S.focusDate });
                         closeOv('plSheetOv');
                         renderDays();
                         maybeAskCopy();
-                        toast(r.copied + (r.copied === 1 ? ' evento copiato' : ' eventi copiati'));
+                        toast(T(r.copied === 1 ? 'planner.n_evento_copiato' : 'planner.n_eventi_copiati', {n: r.copied}));
                     });
                 });
                 acts.appendChild(copy);
@@ -10987,21 +11091,21 @@ var PL_NOTIFY = (function () {
     }
 
     function testo(ev, off) {
-        if (ev.all_day) return 'Oggi';
-        if (off === 0) return 'Adesso, ' + ev.start;
-        if (off === 30) return 'Tra mezz\'ora, alle ' + ev.start;
-        if (off === 60) return 'Tra un\'ora, alle ' + ev.start;
-        if (off === 1440) return 'Domani alle ' + ev.start;
-        if (off < 60) return 'Tra ' + off + ' minuti, alle ' + ev.start;
+        if (ev.all_day) return T('comune.oggi');
+        if (off === 0) return T('planner.adesso_alle', {ora: ev.start});
+        if (off === 30) return T('planner.tra_mezz_ora', {ora: ev.start});
+        if (off === 60) return T('planner.tra_un_ora', {ora: ev.start});
+        if (off === 1440) return T('planner.domani_alle', {ora: ev.start});
+        if (off < 60) return T('planner.tra_n_minuti', {n: off, ora: ev.start});
         var h = Math.floor(off / 60), m = off % 60;
-        return 'Tra ' + h + 'h' + (m ? ' ' + m + 'm' : '') + ', alle ' + ev.start;
+        return T('planner.tra_') + h + 'h' + (m ? ' ' + m + 'm' : '') + T('planner.alle_') + ev.start;
     }
 
     /* Su Android il costruttore Notification non è ammesso: bisogna passare
        dal service worker. Qui si prova prima quella strada e si ripiega
        sull'altra solo dove funziona (desktop, iOS installato). */
     function mostra(ev, off) {
-        var titolo = ev.title || 'Promemoria';
+        var titolo = ev.title || T('planner.promemoria');
         var opz = {
             body: testo(ev, off),
             tag: 'pl-ev-' + ev.id,
@@ -11045,16 +11149,16 @@ var PL_NOTIFY = (function () {
        indietro. */
     function chiediPermesso() {
         if (!('Notification' in window)) {
-            toast('Questo browser non sa mostrare avvisi.');
+            toast(T('planner.questo_browser_non_sa_mostrare'));
             return Promise.resolve(false);
         }
         if (Notification.permission === 'granted') return Promise.resolve(true);
         if (Notification.permission === 'denied') {
-            toast('Gli avvisi sono bloccati nelle impostazioni del browser.');
+            toast(T('planner.gli_avvisi_sono_bloccati_nelle'));
             return Promise.resolve(false);
         }
         return Notification.requestPermission().then(function (p) {
-            if (p === 'granted') { avvia(); toast('Avvisi attivi.'); return true; }
+            if (p === 'granted') { avvia(); toast(T('planner.avvisi_attivi')); return true; }
             return false;
         }).catch(function () { return false; });
     }

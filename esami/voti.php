@@ -19,23 +19,34 @@ function uni_json($data) { header('Content-Type: application/json; charset=utf-8
 
 /* intero in [min,max] oppure la stringa SQL "NULL" */
 function uni_int_or_null($v, $min, $max) {
-    if ($v === null || $v === '' || strtolower((string)$v) === 'null') return 'NULL';
+    if ($v === null || $v === '' || strtolower((string)$v) === 'null') return null;
+    /* Attenzione alla differenza con sec_int: qui un valore FUORI intervallo
+       diventa null (= "non impostato"), mentre sec_int lo riporterebbe dentro.
+       Per un voto e' la scelta giusta: un 45 e' un errore, non un 30. */
+    if (!is_numeric($v)) return null;
     $n = (int)$v;
-    if ($n < $min || $n > $max) return 'NULL';
-    return (string)$n;
+    return ($n < $min || $n > $max) ? null : $n;
 }
-function uni_date_or_null($conn, $v) {
-    if (!$v || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $v)) return 'NULL';
-    return "'" . mysqli_real_escape_string($conn, $v) . "'";
+function uni_date_or_null($v) {
+    /* sec_date verifica che la data ESISTA: il 31 febbraio passava il controllo
+       con la sola espressione regolare. */
+    return $v ? sec_date($v) : null;
 }
-function uni_str_or_null($conn, $v, $max = 200) {
-    if ($v === null || $v === '' || strtolower((string)$v) === 'null') return 'NULL';
-    $v = mb_substr((string)$v, 0, $max);
-    return "'" . mysqli_real_escape_string($conn, $v) . "'";
+/* Restituiscono il VALORE (o null), non un pezzo di SQL: con i segnaposto il
+   valore viene legato a parte, quindi apici e escape non servono piu' - e non
+   servendo piu', non si possono nemmeno sbagliare. */
+function uni_str_or_null($v, $max = 200) {
+    if ($v === null || $v === '' || strtolower((string)$v) === 'null') return null;
+    /* sec_str fa tre cose che mb_substr non faceva: toglie i tag, toglie i
+       caratteri di controllo e taglia contando i caratteri veri. Il '' come
+       ripiego diventa null qui sotto: per il database "vuoto" e "assente" sono
+       la stessa cosa in questi campi. */
+    $s = sec_str($v, $max);
+    return $s === '' ? null : $s;
 }
 /* colore #RRGGBB validato, altrimenti fallback */
 function uni_color($v, $fallback = '#0A84FF') {
-    return (is_string($v) && preg_match('/^#[0-9A-Fa-f]{6}$/', $v)) ? $v : $fallback;
+    return sec_color($v, $fallback);
 }
 
 /* riga esame dal DB → tipi puliti per il JS */
@@ -72,22 +83,23 @@ function uni_bonus_out($r) {
         'sort_order'      => (int)$r['sort_order'],
     ];
 }
-function uni_fetch_exams($conn, $uid) {
+function uni_fetch_exams($uid) {
     $out = [];
-    $res = mysqli_query($conn, "SELECT * FROM university_exams WHERE user_id = $uid ORDER BY sort_order ASC, id ASC");
-    while ($res && ($row = mysqli_fetch_assoc($res))) $out[] = uni_exam_out($row);
+    foreach (sec_all("SELECT * FROM university_exams WHERE user_id = ? ORDER BY sort_order ASC, id ASC", [(int)$uid]) as $row) {
+        $out[] = uni_exam_out($row);
+    }
     return $out;
 }
-function uni_fetch_bonuses($conn, $uid) {
+function uni_fetch_bonuses($uid) {
     $out = [];
-    $res = mysqli_query($conn, "SELECT * FROM university_bonuses WHERE user_id = $uid ORDER BY sort_order ASC, id ASC");
-    while ($res && ($row = mysqli_fetch_assoc($res))) $out[] = uni_bonus_out($row);
+    foreach (sec_all("SELECT * FROM university_bonuses WHERE user_id = ? ORDER BY sort_order ASC, id ASC", [(int)$uid]) as $row) {
+        $out[] = uni_bonus_out($row);
+    }
     return $out;
 }
-function uni_ensure_settings($conn, $uid) {
-    mysqli_query($conn, "INSERT IGNORE INTO university_settings (user_id) VALUES ($uid)");
-    $res = mysqli_query($conn, "SELECT * FROM university_settings WHERE user_id = $uid");
-    return $res ? mysqli_fetch_assoc($res) : null;
+function uni_ensure_settings($uid) {
+    sec_q("INSERT IGNORE INTO university_settings (user_id) VALUES (?)", [(int)$uid]);
+    return sec_one("SELECT * FROM university_settings WHERE user_id = ?", [(int)$uid]);
 }
 function uni_settings_out($s) {
     return [
@@ -107,32 +119,40 @@ function uni_settings_out($s) {
 }
 
 /* campi esame comuni (add/update) → frammento "col=val, ..." per la query */
-function uni_exam_assignments($conn) {
-    $name    = uni_str_or_null($conn, trim((string)($_POST['name'] ?? '')), 200);
-    if ($name === 'NULL') $name = "'Nuovo esame'";
-    $cfu     = max(0, min(90, (float)($_POST['cfu'] ?? 0)));
-    $status  = ($_POST['status'] ?? 'todo') === 'done' ? 'done' : 'todo';
+/* Restituisce due cose: la clausola con i segnaposto e i valori nello stesso
+   ordine. Devono restare allineati - e' l'unico punto delicato di questa
+   funzione, quindi la clausola e l'elenco stanno uno sotto l'altro in fondo. */
+function uni_exam_assignments() {
+    $name    = uni_str_or_null(trim((string)($_POST['name'] ?? '')), 200) ?? 'Nuovo esame';
+    $cfu     = sec_float($_POST['cfu'] ?? 0, 0, 90, 0);
+    $status  = sec_enum($_POST['status'] ?? null, ['todo', 'done'], 'todo');
     $isPF    = !empty($_POST['is_pass_fail']) ? 1 : 0;
     $honors  = !empty($_POST['has_honors']) ? 1 : 0;
     $predHon = !empty($_POST['predicted_honors']) ? 1 : 0;
-    $counts  = isset($_POST['counts_for_graduation']) && $_POST['counts_for_graduation'] === '0' ? 0 : 1;
+    $counts  = sec_bool($_POST['counts_for_graduation'] ?? '1') ? 1 : 0;
     // se idoneità o lode, il voto numerico non ha senso / è forzato
-    $grade   = $isPF ? 'NULL' : uni_int_or_null($_POST['grade'] ?? null, 18, 30);
-    if ($honors) $grade = '30';
-    $predG   = $isPF ? 'NULL' : uni_int_or_null($_POST['predicted_grade'] ?? null, 18, 30);
-    if ($predHon) $predG = '30';
-    $date    = $status === 'done' ? uni_date_or_null($conn, $_POST['exam_date'] ?? null) : 'NULL';
-    $ssd     = uni_str_or_null($conn, $_POST['ssd'] ?? null, 20);
+    $grade   = $isPF ? null : uni_int_or_null($_POST['grade'] ?? null, 18, 30);
+    if ($honors) $grade = 30;
+    $predG   = $isPF ? null : uni_int_or_null($_POST['predicted_grade'] ?? null, 18, 30);
+    if ($predHon) $predG = 30;
+    $date    = $status === 'done' ? uni_date_or_null($_POST['exam_date'] ?? null) : null;
+    $ssd     = uni_str_or_null($_POST['ssd'] ?? null, 20);
     $year    = uni_int_or_null($_POST['study_year'] ?? null, 1, 9);
-    $catalog = uni_str_or_null($conn, $_POST['catalog_code'] ?? null, 60);
+    $catalog = uni_str_or_null($_POST['catalog_code'] ?? null, 60);
     $natRaw  = $_POST['national_avg'] ?? null;
     $nat     = ($natRaw === null || $natRaw === '' || strtolower((string)$natRaw) === 'null')
-                 ? 'NULL' : (string)max(18, min(30, (float)$natRaw));
+                 ? null : sec_float($natRaw, 18, 30, 18);
     $group   = uni_int_or_null($_POST['group_id'] ?? null, 1, 2147483647);
-    return "name=$name, cfu=$cfu, status='$status', grade=$grade, has_honors=$honors, "
-         . "is_pass_fail=$isPF, counts_for_graduation=$counts, exam_date=$date, "
-         . "predicted_grade=$predG, predicted_honors=$predHon, ssd=$ssd, study_year=$year, "
-         . "national_avg=$nat, catalog_code=$catalog, group_id=$group";
+    return [
+        "name=?, cfu=?, status=?, grade=?, has_honors=?, "
+      . "is_pass_fail=?, counts_for_graduation=?, exam_date=?, "
+      . "predicted_grade=?, predicted_honors=?, ssd=?, study_year=?, "
+      . "national_avg=?, catalog_code=?, group_id=?",
+        [$name, $cfu, $status, $grade, $honors,
+         $isPF, $counts, $date,
+         $predG, $predHon, $ssd, $year,
+         $nat, $catalog, $group],
+    ];
 }
 
 /* gruppi di esami: "choice" = esami a scelta (contano solo N cfu su quelli selezionati),
@@ -150,18 +170,18 @@ function uni_group_out($r) {
         'sort_order'             => (int)$r['sort_order'],
     ];
 }
-function uni_fetch_groups($conn, $uid) {
+function uni_fetch_groups($uid) {
     $out = [];
-    $res = mysqli_query($conn, "SELECT * FROM university_exam_groups WHERE user_id = $uid ORDER BY sort_order ASC, id ASC");
-    if ($res) { while ($row = mysqli_fetch_assoc($res)) $out[] = uni_group_out($row); }
+    foreach (sec_all("SELECT * FROM university_exam_groups WHERE user_id = ? ORDER BY sort_order ASC, id ASC", [(int)$uid]) as $row) {
+        $out[] = uni_group_out($row);
+    }
     return $out;
 }
 
 /* Riempie i campi mancanti in $_POST con i valori già presenti a database,
    così un aggiornamento parziale non azzera le altre colonne. */
-function uni_merge_exam_post($conn, $id, $uid) {
-    $res = mysqli_query($conn, "SELECT * FROM university_exams WHERE id = $id AND user_id = $uid");
-    $row = $res ? mysqli_fetch_assoc($res) : null;
+function uni_merge_exam_post($id, $uid) {
+    $row = sec_one("SELECT * FROM university_exams WHERE id = ? AND user_id = ?", [(int)$id, (int)$uid]);
     if (!$row) return null;
     $cols = ['name','cfu','status','grade','has_honors','is_pass_fail','counts_for_graduation',
              'exam_date','predicted_grade','predicted_honors','ssd','study_year',
@@ -181,76 +201,89 @@ if (isset($_GET['ajax'])) {
     $action = $_GET['ajax'];
     $uid = $current_user_id;
 
+    /* Una riga per tutte le azioni: token CSRF, origine riconosciuta e limite di
+       frequenza. Sta qui e non dentro i singoli if perche' un'azione aggiunta
+       domani deve essere protetta senza che nessuno se lo ricordi.
+       400/minuto: il riordino degli esami manda una richiesta per trascinamento,
+       quindi il limite deve stare largo rispetto all'uso normale. */
+    sec_guard_write($uid, 'voti', 0, 400, 60);
+
     if ($action === 'save_settings') {
-        $programKey   = uni_str_or_null($conn, $_POST['program_key'] ?? null, 80);
-        $programLabel = uni_str_or_null($conn, $_POST['program_label'] ?? null, 160);
-        $facultyKey   = uni_str_or_null($conn, $_POST['faculty_key'] ?? null, 60);
-        $accent       = "'" . uni_color($_POST['accent_color'] ?? null) . "'";
-        $totalCfu     = max(1, min(600, (int)($_POST['total_cfu'] ?? 180)));
-        $gradeBase    = max(30, min(200, (int)($_POST['grade_base'] ?? 110)));
-        $honorsValue  = max(30, min(40, (float)($_POST['honors_value'] ?? 30)));
-        $thMin        = max(0, min(30, (float)($_POST['thesis_min_points'] ?? 0)));
-        $thMax        = max($thMin, min(30, (float)($_POST['thesis_max_points'] ?? 0)));
-        $round        = (isset($_POST['round_half_up']) && $_POST['round_half_up'] === '0') ? 0 : 1;
-        uni_ensure_settings($conn, $uid);
-        mysqli_query($conn, "UPDATE university_settings SET
-            program_key=$programKey, program_label=$programLabel, faculty_key=$facultyKey,
-            accent_color=$accent, total_cfu=$totalCfu, grade_base=$gradeBase,
-            honors_value=$honorsValue, thesis_min_points=$thMin, thesis_max_points=$thMax,
-            round_half_up=$round WHERE user_id=$uid");
-        $s = uni_ensure_settings($conn, $uid);
+        $programKey   = uni_str_or_null($_POST['program_key'] ?? null, 80);
+        $programLabel = uni_str_or_null($_POST['program_label'] ?? null, 160);
+        $facultyKey   = uni_str_or_null($_POST['faculty_key'] ?? null, 60);
+        $accent       = uni_color($_POST['accent_color'] ?? null);
+        $totalCfu     = sec_int($_POST['total_cfu'] ?? 180, 1, 600, 180);
+        $gradeBase    = sec_int($_POST['grade_base'] ?? 110, 30, 200, 110);
+        $honorsValue  = sec_float($_POST['honors_value'] ?? 30, 30, 40, 30);
+        $thMin        = sec_float($_POST['thesis_min_points'] ?? 0, 0, 30, 0);
+        $thMax        = sec_float($_POST['thesis_max_points'] ?? 0, $thMin, 30, $thMin);
+        $round        = sec_bool($_POST['round_half_up'] ?? '1') ? 1 : 0;
+        uni_ensure_settings($uid);
+        sec_q("UPDATE university_settings SET
+               program_key=?, program_label=?, faculty_key=?,
+               accent_color=?, total_cfu=?, grade_base=?,
+               honors_value=?, thesis_min_points=?, thesis_max_points=?,
+               round_half_up=? WHERE user_id=?",
+              [$programKey, $programLabel, $facultyKey,
+               $accent, $totalCfu, $gradeBase,
+               $honorsValue, $thMin, $thMax,
+               $round, (int)$uid]);
+        $s = uni_ensure_settings($uid);
         uni_json(['success' => true, 'settings' => uni_settings_out($s)]);
     }
 
     if ($action === 'save_target') {
         $tgtRaw = $_POST['target_average'] ?? null;
         $tgt = ($tgtRaw === null || $tgtRaw === '' || strtolower((string)$tgtRaw) === 'null')
-                 ? 'NULL' : (string)max(18, min(31, (float)$tgtRaw));
-        $src = ($_POST['target_source'] ?? 'manual') === 'simulation' ? 'simulation' : 'manual';
-        uni_ensure_settings($conn, $uid);
-        mysqli_query($conn, "UPDATE university_settings SET target_average=$tgt, target_source='$src' WHERE user_id=$uid");
+                 ? null : sec_float($tgtRaw, 18, 31, 18);
+        $src = sec_enum($_POST['target_source'] ?? null, ['manual', 'simulation'], 'manual');
+        uni_ensure_settings($uid);
+        sec_q("UPDATE university_settings SET target_average=?, target_source=? WHERE user_id=?",
+              [$tgt, $src, (int)$uid]);
         uni_json(['success' => true]);
     }
 
     if ($action === 'add_exam') {
-        $ordRes = mysqli_query($conn, "SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM university_exams WHERE user_id=$uid");
-        $ord = (int)(mysqli_fetch_assoc($ordRes)['n'] ?? 1);
-        $assign = uni_exam_assignments($conn);
-        $ok = mysqli_query($conn, "INSERT INTO university_exams SET user_id=$uid, sort_order=$ord, $assign");
-        if (!$ok) uni_json(['success' => false, 'error' => 'db_error']);
-        $newId = (int)mysqli_insert_id($conn);
-        $res = mysqli_query($conn, "SELECT * FROM university_exams WHERE id=$newId AND user_id=$uid");
-        $row = $res ? mysqli_fetch_assoc($res) : null;
+        $ord = (int)(sec_one("SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM university_exams WHERE user_id=?", [(int)$uid])['n'] ?? 1);
+        [$assign, $par] = uni_exam_assignments();
+        sec_q("INSERT INTO university_exams SET user_id=?, sort_order=?, $assign",
+              array_merge([(int)$uid, $ord], $par));
+        $newId = sec_insert_id();
+        $row = sec_one("SELECT * FROM university_exams WHERE id=? AND user_id=?", [$newId, (int)$uid]);
         uni_json($row ? ['success' => true, 'exam' => uni_exam_out($row)] : ['success' => false, 'error' => 'not_found']);
     }
 
     if ($action === 'update_exam') {
-        $id = (int)($_POST['id'] ?? 0);
+        $id = sec_int($_POST['id'] ?? 0, 1);
+        if (!sec_owns('university_exams', $id, $uid)) uni_json(['success' => false, 'error' => 'not_found']);
         // i campi non inviati mantengono il valore già a database
-        if (uni_merge_exam_post($conn, $id, $uid) === null) uni_json(['success' => false, 'error' => 'not_found']);
-        $assign = uni_exam_assignments($conn);
+        if (uni_merge_exam_post($id, $uid) === null) uni_json(['success' => false, 'error' => 'not_found']);
+        [$assign, $par] = uni_exam_assignments();
         // IMPORTANTE: se questa query fallisce (es. dato non valido), NON deve sembrare riuscita:
         // in passato si tornava comunque la riga esistente (invariata) con success:true, e il client
         // applicava comunque in locale lo stato "aggiornato" → sembrava funzionare ma non veniva salvato.
-        $ok = mysqli_query($conn, "UPDATE university_exams SET $assign WHERE id=$id AND user_id=$uid");
-        if (!$ok) uni_json(['success' => false, 'error' => 'db_error']);
-        $res = mysqli_query($conn, "SELECT * FROM university_exams WHERE id=$id AND user_id=$uid");
-        $row = $res ? mysqli_fetch_assoc($res) : null;
+        sec_q("UPDATE university_exams SET $assign WHERE id=? AND user_id=?",
+              array_merge($par, [(int)$id, (int)$uid]));
+        $row = sec_one("SELECT * FROM university_exams WHERE id=? AND user_id=?", [(int)$id, (int)$uid]);
         uni_json($row ? ['success' => true, 'exam' => uni_exam_out($row)] : ['success' => false, 'error' => 'not_found']);
     }
 
     if ($action === 'set_prediction') {
-        $id = (int)($_POST['id'] ?? 0);
+        $id = sec_int($_POST['id'] ?? 0, 1);
+        if (!sec_owns('university_exams', $id, $uid)) uni_json(['success' => false, 'error' => 'not_found']);
         $predHon = !empty($_POST['predicted_honors']) ? 1 : 0;
         $predG = uni_int_or_null($_POST['predicted_grade'] ?? null, 18, 30);
-        if ($predHon) $predG = '30';
-        mysqli_query($conn, "UPDATE university_exams SET predicted_grade=$predG, predicted_honors=$predHon WHERE id=$id AND user_id=$uid");
+        if ($predHon) $predG = 30;
+        sec_q("UPDATE university_exams SET predicted_grade=?, predicted_honors=? WHERE id=? AND user_id=?",
+              [$predG, $predHon, (int)$id, (int)$uid]);
         uni_json(['success' => true]);
     }
 
     if ($action === 'delete_exam') {
-        $id = (int)($_POST['id'] ?? 0);
-        mysqli_query($conn, "DELETE FROM university_exams WHERE id=$id AND user_id=$uid");
+        $id = sec_int($_POST['id'] ?? 0, 1);
+        if (!sec_owns('university_exams', $id, $uid)) uni_json(['success' => false, 'error' => 'not_found']);
+        sec_q("DELETE FROM university_exams WHERE id=? AND user_id=?", [(int)$id, (int)$uid]);
         uni_json(['success' => true]);
     }
 
@@ -258,52 +291,53 @@ if (isset($_GET['ajax'])) {
     if ($action === 'delete_exams') {
         $ids = json_decode($_POST['ids'] ?? '[]', true);
         $clean = [];
-        if (is_array($ids)) { foreach ($ids as $i) { $i = (int)$i; if ($i > 0) $clean[] = $i; } }
+        if (is_array($ids)) { foreach ($ids as $i) { $i = sec_int($i, 1); if ($i > 0) $clean[] = $i; } }
         if (!empty($clean)) {
-            $in = implode(',', $clean);
-            mysqli_query($conn, "DELETE FROM university_exams WHERE id IN ($in) AND user_id=$uid");
+            /* un ? per ogni id: la lista non si incolla piu' nella query.
+               Gli id sono gia' interi, ma cosi' resta vero anche domani. */
+            $ph = implode(',', array_fill(0, count($clean), '?'));
+            sec_q("DELETE FROM university_exams WHERE id IN ($ph) AND user_id=?", array_merge($clean, [(int)$uid]));
         }
-        uni_json(['success' => true, 'exams' => uni_fetch_exams($conn, $uid), 'groups' => uni_fetch_groups($conn, $uid)]);
+        uni_json(['success' => true, 'exams' => uni_fetch_exams($uid), 'groups' => uni_fetch_groups($uid)]);
     }
 
     /* crea un gruppo (esami a scelta con quota di CFU, oppure esame suddiviso in più parti) */
     if ($action === 'create_group') {
-        $name = uni_str_or_null($conn, trim((string)($_POST['name'] ?? '')), 120);
-        if ($name === 'NULL') $name = "'Gruppo'";
+        $name = uni_str_or_null(trim((string)($_POST['name'] ?? '')), 120) ?? 'Gruppo';
         $type = ($_POST['group_type'] ?? 'choice') === 'split' ? 'split' : 'choice';
         $ids  = json_decode($_POST['ids'] ?? '[]', true);
         $clean = [];
-        if (is_array($ids)) { foreach ($ids as $i) { $i = (int)$i; if ($i > 0) $clean[] = $i; } }
+        if (is_array($ids)) { foreach ($ids as $i) { $i = sec_int($i, 1); if ($i > 0) $clean[] = $i; } }
         if (count($clean) < 2) uni_json(['success' => false, 'error' => 'need_two']);
-        $in = implode(',', $clean);
+        $ph = implode(',', array_fill(0, count($clean), '?'));
+        $parIn = array_merge($clean, [(int)$uid]);
         if ($type === 'split') {
             // "esame suddiviso": i CFU delle parti si sommano sempre
-            $cRes = mysqli_query($conn, "SELECT COALESCE(SUM(cfu),0) AS c FROM university_exams WHERE id IN ($in) AND user_id=$uid");
-            $cfu  = (float)(mysqli_fetch_assoc($cRes)['c'] ?? 0);
+            $cfu = (float)(sec_one("SELECT COALESCE(SUM(cfu),0) AS c FROM university_exams WHERE id IN ($ph) AND user_id=?", $parIn)['c'] ?? 0);
         } else {
             // "esami a scelta": la quota è scelta dallo studente (deve essere una somma raggiungibile
             // con i CFU delle parti selezionate); in mancanza, ripiega sul CFU massimo tra le parti
-            $cRes = mysqli_query($conn, "SELECT MAX(cfu) AS mx, SUM(cfu) AS sm FROM university_exams WHERE id IN ($in) AND user_id=$uid");
-            $row  = mysqli_fetch_assoc($cRes);
+            $row = sec_one("SELECT MAX(cfu) AS mx, SUM(cfu) AS sm FROM university_exams WHERE id IN ($ph) AND user_id=?", $parIn);
             $fallback = (float)($row['mx'] ?? 0);
             $quotaRaw = $_POST['cfu'] ?? null;
             $cfu = ($quotaRaw !== null && $quotaRaw !== '' && strtolower((string)$quotaRaw) !== 'null')
-                     ? max(0, min((float)($row['sm'] ?? 0), (float)$quotaRaw)) : $fallback;
+                     ? sec_float($quotaRaw, 0, (float)($row['sm'] ?? 0), $fallback) : $fallback;
         }
-        $oRes = mysqli_query($conn, "SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM university_exam_groups WHERE user_id=$uid");
-        $ord  = (int)(mysqli_fetch_assoc($oRes)['n'] ?? 1);
-        mysqli_query($conn, "INSERT INTO university_exam_groups SET user_id=$uid, name=$name, group_type='$type', cfu=$cfu, sort_order=$ord");
-        $gid = (int)mysqli_insert_id($conn);
-        if ($gid > 0) mysqli_query($conn, "UPDATE university_exams SET group_id=$gid WHERE id IN ($in) AND user_id=$uid");
-        uni_json(['success' => true, 'exams' => uni_fetch_exams($conn, $uid), 'groups' => uni_fetch_groups($conn, $uid)]);
+        $ord = (int)(sec_one("SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM university_exam_groups WHERE user_id=?", [(int)$uid])['n'] ?? 1);
+        sec_q("INSERT INTO university_exam_groups SET user_id=?, name=?, group_type=?, cfu=?, sort_order=?",
+              [(int)$uid, $name, $type, $cfu, $ord]);
+        $gid = sec_insert_id();
+        if ($gid > 0) sec_q("UPDATE university_exams SET group_id=? WHERE id IN ($ph) AND user_id=?",
+                            array_merge([$gid], $clean, [(int)$uid]));
+        uni_json(['success' => true, 'exams' => uni_fetch_exams($uid), 'groups' => uni_fetch_groups($uid)]);
     }
 
     /* modifica un gruppo esistente: nome, quota CFU (esami a scelta), voto complessivo (esame suddiviso)
        e/o la composizione (aggiunta/rimozione di esami) */
     if ($action === 'update_group') {
-        $gid = (int)($_POST['group_id'] ?? 0);
-        $gRes = mysqli_query($conn, "SELECT * FROM university_exam_groups WHERE id=$gid AND user_id=$uid");
-        $grow = $gRes ? mysqli_fetch_assoc($gRes) : null;
+        $gid = sec_int($_POST['group_id'] ?? 0, 1);
+        if (!sec_owns('university_exam_groups', $gid, $uid)) uni_json(['success' => false, 'error' => 'not_found']);
+        $grow = sec_one("SELECT * FROM university_exam_groups WHERE id=? AND user_id=?", [(int)$gid, (int)$uid]);
         if (!$grow) uni_json(['success' => false, 'error' => 'not_found']);
         $type = isset($_POST['group_type']) ? (($_POST['group_type'] === 'split') ? 'split' : 'choice') : (($grow['group_type'] ?? 'choice') === 'split' ? 'split' : 'choice');
 
@@ -311,61 +345,75 @@ if (isset($_GET['ajax'])) {
         if (array_key_exists('ids', $_POST)) {
             $ids = json_decode($_POST['ids'] ?? '[]', true);
             $clean = [];
-            if (is_array($ids)) { foreach ($ids as $i) { $i = (int)$i; if ($i > 0) $clean[] = $i; } }
+            if (is_array($ids)) { foreach ($ids as $i) { $i = sec_int($i, 1); if ($i > 0) $clean[] = $i; } }
             if (count($clean) < 2) uni_json(['success' => false, 'error' => 'need_two']);
-            $in = implode(',', $clean);
-            mysqli_query($conn, "UPDATE university_exams SET group_id=NULL WHERE group_id=$gid AND user_id=$uid AND id NOT IN ($in)");
-            mysqli_query($conn, "UPDATE university_exams SET group_id=$gid WHERE id IN ($in) AND user_id=$uid");
+            $ph = implode(',', array_fill(0, count($clean), '?'));
+            sec_q("UPDATE university_exams SET group_id=NULL WHERE group_id=? AND user_id=? AND id NOT IN ($ph)",
+                  array_merge([(int)$gid, (int)$uid], $clean));
+            sec_q("UPDATE university_exams SET group_id=? WHERE id IN ($ph) AND user_id=?",
+                  array_merge([(int)$gid], $clean, [(int)$uid]));
         }
 
-        $name = array_key_exists('name', $_POST) ? uni_str_or_null($conn, trim((string)$_POST['name']), 120) : null;
-        if ($name === 'NULL') $name = "'Gruppo'";
+        /* attenzione alla differenza fra i due null: "campo non inviato" (si lascia
+           com'e') e "nome vuoto" (si mette 'Gruppo'). Prima si distinguevano perche'
+           uno era null e l'altro la stringa 'NULL'; ora serve $nameInviato. */
+        $nameInviato = array_key_exists('name', $_POST);
+        $name = $nameInviato ? (uni_str_or_null(trim((string)$_POST['name']), 120) ?? 'Gruppo') : null;
 
         // ricalcola i CFU coerentemente col tipo
-        $memRes = mysqli_query($conn, "SELECT MAX(cfu) AS mx, SUM(cfu) AS sm FROM university_exams WHERE group_id=$gid AND user_id=$uid");
-        $mem = mysqli_fetch_assoc($memRes);
+        $mem = sec_one("SELECT MAX(cfu) AS mx, SUM(cfu) AS sm FROM university_exams WHERE group_id=? AND user_id=?", [(int)$gid, (int)$uid]);
         if ($type === 'split') {
             $cfu = (float)($mem['sm'] ?? 0);
         } else if (array_key_exists('cfu', $_POST) && $_POST['cfu'] !== '' && strtolower((string)$_POST['cfu']) !== 'null') {
-            $cfu = max(0, min((float)($mem['sm'] ?? 0), (float)$_POST['cfu']));
+            /* il massimo e' la somma dei CFU delle parti: una quota piu' alta non
+                sarebbe raggiungibile, quindi si riporta dentro invece di rifiutarla */
+            $cfu = sec_float($_POST['cfu'], 0, (float)($mem['sm'] ?? 0), 0);
         } else {
             $cfu = (float)$grow['cfu'];
         }
 
-        $sets = ["group_type='$type'", "cfu=$cfu"];
-        if ($name !== null) $sets[] = "name=$name";
-        if (array_key_exists('overall_grade', $_POST)) $sets[] = "overall_grade=" . uni_int_or_null($_POST['overall_grade'], 18, 30);
-        if (array_key_exists('overall_honors', $_POST)) $sets[] = "overall_honors=" . (!empty($_POST['overall_honors']) ? 1 : 0);
-        if (array_key_exists('overall_predicted_grade', $_POST)) $sets[] = "overall_predicted_grade=" . uni_int_or_null($_POST['overall_predicted_grade'], 18, 30);
-        if (array_key_exists('overall_predicted_honors', $_POST)) $sets[] = "overall_predicted_honors=" . (!empty($_POST['overall_predicted_honors']) ? 1 : 0);
-        mysqli_query($conn, "UPDATE university_exam_groups SET " . implode(',', $sets) . " WHERE id=$gid AND user_id=$uid");
-        uni_json(['success' => true, 'exams' => uni_fetch_exams($conn, $uid), 'groups' => uni_fetch_groups($conn, $uid)]);
+        /* clausole e valori crescono in coppia: ogni riga aggiunge un "campo=?" e
+           il suo valore, cosi' non possono sfasarsi */
+        $sets = ["group_type=?", "cfu=?"];
+        $vals = [$type, $cfu];
+        if ($nameInviato)                                            { $sets[] = "name=?";                     $vals[] = $name; }
+        if (array_key_exists('overall_grade', $_POST))               { $sets[] = "overall_grade=?";            $vals[] = uni_int_or_null($_POST['overall_grade'], 18, 30); }
+        if (array_key_exists('overall_honors', $_POST))              { $sets[] = "overall_honors=?";           $vals[] = !empty($_POST['overall_honors']) ? 1 : 0; }
+        if (array_key_exists('overall_predicted_grade', $_POST))     { $sets[] = "overall_predicted_grade=?";  $vals[] = uni_int_or_null($_POST['overall_predicted_grade'], 18, 30); }
+        if (array_key_exists('overall_predicted_honors', $_POST))    { $sets[] = "overall_predicted_honors=?"; $vals[] = !empty($_POST['overall_predicted_honors']) ? 1 : 0; }
+        sec_q("UPDATE university_exam_groups SET " . implode(',', $sets) . " WHERE id=? AND user_id=?",
+              array_merge($vals, [(int)$gid, (int)$uid]));
+        uni_json(['success' => true, 'exams' => uni_fetch_exams($uid), 'groups' => uni_fetch_groups($uid)]);
     }
 
     /* scioglie il gruppo: gli esami restano, senza più vincolo di CFU condivisi */
     if ($action === 'dissolve_group') {
-        $gid = (int)($_POST['group_id'] ?? 0);
-        mysqli_query($conn, "UPDATE university_exams SET group_id=NULL WHERE group_id=$gid AND user_id=$uid");
-        mysqli_query($conn, "DELETE FROM university_exam_groups WHERE id=$gid AND user_id=$uid");
-        uni_json(['success' => true, 'exams' => uni_fetch_exams($conn, $uid), 'groups' => uni_fetch_groups($conn, $uid)]);
+        $gid = sec_int($_POST['group_id'] ?? 0, 1);
+        if (!sec_owns('university_exam_groups', $gid, $uid)) uni_json(['success' => false, 'error' => 'not_found']);
+        sec_q("UPDATE university_exams SET group_id=NULL WHERE group_id=? AND user_id=?", [(int)$gid, (int)$uid]);
+        sec_q("DELETE FROM university_exam_groups WHERE id=? AND user_id=?", [(int)$gid, (int)$uid]);
+        uni_json(['success' => true, 'exams' => uni_fetch_exams($uid), 'groups' => uni_fetch_groups($uid)]);
     }
 
     /* elimina l'intero gruppo: tutti gli esami che lo compongono, più il gruppo stesso */
     if ($action === 'delete_group') {
-        $gid = (int)($_POST['group_id'] ?? 0);
-        mysqli_query($conn, "DELETE FROM university_exams WHERE group_id=$gid AND user_id=$uid");
-        mysqli_query($conn, "DELETE FROM university_exam_groups WHERE id=$gid AND user_id=$uid");
-        uni_json(['success' => true, 'exams' => uni_fetch_exams($conn, $uid), 'groups' => uni_fetch_groups($conn, $uid)]);
+        $gid = sec_int($_POST['group_id'] ?? 0, 1);
+        if (!sec_owns('university_exam_groups', $gid, $uid)) uni_json(['success' => false, 'error' => 'not_found']);
+        sec_q("DELETE FROM university_exams WHERE group_id=? AND user_id=?", [(int)$gid, (int)$uid]);
+        sec_q("DELETE FROM university_exam_groups WHERE id=? AND user_id=?", [(int)$gid, (int)$uid]);
+        uni_json(['success' => true, 'exams' => uni_fetch_exams($uid), 'groups' => uni_fetch_groups($uid)]);
     }
 
     /* dopo aver superato un esame del gruppo: elimina gli altri ancora da sostenere */
     if ($action === 'clear_group_todo') {
-        $gid  = (int)($_POST['group_id'] ?? 0);
-        $keep = (int)($_POST['keep_id'] ?? 0);
-        mysqli_query($conn, "DELETE FROM university_exams WHERE group_id=$gid AND user_id=$uid AND status='todo' AND id<>$keep");
-        mysqli_query($conn, "UPDATE university_exams SET group_id=NULL WHERE group_id=$gid AND user_id=$uid");
-        mysqli_query($conn, "DELETE FROM university_exam_groups WHERE id=$gid AND user_id=$uid");
-        uni_json(['success' => true, 'exams' => uni_fetch_exams($conn, $uid), 'groups' => uni_fetch_groups($conn, $uid)]);
+        $gid  = sec_int($_POST['group_id'] ?? 0, 1);
+        $keep = sec_int($_POST['keep_id'] ?? 0, 0);
+        if (!sec_owns('university_exam_groups', $gid, $uid)) uni_json(['success' => false, 'error' => 'not_found']);
+        sec_q("DELETE FROM university_exams WHERE group_id=? AND user_id=? AND status='todo' AND id<>?",
+              [(int)$gid, (int)$uid, (int)$keep]);
+        sec_q("UPDATE university_exams SET group_id=NULL WHERE group_id=? AND user_id=?", [(int)$gid, (int)$uid]);
+        sec_q("DELETE FROM university_exam_groups WHERE id=? AND user_id=?", [(int)$gid, (int)$uid]);
+        uni_json(['success' => true, 'exams' => uni_fetch_exams($uid), 'groups' => uni_fetch_groups($uid)]);
     }
 
     if ($action === 'reorder_exams') {
@@ -373,8 +421,8 @@ if (isset($_GET['ajax'])) {
         if (is_array($order)) {
             $i = 1;
             foreach ($order as $eid) {
-                $eid = (int)$eid;
-                mysqli_query($conn, "UPDATE university_exams SET sort_order=$i WHERE id=$eid AND user_id=$uid");
+                $eid = sec_int($eid, 1);
+                sec_q("UPDATE university_exams SET sort_order=? WHERE id=? AND user_id=?", [$i, $eid, (int)$uid]);
                 $i++;
             }
         }
@@ -383,81 +431,84 @@ if (isset($_GET['ajax'])) {
 
     if ($action === 'import_program') {
         $exams = json_decode($_POST['exams'] ?? '[]', true);
-        $mode  = ($_POST['mode'] ?? 'replace') === 'append' ? 'append' : 'replace';
+        $mode  = sec_enum($_POST['mode'] ?? null, ['replace', 'append'], 'replace');
         if ($mode === 'replace') {
-            mysqli_query($conn, "DELETE FROM university_exams WHERE user_id=$uid");
-            mysqli_query($conn, "DELETE FROM university_exam_groups WHERE user_id=$uid");
+            sec_q("DELETE FROM university_exams WHERE user_id=?", [(int)$uid]);
+            sec_q("DELETE FROM university_exam_groups WHERE user_id=?", [(int)$uid]);
         }
         // meta corso (facoltativi) → aggiorno anche le impostazioni
-        uni_ensure_settings($conn, $uid);
-        $sets = [];
-        if (isset($_POST['program_key']))   $sets[] = "program_key="   . uni_str_or_null($conn, $_POST['program_key'], 80);
-        if (isset($_POST['program_label'])) $sets[] = "program_label=" . uni_str_or_null($conn, $_POST['program_label'], 160);
-        if (isset($_POST['faculty_key']))   $sets[] = "faculty_key="   . uni_str_or_null($conn, $_POST['faculty_key'], 60);
-        if (isset($_POST['accent_color']))  $sets[] = "accent_color='" . uni_color($_POST['accent_color']) . "'";
-        if (isset($_POST['total_cfu']))     $sets[] = "total_cfu="     . max(1, min(600, (int)$_POST['total_cfu']));
-        if (isset($_POST['grade_base']))    $sets[] = "grade_base="    . max(30, min(200, (int)$_POST['grade_base']));
-        if (isset($_POST['thesis_min_points'])) $sets[] = "thesis_min_points=" . max(0, min(30, (float)$_POST['thesis_min_points']));
-        if (isset($_POST['thesis_max_points'])) $sets[] = "thesis_max_points=" . max(0, min(30, (float)$_POST['thesis_max_points']));
-        if (isset($_POST['honors_value']))  $sets[] = "honors_value="  . max(30, min(40, (float)$_POST['honors_value']));
-        if (!empty($sets)) mysqli_query($conn, "UPDATE university_settings SET " . implode(',', $sets) . " WHERE user_id=$uid");
+        uni_ensure_settings($uid);
+        $sets = []; $vals = [];
+        if (isset($_POST['program_key']))        { $sets[] = "program_key=?";       $vals[] = uni_str_or_null($_POST['program_key'], 80); }
+        if (isset($_POST['program_label']))      { $sets[] = "program_label=?";     $vals[] = uni_str_or_null($_POST['program_label'], 160); }
+        if (isset($_POST['faculty_key']))        { $sets[] = "faculty_key=?";       $vals[] = uni_str_or_null($_POST['faculty_key'], 60); }
+        if (isset($_POST['accent_color']))       { $sets[] = "accent_color=?";      $vals[] = uni_color($_POST['accent_color']); }
+        if (isset($_POST['total_cfu']))          { $sets[] = "total_cfu=?";         $vals[] = sec_int($_POST['total_cfu'], 1, 600, 180); }
+        if (isset($_POST['grade_base']))         { $sets[] = "grade_base=?";        $vals[] = sec_int($_POST['grade_base'], 30, 200, 110); }
+        if (isset($_POST['thesis_min_points']))  { $sets[] = "thesis_min_points=?"; $vals[] = sec_float($_POST['thesis_min_points'], 0, 30, 0); }
+        if (isset($_POST['thesis_max_points']))  { $sets[] = "thesis_max_points=?"; $vals[] = sec_float($_POST['thesis_max_points'], 0, 30, 0); }
+        if (isset($_POST['honors_value']))       { $sets[] = "honors_value=?";      $vals[] = sec_float($_POST['honors_value'], 30, 40, 30); }
+        if (!empty($sets)) sec_q("UPDATE university_settings SET " . implode(',', $sets) . " WHERE user_id=?",
+                                 array_merge($vals, [(int)$uid]));
 
-        $ordRes = mysqli_query($conn, "SELECT COALESCE(MAX(sort_order),0) AS n FROM university_exams WHERE user_id=$uid");
-        $ord = (int)(mysqli_fetch_assoc($ordRes)['n'] ?? 0);
+        $ord = (int)(sec_one("SELECT COALESCE(MAX(sort_order),0) AS n FROM university_exams WHERE user_id=?", [(int)$uid])['n'] ?? 0);
         if (is_array($exams)) {
             foreach ($exams as $e) {
                 $ord++;
-                $name = uni_str_or_null($conn, trim((string)($e['name'] ?? 'Esame')), 200);
-                if ($name === 'NULL') $name = "'Esame'";
-                $cfu  = max(0, min(90, (float)($e['cfu'] ?? 0)));
+                $name = uni_str_or_null(trim((string)($e['name'] ?? 'Esame')), 200) ?? 'Esame';
+                $cfu  = sec_float($e['cfu'] ?? 0, 0, 90, 0);
                 $isPF = !empty($e['pass_fail']) ? 1 : 0;
-                $ssd  = uni_str_or_null($conn, $e['ssd'] ?? null, 20);
+                $ssd  = uni_str_or_null($e['ssd'] ?? null, 20);
                 $year = uni_int_or_null($e['year'] ?? null, 1, 9);
-                $cat  = uni_str_or_null($conn, $e['code'] ?? null, 60);
+                $cat  = uni_str_or_null($e['code'] ?? null, 60);
                 $natR = $e['national_avg'] ?? null;
-                $nat  = ($natR === null || $natR === '') ? 'NULL' : (string)max(18, min(30, (float)$natR));
-                mysqli_query($conn, "INSERT INTO university_exams SET user_id=$uid, sort_order=$ord,
-                    name=$name, cfu=$cfu, status='todo', is_pass_fail=$isPF,
-                    ssd=$ssd, study_year=$year, catalog_code=$cat, national_avg=$nat");
+                $nat  = ($natR === null || $natR === '') ? null : sec_float($natR, 18, 30, 18);
+                sec_q("INSERT INTO university_exams SET user_id=?, sort_order=?,
+                       name=?, cfu=?, status='todo', is_pass_fail=?,
+                       ssd=?, study_year=?, catalog_code=?, national_avg=?",
+                      [(int)$uid, $ord, $name, $cfu, $isPF, $ssd, $year, $cat, $nat]);
             }
         }
-        $s = uni_ensure_settings($conn, $uid);
-        uni_json(['success' => true, 'exams' => uni_fetch_exams($conn, $uid),
-                  'groups' => uni_fetch_groups($conn, $uid), 'settings' => uni_settings_out($s)]);
+        $s = uni_ensure_settings($uid);
+        uni_json(['success' => true, 'exams' => uni_fetch_exams($uid),
+                  'groups' => uni_fetch_groups($uid), 'settings' => uni_settings_out($s)]);
     }
 
     if ($action === 'add_bonus' || $action === 'update_bonus') {
-        $name  = uni_str_or_null($conn, trim((string)($_POST['name'] ?? '')), 120);
-        if ($name === 'NULL') $name = "'Bonus'";
+        $name  = uni_str_or_null(trim((string)($_POST['name'] ?? '')), 120) ?? 'Bonus';
         $allowed = ['fixed','on_time','honors_each','honors_threshold','custom'];
-        $type  = in_array($_POST['bonus_type'] ?? '', $allowed, true) ? $_POST['bonus_type'] : 'fixed';
-        $pts   = max(-20, min(20, (float)($_POST['points'] ?? 0)));
-        $cap   = max(0, min(40, (float)($_POST['cap_points'] ?? 0)));
+        $type  = sec_enum($_POST['bonus_type'] ?? null, $allowed, 'fixed');
+        $pts   = sec_float($_POST['points'] ?? 0, -20, 20, 0);
+        $cap   = sec_float($_POST['cap_points'] ?? 0, 0, 40, 0);
         $thr   = uni_int_or_null($_POST['threshold_value'] ?? null, 0, 100);
         $en    = (isset($_POST['is_enabled']) && $_POST['is_enabled'] === '0') ? 0 : 1;
         if ($action === 'add_bonus') {
-            $ordRes = mysqli_query($conn, "SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM university_bonuses WHERE user_id=$uid");
-            $ord = (int)(mysqli_fetch_assoc($ordRes)['n'] ?? 1);
-            mysqli_query($conn, "INSERT INTO university_bonuses SET user_id=$uid, sort_order=$ord,
-                name=$name, bonus_type='$type', points=$pts, cap_points=$cap, threshold_value=$thr, is_enabled=$en");
+            $ord = (int)(sec_one("SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM university_bonuses WHERE user_id=?", [(int)$uid])['n'] ?? 1);
+            sec_q("INSERT INTO university_bonuses SET user_id=?, sort_order=?,
+                   name=?, bonus_type=?, points=?, cap_points=?, threshold_value=?, is_enabled=?",
+                  [(int)$uid, $ord, $name, $type, $pts, $cap, $thr, $en]);
         } else {
-            $id = (int)($_POST['id'] ?? 0);
-            mysqli_query($conn, "UPDATE university_bonuses SET name=$name, bonus_type='$type', points=$pts,
-                cap_points=$cap, threshold_value=$thr, is_enabled=$en WHERE id=$id AND user_id=$uid");
+            $id = sec_int($_POST['id'] ?? 0, 1);
+            if (!sec_owns('university_bonuses', $id, $uid)) uni_json(['success' => false, 'error' => 'not_found']);
+            sec_q("UPDATE university_bonuses SET name=?, bonus_type=?, points=?,
+                   cap_points=?, threshold_value=?, is_enabled=? WHERE id=? AND user_id=?",
+                  [$name, $type, $pts, $cap, $thr, $en, (int)$id, (int)$uid]);
         }
-        uni_json(['success' => true, 'bonuses' => uni_fetch_bonuses($conn, $uid)]);
+        uni_json(['success' => true, 'bonuses' => uni_fetch_bonuses($uid)]);
     }
 
     if ($action === 'toggle_bonus') {
-        $id = (int)($_POST['id'] ?? 0);
+        $id = sec_int($_POST['id'] ?? 0, 1);
         $en = !empty($_POST['is_enabled']) ? 1 : 0;
-        mysqli_query($conn, "UPDATE university_bonuses SET is_enabled=$en WHERE id=$id AND user_id=$uid");
+        if (!sec_owns('university_bonuses', $id, $uid)) uni_json(['success' => false, 'error' => 'not_found']);
+        sec_q("UPDATE university_bonuses SET is_enabled=? WHERE id=? AND user_id=?", [$en, (int)$id, (int)$uid]);
         uni_json(['success' => true]);
     }
 
     if ($action === 'delete_bonus') {
-        $id = (int)($_POST['id'] ?? 0);
-        mysqli_query($conn, "DELETE FROM university_bonuses WHERE id=$id AND user_id=$uid");
+        $id = sec_int($_POST['id'] ?? 0, 1);
+        if (!sec_owns('university_bonuses', $id, $uid)) uni_json(['success' => false, 'error' => 'not_found']);
+        sec_q("DELETE FROM university_bonuses WHERE id=? AND user_id=?", [(int)$id, (int)$uid]);
         uni_json(['success' => true]);
     }
 
@@ -467,11 +518,11 @@ if (isset($_GET['ajax'])) {
 /* -------------------------------------------------------------------------- */
 /* Bootstrap dati per il render                                                */
 /* -------------------------------------------------------------------------- */
-$settingsRow = uni_ensure_settings($conn, $current_user_id);
+$settingsRow = uni_ensure_settings($current_user_id);
 $UNI_SETTINGS = uni_settings_out($settingsRow);
-$UNI_EXAMS    = uni_fetch_exams($conn, $current_user_id);
-$UNI_BONUSES  = uni_fetch_bonuses($conn, $current_user_id);
-$UNI_GROUPS   = uni_fetch_groups($conn, $current_user_id);
+$UNI_EXAMS    = uni_fetch_exams($current_user_id);
+$UNI_BONUSES  = uni_fetch_bonuses($current_user_id);
+$UNI_GROUPS   = uni_fetch_groups($current_user_id);
 $UNI_HAS_DATA = count($UNI_EXAMS) > 0;
 ?>
 <!DOCTYPE html>
@@ -480,465 +531,20 @@ $UNI_HAS_DATA = count($UNI_EXAMS) > 0;
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Voti</title>
-<style>
-:root{
-    color-scheme: light dark;
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7; --surface-3:#E7E7EC;
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.2);
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-    --teal:#30B0C7; --pink:#FF2D55; --indigo:#5856D6; --yellow:#FFCC00; --gold:#E8A600; --silver:#B7BEC5;
-    --green-soft:rgba(52,199,89,.14); --red-soft:rgba(255,59,48,.12); --orange-soft:rgba(255,149,0,.15);
-    --blue-soft:rgba(0,122,255,.1); --purple-soft:rgba(175,82,222,.12);
-    --header-glass:rgba(249,249,251,.8);
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-    --shadow-hero:0 2px 4px rgba(0,0,0,.05), 0 20px 48px -12px rgba(0,0,0,.16);
-    --shadow-sheet:0 -14px 60px rgba(0,0,0,.2);
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(0,0,0,.14);
-    --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
-    --r-card:22px; --r-btn:15px; --r-chip:11px;
-    --spring:cubic-bezier(.32,.72,0,1);
-    --pop:cubic-bezier(.34,1.4,.64,1);
-    --ease:cubic-bezier(.4,0,.2,1);
-    --safe-top:env(safe-area-inset-top, 0px);
-    --safe-bottom:env(safe-area-inset-bottom, 0px);
-    --uni-accent:#0A84FF; --uni-accent-2:#5E5CE6;
-    --uni-grad:linear-gradient(135deg, var(--uni-accent), var(--uni-accent-2));
-}
-@media (prefers-color-scheme: dark){
-    :root{
-        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E; --surface-3:#3A3A3C;
-        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-        --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-        --teal:#40C8E0; --pink:#FF375F; --indigo:#5E5CE6; --yellow:#FFD60A; --gold:#FFCC33; --silver:#9AA3AA;
-        --green-soft:rgba(48,209,88,.18); --red-soft:rgba(255,69,58,.18); --orange-soft:rgba(255,159,10,.2);
-        --blue-soft:rgba(10,132,255,.18); --purple-soft:rgba(191,90,242,.2);
-        --header-glass:rgba(16,16,18,.76);
-        --shadow-card:0 1px 1px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.55);
-        --shadow-hero:0 2px 6px rgba(0,0,0,.5), 0 24px 56px -12px rgba(0,0,0,.7);
-        --shadow-sheet:0 -14px 60px rgba(0,0,0,.6);
-        --btn-hl:inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.3);
-        --raise-sm:0 1px 1.5px rgba(0,0,0,.5), 0 5px 12px -4px rgba(0,0,0,.6);
-    }
-}
-*{
-    box-sizing: border-box; 
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-}
-html,body{margin:0; padding:0;}
-body{
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,"Segoe UI",Roboto,sans-serif;
-    background:var(--bg); color:var(--text); min-height:100vh;
-    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-    overflow-x:hidden;
-}
-.tabular{font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;}
-
-/* ---------------- HEADER ---------------- */
-.app-header{
-    position:sticky; top:0; z-index:60;
-    padding:calc(var(--safe-top) + 10px) 16px 10px;
-    display:flex; align-items:center; gap:10px;
-    background:var(--header-glass);
-    -webkit-backdrop-filter:blur(26px) saturate(1.7); backdrop-filter:blur(26px) saturate(1.7);
-    border-bottom:1px solid var(--hairline);
-}
-.hdr-title{font-size:1.32rem; font-weight:800; letter-spacing:-.02em; margin-right:auto; line-height:1;}
-.hdr-degree{
-    display:flex; align-items:center; gap:7px; max-width:52vw;
-    padding:7px 12px; border-radius:999px; border:none; cursor:pointer;
-    background:var(--surface); color:var(--text); font-family:inherit;
-    font-size:.82rem; font-weight:700; box-shadow:var(--raise-sm);
-    transition:transform .2s var(--spring);
-}
-.hdr-degree:active{transform:scale(.94);}
-.hdr-degree .dot{width:9px; height:9px; border-radius:50%; background:var(--uni-grad); flex-shrink:0;}
-.hdr-degree span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.hdr-icon-btn{
-    width:38px; height:38px; flex-shrink:0; border-radius:50%; border:none; cursor:pointer;
-    background:var(--surface); color:var(--uni-accent); box-shadow:var(--raise-sm);
-    display:flex; align-items:center; justify-content:center;
-    transition:transform .2s var(--spring);
-}
-.hdr-icon-btn:active{transform:scale(.9) rotate(-25deg);}
-.hdr-icon-btn svg{width:19px; height:19px;}
-
-/* ---------------- PAGE / CARDS ---------------- */
-.page{max-width:640px; margin:0 auto; padding:14px 14px calc(120px + var(--safe-bottom));}
-.uni-card{
-    background:var(--surface); border-radius:var(--r-card); padding:18px;
-    box-shadow:var(--shadow-card); margin-bottom:14px; position:relative;
-}
-.pop{opacity:0; transform:translateY(16px) scale(.985); animation:pop-in .5s var(--spring) forwards;}
-@keyframes pop-in{to{opacity:1; transform:none;}}
-.sec-head{display:flex; align-items:center; gap:9px; margin:2px 2px 14px;}
-.sec-head h2{font-size:1.02rem; font-weight:800; letter-spacing:-.01em; margin:0;}
-.sec-head .sec-ic{width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; flex-shrink:0;}
-.sec-head .sec-sub{margin-left:auto; font-size:.78rem; color:var(--text-2); font-weight:600;}
-.sec-head .sec-act{margin-left:auto; border:none; background:var(--uni-accent); color:#fff; font-family:inherit; font-weight:700; font-size:.78rem; padding:7px 13px; border-radius:999px; cursor:pointer; box-shadow:var(--btn-hl); transition:transform .18s var(--spring);}
-.sec-head .sec-act:active{transform:scale(.92);}
-
-/* ---------------- HERO ---------------- */
-.hero{
-    background:var(--surface); border-radius:26px; padding:22px 20px 20px;
-    box-shadow:var(--shadow-hero); margin-bottom:14px; overflow:hidden; position:relative;
-}
-.hero::before{
-    content:""; position:absolute; inset:0; opacity:.1; pointer-events:none;
-    background:radial-gradient(120% 90% at 50% -10%, var(--uni-accent), transparent 60%);
-}
-.hero-top{display:flex; align-items:center; gap:20px; position:relative;}
-.hero-ring{width:132px; height:132px; flex-shrink:0; position:relative;}
-.hero-ring svg{width:100%; height:100%; transform:rotate(-90deg);}
-.hero-ring .ring-center{
-    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
-}
-.hero-ring .ring-frac{font-size:1.5rem; font-weight:800; letter-spacing:-.03em; line-height:1;}
-.hero-ring .ring-frac small{font-size:.9rem; color:var(--text-2); font-weight:700;}
-.hero-ring .ring-lbl{font-size:.6rem; font-weight:800; letter-spacing:.7px; text-transform:uppercase; color:var(--text-2);}
-.hero-main{flex:1; min-width:0;}
-.hero-main .kicker{font-size:.68rem; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--text-2); margin-bottom:2px;}
-.hero-avg{font-size:3.5rem; font-weight:800; letter-spacing:-.045em; line-height:.94; display:flex; align-items:baseline; gap:2px;}
-.hero-avg .dec{font-size:2.1rem; color:var(--text-2);}
-.hero-delta{display:inline-flex; align-items:center; gap:4px; margin-top:8px; padding:4px 10px; border-radius:999px; font-size:.8rem; font-weight:800;}
-.hero-delta.up{background:var(--green-soft); color:var(--green);}
-.hero-delta.down{background:var(--red-soft); color:var(--red);}
-.hero-delta.flat{background:var(--surface-3); color:var(--text-2);}
-.hero-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:18px; position:relative; transition:grid-template-columns .25s var(--ease);}
-.hero-stats.cols-2{grid-template-columns:repeat(2,1fr);}
-.hero-stat{background:var(--surface-2); border-radius:15px; padding:11px 8px; text-align:center;}
-.hero-stat .v{font-size:1.18rem; font-weight:800; letter-spacing:-.02em; line-height:1;}
-.hero-stat .v small{font-size:.75rem; color:var(--text-2); font-weight:700;}
-.hero-stat .l{font-size:.62rem; font-weight:700; letter-spacing:.3px; text-transform:uppercase; color:var(--text-2); margin-top:4px;}
-.hero-range{margin-top:14px; background:var(--surface-2); border-radius:15px; padding:12px 14px; position:relative;}
-.hero-range .rlbl{font-size:.68rem; font-weight:800; letter-spacing:.5px; text-transform:uppercase; color:var(--text-2); display:flex; justify-content:space-between; align-items:center;}
-.hero-range .rval{font-size:1.3rem; font-weight:800; letter-spacing:-.02em; margin-top:2px; color:var(--uni-accent);}
-.hero-range .rval .denom{color:var(--text-2); font-weight:700;}
-.hero-range .thesis-vis{margin-top:8px !important;}
-/* massimo raggiungibile (110 e lode) → oro luccicante */
-.bar-gold{background:linear-gradient(120deg,#B8860B,#FFD700 45%,#E8A600 70%,#FFF1A8) !important;
-    box-shadow:0 0 12px rgba(232,166,0,.55); overflow:hidden;}
-.bar-gold::after{content:""; position:absolute; top:0; left:-60%; width:45%; height:100%;
-    background:linear-gradient(105deg,transparent,rgba(255,255,255,.92),transparent); animation:shimmer 2.6s var(--ease) infinite;}
-
-/* ---------------- CFU BAR ---------------- */
-.cfu-wrap{margin-top:16px; position:relative;}
-.cfu-legend{display:flex; gap:14px; font-size:.72rem; font-weight:600; color:var(--text-2); margin-bottom:7px;}
-.cfu-legend b{color:var(--text); font-weight:800;}
-.cfu-legend .k{display:inline-flex; align-items:center; gap:5px;}
-.cfu-legend .k::before{content:""; width:10px; height:10px; border-radius:3px;}
-.cfu-legend .k.done::before{background:var(--uni-accent);}
-.cfu-legend .k.plan::before{background:var(--uni-accent); opacity:.34;}
-.cfu-legend .k.left::before{background:var(--surface-3);}
-.cfu-track{height:12px; border-radius:6px; background:var(--surface-3); overflow:hidden; display:flex;}
-.cfu-track i{height:100%; transition:width 1s var(--spring);}
-.cfu-track .f-done{background:var(--uni-grad);}
-.cfu-track .f-plan{background:var(--uni-accent); opacity:.32;}
-
-/* ---------------- GENERIC ROWS / CHIPS ---------------- */
-.mini-row{display:flex; align-items:center; gap:10px; padding:11px 2px; border-top:1px solid var(--hairline);}
-.mini-row:first-child{border-top:none;}
-.pill-btn{border:none; background:var(--surface-2); color:var(--text); font-family:inherit; font-weight:700; font-size:.85rem; padding:10px 15px; border-radius:var(--r-btn); cursor:pointer; box-shadow:var(--raise-sm); transition:transform .18s var(--spring);}
-.pill-btn:active{transform:scale(.94);}
-.pill-btn.accent{background:var(--uni-accent); color:#fff; box-shadow:var(--btn-hl);}
-.pill-btn.ghost{background:transparent; box-shadow:none; color:var(--uni-accent);}
-.pill-btn.full{width:100%; text-align:center;}
-
-/* voti color scale */
-.grade-badge{min-width:44px; height:34px; padding:0 9px; border-radius:11px; display:inline-flex; align-items:center; justify-content:center; gap:2px; font-weight:800; font-size:.98rem; letter-spacing:-.01em; flex-shrink:0;}
-.g-ido{background:var(--surface-3); color:var(--text-2); font-size:.74rem; letter-spacing:.3px;}
-.g-todo{background:var(--surface-2); color:var(--text-3); border:1.5px dashed var(--hairline-2); font-size:.72rem;}
-/* voti 29 e oltre: fissi, "decisi" */
-.g-30{background:linear-gradient(120deg,#B8860B,#FFD700 45%,#E8A600 70%,#FFF1A8); color:#5a3d00; box-shadow:0 2px 9px rgba(232,166,0,.32);}
-.g-29{background:#E8A600; color:#3a2700;}
-.g-28{background:var(--silver); color:#2b3136;}
-@media (prefers-color-scheme: dark){ .g-30{color:#2a1c00;} .g-29{background:#FFCC33; color:#3a2700;} .g-28{color:#14171a;} }
-/* voti 18-27: colore calcolato in base alla distanza dalla media dello studente (vedi gradeDynamicStyle in JS) */
-.g-dyn{transition:background .3s var(--ease);}
-.g-lode{background:linear-gradient(120deg,#B8860B,#FFD700 45%,#E8A600 70%,#FFF1A8); color:#5a3d00; position:relative; overflow:hidden; box-shadow:0 2px 10px rgba(232,166,0,.4);}
-@media (prefers-color-scheme: dark){ .g-lode{color:#2a1c00;} }
-.g-lode::after{content:""; position:absolute; top:0; left:-60%; width:40%; height:100%; background:linear-gradient(105deg,transparent,rgba(255,255,255,.85),transparent); animation:shimmer 2.6s var(--ease) infinite;}
-@keyframes shimmer{0%{left:-60%;} 55%,100%{left:130%;}}
-.g-lode .lode-star{font-size:.7em; margin-left:1px;}
-
-/* ---------------- EXAMS ---------------- */
-.seg{display:flex; background:var(--surface-2); border-radius:12px; padding:3px; margin-bottom:12px; position:relative;}
-.seg button{flex:1; border:none; background:transparent; font-family:inherit; font-weight:700; font-size:.85rem; color:var(--text-2); padding:9px 4px; border-radius:9px; cursor:pointer; position:relative; z-index:1; transition:color .25s var(--ease);}
-.seg button.on{color:var(--text);}
-.seg .seg-thumb{position:absolute; top:3px; bottom:3px; border-radius:9px; background:var(--surface); box-shadow:var(--raise-sm); transition:transform .34s var(--spring), width .34s var(--spring); z-index:0;}
-.seg .cnt{display:inline-block; min-width:18px; margin-left:4px; font-size:.72rem; opacity:.7;}
-
-.exam-list{list-style:none; margin:0; padding:0;}
-.exam-item{display:flex; align-items:center; gap:12px; padding:12px 4px; border-top:1px solid var(--hairline); position:relative; transition:opacity .3s, transform .3s var(--spring);}
-.exam-item:first-child{border-top:none;}
-.exam-item.dragging{opacity:.55;}
-.exam-drag{color:var(--text-3); cursor:grab; touch-action:none; flex-shrink:0; display:flex; padding:2px; margin-left:-2px;}
-.exam-drag svg{width:16px; height:16px;}
-.exam-body{flex:1; min-width:0; cursor:pointer;}
-.exam-trail{display:flex; align-items:center; gap:10px; margin-left:auto; flex-shrink:0;}
-.exam-name{font-size:.96rem; font-weight:600; line-height:1.2; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
-.exam-meta{font-size:.75rem; color:var(--text-2); margin-top:3px; display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center;}
-.exam-meta .nat{color:var(--text-3);}
-.exam-meta .cmp{font-weight:800;}
-.exam-meta .cmp.up{color:var(--green);} .exam-meta .cmp.down{color:var(--red);}
-.exam-check{width:32px; height:32px; border-radius:9px; border:2px solid var(--hairline-2); background:var(--surface-2); cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:transform .2s var(--spring), background .2s;}
-.exam-check:active{transform:scale(.85);}
-.exam-check svg{width:18px; height:18px; color:#fff; opacity:0; transform:scale(.4); transition:opacity .2s, transform .25s var(--pop);}
-/* sostenuto: solo una spunta grossa, disegnata a mano, senza riquadro */
-.exam-check.done{background:none; border:none; width:34px; height:34px;}
-.exam-check.done svg{width:32px; height:32px; color:var(--green); opacity:1; transform:none;
-    stroke-dasharray:44; stroke-dashoffset:0; animation:checkDraw .55s var(--spring) both;}
-@keyframes checkDraw{from{stroke-dashoffset:44;} to{stroke-dashoffset:0;}}
-
-/* swipe verso destra per rivelare "elimina" (solo Da sostenere): il bottone sta SOTTO al
-   contenuto (z-index inferiore, coperto da uno sfondo opaco), non è mai visibile finché il
-   contenuto non viene trascinato di lato — niente overflow/opacity che possa "intravedersi". */
-.exam-item.swipeable{padding:0; position:relative; overflow:hidden;}
-.exam-item.swipeable .swipe-content{display:flex; align-items:center; gap:12px; padding:12px 4px;
-    background:var(--surface); position:relative; z-index:1; touch-action:pan-y; width: 100%;}
-.exam-group .exam-item.swipeable .swipe-content{padding:10px 2px; background:var(--surface-2);}
-.exam-item.swipeable .swipe-del{position:absolute; top:0; left:0; bottom:0; width:76px; border:none;
-    background:var(--red); color:#fff; display:flex; align-items:center; justify-content:center;
-    z-index:0; padding:0; cursor:pointer;}
-.exam-item.swipeable .swipe-del svg{width:20px; height:20px;}
-
-/* ---------------- SELEZIONE MULTIPLA + GRUPPI ---------------- */
-.seg button{font-size:.8rem; padding:9px 2px;}
-.seg .cnt{margin-left:3px;}
-.exam-item.sel-on{cursor:pointer;}
-.exam-item .sel-dot{width:24px; height:24px; border-radius:50%; border:2px solid var(--hairline-2); flex-shrink:0;
-    display:flex; align-items:center; justify-content:center; color:#fff; font-size:.8rem; font-weight:900;
-    transition:background .18s, border-color .18s, transform .18s var(--spring);}
-.exam-item.picked .sel-dot{background:var(--uni-accent); border-color:var(--uni-accent); transform:scale(1.08);}
-.exam-item.picked{background:var(--blue-soft); border-radius:12px;}
-.grp-tag{display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px;
-    background:var(--purple-soft); color:var(--purple); font-weight:800; font-size:.68rem;}
-.sel-bar{position:sticky; bottom:calc(10px + var(--safe-bottom)); z-index:20; display:flex; gap:8px; align-items:center;
-    margin-top:12px; padding:10px; border-radius:16px; background:var(--surface-2); box-shadow:var(--raise-sm);}
-.sel-bar .n{font-size:.82rem; font-weight:800; margin-right:auto; padding-left:4px;}
-.sel-bar button{border:none; font-family:inherit; font-weight:800; font-size:.8rem; padding:10px 13px; border-radius:12px; cursor:pointer;
-    transition:transform .16s var(--spring);}
-.sel-bar button:active{transform:scale(.93);}
-.sel-bar .b-grp{background:var(--purple); color:#fff;}
-.sel-bar .b-ungrp{background:var(--surface); color:var(--text-2); box-shadow:var(--raise-sm);}
-.sel-bar .b-del{background:var(--red-soft); color:var(--red);}
-.sim-hint{font-size:.75rem; color:var(--text-3); margin:0 0 10px; line-height:1.35;}
-
-.exam-add{width:100%; margin-top:12px; border:1.5px dashed var(--hairline-2); background:transparent; color:var(--uni-accent); font-family:inherit; font-weight:700; font-size:.9rem; padding:13px; border-radius:var(--r-btn); cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; transition:transform .18s var(--spring), background .2s;}
-.exam-add:active{transform:scale(.97); background:var(--blue-soft);}
-
-/* ---------------- GRUPPI (esami compattati) ---------------- */
-.exam-group{display:block; padding:10px 4px 12px; border-top:1px solid var(--hairline); border-radius:14px;}
-.exam-group:first-child{border-top:none;}
-.exam-group-inner{background:var(--surface-2); border-radius:14px; padding:4px 10px; overflow:hidden;}
-.exam-group-head{display:flex; align-items:center; gap:8px; padding:9px 2px; flex-wrap:wrap;}
-.exam-group-head .gt-name{font-weight:800; font-size:.86rem; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer;}
-.gt-badge{display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:999px; background:var(--purple-soft); color:var(--purple); font-weight:800; font-size:.64rem; flex-shrink:0; white-space:nowrap;}
-.gt-badge.split{background:var(--blue-soft); color:var(--uni-accent);}
-.gt-quota{font-size:.68rem; color:var(--text-2); font-weight:700; flex-shrink:0; white-space:nowrap;}
-.gt-edit{border:none; background:none; color:var(--text-3); font-size:1rem; cursor:pointer; padding:4px 6px; flex-shrink:0; line-height:1;}
-.exam-group .exam-item{padding:10px 2px; border-top:1px solid var(--hairline-2);}
-.exam-group .exam-item.swipeable{padding:0;}
-.exam-group .exam-item:first-child{border-top:none;}
-.exam-group .exam-name{font-size:.9rem;}
-.grp-overall{display:flex; align-items:center; gap:10px; padding:10px 2px 4px; border-top:1.5px dashed var(--hairline-2); margin-top:2px; flex-wrap:nowrap;}
-.grp-overall .go-lbl{font-size:.72rem; font-weight:800; color:var(--text-2); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.grp-overall .stepper .val{min-width:44px;}
-.grp-note{font-size:.68rem; color:var(--text-3); padding:2px 4px 6px; line-height:1.35;}
-.sim-group{padding:8px 2px 10px; border-top:1px solid var(--hairline);}
-.sim-group:first-child{border-top:none;}
-.sim-group-inner{background:var(--surface-2); border-radius:14px; padding:2px 10px;}
-.sim-group-head{display:flex; align-items:center; gap:8px; padding:9px 2px 2px; flex-wrap:wrap;}
-.sim-group .sim-item{border-top:1px solid var(--hairline-2);}
-.sim-group .sim-item:first-child{border-top:none;}
-
-/* ---------------- POPUP GRUPPO ---------------- */
-.grp-pick-list{list-style:none; margin:0 0 4px; padding:2px 10px; max-height:38vh; overflow-y:auto; -webkit-overflow-scrolling:touch; border:1.5px solid var(--hairline); border-radius:14px;}
-.grp-pick-list .exam-item{padding:10px 2px;}
-.grp-pick-empty{font-size:.8rem; color:var(--text-3); text-align:center; padding:18px 8px;}
-.grp-type-hint{font-size:.74rem; color:var(--text-3); margin:-6px 0 12px; line-height:1.4;}
-
-/* ---------------- CHART ---------------- */
-.chart-legend{display:flex; flex-wrap:wrap; gap:14px; font-size:.74rem; font-weight:700; color:var(--text-2); margin-bottom:6px;}
-.chart-legend .k{display:inline-flex; align-items:center; gap:6px;}
-.chart-legend .k .ln{width:16px; height:3px; border-radius:2px; background:var(--uni-accent);}
-.chart-legend .k .ln.obj{background:repeating-linear-gradient(90deg,var(--text-3) 0 5px,transparent 5px 9px); height:2px;}
-.chart-legend .k .ln.proj{background:repeating-linear-gradient(90deg,var(--uni-accent) 0 5px,transparent 5px 9px);}
-.chart-legend .k .dt{width:9px; height:9px; border-radius:50%; background:var(--uni-accent); border:2px solid var(--surface);}
-.chart-box{width:100%; position:relative;}
-.chart-box svg{width:100%; display:block; overflow:visible;}
-.chart-empty{text-align:center; color:var(--text-2); font-size:.85rem; padding:26px 10px;}
-.chart-toggle{display:flex; gap:8px; margin-top:10px; align-items:center; font-size:.8rem; color:var(--text-2); font-weight:600;}
-.chart-tip{position:absolute; pointer-events:none; background:var(--text); color:var(--surface); font-size:.72rem; font-weight:700; padding:5px 8px; border-radius:8px; transform:translate(-50%,-115%); white-space:nowrap; opacity:0; transition:opacity .15s; z-index:5; box-shadow:0 6px 18px rgba(0,0,0,.25);}
-.chart-tip.show{opacity:1;}
-
-/* ---------------- SIMULATOR ---------------- */
-.sim-result{display:flex; align-items:center; gap:14px; background:var(--surface-2); border-radius:16px; padding:14px 16px; margin-bottom:12px;}
-.sim-result .now{text-align:center;} .sim-result .arrow{color:var(--text-3); font-size:1.3rem;}
-.sim-result .lbl{font-size:.62rem; font-weight:800; letter-spacing:.5px; text-transform:uppercase; color:var(--text-2);}
-.sim-result .num{font-size:1.7rem; font-weight:800; letter-spacing:-.03em; line-height:1;}
-.sim-result .to .num{color:var(--uni-accent);}
-.sim-result .diff{margin-left:auto; font-size:.82rem; font-weight:800;}
-.sim-list{list-style:none; margin:0; padding:0;}
-.sim-item{display:flex; align-items:center; gap:10px; padding:10px 2px; border-top:1px solid var(--hairline);}
-.sim-item:first-child{border-top:none;}
-.sim-item .nm{flex:1; min-width:0; font-size:.88rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.sim-item .nm small{color:var(--text-2); font-weight:600;}
-
-/* stepper */
-.stepper{display:inline-flex; align-items:center; gap:0; background:var(--surface-2); border-radius:11px; overflow:hidden; flex-shrink:0;}
-.stepper button{width:36px; height:36px; border:none; background:transparent; color:var(--uni-accent); font-size:1.3rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s;}
-.stepper button:active{background:var(--hairline);}
-.stepper button:disabled{color:var(--text-3); opacity:.5;}
-.stepper .val{min-width:52px; text-align:center; font-weight:800; font-size:1rem; letter-spacing:-.01em;}
-.stepper .val.lode{color:var(--gold);}
-
-/* ---------------- STATS ---------------- */
-.stat-block{margin-bottom:20px;}
-.stat-block:last-child{margin-bottom:0;}
-.stat-block > .t{font-size:.82rem; font-weight:800; color:var(--text-2); margin-bottom:10px; display:flex; justify-content:space-between; align-items:baseline;}
-.stat-block > .t span{color:var(--text-3); font-weight:600; font-size:.75rem;}
-.hist{display:flex; align-items:flex-end; gap:2px; height:110px;}
-.hist .col{flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end;}
-.hist .col .bar{width:100%; max-width:20px; border-radius:5px 5px 2px 2px; background:var(--uni-grad); min-height:3px; transition:height .8s var(--spring); position:relative;}
-.hist .col .bar.lode{background:linear-gradient(180deg,#FFD700,#E8A600);}
-.hist .col .bar .cnt{position:absolute; top:-16px; left:50%; transform:translateX(-50%); font-size:.66rem; font-weight:800; color:var(--text-2);}
-.hist .col .xl{font-size:.55rem; color:var(--text-3); font-weight:700; letter-spacing:-.03em;}
-.ybar{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
-.ybar .yl{width:56px; font-size:.76rem; font-weight:700; color:var(--text-2); flex-shrink:0;}
-.ybar .yt{flex:1; height:22px; border-radius:7px; background:var(--surface-2); overflow:hidden; position:relative;}
-.ybar .yt > i{position:absolute; left:0; top:0; bottom:0; border-radius:7px; background:var(--uni-grad); transition:width .9s var(--spring); min-width:2px;}
-.ybar .yt > b{position:absolute; right:8px; top:50%; transform:translateY(-50%); font-size:.74rem; font-weight:800; color:var(--text);}
-.ybar .yt.muted > i{opacity:.3;}
-.donut-wrap{display:flex; align-items:center; gap:16px;}
-.donut-wrap svg{width:96px; height:96px; flex-shrink:0;}
-.donut-leg{flex:1; display:flex; flex-direction:column; gap:6px;}
-.donut-leg .di{display:flex; align-items:center; gap:8px; font-size:.8rem; font-weight:600;}
-.donut-leg .di .sw{width:11px; height:11px; border-radius:3px; flex-shrink:0;}
-.donut-leg .di b{margin-left:auto; color:var(--text-2);}
-.cmp-line{display:flex; align-items:center; gap:12px; background:var(--surface-2); border-radius:15px; padding:14px; }
-.cmp-line .big{font-size:1.9rem; font-weight:800; letter-spacing:-.03em;}
-.cmp-line .big.up{color:var(--green);} .cmp-line .big.down{color:var(--red);}
-.cmp-line .txt{font-size:.82rem; color:var(--text-2); font-weight:600; line-height:1.35;}
-.cmp-line .txt b{color:var(--text);}
-
-/* badges / milestones */
-.badge-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:2px;}
-.mbadge{display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; font-size:.78rem; font-weight:700; background:var(--surface-2);}
-.mbadge.got{background:var(--uni-grad); color:#fff; box-shadow:var(--btn-hl);}
-.mbadge .em{font-size:1rem;}
-
-/* ---------------- BONUS / THESIS ---------------- */
-.bonus-item{display:flex; align-items:center; gap:12px; padding:13px 2px; border-top:1px solid var(--hairline);}
-.bonus-item:first-child{border-top:none;}
-.bonus-item .bic{width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.05rem; background:var(--surface-2); flex-shrink:0;}
-.bonus-item .bd{flex:1; min-width:0;}
-.bonus-item .bd .bn{font-size:.92rem; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-.bonus-item .bd .bs{font-size:.74rem; color:var(--text-2); margin-top:1px;}
-.bonus-item .bp{font-weight:800; font-size:.95rem; color:var(--green); flex-shrink:0;}
-.bonus-item .bp.zero{color:var(--text-3);}
-
-/* iOS switch */
-.sw-toggle{position:relative; width:51px; height:31px; flex-shrink:0; cursor:pointer;}
-.sw-toggle input{position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer;}
-.sw-toggle .track{position:absolute; inset:0; border-radius:999px; background:var(--surface-3); transition:background .3s var(--ease);}
-.sw-toggle .thumb{position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,.25); transition:transform .3s var(--spring);}
-.sw-toggle input:checked ~ .track{background:var(--green);}
-.sw-toggle input:checked ~ .thumb{transform:translateX(20px);}
-
-.thesis-vis{margin-top:4px;}
-.thesis-vis .scale{position:relative; height:8px; border-radius:5px; background:linear-gradient(90deg,var(--red),var(--orange),var(--green)); opacity:.28; margin:26px 4px 8px;}
-.thesis-vis .fill{position:absolute; top:0; bottom:0; border-radius:5px; background:var(--uni-grad); opacity:1;}
-.thesis-vis .marks{position:relative; height:15px; margin-top:7px;}
-.thesis-vis .marks span{position:absolute; top:0; font-size:.66rem; color:var(--text-2); font-weight:700; white-space:nowrap;
-    transform:translateX(calc(-1 * var(--fx, 50%)));}
-.thesis-vis .marks span.lode{color:var(--gold); font-weight:800;}
-.thesis-vis .tick{position:absolute; top:-3px; bottom:-3px; width:2px; border-radius:1px; background:var(--hairline-2); transform:translateX(-50%);}
-.thesis-vis .flag{position:absolute; top:-24px; transform:translateX(calc(-1 * var(--fx, 50%))); background:var(--text); color:var(--surface); font-size:.68rem; font-weight:800; padding:3px 7px; border-radius:7px; white-space:nowrap;}
-.thesis-vis .flag::after{content:""; position:absolute; left:var(--fx, 50%); bottom:-4px; transform:translateX(-50%); border:4px solid transparent; border-top-color:var(--text);}
-.thesis-vis .flag.gold{background:linear-gradient(120deg,#B8860B,#FFD700,#E8A600); color:#3a2700;}
-.thesis-vis .flag.gold::after{border-top-color:#E8A600;}
-
-/* ---------------- EMPTY STATE ---------------- */
-.empty{text-align:center; padding:34px 20px 40px;}
-.empty .em-ic{width:76px; height:76px; margin:0 auto 16px; border-radius:22px; background:var(--uni-grad); display:flex; align-items:center; justify-content:center; font-size:34px; box-shadow:var(--shadow-hero); animation:floaty 3.4s var(--ease) infinite;}
-@keyframes floaty{0%,100%{transform:translateY(0);}50%{transform:translateY(-7px);}}
-.empty h2{font-size:1.35rem; font-weight:800; letter-spacing:-.02em; margin:0 0 8px;}
-.empty p{color:var(--text-2); font-size:.92rem; line-height:1.45; margin:0 auto 20px; max-width:340px;}
-
-/* ---------------- SHEETS / MODALS ---------------- */
-.sheet-backdrop{position:fixed; inset:0; z-index:9000; background:rgba(0,0,0,.42); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); opacity:0; pointer-events:none; transition:opacity .3s var(--ease);}
-.sheet-backdrop.open{opacity:1; pointer-events:auto;}
-.sheet{position:fixed; left:0; right:0; bottom:0; z-index:9001; background:var(--surface); border-radius:26px 26px 0 0; box-shadow:var(--shadow-sheet); padding:8px 18px calc(20px + var(--safe-bottom)); transform:translateY(101%); transition:transform .42s var(--spring); max-height:92vh; overflow-y:auto; -webkit-overflow-scrolling:touch;}
-.sheet.open{transform:translateY(0);}
-.sheet .grab{width:38px; height:5px; border-radius:3px; background:var(--hairline-2); margin:6px auto 12px;}
-.sheet h3{font-size:1.2rem; font-weight:800; letter-spacing:-.02em; margin:0 0 4px; text-align:center;}
-.sheet .sub{text-align:center; color:var(--text-2); font-size:.84rem; margin:0 0 16px;}
-.field{margin-bottom:14px;}
-.field > label{display:block; font-size:.74rem; font-weight:800; letter-spacing:.4px; text-transform:uppercase; color:var(--text-2); margin-bottom:7px;}
-.field input[type=text], .field input[type=number], .field input[type=date], .field select{
-    width:100%; border:none; background:var(--surface-2); color:var(--text); font-family:inherit; font-size:1rem; font-weight:600;
-    padding:13px 14px; border-radius:13px; outline:none; -webkit-appearance:none; appearance:none;
-    border:2px solid transparent; transition:border-color .2s;
-}
-.field input:focus, .field select:focus{border-color:var(--uni-accent);}
-.field select{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A8A8E' stroke-width='3' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>"); background-repeat:no-repeat; background-position:right 14px center; padding-right:38px;}
-.field .row2{display:flex; gap:10px;} .field .row2 > *{flex:1;}
-.chip-row{display:flex; gap:8px; flex-wrap:wrap;}
-.chip-tog{border:none; background:var(--surface-2); color:var(--text); font-family:inherit; font-weight:700; font-size:.85rem; padding:10px 14px; border-radius:12px; cursor:pointer; display:flex; align-items:center; gap:7px; transition:transform .16s var(--spring), background .2s;}
-.chip-tog:active{transform:scale(.94);}
-.chip-tog.on{background:var(--uni-accent); color:#fff;}
-.chip-tog.on.gold{background:linear-gradient(120deg,#E8A600,#FFD700); color:#4a3200;}
-.grade-picker{display:flex; align-items:center; justify-content:center; gap:16px; background:var(--surface-2); border-radius:16px; padding:14px; margin-bottom:6px;}
-.grade-picker .gbig{font-size:2.6rem; font-weight:800; letter-spacing:-.04em; min-width:96px; text-align:center;}
-.grade-picker .gbig.lode{background:linear-gradient(120deg,#B8860B,#FFD700,#E8A600); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;}
-.sheet-actions{display:flex; gap:10px; margin-top:8px;}
-.sheet-actions button{flex:1; border:none; font-family:inherit; font-weight:800; font-size:1rem; padding:15px; border-radius:15px; cursor:pointer; transition:transform .16s var(--spring);}
-.sheet-actions button:active{transform:scale(.96);}
-.btn-primary{background:var(--uni-accent); color:#fff; box-shadow:var(--btn-hl);}
-.btn-secondary{background:var(--surface-2); color:var(--text);}
-.btn-danger{background:var(--red-soft); color:var(--red); flex:0 0 auto !important; width:54px; font-size:1.2rem;}
-
-.prog-list{list-style:none; margin:0; padding:0;}
-.prog-opt{display:flex; align-items:center; gap:13px; padding:14px 12px; border-radius:15px; cursor:pointer; margin-bottom:8px; background:var(--surface-2); transition:transform .16s var(--spring);}
-.prog-opt:active{transform:scale(.97);}
-.prog-opt .pi{width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; color:#fff;}
-.prog-opt .pt{flex:1; min-width:0;}
-.prog-opt .pt .pn{font-weight:700; font-size:.95rem; line-height:1.2;}
-.prog-opt .pt .pd{font-size:.76rem; color:var(--text-2); margin-top:2px;}
-.prog-opt .chev{color:var(--text-3);}
-
-.color-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:2px;}
-.color-dot{width:38px; height:38px; border-radius:50%; cursor:pointer; border:3px solid transparent; transition:transform .16s var(--spring); position:relative;}
-.color-dot:active{transform:scale(.88);}
-.color-dot.on{transform:scale(1.12);}
-.color-dot.on::after{content:"✓"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:900; font-size:1rem; text-shadow:0 1px 3px rgba(0,0,0,.4);}
-
-/* ---------------- TOAST + CONFETTI ---------------- */
-#uniToast{position:fixed; left:50%; bottom:calc(26px + var(--safe-bottom)); transform:translate(-50%,20px); z-index:9500; background:var(--text); color:var(--surface); font-weight:700; font-size:.88rem; padding:12px 18px; border-radius:14px; box-shadow:0 12px 34px rgba(0,0,0,.35); opacity:0; pointer-events:none; transition:opacity .3s, transform .35s var(--spring); max-width:88vw; text-align:center;}
-#uniToast.show{opacity:1; transform:translate(-50%,0);}
-#uniConfetti{position:fixed; inset:0; z-index:9600; pointer-events:none;}
-
-@media (prefers-reduced-motion: reduce){
-    *{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important;}
-    .pop{opacity:1; transform:none;}
-}
-@media (max-width:380px){
-    .hero-avg{font-size:3rem;} .hero-top{gap:14px;} .hero-ring{width:112px; height:112px;}
-    .hero-stat .v{font-size:1.05rem;}
-}
-</style>
+<link rel="stylesheet" href="/Vocabolary/voti.css?v=<?php echo @filemtime(dirname(__FILE__) . '/voti.css') ?: 1; ?>">
+<?php
+/* Le stringhe che servono al JavaScript di questa pagina. */
+echo nisama_i18n_json(['comune', 'voti']);
+?>
 </head>
-<body style="--uni-accent:<?php echo $UNI_SETTINGS['accent_color']; ?>; --uni-accent-2:<?php echo $UNI_SETTINGS['accent_color']; ?>;">
+<body style="--uni-accent:<?php echo sec_h(sec_color($UNI_SETTINGS['accent_color'])); ?>; --uni-accent-2:<?php echo sec_h(sec_color($UNI_SETTINGS['accent_color'])); ?>;">
 
 <header class="app-header">
-    <div class="hdr-title">Voti</div>
+    <div class="hdr-title"><?php te('voti.voti'); ?></div>
     <button class="hdr-degree" id="hdrDegree" onclick="uniOpenProgram()" style="<?php echo $UNI_HAS_DATA ? '' : 'display:none'; ?>">
         <span class="dot"></span><span id="hdrDegreeName"><?php echo htmlspecialchars($UNI_SETTINGS['program_label'] ?: 'Imposta corso', ENT_QUOTES); ?></span>
     </button>
-    <button class="hdr-icon-btn" onclick="uniOpenSettings()" aria-label="Impostazioni">
+    <button class="hdr-icon-btn" onclick="uniOpenSettings()" aria-label="<?php te('voti.impostazioni'); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
 </header>
@@ -951,11 +557,11 @@ body{
     <div id="uniEmpty" style="<?php echo $UNI_HAS_DATA ? 'display:none' : ''; ?>">
         <div class="empty">
             <div class="em-ic">🎓</div>
-            <h2>La tua carriera, in chiaro</h2>
-            <p>Aggiungi i tuoi esami e vedi subito media, voto di laurea previsto, obiettivi e andamento. Parti dal tuo corso per precompilare tutto.</p>
-            <button class="pill-btn accent" onclick="uniOpenProgram()">Parti dal tuo corso</button>
+            <h2><?php te('voti.la_tua_carriera_in_chiaro'); ?></h2>
+            <p><?php te('voti.aggiungi_i_tuoi_esami_e'); ?></p>
+            <button class="pill-btn accent" onclick="uniOpenProgram()"><?php te('voti.parti_dal_tuo_corso'); ?></button>
             <div class="mini-row" style="justify-content:center; border:none; margin-top:6px;">
-                <button class="pill-btn ghost" onclick="uniOpenExam()">＋ Aggiungi un esame a mano</button>
+                <button class="pill-btn ghost" onclick="uniOpenExam()"><?php te('voti.aggiungi_un_esame_a_mano'); ?></button>
             </div>
         </div>
     </div>
@@ -973,33 +579,33 @@ body{
                     </svg>
                     <div class="ring-center">
                         <div class="ring-frac"><span id="ringDone">0</span><small>/<span id="ringTot">0</span></small></div>
-                        <div class="ring-lbl">Esami</div>
+                        <div class="ring-lbl"><?php te('voti.esami'); ?></div>
                     </div>
                 </div>
                 <div class="hero-main">
-                    <div class="kicker">Media ponderata</div>
+                    <div class="kicker"><?php te('voti.media_ponderata'); ?></div>
                     <div class="hero-avg tabular"><span id="avgInt">–</span><span class="dec" id="avgDec"></span></div>
                     <span class="hero-delta" id="avgDelta" style="display:none"></span>
                 </div>
             </div>
 
             <div class="hero-stats" id="heroStats">
-                <div class="hero-stat"><div class="v tabular"><span id="statBase">–</span><small>/<span id="statBaseMax">110</span></small></div><div class="l">Base laurea</div></div>
-                <div class="hero-stat"><div class="v tabular" id="statCfu">0</div><div class="l">CFU dati</div></div>
-                <div class="hero-stat" id="statLodiBox"><div class="v tabular" id="statLodi">0</div><div class="l">Lodi</div></div>
+                <div class="hero-stat"><div class="v tabular"><span id="statBase">–</span><small>/<span id="statBaseMax">110</span></small></div><div class="l"><?php te('voti.base_laurea'); ?></div></div>
+                <div class="hero-stat"><div class="v tabular" id="statCfu">0</div><div class="l"><?php te('voti.cfu_dati'); ?></div></div>
+                <div class="hero-stat" id="statLodiBox"><div class="v tabular" id="statLodi">0</div><div class="l"><?php te('voti.lodi'); ?></div></div>
             </div>
 
             <div class="hero-range">
-                <div class="rlbl"><span>Voto di laurea stimato</span><span id="rangeThesisNote" style="text-transform:none; font-weight:600;"></span></div>
+                <div class="rlbl"><span><?php te('voti.voto_di_laurea_stimato'); ?></span><span id="rangeThesisNote" style="text-transform:none; font-weight:600;"></span></div>
                 <div class="rval" id="rangeText">–</div>
                 <div class="thesis-vis" id="rangeVis" style="margin-top:8px"></div>
             </div>
 
             <div class="cfu-wrap">
                 <div class="cfu-legend">
-                    <span class="k done">Registrati <b id="cfuDone">0</b></span>
-                    <span class="k plan">Pianificati <b id="cfuPlan">0</b></span>
-                    <span class="k left">Totale <b id="cfuTot">0</b></span>
+                    <span class="k done"><?php te('voti.registrati'); ?> <b id="cfuDone">0</b></span>
+                    <span class="k plan"><?php te('voti.pianificati'); ?> <b id="cfuPlan">0</b></span>
+                    <span class="k left"><?php te('voti.totale'); ?> <b id="cfuTot">0</b></span>
                 </div>
                 <div class="cfu-track"><i class="f-done" id="cfuBarDone" style="width:0"></i><i class="f-plan" id="cfuBarPlan" style="width:0"></i></div>
             </div>
@@ -1007,43 +613,43 @@ body{
 
         <!-- OBIETTIVO -->
         <section class="uni-card pop" style="animation-delay:.06s">
-            <div class="sec-head"><span class="sec-ic" style="background:var(--uni-accent)">🎯</span><h2>Obiettivo</h2></div>
+            <div class="sec-head"><span class="sec-ic" style="background:var(--uni-accent)">🎯</span><h2><?php te('voti.obiettivo'); ?></h2></div>
             <div id="targetBody"></div>
         </section>
 
         <!-- ANDAMENTO -->
         <section class="uni-card pop" style="animation-delay:.1s">
-            <div class="sec-head"><span class="sec-ic" style="background:var(--teal)">📈</span><h2>Andamento</h2></div>
+            <div class="sec-head"><span class="sec-ic" style="background:var(--teal)">📈</span><h2><?php te('voti.andamento'); ?></h2></div>
             <div class="chart-legend">
-                <span class="k"><span class="ln"></span>Media</span>
-                <span class="k"><span class="ln obj"></span>Obiettivo</span>
-                <span class="k"><span class="ln proj"></span>Proiezione</span>
-                <span class="k"><span class="dt"></span>Voto esame</span>
+                <span class="k"><span class="ln"></span><?php te('voti.media'); ?></span>
+                <span class="k"><span class="ln obj"></span><?php te('voti.obiettivo'); ?></span>
+                <span class="k"><span class="ln proj"></span><?php te('voti.proiezione'); ?></span>
+                <span class="k"><span class="dt"></span><?php te('voti.voto_esame'); ?></span>
             </div>
             <div class="chart-box" id="chartBox"></div>
             <div class="chart-tip" id="chartTip"></div>
-            <label class="chart-toggle"><span class="sw-toggle" style="transform:scale(.82)"><input type="checkbox" id="projToggle" checked onchange="uniToggleProjection(this.checked)"><span class="track"></span><span class="thumb"></span></span> Mostra proiezione sui voti previsti</label>
+            <label class="chart-toggle"><span class="sw-toggle" style="transform:scale(.82)"><input type="checkbox" id="projToggle" checked onchange="uniToggleProjection(this.checked)"><span class="track"></span><span class="thumb"></span></span> <?php te('voti.mostra_proiezione_sui_voti_previsti'); ?></label>
         </section>
 
         <!-- ESAMI (+ SIMULATORE come terza scheda) -->
         <section class="uni-card pop" id="secExams" style="animation-delay:.14s">
-            <div class="sec-head"><span class="sec-ic" style="background:var(--blue)">📚</span><h2>Esami</h2>
-                <button class="sec-act" id="examSelBtn" onclick="uniToggleSelect()" style="background:var(--surface-2); color:var(--uni-accent); box-shadow:none">Seleziona</button>
-                <button class="sec-act" id="simSaveBtn" style="display:none" onclick="uniSaveSimAsTarget()">Salva come obiettivo</button>
+            <div class="sec-head"><span class="sec-ic" style="background:var(--blue)">📚</span><h2><?php te('voti.esami'); ?></h2>
+                <button class="sec-act" id="examSelBtn" onclick="uniToggleSelect()" style="background:var(--surface-2); color:var(--uni-accent); box-shadow:none"><?php te('voti.seleziona'); ?></button>
+                <button class="sec-act" id="simSaveBtn" style="display:none" onclick="uniSaveSimAsTarget()"><?php te('voti.salva_come_obiettivo'); ?></button>
             </div>
             <div class="seg" id="examSeg">
                 <div class="seg-thumb" id="segThumb"></div>
-                <button type="button" data-tab="done" onclick="uniSetTab('done')">Sostenuti<span class="cnt" id="cntDone">0</span></button>
-                <button type="button" class="on" data-tab="todo" onclick="uniSetTab('todo')">Da sostenere<span class="cnt" id="cntTodo">0</span></button>
-                <button type="button" data-tab="sim" onclick="uniSetTab('sim')">Simulatore</button>
+                <button type="button" data-tab="done" onclick="uniSetTab('done')"><?php te('voti.sostenuti'); ?><span class="cnt" id="cntDone">0</span></button>
+                <button type="button" class="on" data-tab="todo" onclick="uniSetTab('todo')"><?php te('voti.da_sostenere'); ?><span class="cnt" id="cntTodo">0</span></button>
+                <button type="button" data-tab="sim" onclick="uniSetTab('sim')"><?php te('voti.simulatore'); ?></button>
             </div>
 
             <!-- pannello simulatore -->
             <div id="simPane" style="display:none">
                 <div class="sim-result">
-                    <div class="now"><div class="lbl">Attuale</div><div class="num tabular" id="simNow">–</div></div>
+                    <div class="now"><div class="lbl"><?php te('voti.attuale'); ?></div><div class="num tabular" id="simNow">–</div></div>
                     <div class="arrow">→</div>
-                    <div class="to"><div class="lbl">Simulata</div><div class="num tabular" id="simSimulated">–</div></div>
+                    <div class="to"><div class="lbl"><?php te('voti.simulata'); ?></div><div class="num tabular" id="simSimulated">–</div></div>
                     <div class="diff tabular" id="simDiff"></div>
                 </div>
                 <p class="sim-hint" id="simHint"></p>
@@ -1053,24 +659,24 @@ body{
             <!-- lista esami -->
             <ul class="exam-list" id="examList"></ul>
             <div class="sel-bar" id="examSelBar" style="display:none">
-                <span class="n" id="selCount">0 selezionati</span>
-                <button type="button" class="b-grp" id="selCreateBtn" onclick="uniOpenGroupSheet(null)">Crea gruppo</button>
-                <button type="button" class="b-ungrp" id="selUngroupBtn" onclick="uniDissolveSelectedGroups()" style="display:none">Sciogli gruppo</button>
-                <button type="button" class="b-del" onclick="uniDeleteSelected()">Elimina</button>
+                <span class="n" id="selCount"><?php te('voti.0_selezionati'); ?></span>
+                <button type="button" class="b-grp" id="selCreateBtn" onclick="uniOpenGroupSheet(null)"><?php te('voti.crea_gruppo'); ?></button>
+                <button type="button" class="b-ungrp" id="selUngroupBtn" onclick="uniDissolveSelectedGroups()" style="display:none"><?php te('voti.sciogli_gruppo'); ?></button>
+                <button type="button" class="b-del" onclick="uniDeleteSelected()"><?php te('voti.elimina'); ?></button>
             </div>
-            <button class="exam-add" id="examAddBtn" onclick="uniOpenExam()">＋ Aggiungi esame</button>
+            <button class="exam-add" id="examAddBtn" onclick="uniOpenExam()"><?php te('voti.aggiungi_esame'); ?></button>
         </section>
 
         <!-- STATISTICHE -->
         <section class="uni-card pop" style="animation-delay:.22s">
-            <div class="sec-head"><span class="sec-ic" style="background:var(--orange)">📊</span><h2>Statistiche</h2></div>
+            <div class="sec-head"><span class="sec-ic" style="background:var(--orange)">📊</span><h2><?php te('voti.statistiche'); ?></h2></div>
             <div id="statsBody"></div>
         </section>
 
         <!-- TESI & BONUS -->
         <section class="uni-card pop" id="secBonus" style="animation-delay:.26s">
-            <div class="sec-head"><span class="sec-ic" style="background:var(--gold)">🎓</span><h2>Tesi &amp; Bonus</h2>
-                <button class="sec-act" onclick="uniOpenBonus()">＋ Bonus</button>
+            <div class="sec-head"><span class="sec-ic" style="background:var(--gold)">🎓</span><h2><?php te('voti.tesi_bonus'); ?></h2>
+                <button class="sec-act" onclick="uniOpenBonus()"><?php te('voti.bonus'); ?></button>
             </div>
             <div id="thesisBody"></div>
             <div style="height:8px"></div>
@@ -1086,104 +692,104 @@ body{
 <!-- Exam editor -->
 <div class="sheet" id="examSheet">
     <div class="grab"></div>
-    <h3 id="exSheetTitle">Esame</h3>
-    <p class="sub">Nome, crediti e voto</p>
-    <div class="field"><label>Nome esame</label><input type="text" id="exName" placeholder="es. Analisi Matematica"></div>
+    <h3 id="exSheetTitle"><?php te('voti.esame'); ?></h3>
+    <p class="sub"><?php te('voti.nome_crediti_e_voto'); ?></p>
+    <div class="field"><label><?php te('voti.nome_esame'); ?></label><input type="text" id="exName" placeholder="<?php te('voti.es_analisi_matematica'); ?>"></div>
     <div class="field"><div class="row2">
-        <div><label>CFU</label><input type="number" id="exCfu" min="0" max="90" step="0.5" value="6"></div>
-        <div><label>Anno</label><select id="exYear"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
+        <div><label><?php te('voti.cfu'); ?></label><input type="number" id="exCfu" min="0" max="90" step="0.5" value="6"></div>
+        <div><label><?php te('voti.anno'); ?></label><select id="exYear"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
     </div></div>
-    <div class="field"><label>Stato</label><div class="chip-row">
-        <button type="button" class="chip-tog on" id="chipTodo" onclick="uniExamSetStatus('todo')">Da sostenere</button>
-        <button type="button" class="chip-tog" id="chipDone" onclick="uniExamSetStatus('done')">Sostenuto</button>
+    <div class="field"><label><?php te('voti.stato'); ?></label><div class="chip-row">
+        <button type="button" class="chip-tog on" id="chipTodo" onclick="uniExamSetStatus('todo')"><?php te('voti.da_sostenere'); ?></button>
+        <button type="button" class="chip-tog" id="chipDone" onclick="uniExamSetStatus('done')"><?php te('voti.sostenuto'); ?></button>
     </div></div>
-    <div class="field"><label>Tipologia</label><div class="chip-row">
-        <button type="button" class="chip-tog on" id="chipGraded" onclick="uniExamSetPF(false)">Con voto</button>
-        <button type="button" class="chip-tog" id="chipIdo" onclick="uniExamSetPF(true)">Idoneità</button>
+    <div class="field"><label><?php te('voti.tipologia'); ?></label><div class="chip-row">
+        <button type="button" class="chip-tog on" id="chipGraded" onclick="uniExamSetPF(false)"><?php te('voti.con_voto'); ?></button>
+        <button type="button" class="chip-tog" id="chipIdo" onclick="uniExamSetPF(true)"><?php te('voti.idoneita'); ?></button>
     </div></div>
     <div class="field" id="exGradeBlock">
-        <label id="exGradeHint">Voto</label>
+        <label id="exGradeHint"><?php te('voti.voto'); ?></label>
         <div class="grade-picker">
             <button type="button" onclick="uniExamGrade(-1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">−</button>
             <div class="gbig tabular" id="exGradeBig">26</div>
             <button type="button" onclick="uniExamGrade(1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">＋</button>
         </div>
         <div class="chip-row" style="justify-content:center;margin-top:8px">
-            <button type="button" class="chip-tog gold" id="exLodeChip" style="display:none" onclick="uniExamToggleLode()">🌟 30 e Lode</button>
-            <button type="button" class="chip-tog" id="exClearGradeChip" style="display:none" onclick="uniExamClearGrade()">✕ Pulisci voto previsto</button>
+            <button type="button" class="chip-tog gold" id="exLodeChip" style="display:none" onclick="uniExamToggleLode()"><?php te('voti.30_e_lode'); ?></button>
+            <button type="button" class="chip-tog" id="exClearGradeChip" style="display:none" onclick="uniExamClearGrade()"><?php te('voti.pulisci_voto_previsto'); ?></button>
         </div>
     </div>
-    <div class="field" id="exDateBlock" style="display:none"><label>Data</label><input type="date" id="exDate"></div>
-    <div class="field"><label>Avanzate (facoltative)</label><div class="row2">
-        <div><input type="text" id="exSsd" placeholder="SSD (es. MAT/05)"></div>
-        <div><input type="number" id="exNat" min="18" max="30" step="0.01" placeholder="Media classe"></div>
+    <div class="field" id="exDateBlock" style="display:none"><label><?php te('voti.data'); ?></label><input type="date" id="exDate"></div>
+    <div class="field"><label><?php te('voti.avanzate_facoltative'); ?></label><div class="row2">
+        <div><input type="text" id="exSsd" placeholder="<?php te('voti.ssd_es_mat_05'); ?>"></div>
+        <div><input type="number" id="exNat" min="18" max="30" step="0.01" placeholder="<?php te('voti.media_classe'); ?>"></div>
     </div></div>
     <div class="field" id="exGroupWrap" style="display:none">
-        <label>Gruppo</label>
+        <label><?php te('voti.gruppo'); ?></label>
         <div class="mini-row" style="border:none; padding:0">
             <span id="exGroupName" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; font-size:.88rem"></span>
-            <button type="button" class="pill-btn ghost" style="flex-shrink:0; padding:9px 12px" onclick="uniEditExamGroup()">Modifica</button>
-            <button type="button" class="pill-btn ghost" style="flex-shrink:0; padding:9px 12px" onclick="uniDissolveGroup()">Sciogli</button>
+            <button type="button" class="pill-btn ghost" style="flex-shrink:0; padding:9px 12px" onclick="uniEditExamGroup()"><?php te('voti.modifica'); ?></button>
+            <button type="button" class="pill-btn ghost" style="flex-shrink:0; padding:9px 12px" onclick="uniDissolveGroup()"><?php te('voti.sciogli'); ?></button>
         </div>
     </div>
     <div class="sheet-actions">
         <button type="button" class="btn-danger" id="exDeleteBtn" onclick="uniDeleteExam()" style="display:none">🗑</button>
-        <button type="button" class="btn-secondary" onclick="uniCloseSheets()">Annulla</button>
-        <button type="button" class="btn-primary" onclick="uniSaveExam()">Salva</button>
+        <button type="button" class="btn-secondary" onclick="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
+        <button type="button" class="btn-primary" onclick="uniSaveExam()"><?php te('voti.salva'); ?></button>
     </div>
 </div>
 
 <!-- Gruppo di esami -->
 <div class="sheet" id="groupSheet">
     <div class="grab"></div>
-    <h3 id="grpSheetTitle">Crea gruppo</h3>
-    <p class="sub">Compatta più esami insieme</p>
-    <div class="field"><label>Nome gruppo</label><input type="text" id="grpName" placeholder="es. Esame a scelta"></div>
-    <div class="field"><label>Tipologia gruppo</label><div class="chip-row">
-        <button type="button" class="chip-tog on" id="grpTypeChoice" onclick="uniGroupSetType('choice')">1 · Esami a scelta</button>
-        <button type="button" class="chip-tog" id="grpTypeSplit" onclick="uniGroupSetType('split')">2 · Esame suddiviso</button>
+    <h3 id="grpSheetTitle"><?php te('voti.crea_gruppo'); ?></h3>
+    <p class="sub"><?php te('voti.compatta_piu_esami_insieme'); ?></p>
+    <div class="field"><label><?php te('voti.nome_gruppo'); ?></label><input type="text" id="grpName" placeholder="<?php te('voti.es_esame_a_scelta'); ?>"></div>
+    <div class="field"><label><?php te('voti.tipologia_gruppo'); ?></label><div class="chip-row">
+        <button type="button" class="chip-tog on" id="grpTypeChoice" onclick="uniGroupSetType('choice')"><?php te('voti.1_esami_a_scelta'); ?></button>
+        <button type="button" class="chip-tog" id="grpTypeSplit" onclick="uniGroupSetType('split')"><?php te('voti.2_esame_suddiviso'); ?></button>
     </div></div>
     <p class="grp-type-hint" id="grpTypeHint"></p>
     <div class="field" id="grpQuotaWrap">
-        <label>CFU totali gruppo</label>
+        <label><?php te('voti.cfu_totali_gruppo'); ?></label>
         <div class="chip-row" id="grpQuotaRow"></div>
     </div>
     <div class="field">
-        <label>Esami nel gruppo (<span id="grpPickCount">0</span> selezionati)</label>
+        <label><?php th('voti.esami_nel_gruppo', ['n' => '<span id="grpPickCount">0</span>']); ?></label>
         <ul class="grp-pick-list" id="grpPickList"></ul>
     </div>
     <div class="sheet-actions">
         <button type="button" class="btn-danger" id="grpDeleteBtn" onclick="uniDissolveGroupFromSheet()" style="display:none">🗑</button>
-        <button type="button" class="btn-secondary" onclick="uniCloseSheets()">Annulla</button>
-        <button type="button" class="btn-primary" onclick="uniSaveGroup()">Salva</button>
+        <button type="button" class="btn-secondary" onclick="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
+        <button type="button" class="btn-primary" onclick="uniSaveGroup()"><?php te('voti.salva'); ?></button>
     </div>
 </div>
 
 <!-- Quick grade -->
 <div class="sheet" id="gradeSheet">
     <div class="grab"></div>
-    <h3>Registra voto</h3>
-    <p class="sub" id="gradeSheetName">Esame</p>
+    <h3><?php te('voti.registra_voto'); ?></h3>
+    <p class="sub" id="gradeSheetName"><?php te('voti.esame'); ?></p>
     <div class="grade-picker">
         <button type="button" onclick="uniQuickGrade(-1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">−</button>
         <div class="gbig tabular" id="qgBig">26</div>
         <button type="button" onclick="uniQuickGrade(1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">＋</button>
     </div>
     <div class="chip-row" style="justify-content:center;margin-top:10px">
-        <button type="button" class="chip-tog gold" id="qgLode" style="display:none" onclick="uniQuickLode()">🌟 30 e Lode</button>
-        <button type="button" class="chip-tog" id="qgIdo" onclick="uniQuickIdo()">Idoneità</button>
+        <button type="button" class="chip-tog gold" id="qgLode" style="display:none" onclick="uniQuickLode()"><?php te('voti.30_e_lode'); ?></button>
+        <button type="button" class="chip-tog" id="qgIdo" onclick="uniQuickIdo()"><?php te('voti.idoneita'); ?></button>
     </div>
     <div class="sheet-actions" style="margin-top:16px">
-        <button type="button" class="btn-secondary" onclick="uniCloseSheets()">Annulla</button>
-        <button type="button" class="btn-primary" onclick="uniQuickSave()">Registra ✓</button>
+        <button type="button" class="btn-secondary" onclick="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
+        <button type="button" class="btn-primary" onclick="uniQuickSave()"><?php te('voti.registra'); ?></button>
     </div>
 </div>
 
 <!-- Target -->
 <div class="sheet" id="targetSheet">
     <div class="grab"></div>
-    <h3>Il tuo obiettivo</h3>
-    <p class="sub">Quale media vuoi raggiungere?</p>
+    <h3><?php te('voti.il_tuo_obiettivo'); ?></h3>
+    <p class="sub"><?php te('voti.quale_media_vuoi_raggiungere'); ?></p>
     <div class="grade-picker">
         <button type="button" onclick="uniTargetStep(-1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">−</button>
         <div class="gbig tabular" id="tgtBig">28.00</div>
@@ -1194,80 +800,80 @@ body{
     <div id="tgtVis" style="opacity:0.65; margin-bottom:20px;"></div>
     
     <div class="sheet-actions">
-        <button type="button" class="btn-danger" onclick="uniClearTarget()" style="width:auto;padding:15px 16px;font-size:.9rem">Rimuovi</button>
-        <button type="button" class="btn-secondary" onclick="uniCloseSheets()">Annulla</button>
-        <button type="button" class="btn-primary" onclick="uniSaveTarget()">Salva</button>
+        <button type="button" class="btn-danger" onclick="uniClearTarget()" style="width:auto;padding:15px 16px;font-size:.9rem"><?php te('voti.rimuovi'); ?></button>
+        <button type="button" class="btn-secondary" onclick="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
+        <button type="button" class="btn-primary" onclick="uniSaveTarget()"><?php te('voti.salva'); ?></button>
     </div>
 </div>
 
 <!-- Bonus -->
 <div class="sheet" id="bonusSheet">
     <div class="grab"></div>
-    <h3>Bonus punti</h3>
-    <p class="sub">Punti extra sul voto di laurea</p>
-    <div class="field"><label>Nome</label><input type="text" id="bnName" placeholder="es. Laurea in corso"></div>
-    <div class="field"><label>Tipo</label><select id="bnType" onchange="uniBonusTypeChange()">
-        <option value="on_time">Laurea in corso</option>
-        <option value="honors_each">Punti per ogni lode</option>
-        <option value="honors_threshold">Soglia di lodi</option>
-        <option value="fixed">Bonus fisso</option>
-        <option value="custom">Personalizzato</option>
+    <h3><?php te('voti.bonus_punti'); ?></h3>
+    <p class="sub"><?php te('voti.punti_extra_sul_voto_di'); ?></p>
+    <div class="field"><label><?php te('voti.nome'); ?></label><input type="text" id="bnName" placeholder="<?php te('voti.es_laurea_in_corso'); ?>"></div>
+    <div class="field"><label><?php te('voti.tipo'); ?></label><select id="bnType" onchange="uniBonusTypeChange()">
+        <option value="on_time"><?php te('voti.laurea_in_corso'); ?></option>
+        <option value="honors_each"><?php te('voti.punti_per_ogni_lode'); ?></option>
+        <option value="honors_threshold"><?php te('voti.soglia_di_lodi'); ?></option>
+        <option value="fixed"><?php te('voti.bonus_fisso'); ?></option>
+        <option value="custom"><?php te('voti.personalizzato'); ?></option>
     </select></div>
-    <div class="field"><label id="bnPointsLabel">Punti</label><input type="number" id="bnPoints" min="-20" max="20" step="0.5" value="1"></div>
-    <div class="field" id="bnThrWrap" style="display:none"><label>Lodi necessarie</label><input type="number" id="bnThreshold" min="0" max="100" step="1" value="3"></div>
-    <div class="field" id="bnCapWrap" style="display:none"><label>Massimo punti (0 = nessun limite)</label><input type="number" id="bnCap" min="0" max="40" step="0.5" placeholder="nessun limite"></div>
+    <div class="field"><label id="bnPointsLabel"><?php te('voti.punti'); ?></label><input type="number" id="bnPoints" min="-20" max="20" step="0.5" value="1"></div>
+    <div class="field" id="bnThrWrap" style="display:none"><label><?php te('voti.lodi_necessarie'); ?></label><input type="number" id="bnThreshold" min="0" max="100" step="1" value="3"></div>
+    <div class="field" id="bnCapWrap" style="display:none"><label><?php te('voti.massimo_punti_0_nessun_limite'); ?></label><input type="number" id="bnCap" min="0" max="40" step="0.5" placeholder="<?php te('voti.nessun_limite'); ?>"></div>
     <p class="sub" id="bnPreview" style="text-align:left;background:var(--surface-2);padding:12px;border-radius:12px"></p>
     <div class="sheet-actions">
         <button type="button" class="btn-danger" id="bnDeleteBtn" onclick="uniDeleteBonus()" style="display:none">🗑</button>
-        <button type="button" class="btn-secondary" onclick="uniCloseSheets()">Annulla</button>
-        <button type="button" class="btn-primary" onclick="uniSaveBonus()">Salva</button>
+        <button type="button" class="btn-secondary" onclick="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
+        <button type="button" class="btn-primary" onclick="uniSaveBonus()"><?php te('voti.salva'); ?></button>
     </div>
 </div>
 
 <!-- Settings -->
 <div class="sheet" id="settingsSheet">
     <div class="grab"></div>
-    <h3>Impostazioni</h3>
-    <p class="sub">Corso, colori e regole di calcolo</p>
-    <div class="field"><label>Corso di laurea</label>
+    <h3><?php te('voti.impostazioni'); ?></h3>
+    <p class="sub"><?php te('voti.corso_colori_e_regole_di'); ?></p>
+    <div class="field"><label><?php te('voti.corso_di_laurea'); ?></label>
         <div class="prog-opt" onclick="uniOpenProgram()">
             <div class="pi" id="setProgIcon" style="background:var(--uni-grad)">🎓</div>
-            <div class="pt"><div class="pn" id="setProgName">Nessun corso</div><div class="pd" id="setProgDesc">Tocca per scegliere</div></div>
+            <div class="pt"><div class="pn" id="setProgName"><?php te('voti.nessun_corso'); ?></div><div class="pd" id="setProgDesc"><?php te('voti.tocca_per_scegliere'); ?></div></div>
             <div class="chev">›</div>
         </div>
     </div>
-    <div class="field"><label>Nome corso (personalizzato)</label><input type="text" id="setLabel" placeholder="es. Ingegneria Informatica"></div>
-    <div class="field"><label>Colore (facoltà)</label><div class="color-row" id="setColors"></div></div>
+    <div class="field"><label><?php te('voti.nome_corso_personalizzato'); ?></label><input type="text" id="setLabel" placeholder="<?php te('voti.es_ingegneria_informatica'); ?>"></div>
+    <div class="field"><label><?php te('voti.colore_facolta'); ?></label><div class="color-row" id="setColors"></div></div>
     <div class="field"><div class="row2">
-        <div><label>CFU totali</label><input type="number" id="setTotalCfu" min="1" max="600" step="1" value="180"></div>
-        <div><label>Base (es. 110)</label><input type="number" id="setBase" min="30" max="200" step="1" value="110"></div>
+        <div><label><?php te('voti.cfu_totali'); ?></label><input type="number" id="setTotalCfu" min="1" max="600" step="1" value="180"></div>
+        <div><label><?php te('voti.base_es_110'); ?></label><input type="number" id="setBase" min="30" max="200" step="1" value="110"></div>
     </div></div>
-    <div class="field"><label>Valore della lode nella media</label><div class="chip-row" id="setLodeVal">
+    <div class="field"><label><?php te('voti.valore_della_lode_nella_media'); ?></label><div class="chip-row" id="setLodeVal">
         <button type="button" class="chip-tog" data-val="30" onclick="uniSetLodeVal(30)">30</button>
         <button type="button" class="chip-tog" data-val="30.5" onclick="uniSetLodeVal(30.5)">30,5</button>
         <button type="button" class="chip-tog" data-val="31" onclick="uniSetLodeVal(31)">31</button>
         <button type="button" class="chip-tog" data-val="32" onclick="uniSetLodeVal(32)">32</button>
     </div></div>
     <div class="field"><div class="row2">
-        <div><label>Tesi min (+)</label><input type="number" id="setThMin" min="0" max="30" step="0.5" value="0"></div>
-        <div><label>Tesi max (+)</label><input type="number" id="setThMax" min="0" max="30" step="0.5" value="0"></div>
+        <div><label><?php te('voti.tesi_min'); ?></label><input type="number" id="setThMin" min="0" max="30" step="0.5" value="0"></div>
+        <div><label><?php te('voti.tesi_max'); ?></label><input type="number" id="setThMax" min="0" max="30" step="0.5" value="0"></div>
     </div></div>
-    <div class="mini-row"><span style="flex:1;font-size:.9rem;font-weight:600">Arrotonda la base per eccesso</span>
+    <div class="mini-row"><span style="flex:1;font-size:.9rem;font-weight:600"><?php te('voti.arrotonda_la_base_per_eccesso'); ?></span>
         <label class="sw-toggle"><input type="checkbox" id="setRound"><span class="track"></span><span class="thumb"></span></label>
     </div>
     <div class="sheet-actions" style="margin-top:14px">
-        <button type="button" class="btn-secondary" onclick="uniCloseSheets()">Annulla</button>
-        <button type="button" class="btn-primary" onclick="uniSaveSettings()">Salva</button>
+        <button type="button" class="btn-secondary" onclick="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
+        <button type="button" class="btn-primary" onclick="uniSaveSettings()"><?php te('voti.salva'); ?></button>
     </div>
 </div>
 
 <!-- Program picker -->
 <div class="sheet" id="programSheet">
     <div class="grab"></div>
-    <h3>Scegli il tuo corso</h3>
-    <p class="sub">Precompiliamo esami, CFU e colori</p>
+    <h3><?php te('voti.scegli_il_tuo_corso'); ?></h3>
+    <p class="sub"><?php te('voti.precompiliamo_esami_cfu_e_colori'); ?></p>
     <div class="field">
-        <input type="text" id="progSearch" placeholder="Cerca corso o facoltà…" autocomplete="off" oninput="uniFilterPrograms()">
+        <input type="text" id="progSearch" placeholder="<?php te('voti.cerca_corso_o_facolta'); ?>" autocomplete="off" oninput="uniFilterPrograms()">
     </div>
     <ul class="prog-list" id="progList"></ul>
 </div>
@@ -1558,8 +1164,8 @@ function renderHero(){
   var hs=$('heroStats'); if(hs) hs.classList.toggle('cols-2', lodi<=0);
   var delta=$('avgDelta'), tgt=S().target_average!=null?parseFloat(S().target_average):null;
   if(delta){ if(tgt!=null && avg>0){ var d=avg-tgt; delta.style.display='';
-      if(Math.abs(d)<0.005){ delta.className='hero-delta flat'; delta.textContent='● obiettivo raggiunto'; }
-      else { delta.className='hero-delta '+(d>0?'up':'down'); delta.textContent=(d>0?'▲ +':'▼ ')+fmt2(Math.abs(d))+' vs obiettivo'; }
+      if(Math.abs(d)<0.005){ delta.className='hero-delta flat'; delta.textContent=T('voti.obiettivo_centrato'); }
+      else { delta.className='hero-delta '+(d>0?'up':'down'); delta.textContent=T('voti.vs_obiettivo',{scarto:(d>0?'▲ +':'▼ ')+fmt2(Math.abs(d))}); }
     } else delta.style.display='none'; }
   var fr=finalRange(avg,false);
   var gb=gradeBase();
@@ -1568,47 +1174,47 @@ function renderHero(){
     setHTML('rangeText', rangeStr+'<span class="denom">/'+gb+'</span>');
     setHTML('rangeVis', thesisVisHTML(fr.min, fr.max));
   } else { setTxt('rangeText','–'); setHTML('rangeVis',''); }
-  setTxt('rangeThesisNote', (S().thesis_max_points>0?'tesi +'+trimNum(S().thesis_min_points||0)+' • +'+trimNum(S().thesis_max_points||0):''));
+  setTxt('rangeThesisNote', (S().thesis_max_points>0?T('voti.tesi_da_a',{min:trimNum(S().thesis_min_points||0),max:trimNum(S().thesis_max_points||0)}):''));
   setTxt('cfuDone',trimNum(cs.done)); setTxt('cfuPlan',trimNum(cs.plan)); setTxt('cfuTot',trimNum(cs.total));
   var bd=$('cfuBarDone'),bp=$('cfuBarPlan');
   if(bd&&bp){ bd.style.width=(cs.total>0?cs.done/cs.total*100:0)+'%'; bp.style.width=(cs.total>0?cs.plan/cs.total*100:0)+'%'; }
   if(tgt!=null && avg>0){ if(avg>=tgt && !STATE._reached){ STATE._reached=true;
-      setTimeout(function(){ burst(); toast('🎯 Obiettivo raggiunto!'); },250); } else if(avg<tgt){ STATE._reached=false; } }
+      setTimeout(function(){ burst(); toast(T('voti.obiettivo_raggiunto')); },250); } else if(avg<tgt){ STATE._reached=false; } }
 }
 function renderObjective(){
   var body=$('targetBody'); if(!body) return;
   var tgt=S().target_average!=null?parseFloat(S().target_average):null, avg=weighted(STATE.exams).avg;
   if(tgt==null){ body.innerHTML='<div class="empty" style="padding:10px 10px 4px"><div class="em-ic" style="width:60px;height:60px;font-size:26px">🎯</div>'+
-    '<p>Fissa un traguardo per la tua media e scopri cosa ti serve per raggiungerlo.</p>'+
-    '<button class="pill-btn accent" onclick="uniOpenTarget()">Imposta obiettivo</button></div>'; return; }
-  var d=avg-tgt, reached=avg>=tgt-0.0001, src=S().target_source==='simulation'?'da simulazione':'manuale';
+    '<p>'+T('voti.fissa_un_traguardo')+'</p>'+
+    '<button class="pill-btn accent" onclick="uniOpenTarget()">'+T('voti.imposta_obiettivo')+'</button></div>'; return; }
+  var d=avg-tgt, reached=avg>=tgt-0.0001, src=S().target_source==='simulation'?T('voti.origine_simulazione'):T('voti.origine_manuale');
   var h='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'+
     '<div><div style="font-size:2.2rem;font-weight:800;letter-spacing:-.02em" class="tabular">'+fmt2(tgt)+'</div>'+
-    '<div style="font-size:.78rem;color:var(--text-3)">obiettivo media · '+src+'</div></div>'+
+    '<div style="font-size:.78rem;color:var(--text-3)">'+T('voti.obiettivo_media_origine',{origine:src})+'</div></div>'+
     '<span class="hero-delta '+(reached?'up':'down')+'">'+(d>=0?'+':'')+fmt2(d)+'</span></div>';
   var pct=tgt>18?Math.max(0,Math.min(100,(avg-18)/(tgt-18)*100)):100;
   h+='<div style="height:9px;background:var(--surface-3);border-radius:5px;overflow:hidden;margin:12px 0 10px">'+
      '<div style="height:100%;width:'+pct+'%;background:var(--uni-grad);border-radius:5px;transition:width .6s var(--spring)"></div></div>';
-  if(reached){ h+='<p style="margin:0;color:var(--text-2);font-size:.88rem">🎉 Sei già sopra il tuo obiettivo. Continua così per mantenerlo!</p>'; }
+  if(reached){ h+='<p style="margin:0;color:var(--text-2);font-size:.88rem">'+T('voti.gia_sopra_obiettivo')+'</p>'; }
   else { var rf=requiredFuture(tgt);
-    if(rf==null) h+='<p style="margin:0;color:var(--text-2);font-size:.88rem">Aggiungi altri esami con voto per calcolare cosa ti serve.</p>';
-    else if(!rf.feasible) h+='<p style="margin:0;color:var(--text-2);font-size:.88rem">Per '+fmt2(tgt)+' servirebbe una media di '+fmt2(rf.req)+' nei restanti '+trimNum(rf.remainingCfu)+' CFU \u2014 oltre il 30. Prova ad abbassare un po\' l\'obiettivo.</p>';
-    else h+='<p style="margin:0;color:var(--text-2);font-size:.88rem">Ti basta una media di <b style="color:var(--text)">'+fmt2(rf.req)+'</b> nei restanti <b style="color:var(--text)">'+trimNum(rf.remainingCfu)+' CFU</b> per centrarlo.</p>'; }
+    if(rf==null) h+='<p style="margin:0;color:var(--text-2);font-size:.88rem">'+T('voti.aggiungi_altri_esami_con_voto')+'</p>';
+    else if(!rf.feasible) h+='<p style="margin:0;color:var(--text-2);font-size:.88rem">'+T('voti.obiettivo_fuori_portata',{obiettivo:fmt2(tgt),media:fmt2(rf.req),cfu:trimNum(rf.remainingCfu)})+'</p>';
+    else h+='<p style="margin:0;color:var(--text-2);font-size:.88rem">'+T('voti.ti_basta_una_media',{media:'<b style="color:var(--text)">'+fmt2(rf.req)+'</b>',cfu:'<b style="color:var(--text)">'+trimNum(rf.remainingCfu)+' CFU</b>'})+'</p>'; }
 
   var frTgt = finalRange(tgt, false);
 
   h += '<div style="margin-top:32px; opacity:0.60;">';
-  h += '<div style="font-size:.65rem; font-weight:800; color:var(--text-2); text-transform:uppercase; margin-bottom:6px; letter-spacing:.5px;">Voto di laurea ambito</div>';
+  h += '<div style="font-size:.65rem; font-weight:800; color:var(--text-2); text-transform:uppercase; margin-bottom:6px; letter-spacing:.5px;">'+T('voti.voto_di_laurea_ambito')+'</div>';
   h += '<div class="thesis-vis" style="margin-top:0">'+thesisVisHTML(frTgt.min, frTgt.max)+'</div>';
   h += '</div>';
 
-  h+='<div class="mini-row" style="margin-top:6px;justify-content:flex-end"><button class="pill-btn ghost" onclick="uniOpenTarget()">Modifica</button></div>';
+  h+='<div class="mini-row" style="margin-top:6px;justify-content:flex-end"><button class="pill-btn ghost" onclick="uniOpenTarget()">'+T('voti.modifica')+'</button></div>';
   body.innerHTML=h;
 }
 function renderChart(){
   var box=$('chartBox'); if(!box) return;
   var td=trendData(), real=td.real, proj=td.proj;
-  if(!real.length){ box.innerHTML='<div class="chart-empty">Registra i primi voti per vedere l\'andamento della media.</div>'; return; }
+  if(!real.length){ box.innerHTML='<div class="chart-empty">'+T('voti.registra_i_primi_voti')+'</div>'; return; }
   var W=340,H=196,padL=30,padR=10,padT=12,padB=24,innerW=W-padL-padR,innerH=H-padT-padB;
   var maxI=1; for(var i=0;i<real.length;i++) maxI=Math.max(maxI,real[i].i);
   for(var j=0;j<proj.length;j++) maxI=Math.max(maxI,proj[j].i);
@@ -1630,7 +1236,7 @@ function renderChart(){
 }
 function chartDot(cx,cy,color,hollow,p){
   var fx=cx/340,fy=cy/196;
-  var lbl=(p.name?shortName(p.name,20):'')+(p.grade!=null?' \u00b7 '+(p.lode?'30L':Math.round(p.grade)):'')+(p.predicted?' (previsto)':'')+(p.date?' \u00b7 '+fmtDate(p.date):'');
+  var lbl=(p.name?shortName(p.name,20):'')+(p.grade!=null?' \u00b7 '+(p.lode?'30L':Math.round(p.grade)):'')+(p.predicted?(' '+T('voti.previsto_par')):'')+(p.date?' \u00b7 '+fmtDate(p.date):'');
   return '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="3.5" fill="'+(hollow?'var(--surface)':color)+'" stroke="'+color+'" stroke-width="2"/>'+
     '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="12" fill="transparent" class="chart-hit" data-fx="'+fx.toFixed(4)+'" data-fy="'+fy.toFixed(4)+'" data-lbl="'+escAttr(lbl.trim())+'"/>';
 }
@@ -1673,9 +1279,9 @@ function renderSimulator(){
   todo.sort(function(a,b){ var ya=a.study_year||99, yb=b.study_year||99;
     if(ya!==yb) return ya-yb; return (a.sort_order||0)-(b.sort_order||0); });
   var hasChoice=false; for(var q=0;q<todo.length;q++){ if(isChoiceGroup(findGroup(todo[q].group_id))){ hasChoice=true; break; } }
-  setTxt('simHint','Assegna un voto ipotetico agli esami che ti mancano: la media si aggiorna in tempo reale.'+
-    (hasChoice?' Negli esami a scelta puoi simulare più voti insieme, fino a coprire i CFU della quota del gruppo.':''));
-  if(!todo.length){ list.innerHTML='<div class="empty" style="padding:16px 10px"><p style="margin:0">Nessun esame da simulare: li hai sostenuti tutti. \ud83c\udf89</p></div>'; return; }
+  setTxt('simHint',T('voti.assegna_voto_ipotetico')+
+    (hasChoice?(' '+T('voti.simula_piu_voti')):''));
+  if(!todo.length){ list.innerHTML='<div class="empty" style="padding:16px 10px"><p style="margin:0">'+T('voti.nessun_esame_da_simulare')+'</p></div>'; return; }
   var blocks=clusterByGroup(todo), h='';
   for(var i=0;i<blocks.length;i++){ var b=blocks[i]; h += b.type==='single' ? simRow(b.item) : simGroupBlock(b.gid,b.items); }
   list.innerHTML=h;
@@ -1687,7 +1293,7 @@ function simRow(e){
   if(toBool(e.is_pass_fail)){
     return '<li class="sim-item" data-id="'+id+'">'+
       '<div class="nm">'+esc(shortName(e.name,22))+'<small style="display:block;font-size:.72rem;font-weight:600">'+trimNum(e.cfu)+' CFU</small></div>'+
-      '<div style="margin-left:auto; font-size:.85rem; font-weight:700; color:var(--text-3); padding-right:8px; display:flex; align-items:center; height:36px;">Idoneità</div>'+
+      '<div style="margin-left:auto; font-size:.85rem; font-weight:700; color:var(--text-3); padding-right:8px; display:flex; align-items:center; height:36px;">'+T('voti.idoneita')+'</div>'+
     '</li>';
   }
   
@@ -1708,11 +1314,11 @@ function simGroupBlock(gid,items){
   var isSplit=isSplitGroup(g), gidA=escAttr(gid);
   var h='<li class="sim-group" data-id="'+gidA+'"><div class="sim-group-inner">'+
     '<div class="sim-group-head"><span class="gt-name" style="flex:1;font-weight:800;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="uniOpenGroupSheet(\''+gidA+'\')">'+esc(g.name)+'</span>'+
-    '<span class="gt-badge'+(isSplit?' split':'')+'">'+(isSplit?'Suddiviso':'A scelta')+'</span></div>';
+    '<span class="gt-badge'+(isSplit?' split':'')+'">'+(isSplit?T('voti.suddiviso'):T('voti.a_scelta_maiusc'))+'</span></div>';
   if(!isSplit){
     var qp=groupQuotaProgress(gid);
-    var lbl='Quota gruppo: '+trimNum(qp.done)+' sostenuti'+(qp.pred>0?(' + '+trimNum(qp.pred)+' previsti'):'')+' su '+trimNum(qp.quota)+' CFU.';
-    if(qp.done+qp.pred >= qp.quota-0.001) lbl+=' Quota coperta.';
+    var lbl=T('voti.quota_gruppo',{sostenuti:trimNum(qp.done),previsti:(qp.pred>0?T('voti.quota_previsti',{n:trimNum(qp.pred)}):''),quota:trimNum(qp.quota)});
+    if(qp.done+qp.pred >= qp.quota-0.001) lbl+=T('voti.quota_coperta');
     h+='<div class="grp-note">'+lbl+'</div>'; }
   h+='<ul class="sim-list" style="margin:0;padding:0">';
   for(var i=0;i<items.length;i++) h+=simRow(items[i]);
@@ -1723,7 +1329,7 @@ function simGroupBlock(gid,items){
     var cur=hasOverride?g.overall_predicted_grade:prop;
     var curHon=hasOverride?toBool(g.overall_predicted_honors):false;
     var val=cur!=null?(curHon?'30L':cur):'–';
-    h+='<div class="grp-overall"><span class="go-lbl">Voto complessivo gruppo'+(prop!=null&&!hasOverride?' (proposto)':'')+'</span>'+
+    h+='<div class="grp-overall"><span class="go-lbl">'+T('voti.voto_complessivo_gruppo')+(prop!=null&&!hasOverride?(' '+T('voti.proposto_par')):'')+'</span>'+
       '<div class="stepper"><button type="button" onclick="uniGroupPredStep(\''+gidA+'\',-1)">\u2212</button>'+
       '<span class="val'+(curHon?' lode':'')+'">'+val+'</span>'+
       '<button type="button" onclick="uniGroupPredStep(\''+gidA+'\',1)">+</button></div>'+
@@ -1746,7 +1352,7 @@ function groupQuotaBlocksNewPrediction(e){
 function uniSimStep(id,d){ var e=findExam(id); if(!e) return;
   if(e.predicted_grade==null){
     var block=groupQuotaBlocksNewPrediction(e);
-    if(block){ toast('Quota del gruppo già coperta ('+trimNum(block.used)+'/'+trimNum(block.rem)+' CFU): togli un altro voto prima di aggiungerne uno nuovo.'); return; }
+    if(block){ toast(T('voti.quota_gia_coperta',{usati:trimNum(block.used),totali:trimNum(block.rem)})); return; }
     e.predicted_grade=26;
   } else e.predicted_grade=clampG(parseFloat(e.predicted_grade)+d);
   if(parseFloat(e.predicted_grade)<30) e.predicted_honors=false; persistPred(e); afterPred(); }
@@ -1754,7 +1360,7 @@ function uniSimLode(id){ var e=findExam(id); if(!e) return;
   if(e.predicted_grade==null || parseFloat(e.predicted_grade)<30){
     if(e.predicted_grade==null){
       var block=groupQuotaBlocksNewPrediction(e);
-      if(block){ toast('Quota del gruppo già coperta ('+trimNum(block.used)+'/'+trimNum(block.rem)+' CFU): togli un altro voto prima di aggiungerne uno nuovo.'); return; }
+      if(block){ toast(T('voti.quota_gia_coperta',{usati:trimNum(block.used),totali:trimNum(block.rem)})); return; }
     }
     e.predicted_grade=30; e.predicted_honors=true;
   } else e.predicted_honors=!toBool(e.predicted_honors); persistPred(e); afterPred(); }
@@ -1812,11 +1418,11 @@ function maybeProposeSplitOverall(gid){
   uniPost('update_group',{ group_id:g.id, overall_grade:prop, overall_honors:0 }).then(function(res){
     if(res&&res.groups) STATE.groups=res.groups; renderAll(); }).catch(function(){});
 }
-function uniSaveSimAsTarget(){ var sim=simulated(); if(sim.cfu<=0){ toast('Assegna prima qualche voto simulato'); return; }
+function uniSaveSimAsTarget(){ var sim=simulated(); if(sim.cfu<=0){ toast(T('voti.assegna_prima_voto_simulato')); return; }
   var v=round2(sim.avg);
   uniPost('save_target',{ target_average:v, target_source:'simulation' }).then(function(){
     S().target_average=v; S().target_source='simulation'; STATE._reached=weighted(STATE.exams).avg>=v;
-    renderHero(); renderObjective(); renderChart(); burst(); toast('🎯 Obiettivo da simulazione: '+fmt2(v)); }).catch(function(){ toast('Errore'); }); }
+    renderHero(); renderObjective(); renderChart(); burst(); toast(T('voti.obiettivo_da_simulazione',{media:fmt2(v)})); }).catch(function(){ toast('Errore'); }); }
 
 /* ---- Lista esami ---- */
 var CHECK_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 13.1c1.7 1 3.4 2.7 4.8 4.7 2.4-5.9 6.3-10.8 11.9-14.6"/></svg>';
@@ -1849,7 +1455,7 @@ function renderExams(){
   var list=$('examList'); if(!list) return;
   var items=sortedExams(STATE.tab);
   if(!items.length){ list.innerHTML='<div class="empty" style="padding:20px 10px"><div class="em-ic" style="width:60px;height:60px;font-size:26px">'+(isTodo?'📚':'✅')+'</div><p style="margin:0">'+
-    (isTodo?'Nessun esame da sostenere. Aggiungine uno o importa il tuo corso.':'Nessun esame ancora sostenuto. I voti che registri appariranno qui.')+'</p></div>';
+    (isTodo?T('voti.nessun_esame_da_sostenere'):T('voti.nessun_esame_sostenuto'))+'</p></div>';
     positionSeg(); return; }
   var h='';
   if(selMode){
@@ -1871,7 +1477,7 @@ function groupSelectRow(gid,items){
   var isSplit=isSplitGroup(g), gidA=escAttr(gid), picked=!!STATE.selectedGroups[String(gid)];
   var allM=groupExams(gid);
   var meta='<span>'+trimNum(parseFloat(g.cfu)||0)+' CFU</span><span>\u00b7 '+allM.length+' esami</span>'+
-    '<span class="gt-badge'+(isSplit?' split':'')+'" style="margin-left:2px">'+(isSplit?'Suddiviso':'A scelta')+'</span>';
+    '<span class="gt-badge'+(isSplit?' split':'')+'" style="margin-left:2px">'+(isSplit?T('voti.suddiviso'):T('voti.a_scelta_maiusc'))+'</span>';
   return '<li class="exam-item sel-on'+(picked?' picked':'')+'" data-id="grp-'+gidA+'" onclick="uniPickGroup(\''+gidA+'\')">'+
     '<span class="sel-dot">'+(picked?'\u2713':'')+'</span>'+
     '<div class="exam-body"><div class="exam-name">'+esc(g.name)+'</div><div class="exam-meta">'+meta+'</div></div>'+
@@ -1911,12 +1517,12 @@ function groupBlockHTML(gid,items){
   var g=findGroup(gid); if(!g){ var raw=''; for(var i0=0;i0<items.length;i0++) raw+=examRow(items[i0],false,false); return raw; }
   var isSplit=isSplitGroup(g), gidA=escAttr(gid);
   var quotaLabel;
-  if(isSplit){ quotaLabel=trimNum(parseFloat(g.cfu)||0)+' CFU tot.'; }
+  if(isSplit){ quotaLabel=T('voti.cfu_totali_breve',{cfu:trimNum(parseFloat(g.cfu)||0)}); }
   else { var qp=groupQuotaProgress(gid); quotaLabel=trimNum(qp.done)+(qp.pred>0?('+'+trimNum(qp.pred)):'')+'/'+trimNum(qp.quota)+' CFU'; }
   var h='<li class="exam-group" data-id="grp-'+gidA+'"><div class="exam-group-inner">'+
     '<div class="exam-group-head"><span class="exam-drag" data-drag="1">'+DRAG_SVG+'</span>'+
     '<span class="gt-name" onclick="uniOpenGroupSheet(\''+gidA+'\')">'+esc(g.name)+'</span>'+
-    '<span class="gt-badge'+(isSplit?' split':'')+'">'+(isSplit?'Suddiviso':'A scelta')+'</span>'+
+    '<span class="gt-badge'+(isSplit?' split':'')+'">'+(isSplit?T('voti.suddiviso'):T('voti.a_scelta_maiusc'))+'</span>'+
     '<span class="gt-quota">'+quotaLabel+'</span>'+
     '</div><ul class="exam-list" style="margin:0;padding:0">';
   for(var i=0;i<items.length;i++) h+=examRow(items[i],false,true);
@@ -1925,7 +1531,7 @@ function groupBlockHTML(gid,items){
     if(groupIsComplete(gid)){
       var prop=g.overall_grade!=null?g.overall_grade:proposedOverallGrade(groupExams(gid),false);
       var curHon=toBool(g.overall_honors), val=prop!=null?(curHon?'30L':prop):'–';
-      h+='<div class="grp-overall"><span class="go-lbl">Voto complessivo</span>'+
+      h+='<div class="grp-overall"><span class="go-lbl">'+T('voti.voto_complessivo')+'</span>'+
         '<div class="stepper"><button type="button" onclick="uniGroupFinalStep(\''+gidA+'\',-1)">\u2212</button>'+
         '<span class="val'+(curHon?' lode':'')+'">'+val+'</span>'+
         '<button type="button" onclick="uniGroupFinalStep(\''+gidA+'\',1)">+</button></div>'+
@@ -1933,7 +1539,7 @@ function groupBlockHTML(gid,items){
       '</div>';
     } else {
       var allM=groupExams(gid), doneN=allM.filter(function(x){ return x.status==='done'; }).length;
-      if(doneN>0) h+='<div class="grp-note">'+doneN+'/'+allM.length+' parti sostenute \u00b7 mancano ancora '+(allM.length-doneN)+' per completare l\'esame.</div>';
+      if(doneN>0) h+='<div class="grp-note">'+T('voti.parti_sostenute',{fatte:doneN,totale:allM.length,mancanti:allM.length-doneN})+'</div>';
     }
   }
   h+='</div></li>';
@@ -1976,7 +1582,7 @@ function gradeDynamicStyle(g, avg) {
     return style;
 }
 function gradeBadge(e){
-  if(toBool(e.is_pass_fail)) return '<span class="grade-badge g-ido">Idoneità</span>';
+  if(toBool(e.is_pass_fail)) return '<span class="grade-badge g-ido">'+T('voti.idoneita')+'</span>';
   if(e.status==='todo'){ if(e.predicted_grade!=null) return '<span class="grade-badge g-todo">~'+(toBool(e.predicted_honors)?'30L':Math.round(e.predicted_grade))+'</span>';
     return '<span class="grade-badge g-todo">\u2014</span>'; }
   if(e.grade==null) return '<span class="grade-badge g-todo">\u2014</span>';
@@ -2004,8 +1610,8 @@ function selectedIds(){ var out=[]; for(var k in STATE.selected){ if(STATE.selec
 function selectedGroupIds(){ var out=[]; for(var k in STATE.selectedGroups){ if(STATE.selectedGroups.hasOwnProperty(k) && STATE.selectedGroups[k]) out.push(k); } return out; }
 function updateSelCount(){
   var n=selectedIds().length, ng=selectedGroupIds().length, tot=n+ng;
-  setTxt('selCount', tot===1?'1 selezionato':(tot+' selezionati'));
-  /* "Crea gruppo" ha senso solo tra esami singoli non ancora raggruppati */
+  setTxt('selCount', T(tot===1?'voti.uno_selezionato':'voti.n_selezionati',{n:tot}));
+  /* T("voti.crea_gruppo") ha senso solo tra esami singoli non ancora raggruppati */
   show('selCreateBtn', ng===0); show('selUngroupBtn', ng>0);
 }
 function uniToggleSelect(){ if(STATE.selecting) exitSelect(); else { STATE.selecting=true; STATE.selected={}; STATE.selectedGroups={};
@@ -2019,19 +1625,19 @@ function uniPickGroup(gid){ if(STATE.selectedGroups[gid]) delete STATE.selectedG
 /* scioglie i gruppi selezionati: gli esami restano, i CFU tornano a contare singolarmente */
 function uniDissolveSelectedGroups(){
   var gids=selectedGroupIds(); if(!gids.length) return;
-  if(!confirm('Sciogliere '+gids.length+' grupp'+(gids.length===1?'o':'i')+'? Gli esami restano, ma i CFU torneranno a contare singolarmente.')) return;
+  if(!confirm(T(gids.length===1?'voti.sciogliere_uno':'voti.sciogliere_molti',{n:gids.length}))) return;
   var chain=Promise.resolve();
   gids.forEach(function(gid){ chain=chain.then(function(){ return uniPost('dissolve_group',{ group_id:gid }); }); });
   chain.then(function(res){
     if(res&&res.exams) STATE.exams=res.exams; if(res&&res.groups) STATE.groups=res.groups;
-    exitSelect(true); renderAll(); toast('Gruppi sciolti'); }).catch(function(){ toast('Errore'); });
+    exitSelect(true); renderAll(); toast(T('voti.gruppi_sciolti')); }).catch(function(){ toast('Errore'); });
 }
 /* elimina gli esami singoli selezionati e, per ogni gruppo selezionato, TUTTI i suoi esami */
 function uniDeleteSelected(){
   var ids=selectedIds(), gids=selectedGroupIds();
-  if(!ids.length && !gids.length){ toast('Nessun esame selezionato'); return; }
+  if(!ids.length && !gids.length){ toast(T('voti.nessun_esame_selezionato')); return; }
   var total=ids.length; for(var i=0;i<gids.length;i++) total+=groupExams(gids[i]).length;
-  if(!confirm('Eliminare '+total+' esam'+(total===1?'e':'i')+'?')) return;
+  if(!confirm(T(total===1?'voti.eliminare_un_esame':'voti.eliminare_n_esami',{n:total}))) return;
   var chain=Promise.resolve();
   gids.forEach(function(gid){ chain=chain.then(function(){ return uniPost('delete_group',{ group_id:gid }); }); });
   if(ids.length) chain=chain.then(function(){ return uniPost('delete_exams',{ ids:ids }); });
@@ -2050,15 +1656,15 @@ function uniOpenGroupSheet(existingGroupId){
   setV('grpName', g?g.name:'');
   toggleChip('grpTypeChoice', GRP.type!=='split'); toggleChip('grpTypeSplit', GRP.type==='split');
   show('grpDeleteBtn', !!GRP.id);
-  setTxt('grpSheetTitle', GRP.id?'Modifica gruppo':'Crea gruppo');
+  setTxt('grpSheetTitle', GRP.id?T('voti.modifica_gruppo'):T('voti.crea_gruppo'));
   syncGroupTypeHint(); renderGroupPicker(); renderQuotaOptions();
   openSheet('groupSheet');
 }
 function uniEditExamGroup(){ var e=EX.id?findExam(EX.id):null; if(!e||e.group_id==null) return; uniOpenGroupSheet(e.group_id); }
 function syncGroupTypeHint(){
   setTxt('grpTypeHint', GRP.type==='split'
-    ? 'Le parti selezionate formano UN esame: i CFU si sommano e, quando saranno tutte sostenute, avrai un voto complessivo (proposto in automatico dalla media delle parti, modificabile a mano).'
-    : 'Sono esami alternativi tra loro: scegli quanti CFU vale il gruppo. Una volta sostenuta quella quota, gli altri esami del gruppo spariranno da "Da sostenere" e "Simulatore".');
+    ? T('voti.parti_formano_un_esame')
+    : T('voti.esami_alternativi'));
   show('grpQuotaWrap', GRP.type!=='split');
 }
 function uniGroupSetType(type){ GRP.type = type==='split'?'split':'choice';
@@ -2073,10 +1679,10 @@ function renderGroupPicker(){
     var sa=a.status==='todo'?0:1, sb=b.status==='todo'?0:1; if(sa!==sb) return sa-sb;
     var ya=a.study_year||99, yb=b.study_year||99; if(ya!==yb) return ya-yb;
     return (a.sort_order||0)-(b.sort_order||0); });
-  if(!pool.length){ wrap.innerHTML='<div class="grp-pick-empty">Nessun esame disponibile (gli esami già in un altro gruppo non compaiono qui).</div>'; setTxt('grpPickCount','0'); return; }
+  if(!pool.length){ wrap.innerHTML='<div class="grp-pick-empty">'+T('voti.nessun_esame_disponibile')+'</div>'; setTxt('grpPickCount','0'); return; }
   var h='', n=0;
   for(var i=0;i<pool.length;i++){ var e=pool[i], id=escAttr(e.id), picked=!!GRP.picked[String(e.id)]; if(picked) n++;
-    var meta='<span>'+trimNum(e.cfu)+' CFU</span>'+(e.study_year?('<span>\u00b7 '+e.study_year+'\u00b0 anno</span>'):'')+(e.status==='done'?'<span>\u00b7 sostenuto</span>':'');
+    var meta='<span>'+trimNum(e.cfu)+' CFU</span>'+(e.study_year?('<span>\u00b7 '+T('voti.anno_n',{n:e.study_year})+'</span>'):'')+(e.status==='done'?('<span>\u00b7 '+T('voti.sostenuto_min')+'</span>'):'');
     h+='<li class="exam-item sel-on'+(picked?' picked':'')+'" data-id="'+id+'" onclick="uniGroupPickToggle(\''+id+'\')">'+
       '<span class="sel-dot">'+(picked?'\u2713':'')+'</span>'+
       '<div class="exam-body"><div class="exam-name">'+esc(e.name)+'</div><div class="exam-meta">'+meta+'</div></div>'+
@@ -2091,7 +1697,7 @@ function renderQuotaOptions(){
   var ids=Object.keys(GRP.picked), cfus=[];
   for(var i=0;i<ids.length;i++){ var e=findExam(ids[i]); if(e) cfus.push(parseFloat(e.cfu)||0); }
   var sums=possibleCfuSums(cfus);
-  if(!sums.length){ wrap.innerHTML='<span class="grp-note">Seleziona almeno un esame per vedere le quote possibili.</span>'; return; }
+  if(!sums.length){ wrap.innerHTML='<span class="grp-note">'+T('voti.seleziona_almeno_un_esame')+'</span>'; return; }
   if(GRP.quota==null || sums.indexOf(GRP.quota)===-1) GRP.quota=sums[sums.length-1];
   var h=''; for(var j=0;j<sums.length;j++){ var v=sums[j];
     h+='<button type="button" class="chip-tog'+(Math.abs(v-GRP.quota)<0.001?' on':'')+'" onclick="uniGroupSetQuota('+v+')">'+trimNum(v)+' CFU</button>'; }
@@ -2101,30 +1707,30 @@ function uniGroupSetQuota(v){ GRP.quota=parseFloat(v); renderQuotaOptions(); }
 function uniSaveGroup(){
   var name=(($('grpName')&&$('grpName').value)||'').trim();
   var ids=Object.keys(GRP.picked);
-  if(ids.length<2){ toast('Seleziona almeno due esami'); return; }
-  if(!name) name = GRP.type==='split' ? 'Esame suddiviso' : ('Gruppo '+(STATE.groups.length+1));
+  if(ids.length<2){ toast(T('voti.seleziona_almeno_due')); return; }
+  if(!name) name = GRP.type==='split' ? T('voti.esame_suddiviso_maiusc') : ('Gruppo '+(STATE.groups.length+1));
   var payload={ name:name, group_type:GRP.type, ids:ids };
-  if(GRP.type!=='split'){ if(GRP.quota==null){ toast('Scegli i CFU totali del gruppo'); return; } payload.cfu=GRP.quota; }
+  if(GRP.type!=='split'){ if(GRP.quota==null){ toast(T('voti.scegli_cfu_totali_gruppo')); return; } payload.cfu=GRP.quota; }
   var wasNew = !GRP.id;
   var action='create_group';
   if(GRP.id){ action='update_group'; payload.group_id=GRP.id; }
   uniPost(action,payload).then(function(res){
-    if(res&&res.success===false){ toast('Servono almeno due esami'); return; }
+    if(res&&res.success===false){ toast(T('voti.servono_almeno_due_esami')); return; }
     if(res&&res.exams) STATE.exams=res.exams; if(res&&res.groups) STATE.groups=res.groups;
     exitSelect(true); uniCloseSheets(); renderAll();
-    toast(wasNew ? (GRP.type==='split' ? '\ud83e\udde9 Esame suddiviso creato' : ('\u21c4 Gruppo creato: '+trimNum(GRP.quota)+' CFU contati una volta sola')) : 'Gruppo aggiornato');
+    toast(wasNew ? (GRP.type==='split' ? T('voti.esame_suddiviso_creato') : T('voti.gruppo_creato',{cfu:trimNum(GRP.quota)})) : T('voti.gruppo_aggiornato'));
   }).catch(function(){ toast('Errore'); });
 }
 function uniDissolveGroupFromSheet(){ if(!GRP.id) return;
-  if(!confirm('Sciogliere il gruppo? Gli esami restano, ma i loro CFU torneranno a contare singolarmente.')) return;
+  if(!confirm(T('voti.sciogliere_il_gruppo'))) return;
   uniPost('dissolve_group',{ group_id:GRP.id }).then(function(res){
     if(res&&res.exams) STATE.exams=res.exams; if(res&&res.groups) STATE.groups=res.groups;
-    uniCloseSheets(); renderAll(); toast('Gruppo sciolto'); }).catch(function(){ toast('Errore'); }); }
+    uniCloseSheets(); renderAll(); toast(T('voti.gruppo_sciolto')); }).catch(function(){ toast('Errore'); }); }
 function uniDissolveGroup(){ var e=EX.id?findExam(EX.id):null; if(!e||e.group_id==null) return;
-  if(!confirm('Sciogliere il gruppo? Gli esami restano, ma i loro CFU torneranno a contare singolarmente.')) return;
+  if(!confirm(T('voti.sciogliere_il_gruppo'))) return;
   uniPost('dissolve_group',{ group_id:e.group_id }).then(function(res){
     if(res&&res.exams) STATE.exams=res.exams; if(res&&res.groups) STATE.groups=res.groups;
-    uniCloseSheets(); renderAll(); toast('Gruppo sciolto'); }).catch(function(){ toast('Errore'); }); }
+    uniCloseSheets(); renderAll(); toast(T('voti.gruppo_sciolto')); }).catch(function(){ toast('Errore'); }); }
 /* superato un esame di un gruppo "a scelta" → se la quota di CFU è stata raggiunta, proponi di
    togliere gli altri esami del gruppo ancora da sostenere (i gruppi "esame suddiviso" non si sciolgono mai qui) */
 function maybeClearGroup(examId, groupId){
@@ -2135,12 +1741,12 @@ function maybeClearGroup(examId, groupId){
   var others=STATE.exams.filter(function(e){ return e.group_id!=null && String(e.group_id)===String(groupId)
     && e.status==='todo' && String(e.id)!==String(examId); });
   if(!others.length) return;
-  var gname=g.name||'gruppo a scelta';
+  var gname=g.name||T('voti.gruppo_a_scelta_senza_nome');
   setTimeout(function(){
-    if(confirm('"'+gname+'" \u00e8 un gruppo di esami a scelta e hai raggiunto i '+trimNum(quota)+' CFU della quota.\n\nVuoi eliminare gli altri '+others.length+' dagli esami da sostenere?')){
+    if(confirm(T('voti.quota_raggiunta_chiedi',{gruppo:gname,cfu:trimNum(quota),altri:others.length}))){
       uniPost('clear_group_todo',{ group_id:groupId, keep_id:examId }).then(function(res){
         if(res&&res.exams) STATE.exams=res.exams; if(res&&res.groups) STATE.groups=res.groups;
-        renderAll(); toast('Gruppo completato'); }).catch(function(){ toast('Errore'); });
+        renderAll(); toast(T('voti.gruppo_completato')); }).catch(function(){ toast('Errore'); });
     } }, 500);
 }
 
@@ -2157,14 +1763,14 @@ function donutSVG(segs){
 function renderStats(){
   var body=$('statsBody'); if(!body) return;
   var graded=STATE.exams.filter(isGraded);
-  if(!graded.length){ body.innerHTML='<div class="empty" style="padding:16px 10px"><div class="em-ic" style="width:60px;height:60px;font-size:26px">📊</div><p style="margin:0">Le statistiche compariranno dopo i primi voti registrati.</p></div>'; return; }
+  if(!graded.length){ body.innerHTML='<div class="empty" style="padding:16px 10px"><div class="em-ic" style="width:60px;height:60px;font-size:26px">📊</div><p style="margin:0">'+T('voti.statistiche_dopo_i_primi_voti')+'</p></div>'; return; }
   var h='';
   var counts={},lode30=0; for(var g=18;g<=30;g++) counts[g]=0;
   for(var i=0;i<graded.length;i++){ var e=graded[i]; var gv=toBool(e.has_honors)?30:Math.round(parseFloat(e.grade));
     if(gv<18)gv=18; if(gv>30)gv=30; counts[gv]++; if(gv===30&&toBool(e.has_honors)) lode30++; }
   var maxC=1; for(var g2=18;g2<=30;g2++) maxC=Math.max(maxC,counts[g2]);
   var histAvg=weighted(STATE.exams).avg;
-  h+='<div class="stat-block"><div class="t">Distribuzione voti</div><div class="hist">';
+  h+='<div class="stat-block"><div class="t">'+T('voti.distribuzione_voti')+'</div><div class="hist">';
   for(var g3=18;g3<=30;g3++){ var c=counts[g3],hp=Math.round(c/maxC*100),bg;
     if(g3===30){ if(c>0 && lode30>0){ var plainPct=Math.round((c-lode30)/c*100);
         bg='background:linear-gradient(to top,var(--gold) '+plainPct+'%,#FFD700 '+plainPct+'%);'; }
@@ -2191,13 +1797,13 @@ function renderStats(){
     }
     var bar='<div class="bar" style="height:'+hp+'%;'+bg+'">'+(c>0?'<span class="cnt">'+c+'</span>':'')+'</div>';
     h+='<div class="col">'+bar+'<div class="xl">'+g3+'</div></div>'; }
-  h+='</div>'+(lode30>0?'<div style="text-align:center;font-size:.75rem;color:var(--text-3);margin-top:6px">🌟 di cui '+lode30+' con lode</div>':'')+'</div>';
+  h+='</div>'+(lode30>0?'<div style="text-align:center;font-size:.75rem;color:var(--text-3);margin-top:6px">'+T('voti.di_cui_con_lode',{n:lode30})+'</div>':'')+'</div>';
   var years={}; for(var i2=0;i2<graded.length;i2++){ var e2=graded[i2],y=e2.study_year||0; if(!years[y]) years[y]={sum:0,cfu:0};
     var cc=parseFloat(e2.cfu)||0; years[y].sum+=effGrade(e2)*cc; years[y].cfu+=cc; }
   var yk=Object.keys(years).filter(function(k){ return k!=='0'; }).sort();
-  if(yk.length){ h+='<div class="stat-block"><div class="t">Media per anno</div>';
+  if(yk.length){ h+='<div class="stat-block"><div class="t">'+T('voti.media_per_anno')+'</div>';
     for(var yi=0;yi<yk.length;yi++){ var k=yk[yi],ya=years[k].cfu>0?years[k].sum/years[k].cfu:0,wp=Math.round((ya-18)/12*100);
-      h+='<div class="ybar"><div class="yl">'+k+'\u00b0 anno</div><div class="yt"><i style="width:'+Math.max(2,wp)+'%"></i><b>'+fmt2(ya)+'</b></div></div>'; }
+      h+='<div class="ybar"><div class="yl">'+T('voti.anno_n',{n:k})+'</div><div class="yt"><i style="width:'+Math.max(2,wp)+'%"></i><b>'+fmt2(ya)+'</b></div></div>'; }
     h+='</div>'; }
   var dg=0,di=0,tc=0, chG={}, chI={}, seenCh={};
   for(var i3=0;i3<STATE.exams.length;i3++){ 
@@ -2226,19 +1832,19 @@ function renderStats(){
       tc+=q4; 
     } 
   }
-  h+='<div class="stat-block"><div class="t">CFU per stato</div><div class="donut-wrap">'+donutSVG([
+  h+='<div class="stat-block"><div class="t">'+T('voti.cfu_per_stato')+'</div><div class="donut-wrap">'+donutSVG([
     {val:dg,color:'var(--uni-accent)'},{val:di,color:'var(--green)'},{val:tc,color:'var(--surface-3)'}])+
-    '<div class="donut-leg"><div class="di"><span class="sw" style="background:var(--uni-accent)"></span>Voti registrati<b>'+trimNum(dg)+'</b></div>'+
-    '<div class="di"><span class="sw" style="background:var(--green)"></span>Idoneità<b>'+trimNum(di)+'</b></div>'+
-    '<div class="di"><span class="sw" style="background:var(--surface-3)"></span>Da sostenere<b>'+trimNum(tc)+'</b></div></div></div></div>';
+    '<div class="donut-leg"><div class="di"><span class="sw" style="background:var(--uni-accent)"></span>'+T('voti.voti_registrati')+'<b>'+trimNum(dg)+'</b></div>'+
+    '<div class="di"><span class="sw" style="background:var(--green)"></span>'+T('voti.idoneita')+'<b>'+trimNum(di)+'</b></div>'+
+    '<div class="di"><span class="sw" style="background:var(--surface-3)"></span>'+T('voti.da_sostenere')+'<b>'+trimNum(tc)+'</b></div></div></div></div>';
   var mine=0,natl=0,cc4=0,n=0; for(var i4=0;i4<graded.length;i4++){ var e4=graded[i4]; if(e4.national_avg==null) continue;
     var c4=parseFloat(e4.cfu)||0; mine+=effGrade(e4)*c4; natl+=parseFloat(e4.national_avg)*c4; cc4+=c4; n++; }
   if(n>0 && cc4>0){ var mA=mine/cc4,nA=natl/cc4,diff=mA-nA;
-    h+='<div class="stat-block"><div class="t">Confronto con la media di classe</div><div class="cmp-line"><span class="big '+(diff>=0?'up':'down')+'">'+(diff>=0?'+':'')+fmt2(diff)+'</span><span class="txt"><b>'+(diff>=0?'sopra':'sotto')+'</b> la media nazionale stimata ('+fmt2(nA)+') su '+n+' esami</span></div><div style="font-size:.72rem;color:var(--text-3);margin-top:6px">Le medie di classe sono stime indicative, modificabili per ogni esame.</div></div>'; }
+    h+='<div class="stat-block"><div class="t">'+T('voti.confronto_media_classe')+'</div><div class="cmp-line"><span class="big '+(diff>=0?'up':'down')+'">'+(diff>=0?'+':'')+fmt2(diff)+'</span><span class="txt">'+T('voti.confronto_frase',{verso:'<b>'+T(diff>=0?'voti.sopra':'voti.sotto')+'</b>',media:fmt2(nA),esami:n})+'</span></div><div style="font-size:.72rem;color:var(--text-3);margin-top:6px">'+T('voti.medie_classe_stime')+'</div></div>'; }
   var dc=graded.length,lt=lodiCount(false),an=weighted(STATE.exams).avg;
   var tgt=S().target_average!=null?parseFloat(S().target_average):null, reached=tgt!=null && an>=tgt;
-  var miles=[{em:'\u2b50',lbl:'Primo esame',got:dc>=1},{em:'\ud83d\udd25',lbl:'3 esami',got:dc>=3},{em:'\ud83d\udc51',lbl:'Prima lode',got:lt>=1},{em:'\ud83d\udc8e',lbl:'Media 28+',got:an>=28},{em:'\ud83c\udfaf',lbl:'Obiettivo',got:reached}];
-  h+='<div class="stat-block"><div class="t">Traguardi</div><div class="badge-row">';
+  var miles=[{em:'\u2b50',lbl:T('voti.primo_esame'),got:dc>=1},{em:'\ud83d\udd25',lbl:T('voti.tre_esami'),got:dc>=3},{em:'\ud83d\udc51',lbl:T('voti.prima_lode'),got:lt>=1},{em:'\ud83d\udc8e',lbl:T('voti.media_28_piu'),got:an>=28},{em:'\ud83c\udfaf',lbl:T('voti.obiettivo'),got:reached}];
+  h+='<div class="stat-block"><div class="t">'+T('voti.traguardi')+'</div><div class="badge-row">';
   for(var m=0;m<miles.length;m++) h+='<div class="mbadge'+(miles[m].got?' got':'')+'"><span class="em">'+miles[m].em+'</span>'+miles[m].lbl+'</div>';
   h+='</div></div>';
   body.innerHTML=h;
@@ -2281,24 +1887,24 @@ function renderThesisBonus(){
   var tmin=parseFloat(S().thesis_min_points)||0, tmax=parseFloat(S().thesis_max_points)||0;
   var avg=weighted(STATE.exams).avg, base=avg>0?base110(avg):0, bonus=bonusTotal(false);
   if(tb){ var floorV=base+bonus+tmin, ceilV=base+bonus+tmax;
-    var h='<p style="color:var(--text-2);font-size:.85rem;margin:0 0 6px">La tesi aggiunge da <b style="color:var(--text)">+'+trimNum(tmin)+'</b> a <b style="color:var(--text)">+'+trimNum(tmax)+'</b> punti. '+
-      (avg>0?('Con la media attuale il voto di laurea andrebbe da <b style="color:var(--text)">'+dispFinal(floorV)+'</b> a <b style="color:var(--text)">'+dispFinal(ceilV)+'</b>/'+gb+'.'):'Registra dei voti per stimare il voto di laurea.')+'</p>';
+    var h='<p style="color:var(--text-2);font-size:.85rem;margin:0 0 6px">'+T('voti.tesi_aggiunge',{min:'<b style="color:var(--text)">+'+trimNum(tmin)+'</b>',max:'<b style="color:var(--text)">+'+trimNum(tmax)+'</b>'})+' '+
+      (avg>0?T('voti.con_media_attuale',{da:'<b style="color:var(--text)">'+dispFinal(floorV)+'</b>',a:'<b style="color:var(--text)">'+dispFinal(ceilV)+'</b>',base:gb}):T('voti.registra_voti_per_stimare'))+'</p>';
     h+='<div class="thesis-vis">'+(avg>0?thesisVisHTML(floorV,ceilV):
       ('<div class="scale"><div class="tick" style="left:92%"></div></div><div class="marks">'+mark(0,'66')+mark(gradePct(88),'88')+mark(92,String(gb))+mark(100,'L',true)+'</div>'))+'</div>';
     tb.innerHTML=h; }
   var list=$('bonusList'); if(!list) return;
   var lodi=lodiCount(false);
-  if(!STATE.bonuses.length){ list.innerHTML='<div class="empty" style="padding:14px 10px"><p style="margin:0">Nessun bonus. Aggiungi bonus come "laurea in corso" o punti per le lodi con il pulsante ＋ Bonus.</p></div>'; return; }
+  if(!STATE.bonuses.length){ list.innerHTML='<div class="empty" style="padding:14px 10px"><p style="margin:0">'+T('voti.nessun_bonus')+'</p></div>'; return; }
   var sorted=STATE.bonuses.slice().sort(function(a,b){ return (a.sort_order||0)-(b.sort_order||0); });
   var bh=''; for(var i=0;i<sorted.length;i++) bh+=bonusRow(sorted[i],lodi); list.innerHTML=bh;
 }
 function bonusIcon(t){ return t==='on_time'?'\u23f1\ufe0f':t==='honors_each'?'\ud83c\udf1f':t==='honors_threshold'?'\ud83c\udfc5':t==='fixed'?'\u2795':'\ud83c\udf81'; }
 function bonusDesc(b){ var pts=parseFloat(b.points)||0;
-  if(b.bonus_type==='on_time') return 'Laurea in corso \u00b7 +'+trimNum(pts);
-  if(b.bonus_type==='honors_each'){ var cap=capOf(b); return '+'+trimNum(pts)+' per ogni lode'+(cap!=null?(' (max +'+trimNum(cap)+')'):''); }
-  if(b.bonus_type==='honors_threshold') return '+'+trimNum(pts)+' con almeno '+trimNum(b.threshold_value||0)+' lodi';
-  if(b.bonus_type==='fixed') return 'Bonus fisso \u00b7 +'+trimNum(pts);
-  return 'Personalizzato \u00b7 +'+trimNum(pts); }
+  if(b.bonus_type==='on_time') return T('voti.desc_in_corso',{punti:trimNum(pts)});
+  if(b.bonus_type==='honors_each'){ var cap=capOf(b); return T('voti.desc_per_lode',{punti:trimNum(pts)})+(cap!=null?T('voti.desc_max',{max:trimNum(cap)}):''); }
+  if(b.bonus_type==='honors_threshold') return T('voti.desc_soglia',{punti:trimNum(pts),lodi:trimNum(b.threshold_value||0)});
+  if(b.bonus_type==='fixed') return T('voti.desc_fisso',{punti:trimNum(pts)});
+  return T('voti.desc_personalizzato',{punti:trimNum(pts)}); }
 function bonusRow(b,lodi){
   var applied=bonusApplied(b,lodi), on=toBool(b.is_enabled), id=escAttr(b.id);
   return '<li class="bonus-item" data-id="'+id+'">'+
@@ -2331,13 +1937,13 @@ function uniOpenExam(id){
     else { var hasP=e.predicted_grade!=null; EX={ id:e.id, status:'todo', grade:hasP?parseInt(e.predicted_grade,10):null, gradeSet:hasP, honors:hasP?toBool(e.predicted_honors):false, pf:toBool(e.is_pass_fail) }; }
     setV('exName',e.name); setV('exCfu',parseFloat(e.cfu)||0); setV('exYear',e.study_year||'');
     setV('exSsd',e.ssd||''); setV('exNat',e.national_avg!=null?e.national_avg:''); setV('exDate',e.exam_date||'');
-    setTxt('exSheetTitle','Modifica esame');
+    setTxt('exSheetTitle',T('voti.modifica_esame'));
   } else { EX={ id:null, status:'todo', grade:null, gradeSet:false, honors:false, pf:false };
     setV('exName',''); setV('exCfu',6); setV('exYear',''); setV('exSsd',''); setV('exNat',''); setV('exDate','');
-    setTxt('exSheetTitle','Nuovo esame'); }
+    setTxt('exSheetTitle',T('voti.nuovo_esame')); }
   show('exDeleteBtn', !!EX.id);
   var eg=(e&&e.group_id!=null)?findGroup(e.group_id):null;
-  show('exGroupWrap', !!eg); if(eg) setTxt('exGroupName', eg.name+' \u00b7 '+trimNum(eg.cfu)+' CFU'+(eg.group_type==='split'?' (suddiviso)':' (a scelta)'));
+  show('exGroupWrap', !!eg); if(eg) setTxt('exGroupName', T(eg.group_type==='split'?'voti.gruppo_riga_suddiviso':'voti.gruppo_riga_scelta',{nome:eg.name,cfu:trimNum(eg.cfu)}));
   examSyncChips(); openSheet('examSheet');
 }
 function setV(id,v){ var el=$(id); if(el) el.value=(v==null?'':v); }
@@ -2366,11 +1972,11 @@ function examSyncChips(){
   show('exLodeChip', !EX.pf && examGradeIsSet() && EX.grade>=30); toggleChip('exLodeChip', EX.honors);
   show('exClearGradeChip', !EX.pf && EX.status==='todo' && EX.gradeSet);
   show('exDateBlock', EX.status==='done');
-  setTxt('exGradeHint', EX.status==='done' ? 'Voto conseguito' : 'Voto previsto (per la simulazione)');
+  setTxt('exGradeHint', EX.status==='done' ? T('voti.voto_conseguito') : T('voti.voto_previsto_simulazione'));
 }
 function toggleChip(id,on){ var el=$(id); if(el) el.classList.toggle('on', !!on); }
 function uniSaveExam(){
-  var name=(($('exName')&&$('exName').value)||'').trim(); if(!name){ toast('Inserisci il nome dell\'esame'); return; }
+  var name=(($('exName')&&$('exName').value)||'').trim(); if(!name){ toast(T('voti.inserisci_nome_esame')); return; }
   var cfu=parseFloat($('exCfu')?$('exCfu').value:6)||0;
   var year=$('exYear')&&$('exYear').value?parseInt($('exYear').value,10):null;
   var ssd=$('exSsd')?$('exSsd').value.trim():'';
@@ -2393,19 +1999,19 @@ function uniSaveExam(){
   var savedId=EX.id;
   var done=function(res){
     var ok = !!(res && res.success!==false);
-    if(!ok){ toast('Salvataggio non riuscito: riprova'); return; }
+    if(!ok){ toast(T('voti.salvataggio_non_riuscito')); return; }
     if(res.exam){ if(EX.id) replaceExam(res.exam); else STATE.exams.push(res.exam); }
     uniCloseSheets(); afterExamChange(celebrate);
     if(wasTodoNowDone) maybeClearGroup(savedId, gid);
     if(wasTodoNowDone) maybeProposeSplitOverall(gid);
   };
-  var fail=function(){ toast('Errore di rete: il salvataggio potrebbe non essere andato a buon fine'); };
+  var fail=function(){ toast(T('voti.errore_rete_salvataggio')); };
   if(EX.id){ payload.id=EX.id; uniPost('update_exam',payload).then(done).catch(fail); }
   else { uniPost('add_exam',payload).then(done).catch(fail); }
 }
 function applyLocalExam(id,p){ var e=findExam(id); if(!e) return; for(var k in p){ if(p.hasOwnProperty(k)) e[k]=p[k]; } }
-function afterExamChange(celebrate){ renderAll(); if(celebrate){ setTimeout(function(){ burst(); toast('🎉 Ottimo voto!'); },200); buzz(20); } }
-function uniDeleteExam(){ if(!EX.id){ uniCloseSheets(); return; } if(!confirm('Eliminare questo esame?')) return;
+function afterExamChange(celebrate){ renderAll(); if(celebrate){ setTimeout(function(){ burst(); toast(T('voti.ottimo_voto')); },200); buzz(20); } }
+function uniDeleteExam(){ if(!EX.id){ uniCloseSheets(); return; } if(!confirm(T('voti.eliminare_questo_esame'))) return;
   uniPost('delete_exam',{ id:EX.id }).then(function(){ STATE.exams=STATE.exams.filter(function(e){ return String(e.id)!==String(EX.id); }); uniCloseSheets(); renderAll(); }).catch(function(){ toast('Errore'); }); }
 
 /* ---- Voto rapido ---- */
@@ -2415,7 +2021,7 @@ function openQuick(e){ QG={ id:e.id, grade:26, honors:false, pf:toBool(e.is_pass
 function uniQuickGrade(d){ QG.grade=clampG(QG.grade+d); if(QG.grade<30) QG.honors=false; qgSync(); }
 function uniQuickLode(){ if(QG.grade>=30) QG.honors=!QG.honors; else { QG.grade=30; QG.honors=true; } qgSync(); }
 function uniQuickIdo(){ QG.pf=!QG.pf; if(QG.pf) QG.honors=false; qgSync(); }
-function qgSync(){ var big=$('qgBig'); if(big){ big.textContent=QG.pf?'Idoneità':(QG.honors?'30L':QG.grade); big.classList.toggle('lode',QG.honors&&!QG.pf); }
+function qgSync(){ var big=$('qgBig'); if(big){ big.textContent=QG.pf?T('voti.idoneita'):(QG.honors?'30L':QG.grade); big.classList.toggle('lode',QG.honors&&!QG.pf); }
   toggleChip('qgLode', QG.honors); show('qgLode', !QG.pf && QG.grade>=30); toggleChip('qgIdo', QG.pf); }
 function uniQuickSave(){ var e=findExam(QG.id); if(!e){ uniCloseSheets(); return; }
   var gid=e.group_id;
@@ -2423,10 +2029,10 @@ function uniQuickSave(){ var e=findExam(QG.id); if(!e){ uniCloseSheets(); return
   var celebrate=!QG.pf && (QG.honors||QG.grade>=30);
   uniPost('update_exam',payload).then(function(res){
     var ok = !!(res && res.success!==false);
-    if(!ok){ toast('Salvataggio non riuscito: riprova'); return; }
+    if(!ok){ toast(T('voti.salvataggio_non_riuscito')); return; }
     if(res.exam) replaceExam(res.exam);
     uniCloseSheets(); afterExamChange(celebrate); maybeClearGroup(QG.id, gid); maybeProposeSplitOverall(gid);
-  }).catch(function(){ toast('Errore di rete: il salvataggio potrebbe non essere andato a buon fine'); }); }
+  }).catch(function(){ toast(T('voti.errore_rete_salvataggio')); }); }
 
 /* ---- Obiettivo ---- */
 var TG={ val:28 };
@@ -2435,10 +2041,10 @@ function uniOpenTarget(){ var cur=weighted(STATE.exams).avg;
   if(start<18)start=18; if(start>30.5)start=30.5; TG.val=Math.round(start*100)/100; tgSync(); openSheet('targetSheet'); }
 function uniTargetStep(d){ TG.val=Math.round((TG.val+d*0.05)*100)/100; if(TG.val<18)TG.val=18; if(TG.val>30.5)TG.val=30.5; tgSync(); }
 function tgSync(){ var big=$('tgtBig'); if(big) big.textContent=fmt2(TG.val);
-  var b=base110(TG.val>30?30:TG.val), hint='\u2248 '+b+'/'+gradeBase()+' base laurea';
+  var b=base110(TG.val>30?30:TG.val), hint=T('voti.hint_base_laurea',{voto:b,base:gradeBase()});
   var rf=requiredFuture(TG.val);
-  if(rf!=null){ if(rf.feasible) hint+=' \u00b7 ti basta una media di '+fmt2(rf.req)+' nei restanti '+trimNum(rf.remainingCfu)+' CFU';
-    else hint+=' \u00b7 servirebbe pi\u00f9 di 30 nei restanti esami'; }
+  if(rf!=null){ if(rf.feasible) hint+=T('voti.hint_ti_basta',{media:fmt2(rf.req),cfu:trimNum(rf.remainingCfu)});
+    else hint+=T('voti.hint_impossibile'); }
   setTxt('tgtHint',hint); 
   
   var vis = $('tgtVis');
@@ -2448,7 +2054,7 @@ function tgSync(){ var big=$('tgtBig'); if(big) big.textContent=fmt2(TG.val);
       var x1 = gradePct(frTgt.min), x2 = gradePct(frTgt.max), topReached = frTgt.max > gb + 0.001;
       
       // margin-bottom:26px serve a dare spazio alle bandierine col voto sopra la barra
-      var vh = '<div style="font-size:.65rem; font-weight:800; color:var(--text-2); text-transform:uppercase; margin-bottom:26px; text-align:center; letter-spacing:.5px">Voto di laurea stimato</div>';
+      var vh = '<div style="font-size:.65rem; font-weight:800; color:var(--text-2); text-transform:uppercase; margin-bottom:26px; text-align:center; letter-spacing:.5px">'+T('voti.voto_di_laurea_stimato')+'</div>';
       vh += '<div class="thesis-vis" style="margin-top:0"><div class="scale">';
       vh += '<div class="fill' + (topReached ? ' bar-gold' : '') + '" style="left:' + x1.toFixed(2) + '%;width:' + Math.max(1.5, (x2 - x1)).toFixed(2) + '%"></div>';
       vh += thesisFlag(x1, dispFinal(frTgt.min), frTgt.min > gb + 0.001);
@@ -2461,9 +2067,9 @@ function tgSync(){ var big=$('tgtBig'); if(big) big.textContent=fmt2(TG.val);
 function uniSaveTarget(){ var v=Math.round(TG.val*100)/100;
   uniPost('save_target',{ target_average:v, target_source:'manual' }).then(function(){
     S().target_average=v; S().target_source='manual'; STATE._reached=weighted(STATE.exams).avg>=v;
-    uniCloseSheets(); renderHero(); renderObjective(); renderChart(); toast('🎯 Obiettivo impostato: '+fmt2(v)); }).catch(function(){ toast('Errore'); }); }
+    uniCloseSheets(); renderHero(); renderObjective(); renderChart(); toast(T('voti.obiettivo_impostato',{media:fmt2(v)})); }).catch(function(){ toast('Errore'); }); }
 function uniClearTarget(){ uniPost('save_target',{ target_average:null, target_source:'manual' }).then(function(){
-    S().target_average=null; STATE._reached=false; uniCloseSheets(); renderHero(); renderObjective(); renderChart(); toast('Obiettivo rimosso'); }).catch(function(){ toast('Errore'); }); }
+    S().target_average=null; STATE._reached=false; uniCloseSheets(); renderHero(); renderObjective(); renderChart(); toast(T('voti.obiettivo_rimosso')); }).catch(function(){ toast('Errore'); }); }
 
 /* ---- Bonus ---- */
 var BN={ id:null };
@@ -2473,26 +2079,26 @@ function uniOpenBonus(id){ var b=id?findBonus(id):null; BN.id=b?b.id:null;
   setV('bnCap', b&&capOf(b)!=null?capOf(b):''); show('bnDeleteBtn', !!BN.id); uniBonusTypeChange(); openSheet('bonusSheet'); }
 function uniBonusTypeChange(){ var t=$('bnType')?$('bnType').value:'on_time';
   show('bnThrWrap', t==='honors_threshold'); show('bnCapWrap', t==='honors_each');
-  setTxt('bnPointsLabel', t==='honors_each'?'Punti per ogni lode':(t==='honors_threshold'?'Punti bonus':'Punti')); bnPreview(); }
+  setTxt('bnPointsLabel', t==='honors_each'?T('voti.punti_per_ogni_lode'):(t==='honors_threshold'?T('voti.punti_bonus'):'Punti')); bnPreview(); }
 function bnPreview(){ var t=$('bnType')?$('bnType').value:'on_time';
   var pts=parseFloat($('bnPoints')?$('bnPoints').value:0)||0, thr=parseFloat($('bnThreshold')?$('bnThreshold').value:0)||0;
   var capRaw=$('bnCap')&&$('bnCap').value!==''?parseFloat($('bnCap').value):0, cap=(capRaw&&capRaw>0)?capRaw:null;
   var lodi=lodiCount(false), txt='';
-  if(t==='on_time') txt='Aggiunge +'+trimNum(pts)+' punti alla laurea se ti laurei in corso.';
-  else if(t==='fixed') txt='Aggiunge sempre +'+trimNum(pts)+' punti.';
-  else if(t==='honors_each'){ var v=pts*lodi; if(cap!=null) v=Math.min(v,cap); txt='+'+trimNum(pts)+' per lode. Con le tue '+lodi+' lodi attuali: +'+trimNum(v)+(cap!=null?(' (max +'+trimNum(cap)+')'):'')+'.'; }
-  else if(t==='honors_threshold') txt='+'+trimNum(pts)+' se raggiungi almeno '+trimNum(thr)+' lodi. Attuali: '+lodi+'.';
-  else txt='Bonus personalizzato di +'+trimNum(pts)+' punti.';
+  if(t==='on_time') txt=T('voti.prev_in_corso',{punti:trimNum(pts)});
+  else if(t==='fixed') txt=T('voti.prev_fisso',{punti:trimNum(pts)});
+  else if(t==='honors_each'){ var v=pts*lodi; if(cap!=null) v=Math.min(v,cap); txt=T('voti.prev_per_lode',{punti:trimNum(pts),lodi:lodi,totale:trimNum(v)})+(cap!=null?T('voti.desc_max',{max:trimNum(cap)}):'')+'.'; }
+  else if(t==='honors_threshold') txt=T('voti.prev_soglia',{punti:trimNum(pts),soglia:trimNum(thr),lodi:lodi});
+  else txt=T('voti.prev_personalizzato',{punti:trimNum(pts)});
   setTxt('bnPreview',txt); }
-function uniSaveBonus(){ var name=(($('bnName')&&$('bnName').value)||'').trim(); if(!name){ toast('Dai un nome al bonus'); return; }
+function uniSaveBonus(){ var name=(($('bnName')&&$('bnName').value)||'').trim(); if(!name){ toast(T('voti.dai_un_nome_al_bonus')); return; }
   var t=$('bnType').value;
   var payload={ name:name, bonus_type:t, points:parseFloat($('bnPoints').value)||0,
     threshold_value: t==='honors_threshold'?(parseFloat($('bnThreshold').value)||0):null,
     cap_points: (t==='honors_each' && $('bnCap').value!=='')?(parseFloat($('bnCap').value)||0):0, is_enabled:true };
   if(BN.id) payload.id=BN.id;
   uniPost(BN.id?'update_bonus':'add_bonus',payload).then(function(res){ if(res&&res.bonuses) STATE.bonuses=res.bonuses;
-    uniCloseSheets(); renderHero(); renderObjective(); renderThesisBonus(); toast('Bonus salvato'); }).catch(function(){ toast('Errore'); }); }
-function uniDeleteBonus(){ if(!BN.id){ uniCloseSheets(); return; } if(!confirm('Eliminare questo bonus?')) return;
+    uniCloseSheets(); renderHero(); renderObjective(); renderThesisBonus(); toast(T('voti.bonus_salvato')); }).catch(function(){ toast('Errore'); }); }
+function uniDeleteBonus(){ if(!BN.id){ uniCloseSheets(); return; } if(!confirm(T('voti.eliminare_questo_bonus'))) return;
   uniPost('delete_bonus',{ id:BN.id }).then(function(){ STATE.bonuses=STATE.bonuses.filter(function(b){ return String(b.id)!==String(BN.id); });
     uniCloseSheets(); renderHero(); renderObjective(); renderThesisBonus(); }).catch(function(){ toast('Errore'); }); }
 
@@ -2505,10 +2111,10 @@ function uniOpenSettings(){ var s=S(); SET.accent=s.accent_color||'#0A84FF'; SET
   setProgDisplay(); renderColorSwatches(); syncLodeChips(); openSheet('settingsSheet'); }
 function setProgDisplay(){ var s=S();
   var cat=STATE.catalog&&STATE.catalog.programs?STATE.catalog.programs[s.program_key]:null;
-  setTxt('setProgName', s.program_label || (cat?cat.label:'Nessun corso'));
+  setTxt('setProgName', s.program_label || (cat?cat.label:T('voti.nessun_corso')));
   var fac=STATE.catalog&&STATE.catalog.faculties?STATE.catalog.faculties[s.faculty_key]:null;
   setTxt('setProgIcon', fac?fac.emoji:'🎓');
-  setTxt('setProgDesc', cat?(trimNum(cat.total_cfu)+' CFU \u00b7 '+(cat.exams?cat.exams.length:0)+' esami'):'Tocca per scegliere'); }
+  setTxt('setProgDesc', cat?(trimNum(cat.total_cfu)+' CFU \u00b7 '+(cat.exams?cat.exams.length:0)+' esami'):T('voti.tocca_per_scegliere')); }
 function uniSetLodeVal(v){ SET.lode=v; syncLodeChips(); }
 function syncLodeChips(){ var wrap=$('setLodeVal'); if(!wrap) return; var chips=wrap.querySelectorAll('.chip-tog');
   for(var i=0;i<chips.length;i++){ var val=parseFloat(chips[i].getAttribute('data-val')); chips[i].classList.toggle('on', Math.abs(val-SET.lode)<0.01); } }
@@ -2528,7 +2134,7 @@ function uniSaveSettings(){ var rc=$('setRound');
     round_half_up: rc?rc.checked:false, accent_color:SET.accent };
   uniPost('save_settings',payload).then(function(res){ if(res&&res.settings) STATE.settings=res.settings;
     else { for(var k in payload){ if(payload.hasOwnProperty(k)) STATE.settings[k]=payload[k]; } }
-    uniCloseSheets(); applyAccentFromSettings(); refreshHeaderDegree(); renderAll(); toast('Impostazioni salvate'); }).catch(function(){ toast('Errore'); }); }
+    uniCloseSheets(); applyAccentFromSettings(); refreshHeaderDegree(); renderAll(); toast(T('voti.impostazioni_salvate')); }).catch(function(){ toast('Errore'); }); }
 
 /* ---- Corso ---- */
 var PROG_CACHE=null;
@@ -2546,7 +2152,7 @@ function renderProgList(filter){
   var items=PROG_CACHE||[];
   if(filter){ var f=filter.trim().toLowerCase();
     items=items.filter(function(p){ return p.label.toLowerCase().indexOf(f)>-1 || p.facLabel.toLowerCase().indexOf(f)>-1; }); }
-  if(!items.length){ list.innerHTML='<div class="empty" style="padding:22px 10px"><p style="margin:0">Nessun corso trovato.</p></div>'; return; }
+  if(!items.length){ list.innerHTML='<div class="empty" style="padding:22px 10px"><p style="margin:0">'+T('voti.nessun_corso_trovato')+'</p></div>'; return; }
   var h=''; for(var i=0;i<items.length;i++){ var p=items[i];
     h+='<li class="prog-opt" onclick="uniPickProgram(\''+escAttr(p.key)+'\')">'+
        '<div class="pi" style="background:'+p.facColor+'">'+p.facEmoji+'</div>'+
@@ -2557,7 +2163,7 @@ function renderProgList(filter){
 function uniFilterPrograms(){ renderProgList($('progSearch')?$('progSearch').value:''); }
 function uniOpenProgram(){
   var list=$('progList');
-  if(!STATE.catalog || !STATE.catalog.programs){ if(list) list.innerHTML='<div class="empty" style="padding:16px"><p style="margin:0">Catalogo non ancora caricato. Riprova tra un istante.</p></div>'; openSheet('programSheet'); return; }
+  if(!STATE.catalog || !STATE.catalog.programs){ if(list) list.innerHTML='<div class="empty" style="padding:16px"><p style="margin:0">'+T('voti.catalogo_non_caricato')+'</p></div>'; openSheet('programSheet'); return; }
   PROG_CACHE=buildProgList();
   var se=$('progSearch'); if(se) se.value='';
   renderProgList('');
@@ -2565,16 +2171,16 @@ function uniOpenProgram(){
 }
 function uniPickProgram(key){ var p=STATE.catalog.programs[key]; if(!p) return; var facs=STATE.catalog.faculties||{}, fac=facs[p.faculty]||{};
   var mode='replace';
-  if(STATE.exams.length) mode=confirm('Vuoi SOSTITUIRE gli esami attuali con quelli di "'+p.label+'"?\n\nOK = sostituisci \u00b7 Annulla = aggiungi in coda')?'replace':'append';
+  if(STATE.exams.length) mode=confirm(T('voti.sostituire_esami',{corso:p.label}))?'replace':'append';
   var payload={ mode:mode, program_key:key, program_label:p.label, faculty_key:p.faculty,
     total_cfu:p.total_cfu, grade_base:p.grade_base||110, accent_color:fac.color||S().accent_color||'#0A84FF',
     honors_value:(p.defaults&&p.defaults.honors_value)||30, thesis_min_points:(p.thesis&&p.thesis.min)||0, thesis_max_points:(p.thesis&&p.thesis.max)||0,
     exams: p.exams||[] };
   uniPost('import_program',payload).then(function(res){ if(res){ if(res.exams) STATE.exams=res.exams; if(res.groups) STATE.groups=res.groups; if(res.settings) STATE.settings=res.settings; }
     uniCloseSheets(); applyAccentFromSettings(); refreshHeaderDegree(); maybeCreateDefaultBonus(p);
-    STATE._reached=(S().target_average!=null)&&(weighted(STATE.exams).avg>=parseFloat(S().target_average)); renderAll(); toast('📚 Corso caricato: '+p.label); }).catch(function(){ toast('Errore nel caricamento del corso'); }); }
+    STATE._reached=(S().target_average!=null)&&(weighted(STATE.exams).avg>=parseFloat(S().target_average)); renderAll(); toast(T('voti.corso_caricato',{corso:p.label})); }).catch(function(){ toast(T('voti.errore_caricamento_corso')); }); }
 function maybeCreateDefaultBonus(p){ if(STATE.bonuses.length) return; var pts=(p&&p.defaults&&p.defaults.on_time_points)?p.defaults.on_time_points:null; if(pts==null) return;
-  uniPost('add_bonus',{ name:'Laurea in corso', bonus_type:'on_time', points:pts, is_enabled:false }).then(function(res){ if(res&&res.bonuses){ STATE.bonuses=res.bonuses; renderThesisBonus(); } }).catch(function(){}); }
+  uniPost('add_bonus',{ name:T('voti.laurea_in_corso'), bonus_type:'on_time', points:pts, is_enabled:false }).then(function(res){ if(res&&res.bonuses){ STATE.bonuses=res.bonuses; renderThesisBonus(); } }).catch(function(){}); }
 
 /* ---- Accento ---- */
 function deriveAccent2(c){ if(STATE.catalog&&STATE.catalog.faculties){ for(var k in STATE.catalog.faculties){ var f=STATE.catalog.faculties[k];
@@ -2588,7 +2194,7 @@ function applyAccent(c,c2){ var b=document.body; b.style.setProperty('--uni-acce
 function applyAccentFromSettings(){ var c=S().accent_color||'#0A84FF'; applyAccent(c, deriveAccent2(c)); }
 function refreshHeaderDegree(){ var s=S();
   var name=s.program_label || (STATE.catalog&&STATE.catalog.programs&&STATE.catalog.programs[s.program_key]?STATE.catalog.programs[s.program_key].label:'');
-  setTxt('hdrDegreeName', name || 'Imposta corso'); var pill=$('hdrDegree'); if(pill) pill.style.display=STATE.exams.length?'':'none'; }
+  setTxt('hdrDegreeName', name || T('voti.imposta_corso')); var pill=$('hdrDegree'); if(pill) pill.style.display=STATE.exams.length?'':'none'; }
 
 /* ---- Drag riordino ---- */
 var DRAG={ el:null, id:null, startY:0, dy:0, items:[], list:null };
@@ -2623,7 +2229,7 @@ function applyReorder(displayedIds){
   var merged=reordered.concat(others); for(var n=0;n<merged.length;n++) merged[n].sort_order=n; STATE.exams=merged;
   renderExams(); uniPost('reorder_exams',{ order: merged.map(function(e){ return e.id; }) }).catch(function(){}); }
 
-/* ---- Swipe verso destra per rivelare "elimina" (solo tab "Da sostenere") ---- */
+/* ---- Swipe verso destra per rivelare "elimina" (solo tab T("voti.da_sostenere")) ---- */
 var SWIPE_W=76, SWIPE={ el:null, id:null, startX:0, startY:0, dx:0, active:false, deciding:false, isH:false }, SWIPE_OPEN=null;
 function bindSwipe(list){
   var contents=list.querySelectorAll('.swipe-content');
@@ -2676,7 +2282,7 @@ function bindSwipeListGuard(list){
 }
 function uniSwipeDelete(id,ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(); }
   var e=findExam(id); if(!e) return;
-  if(!confirm('Eliminare "'+e.name+'"?')) return;
+  if(!confirm(T('voti.eliminare_esame_nome',{nome:e.name}))) return;
   uniPost('delete_exam',{ id:id }).then(function(){
     STATE.exams=STATE.exams.filter(function(x){ return String(x.id)!==String(id); });
     SWIPE_OPEN=null; renderAll(); }).catch(function(){ toast('Errore'); });

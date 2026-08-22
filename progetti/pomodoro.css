@@ -1,0 +1,490 @@
+/* pomodoro.css — stile della pagina pomodoro.php.
+   Estratto dai blocchi <style> che stavano dentro la pagina: serve a poter
+   togliere 'unsafe-inline' dalla CSP, e a rendere confrontabili fra loro i
+   fogli delle varie pagine per trovare la parte davvero comune. */
+
+/* ==========================================================================
+   POMODORO — UI iOS (restyling estetico)
+   LOGICA COLORI INVARIATA:
+     --pomo-accent   = colore del progetto (iniettato da JS su <body>) o arancione
+     --pausa-accent  = teal
+     --pomo-live        = quello "attivo", commuta da solo con body.pausa-mode
+   ========================================================================== */
+:root{
+    color-scheme: light dark;
+    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7; --surface-3:#E7E7EC;
+    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
+    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
+    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#6E6E73; --purple:#AF52DE; --teal:#30B0C7;
+    /* --orange è ora il grigio "neutro" di default (nessun progetto collegato): nome storico, valore cambiato su richiesta */
+    --red-soft:rgba(255,59,48,.1);
+    --header-glass:rgba(249,249,251,.72);
+    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
+    --shadow-sheet:0 -14px 60px rgba(0,0,0,.18);
+    --shadow-pop:0 30px 70px -22px rgba(0,0,0,.45);
+    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
+    --track:rgba(120,120,128,.14);
+    --r-card:22px; --r-btn:15px;
+    --spring:cubic-bezier(.32,.72,0,1);
+    --pop:cubic-bezier(.34,1.4,.64,1);
+    --ease-out:cubic-bezier(.16,1,.3,1);
+    --safe-top:env(safe-area-inset-top, 0px); --safe-bottom:env(safe-area-inset-bottom, 0px);
+    --pomo-accent: var(--orange); --pausa-accent: var(--teal);
+}
+@media (prefers-color-scheme: dark){ :root{
+    --bg:#000; --surface:#1C1C1E; --surface-2:#2C2C2E; --surface-3:#3A3A3C;
+    --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
+    --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
+    --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#7A7A81; --purple:#BF5AF2; --teal:#40C8E0;
+    --red-soft:rgba(255,69,58,.16);
+    --header-glass:rgba(16,16,18,.7);
+    --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
+    --shadow-sheet:0 -14px 60px rgba(0,0,0,.6);
+    --track:rgba(120,120,128,.26);
+}}
+
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+.is-hidden{ display:none !important; }
+body{
+    margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,Roboto,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:calc(90px + var(--safe-bottom)); overscroll-behavior-y:none;
+    transition:background-color .6s var(--ease-out);
+    /* accento attivo: pomodoro o pausa. Tutto il resto legge var(--pomo-live) */
+    --pomo-live: var(--pomo-accent);
+}
+body.pausa-mode{ --pomo-live: var(--pausa-accent); }
+button{ font-family:inherit; cursor:pointer; }
+
+/* ---- alone ambientale che segue il colore del progetto ---- */
+body::before{
+    content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:
+        radial-gradient(88% 52% at 50% -4%, color-mix(in srgb, var(--pomo-live) 22%, transparent) 0%, transparent 60%),
+        radial-gradient(70% 44% at 50% 104%, color-mix(in srgb, var(--pomo-live) 11%, transparent) 0%, transparent 66%);
+    opacity:.85;
+}
+@media (prefers-color-scheme: dark){ body::before{ opacity:.5; } }
+
+/* ---- header ---- */
+.app-header{ position:sticky; top:0; z-index:100; padding:calc(var(--safe-top) + 11px) 16px 11px; background:var(--header-glass);
+    -webkit-backdrop-filter:saturate(180%) blur(24px); backdrop-filter:saturate(180%) blur(24px); border-bottom:.5px solid var(--hairline);
+    display:flex; align-items:center; justify-content:space-between; }
+.hdr-title{ font-size:19px; font-weight:800; letter-spacing:-.5px; }
+.hdr-history-btn{ display:inline-flex; align-items:center; gap:6px; background:var(--surface-2); border:none; border-radius:999px; padding:8px 14px;
+    color:var(--text); font-weight:700; font-size:13px; letter-spacing:-.1px; box-shadow:inset 0 0 0 .5px var(--hairline);
+    transition:transform .2s var(--spring), background-color .2s; }
+.hdr-history-btn:active{ transform:scale(.94); background:var(--surface-3); }
+
+.page{ position:relative; z-index:1; max-width:520px; margin:0 auto; padding:6px 20px calc(30px + var(--safe-bottom)); display:flex; flex-direction:column; align-items:center; }
+
+/* ---- mode switch (segmented control con thumb scorrevole) ---- */
+.mode-switch{ position:relative; display:flex; background:var(--surface-2); border-radius:15px; padding:3px; margin:14px 0 8px;
+    box-shadow:inset 0 0 0 .5px var(--hairline); transition:opacity .35s, filter .35s; }
+.mode-switch button{ position:relative; z-index:1; flex:1; min-width:110px; border:none; background:none; padding:9px 18px; border-radius:12px;
+    font-weight:600; font-size:14px; letter-spacing:-.2px; color:var(--text-2); transition:color .3s var(--spring); }
+.mode-switch button.active{ color:#fff; font-weight:700; }
+@supports selector(:has(*)){
+    .mode-switch::before{ content:""; position:absolute; z-index:0; top:3px; bottom:3px; left:3px; width:calc(50% - 3px); border-radius:12px;
+        background:var(--pomo-live); box-shadow:var(--btn-hl), 0 5px 14px -5px color-mix(in srgb, var(--pomo-live) 75%, transparent);
+        transition:transform .48s var(--spring), background-color .35s var(--ease-out); }
+    .mode-switch:has(button:nth-of-type(2).active)::before{ transform:translateX(100%); }
+}
+@supports not selector(:has(*)){
+    .mode-switch button.active{ background:var(--pomo-live); box-shadow:var(--btn-hl); }
+}
+body.pomo-locked .mode-switch{ opacity:.4; filter:saturate(.55); pointer-events:none; }
+
+/* ---- selettore progetto sopra al timer (pillola) ---- */
+.pomo-project-row{ margin:6px 0 14px; width:100%; }
+.pomo-project-row > div{ display:flex !important; justify-content:center !important; width:100% !important; }
+/* l'aspetto a pillola (vetro, ombra, punto colorato, freccia nascosta) arriva
+   ora direttamente da .ps-trigger-pill in project_selector.php: qui restringiamo
+   solo la larghezza al contenuto e la centriamo, che è specifico di questa pagina */
+.pomo-project-row button{ width:auto !important; max-width:100% !important; margin:0 auto !important; }
+
+/* Il tag del progetto collegato: titolo sopra, da dove viene sotto in piccolo.
+   Il titolo è bianco, e perché il bianco si legga la pillola si riempie del
+   colore del progetto — lo stesso dell'anello, quindi il collegamento fra le
+   due cose si vede senza doverlo spiegare. Il fondo colorato c'è solo quando
+   un progetto è davvero collegato (la classe la mette il JS): con il
+   segnaposto "nessun progetto" la pillola resta di vetro com'era. */
+.pomo-project-row.pomo-ha-progetto button{
+    background:var(--pomo-live) !important;
+    box-shadow:var(--btn-hl), 0 8px 22px -10px color-mix(in srgb, var(--pomo-live) 85%, transparent) !important;
+    padding-top:8px !important; padding-bottom:8px !important;
+}
+.pomo-project-row #ps-trigger-text-pomo{
+    display:flex; flex-direction:column; align-items:center; gap:1px; min-width:0; text-align:center;
+}
+.pomo-project-row .pomo-pill-leaf{
+    color:#fff; font-weight:800; font-size:15px; letter-spacing:-.2px;
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+/* gli antenati restano più chiari come prima: qui "più chiaro" vuol dire
+   bianco smorzato, perché sotto c'è il colore pieno e non più il vetro */
+.pomo-project-row .pomo-pill-anc{
+    color:rgba(255,255,255,.72); font-weight:600; font-size:11px;
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.pomo-project-row .pomo-pill-sep{ color:rgba(255,255,255,.5); }
+
+/* ---- display switch (cerchio/clessidra) ---- */
+.display-switch{ position:absolute; z-index: 10; left:18px; top:calc(var(--safe-top) + 66px); width:38px; height:38px; border-radius:50%;
+    background:color-mix(in srgb, var(--surface) 80%, transparent);
+    -webkit-backdrop-filter:blur(18px) saturate(180%); backdrop-filter:blur(18px) saturate(180%);
+    border:none; color:var(--text-2); display:flex; align-items:center; justify-content:center;
+    box-shadow:inset 0 0 0 .5px var(--hairline), 0 5px 16px -6px rgba(0,0,0,.22);
+    transition:transform .45s var(--pop), color .25s, background-color .25s; }
+.display-switch:active{ transform:scale(.84) rotate(-18deg); color:var(--pomo-live); }
+
+/* ---- etichetta di stato ---- */
+.pomo-status-label{ display:inline-flex; align-items:center; gap:7px; min-height:20px; margin-bottom:4px;
+    font-size:11.5px; font-weight:700; letter-spacing:.7px; text-transform:uppercase; color:var(--text-2); text-align:center;
+    transition:color .3s; }
+.pomo-status-label::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--pomo-live); flex-shrink:0;
+    opacity:0; transform:scale(.3); transition:opacity .4s, transform .4s var(--pop); }
+body[data-phase="running"] .pomo-status-label::before,
+body[data-phase="pausa_running"] .pomo-status-label::before{ opacity:1; transform:none; animation:statusDot 2.4s ease-in-out infinite; }
+body[data-phase="paused_task"] .pomo-status-label::before,
+body[data-phase="completed"] .pomo-status-label::before,
+body[data-phase="pausa_done"] .pomo-status-label::before{ opacity:.55; transform:none; }
+@keyframes statusDot{ 0%,100%{ box-shadow:0 0 0 0 color-mix(in srgb, var(--pomo-live) 55%, transparent); } 70%,100%{ box-shadow:0 0 0 7px transparent; } }
+
+/* ---- cerchio ---- */
+.ring-wrap{ position:relative; width:min(78vw, 300px); height:min(78vw, 300px); margin:14px 0 2px; display:flex; align-items:center; justify-content:center; }
+.ring-halo{ position:absolute; inset:-16%; border-radius:50%; pointer-events:none; z-index:0;
+    background:radial-gradient(closest-side, color-mix(in srgb, var(--pomo-live) 30%, transparent), color-mix(in srgb, var(--pomo-live) 7%, transparent) 58%, transparent 76%);
+    opacity:0; transform:scale(.88); transition:opacity .8s var(--ease-out), transform .8s var(--ease-out); }
+body[data-phase="running"] .ring-halo,
+body[data-phase="completed"] .ring-halo,
+body[data-phase="pausa_running"] .ring-halo,
+body[data-phase="pausa_done"] .ring-halo{ animation:haloBreathe 5.4s ease-in-out infinite; }
+body[data-phase="paused_task"] .ring-halo{ opacity:.4; transform:scale(.97); }
+@keyframes haloBreathe{ 0%,100%{ opacity:.7; transform:scale(.95); } 50%{ opacity:1; transform:scale(1.04); } }
+
+.ring-face{ position:absolute; inset:9.5%; border-radius:50%; z-index:0; pointer-events:none;
+    background:radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--pomo-live) 9%, var(--surface)) 0%, var(--surface) 66%);
+    box-shadow:0 22px 44px -24px rgba(0,0,0,.4), inset 0 .5px 0 rgba(255,255,255,.7), inset 0 0 0 .5px var(--hairline); }
+@media (prefers-color-scheme: dark){
+    .ring-face{ box-shadow:0 26px 54px -22px rgba(0,0,0,.9), inset 0 .5px 0 rgba(255,255,255,.06), inset 0 0 0 .5px rgba(255,255,255,.05); }
+}
+.ring-wrap svg{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); overflow:visible; z-index:1; }
+/* Barra sottile: era 12, ora 5.5. Il pallino della scintilla (r 3.6) resta
+   appena piu' largo della barra, cosi' si legge come punta e non come nodo. */
+.ring-track{ fill:none; stroke:var(--track); stroke-width:5.5; }
+.ring-progress{ fill:none; stroke:var(--pomo-live); stroke-width:5.5; stroke-linecap:round;
+    transition:stroke-dashoffset .3s linear, stroke .45s var(--ease-out);
+    filter:drop-shadow(0 0 8px color-mix(in srgb, var(--pomo-live) 55%, transparent)); }
+
+/* La scintilla in punta alla barra. Posizione e scie le calcola il JS a ogni
+   fotogramma (vedi il commento nel blocco "LA SCINTILLA" dentro pomodoro.php):
+   qui restano solo i colori e le misure. */
+.ring-spark{ transition:opacity .4s var(--ease-out); }
+.ring-spark.is-off{ opacity:0; }
+
+/* Il pallino sta fermo e non pulsa. È più largo della barra (raggio 6,4 contro
+   i 2,75 di mezzo spessore) e più chiaro del suo colore: sembra la stessa
+   brace vista attraverso un vetro. Due parti soltanto: l'alone che scalda
+   intorno e il corpo schiarito col bordo del colore pieno. */
+.ring-spark-halo{ fill:color-mix(in srgb, var(--pomo-live) 26%, transparent); }
+.ring-spark-core{ fill:color-mix(in srgb, var(--pomo-live) 42%, #fff);
+    stroke:color-mix(in srgb, var(--pomo-live) 82%, #fff); stroke-width:1.4;
+    filter:drop-shadow(0 0 6px color-mix(in srgb, var(--pomo-live) 75%, transparent)); }
+
+/* Le scintille: cerchietti di riserva, spenti finché il JS non li accende.
+   Niente animazione CSS qui — la traiettoria di ognuna è diversa e la calcola
+   il JS, che è anche il motivo per cui prima si vedevano solo all'inizio. */
+.rs-p{ fill:color-mix(in srgb, var(--pomo-live) 55%, #fff); }
+@media (prefers-color-scheme: dark){
+    .rs-p{ fill:color-mix(in srgb, var(--pomo-live) 70%, #fff); }
+}
+
+.ring-center{ position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:7px;
+    padding:8px 10px; border-radius:26px; text-align:center; cursor:pointer;
+    user-select:none; -webkit-user-select:none; transition:transform .3s var(--spring); }
+body[data-phase="idle"] .ring-center:active{ transform:scale(.95); }
+.ring-time{ font-size:clamp(40px, 14.5vw, 54px); font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-1.6px; line-height:1;
+    transition:color .45s var(--ease-out); }
+.ring-sub{ font-size:11px; font-weight:700; letter-spacing:.2px; color:var(--text-2);
+    background:var(--surface-2); box-shadow:inset 0 0 0 .5px var(--hairline); padding:4px 11px; border-radius:999px;
+    transition:opacity .35s var(--ease-out), transform .35s var(--pop); }
+.ring-sub:empty{ opacity:0; transform:scale(.8); }
+
+/* ---- clessidra (il disegno vero e proprio vive in clessidra.php) ---- */
+.glass-wrap{ display:flex; align-items:center; justify-content:center;
+    position:relative; cursor:pointer; transition:transform .3s var(--spring); }
+body[data-phase="idle"] .glass-wrap:active{ transform:scale(.955); }
+
+/* ---- chip tempo extra ---- */
+.overtime-chip{ margin-top:14px; display:flex; align-items:center; gap:7px; padding:9px 17px; border-radius:999px; cursor:pointer;
+    background:color-mix(in srgb, var(--pomo-live) 12%, var(--surface)); color:var(--pomo-live);
+    font-weight:800; font-size:14.5px; letter-spacing:-.2px; font-variant-numeric:tabular-nums;
+    animation:overtimePulse 2.6s ease-in-out infinite;
+    transition:transform .2s var(--spring); }
+.overtime-chip:active{ transform:scale(.94); }
+@keyframes overtimePulse{
+    0%,100%{ box-shadow:inset 0 0 0 .5px color-mix(in srgb, var(--pomo-live) 30%, transparent), 0 6px 18px -10px color-mix(in srgb, var(--pomo-live) 80%, transparent); }
+    50%{ box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--pomo-live) 45%, transparent), 0 8px 28px -8px color-mix(in srgb, var(--pomo-live) 90%, transparent); }
+}
+
+/* ---- pulsanti azione ---- */
+.pomo-actions{ display:flex; gap:10px; margin-top:18px; width:100%; justify-content:center; animation:pomoActIn .5s var(--spring) both; }
+@keyframes pomoActIn{ from{ opacity:0; transform:translateY(10px) scale(.97); } to{ opacity:1; transform:none; } }
+.pomo-btn{ padding:15px 26px; border-radius:17px; border:none; font-size:15.5px; font-weight:700; letter-spacing:-.2px; white-space:nowrap; color:var(--text);
+    box-shadow:var(--btn-hl); transition:transform .2s var(--spring), background-color .35s var(--ease-out), box-shadow .35s, filter .2s; }
+.pomo-btn:active{ transform:scale(.955); filter:brightness(.95); }
+.pomo-btn-start{ background:var(--pomo-live); color:#fff; padding:16px 52px; font-size:16.5px; font-weight:800; position:relative; overflow:hidden;
+    box-shadow:var(--btn-hl), 0 12px 28px -10px color-mix(in srgb, var(--pomo-live) 90%, transparent); }
+.pomo-btn-start::after{ content:""; position:absolute; top:-50%; left:-60%; width:35%; height:200%;
+    background:linear-gradient(115deg, transparent, rgba(255,255,255,.42), transparent); transform:rotate(20deg); animation:pomoShine 5s ease-in-out infinite; }
+@keyframes pomoShine{ 0%,80%,100%{ left:-60%; } 42%{ left:130%; } }
+.pomo-btn-pausa{ background:var(--surface-2); color:var(--text); box-shadow:inset 0 0 0 .5px var(--hairline); }
+.pomo-btn-teal{ background:var(--teal); color:#fff; box-shadow:var(--btn-hl), 0 10px 24px -10px color-mix(in srgb, var(--teal) 85%, transparent); }
+.pomo-btn-interrompi{ background:var(--red-soft); color:var(--red); box-shadow:inset 0 0 0 .5px color-mix(in srgb, var(--red) 22%, transparent); }
+/* resta l'accento "pomodoro" anche durante la pausa: è l'invito a ripartire */
+.pomo-btn-pomodoro{ background:var(--pomo-accent) !important; color:#fff !important;
+    box-shadow:var(--btn-hl), 0 10px 24px -10px color-mix(in srgb, var(--pomo-accent) 85%, transparent); }
+.pomo-btn-resume{ background:var(--pomo-live); color:#fff; padding:16px 44px;
+    box-shadow:var(--btn-hl), 0 10px 26px -10px color-mix(in srgb, var(--pomo-live) 85%, transparent); }
+
+/* ---- badge "in pausa" ---- */
+.paused-badge{ display:inline-flex; align-items:center; gap:7px; background:color-mix(in srgb, var(--pomo-live) 13%, var(--surface)); color:var(--pomo-live);
+    padding:7px 14px; border-radius:999px; font-weight:700; font-size:12px; letter-spacing:.3px; text-transform:uppercase; margin-bottom:14px;
+    box-shadow:inset 0 0 0 .5px color-mix(in srgb, var(--pomo-live) 26%, transparent); }
+.paused-badge .dot{ width:7px; height:7px; border-radius:50%; background:currentColor; animation:pausedPulse 2s ease-in-out infinite; }
+@keyframes pausedPulse{ 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:.4; transform:scale(.8); } }
+
+/* ==========================================================================
+   BOTTOM SHEET (durata + gestione durate)
+   ========================================================================== */
+.dur-overlay{ position:fixed; inset:0; z-index:9700; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.4);
+    -webkit-backdrop-filter:blur(10px) saturate(140%); backdrop-filter:blur(10px) saturate(140%);
+    opacity:0; pointer-events:none; transition:opacity .36s var(--ease-out); }
+.dur-overlay.show{ opacity:1; pointer-events:auto; }
+.dur-sheet{ width:100%; max-width:520px; background:var(--surface); border-radius:26px 26px 0 0; overflow:hidden;
+    transform:translateY(101%); transition:transform .5s var(--spring); padding-bottom:var(--safe-bottom); box-shadow:var(--shadow-sheet); }
+.dur-overlay.show .dur-sheet{ transform:translateY(0); }
+.dur-grabber{ width:38px; height:5px; border-radius:3px; background:var(--hairline-2); margin:8px auto 0; }
+.dur-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 18px 6px; }
+.dur-head b{ font-size:19px; font-weight:800; letter-spacing:-.4px; }
+.sheet-close{ width:30px; height:30px; border-radius:50%; border:none; background:var(--surface-2); color:var(--text-2);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:transform .2s var(--spring), background-color .2s; }
+.sheet-close:active{ transform:scale(.88); background:var(--surface-3); }
+.dur-half{ padding:12px 18px; }
+.dur-half-title{ font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--text-2); margin-bottom:11px;
+    display:flex; align-items:center; gap:7px; }
+.dur-half-title .dot{ width:8px; height:8px; border-radius:50%; }
+.dur-pomo-title .dot{ background:var(--pomo-accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--pomo-accent) 18%, transparent); }
+.dur-pausa-title .dot{ background:var(--teal); box-shadow:0 0 0 3px color-mix(in srgb, var(--teal) 18%, transparent); }
+.dur-pills{ display:flex; flex-wrap:wrap; gap:8px; }
+.dur-pill{ padding:11px 18px; border-radius:14px; border:none; background:var(--surface-2); color:var(--text); font-weight:600; font-size:14.5px;
+    letter-spacing:-.2px; box-shadow:inset 0 0 0 .5px var(--hairline);
+    transition:transform .2s var(--spring), background-color .3s var(--ease-out), color .25s, box-shadow .3s; }
+.dur-pill:active{ transform:scale(.94); }
+.dur-pill.active{ background:var(--pomo-accent); color:#fff; font-weight:700;
+    box-shadow:var(--btn-hl), 0 7px 18px -8px color-mix(in srgb, var(--pomo-accent) 85%, transparent); }
+.dur-pausa-title ~ .dur-pills .dur-pill.active{ background:var(--teal);
+    box-shadow:var(--btn-hl), 0 7px 18px -8px color-mix(in srgb, var(--teal) 85%, transparent); }
+.dur-pill-add{ background:none; box-shadow:inset 0 0 0 1.5px var(--hairline-2); color:var(--text-2); font-weight:600; }
+.dur-divider{ height:.5px; background:var(--hairline); margin:2px 18px; }
+.dur-confirm{ display:block; width:calc(100% - 36px); margin:16px 18px calc(12px + var(--safe-bottom)); padding:16px; border-radius:16px; border:none;
+    background:var(--pomo-live); color:#fff; font-weight:800; font-size:16px; letter-spacing:-.2px;
+    box-shadow:var(--btn-hl), 0 12px 26px -12px color-mix(in srgb, var(--pomo-live) 90%, transparent);
+    transition:transform .2s var(--spring), background-color .35s var(--ease-out), filter .2s; }
+.dur-confirm:active{ transform:scale(.975); filter:brightness(.96); }
+.dur-custom-input{ display:none; padding:11px 14px; border-radius:14px; border:none; background:var(--surface-2); font-size:15px; width:90px; font-family:inherit; }
+.dur-custom-input.show{ display:inline-block; }
+
+/* badge di eliminazione sulle durate personalizzate (long press) */
+.pill-wrap{ position:relative; display:inline-block; }
+.cdur-badge{
+    position:absolute; top:-6px; left:-6px; width:22px; height:22px;
+    background:var(--red); color:#fff; border:none; border-radius:50%;
+    font-weight:800; font-size:16px; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; transform:scale(.4); pointer-events:none;
+    transition:opacity .25s, transform .3s var(--pop); z-index:10;
+    box-shadow:0 3px 8px -1px rgba(0,0,0,.28); cursor:pointer;
+}
+.cdur-badge.show{ opacity:1; transform:scale(1); pointer-events:auto; }
+
+/* ---- popup "gestisci durate" ---- */
+.cdur-body{ padding:14px 18px calc(22px + var(--safe-bottom)); }
+.cdur-add-row{ display:flex; gap:10px; align-items:center; }
+.cdur-time-input{ flex:1; padding:13px 14px; border-radius:14px; border:none; background:var(--surface-2); color:var(--text);
+    font-size:18px; font-weight:700; font-family:inherit; font-variant-numeric:tabular-nums; box-shadow:inset 0 0 0 .5px var(--hairline); }
+.cdur-add-btn{ padding:13px 20px; border-radius:14px; border:none; background:var(--pomo-live); color:#fff; font-weight:800; font-size:15px;
+    box-shadow:var(--btn-hl), 0 8px 20px -10px color-mix(in srgb, var(--pomo-live) 90%, transparent);
+    transition:transform .2s var(--spring), background-color .35s, filter .2s; }
+.cdur-add-btn:active{ transform:scale(.95); filter:brightness(.96); }
+.cdur-list{ display:flex; flex-direction:column; gap:8px; }
+.cdur-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--surface-2); padding:11px 8px 11px 15px;
+    border-radius:14px; box-shadow:inset 0 0 0 .5px var(--hairline); animation:pomoActIn .35s var(--spring) both;
+    transition:background-color .25s var(--ease-out), box-shadow .25s var(--ease-out); }
+.cdur-row.active{ background:color-mix(in srgb, var(--cdur-mark, var(--pomo-live)) 14%, var(--surface-2));
+    box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--cdur-mark, var(--pomo-live)) 42%, transparent); }
+.cdur-row-label{ font-weight:700; font-size:15.5px; letter-spacing:-.2px; display:flex; align-items:center; gap:8px; }
+.cdur-row-check{ flex-shrink:0; color:var(--cdur-mark, var(--pomo-live)); opacity:0; transform:scale(.4);
+    transition:opacity .2s, transform .28s var(--pop); }
+.cdur-row.active .cdur-row-check{ opacity:1; transform:none; }
+.cdur-row-del{ background:none; border:none; color:var(--red); padding:7px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    transition:transform .2s var(--spring), background-color .2s; }
+.cdur-row-del:active{ transform:scale(.86); background:var(--red-soft); }
+.cdur-empty{ font-size:14px; color:var(--text-2); text-align:center; padding:18px 0; }
+
+/* ---- toast ---- */
+.pomo-toast{ position:fixed; left:50%; bottom:calc(28px + var(--safe-bottom)); transform:translate(-50%,14px) scale(.96);
+    background:rgba(28,28,30,.86); -webkit-backdrop-filter:blur(20px) saturate(180%); backdrop-filter:blur(20px) saturate(180%);
+    color:#fff; padding:12px 20px; border-radius:16px; font-size:13.5px; font-weight:600; letter-spacing:-.1px; z-index:9900;
+    box-shadow:0 14px 40px -12px rgba(0,0,0,.5); opacity:0; pointer-events:none;
+    transition:opacity .3s var(--ease-out), transform .42s var(--pop); }
+.pomo-toast.show{ opacity:1; transform:translate(-50%,0) scale(1); }
+
+/* ---- alert di conferma ---- */
+.confirm-overlay{ position:fixed; inset:0; z-index:9800; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.4);
+    -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .28s var(--ease-out); padding:20px; }
+.confirm-overlay.show{ opacity:1; pointer-events:auto; }
+.confirm-box{ background:color-mix(in srgb, var(--surface) 88%, transparent);
+    -webkit-backdrop-filter:blur(30px) saturate(180%); backdrop-filter:blur(30px) saturate(180%);
+    border-radius:22px; padding:22px 20px 16px; max-width:300px; width:100%; text-align:center; box-shadow:var(--shadow-pop);
+    transform:scale(.88); opacity:0; transition:transform .42s var(--pop), opacity .26s; }
+.confirm-overlay.show .confirm-box{ transform:scale(1); opacity:1; }
+.confirm-title{ font-weight:800; font-size:17px; letter-spacing:-.3px; margin-bottom:6px; }
+.confirm-msg{ font-size:13.5px; line-height:1.45; color:var(--text-2); margin-bottom:18px; }
+.confirm-actions{ display:flex; gap:10px; }
+.confirm-btn{ flex:1; padding:13px; border-radius:14px; border:none; font-weight:700; font-size:15px; letter-spacing:-.2px;
+    background:var(--surface-2); color:var(--text); box-shadow:inset 0 0 0 .5px var(--hairline);
+    transition:transform .2s var(--spring), filter .2s; }
+.confirm-btn:active{ transform:scale(.96); filter:brightness(.96); }
+.confirm-btn-primary{ background:var(--blue); color:#fff; box-shadow:var(--btn-hl); }
+
+/* ---- tasti a icona ----
+   La parola dentro al tasto e' sparita, quindi la larghezza non puo' piu'
+   venire dal testo: diventano cerchi di misura fissa. Il cerchio grande e'
+   quello di partenza, che deve restare il gesto piu' facile da centrare. */
+.pomo-btn-icon{ width:60px; height:60px; padding:0; border-radius:50%;
+    display:inline-flex; align-items:center; justify-content:center; }
+.pomo-btn-icon svg{ width:26px; height:26px; }
+.pomo-btn-xl{ width:76px; height:76px; }
+.pomo-btn-xl svg{ width:32px; height:32px; }
+/* .pomo-btn-start portava dentro la misura da tasto con la scritta */
+.pomo-btn-icon.pomo-btn-start{ padding:0; }
+
+/* ---- popup di scelta a piu' vie ----
+   Riusa .confirm-overlay/.confirm-box: e' lo stesso oggetto con piu' uscite,
+   e vederlo comparire uguale al "salvare la sessione?" aiuta a capirlo. Le
+   voci vanno in colonna e non affiancate: tre tasti in riga su telefono
+   diventano tre francobolli con dentro parole tagliate. */
+.choice-actions{ display:flex; flex-direction:column; gap:8px; margin-top:16px; }
+.choice-btn{ display:flex; align-items:center; gap:11px; width:100%; padding:13px 15px;
+    border:none; border-radius:15px; cursor:pointer; font:inherit; font-size:15px; font-weight:600;
+    background:var(--surface-2); color:var(--text); text-align:left;
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+    transition:transform .15s var(--spring), background-color .2s, filter .2s; }
+.choice-btn:active{ transform:scale(.97); filter:brightness(.97); }
+.choice-btn-primary{ background:var(--pomo-live); color:#fff; box-shadow:var(--btn-hl); }
+.choice-ic{ display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; flex-shrink:0; }
+.choice-ic svg{ width:20px; height:20px; }
+
+/* ---- avviso del pomodoro chiuso d'ufficio ----
+   In basso, sopra la barra: e' una notizia sul pomodoro di ieri, non una cosa
+   da fare adesso, quindi non deve rubare il centro della pagina ne' bloccare
+   il tasto di partenza. */
+.pomo-avviso{ position:fixed; left:50%; bottom:calc(84px + var(--safe-bottom, 0px)); z-index:70;
+    width:min(92vw, 440px); transform:translate(-50%, 14px);
+    display:flex; align-items:stretch; gap:2px; opacity:0;
+    background:var(--surface); border-radius:16px; overflow:hidden;
+    box-shadow:0 18px 40px -18px rgba(0,0,0,.55), inset 0 0 0 .5px var(--hairline);
+    transition:opacity .3s var(--ease-out), transform .3s var(--spring); }
+.pomo-avviso.show{ opacity:1; transform:translate(-50%, 0); }
+.pomo-avviso-body{ flex:1; min-width:0; display:flex; align-items:center; gap:10px;
+    padding:12px 6px 12px 13px; border:none; background:none; cursor:pointer;
+    font:inherit; text-align:left; color:var(--text); }
+.pomo-avviso-body:active{ background:var(--surface-2); }
+.pomo-avviso-icon{ flex-shrink:0; width:22px; height:22px; color:var(--pomo-accent); }
+.pomo-avviso-icon svg{ width:22px; height:22px; }
+.pomo-avviso-testo{ font-size:12.5px; line-height:1.42; color:var(--text-2); }
+.pomo-avviso-x{ flex-shrink:0; width:38px; border:none; background:none; color:var(--text-3, var(--text-2)); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; }
+.pomo-avviso-x:active{ background:var(--surface-2); }
+
+@media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}
+
+.pomo-todo-btn{
+    position:fixed; right:16px; bottom:calc(96px + var(--safe-bottom, 0px)); z-index:60;
+    width:46px; height:46px; border-radius:50%; border:none; cursor:pointer;
+    background:var(--surface-2); color:var(--text-2);
+    box-shadow:0 8px 22px -10px rgba(0,0,0,.5);
+    display:grid; place-items:center; transition:transform .18s;
+}
+.pomo-todo-btn svg{ width:20px; height:20px; }
+.pomo-todo-btn:active{ transform:scale(.9); }
+.pomo-todo-btn.is-on{ background:var(--pomo-accent, var(--accent)); color:#fff; }
+
+.pomo-todo-ov{
+    position:fixed; inset:0; z-index:9600; display:grid; place-items:center; padding:22px;
+    background:rgba(0,0,0,.46); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+    opacity:0; pointer-events:none; transition:opacity .28s ease;
+}
+.pomo-todo-ov.show{ opacity:1; pointer-events:auto; }
+/* Il post-it: stesso oggetto di quello di progetti (.pr-note-peek). Là il
+   carattere con le grazie era stato tolto perché una nota lunga diventava
+   faticosa da leggere, ed è per leggerla che il foglietto si apre. Qui vale
+   uguale, e i due devono somigliarsi: fondo neutro, carattere di sistema,
+   piega e inclinazione appena accennate. */
+.pomo-postit{
+    position:relative; width:100%; max-width:340px; max-height:76vh; overflow-y:auto;
+    background:#FBF9F4; color:var(--text, #262523); border-radius:4px 4px 14px 14px;
+    padding:22px 16px 16px; transform:rotate(-.8deg) scale(.94);
+    font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    box-shadow:0 24px 54px -20px rgba(0,0,0,.45), inset 0 0 0 .5px rgba(0,0,0,.06);
+    transition:transform .34s cubic-bezier(.34,1.3,.64,1);
+    scrollbar-width:none;
+}
+/* Il contenuto del post-it lo disegna todo_widget.css, che ha un carattere
+   tutto suo: Jost per il testo e Cormorant Garamond per i titoli. È quello che
+   si vedeva diverso da progetti. Qui si riscrivono le sue due variabili invece
+   di toccare todo_widget.css, che serve anche a todo.php e al planner: la
+   modifica resta dentro al post-it del pomodoro e non si porta dietro nessuno.
+   Le tre regole sotto sono i punti in cui il widget scrive il carattere per
+   esteso invece di leggere la variabile, quindi vanno ripetute a mano. */
+.pomo-postit .td-wrap{
+    --td-serif:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    --td-sans:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+}
+.pomo-postit .td-card,
+.pomo-postit .td-card-t,
+.pomo-postit .td-empty{ font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif; }
+.pomo-postit .td-empty{ font-style:normal; }
+.pomo-postit-titolo{ font-size:19px; font-weight:600; margin-bottom:6px; }
+.pomo-postit-sub{ font-size:13px; color:#8A8177; line-height:1.5; margin-bottom:16px; }
+.pt-acts{ display:flex; flex-direction:column; gap:7px; }
+.pomo-postit-act{ padding:11px; border-radius:13px; border:none; cursor:pointer; font:inherit; font-size:14px;
+    background:#F5F1EA; color:#4A443D; }
+.pomo-postit-act.is-primary{ background:#A9C3AE; color:#FFFDFA; }
+@media (prefers-color-scheme: dark){
+    .pomo-postit{ background:#2A2925; color:#EAE6DE; box-shadow:0 24px 54px -20px rgba(0,0,0,.75), inset 0 0 0 .5px rgba(255,255,255,.06); }
+    .pomo-postit-tape{ background:rgba(255,255,255,.18); }
+    .pomo-postit-sub, .pomo-postit-ring span, .pomo-postit-close{ color:#9A958C; }
+    .pomo-postit-act{ background:rgba(255,255,255,.10); color:#EAE6DE; }
+}
+.pomo-postit::-webkit-scrollbar{ width:0; }
+.pomo-todo-ov.show .pomo-postit{ transform:rotate(-.8deg) scale(1); }
+.pomo-postit-tape{
+    position:absolute; top:-11px; left:50%; width:78px; height:21px;
+    transform:translateX(-50%) rotate(-2.4deg); background:rgba(255,255,255,.7);
+    box-shadow:0 2px 6px rgba(0,0,0,.16); border-radius:1px;
+}
+.pomo-postit-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.pomo-postit-ring{ position:relative; width:44px; height:44px; display:grid; place-items:center; }
+.pomo-postit-ring svg{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); }
+.pomo-postit-ring circle{ fill:none; stroke-width:2.6; stroke-linecap:round; }
+.pp-track{ stroke:rgba(74,68,61,.14); }
+.pp-prog{ stroke:#A9C3AE; transition:stroke-dashoffset .9s linear; }
+.pomo-postit-ring span{ font-size:10px; color:#8A8177; font-variant-numeric:tabular-nums; }
+.pomo-postit-close{ border:none; background:none; color:#8A8177; font:inherit; font-size:13px; cursor:pointer; }

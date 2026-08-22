@@ -28,13 +28,13 @@ $current_user_id = $utente_corrente['id'];
    progetto: è un vero rapporto 1 a 1 in entrambe le direzioni.
    ========================================================================== */
 if (!function_exists('prog_resolve_color')) {
-    function prog_resolve_color($conn, $parentId, $userId) {
+    function prog_resolve_color($parentId, $userId) {
         $parentId = intval($parentId);
         $guard = 0;
         while ($parentId > 0 && $guard < 50) {
             $guard++;
-            $res = mysqli_query($conn, "SELECT parent_id, color, color_edited FROM projects WHERE id = $parentId AND user_id = " . intval($userId));
-            $row = $res ? mysqli_fetch_assoc($res) : null;
+            $row = sec_one("SELECT parent_id, color, color_edited FROM projects WHERE id = ? AND user_id = ?",
+                           [$parentId, (int)$userId]);
             if (!$row) break;
             if (intval($row['color_edited']) === 1 && !empty($row['color'])) return $row['color'];
             $parentId = intval($row['parent_id']);
@@ -43,23 +43,27 @@ if (!function_exists('prog_resolve_color')) {
     }
 }
 if (!function_exists('prog_cascade_color')) {
-    function prog_cascade_color($conn, $projectId, $color, $userId, $depth = 0) {
+    function prog_cascade_color($projectId, $color, $userId, $depth = 0) {
         if ($depth > 40) return;
-        $colorEsc = mysqli_real_escape_string($conn, $color);
-        $res = mysqli_query($conn, "SELECT id FROM projects WHERE parent_id = " . intval($projectId) . " AND user_id = " . intval($userId) . " AND color_edited = 0");
-        while ($res && ($row = mysqli_fetch_assoc($res))) {
-            mysqli_query($conn, "UPDATE projects SET color='$colorEsc' WHERE id=" . intval($row['id']));
-            prog_cascade_color($conn, $row['id'], $color, $userId, $depth + 1);
+        $figli = sec_all("SELECT id FROM projects WHERE parent_id = ? AND user_id = ? AND color_edited = 0",
+                         [(int)$projectId, (int)$userId]);
+        foreach ($figli as $row) {
+            /* aggiunto AND user_id: gli id arrivano gia' da una query filtrata per
+               utente, ma una UPDATE senza quel vincolo e' il tipo di riga che, spostata
+               altrove per un refactoring, diventa una falla senza che nessuno se ne
+               accorga. */
+            sec_q("UPDATE projects SET color=? WHERE id=? AND user_id=?",
+                  [$color, (int)$row['id'], (int)$userId]);
+            prog_cascade_color($row['id'], $color, $userId, $depth + 1);
         }
     }
 }
 if (!function_exists('prog_children_map')) {
     // id -> parent_id (0 se radice) per tutti i progetti dell'utente: la base per
     // qualunque calcolo di sotto-albero (usata da delete, bulk_delete, bulk_reparent).
-    function prog_children_map($conn, $userId) {
+    function prog_children_map($userId) {
         $childrenOf = [];
-        $res = mysqli_query($conn, "SELECT id, parent_id FROM projects WHERE user_id = " . intval($userId));
-        while ($res && ($row = mysqli_fetch_assoc($res))) {
+        foreach (sec_all("SELECT id, parent_id FROM projects WHERE user_id = ?", [(int)$userId]) as $row) {
             $pid = $row['parent_id'] === null ? 0 : (int)$row['parent_id'];
             $childrenOf[$pid][] = (int)$row['id'];
         }
@@ -91,8 +95,8 @@ if (isset($_GET['ajax']) && strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 
    cima al selettore progetti e nel tastino a stella del planner. */
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'toggle_todo') {
     header('Content-Type: application/json');
-    $pid = intval($_POST['project_id'] ?? 0);
-    $val = intval($_POST['value'] ?? 0) === 1 ? 1 : 0;
+    $pid = sec_int($_POST['project_id'] ?? 0, 1);
+    $val = sec_bool($_POST['value'] ?? 0) ? 1 : 0;
     if ($pid <= 0 || !sec_owns('projects', $pid, (int)$utente_corrente['id'])) {
         http_response_code(404);
         die(json_encode(['ok' => false, 'error' => 'not_found']));
@@ -104,8 +108,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'toggle_todo') {
 
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'toggle_favorite') {
     header('Content-Type: application/json');
-    $pid = intval($_POST['project_id'] ?? 0);
-    $val = intval($_POST['value'] ?? 0) === 1 ? 1 : 0;
+    $pid = sec_int($_POST['project_id'] ?? 0, 1);
+    $val = sec_bool($_POST['value'] ?? 0) ? 1 : 0;
     if ($pid <= 0 || !sec_owns('projects', $pid, (int)$utente_corrente['id'])) {
         http_response_code(404);
         die(json_encode(['ok' => false, 'error' => 'not_found']));
@@ -117,16 +121,15 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'toggle_favorite') {
 
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'toggle_stato') {
     header('Content-Type: application/json');
-    $pid = intval($_POST['project_id'] ?? 0);
-    $res = mysqli_query($conn, "SELECT status FROM projects WHERE id=$pid AND user_id=" . intval($current_user_id));
-    $row = $res ? mysqli_fetch_assoc($res) : null;
+    $pid = sec_int($_POST['project_id'] ?? 0, 1);
+    if (!sec_owns('projects', $pid, (int)$current_user_id)) { echo json_encode(['success' => false]); exit(); }
+    $row = sec_one("SELECT status FROM projects WHERE id=? AND user_id=?", [$pid, (int)$current_user_id]);
     if (!$row) { echo json_encode(['success' => false]); exit(); }
     $prevStatus = $row['status'];
     $order = ['in_progress', 'completed', 'planned'];
     $cur = array_search($prevStatus, $order);
     $next = $order[($cur === false ? 0 : $cur + 1) % 3];
-    $nextEsc = mysqli_real_escape_string($conn, $next);
-    mysqli_query($conn, "UPDATE projects SET status='$nextEsc' WHERE id=$pid AND user_id=" . intval($current_user_id));
+    sec_q("UPDATE projects SET status=? WHERE id=? AND user_id=?", [$next, $pid, (int)$current_user_id]);
 
     $cascaded = [];   // id resi completati a cascata (per aggiornare la UI)
     $snapshot = [];   // stato PRECEDENTE dei discendenti, per poterli ripristinare
@@ -136,16 +139,16 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'toggle_stato') {
         // entriamo in "completato": completa tutti i discendenti, ma prima
         // salviamo il loro stato attuale così, se l'utente si accorge dell'errore
         // e cambia subito stato, possiamo rimetterli com'erano (richiesta cache).
-        $childrenOf = prog_children_map($conn, $current_user_id);
+        $childrenOf = prog_children_map($current_user_id);
         $subtree = prog_subtree_ids($pid, $childrenOf);
         $others = array_values(array_filter($subtree, function ($x) use ($pid) { return $x !== $pid; }));
         if (!empty($others)) {
-            $idsStr = implode(',', $others);
-            $sres = mysqli_query($conn, "SELECT id, status FROM projects WHERE user_id=" . intval($current_user_id) . " AND id IN ($idsStr)");
-            while ($sres && ($srow = mysqli_fetch_assoc($sres))) {
+            $ph = implode(',', array_fill(0, count($others), '?'));
+            $par = array_merge([(int)$current_user_id], $others);
+            foreach (sec_all("SELECT id, status FROM projects WHERE user_id=? AND id IN ($ph)", $par) as $srow) {
                 $snapshot[] = ['id' => (int)$srow['id'], 'status' => $srow['status']];
             }
-            mysqli_query($conn, "UPDATE projects SET status='completed' WHERE user_id=" . intval($current_user_id) . " AND id IN ($idsStr)");
+            sec_q("UPDATE projects SET status='completed' WHERE user_id=? AND id IN ($ph)", $par);
             $cascaded = $others;
         }
     } elseif ($prevStatus === 'completed') {
@@ -159,8 +162,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'toggle_stato') {
                     $rid = intval($item['id'] ?? 0);
                     $rst = $item['status'] ?? '';
                     if ($rid > 0 && in_array($rst, $order, true)) {
-                        $rstEsc = mysqli_real_escape_string($conn, $rst);
-                        mysqli_query($conn, "UPDATE projects SET status='$rstEsc' WHERE id=$rid AND user_id=" . intval($current_user_id));
+                        sec_q("UPDATE projects SET status=? WHERE id=? AND user_id=?",
+                              [$rst, $rid, (int)$current_user_id]);
                         $restored[$rid] = $rst;
                     }
                 }
@@ -176,11 +179,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'toggle_stato') {
    ========================================================================== */
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'project_ids_subtree') {
     header('Content-Type: application/json');
-    $rootId = intval($_GET['id'] ?? 0);
+    $rootId = sec_int($_GET['id'] ?? 0, 0);
     $all = [];
-    $res = mysqli_query($conn, "SELECT id, parent_id FROM projects WHERE user_id = " . intval($current_user_id));
     $childrenOf = [];
-    while ($res && ($row = mysqli_fetch_assoc($res))) {
+    foreach (sec_all("SELECT id, parent_id FROM projects WHERE user_id = ?", [(int)$current_user_id]) as $row) {
         $pid = $row['parent_id'] === null ? 0 : (int)$row['parent_id'];
         $childrenOf[$pid][] = (int)$row['id'];
     }
@@ -199,12 +201,11 @@ if (!function_exists('prog_category_link_blocked')) {
     // collegati a un progetto DIVERSO da $excludeProjectId (controllo di
     // sicurezza lato server: la UI disabilita già queste materie, ma un
     // salvataggio non deve mai fidarsi solo del client)
-    function prog_category_link_blocked($conn, $userId, $categoryId, $excludeProjectId) {
+    function prog_category_link_blocked($userId, $categoryId, $excludeProjectId) {
         $categoryId = intval($categoryId);
         if ($categoryId <= 0) return false;
         $parentOf = []; $childrenOf = [];
-        $res = mysqli_query($conn, "SELECT id, parent_id FROM fc_categories WHERE user_id=" . intval($userId));
-        while ($res && ($row = mysqli_fetch_assoc($res))) {
+        foreach (sec_all("SELECT id, parent_id FROM fc_categories WHERE user_id=?", [(int)$userId]) as $row) {
             $id = (int)$row['id'];
             $pid = $row['parent_id'] === null ? 0 : (int)$row['parent_id'];
             $parentOf[$id] = $pid;
@@ -220,9 +221,11 @@ if (!function_exists('prog_category_link_blocked')) {
             $chain[] = $cur;
             foreach (($childrenOf[$cur] ?? []) as $c) { $stack[] = $c; }
         }
-        $idsStr = implode(',', array_unique($chain));
-        $lres = mysqli_query($conn, "SELECT project_id FROM project_fc_categories WHERE fc_category_id IN ($idsStr) AND project_id != " . intval($excludeProjectId) . " LIMIT 1");
-        return ($lres && mysqli_num_rows($lres) > 0);
+        $chain = array_values(array_unique($chain));
+        $ph = implode(',', array_fill(0, count($chain), '?'));
+        $riga = sec_one("SELECT project_id FROM project_fc_categories WHERE fc_category_id IN ($ph) AND project_id != ? LIMIT 1",
+                        array_merge($chain, [(int)$excludeProjectId]));
+        return $riga !== null;
     }
 }
 
@@ -235,18 +238,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
        oppure nell'header X-CSRF-Token. Senza, la richiesta si ferma qui. */
     sec_guard_write((int)($utente_corrente['id'] ?? 0), 'progetti_form', 0, 200, 60);
 
-    $action = $_POST['action'];
-    $redirectId = intval($_POST['redirect_id'] ?? 0);
+    /* elenco chiuso: un'azione non prevista non deve arrivare fino agli if */
+    $action = sec_enum($_POST['action'] ?? null,
+                       ['save', 'delete', 'bulk_delete', 'bulk_set_color', 'bulk_reparent', 'reorder'], '');
+    $redirectId = sec_int($_POST['redirect_id'] ?? 0, 0);
 
     if ($action === 'save') {
-        $progId = intval($_POST['project_id'] ?? 0);
-        $name = trim($_POST['progetto_name'] ?? '');
-        $note = $_POST['progetto_note'] ?? '';
-        $parentId = intval($_POST['parent_id'] ?? 0);
-        $colorMode = (($_POST['color_mode'] ?? 'auto') === 'manual') ? 'manual' : 'auto';
-        $manualColor = trim($_POST['progetto_color'] ?? '');
-        $dataObiettivo = trim($_POST['data_obiettivo'] ?? '');
-        $dataScadenza = trim($_POST['data_scadenza'] ?? '');
+        $progId = sec_int($_POST['project_id'] ?? 0, 0);
+        /* sec_str toglie tag e caratteri di controllo, cose che trim non faceva;
+           sec_text conserva gli a capo della nota ma toglie i tag; sec_date
+           rifiuta le date inesistenti (il 31 febbraio passava). */
+        $name = sec_str($_POST['progetto_name'] ?? '', 200);
+        $note = sec_text($_POST['progetto_note'] ?? '', 8000);
+        $parentId = sec_int($_POST['parent_id'] ?? 0, 0);
+        $colorMode = sec_enum($_POST['color_mode'] ?? null, ['auto', 'manual'], 'auto');
+        $manualColor = sec_str($_POST['progetto_color'] ?? '', 7);
+        $dataObiettivo = sec_date($_POST['data_obiettivo'] ?? '', '') ?? '';
+        $dataScadenza = sec_date($_POST['data_scadenza'] ?? '', '') ?? '';
 
         if ($parentId === $progId) $parentId = 0; 
 
@@ -255,164 +263,183 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             while ($walk > 0 && $guard < 60) {
                 $guard++;
                 if ($walk === $progId) { $cycle = true; break; }
-                $ares = mysqli_query($conn, "SELECT parent_id FROM projects WHERE id=$walk AND user_id=" . intval($current_user_id));
-                $arow = $ares ? mysqli_fetch_assoc($ares) : null;
+                $arow = sec_one("SELECT parent_id FROM projects WHERE id=? AND user_id=?", [$walk, (int)$current_user_id]);
                 if (!$arow) break;
                 $walk = $arow['parent_id'] === null ? 0 : (int)$arow['parent_id'];
             }
             if ($cycle) {
-                $curRes = mysqli_query($conn, "SELECT parent_id FROM projects WHERE id=$progId AND user_id=" . intval($current_user_id));
-                $curRow = $curRes ? mysqli_fetch_assoc($curRes) : null;
+                $curRow = sec_one("SELECT parent_id FROM projects WHERE id=? AND user_id=?", [$progId, (int)$current_user_id]);
                 $parentId = ($curRow && $curRow['parent_id'] !== null) ? (int)$curRow['parent_id'] : 0;
             }
         }
-        $parentSql = $parentId > 0 ? $parentId : 'NULL';
-        $dataObSql = ($dataObiettivo !== '') ? ("'" . mysqli_real_escape_string($conn, $dataObiettivo) . "'") : 'NULL';
-        $dataScSql = ($dataScadenza !== '') ? ("'" . mysqli_real_escape_string($conn, $dataScadenza) . "'") : 'NULL';
+        /* valori veri, non pezzi di SQL: con i segnaposto il NULL si passa come
+           null di PHP, non come la stringa 'NULL' */
+        $parentVal = $parentId > 0 ? $parentId : null;
+        $dataObVal = ($dataObiettivo !== '') ? $dataObiettivo : null;
+        $dataScVal = ($dataScadenza !== '') ? $dataScadenza : null;
 
         if ($colorMode === 'manual' && preg_match('/^#[0-9A-Fa-f]{6}$/', $manualColor)) {
             $finalColor = $manualColor;
             $colorEditedFlag = 1;
         } else {
-            $finalColor = prog_resolve_color($conn, $parentId, $current_user_id);
+            $finalColor = prog_resolve_color($parentId, $current_user_id);
             $colorEditedFlag = 0;
         }
-        $nameEsc = mysqli_real_escape_string($conn, $name);
-        $noteEsc = mysqli_real_escape_string($conn, $note);
-        $colorEsc = mysqli_real_escape_string($conn, $finalColor);
 
         if ($progId === 0 && $name !== '') {
-            $ordRes = mysqli_query($conn, "SELECT COALESCE(MAX(custom_order),-1)+1 AS n FROM projects WHERE user_id=" . intval($current_user_id) . " AND " . ($parentId > 0 ? "parent_id=$parentId" : "parent_id IS NULL"));
-            $nextOrder = $ordRes ? intval(mysqli_fetch_assoc($ordRes)['n']) : 0;
-            mysqli_query($conn, "INSERT INTO projects (user_id, parent_id, name, notes, color, color_edited, status, custom_order, created_at, target_date, due_date)
-                                  VALUES (" . intval($current_user_id) . ", $parentSql, '$nameEsc', '$noteEsc', '$colorEsc', $colorEditedFlag, 'in_progress', $nextOrder, NOW(), $dataObSql, $dataScSql)");
-            $redirectId = mysqli_insert_id($conn);
+            /* "parent_id IS NULL" non si puo' scrivere come "parent_id=?" con null:
+               in SQL il confronto con NULL non e' mai vero. Servono due forme di query. */
+            $ordRow = ($parentId > 0)
+                ? sec_one("SELECT COALESCE(MAX(custom_order),-1)+1 AS n FROM projects WHERE user_id=? AND parent_id=?", [(int)$current_user_id, $parentId])
+                : sec_one("SELECT COALESCE(MAX(custom_order),-1)+1 AS n FROM projects WHERE user_id=? AND parent_id IS NULL", [(int)$current_user_id]);
+            $nextOrder = intval($ordRow['n'] ?? 0);
+            sec_q("INSERT INTO projects (user_id, parent_id, name, notes, color, color_edited, status, custom_order, created_at, target_date, due_date)
+                   VALUES (?, ?, ?, ?, ?, ?, 'in_progress', ?, NOW(), ?, ?)",
+                  [(int)$current_user_id, $parentVal, $name, $note, $finalColor, $colorEditedFlag, $nextOrder, $dataObVal, $dataScVal]);
+            $redirectId = sec_insert_id();
             $progId = (int)$redirectId;
         } elseif ($progId > 0 && $name !== '') {
-            mysqli_query($conn, "UPDATE projects SET name='$nameEsc', notes='$noteEsc', parent_id=$parentSql, color='$colorEsc', color_edited=$colorEditedFlag,
-                                  target_date=$dataObSql, due_date=$dataScSql WHERE id=$progId AND user_id=" . intval($current_user_id));
+            sec_q("UPDATE projects SET name=?, notes=?, parent_id=?, color=?, color_edited=?,
+                   target_date=?, due_date=? WHERE id=? AND user_id=?",
+                  [$name, $note, $parentVal, $finalColor, $colorEditedFlag, $dataObVal, $dataScVal, $progId, (int)$current_user_id]);
             // cascata sempre: sia che il colore sia stato scelto a mano, sia che sia
             // automatico (in quel caso $finalColor è già quello del NUOVO padre, così
             // spostando un progetto a colore automatico anche i figli auto lo seguono)
-            prog_cascade_color($conn, $progId, $finalColor, $current_user_id);
+            prog_cascade_color($progId, $finalColor, $current_user_id);
             $redirectId = $redirectId ?: $progId;
         }
 
         if ($progId > 0 && $name !== '') {
-            $fcCategoryId = intval($_POST['fc_category_id'] ?? 0);
+            $fcCategoryId = sec_int($_POST['fc_category_id'] ?? 0, 0);
             if ($fcCategoryId > 0) {
-                $catOwnRes = mysqli_query($conn, "SELECT id FROM fc_categories WHERE id=$fcCategoryId AND user_id=" . intval($current_user_id));
-                if ($catOwnRes && mysqli_num_rows($catOwnRes) > 0 && !prog_category_link_blocked($conn, $current_user_id, $fcCategoryId, $progId)) {
+                $catOwn = sec_one("SELECT id FROM fc_categories WHERE id=? AND user_id=?", [$fcCategoryId, (int)$current_user_id]);
+                if ($catOwn && !prog_category_link_blocked($current_user_id, $fcCategoryId, $progId)) {
                     // materia libera (lei, i suoi figli e i suoi padri non sono di un altro progetto): ok collegare
-                    mysqli_query($conn, "DELETE FROM project_fc_categories WHERE project_id=$progId");
-                    mysqli_query($conn, "INSERT INTO project_fc_categories (project_id, fc_category_id) VALUES ($progId, $fcCategoryId)");
+                    sec_q("DELETE FROM project_fc_categories WHERE project_id=?", [$progId]);
+                    sec_q("INSERT INTO project_fc_categories (project_id, fc_category_id) VALUES (?, ?)", [$progId, $fcCategoryId]);
                 }
                 // se bloccata, ignoriamo silenziosamente la richiesta: la UI non avrebbe dovuto permetterla
             } else {
-                mysqli_query($conn, "DELETE FROM project_fc_categories WHERE project_id=$progId");
+                sec_q("DELETE FROM project_fc_categories WHERE project_id=?", [$progId]);
             }
         }
     } elseif ($action === 'delete') {
-        $progId = intval($_POST['project_id'] ?? 0);
-        $deleteSessions = !empty($_POST['delete_sessions']);
+        $progId = sec_int($_POST['project_id'] ?? 0, 1);
+        $deleteSessions = sec_bool($_POST['delete_sessions'] ?? false);
         // dove tornare dopo (richiesta 3: restare sul progetto che si stava guardando).
         // se stai eliminando proprio quel progetto, ripiega sul suo padre.
         $parentOfDeleted = 0;
-        $pRes = ($progId > 0) ? mysqli_query($conn, "SELECT parent_id FROM projects WHERE id=$progId AND user_id=" . intval($current_user_id)) : null;
-        $pRow = $pRes ? mysqli_fetch_assoc($pRes) : null;
+        $pRow = ($progId > 0 && sec_owns('projects', $progId, (int)$current_user_id))
+                  ? sec_one("SELECT parent_id FROM projects WHERE id=? AND user_id=?", [$progId, (int)$current_user_id]) : null;
         $own = ($pRow !== null);
         if ($pRow) $parentOfDeleted = $pRow['parent_id'] === null ? 0 : (int)$pRow['parent_id'];
         if ($own) {
             if ($deleteSessions) {
-                $childrenOf = prog_children_map($conn, $current_user_id);
+                $childrenOf = prog_children_map($current_user_id);
                 $subtree = prog_subtree_ids($progId, $childrenOf);
-                mysqli_query($conn, "DELETE FROM pomodoro_sessions WHERE user_id = " . intval($current_user_id) . " AND project_id IN (" . implode(',', $subtree) . ")");
+                if (!empty($subtree)) {
+                    $ph = implode(',', array_fill(0, count($subtree), '?'));
+                    sec_q("DELETE FROM pomodoro_sessions WHERE user_id = ? AND project_id IN ($ph)",
+                          array_merge([(int)$current_user_id], $subtree));
+                }
             }
-            mysqli_query($conn, "DELETE FROM projects WHERE id=$progId AND user_id=" . intval($current_user_id));
+            sec_q("DELETE FROM projects WHERE id=? AND user_id=?", [$progId, (int)$current_user_id]);
         }
         if ($redirectId === $progId || $redirectId === 0) $redirectId = $parentOfDeleted;
     } elseif ($action === 'bulk_delete') {
         // stessa logica del delete singolo, ma su piu' progetti fratelli in un colpo
         // solo: essendo fratelli i loro sotto-alberi non si sovrappongono mai.
-        $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $_POST['project_ids'] ?? '')))));
-        $deleteSessions = !empty($_POST['delete_sessions']);
+        $ids = array_slice(array_values(array_unique(array_filter(array_map(
+                   function ($x) { return sec_int($x, 1); },
+                   explode(',', (string)($_POST['project_ids'] ?? '')))))), 0, 500);
+        $deleteSessions = sec_bool($_POST['delete_sessions'] ?? false);
         if (!empty($ids)) {
-            $ownRes = mysqli_query($conn, "SELECT id FROM projects WHERE user_id = " . intval($current_user_id) . " AND id IN (" . implode(',', $ids) . ")");
+            $phIds = implode(',', array_fill(0, count($ids), '?'));
             $ownIds = [];
-            while ($ownRes && ($row = mysqli_fetch_assoc($ownRes))) { $ownIds[] = (int)$row['id']; }
+            foreach (sec_all("SELECT id FROM projects WHERE user_id = ? AND id IN ($phIds)",
+                             array_merge([(int)$current_user_id], $ids)) as $row) { $ownIds[] = (int)$row['id']; }
             if (!empty($ownIds)) {
                 if ($deleteSessions) {
-                    $childrenOf = prog_children_map($conn, $current_user_id);
+                    $childrenOf = prog_children_map($current_user_id);
                     $subtree = [];
                     foreach ($ownIds as $rootId) { $subtree = array_merge($subtree, prog_subtree_ids($rootId, $childrenOf)); }
-                    mysqli_query($conn, "DELETE FROM pomodoro_sessions WHERE user_id = " . intval($current_user_id) . " AND project_id IN (" . implode(',', $subtree) . ")");
+                    if (!empty($subtree)) {
+                        $ph = implode(',', array_fill(0, count($subtree), '?'));
+                        sec_q("DELETE FROM pomodoro_sessions WHERE user_id = ? AND project_id IN ($ph)",
+                              array_merge([(int)$current_user_id], $subtree));
+                    }
                 }
-                mysqli_query($conn, "DELETE FROM projects WHERE user_id = " . intval($current_user_id) . " AND id IN (" . implode(',', $ownIds) . ")");
+                $phOwn = implode(',', array_fill(0, count($ownIds), '?'));
+                sec_q("DELETE FROM projects WHERE user_id = ? AND id IN ($phOwn)",
+                      array_merge([(int)$current_user_id], $ownIds));
             }
         }
     } elseif ($action === 'bulk_set_color') {
         // "auto" azzera color_edited e ricalcola dal padre ATTUALE di ciascun progetto
         // (letto dal DB, mai dal client); un colore vero e proprio lo marca manuale.
-        $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $_POST['project_ids'] ?? '')))));
-        $colorInput = trim($_POST['color'] ?? '');
+        $ids = array_slice(array_values(array_unique(array_filter(array_map(
+                   function ($x) { return sec_int($x, 1); },
+                   explode(',', (string)($_POST['project_ids'] ?? '')))))), 0, 500);
+        $colorInput = sec_str($_POST['color'] ?? '', 10);
         $isAuto = ($colorInput === 'auto');
         $isValidHex = (bool)preg_match('/^#[0-9A-Fa-f]{6}$/', $colorInput);
         if ($isAuto || $isValidHex) {
             foreach ($ids as $pid) {
-                $ownRes = mysqli_query($conn, "SELECT parent_id FROM projects WHERE id=$pid AND user_id=" . intval($current_user_id));
-                $ownRow = $ownRes ? mysqli_fetch_assoc($ownRes) : null;
+                $ownRow = sec_one("SELECT parent_id FROM projects WHERE id=? AND user_id=?", [$pid, (int)$current_user_id]);
                 if (!$ownRow) continue;
                 if ($isAuto) {
                     $pidParent = $ownRow['parent_id'] === null ? 0 : (int)$ownRow['parent_id'];
-                    $finalColor = prog_resolve_color($conn, $pidParent, $current_user_id);
+                    $finalColor = prog_resolve_color($pidParent, $current_user_id);
                     $flag = 0;
                 } else {
                     $finalColor = $colorInput;
                     $flag = 1;
                 }
-                $colorEsc = mysqli_real_escape_string($conn, $finalColor);
-                mysqli_query($conn, "UPDATE projects SET color='$colorEsc', color_edited=$flag WHERE id=$pid AND user_id=" . intval($current_user_id));
-                prog_cascade_color($conn, $pid, $finalColor, $current_user_id);
+                sec_q("UPDATE projects SET color=?, color_edited=? WHERE id=? AND user_id=?",
+                      [$finalColor, $flag, $pid, (int)$current_user_id]);
+                prog_cascade_color($pid, $finalColor, $current_user_id);
             }
         }
     } elseif ($action === 'bulk_reparent') {
-        $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $_POST['project_ids'] ?? '')))));
-        $newParentId = intval($_POST['new_parent_id'] ?? 0);
+        $ids = array_slice(array_values(array_unique(array_filter(array_map(
+                   function ($x) { return sec_int($x, 1); },
+                   explode(',', (string)($_POST['project_ids'] ?? '')))))), 0, 500);
+        $newParentId = sec_int($_POST['new_parent_id'] ?? 0, 0);
 
         // vietato spostare un progetto sotto se stesso o un suo discendente
         // (anche uno degli ALTRI selezionati, dato che si spostano tutti insieme):
         // stesso identico controllo che l'utente vede gia' disabilitato nell'albero.
-        $childrenOf = prog_children_map($conn, $current_user_id);
+        $childrenOf = prog_children_map($current_user_id);
         $forbidden = [];
         foreach ($ids as $rootId) { foreach (prog_subtree_ids($rootId, $childrenOf) as $fid) { $forbidden[$fid] = true; } }
 
         $valid = ($newParentId === 0);
         if ($newParentId > 0 && !isset($forbidden[$newParentId])) {
-            $parentOwn = mysqli_query($conn, "SELECT id FROM projects WHERE id=$newParentId AND user_id=" . intval($current_user_id));
-            $valid = ($parentOwn && mysqli_num_rows($parentOwn) > 0);
+            $valid = sec_one("SELECT id FROM projects WHERE id=? AND user_id=?", [$newParentId, (int)$current_user_id]) !== null;
         }
 
         if ($valid) {
-            $parentSql = $newParentId > 0 ? $newParentId : 'NULL';
+            $parentVal = $newParentId > 0 ? $newParentId : null;
             foreach ($ids as $pid) {
-                $ownRes = mysqli_query($conn, "SELECT color, color_edited FROM projects WHERE id=$pid AND user_id=" . intval($current_user_id));
-                $ownRow = $ownRes ? mysqli_fetch_assoc($ownRes) : null;
+                $ownRow = sec_one("SELECT color, color_edited FROM projects WHERE id=? AND user_id=?", [$pid, (int)$current_user_id]);
                 if (!$ownRow) continue;
                 if ((int)$ownRow['color_edited'] === 1) {
                     $finalColor = $ownRow['color'];
                 } else {
-                    $finalColor = prog_resolve_color($conn, $newParentId, $current_user_id);
+                    $finalColor = prog_resolve_color($newParentId, $current_user_id);
                 }
-                $colorEsc = mysqli_real_escape_string($conn, $finalColor);
-                mysqli_query($conn, "UPDATE projects SET parent_id=$parentSql, color='$colorEsc' WHERE id=$pid AND user_id=" . intval($current_user_id));
-                prog_cascade_color($conn, $pid, $finalColor, $current_user_id);
+                sec_q("UPDATE projects SET parent_id=?, color=? WHERE id=? AND user_id=?",
+                      [$parentVal, $finalColor, $pid, (int)$current_user_id]);
+                prog_cascade_color($pid, $finalColor, $current_user_id);
             }
         }
     } elseif ($action === 'reorder') {
-        $ids = array_filter(array_map('intval', explode(',', $_POST['project_ids'] ?? '')));
+        $ids = array_slice(array_values(array_unique(array_filter(array_map(
+                   function ($x) { return sec_int($x, 1); },
+                   explode(',', (string)($_POST['project_ids'] ?? '')))))), 0, 500);
         $ord = 0;
         foreach ($ids as $id) {
-            mysqli_query($conn, "UPDATE projects SET custom_order=$ord WHERE id=$id AND user_id=" . intval($current_user_id));
+            sec_q("UPDATE projects SET custom_order=? WHERE id=? AND user_id=?", [$ord, $id, (int)$current_user_id]);
             $ord++;
         }
     }
@@ -440,8 +467,8 @@ if (!function_exists('prog_build_branch')) {
 
 $byId = [];
 $childrenOf = [];
-$res = mysqli_query($conn, "SELECT id, parent_id, name, notes, color, color_edited, status, custom_order, created_at, is_favorite, todo_enabled, target_date AS data_obiettivo, due_date AS data_scadenza FROM projects WHERE user_id = " . intval($current_user_id) . " ORDER BY custom_order ASC, id ASC");
-while ($res && ($row = mysqli_fetch_assoc($res))) {
+foreach (sec_all("SELECT id, parent_id, name, notes, color, color_edited, status, custom_order, created_at, is_favorite, todo_enabled, target_date AS data_obiettivo, due_date AS data_scadenza FROM projects WHERE user_id = ? ORDER BY custom_order ASC, id ASC",
+                 [(int)$current_user_id]) as $row) {
     $row['children'] = [];
     $row['stato'] = $row['status']; // Mappa retrocompatibile per le funzioni interne
     $row['note'] = $row['notes'];   // la colonna è `notes`, ma tutto il codice legge `note` (bug: le note non comparivano in modifica)
@@ -451,8 +478,8 @@ while ($res && ($row = mysqli_fetch_assoc($res))) {
 }
 
 $secondsOwn = [];
-$sres = mysqli_query($conn, "SELECT project_id, SUM(duration_seconds) AS tot FROM pomodoro_sessions WHERE user_id = " . intval($current_user_id) . " AND project_id IS NOT NULL GROUP BY project_id");
-while ($sres && ($srow = mysqli_fetch_assoc($sres))) { $secondsOwn[(int)$srow['project_id']] = (int)$srow['tot']; }
+foreach (sec_all("SELECT project_id, SUM(duration_seconds) AS tot FROM pomodoro_sessions WHERE user_id = ? AND project_id IS NOT NULL GROUP BY project_id",
+                 [(int)$current_user_id]) as $srow) { $secondsOwn[(int)$srow['project_id']] = (int)$srow['tot']; }
 
 if (!function_exists('prog_total_seconds')) {
     function prog_total_seconds($id, &$childrenOf, &$secondsOwn, &$memo) {
@@ -467,8 +494,8 @@ $totalMemo = [];
 foreach ($byId as $pid => $p) { prog_total_seconds($pid, $childrenOf, $secondsOwn, $totalMemo); }
 
 $countOwn = [];
-$cntRes = mysqli_query($conn, "SELECT project_id, COUNT(*) AS n FROM pomodoro_sessions WHERE user_id = " . intval($current_user_id) . " AND project_id IS NOT NULL GROUP BY project_id");
-while ($cntRes && ($cntRow = mysqli_fetch_assoc($cntRes))) { $countOwn[(int)$cntRow['project_id']] = (int)$cntRow['n']; }
+foreach (sec_all("SELECT project_id, COUNT(*) AS n FROM pomodoro_sessions WHERE user_id = ? AND project_id IS NOT NULL GROUP BY project_id",
+                 [(int)$current_user_id]) as $cntRow) { $countOwn[(int)$cntRow['project_id']] = (int)$cntRow['n']; }
 if (!function_exists('prog_total_count')) {
     // stessa forma di prog_total_seconds ma per il numero di pomodori: serve a
     // sapere se un progetto (o un suo discendente) ne ha almeno uno collegato,
@@ -486,12 +513,13 @@ foreach ($byId as $pid => $p) { prog_total_count($pid, $childrenOf, $countOwn, $
 
 $jsProjLookup = [];
 $catLinks = []; 
-$clRes = mysqli_query($conn, "SELECT pcf.project_id, pcf.fc_category_id, c.name, c.color
-                               FROM project_fc_categories pcf
-                               INNER JOIN projects p ON p.id = pcf.project_id AND p.user_id = " . intval($current_user_id) . "
-                               INNER JOIN fc_categories c ON c.id = pcf.fc_category_id AND c.user_id = " . intval($current_user_id));
-if ($clRes) {
-    while ($clRow = mysqli_fetch_assoc($clRes)) {
+$clRighe = sec_all("SELECT pcf.project_id, pcf.fc_category_id, c.name, c.color
+                    FROM project_fc_categories pcf
+                    INNER JOIN projects p ON p.id = pcf.project_id AND p.user_id = ?
+                    INNER JOIN fc_categories c ON c.id = pcf.fc_category_id AND c.user_id = ?",
+                   [(int)$current_user_id, (int)$current_user_id]);
+{
+    foreach ($clRighe as $clRow) {
         $ccolor = (!empty($clRow['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $clRow['color'])) ? $clRow['color'] : '#A0A0A0';
         $catLinks[(int)$clRow['project_id']] = ['id' => (int)$clRow['fc_category_id'], 'name' => $clRow['name'], 'color' => $ccolor];
     }
@@ -505,8 +533,7 @@ if ($clRes) {
    ========================================================================== */
 $catParentOf = [];
 $catNameById = [];
-$fcRes = mysqli_query($conn, "SELECT id, parent_id, name FROM fc_categories WHERE user_id = " . intval($current_user_id));
-while ($fcRes && ($fcRow = mysqli_fetch_assoc($fcRes))) {
+foreach (sec_all("SELECT id, parent_id, name FROM fc_categories WHERE user_id = ?", [(int)$current_user_id]) as $fcRow) {
     $fcId = (int)$fcRow['id'];
     $catParentOf[$fcId] = $fcRow['parent_id'] === null ? 0 : (int)$fcRow['parent_id'];
     $catNameById[$fcId] = $fcRow['name'];
@@ -550,7 +577,7 @@ foreach ($rootIds as $rid) { if (isset($byId[$rid])) $rootProjects[] = $byId[$ri
 /* La vista "Preferiti": non è un progetto vero, è un elenco costruito al
    volo con i progetti segnati con la stellina. I loro sottoprogetti si
    aprono come sempre, così si arriva in fondo senza cambiare pagina. */
-$viewFavorites = isset($_GET['view']) && $_GET['view'] === 'fav';
+$viewFavorites = sec_enum($_GET['view'] ?? null, ['fav'], '') === 'fav';
 $favProjects = [];
 foreach ($byId as $fid => $fp) {
     if ((int)($fp['is_favorite'] ?? 0) === 1) $favProjects[] = (int)$fid;
@@ -559,7 +586,7 @@ usort($favProjects, function ($a, $b) use ($byId) {
     return strcasecmp($byId[$a]['name'] ?? '', $byId[$b]['name'] ?? '');
 });
 
-$selectedId = intval($_GET['id'] ?? 0);
+$selectedId = sec_int($_GET['id'] ?? 0, 0);
 if ($selectedId === 0 && !$viewFavorites && !empty($rootIds)) { $selectedId = $rootIds[0]; }
 $selectedProject = $viewFavorites ? null : ($byId[$selectedId] ?? null);
 $selectedTree = $selectedProject ? prog_build_branch($selectedId, $byId, $childrenOf) : null;
@@ -589,11 +616,9 @@ if (!empty($ancestorChain)) { $selectedRootId = (int)$ancestorChain[0]['id']; }
 $prColorPalette = ['#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#00C7BE', '#30B0C7', '#32ADE6', '#007AFF', '#5856D6', '#AF52DE', '#FF2D55', '#A2845E'];
 
 $pomoInCorso = false;
-$pomoChk = mysqli_query($conn, "SELECT id FROM pomodoro_sessions WHERE user_id=" . intval($current_user_id) . " AND end_time IS NULL LIMIT 1");
-if ($pomoChk && mysqli_num_rows($pomoChk) > 0) { $pomoInCorso = true; }
+if (sec_one("SELECT id FROM pomodoro_sessions WHERE user_id=? AND end_time IS NULL LIMIT 1", [(int)$current_user_id])) { $pomoInCorso = true; }
 if (!$pomoInCorso) {
-    $pausaChk = mysqli_query($conn, "SELECT user_id FROM pomodoro_current_breaks WHERE user_id=" . intval($current_user_id) . " LIMIT 1");
-    if ($pausaChk && mysqli_num_rows($pausaChk) > 0) { $pomoInCorso = true; }
+    if (sec_one("SELECT user_id FROM pomodoro_current_breaks WHERE user_id=? LIMIT 1", [(int)$current_user_id])) { $pomoInCorso = true; }
 }
 
 /* La stella in due versioni: piena quando è fra i preferiti, tratteggiata e
@@ -646,14 +671,14 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
     global $catLinks;
     $color = (!empty($node['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $node['color'])) ? $node['color'] : '#8E8E93';
     $hasChildren = !empty($node['children']);
-    $nameEsc = htmlspecialchars($node['name'], ENT_QUOTES);
-    $noteEsc = htmlspecialchars($node['note'] ?? '', ENT_QUOTES);
+    $nameEsc = sec_h($node['name']);
+    $noteEsc = sec_h($node['note'] ?? '');
     $stato = $node['stato'];
     $durata = prog_fmt_duration($totalMemo[$node['id']] ?? 0);
     $cat = $catLinks[$node['id']] ?? null;
     $dateTags = prog_date_tags_info($node);
     ?>
-    <div class="pr-row-wrap" data-id="<?php echo (int)$node['id']; ?>" data-parent="<?php echo (int)($node['parent_id'] ?? 0); ?>" style="--row-color:<?php echo $color; ?>;">
+    <div class="pr-row-wrap" data-id="<?php echo (int)$node['id']; ?>" data-parent="<?php echo (int)($node['parent_id'] ?? 0); ?>" style="--row-color:<?php echo sec_h($color); ?>;">
         <div class="pr-row" data-id="<?php echo (int)$node['id']; ?>">
             <div class="pr-row-content">
                 <?php if ($hasChildren): ?>
@@ -666,7 +691,7 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                 <span class="pr-grip" aria-label="Trascina per riordinare">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
                 </span>
-                <button type="button" class="pr-check pr-check-<?php echo $stato; ?>" data-id="<?php echo (int)$node['id']; ?>" aria-label="Cambia stato">
+                <button type="button" class="pr-check pr-check-<?php echo sec_h($stato); ?>" data-id="<?php echo (int)$node['id']; ?>" aria-label="Cambia stato">
                     <svg class="pr-ic-empty" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>
                     <svg class="pr-ic-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
                     <svg class="pr-ic-planned" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>
@@ -703,25 +728,25 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                         </button>
                         <?php endif; ?>
                         <?php if ($cat): ?>
-                        <button type="button" class="pr-cat-tag" style="--cat-color:<?php echo htmlspecialchars($cat['color'], ENT_QUOTES); ?>;"
+                        <button type="button" class="pr-cat-tag" style="--cat-color:<?php echo sec_h($cat['color']); ?>;"
                                 onclick="event.stopPropagation(); window.location.href='visualizzazione_fc.php?category_id=<?php echo (int)$cat['id']; ?>'">
                             <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
-                            <?php echo htmlspecialchars($cat['name'], ENT_QUOTES); ?>
+                            <?php echo sec_h($cat['name']); ?>
                         </button>
                         <?php endif; ?>
                         <?php foreach ($dateTags as $dt): ?>
-                        <span class="pr-date-tag pr-date-tag-<?php echo $dt['status']; ?>">
-                            <?php echo $dt['icon']; ?> <?php echo htmlspecialchars($dt['label'], ENT_QUOTES); ?>
+                        <span class="pr-date-tag pr-date-tag-<?php echo sec_h($dt['status']); ?>">
+                            <?php echo sec_h($dt['icon']); ?> <?php echo sec_h($dt['label']); ?>
                         </span>
                         <?php endforeach; ?>
                     </div>
                 </div>
                 <div class="pr-pomo-wrap">
-                <button type="button" class="pr-pomo-btn"<?php echo $pomoInCorso ? ' disabled aria-label="Hai già un pomodoro in corso"' : ' onclick="window.location.href=\'pomodoro.php?project_id=' . (int)$node['id'] . '\'" aria-label="Avvia pomodoro"'; ?>>
+                <button type="button" class="pr-pomo-btn"<?php echo $pomoInCorso ? ' disabled aria-label="' . t('progetti.pomodoro_gia_in_corso') . '"' : ' onclick="window.location.href=\'pomodoro.php?project_id=' . (int)$node['id'] . '\'" aria-label="Avvia pomodoro"'; ?>>
                     <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>
                 </button>
                 <?php /* le ore stanno sotto al pulsante, non più accanto al nome */ ?>
-                <?php if ($durata): ?><span class="pr-duration"><?php echo $durata; ?></span><?php endif; ?>
+                <?php if ($durata): ?><span class="pr-duration"><?php echo sec_h($durata); ?></span><?php endif; ?>
                 </div>
             </div>
             <div class="swipe-actions">
@@ -752,627 +777,19 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
 <title>Progetti</title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
-<style>
-:root{
-    color-scheme: light dark;
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-    --teal:#30B0C7; --pink:#FF2D55; --indigo:#5856D6;
-    --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
-    --header-glass:rgba(249,249,251,.82);
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-    --surface-3:#E7E7EC;
-    --shadow-sheet:0 -14px 60px rgba(0,0,0,.18);
-    --shadow-pop:0 30px 70px -22px rgba(0,0,0,.45);
-    --r-card:22px; --r-btn:15px;
-    --spring:cubic-bezier(.32,.72,0,1);
-    --pop:cubic-bezier(.34,1.4,.64,1);
-    --ease-out:cubic-bezier(.16,1,.3,1);
-    --safe-top:env(safe-area-inset-top, 0px); --safe-bottom:env(safe-area-inset-bottom, 0px);
-}
-@media (prefers-color-scheme: dark){ :root{
-    --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-    --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-    --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-    --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-    --header-glass:rgba(16,16,18,.78);
-    --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-    --surface-3:#3A3A3C;
-    --shadow-sheet:0 -14px 60px rgba(0,0,0,.6);
-}}
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-/* Safari su iPhone ingrandisce da sé il testo dei blocchi che considera
-   "contenuto principale", e lo fa solo su alcune righe: era questo a rendere
-   il nome di certi sottoprogetti più grande degli altri, senza che nel CSS
-   ci fosse alcuna differenza. */
-html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; }
-body{ margin:0; min-height:100vh; background:var(--bg); color:var(--text);
-    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, Roboto, Arial, sans-serif;
-    font-size:16px; line-height:1.4; -webkit-font-smoothing:antialiased; padding-bottom:calc(90px + var(--safe-bottom)); overscroll-behavior-y:none; }
-button{ font-family:inherit; }
-
-.app-header{ position:sticky; top:0; z-index:100; padding:calc(var(--safe-top) + 12px) 16px 12px; background:var(--header-glass);
-    -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px); border-bottom:.5px solid var(--hairline);
-    display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.hdr-title{ font-size:24px; font-weight:800; letter-spacing:-.02em; }
-.hdr-drawer-btn{ display:flex; align-items:center; gap:6px; background:var(--surface-2); border:none; border-radius:12px; padding:9px 13px; color:var(--text); font-weight:700; font-size:13.5px; flex-shrink:0; }
-.hdr-drawer-btn:active{ transform:scale(.95); }
-.hdr-title{ flex-shrink:0; }
-.hdr-root-pills{ flex:1; min-width:0; display:flex; gap:7px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; justify-content:flex-start; padding:2px; }
-.hdr-root-pills::-webkit-scrollbar{ display:none; }
-.hdr-root-pill{ flex-shrink:0; display:inline-flex; align-items:center; gap:6px; border:none; cursor:pointer; padding:7px 13px; border-radius:999px;
-    background:var(--surface-2); color:var(--text-2); font-weight:700; font-size:12.5px; white-space:nowrap;
-    box-shadow:inset 0 0 0 .5px var(--hairline); transition:transform .15s var(--spring), background-color .2s, color .2s; }
-.hdr-root-pill-dot{ width:8px; height:8px; border-radius:50%; background:var(--pill-color, var(--blue)); flex-shrink:0; }
-.hdr-root-pill.active{ background:var(--pill-color, var(--blue)); color:#fff; box-shadow:0 6px 14px -5px color-mix(in srgb, var(--pill-color, var(--blue)) 60%, transparent); }
-.hdr-root-pill.active .hdr-root-pill-dot{ background:rgba(255,255,255,.9); }
-/* radice del sotto-progetto che stai guardando: colorata ma più tenue, comunque ben visibile (richiesta 18) */
-.hdr-root-pill.active-faded{ background:color-mix(in srgb, var(--pill-color, var(--blue)) 22%, var(--surface)); color:color-mix(in srgb, var(--pill-color, var(--blue)) 70%, var(--text)); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--pill-color, var(--blue)) 40%, transparent); font-weight:800; }
-.hdr-root-pill.active-faded .hdr-root-pill-dot{ background:var(--pill-color, var(--blue)); }
-.hdr-root-pill:active{ transform:scale(.94); }
-
-.page{ max-width:640px; margin:0 auto; padding:14px 14px calc(40px + var(--safe-bottom)); }
-
-/* ---------- briciole di pane (percorso antenati) ---------- */
-.pr-crumbs{ display:flex; align-items:center; gap:4px; overflow-x:auto; white-space:nowrap; padding:2px 2px 10px; scrollbar-width:none; animation:prIn .35s var(--spring) both; }
-.pr-crumbs::-webkit-scrollbar{ display:none; }
-.pr-crumb{ display:flex; align-items:center; gap:4px; border:none; background:none; padding:5px 8px; border-radius:9px; color:var(--text-2); font-size:12.5px; font-weight:700; flex-shrink:0; }
-.pr-crumb:active{ background:var(--surface-2); }
-.pr-crumb-dot{ width:7px; height:7px; border-radius:50%; background:var(--crumb-color, var(--blue)); flex-shrink:0; }
-.pr-crumb-sep{ color:var(--text-3); flex-shrink:0; font-size:12px; }
-
-/* ---------- header progetto selezionato ---------- */
-.pr-hero{ background:var(--surface); border-radius:var(--r-card); padding:18px; box-shadow:var(--shadow-card); margin-bottom:16px;
-    border-left:5px solid var(--accent, var(--blue)); animation:prIn .45s var(--spring) both; }
-@keyframes prIn{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:translateY(0); } }
-.pr-hero-top{ display:flex; align-items:flex-start; gap:12px; }
-.pr-hero-title-wrap{ flex:1; min-width:0; display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap; }
-.pr-hero-title{ font-size:21px; font-weight:800; }
-.pr-hero-title.pr-name-done{ text-decoration:line-through; color:var(--text-2); }
-.pr-hero-dates{ display:flex; gap:14px; margin-top:8px; flex-wrap:wrap; }
-.pr-hero-date{ font-size:12.5px; color:var(--text-2); font-weight:600; display:flex; align-items:center; gap:4px; }
-.pr-fav-head{
-    display:flex; align-items:center; gap:9px; padding:16px 4px 10px;
-    color:var(--text);
-}
-.pr-fav-head svg{ width:20px; height:20px; color:#E0B84A; flex-shrink:0; }
-.pr-fav-head span{ font-size:21px; font-weight:800; }
-.pr-fav-head small{
-    margin-left:auto; font-size:12px; color:var(--text-2);
-    background:var(--surface-2); padding:3px 10px; border-radius:999px;
-}
-.hdr-pill-fav{ display:inline-flex; align-items:center; gap:5px; }
-.hdr-pill-fav svg{ color:#E0B84A; }
-
-.pr-fav-btn{
-    display:flex; align-items:center; gap:8px; width:100%;
-    padding:11px 13px; border-radius:14px; border:none; cursor:pointer;
-    background:var(--surface-2); color:var(--text-2); font:inherit; font-size:14px;
-    transition:background-color .22s, color .22s;
-}
-.pr-fav-btn svg{ width:18px; height:18px; }
-.pr-fav-btn.is-fav{ background:#F5E7C0; color:#7A6127; }
-.pr-fav-btn.is-fav svg{ fill:currentColor; }
-
-.pr-hero-todo{ margin-top:14px; }
-.pr-hero-todo.pr-hidden{ display:none; }
-.pr-hero-btn-todo{ background:var(--surface-2); color:var(--text-2); }
-.pr-hero-btn-todo.is-on{ background:var(--accent); color:#fff; }
-
-.pr-hero-note{
-    margin-top:10px; font-size:14px; color:var(--text-2); line-height:1.5;
-    /* una nota lunga non deve allungare la pagina all'infinito: oltre una
-       certa altezza scorre dentro il suo riquadro, così i sottoprogetti
-       restano raggiungibili senza scorrere per un pezzo */
-    max-height:32vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
-    scrollbar-width:none; padding-right:2px;
-    overscroll-behavior:contain;
-}
-.pr-hero-note::-webkit-scrollbar{ width:0; height:0; }
-.pr-hero-cat-chip{ display:inline-flex; align-items:center; gap:6px; margin-top:10px; border:none; padding:6px 12px 6px 10px; border-radius:999px;
-    background:color-mix(in srgb, var(--cat-color) 14%, var(--surface)); color:var(--cat-color); font-size:12px; font-weight:800;
-    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--cat-color) 30%, transparent); transition:transform .15s var(--spring); }
-.pr-hero-cat-chip:active{ transform:scale(.95); }
-/* Con il tondo in più i pulsanti non ci stavano più in riga e spingevano fuori
-   il bordo, facendo scorrere l'intera pagina in orizzontale. Più piccoli, meno
-   distanti, e se ancora non bastasse vanno a capo invece di uscire. */
-.pr-hero-actions{ display:flex; flex-wrap:wrap; gap:8px; row-gap:8px; margin-top:14px; max-width:100%; }
-.pr-hero-quickadd{ width:26px; height:26px; border-radius:8px; flex-shrink:0; align-self:center; }
-.pr-hero-quickadd svg{ width:14px; height:14px; }
-.pr-hero-btn{ display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; border:none; flex-shrink:0; }
-.pr-hero-btn svg{ width:17px; height:17px; }
-.pr-hero-btn-pomo{ background:var(--accent); color:#fff; box-shadow:var(--btn-hl), 0 6px 16px -6px color-mix(in srgb, var(--accent) 70%, transparent); transition:transform .15s var(--spring), opacity .2s; }
-.pr-hero-btn-pomo[disabled]{ background:var(--surface-2); color:var(--text-3); box-shadow:none; opacity:.7; }
-.pr-hero-btn-stats{ background:var(--surface-2); color:var(--text); transition:background-color .2s, color .2s; }
-.pr-hero-btn-stats.active{ background:var(--blue); color:#fff; }
-.pr-hero-btn-add{ background:var(--blue-soft); color:var(--blue); }
-.pr-hero-btn-quick{ background:var(--surface-2); color:var(--text-2); }
-.pr-hero-btn:active{ transform:scale(.9); }
-
-/* ---------- righe progetto ---------- */
-.pr-view-bar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:10px; }
-.pr-view-switch{ display:flex; background:var(--surface); box-shadow:var(--shadow-card); border-radius:12px; padding:3px; gap:2px; }
-.pr-view-switch button{ border:none; background:none; padding:7px 13px; border-radius:9px; font-weight:700; font-size:12.5px; color:var(--text-2); display:flex; align-items:center; gap:5px; transition:background-color .25s var(--spring), color .25s; }
-.pr-view-switch button.active{ background:var(--blue); color:#fff; }
-.pr-view-switch button svg{ flex-shrink:0; }
-.pr-view-dates-btn{ width:36px; height:36px; flex-shrink:0; border:none; border-radius:50%; background:var(--surface); box-shadow:var(--shadow-card);
-    color:var(--text-2); display:flex; align-items:center; justify-content:center; transition:transform .15s var(--spring), color .2s; }
-.pr-view-dates-btn:active{ transform:scale(.9); color:var(--blue); }
-
-.pr-list{ background:var(--surface); border-radius:var(--r-card); box-shadow:var(--shadow-card); padding:6px 8px; overflow:hidden; }
-
-.pr-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:10px; }
-.pr-grid-card{ position:relative; background:var(--surface); color:var(--text); border-radius:16px; box-shadow:var(--shadow-card); padding:14px 14px 12px; text-align:left; border:none; overflow:hidden; animation:prIn .4s var(--spring) both; }
-.pr-grid-card:nth-child(1){ animation-delay:.02s; } .pr-grid-card:nth-child(2){ animation-delay:.05s; }
-.pr-grid-card:nth-child(3){ animation-delay:.08s; } .pr-grid-card:nth-child(4){ animation-delay:.11s; }
-.pr-grid-card:nth-child(5){ animation-delay:.14s; } .pr-grid-card:nth-child(n+6){ animation-delay:.16s; }
-.pr-grid-card::before{ content:""; position:absolute; top:0; left:0; right:0; height:4px; background:var(--row-color); }
-.pr-grid-card:active{ transform:scale(.96); }
-.pr-grid-dot{ width:30px; height:30px; border-radius:10px; background:color-mix(in srgb, var(--row-color) 16%, var(--surface)); color:var(--row-color); display:flex; align-items:center; justify-content:center; margin-bottom:10px; }
-.pr-grid-name{ font-size:14px; font-weight:700; line-height:1.3; color:var(--text); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-bottom:8px; min-height:36px; }
-.pr-grid-name.pr-name-done{ color:var(--text-2); text-decoration:line-through; }
-.pr-grid-meta{ display:flex; align-items:center; justify-content:space-between; font-size:11px; color:var(--text-2); font-weight:700; }
-
-/* ---------- tag materia + post-it nota (sotto il nome, in elenco e in griglia) ---------- */
-.pr-tags-row{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:5px; }
-.pr-cat-tag{ display:inline-flex; align-items:center; gap:4px; border:none; padding:3px 9px 3px 7px; border-radius:999px; cursor:pointer;
-    background:color-mix(in srgb, var(--cat-color, var(--blue)) 15%, var(--surface)); color:var(--cat-color, var(--blue));
-    font-size:11px; font-weight:800; letter-spacing:-.1px; line-height:1.3; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    transition:transform .15s var(--spring), filter .2s; }
-.pr-cat-tag svg{ flex-shrink:0; }
-.pr-cat-tag:active{ transform:scale(.93); filter:brightness(.97); }
-.pr-note-tag{ display:inline-flex; align-items:center; justify-content:center; border:none; width:24px; height:22px; border-radius:7px; cursor:pointer;
-    background:color-mix(in srgb, var(--orange) 20%, var(--surface)); color:var(--orange);
-    transition:transform .15s var(--spring), filter .2s; }
-.pr-note-tag:active{ transform:scale(.9); filter:brightness(.97); }
-.pr-date-tag{ display:inline-flex; align-items:center; gap:3px; padding:3px 9px; border-radius:999px;
-    font-size:11px; font-weight:800; letter-spacing:-.1px; line-height:1.3; white-space:nowrap; }
-.pr-date-tag-past{ background:color-mix(in srgb, var(--red) 15%, var(--surface)); color:var(--red); }
-.pr-date-tag-today{ background:color-mix(in srgb, var(--orange) 18%, var(--surface)); color:var(--orange); }
-.pr-date-tag-future{ background:color-mix(in srgb, var(--blue) 14%, var(--surface)); color:var(--blue); }
-
-/* ---------- pannello "Scadenze e obiettivi" ---------- */
-.pr-dates-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
-.pr-dates-sort-btn{ display:flex; align-items:center; gap:5px; border:none; background:var(--surface-2); color:var(--text); font-weight:700; font-size:12px; padding:8px 12px; border-radius:11px; flex-shrink:0; transition:transform .15s var(--spring); }
-.pr-dates-sort-btn:active{ transform:scale(.95); }
-.pr-dates-filters{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px; }
-.pr-dates-chip{ border:none; background:var(--surface-2); color:var(--text-2); font-weight:700; font-size:12px; padding:6px 13px; border-radius:999px; transition:background-color .2s, color .2s; }
-.pr-dates-chip.active{ background:var(--blue); color:#fff; }
-.pr-dates-list{ display:flex; flex-direction:column; gap:8px; }
-.pr-dates-item{ display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:14px; background:var(--surface-2); border:none; width:100%; text-align:left; cursor:pointer; transition:transform .15s var(--spring); }
-.pr-dates-item:active{ transform:scale(.98); }
-.pr-dates-item-dot{ width:10px; height:10px; border-radius:50%; background:var(--item-color, var(--blue)); flex-shrink:0; }
-.pr-dates-item-main{ flex:1; min-width:0; }
-.pr-dates-item-name{ font-size:14px; font-weight:700; color:var(--text); white-space:nowrap; max-width:100%;
-    overflow:hidden; position:relative; touch-action:pan-y; }
-.pr-dates-item-path{ font-size:11.5px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
-.pr-dates-item .pr-date-tag{ flex-shrink:0; }
-.pr-dates-empty{ text-align:center; padding:30px 16px; color:var(--text-2); font-size:13.5px; }
-
-/* post-it che mostra la nota, con tastino di modifica */
-.pr-note-peek-overlay{ position:fixed; inset:0; z-index:9760; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.4);
-    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); opacity:0; pointer-events:none; transition:opacity .24s var(--ease-out); padding:24px; }
-.pr-note-peek-overlay.show{ opacity:1; pointer-events:auto; }
-/* Il post-it era giallo squillante con il carattere a mano: bello da vedere di
-   sfuggita, faticoso da leggere quando la nota è lunga — ed è per leggerla che
-   lo si apre. Fondo neutro, carattere di sistema, e più largo su schermo
-   grande. Resta la piega dell'angolo e la leggera inclinazione: quel tanto che
-   basta a farlo sembrare un foglietto. */
-.pr-note-peek{ position:relative; width:100%; max-width:340px; background:#FBF9F4;
-    color:var(--text, #262523); border-radius:4px 4px 14px 14px; padding:16px 18px 16px; box-shadow:0 24px 54px -20px rgba(0,0,0,.45), inset 0 0 0 .5px rgba(0,0,0,.06);
-    transform:scale(.85) rotate(-1deg); opacity:0; transition:transform .4s var(--pop), opacity .24s; }
-@media (min-width:700px){ .pr-note-peek{ max-width:460px; padding:20px 22px; } }
-.pr-note-peek-overlay.show .pr-note-peek{ transform:scale(1) rotate(-1deg); opacity:1; }
-.pr-note-peek::before{ content:""; position:absolute; top:-8px; left:50%; transform:translateX(-50%) rotate(-2deg); width:70px; height:16px;
-    background:rgba(255,255,255,.65); box-shadow:0 2px 5px rgba(0,0,0,.10); border-radius:2px; }
-.pr-note-peek-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
-.pr-note-peek-title{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.4px; color:var(--text-3, #9A958C); }
-.pr-note-peek-actions{ display:flex; gap:6px; }
-.pr-note-peek-btn{ width:28px; height:28px; border-radius:8px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
-    background:rgba(0,0,0,.06); color:var(--text-2, #5C574F); transition:transform .15s var(--spring), background-color .2s; }
-.pr-note-peek-btn:active{ transform:scale(.9); }
-.pr-note-peek-body{ font-size:15px; line-height:1.6; white-space:pre-wrap; word-break:break-word; max-height:60vh; overflow-y:auto;
-    font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif; }
-/* Su computer la barra di scorrimento resta sempre in vista e taglia il
-   foglietto in due. Qui diventa sottile e incolore, e si accende solo quando
-   il dito o il mouse stanno lavorando lì dentro. */
-.pr-note-peek-body{ scrollbar-width:thin; scrollbar-color:transparent transparent; }
-.pr-note-peek-body:hover, .pr-note-peek-body:focus-within{ scrollbar-color:rgba(0,0,0,.22) transparent; }
-.pr-note-peek-body::-webkit-scrollbar{ width:6px; }
-.pr-note-peek-body::-webkit-scrollbar-track{ background:transparent; }
-.pr-note-peek-body::-webkit-scrollbar-thumb{ background:transparent; border-radius:99px; }
-.pr-note-peek-body:hover::-webkit-scrollbar-thumb{ background:rgba(0,0,0,.20); }
-@media (prefers-color-scheme: dark){
-    .pr-note-peek{ background:#2A2925; color:#EAE6DE; box-shadow:0 24px 54px -20px rgba(0,0,0,.75), inset 0 0 0 .5px rgba(255,255,255,.06); }
-    .pr-note-peek::before{ background:rgba(255,255,255,.18); }
-    .pr-note-peek-title{ color:#9A958C; }
-    .pr-note-peek-btn{ background:rgba(255,255,255,.10); color:#EAE6DE; }
-    .pr-note-peek-body:hover::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.22); }
-}
-.pr-grid-empty{ grid-column:1/-1; text-align:center; padding:30px 16px; color:var(--text-2); font-size:13.5px; }
-.pr-row-wrap{ position:relative; animation:prIn .4s var(--spring) both; }
-.pr-row-wrap:nth-child(1){ animation-delay:.02s; } .pr-row-wrap:nth-child(2){ animation-delay:.05s; }
-.pr-row-wrap:nth-child(3){ animation-delay:.08s; } .pr-row-wrap:nth-child(4){ animation-delay:.11s; }
-.pr-row-wrap:nth-child(5){ animation-delay:.14s; } .pr-row-wrap:nth-child(n+6){ animation-delay:.16s; }
-.pr-row{ position:relative; overflow:hidden; border-radius:13px; }
-.pr-row-content{ position:relative; background:var(--surface); display:flex; align-items:center; gap:6px; padding:9px 6px; z-index:2; transition:transform .05s linear; }
-/* Freccetta, maniglia e checkbox stanno insieme in testa alla riga: fra loro
-   lo spazio è quasi nullo, così si leggono come un gruppo solo e lasciano più
-   respiro al nome del progetto. Il distacco vero comincia dopo la checkbox. */
-.pr-arrow + .pr-grip, .pr-arrow-spacer + .pr-grip{ margin-left:-5px; }
-.pr-grip + .pr-check{ margin-left:-5px; }
-.pr-check{ margin-right:1px; }
-.pr-grip{ color:var(--text-3); display:flex; touch-action:none; cursor:grab; padding:4px 2px; flex-shrink:0; }
-.pr-check{ width:26px; height:26px; border:none; background:none; padding:0; flex-shrink:0; position:relative; color:var(--text-3); }
-.pr-check svg{ position:absolute; inset:0; width:100%; height:100%; opacity:0; transition:opacity .2s, transform .3s var(--spring); }
-.pr-check .pr-ic-empty{ opacity:1; }
-.pr-check-completed .pr-ic-empty{ opacity:0; } .pr-check-completed .pr-ic-done{ opacity:1; color:var(--green); transform:scale(1.05); }
-.pr-check-planned .pr-ic-empty{ opacity:0; } .pr-check-planned .pr-ic-planned{ opacity:1; color:var(--purple); }
-.pr-check.pr-just-tapped{ animation:prCheckPop .35s var(--spring); }
-@keyframes prCheckPop{ 0%{ transform:scale(1); } 45%{ transform:scale(1.35); } 100%{ transform:scale(1); } }
-
-/* ---------- checkbox di selezione multipla (sotto-progetti, tutti i livelli) ---------- */
-.pr-select-chk{ display:none; width:22px; height:22px; border-radius:50%; border:2px solid var(--hairline-2,#ccc); flex-shrink:0;
-    align-items:center; justify-content:center; color:transparent; font-size:13px; font-weight:800; transition:background-color .2s, border-color .2s, color .2s; }
-/* richiesta 1: in modalità selezione TUTTE le righe (anche annidate) mostrano la
-   checkbox al posto della spunta di completamento */
-#prList.pr-sub-selecting .pr-check{ display:none; }
-#prList.pr-sub-selecting .pr-select-chk{ display:flex; }
-#prList.pr-sub-selecting .pr-grip{ display:none; }
-#prList.pr-sub-selecting .pr-pomo-btn{ display:none; }
-#prList.pr-sub-selecting .pr-inline-add-btn{ display:none; }
-#prList.pr-sub-selecting .swipe-actions{ display:none; }
-#prList.pr-sub-selecting .pr-duration{ display:none; }
-.pr-row-wrap.pr-sub-selected > .pr-row > .pr-row-content{ background:color-mix(in srgb, var(--blue) 7%, var(--surface)); }
-.pr-row-wrap.pr-sub-selected > .pr-row > .pr-row-content > .pr-select-chk{ background:var(--blue); border-color:var(--blue); color:#fff; }
-/* discendenti auto-selezionati perché è selezionato un loro antenato: bloccati
-   (richiesta 2), mostrati con un segno di spunta più tenue e non deselezionabili */
-.pr-row-wrap.pr-sub-locked > .pr-row > .pr-row-content > .pr-select-chk{ background:color-mix(in srgb, var(--blue) 45%, var(--surface)); border-color:color-mix(in srgb, var(--blue) 45%, var(--surface)); color:#fff; }
-.pr-row-wrap.pr-sub-locked > .pr-row > .pr-row-content{ opacity:.85; }
-
-.pr-sub-bulkbar{ display:none; align-items:center; gap:8px; padding:9px 4px; margin-bottom:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
-.pr-sub-bulkbar::-webkit-scrollbar{ display:none; }
-.pr-sub-bulkbar.show{ display:flex; }
-.pr-sub-bulkbar span{ font-size:12.5px; color:var(--text-2); font-weight:700; flex:1 0 auto; white-space:nowrap; }
-.pr-sub-bulk-btn{ flex-shrink:0; padding:9px 13px; border-radius:12px; border:none; font-size:12.5px; font-weight:700; white-space:nowrap; background:var(--surface-2); color:var(--text); transition:transform .15s var(--spring); }
-.pr-sub-bulk-btn:active{ transform:scale(.94); }
-.pr-sub-bulk-btn.accent{ background:var(--blue-soft, rgba(0,122,255,.12)); color:var(--blue); }
-.pr-sub-bulk-btn.danger{ background:var(--red-soft, rgba(255,59,48,.12)); color:var(--red); }
-.pr-main {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    flex: 1;
-    min-width: 0;
-    gap: 3px;
-}
-.pr-row-line1 {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
-    min-width: 0;
-}
-.pr-star{
-    width:16px; height:16px; vertical-align:-2px; margin-right:6px;
-    color:#E0B84A; flex-shrink:0;
-}
-.pr-star-hero{ width:19px; height:19px; vertical-align:-3px; margin-right:7px; }
-/* non preferito: contorno tratteggiato e colore spento — si vede che il posto
-   della stella c'è, e che è vuoto */
-.pr-star-off{ color:var(--text-3); opacity:.75; }
-/* il pulsante non deve sembrare un pulsante: è la stella stessa a essere
-   toccabile, con un'area un po' più larga del disegno per il dito */
-.pr-star-btn{ border:none; background:none; padding:0 2px 0 0; margin:0; cursor:pointer; line-height:0;
-    color:#E0B84A; vertical-align:baseline; transition:transform .18s var(--spring); }
-.pr-star-btn:not(.is-fav){ color:var(--text-3); }
-.pr-star-btn:active{ transform:scale(.82); }
-.pr-name-container {
-    display: inline-flex;
-    align-items: center;
-    flex: 1;
-    min-width: 0;
-    gap: 2px;
-}
-/* la durata non è più in questa riga: il nome si prende tutto lo spazio */
-.pr-name {
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer; /* mostra la manina da PC sul nome del sottoprogetto */
-    white-space: nowrap;
-    min-width: 0;
-    max-width: 100%;
-    flex: 0 1 auto;
-    overflow: hidden;
-    position: relative;
-    touch-action: pan-y; /* il trascinamento orizzontale lo gestiamo noi via JS */
-}
-.pr-name-track{ display:inline-block; white-space:nowrap; will-change:transform; }
-.pr-name-done{ color:var(--text-2); text-decoration:line-through; }
-.pr-duration{ font-size:11.5px; color:var(--text-2); font-weight:700; font-variant-numeric:tabular-nums; flex-shrink:0; }
-/* stretta: 26px per una freccia da 14 erano dieci pixel di aria per parte, e
-   in un elenco annidato quello spazio moltiplica a ogni livello */
-.pr-arrow{ width:18px; height:26px; padding:0; border:none; background:none; color:var(--text-3); flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:transform .28s var(--spring); }
-.pr-arrow svg{ width:14px; height:14px; flex-shrink:0; }
-.pr-arrow.open{ transform:rotate(90deg); }
-.pr-arrow-spacer{ width:18px; flex-shrink:0; }
-/* pulsante pomodoro con le ore sotto: incolonnati e centrati */
-.pr-pomo-wrap{
-    display:flex; flex-direction:column; align-items:center; gap:3px;
-    flex-shrink:0; min-width:38px;
-}
-.pr-pomo-wrap .pr-duration{
-    font-size:9.5px; line-height:1.1; color:var(--text-2); text-align:center;
-    white-space:nowrap; margin:0; padding:0;
-}
-/* il tasto per il sottoprogetto, sotto il nome e discreto */
-.pr-inline-add-btn{ margin-top:0; order:-1; flex-shrink:0; align-self:center; }
-
-.pr-pomo-btn{ width:30px; height:30px; border-radius:50%; border:none; background:var(--row-color); color:#fff; flex-shrink:0; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px -1px color-mix(in srgb, var(--row-color) 60%, transparent); transition:transform .15s var(--spring), opacity .2s; }
-.pr-pomo-btn:active{ transform:scale(.88); }
-.pr-pomo-btn[disabled]{ background:var(--text-3); box-shadow:none; opacity:.5; }
-
-.swipe-actions{ position:absolute; top:0; left:0; bottom:0; display:flex; z-index:1; }
-.swipe-btn{ width:78px; border:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; color:#fff; font-size:11px; font-weight:700; }
-.swipe-btn-edit{ background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 12%), var(--blue)); }
-.swipe-btn-delete{ background:linear-gradient(180deg, color-mix(in srgb, var(--red), #fff 12%), var(--red)); }
-.swipe-btn:active{ filter:brightness(.92); }
-
-.pr-note-preview{ font-size:12.5px; color:var(--text-2); padding:0 10px 8px; line-height:1.4; max-height:38px; overflow:hidden; }
-/* Indentazione ridotta: i sottoprogetti profondi finivano schiacciati a
-   destra con pochissimo spazio per il nome. La linea verticale prende il
-   colore del progetto padre, così si capisce comunque di chi sono figli, e
-   parte sotto la freccetta di espansione invece che più a destra. */
-.pr-children{
-    /* La freccetta è larga 26px: il suo centro cade a 13px, ed è lì che
-       nasce la linea. Prima partiva più a destra e rubava spazio. */
-    margin-left:12px; padding-left:9px; overflow:hidden;
-    border-left:2px solid color-mix(in srgb, var(--row-color, var(--hairline)) 55%, transparent);
-    max-height:4000px; transition:max-height .35s var(--spring), opacity .28s;
-}
-.pr-children.collapsed{ max-height:0; opacity:0; pointer-events:none; }
-/* IL PROBLEMA: la riga trascinata si svuotava di continuo. La causa non era il
-   trascinamento ma l'animazione d'ingresso qui sopra: ogni volta che la riga
-   viene rimessa fra le altre (e succede a ogni scambio, decine di volte in un
-   gesto) il browser la considera appena inserita e **fa ripartire l'animazione
-   dall'inizio** — che con `both` e un ritardo significa restare invisibile per
-   qualche decimo di secondo. Da qui il lampeggio.
-   Durante il trascinamento l'animazione si spegne per tutte le righe. */
-body.pr-dragging-now .pr-row-wrap{ animation:none !important; }
-
-/* e la riga in mano si vede bene: sollevata, non sbiadita — prima con opacità
-   .5 sembrava già sparita per conto suo */
-.pr-row-wrap.dragging{
-    opacity:1; z-index:5;
-    transform:scale(1.015);
-    box-shadow:0 12px 28px -12px rgba(0,0,0,.35);
-    border-radius:14px;
-}
-/* Mentre si trascina, niente selezione del testo e niente lente di
-   ingrandimento: tenendo premuto, il telefono cercava di selezionare il nome
-   sotto il dito invece di far partire lo spostamento. */
-body.pr-dragging-now{
-    -webkit-user-select:none; -moz-user-select:none; user-select:none;
-    -webkit-touch-callout:none;
-}
-body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
-/* La maniglia non è mai selezionabile, nemmeno prima che il gesto scatti:
-   è lì che si tiene premuto, ed è lì che partiva la selezione. */
-.pr-grip, .pr-check, .pr-arrow{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
-.pr-row-wrap.drag-ghost{ position:fixed; z-index:500; pointer-events:none; box-shadow:0 12px 34px rgba(0,0,0,.28); border-radius:13px; opacity:.96; }
-
-.pr-empty{ text-align:center; padding:60px 20px; color:var(--text-2); }
-.pr-empty-icon{ width:56px; height:56px; margin:0 auto 14px; color:var(--text-3); }
-.pr-empty-title{ font-size:17px; font-weight:800; color:var(--text); margin-bottom:6px; }
-.pr-btn-create-first{ margin-top:16px; display:inline-flex; align-items:center; gap:8px; padding:12px 20px; border-radius:14px; border:none; background:var(--blue); color:#fff; font-weight:700; }
-
-/* ---------- drawer progetti radice ---------- */
-.pd-scrim{ position:fixed; inset:0; z-index:9600; background:rgba(0,0,0,.42); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); opacity:0; pointer-events:none; transition:opacity .3s; }
-.pd-scrim.show{ opacity:1; pointer-events:auto; }
-.pd-panel{ position:fixed; top:0; right:0; z-index:9601; width:min(300px,84vw); height:100vh; height:100dvh; background:var(--surface);
-    transform:translateX(105%); transition:transform .42s var(--spring); display:flex; flex-direction:column; box-shadow:-14px 0 40px rgba(0,0,0,.25); }
-.pd-panel.show{ transform:translateX(0); }
-.pd-head{ padding:calc(var(--safe-top) + 18px) 18px 12px; font-size:19px; font-weight:800; border-bottom:.5px solid var(--hairline); display:flex; justify-content:space-between; align-items:center; }
-.pd-close{ width:30px; height:30px; border-radius:50%; border:none; background:var(--surface-2); color:var(--text-2); display:flex; align-items:center; justify-content:center; }
-.pd-list{ flex:1; overflow-y:auto; padding:10px 10px calc(20px + var(--safe-bottom)); }
-.pd-fav-star{ width:17px; height:17px; color:#E0B84A; flex-shrink:0; }
-.pd-item-fav.active .pd-fav-star{ color:#fff; }
-.pd-item{ display:flex; align-items:center; gap:10px; padding:12px 12px; border-radius:13px; margin-bottom:2px; cursor:pointer; }
-.pd-item:active{ background:var(--surface-2); }
-.pd-item.active{ background:var(--row-color, var(--blue)); }
-.pd-item.active .pd-item-name, .pd-item.active .pd-item-count{ color:#fff; }
-.pd-dot{ width:10px; height:10px; border-radius:50%; background:var(--row-color); flex-shrink:0; }
-.pd-item-name{ flex:1; font-weight:700; font-size:14.5px; }
-.pd-item-count{ font-size:12px; color:var(--text-2); font-weight:700; }
-.pd-add{ display:flex; align-items:center; gap:8px; padding:12px; color:var(--blue); font-weight:700; font-size:14px; border:1.5px dashed var(--hairline-2); border-radius:13px; margin:6px 10px 0; }
-
-/* ---------- edit sheet (iOS) ---------- */
-.pr-sheet-overlay{ position:fixed; inset:0; z-index:9700; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.42);
-    -webkit-backdrop-filter:blur(10px) saturate(140%); backdrop-filter:blur(10px) saturate(140%);
-    opacity:0; pointer-events:none; transition:opacity .34s var(--ease-out); }
-.pr-sheet-overlay.show{ opacity:1; pointer-events:auto; }
-/* niente overflow:hidden: .pr-sheet ha un transform ed e' quindi il blocco contenitore
-   dei popup position:fixed dei selettori (progetto/materia). Li ritaglierebbe. */
-.pr-sheet{ width:100%; max-width:640px; max-height:90vh; background:var(--surface); border-radius:26px 26px 0 0; display:flex; flex-direction:column;
-    transform:translateY(101%); transition:transform .5s var(--spring); box-shadow:var(--shadow-sheet); }
-.pr-sheet-overlay.show .pr-sheet{ transform:translateY(0); }
-.pr-sheet-grabber{ width:38px; height:5px; border-radius:3px; background:var(--hairline-2); margin:8px auto 0; flex-shrink:0; }
-.pr-sheet-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 18px; border-bottom:.5px solid var(--hairline); flex-shrink:0; }
-.pr-sheet-title{ font-size:19px; font-weight:800; letter-spacing:-.4px; }
-.pr-sheet-close{ width:30px; height:30px; border-radius:50%; border:none; background:var(--surface-2); color:var(--text-2);
-    display:flex; align-items:center; justify-content:center; flex-shrink:0;
-    transition:transform .2s var(--spring), background-color .2s; }
-.pr-sheet-close:active{ transform:scale(.88); background:var(--surface-3); }
-.pr-sheet-body{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:18px; }
-
-.pr-field{ margin-bottom:18px; }
-.pr-field label{ display:block; font-size:11.5px; font-weight:700; color:var(--text-2); text-transform:uppercase; letter-spacing:.7px; margin-bottom:8px; padding-left:2px; }
-.pr-field input[type="text"], .pr-field input[type="date"]{ width:100%; padding:13px 14px; border-radius:14px; border:none; background:var(--surface-2); color:var(--text);
-    font-size:15.5px; font-family:inherit; box-shadow:inset 0 0 0 .5px var(--hairline);
-    transition:box-shadow .25s var(--ease-out), background-color .25s; }
-.pr-field input[type="text"]:focus, .pr-field input[type="date"]:focus{ outline:none; background:var(--surface);
-    box-shadow:inset 0 0 0 1.5px var(--blue), 0 0 0 4px color-mix(in srgb, var(--blue) 12%, transparent); }
-.pr-field input[type="text"]::placeholder{ color:var(--text-3); }
-.pr-field-row{ display:flex; gap:12px; }
-.pr-field-row .pr-field{ flex:1; min-width:0; }
-
-/* ---------- selettore colore (logica invariata: auto dal padre / manuale) ---------- */
-.pr-color-card{ background:var(--surface-2); border-radius:18px; padding:14px; box-shadow:inset 0 0 0 .5px var(--hairline); }
-.pr-color-preview-row{ display:flex; align-items:center; gap:11px; margin-bottom:14px; padding:10px 12px; background:var(--surface); border-radius:13px;
-    box-shadow:0 2px 8px -4px rgba(0,0,0,.2), inset 0 0 0 .5px var(--hairline); }
-.pr-color-preview-icon{ width:32px; height:32px; border-radius:10px; background:var(--pr-preview-color, var(--blue)); flex-shrink:0;
-    box-shadow:0 5px 12px -3px color-mix(in srgb, var(--pr-preview-color, var(--blue)) 60%, transparent), inset 0 -1px 2px rgba(0,0,0,.2);
-    transition:background-color .3s var(--ease-out), box-shadow .3s var(--ease-out); }
-.pr-color-preview-name{ font-size:13.5px; font-weight:700; color:var(--text-2); letter-spacing:-.1px; }
-.pr-color-grid{ display:flex; flex-wrap:wrap; gap:11px; }
-.pr-color-swatch{ width:34px; height:34px; border-radius:50%; border:none; padding:0; display:flex; align-items:center; justify-content:center; color:#fff; flex-shrink:0;
-    box-shadow:inset 0 -1.5px 3px rgba(0,0,0,.18), 0 2px 5px -2px rgba(0,0,0,.35);
-    transition:transform .34s var(--pop), box-shadow .28s var(--ease-out); }
-.pr-color-swatch:active{ transform:scale(.86); }
-.pr-color-swatch.sel{ transform:scale(1.1);
-    box-shadow:inset 0 -1.5px 3px rgba(0,0,0,.18), 0 0 0 2.5px var(--surface-2), 0 0 0 4.5px var(--sw, var(--text-2)),
-               0 5px 12px -3px color-mix(in srgb, var(--sw, var(--text-2)) 55%, transparent); }
-.pr-color-swatch svg{ opacity:0; transform:scale(.5); transition:opacity .2s, transform .3s var(--pop); }
-.pr-color-swatch.sel svg{ opacity:1; transform:none; }
-.pr-color-swatch-auto{ background:var(--surface); box-shadow:inset 0 0 0 1.5px var(--hairline-2); color:var(--text-2); font-size:14px; font-weight:800; }
-.pr-color-swatch-auto.sel{ box-shadow:inset 0 0 0 1.5px var(--hairline-2), 0 0 0 2.5px var(--surface-2), 0 0 0 4.5px var(--text-3); }
-.pr-custom-color-row{ display:flex; align-items:center; gap:11px; margin-top:14px; padding-top:14px; border-top:.5px solid var(--hairline); }
-.pr-custom-color-input{ -webkit-appearance:none; appearance:none; width:34px; height:34px; border-radius:50%; border:2px solid var(--hairline-2); padding:0; background:none;
-    cursor:pointer; flex-shrink:0; transition:transform .25s var(--spring); }
-.pr-custom-color-input:active{ transform:scale(.88); }
-.pr-custom-color-input::-webkit-color-swatch-wrapper{ padding:0; border-radius:50%; overflow:hidden; }
-.pr-custom-color-input::-webkit-color-swatch{ border:none; border-radius:50%; }
-.pr-custom-color-label{ font-size:13.5px; font-weight:700; color:var(--text); letter-spacing:-.1px; }
-.pr-custom-color-hex{ margin-left:auto; font-size:12px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums; letter-spacing:.3px;
-    background:var(--surface); padding:4px 9px; border-radius:8px; box-shadow:inset 0 0 0 .5px var(--hairline); }
-.pr-custom-color-hex:empty{ display:none; }
-
-/* ---------- footer fisso del foglio ---------- */
-.pr-sheet-actions{ display:flex; gap:10px; flex-shrink:0; padding:12px 18px calc(14px + var(--safe-bottom));
-    border-top:.5px solid var(--hairline); background:color-mix(in srgb, var(--surface) 86%, transparent);
-    -webkit-backdrop-filter:blur(20px) saturate(180%); backdrop-filter:blur(20px) saturate(180%); }
-.pr-btn{ flex:1; padding:14px; border-radius:15px; border:none; font-size:15.5px; font-weight:700; letter-spacing:-.2px;
-    transition:transform .2s var(--spring), filter .2s, background-color .25s; }
-.pr-btn:active{ transform:scale(.965); filter:brightness(.96); }
-.pr-btn-cancel{ background:var(--surface-2); color:var(--text); box-shadow:inset 0 0 0 .5px var(--hairline); }
-.pr-btn-save{ background:var(--blue); color:#fff; box-shadow:var(--btn-hl), 0 10px 24px -10px color-mix(in srgb, var(--blue) 90%, transparent); }
-.pr-btn-danger{ background:var(--red); color:#fff; box-shadow:var(--btn-hl), 0 10px 24px -10px color-mix(in srgb, var(--red) 90%, transparent); }
-.pr-btn-icon-danger{ flex-shrink:0; width:48px; border-radius:15px; border:none; background:color-mix(in srgb, var(--red) 12%, transparent); color:var(--red);
-    display:flex; align-items:center; justify-content:center; transition:transform .2s var(--spring), filter .2s, background-color .25s; }
-.pr-btn-icon-danger:active{ transform:scale(.94); filter:brightness(.96); }
-
-.pr-confirm-overlay{ position:fixed; inset:0; z-index:9750; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.45);
-    -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
-    opacity:0; pointer-events:none; transition:opacity .26s var(--ease-out); padding:20px; }
-.pr-confirm-overlay.show{ opacity:1; pointer-events:auto; }
-.pr-confirm-box{ background:color-mix(in srgb, var(--surface) 88%, transparent);
-    -webkit-backdrop-filter:blur(30px) saturate(180%); backdrop-filter:blur(30px) saturate(180%);
-    border-radius:22px; padding:22px 20px 16px; max-width:320px; width:100%; text-align:center; box-shadow:var(--shadow-pop);
-    transform:scale(.88); opacity:0; transition:transform .42s var(--pop), opacity .26s; }
-.pr-confirm-overlay.show .pr-confirm-box{ transform:scale(1); opacity:1; }
-.pr-confirm-title{ font-weight:800; font-size:17px; letter-spacing:-.3px; margin-bottom:7px; }
-.pr-confirm-msg{ font-size:13.5px; color:var(--text-2); margin-bottom:18px; line-height:1.45; }
-.pr-confirm-actions{ display:flex; gap:10px; }
-.pr-confirm-actions.stack{ flex-direction:column; }
-.pr-btn-neutral{ background:var(--blue-soft, rgba(0,122,255,.12)); color:var(--blue); box-shadow:inset 0 0 0 .5px color-mix(in srgb, var(--blue) 30%, transparent); }
-
-.pr-toast{ position:fixed; left:50%; bottom:calc(28px + var(--safe-bottom)); transform:translate(-50%,12px); background:rgba(28,28,30,.92); color:#fff;
-    padding:11px 18px; border-radius:14px; font-size:13.5px; font-weight:600; z-index:9900; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s var(--spring); }
-.pr-toast.show{ opacity:1; transform:translate(-50%,0); }
-
-/* Tasto in linea grigio per aggiungere sottoprogetti */
-.pr-inline-add-btn {
-    background: var(--surface-2);
-    color: var(--text-2);
-    border: none;
-    border-radius: 6px;
-    width: 22px;
-    height: 22px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 6px;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background-color .15s, color .15s;
-}
-.pr-inline-add-btn:active {
-    transform: scale(0.92);
-}
-
-/* Riga di input rapido modificata con i tasti a destra */
-.pr-inline-input-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px 8px 34px;
-    background: var(--surface);
-    border-top: .5px solid var(--hairline);
-    animation: prIn .22s var(--spring) both;
-}
-.pr-inline-input-row input {
-    flex: 1;
-    padding: 9px 12px;
-    border-radius: 11px;
-    border: none;
-    background: var(--surface-2);
-    color: var(--text);
-    font-size: 14px;
-    font-family: inherit;
-    box-shadow: inset 0 0 0 .5px var(--hairline);
-    outline: none;
-    -webkit-appearance: none;
-}
-/* Pulsante Salva minimale con il colore del progetto */
-.pr-inline-save-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: none;
-    background: color-mix(in srgb, var(--row-color) 12%, var(--surface));
-    color: var(--row-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: transform .1s;
-}
-/* Pulsante Annulla minimale grigio chiaro */
-.pr-inline-cancel-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: none;
-    background: var(--surface-2);
-    color: var(--text-2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: transform .1s;
-}
-.pr-inline-save-btn:active, .pr-inline-cancel-btn:active {
-    transform: scale(0.9);
-}
-
-
-@media (prefers-reduced-motion: reduce){
-    *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
-}
-</style>
+<link rel="stylesheet" href="/Vocabolary/progetti.css?v=<?php echo @filemtime(dirname(__FILE__) . '/progetti.css') ?: 1; ?>">
+<?php
+/* Le stringhe che servono al JavaScript di questa pagina. */
+/* 'pomodoro' serve a pomodoro_storico.php, incluso da questa pagina: senza,
+   tutte le sue stringhe uscirebbero come <<chiave>>. */
+echo nisama_i18n_json(['comune', 'progetti', 'pomodoro']);
+?>
 <script src="fc_parser.js?v=<?php echo time(); ?>"></script>
 </head>
 <body>
 
 <div class="app-header">
-    <div class="hdr-title">Progetti</div>
+    <div class="hdr-title"><?php te('progetti.progetti'); ?></div>
     <?php if (!empty($rootProjects)): ?>
     <div class="hdr-root-pills" id="hdrRootPills">
         <?php if (!empty($favProjects)): ?>
@@ -1382,15 +799,15 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
         <button type="button" class="hdr-root-pill hdr-pill-fav<?php echo $viewFavorites ? ' active' : ''; ?>"
                 style="--pill-color:#E0B84A;" onclick="window.location.href='progetti.php?view=fav'">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
-            Preferiti
+            <?php te('progetti.preferiti'); ?>
         </button>
         <?php endif; ?>
         <?php foreach ($rootProjects as $rp):
             $rpColor = (!empty($rp['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $rp['color'])) ? $rp['color'] : '#8E8E93';
         ?>
-        <button type="button" class="hdr-root-pill<?php echo ((int)$rp['id'] === $selectedId) ? ' active' : (((int)$rp['id'] === $selectedRootId) ? ' active-faded' : ''); ?>" style="--pill-color:<?php echo $rpColor; ?>;"
+        <button type="button" class="hdr-root-pill<?php echo ((int)$rp['id'] === $selectedId) ? ' active' : (((int)$rp['id'] === $selectedRootId) ? ' active-faded' : ''); ?>" style="--pill-color:<?php echo sec_h($rpColor); ?>;"
                 onclick="window.location.href='progetti.php?id=<?php echo (int)$rp['id']; ?>'">
-            <span class="hdr-root-pill-dot"></span><?php echo htmlspecialchars($rp['name'], ENT_QUOTES); ?>
+            <span class="hdr-root-pill-dot"></span><?php echo sec_h($rp['name']); ?>
         </button>
         <?php endforeach; ?>
     </div>
@@ -1399,7 +816,7 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
         <button type="button" class="hdr-root-pill hdr-pill-fav<?php echo $viewFavorites ? ' active' : ''; ?>"
                 style="--pill-color:#E0B84A;" onclick="window.location.href='progetti.php?view=fav'">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
-            Preferiti
+            <?php te('progetti.preferiti'); ?>
         </button>
     </div>
     <?php endif; ?>
@@ -1415,13 +832,13 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
     <?php /* I preferiti: ognuno con il suo ramo, apribile come sempre. */ ?>
     <div class="pr-fav-head">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
-        <span>Preferiti</span>
+        <span><?php te('progetti.preferiti'); ?></span>
         <small><?php echo count($favTrees); ?></small>
     </div>
     <?php if (empty($favTrees)): ?>
         <div class="pr-empty">
-            <div class="pr-empty-title">Nessun preferito</div>
-            <div>Apri un progetto, tocca modifica e premi la stellina: comparirà qui.</div>
+            <div class="pr-empty-title"><?php te('progetti.nessun_preferito'); ?></div>
+            <div><?php te('progetti.apri_un_progetto_tocca_modifica'); ?></div>
         </div>
     <?php else: ?>
         <div class="pr-list" id="prList">
@@ -1431,30 +848,30 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
 <?php elseif (!$selectedProject): ?>
     <div class="pr-empty">
         <svg class="pr-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M8 3v4"/></svg>
-        <div class="pr-empty-title">Nessun progetto ancora</div>
-        <div>Crea il tuo primo progetto per iniziare a organizzarti.</div>
-        <button type="button" class="pr-btn-create-first" onclick="prOpenEdit(0)">+ Crea progetto</button>
+        <div class="pr-empty-title"><?php te('progetti.nessun_progetto_ancora'); ?></div>
+        <div><?php te('progetti.crea_il_tuo_primo_progetto'); ?></div>
+        <button type="button" class="pr-btn-create-first" onclick="prOpenEdit(0)"><?php te('progetti.crea_progetto'); ?></button>
     </div>
 <?php else:
     $accent = (!empty($selectedProject['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $selectedProject['color'])) ? $selectedProject['color'] : '#8E8E93';
-    $heroNote = htmlspecialchars($selectedProject['note'] ?? '', ENT_QUOTES);
+    $heroNote = sec_h($selectedProject['note'] ?? '');
 ?>
     <?php if (!empty($ancestorChain)): ?>
     <div class="pr-crumbs">
         <?php foreach ($ancestorChain as $anc):
             $ancColor = (!empty($anc['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $anc['color'])) ? $anc['color'] : '#8E8E93';
         ?>
-        <button type="button" class="pr-crumb" style="--crumb-color:<?php echo $ancColor; ?>;" onclick="window.location.href='progetti.php?id=<?php echo (int)$anc['id']; ?>'">
-            <span class="pr-crumb-dot"></span><?php echo htmlspecialchars($anc['name'], ENT_QUOTES); ?>
+        <button type="button" class="pr-crumb" style="--crumb-color:<?php echo sec_h($ancColor); ?>;" onclick="window.location.href='progetti.php?id=<?php echo (int)$anc['id']; ?>'">
+            <span class="pr-crumb-dot"></span><?php echo sec_h($anc['name']); ?>
         </button>
         <span class="pr-crumb-sep">›</span>
         <?php endforeach; ?>
     </div>
     <?php endif; ?>
 
-    <div class="pr-hero" style="--accent:<?php echo $accent; ?>;">
+    <div class="pr-hero" style="--accent:<?php echo sec_h($accent); ?>;">
         <div class="pr-hero-top">
-            <button type="button" class="pr-check pr-check-<?php echo $selectedProject['stato']; ?>" data-id="<?php echo (int)$selectedProject['id']; ?>" style="width:28px;height:28px;">
+            <button type="button" class="pr-check pr-check-<?php echo sec_h($selectedProject['stato']); ?>" data-id="<?php echo (int)$selectedProject['id']; ?>" style="width:28px;height:28px;">
                 <svg class="pr-ic-empty" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>
                 <svg class="pr-ic-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
                 <svg class="pr-ic-planned" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>
@@ -1473,22 +890,22 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
                        . ' data-id="' . (int)$selectedProject['id'] . '"'
                        . ' onclick="prToggleHeroFav(event, this)"'
                        . ' aria-pressed="' . ($stellaPiena ? 'true' : 'false') . '"'
-                       . ' title="' . ($stellaPiena ? 'Togli dai preferiti' : 'Metti tra i preferiti') . '"'
+                       . ' title="' . t($stellaPiena ? 'progetti.togli_dai_preferiti' : 'progetti.metti_tra_i_preferiti') . '"'
                        . ' aria-label="Preferito">' . prog_star_svg($stellaPiena) . '</button>';
-                    echo htmlspecialchars($selectedProject['name'], ENT_QUOTES);
+                    echo sec_h($selectedProject['name']);
                 ?></span>
             </div>
         </div>
         <?php $linkedCat = $catLinks[$selectedProject['id']] ?? null; if ($linkedCat): ?>
-        <button type="button" class="pr-hero-cat-chip" style="--cat-color:<?php echo $linkedCat['color']; ?>;" onclick="window.location.href='visualizzazione_fc.php?category_id=<?php echo (int)$linkedCat['id']; ?>'">
+        <button type="button" class="pr-hero-cat-chip" style="--cat-color:<?php echo sec_h(sec_color($linkedCat['color'])); ?>;" onclick="window.location.href='visualizzazione_fc.php?category_id=<?php echo (int)$linkedCat['id']; ?>'">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
-            <?php echo htmlspecialchars($linkedCat['name'], ENT_QUOTES); ?>
+            <?php echo sec_h($linkedCat['name']); ?>
         </button>
         <?php endif; ?>
         <div class="pr-hero-dates">
             <?php if (!empty($selectedProject['data_obiettivo'])): ?><span class="pr-hero-date">🎯 <?php echo date('d M', strtotime($selectedProject['data_obiettivo'])); ?></span><?php endif; ?>
             <?php if (!empty($selectedProject['data_scadenza'])): ?><span class="pr-hero-date">⏰ <?php echo date('d M', strtotime($selectedProject['data_scadenza'])); ?></span><?php endif; ?>
-            <?php $totDur = prog_fmt_duration($totalMemo[$selectedProject['id']] ?? 0); if ($totDur): ?><span class="pr-hero-date">⏱ <?php echo $totDur; ?> totali</span><?php endif; ?>
+            <?php $totDur = prog_fmt_duration($totalMemo[$selectedProject['id']] ?? 0); if ($totDur): ?><span class="pr-hero-date"><?php te('progetti.durata_totale', ['durata' => $totDur]); ?></span><?php endif; ?>
         </div>
         <?php
         /* Sezione attività del progetto: compare se è stata attivata dal suo
@@ -1502,28 +919,31 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
             <!-- Il sotto-progetto rapido stava attaccato al titolo, dove sembrava
                  parte del nome e schiacciava la riga. Qui è un tondo come gli
                  altri, primo della fila: è l'azione che si usa più spesso. -->
-            <button type="button" class="pr-hero-btn pr-hero-btn-quick" onclick="prHeroQuickAdd(event, this)" aria-label="Aggiungi sotto-progetto rapido" title="Aggiungi sotto-progetto rapido">
+            <button type="button" class="pr-hero-btn pr-hero-btn-quick" onclick="prHeroQuickAdd(event, this)" aria-label="<?php te('progetti.aggiungi_sotto_progetto_rapido'); ?>" title="<?php te('progetti.aggiungi_sotto_progetto_rapido'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5v10a2 2 0 0 0 2 2h8"/><path d="m16 14 3 3-3 3"/></svg>
             </button>
-            <button type="button" class="pr-hero-btn pr-hero-btn-pomo"<?php echo $pomoInCorso ? ' disabled aria-label="Hai già un pomodoro in corso" title="Hai già un pomodoro in corso"' : (' onclick="window.location.href=\'pomodoro.php?project_id=' . (int)$selectedProject['id'] . '\'" aria-label="Avvia pomodoro" title="Avvia pomodoro"'); ?>>
+            <button type="button" class="pr-hero-btn pr-hero-btn-pomo"<?php echo $pomoInCorso ? ' disabled aria-label="' . t('progetti.pomodoro_gia_in_corso') . '" title="' . t('progetti.pomodoro_gia_in_corso') . '"' : (' onclick="window.location.href=\'pomodoro.php?project_id=' . (int)$selectedProject['id'] . '\'" aria-label="Avvia pomodoro" title="Avvia pomodoro"'); ?>>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>
             </button>
             <button type="button" class="pr-hero-btn pr-hero-btn-todo<?php echo $heroTodo ? ' is-on' : ''; ?>" id="prTodoBtn"
                     data-project="<?php echo (int)$selectedProject['id']; ?>"
-                    aria-label="Attività" title="Attività">
+                    aria-label="<?php te('progetti.attivita'); ?>" title="<?php te('progetti.attivita'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l2.2 2.2L10 5.5"/><path d="M4 17l2.2 2.2L10 15.5"/><path d="M13 7.5h7M13 17.5h7"/></svg>
             </button>
-            <button type="button" class="pr-hero-btn pr-hero-btn-stats" onclick="prOpenStats(<?php echo (int)$selectedProject['id']; ?>, '<?php echo htmlspecialchars(addslashes($selectedProject['name']), ENT_QUOTES); ?>', '<?php echo htmlspecialchars($accent, ENT_QUOTES); ?>')" aria-label="Pomodori" title="Pomodori">
+            <button type="button" class="pr-hero-btn pr-hero-btn-stats" data-stats-id="<?php echo (int)$selectedProject['id']; ?>"
+                    data-stats-nome="<?php echo sec_h($selectedProject['name']); ?>"
+                    data-stats-colore="<?php echo sec_h($accent); ?>"
+                    onclick="prOpenStats(+this.dataset.statsId, this.dataset.statsNome, this.dataset.statsColore)" aria-label="<?php te('progetti.pomodori'); ?>" title="<?php te('progetti.pomodori'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V10M12 20V4M18 20v-7"/></svg>
             </button>
-            <button type="button" class="pr-hero-btn pr-hero-btn-add" onclick="prOpenEdit(0, <?php echo (int)$selectedProject['id']; ?>)" aria-label="Aggiungi sotto-progetto" title="Aggiungi sotto-progetto">
+            <button type="button" class="pr-hero-btn pr-hero-btn-add" onclick="prOpenEdit(0, <?php echo (int)$selectedProject['id']; ?>)" aria-label="<?php te('progetti.aggiungi_sotto_progetto'); ?>" title="<?php te('progetti.aggiungi_sotto_progetto'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             </button>
-            <button type="button" class="pr-hero-btn pr-hero-btn-stats" onclick="prOpenEdit(<?php echo (int)$selectedProject['id']; ?>)" aria-label="Modifica progetto" title="Modifica progetto">
+            <button type="button" class="pr-hero-btn pr-hero-btn-stats" onclick="prOpenEdit(<?php echo (int)$selectedProject['id']; ?>)" aria-label="<?php te('progetti.modifica_progetto'); ?>" title="<?php te('progetti.modifica_progetto'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
             </button>
             <?php if (count($selectedTree['children'] ?? []) >= 2): ?>
-            <button type="button" class="pr-hero-btn pr-hero-btn-stats" id="prSelectSubBtn" onclick="prToggleSubSelecting()" aria-label="Seleziona sotto-progetti" title="Seleziona sotto-progetti">
+            <button type="button" class="pr-hero-btn pr-hero-btn-stats" id="prSelectSubBtn" onclick="prToggleSubSelecting()" aria-label="<?php te('progetti.seleziona_sotto_progetti'); ?>" title="<?php te('progetti.seleziona_sotto_progetti'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 5.5 1.4 1.4L7 4.3"/><path d="m3 11.5 1.4 1.4 2.6-2.6"/><path d="m3 17.5 1.4 1.4 2.6-2.6"/></svg>
             </button>
             <?php endif; ?>
@@ -1534,23 +954,23 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
     <div class="pr-view-bar">
         <div class="pr-view-switch" id="prViewSwitch">
             <button type="button" data-view="list" onclick="prSetViewMode('list')">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Elenco
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><?php te('progetti.elenco'); ?>
             </button>
             <button type="button" data-view="grid" onclick="prSetViewMode('grid')">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Griglia
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><?php te('progetti.griglia'); ?>
             </button>
         </div>
-        <button type="button" class="pr-view-dates-btn" onclick="prOpenDatesView()" aria-label="Scadenze e obiettivi" title="Scadenze e obiettivi">
+        <button type="button" class="pr-view-dates-btn" onclick="prOpenDatesView()" aria-label="<?php te('progetti.scadenze_e_obiettivi'); ?>" title="<?php te('progetti.scadenze_e_obiettivi'); ?>">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 9.5h18"/></svg>
         </button>
     </div>
     <div id="prHeroQuickAddHost"></div>
     <div class="pr-sub-bulkbar" id="prSubBulkbar">
-        <span id="prSubBulkCount">0 selezionati</span>
-        <button type="button" class="pr-sub-bulk-btn" id="prSubSelectAllBtn" onclick="prSubSelectAll()">Seleziona tutti</button>
-        <button type="button" class="pr-sub-bulk-btn accent" onclick="prSubBulkColorOpen()">Colore</button>
-        <button type="button" class="pr-sub-bulk-btn accent" onclick="prSubBulkReparentOpen()">Progetto padre</button>
-        <button type="button" class="pr-sub-bulk-btn danger" onclick="prSubBulkDeleteOpen()">Elimina</button>
+        <span id="prSubBulkCount"><?php te('progetti.0_selezionati'); ?></span>
+        <button type="button" class="pr-sub-bulk-btn" id="prSubSelectAllBtn" onclick="prSubSelectAll()"><?php te('progetti.seleziona_tutti'); ?></button>
+        <button type="button" class="pr-sub-bulk-btn accent" onclick="prSubBulkColorOpen()"><?php te('progetti.colore'); ?></button>
+        <button type="button" class="pr-sub-bulk-btn accent" onclick="prSubBulkReparentOpen()"><?php te('progetti.progetto_padre'); ?></button>
+        <button type="button" class="pr-sub-bulk-btn danger" onclick="prSubBulkDeleteOpen()"><?php te('comune.elimina'); ?></button>
     </div>
     <div class="pr-list" id="prList" data-parent="<?php echo (int)$selectedProject['id']; ?>">
         <?php foreach ($selectedTree['children'] as $child) { prog_render_row($child, $childrenOf, $totalMemo, 0, $pomoInCorso); } ?>
@@ -1561,10 +981,10 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
             $gdur = prog_fmt_duration($totalMemo[$child['id']] ?? 0);
             $gKidsCount = count($child['children'] ?? []);
             $gCat = $catLinks[$child['id']] ?? null;
-            $gNote = htmlspecialchars($child['note'] ?? '', ENT_QUOTES);
+            $gNote = sec_h($child['note'] ?? '');
             $gDateTags = prog_date_tags_info($child);
         ?>
-        <button type="button" class="pr-grid-card" style="--row-color:<?php echo $gcolor; ?>;" onclick="window.location.href='progetti.php?id=<?php echo (int)$child['id']; ?>'">
+        <button type="button" class="pr-grid-card" style="--row-color:<?php echo sec_h($gcolor); ?>;" onclick="window.location.href='progetti.php?id=<?php echo (int)$child['id']; ?>'">
             <span class="pr-grid-dot">
                 <?php if ($child['stato'] === 'completed'): ?>
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
@@ -1574,32 +994,32 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M8 3v4"/></svg>
                 <?php endif; ?>
             </span>
-            <div class="pr-grid-name<?php echo $child['stato'] === 'completed' ? ' pr-name-done' : ''; ?>"><?php echo htmlspecialchars($child['name'], ENT_QUOTES); ?></div>
+            <div class="pr-grid-name<?php echo $child['stato'] === 'completed' ? ' pr-name-done' : ''; ?>"><?php echo sec_h($child['name']); ?></div>
             <?php if ($gCat || $gNote !== '' || $gDateTags): ?>
             <div class="pr-tags-row">
                 <?php if ($gCat): ?>
-                <span class="pr-cat-tag" style="--cat-color:<?php echo htmlspecialchars($gCat['color'], ENT_QUOTES); ?>;"
+                <span class="pr-cat-tag" style="--cat-color:<?php echo sec_h($gCat['color']); ?>;"
                       onclick="event.stopPropagation(); window.location.href='visualizzazione_fc.php?category_id=<?php echo (int)$gCat['id']; ?>'">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
-                    <?php echo htmlspecialchars($gCat['name'], ENT_QUOTES); ?>
+                    <?php echo sec_h($gCat['name']); ?>
                 </span>
                 <?php endif; ?>
                 <?php if ($gNote !== ''): ?>
                 <span class="pr-note-tag" data-note-raw="<?php echo $gNote; ?>" data-note-id="<?php echo (int)$child['id']; ?>"
-                      onclick="event.stopPropagation(); prOpenNotePeek(<?php echo (int)$child['id']; ?>, this)" aria-label="Mostra nota">
+                      onclick="event.stopPropagation(); prOpenNotePeek(<?php echo (int)$child['id']; ?>, this)" aria-label="<?php te('progetti.mostra_nota'); ?>">
                     <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10l6-6V5a2 2 0 0 0-2-2Z"/><path d="M15 21v-4a2 2 0 0 1 2-2h4"/></svg>
                 </span>
                 <?php endif; ?>
                 <?php foreach ($gDateTags as $gdt): ?>
-                <span class="pr-date-tag pr-date-tag-<?php echo $gdt['status']; ?>">
-                    <?php echo $gdt['icon']; ?> <?php echo htmlspecialchars($gdt['label'], ENT_QUOTES); ?>
+                <span class="pr-date-tag pr-date-tag-<?php echo sec_h($gdt['status']); ?>">
+                    <?php echo sec_h($gdt['icon']); ?> <?php echo sec_h($gdt['label']); ?>
                 </span>
                 <?php endforeach; ?>
             </div>
             <?php endif; ?>
             <div class="pr-grid-meta">
                 <span><?php echo $gdur ?: '—'; ?></span>
-                <?php if ($gKidsCount > 0): ?><span><?php echo $gKidsCount; ?> sotto</span><?php endif; ?>
+                <?php if ($gKidsCount > 0): ?><span><?php te('progetti.n_sotto', ['n' => $gKidsCount]); ?></span><?php endif; ?>
             </div>
         </button>
         <?php endforeach; ?>
@@ -1607,7 +1027,7 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
     <?php else: ?>
     <div id="prHeroQuickAddHost"></div>
     <div class="pr-empty" style="padding:36px 16px;">
-        <div>Nessun sotto-progetto. Aggiungine uno con "+ Sotto-progetto" qui sopra.</div>
+        <div><?php te('progetti.nessun_sotto_progetto_aggiungine_uno'); ?></div>
     </div>
     <?php endif; ?>
 <?php endif; ?>
@@ -1616,14 +1036,14 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
 <!-- ================= DRAWER PROGETTI RADICE ================= -->
 <div class="pd-scrim" id="pdScrim" onclick="prCloseDrawer()"></div>
 <div class="pd-panel" id="pdPanel">
-    <div class="pd-head">I tuoi progetti <button type="button" class="pd-close" onclick="prCloseDrawer()">✕</button></div>
+    <div class="pd-head"><?php te('progetti.i_tuoi_progetti'); ?> <button type="button" class="pd-close" onclick="prCloseDrawer()">✕</button></div>
     <div class="pd-list">
         <?php if (!empty($favProjects)): ?>
         <?php /* i preferiti in cima all'elenco, prima dei progetti principali */ ?>
         <div class="pd-item pd-item-fav<?php echo $viewFavorites ? ' active' : ''; ?>" style="--row-color:#E0B84A;"
              onclick="window.location.href='progetti.php?view=fav'">
             <svg class="pd-fav-star" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
-            <span class="pd-item-name">Preferiti</span>
+            <span class="pd-item-name"><?php te('progetti.preferiti'); ?></span>
             <span class="pd-item-count"><?php echo count($favProjects); ?></span>
         </div>
         <?php endif; ?>
@@ -1631,15 +1051,15 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
             $rcolor = (!empty($rp['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $rp['color'])) ? $rp['color'] : '#8E8E93';
             $rdur = prog_fmt_duration($totalMemo[$rp['id']] ?? 0);
         ?>
-        <div class="pd-item<?php echo ((int)$rp['id'] === $selectedId) ? ' active' : ''; ?>" style="--row-color:<?php echo $rcolor; ?>;" onclick="window.location.href='progetti.php?id=<?php echo (int)$rp['id']; ?>'">
+        <div class="pd-item<?php echo ((int)$rp['id'] === $selectedId) ? ' active' : ''; ?>" style="--row-color:<?php echo sec_h($rcolor); ?>;" onclick="window.location.href='progetti.php?id=<?php echo (int)$rp['id']; ?>'">
             <span class="pd-dot"></span>
-            <span class="pd-item-name"><?php echo htmlspecialchars($rp['name'], ENT_QUOTES); ?></span>
-            <?php if ($rdur): ?><span class="pd-item-count"><?php echo $rdur; ?></span><?php endif; ?>
+            <span class="pd-item-name"><?php echo sec_h($rp['name']); ?></span>
+            <?php if ($rdur): ?><span class="pd-item-count"><?php echo sec_h($rdur); ?></span><?php endif; ?>
         </div>
         <?php endforeach; ?>
         <div class="pd-add" onclick="prCloseDrawer(); prOpenEdit(0);">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            Nuovo progetto
+            <?php te('progetti.nuovo_progetto'); ?>
         </div>
     </div>
 </div>
@@ -1649,75 +1069,75 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
     <div class="pr-sheet">
         <div class="pr-sheet-grabber"></div>
         <div class="pr-sheet-head">
-            <div class="pr-sheet-title" id="prSheetTitle">Nuovo progetto</div>
-            <button type="button" class="pr-sheet-close" onclick="prCloseEdit()" aria-label="Chiudi">
+            <div class="pr-sheet-title" id="prSheetTitle"><?php te('progetti.nuovo_progetto'); ?></div>
+            <button type="button" class="pr-sheet-close" onclick="prCloseEdit()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
         </div>
         <div class="pr-sheet-body">
             <div class="pr-field">
-                <label>Nome</label>
-                <input type="text" id="prFieldName" placeholder="Es. Tesi di laurea">
+                <label><?php te('progetti.nome'); ?></label>
+                <input type="text" id="prFieldName" placeholder="<?php te('progetti.es_tesi_di_laurea'); ?>">
             </div>
             <div class="pr-field">
-                <label>Progetto padre</label>
+                <label><?php te('progetti.progetto_padre'); ?></label>
                 <?php
                     $ps_id = 'parent';
                     $ps_selected_id = 0; $ps_selected_name = ''; $ps_selected_color = null;
-                    $ps_placeholder = 'Nessuno (progetto radice)';
-                    $ps_title = 'Scegli il progetto padre';
-                    $ps_show_all_option = true; $ps_all_option_label = 'Nessuno (progetto radice)';
+                    $ps_placeholder = t('progetti.nessuno_radice');
+                    $ps_title = t('progetti.scegli_progetto_padre');
+                    $ps_show_all_option = true; $ps_all_option_label = t('progetti.nessuno_radice');
                     $ps_allow_create = false; $ps_hidden_name = 'parent_id';
                     include 'project_selector.php';
                 ?>
             </div>
             <div class="pr-field">
-                <label>Materia collegata</label>
+                <label><?php te('progetti.materia_collegata'); ?></label>
                 <?php
                     $cs_id = 'category';
                     $cs_selected_id = 0; $cs_selected_name = ''; $cs_selected_color = null;
-                    $cs_placeholder = 'Nessuna materia collegata';
-                    $cs_title = 'Collega a una materia';
-                    $cs_show_all_option = true; $cs_all_option_label = 'Nessuna materia collegata';
+                    $cs_placeholder = t('progetti.nessuna_materia');
+                    $cs_title = t('progetti.collega_materia');
+                    $cs_show_all_option = true; $cs_all_option_label = t('progetti.nessuna_materia');
                     $cs_allow_create = false; $cs_hidden_name = 'fc_category_id';
                     include 'category_selector.php';
                 ?>
             </div>
             <div class="pr-field-row">
                 <div class="pr-field">
-                    <label>Preferito</label>
+                    <label><?php te('progetti.preferito'); ?></label>
                     <button type="button" class="pr-fav-btn" id="prFieldFav" aria-pressed="false">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
-                        <span>Metti tra i preferiti</span>
+                        <span><?php te('progetti.metti_tra_i_preferiti'); ?></span>
                     </button>
                 </div>
-                <div class="pr-field"><label>Data obiettivo</label><input type="date" id="prFieldObiettivo"></div>
-                <div class="pr-field"><label>Scadenza</label><input type="date" id="prFieldScadenza"></div>
+                <div class="pr-field"><label><?php te('progetti.data_obiettivo'); ?></label><input type="date" id="prFieldObiettivo"></div>
+                <div class="pr-field"><label><?php te('progetti.scadenza'); ?></label><input type="date" id="prFieldScadenza"></div>
             </div>
             <div class="pr-field" style="margin-bottom:4px;">
-                <label>Colore <span id="prColorModeLabel" style="text-transform:none; font-weight:500; letter-spacing:0;">(automatico dal padre)</span></label>
+                <label><?php te('progetti.colore'); ?> <span id="prColorModeLabel" style="text-transform:none; font-weight:500; letter-spacing:0;"><?php te('progetti.automatico_dal_padre'); ?></span></label>
                 <div class="pr-color-card">
                     <div class="pr-color-preview-row">
                         <span class="pr-color-preview-icon" id="prColorPreviewIcon"></span>
-                        <span class="pr-color-preview-name" id="prColorPreviewName">Colore automatico</span>
+                        <span class="pr-color-preview-name" id="prColorPreviewName"><?php te('progetti.colore_automatico'); ?></span>
                     </div>
                     <div class="pr-color-grid" id="prColorGrid">
-                        <button type="button" class="pr-color-swatch pr-color-swatch-auto" id="prColorAutoBtn" onclick="prSetColorAuto()" aria-label="Automatico dal padre">A</button>
+                        <button type="button" class="pr-color-swatch pr-color-swatch-auto" id="prColorAutoBtn" onclick="prSetColorAuto()" aria-label="<?php te('progetti.automatico_dal_padre_2'); ?>">A</button>
                         <?php foreach ($prColorPalette as $hex): ?>
-                        <button type="button" class="pr-color-swatch" style="background:<?php echo $hex; ?>; --sw:<?php echo $hex; ?>;" data-hex="<?php echo $hex; ?>" onclick="prSetColorManual('<?php echo $hex; ?>')">
+                        <button type="button" class="pr-color-swatch" style="background:<?php echo sec_h($hex); ?>; --sw:<?php echo sec_h($hex); ?>;" data-hex="<?php echo sec_h($hex); ?>" onclick="prSetColorManual('<?php echo sec_h($hex); ?>')">
                             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
                         </button>
                         <?php endforeach; ?>
                     </div>
                     <div class="pr-custom-color-row">
                         <input type="color" class="pr-custom-color-input" id="prCustomColorInput" value="#8E8E93" oninput="prSetColorManual(this.value)">
-                        <span class="pr-custom-color-label">Colore personalizzato</span>
+                        <span class="pr-custom-color-label"><?php te('progetti.colore_personalizzato'); ?></span>
                         <span class="pr-custom-color-hex" id="prCustomColorHex"></span>
                     </div>
                 </div>
             </div>
             <div class="pr-field" style="margin-bottom:0;">
-                <label>Note</label>
+                <label><?php te('comune.note'); ?></label>
                 <?php
                     $ft_field = 'prFieldNote';
                     $ft_raw = '';
@@ -1727,11 +1147,11 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
             </div>
         </div>
         <div class="pr-sheet-actions">
-            <button type="button" class="pr-btn-icon-danger" id="prDeleteBtn" onclick="prDeleteCurrentProject()" aria-label="Elimina progetto" style="display:none;">
+            <button type="button" class="pr-btn-icon-danger" id="prDeleteBtn" onclick="prDeleteCurrentProject()" aria-label="<?php te('progetti.elimina_progetto'); ?>" style="display:none;">
                 <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
             </button>
-            <button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseEdit()">Annulla</button>
-            <button type="button" class="pr-btn pr-btn-save" onclick="prFlushAndRefresh()">Fatto</button>
+            <button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseEdit()"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="pr-btn pr-btn-save" onclick="prFlushAndRefresh()"><?php te('progetti.fatto'); ?></button>
         </div>
     </div>
 </div>
@@ -1741,27 +1161,27 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
     <div class="pr-sheet">
         <div class="pr-sheet-grabber"></div>
         <div class="pr-sheet-head">
-            <div class="pr-sheet-title">Scadenze e obiettivi</div>
-            <button type="button" class="pr-sheet-close" onclick="prCloseDatesView()" aria-label="Chiudi">
+            <div class="pr-sheet-title"><?php te('progetti.scadenze_e_obiettivi'); ?></div>
+            <button type="button" class="pr-sheet-close" onclick="prCloseDatesView()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
         </div>
         <div class="pr-sheet-body">
             <div class="pr-dates-row">
                 <div class="pr-view-switch" id="prDatesFieldSwitch">
-                    <button type="button" data-field="scadenza" onclick="prDatesSetField('scadenza')">⏰ Scadenza</button>
-                    <button type="button" data-field="obiettivo" onclick="prDatesSetField('obiettivo')">🎯 Obiettivo</button>
+                    <button type="button" data-field="scadenza" onclick="prDatesSetField('scadenza')"><?php te('progetti.scadenza_2'); ?></button>
+                    <button type="button" data-field="obiettivo" onclick="prDatesSetField('obiettivo')"><?php te('progetti.obiettivo'); ?></button>
                 </div>
                 <button type="button" class="pr-dates-sort-btn" id="prDatesSortBtn" onclick="prDatesToggleSort()">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M6 12h12M10 17h4"/></svg>
-                    <span id="prDatesSortLabel">Più vicine</span>
+                    <span id="prDatesSortLabel"><?php te('progetti.piu_vicine'); ?></span>
                 </button>
             </div>
             <div class="pr-dates-filters" id="prDatesFilters">
-                <button type="button" class="pr-dates-chip" data-filter="all" onclick="prDatesSetFilter('all')">Tutte</button>
-                <button type="button" class="pr-dates-chip" data-filter="past" onclick="prDatesSetFilter('past')">Passate</button>
-                <button type="button" class="pr-dates-chip" data-filter="today" onclick="prDatesSetFilter('today')">Oggi</button>
-                <button type="button" class="pr-dates-chip" data-filter="future" onclick="prDatesSetFilter('future')">Future</button>
+                <button type="button" class="pr-dates-chip" data-filter="all" onclick="prDatesSetFilter('all')"><?php te('progetti.tutte'); ?></button>
+                <button type="button" class="pr-dates-chip" data-filter="past" onclick="prDatesSetFilter('past')"><?php te('progetti.passate'); ?></button>
+                <button type="button" class="pr-dates-chip" data-filter="today" onclick="prDatesSetFilter('today')"><?php te('comune.oggi'); ?></button>
+                <button type="button" class="pr-dates-chip" data-filter="future" onclick="prDatesSetFilter('future')"><?php te('progetti.future'); ?></button>
             </div>
             <div class="pr-dates-list" id="prDatesList"></div>
         </div>
@@ -1771,8 +1191,8 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
 <!-- ================= CONFERMA ELIMINAZIONE ================= -->
 <div class="pr-confirm-overlay" id="prConfirmOverlay">
     <div class="pr-confirm-box">
-        <div class="pr-confirm-title" id="prConfirmTitle">Eliminare questo progetto?</div>
-        <div class="pr-confirm-msg" id="prConfirmMsg">Questa azione non può essere annullata.</div>
+        <div class="pr-confirm-title" id="prConfirmTitle"><?php te('progetti.eliminare_questo_progetto'); ?></div>
+        <div class="pr-confirm-msg" id="prConfirmMsg"><?php te('progetti.questa_azione_non_puo_essere'); ?></div>
         <div class="pr-confirm-actions stack" id="prConfirmActions"></div>
     </div>
 </div>
@@ -1780,22 +1200,22 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
 <!-- ================= CAMBIA COLORE (selezione multipla) ================= -->
 <div class="pr-confirm-overlay" id="prBulkColorOverlay">
     <div class="pr-confirm-box">
-        <div class="pr-confirm-title">Cambia colore</div>
-        <div class="pr-confirm-msg">Si applica a tutti i sotto-progetti selezionati.</div>
+        <div class="pr-confirm-title"><?php te('progetti.cambia_colore'); ?></div>
+        <div class="pr-confirm-msg"><?php te('progetti.si_applica_a_tutti_i'); ?></div>
         <div class="pr-color-grid" id="prBulkColorGrid">
-            <button type="button" class="pr-color-swatch pr-color-swatch-auto" onclick="prSubBulkColorPick('auto')" aria-label="Automatico dal padre" title="Automatico dal padre">A</button>
+            <button type="button" class="pr-color-swatch pr-color-swatch-auto" onclick="prSubBulkColorPick('auto')" aria-label="<?php te('progetti.automatico_dal_padre_2'); ?>" title="<?php te('progetti.automatico_dal_padre_2'); ?>">A</button>
             <?php foreach ($prColorPalette as $hex): ?>
-            <button type="button" class="pr-color-swatch" style="background:<?php echo $hex; ?>; --sw:<?php echo $hex; ?>;" onclick="prSubBulkColorPick('<?php echo $hex; ?>')">
+            <button type="button" class="pr-color-swatch" style="background:<?php echo sec_h($hex); ?>; --sw:<?php echo sec_h($hex); ?>;" onclick="prSubBulkColorPick('<?php echo sec_h($hex); ?>')">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
             </button>
             <?php endforeach; ?>
         </div>
         <div class="pr-custom-color-row">
             <input type="color" class="pr-custom-color-input" id="prBulkCustomColorInput" value="#8E8E93" oninput="prSubBulkColorPick(this.value)">
-            <span class="pr-custom-color-label">Colore personalizzato</span>
+            <span class="pr-custom-color-label"><?php te('progetti.colore_personalizzato'); ?></span>
         </div>
         <div class="pr-confirm-actions" style="margin-top:16px;">
-            <button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseBulkColor()">Annulla</button>
+            <button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseBulkColor()"><?php te('comune.annulla'); ?></button>
         </div>
     </div>
 </div>
@@ -1806,12 +1226,12 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
 <div class="pr-note-peek-overlay" id="prNotePeekOverlay" onclick="if(event.target===this) prCloseNotePeek();">
     <div class="pr-note-peek">
         <div class="pr-note-peek-head">
-            <span class="pr-note-peek-title">Nota</span>
+            <span class="pr-note-peek-title"><?php te('progetti.nota'); ?></span>
             <div class="pr-note-peek-actions">
-                <button type="button" class="pr-note-peek-btn" id="prNotePeekEdit" aria-label="Modifica progetto">
+                <button type="button" class="pr-note-peek-btn" id="prNotePeekEdit" aria-label="<?php te('progetti.modifica_progetto'); ?>">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                 </button>
-                <button type="button" class="pr-note-peek-btn" onclick="prCloseNotePeek()" aria-label="Chiudi">
+                <button type="button" class="pr-note-peek-btn" onclick="prCloseNotePeek()" aria-label="<?php te('comune.chiudi'); ?>">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
                 </button>
             </div>
@@ -1826,8 +1246,8 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
        (selezionati + loro discendenti non scelgibili) li applichiamo via JS,
        esattamente come fa pomodoro_import.php col proprio selettore. */
     $ps_id = 'bulkreparent'; $ps_selected_id = 0; $ps_selected_name = ''; $ps_selected_color = null;
-    $ps_placeholder = 'Seleziona progetto'; $ps_title = 'Sposta sotto...';
-    $ps_show_all_option = true; $ps_all_option_label = 'Nessuno (progetto radice)';
+    $ps_placeholder = t('progetti.seleziona_progetto'); $ps_title = t('progetti.sposta_sotto');
+    $ps_show_all_option = true; $ps_all_option_label = t('progetti.nessuno_radice');
     $ps_allow_create = false; $ps_render_trigger = false; $ps_hidden_name = 'bulk_reparent_project_id';
     $ps_exclude_id = 0;
     include 'project_selector.php';
@@ -1968,7 +1388,7 @@ document.addEventListener('click', function(e){
         method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
         body: body
     }).then(function(r){ return r.json(); }).then(function(data){
-        if (!data.success) { toast('Errore, riprova'); return; }
+        if (!data.success) { toast(T('comune.errore_generico')); return; }
         // completamento a cascata: aggiorna le checkbox dei sotto-progetti e
         // memorizza il loro stato precedente per un eventuale ripristino
         if (data.cascaded && data.cascaded.length) {
@@ -1984,7 +1404,7 @@ document.addEventListener('click', function(e){
             });
             delete prCascadeSnapshots[id]; // snapshot consumato
         }
-    }).catch(function(){ toast('Errore di rete'); });
+    }).catch(function(){ toast(T('comune.errore_rete')); });
 });
 // applica una classe di stato a tutte le checkbox di un progetto + strikethrough
 function prApplyStateToDom(cid, stateClass){
@@ -2040,7 +1460,7 @@ window.prToggleHeroFav = function(e, btn){
     function disegna(on){
         btn.classList.toggle('is-fav', on);
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        btn.setAttribute('title', on ? 'Togli dai preferiti' : 'Metti tra i preferiti');
+        btn.setAttribute('title', T(on ? 'progetti.togli_dai_preferiti' : 'progetti.metti_tra_i_preferiti'));
         btn.innerHTML = on
             ? '<svg class="pr-star pr-star-hero" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="' + D + '"/></svg>'
             : '<svg class="pr-star pr-star-hero pr-star-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-dasharray="3 2.2" aria-hidden="true"><path d="' + D + '"/></svg>';
@@ -2055,10 +1475,10 @@ window.prToggleHeroFav = function(e, btn){
         headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ project_id: id, value: next ? 1 : 0 }).toString()
     }).then(function(r){ return r.json(); }).then(function(r){
-        if (!r || !r.ok) { disegna(!next); toast('Non salvato'); return; }
+        if (!r || !r.ok) { disegna(!next); toast(T('progetti.non_salvato')); return; }
         /* la scheda di modifica, se è aperta o si aprirà, deve concordare */
         if (PROJ_LOOKUP[id]) PROJ_LOOKUP[id].is_favorite = next ? 1 : 0;
-    }).catch(function(){ disegna(!next); toast('Errore di rete'); });
+    }).catch(function(){ disegna(!next); toast(T('comune.errore_rete')); });
 };
 
 /* ---------------- inserimento rapido dall'hero (richiesta 15) ---------------- */
@@ -2077,7 +1497,7 @@ window.prHeroQuickAdd = function(e, btn){
     inputRow.style.paddingLeft = '14px';
 
     var input = document.createElement('input');
-    input.type = 'text'; input.placeholder = 'Nome nuovo sotto-progetto...'; input.autocomplete = 'off';
+    input.type = 'text'; input.placeholder = T('progetti.nome_nuovo_sotto'); input.autocomplete = 'off';
 
     var cancelBtn = document.createElement('button');
     cancelBtn.type = 'button'; cancelBtn.className = 'pr-inline-cancel-btn'; cancelBtn.setAttribute('aria-label','Annulla');
@@ -2109,7 +1529,7 @@ window.prHeroQuickAdd = function(e, btn){
         var form = document.getElementById('formSave');
         fetch(window.location.href, { method:'POST', body:new FormData(form) })
             .then(function(r){ if (r.ok) window.location.reload(); else { toast('Errore'); reset(); } })
-            .catch(function(){ toast('Errore di rete'); reset(); });
+            .catch(function(){ toast(T('comune.errore_rete')); reset(); });
     }
     function reset(){ input.disabled = saveBtn.disabled = cancelBtn.disabled = false; saveBtn.style.opacity = '1'; input.focus(); }
     saveBtn.addEventListener('click', submit);
@@ -2140,7 +1560,7 @@ function prUpdateSubBulkCount(){
     var el = document.getElementById('prSubBulkCount');
     if (el) el.textContent = n + ' selezionat' + (n === 1 ? 'o' : 'i');
     var allBtn = document.getElementById('prSubSelectAllBtn');
-    if (allBtn) allBtn.textContent = n > 0 ? 'Deseleziona tutti' : 'Seleziona tutti';
+    if (allBtn) allBtn.textContent = n > 0 ? 'Deseleziona tutti' : T('progetti.seleziona_tutti');
 }
 // tutte le righe-discendenti (nel DOM) di una data riga di #prList
 function prDomDescendantWraps(wrap){
@@ -2230,7 +1650,7 @@ function prCollectDescendants(rootIds){
 var prBulkDeleteIds = [];
 window.prSubBulkDeleteOpen = function(){
     var ids = Object.keys(prSubSelectedIds);
-    if (!ids.length) { toast('Seleziona almeno un sotto-progetto'); return; }
+    if (!ids.length) { toast(T('progetti.seleziona_almeno_un_sotto')); return; }
     prBulkDeleteIds = ids;
     var totalSessions = 0, anyChildren = false;
     ids.forEach(function(id){
@@ -2242,8 +1662,8 @@ window.prSubBulkDeleteOpen = function(){
     document.getElementById('prConfirmTitle').textContent = 'Eliminare ' + n + ' sotto-progett' + (n === 1 ? 'o' : 'i') + '?';
 
     if (totalSessions === 0) {
-        var plainMsg = anyChildren ? 'Alcuni hanno a loro volta dei sotto-progetti: verranno eliminati anche loro. ' : '';
-        plainMsg += 'Questa azione non può essere annullata.';
+        var plainMsg = anyChildren ? T('progetti.alcuni_hanno_sotto') : '';
+        plainMsg += T('progetti.questa_azione_non_puo_essere');
         document.getElementById('prConfirmMsg').textContent = plainMsg;
         document.getElementById('prConfirmActions').innerHTML =
             '<button type="button" class="pr-btn pr-btn-danger" onclick="prSubBulkDeleteDo(false)">Elimina</button>' +
@@ -2252,29 +1672,29 @@ window.prSubBulkDeleteOpen = function(){
         return;
     }
 
-    var msg = anyChildren ? 'Alcuni hanno a loro volta dei sotto-progetti: verranno eliminati anche loro. ' : '';
-    msg += 'Vuoi eliminare anche i pomodori collegati?';
+    var msg = anyChildren ? T('progetti.alcuni_hanno_sotto') : '';
+    msg += T('progetti.eliminare_anche_pomodori');
     document.getElementById('prConfirmMsg').textContent = msg;
     document.getElementById('prConfirmActions').innerHTML =
-        '<button type="button" class="pr-btn pr-btn-danger" onclick="prSubBulkDeleteDo(true)">Elimina anche i pomodori</button>' +
+        '<button type="button" class="pr-btn pr-btn-danger" onclick="prSubBulkDeleteDo(true)">'+T('progetti.elimina_anche_pomodori')+'</button>' +
         '<button type="button" class="pr-btn pr-btn-neutral" onclick="prSubBulkKeepSessions()">Mantieni i pomodori</button>' +
         '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">Annulla</button>';
     document.getElementById('prConfirmOverlay').classList.add('show');
 };
 window.prSubBulkKeepSessions = function(){
-    document.getElementById('prConfirmTitle').textContent = 'I pomodori resteranno senza progetto';
+    document.getElementById('prConfirmTitle').textContent = T('progetti.pomodori_senza_progetto');
     document.getElementById('prConfirmMsg').textContent =
         'Se preferisci, vai prima ai pomodori dei sotto-progetti selezionati e riassegnali a un altro progetto. Altrimenti, continuando, resteranno tutti senza progetto.';
     document.getElementById('prConfirmActions').innerHTML =
         '<button type="button" class="pr-btn pr-btn-neutral" onclick="prSubBulkGoToPomodori()">Vai ai pomodori</button>' +
-        '<button type="button" class="pr-btn pr-btn-danger" onclick="prSubBulkDeleteDo(false)">Elimina comunque</button>' +
+        '<button type="button" class="pr-btn pr-btn-danger" onclick="prSubBulkDeleteDo(false)">'+T('progetti.elimina_comunque')+'</button>' +
         '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">Annulla</button>';
 };
 window.prSubBulkGoToPomodori = function(){
     var ids = prCollectDescendants(prBulkDeleteIds).map(function(x){ return parseInt(x, 10); });
     prCloseConfirm();
     if (!window.openPomodoroStorico) return;
-    window.openPomodoroStorico({ scope: 'project', projectIds: ids, projectName: 'sotto-progetti selezionati' });
+    window.openPomodoroStorico({ scope: 'project', projectIds: ids, projectName: T('progetti.sotto_selezionati') });
     if (window.phToggleSelectMode) window.phToggleSelectMode();
 };
 window.prSubBulkDeleteDo = function(deleteSessions){
@@ -2286,7 +1706,7 @@ window.prSubBulkDeleteDo = function(deleteSessions){
 
 /* -------- cambia colore (in blocco) -------- */
 window.prSubBulkColorOpen = function(){
-    if (!Object.keys(prSubSelectedIds).length) { toast('Seleziona almeno un sotto-progetto'); return; }
+    if (!Object.keys(prSubSelectedIds).length) { toast(T('progetti.seleziona_almeno_un_sotto')); return; }
     document.getElementById('prBulkColorOverlay').classList.add('show');
 };
 window.prCloseBulkColor = function(){ document.getElementById('prBulkColorOverlay').classList.remove('show'); };
@@ -2333,7 +1753,7 @@ function prBulkReparentRestrict(excludeIds){
 }
 window.prSubBulkReparentOpen = function(){
     var ids = Object.keys(prSubSelectedIds);
-    if (!ids.length) { toast('Seleziona almeno un sotto-progetto'); return; }
+    if (!ids.length) { toast(T('progetti.seleziona_almeno_un_sotto')); return; }
     prBulkReparentIds = ids;
     prBulkReparentRestrict(prCollectDescendants(ids));
     var modal = document.getElementById('ps-modal-bulkreparent');
@@ -2388,7 +1808,7 @@ function prComputeBlockedCategories(editingId){
         var cName = CAT_NAME[c] || '?';
 
         if (!blocked[c]) {
-            blocked[c] = 'La materia "' + cName + '" è già collegata al progetto "' + link.project_name + '".';
+            blocked[c] = T('progetti.materia_gia_collegata',{materia:cName,progetto:link.project_name});
         }
 
         // risale verso la radice: ogni padre viene bloccato perché un suo figlio (c) è collegato
@@ -2397,7 +1817,7 @@ function prComputeBlockedCategories(editingId){
         while (p && p !== 0 && guard < 100) {
             guard++;
             if (!blocked[p]) {
-                blocked[p] = 'La sotto-materia "' + cName + '" è già collegata al progetto "' + link.project_name + '".';
+                blocked[p] = T('progetti.sotto_materia_gia_collegata',{materia:cName,progetto:link.project_name});
             }
             p = CAT_PARENT[p];
         }
@@ -2409,7 +1829,7 @@ function prComputeBlockedCategories(editingId){
             guard2++;
             var cur = stack.pop();
             if (!blocked[cur]) {
-                blocked[cur] = 'La materia padre "' + cName + '" è già collegata al progetto "' + link.project_name + '".';
+                blocked[cur] = T('progetti.materia_padre_gia_collegata',{materia:cName,progetto:link.project_name});
             }
             (CAT_CHILDREN[cur] || []).forEach(function(x){ stack.push(x); });
         }
@@ -2441,7 +1861,7 @@ var editingId = 0;
 var prColorManual = false, prColorValue = '#8E8E93', prParentColor = '#8E8E93';
 window.prOpenEdit = function(id, forceParentId){
     editingId = id || 0;
-    document.getElementById('prSheetTitle').textContent = editingId ? 'Modifica progetto' : 'Nuovo progetto';
+    document.getElementById('prSheetTitle').textContent = editingId ? T('progetti.modifica_progetto') : T('progetti.nuovo_progetto');
     document.getElementById('prDeleteBtn').style.display = editingId > 0 ? '' : 'none';
     document.getElementById('prFieldName').value = '';
     var favBtn = document.getElementById('prFieldFav');
@@ -2512,12 +1932,12 @@ window.prOpenEdit = function(id, forceParentId){
         if (parentToShow > 0 && PROJ_LOOKUP[parentToShow]) {
             window.psSetValue('ps-modal-parent', parentToShow, PROJ_LOOKUP[parentToShow].name, PROJ_LOOKUP[parentToShow].color);
         } else {
-            window.psSetValue('ps-modal-parent', 0, 'Nessuno (progetto radice)', '');
+            window.psSetValue('ps-modal-parent', 0, T('progetti.nessuno_radice'), '');
         }
     }
     if (window.csSetValue) {
         if (linkedCatId > 0) window.csSetValue('cs-modal-category', linkedCatId, linkedCatName, linkedCatColor);
-        else window.csSetValue('cs-modal-category', 0, 'Nessuna materia collegata', '');
+        else window.csSetValue('cs-modal-category', 0, T('progetti.nessuna_materia'), '');
     }
     prApplyCategoryLock(editingId);
     document.getElementById('prSheetOverlay').classList.add('show');
@@ -2559,7 +1979,7 @@ function prDatesRender(){
     Array.prototype.forEach.call(filtersEl.querySelectorAll('button'), function(b){
         b.classList.toggle('active', b.getAttribute('data-filter') === prDatesState.filter);
     });
-    document.getElementById('prDatesSortLabel').textContent = (prDatesState.sortDir === 'asc') ? 'Più vicine' : 'Più lontane';
+    document.getElementById('prDatesSortLabel').textContent = (prDatesState.sortDir === 'asc') ? T('progetti.piu_vicine') : T('progetti.piu_lontane');
 
     var key = (prDatesState.field === 'scadenza') ? 'data_scadenza' : 'data_obiettivo';
     var icon = (prDatesState.field === 'scadenza') ? '⏰' : '🎯';
@@ -2585,7 +2005,7 @@ function prDatesRender(){
     if (items.length === 0) {
         var empty = document.createElement('div');
         empty.className = 'pr-dates-empty';
-        empty.textContent = 'Nessun progetto con questa data.';
+        empty.textContent = T('progetti.nessun_progetto_data');
         listEl.appendChild(empty);
         return;
     }
@@ -2665,9 +2085,9 @@ window.prSetColorManual = function(hex){
 function prUpdateColorUI(){
     document.getElementById('fColorMode').value = prColorManual ? 'manual' : 'auto';
     document.getElementById('fProgettoColor').value = prColorValue;
-    document.getElementById('prColorModeLabel').textContent = prColorManual ? '(scelto manualmente)' : '(automatico dal padre)';
+    document.getElementById('prColorModeLabel').textContent = T(prColorManual ? 'progetti.scelto_manualmente' : 'progetti.automatico_dal_padre');
     document.getElementById('prColorPreviewIcon').style.setProperty('--pr-preview-color', prColorValue);
-    document.getElementById('prColorPreviewName').textContent = prColorManual ? 'Colore personalizzato' : 'Colore automatico dal padre';
+    document.getElementById('prColorPreviewName').textContent = prColorManual ? T('progetti.colore_personalizzato') : T('progetti.colore_auto_padre');
     document.getElementById('prColorAutoBtn').classList.toggle('sel', !prColorManual);
     document.querySelectorAll('#prColorGrid .pr-color-swatch:not(.pr-color-swatch-auto)').forEach(function(s){
         s.classList.toggle('sel', prColorManual && s.getAttribute('data-hex').toLowerCase() === prColorValue.toLowerCase());
@@ -2687,25 +2107,25 @@ document.addEventListener('projectselected', function(e){
     var btn = document.getElementById('prFieldFav');
     if (!btn) return;
     btn.addEventListener('click', function(){
-        if (!editingId) { toast('Salva prima il progetto'); return; }
+        if (!editingId) { toast(T('progetti.salva_prima_progetto')); return; }
         var next = !btn.classList.contains('is-fav');
         btn.classList.toggle('is-fav', next);
         btn.setAttribute('aria-pressed', next ? 'true' : 'false');
-        btn.querySelector('span').textContent = next ? 'Tra i preferiti' : 'Metti tra i preferiti';
+        btn.querySelector('span').textContent = T(next ? 'progetti.tra_i_preferiti' : 'progetti.metti_tra_i_preferiti');
         var body = new URLSearchParams({ project_id: editingId, value: next ? 1 : 0 });
         fetch('progetti.php?ajax=toggle_favorite', {
             method:'POST', credentials:'same-origin',
             headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
             body: body.toString()
         }).then(function(r){ return r.json(); }).then(function(r){
-            if (!r || !r.ok) { btn.classList.toggle('is-fav', !next); toast('Non salvato'); }
-        }).catch(function(){ btn.classList.toggle('is-fav', !next); toast('Errore di rete'); });
+            if (!r || !r.ok) { btn.classList.toggle('is-fav', !next); toast(T('progetti.non_salvato')); }
+        }).catch(function(){ btn.classList.toggle('is-fav', !next); toast(T('comune.errore_rete')); });
     });
     /* quando si apre un progetto, la stellina mostra il suo stato */
     window.prSetFavourite = function(on){
         btn.classList.toggle('is-fav', !!on);
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        btn.querySelector('span').textContent = on ? 'Tra i preferiti' : 'Metti tra i preferiti';
+        btn.querySelector('span').textContent = T(on ? 'progetti.tra_i_preferiti' : 'progetti.metti_tra_i_preferiti');
     };
 })();
 
@@ -2752,7 +2172,7 @@ window.prSubmitEdit = function(){
         pending = true;
         return fetch(window.location.href, { method:'POST', body:new FormData(form), credentials:'same-origin' })
             .then(function(){ pending = false; dirty = true; return true; })
-            .catch(function(){ pending = false; toast('Modifica non salvata'); return false; });
+            .catch(function(){ pending = false; toast(T('progetti.modifica_non_salvata')); return false; });
     };
 
     function schedule(){
@@ -2797,7 +2217,7 @@ window.prOpenStats = function(projectId, projectName, projectColor){
     if (window.openPomodoroStorico) {
         window.openPomodoroStorico({ scope: 'project', projectId: projectId, projectName: projectName, projectColor: projectColor || '' });
     } else {
-        toast('Popup storico non ancora incluso in questa pagina');
+        toast(T('progetti.storico_non_incluso'));
     }
 };
 
@@ -2822,13 +2242,13 @@ window.prConfirmDelete = function(id, hasChildren){
     deletingHasChildren = !!hasChildren;
     var info = PROJ_LOOKUP[id];
     var sessionCount = info ? (info.session_count || 0) : 0;
-    document.getElementById('prConfirmTitle').textContent = 'Eliminare questo progetto?';
+    document.getElementById('prConfirmTitle').textContent = T('progetti.eliminare_questo_progetto');
 
     if (sessionCount === 0) {
         // nessun pomodoro collegato (nemmeno nei sotto-progetti): niente da
         // chiedere, resta la semplice conferma di sempre.
-        var plainMsg = hasChildren ? 'Questo progetto ha dei sotto-progetti: verranno eliminati anche loro. ' : '';
-        plainMsg += 'Questa azione non può essere annullata.';
+        var plainMsg = hasChildren ? T('progetti.progetto_ha_sotto') : '';
+        plainMsg += T('progetti.questa_azione_non_puo_essere');
         document.getElementById('prConfirmMsg').textContent = plainMsg;
         document.getElementById('prConfirmActions').innerHTML =
             '<button type="button" class="pr-btn pr-btn-danger" onclick="prDoDelete(false)">Elimina</button>' +
@@ -2837,11 +2257,11 @@ window.prConfirmDelete = function(id, hasChildren){
         return;
     }
 
-    var msg = hasChildren ? 'Questo progetto ha dei sotto-progetti: verranno eliminati anche loro. ' : '';
-    msg += 'Vuoi eliminare anche i pomodori collegati' + (hasChildren ? ' a questo progetto e ai suoi sotto-progetti' : '') + '?';
+    var msg = hasChildren ? T('progetti.progetto_ha_sotto') : '';
+    msg += T(hasChildren ? 'progetti.eliminare_pomodori_con_sotto' : 'progetti.eliminare_anche_pomodori');
     document.getElementById('prConfirmMsg').textContent = msg;
     document.getElementById('prConfirmActions').innerHTML =
-        '<button type="button" class="pr-btn pr-btn-danger" onclick="prDoDelete(true)">Elimina anche i pomodori</button>' +
+        '<button type="button" class="pr-btn pr-btn-danger" onclick="prDoDelete(true)">'+T('progetti.elimina_anche_pomodori')+'</button>' +
         '<button type="button" class="pr-btn pr-btn-neutral" onclick="prConfirmKeepSessions()">Mantieni i pomodori</button>' +
         '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">Annulla</button>';
     document.getElementById('prConfirmOverlay').classList.add('show');
@@ -2850,14 +2270,14 @@ window.prConfirmDelete = function(id, hasChildren){
 // di andare a riassegnarli, cosi' non restano tutti orfani senza accorgersene.
 window.prConfirmKeepSessions = function(){
     var info = PROJ_LOOKUP[deletingId];
-    var name = info ? info.name : 'questo progetto';
-    document.getElementById('prConfirmTitle').textContent = 'I pomodori resteranno senza progetto';
+    var name = info ? info.name : T('progetti.questo_progetto');
+    document.getElementById('prConfirmTitle').textContent = T('progetti.pomodori_senza_progetto');
     document.getElementById('prConfirmMsg').textContent =
-        'Se preferisci, vai prima su "' + name + '" → Pomodori, selezionali tutti e assegnali a un altro progetto. ' +
-        'Altrimenti, continuando, i pomodori collegati' + (deletingHasChildren ? ' a questo progetto e ai suoi sotto-progetti' : '') + ' resteranno senza progetto.';
+        T('progetti.avviso_pomodori_orfani',{progetto:name}) + ' ' +
+        T(deletingHasChildren ? 'progetti.pomodori_orfani_con_sotto' : 'progetti.pomodori_orfani');
     document.getElementById('prConfirmActions').innerHTML =
         '<button type="button" class="pr-btn pr-btn-neutral" onclick="prGoToPomodoriBeforeDelete()">Vai ai pomodori</button>' +
-        '<button type="button" class="pr-btn pr-btn-danger" onclick="prDoDelete(false)">Elimina comunque</button>' +
+        '<button type="button" class="pr-btn pr-btn-danger" onclick="prDoDelete(false)">'+T('progetti.elimina_comunque')+'</button>' +
         '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">Annulla</button>';
 };
 window.prGoToPomodoriBeforeDelete = function(){
@@ -3121,7 +2541,7 @@ window.prDoDelete = function(deleteSessions){
         fetch(window.location.href, { method:'POST', body:new FormData(form), credentials:'same-origin' })
             .then(function(){ toast('Ordine aggiornato'); })
             .catch(function(){
-                toast('Ordine non salvato, ricarico');
+                toast(T('progetti.ordine_non_salvato'));
                 window.location.reload();
             });
     }
@@ -3191,7 +2611,7 @@ window.prShowInlineInput = function(e, parentId, btn) {
         document.getElementById('fColorMode').value = 'auto'; 
         
         // Assicuriamo che al ricaricamento la destinazione rimanga la pagina attuale ($selectedId)
-        document.getElementById('fRedirectId').value = "<?php echo $selectedId; ?>";
+        document.getElementById('fRedirectId').value = "<?php echo (int)$selectedId; ?>";
         
         // Recuperiamo il form e i suoi dati
         var form = document.getElementById('formSave');
@@ -3207,13 +2627,13 @@ window.prShowInlineInput = function(e, parentId, btn) {
                 // Ricarica la pagina corrente per mostrare il nuovo elemento creato
                 window.location.reload();
             } else {
-                alert('Errore durante il salvataggio.');
+                alert(T('progetti.errore_salvataggio'));
                 resetUI();
             }
         })
         .catch(function(error) {
             console.error('Error:', error);
-            alert('Errore di rete durante il salvataggio.');
+            alert(T('progetti.errore_rete_salvataggio'));
             resetUI();
         });
     }
@@ -3507,7 +2927,7 @@ window.prShowInlineInput = function(e, parentId, btn) {
             method:'POST', credentials:'same-origin',
             headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
             body: body.toString()
-        }).catch(function(){ toast('Non salvato'); });
+        }).catch(function(){ toast(T('progetti.non_salvato')); });
     });
 })();
 </script>

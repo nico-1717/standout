@@ -1,0 +1,5 @@
+python3 strumenti/verifica_sicurezza.py progetti/pomodoro.php esami/voti.php progetti/progetti.php
+
+python3 strumenti/controlla_php.py *.php
+
+python3 strumenti/controlla_php2.py *.php

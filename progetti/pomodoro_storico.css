@@ -1,0 +1,113 @@
+/* pomodoro_storico.css — stile dello storico sessioni pomodoro (componente condiviso).
+   Estratto dal blocco <style> della pagina: serve per togliere
+   'unsafe-inline' dalla CSP. */
+
+.ph-overlay{ position:fixed; inset:0; z-index:9500; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.42);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); opacity:0; pointer-events:none; transition:opacity .3s; }
+.ph-overlay.show{ opacity:1; pointer-events:auto; }
+.ph-sheet{ width:100%; max-width:660px; height:90vh; height:90dvh; background:var(--surface, #fff); border-radius:24px 24px 0 0;
+    display:flex; flex-direction:column; transform:translateY(100%); transition:transform .4s var(--spring, ease); padding-bottom:var(--safe-bottom,0px); }
+.ph-overlay.show .ph-sheet{ transform:translateY(0); }
+.ph-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px 16px 8px; flex-shrink:0; }
+.ph-title{ font-size:17px; font-weight:800; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ph-head-btns{ display:flex; gap:8px; flex-shrink:0; }
+.ph-icon-btn{ width:30px; height:30px; border-radius:50%; border:none; background:var(--surface-2,#eee); color:var(--text-2,#777); display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:transform .15s var(--spring,ease), background-color .2s, color .2s; }
+.ph-icon-btn:active{ transform:scale(.88); }
+.ph-icon-btn.active{ background:var(--blue,#007AFF); color:#fff; }
+
+.ph-filters{ display:flex; gap:8px; padding:6px 16px 12px; overflow-x:auto; flex-shrink:0; -webkit-overflow-scrolling:touch; }
+.ph-filter-chip{ flex-shrink:0; display:flex; align-items:center; gap:5px; padding:8px 13px; border-radius:20px; border:none; background:var(--surface-2,#eee); color:var(--text,#111); font-size:12.5px; font-weight:700; white-space:nowrap; transition:background-color .25s var(--spring,ease), color .25s, transform .15s var(--spring,ease); }
+.ph-filter-chip:active{ transform:scale(.94); }
+.ph-filter-chip.active{ background:var(--blue,#007AFF); color:#fff; }
+.ph-date-range{ display:none; gap:10px; align-items:flex-end; padding:0 16px 12px; flex-shrink:0; }
+.ph-date-range.show{ display:flex; }
+.ph-date-field{ display:flex; flex-direction:column; gap:4px; }
+.ph-date-field label{ font-size:10.5px; font-weight:700; color:var(--text-2,#888); text-transform:uppercase; letter-spacing:.5px; padding-left:2px; }
+.ph-date-field input{ padding:9px 11px; border-radius:11px; border:none; background:var(--surface-2,#eee); color:var(--text,#111); font-size:14px; font-family:inherit; box-shadow:inset 0 0 0 .5px var(--hairline,#0002); }
+.ph-date-clear{ padding:9px 13px; border-radius:11px; border:none; background:var(--surface-2,#eee); color:var(--text-2,#888); font-size:12.5px; font-weight:700; transition:transform .15s var(--spring,ease); }
+.ph-date-clear:active{ transform:scale(.94); }
+
+.ph-bulkbar{ display:none; align-items:center; gap:8px; padding:8px 16px; border-top:.5px solid var(--hairline,#eee); flex-shrink:0; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.ph-bulkbar::-webkit-scrollbar{ display:none; }
+.ph-bulkbar.show{ display:flex; }
+.ph-bulkbar span{ font-size:12.5px; color:var(--text-2,#888); font-weight:700; flex:1 0 auto; white-space:nowrap; }
+.ph-bulk-btn{ flex-shrink:0; padding:8px 12px; border-radius:11px; border:none; font-size:12px; font-weight:700; white-space:nowrap; background:var(--surface-2,#eee); transition:transform .15s var(--spring,ease); }
+.ph-bulk-btn:active{ transform:scale(.94); }
+.ph-bulk-btn.danger{ background:var(--red-soft, #fde); color:var(--red,#FF3B30); }
+.ph-bulk-btn.accent{ background:var(--blue-soft, rgba(0,122,255,.12)); color:var(--blue,#007AFF); }
+
+.ph-list-scroll{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:4px 12px calc(16px + var(--safe-bottom,0px)); }
+@keyframes phRowIn{ from{ opacity:0; transform:translateY(10px) scale(.98); } to{ opacity:1; transform:none; } }
+.ph-day-header{ font-size:12px; font-weight:800; color:var(--text-2,#888); text-transform:uppercase; letter-spacing:.4px; padding:14px 8px 6px; animation:phRowIn .35s var(--spring,ease) both; }
+.ph-row-wrap{ position:relative; margin-bottom:6px; animation:phRowIn .35s var(--spring,ease) both; }
+.ph-row{ position:relative; overflow:hidden; border-radius:14px; }
+.ph-row-content{ position:relative; z-index:2; background:var(--surface-2,#f4f4f6); display:flex; align-items:center; gap:10px; padding:11px 12px; border-left:4px solid var(--row-color,#8A8A8E); transition:transform .1s; }
+.ph-select-chk{ width:20px; height:20px; border-radius:50%; border:2px solid var(--hairline-2,#ccc); flex-shrink:0; display:none; align-items:center; justify-content:center; color:transparent; transition:background-color .2s, border-color .2s, color .2s; }
+.ph-selecting .ph-select-chk{ display:flex; }
+.ph-row-wrap.selected .ph-select-chk{ background:var(--blue,#007AFF); border-color:var(--blue,#007AFF); color:#fff; }
+.ph-mode-icon{ width:26px; height:26px; border-radius:50%; background:var(--row-color,#8A8A8E); color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px -1px color-mix(in srgb, var(--row-color,#8A8A8E) 55%, transparent); }
+.ph-mode-icon svg{ width:14px; height:14px; }
+.ph-info{ flex:1; min-width:0; }
+.ph-time-range{ font-size:13.5px; font-weight:700; }
+.ph-project-tag{ font-size:11.5px; color:var(--text-2,#888); font-weight:600; display:flex; align-items:center; gap:4px; margin-top:2px; flex-wrap:wrap; }
+.ph-project-tag .dot{ width:7px; height:7px; border-radius:50%; background:var(--row-color,#8A8A8E); flex-shrink:0; }
+.ph-project-tag .ph-pt-anc{ color:var(--text-3,#AEAEB2); font-weight:600; }
+.ph-project-tag .ph-pt-sep{ color:var(--text-3,#AEAEB2); margin:0 1px; }
+.ph-project-tag .ph-pt-leaf{ color:var(--text,#111); font-weight:800; }
+.ph-manual-badge{ font-size:9.5px; background:var(--surface,#fff); color:var(--text-2,#888); padding:1px 6px; border-radius:6px; font-weight:700; margin-left:5px; }
+/* "automatica" e' un'informazione diversa da "manuale" e non deve confondersi
+   con essa a colpo d'occhio: stessa forma, colore dell'accento. */
+.ph-auto-badge{ background:var(--blue-soft, rgba(0,122,255,.12)); color:var(--blue,#007AFF); }
+.ph-duration{ font-size:13.5px; font-weight:800; font-variant-numeric:tabular-nums; flex-shrink:0; }
+.ph-swipe-actions{ position:absolute; top:0; left:0; bottom:0; display:flex; z-index:1; }
+.ph-swipe-btn{ width:70px; border:none; background:linear-gradient(180deg, color-mix(in srgb, var(--red,#FF3B30), #fff 12%), var(--red,#FF3B30)); color:#fff; font-size:11px; font-weight:700; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; }
+/* Il tasto modifica compare solo sulle sessioni scritte a mano, quindi le due
+   azioni non sono mai equivalenti: colore diverso perche' la mano che scorre
+   non legga l'etichetta ma il colore, e non elimini pensando di correggere.
+   Sta a sinistra dell'elimina: appare per primo scorrendo, ed e' quello che
+   non fa danni. */
+.ph-swipe-edit{ background:linear-gradient(180deg, color-mix(in srgb, var(--blue,#007AFF), #fff 12%), var(--blue,#007AFF)); }
+
+/* pannello manuale in modalita' modifica */
+.ph-manual-title{ font-size:13px; font-weight:800; color:var(--text,#111); padding-bottom:2px; }
+.ph-manual-btns{ display:flex; gap:8px; }
+.ph-manual-btns .ph-manual-save{ flex:1; }
+.ph-manual-cancel{ flex:0 0 auto; padding:12px 18px; border-radius:12px; border:none; background:var(--surface-2,#eee); color:var(--text-2,#888); font:inherit; font-weight:700; transition:transform .15s var(--spring,ease); }
+.ph-manual-cancel:active{ transform:scale(.97); }
+
+/* Elenco bloccato: il pannello sopra e' aperto in modifica. pointer-events
+   solo sulle righe e non sul contenitore, cosi' lo scorrimento verticale
+   continua a funzionare — e' l'unica cosa che deve continuare a funzionare. */
+.ph-locked .ph-row-wrap{ pointer-events:none; }
+.ph-locked .ph-row-wrap:not(.is-editing) .ph-row-content{ opacity:.55; }
+.ph-locked .ph-swipe-actions{ visibility:hidden; }
+/* La riga in lavorazione si riconosce dallo sfondo. I tasti aperti di lato
+   sarebbero un invito a premerli, cioe' il contrario di quello che serve qui. */
+.ph-row-wrap.is-editing .ph-row-content{
+    background:var(--blue-soft, rgba(0,122,255,.12));
+    box-shadow:inset 0 0 0 1.5px var(--blue,#007AFF);
+}
+
+.ph-loadmore{ display:block; width:100%; padding:12px; margin-top:6px; border-radius:13px; border:none; background:var(--surface-2,#eee); color:var(--blue,#007AFF); font-weight:700; font-size:13.5px; transition:transform .15s var(--spring,ease); }
+.ph-loadmore:active{ transform:scale(.97); }
+.ph-empty-msg{ text-align:center; padding:40px 16px; color:var(--text-2,#888); font-size:14px; }
+
+.ph-manual-panel{ display:flex; flex-direction:column; gap:10px; padding:0 16px; border-top:0 solid var(--hairline,#eee); flex-shrink:0; max-height:0; overflow:hidden; opacity:0; transition:max-height .35s var(--spring,ease), opacity .3s, padding .35s var(--spring,ease); }
+.ph-manual-panel.show{ display:flex; max-height:50vh; overflow-y:auto; opacity:1; padding:14px 16px; border-top-width:.5px; }
+.ph-manual-row{ display:flex; gap:8px; }
+.ph-manual-row > div{ flex:1; }
+.ph-manual-row-durata{ justify-content:center; }
+.ph-manual-row-durata > div{ flex:0 0 auto; width:150px; }
+.ph-manual-panel label{ font-size:11px; font-weight:700; color:var(--text-2,#888); text-transform:uppercase; display:block; margin-bottom:4px; }
+.ph-manual-panel input{ width:100%; padding:10px; border-radius:11px; border:none; background:var(--surface-2,#eee); font-size:14.5px; font-family:inherit; box-sizing:border-box; transition:opacity .2s; }
+.ph-manual-panel input[readonly]{ opacity:.62; }
+.ph-manual-save{ padding:12px; border-radius:12px; border:none; background:var(--blue,#007AFF); color:#fff; font-weight:700; transition:transform .15s var(--spring,ease); }
+.ph-manual-save:active{ transform:scale(.97); }
+
+.ph-toast{ position:fixed; left:50%; bottom:calc(28px + var(--safe-bottom,0px)); transform:translate(-50%,12px); background:rgba(28,28,30,.92); color:#fff;
+    padding:11px 18px; border-radius:14px; font-size:13.5px; font-weight:600; z-index:9950; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; }
+.ph-toast.show{ opacity:1; transform:translate(-50%,0); }
+
+@media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+}

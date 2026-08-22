@@ -34,8 +34,9 @@ $hi_direct = (!empty($hi_files) && realpath($hi_files[0]) === realpath(__FILE__)
 
 if (!isset($conn) || !$conn) {
     require_once 'config.php';
-    $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-    if ($conn) { mysqli_set_charset($conn, 'utf8mb4'); }
+    require_once 'security_core.php';
+    /* sec_db() riusa la connessione gia' aperta e la configura da sola. */
+    $conn = sec_db();
     if ($hi_direct && isset($_GET['hi_ajax'])) { require_once 'auth_check_api.php'; }
     else { require_once 'auth_check.php'; }
 }
@@ -231,12 +232,12 @@ if (!function_exists('hi_parse_sheet_xml')) {
 if (!function_exists('hi_read_xlsx_all')) {
     function hi_read_xlsx_all($path, &$error) {
         if (!class_exists('ZipArchive')) {
-            $error = 'Estensione ZipArchive non disponibile sul server: converti il file in CSV e riprova.';
+            $error = t('import.zip_mancante');
             return null;
         }
         $zip = new ZipArchive();
         if ($zip->open($path) !== true) {
-            $error = 'Il file non e\' un .xlsx valido (potrebbe essere un vecchio .xls: aprilo e risalvalo come .xlsx o .csv).';
+            $error = t('import.xlsx_non_valido');
             return null;
         }
         $shared = hi_xlsx_shared_strings($zip);
@@ -249,7 +250,7 @@ if (!function_exists('hi_read_xlsx_all')) {
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $name = $zip->getNameIndex($i);
                 if (strpos($name, 'xl/worksheets/') === 0 && substr($name, -4) === '.xml') {
-                    $sheetList[] = ['name' => 'Foglio ' . (count($sheetList) + 1), 'path' => $name];
+                    $sheetList[] = ['name' => t('import.foglio_n', ['n' => count($sheetList) + 1]), 'path' => $name];
                 }
             }
         }
@@ -262,7 +263,7 @@ if (!function_exists('hi_read_xlsx_all')) {
         }
         $zip->close();
 
-        if (empty($out)) { $error = 'Nessun foglio trovato nel file.'; return null; }
+        if (empty($out)) { $error = t('import.nessun_foglio'); return null; }
         return $out;
     }
 }
@@ -275,7 +276,7 @@ if (!function_exists('hi_read_xlsx_all')) {
 if (!function_exists('hi_read_csv')) {
     function hi_read_csv($path, &$error) {
         $raw = file_get_contents($path);
-        if ($raw === false) { $error = 'Impossibile leggere il file.'; return null; }
+        if ($raw === false) { $error = t('import.illeggibile'); return null; }
         if (substr($raw, 0, 3) === "\xEF\xBB\xBF") $raw = substr($raw, 3);
         if (function_exists('mb_check_encoding') && !mb_check_encoding($raw, 'UTF-8')) {
             $raw = function_exists('mb_convert_encoding')
@@ -290,7 +291,7 @@ if (!function_exists('hi_read_csv')) {
             foreach ($counts as $d => $_) { $counts[$d] += substr_count($line, $d); }
             if (++$seen >= 6) break;
         }
-        if ($seen === 0) { $error = 'File vuoto.'; return null; }
+        if ($seen === 0) { $error = t('import.file_vuoto'); return null; }
         arsort($counts);
         $delim = key($counts);
         if ($counts[$delim] === 0) $delim = ',';
@@ -321,6 +322,10 @@ if (!function_exists('hi_read_csv')) {
 if (!function_exists('hi_header_aliases')) {
     function hi_header_aliases() {
         return [
+            /* 'habit' per primo: se una colonna dice a quale abitudine appartiene
+               la riga, il foglio ne contiene molte e il resto cambia di senso.
+               Sono i nomi usati da Loop, HabitBull, Way of Life, Streaks. */
+            'habit'  => ['habit', 'habitname', 'abitudine', 'nome', 'name', 'task', 'attivita', 'activity', 'title', 'titolo', 'tracker'],
             'date'   => ['date', 'data', 'giorno', 'giornata', 'day'],
             'time'   => ['time', 'ora', 'orario'],
             'status' => ['status', 'stato'],
@@ -335,14 +340,30 @@ if (!function_exists('hi_positional_cols')) {
     /* Posizioni standard (0-based) del formato: Date, Time, Status,
        Total check-ins, Mood, Habit Log — nell'ordine dell'esempio. */
     function hi_positional_cols() {
+        /* Ordine del nostro export e di TickTick. 'habit' non c'e': senza
+           intestazioni non si puo' indovinare che una colonna sia un nome di
+           abitudine, e sbagliarlo spezzerebbe l'import in mille pezzi. */
         return ['date' => 0, 'time' => 1, 'status' => 2, 'count' => 3, 'mood' => 4, 'note' => 5];
+    }
+
+    /* I nomi delle colonne come li vede l'utente nel pannello. */
+    function hi_col_labels() {
+        return [
+            'habit'  => t('import.col_habit'),
+            'date'   => t('import.col_date'),
+            'time'   => t('import.col_time'),
+            'status' => t('import.col_status'),
+            'count'  => t('import.col_count'),
+            'mood'   => t('import.col_mood'),
+            'note'   => t('import.col_note'),
+        ];
     }
 }
 
 if (!function_exists('hi_detect_columns')) {
     function hi_detect_columns($headerRow, &$matched) {
         $aliases = hi_header_aliases();
-        $cols = ['date' => -1, 'time' => -1, 'status' => -1, 'count' => -1, 'mood' => -1, 'note' => -1];
+        $cols = ['habit' => -1, 'date' => -1, 'time' => -1, 'status' => -1, 'count' => -1, 'mood' => -1, 'note' => -1];
         $norms = [];
         foreach ($headerRow as $i => $cell) { $norms[$i] = hi_norm($cell['v']); }
 
@@ -517,18 +538,186 @@ if (!function_exists('hi_status_excluded')) {
 /* ==========================================================================
    AJAX: analisi del file caricato
    ========================================================================== */
+/* ==========================================================================
+   LETTURA DEI FOGLI
+   Una funzione sola, usata sia dalla prima lettura (parse) sia dalla rilettura
+   con la mappatura corretta dall'utente (remap). Se fossero due copie, la
+   seconda smetterebbe di somigliare alla prima al primo cambiamento.
+
+   $scelte, quando c'e', ha per ogni foglio: header (indice della riga di
+   intestazione, -1 = nessuna), cols (nome colonna => indice), order ('dmy'/'mdy'),
+   name (nome dell'abitudine, per i fogli senza colonna 'habit'), skip (true per
+   ignorare il foglio).
+   ========================================================================== */
+if (!function_exists('hi_processa_fogli')) {
+function hi_processa_fogli(array $sheets, ?array $scelte = null): array {
+    $outHabits = []; $outLogs = []; $warnings = []; $skippedSheets = [];
+    $totalSkippedRows = 0; $hKeySeq = 0; $mappe = [];
+    $perNome = [];   // nome abitudine => chiave, per i fogli con la colonna 'habit'
+
+    foreach ($sheets as $si => $sheet) {
+        $scelta = $scelte[$si] ?? null;
+        if ($scelta && !empty($scelta['skip'])) { continue; }
+
+        $rows = $sheet['rows'];
+        if (!is_array($rows) || count($rows) === 0) { $skippedSheets[] = $sheet['name']; continue; }
+
+        if ($scelta && isset($scelta['cols'])) {
+            /* mappatura scelta a mano: si usa quella e basta */
+            $cols = [];
+            foreach (array_keys(hi_col_labels()) as $k) {
+                $cols[$k] = isset($scelta['cols'][$k]) ? (int)$scelta['cols'][$k] : -1;
+            }
+            $headerIdx = isset($scelta['header']) ? (int)$scelta['header'] : -1;
+            $auto = false;
+        } else {
+            $cols = []; $score = 0;
+            $headerIdx = hi_find_header($rows, $cols, $score);
+            $auto = true;
+        }
+        $isHeaderRow = ($headerIdx >= 0);
+        $dataStart = $isHeaderRow ? $headerIdx + 1 : 0;
+
+        $dataRows = [];
+        foreach (array_slice($rows, $dataStart) as $r) { if (!hi_row_empty($r)) $dataRows[] = $r; }
+        if (count($dataRows) === 0) { $skippedSheets[] = $sheet['name']; continue; }
+
+        /* nome del foglio: scelto dall'utente, oppure dedotto, oppure il nome
+           del foglio stesso. Non serve se c'e' la colonna 'habit'. */
+        if ($scelta && isset($scelta['name']) && trim((string)$scelta['name']) !== '') {
+            $habitName = trim((string)$scelta['name']);
+        } else {
+            $estratto = hi_extract_habit_name($rows);
+            $habitName = ($estratto !== null && $estratto !== '') ? $estratto : trim((string)$sheet['name']);
+        }
+        if ($habitName === '') $habitName = t('import.abitudine_importata');
+
+        $samples = [];
+        foreach ($dataRows as $r) {
+            if ($cols['date'] >= 0 && isset($r[$cols['date']]) && empty($r[$cols['date']]['date'])) {
+                $samples[] = (string)$r[$cols['date']]['v'];
+            }
+        }
+        if ($scelta && !empty($scelta['order'])) {
+            $dateOrder = $scelta['order'] === 'mdy' ? 'mdy' : 'dmy';
+            $ambiguous = false;
+        } else {
+            $dateOrder = hi_detect_date_order($samples);
+            $ambiguous = ($dateOrder === null && count($samples) > 0);
+            if ($dateOrder === null) $dateOrder = 'dmy';
+        }
+
+        $sheetLogs = []; $skipped = 0;
+        $chiaviFoglio = [];
+
+        foreach ($dataRows as $r) {
+            $get = function ($k) use ($r, $cols) {
+                $i = $cols[$k] ?? -1;
+                return ($i >= 0 && isset($r[$i])) ? $r[$i] : ['v' => '', 'raw' => '', 'date' => false];
+            };
+
+            $date = hi_parse_date($get('date'), $dateOrder);
+            if ($date === null) { $skipped++; continue; }
+
+            $statusRaw = trim((string)$get('status')['v']);
+            if (hi_status_excluded($statusRaw)) { $skipped++; continue; }
+
+            /* con la colonna 'habit' ogni riga sa a chi appartiene: un foglio
+               solo puo' contenere venti abitudini. E' il formato di quasi tutte
+               le altre app. */
+            $nomeRiga = $habitName;
+            if (($cols['habit'] ?? -1) >= 0) {
+                $n = hi_clean_name($get('habit')['v']);
+                if ($n === '') { $skipped++; continue; }
+                $nomeRiga = $n;
+            }
+            if (!isset($perNome[$nomeRiga])) {
+                $perNome[$nomeRiga] = 'H' . $hKeySeq; $hKeySeq++;
+                $outHabits[] = ['key' => $perNome[$nomeRiga], 'name' => $nomeRiga];
+            }
+            $hKey = $perNome[$nomeRiga];
+            $chiaviFoglio[$hKey] = true;
+
+            $time = hi_parse_time($get('time'));
+            $countRaw = trim((string)$get('count')['v']);
+            $count = is_numeric($countRaw) ? (float)$countRaw : 1.0;
+            if ($count <= 0) $count = 1.0;
+
+            $sheetLogs[] = [
+                'habitKey' => $hKey, 'date' => $date, 'time' => $time, 'count' => $count,
+                'mood' => hi_clean_name($get('mood')['v']), 'note' => hi_clean_name($get('note')['v']),
+            ];
+        }
+
+        $mappe[] = [
+            'sheet'  => $si,
+            'name'   => $sheet['name'],
+            'header' => $headerIdx,
+            'cols'   => $cols,
+            'order'  => $dateOrder,
+            'habit'  => $habitName,
+            'auto'   => $auto,
+            'righe'  => count($sheetLogs),
+            'saltate'=> $skipped,
+            'anteprima' => hi_anteprima($rows),
+        ];
+
+        if (count($sheetLogs) === 0) { $skippedSheets[] = $habitName; continue; }
+
+        usort($sheetLogs, function ($a, $b) {
+            return strcmp($a['date'] . ' ' . ($a['time'] ?: '00:00:00'), $b['date'] . ' ' . ($b['time'] ?: '00:00:00'));
+        });
+
+        $outLogs = array_merge($outLogs, $sheetLogs);
+        $totalSkippedRows += $skipped;
+        if ($auto && !$isHeaderRow) {
+            $warnings[] = t('import.warn_no_header', ['foglio' => $habitName]);
+        }
+        if ($ambiguous) $warnings[] = t('import.warn_date_ambigue', ['foglio' => $habitName]);
+    }
+
+    if (!empty($skippedSheets)) {
+        $names = array_slice($skippedSheets, 0, 5);
+        $warnings[] = t('import.warn_fogli_ignorati', [
+            'n' => count($skippedSheets),
+            'nomi' => implode(', ', $names) . (count($skippedSheets) > 5 ? '…' : ''),
+        ]);
+    }
+    if ($totalSkippedRows > 0) {
+        $warnings[] = t($totalSkippedRows === 1 ? 'import.warn_riga_saltata' : 'import.warn_righe_saltate',
+                        ['n' => $totalSkippedRows]);
+    }
+
+    return ['habits' => $outHabits, 'logs' => $outLogs, 'warnings' => $warnings, 'mappe' => $mappe];
+}
+
+/* Le prime righe del foglio, per farle vedere nel pannello: si sceglie meglio
+   una colonna guardando cosa c'e' dentro che leggendone il nome. */
+function hi_anteprima(array $rows, int $quante = 6): array {
+    $out = [];
+    foreach (array_slice($rows, 0, $quante) as $r) {
+        $riga = [];
+        foreach (array_slice($r, 0, 12) as $cell) {
+            $riga[] = mb_substr((string)($cell['v'] ?? ''), 0, 24);
+        }
+        $out[] = $riga;
+    }
+    return $out;
+}
+}
+
 if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'parse') {
     header('Content-Type: application/json');
 
     if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
         $codes = [
-            UPLOAD_ERR_INI_SIZE => 'Il file supera il limite di upload del server.',
-            UPLOAD_ERR_FORM_SIZE => 'Il file e\' troppo grande.',
-            UPLOAD_ERR_PARTIAL => 'Caricamento interrotto, riprova.',
-            UPLOAD_ERR_NO_FILE => 'Nessun file selezionato.',
+            UPLOAD_ERR_INI_SIZE => t('import.troppo_grande_server'),
+            UPLOAD_ERR_FORM_SIZE => t('import.troppo_grande'),
+            UPLOAD_ERR_PARTIAL => t('import.caricamento_interrotto'),
+            UPLOAD_ERR_NO_FILE => t('import.nessun_file'),
         ];
         $e = isset($_FILES['file']) ? $_FILES['file']['error'] : UPLOAD_ERR_NO_FILE;
-        echo json_encode(['success' => false, 'error' => isset($codes[$e]) ? $codes[$e] : 'Errore nel caricamento del file.']);
+        echo json_encode(['success' => false, 'error' => isset($codes[$e]) ? $codes[$e] : t('import.errore_caricamento')]);
         exit();
     }
 
@@ -541,109 +730,111 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'parse') {
     $isZip = ($head === 'PK');
 
     if ($ext === 'xls' && !$isZip) {
-        echo json_encode(['success' => false, 'error' => 'I vecchi file .xls non sono supportati: aprilo e risalvalo come .xlsx o .csv.']);
+        echo json_encode(['success' => false, 'error' => t('import.xls_vecchio')]);
         exit();
     }
 
     $sheets = [];
     if ($isZip) {
         $sheets = hi_read_xlsx_all($tmpPath, $error);
-        if ($sheets === null) { echo json_encode(['success' => false, 'error' => $error ?: 'File non leggibile.']); exit(); }
+        if ($sheets === null) { echo json_encode(['success' => false, 'error' => $error ?: t('import.non_leggibile')]); exit(); }
     } else {
         $rows = hi_read_csv($tmpPath, $error);
-        if ($rows === null) { echo json_encode(['success' => false, 'error' => $error ?: 'File non leggibile.']); exit(); }
-        if (count($rows) === 0) { echo json_encode(['success' => false, 'error' => 'Il file e\' vuoto.']); exit(); }
+        if ($rows === null) { echo json_encode(['success' => false, 'error' => $error ?: t('import.non_leggibile')]); exit(); }
+        if (count($rows) === 0) { echo json_encode(['success' => false, 'error' => t('import.e_vuoto')]); exit(); }
         $baseName = trim((string)pathinfo($origName, PATHINFO_FILENAME));
-        $sheets = [['name' => $baseName !== '' ? $baseName : 'Abitudine importata', 'rows' => $rows]];
+        $sheets = [['name' => $baseName !== '' ? $baseName : t('import.abitudine_importata'), 'rows' => $rows]];
     }
 
-    $outHabits = []; $outLogs = []; $warnings = []; $skippedSheets = []; $totalSkippedRows = 0;
-    $hKeySeq = 0;
+    $ris = hi_processa_fogli($sheets, null);
 
-    foreach ($sheets as $sheet) {
-        $rows = $sheet['rows'];
-        if (!is_array($rows) || count($rows) === 0) { $skippedSheets[] = $sheet['name']; continue; }
-
-        $cols = []; $score = 0;
-        $headerIdx = hi_find_header($rows, $cols, $score);
-        $isHeaderRow = ($headerIdx >= 0);
-        $dataStart = $isHeaderRow ? $headerIdx + 1 : 0;
-
-        $dataRows = [];
-        foreach (array_slice($rows, $dataStart) as $r) { if (!hi_row_empty($r)) $dataRows[] = $r; }
-        if (count($dataRows) === 0) { $skippedSheets[] = $sheet['name']; continue; }
-
-        $extracted = hi_extract_habit_name($rows);
-        $habitName = ($extracted !== null && $extracted !== '') ? $extracted : trim((string)$sheet['name']);
-        if ($habitName === '') $habitName = 'Abitudine importata';
-
-        $samples = [];
-        foreach ($dataRows as $r) {
-            if (isset($r[$cols['date']]) && empty($r[$cols['date']]['date'])) $samples[] = (string)$r[$cols['date']]['v'];
-        }
-        $dateOrder = hi_detect_date_order($samples);
-        $ambiguous = ($dateOrder === null && count($samples) > 0);
-        if ($dateOrder === null) $dateOrder = 'dmy';
-
-        $hKey = 'H' . $hKeySeq; $hKeySeq++;
-        $sheetLogs = []; $skipped = 0;
-
-        foreach ($dataRows as $r) {
-            $get = function ($k) use ($r, $cols) {
-                $i = $cols[$k];
-                return ($i >= 0 && isset($r[$i])) ? $r[$i] : ['v' => '', 'raw' => '', 'date' => false];
-            };
-
-            $date = hi_parse_date($get('date'), $dateOrder);
-            if ($date === null) { $skipped++; continue; }
-
-            $statusRaw = trim((string)$get('status')['v']);
-            if (hi_status_excluded($statusRaw)) { $skipped++; continue; }
-
-            $time = hi_parse_time($get('time'));
-            $countRaw = trim((string)$get('count')['v']);
-            $count = is_numeric($countRaw) ? (float)$countRaw : 1.0;
-            if ($count <= 0) $count = 1.0;
-            $mood = hi_clean_name($get('mood')['v']);
-            $note = hi_clean_name($get('note')['v']);
-
-            $sheetLogs[] = ['habitKey' => $hKey, 'date' => $date, 'time' => $time, 'count' => $count, 'mood' => $mood, 'note' => $note];
-        }
-
-        if (count($sheetLogs) === 0) { $skippedSheets[] = $habitName; continue; }
-
-        usort($sheetLogs, function ($a, $b) {
-            return strcmp($a['date'] . ' ' . ($a['time'] ?: '00:00:00'), $b['date'] . ' ' . ($b['time'] ?: '00:00:00'));
-        });
-
-        $outHabits[] = ['key' => $hKey, 'name' => $habitName];
-        $outLogs = array_merge($outLogs, $sheetLogs);
-        $totalSkippedRows += $skipped;
-        if (!$isHeaderRow) $warnings[] = 'Foglio "' . $habitName . '": intestazioni non riconosciute, ho usato le posizioni standard (Data, Ora, Stato, Check-in, Umore, Nota).';
-        if ($ambiguous) $warnings[] = 'Foglio "' . $habitName . '": date ambigue, lette come giorno/mese/anno.';
-    }
-
-    if (count($outHabits) === 0) {
-        echo json_encode(['success' => false, 'error' => 'Nessuna abitudine valida trovata: ogni foglio deve avere una colonna con la data del check-in.']);
+    if (count($ris['habits']) === 0 && empty($ris['mappe'])) {
+        echo json_encode(['success' => false, 'error' => t('import.nessuna_abitudine')]);
         exit();
     }
-    if (!empty($skippedSheets)) {
-        $names = array_slice($skippedSheets, 0, 5);
-        $warnings[] = count($skippedSheets) . ' fogli ignorati perche\' senza righe valide: ' . implode(', ', $names) . (count($skippedSheets) > 5 ? '...' : '');
-    }
-    if ($totalSkippedRows > 0) {
-        $warnings[] = $totalSkippedRows . ' rig' . ($totalSkippedRows === 1 ? 'a ignorata' : 'he ignorate') . ' perche\' senza una data valida.';
+
+    /* Il file letto resta in sessione per mezz'ora, con un gettone casuale:
+       serve a rileggerlo con la mappatura corretta senza chiedere all'utente di
+       ricaricarlo. Niente finisce su disco. Se il foglio e' enorme si rinuncia
+       alla rilettura invece di riempire la sessione: meglio perdere una comodita'
+       che far scadere la sessione a chi importa un file da 50.000 righe. */
+    $celle = 0;
+    foreach ($sheets as $sh) { $celle += count($sh['rows']) * 8; }
+    $gettone = null;
+    if ($celle <= 200000) {
+        $gettone = bin2hex(random_bytes(8));
+        $_SESSION['hi_fogli'] = ['t' => $gettone, 'scadenza' => time() + 1800, 'sheets' => $sheets];
     }
 
     echo json_encode([
-        'success' => true,
-        'habits' => $outHabits,
-        'logs' => $outLogs,
-        'warnings' => $warnings,
-        'stats' => [
-            'habits' => count($outHabits),
-            'logs' => count($outLogs),
-            'skipped' => $totalSkippedRows,
+        'success'  => true,
+        'habits'   => $ris['habits'],
+        'logs'     => $ris['logs'],
+        'warnings' => $ris['warnings'],
+        'mappe'    => $ris['mappe'],
+        'gettone'  => $gettone,
+        'etichette'=> hi_col_labels(),
+        'stats'    => [
+            'habits'  => count($ris['habits']),
+            'logs'    => count($ris['logs']),
+            'skipped' => array_sum(array_column($ris['mappe'], 'saltate')),
+        ],
+    ], JSON_UNESCAPED_UNICODE);
+    exit();
+}
+
+/* ==========================================================================
+   AJAX: rilettura con la mappatura scelta dall'utente
+   Stesso motore di 'parse': cambia solo che le colonne le decide lui.
+   ========================================================================== */
+if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'remap') {
+    header('Content-Type: application/json');
+    sec_guard_write((int)$current_user_id, 'habits_import', 0, 60, 60);
+
+    $memo = $_SESSION['hi_fogli'] ?? null;
+    $gettone = sec_str($_POST['gettone'] ?? '', 32);
+    if (!$memo || !hash_equals((string)$memo['t'], $gettone) || $memo['scadenza'] < time()) {
+        echo json_encode(['success' => false, 'error' => t('import.file_scaduto'), 'ricarica' => true]);
+        exit();
+    }
+
+    $scelte = json_decode($_POST['scelte'] ?? '[]', true);
+    if (!is_array($scelte)) $scelte = [];
+    /* gli indici arrivano dal browser: si rivalidano, come qualunque altro
+       ingresso. Una colonna oltre la larghezza del foglio diventa "nessuna". */
+    $pulite = [];
+    foreach ($scelte as $i => $sc) {
+        if (!is_array($sc)) continue;
+        $cols = [];
+        foreach (array_keys(hi_col_labels()) as $k) {
+            $cols[$k] = sec_int($sc['cols'][$k] ?? -1, -1, 199, -1);
+        }
+        $pulite[(int)$i] = [
+            'skip'   => !empty($sc['skip']),
+            'header' => sec_int($sc['header'] ?? -1, -1, 199, -1),
+            'cols'   => $cols,
+            'order'  => sec_enum($sc['order'] ?? null, ['dmy', 'mdy'], 'dmy'),
+            'name'   => sec_str($sc['name'] ?? '', 120),
+        ];
+    }
+
+    $ris = hi_processa_fogli($memo['sheets'], $pulite);
+    if (count($ris['habits']) === 0) {
+        echo json_encode(['success' => false, 'error' => t('import.nessuna_riga_valida')]);
+        exit();
+    }
+    echo json_encode([
+        'success'  => true,
+        'habits'   => $ris['habits'],
+        'logs'     => $ris['logs'],
+        'warnings' => $ris['warnings'],
+        'mappe'    => $ris['mappe'],
+        'gettone'  => $gettone,
+        'etichette'=> hi_col_labels(),
+        'stats'    => [
+            'habits'  => count($ris['habits']),
+            'logs'    => count($ris['logs']),
+            'skipped' => array_sum(array_column($ris['mappe'], 'saltate')),
         ],
     ], JSON_UNESCAPED_UNICODE);
     exit();
@@ -660,23 +851,13 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'save') {
 
     $payload = json_decode($_POST['payload'] ?? '', true);
     if (!is_array($payload) || empty($payload['logs']) || empty($payload['habits'])) {
-        echo json_encode(['success' => false, 'error' => 'Dati non validi.']); exit();
+        echo json_encode(['success' => false, 'error' => t('import.dati_non_validi')]); exit();
     }
 
     $uid = intval($current_user_id);
 
     $ownIds = [];
-    $res = mysqli_query($conn, "SELECT id FROM habits WHERE user_id = $uid");
-    while ($res && ($row = mysqli_fetch_assoc($res))) { $ownIds[(int)$row['id']] = true; }
-
-    if (!function_exists('hi_scalar')) {
-        function hi_scalar($conn, $sql) {
-            $r = mysqli_query($conn, $sql);
-            if (!$r) return 0;
-            $row = mysqli_fetch_row($r);
-            return $row ? $row[0] : 0;
-        }
-    }
+    foreach (sec_all("SELECT id FROM habits WHERE user_id = ?", [$uid]) as $row) { $ownIds[(int)$row['id']] = true; }
     if (!function_exists('hi_valid_date')) {
         function hi_valid_date($s) {
             $s = trim((string)$s);
@@ -689,16 +870,14 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'save') {
         /* Abitudine nuova con impostazioni standard: a completamento, ogni
            giorno, icona di default. L'utente la personalizza dopo, dalla
            scheda di modifica, come qualunque altra abitudine. */
-        function hi_create_habit($conn, $uid, $name, $color, $order, $startDate) {
-            $nameEsc = mysqli_real_escape_string($conn, $name);
-            $colorEsc = mysqli_real_escape_string($conn, $color);
-            $startEsc = mysqli_real_escape_string($conn, $startDate);
-            $sql = "INSERT INTO habits (user_id, category_id, preset_key, name, icon, color, motivation, habit_kind,
+        function hi_create_habit($uid, $name, $color, $order, $startDate) {
+            sec_q("INSERT INTO habits (user_id, category_id, preset_key, name, icon, color, motivation, habit_kind,
                         goal_type, target_amount, step_amount, unit, frequency_type, weekdays, times_per_week,
                         times_per_month, interval_days, day_part, duration_type, duration_days, start_date, end_date, sort_order)
-                    VALUES (" . intval($uid) . ", NULL, '', '$nameEsc', '⭐️', '$colorEsc', '', 'build',
-                        'completion', 1, 1, '', 'daily', '1111111', 7, 30, 1, 'any', 'forever', NULL, '$startEsc', NULL, " . intval($order) . ")";
-            return mysqli_query($conn, $sql) ? mysqli_insert_id($conn) : 0;
+                    VALUES (?, NULL, '', ?, '⭐️', ?, '', 'build',
+                        'completion', 1, 1, '', 'daily', '1111111', 7, 30, 1, 'any', 'forever', NULL, ?, NULL, ?)",
+                  [(int)$uid, $name, $color, $startDate, (int)$order]);
+            return sec_insert_id();
         }
     }
 
@@ -710,7 +889,7 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'save') {
     try {
         /* 1) abitudini: quelle mappate riusano l'id esistente, le altre sono
            create ex novo con impostazioni standard */
-        $order = (float)hi_scalar($conn, "SELECT COALESCE(MAX(sort_order), 0) FROM habits WHERE user_id = $uid");
+        $order = (float)(sec_one("SELECT COALESCE(MAX(sort_order), 0) AS n FROM habits WHERE user_id = ?", [$uid])['n'] ?? 0);
         $habitIds = []; $paletteIdx = 0;
 
         // prima data di check-in per abitudine, per usarla come start_date se creata nuova
@@ -724,7 +903,9 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'save') {
         foreach ($payload['habits'] as $h) {
             $key = (string)($h['key'] ?? '');
             $mapped = intval($h['mapped'] ?? 0);
-            if ($mapped > 0 && isset($ownIds[$mapped])) { $habitIds[$key] = $mapped; continue; }
+            /* L'id arriva dal browser: sec_owns e' la verifica che la riga sia
+               sua, detta con la funzione che il documento indica per questo. */
+            if ($mapped > 0 && sec_owns('habits', $mapped, $uid)) { $habitIds[$key] = $mapped; continue; }
 
             $name = mb_substr(trim((string)($h['name'] ?? '')), 0, 120);
             if ($name === '') continue;
@@ -732,8 +913,8 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'save') {
             $order += 10;
             $startDate = isset($firstDateByKey[$key]) ? $firstDateByKey[$key] : date('Y-m-d');
 
-            $newId = hi_create_habit($conn, $uid, $name, $color, (int)$order, $startDate);
-            if (!$newId) throw new Exception('Errore creando l\'abitudine "' . $name . '"');
+            $newId = hi_create_habit($uid, $name, $color, (int)$order, $startDate);
+            if (!$newId) throw new Exception(t('import.errore_creando', ['nome' => $name]));
             $habitIds[$key] = $newId;
             $ownIds[$newId] = true;
             $createdHabits++;
@@ -744,9 +925,9 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'save') {
         $involvedIds = array_values(array_unique(array_values($habitIds)));
         $habitMeta = [];
         if (!empty($involvedIds)) {
-            $idList = implode(',', array_map('intval', $involvedIds));
-            $mres = mysqli_query($conn, "SELECT id, goal_type, target_amount, step_amount FROM habits WHERE id IN ($idList) AND user_id = $uid");
-            while ($mres && ($row = mysqli_fetch_assoc($mres))) {
+            $ph = implode(',', array_fill(0, count($involvedIds), '?'));
+            foreach (sec_all("SELECT id, goal_type, target_amount, step_amount FROM habits WHERE id IN ($ph) AND user_id = ?",
+                             array_merge(array_map('intval', $involvedIds), [$uid])) as $row) {
                 $habitMeta[(int)$row['id']] = ['goal_type' => $row['goal_type'], 'target' => (float)$row['target_amount'], 'step' => (float)$row['step_amount']];
             }
         }
@@ -787,15 +968,20 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'save') {
         /* 3) upsert giornaliero: se il giorno esisteva gia' (import ripetuto,
            o un check-in reale fatto dall'app) teniamo il massimo raggiunto,
            cosi' non si perde ne' l'uno ne' l'altro */
-        $values = [];
+        /* Una riga di valori per ogni giorno, ma con i segnaposto: la query
+           resta una sola per blocco (il motivo per cui era scritta cosi'), i
+           valori pero' viaggiano a parte. */
+        $righe = [];
         foreach ($byDay as $d) {
-            $dateEsc = mysqli_real_escape_string($conn, $d['date']);
-            $noteEsc = mysqli_real_escape_string($conn, $d['note']);
-            $moodSql = $d['mood'] !== null ? intval($d['mood']) : 'NULL';
-            $values[] = "(" . intval($d['habit_id']) . ", $uid, '$dateEsc', 'done', " . floatval($d['amount']) . ", " . floatval($d['target']) . ", " . intval($d['completions']) . ", '$noteEsc', $moodSql)";
+            $righe[] = [(int)$d['habit_id'], $uid, $d['date'], (float)$d['amount'],
+                        (float)$d['target'], (int)$d['completions'], $d['note'],
+                        $d['mood'] !== null ? (int)$d['mood'] : null];
         }
-        foreach (array_chunk($values, 200) as $chunk) {
-            $sql = "INSERT INTO habit_logs (habit_id, user_id, log_date, status, amount, target_amount, completions, note, mood) VALUES " . implode(',', $chunk) . "
+        foreach (array_chunk($righe, 200) as $chunk) {
+            $gruppi = implode(',', array_fill(0, count($chunk), "(?, ?, ?, 'done', ?, ?, ?, ?, ?)"));
+            $par = [];
+            foreach ($chunk as $r) { foreach ($r as $v) $par[] = $v; }
+            $sql = "INSERT INTO habit_logs (habit_id, user_id, log_date, status, amount, target_amount, completions, note, mood) VALUES $gruppi
                     ON DUPLICATE KEY UPDATE
                         amount = GREATEST(amount, VALUES(amount)),
                         target_amount = VALUES(target_amount),
@@ -803,22 +989,20 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'save') {
                         status = IF(GREATEST(amount, VALUES(amount)) >= VALUES(target_amount), 'done', status),
                         note = IF(note = '', VALUES(note), note),
                         mood = IF(mood IS NULL, VALUES(mood), mood)";
-            if (!mysqli_query($conn, $sql)) throw new Exception(mysqli_error($conn));
+            sec_q($sql, $par);
             $daysImported += count($chunk);
         }
 
         /* 4) eventi singoli: un insert a blocchi, un file da migliaia di
            check-in non deve fare migliaia di query */
-        $evValues = [];
-        foreach ($eventsToInsert as $ev) {
-            list($habitId, $date, $delta, $created) = $ev;
-            $dateEsc = mysqli_real_escape_string($conn, $date);
-            $createdEsc = mysqli_real_escape_string($conn, $created);
-            $evValues[] = "(" . intval($habitId) . ", $uid, '$dateEsc', " . floatval($delta) . ", 'auto', '$createdEsc')";
-        }
-        foreach (array_chunk($evValues, 200) as $chunk) {
-            $sql = "INSERT INTO habit_log_events (habit_id, user_id, log_date, delta, source, created_at) VALUES " . implode(',', $chunk);
-            if (!mysqli_query($conn, $sql)) throw new Exception(mysqli_error($conn));
+        foreach (array_chunk($eventsToInsert, 200) as $chunk) {
+            $gruppi = implode(',', array_fill(0, count($chunk), "(?, ?, ?, ?, 'auto', ?)"));
+            $par = [];
+            foreach ($chunk as $ev) {
+                list($habitId, $date, $delta, $created) = $ev;
+                $par[] = (int)$habitId; $par[] = $uid; $par[] = $date; $par[] = (float)$delta; $par[] = $created;
+            }
+            sec_q("INSERT INTO habit_log_events (habit_id, user_id, log_date, delta, source, created_at) VALUES $gruppi", $par);
             $eventsImported += count($chunk);
         }
 
@@ -826,7 +1010,7 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'save') {
         echo json_encode(['success' => true, 'habits' => $createdHabits, 'days' => $daysImported, 'events' => $eventsImported], JSON_UNESCAPED_UNICODE);
     } catch (Exception $e) {
         mysqli_rollback($conn);
-        echo json_encode(['success' => false, 'error' => 'Salvataggio annullato: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['success' => false, 'error' => t('import.salvataggio_annullato', ['motivo' => $e->getMessage()])], JSON_UNESCAPED_UNICODE);
     }
     exit();
 }
@@ -908,16 +1092,15 @@ if (!function_exists('hi_basic_info_text')) {
 if (!function_exists('hi_export_habit_rows')) {
     /* Solo i giorni segnati come fatti: il foglio, per spec, contiene le
        date e gli orari in cui l'abitudine e' stata fatta. */
-    function hi_export_habit_rows($conn, $uid, $habitId) {
-        $sql = "SELECT l.log_date, l.status, l.completions, l.mood, l.note,
+    function hi_export_habit_rows($uid, $habitId) {
+        $res = sec_all("SELECT l.log_date, l.status, l.completions, l.mood, l.note,
                        (SELECT MIN(e.created_at) FROM habit_log_events e
                          WHERE e.habit_id = l.habit_id AND e.user_id = l.user_id AND e.log_date = l.log_date) AS ev_time
                   FROM habit_logs l
-                 WHERE l.habit_id = " . intval($habitId) . " AND l.user_id = " . intval($uid) . " AND l.status = 'done'
-                 ORDER BY l.log_date ASC";
-        $res = mysqli_query($conn, $sql);
+                 WHERE l.habit_id = ? AND l.user_id = ? AND l.status = 'done'
+                 ORDER BY l.log_date ASC", [(int)$habitId, (int)$uid]);
         $rows = [];
-        while ($res && ($r = mysqli_fetch_assoc($res))) {
+        foreach ($res as $r) {
             $time = '';
             if (!empty($r['ev_time'])) {
                 $ts = strtotime((string)$r['ev_time']);
@@ -1050,11 +1233,8 @@ if ($hi_direct && isset($_GET['hi_export'])) {
     $headers = ['Date', 'Time', 'Status', 'Total check-ins', 'Mood', 'Habit Log'];
     $uid = intval($current_user_id);
 
-    $sql = "SELECT h.*, c.name AS category_name FROM habits h LEFT JOIN habit_categories c ON c.id = h.category_id
-             WHERE h.user_id = $uid ORDER BY h.is_archived ASC, h.sort_order ASC, h.id ASC";
-    $res = mysqli_query($conn, $sql);
-    $habits = [];
-    while ($res && ($row = mysqli_fetch_assoc($res))) { $habits[] = $row; }
+    $habits = sec_all("SELECT h.*, c.name AS category_name FROM habits h LEFT JOIN habit_categories c ON c.id = h.category_id
+             WHERE h.user_id = ? ORDER BY h.is_archived ASC, h.sort_order ASC, h.id ASC", [$uid]);
 
     $stamp = date('Ymd');
     $wantCsv = (($_GET['fmt'] ?? '') === 'csv') || !class_exists('ZipArchive');
@@ -1062,7 +1242,7 @@ if ($hi_direct && isset($_GET['hi_export'])) {
     if (!$wantCsv) {
         $sheets = [];
         foreach ($habits as $h) {
-            $rows = hi_export_habit_rows($conn, $uid, (int)$h['id']);
+            $rows = hi_export_habit_rows($uid, (int)$h['id']);
             if (count($rows) === 0) continue;
             $first = $rows[0][0]; $last = $rows[count($rows) - 1][0];
             $sheets[] = [
@@ -1095,7 +1275,7 @@ if ($hi_direct && isset($_GET['hi_export'])) {
     fwrite($out, "\xEF\xBB\xBF");
     fputcsv($out, ['Habit', 'Date', 'Time', 'Status', 'Total check-ins', 'Mood', 'Habit Log']);
     foreach ($habits as $h) {
-        $rows = hi_export_habit_rows($conn, $uid, (int)$h['id']);
+        $rows = hi_export_habit_rows($uid, (int)$h['id']);
         foreach ($rows as $row) { fputcsv($out, array_merge([$h['name']], $row)); }
     }
     fclose($out);
@@ -1108,159 +1288,12 @@ if ($hi_direct && isset($_GET['hi_export'])) {
 if (defined('HI_RENDERED')) return;
 define('HI_RENDERED', true);
 ?>
-<style>
-/* --- il foglio ---------------------------------------------------------- */
-.hi-overlay{ position:fixed; inset:0; z-index:9750; display:flex; align-items:flex-end; justify-content:center;
-    background:rgba(0,0,0,.42); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
-    opacity:0; pointer-events:none; transition:opacity .3s; }
-.hi-overlay.show{ opacity:1; pointer-events:auto; }
-.hi-sheet{ width:100%; max-width:660px; height:94vh; height:94dvh; background:var(--surface,#fff); border-radius:24px 24px 0 0;
-    display:flex; flex-direction:column; transform:translateY(100%); transition:transform .4s var(--spring,ease);
-    box-shadow:var(--shadow-sheet, 0 -14px 60px rgba(0,0,0,.18)); }
-.hi-overlay.show .hi-sheet{ transform:translateY(0); }
-
-.hi-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px 16px 10px; flex-shrink:0;
-    border-bottom:.5px solid var(--hairline,#eee); }
-.hi-title{ font-size:17px; font-weight:800; letter-spacing:-.01em; }
-.hi-sub{ font-size:11.5px; color:var(--text-2,#8A8A8E); font-weight:600; margin-top:2px; }
-.hi-icon-btn{ width:30px; height:30px; border-radius:50%; border:none; background:var(--surface-2,#eee); color:var(--text-2,#777);
-    display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:transform .15s var(--spring,ease); }
-.hi-icon-btn:active{ transform:scale(.88); }
-
-.hi-body{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px 14px 8px; overscroll-behavior:contain; }
-
-/* --- schermata di scelta file ------------------------------------------- */
-.hi-drop{ border:2px dashed var(--hairline-2,#ccc); border-radius:var(--r-card,22px); padding:32px 20px; text-align:center;
-    background:var(--surface-2,#f7f7f9); transition:border-color .25s, background-color .25s, transform .2s var(--spring,ease); }
-.hi-drop.dragover{ border-color:var(--accent,#7C5CFF); background:color-mix(in srgb, var(--accent,#7C5CFF) 9%, transparent); transform:scale(1.01); }
-.hi-drop-icon{ width:52px; height:52px; margin:0 auto 12px; border-radius:16px; background:color-mix(in srgb, var(--accent,#7C5CFF) 12%, transparent);
-    color:var(--accent,#7C5CFF); display:flex; align-items:center; justify-content:center; }
-.hi-drop-title{ font-size:16px; font-weight:800; margin-bottom:5px; }
-.hi-drop-text{ font-size:13px; color:var(--text-2,#8A8A8E); line-height:1.5; }
-.hi-drop-btn{ margin-top:16px; padding:12px 22px; border-radius:14px; border:none; background:var(--accent,#7C5CFF); color:#fff;
-    font-size:14.5px; font-weight:700; box-shadow:var(--btn-hl), 0 6px 16px -6px color-mix(in srgb, var(--accent,#7C5CFF) 70%, transparent); transition:transform .15s var(--spring,ease); }
-.hi-drop-btn:active{ transform:scale(.96); }
-.hi-hint{ margin-top:16px; font-size:12px; color:var(--text-3,#AEAEB2); line-height:1.6; text-align:center; }
-.hi-hint b{ color:var(--text-2,#8A8A8E); font-weight:700; }
-
-/* --- spinner ------------------------------------------------------------ */
-.hi-loading{ display:flex; flex-direction:column; align-items:center; gap:14px; padding:60px 20px; color:var(--text-2,#8A8A8E); font-size:13.5px; font-weight:600; }
-.hi-spinner{ width:30px; height:30px; border-radius:50%; border:3px solid var(--hairline,#eee); border-top-color:var(--accent,#7C5CFF); animation:hiSpin .8s linear infinite; }
-@keyframes hiSpin{ to{ transform:rotate(360deg); } }
-
-/* --- riepilogo ---------------------------------------------------------- */
-.hi-stats{ display:flex; gap:8px; overflow-x:auto; padding-bottom:12px; scrollbar-width:none; }
-.hi-stats::-webkit-scrollbar{ display:none; }
-.hi-stat{ flex-shrink:0; background:var(--surface-2,#f2f2f7); border-radius:14px; padding:9px 13px; min-width:74px; }
-.hi-stat-n{ font-size:18px; font-weight:800; letter-spacing:-.02em; line-height:1.1; }
-.hi-stat-l{ font-size:10.5px; font-weight:700; color:var(--text-2,#8A8A8E); text-transform:uppercase; letter-spacing:.3px; margin-top:1px; }
-.hi-warn{ display:flex; gap:8px; background:color-mix(in srgb, var(--orange,#FF9500) 12%, transparent); color:var(--orange,#FF9500);
-    border-radius:12px; padding:10px 12px; font-size:12px; font-weight:600; line-height:1.45; margin-bottom:8px; }
-.hi-warn svg{ flex-shrink:0; margin-top:1px; }
-
-/* --- sezioni ------------------------------------------------------------ */
-.hi-section{ margin-bottom:18px; }
-.hi-sec-head{ position:sticky; top:-14px; z-index:3; display:flex; align-items:center; gap:8px; padding:10px 4px;
-    background:var(--surface,#fff); cursor:pointer; }
-.hi-sec-num{ width:19px; height:19px; border-radius:50%; background:var(--text,#1C1C1E); color:var(--surface,#fff);
-    font-size:10.5px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.hi-sec-title{ font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; flex:1; }
-.hi-sec-count{ font-size:11.5px; font-weight:700; color:var(--text-3,#AEAEB2); }
-.hi-sec-chev{ color:var(--text-3,#AEAEB2); transition:transform .3s var(--spring,ease); }
-.hi-section.collapsed .hi-sec-chev{ transform:rotate(-90deg); }
-.hi-sec-body{ transition:opacity .25s; }
-.hi-section.collapsed .hi-sec-body{ display:none; }
-
-/* --- righe abitudine ------------------------------------------------------ */
-@keyframes hiIn{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
-.hi-node{ animation:hiIn .3s var(--spring,ease) both; }
-.hi-row{ display:flex; align-items:center; gap:9px; padding:10px 11px; border-radius:13px; background:var(--surface-2,#f4f4f6);
-    border-left:4px solid var(--row-color,#8A8A8E); margin-bottom:5px; cursor:pointer;
-    transition:transform .14s var(--spring,ease), background-color .2s; }
-.hi-row:active{ transform:scale(.985); }
-.hi-row.hi-row-flash{ animation:hiFlash .7s var(--spring,ease); }
-@keyframes hiFlash{ 0%,100%{ background:var(--surface-2,#f4f4f6); } 30%{ background:color-mix(in srgb, var(--row-color,#8A8A8E) 22%, var(--surface-2,#f4f4f6)); } }
-.hi-dot{ width:22px; height:22px; border-radius:50%; background:var(--row-color,#8A8A8E); flex-shrink:0; font-size:12px;
-    display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 3px color-mix(in srgb, var(--row-color,#8A8A8E) 18%, transparent); }
-.hi-names{ flex:1; min-width:0; }
-.hi-name{ font-size:14.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.hi-from{ font-size:11px; color:var(--text-2,#8A8A8E); font-weight:600; margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.hi-tag{ flex-shrink:0; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; padding:3px 7px; border-radius:7px;
-    background:color-mix(in srgb, var(--green,#34C759) 16%, transparent); color:var(--green,#34C759); }
-.hi-restore{ flex-shrink:0; width:27px; height:27px; border-radius:50%; border:none; background:var(--surface,#fff); color:var(--text-2,#8A8A8E);
-    display:flex; align-items:center; justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,.1); transition:transform .15s var(--spring,ease); }
-.hi-restore:active{ transform:scale(.85) rotate(-140deg); }
-
-/* --- righe check-in ------------------------------------------------------- */
-.hi-day{ font-size:11px; font-weight:800; color:var(--text-2,#8A8A8E); text-transform:uppercase; letter-spacing:.4px; padding:12px 6px 5px; }
-.hi-sess{ display:flex; align-items:center; gap:10px; padding:9px 11px; border-radius:12px; background:var(--surface-2,#f4f4f6);
-    border-left:4px solid var(--row-color,#8A8A8E); margin-bottom:5px; animation:hiIn .3s var(--spring,ease) both; }
-.hi-sess-icon{ width:25px; height:25px; border-radius:50%; background:var(--row-color,#8A8A8E); color:#fff; flex-shrink:0; font-size:12px;
-    display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px -1px color-mix(in srgb, var(--row-color,#8A8A8E) 55%, transparent); }
-.hi-sess-mid{ flex:1; min-width:0; }
-.hi-sess-proj{ font-size:13.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.hi-sess-proj.hi-sess-empty{ color:var(--text-3,#AEAEB2); font-weight:600; font-style:italic; }
-.hi-sess-meta{ font-size:11.5px; color:var(--text-2,#8A8A8E); font-weight:600; margin-top:1px; }
-.hi-more{ width:100%; padding:11px; border-radius:12px; border:none; background:var(--surface-2,#f2f2f7); color:var(--accent,#7C5CFF);
-    font-size:13px; font-weight:700; margin-top:6px; transition:transform .15s var(--spring,ease); }
-.hi-more:active{ transform:scale(.97); }
-
-/* --- barra di salvataggio ------------------------------------------------- */
-.hi-foot{ flex-shrink:0; padding:12px 14px calc(12px + var(--safe-bottom,0px)); border-top:.5px solid var(--hairline,#eee);
-    background:var(--surface,#fff); display:none; gap:9px; align-items:center; }
-.hi-foot.show{ display:flex; }
-.hi-foot-info{ flex:1; min-width:0; font-size:11.5px; color:var(--text-2,#8A8A8E); font-weight:600; line-height:1.35; }
-.hi-btn-ghost{ padding:12px 15px; border-radius:14px; border:none; background:var(--surface-2,#f2f2f7); color:var(--text,#1C1C1E);
-    font-size:14px; font-weight:700; flex-shrink:0; transition:transform .15s var(--spring,ease); }
-.hi-btn-ghost:active{ transform:scale(.96); }
-.hi-btn-save{ padding:12px 20px; border-radius:14px; border:none; background:var(--accent,#7C5CFF); color:#fff; font-size:14.5px; font-weight:800;
-    flex-shrink:0; box-shadow:var(--btn-hl), 0 6px 16px -6px color-mix(in srgb, var(--accent,#7C5CFF) 70%, transparent); transition:transform .15s var(--spring,ease), opacity .2s; }
-.hi-btn-save:active{ transform:scale(.96); }
-.hi-btn-save[disabled]{ opacity:.55; }
-
-.hi-error{ text-align:center; padding:44px 24px; }
-.hi-error-icon{ width:48px; height:48px; margin:0 auto 12px; border-radius:50%; background:var(--red-soft,rgba(255,59,48,.12));
-    color:var(--red,#FF3B30); display:flex; align-items:center; justify-content:center; }
-.hi-error-text{ font-size:14px; color:var(--text-2,#8A8A8E); line-height:1.5; margin-bottom:16px; }
-
-.hi-toast{ position:fixed; left:50%; bottom:calc(28px + var(--safe-bottom,0px)); transform:translate(-50%,12px); background:rgba(28,28,30,.94); color:#fff;
-    padding:11px 18px; border-radius:14px; font-size:13.5px; font-weight:600; z-index:9970; opacity:0; pointer-events:none;
-    max-width:calc(100% - 40px); text-align:center; transition:opacity .25s, transform .25s; }
-.hi-toast.show{ opacity:1; transform:translate(-50%,0); }
-
-/* --- mini modale: collega ad abitudine esistente -------------------------- */
-.hi-pick-overlay{ position:fixed; inset:0; z-index:9760; display:flex; align-items:flex-end; justify-content:center;
-    background:rgba(0,0,0,.42); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
-    opacity:0; pointer-events:none; transition:opacity .3s; }
-.hi-pick-overlay.show{ opacity:1; pointer-events:auto; }
-.hi-pick-sheet{ width:100%; max-width:520px; max-height:78vh; background:var(--surface,#fff); border-radius:24px 24px 0 0;
-    display:flex; flex-direction:column; transform:translateY(100%); transition:transform .35s var(--spring,ease);
-    box-shadow:var(--shadow-sheet, 0 -14px 60px rgba(0,0,0,.18)); }
-.hi-pick-overlay.show .hi-pick-sheet{ transform:translateY(0); }
-.hi-pick-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px 16px 10px; flex-shrink:0;
-    border-bottom:.5px solid var(--hairline,#eee); }
-.hi-pick-title{ font-size:15.5px; font-weight:800; letter-spacing:-.01em; }
-.hi-pick-search{ margin:12px 14px 8px; padding:10px 13px; border-radius:12px; border:none; background:var(--surface-2,#f2f2f7);
-    color:var(--text,#1C1C1E); font-size:14px; }
-.hi-pick-search:focus{ outline:none; box-shadow:0 0 0 2px color-mix(in srgb, var(--accent,#7C5CFF) 45%, transparent); }
-.hi-pick-list{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:4px 14px 18px; }
-.hi-pick-row{ display:flex; align-items:center; gap:11px; padding:10px 8px; border-radius:13px; cursor:pointer;
-    transition:background-color .15s, transform .14s var(--spring,ease); }
-.hi-pick-row:active{ transform:scale(.98); background:var(--surface-2,#f2f2f7); }
-.hi-pick-icon{ width:34px; height:34px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
-    font-size:16px; background:color-mix(in srgb, var(--pick-color,#8A8A8E) 16%, transparent); }
-.hi-pick-name{ flex:1; min-width:0; font-size:14.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.hi-pick-arch{ flex-shrink:0; font-size:10.5px; font-weight:700; color:var(--text-3,#AEAEB2); text-transform:uppercase; letter-spacing:.3px; }
-.hi-pick-empty{ text-align:center; padding:40px 20px; font-size:13px; color:var(--text-3,#AEAEB2); font-weight:600; }
-
-@media (max-width:400px){
-    .hi-foot-info{ display:none; }
-    .hi-btn-save{ flex:1; }
+<?php
+if (!defined('HI_CSS')) {
+    define('HI_CSS', 1);
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'habits_import.css?v=' . (@filemtime(dirname(__FILE__) . '/habits_import.css') ?: 1) . '">' . "\n";
 }
-@media (prefers-reduced-motion: reduce){
-    .hi-overlay *, .hi-overlay, .hi-pick-overlay *, .hi-pick-overlay{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
-}
-</style>
+?>
 
 <div class="hi-overlay" id="hiOverlay">
     <div class="hi-sheet">
@@ -1269,7 +1302,7 @@ define('HI_RENDERED', true);
                 <div class="hi-title">Importa</div>
                 <div class="hi-sub" id="hiHeadSub">Abitudini e check-in da un altro file</div>
             </div>
-            <button type="button" class="hi-icon-btn" onclick="closeHabitsImport()" aria-label="Chiudi">
+            <button type="button" class="hi-icon-btn" onclick="closeHabitsImport()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
         </div>
@@ -1295,7 +1328,7 @@ define('HI_RENDERED', true);
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
         </div>
-        <input type="text" class="hi-pick-search" id="hiPickSearch" placeholder="Cerca un'abitudine..." oninput="hiFilterPicker()">
+        <input type="text" class="hi-pick-search" id="hiPickSearch" placeholder="<?php te('import.cerca_abitudine'); ?>" oninput="hiFilterPicker()">
         <div class="hi-pick-list" id="hiPickList"></div>
     </div>
 </div>
@@ -1366,7 +1399,7 @@ define('HI_RENDERED', true);
         document.body.appendChild(a);
         a.click();
         a.remove();
-        toast('Export in corso...');
+        toast(T('import.export_in_corso'));
         buzz(8);
     };
 
@@ -1375,21 +1408,21 @@ define('HI_RENDERED', true);
        ====================================================================== */
     function hiRenderDrop() {
         byId('hiFoot').classList.remove('show');
-        byId('hiHeadSub').textContent = 'Abitudini e check-in da un altro file';
+        byId('hiHeadSub').textContent = T('import.sottotitolo');
         byId('hiBody').innerHTML =
             '<div class="hi-drop" id="hiDrop">' +
                 '<div class="hi-drop-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v13"/></svg></div>' +
-                '<div class="hi-drop-title">Scegli il file da importare</div>' +
-                '<div class="hi-drop-text">Trascinalo qui oppure sfoglia.<br>Formati: .xlsx e .csv</div>' +
-                '<button type="button" class="hi-drop-btn" onclick="hiBrowse()">Sfoglia file</button>' +
+                '<div class="hi-drop-title">' + T('import.scegli_file') + '</div>' +
+                '<div class="hi-drop-text">' + T('import.trascina') + '<br>' + T('import.formati') + '</div>' +
+                '<button type="button" class="hi-drop-btn" onclick="hiBrowse()">' + T('import.sfoglia') + '</button>' +
             '</div>' +
-            '<div class="hi-hint">Ogni <b>foglio</b> e\' un\'abitudine (il nome del foglio ne diventa il nome). Dentro servono le <b>date</b> dei check-in, e possibilmente l\'<b>ora</b>.<br>Le colonne le riconosco dal nome; se mancano uso l\'ordine standard: Data, Ora, Stato, Check-in, Umore, Nota.</div>';
+            '<div class="hi-hint">' + T('import.spiegazione') + '</div>';
         hiBindDrop();
     }
 
     function hiRenderLoading(msg) {
         byId('hiFoot').classList.remove('show');
-        byId('hiBody').innerHTML = '<div class="hi-loading"><div class="hi-spinner"></div><div>' + esc(msg || 'Leggo il file...') + '</div></div>';
+        byId('hiBody').innerHTML = '<div class="hi-loading"><div class="hi-spinner"></div><div>' + esc(msg || T('import.leggo_il_file')) + '</div></div>';
     }
 
     function hiRenderError(msg) {
@@ -1398,7 +1431,7 @@ define('HI_RENDERED', true);
             '<div class="hi-error">' +
                 '<div class="hi-error-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>' +
                 '<div class="hi-error-text">' + esc(msg) + '</div>' +
-                '<button type="button" class="hi-drop-btn" onclick="hiReset()">Riprova</button>' +
+                '<button type="button" class="hi-drop-btn" onclick="hiReset()">' + T('import.riprova') + '</button>' +
             '</div>';
     }
 
@@ -1429,20 +1462,26 @@ define('HI_RENDERED', true);
        CARICAMENTO E ANALISI
        ====================================================================== */
     function hiUpload(file) {
-        hiRenderLoading('Leggo ' + file.name + '...');
+        hiRenderLoading(T('import.leggo_nome', {nome: file.name}));
         var fd = new FormData();
         fd.append('file', file);
         fetch('habits_import.php?hi_ajax=parse', { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (d) {
-                if (!d || !d.success) { hiRenderError((d && d.error) || 'File non riconosciuto.'); return; }
+                if (!d || !d.success) { hiRenderError((d && d.error) || T('import.file_non_riconosciuto')); return; }
                 HI.data = { habits: d.habits || [], logs: d.logs || [] };
                 HI.map = { habits: {} };
                 HI.shown = PAGE;
+                /* servono alla sezione "come ho letto il file": la mappatura che il
+                   server ha indovinato, l'anteprima delle prime righe e il gettone
+                   con cui chiedere una rilettura senza ricaricare il file */
+                HI.mappe = d.mappe || [];
+                HI.gettone = d.gettone || null;
+                HI.etichette = d.etichette || {};
                 hiRenderResult(d);
                 buzz(10);
             })
-            .catch(function () { hiRenderError('Errore di rete durante il caricamento.'); });
+            .catch(function () { hiRenderError(T('import.rete_caricamento')); });
     }
 
     function hiRenderResult(d) {
@@ -1452,16 +1491,16 @@ define('HI_RENDERED', true);
             warn += '<div class="hi-warn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.4 17a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>' + esc(w) + '</span></div>';
         });
 
-        byId('hiHeadSub').textContent = (s.habits || 0) + ' abitudini, ' + (s.logs || 0) + ' check-in trovati';
+        byId('hiHeadSub').textContent = T('import.trovati', {abitudini: (s.habits || 0), checkin: (s.logs || 0)});
         byId('hiBody').innerHTML =
             '<div class="hi-stats">' +
-                hiStat(s.habits || 0, 'Abitudini') +
+                hiStat(s.habits || 0, T('import.abitudini_l')) +
                 hiStat(s.logs || 0, 'Check-in') +
-                (s.skipped ? hiStat(s.skipped, 'Ignorati') : '') +
-            '</div>' + warn +
+                (s.skipped ? hiStat(s.skipped, T('import.ignorati')) : '') +
+            '</div>' + warn + hiMapSectionHTML() +
             '<div class="hi-section" id="hiSec1">' +
                 '<div class="hi-sec-head" onclick="hiToggleSec(\'hiSec1\')">' +
-                    '<span class="hi-sec-num">1</span><span class="hi-sec-title">Abitudini</span>' +
+                    '<span class="hi-sec-num">1</span><span class="hi-sec-title">' + T('import.abitudini_l') + '</span>' +
                     '<span class="hi-sec-count" id="hiSec1Count"></span>' +
                     '<svg class="hi-sec-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>' +
                 '</div>' +
@@ -1469,7 +1508,7 @@ define('HI_RENDERED', true);
             '</div>' +
             '<div class="hi-section" id="hiSec2">' +
                 '<div class="hi-sec-head" onclick="hiToggleSec(\'hiSec2\')">' +
-                    '<span class="hi-sec-num">2</span><span class="hi-sec-title">Check-in</span>' +
+                    '<span class="hi-sec-num">2</span><span class="hi-sec-title">' + T('import.checkin_l') + '</span>' +
                     '<span class="hi-sec-count" id="hiSec2Count"></span>' +
                     '<svg class="hi-sec-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>' +
                 '</div>' +
@@ -1478,10 +1517,144 @@ define('HI_RENDERED', true);
 
         byId('hiFoot').classList.add('show');
         byId('hiSaveBtn').disabled = false;
-        byId('hiSaveBtn').textContent = 'Salva';
+        byId('hiSaveBtn').textContent = T('comune.salva');
         hiRenderHabits();
         hiRenderLogs();
     }
+
+    /* ======================================================================
+       COME HO LETTO IL FILE
+       Il riconoscimento automatico va bene per i formati che conosciamo, ma non
+       puo' indovinare sempre: intestazioni in un'altra lingua, colonne in ordine
+       strano, fogli con due tabelle dentro. Qui si vede cosa ha capito il server
+       e lo si corregge, con davanti le prime righe del file - si sceglie meglio
+       una colonna guardando cosa contiene che leggendone il nome.
+       ====================================================================== */
+    function hiMapSectionHTML() {
+        if (!HI.mappe || !HI.mappe.length) return '';
+        var chiuso = HI.gettone ? '' : ' collapsed';
+        var h = '<div class="hi-section hi-map' + chiuso + '" id="hiSecMap">' +
+            '<div class="hi-sec-head" onclick="hiToggleSec(\'hiSecMap\')">' +
+                '<span class="hi-sec-num">✓</span><span class="hi-sec-title">' + T('import.come_ho_letto') + '</span>' +
+                '<span class="hi-sec-count">' + HI.mappe.length + '</span>' +
+            '</div><div class="hi-sec-body">';
+
+        if (!HI.gettone) {
+            h += '<div class="hi-warn">' + T('import.file_troppo_grande') + '</div>';
+        }
+        HI.mappe.forEach(function (m, i) { h += hiMapSheetHTML(m, i); });
+        if (HI.gettone) {
+            h += '<div class="hi-map-actions">' +
+                 '<button type="button" class="hi-btn" onclick="hiRemap()">' + T('import.rileggi') + '</button>' +
+                 '</div>';
+        }
+        return h + '</div></div>';
+    }
+
+    function hiMapSheetHTML(m, i) {
+        var chiavi = Object.keys(HI.etichette);
+        var largh = 0;
+        (m.anteprima || []).forEach(function (r) { if (r.length > largh) largh = r.length; });
+
+        /* una riga di selettori: per ogni colonna del file, che cosa contiene */
+        var sel = '<div class="hi-map-cols">';
+        for (var c = 0; c < largh; c++) {
+            var scelto = '';
+            chiavi.forEach(function (k) { if (m.cols[k] === c) scelto = k; });
+            sel += '<label class="hi-map-col"><span class="hi-map-colnum">' + hiColLetter(c) + '</span>' +
+                   '<select data-sheet="' + i + '" data-col="' + c + '" class="hi-map-sel">' +
+                   '<option value="">' + T('import.col_ignora') + '</option>';
+            chiavi.forEach(function (k) {
+                sel += '<option value="' + esc(k) + '"' + (scelto === k ? ' selected' : '') + '>' +
+                       esc(HI.etichette[k]) + '</option>';
+            });
+            sel += '</select></label>';
+        }
+        sel += '</div>';
+
+        /* l'anteprima: la riga di intestazione riconosciuta e' evidenziata */
+        var tab = '<div class="hi-map-prev"><table>';
+        (m.anteprima || []).forEach(function (r, ri) {
+            tab += '<tr class="' + (ri === m.header ? 'is-head' : '') + '">';
+            for (var c = 0; c < largh; c++) tab += '<td>' + esc(r[c] || '') + '</td>';
+            tab += '</tr>';
+        });
+        tab += '</table></div>';
+
+        return '<div class="hi-map-sheet" data-sheet="' + i + '">' +
+            '<div class="hi-map-title">' + esc(m.name) + '' +
+                '<span class="hi-map-badge">' + T('import.n_righe_lette', {n: m.righe}) + '</span>' +
+                (m.saltate ? '<span class="hi-map-badge hi-map-badge-warn">' + T('import.n_saltate', {n: m.saltate}) + '</span>' : '') +
+            '</div>' +
+            sel + tab +
+            '<div class="hi-map-extra">' +
+                '<label>' + T('import.riga_intestazione') +
+                    '<input type="number" class="hi-map-head" data-sheet="' + i + '" min="-1" max="20" value="' + m.header + '"></label>' +
+                '<label>' + T('import.formato_data') +
+                    '<select class="hi-map-order" data-sheet="' + i + '">' +
+                        '<option value="dmy"' + (m.order === 'dmy' ? ' selected' : '') + '>' + T('import.data_dmy') + '</option>' +
+                        '<option value="mdy"' + (m.order === 'mdy' ? ' selected' : '') + '>' + T('import.data_mdy') + '</option>' +
+                    '</select></label>' +
+                (m.cols.habit >= 0 ? '' :
+                 '<label>' + T('import.nome_abitudine') +
+                    '<input type="text" class="hi-map-name" data-sheet="' + i + '" value="' + esc(m.habit) + '"></label>') +
+                '<label class="hi-map-skip"><input type="checkbox" class="hi-map-skipbox" data-sheet="' + i + '">' +
+                    T('import.ignora_foglio') + '</label>' +
+            '</div></div>';
+    }
+
+    /* A, B, C… come le colonne di un foglio di calcolo: e' cosi' che l'utente
+       le vede aprendo il file. */
+    function hiColLetter(i) {
+        var s = '';
+        i = i + 1;
+        while (i > 0) { var r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); }
+        return s;
+    }
+
+    window.hiRemap = function () {
+        if (!HI.gettone) return;
+        var scelte = [];
+        HI.mappe.forEach(function (m, i) {
+            var cols = {};
+            Object.keys(HI.etichette).forEach(function (k) { cols[k] = -1; });
+            document.querySelectorAll('.hi-map-sel[data-sheet="' + i + '"]').forEach(function (sel) {
+                if (sel.value) cols[sel.value] = parseInt(sel.getAttribute('data-col'), 10);
+            });
+            var head = document.querySelector('.hi-map-head[data-sheet="' + i + '"]');
+            var ord  = document.querySelector('.hi-map-order[data-sheet="' + i + '"]');
+            var nom  = document.querySelector('.hi-map-name[data-sheet="' + i + '"]');
+            var skip = document.querySelector('.hi-map-skipbox[data-sheet="' + i + '"]');
+            scelte.push({
+                cols: cols,
+                header: head ? parseInt(head.value, 10) : -1,
+                order: ord ? ord.value : 'dmy',
+                name: nom ? nom.value : '',
+                skip: !!(skip && skip.checked)
+            });
+        });
+
+        hiRenderLoading(T('import.rileggo'));
+        var fd = new FormData();
+        fd.append('gettone', HI.gettone);
+        fd.append('scelte', JSON.stringify(scelte));
+        fetch('habits_import.php?hi_ajax=remap', { method: 'POST', body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (!d || !d.success) {
+                    hiRenderError((d && d.error) || T('import.rilettura_fallita'));
+                    return;
+                }
+                HI.data = { habits: d.habits || [], logs: d.logs || [] };
+                HI.map = { habits: {} };
+                HI.shown = PAGE;
+                HI.mappe = d.mappe || [];
+                HI.etichette = d.etichette || HI.etichette;
+                hiRenderResult(d);
+                buzz(10);
+            })
+            .catch(function () { hiRenderError(T('comune.errore_rete')); });
+    };
 
     function hiStat(n, label) {
         return '<div class="hi-stat"><div class="hi-stat-n">' + n + '</div><div class="hi-stat-l">' + label + '</div></div>';
@@ -1502,7 +1675,7 @@ define('HI_RENDERED', true);
                 '<div class="hi-name">' + esc(name) + '</div>' +
                 (m ? '<div class="hi-from">dal file: ' + esc(h.name) + '</div>' : '') +
             '</div>';
-        if (!m) row += '<span class="hi-tag">nuova</span>';
+        if (!m) row += '<span class="hi-tag">' + T('import.nuova') + '</span>';
         else row += '<button type="button" class="hi-restore" aria-label="Ripristina" onclick="event.stopPropagation();hiRestore(\'' + h.key + '\')">' +
                 '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>';
         return row + '</div>';
@@ -1511,13 +1684,13 @@ define('HI_RENDERED', true);
     function hiRenderHabits() {
         var html = '';
         HI.data.habits.forEach(function (h) { html += '<div class="hi-node">' + hiRowHTML(h) + '</div>'; });
-        if (!html) html = '<div class="hi-pick-empty">Nessuna abitudine nel file.</div>';
+        if (!html) html = '<div class="hi-pick-empty">' + T('import.nessuna_nel_file') + '</div>';
         byId('hiHabits').innerHTML = html;
 
         var tot = HI.data.habits.length;
         var nuove = 0;
         HI.data.habits.forEach(function (h) { if (!HI.map.habits[h.key]) nuove++; });
-        byId('hiSec1Count').textContent = nuove + ' nuove su ' + tot;
+        byId('hiSec1Count').textContent = T('import.n_nuove_su', {nuove: nuove, tot: tot});
         hiUpdateFoot();
     }
 
@@ -1543,7 +1716,7 @@ define('HI_RENDERED', true);
                 '<span class="hi-sess-icon">' + esc(h.icon) + '</span>' +
                 '<div class="hi-sess-mid">' +
                     '<div class="hi-sess-proj">' + esc(h.name) + '</div>' +
-                    '<div class="hi-sess-meta">' + (time ? esc(time) : 'ora non indicata') + (l.note ? ' · ' + esc(l.note) : '') + '</div>' +
+                    '<div class="hi-sess-meta">' + (time ? esc(time) : T('import.ora_non_indicata')) + (l.note ? ' · ' + esc(l.note) : '') + '</div>' +
                 '</div>' +
                 (h.isNew ? '<span class="hi-tag">nuova</span>' : '') +
             '</div>';
@@ -1559,7 +1732,9 @@ define('HI_RENDERED', true);
     function hiUpdateFoot() {
         var nuove = 0;
         HI.data.habits.forEach(function (h) { if (!HI.map.habits[h.key]) nuove++; });
-        byId('hiFootInfo').innerHTML = '<b>' + nuove + '</b> abitudin' + (nuove === 1 ? 'e nuova' : 'i nuove') + '<br>' + HI.data.logs.length + ' check-in da salvare';
+        byId('hiFootInfo').innerHTML =
+            T(nuove === 1 ? 'import.una_abitudine_nuova' : 'import.n_abitudini_nuove', {n: '<b>' + nuove + '</b>'}) +
+            '<br>' + T('import.n_checkin_da_salvare', {n: HI.data.logs.length});
     }
 
     /* ======================================================================
@@ -1583,13 +1758,13 @@ define('HI_RENDERED', true);
         hiRenderPickerList(list);
     };
     function hiRenderPickerList(list) {
-        if (!list.length) { byId('hiPickList').innerHTML = '<div class="hi-pick-empty">Nessuna abitudine trovata.</div>'; return; }
+        if (!list.length) { byId('hiPickList').innerHTML = '<div class="hi-pick-empty">' + T('import.nessuna_trovata') + '</div>'; return; }
         var html = '';
         list.forEach(function (h) {
             html += '<div class="hi-pick-row" style="--pick-color:' + esc(h.color || GREY) + ';" onclick="hiChoose(' + h.id + ')">' +
                 '<span class="hi-pick-icon" style="color:' + esc(h.color || GREY) + ';">' + esc(h.icon || '⭐️') + '</span>' +
                 '<span class="hi-pick-name">' + esc(h.name) + '</span>' +
-                (h.is_archived ? '<span class="hi-pick-arch">archiviata</span>' : '') +
+                (h.is_archived ? '<span class="hi-pick-arch">' + T('import.archiviata') + '</span>' : '') +
             '</div>';
         });
         byId('hiPickList').innerHTML = html;
@@ -1628,7 +1803,7 @@ define('HI_RENDERED', true);
         if (HI.busy || !HI.data.logs.length) return;
         HI.busy = true;
         var btn = byId('hiSaveBtn');
-        btn.disabled = true; btn.textContent = 'Salvo...';
+        btn.disabled = true; btn.textContent = T('import.salvo');
 
         var payload = {
             habits: HI.data.habits.map(function (h) {
@@ -1648,27 +1823,28 @@ define('HI_RENDERED', true);
         .then(function (d) {
             HI.busy = false;
             if (!d || !d.success) {
-                btn.disabled = false; btn.textContent = 'Salva';
-                toast((d && d.error) || 'Errore durante il salvataggio');
+                btn.disabled = false; btn.textContent = T('comune.salva');
+                toast((d && d.error) || T('import.errore_salvataggio'));
                 return;
             }
             buzz(20);
             byId('hiFoot').classList.remove('show');
-            byId('hiHeadSub').textContent = 'Import completato';
+            byId('hiHeadSub').textContent = T('import.import_completato');
             byId('hiBody').innerHTML =
                 '<div class="hi-error">' +
                     '<div class="hi-error-icon" style="background:var(--green-soft,rgba(52,199,89,.13));color:var(--green,#34C759);">' +
                         '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>' +
-                    '<div class="hi-drop-title">Fatto!</div>' +
-                    '<div class="hi-error-text">' + d.habits + ' abitudini create<br>' + d.days + ' giorni importati<br>' + d.events + ' check-in registrati</div>' +
-                    '<button type="button" class="hi-drop-btn" onclick="location.reload()">Chiudi e aggiorna</button>' +
+                    '<div class="hi-drop-title">' + T('import.fatto') + '</div>' +
+                    '<div class="hi-error-text">' + T('import.esito_abitudini', {n: d.habits}) + '<br>' +
+                        T('import.esito_giorni', {n: d.days}) + '<br>' + T('import.esito_checkin', {n: d.events}) + '</div>' +
+                    '<button type="button" class="hi-drop-btn" onclick="location.reload()">' + T('import.chiudi_aggiorna') + '</button>' +
                 '</div>';
             setTimeout(function () { location.reload(); }, 1800);
         })
         .catch(function () {
             HI.busy = false;
-            btn.disabled = false; btn.textContent = 'Salva';
-            toast('Errore di rete durante il salvataggio');
+            btn.disabled = false; btn.textContent = T('comune.salva');
+            toast(T('import.rete_salvataggio'));
         });
     };
 

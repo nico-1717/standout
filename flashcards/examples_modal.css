@@ -1,0 +1,213 @@
+/* examples_modal.css — stile del pannello esempi (componente condiviso).
+   Estratto dal blocco <style> della pagina: serve per togliere
+   'unsafe-inline' dalla CSP. */
+
+/* ================================================================
+
+   MODALE ESEMPI - Stile iOS e Modifica Immagine
+
+   ================================================================ */
+
+.exm-overlay{
+
+    display:none; position:fixed; inset:0; z-index:11000;
+
+    justify-content:center; align-items:flex-end;
+
+    background:rgba(0,0,0,.5); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+
+    box-sizing:border-box;
+
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+
+}
+
+.exm-overlay.form{ z-index:11005; }
+
+.exm-panel{
+
+    position:relative; width:100%; max-width:640px; max-height:92vh; overflow-y:auto;
+
+    -webkit-overflow-scrolling:touch;
+
+    background:var(--surface, #fff); color:var(--text, #1C1C1E);
+
+    border-radius:26px 26px 0 0; padding:28px 20px calc(24px + env(safe-area-inset-bottom,0px));
+
+    box-shadow:0 -12px 50px rgba(0,0,0,.4);
+
+    animation:exmUp .42s cubic-bezier(.32,.72,0,1) both; text-align:left;
+
+}
+
+@keyframes exmUp{ from{ transform:translateY(60%); opacity:.4; } }
+
+.exm-panel::before{ content:""; position:absolute; top:9px; left:50%; transform:translateX(-50%); width:38px; height:5px; border-radius:99px; background:var(--hairline-2, rgba(60,60,67,.25)); }
+
+.exm-panel h3{ margin:2px 0 16px; font-size:20px; font-weight:800; letter-spacing:-.02em; color:var(--text, #1C1C1E); }
+
+
+
+.exm-close{
+
+    position:absolute; top:16px; right:16px; z-index:2; width:32px; height:32px;
+
+    border:none; border-radius:50%; cursor:pointer; padding:0;
+
+    background:var(--surface-2, #EFEFF4); color:var(--text-2, #8A8A8E); font-size:14px; font-weight:700;
+
+    display:flex; align-items:center; justify-content:center;
+
+    box-shadow:inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1));
+
+}
+
+
+
+/* Bottoni base */
+
+.exm-btn{
+
+    display:inline-flex; align-items:center; justify-content:center; gap:7px;
+
+    width:100%; padding:15px 16px; border:none; border-radius:15px; cursor:pointer;
+
+    font-family:inherit; font-size:16px; font-weight:800; color:#fff;
+
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16), 0 10px 20px -8px rgba(0,0,0,.3);
+
+    transition:transform .16s cubic-bezier(.32,.72,0,1), filter .2s;
+
+}
+
+.exm-btn:active{ transform:translateY(1.5px) scale(.98); filter:brightness(.95); }
+
+.exm-btn.blue{ background:linear-gradient(180deg, color-mix(in srgb, var(--blue, #007AFF), #fff 16%), var(--blue, #007AFF) 52%, color-mix(in srgb, var(--blue, #007AFF), #000 10%)); }
+
+.exm-btn.green{ background:linear-gradient(180deg, color-mix(in srgb, var(--green, #34C759), #fff 16%), var(--green, #34C759) 52%, color-mix(in srgb, var(--green, #34C759), #000 10%)); }
+
+.exm-btn.purple{ background:linear-gradient(180deg, color-mix(in srgb, var(--purple, #AF52DE), #fff 16%), var(--purple, #AF52DE) 52%, color-mix(in srgb, var(--purple, #AF52DE), #000 10%)); }
+
+.exm-btn.red{ background:var(--chip-bg, #EFEFF4); color:var(--red, #FF3B30); box-shadow:inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1)); }
+
+.exm-btn.sm{ padding:11px 14px; font-size:14px; }
+
+
+
+/* AI Box */
+
+.exm-ai-box{ background:var(--blue-soft, rgba(0,122,255,.09)); padding:16px; border-radius:16px; border:1px dashed rgba(0,122,255,.4); margin-bottom:18px; }
+
+.exm-ai-title{ font-weight:800; color:var(--blue, #007AFF); margin-bottom:8px; font-size:14.5px; }
+
+
+
+/* Form Field & Labels */
+
+.exm-label{ font-weight:800; color:var(--text-2, #8A8A8E); font-size:12.5px; text-transform:uppercase; letter-spacing:.04em; display:block; margin:18px 0 8px; }
+
+.exm-panel textarea{
+
+    width:100%; padding:12px 14px; border:1px solid var(--hairline-2, rgba(60,60,67,.25)); border-radius:12px;
+
+    font-family:inherit; font-size:16px; color:var(--text, #1C1C1E); background:var(--surface-2, #F7F7FA); box-sizing:border-box; resize:vertical;
+
+}
+
+.exm-panel textarea:focus{ outline:none; border-color:var(--blue, #007AFF); }
+
+
+
+/* Audio (Stile Modifica Immagine) */
+
+.exm-audio-card{
+
+    background:var(--surface-2, #F7F7FA); border-radius:16px; padding:12px 14px;
+
+    border:.5px solid var(--hairline-2, rgba(60,60,67,.25)); margin-bottom:16px;
+
+    display:flex; flex-direction:column; gap:10px;
+
+}
+
+.exm-audio-row{ display:flex; align-items:center; gap:12px; }
+
+.exm-rec-btn{
+
+    width:48px; height:48px; border-radius:50%; flex-shrink:0; border:none; cursor:pointer; padding:0;
+
+    display:flex; align-items:center; justify-content:center; position:relative;
+
+    background:var(--surface, #fff); color:var(--text-2, #8A8A8E);
+
+    box-shadow:inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1)), 0 2px 6px rgba(0,0,0,.08);
+
+    transition:transform .15s cubic-bezier(.32,.72,0,1), background .2s, color .2s;
+
+}
+
+.exm-rec-btn:active{ transform:scale(.9); }
+
+.exm-rec-btn.recording{
+
+    background:var(--red-soft, rgba(255,59,48,.15)); color:var(--red, #FF3B30);
+
+    box-shadow:inset 0 0 0 1.5px var(--red, #FF3B30);
+
+    animation:recPulse 1.6s ease-in-out infinite;
+
+}
+
+@keyframes recPulse{
+
+    0%,100%{ box-shadow:inset 0 0 0 1.5px var(--red, #FF3B30), 0 0 0 0 rgba(255,59,48,.3); }
+
+    50%{ box-shadow:inset 0 0 0 1.5px var(--red, #FF3B30), 0 0 0 8px rgba(255,59,48,0); }
+
+}
+
+
+
+/* Immagine (Stile Modifica Immagine) */
+
+.exm-img-box{
+
+    background:var(--blue-soft, rgba(0,122,255,.09)); border-radius:14px; padding:14px; text-align:center;
+
+    box-shadow:inset 0 0 0 1.5px rgba(0,122,255,.4); margin-bottom:20px;
+
+}
+
+.exm-file-btn{
+
+    display:inline-flex; align-items:center; gap:7px; cursor:pointer; margin:0 auto;
+
+    background:var(--surface, #fff); color:var(--text, #1C1C1E); font-weight:700; font-size:13.5px;
+
+    padding:9px 14px; border-radius:11px; box-shadow:inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1)), 0 2px 5px rgba(0,0,0,.05);
+
+    transition:transform .15s cubic-bezier(.32,.72,0,1);
+
+}
+
+.exm-file-btn:active{ transform:scale(.96); }
+
+
+
+/* Liste Card ed Elementi */
+
+.exm-panel audio{ width:100%; border-radius:12px; }
+
+.exm-panel .raw-text{ font-size:15px; color:var(--text, #1C1C1E); line-height:1.5; }
+
+.exm-actions{ display:flex; gap:10px; margin-top:24px; }
+
+
+
+@media (min-width:640px){
+
+    .exm-overlay{ align-items:center; padding:20px; }
+
+    .exm-panel{ border-radius:26px; }
+
+}

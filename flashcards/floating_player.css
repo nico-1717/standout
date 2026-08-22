@@ -1,0 +1,212 @@
+/* floating_player.css — stile del riproduttore audio flottante (componente condiviso).
+   Estratto dal blocco <style> della pagina: serve per togliere
+   'unsafe-inline' dalla CSP. */
+
+    #floating-player{
+
+        position:fixed; bottom:calc(env(safe-area-inset-bottom,0px) + 18px); right:18px;
+
+        z-index:10020; width:300px; max-width:calc(100vw - 28px);
+
+        padding:12px 14px calc(env(safe-area-inset-bottom,0px) + 12px);
+
+        border-radius:22px;
+
+        background:rgba(255,255,255,.86);
+
+        -webkit-backdrop-filter:saturate(1.8) blur(24px); backdrop-filter:saturate(1.8) blur(24px);
+
+        box-shadow:0 1px 1px rgba(0,0,0,.05), 0 18px 50px -12px rgba(0,0,0,.32), inset 0 0 0 .5px rgba(60,60,67,.14);
+
+        font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+
+        color:#1C1C1E;
+
+        animation:fpIn .38s cubic-bezier(.24,1.3,.35,1);
+
+    }
+
+    @keyframes fpIn{ from{ opacity:0; transform:translateY(16px) scale(.96);} }
+
+
+
+    #fp-drag-handle{
+
+        display:flex; justify-content:center; align-items:center;
+
+        height:20px; margin:-4px 0 8px; cursor:grab; user-select:none; touch-action:none;
+
+    }
+
+    #fp-drag-handle .fp-grip{
+
+        width:40px; height:5px; border-radius:99px; background:rgba(60,60,67,.28);
+
+        transition:background .2s;
+
+    }
+
+    #fp-drag-handle:active .fp-grip{ background:rgba(60,60,67,.5); }
+
+
+
+    .fp-controls{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:12px; }
+
+    .fp-skip-wrap{ display:flex; }
+
+    .fp-skip{
+
+        width:38px; height:38px; border:none; border-radius:50%; cursor:pointer; padding:0;
+
+        background:rgba(120,120,128,.12); color:#1C1C1E;
+
+        display:flex; align-items:center; justify-content:center;
+
+        transition:transform .15s cubic-bezier(.32,.72,0,1), background .2s;
+
+    }
+
+    .fp-skip:active{ transform:scale(.86); background:rgba(120,120,128,.2); }
+
+    .fp-skip svg{ width:20px; height:20px; }
+
+
+
+    #fp-playpause{
+
+        width:52px; height:52px; border:none; border-radius:50%; cursor:pointer; padding:0;
+
+        color:#fff;
+
+        background:linear-gradient(180deg,#3D96FF,#007AFF 60%,#0069DE);
+
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 6px 16px -3px rgba(0,122,255,.55);
+
+        display:flex; align-items:center; justify-content:center;
+
+        transition:transform .15s cubic-bezier(.32,.72,0,1), filter .2s;
+
+    }
+
+    #fp-playpause:active{ transform:scale(.92); filter:brightness(.95); }
+
+    #fp-playpause .fp-icon{ width:21px; height:21px; }
+
+    #fp-playpause .fp-icon-play{ margin-left:2px; }
+
+
+
+    #fp-speed{
+
+        border:none; border-radius:12px; padding:8px 22px 8px 12px; cursor:pointer;
+
+        font-family:inherit; font-size:13px; font-weight:700; color:#1C1C1E;
+
+        background:rgba(120,120,128,.12);
+
+        -webkit-appearance:none; appearance:none; text-align:center;
+
+        background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%238A8A8E' stroke-width='2.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+
+        background-repeat:no-repeat; background-position:right 8px center;
+
+        transition:background-color .2s;
+
+    }
+
+    #fp-speed:active{ background-color:rgba(120,120,128,.2); }
+
+
+
+    #fp-progress-container{ display:flex; align-items:center; gap:9px; }
+
+    #fp-time, #fp-duration{
+
+        font-size:11px; color:#8A8A8E; font-variant-numeric:tabular-nums;
+
+        font-family:ui-monospace,SFMono-Regular,Menlo,monospace; min-width:30px;
+
+    }
+
+    #fp-duration{ text-align:right; }
+
+    #fp-progress{
+
+        flex:1; height:6px; cursor:pointer;
+
+        -webkit-appearance:none; appearance:none; background:transparent;
+
+    }
+
+    #fp-progress::-webkit-slider-runnable-track{ height:6px; border-radius:99px; background:rgba(120,120,128,.22); }
+
+    #fp-progress::-moz-range-track{ height:6px; border-radius:99px; background:rgba(120,120,128,.22); }
+
+    #fp-progress::-webkit-slider-thumb{
+
+        -webkit-appearance:none; width:16px; height:16px; border-radius:50%; margin-top:-5px;
+
+        background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.3), inset 0 0 0 .5px rgba(0,0,0,.06);
+
+    }
+
+    #fp-progress::-moz-range-thumb{
+
+        width:16px; height:16px; border:none; border-radius:50%;
+
+        background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.3);
+
+    }
+
+
+
+    /* ============================================================
+       CONVIVENZA CON I FOGLI (popup impostazioni audio, IA, esempi...)
+       ------------------------------------------------------------
+       I fogli sono ancorati in BASSO e stanno a z-index più basso del player
+       (10001 contro 10020). Su schermi stretti (iPhone) il player finiva quindi
+       proprio sopra i controlli del foglio e ne intercettava i tap: il popup
+       si vedeva ma non rispondeva. Su desktop il problema non si notava perché
+       da 640px in su i fogli sono centrati e non si sovrappongono.
+       Quando un foglio è aperto spostiamo il player in alto, così restano
+       usabili tutti e due. transform:none serve a resettare un eventuale
+       trascinamento dell'utente, altrimenti tornerebbe a coprire il foglio.
+       ============================================================ */
+    body.sheet-open #floating-player{
+        top:calc(env(safe-area-inset-top,0px) + 10px);
+        bottom:auto;
+        right:14px;
+        /* lascia libero l'angolo per l'orb della modalità microfono */
+        max-width:calc(100vw - 96px);
+        padding-bottom:12px;
+        transform:none !important;
+    }
+
+    @media (prefers-color-scheme: dark){
+
+        #floating-player{
+
+            background:rgba(30,30,32,.82); color:#F5F5F7;
+
+            box-shadow:0 1px 1px rgba(0,0,0,.4), 0 18px 50px -12px rgba(0,0,0,.7), inset 0 0 0 .5px rgba(120,120,128,.35);
+
+        }
+        #fp-drag-handle .fp-grip{ background:rgba(235,235,245,.3); }
+
+        #fp-drag-handle:active .fp-grip{ background:rgba(235,235,245,.5); }
+
+        .fp-skip{ background:rgba(120,120,128,.24); color:#F5F5F7; }
+
+        .fp-skip:active{ background:rgba(120,120,128,.34); }
+
+        #fp-playpause{ background:linear-gradient(180deg,#3D96FF,#0A84FF 60%,#0069DE); }
+
+        #fp-speed{ background:rgba(120,120,128,.28); color:#F5F5F7; }
+
+        #fp-time, #fp-duration{ color:#98989F; }
+
+        #fp-progress::-webkit-slider-runnable-track{ background:rgba(120,120,128,.34); }
+
+        #fp-progress::-moz-range-track{ background:rgba(120,120,128,.34); }
+
+    }

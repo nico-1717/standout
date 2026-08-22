@@ -3,14 +3,33 @@
 
 
 require_once 'config.php';
-
-
-
 require_once 'auth_check.php';
+$current_user_id = (int)$utente_corrente['id'];
+/* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
+$conn = sec_db();
 
+/* Cancella una partita e tutto quello che le appartiene. Una funzione sola per
+   l'endpoint AJAX e per il ripiego senza JavaScript: il codice era duplicato, e
+   due copie divergono al primo ritocco.
+   Ogni DELETE porta "user_id = ?" - anche nelle sottoquery, dove il controllo a
+   monte lo renderebbe superfluo: se un giorno quel controllo cambia, queste
+   restano al loro posto. */
+function fc_cancella_partita(int $delId, int $userId): bool {
+    if ($delId <= 0) return false;
+    if (!sec_one("SELECT id FROM games WHERE id = ? AND user_id = ?", [$delId, $userId])) return false;
 
-
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
+    sec_q("DELETE FROM game_fc_categories
+            WHERE game_id = ?
+               OR game_id IN (SELECT id FROM games WHERE parent_id = ? AND user_id = ?)",
+          [$delId, $delId, $userId]);
+    sec_q("DELETE FROM fc_gameplays
+            WHERE game_id = ?
+               OR game_id IN (SELECT id FROM games WHERE parent_id = ? AND user_id = ?)",
+          [$delId, $delId, $userId]);
+    sec_q("DELETE FROM games WHERE (id = ? OR parent_id = ?) AND user_id = ?",
+          [$delId, $delId, $userId]);
+    return true;
+}
 
 
 
@@ -39,37 +58,15 @@ $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 
 
 if (isset($_GET['ajax_delete'])) {
-
     header('Content-Type: application/json');
+    /* Token di sessione, origine e limite di frequenza: prima non c'erano, e
+       questo endpoint cancella. Con un GET bastava un tag immagine su un altro
+       sito per far sparire una partita dal browser di chi e' connesso. */
+    sec_guard_write($current_user_id, 'fc_history', 0, 60, 60);
 
-    $del_id = intval($_GET['ajax_delete']);
-
-    $ok = false;
-
-    if ($del_id > 0) {
-
-        $check = mysqli_query($conn, "SELECT user_id FROM games WHERE id = $del_id");
-
-        $checkRow = $check ? mysqli_fetch_assoc($check) : null;
-
-        if ($checkRow && intval($checkRow['user_id']) === $utente_corrente['id']) {
-
-            mysqli_query($conn, "DELETE FROM game_fc_categories WHERE game_id = $del_id OR game_id IN (SELECT id FROM games WHERE parent_id = $del_id)");
-
-            mysqli_query($conn, "DELETE FROM fc_gameplays WHERE game_id = $del_id OR game_id IN (SELECT id FROM games WHERE parent_id = $del_id)");
-
-            mysqli_query($conn, "DELETE FROM games WHERE id = $del_id OR parent_id = $del_id");
-
-            $ok = true;
-
-        }
-
-    }
-
+    $ok = fc_cancella_partita(sec_int($_GET['ajax_delete'] ?? 0, 1), $current_user_id);
     echo json_encode(['success' => $ok], JSON_UNESCAPED_UNICODE);
-
     exit();
-
 }
 
 
@@ -77,27 +74,10 @@ if (isset($_GET['ajax_delete'])) {
 /* Fallback senza JavaScript (link diretto, compatibilità) — stesso controllo di proprietà */
 
 if (isset($_GET['delete_id'])) {
-
-    $del_id = intval($_GET['delete_id']);
-
-    $check = mysqli_query($conn, "SELECT user_id FROM games WHERE id = $del_id");
-
-    $checkRow = $check ? mysqli_fetch_assoc($check) : null;
-
-    if ($checkRow && intval($checkRow['user_id']) === $utente_corrente['id']) {
-
-        mysqli_query($conn, "DELETE FROM game_fc_categories WHERE game_id = $del_id OR game_id IN (SELECT id FROM games WHERE parent_id = $del_id)");
-
-        mysqli_query($conn, "DELETE FROM fc_gameplays WHERE game_id = $del_id OR game_id IN (SELECT id FROM games WHERE parent_id = $del_id)");
-
-        mysqli_query($conn, "DELETE FROM games WHERE id = $del_id OR parent_id = $del_id");
-
-    }
-
+    sec_guard_write($current_user_id, 'fc_history', 0, 60, 60);
+    fc_cancella_partita(sec_int($_GET['delete_id'] ?? 0, 1), $current_user_id);
     header("Location: history_fc.php");
-
     exit();
-
 }
 
 
@@ -150,30 +130,18 @@ $selected_user_id = $utente_corrente['id'];
 
 
 
-function fc_build_rows($conn, $uid) {
-
+function fc_build_rows($uid) {
     $uid = intval($uid);
-
     $games = [];
-
     if ($uid > 0) {
-
-        // Eseguiamo una LEFT JOIN e raggruppiamo per id partita unendo i nomi delle materie con GROUP_CONCAT
-        $sql = "SELECT g.*, GROUP_CONCAT(fc.name SEPARATOR ', ') AS dynamic_category_name 
-                FROM games g 
-                LEFT JOIN game_fc_categories gfc ON g.id = gfc.game_id 
-                LEFT JOIN fc_categories fc ON gfc.fc_category_id = fc.id 
-                WHERE g.user_id = $uid AND g.type LIKE '%fc%' 
+        // LEFT JOIN e GROUP_CONCAT per unire i nomi delle materie in una riga sola
+        $games = sec_all("SELECT g.*, GROUP_CONCAT(fc.name SEPARATOR ', ') AS dynamic_category_name
+                FROM games g
+                LEFT JOIN game_fc_categories gfc ON g.id = gfc.game_id
+                LEFT JOIN fc_categories fc ON gfc.fc_category_id = fc.id
+                WHERE g.user_id = ? AND g.type LIKE '%fc%'
                 GROUP BY g.id
-                ORDER BY g.id DESC";
-        $q = mysqli_query($conn, $sql);
-
-        if ($q) {
-
-            while ($g = mysqli_fetch_assoc($q)) { $games[] = $g; }
-
-        }
-
+                ORDER BY g.id DESC", [$uid]);
     }
 
     if (empty($games)) return [];
@@ -184,19 +152,11 @@ function fc_build_rows($conn, $uid) {
 
     foreach ($games as $g) { $ids[] = intval($g['id']); }
 
-    $ids_list = implode(',', $ids);
-
-
-
+        $ph = implode(',', array_fill(0, count($ids), '?'));
     $played_map = [];
-
-    // Aggiornato con la tabella fc_gameplays e la colonna game_id
-    $q_played = mysqli_query($conn, "SELECT game_id, COUNT(DISTINCT position) as c FROM fc_gameplays WHERE game_id IN ($ids_list) GROUP BY game_id");
-
-    if ($q_played) {
-
-        while ($r = mysqli_fetch_assoc($q_played)) { $played_map[intval($r['game_id'])] = intval($r['c']); }
-
+    foreach (sec_all("SELECT game_id, COUNT(DISTINCT position) AS c FROM fc_gameplays
+                      WHERE game_id IN ($ph) GROUP BY game_id", $ids) as $r) {
+        $played_map[(int)$r['game_id']] = (int)$r['c'];
     }
 
 
@@ -238,7 +198,7 @@ function fc_build_rows($conn, $uid) {
         $type = (string)$g['type'];
 
         // Utilizziamo l'alias estratto dinamicamente dalla JOIN
-        $cat = (isset($g['dynamic_category_name']) && $g['dynamic_category_name'] !== null && $g['dynamic_category_name'] !== '') ? (string)$g['dynamic_category_name'] : 'Materia';
+        $cat = (isset($g['dynamic_category_name']) && $g['dynamic_category_name'] !== null && $g['dynamic_category_name'] !== '') ? (string)$g['dynamic_category_name'] : T('fc.materia');
 
         return [
 
@@ -328,7 +288,7 @@ if (isset($_GET['ajax_list'])) {
 
 
 
-    echo json_encode(['rows' => fc_build_rows($conn, $ajax_uid), 'user_id' => $ajax_uid], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['rows' => fc_build_rows($ajax_uid), 'user_id' => $ajax_uid], JSON_UNESCAPED_UNICODE);
 
 
 
@@ -344,7 +304,7 @@ if (isset($_GET['ajax_list'])) {
 
 
 
-$rows = fc_build_rows($conn, $selected_user_id);
+$rows = fc_build_rows($selected_user_id);
 
 
 
@@ -392,1267 +352,11 @@ $rows = fc_build_rows($conn, $selected_user_id);
 
 
 
-<title>Storico Materie - Flashcards</title>
+<title><?php te('fc.his_titolo'); ?></title>
 
 
 
-<style>
-
-
-
-/* ================================================================
-
-
-
-   DESIGN SYSTEM — stessi token di game_fc.php (iOS nativo, light+dark)
-
-
-
-   ================================================================ */
-
-
-
-:root{
-
-
-
-    color-scheme: light dark;
-
-
-
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-
-
-
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-
-
-
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-
-
-
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-
-
-
-    --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
-
-
-
-    --orange-soft:rgba(255,149,0,.14); --purple-soft:rgba(175,82,222,.12);
-
-
-
-    --header-glass:rgba(249,249,251,.82);
-
-
-
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-
-
-
-    --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
-
-
-
-    --pill-hl:inset 0 0 0 .5px var(--hairline);
-
-
-
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-
-
-
-    --r-chip:100px;
-
-
-
-    --spring:cubic-bezier(.32,.72,0,1);
-
-
-
-    --safe-top:env(safe-area-inset-top, 0px);
-
-
-
-    --safe-bottom:env(safe-area-inset-bottom, 0px);
-
-
-
-}
-
-
-
-@media (prefers-color-scheme: dark){
-
-
-
-    :root{
-
-
-
-        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-
-
-
-        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-
-
-
-        --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-
-
-
-        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-
-
-
-        --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17);
-
-
-
-        --orange-soft:rgba(255,159,10,.18); --purple-soft:rgba(191,90,242,.18);
-
-
-
-        --header-glass:rgba(16,16,18,.78);
-
-
-
-        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-
-
-
-        --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
-
-
-
-        --pill-hl:inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 .5px var(--hairline);
-
-
-
-        --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-
-
-
-    }
-
-
-
-}
-
-
-
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
-
-
-html{ -webkit-text-size-adjust:100%; }
-
-
-
-body{
-
-
-
-    margin:0; background:var(--bg); color:var(--text);
-
-
-
-    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-
-
-
-    font-size:16px; line-height:1.4;
-
-
-
-    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-
-
-
-}
-
-
-
-button, input, select{ font-family:inherit; }
-
-
-
-:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
-
-
-
-
-
-
-
-/* ================================================================
-
-
-
-   HEADER
-
-
-
-   ================================================================ */
-
-
-
-.fc-history{ max-width:640px; margin:0 auto; padding-bottom:calc(50px + var(--safe-bottom)); }
-
-
-
-.fh-header{
-
-
-
-    position:sticky; top:0; z-index:40;
-
-
-
-    padding:calc(var(--safe-top) + 16px) 16px 12px;
-
-
-
-    background:var(--header-glass);
-
-
-
-    -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px);
-
-
-
-    border-bottom:.5px solid var(--hairline);
-
-
-
-}
-
-
-
-.fh-title{ font-size:30px; font-weight:800; letter-spacing:-.03em; margin:0 0 14px; }
-
-
-
-.fh-toolbar{ display:flex; align-items:center; gap:10px; }
-
-
-
-
-
-
-
-.fh-user-pill{
-
-
-
-    flex:1; min-width:0; display:flex; align-items:center; gap:9px;
-
-
-
-    padding:7px 14px 7px 7px; border:none; border-radius:var(--r-chip); cursor:pointer;
-
-
-
-    background:var(--surface); color:var(--text);
-
-
-
-    box-shadow:var(--pill-hl), var(--raise-sm);
-
-
-
-    transition:transform .15s var(--spring), box-shadow .2s var(--spring);
-
-
-
-}
-
-
-
-.fh-user-pill:active{ transform:scale(.97); box-shadow:var(--pill-hl), inset 0 2px 6px rgba(0,0,0,.08); }
-
-
-
-.fh-user-avatar{
-
-
-
-    flex-shrink:0; width:32px; height:32px; border-radius:50%;
-
-
-
-    display:flex; align-items:center; justify-content:center;
-
-
-
-    font-size:13px; font-weight:800; color:#fff;
-
-
-
-    background:linear-gradient(160deg, var(--blue), color-mix(in srgb, var(--blue), #000 25%));
-
-
-
-}
-
-
-
-.fh-user-name{ flex:1; min-width:0; text-align:left; font-size:15px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-
-
-.fh-user-count{ flex-shrink:0; font-size:12px; font-weight:600; color:var(--text-2); }
-
-
-
-.fh-user-pill .chev{ flex-shrink:0; width:12px; height:12px; color:var(--text-3); }
-
-
-
-
-
-
-
-.fh-icon-btn{
-
-
-
-    position:relative; flex-shrink:0; width:42px; height:42px; border-radius:50%; border:none; cursor:pointer; padding:0;
-
-
-
-    background:var(--surface); color:var(--text);
-
-
-
-    display:flex; align-items:center; justify-content:center;
-
-
-
-    box-shadow:var(--pill-hl), var(--raise-sm);
-
-
-
-    transition:transform .15s var(--spring), box-shadow .2s var(--spring), color .2s;
-
-
-
-}
-
-
-
-.fh-icon-btn:active{ transform:scale(.88); box-shadow:var(--pill-hl), inset 0 2px 5px rgba(0,0,0,.1); }
-
-
-
-.fh-icon-btn svg{ width:19px; height:19px; }
-
-
-
-.fh-icon-btn.has-filters{ color:var(--blue); }
-
-
-
-.fh-badge{
-
-
-
-    position:absolute; top:-2px; right:-2px; min-width:16px; height:16px; padding:0 4px; border-radius:99px;
-
-
-
-    background:var(--red); color:#fff; font-size:10px; font-weight:800;
-
-
-
-    display:flex; align-items:center; justify-content:center;
-
-
-
-    box-shadow:0 0 0 2px var(--surface);
-
-
-
-}
-
-
-
-
-
-
-
-.fh-chips{ display:flex; flex-wrap:wrap; gap:7px; padding-top:12px; }
-
-
-
-.fh-chip{
-
-
-
-    display:inline-flex; align-items:center; gap:6px;
-
-
-
-    padding:6px 6px 6px 12px; border-radius:99px;
-
-
-
-    background:var(--blue-soft); color:var(--blue);
-
-
-
-    font-size:12.5px; font-weight:700;
-
-
-
-    animation:chipIn .3s var(--spring) both;
-
-
-
-}
-
-
-
-.fh-chip button{ display:flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:50%; border:none; background:rgba(10,132,255,.18); color:inherit; cursor:pointer; padding:0; }
-
-
-
-.fh-chip button svg{ width:9px; height:9px; }
-
-
-
-@keyframes chipIn{ from{ opacity:0; transform:scale(.8); } }
-
-
-
-
-
-
-
-/* ================================================================
-
-
-
-   NUOVA PARTITA — bottone hero
-
-
-
-   ================================================================ */
-
-
-
-.fh-new-btn{
-
-
-
-    display:flex; align-items:center; justify-content:center; gap:9px;
-
-
-
-    margin:18px 16px 4px; padding:16px; border:none; border-radius:18px; cursor:pointer;
-
-
-
-    font-size:16.5px; font-weight:800; letter-spacing:-.01em; color:#fff; text-decoration:none;
-
-
-
-    background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 18%), var(--blue) 55%, color-mix(in srgb, var(--blue), #000 8%));
-
-
-
-    box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 14px 30px -10px rgba(10,132,255,.5);
-
-
-
-    transition:transform .16s var(--spring), box-shadow .2s var(--spring), filter .2s;
-
-
-
-    animation:riseIn .5s var(--spring) both;
-
-
-
-}
-
-
-
-.fh-new-btn:active{ transform:translateY(1.5px) scale(.985); filter:brightness(.95); }
-
-
-
-.fh-new-btn svg{ width:19px; height:19px; }
-
-
-
-@keyframes riseIn{ from{ opacity:0; transform:translateY(10px) scale(.97); } }
-
-
-
-
-
-
-
-/* ================================================================
-
-
-
-   LISTA PARTITE
-
-
-
-   ================================================================ */
-
-
-
-.fh-list{ padding:10px 16px 8px; }
-
-
-
-.fh-item{ margin-bottom:12px; animation:cardIn .45s var(--spring) both; }
-
-
-
-@keyframes cardIn{ from{ opacity:0; transform:translateY(14px) scale(.98); } }
-
-
-
-
-
-
-
-.fh-swipe{ position:relative; border-radius:20px; overflow:hidden; }
-
-
-
-.fh-swipe-del{
-
-
-
-    position:absolute; inset:0 auto 0 0; width:88px; border:none; cursor:pointer; padding:0;
-
-
-
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
-
-
-
-    background:linear-gradient(160deg, var(--red), color-mix(in srgb, var(--red), #000 22%));
-
-
-
-    color:#fff;
-
-
-
-}
-
-
-
-.fh-swipe-del svg{ width:20px; height:20px; transition:transform .25s var(--spring); }
-
-
-
-.fh-swipe-del.armed svg{ transform:scale(1.18); }
-
-
-
-.fh-swipe-del span{ font-size:11px; font-weight:800; letter-spacing:.01em; }
-
-
-
-
-
-
-
-.fh-card{
-
-
-
-    position:relative; z-index:2; background:var(--surface); border-radius:20px;
-
-
-
-    padding:15px 16px 14px; border:.5px solid var(--hairline); box-shadow:var(--shadow-card);
-
-
-
-    touch-action:pan-y; -webkit-user-select:none; user-select:none; cursor:pointer;
-
-
-
-}
-
-
-
-.fh-card-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:9px; }
-
-
-
-.fh-date{ display:flex; align-items:baseline; gap:6px; }
-
-
-
-.fh-date .d-day{ font-size:15px; font-weight:800; color:var(--text); }
-
-
-
-.fh-date .d-time{ font-size:12.5px; font-weight:600; color:var(--text-2); }
-
-
-
-
-
-
-
-.fh-status{
-
-
-
-    display:inline-flex; align-items:center; padding:4px 10px; border-radius:var(--r-chip);
-
-
-
-    font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; flex-shrink:0;
-
-
-
-}
-
-
-
-.fh-status.ok{ background:var(--orange-soft); color:var(--orange); }
-
-
-
-.fh-status.new{ background:var(--green-soft); color:var(--green); }
-
-
-
-
-
-
-
-.fh-category{
-
-
-
-    font-size:17px; font-weight:700; letter-spacing:-.01em; color:var(--text); margin-bottom:13px;
-
-
-
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-
-
-
-}
-
-
-
-
-
-
-
-.fh-card-bottom{ display:flex; align-items:center; gap:12px; }
-
-
-
-.fh-progress{ flex:1; display:flex; align-items:center; gap:9px; min-width:0; }
-
-
-
-.fh-track{ flex:1; height:5px; border-radius:99px; background:var(--hairline); overflow:hidden; }
-
-
-
-.fh-fill{ height:100%; border-radius:99px; background:var(--blue); transition:width .6s var(--spring); }
-
-
-
-.fh-progress-label{ flex-shrink:0; font-size:12px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums; }
-
-
-
-.fh-score{
-
-
-
-    flex-shrink:0; font-size:13.5px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums;
-
-
-
-    padding:5px 10px; border-radius:10px; background:var(--surface-2);
-
-
-
-}
-
-
-
-
-
-
-
-.fh-retry-toggle{
-
-
-
-    display:flex; align-items:center; gap:6px; width:100%; margin-top:4px;
-
-
-
-    padding:9px 4px 2px; border:none; background:none; cursor:pointer;
-
-
-
-    font-size:12.5px; font-weight:700; color:var(--blue);
-
-
-
-}
-
-
-
-.fh-retry-toggle .chev{ width:12px; height:12px; transition:transform .3s var(--spring); }
-
-
-
-.fh-retry-toggle.expanded .chev{ transform:rotate(90deg); }
-
-
-
-
-
-
-
-.fh-retry-list{ max-height:0; overflow:hidden; transition:max-height .38s var(--spring); }
-
-
-
-.fh-retry-row{
-
-
-
-    display:flex; align-items:center; gap:10px; margin:8px 2px 0 2px; padding:10px 12px;
-
-
-
-    background:var(--surface-2); border-radius:13px; cursor:pointer;
-
-
-
-    transition:transform .15s var(--spring), background .2s;
-
-
-
-}
-
-
-
-.fh-retry-row:active{ transform:scale(.98); background:var(--hairline); }
-
-
-
-.fh-retry-row .r-badge{ flex-shrink:0; font-size:10px; font-weight:800; color:var(--purple); background:var(--purple-soft); padding:3px 7px; border-radius:8px; }
-
-
-
-.fh-retry-row .r-date{ flex:1; min-width:0; font-size:12.5px; font-weight:600; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-
-
-.fh-retry-row .r-progress{ flex-shrink:0; font-size:12px; font-weight:700; color:var(--text-2); }
-
-
-
-.fh-retry-row .r-score{ flex-shrink:0; font-size:12.5px; font-weight:800; color:var(--text); }
-
-
-
-
-
-
-
-/* Skeleton di caricamento */
-
-
-
-.fh-skel{ height:106px; border-radius:20px; margin-bottom:12px; border:.5px solid var(--hairline);
-
-
-
-    background:linear-gradient(100deg, var(--surface) 25%, var(--surface-2) 45%, var(--surface) 65%);
-
-
-
-    background-size:250% 100%; animation:skelShine 1.3s ease-in-out infinite; }
-
-
-
-@keyframes skelShine{ 0%{ background-position:180% 0; } 100%{ background-position:-80% 0; } }
-
-
-
-
-
-
-
-/* Stato vuoto */
-
-
-
-.fh-empty{ text-align:center; padding:64px 30px 40px; color:var(--text-2); }
-
-
-
-.fh-empty svg{ width:52px; height:52px; color:var(--text-3); margin-bottom:14px; }
-
-
-
-.fh-empty h3{ font-size:17px; font-weight:700; color:var(--text); margin:0 0 6px; }
-
-
-
-.fh-empty p{ font-size:14px; margin:0 0 18px; line-height:1.4; }
-
-
-
-.fh-empty button{ border:none; background:var(--blue-soft); color:var(--blue); font-weight:700; font-size:14px; padding:10px 18px; border-radius:99px; cursor:pointer; }
-
-
-
-
-
-
-
-/* ================================================================
-
-
-
-   SHEET (menu utente / filtri) — foglio iOS dal basso
-
-
-
-   ================================================================ */
-
-
-
-.fh-sheet-overlay{
-
-
-
-    position:fixed; inset:0; z-index:2000; display:flex; align-items:flex-end; justify-content:center;
-
-
-
-    background:rgba(0,0,0,0); pointer-events:none; transition:background .3s var(--spring);
-
-
-
-}
-
-
-
-.fh-sheet-overlay.open{ background:rgba(0,0,0,.42); pointer-events:auto; -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); }
-
-
-
-.fh-sheet{
-
-
-
-    width:100%; max-width:600px; max-height:82vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
-
-
-
-    background:var(--surface); color:var(--text); border-radius:24px 24px 0 0;
-
-
-
-    padding:10px 20px calc(24px + var(--safe-bottom));
-
-
-
-    box-shadow:0 -12px 50px rgba(0,0,0,.3);
-
-
-
-    transform:translateY(100%); transition:transform .42s var(--spring);
-
-
-
-}
-
-
-
-.fh-sheet-overlay.open .fh-sheet{ transform:translateY(0); }
-
-
-
-.fh-sheet-handle{ width:36px; height:5px; border-radius:99px; background:var(--hairline-2); margin:6px auto 14px; }
-
-
-
-.fh-sheet-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
-
-
-
-.fh-sheet-head h3{ font-size:18px; font-weight:800; margin:0; }
-
-
-
-.fh-sheet-done{ border:none; background:none; color:var(--blue); font-size:15.5px; font-weight:700; cursor:pointer; padding:4px 6px; }
-
-
-
-
-
-
-
-.fh-user-search{
-
-
-
-    width:100%; padding:11px 14px; margin-bottom:8px; border:none; border-radius:13px;
-
-
-
-    background:var(--surface-2); color:var(--text); font-size:15px;
-
-
-
-    box-shadow:inset 0 0 0 .5px var(--hairline);
-
-
-
-}
-
-
-
-.fh-user-row{
-
-
-
-    display:flex; align-items:center; gap:12px; padding:11px 6px; border-bottom:.5px solid var(--hairline);
-
-
-
-    cursor:pointer; transition:background .15s;
-
-
-
-}
-
-
-
-.fh-user-row:last-child{ border-bottom:none; }
-
-
-
-.fh-user-row:active{ background:var(--surface-2); }
-
-
-
-.fh-user-row .u-avatar{
-
-
-
-    width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-
-
-
-    font-size:14px; font-weight:800; color:#fff; flex-shrink:0;
-
-
-
-    background:linear-gradient(160deg, var(--purple), color-mix(in srgb, var(--purple), #000 25%));
-
-
-
-}
-
-
-
-.fh-user-row .u-name{ flex:1; font-size:15.5px; font-weight:600; }
-
-
-
-.fh-user-row .u-check{ width:20px; height:20px; color:var(--blue); flex-shrink:0; opacity:0; transform:scale(.6); transition:all .25s var(--spring); }
-
-
-
-.fh-user-row.selected .u-check{ opacity:1; transform:scale(1); }
-
-
-
-
-
-
-
-.fh-filter-field{ margin-bottom:20px; }
-
-
-
-.fh-filter-field label{ display:block; font-size:12.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--text-2); margin-bottom:9px; }
-
-
-
-.fh-segmented{ display:flex; background:var(--surface-2); border-radius:12px; padding:3px; gap:2px; }
-
-
-
-.fh-segmented button{ flex:1; border:none; background:none; padding:9px 4px; border-radius:9px; font-size:13px; font-weight:700; color:var(--text-2); cursor:pointer; transition:all .25s var(--spring); }
-
-
-
-.fh-segmented button.active{ background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.12); }
-
-
-
-.fh-select{
-
-
-
-    width:100%; padding:12px 36px 12px 14px; border:none; border-radius:13px; appearance:none; -webkit-appearance:none;
-
-
-
-    background-color:var(--surface-2); color:var(--text); font-size:15px; font-weight:600;
-
-
-
-    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A8A8E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-
-
-
-    background-repeat:no-repeat; background-position:right 14px center;
-
-
-
-}
-
-
-
-.fh-date-range{ display:flex; align-items:center; gap:10px; }
-
-
-
-.fh-date-range input[type="date"]{ flex:1; padding:11px 12px; border:none; border-radius:13px; background:var(--surface-2); color:var(--text); font-size:14.5px; }
-
-
-
-.fh-date-range span{ color:var(--text-3); font-weight:700; }
-
-
-
-.fh-range-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-
-
-
-.fh-range-row label{ margin:0; }
-
-
-
-.fh-range-val{ font-size:14px; font-weight:800; color:var(--blue); }
-
-
-
-input[type="range"]{ width:100%; -webkit-appearance:none; appearance:none; height:5px; border-radius:99px; background:var(--hairline); }
-
-
-
-input[type="range"]::-webkit-slider-thumb{ -webkit-appearance:none; width:24px; height:24px; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.3), 0 0 0 1px var(--hairline); cursor:pointer; }
-
-
-
-input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.3), 0 0 0 1px var(--hairline); cursor:pointer; }
-
-
-
-
-
-
-
-.fh-sheet-reset{ display:block; width:100%; text-align:center; margin-top:4px; padding:12px; border:none; background:none; color:var(--red); font-size:14.5px; font-weight:700; cursor:pointer; }
-
-
-
-.fh-sheet-reset:active{ opacity:.6; }
-
-
-
-
-
-
-
-/* ================================================================
-
-
-
-   ALERT — conferma eliminazione, stile iOS
-
-
-
-   ================================================================ */
-
-
-
-.fh-alert-overlay{
-
-
-
-    position:fixed; inset:0; z-index:3000; display:flex; align-items:center; justify-content:center; padding:32px;
-
-
-
-    background:rgba(0,0,0,0); pointer-events:none; transition:background .3s;
-
-
-
-}
-
-
-
-.fh-alert-overlay.open{ background:rgba(0,0,0,.4); pointer-events:auto; -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
-
-
-
-.fh-alert{
-
-
-
-    width:100%; max-width:290px; background:var(--surface); border-radius:20px; overflow:hidden; text-align:center;
-
-
-
-    transform:scale(.82); opacity:0; transition:transform .32s var(--spring), opacity .25s;
-
-
-
-    box-shadow:0 20px 60px rgba(0,0,0,.35);
-
-
-
-}
-
-
-
-.fh-alert-overlay.open .fh-alert{ transform:scale(1); opacity:1; }
-
-
-
-.fh-alert-icon{ width:44px; height:44px; margin:22px auto 8px; border-radius:50%; background:var(--red-soft); color:var(--red); display:flex; align-items:center; justify-content:center; }
-
-
-
-.fh-alert-icon svg{ width:22px; height:22px; }
-
-
-
-.fh-alert h4{ margin:0 18px 6px; font-size:16.5px; font-weight:800; color:var(--text); }
-
-
-
-.fh-alert p{ margin:0 18px 18px; font-size:13px; color:var(--text-2); line-height:1.42; }
-
-
-
-.fh-alert-actions{ display:flex; border-top:.5px solid var(--hairline); }
-
-
-
-.fh-alert-btn{ flex:1; padding:14px; border:none; background:none; font-size:16px; font-weight:600; color:var(--blue); cursor:pointer; }
-
-
-
-.fh-alert-actions .fh-alert-btn + .fh-alert-btn{ border-left:.5px solid var(--hairline); }
-
-
-
-.fh-alert-btn.destructive{ color:var(--red); font-weight:800; }
-
-
-
-.fh-alert-btn:active{ background:var(--surface-2); }
-
-
-
-
-
-
-
-/* ================================================================
-
-
-
-   TOAST
-
-
-
-   ================================================================ */
-
-
-
-.fh-toast{
-
-
-
-    position:fixed; left:50%; bottom:calc(26px + var(--safe-bottom)); transform:translateX(-50%) translateY(24px);
-
-
-
-    display:flex; align-items:center; gap:8px;
-
-
-
-    background:rgba(28,28,30,.94); color:#fff; padding:12px 18px; border-radius:14px;
-
-
-
-    font-size:13.5px; font-weight:700; box-shadow:0 12px 30px rgba(0,0,0,.35);
-
-
-
-    opacity:0; pointer-events:none; z-index:4000; transition:opacity .3s var(--spring), transform .3s var(--spring);
-
-
-
-    max-width:86vw;
-
-
-
-}
-
-
-
-.fh-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
-
-
-
-.fh-toast svg{ width:16px; height:16px; flex-shrink:0; color:#30D158; }
-
-
-
-
-
-
-
-@media (prefers-reduced-motion: reduce){
-
-
-
-    *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
-
-
-
-}
-
-
-
-</style>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>history_fc.css?v=<?php echo @filemtime(dirname(__FILE__) . '/history_fc.css') ?: 1; ?>">
 
 
 
@@ -1680,7 +384,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-        <h1 class="fh-title">Storico Materie</h1>
+        <h1 class="fh-title"><?php te('fc.his_storico'); ?></h1>
 
 
 
@@ -1696,7 +400,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-                <span class="fh-user-name" id="userPillName">Seleziona utente</span>
+                <span class="fh-user-name" id="userPillName"><?php te('fc.his_seleziona_utente'); ?></span>
 
 
 
@@ -1708,7 +412,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-            <button type="button" class="fh-icon-btn" id="filterBtn" aria-label="Filtri">
+            <button type="button" class="fh-icon-btn" id="filterBtn" aria-label="<?php te('fc.his_filtri'); ?>">
 
 
 
@@ -1748,7 +452,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-        Nuova Partita Materie
+        <?php te('fc.his_nuova_partita'); ?>
 
 
 
@@ -1792,11 +496,11 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-        <div class="fh-sheet-head"><h3>Seleziona utente</h3><button type="button" class="fh-sheet-done" id="userSheetDone">Fine</button></div>
+        <div class="fh-sheet-head"><h3><?php te('fc.his_seleziona_utente'); ?></h3><button type="button" class="fh-sheet-done" id="userSheetDone"><?php te('fc.his_fine'); ?></button></div>
 
 
 
-        <input type="text" class="fh-user-search" id="userSearch" placeholder="Cerca utente...">
+        <input type="text" class="fh-user-search" id="userSearch" placeholder="<?php te('fc.his_cerca_utente'); ?>">
 
 
 
@@ -1832,7 +536,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-        <div class="fh-sheet-head"><h3>Filtri</h3><button type="button" class="fh-sheet-done" id="filterSheetDone">Fine</button></div>
+        <div class="fh-sheet-head"><h3><?php te('fc.his_filtri'); ?></h3><button type="button" class="fh-sheet-done" id="filterSheetDone"><?php te('fc.his_fine'); ?></button></div>
 
 
 
@@ -1844,7 +548,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-            <label>Materia</label>
+            <label><?php te('fc.his_materia_def'); ?></label>
 
 
 
@@ -1856,7 +560,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-                $cs_placeholder = 'Tutte le materie';
+                $cs_placeholder = T('fc.cs_tutte_materie');
 
 
 
@@ -1864,7 +568,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-                $cs_all_option_label = 'Tutte le materie';
+                $cs_all_option_label = T('fc.cs_tutte_materie');
 
 
 
@@ -1890,7 +594,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-            <label>Stato</label>
+            <label><?php te('fc.his_stato'); ?></label>
 
 
 
@@ -1898,7 +602,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-                <button type="button" data-v="all" class="active">Tutti</button>
+                <button type="button" data-v="all" class="active"><?php te('fc.his_tutti'); ?></button>
 
 
 
@@ -1906,7 +610,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-                <button type="button" data-v="learnt">Imparato</button>
+                <button type="button" data-v="learnt"><?php te('fc.his_imparato'); ?></button>
 
 
 
@@ -1926,7 +630,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-            <label>Completamento</label>
+            <label><?php te('fc.his_completamento'); ?></label>
 
 
 
@@ -1934,15 +638,15 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-                <button type="button" data-v="all" class="active">Tutti</button>
+                <button type="button" data-v="all" class="active"><?php te('fc.his_tutti'); ?></button>
 
 
 
-                <button type="button" data-v="done">Completate</button>
+                <button type="button" data-v="done"><?php te('fc.his_completate'); ?></button>
 
 
 
-                <button type="button" data-v="inprogress">In corso</button>
+                <button type="button" data-v="inprogress"><?php te('fc.his_in_corso'); ?></button>
 
 
 
@@ -1962,7 +666,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-            <label>Periodo</label>
+            <label><?php te('fc.his_periodo'); ?></label>
 
 
 
@@ -1998,7 +702,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-            <div class="fh-range-row"><label>Punteggio minimo</label><span class="fh-range-val" id="scoreVal">0%</span></div>
+            <div class="fh-range-row"><label><?php te('fc.his_punteggio_min'); ?></label><span class="fh-range-val" id="scoreVal">0%</span></div>
 
 
 
@@ -2014,7 +718,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-        <button type="button" class="fh-sheet-reset" id="resetFiltersBtn">Reimposta tutti i filtri</button>
+        <button type="button" class="fh-sheet-reset" id="resetFiltersBtn"><?php te('fc.his_reimposta'); ?></button>
 
 
 
@@ -2046,11 +750,11 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-        <h4>Eliminare la partita?</h4>
+        <h4><?php te('fc.his_eliminare'); ?></h4>
 
 
 
-        <p>Verranno eliminati anche gli eventuali tentativi di retry collegati. L'azione non pu&ograve; essere annullata.</p>
+        <p><?php te('fc.his_eliminare_txt'); ?></p>
 
 
 
@@ -2058,11 +762,11 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
-            <button type="button" class="fh-alert-btn" id="cancelDeleteBtn">Annulla</button>
+            <button type="button" class="fh-alert-btn" id="cancelDeleteBtn"><?php te('comune.annulla'); ?></button>
 
 
 
-            <button type="button" class="fh-alert-btn destructive" id="confirmDeleteBtn">Elimina</button>
+            <button type="button" class="fh-alert-btn destructive" id="confirmDeleteBtn"><?php te('comune.elimina'); ?></button>
 
 
 
@@ -2090,6 +794,7 @@ input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; bor
 
 
 
+<?php echo nisama_i18n_json(['comune', 'fc', 'vocab']); ?>
 <script>
 
 
@@ -2390,7 +1095,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-            el.userList.innerHTML = '<p style="text-align:center;color:var(--text-2);font-size:14px;padding:20px 0;">Nessun utente trovato</p>';
+            el.userList.innerHTML = '<p style="text-align:center;color:var(--text-2);font-size:14px;padding:20px 0;">' + T('fc.his_nessun_utente') + '</p>';
 
 
 
@@ -2418,7 +1123,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-                '<span class="u-name">' + escapeHtml(u.username || ('Utente #' + u.id)) + '</span>' +
+                '<span class="u-name">' + escapeHtml(u.username || (T('fc.his_utente_n') + u.id)) + '</span>' +
 
 
 
@@ -2486,7 +1191,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-        var name = u ? (u.username || ('Utente #' + u.id)) : 'Seleziona utente';
+        var name = u ? (u.username || (T('fc.his_utente_n') + u.id)) : 'Seleziona utente';
 
 
 
@@ -2498,7 +1203,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-        el.userCount.textContent = state.rows.length ? (state.rows.length + (state.rows.length === 1 ? ' partita' : ' partite')) : '';
+        el.userCount.textContent = state.rows.length ? T(state.rows.length === 1 ? 'fc.his_n_partita' : 'fc.his_n_partite', {n: state.rows.length}) : '';
 
 
 
@@ -2562,7 +1267,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-                showToast('Errore di caricamento', false);
+                showToast(T('fc.his_errore_caricamento'), false);
 
 
 
@@ -2790,7 +1495,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-        if (window.csSetValue) window.csSetValue(CS_HISTORY_MODAL_ID, 0, 'Tutte le materie');
+        if (window.csSetValue) window.csSetValue(CS_HISTORY_MODAL_ID, 0, T('fc.cs_tutte_materie'));
 
 
 
@@ -2942,11 +1647,11 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-        if (f.status !== 'all') chips.push({ k: 'status', label: f.status === 'learnt' ? 'Imparato' : 'Da imparare' });
+        if (f.status !== 'all') chips.push({ k: 'status', label: f.status === 'learnt' ? T('fc.his_imparato') : 'Da imparare' });
 
 
 
-        if (f.progress !== 'all') chips.push({ k: 'progress', label: f.progress === 'done' ? 'Completate' : 'In corso' });
+        if (f.progress !== 'all') chips.push({ k: 'progress', label: f.progress === 'done' ? T('fc.his_completate') : T('fc.js_in_corso') });
 
 
 
@@ -2954,7 +1659,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-        if (f.minScore > 0) chips.push({ k: 'score', label: 'Min ' + f.minScore + '%' });
+        if (f.minScore > 0) chips.push({ k: 'score', label: T('fc.his_min') + f.minScore + '%' });
 
 
 
@@ -2970,7 +1675,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-                '<button type="button" aria-label="Rimuovi filtro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></span>';
+                '<button type="button" aria-label="<?php te('fc.his_rimuovi_filtro'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></span>';
 
 
 
@@ -3110,11 +1815,11 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-               '<h3>Nessun risultato</h3><p>Nessuna partita corrisponde ai filtri selezionati.</p>' +
+               '<h3>' + T('comune.nessun_risultato') + '</h3><p>' + T('fc.his_nessun_match') + '</p>' +
 
 
 
-               '<button type="button" id="emptyResetBtn">Reimposta filtri</button>')
+               '<button type="button" id="emptyResetBtn">' + T('fc.his_reimposta_filtri') + '</button>')
 
 
 
@@ -3122,7 +1827,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-               '<h3>Nessuna partita</h3><p>Questo utente non ha ancora giocato a Materie.</p>');
+               '<h3>' + T('fc.his_nessuna_partita') + '</h3><p>' + T('fc.his_mai_giocato') + '</p>');
 
 
 
@@ -3186,7 +1891,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-        var statusLabel = row.learnt ? 'Imparato' : 'Da imparare';
+        var statusLabel = row.learnt ? T('fc.his_imparato') : 'Da imparare';
 
 
 
@@ -3210,7 +1915,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-                '<span>' + row.children.length + (row.children.length === 1 ? ' tentativo di retry' : ' tentativi di retry') + '</span>' +
+                '<span>' + T(row.children.length === 1 ? 'fc.his_n_retry' : 'fc.his_n_retry_plur', {n: row.children.length}) + '</span>' +
 
 
 
@@ -3282,7 +1987,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-                    '<span>Elimina</span>' +
+                    '<span><?php te('comune.elimina'); ?></span>' +
 
 
 
@@ -3890,7 +2595,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-                    showToast('Partita eliminata');
+                    showToast(T('fc.his_partita_eliminata'));
 
 
 
@@ -3898,7 +2603,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-                    showToast('Impossibile eliminare la partita', false);
+                    showToast(T('fc.his_no_elimina'), false);
 
 
 
@@ -3918,7 +2623,7 @@ const FC_SELECTED_USER = <?php echo json_encode($selected_user_id); ?>;
 
 
 
-                showToast('Errore di rete', false);
+                showToast(T('vocab.vi_errore_rete'), false);
 
 
 

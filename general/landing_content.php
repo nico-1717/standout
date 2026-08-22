@@ -1,892 +1,3 @@
-<style>
-
-
-
-.nisama-landing {
-
-
-
---ink-950: #12131A;
-
-
-
---ink-900: #1B1D28;
-
-
-
---ink-800: #262838;
-
-
-
---ink-line: rgba(245,243,238,0.1);
-
-
-
---paper: #FBF7EE;
-
-
-
---paper-line: #E4DCC8;
-
-
-
---text: #F5F3EE;
-
-
-
---text-soft: #A9ACC0;
-
-
-
---hl-blue: #5B8DEF;
-
-
-
---hl-coral: #FF6B5E;
-
-
-
---hl-green: #4CC38A;
-
-
-
---hl-purple: #A78BFA;
-
-
-
---hl-yellow: #FFC94D;
-
-
-
---hl-orange: #FF9F5B;
-
-
-
---hl-gray: #9A9FB0;
-
-
-
---font-display: 'Fraunces', serif;
-
-
-
---font-body: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
-
-
-
---font-mono: 'IBM Plex Mono', monospace;
-
-
-
-
-
-
-
-background: var(--ink-950);
-
-
-
-color: var(--text);
-
-
-
-font-family: var(--font-body);
-
-
-
-overflow-x: hidden;
-
-
-
-}
-
-
-
-.nisama-landing * { box-sizing: border-box; }
-
-
-
-.nisama-landing .reveal { opacity: 0; transform: translateY(28px); transition: opacity .7s ease, transform .7s cubic-bezier(.22,1,.36,1); }
-
-
-
-.nisama-landing .reveal.revealed { opacity: 1; transform: translateY(0); }
-
-
-
-
-
-
-
-.nl-hl { padding: 0.02em 0.3em; border-radius: 5px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
-
-
-
-.nl-hl--blue { background: rgba(91,141,239,0.28); color: #DCE7FF; }
-
-
-
-.nl-hl--coral { background: rgba(255,107,94,0.28); color: #FFDAD5; }
-
-
-
-.nl-hl--green { background: rgba(76,195,138,0.28); color: #D6F5E7; }
-
-
-
-.nl-hl--purple { background: rgba(167,139,250,0.3); color: #EAE1FF; }
-
-
-
-.nl-hl--yellow { background: rgba(255,201,77,0.32); color: #FFF3D6; }
-
-
-
-
-
-
-
-/* ---------- HERO ---------- */
-
-
-
-.nl-hero {
-
-
-
-min-height: 92vh;
-
-
-
-display: flex; flex-wrap: wrap; align-items: center; gap: 48px;
-
-
-
-padding: 120px 8vw 80px;
-
-
-
-}
-
-
-
-.nl-hero-inner { flex: 1 1 420px; max-width: 560px; }
-
-
-
-.nl-eyebrow {
-
-
-
-font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.18em;
-
-
-
-color: var(--hl-yellow); text-transform: uppercase; margin-bottom: 22px; font-weight: 500;
-
-
-
-}
-
-
-
-.nl-hero-title {
-
-
-
-font-family: var(--font-display); font-weight: 600; font-optical-sizing: auto;
-
-
-
-font-size: clamp(38px, 6vw, 68px); line-height: 1.05; margin: 0 0 22px; letter-spacing: -0.01em;
-
-
-
-}
-
-
-
-.nl-hero-sub { font-size: 17px; line-height: 1.6; color: var(--text-soft); max-width: 460px; margin: 0 0 34px; }
-
-
-
-.nl-hero-cta { display: flex; gap: 14px; flex-wrap: wrap; }
-
-
-
-
-
-
-
-.nl-btn {
-
-
-
-font-family: var(--font-body); font-weight: 700; font-size: 15px; text-decoration: none;
-
-
-
-padding: 14px 26px; border-radius: 999px; border: none; cursor: pointer;
-
-
-
-display: inline-flex; align-items: center; gap: 8px;
-
-
-
-transition: transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s ease, background .2s ease;
-
-
-
-}
-
-
-
-.nl-btn--primary { background: var(--text); color: var(--ink-950); box-shadow: 0 10px 30px rgba(245,243,238,0.18); }
-
-
-
-.nl-btn--primary:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(245,243,238,0.26); }
-
-
-
-.nl-btn--ghost { background: transparent; color: var(--text); border: 1.5px solid var(--ink-line); }
-
-
-
-.nl-btn--ghost:hover { background: rgba(245,243,238,0.06); }
-
-
-
-
-
-
-
-.nl-hero-card-wrap { flex: 1 1 320px; display: flex; justify-content: center; }
-
-
-
-.nl-flipcard {
-
-
-
-width: min(360px, 86vw); height: 260px; perspective: 1400px; cursor: pointer; outline: none;
-
-
-
-}
-
-
-
-.nl-flipcard-inner {
-
-
-
-position: relative; width: 100%; height: 100%; transform-style: preserve-3d;
-
-
-
-transition: transform .9s cubic-bezier(.34,1.2,.4,1);
-
-
-
-}
-
-
-
-.nl-flipcard.is-flipped .nl-flipcard-inner { transform: rotateY(180deg); }
-
-
-
-.nl-flipcard-face {
-
-
-
-position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
-
-
-
-background: var(--paper); color: #26241C; border-radius: 20px; padding: 30px;
-
-
-
-display: flex; flex-direction: column; justify-content: center;
-
-
-
-box-shadow: 0 30px 70px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.4) inset;
-
-
-
-border: 1px solid var(--paper-line);
-
-
-
-}
-
-
-
-.nl-flipcard-back { transform: rotateY(180deg); }
-
-
-
-.nl-flipcard-label {
-
-
-
-font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; color: #A69A78;
-
-
-
-margin-bottom: 14px; text-transform: uppercase;
-
-
-
-}
-
-
-
-.nl-flipcard-face p { font-family: var(--font-display); font-size: 21px; line-height: 1.4; margin: 0; }
-
-
-
-.nl-flipcard-hint { margin-top: auto; font-size: 12px; color: #A69A78; font-family: var(--font-mono); padding-top: 16px; }
-
-
-
-
-
-
-
-/* ---------- SEZIONI GENERICHE ---------- */
-
-
-
-.nl-section { padding: 110px 8vw; max-width: 1040px; margin: 0 auto; }
-
-
-
-.nl-section--alt { background: var(--ink-900); max-width: none; }
-
-
-
-.nl-section--alt > * { max-width: 1040px; margin-left: auto; margin-right: auto; }
-
-
-
-.nl-eyebrow-num {
-
-
-
-font-family: var(--font-mono); font-size: 12.5px; letter-spacing: 0.14em; text-transform: uppercase;
-
-
-
-color: var(--hl-blue); margin-bottom: 18px;
-
-
-
-}
-
-
-
-.nl-h2 { font-family: var(--font-display); font-weight: 600; font-size: clamp(28px, 4vw, 42px); line-height: 1.18; margin: 0 0 24px; max-width: 720px; }
-
-
-
-.nl-p { font-size: 16.5px; line-height: 1.7; color: var(--text-soft); max-width: 640px; margin: 0 0 40px; }
-
-
-
-
-
-
-
-/* ---------- GRAFICO ---------- */
-
-
-
-.nl-chart-wrap { background: var(--ink-800); border: 1px solid var(--ink-line); border-radius: 20px; padding: 28px clamp(12px,3vw,32px) 20px; }
-
-
-
-.nl-chart { width: 100%; height: auto; display: block; }
-
-
-
-.nl-chart-path { fill: none; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
-
-
-
-.nl-chart-legend { display: flex; gap: 26px; flex-wrap: wrap; margin-top: 18px; font-size: 13.5px; color: var(--text-soft); font-family: var(--font-mono); }
-
-
-
-.nl-chart-legend span { display: flex; align-items: center; gap: 8px; }
-
-
-
-.nl-chart-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
-
-
-
-
-
-
-
-/* ---------- CONFRONTO ---------- */
-
-
-
-.nl-compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 22px; }
-
-
-
-.nl-compare-card { background: var(--ink-800); border: 1px solid var(--ink-line); border-radius: 20px; padding: 30px; }
-
-
-
-.nl-compare-card--active { border-color: rgba(76,195,138,0.4); background: linear-gradient(160deg, rgba(76,195,138,0.1), var(--ink-800) 60%); }
-
-
-
-.nl-compare-tag { display: inline-block; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 12px; border-radius: 999px; margin-bottom: 18px; }
-
-
-
-.nl-compare-tag--passive { background: rgba(255,107,94,0.18); color: #FFB3AA; }
-
-
-
-.nl-compare-tag--active { background: rgba(76,195,138,0.22); color: #9EEBC5; }
-
-
-
-.nl-compare-card ul { margin: 0 0 20px; padding: 0 0 0 20px; color: var(--text-soft); line-height: 1.9; font-size: 15px; }
-
-
-
-.nl-compare-result { font-weight: 700; font-size: 14.5px; padding-top: 16px; border-top: 1px solid var(--ink-line); }
-
-
-
-
-
-
-
-/* ---------- CITAZIONI (in disuso, sostituite da .nl-story e .nl-study-*) ---------- */
-
-
-
-.nl-quotes { display: flex; flex-direction: column; gap: 56px; max-width: 680px; margin: 0 auto; }
-
-
-
-.nl-quote p { font-family: var(--font-display); font-size: clamp(22px, 3vw, 30px); line-height: 1.5; margin: 0 0 14px; font-weight: 500; }
-
-
-
-.nl-quote cite { font-family: var(--font-mono); font-style: normal; font-size: 13px; color: var(--text-soft); }
-
-
-
-
-
-
-
-/* ---------- STORIA ANIMATA ---------- */
-
-
-
-.nl-story { position: relative; height: 550vh; }
-
-
-
-.nl-story-pin { position: sticky; top: 0; height: 100vh; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-
-
-
-.nl-story-eyebrow { position: absolute; top: 7%; left: 50%; transform: translateX(-50%); white-space: nowrap; z-index: 4; }
-
-
-
-
-
-
-
-/* Contenitori base (Desktop) */
-
-
-
-.nl-story-head, .nl-story-cards {
-
-
-
-position: absolute;
-
-
-
-top: 50%;
-
-
-
-left: 50%;
-
-
-
-width: min(85vw, 800px);
-
-
-
-aspect-ratio: 1.83 / 1;
-
-
-
-transform: translate(-50%, -50%);
-
-
-
-}
-
-
-
-.nl-story-head { z-index: 1; opacity: 0; pointer-events: none; }
-
-
-
-.nl-story-cards { z-index: 2; pointer-events: none; perspective: 900px; }
-
-
-
-
-
-
-
-/* Carte base (Desktop) */
-
-
-
-.nl-story-card {
-
-
-
-position: absolute;
-
-
-
-width: clamp(4px, 0.8vw, 10px);
-
-
-
-height: clamp(6px, 1.2vw, 14px);
-
-
-
-background: var(--paper);
-
-
-
-border-radius: 1px;
-
-
-
-box-shadow: 0 2px 4px rgba(255,255,255,0.1);
-
-
-
-will-change: left, top, transform, opacity;
-
-
-
-}
-
-
-
-
-
-
-
-/* ➔ DISTINZIONE MOBILE: Testa gigante, carte corrette */
-
-
-
-@media (max-width: 640px) {
-
-
-
-.nl-story-head, .nl-story-cards {
-
-
-
-width: 140vw;
-
-
-
-max-width: none;
-
-
-
-}
-
-
-
-.nl-story-card {
-
-
-
-/* Carte più grandi su smartphone per formare bene le figure */
-
-
-
-width: 7px !important;
-
-
-
-height: 10px !important;
-
-
-
-box-shadow: none !important;
-
-
-
-}
-
-
-
-}
-
-
-
-
-
-
-
-/* Gestione Testi */
-
-
-
-.nl-story-text { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-
-
-
-.nl-story-step { position: absolute; width: min(85vw, 680px); text-align: center; opacity: 0; transform: translateY(30px); }
-
-
-
-.nl-story-step h2, .nl-story-step p { width: 100%; }
-
-
-
-.nl-story-stat { font-family: var(--font-display); font-size: clamp(17px, 2.6vw, 26px); line-height: 1.55; font-weight: 500; }
-
-
-
-
-
-
-
-/* Frase Finale posizionata in basso */
-
-
-
-/* Su PC la teniamo molto più in basso (5vh) per non sovrapporsi all'immagine */
-
-
-
-.nl-story-step[data-step="2"] { top: auto; bottom: 5vh; }
-
-
-
-.nl-story-step[data-step="2"] h2 { font-family: var(--font-display); font-weight: 600; font-size: clamp(28px, 5vw, 44px); line-height: 1.2; }
-
-
-
-
-
-
-
-/* Su iPhone la scritta finale era perfetta, la rimettiamo a 12vh */
-
-
-
-@media (max-width: 640px) {
-
-
-
-.nl-story-step[data-step="2"] { bottom: 12vh; }
-
-
-
-}
-
-
-
-
-
-
-
-/* ---------- GLI STUDI ---------- */
-
-
-
-.nl-study-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:20px; margin-top:36px; }
-
-
-
-.nl-study-card{ background:var(--ink-800); border:1px solid var(--ink-line); border-radius:20px; padding:28px; }
-
-
-
-.nl-study-fig{ font-family:var(--font-display); font-size:28px; font-weight:600; color:var(--hl-yellow); margin-bottom:14px; }
-
-
-
-.nl-study-fig span{ font-size:15px; color:var(--text-soft); font-weight:400; }
-
-
-
-.nl-study-card p{ font-size:14.5px; line-height:1.7; color:var(--text-soft); margin:0; }
-
-
-
-.nl-study-card strong{ color:var(--text); }
-
-
-
-.nl-study-note{ margin-top:24px; font-size:12px; color:var(--text-soft); font-family:var(--font-mono); opacity:.75; }
-
-
-
-
-
-
-
-/* ---------- FEATURES ---------- */
-
-
-
-.nl-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
-
-
-
-.nl-feature { background: var(--ink-800); border: 1px solid var(--ink-line); border-radius: 18px; padding: 26px; }
-
-
-
-.nl-feature-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-bottom: 18px; color: #16171F; }
-
-
-
-.nl-feature h3 { font-family: var(--font-body); font-size: 16.5px; font-weight: 800; margin: 0 0 10px; }
-
-
-
-.nl-feature p { font-size: 14.5px; line-height: 1.65; color: var(--text-soft); margin: 0; }
-
-
-
-.nl-soon { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; background: var(--hl-orange); color: #16171F; padding: 3px 8px; border-radius: 999px; margin-left: 8px; vertical-align: middle; }
-
-
-
-
-
-
-
-/* ---------- CTA FINALE ---------- */
-
-
-
-.nl-final-cta { text-align: center; padding: 130px 8vw; max-width: 720px; margin: 0 auto; }
-
-
-
-.nl-final-cta h2 { font-family: var(--font-display); font-size: clamp(28px, 5vw, 44px); font-weight: 600; margin: 0 0 34px; line-height: 1.2; }
-
-
-
-
-
-
-
-.nl-footer { text-align: center; padding: 40px 8vw 60px; color: var(--text-soft); font-size: 13.5px; }
-
-
-
-.nl-footer span { font-weight: 800; color: var(--text); }
-
-
-
-
-
-
-
-@media (max-width: 640px) {
-
-
-
-.nl-hero { padding: 100px 6vw 60px; min-height: auto; }
-
-
-
-.nl-section { padding: 80px 6vw; }
-
-
-
-.nl-section--alt > * { padding-left: 0; padding-right: 0; }
-
-
-
-.nl-story { height: 560vh; }
-
-
-
-.nl-story-card { width: 24px; height: 17px; margin: -8px 0 0 -12px; }
-
-
-
-}
-
-
-
-@media (prefers-reduced-motion: reduce) {
-
-
-
-.nisama-landing .reveal { transition: none; opacity: 1; transform: none; }
-
-
-
-.nl-flipcard-inner { transition: none; }
-
-
-
-.nl-story { height: auto; }
-
-
-
-.nl-story-pin { position: relative; height: auto; padding: 80px 0; }
-
-
-
-.nl-story-cards { display: none; }
-
-
-
-.nl-story-head { display: none; }
-
-
-
-.nl-story-step { position: relative; opacity: 1; margin-bottom: 40px; }
-
-
-
-}
-
-
-
-</style>
 
 
 
@@ -910,15 +21,15 @@ box-shadow: none !important;
 
 
 
-<div class="nl-eyebrow">Nisama · studio attivo, non passivo</div>
+<div class="nl-eyebrow"><?php te('landing.nisama_studio_attivo_non_passivo'); ?></div>
 
 
 
-<h1 class="nl-hero-title">Gira la carta.<br>Non il libro.</h1>
+<h1 class="nl-hero-title"><?php te('landing.gira_la_carta'); ?><br><?php te('landing.non_il_libro'); ?></h1>
 
 
 
-<p class="nl-hero-sub">Flashcard spiegate da un tutor IA con voce vera, che si adattano a quanto tempo — e quanta energia — hai oggi. Inglese, o qualunque materia tu stia preparando.</p>
+<p class="nl-hero-sub"><?php te('landing.flashcard_spiegate_da_un_tutor'); ?></p>
 
 
 
@@ -926,11 +37,11 @@ box-shadow: none !important;
 
 
 
-<button class="nl-btn nl-btn--primary" onclick="window.NisamaAuth && NisamaAuth.apriRegistrazione()">Inizia gratis</button>
+<button class="nl-btn nl-btn--primary" onclick="window.NisamaAuth && NisamaAuth.apriRegistrazione()"><?php te('landing.inizia_gratis'); ?></button>
 
 
 
-<a href="#nl-come-funziona" class="nl-btn nl-btn--ghost">Scopri come funziona</a>
+<a href="#nl-come-funziona" class="nl-btn nl-btn--ghost"><?php te('landing.scopri_come_funziona'); ?></a>
 
 
 
@@ -946,7 +57,7 @@ box-shadow: none !important;
 
 
 
-<div class="nl-flipcard" id="nlFlipCard" tabindex="0" role="button" aria-label="Tocca per girare la scheda">
+<div class="nl-flipcard" id="nlFlipCard" tabindex="0" role="button" aria-label="<?php te('landing.tocca_per_girare_la_scheda'); ?>">
 
 
 
@@ -958,15 +69,15 @@ box-shadow: none !important;
 
 
 
-<span class="nl-flipcard-label">Domanda</span>
+<span class="nl-flipcard-label"><?php te('landing.domanda'); ?></span>
 
 
 
-<p>Qual è il present perfect di <em>to go</em>?</p>
+<p><?php te('landing.qual_e_il_present_perfect'); ?> <em><?php te('landing.to_go'); ?></em>?</p>
 
 
 
-<span class="nl-flipcard-hint">Tocca per girare ↷</span>
+<span class="nl-flipcard-hint"><?php te('landing.tocca_per_girare'); ?></span>
 
 
 
@@ -978,11 +89,11 @@ box-shadow: none !important;
 
 
 
-<span class="nl-flipcard-label">Risposta</span>
+<span class="nl-flipcard-label"><?php te('landing.risposta'); ?></span>
 
 
 
-<p data-nisama-tags>/blue{Have/Has} + /bold{gone}. Si usa per un'azione passata con un effetto ancora presente oggi.</p>
+<p data-nisama-tags><?php te('landing.blue_have_has_bold_gone'); ?></p>
 
 
 
@@ -1018,7 +129,7 @@ box-shadow: none !important;
 
 
 
-<div class="nl-eyebrow-num nl-story-eyebrow">01 — La scienza</div>
+<div class="nl-eyebrow-num nl-story-eyebrow"><?php te('landing.01_la_scienza'); ?></div>
 
 
 
@@ -1070,22 +181,22 @@ box-shadow: none !important;
 
 
 <div class="nl-story-step" data-step="0">
-          <h2 class="nl-h2" style="margin:0 auto;">Il tuo cervello dimentica per design.<br>Le flashcard lo sfruttano.</h2>
-          <p class="nl-p" style="margin:16px auto 0;">Nel 1885 lo psicologo Hermann Ebbinghaus descrisse la "curva dell'oblio": senza un richiamo attivo, la memoria di ciò che abbiamo appena imparato crolla molto in fretta.</p>
+          <h2 class="nl-h2" style="margin:0 auto;"><?php te('landing.il_tuo_cervello_dimentica_per'); ?><br><?php te('landing.le_flashcard_lo_sfruttano'); ?></h2>
+          <p class="nl-p" style="margin:16px auto 0;"><?php te('landing.nel_1885_lo_psicologo_hermann'); ?></p>
           
           <div class="nl-chart-wrap" style="margin-top: 24px; max-width: 600px; width: 100%; margin-left: auto; margin-right: auto; padding: 20px;">
             <svg viewBox="0 0 600 260" class="nl-chart" id="nlChart" preserveAspectRatio="xMidYMid meet">
               <line x1="40" y1="230" x2="580" y2="230" stroke="rgba(245,243,238,0.15)" stroke-width="1"/>
               <line x1="40" y1="20" x2="40" y2="230" stroke="rgba(245,243,238,0.15)" stroke-width="1"/>
-              <text x="40" y="248" fill="#A9ACC0" font-family="IBM Plex Mono, monospace" font-size="11">Giorno 0</text>
-              <text x="500" y="248" fill="#A9ACC0" font-family="IBM Plex Mono, monospace" font-size="11">Giorno 30</text>
+              <text x="40" y="248" fill="#A9ACC0" font-family="IBM Plex Mono, monospace" font-size="11"><?php te('landing.giorno_0'); ?></text>
+              <text x="500" y="248" fill="#A9ACC0" font-family="IBM Plex Mono, monospace" font-size="11"><?php te('landing.giorno_30'); ?></text>
               <text x="8" y="28" fill="#A9ACC0" font-family="IBM Plex Mono, monospace" font-size="11">100%</text>
               <path class="nl-chart-path" id="nlPathPassive" stroke="#FF6B5E" d="M40,30 Q80,90 120,140 Q160,175 220,196 Q280,210 340,217 Q420,223 500,226 Q540,227 560,228"/>
               <path class="nl-chart-path" id="nlPathActive" stroke="#4CC38A" d="M40,30 Q75,52 110,80 L120,42 Q160,58 200,75 L210,40 Q250,54 290,68 L300,38 Q340,50 380,62 L390,37 Q430,47 470,58 L480,36 Q510,44 560,50"/>
             </svg>
             <div class="nl-chart-legend" style="justify-content: center; margin-top: 14px;">
-              <span><i style="background:#FF6B5E"></i> Solo rilettura passiva</span>
-              <span><i style="background:#4CC38A"></i> Richiamo attivo dilazionato</span>
+              <span><i style="background:#FF6B5E"></i> <?php te('landing.solo_rilettura_passiva'); ?></span>
+              <span><i style="background:#4CC38A"></i> <?php te('landing.richiamo_attivo_dilazionato'); ?></span>
             </div>
           </div>
           </div>
@@ -1100,7 +211,12 @@ box-shadow: none !important;
 
 
 
-<p class="nl-story-stat">In uno studio di Roediger e Karpicke, chi si era limitato a <span class="nl-hl nl-hl--coral">rileggere</span> il materiale, due giorni dopo aveva dimenticato il <strong>56%</strong> di ciò che sapeva. Chi invece si era <span class="nl-hl nl-hl--green">testato attivamente</span> ne aveva perso solo il <strong>13%</strong>.</p>
+<p class="nl-story-stat"><?php th('landing.studio_roediger', [
+      'rileggere' => '<span class="nl-hl nl-hl--coral">' . t('landing.rileggere') . '</span>',
+      'testato'   => '<span class="nl-hl nl-hl--green">' . t('landing.testato_attivamente') . '</span>',
+      'perso1'    => '<strong>56%</strong>',
+      'perso2'    => '<strong>13%</strong>',
+  ]); ?></p>
 
 
 
@@ -1116,7 +232,7 @@ box-shadow: none !important;
 
 
 
-<h2>Non un ripasso.<br>Una memoria d'acciaio.</h2>
+<h2><?php te('landing.non_un_ripasso'); ?><br><?php te('landing.una_memoria_d_acciaio'); ?></h2>
 
 
 
@@ -1144,11 +260,11 @@ box-shadow: none !important;
 
 
 
-<div class="nl-eyebrow-num reveal">02 — Il confronto</div>
+<div class="nl-eyebrow-num reveal"><?php te('landing.02_il_confronto'); ?></div>
 
 
 
-<h2 class="nl-h2 reveal">Rileggere ti fa sentire preparato.<br>Recuperare ti prepara davvero.</h2>
+<h2 class="nl-h2 reveal"><?php te('landing.rileggere_ti_fa_sentire_preparato'); ?><br><?php te('landing.recuperare_ti_prepara_davvero'); ?></h2>
 
 
 
@@ -1160,7 +276,7 @@ box-shadow: none !important;
 
 
 
-<div class="nl-compare-tag nl-compare-tag--passive">Studio passivo</div>
+<div class="nl-compare-tag nl-compare-tag--passive"><?php te('landing.studio_passivo'); ?></div>
 
 
 
@@ -1168,15 +284,15 @@ box-shadow: none !important;
 
 
 
-<li>Rileggere appunti e slide</li>
+<li><?php te('landing.rileggere_appunti_e_slide'); ?></li>
 
 
 
-<li>Sottolineare il libro</li>
+<li><?php te('landing.sottolineare_il_libro'); ?></li>
 
 
 
-<li>Ascoltare una spiegazione senza fermarti a ripeterla</li>
+<li><?php te('landing.ascoltare_una_spiegazione_senza_fermarti'); ?></li>
 
 
 
@@ -1184,7 +300,7 @@ box-shadow: none !important;
 
 
 
-<div class="nl-compare-result">Sensazione di sapere — che dura poco</div>
+<div class="nl-compare-result"><?php te('landing.sensazione_di_sapere_che_dura'); ?></div>
 
 
 
@@ -1196,7 +312,7 @@ box-shadow: none !important;
 
 
 
-<div class="nl-compare-tag nl-compare-tag--active">Studio attivo</div>
+<div class="nl-compare-tag nl-compare-tag--active"><?php te('landing.studio_attivo'); ?></div>
 
 
 
@@ -1204,15 +320,15 @@ box-shadow: none !important;
 
 
 
-<li>Rispondere prima di guardare la soluzione</li>
+<li><?php te('landing.rispondere_prima_di_guardare_la'); ?></li>
 
 
 
-<li>Spiegarlo ad alta voce, con parole tue</li>
+<li><?php te('landing.spiegarlo_ad_alta_voce_con'); ?></li>
 
 
 
-<li>Rivedere la scheda proprio quando stavi per dimenticarla</li>
+<li><?php te('landing.rivedere_la_scheda_proprio_quando'); ?></li>
 
 
 
@@ -1220,7 +336,7 @@ box-shadow: none !important;
 
 
 
-<div class="nl-compare-result">Sapere vero — che resta nel tempo</div>
+<div class="nl-compare-result"><?php te('landing.sapere_vero_che_resta_nel'); ?></div>
 
 
 
@@ -1244,15 +360,15 @@ box-shadow: none !important;
 
 
 
-<div class="nl-eyebrow-num reveal">Gli studi</div>
+<div class="nl-eyebrow-num reveal"><?php te('landing.gli_studi'); ?></div>
 
 
 
-<h2 class="nl-h2 reveal">Non è una sensazione. È misurato.</h2>
+<h2 class="nl-h2 reveal"><?php te('landing.non_e_una_sensazione_e'); ?></h2>
 
 
 
-<p class="nl-p reveal">Negli ultimi cinquant'anni la psicologia cognitiva ha confrontato decine di tecniche di studio, in centinaia di esperimenti. Il risultato è sorprendentemente coerente.</p>
+<p class="nl-p reveal"><?php te('landing.negli_ultimi_cinquant_anni_la'); ?></p>
 
 
 
@@ -1268,27 +384,14 @@ box-shadow: none !important;
 
 
 
-<div class="nl-study-fig">2 <span>su</span> 10</div>
+<div class="nl-study-fig">2 <span><?php te('landing.su'); ?></span> 10</div>
 
 
 
-<p>Su 10 tecniche di studio comuni passate in rassegna da Dunlosky e colleghi (2013), solo due sono state promosse a "alta utilità": il <strong>richiamo attivo</strong> (le flashcard) e la <strong>pratica dilazionata</strong> nel tempo. Rileggere, sottolineare e riassumere — le tecniche più usate dagli studenti — sono risultate tra le meno efficaci.</p>
-
-
-
-</div>
-
-
-
-<div class="nl-study-card reveal">
-
-
-
-<div class="nl-study-fig">56% <span>vs</span> 13%</div>
-
-
-
-<p>Nell'esperimento di Roediger e Karpicke, chi aveva solo riletto un testo ne aveva dimenticato il 56% dopo due giorni. Chi si era testato attivamente sullo stesso testo ne aveva dimenticato appena il 13%.</p>
+<p><?php th('landing.dunlosky', [
+      'richiamo' => '<strong>' . t('landing.richiamo_attivo') . '</strong>',
+      'pratica'  => '<strong>' . t('landing.pratica_dilazionata') . '</strong>',
+  ]); ?></p>
 
 
 
@@ -1300,11 +403,27 @@ box-shadow: none !important;
 
 
 
-<div class="nl-study-fig">A parità di tempo</div>
+<div class="nl-study-fig">56% <span><?php te('landing.vs'); ?></span> 13%</div>
 
 
 
-<p>La ricerca sulla pratica dilazionata mostra che il vantaggio non viene dallo studiare di più: distribuire lo stesso tempo nel tempo, invece di concentrarlo tutto insieme, migliora drasticamente quanto ricordi — con le stesse ore investite, non di più.</p>
+<p><?php te('landing.nell_esperimento_di_roediger_e'); ?></p>
+
+
+
+</div>
+
+
+
+<div class="nl-study-card reveal">
+
+
+
+<div class="nl-study-fig"><?php te('landing.a_parita_di_tempo'); ?></div>
+
+
+
+<p><?php te('landing.la_ricerca_sulla_pratica_dilazionata'); ?></p>
 
 
 
@@ -1316,7 +435,10 @@ box-shadow: none !important;
 
 
 
-<p class="nl-study-note reveal">Fonti: Dunlosky et al., <em>Psychological Science in the Public Interest</em> (2013) · Roediger &amp; Karpicke, <em>Psychological Science</em> (2006) · retrievalpractice.org</p>
+<p class="nl-study-note reveal"><?php th('landing.fonti', [
+      'r1' => '<em>Psychological Science in the Public Interest</em>',
+      'r2' => '<em>Psychological Science</em>',
+  ]); ?></p>
 
 
 
@@ -1336,11 +458,11 @@ box-shadow: none !important;
 
 
 
-<div class="nl-eyebrow-num reveal">03 — Il metodo Nisama</div>
+<div class="nl-eyebrow-num reveal"><?php te('landing.03_il_metodo_nisama'); ?></div>
 
 
 
-<h2 class="nl-h2 reveal">Tutto quello che serve per studiare attivamente, senza sbatterti a costruire nulla da zero.</h2>
+<h2 class="nl-h2 reveal"><?php te('landing.tutto_quello_che_serve_per'); ?></h2>
 
 
 
@@ -1356,11 +478,11 @@ box-shadow: none !important;
 
 
 
-<h3>Crea flashcard in pochi minuti</h3>
+<h3><?php te('landing.crea_flashcard_in_pochi_minuti'); ?></h3>
 
 
 
-<p>Copi un prompt già pronto, lo incolli su ChatGPT o Gemini insieme al tuo argomento, e incolli qui il risultato: tu ricontrolli solo le carte, non le scrivi da zero — ed è già un ripasso.</p>
+<p><?php te('landing.copi_un_prompt_gia_pronto'); ?></p>
 
 
 
@@ -1376,11 +498,11 @@ box-shadow: none !important;
 
 
 
-<h3>Frantuma</h3>
+<h3><?php te('landing.frantuma'); ?></h3>
 
 
 
-<p>Poca energia o poco tempo per un discorso lungo? "Frantuma" spezza una scheda complessa in tante micro-domande rapidissime, che messe insieme ricostruiscono il discorso intero.</p>
+<p><?php te('landing.poca_energia_o_poco_tempo'); ?></p>
 
 
 
@@ -1396,11 +518,11 @@ box-shadow: none !important;
 
 
 
-<h3>Tutor vocale</h3>
+<h3><?php te('landing.tutor_vocale'); ?></h3>
 
 
 
-<p>Ogni scheda può essere spiegata a voce, con metafore generate al volo e un'intonazione naturale: scegli tu la voce che preferisci.</p>
+<p><?php te('landing.ogni_scheda_puo_essere_spiegata'); ?></p>
 
 
 
@@ -1416,11 +538,11 @@ box-shadow: none !important;
 
 
 
-<h3>Esempio con un tocco</h3>
+<h3><?php te('landing.esempio_con_un_tocco'); ?></h3>
 
 
 
-<p>Un pulsante, un esempio pratico su misura per quella scheda: perfetto quando la teoria da sola non ti basta per capire davvero.</p>
+<p><?php te('landing.un_pulsante_un_esempio_pratico'); ?></p>
 
 
 
@@ -1436,11 +558,11 @@ box-shadow: none !important;
 
 
 
-<h3>Modalità mani libere <span class="nl-soon">in arrivo</span></h3>
+<h3><?php te('landing.modalita_mani_libere'); ?> <span class="nl-soon"><?php te('landing.in_arrivo'); ?></span></h3>
 
 
 
-<p>Ripassa parlando, senza toccare lo schermo: perfetta in auto, mentre cucini o durante una passeggiata.</p>
+<p><?php te('landing.ripassa_parlando_senza_toccare_lo'); ?></p>
 
 
 
@@ -1456,11 +578,11 @@ box-shadow: none !important;
 
 
 
-<h3>Statistiche complete</h3>
+<h3><?php te('landing.statistiche_complete'); ?></h3>
 
 
 
-<p>Streak, obiettivo giornaliero, traguardi sbloccati e l'andamento dei tuoi ripassi nel tempo: sempre tutto sotto controllo.</p>
+<p><?php te('landing.streak_obiettivo_giornaliero_traguardi_sbloccati'); ?></p>
 
 
 
@@ -1484,11 +606,11 @@ box-shadow: none !important;
 
 
 
-<h2 class="reveal">Pronto a ricordare, invece che rileggere?</h2>
+<h2 class="reveal"><?php te('landing.pronto_a_ricordare_invece_che'); ?></h2>
 
 
 
-<button class="nl-btn nl-btn--primary reveal" onclick="window.NisamaAuth && NisamaAuth.apriRegistrazione()">Crea il tuo account gratis</button>
+<button class="nl-btn nl-btn--primary reveal" onclick="window.NisamaAuth && NisamaAuth.apriRegistrazione()"><?php te('landing.crea_il_tuo_account_gratis'); ?></button>
 
 
 
@@ -1504,7 +626,7 @@ box-shadow: none !important;
 
 
 
-<span>Nisama</span> — impara l'inglese, e tutto il resto, ricordandolo davvero.
+<span><?php te('landing.nisama'); ?></span> <?php te('landing.impara_l_inglese_e_tutto'); ?>
 
 
 
@@ -1532,11 +654,19 @@ box-shadow: none !important;
 
 
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
+<?php
+/* GSAP e ScrollTrigger sono ospitati qui invece che su un CDN esterno.
+   Motivo: la CSP consente gli script solo da 'self' e da cdn.jsdelivr.net,
+   mentre questi arrivavano da cdnjs.cloudflare.com — venivano bloccati, e con
+   loro spariva tutta l'animazione della sezione «La scienza».
+   Ospitandoli si evita di allargare la policy e si toglie una dipendenza da un
+   sito di terzi che potrebbe cambiare o sparire. */
+?>
+<script src="<?php echo PWA_BASE; ?>vendor/gsap.min.js"></script>
 
 
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js"></script>
+<script src="<?php echo PWA_BASE; ?>vendor/ScrollTrigger.min.js"></script>
 
 
 

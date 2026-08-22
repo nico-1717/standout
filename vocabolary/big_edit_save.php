@@ -1,144 +1,191 @@
 <?php
+/* Salvataggio della modifica in blocco delle schede di una categoria.
+ *
+ * COSA E' CAMBIATO E PERCHE'
+ *
+ * 1. I file caricati. Prima l'estensione veniva presa dal nome scelto dal
+ *    client (pathinfo del nome originale) e il file spostato senza altri
+ *    controlli: bastava caricare "foto.php" per ritrovarsi un file eseguibile
+ *    dentro la cartella delle immagini, raggiungibile dal browser. Ora passa da
+ *    sec_file(), che guarda il contenuto vero con finfo e non l'estensione
+ *    dichiarata, e da sec_safe_filename(), che genera il nome sul server.
+ *
+ * 2. Le query. Erano costruite per concatenazione con real_escape_string. Non
+ *    era sfruttabile, ma il numero di punti in cui bisognava ricordarsene era
+ *    alto. Ora sono tutte prepared statement.
+ *
+ * 3. CSRF e limite di frequenza. Non c'erano: un altro sito poteva far partire
+ *    dal browser di chi e' connesso una richiesta che svuota una categoria.
+ *
+ * 4. Proprieta'. La verifica c'era ed era corretta; ora e' detta con sec_owns(),
+ *    e ogni query di scrittura continua a portare "AND category_id = ?" come
+ *    seconda difesa.
+ */
 require_once 'config.php';
-require_once 'auth_check.php'; // 1. Protezione con login obbligatorio
+require_once 'auth_check.php';
 
-$current_user_id = $utente_corrente['id']; // 2. ID utente sicuro dal server
-
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
+$current_user_id = (int)$utente_corrente['id'];
+$conn = sec_db();
 
 header('Content-Type: application/json');
 
-$catID = intval($_POST['category_id'] ?? 0);
+/* Token di sessione, origine e limite di frequenza in una riga.
+   200 al minuto: un salvataggio in blocco e' una richiesta sola, ma chi
+   corregge molte categorie di fila non deve trovarsi bloccato. */
+sec_guard_write($current_user_id, 'big_edit_save', 0, 200, 60);
 
-// --- INIZIO SICUREZZA: verifica proprietario della categoria ---
-$check_cat = mysqli_query($conn, "SELECT user_id FROM categories WHERE id = $catID");
-$row_cat = $check_cat ? mysqli_fetch_assoc($check_cat) : null;
-if (!$row_cat || (int)$row_cat['user_id'] !== $current_user_id) {
-    echo json_encode(['success' => false, 'error' => 'Non sei autorizzato a modificare questa categoria.']);
-    mysqli_close($conn);
+$catID = sec_int($_POST['category_id'] ?? 0, 1);
+if (!sec_owns('categories', $catID, $current_user_id)) {
+    echo json_encode(['success' => false, 'error' => t('vocab.non_autorizzato')]);
     exit;
 }
-// --- FINE SICUREZZA ---
 
 if (!is_dir(IMAGE_PATH_INSERT)) { mkdir(IMAGE_PATH_INSERT, 0777, true); }
 
-$cards = isset($_POST['cards']) ? $_POST['cards'] : [];
+$cards = isset($_POST['cards']) && is_array($_POST['cards']) ? $_POST['cards'] : [];
 
-// Mappa indice-riga -> id reale del padre, serve per agganciare correttamente i figli
+/* Testo di una scheda: prima maiuscola e apostrofo tipografico, come prima,
+   ma passando da sec_str/sec_text che togliono tag e caratteri di controllo. */
+function be_testo($v, int $max = 500): string {
+    $s = sec_text($v, $max);
+    return ucfirst(str_replace("'", '’', trim($s)));
+}
+
+/* Immagine di una riga del modulo. Restituisce il nome del file salvato, oppure
+   null se non e' stato caricato niente o se il file non e' un'immagine vera.
+   Il nome lo genera il server: quello del client non viene mai usato. */
+function be_immagine(int $i): ?string {
+    if (!isset($_FILES['row_img']['name'][$i])) return null;
+    if ((int)$_FILES['row_img']['error'][$i] !== UPLOAD_ERR_OK) return null;
+
+    $file = [
+        'tmp_name' => $_FILES['row_img']['tmp_name'][$i],
+        'error'    => $_FILES['row_img']['error'][$i],
+        'size'     => $_FILES['row_img']['size'][$i],
+    ];
+    $ris = sec_file($file);
+    if (empty($ris['ok'])) return null;
+
+    $nome = sec_safe_filename($ris['ext']);
+    if (!move_uploaded_file($ris['tmp'], IMAGE_PATH_INSERT . $nome)) return null;
+    return $nome;
+}
+
+/* Cancella dal disco l'immagine vecchia di una riga, se c'era. basename() e'
+   una rete in piu': il nome viene dal database, ma se un giorno ci finisse
+   dentro un percorso non deve poter uscire dalla cartella. */
+function be_togli_file(?string $nome): void {
+    if ($nome === null || $nome === '') return;
+    $percorso = IMAGE_PATH_INSERT . basename($nome);
+    if (is_file($percorso)) @unlink($percorso);
+}
+
+/* Indice della riga del modulo -> id reale del padre. Serve per agganciare i
+   figli anche quando il padre e' stato creato in questo stesso salvataggio. */
 $parent_real_ids = [];
 
-// ============================================================
-// FASE 1 — PADRI (righe non-figlio)
-// ============================================================
+/* ============================================================
+   FASE 1 - PADRI (righe non-figlio)
+   ============================================================ */
 foreach ($cards as $i => $c) {
-    if ((int)($c['is_child'] ?? 0) === 1) continue;
+    if (!is_array($c)) continue;
+    if (sec_int($c['is_child'] ?? 0, 0, 1) === 1) continue;
 
-    $status = $c['status'] ?? 'clean';
-    $id = intval($c['id'] ?? 0);
+    $status = sec_enum($c['status'] ?? null, ['clean', 'new', 'edited', 'deleted'], 'clean');
+    $id     = sec_int($c['id'] ?? 0, 0);
 
-    // Eliminazione (limitata alla categoria verificata) — elimina anche gli eventuali figli
+    /* Eliminazione: prima i figli, poi il padre. Sempre con category_id nella
+       clausola, cosi' una riga di un'altra categoria non si tocca. */
     if ($status === 'deleted' && $id > 0) {
-        $q_old = mysqli_query($conn, "SELECT image FROM images WHERE id = $id AND category_id = $catID");
-        $old = $q_old ? mysqli_fetch_assoc($q_old) : null;
-        if ($old && !empty($old['image']) && file_exists(IMAGE_PATH_INSERT . $old['image'])) {
-            unlink(IMAGE_PATH_INSERT . $old['image']);
-        }
-        mysqli_query($conn, "DELETE FROM english_child_words WHERE parent_id IN (SELECT id FROM images WHERE id = $id AND category_id = $catID)");
-        mysqli_query($conn, "DELETE FROM images WHERE id = $id AND category_id = $catID");
+        $old = sec_one("SELECT image FROM images WHERE id = ? AND category_id = ?", [$id, $catID]);
+        if ($old) be_togli_file($old['image'] ?? null);
+
+        sec_q("DELETE FROM english_child_words
+                WHERE parent_id IN (SELECT id FROM images WHERE id = ? AND category_id = ?)", [$id, $catID]);
+        sec_q("DELETE FROM images WHERE id = ? AND category_id = ?", [$id, $catID]);
         continue;
     }
 
-    $en      = ucfirst(str_replace("'", "’", trim($c['en'] ?? '')));
-    $it      = ucfirst(str_replace("'", "’", trim($c['it'] ?? '')));
-    $meaning = ucfirst(str_replace("'", "’", trim($c['meaning'] ?? '')));
-    $example = ucfirst(str_replace("'", "’", trim($c['example'] ?? '')));
+    $en      = be_testo($c['en'] ?? '', 200);
+    $it      = be_testo($c['it'] ?? '', 200);
+    $meaning = be_testo($c['meaning'] ?? '', 1000);
+    $example = be_testo($c['example'] ?? '', 1000);
 
-    // Riga completamente vuota senza id (nuova, non compilata): saltala
-    if ($status === 'new' && $en === '' && $it === '') { continue; }
+    // riga nuova e vuota: non c'e' niente da salvare
+    if ($status === 'new' && $en === '' && $it === '') continue;
 
-    $enEsc   = mysqli_real_escape_string($conn, $en);
-    $itEsc   = mysqli_real_escape_string($conn, $it);
-    $meanEsc = mysqli_real_escape_string($conn, $meaning);
-    $exEsc   = mysqli_real_escape_string($conn, $example);
-
-    // Gestione immagine (upload diretto su questa riga, indicizzato come row_img[i])
-    $imgUpdate = "";
-    if (isset($_FILES['row_img']['name'][$i]) && $_FILES['row_img']['error'][$i] == 0) {
-        $q_old2 = ($id > 0) ? mysqli_query($conn, "SELECT image FROM images WHERE id = $id AND category_id = $catID") : null;
-        $old2 = $q_old2 ? mysqli_fetch_assoc($q_old2) : null;
-        if ($old2 && !empty($old2['image']) && file_exists(IMAGE_PATH_INSERT . $old2['image'])) {
-            unlink(IMAGE_PATH_INSERT . $old2['image']);
-        }
-        $ext = pathinfo($_FILES['row_img']['name'][$i], PATHINFO_EXTENSION);
-        $newImg = time() . "_edit_$i." . $ext;
-        move_uploaded_file($_FILES['row_img']['tmp_name'][$i], IMAGE_PATH_INSERT . $newImg);
-        $imgEsc = mysqli_real_escape_string($conn, $newImg);
-        $imgUpdate = ", image = '$imgEsc'";
-    }
+    $nuovaImg = be_immagine((int)$i);
 
     $real_id = 0;
     if ($status === 'new') {
-        mysqli_query($conn, "INSERT INTO images (category_id, description_en, description_it, meaning, example, is_father)
-                             VALUES ($catID, '$enEsc', '$itEsc', '$meanEsc', '$exEsc', 0)");
-        $real_id = mysqli_insert_id($conn);
-        if ($imgUpdate !== '' && $real_id > 0) {
-            // L'immagine è stata salvata su disco sopra; ora che conosciamo il vero id
-            // del nuovo record la colleghiamo con un UPDATE mirato.
-            mysqli_query($conn, "UPDATE images SET " . ltrim($imgUpdate, ', ') . " WHERE id = $real_id");
+        sec_q("INSERT INTO images (category_id, description_en, description_it, meaning, example, is_father, image)
+               VALUES (?, ?, ?, ?, ?, 0, ?)",
+              [$catID, $en, $it, $meaning, $example, $nuovaImg]);
+        $real_id = sec_insert_id();
+    } elseif ($id > 0) {
+        /* L'immagine si aggiorna solo se ne e' arrivata una nuova: due forme di
+           query invece di incollare un pezzo di SET, che era il punto in cui
+           prima entrava una stringa costruita a mano. */
+        if ($nuovaImg !== null) {
+            $vecchia = sec_one("SELECT image FROM images WHERE id = ? AND category_id = ?", [$id, $catID]);
+            if ($vecchia) be_togli_file($vecchia['image'] ?? null);
+            sec_q("UPDATE images SET description_en = ?, description_it = ?, meaning = ?, example = ?, image = ?
+                    WHERE id = ? AND category_id = ?",
+                  [$en, $it, $meaning, $example, $nuovaImg, $id, $catID]);
+        } else {
+            sec_q("UPDATE images SET description_en = ?, description_it = ?, meaning = ?, example = ?
+                    WHERE id = ? AND category_id = ?",
+                  [$en, $it, $meaning, $example, $id, $catID]);
         }
-    } else if ($id > 0) {
-        mysqli_query($conn, "UPDATE images SET description_en = '$enEsc', description_it = '$itEsc', meaning = '$meanEsc', example = '$exEsc' $imgUpdate WHERE id = $id AND category_id = $catID");
         $real_id = $id;
     }
     $parent_real_ids[$i] = $real_id;
 }
 
-// ============================================================
-// FASE 2 — FIGLI (english_child_words)
-// ============================================================
+/* ============================================================
+   FASE 2 - FIGLI (english_child_words)
+   In questa vista i figli si modificano e si eliminano, non si creano.
+   ============================================================ */
 foreach ($cards as $i => $c) {
-    if ((int)($c['is_child'] ?? 0) !== 1) continue;
+    if (!is_array($c)) continue;
+    if (sec_int($c['is_child'] ?? 0, 0, 1) !== 1) continue;
 
-    $status = $c['status'] ?? 'clean';
-    $id = intval($c['id'] ?? 0);
+    $status = sec_enum($c['status'] ?? null, ['clean', 'new', 'edited', 'deleted'], 'clean');
+    $id     = sec_int($c['id'] ?? 0, 0);
 
     if ($status === 'deleted' && $id > 0) {
-        // Verifica che il figlio appartenga davvero a questa categoria prima di eliminarlo
-        mysqli_query($conn, "DELETE FROM english_child_words WHERE id_child = $id AND parent_id IN (SELECT id FROM images WHERE category_id = $catID)");
+        sec_q("DELETE FROM english_child_words
+                WHERE id_child = ? AND parent_id IN (SELECT id FROM images WHERE category_id = ?)", [$id, $catID]);
         continue;
     }
+    if ($id <= 0) continue;
 
-    if ($id <= 0) { continue; } // niente creazione di nuovi figli in questa vista, solo modifica/eliminazione
+    $en      = be_testo($c['en'] ?? '', 200);
+    $it      = be_testo($c['it'] ?? '', 200);
+    $meaning = be_testo($c['meaning'] ?? '', 1000);
+    $example = be_testo($c['example'] ?? '', 1000);
 
-    $en      = ucfirst(str_replace("'", "’", trim($c['en'] ?? '')));
-    $it      = ucfirst(str_replace("'", "’", trim($c['it'] ?? '')));
-    $meaning = ucfirst(str_replace("'", "’", trim($c['meaning'] ?? '')));
-    $example = ucfirst(str_replace("'", "’", trim($c['example'] ?? '')));
+    $nuovaImg = be_immagine((int)$i);
 
-    $enEsc   = mysqli_real_escape_string($conn, $en);
-    $itEsc   = mysqli_real_escape_string($conn, $it);
-    $meanEsc = mysqli_real_escape_string($conn, $meaning);
-    $exEsc   = mysqli_real_escape_string($conn, $example);
+    if ($nuovaImg !== null) {
+        /* la vecchia si cancella solo dopo aver verificato che il figlio sia di
+           questa categoria: senza il controllo si potrebbe far cancellare un
+           file altrui passando un id qualsiasi */
+        $vecchia = sec_one("SELECT c.image FROM english_child_words c
+                             JOIN images p ON p.id = c.parent_id
+                            WHERE c.id_child = ? AND p.category_id = ?", [$id, $catID]);
+        if ($vecchia) be_togli_file($vecchia['image'] ?? null);
 
-    $imgUpdate = "";
-    if (isset($_FILES['row_img']['name'][$i]) && $_FILES['row_img']['error'][$i] == 0) {
-        $q_old3 = mysqli_query($conn, "SELECT image FROM english_child_words WHERE id_child = $id");
-        $old3 = $q_old3 ? mysqli_fetch_assoc($q_old3) : null;
-        if ($old3 && !empty($old3['image']) && file_exists(IMAGE_PATH_INSERT . $old3['image'])) {
-            unlink(IMAGE_PATH_INSERT . $old3['image']);
-        }
-        $ext = pathinfo($_FILES['row_img']['name'][$i], PATHINFO_EXTENSION);
-        $newImg = time() . "_edit_$i." . $ext;
-        move_uploaded_file($_FILES['row_img']['tmp_name'][$i], IMAGE_PATH_INSERT . $newImg);
-        $imgEsc = mysqli_real_escape_string($conn, $newImg);
-        $imgUpdate = ", image = '$imgEsc'";
+        sec_q("UPDATE english_child_words
+                  SET description_en = ?, description_it = ?, meaning = ?, example = ?, image = ?
+                WHERE id_child = ? AND parent_id IN (SELECT id FROM images WHERE category_id = ?)",
+              [$en, $it, $meaning, $example, $nuovaImg, $id, $catID]);
+    } else {
+        sec_q("UPDATE english_child_words
+                  SET description_en = ?, description_it = ?, meaning = ?, example = ?
+                WHERE id_child = ? AND parent_id IN (SELECT id FROM images WHERE category_id = ?)",
+              [$en, $it, $meaning, $example, $id, $catID]);
     }
-
-    // Sicurezza: aggiorna solo se il figlio appartiene a un padre di questa categoria
-    mysqli_query($conn, "UPDATE english_child_words SET description_en = '$enEsc', description_it = '$itEsc', meaning = '$meanEsc', example = '$exEsc' $imgUpdate
-                         WHERE id_child = $id AND parent_id IN (SELECT id FROM images WHERE category_id = $catID)");
 }
 
 echo json_encode(['success' => true]);
-mysqli_close($conn);

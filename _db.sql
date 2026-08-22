@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Creato il: Ago 06, 2026 alle 22:31
+-- Creato il: Ago 22, 2026 alle 11:06
 -- Versione del server: 8.0.45
 -- Versione PHP: 8.0.22
 
@@ -221,6 +221,18 @@ CREATE TABLE `fc_images` (
   `is_father` tinyint(1) NOT NULL DEFAULT '0',
   `custom_order` int DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `fc_user_goals`
+--
+
+CREATE TABLE `fc_user_goals` (
+  `user_id` int NOT NULL,
+  `daily_goal` int NOT NULL DEFAULT '20',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -685,7 +697,10 @@ CREATE TABLE `planner_calendars` (
   `google_ref` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'calendario Google da cui arrivano questi eventi',
   `google_push_ref` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'id del calendario Google in cui mandare questi eventi; NULL = quello principale',
   `sort_order` int NOT NULL DEFAULT '0',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `keywords` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `def_repeat` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'none',
+  `def_notify` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'none'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -765,7 +780,10 @@ CREATE TABLE `planner_events` (
   `google_origin` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = nato su Google, non nel planner',
   `sort_order` int NOT NULL DEFAULT '0' COMMENT 'ordine tra eventi sovrapposti / eventi tutto il giorno',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `rrule` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `original_date` date DEFAULT NULL,
+  `is_cancelled` tinyint(1) NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -858,6 +876,8 @@ CREATE TABLE `planner_settings` (
   `google_sync_enabled` tinyint(1) NOT NULL DEFAULT '0',
   `gc_dedicated_mode` enum('none','all','high','highest') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'all' COMMENT 'quali eventi vanno nel calendario dedicato',
   `gc_primary_mode` enum('none','high','highest') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'none' COMMENT 'quali eventi vanno invece nel calendario principale di Google',
+  `gc_push_high` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `gc_push_highest` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `weather_enabled` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = modalità meteo attiva',
   `weather_lat` decimal(8,5) DEFAULT NULL,
   `weather_lon` decimal(8,5) DEFAULT NULL,
@@ -945,7 +965,7 @@ CREATE TABLE `pomodoro_current_breaks` (
   `user_id` int NOT NULL,
   `start_time` datetime NOT NULL,
   `planned_duration_min` int NOT NULL,
-  `progetto_id` int DEFAULT NULL
+  `project_id` int DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -1268,6 +1288,7 @@ CREATE TABLE `users` (
   `id` int NOT NULL,
   `username` varchar(50) NOT NULL,
   `email` varchar(255) DEFAULT NULL,
+  `lang` varchar(5) DEFAULT NULL,
   `password_hash` varchar(255) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_login_at` datetime DEFAULT NULL,
@@ -1436,6 +1457,12 @@ ALTER TABLE `fc_gameplays`
 --
 ALTER TABLE `fc_images`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indici per le tabelle `fc_user_goals`
+--
+ALTER TABLE `fc_user_goals`
+  ADD PRIMARY KEY (`user_id`);
 
 --
 -- Indici per le tabelle `friends`
@@ -1733,7 +1760,7 @@ ALTER TABLE `plans`
 --
 ALTER TABLE `pomodoro_current_breaks`
   ADD PRIMARY KEY (`user_id`),
-  ADD KEY `idx_pausa_progetto` (`progetto_id`);
+  ADD KEY `idx_pausa_progetto` (`project_id`);
 
 --
 -- Indici per le tabelle `pomodoro_custom_durations`
@@ -2367,7 +2394,7 @@ ALTER TABLE `habit_user_achievements`
 -- Limiti per la tabella `pomodoro_current_breaks`
 --
 ALTER TABLE `pomodoro_current_breaks`
-  ADD CONSTRAINT `fk_pausa_progetto` FOREIGN KEY (`progetto_id`) REFERENCES `projects` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_pausa_progetto` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_pausa_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --

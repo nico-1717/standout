@@ -28,8 +28,8 @@
             <div class="vg-sheet-icon">
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M17.3 11a5.3 5.3 0 0 1-10.6 0H5a7 7 0 0 0 6 6.93V21h2v-3.07A7 7 0 0 0 19 11h-1.7z"/></svg>
             </div>
-            <h3 id="vg-sheet-title">Gioca con Audio</h3>
-            <p class="vg-sheet-sub">Il microfono resta sempre acceso: rispondi a voce e il gioco procede da solo. Per un riconoscimento migliore, usa le cuffie.</p>
+            <h3 id="vg-sheet-title"><?php te('fc.vg_titolo'); ?></h3>
+            <p class="vg-sheet-sub"><?php te('fc.vg_intro'); ?></p>
         </div>
 
         <div id="vg-error-box" class="vg-error-box" style="display:none;">
@@ -38,67 +38,67 @@
         </div>
 
         <div class="vg-cmd-list">
-            <div class="vg-group-label">Mentre ascolti</div>
+            <div class="vg-group-label"><?php te('fc.vg_mentre_ascolti'); ?></div>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«Ripeti»</span><span class="vg-cmd-desc">Rilegge da capo la domanda o la risposta</span></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_ripeti'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_ripeti'); ?></span></span>
             </div>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-blue"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.3" y="4.5" width="4" height="15" rx="1.3"/><rect x="13.7" y="4.5" width="4" height="15" rx="1.3"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«Pausa»</span><span class="vg-cmd-desc">Mette in pausa la lettura</span></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_pausa'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_pausa'); ?></span></span>
             </div>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-blue"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.3 5.06v13.88a1 1 0 0 0 1.53.85l11.14-6.94a1 1 0 0 0 0-1.7L9.83 4.21a1 1 0 0 0-1.53.85z"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«Riprendi»</span><span class="vg-cmd-desc">Fa ripartire la lettura da dove si era fermata</span></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_riprendi'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_riprendi'); ?></span></span>
             </div>
 
-            <div class="vg-group-label">Per rispondere</div>
+            <div class="vg-group-label"><?php te('fc.vg_per_rispondere'); ?></div>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1v.2h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«Risposta»</span><span class="vg-cmd-desc">Mostra la risposta e la legge ad alta voce</span></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_risposta'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_risposta'); ?></span></span>
             </div>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-purple"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2 5.7 5.7 2-5.7 2-2 5.7-2-5.7-5.7-2 5.7-2 2-5.7zM19 14l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1 1.1-3z"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«Leggi», «Spiega», «Metafora»</span><span class="vg-cmd-desc">Attivano le funzioni di lettura AI</span></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_leggi'); ?>», «<?php te('fc.lbl_spiega'); ?>», «<?php te('fc.lbl_metafora'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_ai'); ?></span></span>
             </div>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«Corretto» / «Giusto»</span><span class="vg-cmd-desc">Segna la carta come corretta</span></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_corretto'); ?>» / «<?php te('fc.vg_giusto'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_corretto'); ?></span></span>
             </div>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«Errato» / «Sbagliato»</span><span class="vg-cmd-desc">Segna la carta come sbagliata</span></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_errato'); ?>» / «<?php te('fc.vg_sbagliato'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_errato'); ?></span></span>
             </div>
 
-            <div class="vg-group-label">Per andare avanti</div>
+            <div class="vg-group-label"><?php te('fc.vg_per_avanti'); ?></div>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«Successiva»</span><span class="vg-cmd-desc">Passa alla prossima carta e legge la nuova domanda</span></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_successiva'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_successiva'); ?></span></span>
             </div>
 
-            <div class="vg-group-label">Frantuma la domanda</div>
+            <div class="vg-group-label"><?php te('fc.vg_frantuma_titolo'); ?></div>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-purple"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 3 14h7l-1 8 11-14h-7z"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«Frantuma»</span><span class="vg-cmd-desc">Scompone la domanda in mini-domande</span></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_frantuma'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_frantuma'); ?></span></span>
             </div>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-gray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«Chiudi»</span><span class="vg-cmd-desc">Chiude il popup e torna alla domanda intera</span></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_chiudi'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_chiudi'); ?></span></span>
             </div>
         </div>
 
         <div class="vg-sheet-actions">
-            <button id="vg-cancel-btn" class="vg-btn vg-btn-ghost" type="button">Annulla</button>
-            <button id="vg-start-btn" class="vg-btn vg-btn-primary" type="button">Ho capito, inizia</button>
+            <button id="vg-cancel-btn" class="vg-btn vg-btn-ghost" type="button"><?php te('comune.annulla'); ?></button>
+            <button id="vg-start-btn" class="vg-btn vg-btn-primary" type="button"><?php te('fc.vg_ho_capito'); ?></button>
         </div>
-        <button id="vg-exit-btn" class="vg-btn vg-btn-danger" type="button" style="display:none;">Termina modalità vocale</button>
+        <button id="vg-exit-btn" class="vg-btn vg-btn-danger" type="button" style="display:none;"><?php te('fc.vg_termina'); ?></button>
     </div>
 </div>
 
 <div id="vg-orb-wrap">
     <div id="vg-coldstart-hint" class="vg-coldstart-hint"></div>
     <div id="vg-caption" class="vg-caption" aria-live="polite"></div>
-    <button id="vg-orb" type="button" aria-label="Modalità vocale attiva — tocca per rivedere i comandi">
+    <button id="vg-orb" type="button" aria-label=T('fc.vg_attiva')>
         <svg class="vg-mic-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M17.3 11a5.3 5.3 0 0 1-10.6 0H5a7 7 0 0 0 6 6.93V21h2v-3.07A7 7 0 0 0 19 11h-1.7z"/></svg>
         <div id="vg-coldstart-badge" class="vg-coldstart-badge" aria-live="polite"></div>
     </button>
@@ -108,267 +108,17 @@
      avvisato del bug noto prima di uscire davvero. -->
 <div id="vg-ask-overlay" class="vg-ask-overlay" style="display:none;">
     <div class="vg-ask-card" role="dialog" aria-modal="true" aria-labelledby="vg-ask-title">
-        <h3 id="vg-ask-title" class="vg-ask-title">Vuoi davvero uscire dalla modalità vocale?</h3>
+        <h3 id="vg-ask-title" class="vg-ask-title"><?php te('fc.vg_conferma_uscita'); ?></h3>
         <p class="vg-ask-body">
-            Su iPhone, per un limite noto di Safari, la prossima riattivazione
-            del microfono richiederà circa 40 secondi prima di iniziare ad
-            ascoltarti di nuovo (te lo mostriamo con un conto alla rovescia).
-            Se stai solo mettendo in pausa per un attimo, conviene restare in
-            modalità vocale.
-        </p>
+            <?php te('fc.vg_avviso_iphone'); ?></p>
         <div class="vg-ask-actions">
-            <button id="vg-ask-no-btn" class="vg-btn vg-btn-primary" type="button">Resta in modalità vocale</button>
-            <button id="vg-ask-yes-btn" class="vg-btn vg-btn-ghost" type="button">Esci comunque</button>
+            <button id="vg-ask-no-btn" class="vg-btn vg-btn-primary" type="button"><?php te('fc.vg_resta'); ?></button>
+            <button id="vg-ask-yes-btn" class="vg-btn vg-btn-ghost" type="button"><?php te('fc.vg_esci'); ?></button>
         </div>
     </div>
 </div>
 
-<style>
-    /* ============================================================
-       POPUP COMANDI (sheet iOS, coerente con lo stile del gioco
-       ma con palette autonoma per essere indipendente da game_fc)
-       ============================================================ */
-    .vg-overlay{
-        position:fixed; inset:0; z-index:10030; display:none;
-        align-items:flex-end; justify-content:center;
-        background:rgba(0,0,0,.5);
-        -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
-    }
-    .vg-sheet{
-        position:relative; width:100%; max-width:520px; max-height:88vh; overflow-y:auto;
-        -webkit-overflow-scrolling:touch;
-        background:rgba(255,255,255,.98); color:#1C1C1E;
-        border-radius:28px 28px 0 0;
-        padding:14px 22px calc(22px + env(safe-area-inset-bottom,0px));
-        box-shadow:0 -10px 50px rgba(0,0,0,.35);
-        animation:vgSheetUp .42s cubic-bezier(.24,1.3,.35,1) both;
-        font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
-        text-align:left;
-    }
-    @keyframes vgSheetUp{ from{ transform:translateY(50%); opacity:.3; } to{ transform:none; opacity:1; } }
-    @media (min-width:640px){
-        .vg-overlay{ align-items:center; padding:20px; }
-        .vg-sheet{ border-radius:28px; }
-    }
-    .vg-sheet-handle{ width:38px; height:5px; border-radius:99px; background:rgba(60,60,67,.24); margin:0 auto 14px; }
-
-    .vg-sheet-head{ text-align:center; padding:2px 6px 4px; }
-    .vg-sheet-icon{
-        width:56px; height:56px; margin:2px auto 12px; border-radius:50%; color:#fff;
-        display:flex; align-items:center; justify-content:center;
-        background:radial-gradient(circle at 32% 26%, #9d9bff, #5e5ce6 46%, #3634d1 100%);
-        box-shadow:0 8px 22px -6px rgba(94,92,230,.6);
-    }
-    .vg-sheet-icon svg{ width:26px; height:26px; }
-    .vg-sheet-head h3{ margin:0 0 6px; font-size:21px; font-weight:800; letter-spacing:-.02em; }
-    .vg-sheet-sub{ margin:0; font-size:13.5px; line-height:1.5; color:#8A8A8E; padding:0 4px; }
-
-    .vg-error-box{
-        display:flex; align-items:flex-start; gap:10px; margin:14px 0 4px; padding:12px 14px;
-        border-radius:14px; background:rgba(255,59,48,.1); color:#D70015; font-size:13.5px; font-weight:600; line-height:1.4;
-    }
-    .vg-error-box svg{ width:19px; height:19px; flex-shrink:0; margin-top:1px; }
-
-    .vg-cmd-list{ max-height:48vh; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-right:2px; margin-top:6px; }
-    .vg-group-label{ margin:16px 2px 6px; font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:#AEAEB2; }
-    .vg-cmd-list .vg-group-label:first-child{ margin-top:2px; }
-    .vg-cmd-row{ display:flex; align-items:center; gap:12px; padding:7px 2px; }
-    .vg-cmd-badge{ flex-shrink:0; width:36px; height:36px; border-radius:11px; display:flex; align-items:center; justify-content:center; }
-    .vg-cmd-badge svg{ width:18px; height:18px; }
-    .vg-cmd-txt{ display:flex; flex-direction:column; min-width:0; }
-    .vg-cmd-word{ font-size:14.5px; font-weight:800; letter-spacing:-.01em; }
-    .vg-cmd-desc{ font-size:12.5px; color:#8A8A8E; margin-top:1px; line-height:1.3; }
-
-    .vg-tint-indigo{ background:rgba(94,92,230,.13); color:#5E5CE6; }
-    .vg-tint-blue{ background:rgba(10,132,255,.12); color:#007AFF; }
-    .vg-tint-orange{ background:rgba(255,159,10,.15); color:#FF9500; }
-    .vg-tint-purple{ background:rgba(175,82,222,.13); color:#AF52DE; }
-    .vg-tint-green{ background:rgba(52,199,89,.14); color:#248A3D; }
-    .vg-tint-red{ background:rgba(255,59,48,.13); color:#D70015; }
-    .vg-tint-gray{ background:rgba(120,120,128,.14); color:#6E6E73; }
-
-    .vg-sheet-actions{ display:flex; gap:10px; margin-top:18px; }
-    .vg-btn{
-        flex:1; display:flex; align-items:center; justify-content:center;
-        padding:14px 16px; border:none; border-radius:15px; cursor:pointer;
-        font-family:inherit; font-size:15.5px; font-weight:700; letter-spacing:-.01em;
-        transition:transform .15s cubic-bezier(.32,.72,0,1), filter .2s;
-    }
-    .vg-btn:active{ transform:scale(.98); filter:brightness(.95); }
-    .vg-btn-primary{ color:#fff; background:linear-gradient(180deg,#6D6BFF,#5E5CE6 55%,#4744C4); box-shadow:0 8px 20px -6px rgba(94,92,230,.55); }
-    .vg-btn-ghost{ color:#1C1C1E; background:rgba(120,120,128,.12); }
-    .vg-btn-danger{ width:100%; margin-top:10px; color:#D70015; background:rgba(255,59,48,.1); }
-
-    @media (prefers-color-scheme: dark){
-        .vg-sheet{ background:rgba(28,28,30,.98); color:#F5F5F7; }
-        .vg-sheet-sub{ color:#98989F; }
-        .vg-cmd-desc{ color:#98989F; }
-        .vg-group-label{ color:#636366; }
-        .vg-sheet-handle{ background:rgba(235,235,245,.34); }
-        .vg-btn-ghost{ color:#F5F5F7; background:rgba(120,120,128,.24); }
-        .vg-btn-danger{ color:#FF6F68; background:rgba(255,69,58,.16); }
-        .vg-tint-green{ background:rgba(52,199,89,.2); color:#4CE07E; }
-        .vg-tint-red{ background:rgba(255,69,58,.2); color:#FF6F68; }
-        .vg-tint-gray{ background:rgba(120,120,128,.28); color:#AEAEB2; }
-    }
-
-    /* ============================================================
-       ORB — indicatore "microfono sempre acceso", stile Siri
-       ============================================================ */
-    #vg-orb-wrap{
-        position:fixed; left:18px; bottom:calc(env(safe-area-inset-bottom,0px) + 18px);
-        z-index:10021; display:none; flex-direction:column; align-items:flex-start; gap:10px;
-        font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
-        /* Il wrap è solo un contenitore di layout, non deve intercettare NULLA.
-           Senza questo era un rettangolo invisibile largo quanto la didascalia
-           (fino a 260px) e con z-index 10021, cioè l'unico elemento del sito che
-           sta sopra al floating player (10020): gli rubava i tap sui tasti.
-           Peggiorava con l'uso, perché .vg-caption si nasconde con opacity:0 e
-           non con display:none, quindi il testo resta nel layout per sempre e il
-           wrap non torna più stretto. Solo l'orb, che è un bottone vero, riprende
-           i tap. Le didascalie hanno già pointer-events:none per conto loro. */
-        pointer-events:none;
-    }
-    #vg-orb{ pointer-events:auto; }
-
-    /* Quando è aperto un foglio (impostazioni audio, IA, esempi...) l'orb si
-       sposta in alto a sinistra: i fogli sono ancorati in basso e stanno sotto
-       come z-index, quindi da qui giù l'orb ne coprirebbe i controlli rendendoli
-       intoccabili. Il segnale body.sheet-open lo imposta floating_player.php.
-       column-reverse tiene l'orb in cima e didascalie/suggerimenti sotto.
-       Le didascalie le togliamo del tutto: sono informazioni di passaggio e,
-       larghe come sono, coprirebbero il player spostato anche lui in alto. */
-    body.sheet-open #vg-orb-wrap{
-        top:calc(env(safe-area-inset-top,0px) + 10px);
-        bottom:auto;
-        left:14px;
-        flex-direction:column-reverse;
-    }
-    body.sheet-open #vg-caption,
-    body.sheet-open .vg-coldstart-hint{ display:none; }
-    #vg-orb{
-        position:relative; width:58px; height:58px; border:none; border-radius:50%; padding:0; cursor:pointer;
-        display:flex; align-items:center; justify-content:center; overflow:visible;
-        background:radial-gradient(circle at 32% 26%, #9d9bff, #5e5ce6 46%, #3634d1 100%);
-        box-shadow:0 10px 26px -8px rgba(94,92,230,.65), 0 2px 8px rgba(0,0,0,.22), inset 0 1px 1px rgba(255,255,255,.4);
-        transition:transform .15s cubic-bezier(.32,.72,0,1), background .35s;
-    }
-    #vg-orb:active{ transform:scale(.93); }
-    #vg-orb .vg-mic-ic{ width:23px; height:23px; color:#fff; position:relative; z-index:2; }
-    #vg-orb::before{
-        content:""; position:absolute; inset:-7px; border-radius:50%; pointer-events:none;
-        border:2px solid rgba(94,92,230,.5);
-        animation:vgBreathe 2.8s ease-in-out infinite;
-    }
-    @keyframes vgBreathe{
-        0%{ transform:scale(.92); opacity:.75; }
-        70%{ transform:scale(1.22); opacity:0; }
-        100%{ transform:scale(1.22); opacity:0; }
-    }
-    #vg-orb.vg-hearing{ animation:vgPulseFast .85s ease-in-out infinite; }
-    @keyframes vgPulseFast{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.09); } }
-
-    #vg-orb.vg-state-speaking{ background:radial-gradient(circle at 32% 26%, #7cffc0, #2fd158 55%, #049048 100%); }
-    #vg-orb.vg-state-speaking::before{ border-color:rgba(48,209,88,.55); animation-duration:1.6s; }
-
-    #vg-orb.vg-state-thinking{ background:radial-gradient(circle at 32% 26%, #ffd699, #ff9f0a 55%, #c96f00 100%); }
-    #vg-orb.vg-state-thinking::before{ border-color:rgba(255,159,10,.55); }
-    #vg-orb.vg-state-thinking .vg-mic-ic{ animation:vgSpin 1s linear infinite; }
-    @keyframes vgSpin{ to{ transform:rotate(360deg); } }
-
-    #vg-orb.vg-state-paused{ filter:grayscale(.55) brightness(.92); }
-    #vg-orb.vg-state-paused::before{ animation-play-state:paused; opacity:.3; }
-
-    #vg-orb.vg-state-waiting::after{
-        content:""; position:absolute; inset:-4px; border-radius:50%; pointer-events:none;
-        box-shadow:0 0 0 0 rgba(255,159,10,.55);
-        animation:vgWaitPing 1.5s ease-out infinite;
-    }
-    @keyframes vgWaitPing{
-        0%{ box-shadow:0 0 0 0 rgba(255,159,10,.55); }
-        100%{ box-shadow:0 0 0 16px rgba(255,159,10,0); }
-    }
-
-    /* Stato dedicato al "bug reset" iOS: distinto da vg-state-waiting,
-       che altrove significa "in attesa della prossima carta". */
-    #vg-orb.vg-state-coldstart{ filter:saturate(.85); }
-    #vg-orb.vg-state-coldstart::before{ border-color:rgba(255,149,0,.6); animation-duration:2.2s; }
-
-    .vg-coldstart-badge{
-        position:absolute; right:-6px; bottom:-4px;
-        min-width:34px; height:22px; padding:0 7px;
-        border-radius:11px;
-        background:rgba(255,149,0,.96); color:#fff;
-        font-size:11px; font-weight:800; font-variant-numeric:tabular-nums;
-        display:flex; align-items:center; justify-content:center;
-        box-shadow:0 3px 8px rgba(0,0,0,.3), 0 0 0 2px rgba(255,255,255,.9);
-        opacity:0; transform:scale(.7);
-        transition:opacity .2s, transform .2s, background .25s;
-        pointer-events:none; z-index:3;
-    }
-    .vg-coldstart-badge.vg-show{ opacity:1; transform:scale(1); }
-    .vg-coldstart-badge.vg-success{ background:rgba(52,199,89,.96); }
-    @media (prefers-color-scheme: dark){
-        .vg-coldstart-badge{ box-shadow:0 3px 8px rgba(0,0,0,.5), 0 0 0 2px rgba(28,28,30,.9); }
-    }
-
-    /* Spiegazione temporanea (primi ~5s del countdown): sopra l'orb, si
-       dissolve da sola lasciando solo il numerino del badge a contare. */
-    .vg-coldstart-hint{
-        max-width:220px; margin-bottom:8px; padding:8px 12px;
-        border-radius:14px; text-align:center;
-        background:rgba(255,149,0,.96); color:#fff;
-        font:600 12px/1.35 -apple-system,BlinkMacSystemFont,sans-serif;
-        box-shadow:0 4px 14px rgba(0,0,0,.3);
-        opacity:0; transform:translateY(6px) scale(.95);
-        transition:opacity .35s, transform .35s;
-        pointer-events:none;
-    }
-    .vg-coldstart-hint.vg-show{ opacity:1; transform:none; }
-
-    /* Modale "lo riuserai a breve?" */
-    .vg-ask-overlay{
-        position:fixed; inset:0; z-index:10040; display:none;
-        align-items:center; justify-content:center;
-        background:rgba(0,0,0,.55); padding:20px;
-        -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
-    }
-    .vg-ask-card{
-        width:100%; max-width:380px;
-        background:rgba(255,255,255,.98); color:#1C1C1E;
-        border-radius:22px; padding:22px 22px 18px;
-        box-shadow:0 20px 60px rgba(0,0,0,.4);
-        font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
-        text-align:left;
-        animation:vgAskIn .28s cubic-bezier(.24,1.1,.4,1) both;
-    }
-    @keyframes vgAskIn{ from{ transform:scale(.92); opacity:0; } to{ transform:none; opacity:1; } }
-    .vg-ask-title{ font-size:17px; font-weight:800; margin:0 0 8px; }
-    .vg-ask-body{ font-size:14px; line-height:1.5; color:#3A3A3C; margin:0 0 18px; }
-    .vg-ask-actions{ display:flex; flex-direction:column; gap:8px; }
-    .vg-ask-actions .vg-btn{ width:100%; }
-    @media (prefers-color-scheme: dark){
-        .vg-ask-card{ background:rgba(28,28,30,.98); color:#F5F5F7; }
-        .vg-ask-body{ color:#98989F; }
-    }
-
-    @media (prefers-reduced-motion: reduce){
-        #vg-orb, #vg-orb::before, #vg-orb::after, #vg-orb .vg-mic-ic{ animation:none !important; }
-    }
-
-    .vg-caption{
-        max-width:260px; padding:9px 15px; border-radius:14px;
-        background:rgba(28,28,30,.88); color:#fff; font-size:13px; font-weight:600; line-height:1.35;
-        -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
-        box-shadow:0 6px 20px rgba(0,0,0,.25);
-        opacity:0; transform:translateY(6px) scale(.96);
-        transition:opacity .22s, transform .22s;
-        pointer-events:none;
-    }
-    .vg-caption.vg-show{ opacity:1; transform:none; }
-    .vg-caption.vg-recognized{ background:rgba(10,132,255,.94); }
-    .vg-caption.vg-hint{ background:rgba(255,159,10,.94); }
-</style>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>voice_game_mode.css?v=<?php echo @filemtime(dirname(__FILE__) . '/voice_game_mode.css') ?: 1; ?>">
 
 <script>
 (function () {
@@ -564,7 +314,10 @@
             .trim();
     }
 
-    var FILLERS = ['per favore', 'per piacere', 'puoi', 'potresti', 'vorrei', 'grazie mille', 'grazie', 'va bene', 'allora', 'dai', 'ecco'];
+    /* Le parole di cortesia da togliere prima di riconoscere il comando
+       ("puoi ripeti per favore" -> "ripeti"). Vengono dal dizionario perche' in
+       inglese sono altre, e in italiano non aiuterebbero. */
+    var FILLERS = T('fc.vg_fillers').split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean);
     function stripFillers(s) {
         var out = ' ' + s + ' ';
         FILLERS.forEach(function (f) {
@@ -598,26 +351,22 @@
     }
 
     // Dizionario comandi: intento -> frasi candidate (sinonimi e varianti naturali)
-    var COMMANDS = {
-        ripeti:     ['ripeti', 'ripeti la domanda', 'ripeti la risposta', 'di nuovo', 'ancora una volta', 'ripeti pure'],
-        pausa:      ['pausa', 'fermati', 'ferma', 'fai una pausa', 'metti in pausa'],
-        riprendi:   ['riprendi', 'continua', 'prosegui', 'riparti', 'continua a leggere'],
-        risposta:   ['risposta', 'mostra la risposta', 'dimmi la risposta', 'fammi vedere la risposta', 'svela la risposta'],
-        leggi:      ['leggi', 'leggila', 'fai leggere'],
-        spiega:     ['spiega', 'spiegami', 'spiegazione'],
-        metafora:   ['metafora', 'fammi una metafora', 'usa una metafora', 'dammi una metafora'],
-        corretto:   ['corretto', 'corretta', 'giusto', 'giusta', 'esatto', 'esatta'],
-        errato:     ['errato', 'errata', 'sbagliato', 'sbagliata', 'ho sbagliato', 'non lo sapevo'],
-        successiva: ['successiva', 'prossima', 'avanti', 'vai avanti', 'prossima carta', 'vai alla prossima'],
-        frantuma:   ['frantuma', 'frantumala', 'spacchetta', 'scomponi', 'frantuma la domanda'],
-        chiudi:     ['chiudi', 'chiudi il popup', 'chiudi tutto', 'torna alla domanda', 'esci da qui']
-    };
+    /* Sinonimi di ogni comando, presi dal dizionario: sono le frasi che il
+       microfono confronta, quindi devono essere nella lingua in cui l'utente
+       parla. Nel dizionario stanno come elenco separato da virgole. */
+    var COMMANDS = {};
+    ['ripeti', 'pausa', 'riprendi', 'risposta', 'leggi', 'spiega', 'metafora', 'corretto', 'errato', 'successiva', 'frantuma', 'chiudi'].forEach(function (intento) {
+        COMMANDS[intento] = T('fc.cmd_' + intento).split(',').map(function (x) {
+            return x.trim().toLowerCase();
+        }).filter(Boolean);
+    });
 
-    var INTENT_LABELS = {
-        ripeti: 'Ripeti', pausa: 'Pausa', riprendi: 'Riprendi', risposta: 'Risposta',
-        leggi: 'Leggi', spiega: 'Spiega', metafora: 'Metafora', corretto: 'Corretto',
-        errato: 'Errato', successiva: 'Successiva', frantuma: 'Frantuma', chiudi: 'Chiudi'
-    };
+    /* Le etichette sono separate dai sinonimi: questa e' quella che si legge
+       sullo schermo, i sinonimi sono quelli che si dicono a voce. */
+    var INTENT_LABELS = {};
+    Object.keys(COMMANDS).forEach(function (intento) {
+        INTENT_LABELS[intento] = T('fc.lbl_' + intento);
+    });
 
     var COMMAND_INDEX = Object.keys(COMMANDS).map(function (intent) {
         return {
@@ -735,7 +484,7 @@
         showColdStartBadge(secondsLeft + 's');
 
         if (elColdHint) {
-            elColdHint.textContent = 'Bug noto di iPhone: aspetta, tra poco funzionerà';
+            elColdHint.textContent = T('fc.vg_bug_iphone');
             elColdHint.classList.add('vg-show');
             setTimeout(function () {
                 if (elColdHint) elColdHint.classList.remove('vg-show');
@@ -764,7 +513,7 @@
         if (elColdHint) elColdHint.classList.remove('vg-show');
 
         if (earlyDetection) {
-            showColdStartBadge('Pronto!', true);
+            showColdStartBadge(T('fc.vg_pronto'), true);
             setTimeout(hideColdStartBadge, 1500);
         } else {
             hideColdStartBadge();
@@ -979,7 +728,7 @@
                 clearInterval(timer);
                 VG.phase = 'question';
                 setOrbState('speaking');
-                speakText('Non sono riuscito a frantumare la domanda.', function () {
+                speakText(T('fc.vg_no_frantuma'), function () {
                     if (VG.active && VG.phase === 'question') setOrbState('listening');
                 });
             }
@@ -1015,10 +764,10 @@
         } else {
             VG.phase = 'shatter-finished';
             setOrbState('speaking');
-            speakText('Domanda frantumata finita.', function () {
+            speakText(T('fc.vg_frantuma_finita'), function () {
                 if (VG.active && VG.phase === 'shatter-finished') {
                     setOrbState('listening');
-                    showCaption('Dì «corretta» o «sbagliata»', 'hint');
+                    showCaption(T('fc.vg_di_corretta_sbagliata', {corretta: T('fc.lbl_corretto'), sbagliata: T('fc.lbl_errato')}), 'hint');
                 }
             });
         }
@@ -1099,7 +848,7 @@
                 break;
             case 'shatter-finished':
                 setOrbState('speaking');
-                speakText('Domanda frantumata finita.', function () {
+                speakText(T('fc.vg_frantuma_finita'), function () {
                     if (VG.active && VG.phase === 'shatter-finished') setOrbState('listening');
                 });
                 break;
@@ -1189,7 +938,9 @@
         var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SR) return null;
         recognition = new SR();
-        recognition.lang = 'it-IT';
+        /* La lingua del riconoscimento segue quella del sito: era fissa a
+           'it-IT', quindi in inglese il microfono non capiva nessun comando. */
+        recognition.lang = T('fc.voice_lang');
         recognition.continuous = false; // Obbligatorio su iOS per non bloccare il demone
         recognition.interimResults = true;
         recognition.maxAlternatives = 3;
@@ -1270,7 +1021,7 @@
 
     function showMicError() {
         if (elErrorBox && elErrorText) {
-            elErrorText.textContent = "Per usare la modalità vocale, consenti l'accesso al microfono dalle impostazioni del browser, poi riprova.";
+            elErrorText.textContent = T('fc.vg_serve_permesso');
             elErrorBox.style.display = 'flex';
         }
         deactivate(true); // "true" impedisce la creazione del blocco di 40s
@@ -1285,11 +1036,11 @@
     function openIntro(reminder) {
         if (!elOverlay) return;
         if (reminder) {
-            elStartBtn.textContent = 'Continua a giocare';
+            elStartBtn.textContent = T('fc.vg_continua');
             elCancelBtn.style.display = 'none';
             elExitBtn.style.display = 'block';
         } else {
-            elStartBtn.textContent = 'Ho capito, inizia';
+            elStartBtn.textContent = T('fc.vg_ho_capito');
             elCancelBtn.style.display = '';
             elExitBtn.style.display = 'none';
         }
@@ -1325,7 +1076,7 @@
         if (!SR) {
             if (elErrorBox && elErrorText) {
                 elErrorBox.dataset.forced = '1';
-                elErrorText.textContent = 'Il tuo browser non supporta il riconoscimento vocale. Prova con una versione aggiornata di Chrome, Edge o Safari.';
+                elErrorText.textContent = T('fc.vg_no_supporto');
                 elErrorBox.style.display = 'flex';
             }
             return;
@@ -1385,15 +1136,15 @@
             if (window.vgLastStopTime > 0 && timeSinceStop < 40000) {
                 var timeLeft = Math.ceil((40000 - timeSinceStop) / 1000);
                 setOrbState('waiting');
-                showCaption('Attesa sblocco iOS: ' + timeLeft + 's', 'hint');
+                showCaption(T('fc.vg_attesa_ios') + timeLeft + 's', 'hint');
                 if (window.vgCooldownTimer) clearInterval(window.vgCooldownTimer);
                 window.vgCooldownTimer = setInterval(function() {
                     timeLeft--;
                     if (timeLeft > 0) {
-                        showCaption('Attesa sblocco iOS: ' + timeLeft + 's', 'hint');
+                        showCaption(T('fc.vg_attesa_ios') + timeLeft + 's', 'hint');
                     } else {
                         clearInterval(window.vgCooldownTimer);
-                        showCaption('Microfono pronto!', 'recognized');
+                        showCaption(T('fc.vg_micro_pronto'), 'recognized');
                         setOrbState('listening');
                         if (!isRecognizing) safeStart();
                     }
@@ -1513,7 +1264,7 @@
             VG.pendingGrade = false;
             VG.phase = 'awaiting-next';
             setOrbState('waiting');
-            showCaption('Dì «successiva» per continuare', 'hint');
+            showCaption(T('fc.vg_di_successiva', {successiva: T('fc.lbl_successiva')}), 'hint');
         } else {
             VG.phase = 'idle';
             setTimeout(readQuestion, 350);

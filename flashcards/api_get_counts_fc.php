@@ -1,33 +1,56 @@
 <?php
+/* Quante schede ci sono per ogni categoria, secondo il filtro imparate/da
+ * imparare. Serve a mostrare i numeri accanto alle categorie.
+ *
+ * COSA C'ERA CHE NON ANDAVA
+ *
+ * 1. Nessun controllo di accesso, e $user_id preso dalla querystring con 1 come
+ *    ripiego: bastava cambiare un numero per leggere quante schede ha un altro
+ *    utente, e in quali categorie.
+ *
+ * 2. I conteggi non erano filtrati per utente: "SELECT COUNT(*) FROM fc_images"
+ *    contava le schede di tutti, e l'elenco per categoria le esponeva una a una.
+ */
 require_once 'config.php';
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
+require_once 'auth_check_api.php';
 
-$status_param = isset($_GET['status']) ? $_GET['status'] : '0';
-$user_id = isset($_GET['user_id']) ? intval($_GET['user_id']) : 1;
+header('Content-Type: application/json');
 
-$data = array();
+$current_user_id = (int)$utente_corrente['id'];
+$conn = sec_db();
 
-// Adattato per la tabella delle materie (fc_images) e il tracking relativo (user_learnt_fc)
-if ($status_param === 'all') {
-    $where = "1=1";
-} elseif ($status_param === '1') {
-    $where = "id IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = $user_id)";
+$status = sec_enum($_GET['status'] ?? null, ['all', '1', '0'], '0');
+
+/* Le tre forme della clausola sono scritte per esteso: prima "$where" veniva
+   composto e incollato nella query. */
+$par = [];
+if ($status === 'all') {
+    $where = '1=1';
+} elseif ($status === '1') {
+    $where = 'i.id IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = ?)';
+    $par[] = $current_user_id;
 } else {
-    $where = "id NOT IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = $user_id)";
+    $where = 'i.id NOT IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = ?)';
+    $par[] = $current_user_id;
 }
 
-// Conta solo i padri e le carte singole, ignorando i "figli"
-$res_all = mysqli_query($conn, "SELECT COUNT(*) as total FROM fc_images WHERE $where");
-$data['all'] = mysqli_fetch_assoc($res_all)['total'];
+/* La JOIN su fc_categories con user_id e' quello che mancava: senza, i
+   conteggi comprendevano le schede di tutti gli utenti. */
+$data = [];
 
-$query = "SELECT category_id, COUNT(*) as c FROM fc_images WHERE $where GROUP BY category_id";
-$res = mysqli_query($conn, $query);
-while($row = mysqli_fetch_assoc($res)) {
-    if ($row['category_id'] != null) {
-        $data['cat_' . $row['category_id']] = $row['c'];
+$data['all'] = (int)(sec_one(
+    "SELECT COUNT(*) AS total FROM fc_images i
+     JOIN fc_categories c ON c.id = i.category_id
+     WHERE $where AND c.user_id = ?", array_merge($par, [$current_user_id]))['total'] ?? 0);
+
+foreach (sec_all(
+    "SELECT i.category_id, COUNT(*) AS c FROM fc_images i
+     JOIN fc_categories c ON c.id = i.category_id
+     WHERE $where AND c.user_id = ?
+     GROUP BY i.category_id", array_merge($par, [$current_user_id])) as $row) {
+    if ($row['category_id'] !== null) {
+        $data['cat_' . (int)$row['category_id']] = (int)$row['c'];
     }
 }
 
 echo json_encode($data);
-mysqli_close($conn);
-?>

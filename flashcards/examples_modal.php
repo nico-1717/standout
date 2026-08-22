@@ -1,216 +1,14 @@
-<style>
-
-/* ================================================================
-
-   MODALE ESEMPI - Stile iOS e Modifica Immagine
-
-   ================================================================ */
-
-.exm-overlay{
-
-    display:none; position:fixed; inset:0; z-index:11000;
-
-    justify-content:center; align-items:flex-end;
-
-    background:rgba(0,0,0,.5); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
-
-    box-sizing:border-box;
-
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
-
+<?php
+/* Il componente puo' comparire piu' volte nella stessa pagina: il foglio si
+   carica una volta sola. Il <link> sta qui e non nel <head> perche' questo file
+   e' incluso dentro il <body>; funziona, e per un componente e' il compromesso
+   giusto rispetto a chiedere a ogni pagina di ricordarselo. */
+if (!defined('EXM_CSS')) {
+    define('EXM_CSS', 1);
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'examples_modal.css?v=' . (@filemtime(dirname(__FILE__) . '/examples_modal.css') ?: 1) . '">' . "\n";
 }
-
-.exm-overlay.form{ z-index:11005; }
-
-.exm-panel{
-
-    position:relative; width:100%; max-width:640px; max-height:92vh; overflow-y:auto;
-
-    -webkit-overflow-scrolling:touch;
-
-    background:var(--surface, #fff); color:var(--text, #1C1C1E);
-
-    border-radius:26px 26px 0 0; padding:28px 20px calc(24px + env(safe-area-inset-bottom,0px));
-
-    box-shadow:0 -12px 50px rgba(0,0,0,.4);
-
-    animation:exmUp .42s cubic-bezier(.32,.72,0,1) both; text-align:left;
-
-}
-
-@keyframes exmUp{ from{ transform:translateY(60%); opacity:.4; } }
-
-.exm-panel::before{ content:""; position:absolute; top:9px; left:50%; transform:translateX(-50%); width:38px; height:5px; border-radius:99px; background:var(--hairline-2, rgba(60,60,67,.25)); }
-
-.exm-panel h3{ margin:2px 0 16px; font-size:20px; font-weight:800; letter-spacing:-.02em; color:var(--text, #1C1C1E); }
-
-
-
-.exm-close{
-
-    position:absolute; top:16px; right:16px; z-index:2; width:32px; height:32px;
-
-    border:none; border-radius:50%; cursor:pointer; padding:0;
-
-    background:var(--surface-2, #EFEFF4); color:var(--text-2, #8A8A8E); font-size:14px; font-weight:700;
-
-    display:flex; align-items:center; justify-content:center;
-
-    box-shadow:inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1));
-
-}
-
-
-
-/* Bottoni base */
-
-.exm-btn{
-
-    display:inline-flex; align-items:center; justify-content:center; gap:7px;
-
-    width:100%; padding:15px 16px; border:none; border-radius:15px; cursor:pointer;
-
-    font-family:inherit; font-size:16px; font-weight:800; color:#fff;
-
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16), 0 10px 20px -8px rgba(0,0,0,.3);
-
-    transition:transform .16s cubic-bezier(.32,.72,0,1), filter .2s;
-
-}
-
-.exm-btn:active{ transform:translateY(1.5px) scale(.98); filter:brightness(.95); }
-
-.exm-btn.blue{ background:linear-gradient(180deg, color-mix(in srgb, var(--blue, #007AFF), #fff 16%), var(--blue, #007AFF) 52%, color-mix(in srgb, var(--blue, #007AFF), #000 10%)); }
-
-.exm-btn.green{ background:linear-gradient(180deg, color-mix(in srgb, var(--green, #34C759), #fff 16%), var(--green, #34C759) 52%, color-mix(in srgb, var(--green, #34C759), #000 10%)); }
-
-.exm-btn.purple{ background:linear-gradient(180deg, color-mix(in srgb, var(--purple, #AF52DE), #fff 16%), var(--purple, #AF52DE) 52%, color-mix(in srgb, var(--purple, #AF52DE), #000 10%)); }
-
-.exm-btn.red{ background:var(--chip-bg, #EFEFF4); color:var(--red, #FF3B30); box-shadow:inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1)); }
-
-.exm-btn.sm{ padding:11px 14px; font-size:14px; }
-
-
-
-/* AI Box */
-
-.exm-ai-box{ background:var(--blue-soft, rgba(0,122,255,.09)); padding:16px; border-radius:16px; border:1px dashed rgba(0,122,255,.4); margin-bottom:18px; }
-
-.exm-ai-title{ font-weight:800; color:var(--blue, #007AFF); margin-bottom:8px; font-size:14.5px; }
-
-
-
-/* Form Field & Labels */
-
-.exm-label{ font-weight:800; color:var(--text-2, #8A8A8E); font-size:12.5px; text-transform:uppercase; letter-spacing:.04em; display:block; margin:18px 0 8px; }
-
-.exm-panel textarea{
-
-    width:100%; padding:12px 14px; border:1px solid var(--hairline-2, rgba(60,60,67,.25)); border-radius:12px;
-
-    font-family:inherit; font-size:16px; color:var(--text, #1C1C1E); background:var(--surface-2, #F7F7FA); box-sizing:border-box; resize:vertical;
-
-}
-
-.exm-panel textarea:focus{ outline:none; border-color:var(--blue, #007AFF); }
-
-
-
-/* Audio (Stile Modifica Immagine) */
-
-.exm-audio-card{
-
-    background:var(--surface-2, #F7F7FA); border-radius:16px; padding:12px 14px;
-
-    border:.5px solid var(--hairline-2, rgba(60,60,67,.25)); margin-bottom:16px;
-
-    display:flex; flex-direction:column; gap:10px;
-
-}
-
-.exm-audio-row{ display:flex; align-items:center; gap:12px; }
-
-.exm-rec-btn{
-
-    width:48px; height:48px; border-radius:50%; flex-shrink:0; border:none; cursor:pointer; padding:0;
-
-    display:flex; align-items:center; justify-content:center; position:relative;
-
-    background:var(--surface, #fff); color:var(--text-2, #8A8A8E);
-
-    box-shadow:inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1)), 0 2px 6px rgba(0,0,0,.08);
-
-    transition:transform .15s cubic-bezier(.32,.72,0,1), background .2s, color .2s;
-
-}
-
-.exm-rec-btn:active{ transform:scale(.9); }
-
-.exm-rec-btn.recording{
-
-    background:var(--red-soft, rgba(255,59,48,.15)); color:var(--red, #FF3B30);
-
-    box-shadow:inset 0 0 0 1.5px var(--red, #FF3B30);
-
-    animation:recPulse 1.6s ease-in-out infinite;
-
-}
-
-@keyframes recPulse{
-
-    0%,100%{ box-shadow:inset 0 0 0 1.5px var(--red, #FF3B30), 0 0 0 0 rgba(255,59,48,.3); }
-
-    50%{ box-shadow:inset 0 0 0 1.5px var(--red, #FF3B30), 0 0 0 8px rgba(255,59,48,0); }
-
-}
-
-
-
-/* Immagine (Stile Modifica Immagine) */
-
-.exm-img-box{
-
-    background:var(--blue-soft, rgba(0,122,255,.09)); border-radius:14px; padding:14px; text-align:center;
-
-    box-shadow:inset 0 0 0 1.5px rgba(0,122,255,.4); margin-bottom:20px;
-
-}
-
-.exm-file-btn{
-
-    display:inline-flex; align-items:center; gap:7px; cursor:pointer; margin:0 auto;
-
-    background:var(--surface, #fff); color:var(--text, #1C1C1E); font-weight:700; font-size:13.5px;
-
-    padding:9px 14px; border-radius:11px; box-shadow:inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1)), 0 2px 5px rgba(0,0,0,.05);
-
-    transition:transform .15s cubic-bezier(.32,.72,0,1);
-
-}
-
-.exm-file-btn:active{ transform:scale(.96); }
-
-
-
-/* Liste Card ed Elementi */
-
-.exm-panel audio{ width:100%; border-radius:12px; }
-
-.exm-panel .raw-text{ font-size:15px; color:var(--text, #1C1C1E); line-height:1.5; }
-
-.exm-actions{ display:flex; gap:10px; margin-top:24px; }
-
-
-
-@media (min-width:640px){
-
-    .exm-overlay{ align-items:center; padding:20px; }
-
-    .exm-panel{ border-radius:26px; }
-
-}
-
-</style>
+?>
+">
 
 
 
@@ -220,15 +18,15 @@
 
     <div class="exm-panel">
 
-        <button class="exm-close" onclick="document.getElementById('ex-list-modal').style.display='none'" aria-label="Chiudi">&#10005;</button>
+        <button class="exm-close" onclick="document.getElementById('ex-list-modal').style.display='none'" aria-label=T('comune.chiudi')>&#10005;</button>
 
-        <h3>📚 Esempi associati</h3>
+        <h3><?php te('fc.exm_titolo'); ?></h3>
 
-        <p style="color: var(--text-2, #8A8A8E); font-size: 14px; margin-top:-10px; margin-bottom:16px;">Gestisci gli esempi pratici per questa flashcard.</p>
+        <p style="color: var(--text-2, #8A8A8E); font-size: 14px; margin-top:-10px; margin-bottom:16px;"><?php te('fc.exm_sottotitolo'); ?></p>
 
         <div id="ex-list-content" style="flex:1; max-height:50vh; overflow-y:auto; margin-bottom:16px; padding-bottom:10px;"></div>
 
-        <button class="exm-btn green" onclick="openExampleForm(currentFcId, 0)">➕ Aggiungi nuovo esempio</button>
+        <button class="exm-btn green" onclick="openExampleForm(currentFcId, 0)"><?php te('fc.exm_aggiungi_nuovo'); ?></button>
 
     </div>
 
@@ -242,25 +40,25 @@
 
     <div class="exm-panel">
 
-        <button class="exm-close" onclick="document.getElementById('ex-form-modal').style.display='none'" aria-label="Chiudi">&#10005;</button>
+        <button class="exm-close" onclick="document.getElementById('ex-form-modal').style.display='none'" aria-label=T('comune.chiudi')>&#10005;</button>
 
-        <h3 id="ex-form-title">✍️ Editor esempio</h3>
+        <h3 id="ex-form-title"><?php te('fc.exm_editor'); ?></h3>
 
 
 
         <div class="exm-ai-box">
 
-            <div class="exm-ai-title">🤖 Genera con IA</div>
+            <div class="exm-ai-title"><?php te('fc.exm_genera_ia'); ?></div>
 
-            <textarea id="ex-ai-prompt" rows="2" onclick="this.select()">Crea un esercizio pratico da esame su questo argomento.</textarea>
+            <textarea id="ex-ai-prompt" rows="2" onclick="this.select()"><?php te('fc.exm_genera_sub'); ?></textarea>
 
-            <button id="ex-ai-btn" class="exm-btn purple sm" style="margin-top:10px;" onclick="generateAiExample()">✨ Genera esempio IA</button>
+            <button id="ex-ai-btn" class="exm-btn purple sm" style="margin-top:10px;" onclick="generateAiExample()"><?php te('fc.exm_genera_btn'); ?></button>
 
         </div>
 
 
 
-        <label class="exm-label">Testo dell'esempio</label>
+        <label class="exm-label"><?php te('fc.exm_testo'); ?></label>
 
         <div style="margin-bottom: 16px; border: 1px solid var(--hairline-2, rgba(60,60,67,.25)); border-radius: 12px; overflow: hidden; background: var(--surface, #fff);">
 
@@ -270,7 +68,7 @@
 
                 $ft_raw = ''; 
 
-                $ft_placeholder = 'Scrivi qui l\'esempio...';
+                $ft_placeholder = T('fc.exm_ph_testo');
 
                 include 'format_toolbar.php';
 
@@ -280,7 +78,7 @@
 
 
 
-        <label class="exm-label">Audio</label>
+        <label class="exm-label"><?php te('fc.exm_audio'); ?></label>
 
         <div class="exm-audio-card">
 
@@ -296,7 +94,7 @@
 
                 <div style="flex:1; min-width:0;">
 
-                    <div style="font-size:13.5px; font-weight:800; color:var(--text, #1C1C1E);">Vocale Esempio</div>
+                    <div style="font-size:13.5px; font-weight:800; color:var(--text, #1C1C1E);"><?php te('fc.exm_vocale'); ?></div>
 
                     <div id="ex-rec-status" style="font-size:12px; font-weight:600; color:var(--text-2, #8A8A8E); margin-top:1px; font-variant-numeric:tabular-nums;">Tocca per registrare</div>
 
@@ -310,7 +108,7 @@
 
 
 
-        <label class="exm-label">Immagine</label>
+        <label class="exm-label"><?php te('vocab.immagine'); ?></label>
 
         <div class="exm-img-box">
 
@@ -326,7 +124,7 @@
 
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.2h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.2" r="3.3"/></svg>
 
-                Scegli foto dal dispositivo
+                <?php te('fc.exm_scegli_foto'); ?>
 
             </label>
 
@@ -336,9 +134,9 @@
 
         <div class="exm-actions">
 
-            <button id="ex-delete-btn" class="exm-btn red" style="flex:1; display:none;" onclick="deleteExample()">Elimina</button>
+            <button id="ex-delete-btn" class="exm-btn red" style="flex:1; display:none;" onclick="deleteExample()"><?php te('comune.elimina'); ?></button>
 
-            <button id="ex-save-btn" class="exm-btn blue" style="flex:2;" onclick="saveExample()">💾 Salva esempio</button>
+            <button id="ex-save-btn" class="exm-btn blue" style="flex:2;" onclick="saveExample()"><?php te('fc.exm_salva'); ?></button>
 
         </div>
 
@@ -446,13 +244,13 @@ async function openExamplesModal(fc_id, q_text, a_text) {
         let res = await fetch(`examples_api.php?action=get&fc_id=${fc_id}`);
         data = await res.json();
     } catch (e) {
-        alert("Errore di rete: impossibile caricare gli esempi.");
+        alert(T('fc.exm_errore_carica'));
         console.error(e);
         return;
     }
 
     if (!data || !data.success) {
-        alert("Errore nel caricamento degli esempi" + (data && data.error ? ": " + data.error : "."));
+        alert(T('fc.exm_errore_carica2') + (data && data.error ? ": " + data.error : "."));
         return;
     }
 
@@ -479,7 +277,7 @@ async function openExamplesModal(fc_id, q_text, a_text) {
                 ${ex.example_audio ? `<audio src="fc_audio/${ex.example_audio}" controls style="width:100%; height:34px; margin-bottom:10px; border-radius:12px;"></audio>` : ''}
                 ${ex.example_image ? `<img src="fc_images/${ex.example_image}" style="max-width:100%; max-height:200px; border-radius:9px; display:block; margin-top:8px;">` : ''}
 
-                <button style="position:absolute; top:12px; right:12px; background:var(--surface, #fff); color:var(--text, #333); border:none; padding:6px 12px; border-radius:99px; font-weight:700; font-size:12px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.1), inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1));" onclick="openExampleForm(${fc_id}, ${ex.id})">✏️ Modifica</button>
+                <button style="position:absolute; top:12px; right:12px; background:var(--surface, #fff); color:var(--text, #333); border:none; padding:6px 12px; border-radius:99px; font-weight:700; font-size:12px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.1), inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1));" onclick="openExampleForm(${fc_id}, ${ex.id})">${T('fc.exm_modifica')}</button>
 
             </div>`;
 
@@ -545,13 +343,13 @@ function openExampleForm(fc_id, ex_id) {
 
     clearInterval(exRecTimer);
 
-    statusEl.textContent = 'Tocca per registrare';
+    statusEl.textContent = T('fc.ifc_tocca_registrare');
 
     
 
     if(ex_id > 0) {
 
-        title.innerText = "✏️ Modifica Esempio";
+        title.innerText = T('fc.exm_modifica_titolo');
 
         deleteBtn.style.display = 'block'; 
 
@@ -569,7 +367,7 @@ function openExampleForm(fc_id, ex_id) {
 
                 player.style.display = 'block';
 
-                statusEl.textContent = 'Audio salvato presente';
+                statusEl.textContent = T('fc.exm_audio_salvato');
 
             }
 
@@ -582,7 +380,7 @@ function openExampleForm(fc_id, ex_id) {
 
     } else {
 
-        title.innerText = "✍️ Nuovo Esempio";
+        title.innerText = T('fc.exm_nuovo_titolo');
 
         deleteBtn.style.display = 'none';
 
@@ -664,7 +462,7 @@ async function toggleExampleRecord() {
 
 
 
-        } catch (err) { alert("Impossibile accedere al microfono."); }
+        } catch (err) { alert(T('fc.ifc_no_microfono')); }
 
     } else {
 
@@ -678,7 +476,7 @@ async function toggleExampleRecord() {
 
         btn.querySelector('.ic-stop').style.display = 'none';
 
-        statusEl.textContent = 'Audio registrato pronto';
+        statusEl.textContent = T('fc.exm_audio_pronto');
 
     }
 
@@ -742,12 +540,12 @@ async function generateAiExample() {
 
         } else { alert("Errore IA: " + data.error + (data.raw ? "\nRaw: " + data.raw : "") + (data.debug ? "\n(" + data.debug + ")" : "")); }
 
-    } catch(e) { alert("Errore di rete."); }
+    } catch(e) { alert(T('vocab.errore_rete_p')); }
 
     
 
     clearInterval(exAiTimerInterval);
-    btn.disabled = false; btn.innerText = "✨ Genera Esempio IA";
+    btn.disabled = false; btn.innerText = T('fc.exm_genera_btn2');
 
 }
 
@@ -767,7 +565,7 @@ async function saveExample() {
 
     let originalText = btn.innerHTML;
 
-    btn.disabled = true; btn.innerText = "⏳ Salvataggio...";
+    btn.disabled = true; btn.innerText = T('fc.exm_salvataggio');
 
     
 
@@ -827,7 +625,7 @@ async function saveExample() {
 
                 } else {
 
-                    b.innerText = `➕ Aggiungi Esempio`;
+                    b.innerText = T('fc.exm_aggiungi');
 
                     b.style.background = 'var(--surface-3, #f1f3f5)'; b.style.color = 'var(--text-3, #555)'; b.style.borderColor = 'var(--hairline-2, #ccc)';
 
@@ -841,7 +639,7 @@ async function saveExample() {
 
         }
 
-    } catch(e) { alert("Errore salvataggio."); }
+    } catch(e) { alert(T('fc.exm_errore_salva')); }
 
     
 
@@ -853,7 +651,7 @@ async function saveExample() {
 
 async function deleteExample() {
 
-    if (!confirm("Sei sicuro di voler eliminare questo esempio?")) return;
+    if (!confirm(T('fc.exm_conferma_elimina'))) return;
 
     
 
@@ -861,7 +659,7 @@ async function deleteExample() {
 
     let originalText = btn.innerHTML;
 
-    btn.disabled = true; btn.innerText = "⏳ Eliminazione...";
+    btn.disabled = true; btn.innerText = T('fc.exm_eliminazione');
 
 
 
@@ -897,7 +695,7 @@ async function deleteExample() {
 
                 } else {
 
-                    b.innerText = `➕ Aggiungi Esempio`;
+                    b.innerText = T('fc.exm_aggiungi');
 
                     b.style.background = 'var(--surface-3, #f1f3f5)'; b.style.color = 'var(--text-3, #555)'; b.style.borderColor = 'var(--hairline-2, #ccc)';
 
@@ -911,7 +709,7 @@ async function deleteExample() {
 
         }
 
-    } catch(e) { alert("Errore durante l'eliminazione."); }
+    } catch(e) { alert(T('fc.exm_errore_elimina')); }
 
     
 

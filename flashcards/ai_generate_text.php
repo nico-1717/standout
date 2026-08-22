@@ -28,8 +28,8 @@ register_shutdown_function(function () {
 // --- CONTROLLO CHIAVI ---
 if (!defined('GEMINI_API_KEY')) { ob_clean(); die(json_encode(['success' => false, 'error' => 'GEMINI_API_KEY non definita in config.php'])); }
 
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-if (!$conn) { ob_clean(); die(json_encode(['success' => false, 'error' => 'Errore di connessione al Database.'])); }
+/* sec_db() riusa la connessione gia' aperta e la configura da sola. */
+$conn = sec_db();
 
 $data = json_decode($__raw_input, true);
 if (!$data) {
@@ -41,7 +41,12 @@ if (!$data) {
 // PREVENZIONE BUG PHP 8
 $mode = isset($data['mode']) ? $data['mode'] : '';
 $raw_text = isset($data['text']) ? $data['text'] : '';
-$card_id = isset($data['id']) ? intval($data['id']) : 0;
+/* Questo endpoint riceve un POST, quindi qui sec_guard_write protegge davvero
+   dal CSRF oltre a limitare la frequenza. 30 al minuto: ogni chiamata costa
+   token a Gemini. */
+sec_guard_write((int)$utente_corrente['id'], 'fc_ai_text', 0, 30, 60);
+
+$card_id = sec_int($data['id'] ?? 0, 1);
 
 // Questo endpoint gestisce solo 'explain' e 'metaphor'. Per 'read' non c'è nulla da generare,
 // non si chiama mai Gemini e non si spende nessun token: niente controllo limite in questo caso.
@@ -51,18 +56,23 @@ if ($mode === 'read') {
     exit;
 }
 
+/* $col_to_check e' un nome di colonna, non un valore: non si puo' legare a un
+   segnaposto. Qui e' sicuro perche' esce da un ternario con due valori fissi. */
 $col_to_check = ($mode === 'explain') ? 'ai_explanation' : 'ai_metaphor';
 
-// Protezione Database e Cache
-$query = "SELECT $col_to_check FROM fc_ai_data WHERE card_id = $card_id";
-$result = mysqli_query($conn, $query);
-
-if (!$result) {
+/* La scheda dev'essere dell'utente: senza questo controllo si poteva far
+   generare - e pagare in token - spiegazioni sulle schede di un altro, e
+   soprattutto rileggerle dalla cache. */
+$mia = sec_one("SELECT i.id FROM fc_images i
+                JOIN fc_categories c ON c.id = i.category_id
+                WHERE i.id = ? AND c.user_id = ?", [$card_id, (int)$utente_corrente['id']]);
+if (!$mia) {
     ob_clean();
-    die(json_encode(['success' => false, 'error' => 'Errore SQL (Tabella fc_ai_data mancante?): ' . mysqli_error($conn)]));
+    die(json_encode(['success' => false, 'error' => t('fc.non_autorizzato_scheda')]));
 }
 
-$row = mysqli_fetch_assoc($result);
+// Cache: se la risposta c'e' gia', non si chiama Gemini e non si spendono token
+$row = sec_one("SELECT $col_to_check FROM fc_ai_data WHERE card_id = ?", [$card_id]);
 
 if ($row && !empty($row[$col_to_check])) {
     // Trovata nel DB, nessuna chiamata esterna necessaria (Nessun token scalato!)
@@ -121,13 +131,10 @@ $json = json_decode($response, true);
 if (isset($json['candidates'][0]['content']['parts'][0]['text'])) {
     $final_text = $json['candidates'][0]['content']['parts'][0]['text'];
 
-    // Salvataggio sicuro nel DB
-    $safe_response = mysqli_real_escape_string($conn, $final_text);
-    $sql_insert = "INSERT INTO fc_ai_data (card_id, $col_to_check) VALUES ($card_id, '$safe_response') ON DUPLICATE KEY UPDATE $col_to_check = '$safe_response'";
-    if (!mysqli_query($conn, $sql_insert)) {
-        ob_clean();
-        die(json_encode(['success' => false, 'error' => 'Impossibile salvare la risposta nel DB: ' . mysqli_error($conn)]));
-    }
+    /* Il testo viaggia come valore legato: il nome della colonna resta scritto
+       nella query, per il motivo detto sopra. */
+    sec_q("INSERT INTO fc_ai_data (card_id, $col_to_check) VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE $col_to_check = ?", [$card_id, $final_text, $final_text]);
 
     // ORA scaliamo i token perché abbiamo effettivamente usato l'API
     $token_usati = isset($json['usageMetadata']['totalTokenCount']) ? (int)$json['usageMetadata']['totalTokenCount'] : 300;
@@ -138,5 +145,8 @@ if (isset($json['candidates'][0]['content']['parts'][0]['text'])) {
     exit;
 } else {
     ob_clean();
-    die(json_encode(['success' => false, 'error' => 'Risposta anomala da Gemini: ' . $response]));
+    /* Il corpo della risposta non si rimanda al client: puo' contenere dettagli
+       del servizio e della chiave. Finisce nel log, l'utente vede un messaggio. */
+    sec_log_error('gemini', 'risposta anomala: ' . substr((string)$response, 0, 500));
+    die(json_encode(['success' => false, 'error' => t('fc.risposta_anomala')]));
 }

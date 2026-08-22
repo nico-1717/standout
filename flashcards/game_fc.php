@@ -3,9 +3,9 @@ require_once 'config.php';
 require_once 'auth_check.php'; // 1. Protezione con login obbligatorio
 require_once 'piano_helpers.php';
 
-$current_user_id = $utente_corrente['id']; // 2. ID utente sicuro
-
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
+$current_user_id = (int)$utente_corrente['id']; // 2. ID utente sicuro
+/* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
+$conn = sec_db();
 
 // Stima tempo/lentezza IA per "spiega" e "metafora", da mostrare col timer nel popup
 // prima ancora di partire con la chiamata (vedi window.aiPerfStats più sotto).
@@ -16,18 +16,15 @@ $ai_perf_stats_js = [
     'shatter'  => nisama_get_stima_tempo_ia('shatter'),
 ];
 
-$game_id = isset($_GET['game_id']) ? intval($_GET['game_id']) : 0;
-$position = isset($_GET['position']) ? intval($_GET['position']) : 1;
-$status = isset($_GET['status']) ? $_GET['status'] : '0'; 
+$game_id = sec_int($_GET['game_id'] ?? 0, 1);
+$position = sec_int($_GET['position'] ?? 1, 1);
+$status = sec_enum($_GET['status'] ?? null, ['all', '1', '0'], '0'); 
 
 // 1. Info di base sulla partita
-$game_res = mysqli_query($conn, "SELECT * FROM games WHERE id = $game_id");
-$game_info = mysqli_fetch_assoc($game_res);
-
-// --- INIZIO SICUREZZA ---
-// Controlliamo che la partita esista e che l'utente loggato ne sia il legittimo proprietario
+$game_info = sec_one("SELECT * FROM games WHERE id = ?", [$game_id]);
+// --- SICUREZZA: la partita dev'essere sua ---
 if (!$game_info || (int)$game_info['user_id'] !== $current_user_id) {
-    die("Errore di sicurezza: Partita non trovata o non appartiene al tuo utente.");
+    die(sec_h(t('fc.game_non_tua')));
 }
 // --- FINE SICUREZZA ---
 
@@ -36,14 +33,30 @@ $parent_id = isset($game_info['parent_id']) ? intval($game_info['parent_id']) : 
 // 3. Forziamo l'uso dell'ID sicuro per il resto dello script
 $user_id = $current_user_id;
 
+require_once 'azione_post.php';
+
+/* LE AZIONI CHE SCRIVONO ARRIVANO SOLO IN POST.
+   Prima erano link (?action=grade, ?action=concludi, ?newsession=1) e su GET
+   sec_require_csrf() esce subito: il token non proteggeva niente, e bastava un
+   tag immagine su un altro sito per far chiudere una partita.
+   I parametri di navigazione - game_id, position, status - restano in GET:
+   quelli non scrivono, e devono stare nella barra dell'indirizzo. */
+$azione = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $azione = sec_enum($_POST['action'] ?? null, ['grade', 'concludi', 'newsession', 'setorder'], '');
+    if ($azione !== '') {
+        /* Ora il metodo e' POST, quindi sec_guard_write controlla davvero il
+           token oltre a limitare la frequenza. */
+        sec_guard_write($current_user_id, 'fc_game', 0, 300, 60);
+    }
+}
+
 
 
 // --- CRONOMETRO: nuova sessione quando si riprende la partita da "Continua partita" (result_fc.php) ---
 // (start_game_fc.php e start_retry.php creano già la sessione principale quando la partita nasce)
-if (isset($_GET['newsession']) && $_GET['newsession'] == '1' && $game_id > 0 && $game_info) {
-
-    mysqli_query($conn, "INSERT INTO session_durations (game_id, start_time, duration_seconds, updated_at) VALUES ($game_id, NOW(), 0, NOW())");
-
+if ($azione === 'newsession' && $game_id > 0 && $game_info) {
+    sec_q("INSERT INTO session_durations (game_id, start_time, duration_seconds, updated_at) VALUES (?, NOW(), 0, NOW())", [$game_id]);
     header("Location: game_fc.php?game_id=$game_id&position=$position&status=$status");
     exit();
 }
@@ -52,14 +65,21 @@ if (isset($_GET['newsession']) && $_GET['newsession'] == '1' && $game_id > 0 && 
 
 // --- GESTIONE ORDINE DAL DATABASE ---
 
-if (isset($_GET['order'])) {
-
-    // Se l'ordine è nell'URL (es. Nuova Partita), lo salviamo nel DB
-
-    $order_param = $_GET['order'];
-
-    mysqli_query($conn, "UPDATE games SET game_order = '$order_param' WHERE id = $game_id");
-
+if ($azione === 'setorder' || isset($_GET['order'])) {
+    /* INIEZIONE SQL: prima $_GET['order'] finiva dentro apici in questa UPDATE
+       senza validazione ne' escape. Un apice nell'indirizzo chiudeva la stringa
+       e da li' si poteva scrivere SQL a piacere. Ora e' un elenco chiuso di due
+       valori e viaggia come parametro.
+       Il valore si legge dal POST se l'azione e' arrivata da li', altrimenti
+       dalla querystring - ma in quel caso NON si scrive: l'ordine in GET serve
+       solo a sapere come mostrare le carte, non a cambiare il database. */
+    $order_param = ($azione === 'setorder')
+        ? sec_enum($_POST['order'] ?? null, ['in_order', 'random'], 'random')
+        : sec_enum($_GET['order'] ?? null, ['in_order', 'random'], 'random');
+    if ($azione === 'setorder') {
+        sec_q("UPDATE games SET game_order = ? WHERE id = ? AND user_id = ?",
+              [$order_param, $game_id, $current_user_id]);
+    }
 } else {
 
     // Se non c'è nell'URL (es. tasto "Continua Partita"), lo peschiamo dal database
@@ -76,24 +96,17 @@ if (isset($_GET['order'])) {
 
 // =========================================================================
 
-if (isset($_GET['action']) && $_GET['action'] == 'concludi') {
+if ($azione === 'concludi') {
 
-    $q_empty_pos = mysqli_query($conn, "SELECT position FROM fc_gameplays WHERE game_id = $game_id GROUP BY position HAVING SUM(CASE WHEN user_answer != '' THEN 1 ELSE 0 END) = 0");
-
-    $empty_positions = [];
-
-    while($row = mysqli_fetch_assoc($q_empty_pos)) {
-
-        $empty_positions[] = $row['position'];
-
+        $empty_positions = [];
+    foreach (sec_all("SELECT position FROM fc_gameplays WHERE game_id = ? GROUP BY position
+                      HAVING SUM(CASE WHEN user_answer != '' THEN 1 ELSE 0 END) = 0", [$game_id]) as $row) {
+        $empty_positions[] = (int)$row['position'];
     }
-
     if (!empty($empty_positions)) {
-
-        $pos_str = implode(',', $empty_positions);
-
-        mysqli_query($conn, "DELETE FROM fc_gameplays WHERE game_id = $game_id AND position IN ($pos_str)");
-
+        $pos_ph = implode(',', array_fill(0, count($empty_positions), '?'));
+        sec_q("DELETE FROM fc_gameplays WHERE game_id = ? AND position IN ($pos_ph)",
+              array_merge([$game_id], $empty_positions));
     }
 
     
@@ -106,10 +119,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'concludi') {
 
 
 
-$check_unanswered = mysqli_query($conn, "SELECT MIN(position) as min_p FROM fc_gameplays WHERE game_id = $game_id AND user_answer = ''");
-
-$row_unanswered = mysqli_fetch_assoc($check_unanswered);
-
+$row_unanswered = sec_one("SELECT MIN(position) AS min_p FROM fc_gameplays WHERE game_id = ? AND user_answer = ''", [$game_id]);
 $first_unanswered = $row_unanswered ? $row_unanswered['min_p'] : null;
 
 
@@ -126,75 +136,73 @@ if ($first_unanswered && $first_unanswered < $position) {
 
 
 
-$q_cats = mysqli_query($conn, "SELECT fc_category_id FROM game_fc_categories WHERE game_id = $game_id");
-
 $cat_ids = [];
-
-while ($c_row = mysqli_fetch_assoc($q_cats)) { if ($c_row['fc_category_id'] > 0) { $cat_ids[] = $c_row['fc_category_id']; } }
-
-$cat_filter = (count($cat_ids) > 0) ? "AND category_id IN (" . implode(',', $cat_ids) . ")" : "";
-
-
-
-if ($status === 'all') { $where_learnt = "1=1"; } 
-
-elseif ($status === '1') { $where_learnt = "id IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = $user_id)"; } 
-
-else { $where_learnt = "id NOT IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = $user_id)"; }
+foreach (sec_all("SELECT fc_category_id FROM game_fc_categories WHERE game_id = ?", [$game_id]) as $c_row) {
+    if ((int)$c_row['fc_category_id'] > 0) { $cat_ids[] = (int)$c_row['fc_category_id']; }
+}
+/* $cat_filter e $where_learnt sono pezzi di SQL riusati da piu' query: portano
+   con se' i propri segnaposto, e i valori stanno in $cat_par e $learnt_par.
+   Vanno passati nell'ordine in cui i pezzi compaiono nella query. */
+$cat_filter = '';
+$cat_par = [];
+if (count($cat_ids) > 0) {
+    $cat_filter = "AND category_id IN (" . implode(',', array_fill(0, count($cat_ids), '?')) . ")";
+    $cat_par = $cat_ids;
+}
+$learnt_par = [];
+if ($status === 'all') {
+    $where_learnt = "1=1";
+} elseif ($status === '1') {
+    $where_learnt = "id IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = ?)";
+    $learnt_par = [$user_id];
+} else {
+    $where_learnt = "id NOT IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = ?)";
+    $learnt_par = [$user_id];
+}
 
 
 
 // 2. Gestione dell'azione di Grading (Sbagliato / Corretto / Imparato)
 
-if (isset($_GET['action']) && $_GET['action'] == 'grade') {
+if ($azione === 'grade') {
+    $esito = sec_enum($_POST['result'] ?? null, ['correct', 'learnt', 'wrong'], 'wrong');
+    $result = ($esito === 'correct' || $esito === 'learnt') ? 'Correct' : 'Wrong';
+    /* L'id puo' essere negativo (le sotto-carte usano il negativo del proprio id),
+       quindi il minimo non e' 1. */
+    $id_to_mark = sec_int($_POST['img_id'] ?? 0, PHP_INT_MIN);
 
-    $result = ($_GET['result'] == 'correct' || $_GET['result'] == 'learnt') ? 'Correct' : 'Wrong';
-
-    $id_to_mark = intval($_GET['img_id']); // Usiamo la variabile id_to_mark ma facciamo riferimento alle due colonne separate
-
-
-
-    if ($_GET['result'] == 'learnt') {
-
+    if ($esito === 'learnt') {
         $parent_to_mark = $id_to_mark;
-
         if ($id_to_mark < 0) {
-
-            $real_id = abs($id_to_mark);
-
-            $c_res = mysqli_query($conn, "SELECT parent_id FROM fc_child_cards WHERE id_child = $real_id");
-
-            if ($c_row = mysqli_fetch_assoc($c_res)) { $parent_to_mark = $c_row['parent_id']; }
-
+            $c_row = sec_one("SELECT parent_id FROM fc_child_cards WHERE id_child = ?", [abs($id_to_mark)]);
+            if ($c_row) { $parent_to_mark = (int)$c_row['parent_id']; }
         }
-
-        if ($parent_to_mark > 0) {
-
-            mysqli_query($conn, "INSERT IGNORE INTO user_learnt_fc (user_id, fc_image_id, learnt_date) VALUES ($user_id, $parent_to_mark, CURDATE())");
-
+        /* La carta dev'essere sua: senza questo controllo si poteva riempire il
+           proprio storico "imparate" con le carte di un altro. */
+        if ($parent_to_mark > 0
+            && sec_one("SELECT i.id FROM fc_images i JOIN fc_categories c ON c.id = i.category_id
+                        WHERE i.id = ? AND c.user_id = ?", [$parent_to_mark, $user_id])) {
+            sec_q("INSERT IGNORE INTO user_learnt_fc (user_id, fc_image_id, learnt_date) VALUES (?, ?, CURDATE())",
+                  [$user_id, $parent_to_mark]);
         }
-
     }
 
-    
-
+    /* La clausola porta sempre game_id, e la partita e' gia' stata verificata
+       come sua in cima al file: una riga di un'altra partita non si tocca. */
     if ($id_to_mark > 0) {
-        mysqli_query($conn, "UPDATE fc_gameplays SET user_answer = '$result', play_date = NOW() WHERE game_id = $game_id AND position = $position AND fc_image_id = $id_to_mark");
+        sec_q("UPDATE fc_gameplays SET user_answer = ?, play_date = NOW()
+                WHERE game_id = ? AND position = ? AND fc_image_id = ?",
+              [$result, $game_id, $position, $id_to_mark]);
     } else {
-        $real_id = abs($id_to_mark);
-        mysqli_query($conn, "UPDATE fc_gameplays SET user_answer = '$result', play_date = NOW() WHERE game_id = $game_id AND position = $position AND fc_child_id = $real_id");
+        sec_q("UPDATE fc_gameplays SET user_answer = ?, play_date = NOW()
+                WHERE game_id = ? AND position = ? AND fc_child_id = ?",
+              [$result, $game_id, $position, abs($id_to_mark)]);
     }
-
-
-
-    // CRONOMETRO: teniamo aggiornata la durata della sessione corrente ad ogni risposta
-    mysqli_query($conn, "UPDATE session_durations SET duration_seconds = TIMESTAMPDIFF(SECOND, start_time, NOW()), updated_at = NOW() WHERE game_id = $game_id ORDER BY id DESC LIMIT 1");
-
-
-
-    $check_res = mysqli_query($conn, "SELECT COUNT(*) as c FROM fc_gameplays WHERE game_id = $game_id AND position = $position AND user_answer = ''");
-
-    $unanswered = mysqli_fetch_assoc($check_res)['c'];
+    // CRONOMETRO: durata della sessione corrente aggiornata a ogni risposta
+    sec_q("UPDATE session_durations SET duration_seconds = TIMESTAMPDIFF(SECOND, start_time, NOW()), updated_at = NOW()
+            WHERE game_id = ? ORDER BY id DESC LIMIT 1", [$game_id]);
+    $unanswered = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_gameplays WHERE game_id = ? AND position = ? AND user_answer = ''",
+                                [$game_id, $position])['c'] ?? 0);
 
 
 
@@ -219,15 +227,13 @@ $chrono_base_seconds = 0;
 
 $chrono_start_ts = 0;
 
-$q_chrono = mysqli_query($conn, "SELECT id, UNIX_TIMESTAMP(start_time) as ts FROM session_durations WHERE game_id = $game_id ORDER BY id DESC LIMIT 1");
-
-if ($chrono_last = mysqli_fetch_assoc($q_chrono)) {
+$chrono_last = sec_one("SELECT id, UNIX_TIMESTAMP(start_time) AS ts FROM session_durations WHERE game_id = ? ORDER BY id DESC LIMIT 1", [$game_id]);
+if ($chrono_last) {
 
     $chrono_start_ts = intval($chrono_last['ts']);
 
-    $q_chrono_base = mysqli_query($conn, "SELECT COALESCE(SUM(duration_seconds),0) as tot FROM session_durations WHERE game_id = $game_id AND id <> " . intval($chrono_last['id']));
-
-    $chrono_base_seconds = intval(mysqli_fetch_assoc($q_chrono_base)['tot']);
+        $chrono_base_seconds = (int)(sec_one("SELECT COALESCE(SUM(duration_seconds),0) AS tot FROM session_durations WHERE game_id = ? AND id <> ?",
+                                         [$game_id, (int)$chrono_last['id']])['tot'] ?? 0);
 
 }
 
@@ -235,11 +241,7 @@ if ($chrono_last = mysqli_fetch_assoc($q_chrono)) {
 
 // 3. Recupero o Generazione delle carte per questa Pagina (Position)
 
-$play_res = mysqli_query($conn, "SELECT * FROM fc_gameplays WHERE game_id = $game_id AND position = $position");
-
-$gameplays = [];
-
-while($r = mysqli_fetch_assoc($play_res)) { $gameplays[] = $r; }
+$gameplays = sec_all("SELECT * FROM fc_gameplays WHERE game_id = ? AND position = ?", [$game_id, $position]);
 
 
 
@@ -253,99 +255,60 @@ $sql_order = ($order_param === 'in_order')
 
 
 
-    if ($parent_id > 0) {
-
-        $where_retry = "WHERE i.id IN (
-
-                            SELECT fc_image_id FROM fc_gameplays 
-
-                            WHERE game_id = $parent_id 
-
-                            AND fc_image_id IS NOT NULL
-
-                            AND position IN (SELECT DISTINCT position FROM fc_gameplays WHERE game_id = $parent_id AND user_answer = 'Wrong')
-
-                        ) 
-
-                        AND i.id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = $game_id AND fc_image_id IS NOT NULL)";
-
-                        
-
-        $new_img_res = mysqli_query($conn, "SELECT i.* FROM fc_images i 
-
-                                            JOIN game_fc_categories gc ON i.category_id = gc.fc_category_id 
-
-                                            $where_retry AND gc.game_id = $game_id 
-
-                                            $sql_order LIMIT 1");
-
+        if ($parent_id > 0) {
+        /* Ordine dei parametri: parent_id compare tre volte nel WHERE, poi
+           game_id due volte. $sql_order non porta segnaposto. */
+        $new_img = sec_one("SELECT i.* FROM fc_images i
+                            JOIN game_fc_categories gc ON i.category_id = gc.fc_category_id
+                            WHERE i.id IN (
+                                SELECT fc_image_id FROM fc_gameplays
+                                WHERE game_id = ?
+                                  AND fc_image_id IS NOT NULL
+                                  AND position IN (SELECT DISTINCT position FROM fc_gameplays WHERE game_id = ? AND user_answer = 'Wrong')
+                            )
+                            AND i.id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = ? AND fc_image_id IS NOT NULL)
+                            AND gc.game_id = ?
+                            $sql_order LIMIT 1",
+                           [$parent_id, $parent_id, $game_id, $game_id]);
     } else {
-
-        // SQL ordinato: Prima per ordine categoria, poi per ordine personalizzato carta
-
-        $sql_order = ($order_param === 'in_order') 
-
-            ? "ORDER BY gc.category_order ASC, i.custom_order ASC" 
-
+        // Prima per ordine categoria, poi per ordine personalizzato della carta
+        $sql_order = ($order_param === 'in_order')
+            ? "ORDER BY gc.category_order ASC, i.custom_order ASC"
             : "ORDER BY gc.category_order ASC, RAND()";
-
-
-
-        // Query con JOIN per rispettare l'ordine delle categorie
-
-        $query = "SELECT i.* FROM fc_images i 
-
-                  JOIN game_fc_categories gc ON i.category_id = gc.fc_category_id 
-
-                  WHERE gc.game_id = $game_id 
-
-                  AND $where_learnt 
-
-                  AND i.id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = $game_id AND fc_image_id IS NOT NULL)
-
-                  $sql_order LIMIT 1";
-
-        
-
-        $new_img_res = mysqli_query($conn, $query);
-
+        /* Ordine dei parametri: game_id, poi quelli di $where_learnt (se il
+           filtro li ha), poi di nuovo game_id. */
+        $new_img = sec_one("SELECT i.* FROM fc_images i
+                  JOIN game_fc_categories gc ON i.category_id = gc.fc_category_id
+                  WHERE gc.game_id = ?
+                  AND $where_learnt
+                  AND i.id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = ? AND fc_image_id IS NOT NULL)
+                  $sql_order LIMIT 1",
+                 array_merge([$game_id], $learnt_par, [$game_id]));
     }
 
     
 
-    $new_img = mysqli_fetch_assoc($new_img_res);
+        /* Le carte sono finite: si va direttamente ai risultati. Prima si rimandava
+       a "?action=concludi", che ora e' un'azione POST e da un redirect non si
+       puo' fare; la pulizia delle pagine vuote la fa result_fc.php quando
+       calcola il punteggio. */
+    if (!$new_img) { header("Location: result_fc.php?game_id=$game_id"); exit(); }
 
     
 
-    if (!$new_img) { header("Location: game_fc.php?game_id=$game_id&action=concludi"); exit(); }
+        $img_id = (int)$new_img['id'];
+    $correct_ans = mb_substr($new_img['answer_desc'], 0, 100, 'UTF-8');
 
-    
-
-    $img_id = $new_img['id'];
-
-    $correct_ans = mysqli_real_escape_string($conn, mb_substr($new_img['answer_desc'], 0, 100, 'UTF-8'));
-
-    
-
-    // MEMORIA ERRORI: Controlla se il padre era già corretto nella partita precedente
-
+    // MEMORIA ERRORI: il padre era gia' corretto nella partita precedente?
     $parent_user_answer = '';
-
     if ($parent_id > 0) {
-
-        $prev_ans_q = mysqli_query($conn, "SELECT user_answer FROM fc_gameplays WHERE game_id = $parent_id AND fc_image_id = $img_id");
-
-        if ($row_prev = mysqli_fetch_assoc($prev_ans_q)) {
-
-            if ($row_prev['user_answer'] == 'Correct') $parent_user_answer = 'Correct';
-
-        }
-
+        $row_prev = sec_one("SELECT user_answer FROM fc_gameplays WHERE game_id = ? AND fc_image_id = ?",
+                            [$parent_id, $img_id]);
+        if ($row_prev && $row_prev['user_answer'] == 'Correct') $parent_user_answer = 'Correct';
     }
 
-    
-
-    mysqli_query($conn, "INSERT INTO fc_gameplays (game_id, fc_image_id, correct_answer, user_answer, position) VALUES ($game_id, $img_id, '$correct_ans', '$parent_user_answer', $position)");
+    sec_q("INSERT INTO fc_gameplays (game_id, fc_image_id, correct_answer, user_answer, position) VALUES (?, ?, ?, ?, ?)",
+          [$game_id, $img_id, $correct_ans, $parent_user_answer, $position]);
 
     // Per compatibilità javascript locale passiamo anche il mock per la view
     $gameplays[] = ['fc_image_id' => $img_id, 'user_answer' => $parent_user_answer];
@@ -354,35 +317,20 @@ $sql_order = ($order_param === 'in_order')
 
     if ($new_img['is_father'] == 1) {
 
-        $child_res = mysqli_query($conn, "SELECT * FROM fc_child_cards WHERE parent_id = $img_id ORDER BY custom_order ASC");
+                foreach (sec_all("SELECT * FROM fc_child_cards WHERE parent_id = ? ORDER BY custom_order ASC", [$img_id]) as $child) {
+            $c_id = (int)$child['id'];
+            $c_ans = mb_substr($child['answer_desc'], 0, 100, 'UTF-8');
 
-        while($child = mysqli_fetch_assoc($child_res)) {
-
-            $c_id = $child['id']; 
-
-            $c_ans = mysqli_real_escape_string($conn, mb_substr($child['answer_desc'], 0, 100, 'UTF-8'));
-
-            
-
-            // MEMORIA ERRORI: Controlla se questo specifico figlio era già corretto
-
+            // MEMORIA ERRORI: questo figlio era gia' corretto?
             $child_user_answer = '';
-
             if ($parent_id > 0) {
-
-                $prev_ans_c = mysqli_query($conn, "SELECT user_answer FROM fc_gameplays WHERE game_id = $parent_id AND fc_child_id = $c_id");
-
-                if ($row_prev_c = mysqli_fetch_assoc($prev_ans_c)) {
-
-                    if ($row_prev_c['user_answer'] == 'Correct') $child_user_answer = 'Correct';
-
-                }
-
+                $row_prev_c = sec_one("SELECT user_answer FROM fc_gameplays WHERE game_id = ? AND fc_child_id = ?",
+                                      [$parent_id, $c_id]);
+                if ($row_prev_c && $row_prev_c['user_answer'] == 'Correct') $child_user_answer = 'Correct';
             }
 
-            
-
-            mysqli_query($conn, "INSERT INTO fc_gameplays (game_id, fc_child_id, correct_answer, user_answer, position) VALUES ($game_id, $c_id, '$c_ans', '$child_user_answer', $position)");
+            sec_q("INSERT INTO fc_gameplays (game_id, fc_child_id, correct_answer, user_answer, position) VALUES (?, ?, ?, ?, ?)",
+                  [$game_id, $c_id, $c_ans, $child_user_answer, $position]);
 
             // Manteniamo id_fcimg per non rompere il javascript nel while sotto, trasformando i figli
             $gameplays[] = ['fc_child_id' => $c_id, 'user_answer' => $child_user_answer];
@@ -411,10 +359,8 @@ foreach ($gameplays as $gp) {
 
     if (isset($gp['fc_image_id'])) {
 
-        $id = intval($gp['fc_image_id']);
-        $res = mysqli_query($conn, "SELECT * FROM fc_images WHERE id = $id");
-
-        $card = mysqli_fetch_assoc($res);
+                $id = intval($gp['fc_image_id']);
+        $card = sec_one("SELECT * FROM fc_images WHERE id = ?", [$id]);
 
         if($card) {
             $card['is_child'] = false;
@@ -423,11 +369,8 @@ foreach ($gameplays as $gp) {
 
     } else {
 
-        $real_id = intval($gp['fc_child_id']);
-
-        $res = mysqli_query($conn, "SELECT * FROM fc_child_cards WHERE id_child = $real_id");
-
-        $card = mysqli_fetch_assoc($res);
+                $real_id = intval($gp['fc_child_id']);
+        $card = sec_one("SELECT * FROM fc_child_cards WHERE id_child = ?", [$real_id]);
 
         if($card) {
             $card['is_child'] = true;
@@ -444,9 +387,8 @@ foreach ($gameplays as $gp) {
 
         // NUOVO: Conta quanti esempi ha questa flashcard (Usa sempre ID positivo assoluto anche per figli)
         $lookup_ex_id = isset($gp['fc_image_id']) ? $id : -1 * $real_id;
-        $ex_q = mysqli_query($conn, "SELECT COUNT(*) as c FROM fc_examples WHERE fc_image_id = $lookup_ex_id");
-
-        $card['examples_count'] = mysqli_fetch_assoc($ex_q)['c'];
+                $card['examples_count'] = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_examples WHERE fc_image_id = ?",
+                                                [$lookup_ex_id])['c'] ?? 0);
 
         
 
@@ -460,9 +402,7 @@ foreach ($gameplays as $gp) {
 
 // 5. Calcoli Progresso e Statistiche DOPPIA BARRA
 
-$q_played = mysqli_query($conn, "SELECT COUNT(DISTINCT position) as c, COUNT(*) as c2 FROM fc_gameplays WHERE game_id = $game_id");
-
-$played_data = mysqli_fetch_assoc($q_played);
+$played_data = sec_one("SELECT COUNT(DISTINCT position) AS c, COUNT(*) AS c2 FROM fc_gameplays WHERE game_id = ?", [$game_id]);
 
 $played_count = $played_data['c'];
 
@@ -472,17 +412,16 @@ $played_cards_count = $played_data['c2'];
 
 // NUOVO: Conta quante carte sono state effettivamente risposte
 
-$q_answered_cards = mysqli_query($conn, "SELECT COUNT(*) as c FROM fc_gameplays WHERE game_id = $game_id AND user_answer IN ('Correct', 'Wrong')");
-
-$answered_cards_count = mysqli_fetch_assoc($q_answered_cards)['c'];
+$answered_cards_count = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_gameplays WHERE game_id = ? AND user_answer IN ('Correct', 'Wrong')",
+                                      [$game_id])['c'] ?? 0);
 
 
 
 // NUOVO: Conta quante pagine sono state COMPLETATE (ovvero senza nessuna carta 'vuota')
 
-$q_answered_pages = mysqli_query($conn, "SELECT COUNT(DISTINCT position) as c FROM fc_gameplays WHERE game_id = $game_id AND position NOT IN (SELECT DISTINCT position FROM fc_gameplays WHERE game_id = $game_id AND user_answer = '')");
-
-$answered_pages_count = mysqli_fetch_assoc($q_answered_pages)['c'];
+$answered_pages_count = (int)(sec_one("SELECT COUNT(DISTINCT position) AS c FROM fc_gameplays
+    WHERE game_id = ? AND position NOT IN (SELECT DISTINCT position FROM fc_gameplays WHERE game_id = ? AND user_answer = '')",
+    [$game_id, $game_id])['c'] ?? 0);
 
 
 
@@ -491,59 +430,50 @@ if ($parent_id > 0) {
     // POSIZIONI RIMANENTI
     // Filtriamo rigorosamente sui padri presenti in db e sulle posizioni dove almeno una carta è Wrong
 
-    $q_to_play = mysqli_query($conn, "SELECT COUNT(DISTINCT position) as c FROM fc_gameplays 
-
-                                      WHERE game_id = $parent_id 
-
-                                      AND position IN (SELECT DISTINCT position FROM fc_gameplays WHERE game_id = $parent_id AND user_answer = 'Wrong')
-
-                                      AND fc_image_id IS NOT NULL 
-
-                                      AND fc_image_id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = $game_id AND fc_image_id IS NOT NULL)");
-
-    $to_play_count = mysqli_fetch_assoc($q_to_play)['c'];
+        $to_play_count = (int)(sec_one("SELECT COUNT(DISTINCT position) AS c FROM fc_gameplays
+                                      WHERE game_id = ?
+                                      AND position IN (SELECT DISTINCT position FROM fc_gameplays WHERE game_id = ? AND user_answer = 'Wrong')
+                                      AND fc_image_id IS NOT NULL
+                                      AND fc_image_id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = ? AND fc_image_id IS NOT NULL)",
+                                   [$parent_id, $parent_id, $game_id])['c'] ?? 0);
 
 
 
     // CARTE SINGOLE RIMANENTI
 
-    $q_to_play_cards = mysqli_query($conn, "SELECT COUNT(*) as c FROM fc_gameplays 
-
-                                            WHERE game_id = $parent_id 
-
-                                            AND position IN (SELECT DISTINCT position FROM fc_gameplays WHERE game_id = $parent_id AND user_answer = 'Wrong')
-
-                                            AND (fc_image_id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = $game_id AND fc_image_id IS NOT NULL) OR fc_child_id NOT IN (SELECT fc_child_id FROM fc_gameplays WHERE game_id = $game_id AND fc_child_id IS NOT NULL))");
-
-    $to_play_cards_count = mysqli_fetch_assoc($q_to_play_cards)['c'];
+        $to_play_cards_count = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_gameplays
+                                            WHERE game_id = ?
+                                            AND position IN (SELECT DISTINCT position FROM fc_gameplays WHERE game_id = ? AND user_answer = 'Wrong')
+                                            AND (fc_image_id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = ? AND fc_image_id IS NOT NULL)
+                                              OR fc_child_id NOT IN (SELECT fc_child_id FROM fc_gameplays WHERE game_id = ? AND fc_child_id IS NOT NULL))",
+                                         [$parent_id, $parent_id, $game_id, $game_id])['c'] ?? 0);
 
 } else {
 
     // POSIZIONI RIMANENTI
 
-    $q_to_play = mysqli_query($conn, "SELECT COUNT(*) as c FROM fc_images WHERE $where_learnt $cat_filter AND id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = $game_id AND fc_image_id IS NOT NULL)");
-
-    $to_play_count = mysqli_fetch_assoc($q_to_play)['c'];
+        /* ordine: i parametri di $where_learnt, poi quelli di $cat_filter, poi game_id */
+    $to_play_count = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_images WHERE $where_learnt $cat_filter
+                                    AND id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = ? AND fc_image_id IS NOT NULL)",
+                                   array_merge($learnt_par, $cat_par, [$game_id]))['c'] ?? 0);
 
 
 
     // CARTE SINGOLE RIMANENTI
 
-    $q_to_play_cards = mysqli_query($conn, "
-
-        SELECT SUM(cnt) as c FROM (
-
-            SELECT COUNT(*) as cnt FROM fc_images WHERE $where_learnt $cat_filter AND id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = $game_id AND fc_image_id IS NOT NULL)
-
+        /* $where_learnt e $cat_filter compaiono DUE volte (i due rami della UNION):
+       i loro parametri vanno ripetuti nello stesso ordine. E' il punto piu'
+       delicato del file. */
+    $to_play_cards_count = (int)(sec_one("
+        SELECT SUM(cnt) AS c FROM (
+            SELECT COUNT(*) AS cnt FROM fc_images WHERE $where_learnt $cat_filter
+                AND id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = ? AND fc_image_id IS NOT NULL)
             UNION ALL
-
-            SELECT COUNT(*) as cnt FROM fc_child_cards c JOIN fc_images i ON c.parent_id = i.id WHERE $where_learnt $cat_filter AND i.id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = $game_id AND fc_image_id IS NOT NULL)
-
-        ) as t
-
-    ");
-
-    $to_play_cards_count = mysqli_fetch_assoc($q_to_play_cards)['c'];
+            SELECT COUNT(*) AS cnt FROM fc_child_cards c JOIN fc_images i ON c.parent_id = i.id
+             WHERE $where_learnt $cat_filter
+                AND i.id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = ? AND fc_image_id IS NOT NULL)
+        ) AS t",
+        array_merge($learnt_par, $cat_par, [$game_id], $learnt_par, $cat_par, [$game_id]))['c'] ?? 0);
 
 }
 
@@ -561,7 +491,8 @@ if ($total_cards == 0) $total_cards = 1;
 
 
 
-mysqli_query($conn, "UPDATE games SET total_father_words = $total_words, total_words_with_children = $total_cards WHERE id = $game_id");
+sec_q("UPDATE games SET total_father_words = ?, total_words_with_children = ? WHERE id = ? AND user_id = ?",
+      [$total_words, $total_cards, $game_id, $current_user_id]);
 
 
 
@@ -579,7 +510,7 @@ $first_unanswered_card_idx = null;
 
 
 
-$q_hist = mysqli_query($conn, "SELECT position, fc_image_id, fc_child_id, user_answer FROM fc_gameplays WHERE game_id = $game_id ORDER BY position ASC, fc_image_id DESC, fc_child_id ASC");
+$q_hist = sec_all("SELECT position, fc_image_id, fc_child_id, user_answer FROM fc_gameplays WHERE game_id = ? ORDER BY position ASC, fc_image_id DESC, fc_child_id ASC", [$game_id]);
 
 
 
@@ -589,7 +520,7 @@ $page_status = [];
 
 
 
-while($h = mysqli_fetch_assoc($q_hist)) {
+foreach ($q_hist as $h) {
 
     $card_index++;
 
@@ -643,15 +574,15 @@ $jump_back_card_index = $first_unanswered_card_idx ? $first_unanswered_card_idx 
 
 
 
-$q_max_pos = mysqli_query($conn, "SELECT MAX(position) as max_p FROM fc_gameplays WHERE game_id = $game_id");
+$row_max = sec_one("SELECT MAX(position) AS max_p FROM fc_gameplays WHERE game_id = ?", [$game_id]);
 
-$row_max = mysqli_fetch_assoc($q_max_pos);
+
 
 $max_position_generated = $row_max ? $row_max['max_p'] : 1;
 
 
 
-$status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Learn');
+$status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T('fc.cg_learnt') : T('fc.cg_to_learn'));
 
 ?>
 
@@ -677,11 +608,13 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 
-    <title>Flashcards Elettronica/Mate</title>
+    <title><?php te('fc.gm_titolo'); ?></title>
 
 
 
-    <script>
+    <?php echo nisama_i18n_json(['comune', 'fc', 'vocab']); ?>
+<?php nisama_azione_form(); ?>
+<script>
     /* ================================================================
        SPIA ERRORI JS — visibile a schermo.
        Serve su iPhone/iPad, dove non c'è una console da consultare: se un
@@ -716,7 +649,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
             box.appendChild(close);
 
             var title = document.createElement('div');
-            title.textContent = '⚠️ Errore JavaScript';
+            title.textContent = T('fc.gm_errore_js');
             title.setAttribute('style', 'font-weight:700;margin-bottom:6px;padding-right:26px;');
             box.appendChild(title);
 
@@ -737,7 +670,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
         window.addEventListener('error', function (e) {
             var file = (e.filename || '').split('/').pop();
-            show((e.message || 'Errore sconosciuto') + '\n→ ' + file + ' riga ' + (e.lineno || '?') + ':' + (e.colno || '?'));
+            show((e.message || T('fc.gm_errore_sconosciuto')) + '\n→ ' + file + ' riga ' + (e.lineno || '?') + ':' + (e.colno || '?'));
         });
 
         window.addEventListener('unhandledrejection', function (e) {
@@ -769,1132 +702,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
 
 
-    <style>
-
-        /* ================================================================
-
-           DESIGN SYSTEM — iOS nativo · light + dark automatico
-
-           ================================================================ */
-
-        :root{
-
-            color-scheme: light dark;
-
-            --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-
-            --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-
-            --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-
-            --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-
-            --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
-
-            --orange-soft:rgba(255,149,0,.14); --purple-soft:rgba(175,82,222,.12);
-
-            --tint-green:#30D158; --tint-red:#FF453A;
-
-            --header-glass:rgba(249,249,251,.82);
-
-            --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-
-            --chip-bg:#FFFFFF;
-
-            --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-
-            --raise:0 1px 2px rgba(0,0,0,.07), 0 10px 22px -6px rgba(0,0,0,.16);
-
-            --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
-
-            --pill-hl:inset 0 0 0 .5px var(--hairline);
-
-            --g-fill:#E7F8ED; --g-ink:#1E8A44; --g-line:rgba(52,199,89,.85); --g-sh:rgba(52,199,89,.34);
-
-            --r-fill:#FDECEC; --r-ink:#D70015; --r-line:rgba(255,59,48,.8);  --r-sh:rgba(255,59,48,.3);
-
-            --r-card:22px; --r-btn:15px; --r-chip:100px;
-
-            --spring:cubic-bezier(.32,.72,0,1);
-
-            --header-h:104px;
-
-            --safe-top:env(safe-area-inset-top, 0px);
-
-            --safe-bottom:env(safe-area-inset-bottom, 0px);
-
-        }
-
-        @media (prefers-color-scheme: dark){
-
-            :root{
-
-                --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-
-                --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-
-                --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-
-                --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-
-                --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17);
-
-                --orange-soft:rgba(255,159,10,.18); --purple-soft:rgba(191,90,242,.18);
-
-                --header-glass:rgba(16,16,18,.78);
-
-                --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-
-                --chip-bg:#3A3A3C;
-
-                --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-
-                --raise:0 1px 2px rgba(0,0,0,.5), 0 12px 26px -6px rgba(0,0,0,.65);
-
-                --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
-
-                --pill-hl:inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 .5px var(--hairline);
-
-                --g-fill:rgba(48,209,88,.15); --g-ink:#4CE07E; --g-line:rgba(48,209,88,.75); --g-sh:rgba(48,209,88,.5);
-
-                --r-fill:rgba(255,69,58,.16); --r-ink:#FF6F68; --r-line:rgba(255,69,58,.75); --r-sh:rgba(255,69,58,.45);
-
-            }
-
-        }
-
-
-
-        *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
-        html{ -webkit-text-size-adjust:100%; }
-
-        html, body{ height:100%; }
-
-        body{
-
-            margin:0; position:fixed; inset:0; overflow:hidden;
-
-            background:var(--bg); color:var(--text);
-
-            font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-
-            font-size:17px; line-height:1.45;
-
-            -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-
-            overscroll-behavior:none;
-
-        }
-
-        body.no-select, body.no-select *{ -webkit-user-select:none !important; user-select:none !important; }
-
-        :focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
-
-
-
-        /* ================================================================
-
-           HEADER — vetro smerigliato, barre di progresso ultrasottili
-
-           ================================================================ */
-
-        .app-header{
-
-            position:fixed; top:0; left:0; right:0; z-index:100;
-
-            padding:calc(var(--safe-top) + 8px) 0 10px;
-
-            background:var(--header-glass);
-
-            -webkit-backdrop-filter:saturate(1.8) blur(22px); backdrop-filter:saturate(1.8) blur(22px);
-
-            border-bottom:.5px solid var(--hairline);
-
-            transition:opacity .25s var(--spring);
-
-        }
-
-        .bars{ padding:0 16px; display:flex; flex-direction:column; gap:6px; }
-
-        .progress-bar-bg{
-
-            position:relative; width:100%; height:3.5px; border-radius:99px;
-
-            background:var(--hairline); overflow:visible;
-
-        }
-
-        .progress-bar-fill{
-
-            height:100%; border-radius:99px; width:0;
-
-            transition:width .7s var(--spring);
-
-        }
-
-        .fill-pages{ background:var(--blue); box-shadow:0 0 8px rgba(10,132,255,.35); }
-
-        .fill-cards{ background:var(--orange); box-shadow:0 0 8px rgba(255,159,10,.3); }
-
-        .dot{
-
-            position:absolute; top:50%; transform:translate(-50%,-50%);
-
-            width:8px; height:8px; border-radius:50%; z-index:10;
-
-            transition:transform .2s var(--spring);
-
-        }
-
-        .dot::after{ content:""; position:absolute; inset:-11px; border-radius:50%; }
-
-        .dot:active{ transform:translate(-50%,-50%) scale(1.7); }
-
-        .dot-red{ background:var(--red); box-shadow:0 0 0 1.5px var(--surface), 0 0 7px rgba(255,69,58,.55); }
-
-        .dot-white{
-
-            width:11px; height:11px; background:var(--surface);
-
-            border:2.5px solid var(--blue); z-index:11;
-
-            box-shadow:0 1px 4px rgba(0,0,0,.25);
-
-        }
-
-        .dot-white-alt{ border-color:var(--orange); }
-
-
-
-        .hdr-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 16px 0; }
-
-        .hdr-left{ min-width:0; }
-
-        .hdr-title{
-
-            font-size:20px; font-weight:800; letter-spacing:-.02em; line-height:1.1;
-
-            font-variant-numeric:tabular-nums;
-
-        }
-
-        .hdr-title span{ color:var(--text-2); font-weight:600; font-size:15px; }
-
-        .hdr-sub{
-
-            margin-top:2px; font-size:11.5px; color:var(--text-2); letter-spacing:.01em;
-
-            font-variant-numeric:tabular-nums;
-
-            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-
-        }
-
-        .hdr-sub b{ font-weight:700; color:var(--text); }
-
-        .hdr-right{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
-
-        .chip{
-
-            display:inline-flex; align-items:center; padding:5px 11px; border-radius:var(--r-chip);
-
-            font-size:10.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase;
-
-        }
-
-        .chip-status{ background:var(--blue-soft); color:var(--blue); }
-
-        .chip-status.st-learnt{ background:var(--green-soft); color:var(--green); }
-
-        .chip-status.st-all{ background:var(--purple-soft); color:var(--purple); }
-
-        .icon-btn{
-
-            width:38px; height:38px; border-radius:50%; border:none; cursor:pointer; padding:0;
-
-            background:var(--surface); color:var(--text-2);
-
-            display:flex; align-items:center; justify-content:center;
-
-            box-shadow:var(--pill-hl), var(--raise-sm);
-
-            transition:transform .15s var(--spring), box-shadow .2s var(--spring);
-
-        }
-
-        .icon-btn:active{ transform:scale(.88); box-shadow:var(--pill-hl), inset 0 2px 5px rgba(0,0,0,.1); }
-
-        .icon-btn svg{ width:19px; height:19px; }
-
-
-
-        /* ---------------- Cronometro partita ---------------- */
-
-        .chrono-pill{
-            display:inline-flex; align-items:center; flex-shrink:0;
-            height:38px; padding:0 13px 0 10px; gap:6px; border-radius:19px;
-            border:none; cursor:pointer; overflow:hidden;
-            background:var(--surface); color:var(--text-2);
-            box-shadow:var(--pill-hl), var(--raise-sm);
-            /* Aggiunta l'animazione anche sul gap */
-            transition:width .38s var(--spring), padding .38s var(--spring),
-                       border-radius .38s var(--spring), box-shadow .2s var(--spring),
-                       transform .15s var(--spring), gap .38s var(--spring);
-        }
-
-        .chrono-pill:active{ transform:scale(.88); box-shadow:var(--pill-hl), inset 0 2px 5px rgba(0,0,0,.1); }
-
-        .chrono-pill .chrono-ic{ width:17px; height:17px; flex-shrink:0; color:var(--blue); }
-
-        .chrono-pill .chrono-txt{
-            font-size:13px; font-weight:700; color:var(--text);
-            font-variant-numeric:tabular-nums; letter-spacing:-.01em; white-space:nowrap;
-            max-width:56px; opacity:1; overflow:hidden; /* Aggiunto overflow:hidden */
-            transition:max-width .38s var(--spring), opacity .2s var(--spring);
-        }
-
-        .chrono-pill.is-collapsed{ width:38px; padding:0; border-radius:50%; justify-content:center; gap:0; }
-
-        .chrono-pill.is-collapsed .chrono-txt{ max-width:0; opacity:0; margin:0; }
-
-
-
-        /* ================================================================
-
-           FEED — schermo intero, scroll verticale stile TikTok
-
-           ================================================================ */
-
-        .feed{
-
-            position:fixed; inset:0; z-index:1;
-
-            overflow-y:auto; overflow-x:hidden;
-
-            -webkit-overflow-scrolling:touch; overscroll-behavior:none;
-
-            padding-top:calc(var(--header-h) + 14px);
-
-            transform:translateZ(0);
-
-        }
-
-        .feed::-webkit-scrollbar{ width:0; height:0; }
-
-        .feed-inner{
-
-            max-width:640px; margin:0 auto;
-
-            padding:0 14px calc(44px + var(--safe-bottom));
-
-        }
-
-
-
-        /* ================================================================
-
-           CARD
-
-           ================================================================ */
-
-        .card-box{
-
-            position:relative;
-
-            background:var(--surface); border-radius:var(--r-card);
-
-            padding:20px 18px 18px; margin-bottom:16px;
-
-            border:.5px solid var(--hairline);
-
-            box-shadow:var(--shadow-card);
-
-            transition:box-shadow .25s;
-
-        }
-
-        .card-box.dragging{ cursor:grabbing; }
-
-        .card-box[data-swipe="1"]{ touch-action:pan-y; cursor:grab; }
-
-        .card-box[data-swipe="1"] .fc-image,
-
-        .card-box[data-swipe="1"] .raw-text{ -webkit-touch-callout:none; }
-
-        .card-box.res-correct{ box-shadow:var(--shadow-card), 0 0 0 1.5px rgba(48,209,88,.4); }
-
-        .card-box.res-wrong{ box-shadow:var(--shadow-card), 0 0 0 1.5px rgba(255,69,58,.4); }
-
-
-
-        .card-title{
-
-            display:flex; align-items:center; gap:7px;
-
-            font-size:10.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
-
-            color:var(--text-3); margin-bottom:12px;
-
-        }
-
-        .card-title::before{ content:""; width:5px; height:5px; border-radius:50%; background:var(--blue); flex-shrink:0; }
-
-        .card-title.is-child::before{ background:var(--purple); }
-
-
-
-        .section-title{
-
-            display:flex; align-items:center; gap:8px;
-
-            font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
-
-            color:var(--text-2); margin-bottom:10px;
-
-            border:none; padding:0;
-
-        }
-
-        .section-title::after{ content:""; flex:1; height:.5px; background:var(--hairline); }
-
-        .st-answer{ color:var(--blue); }
-
-
-
-        .raw-text{
-
-            margin:8px 0; text-align:left;
-
-            font-size:18.5px; font-weight:600; line-height:1.5; letter-spacing:-.012em;
-
-            color:var(--text);
-
-            white-space:pre-wrap; word-wrap:break-word;
-
-        }
-
-        .answer-box .raw-text{ font-size:17px; font-weight:450; }
-
-        .raw-text mjx-container{ max-width:100%; overflow-x:auto; overflow-y:hidden; padding:2px 0; }
-
-
-
-        .fc-image{
-
-            display:block; max-width:100%; height:auto; max-height:290px;
-
-            margin:12px auto; border-radius:16px; cursor:zoom-in;
-
-            border:.5px solid var(--hairline);
-
-            box-shadow:0 4px 16px rgba(0,0,0,.1);
-
-        }
-
-        audio{ width:100%; height:40px; margin:6px 0 10px; border-radius:12px; }
-
-
-
-        .answer-box{
-
-            margin-top:14px; padding:16px 15px 15px;
-
-            background:var(--blue-soft); border-radius:18px; border:none;
-
-        }
-
-        .reveal-anim{ animation:revealIn .5s var(--spring) both; }
-
-        @keyframes revealIn{
-
-            from{ opacity:0; transform:translateY(14px) scale(.985); }
-
-            to{ opacity:1; transform:none; }
-
-        }
-
-
-
-        /* ================================================================
-
-           BOTTONI
-
-           ================================================================ */
-
-        .btn{
-
-            display:flex; align-items:center; justify-content:center; gap:8px;
-
-            width:100%; padding:15px 16px; margin:10px 0 0;
-
-            border:none; border-radius:var(--r-btn); cursor:pointer;
-
-            font-family:inherit; font-size:16.5px; font-weight:700; letter-spacing:-.01em;
-
-            color:#fff; background:var(--text);
-
-            text-decoration:none; text-align:center;
-
-            -webkit-user-select:none; user-select:none;
-
-            --glow:rgba(0,0,0,.3);
-
-            box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 12px 26px -8px var(--glow);
-
-            transition:transform .16s var(--spring), box-shadow .2s var(--spring), filter .2s, opacity .2s;
-
-        }
-
-        .btn:active{
-
-            transform:translateY(1.5px) scale(.98);
-
-            filter:brightness(.95);
-
-            box-shadow:inset 0 1px 0 rgba(255,255,255,.1), inset 0 3px 8px rgba(0,0,0,.18),
-
-                       0 1px 2px rgba(0,0,0,.12), 0 4px 10px -5px var(--glow);
-
-        }
-
-        .btn-primary{
-
-            --glow:rgba(10,132,255,.55);
-
-            background:var(--blue);
-
-            background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%));
-
-        }
-
-        .btn-green{
-
-            color:var(--g-ink); background:var(--g-fill);
-
-            box-shadow:inset 0 0 0 1.5px var(--g-line), 0 2px 4px -1px rgba(0,0,0,.05), 0 14px 32px -10px var(--g-sh);
-
-        }
-
-        .btn-green:active{
-
-            filter:none; transform:translateY(1.5px) scale(.985);
-
-            box-shadow:inset 0 0 0 1.5px var(--g-line), inset 0 3px 7px -2px var(--g-sh), 0 4px 10px -6px var(--g-sh);
-
-        }
-
-        .btn-red{
-
-            color:var(--r-ink); background:var(--r-fill);
-
-            box-shadow:inset 0 0 0 1.5px var(--r-line), 0 2px 4px -1px rgba(0,0,0,.05), 0 14px 32px -10px var(--r-sh);
-
-        }
-
-        .btn-red:active{
-
-            filter:none; transform:translateY(1.5px) scale(.985);
-
-            box-shadow:inset 0 0 0 1.5px var(--r-line), inset 0 3px 7px -2px var(--r-sh), 0 4px 10px -6px var(--r-sh);
-
-        }
-
-        .btn-learnt{
-
-            --glow:rgba(255,159,10,.55);
-
-            background:var(--orange);
-
-            background:linear-gradient(180deg, color-mix(in srgb, var(--orange), #fff 16%), var(--orange) 52%, color-mix(in srgb, var(--orange), #000 10%));
-
-        }
-
-        .btn-ghost{
-
-            color:var(--text-2); background:var(--surface);
-
-            box-shadow:var(--pill-hl), var(--raise);
-
-        }
-
-        .btn-ghost:active{
-
-            filter:none;
-
-            box-shadow:var(--pill-hl), inset 0 2px 6px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.08);
-
-        }
-
-        .btn-sm{ padding:11px 14px; font-size:14.5px; margin:0; }
-
-        .btn .gi{ font-size:18px; font-weight:800; line-height:1; }
-
-        .btn svg{ width:17px; height:17px; }
-
-
-
-        .grade-row{ display:flex; gap:10px; margin-top:16px; }
-
-        .grade-row .btn{ flex:1; margin:0; padding:16px 10px; }
-
-        .learnt-row{ display:flex; gap:10px; margin-top:10px; }
-
-        .learnt-row .btn{ margin:0; }
-
-        .btn-edit{
-
-            width:56px; flex:none;
-
-            background:var(--chip-bg); color:var(--text-2);
-
-            box-shadow:var(--pill-hl), var(--raise-sm);
-
-        }
-
-        .btn-edit:active{ filter:none; box-shadow:var(--pill-hl), inset 0 2px 5px rgba(0,0,0,.1); }
-
-
-
-        .nav-btn{
-
-            display:inline-flex; align-items:center; justify-content:center; gap:5px;
-
-            padding:11px 20px; border:none; border-radius:var(--r-chip); cursor:pointer;
-
-            font-family:inherit; font-size:14px; font-weight:700;
-
-            background:var(--surface); color:var(--text); text-decoration:none;
-
-            box-shadow:var(--pill-hl), var(--raise-sm);
-
-            transition:transform .15s var(--spring), box-shadow .2s var(--spring);
-
-        }
-
-        .nav-btn:active{
-
-            transform:translateY(1px) scale(.95);
-
-            box-shadow:var(--pill-hl), inset 0 2px 5px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.08);
-
-        }
-
-        .nav-btn svg{ width:15px; height:15px; }
-
-        .nav-fwd{
-
-            color:#fff;
-
-            background:var(--blue);
-
-            background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%));
-
-            box-shadow:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16), 0 1px 2px rgba(0,0,0,.12), 0 8px 18px -5px rgba(10,132,255,.55);
-
-        }
-
-        .nav-row{ display:flex; justify-content:center; gap:10px; margin:22px 0 4px; }
-
-
-
-        /* Riga strumenti card (Frantuma) */
-
-        .tool-row{ display:flex; justify-content:flex-end; margin:4px 0 2px; }
-
-        .chip-shatter{
-
-            display:inline-flex; align-items:center; gap:5px;
-
-            padding:8px 14px; border:none; border-radius:var(--r-chip); cursor:pointer;
-
-            font-family:inherit; font-size:12.5px; font-weight:700;
-
-            background:var(--chip-bg); color:var(--purple);
-
-            box-shadow:var(--pill-hl), var(--raise-sm);
-
-            transition:transform .15s var(--spring), box-shadow .2s var(--spring);
-
-        }
-
-        .chip-shatter:active{
-
-            transform:translateY(1px) scale(.94);
-
-            box-shadow:var(--pill-hl), inset 0 2px 5px rgba(0,0,0,.08);
-
-        }
-
-
-
-        /* Riga AI Tutor — chips scorrevoli */
-
-        .ai-tools-box{
-
-            display:flex; align-items:center; gap:7px;
-
-            margin-top:16px; padding:9px 9px;
-
-            background:var(--surface-2); border-radius:16px;
-
-            box-shadow:inset 0 1px 3px rgba(0,0,0,.06), inset 0 0 0 .5px var(--hairline);
-
-            overflow-x:auto; scrollbar-width:none;
-
-        }
-
-        .ai-tools-box::-webkit-scrollbar{ display:none; }
-
-        .ai-spark{ display:flex; flex-shrink:0; color:var(--purple); padding-left:3px; }
-
-        .ai-spark svg{ width:16px; height:16px; }
-
-        .ai-sep{ width:1px; height:22px; background:var(--hairline-2); flex-shrink:0; margin:0 2px; }
-
-        .chip-ai{
-
-            flex-shrink:0; padding:9px 13px;
-
-            font-size:13px; font-weight:600;
-
-            background:var(--chip-bg); color:var(--text);
-
-            box-shadow:var(--pill-hl), var(--raise-sm);
-
-        }
-
-        .chip-ai.has-ex{
-
-            color:#fff;
-
-            background:var(--purple);
-
-            background:linear-gradient(180deg, color-mix(in srgb, var(--purple), #fff 16%), var(--purple) 52%, color-mix(in srgb, var(--purple), #000 10%));
-
-            box-shadow:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16), 0 1px 2px rgba(0,0,0,.12), 0 6px 14px -4px rgba(191,90,242,.5);
-
-        }
-
-
-
-        /* Carta già valutata */
-
-        .graded-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:10px; }
-
-        .status-pill{
-
-            display:inline-flex; align-items:center; gap:6px;
-
-            padding:8px 14px; border-radius:var(--r-chip);
-
-            font-size:13.5px; font-weight:800; letter-spacing:.01em;
-
-        }
-
-        .status-pill.ok{ background:var(--green-soft); color:var(--green); }
-
-        .status-pill.ko{ background:var(--red-soft); color:var(--red); }
-
-        .pill-toggle{ padding:9px 14px; font-size:13px; flex-shrink:0; }
-
-
-
-        /* Fine partita */
-
-        #end-game-section{ margin-top:26px; padding-top:18px; border-top:.5px solid var(--hairline); }
-
-        .card-warn{
-
-            background:var(--orange-soft); border-radius:18px; padding:16px;
-
-            animation:revealIn .4s var(--spring) both;
-
-        }
-
-        .card-warn p{ margin:0 0 10px; font-size:14.5px; font-weight:700; color:var(--orange); }
-
-        .card-warn .btn{ margin:0; }
-
-        .card-warn .nav-btn{ width:100%; margin-top:10px; padding:13px; }
-
-
-
-        /* ================================================================
-
-           SHEET MODALI (TTS, AI, Frantuma) — stile foglio iOS dal basso
-
-           ================================================================ */
-
-        #tts-modal, #ai-modal, #shatter-modal{
-
-            position:fixed; inset:0; z-index:10001; display:none;
-
-            justify-content:center; align-items:flex-end;
-
-            background:rgba(0,0,0,.45);
-
-            -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
-
-        }
-
-        #ai-modal{ z-index:10005; }
-
-        #shatter-modal{ z-index:10006; }
-
-        .sheet-panel{
-
-            position:relative; width:100%; max-width:600px;
-
-            max-height:88vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
-
-            background:var(--surface); color:var(--text);
-
-            border-radius:26px 26px 0 0;
-
-            padding:28px 20px calc(22px + var(--safe-bottom));
-
-            box-shadow:0 -10px 50px rgba(0,0,0,.35);
-
-            animation:sheetUp .42s var(--spring) both;
-
-            text-align:left;
-
-        }
-
-        @keyframes sheetUp{ from{ transform:translateY(55%); opacity:.4; } to{ transform:none; opacity:1; } }
-
-        .sheet-panel::before{
-
-            content:""; position:absolute; top:8px; left:50%; transform:translateX(-50%);
-
-            width:38px; height:5px; border-radius:99px; background:var(--hairline-2);
-
-        }
-
-        .sheet-panel h3{
-
-            margin:2px 0 14px; padding:0; border:none;
-
-            font-size:20px; font-weight:800; letter-spacing:-.02em; color:var(--text);
-
-        }
-
-        .sheet-close{
-
-            position:absolute; top:16px; right:16px; z-index:2;
-
-            width:32px; height:32px; border:none; border-radius:50%; cursor:pointer; padding:0;
-
-            background:var(--surface-2); color:var(--text-2);
-
-            font-size:13px; font-weight:700;
-
-            display:flex; align-items:center; justify-content:center;
-
-            box-shadow:inset 0 0 0 .5px var(--hairline);
-
-        }
-
-        .sheet-actions{ display:flex; gap:10px; margin-top:14px; padding-top:14px; border-top:.5px solid var(--hairline); }
-
-        .sheet-actions .btn{ flex:1; margin:0; }
-
-        @media (min-width:640px){
-
-            #tts-modal, #ai-modal, #shatter-modal, #token-limit-modal{ align-items:center; padding:20px; }
-
-            .sheet-panel{ border-radius:26px; }
-
-        }
-
-        /* ================================================================
-           POPUP "TOKEN INSUFFICIENTI" — stesso linguaggio visivo degli altri
-           fogli iOS (sheet-panel), più icona e testo centrati.
-           ================================================================ */
-        #token-limit-modal{
-            position:fixed; inset:0; z-index:10010; display:none;
-            justify-content:center; align-items:flex-end;
-            background:rgba(0,0,0,.45);
-            -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
-        }
-        .limit-icon{
-            width:60px; height:60px; margin:4px auto 14px; border-radius:50%;
-            display:flex; align-items:center; justify-content:center; font-size:28px;
-            background:var(--orange-soft); color:var(--orange);
-        }
-        .limit-modal-msg{ font-size:15.5px; line-height:1.5; color:var(--text); text-align:center; margin-bottom:6px; }
-        .limit-modal-sub{ font-size:12.5px; color:var(--text-2); text-align:center; margin-bottom:4px; }
-
-        /* Timer/stima per le chiamate testuali IA più lente (spiega/metafora) */
-        .ai-timer{
-            display:none; align-items:center; gap:8px; margin-bottom:10px;
-            font-size:13px; font-weight:700; color:var(--text-2);
-        }
-        .ai-timer .dot{ width:7px; height:7px; border-radius:50%; background:var(--blue); animation:aiTimerPulse 1s ease-in-out infinite; }
-        @keyframes aiTimerPulse{ 0%,100%{ opacity:.35; } 50%{ opacity:1; } }
-
-        /* Toast "le API di Google sembrano più lente del solito" */
-        .api-slow-toast{
-            position:fixed; top:calc(14px + var(--safe-top)); left:50%; z-index:10020;
-            transform:translateX(-50%) translateY(-140%);
-            max-width:88vw; padding:11px 18px; border-radius:100px;
-            background:var(--surface); color:var(--text); font-size:13px; font-weight:700;
-            box-shadow:var(--raise), inset 0 0 0 .5px var(--hairline);
-            display:flex; align-items:center; gap:8px;
-            transition:transform .38s var(--spring);
-            /* È solo un avviso: non deve mai intercettare i tocchi. Sta allo stesso
-               z-index del floating player e, quando un foglio è aperto, il player si
-               sposta proprio qui in alto: senza questo gli coprirebbe i tasti. */
-            pointer-events:none;
-        }
-        .api-slow-toast.show{ transform:translateX(-50%) translateY(0); }
-
-
-
-        .field{ margin-top:14px; }
-
-        .field label{
-
-            display:block; margin-bottom:6px;
-
-            font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
-
-            color:var(--text-2);
-
-        }
-
-        .field select{
-
-            width:100%; padding:13px 38px 13px 14px;
-
-            font-family:inherit; font-size:16px; font-weight:600;
-
-            color:var(--text); background-color:var(--surface-2);
-
-            border:.5px solid var(--hairline-2); border-radius:14px;
-
-            -webkit-appearance:none; appearance:none;
-
-            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A8A8E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-
-            background-repeat:no-repeat; background-position:right 13px center;
-
-        }
-
-        .field-hint{ margin-top:7px; font-size:11.5px; line-height:1.45; color:var(--text-2); }
-
-        .field-hint b{ color:var(--text); font-weight:700; }
-
-        .field-warn{ padding:8px 10px; border-radius:10px; background:var(--orange-soft); color:var(--text); }
-
-        .ai-status{ margin-bottom:10px; font-size:13.5px; font-weight:700; color:var(--blue); }
-
-        .ai-body{ font-size:16.5px; font-weight:450; line-height:1.55; }
-
-
-
-        /* Mini-card della modalità Frantuma */
-
-        .mini-card{
-
-            background:var(--surface-2); border-radius:16px;
-
-            padding:14px; margin-bottom:12px;
-
-            box-shadow:inset 0 0 0 .5px var(--hairline);
-
-        }
-
-        .mini-card-label{
-
-            font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
-
-            color:var(--text-3); margin-bottom:8px;
-
-        }
-
-        .mini-q{ font-size:16.5px; margin:0 0 10px; }
-
-        .mini-ans{ margin-top:12px; padding-top:12px; border-top:.5px solid var(--hairline); }
-
-        .mini-a{ font-size:15.5px; font-weight:450; margin:0; }
-
-
-
-        /* ================================================================
-
-           OVERLAY ZOOM IMMAGINI
-
-           ================================================================ */
-
-        #image-overlay{
-
-            position:fixed; inset:0; z-index:9999; display:none;
-
-            justify-content:center; align-items:center;
-
-            background:rgba(0,0,0,.94);
-
-            -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
-
-        }
-
-        #overlay-img{ max-width:100%; max-height:100%; object-fit:contain; animation:zoomIn .3s var(--spring); }
-
-        @keyframes zoomIn{ from{ transform:scale(.85); opacity:0; } }
-
-        #close-overlay{
-
-            position:absolute; top:calc(var(--safe-top) + 12px); right:14px; z-index:10000;
-
-            width:40px; height:40px; border-radius:50%;
-
-            background:rgba(255,255,255,.16); color:#fff;
-
-            font-size:17px; font-weight:700;
-
-            display:flex; align-items:center; justify-content:center; cursor:pointer;
-
-            -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
-
-            -webkit-user-select:none; user-select:none;
-
-        }
-
-
-
-        /* ================================================================
-
-           LIVELLI SWIPE (tinta schermo + timbro stile Tinder)
-
-           ================================================================ */
-
-        #swipe-tint{
-
-            position:fixed; inset:0; z-index:5000; pointer-events:none;
-
-            opacity:0; background:var(--tint-green);
-
-            transition:opacity .18s ease-out;
-
-        }
-
-        .swipe-stamp{
-
-            position:fixed; top:38%; left:50%; z-index:5001; pointer-events:none;
-
-            transform:translate(-50%,-50%) rotate(-10deg) scale(.8);
-
-            padding:10px 30px; white-space:nowrap;
-
-            border:5px solid #fff; border-radius:18px;
-
-            font-size:46px; font-weight:900; letter-spacing:.1em; color:#fff;
-
-            opacity:0;
-
-            text-shadow:0 2px 14px rgba(0,0,0,.25);
-
-            box-shadow:0 6px 30px rgba(0,0,0,.2);
-
-        }
-
-
-
-        /* Indicatori pull verticale (feed TikTok) */
-
-        .pull-chip{
-
-            position:fixed; left:50%; z-index:4000; pointer-events:none;
-
-            transform:translateX(-50%) scale(.5); opacity:0;
-
-            display:flex; flex-direction:column; align-items:center; gap:6px;
-
-            transition:opacity .2s, transform .2s;
-
-        }
-
-        .pull-chip .pc-ic{
-
-            width:46px; height:46px; border-radius:50%;
-
-            background:var(--surface); color:var(--text);
-
-            display:flex; align-items:center; justify-content:center;
-
-            box-shadow:0 8px 30px rgba(0,0,0,.22), inset 0 0 0 .5px var(--hairline);
-
-            transition:background .2s, color .2s;
-
-        }
-
-        .pull-chip .pc-ic svg{ width:20px; height:20px; }
-
-        .pull-chip .pc-tx{
-
-            padding:4px 11px; border-radius:99px;
-
-            font-size:11.5px; font-weight:700; color:var(--text-2);
-
-            background:var(--surface);
-
-            box-shadow:0 2px 10px rgba(0,0,0,.14);
-
-        }
-
-        .pull-chip.top{ top:calc(var(--header-h) + 14px); }
-
-        .pull-chip.bottom{ bottom:calc(var(--safe-bottom) + 26px); }
-
-        .pull-chip.armed .pc-ic{ background:var(--blue); color:#fff; }
-
-
-
-        /* Coriandoli */
-
-        #confetti-layer{ position:fixed; inset:0; z-index:6000; pointer-events:none; overflow:hidden; }
-
-        #confetti-layer i{ position:absolute; display:block; width:8px; height:12px; border-radius:2.5px; }
-
-        #confetti-layer i.rnd{ width:8px; height:8px; border-radius:50%; }
-
-
-
-        /* Suggerimento una-tantum */
-
-        .coach{
-
-            position:fixed; left:50%; bottom:calc(var(--safe-bottom) + 26px); z-index:7000;
-
-            transform:translateX(-50%);
-
-            max-width:88%; padding:12px 18px; border-radius:18px;
-
-            background:var(--text); color:var(--bg);
-
-            font-size:13.5px; font-weight:500; text-align:center;
-
-            box-shadow:0 12px 40px rgba(0,0,0,.3);
-
-            animation:coachIn .5s var(--spring) both;
-
-        }
-
-        @keyframes coachIn{ from{ transform:translate(-50%, 20px); opacity:0; } }
-
-        .coach.bye{ transition:.35s; opacity:0; transform:translate(-50%, 14px); }
-
-
-
-        @media (prefers-reduced-motion: reduce){
-
-            *, *::before, *::after{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
-
-        }
-
-    </style>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>game_fc.css?v=<?php echo @filemtime(dirname(__FILE__) . '/game_fc.css') ?: 1; ?>">
 
     <script src="fc_parser.js"></script>
 
@@ -1922,65 +730,65 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
     <div class="container" id="game-container"
 
-         data-pos="<?php echo $position; ?>"
+         data-pos="<?php echo (int)($position); ?>"
 
          data-can-back="<?php echo ($position > 1) ? '1' : '0'; ?>"
 
-         data-back-url="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $position-1; ?>&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>"
+         data-back-url="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position-1); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>"
 
          data-can-forward="<?php echo ($position < $max_position_generated || ($all_answered && $position < $total_words)) ? '1' : '0'; ?>"
 
-         data-forward-url="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $position+1; ?>&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>"
+         data-forward-url="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position+1); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>"
 
-         data-chrono-base="<?php echo $chrono_base_seconds; ?>"
+         data-chrono-base="<?php echo (int)($chrono_base_seconds); ?>"
 
-         data-chrono-start="<?php echo $chrono_start_ts; ?>">
+         data-chrono-start="<?php echo (int)($chrono_start_ts); ?>">
 
 
 
         <header class="app-header">
             <div class="bars">
                 <div class="progress-bar-bg">
-                    <div class="progress-bar-fill fill-pages" style="width: <?php echo min(100, ($answered_pages_count / $total_words) * 100); ?>%;"></div>
+                    <div class="progress-bar-fill fill-pages" style="width: <?php echo (float)min(100, ($answered_pages_count / $total_words) * 100); ?>%;"></div>
                     <?php foreach($errors_pages as $err_p): $percent = (($err_p - 0.5) / $total_words) * 100; ?>
-                        <a href="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $err_p; ?>&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>" class="dot dot-red" style="left: <?php echo $percent; ?>%;" title="Errore a pagina <?php echo $err_p; ?>"></a>
+                        <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($err_p); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-red" style="left: <?php echo sec_h($percent); ?>%;" title="<?php te('fc.gm_errore_pagina', ['n' => (int)$err_p]); ?>"></a>
                     <?php endforeach; ?>
                     <?php $jump_percent = (($jump_back_pos - 0.5) / $total_words) * 100; ?>
-                    <a href="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $jump_back_pos; ?>&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>" class="dot dot-white" style="left: <?php echo $jump_percent; ?>%;" title="Torna all'ultima pagina in sospeso"></a>
+                    <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($jump_back_pos); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-white" style="left: <?php echo sec_h($jump_percent); ?>%;" title="<?php te('fc.gm_torna_pagina'); ?>"></a>
                 </div>
 
                 <?php if ($total_words != $total_cards): ?>
                 <div class="progress-bar-bg">
-                    <div class="progress-bar-fill fill-cards" style="width: <?php echo min(100, ($answered_cards_count / $total_cards) * 100); ?>%;"></div>
+                    <div class="progress-bar-fill fill-cards" style="width: <?php echo (float)min(100, ($answered_cards_count / $total_cards) * 100); ?>%;"></div>
                     <?php foreach($errors_cards as $err_c): $percent = (($err_c['idx'] - 0.5) / $total_cards) * 100; ?>
-                        <a href="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $err_c['pos']; ?>&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>" class="dot dot-red" style="left: <?php echo $percent; ?>%;" title="Errore a carta <?php echo $err_c['idx']; ?>"></a>
+                        <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($err_c['pos']); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-red" style="left: <?php echo sec_h($percent); ?>%;" title="<?php te('fc.gm_errore_carta', ['n' => (int)$err_c['idx']]); ?>"></a>
                     <?php endforeach; ?>
                     <?php $jump_percent2 = (($jump_back_card_index - 0.5) / $total_cards) * 100; ?>
-                    <a href="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $jump_back_pos; ?>&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>" class="dot dot-white dot-white-alt" style="left: <?php echo $jump_percent2; ?>%;" title="Torna all'ultima carta in sospeso"></a>
+                    <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($jump_back_pos); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-white dot-white-alt" style="left: <?php echo sec_h($jump_percent2); ?>%;" title="<?php te('fc.gm_torna_carta'); ?>"></a>
                 </div>
                 <?php endif; ?>
             </div>
 
             <div class="hdr-row">
                 <div class="hdr-left">
-                    <div class="hdr-title"><?php echo $position; ?> <span>/ <?php echo $total_words; ?></span></div>
+                    <div class="hdr-title"><?php echo (int)($position); ?> <span>/ <?php echo (int)($total_words); ?></span></div>
                     <div class="hdr-sub">
-                        Concetti <b><?php echo $answered_pages_count; ?>/<?php echo $total_words; ?></b>
+                        <?php th('fc.gm_n_concetti', ['conteggio' => '<b>' . (int)$answered_pages_count . '/' . (int)$total_words . '</b>']); ?>
                         <?php if ($total_words != $total_cards): ?>
-                            &middot; Card <b><?php echo $answered_cards_count; ?>/<?php echo $total_cards; ?></b>
+                            &middot; Card <b><?php echo (int)($answered_cards_count); ?>/<?php echo (int)($total_cards); ?></b>
                         <?php endif; ?>
                     </div>
                 </div>
                 <div class="hdr-right">
-                    <button id="chrono-pill" class="chrono-pill" type="button" title="Durata partita" aria-label="Durata partita">
+                    <button id="chrono-pill" class="chrono-pill" type="button" title="<?php te('fc.gm_durata'); ?>" aria-label="Durata partita">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chrono-ic"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>
                         <span class="chrono-txt" id="chrono-txt">0:00</span>
                     </button>
-                    <span class="chip chip-status <?php echo ($status === 'all') ? 'st-all' : (($status == 1) ? 'st-learnt' : ''); ?>"><?php echo $status_text; ?></span>
-                    <button id="ttsSettingsBtn" class="icon-btn" type="button" title="Impostazioni lettura" aria-label="Impostazioni lettura">
+                    <span class="chip chip-status <?php echo ($status === 'all') ? 'st-all' : (($status == 1) ? 'st-learnt' : ''); ?>"><?php echo sec_h($status_text); ?></span>
+                    <button id="ttsSettingsBtn" class="icon-btn" type="button" title="<?php te('fc.gm_impostazioni'); ?>" aria-label="Impostazioni lettura">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>
                     </button>
-                    <button id="voiceGameBtn" class="icon-btn" type="button" title="Gioca con audio" aria-label="Gioca con audio" onclick="if(window.VoiceGameMode) VoiceGameMode.handleHeaderButton();">
+                    <button id="voiceGameBtn" class="icon-btn" type="button" title="<?php te('fc.gm_gioca_audio'); ?>" aria-label="Gioca con audio" onclick="if(window.VoiceGameMode) VoiceGameMode.handleHeaderButton();">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
                     </button>
                 </div>
@@ -1999,19 +807,19 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                 <div class="field">
 
-                    <label for="tts-mode">Modalità</label>
+                    <label for="tts-mode"><?php te('fc.gm_modalita'); ?></label>
 
                     <select id="tts-mode">
 
                         <option value="no">No</option>
 
-                        <option value="click">Solo al click</option>
+                        <option value="click"><?php te('fc.gm_solo_click'); ?></option>
 
-                        <option value="auto">Automatica</option>
+                        <option value="auto"><?php te('fc.gm_automatica'); ?></option>
 
                     </select>
 
-                    <div class="field-hint" id="tts-mode-hint" style="display:none;">🎙️ Sei in <b>modalità microfono</b>: è lei a decidere cosa leggere e quando, quindi qui non c'è nulla da scegliere. Le altre impostazioni (voce, velocità, LaTeX) restano valide.</div>
+                    <div class="field-hint" id="tts-mode-hint" style="display:none;"><?php th('fc.gm_modo_microfono', ['modo' => '<b>' . sec_h(t('fc.gm_modalita_microfono')) . '</b>']); ?>: è lei a decidere cosa leggere e quando, quindi qui non c'è nulla da scegliere. Le altre impostazioni (voce, velocità, LaTeX) restano valide.</div>
 
                 </div>
 
@@ -2019,15 +827,15 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                 <div class="field">
 
-                    <label for="tts-lang">Lingua</label>
+                    <label for="tts-lang"><?php te('comune.lingua'); ?></label>
 
                     <select id="tts-lang">
 
-                        <option value="it">Italiano</option>
+                        <option value="it"><?php te('vocab.ins_italiano'); ?></option>
 
-                        <option value="en">Inglese</option>
+                        <option value="en"><?php te('vocab.vi_inglese'); ?></option>
 
-                        <option value="auto">Auto</option>
+                        <option value="auto"><?php te('fc.gm_auto'); ?></option>
 
                     </select>
 
@@ -2037,7 +845,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                 <div class="field">
 
-                    <label for="tts-voice">Voce del dispositivo</label>
+                    <label for="tts-voice"><?php te('fc.gm_voce_dispositivo'); ?></label>
 
                     <select id="tts-voice">
 
@@ -2045,7 +853,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                     </select>
 
-                    <div class="field-hint" id="tts-voice-hint">Usata solo se il motore è "Voce del dispositivo". Le voci di bassa qualità (Eloquence e simili) sono raggruppate in fondo.</div>
+                    <div class="field-hint" id="tts-voice-hint"><?php te('fc.gm_voce_nota'); ?></div>
 
                     <div class="field-hint field-warn" id="tts-voice-warn" style="display:none;"></div>
 
@@ -2055,11 +863,11 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                 <div class="field">
 
-                    <label for="tts-ai-voice">Voce IA (Cloud)</label>
+                    <label for="tts-ai-voice"><?php te('fc.gm_voce_ia'); ?></label>
 
                     <select id="tts-ai-voice">
 
-                        <optgroup label="Maschili">
+                        <optgroup label=T('fc.gm_maschili')>
 
                             <option value="it-IT-Chirp3-HD-Charon" selected>Charon</option>
 
@@ -2071,7 +879,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                         </optgroup>
 
-                        <optgroup label="Femminili">
+                        <optgroup label=T('fc.gm_femminili')>
 
                             <option value="it-IT-Chirp3-HD-Aoede">Aoede</option>
 
@@ -2091,7 +899,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                 <div class="field">
 
-                    <label for="tts-speed">Velocità</label>
+                    <label for="tts-speed"><?php te('fc.fp_velocita'); ?></label>
 
                     <select id="tts-speed">
 
@@ -2115,7 +923,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                 <div class="field">
 
-                    <label for="tts-math">Leggi LaTeX</label>
+                    <label for="tts-math"><?php te('fc.gm_leggi_latex'); ?></label>
 
                     <select id="tts-math">
 
@@ -2129,7 +937,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
 
 
-                <button id="tts-save" class="btn btn-primary" style="margin-top:22px;">Salva e chiudi</button>
+                <button id="tts-save" class="btn btn-primary" style="margin-top:22px;"><?php te('fc.gm_salva_chiudi'); ?></button>
 
             </div>
 
@@ -2141,13 +949,13 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
             <div class="sheet-panel">
 
-                <button class="sheet-close" type="button" onclick="closeAiModal()" aria-label="Chiudi">&#10005;</button>
+                <button class="sheet-close" type="button" onclick="closeAiModal()" aria-label="<?php te('comune.chiudi'); ?>">&#10005;</button>
 
-                <h3 id="ai-modal-title">🧠 Spiegazione AI</h3>
+                <h3 id="ai-modal-title"><?php te('fc.gm_spiegazione_ai'); ?></h3>
 
                 <div id="ai-timer" class="ai-timer"><span class="dot"></span><span id="ai-timer-text"></span></div>
 
-                <div id="ai-audio-status" class="ai-status" style="display: none;">⏳ Generazione audio in corso...</div>
+                <div id="ai-audio-status" class="ai-status" style="display: none;"><?php te('fc.gm_audio_in_corso'); ?></div>
 
                 <div id="ai-modal-content" class="raw-text ai-body"></div>
 
@@ -2161,17 +969,17 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
             <div class="sheet-panel">
 
-                <button class="sheet-close" type="button" onclick="closeShatterModal()" aria-label="Chiudi">&#10005;</button>
+                <button class="sheet-close" type="button" onclick="closeShatterModal()" aria-label="<?php te('comune.chiudi'); ?>">&#10005;</button>
 
-                <h3 style="color: var(--purple);">💥 Flashcard frantumata</h3>
+                <h3 style="color: var(--purple);"><?php te('fc.gm_frantumata'); ?></h3>
 
                 <div id="shatter-content"></div>
 
                 <div id="shatter-actions" class="sheet-actions" style="display:none;">
 
-                    <a href="#" id="shatter-wrong-btn" class="btn btn-red action-btn" onclick="closeShatterModal()"><span class="gi">&#10005;</span> Sbagliato</a>
+                    <a href="#" id="shatter-wrong-btn" class="btn btn-red action-btn" onclick="closeShatterModal()"><span class="gi">&#10005;</span> <?php te('fc.vg_sbagliato'); ?></a>
 
-                    <a href="#" id="shatter-correct-btn" class="btn btn-green action-btn" onclick="closeShatterModal()"><span class="gi">&#10003;</span> Corretto</a>
+                    <a href="#" id="shatter-correct-btn" class="btn btn-green action-btn" onclick="closeShatterModal()"><span class="gi">&#10003;</span> <?php te('fc.res_corretto'); ?></a>
 
                 </div>
 
@@ -2185,23 +993,23 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
             <div class="sheet-panel" style="text-align:center;">
 
-                <button class="sheet-close" type="button" onclick="closeTokenLimitModal()" aria-label="Chiudi">&#10005;</button>
+                <button class="sheet-close" type="button" onclick="closeTokenLimitModal()" aria-label="<?php te('comune.chiudi'); ?>">&#10005;</button>
 
                 <div class="limit-icon">⚡️</div>
 
-                <h3 style="text-align:center;">Token IA quasi finiti</h3>
+                <h3 style="text-align:center;"><?php te('fc.gm_token_finiti'); ?></h3>
 
                 <div class="limit-modal-msg" id="token-limit-message">Hai raggiunto il limite mensile di Token IA.</div>
 
-                <div class="limit-modal-sub">Il limite si azzera a inizio mese.</div>
+                <div class="limit-modal-sub"><?php te('fc.gm_limite_azzera'); ?></div>
 
-                <button class="btn btn-primary" type="button" onclick="closeTokenLimitModal()">Ho capito</button>
+                <button class="btn btn-primary" type="button" onclick="closeTokenLimitModal()"><?php te('fc.gm_ho_capito'); ?></button>
 
             </div>
 
         </div>
 
-        <div id="api-slow-toast" class="api-slow-toast"><span>⏳</span><span>Le API di Google sembrano più lente del solito</span></div>
+        <div id="api-slow-toast" class="api-slow-toast"><span>⏳</span><span><?php te('fc.gm_google_lente'); ?></span></div>
 
 
 
@@ -2217,19 +1025,19 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                 ?>
 
-                <div class="card-box <?php echo $is_graded ? 'graded' : ''; ?><?php if ($is_graded) echo ($c['user_answer'] == 'Correct') ? ' res-correct' : ' res-wrong'; ?>" id="card-<?php echo $index; ?>"
+                <div class="card-box <?php echo $is_graded ? 'graded' : ''; ?><?php if ($is_graded) echo ($c['user_answer'] == 'Correct') ? ' res-correct' : ' res-wrong'; ?>" id="card-<?php echo sec_h($index); ?>"
 
-                     data-card-id="<?php echo $c['gameplay_idimmagine']; ?>"
+                     data-card-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>"
 
-                     data-qaudio="<?php echo $c['question_audio']; ?>" data-aaudio="<?php echo $c['answer_audio']; ?>"
+                     data-qaudio="<?php echo sec_h($c['question_audio']); ?>" data-aaudio="<?php echo sec_h($c['answer_audio']); ?>"
 
                      <?php if (!$is_graded): ?>
 
                      data-swipe="1"
 
-                     data-url-wrong="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $position; ?>&action=grade&img_id=<?php echo $c['gameplay_idimmagine']; ?>&result=wrong&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>"
+                     data-url-wrong="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&result=wrong&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>"
 
-                     data-url-correct="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $position; ?>&action=grade&img_id=<?php echo $c['gameplay_idimmagine']; ?>&result=correct&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>"
+                     data-url-correct="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&result=correct&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>"
 
                      <?php endif; ?>>
 
@@ -2237,31 +1045,31 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                     <?php if(count($cards_to_show) > 1): ?>
 
-                        <div class="card-title <?php echo $c['is_child'] ? 'is-child' : ''; ?>"><?php echo $c['is_child'] ? '&#8627; Sottoconcetto' : 'Concetto principale'; ?></div>
+                        <div class="card-title <?php echo $c['is_child'] ? 'is-child' : ''; ?>"><?php echo $c['is_child'] ? '&#8627; Sottoconcetto' : T('fc.gm_concetto_principale'); ?></div>
 
                     <?php endif; ?>
 
 
 
-                    <div class="q-section" id="q-section-<?php echo $index; ?>" onclick="playAudioFC(<?php echo $index; ?>, 'Q')" style="cursor: pointer;">
+                    <div class="q-section" id="q-section-<?php echo sec_h($index); ?>" onclick="playAudioFC(<?php echo sec_h($index); ?>, 'Q')" style="cursor: pointer;">
 
-                        <div class="section-title">Domanda</div>
+                        <div class="section-title"><?php te('fc.ifc_domanda'); ?></div>
 
                         <?php if (!empty($c['question_audio'])): ?>
 
-                            <audio id="player_q_<?php echo $index; ?>" src="fc_audio/<?php echo $c['question_audio']; ?>" controls onclick="event.stopPropagation();"></audio>
+                            <audio id="player_q_<?php echo sec_h($index); ?>" src="fc_audio/<?php echo sec_h($c['question_audio']); ?>" controls onclick="event.stopPropagation();"></audio>
 
                         <?php endif; ?>
 
                         <?php if (!empty(trim($c['question_image']))): ?>
 
-                            <img src="fc_Images/<?php echo trim($c['question_image']); ?>" class="fc-image">
+                            <img src="fc_Images/<?php echo sec_h(trim($c['question_image'])); ?>" class="fc-image">
 
                         <?php endif; ?>
 
                         <?php if (!empty(trim($c['question_desc']))): ?>
 
-                            <div class="fc-text raw-text" data-raw="<?php echo htmlspecialchars(trim($c['question_desc']), ENT_QUOTES); ?>"></div>
+                            <div class="fc-text raw-text" data-raw="<?php echo sec_h(trim($c['question_desc'])); ?>"></div>
 
                         <?php endif; ?>
 
@@ -2273,35 +1081,35 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                         <div class="tool-row">
 
-                            <button type="button" class="chip-shatter" onclick="shatterCard(<?php echo $index; ?>, <?php echo $c['gameplay_idimmagine']; ?>, this)">💥 Frantuma</button>
+                            <button type="button" class="chip-shatter" onclick="shatterCard(<?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_frantuma'); ?></button>
 
                         </div>
 
 
 
-                        <button id="btn-show-<?php echo $index; ?>" class="btn btn-primary" onclick="revealCard(<?php echo $index; ?>)">Mostra risposta <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+                        <button id="btn-show-<?php echo sec_h($index); ?>" class="btn btn-primary" onclick="revealCard(<?php echo sec_h($index); ?>)">Mostra risposta <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
 
 
 
-                        <div class="answer-box ans-block" id="ans-section-<?php echo $index; ?>" style="display:none;">
+                        <div class="answer-box ans-block" id="ans-section-<?php echo sec_h($index); ?>" style="display:none;">
 
-                            <div class="section-title st-answer">Risposta</div>
+                            <div class="section-title st-answer"><?php te('fc.ifc_risposta'); ?></div>
 
                             <?php if (!empty($c['answer_audio'])): ?>
 
-                                <audio id="player_a_<?php echo $index; ?>" src="fc_audio/<?php echo $c['answer_audio']; ?>" controls></audio>
+                                <audio id="player_a_<?php echo sec_h($index); ?>" src="fc_audio/<?php echo sec_h($c['answer_audio']); ?>" controls></audio>
 
                             <?php endif; ?>
 
                             <?php if (!empty(trim($c['answer_image']))): ?>
 
-                                <img src="fc_Images/<?php echo trim($c['answer_image']); ?>" class="fc-image">
+                                <img src="fc_Images/<?php echo sec_h(trim($c['answer_image'])); ?>" class="fc-image">
 
                             <?php endif; ?>
 
                             <?php if (!empty(trim($c['answer_desc']))): ?>
 
-                                <div class="fc-text raw-text" data-raw="<?php echo htmlspecialchars(trim($c['answer_desc']), ENT_QUOTES); ?>"></div>
+                                <div class="fc-text raw-text" data-raw="<?php echo sec_h(trim($c['answer_desc'])); ?>"></div>
 
                             <?php endif; ?>
 
@@ -2325,11 +1133,11 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                                 <?php if($c['examples_count'] > 0): ?>
 
-                                    <button id="btn-ex-<?php echo $c['gameplay_idimmagine']; ?>" type="button" class="nav-btn chip-ai has-ex" onclick="event.stopPropagation(); openExamplesModal(<?php echo $c['gameplay_idimmagine']; ?>, <?php echo $qTextJs; ?>, <?php echo $aTextJs; ?>)">💡 Esempi (<?php echo $c['examples_count']; ?>)</button>
+                                    <button id="btn-ex-<?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai has-ex" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_n_esempi', ['n' => (int)$c['examples_count']]); ?></button>
 
                                 <?php else: ?>
 
-                                    <button id="btn-ex-<?php echo $c['gameplay_idimmagine']; ?>" type="button" class="nav-btn chip-ai" onclick="event.stopPropagation(); openExamplesModal(<?php echo $c['gameplay_idimmagine']; ?>, <?php echo $qTextJs; ?>, <?php echo $aTextJs; ?>)">➕ Esempio</button>
+                                    <button id="btn-ex-<?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_aggiungi_esempio'); ?></button>
 
                                 <?php endif; ?>
 
@@ -2339,11 +1147,11 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
 
 
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('read', <?php echo $index; ?>, <?php echo $c['gameplay_idimmagine']; ?>, this)">🔊 Leggi</button>
+                                <button type="button" class="nav-btn chip-ai" onclick="playAI('read', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_leggi'); ?></button>
 
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('explain', <?php echo $index; ?>, <?php echo $c['gameplay_idimmagine']; ?>, this)">🧠 Spiega</button>
+                                <button type="button" class="nav-btn chip-ai" onclick="playAI('explain', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_spiega'); ?></button>
 
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('metaphor', <?php echo $index; ?>, <?php echo $c['gameplay_idimmagine']; ?>, this)">🎭 Metafora</button>
+                                <button type="button" class="nav-btn chip-ai" onclick="playAI('metaphor', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)">🎭 Metafora</button>
 
                             </div>
 
@@ -2351,9 +1159,9 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                             <div class="grade-row">
 
-                                <a href="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $position; ?>&action=grade&img_id=<?php echo $c['gameplay_idimmagine']; ?>&result=wrong&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>" class="btn btn-red action-btn"><span class="gi">&#10005;</span> Sbagliato</a>
+                                <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&result=wrong&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn btn-red action-btn"><span class="gi">&#10005;</span> <?php te('fc.vg_sbagliato'); ?></a>
 
-                                <a href="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $position; ?>&action=grade&img_id=<?php echo $c['gameplay_idimmagine']; ?>&result=correct&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>" class="btn btn-green action-btn"><span class="gi">&#10003;</span> Corretto</a>
+                                <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&result=correct&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn btn-green action-btn"><span class="gi">&#10003;</span> <?php te('fc.res_corretto'); ?></a>
 
                             </div>
 
@@ -2363,7 +1171,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                                 <div class="learnt-row">
 
-                                    <a href="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $position; ?>&action=grade&img_id=<?php echo $c['gameplay_idimmagine']; ?>&result=learnt&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>" class="btn btn-learnt action-btn" style="flex:1;">⚡ Imparato</a>
+                                    <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&result=learnt&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn btn-learnt action-btn" style="flex:1;"><?php te('fc.gm_imparato'); ?></a>
 
 
 
@@ -2377,9 +1185,9 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
 
 
-                                    <a href="modifica_immagine_fc.php?<?php echo $edit_param; ?>&return_to_game=1&game_id=<?php echo $game_id; ?>&position=<?php echo $position; ?>&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>" 
+                                    <a href="modifica_immagine_fc.php?<?php echo sec_h($edit_param); ?>&return_to_game=1&game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" 
 
-                                    class="btn btn-edit action-btn" title="Modifica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                                    class="btn btn-edit action-btn" title="<?php te('comune.modifica'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
 
                                 </div>
 
@@ -2399,11 +1207,11 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                         if ($c['user_answer'] == 'Correct') {
 
-                            $msg = "Corretto";
+                            $msg = T('fc.lbl_corretto');
 
                         } else {
 
-                            $msg = "Errato";
+                            $msg = T('fc.lbl_errato');
 
                         }
 
@@ -2411,33 +1219,33 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                         <div class="graded-head">
 
-                            <div class="status-pill <?php echo ($c['user_answer'] == 'Correct') ? 'ok' : 'ko'; ?>"><span class="gi"><?php echo ($c['user_answer'] == 'Correct') ? '&#10003;' : '&#10005;'; ?></span> <?php echo $msg; ?></div>
+                            <div class="status-pill <?php echo ($c['user_answer'] == 'Correct') ? 'ok' : 'ko'; ?>"><span class="gi"><?php echo ($c['user_answer'] == 'Correct') ? '&#10003;' : '&#10005;'; ?></span> <?php echo sec_h($msg); ?></div>
 
-                            <button class="nav-btn pill-toggle action-btn" type="button" onclick="toggleAnswer(<?php echo $index; ?>, this)">Mostra Risposta</button>
+                            <button class="nav-btn pill-toggle action-btn" type="button" onclick="toggleAnswer(<?php echo sec_h($index); ?>, this)">Mostra Risposta</button>
 
                         </div>
 
 
 
-                        <div class="answer-box ans-block is-revealed" id="graded-ans-<?php echo $index; ?>" style="display:none; margin-top:12px;">
+                        <div class="answer-box ans-block is-revealed" id="graded-ans-<?php echo sec_h($index); ?>" style="display:none; margin-top:12px;">
 
-                            <div class="section-title st-answer">Risposta</div>
+                            <div class="section-title st-answer"><?php te('fc.ifc_risposta'); ?></div>
 
                             <?php if (!empty($c['answer_audio'])): ?>
 
-                                <audio id="player_a_<?php echo $index; ?>" src="fc_audio/<?php echo $c['answer_audio']; ?>" controls></audio>
+                                <audio id="player_a_<?php echo sec_h($index); ?>" src="fc_audio/<?php echo sec_h($c['answer_audio']); ?>" controls></audio>
 
                             <?php endif; ?>
 
                             <?php if (!empty(trim($c['answer_image']))): ?>
 
-                                <img src="fc_Images/<?php echo trim($c['answer_image']); ?>" class="fc-image">
+                                <img src="fc_Images/<?php echo sec_h(trim($c['answer_image'])); ?>" class="fc-image">
 
                             <?php endif; ?>
 
                             <?php if (!empty(trim($c['answer_desc']))): ?>
 
-                                <div class="fc-text raw-text" data-raw="<?php echo htmlspecialchars(trim($c['answer_desc']), ENT_QUOTES); ?>"></div>
+                                <div class="fc-text raw-text" data-raw="<?php echo sec_h(trim($c['answer_desc'])); ?>"></div>
 
                             <?php endif; ?>
 
@@ -2457,11 +1265,11 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                                 <?php if($c['examples_count'] > 0): ?>
 
-                                    <button id="btn-ex-graded-<?php echo $c['gameplay_idimmagine']; ?>" type="button" class="nav-btn chip-ai has-ex" onclick="event.stopPropagation(); openExamplesModal(<?php echo $c['gameplay_idimmagine']; ?>, <?php echo $qTextJs; ?>, <?php echo $aTextJs; ?>)">💡 Esempi (<?php echo $c['examples_count']; ?>)</button>
+                                    <button id="btn-ex-graded-<?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai has-ex" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_n_esempi', ['n' => (int)$c['examples_count']]); ?></button>
 
                                 <?php else: ?>
 
-                                    <button id="btn-ex-graded-<?php echo $c['gameplay_idimmagine']; ?>" type="button" class="nav-btn chip-ai" onclick="event.stopPropagation(); openExamplesModal(<?php echo $c['gameplay_idimmagine']; ?>, <?php echo $qTextJs; ?>, <?php echo $aTextJs; ?>)">➕ Esempio</button>
+                                    <button id="btn-ex-graded-<?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_aggiungi_esempio'); ?></button>
 
                                 <?php endif; ?>
 
@@ -2471,11 +1279,11 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
 
 
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('read', <?php echo $index; ?>, <?php echo $c['gameplay_idimmagine']; ?>, this)">🔊 Leggi</button>
+                                <button type="button" class="nav-btn chip-ai" onclick="playAI('read', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_leggi'); ?></button>
 
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('explain', <?php echo $index; ?>, <?php echo $c['gameplay_idimmagine']; ?>, this)">🧠 Spiega</button>
+                                <button type="button" class="nav-btn chip-ai" onclick="playAI('explain', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_spiega'); ?></button>
 
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('metaphor', <?php echo $index; ?>, <?php echo $c['gameplay_idimmagine']; ?>, this)">🎭 Metafora</button>
+                                <button type="button" class="nav-btn chip-ai" onclick="playAI('metaphor', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)">🎭 Metafora</button>
 
                             </div>
 
@@ -2495,7 +1303,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                     <?php if ($position > 1): ?>
 
-                        <a href="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $position-1; ?>&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>" class="nav-btn action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> Indietro</a>
+                        <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position-1); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="nav-btn action-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> <?php te('comune.indietro'); ?></a>
 
                     <?php endif; ?>
 
@@ -2503,11 +1311,11 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                     <?php if ($position < $max_position_generated): ?>
 
-                        <a href="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $position+1; ?>&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>" class="nav-btn nav-fwd action-btn">Avanti <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></a>
+                        <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position+1); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="nav-btn nav-fwd action-btn"><?php te('fc.gm_avanti'); ?> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></a>
 
                     <?php elseif ($all_answered && $position < $total_words): ?>
 
-                        <a href="game_fc.php?game_id=<?php echo $game_id; ?>&position=<?php echo $position+1; ?>&status=<?php echo $status; ?>&order=<?php echo $order_param; ?>" class="nav-btn nav-fwd action-btn">Avanti <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></a>
+                        <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position+1); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="nav-btn nav-fwd action-btn"><?php te('fc.gm_avanti'); ?> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></a>
 
                     <?php endif; ?>
 
@@ -2517,15 +1325,16 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
                 <div id="end-game-section">
 
-                    <button type="button" id="btn-concludi-1" class="btn btn-ghost end-btn" onclick="mostraConfermaFinale()">Concludi e vedi punteggio</button>
+                    <button type="button" id="btn-concludi-1" class="btn btn-ghost end-btn" onclick="mostraConfermaFinale()"><?php te('fc.gm_concludi'); ?></button>
 
                     <div id="conferma-finale-box" class="card-warn" style="display: none;">
 
-                        <p>Sei sicuro di voler concludere in anticipo?</p>
+                        <p><?php te('fc.gm_conferma_concludi'); ?></p>
 
-                        <a href="game_fc.php?game_id=<?php echo $game_id; ?>&action=concludi" class="btn btn-red end-link">Sì, mostra i risultati</a>
+                        <button type="button" class="btn btn-red end-link"
+                                onclick="nisamaAzione('game_fc.php?game_id=<?php echo (int)($game_id); ?>', {action: 'concludi', game_id: <?php echo (int)($game_id); ?>})"><?php te('fc.gm_si_risultati'); ?></button>
 
-                        <button type="button" class="nav-btn" onclick="annullaChiusura()">No, continua</button>
+                        <button type="button" class="nav-btn" onclick="annullaChiusura()"><?php te('fc.gm_no_continua'); ?></button>
 
                     </div>
 
@@ -2648,7 +1457,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
                     populateNativeVoiceSelect();
                 }
             } catch (e) {
-                console.warn('Elenco voci non disponibile:', e);
+                console.warn(T('fc.gm_voci_non_disponibili'), e);
             }
         }
 
@@ -4377,7 +3186,7 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
 
 
-                    // Copia magicamente gli URL "Corretto" e "Sbagliato" della flashcard originale!
+                    // Copia magicamente gli URL T('fc.lbl_corretto') e "Sbagliato" della flashcard originale!
 
                     let wrongUrl = document.querySelector('#ans-section-' + index + ' a.btn-red').href;
 
@@ -4826,37 +3635,52 @@ $status_text = ($status === 'all') ? 'All' : (($status == 1) ? 'Learnt' : 'To Le
 
             /* ---------- NAVIGAZIONE AJAX CON TRANSIZIONI (sostituisce il vecchio interceptor) ---------- */
 
+                        /* Separa un indirizzo in "dove vado" e "cosa faccio".
+               I parametri action/result/img_id sono un'AZIONE: scrivono nel
+               database, quindi devono viaggiare in POST, dove il token CSRF vale.
+               Gli altri - game_id, position, status, order - sono navigazione e
+               restano nell'indirizzo. */
+            function splitAzione (url) {
+                var u;
+                try { u = new URL(url, window.location.href); } catch (err) { return { url: url, post: null }; }
+                var azione = u.searchParams.get('action');
+                if (!azione) return { url: url, post: null };
+
+                var post = { action: azione };
+                ['result', 'img_id'].forEach(function (k) {
+                    var v = u.searchParams.get(k);
+                    if (v !== null) { post[k] = v; u.searchParams.delete(k); }
+                });
+                u.searchParams.delete('action');
+                return { url: u.pathname + (u.search ? u.search : '') , post: post };
+            }
+
             function navigateTo (url, opts) {
-
                 opts = opts || {};
-
                 if (navLock) return;
-
                 navLock = true;
-
                 gestureBlock = false;
-
                 suppressNextClick = false;
-
                 stopAllMedia();
-
-
-
                 var oldC = curC();
-
                 if (!oldC) { window.location.href = url; return; }
-
                 var oldFeed = oldC.querySelector('.feed');
-
                 var oldHeader = oldC.querySelector('.app-header');
-
                 var prevPos = parseInt(oldC.getAttribute('data-pos') || '1', 10);
-
                 oldC.style.pointerEvents = 'none';
 
+                /* Se c'e' un'azione, la richiesta diventa un POST con il token. */
+                var sp = splitAzione(url);
+                var richiesta = { method: 'GET' };
+                if (sp.post) {
+                    var fd = new FormData();
+                    Object.keys(sp.post).forEach(function (k) { fd.append(k, sp.post[k]); });
+                    fd.append('csrf_token', NISAMA_CSRF);
+                    richiesta = { method: 'POST', body: fd, headers: { 'X-CSRF-Token': NISAMA_CSRF } };
+                }
+                url = sp.url;
 
-
-                fetch(url).then(function (res) {
+                fetch(url, richiesta).then(function (res) {
 
                     if (res.url && res.url.indexOf('result_fc.php') !== -1) { window.location.href = res.url; return null; }
 

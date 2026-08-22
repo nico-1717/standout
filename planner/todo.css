@@ -1,0 +1,38 @@
+/* todo.css — stile della pagina Attività.
+   Estratto dal blocco <style> della pagina: serve per togliere
+   'unsafe-inline' dalla CSP.
+   L'@import dei font e' diventato un <link> nella pagina: dentro un foglio
+   esterno sarebbe una seconda richiesta in fila, e il testo comparirebbe
+   piu' tardi di quanto serva. */
+
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; background:#F4EFE9; }
+body{
+    margin:0; min-height:100dvh; background:#F4EFE9; color:#4A443D;
+    font-family:'Jost', -apple-system, system-ui, sans-serif; font-size:15px; line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    padding:calc(env(safe-area-inset-top, 0px) + 18px) 16px calc(env(safe-area-inset-bottom, 0px) + 40px);
+}
+.tp-sheet{
+    max-width:680px; margin:0 auto; background:#FDFCF9; border-radius:26px;
+    padding:22px 18px 26px;
+    box-shadow:0 2px 4px rgba(74,68,61,.05), 0 22px 50px -26px rgba(74,68,61,.35);
+}
+.tp-head{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:4px; }
+.tp-title{ font-family:'Cormorant Garamond', Georgia, serif; font-size:34px; font-weight:400; line-height:1; }
+.tp-sub{
+    font-size:9.5px; letter-spacing:.2em; text-transform:uppercase; color:#B7AEA3;
+}
+.tp-back{
+    display:inline-flex; align-items:center; gap:6px; margin-bottom:16px;
+    color:#8A8177; text-decoration:none; font-size:13px;
+}
+.tp-back svg{ width:15px; height:15px; }
+.tp-note{
+    font-family:'Cormorant Garamond', serif; font-style:italic; font-size:15px;
+    color:#8A8177; margin:2px 0 16px; line-height:1.5;
+}
+
+/* Del selettore progetti serve solo il popup: il pulsante inline non ha senso
+   qui, il progetto si sceglie dalla riga dell'attivita'. */
+#ps-widget-todo{ display:none; }

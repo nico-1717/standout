@@ -1,461 +1,146 @@
 <?php
-
 // connessione al database
 require_once 'config.php';
 require_once 'auth_check.php'; // 1. Protezione con login obbligatorio
 
-$current_user_id = $utente_corrente['id']; // 2. ID utente sicuro dal server
-
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-
-if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
-
-
-
-
-
-
-
-// --- RICEVITORE AJAX PER L'INSERIMENTO MULTIPLO ---
-
-
-
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'insert_bulk') {
-
-
-
-    header('Content-Type: application/json');
-
-
-
-
-
-
-
-    // Assicuriamoci che le cartelle esistano
-
-
-
-    if (!is_dir(FC_IMAGE_PATH_INSERT)) { mkdir(FC_IMAGE_PATH_INSERT, 0777, true); }
-
-
-
-    if (!is_dir('fc_audio')) { mkdir('fc_audio', 0777, true); }
-
-
-
-
-
-
-
-    $categoryId = intval($_POST['category_id']);
-
-    // --- INIZIO SICUREZZA: Verifica proprietario categoria ---
-    $check_cat = mysqli_query($conn, "SELECT user_id FROM fc_categories WHERE id = $categoryId");
-    $row_cat = mysqli_fetch_assoc($check_cat);
-    if (!$row_cat || (int)$row_cat['user_id'] !== $current_user_id) {
-        echo json_encode(['success' => false, 'error' => 'Sicurezza: Non sei autorizzato ad aggiungere carte a questa categoria.']);
-        exit;
-    }
-    // --- FINE SICUREZZA ---
-
-    // Trova ordine
-    $max_q = mysqli_query($conn, "SELECT MAX(custom_order) as m FROM fc_images WHERE category_id = $categoryId");
-    $max_o = intval(mysqli_fetch_assoc($max_q)['m']) + 1;
-
-
-
-
-
-
-
-    $rows_count = isset($_POST['q_desc']) ? count($_POST['q_desc']) : 0;
-
-
-
-    $inserted_count = 0;
-
-
-
-
-
-
-
-    $last_parent_id = 0;
-
-
-
-    $child_order = 1;
-
-
-
-
-
-
-
-    for ($i = 0; $i < $rows_count; $i++) {
-
-
-
-        $qd = mysqli_real_escape_string($conn, trim($_POST['q_desc'][$i] ?? ''));
-
-
-
-        $ad = mysqli_real_escape_string($conn, trim($_POST['a_desc'][$i] ?? ''));
-
-
-
-
-
-
-
-        $q_img_name = $_POST['q_img_name'][$i] ?? '';
-
-
-
-        $a_img_name = $_POST['a_img_name'][$i] ?? '';
-
-
-
-
-
-
-
-        $is_child = isset($_POST['is_child'][$i]) ? intval($_POST['is_child'][$i]) : 0;
-
-
-
-
-
-
-
-        // Se la riga è completamente vuota, la saltiamo
-
-
-
-        if ($qd == '' && $ad == '' && empty($q_img_name) && empty($a_img_name)) {
-
-
-
-            continue;
-
-
-
-        }
-
-
-
-
-
-
-
-        // --- GESTIONE IMMAGINE DOMANDA ---
-
-
-
-        $final_q_img = "";
-
-
-
-        if (isset($_FILES['row_q_img']['name'][$i]) && $_FILES['row_q_img']['error'][$i] == 0) {
-
-
-
-            $ext = pathinfo($_FILES['row_q_img']['name'][$i], PATHINFO_EXTENSION);
-
-
-
-            $final_q_img = time() . "_q_row_$i." . $ext;
-
-
-
-            move_uploaded_file($_FILES['row_q_img']['tmp_name'][$i], FC_IMAGE_PATH_INSERT . $final_q_img);
-
-
-
-        } else if (!empty($q_img_name) && isset($_FILES['question_images'])) {
-
-
-
-            foreach ($_FILES['question_images']['name'] as $idx => $fname) {
-
-
-
-                if ($fname == $q_img_name) {
-
-
-
-                    $ext = pathinfo($fname, PATHINFO_EXTENSION);
-
-
-
-                    $final_q_img = time() . "_q_bulk_$i." . $ext;
-
-
-
-                    move_uploaded_file($_FILES['question_images']['tmp_name'][$idx], FC_IMAGE_PATH_INSERT . $final_q_img);
-
-
-
-                    break;
-
-
-
-                }
-
-
-
-            }
-
-
-
-        }
-
-
-
-
-
-
-
-        // --- GESTIONE IMMAGINE RISPOSTA ---
-
-
-
-        $final_a_img = "";
-
-
-
-        if (isset($_FILES['row_a_img']['name'][$i]) && $_FILES['row_a_img']['error'][$i] == 0) {
-
-
-
-            $ext = pathinfo($_FILES['row_a_img']['name'][$i], PATHINFO_EXTENSION);
-
-
-
-            $final_a_img = time() . "_a_row_$i." . $ext;
-
-
-
-            move_uploaded_file($_FILES['row_a_img']['tmp_name'][$i], FC_IMAGE_PATH_INSERT . $final_a_img);
-
-
-
-        } else if (!empty($a_img_name) && isset($_FILES['answer_images'])) {
-
-
-
-            foreach ($_FILES['answer_images']['name'] as $idx => $fname) {
-
-
-
-                if ($fname == $a_img_name) {
-
-
-
-                    $ext = pathinfo($fname, PATHINFO_EXTENSION);
-
-
-
-                    $final_a_img = time() . "_a_bulk_$i." . $ext;
-
-
-
-                    move_uploaded_file($_FILES['answer_images']['tmp_name'][$idx], FC_IMAGE_PATH_INSERT . $final_a_img);
-
-
-
-                    break;
-
-
-
-                }
-
-
-
-            }
-
-
-
-        }
-
-
-
-
-
-
-
-        // Se la riga è completamente vuota, la saltiamo
-
-
-
-        if ($qd == '' && $ad == '' && empty($final_q_img) && empty($final_a_img)) {
-
-
-
-            continue;
-
-
-
-        }
-
-
-
-
-
-
-
-        // --- GESTIONE AUDIO DOMANDA ---
-
-
-
-        $final_q_aud = "";
-
-
-
-        if (isset($_FILES['audio_q']['name'][$i]) && $_FILES['audio_q']['error'][$i] == 0) {
-
-
-
-            $ext = pathinfo($_FILES['audio_q']['name'][$i], PATHINFO_EXTENSION);
-
-
-
-            $final_q_aud = "audio_q_" . time() . "_$i." . $ext;
-
-
-
-            move_uploaded_file($_FILES['audio_q']['tmp_name'][$i], 'fc_audio/' . $final_q_aud);
-
-
-
-        }
-
-
-
-
-
-
-
-        // --- GESTIONE AUDIO RISPOSTA ---
-
-
-
-        $final_a_aud = "";
-
-
-
-        if (isset($_FILES['audio_a']['name'][$i]) && $_FILES['audio_a']['error'][$i] == 0) {
-
-
-
-            $ext = pathinfo($_FILES['audio_a']['name'][$i], PATHINFO_EXTENSION);
-
-
-
-            $final_a_aud = "audio_a_" . time() . "_$i." . $ext;
-
-
-
-            move_uploaded_file($_FILES['audio_a']['tmp_name'][$i], 'fc_audio/' . $final_a_aud);
-
-
-
-        }
-
-
-
-
-
-
-
-        // --- INSERIMENTO NEL DB ---
-
-        if ($is_child == 0) {
-
-            // Rimossa la colonna 'is_father' non esistente in fc_images
-            mysqli_query($conn, "INSERT INTO fc_images (category_id, question_desc, question_image, question_audio, answer_desc, answer_image, answer_audio, custom_order)
-
-                                 VALUES ($categoryId, '$qd', '$final_q_img', '$final_q_aud', '$ad', '$final_a_img', '$final_a_aud', $max_o)");
-
-            $last_parent_id = mysqli_insert_id($conn);
-
-            $max_o++;
-
-            $child_order = 1;
-
-            $inserted_count++;
-
-        } else {
-
-            if ($last_parent_id > 0) {
-
-                mysqli_query($conn, "INSERT INTO fc_child_cards (parent_id, question_desc, question_image, question_audio, answer_desc, answer_image, answer_audio, custom_order)
-
-                                     VALUES ($last_parent_id, '$qd', '$final_q_img', '$final_q_aud', '$ad', '$final_a_img', '$final_a_aud', $child_order)");
-
-                $child_order++;
-
-                // Corretto l'identificatore della chiave primaria da 'id_fcimg' a 'id'
-                mysqli_query($conn, "UPDATE fc_images SET is_father = 1 WHERE id = $last_parent_id");
-
-                $inserted_count++;
-
-            }
-
-        }
-
-
-
-    }
-
-
-
-
-
-
-
-    echo json_encode(['success' => true, 'count' => $inserted_count, 'category_id' => $categoryId]);
-
-
-
-    exit;
-
-
-
+$current_user_id = (int)$utente_corrente['id']; // 2. ID utente sicuro dal server
+
+/* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
+$conn = sec_db();
+
+/* I tipi di audio ammessi: non sono immagini, quindi hanno un elenco loro.
+   sec_file() guarda il contenuto vero con finfo, mai l'estensione dichiarata. */
+const FC_AUDIO_MIME = [
+    'audio/mpeg' => 'mp3', 'audio/mp3' => 'mp3', 'audio/wav' => 'wav',
+    'audio/x-wav' => 'wav', 'audio/webm' => 'webm', 'audio/ogg' => 'ogg',
+    'audio/mp4' => 'm4a', 'audio/aac' => 'aac',
+];
+
+/* Salva un file preso da un campo multiplo ($_FILES[campo][...][indice]).
+   Restituisce il nome scritto dal server, o '' se non c'era niente o il
+   contenuto non e' del tipo giusto. Il nome del client non si usa mai. */
+function ibf_salva_multi($campo, $i, $cartella, $audio) {
+    if (!isset($_FILES[$campo]['name'][$i])) return '';
+    if ((int)$_FILES[$campo]['error'][$i] !== UPLOAD_ERR_OK) return '';
+    $file = [
+        'tmp_name' => $_FILES[$campo]['tmp_name'][$i],
+        'error'    => $_FILES[$campo]['error'][$i],
+        'size'     => $_FILES[$campo]['size'][$i],
+    ];
+    $ris = $audio ? sec_file($file, FC_AUDIO_MIME, 10485760) : sec_file($file);
+    if (empty($ris['ok'])) return '';
+    if (!is_dir($cartella)) { @mkdir($cartella, 0755, true); }
+    $nome = sec_safe_filename($ris['ext']);
+    return move_uploaded_file($ris['tmp'], rtrim($cartella, '/') . '/' . $nome) ? $nome : '';
 }
 
+/* Cerca nel gruppo di immagini quella che ha il nome scritto nella riga e la
+   salva. Il nome serve SOLO a trovare il file fra quelli caricati: quello
+   scritto sul disco lo genera il server. Prima l'estensione veniva presa da
+   quel nome, quindi scrivere "trucco.php" e caricare un file con quel nome
+   bastava a piazzarlo eseguibile nella cartella delle immagini. */
+function ibf_salva_dal_gruppo($campo, $nome_cercato, $cartella) {
+    if ($nome_cercato === '' || !isset($_FILES[$campo]['name'])) return '';
+    foreach ($_FILES[$campo]['name'] as $idx => $fname) {
+        if ($fname !== $nome_cercato) continue;
+        return ibf_salva_multi($campo, $idx, $cartella, false);
+    }
+    return '';
+}
 
+// --- RICEVITORE AJAX PER L'INSERIMENTO MULTIPLO ---
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'insert_bulk') {
+    header('Content-Type: application/json');
 
+    /* Token di sessione, origine e limite di frequenza: prima non c'erano.
+       60 al minuto: un inserimento multiplo e' una richiesta sola, per quante
+       righe contenga. */
+    sec_guard_write($current_user_id, 'fc_ins_big', 0, 60, 60);
 
+    $categoryId = sec_int($_POST['category_id'] ?? 0, 1);
+    if (!sec_owns('fc_categories', $categoryId, $current_user_id)) {
+        echo json_encode(['success' => false, 'error' => t('fc.non_autorizzato_aggiungere')]);
+        exit;
+    }
 
+    // Trova ordine
+    $max_o = (int)(sec_one("SELECT MAX(custom_order) AS m FROM fc_images WHERE category_id = ?",
+                           [$categoryId])['m'] ?? 0) + 1;
 
+    $rows_count = isset($_POST['q_desc']) && is_array($_POST['q_desc']) ? count($_POST['q_desc']) : 0;
+    $inserted_count = 0;
+    $last_parent_id = 0;
+    $child_order = 1;
 
-// Query per ottenere le categorie (FILTRATE PER UTENTE LOGGATO)
-$queryCategories = "SELECT id, name FROM fc_categories WHERE user_id = $current_user_id ORDER BY name";
-$resultCategories = mysqli_query($conn, $queryCategories);
+    for ($i = 0; $i < $rows_count; $i++) {
+        $qd = sec_text($_POST['q_desc'][$i] ?? '', 2000);
+        $ad = sec_text($_POST['a_desc'][$i] ?? '', 2000);
+
+        $q_img_name = sec_str($_POST['q_img_name'][$i] ?? '', 255);
+        $a_img_name = sec_str($_POST['a_img_name'][$i] ?? '', 255);
+
+        $is_child = sec_int($_POST['is_child'][$i] ?? 0, 0, 1);
+
+        // Se la riga e' completamente vuota, la saltiamo
+        if ($qd === '' && $ad === '' && $q_img_name === '' && $a_img_name === '') continue;
+
+        /* Immagini: prima il file caricato su questa riga, poi (ripiego) quello
+           del gruppo abbinato per nome. */
+        $final_q_img = ibf_salva_multi('row_q_img', $i, FC_IMAGE_PATH_INSERT, false);
+        if ($final_q_img === '') $final_q_img = ibf_salva_dal_gruppo('question_images', $q_img_name, FC_IMAGE_PATH_INSERT);
+
+        $final_a_img = ibf_salva_multi('row_a_img', $i, FC_IMAGE_PATH_INSERT, false);
+        if ($final_a_img === '') $final_a_img = ibf_salva_dal_gruppo('answer_images', $a_img_name, FC_IMAGE_PATH_INSERT);
+
+        // Riga senza testo e senza immagini valide: non c'e' niente da salvare
+        if ($qd === '' && $ad === '' && $final_q_img === '' && $final_a_img === '') continue;
+
+        $final_q_aud = ibf_salva_multi('audio_q', $i, 'fc_audio', true);
+        $final_a_aud = ibf_salva_multi('audio_a', $i, 'fc_audio', true);
+
+        // --- INSERIMENTO NEL DB ---
+        if ($is_child === 0) {
+            sec_q("INSERT INTO fc_images (category_id, question_desc, question_image, question_audio, answer_desc, answer_image, answer_audio, custom_order)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                  [$categoryId, $qd, $final_q_img, $final_q_aud, $ad, $final_a_img, $final_a_aud, $max_o]);
+            $last_parent_id = sec_insert_id();
+            $max_o++;
+            $child_order = 1;
+            $inserted_count++;
+        } elseif ($last_parent_id > 0) {
+            sec_q("INSERT INTO fc_child_cards (parent_id, question_desc, question_image, question_audio, answer_desc, answer_image, answer_audio, custom_order)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                  [$last_parent_id, $qd, $final_q_img, $final_q_aud, $ad, $final_a_img, $final_a_aud, $child_order]);
+            $child_order++;
+            sec_q("UPDATE fc_images SET is_father = 1 WHERE id = ? AND category_id = ?", [$last_parent_id, $categoryId]);
+            $inserted_count++;
+        }
+    }
+    echo json_encode(['success' => true, 'count' => $inserted_count, 'category_id' => $categoryId]);
+    exit;
+}
+
+/* $resultCategories non e' usata da nessuna parte in questo file: l'elenco lo
+   costruisce category_selector.php, incluso piu' sotto. La query resta perche'
+   togliere una variabile che qualcuno potrebbe leggere da un include e' un
+   rischio inutile - ma se un giorno si conferma che non serve, va via. */
+$resultCategories = sec_all("SELECT id, name FROM fc_categories WHERE user_id = ? ORDER BY name",
+                            [$current_user_id]);
 
 // Categoria pre-selezionata (es. arrivo da inserimento_fc.php con ?category_id=123)
 $preselected_cat_id = 0;
 $preselected_cat_name = '';
 if (isset($_GET['category_id'])) {
-    $preselected_cat_id = intval($_GET['category_id']);
+    $preselected_cat_id = sec_int($_GET['category_id'] ?? 0, 0);
     if ($preselected_cat_id > 0) {
-        // SICUREZZA AGGIUNTIVA: Pre-seleziona la categoria SOLO se appartiene all'utente loggato
-        $pcRes = mysqli_query($conn, "SELECT name FROM fc_categories WHERE id = $preselected_cat_id AND user_id = $current_user_id");
-        if ($pcRes && $pcRow = mysqli_fetch_assoc($pcRes)) {
-            $preselected_cat_name = $pcRow['name'];
-        } else {
-            $preselected_cat_id = 0; // id non valido o di un altro utente: ignora in modo sicuro
-        }
+        // Pre-seleziona la categoria SOLO se appartiene all'utente
+        $pcRow = sec_one("SELECT name FROM fc_categories WHERE id = ? AND user_id = ?",
+                         [$preselected_cat_id, $current_user_id]);
+        if ($pcRow) { $preselected_cat_name = $pcRow['name']; }
+        else { $preselected_cat_id = 0; } // id non valido o di un altro utente: si ignora
     }
 }
-
-
-
 ?>
-
-
 
 <!DOCTYPE html>
 
@@ -498,7 +183,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-    <title>Big Insert · Flashcards Universitarie</title>
+    <title><?php te('fc.ibfc_titolo'); ?></title>
 
 
 
@@ -506,7 +191,8 @@ if (isset($_GET['category_id'])) {
 
 
 
-    <script>
+    <?php echo nisama_i18n_json(['comune', 'fc', 'vocab']); ?>
+<script>
 
 
 
@@ -546,1787 +232,10 @@ if (isset($_GET['category_id'])) {
 
 
 
-    <style>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>inserimento_big_fc.css?v=<?php echo @filemtime(dirname(__FILE__) . '/inserimento_big_fc.css') ?: 1; ?>">
 
 
 
-        /* ================================================================
-
-
-
-           DESIGN SYSTEM — iOS nativo · light + dark automatico
-
-
-
-           (coerente con game_fc.php)
-
-
-
-           ================================================================ */
-
-
-
-        :root{
-
-
-
-            color-scheme: light dark;
-
-
-
-            --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7; --surface-3:#EDEDF2;
-
-
-
-            --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-
-
-
-            --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-
-
-
-            --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE; --pink:#FF2D55; --gray:#8E8E93;
-
-
-
-            --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
-
-
-
-            --orange-soft:rgba(255,149,0,.14); --purple-soft:rgba(175,82,222,.12); --pink-soft:rgba(255,45,85,.12); --gray-soft:rgba(142,142,147,.14);
-
-
-
-            --header-glass:rgba(249,249,251,.82);
-
-
-
-            --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-
-
-
-            --chip-bg:#FFFFFF;
-
-
-
-            --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-
-
-
-            --raise:0 1px 2px rgba(0,0,0,.07), 0 10px 22px -6px rgba(0,0,0,.16);
-
-
-
-            --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
-
-
-
-            --pill-hl:inset 0 0 0 .5px var(--hairline);
-
-
-
-            --r-card:22px; --r-btn:15px; --r-chip:100px; --r-tile:16px;
-
-
-
-            --spring:cubic-bezier(.32,.72,0,1);
-
-
-
-            --snap:cubic-bezier(.24,1.3,.35,1);
-
-
-
-            --header-h:64px;
-
-
-
-            --safe-top:env(safe-area-inset-top, 0px);
-
-
-
-            --safe-bottom:env(safe-area-inset-bottom, 0px);
-
-
-
-        }
-
-
-
-        @media (prefers-color-scheme: dark){
-
-
-
-            :root{
-
-
-
-                --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E; --surface-3:#333336;
-
-
-
-                --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-
-
-
-                --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-
-
-
-                --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2; --pink:#FF375F; --gray:#98989F;
-
-
-
-                --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17);
-
-
-
-                --orange-soft:rgba(255,159,10,.18); --purple-soft:rgba(191,90,242,.18); --pink-soft:rgba(255,55,95,.18); --gray-soft:rgba(152,152,159,.18);
-
-
-
-                --header-glass:rgba(16,16,18,.78);
-
-
-
-                --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-
-
-
-                --chip-bg:#3A3A3C;
-
-
-
-                --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-
-
-
-                --raise:0 1px 2px rgba(0,0,0,.5), 0 12px 26px -6px rgba(0,0,0,.65);
-
-
-
-                --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
-
-
-
-                --pill-hl:inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 .5px var(--hairline);
-
-
-
-            }
-
-
-
-        }
-
-
-
-
-
-
-
-        *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
-
-
-        html{ -webkit-text-size-adjust:100%; }
-
-
-
-        html, body{ min-height:100%; overflow-x:hidden; }
-
-
-
-        body{
-
-
-
-            margin:0; background:var(--bg); color:var(--text);
-
-
-
-            font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-
-
-
-            font-size:16px; line-height:1.45;
-
-
-
-            -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-
-
-
-            padding-bottom: calc(60px + var(--safe-bottom));
-
-
-
-        }
-
-
-
-        body.no-select, body.no-select *{ -webkit-user-select:none !important; user-select:none !important; }
-
-
-
-        :focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
-
-
-
-        a{ color:var(--blue); }
-
-
-
-
-
-
-
-        /* ================================================================
-
-
-
-           HEADER
-
-
-
-           ================================================================ */
-
-
-
-        .app-header{
-
-
-
-            position:sticky; top:0; left:0; right:0; z-index:200;
-
-
-
-            padding:calc(var(--safe-top) + 12px) 16px 12px;
-
-
-
-            background:var(--header-glass);
-
-
-
-            -webkit-backdrop-filter:saturate(1.8) blur(22px); backdrop-filter:saturate(1.8) blur(22px);
-
-
-
-            border-bottom:.5px solid var(--hairline);
-
-
-
-            display:flex; align-items:center; justify-content:space-between; gap:12px;
-
-
-
-        }
-
-
-
-        .app-header .hdr-text{ min-width:0; }
-
-
-
-        .app-header h1{
-
-
-
-            margin:0; font-size:19px; font-weight:800; letter-spacing:-.02em; color:var(--text);
-
-
-
-            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-
-
-
-        }
-
-
-
-        .app-header .hdr-sub{ margin-top:1px; font-size:12px; font-weight:600; color:var(--text-2); }
-
-
-
-        .hdr-chip{
-
-
-
-            flex-shrink:0; display:inline-flex; align-items:center; gap:6px;
-
-
-
-            padding:7px 13px; border-radius:var(--r-chip); font-size:12.5px; font-weight:800;
-
-
-
-            background:var(--blue-soft); color:var(--blue); font-variant-numeric:tabular-nums;
-
-
-
-        }
-
-
-
-
-
-
-
-        .page-wrap{ max-width:760px; margin:0 auto; padding:16px 14px calc(24px + var(--safe-bottom)); }
-
-
-
-
-
-
-
-        /* ================================================================
-
-
-
-           BOTTONI — sistema condiviso (coerente con game_fc)
-
-
-
-           ================================================================ */
-
-
-
-        .btn{
-
-
-
-            display:flex; align-items:center; justify-content:center; gap:8px;
-
-
-
-            width:100%; padding:15px 16px; margin:0;
-
-
-
-            border:none; border-radius:var(--r-btn); cursor:pointer;
-
-
-
-            font-family:inherit; font-size:16px; font-weight:700; letter-spacing:-.01em;
-
-
-
-            color:#fff; background:var(--text);
-
-
-
-            text-decoration:none; text-align:center;
-
-
-
-            -webkit-user-select:none; user-select:none;
-
-
-
-            --glow:rgba(0,0,0,.3);
-
-
-
-            box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 12px 26px -8px var(--glow);
-
-
-
-            transition:transform .16s var(--spring), box-shadow .2s var(--spring), filter .2s, opacity .2s;
-
-
-
-        }
-
-
-
-        .btn:active{
-
-
-
-            transform:translateY(1.5px) scale(.985);
-
-
-
-            filter:brightness(.95);
-
-
-
-            box-shadow:inset 0 1px 0 rgba(255,255,255,.1), inset 0 3px 8px rgba(0,0,0,.18), 0 1px 2px rgba(0,0,0,.12), 0 4px 10px -5px var(--glow);
-
-
-
-        }
-
-
-
-        .btn:disabled{ opacity:.55; cursor:not-allowed; transform:none !important; filter:none !important; }
-
-
-
-        .btn-primary{
-
-
-
-            --glow:rgba(10,132,255,.5);
-
-
-
-            background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%));
-
-
-
-        }
-
-
-
-        .btn-success{
-
-
-
-            --glow:rgba(52,199,89,.5);
-
-
-
-            background:linear-gradient(180deg, color-mix(in srgb, var(--green), #fff 18%), var(--green) 52%, color-mix(in srgb, var(--green), #000 10%));
-
-
-
-        }
-
-
-
-        .btn-warn{
-
-
-
-            --glow:rgba(255,149,0,.5);
-
-
-
-            background:linear-gradient(180deg, color-mix(in srgb, var(--orange), #fff 16%), var(--orange) 52%, color-mix(in srgb, var(--orange), #000 10%));
-
-
-
-        }
-
-
-
-        .btn-flat-warn{ color:var(--gray); background:var(--gray-soft); box-shadow:inset 0 0 0 1.5px var(--hairline-2); --glow:transparent; }
-
-
-
-        .btn-ghost{
-
-
-
-            color:var(--text); background:var(--surface);
-
-
-
-            box-shadow:var(--pill-hl), var(--raise);
-
-
-
-        }
-
-
-
-        .btn-ghost:active{ filter:none; box-shadow:var(--pill-hl), inset 0 2px 6px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.08); }
-
-
-
-        .btn-sm{ padding:11px 14px; font-size:14.5px; }
-
-
-
-        .btn svg{ width:18px; height:18px; flex-shrink:0; }
-
-
-
-
-
-
-
-        .spinner{ width:17px; height:17px; border-radius:50%; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff; animation:spin .7s linear infinite; }
-
-
-
-        @keyframes spin{ to{ transform:rotate(360deg); } }
-
-
-
-
-
-
-
-        /* ================================================================
-
-
-
-           CARD / SETUP SECTIONS
-
-
-
-           ================================================================ */
-
-
-
-        .card-surface{
-
-
-
-            background:var(--surface); border-radius:var(--r-card);
-
-
-
-            border:.5px solid var(--hairline); box-shadow:var(--shadow-card);
-
-
-
-            padding:18px 16px;
-
-
-
-        }
-
-
-
-        .setup-grid{ display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:14px; }
-
-
-
-        @media (min-width:680px){ .setup-grid{ grid-template-columns:1fr 1fr; } .setup-grid .full{ grid-column:1/-1; } }
-
-
-
-
-
-
-
-        .setup-card{ padding:16px; }
-
-
-
-        .setup-card .sc-label{
-
-
-
-            display:flex; align-items:center; gap:8px;
-
-
-
-            font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase;
-
-
-
-            color:var(--blue); margin-bottom:12px;
-
-
-
-        }
-
-
-
-        .setup-card .sc-label .ic{ width:20px; height:20px; border-radius:7px; background:var(--blue-soft); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-
-
-
-        .setup-card .sc-label .ic svg{ width:12.5px; height:12.5px; color:var(--blue); }
-
-
-
-        .mini-label{ font-size:12.5px; font-weight:700; color:var(--text-2); margin:0 0 6px; display:block; }
-
-
-
-
-
-
-
-        input[type="file"]{ font-size:13px; color:var(--text-2); }
-
-
-
-        input[type="file"]::file-selector-button{
-
-
-
-            border:none; padding:8px 12px; margin-right:8px; border-radius:10px;
-
-
-
-            background:var(--blue-soft); color:var(--blue); font-weight:700; font-size:12.5px; cursor:pointer;
-
-
-
-        }
-
-
-
-
-
-
-
-        textarea, select, input[type="text"]{
-
-
-
-            width:100%; box-sizing:border-box; font-family:inherit; color:var(--text);
-
-
-
-            background:var(--surface-2); border:1px solid var(--hairline-2); border-radius:12px;
-
-
-
-            padding:11px 12px; font-size:16px; resize:vertical;
-
-
-
-        }
-
-
-
-        select{ -webkit-appearance:none; appearance:none; padding-right:34px;
-
-
-
-            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A8A8E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-
-
-
-            background-repeat:no-repeat; background-position:right 11px center;
-
-
-
-        }
-
-
-
-        textarea:focus, select:focus, input:focus{ outline:none; border-color:var(--blue); }
-
-
-
-
-
-
-
-        .category-btn{
-
-
-
-            width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px;
-
-
-
-            padding:15px 16px; border-radius:14px; border:1.5px dashed var(--hairline-2);
-
-
-
-            background:var(--surface-2); color:var(--text-3); font-weight:700; font-size:15.5px;
-
-
-
-            cursor:pointer; font-family:inherit; text-align:left; transition:border-color .2s, background .2s, transform .15s var(--spring);
-
-
-
-        }
-
-
-
-        .category-btn.is-set{ color:var(--text); border-style:solid; border-color:var(--blue); background:var(--blue-soft); }
-
-
-
-        .category-btn:active{ transform:scale(.99); }
-
-
-
-        .category-btn .cb-ic{ width:34px; height:34px; border-radius:10px; background:var(--surface); box-shadow:var(--pill-hl), var(--raise-sm); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-
-
-
-        .category-btn .cb-ic svg{ width:17px; height:17px; color:var(--blue); }
-
-
-
-        .category-btn .cb-chev{ color:var(--text-3); flex-shrink:0; }
-
-
-
-        .category-btn .cb-chev svg{ width:16px; height:16px; }
-
-
-
-
-
-
-
-        .import-row{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
-
-
-
-        .import-row > div{ flex:1; min-width:130px; }
-
-
-
-
-
-
-
-        .ai-prompt-box{
-
-
-
-            background:var(--surface-2); border:1.5px dashed var(--hairline-2); border-radius:14px;
-
-
-
-            margin-top:10px; overflow:hidden; position:relative;
-
-
-
-        }
-
-
-
-        .ai-prompt-box textarea{
-
-
-
-            width:100%; height:150px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12.5px; line-height:1.55;
-
-
-
-            border:none; background:transparent; resize:vertical; outline:none; cursor:copy; padding:14px;
-
-
-
-        }
-
-
-
-        .ai-copy-hint{
-
-
-
-            position:absolute; top:8px; right:8px; font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
-
-
-
-            color:var(--purple); background:var(--purple-soft); padding:4px 9px; border-radius:99px; pointer-events:none;
-
-
-
-        }
-
-
-
-        .format-help{
-
-
-
-            background:var(--purple-soft); border-radius:var(--r-card); padding:16px; margin-bottom:14px;
-
-
-
-            border:.5px solid transparent;
-
-
-
-        }
-
-
-
-        .format-help strong{ color:var(--purple); font-size:14.5px; }
-
-
-
-        .format-help p{ margin:6px 0 0; font-size:13px; color:var(--text-2); line-height:1.5; }
-
-
-
-
-
-
-
-        #success-msg{
-
-
-
-            display:none; background:var(--green-soft); color:var(--green); padding:22px 18px; text-align:center;
-
-
-
-            border-radius:var(--r-card); margin:0 0 16px; font-size:16px; font-weight:700; line-height:1.5;
-
-
-
-            animation:popIn .4s var(--spring) both;
-
-
-
-        }
-
-
-
-        #success-msg small{ display:block; margin-top:6px; font-weight:600; color:var(--text-2); font-size:13px; }
-
-
-
-        @keyframes popIn{ from{ opacity:0; transform:translateY(-8px) scale(.97); } }
-
-
-
-
-
-
-
-        /* ================================================================
-
-
-
-           BANNER SELEZIONE PADRE
-
-
-
-           ================================================================ */
-
-
-
-        #parent-selection-banner{
-
-
-
-            position:fixed; top:0; left:0; right:0; z-index:9000;
-
-
-
-            display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; text-align:center;
-
-
-
-            padding:calc(var(--safe-top) + 12px) 16px 12px;
-
-
-
-            background:linear-gradient(180deg, color-mix(in srgb, var(--orange), #fff 10%), var(--orange));
-
-
-
-            color:#fff; font-weight:700; font-size:14.5px;
-
-
-
-            box-shadow:0 6px 24px rgba(255,149,0,.35);
-
-
-
-            transform:translateY(-100%); transition:transform .4s var(--snap);
-
-
-
-        }
-
-
-
-        #parent-selection-banner.show{ transform:translateY(0); }
-
-
-
-        #parent-selection-banner button{
-
-
-
-            padding:8px 16px; font-weight:800; font-size:13px; border:none; border-radius:99px; cursor:pointer;
-
-
-
-            background:rgba(255,255,255,.22); color:#fff; backdrop-filter:blur(4px);
-
-
-
-        }
-
-
-
-        body.selecting-mode{ padding-top:0; }
-
-
-
-        body.selecting-mode .fc-row{ transition:box-shadow .2s, opacity .2s; }
-
-
-
-        body.selecting-mode .fc-row.eligible-target .fc-row-content{ box-shadow:0 0 0 2px var(--orange), var(--shadow-card); }
-
-
-
-        body.selecting-mode .fc-row.is-child:not(.pending-child) .fc-row-content{ opacity:.45; }
-
-
-
-        body.selecting-mode .fc-row.pending-child .fc-row-content{ box-shadow:0 0 0 2px var(--blue), var(--shadow-card); }
-
-
-
-        /* durante la selezione del padre, i figli non devono poter essere eliminati o sganciati */
-
-
-
-        body.selecting-mode .fc-row.is-child .swipe-btn-delete,
-
-
-
-        body.selecting-mode .fc-row.is-child .swipe-btn-unjoin{ visibility:hidden; }
-
-
-
-
-
-
-
-        /* ================================================================
-
-
-
-           TOAST
-
-
-
-           ================================================================ */
-
-
-
-        .app-toast{
-
-
-
-            position:fixed; left:50%; bottom:calc(24px + var(--safe-bottom)); z-index:11000;
-
-
-
-            transform:translateX(-50%) translateY(20px); opacity:0;
-
-
-
-            max-width:88%; padding:13px 20px; border-radius:16px;
-
-
-
-            background:var(--text); color:var(--bg); font-size:14px; font-weight:600; text-align:center;
-
-
-
-            box-shadow:0 14px 40px rgba(0,0,0,.3); transition:opacity .3s var(--spring), transform .3s var(--spring);
-
-
-
-        }
-
-
-
-        .app-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
-
-
-
-        .app-toast.toast-error{ background:var(--red); color:#fff; }
-
-
-
-
-
-
-
-        /* ================================================================
-
-
-
-           MODALE CONFERMA
-
-
-
-           ================================================================ */
-
-
-
-        .confirm-overlay{
-
-
-
-            position:fixed; inset:0; z-index:10500; display:none;
-
-
-
-            align-items:flex-end; justify-content:center;
-
-
-
-            background:rgba(0,0,0,.4); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
-
-
-
-        }
-
-
-
-        .confirm-overlay.show{ display:flex; }
-
-
-
-        .confirm-panel{
-
-
-
-            width:100%; max-width:440px; background:var(--surface); color:var(--text);
-
-
-
-            border-radius:24px 24px 0 0; padding:26px 20px calc(20px + var(--safe-bottom));
-
-
-
-            box-shadow:0 -10px 50px rgba(0,0,0,.3); animation:sheetUp .4s var(--snap) both; position:relative;
-
-
-
-        }
-
-
-
-        @keyframes sheetUp{ from{ transform:translateY(40%); opacity:.3; } to{ transform:none; opacity:1; } }
-
-
-
-        .confirm-panel::before{ content:""; position:absolute; top:8px; left:50%; transform:translateX(-50%); width:38px; height:5px; border-radius:99px; background:var(--hairline-2); }
-
-
-
-        .confirm-panel h3{ margin:4px 0 8px; font-size:18.5px; font-weight:800; letter-spacing:-.01em; }
-
-
-
-        .confirm-panel p{ margin:0 0 18px; font-size:14.5px; color:var(--text-2); line-height:1.5; }
-
-
-
-        .confirm-actions{ display:flex; gap:10px; }
-
-
-
-        .confirm-actions .btn{ flex:1; }
-
-
-
-        @media (min-width:480px){ .confirm-overlay{ align-items:center; } .confirm-panel{ border-radius:24px; } }
-
-
-
-    </style>
-
-
-
-    <style>
-
-
-
-        /* ================================================================
-
-
-
-           LISTA RIGHE (ex-tabella) — card eleganti, gesture iOS
-
-
-
-           ================================================================ */
-
-
-
-        .fc-rows{ display:flex; flex-direction:column; gap:14px; margin:16px 0; }
-
-
-
-        .fc-rows:empty{ display:none; }
-
-
-
-
-
-
-
-        .fc-row{
-
-
-
-            position:relative; border-radius:var(--r-card); overflow:hidden;
-
-
-
-            box-shadow:var(--shadow-card);
-
-
-
-        }
-
-
-
-        .fc-row.is-dragging-row{ box-shadow:none; }
-
-
-
-        .fc-row.is-child{ margin-left:26px; }
-
-
-
-
-
-
-
-        /* --- livello azioni swipe (sotto, rivelato scorrendo verso destra) ---
-
-
-
-           IMPORTANTE: niente inset:0/right:0 qui. Deve restringersi al contenuto
-
-
-
-           (i 2 pulsanti, ~172px) altrimenti offsetWidth = larghezza di tutta la riga
-
-
-
-           e lo swipe potrebbe trascinare l'intera card fuori dallo schermo. */
-
-
-
-        .swipe-actions{
-
-
-
-            position:absolute; top:0; left:0; bottom:0; display:flex; align-items:stretch; justify-content:flex-start;
-
-
-
-        }
-
-
-
-        .swipe-btn{
-
-
-
-            width:86px; flex-shrink:0; border:none; cursor:pointer;
-
-
-
-            display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
-
-
-
-            color:#fff; font-family:inherit; font-size:11.5px; font-weight:800; letter-spacing:.01em;
-
-
-
-        }
-
-
-
-        .swipe-btn svg{ width:21px; height:21px; }
-
-
-
-        .swipe-btn-delete{ background:linear-gradient(180deg, color-mix(in srgb, var(--red), #fff 12%), var(--red)); }
-
-
-
-        .swipe-btn-join{ background:linear-gradient(180deg, color-mix(in srgb, var(--orange), #fff 12%), var(--orange)); }
-
-
-
-        .swipe-btn-unjoin{ background:linear-gradient(180deg, color-mix(in srgb, var(--gray), #fff 12%), var(--gray)); }
-
-
-
-        .swipe-btn:active{ filter:brightness(.92); }
-
-
-
-        .fc-row:not(.is-child) .swipe-btn-unjoin{ display:none; }
-
-
-
-        .fc-row.is-child .swipe-btn-join{ display:none; }
-
-
-
-        .fc-drag-ghost{ cursor:grabbing; }
-
-
-
-
-
-
-
-        /* --- contenuto principale della riga (si sposta orizzontalmente) --- */
-
-
-
-        .fc-row-content{
-
-
-
-            position:relative; z-index:2; background:var(--surface);
-
-
-
-            border-radius:var(--r-card); border:.5px solid var(--hairline);
-
-
-
-            will-change:transform; touch-action:pan-y;
-
-
-
-        }
-
-
-
-        /* Nota: background sempre 100% opaco (mix di due colori pieni) — mai da colori
-
-
-
-           -soft con alpha, altrimenti si intravedono i pulsanti dello swipe sotto. */
-
-
-
-        .fc-row.is-child .fc-row-content{
-
-
-
-            background: color-mix(in srgb, var(--surface), var(--orange) 14%);
-
-
-
-            border-left:3px solid var(--orange);
-
-
-
-        }
-
-
-
-
-
-
-
-        .fc-row-strip{
-
-
-
-            display:flex; align-items:center; gap:10px; padding:12px 14px 8px;
-
-
-
-            cursor:grab; touch-action:pan-y;
-
-
-
-        }
-
-
-
-        .fc-row-strip .grip{
-
-
-
-            display:flex; flex-direction:column; gap:3px; padding:2px; flex-shrink:0; color:var(--text-3);
-
-
-
-        }
-
-
-
-        .fc-row-strip .grip svg{ width:18px; height:18px; }
-
-
-
-        .row-badge{
-
-
-
-            display:inline-flex; align-items:center; gap:6px;
-
-
-
-            font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--text-2);
-
-
-
-            background:var(--surface-3); padding:4px 10px; border-radius:99px;
-
-
-
-        }
-
-
-
-        .row-badge::before{ content:""; width:5px; height:5px; border-radius:50%; background:var(--blue); flex-shrink:0; }
-
-
-
-        .fc-row.is-child .row-badge{ background:var(--orange); color:#fff; }
-
-
-
-        .fc-row.is-child .row-badge::before{ display:none; }
-
-
-
-        .strip-spacer{ flex:1; }
-
-
-
-        .strip-hint{ font-size:11px; color:var(--text-3); font-weight:600; display:flex; align-items:center; gap:4px; opacity:.85; }
-
-
-
-        .strip-hint svg{ width:13px; height:13px; }
-
-
-
-
-
-
-
-        .fc-row-grid{ display:grid; grid-template-columns:1fr; gap:2px; padding:0 10px 12px; }
-
-
-
-        @media (min-width:720px){ .fc-row-grid{ grid-template-columns:1fr 1fr; gap:14px; padding:0 14px 14px; } }
-
-
-
-
-
-
-
-        .fc-field{ padding:8px 6px 4px; }
-
-
-
-        @media (min-width:720px){ .fc-field{ padding:6px 0; } .fc-field + .fc-field{ border-left:.5px solid var(--hairline); padding-left:14px; } }
-
-
-
-
-
-
-
-        .field-label{
-
-
-
-            display:flex; align-items:center; gap:7px; font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
-
-
-
-            color:var(--text-3); margin-bottom:7px;
-
-
-
-        }
-
-
-
-        .field-label.is-answer{ color:var(--blue); }
-
-
-
-
-
-
-
-        .editor-wrap{ border-radius:14px; overflow:hidden; border:1px solid var(--hairline-2); background:var(--surface-2); }
-
-
-
-        textarea.cell-input{
-
-
-
-            display:block; width:100%; border:none; border-radius:0; background:transparent;
-
-
-
-            padding:11px 12px 8px; font-size:16px; line-height:1.5; min-height:64px; box-shadow:none;
-
-
-
-            overscroll-behavior:contain;
-
-
-
-        }
-
-
-
-        textarea.cell-input:focus{ border:none; outline:none; background:var(--surface); }
-
-
-
-
-
-
-
-        .toolbar{
-
-
-
-            display:flex; gap:4px; flex-wrap:wrap; padding:5px 6px; border-top:.5px solid var(--hairline);
-
-
-
-            background:var(--surface-3);
-
-
-
-        }
-
-
-
-        .tbtn{
-
-
-
-            width:27px; height:27px; border-radius:8px; border:none; cursor:pointer;
-
-
-
-            display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:800;
-
-
-
-            background:var(--surface); color:var(--text-2); box-shadow:var(--pill-hl);
-
-
-
-            transition:transform .12s var(--spring);
-
-
-
-        }
-
-
-
-        .tbtn:active{ transform:scale(.88); }
-
-
-
-        .tbtn.tc-red{ color:var(--red); } .tbtn.tc-blue{ color:var(--blue); } .tbtn.tc-green{ color:var(--green); }
-
-
-
-        .tbtn.tc-purple{ color:var(--purple); } .tbtn.tc-orange{ color:var(--orange); }
-
-
-
-        .tbtn.tc-yellow{ background:#FFE066; color:#7a5b00; }
-
-
-
-        .tsep{ width:1px; align-self:stretch; background:var(--hairline-2); margin:2px 2px; }
-
-
-
-
-
-
-
-        .live-preview{
-
-
-
-            margin-top:7px; padding:10px 11px; background:var(--purple-soft); border-radius:12px;
-
-
-
-            min-height:18px; font-size:13.5px; color:var(--text); text-align:left; white-space:pre-wrap; word-wrap:break-word;
-
-
-
-            max-height:180px; overflow-y:auto; line-height:1.5; overscroll-behavior:contain;
-
-
-
-        }
-
-
-
-        .live-preview:empty{ display:none; }
-
-
-
-        .live-preview mjx-container{ max-width:100%; overflow-x:auto; overflow-y:hidden; }
-
-
-
-
-
-
-
-        .media-row{ display:flex; gap:8px; margin-top:9px; flex-wrap:wrap; align-items:center; }
-
-
-
-        .media-chip{
-
-
-
-            display:flex; align-items:center; gap:7px; padding:8px 12px 8px 8px; border-radius:99px;
-
-
-
-            background:var(--surface); box-shadow:var(--pill-hl), var(--raise-sm); cursor:pointer;
-
-
-
-            font-size:12.5px; font-weight:700; color:var(--text-2); border:none; font-family:inherit;
-
-
-
-            transition:transform .15s var(--spring);
-
-
-
-        }
-
-
-
-        .media-chip:active{ transform:scale(.95); }
-
-
-
-        .media-chip input[type=file]{ display:none; }
-
-
-
-        .chip-thumb{
-
-
-
-            width:26px; height:26px; border-radius:50%; overflow:hidden; flex-shrink:0;
-
-
-
-            background:var(--surface-3); display:flex; align-items:center; justify-content:center; color:var(--text-3);
-
-
-
-        }
-
-
-
-        .chip-thumb svg{ width:13px; height:13px; }
-
-
-
-        .chip-thumb img{ width:100%; height:100%; object-fit:cover; }
-
-
-
-        .img-chip.has-img{ color:var(--text); }
-
-
-
-        .img-name-tag{ max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-
-
-
-
-
-
-        .btn-rec{
-
-
-
-            color:var(--pink); background:var(--pink-soft);
-
-
-
-            box-shadow:inset 0 0 0 1.5px rgba(255,45,85,.35), var(--pill-hl);
-
-
-
-        }
-
-
-
-        .btn-rec .chip-thumb{ background:transparent; color:var(--pink); }
-
-
-
-        .btn-rec.recording{
-
-
-
-            color:#fff; background:linear-gradient(180deg, color-mix(in srgb, var(--pink), #fff 15%), var(--pink));
-
-
-
-            box-shadow:0 0 0 4px var(--pink-soft), 0 6px 16px -6px rgba(255,45,85,.6);
-
-
-
-            animation:recPulse 1.4s ease-in-out infinite;
-
-
-
-        }
-
-
-
-        .btn-rec.recording .chip-thumb{ color:#fff; }
-
-
-
-        @keyframes recPulse{
-
-
-
-            0%,100%{ box-shadow:0 0 0 4px var(--pink-soft), 0 6px 16px -6px rgba(255,45,85,.6); }
-
-
-
-            50%{ box-shadow:0 0 0 8px var(--pink-soft), 0 6px 20px -4px rgba(255,45,85,.75); }
-
-
-
-        }
-
-
-
-        .rec-dot{ width:8px; height:8px; border-radius:50%; background:#fff; flex-shrink:0; }
-
-
-
-        .btn-rec:not(.recording) .rec-dot{ background:var(--pink); }
-
-
-
-        .btn-rec.recording .rec-dot{ animation:recBlink 1s step-start infinite; }
-
-
-
-        @keyframes recBlink{ 50%{ opacity:.25; } }
-
-
-
-
-
-
-
-        .audio-player{ display:none; width:100%; height:36px; margin-top:8px; border-radius:99px; }
-
-
-
-        .audio-player.has-audio{ display:block; }
-
-
-
-
-
-
-
-        /* --- placeholder & drag ghost (riordino) --- */
-
-
-
-        .fc-row-placeholder{
-
-
-
-            border-radius:var(--r-card); border:2px dashed var(--hairline-2);
-
-
-
-            background:var(--surface-2); opacity:.7;
-
-
-
-        }
-
-
-
-        .fc-drag-ghost{ pointer-events:none; }
-
-
-
-        .fc-drag-ghost .fc-row{ box-shadow:0 22px 44px -12px rgba(0,0,0,.35), 0 4px 14px rgba(0,0,0,.14); }
-
-
-
-        .fc-drag-ghost .fc-row-content{ box-shadow:0 0 0 2px var(--blue); }
-
-
-
-
-
-
-
-        /* ================================================================
-
-
-
-           BOTTONE AGGIUNGI / GENERA / SALVA
-
-
-
-           ================================================================ */
-
-
-
-        .action-stack{ display:flex; flex-direction:column; gap:10px; margin-top:6px; }
-
-
-
-        .empty-hint{
-
-
-
-            text-align:center; padding:26px 18px; color:var(--text-3); font-size:13.5px; font-weight:600;
-
-
-
-            border:1.5px dashed var(--hairline-2); border-radius:var(--r-card);
-
-
-
-        }
-
-
-
-
-
-
-
-        @media (prefers-reduced-motion: reduce){
-
-
-
-            *, *::before, *::after{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
-
-
-
-        }
-
-
-
-    </style>
 
 
 
@@ -2354,11 +263,11 @@ if (isset($_GET['category_id'])) {
 
 
 
-    <span>👇 Tocca il concetto padre a cui agganciare questo figlio</span>
+    <span><?php te('fc.ibfc_tocca_padre'); ?></span>
 
 
 
-    <button type="button" onclick="cancelChildSelection()">✕ Annulla</button>
+    <button type="button" onclick="cancelChildSelection()"><?php te('fc.ibfc_annulla_x'); ?></button>
 
 
 
@@ -2378,11 +287,11 @@ if (isset($_GET['category_id'])) {
 
 
 
-        <h1>Big Insert</h1>
+        <h1><?php te('fc.ibfc_big_insert'); ?></h1>
 
 
 
-        <div class="hdr-sub">Flashcards Universitarie</div>
+        <div class="hdr-sub"><?php te('fc.ibfc_flashcards_uni'); ?></div>
 
 
 
@@ -2390,7 +299,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-    <div class="hdr-chip" id="row-count-chip">0 righe</div>
+    <div class="hdr-chip" id="row-count-chip"><?php te('fc.ibf_n_righe', ['n' => 0]); ?></div>
 
 
 
@@ -2421,11 +330,11 @@ if (isset($_GET['category_id'])) {
 
 
 
-        ✅ Inserimento completato — <strong id="success-count">0</strong> flashcards salvate.
+        <?php th('fc.ibf_completato', ['n' => '<strong id="success-count">0</strong>']); ?>
 
 
 
-        <small>Ritorno alla categoria in corso…</small>
+        <small><?php te('vocab.ib_ritorno'); ?></small>
 
 
 
@@ -2441,16 +350,16 @@ if (isset($_GET['category_id'])) {
 
 
 
-        <strong>🤖 Prompt IA per la generazione automatica</strong>
+        <strong><?php te('vocab.ib_prompt_titolo'); ?></strong>
 
 
 
-        <p>Tocca il riquadro sottostante per copiare il testo e incollalo su ChatGPT/Gemini per generare flashcards già compatibili.</p>
+        <p><?php te('fc.ibf_prompt_sub'); ?></p>
 
 
 
         <div class="ai-prompt-box">
-            <span class="ai-copy-hint">Tocca per copiare</span>
+            <span class="ai-copy-hint"><?php te('vocab.ib_tocca_copiare'); ?></span>
             <textarea id="ai_prompt_textarea" readonly onclick="this.select(); navigator.clipboard.writeText(this.value).then(() => showToast('Copiato negli appunti! 📋')).catch(() => { document.execCommand('copy'); showToast('Copiato negli appunti! 📋'); });"></textarea>
         </div>
 
@@ -2476,7 +385,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-                <div class="sc-label"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></span>Categoria di destinazione</div>
+                <div class="sc-label"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></span><?php te('vocab.ib_categoria_dest'); ?></div>
 
 
 
@@ -2488,7 +397,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-                    $cs_placeholder = 'Tocca per selezionare…';
+                    $cs_placeholder = T('vocab.ib_ph_seleziona');
 
 
 
@@ -2520,11 +429,11 @@ if (isset($_GET['category_id'])) {
 
 
 
-                <div class="sc-label"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M4 7h2.2L8 4h8l1.8 3H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/></svg></span>Immagini (opzionale)</div>
+                <div class="sc-label"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M4 7h2.2L8 4h8l1.8 3H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/></svg></span><?php te('vocab.ib_immagini_opz'); ?></div>
 
 
 
-                <label class="mini-label">Immagini Domanda</label>
+                <label class="mini-label"><?php te('fc.ibfc_immagini_domanda'); ?></label>
 
 
 
@@ -2532,7 +441,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-                <label class="mini-label">Immagini Risposta</label>
+                <label class="mini-label"><?php te('fc.ibfc_immagini_risposta'); ?></label>
 
 
 
@@ -2553,12 +462,12 @@ if (isset($_GET['category_id'])) {
                     <span class="ic">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
                     </span>
-                    Importa da testo
+                    <?php te('vocab.ib_importa_testo'); ?>
                 </div>
                 
                 <!-- Switch per il formato -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: var(--surface-2); padding: 10px 12px; border-radius: 12px; border: 1px solid var(--hairline-2);">
-                    <label class="mini-label" style="margin:0; font-size: 13.5px;">Usa separatori personalizzati (### e @@@)</label>
+                    <label class="mini-label" style="margin:0; font-size: 13.5px;"><?php te('vocab.ib_separatori_pers'); ?></label>
                     <input type="checkbox" id="format_switch" style="transform: scale(1.2); accent-color: var(--blue); cursor: pointer;" onchange="toggleImportFormat()">
                 </div>
 
@@ -2567,19 +476,19 @@ if (isset($_GET['category_id'])) {
                 <!-- Contenitore separatori, nascosto di default -->
                 <div class="import-row" id="custom_separators_row" style="display: none;">
                     <div>
-                        <label class="mini-label">Separatore Flashcards</label>
+                        <label class="mini-label"><?php te('fc.ibfc_sep_flashcards'); ?></label>
                         <select id="import_row_separator" onchange="updatePlaceholder()">
-                            <option value="@@@" selected>Tre chiocciole ( @@@ )</option>
-                            <option value="@">Chiocciola singola ( @ )</option>
-                            <option value="\n">A capo (Invio)</option>
+                            <option value="@@@" selected><?php te('vocab.ib_sep_tre_chiocciole'); ?></option>
+                            <option value="@"><?php te('vocab.ib_sep_chiocciola'); ?></option>
+                            <option value="\n"><?php te('vocab.ib_sep_a_capo'); ?></option>
                         </select>
                     </div>
                     <div>
-                        <label class="mini-label">Separatore Dom/Risp</label>
+                        <label class="mini-label"><?php te('fc.ibfc_sep_domris'); ?></label>
                         <select id="import_separator" onchange="updatePlaceholder()">
-                            <option value="###" selected>Tre hash ( ### )</option>
-                            <option value="|">Pipe ( | )</option>
-                            <option value=";">Punto e virgola ( ; )</option>
+                            <option value="###" selected><?php te('vocab.ib_sep_tre_hash'); ?></option>
+                            <option value="|"><?php te('vocab.ib_sep_pipe'); ?></option>
+                            <option value=";"><?php te('vocab.ib_sep_punto_virgola'); ?></option>
                         </select>
                     </div>
                 </div>
@@ -2603,7 +512,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-            Genera Tabella Dati
+            <?php te('vocab.ib_genera_tabella'); ?>
 
 
 
@@ -2619,7 +528,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-        <div class="empty-hint" id="emptyHint">Nessuna riga ancora — genera dai dati importati oppure aggiungine una vuota qui sotto.</div>
+        <div class="empty-hint" id="emptyHint"><?php te('fc.ibfc_nessuna_riga'); ?></div>
 
 
 
@@ -2639,7 +548,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-                Aggiungi Riga Vuota
+                <?php te('fc.ibfc_aggiungi_riga'); ?>
 
 
 
@@ -2655,7 +564,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-                Salva Tutto nel Database
+                <?php te('vocab.ib_salva_tutto'); ?>
 
 
 
@@ -2687,7 +596,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-        <h3 id="confirmTitle">Sei sicuro?</h3>
+        <h3 id="confirmTitle"><?php te('vocab.ib_sei_sicuro'); ?></h3>
 
 
 
@@ -2699,11 +608,11 @@ if (isset($_GET['category_id'])) {
 
 
 
-            <button type="button" class="btn btn-ghost btn-sm" id="confirmCancelBtn">Annulla</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="confirmCancelBtn"><?php te('comune.annulla'); ?></button>
 
 
 
-            <button type="button" class="btn btn-warn btn-sm" id="confirmOkBtn">Conferma</button>
+            <button type="button" class="btn btn-warn btn-sm" id="confirmOkBtn"><?php te('vocab.conferma_b'); ?></button>
 
 
 
@@ -2947,7 +856,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-            okBtn.textContent = okLabel || 'Conferma';
+            okBtn.textContent = okLabel || T('vocab.conferma_b');
 
 
 
@@ -3127,7 +1036,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-        if (chip) chip.textContent = n + (n === 1 ? ' riga' : ' righe');
+        if (chip) chip.textContent = n + T(n === 1 ? 'fc.ibf_una_riga' : 'fc.ibf_n_righe_plur', {n: n});
 
 
 
@@ -3171,7 +1080,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-            btn.innerHTML = '⚠️ Tabella piena — tocca per ricreare';
+            btn.innerHTML = T('vocab.ib_tabella_piena');
 
 
 
@@ -3183,7 +1092,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-            btn.innerHTML = ICON_GEN + ' Genera Tabella Dati';
+            btn.innerHTML = ICON_GEN + T('vocab.ib_genera_tabella');
 
 
 
@@ -3246,51 +1155,30 @@ if (isset($_GET['category_id'])) {
         let exampleOutput = "";
         
         // Regole di base sempre uguali
-        const baseRules = `Sto utilizzando un sito personalizzato per le flashcards. Vorrei che mi generassi delle flashcards sull'argomento: [INSERISCI QUI ARGOMENTO]
-Utilizzando ESATTAMENTE le seguenti regole di formattazione del sito:
-1. TESTO: Puoi andare a capo quando vuoi per rendere più chiara la lettura. Usa questi comandi per evidenziare le parti più importanti:
-    per colorare il testo: /red{testo}, /blue{testo}, /green{testo}, /purple{testo}, /orange{testo}, /gray{testo}.
-    per evidenziare il testo: /yellow{testo}.
-    per formattarlo: per cose importanti: /bold{testo}, /underline{testo}. per aggiunte o esempi: /italic{testo}.
-2. LISTE: Si usano per i punti elenco. Puoi scegliere il colore della barra laterale usando: /list-red{}, /list-blue{}, /list-green{}, /list-purple{}, /list-orange{}, /list-gray{} (oppure usa semplicemente /list{} per il colore predefinito).
-    I punti elenco seguono queste regole:
-    - Usa i trattini iniziali per i livelli ("-" livello 1, "--" livello 2, "---" livello 3 e così via senza limiti).
-    - Per andare a capo dentro un punto elenco senza creare un nuovo pallino, vai a capo e scrivi il testo senza trattino.
-    Questo è un esempio di elenco formattato:
-/list-blue{
-    - primo punto principale
-    - secondo punto principale
-      testo che va a capo dentro il secondo punto senza generare un nuovo pallino
-        -- primo sottopunto del secondo punto
-            --- primo sotto-sottopunto
-    - terzo punto principale}
-3. FORMULE LATEX: Il LaTeX in riga va tra $ $ (es. la formula è $ formula $, bla bla). Quello isolato che va a capo va tra $$ $$ (es. la formula è $$ formula $$ Bla bla). ATTENZIONE: non mettere MAI il punto o la virgola subito dopo il doppio dollaro, altrimenti ci sarà una riga con un solo punto! Sbagliato: $$ formula $$, bla bla.`;
+        const baseRules = T('fc.ibf_prompt_base');
 
         // Aggiunta dinamica della Regola 4 e dell'esempio
         // Aggiunta dinamica della Regola 4 e dell'esempio
     if (!isCustom) {
-        rule4 = `4. FORMATO E LATEX (CRITICO): L'output deve essere ESATTAMENTE ed UNICAMENTE un array JSON. Usa "q" per la domanda e "a" per la risposta.
-ATTENZIONE ALLE REGOLE JSON:
-- NON andare MAI a capo fisicamente all'interno dei testi (usa SEMPRE e solo "\\n" per indicare gli a capo).
-- Raddoppia TUTTI i backslash dei comandi LaTeX (es. scrivi "\\\\mu" invece di "\\mu", "\\\\frac" invece di "\\frac", "\\\\%" invece di "\\%"), altrimenti il formato si rompe.`;
+        rule4 = T('fc.ibf_regola_json');
                 
                 // Uso i doppi e quadrupli backslash per farli stampare correttamente nella textarea
-                exampleOutput = `Esempio di output perfetto:
+                exampleOutput = `${T('vocab.ib_esempio_output')}
 [
 {"q": "Prima domanda /bold{importante}", "a": "Prima risposta"},
 {"q": "Formula di $\\\\mu$?", "a": "La risposta:\\n$$\\\\frac{\\\\sigma}{\\\\sqrt{n}}$$\\n/red{Attenzione...}"}
 ]`;
             } else {
-            const rowSepText = rowSepVal === '\\n' ? "un invio (a capo)" : `"${rowSepVal}"`;
-            const colSepText = colSepVal === '\\t' ? "una tabulazione" : `"${colSepVal}"`;
+            const rowSepText = rowSepVal === '\\n' ? T('vocab.ib_un_invio') : `"${rowSepVal}"`;
+            const colSepText = colSepVal === '\\t' ? T('vocab.ib_una_tab') : `"${colSepVal}"`;
             const actualRowSep = rowSepVal === '\\n' ? '\n' : rowSepVal;
             
-            rule4 = `4. SEPARATORI: L'output deve essere un testo grezzo. Tra la Domanda e la Risposta inserisci SEMPRE e SOLO ${colSepText}. Tra una flashcard e la successiva inserisci SEMPRE e SOLO ${rowSepText}.`;
-            exampleOutput = `Esempio di output perfetto:
+            rule4 = T('fc.ibf_regola_separatori', {colSepText: colSepText, rowSepText: rowSepText});
+            exampleOutput = `${T('vocab.ib_esempio_output')}
 Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi la formula di $domanda$ ${colSepVal} La risposta è $$formula$$ /red{attenzione...}`;
         }
 
-        const finalPrompt = `${baseRules}\n${rule4}\n\n${exampleOutput}\n\nle flash cards che dovrai generare, dovranno riguardare questi concetti:`;
+        const finalPrompt = `${baseRules}\n${rule4}\n\n${exampleOutput}\n\n${T('fc.ibf_prompt_concetti')}`;
         
         document.getElementById('ai_prompt_textarea').value = finalPrompt;
     }
@@ -3302,7 +1190,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
         if (isCustom) {
             let rowSep = document.getElementById('import_row_separator').value;
             let colSep = document.getElementById('import_separator').value;
-            if (rowSep === '\\n') rowSep = 'Invio (a capo)';
+            if (rowSep === '\\n') rowSep = T('fc.ibf_invio_a_capo');
             
             textArea.placeholder = `Incolla qui il testo generato dall'IA con ${rowSep} e ${colSep}…`;
         } else {
@@ -3331,9 +1219,9 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
         const list = document.getElementById('fcRows');
         if (list.children.length > 0){
             const ok = await showConfirm(
-                'Ricreare la tabella?',
-                'Hai già delle righe. Continuando, tutti i dati inseriti o modificati qui sotto andranno persi per fare spazio ai nuovi.',
-                'Sì, ricrea'
+                T('vocab.ib_ricreare'),
+                T('fc.ibf_ricreare_txt'),
+                T('vocab.ib_si_ricrea')
             );
             if (!ok) return;
         }
@@ -3359,7 +1247,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
                     safeText = safeText.replace(/(?<!\\)\\(?!n|t|r|"|\\|\/)/g, '\\\\');
                     
                     const jsonArr = JSON.parse(safeText);
-                    if (!Array.isArray(jsonArr)) throw new Error("Il JSON deve essere un array.");
+                    if (!Array.isArray(jsonArr)) throw new Error(T('vocab.ib_json_array'));
                     
                     parsedData = jsonArr.map(item => ({
                         // Estrae il testo e sostituisce tutti i "\%" con "%"
@@ -3456,8 +1344,8 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
         const taId = `${prefix}-desc-${id}`;
         const imgPrevId = `${prefix}-img-preview-${id}`;
         const placeholder = prefix === 'q'
-            ? (isChild ? '↳ Sottodomanda (Figlio)…' : 'Domanda / LaTeX…')
-            : 'Risposta / LaTeX…';
+            ? (isChild ? T('fc.ibf_ph_sottodomanda') : T('fc.ibf_ph_domanda'))
+            : T('fc.ibf_ph_risposta');
         const thumb = imgUrl ? `<img src="${imgUrl}">` : ICON_IMG;
 
         // 1. Preleviamo l'HTML base generato dal template nascosto
@@ -3479,11 +1367,11 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
                 <label class="media-chip img-chip ${imgUrl ? 'has-img' : ''}" id="${prefix}-chip-${id}">
                     <input type="file" accept="image/*" onchange="previewRowImage(this, '${prefix}', '${id}')">
                     <span class="chip-thumb" id="${imgPrevId}">${thumb}</span>
-                    <span class="img-name-tag">${imgName ? escAttr(imgName) : 'Immagine'}</span>
+                    <span class="img-name-tag">${imgName ? escAttr(imgName) : T('vocab.immagine')}</span>
                 </label>
                 <button type="button" class="media-chip btn-rec" onclick="toggleRowRecord(this, '${prefix}')">
                     <span class="chip-thumb"><span class="rec-dot"></span></span>
-                    <span class="rec-label">Registra</span>
+                    <span class="rec-label">${T('fc.ibf_registra')}</span>
                 </button>
                 <audio class="audio-player audio-player-${prefix}" controls></audio>
             </div>
@@ -3525,15 +1413,15 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-                <button type="button" class="swipe-btn swipe-btn-delete" onclick="swipeDeleteRow(this)">${ICON_TRASH}<span>Elimina</span></button>
+                <button type="button" class="swipe-btn swipe-btn-delete" onclick="swipeDeleteRow(this)">${ICON_TRASH}<span>${T('comune.elimina')}</span></button>
 
 
 
-                <button type="button" class="swipe-btn swipe-btn-join" onclick="swipeJoinRow(this)">${ICON_LINK}<span>Figlio</span></button>
+                <button type="button" class="swipe-btn swipe-btn-join" onclick="swipeJoinRow(this)">${ICON_LINK}<span>${T('fc.ibf_figlio')}</span></button>
 
 
 
-                <button type="button" class="swipe-btn swipe-btn-unjoin" onclick="swipeUnjoinRow(this)">${ICON_UNLINK}<span>Sgancia</span></button>
+                <button type="button" class="swipe-btn swipe-btn-unjoin" onclick="swipeUnjoinRow(this)">${ICON_UNLINK}<span>${T('fc.ibf_sgancia')}</span></button>
 
 
 
@@ -3553,7 +1441,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-                    <span class="row-badge">${isChild ? '↳ Figlio' : 'Concetto'}</span>
+                    <span class="row-badge">${isChild ? T('vocab.figlio') : T('fc.ibf_concetto')}</span>
 
 
 
@@ -3687,7 +1575,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-            if (nameTag) nameTag.textContent = 'Immagine';
+            if (nameTag) nameTag.textContent = T('vocab.immagine');
 
 
 
@@ -3731,7 +1619,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-        if (badge) badge.textContent = isChildRow(row) ? '↳ Figlio' : 'Concetto';
+        if (badge) badge.textContent = isChildRow(row) ? T('vocab.figlio') : T('fc.ibf_concetto');
 
 
 
@@ -3919,7 +1807,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-        if (qArea && qArea.placeholder.indexOf('Sottodomanda') !== -1) qArea.placeholder = 'Domanda / LaTeX…';
+        if (qArea && qArea.placeholder.indexOf(T('fc.ibf_sottodomanda')) !== -1) qArea.placeholder = T('fc.ibf_ph_domanda');
 
 
 
@@ -3979,7 +1867,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-        showToast('Concetto sganciato — ora è di nuovo un padre indipendente.');
+        showToast(T('fc.ibf_sganciato'));
 
 
 
@@ -4131,7 +2019,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-            showToast('Non puoi agganciare un figlio a un altro figlio. Scegli un concetto padre.', 'error');
+            showToast(T('fc.ibf_no_figlio_su_figlio'), 'error');
 
 
 
@@ -4195,7 +2083,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-        if (qArea) qArea.placeholder = '↳ Sottodomanda (Figlio)…';
+        if (qArea) qArea.placeholder = T('fc.ibf_ph_sottodomanda');
 
 
 
@@ -4215,7 +2103,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-        showToast('Concetto agganciato come figlio ✓');
+        showToast(T('fc.ibf_agganciato'));
 
 
 
@@ -5363,7 +3251,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-            showToast('Ferma prima la registrazione in corso.', 'error');
+            showToast(T('fc.ibf_ferma_registrazione'), 'error');
 
 
 
@@ -5511,7 +3399,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-            showToast('Impossibile accedere al microfono.', 'error');
+            showToast(T('fc.ifc_no_microfono'), 'error');
 
 
 
@@ -5569,7 +3457,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-        if (catIdInput === '') { showToast('Seleziona una categoria prima di salvare.', 'error'); return; }
+        if (catIdInput === '') { showToast(T('fc.ibf_serve_categoria'), 'error'); return; }
 
 
 
@@ -5581,7 +3469,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-        if (rows.length === 0) { showToast('Aggiungi almeno una riga prima di salvare.', 'error'); return; }
+        if (rows.length === 0) { showToast(T('fc.ibf_serve_riga'), 'error'); return; }
 
 
 
@@ -5738,7 +3626,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-                showToast('Errore database: ' + (data.error || ''), 'error');
+                showToast(T('fc.ibf_errore_salvataggio') + (data.error || ''), 'error');
 
 
 
@@ -5758,7 +3646,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-            showToast('Errore di rete o disconnessione.', 'error');
+            showToast(T('fc.ibf_errore_rete'), 'error');
 
 
 

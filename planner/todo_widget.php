@@ -21,446 +21,15 @@ if (!defined('NISAMA_TODO_WIDGET')):
 define('NISAMA_TODO_WIDGET', true);
 if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core.php'; }
 ?>
-<style>
-.td-wrap{
-    /* niente ingrandimento automatico e niente zoom al doppio tocco */
-    touch-action:manipulation;
-    -webkit-text-size-adjust:100%; text-size-adjust:100%;
-    --td-paper:#FDFCF9; --td-panel:#F5F1EA; --td-ink:#4A443D; --td-ink-2:#8A8177;
-    --td-ink-3:#B7AEA3; --td-hair:rgba(74,68,61,.12); --td-accent:#A9C3AE;
-    --td-accent-soft:#E7EFE8; --td-late:#B4645F; --td-late-soft:#F6E4E2;
-    --td-serif:'Cormorant Garamond', Georgia, serif;
-    --td-sans:'Jost', -apple-system, system-ui, sans-serif;
-    font-family:var(--td-sans); color:var(--td-ink);
+<?php
+/* Il componente puo' comparire piu' volte nella stessa pagina (todo.php, i
+   progetti, il pomodoro): il foglio si carica una volta sola. */
+if (!defined('TODO_WIDGET_CSS')) {
+    define('TODO_WIDGET_CSS', 1);
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'todo_widget.css?v=' . (@filemtime(dirname(__FILE__) . '/todo_widget.css') ?: 1) . '">' . "\n";
+    echo nisama_i18n_json(['comune', 'todo']);
 }
-/* dentro il planner o il diario eredita le tinte già scelte dall'utente */
-.pl-body .td-wrap, .dy-body .td-wrap{ --td-accent:var(--accent, #A9C3AE); --td-accent-soft:var(--accent-wash, #E7EFE8); }
-
-.td-list{ display:flex; flex-direction:column; }
-
-/* popup per dare data e ora a più attività insieme */
-.td-modal{
-    position:fixed; inset:0; z-index:9850; display:grid; place-items:center; padding:24px;
-    background:rgba(74,68,61,.28); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
-    animation:td-fade .22s ease;
-}
-@keyframes td-fade{ from{ opacity:0; } to{ opacity:1; } }
-.td-card{
-    width:100%; max-width:320px; background:#FDFCF9; border-radius:22px; padding:20px 18px 14px;
-    box-shadow:0 24px 54px -22px rgba(74,68,61,.5);
-    font-family:'Jost', system-ui, sans-serif; color:#4A443D;
-    animation:td-pop .3s cubic-bezier(.34,1.3,.64,1);
-    max-height:82vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
-}
-@keyframes td-pop{ from{ transform:scale(.93); } to{ transform:none; } }
-.td-card-t{ font-family:'Cormorant Garamond', serif; font-size:21px; margin-bottom:4px; }
-.td-card-s{ font-size:12.5px; color:#8A8177; line-height:1.45; margin-bottom:14px; }
-.td-field{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:.5px solid rgba(74,68,61,.1); }
-.td-field span{ font-size:14px; }
-.td-field input{
-    border:none; background:#F5F1EA; border-radius:10px; padding:8px 10px;
-    font:inherit; font-size:14px; color:#4A443D; text-align:center; min-width:104px;
-}
-.td-card-acts{ display:flex; gap:8px; margin-top:16px; }
-.td-card-acts button{
-    flex:1; padding:11px; border-radius:13px; border:none; cursor:pointer;
-    background:#F5F1EA; color:#8A8177; font:inherit; font-size:14px;
-}
-.td-card-acts button.td-primary{ background:var(--td-accent, #A9C3AE); color:#FFFDFA; }
-
-/* immagine a tutto schermo: niente scheda intorno, solo la foto e i comandi */
-.td-modal-img{ padding:16px; }
-.td-imgview{ display:flex; flex-direction:column; align-items:stretch; width:auto; max-width:min(560px, 94vw); }
-.td-imgview img{
-    display:block; max-width:100%; max-height:70dvh; margin:0 auto;
-    border-radius:18px; background:#FDFCF9; object-fit:contain;
-    box-shadow:0 24px 60px -24px rgba(0,0,0,.55);
-}
-.td-imgview .td-card-acts{ margin-top:14px; }
-
-/* Riga che si sta modificando: sfondo diverso per dire che è ferma dov'era e
-   non in ordine con le altre. Il colore è quello dell'accento molto diluito —
-   deve farsi notare al primo sguardo senza sembrare un errore. */
-.td-item.td-in-modifica{
-    background:color-mix(in srgb, var(--td-accent, #A9C3AE) 15%, var(--td-paper));
-    border-radius:13px;
-    box-shadow:inset 0 0 0 .5px color-mix(in srgb, var(--td-accent, #A9C3AE) 35%, transparent);
-    padding-left:8px; padding-right:8px;
-    transition:background-color .25s ease;
-}
-
-/* ---------- pastiglie ---------- */
-.td-in{
-    width:100%; padding:9px 11px; border-radius:11px; border:none; outline:none;
-    background:var(--td-panel); color:var(--td-ink); font:inherit; font-size:14px;
-}
-.td-pill-field{ margin-bottom:10px; }
-.td-pill-lab{ display:block; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--td-ink-3); margin-bottom:5px; }
-/* l'ora fa da titolo al gruppo: le prese si leggono a colpo d'occhio in ordine
-   di orologio, che è come uno se le ricorda */
-.td-pill-hour{
-    display:flex; align-items:baseline; gap:8px; margin:14px 0 6px;
-    font-size:12px; letter-spacing:.1em; color:var(--td-ink-3);
-}
-.td-pill-late{ color:#B08A8A; font-size:11px; letter-spacing:0; }
-.td-pill-row{ display:flex; align-items:center; gap:11px; padding:7px 0; }
-.td-pill-check{
-    width:30px; height:30px; flex-shrink:0; border-radius:50%; cursor:pointer;
-    display:grid; place-items:center; padding:0;
-    border:1.5px solid color-mix(in srgb, var(--pill, #B7A6D6) 60%, transparent);
-    background:none; color:#FFFDFA;
-}
-.td-pill-check svg{ width:16px; height:16px; }
-.td-pill-taken .td-pill-check{ background:var(--pill, #B7A6D6); border-color:var(--pill, #B7A6D6); }
-.td-pill-skipped .td-pill-check{ border-style:dashed; color:var(--td-ink-3); }
-.td-pill-taken .td-pill-txt, .td-pill-skipped .td-pill-txt{ opacity:.5; }
-.td-pill-txt{ min-width:0; }
-.td-pill-name{ font-size:14.5px; }
-.td-pill-sub{ font-size:11.5px; color:var(--td-ink-3); }
-.td-pill-stats{ margin-top:14px; font-size:11.5px; color:var(--td-ink-3); }
-
-/* --- prese rimaste indietro --- */
-/* Rosso e non grigio: è l'unica cosa in questa pagina su cui si può ancora
-   rimediare, e deve chiamare. Il colore sta sul bordo e sul giorno, non su
-   tutto il blocco: un riquadro rosso pieno tutte le mattine diventerebbe
-   allarme di sottofondo, e dopo tre giorni non lo si vedrebbe più. */
-.td-pill-lasect{ color:#A96A6A; }
-.td-pill-late-row{
-    border-left:2px solid #C98F8F; padding-left:9px; margin-bottom:2px;
-}
-.td-pill-late-row .td-pill-check{ border-color:#C98F8F; }
-.td-pill-lab-day{ font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:#A96A6A; }
-.td-pill-scorda{
-    margin-left:auto; flex-shrink:0; border:none; cursor:pointer; font:inherit;
-    font-size:11.5px; color:var(--td-ink-3); background:var(--td-panel);
-    border-radius:999px; padding:5px 10px;
-}
-/* l'ora della presa è un tasto, si tocca e si corregge */
-.td-pill-when{
-    border:none; background:none; cursor:pointer; font:inherit; padding:0;
-    font-size:11.5px; color:var(--td-ink-3); text-decoration:underline;
-    text-decoration-style:dotted; text-underline-offset:2px; text-align:left;
-}
-
-/* --- come è andata: un mese di calendario --- */
-/* Stessa forma del calendario delle abitudini: la colonna del lunedì è
-   sempre la stessa colonna, e un buco si vede senza contare niente. Il
-   colore è quello della terapia (--cc), non il verde e rosso degli altri
-   grafici: su una cura direbbero «bravo» e «male», e non è quello il punto. */
-.td-pill-cal-box{ margin:6px 0 18px; }
-.td-pill-cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-.td-pill-cal-mese{ font-size:14px; font-weight:500; text-transform:capitalize; }
-.td-pill-cal-nav{
-    width:30px; height:30px; border-radius:10px; border:none; cursor:pointer;
-    background:var(--td-panel); color:var(--td-ink-2);
-    display:flex; align-items:center; justify-content:center;
-}
-.td-pill-cal-nav svg{ width:14px; height:14px; }
-.td-pill-cal-nav:disabled{ opacity:.3; cursor:default; }
-.td-pill-cal-dows{ display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; margin-bottom:5px; }
-.td-pill-cal-dow{
-    text-align:center; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase;
-    color:var(--td-ink-3);
-}
-.td-pill-cal{ display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; min-height:150px; }
-.td-pill-cal-c{
-    aspect-ratio:1; border-radius:50%; display:flex; align-items:center; justify-content:center;
-    font-size:12px; color:var(--td-ink-3); font-variant-numeric:tabular-nums;
-}
-.td-pill-cal-c.td-vuoto{ visibility:hidden; }
-/* presa tutte le volte previste: pieno del colore della terapia */
-.td-pill-cal-c.td-ok{ background:var(--cc, #B7A6D6); color:#FFFDFA; }
-/* Presa in parte: due su tre è una cosa diversa da nessuna e diversa da
-   tutte. Due gradini e non uno per numero — fino a metà e oltre metà — perché
-   con cinque prese al giorno quattro sfumature nessuno le distinguerebbe.
-   Il contorno è più marcato del riempimento: su un pallino piccolo il bordo
-   si vede anche quando il colore dentro è appena accennato. */
-.td-pill-cal-c.td-mezzo{
-    background:color-mix(in srgb, var(--cc, #B7A6D6) 22%, transparent);
-    color:var(--td-ink-2);
-    box-shadow:inset 0 0 0 1.4px color-mix(in srgb, var(--cc, #B7A6D6) 45%, transparent);
-}
-.td-pill-cal-c.td-mezzo2{
-    background:color-mix(in srgb, var(--cc, #B7A6D6) 55%, transparent);
-    color:var(--td-ink);
-    box-shadow:inset 0 0 0 1.4px color-mix(in srgb, var(--cc, #B7A6D6) 75%, transparent);
-}
-/* non presa: l'unico posto in cui il rosso ci vuole */
-.td-pill-cal-c.td-no{ background:#F3DFDF; color:#A96A6A; }
-/* prevista ma il giorno non è ancora finito */
-.td-pill-cal-c.td-attesa{ box-shadow:inset 0 0 0 1.2px var(--td-hair); }
-.td-pill-cal-c.td-oggi{ box-shadow:inset 0 0 0 1.8px var(--td-ink-2); }
-.td-pill-cal-c.td-futuro{ opacity:.35; }
-/* la legenda: pallini veri, non quadratini finti, se no il colore che si
-   vede qui non è lo stesso che si vede là sopra */
-.td-pill-cal-leg{
-    margin-top:12px; display:flex; flex-direction:column; gap:5px;
-    font-size:11.5px; color:var(--td-ink-3);
-}
-.td-pill-cal-legv{ display:flex; align-items:center; gap:8px; }
-.td-pill-cal-legv .td-pill-cal-c{
-    width:14px; height:14px; flex:0 0 14px; aspect-ratio:auto; font-size:0;
-}
-.td-pill-cal-nota{ margin-top:10px; font-size:11.5px; color:var(--td-ink-2); }
-.td-pill-sect{
-    margin:22px 0 8px; font-size:10px; letter-spacing:.2em;
-    text-transform:uppercase; color:var(--td-ink-3);
-}
-.td-pill-plan{
-    display:flex; align-items:center; gap:10px; width:100%; text-align:left;
-    padding:9px 11px; margin-bottom:6px; border:none; border-radius:13px;
-    background:var(--td-panel); color:var(--td-ink); font:inherit; cursor:pointer;
-}
-.td-pill-plan.td-off{ opacity:.5; }
-.td-pill-planbox{ display:flex; flex-direction:column; min-width:0; }
-.td-pill-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-.td-pill-seg{ display:flex; gap:4px; }
-.td-pill-segb{
-    flex:1; padding:7px 6px; border:none; border-radius:10px; cursor:pointer;
-    background:var(--td-panel); color:var(--td-ink-3); font:inherit; font-size:11.5px;
-}
-.td-pill-segb.td-on{ background:var(--td-accent, #A9C3AE); color:#FFFDFA; }
-.td-pill-ritmo{ margin:8px 0 12px; }
-.td-pill-days{ display:flex; gap:4px; }
-.td-pill-day{
-    flex:1; padding:7px 0; border:none; border-radius:9px; cursor:pointer;
-    background:var(--td-panel); color:var(--td-ink-3); font:inherit; font-size:11px;
-}
-.td-pill-day.td-on{ background:var(--td-accent, #A9C3AE); color:#FFFDFA; }
-.td-pill-ora{ display:flex; align-items:center; gap:6px; margin-bottom:6px; }
-.td-pill-ora .td-in{ flex:1; }
-.td-pill-step{
-    width:28px; height:28px; flex-shrink:0; border:none; border-radius:9px; cursor:pointer;
-    background:var(--td-panel); color:var(--td-ink); font:inherit; font-size:15px; line-height:1;
-}
-.td-pill-n{ min-width:26px; text-align:center; font-size:13px; color:var(--td-ink-3); }
-.td-pill-addora{
-    border:none; background:none; color:var(--td-ink-3); font:inherit; font-size:12.5px;
-    cursor:pointer; padding:4px 0;
-}
-.td-pill-att{
-    padding:8px 14px; border:none; border-radius:11px; cursor:pointer;
-    background:var(--td-panel); color:var(--td-ink-3); font:inherit; font-size:13px;
-}
-.td-pill-att.td-on{ background:var(--td-accent, #A9C3AE); color:#FFFDFA; }
-.td-card-wide{ max-width:380px; max-height:82dvh; overflow:auto; }
-
-/* ---------- le tre linguette ---------- */
-.td-tabs{
-    display:flex; gap:4px; padding:3px; margin-bottom:12px;
-    background:var(--td-panel); border-radius:999px;
-}
-.td-tab{
-    flex:1; border:none; background:none; cursor:pointer; font:inherit; font-size:12.5px;
-    color:var(--td-ink-2); padding:8px 4px; border-radius:999px; letter-spacing:.02em;
-    transition:background-color .24s ease, color .24s ease;
-}
-.td-tab.td-on{ background:var(--td-paper); color:var(--td-ink); box-shadow:0 1px 3px rgba(74,68,61,.09); }
-
-/* Ogni attività su tre righe: titolo, poi data/ora/durata, poi progetto.
-   Su una riga sola il titolo non aveva spazio. */
-.td-item{ position:relative; overflow:hidden; border-bottom:.5px solid var(--td-hair); }
-.td-item:last-child{ border-bottom:none; }
-.td-row{
-    display:flex; align-items:flex-start; gap:9px; padding:10px 2px;
-    background:var(--td-paper); transition:transform .26s cubic-bezier(.22,.61,.36,1);
-}
-.td-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:6px; }
-.td-item.td-sub .td-row{ padding-left:24px; }
-
-/* il cestino compare scorrendo la riga verso sinistra */
-.td-swipe{
-    position:absolute; left:0; top:0; bottom:0; width:64px;
-    display:flex; align-items:center; justify-content:center;
-    background:#F3DCDC; color:#8E5A5A; border:none; cursor:pointer;
-    /* nascosto finché la riga non viene scostata: anche se qualcosa andasse
-       storto con lo scorrimento, non può restare in vista */
-    opacity:0; pointer-events:none; transition:opacity .2s ease;
-}
-.td-swipe svg{ width:17px; height:17px; }
-/* il cestino spunta da sinistra scorrendo la riga verso destra */
-.td-item.td-swiped .td-row{ transform:translateX(64px); }
-.td-item.td-swiped .td-swipe{ opacity:1; pointer-events:auto; }
-.td-box{
-    width:19px; height:19px; border-radius:7px; flex-shrink:0;
-    box-shadow:inset 0 0 0 1.2px var(--td-hair); display:grid; place-items:center;
-    color:transparent; background:none; cursor:pointer;
-    transition:background-color .3s, color .3s, transform .3s cubic-bezier(.34,1.3,.64,1);
-}
-.td-box svg{ width:11px; height:11px; }
-.td-row.td-done .td-box{ background:var(--td-accent); color:#FFFDFA; box-shadow:none; transform:scale(1.05); }
-.td-title{
-    flex:1; min-width:0; border:none; background:none; outline:none; font:inherit;
-    font-size:15px; color:var(--td-ink); padding:3px 0;
-}
-.td-title::placeholder{ color:var(--td-ink-3); }
-.td-row.td-done .td-title{ color:var(--td-ink-3); text-decoration:line-through; text-decoration-thickness:.7px; }
-.td-row.td-late .td-title{ color:var(--td-late); }
-.td-row.td-late .td-box{ box-shadow:inset 0 0 0 1.4px var(--td-late); }
-
-/* i comandi stanno sulla stessa riga: niente popup per cambiare data o durata */
-.td-tools{ display:flex; align-items:center; gap:4px; flex-shrink:0; }
-.td-chip{
-    display:flex; align-items:center; gap:4px; padding:4px 8px; border-radius:999px;
-    background:var(--td-panel); color:var(--td-ink-2); font-size:11px; white-space:nowrap;
-    border:none; cursor:pointer; font-family:inherit;
-    transition:background-color .2s, color .2s, transform .15s;
-}
-.td-chip:active{ transform:scale(.94); }
-.td-chip svg{ width:12px; height:12px; }
-.td-chip.td-set{ background:var(--td-accent-soft); color:var(--td-ink); }
-/* il cestino sta in fondo alla riga degli strumenti, discreto finché non lo
-   si tocca: si vede che c'è, ma non tira l'occhio più del resto */
-.td-tools{ flex-wrap:wrap; }
-.td-chip-del{ margin-left:auto; color:#B08A8A; background:transparent; }
-.td-chip-del:hover, .td-chip-del:focus-visible{ background:#F3DCDC; color:#8E5A5A; }
-/* Da telefono il cestino in fondo alla riga non serve e ruba spazio ai chip:
-   lì c'è già lo scorrimento, che su un touch screen è il gesto naturale.
-   Da computer resta, perché lo scorrimento col mouse non è ovvio. */
-@media (pointer:coarse){
-    .td-chip-del{ display:none; }
-}
-.td-card-acts button.td-danger-btn{ background:#D98C8C; color:#FFFDFA; }
-.td-row.td-late .td-chip.td-set{ background:var(--td-late-soft); color:var(--td-late); }
-.td-chip{ position:relative; }
-/* campo invisibile ma cliccabile, steso su tutto il chip */
-.td-input-cover{
-    position:absolute; inset:0; width:100% !important; height:100%;
-    opacity:0; cursor:pointer; z-index:2;
-}
-.td-chip input{
-    border:none; background:none; outline:none; font:inherit; font-size:11px;
-    color:inherit; width:auto; padding:0; cursor:pointer;
-}
-.td-chip input[type="number"]{ width:30px; text-align:center; }
-.td-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-
-.td-add{
-    display:flex; align-items:center; gap:9px; padding:10px 2px; color:var(--td-ink-3);
-    background:none; border:none; font:inherit; font-size:14px; cursor:pointer; width:100%;
-}
-.td-add svg{ width:15px; height:15px; }
-.td-empty{
-    font-family:var(--td-serif); font-style:italic; font-size:15px;
-    color:var(--td-ink-2); padding:14px 2px; text-align:center;
-}
-.td-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
-.td-lab{
-    font-size:9px; font-weight:500; letter-spacing:.18em; text-transform:uppercase; color:var(--td-ink-3);
-}
-.td-sel-btn{
-    border:none; background:none; font:inherit; font-size:12px; color:var(--td-ink-2);
-    cursor:pointer; padding:4px 2px;
-}
-.td-sel-btn.td-on{ color:var(--td-accent); font-weight:500; }
-
-/* modalità seleziona */
-.td-wrap.td-selecting .td-tools{ opacity:.35; pointer-events:none; }
-.td-pick{
-    width:19px; height:19px; border-radius:50%; flex-shrink:0; cursor:pointer;
-    box-shadow:inset 0 0 0 1.2px var(--td-hair); display:grid; place-items:center;
-    color:transparent; transition:background-color .25s, color .25s;
-}
-.td-pick svg{ width:11px; height:11px; }
-.td-pick.td-on{ background:var(--td-accent); color:#FFFDFA; box-shadow:none; }
-/* comandi della selezione: in alto, piccoli, con le icone */
-/* Resta in vista mentre l'elenco scorre sotto: le azioni di gruppo servono
-   soprattutto in fondo alla lista, e prima bisognava risalire fino in cima per
-   raggiungerle (con i prezzi, che stanno qui, fuori vista per tutto il tempo). */
-.td-bulk{
-    position:sticky; top:0; z-index:6;
-    display:flex; gap:6px; align-items:center; padding:10px 0; flex-wrap:wrap;
-    border-bottom:.5px solid var(--td-hair); margin-bottom:4px;
-    background:var(--td-paper);
-}
-.td-bulk button{
-    display:flex; align-items:center; gap:6px;
-    padding:7px 12px; border-radius:999px; border:none;
-    background:var(--td-panel); color:var(--td-ink-2); font:inherit; font-size:12.5px; cursor:pointer;
-    transition:transform .15s, background-color .2s;
-}
-.td-bulk button:active{ transform:scale(.94); }
-.td-bulk button svg{ width:15px; height:15px; }
-.td-bulk button.td-danger{ background:#F3DCDC; color:#8E5A5A; }
-.td-bulk .td-count{ margin-left:auto; font-size:11px; color:var(--td-ink-3); text-align:right; }
-.td-bulk .td-count b{ font-weight:500; color:var(--td-ink); display:block; font-size:13px; }
-
-/* ---------- to buy: gruppi, prezzi, immagini ---------- */
-.td-group{ margin-top:14px; }
-.td-group:first-of-type{ margin-top:2px; }
-.td-ghead{
-    display:flex; align-items:center; gap:7px; padding:6px 2px 5px;
-    border-bottom:1px solid var(--td-hair);
-}
-.td-ghead .td-gname{
-    font-family:var(--td-serif); font-size:19px; font-weight:500; flex:1; min-width:0;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-.td-gtot{ font-size:12.5px; color:var(--td-ink-2); white-space:nowrap; }
-/* la fascia della priorità: sottile, così separa senza pesare quanto la categoria */
-.td-phead{
-    display:flex; align-items:center; gap:8px; padding:9px 2px 3px;
-}
-.td-plab{
-    font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--td-ink-3);
-}
-.td-phead .td-line{ flex:1; height:.5px; background:var(--td-hair); }
-.td-ptot{ font-size:11px; color:var(--td-ink-3); white-space:nowrap; }
-
-.td-buy .td-row{ align-items:flex-start; }
-.td-thumb{
-    width:62px; height:62px; border-radius:14px; flex-shrink:0; cursor:pointer;
-    background:var(--td-panel) center/cover no-repeat; border:none; padding:0;
-    display:grid; place-items:center; color:var(--td-ink-3);
-    box-shadow:inset 0 0 0 .8px var(--td-hair);
-    transition:transform .15s;
-}
-.td-thumb:active{ transform:scale(.96); }
-.td-thumb svg{ width:18px; height:18px; }
-.td-thumb.td-has svg{ display:none; }
-.td-buylink{
-    display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--td-ink-2);
-    min-width:0;
-}
-.td-buylink input{
-    flex:1; min-width:0; border:none; outline:none; background:none; font:inherit;
-    font-size:11.5px; color:var(--td-ink-2); padding:2px 0;
-}
-.td-buylink input::placeholder{ color:var(--td-ink-3); }
-.td-buylink a{ color:var(--td-accent); flex-shrink:0; display:flex; }
-.td-buylink a svg{ width:13px; height:13px; }
-.td-price{ min-width:56px; }
-.td-price input{ width:46px; text-align:right; }
-/* la priorità si legge a colpo d'occhio: più è alta, più il pallino è pieno */
-.td-prio-1{ background:#EADCD9 !important; color:#8E5A5A !important; }
-.td-prio-2{ background:#EDE7DC !important; color:#8A7B5F !important; }
-.td-prio-3{ background:#E6EAE6 !important; color:#6F7D6F !important; }
-
-.td-total{
-    display:flex; align-items:baseline; justify-content:space-between; gap:10px;
-    margin-top:18px; padding:12px 14px; border-radius:16px; background:var(--td-accent-soft);
-}
-.td-total span{ font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--td-ink-2); }
-.td-total b{ font-family:var(--td-serif); font-size:24px; font-weight:500; }
-
-.td-catrow{
-    display:flex; align-items:center; gap:9px; padding:9px 2px;
-    border-bottom:.5px solid var(--td-hair);
-}
-.td-catrow:last-child{ border-bottom:none; }
-.td-catrow .td-cname{ flex:1; min-width:0; border:none; background:none; font:inherit; font-size:14px; color:var(--td-ink); outline:none; }
-.td-catrow input[type="color"]{
-    width:22px; height:22px; padding:0; border:none; background:none; border-radius:50%;
-    flex-shrink:0; cursor:pointer;
-}
-.td-catrow .td-cdel{ border:none; background:none; color:#B08A8A; cursor:pointer; padding:4px; display:flex; }
-.td-catrow .td-cdel svg{ width:15px; height:15px; }
-.td-catpick{
-    display:flex; align-items:center; gap:9px; width:100%; padding:10px 2px;
-    border:none; background:none; font:inherit; font-size:14px; color:var(--td-ink);
-    cursor:pointer; text-align:left; border-bottom:.5px solid var(--td-hair);
-}
-</style>
+?>
 
 <script>
 (function () {
@@ -729,7 +298,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
                 self.items = [];
                 self.render();
                 self.list.insertBefore(
-                    el('div', 'td-empty', 'Elenco non caricato. Riprova fra un momento.'),
+                    el('div', 'td-empty', T('todo.elenco_non_caricato')),
                     self.list.firstChild);
                 return;
             }
@@ -831,15 +400,15 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
     };
 
     Todo.prototype.emptyText = function () {
-        if (this.listType === 'buy') return 'Niente da comprare, per ora.';
-        if (this.listType === 'study') return 'Niente da studiare, per ora.';
-        return 'Niente da fare, per ora.';
+        if (this.listType === 'buy') return T('todo.niente_da_comprare');
+        if (this.listType === 'study') return T('todo.niente_da_studiare');
+        return T('todo.niente_da_fare');
     };
 
     Todo.prototype.addButton = function () {
         var self = this;
-        var lab = this.listType === 'buy' ? 'Nuovo articolo'
-                : (this.listType === 'study' ? 'Nuovo argomento' : 'Nuova attività');
+        var lab = this.listType === 'buy' ? T('todo.nuovo_articolo')
+                : (this.listType === 'study' ? T('todo.nuovo_argomento') : T('todo.nuova_attivita'));
         var add = el('button', 'td-add');
         add.type = 'button';
         add.innerHTML = ICON_PLUS;
@@ -898,7 +467,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
                 dot.style.background = g.cat.color || '#B7AEA3';
                 head.appendChild(dot);
             }
-            head.appendChild(el('div', 'td-gname', g.cat ? g.cat.name : 'Senza categoria'));
+            head.appendChild(el('div', 'td-gname', g.cat ? g.cat.name : T('todo.senza_categoria')));
             head.appendChild(el('div', 'td-gtot', euro(sumCents(g.items))));
             box.appendChild(head);
 
@@ -906,7 +475,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
                 var inPrio = g.items.filter(function (t) { return self.prioDi(t) === p; });
                 if (!inPrio.length) return;
                 var ph = el('div', 'td-phead');
-                ph.appendChild(el('span', 'td-plab', 'priorità ' + p));
+                ph.appendChild(el('span', 'td-plab', T('todo.priorita_n', {n: p})));
                 ph.appendChild(el('span', 'td-line'));
                 ph.appendChild(el('span', 'td-ptot', euro(sumCents(inPrio))));
                 box.appendChild(ph);
@@ -1007,7 +576,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         var p = t.priority || 3;
         var chip = el('button', 'td-chip td-prio-' + p);
         chip.type = 'button';
-        chip.title = 'Priorità';
+        chip.title = T('todo.priorita');
         chip.innerHTML = ICON_FLAG;
         chip.appendChild(el('span', null, String(p)));
         chip.addEventListener('click', function () {
@@ -1096,7 +665,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
             form.append('file', f);
             apiFile('image', form).then(function (r) {
                 if (!r.ok) {
-                    self.tell('Immagine non caricata', r.message || 'Riprova con un file più piccolo.');
+                    self.tell(T('todo.immagine_non_caricata'), r.message || T('todo.riprova_file_piccolo'));
                     return;
                 }
                 t.image = r.image;
@@ -1141,7 +710,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
             b.addEventListener('click', function () { ov.remove(); onPick(id); });
             card.appendChild(b);
         }
-        riga('Senza categoria', null, 0);
+        riga(T('todo.senza_categoria'), null, 0);
         this.cats.forEach(function (c) { riga(c.name, c.color, c.id); });
 
         var acts = el('div', 'td-card-acts');
@@ -1212,7 +781,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
             ncol.value = '#B7AEA3';
             var nnome = el('input', 'td-cname');
             nnome.type = 'text';
-            nnome.placeholder = 'Nuova categoria…';
+            nnome.placeholder = T('todo.nuova_categoria');
             nnome.maxLength = 60;
             function crea() {
                 var v = nnome.value.trim();
@@ -1283,8 +852,8 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         title.type = 'text';
         title.value = t.title;
         title.maxLength = 300;
-        title.placeholder = this.listType === 'buy' ? 'Cosa vuoi comprare'
-                          : (this.listType === 'study' ? 'Cosa c\'è da studiare' : 'Cosa c\'è da fare');
+        title.placeholder = this.listType === 'buy' ? T('todo.cosa_vuoi_comprare')
+                          : (this.listType === 'study' ? T('todo.cosa_da_studiare') : T('todo.cosa_da_fare'));
         /* Il titolo si salva senza ridisegnare l'elenco: ricostruire le righe
            mentre si scrive faceva perdere il fuoco al campo a ogni pausa. */
         title.addEventListener('input', function () {
@@ -1391,7 +960,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         var chip = el('button', 'td-chip td-chip-del');
         chip.type = 'button';
         chip.title = 'Elimina';
-        chip.setAttribute('aria-label', 'Elimina attività');
+        chip.setAttribute('aria-label', T('todo.elimina_attivita'));
         chip.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>';
         chip.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -1405,8 +974,8 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         var nome = (t.title || '').trim();
         var ov = el('div', 'td-modal');
         var card = el('div', 'td-card');
-        card.appendChild(el('div', 'td-card-t', this.listType === 'buy' ? 'Elimino l\'articolo?' : 'Elimino l\'attività?'));
-        card.appendChild(el('div', 'td-card-s', nome ? '«' + nome + '» non si potrà recuperare.' : 'Non si potrà recuperare.'));
+        card.appendChild(el('div', 'td-card-t', this.listType === 'buy' ? 'Elimino l\'articolo?' : T('todo.elimino_attivita')));
+        card.appendChild(el('div', 'td-card-s', nome ? T('todo.nome_non_recuperabile', {nome: nome}) : T('todo.non_recuperabile')));
         var acts = el('div', 'td-card-acts');
         var no = el('button', null, 'Annulla');
         no.type = 'button';
@@ -1440,7 +1009,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
             projChip.appendChild(dot);
             projChip.appendChild(el('span', null, t.project_name || 'Progetto'));
         } else {
-            projChip.appendChild(el('span', null, 'Nessun progetto'));
+            projChip.appendChild(el('span', null, T('todo.nessun_progetto_w')));
         }
         projChip.addEventListener('click', function () { self.pickProject(t); });
         box.appendChild(projChip);
@@ -1626,13 +1195,13 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
             var pr = el('button');
             pr.type = 'button';
             pr.innerHTML = ICON_FLAG;
-            pr.appendChild(el('span', null, 'Priorità'));
+            pr.appendChild(el('span', null, T('todo.priorita')));
             pr.addEventListener('click', function () { self.bulkPriority(); });
             bar.appendChild(cat); bar.appendChild(pr);
         } else {
             var when = el('button');
             when.type = 'button';
-            when.title = 'Data e ora';
+            when.title = T('todo.data_e_ora');
             when.innerHTML = ICON_CAL;
             when.addEventListener('click', function () { self.bulkSchedule(); });
 
@@ -1671,12 +1240,12 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         if (!ids.length) return;
         var ov = el('div', 'td-modal');
         var card = el('div', 'td-card');
-        card.appendChild(el('div', 'td-card-t', 'Priorità'));
-        card.appendChild(el('div', 'td-card-s', ids.length + ' articoli. 1 è la più alta.'));
+        card.appendChild(el('div', 'td-card-t', T('todo.priorita')));
+        card.appendChild(el('div', 'td-card-s', T('todo.n_articoli_priorita', {n: ids.length})));
         [1, 2, 3].forEach(function (p) {
             var b = el('button', 'td-catpick');
             b.type = 'button';
-            b.appendChild(el('span', null, 'Priorità ' + p));
+            b.appendChild(el('span', null, T('todo.priorita_maiusc_n', {n: p})));
             b.addEventListener('click', function () {
                 ov.remove();
                 api('bulk', { action: 'buy', ids: ids, buy_set: ['priority'], priority: p }).then(function (r) {
@@ -1705,7 +1274,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         var ov = el('div', 'td-modal');
         var card = el('div', 'td-card');
         card.appendChild(el('div', 'td-card-t', ids.length + (ids.length === 1 ? ' attività' : ' attività')));
-        card.appendChild(el('div', 'td-card-s', 'Stessa data e ora per tutte. Lascia vuoto per togliere.'));
+        card.appendChild(el('div', 'td-card-s', T('todo.stessa_data_per_tutte')));
 
         function field(label, type, value) {
             var r = el('label', 'td-field');
@@ -1780,7 +1349,10 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
        serve a distinguere "non l'ho presa" da "non ci ho ancora pensato", e
        quella differenza è il motivo per cui teniamo le prese una per una.
        ================================================================= */
-    var PILL_GG = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
+    /* le sigle dei giorni: in inglese sono mon/tue/wed…, non si ricavano
+       tagliando il nome italiano */
+    var PILL_GG = [T('todo.gg_lun'), T('todo.gg_mar'), T('todo.gg_mer'), T('todo.gg_gio'),
+                   T('todo.gg_ven'), T('todo.gg_sab'), T('todo.gg_dom')];
 
     function pillOggi() {
         var d = new Date();
@@ -1814,7 +1386,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
 
         if (!p.installed) {
             this.list.appendChild(el('div', 'td-empty',
-                'Sezione non ancora installata: manca la tabella delle pastiglie sul database.'));
+                T('todo.pastiglie_non_installate')));
             return;
         }
 
@@ -1834,8 +1406,8 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         var doses = p.doses || [];
         if (!doses.length) {
             this.list.appendChild(el('div', 'td-empty',
-                p.plans && p.plans.length ? 'Oggi non c\'è niente da prendere.'
-                                          : 'Aggiungi la prima terapia qui sotto.'));
+                p.plans && p.plans.length ? T('todo.niente_da_prendere')
+                                          : T('todo.aggiungi_prima_terapia')));
         }
         var oraOra = pad(new Date().getHours()) + ':' + pad(new Date().getMinutes());
         var ultimoOrario = null;
@@ -1846,7 +1418,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
                 h.appendChild(el('span', null, d.time));
                 /* in ritardo: l'ora è passata e la spunta non è arrivata */
                 if (d.status === 'pending' && d.time < oraOra) {
-                    h.appendChild(el('span', 'td-pill-late', 'in ritardo'));
+                    h.appendChild(el('span', 'td-pill-late', T('todo.in_ritardo')));
                 }
                 self.list.appendChild(h);
             }
@@ -1857,12 +1429,11 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         var st = p.stats || {};
         if ((st.taken || 0) + (st.skipped || 0) + (st.missed || 0) > 0) {
             this.list.appendChild(el('div', 'td-pill-stats',
-                'Ultimi 30 giorni: ' + (st.taken || 0) + ' prese, ' +
-                (st.skipped || 0) + ' saltate, ' + (st.missed || 0) + ' dimenticate.'));
+                T('todo.ultimi_30_giorni', {prese: (st.taken || 0), saltate: (st.skipped || 0), dimenticate: (st.missed || 0)})));
         }
 
         /* --- le terapie --- */
-        this.list.appendChild(el('div', 'td-pill-sect', 'Le mie terapie'));
+        this.list.appendChild(el('div', 'td-pill-sect', T('todo.le_mie_terapie')));
         (p.plans || []).forEach(function (pl) {
             var r = el('button', 'td-pill-plan' + (pl.active ? '' : ' td-off'));
             r.type = 'button';
@@ -1880,7 +1451,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         var add = el('button', 'td-add');
         add.type = 'button';
         add.innerHTML = ICON_PLUS;
-        add.appendChild(el('span', null, 'Nuova terapia'));
+        add.appendChild(el('span', null, T('todo.nuova_terapia')));
         add.addEventListener('click', function () { self.pillEditor(null); });
         this.list.appendChild(add);
     };
@@ -1890,17 +1461,17 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
     function pillRitmo(pl) {
         var q = [];
         if (pl.freq_type === 'monthly') {
-            q.push('il ' + (pl.month_days || '?') + ' di ogni mese');
+            q.push(T('todo.il_n_di_ogni_mese', {giorni: (pl.month_days || '?')}));
         } else if (pl.freq_type === 'interval') {
-            q.push(pl.interval_days === 1 ? 'ogni giorno' : 'ogni ' + pl.interval_days + ' giorni');
+            q.push(pl.interval_days === 1 ? T('todo.ogni_giorno') : T('todo.ogni_n_giorni_val', {n: pl.interval_days}));
         } else {
             var w = String(pl.weekdays || '1111111');
             if (w.indexOf('0') < 0) {
-                q.push('ogni giorno');
+                q.push(T('todo.ogni_giorno'));
             } else {
                 var gg = [];
                 for (var i = 0; i < 7; i++) if (w.charAt(i) === '1') gg.push(PILL_GG[i]);
-                q.push(gg.length ? gg.join(', ') : 'mai');
+                q.push(gg.length ? gg.join(', ') : T('todo.mai'));
             }
         }
         var ore = String(pl.times || '').split(',').map(function (t) {
@@ -1965,19 +1536,20 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
        pastiglia al giorno vuol dire descrivere una cosa che non gli
        succederà mai, e da lì in poi la legenda non la legge più nessuno. */
     function pillVolte(lista, tot) {
-        var q = lista.length === 1
-            ? lista[0] + (lista[0] === 1 ? ' volta' : ' volte')
-            : lista[0] + '–' + lista[lista.length - 1] + ' volte';
-        return q + ' su ' + tot;
+        /* "1 volta su 3" / "2–3 volte su 3": in inglese e' "1 time out of 3",
+           quindi la frase intera dev'essere una chiave sola. */
+        return lista.length === 1
+            ? T(lista[0] === 1 ? 'todo.volta_su' : 'todo.volte_su', {n: lista[0], tot: tot})
+            : T('todo.volte_da_a_su', {da: lista[0], a: lista[lista.length - 1], tot: tot});
     }
     function pillLegenda(tot) {
-        var voci = [['td-ok', tot > 1 ? 'presa tutte e ' + tot + ' le volte' : 'presa']];
+        var voci = [['td-ok', tot > 1 ? T('todo.presa_tutte_le_volte', {n: tot}) : T('todo.presa')]];
         var basso = [], alto = [];
         for (var k = 1; k < tot; k++) (k * 2 <= tot ? basso : alto).push(k);
-        if (basso.length) voci.push(['td-mezzo', 'presa ' + pillVolte(basso, tot)]);
-        if (alto.length) voci.push(['td-mezzo2', 'presa ' + pillVolte(alto, tot)]);
-        voci.push(['td-no', 'non presa']);
-        voci.push(['td-attesa', 'prevista, il giorno non è ancora finito']);
+        if (basso.length) voci.push(['td-mezzo', T('todo.presa_n_volte', {volte: pillVolte(basso, tot)})]);
+        if (alto.length) voci.push(['td-mezzo2', T('todo.presa_n_volte', {volte: pillVolte(alto, tot)})]);
+        voci.push(['td-no', T('todo.non_presa')]);
+        voci.push(['td-attesa', T('todo.prevista_giorno_non_finito')]);
         return voci;
     }
 
@@ -2105,8 +1677,8 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
                     griglia.appendChild(c);
                 }
                 nota.textContent = buchi
-                    ? prese + ' giorni presa, ' + buchi + ' no'
-                    : (prese ? 'presa tutti i giorni previsti' : 'nessuna presa registrata');
+                    ? T('todo.giorni_presa_no', {presa: prese, no: buchi})
+                    : (prese ? T('todo.presa_tutti_i_giorni') : T('todo.nessuna_presa'));
             });
         }
         disegna();
@@ -2138,7 +1710,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
 
         var box = el('button', 'td-pill-check');
         box.type = 'button';
-        box.setAttribute('aria-label', d.status === 'taken' ? 'Presa' : 'Segna come presa');
+        box.setAttribute('aria-label', d.status === 'taken' ? 'Presa' : T('todo.segna_come_presa'));
         box.style.setProperty('--pill', d.color || '#B7A6D6');
         if (d.status === 'taken') {
             box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
@@ -2182,7 +1754,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         box2.appendChild(el('div', 'td-pill-name', d.name + (d.dose ? '  ·  ' + d.dose : '')));
         var sotto = [];
         if (d.notes) sotto.push(d.notes);
-        if (d.status === 'skipped') sotto.push('non presa');
+        if (d.status === 'skipped') sotto.push(T('todo.non_presa'));
         if (sotto.length) box2.appendChild(el('div', 'td-pill-sub', sotto.join('  ·  ')));
 
         /* L'ora della presa si corregge toccandola. Il caso non è raro, è
@@ -2238,7 +1810,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
 
             var scorda = el('button', 'td-pill-scorda', 'dimenticata');
             scorda.type = 'button';
-            scorda.title = 'Non l\'ho presa: toglila dall\'elenco';
+            scorda.title = T('todo.non_ho_presa');
             scorda.addEventListener('click', function () { r.pillSegna('skipped'); });
             r.appendChild(scorda);
         }
@@ -2265,7 +1837,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
     Todo.prototype.pillQuando = function (d, poi, chiediGiorno) {
         var ov = el('div', 'td-modal');
         var card = el('div', 'td-card');
-        card.appendChild(el('div', 'td-card-t', 'Quando l\'hai presa?'));
+        card.appendChild(el('div', 'td-card-t', T('todo.quando_presa')));
 
         var iData = null;
         if (chiediGiorno) {
@@ -2324,7 +1896,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
 
         var ov = el('div', 'td-modal');
         var card = el('div', 'td-card td-card-wide');
-        card.appendChild(el('div', 'td-card-t', nuovo ? 'Nuova terapia' : 'Terapia'));
+        card.appendChild(el('div', 'td-card-t', nuovo ? T('todo.nuova_terapia') : 'Terapia'));
 
         function campo(lab, node) {
             var f = el('div', 'td-pill-field');
@@ -2340,13 +1912,13 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         }
 
         var iNome  = campo('Cosa', testo(pl.name, 'Vitamina D, magnesio…', 120));
-        var iDose  = campo('Quanto', testo(pl.dose, 'una compressa, 10 gocce…', 60));
-        var iNote  = campo('Nota', testo(pl.notes, 'a stomaco pieno, lontano dal caffè…', 255));
+        var iDose  = campo('Quanto', testo(pl.dose, T('todo.esempio_dose'), 60));
+        var iNote  = campo('Nota', testo(pl.notes, T('todo.esempio_note'), 255));
 
         /* --- ritmo --- */
         var rit = el('div', 'td-pill-seg');
         var ritBtn = {};
-        [['daily', 'giorni della settimana'], ['monthly', 'giorni del mese'], ['interval', 'ogni N giorni']]
+        [['daily', 'giorni della settimana'], ['monthly', T('todo.giorni_del_mese')], ['interval', T('todo.ogni_n_giorni')]]
         .forEach(function (o) {
             var b = el('button', 'td-pill-segb' + (stato.freq === o[0] ? ' td-on' : ''), o[1]);
             b.type = 'button';
@@ -2362,7 +1934,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
         var ritBox = el('div', 'td-pill-ritmo');
         card.appendChild(ritBox);
 
-        var iMese = testo(pl.month_days, 'per esempio 13 oppure 1,15', 100);
+        var iMese = testo(pl.month_days, T('todo.esempio_giorni'), 100);
         var iInt = el('input', 'td-in');
         iInt.type = 'number'; iInt.min = '1'; iInt.max = '365'; iInt.value = pl.interval_days || 1;
 
@@ -2418,7 +1990,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
                 r.appendChild(via);
                 oreBox.appendChild(r);
             });
-            var piuOra = el('button', 'td-pill-addora', '+ un altro orario');
+            var piuOra = el('button', 'td-pill-addora', T('todo.altro_orario'));
             piuOra.type = 'button';
             piuOra.addEventListener('click', function () {
                 stato.times.push({ ora: '20:00', n: 1 });
@@ -2427,7 +1999,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core
             oreBox.appendChild(piuOra);
         }
         disegnaOre();
-        campo('A che ora', oreBox);
+        campo(T('todo.a_che_ora'), oreBox);
 
         var iDa = el('input', 'td-in'); iDa.type = 'date'; iDa.value = pl.start_date || pillOggi();
         campo('Da', iDa);

@@ -24,96 +24,64 @@ if (isset($_GET['cs_ajax']) && $_GET['cs_ajax'] === 'create_category') {
 
     header('Content-Type: application/json');
 
-    if (!isset($conn) || !$conn) {
-
+        if (!isset($conn) || !$conn) {
         require_once 'config.php';
-
-        $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-
+        /* auth_check_api.php PRIMA di sec_db(): e' quello a caricare
+           security_core.php, dove sec_db e le altre sec_* sono definite. */
         require_once 'auth_check_api.php';
-
-        $current_user_id = $utente_corrente['id'];
-
+        $current_user_id = (int)$utente_corrente['id'];
+        $conn = sec_db();
     }
 
-    if (!function_exists('cs_resolve_color')) {
+    /* Token di sessione, origine e limite di frequenza su un endpoint che
+       scrive: prima non c'erano. */
+    sec_guard_write((int)$current_user_id, 'fc_cat_selector', 0, 60, 60);
 
-        function cs_resolve_color($conn, $parentId) {
-
+        if (!function_exists('cs_resolve_color')) {
+        /* $userId e' un parametro nuovo: prima la funzione leggeva qualunque
+           categoria, quindi risaliva anche l'albero di un altro utente e ne
+           restituiva il colore. */
+        function cs_resolve_color($parentId, $userId) {
             $parentId = intval($parentId);
-
             $guard = 0;
-
             while ($parentId > 0 && $guard < 50) {
-
                 $guard++;
-
-                $res = mysqli_query($conn, "SELECT parent_id, color, color_edited FROM fc_categories WHERE id = " . $parentId);
-
-                $row = $res ? mysqli_fetch_assoc($res) : null;
-
+                $row = sec_one("SELECT parent_id, color, color_edited FROM fc_categories WHERE id = ? AND user_id = ?",
+                               [$parentId, (int)$userId]);
                 if (!$row) break;
-
                 if (intval($row['color_edited']) === 1 && !empty($row['color'])) {
-
                     return $row['color'];
-
                 }
-
                 $parentId = intval($row['parent_id']);
-
             }
-
             return '#A0A0A0';
-
         }
-
     }
 
 
 
-    $name = trim($_POST['name'] ?? '');
-
-    $parentId = intval($_POST['parent_id'] ?? 0);
-
-
+        $name = sec_str($_POST['name'] ?? '', 120);
+    $parentId = sec_int($_POST['parent_id'] ?? 0, 0);
 
     if ($name === '') {
-
-        echo json_encode(['success' => false, 'error' => 'Il nome è obbligatorio']);
-
+        echo json_encode(['success' => false, 'error' => t('fc.cs_nome_obbligatorio')]);
         exit();
-
+    }
+    /* Il padre dev'essere suo: senza questo controllo si poteva agganciare una
+       propria materia sotto quella di un altro utente. */
+    if ($parentId > 0 && !sec_owns('fc_categories', $parentId, (int)$current_user_id)) {
+        $parentId = 0;
     }
 
-    if (!$conn) {
-
-        echo json_encode(['success' => false, 'error' => 'Connessione al database non disponibile']);
-
-        exit();
-
-    }
-
-    $resolvedColor = cs_resolve_color($conn, $parentId);
-
-    $nameEsc = mysqli_real_escape_string($conn, $name);
-
-    $colorEsc = mysqli_real_escape_string($conn, $resolvedColor);
-
-    mysqli_query($conn, "INSERT INTO fc_categories (name, parent_id, color, color_edited, user_id) VALUES ('$nameEsc', $parentId, '$colorEsc', 0, $current_user_id)");
-
-    $newId = mysqli_insert_id($conn);
-
+    $resolvedColor = cs_resolve_color($parentId, $current_user_id);
+    sec_q("INSERT INTO fc_categories (name, parent_id, color, color_edited, user_id) VALUES (?, ?, ?, 0, ?)",
+          [$name, $parentId, $resolvedColor, (int)$current_user_id]);
+    $newId = sec_insert_id();
     if ($newId > 0) {
-
         echo json_encode(['success' => true, 'id' => $newId, 'name' => $name, 'parent_id' => $parentId, 'color' => $resolvedColor], JSON_UNESCAPED_UNICODE);
-
     } else {
-
-        echo json_encode(['success' => false, 'error' => 'Errore durante il salvataggio']);
-
+        echo json_encode(['success' => false, 'error' => t('fc.cs_errore_salvataggio')]);
     }
-
     exit();
 
 }
@@ -192,13 +160,13 @@ if (!isset($cs_selected_name)) $cs_selected_name = '';
 
 if (!isset($cs_selected_color)) $cs_selected_color = null;
 
-if (!isset($cs_placeholder)) $cs_placeholder = 'Seleziona categoria';
+if (!isset($cs_placeholder)) $cs_placeholder = t('fc.cs_seleziona_categoria');
 
-if (!isset($cs_title)) $cs_title = 'Seleziona Materia';
+if (!isset($cs_title)) $cs_title = t('fc.cs_seleziona_materia');
 
 if (!isset($cs_show_all_option)) $cs_show_all_option = false;
 
-if (!isset($cs_all_option_label)) $cs_all_option_label = 'Tutte le materie';
+if (!isset($cs_all_option_label)) $cs_all_option_label = T('fc.cs_tutte_materie');
 
 if (!isset($cs_allow_create)) $cs_allow_create = true;
 
@@ -254,39 +222,26 @@ if (!function_exists('cs_lower')) {
 
    file venga incluso senza mai passare dal ramo AJAX. */
 
-if (!function_exists('cs_resolve_color')) {
-
-    function cs_resolve_color($conn, $parentId) {
-
-        $parentId = intval($parentId);
-
-        $guard = 0;
-
-        while ($parentId > 0 && $guard < 50) {
-
-            $guard++;
-
-            $res = mysqli_query($conn, "SELECT parent_id, color, color_edited FROM fc_categories WHERE id = " . $parentId);
-
-            $row = $res ? mysqli_fetch_assoc($res) : null;
-
-            if (!$row) break;
-
-            if (intval($row['color_edited']) === 1 && !empty($row['color'])) {
-
-                return $row['color'];
-
+    if (!function_exists('cs_resolve_color')) {
+        /* $userId e' un parametro nuovo: prima la funzione leggeva qualunque
+           categoria, quindi risaliva anche l'albero di un altro utente e ne
+           restituiva il colore. */
+        function cs_resolve_color($parentId, $userId) {
+            $parentId = intval($parentId);
+            $guard = 0;
+            while ($parentId > 0 && $guard < 50) {
+                $guard++;
+                $row = sec_one("SELECT parent_id, color, color_edited FROM fc_categories WHERE id = ? AND user_id = ?",
+                               [$parentId, (int)$userId]);
+                if (!$row) break;
+                if (intval($row['color_edited']) === 1 && !empty($row['color'])) {
+                    return $row['color'];
+                }
+                $parentId = intval($row['parent_id']);
             }
-
-            $parentId = intval($row['parent_id']);
-
+            return '#A0A0A0';
         }
-
-        return '#A0A0A0';
-
     }
-
-}
 
 
 
@@ -310,15 +265,19 @@ if (!function_exists('cs_get_category_tree')) {
 
             $uid = (int) $utente_corrente['id'];
 
-            $res = @mysqli_query($conn, "SELECT * FROM fc_categories WHERE user_id = $uid ORDER BY name");
+            $res = sec_all("SELECT * FROM fc_categories WHERE user_id = ? ORDER BY name", [$uid]);
 
-            if ($res) {
+            /* sec_all() restituisce un array: "if ($res)" era vero solo con un
+               risultato non vuoto, e con zero materie saltava tutto il blocco
+               lasciando l'albero non inizializzato. is_array e' la condizione
+               giusta ora. */
+            if (is_array($res)) {
 
                 $all = [];
 
                 $refs = [];
 
-                while ($row = mysqli_fetch_assoc($res)) { $row['children'] = []; $all[] = $row; }
+                foreach ($res as $row) { $row['children'] = []; $all[] = $row; }
 
                 foreach ($all as &$c) { $refs[$c['id']] = &$c; }
 
@@ -384,15 +343,15 @@ if (!function_exists('cs_render_node')) {
 
         $hasChildren = !empty($node['children']);
 
-        $nameEsc = htmlspecialchars($node['name'], ENT_QUOTES);
+        $nameEsc = sec_h($node['name']);
 
-        $searchKey = htmlspecialchars(cs_lower($node['name']), ENT_QUOTES);
+        $searchKey = sec_h(cs_lower($node['name']));
 
         $color = (!empty($node['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $node['color'])) ? $node['color'] : '#007AFF';
 
         ?>
 
-        <div class="cs-row-wrap" style="--row-color:<?php echo $color; ?>;">
+        <div class="cs-row-wrap" style="--row-color:<?php echo sec_h($color); ?>;">
 
             <div class="cs-row">
 
@@ -428,7 +387,7 @@ if (!function_exists('cs_render_node')) {
 
 
 
-                <span class="cs-name<?php echo $hasChildren ? ' cs-name-strong' : ''; ?>" data-cs-select="<?php echo (int)$node['id']; ?>" data-cs-name="<?php echo $nameEsc; ?>" data-cs-color="<?php echo $color; ?>" data-cs-search="<?php echo $searchKey; ?>">
+                <span class="cs-name<?php echo $hasChildren ? ' cs-name-strong' : ''; ?>" data-cs-select="<?php echo (int)$node['id']; ?>" data-cs-name="<?php echo $nameEsc; ?>" data-cs-color="<?php echo sec_h($color); ?>" data-cs-search="<?php echo sec_h($searchKey); ?>">
 
                     <?php echo $nameEsc; ?>
 
@@ -496,515 +455,21 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
 <?php if (!defined('CS_ASSETS_EMITTED')): define('CS_ASSETS_EMITTED', true); ?>
 
-<style>
-
-/* ================================================================
-
-   DESIGN SYSTEM — fallback coerente con categories_fc.php / history_fc.php
-
-   (se la pagina host definisce già questi stessi token su :root,
-
-   i valori combaciano e non cambia nulla)
-
-   ================================================================ */
-
-:root{
-
-    color-scheme: light dark;
-
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-
-    --blue:#007AFF; --red:#FF3B30;
-
-    --blue-soft:rgba(0,122,255,.09); --red-soft:rgba(255,59,48,.12);
-
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-
-    --spring:cubic-bezier(.32,.72,0,1);
-
-    --safe-bottom:env(safe-area-inset-bottom, 0px);
-
-}
-
-@media (prefers-color-scheme: dark){
-
-    :root{
-
-        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-
-        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-
-        --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-
-        --blue:#0A84FF; --red:#FF453A;
-
-        --blue-soft:rgba(10,132,255,.16); --red-soft:rgba(255,69,58,.17);
-
-        --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-
-    }
-
-}
-
-
-
-/* ---------------- Pulsante trigger ---------------- */
-
-.cs-widget{ display:block; }
-
-.cs-trigger{
-
-    width:100%; display:flex; align-items:center; gap:10px;
-
-    padding:12px 14px; border:none; border-radius:13px; cursor:pointer;
-
-    background:var(--surface-2); color:var(--text); font-family:inherit;
-
-    box-shadow:inset 0 0 0 .5px var(--hairline-2);
-
-    transition:transform .16s var(--spring), background .35s, box-shadow .35s;
-
-    -webkit-tap-highlight-color:transparent;
-
-}
-
-.cs-trigger:active{ transform:scale(.985); }
-
-.cs-trigger.cs-has-value{
-
-    color:#fff;
-
-    background:linear-gradient(180deg, color-mix(in srgb, var(--row-color, var(--blue)), #fff 20%), var(--row-color, var(--blue)) 55%, color-mix(in srgb, var(--row-color, var(--blue)), #000 8%));
-
-    box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 10px 24px -10px color-mix(in srgb, var(--row-color, var(--blue)) 55%, transparent);
-
-}
-
-.cs-trigger.cs-has-value:active{ filter:brightness(.95); }
-
-.cs-trigger-icon{
-
-    flex-shrink:0; width:26px; height:26px; border-radius:8px;
-
-    display:flex; align-items:center; justify-content:center;
-
-    background:color-mix(in srgb, var(--row-color, var(--blue)) 16%, var(--surface));
-
-    color:var(--row-color, var(--blue));
-
-    transition:background .3s, color .3s;
-
-}
-
-.cs-trigger-icon svg{ width:14px; height:14px; }
-
-.cs-trigger.cs-has-value .cs-trigger-icon{ background:rgba(255,255,255,.22); color:#fff; }
-
-.cs-trigger-text{ flex:1; min-width:0; text-align:left; font-size:15px; font-weight:600; color:var(--text-3);
-
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:color .3s; }
-
-.cs-trigger.cs-has-value .cs-trigger-text{ color:#fff; font-weight:700; }
-
-.cs-trigger-chev{ flex-shrink:0; width:14px; height:14px; color:var(--text-3); transition:color .3s; }
-
-.cs-trigger.cs-has-value .cs-trigger-chev{ color:rgba(255,255,255,.85); }
-
-
-
-/* ---------------- Overlay / Sheet ---------------- */
-
-.cs-modal-overlay{
-
-    display:none; position:fixed; inset:0; z-index:99999;
-
-    justify-content:center; align-items:flex-end;
-
-    background:rgba(0,0,0,.45);
-
-    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
-
-}
-
-.cs-modal-overlay.closing{ animation:csOverlayOut .22s ease both; }
-
-@keyframes csOverlayOut{ to{ opacity:0; } }
-
-
-
-.cs-sheet-panel{
-
-    position:relative; width:100%; max-width:440px;
-
-    height:min(560px, 78vh); max-height:78vh; overflow:hidden; display:flex; flex-direction:column;
-
-    background:var(--surface); color:var(--text);
-
-    border-radius:22px 22px 0 0;
-
-    padding:22px 16px calc(16px + var(--safe-bottom));
-
-    box-shadow:0 -10px 50px rgba(0,0,0,.35);
-
-    animation:csSheetUp .36s var(--spring) both;
-
-}
-
-.cs-modal-overlay.closing .cs-sheet-panel{ animation:csSheetDown .22s ease both; }
-
-@keyframes csSheetUp{ from{ transform:translateY(55%); opacity:.4; } to{ transform:none; opacity:1; } }
-
-@keyframes csSheetDown{ to{ transform:translateY(55%); opacity:0; } }
-
-.cs-sheet-panel::before{
-
-    content:""; position:absolute; top:8px; left:50%; transform:translateX(-50%);
-
-    width:36px; height:5px; border-radius:99px; background:var(--hairline-2);
-
-}
-
-@media (min-width:640px){
-
-    .cs-modal-overlay{ align-items:center; padding:20px; }
-
-    .cs-sheet-panel{ border-radius:22px; }
-
-}
-
-
-
-.cs-sheet-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-shrink:0; }
-
-.cs-sheet-title{ margin:4px 0 0; font-size:17px; font-weight:800; letter-spacing:-.01em; }
-
-.cs-nav-btn{
-
-    flex-shrink:0; width:28px; height:28px; border-radius:50%; border:none; cursor:pointer;
-
-    background:var(--surface-2); color:var(--text-2); font-size:0;
-
-    display:flex; align-items:center; justify-content:center;
-
-    transition:transform .18s var(--spring);
-
-}
-
-.cs-nav-btn svg{ width:12px; height:12px; }
-
-.cs-nav-btn:active{ background:var(--hairline); transform:scale(.88); }
-
-
-
-/* ---------------- Ricerca ---------------- */
-
-.cs-search-box{
-
-    display:flex; align-items:center; gap:7px; margin-bottom:10px; flex-shrink:0;
-
-    background:var(--surface-2); border-radius:11px; padding:9px 11px;
-
-    box-shadow:inset 0 0 0 .5px var(--hairline);
-
-}
-
-.cs-search-box svg{ width:15px; height:15px; color:var(--text-2); flex-shrink:0; }
-
-.cs-search-input{
-
-    flex:1; min-width:0; border:none; outline:none; background:transparent; color:var(--text);
-
-    font-size:14.5px; font-family:inherit; font-weight:500;
-
-}
-
-.cs-search-input::placeholder{ color:var(--text-3); }
-
-.cs-search-clear{
-
-    display:none; align-items:center; justify-content:center;
-
-    width:18px; height:18px; border-radius:50%; border:none; cursor:pointer;
-
-    background:var(--text-3); color:var(--surface); flex-shrink:0; padding:0;
-
-}
-
-.cs-search-clear svg{ width:9px; height:9px; }
-
-
-
-/* ---------------- Opzione jolly ("Tutte" / "Nessuna") ---------------- */
-
-.cs-all-option{
-
-    display:flex; align-items:center; gap:9px; width:100%; flex-shrink:0;
-
-    padding:11px 11px; margin-bottom:8px; border:none; border-radius:12px; cursor:pointer;
-
-    background:var(--blue-soft); color:var(--blue); font-weight:700; font-size:14px;
-
-    transition:transform .15s var(--spring);
-
-}
-
-.cs-all-option:active{ transform:scale(.98); }
-
-.cs-all-option svg{ width:16px; height:16px; flex-shrink:0; }
-
-
-
-/* ---------------- Albero ---------------- */
-
-.cs-tree-scroll{ overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1; min-height:0; padding-bottom:52px; }
-
-.cs-row-wrap > .cs-children{ list-style:none; padding-left:20px; margin:0; overflow:hidden; max-height:2000px; transition:max-height .32s var(--spring), opacity .25s; opacity:1; }
-
-.cs-row-wrap > .cs-children.collapsed{ max-height:0; opacity:0; }
-
-.cs-row{ display:flex; align-items:center; gap:8px; padding:8px 4px; }
-
-.cs-arrow, .cs-spacer{ width:18px; height:18px; flex-shrink:0; }
-
-.cs-arrow{
-
-    display:flex; align-items:center; justify-content:center; border:none; background:transparent;
-
-    color:var(--text-3); cursor:pointer; border-radius:50%; padding:0;
-
-    transform:rotate(90deg);
-
-    transition:transform .25s var(--spring), color .2s;
-
-}
-
-.cs-arrow svg{ width:14px; height:14px; }
-
-.cs-arrow.collapsed{ transform:rotate(0deg); }
-
-.cs-arrow:not(.collapsed){ color:var(--row-color, var(--blue)); }
-
-.cs-icon{
-
-    width:24px; height:24px; border-radius:7px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
-
-    background:color-mix(in srgb, var(--row-color, var(--blue)) 18%, var(--surface-2));
-
-    color:var(--row-color, var(--blue));
-
-    transition:background .3s, color .3s;
-
-}
-
-.cs-icon svg{ width:13px; height:13px; }
-
-.cs-name{ flex:1; min-width:0; font-size:14.5px; font-weight:500; color:var(--text); cursor:pointer; padding:6px 4px; border-radius:7px; }
-
-.cs-name-strong{ font-weight:700; }
-
-.cs-name:active{ background:var(--hairline); }
-
-
-
-/* ---------------- Riga non selezionabile (già collegata altrove) ---------------- */
-
-.cs-name.cs-row-disabled{ color:var(--text-3); cursor:not-allowed; }
-
-.cs-name.cs-row-disabled:active{ background:transparent; }
-
-.cs-row-wrap-disabled > .cs-row > .cs-name{ opacity:.55; }
-
-.cs-row-wrap-disabled > .cs-row > .cs-icon{ background:var(--red-soft); color:var(--red); }
-
-
-
-/* ================================================================
-
-   Viste impilate (albero <-> nuova materia)
-
-   Entrambe le viste occupano ESATTAMENTE lo stesso riquadro (inset:0) e la
-
-   scelta di quale mostrare avviene solo con transform/opacity: non c'è mai
-
-   un contenitore più largo del visibile, quindi non può "sbordare".
-
-   ================================================================ */
-
-.cs-views{ position:relative; flex:1; min-height:0; overflow:hidden; }
-
-.cs-view{
-
-    position:absolute; top:0; left:0; right:0; bottom:0;
-
-    display:flex; flex-direction:column; min-height:0;
-
-    transform:translateX(0); opacity:1;
-
-    transition:transform .38s var(--spring), opacity .3s var(--spring);
-
-}
-
-.cs-view-create{ transform:translateX(100%); opacity:0; pointer-events:none; }
-
-.cs-views.cs-show-create .cs-view-tree{ transform:translateX(-100%); opacity:0; pointer-events:none; }
-
-.cs-views.cs-show-create .cs-view-create{ transform:translateX(0); opacity:1; pointer-events:auto; }
-
-
-
-/* ---------------- FAB "aggiungi materia" ---------------- */
-
-.cs-fab{
-
-    position:absolute; right:12px; bottom:12px; z-index:5;
-
-    width:46px; height:46px; border-radius:50%; border:none; cursor:pointer;
-
-    color:#fff; background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%));
-
-    display:flex; align-items:center; justify-content:center;
-
-    box-shadow:var(--btn-hl), 0 2px 6px rgba(0,0,0,.18), 0 12px 26px -8px rgba(10,132,255,.6);
-
-    transition:transform .16s var(--spring);
-
-}
-
-.cs-fab svg{ width:19px; height:19px; }
-
-.cs-fab:active{ transform:scale(.88); }
-
-
-
-/* ---------------- Vista "Nuova materia" ---------------- */
-
-.cs-create-scroll{ flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:2px 2px 4px; }
-
-.cs-field{ margin-bottom:16px; }
-
-.cs-field label{
-
-    display:block; margin-bottom:7px; font-size:11px; font-weight:800;
-
-    letter-spacing:.06em; text-transform:uppercase; color:var(--text-2);
-
-}
-
-.cs-field input[type="text"]{
-
-    width:100%; padding:12px 13px; font-family:inherit; font-size:15.5px; font-weight:600;
-
-    color:var(--text); background:var(--surface-2); border:.5px solid var(--hairline-2);
-
-    border-radius:13px; -webkit-appearance:none; appearance:none;
-
-}
-
-.cs-field input:focus{ outline:none; box-shadow:0 0 0 2.5px var(--blue-soft), inset 0 0 0 1.5px var(--blue); }
-
-
-
-.cs-color-preview-row{
-
-    display:flex; align-items:center; gap:11px; padding:12px;
-
-    background:var(--surface-2); border-radius:14px;
-
-}
-
-.cs-color-preview-icon{
-
-    width:38px; height:38px; border-radius:10px; flex-shrink:0;
-
-    display:flex; align-items:center; justify-content:center;
-
-    background:color-mix(in srgb, var(--row-color, var(--blue)) 18%, var(--surface));
-
-    color:var(--row-color, var(--blue));
-
-    transition:background .3s, color .3s;
-
-}
-
-.cs-color-preview-icon svg{ width:19px; height:19px; }
-
-.cs-color-preview-name{ font-size:15px; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-
-
-.cs-create-error{ display:none; color:var(--red); font-size:13px; font-weight:600; margin:12px 0 0; }
-
-
-
-.cs-btn{
-
-    display:flex; align-items:center; justify-content:center; gap:7px; width:100%;
-
-    padding:13px 16px; border:none; border-radius:14px; cursor:pointer;
-
-    font-family:inherit; font-size:15.5px; font-weight:700; letter-spacing:-.01em;
-
-    color:#fff; background:linear-gradient(180deg, color-mix(in srgb, var(--btn-color, var(--blue)), #fff 16%), var(--btn-color, var(--blue)) 52%, color-mix(in srgb, var(--btn-color, var(--blue)), #000 10%));
-
-    box-shadow:var(--btn-hl), 0 10px 22px -8px color-mix(in srgb, var(--btn-color, var(--blue)) 55%, transparent);
-
-    transition:transform .16s var(--spring), filter .2s, box-shadow .3s, background .3s;
-
-    margin-top:18px;
-
-}
-
-.cs-btn:active{ transform:scale(.97); filter:brightness(.95); }
-
-.cs-btn:disabled{ opacity:.6; pointer-events:none; }
-
-
-
-/* ---------------- Toast ---------------- */
-
-.cs-toast{
-
-    position:fixed; left:50%; bottom:calc(26px + var(--safe-bottom)); transform:translateX(-50%) translateY(20px);
-
-    background:rgba(28,28,30,.94); color:#fff; padding:11px 18px; border-radius:14px;
-
-    font-size:13.5px; font-weight:700; box-shadow:0 12px 30px rgba(0,0,0,.35);
-
-    opacity:0; pointer-events:none; z-index:100000; transition:opacity .3s var(--spring), transform .3s var(--spring);
-
-    max-width:86vw;
-
-}
-
-.cs-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
-
-
-
-@media (prefers-reduced-motion: reduce){
-
-    *{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
-
-}
-
-</style>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>category_selector.css?v=<?php echo @filemtime(dirname(__FILE__) . '/category_selector.css') ?: 1; ?>">
 
 <?php endif; ?>
 
 
 
-<div class="cs-widget" id="<?php echo $cs_widget_id; ?>">
+<div class="cs-widget" id="<?php echo sec_h($cs_widget_id); ?>">
 
     <?php if ($cs_render_trigger): ?>
 
-    <button type="button" class="cs-trigger<?php echo $cs_has_value ? ' cs-has-value' : ''; ?>" data-cs-open="<?php echo $cs_modal_id; ?>" style="<?php echo $cs_has_value ? ('--row-color:' . $cs_selected_color . ';') : ''; ?>">
+    <button type="button" class="cs-trigger<?php echo $cs_has_value ? ' cs-has-value' : ''; ?>" data-cs-open="<?php echo sec_h($cs_modal_id); ?>" style="<?php echo $cs_has_value ? ('--row-color:' . $cs_selected_color . ';') : ''; ?>">
 
         <span class="cs-trigger-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg></span>
 
-        <span class="cs-trigger-text" id="<?php echo $cs_text_id; ?>"><?php echo htmlspecialchars($cs_initial_text, ENT_QUOTES); ?></span>
+        <span class="cs-trigger-text" id="<?php echo sec_h($cs_text_id); ?>"><?php echo sec_h($cs_initial_text); ?></span>
 
         <svg class="cs-trigger-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
 
@@ -1012,21 +477,21 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
     <?php endif; ?>
 
-    <input type="hidden" name="<?php echo htmlspecialchars($cs_hidden_name, ENT_QUOTES); ?>" id="<?php echo $cs_hidden_id; ?>" value="<?php echo (int)$cs_selected_id; ?>">
+    <input type="hidden" name="<?php echo sec_h($cs_hidden_name); ?>" id="<?php echo sec_h($cs_hidden_id); ?>" value="<?php echo (int)$cs_selected_id; ?>">
 
 </div>
 
 
 
-<div id="<?php echo $cs_modal_id; ?>" class="cs-modal-overlay" data-cs-uid="<?php echo htmlspecialchars($cs_uid, ENT_QUOTES); ?>" data-cs-hidden="<?php echo $cs_hidden_id; ?>" data-cs-text="<?php echo $cs_text_id; ?>" data-cs-widget="<?php echo $cs_widget_id; ?>" data-cs-title="<?php echo htmlspecialchars($cs_title, ENT_QUOTES); ?>">
+<div id="<?php echo sec_h($cs_modal_id); ?>" class="cs-modal-overlay" data-cs-uid="<?php echo sec_h($cs_uid); ?>" data-cs-hidden="<?php echo sec_h($cs_hidden_id); ?>" data-cs-text="<?php echo sec_h($cs_text_id); ?>" data-cs-widget="<?php echo sec_h($cs_widget_id); ?>" data-cs-title="<?php echo sec_h($cs_title); ?>">
 
     <div class="cs-sheet-panel">
 
         <div class="cs-sheet-head">
 
-            <h3 class="cs-sheet-title"><?php echo htmlspecialchars($cs_title, ENT_QUOTES); ?></h3>
+            <h3 class="cs-sheet-title"><?php echo sec_h($cs_title); ?></h3>
 
-            <button type="button" class="cs-nav-btn" data-cs-mode="close" aria-label="Chiudi">
+            <button type="button" class="cs-nav-btn" data-cs-mode="close" aria-label=T('comune.chiudi')>
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
 
@@ -1044,9 +509,9 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
 
-                    <input type="text" class="cs-search-input" placeholder="Cerca materia" autocomplete="off">
+                    <input type="text" class="cs-search-input" placeholder=T('fc.cs_cerca_materia') autocomplete="off">
 
-                    <button type="button" class="cs-search-clear" aria-label="Cancella ricerca">
+                    <button type="button" class="cs-search-clear" aria-label=T('fc.cs_cancella_ricerca')>
 
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
 
@@ -1060,11 +525,11 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                     <?php if ($cs_show_all_option): ?>
 
-                    <button type="button" class="cs-all-option" data-cs-select="0" data-cs-name="<?php echo htmlspecialchars($cs_all_option_label, ENT_QUOTES); ?>" data-cs-color="#A0A0A0">
+                    <button type="button" class="cs-all-option" data-cs-select="0" data-cs-name="<?php echo sec_h($cs_all_option_label); ?>" data-cs-color="#A0A0A0">
 
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a14.5 14.5 0 0 1 0 18M12 3a14.5 14.5 0 0 0 0 18"/></svg>
 
-                        <?php echo htmlspecialchars($cs_all_option_label, ENT_QUOTES); ?>
+                        <?php echo sec_h($cs_all_option_label); ?>
 
                     </button>
 
@@ -1078,7 +543,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                     <?php else: ?>
 
-                        <p style="color:var(--text-2); text-align:center; font-size:14px; padding:20px 0;">Nessuna categoria trovata.</p>
+                        <p style="color:var(--text-2); text-align:center; font-size:14px; padding:20px 0;"><?php te('fc.cs_nessuna_trovata'); ?></p>
 
                     <?php endif; ?>
 
@@ -1088,7 +553,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                 <?php if ($cs_allow_create): ?>
 
-                <button type="button" class="cs-fab" data-cs-fab aria-label="Aggiungi materia">
+                <button type="button" class="cs-fab" data-cs-fab aria-label=T('fc.cs_aggiungi_materia')>
 
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
 
@@ -1108,9 +573,9 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                     <div class="cs-field">
 
-                        <label>Nome materia</label>
+                        <label><?php te('fc.cs_nome_materia'); ?></label>
 
-                        <input type="text" class="cs-name-input" placeholder="Es. Analisi Matematica">
+                        <input type="text" class="cs-name-input" placeholder=T('fc.cs_es_nome')>
 
                     </div>
 
@@ -1118,7 +583,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                     <div class="cs-field">
 
-                        <label>Categoria padre</label>
+                        <label><?php te('fc.cs_categoria_padre'); ?></label>
 
                         <?php
 
@@ -1126,13 +591,13 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                             'cs_id' => $cs_nested_parent_uid,
 
-                            'cs_placeholder' => 'Nessuna (categoria principale)',
+                            'cs_placeholder' => T('fc.cs_nessuna_padre'),
 
-                            'cs_title' => 'Categoria Padre',
+                            'cs_title' => T('fc.cs_categoria_padre_t'),
 
                             'cs_show_all_option' => true,
 
-                            'cs_all_option_label' => 'Nessuna (categoria principale)',
+                            'cs_all_option_label' => T('fc.cs_nessuna_padre'),
 
                             'cs_allow_create' => false,
 
@@ -1146,7 +611,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                     <div class="cs-field">
 
-                        <label>Colore (ereditato)</label>
+                        <label><?php te('fc.cs_colore_ereditato'); ?></label>
 
                         <div class="cs-color-preview-row">
 
@@ -1156,7 +621,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                             </span>
 
-                            <span class="cs-color-preview-name">Nuova materia</span>
+                            <span class="cs-color-preview-name"><?php te('fc.cs_nuova_materia'); ?></span>
 
                         </div>
 
@@ -1166,7 +631,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                     <p class="cs-create-error"></p>
 
-                    <button type="button" class="cs-btn cs-create-save" style="--btn-color:#A0A0A0;">Crea e seleziona</button>
+                    <button type="button" class="cs-btn cs-create-save" style="--btn-color:#A0A0A0;"><?php te('fc.cs_crea_seleziona'); ?></button>
 
                 </div>
 
@@ -1301,7 +766,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
             views.classList.add('cs-show-create');
 
-            if (title) title.textContent = 'Nuova Materia';
+            if (title) title.textContent = T('fc.cs_nuova_materia_t');
 
             if (navBtn) {
 
@@ -1321,7 +786,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
             views.classList.remove('cs-show-create');
 
-            if (title) title.textContent = overlay.getAttribute('data-cs-title') || 'Seleziona Materia';
+            if (title) title.textContent = overlay.getAttribute('data-cs-title') || t('fc.cs_seleziona_materia');
 
             if (navBtn) {
 
@@ -1367,7 +832,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
         var previewName = createView.querySelector('.cs-color-preview-name');
 
-        if (previewName) previewName.textContent = 'Nuova materia';
+        if (previewName) previewName.textContent = T('fc.cs_nuova_materia');
 
         csSetPreviewColor(createView, '#A0A0A0');
 
@@ -1381,7 +846,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
         if (nestedText) {
 
-            nestedText.textContent = 'Nessuna (categoria principale)';
+            nestedText.textContent = T('fc.cs_nessuna_padre');
 
             nestedText.classList.remove('cs-has-value');
 
@@ -1529,7 +994,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                 arrowBtn.setAttribute('data-cs-toggle', '');
 
-                arrowBtn.setAttribute('aria-label', 'Espandi');
+                arrowBtn.setAttribute('aria-label', T('fc.cs_espandi'));
 
                 arrowBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
 
@@ -1575,7 +1040,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
         if (!name) {
 
-            errorEl.textContent = 'Inserisci un nome per la materia';
+            errorEl.textContent = T('fc.cs_serve_nome');
 
             errorEl.style.display = 'block';
 
@@ -1619,13 +1084,13 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                     csApplySelection(overlay, data.id, data.name, data.color);
 
-                    csShowToast('Materia creata');
+                    csShowToast(T('fc.cs_materia_creata'));
 
                     csClose(overlay);
 
                 } else {
 
-                    errorEl.textContent = (data && data.error) || 'Errore durante il salvataggio';
+                    errorEl.textContent = (data && data.error) || T('fc.cs_errore_salvataggio');
 
                     errorEl.style.display = 'block';
 
@@ -1637,7 +1102,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                 saveBtn.disabled = false;
 
-                errorEl.textContent = 'Errore di rete';
+                errorEl.textContent = T('fc.cs_errore_rete');
 
                 errorEl.style.display = 'block';
 
@@ -1745,7 +1210,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
             if (selectEl.classList.contains('cs-row-disabled')) {
 
-                csShowToast(selectEl.getAttribute('data-cs-disabled-reason') || 'Questa materia non è selezionabile.');
+                csShowToast(selectEl.getAttribute('data-cs-disabled-reason') || T('fc.cs_non_selezionabile'));
 
                 return;
 
@@ -1783,7 +1248,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
             var previewName = createView ? createView.querySelector('.cs-color-preview-name') : null;
 
-            if (previewName) previewName.textContent = nameInput.value.trim() || 'Nuova materia';
+            if (previewName) previewName.textContent = nameInput.value.trim() || T('fc.cs_nuova_materia');
 
         }
 

@@ -26,6 +26,11 @@ $current_user_id = $utente_corrente['id'];
 
 if (!function_exists('pomo_json')) { function pomo_json($arr) { header('Content-Type: application/json'); echo json_encode($arr, JSON_UNESCAPED_UNICODE); exit(); } }
 
+/* Il tetto di un pomodoro: dieci ore. Oltre non e' piu' una sessione di
+   studio, e' una pagina rimasta aperta. Sta qui in cima perche' serve sia al
+   blocco ajax sia alla pulizia in fondo. */
+const POMO_LIMITE_SECONDI = 36000;
+
 /* ==========================================================================
    AJAX ACTIONS
    ========================================================================== */
@@ -39,140 +44,167 @@ if (isset($_GET['ajax'])) {
     }
 
     if ($ajax === 'start') {
-        $mode = (intval($_POST['mode'] ?? 0) === 1) ? 1 : 0;
-        $durataMin = $mode === 0 ? max(1, intval($_POST['durata_minuti'] ?? 25)) : null;
-        $progettoId = intval($_POST['project_id'] ?? 0);
+        $mode = sec_int($_POST['mode'] ?? 0, 0, 1);
+        /* 1..600: senza un tetto "durata 999999999" finiva nel database com'era */
+        $durataMin = $mode === 0 ? sec_int($_POST['durata_minuti'] ?? 25, 1, 600, 25) : null;
+        $progettoId = sec_int($_POST['project_id'] ?? 0, 0);
 
-        if ($progettoId > 0) {
-            $chk = mysqli_query($conn, "SELECT id FROM projects WHERE id=$progettoId AND user_id=" . intval($current_user_id));
-            if (!$chk || mysqli_num_rows($chk) === 0) $progettoId = 0;
-        }
-        $progSql = $progettoId > 0 ? $progettoId : 'NULL';
-        $durSql = $durataMin !== null ? $durataMin : 'NULL';
+        /* il progetto dev'essere suo: stessa verifica di prima, detta con la
+           funzione che il documento indica per questo scopo */
+        if ($progettoId > 0 && !sec_owns('projects', $progettoId, (int)$current_user_id)) $progettoId = 0;
+        /* null e non la stringa 'NULL': con un segnaposto il valore non viene piu'
+           incollato nella query, quindi il NULL va passato come valore vero. */
+        $progVal = $progettoId > 0 ? $progettoId : null;
+        $durVal = $durataMin !== null ? $durataMin : null;
 
-        mysqli_query($conn, "INSERT INTO pomodoro_sessions (user_id, `mode`, start_time, project_id, planned_duration_min, duration_seconds)
-                              VALUES (" . intval($current_user_id) . ", $mode, NOW(), $progSql, $durSql, 0)");
-        $newId = mysqli_insert_id($conn);
+        sec_q("INSERT INTO pomodoro_sessions (user_id, `mode`, start_time, project_id, planned_duration_min, duration_seconds)
+               VALUES (?, ?, NOW(), ?, ?, 0)", [(int)$current_user_id, $mode, $progVal, $durVal]);
+        $newId = sec_insert_id();
 
         // ricorda ultima modalità/durata scelta
         $durForSettings = $durataMin ?: 25;
-        mysqli_query($conn, "INSERT INTO pomodoro_settings (user_id, last_mode, last_pomodoro_duration_min)
-                              VALUES (" . intval($current_user_id) . ", $mode, $durForSettings)
-                              ON DUPLICATE KEY UPDATE last_mode=$mode" . ($mode === 0 ? ", last_pomodoro_duration_min=$durForSettings" : ""));
+        /* la parte finale c'e' solo in modalita' pomodoro: si aggiunge alla query E
+           ai parametri insieme, cosi' il numero dei ? resta pari a quello dei valori */
+        $sqlImp = "INSERT INTO pomodoro_settings (user_id, last_mode, last_pomodoro_duration_min)
+                   VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE last_mode=?";
+        $parImp = [(int)$current_user_id, $mode, $durForSettings, $mode];
+        if ($mode === 0) { $sqlImp .= ", last_pomodoro_duration_min=?"; $parImp[] = $durForSettings; }
+        sec_q($sqlImp, $parImp);
 
-        $row = mysqli_fetch_assoc(mysqli_query($conn, "SELECT id, start_time FROM pomodoro_sessions WHERE id=$newId"));
+        $row = sec_one("SELECT id, start_time FROM pomodoro_sessions WHERE id=?", [$newId]);
         pomo_json(['success' => true, 'session_id' => (int)$newId, 'data_inizio' => $row['start_time']]);
     }
 
     if ($ajax === 'set_project') {
-        $sid = intval($_POST['session_id'] ?? 0);
-        $newProjectId = intval($_POST['project_id'] ?? 0);
+        $sid = sec_int($_POST['session_id'] ?? 0, 1);
+        if (!sec_owns('pomodoro_sessions', $sid, (int)$current_user_id)) pomo_json(['success' => false]);
+        $newProjectId = sec_int($_POST['project_id'] ?? 0, 0);
         if ($newProjectId > 0) {
-            $chk = mysqli_query($conn, "SELECT color FROM projects WHERE id=$newProjectId AND user_id=" . intval($current_user_id));
-            $chkRow = $chk ? mysqli_fetch_assoc($chk) : null;
+            $chkRow = sec_one("SELECT color FROM projects WHERE id=? AND user_id=?", [$newProjectId, (int)$current_user_id]);
             if (!$chkRow) { pomo_json(['success' => false]); }
-            mysqli_query($conn, "UPDATE pomodoro_sessions SET project_id=$newProjectId WHERE id=$sid AND user_id=" . intval($current_user_id) . " AND end_time IS NULL");
+            sec_q("UPDATE pomodoro_sessions SET project_id=? WHERE id=? AND user_id=? AND end_time IS NULL",
+                  [$newProjectId, $sid, (int)$current_user_id]);
             pomo_json(['success' => true, 'color' => pomo_color($chkRow['color'])]);
         } else {
-            mysqli_query($conn, "UPDATE pomodoro_sessions SET proyecto_id=NULL WHERE id=$sid AND user_id=" . intval($current_user_id) . " AND end_time IS NULL");
+            /* era "proyecto_id", colonna che non esiste: la query falliva sempre in
+               silenzio, quindi togliere il progetto da una sessione in corso non
+               aveva alcun effetto. Il nome giusto e' project_id. */
+            sec_q("UPDATE pomodoro_sessions SET project_id=NULL WHERE id=? AND user_id=? AND end_time IS NULL",
+                  [$sid, (int)$current_user_id]);
             pomo_json(['success' => true, 'color' => '']);
         }
     }
 
     if ($ajax === 'pausa_task') {
-        $sid = intval($_POST['session_id'] ?? 0);
-        $tempoEsatto = floatval($_POST['tempo_esatto'] ?? 0);
+        $sid = sec_int($_POST['session_id'] ?? 0, 1);
+        if (!sec_owns('pomodoro_sessions', $sid, (int)$current_user_id)) pomo_json(['success' => false]);
+        /* 0..24 ore in secondi: oltre e' un errore del client, non un dato */
+        $tempoEsatto = sec_float($_POST['tempo_esatto'] ?? 0, 0, 86400, 0);
         
-        mysqli_query($conn, "UPDATE pomodoro_sessions
-                              SET duration_seconds = $tempoEsatto,
-                                  status = 'pausa', resume_time = NULL
-                              WHERE id=$sid AND user_id=" . intval($current_user_id) . " AND end_time IS NULL");
-                              
-        $row = mysqli_fetch_assoc(mysqli_query($conn, "SELECT duration_seconds FROM pomodoro_sessions WHERE id=$sid"));
+        sec_q("UPDATE pomodoro_sessions
+               SET duration_seconds = ?, status = 'pausa', resume_time = NULL
+               WHERE id=? AND user_id=? AND end_time IS NULL",
+              [$tempoEsatto, $sid, (int)$current_user_id]);
+
+        $row = sec_one("SELECT duration_seconds FROM pomodoro_sessions WHERE id=?", [$sid]);
         pomo_json(['success' => true, 'durata_secondi' => $row ? (int)$row['duration_seconds'] : 0]);
     }
 
     if ($ajax === 'riprendi_task') {
-        $sid = intval($_POST['session_id'] ?? 0);
-        mysqli_query($conn, "UPDATE pomodoro_sessions SET status=NULL, resume_time=NOW() WHERE id=$sid AND user_id=" . intval($current_user_id) . " AND end_time IS NULL AND status='pausa'");
-        $row = mysqli_fetch_assoc(mysqli_query($conn, "SELECT resume_time FROM pomodoro_sessions WHERE id=$sid"));
+        $sid = sec_int($_POST['session_id'] ?? 0, 1);
+        if (!sec_owns('pomodoro_sessions', $sid, (int)$current_user_id)) pomo_json(['success' => false]);
+        sec_q("UPDATE pomodoro_sessions SET status=NULL, resume_time=NOW()
+               WHERE id=? AND user_id=? AND end_time IS NULL AND status='pausa'", [$sid, (int)$current_user_id]);
+        $row = sec_one("SELECT resume_time FROM pomodoro_sessions WHERE id=?", [$sid]);
         pomo_json(['success' => true, 'data_ripresa' => $row ? $row['resume_time'] : date('Y-m-d H:i:s')]);
     }
 
     if ($ajax === 'interrompi') {
-        $sid = intval($_POST['session_id'] ?? 0);
-        $elimina = intval($_POST['elimina'] ?? 0) === 1;
+        $sid = sec_int($_POST['session_id'] ?? 0, 1);
+        if (!sec_owns('pomodoro_sessions', $sid, (int)$current_user_id)) pomo_json(['success' => false]);
+        $elimina = sec_bool($_POST['elimina'] ?? 0);
         if ($elimina) {
-            mysqli_query($conn, "DELETE FROM pomodoro_sessions WHERE id=$sid AND user_id=" . intval($current_user_id));
+            sec_q("DELETE FROM pomodoro_sessions WHERE id=? AND user_id=?", [$sid, (int)$current_user_id]);
         } else {
-            mysqli_query($conn, "UPDATE pomodoro_sessions
-                                SET duration_seconds = COALESCE(duration_seconds,0) + CASE WHEN status='pausa' THEN 0 ELSE GREATEST(0, TIMESTAMPDIFF(SECOND, COALESCE(resume_time, start_time), NOW())) END,
-                                    end_time=NOW(), 
-                                    status='interrotto',
-                                    resume_time = NULL
-                                WHERE id=$sid AND user_id=" . intval($current_user_id));
+            sec_q("UPDATE pomodoro_sessions
+                   SET duration_seconds = COALESCE(duration_seconds,0) + CASE WHEN status='pausa' THEN 0 ELSE GREATEST(0, TIMESTAMPDIFF(SECOND, COALESCE(resume_time, start_time), NOW())) END,
+                       end_time=NOW(),
+                       status='interrotto',
+                       resume_time = NULL
+                   WHERE id=? AND user_id=?", [$sid, (int)$current_user_id]);
         }
         pomo_json(['success' => true]);
     }
 
     if ($ajax === 'segna_completato') {
-        $sid = intval($_POST['session_id'] ?? 0);
-        mysqli_query($conn, "UPDATE pomodoro_sessions SET end_time = DATE_ADD(COALESCE(resume_time, start_time), INTERVAL ((planned_duration_min * 60) - COALESCE(duration_seconds, 0)) SECOND), status='completato', duration_seconds = planned_duration_min * 60, resume_time = NULL WHERE id=$sid AND user_id=" . intval($current_user_id) . " AND end_time IS NULL");
-        $row = mysqli_fetch_assoc(mysqli_query($conn, "SELECT end_time FROM pomodoro_sessions WHERE id=$sid"));
+        $sid = sec_int($_POST['session_id'] ?? 0, 1);
+        if (!sec_owns('pomodoro_sessions', $sid, (int)$current_user_id)) pomo_json(['success' => false]);
+        sec_q("UPDATE pomodoro_sessions SET end_time = DATE_ADD(COALESCE(resume_time, start_time), INTERVAL ((planned_duration_min * 60) - COALESCE(duration_seconds, 0)) SECOND), status='completato', duration_seconds = planned_duration_min * 60, resume_time = NULL WHERE id=? AND user_id=? AND end_time IS NULL",
+              [$sid, (int)$current_user_id]);
+        $row = sec_one("SELECT end_time FROM pomodoro_sessions WHERE id=?", [$sid]);
         pomo_json(['success' => true, 'data_fine' => $row ? $row['end_time'] : null]);
     }
 
     if ($ajax === 'estendi') {
-        $sid = intval($_POST['session_id'] ?? 0);
-        mysqli_query($conn, "UPDATE pomodoro_sessions
-                              SET duration_seconds = COALESCE(duration_seconds,0) + GREATEST(0, TIMESTAMPDIFF(SECOND, end_time, NOW())), end_time=NOW()
-                              WHERE id=$sid AND user_id=" . intval($current_user_id) . " AND status='completato'");
-        $row = mysqli_fetch_assoc(mysqli_query($conn, "SELECT end_time, duration_seconds FROM pomodoro_sessions WHERE id=$sid"));
+        $sid = sec_int($_POST['session_id'] ?? 0, 1);
+        if (!sec_owns('pomodoro_sessions', $sid, (int)$current_user_id)) pomo_json(['success' => false]);
+        sec_q("UPDATE pomodoro_sessions
+               SET duration_seconds = COALESCE(duration_seconds,0) + GREATEST(0, TIMESTAMPDIFF(SECOND, end_time, NOW())), end_time=NOW()
+               WHERE id=? AND user_id=? AND status='completato'", [$sid, (int)$current_user_id]);
+        $row = sec_one("SELECT end_time, duration_seconds FROM pomodoro_sessions WHERE id=?", [$sid]);
         pomo_json(['success' => true, 'data_fine' => $row ? $row['end_time'] : null, 'durata_secondi' => $row ? (int)$row['duration_seconds'] : 0]);
     }
 
     if ($ajax === 'archivia_completato') {
-        $sid = intval($_POST['session_id'] ?? 0);
-        mysqli_query($conn, "UPDATE pomodoro_sessions SET status='archiviato' WHERE id=$sid AND user_id=" . intval($current_user_id) . " AND status='completato'");
+        $sid = sec_int($_POST['session_id'] ?? 0, 1);
+        if (!sec_owns('pomodoro_sessions', $sid, (int)$current_user_id)) pomo_json(['success' => false]);
+        sec_q("UPDATE pomodoro_sessions SET status='archiviato' WHERE id=? AND user_id=? AND status='completato'",
+              [$sid, (int)$current_user_id]);
         pomo_json(['success' => true]);
     }
 
     if ($ajax === 'avvia_pausa') {
-        $progettoId = intval($_POST['project_id'] ?? 0);
-        $durataMin = max(1, intval($_POST['durata_minuti'] ?? 5));
-        $progSql = $progettoId > 0 ? $progettoId : 'NULL';
-        mysqli_query($conn, "INSERT INTO pomodoro_current_breaks (user_id, start_time, planned_duration_min, project_id)
-                              VALUES (" . intval($current_user_id) . ", NOW(), $durataMin, $progSql)
-                              ON DUPLICATE KEY UPDATE start_time=NOW(), planned_duration_min=$durataMin, project_id=$progSql");
-        mysqli_query($conn, "UPDATE pomodoro_settings SET last_break_duration_min=$durataMin WHERE user_id=" . intval($current_user_id));
+        $progettoId = sec_int($_POST['project_id'] ?? 0, 0);
+        $durataMin = sec_int($_POST['durata_minuti'] ?? 5, 1, 600, 5);
+        $progVal = $progettoId > 0 ? $progettoId : null;
+        sec_q("INSERT INTO pomodoro_current_breaks (user_id, start_time, planned_duration_min, project_id)
+               VALUES (?, NOW(), ?, ?)
+               ON DUPLICATE KEY UPDATE start_time=NOW(), planned_duration_min=?, project_id=?",
+              [(int)$current_user_id, $durataMin, $progVal, $durataMin, $progVal]);
+        sec_q("UPDATE pomodoro_settings SET last_break_duration_min=? WHERE user_id=?",
+              [$durataMin, (int)$current_user_id]);
         pomo_json(['success' => true]);
     }
 
     if ($ajax === 'fine_pausa') {
-        mysqli_query($conn, "DELETE FROM pomodoro_current_breaks WHERE user_id=" . intval($current_user_id));
+        sec_q("DELETE FROM pomodoro_current_breaks WHERE user_id=?", [(int)$current_user_id]);
         pomo_json(['success' => true]);
     }
 
     if ($ajax === 'salva_preset') {
-        $tipo = ($_POST['tipo'] ?? '') === 'pausa' ? 'pausa' : 'pomodoro';
-        $minuti = max(1, intval($_POST['minuti'] ?? 0));
-        $tipoEsc = mysqli_real_escape_string($conn, $tipo);
-        mysqli_query($conn, "INSERT IGNORE INTO pomodoro_custom_durations (user_id, type, minutes) VALUES (" . intval($current_user_id) . ", '$tipoEsc', $minuti)");
+        $tipo = sec_enum($_POST['tipo'] ?? null, ['pomodoro', 'pausa'], 'pomodoro');
+        $minuti = sec_int($_POST['minuti'] ?? 0, 1, 600, 1);
+        sec_q("INSERT IGNORE INTO pomodoro_custom_durations (user_id, type, minutes) VALUES (?, ?, ?)",
+              [(int)$current_user_id, $tipo, $minuti]);
         pomo_json(['success' => true]);
     }
 
     if ($ajax === 'elimina_preset') {
-        $tipo = ($_POST['tipo'] ?? '') === 'pausa' ? 'pausa' : 'pomodoro';
-        $minuti = max(1, intval($_POST['minuti'] ?? 0));
-        $tipoEsc = mysqli_real_escape_string($conn, $tipo);
-        mysqli_query($conn, "DELETE FROM pomodoro_custom_durations WHERE user_id=" . intval($current_user_id) . " AND type='$tipoEsc' AND minutes=$minuti");
+        $tipo = sec_enum($_POST['tipo'] ?? null, ['pomodoro', 'pausa'], 'pomodoro');
+        $minuti = sec_int($_POST['minuti'] ?? 0, 1, 600, 1);
+        sec_q("DELETE FROM pomodoro_custom_durations WHERE user_id=? AND type=? AND minutes=?",
+              [(int)$current_user_id, $tipo, $minuti]);
 
         // se la durata eliminata era quella "ultima usata" salvata per l'utente, la
         // riportiamo al default di fabbrica (25 pomodoro / 5 pausa): altrimenti al
         // prossimo caricamento della pagina ricompariva un valore ormai eliminato
         $defaultMin = ($tipo === 'pausa') ? 5 : 25;
         $col = ($tipo === 'pausa') ? 'last_break_duration_min' : 'last_pomodoro_duration_min';
-        mysqli_query($conn, "UPDATE pomodoro_settings SET $col = $defaultMin WHERE user_id=" . intval($current_user_id) . " AND $col = $minuti");
+        /* $col non puo' essere un segnaposto: i nomi di colonna non si legano, si
+           scrivono. Qui e' sicuro perche' esce da un ternario con due valori fissi,
+           non dall'esterno - ed e' l'unico punto della pagina in cui resta cosi'. */
+        sec_q("UPDATE pomodoro_settings SET $col = ? WHERE user_id=? AND $col = ?",
+              [$defaultMin, (int)$current_user_id, $minuti]);
 
         pomo_json(['success' => true]);
     }
@@ -180,17 +212,30 @@ if (isset($_GET['ajax'])) {
     if ($ajax === 'set_last_duration') {
         // salva subito la durata scelta come preferenza, senza aspettare l'avvio di
         // una sessione: appena selezioni un valore nel popup, resta lì anche dopo un refresh
-        $tipo = ($_POST['tipo'] ?? '') === 'pausa' ? 'pausa' : 'pomodoro';
-        $minuti = max(1, intval($_POST['minuti'] ?? 0));
+        $tipo = sec_enum($_POST['tipo'] ?? null, ['pomodoro', 'pausa'], 'pomodoro');
+        $minuti = sec_int($_POST['minuti'] ?? 0, 1, 600, 1);
         $col = ($tipo === 'pausa') ? 'last_break_duration_min' : 'last_pomodoro_duration_min';
-        mysqli_query($conn, "UPDATE pomodoro_settings SET $col = $minuti WHERE user_id=" . intval($current_user_id));
+        // vale la stessa nota di sopra su $col
+        sec_q("UPDATE pomodoro_settings SET $col = ? WHERE user_id=?", [$minuti, (int)$current_user_id]);
+        pomo_json(['success' => true]);
+    }
+
+    if ($ajax === 'chiudi_avviso') {
+        /* L'avviso "non e' stato terminato correttamente" deve sparire per
+           sempre una volta letto, anche cambiando dispositivo: percio' il segno
+           di lettura sta nel database e non in un cookie. 'abbandonato' vuol
+           dire "chiuso d'ufficio e ancora da dire all'utente"; letto l'avviso
+           diventa una normale sessione interrotta. */
+        $sid = sec_int($_POST['session_id'] ?? 0, 1);
+        if (!sec_owns('pomodoro_sessions', $sid, (int)$current_user_id)) pomo_json(['success' => false]);
+        sec_q("UPDATE pomodoro_sessions SET status='interrotto' WHERE id=? AND user_id=? AND status='abbandonato'",
+              [$sid, (int)$current_user_id]);
         pomo_json(['success' => true]);
     }
 
     if ($ajax === 'set_display_style') {
-        $stile = ($_POST['stile'] ?? '') === 'clessidra' ? 'clessidra' : 'cerchio';
-        $stileEsc = mysqli_real_escape_string($conn, $stile);
-        mysqli_query($conn, "UPDATE pomodoro_settings SET last_display_style='$stileEsc' WHERE user_id=" . intval($current_user_id));
+        $stile = sec_enum($_POST['stile'] ?? null, ['cerchio', 'clessidra'], 'cerchio');
+        sec_q("UPDATE pomodoro_settings SET last_display_style=? WHERE user_id=?", [$stile, (int)$current_user_id]);
         pomo_json(['success' => true]);
     }
 
@@ -200,17 +245,15 @@ if (isset($_GET['ajax'])) {
 /* ==========================================================================
    IMPOSTAZIONI UTENTE (crea riga default se non esiste)
    ========================================================================== */
-$impRes = mysqli_query($conn, "SELECT * FROM pomodoro_settings WHERE user_id=" . intval($current_user_id));
-$imp = $impRes ? mysqli_fetch_assoc($impRes) : null;
+$imp = sec_one("SELECT * FROM pomodoro_settings WHERE user_id=?", [(int)$current_user_id]);
 if (!$imp) {
-    mysqli_query($conn, "INSERT INTO pomodoro_settings (user_id) VALUES (" . intval($current_user_id) . ")");
+    sec_q("INSERT INTO pomodoro_settings (user_id) VALUES (?)", [(int)$current_user_id]);
     $imp = ['last_mode' => 0, 'last_pomodoro_duration_min' => 25, 'last_break_duration_min' => 5, 'last_display_style' => 'cerchio'];
 }
 
 $presetsPomodoro = [25, 50];
 $presetsPausa = [5, 10];
-$cpRes = mysqli_query($conn, "SELECT type, minutes FROM pomodoro_custom_durations WHERE user_id=" . intval($current_user_id));
-while ($cpRes && ($cpRow = mysqli_fetch_assoc($cpRes))) {
+foreach (sec_all("SELECT type, minutes FROM pomodoro_custom_durations WHERE user_id=?", [(int)$current_user_id]) as $cpRow) {
     if ($cpRow['type'] === 'pomodoro' && !in_array((int)$cpRow['minutes'], $presetsPomodoro)) $presetsPomodoro[] = (int)$cpRow['minutes'];
     if ($cpRow['type'] === 'pausa' && !in_array((int)$cpRow['minutes'], $presetsPausa)) $presetsPausa[] = (int)$cpRow['minutes'];
 }
@@ -224,31 +267,89 @@ function pomo_color($hex) {
     return (!empty($hex) && (preg_match('/^#([0-9a-fA-F]{3,8})$/', $hex) || strpos($hex, 'rgb') === 0)) ? $hex : ''; 
 }
 
-$activeRes = mysqli_query($conn, "SELECT s.*, p.name AS pn, p.color AS pcolor FROM pomodoro_sessions s LEFT JOIN projects p ON p.id=s.project_id AND p.user_id=s.user_id WHERE s.user_id=" . intval($current_user_id) . " AND s.end_time IS NULL ORDER BY s.id DESC LIMIT 1");
-$activeSession = $activeRes ? mysqli_fetch_assoc($activeRes) : null;
+/* ==========================================================================
+   POMODORO LASCIATI APERTI
+   Un pomodoro dimenticato acceso (telefono chiuso, scheda persa) restava "in
+   corso" per giorni: riaprendo la pagina lo si ritrovava vivo, con la
+   possibilita' di aggiungere alla sessione tutto il tempo passato. Qui si
+   taglia, PRIMA di leggere lo stato attuale, cosi' la pagina si apre pulita.
 
-$pausaRes = mysqli_query($conn, "SELECT pc.*, p.name AS pn, p.color AS pcolor FROM pomodoro_current_breaks pc LEFT JOIN projects p ON p.id=pc.project_id AND p.user_id=pc.user_id WHERE pc.user_id=" . intval($current_user_id));
-$pausaAttiva = $pausaRes ? mysqli_fetch_assoc($pausaRes) : null;
+   La durata salvata e' la piu' piccola fra il tempo davvero trascorso e la
+   durata prevista: un pomodoro da 50 minuti dimenticato per tre giorni vale
+   50 minuti, e uno messo in pausa dopo 12 vale 12. Il cronometro non ha una
+   durata prevista, quindi il suo tetto e' il limite stesso.
+
+   Il calcolo si fa qui e non dentro l'UPDATE apposta: in SQL avrebbe dovuto
+   rileggere la colonna appena scritta nella stessa istruzione, che funziona
+   ma dipende dall'ordine di valutazione ed e' illeggibile fra sei mesi. */
+foreach (sec_all("SELECT id, start_time, resume_time, status, duration_seconds, planned_duration_min
+                  FROM pomodoro_sessions
+                  WHERE user_id = ? AND end_time IS NULL
+                    AND TIMESTAMPDIFF(SECOND, start_time, NOW()) > ?",
+                 [(int)$current_user_id, POMO_LIMITE_SECONDI]) as $ab) {
+    $accumulati = (int)($ab['duration_seconds'] ?? 0);
+    // in pausa il segmento corrente non scorre: conta solo quello gia' accumulato
+    $segmento = ($ab['status'] === 'pausa')
+        ? 0
+        : max(0, time() - strtotime($ab['resume_time'] ?: $ab['start_time']));
+    $tetto  = $ab['planned_duration_min'] !== null ? ((int)$ab['planned_duration_min']) * 60 : POMO_LIMITE_SECONDI;
+    $durata = min($accumulati + $segmento, $tetto);
+
+    /* is_manual = 2, non 1. Sono tre cose diverse e meritano tre codici:
+         0 = misurata dal timer, gli orari sono un fatto
+         1 = scritta a mano dall'utente, gli orari li ha decisi lui
+         2 = chiusa d'ufficio da qui, gli orari sono una nostra stima
+       Con 1 non si sarebbe piu' potuto distinguere una sessione che l'utente
+       ha scritto da una che abbiamo ricostruito noi — e serve distinguerle:
+       la 2 va mostrata come "automatica" e ha diritto all'avviso, la 1 no.
+       Correggendola a mano diventa 1: da quel momento gli orari sono suoi. */
+    sec_q("UPDATE pomodoro_sessions
+           SET duration_seconds = ?, end_time = ?, status = 'abbandonato', resume_time = NULL, is_manual = 2
+           WHERE id = ? AND user_id = ?",
+          [$durata, date('Y-m-d H:i:s', strtotime($ab['start_time']) + $durata),
+           (int)$ab['id'], (int)$current_user_id]);
+}
+
+/* Anche una pausa puo' restare aperta: non c'e' niente da salvare, si butta. */
+sec_q("DELETE FROM pomodoro_current_breaks WHERE user_id = ? AND TIMESTAMPDIFF(SECOND, start_time, NOW()) > ?",
+      [(int)$current_user_id, POMO_LIMITE_SECONDI]);
+
+/* La piu' recente chiusa d'ufficio e non ancora segnalata: e' quella di cui
+   parla l'avviso in fondo alla pagina. */
+$avvisoAbbandono = sec_one("SELECT id, start_time, end_time, duration_seconds
+                            FROM pomodoro_sessions
+                            WHERE user_id = ? AND status = 'abbandonato'
+                            ORDER BY id DESC LIMIT 1", [(int)$current_user_id]);
+
+$activeSession = sec_one("SELECT s.*, p.name AS pn, p.color AS pcolor FROM pomodoro_sessions s LEFT JOIN projects p ON p.id=s.project_id AND p.user_id=s.user_id WHERE s.user_id=? AND s.end_time IS NULL ORDER BY s.id DESC LIMIT 1",
+                         [(int)$current_user_id]);
+
+/* La colonna e' project_id, non progetto_id: il resto del file (l'INSERT in
+   avvia_pausa, poche righe piu' su) scrive gia' project_id. Questo JOIN era
+   rimasto con il nome vecchio, e da quando le query passano da sec_q l'errore
+   non e' piu' zittito come faceva mysqli_query: la pagina moriva subito con
+   "Errore nella richiesta al database". */
+$pausaAttiva = sec_one("SELECT pc.*, p.name AS pn, p.color AS pcolor FROM pomodoro_current_breaks pc LEFT JOIN projects p ON p.id=pc.project_id AND p.user_id=pc.user_id WHERE pc.user_id=?",
+                       [(int)$current_user_id]);
 
 $lastSession = null;
 if (!$activeSession && !$pausaAttiva) {
-    $lastRes = mysqli_query($conn, "SELECT s.*, p.name AS pn, p.color AS pcolor FROM pomodoro_sessions s LEFT JOIN projects p ON p.id=s.project_id AND p.user_id=s.user_id WHERE s.user_id=" . intval($current_user_id) . " ORDER BY s.id DESC LIMIT 1");
-    $lastSession = $lastRes ? mysqli_fetch_assoc($lastRes) : null;
+    $lastSession = sec_one("SELECT s.*, p.name AS pn, p.color AS pcolor FROM pomodoro_sessions s LEFT JOIN projects p ON p.id=s.project_id AND p.user_id=s.user_id WHERE s.user_id=? ORDER BY s.id DESC LIMIT 1",
+                           [(int)$current_user_id]);
     if ($lastSession && $lastSession['status'] !== 'completato') { $lastSession = null; }
 }
 
-$preselectProjectId = intval($_GET['project_id'] ?? 0);
+$preselectProjectId = sec_int($_GET['project_id'] ?? 0, 0);
 $preselectInfo = null;
 if ($preselectProjectId > 0) {
-    $ppr = mysqli_query($conn, "SELECT id, name, color FROM projects WHERE id=$preselectProjectId AND user_id=" . intval($current_user_id));
-    $preselectInfo = $ppr ? mysqli_fetch_assoc($ppr) : null;
+    $preselectInfo = sec_one("SELECT id, name, color FROM projects WHERE id=? AND user_id=?",
+                             [$preselectProjectId, (int)$current_user_id]);
 }
 
 /* richiesta 17: mappa id -> catena antenati (max 3: nonno, padre, progetto)
    per mostrare "nonno • padre • progetto" nel tag del progetto collegato */
 $pomoProjMap = [];
-$pmRes = mysqli_query($conn, "SELECT id, name, parent_id FROM projects WHERE user_id = " . intval($current_user_id));
-while ($pmRes && ($pmRow = mysqli_fetch_assoc($pmRes))) {
+foreach (sec_all("SELECT id, name, parent_id FROM projects WHERE user_id = ?", [(int)$current_user_id]) as $pmRow) {
     $pomoProjMap[(int)$pmRow['id']] = ['name' => $pmRow['name'], 'parent' => $pmRow['parent_id'] === null ? 0 : (int)$pmRow['parent_id']];
 }
 $pomoProjPaths = [];
@@ -292,6 +393,13 @@ $jsState = [
     'presets_pomodoro' => $presetsPomodoro, 'presets_pausa' => $presetsPausa,
     'preselect' => $preselectInfo ? ['id' => (int)$preselectInfo['id'], 'name' => $preselectInfo['name'], 'color' => pomo_color($preselectInfo['color'])] : null,
     'project_paths' => $pomoProjPaths,
+    /* L'avviso del pomodoro chiuso d'ufficio. Le stringhe le compone il JS,
+       che sa gia' in che lingua siamo: qui viaggiano solo i dati grezzi. */
+    'avviso' => $avvisoAbbandono ? [
+        'id' => (int)$avvisoAbbandono['id'],
+        'data_inizio' => $avvisoAbbandono['start_time'],
+        'durata_secondi' => (int)($avvisoAbbandono['duration_seconds'] ?? 0),
+    ] : null,
 ];
 ?>
 <!DOCTYPE html>
@@ -302,321 +410,16 @@ $jsState = [
 <title>Pomodoro</title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
-<style>
-/* ==========================================================================
-   POMODORO — UI iOS (restyling estetico)
-   LOGICA COLORI INVARIATA:
-     --pomo-accent   = colore del progetto (iniettato da JS su <body>) o arancione
-     --pausa-accent  = teal
-     --pomo-live        = quello "attivo", commuta da solo con body.pausa-mode
-   ========================================================================== */
-:root{
-    color-scheme: light dark;
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7; --surface-3:#E7E7EC;
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#6E6E73; --purple:#AF52DE; --teal:#30B0C7;
-    /* --orange è ora il grigio "neutro" di default (nessun progetto collegato): nome storico, valore cambiato su richiesta */
-    --red-soft:rgba(255,59,48,.1);
-    --header-glass:rgba(249,249,251,.72);
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-    --shadow-sheet:0 -14px 60px rgba(0,0,0,.18);
-    --shadow-pop:0 30px 70px -22px rgba(0,0,0,.45);
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-    --track:rgba(120,120,128,.14);
-    --r-card:22px; --r-btn:15px;
-    --spring:cubic-bezier(.32,.72,0,1);
-    --pop:cubic-bezier(.34,1.4,.64,1);
-    --ease-out:cubic-bezier(.16,1,.3,1);
-    --safe-top:env(safe-area-inset-top, 0px); --safe-bottom:env(safe-area-inset-bottom, 0px);
-    --pomo-accent: var(--orange); --pausa-accent: var(--teal);
-}
-@media (prefers-color-scheme: dark){ :root{
-    --bg:#000; --surface:#1C1C1E; --surface-2:#2C2C2E; --surface-3:#3A3A3C;
-    --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-    --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-    --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#7A7A81; --purple:#BF5AF2; --teal:#40C8E0;
-    --red-soft:rgba(255,69,58,.16);
-    --header-glass:rgba(16,16,18,.7);
-    --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-    --shadow-sheet:0 -14px 60px rgba(0,0,0,.6);
-    --track:rgba(120,120,128,.26);
-}}
-
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-.is-hidden{ display:none !important; }
-body{
-    margin:0; min-height:100vh; background:var(--bg); color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,Roboto,Arial,sans-serif;
-    -webkit-font-smoothing:antialiased;
-    padding-bottom:calc(90px + var(--safe-bottom)); overscroll-behavior-y:none;
-    transition:background-color .6s var(--ease-out);
-    /* accento attivo: pomodoro o pausa. Tutto il resto legge var(--pomo-live) */
-    --pomo-live: var(--pomo-accent);
-}
-body.pausa-mode{ --pomo-live: var(--pausa-accent); }
-button{ font-family:inherit; cursor:pointer; }
-
-/* ---- alone ambientale che segue il colore del progetto ---- */
-body::before{
-    content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
-    background:
-        radial-gradient(88% 52% at 50% -4%, color-mix(in srgb, var(--pomo-live) 22%, transparent) 0%, transparent 60%),
-        radial-gradient(70% 44% at 50% 104%, color-mix(in srgb, var(--pomo-live) 11%, transparent) 0%, transparent 66%);
-    opacity:.85;
-}
-@media (prefers-color-scheme: dark){ body::before{ opacity:.5; } }
-
-/* ---- header ---- */
-.app-header{ position:sticky; top:0; z-index:100; padding:calc(var(--safe-top) + 11px) 16px 11px; background:var(--header-glass);
-    -webkit-backdrop-filter:saturate(180%) blur(24px); backdrop-filter:saturate(180%) blur(24px); border-bottom:.5px solid var(--hairline);
-    display:flex; align-items:center; justify-content:space-between; }
-.hdr-title{ font-size:19px; font-weight:800; letter-spacing:-.5px; }
-.hdr-history-btn{ display:inline-flex; align-items:center; gap:6px; background:var(--surface-2); border:none; border-radius:999px; padding:8px 14px;
-    color:var(--text); font-weight:700; font-size:13px; letter-spacing:-.1px; box-shadow:inset 0 0 0 .5px var(--hairline);
-    transition:transform .2s var(--spring), background-color .2s; }
-.hdr-history-btn:active{ transform:scale(.94); background:var(--surface-3); }
-
-.page{ position:relative; z-index:1; max-width:520px; margin:0 auto; padding:6px 20px calc(30px + var(--safe-bottom)); display:flex; flex-direction:column; align-items:center; }
-
-/* ---- mode switch (segmented control con thumb scorrevole) ---- */
-.mode-switch{ position:relative; display:flex; background:var(--surface-2); border-radius:15px; padding:3px; margin:14px 0 8px;
-    box-shadow:inset 0 0 0 .5px var(--hairline); transition:opacity .35s, filter .35s; }
-.mode-switch button{ position:relative; z-index:1; flex:1; min-width:110px; border:none; background:none; padding:9px 18px; border-radius:12px;
-    font-weight:600; font-size:14px; letter-spacing:-.2px; color:var(--text-2); transition:color .3s var(--spring); }
-.mode-switch button.active{ color:#fff; font-weight:700; }
-@supports selector(:has(*)){
-    .mode-switch::before{ content:""; position:absolute; z-index:0; top:3px; bottom:3px; left:3px; width:calc(50% - 3px); border-radius:12px;
-        background:var(--pomo-live); box-shadow:var(--btn-hl), 0 5px 14px -5px color-mix(in srgb, var(--pomo-live) 75%, transparent);
-        transition:transform .48s var(--spring), background-color .35s var(--ease-out); }
-    .mode-switch:has(button:nth-of-type(2).active)::before{ transform:translateX(100%); }
-}
-@supports not selector(:has(*)){
-    .mode-switch button.active{ background:var(--pomo-live); box-shadow:var(--btn-hl); }
-}
-body.pomo-locked .mode-switch{ opacity:.4; filter:saturate(.55); pointer-events:none; }
-
-/* ---- selettore progetto sopra al timer (pillola) ---- */
-.pomo-project-row{ margin:6px 0 14px; width:100%; }
-.pomo-project-row > div{ display:flex !important; justify-content:center !important; width:100% !important; }
-/* l'aspetto a pillola (vetro, ombra, punto colorato, freccia nascosta) arriva
-   ora direttamente da .ps-trigger-pill in project_selector.php: qui restringiamo
-   solo la larghezza al contenuto e la centriamo, che è specifico di questa pagina */
-.pomo-project-row button{ width:auto !important; max-width:100% !important; margin:0 auto !important; }
-.pomo-project-row .pomo-pill-anc{ opacity:.6; font-weight:600; }
-.pomo-project-row .pomo-pill-sep{ opacity:.45; }
-.pomo-project-row b{ font-weight:800; }
-
-/* ---- display switch (cerchio/clessidra) ---- */
-.display-switch{ position:absolute; z-index: 10; left:18px; top:calc(var(--safe-top) + 66px); width:38px; height:38px; border-radius:50%;
-    background:color-mix(in srgb, var(--surface) 80%, transparent);
-    -webkit-backdrop-filter:blur(18px) saturate(180%); backdrop-filter:blur(18px) saturate(180%);
-    border:none; color:var(--text-2); display:flex; align-items:center; justify-content:center;
-    box-shadow:inset 0 0 0 .5px var(--hairline), 0 5px 16px -6px rgba(0,0,0,.22);
-    transition:transform .45s var(--pop), color .25s, background-color .25s; }
-.display-switch:active{ transform:scale(.84) rotate(-18deg); color:var(--pomo-live); }
-
-/* ---- etichetta di stato ---- */
-.pomo-status-label{ display:inline-flex; align-items:center; gap:7px; min-height:20px; margin-bottom:4px;
-    font-size:11.5px; font-weight:700; letter-spacing:.7px; text-transform:uppercase; color:var(--text-2); text-align:center;
-    transition:color .3s; }
-.pomo-status-label::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--pomo-live); flex-shrink:0;
-    opacity:0; transform:scale(.3); transition:opacity .4s, transform .4s var(--pop); }
-body[data-phase="running"] .pomo-status-label::before,
-body[data-phase="pausa_running"] .pomo-status-label::before{ opacity:1; transform:none; animation:statusDot 2.4s ease-in-out infinite; }
-body[data-phase="paused_task"] .pomo-status-label::before,
-body[data-phase="completed"] .pomo-status-label::before,
-body[data-phase="pausa_done"] .pomo-status-label::before{ opacity:.55; transform:none; }
-@keyframes statusDot{ 0%,100%{ box-shadow:0 0 0 0 color-mix(in srgb, var(--pomo-live) 55%, transparent); } 70%,100%{ box-shadow:0 0 0 7px transparent; } }
-
-/* ---- cerchio ---- */
-.ring-wrap{ position:relative; width:min(78vw, 300px); height:min(78vw, 300px); margin:14px 0 2px; display:flex; align-items:center; justify-content:center; }
-.ring-halo{ position:absolute; inset:-16%; border-radius:50%; pointer-events:none; z-index:0;
-    background:radial-gradient(closest-side, color-mix(in srgb, var(--pomo-live) 30%, transparent), color-mix(in srgb, var(--pomo-live) 7%, transparent) 58%, transparent 76%);
-    opacity:0; transform:scale(.88); transition:opacity .8s var(--ease-out), transform .8s var(--ease-out); }
-body[data-phase="running"] .ring-halo,
-body[data-phase="completed"] .ring-halo,
-body[data-phase="pausa_running"] .ring-halo,
-body[data-phase="pausa_done"] .ring-halo{ animation:haloBreathe 5.4s ease-in-out infinite; }
-body[data-phase="paused_task"] .ring-halo{ opacity:.4; transform:scale(.97); }
-@keyframes haloBreathe{ 0%,100%{ opacity:.7; transform:scale(.95); } 50%{ opacity:1; transform:scale(1.04); } }
-
-.ring-face{ position:absolute; inset:9.5%; border-radius:50%; z-index:0; pointer-events:none;
-    background:radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--pomo-live) 9%, var(--surface)) 0%, var(--surface) 66%);
-    box-shadow:0 22px 44px -24px rgba(0,0,0,.4), inset 0 .5px 0 rgba(255,255,255,.7), inset 0 0 0 .5px var(--hairline); }
-@media (prefers-color-scheme: dark){
-    .ring-face{ box-shadow:0 26px 54px -22px rgba(0,0,0,.9), inset 0 .5px 0 rgba(255,255,255,.06), inset 0 0 0 .5px rgba(255,255,255,.05); }
-}
-.ring-wrap svg{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); overflow:visible; z-index:1; }
-.ring-track{ fill:none; stroke:var(--track); stroke-width:12; }
-.ring-progress{ fill:none; stroke:var(--pomo-live); stroke-width:12; stroke-linecap:round;
-    transition:stroke-dashoffset .3s linear, stroke .45s var(--ease-out);
-    filter:drop-shadow(0 0 9px color-mix(in srgb, var(--pomo-live) 55%, transparent)); }
-
-.ring-center{ position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:7px;
-    padding:8px 10px; border-radius:26px; text-align:center; cursor:pointer;
-    user-select:none; -webkit-user-select:none; transition:transform .3s var(--spring); }
-body[data-phase="idle"] .ring-center:active{ transform:scale(.95); }
-.ring-time{ font-size:clamp(40px, 14.5vw, 54px); font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-1.6px; line-height:1;
-    transition:color .45s var(--ease-out); }
-.ring-sub{ font-size:11px; font-weight:700; letter-spacing:.2px; color:var(--text-2);
-    background:var(--surface-2); box-shadow:inset 0 0 0 .5px var(--hairline); padding:4px 11px; border-radius:999px;
-    transition:opacity .35s var(--ease-out), transform .35s var(--pop); }
-.ring-sub:empty{ opacity:0; transform:scale(.8); }
-
-/* ---- clessidra (il disegno vero e proprio vive in clessidra.php) ---- */
-.glass-wrap{ display:flex; align-items:center; justify-content:center;
-    position:relative; cursor:pointer; transition:transform .3s var(--spring); }
-body[data-phase="idle"] .glass-wrap:active{ transform:scale(.955); }
-
-/* ---- chip tempo extra ---- */
-.overtime-chip{ margin-top:14px; display:flex; align-items:center; gap:7px; padding:9px 17px; border-radius:999px; cursor:pointer;
-    background:color-mix(in srgb, var(--pomo-live) 12%, var(--surface)); color:var(--pomo-live);
-    font-weight:800; font-size:14.5px; letter-spacing:-.2px; font-variant-numeric:tabular-nums;
-    animation:overtimePulse 2.6s ease-in-out infinite;
-    transition:transform .2s var(--spring); }
-.overtime-chip:active{ transform:scale(.94); }
-@keyframes overtimePulse{
-    0%,100%{ box-shadow:inset 0 0 0 .5px color-mix(in srgb, var(--pomo-live) 30%, transparent), 0 6px 18px -10px color-mix(in srgb, var(--pomo-live) 80%, transparent); }
-    50%{ box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--pomo-live) 45%, transparent), 0 8px 28px -8px color-mix(in srgb, var(--pomo-live) 90%, transparent); }
-}
-
-/* ---- pulsanti azione ---- */
-.pomo-actions{ display:flex; gap:10px; margin-top:18px; width:100%; justify-content:center; animation:pomoActIn .5s var(--spring) both; }
-@keyframes pomoActIn{ from{ opacity:0; transform:translateY(10px) scale(.97); } to{ opacity:1; transform:none; } }
-.pomo-btn{ padding:15px 26px; border-radius:17px; border:none; font-size:15.5px; font-weight:700; letter-spacing:-.2px; white-space:nowrap; color:var(--text);
-    box-shadow:var(--btn-hl); transition:transform .2s var(--spring), background-color .35s var(--ease-out), box-shadow .35s, filter .2s; }
-.pomo-btn:active{ transform:scale(.955); filter:brightness(.95); }
-.pomo-btn-start{ background:var(--pomo-live); color:#fff; padding:16px 52px; font-size:16.5px; font-weight:800; position:relative; overflow:hidden;
-    box-shadow:var(--btn-hl), 0 12px 28px -10px color-mix(in srgb, var(--pomo-live) 90%, transparent); }
-.pomo-btn-start::after{ content:""; position:absolute; top:-50%; left:-60%; width:35%; height:200%;
-    background:linear-gradient(115deg, transparent, rgba(255,255,255,.42), transparent); transform:rotate(20deg); animation:pomoShine 5s ease-in-out infinite; }
-@keyframes pomoShine{ 0%,80%,100%{ left:-60%; } 42%{ left:130%; } }
-.pomo-btn-pausa{ background:var(--surface-2); color:var(--text); box-shadow:inset 0 0 0 .5px var(--hairline); }
-.pomo-btn-teal{ background:var(--teal); color:#fff; box-shadow:var(--btn-hl), 0 10px 24px -10px color-mix(in srgb, var(--teal) 85%, transparent); }
-.pomo-btn-interrompi{ background:var(--red-soft); color:var(--red); box-shadow:inset 0 0 0 .5px color-mix(in srgb, var(--red) 22%, transparent); }
-/* resta l'accento "pomodoro" anche durante la pausa: è l'invito a ripartire */
-.pomo-btn-pomodoro{ background:var(--pomo-accent) !important; color:#fff !important;
-    box-shadow:var(--btn-hl), 0 10px 24px -10px color-mix(in srgb, var(--pomo-accent) 85%, transparent); }
-.pomo-btn-resume{ background:var(--pomo-live); color:#fff; padding:16px 44px;
-    box-shadow:var(--btn-hl), 0 10px 26px -10px color-mix(in srgb, var(--pomo-live) 85%, transparent); }
-
-/* ---- badge "in pausa" ---- */
-.paused-badge{ display:inline-flex; align-items:center; gap:7px; background:color-mix(in srgb, var(--pomo-live) 13%, var(--surface)); color:var(--pomo-live);
-    padding:7px 14px; border-radius:999px; font-weight:700; font-size:12px; letter-spacing:.3px; text-transform:uppercase; margin-bottom:14px;
-    box-shadow:inset 0 0 0 .5px color-mix(in srgb, var(--pomo-live) 26%, transparent); }
-.paused-badge .dot{ width:7px; height:7px; border-radius:50%; background:currentColor; animation:pausedPulse 2s ease-in-out infinite; }
-@keyframes pausedPulse{ 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:.4; transform:scale(.8); } }
-
-/* ==========================================================================
-   BOTTOM SHEET (durata + gestione durate)
-   ========================================================================== */
-.dur-overlay{ position:fixed; inset:0; z-index:9700; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.4);
-    -webkit-backdrop-filter:blur(10px) saturate(140%); backdrop-filter:blur(10px) saturate(140%);
-    opacity:0; pointer-events:none; transition:opacity .36s var(--ease-out); }
-.dur-overlay.show{ opacity:1; pointer-events:auto; }
-.dur-sheet{ width:100%; max-width:520px; background:var(--surface); border-radius:26px 26px 0 0; overflow:hidden;
-    transform:translateY(101%); transition:transform .5s var(--spring); padding-bottom:var(--safe-bottom); box-shadow:var(--shadow-sheet); }
-.dur-overlay.show .dur-sheet{ transform:translateY(0); }
-.dur-grabber{ width:38px; height:5px; border-radius:3px; background:var(--hairline-2); margin:8px auto 0; }
-.dur-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 18px 6px; }
-.dur-head b{ font-size:19px; font-weight:800; letter-spacing:-.4px; }
-.sheet-close{ width:30px; height:30px; border-radius:50%; border:none; background:var(--surface-2); color:var(--text-2);
-    display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:transform .2s var(--spring), background-color .2s; }
-.sheet-close:active{ transform:scale(.88); background:var(--surface-3); }
-.dur-half{ padding:12px 18px; }
-.dur-half-title{ font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--text-2); margin-bottom:11px;
-    display:flex; align-items:center; gap:7px; }
-.dur-half-title .dot{ width:8px; height:8px; border-radius:50%; }
-.dur-pomo-title .dot{ background:var(--pomo-accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--pomo-accent) 18%, transparent); }
-.dur-pausa-title .dot{ background:var(--teal); box-shadow:0 0 0 3px color-mix(in srgb, var(--teal) 18%, transparent); }
-.dur-pills{ display:flex; flex-wrap:wrap; gap:8px; }
-.dur-pill{ padding:11px 18px; border-radius:14px; border:none; background:var(--surface-2); color:var(--text); font-weight:600; font-size:14.5px;
-    letter-spacing:-.2px; box-shadow:inset 0 0 0 .5px var(--hairline);
-    transition:transform .2s var(--spring), background-color .3s var(--ease-out), color .25s, box-shadow .3s; }
-.dur-pill:active{ transform:scale(.94); }
-.dur-pill.active{ background:var(--pomo-accent); color:#fff; font-weight:700;
-    box-shadow:var(--btn-hl), 0 7px 18px -8px color-mix(in srgb, var(--pomo-accent) 85%, transparent); }
-.dur-pausa-title ~ .dur-pills .dur-pill.active{ background:var(--teal);
-    box-shadow:var(--btn-hl), 0 7px 18px -8px color-mix(in srgb, var(--teal) 85%, transparent); }
-.dur-pill-add{ background:none; box-shadow:inset 0 0 0 1.5px var(--hairline-2); color:var(--text-2); font-weight:600; }
-.dur-divider{ height:.5px; background:var(--hairline); margin:2px 18px; }
-.dur-confirm{ display:block; width:calc(100% - 36px); margin:16px 18px calc(12px + var(--safe-bottom)); padding:16px; border-radius:16px; border:none;
-    background:var(--pomo-live); color:#fff; font-weight:800; font-size:16px; letter-spacing:-.2px;
-    box-shadow:var(--btn-hl), 0 12px 26px -12px color-mix(in srgb, var(--pomo-live) 90%, transparent);
-    transition:transform .2s var(--spring), background-color .35s var(--ease-out), filter .2s; }
-.dur-confirm:active{ transform:scale(.975); filter:brightness(.96); }
-.dur-custom-input{ display:none; padding:11px 14px; border-radius:14px; border:none; background:var(--surface-2); font-size:15px; width:90px; font-family:inherit; }
-.dur-custom-input.show{ display:inline-block; }
-
-/* badge di eliminazione sulle durate personalizzate (long press) */
-.pill-wrap{ position:relative; display:inline-block; }
-.cdur-badge{
-    position:absolute; top:-6px; left:-6px; width:22px; height:22px;
-    background:var(--red); color:#fff; border:none; border-radius:50%;
-    font-weight:800; font-size:16px; line-height:1;
-    display:flex; align-items:center; justify-content:center;
-    opacity:0; transform:scale(.4); pointer-events:none;
-    transition:opacity .25s, transform .3s var(--pop); z-index:10;
-    box-shadow:0 3px 8px -1px rgba(0,0,0,.28); cursor:pointer;
-}
-.cdur-badge.show{ opacity:1; transform:scale(1); pointer-events:auto; }
-
-/* ---- popup "gestisci durate" ---- */
-.cdur-body{ padding:14px 18px calc(22px + var(--safe-bottom)); }
-.cdur-add-row{ display:flex; gap:10px; align-items:center; }
-.cdur-time-input{ flex:1; padding:13px 14px; border-radius:14px; border:none; background:var(--surface-2); color:var(--text);
-    font-size:18px; font-weight:700; font-family:inherit; font-variant-numeric:tabular-nums; box-shadow:inset 0 0 0 .5px var(--hairline); }
-.cdur-add-btn{ padding:13px 20px; border-radius:14px; border:none; background:var(--pomo-live); color:#fff; font-weight:800; font-size:15px;
-    box-shadow:var(--btn-hl), 0 8px 20px -10px color-mix(in srgb, var(--pomo-live) 90%, transparent);
-    transition:transform .2s var(--spring), background-color .35s, filter .2s; }
-.cdur-add-btn:active{ transform:scale(.95); filter:brightness(.96); }
-.cdur-list{ display:flex; flex-direction:column; gap:8px; }
-.cdur-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--surface-2); padding:11px 8px 11px 15px;
-    border-radius:14px; box-shadow:inset 0 0 0 .5px var(--hairline); animation:pomoActIn .35s var(--spring) both;
-    transition:background-color .25s var(--ease-out), box-shadow .25s var(--ease-out); }
-.cdur-row.active{ background:color-mix(in srgb, var(--cdur-mark, var(--pomo-live)) 14%, var(--surface-2));
-    box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--cdur-mark, var(--pomo-live)) 42%, transparent); }
-.cdur-row-label{ font-weight:700; font-size:15.5px; letter-spacing:-.2px; display:flex; align-items:center; gap:8px; }
-.cdur-row-check{ flex-shrink:0; color:var(--cdur-mark, var(--pomo-live)); opacity:0; transform:scale(.4);
-    transition:opacity .2s, transform .28s var(--pop); }
-.cdur-row.active .cdur-row-check{ opacity:1; transform:none; }
-.cdur-row-del{ background:none; border:none; color:var(--red); padding:7px; border-radius:10px; display:flex; align-items:center; justify-content:center;
-    transition:transform .2s var(--spring), background-color .2s; }
-.cdur-row-del:active{ transform:scale(.86); background:var(--red-soft); }
-.cdur-empty{ font-size:14px; color:var(--text-2); text-align:center; padding:18px 0; }
-
-/* ---- toast ---- */
-.pomo-toast{ position:fixed; left:50%; bottom:calc(28px + var(--safe-bottom)); transform:translate(-50%,14px) scale(.96);
-    background:rgba(28,28,30,.86); -webkit-backdrop-filter:blur(20px) saturate(180%); backdrop-filter:blur(20px) saturate(180%);
-    color:#fff; padding:12px 20px; border-radius:16px; font-size:13.5px; font-weight:600; letter-spacing:-.1px; z-index:9900;
-    box-shadow:0 14px 40px -12px rgba(0,0,0,.5); opacity:0; pointer-events:none;
-    transition:opacity .3s var(--ease-out), transform .42s var(--pop); }
-.pomo-toast.show{ opacity:1; transform:translate(-50%,0) scale(1); }
-
-/* ---- alert di conferma ---- */
-.confirm-overlay{ position:fixed; inset:0; z-index:9800; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.4);
-    -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
-    opacity:0; pointer-events:none; transition:opacity .28s var(--ease-out); padding:20px; }
-.confirm-overlay.show{ opacity:1; pointer-events:auto; }
-.confirm-box{ background:color-mix(in srgb, var(--surface) 88%, transparent);
-    -webkit-backdrop-filter:blur(30px) saturate(180%); backdrop-filter:blur(30px) saturate(180%);
-    border-radius:22px; padding:22px 20px 16px; max-width:300px; width:100%; text-align:center; box-shadow:var(--shadow-pop);
-    transform:scale(.88); opacity:0; transition:transform .42s var(--pop), opacity .26s; }
-.confirm-overlay.show .confirm-box{ transform:scale(1); opacity:1; }
-.confirm-title{ font-weight:800; font-size:17px; letter-spacing:-.3px; margin-bottom:6px; }
-.confirm-msg{ font-size:13.5px; line-height:1.45; color:var(--text-2); margin-bottom:18px; }
-.confirm-actions{ display:flex; gap:10px; }
-.confirm-btn{ flex:1; padding:13px; border-radius:14px; border:none; font-weight:700; font-size:15px; letter-spacing:-.2px;
-    background:var(--surface-2); color:var(--text); box-shadow:inset 0 0 0 .5px var(--hairline);
-    transition:transform .2s var(--spring), filter .2s; }
-.confirm-btn:active{ transform:scale(.96); filter:brightness(.96); }
-.confirm-btn-primary{ background:var(--blue); color:#fff; box-shadow:var(--btn-hl); }
-
-@media (prefers-reduced-motion: reduce){
-    *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
-}
-</style>
+<link rel="stylesheet" href="/Vocabolary/pomodoro.css?v=<?php echo @filemtime(dirname(__FILE__) . '/pomodoro.css') ?: 1; ?>">
+<?php
+/* Le stringhe che servono al JavaScript di questa pagina. Solo i due gruppi
+   che usa davvero: il dizionario intero sono migliaia di voci. */
+/* Le stringhe che servono al JavaScript di questa pagina. Il gruppo 'todo'
+   c'e' perche' il post-it monta todo_widget, che chiama T('todo.…'): senza,
+   il foglietto mostrava <<todo.niente_da_fare>> al posto del testo. Non si
+   passa tutto il dizionario perche' sono migliaia di voci. */
+echo nisama_i18n_json(['comune', 'pomodoro', 'todo']);
+?>
 </head>
 <body>
 
@@ -624,39 +427,45 @@ body[data-phase="idle"] .glass-wrap:active{ transform:scale(.955); }
     <div class="hdr-title">Pomodoro</div>
     <button type="button" class="hdr-history-btn" onclick="window.openPomodoroStorico({scope:'all'})">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v6l4 2"/><circle cx="12" cy="13" r="8"/></svg>
-        Storico
+        <?php te('pomodoro.storico'); ?>
     </button>
 </div>
 
 <?php include 'sidebar.html'; ?>
 
-<button type="button" class="display-switch" id="displaySwitchBtn" onclick="toggleDisplayStyle()" aria-label="Cambia visualizzazione">
+<button type="button" class="display-switch" id="displaySwitchBtn" onclick="toggleDisplayStyle()" aria-label="<?php te('pomodoro.cambia_vista'); ?>">
     <svg id="displaySwitchIcon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12"/><path d="M6 22h12"/><path d="M6 2v3.3c0 .6.24 1.2.66 1.6L12 12l5.34-5.1c.42-.4.66-1 .66-1.6V2"/><path d="M18 22v-3.3c0-.6-.24-1.2-.66-1.6L12 12l-5.34 5.1c-.42.4-.66 1-.66 1.6V22"/></svg>
 </button>
 
 <div class="page">
     <div class="mode-switch" id="modeSwitch">
-        <button type="button" data-mode="0" onclick="setMode(0)">Timer</button>
-        <button type="button" data-mode="1" onclick="setMode(1)">Cronometro</button>
+        <button type="button" data-mode="0" onclick="setMode(0)"><?php te('pomodoro.timer'); ?></button>
+        <button type="button" data-mode="1" onclick="setMode(1)"><?php te('pomodoro.cronometro'); ?></button>
     </div>
 
     <div class="pomo-project-row">
         <?php
             $ps_id = 'pomo'; $ps_selected_id = 0; $ps_selected_name = ''; $ps_selected_color = null;
-            $ps_placeholder = 'Nessun progetto collegato'; $ps_title = 'Collega a un progetto';
-            $ps_show_all_option = true; $ps_all_option_label = 'Nessun progetto'; $ps_allow_create = true;
+            $ps_placeholder = t('pomodoro.nessun_progetto_collegato'); $ps_title = t('pomodoro.collega_progetto');
+            $ps_show_all_option = true; $ps_all_option_label = t('pomodoro.nessun_progetto'); $ps_allow_create = true;
             $ps_hidden_name = 'pomo_project_id';
             $ps_trigger_class = 'ps-trigger-pill';
             include 'project_selector.php';
         ?>
     </div>
 
-    <div class="pomo-status-label" id="statusLabel">Pronto quando vuoi</div>
+    <div class="pomo-status-label" id="statusLabel"><?php te('pomodoro.pronto'); ?></div>
 
     <div class="ring-wrap" id="ringWrap">
         <div class="ring-halo"></div>
         <div class="ring-face"></div>
-        <svg viewBox="0 0 220 220"><circle class="ring-track" cx="110" cy="110" r="100"/><circle class="ring-progress" id="ringProgress" cx="110" cy="110" r="100" stroke-dasharray="628.3" stroke-dashoffset="628.3"/></svg>
+        <!-- Il pallino sta in un GRUPPO ruotato attorno al centro (110,110): il
+             JS scrive un angolo solo e non deve fare seno e coseno per posarlo.
+             Le scintille invece stanno FUORI da quel gruppo, con coordinate
+             assolute: dentro ruoterebbero insieme al pallino e gli
+             resterebbero appiccicate, mentre devono essere lasciate indietro.
+             Il gruppo delle scintille lo riempie il JS all'avvio. -->
+        <svg viewBox="0 0 220 220"><circle class="ring-track" cx="110" cy="110" r="100"/><circle class="ring-progress" id="ringProgress" cx="110" cy="110" r="100" stroke-dasharray="628.3" stroke-dashoffset="628.3"/><g class="ring-sparks" id="ringSparks"></g><g class="ring-spark is-off" id="ringSpark" transform="rotate(0 110 110)"><circle class="ring-spark-halo" cx="210" cy="110" r="11"/><circle class="ring-spark-core" cx="210" cy="110" r="6.4"/></g></svg>
         <div class="ring-center" onclick="onDisplayClick()">
             <div class="ring-time" id="ringTime">25:00</div>
             <div class="ring-sub" id="ringSub"></div>
@@ -672,30 +481,74 @@ body[data-phase="idle"] .glass-wrap:active{ transform:scale(.955); }
         <span id="overtimeValue">00:00:00</span>
     </div>
 
+    <!-- I tasti sono icone e non parole. "Stop", "Interrompi" e "Pausa" letti
+         di fianco non si distinguevano: tre parole diverse per tre cose che a
+         colpo d'occhio sembravano la stessa. Il vocabolario dei simboli e'
+         quello di qualunque lettore musicale, che nessuno deve imparare:
+           triangolo = parti / riprendi
+           due barre  = metti in pausa questa sessione (si riprende dov'era)
+           quadrato   = chiudi la sessione (finisce qui)
+           spunta     = archivia il pomodoro completato
+           tazza      = vai in pausa
+         La parola resta nell'aria-label e nel title, per chi usa il lettore di
+         schermo e per chi si ferma un attimo sopra al tasto. -->
     <div class="pomo-actions" id="actionsIdle">
-        <button type="button" class="pomo-btn pomo-btn-start" id="startBtn" onclick="onStartClick()">Start</button>
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-start pomo-btn-xl" id="startBtn" onclick="onStartClick()"
+                aria-label="<?php te('pomodoro.start'); ?>" title="<?php te('pomodoro.start'); ?>">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.4 5.2a1 1 0 0 1 1.53-.85l8.2 5.15a1 1 0 0 1 0 1.7l-8.2 5.15a1 1 0 0 1-1.53-.85z" transform="translate(-1.2 1)"/></svg>
+        </button>
     </div>
     <div class="pomo-actions" id="actionsRunning" style="display:none;">
-        <button type="button" class="pomo-btn pomo-btn-pausa" id="midPauseBtn" onclick="onMidPauseClick()">Stop</button>
-        <button type="button" class="pomo-btn pomo-btn-interrompi" onclick="onInterrompiClick()">Interrompi</button>
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-pausa" id="midPauseBtn" onclick="onMidPauseClick()"
+                aria-label="<?php te('pomodoro.stop'); ?>" title="<?php te('pomodoro.stop'); ?>">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1.6"/><rect x="13.5" y="5" width="4" height="14" rx="1.6"/></svg>
+        </button>
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" onclick="onInterrompiClick()"
+                aria-label="<?php te('pomodoro.interrompi'); ?>" title="<?php te('pomodoro.interrompi'); ?>">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.4"/></svg>
+        </button>
     </div>
     <div class="pomo-actions" id="actionsCompleted" style="display:none;">
-        <button type="button" class="pomo-btn pomo-btn-interrompi" onclick="onChiudiCompletato()">Interrompi</button>
-        <button type="button" class="pomo-btn pomo-btn-teal" onclick="onAvviaPausaClick()">Pausa</button>
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" onclick="onChiudiCompletato()"
+                aria-label="<?php te('comune.chiudi'); ?>" title="<?php te('comune.chiudi'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+        </button>
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-teal" onclick="onAvviaPausaClick()"
+                aria-label="<?php te('pomodoro.pausa'); ?>" title="<?php te('pomodoro.pausa'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 10.5h2.2a2.4 2.4 0 0 1 0 4.8H16"/><path d="M8 2.5v2.6M12 2.5v2.6"/></svg>
+        </button>
     </div>
     <div class="pomo-actions" id="actionsPausaRunning" style="display:none;">
-        <button type="button" class="pomo-btn pomo-btn-interrompi" onclick="onFinePausaClick('stop')">Interrompi</button>
-        <button type="button" class="pomo-btn pomo-btn-pomodoro" onclick="onFinePausaClick('nuovo_pomodoro')">Pomodoro</button>
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" onclick="onFinePausaClick('stop')"
+                aria-label="<?php te('pomodoro.interrompi'); ?>" title="<?php te('pomodoro.interrompi'); ?>">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.4"/></svg>
+        </button>
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-pomodoro" onclick="onFinePausaClick('nuovo_pomodoro')"
+                aria-label="<?php te('pomodoro.nuovo_pomodoro'); ?>" title="<?php te('pomodoro.nuovo_pomodoro'); ?>">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.4 5.2a1 1 0 0 1 1.53-.85l8.2 5.15a1 1 0 0 1 0 1.7l-8.2 5.15a1 1 0 0 1-1.53-.85z" transform="translate(-1.2 1)"/></svg>
+        </button>
     </div>
     <div class="pomo-actions" id="actionsPausaDone" style="display:none;">
-        <button type="button" class="pomo-btn pomo-btn-interrompi" onclick="onFinePausaClick('stop')">Interrompi</button>
-        <button type="button" class="pomo-btn pomo-btn-pomodoro" onclick="onFinePausaClick('nuovo_pomodoro')">Pomodoro</button>
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" onclick="onFinePausaClick('stop')"
+                aria-label="<?php te('pomodoro.interrompi'); ?>" title="<?php te('pomodoro.interrompi'); ?>">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.4"/></svg>
+        </button>
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-pomodoro" onclick="onFinePausaClick('nuovo_pomodoro')"
+                aria-label="<?php te('pomodoro.nuovo_pomodoro'); ?>" title="<?php te('pomodoro.nuovo_pomodoro'); ?>">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.4 5.2a1 1 0 0 1 1.53-.85l8.2 5.15a1 1 0 0 1 0 1.7l-8.2 5.15a1 1 0 0 1-1.53-.85z" transform="translate(-1.2 1)"/></svg>
+        </button>
     </div>
     <div class="pomo-actions" id="actionsPausedTask" style="display:none; flex-direction:column; align-items:center;">
-        <span class="paused-badge"><span class="dot"></span>Sessione in pausa</span>
+        <span class="paused-badge"><span class="dot"></span><?php te('pomodoro.sessione_in_pausa'); ?></span>
         <div style="display:flex; gap:12px;">
-            <button type="button" class="pomo-btn pomo-btn-resume" onclick="onResumeTaskClick()">Riprendi</button>
-            <button type="button" class="pomo-btn pomo-btn-interrompi" onclick="onInterrompiClick()">Interrompi</button>
+            <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-resume" onclick="onResumeTaskClick()"
+                    aria-label="<?php te('pomodoro.riprendi'); ?>" title="<?php te('pomodoro.riprendi'); ?>">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.4 5.2a1 1 0 0 1 1.53-.85l8.2 5.15a1 1 0 0 1 0 1.7l-8.2 5.15a1 1 0 0 1-1.53-.85z" transform="translate(-1.2 1)"/></svg>
+            </button>
+            <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" onclick="onInterrompiClick()"
+                    aria-label="<?php te('pomodoro.interrompi'); ?>" title="<?php te('pomodoro.interrompi'); ?>">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.4"/></svg>
+            </button>
         </div>
     </div>
 </div>
@@ -704,8 +557,8 @@ body[data-phase="idle"] .glass-wrap:active{ transform:scale(.955); }
 <div class="dur-overlay" id="durOverlay" onclick="if(event.target===this) closeDurPopup();">
     <div class="dur-sheet">
         <div class="dur-grabber"></div>
-        <div class="dur-head"><b>Durata</b>
-            <button type="button" class="sheet-close" onclick="closeDurPopup()" aria-label="Chiudi">
+        <div class="dur-head"><b><?php te('pomodoro.durata'); ?></b>
+            <button type="button" class="sheet-close" onclick="closeDurPopup()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
         </div>
@@ -715,10 +568,10 @@ body[data-phase="idle"] .glass-wrap:active{ transform:scale(.955); }
         </div>
         <div class="dur-divider"></div>
         <div class="dur-half" id="durPausaHalf">
-            <div class="dur-half-title dur-pausa-title"><span class="dot"></span>Pausa</div>
+            <div class="dur-half-title dur-pausa-title"><span class="dot"></span><?php te('pomodoro.pausa'); ?></div>
             <div class="dur-pills" id="durPausaPills"></div>
         </div>
-        <button type="button" class="dur-confirm" onclick="confirmDurPopup()">Conferma</button>
+        <button type="button" class="dur-confirm" onclick="confirmDurPopup()"><?php te('comune.conferma'); ?></button>
     </div>
 </div>
 
@@ -726,19 +579,19 @@ body[data-phase="idle"] .glass-wrap:active{ transform:scale(.955); }
 <div class="dur-overlay" id="customDurOverlay" style="z-index:9710;" onclick="if(event.target===this) closeCustomDur();">
     <div class="dur-sheet">
         <div class="dur-grabber"></div>
-        <div class="dur-head"><b>Gestisci <span id="cdurTipoTit"></span></b>
-            <button type="button" class="sheet-close" onclick="closeCustomDur()" aria-label="Chiudi">
+        <div class="dur-head"><b><?php te('pomodoro.gestisci'); ?> <span id="cdurTipoTit"></span></b>
+            <button type="button" class="sheet-close" onclick="closeCustomDur()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
         </div>
         <div class="cdur-body">
-            <div class="dur-half-title">Aggiungi durata</div>
+            <div class="dur-half-title"><?php te('pomodoro.aggiungi_durata'); ?></div>
             <div class="cdur-add-row">
                 <input type="time" class="cdur-time-input" id="cdurTime" onfocus="if(!this.value) this.value='00:00';" value="00:00">
-                <button type="button" class="cdur-add-btn" onclick="saveCustomDur()">Aggiungi</button>
+                <button type="button" class="cdur-add-btn" onclick="saveCustomDur()"><?php te('comune.aggiungi'); ?></button>
             </div>
 
-            <div class="dur-half-title" style="margin-top:24px;">Create da te</div>
+            <div class="dur-half-title" style="margin-top:24px;"><?php te('pomodoro.create_da_te'); ?></div>
             <div class="cdur-list" id="cdurList">
                 <!-- Qui verranno caricate le durate -->
             </div>
@@ -748,18 +601,46 @@ body[data-phase="idle"] .glass-wrap:active{ transform:scale(.955); }
 
 <div class="confirm-overlay" id="confirmOverlay">
     <div class="confirm-box">
-        <div class="confirm-title" id="confirmTitle">Salvare la sessione?</div>
+        <div class="confirm-title" id="confirmTitle"><?php te('pomodoro.salvare_sessione'); ?></div>
         <div class="confirm-msg" id="confirmMsg"></div>
         <div class="confirm-actions">
-            <button type="button" class="confirm-btn" onclick="closeConfirm(false)">No</button>
-            <button type="button" class="confirm-btn confirm-btn-primary" onclick="closeConfirm(true)">Sì, salva</button>
+            <button type="button" class="confirm-btn" onclick="closeConfirm(false)"><?php te('comune.no'); ?></button>
+            <button type="button" class="confirm-btn confirm-btn-primary" onclick="closeConfirm(true)"><?php te('pomodoro.si_salva'); ?></button>
         </div>
     </div>
 </div>
 
+<!-- Popup di scelta: stesso riquadro del "salvare la sessione?" ma con un
+     numero variabile di vie d'uscita, costruite dal JS. Serve a fine tempo
+     (chiudi / pausa / continua) e all'interruzione anticipata (pausa /
+     chiudi). Non ha una X: chiudere senza scegliere lascerebbe il pomodoro
+     in uno stato che l'utente non ha deciso. -->
+<div class="confirm-overlay" id="choiceOverlay">
+    <div class="confirm-box">
+        <div class="confirm-title" id="choiceTitle"></div>
+        <div class="confirm-msg" id="choiceMsg"></div>
+        <div class="choice-actions" id="choiceActions"></div>
+    </div>
+</div>
+
+<!-- Avviso del pomodoro chiuso d'ufficio. Sta in basso e non blocca niente:
+     la pagina e' gia' pronta per un pomodoro nuovo, questo racconta soltanto
+     cos'e' successo all'ultimo. Toccandolo si va a correggerlo. -->
+<div class="pomo-avviso" id="pomoAvviso" style="display:none;">
+    <button type="button" class="pomo-avviso-body" id="pomoAvvisoBody">
+        <span class="pomo-avviso-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 8v5"/><path d="M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg>
+        </span>
+        <span class="pomo-avviso-testo" id="pomoAvvisoTesto"></span>
+    </button>
+    <button type="button" class="pomo-avviso-x" id="pomoAvvisoX" aria-label="<?php te('comune.chiudi'); ?>">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+</div>
+
 <!-- Attività: un post-it con il timer in piccolo e l'elenco di cosa fare
      durante questo pomodoro. Si apre dal tastino qui sotto. -->
-<button type="button" class="pomo-todo-btn" id="pomoTodoBtn" aria-label="Attività">
+<button type="button" class="pomo-todo-btn" id="pomoTodoBtn" aria-label="<?php te('pomodoro.attivita'); ?>">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l2.2 2.2L10 5.5"/><path d="M4 17l2.2 2.2L10 15.5"/><path d="M13 7.5h7M13 17.5h7"/></svg>
 </button>
 
@@ -771,54 +652,13 @@ body[data-phase="idle"] .glass-wrap:active{ transform:scale(.955); }
                 <svg viewBox="0 0 36 36"><circle class="pp-track" cx="18" cy="18" r="15"/><circle class="pp-prog" id="pomoTodoRing" cx="18" cy="18" r="15" stroke-dasharray="94.2" stroke-dashoffset="94.2"/></svg>
                 <span id="pomoTodoTime">25:00</span>
             </span>
-            <button type="button" class="pomo-postit-close" id="pomoTodoClose">Chiudi</button>
+            <button type="button" class="pomo-postit-close" id="pomoTodoClose"><?php te('comune.chiudi'); ?></button>
         </div>
         <div id="pomoTodoList"></div>
     </div>
 </div>
 
 <div class="pomo-toast" id="pomoToast"></div>
-<style>
-.pomo-todo-btn{
-    position:fixed; right:16px; bottom:calc(96px + var(--safe-bottom, 0px)); z-index:60;
-    width:46px; height:46px; border-radius:50%; border:none; cursor:pointer;
-    background:var(--surface-2); color:var(--text-2);
-    box-shadow:0 8px 22px -10px rgba(0,0,0,.5);
-    display:grid; place-items:center; transition:transform .18s;
-}
-.pomo-todo-btn svg{ width:20px; height:20px; }
-.pomo-todo-btn:active{ transform:scale(.9); }
-.pomo-todo-btn.is-on{ background:var(--pomo-accent, var(--accent)); color:#fff; }
-
-.pomo-todo-ov{
-    position:fixed; inset:0; z-index:9600; display:grid; place-items:center; padding:22px;
-    background:rgba(0,0,0,.46); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
-    opacity:0; pointer-events:none; transition:opacity .28s ease;
-}
-.pomo-todo-ov.show{ opacity:1; pointer-events:auto; }
-.pomo-postit{
-    position:relative; width:100%; max-width:340px; max-height:76vh; overflow-y:auto;
-    background:#FDFCF9; color:#4A443D; border-radius:3px 3px 14px 14px;
-    padding:22px 16px 16px; transform:rotate(-.8deg) scale(.94);
-    box-shadow:0 26px 56px -22px rgba(0,0,0,.6); transition:transform .34s cubic-bezier(.34,1.3,.64,1);
-    scrollbar-width:none;
-}
-.pomo-postit::-webkit-scrollbar{ width:0; }
-.pomo-todo-ov.show .pomo-postit{ transform:rotate(-.8deg) scale(1); }
-.pomo-postit-tape{
-    position:absolute; top:-11px; left:50%; width:78px; height:21px;
-    transform:translateX(-50%) rotate(-2.4deg); background:rgba(255,255,255,.7);
-    box-shadow:0 2px 6px rgba(0,0,0,.16); border-radius:1px;
-}
-.pomo-postit-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
-.pomo-postit-ring{ position:relative; width:44px; height:44px; display:grid; place-items:center; }
-.pomo-postit-ring svg{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); }
-.pomo-postit-ring circle{ fill:none; stroke-width:2.6; stroke-linecap:round; }
-.pp-track{ stroke:rgba(74,68,61,.14); }
-.pp-prog{ stroke:#A9C3AE; transition:stroke-dashoffset .9s linear; }
-.pomo-postit-ring span{ font-size:10px; color:#8A8177; font-variant-numeric:tabular-nums; }
-.pomo-postit-close{ border:none; background:none; color:#8A8177; font:inherit; font-size:13px; cursor:pointer; }
-</style>
 
 <?php
     $ph_id = 'pomo';
@@ -845,6 +685,10 @@ var completedEndMs = null;
 var pausaStartMs = null, pausaDurataMin = null;
 var tickTimer = null, notifiedEnd = false, notifiedPausaEnd = false;
 var RING_CIRC = 2 * Math.PI * 100;
+/* Lo stesso tetto che applica il server quando trova una sessione abbandonata.
+   Arriva da PHP e non e' scritto a mano due volte: se un giorno diventano 8
+   ore, si cambia la costante e i due lati restano d'accordo. */
+var POMO_LIMITE_SEC = <?php echo (int)POMO_LIMITE_SECONDI; ?>;
 
 function buzz(ms){ try{ if (navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
 function toast(msg){
@@ -901,16 +745,34 @@ window.setMode = function(m){
 function pomoEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 function pomoUpdateProjectPill(){
     var el = document.getElementById('ps-trigger-text-pomo');
+    var riga = document.querySelector('.pomo-project-row');
     if (!el) return;
-    if (!projectId) return; // nessun progetto: lascia il placeholder gestito dal selettore
+    if (!projectId) {
+        // nessun progetto: lascia il placeholder gestito dal selettore
+        if (riga) riga.classList.remove('pomo-ha-progetto');
+        return;
+    }
     var path = (STATE0.project_paths && STATE0.project_paths[projectId]) ? STATE0.project_paths[projectId] : [projectName];
     if (!path || !path.length) path = [projectName];
-    var html = '';
-    for (var i = 0; i < path.length; i++){
-        if (i > 0) html += '<span class="pomo-pill-sep"> • </span>';
-        html += (i === path.length - 1) ? ('<b>' + pomoEsc(path[i]) + '</b>') : ('<span class="pomo-pill-anc">' + pomoEsc(path[i]) + '</span>');
+
+    /* Due righe invece di una sola catena "nonno • padre • progetto": il nome
+       che conta e' quello del progetto, e in fila con gli altri si perdeva.
+       Sopra il titolo, sotto in piccolo da dove viene — e se non ha antenati
+       la seconda riga non c'e' proprio, cosi' la pillola non resta con uno
+       spazio vuoto sotto. */
+    var foglia = path[path.length - 1];
+    var antenati = path.slice(0, -1);
+    var html = '<span class="pomo-pill-leaf">' + pomoEsc(foglia) + '</span>';
+    if (antenati.length) {
+        var dentro = '';
+        for (var i = 0; i < antenati.length; i++) {
+            if (i > 0) dentro += '<span class="pomo-pill-sep"> • </span>';
+            dentro += pomoEsc(antenati[i]);
+        }
+        html += '<span class="pomo-pill-anc">' + dentro + '</span>';
     }
     el.innerHTML = html;
+    if (riga) riga.classList.add('pomo-ha-progetto');
 }
 
 document.addEventListener('projectselected', function(e){
@@ -1107,7 +969,7 @@ window.renderCustomList = function() {
     var markColor = currentCustomKind === 'pomo' ? 'var(--pomo-accent)' : 'var(--teal)';
 
     if(customs.length === 0) {
-        container.innerHTML = '<div class="cdur-empty">Nessuna durata personalizzata.</div>';
+        container.innerHTML = '<div class="cdur-empty">' + T('pomodoro.nessuna_durata') + '</div>';
         return;
     }
 
@@ -1122,7 +984,7 @@ window.renderCustomList = function() {
         row.innerHTML = '<span class="cdur-row-label">' +
                         '<svg class="cdur-row-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>' +
                         '<span>' + label + '</span></span>' +
-                        '<button type="button" class="cdur-row-del" onclick="deleteCustomDur('+m+')" aria-label="Elimina">' +
+                        '<button type="button" class="cdur-row-del" onclick="deleteCustomDur('+m+')" aria-label="' + T('comune.elimina') + '">' +
                         '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>' +
                         '</button>';
         container.appendChild(row);
@@ -1210,7 +1072,7 @@ function renderIdleDisplay(){
     document.getElementById('ringTime').style.color = '';
     
     // Aggiungi questa riga per mostrare la durata della pausa
-    document.getElementById('ringSub').textContent = 'Pausa: ' + selDurataPausa + ' min';
+    document.getElementById('ringSub').textContent = T('pomodoro.pausa_di', {minuti: selDurataPausa});
     
     if (mode === 0) {
         document.getElementById('ringTime').textContent = selDurataPomo + ':00';
@@ -1224,7 +1086,193 @@ function renderIdleDisplay(){
 function setRingFraction(frac){
     frac = Math.max(0, Math.min(1, frac));
     document.getElementById('ringProgress').style.strokeDashoffset = (RING_CIRC * (1 - frac));
+
+    /* A zero la scintilla si nasconde: un pallino fermo in cima senza barra
+       dietro sembrerebbe un difetto di disegno. La visibilita' la decide solo
+       questa funzione — setSparkFraction sposta e basta, cosi' in fuoritempo
+       il giro nuovo puo' ripartire da zero senza far sparire il pallino.
+       A zero il pallino ci va di netto e non insegue: e' un azzeramento, non
+       un movimento, e vederlo strisciare all'indietro sarebbe sbagliato. */
+    scintillaVisibile(frac > 0);
+    setSparkFraction(frac, frac <= 0);
 }
+
+/* ==========================================================================
+   LA SCINTILLA IN PUNTA ALLA BARRA
+   Perche' un motore a fotogrammi e non una animazione CSS come prima:
+   1. il pallino andava a scatti. Il tick della pagina gira 4 volte al secondo
+      e a ogni giro riscriveva l'angolo: quattro posizioni al secondo si
+      vedono tutte. La barra non aveva il problema perche' il suo movimento e'
+      una transizione CSS, che riempie i buchi da sola. Qui il pallino insegue
+      il bersaglio a ogni fotogramma, quindi ~60 posizioni al secondo.
+   2. le scintille CSS si vedevano solo all'inizio, e devono partire anche in
+      avanti per poi essere trascinate indietro — una ruota che frena butta
+      scintille davanti a se'. Con i keyframes ogni pallino ha una traiettoria
+      sola, sempre uguale; qui ognuna nasce con una sua spinta e una sua vita.
+   Le scintille stanno FUORI dal gruppo che ruota, con coordinate assolute:
+   dentro, ruoterebbero insieme al pallino e resterebbero appiccicate a lui
+   invece di essere lasciate indietro.
+   ========================================================================== */
+var SP_CX = 110, SP_CY = 110, SP_R = 100;   // centro e raggio, in unita' del viewBox
+var spBersaglio = 0;        // dove deve stare il pallino (lo scrive il tick)
+var spAdesso = 0;           // dove sta davvero (si avvicina a ogni fotogramma)
+var spVisibile = false;
+var spRaf = null, spUltimoMs = 0, spDaEmettere = 0;
+var spPezzi = [];           // riserva fissa di cerchietti: nessuno viene creato o distrutto durante il movimento
+
+/* Chi ha chiesto meno animazioni non deve vedere venticinque cerchietti
+   schizzare: il pallino continua a muoversi, le scintille no. */
+var spNienteMoto = false;
+try { spNienteMoto = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+/* Le scintille sono attrito, quindi hanno senso solo se qualcosa si muove
+   davvero. Con la sessione congelata il pallino resta fermo dov'era, e vederlo
+   comunque sfrigolare direbbe il contrario di quello che sta succedendo. */
+function faseInMovimento(){
+    return phase === 'running' || phase === 'completed' || phase === 'pausa_running';
+}
+
+(function preparaScintille(){
+    var g = document.getElementById('ringSparks');
+    if (!g) return;
+    for (var i = 0; i < 26; i++) {
+        var c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        c.setAttribute('class', 'rs-p');
+        c.setAttribute('r', '0');
+        c.style.opacity = '0';
+        g.appendChild(c);
+        spPezzi.push({ el: c, vivo: false, x: 0, y: 0, vt: 0, vr: 0, eta: 0, vita: 1, r: 1 });
+    }
+})();
+
+function scintillaVisibile(mostra){
+    spVisibile = !!mostra;
+    var spark = document.getElementById('ringSpark');
+    if (spark) spark.classList.toggle('is-off', !spVisibile);
+    if (spVisibile) avviaScintille();
+}
+
+function setSparkFraction(frac, subito){
+    spBersaglio = Math.max(0, Math.min(1, frac));
+    if (subito) { spAdesso = spBersaglio; disegnaPallino(); }
+    avviaScintille();
+}
+
+function disegnaPallino(){
+    var spark = document.getElementById('ringSpark');
+    if (!spark) return;
+    /* L'attributo transform e non lo style: sullo style la transizione CSS
+       farebbe interpolare l'angolo anche nel salto da 360 a 0 — a fine giro il
+       pallino tornerebbe indietro girando invece di ricominciare da capo. */
+    spark.setAttribute('transform', 'rotate(' + (spAdesso * 360).toFixed(2) + ' 110 110)');
+}
+
+function avviaScintille(){
+    if (spRaf !== null) return;
+    spUltimoMs = 0;
+    spRaf = requestAnimationFrame(passoScintille);
+}
+
+function passoScintille(ts){
+    spRaf = null;
+    // il primo fotogramma non ha un "prima": si parte da un sedicesimo di secondo.
+    // il tetto a 50 ms evita che, tornando su una scheda lasciata in secondo
+    // piano, un dt enorme spari tutte le scintille fuori dallo schermo
+    var dt = spUltimoMs ? Math.min(0.05, (ts - spUltimoMs) / 1000) : 0.016;
+    spUltimoMs = ts;
+
+    /* --- il pallino insegue il bersaglio --- */
+    var d = spBersaglio - spAdesso;
+    if (d < -0.5) d += 1;          // il bersaglio ha girato l'angolo: si va avanti, non indietro
+    spAdesso += d * Math.min(1, dt * 6);
+    if (spAdesso >= 1) spAdesso -= 1;
+    disegnaPallino();
+
+    var ang = spAdesso * Math.PI * 2;
+    var cosA = Math.cos(ang), sinA = Math.sin(ang);
+    var px = SP_CX + SP_R * cosA, py = SP_CY + SP_R * sinA;
+    // versore tangente (verso di marcia) e versore radiale (verso l'esterno)
+    var tx = -sinA, ty = cosA;
+
+    /* --- nascono nuove scintille --- */
+    if (spVisibile && !spNienteMoto && faseInMovimento()) {
+        spDaEmettere += dt * 46;                 // scintille al secondo
+        while (spDaEmettere >= 1) {
+            spDaEmettere -= 1;
+            accendiScintilla(px, py);
+        }
+    }
+
+    /* --- ognuna vive la sua vita --- */
+    var vive = 0;
+    for (var i = 0; i < spPezzi.length; i++) {
+        var p = spPezzi[i];
+        if (!p.vivo) continue;
+        p.eta += dt;
+        if (p.eta >= p.vita) {
+            p.vivo = false;
+            p.el.style.opacity = '0';
+            continue;
+        }
+        vive++;
+
+        /* Il freno. La spinta all'indietro e' COSTANTE e vale per tutte: quelle
+           nate in avanti rallentano, si fermano e tornano indietro, che e'
+           l'arco delle scintille di una ruota che frena. L'attrito invece
+           smorza solo lo scarto di lato, cosi' il ventaglio si chiude piano.
+           I numeri sono tarati: piu' freno e le scintille davanti non fanno in
+           tempo a vedersi, meno e la coda dietro fa il giro dell'anello e
+           diventa una seconda barra di progresso. */
+        p.vt -= 95 * dt;
+        p.vr *= (1 - 3.2 * dt);
+        p.x += (p.vt * tx + p.vr * cosA) * dt;
+        p.y += (p.vt * ty + p.vr * sinA) * dt;
+
+        var q = p.eta / p.vita;                  // 0 appena nata, 1 spenta
+        p.el.setAttribute('cx', p.x.toFixed(2));
+        p.el.setAttribute('cy', p.y.toFixed(2));
+        p.el.setAttribute('r', (p.r * (1 - q * 0.85)).toFixed(2));
+        // si spegne in fretta sul finale invece che in modo piatto
+        p.el.style.opacity = (1 - q * q).toFixed(3);
+    }
+
+    // si continua finche' c'e' qualcosa da muovere: a pagina ferma il ciclo
+    // si spegne da solo e non consuma batteria
+    if (spVisibile || vive > 0) spRaf = requestAnimationFrame(passoScintille);
+}
+
+function accendiScintilla(px, py){
+    var p = null;
+    for (var i = 0; i < spPezzi.length; i++) { if (!spPezzi[i].vivo) { p = spPezzi[i]; break; } }
+    if (!p) return;                              // riserva esaurita: si salta questa
+
+    p.vivo = true; p.eta = 0;
+    p.x = px; p.y = py;
+    /* Quasi due su tre nascono in AVANTI e si aprono di lato: è lì che sta il
+       grosso dell'effetto, come le scintille che schizzano davanti a una ruota
+       che frena. Il freno le riporta indietro mentre sono ancora accese — per
+       questo hanno una vita piu' lunga delle altre, altrimenti si
+       spegnerebbero prima di aver invertito la marcia e l'arco non si
+       vedrebbe. Quelle nate all'indietro sono poche e con poca spinta: la coda
+       dietro deve restare un accenno, non una seconda barra di progresso. */
+    if (Math.random() < 0.62) {
+        p.vt = 14 + Math.random() * 30;
+        p.vr = (Math.random() - 0.5) * 64;       // ventaglio largo
+        p.vita = 0.50 + Math.random() * 0.30;
+    } else {
+        p.vt = -(6 + Math.random() * 20);
+        p.vr = (Math.random() - 0.5) * 26;
+        p.vita = 0.26 + Math.random() * 0.26;
+    }
+    p.r = 0.85 + Math.random() * 0.95;
+}
+
+/* Con la scheda in secondo piano requestAnimationFrame si ferma da solo, ma
+   spUltimoMs resta vecchio: azzerandolo si evita il salto al ritorno. */
+document.addEventListener('visibilitychange', function(){
+    if (document.hidden) { spUltimoMs = 0; }
+    else if (spVisibile) avviaScintille();
+});
 /* ---------------- clessidra: ora vive in clessidra.php, qui solo il collegamento ----------------
    Si tengono gli STESSI NOMI di funzione di prima (setGlassFraction/stopGrainFlow/updateGrainFlow)
    così il resto del codice (tick, resume, ecc.) non deve cambiare: cambia solo cosa fanno dentro. */
@@ -1270,7 +1318,7 @@ function doStart(){
     activeMode = mode;
     post('pomodoro.php?ajax=start', { mode: mode, durata_minuti: selDurataPomo, project_id: projectId || 0 })
     .then(function(data){
-        if (!data.success) { toast('Errore, riprova'); return; }
+        if (!data.success) { toast(T('comune.errore_generico')); return; }
         activeSessionId = data.session_id;
         
         // Portato a 500ms per un freeze più breve ed elegante
@@ -1287,14 +1335,14 @@ function doStart(){
         midPauseBtn.style.display = ''; 
         
         applyProjectTheme(projectId ? projectColor : '');
-        document.getElementById('statusLabel').textContent = mode === 0 ? 'Concentrazione in corso' : 'Cronometro in corso';
+        document.getElementById('statusLabel').textContent = mode === 0 ? T('pomodoro.concentrazione') : T('pomodoro.cronometro_in_corso');
         document.getElementById('ringTime').style.color = ''; 
         document.getElementById('ringSub').textContent = ''; 
         updateLockUI();
         if (window.Clessidra) window.Clessidra.playStartFlip();
         setTimeout(updateGrainFlow, 850); // avvia la pioggia di granelli solo a capovolgimento concluso
         startTicking();
-    }).catch(function(){ toast('Errore di rete'); });
+    }).catch(function(){ toast(T('comune.errore_rete')); });
 }
 
 /* la pausa CONGELA la sessione (stessa riga sul server, si accumula durata_secondi) e mostra
@@ -1313,7 +1361,7 @@ window.onMidPauseClick = function(){
         accumulatedSec = data.durata_secondi || 0;
         phase = 'paused_task';
         switchActionsPanel('actionsPausedTask');
-        document.getElementById('statusLabel').textContent = 'Sessione in pausa';
+        document.getElementById('statusLabel').textContent = T('pomodoro.sessione_in_pausa');
         document.getElementById('overtimeChip').style.display = 'none';
         renderFrozenPausedDisplay();
         updateLockUI();
@@ -1343,7 +1391,7 @@ function renderFrozenPausedDisplay(){
             segmentStartMs = Date.now();
             phase = 'running';
             switchActionsPanel('actionsRunning');
-            document.getElementById('statusLabel').textContent = activeMode === 0 ? 'Concentrazione in corso' : 'Cronometro in corso';
+            document.getElementById('statusLabel').textContent = activeMode === 0 ? T('pomodoro.concentrazione') : T('pomodoro.cronometro_in_corso');
             updateLockUI(); updateGrainFlow();
             startTicking();
         });
@@ -1351,24 +1399,41 @@ function renderFrozenPausedDisplay(){
 
 window.onInterrompiClick = function(){
     var elapsedSec = phase === 'paused_task' ? accumulatedSec : (accumulatedSec + (Date.now() - segmentStartMs) / 1000);
+    // sotto il minuto non c'e' niente da salvare e niente da chiedere: si butta
     if (elapsedSec < 60) { doInterrompi(true); return; }
-    if (elapsedSec < 300) {
-        showConfirm('Sessione molto breve', 'Sono passati meno di 5 minuti: vuoi comunque salvarla?', function(keep){ doInterrompi(!keep); });
-        return;
-    }
-    doInterrompi(false);
+
+    /* Interrompere non e' una cosa sola: c'e' chi si ferma per fare la pausa e
+       chi ha finito. Prima l'unica uscita era chiudere, e per fare la pausa
+       bisognava aspettare che il tempo finisse da solo. */
+    showChoice(T('pomodoro.scelta_stop_titolo'), T('pomodoro.scelta_stop_testo'), [
+        { chiave: 'pausa',  testo: T('pomodoro.scelta_pausa'),  icona: IC_PAUSA, primaria: true },
+        { chiave: 'chiudi', testo: T('pomodoro.scelta_chiudi'), icona: IC_STOP }
+    ], function(scelta){
+        if (!scelta) return;   // popup chiuso senza decidere: il pomodoro resta com'e'
+        // la pausa parte DOPO che la sessione e' stata chiusa sul server, non prima
+        var poi = (scelta === 'pausa') ? function(){ window.onAvviaPausaClick(); } : null;
+
+        // la domanda "e' durata pochissimo, la salvo?" resta, ma viene dopo:
+        // riguarda cosa farne, non se fermarsi
+        if (elapsedSec < 300) {
+            showConfirm(T('pomodoro.molto_breve'), T('pomodoro.molto_breve_testo'), function(keep){ doInterrompi(!keep, poi); });
+        } else {
+            doInterrompi(false, poi);
+        }
+    });
 };
-function doInterrompi(elimina){
+function doInterrompi(elimina, poi){
     post('pomodoro.php?ajax=interrompi', { session_id: activeSessionId, elimina: elimina ? 1 : 0 }).then(function(){
         stopTicking(); stopGrainFlow();
         phase = 'idle';
         accumulatedSec = 0; segmentStartMs = null;
         switchActionsPanel('actionsIdle');
         document.getElementById('overtimeChip').style.display = 'none';
-        document.getElementById('statusLabel').textContent = 'Pronto quando vuoi';
+        document.getElementById('statusLabel').textContent = T('pomodoro.pronto');
         renderIdleDisplay();
         updateLockUI();
-        toast(elimina ? 'Sessione scartata' : 'Sessione salvata');
+        toast(elimina ? T('pomodoro.sessione_scartata') : T('pomodoro.sessione_salvata'));
+        if (poi) poi();
     });
 }
 
@@ -1376,7 +1441,7 @@ function onNaturalComplete(){
     if (notifiedEnd) return;
     notifiedEnd = true;
     buzz([80,40,80]);
-    notify('Pomodoro concluso 🍅', projectId ? ('Hai completato: ' + projectName) : 'Ottimo lavoro!');
+    notify(T('pomodoro.concluso'), projectId ? T('pomodoro.hai_completato', {progetto: projectName}) : T('pomodoro.ottimo_lavoro'));
     stopGrainFlow();
     if (window.Clessidra) window.Clessidra.finish();
     post('pomodoro.php?ajax=segna_completato', { session_id: activeSessionId }).then(function(data){
@@ -1384,7 +1449,7 @@ function onNaturalComplete(){
         phase = 'completed';
         accumulatedSec = (activeDurataMin || 0) * 60; // Salva il totale dei secondi
         switchActionsPanel('actionsCompleted');
-        document.getElementById('statusLabel').textContent = 'Pomodoro completato';
+        document.getElementById('statusLabel').textContent = T('pomodoro.completato');
         /* a pomodoro finito si chiede cosa fare delle attività del post-it */
         if (window.pomoTodoAskOnFinish) window.pomoTodoAskOnFinish();
         document.getElementById('overtimeChip').style.display = 'flex';
@@ -1399,7 +1464,21 @@ window.onExtendClick = function(){
         if (data.durata_secondi) accumulatedSec = data.durata_secondi; 
         document.getElementById('ringTime').textContent = fmtHMS(accumulatedSec); 
         buzz(15);
-        toast('Tempo esteso');
+
+        /* Prima il tempo veniva aggiunto e il conteggio ripartiva da zero senza
+           chiedere niente: l'unico modo di fermarsi era accorgersene e premere
+           interrompi. Ora la decisione e' esplicita. "Continua" non fa nulla di
+           speciale ed e' voluto: e' esattamente il comportamento di prima, cioe'
+           il tag riparte e si puo' aggiungere altro tempo ancora. */
+        showChoice(T('pomodoro.scelta_tempo_titolo'), T('pomodoro.scelta_tempo_testo'), [
+            { chiave: 'continua', testo: T('pomodoro.scelta_continua'), icona: IC_PLAY, primaria: true },
+            { chiave: 'pausa',    testo: T('pomodoro.scelta_pausa'),    icona: IC_PAUSA },
+            { chiave: 'chiudi',   testo: T('pomodoro.scelta_chiudi'),   icona: IC_STOP }
+        ], function(scelta){
+            if (scelta === 'pausa')  { window.onAvviaPausaClick(); return; }
+            if (scelta === 'chiudi') { window.onChiudiCompletato(); return; }
+            // 'continua' (o popup chiuso senza scegliere): si va avanti come prima
+        });
     });
 };
 
@@ -1416,7 +1495,7 @@ window.onAvviaPausaClick = function(){
         document.body.classList.add('pausa-mode');
         switchActionsPanel('actionsPausaRunning');
         document.getElementById('overtimeChip').style.display = 'none';
-        document.getElementById('statusLabel').textContent = 'Pausa in corso';
+        document.getElementById('statusLabel').textContent = T('pomodoro.pausa_in_corso');
         updateLockUI();
         if (window.Clessidra) window.Clessidra.playStartFlip();
         setTimeout(updateGrainFlow, 850);
@@ -1428,7 +1507,7 @@ window.onChiudiCompletato = function(){
     post('pomodoro.php?ajax=archivia_completato', { session_id: activeSessionId }).then(function(){
         phase = 'idle';
         switchActionsPanel('actionsIdle');
-        document.getElementById('statusLabel').textContent = 'Pronto quando vuoi';
+        document.getElementById('statusLabel').textContent = T('pomodoro.pronto');
         document.getElementById('overtimeChip').style.display = 'none';
         renderIdleDisplay();
         updateLockUI();
@@ -1451,7 +1530,7 @@ window.onFinePausaClick = function(action){
             
             renderIdleDisplay();
             switchActionsPanel('actionsIdle');
-            document.getElementById('statusLabel').textContent = 'Pronto per un altro pomodoro';
+            document.getElementById('statusLabel').textContent = T('pomodoro.pronto_altro');
             updateLockUI();
             
             // Fai partire immediatamente il nuovo Pomodoro senza mostrare il popup
@@ -1459,7 +1538,7 @@ window.onFinePausaClick = function(action){
         } else {
             phase = 'idle';
             switchActionsPanel('actionsIdle');
-            document.getElementById('statusLabel').textContent = 'Pronto quando vuoi';
+            document.getElementById('statusLabel').textContent = T('pomodoro.pronto');
             renderIdleDisplay();
             updateLockUI();
         }
@@ -1501,6 +1580,15 @@ function tick(){
             setGlassFraction(total > 0 ? realElapsed / total : 0, false, false);
         } else {
             // --- MODALITÀ CRONOMETRO ---
+            /* Il tetto delle dieci ore vale anche con la pagina aperta, non solo
+               alla riapertura: senza questo, chi lascia il cronometro acceso
+               tutta la notte lo ritrova a 14 ore invece che fermo al limite,
+               e i due percorsi darebbero risultati diversi. */
+            if (realElapsed >= POMO_LIMITE_SEC) {
+                toast(T('pomodoro.limite_raggiunto'));
+                doInterrompi(false);
+                return;
+            }
             // Il testo mostra i secondi reali passati (bloccati per i primi 500ms a 00:00)
             document.getElementById('ringTime').textContent = fmtHMS(textElapsed);
             
@@ -1513,6 +1601,15 @@ function tick(){
     } else if (phase === 'completed') {
         var overSec = (Date.now() - completedEndMs) / 1000;
         document.getElementById('overtimeValue').textContent = fmtHMS(overSec);
+
+        /* Il pomodoro e' finito ma si continua a studiare: la barra resta
+           piena, perche' quel pomodoro e' completo e mostrarlo a meta' sarebbe
+           una bugia. La scintilla pero' riparte e fa un giro nuovo della stessa
+           durata del pomodoro: da' la misura di quanto tempo in piu' si sta
+           facendo, senza toccare il risultato gia' raggiunto. */
+        var giro = (activeDurataMin || 0) * 60;
+        setRingFraction(1);
+        if (giro > 0) setSparkFraction((overSec % giro) / giro);
     } else if (phase === 'pausa_running') {
         var nowP = Date.now();
         var pRealElapsed = Math.max(0, (nowP - (pausaStartMs - 500)) / 1000);
@@ -1525,10 +1622,10 @@ function tick(){
 
         if (pTotal - pRealElapsed <= 0 && !notifiedPausaEnd) {
             notifiedPausaEnd = true; buzz([60,30,60]);
-            notify('Pausa finita 🌿', 'È ora di tornare al lavoro.');
+            notify(T('pomodoro.pausa_finita'), T('pomodoro.torna_al_lavoro'));
             phase = 'pausa_done';
             switchActionsPanel('actionsPausaDone');
-            document.getElementById('statusLabel').textContent = 'Pausa conclusa';
+            document.getElementById('statusLabel').textContent = T('pomodoro.pausa_conclusa');
             stopGrainFlow(); updateLockUI();
         }
         if (pRemainingText > 0) {
@@ -1561,6 +1658,40 @@ window.closeConfirm = function(result){
     if (confirmCallback) { var cb = confirmCallback; confirmCallback = null; cb(result); }
 };
 
+/* ---------------- scelta a piu' vie ----------------
+   showConfirm risponde si'/no; qui le uscite sono tre. Le voci arrivano come
+   elenco di {chiave, testo, icona, primaria} e la richiamata riceve la chiave
+   scelta: chi chiama decide cosa farne, questo pezzo non sa niente di
+   pomodori. Le vie si disegnano ogni volta da capo perche' cambiano fra un
+   caso e l'altro. */
+var choiceCallback = null;
+function showChoice(title, msg, voci, cb){
+    document.getElementById('choiceTitle').textContent = title;
+    document.getElementById('choiceMsg').textContent = msg || '';
+    var box = document.getElementById('choiceActions');
+    box.innerHTML = '';
+    choiceCallback = cb;
+    voci.forEach(function(v){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'choice-btn' + (v.primaria ? ' choice-btn-primary' : '');
+        b.innerHTML = '<span class="choice-ic">' + v.icona + '</span><span>' + pomoEsc(v.testo) + '</span>';
+        b.addEventListener('click', function(){ closeChoice(v.chiave); });
+        box.appendChild(b);
+    });
+    document.getElementById('choiceOverlay').classList.add('show');
+}
+function closeChoice(scelta){
+    document.getElementById('choiceOverlay').classList.remove('show');
+    if (choiceCallback) { var cb = choiceCallback; choiceCallback = null; cb(scelta); }
+}
+
+/* Le stesse icone dei tasti grandi: se il triangolo sul tasto vuol dire
+   "parti", nel popup deve voler dire la stessa cosa. */
+var IC_PLAY  = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.4 5.2a1 1 0 0 1 1.53-.85l8.2 5.15a1 1 0 0 1 0 1.7l-8.2 5.15a1 1 0 0 1-1.53-.85z" transform="translate(-1.2 1)"/></svg>';
+var IC_STOP  = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.4"/></svg>';
+var IC_PAUSA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 10.5h2.2a2.4 2.4 0 0 1 0 4.8H16"/><path d="M8 2.5v2.6M12 2.5v2.6"/></svg>';
+
 /* ---------------- bootstrap dallo stato iniziale (server-rendered) ---------------- */
 function bootstrap(){
     document.querySelectorAll('#modeSwitch button').forEach(function(b){ b.classList.toggle('active', parseInt(b.getAttribute('data-mode'),10) === mode); });
@@ -1585,14 +1716,14 @@ function bootstrap(){
             // sessione congelata: mostriamo subito il tempo mancante fermo, niente ticking
             phase = 'paused_task';
             switchActionsPanel('actionsPausedTask');
-            document.getElementById('statusLabel').textContent = 'Sessione in pausa';
+            document.getElementById('statusLabel').textContent = T('pomodoro.sessione_in_pausa');
             renderFrozenPausedDisplay();
         } else {
             segmentStartMs = a.data_ripresa ? new Date(a.data_ripresa.replace(' ', 'T')).getTime() : new Date(a.data_inizio.replace(' ', 'T')).getTime();
             if (isNaN(segmentStartMs)) segmentStartMs = Date.now();
             phase = 'running';
             switchActionsPanel('actionsRunning');
-            document.getElementById('statusLabel').textContent = mode === 0 ? 'Concentrazione in corso' : 'Cronometro in corso';
+            document.getElementById('statusLabel').textContent = mode === 0 ? T('pomodoro.concentrazione') : T('pomodoro.cronometro_in_corso');
             startTicking();
         }
         updateLockUI(); updateGrainFlow();
@@ -1604,19 +1735,22 @@ function bootstrap(){
         phase = 'pausa_running';
         document.body.classList.add('pausa-mode');
         switchActionsPanel('actionsPausaRunning');
-        document.getElementById('statusLabel').textContent = 'Pausa in corso';
+        document.getElementById('statusLabel').textContent = T('pomodoro.pausa_in_corso');
         updateLockUI(); updateGrainFlow();
         startTicking();
     } else if (STATE0.last && STATE0.last.esito === 'completato') {
         var c = STATE0.last;
         activeSessionId = c.id; activeMode = c.mode; mode = c.mode;
+        /* Serve al giro della scintilla in fuoritempo: senza, riaprendo la
+           pagina su un pomodoro gia' completato il pallino resterebbe fermo. */
+        activeDurataMin = c.durata_prevista_minuti;
         completedEndMs = new Date(c.data_fine.replace(' ', 'T')).getTime();
         accumulatedSec = c.durata_secondi || (c.durata_prevista_minuti * 60) || 0; // Recupera il totale!
         if (c.project_id) { projectId = c.project_id; projectName = c.progetto_nome; projectColor = c.progetto_colore; if (window.psSetValue) window.psSetValue('ps-modal-pomo', projectId, projectName, projectColor); }
         phase = 'completed';
         switchActionsPanel('actionsCompleted');
         document.getElementById('overtimeChip').style.display = 'flex';
-        document.getElementById('statusLabel').textContent = 'Pomodoro completato';
+        document.getElementById('statusLabel').textContent = T('pomodoro.completato');
         applyProjectTheme(projectId ? projectColor : '');
         document.getElementById('ringTime').style.color = 'var(--pomo-accent)';
         document.getElementById('ringTime').textContent = fmtHMS(accumulatedSec);
@@ -1630,7 +1764,47 @@ function bootstrap(){
     }
 }
 bootstrap();
+mostraAvvisoAbbandono();
 pomoUpdateProjectPill(); // richiesta 17: mostra la catena nonno•padre•progetto dopo l'idratazione
+
+/* ---------------- avviso del pomodoro chiuso d'ufficio ----------------
+   Non e' un errore da sbattere in faccia: la pagina e' gia' pronta per un
+   pomodoro nuovo e questo racconta soltanto com'e' finito il precedente.
+   Toccandolo si apre lo storico su quella riga, gia' in modifica, perche' la
+   durata salvata e' una stima e l'unico che sa quella vera e' l'utente. */
+function mostraAvvisoAbbandono(){
+    var a = STATE0.avviso;
+    if (!a) return;
+    var box = document.getElementById('pomoAvviso');
+    if (!box) return;
+
+    var d = new Date(String(a.data_inizio).replace(' ', 'T'));
+    var quando = isNaN(d.getTime()) ? '' : d.toLocaleDateString(T.lingua || 'it', { day:'numeric', month:'long' })
+                 + ' ' + T('pomodoro.avviso_alle') + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+
+    document.getElementById('pomoAvvisoTesto').textContent =
+        T('pomodoro.avviso_non_terminato', { quando: quando, durata: fmtDurataBreve(a.durata_secondi) });
+    box.style.display = 'flex';
+    // un fotogramma dopo, altrimenti la transizione non parte: l'elemento
+    // passerebbe da display:none allo stato finale senza stati intermedi
+    requestAnimationFrame(function(){ box.classList.add('show'); });
+
+    function spegni(){
+        box.classList.remove('show');
+        setTimeout(function(){ box.style.display = 'none'; }, 300);
+        post('pomodoro.php?ajax=chiudi_avviso', { session_id: a.id });
+    }
+    document.getElementById('pomoAvvisoX').addEventListener('click', spegni);
+    document.getElementById('pomoAvvisoBody').addEventListener('click', function(){
+        spegni();
+        if (window.openPomodoroStorico) window.openPomodoroStorico({ scope: 'all', editSessionId: a.id });
+    });
+}
+function fmtDurataBreve(sec){
+    sec = Math.max(0, Math.floor(sec));
+    var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+    return h > 0 ? (h + 'h ' + m + 'm') : (m + 'm');
+}
 
 })();
 </script>
@@ -1717,12 +1891,16 @@ pomoUpdateProjectPill(); // richiesta 17: mostra la catena nonno•padre•proge
 
         var box = document.createElement('div');
         box.className = 'pomo-todo-ov show';
+        /* Il titolo era in Georgia: il post-it di progetti e' passato al
+           carattere di sistema perche' quello con le grazie e' faticoso da
+           leggere su schermo, e questi due foglietti devono essere lo stesso
+           oggetto. Le classi fanno il resto, niente stile scritto qui dentro. */
         box.innerHTML = '<div class="pomo-postit" style="max-width:320px">'
             + '<span class="pomo-postit-tape"></span>'
-            + '<div style="font-family:Georgia,serif;font-size:19px;margin-bottom:6px">Le attività di questo pomodoro</div>'
-            + '<div style="font-size:13px;color:#8A8177;line-height:1.5;margin-bottom:16px">'
+            + '<div class="pomo-postit-titolo">' + T('pomodoro.attivita_di_questo') + '</div>'
+            + '<div class="pomo-postit-sub">'
             + doneCount + ' su ' + ids.length + ' spuntate. Cosa ne facciamo?</div>'
-            + '<div class="pt-acts" style="display:flex;flex-direction:column;gap:7px"></div></div>';
+            + '<div class="pt-acts"></div></div>';
         document.body.appendChild(box);
 
         var acts = box.querySelector('.pt-acts');
@@ -1730,8 +1908,7 @@ pomoUpdateProjectPill(); // richiesta 17: mostra la catena nonno•padre•proge
             var b = document.createElement('button');
             b.type = 'button';
             b.textContent = label;
-            b.style.cssText = 'padding:11px;border-radius:13px;border:none;cursor:pointer;font:inherit;font-size:14px;'
-                + (primary ? 'background:#A9C3AE;color:#FFFDFA' : 'background:#F5F1EA;color:#4A443D');
+            b.className = 'pomo-postit-act' + (primary ? ' is-primary' : '');
             b.addEventListener('click', function(){
                 window.nisamaTodo.api('pomodoro_close', { mode: mode, ids: ids }).then(function(){
                     box.remove();
@@ -1740,8 +1917,8 @@ pomoUpdateProjectPill(); // richiesta 17: mostra la catena nonno•padre•proge
             });
             acts.appendChild(b);
         }
-        act('Elimina quelle spuntate', 'done', true);
-        act('Elimina tutte', 'all', false);
+        act(T('pomodoro.elimina_spuntate'), 'done', true);
+        act(T('pomodoro.elimina_tutte'), 'all', false);
         act('Tienile tutte', 'keep', false);
     };
 })();

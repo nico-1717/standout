@@ -1,0 +1,6 @@
+/* index.css — stile di index.php.
+   Estratto dal blocco <style> che stava dentro la pagina: e' il passo che
+   serve per togliere 'unsafe-inline' dalla CSP. */
+
+  html, body { margin: 0; padding: 0; background: #12131A; }
+  * { -webkit-tap-highlight-color: transparent; }

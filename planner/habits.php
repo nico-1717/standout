@@ -6,9 +6,9 @@
    ===================================================================== */
 require_once 'config.php';
 require_once 'security_core.php';
-$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
-mysqli_set_charset($conn, 'utf8mb4');
+/* sec_db() riusa la connessione gia' aperta e la configura (utf8mb4, errori
+   come eccezioni) invece di aprirne una seconda. */
+$conn = sec_db();
 require_once 'auth_check.php';
 $current_user_id = (int)$utente_corrente['id'];
 
@@ -29,24 +29,21 @@ function hb_fail($message, $code = 400) {
     http_response_code($code);
     hb_json(['ok' => false, 'error' => $message]);
 }
+/* Questi quattro facevano gia' la cosa giusta, ma a modo loro. Passandoli alle
+   sec_* del nucleo si guadagna quello che avevano in piu': sec_str toglie i tag
+   e i caratteri di controllo, non solo gli spazi ai bordi. */
 function hb_post($key, $default = '') {
-    return isset($_POST[$key]) ? trim((string)$_POST[$key]) : $default;
+    if (!isset($_POST[$key])) return $default;
+    return sec_str($_POST[$key], 2000);
 }
 function hb_color($value, $fallback = '#7C5CFF') {
-    $value = strtoupper(trim((string)$value));
-    return preg_match('/^#[0-9A-F]{6}$/', $value) ? $value : $fallback;
+    return strtoupper(sec_color($value, $fallback));
 }
 function hb_date($value, $fallback = null) {
-    $value = trim((string)$value);
-    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
-        $parts = explode('-', $value);
-        if (checkdate((int)$parts[1], (int)$parts[2], (int)$parts[0])) return $value;
-    }
-    return $fallback;
+    return sec_date($value, $fallback);
 }
 function hb_enum($value, array $allowed, $fallback) {
-    $value = trim((string)$value);
-    return in_array($value, $allowed, true) ? $value : $fallback;
+    return sec_enum($value, $allowed, $fallback);
 }
 function hb_weekdays($value) {
     $value = trim((string)$value);
@@ -59,21 +56,10 @@ function hb_clamp($n, $min, $max) { $n = (float)$n; return $n < $min ? $min : ($
    Impostazioni utente: creata al volo se manca
    --------------------------------------------------------------------- */
 function hb_settings($conn, $userId) {
-    $stmt = mysqli_prepare($conn, "SELECT * FROM habit_settings WHERE user_id = ?");
-    mysqli_stmt_bind_param($stmt, 'i', $userId);
-    mysqli_stmt_execute($stmt);
-    $row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
-    mysqli_stmt_close($stmt);
+    $row = sec_one("SELECT * FROM habit_settings WHERE user_id = ?", [$userId]);
     if (!$row) {
-        $ins = mysqli_prepare($conn, "INSERT IGNORE INTO habit_settings (user_id) VALUES (?)");
-        mysqli_stmt_bind_param($ins, 'i', $userId);
-        mysqli_stmt_execute($ins);
-        mysqli_stmt_close($ins);
-        $stmt = mysqli_prepare($conn, "SELECT * FROM habit_settings WHERE user_id = ?");
-        mysqli_stmt_bind_param($stmt, 'i', $userId);
-        mysqli_stmt_execute($stmt);
-        $row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
-        mysqli_stmt_close($stmt);
+        sec_q("INSERT IGNORE INTO habit_settings (user_id) VALUES (?)", [$userId]);
+        $row = sec_one("SELECT * FROM habit_settings WHERE user_id = ?", [$userId]);
     }
     if (!$row) {
         return [
@@ -144,13 +130,9 @@ function hb_load_habits($conn, $userId) {
             LEFT JOIN habit_streak_records r ON r.habit_id = h.id
             WHERE h.user_id = ?
             ORDER BY h.is_archived ASC, h.sort_order ASC, h.id ASC";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, 'i', $userId);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
+    $res = sec_all($sql, [$userId]);
     $out = [];
-    while ($row = mysqli_fetch_assoc($res)) { $out[] = hb_habit_out($row); }
-    mysqli_stmt_close($stmt);
+    foreach ($res as $row) { $out[] = hb_habit_out($row); }
     return $out;
 }
 
@@ -160,12 +142,9 @@ function hb_load_logs($conn, $userId, $days = HB_HISTORY_DAYS) {
             FROM habit_logs
             WHERE user_id = ? AND log_date >= ?
             ORDER BY log_date ASC";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, 'is', $userId, $from);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
+    $res = sec_all($sql, [$userId, $from]);
     $out = [];
-    while ($row = mysqli_fetch_assoc($res)) {
+    foreach ($res as $row) {
         $out[] = [
             'habit_id'    => (int)$row['habit_id'],
             'date'        => $row['log_date'],
@@ -177,7 +156,6 @@ function hb_load_logs($conn, $userId, $days = HB_HISTORY_DAYS) {
             'mood'        => $row['mood'] !== null ? (int)$row['mood'] : null,
         ];
     }
-    mysqli_stmt_close($stmt);
     return $out;
 }
 
@@ -188,20 +166,25 @@ function hb_load_journal($conn, $userId, $days = HB_HISTORY_DAYS) {
             FROM habit_daily_journal
             WHERE user_id = ? AND entry_date >= ?
             ORDER BY entry_date DESC";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, 'is', $userId, $from);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
+    $res = sec_all($sql, [$userId, $from]);
     $out = [];
-    while ($row = mysqli_fetch_assoc($res)) {
+    foreach ($res as $row) {
         $out[$row['entry_date']] = [
             'mood'   => $row['mood']   !== null ? (int)$row['mood']   : null,
             'energy' => $row['energy'] !== null ? (int)$row['energy'] : null,
             'note'   => $row['note'] !== null ? $row['note'] : '',
         ];
     }
-    mysqli_stmt_close($stmt);
     return $out ? $out : new stdClass();   // oggetto vuoto, non array, per il JSON
+}
+
+/* Le categorie predefinite (user_id = 0) hanno uno slug stabile: si traducono
+   da quello, senza indovinare dal nome. Quelle create dall'utente non hanno una
+   chiave nel dizionario e restano com'e' le ha scritte lui - che e' giusto. */
+function hb_nome_categoria(array $row): string {
+    if ((int)$row['user_id'] !== 0) return $row['name'];
+    $tradotto = t('abitudini.cat_' . $row['slug']);
+    return (strpos($tradotto, '<<') === 0) ? $row['name'] : $tradotto;
 }
 
 function hb_load_categories($conn, $userId) {
@@ -209,22 +192,18 @@ function hb_load_categories($conn, $userId) {
             FROM habit_categories
             WHERE user_id = 0 OR user_id = ?
             ORDER BY sort_order ASC, id ASC";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, 'i', $userId);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
+    $res = sec_all($sql, [$userId]);
     $out = [];
-    while ($row = mysqli_fetch_assoc($res)) {
+    foreach ($res as $row) {
         $out[] = [
             'id'    => (int)$row['id'],
             'slug'  => $row['slug'],
-            'name'  => $row['name'],
+            'name'  => hb_nome_categoria($row),
             'icon'  => $row['icon'],
             'color' => $row['color'],
             'own'   => (int)$row['user_id'] !== 0,
         ];
     }
-    mysqli_stmt_close($stmt);
     return $out;
 }
 
@@ -234,12 +213,9 @@ function hb_load_achievements($conn, $userId) {
             FROM habit_achievements a
             LEFT JOIN habit_user_achievements u ON u.achievement_id = a.id AND u.user_id = ?
             ORDER BY a.sort_order ASC";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, 'i', $userId);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
+    $res = sec_all($sql, [$userId]);
     $out = [];
-    while ($row = mysqli_fetch_assoc($res)) {
+    foreach ($res as $row) {
         $out[] = [
             'id'          => (int)$row['id'],
             'code'        => $row['code'],
@@ -256,14 +232,66 @@ function hb_load_achievements($conn, $userId) {
             'is_seen'     => $row['is_seen'] !== null ? ((int)$row['is_seen'] === 1) : true,
         ];
     }
-    mysqli_stmt_close($stmt);
     return $out;
 }
 
 function hb_presets() {
     if (!is_readable(HB_PRESETS_FILE)) return ['palette' => [], 'icons' => [], 'units' => [], 'presets' => [], 'day_parts' => []];
     $data = json_decode(file_get_contents(HB_PRESETS_FILE), true);
-    return is_array($data) ? $data : ['palette' => [], 'icons' => [], 'units' => [], 'presets' => [], 'day_parts' => []];
+    if (!is_array($data)) return ['palette' => [], 'icons' => [], 'units' => [], 'presets' => [], 'day_parts' => []];
+    return hb_presets_tradotti($data);
+}
+
+/* Traduce i nomi che stanno in habits_presets.json.
+
+   Il file resta UNO e in italiano: e' l'elenco dei suggerimenti, non un file di
+   traduzioni. Se lo duplicassi in due lingue, la prossima abitudine aggiunta
+   esisterebbe solo in una delle due e nessuno se ne accorgerebbe finche' un
+   utente inglese non la trova scritta in italiano.
+
+   Ogni voce ha una chiave stabile - 'drink_water', 'violet', 'morning' - e la
+   traduzione si cerca da quella. Se manca, resta il nome italiano del file:
+   una voce nuova si vede subito ma non rompe niente. */
+function hb_presets_tradotti(array $d): array {
+    $trad = function (string $chiave, string $ripiego): string {
+        $t = t('abitudini.' . $chiave);
+        return (strpos($t, '<<') === 0) ? $ripiego : $t;
+    };
+    /* Le unita' non hanno una chiave nel file: si ricava dal testo, sempre allo
+       stesso modo qui e nello script che ha generato il dizionario. */
+    $chiaveUnita = function (string $u): string {
+        $x = @iconv('UTF-8', 'ASCII//TRANSLIT', $u);
+        $x = preg_replace('/[^a-zA-Z0-9]+/', '_', $x !== false ? $x : $u);
+        $x = strtolower(trim($x, '_'));
+        return $x === '' ? 'x' : $x;
+    };
+
+    foreach ($d['palette'] ?? [] as $i => $p) {
+        if (isset($p['key'], $p['name'])) $d['palette'][$i]['name'] = $trad('pal_' . $p['key'], $p['name']);
+    }
+    foreach ($d['day_parts'] ?? [] as $i => $p) {
+        if (isset($p['key'], $p['name'])) $d['day_parts'][$i]['name'] = $trad('part_' . $p['key'], $p['name']);
+    }
+    foreach ($d['units'] ?? [] as $i => $u) {
+        $d['units'][$i] = $trad('unit_' . $chiaveUnita((string)$u), (string)$u);
+    }
+    if (isset($d['icons']) && is_array($d['icons'])) {
+        $icone = [];
+        foreach ($d['icons'] as $gruppo => $lista) {
+            $icone[$trad('icone_' . $chiaveUnita((string)$gruppo), (string)$gruppo)] = $lista;
+        }
+        $d['icons'] = $icone;
+    }
+    foreach ($d['presets'] ?? [] as $i => $p) {
+        if (!isset($p['key'])) continue;
+        if (isset($p['name']))       $d['presets'][$i]['name']       = $trad('pre_' . $p['key'], $p['name']);
+        if (isset($p['motivation'])) $d['presets'][$i]['motivation'] = $trad('pre_' . $p['key'] . '_m', $p['motivation']);
+        /* anche l'unita' del preset, con la stessa regola */
+        if (isset($p['unit']) && $p['unit'] !== '') {
+            $d['presets'][$i]['unit'] = $trad('unit_' . $chiaveUnita((string)$p['unit']), (string)$p['unit']);
+        }
+    }
+    return $d;
 }
 
 /* ---------------------------------------------------------------------
@@ -291,23 +319,21 @@ function hb_is_due($habit, $dateStr) {
 
 /* Streak corrente calcolata a ritroso dai log (skipped non spezza). */
 function hb_current_streak($conn, $habit, $userId) {
-    $sql = "SELECT log_date, status FROM habit_logs WHERE habit_id = ? AND user_id = ? ORDER BY log_date DESC LIMIT 1000";
-    $stmt = mysqli_prepare($conn, $sql);
-    $hid = (int)$habit['id'];
-    mysqli_stmt_bind_param($stmt, 'ii', $hid, $userId);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
+    $res = sec_all("SELECT log_date, status FROM habit_logs WHERE habit_id = ? AND user_id = ? ORDER BY log_date DESC LIMIT 1000",
+                   [(int)$habit['id'], $userId]);
     $byDate = [];
-    while ($row = mysqli_fetch_assoc($res)) { $byDate[$row['log_date']] = $row['status']; }
-    mysqli_stmt_close($stmt);
+    foreach ($res as $row) { $byDate[$row['log_date']] = $row['status']; }
 
     $streak = 0;
-    $cursor = time();
+    /* Si scorre per date, non per secondi: togliere 86400 secondi sbaglia nei
+       due giorni del cambio d'ora, quando un giorno dura 23 o 25 ore - la
+       streak saltava un giorno a marzo e ne contava due volte lo stesso a
+       ottobre. strtotime('-N day') ragiona in giorni di calendario. */
+    $oggi = date('Y-m-d');
     $isQuit = $habit['kind'] === 'quit';
     for ($i = 0; $i < 1000; $i++) {
-        $d = date('Y-m-d', $cursor);
+        $d = date('Y-m-d', strtotime($oggi . ' -' . $i . ' day'));
         if ($d < $habit['start_date']) break;
-        $cursor -= 86400;
         if (!hb_is_due($habit, $d)) continue;
         $status = isset($byDate[$d]) ? $byDate[$d] : null;
         if ($isQuit) {
@@ -327,56 +353,44 @@ function hb_current_streak($conn, $habit, $userId) {
 /* ---------------------------------------------------------------------
    Traguardi: valutati dopo ogni check-in
    --------------------------------------------------------------------- */
-function hb_scalar($conn, $sql, $types, $params) {
-    $stmt = mysqli_prepare($conn, $sql);
-    if (!$stmt) return 0;
-    if ($types !== '') { mysqli_stmt_bind_param($stmt, $types, ...$params); }
-    mysqli_stmt_execute($stmt);
-    $row = mysqli_fetch_row(mysqli_stmt_get_result($stmt));
-    mysqli_stmt_close($stmt);
-    return $row ? (float)$row[0] : 0;
+/* $types non serve piu': sec_q deduce il tipo dal valore invece di farselo
+   dichiarare. Una lettera sbagliata in 'iissddis' spostava tutti i valori di un
+   posto, in silenzio. */
+function hb_scalar($sql, $params) {
+    $row = sec_one($sql, $params);
+    return $row ? (float)reset($row) : 0;
 }
 
 function hb_unlock($conn, $userId, $achId, $habitId, $value) {
     /* habit_id NULL sui traguardi globali: la UNIQUE KEY non basta perché in
        MySQL i NULL non collidono, quindi controlliamo prima con <=>. */
-    $chk = mysqli_prepare($conn, "SELECT id FROM habit_user_achievements WHERE user_id = ? AND achievement_id = ? AND habit_id <=> ?");
-    mysqli_stmt_bind_param($chk, 'iii', $userId, $achId, $habitId);
-    mysqli_stmt_execute($chk);
-    $exists = mysqli_fetch_row(mysqli_stmt_get_result($chk));
-    mysqli_stmt_close($chk);
+    $exists = sec_one("SELECT id FROM habit_user_achievements WHERE user_id = ? AND achievement_id = ? AND habit_id <=> ?",
+                      [$userId, $achId, $habitId]);
     if ($exists) return false;
 
-    $sql = "INSERT IGNORE INTO habit_user_achievements (user_id, achievement_id, habit_id, value_reached) VALUES (?, ?, ?, ?)";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, 'iiii', $userId, $achId, $habitId, $value);
-    mysqli_stmt_execute($stmt);
-    $inserted = mysqli_stmt_affected_rows($stmt) > 0;
-    mysqli_stmt_close($stmt);
-    return $inserted;
+    sec_q("INSERT IGNORE INTO habit_user_achievements (user_id, achievement_id, habit_id, value_reached) VALUES (?, ?, ?, ?)",
+          [$userId, $achId, $habitId, $value]);
+    return sec_affected() > 0;
 }
 
 function hb_evaluate_achievements($conn, $userId, $habit, $currentStreak) {
     $unlocked = [];
-    $res = mysqli_query($conn, "SELECT id, code, name, description, icon, tier, metric, threshold, scope FROM habit_achievements");
-    $catalog = [];
-    while ($res && ($row = mysqli_fetch_assoc($res))) { $catalog[] = $row; }
+    $catalog = sec_all("SELECT id, code, name, description, icon, tier, metric, threshold, scope FROM habit_achievements");
     if (empty($catalog)) return $unlocked;
 
-    $totalCheckins = (int)hb_scalar($conn, "SELECT COUNT(*) FROM habit_logs WHERE user_id = ? AND status = 'done'", 'i', [$userId]);
-    $habitCount    = (int)hb_scalar($conn, "SELECT COUNT(*) FROM habits WHERE user_id = ? AND is_archived = 0", 'i', [$userId]);
+    $totalCheckins = (int)hb_scalar("SELECT COUNT(*) FROM habit_logs WHERE user_id = ? AND status = 'done'", [$userId]);
+    $habitCount    = (int)hb_scalar("SELECT COUNT(*) FROM habits WHERE user_id = ? AND is_archived = 0", [$userId]);
 
     // giornate perfette: giorni in cui tutti i log del giorno sono 'done'
-    $perfectDays = (int)hb_scalar($conn,
-        "SELECT COUNT(*) FROM (
+    $perfectDays = (int)hb_scalar("SELECT COUNT(*) FROM (
             SELECT log_date FROM habit_logs WHERE user_id = ?
             GROUP BY log_date
             HAVING SUM(status <> 'done') = 0 AND COUNT(*) > 0
-         ) t", 'i', [$userId]);
+         ) t", [$userId]);
 
     // percentuale di completamento ultimi 30 giorni
-    $done30 = (float)hb_scalar($conn, "SELECT COUNT(*) FROM habit_logs WHERE user_id = ? AND status = 'done' AND log_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)", 'i', [$userId]);
-    $all30  = (float)hb_scalar($conn, "SELECT COUNT(*) FROM habit_logs WHERE user_id = ? AND status <> 'skipped' AND log_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)", 'i', [$userId]);
+    $done30 = (float)hb_scalar("SELECT COUNT(*) FROM habit_logs WHERE user_id = ? AND status = 'done' AND log_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)", [$userId]);
+    $all30  = (float)hb_scalar("SELECT COUNT(*) FROM habit_logs WHERE user_id = ? AND status <> 'skipped' AND log_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)", [$userId]);
     $rate30 = $all30 > 0 ? round($done30 * 100 / $all30) : 0;
 
     foreach ($catalog as $a) {
@@ -402,26 +416,19 @@ function hb_evaluate_achievements($conn, $userId, $habit, $currentStreak) {
 }
 
 function hb_touch_records($conn, $habitId, $userId, $currentStreak) {
-    $total = (int)hb_scalar($conn, "SELECT COUNT(*) FROM habit_logs WHERE habit_id = ? AND status = 'done'", 'i', [$habitId]);
+    $total = (int)hb_scalar("SELECT COUNT(*) FROM habit_logs WHERE habit_id = ? AND status = 'done'", [$habitId]);
     $sql = "INSERT INTO habit_streak_records (habit_id, user_id, best_streak, best_streak_end, total_checkins)
             VALUES (?, ?, ?, CURDATE(), ?)
             ON DUPLICATE KEY UPDATE
               best_streak_end = IF(VALUES(best_streak) > best_streak, CURDATE(), best_streak_end),
               best_streak     = GREATEST(best_streak, VALUES(best_streak)),
               total_checkins  = VALUES(total_checkins)";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, 'iiii', $habitId, $userId, $currentStreak, $total);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
-    return (int)hb_scalar($conn, "SELECT best_streak FROM habit_streak_records WHERE habit_id = ?", 'i', [$habitId]);
+    sec_q($sql, [$habitId, $userId, $currentStreak, $total]);
+    return (int)hb_scalar("SELECT best_streak FROM habit_streak_records WHERE habit_id = ?", [$habitId]);
 }
 
 function hb_fetch_habit($conn, $habitId, $userId) {
-    $stmt = mysqli_prepare($conn, "SELECT * FROM habits WHERE id = ? AND user_id = ?");
-    mysqli_stmt_bind_param($stmt, 'ii', $habitId, $userId);
-    mysqli_stmt_execute($stmt);
-    $row = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
-    mysqli_stmt_close($stmt);
+    $row = sec_one("SELECT * FROM habits WHERE id = ? AND user_id = ?", [$habitId, $userId]);
     return $row ? hb_habit_out($row) : null;
 }
 
@@ -453,7 +460,11 @@ if ($ajax === 'bootstrap') {
 
 /* --- check-in: incrementa, decrementa, salta, imposta un valore ------- */
 if ($ajax === 'log_set') {
-    $habitId = (int)hb_post('habit_id');
+    $habitId = sec_int($_POST['habit_id'] ?? 0, 1);
+    /* La riga dev'essere sua. Le query hanno gia' "AND user_id = ?", ma cosi'
+       chi prova a toccare l'abitudine di un altro riceve "non trovata" invece
+       di un silenzioso "fatto" che non ha fatto niente. */
+    if (!sec_owns('habits', $habitId, $current_user_id)) hb_fail(t('abitudini.abitudine_non_trovata'), 404);
     $date    = hb_date(hb_post('date'), date('Y-m-d'));
     $mode    = hb_enum(hb_post('mode'), ['increment','decrement','set','skip','fail','clear','toggle'], 'toggle');
     $value   = (float)hb_post('value', '0');
@@ -461,15 +472,11 @@ if ($ajax === 'log_set') {
     $note    = hb_post('note', '');
 
     $habit = hb_fetch_habit($conn, $habitId, $current_user_id);
-    if (!$habit) hb_fail('Abitudine non trovata', 404);
-    if ($date > date('Y-m-d')) hb_fail('Non puoi registrare un giorno futuro');
+    if (!$habit) hb_fail(t('abitudini.abitudine_non_trovata'), 404);
+    if ($date > date('Y-m-d')) hb_fail(t('abitudini.no_giorno_futuro'));
 
     // log esistente per quel giorno
-    $stmt = mysqli_prepare($conn, "SELECT * FROM habit_logs WHERE habit_id = ? AND log_date = ?");
-    mysqli_stmt_bind_param($stmt, 'is', $habitId, $date);
-    mysqli_stmt_execute($stmt);
-    $log = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
-    mysqli_stmt_close($stmt);
+    $log = sec_one("SELECT * FROM habit_logs WHERE habit_id = ? AND log_date = ?", [$habitId, $date]);
 
     $target = (float)$habit['target_amount'];
     $step   = max(0.01, (float)$habit['step_amount']);
@@ -532,11 +539,7 @@ if ($ajax === 'log_set') {
 
     $emptyRow = ($amount <= 0 && $status === 'partial' && $note === '');
     if ($emptyRow && $log) {
-        $del = mysqli_prepare($conn, "DELETE FROM habit_logs WHERE id = ?");
-        $logId = (int)$log['id'];
-        mysqli_stmt_bind_param($del, 'i', $logId);
-        mysqli_stmt_execute($del);
-        mysqli_stmt_close($del);
+        sec_q("DELETE FROM habit_logs WHERE id = ?", [(int)$log['id']]);
         $log = null;
     } elseif (!$emptyRow) {
         $sql = "INSERT INTO habit_logs (habit_id, user_id, log_date, status, amount, target_amount, completions, note)
@@ -544,19 +547,13 @@ if ($ajax === 'log_set') {
                 ON DUPLICATE KEY UPDATE status = VALUES(status), amount = VALUES(amount),
                     target_amount = VALUES(target_amount), completions = VALUES(completions),
                     note = IF(VALUES(note) = '', note, VALUES(note))";
-        $stmt = mysqli_prepare($conn, $sql);
-        mysqli_stmt_bind_param($stmt, 'iissddis', $habitId, $current_user_id, $date, $status, $amount, $target, $completions, $note);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
+        sec_q($sql, [$habitId, $current_user_id, $date, $status, $amount, $target, $completions, $note]);
     }
 
     // evento granulare (serve al grafico "a che ora completo")
     if (in_array($mode, ['increment','decrement','toggle','set'], true)) {
         $delta = ($mode === 'decrement') ? -$step : $step;
-        $ev = mysqli_prepare($conn, "INSERT INTO habit_log_events (habit_id, user_id, log_date, delta, source) VALUES (?, ?, ?, ?, ?)");
-        mysqli_stmt_bind_param($ev, 'iisds', $habitId, $current_user_id, $date, $delta, $source);
-        mysqli_stmt_execute($ev);
-        mysqli_stmt_close($ev);
+        sec_q("INSERT INTO habit_log_events (habit_id, user_id, log_date, delta, source) VALUES (?, ?, ?, ?, ?)", [$habitId, $current_user_id, $date, $delta, $source]);
     }
 
     $streak     = hb_current_streak($conn, $habit, $current_user_id);
@@ -580,33 +577,31 @@ if ($ajax === 'log_set') {
 
 /* --- nota / umore di un check-in ------------------------------------- */
 if ($ajax === 'log_note') {
-    $habitId = (int)hb_post('habit_id');
+    $habitId = sec_int($_POST['habit_id'] ?? 0, 1);
+    if (!sec_owns('habits', $habitId, $current_user_id)) hb_fail(t('abitudini.abitudine_non_trovata'), 404);
     $date    = hb_date(hb_post('date'), date('Y-m-d'));
     $note    = mb_substr(hb_post('note'), 0, 500);
     $mood    = hb_post('mood') === '' ? null : (int)hb_clamp(hb_post('mood'), 1, 5);
-    if (!hb_fetch_habit($conn, $habitId, $current_user_id)) hb_fail('Abitudine non trovata', 404);
+    if (!hb_fetch_habit($conn, $habitId, $current_user_id)) hb_fail(t('abitudini.abitudine_non_trovata'), 404);
 
     $sql = "INSERT INTO habit_logs (habit_id, user_id, log_date, status, amount, target_amount, note, mood)
             VALUES (?, ?, ?, 'partial', 0, 1, ?, ?)
             ON DUPLICATE KEY UPDATE note = VALUES(note), mood = VALUES(mood)";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, 'iissi', $habitId, $current_user_id, $date, $note, $mood);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
+    sec_q($sql, [$habitId, $current_user_id, $date, $note, $mood]);
     hb_json(['ok' => true, 'note' => $note, 'mood' => $mood]);
 }
 
 /* --- creazione / modifica abitudine ---------------------------------- */
 if ($ajax === 'habit_save') {
-    $id   = (int)hb_post('id');
+    $id   = sec_int($_POST['id'] ?? 0, 0);
     $name = mb_substr(hb_post('name'), 0, 120);
-    if ($name === '') hb_fail('Serve un nome');
+    if ($name === '') hb_fail(t('abitudini.serve_un_nome'));
 
     $icon        = mb_substr(hb_post('icon', '⭐️'), 0, 8);
     $color       = hb_color(hb_post('color'));
     $motivation  = mb_substr(hb_post('motivation'), 0, 255);
     $presetKey   = mb_substr(hb_post('preset_key'), 0, 60);
-    $categoryId  = (int)hb_post('category_id');
+    $categoryId  = sec_int($_POST['category_id'] ?? 0, 0);
     $categoryId  = $categoryId > 0 ? $categoryId : null;
     $kind        = hb_enum(hb_post('kind'), ['build','quit'], 'build');
     $goalType    = hb_enum(hb_post('goal_type'), ['completion','quantity'], 'completion');
@@ -633,38 +628,34 @@ if ($ajax === 'habit_save') {
 
     if ($id > 0) {
         $existing = hb_fetch_habit($conn, $id, $current_user_id);
-        if (!$existing) hb_fail('Abitudine non trovata', 404);
+        if (!$existing) hb_fail(t('abitudini.abitudine_non_trovata'), 404);
         $sql = "UPDATE habits SET category_id=?, preset_key=?, name=?, icon=?, color=?, motivation=?, habit_kind=?,
                     goal_type=?, target_amount=?, step_amount=?, unit=?, frequency_type=?, weekdays=?, times_per_week=?,
                     times_per_month=?, interval_days=?, day_part=?, duration_type=?, duration_days=?, start_date=?, end_date=?,
                     planner_minutes=?
                 WHERE id=? AND user_id=?";
-        $stmt = mysqli_prepare($conn, $sql);
-        /* 22 campi + id + user_id = 24 segnaposto */
-        mysqli_stmt_bind_param($stmt, 'isssssssddsssiiississiii',
+        /* 22 campi + id + user_id = 24 segnaposto. Non c'e' piu' la stringa dei
+           tipi da tenere allineata: bastava una lettera in piu' e tutti i valori
+           finivano nel campo sbagliato, senza nessun errore. */
+        sec_q($sql, [
             $categoryId, $presetKey, $name, $icon, $color, $motivation, $kind,
             $goalType, $target, $step, $unit, $freqType, $weekdays, $perWeek,
             $perMonth, $interval, $dayPart, $durType, $durDays, $startDate, $endDate,
-            $plannerMin, $id, $current_user_id);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
+            $plannerMin, $id, $current_user_id]);
     } else {
-        $order = (int)hb_scalar($conn, "SELECT COALESCE(MAX(sort_order), 0) + 10 FROM habits WHERE user_id = ?", 'i', [$current_user_id]);
+        $order = (int)hb_scalar("SELECT COALESCE(MAX(sort_order), 0) + 10 AS n FROM habits WHERE user_id = ?", [$current_user_id]);
         $sql = "INSERT INTO habits (user_id, category_id, preset_key, name, icon, color, motivation, habit_kind,
                     goal_type, target_amount, step_amount, unit, frequency_type, weekdays, times_per_week,
                     times_per_month, interval_days, day_part, duration_type, duration_days, start_date, end_date, sort_order,
                     planner_minutes)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-        $stmt = mysqli_prepare($conn, $sql);
         /* 23 campi + planner_minutes = 24 segnaposto */
-        mysqli_stmt_bind_param($stmt, 'iisssssssddsssiiississii',
+        sec_q($sql, [
             $current_user_id, $categoryId, $presetKey, $name, $icon, $color, $motivation, $kind,
             $goalType, $target, $step, $unit, $freqType, $weekdays, $perWeek,
             $perMonth, $interval, $dayPart, $durType, $durDays, $startDate, $endDate, $order,
-            $plannerMin);
-        mysqli_stmt_execute($stmt);
-        $id = mysqli_insert_id($conn);
-        mysqli_stmt_close($stmt);
+            $plannerMin]);
+        $id = sec_insert_id();
     }
 
     hb_json(['ok' => true, 'habit' => hb_fetch_habit($conn, $id, $current_user_id)]);
@@ -672,55 +663,45 @@ if ($ajax === 'habit_save') {
 
 /* --- archivia / ripristina ------------------------------------------- */
 if ($ajax === 'habit_archive') {
-    $id      = (int)hb_post('id');
-    $archive = hb_post('archive', '1') === '1' ? 1 : 0;
-    $stmt = mysqli_prepare($conn, "UPDATE habits SET is_archived = ?, archived_at = IF(? = 1, NOW(), NULL) WHERE id = ? AND user_id = ?");
-    mysqli_stmt_bind_param($stmt, 'iiii', $archive, $archive, $id, $current_user_id);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
+    $id      = sec_int($_POST['id'] ?? 0, 1);
+    $archive = sec_bool($_POST['archive'] ?? '1') ? 1 : 0;
+    if (!sec_owns('habits', $id, $current_user_id)) hb_fail(t('abitudini.abitudine_non_trovata'), 404);
+    sec_q("UPDATE habits SET is_archived = ?, archived_at = IF(? = 1, NOW(), NULL) WHERE id = ? AND user_id = ?", [$archive, $archive, $id, $current_user_id]);
     hb_json(['ok' => true, 'id' => $id, 'archived' => $archive === 1]);
 }
 
 /* --- eliminazione definitiva ----------------------------------------- */
 if ($ajax === 'habit_delete') {
-    $id = (int)hb_post('id');
-    $stmt = mysqli_prepare($conn, "DELETE FROM habits WHERE id = ? AND user_id = ?");
-    mysqli_stmt_bind_param($stmt, 'ii', $id, $current_user_id);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
+    $id = sec_int($_POST['id'] ?? 0, 1);
+    if (!sec_owns('habits', $id, $current_user_id)) hb_fail(t('abitudini.abitudine_non_trovata'), 404);
+    sec_q("DELETE FROM habits WHERE id = ? AND user_id = ?", [$id, $current_user_id]);
     hb_json(['ok' => true, 'id' => $id]);
 }
 
 /* --- riordino elenco -------------------------------------------------- */
 if ($ajax === 'habit_reorder') {
     $ids = json_decode(hb_post('ids', '[]'), true);
-    if (!is_array($ids)) hb_fail('Ordine non valido');
-    $stmt = mysqli_prepare($conn, "UPDATE habits SET sort_order = ? WHERE id = ? AND user_id = ?");
+    if (!is_array($ids)) hb_fail(t('abitudini.ordine_non_valido'));
     $order = 10;
     foreach ($ids as $rawId) {
-        $hid = (int)$rawId;
+        $hid = sec_int($rawId, 1);
         if ($hid <= 0) continue;
-        mysqli_stmt_bind_param($stmt, 'iii', $order, $hid, $current_user_id);
-        mysqli_stmt_execute($stmt);
+        sec_q("UPDATE habits SET sort_order = ? WHERE id = ? AND user_id = ?", [$order, $hid, $current_user_id]);
         $order += 10;
     }
-    mysqli_stmt_close($stmt);
     hb_json(['ok' => true]);
 }
 
 /* --- categoria personalizzata ---------------------------------------- */
 if ($ajax === 'category_save') {
     $name = mb_substr(hb_post('name'), 0, 60);
-    if ($name === '') hb_fail('Serve un nome');
+    if ($name === '') hb_fail(t('abitudini.serve_un_nome'));
     $slug  = strtolower(preg_replace('/[^a-z0-9]+/i', '_', $name)) . '_' . $current_user_id;
     $icon  = mb_substr(hb_post('icon', '🏷️'), 0, 8);
     $color = hb_color(hb_post('color'), '#8E8E93');
-    $order = (int)hb_scalar($conn, "SELECT COALESCE(MAX(sort_order),0)+10 FROM habit_categories WHERE user_id = ?", 'i', [$current_user_id]);
-    $stmt = mysqli_prepare($conn, "INSERT INTO habit_categories (user_id, slug, name, icon, color, sort_order) VALUES (?,?,?,?,?,?)
-                                   ON DUPLICATE KEY UPDATE name=VALUES(name), icon=VALUES(icon), color=VALUES(color)");
-    mysqli_stmt_bind_param($stmt, 'issssi', $current_user_id, $slug, $name, $icon, $color, $order);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
+    $order = (int)hb_scalar("SELECT COALESCE(MAX(sort_order),0)+10 FROM habit_categories WHERE user_id = ?", [$current_user_id]);
+    sec_q("INSERT INTO habit_categories (user_id, slug, name, icon, color, sort_order) VALUES (?,?,?,?,?,?)
+                                   ON DUPLICATE KEY UPDATE name=VALUES(name), icon=VALUES(icon), color=VALUES(color)", [$current_user_id, $slug, $name, $icon, $color, $order]);
     hb_json(['ok' => true, 'categories' => hb_load_categories($conn, $current_user_id)]);
 }
 
@@ -747,11 +728,10 @@ if ($ajax === 'settings_save') {
         $sets[] = "`$col` = ?"; $types .= $meta[0]; $values[] = $meta[1];
     }
     if (!empty($sets)) {
-        $types .= 'i'; $values[] = $current_user_id;
-        $stmt = mysqli_prepare($conn, "UPDATE habit_settings SET " . implode(', ', $sets) . " WHERE user_id = ?");
-        mysqli_stmt_bind_param($stmt, $types, ...$values);
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
+        $values[] = $current_user_id;
+        /* $sets contiene "campo = ?": segnaposto, non valori. I tipi non si
+           dichiarano piu': li deduce sec_q dal valore. */
+        sec_q("UPDATE habit_settings SET " . implode(', ', $sets) . " WHERE user_id = ?", $values);
     }
     hb_json(['ok' => true, 'settings' => hb_settings($conn, $current_user_id)]);
 }
@@ -764,19 +744,13 @@ if ($ajax === 'journal_save') {
     $energy = hb_post('energy') === '' ? null : (int)hb_clamp(hb_post('energy'), 1, 5);
     $sql = "INSERT INTO habit_daily_journal (user_id, entry_date, mood, energy, note) VALUES (?,?,?,?,?)
             ON DUPLICATE KEY UPDATE mood=VALUES(mood), energy=VALUES(energy), note=VALUES(note)";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, 'isiis', $current_user_id, $date, $mood, $energy, $note);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
+    sec_q($sql, [$current_user_id, $date, $mood, $energy, $note]);
     hb_json(['ok' => true]);
 }
 
 /* --- traguardi visti -------------------------------------------------- */
 if ($ajax === 'achievements_seen') {
-    $stmt = mysqli_prepare($conn, "UPDATE habit_user_achievements SET is_seen = 1 WHERE user_id = ?");
-    mysqli_stmt_bind_param($stmt, 'i', $current_user_id);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_close($stmt);
+    sec_q("UPDATE habit_user_achievements SET is_seen = 1 WHERE user_id = ?", [$current_user_id]);
     hb_json(['ok' => true]);
 }
 
@@ -786,13 +760,9 @@ if ($ajax === 'hour_distribution') {
             FROM habit_log_events
             WHERE user_id = ? AND delta > 0 AND created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
             GROUP BY h ORDER BY h";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, 'i', $current_user_id);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
+    $res = sec_all($sql, [$current_user_id]);
     $buckets = array_fill(0, 24, 0);
-    while ($row = mysqli_fetch_assoc($res)) { $buckets[(int)$row['h']] = (int)$row['c']; }
-    mysqli_stmt_close($stmt);
+    foreach ($res as $row) { $buckets[(int)$row['h']] = (int)$row['c']; }
     hb_json(['ok' => true, 'hours' => $buckets]);
 }
 
@@ -818,28 +788,28 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="theme-color" content="#000000">
-<title>Abitudini</title>
+<title><?php te('abitudini.titolo'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
 <link rel="stylesheet" href="habits.css?v=<?php echo @filemtime(__DIR__ . '/habits.css') ?: time(); ?>">
 </head>
-<body class="hb-body" style="--accent:<?php echo $accent; ?>;">
+<body class="hb-body" style="--accent:<?php echo sec_h($accent); ?>;">
 
 <!-- ============================ HEADER ============================ -->
 <header class="hb-header">
     <div class="hb-header-row">
         <div class="hb-header-titles">
-            <div class="hb-eyebrow" id="hbEyebrow">Oggi</div>
-            <h1 class="hb-title">Abitudini</h1>
+            <div class="hb-eyebrow" id="hbEyebrow"><?php te('comune.oggi'); ?></div>
+            <h1 class="hb-title"><?php te('abitudini.abitudini'); ?></h1>
         </div>
         <div class="hb-header-actions">
-            <button type="button" class="hb-icon-btn" id="hbBtnTable" aria-label="Vista tabella">
+            <button type="button" class="hb-icon-btn" id="hbBtnTable" aria-label="<?php te('abitudini.vista_tabella'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h18M3 12h18M3 19h18M9 5v14M15 5v14"/></svg>
             </button>
-            <button type="button" class="hb-icon-btn" id="hbBtnStats" aria-label="Statistiche">
+            <button type="button" class="hb-icon-btn" id="hbBtnStats" aria-label="<?php te('abitudini.statistiche'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V10M12 20V4M19 20v-6"/></svg>
             </button>
-            <button type="button" class="hb-icon-btn" id="hbBtnSettings" aria-label="Impostazioni">
+            <button type="button" class="hb-icon-btn" id="hbBtnSettings" aria-label="<?php te('comune.impostazioni'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
             </button>
         </div>
@@ -864,20 +834,20 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
     <!-- elenco abitudini -->
     <section class="hb-list-wrap">
         <div class="hb-list-head">
-            <div class="hb-list-title" id="hbListTitle">Le tue abitudini</div>
+            <div class="hb-list-title" id="hbListTitle"><?php te('abitudini.le_tue_abitudini'); ?></div>
             <div class="hb-filters" id="hbFilters"></div>
         </div>
         <div class="hb-list" id="hbList"></div>
         <div class="hb-empty" id="hbEmpty" hidden>
             <div class="hb-empty-emoji">🌱</div>
-            <div class="hb-empty-title">Qui non c'è ancora niente</div>
-            <p class="hb-empty-text">Aggiungi la prima abitudine e inizia la tua serie oggi stesso.</p>
-            <button type="button" class="hb-btn hb-btn-primary" id="hbEmptyAdd">Aggiungi abitudine</button>
+            <div class="hb-empty-title"><?php te('abitudini.qui_non_c_e_ancora'); ?></div>
+            <p class="hb-empty-text"><?php te('abitudini.aggiungi_la_prima_abitudine_e'); ?></p>
+            <button type="button" class="hb-btn hb-btn-primary" id="hbEmptyAdd"><?php te('abitudini.aggiungi_abitudine'); ?></button>
         </div>
     </section>
 </main>
 
-<button type="button" class="hb-fab" id="hbFab" aria-label="Aggiungi abitudine">
+<button type="button" class="hb-fab" id="hbFab" aria-label="<?php te('abitudini.aggiungi_abitudine'); ?>">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
 </button>
 
@@ -890,8 +860,8 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
     <div class="hb-sheet hb-sheet-tall">
         <div class="hb-grabber"></div>
         <div class="hb-sheet-head">
-            <div class="hb-sheet-title" id="hbEditorTitle">Nuova abitudine</div>
-            <button type="button" class="hb-sheet-close" data-close="hbSheetEditor" aria-label="Chiudi">
+            <div class="hb-sheet-title" id="hbEditorTitle"><?php te('abitudini.nuova_abitudine'); ?></div>
+            <button type="button" class="hb-sheet-close" data-close="hbSheetEditor" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
         </div>
@@ -904,8 +874,8 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
     <div class="hb-sheet hb-sheet-full">
         <div class="hb-grabber"></div>
         <div class="hb-sheet-head">
-            <div class="hb-sheet-title" id="hbDetailTitle">Dettaglio</div>
-            <button type="button" class="hb-sheet-close" data-close="hbSheetDetail" aria-label="Chiudi">
+            <div class="hb-sheet-title" id="hbDetailTitle"><?php te('abitudini.dettaglio'); ?></div>
+            <button type="button" class="hb-sheet-close" data-close="hbSheetDetail" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
         </div>
@@ -917,8 +887,8 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
     <div class="hb-sheet hb-sheet-full">
         <div class="hb-grabber"></div>
         <div class="hb-sheet-head">
-            <div class="hb-sheet-title">Statistiche</div>
-            <button type="button" class="hb-sheet-close" data-close="hbSheetStats" aria-label="Chiudi">
+            <div class="hb-sheet-title"><?php te('abitudini.statistiche'); ?></div>
+            <button type="button" class="hb-sheet-close" data-close="hbSheetStats" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
         </div>
@@ -930,8 +900,8 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
     <div class="hb-sheet hb-sheet-full">
         <div class="hb-grabber"></div>
         <div class="hb-sheet-head">
-            <div class="hb-sheet-title">Tabella</div>
-            <button type="button" class="hb-sheet-close" data-close="hbSheetTable" aria-label="Chiudi">
+            <div class="hb-sheet-title"><?php te('abitudini.tabella'); ?></div>
+            <button type="button" class="hb-sheet-close" data-close="hbSheetTable" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
         </div>
@@ -943,8 +913,8 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
     <div class="hb-sheet hb-sheet-tall">
         <div class="hb-grabber"></div>
         <div class="hb-sheet-head">
-            <div class="hb-sheet-title" id="hbPickerTitle">Scegli</div>
-            <button type="button" class="hb-sheet-close" data-close="hbSheetPicker" aria-label="Chiudi">
+            <div class="hb-sheet-title" id="hbPickerTitle"><?php te('abitudini.scegli'); ?></div>
+            <button type="button" class="hb-sheet-close" data-close="hbSheetPicker" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
         </div>
@@ -956,8 +926,8 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
     <div class="hb-sheet hb-sheet-tall">
         <div class="hb-grabber"></div>
         <div class="hb-sheet-head">
-            <div class="hb-sheet-title">Impostazioni</div>
-            <button type="button" class="hb-sheet-close" data-close="hbSheetSettings" aria-label="Chiudi">
+            <div class="hb-sheet-title"><?php te('comune.impostazioni'); ?></div>
+            <button type="button" class="hb-sheet-close" data-close="hbSheetSettings" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
         </div>
@@ -970,31 +940,31 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
     <div class="hb-sheet">
         <div class="hb-grabber"></div>
         <div class="hb-sheet-head">
-            <div class="hb-sheet-title" id="hbNoteTitle">Nota</div>
-            <button type="button" class="hb-sheet-close" data-close="hbSheetNote" aria-label="Chiudi">
+            <div class="hb-sheet-title" id="hbNoteTitle"><?php te('abitudini.nota'); ?></div>
+            <button type="button" class="hb-sheet-close" data-close="hbSheetNote" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
         </div>
         <div class="hb-sheet-body">
             <div class="hb-note-day" id="hbNoteDay"></div>
             <div class="hb-field">
-                <label>Com'è andata</label>
+                <label><?php te('abitudini.com_e_andata'); ?></label>
                 <div class="hb-mood-row" id="hbNoteMood"></div>
             </div>
             <div class="hb-field" id="hbNoteEnergyField" hidden>
-                <label>Energia</label>
+                <label><?php te('abitudini.energia'); ?></label>
                 <div class="hb-mood-row" id="hbNoteEnergy"></div>
             </div>
             <div class="hb-field">
-                <label for="hbNoteText">Il tuo pensiero</label>
+                <label for="hbNoteText"><?php te('abitudini.il_tuo_pensiero'); ?></label>
                 <textarea class="hb-textarea" id="hbNoteText" rows="5" maxlength="1000"
-                          placeholder="Cosa ti ha aiutato oggi? Cosa ti ha fermato?"></textarea>
-                <div class="hb-help" id="hbNoteCount">0 caratteri</div>
+                          placeholder="<?php te('abitudini.cosa_ti_ha_aiutato_oggi'); ?>"></textarea>
+                <div class="hb-help" id="hbNoteCount"><?php te('abitudini.0_caratteri'); ?></div>
             </div>
         </div>
         <div class="hb-sheet-actions">
-            <button type="button" class="hb-btn hb-btn-quiet" id="hbNoteClear">Cancella</button>
-            <button type="button" class="hb-btn hb-btn-primary" id="hbNoteSave">Salva nota</button>
+            <button type="button" class="hb-btn hb-btn-quiet" id="hbNoteClear"><?php te('abitudini.cancella'); ?></button>
+            <button type="button" class="hb-btn hb-btn-primary" id="hbNoteSave"><?php te('abitudini.salva_nota'); ?></button>
         </div>
     </div>
 </div>
@@ -1004,13 +974,13 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
     <div class="hb-sheet hb-sheet-tall">
         <div class="hb-grabber"></div>
         <div class="hb-sheet-head">
-            <div class="hb-sheet-title">Riordina</div>
-            <button type="button" class="hb-sheet-close" data-close="hbSheetReorder" aria-label="Chiudi">
+            <div class="hb-sheet-title"><?php te('abitudini.riordina'); ?></div>
+            <button type="button" class="hb-sheet-close" data-close="hbSheetReorder" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
             </button>
         </div>
         <div class="hb-sheet-body">
-            <div class="hb-help hb-reorder-hint">Trascina dalla maniglia per cambiare l'ordine dell'elenco.</div>
+            <div class="hb-help hb-reorder-hint"><?php te('abitudini.trascina_dalla_maniglia_per_cambiare'); ?></div>
             <div class="hb-reorder-list" id="hbReorderList"></div>
         </div>
     </div>
@@ -1019,11 +989,11 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
 <!-- conferma generica -->
 <div class="hb-confirm-overlay" id="hbConfirm">
     <div class="hb-confirm-box">
-        <div class="hb-confirm-title" id="hbConfirmTitle">Sicuro?</div>
+        <div class="hb-confirm-title" id="hbConfirmTitle"><?php te('abitudini.sicuro'); ?></div>
         <div class="hb-confirm-msg" id="hbConfirmMsg"></div>
         <div class="hb-confirm-actions">
-            <button type="button" class="hb-btn hb-btn-quiet" id="hbConfirmNo">Annulla</button>
-            <button type="button" class="hb-btn hb-btn-danger" id="hbConfirmYes">Elimina</button>
+            <button type="button" class="hb-btn hb-btn-quiet" id="hbConfirmNo"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="hb-btn hb-btn-danger" id="hbConfirmYes"><?php te('comune.elimina'); ?></button>
         </div>
     </div>
 </div>
@@ -1033,10 +1003,10 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
     <div class="hb-award-card">
         <div class="hb-award-glow"></div>
         <div class="hb-award-icon" id="hbAwardIcon">🏆</div>
-        <div class="hb-award-kicker">Traguardo sbloccato</div>
+        <div class="hb-award-kicker"><?php te('abitudini.traguardo_sbloccato'); ?></div>
         <div class="hb-award-name" id="hbAwardName"></div>
         <div class="hb-award-desc" id="hbAwardDesc"></div>
-        <button type="button" class="hb-btn hb-btn-primary" id="hbAwardClose">Continua</button>
+        <button type="button" class="hb-btn hb-btn-primary" id="hbAwardClose"><?php te('abitudini.continua'); ?></button>
     </div>
 </div>
 
@@ -1047,6 +1017,12 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
 include 'habits_import.php';
 ?>
 
+<?php
+/* Le stringhe che servono a habits.js: vanno prima del file, T() deve
+   esistere quando parte. */
+/* 'import' serve al pannello di importazione, incluso qui sotto. */
+echo nisama_i18n_json(['comune', 'abitudini', 'import']);
+?>
 <script>window.HB_BOOT = <?php echo json_encode($bootstrap, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
 <?php
 /* Diario del giorno: componente condiviso con planner.php e diario.php,

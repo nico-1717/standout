@@ -80,13 +80,13 @@ function pl_seed_defaults(int $userId): void {
         /* Ogni categoria parte con qualche parola ovvia: scrivendo "treno" in
            un evento, la categoria Spostamenti si assegna da sé. */
         $defaults = [
-            ['Spostamenti',  '#CFDDEA', ['treno', 'auto', 'macchina', 'bus', 'aereo', 'viaggio', 'metro', 'volo', 'partenza']],
-            ['Svaghi',       '#F3E4C0', ['cinema', 'film', 'serie', 'gioco', 'videogioco', 'concerto', 'uscita', 'aperitivo']],
-            ['Eventi',       '#F0D3D6', ['festa', 'compleanno', 'matrimonio', 'cena', 'evento', 'invito']],
-            ['Lavoro',       '#D8D3E8', ['lavoro', 'riunione', 'call', 'ufficio', 'progetto', 'consegna', 'cliente']],
-            ['Appuntamenti', '#E8D5C7', ['dottore', 'medico', 'dentista', 'visita', 'appuntamento', 'parrucchiere', 'banca']],
-            ['Relax',        '#C7DED6', ['relax', 'riposo', 'pausa', 'yoga', 'meditazione', 'lettura', 'passeggiata']],
-            ['Vacanze',      '#DCE7C8', ['vacanza', 'ferie', 'mare', 'montagna', 'hotel', 'weekend']],
+            [t('planner.pre_spostamenti'),  '#CFDDEA', ['treno', 'auto', 'macchina', 'bus', 'aereo', 'viaggio', 'metro', 'volo', 'partenza']],
+            [t('planner.pre_svaghi'),       '#F3E4C0', ['cinema', 'film', 'serie', 'gioco', 'videogioco', 'concerto', 'uscita', 'aperitivo']],
+            [t('planner.pre_eventi'),       '#F0D3D6', ['festa', 'compleanno', 'matrimonio', 'cena', 'evento', 'invito']],
+            [t('planner.pre_lavoro'),       '#D8D3E8', ['lavoro', 'riunione', 'call', 'ufficio', 'progetto', 'consegna', 'cliente']],
+            [t('planner.pre_appuntamenti'), '#E8D5C7', ['dottore', 'medico', 'dentista', 'visita', 'appuntamento', 'parrucchiere', 'banca']],
+            [t('planner.pre_relax'),        '#C7DED6', ['relax', 'riposo', 'pausa', 'yoga', 'meditazione', 'lettura', 'passeggiata']],
+            [t('planner.pre_vacanze'),      '#DCE7C8', ['vacanza', 'ferie', 'mare', 'montagna', 'hotel', 'weekend']],
         ];
         $i = 1;
         foreach ($defaults as $d) {
@@ -102,9 +102,10 @@ function pl_seed_defaults(int $userId): void {
     $hasRoutine = sec_one("SELECT 1 AS ok FROM planner_routines WHERE user_id = ? LIMIT 1", [$userId], 'i');
     if (!$hasRoutine) {
         sec_q("INSERT INTO planner_routines (user_id, name, color, sort_order) VALUES (?,?,?,1)",
-              [$userId, 'Morning routine', '#F6EBD2'], 'iss');
+              [$userId, t('planner.pre_morning_routine'), '#F6EBD2'], 'iss');
         $rid = sec_insert_id();
-        $items = [['Alzarsi dal letto', 5], ['Skincare', 20], ['Vestirsi', 5], ['Colazione', 10], ['Prendere il sole', 5], ['Denti', 5]];
+        $items = [[t('planner.pre_alzarsi'), 5], [t('planner.pre_skincare'), 20], [t('planner.pre_vestirsi'), 5],
+                  [t('planner.pre_colazione'), 10], [t('planner.pre_sole'), 5], [t('planner.pre_denti'), 5]];
         $o = 1;
         foreach ($items as $it) {
             sec_q("INSERT INTO planner_routine_items (routine_id, user_id, name, duration_minutes, sort_order) VALUES (?,?,?,?,?)",
@@ -180,12 +181,31 @@ function pl_categories(int $userId): array {
     foreach ($rows as $r) {
         $id = (int)$r['id'];
         $out[] = [
-            'id' => $id, 'name' => $r['name'], 'color' => $r['color'],
+            'id' => $id, 'name' => pl_nome_tradotto($r['name']), 'color' => $r['color'],
             'hidden' => (int)$r['is_hidden'] === 1,
             'keywords' => $byCat[$id] ?? [],
         ];
     }
     return $out;
+}
+
+/* I nomi predefiniti di categorie e calendari sono righe del database, scritte
+   in italiano quando l'utente si e' registrato. Tradurli alla lettura e' l'unico
+   modo di mostrarli nella lingua giusta senza toccare i dati - e se l'utente li
+   rinomina, il nome suo non corrisponde piu' a nessun predefinito e resta com'e',
+   che e' esattamente quello che deve succedere. */
+const PL_NOMI_PREDEFINITI = [
+    'Spostamenti', 'Svaghi', 'Eventi', 'Lavoro', 'Appuntamenti', 'Relax', 'Vacanze',
+    'Principale', 'Senza categoria',
+];
+
+function pl_nome_tradotto(string $nome): string {
+    if (!in_array($nome, PL_NOMI_PREDEFINITI, true)) return $nome;
+    $chiave = 'planner.pre_' . strtolower(str_replace(' ', '_', $nome));
+    $tradotto = t($chiave);
+    /* t() restituisce <<chiave>> se manca: in quel caso si tiene l'originale
+       invece di stampare una chiave in pagina. */
+    return (strpos($tradotto, '<<') === 0) ? $nome : $tradotto;
 }
 
 /** I calendari dell'utente, in ordine alfabetico. */
@@ -201,7 +221,7 @@ function pl_calendars(int $userId): array {
     $out = [];
     foreach ($rows as $r) {
         $out[] = [
-            'id' => (int)$r['id'], 'name' => $r['name'],
+            'id' => (int)$r['id'], 'name' => pl_nome_tradotto($r['name']),
             'color' => ($r['color'] !== null && $r['color'] !== '') ? $r['color'] : null,
             'visible' => (int)$r['is_visible'] === 1,
             'is_default' => (int)$r['is_default'] === 1,
@@ -362,9 +382,11 @@ function pl_attach_guests(int $userId, array $events): array {
     if (empty($events)) return $events;
     $ids = [];
     foreach ($events as $e) { $ids[] = (int)$e['id']; }
-    $in = implode(',', array_map('intval', $ids));
+    /* un ? per ogni id invece della lista incollata: gli id sono gia' interi,
+       ma cosi' resta vero anche se domani qualcuno toglie il cast */
+    $ph = implode(',', array_fill(0, count($ids), '?'));
     $rows = sec_all("SELECT event_id, email, name FROM event_guests
-                     WHERE user_id = ? AND event_id IN ($in)", [$userId], 'i');
+                     WHERE user_id = ? AND event_id IN ($ph)", array_merge([$userId], $ids));
     if (empty($rows)) return $events;
     $byEvent = [];
     foreach ($rows as $g) {
@@ -647,9 +669,17 @@ function pl_priorities_range(int $userId, string $from, string $to): array {
        cose che servono a riassumerlo: quella riga è l'unico punto del planner
        in cui un progetto si affaccia, e senza l'identificativo l'unica cosa
        che si poteva farci era leggerla. */
+    /* Priorità automatiche: includiamo sia i progetti del periodo, sia quelli scaduti 
+       (target_date o due_date nel passato) ma non ancora completati. */
+    $today = date('Y-m-d');
     $proj = sec_all("SELECT id, name, notes, status, color, target_date, due_date FROM projects
-                     WHERE user_id = ? AND ((target_date BETWEEN ? AND ?) OR (due_date BETWEEN ? AND ?))",
-                     [$userId, $from, $to, $from, $to], 'issss');
+                     WHERE user_id = ? AND (
+                         (target_date BETWEEN ? AND ?) OR (due_date BETWEEN ? AND ?)
+                         OR (status != 'completed' AND target_date < ?)
+                         OR (status != 'completed' AND due_date < ?)
+                     )",
+                     [$userId, $from, $to, $from, $to, $today, $today], 'issssss');
+
     foreach ($proj as $p) {
         $info = [
             'project_id'  => (int)$p['id'],
@@ -660,17 +690,101 @@ function pl_priorities_range(int $userId, string $from, string $to): array {
             'target_date' => $p['target_date'],
             'due_date'    => $p['due_date'],
         ];
-        if (!empty($p['target_date']) && $p['target_date'] >= $from && $p['target_date'] <= $to) {
-            $out[$p['target_date']][] = array_merge($info, [
-                'position' => 0, 'content' => 'Obiettivo: ' . $p['name'], 'done' => false, 'auto' => true,
-            ]);
-        }
-        if (!empty($p['due_date']) && $p['due_date'] >= $from && $p['due_date'] <= $to) {
-            $out[$p['due_date']][] = array_merge($info, [
-                'position' => 0, 'content' => 'SCADENZA: ' . $p['name'], 'done' => false, 'auto' => true,
-            ]);
+
+        // Iteriamo su ogni giorno del range richiesto dal client
+        $current = $from;
+        while ($current <= $to) {
+            $showTarget = false;
+            $showDue = false;
+            $isOverdueTarget = false;
+            $isOverdueDue = false;
+
+            // Logica per l'obiettivo
+            if (!empty($p['target_date'])) {
+                if ($p['target_date'] === $current) {
+                    $showTarget = true;
+                } elseif ($p['target_date'] < $current && $p['status'] !== 'completed' && $current >= $today) {
+                    $showTarget = true;
+                    $isOverdueTarget = true;
+                }
+            }
+
+            // Logica per la scadenza
+            if (!empty($p['due_date'])) {
+                if ($p['due_date'] === $current) {
+                    $showDue = true;
+                } elseif ($p['due_date'] < $current && $p['status'] !== 'completed' && $current >= $today) {
+                    $showDue = true;
+                    $isOverdueDue = true;
+                }
+            }
+
+            /* La scritta dice soltanto di che cosa si tratta: il nome del
+               progetto da solo non si distinguerebbe da una priorità scritta
+               a mano. Che sia scaduto invece non serve gridarlo, lo dice già
+               il bordo rosso della casella — e "OBIETTIVO SCADUTO:" in
+               maiuscolo mangiava mezza riga prima ancora di arrivare al nome. */
+            if ($showTarget) {
+                $out[$current][] = array_merge($info, [
+                    'position' => 0, 
+                    'content' => t('planner.etichetta_obiettivo', ['nome' => $p['name']]), 
+                    'done' => false, 
+                    'auto' => true,
+                    'overdue' => $isOverdueTarget
+                ]);
+            }
+
+            if ($showDue) {
+                $out[$current][] = array_merge($info, [
+                    'position' => 0, 
+                    'content' => t('planner.etichetta_scadenza', ['nome' => $p['name']]), 
+                    'done' => false, 
+                    'auto' => true,
+                    'overdue' => $isOverdueDue
+                ]);
+            }
+
+            $current = pl_add_days($current, 1);
         }
     }
+    /* Priorità automatiche: attività scadute da To Do, To Buy, To Study.
+       Solo scadute: quelle del giorno che si sta guardando sono già nella
+       griglia come eventi, e ripeterle qui sopra vorrebbe dire vedere due
+       volte la stessa cosa in mezzo schermo. In priorità arriva solo quello
+       che il giorno si è lasciato indietro. */
+    $todos = sec_all("SELECT id, title, list_type, due_date FROM todos
+                      WHERE user_id = ? AND is_done = 0 AND due_date IS NOT NULL
+                        AND due_date < ? AND list_type IN ('todo', 'buy', 'study')",
+                      [$userId, $today], 'is');
+
+    foreach ($todos as $t) {
+        $info = [
+            'todo_id'   => (int)$t['id'],
+            'list_type' => $t['list_type'],
+        ];
+
+        $current = $from;
+        while ($current <= $to) {
+            /* Da oggi in avanti, e sempre più indietro del giorno guardato:
+               una cosa scaduta ieri non era scaduta l'altro ieri, e sui
+               giorni già passati le priorità restano quelle che erano. */
+            if ($current >= $today && $t['due_date'] < $current) {
+                $out[$current][] = array_merge($info, [
+                    'position' => 0,
+                    /* Niente "TO DO SCADUTO:" davanti: il rosso della casella
+                       dice già che è in ritardo, e l'elenco di provenienza si
+                       vede toccandola, che porta proprio su quella linguetta.
+                       Prima del titolo restavano tre parole su cinque. */
+                    'content' => $t['title'],
+                    'done' => false,
+                    'auto' => true,
+                    'overdue' => true
+                ]);
+            }
+            $current = pl_add_days($current, 1);
+        }
+    }
+
     return $out;
 }
 
@@ -816,10 +930,10 @@ function pl_rings(int $userId, string $date): array {
     }
 
     $conto = [
-        'daily'    => ['done' => 0, 'total' => 0, 'label' => 'Oggi'],
-        'weekly'   => ['done' => 0, 'total' => 0, 'label' => 'Settimana'],
-        'monthly'  => ['done' => 0, 'total' => 0, 'label' => 'Mese'],
-        'interval' => ['done' => 0, 'total' => 0, 'label' => 'Personalizzate'],
+        'daily'    => ['done' => 0, 'total' => 0, 'label' => t('comune.oggi')],
+        'weekly'   => ['done' => 0, 'total' => 0, 'label' => t('planner.settimana')],
+        'monthly'  => ['done' => 0, 'total' => 0, 'label' => t('planner.mese')],
+        'interval' => ['done' => 0, 'total' => 0, 'label' => t('planner.personalizzate_r')],
     ];
 
     foreach ($habits as $h) {
@@ -1017,7 +1131,10 @@ function pl_place_google(string $q): array {
 
     $data = pl_google_call(
         'https://places.googleapis.com/v1/places:autocomplete',
-        ['input' => $q, 'languageCode' => 'it', 'regionCode' => 'it'],
+        /* la lingua dei risultati segue quella scelta: prima "Lombardia, Italia"
+           compariva cosi' anche in inglese. regionCode resta 'it' perche' indica
+           da dove si cerca, non in che lingua rispondere. */
+        ['input' => $q, 'languageCode' => nisama_lingua(), 'regionCode' => 'it'],
         ['X-Goog-Api-Key: ' . GOOGLE_PLACES_KEY]
     );
     if ($data === null) return [];
@@ -1055,7 +1172,7 @@ function pl_place_punto(string $placeId): ?array {
     if ($c !== null) return $c;
 
     $data = pl_google_call(
-        'https://places.googleapis.com/v1/places/' . rawurlencode($placeId) . '?languageCode=it',
+        'https://places.googleapis.com/v1/places/' . rawurlencode($placeId) . '?languageCode=' . rawurlencode(nisama_lingua()),
         null,
         ['X-Goog-Api-Key: ' . GOOGLE_PLACES_KEY,
          'X-Goog-FieldMask: id,location,formattedAddress']
@@ -1239,7 +1356,7 @@ if ($ajax !== '') {
     if ($ajax === 'routine_recompact') {
         $group = sec_str(sec_in('routine_group'), 32);
         if (!preg_match('/^[A-Za-z0-9]{1,32}$/', $group)) {
-            sec_die_json('Routine non trovata.', 404, 'not_found');
+            sec_die_json(t('planner.msg_routine_non_trovata'), 404, 'not_found');
         }
         $date = sec_date(sec_in('date'), date('Y-m-d'));
         $passi = sec_all("SELECT id, start_time, end_time FROM planner_events
@@ -1294,9 +1411,9 @@ if ($ajax !== '') {
     if ($ajax === 'place_details') {
         sec_guard_write($current_user_id, 'geocode', 0, 40, 60);
         $ref = sec_str(sec_in('ref'), 300);
-        if ($ref === '') sec_die_json('Posto non indicato.', 422, 'empty');
+        if ($ref === '') sec_die_json(t('planner.msg_posto_non_indicato'), 422, 'empty');
         $punto = pl_place_punto($ref);
-        if (!$punto) sec_die_json('Posizione non trovata.', 404, 'not_found');
+        if (!$punto) sec_die_json(t('planner.msg_posizione_non_trovata'), 404, 'not_found');
         sec_json(['ok' => true, 'place' => $punto]);
     }
 
@@ -1305,7 +1422,7 @@ if ($ajax !== '') {
        rivalidano lo stesso: quello che entra dal browser non è mai buono per
        partito preso, nemmeno quando l'abbiamo mandato noi un attimo prima. */
     if ($ajax === 'place_book_save') {
-        if (!pl_places_c_e()) sec_die_json('Rubrica dei luoghi non installata.', 400, 'no_table');
+        if (!pl_places_c_e()) sec_die_json(t('planner.msg_rubrica_non_installata'), 400, 'no_table');
         $id    = sec_int(sec_in('id'), 0, PHP_INT_MAX, 0);
         $label = sec_str(sec_in('label'), 60);
         /* le parole d'aggancio si confrontano in minuscolo: chi le scrive non
@@ -1317,11 +1434,11 @@ if ($ajax !== '') {
         $lat   = sec_float(sec_in('lat'), -90, 90, 999);
         $lon   = sec_float(sec_in('lon'), -180, 180, 999);
         if ($lat === 999.0 || $lon === 999.0) { $lat = null; $lon = null; }
-        if ($label === '') sec_die_json('Manca il nome del posto.', 422, 'empty');
+        if ($label === '') sec_die_json(t('planner.msg_manca_nome_posto'), 422, 'empty');
 
         if ($id > 0) {
             if (!sec_owns('planner_places', $id, $current_user_id)) {
-                sec_die_json('Posto non trovato.', 404, 'not_found');
+                sec_die_json(t('planner.msg_posto_non_trovato'), 404, 'not_found');
             }
             sec_q("UPDATE planner_places
                       SET label=?, keywords=?, place_name=?, address=?, place_lat=?, place_lon=?, place_ref=?
@@ -1338,10 +1455,10 @@ if ($ajax !== '') {
 
     /* ---------------- rubrica: togli un posto ---------------- */
     if ($ajax === 'place_book_delete') {
-        if (!pl_places_c_e()) sec_die_json('Rubrica dei luoghi non installata.', 400, 'no_table');
+        if (!pl_places_c_e()) sec_die_json(t('planner.msg_rubrica_non_installata'), 400, 'no_table');
         $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
         if (!sec_owns('planner_places', $id, $current_user_id)) {
-            sec_die_json('Posto non trovato.', 404, 'not_found');
+            sec_die_json(t('planner.msg_posto_non_trovato'), 404, 'not_found');
         }
         sec_q("DELETE FROM planner_places WHERE id=? AND user_id=?", [$id, $current_user_id], 'ii');
         sec_json(['ok' => true, 'places' => pl_places($current_user_id)]);
@@ -1426,7 +1543,7 @@ if ($ajax !== '') {
             }
         }
         
-        if ($title === '') $title = $habitId > 0 ? 'Abitudine' : 'Senza titolo';
+        if ($title === '') $title = $habitId > 0 ? t('planner.tit_abitudine') : t('planner.tit_senza_titolo');
 
         /* --- CALCOLO DELLA REGOLA RRULE --- */
         $rrule = null;
@@ -1758,7 +1875,7 @@ if ($ajax !== '') {
         $rid   = sec_int(sec_in('routine_id'), 1, PHP_INT_MAX, 0);
         $date  = sec_date(sec_in('date'), date('Y-m-d'));
         $start = sec_time(sec_in('start'), '07:00:00');
-        if (!sec_owns('planner_routines', $rid, $current_user_id)) sec_die_json('Routine non trovata.', 404, 'not_found');
+        if (!sec_owns('planner_routines', $rid, $current_user_id)) sec_die_json(t('planner.msg_routine_non_trovata'), 404, 'not_found');
         $r = sec_one("SELECT name, color FROM planner_routines WHERE id=? AND user_id=?", [$rid, $current_user_id], 'ii');
         $items = sec_all("SELECT name, duration_minutes FROM planner_routine_items
                           WHERE routine_id=? AND user_id=? ORDER BY sort_order, id", [$rid, $current_user_id], 'ii');
@@ -1936,7 +2053,7 @@ if ($ajax !== '') {
         $items = sec_in('items');
         if ($name === '') sec_die_json('Serve un nome per la routine.', 422, 'invalid');
         if ($id > 0) {
-            if (!sec_owns('planner_routines', $id, $current_user_id)) sec_die_json('Routine non trovata.', 404, 'not_found');
+            if (!sec_owns('planner_routines', $id, $current_user_id)) sec_die_json(t('planner.msg_routine_non_trovata'), 404, 'not_found');
             sec_q("UPDATE planner_routines SET name=?, color=? WHERE id=? AND user_id=?", [$name, $color, $id, $current_user_id], 'ssii');
         } else {
             sec_q("INSERT INTO planner_routines (user_id, name, color, sort_order)
@@ -1959,7 +2076,7 @@ if ($ajax !== '') {
     }
     if ($ajax === 'routine_delete') {
         $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
-        if (!sec_owns('planner_routines', $id, $current_user_id)) sec_die_json('Routine non trovata.', 404, 'not_found');
+        if (!sec_owns('planner_routines', $id, $current_user_id)) sec_die_json(t('planner.msg_routine_non_trovata'), 404, 'not_found');
         sec_q("DELETE FROM planner_routine_items WHERE routine_id=? AND user_id=?", [$id, $current_user_id], 'ii');
         sec_q("DELETE FROM planner_routines WHERE id=? AND user_id=?", [$id, $current_user_id], 'ii');
         sec_json(['ok' => true, 'routines' => pl_routines($current_user_id)]);
@@ -2050,7 +2167,7 @@ if ($ajax !== '') {
         foreach (pl_categories($current_user_id) as $c) {
             $cats[$c['id']] = ['id' => $c['id'], 'name' => $c['name'], 'color' => $c['color'], 'minutes' => 0, 'count' => 0];
         }
-        $noCat = ['id' => 0, 'name' => 'Senza categoria', 'color' => '#E4DDD3', 'minutes' => 0, 'count' => 0];
+        $noCat = ['id' => 0, 'name' => t('planner.pre_senza_categoria'), 'color' => '#E4DDD3', 'minutes' => 0, 'count' => 0];
 
         $routines = [];
         foreach (pl_routines($current_user_id) as $r) {
@@ -2481,7 +2598,7 @@ $boot = [
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#FBF9F6">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<title>Planner</title>
+<title><?php te('planner.titolo'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
 <link rel="stylesheet" href="planner.css?v=<?php echo @filemtime(__DIR__ . '/planner.css') ?: time(); ?>">
@@ -2498,33 +2615,33 @@ $boot = [
     <div class="pl-bar-tools">
         <button type="button" class="pl-week" id="plWeekBtn">
             <span class="pl-week-n pl-serif" id="plWeekN">1</span>
-            <span class="pl-week-k">Setti&shy;mana</span>
-            <span class="pl-check" id="plWeekDone" role="checkbox" aria-checked="false" aria-label="Settimana completata">
+            <span class="pl-week-k"><?php te('planner.settimana'); ?></span>
+            <span class="pl-check" id="plWeekDone" role="checkbox" aria-checked="false" aria-label="<?php te('planner.settimana_completata'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>
             </span>
         </button>
         <span class="pl-tools-sp"></span>
-        <button type="button" class="pl-tool" id="plViewBtn" aria-label="Passa alla vista mese">
+        <button type="button" class="pl-tool" id="plViewBtn" aria-label="<?php te('planner.passa_alla_vista_mese'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2.4"/><path d="M4 10h16M9 5V3M15 5V3"/></svg>
         </button>
         <!-- Su telefono in verticale il pulsante non fa più da interruttore fra
              due viste: le viste sono tre, e un interruttore non le dice. -->
         <div class="pl-viewmenu" id="plViewMenu" role="menu" aria-hidden="true">
-            <button type="button" role="menuitem" data-v="month">Mese</button>
-            <button type="button" role="menuitem" data-v="week">Settimana</button>
-            <button type="button" role="menuitem" data-v="day">Giorno</button>
+            <button type="button" role="menuitem" data-v="month"><?php te('planner.mese'); ?></button>
+            <button type="button" role="menuitem" data-v="week"><?php te('planner.settimana_2'); ?></button>
+            <button type="button" role="menuitem" data-v="day"><?php te('planner.giorno'); ?></button>
         </div>
-        <button type="button" class="pl-tool pl-tool-today" id="plTodayBtn" aria-label="Vai a oggi">1</button>
-        <button type="button" class="pl-tool" id="plSearchBtn" aria-label="Cerca">
+        <button type="button" class="pl-tool pl-tool-today" id="plTodayBtn" aria-label="<?php te('planner.vai_a_oggi'); ?>">1</button>
+        <button type="button" class="pl-tool" id="plSearchBtn" aria-label="<?php te('comune.cerca'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
         </button>
-        <button type="button" class="pl-tool" id="plFilterBtn" aria-label="Filtra per categoria">
+        <button type="button" class="pl-tool" id="plFilterBtn" aria-label="<?php te('planner.filtra_per_categoria'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
         </button>
-        <button type="button" class="pl-tool" id="plWeatherBtn" aria-label="Meteo">
+        <button type="button" class="pl-tool" id="plWeatherBtn" aria-label="<?php te('planner.meteo'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="3.2"/><path d="M9 3.4v1.2M9 13.4v1.2M3.4 9h1.2M13.4 9h1.2M5 5l.9.9M12.1 12.1l.9.9M5 13l.9-.9M12.1 5.9l.9-.9"/><path d="M13 19.5h5.5a2.75 2.75 0 100-5.5 3.6 3.6 0 00-6.9-1 2.5 2.5 0 00.4 6.5z"/></svg>
         </button>
-        <button type="button" class="pl-tool" id="plSettingsBtn" aria-label="Impostazioni">
+        <button type="button" class="pl-tool" id="plSettingsBtn" aria-label="<?php te('comune.impostazioni'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M4.8 7.9l1.9 1.1M17.3 15l1.9 1.1M4.8 16.1l1.9-1.1M17.3 9l1.9-1.1"/></svg>
         </button>
     </div>
@@ -2534,13 +2651,13 @@ $boot = [
     <div class="pl-bar-2">
         <button type="button" class="pl-day-btn" id="plDayBtn">
             <span class="pl-day-num pl-serif" id="plDayNum">1</span>
-            <span class="pl-day-wd" id="plDayWd">Lunedì</span>
+            <span class="pl-day-wd" id="plDayWd"><?php te('planner.lunedi'); ?></span>
         </button>
         <button type="button" class="pl-month-btn" id="plMonthBtn">
-            <span class="pl-month-name pl-serif" id="plMonthName">Luglio</span>
+            <span class="pl-month-name pl-serif" id="plMonthName"><?php te('planner.luglio'); ?></span>
             <span class="pl-month-year" id="plMonthYear">2026</span>
         </button>
-        <button type="button" class="pl-mini-static" id="plMiniStatic" aria-label="Calendario del mese"></button>
+        <button type="button" class="pl-mini-static" id="plMiniStatic" aria-label="<?php te('planner.calendario_del_mese'); ?>"></button>
     </div>
 
     <div class="pl-months-bar" id="plMonthsBar"></div>
@@ -2601,7 +2718,7 @@ $boot = [
     <!-- La maniglia che tira su l'elenco degli eventi. Prima l'elenco si
          apriva toccando un giorno, ma quel tocco serve per entrare nel
          giorno: due significati sullo stesso gesto non stanno in piedi. -->
-    <button type="button" class="pl-mpull" id="plMonthPull" aria-label="Mostra l'elenco degli eventi">
+    <button type="button" class="pl-mpull" id="plMonthPull" aria-label="<?php te('planner.mostra_l_elenco_degli_eventi'); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
     </button>
 </section>
@@ -2609,7 +2726,7 @@ $boot = [
 <!-- Elenco degli eventi dal giorno scelto in avanti: sale dal basso con la
      maniglia sotto il calendario, e si richiude toccando fuori. -->
 <section class="pl-magenda" id="plMonthAgenda" aria-hidden="true">
-    <button type="button" class="pl-magenda-grab" id="plMagendaClose" aria-label="Chiudi l'elenco">
+    <button type="button" class="pl-magenda-grab" id="plMagendaClose" aria-label="<?php te('planner.chiudi_l_elenco'); ?>">
         <!-- la stessa freccetta della maniglia sotto il calendario, girata:
              è lo stesso comando, e cambia solo il verso -->
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
@@ -2619,7 +2736,7 @@ $boot = [
 
 <!-- ============ PULSANTI FLOTTANTI ============ -->
 <div class="pl-fabs" id="plFabs">
-    <button type="button" class="pl-ring" id="plHabitRing" aria-label="Abitudini">
+    <button type="button" class="pl-ring" id="plHabitRing" aria-label="<?php te('planner.abitudini'); ?>">
         <?php /* I cerchi li disegna planner.js: quanti sono dipende da quali
                  famiglie di frequenza hai davvero (giornaliera, settimanale,
                  mensile, personalizzata), quindi non possono stare fissi qui. */ ?>
@@ -2634,26 +2751,26 @@ $boot = [
          sono l'unica cosa che si guarda senza doverla cercare, e restano. -->
     <div class="pl-fab-group" id="plFabGroup">
 
-    <button type="button" class="pl-fab" id="plFabRoutine" aria-label="Routine">
+    <button type="button" class="pl-fab" id="plFabRoutine" aria-label="<?php te('planner.routine'); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 6h10M4 12h13M4 18h8"/><circle cx="19" cy="6" r="1.6"/><circle cx="21" cy="12" r="1.6"/></svg>
     </button>
     <div class="pl-fab-menu" id="plMenuRoutine"></div>
 
-    <button type="button" class="pl-fab pl-fab-cat" id="plFabCat" aria-label="Categoria predefinita">
+    <button type="button" class="pl-fab pl-fab-cat" id="plFabCat" aria-label="<?php te('planner.categoria_predefinita'); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6.5 4h7.7L20 10.3 13.3 17 6 9.7z"/><circle cx="10" cy="8.5" r="1.2"/></svg>
     </button>
     <div class="pl-fab-menu" id="plMenuCat"></div>
 
-    <button type="button" class="pl-fab pl-hidden" id="plFabFav" aria-label="Progetti preferiti">
+    <button type="button" class="pl-fab pl-hidden" id="plFabFav" aria-label="<?php te('planner.progetti_preferiti'); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
     </button>
     <div class="pl-fab-menu" id="plMenuFav"></div>
 
-    <button type="button" class="pl-fab" id="plFabShift" aria-label="Anticipa o ritarda">
+    <button type="button" class="pl-fab" id="plFabShift" aria-label="<?php te('planner.anticipa_o_ritarda'); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4.4l3 1.8"/></svg>
     </button>
 
-    <button type="button" class="pl-fab" id="plFabDiary" aria-label="Diario del giorno">
+    <button type="button" class="pl-fab" id="plFabDiary" aria-label="<?php te('planner.diario_del_giorno'); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 4h10a2 2 0 012 2v14H8a2 2 0 01-2-2z"/><path d="M6 4v16"/><path d="M10 9h5M10 13h5"/></svg>
     </button>
     </div>
@@ -2662,23 +2779,23 @@ $boot = [
          in cima: da chiusa si trova subito sotto le abitudini, da aperta
          resta l'ultima della fila, dove il pollice la ritrova. -->
     <button type="button" class="pl-fab pl-fab-toggle" id="plFabToggle"
-            aria-label="Mostra o nascondi i tastini" aria-expanded="true">
+            aria-label="<?php te('planner.mostra_o_nascondi_i_tastini'); ?>" aria-expanded="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
     </button>
 </div>
 
 <!-- rotellina degli scatti: la costruisce planner.js -->
-<div class="pl-zoom" id="plZoom" aria-label="Scatti degli orari"></div>
+<div class="pl-zoom" id="plZoom" aria-label="<?php te('planner.scatti_degli_orari'); ?>"></div>
 
 <!-- da computer non si può scorrere: due frecce discrete per cambiare giorno -->
-<button type="button" class="pl-arrow pl-arrow-prev" id="plPrevDay" aria-label="Giorno precedente">
+<button type="button" class="pl-arrow pl-arrow-prev" id="plPrevDay" aria-label="<?php te('planner.giorno_precedente'); ?>">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M14.5 5L8 12l6.5 7"/></svg>
 </button>
-<button type="button" class="pl-arrow pl-arrow-next" id="plNextDay" aria-label="Giorno successivo">
+<button type="button" class="pl-arrow pl-arrow-next" id="plNextDay" aria-label="<?php te('planner.giorno_successivo'); ?>">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M9.5 5L16 12l-6.5 7"/></svg>
 </button>
 
-<button type="button" class="pl-plus" id="plPlus" aria-label="Nuovo evento">
+<button type="button" class="pl-plus" id="plPlus" aria-label="<?php te('planner.nuovo_evento'); ?>">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
 </button>
 
@@ -2692,8 +2809,8 @@ $boot = [
 <div class="pl-wp-ov" id="plWeekPanelOv">
     <aside class="pl-wp" id="plWeekPanel">
         <div class="pl-wp-head">
-            <span class="pl-sheet-title pl-serif">La settimana</span>
-            <button type="button" class="pl-txt-btn" id="plWeekPanelClose">Chiudi</button>
+            <span class="pl-sheet-title pl-serif"><?php te('planner.la_settimana'); ?></span>
+            <button type="button" class="pl-txt-btn" id="plWeekPanelClose"><?php te('comune.chiudi'); ?></button>
         </div>
         <div class="pl-wp-body" id="plWeekPanelBody"></div>
     </aside>
@@ -2704,17 +2821,17 @@ $boot = [
 
 <!-- barra della modalità anticipi/ritardi -->
 <div class="pl-shift-bar" id="plShiftBar">
-    <button type="button" class="pl-txt-btn" id="plShiftCancel">Annulla</button>
+    <button type="button" class="pl-txt-btn" id="plShiftCancel"><?php te('comune.annulla'); ?></button>
     <div class="pl-switch" id="plShiftSwitch">
-        <button type="button" data-dir="early">Anticipo</button>
-        <button type="button" data-dir="late" class="pl-on">Ritardo</button>
+        <button type="button" data-dir="early"><?php te('planner.anticipo'); ?></button>
+        <button type="button" data-dir="late" class="pl-on"><?php te('planner.ritardo'); ?></button>
     </div>
     <!-- Orario vero e proprio, non testo: così si tocca e si apre l'orologio
          del telefono invece di dover scrivere "00:10" con i due punti al posto
          giusto. Il valore letto resta della stessa forma (hh:mm), quindi il
          conto dei minuti in planner.js non cambia di una riga. -->
-    <input type="time" class="pl-time-in" id="plShiftTime" value="00:10" step="60" aria-label="Di quanto spostarli (ore e minuti)">
-    <button type="button" class="pl-txt-btn pl-strong" id="plShiftSave">Salva</button>
+    <input type="time" class="pl-time-in" id="plShiftTime" value="00:10" step="60" aria-label="<?php te('planner.di_quanto_spostarli_ore_e'); ?>">
+    <button type="button" class="pl-txt-btn pl-strong" id="plShiftSave"><?php te('comune.salva'); ?></button>
 </div>
 
 <!-- ============ POPUP: EVENTO ============ -->
@@ -2723,13 +2840,13 @@ $boot = [
         <div class="pl-grab"></div>
         <div class="pl-sheet-head">
             <span class="pl-head-left">
-                <button type="button" class="pl-txt-btn" id="plEvCancel">Annulla</button>
-                <button type="button" class="pl-trash pl-hidden" id="plEvTrash" aria-label="Elimina evento">
+                <button type="button" class="pl-txt-btn" id="plEvCancel"><?php te('comune.annulla'); ?></button>
+                <button type="button" class="pl-trash pl-hidden" id="plEvTrash" aria-label="<?php te('planner.elimina_evento'); ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/><path d="M10.5 11v6M13.5 11v6"/></svg>
                 </button>
             </span>
-            <span class="pl-label" id="plEvKicker">Nuovo evento</span>
-            <button type="button" class="pl-txt-btn pl-strong" id="plEvSave">Salva</button>
+            <span class="pl-label" id="plEvKicker"><?php te('planner.nuovo_evento'); ?></span>
+            <button type="button" class="pl-txt-btn pl-strong" id="plEvSave"><?php te('comune.salva'); ?></button>
         </div>
         <div class="pl-sheet-body" id="plEvBody"></div>
     </div>
@@ -2740,8 +2857,8 @@ $boot = [
     <div class="pl-sheet pl-sheet-tall">
         <div class="pl-grab"></div>
         <div class="pl-sheet-head">
-            <span class="pl-sheet-title pl-serif" id="plSheetTitle">Impostazioni</span>
-            <button type="button" class="pl-txt-btn" data-pl-close="plSheetOv">Chiudi</button>
+            <span class="pl-sheet-title pl-serif" id="plSheetTitle"><?php te('comune.impostazioni'); ?></span>
+            <button type="button" class="pl-txt-btn" data-pl-close="plSheetOv"><?php te('comune.chiudi'); ?></button>
         </div>
         <div class="pl-sheet-body" id="plSheetBody"></div>
     </div>
@@ -2769,7 +2886,9 @@ $ps_hidden_name = 'plev_project_id';
 include 'project_selector.php';
 /* nel planner il progetto si sceglie dal popup dell'evento: il pulsante
    inline del selettore non deve comparire in fondo alla pagina */
-echo '<style>#ps-widget-plev{ display:none; }</style>';
+/* La regola sta in planner.css. Prima era un echo di un blocco di stile: anche
+   una riga sola scritta nella pagina impedisce di togliere 'unsafe-inline'
+   dalla CSP, quindi e' stata spostata nel foglio esterno. */
 ?>
 
 <?php
@@ -2778,6 +2897,11 @@ echo '<style>#ps-widget-plev{ display:none; }</style>';
 include 'diario_giorno.php';
 ?>
 
+<?php
+/* Le stringhe che servono a planner.js. Va prima di PL_BOOT e prima dello
+   <script src="planner.js">: T() deve esistere quando il file parte. */
+echo nisama_i18n_json(['comune', 'planner']);
+?>
 <script>window.PL_BOOT = <?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
 <?php include 'sidebar.php'; ?>
 <script src="planner.js?v=<?php echo @filemtime(__DIR__ . '/planner.js') ?: time(); ?>"></script>
