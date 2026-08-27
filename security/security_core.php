@@ -68,7 +68,7 @@ function sec_boot_headers(): void {
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: SAMEORIGIN');
     header('Referrer-Policy: strict-origin-when-cross-origin');
-    header('Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=()');
+    header('Permissions-Policy: geolocation=(), microphone=(self), camera=(), payment=(), usb=()');
     header('Cross-Origin-Opener-Policy: same-origin');
     header('X-Permitted-Cross-Domain-Policies: none');
 

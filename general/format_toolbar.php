@@ -2630,6 +2630,111 @@ function ftSetupEditor(wrap) {
             }
             return;
         }
+        /* Cancellare non deve MAI far sparire una formula intera in un
+           colpo solo — ne' un tasto Canc su una riga vuota che la precede
+           subito, ne' un backspace/canc che la incontra continuando a
+           cancellare del testo normale. Deve invece ENTRARCI, e da li' in
+           poi cancellarne i caratteri uno alla volta, come farebbe con
+           qualunque altro testo. Le due direzioni sono speculari: backspace
+           guarda a sinistra/sopra, canc guarda a destra/sotto. */
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+            var indietro = e.key === 'Backspace';
+            var selC = fcdGetSel(ed);
+            if (selC && selC.a.b === selC.f.b && selC.a.o === selC.f.o) {
+                var docC = fcdFromDom(ed);
+                var biC = selC.a.b, oC = selC.a.o;
+                var bC = docC.blocks[biC];
+
+                /* CASO 0: il cursore e' GIA' dentro la formula a blocco, al
+                   suo stesso bordo (l'inizio, per backspace; la fine, per
+                   canc). Non c'e' niente della formula da cancellare in
+                   quella direzione: si esce verso il blocco vicino, intatta,
+                   proprio come farebbe una formula in linea (vedi caso 2, piu'
+                   sotto). Solo se non c'e' un vicino in quella direzione — la
+                   formula e' la prima o l'ultima cosa del documento — non
+                   resta altro da fare che il vecchio comportamento: scioglierla
+                   in testo modificabile, invece di restare bloccati li'. */
+                if (bC && bC.t === 'fx') {
+                    var alSuoBordo = indietro ? (oC === 0) : (oC === fcdBlockLen(bC));
+                    if (alSuoBordo) {
+                        var viciniIdx0 = indietro ? biC - 1 : biC + 1;
+                        var vicino0 = docC.blocks[viciniIdx0];
+                        if (vicino0 && vicino0.t !== 'fx') {
+                            e.preventDefault();
+                            ftCmd(wrap, function (d, s) {
+                                var lenVicino = fcdBlockLen(d.blocks[viciniIdx0]);
+                                return { doc: d, caret: { b: viciniIdx0, o: indietro ? lenVicino : 0 } };
+                            });
+                            return;
+                        }
+                    }
+                }
+
+                if (bC && bC.t !== 'fx') {
+                    /* CASO 1: una formula A BLOCCO sta dall'altra parte del
+                       confine di questo blocco. Se questo blocco e' vuoto lo
+                       si toglie di mezzo; se ha del testo lo si lascia stare.
+                       In entrambi i casi non si tocca la formula: ci si
+                       limita a portarci il cursore dentro, aperta.
+
+                       Una riga vuota non ha una direzione naturale — e' vuota
+                       sia "davanti" che "dietro" allo stesso modo — quindi se
+                       non trova niente dal lato che il tasto guarderebbe di
+                       norma (backspace guarda su, canc guarda giu') e la riga
+                       e' vuota, si guarda anche dall'altro lato. E' il caso
+                       di una riga vuota in cima al documento, con la formula
+                       solo sotto: li' backspace non avrebbe nulla "prima" da
+                       controllare, ma la riga va tolta comunque, e con lo
+                       stesso identico risultato di canc — come richiesto. */
+                    var vuotoC = fcdBlockLen(bC) === 0;
+                    var alBordo = indietro ? (oC === 0) : (oC === fcdBlockLen(bC));
+                    if (alBordo || vuotoC) {
+                        var naturale = indietro ? biC - 1 : biC + 1;
+                        var opposto = indietro ? biC + 1 : biC - 1;
+                        var viciniIdx = null;
+                        if (docC.blocks[naturale] && docC.blocks[naturale].t === 'fx') viciniIdx = naturale;
+                        else if (vuotoC && docC.blocks[opposto] && docC.blocks[opposto].t === 'fx') viciniIdx = opposto;
+
+                        if (viciniIdx !== null) {
+                            e.preventDefault();
+                            var daSopra = viciniIdx < biC;
+                            ftCmd(wrap, function (d, s) {
+                                if (vuotoC) d.blocks.splice(biC, 1);
+                                var idxF = vuotoC ? (daSopra ? viciniIdx : viciniIdx - 1) : viciniIdx;
+                                var testoF = d.blocks[idxF].tex || '';
+                                return { doc: fcdNorm(d), caret: { b: idxF, o: daSopra ? testoF.length : 0 } };
+                            });
+                            return;
+                        }
+                    }
+
+                    /* CASO 2: una formula IN LINEA tocca questa posizione.
+                       Se ci si arriva da fuori, il colpo la apre (non
+                       cancella nulla, ne' di lei ne' del testo attorno). Se
+                       si e' gia' dentro e si e' proprio al suo bordo, il
+                       colpo la richiude uscendo dall'altra parte — anche
+                       qui senza cancellare niente. Solo strettamente dentro,
+                       lontano da entrambi i bordi, si lascia fare al
+                       browser: li' e' testo normale, un carattere alla
+                       volta, esattamente come dovrebbe essere. */
+                    var fC = ftFormulaA(bC, oC);
+                    if (fC) {
+                        var dentroC = !!ftSpanDelCursore();
+                        var alBordoEsterno = indietro ? (!dentroC && oC === fC.fine) : (!dentroC && oC === fC.inizio);
+                        var alBordoInterno = indietro ? (dentroC && oC === fC.inizio) : (dentroC && oC === fC.fine);
+                        if (alBordoEsterno || alBordoInterno) {
+                            e.preventDefault();
+                            var blockElC = fcdBlockEls(ed)[biC];
+                            if (blockElC && ftPiazzaCursore(blockElC, bC, oC, alBordoEsterno, fC)) {
+                                ftMathRefresh(wrap);
+                                ftRefreshState(wrap);
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+        }
         if (e.key === 'Backspace') {
             var sel = fcdGetSel(ed);
             if (!sel || sel.a.b !== sel.f.b || sel.a.o !== sel.f.o || sel.a.o !== 0) return;

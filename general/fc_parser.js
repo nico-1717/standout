@@ -465,6 +465,16 @@ function fcdSplitBlock(doc, sel) {
     if (!block) return { doc: fcdNorm(doc), caret: { b: 0, o: 0 } };
 
     if (block.t === 'fx') {
+        if (s.a.o === 0) {
+            /* Il cursore e' prima della prima lettera: qui non si esce dalla
+               formula, si sposta lei di una riga in giu' e ci si resta
+               dentro, nello stesso punto. E' lo stesso identico invio che
+               premuto altrove apre una riga nuova SOPRA a dove si e' — solo
+               che "dove si e'" qui e' l'inizio della formula, non il suo
+               interno: e infatti la riga nuova nasce sopra ANCHE a lei. */
+            doc.blocks.splice(bi, 0, { t: 'p', runs: [] });
+            return { doc: fcdNorm(doc), caret: { b: bi + 1, o: 0 } };
+        }
         doc.blocks.splice(bi + 1, 0, { t: 'p', runs: [] });
         return { doc: fcdNorm(doc), caret: { b: bi + 1, o: 0 } };
     }
