@@ -172,7 +172,7 @@ function pl_week_row(int $userId, string $weekStart, array $settings): array {
 
 /* --- categorie / routine ------------------------------------------- */
 function pl_categories(int $userId): array {
-    $rows = sec_all("SELECT id, name, color, sort_order, is_hidden FROM planner_categories
+    $rows = sec_all("SELECT id, name, color, sort_order, is_hidden, role FROM planner_categories
                      WHERE user_id = ? ORDER BY sort_order, id", [$userId], 'i');
     $kw = sec_all("SELECT category_id, keyword FROM planner_category_keywords WHERE user_id = ? ORDER BY keyword", [$userId], 'i');
     $byCat = [];
@@ -184,6 +184,8 @@ function pl_categories(int $userId): array {
             'id' => $id, 'name' => pl_nome_tradotto($r['name']), 'color' => $r['color'],
             'hidden' => (int)$r['is_hidden'] === 1,
             'keywords' => $byCat[$id] ?? [],
+            // 'study' = la categoria in cui finiscono gli eventi di studio
+            'role' => ($r['role'] !== null && $r['role'] !== '') ? (string)$r['role'] : null,
         ];
     }
     return $out;
@@ -196,7 +198,7 @@ function pl_categories(int $userId): array {
    che e' esattamente quello che deve succedere. */
 const PL_NOMI_PREDEFINITI = [
     'Spostamenti', 'Svaghi', 'Eventi', 'Lavoro', 'Appuntamenti', 'Relax', 'Vacanze',
-    'Principale', 'Senza categoria',
+    'Principale', 'Senza categoria', 'Studio',
 ];
 
 function pl_nome_tradotto(string $nome): string {
@@ -210,12 +212,12 @@ function pl_nome_tradotto(string $nome): string {
 
 /** I calendari dell'utente, in ordine alfabetico. */
 function pl_calendars(int $userId): array {
-    $rows = sec_all("SELECT id, name, color, is_visible, is_default, google_ref, keywords, def_repeat, def_notify
+    $rows = sec_all("SELECT id, name, color, is_visible, is_default, google_ref, keywords, def_repeat, def_notify, role
                      FROM planner_calendars WHERE user_id = ? ORDER BY name", [$userId], 'i');
     if (empty($rows)) {
         sec_q("INSERT INTO planner_calendars (user_id, name, color, is_default, sort_order)
                VALUES (?, 'Principale', NULL, 1, 0)", [$userId], 'i');
-        $rows = sec_all("SELECT id, name, color, is_visible, is_default, google_ref, keywords, def_repeat, def_notify
+        $rows = sec_all("SELECT id, name, color, is_visible, is_default, google_ref, keywords, def_repeat, def_notify, role
                          FROM planner_calendars WHERE user_id = ?", [$userId], 'i');
     }
     $out = [];
@@ -228,7 +230,12 @@ function pl_calendars(int $userId): array {
             'from_google' => !empty($r['google_ref']),
             'keywords' => (string)($r['keywords'] ?? ''),
             'def_repeat' => (string)($r['def_repeat'] ?? 'none'),
-            'def_notify' => (string)($r['def_notify'] ?? 'none')
+            'def_notify' => (string)($r['def_notify'] ?? 'none'),
+            /* 'study' = e' il calendario dei blocchi di studio. Serve al filtro
+               per marcarlo, e alla pagina to study per sapere dove scrivere.
+               Un ruolo e non il nome: il nome l'utente lo puo' cambiare, e in
+               inglese e' un'altra parola. */
+            'role' => ($r['role'] !== null && $r['role'] !== '') ? (string)$r['role'] : null
         ];
     }
     return $out;
@@ -322,6 +329,29 @@ function pl_inviato(string $k): bool {
 }
 
 /* --- eventi --------------------------------------------------------- */
+/* La fine vera di un evento: end_date se c'è, altrimenti il giorno stesso.
+   Una funzione sola perché la regola non venga riscritta a mano ogni volta —
+   è il genere di condizione che, ripetuta in venti punti, in uno dei venti
+   finisce sbagliata. */
+function pl_fine_evento(array $r): string {
+    return !empty($r['end_date']) ? (string)$r['end_date'] : (string)$r['event_date'];
+}
+
+/* Quante caselle occupa nel calendario. Estremi compresi: dal 10 al 12 sono
+   tre giorni, non due. */
+function pl_giorni_evento(array $r): int {
+    $inizio = strtotime((string)$r['event_date']);
+    $fine   = strtotime(pl_fine_evento($r));
+    if ($inizio === false || $fine === false || $fine < $inizio) return 1;
+    return (int)floor(($fine - $inizio) / 86400) + 1;
+}
+
+/* Il massimo numero di giorni che un evento può coprire. Non è una regola di
+   buon gusto: un evento lungo entra in TUTTE le caselle che attraversa, quindi
+   uno da diecimila giorni comparirebbe in ogni vista per trent'anni. Un anno
+   basta a qualunque uso vero — un corso, una vacanza, una sessione d'esami. */
+const PL_MAX_GIORNI_EVENTO = 366;
+
 function pl_event_out(array $r): array {
     return [
         'id'          => (int)$r['id'],
@@ -339,6 +369,14 @@ function pl_event_out(array $r): array {
         'duration_locked' => (int)($r['duration_locked'] ?? 1) === 1,
         'guests'      => [],   // riempito da pl_attach_guests
         'date'        => $r['event_date'],
+        /* La fine di un evento è sempre COALESCE(end_date, event_date): nel
+           database NULL vuol dire «finisce dove comincia», ma verso il
+           JavaScript esce già risolta, così nessuna vista deve ricordarsi di
+           gestire il caso nullo. `giorni` è il numero di caselle che l'evento
+           occupa nella griglia del mese, 1 per la stragrande maggioranza. */
+        'end_date'    => !empty($r['end_date']) ? $r['end_date'] : $r['event_date'],
+        'giorni'      => pl_giorni_evento($r),
+        'multiday'    => pl_giorni_evento($r) > 1,
         'start'       => substr($r['start_time'], 0, 5),
         'end'         => substr($r['end_time'], 0, 5),
         'all_day'     => (int)$r['is_all_day'] === 1,
@@ -543,13 +581,20 @@ function pl_events_range(int $userId, string $from, string $to): array {
          LEFT JOIN planner_routines r ON r.id = e.routine_id AND r.user_id = e.user_id
          WHERE e.user_id = ?
            AND (
-               (e.rrule IS NULL AND e.original_date IS NULL AND e.event_date BETWEEN ? AND ?)
+               /* Un evento tocca il periodo se comincia entro la fine e finisce
+                  dopo l'inizio. Prima la condizione era «event_date dentro il
+                  periodo», che per un evento dal 28 al 3 lo faceva sparire dal
+                  mese successivo: comincia prima, quindi non veniva nemmeno
+                  letto. COALESCE perché end_date NULL vuol dire «finisce dove
+                  comincia». */
+               (e.rrule IS NULL AND e.original_date IS NULL
+                AND e.event_date <= ? AND COALESCE(e.end_date, e.event_date) >= ?)
                OR
                (e.rrule IS NOT NULL AND e.event_date <= ? AND (e.repeat_until IS NULL OR e.repeat_until >= ?))
                OR
                (e.original_date IS NOT NULL AND (e.event_date BETWEEN ? AND ? OR e.original_date BETWEEN ? AND ?))
            )",
-        [$userId, $from, $to, $to, $from, $from, $to, $from, $to], 'issssssss'
+        [$userId, $to, $from, $to, $from, $from, $to, $from, $to], 'issssssss'
     );
 
     $instances = [];
@@ -571,7 +616,9 @@ function pl_events_range(int $userId, string $from, string $to): array {
         if (empty($r['rrule'])) {
             // il marker di cancellazione è solo un segnaposto: non si disegna
             if ((int)($r['is_cancelled'] ?? 0) === 1) continue;
-            if ($r['event_date'] < $from || $r['event_date'] > $to) continue;
+            // fuori periodo solo se non lo tocca affatto: un evento lungo che
+            // comincia prima o finisce dopo va comunque disegnato
+            if (pl_fine_evento($r) < $from || $r['event_date'] > $to) continue;
             $r['occ_date']  = $r['event_date'];
             $r['master_id'] = !empty($r['series_id']) ? (int)$r['series_id'] : (int)$r['id'];
             $instances[] = $r;
@@ -584,6 +631,14 @@ function pl_events_range(int $userId, string $from, string $to): array {
             if (isset($exceptions[(int)$r['id']][$data])) continue;
             $clone = $r;
             $clone['event_date'] = $data;
+            /* La ripetizione dura quanto il capostipite: se il master va dal 3
+               al 5, ogni occorrenza copre tre giorni a partire dalla sua data.
+               Senza questa riga le copie si porterebbero dietro la end_date
+               dell'originale, cioè finirebbero tutte nel passato. */
+            $durata = pl_giorni_evento($r);
+            $clone['end_date'] = $durata > 1
+                ? date('Y-m-d', strtotime($data . ' +' . ($durata - 1) . ' day'))
+                : null;
             $clone['occ_date']   = $data;   // quale ripetizione stiamo guardando
             $clone['master_id']  = (int)$r['id'];
             $clone['series_id']  = (int)$r['id'];
@@ -669,8 +724,11 @@ function pl_priorities_range(int $userId, string $from, string $to): array {
        cose che servono a riassumerlo: quella riga è l'unico punto del planner
        in cui un progetto si affaccia, e senza l'identificativo l'unica cosa
        che si poteva farci era leggerla. */
-    /* Priorità automatiche: includiamo sia i progetti del periodo, sia quelli scaduti 
-       (target_date o due_date nel passato) ma non ancora completati. */
+    /* Priorità automatiche: i progetti con obiettivo o scadenza nel periodo, più
+       quelli già scaduti e non completati — ma questi ultimi solo su OGGI.
+       Un obiettivo scaduto a marzo non è una cosa da fare il 20 di giugno: è
+       una cosa da recuperare adesso, e su ogni giorno futuro diventerebbe una
+       riga fissa che sporca la vista di tutti i mesi a venire. */
     $today = date('Y-m-d');
     $proj = sec_all("SELECT id, name, notes, status, color, target_date, due_date FROM projects
                      WHERE user_id = ? AND (
@@ -703,7 +761,7 @@ function pl_priorities_range(int $userId, string $from, string $to): array {
             if (!empty($p['target_date'])) {
                 if ($p['target_date'] === $current) {
                     $showTarget = true;
-                } elseif ($p['target_date'] < $current && $p['status'] !== 'completed' && $current >= $today) {
+                } elseif ($p['target_date'] < $current && $p['status'] !== 'completed' && $current === $today) {
                     $showTarget = true;
                     $isOverdueTarget = true;
                 }
@@ -713,7 +771,7 @@ function pl_priorities_range(int $userId, string $from, string $to): array {
             if (!empty($p['due_date'])) {
                 if ($p['due_date'] === $current) {
                     $showDue = true;
-                } elseif ($p['due_date'] < $current && $p['status'] !== 'completed' && $current >= $today) {
+                } elseif ($p['due_date'] < $current && $p['status'] !== 'completed' && $current === $today) {
                     $showDue = true;
                     $isOverdueDue = true;
                 }
@@ -765,10 +823,14 @@ function pl_priorities_range(int $userId, string $from, string $to): array {
 
         $current = $from;
         while ($current <= $to) {
-            /* Da oggi in avanti, e sempre più indietro del giorno guardato:
-               una cosa scaduta ieri non era scaduta l'altro ieri, e sui
-               giorni già passati le priorità restano quelle che erano. */
-            if ($current >= $today && $t['due_date'] < $current) {
+            /* SOLO su oggi. Le cose in ritardo appartengono a oggi: è oggi che
+               vanno recuperate. Portandosele avanti su tutti i giorni futuri
+               si apriva il 15 del mese prossimo e ci si trovava in cima roba
+               scaduta il mese prima — un elenco che non riguarda quel giorno,
+               e che rende inutile guardare avanti per capire come sarà una
+               giornata. Sui giorni passati, come prima, non si tocca niente:
+               una cosa scaduta ieri non era scaduta l'altro ieri. */
+            if ($current === $today && $t['due_date'] < $current) {
                 $out[$current][] = array_merge($info, [
                     'position' => 0,
                     /* Niente "TO DO SCADUTO:" davanti: il rosso della casella
@@ -1474,7 +1536,27 @@ if ($ajax !== '') {
         $allDay  = sec_bool(sec_in('all_day'));
         $start   = sec_time(sec_in('start'), '09:00:00');
         $end     = sec_time(sec_in('end'), '10:00:00');
-        if (pl_minutes($end) <= pl_minutes($start) && !$allDay) {
+
+        /* La data di fine. Tre regole, tutte pensate perché un client
+           sbagliato (o modificato a mano) non possa lasciare righe assurde:
+             - prima dell'inizio non ha senso: si riporta all'inizio;
+             - uguale all'inizio si salva come NULL, che è il modo in cui il
+               database dice «un giorno solo» — così le righe di sempre e
+               quelle nuove hanno la stessa forma;
+             - più lunga del massimo si tronca: un evento entra in tutte le
+               caselle che attraversa, e uno da diecimila giorni comparirebbe
+               ovunque per trent'anni. */
+        $endDate = sec_date(sec_in('end_date'), null);
+        if ($endDate !== null) {
+            if ($endDate < $date) $endDate = $date;
+            $limite = date('Y-m-d', strtotime($date . ' +' . (PL_MAX_GIORNI_EVENTO - 1) . ' day'));
+            if ($endDate > $limite) $endDate = $limite;
+            if ($endDate === $date) $endDate = null;
+        }
+        /* Il controllo «la fine viene prima dell'inizio» vale sugli ORARI solo
+           dentro la stessa giornata: dal 3 alle 22:00 al 4 alle 02:00 è un
+           evento che scavalca la mezzanotte, non un errore da correggere. */
+        if ($endDate === null && pl_minutes($end) <= pl_minutes($start) && !$allDay) {
             $end = pl_time(min(1439, pl_minutes($start) + 30));
         }
         $catId   = sec_int(sec_in('category_id'), 0, PHP_INT_MAX, 0);
@@ -1568,7 +1650,11 @@ if ($ajax !== '') {
         }
 
         $params = [
-            $title, $notes, $luogo, $date, $start, $end, $allDay ? 1 : 0,
+            /* end_date sta subito dopo event_date, nell'ordine in cui compare
+               nelle colonne: i parametri di queste query si contano a occhio, e
+               un ordine che segue quello delle colonne e' l'unico modo di
+               riuscirci senza sbagliare. */
+            $title, $notes, $luogo, $date, $endDate, $start, $end, $allDay ? 1 : 0,
             $catId > 0 ? $catId : null, $calId > 0 ? $calId : null,
             $projId > 0 ? $projId : null, $habitId > 0 ? $habitId : null,
             $imp, $color, $type, $notify, $nMin, $rep, $repInt, $repUnit, $repUntil,
@@ -1587,7 +1673,7 @@ if ($ajax !== '') {
             // SE STIAMO CREANDO UN'ECCEZIONE SINGOLA
             if ($editMode === 'one' && $origDate) {
                 $params_exc = [
-                    $title, $notes, $luogo, $date, $start, $end, $allDay ? 1 : 0,
+                    $title, $notes, $luogo, $date, $endDate, $start, $end, $allDay ? 1 : 0,
                     $catId > 0 ? $catId : null, $calId > 0 ? $calId : null,
                     $projId > 0 ? $projId : null, $habitId > 0 ? $habitId : null,
                     $imp, $color, $type, $notify, $nMin, 
@@ -1597,16 +1683,16 @@ if ($ajax !== '') {
                 ];
                 
                 sec_q("INSERT INTO planner_events
-                       (title, notes, location, event_date, start_time, end_time, is_all_day, category_id, calendar_id,
+                       (title, notes, location, event_date, end_date, start_time, end_time, is_all_day, category_id, calendar_id,
                         project_id, habit_id, importance, color, item_type, notify_type, notify_minutes,
                         repeat_type, repeat_interval, repeat_unit, repeat_until,
                         place_name, place_lat, place_lon, place_ref, duration_locked, rrule, user_id, series_id, original_date)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", $params_exc);
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", $params_exc);
                 $newId = sec_insert_id();
             } else {
                 // MODIFICA NORMALE O "TUTTA LA SERIE"
                 $params[] = $id; $params[] = $current_user_id;
-                sec_q("UPDATE planner_events SET title=?, notes=?, location=?, event_date=?, start_time=?, end_time=?, is_all_day=?,
+                sec_q("UPDATE planner_events SET title=?, notes=?, location=?, event_date=?, end_date=?, start_time=?, end_time=?, is_all_day=?,
                               category_id=?, calendar_id=?, project_id=?, habit_id=?, importance=?, color=?, item_type=?,
                               notify_type=?, notify_minutes=?, repeat_type=?, repeat_interval=?, repeat_unit=?, repeat_until=?,
                               place_name=?, place_lat=?, place_lon=?, place_ref=?, duration_locked=?, rrule=?
@@ -1616,11 +1702,11 @@ if ($ajax !== '') {
         } else {
             $params[] = $current_user_id;
             sec_q("INSERT INTO planner_events
-                   (title, notes, location, event_date, start_time, end_time, is_all_day, category_id, calendar_id,
+                   (title, notes, location, event_date, end_date, start_time, end_time, is_all_day, category_id, calendar_id,
                     project_id, habit_id, importance, color, item_type, notify_type, notify_minutes,
                     repeat_type, repeat_interval, repeat_unit, repeat_until,
                     place_name, place_lat, place_lon, place_ref, duration_locked, rrule, user_id)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", $params);
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", $params);
             $newId = sec_insert_id();
             if ($rep !== 'none') {
                 sec_q("UPDATE planner_events SET series_id = ? WHERE id = ? AND user_id = ?",
@@ -1676,12 +1762,23 @@ if ($ajax !== '') {
         if ($id === 0 || $start === null || !sec_owns('planner_events', $id, $current_user_id)) {
             sec_die_json('Evento non trovato.', 404, 'not_found');
         }
-        $ev = sec_one("SELECT start_time, end_time, event_date FROM planner_events WHERE id = ? AND user_id = ?", [$id, $current_user_id], 'ii');
+        $ev = sec_one("SELECT start_time, end_time, event_date, end_date FROM planner_events WHERE id = ? AND user_id = ?", [$id, $current_user_id], 'ii');
         $dur = pl_minutes($ev['end_time']) - pl_minutes($ev['start_time']);
         $newStart = pl_minutes($start);
         if ($newStart + $dur > 1439) $newStart = max(0, 1439 - $dur);
-        sec_q("UPDATE planner_events SET start_time=?, end_time=?, event_date=? WHERE id=? AND user_id=?",
-              [pl_time($newStart), pl_time($newStart + $dur), $date ?: $ev['event_date'], $id, $current_user_id]);
+
+        /* Trascinare un evento lungo lo sposta tutto: la fine segue l'inizio
+           mantenendo la stessa durata in giorni. Lasciando end_date ferma, un
+           evento dal 3 al 5 trascinato al 10 sarebbe diventato «dal 10 al 5»,
+           cioè niente. */
+        $nuovaData = $date ?: $ev['event_date'];
+        $giorni    = pl_giorni_evento($ev);
+        $nuovaFine = $giorni > 1
+            ? date('Y-m-d', strtotime($nuovaData . ' +' . ($giorni - 1) . ' day'))
+            : null;
+
+        sec_q("UPDATE planner_events SET start_time=?, end_time=?, event_date=?, end_date=? WHERE id=? AND user_id=?",
+              [pl_time($newStart), pl_time($newStart + $dur), $nuovaData, $nuovaFine, $id, $current_user_id]);
         /* trascinare un task lo sposta anche negli elenchi: data e ora sono
            la stessa cosa vista da due parti */
         pl_task_to_todo($current_user_id, $id);
@@ -1856,12 +1953,18 @@ if ($ajax !== '') {
         $rows = sec_all("SELECT * FROM planner_events WHERE user_id=? AND event_date=?", [$current_user_id, $from], 'is');
         $n = 0;
         foreach ($rows as $r) {
+            /* la copia conserva la durata in giorni: un evento dal 3 al 5
+               copiato sul 10 va dal 10 al 12, non dal 10 al 5 */
+            $giorniCopia = pl_giorni_evento($r);
+            $fineCopia = $giorniCopia > 1
+                ? date('Y-m-d', strtotime($to . ' +' . ($giorniCopia - 1) . ' day'))
+                : null;
             sec_q("INSERT INTO planner_events
-                   (user_id, title, notes, event_date, start_time, end_time, is_all_day, category_id, project_id,
+                   (user_id, title, notes, event_date, end_date, start_time, end_time, is_all_day, category_id, project_id,
                     habit_id, routine_id, routine_group, routine_collapsed, importance, color, item_type,
                     notify_type, notify_minutes, sort_order)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                   [$current_user_id, $r['title'], $r['notes'], $to, $r['start_time'], $r['end_time'],
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                   [$current_user_id, $r['title'], $r['notes'], $to, $fineCopia, $r['start_time'], $r['end_time'],
                     (int)$r['is_all_day'], $r['category_id'], $r['project_id'], $r['habit_id'], $r['routine_id'],
                     $r['routine_group'], (int)$r['routine_collapsed'], $r['importance'], $r['color'],
                     $r['item_type'], $r['notify_type'], (int)$r['notify_minutes'], (int)$r['sort_order']]);
@@ -2429,13 +2532,18 @@ function pl_materialize_repeats(int $userId, int $masterId): void {
         /* Le occorrenze copiano anche luogo e lucchetto: un corso settimanale
            che si tiene sempre nello stesso posto lo perdeva dalla seconda
            volta in poi. */
+        /* ogni occorrenza dura quanto il capostipite */
+        $giorniOcc = pl_giorni_evento($m);
+        $fineOcc = $giorniOcc > 1
+            ? date('Y-m-d', strtotime($date . ' +' . ($giorniOcc - 1) . ' day'))
+            : null;
         sec_q("INSERT INTO planner_events
-               (user_id, title, notes, event_date, start_time, end_time, is_all_day, category_id, project_id,
+               (user_id, title, notes, event_date, end_date, start_time, end_time, is_all_day, category_id, project_id,
                 habit_id, importance, color, item_type, notify_type, notify_minutes,
                 repeat_type, repeat_interval, repeat_unit, repeat_until, series_id,
                 location, place_name, place_lat, place_lon, place_ref, duration_locked)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-               [$userId, $m['title'], $m['notes'], $date, $m['start_time'], $m['end_time'], (int)$m['is_all_day'],
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+               [$userId, $m['title'], $m['notes'], $date, $fineOcc, $m['start_time'], $m['end_time'], (int)$m['is_all_day'],
                 $m['category_id'], $m['project_id'], $m['habit_id'], $m['importance'], $m['color'], $m['item_type'],
                 $m['notify_type'], (int)$m['notify_minutes'], $m['repeat_type'], (int)$m['repeat_interval'],
                 $m['repeat_unit'], $m['repeat_until'], $masterId,

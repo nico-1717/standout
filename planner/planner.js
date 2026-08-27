@@ -47,10 +47,16 @@ var S = {
        tocco. */
     prioSlim:    true,
     adSlim:      true,        // stessa cosa per la fascia di tutto il giorno
+    /* Importanze spente. Vive solo in memoria e non sul server: è un filtro di
+       lettura come lo strizzare gli occhi, non una preferenza — e ricordarselo
+       fra una sessione e l'altra vorrebbe dire riaprire il planner senza gli
+       eventi importanti senza sapere perché. */
+    hiddenImp:   {},
     pillsDue:    B.pills_due || [],   // prese la cui ora è passata e nessuno ha risposto
     pillsChiuse: {},          // chiuse con la x: tornano al prossimo caricamento
     weekCache:   {},          // 'lunedì' -> { week, lists }
-    todos:       null,        // 'todo'|'buy'|'study' -> [voce], letto da todo_api.php
+    todos:       null,        // 'todo'|'buy' -> [voce], letto da todo_api.php
+    study:       null,        // { date, ok, argomenti } letto da study_api.php
     todoTab:     'todo',      // linguetta aperta nel pannello settimana
     pills:       null,        // prese del giorno a fuoco, lette da todo_api.php
     todoOthers:  false,       // "mostra anche gli altri" premuto
@@ -315,6 +321,10 @@ function calById(id) {
     return null;
 }
 function evHidden(ev) {
+    /* L'importanza si filtra come un calendario: «fammi vedere solo quello che
+       conta» è la stessa domanda di «fammi vedere solo il calendario del
+       lavoro», e prima si poteva fare la seconda e non la prima. */
+    if (ev.importance && ev.importance !== 'normal' && S.hiddenImp[ev.importance]) return true;
     if (ev.category_id && S.hiddenCats[ev.category_id]) return true;
     /* un evento senza calendario appartiene a quello predefinito, che è
        sempre visibile finché non lo si nasconde di proposito */
@@ -335,11 +345,28 @@ function haptic(ms) { if (navigator.vibrate) { try { navigator.vibrate(ms || 8);
    scheda si sta chiudendo. `opt.retry` riprova una volta sola quando è caduta
    la rete — non quando il server ha risposto "no", che è una risposta valida
    e ripeterla non cambierebbe nulla. */
+/* Le letture identiche già in volo non si rifanno.
+   Guardando le richieste di un minuto qualunque si vedeva `habits_day` sullo
+   stesso giorno quattro volte e `range` sullo stesso periodo tre: non perché
+   qualcuno le chiedesse quattro volte di proposito, ma perché quattro pezzi
+   diversi hanno bisogno degli stessi dati e ognuno se li andava a prendere per
+   conto suo. Ogni copia costa un viaggio di rete e una query.
+   Si condivide solo la LETTURA (senza corpo): una scrittura ripetuta è una
+   cosa che si vuole davvero fare due volte. E la promessa si dimentica appena
+   risolta — è una finestra di pochi millisecondi, non una cache: i dati veri
+   li tengono già S.events, S.habits e compagnia. */
+var letturaInVolo = {};
+
 function api(action, data, query, opt) {
     opt = opt || {};
     if (savingNow) opt.keepalive = true;   // stiamo svuotando la coda alla chiusura
     var url = 'planner.php?ajax=' + encodeURIComponent(action);
     if (query) { for (var k in query) if (query.hasOwnProperty(k)) url += '&' + k + '=' + encodeURIComponent(query[k]); }
+
+    if (!data && !opt.keepalive) {
+        var giaInVolo = letturaInVolo[url];
+        if (giaInVolo) return giaInVolo;
+    }
 
     function invia() {
         var req = {
@@ -354,7 +381,7 @@ function api(action, data, query, opt) {
         });
     }
 
-    return invia().catch(function () {
+    var p = invia().catch(function () {
         if (!data || opt.keepalive || opt.noRetry) throw 0;
         /* La rete è caduta a metà. Una sola ripetizione, dopo un attimo:
            basta a coprire il buco di copertura in ascensore o il cambio di
@@ -363,6 +390,15 @@ function api(action, data, query, opt) {
     }).catch(function () {
         return { ok: false, message: T('planner.connessione_non_riuscita') };
     });
+
+    if (!data && !opt.keepalive) {
+        letturaInVolo[url] = p;
+        // la si dimentica comunque vada: tenerla dopo un errore vorrebbe dire
+        // servire quell'errore a chiunque richieda la stessa cosa
+        p.then(function () { delete letturaInVolo[url]; },
+               function () { delete letturaInVolo[url]; });
+    }
+    return p;
 }
 
 /* I salvataggi rimandati.
@@ -457,10 +493,34 @@ function indexEvents(list, clearRange) {
     if (clearRange) {
         for (var d = clearRange.from; d <= clearRange.to; d = addDays(d, 1)) S.events[d] = [];
     }
+    function posa(giorno, ev) {
+        if (!S.events[giorno]) S.events[giorno] = [];
+        S.events[giorno] = S.events[giorno].filter(function (x) { return x.id !== ev.id; });
+        S.events[giorno].push(ev);
+    }
     (list || []).forEach(function (ev) {
-        if (!S.events[ev.date]) S.events[ev.date] = [];
-        S.events[ev.date] = S.events[ev.date].filter(function (x) { return x.id !== ev.id; });
-        S.events[ev.date].push(ev);
+        /* Un evento di più giorni arriva dal server UNA volta sola, con la sua
+           data d'inizio: è una riga sola nel database e deve restare tale. Qui
+           lo si mette in tutte le giornate che copre, perché aprendo il 12 un
+           evento che va dal 10 al 14 deve esserci — sul 12, non solo sul 10.
+           Le copie tengono `date` uguale alla data VERA d'inizio: è quella che
+           usano modifica, spostamento e cancellazione, e cambiarla vorrebbe
+           dire che aprendo la copia del 12 si sposterebbe l'evento al 12.
+           Per ora solo gli eventi di tutto il giorno: quelli con un orario
+           vivono nella griglia delle ore, dove una copia trascinabile su un
+           altro giorno farebbe più danni che comodo. */
+        var tot = giorniFra(ev.date, ev.end_date || ev.date);
+        if (ev.all_day && tot > 1) {
+            ev.giorno_num = 1;
+            ev.giorno_tot = tot;
+            for (var i = 1; i < tot; i++) {
+                var g = piuGiorni(ev.date, i);
+                var copia = Object.assign({}, ev, { giorno_num: i + 1, giorno_tot: tot, mostrato_il: g });
+                posa(g, copia);
+            }
+        }
+        ev.mostrato_il = ev.date;
+        posa(ev.date, ev);
     });
 }
 function indexPrio(map) {
@@ -490,6 +550,18 @@ function applyWeek(weekStart) {
     return true;
 }
 
+/* Come sono fatte adesso le priorità del giorno a fuoco. Serve solo a capire
+   se sono cambiate: il contenuto vero lo disegna renderPrio. */
+function firmaPrio(date) {
+    var l = (S.prio && S.prio[date]) || [];
+    var out = [];
+    for (var i = 0; i < l.length; i++) {
+        var p = l[i] || {};
+        out.push([p.position, p.content, p.done ? 1 : 0, p.auto ? 1 : 0, p.overdue ? 1 : 0].join('\u0001'));
+    }
+    return date + '\u0002' + out.join('\u0003');
+}
+
 function loadWeek(weekStart, force) {
     if (S.weekCache[weekStart] && !force) {
         if (monday(S.focusDate) === weekStart) applyWeek(weekStart);
@@ -505,7 +577,18 @@ function loadWeek(weekStart, force) {
         S.weekCache[weekStart] = { week: r.week, lists: r.lists || [] };
         if (monday(S.focusDate) === weekStart) applyWeek(weekStart);
         renderDays();
-        renderPrio();
+        /* Le priorità si ridisegnano solo se sono davvero cambiate.
+           È lo stesso difetto già visto sul righello: cambiando giorno la
+           sezione veniva disegnata subito con quello che c'era in memoria e
+           poi UNA SECONDA VOLTA quando tornava la rete, con gli stessi
+           identici dati. Il secondo disegno rifà da capo i nodi, le strisce
+           che scorrono ripartono da zero e le altezze si assestano di nuovo:
+           da fuori è uno scattino a giorno appena cambiato.
+           La firma è una stringa e non un confronto profondo: si costruisce e
+           si paragona in un attimo, e qui basta sapere SE è cambiato — non
+           cosa. */
+        var firmaOra = firmaPrio(S.focusDate);
+        if (firmaOra !== S.firmaPrio) { S.firmaPrio = firmaOra; renderPrio(); }
         maybeAskCopy();
         var ag = $('plMonthAgenda');
         if (ag && ag.classList.contains('pl-open') && S.agendaFrom) {
@@ -3943,6 +4026,19 @@ function buildEvent(ev, flow) {
     misuraStriscia(t, tIn);
     row.appendChild(t);
 
+    /* «2/4»: a che punto siamo di un evento che dura più giorni. Senza,
+       aprendo il 12 un evento che va dal 10 al 14 si vedrebbe uguale a uno che
+       comincia proprio quel giorno, e non si capirebbe né da quanto va avanti
+       né quanto manca. Sta subito dopo il titolo perché è parte di che cosa è
+       quell'evento, non un dettaglio da cercare aprendolo.
+       Fuori dallo span del titolo: quello scorre avanti e indietro quando il
+       testo non ci sta, e il progressivo si porterebbe via con lui. */
+    if (ev.giorno_tot > 1) {
+        var prog = el('span', 'pl-ev-prog', '(' + ev.giorno_num + '/' + ev.giorno_tot + ')');
+        prog.title = T('planner.giorno_n_di_n', { n: ev.giorno_num, tot: ev.giorno_tot });
+        row.appendChild(prog);
+    }
+
     if (ev.routine_group && ev.canFold) {
         var fold = el('button', 'pl-ev-fold');
         fold.type = 'button';
@@ -4068,6 +4164,7 @@ function renderWeekPanel() {
             S.todoOthers = false;
             renderWeekPanel();
             if (t === 'pills') loadWeekPills(S.focusDate);
+            else if (t === 'study') loadStudy(S.focusDate);
             else loadWeekTodos(t);
         });
         tabs.appendChild(b);
@@ -4076,7 +4173,8 @@ function renderWeekPanel() {
 
     var host = el('div', 'pl-lists');
     wrap.appendChild(host);
-    host.appendChild(S.todoTab === 'pills' ? weekPillsCard() : weekTodoList());
+    host.appendChild(S.todoTab === 'pills' ? weekPillsCard()
+                   : (S.todoTab === 'study' ? weekStudyCard() : weekTodoList()));
 
     var learned = el('div', 'pl-learned');
     learned.appendChild(el('div', 'pl-label', T('planner.cosa_ho_imparato')));
@@ -4092,6 +4190,106 @@ function renderWeekPanel() {
     });
     learned.appendChild(ta);
     host.appendChild(learned);
+}
+
+/* ------------------------------------------------------------------ */
+/* Da studiare: quello che c'è in programma nel giorno a fuoco          */
+/* ------------------------------------------------------------------ */
+/* La linguetta legge da study_api.php, non da `todos`: il to study non è più
+   una lista di attività da quando è diventato un calendario con dentro blocchi
+   e argomenti, e la vecchia lista è stata svuotata. Rifare qui il conto di
+   quale argomento tocca oggi vorrebbe dire avere due pagine che possono non
+   essere d'accordo su cosa c'è da studiare — lo stesso errore già fatto una
+   volta con le prese delle pastiglie.
+   Un giorno solo, quello a fuoco, come le pastiglie: un piano di studio di
+   sette giorni in un pannello laterale sono trenta righe di cui ventotto non
+   riguardano oggi. */
+function loadStudy(date, force) {
+    date = date || S.focusDate;
+    if (S.study && S.study.date === date && !force) return Promise.resolve();
+    return fetch('study_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'st_ajax=oggi'
+    }).then(function (r) { return r.json(); }).then(function (d) {
+        S.study = { date: date, ok: !!(d && d.ok), blocchi: (d && d.blocchi) || [] };
+        renderWeekPanel();
+    }).catch(function () {
+        S.study = { date: date, ok: false, blocchi: [] };
+        renderWeekPanel();
+    });
+}
+
+function weekStudyCard() {
+    var card = el('div', 'pl-list-card');
+    var head = el('div', 'pl-list-head');
+    head.appendChild(el('div', 'pl-list-title pl-serif', LIST_LABEL['study'] || 'study'));
+    var link = el('a', 'pl-wl-link', T('planner.apri_2'));
+    link.href = 'to_study.php';
+    head.appendChild(link);
+    card.appendChild(head);
+
+    if (!S.study || S.study.date !== S.focusDate) {
+        card.appendChild(el('div', 'pl-wl-empty', T('planner.un_momento')));
+        loadStudy(S.focusDate);
+        return card;
+    }
+    if (!S.study.ok) {
+        card.appendChild(el('div', 'pl-wl-empty', T('planner.study_non_disponibile')));
+        return card;
+    }
+    if (!S.study.blocchi.length) {
+        card.appendChild(el('div', 'pl-wl-empty', T('planner.study_niente_oggi')));
+        return card;
+    }
+
+    /* Si mostra il blocco, e sotto i suoi argomenti di oggi se ne ha.
+       Un blocco senza argomenti non è un errore né una riga vuota: è la forma
+       normale di un blocco appena creato, ed è comunque quello che c'è da
+       studiare oggi. Prima si leggevano solo gli argomenti, e in quel caso il
+       pannello diceva «niente da studiare» con mezzo mese di blocchi attivi. */
+    var box = el('div', 'pl-list-items');
+    S.study.blocchi.forEach(function (b) {
+        var titolo = el('div', 'pl-study-blocco' + (b.done ? ' pl-done' : ''));
+        titolo.style.setProperty('--ev', b.color || '#B7AEA3');
+        titolo.appendChild(el('span', 'pl-study-nome', b.titolo));
+        if (b.materia && b.materia !== b.titolo) {
+            titolo.appendChild(el('span', 'pl-study-mat', b.materia));
+        }
+        box.appendChild(titolo);
+        (b.argomenti || []).forEach(function (a) { box.appendChild(studyRow(a)); });
+    });
+    card.appendChild(box);
+    return card;
+}
+
+function studyRow(a) {
+    var row = el('div', 'pl-li pl-study-li');
+    var box = el('span', 'pl-li-box');
+    box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
+    row.appendChild(box);
+
+    row.appendChild(el('span', 'pl-li-txt', a.name || T('planner.senza_titolo_l')));
+
+    /* I pomodori fatti su quell'argomento, e la stima se c'è: è il numero che
+       dice se si è dentro o fuori, e averlo qui evita di aprire un'altra
+       pagina per saperlo. */
+    if (a.fatti || a.stimati) {
+        row.appendChild(el('span', 'pl-li-when',
+            (a.fatti || 0) + (a.stimati ? '/' + a.stimati : '') + '\uD83C\uDF45'));
+    }
+
+    box.addEventListener('click', function (e) {
+        e.stopPropagation();
+        row.classList.add('pl-done');
+        haptic(8);
+        fetch('study_api.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'st_ajax=toggle&id=' + encodeURIComponent(a.id) + '&done=1'
+        }).then(function () { loadStudy(S.focusDate, true); });
+    });
+    return row;
 }
 
 function weekTodoList() {
@@ -4225,7 +4423,7 @@ function weekTodoList() {
    L'endpoint stesso è fatto per un giorno solo — è lui che crea le prese
    mancanti di quella data — e chiedergliene sette vorrebbe dire scrivere in
    archivio una settimana di prese solo per aver aperto un pannello. */
-function loadWeekPills(date, force) {
+function loadWeekPills(date, force, zitta) {
     date = date || S.focusDate;
     if (S.pills && S.pills.date === date && !force) return Promise.resolve();
     return todoApi('pills', null, { date: date }).then(function (r) {
@@ -4239,6 +4437,11 @@ function loadWeekPills(date, force) {
             late: r.late || [],
             stats: r.stats || null
         };
+        /* `zitta` = aggiorna i dati ma non ridisegnare. Serve dopo che una
+           riga è già uscita da sola con la sua animazione: ridisegnare lì
+           vorrebbe dire rifare da capo l'elenco che l'utente sta guardando,
+           cioè annullare l'animazione appena finita. */
+        if (zitta) return;
         renderWeekPanel();
     });
 }
@@ -4328,6 +4531,37 @@ function weekPillsCard() {
      casella dice «l'ho presa» e chiede quando, perché su una presa di ieri
      l'orologio di adesso sbaglierebbe di sicuro; la crocetta dice «non l'ho
      presa» e la toglie dall'elenco, se no resterebbe lì per sempre. */
+/* Fa uscire una riga di lato e richiude il buco che lascia.
+   Due tempi e non uno: prima scivola via — l'altezza resta, così quelle sotto
+   stanno ferme e si vede DOVE se ne sta andando — e solo dopo l'altezza va a
+   zero e le altre scorrono a chiudere. Facendo le due cose insieme la riga
+   sembrava risucchiata invece che tolta, e non si capiva quale fosse.
+   `verso` è +1 o -1: fatta esce a destra, saltata a sinistra. Sono due
+   risposte diverse e vanno in due direzioni diverse. */
+function sfilaRiga(row, verso, poi) {
+    var h = row.offsetHeight;
+    row.style.height = h + 'px';
+    row.style.overflow = 'hidden';
+    row.style.pointerEvents = 'none';
+    // il fotogramma dopo, o il browser non ha ancora un'altezza da cui partire
+    requestAnimationFrame(function () {
+        row.classList.add('pl-pill-via');
+        row.style.transform = 'translateX(' + (verso * 108) + '%)';
+        row.style.opacity = '0';
+        setTimeout(function () {
+            row.style.height = '0px';
+            row.style.marginTop = '0px';
+            row.style.marginBottom = '0px';
+            row.style.paddingTop = '0px';
+            row.style.paddingBottom = '0px';
+            setTimeout(function () {
+                if (row.parentNode) row.parentNode.removeChild(row);
+                if (poi) poi();
+            }, 260);
+        }, 230);
+    });
+}
+
 function pillRow(p, modo) {
     var arretrata = modo === T('planner.arretrata');
     var futura = modo === T('planner.futura');
@@ -4373,9 +4607,23 @@ function pillRow(p, modo) {
         /* si segna subito e si avvisa il server dopo: la spunta di una
            pastiglia deve sembrare immediata come tutte le altre */
         todoApi('pill_mark', dati);
-        /* un'arretrata sistemata non è più arretrata: sparisce dall'elenco
-           alla lettura dopo, che si chiede qui */
-        if (arretrata) setTimeout(function () { loadWeekPills(S.focusDate, true); }, 400);
+        /* Un'arretrata sistemata non è più arretrata: se ne va scorrendo di
+           lato mentre le altre si richiudono al suo posto.
+           Prima si aspettavano 400ms e si ridisegnava tutto l'elenco: la riga
+           spariva di colpo insieme a tutte le altre, che ricomparivano
+           ricostruite da capo — da fuori era uno sfarfallio, e su un elenco
+           lungo si perdeva anche il punto in cui si stava guardando.
+           I dati si aggiornano qui in memoria e la rilettura dal server si fa
+           dopo, in silenzio: serve solo a rimettere in riga i conti in fondo,
+           non a ridisegnare quello che l'utente sta già vedendo. */
+        if (arretrata) {
+            if (S.pills && S.pills.late) {
+                S.pills.late = S.pills.late.filter(function (x) { return x.id !== p.id; });
+            }
+            sfilaRiga(row, stato === 'skipped' ? -1 : 1, function () {
+                loadWeekPills(S.focusDate, true, true);
+            });
+        }
     }
 
     box.addEventListener('click', function () {
@@ -4509,6 +4757,23 @@ function weekTodoRow(t, isOther) {
     if (isOther) {
         row.appendChild(el('span', 'pl-li-txt', t.title || T('planner.senza_titolo_l')));
         if (t.date) row.appendChild(el('span', 'pl-li-when', todoQuandoTesto(t)));
+
+        /* La casella spunta, il resto della riga propone di spostarla.
+           Prima il tocco su tutta la riga — casella compresa — apriva la
+           domanda «lascio o sposto», e una cosa rimasta indietro non si poteva
+           dichiarare fatta in nessun modo: si finiva sempre a spostarla a un
+           altro giorno per poi spuntarla lì. Ma il caso più frequente è
+           l'opposto — l'hai già fatta, era solo segnata al giorno sbagliato. */
+        box.addEventListener('click', function (e) {
+            e.stopPropagation();
+            t.done = !t.done;
+            row.classList.toggle('pl-done', t.done);
+            haptic(8);
+            todoApi('toggle', { id: t.id }).then(function () {
+                loadWeekTodos(S.todoTab, true);
+                loadWeek(monday(S.focusDate), true);
+            });
+        });
         row.addEventListener('click', function () { takeIntoWeek(t); });
         return row;
     }
@@ -4803,13 +5068,33 @@ function renderRing() {
     if (pronti) { ring.dataset.drawn = date; disegnaAnelli(ring, pronti); return; }
     ring.dataset.drawn = '';
 
-    /* Finché non si sa, si svuota: meglio niente che i dati di ieri. */
-    disegnaAnelli(ring, null);
+    /* Non si svuota più mentre si aspetta. Svuotare e ridisegnare era corretto
+       — meglio niente che i dati di ieri — ma sfogliando i giorni produceva un
+       lampo a ogni cambio: anelli via, mezzo secondo di buco, anelli di
+       ritorno. Adesso restano quelli di prima, smorzati, così si vede che sono
+       vecchi senza che sparisca tutto; e appena arrivano i nuovi tornano
+       pieni. Se non c'era proprio niente, si parte da vuoto come prima. */
+    if (!ring.querySelector('.pl-ring-fill')) disegnaAnelli(ring, null);
+    ring.classList.add('pl-ring-attesa');
     loadRings(date).then(function (dati) {
         if (ring.dataset.want !== date) return;
         ring.dataset.drawn = date;
+        ring.classList.remove('pl-ring-attesa');
         disegnaAnelli(ring, dati);
     });
+
+    /* I due giorni accanto si preparano in anticipo. Sfogliare è il gesto più
+       frequente del planner, e chiedere gli anelli solo quando il giorno è già
+       a schermo vuol dire che il buco si vede sempre. Si chiedono a bassa
+       priorità, quando il browser non ha altro da fare: se si sfoglia in
+       fretta, la richiesta è già partita e la condivisione delle letture in
+       volo evita di rifarla. */
+    var vicini = [addDays(date, 1), addDays(date, -1)];
+    var chiedi = function () {
+        vicini.forEach(function (g) { if (!S.rings[g]) loadRings(g); });
+    };
+    if (window.requestIdleCallback) requestIdleCallback(chiedi, { timeout: 1200 });
+    else setTimeout(chiedi, 400);
 }
 
 function loadRings(date) {
@@ -5026,6 +5311,7 @@ function goToDate(date, smooth) {
     applyWeek(monday(date));
     renderWeekBits();
     renderPrio();
+    S.firmaPrio = firmaPrio(date);   // quello che si sta guardando adesso
     renderAllDay();   // la fascia compare o sparisce secondo il giorno mostrato
     /* L'anello delle abitudini si aggiorna qui, con il giorno. Prima toccava
        solo a renderDays(), che cambiando giorno non passa: l'anello restava
@@ -5073,7 +5359,15 @@ document.addEventListener('pointerdown', function (e) {
            sia dipende da dove è arrivato il giro — si finirebbe per aprire un
            evento che non si era ancora deciso di aprire. Da aperta invece si
            vedono tutti e toccarne uno significa proprio quello. */
-        if (S.adSlim) {
+        /* Con un evento solo non c'è niente da espandere: la fascia da chiusa
+           mostra già tutto quello che c'è, e il primo tocco veniva mangiato
+           per aprire una sezione che era già aperta di fatto. Toccandolo si
+           apre l'evento, che è la sola cosa sensata da fare.
+           Il conto si fa sulla colonna toccata e non sul giorno a fuoco: la
+           fascia mostra anche i giorni accanto mentre si sfoglia. */
+        var colonna = e.target.closest('.pl-hcol-ad');
+        var quanti = colonna ? colonna.querySelectorAll('.pl-ev').length : 0;
+        if (S.adSlim && quanti > 1) {
             e.preventDefault();
             e.stopPropagation();
             /* Fermare il pointerdown non basta: il popup dell'evento si apre
@@ -6964,6 +7258,10 @@ function openEventSheet(existing, seed) {
         duration_locked: existing.duration_locked !== false,
         calendar_id: existing.calendar_id || null,
         date: existing.date,
+        /* La fine dal server arriva sempre risolta (mai nulla): un evento di
+           un giorno solo ha end_date uguale a date. Il popup ragiona su questo
+           e non deve mai chiedersi se il valore esiste. */
+        end_date: existing.end_date || existing.date,
         start: existing.start, end: existing.end, all_day: existing.all_day,
         category_id: existing.category_id, project_id: existing.project_id,
         project_name: existing.project_name, project_color: existing.project_color,
@@ -6976,7 +7274,7 @@ function openEventSheet(existing, seed) {
         id: 0, title: '', notes: '', location: '', guests: [], calendar_id: null,
         place_name: null, place_lat: null, place_lon: null, place_ref: null,
         duration_locked: false,  // si parte da 'auto': la durata segue l'inizio, non la fine
-        date: seed.date, start: seed.start, end: seed.end,
+        date: seed.date, end_date: seed.date, start: seed.start, end: seed.end,
         all_day: false, category_id: S.defaultCat, project_id: null, importance: 'normal',
         color: null, type: 'event', notify: 'h1', notify_min: 60,
         repeat: 'none', repeat_interval: 1, repeat_unit: 'week', repeat_until: null
@@ -7064,8 +7362,45 @@ function renderEventSheet() {
     /* data, orari, durata */
     var fd = el('div', 'pl-field');
     fd.appendChild(el('label', 'pl-label', T('planner.quando')));
-    var rDate = rowSB(T('planner.data_t'), dateInput(d.date, function (v) { d.date = v; S.draft.dirty = true; }));
+    var rDate = rowSB(T('planner.data_t'), dateInput(d.date, function (v) {
+        /* Spostando il giorno di inizio, la fine lo segue conservando la
+           durata: un evento dal 3 al 5 spostato al 10 va dal 10 al 12. Senza,
+           diventerebbe "dal 10 al 5", cioe' niente — ed e' la stessa regola che
+           applica il server quando l'evento viene trascinato. */
+        var giorni = giorniFra(d.date, d.end_date);
+        d.date = v;
+        d.end_date = giorni > 1 ? piuGiorni(v, giorni - 1) : v;
+        S.draft.dirty = true;
+        aggiornaFine();
+        tintSheet();
+    }));
     fd.appendChild(rDate);
+
+    /* LA DATA DI FINE, accanto all'orario di fine e non su una riga sua.
+       Sono la stessa informazione — quando finisce — e separarle avrebbe
+       voluto dire far cercare in due punti la risposta a una domanda sola.
+       Finché coincide con il giorno di inizio resta sbiadita: c'è, si legge
+       se la si cerca, ma non pretende attenzione — per la stragrande
+       maggioranza degli eventi quel valore non si tocca mai. Appena diventa
+       un giorno diverso si accende come tutto il resto, perché a quel punto
+       è un dato che cambia la sostanza dell'evento. */
+    var fineData = dateInput(d.end_date || d.date, function (v) {
+        if (!v) { fineData.value = d.date; return; }
+        // prima dell'inizio non ha senso: si riporta al giorno di inizio
+        if (v < d.date) v = d.date;
+        d.end_date = v;
+        S.draft.dirty = true;
+        aggiornaFine();
+        tintSheet();
+    });
+    fineData.classList.add('pl-pick-data-fine');
+
+    function aggiornaFine() {
+        if (!d.end_date) d.end_date = d.date;
+        fineData.value = d.end_date;
+        fineData.classList.toggle('pl-spenta', d.end_date === d.date);
+    }
+    aggiornaFine();
 
     var allRow = rowSB(T('planner.tutto_il_giorno'), toggle(d.all_day, function (v) {
         d.all_day = v;
@@ -7210,7 +7545,16 @@ function renderEventSheet() {
         durRow.appendChild(durBox);
         fd.appendChild(durRow);
 
-        fd.appendChild(rowSB(T('planner.fine_t'), eIn));
+        var boxFine = el('div', 'pl-finebox');
+        boxFine.appendChild(fineData);
+        boxFine.appendChild(eIn);
+        fd.appendChild(rowSB(T('planner.fine_t'), boxFine));
+    } else {
+        /* Tutto il giorno: l'orario non c'è, la data di fine sì — anzi, è
+           proprio qui che serve di più, perché un evento di più giorni senza
+           orari (una vacanza, un blocco di studio) è tutto-il-giorno per
+           definizione. */
+        fd.appendChild(rowSB(T('planner.fine_t'), fineData));
     }
     body.appendChild(fd);
 
@@ -7276,14 +7620,25 @@ function renderEventSheet() {
     body.appendChild(fr);
 
     /* calendario */
-    if (S.calendars.length > 1) {
+    /* Il calendario dello studio non compare fra le scelte: là dentro ci
+       finiscono i blocchi creati dalla pagina «da studiare», che hanno degli
+       argomenti appesi e delle date che quella pagina tiene in ordine.
+       Trascinandoci dentro un evento qualsiasi da qui si otterrebbe una riga
+       che il to study mostra ma non sa gestire. Ci si sposta da lì, non da qui.
+       Se l'evento che si sta modificando ci sta già dentro (lo si è aperto dal
+       planner) la sua voce resta, o cambiando qualunque altro campo lo si
+       sposterebbe via senza volerlo. */
+    var calScegliibili = S.calendars.filter(function (c) {
+        return c.role !== 'study' || d.calendar_id === c.id;
+    });
+    if (calScegliibili.length > 1) {
         var fcal = el('div', 'pl-field');
         fcal.appendChild(el('label', 'pl-label', T('planner.calendario')));
         
         var calOptions = [];
         var activeCalStr = '';
         
-        alpha(S.calendars, 'name').forEach(function (c) {
+        alpha(calScegliibili, 'name').forEach(function (c) {
             calOptions.push([String(c.id), c.name]);
             if (d.calendar_id ? d.calendar_id === c.id : c.is_default) {
                 activeCalStr = String(c.id);
@@ -7939,6 +8294,22 @@ function dateInput(value, onChange) {
     i.addEventListener('change', function () { onChange(i.value); });
     return i;
 }
+
+/* Quanti giorni copre un evento, estremi compresi: dal 10 al 12 sono tre.
+   Si lavora sulle stringhe "AAAA-MM-GG" passando da Date solo per il conto,
+   e a mezzogiorno UTC: a mezzanotte, l'ora legale fa sballare la differenza di
+   un giorno due volte l'anno. */
+function giorniFra(inizio, fine) {
+    if (!inizio || !fine) return 1;
+    var a = Date.parse(inizio + 'T12:00:00Z'), b = Date.parse(fine + 'T12:00:00Z');
+    if (isNaN(a) || isNaN(b) || b < a) return 1;
+    return Math.round((b - a) / 86400000) + 1;
+}
+function piuGiorni(data, n) {
+    var t = Date.parse(data + 'T12:00:00Z');
+    if (isNaN(t)) return data;
+    return new Date(t + n * 86400000).toISOString().slice(0, 10);
+}
 function timeInput(value, onChange) {
     var i = el('input', 'pl-pick');
     i.type = 'time'; i.step = '300'; i.value = value || '';
@@ -8039,7 +8410,8 @@ document.addEventListener('projectselected', function (e) {
 function saveEvent() {
     var d = S.draft.data;
     var payload = {
-        id: d.id, title: d.title, notes: d.notes, date: d.date, start: d.start, end: d.end,
+        id: d.id, title: d.title, notes: d.notes, date: d.date, end_date: d.end_date || d.date,
+        start: d.start, end: d.end,
         all_day: d.all_day, category_id: d.category_id || 0, project_id: d.project_id || 0,
         habit_id: d.habit_id || 0, importance: d.importance, color: d.color || '',
         type: d.type, notify: d.notify, notify_min: d.notify_min,
@@ -8612,6 +8984,40 @@ $('plSearchBtn').addEventListener('click', function () {
     });
 });
 
+/* Una riga di importanza, fatta come quelle dei calendari: stesso aspetto e
+   stesso gesto, perché fa la stessa cosa — accende e spegne una fetta di
+   quello che si vede. */
+function rigaImportanza(livello, nome, colore) {
+    var row = el('div', 'pl-srow');
+    var inner = el('div', 'pl-srow-in');
+
+    /* Stessa spunta dei calendari, stessa posizione, stesso gesto: se si
+       comporta uguale deve anche sembrare uguale, o si prende per un'altra
+       cosa e non la si tocca. */
+    var sw = el('span', 'pl-cal-dot' + (S.hiddenImp[livello] ? '' : ' pl-on'));
+    sw.style.setProperty('--ev', colore);
+    sw.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
+    sw.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (S.hiddenImp[livello]) delete S.hiddenImp[livello]; else S.hiddenImp[livello] = true;
+        sw.classList.toggle('pl-on', !S.hiddenImp[livello]);
+        renderDays();
+        if (S.view === 'month') renderMonth();
+        $('plFilterBtn').classList.toggle('pl-on',
+            Object.keys(S.hiddenCats).length > 0 || Object.keys(S.hiddenImp).length > 0);
+    });
+    inner.appendChild(sw);
+
+    var txt = el('div');
+    txt.style.flex = '1';
+    txt.appendChild(el('div', 'pl-row-lab', nome));
+    txt.appendChild(el('div', 'pl-row-sub', T('planner.per_importanza')));
+    inner.appendChild(txt);
+
+    row.appendChild(inner);
+    return row;
+}
+
 $('plFilterBtn').addEventListener('click', function () {
     openSheet(T('planner.cosa_mostrare'), function (body) {
         /* ---- calendari ---- */
@@ -8633,7 +9039,22 @@ $('plFilterBtn').addEventListener('click', function () {
         fc.appendChild(head);
 
         var rows = el('div', 'pl-rows');
-        alpha(S.calendars, 'name').forEach(function (c) { rows.appendChild(calendarRow(c)); });
+
+        /* L'ordine non è alfabetico e basta: il principale in cima perché è
+           quello che si cerca per primo, poi le due importanze — che non sono
+           calendari ma si spengono allo stesso modo, e stare in fondo a un
+           elenco di quindici voci vorrebbe dire non trovarle mai — e solo
+           dopo tutti gli altri in ordine alfabetico. */
+        var principale = null, altri = [];
+        S.calendars.forEach(function (c) {
+            if (c.is_default && !principale) principale = c; else altri.push(c);
+        });
+        if (principale) rows.appendChild(calendarRow(principale));
+
+        rows.appendChild(rigaImportanza('highest', T('planner.importantissimi'), '#C6553F'));
+        rows.appendChild(rigaImportanza('high', T('planner.importanti'), '#D98F3F'));
+
+        alpha(altri, 'name').forEach(function (c) { rows.appendChild(calendarRow(c)); });
         fc.appendChild(rows);
 
         var addCal = el('button', 'pl-addlist');
@@ -10360,24 +10781,134 @@ function renderMonth() {
 
     for (var r = 0; r < 6; r++) {
         var row = el('div', 'pl-mrow');
+        var inizioRiga = addDays(start, r * 7);
+        var sett = corsieDellaSettimana(inizioRiga);
         for (var c = 0; c < 7; c++) {
             var ds = addDays(start, r * 7 + c);
-            row.appendChild(monthCell(ds, parseIso(ds).getMonth() === cursor.getMonth()));
+            row.appendChild(monthCell(ds, parseIso(ds).getMonth() === cursor.getMonth(),
+                                      sett.corsie.length, sett.conBarra));
         }
+        if (sett.corsie.length) row.appendChild(stricheDellaSettimana(inizioRiga, sett.corsie));
         grid.appendChild(row);
     }
 }
 
-function monthCell(date, inMonth) {
+/* Quante barre servono in questa settimana e su che corsia sta ognuna.
+   Un evento lungo non può stare dentro una casella — le caselle hanno il
+   taglio ai bordi e il testo sparirebbe al primo giorno — quindi le barre si
+   disegnano su uno strato sopra la riga, che è largo tutta la settimana.
+   Qui si decide solo la geometria; il disegno lo fa la funzione dopo. */
+var PL_MAX_CORSIE = 3;
+
+function corsieDellaSettimana(inizioRiga) {
+    var fineRiga = addDays(inizioRiga, 6);
+
+    /* Gli eventi lunghi stanno in tutte le giornate che coprono (li mette lì
+       indexEvents), quindi la stessa riga si incontra fino a sette volte:
+       si tiene una volta sola, per id. */
+    var visti = {}, pezzi = [];
+    for (var i = 0; i < 7; i++) {
+        eventsOf(addDays(inizioRiga, i)).forEach(function (ev) {
+            if (!ev.giorno_tot || ev.giorno_tot < 2 || visti[ev.id]) return;
+            visti[ev.id] = true;
+            /* Il pezzo di questa settimana: un evento dal 28 al 3 si spezza in
+               due, e ogni metà viene ritagliata sui bordi della sua riga. */
+            var da = ev.date > inizioRiga ? ev.date : inizioRiga;
+            var a  = (ev.end_date || ev.date) < fineRiga ? (ev.end_date || ev.date) : fineRiga;
+            pezzi.push({
+                ev: ev,
+                col: giorniFra(inizioRiga, da) - 1,
+                lung: giorniFra(da, a),
+                apre:  da === ev.date,                       // il vero primo giorno
+                chiude: a === (ev.end_date || ev.date)       // il vero ultimo
+            });
+        });
+    }
+    if (!pezzi.length) return { corsie: [], conBarra: {} };
+
+    /* Chi comincia prima sta più in alto; a parità, il più lungo — così le
+       barre lunghe fanno da base e le corte si infilano sopra, invece di
+       spezzare una lunga in mezzo alla settimana. */
+    pezzi.sort(function (a, b) {
+        if (a.col !== b.col) return a.col - b.col;
+        if (a.lung !== b.lung) return b.lung - a.lung;
+        return a.ev.id - b.ev.id;
+    });
+
+    var corsie = [], conBarra = {};
+    pezzi.forEach(function (p) {
+        for (var k = 0; k < corsie.length; k++) {
+            if (corsiaLibera(corsie[k], p)) { corsie[k].push(p); conBarra[p.ev.id] = true; return; }
+        }
+        if (corsie.length < PL_MAX_CORSIE) { corsie.push([p]); conBarra[p.ev.id] = true; }
+        /* Oltre il massimo non si aggiungono corsie. `conBarra` resta senza
+           questo id apposta: la casella lo rimetterà nel suo elenco come una
+           riga qualsiasi, e finirà nel "+N" come tutti gli altri.
+           Prima veniva tolto dalla casella perché "è disegnato come barra" e
+           poi non disegnato perché le corsie erano finite: spariva e basta. */
+    });
+    return { corsie: corsie, conBarra: conBarra };
+}
+
+function corsiaLibera(corsia, p) {
+    for (var i = 0; i < corsia.length; i++) {
+        var q = corsia[i];
+        if (p.col < q.col + q.lung && q.col < p.col + p.lung) return false;
+    }
+    return true;
+}
+
+function stricheDellaSettimana(inizioRiga, corsie) {
+    var strato = el('div', 'pl-mspans');
+    corsie.forEach(function (corsia, k) {
+        corsia.forEach(function (p) {
+            var b = el('div', 'pl-mspan'
+                + (p.apre ? ' pl-msp-apre' : '')
+                + (p.chiude ? ' pl-msp-chiude' : ''));
+            b.style.gridColumn = (p.col + 1) + ' / span ' + p.lung;
+            b.style.gridRow = (k + 1);
+            b.style.setProperty('--ev', evColor(p.ev));
+            /* Il titolo si scrive all'inizio del pezzo, quindi anche a capo
+               settimana: una barra che entra da lunedì senza nome non si
+               saprebbe di cosa è la continuazione. */
+            b.textContent = p.apre ? p.ev.title : ('… ' + p.ev.title);
+            strato.appendChild(b);
+        });
+    });
+    return strato;
+}
+
+function monthCell(date, inMonth, corsie, conBarra) {
     var cell = el('div', 'pl-mcell' + (inMonth ? '' : ' pl-out')
         + (date < S.today ? ' pl-past-d' : '') + (date === S.today ? ' pl-today-d' : ''));
     var wtag = wxTag(date);
     if (wtag) cell.appendChild(wtag);   // sta nell'angolo, fuori dal flusso
     cell.appendChild(el('div', 'pl-mcell-n pl-serif', String(parseIso(date).getDate())));
+
+    /* Lo spazio che le barre occupano sopra la casella. Le barre stanno su uno
+       strato a parte, quindi non spingono niente da sole: senza questo vuoto
+       si stamperebbero sopra i primi eventi della casella. Tutte le caselle
+       della stessa riga ricevono lo stesso numero di corsie, così i giorni
+       restano allineati anche dove la barra non passa. */
+    if (corsie > 0) {
+        var vuoto = el('div', 'pl-mcell-corsie');
+        /* L'altezza di una corsia sta nel CSS (--pl-corsia): scriverla anche
+           qui vorrebbe dire due numeri da tenere d'accordo, e il giorno che
+           uno dei due cambia le barre finiscono sopra agli eventi. */
+        vuoto.style.height = 'calc(' + corsie + ' * var(--pl-corsia, 15px))';
+        cell.appendChild(vuoto);
+    }
+
     /* nella casella del mese contano prima gli importantissimi, poi gli
        importanti, e all'interno di ciascun gruppo l'ordine dell'orario */
     var rank = { highest: 0, high: 1, normal: 2 };
-    var list = eventsOf(date).slice().sort(function (a, b) {
+    var list = eventsOf(date).slice()
+        /* Gli eventi di più giorni che hanno ottenuto una barra sono già
+           disegnati sopra: qui tornerebbero una seconda volta, una per ogni
+           giornata coperta. Quelli rimasti fuori dalle corsie invece restano,
+           altrimenti sparirebbero da entrambe le parti. */
+        .filter(function (e) { return !(e.giorno_tot > 1 && conBarra && conBarra[e.id]); })
+        .sort(function (a, b) {
         var ra = rank[a.importance] !== undefined ? rank[a.importance] : 2;
         var rb = rank[b.importance] !== undefined ? rank[b.importance] : 2;
         if (ra !== rb) return ra - rb;

@@ -497,6 +497,8 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent) {
 
         <form id="formSalva" method="POST">
 
+            <input type="hidden" name="csrf_token" value="<?php echo sec_h(sec_csrf_token()); ?>">
+
             <input type="hidden" name="action" value="save">
 
             <input type="hidden" name="category_id" id="form_cat_id" value="0">
@@ -511,7 +513,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent) {
 
                 <label for="form_cat_name"><?php te('vocab.cat_nome'); ?></label>
 
-                <input type="text" name="category_name" id="form_cat_name" required placeholder=T('fc.cfc_es_nome')>
+                <input type="text" name="category_name" id="form_cat_name" required placeholder="<?php te('fc.cfc_es_nome'); ?>">
 
             </div>
 
@@ -618,6 +620,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent) {
 <!-- SHEET: Sposta categoria -->
 
 <form id="formSposta" method="POST" style="display:none;">
+    <input type="hidden" name="csrf_token" value="<?php echo sec_h(sec_csrf_token()); ?>">
     <input type="hidden" name="action" value="move">
     <input type="hidden" name="move_category_id" id="move_cat_id">
     <input type="hidden" name="target_parent_id" id="target_parent_id">
@@ -743,6 +746,8 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent) {
 
         <form id="formColor" method="POST" style="display:none;">
 
+            <input type="hidden" name="csrf_token" value="<?php echo sec_h(sec_csrf_token()); ?>">
+
             <input type="hidden" name="action" value="color">
 
             <input type="hidden" name="category_id" id="color_cat_id">
@@ -798,6 +803,8 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent) {
 
 
 <form id="formDelete" method="POST" style="display:none;">
+
+    <input type="hidden" name="csrf_token" value="<?php echo sec_h(sec_csrf_token()); ?>">
 
     <input type="hidden" name="action" value="delete">
 

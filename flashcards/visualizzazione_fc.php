@@ -836,11 +836,19 @@ function render_audio_player($src) {
 
     window.MathJax = {
 
+    /* I dollari NON sono piu' delimitatori di formula.
+       Col formato nuovo la formattazione non sta dentro il testo: una formula
+       e' un elemento suo, e il codice LaTeX gli arriva gia' racchiuso in
+       \\( \\) o \\[ \\] da fcdDisegnaFormule(). Lasciare attivo il "$"
+       significherebbe che una frase come "il libro costa 5$ e il quaderno 3$"
+       verrebbe presa per una formula e stampata in corsivo matematico - lo
+       stesso identico bug che il formato nuovo elimina. */
+
     tex: {
 
-        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        inlineMath: [['\\(', '\\)']],
 
-        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+        displayMath: [['\\[', '\\]']]
 
     }
 

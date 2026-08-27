@@ -36,20 +36,37 @@ function ex_api_json_out(array $payload): void {
 
 /* Vero se la scheda e' dell'utente: la proprieta' passa dalla categoria.
    La stessa verifica vale per le schede figlie, che ereditano dal padre. */
+/* Vero se la scheda e' dell'utente: la proprieta' passa dalla categoria.
+   La stessa verifica vale per le schede figlie, che ereditano dal padre. */
 function ex_scheda_mia(int $fcId, int $userId): bool {
     if ($fcId <= 0) return false;
-    return sec_one("SELECT i.id FROM fc_images i
-                    JOIN fc_categories c ON c.id = i.category_id
-                    WHERE i.id = ? AND c.user_id = ?", [$fcId, $userId]) !== null;
+    
+    // 1. Controlla se l'ID appartiene a una scheda padre
+    $isPadre = sec_one("SELECT i.id FROM fc_images i
+                        JOIN fc_categories c ON c.id = i.category_id
+                        WHERE i.id = ? AND c.user_id = ?", [$fcId, $userId]);
+    if ($isPadre !== null) return true;
+    
+    // 2. Altrimenti controlla se l'ID appartiene a una scheda figlia
+    $isFiglia = sec_one("SELECT ch.id_child FROM fc_child_cards ch
+                         JOIN fc_images i ON i.id = ch.parent_id
+                         JOIN fc_categories c ON c.id = i.category_id
+                         WHERE ch.id_child = ? AND c.user_id = ?", [$fcId, $userId]);
+    return $isFiglia !== null;
 }
 
 /* Vero se l'esempio appartiene a una scheda dell'utente. */
 function ex_esempio_mio(int $exId, int $userId): bool {
     if ($exId <= 0) return false;
-    return sec_one("SELECT e.id FROM fc_examples e
-                    JOIN fc_images i ON i.id = e.fc_image_id
-                    JOIN fc_categories c ON c.id = i.category_id
-                    WHERE e.id = ? AND c.user_id = ?", [$exId, $userId]) !== null;
+    
+    /* sec_one() restituisce la RIGA, non il valore: la colonna va presa per
+       nome. Prima si convertiva l'array intero con (int), che in PHP vale 1
+       sempre - quindi si finiva a controllare la scheda numero 1 e la risposta
+       era no per chiunque. */
+    $riga = sec_one("SELECT fc_image_id FROM fc_examples WHERE id = ?", [$exId]);
+    if ($riga === null) return false;
+
+    return ex_scheda_mia((int)$riga['fc_image_id'], $userId);
 }
 
 /* Salva un allegato. Il tipo vero si legge con finfo e il nome lo genera il
@@ -86,7 +103,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $fc_id = sec_int($_POST['fc_id'] ?? 0, 0);
     $ex_id = sec_int($_POST['ex_id'] ?? 0, 0);
-    $text  = sec_text($_POST['text'] ?? '', 2000);
+    $text  = sec_str($_POST['text'] ?? '', 2000);
 
     /* Modifica di un esempio esistente, oppure aggiunta a una scheda: in
        entrambi i casi si verifica che la riga toccata sia sua. */

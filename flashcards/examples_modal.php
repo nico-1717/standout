@@ -148,6 +148,13 @@ if (!defined('EXM_CSS')) {
 
 <script>
 
+/* Il token di sessione lo emette questo file, non la pagina che lo include:
+   il componente compare in piu' pagine e non tutte espongono una variabile
+   con lo stesso nome. Prima si cercava una globale "csrf_token" che non
+   esiste da nessuna parte, quindi il token non partiva mai e il server
+   rispondeva 403. */
+const EXM_CSRF = <?php echo json_encode(sec_csrf_token()); ?>;
+
 let currentFcId = 0, currentExId = 0;
 
 let currentQ = '', currentA = '';
@@ -570,75 +577,49 @@ async function saveExample() {
     
 
     let fd = new FormData();
-
     fd.append('action', 'save');
-
     fd.append('fc_id', currentFcId);
-
     fd.append('ex_id', currentExId);
-
     
-
     fd.append('text', getExHiddenInput() ? getExHiddenInput().value : '');
-
     
-
+    /* Il token va sempre, non "se per caso esiste una variabile": senza,
+       sec_guard_write chiude la porta con un 403 e il salvataggio non parte. */
+    fd.append('csrf_token', EXM_CSRF);
+    
     if (exAudioBlob) fd.append('audio', exAudioBlob, 'ex_audio.' + exAudioExt);
-
     
-
     let fileInput = document.getElementById('ex-image-file');
-
     if (fileInput.files.length > 0) fd.append('image', fileInput.files[0]);
 
 
 
     try {
-
         let res = await fetch('examples_api.php', { method: 'POST', body: fd });
-
         let data = await res.json();
-
         if(data.success) {
-
             document.getElementById('ex-form-modal').style.display = 'none';
-
             openExamplesModal(currentFcId, currentQ, currentA);
-
             
-
             let btnUI = document.getElementById('btn-ex-' + currentFcId);
-
             let btnUIGraded = document.getElementById('btn-ex-graded-' + currentFcId);
-
             let count = currentExamplesList.length + (currentExId === 0 ? 1 : 0);
-
             
-
             let updateBtn = (b) => {
-
                 if (count > 0) {
-
                     b.innerText = `💡 Esempi (${count})`;
-
                     b.style.background = 'var(--purple, #8e24aa)'; b.style.color = 'white'; b.style.borderColor = 'var(--purple, #8e24aa)';
-
                 } else {
-
                     b.innerText = T('fc.exm_aggiungi');
-
                     b.style.background = 'var(--surface-3, #f1f3f5)'; b.style.color = 'var(--text-3, #555)'; b.style.borderColor = 'var(--hairline-2, #ccc)';
-
                 }
-
             };
-
             if(btnUI) updateBtn(btnUI);
-
             if(btnUIGraded) updateBtn(btnUIGraded);
-
+        } else {
+            // Nuova gestione dell'errore
+            alert(T('fc.exm_errore_salva') + (data.error ? ": " + data.error : ""));
         }
-
     } catch(e) { alert(T('fc.exm_errore_salva')); }
 
     
@@ -665,7 +646,14 @@ async function deleteExample() {
 
     try {
 
-        let res = await fetch(`examples_api.php?action=delete&ex_id=${currentExId}`);
+        /* Anche l'eliminazione passa da sec_guard_write, quindi vuole il token:
+           in GET non c'era modo di mandarlo e finiva anche lei in 403. */
+        let fdDel = new FormData();
+        fdDel.append('action', 'delete');
+        fdDel.append('ex_id', currentExId);
+        fdDel.append('csrf_token', EXM_CSRF);
+
+        let res = await fetch('examples_api.php', { method: 'POST', body: fdDel });
 
         let data = await res.json();
 
@@ -706,6 +694,13 @@ async function deleteExample() {
             if(btnUI) updateBtn(btnUI);
 
             if(btnUIGraded) updateBtn(btnUIGraded);
+
+        } else {
+
+            /* Senza questo ramo un rifiuto del server non si vedeva: la finestra
+               restava aperta senza dire niente e sembrava che il tasto fosse morto. */
+
+            alert(T('fc.exm_errore_elimina') + (data.error ? ": " + data.error : ""));
 
         }
 

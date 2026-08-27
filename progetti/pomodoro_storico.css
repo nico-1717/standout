@@ -111,3 +111,21 @@
 @media (prefers-reduced-motion: reduce){
     *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
 }
+
+/* Il tasto che avvia un pomodoro: prima riga dell'elenco, larga quanto le
+   sessioni. Fra le iconcine dell'intestazione era un tondo da 30px accanto ad
+   altri due identici, e l'unica azione che porta via da questa schermata si
+   perdeva fra due che la modificano soltanto. */
+.ph-go-riga{
+    display:flex; align-items:center; gap:10px; width:100%;
+    margin:4px 0 10px; padding:12px 12px; border:none; border-radius:14px; cursor:pointer;
+    font:inherit; font-size:14px; font-weight:700;
+    background:var(--blue,#007AFF); color:#fff;
+    box-shadow:0 6px 18px -8px color-mix(in srgb, var(--blue,#007AFF) 80%, transparent);
+    transition:transform .15s var(--spring,ease), filter .2s;
+}
+.ph-go-riga:active{ transform:scale(.98); filter:brightness(.94); }
+.ph-go-ic{
+    width:26px; height:26px; border-radius:50%; flex-shrink:0;
+    background:rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center;
+}

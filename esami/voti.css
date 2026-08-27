@@ -451,3 +451,21 @@ body{
     .hero-avg{font-size:3rem;} .hero-top{gap:14px;} .hero-ring{width:112px; height:112px;}
     .hero-stat .v{font-size:1.05rem;}
 }
+
+/* ---- pannello «Costo» ----
+   Tre riquadri con la stessa forma: nome a sinistra, un dato al centro, il
+   prezzo a destra. Ripetere la stessa griglia fa sì che l'occhio impari a
+   leggerla una volta e poi scorra. */
+.costo-box{
+    background:var(--card, #fff); border-radius:16px; padding:14px 14px 8px; margin-bottom:12px;
+    box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+.costo-t{ font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; opacity:.5; margin-bottom:10px; }
+/* Il totale del preventivo è grosso: è l'unico numero della pagina che
+   risponde da solo alla domanda «quanto mi manca». */
+.costo-big{ font-size:2rem; font-weight:800; line-height:1; margin-bottom:4px; font-variant-numeric:tabular-nums; }
+.costo-sub{ font-size:.78rem; opacity:.55; line-height:1.45; margin-bottom:12px; }
+.costo-r{ display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid rgba(0,0,0,.06); }
+.costo-n{ flex:1; min-width:0; font-size:.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.costo-c{ flex-shrink:0; font-size:.78rem; opacity:.5; font-variant-numeric:tabular-nums; }
+.costo-p{ flex-shrink:0; font-size:.82rem; font-weight:700; font-variant-numeric:tabular-nums; }

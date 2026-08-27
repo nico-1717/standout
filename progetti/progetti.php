@@ -28,7 +28,61 @@ $current_user_id = $utente_corrente['id'];
    progetto: è un vero rapporto 1 a 1 in entrambe le direzioni.
    ========================================================================== */
 if (!function_exists('prog_resolve_color')) {
-    function prog_resolve_color($parentId, $userId) {
+    /* Ripulisce una nota senza mangiarsela.
+ *
+ * IL PROBLEMA. Prima passava da sec_text(), che chiama strip_tags(): quella
+ * butta via TUTTO quello che sta fra un `<` e un `>`. Scrivendo
+ * «hello <<ciao>>» si ritrovava «hello», e — molto peggio, perché capita più
+ * spesso e non si nota — «5 < 7 e 9 > 3» diventava «5  3». Qualunque nota con
+ * una disuguaglianza, una freccia disegnata a mano o due parentesi angolari
+ * perdeva pezzi in silenzio.
+ *
+ * LA REGOLA NUOVA. Si toglie solo quello che è inequivocabilmente un tag HTML:
+ *   - un nome di elemento HTML vero (<b>, <script>, </div>…), perché la nota
+ *     finisce dentro un renderer che potrebbe interpretarlo;
+ *   - qualunque cosa fra parentesi angolari che contenga uno spazio o un `=`,
+ *     cioè che abbia degli attributi: è lì che vivono `onerror=`, `src=` e
+ *     tutti i modi di far eseguire qualcosa.
+ * Tutto il resto resta: «<ciao>» non è un elemento HTML e non ha attributi,
+ * quindi è testo, e come testo va trattato.
+ *
+ * Non si escapa in `&lt;` perché la nota viene mostrata da renderer diversi —
+ * alcuni la stampano come testo — e in quelli si vedrebbe scritto «&lt;».
+ */
+function prog_nota_pulita($grezza, int $max): string {
+    $t = (string)$grezza;
+
+    // i nomi di elemento veri: l'elenco è lungo ma è l'unico modo di
+    // distinguere <b> da <ciao> senza buttare via il secondo
+    $tagHtml = 'a|abbr|address|area|article|aside|audio|b|base|bdi|bdo|big|blockquote|body|br|button|canvas|caption|center|cite|code|col|colgroup|data|datalist|dd|del|details|dfn|dialog|div|dl|dt|em|embed|fieldset|figcaption|figure|font|footer|form|h1|h2|h3|h4|h5|h6|head|header|hr|html|i|iframe|img|input|ins|kbd|label|legend|li|link|main|map|mark|menu|meta|meter|nav|noscript|object|ol|optgroup|option|output|p|param|picture|pre|progress|q|rp|rt|ruby|s|samp|script|section|select|slot|small|source|span|strike|strong|style|sub|summary|sup|svg|table|tbody|td|template|textarea|tfoot|th|thead|time|title|tr|track|u|ul|var|video|wbr';
+
+    // 1. i tag HTML veri, aperti o chiusi
+    $t = preg_replace('#</?(?:' . $tagHtml . ')\b[^>]*>#i', '', $t);
+    /* 2. qualunque cosa che COMINCI come un tag e abbia degli attributi:
+          <x onerror=…>, <qualsiasi src="">. Due vincoli, non uno: deve
+          cominciare con una lettera E contenere un `=`. Il primo salva
+          «5 < 7 e 9 > 3» e «a <- b -> c», il secondo salva «x<y e y>z» — che
+          senza l'uguale è una disuguaglianza, non un tag con attributi.
+          Resta un caso perso, «a < b = c > d»: si può scrivere solo così o
+          come un tag, e fra le due ho scelto di non far passare il tag. */
+    $t = preg_replace('#</?[A-Za-z][^<>]*=[^<>]*>#', '', $t);
+    // e la forma che si chiude da sola: <qualcosa />
+    $t = preg_replace('#<[A-Za-z][^<>]*/>#', '', $t);
+    // 3. i commenti HTML, che non hanno un nome di elemento
+    $t = preg_replace('#<!--.*?-->#s', '', $t);
+
+    // caratteri di controllo via, a capo e tabulazioni no: servono
+    $t = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $t);
+    $t = trim($t);
+    if (function_exists('mb_substr')) {
+        if (mb_strlen($t, 'UTF-8') > $max) $t = mb_substr($t, 0, $max, 'UTF-8');
+    } elseif (strlen($t) > $max) {
+        $t = substr($t, 0, $max);
+    }
+    return $t;
+}
+
+function prog_resolve_color($parentId, $userId) {
         $parentId = intval($parentId);
         $guard = 0;
         while ($parentId > 0 && $guard < 50) {
@@ -93,6 +147,114 @@ if (isset($_GET['ajax']) && strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 
 
 /* Preferiti: la stellina nella modifica progetto. I preferiti compaiono in
    cima al selettore progetti e nel tastino a stella del planner. */
+/* ============================================================
+   LE IMPOSTAZIONI DELLA PAGINA
+   Come mostrare i progetti e' una decisione che si prende una volta. Vive nel
+   database e non nel browser: chi apre da telefono e da computer deve vedere
+   la stessa pagina, e una preferenza dimenticata a ogni cambio di dispositivo
+   e' una preferenza che nessuno imposta.
+   ============================================================ */
+function prog_opzioni(int $uid): array {
+    $r = sec_one("SELECT progetti_opzioni FROM planner_settings WHERE user_id = ?", [$uid], 'i');
+    $d = ($r && !empty($r['progetti_opzioni'])) ? json_decode((string)$r['progetti_opzioni'], true) : null;
+    if (!is_array($d)) $d = [];
+    return [
+        /* I valori di partenza sono quelli che la pagina aveva prima che le
+           impostazioni esistessero: chi non apre mai il pannello non deve
+           accorgersi che e' cambiato qualcosa. */
+        'completati'   => isset($d['completati'])   ? (int)!!$d['completati']   : 1,
+        'ordine'       => in_array(($d['ordine'] ?? ''), ['manuale','alfabetico','recenti','scadenza'], true) ? $d['ordine'] : 'manuale',
+        'ricorda_rami' => isset($d['ricorda_rami']) ? (int)!!$d['ricorda_rami'] : 0,
+        'mostra_tag'   => isset($d['mostra_tag'])   ? (int)!!$d['mostra_tag']   : 1,
+        'solo_attivi'  => isset($d['solo_attivi'])  ? (int)!!$d['solo_attivi']  : 0,
+    ];
+}
+
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'salva_opzioni') {
+    header('Content-Type: application/json');
+    $in = $_POST['opzioni'] ?? '';
+    $d = is_string($in) ? json_decode($in, true) : null;
+    if (!is_array($d)) { http_response_code(422); die(json_encode(['ok' => false])); }
+    /* Si riscrive solo quello che conosciamo, non quello che arriva: un client
+       modificato a mano potrebbe spedire un JSON di qualunque forma, e questa
+       colonna la rileggiamo noi a ogni apertura. */
+    $pulito = [
+        'completati'   => (int)!!($d['completati'] ?? 1),
+        'ordine'       => in_array(($d['ordine'] ?? ''), ['manuale','alfabetico','recenti','scadenza'], true) ? $d['ordine'] : 'manuale',
+        'ricorda_rami' => (int)!!($d['ricorda_rami'] ?? 0),
+        'mostra_tag'   => (int)!!($d['mostra_tag'] ?? 1),
+        'solo_attivi'  => (int)!!($d['solo_attivi'] ?? 0),
+    ];
+    sec_q("INSERT INTO planner_settings (user_id, progetti_opzioni) VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE progetti_opzioni = VALUES(progetti_opzioni)",
+          [(int)$utente_corrente['id'], json_encode($pulito, JSON_UNESCAPED_UNICODE)], 'is');
+    die(json_encode(['ok' => true, 'opzioni' => $pulito]));
+}
+
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'salva_nota') {
+    header('Content-Type: application/json');
+    $uid = (int)$utente_corrente['id'];
+    $pid = sec_int($_POST['project_id'] ?? 0, 1);
+    if ($pid <= 0 || !sec_owns('projects', $pid, $uid)) {
+        http_response_code(404); die(json_encode(['ok' => false]));
+    }
+    // stessa pulizia del salvataggio dal modulo: una sola regola per le note,
+    // o scrivendole da due posti si comporterebbero in due modi
+    $nota = prog_nota_pulita($_POST['note'] ?? '', 8000);
+    sec_q("UPDATE projects SET notes = ? WHERE id = ? AND user_id = ?", [$nota, $pid, $uid], 'sii');
+    die(json_encode(['ok' => true, 'note' => $nota]));
+}
+
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'rinomina') {
+    header('Content-Type: application/json');
+    $pid = sec_int($_POST['project_id'] ?? 0, 1);
+    $nome = sec_str($_POST['name'] ?? '', 200);
+    if ($pid <= 0 || !sec_owns('projects', $pid, (int)$utente_corrente['id'])) {
+        http_response_code(404); die(json_encode(['ok' => false]));
+    }
+    // un progetto senza nome non esiste: il browser lo impedisce già, qui si
+    // ricontrolla perché quel controllo si aggira
+    if ($nome === '') { http_response_code(422); die(json_encode(['ok' => false])); }
+    sec_q("UPDATE projects SET name = ? WHERE id = ? AND user_id = ?",
+          [$nome, $pid, (int)$utente_corrente['id']], 'sii');
+    die(json_encode(['ok' => true, 'name' => $nome]));
+}
+
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'collega_deck') {
+    header('Content-Type: application/json');
+    $uid = (int)$utente_corrente['id'];
+    $pid = sec_int($_POST['project_id'] ?? 0, 1);
+    $cat = sec_int($_POST['fc_category_id'] ?? 0, 0);
+    if ($pid <= 0 || !sec_owns('projects', $pid, $uid)) {
+        http_response_code(404); die(json_encode(['ok' => false]));
+    }
+    /* Il collegamento è uno solo per progetto: si cancella e si riscrive
+       invece di aggiornare, perché la riga può non esistere ancora e due
+       strade (INSERT o UPDATE, a seconda) sono due posti dove sbagliare. */
+    sec_q("DELETE FROM project_fc_categories WHERE project_id = ?", [$pid], 'i');
+    if ($cat > 0) {
+        $ok = sec_one("SELECT id FROM fc_categories WHERE id = ? AND user_id = ?", [$cat, $uid], 'ii');
+        if ($ok) sec_q("INSERT INTO project_fc_categories (project_id, fc_category_id) VALUES (?, ?)", [$pid, $cat], 'ii');
+    }
+    die(json_encode(['ok' => true]));
+}
+
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'salva_data') {
+    header('Content-Type: application/json');
+    $uid = (int)$utente_corrente['id'];
+    $pid = sec_int($_POST['project_id'] ?? 0, 1);
+    $campo = ($_POST['campo'] ?? '') === 'scadenza' ? 'due_date' : 'target_date';
+    $val = sec_date($_POST['valore'] ?? '', '');
+    if ($pid <= 0 || !sec_owns('projects', $pid, $uid)) {
+        http_response_code(404); die(json_encode(['ok' => false]));
+    }
+    // stringa vuota = togliere la data: il campo nativo la restituisce così
+    // quando si cancella, e va scritta come NULL non come ''
+    sec_q("UPDATE projects SET $campo = ? WHERE id = ? AND user_id = ?",
+          [($val === '' ? null : $val), $pid, $uid], 'sii');
+    die(json_encode(['ok' => true]));
+}
+
 if (isset($_GET['ajax']) && $_GET['ajax'] === 'toggle_todo') {
     header('Content-Type: application/json');
     $pid = sec_int($_POST['project_id'] ?? 0, 1);
@@ -249,7 +411,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
            sec_text conserva gli a capo della nota ma toglie i tag; sec_date
            rifiuta le date inesistenti (il 31 febbraio passava). */
         $name = sec_str($_POST['progetto_name'] ?? '', 200);
-        $note = sec_text($_POST['progetto_note'] ?? '', 8000);
+        $note = prog_nota_pulita($_POST['progetto_note'] ?? '', 8000);
         $parentId = sec_int($_POST['parent_id'] ?? 0, 0);
         $colorMode = sec_enum($_POST['color_mode'] ?? null, ['auto', 'manual'], 'auto');
         $manualColor = sec_str($_POST['progetto_color'] ?? '', 7);
@@ -287,12 +449,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
 
         if ($progId === 0 && $name !== '') {
-            /* "parent_id IS NULL" non si puo' scrivere come "parent_id=?" con null:
-               in SQL il confronto con NULL non e' mai vero. Servono due forme di query. */
-            $ordRow = ($parentId > 0)
-                ? sec_one("SELECT COALESCE(MAX(custom_order),-1)+1 AS n FROM projects WHERE user_id=? AND parent_id=?", [(int)$current_user_id, $parentId])
-                : sec_one("SELECT COALESCE(MAX(custom_order),-1)+1 AS n FROM projects WHERE user_id=? AND parent_id IS NULL", [(int)$current_user_id]);
-            $nextOrder = intval($ordRow['n'] ?? 0);
+            /* Il nuovo sotto-progetto nasce PRIMO, non ultimo.
+               Il campo per scriverne il nome compare in cima all'elenco: dopo
+               averlo confermato lo si cercava con gli occhi dove lo si era
+               scritto e lo si trovava in fondo, magari sotto altre venti
+               righe. Nascere dove lo si è scritto è la sola cosa che non
+               sorprende — e da lì lo si trascina dove serve, ora che
+               trascinare è comodo.
+               Si spostano gli altri di uno invece di usare un numero negativo:
+               i negativi funzionerebbero una volta sola, e alla seconda
+               aggiunta il penultimo tornerebbe davanti all'ultimo.
+               "parent_id IS NULL" non si puo' scrivere come "parent_id=?" con
+               null: in SQL il confronto con NULL non e' mai vero. Servono due
+               forme di query. */
+            if ($parentId > 0) {
+                sec_q("UPDATE projects SET custom_order = custom_order + 1 WHERE user_id=? AND parent_id=?",
+                      [(int)$current_user_id, $parentId]);
+            } else {
+                sec_q("UPDATE projects SET custom_order = custom_order + 1 WHERE user_id=? AND parent_id IS NULL",
+                      [(int)$current_user_id]);
+            }
+            $nextOrder = 0;
             sec_q("INSERT INTO projects (user_id, parent_id, name, notes, color, color_edited, status, custom_order, created_at, target_date, due_date)
                    VALUES (?, ?, ?, ?, ?, ?, 'in_progress', ?, NOW(), ?, ?)",
                   [(int)$current_user_id, $parentVal, $name, $note, $finalColor, $colorEditedFlag, $nextOrder, $dataObVal, $dataScVal]);
@@ -560,7 +737,81 @@ foreach ($byId as $pidKey => $p) {
         'session_count' => $countMemo[$pidKey] ?? 0,
         'note' => $p['note'] ?? '',
         'has_note' => (trim((string)($p['note'] ?? '')) !== '') ? 1 : 0,
+        /* Serve al pannello delle date per sapere se una data scaduta è un
+           ritardo o una cosa già fatta: senza, il browser dovrebbe indovinarlo
+           e finirebbe per disegnare rosso su quello che è chiuso. */
+        'stato' => $p['stato'] ?? $p['status'] ?? '',
     ];
+}
+
+/* Le impostazioni scelte dall'utente: da qui in giù la pagina si costruisce
+   secondo quelle. Si leggono una volta sola, non a ogni progetto. */
+$prOpz = prog_opzioni($current_user_id);
+
+/* «Nascondi i completati» e «solo quelli con pomodori» tolgono rami interi
+   dalla vista, non singole righe: nascondere un progetto e lasciare i suoi
+   figli darebbe un albero con dei rami che spuntano dal nulla. */
+if (!$prOpz['completati'] || $prOpz['solo_attivi']) {
+    $daTogliere = [];
+    foreach ($byId as $pid => $p) {
+        $fuori = false;
+        if (!$prOpz['completati'] && ($p['stato'] ?? '') === 'completed') $fuori = true;
+        if ($prOpz['solo_attivi'] && (int)($countMemo[$pid] ?? 0) === 0
+            && (int)($totalMemo[$pid] ?? 0) === 0) $fuori = true;
+        if ($fuori) $daTogliere[$pid] = true;
+    }
+    /* Il progetto aperto non si nasconde mai, qualunque cosa dicano le
+       impostazioni: sparire dalla pagina che si sta guardando, spuntandolo, è
+       la cosa più sconcertante che possa fare un elenco. Lo si legge
+       dall'indirizzo perché $selectedId viene deciso più sotto, e serve qui. */
+    $apertoOra = sec_int($_GET['id'] ?? 0, 0);
+    if ($apertoOra > 0) {
+        unset($daTogliere[$apertoOra]);
+        // e nemmeno i suoi antenati, o si perderebbe la strada per tornarci
+        $risali = $byId[$apertoOra]['parent_id'] ?? null;
+        $giri = 0;
+        while ($risali && $giri++ < 50) {
+            unset($daTogliere[(int)$risali]);
+            $risali = $byId[(int)$risali]['parent_id'] ?? null;
+        }
+    }
+    if ($daTogliere) {
+        foreach ($childrenOf as $padre => $figli) {
+            $childrenOf[$padre] = array_values(array_filter($figli, function ($x) use ($daTogliere) {
+                return !isset($daTogliere[$x]);
+            }));
+        }
+    }
+}
+
+/* L'ordine dei fratelli, secondo l'impostazione scelta.
+   «Manuale» è l'ordine che l'utente si è costruito trascinando, e resta il
+   predefinito: gli altri sono modi di guardare, non di riorganizzare — infatti
+   non toccano `custom_order`, che resta lì per quando si torna a manuale. */
+if ($prOpz['ordine'] !== 'manuale') {
+    $ordina = function ($a, $b) use ($byId, $prOpz) {
+        $pa = $byId[$a] ?? []; $pb = $byId[$b] ?? [];
+        if ($prOpz['ordine'] === 'alfabetico') {
+            return strnatcasecmp((string)($pa['name'] ?? ''), (string)($pb['name'] ?? ''));
+        }
+        if ($prOpz['ordine'] === 'recenti') {
+            // il più mosso di recente in cima: è quello su cui si sta lavorando
+            return strcmp((string)($pb['created_at'] ?? ''), (string)($pa['created_at'] ?? ''));
+        }
+        /* Per scadenza: prima quelle vicine, e chi non ne ha finisce in fondo.
+           Metterle senza data in cima vorrebbe dire che l'ordinamento «per
+           scadenza» comincia con tutto quello che una scadenza non ce l'ha. */
+        $da = $pa['data_scadenza'] ?: $pa['data_obiettivo'] ?: '';
+        $db = $pb['data_scadenza'] ?: $pb['data_obiettivo'] ?: '';
+        if ($da === '' && $db === '') return 0;
+        if ($da === '') return 1;
+        if ($db === '') return -1;
+        return strcmp($da, $db);
+    };
+    foreach ($childrenOf as $padre => $figli) {
+        usort($figli, $ordina);
+        $childrenOf[$padre] = $figli;
+    }
 }
 
 $rootIds = $childrenOf[0] ?? [];
@@ -659,9 +910,24 @@ if (!function_exists('prog_date_tags_info')) {
             if ($ts === false) continue;
             $todayYmd = date('Y-m-d');
             $dateYmd = date('Y-m-d', $ts);
-            if ($dateYmd < $todayYmd) $status = 'past';
-            elseif ($dateYmd === $todayYmd) $status = 'today';
-            else $status = 'future';
+            /* Il rosso è un allarme, e un allarme su una cosa già fatta è
+               rumore: prima un obiettivo del mese scorso restava rosso anche
+               dopo essere stato spuntato, e la pagina si riempiva di rosso che
+               non chiedeva niente a nessuno.
+               Ora conta anche lo stato: se il progetto è chiuso la data si
+               barra — verde se è stata rispettata, grigia se si è arrivati
+               dopo. Il rosso resta solo dove serve, cioè su quello che è in
+               ritardo ADESSO. */
+            $chiuso = ($node['status'] ?? $node['stato'] ?? '') === 'completed';
+            if ($chiuso) {
+                $status = ($dateYmd < $todayYmd) ? 'fatto-tardi' : 'fatto';
+            } elseif ($dateYmd < $todayYmd) {
+                $status = 'past';
+            } elseif ($dateYmd === $todayYmd) {
+                $status = 'today';
+            } else {
+                $status = 'future';
+            }
             $out[] = ['label' => date('d M', $ts), 'icon' => $def['icon'], 'status' => $status];
         }
         return $out;
@@ -742,7 +1008,12 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                     </div>
                 </div>
                 <div class="pr-pomo-wrap">
-                <button type="button" class="pr-pomo-btn"<?php echo $pomoInCorso ? ' disabled aria-label="' . t('progetti.pomodoro_gia_in_corso') . '"' : ' onclick="window.location.href=\'pomodoro.php?project_id=' . (int)$node['id'] . '\'" aria-label="Avvia pomodoro"'; ?>>
+                <button type="button" class="pr-pomo-btn"
+                        data-stats-id="<?php echo (int)$node['id']; ?>"
+                        data-stats-nome="<?php echo sec_h($node['name']); ?>"
+                        data-stats-colore="<?php echo sec_h(prog_resolve_color($node, $byId)); ?>"
+                        onclick="event.stopPropagation(); prOpenStats(+this.dataset.statsId, this.dataset.statsNome, this.dataset.statsColore)"
+                        aria-label="<?php te('progetti.pomodori'); ?>" title="<?php te('progetti.pomodori'); ?>">
                     <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>
                 </button>
                 <?php /* le ore stanno sotto al pulsante, non più accanto al nome */ ?>
@@ -782,14 +1053,42 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
 /* Le stringhe che servono al JavaScript di questa pagina. */
 /* 'pomodoro' serve a pomodoro_storico.php, incluso da questa pagina: senza,
    tutte le sue stringhe uscirebbero come <<chiave>>. */
-echo nisama_i18n_json(['comune', 'progetti', 'pomodoro']);
+/* 'todo' serve al widget attività incluso qui dentro: senza, le sue scritte
+   uscivano come <<todo.niente_da_fare>>. */
+echo nisama_i18n_json(['comune', 'progetti', 'pomodoro', 'todo']);
 ?>
 <script src="fc_parser.js?v=<?php echo time(); ?>"></script>
 </head>
 <body>
 
 <div class="app-header">
-    <div class="hdr-title"><?php te('progetti.progetti'); ?></div>
+    <!-- Barra doppia. Sopra il nome della pagina e i due comandi che valgono
+         per tutta la pagina — impostazioni e scadenze — sotto le pastiglie dei
+         progetti, che sono navigazione. Prima il tastino delle date stava
+         accanto allo switch elenco/griglia, cioè in mezzo a un comando che
+         riguarda solo il progetto aperto: due cose di portata diversa nello
+         stesso posto. -->
+    <div class="hdr-row1">
+        <div class="hdr-title"><?php te('progetti.progetti'); ?></div>
+        <div class="hdr-tools">
+            <button type="button" class="hdr-tool" onclick="prOpenDatesView()"
+                    aria-label="<?php te('progetti.scadenze_e_obiettivi'); ?>" title="<?php te('progetti.scadenze_e_obiettivi'); ?>">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 9.5h18"/></svg>
+            </button>
+            <!-- L'elenco dei progetti senza padre sta qui, con gli altri due
+                 comandi di pagina: prima era in fondo alla riga delle
+                 pastiglie e, quando le pastiglie andavano a capo, si portava
+                 dietro una riga tutta sua. -->
+            <button type="button" class="hdr-tool" onclick="prOpenDrawer()"
+                    aria-label="<?php te('progetti.tutti_i_progetti'); ?>" title="<?php te('progetti.tutti_i_progetti'); ?>">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <button type="button" class="hdr-tool" id="prOpzBtn" onclick="prOpenOpzioni()"
+                    aria-label="<?php te('progetti.impostazioni'); ?>" title="<?php te('progetti.impostazioni'); ?>">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/></svg>
+            </button>
+        </div>
+    </div>
     <?php if (!empty($rootProjects)): ?>
     <div class="hdr-root-pills" id="hdrRootPills">
         <?php if (!empty($favProjects)): ?>
@@ -820,9 +1119,6 @@ echo nisama_i18n_json(['comune', 'progetti', 'pomodoro']);
         </button>
     </div>
     <?php endif; ?>
-    <button type="button" class="hdr-drawer-btn" onclick="prOpenDrawer()">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-    </button>
 </div>
 
 <?php include 'sidebar.html'; ?>
@@ -869,7 +1165,53 @@ echo nisama_i18n_json(['comune', 'progetti', 'pomodoro']);
     </div>
     <?php endif; ?>
 
-    <div class="pr-hero" style="--accent:<?php echo sec_h($accent); ?>;">
+    <?php
+/* ==========================================================================
+   IL COLLEGAMENTO AL DECK, VISTO DA QUESTO PROGETTO
+   Quattro stati, e sono esclusivi: un progetto puo' avere il proprio deck, o
+   ereditarne uno dal padre, o essere il ramo dentro cui i figli ne hanno, o
+   nessuna delle tre. Si calcolano qui, una volta, invece che nel markup:
+   ficcare tre giri di ricerca dentro all'HTML avrebbe reso illeggibile sia
+   l'HTML sia la regola.
+   ========================================================================== */
+$deckStato = 'nessuno';   // nessuno | proprio | ereditato | figli
+$deckDati  = null;
+
+$deckProprio = $catLinks[$selectedProject['id']] ?? null;
+if ($deckProprio) {
+    $deckStato = 'proprio';
+    $deckDati  = $deckProprio;
+} else {
+    /* I figli, a qualunque profondita': se anche uno solo dei discendenti ha un
+       deck, questo progetto non puo' averne uno suo — sarebbe un mazzo che
+       contiene mazzi, e non e' cosi' che funzionano. */
+    $conDeck = [];
+    $pila = $childrenOf[$selectedProject['id']] ?? [];
+    $giri = 0;
+    while ($pila && $giri++ < 5000) {
+        $x = array_pop($pila);
+        if (isset($catLinks[$x])) $conDeck[] = ['nome' => $byId[$x]['name'] ?? '', 'deck' => $catLinks[$x]];
+        foreach ($childrenOf[$x] ?? [] as $f) $pila[] = $f;
+    }
+    if ($conDeck) {
+        $deckStato = 'figli';
+        $deckDati  = $conDeck;
+    } else {
+        // il padre, risalendo: il deck si eredita da chiunque sopra ce l'abbia
+        $su = $selectedProject['parent_id'] ?? null;
+        $giri = 0;
+        while ($su && $giri++ < 50) {
+            if (isset($catLinks[(int)$su])) {
+                $deckStato = 'ereditato';
+                $deckDati  = $catLinks[(int)$su];
+                break;
+            }
+            $su = $byId[(int)$su]['parent_id'] ?? null;
+        }
+    }
+}
+?>
+<div class="pr-hero" style="--accent:<?php echo sec_h($accent); ?>;">
         <div class="pr-hero-top">
             <button type="button" class="pr-check pr-check-<?php echo sec_h($selectedProject['stato']); ?>" data-id="<?php echo (int)$selectedProject['id']; ?>" style="width:28px;height:28px;">
                 <svg class="pr-ic-empty" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>
@@ -892,21 +1234,94 @@ echo nisama_i18n_json(['comune', 'progetti', 'pomodoro']);
                        . ' aria-pressed="' . ($stellaPiena ? 'true' : 'false') . '"'
                        . ' title="' . t($stellaPiena ? 'progetti.togli_dai_preferiti' : 'progetti.metti_tra_i_preferiti') . '"'
                        . ' aria-label="Preferito">' . prog_star_svg($stellaPiena) . '</button>';
-                    echo sec_h($selectedProject['name']);
+                    /* Il nome si modifica scrivendoci sopra. contenteditable
+                       sul solo nome e non su tutto lo span: dentro c'è anche
+                       la stella, e renderla modificabile vorrebbe dire poterla
+                       cancellare scrivendo. */
+                    echo '<span class="pr-hero-name" id="prHeroName" contenteditable="true" spellcheck="false"'
+                       . ' data-id="' . (int)$selectedProject['id'] . '"'
+                       . ' data-prima="' . sec_h($selectedProject['name']) . '">'
+                       . sec_h($selectedProject['name']) . '</span>';
                 ?></span>
             </div>
         </div>
-        <?php $linkedCat = $catLinks[$selectedProject['id']] ?? null; if ($linkedCat): ?>
-        <button type="button" class="pr-hero-cat-chip" style="--cat-color:<?php echo sec_h(sec_color($linkedCat['color'])); ?>;" onclick="window.location.href='visualizzazione_fc.php?category_id=<?php echo (int)$linkedCat['id']; ?>'">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
-            <?php echo sec_h($linkedCat['name']); ?>
-        </button>
+        <!-- La fila dei tag: deck, obiettivo, scadenza. Ci sono SEMPRE tutti e
+             tre, anche vuoti — tratteggiati e con la sola icona. Un tag che
+             compare solo quando è compilato non si può toccare per compilarlo,
+             e la funzione resta nascosta a chi non sa già che esiste. -->
+        <div class="pr-hero-tags">
+        <?php if ($deckStato === 'proprio'): ?>
+            <button type="button" class="pr-tag pr-tag-deck is-on" style="--tc:<?php echo sec_h(sec_color($deckDati['color'])); ?>;"
+                    onclick="prScegliDeck(<?php echo (int)$selectedProject['id']; ?>, <?php echo (int)$deckDati['id']; ?>)">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+                <span><?php echo sec_h($deckDati['name']); ?></span>
+            </button>
+
+        <?php elseif ($deckStato === 'ereditato'): ?>
+            <!-- Il deck del padre: si vede ma non si tocca. È un richiamo, non
+                 un comando — collegarne un altro qui vorrebbe dire avere due
+                 mazzi nello stesso ramo. Sbiadito perché la differenza fra
+                 «è mio» e «è di sopra» si deve capire senza leggere. -->
+            <span class="pr-tag pr-tag-deck is-eredit" style="--tc:<?php echo sec_h(sec_color($deckDati['color'])); ?>;"
+                  title="<?php te('progetti.deck_dal_padre'); ?>">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+                <span><?php echo sec_h($deckDati['name']); ?></span>
+            </span>
+
+        <?php elseif ($deckStato === 'figli'): ?>
+            <!-- I figli che hanno un deck. Se ne mostrano due e poi «+N»: con
+                 otto sottoprogetti l'elenco intero sarebbe più lungo del
+                 titolo del progetto. Toccando il «+N» si apre, toccando fuori
+                 si richiude — non è un comando, è un elenco che si legge. -->
+            <span class="pr-tag pr-tag-deck is-figli" id="prDeckFigli"
+                  title="<?php te('progetti.deck_nei_figli'); ?>">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+                <?php foreach ($deckDati as $k => $f): ?>
+                <span class="pr-deck-f<?php echo $k >= 2 ? ' pr-deck-f-extra' : ''; ?>"
+                      style="--fc:<?php echo sec_h(sec_color($f['deck']['color'])); ?>">
+                    <?php echo sec_h($f['nome']); ?>
+                </span>
+                <?php endforeach; ?>
+                <?php if (count($deckDati) > 2): ?>
+                <button type="button" class="pr-deck-piu" onclick="prDeckFigliApri(event, this)">+<?php echo count($deckDati) - 2; ?></button>
+                <?php endif; ?>
+            </span>
+
+        <?php else: ?>
+            <button type="button" class="pr-tag pr-tag-vuoto"
+                    onclick="prScegliDeck(<?php echo (int)$selectedProject['id']; ?>, 0)">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+                <span><?php te('progetti.collega_deck'); ?></span>
+            </button>
         <?php endif; ?>
-        <div class="pr-hero-dates">
-            <?php if (!empty($selectedProject['data_obiettivo'])): ?><span class="pr-hero-date">🎯 <?php echo date('d M', strtotime($selectedProject['data_obiettivo'])); ?></span><?php endif; ?>
-            <?php if (!empty($selectedProject['data_scadenza'])): ?><span class="pr-hero-date">⏰ <?php echo date('d M', strtotime($selectedProject['data_scadenza'])); ?></span><?php endif; ?>
-            <?php $totDur = prog_fmt_duration($totalMemo[$selectedProject['id']] ?? 0); if ($totDur): ?><span class="pr-hero-date"><?php te('progetti.durata_totale', ['durata' => $totDur]); ?></span><?php endif; ?>
+
+        <?php
+        /* Le due date. Vuote sono tratteggiate con la sola icona: nessuna
+           scritta, perché «nessuna scadenza» detto a parole occupa quanto una
+           data vera e non dice niente di più di un contorno vuoto. */
+        $dTag = prog_date_tags_info($selectedProject);
+        $perCampo = [];
+        foreach ($dTag as $k => $dt) { $perCampo[$k === 0 ? 'obiettivo' : 'scadenza'] = $dt; }
+        foreach ([['obiettivo', 'data_obiettivo'], ['scadenza', 'data_scadenza']] as $dd):
+            $chiave = $dd[0];
+            $valore = $selectedProject[$dd[1]] ?? '';
+            $info = null;
+            foreach ($dTag as $t) { if (($chiave === 'obiettivo' && $t['icon'] === '🎯') || ($chiave === 'scadenza' && $t['icon'] === '⏰')) { $info = $t; break; } }
+        ?>
+            <button type="button" class="pr-tag pr-tag-data <?php echo $info ? 'pr-date-tag-' . sec_h($info['status']) : 'pr-tag-vuoto'; ?>"
+                    data-campo="<?php echo $chiave; ?>" data-valore="<?php echo sec_h($valore); ?>"
+                    onclick="prScegliData(<?php echo (int)$selectedProject['id']; ?>, '<?php echo $chiave; ?>', this)"
+                    title="<?php echo $chiave === 'obiettivo' ? t('progetti.data_obiettivo') : t('progetti.data_scadenza'); ?>">
+                <?php if ($chiave === 'obiettivo'): ?>
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
+                <?php else: ?>
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9 2.5h6"/></svg>
+                <?php endif; ?>
+                <?php if ($info): ?><span><?php echo sec_h($info['label']); ?></span><?php endif; ?>
+            </button>
+        <?php endforeach; ?>
         </div>
+
         <?php
         /* Sezione attività del progetto: compare se è stata attivata dal suo
            tastino. Sta sopra la nota, che scivola sotto quando ci sono
@@ -914,37 +1329,98 @@ echo nisama_i18n_json(['comune', 'progetti', 'pomodoro']);
         $heroTodo = (int)($selectedProject['todo_enabled'] ?? 0) === 1;
         ?>
         <div class="pr-hero-todo<?php echo $heroTodo ? '' : ' pr-hidden'; ?>" id="prHeroTodo"></div>
-        <?php if ($heroNote !== ''): ?><div class="pr-hero-note raw-text-content" data-raw="<?php echo $heroNote; ?>"></div><?php endif; ?>
+        <!-- La nota c'è SEMPRE, anche vuota: se comparisse solo da compilata
+             nessuno saprebbe che si può scrivere. Vuota mostra l'invito in
+             corsivo, piena mostra il testo. Si apre con un tocco lungo e non
+             con un tocco semplice: leggendo una nota lunga si scorre, e un
+             tocco che apre la tastiera a metà di una lettura è un'interruzione
+             continua. Il doppio tocco no, su iOS litiga con lo zoom e con la
+             selezione della parola. -->
+        <div class="pr-hero-note<?php echo $heroNote === '' ? ' pr-nota-vuota' : ' raw-text-content'; ?>"
+             id="prNota" data-id="<?php echo (int)$selectedProject['id']; ?>"
+             data-raw="<?php echo $heroNote; ?>"><?php
+            if ($heroNote === '') te('progetti.nota_vuota');
+        ?></div>
+        <div class="pr-nota-edit" id="prNotaEdit" hidden>
+            <?php
+                $ft_editor_id = 'prNotaEditor';
+                $ft_field = 'prNotaField';
+                $ft_raw = $selectedProject['note'] ?? '';
+                $ft_placeholder = t('progetti.nota_vuota');
+                $ft_open = false;   // la barra si apre a richiesta, come nel resto della pagina
+                include 'format_toolbar.php';
+            ?>
+            <div class="pr-nota-azioni">
+                <button type="button" class="pr-nota-btn" onclick="prNotaChiudi(false)"><?php te('comune.annulla'); ?></button>
+                <button type="button" class="pr-nota-btn pr-nota-btn-ok" onclick="prNotaChiudi(true)"><?php te('comune.salva'); ?></button>
+            </div>
+        </div>
+        <?php $totDur = prog_fmt_duration($totalMemo[$selectedProject['id']] ?? 0); ?>
+        <!-- Il pomodoro nella scheda del titolo, non fra i tondi sotto: fare un
+             pomodoro su un progetto è la cosa per cui questa pagina esiste, e
+             stava in fila con «attività» e «seleziona» come se fossero pari.
+             Sotto, più piccolo, il tasto delle statistiche — che è la stessa
+             cosa guardata a posteriori — e sotto ancora il tempo totale su
+             questo progetto e i suoi figli, che è il numero che dà senso a
+             tutti e due. -->
+        <div class="pr-pomo-box">
+            <!-- Il tasto e il tempo aprono la stessa cosa: lo storico dei
+                 pomodori di questo progetto, da dove si fa partire quello
+                 nuovo. Prima il tasto partiva e basta: si perdeva l'occasione
+                 di guardare quanto si è già fatto proprio nell'istante in cui
+                 si decide di farne ancora, che è l'unico momento in cui quel
+                 numero serve a qualcosa. -->
+            <button type="button" class="pr-pomo-go"
+                    data-stats-id="<?php echo (int)$selectedProject['id']; ?>"
+                    data-stats-nome="<?php echo sec_h($selectedProject['name']); ?>"
+                    data-stats-colore="<?php echo sec_h($accent); ?>"
+                    onclick="prOpenStats(+this.dataset.statsId, this.dataset.statsNome, this.dataset.statsColore)"
+                    aria-label="<?php te('progetti.pomodori'); ?>" title="<?php te('progetti.pomodori'); ?>">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>
+            </button>
+            <!-- Le statistiche si aprono toccando il tempo, non un tasto a
+                 parte: quel numero È il riassunto delle statistiche, e chi lo
+                 guarda volendone sapere di più tocca lui. Un pulsante accanto
+                 chiedeva di scegliere fra due cose che sono la stessa. -->
+            <button type="button" class="pr-pomo-tot"
+                    data-stats-id="<?php echo (int)$selectedProject['id']; ?>"
+                    data-stats-nome="<?php echo sec_h($selectedProject['name']); ?>"
+                    data-stats-colore="<?php echo sec_h($accent); ?>"
+                    onclick="prOpenStats(+this.dataset.statsId, this.dataset.statsNome, this.dataset.statsColore)"
+                    aria-label="<?php te('progetti.pomodori'); ?>" title="<?php te('progetti.pomodori'); ?>">
+                <?php echo $totDur ? sec_h($totDur) : '—'; ?>
+            </button>
+        </div>
+
+        <!-- Sotto restano due tondi soli: creare un sotto-progetto e
+             selezionare. Il pomodoro e le statistiche sono saliti nella scheda,
+             la modifica non esiste più perché tutto si modifica sul posto, e il
+             «nuovo progetto» era un secondo modo di fare la stessa cosa del
+             primo tondo — due tasti per la stessa azione fanno solo esitare. -->
         <div class="pr-hero-actions">
-            <!-- Il sotto-progetto rapido stava attaccato al titolo, dove sembrava
-                 parte del nome e schiacciava la riga. Qui è un tondo come gli
-                 altri, primo della fila: è l'azione che si usa più spesso. -->
             <button type="button" class="pr-hero-btn pr-hero-btn-quick" onclick="prHeroQuickAdd(event, this)" aria-label="<?php te('progetti.aggiungi_sotto_progetto_rapido'); ?>" title="<?php te('progetti.aggiungi_sotto_progetto_rapido'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5v10a2 2 0 0 0 2 2h8"/><path d="m16 14 3 3-3 3"/></svg>
             </button>
-            <button type="button" class="pr-hero-btn pr-hero-btn-pomo"<?php echo $pomoInCorso ? ' disabled aria-label="' . t('progetti.pomodoro_gia_in_corso') . '" title="' . t('progetti.pomodoro_gia_in_corso') . '"' : (' onclick="window.location.href=\'pomodoro.php?project_id=' . (int)$selectedProject['id'] . '\'" aria-label="Avvia pomodoro" title="Avvia pomodoro"'); ?>>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/></svg>
+            <!-- Il colore, secondo tondo. Sul titolo era un pallino colorato
+                 accanto a un nome colorato: si leggeva come decorazione, non
+                 come comando. Qui è in fila con le altre azioni, che è quello
+                 che è. -->
+            <button type="button" class="pr-hero-btn pr-hero-btn-colore" style="--dot:<?php echo sec_h($accent); ?>"
+                    onclick="prScegliColore(<?php echo (int)$selectedProject['id']; ?>)"
+                    aria-label="<?php te('progetti.colore'); ?>" title="<?php te('progetti.colore'); ?>">
+                <span class="pr-btn-dot"></span>
             </button>
             <button type="button" class="pr-hero-btn pr-hero-btn-todo<?php echo $heroTodo ? ' is-on' : ''; ?>" id="prTodoBtn"
                     data-project="<?php echo (int)$selectedProject['id']; ?>"
                     aria-label="<?php te('progetti.attivita'); ?>" title="<?php te('progetti.attivita'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7l2.2 2.2L10 5.5"/><path d="M4 17l2.2 2.2L10 15.5"/><path d="M13 7.5h7M13 17.5h7"/></svg>
             </button>
-            <button type="button" class="pr-hero-btn pr-hero-btn-stats" data-stats-id="<?php echo (int)$selectedProject['id']; ?>"
-                    data-stats-nome="<?php echo sec_h($selectedProject['name']); ?>"
-                    data-stats-colore="<?php echo sec_h($accent); ?>"
-                    onclick="prOpenStats(+this.dataset.statsId, this.dataset.statsNome, this.dataset.statsColore)" aria-label="<?php te('progetti.pomodori'); ?>" title="<?php te('progetti.pomodori'); ?>">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V10M12 20V4M18 20v-7"/></svg>
-            </button>
-            <button type="button" class="pr-hero-btn pr-hero-btn-add" onclick="prOpenEdit(0, <?php echo (int)$selectedProject['id']; ?>)" aria-label="<?php te('progetti.aggiungi_sotto_progetto'); ?>" title="<?php te('progetti.aggiungi_sotto_progetto'); ?>">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            </button>
-            <button type="button" class="pr-hero-btn pr-hero-btn-stats" onclick="prOpenEdit(<?php echo (int)$selectedProject['id']; ?>)" aria-label="<?php te('progetti.modifica_progetto'); ?>" title="<?php te('progetti.modifica_progetto'); ?>">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-            </button>
             <?php if (count($selectedTree['children'] ?? []) >= 2): ?>
+            <!-- Seleziona: una casella spuntata, che è quello che si sta per
+                 fare. Le tre righe con le spunte di prima somigliavano più a
+                 un elenco che a una selezione. -->
             <button type="button" class="pr-hero-btn pr-hero-btn-stats" id="prSelectSubBtn" onclick="prToggleSubSelecting()" aria-label="<?php te('progetti.seleziona_sotto_progetti'); ?>" title="<?php te('progetti.seleziona_sotto_progetti'); ?>">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 5.5 1.4 1.4L7 4.3"/><path d="m3 11.5 1.4 1.4 2.6-2.6"/><path d="m3 17.5 1.4 1.4 2.6-2.6"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M7.5 12.2l3 3 6-6.4"/></svg>
             </button>
             <?php endif; ?>
         </div>
@@ -960,12 +1436,29 @@ echo nisama_i18n_json(['comune', 'progetti', 'pomodoro']);
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><?php te('progetti.griglia'); ?>
             </button>
         </div>
-        <button type="button" class="pr-view-dates-btn" onclick="prOpenDatesView()" aria-label="<?php te('progetti.scadenze_e_obiettivi'); ?>" title="<?php te('progetti.scadenze_e_obiettivi'); ?>">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 9.5h18"/></svg>
+        <!-- Chiudi tutto / apri tutto. Con un albero profondo l'unico modo di
+             tornare a vedere solo i figli diretti era richiudere un ramo alla
+             volta; e per ritrovare tutto, riaprirli uno per uno. Un tasto
+             solo, che alterna: le due azioni sono l'una il ritorno dall'altra,
+             e due tasti avrebbero chiesto di scegliere invece di premere. -->
+        <button type="button" class="pr-view-fold-btn" id="prFoldBtn" onclick="prFoldAll()"
+                aria-label="<?php te('progetti.chiudi_tutto'); ?>" title="<?php te('progetti.chiudi_tutto'); ?>">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 5h16M4 19h16"/><path d="m9 9 3-3 3 3"/><path d="m9 15 3 3 3-3"/>
+            </svg>
         </button>
     </div>
     <div id="prHeroQuickAddHost"></div>
+    <!-- La barra delle azioni resta in basso mentre si scorre. Prima stava
+         attaccata sotto la scheda del titolo: scendendo a selezionare
+         sottoprogetti si perdeva di vista, e per usarla bisognava risalire in
+         cima — perdendo di vista quello che si era appena selezionato. -->
     <div class="pr-sub-bulkbar" id="prSubBulkbar">
+        <!-- Il tasto per uscire dalla selezione. Prima non c'era: si usciva
+             ritoccando il tasto in cima, cioè risalendo. -->
+        <button type="button" class="pr-sub-bulk-x" onclick="prToggleSubSelecting()" aria-label="<?php te('comune.annulla'); ?>">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
         <span id="prSubBulkCount"><?php te('progetti.0_selezionati'); ?></span>
         <button type="button" class="pr-sub-bulk-btn" id="prSubSelectAllBtn" onclick="prSubSelectAll()"><?php te('progetti.seleziona_tutti'); ?></button>
         <button type="button" class="pr-sub-bulk-btn accent" onclick="prSubBulkColorOpen()"><?php te('progetti.colore'); ?></button>
@@ -1027,7 +1520,11 @@ echo nisama_i18n_json(['comune', 'progetti', 'pomodoro']);
     <?php else: ?>
     <div id="prHeroQuickAddHost"></div>
     <div class="pr-empty" style="padding:36px 16px;">
-        <div><?php te('progetti.nessun_sotto_progetto_aggiungine_uno'); ?></div>
+        <!-- L'icona è quella del tasto che crea un sotto-progetto, non un
+             «+»: il più non esiste più fra i tondi sotto, e mandare a cercarlo
+             vorrebbe dire mandare a cercare una cosa che non c'è. -->
+        <svg class="pr-empty-ic" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5v10a2 2 0 0 0 2 2h8"/><path d="m16 14 3 3-3 3"/></svg>
+        <div><?php te('progetti.nessun_sotto_progetto'); ?></div>
     </div>
     <?php endif; ?>
 <?php endif; ?>
@@ -1115,8 +1612,20 @@ echo nisama_i18n_json(['comune', 'progetti', 'pomodoro']);
                 <div class="pr-field"><label><?php te('progetti.scadenza'); ?></label><input type="date" id="prFieldScadenza"></div>
             </div>
             <div class="pr-field" style="margin-bottom:4px;">
-                <label><?php te('progetti.colore'); ?> <span id="prColorModeLabel" style="text-transform:none; font-weight:500; letter-spacing:0;"><?php te('progetti.automatico_dal_padre'); ?></span></label>
-                <div class="pr-color-card">
+                <!-- La sezione si apre a richiesta. Aperta com'era occupava
+                     mezzo popup con una tavolozza che quasi nessuno tocca —
+                     il colore di un sotto-progetto quasi sempre si eredita —
+                     e spingeva i campi che si compilano davvero sotto il
+                     bordo dello schermo. La riga dice già che colore è: chi
+                     lo vuole cambiare la apre. -->
+                <button type="button" class="pr-color-toggle" id="prColorToggle" onclick="prColorSezione()" aria-expanded="false">
+                    <span class="pr-color-toggle-lab"><?php te('progetti.colore'); ?>
+                        <span id="prColorModeLabel"><?php te('progetti.automatico_dal_padre'); ?></span>
+                    </span>
+                    <span class="pr-color-toggle-dot" id="prColorToggleDot"></span>
+                    <svg class="pr-color-toggle-chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="pr-color-card" id="prColorCard" hidden>
                     <div class="pr-color-preview-row">
                         <span class="pr-color-preview-icon" id="prColorPreviewIcon"></span>
                         <span class="pr-color-preview-name" id="prColorPreviewName"><?php te('progetti.colore_automatico'); ?></span>
@@ -1142,6 +1651,11 @@ echo nisama_i18n_json(['comune', 'progetti', 'pomodoro']);
                     $ft_field = 'prFieldNote';
                     $ft_raw = '';
                     $ft_placeholder = "Scrivi qui le note del progetto…";
+                    /* Chiusa: qui la nota è un dettaglio del progetto, non il
+                       motivo per cui si è aperta la pagina, e quattro righe di
+                       icone sopra a due righe di testo spostavano il peso
+                       dalla parte sbagliata. */
+                    $ft_open = false;
                     include 'format_toolbar.php';
                 ?>
             </div>
@@ -1198,6 +1712,36 @@ echo nisama_i18n_json(['comune', 'progetti', 'pomodoro']);
 </div>
 
 <!-- ================= CAMBIA COLORE (selezione multipla) ================= -->
+<!-- Colore di un progetto solo. Riusa la stessa tavolozza di quella in blocco
+     — stessi colori standard, stesso «automatico», stesso colore
+     personalizzato — perché scegliere un colore è la stessa operazione che si
+     scelga per uno o per venti, e due pannelli diversi per la stessa cosa si
+     comportano diversamente al primo cambiamento. -->
+<div class="pr-confirm-overlay" id="prColorOverlay">
+    <div class="pr-confirm-box">
+        <div class="pr-confirm-title"><?php te('progetti.cambia_colore'); ?></div>
+        <div class="pr-color-grid">
+            <!-- «Automatico» rimette l'eredità dal padre, non un grigio: un
+                 sotto-progetto senza colore proprio segue quello della materia,
+                 ed è quello che si vuole tornando indietro. -->
+            <button type="button" class="pr-color-swatch pr-color-swatch-auto" onclick="prColorePick('auto')"
+                    aria-label="<?php te('progetti.automatico_dal_padre_2'); ?>" title="<?php te('progetti.automatico_dal_padre_2'); ?>">A</button>
+            <?php foreach ($prColorPalette as $hex): ?>
+            <button type="button" class="pr-color-swatch" style="background:<?php echo sec_h($hex); ?>; --sw:<?php echo sec_h($hex); ?>;" onclick="prColorePick('<?php echo sec_h($hex); ?>')">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+            </button>
+            <?php endforeach; ?>
+        </div>
+        <div class="pr-custom-color-row">
+            <input type="color" class="pr-custom-color-input" id="prColoreCustom" value="<?php echo sec_h($accent ?? '#8E8E93'); ?>" oninput="prColorePick(this.value)">
+            <span class="pr-custom-color-label"><?php te('progetti.colore_personalizzato'); ?></span>
+        </div>
+        <div class="pr-confirm-actions" style="margin-top:16px;">
+            <button type="button" class="pr-confirm-btn" onclick="document.getElementById('prColorOverlay').classList.remove('show')"><?php te('comune.annulla'); ?></button>
+        </div>
+    </div>
+</div>
+
 <div class="pr-confirm-overlay" id="prBulkColorOverlay">
     <div class="pr-confirm-box">
         <div class="pr-confirm-title"><?php te('progetti.cambia_colore'); ?></div>
@@ -1237,6 +1781,18 @@ echo nisama_i18n_json(['comune', 'progetti', 'pomodoro']);
             </div>
         </div>
         <div class="pr-note-peek-body raw-text-content" id="prNotePeekBody"></div>
+        <!-- L'editore del post-it: stessa nota, stesso posto. La barra parte
+             chiusa come nel resto della pagina. -->
+        <div class="pr-peek-edit" id="prPeekEdit" hidden>
+            <?php
+                $ft_editor_id = 'prPeekEditor';
+                $ft_field = 'prPeekField';
+                $ft_raw = '';
+                $ft_placeholder = t('progetti.nota_vuota');
+                $ft_open = false;
+                include 'format_toolbar.php';
+            ?>
+        </div>
     </div>
 </div>
 
@@ -1422,6 +1978,30 @@ window.prToggleChildren = function(id, btn){
     var kids = wrap ? wrap.querySelector(':scope > .pr-children') : null;
     if (kids) { kids.classList.toggle('collapsed'); btn.classList.toggle('open'); }
 };
+/* Chiudi tutto / apri tutto. Alterna: si guarda se c'è ancora qualcosa di
+   aperto e si fa il contrario. Guardare lo stato invece di ricordarselo in una
+   variabile evita di trovarsi il tasto che dice «apri» dopo che si è chiuso a
+   mano l'ultimo ramo rimasto. */
+window.prFoldAll = function () {
+    var rami = document.querySelectorAll('#prList .pr-children');
+    if (!rami.length) return;
+    var apertoQualcosa = false;
+    rami.forEach(function (k) { if (!k.classList.contains('collapsed')) apertoQualcosa = true; });
+
+    rami.forEach(function (k) {
+        k.classList.toggle('collapsed', apertoQualcosa);
+        var freccia = k.parentElement && k.parentElement.querySelector(':scope > .pr-row .pr-arrow');
+        if (freccia) freccia.classList.toggle('open', !apertoQualcosa);
+    });
+    var btn = document.getElementById('prFoldBtn');
+    if (btn) {
+        btn.classList.toggle('is-chiuso', apertoQualcosa);
+        var lab = T(apertoQualcosa ? 'progetti.apri_tutto' : 'progetti.chiudi_tutto');
+        btn.setAttribute('title', lab);
+        btn.setAttribute('aria-label', lab);
+    }
+};
+
 window.prTapRow = function(id){
     if (prSubSelecting) return; // in modalita' selezione ci pensa il listener delegato qui sotto
     window.location.href = 'progetti.php?id=' + id;
@@ -1442,13 +2022,68 @@ window.prOpenNotePeek = function(id, el){
         else if (window.fcRenderRaw) { body.innerHTML = window.fcRenderRaw(raw); rendered = true; }
     } catch (e) { rendered = false; }
     if (!rendered) body.textContent = raw;
+    /* Il tasto modifica del post-it rende il testo modificabile LÌ, con la
+       sua barra di formattazione. Prima portava al popup di modifica del
+       progetto: si usciva dalla nota per andare in una scheda con dentro dieci
+       campi, di cui uno era la nota. */
+    var peek = document.getElementById('prNotePeekOverlay');
     document.getElementById('prNotePeekEdit').onclick = function(){
-        prCloseNotePeek();
-        window.prOpenEdit(id);
+        if (peek.classList.contains('is-editing')) { prPeekSalva(id); return; }
+        prPeekModifica(id, raw);
     };
     document.getElementById('prNotePeekOverlay').classList.add('show');
 };
-window.prCloseNotePeek = function(){ document.getElementById('prNotePeekOverlay').classList.remove('show'); };
+window.prCloseNotePeek = function(){
+    var ov = document.getElementById('prNotePeekOverlay');
+    ov.classList.remove('show');
+    ov.classList.remove('is-editing');
+    var e = document.getElementById('prPeekEdit');
+    if (e) e.hidden = true;
+    document.getElementById('prNotePeekBody').hidden = false;
+};
+
+/* Il post-it in modifica: la nota diventa un editore con la sua barra, e il
+   tasto della matita diventa «salva». Due tasti, uno che apre e uno che
+   conferma, avrebbero voluto dire un pulsante in più sempre presente per una
+   cosa che si fa di rado. */
+window.prPeekModifica = function (id, raw) {
+    var ov = document.getElementById('prNotePeekOverlay');
+    var box = document.getElementById('prPeekEdit');
+    if (!box) return;
+    document.getElementById('prNotePeekBody').hidden = true;
+    box.hidden = false;
+    ov.classList.add('is-editing');
+    box.dataset.id = id;
+    var campo = document.getElementById('prPeekField');
+    var ed = document.getElementById('prPeekEditor');
+    if (campo) campo.value = raw || '';
+    if (ed && window.fcHydrateWrap) {
+        var wrap = ed.closest('.fmt-editor-wrap');
+        if (wrap) window.fcHydrateWrap(wrap, raw || '');
+    }
+    if (ed) ed.focus();
+};
+
+window.prPeekSalva = function (id) {
+    var campo = document.getElementById('prPeekField');
+    var testo = campo ? campo.value : '';
+    var body = new URLSearchParams();
+    body.set('project_id', id);
+    body.set('note', testo);
+    fetch('progetti.php?ajax=salva_nota', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
+    }).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d || !d.ok) return;
+        /* Il tag della nota nella riga porta il testo grezzo: senza
+           aggiornarlo, riaprendo il post-it si rileggerebbe la versione di
+           prima come se il salvataggio non fosse avvenuto. */
+        document.querySelectorAll('[data-note-id="' + id + '"]').forEach(function (t) {
+            t.setAttribute('data-note-raw', d.note);
+        });
+        if (window.PROJ_LOOKUP && PROJ_LOOKUP[id]) PROJ_LOOKUP[id].note = d.note;
+        prCloseNotePeek();
+    });
+};
 
 /* ---------------- stella dei preferiti nell'intestazione ---------------- */
 /* Cambia subito e salva dopo: aspettare la risposta per far vedere che la
@@ -1551,6 +2186,9 @@ window.prToggleSubSelecting = function(){
     if (btn) btn.classList.toggle('active', prSubSelecting);
     var bar = document.getElementById('prSubBulkbar');
     if (bar) bar.classList.toggle('show', prSubSelecting);
+    /* Con la barra in basso l'ultimo sottoprogetto le finirebbe sotto: si
+       aggiunge spazio in fondo alla pagina finché resta aperta. */
+    document.body.classList.toggle('pr-selezionando', prSubSelecting);
     if (list) list.querySelectorAll('.pr-row-wrap.pr-sub-selected, .pr-row-wrap.pr-sub-locked').forEach(function(w){ w.classList.remove('pr-sub-selected', 'pr-sub-locked'); });
     if (prSubSelecting && window.prSetViewMode) window.prSetViewMode('list'); // le checkbox esistono solo nell'elenco
     prUpdateSubBulkCount();
@@ -1990,7 +2628,15 @@ function prDatesRender(){
         if (!raw) return;
         var status = prDatesDayStatus(raw);
         if (!status) return;
-        if (prDatesState.filter !== 'all' && prDatesState.filter !== status) return;
+        /* Stessa regola del server: un progetto chiuso non è in ritardo, è
+           fatto. Il filtro però continua a ragionare sui tre stati di prima —
+           chi cerca «le scadute» vuole vedere anche quelle chiuse in ritardo,
+           altrimenti sparirebbero dall'elenco proprio mentre le si cerca. */
+        var filtroStatus = status;
+        if ((p.stato || p.status) === 'completed') {
+            status = (status === 'past') ? 'fatto-tardi' : 'fatto';
+        }
+        if (prDatesState.filter !== 'all' && prDatesState.filter !== filtroStatus) return;
         items.push({ id: pid, name: p.name, color: p.color || '#8E8E93', raw: raw, status: status });
     });
 
@@ -2087,6 +2733,10 @@ function prUpdateColorUI(){
     document.getElementById('fProgettoColor').value = prColorValue;
     document.getElementById('prColorModeLabel').textContent = T(prColorManual ? 'progetti.scelto_manualmente' : 'progetti.automatico_dal_padre');
     document.getElementById('prColorPreviewIcon').style.setProperty('--pr-preview-color', prColorValue);
+    /* Il pallino sulla riga chiusa: chi apre il popup per cambiare altro deve
+       poter vedere che colore è senza espandere la sezione. */
+    var dot = document.getElementById('prColorToggleDot');
+    if (dot) dot.style.background = prColorValue;
     document.getElementById('prColorPreviewName').textContent = prColorManual ? T('progetti.colore_personalizzato') : T('progetti.colore_auto_padre');
     document.getElementById('prColorAutoBtn').classList.toggle('sel', !prColorManual);
     document.querySelectorAll('#prColorGrid .pr-color-swatch:not(.pr-color-swatch-auto)').forEach(function(s){
@@ -2458,6 +3108,25 @@ window.prDoDelete = function(deleteSessions){
                     var sel = window.getSelection();
                     if (sel && sel.removeAllRanges) sel.removeAllRanges();
                 } catch (err) {}
+                /* Tutti i rami si chiudono, tranne quello che contiene i
+                   fratelli di chi si sta spostando. Con i sottoprogetti aperti
+                   una riga da spostare in cima poteva avere venti righe di
+                   figli altrui in mezzo, e trascinarla voleva dire attraversare
+                   mezzo schermo per ogni posizione guadagnata. Chiusi, i
+                   fratelli sono tutti visibili insieme e lo spostamento è un
+                   gesto solo. Alla fine si riaprono esattamente quelli che
+                   erano aperti: chiudere per comodità e non restituire com'era
+                   sarebbe un prezzo nascosto. */
+                drag.riaprire = [];
+                document.querySelectorAll('.pr-children').forEach(function (k) {
+                    if (k === drag.list) return;                 // i fratelli restano
+                    if (k.contains(drag.wrap)) return;           // e la strada per arrivarci
+                    if (k.classList.contains('collapsed')) return;
+                    k.classList.add('collapsed');
+                    drag.riaprire.push(k);
+                    var freccia = k.parentElement && k.parentElement.querySelector(':scope > .pr-row .pr-arrow');
+                    if (freccia) freccia.classList.remove('open');
+                });
                 buzz(15);
             }, 500)
         };
@@ -2498,10 +3167,40 @@ window.prDoDelete = function(deleteSessions){
         return out;
     }
 
+    /* Scorrimento automatico ai bordi, come per i blocchi del planner.
+       Senza, per spostare un sottoprogetto oltre quelli visibili bisognava
+       lasciarlo, scorrere, riprenderlo — e con venti fratelli erano quattro
+       giri. La velocità cresce avvicinandosi al bordo: piano vicino alla
+       soglia, per aggiustare di poco, veloce sull'orlo, per fare strada. */
+    function scorriSeAlBordo() {
+        if (!drag) return;
+        if (!drag.scrollV) {
+            if (drag.scrollRaf) { cancelAnimationFrame(drag.scrollRaf); drag.scrollRaf = null; }
+            return;
+        }
+        if (drag.scrollRaf) return;   // già in corso: cambia solo la velocità
+        (function passo() {
+            if (!drag || !drag.scrollV) { if (drag) drag.scrollRaf = null; return; }
+            window.scrollBy(0, drag.scrollV);
+            /* Le misure delle righe sono in coordinate dello schermo: scorrendo
+               diventano vecchie all'istante, e senza azzerarle la riga si
+               infilerebbe nel posto dove stava una riga un secondo fa. */
+            drag.rects = null;
+            drag.scrollRaf = requestAnimationFrame(passo);
+        })();
+    }
+
     document.addEventListener('pointermove', function(e){
         if (!drag || e.pointerId !== drag.pid) return;
         e.preventDefault();
         drag.moved = true;
+        /* La velocità cresce avvicinandosi al bordo: piano vicino alla soglia,
+           per aggiustare di poco, veloce sull'orlo, per fare strada. */
+        var soglia = 90, y = e.clientY;
+        var alto = y - soglia, basso = (window.innerHeight - soglia) - y;
+        drag.scrollV = (alto < 0) ? Math.max(-18, alto / 5)
+                     : ((basso < 0) ? Math.min(18, -basso / 5) : 0);
+        scorriSeAlBordo();
         /* un solo riposizionamento per fotogramma: gli eventi del puntatore
            arrivano più fitti di quanto lo schermo sappia disegnare */
         if (drag.raf) return;
@@ -2530,6 +3229,13 @@ window.prDoDelete = function(deleteSessions){
         if (drag.raf) cancelAnimationFrame(drag.raf);
         var d = drag; drag = null;
         d.wrap.classList.remove('dragging');
+        // i rami tornano com'erano prima che li chiudessimo noi
+        (d.riaprire || []).forEach(function (k) {
+            k.classList.remove('collapsed');
+            var freccia = k.parentElement && k.parentElement.querySelector(':scope > .pr-row .pr-arrow');
+            if (freccia) freccia.classList.add('open');
+        });
+        if (d.scrollRaf) { cancelAnimationFrame(d.scrollRaf); d.scrollRaf = null; }
         if (!d.moved) return;
         var ids = Array.prototype.filter.call(d.list.children, function(el){ return el.classList.contains('pr-row-wrap'); })
                         .map(function(el){ return el.getAttribute('data-id'); });
@@ -2931,5 +3637,349 @@ window.prShowInlineInput = function(e, parentId, btn) {
     });
 })();
 </script>
+<!-- Impostazioni della pagina. Cinque scelte che restano: quello che si vede
+     e in che ordine. Sono modi di guardare, non modifiche ai progetti — per
+     questo stanno qui e non nella scheda di un progetto. -->
+<div class="pr-opz-ov" id="prOpzOv" onclick="if(event.target===this) prCloseOpzioni()">
+    <div class="pr-opz">
+        <div class="pr-opz-head">
+            <span class="pr-opz-tit"><?php te('progetti.impostazioni'); ?></span>
+            <button type="button" class="pr-opz-x" onclick="prCloseOpzioni()" aria-label="<?php te('comune.chiudi'); ?>">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+        </div>
+
+        <label class="pr-opz-riga">
+            <input type="checkbox" id="prOpzCompletati">
+            <span class="pr-opz-n"><?php te('progetti.opz_completati'); ?>
+                <em><?php te('progetti.opz_completati_sub'); ?></em></span>
+        </label>
+
+        <label class="pr-opz-riga">
+            <input type="checkbox" id="prOpzTag">
+            <span class="pr-opz-n"><?php te('progetti.opz_tag'); ?>
+                <em><?php te('progetti.opz_tag_sub'); ?></em></span>
+        </label>
+
+        <label class="pr-opz-riga">
+            <input type="checkbox" id="prOpzRami">
+            <span class="pr-opz-n"><?php te('progetti.opz_rami'); ?>
+                <em><?php te('progetti.opz_rami_sub'); ?></em></span>
+        </label>
+
+        <label class="pr-opz-riga">
+            <input type="checkbox" id="prOpzAttivi">
+            <span class="pr-opz-n"><?php te('progetti.opz_attivi'); ?>
+                <em><?php te('progetti.opz_attivi_sub'); ?></em></span>
+        </label>
+
+        <div class="pr-opz-sep"></div>
+        <div class="pr-opz-lab"><?php te('progetti.opz_ordine'); ?></div>
+        <div class="pr-opz-ordine" id="prOpzOrdine">
+            <button type="button" data-ord="manuale"><?php te('progetti.opz_manuale'); ?></button>
+            <button type="button" data-ord="alfabetico"><?php te('progetti.opz_alfabetico'); ?></button>
+            <button type="button" data-ord="recenti"><?php te('progetti.opz_recenti'); ?></button>
+            <button type="button" data-ord="scadenza"><?php te('progetti.opz_scadenza'); ?></button>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ============================================================
+   IMPOSTAZIONI DELLA PAGINA
+   Applicare le scelte richiede di ricostruire l'albero: ordinamenti e filtri
+   li fa il server, che ha tutti i progetti e non solo quelli disegnati. Quindi
+   si salva e si ricarica — una volta sola, alla chiusura del pannello, non a
+   ogni spunta: quattro ricariche di fila per quattro spunte sarebbero quattro
+   attese per una decisione sola.
+   ============================================================ */
+var PR_OPZ = <?php echo json_encode($prOpz, JSON_UNESCAPED_UNICODE); ?>;
+var prOpzCambiate = false;
+
+function prOpenOpzioni() {
+    document.getElementById('prOpzCompletati').checked = !!PR_OPZ.completati;
+    document.getElementById('prOpzTag').checked        = !!PR_OPZ.mostra_tag;
+    document.getElementById('prOpzRami').checked       = !!PR_OPZ.ricorda_rami;
+    document.getElementById('prOpzAttivi').checked     = !!PR_OPZ.solo_attivi;
+    prOpzSegnaOrdine();
+    prOpzCambiate = false;
+    document.getElementById('prOpzOv').classList.add('is-open');
+}
+
+function prOpzSegnaOrdine() {
+    document.querySelectorAll('#prOpzOrdine button').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.ord === PR_OPZ.ordine);
+    });
+}
+
+function prCloseOpzioni() {
+    document.getElementById('prOpzOv').classList.remove('is-open');
+    if (!prOpzCambiate) return;   // niente da salvare, niente da ricaricare
+    var body = new URLSearchParams();
+    body.set('opzioni', JSON.stringify(PR_OPZ));
+    fetch('progetti.php?ajax=salva_opzioni', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
+    }).then(function () { location.reload(); })
+      .catch(function () { location.reload(); });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    var mappa = {
+        prOpzCompletati: 'completati', prOpzTag: 'mostra_tag',
+        prOpzRami: 'ricorda_rami', prOpzAttivi: 'solo_attivi'
+    };
+    Object.keys(mappa).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', function () {
+            PR_OPZ[mappa[id]] = el.checked ? 1 : 0;
+            prOpzCambiate = true;
+        });
+    });
+    var ord = document.getElementById('prOpzOrdine');
+    if (ord) ord.addEventListener('click', function (e) {
+        var b = e.target.closest('button[data-ord]');
+        if (!b) return;
+        PR_OPZ.ordine = b.dataset.ord;
+        prOpzCambiate = true;
+        prOpzSegnaOrdine();
+    });
+
+    /* «Mostra i tag» si applica subito, senza ricaricare: è l'unica delle
+       cinque che non cambia quali progetti ci sono, solo quanto occupano. */
+    document.body.classList.toggle('pr-senza-tag', !PR_OPZ.mostra_tag);
+    var tagChk = document.getElementById('prOpzTag');
+    if (tagChk) tagChk.addEventListener('change', function () {
+        document.body.classList.toggle('pr-senza-tag', !tagChk.checked);
+    });
+});
+</script>
+
+<script>
+/* ============================================================
+   LA SCHEDA DEL TITOLO
+   Tutto quello che prima si faceva dal popup di modifica si fa qui, dove la
+   cosa si vede: il nome scrivendoci sopra, il colore dal tondo accanto, il
+   deck e le date dai loro tag. Il popup restava il posto più lontano da dove
+   il dato è mostrato, e ogni modifica costava aprire, cercare, salvare,
+   chiudere.
+   ============================================================ */
+
+/* -------- il nome, scrivendoci sopra --------
+   Si salva quando si esce dal campo, non a ogni lettera: salvare mentre si
+   scrive vorrebbe dire una richiesta per battuta. Invio conferma, Escape
+   rimette com'era — le due scorciatoie che chiunque prova per prime. */
+(function () {
+    var el = document.getElementById('prHeroName');
+    if (!el) return;
+
+    function salva() {
+        var nuovo = (el.textContent || '').trim();
+        var prima = el.dataset.prima || '';
+        if (!nuovo) { el.textContent = prima; return; }   // un progetto senza nome non esiste
+        if (nuovo === prima) return;
+        el.dataset.prima = nuovo;
+        var body = new URLSearchParams();
+        body.set('project_id', el.dataset.id);
+        body.set('name', nuovo);
+        fetch('progetti.php?ajax=rinomina', {
+            method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
+        }).then(function (r) { return r.json(); }).then(function (d) {
+            if (!d || !d.ok) { el.textContent = prima; el.dataset.prima = prima; return; }
+            /* Il nome compare anche nelle pastiglie in alto e nelle briciole:
+               si aggiornano qui invece di ricaricare la pagina, che a metà di
+               una modifica è la cosa che fa perdere il filo. */
+            document.querySelectorAll('[data-pill-id="' + el.dataset.id + '"] .pill-name').forEach(function (x) { x.textContent = nuovo; });
+        }).catch(function () { el.textContent = prima; el.dataset.prima = prima; });
+    }
+
+    el.addEventListener('blur', salva);
+    el.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+        if (e.key === 'Escape') { e.preventDefault(); el.textContent = el.dataset.prima || ''; el.blur(); }
+    });
+    /* Incollando si porta dietro il formato da dove si è copiato: qui è un
+       nome, e un nome in grassetto rosso dentro un titolo è un incidente. */
+    el.addEventListener('paste', function (e) {
+        e.preventDefault();
+        var testo = (e.clipboardData || window.clipboardData).getData('text');
+        document.execCommand('insertText', false, (testo || '').replace(/\s+/g, ' ').trim());
+    });
+})();
+
+/* -------- il colore -------- */
+var prColoreId = 0;
+window.prScegliColore = function (id) {
+    prColoreId = id;
+    document.getElementById('prColorOverlay').classList.add('show');
+};
+window.prColorePick = function (valore) {
+    if (!prColoreId) return;
+    document.getElementById('fBulkColorIds').value = String(prColoreId);
+    document.getElementById('fBulkColorHex').value = valore;
+    document.getElementById('fBulkColorRedirect').value = CURRENT_PROJECT_ID;
+    /* Si riusa il modulo del colore in blocco con un id solo: è esattamente la
+       stessa operazione, e un secondo endpoint per «lo stesso ma per uno» è un
+       secondo posto in cui la regola dell'ereditarietà può divergere. */
+    document.getElementById('formBulkColor').submit();
+};
+
+/* -------- il deck -------- */
+window.prScegliDeck = function (id, attuale) {
+    var modale = document.getElementById('cs-modal-category') || document.getElementById('cat-selector-modal');
+    if (!modale || !window.csOpen) { toast(T('comune.errore_generico')); return; }
+    var ascolta = function (e) {
+        document.removeEventListener('categoryselected', ascolta);
+        var cat = (e.detail && e.detail.id) ? e.detail.id : 0;
+        var body = new URLSearchParams();
+        body.set('project_id', id);
+        body.set('fc_category_id', cat);
+        fetch('progetti.php?ajax=collega_deck', {
+            method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
+        }).then(function () { location.reload(); });
+    };
+    document.addEventListener('categoryselected', ascolta);
+    window.csOpen(modale);
+};
+
+/* Il «+N» dei figli con un deck: si apre e si richiude toccando fuori. Non è
+   un comando, è un elenco che si legge — per questo non porta da nessuna
+   parte e non cambia niente. */
+window.prDeckFigliApri = function (e, btn) {
+    e.stopPropagation();
+    var tag = document.getElementById('prDeckFigli');
+    if (!tag) return;
+    var aperto = tag.classList.toggle('is-aperto');
+    btn.textContent = aperto ? '−' : ('+' + btn.dataset.n);
+};
+document.addEventListener('click', function () {
+    var tag = document.getElementById('prDeckFigli');
+    if (!tag || !tag.classList.contains('is-aperto')) return;
+    tag.classList.remove('is-aperto');
+    var b = tag.querySelector('.pr-deck-piu');
+    if (b) b.textContent = '+' + b.dataset.n;
+});
+
+/* La sezione colore del popup: si apre a richiesta. Il pallino sulla riga
+   mostra il colore attuale, così chi apre il popup per cambiare altro sa già
+   com'è senza dover espandere niente. */
+window.prColorSezione = function () {
+    var card = document.getElementById('prColorCard');
+    var btn = document.getElementById('prColorToggle');
+    if (!card || !btn) return;
+    var aperta = card.hidden;
+    card.hidden = !aperta;
+    btn.setAttribute('aria-expanded', aperta ? 'true' : 'false');
+    btn.classList.toggle('is-aperta', aperta);
+};
+
+/* -------- la nota, modificabile sul posto --------
+   Un tocco lungo apre l'editore con la sua barra. Il tocco semplice no:
+   leggendo una nota lunga si scorre, e aprire la tastiera a metà di una
+   lettura è un'interruzione continua. Il doppio tocco nemmeno: su iOS litiga
+   con lo zoom e con la selezione della parola. */
+(function () {
+    var vista = document.getElementById('prNota');
+    var box = document.getElementById('prNotaEdit');
+    if (!vista || !box) return;
+
+    var t = null;
+    function parti(e) {
+        // solo dito o mouse fermo: se ci si muove si sta scorrendo, non premendo
+        var x0 = (e.touches ? e.touches[0] : e).clientX;
+        var y0 = (e.touches ? e.touches[0] : e).clientY;
+        t = setTimeout(function () { t = null; prNotaApri(); }, 480);
+        function muovi(ev) {
+            var p = ev.touches ? ev.touches[0] : ev;
+            if (Math.abs(p.clientX - x0) > 9 || Math.abs(p.clientY - y0) > 9) ferma();
+        }
+        function ferma() {
+            if (t) { clearTimeout(t); t = null; }
+            document.removeEventListener('touchmove', muovi);
+            document.removeEventListener('mousemove', muovi);
+            document.removeEventListener('touchend', ferma);
+            document.removeEventListener('mouseup', ferma);
+        }
+        document.addEventListener('touchmove', muovi, { passive: true });
+        document.addEventListener('mousemove', muovi);
+        document.addEventListener('touchend', ferma);
+        document.addEventListener('mouseup', ferma);
+    }
+    vista.addEventListener('touchstart', parti, { passive: true });
+    vista.addEventListener('mousedown', parti);
+    // il menù contestuale del browser sul tocco lungo darebbe due cose insieme
+    vista.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+})();
+
+window.prNotaApri = function () {
+    var vista = document.getElementById('prNota');
+    var box = document.getElementById('prNotaEdit');
+    if (!vista || !box) return;
+    vista.hidden = true;
+    box.hidden = false;
+    var ed = document.getElementById('prNotaEditor');
+    if (ed) { ed.focus(); }
+};
+
+window.prNotaChiudi = function (salva) {
+    var vista = document.getElementById('prNota');
+    var box = document.getElementById('prNotaEdit');
+    if (!vista || !box) return;
+    box.hidden = true;
+    vista.hidden = false;
+    if (!salva) return;
+
+    var campo = document.getElementById('prNotaField');
+    var testo = campo ? campo.value : '';
+    var body = new URLSearchParams();
+    body.set('project_id', vista.dataset.id);
+    body.set('note', testo);
+    fetch('progetti.php?ajax=salva_nota', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
+    }).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d || !d.ok) return;
+        /* Si ridisegna qui invece di ricaricare: la nota è spesso l'ultima
+           cosa che si tocca prima di tornare a leggere, e una ricarica
+           riporterebbe in cima alla pagina. */
+        vista.dataset.raw = d.note;
+        if (d.note === '') {
+            vista.classList.add('pr-nota-vuota');
+            vista.classList.remove('raw-text-content');
+            vista.textContent = T('progetti.nota_vuota');
+        } else {
+            vista.classList.remove('pr-nota-vuota');
+            vista.classList.add('raw-text-content');
+            if (window.fcRenderInto) window.fcRenderInto(vista, d.note);
+            else vista.textContent = d.note;
+        }
+    });
+};
+
+/* -------- le date --------
+   Il campo data nativo: sul telefono apre la rotella del sistema, che è quella
+   che l'utente sa già usare. Il tasto lo apre e resta invisibile sotto. */
+window.prScegliData = function (id, campo, btn) {
+    var inp = document.createElement('input');
+    inp.type = 'date';
+    inp.value = btn.dataset.valore || '';
+    inp.style.cssText = 'position:fixed;opacity:0;pointer-events:none;left:-9999px';
+    document.body.appendChild(inp);
+    inp.addEventListener('change', function () {
+        var body = new URLSearchParams();
+        body.set('project_id', id);
+        body.set('campo', campo);
+        body.set('valore', inp.value);
+        fetch('progetti.php?ajax=salva_data', {
+            method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
+        }).then(function () { location.reload(); });
+    });
+    inp.addEventListener('blur', function () { setTimeout(function () { inp.remove(); }, 300); });
+    if (inp.showPicker) { try { inp.showPicker(); return; } catch (err) {} }
+    inp.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999';
+    inp.focus();
+    inp.click();
+};
+</script>
+
 </body>
 </html>

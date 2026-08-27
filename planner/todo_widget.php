@@ -628,6 +628,22 @@ if (!defined('TODO_WIDGET_CSS')) {
         chip.appendChild(el('span', null, String(p)));
         chip.addEventListener('click', function () {
             var next = p >= 3 ? 1 : p + 1;
+            /* PRIMA si fotografa l'ordine, che deve restare quello di prima —
+               invertendo i due passi la riga salterebbe subito in un altro
+               gruppo, che è esattamente quello che il congelamento evita. */
+            self.inModifica(t.id);
+
+            /* Poi il tasto cambia SUBITO, qui, senza aspettare il ridisegno.
+               Prima il numero nuovo compariva solo al render successivo, che è
+               volutamente rinviato per non far saltare la riga: si toccava e
+               non succedeva niente per un paio di secondi. Il tasto è
+               l'unica cosa che deve rispondere all'istante — la riga no. */
+            p = next;
+            t.priority = next;
+            chip.className = 'td-chip td-prio-' + next;
+            chip.innerHTML = ICON_FLAG;
+            chip.appendChild(el('span', null, String(next)));
+
             self.save(t, { priority: next }, true).then(function () { self.renderLater(); });
         });
         return chip;

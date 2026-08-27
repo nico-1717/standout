@@ -638,6 +638,36 @@ In ordine di priorità:
 6. **`social/friends.php`**: l'avevi messo da rifare, non l'ho toccato.
 7. **Web Push per il pomodoro** e **hosting VPS**, che avevi rimandato.
 
+### Errata corrige — trovato dopo la consegna
+
+**`categories_fc.php` non salvava mai**: "Sessione scaduta" a ogni tentativo.
+La spunta ✅ sulla sicurezza in tabella (§4) era sbagliata su questo punto
+specifico: i quattro form della pagina (`formSalva`, `formSposta`,
+`formColor`, `formDelete`) non avevano mai avuto il campo `csrf_token`.
+
+`azione_post.php` (§3) risolve un problema vicino ma diverso — i link
+trasformati in azione, come in `game_fc.php` — e non copre i form `<form>`
+scritti a mano nelle altre pagine. Per quelli il campo va scritto **dal
+server**, esplicitamente, in ogni form:
+
+```php
+<input type="hidden" name="csrf_token" value="<?php echo sec_h(sec_csrf_token()); ?>">
+```
+
+Da controllare nelle altre pagine con form scritti a mano (non passate da
+`azione_post.php`): stesso rischio ovunque un `<form method="POST">` non
+abbia questo campo. Un modo rapido per trovarle: cercare `method="POST"` e
+verificare a occhio che ogni form trovato abbia anche `name="csrf_token"`.
+
+Dettaglio che vale la pena ricordare: tre di quei quattro form venivano
+inviati con `document.getElementById(...).submit()` da JavaScript. Chiamare
+`.submit()` sul form **non genera l'evento `submit`** del browser — lo
+generano solo un click su un pulsante `type="submit"` o
+`form.requestSubmit()`. Qualsiasi automatismo agganciato a quell'evento per
+iniettare il token, quindi, sarebbe comunque cieco su questi form: la
+correzione robusta è scrivere il campo nel markup, non affidarsi a un evento
+che potrebbe non scattare mai.
+
 ### Da provare dopo il caricamento
 
 Le cose che ho toccato e che vale la pena verificare a mano:

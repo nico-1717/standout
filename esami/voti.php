@@ -642,6 +642,16 @@ echo nisama_i18n_json(['comune', 'voti']);
                 <button type="button" data-tab="done" onclick="uniSetTab('done')"><?php te('voti.sostenuti'); ?><span class="cnt" id="cntDone">0</span></button>
                 <button type="button" class="on" data-tab="todo" onclick="uniSetTab('todo')"><?php te('voti.da_sostenere'); ?><span class="cnt" id="cntTodo">0</span></button>
                 <button type="button" data-tab="sim" onclick="uniSetTab('sim')"><?php te('voti.simulatore'); ?></button>
+                <!-- Quanto ti costano davvero. Il simulatore dice che voto
+                     prenderesti; questo dice quanto lavoro serve per arrivarci,
+                     ed e' l'altra meta' della stessa domanda. -->
+                <button type="button" data-tab="costo" onclick="uniSetTab('costo')"><?php te('voti.costo'); ?></button>
+            </div>
+
+            <!-- pannello costo: quanto e' costato quello che hai gia' fatto,
+                 e quanto ti costera' quello che ti resta -->
+            <div id="costoPane" style="display:none">
+                <div id="costoBody"></div>
             </div>
 
             <!-- pannello simulatore -->
@@ -1445,11 +1455,14 @@ function sortedExams(tab){
 function renderExams(){
   setTxt('cntTodo', STATE.exams.filter(function(e){ return e.status==='todo'; }).length);
   setTxt('cntDone', STATE.exams.filter(function(e){ return e.status==='done'; }).length);
-  var isSim=STATE.tab==='sim', isTodo=STATE.tab==='todo';
-  show('simPane', isSim); show('examList', !isSim); show('examAddBtn', !isSim);
+  var isSim=STATE.tab==='sim', isTodo=STATE.tab==='todo', isCosto=STATE.tab==='costo';
+  var isLista = !isSim && !isCosto;
+  show('simPane', isSim); show('costoPane', isCosto);
+  show('examList', isLista); show('examAddBtn', isLista);
   show('examSelBtn', isTodo);
   SWIPE_OPEN=null;
   if(isSim){ positionSeg(); renderSimulator(); show('examSelBar',false); return; }
+  if(isCosto){ positionSeg(); renderCosto(); show('examSelBar',false); return; }
   var selMode=STATE.selecting && isTodo;
   show('examSelBar', selMode); if(selMode) updateSelCount();
   var list=$('examList'); if(!list) return;
@@ -1598,12 +1611,97 @@ function uniCheckTap(id,ev){ if(ev) ev.stopPropagation(); var e=findExam(id); if
   if(e.status==='done') uniOpenExam(id); else openQuick(e); }
 function positionSeg(){ var seg=$('examSeg'),thumb=$('segThumb'); if(!seg||!thumb) return;
   var btns=seg.querySelectorAll('button'); if(!btns.length) return;
-  var idx=STATE.tab==='done'?0:(STATE.tab==='todo'?1:2);
+  /* Le linguette non sono piu' tre: leggere l'indice da una catena di
+     ternari significava che alla quarta si sbagliava di sicuro. */
+  var ordine={ done:0, todo:1, sim:2, costo:3 };
+  var idx = ordine[STATE.tab] !== undefined ? ordine[STATE.tab] : 1;
   var on=btns[idx]||btns[0], base=btns[0];
   for(var i=0;i<btns.length;i++) btns[i].classList.toggle('on', btns[i]===on);
   thumb.style.left=base.offsetLeft+'px'; thumb.style.width=on.offsetWidth+'px';
   thumb.style.transform='translateX('+(on.offsetLeft-base.offsetLeft)+'px)'; }
 function uniSetTab(t){ if(t!=='todo' && STATE.selecting) exitSelect(true); STATE.tab=t; renderExams(); }
+
+/* ============================================================
+   QUANTO TI COSTANO
+   Due meta' della stessa domanda: cosa ti e' costato quello che hai gia'
+   fatto, e — da li' — quanto ti costera' quello che ti resta. I numeri
+   arrivano da study_api.php, che sa dei pomodori: qui si disegnano soltanto.
+   ============================================================ */
+var COSTO = null;
+function renderCosto(){
+  var box=$('costoBody'); if(!box) return;
+  if(COSTO){ disegnaCosto(box, COSTO); return; }
+  box.innerHTML='<div class="empty" style="padding:24px 10px"><p style="margin:0">'+T('voti.caricamento')+'</p></div>';
+  fetch('study_api.php',{ method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'st_ajax=esami_fatti' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if(!d||!d.ok) throw 0; COSTO=d; disegnaCosto(box, d); })
+    .catch(function(){ box.innerHTML='<div class="empty" style="padding:24px 10px"><p style="margin:0">'+T('voti.costo_non_disponibile')+'</p></div>'; });
+}
+
+function disegnaCosto(box, d){
+  var h='';
+
+  /* Il preventivo per quello che resta. Si stima dallo scaglione di CFU piu'
+     vicino fra quelli gia' fatti: senza nessun esame alle spalle non c'e'
+     niente su cui basarsi, e inventare un numero sarebbe peggio che tacere. */
+  var todo=STATE.exams.filter(function(e){ return e.status==='todo' && parseFloat(e.cfu)>0; });
+  if(d.scaglioni && d.scaglioni.length && todo.length){
+    var tot=0, righe='';
+    todo.forEach(function(e){
+      var cfu=parseFloat(e.cfu);
+      var sc=scaglioneDi(cfu, d.scaglioni);
+      if(!sc) return;
+      var pom=Math.round(cfu*sc.per_cfu);
+      tot+=pom;
+      righe+='<div class="costo-r"><span class="costo-n">'+esc(e.name)+'</span>'+
+             '<span class="costo-c">'+cfu+' CFU</span>'+
+             '<span class="costo-p">~'+pom+'🍅</span></div>';
+    });
+    if(righe){
+      h+='<div class="costo-box"><div class="costo-t">'+T('voti.ti_restano')+'</div>'+
+         '<div class="costo-big">~'+tot+'🍅</div>'+
+         '<div class="costo-sub">'+T('voti.preventivo_spiega')+'</div>'+righe+'</div>';
+    }
+  }
+
+  /* Quanto costa un credito, per fascia. E' il numero che si porta avanti:
+     dice che i 12 CFU non costano il doppio dei 6, ne costano il triplo. */
+  if(d.scaglioni && d.scaglioni.length){
+    h+='<div class="costo-box"><div class="costo-t">'+T('voti.per_fascia')+'</div>';
+    d.scaglioni.forEach(function(sc){
+      h+='<div class="costo-r"><span class="costo-n">'+esc(sc.cfu)+' CFU</span>'+
+         '<span class="costo-c">'+sc.esami+'</span>'+
+         '<span class="costo-p">'+sc.per_cfu+'🍅/CFU'+
+         (sc.voto_medio!==null?' · '+sc.voto_medio:'')+'</span></div>';
+    });
+    h+='</div>';
+  }
+
+  /* Gli esami gia' dati, uno per uno. */
+  if(d.esami && d.esami.length){
+    h+='<div class="costo-box"><div class="costo-t">'+T('voti.gia_fatti')+'</div>';
+    d.esami.forEach(function(e){
+      h+='<div class="costo-r"><span class="costo-n">'+esc(e.nome)+'</span>'+
+         '<span class="costo-c">'+(e.voto!==null?(e.voto+(e.lode?'L':'')):'—')+'</span>'+
+         '<span class="costo-p">'+e.pomodori+'🍅 · '+e.ore+'h</span></div>';
+    });
+    h+='</div>';
+  }
+
+  if(!h) h='<div class="empty" style="padding:24px 10px"><p style="margin:0">'+T('voti.costo_vuoto')+'</p></div>';
+  box.innerHTML=h;
+}
+
+/* La fascia in cui cade un esame: le stesse soglie usate dal server, o i due
+   lati direbbero cose diverse sullo stesso esame. */
+function scaglioneDi(cfu, scaglioni){
+  var nome = cfu<=6?'\u22646' : (cfu<=9?'7-9' : (cfu<=12?'10-12':'13+'));
+  for(var i=0;i<scaglioni.length;i++) if(scaglioni[i].cfu===nome) return scaglioni[i];
+  // nessun esame in quella fascia: si usa la media di tutte, meglio di niente
+  var s=0; for(var j=0;j<scaglioni.length;j++) s+=scaglioni[j].per_cfu;
+  return scaglioni.length ? { per_cfu: s/scaglioni.length } : null;
+}
 
 /* ---- Selezione multipla e gruppi di esami a scelta ---- */
 function selectedIds(){ var out=[]; for(var k in STATE.selected){ if(STATE.selected.hasOwnProperty(k) && STATE.selected[k]) out.push(k); } return out; }

@@ -1,0 +1,582 @@
+/* to_study.css — la pagina «to study».
+   Due sezioni: il calendario del mese in alto, l'elenco giorno per giorno
+   sotto. Le caselle sono più grandi di quelle del planner, ed è il motivo per
+   cui la barra in cima è ridotta al minimo: ogni pixel speso lassù è un pixel
+   tolto ai giorni. */
+
+:root{
+    color-scheme: light dark;
+    --ts-bg:#F4EFE9; --ts-card:#FFFDFA; --ts-ink:#4A443D; --ts-ink-2:#8A8177; --ts-ink-3:#B7AEA3;
+    --ts-hair:rgba(74,68,61,.10);
+    --ts-grigio:#B7AEA3;
+    --ts-imp:#C6553F;
+    --ts-corsia:17px;
+    --safe-bottom:env(safe-area-inset-bottom, 0px);
+    --safe-top:env(safe-area-inset-top, 0px);
+}
+@media (prefers-color-scheme: dark){
+    :root{
+        --ts-bg:#16150F; --ts-card:#221F1A; --ts-ink:#EAE6DE; --ts-ink-2:#9A958C; --ts-ink-3:#6B665E;
+        --ts-hair:rgba(255,255,255,.09);
+        --ts-grigio:#6B665E; --ts-imp:#E4735A;
+    }
+}
+
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+/* Niente selezione del testo in tutta la pagina. Qui si tiene premuto e si
+   trascina per disegnare i blocchi, e il browser risponde a quel gesto
+   evidenziando le parole: il risultato è che mentre si sceglie un intervallo
+   di giorni mezzo calendario diventa blu. I campi di testo sono l'eccezione
+   ovvia — lì scrivere è tutto il punto. */
+html, body{ user-select:none; -webkit-user-select:none; }
+input, textarea{ user-select:text; -webkit-user-select:text; }
+
+html{
+    /* La pagina non rimbalza e non si tira giù per aggiornare. Trascinare in
+       basso sul calendario è un gesto che qui vuol dire un'altra cosa, e
+       vedersi ricaricare la pagina a metà di un blocco è la cosa peggiore che
+       possa succedere. */
+    overscroll-behavior:none;
+    height:100%;
+}
+body{
+    margin:0; min-height:100dvh; background:var(--ts-bg); color:var(--ts-ink);
+    font-family:-apple-system, system-ui, "Segoe UI", Roboto, sans-serif; font-size:15px;
+    -webkit-font-smoothing:antialiased;
+    overscroll-behavior:none;
+    padding:calc(var(--safe-top) + 8px) 0 calc(var(--safe-bottom) + 40px);
+}
+
+/* ---- barra in cima ---- */
+.ts-head{ display:flex; align-items:center; gap:8px; padding:6px 14px 10px; }
+/* Le frecce del mese. Da telefono c'è il gesto, da computer no: senza queste
+   il calendario si poteva solo guardare. */
+.ts-nav{
+    flex-shrink:0; width:30px; height:30px; border:none; border-radius:9px; cursor:pointer;
+    background:var(--ts-card); color:var(--ts-ink-2); display:grid; place-items:center;
+    box-shadow:inset 0 0 0 .5px var(--ts-hair);
+}
+.ts-nav svg{ width:17px; height:17px; }
+.ts-nav:active{ background:var(--ts-bg); }
+/* «Oggi»: cambiando mese si finisce lontano in fretta, e tornare indietro
+   una freccia alla volta è la cosa che stanca. */
+/* Il numero di oggi, e nient'altro. In una barra dove ogni parola ruba spazio
+   al mese, la parola «oggi» diceva quello che il numero dice da solo. */
+.ts-oggi-btn{
+    flex-shrink:0; width:28px; height:28px; border:none; border-radius:50%; cursor:pointer;
+    font:inherit; font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums;
+    background:var(--ts-ink); color:var(--ts-card); display:grid; place-items:center; padding:0;
+}
+.ts-mese{ flex:1; min-width:0; font-size:19px; font-weight:700; letter-spacing:-.02em; }
+.ts-anno{ color:var(--ts-ink-3); font-weight:500; }
+/* La casella "mostra anche il resto": spuntandola compaiono tutti gli eventi
+   del planner, non solo quelli di studio. Sta in cima perché cambia cosa si
+   sta guardando, non un dettaglio di un evento. */
+/* «Planner» apre un pannello, non accende una spunta: cosa mostrare oltre allo
+   studio sono sei domande diverse, e una casella sola le rispondeva tutte
+   insieme o nessuna. */
+/* La spunta accende tutto il planner, il nome accanto apre il pannello:
+   stanno insieme perché sono due domande sulla stessa cosa. */
+/* Spunta e nome dentro allo stesso riquadro: sono la stessa cosa vista da due
+   lati — «lo mostro?» e «cosa di preciso?». Separati sembravano due comandi
+   messi vicini per caso. */
+.ts-planner-box{
+    display:flex; align-items:center; gap:7px; flex-shrink:0; padding:4px 10px 4px 8px;
+    border-radius:9px; background:var(--ts-card); box-shadow:inset 0 0 0 .5px var(--ts-hair);
+}
+.ts-planner-box input{ width:15px; height:15px; margin:0; accent-color:var(--ts-ink); flex-shrink:0; }
+.ts-planner-btn{
+    flex-shrink:0; padding:2px 0; border:none; cursor:pointer; background:none;
+    font:inherit; font-size:11px; letter-spacing:.1em; text-transform:uppercase; font-weight:700;
+    color:var(--ts-ink-2);
+}
+
+/* ---- pannello dei filtri ---- */
+.ts-filtri{ max-width:380px; }
+.ts-filtri-box{ max-height:56vh; overflow-y:auto; margin-bottom:12px; }
+.ts-fr{ display:flex; align-items:center; gap:9px; padding:9px 4px; cursor:pointer; }
+.ts-fr input{ width:17px; height:17px; flex-shrink:0; accent-color:var(--ts-ink); }
+.ts-fr-c{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.ts-fr-n{ flex:1; min-width:0; font-size:14.5px; }
+.ts-fg{ border-top:.5px solid var(--ts-hair); }
+.ts-fg-t{
+    display:flex; align-items:center; gap:9px; width:100%; padding:11px 4px;
+    border:none; background:none; cursor:pointer; font:inherit; font-size:14.5px;
+    color:var(--ts-ink); text-align:left;
+}
+.ts-fg-t > span:first-of-type{ flex:1; min-width:0; }
+/* la freccia gira invece di cambiare simbolo: si vede che è la stessa cosa in
+   due stati, non due icone diverse */
+.ts-fg-t svg{ width:14px; height:14px; flex-shrink:0; color:var(--ts-ink-3); transition:transform .26s var(--ts-molla, cubic-bezier(.32,.72,0,1)); }
+.ts-fg.ts-aperto .ts-fg-t svg{ transform:rotate(90deg); }
+.ts-fg-n{ flex-shrink:0; font-size:11px; font-weight:700; color:var(--ts-ink-3); font-variant-numeric:tabular-nums; }
+/* si apre scorrendo: l'elenco esce da dove sta la freccia invece di comparire
+   di colpo, e si capisce da dove viene */
+.ts-fg-in{ max-height:0; overflow:hidden; transition:max-height .3s cubic-bezier(.32,.72,0,1); padding-left:14px; }
+
+/* ---- calendario ---- */
+.ts-cal{ padding:0 8px; touch-action:pan-y; }
+.ts-wd{ display:grid; grid-template-columns:repeat(7,1fr); }
+.ts-wd span{ text-align:center; font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--ts-ink-3); padding:2px 0 6px; }
+.ts-grid{ display:grid; grid-template-rows:repeat(6,auto); gap:4px; }
+.ts-riga{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; position:relative; }
+.ts-cella{
+    /* caselle grandi: qui il calendario è la pagina, non un accessorio.
+       min-height e non un'altezza fissa, così una settimana con quattro
+       corsie di barre si allarga invece di tagliarle.
+       max-height più scorrimento interno: quando in un giorno non ci sta
+       tutto, si scorre DENTRO la casella invece di veder sparire il resto —
+       un «+3» che non si può aprire è peggio del non sapere. */
+    min-height:74px; max-height:132px; border-radius:10px; background:var(--ts-card);
+    box-shadow:inset 0 0 0 .5px var(--ts-hair);
+    display:flex; flex-direction:column; padding:4px 4px 3px;
+    overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain;
+    scrollbar-width:none; transition:background-color .18s;
+}
+.ts-cella::-webkit-scrollbar{ display:none; }
+.ts-cella.ts-fuori{ background:transparent; box-shadow:none; opacity:.45; }
+.ts-num{ font-size:13px; line-height:1; text-align:center; color:var(--ts-ink-2); padding:2px 0 1px; }
+.ts-oggi .ts-num{
+    color:#fff; background:var(--ts-ink); border-radius:99px;
+    width:20px; height:20px; line-height:20px; margin:0 auto;
+}
+/* mentre si tiene premuto e si trascina, i giorni che finiranno nel blocco */
+.ts-cella.ts-sel{ background:color-mix(in srgb, var(--ts-ink) 12%, var(--ts-card)); }
+/* Quanto è carico un giorno. Quattro livelli e non dieci: con dieci sfumature
+   nessuno distingue il terzo dal quarto, e la domanda vera è una sola — questo
+   giorno è troppo pieno? Il quarto livello vira al rosso perché a quel punto
+   la risposta è sì. */
+.ts-car-1{ background:color-mix(in srgb, var(--ts-ink) 4%, var(--ts-card)); }
+.ts-car-2{ background:color-mix(in srgb, var(--ts-ink) 9%, var(--ts-card)); }
+.ts-car-3{ background:color-mix(in srgb, var(--ts-ink) 15%, var(--ts-card)); }
+.ts-car-4{ background:color-mix(in srgb, var(--ts-imp) 16%, var(--ts-card)); }
+.ts-vuoto{ flex-shrink:0; }
+
+/* Gli eventi di un giorno solo, dentro la casella. */
+.ts-mini{
+    margin:1px 0; padding:1px 4px; border-radius:4px; cursor:pointer;
+    background:color-mix(in srgb, var(--c) 26%, var(--ts-card));
+    box-shadow:inset 2px 0 0 var(--c);
+    font-size:9px; line-height:12px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.ts-mini-imp{ background:var(--ts-imp); color:#fff; font-weight:700; box-shadow:none; }
+/* Il testo lungo scorre invece di troncarsi. I puntini nascondono proprio la
+   parte che distingue due righe che cominciano uguale. */
+.ts-scorre-in{ display:inline-block; white-space:nowrap; }
+.ts-scorre{ overflow:hidden; }
+.ts-scorre .ts-scorre-in{ animation:tsCorsa var(--durata, 7s) linear infinite alternate; }
+@keyframes tsCorsa{
+    0%, 12%   { transform:translateX(0); }
+    88%, 100% { transform:translateX(var(--corsa, 0)); }
+}
+.ts-mini-fatto{ opacity:.5; text-decoration:line-through; }
+/* Il gruppo orario che sostituisce venti righe da cinque minuti quando si
+   guarda tutto il planner: dice quando e quanti, che è tutto quello che serve
+   sapere di una fascia che non riguarda lo studio. */
+/* La fascia oraria compattata: una barretta muta. Il suo lavoro è dire «qui
+   c'è già qualcosa» senza rubare la riga a quello che si sta studiando. */
+.ts-ora{
+    margin:1.5px 0; height:3px; border-radius:2px; flex-shrink:0;
+    background:var(--ts-hair);
+}
+.ts-ora-piena{ background:var(--ts-ink-3); }
+.ts-piu{ font-size:8.5px; color:var(--ts-ink-3); padding:1px 4px; }
+
+/* ---- barre degli eventi ----
+   Sopra la riga e non dentro le caselle: una casella taglia ai bordi, e una
+   barra che deve attraversare il martedì sparirebbe al confine del lunedì. */
+.ts-barre{
+    position:absolute; left:0; right:0; top:23px; z-index:2;
+    display:grid; grid-template-columns:repeat(7,1fr); gap:4px;
+    grid-auto-rows:14px; row-gap:3px;
+}
+.ts-barra{
+    min-width:0; margin:0 1px; padding:1px 5px; border-radius:3px; cursor:pointer;
+    background:color-mix(in srgb, var(--c) 30%, var(--ts-card));
+    color:var(--ts-ink); font-size:9px; line-height:12px; font-weight:500;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    box-shadow:inset 2px 0 0 var(--c);
+}
+/* arrotondata solo dove comincia e dove finisce davvero: il lato squadrato è
+   il segno che la barra continua nella settimana dopo, senza bisogno di frecce */
+.ts-b-apre{ border-top-left-radius:7px; border-bottom-left-radius:7px; margin-left:2px; }
+.ts-b-chiude{ border-top-right-radius:7px; border-bottom-right-radius:7px; margin-right:2px; }
+/* Le date importanti — un esame — non sono un blocco di studio fra gli altri:
+   sono l'ancora su cui si appoggia tutto il piano, e si vedono da lontano. */
+.ts-b-imp{
+    background:var(--ts-imp); color:#fff; font-weight:800; box-shadow:none;
+    letter-spacing:.01em;
+}
+.ts-b-fatto{ opacity:.5; text-decoration:line-through; }
+
+/* ---- elenco giorno per giorno ---- */
+/* ---- come sei messo ---- */
+.ts-stato{ padding:18px 12px 0; }
+.ts-mat{
+    background:var(--ts-card); border-radius:13px; padding:11px 13px; margin-bottom:8px;
+    box-shadow:inset 0 0 0 .5px var(--ts-hair); border-left:4px solid var(--c);
+}
+.ts-mat-t{ display:flex; align-items:baseline; gap:10px; }
+.ts-mat-n{ flex:1; min-width:0; font-size:15px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* I giorni che mancano prendono il colore del semaforo: è il numero su cui si
+   decide, e deve dire da solo se è una buona o una cattiva notizia. */
+.ts-mat-g{ flex-shrink:0; font-size:13px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--ts-ink-2); }
+.ts-sem-verde  .ts-mat-g{ color:#4E9A6B; }
+.ts-sem-giallo .ts-mat-g{ color:#C08A2E; }
+.ts-sem-rosso  .ts-mat-g{ color:var(--ts-imp); }
+.ts-mat-b{ height:5px; border-radius:3px; background:var(--ts-bg); margin:8px 0 6px; overflow:hidden; }
+.ts-mat-b-in{ height:100%; border-radius:3px; background:var(--c); transition:width .5s cubic-bezier(.32,.72,0,1); }
+.ts-mat-s{ display:flex; gap:12px; font-size:11.5px; color:var(--ts-ink-2); font-variant-numeric:tabular-nums; }
+.ts-mat-sp{ margin-left:auto; }
+/* Lo spazio disponibile va confrontato con quello che serve: se il primo è
+   meno del secondo, il rosso qui sopra ha già detto tutto. */
+.ts-sem-rosso .ts-mat-sp{ color:var(--ts-imp); font-weight:700; }
+.ts-mat-fermo{ margin-top:7px; font-size:11.5px; font-weight:600; color:var(--ts-imp); }
+.ts-mat-pia{
+    margin-top:9px; padding:7px 12px; border:none; border-radius:9px; cursor:pointer;
+    font:inherit; font-size:11px; letter-spacing:.08em; text-transform:uppercase; font-weight:700;
+    background:var(--ts-bg); color:var(--ts-ink-2); box-shadow:inset 0 0 0 .5px var(--ts-hair);
+}
+
+/* Il verdetto del piano, prima dell'elenco: se non ci stai, leggere venti
+   righe di date per scoprirlo è tempo perso. */
+.ts-piano-v{ padding:11px 12px; border-radius:11px; font-size:12.5px; line-height:1.5; margin-bottom:10px; }
+.ts-piano-v.ts-ok{ background:color-mix(in srgb, #4E9A6B 13%, transparent); color:#3C7A54; }
+.ts-piano-v.ts-no{ background:color-mix(in srgb, var(--ts-imp) 12%, transparent); color:var(--ts-imp); }
+.ts-piano{ max-height:38vh; overflow-y:auto; margin-bottom:10px; }
+.ts-piano-r{ display:flex; align-items:center; gap:9px; padding:7px 2px; border-top:.5px solid var(--ts-hair); }
+.ts-piano-n{ flex:1; min-width:0; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ts-piano-d{ flex-shrink:0; font-size:11px; color:var(--ts-ink-2); }
+.ts-piano-p{ flex-shrink:0; font-size:11px; font-weight:700; color:var(--ts-ink-3); font-variant-numeric:tabular-nums; }
+
+/* Quanto ti conosco: il patto fra chi pianifica e chi calcola. */
+.ts-conosco{
+    padding:11px 13px; border-radius:12px; margin-bottom:8px;
+    background:var(--ts-bg); box-shadow:inset 0 0 0 .5px var(--ts-hair);
+    font-size:11.5px; line-height:1.5; color:var(--ts-ink-2);
+}
+.ts-conosco > div + div{ margin-top:5px; }
+/* Il consuntivo della settimana: tre numeri con accanto quanto sono cambiati.
+   Il confronto è tutto — un numero da solo non dice se è tanto o poco. */
+.ts-sett{
+    padding:12px 13px; border-radius:12px; margin-bottom:8px;
+    background:var(--ts-card); box-shadow:inset 0 0 0 .5px var(--ts-hair);
+}
+.ts-sett-t{ font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--ts-ink-3); margin-bottom:9px; }
+.ts-sett-r{ display:flex; gap:8px; }
+.ts-sett-v{ flex:1; min-width:0; }
+.ts-sett-n{ font-size:22px; font-weight:800; line-height:1; font-variant-numeric:tabular-nums; }
+.ts-sett-l{ font-size:10.5px; color:var(--ts-ink-3); margin-top:3px; }
+.ts-sett-d{ font-size:11px; font-weight:700; margin-top:2px; font-variant-numeric:tabular-nums; }
+.ts-sett-d.ts-su{ color:#4E9A6B; }
+.ts-sett-d.ts-giu{ color:var(--ts-imp); }
+.ts-sett-m{ margin-top:10px; font-size:11.5px; color:var(--ts-ink-2); }
+
+.ts-grigi{
+    padding:10px 13px; border-radius:12px; margin-bottom:8px;
+    background:color-mix(in srgb, var(--ts-imp) 9%, transparent); color:var(--ts-imp);
+    font-size:11.5px; font-weight:600;
+}
+
+.ts-lista-head{
+    display:flex; align-items:center; gap:8px; padding:20px 16px 6px;
+    font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--ts-ink-3);
+}
+.ts-lista-head > span{ flex:1; min-width:0; }
+.ts-add-top{
+    flex-shrink:0; width:28px; height:28px; border-radius:9px; border:none; cursor:pointer;
+    background:var(--ts-card); color:var(--ts-ink-2); display:grid; place-items:center;
+    box-shadow:inset 0 0 0 .5px var(--ts-hair);
+}
+.ts-add-top svg{ width:15px; height:15px; }
+/* La stella con il più dentro, di fianco al più normale: stesso gesto —
+   aggiungere — su due cose diverse, e il rosso dice quale delle due. */
+.ts-add-imp{
+    position:relative; flex-shrink:0; width:28px; height:28px;
+    border:none; border-radius:9px; cursor:pointer; padding:0;
+    background:color-mix(in srgb, var(--ts-imp) 14%, var(--ts-card)); color:var(--ts-imp);
+    display:grid; place-items:center;
+}
+.ts-add-imp svg{ position:absolute; width:20px; height:20px; }
+.ts-add-imp-piu{ width:14px !important; height:14px !important; }
+.ts-filtro-sep{ margin-left:6px; }
+/* I due filtri dell'elenco. Spenti sono grigi come tutto il resto, accesi
+   prendono il colore: un filtro attivo che non si vede è il modo più rapido di
+   convincersi che manchino dei dati. */
+.ts-filtro{
+    flex-shrink:0; width:28px; height:28px; border:none; border-radius:9px; cursor:pointer;
+    background:var(--ts-card); color:var(--ts-ink-3); display:grid; place-items:center;
+    box-shadow:inset 0 0 0 .5px var(--ts-hair); transition:background-color .2s, color .2s;
+}
+.ts-filtro svg{ width:15px; height:15px; }
+.ts-filtro.ts-attivo{ background:var(--ts-ink); color:var(--ts-card); box-shadow:none; }
+
+/* La linea che lega il primo e l'ultimo giorno di un evento stretto. Scende
+   dalla riga del primo e risale a quella dell'ultimo: due capi della stessa
+   cosa, e in mezzo si capisce che continua senza doverlo ripetere ogni giorno. */
+/* La linea che lega il primo giorno all'ultimo.
+   La striscia colorata sul bordo sinistro dei blocchetti ESCE dai bordi e
+   prosegue: scende dalla riga del primo giorno, attraversa tutto quello che
+   c'è in mezzo, e risale in quella dell'ultimo. Prima erano due monconi di
+   undici pixel che si fermavano nel vuoto, e non collegavano niente — si
+   vedevano come due errori di disegno invece che come una cosa sola spezzata
+   in due.
+   L'altezza è 100vh tagliata dal contenitore del giorno: non si può sapere
+   quanto sono distanti le due righe, e una linea più lunga del necessario,
+   ritagliata, è più semplice e più robusta di un calcolo che dovrebbe rifarsi
+   a ogni ridisegno. */
+/* La linea che lega il primo giorno all'ultimo.
+   Esce dalla barretta colorata, si scosta a sinistra, scende fino all'altro
+   capo e rientra: i due uncini alle estremità sono quelli che la fanno leggere
+   come una cosa sola invece che come due segmenti scollegati.
+   Posizione e altezza le scrive il JavaScript dopo aver misurato le righe —
+   quanto sono distanti dipende da cosa c'è in mezzo, e il CSS non lo sa. */
+.ts-legame{
+    position:absolute; width:4px; border-radius:2px; background:var(--c);
+    z-index:0; pointer-events:none;
+}
+/* gli uncini: dalla linea verso destra, a riprendere la barretta del blocco */
+.ts-legame::before, .ts-legame::after{
+    content:""; position:absolute; left:0; width:11px; height:4px;
+    background:var(--c); border-radius:2px;
+}
+.ts-legame::before{ top:0; }
+.ts-legame::after{ bottom:0; }
+/* Il capo agganciato alla riga «giorni passati» non ha uncino: là non c'è
+   nessuna barretta colorata da andare a riprendere, e la curva puntava verso
+   la scritta come se la stesse indicando. La linea sale dritta e basta. */
+.ts-legame.ts-senza-su::before{ display:none; }
+.ts-legame.ts-senza-giu::after{ display:none; }
+/* La lista fa da riferimento alle linee e le taglia dove finisce. */
+.ts-lista{ position:relative; overflow:hidden; padding-left:20px; }
+
+/* I giorni già passati, chiusi dietro una freccia come i calendari nel
+   pannello dei filtri. Aperti restano più smorti: sono un promemoria di
+   com'è andata, non una cosa da fare — e devono cedere il passo a quello
+   che viene dopo oggi. */
+.ts-passati{ margin-bottom:10px; }
+.ts-passati-t{
+    display:flex; align-items:center; gap:8px; width:100%; padding:8px 6px;
+    border:none; background:none; cursor:pointer; font:inherit;
+    font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; font-weight:700;
+    color:var(--ts-ink-3); text-align:left;
+}
+.ts-passati-t > span:first-of-type{ flex:1; min-width:0; }
+.ts-passati-t svg{ width:13px; height:13px; flex-shrink:0; transition:transform .26s cubic-bezier(.32,.72,0,1); }
+.ts-passati.ts-aperto .ts-passati-t svg{ transform:rotate(90deg); }
+.ts-passati-n{ flex-shrink:0; font-variant-numeric:tabular-nums; }
+.ts-passati-in{
+    max-height:0; overflow:hidden; opacity:.52;
+    transition:max-height .32s cubic-bezier(.32,.72,0,1), opacity .3s;
+}
+.ts-passati.ts-aperto .ts-passati-in{ opacity:.62; }
+
+/* L'ora di una data importante nell'elenco: un esame è alle 9 in punto, e
+   quello è metà dell'informazione. */
+.ts-ev-ora{
+    flex-shrink:0; font-size:11.5px; font-weight:700; color:var(--ts-imp);
+    font-variant-numeric:tabular-nums;
+}
+/* Il tastino per aggiungere un argomento dalla riga, come in progetti. */
+.ts-ev-add{
+    flex-shrink:0; width:26px; height:26px; border:none; border-radius:8px; cursor:pointer;
+    background:none; color:var(--ts-ink-3); display:grid; place-items:center;
+}
+.ts-ev-add svg{ width:15px; height:15px; }
+.ts-ev-add:active{ background:var(--ts-bg); color:var(--ts-ink); }
+
+.ts-lista{ padding:0 12px; }
+.ts-giorno{ margin-bottom:14px; }
+.ts-giorno-t{ display:flex; align-items:baseline; gap:8px; padding:6px 6px 4px; }
+.ts-giorno-n{ font-size:20px; font-weight:700; letter-spacing:-.02em; }
+.ts-giorno-w{ flex:1; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ts-ink-3); }
+.ts-giorno-add{
+    width:24px; height:24px; border:none; border-radius:8px; cursor:pointer;
+    background:none; color:var(--ts-ink-3); display:grid; place-items:center;
+}
+.ts-giorno-add svg{ width:14px; height:14px; }
+
+.ts-ev{
+    background:var(--ts-card); border-radius:13px; margin-bottom:7px;
+    box-shadow:inset 0 0 0 .5px var(--ts-hair);
+    border-left:4px solid var(--c);
+}
+/* compattato: la striscia esce a cercare l'altro capo, quindi qui non si
+   ritaglia. Il testo lungo lo ritaglia il suo contenitore, non questo. */
+.ts-ev:not(.ts-ev-giu):not(.ts-ev-su){ overflow:hidden; }
+.ts-ev-imp{ border-left-color:var(--ts-imp); background:color-mix(in srgb, var(--ts-imp) 8%, var(--ts-card)); }
+.ts-ev-fatto{ opacity:.55; }
+.ts-ev-t{ display:flex; align-items:center; gap:9px; padding:11px 12px; cursor:pointer; }
+.ts-ev-nome{ flex:1; min-width:0; font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ts-ev-fatto .ts-ev-nome{ text-decoration:line-through; }
+.ts-ev-imp .ts-ev-nome{ font-weight:800; color:var(--ts-imp); }
+.ts-ev-prog{ flex-shrink:0; font-size:11px; font-weight:600; color:var(--ts-ink-3); font-variant-numeric:tabular-nums; }
+/* Il grigio da solo non basta a farsi notare: chi non collega il progetto non
+   perde un colore, perde le statistiche dei pomodori, e va detto a parole. */
+.ts-senza{
+    flex-shrink:0; font-size:9.5px; font-weight:700; padding:2px 7px; border-radius:6px;
+    background:color-mix(in srgb, var(--ts-imp) 12%, transparent); color:var(--ts-imp);
+}
+
+.ts-chk{
+    flex-shrink:0; width:21px; height:21px; border-radius:50%; cursor:pointer;
+    border:2px solid var(--ts-ink-3); background:none; color:transparent;
+    display:grid; place-items:center; padding:0;
+    transition:background-color .18s, border-color .18s, color .18s;
+}
+.ts-chk svg{ width:11px; height:11px; }
+.ts-chk-s{ width:17px; height:17px; border-width:1.5px; }
+.ts-chk-s svg{ width:9px; height:9px; }
+.ts-chk-on{ background:var(--ts-ink); border-color:var(--ts-ink); color:var(--ts-card); }
+
+.ts-task{
+    display:flex; align-items:center; gap:8px; padding:7px 12px 7px 14px;
+    border-top:.5px solid var(--ts-hair);
+}
+.ts-task-nome{ flex:1; min-width:0; font-size:13.5px; color:var(--ts-ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ts-task-fatto .ts-task-nome{ text-decoration:line-through; opacity:.6; }
+.ts-task-pom{ flex-shrink:0; font-size:10.5px; font-weight:700; color:var(--ts-ink-3); font-variant-numeric:tabular-nums; }
+/* più pomodori del previsto: non è un errore, è l'informazione che serve a
+   capire quanto ci si sbaglia a stimare */
+.ts-task-pom.ts-oltre{ color:var(--ts-imp); }
+
+.ts-nulla{ text-align:center; padding:30px 16px; color:var(--ts-ink-3); font-size:14px; }
+
+/* ---- foglio di un blocco ---- */
+.ts-ov{
+    position:fixed; inset:0; z-index:9000; display:flex; align-items:flex-end; justify-content:center;
+    background:rgba(0,0,0,.4); opacity:0; pointer-events:none; transition:opacity .28s;
+}
+.ts-ov.ts-on{ opacity:1; pointer-events:auto; }
+.ts-sheet{
+    width:100%; max-width:560px; max-height:84dvh; overflow-y:auto;
+    background:var(--ts-card); border-radius:22px 22px 0 0;
+    padding:18px 16px calc(20px + var(--safe-bottom));
+    transform:translateY(100%); transition:transform .32s cubic-bezier(.32,.72,0,1);
+}
+.ts-ov.ts-on .ts-sheet{ transform:none; }
+.ts-sheet-head{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.ts-sheet-tit{ flex:1; min-width:0; font-size:18px; font-weight:700; }
+.ts-x{ flex-shrink:0; width:28px; height:28px; border:none; border-radius:50%; cursor:pointer;
+    background:var(--ts-bg); color:var(--ts-ink-2); display:grid; place-items:center; }
+.ts-x svg{ width:13px; height:13px; }
+.ts-quando{ font-size:13px; color:var(--ts-ink-2); margin-bottom:10px; }
+.ts-nota{
+    font-size:12.5px; line-height:1.45; padding:10px 12px; border-radius:11px; margin-bottom:14px;
+    background:color-mix(in srgb, var(--ts-imp) 10%, transparent); color:var(--ts-imp);
+}
+.ts-sub{ font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--ts-ink-3); margin:6px 0 4px; }
+.ts-add-task{
+    width:100%; margin-top:10px; padding:11px; border:none; border-radius:12px; cursor:pointer;
+    font:inherit; font-size:14px; background:var(--ts-bg); color:var(--ts-ink-2);
+}
+
+/* ---- campi del foglio ---- */
+.ts-campo{
+    width:100%; padding:11px 13px; border:none; border-radius:12px; font:inherit; font-size:15px;
+    background:var(--ts-bg); color:var(--ts-ink); margin-bottom:9px;
+    box-shadow:inset 0 0 0 .5px var(--ts-hair); -webkit-appearance:none; appearance:none;
+}
+.ts-campo-tit{ font-size:17px; font-weight:700; }
+/* La riga delle date è un pulsante e non due campi: toccarla apre la domanda
+   «e gli argomenti?», che va fatta PRIMA di cambiare qualcosa. Due campi
+   liberi avrebbero salvato di nascosto. */
+.ts-quando{
+    display:flex; align-items:center; gap:8px; width:100%; padding:11px 13px; margin-bottom:9px;
+    border:none; border-radius:12px; cursor:pointer; font:inherit; font-size:14px; text-align:left;
+    background:var(--ts-bg); color:var(--ts-ink-2); box-shadow:inset 0 0 0 .5px var(--ts-hair);
+}
+.ts-quando svg{ width:17px; height:17px; flex-shrink:0; }
+.ts-progetto{ text-align:left; cursor:pointer; color:var(--ts-ink-3); }
+.ts-progetto.ts-ha{ color:#fff; background:var(--c); box-shadow:none; font-weight:700; }
+.ts-imp-toggle{ text-align:left; cursor:pointer; color:var(--ts-ink-2); }
+.ts-imp-toggle.ts-on{ background:var(--ts-imp); color:#fff; font-weight:700; box-shadow:none; }
+
+.ts-task-full{ padding:9px 0; border-top:.5px solid var(--ts-hair); }
+.ts-task-r{ display:flex; align-items:center; gap:8px; }
+.ts-task-r .ts-campo{ margin-bottom:0; }
+.ts-campo-task{ flex:1; min-width:0; font-size:14px; padding:8px 11px; }
+.ts-task-x{
+    flex-shrink:0; width:26px; height:26px; border:none; border-radius:8px; cursor:pointer;
+    background:none; color:var(--ts-ink-3); display:grid; place-items:center;
+}
+.ts-task-x svg{ width:13px; height:13px; }
+.ts-task-date{ margin-top:7px; padding-left:25px; }
+.ts-campo-data{ flex:1; min-width:0; font-size:12.5px; padding:7px 9px; }
+.ts-campo-stima{ flex:0 0 62px; font-size:12.5px; padding:7px 9px; text-align:center; }
+.ts-freccia{ color:var(--ts-ink-3); flex-shrink:0; }
+
+/* I due tasti dei modelli, affiancati: salvare la forma e riusarla sono la
+   stessa idea nei due versi. */
+.ts-modelli{ display:flex; gap:8px; margin-top:14px; }
+.ts-modello-b{
+    flex:1; min-width:0; padding:10px; border:none; border-radius:12px; cursor:pointer;
+    font:inherit; font-size:12.5px; font-weight:600;
+    background:var(--ts-bg); color:var(--ts-ink-2); box-shadow:inset 0 0 0 .5px var(--ts-hair);
+}
+.ts-elimina{
+    width:100%; margin-top:16px; padding:11px; border:none; border-radius:12px; cursor:pointer;
+    font:inherit; font-size:14px; font-weight:600;
+    background:color-mix(in srgb, var(--ts-imp) 12%, transparent); color:var(--ts-imp);
+}
+
+/* ---- popup di scelta ---- */
+.ts-scelta-ov{
+    position:fixed; inset:0; z-index:9600; display:grid; place-items:center; padding:22px;
+    background:rgba(0,0,0,.45); opacity:0; pointer-events:none; transition:opacity .24s;
+}
+.ts-scelta-ov.ts-on{ opacity:1; pointer-events:auto; }
+.ts-scelta{
+    width:100%; max-width:340px; background:var(--ts-card); border-radius:18px; padding:20px 18px 16px;
+    transform:scale(.94); transition:transform .28s cubic-bezier(.32,.72,0,1);
+}
+.ts-scelta-ov.ts-on .ts-scelta{ transform:none; }
+.ts-scelta-t{ font-size:16.5px; font-weight:700; margin-bottom:5px; }
+.ts-scelta-m{ font-size:13.5px; line-height:1.45; color:var(--ts-ink-2); margin-bottom:14px; }
+.ts-scelta-b-box{ display:flex; flex-direction:column; gap:7px; }
+/* In colonna e non affiancati: tre risposte in riga su telefono diventano tre
+   francobolli con dentro parole tagliate, e queste vanno lette per intero. */
+.ts-scelta-b{
+    width:100%; padding:12px 14px; border:none; border-radius:12px; cursor:pointer;
+    font:inherit; font-size:14.5px; font-weight:600; text-align:left;
+    background:var(--ts-bg); color:var(--ts-ink); box-shadow:inset 0 0 0 .5px var(--ts-hair);
+}
+.ts-scelta-b.ts-rosso{ background:color-mix(in srgb, var(--ts-imp) 12%, transparent); color:var(--ts-imp); }
+/* Il popup che crea una data importante è rosso come il tasto che lo apre:
+   si riconosce cosa si sta creando prima ancora di leggere il titolo. */
+.ts-scelta-ov.ts-rosso-ov .ts-scelta{ background:color-mix(in srgb, var(--ts-imp) 15%, var(--ts-card)); }
+.ts-scelta-ov.ts-rosso-ov .ts-scelta-t{ color:var(--ts-imp); }
+.ts-scelta-ov.ts-rosso-ov .ts-scelta-primo{ background:var(--ts-imp); color:#fff; }
+.ts-scelta-primo{ background:var(--ts-ink); color:var(--ts-card); box-shadow:none; text-align:center; }
+
+/* mentre si trascina una barra, il testo non deve selezionarsi sotto il dito */
+body.ts-trascino{ user-select:none; -webkit-user-select:none; }
+/* Popup aperto: la pagina sotto sta ferma. */
+/* Popup aperto: la pagina sotto sta ferma. Solo overflow, NON touch-action:
+   quello si eredita e avrebbe bloccato lo scorrimento dentro al selettore
+   progetti, che si apre proprio da qui — il pannello si sarebbe visto ma non
+   si sarebbe potuto scorrere fino al progetto che serve. */
+body.ts-ferma{ overflow:hidden; overscroll-behavior:none; }
+body.ts-trascino .ts-barra{ cursor:grabbing; }
+
+/* ---- avviso in basso ---- */
+.ts-toast{
+    position:fixed; left:50%; bottom:calc(26px + var(--safe-bottom)); z-index:9500;
+    transform:translate(-50%, 14px); opacity:0; pointer-events:none;
+    display:flex; align-items:center; gap:12px;
+    background:rgba(28,28,30,.94); color:#fff; padding:11px 16px; border-radius:14px;
+    font-size:13.5px; max-width:92vw;
+    transition:opacity .26s, transform .26s;
+}
+.ts-toast.ts-on{ opacity:1; transform:translate(-50%, 0); pointer-events:auto; }
+/* "Annulla" dentro l'avviso: spuntare un blocco spunta tutti i suoi argomenti,
+   ed è l'unico posto in cui si può disfare prima che diventi normale. */
+.ts-annulla{
+    flex-shrink:0; border:none; background:none; cursor:pointer; font:inherit;
+    font-size:13.5px; font-weight:700; color:#7FB2FF; padding:0;
+}
+
+@media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
+}

@@ -915,9 +915,25 @@ if ($ajax === 'pill_save') {
             || (string)$prima['weekdays']      !== $wd
             || (string)$prima['month_days']    !== $md
             || (int)$prima['interval_days']    !== $int;
-        $valeDa = $ritmoCambiato
-            ? date('Y-m-d')
-            : (!empty($prima['schedule_from']) ? (string)$prima['schedule_from'] : (string)$prima['start_date']);
+
+        if ($ritmoCambiato) {
+            /* Da quando vale il ritmo nuovo: di norma da oggi, ma da DOMANI se
+               oggi una presa è già stata segnata.
+               Il caso: pastiglia delle 12:15 presa a mezzogiorno, e alle 14 si
+               sposta l'orario alle 12:00. Con "da oggi" nascerebbe una presa
+               delle 12:00 in sospeso accanto a quella delle 12:15 già spuntata:
+               due righe per una pastiglia sola, che è il doppione di prima
+               spostato dai giorni scorsi a oggi.
+               La giornata di oggi è già stata vissuta con il ritmo vecchio, e
+               l'orario nuovo riguarda domani — che poi è il motivo per cui lo
+               si sta cambiando: per la prossima volta. */
+            $giaSegnataOggi = sec_one("SELECT id FROM pill_doses
+                                       WHERE plan_id=? AND user_id=? AND due_date=CURDATE()
+                                         AND status <> 'pending' LIMIT 1", [$id, $uid], 'ii');
+            $valeDa = $giaSegnataOggi ? date('Y-m-d', strtotime('+1 day')) : date('Y-m-d');
+        } else {
+            $valeDa = !empty($prima['schedule_from']) ? (string)$prima['schedule_from'] : (string)$prima['start_date'];
+        }
 
         sec_q("UPDATE pill_plans SET name=?, dose=?, notes=?, color=?, freq_type=?, weekdays=?,
                       month_days=?, interval_days=?, times=?, start_date=?, end_date=?, is_active=?,
@@ -925,10 +941,13 @@ if ($ajax === 'pill_save') {
                WHERE id=? AND user_id=?",
               [$name, $dose, $notes, $color, $freq, $wd, $md, $int, $times, $start, $end, $att, $valeDa, $id, $uid],
               'sssssssisssisii');
-        /* Le prese future di oggi in poi si rifanno con il ritmo nuovo; quelle
-           già spuntate non si toccano, sono un fatto avvenuto. */
-        sec_q("DELETE FROM pill_doses WHERE plan_id=? AND user_id=? AND due_date >= CURDATE() AND status='pending'",
-              [$id, $uid], 'ii');
+        /* Le prese in sospeso si rifanno solo DA QUANDO vale il ritmo nuovo, non
+           da oggi: se il ritmo nuovo parte domani, quella di oggi ancora in
+           sospeso è dovuta davvero con l'orario vecchio e cancellarla vorrebbe
+           dire far sparire una pastiglia che va ancora presa. Quelle già
+           spuntate non si toccano mai: sono un fatto avvenuto. */
+        sec_q("DELETE FROM pill_doses WHERE plan_id=? AND user_id=? AND due_date >= ? AND status='pending'",
+              [$id, $uid, $valeDa], 'iis');
     } else {
         sec_q("INSERT INTO pill_plans (user_id, name, dose, notes, color, freq_type, weekdays,
                                        month_days, interval_days, times, start_date, end_date, is_active, schedule_from)

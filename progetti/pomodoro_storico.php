@@ -550,6 +550,10 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
            correggere quella riga. Si segna qui e si esegue quando la prima
            pagina e' arrivata: prima non ci sarebbe niente su cui aprirsi. */
         state.pendingEdit = config.editSessionId || 0;
+        /* Il tasto «avvia» esiste solo se sappiamo su cosa: con lo storico
+           aperto su tutte le sessioni non c'è un progetto a cui legare il
+           pomodoro nuovo. */
+        state.goProject = (config.scope === 'project' && config.projectId) ? config.projectId : 0;
         document.getElementById('phTitle').textContent = config.scope === 'project' ? (T('pomodoro.storico_pomodori_sep') + (config.projectName || '')) : T('pomodoro.storico_tutti');
         document.querySelectorAll('.ph-filter-chip[data-sort]').forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-sort') === 'recent'); });
         
@@ -609,7 +613,8 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
                 // fondamentale: senza questo, ogni cambio di ordinamento/filtro RI-APPENDEVA le
                 // stesse righe sopra quelle già presenti invece di sostituirle (bug #7)
                 state.lastDay = null;
-                scroll.querySelectorAll('.ph-row-wrap, .ph-day-header, .ph-loadmore').forEach(function(el){ el.remove(); });
+                scroll.querySelectorAll('.ph-row-wrap, .ph-day-header, .ph-loadmore, .ph-go-riga').forEach(function(el){ el.remove(); });
+                phMettiTastoAvvia(scroll);
             }
             var oldLoadMore = scroll.querySelector('.ph-loadmore'); if (oldLoadMore) oldLoadMore.remove();
             data.sessions.forEach(function(s){ phAppendRow(s); });
@@ -989,6 +994,30 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
        E' l'unica differenza fra i due modi, e sta in una variabile sola apposta:
        due percorsi separati si sarebbero sfasati alla prima aggiunta di campo. */
     var phEditId = null;
+
+    /* Il tasto che avvia un pomodoro sta in cima all'elenco, non fra le
+       iconcine dell'intestazione: là era un tondo da 30px accanto ad altri due
+       identici, e l'unica azione che porta via da questa schermata si perdeva
+       fra due che la modificano soltanto. Come prima riga è larga quanto le
+       sessioni e si legge prima di tutte — che è l'ordine giusto, perché
+       guardare quanto si è fatto e decidere di farne ancora sono due momenti
+       dello stesso gesto. */
+    function phMettiTastoAvvia(scroll) {
+        if (!state.goProject) return;
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ph-go-riga';
+        b.innerHTML = '<span class="ph-go-ic"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">'
+            + '<path d="M8.4 5.2a1 1 0 0 1 1.53-.85l8.2 5.15a1 1 0 0 1 0 1.7l-8.2 5.15a1 1 0 0 1-1.53-.85z" transform="translate(-1.2 1)"/></svg></span>';
+        b.appendChild(document.createTextNode(T('pomodoro.avvia_su_questo')));
+        b.addEventListener('click', phAvviaPomodoro);
+        scroll.insertBefore(b, scroll.firstChild);
+    }
+
+    window.phAvviaPomodoro = function () {
+        if (!state.goProject) return;
+        window.location.href = 'pomodoro.php?project_id=' + encodeURIComponent(state.goProject);
+    };
 
     window.phToggleManual = function(){
         var panel = document.getElementById('phManualPanel');

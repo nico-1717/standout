@@ -365,23 +365,18 @@ if ($row_resume && $row_resume['resume_pos']) {
 
         window.MathJax = {
 
-
+        /* I dollari NON sono piu' delimitatori. Col formato nuovo la
+           formattazione non sta dentro il testo: il LaTeX arriva a MathJax
+           gia' racchiuso in \\( \\) o \\[ \\]. Lasciare attivo il "$"
+           farebbe prendere per formula una frase come "costa 5$ e 3$". */
 
         tex: {
 
+            inlineMath: [['\\(', '\\)']],
 
-
-            inlineMath: [['$', '$'], ['\\(', '\\)']],
-
-
-
-            displayMath: [['$$', '$$'], ['\\[', '\\]']]
-
-
+            displayMath: [['\\[', '\\]']]
 
         }
-
-
 
         };
 
@@ -629,19 +624,19 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                <button type="button" class="act-tile t-purple" onclick="fcvOpen(0)">
+                <a href="history_fc.php" class="act-tile t-blue">
 
 
 
-                    <span class="t-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="3"/><path d="M8.5 4H19a2 2 0 0 1 2 2v10.5"/></svg></span>
+                    <span class="t-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
 
 
 
-                    <span class="t-lab"><?php te('fc.flashcard'); ?></span>
+                    <span class="t-lab"><?php te('fc.js_storico'); ?></span>
 
 
 
-                </button>
+                </a>
 
 
 
@@ -673,19 +668,19 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                <a href="history_fc.php" class="act-tile t-blue">
+                <button type="button" class="act-tile t-purple" onclick="fcvOpen(0)">
 
 
 
-                    <span class="t-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+                    <span class="t-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="3"/><path d="M8.5 4H19a2 2 0 0 1 2 2v10.5"/></svg></span>
 
 
 
-                    <span class="t-lab"><?php te('fc.js_storico'); ?></span>
+                    <span class="t-lab"><?php te('fc.flashcard'); ?></span>
 
 
 
-                </a>
+                </button>
 
 
 
@@ -1172,6 +1167,8 @@ if ($row_resume && $row_resume['resume_pos']) {
 
                 previewEl.innerHTML = parseTextForPreview(textarea.value);
 
+                if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(previewEl);
+
 
 
                 clearTimeout(mathJaxTimeouts[previewId]);
@@ -1279,6 +1276,15 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
+
+
+
+            /* parseTextForPreview() produce il TeX come TESTO. Per vederlo
+               disegnato servono i delimitatori, che li mette
+               fcdDisegnaFormule(): senza questa chiamata MathJax non trova
+               niente da comporre e le formule restano codice a schermo. */
+
+            if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(document);
 
 
 

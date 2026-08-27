@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Creato il: Ago 22, 2026 alle 11:06
+-- Creato il: Ago 25, 2026 alle 11:48
 -- Versione del server: 8.0.45
 -- Versione PHP: 8.0.22
 
@@ -213,8 +213,8 @@ CREATE TABLE `fc_images` (
   `id` bigint NOT NULL,
   `question_image` varchar(300) DEFAULT NULL,
   `answer_image` varchar(300) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
-  `question_desc` varchar(2000) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
-  `answer_desc` varchar(3000) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
+  `question_desc` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
+  `answer_desc` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
   `category_id` int UNSIGNED NOT NULL,
   `question_audio` varchar(255) DEFAULT NULL,
   `answer_audio` varchar(255) DEFAULT NULL,
@@ -660,6 +660,7 @@ CREATE TABLE `pill_plans` (
   `month_days` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'giorni del mese separati da virgola: 13,27',
   `interval_days` smallint UNSIGNED NOT NULL DEFAULT '1' COMMENT 'ogni quanti giorni, contati dalla data di inizio',
   `times` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '08:00x1' COMMENT 'orari e quante volte per orario: 10:00x2,20:00x1',
+  `schedule_from` date DEFAULT NULL COMMENT 'da quando vale l orario corrente: prima di questa data le prese non si rigenerano',
   `start_date` date NOT NULL,
   `end_date` date DEFAULT NULL COMMENT 'NULL = a tempo indeterminato; una cura di sette giorni finisce da sola',
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
@@ -700,7 +701,8 @@ CREATE TABLE `planner_calendars` (
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `keywords` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `def_repeat` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'none',
-  `def_notify` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'none'
+  `def_notify` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'none',
+  `role` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ruolo speciale: study = ci vivono i blocchi del to study. NULL = calendario normale'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -716,7 +718,8 @@ CREATE TABLE `planner_categories` (
   `color` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '#C8DAD3',
   `sort_order` int NOT NULL DEFAULT '0',
   `is_hidden` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'filtro rapido: 1 = eventi nascosti',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `role` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ruolo speciale: study = categoria degli eventi di studio'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -751,12 +754,14 @@ CREATE TABLE `planner_events` (
   `duration_locked` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'lucchetto: 1 = durata fissa, spostando un estremo si muove l altro',
   `location` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'indirizzo o nome del posto',
   `event_date` date NOT NULL,
+  `end_date` date DEFAULT NULL COMMENT 'ultimo giorno dell evento; NULL = finisce nello stesso giorno in cui comincia',
   `start_time` time NOT NULL DEFAULT '09:00:00',
   `end_time` time NOT NULL DEFAULT '10:00:00',
   `is_all_day` tinyint(1) NOT NULL DEFAULT '0',
   `category_id` int UNSIGNED DEFAULT NULL,
   `calendar_id` int UNSIGNED DEFAULT NULL COMMENT 'calendario di appartenenza',
   `project_id` int DEFAULT NULL,
+  `study_exam_id` int DEFAULT NULL COMMENT 'esame di university_exams a cui questo evento si riferisce',
   `habit_id` int UNSIGNED DEFAULT NULL COMMENT 'evento generato da un habit: la spunta si sincronizza con habit_logs',
   `routine_id` int UNSIGNED DEFAULT NULL,
   `routine_group` char(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'stesso valore per tutti i pezzi di un blocco routine inserito',
@@ -883,7 +888,9 @@ CREATE TABLE `planner_settings` (
   `weather_lon` decimal(8,5) DEFAULT NULL,
   `weather_place` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'nome della località, se lo ricaviamo',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `fabs_open` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'colonna dei tastini a destra: 1 aperta, 0 richiusa sotto le abitudini'
+  `fabs_open` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'colonna dei tastini a destra: 1 aperta, 0 richiusa sotto le abitudini',
+  `study_filtri` text COLLATE utf8mb4_unicode_ci COMMENT 'JSON: cosa mostrare nel to study oltre ai blocchi di studio',
+  `progetti_opzioni` text COLLATE utf8mb4_unicode_ci COMMENT 'JSON: come mostrare la pagina progetti (completati, ordine, tag, rami)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -1027,6 +1034,7 @@ CREATE TABLE `projects` (
   `id` int NOT NULL,
   `user_id` int NOT NULL,
   `parent_id` int DEFAULT NULL,
+  `study_event_id` bigint UNSIGNED DEFAULT NULL COMMENT 'evento di studio di cui questo progetto e un sotto-task; NULL = progetto normale',
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `notes` text COLLATE utf8mb4_unicode_ci,
   `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'in_progress',
@@ -1037,7 +1045,13 @@ CREATE TABLE `projects` (
   `due_date` date DEFAULT NULL,
   `custom_order` int NOT NULL DEFAULT '0',
   `todo_enabled` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = mostra la sezione attività dentro il progetto',
-  `is_favorite` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = preferito: compare nel selettore e nel planner'
+  `is_favorite` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = preferito: compare nel selettore e nel planner',
+  `study_start` date DEFAULT NULL COMMENT 'primo giorno del sotto-task, sempre dentro il periodo dell evento padre',
+  `study_end` date DEFAULT NULL COMMENT 'ultimo giorno; NULL = finisce dove comincia, come su planner_events',
+  `study_pomodori_stimati` smallint UNSIGNED DEFAULT NULL COMMENT 'quanti pomodori l utente pensa che servano: il confronto con quelli fatti misura quanto sa stimarsi',
+  `study_ripasso_di` int DEFAULT NULL COMMENT 'argomento di cui questo e un ripasso; NULL = argomento normale',
+  `study_ripasso_n` tinyint UNSIGNED DEFAULT NULL COMMENT 'quale ripasso e: 1 = a un giorno, 2 = a tre, 3 = a sette',
+  `study_fc_categoria` int UNSIGNED DEFAULT NULL COMMENT 'mazzo di flashcard collegato: giocandolo bene il ripasso si spunta da se'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -1140,6 +1154,21 @@ CREATE TABLE `session_durations` (
   `duration_seconds` int UNSIGNED NOT NULL DEFAULT '0',
   `updated_at` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `study_templates`
+--
+
+CREATE TABLE `study_templates` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `name` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `voci` text COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'JSON: [{nome, giorni, pomodori}, ...] nell ordine di studio',
+  `usato` int UNSIGNED NOT NULL DEFAULT '0' COMMENT 'quante volte e stato applicato',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -1690,7 +1719,9 @@ ALTER TABLE `planner_events`
   ADD KEY `idx_pev_gsync` (`user_id`,`google_synced_at`),
   ADD KEY `idx_pev_calendar` (`user_id`,`calendar_id`),
   ADD KEY `idx_gc_event` (`user_id`,`google_event_id`),
-  ADD KEY `idx_pev_gsource` (`user_id`,`google_source_ref`);
+  ADD KEY `idx_pev_gsource` (`user_id`,`google_source_ref`),
+  ADD KEY `idx_pe_user_periodo` (`user_id`,`event_date`,`end_date`),
+  ADD KEY `idx_pe_esame` (`user_id`,`study_exam_id`);
 
 --
 -- Indici per le tabelle `planner_places`
@@ -1794,7 +1825,9 @@ ALTER TABLE `projects`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_progetti_user` (`user_id`),
   ADD KEY `idx_progetti_parent_order` (`parent_id`,`custom_order`),
-  ADD KEY `idx_proj_fav` (`user_id`,`is_favorite`);
+  ADD KEY `idx_proj_fav` (`user_id`,`is_favorite`),
+  ADD KEY `idx_proj_study_evento` (`user_id`,`study_event_id`,`study_start`),
+  ADD KEY `idx_proj_ripasso` (`user_id`,`study_ripasso_di`);
 
 --
 -- Indici per le tabelle `project_fc_categories`
@@ -1848,6 +1881,13 @@ ALTER TABLE `security_audit_log`
 ALTER TABLE `session_durations`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_durata_sessione_game` (`game_id`);
+
+--
+-- Indici per le tabelle `study_templates`
+--
+ALTER TABLE `study_templates`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_st_user` (`user_id`,`name`);
 
 --
 -- Indici per le tabelle `todos`
@@ -2244,6 +2284,12 @@ ALTER TABLE `security_audit_log`
 -- AUTO_INCREMENT per la tabella `session_durations`
 --
 ALTER TABLE `session_durations`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT per la tabella `study_templates`
+--
+ALTER TABLE `study_templates`
   MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --

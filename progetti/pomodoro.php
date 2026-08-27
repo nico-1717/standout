@@ -1766,7 +1766,65 @@ function bootstrap(){
 }
 bootstrap();
 mostraAvvisoAbbandono();
+proponiArgomentoDiOggi();
 pomoUpdateProjectPill(); // richiesta 17: mostra la catena nonno•padre•progetto dopo l'idratazione
+
+/* ---------------- l'argomento che stai studiando oggi ----------------
+   Se nella pagina «da studiare» oggi c'è qualcosa in programma, il progetto
+   giusto si seleziona da solo. È il pezzo che tiene in piedi tutto il resto:
+   la curva della fatica, il confronto fra stima e consuntivo, il semaforo
+   dell'esame vivono sui pomodori attaccati all'argomento, e quel collegamento
+   è esattamente quello che salta quando si ha fretta — si preme avvia e si
+   comincia, e a fine giornata i dati non ci sono.
+   Non si sceglie mai al posto dell'utente se c'è più di un candidato: si
+   propone, e proporre due argomenti significa fargli fare un tocco, non
+   indovinare per lui. */
+function proponiArgomentoDiOggi(){
+    // con un pomodoro già in corso il progetto è quello della sessione: non si tocca
+    if (activeSessionId || projectId) return;
+
+    fetch('study_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'st_ajax=oggi'
+    }).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d || !d.ok || !d.argomenti || !d.argomenti.length) return;
+        var lista = d.argomenti.filter(function (a) { return a.materia_id; });
+        if (!lista.length) return;
+
+        if (lista.length === 1) { scegliArgomento(lista[0]); return; }
+
+        /* Più di uno: si chiede. Le voci portano la materia sotto al nome,
+           perché «Integrali tripli» da solo non dice di quale esame è quando
+           se ne stanno preparando tre. */
+        var voci = lista.slice(0, 4).map(function (a) {
+            return {
+                chiave: String(a.id),
+                testo: a.name + (a.materia ? ' · ' + a.materia : ''),
+                icona: IC_PLAY
+            };
+        });
+        voci.push({ chiave: '', testo: T('comune.no'), icona: IC_STOP });
+        showChoice(T('pomodoro.studi_oggi'), T('pomodoro.studi_oggi_testo'), voci, function (scelta) {
+            if (!scelta) return;
+            for (var i = 0; i < lista.length; i++) {
+                if (String(lista[i].id) === scelta) { scegliArgomento(lista[i]); return; }
+            }
+        });
+    }).catch(function () { /* il to study può non esserci: la pagina resta com'è */ });
+}
+
+function scegliArgomento(a){
+    projectId = a.id;
+    projectName = a.name;
+    projectColor = a.color || '';
+    if (window.psSetValue) window.psSetValue('ps-modal-pomo', projectId, projectName, projectColor);
+    applyProjectTheme(projectColor);
+    pomoUpdateProjectPill();
+    /* Lo si dice, invece di farlo di nascosto: una scelta fatta al posto
+       dell'utente che lui non vede è una scelta che non può correggere. */
+    toast(T('pomodoro.scelto_da_studiare', { nome: a.name }));
+}
 
 /* ---------------- avviso del pomodoro chiuso d'ufficio ----------------
    Non e' un errore da sbattere in faccia: la pagina e' gia' pronta per un

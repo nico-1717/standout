@@ -521,6 +521,23 @@ if (!function_exists('ps_find_in_tree')) {
 
 $ps_tree = ps_get_project_tree($conn, $current_user_id, $ps_exclude_id);
 
+/* Lo stesso albero srotolato in un elenco piatto, con la profondita' di ogni
+   riga. Serve alla tendina "dentro a" della creazione: una tendina non puo'
+   essere annidata, quindi il rientro lo si fa con gli spazi. Si costruisce da
+   $ps_tree e non con una seconda query: e' esattamente lo stesso insieme di
+   progetti, comprese le esclusioni, e leggerlo due volte vorrebbe dire poterlo
+   leggere in due modi diversi. */
+if (!function_exists('ps_flatten')) {
+    function ps_flatten(array $nodi, int $depth = 0, array $out = []): array {
+        foreach ($nodi as $n) {
+            $out[] = ['id' => (int)$n['id'], 'name' => (string)$n['name'], 'depth' => $depth];
+            if (!empty($n['children'])) $out = ps_flatten($n['children'], $depth + 1, $out);
+        }
+        return $out;
+    }
+}
+$ps_flat = ps_flatten($ps_tree);
+
 
 
 if (!empty($ps_selected_id) && $ps_has_value === false) {
@@ -769,6 +786,22 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
 .ps-create-trigger:active{ background:var(--blue-soft); }
 
+/* "Crea «...»" in fondo a una ricerca senza risultati. Ha il peso di un
+   invito, non di un errore: quando non si trova quello che si cerca, la cosa
+   utile da offrire e' farlo, non dire che non c'e'. */
+.ps-crea-vuoto{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    width:calc(100% - 32px); margin:14px 16px; padding:13px;
+    border:none; border-radius:13px; cursor:pointer; font:inherit; font-size:14.5px; font-weight:600;
+    background:var(--blue-soft, rgba(0,122,255,.09)); color:var(--blue, #007AFF);
+}
+.ps-crea-vuoto:active{ transform:scale(.98); }
+.ps-new-parent{
+    width:100%; padding:12px 13px; font-family:inherit; font-size:15px; font-weight:600;
+    color:var(--text, #4A443D); background:var(--surface-2, #F5F1EA);
+    border:none; border-radius:13px; -webkit-appearance:none; appearance:none;
+}
+
 .ps-view-create{ display:none; flex-direction:column; padding:16px 18px calc(18px + var(--safe-bottom, 0px)); }
 
 .ps-view-create.ps-active{ display:flex; }
@@ -991,6 +1024,25 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
             </div>
 
+            <!-- Dove va a finire. Prima ogni progetto creato al volo nasceva in
+                 cima all'albero, e chi lo creava da dentro un contesto preciso
+                 (una materia, un esame) doveva poi andarlo a spostare a mano in
+                 progetti: due passaggi che, avendo fretta, si saltano — e il
+                 progetto resta orfano alla radice. Qui si sceglie subito, e il
+                 valore proposto e' quello che si stava guardando. -->
+            <div class="ps-field">
+
+                <label>Dentro a</label>
+
+                <select class="ps-new-parent">
+                    <option value="0"><?php echo sec_h(t('progetti.nessun_padre')); ?></option>
+<?php foreach ($ps_flat as $ps_riga): ?>
+                    <option value="<?php echo (int)$ps_riga['id']; ?>"><?php echo str_repeat('&nbsp;&nbsp;', (int)$ps_riga['depth']) . sec_h($ps_riga['name']); ?></option>
+<?php endforeach; ?>
+                </select>
+
+            </div>
+
             <div class="ps-create-actions">
 
                 <button type="button" class="ps-btn ps-btn-cancel" onclick="window.psSwitchView(this.closest('.ps-modal-overlay'), 'tree')">Annulla</button>
@@ -1063,6 +1115,12 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
         if (hidden) hidden.value = id;
 
+        /* Si tiene traccia di cosa e' selezionato adesso: e' quello che la
+           creazione propone come progetto padre. Sull'overlay e non in una
+           variabile perche' di selettori ce n'e' piu' d'uno per pagina, ognuno
+           con la sua scelta. */
+        overlay.setAttribute('data-ps-current', String(id || 0));
+
         if (text) text.textContent = name;
 
         var trigger = widget ? widget.querySelector('.ps-trigger') : null;
@@ -1112,6 +1170,23 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
             createView.classList.add('ps-active');
 
             var nameInput = createView.querySelector('.ps-new-name');
+
+            /* Quello che si stava cercando diventa il nome del progetto nuovo:
+               chi cerca "Analisi 2" e non lo trova sta gia' dicendo come si
+               chiama. Riscriverlo daccapo e' il passaggio che fa rinunciare. */
+            var cerca = overlay.querySelector('.ps-search-box input');
+            if (nameInput && !nameInput.value && cerca && cerca.value.trim()) {
+                nameInput.value = cerca.value.trim();
+            }
+            /* Il padre proposto e' quello che si sta guardando: se il selettore
+               era gia' su un progetto, il nuovo nasce dentro quello. Resta
+               cambiabile — e' una proposta, non una decisione presa al posto
+               dell'utente. */
+            var parentSel = createView.querySelector('.ps-new-parent');
+            var giaScelto = overlay.getAttribute('data-ps-current') || '0';
+            if (parentSel && giaScelto !== '0' && parentSel.querySelector('option[value="' + giaScelto + '"]')) {
+                parentSel.value = giaScelto;
+            }
 
             if (nameInput) { nameInput.value = ''; setTimeout(function () { nameInput.focus(); }, 280); }
 
@@ -1193,6 +1268,9 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
         if (!name) { if (nameInput) nameInput.focus(); return; }
 
+        var parentSel = createView ? createView.querySelector('.ps-new-parent') : null;
+        var parentId = parentSel ? (parseInt(parentSel.value, 10) || 0) : 0;
+
         var saveBtn = overlay.querySelector('.ps-btn-save');
 
         if (saveBtn) { saveBtn.disabled = true; saveBtn.style.opacity = '.6'; }
@@ -1205,7 +1283,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 
-            body: 'name=' + encodeURIComponent(name) + '&parent_id=0'
+            body: 'name=' + encodeURIComponent(name) + '&parent_id=' + parentId
 
         })
 
@@ -1358,6 +1436,39 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
             }
         });
         psFavVisibili(overlay);
+        psProponiCreazione(overlay, raw);
+    }
+
+    /* La ricerca a vuoto non e' un vicolo cieco. Se nessun progetto ha quel
+       nome, sotto compare "Crea «...»": e' il momento esatto in cui l'utente
+       ha scoperto che il progetto non esiste, e mandarlo a cercare il tasto
+       "Nuovo progetto" in fondo alla lista, o peggio in un'altra pagina, e' il
+       passaggio che fa rinunciare — e un blocco senza progetto e' un blocco
+       fuori da tutte le statistiche. */
+    function psProponiCreazione(overlay, raw) {
+        var testo = String(raw || '').trim();
+        var vecchio = overlay.querySelector('.ps-crea-vuoto');
+        if (vecchio) vecchio.remove();
+        if (!testo) return;
+        if (!overlay.querySelector('.ps-view-create')) return;   // creazione spenta su questa pagina
+
+        var visibili = 0;
+        overlay.querySelectorAll('.ps-row-wrap').forEach(function (w) {
+            if (w.style.display !== 'none') visibili++;
+        });
+        if (visibili) return;
+
+        var scroll = overlay.querySelector('.ps-tree-scroll');
+        if (!scroll) return;
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'ps-crea-vuoto';
+        b.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" '
+            + 'stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
+            + '<span></span>';
+        b.querySelector('span').textContent = 'Crea \u00ab' + testo + '\u00bb';
+        b.addEventListener('click', function () { psSwitchView(overlay, 'create'); });
+        scroll.appendChild(b);
     }
     function ps_norm(s) { return String(s || '').toLowerCase().trim(); }
 

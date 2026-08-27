@@ -558,7 +558,7 @@
 
         /* Aumentato il padding-top per far spazio all'header fisso */
 
-        .page-wrap{ max-width:760px; margin:0 auto; padding:calc(var(--safe-top) + 84px) 14px calc(24px + var(--safe-bottom)); }
+        .page-wrap{ max-width:760px; margin:0 auto; padding:calc(var(--safe-top) + 74px) 14px calc(24px + var(--safe-bottom)); }
 
 
 
@@ -2624,7 +2624,17 @@
 
 
 
-        .fc-field{ padding:8px 6px 4px; }
+        /* min-width:0 e' cio' che impedisce alla colonna di allargarsi per
+           stare dietro al suo contenuto. In una griglia "1fr" vuol dire
+           minmax(AUTO,1fr), e quell'auto e' la larghezza minima del
+           contenuto: per una formula disegnata da MathJax — un blocco unico
+           che non si spezza — quel minimo e' l'intera formula. Il minimo si
+           propaga verso l'alto e allarga colonna, riquadro e scheda invece
+           di contenerli, che e' esattamente cio' che si vedeva. Con 0, la
+           colonna resta della sua meta' e tocca al contenuto arrangiarsi
+           dentro: la formula in linea andando a capo, quella a blocco
+           scorrendo. */
+        .fc-field{ padding:8px 6px 4px; min-width:0; }
 
 
 
@@ -4116,10 +4126,49 @@
 
         }
 
+/* ================================================================
+   DA COMPUTER: NIENTE SWIPE, I PULSANTI SONO IN VISTA
+   ================================================================
+   Lo swipe orizzontale col mouse si attivava mentre si selezionava del testo
+   trascinando: due gesti identici con esiti diversi, e quello sbagliato
+   nascondeva la carta. Col dito lo swipe resta (li' e' naturale e non c'e'
+   modo di confonderlo con una selezione); col mouse i tre pulsanti stanno
+   semplicemente in basso a destra nella carta, dove si vedono e si cliccano.
+
+   La condizione e' "puntatore fine e con hover", cioe' mouse o trackpad: non
+   "schermo largo", perche' un tablet grande ha comunque il dito. */
+@media (hover:hover) and (pointer:fine) {
+
+    .fc-row{ position:relative; }
 
 
+    /* Ancorati in basso a destra DENTRO la carta. Non basta cambiare il
+       posizionamento: nel DOM questo blocco viene PRIMA del contenuto, quindi
+       lasciandolo nel flusso finiva sopra la carta invece che sotto. Con
+       l'ancoraggio assoluto l'ordine nel DOM non conta piu'. */
+    .swipe-actions{
+        position:absolute;
+        top:auto; left:auto;
+        right:12px; bottom:10px;
+        display:flex; justify-content:flex-end; align-items:center; gap:6px;
+        z-index:5;
+        opacity:0;
+        transition:opacity .18s ease;
+    }
 
+    /* Compaiono passandoci sopra: sempre visibili sarebbero tre pulsanti per
+       carta a schermo, cioe' rumore su una pagina che ne mostra molte. */
+    .fc-row:hover .swipe-actions,
+    .fc-row:focus-within .swipe-actions{ opacity:1; }
 
+    .swipe-actions .swipe-btn{
+        width:auto; height:30px; padding:0 10px;
+        flex-direction:row; gap:6px;
+        border-radius:8px;
+        font-size:12px;
+    }
+    .swipe-actions .swipe-btn svg{ width:15px; height:15px; }
 
-
-    
+    /* Una carta segnata per l'eliminazione non ha piu' niente da fare. */
+    .fc-row.is-deleted .swipe-actions{ display:none; }
+}

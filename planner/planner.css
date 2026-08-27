@@ -1176,6 +1176,14 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     overflow:hidden; white-space:nowrap;
 }
 .pl-ev-t > span{ display:inline-block; white-space:nowrap; will-change:transform; }
+/* «2/4» sugli eventi che durano più giorni. Discreto: dice a che punto siamo,
+   non è il nome dell'evento — se pesasse quanto il titolo la fascia si
+   leggerebbe come un elenco di numeri. Non si stringe mai (flex-shrink:0):
+   è la prima cosa che sparirebbe, ed è quella che non si può indovinare. */
+.pl-ev-prog{
+    flex-shrink:0; margin-left:5px; font-size:10.5px; font-weight:600;
+    color:var(--ink-3); font-variant-numeric:tabular-nums; opacity:.85;
+}
 .pl-ev-t.pl-run > span{ animation:pl-marquee var(--dur, 12s) ease-in-out infinite; }
 /* blocco basso ma non bassissimo: il titolo ci sta ancora, stretto */
 .pl-ev-stretto{ padding:2px 8px; }
@@ -1838,6 +1846,19 @@ textarea.pl-in.pl-note{ min-height:200px; }
     padding:8px 12px; border-radius:var(--r-md); background:var(--paper-2); font-size:14px; color:var(--ink);
     box-shadow:inset 0 0 0 .5px var(--hair); font-variant-numeric:tabular-nums;
 }
+/* Data e ora di fine sullo stesso rigo: sono la stessa informazione, cioè
+   quando finisce, e su due righe si sarebbe cercata in due posti. */
+.pl-finebox{ display:flex; align-items:center; gap:7px; min-width:0; }
+.pl-pick-data-fine{ padding-left:9px; padding-right:9px; transition:opacity .25s, color .25s, box-shadow .25s; }
+/* Sbiadita finché la fine cade nel giorno d'inizio: c'è, si legge se la si
+   cerca, ma non pretende attenzione — per quasi tutti gli eventi non si tocca
+   mai. Diventata un giorno diverso torna piena come gli altri campi, perché a
+   quel punto cambia la sostanza dell'evento.
+   Opacità e non un grigio fisso: il campo resta leggibile e toccabile in
+   entrambi i temi, e un colore spento scritto a mano sul tema scuro sarebbe
+   finito sotto il fondo. */
+.pl-pick-data-fine.pl-spenta{ opacity:.42; box-shadow:inset 0 0 0 .5px transparent; background:transparent; }
+.pl-pick-data-fine.pl-spenta:focus{ opacity:1; }
 /* lucchetto della durata: chiuso è lo stato normale, quindi si fa notare
    poco; aperto deve invece saltare all'occhio, perché è l'eccezione */
 .pl-lock{
@@ -2140,7 +2161,43 @@ textarea.pl-in.pl-note{ min-height:200px; }
 .pl-mgrid{ flex:1; display:grid; grid-template-rows:auto repeat(6, 1fr); padding:0 8px calc(96px + var(--safe-bottom)); overflow:hidden; }
 .pl-mwd{ display:grid; grid-template-columns:repeat(7,1fr); }
 .pl-mwd span{ text-align:center; font-size:8.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); padding:4px 0 5px; }
-.pl-mrow{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; padding-bottom:3px; }
+.pl-mrow{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; padding-bottom:3px; position:relative; }
+
+/* Le barre degli eventi che durano più giorni. Stanno su uno strato SOPRA la
+   riga, non dentro le caselle: una casella ha il taglio ai bordi, e una barra
+   che deve attraversare il martedì sparirebbe al confine del lunedì.
+   Lo strato ripete la stessa griglia a sette colonne con lo stesso spazio fra
+   le celle, così una barra che copre due giorni copre anche il vuoto in mezzo
+   e si legge come una cosa sola.
+   Misure e colori sono gli stessi di .pl-mev, le pastiglie di un giorno solo:
+   una barra deve leggersi come un evento normale che continua, non come un
+   oggetto di un'altra specie.
+   --pl-corsia è l'altezza di una riga di barre, ed è la stessa misura che le
+   caselle lasciano vuota sopra: sta scritta qui una volta e il JavaScript la
+   rilegge, invece di ripeterla in due posti che poi si scollano.
+   pointer-events:none è voluto: il tocco passa attraverso e arriva alla
+   casella sotto, che entra nel giorno. Una barra cliccabile che copre cinque
+   giorni non saprebbe in quale entrare. */
+.pl-mgrid{ --pl-corsia:15px; }
+.pl-mspans{
+    position:absolute; left:0; right:0; z-index:3; pointer-events:none;
+    /* sotto il numero del giorno: 3px di bordo della casella + 13 di numero */
+    top:18px;
+    display:grid; grid-template-columns:repeat(7,1fr); gap:3px;
+    grid-auto-rows:13px; row-gap:2px;
+}
+.pl-mspan{
+    min-width:0; margin:0 1px; padding:1px 3px; border-radius:4px;
+    background:color-mix(in srgb, var(--ev) 34%, var(--card));
+    color:var(--ink); font-size:8px; line-height:1.35;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+/* Arrotondata solo dove l'evento comincia e dove finisce davvero. Il lato che
+   prosegue resta squadrato: è il segno che la barra continua nella settimana
+   dopo, senza bisogno di frecce. */
+.pl-msp-apre{ border-top-left-radius:5px; border-bottom-left-radius:5px; margin-left:2px; }
+.pl-msp-chiude{ border-top-right-radius:5px; border-bottom-right-radius:5px; margin-right:2px; }
+.pl-mcell-corsie{ flex-shrink:0; }
 .pl-mcell{
     border-radius:var(--r-sm); background:var(--card); padding:3px 3px 2px; overflow:hidden;
     box-shadow:inset 0 0 0 .5px var(--hair); display:flex; flex-direction:column; gap:2px;
@@ -2758,3 +2815,36 @@ body.pl-lista .pl-col{ border-left:none; }
 /* Del selettore progetti serve solo il popup: il pulsante inline non ha senso
    nel pannello evento, il progetto si sceglie dalla riga. */
 #ps-widget-plev{ display:none; }
+
+/* Anelli in attesa dei dati del giorno nuovo: restano quelli di prima, smorzati.
+   Prima si svuotavano e si ridisegnavano, e sfogliando i giorni si vedeva un
+   lampo a ogni cambio — anelli via, mezzo secondo di buco, anelli di ritorno.
+   Smorzarli dice «questi sono ancora quelli di ieri» senza far sparire niente. */
+.pl-ring-attesa{ opacity:.35; transition:opacity .18s; }
+
+/* Una presa sistemata esce di lato e poi si richiude. Le due transizioni hanno
+   tempi diversi apposta: prima lo scorrimento, poi il collasso dell'altezza —
+   così si vede dove va prima che il buco si chiuda. Le altre righe si spostano
+   perché l'altezza va a zero, non perché vengano ridisegnate. */
+.pl-pill-via{
+    transition:transform .23s cubic-bezier(.32,.72,0,1), opacity .2s,
+               height .26s cubic-bezier(.32,.72,0,1) .21s,
+               margin .26s cubic-bezier(.32,.72,0,1) .21s,
+               padding .26s cubic-bezier(.32,.72,0,1) .21s;
+    will-change:transform, height;
+}
+@media (prefers-reduced-motion: reduce){
+    .pl-pill-via{ transition-duration:.01ms !important; }
+}
+
+/* ---- linguetta «da studiare» nel pannello ----
+   Gli argomenti stanno sotto il loro blocco: «integrali tripli» da solo non
+   dice di quale esame è quando se ne preparano tre. */
+.pl-study-blocco{
+    display:flex; align-items:baseline; gap:8px; padding:10px 2px 5px;
+    border-left:3px solid var(--ev, #B7AEA3); padding-left:9px; margin-top:8px;
+}
+.pl-study-nome{ flex:1; min-width:0; font-size:13.5px; font-weight:600;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pl-study-mat{ flex-shrink:0; font-size:10.5px; opacity:.5; }
+.pl-study-li{ padding-left:9px; }

@@ -329,11 +329,27 @@ function gc_to_google(array $ev): array {
     ];
     if (!empty($ev['location'])) $out['location'] = (string)$ev['location'];
     if ((int)$ev['is_all_day'] === 1) {
+        /* LA FINE SECONDO GOOGLE E' ESCLUSIVA: `end.date` e' il giorno in cui
+           l'evento NON c'e' piu'. Un evento di un giorno solo va dal 10 all'11,
+           uno dal 10 al 12 va dal 10 al 13. Scrivere l'ultimo giorno vero e'
+           l'errore classico che fa comparire tutto un giorno piu' corto —
+           motivo per cui qui si somma sempre uno all'ultimo giorno, non alla
+           data d'inizio.
+           COALESCE a mano perche' nel nostro database end_date nulla vuol dire
+           "finisce dove comincia". */
+        $ultimo = !empty($ev['end_date']) ? (string)$ev['end_date'] : (string)$ev['event_date'];
+        if ($ultimo < (string)$ev['event_date']) $ultimo = (string)$ev['event_date'];
         $out['start'] = ['date' => $ev['event_date']];
-        $out['end']   = ['date' => date('Y-m-d', strtotime($ev['event_date'] . ' +1 day'))];
+        $out['end']   = ['date' => date('Y-m-d', strtotime($ultimo . ' +1 day'))];
     } else {
+        /* Con un orario la fine puo' cadere su un altro giorno: dal 3 alle
+           22:00 al 4 alle 02:00. Senza end_date si resta nella stessa
+           giornata, come e' sempre stato. */
+        $fineGiorno = !empty($ev['end_date']) && (string)$ev['end_date'] > (string)$ev['event_date']
+            ? (string)$ev['end_date']
+            : (string)$ev['event_date'];
         $out['start'] = ['dateTime' => $ev['event_date'] . 'T' . $ev['start_time'], 'timeZone' => GC_TZ];
-        $out['end']   = ['dateTime' => $ev['event_date'] . 'T' . $ev['end_time'],   'timeZone' => GC_TZ];
+        $out['end']   = ['dateTime' => $fineGiorno . 'T' . $ev['end_time'],         'timeZone' => GC_TZ];
     }
     if (!empty($ev['notify_type']) && $ev['notify_type'] !== 'none') {
         $out['reminders'] = [
@@ -436,28 +452,54 @@ function gc_from_google(array $g): ?array {
     $start = $g['start'] ?? [];
     $end   = $g['end'] ?? [];
     if (!empty($start['date'])) {
+        /* Il verso opposto della regola di sopra: `end.date` di Google e' il
+           giorno in cui l'evento non c'e' piu', quindi l'ultimo giorno vero e'
+           quello prima. Senza il meno uno ogni evento importato durerebbe un
+           giorno di troppo, e uno di un giorno solo ne durerebbe due.
+           end_date nullo quando comincia e finisce lo stesso giorno: e' il modo
+           in cui il nostro database dice "un giorno solo". */
+        $ultimo = null;
+        if (!empty($end['date'])) {
+            $ultimo = date('Y-m-d', strtotime($end['date'] . ' -1 day'));
+            // difese contro un end malformato o uguale allo start
+            if ($ultimo <= $start['date']) $ultimo = null;
+        }
         return [
-            'date'    => $start['date'],
-            'start'   => '00:00:00',
-            'end'     => '23:59:00',
-            'all_day' => 1,
-            'title'   => (string)($g['summary'] ?? 'Senza titolo'),
-            'notes'   => (string)($g['description'] ?? ''),
+            'date'     => $start['date'],
+            'end_date' => $ultimo,
+            'start'    => '00:00:00',
+            'end'      => '23:59:00',
+            'all_day'  => 1,
+            'title'    => (string)($g['summary'] ?? 'Senza titolo'),
+            'notes'    => (string)($g['description'] ?? ''),
         ];
     }
     if (!empty($start['dateTime'])) {
         $s = strtotime($start['dateTime']);
         $e = !empty($end['dateTime']) ? strtotime($end['dateTime']) : $s + 1800;
         if ($s === false) return null;
-        // gli eventi a cavallo della mezzanotte vengono tagliati al giorno d'inizio
-        if (date('Y-m-d', $e) !== date('Y-m-d', $s)) $e = strtotime(date('Y-m-d', $s) . ' 23:59');
+        /* Gli eventi a cavallo della mezzanotte non si tagliano piu' al giorno
+           d'inizio: adesso c'e' end_date e possono dire davvero fin dove
+           arrivano. Il taglio resta solo come rete: oltre il limite di giorni
+           un evento importato entrerebbe in tutte le caselle che attraversa. */
+        $fine = date('Y-m-d', $e);
+        $endDate = null;
+        if ($fine !== date('Y-m-d', $s)) {
+            $giorni = (int)floor(($e - strtotime(date('Y-m-d', $s))) / 86400) + 1;
+            if ($giorni > 366) {
+                $e = strtotime(date('Y-m-d', $s) . ' 23:59');
+            } else {
+                $endDate = $fine;
+            }
+        }
         return [
-            'date'    => date('Y-m-d', $s),
-            'start'   => date('H:i:s', $s),
-            'end'     => date('H:i:s', $e),
-            'all_day' => 0,
-            'title'   => (string)($g['summary'] ?? 'Senza titolo'),
-            'notes'   => (string)($g['description'] ?? ''),
+            'date'     => date('Y-m-d', $s),
+            'end_date' => $endDate,
+            'start'    => date('H:i:s', $s),
+            'end'      => date('H:i:s', $e),
+            'all_day'  => 0,
+            'title'    => (string)($g['summary'] ?? 'Senza titolo'),
+            'notes'    => (string)($g['description'] ?? ''),
         ];
     }
     return null;
@@ -763,13 +805,13 @@ function gc_pull_one(int $uid, string $token, string $ref, ?string $syncToken, ?
                    suoi calendari, rimetterlo qui glielo riporterebbe indietro
                    a ogni sincronia. Si scrive solo la provenienza, che invece
                    è un fatto e non una scelta. */
-                sec_q("UPDATE planner_events SET title = ?, notes = ?, event_date = ?, start_time = ?, end_time = ?,
+                sec_q("UPDATE planner_events SET title = ?, notes = ?, event_date = ?, end_date = ?, start_time = ?, end_time = ?,
                               is_all_day = ?, google_calendar_id = ?, google_source_ref = ?,
                               rrule = ?, repeat_type = ?, repeat_interval = ?, repeat_unit = ?, repeat_until = ?,
                               series_id = ?, original_date = ?, is_cancelled = 0,
                               google_synced_at = NOW(), updated_at = updated_at
                        WHERE id = ? AND user_id = ?",
-                      [$data['title'], $data['notes'], $data['date'], $data['start'], $data['end'],
+                      [$data['title'], $data['notes'], $data['date'], $data['end_date'] ?? null, $data['start'], $data['end'],
                        $data['all_day'], $sorgente, $sorgente,
                        $rip['rrule'], $rip['type'], $rip['interval'], $rip['unit'], $rip['until'],
                        $serieId, $dataOrig, (int)$existing['id'], $uid]);
@@ -781,13 +823,13 @@ function gc_pull_one(int $uid, string $token, string $ref, ?string $syncToken, ?
                 }
             } else {
                 sec_q("INSERT INTO planner_events
-                       (user_id, title, notes, event_date, start_time, end_time, is_all_day,
+                       (user_id, title, notes, event_date, end_date, start_time, end_time, is_all_day,
                         notify_type, notify_minutes, google_event_id, google_calendar_id,
                         google_source_ref, calendar_id, google_synced_at, google_origin,
                         rrule, repeat_type, repeat_interval, repeat_unit, repeat_until,
                         series_id, original_date)
-                       VALUES (?,?,?,?,?,?,?,'none',0,?,?,?,?,NOW(),1,?,?,?,?,?,?,?)",
-                      [$uid, $data['title'], $data['notes'], $data['date'], $data['start'], $data['end'],
+                       VALUES (?,?,?,?,?,?,?,?,'none',0,?,?,?,?,NOW(),1,?,?,?,?,?,?,?)",
+                      [$uid, $data['title'], $data['notes'], $data['date'], $data['end_date'] ?? null, $data['start'], $data['end'],
                        $data['all_day'], $gid, $sorgente, $sorgente, $dest,
                        $rip['rrule'], $rip['type'], $rip['interval'], $rip['unit'], $rip['until'],
                        $serieId, $dataOrig]);

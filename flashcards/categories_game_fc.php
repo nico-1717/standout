@@ -71,14 +71,14 @@ function renderGameCatRow($node, $level = 0) {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
         </span>
 
-        <span class="cat-name"><?php echo sec_h($nameEsc); ?></span>
-        <span class="cat-badge count-badge" data-ids="<?php echo (int)$idsStr; ?>" id="count-<?php echo (int)$node['id']; ?>">···</span>
+        <span class="cat-name"><?php echo $nameEsc; ?></span>
+        <span class="cat-badge count-badge" data-ids="<?php echo sec_h($idsStr); ?>" id="count-<?php echo (int)$node['id']; ?>">···</span>
 
         <div class="row-action" onclick="event.stopPropagation();">
-            <a class="play-pill play-btn" data-catid="<?php echo (int)$idsStr; ?>" data-catname="<?php echo urlencode($node['name']); ?>" aria-label="<?php te('fc.cg_gioca'); ?>">
+            <a class="play-pill play-btn" data-catid="<?php echo sec_h($idsStr); ?>" data-catname="<?php echo urlencode($node['name']); ?>" aria-label="<?php te('fc.cg_gioca'); ?>">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             </a>
-            <input type="checkbox" class="cat-checkbox" value="<?php echo (int)$idsStr; ?>" data-name="<?php echo sec_h($nameEsc); ?>" style="display:none;" onchange="updateMultiCount()" aria-label="<?php te('fc.cg_seleziona_nome', ['nome' => $node['name']]); ?>">
+            <input type="checkbox" class="cat-checkbox" value="<?php echo sec_h($idsStr); ?>" data-name="<?php echo $nameEsc; ?>" style="display:none;" onchange="updateMultiCount()" aria-label="<?php te('fc.cg_seleziona_nome', ['nome' => $node['name']]); ?>">
         </div>
     </div>
 

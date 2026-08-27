@@ -284,7 +284,26 @@ button{ font-family:inherit; }
 .pr-row-wrap.pr-sub-locked > .pr-row > .pr-row-content > .pr-select-chk{ background:color-mix(in srgb, var(--blue) 45%, var(--surface)); border-color:color-mix(in srgb, var(--blue) 45%, var(--surface)); color:#fff; }
 .pr-row-wrap.pr-sub-locked > .pr-row > .pr-row-content{ opacity:.85; }
 
-.pr-sub-bulkbar{ display:none; align-items:center; gap:8px; padding:9px 4px; margin-bottom:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+/* La barra delle azioni resta in basso mentre si scorre. Attaccata sotto la
+   scheda del titolo, scendendo a selezionare si perdeva di vista, e per usarla
+   bisognava risalire in cima — perdendo di vista quello che si era appena
+   selezionato. */
+.pr-sub-bulkbar{
+    display:none; align-items:center; gap:8px;
+    position:fixed; left:10px; right:10px; bottom:calc(12px + var(--safe-bottom));
+    z-index:400; padding:10px 12px; margin:0; border-radius:16px;
+    background:var(--surface); box-shadow:var(--shadow-card), inset 0 0 0 .5px var(--hairline);
+    overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+}
+/* entra dal basso invece di comparire: si vede da dove arriva */
+.pr-sub-bulkbar{ transform:translateY(120%); transition:transform .3s var(--spring); }
+.pr-sub-bulkbar.show{ transform:translateY(0); }
+.pr-sub-bulk-x{
+    flex-shrink:0; width:28px; height:28px; border:none; border-radius:50%; cursor:pointer;
+    background:var(--surface-2); color:var(--text-2); display:grid; place-items:center;
+}
+/* con la barra aperta, l'ultimo sottoprogetto non deve finirci sotto */
+body.pr-selezionando .page{ padding-bottom:84px; }
 .pr-sub-bulkbar::-webkit-scrollbar{ display:none; }
 .pr-sub-bulkbar.show{ display:flex; }
 .pr-sub-bulkbar span{ font-size:12.5px; color:var(--text-2); font-weight:700; flex:1 0 auto; white-space:nowrap; }
@@ -312,7 +331,9 @@ button{ font-family:inherit; }
     width:16px; height:16px; vertical-align:-2px; margin-right:6px;
     color:#E0B84A; flex-shrink:0;
 }
-.pr-star-hero{ width:19px; height:19px; vertical-align:-3px; margin-right:7px; }
+/* La stella e' l'unico comando dentro al titolo: piu' piccola dei tondi sotto
+   si leggeva come un ornamento del nome invece che come un tasto. */
+.pr-star-hero{ width:26px; height:26px; vertical-align:-5px; margin-right:9px; }
 /* non preferito: contorno tratteggiato e colore spento — si vede che il posto
    della stella c'è, e che è vuoto */
 .pr-star-off{ color:var(--text-3); opacity:.75; }
@@ -616,3 +637,243 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
 @media (prefers-reduced-motion: reduce){
     *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
 }
+
+/* ---- tag data: fatto in tempo, fatto in ritardo ----
+   Il rosso e' un allarme, e un allarme su una cosa gia' fatta e' rumore.
+   Spuntato il progetto la data si barra: verde se e' stata rispettata, grigia
+   se si e' arrivati dopo. Restano visibili tutte e due perche' «l'ho fatto,
+   ma in ritardo» e' un'informazione, non un fallimento da nascondere. */
+.pr-date-tag-fatto,
+.pr-date-tag-fatto-tardi{ text-decoration:line-through; }
+.pr-date-tag-fatto{
+    background:color-mix(in srgb, var(--green,#34C759) 13%, transparent);
+    color:var(--green,#34C759);
+}
+.pr-date-tag-fatto-tardi{
+    background:color-mix(in srgb, var(--text-2,#8A8A8E) 13%, transparent);
+    color:var(--text-2,#8A8A8E);
+}
+
+/* ================= barra doppia =================
+   L'intestazione diventa una colonna: sopra il nome della pagina e i comandi
+   che valgono per TUTTA la pagina, sotto le pastiglie dei progetti, che sono
+   navigazione. Restando in riga come prima, la prima riga e le pastiglie
+   finivano affiancate e la barra restava una sola. */
+.app-header{ flex-direction:column; align-items:stretch; }
+.hdr-row1{ display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; }
+.hdr-row1 .hdr-title{ flex:1; min-width:0; }
+.hdr-tools{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.hdr-tool{
+    width:32px; height:32px; border:none; border-radius:10px; cursor:pointer;
+    background:var(--surface-2); color:var(--text-2);
+    display:grid; place-items:center;
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+    transition:transform .15s, color .18s;
+}
+.hdr-tool:active{ transform:scale(.9); color:var(--text); }
+/* le pastiglie erano centrate fra titolo e tasti: ora hanno la loro riga e
+   partono da sinistra come qualunque elenco */
+.hdr-root-pills{ margin-top:10px; }
+
+/* ================= impostazioni =================
+   Ogni riga ha il nome e sotto, in piccolo, cosa succede spegnendola: una
+   spunta chiamata «solo quelli con pomodori» senza spiegazione fa provare e
+   riprovare per capire cosa nasconde.
+   I colori vengono dalle variabili della pagina — --surface, --text, --hairline
+   — e non da valori scritti a mano: il tema scuro le ridefinisce tutte in cima
+   al file, e il pannello lo segue senza doverlo dichiarare due volte. Prima
+   avevo usato nomi di un'altra pagina (--card, --ink), che qui non esistono:
+   restavano i colori di ripiego, chiari, su un fondo nero. */
+.pr-opz-ov{
+    position:fixed; inset:0; z-index:9700; display:grid; place-items:center; padding:22px;
+    background:rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:opacity .24s;
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+}
+.pr-opz-ov.is-open{ opacity:1; pointer-events:auto; }
+.pr-opz{
+    width:100%; max-width:380px; max-height:82vh; overflow-y:auto;
+    background:var(--surface); color:var(--text);
+    border-radius:20px; padding:16px;
+    transform:scale(.94); transition:transform .28s var(--spring);
+    box-shadow:var(--shadow-card);
+}
+.pr-opz-ov.is-open .pr-opz{ transform:none; }
+.pr-opz-head{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.pr-opz-tit{ flex:1; min-width:0; font-size:17px; font-weight:700; }
+.pr-opz-x{
+    width:28px; height:28px; border:none; border-radius:50%; cursor:pointer;
+    background:var(--surface-2); color:var(--text-2); display:grid; place-items:center;
+}
+.pr-opz-riga{
+    display:flex; align-items:flex-start; gap:11px; padding:11px 2px; cursor:pointer;
+    border-top:.5px solid var(--hairline);
+}
+.pr-opz-riga input{ width:18px; height:18px; margin-top:1px; flex-shrink:0; accent-color:var(--blue); }
+.pr-opz-n{ flex:1; min-width:0; font-size:14.5px; line-height:1.35; color:var(--text); }
+.pr-opz-n em{ display:block; font-size:11.5px; font-style:normal; color:var(--text-2); margin-top:2px; }
+.pr-opz-sep{ height:.5px; background:var(--hairline); margin:8px 0 12px; }
+.pr-opz-lab{ font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-3); margin-bottom:8px; }
+.pr-opz-ordine{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.pr-opz-ordine button{
+    padding:10px; border:none; border-radius:11px; cursor:pointer; font:inherit; font-size:13.5px;
+    background:var(--surface-2); color:var(--text-2);
+}
+.pr-opz-ordine button.active{ background:var(--blue); color:#fff; font-weight:700; }
+
+/* «Mostra i tag» spento: l'unica delle cinque che non cambia quali progetti ci
+   sono, solo quanto occupano — quindi si applica subito, senza ricaricare. */
+body.pr-senza-tag .pr-date-tag,
+body.pr-senza-tag .pr-note-tag,
+body.pr-senza-tag .pr-cat-tag{ display:none !important; }
+
+/* ================= la scheda del titolo =================
+   Tutto quello che prima si faceva dal popup di modifica si fa qui, dove la
+   cosa si vede. */
+
+/* Il cerchio del colore: la barra laterale della scheda che si chiude in un
+   tondo accanto al titolo. */
+.pr-color-dot{
+    width:20px; height:20px; border-radius:50%; border:none; cursor:pointer;
+    flex-shrink:0; padding:0; box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.35);
+    transition:transform .15s var(--spring);
+}
+.pr-color-dot:active{ transform:scale(.85); }
+
+/* Il nome si scrive sopra. Il contorno compare solo quando ci si sta dentro:
+   una casella sempre disegnata attorno al titolo lo farebbe sembrare un modulo
+   da compilare invece che il nome del progetto. */
+.pr-hero-name{ outline:none; border-radius:6px; padding:1px 3px; margin:0 -3px; }
+.pr-hero-name:focus{ background:var(--surface-2); box-shadow:inset 0 0 0 1.5px var(--blue); }
+
+/* ---- la fila dei tag ---- */
+.pr-hero-tags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+.pr-tag{
+    display:inline-flex; align-items:center; gap:5px; max-width:100%;
+    padding:4px 9px; border:none; border-radius:999px; cursor:pointer;
+    font:inherit; font-size:11.5px; font-weight:600;
+    background:color-mix(in srgb, var(--tc, var(--text-2)) 15%, transparent);
+    color:var(--tc, var(--text-2));
+}
+.pr-tag span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Vuoto: contorno tratteggiato e grigio leggero. Il tratteggio dice «qui
+   manca qualcosa» senza doverlo scrivere. */
+.pr-tag-vuoto{
+    background:transparent; color:var(--text-3);
+    box-shadow:inset 0 0 0 1px var(--hairline-2);
+    border:1px dashed var(--hairline-2); padding:3px 8px;
+}
+/* Ereditato dal padre: si vede ma non si tocca. Sbiadito perche' la differenza
+   fra «e' mio» e «e' di sopra» si deve capire senza leggere. */
+.pr-tag-deck.is-eredit{ opacity:.45; cursor:default; }
+.pr-tag-deck.is-figli{ background:var(--surface-2); color:var(--text-2); cursor:default; flex-wrap:wrap; }
+.pr-deck-f{
+    padding:1px 7px; border-radius:999px; font-size:10.5px; font-weight:700;
+    background:color-mix(in srgb, var(--fc) 18%, transparent); color:var(--fc);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:110px;
+}
+/* oltre i primi due si nascondono: con otto sottoprogetti l'elenco intero
+   sarebbe piu' lungo del titolo del progetto */
+.pr-deck-f-extra{ display:none; }
+.pr-tag-deck.is-aperto .pr-deck-f-extra{ display:inline-block; }
+.pr-deck-piu{
+    border:none; background:none; cursor:pointer; font:inherit; font-size:10.5px;
+    font-weight:800; color:var(--text-2); padding:1px 3px;
+}
+
+/* ---- la sezione pomodoro ----
+   Il tasto grande e sotto, piu' piccolo, le statistiche: la stessa cosa
+   guardata prima e dopo. Sotto ancora il tempo totale, che e' il numero che da'
+   senso a tutti e due. */
+.pr-pomo-box{
+    position:absolute; right:14px; bottom:14px;
+    display:flex; flex-direction:column; align-items:center; gap:5px;
+    padding:8px 10px; border-radius:16px;
+    background:var(--surface-2); box-shadow:inset 0 0 0 .5px var(--hairline);
+}
+/* Stessa misura del tasto pomodoro sulle righe dei figli (30px): e' la stessa
+   azione sullo stesso genere di cosa, e farla piu' grande qui la faceva
+   sembrare un'altra funzione. */
+.pr-pomo-go{
+    width:30px; height:30px; border:none; border-radius:50%; cursor:pointer;
+    background:var(--accent); color:#fff; display:grid; place-items:center;
+    box-shadow:0 2px 6px -1px color-mix(in srgb, var(--accent) 60%, transparent);
+    transition:transform .15s var(--spring);
+}
+.pr-pomo-go svg{ width:16px; height:16px; }
+.pr-pomo-go:active{ transform:scale(.88); }
+.pr-pomo-go:disabled{ background:var(--text-3); box-shadow:none; opacity:.5; pointer-events:none; }
+/* Il tempo E' il tasto delle statistiche: quel numero e' il loro riassunto, e
+   chi lo guarda volendone sapere di piu' tocca lui. */
+.pr-pomo-tot{
+    border:none; background:none; padding:0; cursor:pointer; font:inherit;
+    font-size:10.5px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums;
+    text-decoration:underline; text-decoration-style:dotted; text-underline-offset:2px;
+    text-decoration-color:var(--hairline-2);
+}
+.pr-pomo-tot:active{ color:var(--text); }
+/* la scheda fa da riferimento al riquadro, e gli lascia spazio a destra */
+.pr-hero{ position:relative; }
+.pr-hero-tags, .pr-hero-note, .pr-hero-todo{ padding-right:76px; }
+
+/* ---- la nota, sempre presente ----
+   Vuota mostra l'invito in corsivo: se comparisse solo da compilata nessuno
+   saprebbe che si puo' scrivere. Il tocco lungo la apre — il tocco semplice
+   interromperebbe la lettura, il doppio su iOS litiga con lo zoom. */
+.pr-nota-vuota{
+    font-style:italic; color:var(--text-3); font-size:13.5px;
+    padding:8px 0; cursor:pointer;
+}
+.pr-hero-note{ -webkit-user-select:none; user-select:none; }
+.pr-nota-edit{ margin-top:8px; }
+.pr-nota-azioni{ display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+.pr-nota-btn{
+    padding:8px 14px; border:none; border-radius:11px; cursor:pointer; font:inherit;
+    font-size:13.5px; font-weight:600; background:var(--surface-2); color:var(--text-2);
+}
+.pr-nota-btn-ok{ background:var(--blue); color:#fff; }
+
+.pr-empty-ic{ color:var(--text-3); margin-bottom:8px; }
+/* Il post-it in modifica: l'editore prende il posto del testo, nello stesso
+   riquadro. Uscire dalla nota per andare in una scheda con dieci campi, di cui
+   uno era la nota, era il giro piu' lungo per la cosa piu' semplice. */
+.pr-peek-edit{ padding:4px 0; }
+
+/* ---- il colore fra i tondi ----
+   Sul titolo era un pallino colorato accanto a un nome colorato: si leggeva
+   come decorazione. In fila con le altre azioni e' quello che e'. */
+.pr-hero-btn-colore .pr-btn-dot{
+    width:16px; height:16px; border-radius:50%; background:var(--dot);
+    display:block; box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.32);
+}
+
+/* ---- sezione colore del popup, richiudibile ----
+   Aperta occupava mezzo popup con una tavolozza che quasi nessuno tocca — il
+   colore di un sotto-progetto quasi sempre si eredita — e spingeva sotto il
+   bordo dello schermo i campi che si compilano davvero. */
+.pr-color-toggle{
+    display:flex; align-items:center; gap:9px; width:100%; padding:11px 12px;
+    border:none; border-radius:13px; cursor:pointer; font:inherit; text-align:left;
+    background:var(--surface-2); color:var(--text);
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+}
+.pr-color-toggle-lab{ flex:1; min-width:0; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-2); }
+.pr-color-toggle-lab span{ text-transform:none; font-weight:500; letter-spacing:0; }
+.pr-color-toggle-dot{ width:18px; height:18px; border-radius:50%; flex-shrink:0; box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.3); }
+/* la freccia gira invece di cambiare simbolo: e' la stessa cosa in due stati */
+.pr-color-toggle-chev{ flex-shrink:0; color:var(--text-3); transition:transform .26s var(--spring); }
+.pr-color-toggle.is-aperta .pr-color-toggle-chev{ transform:rotate(180deg); }
+#prColorCard{ margin-top:8px; }
+
+/* Chiudi tutto / apri tutto, a destra dello switch elenco/griglia: e' un modo
+   di guardare l'albero, come gli altri due. La freccia si capovolge quando
+   tutto e' chiuso, cosi' il tasto dice sempre cosa fara' al prossimo tocco. */
+.pr-view-fold-btn{
+    width:32px; height:32px; border:none; border-radius:10px; cursor:pointer;
+    background:var(--surface-2); color:var(--text-2); display:grid; place-items:center;
+    flex-shrink:0; box-shadow:inset 0 0 0 .5px var(--hairline);
+    transition:transform .15s var(--spring), color .18s;
+}
+.pr-view-fold-btn:active{ transform:scale(.9); }
+.pr-view-fold-btn.is-chiuso{ background:var(--text); color:var(--surface); box-shadow:none; }
+.pr-view-fold-btn.is-chiuso svg{ transform:rotate(180deg); }
+.pr-view-bar{ display:flex; align-items:center; gap:8px; }

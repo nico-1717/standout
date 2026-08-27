@@ -247,10 +247,13 @@
 
 
         .app-header{
-
-
-
-            position:sticky; top:0; left:0; right:0; z-index:200;
+            /* sticky si stacca facilmente se un antenato ha un overflow, una
+               trasformazione o un proprio contesto di scorrimento — ed e'
+               esattamente quello che succedeva qui: la barra di salvataggio,
+               che vive dentro l'header, spariva scorrendo invece di restare
+               in sovraimpressione. big_edit_fc usa fixed proprio per questo,
+               e li' funziona: stessa scelta, stesso motivo. */
+            position:fixed; top:0; left:0; right:0; z-index:200;
 
 
 
@@ -326,7 +329,12 @@
 
 
 
-        .page-wrap{ max-width:760px; margin:0 auto; padding:16px 14px calc(24px + var(--safe-bottom)); }
+        /* Lo spazio in cima basta a non finire sotto l'header, che ora e'
+           fixed e quindi fuori dal flusso normale: senza, la prima riga
+           della pagina nascerebbe proprio dietro di lui. Stesso valore di
+           big_edit_fc.css, perche' i due header hanno la stessa struttura
+           (titolo, sottotitolo, barra di salvataggio) e la stessa altezza. */
+        .page-wrap{ max-width:760px; margin:0 auto; padding:calc(var(--safe-top) + 74px) 14px calc(24px + var(--safe-bottom)); }
 
 
 
@@ -1360,7 +1368,15 @@
 
 
 
-        .fc-field{ padding:8px 6px 4px; }
+        /* min-width:0 e' cio' che impedisce alla colonna di allargarsi per
+           stare dietro al suo contenuto. In una griglia "1fr" vuol dire
+           minmax(AUTO,1fr), e quell'auto e' la larghezza minima del
+           contenuto: per una formula disegnata da MathJax — un blocco unico
+           che non si spezza — quel minimo e' l'intera formula, che si
+           propaga verso l'alto allargando colonna, riquadro e scheda invece
+           di starci dentro. Stessa causa, stessa correzione gia' fatta in
+           big_edit_fc.css: qui mancava. */
+        .fc-field{ padding:8px 6px 4px; min-width:0; }
 
 
 
@@ -1773,3 +1789,49 @@
 
 
     
+
+/* ================================================================
+   CHIP ESEMPI
+   Copiato da big_edit_fc.css: da quando anche qui le carte si salvano una per
+   volta, anche qui possono avere degli esempi, e devono avere lo stesso
+   aspetto nelle due pagine. La classe gestisce forma e animazione, mai i
+   colori: quelli li scrive examples_modal.php direttamente sul pulsante.
+   ================================================================ */
+.ex-chip{
+    display:inline-flex; align-items:center; gap:6px; flex-shrink:0;
+    padding:6px 12px; border-radius:99px; font-family:inherit; font-size:11.5px; font-weight:800;
+    cursor:pointer; transition:transform .15s var(--spring); white-space:nowrap;
+}
+.ex-chip:active{ transform:scale(.94); }
+.ex-chip svg{ width:13px; height:13px; }
+.ex-chip.ex-disabled{ cursor:not-allowed; opacity:.65; }
+
+/* Da computer niente swipe: i pulsanti della carta stanno in basso a destra.
+   Stessa scelta di big_edit_fc, stesse ragioni: col mouse trascinare in
+   orizzontale significa selezionare, non scorrere. */
+@media (hover:hover) and (pointer:fine) {
+
+    .fc-row{ position:relative; }
+
+    /* Ancorati in basso a destra DENTRO la carta. Non basta cambiare il
+       posizionamento: nel DOM questo blocco viene PRIMA del contenuto, quindi
+       lasciandolo nel flusso finiva sopra la carta invece che sotto. Con
+       l'ancoraggio assoluto l'ordine nel DOM non conta piu'. */
+    .swipe-actions{
+        position:absolute;
+        top:auto; left:auto;
+        right:12px; bottom:10px;
+        display:flex; justify-content:flex-end; align-items:center; gap:6px;
+        z-index:5;
+        opacity:0;
+        transition:opacity .18s ease;
+    }
+    .fc-row:hover .swipe-actions,
+    .fc-row:focus-within .swipe-actions{ opacity:1; }
+    .swipe-actions .swipe-btn{
+        width:auto; height:30px; padding:0 10px;
+        flex-direction:row; gap:6px; border-radius:8px; font-size:12px;
+    }
+    .swipe-actions .swipe-btn svg{ width:15px; height:15px; }
+    .fc-row.is-deleted .swipe-actions{ display:none; }
+}

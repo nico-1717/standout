@@ -16,11 +16,16 @@ $conn = sec_db();
 
 // --- CARICAMENTO DATI ---
 $catID = sec_int($_GET['category_id'] ?? 0, 1);
-
 // La categoria dev'essere sua
 if (!sec_owns('fc_categories', $catID, $current_user_id)) {
     die(sec_h(t('fc.non_proprietario_categoria')));
 }
+/* Il nome serve nell'intestazione. Senza, la pagina diceva solo "Big Edit" e
+   non c'era modo di accorgersi al volo di essere finiti sulla categoria
+   sbagliata: il numero di righe non aiuta, perche' qui i figli sono righe a se'
+   e sono sempre di piu' di quelle che si contano in visualizzazione. */
+$catName = (string)(sec_one("SELECT name FROM fc_categories WHERE id = ? AND user_id = ?",
+                            [$catID, $current_user_id])['name'] ?? '');
 
 $cards = [];
 // Le carte principali (padri o indipendenti)
@@ -232,6 +237,7 @@ foreach ($padri as $row) {
 
 
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>big_edit_fc.css?v=<?php echo @filemtime(dirname(__FILE__) . '/big_edit_fc.css') ?: 1; ?>">
+    <link rel="stylesheet" href="<?php echo PWA_BASE; ?>autosave_bar.css?v=<?php echo @filemtime(dirname(__FILE__) . '/autosave_bar.css') ?: 1; ?>">
 
 
 
@@ -336,31 +342,20 @@ foreach ($padri as $row) {
     <div class="hdr-text" style="flex:1;">
 
         <h1><?php te('vocab.vi_big_edit'); ?></h1>
-
-        <div class="hdr-sub"><?php te('fc.befc_sottotitolo'); ?></div>
+        <div class="hdr-sub"><?php echo sec_h($catName); ?></div>
 
     </div>
 
     
 
-    <div style="display:flex; align-items:center; gap:10px;">
-
-        <span class="hdr-dirty-dot" title="Modifiche non salvate"></span>
-
-        
-
-        <button type="button" id="hdrSaveBtn" class="btn btn-success btn-sm" style="width:auto; padding:7px 12px; font-size:13px; margin:0; box-shadow:var(--raise-sm);" onclick="saveAll()">
-
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M5 12.5 10 17l9-10"/></svg>
-
-            <?php te('comune.salva'); ?>
-
-        </button>
-
-        
-
+    <div style="display:flex; align-items:center; gap:8px;">
+        <?php
+        /* Il pulsante "Salva" scritto a parole stava qui, e un secondo identico
+           stava in fondo alla pagina. Adesso ce n'e' uno solo, con accanto
+           l'interruttore del salvataggio automatico e l'ora dell'ultimo. */
+        include 'autosave_bar.php';
+        ?>
         <div class="hdr-chip" id="row-count-chip"><?php te('fc.ibf_n_righe', ['n' => 0]); ?></div>
-
     </div>
 
 </header>
@@ -400,12 +395,13 @@ foreach ($padri as $row) {
     </div>
 </div>
 
-<div class="save-bar">
-    <button type="button" id="saveBtn" class="btn btn-success" onclick="saveAll()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>
-        <?php te('fc.befc_salva_tutte'); ?>
-    </button>
-</div>
+<?php
+/* La fascia fissa "Salva tutte le modifiche" che stava qui e' stata tolta: la
+   barra flottante (autosave_bar.php) fa la stessa cosa, si vede sempre e non
+   solo in fondo alla pagina, e in piu' porta l'interruttore del salvataggio
+   automatico. Restava anche sovrapposta alla barra nuova, che sta in basso a
+   destra. Il pulsante "Salva" in alto e' rimasto dov'era. */
+?>
 
 <div class="confirm-overlay" id="confirmOverlay">
     <div class="confirm-panel">
@@ -441,6 +437,10 @@ foreach ($padri as $row) {
 
 
     const CAT_ID = <?php echo (int)$catID; ?>;
+    /* Il token di sessione viaggia insieme ai dati: cosi' il salvataggio
+       funziona anche se nisama_fetch.js non e' stato caricato in questa
+       pagina. */
+    const CSRF_TOKEN = <?php echo json_encode(sec_csrf_token()); ?>;
 
 
 
@@ -529,6 +529,9 @@ foreach ($padri as $row) {
 
 
     const ICON_REORDER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m8 9 4-4 4 4M8 15l4 4 4-4"/></svg>';
+    /* freccia che rientra: "figlio". Segno piu': "fratello". */
+    const ICON_KID     = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5v6a3 3 0 0 0 3 3h9"/><path d="m13 10 4 4-4 4"/></svg>';
+    const ICON_SIBLING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
 
 
 
@@ -784,7 +787,12 @@ foreach ($padri as $row) {
 
 
 
-    function updateDirtyUI(){ document.body.classList.toggle('is-dirty', isDirty); }
+    function updateDirtyUI(){
+        document.body.classList.toggle('is-dirty', isDirty);
+        /* Un punto solo: qualunque strada porti a isDirty = true passa di qui,
+           quindi la barra flottante non puo' restare indietro. */
+        if (isDirty && window.NisamaSaveBar) NisamaSaveBar.touch();
+    }
 
 
 
@@ -1296,7 +1304,14 @@ foreach ($padri as $row) {
 
 
 
-        const n = document.querySelectorAll('#fcRows .fc-row').length;
+        /* Si contano le carte VERE: non quelle segnate per l'eliminazione, che
+           restano nel DOM solo per poter essere ripristinate finche' non si
+           salva. Contandole, il numero in alto era piu' alto di quello che si
+           vede — e cresceva a ogni cancellazione invece di calare. */
+        const n = Array.prototype.filter.call(
+            document.querySelectorAll('#fcRows .fc-row'),
+            function (r) { return !r.classList.contains('is-deleted'); }
+        ).length;
 
 
 
@@ -1939,53 +1954,17 @@ foreach ($padri as $row) {
 
 
                 <div class="fc-row-grid">
-
-
-
-
-
-
-
                     ${fieldTemplate('q', card.domId, card.q, 'Domanda', card.qImgUrl, card.qImgName, card.qAudioUrl, isChild)}
-
-
-
-
-
-
-
                     ${fieldTemplate('a', card.domId, card.a, 'Risposta', card.aImgUrl, card.aImgName, card.aAudioUrl, isChild)}
-
-
-
-
-
-
-
                 </div>
-
-
-
-
-
-
-
+                <div class="ns-row-foot">
+                    <button type="button" class="ns-add-kid" onclick="addKidFrom(this)">
+                        ${isChild ? ICON_SIBLING + 'Aggiungi fratello' : ICON_KID + 'Aggiungi figlio'}
+                    </button>
+                </div>
             </div>`;
-
-
-
-
-
-
-
-        if (referenceNode) list.insertBefore(wrap, referenceNode); else list.appendChild(wrap);
-
-
-
-
-
-
-
+        /* Una riga sola: la stessa istruzione era scritta due volte, e la
+           seconda spostava la riga appena inserita. */
         if (referenceNode) list.insertBefore(wrap, referenceNode); else list.appendChild(wrap);
 
 
@@ -2806,14 +2785,17 @@ foreach ($padri as $row) {
 
 
 
+    /* Quando una riga cambia natura (padre <-> figlio) cambia anche cosa
+       offre il pulsante in fondo: un figlio non puo' avere figli, puo' avere
+       fratelli. */
+    function aggiornaPiedeRiga(row){
+        const btn = row.querySelector('.ns-add-kid');
+        if (!btn) return;
+        const isChild = isChildRow(row);
+        btn.innerHTML = isChild ? ICON_SIBLING + 'Aggiungi fratello' : ICON_KID + 'Aggiungi figlio';
+    }
     function updateRowBadgeText(row){
-
-
-
-
-
-
-
+        aggiornaPiedeRiga(row);
         const badge = row.querySelector('.row-badge');
 
 
@@ -3038,6 +3020,12 @@ foreach ($padri as $row) {
 
 
 
+    
+
+        /* Il numero in alto deve seguire subito: una carta segnata per
+           l'eliminazione sparisce dalla vista, e vederla ancora contata
+           farebbe pensare che la cancellazione non abbia funzionato. */
+        updateRowCountChip();
     }
 
 
@@ -3422,6 +3410,9 @@ foreach ($padri as $row) {
 
 
 
+    
+
+        updateRowCountChip();   // ripristinata: torna a contare
     }
 
 
@@ -4366,22 +4357,21 @@ foreach ($padri as $row) {
 
 
 
+        /* C'e' del testo selezionato in pagina? Allora il dito sta lavorando
+           sulla selezione, non sulla riga. Serve perche' i campi di questa
+           pagina non sono <textarea> ma div modificabili: il filtro qui sotto
+           non li vede, e senza questo controllo trascinare per selezionare
+           faceva scorrere la carta di lato e comparire "elimina"/"figlio". */
+        function selezioneAttiva(){
+            const s = window.getSelection ? window.getSelection() : null;
+            return !!(s && !s.isCollapsed && String(s).trim() !== '');
+        }
+        function dentroEditor(e){
+            return !!(e.target && e.target.closest &&
+                      e.target.closest('.fmt-editor-wrap, [contenteditable="true"], [contenteditable=""]'));
+        }
         function eligibleRow(e){
-
-
-
-
-
-
-
             if (!e.target || !e.target.closest) return null;
-
-
-
-
-
-
-
             if (e.target.closest('textarea, input, select, button, audio, a')) return null;
 
 
@@ -4528,6 +4518,14 @@ foreach ($padri as $row) {
 
             if (e.pointerType === 'mouse' && e.button !== 0) return;
 
+            /* Col MOUSE lo swipe non esiste. Trascinare orizzontalmente con il
+               mouse e' come si seleziona il testo, e il gesto veniva scambiato
+               per uno swipe: si finiva per rivelare i pulsanti della carta
+               mentre si stava solo evidenziando una parola. Da computer quei
+               pulsanti stanno in basso a destra nella carta (vedi il CSS), e
+               non serve nessun gesto per raggiungerli. */
+            if (e.pointerType === 'mouse') return;
+
 
 
 
@@ -4535,70 +4533,21 @@ foreach ($padri as $row) {
 
 
             const row = eligibleRow(e);
-
-
-
-
-
-
-
             if (!row) return;
-
-
-
-
-
-
-
+            const suTesto = dentroEditor(e);
+            /* Il dito si e' appoggiato su del testo gia' selezionato: sta per
+               spostare una maniglia della selezione. Non e' un gesto nostro. */
+            if (suTesto && selezioneAttiva()) return;
             const content = row.querySelector('.fc-row-content');
-
-
-
-
-
-
-
             pend = {
-
-
-
-
-
-
-
-                row, content, pointerId: e.pointerId,
-
-
-
-
-
-
-
+                row, content, pointerId: e.pointerId, suTesto,
                 startX: e.clientX, startY: e.clientY,
-
-
-
-
-
-
-
                 lastX: e.clientX, lastY: e.clientY,
-
-
-
-
-
-
-
                 swiping: false, reordering: false,
-
-
-
-
-
-
-
-                longPressTimer: setTimeout(()=>{
+                /* Dentro un campo di testo la pressione prolungata e' come si
+                   seleziona una parola: li' il riordino non si arma proprio,
+                   restano la maniglia e la fascia in alto. */
+                longPressTimer: suTesto ? null : setTimeout(()=>{
 
 
 
@@ -4839,21 +4788,14 @@ foreach ($padri as $row) {
 
 
             if (adx > SWIPE_SLOP && adx > ady * 1.8) {
-
-
-
-
-
-
-
+                /* Trascinare dentro un campo di testo mentre si sta formando
+                   una selezione e' una selezione, non uno swipe. */
+                if (pend.suTesto && selezioneAttiva()) {
+                    clearTimeout(pend.longPressTimer);
+                    pend = null;
+                    return;
+                }
                 clearTimeout(pend.longPressTimer);
-
-
-
-
-
-
-
                 pend.swiping = true;
 
 
@@ -5223,29 +5165,9 @@ foreach ($padri as $row) {
 
 
         function activateReorder(ctx){
-
-
-
-
-
-
-
             ctx.reordering = true;
-
-
-
-
-
-
-
             gestureBlock = true;
-
-
-
-
-
-
-
+            if (window.NisamaSaveBar) NisamaSaveBar.hide(true);
             buzz(12);
 
 
@@ -6055,13 +5977,7 @@ foreach ($padri as $row) {
 
 
         function finalizeReorder(ctx){
-
-
-
-
-
-
-
+            if (window.NisamaSaveBar) NisamaSaveBar.hide(false);
             stopAutoScroll();
 
 
@@ -6324,7 +6240,46 @@ foreach ($padri as $row) {
        AGGIUNGI RIGA
        ============================================================ */
 
+    /* Le carte si mostrano a blocchi di cinquanta. Prima di aggiungerne una
+       nuova bisogna avere in pagina tutte le altre: l'ordine delle carte lo
+       decide la loro posizione nell'elenco, e una carta aggiunta in fondo a un
+       elenco incompleto finirebbe in mezzo appena si mostrano le rimanenti. */
+    function assicuraTutteLeRighe(){
+        if (typeof currentRenderIndex === 'number' && currentRenderIndex < INITIAL_CARDS.length) {
+            renderNextBatch(INITIAL_CARDS.length);
+        }
+    }
+
+    /* Dal padre nasce un figlio (in fondo ai suoi figli), da un figlio nasce un
+       fratello (subito sotto, quindi con lo stesso padre). Chi sia il padre non
+       viaggia come dato: lo dice la posizione nell'elenco, ed e' cosi' anche al
+       momento del salvataggio. */
+    function addKidFrom(btn){
+        assicuraTutteLeRighe();
+        const row = btn.closest('.fc-row');
+        const isChild = isChildRow(row);
+        const dopo = isChild ? row : getBlockRows(row).pop();
+
+        const domId = Date.now();
+        const nuova = appendRowHTML({
+            domId, dbId: 0, status: 'new', origType: 'child', isChild: true,
+            q: '', a: '', qImgUrl: '', qImgName: '', aImgUrl: '', aImgName: '',
+            qAudioUrl: '', aAudioUrl: '', exCount: 0
+        }, dopo.nextElementSibling);
+
+        isDirty = true;
+        updateDirtyUI();
+        buzz(10);
+        setTimeout(()=>{
+            nuova.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const editorDiv = document.getElementById('q-desc-' + domId + '_editor');
+            if (editorDiv) editorDiv.focus({ preventScroll: true });
+        }, 80);
+        return nuova;
+    }
+
     function addRow(){
+        assicuraTutteLeRighe();
         const domId = Date.now();
         const card = {
             domId, dbId: 0, status: 'new', origType: 'parent', isChild: false,
@@ -6389,8 +6344,10 @@ function renderNextBatch(amount) {
     if (btnContainer) {
         btnContainer.style.display = (currentRenderIndex < INITIAL_CARDS.length) ? 'block' : 'none';
     }
+    /* Mostrare altre carte non e' una modifica: la fotografia si aggiorna,
+       altrimenti il salvataggio dopo le scambierebbe per un riordino. */
+    if (typeof aggiornaBaseline === 'function' && !isDirty) aggiornaBaseline();
 }
-
 function hydrateInitialCards(){
     renderNextBatch(50);
 }
@@ -6411,54 +6368,79 @@ function hydrateInitialCards(){
         window.location.href = 'visualizzazione_fc.php?category_id=' + CAT_ID;
     }
 
-    async function saveAll(){
+    /* Fotografia di com'e' fatto l'elenco adesso: serve a capire, al
+       salvataggio successivo, se e' cambiata solo la scrittura dentro le carte
+       (percorso veloce) oppure la struttura - ordine, padri, figli, carte
+       aggiunte o tolte - che invece richiede il percorso completo.
+       Prima il confronto si faceva con INITIAL_CARDS, cioe' con i dati arrivati
+       dal server al caricamento: da quando la pagina non si ricarica piu' dopo
+       un salvataggio, quei dati invecchiano e la fotografia va rifatta. */
+    let BASELINE = [];
+    function aggiornaBaseline(){
+        BASELINE = Array.from(document.querySelectorAll('#fcRows .fc-row.data-row')).map(function(r){
+            return { id: r.dataset.id, isChild: r.classList.contains('is-child') ? 1 : 0 };
+        });
+    }
+
+    /* Il salvataggio non ricarica piu' la pagina.
+       Con il salvataggio automatico un ricaricamento ogni due secondi sarebbe
+       insopportabile e farebbe perdere il punto in cui si stava scrivendo. Al
+       suo posto il server risponde con l'id vero di ogni riga inviata e la
+       pagina si allinea da sola: e' anche l'unico modo perche' una carta appena
+       creata sappia il proprio id, senza il quale non le si possono agganciare
+       esempi.
+       Restituisce true/false: e' quello che guarda la barra flottante. */
+    async function saveAll(manuale){
         try {
             if (typeof fcSyncAllEditors === 'function') fcSyncAllEditors();
 
-            // Catturiamo SOLO il bottone in alto
-            const hdrBtn = document.getElementById('hdrSaveBtn');
-
             // ==========================================
-            // AUTO-RILEVAMENTO CAMBIAMENTI STRUTTURALI
+            // STRUTTURA CAMBIATA?
             // ==========================================
+            let righe = Array.from(document.querySelectorAll('#fcRows .fc-row.data-row'));
             let haCambiatoOrdine = false;
-            const rows = document.querySelectorAll('#fcRows .fc-row.data-row');
-            
-            // Modifica: usiamo 'currentRenderIndex' per capire se sono state aggiunte/tolte righe
-            if (rows.length !== currentRenderIndex) {
+
+            if (righe.length !== BASELINE.length) {
                 haCambiatoOrdine = true;
             } else {
-                rows.forEach((row, i) => {
-                    const orig = INITIAL_CARDS[i];
+                righe.forEach((row, i) => {
+                    const orig = BASELINE[i];
                     const isChildNow = row.classList.contains('is-child') ? 1 : 0;
-                    
-                    if (!orig || row.dataset.id != orig.id_fcimg || isChildNow != orig.is_child || row.dataset.status === 'deleted') {
+                    if (!orig || row.dataset.id != orig.id || isChildNow != orig.isChild || row.dataset.status === 'deleted') {
                         haCambiatoOrdine = true;
                     }
                 });
             }
 
+            /* Il percorso completo rinumera l'ordine delle carte a partire da
+               quelle che vede: devono esserci tutte, altrimenti quelle non
+               ancora mostrate si ritroverebbero un ordine sovrapposto. */
+            if (haCambiatoOrdine && typeof currentRenderIndex === 'number' && currentRenderIndex < INITIAL_CARDS.length) {
+                renderNextBatch(INITIAL_CARDS.length);
+                righe = Array.from(document.querySelectorAll('#fcRows .fc-row.data-row'));
+            }
+
             const fd = new FormData();
             fd.append('action', 'save_big_edit');
             fd.append('category_id', CAT_ID);
+            fd.append('csrf_token', CSRF_TOKEN);
             fd.append('reordered', haCambiatoOrdine ? '1' : '0');
 
             let currentParentIndex = -1;
             let elementiModificati = 0;
             let indiceInvio = 0;
+            const inviate = [];
 
-            rows.forEach((row) => {
+            righe.forEach((row) => {
                 const status = row.dataset.status;
-                
-                // Saltiamo le righe non toccate se non c'è stato riordino strutturale
-                if (!haCambiatoOrdine && status === 'clean') return;
 
+                // Senza riordino le righe non toccate non si mandano nemmeno
+                if (!haCambiatoOrdine && status === 'clean') return;
                 if (status !== 'clean') elementiModificati++;
 
                 const isChild = row.classList.contains('is-child') ? 1 : 0;
-                if (!isChild) currentParentIndex = indiceInvio; 
-                
-                // RECUPERO CORRETTO DEI CAMPI DI TESTO TRAMITE ID
+                if (!isChild) currentParentIndex = indiceInvio;
+
                 const rid = row.dataset.rid;
                 const qInput = document.getElementById('q-desc-' + rid);
                 const aInput = document.getElementById('a-desc-' + rid);
@@ -6468,65 +6450,85 @@ function hydrateInitialCards(){
                 fd.append(`cards[${indiceInvio}][orig_type]`, row.dataset.origType);
                 fd.append(`cards[${indiceInvio}][is_child]`, isChild);
                 fd.append(`cards[${indiceInvio}][parent_idx]`, currentParentIndex);
-
-                // Se li trova prende il valore, altrimenti stringa vuota per non crashare
                 fd.append(`cards[${indiceInvio}][q]`, qInput ? qInput.value : '');
                 fd.append(`cards[${indiceInvio}][a]`, aInput ? aInput.value : '');
-
                 if (row.qNewImgFile) fd.append(`row_q_img[${indiceInvio}]`, row.qNewImgFile);
                 if (row.aNewImgFile) fd.append(`row_a_img[${indiceInvio}]`, row.aNewImgFile);
                 if (row.qAudioBlob) fd.append(`audio_q[${indiceInvio}]`, row.qAudioBlob, `q_${indiceInvio}.${row.qAudioExt}`);
                 if (row.aAudioBlob) fd.append(`audio_a[${indiceInvio}]`, row.aAudioBlob, `a_${indiceInvio}.${row.aAudioExt}`);
-                
+
+                inviate.push({ row: row, idx: indiceInvio });
                 indiceInvio++;
             });
 
             if (!haCambiatoOrdine && elementiModificati === 0) {
-                showToast('Nessuna modifica da salvare.');
-                return;
+                if (manuale) showToast('Nessuna modifica da salvare.');
+                isDirty = false;
+                updateDirtyUI();
+                return true;
             }
-
-            // Mostriamo lo spinner SOLO sul bottone in alto
-            if (hdrBtn) {
-                hdrBtn.disabled = true;
-                hdrBtn.innerHTML = '<span class="spinner" style="width:13px; height:13px; border-width:2px; display:inline-block; vertical-align:middle; margin-right:5px;"></span> Salvataggio...';
-            }
-
-            const resetButtons = () => {
-                if (hdrBtn) {
-                    hdrBtn.disabled = false;
-                    hdrBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M5 12.5 10 17l9-10"/></svg> Salva';
-                }
-            };
 
             const res = await fetch('big_edit_save_fc.php', { method: 'POST', body: fd });
             const data = await res.json();
+
             if (data.success) {
+                applicaMappa(inviate, data.map || {});
+                aggiornaBaseline();
                 isDirty = false;
-                
-                // Fermiamo lo spinner e mostriamo che è finito
-                if (hdrBtn) {
-                    hdrBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M5 12.5 10 17l9-10"/></svg> Salvato!';
-                }
-                
-                showToast('Salvataggio completato ✔');
-                setTimeout(()=> window.location.reload(), 700);
-            } else {
-                showToast('Errore durante il salvataggio: ' + (data.error || ''), 'error');
-                resetButtons();
+                updateDirtyUI();
+                if (manuale) showToast('Salvataggio completato');
+                return true;
             }
 
+            showToast('Errore durante il salvataggio: ' + (data.error || ''), 'error');
+            return false;
+
         } catch (err) {
-            // Se c'è un qualsiasi errore JS, ora lo intercettiamo e lo mostriamo
             console.error(err);
             showToast('Errore di sistema: ' + err.message, 'error');
-            
-            const hdrBtn = document.getElementById('hdrSaveBtn');
-            if (hdrBtn) {
-                hdrBtn.disabled = false;
-                hdrBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M5 12.5 10 17l9-10"/></svg> Salva';
-            }
+            return false;
         }
+    }
+
+    /* Allinea la pagina a quello che il server ha davvero scritto: le carte
+       nuove ricevono il loro id (e con l'id il pulsante degli esempi diventa
+       vero), quelle eliminate spariscono, i file gia' caricati si staccano
+       dalla riga per non essere rimandati identici al giro dopo. */
+    function applicaMappa(inviate, mappa){
+        inviate.forEach(function(v){
+            const info = mappa[v.idx];
+            if (!info) return;
+            const row = v.row;
+            if (info.type === 'deleted') { row.remove(); return; }
+
+            const eraNuova = row.dataset.status === 'new' || parseInt(row.dataset.id, 10) !== parseInt(info.id, 10);
+            row.dataset.id = info.id;
+            row.dataset.origType = info.type;
+            row.dataset.status = 'clean';
+            row.dataset.cascade = '';
+            updateStatusVisual(row);
+
+            if (eraNuova) aggiornaExChip(row, info.id);
+
+            delete row.qNewImgFile;
+            delete row.aNewImgFile;
+            delete row.qAudioBlob;
+            delete row.aAudioBlob;
+        });
+        updateRowCountChip();
+        toggleEmptyHint();
+    }
+
+    /* Finche' una carta non e' nel database non ha un id, e senza id non le si
+       possono agganciare esempi: il pulsante resta spento. Appena il
+       salvataggio le da' un id, diventa quello vero. */
+    function aggiornaExChip(row, dbId){
+        const vecchio = row.querySelector('.ex-chip');
+        if (!vecchio) return;
+        const contenitore = document.createElement('div');
+        contenitore.innerHTML = exChipHTML(row.dataset.rid, dbId, false, 0);
+        const nuovo = contenitore.firstElementChild;
+        if (nuovo) vecchio.replaceWith(nuovo);
     }
 
     window.addEventListener('beforeunload', function(e){
@@ -6536,15 +6538,18 @@ function hydrateInitialCards(){
     });
 
     hydrateInitialCards();
-
+    aggiornaBaseline();
     updateRowCountChip();
-
     toggleEmptyHint();
 
+    /* Barra flottante: pulsante sempre a portata di pollice e interruttore per
+       il salvataggio automatico. L'aggancio aspetta il caricamento perche'
+       autosave_bar.js viene incluso in fondo alla pagina, dopo questo blocco. */
+    window.addEventListener('DOMContentLoaded', function(){
+        if (window.NisamaSaveBar) NisamaSaveBar.init({ key: 'big_edit_fc', save: saveAll });
+    });
 </script>
-
 <?php include 'examples_modal.php'; ?>
-
 </body>
 
 </html>
