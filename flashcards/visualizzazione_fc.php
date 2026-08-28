@@ -622,7 +622,7 @@ foreach (sec_all($query, $par) as $row) {
 if (count($ids_array) > 0) {
 
         $ids_ph = implode(',', array_fill(0, count($ids_array), '?'));
-    foreach (sec_all("SELECT * FROM fc_child_cards WHERE parent_id IN ($ids_ph) ORDER BY custom_order ASC",
+    foreach (sec_all("SELECT *, id_child AS id FROM fc_child_cards WHERE parent_id IN ($ids_ph) ORDER BY custom_order ASC",
                      array_map('intval', $ids_array)) as $c) {
 
         $images_data[$c['parent_id']]['children'][] = $c;
@@ -633,24 +633,41 @@ if (count($ids_array) > 0) {
 
 
 
-// Conteggio esempi reali (fc_examples usa id positivi per i padri e negativi per i figli, come in game_fc.php)
+// Conteggio esempi reali: due liste separate (padri e figli), perche' ora
+// sono due colonne diverse in fc_examples (parent_id / child_id), non piu'
+// un'unica colonna con il segno a fare da spartiacque.
 
 $examples_counts = [];
 
-$lookup_ids = $ids_array;
+$child_ids = [];
 
 foreach ($images_data as $row) {
 
-    foreach ($row['children'] as $child) { $lookup_ids[] = -1 * intval($child['id']); }
+    foreach ($row['children'] as $child) { $child_ids[] = intval($child['id']); }
 
 }
 
-if (count($lookup_ids) > 0) {
+if (count($ids_array) > 0) {
 
-        $lookup_ph = implode(',', array_fill(0, count($lookup_ids), '?'));
-    foreach (sec_all("SELECT fc_image_id, COUNT(*) AS c FROM fc_examples WHERE fc_image_id IN ($lookup_ph) GROUP BY fc_image_id",
-                     array_map('intval', $lookup_ids)) as $ex) {
-        $examples_counts[(int)$ex['fc_image_id']] = (int)$ex['c'];
+    $ph = implode(',', array_fill(0, count($ids_array), '?'));
+    foreach (sec_all("SELECT parent_id, COUNT(*) AS c FROM fc_examples WHERE parent_id IN ($ph) GROUP BY parent_id",
+                     array_map('intval', $ids_array)) as $ex) {
+        $examples_counts[(int)$ex['parent_id']] = (int)$ex['c'];
+    }
+
+}
+
+if (count($child_ids) > 0) {
+
+    $ph2 = implode(',', array_fill(0, count($child_ids), '?'));
+    /* La chiave negativa resta solo come convenzione privata di QUESTO
+       array PHP, per distinguere un figlio da un padre con lo stesso
+       numero dentro un unico dizionario — render_examples_section() piu'
+       sotto la usa gia' cosi'. Non ha piu' nulla a che fare col database:
+       li' padre e figlio sono due colonne separate. */
+    foreach (sec_all("SELECT child_id, COUNT(*) AS c FROM fc_examples WHERE child_id IN ($ph2) GROUP BY child_id",
+                     array_map('intval', $child_ids)) as $ex) {
+        $examples_counts[-1 * (int)$ex['child_id']] = (int)$ex['c'];
     }
 
 }
@@ -829,7 +846,8 @@ function render_audio_player($src) {
 
 <title><?php te('fc.vis_titolo'); ?></title>
 
-
+<meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
+<script src="nisama_fetch.js"></script>
 
 <?php echo nisama_i18n_json(['comune', 'fc', 'vocab']); ?>
 <script>
@@ -1159,6 +1177,8 @@ function render_audio_player($src) {
 
 
         <form id="bulkForm" method="POST">
+
+            <input type="hidden" name="csrf_token" value="<?php echo sec_h(sec_csrf_token()); ?>">
 
             <input type="hidden" name="bulk_action" id="hiddenBulkAction">
 
@@ -2904,6 +2924,56 @@ function initPage(){
     scrollCatPathToEnd();
     setTimeout(scrollCatPathToEnd, 280);
 
+    fcLoadExampleBoxes();
+
+}
+
+/* ---------- Sezione "Esempi", sotto ogni scheda che ne ha almeno uno ----------
+   render_examples_section() (lato PHP) ha gia' deciso quali schede mostrano il
+   box e con quale conteggio; qui si va a prendere il contenuto vero via
+   examples_api.php, passando id e tipo cosi' come sono in data-fc-id/
+   data-fc-type: fc_examples ha ora due colonne separate (parent_id/
+   child_id), quindi non serve piu' nessuna conversione di segno. */
+function fcLoadExampleBoxes(root) {
+    var boxes = (root || document).querySelectorAll('.qa-examples-box[data-fc-id]');
+    boxes.forEach(function (box) {
+        var realId = parseInt(box.getAttribute('data-fc-id'), 10) || 0;
+        var type = box.getAttribute('data-fc-type') || 'parent';
+        if (!realId) return;
+
+        fetch('examples_api.php?action=get&fc_id=' + encodeURIComponent(realId) + '&fc_type=' + encodeURIComponent(type))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.success || !data.examples || !data.examples.length) return;
+                fcRenderExampleBox(box, data.examples);
+            })
+            .catch(function () { /* la scheda resta col placeholder tratteggiato */ });
+    });
+}
+
+function fcEscapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = (s == null) ? '' : String(s);
+    return d.innerHTML;
+}
+
+function fcRenderExampleBox(box, examples) {
+    var html = examples.map(function (ex) {
+        var parts = [];
+        if (ex.example_text) {
+            var htmlText = (typeof parseTextForPreview === 'function')
+                ? parseTextForPreview(ex.example_text)
+                : fcEscapeHtml(ex.example_text);
+            parts.push('<div class="qa-example-text">' + htmlText + '</div>');
+        }
+        if (ex.example_image) parts.push('<img class="qa-example-image" src="fc_images/' + fcEscapeHtml(ex.example_image) + '" alt="">');
+        if (ex.example_audio) parts.push('<audio class="qa-example-audio" src="fc_audio/' + fcEscapeHtml(ex.example_audio) + '" controls></audio>');
+        return '<div class="qa-example-item">' + parts.join('') + '</div>';
+    }).join('');
+
+    box.classList.add('qa-examples-box-filled');
+    box.innerHTML = html;
+    if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(box);
 }
 
 /* ---------- Collega progetto (tasto nel riquadro CATEGORIA) ---------- */

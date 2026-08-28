@@ -1300,29 +1300,37 @@ if (isset($_GET['category_id'])) {
 
        riscrive il pulsante dopo aver aggiunto un esempio. */
 
-    function exChipHTML(domId, dbId, isNew, exCount){
+    function exChipHTML(domId, dbId, isChild, isNew, exCount){
 
         if (isNew){
 
             return `<button type="button" class="ex-chip ex-disabled" style="background:var(--surface-3); color:var(--text-3); border:1.5px solid transparent;"
 
-                onclick="showToast('Salva la carta per darle un id: solo allora puoi aggiungerci degli esempi.')">${T('fc.befc_esempi')}</button>`;
+                onclick="showToast('Salva la carta per darle un id: solo allora puoi aggiungerci degli esempi.')"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> ${T('fc.befc_esempi')}</button>`;
 
         }
 
         const hasEx = exCount > 0;
 
-        const bg = hasEx ? '#8e24aa' : '#f1f3f5';
+        const bg = hasEx ? 'var(--purple, #AF52DE)' : '#f1f3f5';
 
         const color = hasEx ? '#fff' : '#555';
 
-        const border = hasEx ? '#8e24aa' : '#ccc';
+        const border = hasEx ? 'var(--purple, #AF52DE)' : '#ccc';
 
-        const label = hasEx ? `Esempi (${exCount})` : T('fc.exm_aggiungi');
+        const icon = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>';
 
-        return `<button type="button" id="btn-ex-${dbId}" class="ex-chip" style="background:${bg}; color:${color}; border:1.5px solid ${border};"
+        const label = hasEx ? `${icon} ${T('fc.exm_conteggio', {n: exCount})}` : T('fc.exm_aggiungi');
 
-            onclick="openExamplesModal(${dbId}, document.getElementById('q-desc-${domId}').value, document.getElementById('a-desc-${domId}').value)">${label}</button>`;
+        const tipo = isChild ? 'child' : 'parent';
+
+        // Padre e figlio hanno sequenze di id indipendenti: il prefisso p/c
+        // nell'id del bottone li tiene distinti anche se condividono per
+        // caso lo stesso numero (prima lo faceva il segno di dbId, che ora
+        // e' sempre l'id vero e positivo della riga).
+        return `<button type="button" id="btn-ex-${tipo[0]}${dbId}" class="ex-chip" style="background:${bg}; color:${color}; border:1.5px solid ${border};"
+
+            onclick="openExamplesModal(${dbId}, '${tipo}', document.getElementById('q-desc-${domId}').value, document.getElementById('a-desc-${domId}').value)">${label}</button>`;
 
     }
 
@@ -1334,7 +1342,7 @@ if (isset($_GET['category_id'])) {
 
         const contenitore = document.createElement('div');
 
-        contenitore.innerHTML = exChipHTML(row.dataset.rid, dbId, false, 0);
+        contenitore.innerHTML = exChipHTML(row.dataset.rid, dbId, isChildRow(row), false, 0);
 
         const nuovo = contenitore.firstElementChild;
 
@@ -1978,7 +1986,10 @@ if (isset($_GET['category_id'])) {
 
     function updateRowCountChip(){
 
-        const n = carteVive().length;
+        // Conta padri e figli insieme (righeVive), non solo i concetti di
+        // primo livello (carteVive): "carte" qui vuol dire ogni scheda vera
+        // e propria che verra' scritta nel database, figli compresi.
+        const n = righeVive().length;
 
         const chip = document.getElementById('row-count-chip');
 
@@ -2787,7 +2798,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
                     <span class="strip-spacer"></span>
 
-                    ${exChipHTML(id, 0, true, 0)}
+                    ${exChipHTML(id, 0, isChild, true, 0)}
 
                     <span class="strip-hint">${ICON_REORDER} Tieni premuto</span>
 

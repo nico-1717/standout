@@ -73,7 +73,7 @@
 
         // Stato attuale dei file allegati
         $old = $is_child
-            ? sec_one("SELECT * FROM fc_child_cards WHERE id = ?", [$id])
+            ? sec_one("SELECT * FROM fc_child_cards WHERE id_child = ?", [$id])
             : sec_one("SELECT * FROM fc_images WHERE id = ?", [$id]);
         if (!$old) { die(sec_h(t('fc.scheda_non_trovata'))); }
 
@@ -97,7 +97,7 @@
             mfc_togli('fc_audio', $old['question_audio'] ?? '');
             mfc_togli('fc_audio', $old['answer_audio'] ?? '');
 
-            if ($is_child) sec_q("DELETE FROM fc_child_cards WHERE id = ?", [$id]);
+            if ($is_child) sec_q("DELETE FROM fc_child_cards WHERE id_child = ?", [$id]);
             else           sec_q("DELETE FROM fc_images WHERE id = ?", [$id]);
 
             /* header('Location:') e non un blocco di codice stampato in pagina: il
@@ -110,8 +110,8 @@
         }
 
         // AZIONE SALVA
-        $quest = sec_text($_POST['quest'] ?? '', 2000);
-        $answ  = sec_text($_POST['answ'] ?? '', 2000);
+        $quest = sec_text($_POST['quest'] ?? '', 20000);
+        $answ  = sec_text($_POST['answ'] ?? '', 20000);
 
         /* Per ogni allegato: null = non toccare, '' = togliere, altrimenti il
            nome nuovo. Prima erano pezzi di SQL costruiti a mano
@@ -145,7 +145,7 @@
         foreach ($campi as $colonna => $valore) { $sets[] = "$colonna = ?"; $vals[] = $valore; }
 
         if ($is_child) {
-            sec_q("UPDATE fc_child_cards SET " . implode(', ', $sets) . " WHERE id = ?", array_merge($vals, [$id]));
+            sec_q("UPDATE fc_child_cards SET " . implode(', ', $sets) . " WHERE id_child = ?", array_merge($vals, [$id]));
         } else {
             sec_q("UPDATE fc_images SET " . implode(', ', $sets) . " WHERE id = ?", array_merge($vals, [$id]));
         }
@@ -166,6 +166,11 @@
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 
     <?php echo nisama_i18n_json(['comune', 'fc', 'vocab']); ?>
+
+<meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
+<script src="<?php echo PWA_BASE; ?>nisama_fetch.js"></script>
+<script src="<?php echo PWA_BASE; ?>fc_parser.js"></script>
+
 <script>
         window.MathJax = {
             tex: {
@@ -266,7 +271,8 @@
 
         if ($row) {
             $category_id = $is_child ? $prev_cat : $row['category_id'];
-            $ex_count = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_examples WHERE fc_image_id = ?", [$id])['c'] ?? 0);
+            $ex_col = $is_child ? 'child_id' : 'parent_id';
+            $ex_count = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_examples WHERE $ex_col = ?", [$id])['c'] ?? 0);
 
             $cancel_url = isset($_GET['return_to_game'])
                 ? "game_fc.php?game_id=" . $_GET['game_id'] . "&position=" . $_GET['position'] . "&status=" . $_GET['status'] . "&order=" . $_GET['order']
@@ -280,6 +286,8 @@
 
             <div class="page">
             <form id="editFcForm" method="POST" enctype="multipart/form-data">
+
+                <input type="hidden" name="csrf_token" value="<?php echo sec_h(sec_csrf_token()); ?>">
 
                 <input type="hidden" name="return_to_game" value="<?php echo isset($_GET['return_to_game']) ? 1 : 0; ?>">
                 <input type="hidden" name="game_id" value="<?php echo isset($_GET['game_id']) ? (int)$_GET['game_id'] : (isset($_POST['game_id']) ? (int)$_POST['game_id'] : 0); ?>">
@@ -338,12 +346,13 @@
 
                 <!-- ============== ESEMPI ============== -->
                 <section class="fc-card fc-card-tight">
+                    <?php $ex_tipo = $is_child ? 'child' : 'parent'; ?>
                     <?php if ($ex_count > 0): ?>
-                        <button type="button" class="ex-btn ex-btn-filled" onclick="openExamplesModal(<?php echo (int)$id; ?>, document.getElementById('quest').value, document.getElementById('answ').value)">
+                        <button id="btn-ex-<?php echo $ex_tipo[0]; ?><?php echo (int)$id; ?>" type="button" class="ex-btn ex-btn-filled" onclick="openExamplesModal(<?php echo (int)$id; ?>, '<?php echo $ex_tipo; ?>', document.getElementById('quest').value, document.getElementById('answ').value)">
                             <?php te('fc.mfc_gestisci_esempi'); ?> <span class="ex-badge"><?php echo (int)$ex_count; ?></span>
                         </button>
                     <?php else: ?>
-                        <button type="button" class="ex-btn ex-btn-empty" onclick="openExamplesModal(<?php echo (int)$id; ?>, document.getElementById('quest').value, document.getElementById('answ').value)">
+                        <button id="btn-ex-<?php echo $ex_tipo[0]; ?><?php echo (int)$id; ?>" type="button" class="ex-btn ex-btn-empty" onclick="openExamplesModal(<?php echo (int)$id; ?>, '<?php echo $ex_tipo; ?>', document.getElementById('quest').value, document.getElementById('answ').value)">
                             <?php te('fc.mfc_aggiungi_esempio'); ?>
                         </button>
                     <?php endif; ?>
@@ -427,7 +436,9 @@
         if (previewEl && typeof parseTextForPreview === 'function') {
             previewEl.innerHTML = parseTextForPreview(textarea.value);
             clearTimeout(mathJaxTimeouts[previewId]);
-            mathJaxTimeouts[previewId] = setTimeout(function () { fcTypesetMath([previewEl]); }, 400);
+            mathJaxTimeouts[previewId] = setTimeout(function () {
+                if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(previewEl);
+            }, 400);
         }
     }
 

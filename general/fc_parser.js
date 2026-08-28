@@ -149,7 +149,15 @@ function fcdNorm(doc) {
             if (col) li.c = col;
             out.push(li);
         } else {
-            out.push({ t: 'p', runs: runs });
+            var p = { t: 'p', runs: runs };
+            /* Un paragrafo normale puo' portare un .lvl senza diventare un
+               punto elenco: e' la riga di continuo dentro una lista, stessa
+               rientranza ma senza pallino proprio. Nessun colore qui: quello
+               vive solo sui punti elenco veri, non ha senso su una riga che
+               un pallino non lo disegna nemmeno. */
+            var lvp = parseInt(b.lvl, 10);
+            if (lvp >= 1) p.lvl = Math.min(lvp, 12);
+            out.push(p);
         }
     });
 
@@ -482,6 +490,12 @@ function fcdSplitBlock(doc, sel) {
     if (block.t === 'li' && fcdBlockLen(block) === 0) {
         if ((block.lvl | 0) > 1) { block.lvl = block.lvl - 1; return { doc: fcdNorm(doc), caret: { b: bi, o: 0 } }; }
         doc.blocks[bi] = { t: 'p', runs: [] };
+        /* La lista finisce qui: se subito dopo c'era una formula con un suo
+           pallino, allo stesso livello, anche lei smette di farne parte —
+           altrimenti "finire la lista" lascerebbe comunque un pallino
+           isolato subito sotto una riga appena tornata normale. */
+        var dopo = doc.blocks[bi + 1];
+        if (dopo && dopo.t === 'fx' && dopo.lvl) { delete dopo.lvl; delete dopo.c; }
         return { doc: fcdNorm(doc), caret: { b: bi, o: 0 } };
     }
 
@@ -747,6 +761,11 @@ function fcdBlockHTML(b) {
         if (b.c) attr += ' data-c="' + fcdEscape(b.c) + '"';
         return '<div class="fc-li"' + attr + '>' + inner + '</div>';
     }
+    /* Un paragrafo normale puo' avere un .lvl senza per questo diventare un
+       punto elenco: e' la riga di continuo dentro una lista — stessa
+       rientranza, nessun pallino proprio. Non e' un punto elenco a meta',
+       e' un a capo che sta all'altezza giusta. */
+    if (b.lvl) return '<div class="fc-p fc-p-lvl" data-lvl="' + (b.lvl | 0) + '">' + inner + '</div>';
     return '<div class="fc-p">' + inner + '</div>';
 }
 
@@ -815,6 +834,12 @@ function fcdFromDom(root) {
             b.t = 'li';
             b.lvl = parseInt(el.dataset.lvl, 10) || 1;
             if (el.dataset.c && FCD_LIST_COLORS.indexOf(el.dataset.c) !== -1) b.c = el.dataset.c;
+        } else if (el.classList && el.classList.contains('fc-p-lvl')) {
+            /* Un paragrafo comune, solo rientrato: nessun pallino, quindi
+               nessun colore da rileggere — quello vive solo sui punti
+               elenco veri. */
+            var lvp = parseInt(el.dataset.lvl, 10);
+            if (lvp >= 1) b.lvl = lvp;
         }
         inline(el, null, b.runs, null);
         return b;
@@ -1133,6 +1158,10 @@ function fcdSetSel(root, sel) {
            cresce con esso: la forma da sola non basterebbe a far vedere la
            gerarchia su un elenco lungo. */
         '.fc-li{ position:relative; padding-left:calc(1.5em + var(--fc-lvl,1) * 1.15em); min-height:1.65em; }' +
+        /* Stessa rientranza di un punto elenco, nessun pallino: la riga di
+           continuo dentro una lista, davanti a una formula puntata. */
+        '.fc-p-lvl{ padding-left:calc(1.5em + var(--fc-lvl,1) * 1.15em); }' +
+        FCD_BULLETS.map(function (_, i) { return '.fc-p-lvl[data-lvl="' + (i + 1) + '"]{ --fc-lvl:' + (i + 1) + '; }'; }).join('') +
         '.fc-li br + *, .fc-li br{ }' +
         '.fc-li::before{ content:"\\2022"; position:absolute; left:calc(var(--fc-lvl,1) * 1.15em); color:var(--fc-bullet,var(--text-2,#8A8A8E)); font-weight:700; line-height:inherit; }' +
         bul +

@@ -44,9 +44,16 @@ $chieste = array_values(array_unique($chieste));
 $valid_cats = [];
 if (!empty($chieste)) {
     $ph = implode(',', array_fill(0, count($chieste), '?'));
+    $sue = [];
     foreach (sec_all("SELECT id FROM fc_categories WHERE id IN ($ph) AND user_id = ?",
                      array_merge($chieste, [$current_user_id])) as $r) {
-        $valid_cats[] = (int)$r['id'];
+        $sue[(int)$r['id']] = true;
+    }
+    /* Si rispetta l'ordine CHIESTO, non quello in cui il database restituisce
+       le righe: e' l'ordine che l'utente ha scelto nella lista, ed e' quello
+       che decide in che sequenza usciranno le carte. */
+    foreach ($chieste as $n) {
+        if (isset($sue[$n])) $valid_cats[] = $n;
     }
 }
 
@@ -87,8 +94,100 @@ $new_game_id = sec_insert_id();
 sec_q("INSERT INTO session_durations (game_id, start_time, duration_seconds, updated_at)
        VALUES (?, NOW(), 0, NOW())", [$new_game_id]);
 
-foreach ($valid_cats as $cid) {
-    sec_q("INSERT INTO game_fc_categories (game_id, fc_category_id) VALUES (?, ?)", [$new_game_id, $cid]);
+foreach ($valid_cats as $i => $cid) {
+    sec_q("INSERT INTO game_fc_categories (game_id, fc_category_id, category_order) VALUES (?, ?, ?)",
+          [$new_game_id, $cid, $i]);
+}
+
+/* ---------------------------------------------------------------------
+   La sequenza della partita si decide QUI, una volta sola, e si scrive
+   tutta insieme in fc_gameplays.
+
+   Prima ogni posizione sceglieva la sua carta al momento della prima
+   visita: visitare una posizione era anche l'atto che la creava. Cosi'
+   era impossibile precaricare la carta successiva senza crearla in
+   anticipo, e due richieste vicine (il precaricamento e il voto che vi
+   rimanda) finivano per generarla due volte - la stessa domanda mostrata
+   due volte. Fissando la sequenza adesso, visitare una posizione diventa
+   una pura lettura, e "random" viene estratto una volta sola invece che
+   ripescato a ogni pagina.
+
+   Le partite di ripasso (quelle con parent_id, create dai risultati) non
+   passano di qui: continuano a generare le carte man mano, come prima.
+   --------------------------------------------------------------------- */
+$par_sel = [];
+if ($status === '1') {
+    $where_sel = 'i.id IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = ?)';
+    $par_sel[] = $current_user_id;
+} elseif ($status === '0') {
+    $where_sel = 'i.id NOT IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = ?)';
+    $par_sel[] = $current_user_id;
+} else {
+    $where_sel = '1=1';
+}
+
+$sql_sel = "SELECT i.id, i.answer_desc, i.is_father, i.category_id, i.custom_order
+            FROM fc_images i
+            JOIN fc_categories c ON c.id = i.category_id
+            WHERE $where_sel AND c.user_id = ?";
+$par_sel[] = $current_user_id;
+
+if (!empty($valid_cats)) {
+    $ph_sel = implode(',', array_fill(0, count($valid_cats), '?'));
+    $sql_sel .= " AND i.category_id IN ($ph_sel)";
+    $par_sel = array_merge($par_sel, $valid_cats);
+}
+
+$schede = sec_all($sql_sel, $par_sel);
+
+if (!empty($schede)) {
+    if ($order === 'random') {
+        shuffle($schede);
+    } else {
+        /* In ordine: prima la categoria (secondo la scelta dell'utente),
+           poi l'ordine personalizzato della scheda dentro la categoria. */
+        $pos_cat = array_flip($valid_cats);
+        usort($schede, function ($a, $b) use ($pos_cat) {
+            $ca = $pos_cat[(int)$a['category_id']] ?? PHP_INT_MAX;
+            $cb = $pos_cat[(int)$b['category_id']] ?? PHP_INT_MAX;
+            if ($ca !== $cb) return $ca <=> $cb;
+            return ((int)$a['custom_order']) <=> ((int)$b['custom_order']);
+        });
+    }
+
+    /* I figli di tutti i padri in una volta sola: una query, non una per
+       scheda. Stanno nella stessa posizione del loro padre. */
+    $figli_per_padre = [];
+    $ids_padri = array_map(function ($s) { return (int)$s['id']; }, $schede);
+    $ph_f = implode(',', array_fill(0, count($ids_padri), '?'));
+    foreach (sec_all("SELECT id_child, parent_id, answer_desc FROM fc_child_cards
+                      WHERE parent_id IN ($ph_f) ORDER BY custom_order ASC", $ids_padri) as $f) {
+        $figli_per_padre[(int)$f['parent_id']][] = $f;
+    }
+
+    /* Scritte a blocchi: una INSERT per riga su una partita lunga sarebbe
+       lentissima proprio nel momento in cui l'utente sta aspettando. */
+    $righe = [];
+    $posizione = 0;
+    foreach ($schede as $s) {
+        $posizione++;
+        $pid = (int)$s['id'];
+        $righe[] = [$new_game_id, $pid, null, mb_substr((string)$s['answer_desc'], 0, 100, 'UTF-8'), '', $posizione];
+
+        if ((int)$s['is_father'] === 1 && !empty($figli_per_padre[$pid])) {
+            foreach ($figli_per_padre[$pid] as $f) {
+                $righe[] = [$new_game_id, null, (int)$f['id_child'], mb_substr((string)$f['answer_desc'], 0, 100, 'UTF-8'), '', $posizione];
+            }
+        }
+    }
+
+    foreach (array_chunk($righe, 100) as $blocco) {
+        $valori = [];
+        $ph_riga = implode(',', array_fill(0, count($blocco), '(?, ?, ?, ?, ?, ?)'));
+        foreach ($blocco as $r) { $valori = array_merge($valori, $r); }
+        sec_q("INSERT INTO fc_gameplays (game_id, fc_image_id, fc_child_id, correct_answer, user_answer, position)
+               VALUES $ph_riga", $valori);
+    }
 }
 
 header("Location: game_fc.php?game_id=" . (int)$new_game_id

@@ -814,7 +814,7 @@
 
 
 
-        .raw-text mjx-container{ max-width:100%; overflow-x:auto; overflow-y:hidden; }
+        .raw-text mjx-container{ max-width:100%; overflow-x:auto; overflow-y:visible; touch-action:pan-x; }
 
 
 

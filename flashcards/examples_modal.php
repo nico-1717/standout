@@ -7,26 +7,39 @@ if (!defined('EXM_CSS')) {
     define('EXM_CSS', 1);
     echo '<link rel="stylesheet" href="' . PWA_BASE . 'examples_modal.css?v=' . (@filemtime(dirname(__FILE__) . '/examples_modal.css') ?: 1) . '">' . "\n";
 }
+if (!defined('NS_AUTOSAVE_CSS_INCLUDED')) {
+    define('NS_AUTOSAVE_CSS_INCLUDED', true);
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'autosave_bar.css?v=' . (@filemtime(dirname(__FILE__) . '/autosave_bar.css') ?: 1) . '">' . "\n";
+}
 ?>
-">
-
+<script>
+if (!document.querySelector('script[src*="fc_parser.js"]')) {
+    var __exmParserScript = document.createElement('script');
+    __exmParserScript.src = '<?php echo PWA_BASE; ?>fc_parser.js';
+    document.head.appendChild(__exmParserScript);
+}
+</script>
 
 
 <!-- MODALE: LISTA ESEMPI -->
 
 <div id="ex-list-modal" class="exm-overlay">
 
-    <div class="exm-panel">
+    <div class="exm-panel exm-panel-list">
 
-        <button class="exm-close" onclick="document.getElementById('ex-list-modal').style.display='none'" aria-label=T('comune.chiudi')>&#10005;</button>
+        <button class="exm-close" onclick="document.getElementById('ex-list-modal').style.display='none'" aria-label="<?php te('comune.chiudi'); ?>">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
 
         <h3><?php te('fc.exm_titolo'); ?></h3>
 
         <p style="color: var(--text-2, #8A8A8E); font-size: 14px; margin-top:-10px; margin-bottom:16px;"><?php te('fc.exm_sottotitolo'); ?></p>
 
-        <div id="ex-list-content" style="flex:1; max-height:50vh; overflow-y:auto; margin-bottom:16px; padding-bottom:10px;"></div>
+        <div id="ex-list-content" class="exm-list-content"></div>
 
-        <button class="exm-btn green" onclick="openExampleForm(currentFcId, 0)"><?php te('fc.exm_aggiungi_nuovo'); ?></button>
+        <button class="exm-fab" onclick="openExampleForm(currentFcId, currentFcType, 0)" aria-label="<?php te('fc.exm_aggiungi_nuovo'); ?>">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
 
     </div>
 
@@ -40,19 +53,46 @@ if (!defined('EXM_CSS')) {
 
     <div class="exm-panel">
 
-        <button class="exm-close" onclick="document.getElementById('ex-form-modal').style.display='none'" aria-label=T('comune.chiudi')>&#10005;</button>
+        <div class="exm-form-topbar">
 
-        <h3 id="ex-form-title"><?php te('fc.exm_editor'); ?></h3>
+            <span class="exm-form-title" id="ex-form-title"><?php te('fc.exm_editor'); ?></span>
 
+            <div class="exm-form-actions">
 
+                <button id="ex-delete-btn" class="exm-icon-btn exm-icon-btn-danger" style="display:none;" onclick="deleteExample()" aria-label="<?php te('comune.elimina'); ?>">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m2 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7"/></svg>
+                </button>
 
-        <div class="exm-ai-box">
+                <?php $ns_instance = 'esempi'; include 'autosave_bar.php'; unset($ns_instance); ?>
 
-            <div class="exm-ai-title"><?php te('fc.exm_genera_ia'); ?></div>
+            </div>
 
-            <textarea id="ex-ai-prompt" rows="2" onclick="this.select()"><?php te('fc.exm_genera_sub'); ?></textarea>
+            <button class="exm-icon-btn exm-close-inline" onclick="closeExampleForm()" aria-label="<?php te('comune.chiudi'); ?>">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
 
-            <button id="ex-ai-btn" class="exm-btn purple sm" style="margin-top:10px;" onclick="generateAiExample()"><?php te('fc.exm_genera_btn'); ?></button>
+        </div>
+
+        <div class="exm-ai-wrap" id="ex-ai-wrap">
+
+            <button type="button" class="exm-ai-fab" id="ex-ai-fab" onclick="toggleAiBox(true)" aria-label="<?php te('fc.exm_genera_ia'); ?>">
+                <span><?php te('fc.exm_ia_label'); ?></span>
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2.5l2 5.7 5.7 2-5.7 2-2 5.7-2-5.7-5.7-2 5.7-2 2-5.7zM19 14l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1 1.1-3z"/></svg>
+            </button>
+
+            <div class="exm-ai-box" id="ex-ai-box" style="display:none;">
+
+                <button type="button" class="exm-ai-collapse" onclick="toggleAiBox(false)" aria-label="<?php te('comune.chiudi'); ?>">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                </button>
+
+                <div class="exm-ai-title"><?php te('fc.exm_genera_ia'); ?></div>
+
+                <textarea id="ex-ai-prompt" rows="2" onclick="this.select()"><?php te('fc.exm_genera_sub'); ?></textarea>
+
+                <button id="ex-ai-btn" class="exm-ai-generate" onclick="onGenerateAiClick()"><?php te('fc.exm_genera_btn'); ?></button>
+
+            </div>
 
         </div>
 
@@ -132,14 +172,6 @@ if (!defined('EXM_CSS')) {
 
 
 
-        <div class="exm-actions">
-
-            <button id="ex-delete-btn" class="exm-btn red" style="flex:1; display:none;" onclick="deleteExample()"><?php te('comune.elimina'); ?></button>
-
-            <button id="ex-save-btn" class="exm-btn blue" style="flex:2;" onclick="saveExample()"><?php te('fc.exm_salva'); ?></button>
-
-        </div>
-
     </div>
 
 </div>
@@ -155,7 +187,11 @@ if (!defined('EXM_CSS')) {
    rispondeva 403. */
 const EXM_CSRF = <?php echo json_encode(sec_csrf_token()); ?>;
 
-let currentFcId = 0, currentExId = 0;
+const EXM_ICON_EXAMPLE = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>';
+
+let currentFcId = 0, currentFcType = 'parent', currentExId = 0;
+
+function exChipKey(id, type) { return (type === 'child' ? 'c' : 'p') + id; }
 
 let currentQ = '', currentA = '';
 
@@ -165,10 +201,12 @@ let exRecorder = null, exAudioChunks = [], exAudioBlob = null, exAudioExt = '';
 
 let exRecTimer = null, exRecSec = 0;
 
+
+
 // Il campo "Testo dell'esempio" è generato da format_toolbar.php (che crea l'input
 // nascosto e il div editabile dentro un wrapper .fmt-editor-wrap con data-field="ex_text").
 // Cerchiamo quel wrapper invece di indovinare gli id esatti dei suoi figli: è più
-// robusto e usa le stesse funzioni (fcHydrateWrap/fcSyncHiddenFor) che usa la toolbar stessa.
+// robusto e usa le stesse funzioni (ftRender/fcdParse/fcSyncAllEditors) che usa la toolbar stessa.
 function getExFormatWrap() {
     let modal = document.getElementById('ex-form-modal');
     return modal ? modal.querySelector('.fmt-editor-wrap[data-field="ex_text"]') : null;
@@ -180,15 +218,17 @@ function getExHiddenInput() {
 }
 function setExEditorText(rawText) {
     let wrap = getExFormatWrap();
-    if (wrap && typeof fcHydrateWrap === 'function') {
-        fcHydrateWrap(wrap, rawText || '');
+    if (wrap && typeof ftRender === 'function' && typeof fcdParse === 'function') {
+        ftRender(wrap, fcdParse(rawText || ''));
+        if (typeof ftMathRefresh === 'function') ftMathRefresh(wrap);
         return;
     }
-    // Fallback se il wrapper non si trova per qualche motivo: proviamo comunque
-    // a valorizzare l'hidden e il div editabile con gli id più plausibili.
+    // Fallback se il wrapper non si trova per qualche motivo (o se
+    // format_toolbar.php non fosse caricato): proviamo comunque a valorizzare
+    // l'hidden e il div editabile con gli id più plausibili.
     let hidden = getExHiddenInput();
     if (hidden) hidden.value = rawText || '';
-    let editorDiv = document.getElementById('ex_text_editor') || document.getElementById('editor_ex_text');
+    let editorDiv = (wrap && document.getElementById(wrap.dataset.editorId)) || document.getElementById('ex_text_editor');
     if (editorDiv) {
         editorDiv.innerHTML = typeof parseTextForPreview === 'function' ? parseTextForPreview(rawText || '') : (rawText || '');
     }
@@ -208,11 +248,44 @@ function fmtExTime(s) {
 
 
 
+/* ---- Pannello IA a comparsa ----
+   Chiuso di default: solo il pulsante rotondo. Un tocco apre il campo del
+   prompt e il pulsante di generazione; un altro tocco (o generare) richiude. */
+function toggleAiBox(open) {
+    document.getElementById('ex-ai-fab').style.display = open ? 'none' : '';
+    document.getElementById('ex-ai-box').style.display = open ? 'block' : 'none';
+    if (open) document.getElementById('ex-ai-prompt').focus();
+}
+
+/* ---- Salvataggio ----
+   Se ne occupa la barra vera (NisamaSaveBar, istanza "esempi"): qui restano
+   solo il segnale "qualcosa e' cambiato" e la funzione che sa davvero
+   mandare i dati al server, che le viene passata in init() piu' sotto. */
+function markExDirty() {
+    if (typeof NisamaSaveBar !== 'undefined') NisamaSaveBar.touch('esempi');
+}
+
+/* Chiude scartando le modifiche non salvate, se ce ne sono: non si salva piu'
+   nulla in questo caso, ne' subito ne' in un secondo momento (un eventuale
+   salvataggio automatico gia' in coda va cancellato). */
+function closeExampleForm() {
+    let sporco = (typeof NisamaSaveBar !== 'undefined') && NisamaSaveBar.isDirty('esempi');
+    if (sporco) {
+        if (!confirm(T('fc.exm_conferma_uscita'))) return;
+        NisamaSaveBar.discard('esempi');
+    }
+    document.getElementById('ex-form-modal').style.display = 'none';
+}
+
+
+
 function previewExImage(input) {
 
     let previewCont = document.getElementById('ex-img-preview-container');
 
     let previewImg = document.getElementById('ex-img-preview');
+
+    markExDirty();
 
     if (input.files && input.files[0]) {
 
@@ -240,15 +313,15 @@ function previewExImage(input) {
 
 
 
-async function openExamplesModal(fc_id, q_text, a_text) {
+async function openExamplesModal(fc_id, fc_type, q_text, a_text) {
 
-    currentFcId = fc_id; currentQ = q_text; currentA = a_text;
+    currentFcId = fc_id; currentFcType = fc_type; currentQ = q_text; currentA = a_text;
 
     
 
     let data;
     try {
-        let res = await fetch(`examples_api.php?action=get&fc_id=${fc_id}`);
+        let res = await fetch(`examples_api.php?action=get&fc_id=${fc_id}&fc_type=${fc_type}`);
         data = await res.json();
     } catch (e) {
         alert(T('fc.exm_errore_carica'));
@@ -265,7 +338,7 @@ async function openExamplesModal(fc_id, q_text, a_text) {
 
         currentExamplesList = [];
 
-        openExampleForm(fc_id, 0); 
+        openExampleForm(fc_id, fc_type, 0); 
 
     } else {
 
@@ -275,16 +348,16 @@ async function openExamplesModal(fc_id, q_text, a_text) {
 
         data.examples.forEach((ex, i) => {
 
-            html += `<div style="background:var(--surface-2, #F7F7FA); border-radius:18px; border:.5px solid var(--hairline-2, #ccc); padding:16px; margin-bottom:14px; position:relative;">
+            html += `<div class="exm-example-card">
 
-                <div style="font-size:11px; font-weight:800; color:var(--text-3, #888); letter-spacing:.08em; text-transform:uppercase; margin-bottom:10px;">Esempio ${i+1}</div>
+                <div class="exm-example-label">${T('fc.exm_esempio_n', {n: i + 1})}</div>
 
-                ${ex.example_text ? `<div class="raw-text" style="margin-bottom:10px; font-size:15px; color:var(--text, #111);">${typeof parseTextForPreview === 'function' ? parseTextForPreview(ex.example_text) : ex.example_text}</div>` : ''}
+                ${ex.example_text ? `<div class="raw-text exm-example-text">${typeof parseTextForPreview === 'function' ? parseTextForPreview(ex.example_text) : ex.example_text}</div>` : ''}
 
-                ${ex.example_audio ? `<audio src="fc_audio/${ex.example_audio}" controls style="width:100%; height:34px; margin-bottom:10px; border-radius:12px;"></audio>` : ''}
-                ${ex.example_image ? `<img src="fc_images/${ex.example_image}" style="max-width:100%; max-height:200px; border-radius:9px; display:block; margin-top:8px;">` : ''}
+                ${ex.example_audio ? `<audio src="fc_audio/${ex.example_audio}" controls class="exm-example-audio"></audio>` : ''}
+                ${ex.example_image ? `<img src="fc_images/${ex.example_image}" class="exm-example-image">` : ''}
 
-                <button style="position:absolute; top:12px; right:12px; background:var(--surface, #fff); color:var(--text, #333); border:none; padding:6px 12px; border-radius:99px; font-weight:700; font-size:12px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.1), inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1));" onclick="openExampleForm(${fc_id}, ${ex.id})">${T('fc.exm_modifica')}</button>
+                <button type="button" class="exm-example-edit-btn" onclick="openExampleForm(${fc_id}, '${fc_type}', ${ex.id})">${T('fc.exm_modifica')}</button>
 
             </div>`;
 
@@ -292,7 +365,7 @@ async function openExamplesModal(fc_id, q_text, a_text) {
 
         document.getElementById('ex-list-content').innerHTML = html;
 
-        if (typeof MathJax !== 'undefined') MathJax.typesetPromise([document.getElementById('ex-list-content')]);
+        if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(document.getElementById('ex-list-content'));
 
         document.getElementById('ex-list-modal').style.display = 'flex';
 
@@ -302,9 +375,9 @@ async function openExamplesModal(fc_id, q_text, a_text) {
 
 
 
-function openExampleForm(fc_id, ex_id) {
+function openExampleForm(fc_id, fc_type, ex_id) {
 
-    currentFcId = fc_id; currentExId = ex_id;
+    currentFcId = fc_id; currentFcType = fc_type; currentExId = ex_id;
 
     let title = document.getElementById('ex-form-title');
 
@@ -326,7 +399,12 @@ function openExampleForm(fc_id, ex_id) {
 
     setExEditorText('');
 
-    
+    toggleAiBox(false);
+
+    if (typeof NisamaSaveBar !== 'undefined') {
+        NisamaSaveBar.reset('esempi');
+        NisamaSaveBar.setAuto(false, 'esempi', true);
+    }
 
     player.style.display = 'none';
 
@@ -358,7 +436,7 @@ function openExampleForm(fc_id, ex_id) {
 
         title.innerText = T('fc.exm_modifica_titolo');
 
-        deleteBtn.style.display = 'block'; 
+        deleteBtn.style.display = 'flex'; 
 
         let ex = currentExamplesList.find(e => e.id == ex_id);
 
@@ -443,6 +521,8 @@ async function toggleExampleRecord() {
 
                 stream.getTracks().forEach(t => t.stop());
 
+                markExDirty();
+
             };
 
             
@@ -493,6 +573,13 @@ async function toggleExampleRecord() {
 
 let exAiTimerInterval = null;
 
+function onGenerateAiClick() {
+    let hiddenInput = getExHiddenInput();
+    let hasContent = hiddenInput && hiddenInput.value.trim() !== '';
+    if (hasContent && !confirm(T('fc.exm_conferma_sovrascrivi'))) return;
+    generateAiExample();
+}
+
 async function generateAiExample() {
 
     let btn = document.getElementById('ex-ai-btn');
@@ -505,12 +592,14 @@ async function generateAiExample() {
     let exElapsed = 0;
     let exStimaLabel = exStats.avg_seconds ? `di solito ≈ ${exStats.avg_seconds}s` : 'generazione in corso';
 
-    btn.disabled = true; btn.innerText = `⏳ 0s · ${exStimaLabel}`;
+    const exSpinnerSvg = '<svg class="exm-spin" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></svg>';
+
+    btn.disabled = true; btn.innerHTML = `${exSpinnerSvg} 0s · ${exStimaLabel}`;
 
     clearInterval(exAiTimerInterval);
     exAiTimerInterval = setInterval(() => {
         exElapsed++;
-        btn.innerText = `⏳ ${exElapsed}s · ${exStimaLabel}`;
+        btn.innerHTML = `${exSpinnerSvg} ${exElapsed}s · ${exStimaLabel}`;
     }, 1000);
 
     
@@ -531,15 +620,27 @@ async function generateAiExample() {
 
             let hiddenInput = getExHiddenInput();
 
-            let newText = data.example;
+            let newDoc = fcdParse(data.example);
 
-            if(hiddenInput && hiddenInput.value.trim() !== '') {
+            if (hiddenInput && hiddenInput.value.trim() !== '') {
 
-                newText = hiddenInput.value + "\n\n" + data.example;
+                let existingDoc = fcdParse(hiddenInput.value);
+
+                newDoc = { v: FCD_V, blocks: existingDoc.blocks.concat(newDoc.blocks) };
 
             }
 
-            setExEditorText(newText);
+            let wrap = getExFormatWrap();
+            if (wrap && typeof ftRender === 'function') {
+                ftRender(wrap, newDoc);
+                if (typeof ftMathRefresh === 'function') ftMathRefresh(wrap);
+            } else {
+                setExEditorText(data.example);
+            }
+
+            markExDirty();
+
+            toggleAiBox(false);
 
         } else if (data.error === 'limite_piano' && typeof showTokenLimitModal === 'function') {
 
@@ -558,74 +659,77 @@ async function generateAiExample() {
 
 
 
-async function saveExample() {
+/* Questa e' la funzione "save" passata a NisamaSaveBar.init() piu' sotto:
+   manuale=true quando e' stato il tasto Salva a chiamarla, false quando e'
+   l'automatico (o la sua rete di sicurezza ogni 25s) a farlo da solo. Deve
+   restituire true/false (anche come Promise) e non deve mai ricaricare la
+   pagina: ci pensa gia' NisamaSaveBar a gestire sporco/salvando/orario. */
+async function exSalvaEsempio(manuale) {
 
-    if (typeof fcSyncAllEditors === 'function') {
+    if (typeof fcSyncAllEditors === 'function') fcSyncAllEditors();
 
-        fcSyncAllEditors();
-
-    }
-
-    
-
-    let btn = document.getElementById('ex-save-btn');
-
-    let originalText = btn.innerHTML;
-
-    btn.disabled = true; btn.innerText = T('fc.exm_salvataggio');
-
-    
+    let wasNew = (currentExId === 0);
 
     let fd = new FormData();
     fd.append('action', 'save');
     fd.append('fc_id', currentFcId);
+    fd.append('fc_type', currentFcType);
     fd.append('ex_id', currentExId);
-    
     fd.append('text', getExHiddenInput() ? getExHiddenInput().value : '');
-    
+
     /* Il token va sempre, non "se per caso esiste una variabile": senza,
        sec_guard_write chiude la porta con un 403 e il salvataggio non parte. */
     fd.append('csrf_token', EXM_CSRF);
-    
+
     if (exAudioBlob) fd.append('audio', exAudioBlob, 'ex_audio.' + exAudioExt);
-    
+
     let fileInput = document.getElementById('ex-image-file');
     if (fileInput.files.length > 0) fd.append('image', fileInput.files[0]);
-
-
 
     try {
         let res = await fetch('examples_api.php', { method: 'POST', body: fd });
         let data = await res.json();
-        if(data.success) {
-            document.getElementById('ex-form-modal').style.display = 'none';
-            openExamplesModal(currentFcId, currentQ, currentA);
-            
-            let btnUI = document.getElementById('btn-ex-' + currentFcId);
-            let btnUIGraded = document.getElementById('btn-ex-graded-' + currentFcId);
-            let count = currentExamplesList.length + (currentExId === 0 ? 1 : 0);
-            
+        if (data.success) {
+            if (wasNew) currentExId = data.ex_id;
+            exAudioBlob = null;
+            fileInput.value = '';
+
+            let count = currentExamplesList.length + (wasNew ? 1 : 0);
+            let chipKey = exChipKey(currentFcId, currentFcType);
+            let btnUI = document.getElementById('btn-ex-' + chipKey);
+            let btnUIGraded = document.getElementById('btn-ex-graded-' + chipKey);
             let updateBtn = (b) => {
                 if (count > 0) {
-                    b.innerText = `💡 Esempi (${count})`;
-                    b.style.background = 'var(--purple, #8e24aa)'; b.style.color = 'white'; b.style.borderColor = 'var(--purple, #8e24aa)';
+                    b.innerHTML = `${EXM_ICON_EXAMPLE} ${T('fc.exm_conteggio', {n: count})}`;
+                    b.style.background = 'var(--purple, #AF52DE)'; b.style.color = 'white'; b.style.borderColor = 'var(--purple, #AF52DE)';
                 } else {
                     b.innerText = T('fc.exm_aggiungi');
                     b.style.background = 'var(--surface-3, #f1f3f5)'; b.style.color = 'var(--text-3, #555)'; b.style.borderColor = 'var(--hairline-2, #ccc)';
                 }
             };
-            if(btnUI) updateBtn(btnUI);
-            if(btnUIGraded) updateBtn(btnUIGraded);
+            if (btnUI) updateBtn(btnUI);
+            if (btnUIGraded) updateBtn(btnUIGraded);
+
+            if (wasNew) {
+                document.getElementById('ex-delete-btn').style.display = 'flex';
+                document.getElementById('ex-form-title').textContent = T('fc.exm_modifica_titolo');
+            }
+            return true;
         } else {
-            // Nuova gestione dell'errore
-            alert(T('fc.exm_errore_salva') + (data.error ? ": " + data.error : ""));
+            if (manuale) alert(T('fc.exm_errore_salva') + (data.error ? ": " + data.error : ""));
+            return false;
         }
-    } catch(e) { alert(T('fc.exm_errore_salva')); }
+    } catch (e) {
+        if (manuale) alert(T('fc.exm_errore_salva'));
+        return false;
+    }
 
-    
+}
 
-    btn.disabled = false; btn.innerHTML = originalText;
-
+/* Nome storico, per chi la richiama da fuori (es. una scorciatoia da tastiera):
+   un salvataggio manuale come un altro, chiesto alla barra vera. */
+function saveExample() {
+    return (typeof NisamaSaveBar !== 'undefined') ? NisamaSaveBar.saveNow('esempi') : exSalvaEsempio(true);
 }
 
 
@@ -638,9 +742,10 @@ async function deleteExample() {
 
     let btn = document.getElementById('ex-delete-btn');
 
-    let originalText = btn.innerHTML;
+    let originalHtml = btn.innerHTML;
 
-    btn.disabled = true; btn.innerText = T('fc.exm_eliminazione');
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="exm-spin" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></svg>';
 
 
 
@@ -659,15 +764,19 @@ async function deleteExample() {
 
         if(data.success) {
 
+            if (typeof NisamaSaveBar !== 'undefined') NisamaSaveBar.discard('esempi');
+
             document.getElementById('ex-form-modal').style.display = 'none';
 
-            openExamplesModal(currentFcId, currentQ, currentA);
+            openExamplesModal(currentFcId, currentFcType, currentQ, currentA);
 
             
 
-            let btnUI = document.getElementById('btn-ex-' + currentFcId);
+            let chipKey = exChipKey(currentFcId, currentFcType);
 
-            let btnUIGraded = document.getElementById('btn-ex-graded-' + currentFcId);
+            let btnUI = document.getElementById('btn-ex-' + chipKey);
+
+            let btnUIGraded = document.getElementById('btn-ex-graded-' + chipKey);
 
             let count = Math.max(0, currentExamplesList.length - 1);
 
@@ -677,9 +786,9 @@ async function deleteExample() {
 
                 if (count > 0) {
 
-                    b.innerText = `💡 Esempi (${count})`;
+                    b.innerHTML = `${EXM_ICON_EXAMPLE} ${T('fc.exm_conteggio', {n: count})}`;
 
-                    b.style.background = 'var(--purple, #8e24aa)'; b.style.color = 'white'; b.style.borderColor = 'var(--purple, #8e24aa)';
+                    b.style.background = 'var(--purple, #AF52DE)'; b.style.color = 'white'; b.style.borderColor = 'var(--purple, #AF52DE)';
 
                 } else {
 
@@ -702,14 +811,34 @@ async function deleteExample() {
 
             alert(T('fc.exm_errore_elimina') + (data.error ? ": " + data.error : ""));
 
+            btn.disabled = false; btn.innerHTML = originalHtml;
+
         }
 
-    } catch(e) { alert(T('fc.exm_errore_elimina')); }
+    } catch(e) {
+        alert(T('fc.exm_errore_elimina'));
+        btn.disabled = false; btn.innerHTML = originalHtml;
+    }
 
-    
+}
 
-    btn.disabled = false; btn.innerHTML = originalText;
+/* Ogni cambiamento nel testo dell'editor (contenteditable, quindi genera
+   davvero l'evento 'input' del browser) segna il form come da salvare. Un solo
+   ascoltatore delegato: il componente e' incluso una volta sola per pagina, ma
+   l'editor con id "ex_text_editor" e' quello generato da format_toolbar.php
+   con $ft_field = 'ex_text' qui sopra. */
+document.addEventListener('input', function (e) {
+    if (e.target && e.target.id === 'ex_text_editor') markExDirty();
+});
 
+if (typeof NisamaSaveBar !== 'undefined') {
+    NisamaSaveBar.init({
+        instance: 'esempi',
+        key: 'esempi_form',
+        save: exSalvaEsempio,
+        testoMaiSalvato: T('fc.exm_autosave_breve')
+    });
+    NisamaSaveBar.setAuto(false, 'esempi', true);
 }
 
 </script>

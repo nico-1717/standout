@@ -320,7 +320,7 @@ function renderGameCatRow($node, $level = 0) {
     function startMultiGame(){
         if (orderedCategories.length === 0) return;
 
-        let finalCatIds = orderedCategories.map(c => c.id).join('|');
+        let finalCatIds = orderedCategories.map(c => c.id).join(',');
 
         const status = document.querySelector('input[name="game_status"]:checked').value;
         const order = document.querySelector('input[name="game_order"]:checked').value;

@@ -55,9 +55,9 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
     define('FC_PARSER_JS_INCLUDED', true);
     echo "<script>
         // Controllo intelligente: inietta lo script solo se non esiste già nel DOM
-        if (!document.querySelector('script[src*=\"fc_doc.js\"]')) {
+        if (!document.querySelector('script[src*=\"fc_parser.js\"]')) {
             var script = document.createElement('script');
-            script.src = 'fc_doc.js';
+            script.src = '" . PWA_BASE . "fc_parser.js';
             document.head.appendChild(script);
         }
     </script>\n";
@@ -181,15 +181,6 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
             <!-- ---------- ELENCO ---------- -->
             <div class="fmt-panel" data-panel="list" hidden>
                 <div class="fmt-group">
-                    <!-- Il tasto che l'elenco lo crea: senza, dal pannello si
-                         possono spostare i punti ma non farne nascere uno. -->
-                    <button type="button" class="fmt-btn" data-cmd="list" title="Elenco puntato">
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="4.6" cy="6.5" r="1.35" fill="currentColor" stroke="none"/><path d="M9.5 6.5h10.4"/>
-                            <circle cx="4.6" cy="12" r="1.35" fill="currentColor" stroke="none"/><path d="M9.5 12h10.4"/>
-                            <circle cx="4.6" cy="17.5" r="1.35" fill="currentColor" stroke="none"/><path d="M9.5 17.5h10.4"/>
-                        </svg>
-                    </button>
                     <!-- Rientro a sinistra: righe e un triangolo che dice da che
                          parte va. Sono gli stessi delle tue immagini. -->
                     <button type="button" class="fmt-btn" data-cmd="outdent" title="Riduci livello elenco">
@@ -750,13 +741,25 @@ function fcClosePanel(bar) {
 }
 
 function fcOpenPanel(bar, nome) {
-    var drawer = bar.querySelector('.fmt-drawer');
     var panel = fcPanelOf(bar, nome);
-    if (!drawer || !panel) return;
+    if (!panel) return;
 
     /* Stesso tasto due volte: si richiude. Senza, un pannello aperto si
        potrebbe solo scambiare con un altro, mai chiudere. */
     if (panel.classList.contains('is-open')) { fcClosePanel(bar); return; }
+
+    fcOpenPanelForce(bar, nome);
+}
+
+/* La parte di apertura vera e propria, senza il toggle-chiusura: serve a chi
+   deve garantire che il pannello sia aperto — mai chiuderlo — a prescindere
+   da come si trovava un attimo prima. Il tasto Elenco e' il primo a
+   servirsene: creando un pallino vuole essere sicuro che il pannello si veda,
+   non rischiare di richiuderlo se per caso era gia' aperto. */
+function fcOpenPanelForce(bar, nome) {
+    var drawer = bar.querySelector('.fmt-drawer');
+    var panel = fcPanelOf(bar, nome);
+    if (!drawer || !panel) return;
 
     fcChiudiSecondo(bar);
     drawer.querySelectorAll('.fmt-panel').forEach(function (p) {
@@ -1334,6 +1337,37 @@ function ftRiconosci(parole, i, stato, vocab) {
     return migliore;
 }
 
+/* Dentro una formula una parola sola e lunga e' quasi certamente un comando
+   che il riconoscimento vocale ha incollato per sbaglio: "fine frazione" puo'
+   arrivare come un'unica parola, "fineestrazione" — la trascrizione sente due
+   parole vicine e ogni tanto ne perde il confine. Una VERA variabile
+   matematica e' quasi sempre una lettera sola, quindi una parola cosi' lunga
+   e' gia' sospetta di suo: vale la pena controllarla contro i comandi attivi
+   ANCHE incollati in una parola sola, con una tolleranza piu' larga di quella
+   di ftSomiglia — qui la posta in gioco e' piu' alta, o si indovina il
+   comando giusto o si scrive spazzatura dentro la formula. E' cio' che vuol
+   dire essere "piu' scettici" proprio qui: una parola lunga non si scrive
+   subito cosi' com'e', si controlla prima se non sia in realta' un comando
+   mancato. */
+function ftRiconosciIncollato(parola, stato, vocab) {
+    var pulita = ftSenzaAccenti(parola);
+    if (pulita.length < 6) return null;   // troppo corta per essere due parole incollate
+    var attivi = ftComandiAttivi(stato);
+    var migliore = null, migliorDist = Infinity;
+    attivi.forEach(function (chiave) {
+        var def = vocab.cmd[chiave];
+        if (!def) return;
+        def.dire.forEach(function (frase) {
+            if (frase.indexOf(' ') === -1) return;   // qui interessano solo le frasi di piu' parole
+            var incollata = ftSenzaAccenti(frase).replace(/ /g, '');
+            var d = ftDistanza(pulita, incollata);
+            var lim = Math.max(1, Math.round(incollata.length * 0.3));
+            if (d <= lim && d < migliorDist) { migliore = chiave; migliorDist = d; }
+        });
+    });
+    return migliore;
+}
+
 // ---------------------------------------------------------------
 // Traduzione in LaTeX di cio' che si dice dentro una formula
 // ---------------------------------------------------------------
@@ -1799,6 +1833,15 @@ function ftSetupDictation(wrap, bar) {
         var i = 0;
         while (i < parole.length) {
             var trovato = comandiAttivi ? ftRiconosci(parole, i, stato, v) : null;
+            /* Se qui e QUESTA parola non e' bastata a trovare un comando, ma
+               siamo dentro una formula, si prova a leggerla come se fossero
+               due parole di comando rimaste incollate (vedi sopra il
+               perche'). Solo dentro una formula: fuori, una parola lunga e'
+               semplicemente una parola, non c'e' motivo di sospettarla. */
+            if (!trovato && stato.formula && comandiAttivi) {
+                var chiaveIncollata = ftRiconosciIncollato(parole[i], stato, v);
+                if (chiaveIncollata) trovato = { chiave: chiaveIncollata, quante: 1 };
+            }
             if (trovato) {
                 svuota();
                 eseguiComando(trovato.chiave);
@@ -1823,6 +1866,11 @@ function ftSetupDictation(wrap, bar) {
         wrap.classList.remove('sta-dettando');
         chiudiProvvisorio();
         if (rec) { try { rec.stop(); } catch (e) {} }
+        /* Lingua e comandi servono solo mentre si sta dettando: spento il
+           microfono, restare aperti li' sotto sarebbe uno stato fermo a
+           meta', come un menu che continua a mostrarsi dopo aver chiuso
+           quello che lo conteneva. */
+        fcChiudiSecondo(bar);
         var doc = fcdFromDom(ed);
         var sel = fcdGetSel(ed);
         ed.innerHTML = fcdToHTML(doc);
@@ -2108,6 +2156,13 @@ function ftCmd(wrap, fn) {
     if (out.dentro) ftCaretInEmptyMath(ed, out.caret);
     if (out.dopoFormula) ftCaretDopoFormula(ed, out.caret);
     ftMathRefresh(wrap);
+
+    /* Digitare genera da solo l'evento 'input' del browser; un comando della
+       barra no, perche' scrive nel DOM direttamente. Lo generiamo a mano,
+       cosi' chi ascolta 'input' per sapere se qualcosa e' cambiato (come
+       #fcRows in big_edit_fc.php) si accorge anche di un comando e non solo
+       di quello che si digita. */
+    ed.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 /* Mette il cursore SUBITO DOPO la formula che finisce in quel punto. Chiudendo
@@ -2609,17 +2664,55 @@ function ftSetupEditor(wrap) {
                 }
             }
         }
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            /* La formattazione attiva sopravvive all'a capo. Spezzando il
-               blocco la riga nuova nasce vuota, e un blocco vuoto non puo'
-               contenere marchi: andando a capo mentre si scrive in corsivo si
-               ripartiva in tondo, come se il tasto si fosse spento da solo.
-               Si rimette com'era, esattamente come fa Word. */
-            var marchi = ftMarksAtCaret(ed);
-            ftCmd(wrap, function (doc, sel) { return fcdSplitBlock(doc, sel); });
-            if (Object.keys(marchi).length) ftInsertMarked(ed, marchi);
-            ftSync(wrap);
+        if (e.key === 'Enter') {
+            var gestitoInvio = false;
+            var selE = fcdGetSel(ed);
+            if (selE && selE.a.b === selE.f.b && selE.a.o === selE.f.o && selE.a.o === 0) {
+                var docE = fcdFromDom(ed);
+                var biE = selE.a.b;
+                var bE = docE.blocks[biE];
+                if (bE && bE.t === 'fx' && bE.lvl) {
+                    e.preventDefault();
+                    gestitoInvio = true;
+                    if (e.shiftKey) {
+                        /* Una riga di continuo: stessa altezza della lista,
+                           ma senza un pallino tutto suo — un a capo dentro
+                           lo stesso punto, non un punto nuovo. La formula
+                           resta dov'e', spostata giu' di una riga, e il
+                           cursore resta dentro di lei. */
+                        ftCmd(wrap, function (d, s) {
+                            d.blocks.splice(biE, 0, { t: 'p', lvl: bE.lvl, runs: [] });
+                            return { doc: fcdNorm(d), caret: { b: biE + 1, o: 0 } };
+                        });
+                    } else {
+                        /* Un punto elenco vero e proprio, con lo stesso
+                           pallino della formula: il cursore ci si sposta
+                           dentro, come premere invio in un punto qualunque
+                           della stessa lista — ed e' proprio questo a
+                           rendere gratuito il "doppio invio chiude la
+                           lista": il secondo invio cade su un punto vuoto,
+                           e a quello ci pensa gia' fcdSplitBlock. */
+                        ftCmd(wrap, function (d, s) {
+                            var nuovo = { t: 'li', lvl: bE.lvl, runs: [] };
+                            if (bE.c) nuovo.c = bE.c;
+                            d.blocks.splice(biE, 0, nuovo);
+                            return { doc: fcdNorm(d), caret: { b: biE, o: 0 } };
+                        });
+                    }
+                }
+            }
+            if (!gestitoInvio && !e.shiftKey) {
+                e.preventDefault();
+                /* La formattazione attiva sopravvive all'a capo. Spezzando il
+                   blocco la riga nuova nasce vuota, e un blocco vuoto non puo'
+                   contenere marchi: andando a capo mentre si scrive in corsivo si
+                   ripartiva in tondo, come se il tasto si fosse spento da solo.
+                   Si rimette com'era, esattamente come fa Word. */
+                var marchi = ftMarksAtCaret(ed);
+                ftCmd(wrap, function (doc, sel) { return fcdSplitBlock(doc, sel); });
+                if (Object.keys(marchi).length) ftInsertMarked(ed, marchi);
+                ftSync(wrap);
+            }
             return;
         }
         if (e.key === 'Tab') {
@@ -2645,16 +2738,54 @@ function ftSetupEditor(wrap) {
                 var biC = selC.a.b, oC = selC.a.o;
                 var bC = docC.blocks[biC];
 
-                /* CASO 0: il cursore e' GIA' dentro la formula a blocco, al
-                   suo stesso bordo (l'inizio, per backspace; la fine, per
-                   canc). Non c'e' niente della formula da cancellare in
-                   quella direzione: si esce verso il blocco vicino, intatta,
-                   proprio come farebbe una formula in linea (vedi caso 2, piu'
-                   sotto). Solo se non c'e' un vicino in quella direzione — la
-                   formula e' la prima o l'ultima cosa del documento — non
-                   resta altro da fare che il vecchio comportamento: scioglierla
-                   in testo modificabile, invece di restare bloccati li'. */
                 if (bC && bC.t === 'fx') {
+                    /* Se la formula ha un pallino, backspace al suo inizio lo
+                       toglie — o scala di un livello, se e' annidata — prima
+                       di pensare a qualunque altra cosa. E' lo stesso identico
+                       comportamento di un punto elenco normale: chi ha un
+                       pallino da togliere lo toglie prima di uscire da
+                       qualunque parte. Canc, guardando in avanti, non c'entra
+                       con l'inizio della formula: qui riguarda solo
+                       backspace. */
+                    if (indietro && oC === 0 && bC.lvl) {
+                        e.preventDefault();
+                        ftCmd(wrap, function (d, s) {
+                            var f = d.blocks[biC];
+                            if ((f.lvl | 0) > 1) f.lvl = f.lvl - 1;
+                            else { delete f.lvl; delete f.c; }
+                            return { doc: fcdNorm(d), caret: { b: biC, o: 0 } };
+                        });
+                        return;
+                    }
+
+                    /* CASO A: il cursore e' dentro una formula A BLOCCO vuota.
+                       Non c'e' bordo da attraversare — e' vuota, quindi
+                       backspace o canc la devono eliminare del tutto, non
+                       scavalcarla come farebbero con una formula che ha
+                       davvero un contenuto. */
+                    if (!bC.tex) {
+                        e.preventDefault();
+                        ftCmd(wrap, function (d, s) {
+                            d.blocks.splice(biC, 1);
+                            var vaSopra = indietro && biC > 0;
+                            var idxFinale = vaSopra ? biC - 1 : Math.min(biC, d.blocks.length - 1);
+                            var docNorm = fcdNorm(d);
+                            idxFinale = Math.max(0, Math.min(idxFinale, docNorm.blocks.length - 1));
+                            var lenFinale = fcdBlockLen(docNorm.blocks[idxFinale]);
+                            return { doc: docNorm, caret: { b: idxFinale, o: vaSopra ? lenFinale : 0 } };
+                        });
+                        return;
+                    }
+
+                    /* CASO 0: il cursore e' GIA' dentro la formula a blocco, al
+                       suo stesso bordo (l'inizio, per backspace; la fine, per
+                       canc). Non c'e' niente della formula da cancellare in
+                       quella direzione: si esce verso il blocco vicino, intatta,
+                       proprio come farebbe una formula in linea (vedi caso 2, piu'
+                       sotto). Solo se non c'e' un vicino in quella direzione — la
+                       formula e' la prima o l'ultima cosa del documento — non
+                       resta altro da fare che il vecchio comportamento: scioglierla
+                       in testo modificabile, invece di restare bloccati li'. */
                     var alSuoBordo = indietro ? (oC === 0) : (oC === fcdBlockLen(bC));
                     if (alSuoBordo) {
                         var viciniIdx0 = indietro ? biC - 1 : biC + 1;
@@ -2671,6 +2802,24 @@ function ftSetupEditor(wrap) {
                 }
 
                 if (bC && bC.t !== 'fx') {
+
+                    /* CASO C: una formula IN LINEA tocca questa posizione.
+                       Se e' VUOTA la si elimina del tutto (stesso discorso
+                       del CASO A, ma per una formula dentro il testo invece
+                       che a blocco): il suo "inizio" e "fine" coincidono,
+                       quindi backspace e canc arrivano qui identici e la
+                       tolgono, senza limitarsi ad attraversarne il bordo. */
+                    var fC = ftFormulaA(bC, oC);
+                    if (fC && fC.inizio === fC.fine) {
+                        e.preventDefault();
+                        ftCmd(wrap, function (d, s) {
+                            var b2 = d.blocks[biC];
+                            b2.runs.splice(fC.nRuns, 1);
+                            return { doc: fcdNorm(d), caret: { b: biC, o: fC.inizio } };
+                        });
+                        return;
+                    }
+
                     /* CASO 1: una formula A BLOCCO sta dall'altra parte del
                        confine di questo blocco. Se questo blocco e' vuoto lo
                        si toglie di mezzo; se ha del testo lo si lascia stare.
@@ -2717,7 +2866,6 @@ function ftSetupEditor(wrap) {
                        lontano da entrambi i bordi, si lascia fare al
                        browser: li' e' testo normale, un carattere alla
                        volta, esattamente come dovrebbe essere. */
-                    var fC = ftFormulaA(bC, oC);
                     if (fC) {
                         var dentroC = !!ftSpanDelCursore();
                         var alBordoEsterno = indietro ? (!dentroC && oC === fC.fine) : (!dentroC && oC === fC.inizio);
@@ -2830,6 +2978,12 @@ function ftSetupEditor(wrap) {
     ed.addEventListener('mousedown', function (e) {
         var resa = e.target.closest ? e.target.closest('.fc-resa') : null;
         if (!resa || !ed.contains(resa)) return;
+        /* Shift premuto vuol dire che si sta ESTENDENDO una selezione, non
+           cliccando per modificare: intervenire qui la spezzerebbe a meta',
+           facendo sembrare la formula immune alla selezione (e' lo stesso
+           problema gia' risolto per l'evidenziazione — questo ne era la
+           causa quando la selezione parte o passa da un clic con shift). */
+        if (e.shiftKey) return;
         e.preventDefault();
         ftMathEdita(resa, true);
     });
@@ -2986,27 +3140,31 @@ function ftSetupToolbar(wrap) {
            cambiano mentre si parla. Gli altri con un pannello fanno solo
            quello. */
         if (btn.classList.contains('fmt-tab')) {
-            var eraAperto = fcPannelloAperto(bar, btn.dataset.panel);
-            if (cmd !== 'dictate' || !fcPannelloAperto(bar, 'mic')) fcOpenPanel(bar, btn.dataset.panel);
 
-            /* Il tasto ELENCO della riga di sopra crea subito il primo
-               pallino, non si limita ad aprire il pannello sotto. Due
-               condizioni, non una sola:
-                 - solo quando il pannello si sta APRENDO, non chiudendo — il
-                   tentativo precedente lo rifaceva a ogni click, e ricliccare
-                   per chiudere il pannello toglieva anche la lista appena
-                   creata;
-                 - solo se il blocco non e' gia' un punto elenco, o si
-                   rischierebbe di toglierlo invece di lasciarlo stare. */
-            if (btn.dataset.panel === 'list' && !eraAperto) {
+            if (btn.dataset.panel === 'list') {
+                /* Frase senza pallino -> lo crea e apre il pannello (o lo
+                   lascia aperto se lo era gia'). Frase che ce l'ha gia' -> lo
+                   toglie e chiude il pannello, qualunque fosse il suo stato
+                   prima del click: e' il pallino a decidere, non il tasto. */
                 var edLi = ftEditor(wrap);
                 var selLi = fcdGetSel(edLi);
                 var docLi = fcdFromDom(edLi);
                 var bloccoLi = selLi && docLi.blocks[selLi.a.b];
-                if (!bloccoLi || bloccoLi.t !== 'li') {
-                    ftCmd(wrap, function (d, s) { return { doc: fcdToggleList(d, s), sel: s }; });
-                }
+                var eraLi = !!(bloccoLi && bloccoLi.t === 'li');
+
+                ftCmd(wrap, function (d, s) { return { doc: fcdToggleList(d, s), sel: s }; });
+
+                if (eraLi) fcClosePanel(bar);
+                else fcOpenPanelForce(bar, 'list');
+
+                return;
             }
+
+            /* Il microfono e' l'unico altro tasto che fa due cose: accende la
+               dettatura (se ne occupa il suo gestore) e apre le sue
+               impostazioni, che si cambiano mentre si parla. Gli altri con un
+               pannello fanno solo quello. */
+            if (cmd !== 'dictate' || !fcPannelloAperto(bar, 'mic')) fcOpenPanel(bar, btn.dataset.panel);
 
             if (cmd !== 'dictate') return;
         }

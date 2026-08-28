@@ -62,6 +62,68 @@
 
 }
 
+.exm-close:disabled{ opacity:.6; cursor:default; }
+
+
+
+/* Pannello della lista: il FAB "+" resta fermo in basso a destra mentre
+   #ex-list-content scorre sotto (e' lui lo scroller, non tutto il pannello). */
+.exm-panel-list{ display:flex; flex-direction:column; overflow-y:visible; }
+
+.exm-list-content{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; max-height:56vh; padding-bottom:70px; }
+
+.exm-fab{
+    position:absolute; bottom:20px; right:20px; z-index:3;
+    width:56px; height:56px; border-radius:50%; border:none; cursor:pointer; padding:0;
+    display:flex; align-items:center; justify-content:center; color:#fff;
+    background:linear-gradient(180deg, color-mix(in srgb, var(--blue, #007AFF), #fff 16%), var(--blue, #007AFF) 52%, color-mix(in srgb, var(--blue, #007AFF), #000 10%));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16), 0 10px 24px -8px rgba(0,122,255,.55);
+    transition:transform .16s cubic-bezier(.32,.72,0,1), filter .2s;
+}
+.exm-fab:active{ transform:scale(.92); filter:brightness(.95); }
+
+
+
+/* Barra fissa in alto nel form di modifica: resta visibile mentre il resto
+   del pannello scorre sotto (sticky rispetto al pannello stesso, che e' lui
+   a scorrere). Margini negativi + raggio in alto per farla toccare i bordi
+   arrotondati del pannello; top:-28px compensa il padding-top del pannello,
+   altrimenti la barra si fermerebbe 28px sotto il bordo vero. */
+.exm-form-topbar{
+    position:sticky; top:-28px; z-index:3;
+    margin:-28px -20px 16px; padding:14px 20px 12px;
+    background:var(--surface, #fff);
+    border-radius:26px 26px 0 0;
+    border-bottom:.5px solid var(--hairline-2, rgba(60,60,67,.25));
+    display:flex; align-items:center; gap:10px;
+}
+.exm-form-title{ font-size:17px; font-weight:800; letter-spacing:-.01em; color:var(--text, #1C1C1E); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.exm-form-actions{ display:flex; align-items:center; gap:10px; margin-left:auto; }
+
+.exm-icon-btn{
+    width:32px; height:32px; border-radius:50%; border:none; cursor:pointer; padding:0; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--surface-2, #EFEFF4); color:var(--text-2, #8A8A8E);
+    box-shadow:inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1));
+    transition:transform .15s cubic-bezier(.32,.72,0,1), opacity .2s;
+}
+.exm-icon-btn:active{ transform:scale(.9); }
+.exm-icon-btn:disabled{ opacity:.35; cursor:default; }
+.exm-icon-btn-danger{ color:var(--red, #FF3B30); }
+.exm-icon-btn-primary{ background:var(--blue, #007AFF); color:#fff; }
+.exm-close-inline{ margin-left:2px; }
+
+.exm-autosave-block{ display:flex; flex-direction:column; align-items:center; gap:3px; flex-shrink:0; }
+.exm-last-saved{ font-size:10px; font-weight:700; color:var(--text-3, #8A8A8E); white-space:nowrap; min-height:12px; }
+.exm-last-saved-error{ color:var(--red, #FF3B30); }
+
+.exm-switch{ display:inline-flex; align-items:center; cursor:pointer; -webkit-user-select:none; user-select:none; }
+.exm-switch input{ position:absolute; opacity:0; width:1px; height:1px; }
+.exm-switch-track{ position:relative; width:36px; height:21px; border-radius:99px; flex-shrink:0; background:var(--hairline-2, rgba(60,60,67,.3)); transition:background .2s; }
+.exm-switch-thumb{ position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .2s cubic-bezier(.32,.72,0,1); }
+.exm-switch input:checked + .exm-switch-track{ background:var(--green, #34C759); }
+.exm-switch input:checked + .exm-switch-track .exm-switch-thumb{ transform:translateX(15px); }
+
 
 
 /* Bottoni base */
@@ -94,11 +156,53 @@
 
 
 
-/* AI Box */
+/* AI: chiusa di default (solo il pulsante rotondo), si apre in un riquadro
+   grigio neutro invece del bordo tratteggiato blu e del bottone viola pieno
+   che c'erano prima. */
+.exm-ai-wrap{ position:relative; margin-bottom:18px; min-height:40px; }
 
-.exm-ai-box{ background:var(--blue-soft, rgba(0,122,255,.09)); padding:16px; border-radius:16px; border:1px dashed rgba(0,122,255,.4); margin-bottom:18px; }
+.exm-ai-fab{
+    height:34px; padding:0 14px; border-radius:99px; border:none; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--surface-2, #F7F7FA); color:var(--text, #1C1C1E);
+    font-family:inherit; font-size:13px; font-weight:800;
+    box-shadow:inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1));
+    transition:transform .15s cubic-bezier(.32,.72,0,1);
+}
+.exm-ai-fab svg{ color:var(--purple, #AF52DE); }
+.exm-ai-fab:active{ transform:scale(.95); }
 
-.exm-ai-title{ font-weight:800; color:var(--blue, #007AFF); margin-bottom:8px; font-size:14.5px; }
+.exm-ai-box{
+    position:relative; background:var(--surface-2, #F7F7FA); padding:14px;
+    border-radius:16px; box-shadow:inset 0 0 0 .5px var(--hairline-2, rgba(60,60,67,.25));
+    animation:exmAiOpen .2s cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes exmAiOpen{ from{ opacity:0; transform:scale(.96); } }
+
+.exm-ai-collapse{
+    position:absolute; top:10px; right:10px; width:24px; height:24px; border-radius:50%; padding:0;
+    border:none; cursor:pointer; background:var(--surface, #fff); color:var(--text-3, #8A8A8E);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1));
+}
+
+.exm-ai-title{ font-weight:800; color:var(--text, #1C1C1E); margin-bottom:8px; font-size:13.5px; padding-right:26px; }
+
+#ex-ai-prompt{
+    width:100%; padding:10px 12px; border:1px solid var(--hairline-2, rgba(60,60,67,.25)); border-radius:10px;
+    font-family:inherit; font-size:14.5px; color:var(--text, #1C1C1E); background:var(--surface, #fff);
+    box-sizing:border-box; resize:vertical; margin-bottom:10px; display:block;
+}
+#ex-ai-prompt:focus{ outline:none; border-color:var(--blue, #007AFF); }
+
+.exm-ai-generate{
+    width:100%; padding:11px 14px; border:none; border-radius:12px; cursor:pointer;
+    font-family:inherit; font-size:14px; font-weight:800; color:var(--blue, #007AFF);
+    background:color-mix(in srgb, var(--blue, #007AFF), transparent 90%);
+    transition:transform .15s cubic-bezier(.32,.72,0,1), filter .2s;
+}
+.exm-ai-generate:active{ transform:scale(.98); filter:brightness(.95); }
+.exm-ai-generate:disabled{ opacity:.6; cursor:default; }
 
 
 
@@ -201,6 +305,54 @@
 .exm-panel .raw-text{ font-size:15px; color:var(--text, #1C1C1E); line-height:1.5; }
 
 .exm-actions{ display:flex; gap:10px; margin-top:24px; }
+
+
+
+/* Card di un singolo esempio, nella lista di sola lettura */
+
+.exm-example-card{
+
+    background:var(--surface-2, #F7F7FA); border-radius:18px;
+
+    border:.5px solid var(--hairline-2, rgba(60,60,67,.25));
+
+    padding:16px; margin-bottom:14px; position:relative;
+
+}
+
+.exm-example-label{
+
+    font-size:11px; font-weight:800; color:var(--text-3, #8A8A8E);
+
+    letter-spacing:.08em; text-transform:uppercase; margin-bottom:10px;
+
+}
+
+.exm-example-text{ margin-bottom:10px; }
+
+.exm-example-audio{ width:100%; height:34px; margin-bottom:10px; border-radius:12px; }
+
+.exm-example-image{ max-width:100%; max-height:200px; border-radius:9px; display:block; margin-top:8px; }
+
+.exm-example-edit-btn{
+
+    position:absolute; top:12px; right:12px;
+
+    background:var(--surface, #fff); color:var(--text, #333); border:none;
+
+    padding:6px 12px; border-radius:99px; font-weight:700; font-size:12px; cursor:pointer;
+
+    box-shadow:0 1px 3px rgba(0,0,0,.1), inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1));
+
+}
+
+
+
+/* Spinner del bottone di generazione IA (al posto dell'emoji clessidra) */
+
+.exm-spin{ animation:exmSpin .8s linear infinite; vertical-align:-2px; }
+
+@keyframes exmSpin{ to{ transform:rotate(360deg); } }
 
 
 

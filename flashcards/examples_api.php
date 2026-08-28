@@ -35,38 +35,43 @@ function ex_api_json_out(array $payload): void {
 }
 
 /* Vero se la scheda e' dell'utente: la proprieta' passa dalla categoria.
-   La stessa verifica vale per le schede figlie, che ereditano dal padre. */
-/* Vero se la scheda e' dell'utente: la proprieta' passa dalla categoria.
-   La stessa verifica vale per le schede figlie, che ereditano dal padre. */
-function ex_scheda_mia(int $fcId, int $userId): bool {
+   La stessa verifica vale per le schede figlie, che ereditano dal padre.
+
+   $fcType dice a quale tabella appartiene $fcId ('parent' -> fc_images.id,
+   'child' -> fc_child_cards.id_child): un parametro esplicito invece del
+   segno di prima, che si affidava al fatto che chi chiamava se lo
+   ricordasse ovunque. Con due colonne vere in fc_examples (parent_id /
+   child_id) il tipo non serve piu' a leggere/scrivere la riga giusta, ma
+   serve ancora qui, per sapere in quale tabella cercare $fcId. */
+function ex_scheda_mia(int $fcId, string $fcType, int $userId): bool {
     if ($fcId <= 0) return false;
-    
-    // 1. Controlla se l'ID appartiene a una scheda padre
+
+    if ($fcType === 'child') {
+        $isFiglia = sec_one("SELECT ch.id_child FROM fc_child_cards ch
+                             JOIN fc_images i ON i.id = ch.parent_id
+                             JOIN fc_categories c ON c.id = i.category_id
+                             WHERE ch.id_child = ? AND c.user_id = ?", [$fcId, $userId]);
+        return $isFiglia !== null;
+    }
+
     $isPadre = sec_one("SELECT i.id FROM fc_images i
                         JOIN fc_categories c ON c.id = i.category_id
                         WHERE i.id = ? AND c.user_id = ?", [$fcId, $userId]);
-    if ($isPadre !== null) return true;
-    
-    // 2. Altrimenti controlla se l'ID appartiene a una scheda figlia
-    $isFiglia = sec_one("SELECT ch.id_child FROM fc_child_cards ch
-                         JOIN fc_images i ON i.id = ch.parent_id
-                         JOIN fc_categories c ON c.id = i.category_id
-                         WHERE ch.id_child = ? AND c.user_id = ?", [$fcId, $userId]);
-    return $isFiglia !== null;
+    return $isPadre !== null;
 }
 
-/* Vero se l'esempio appartiene a una scheda dell'utente. */
+/* Vero se l'esempio appartiene a una scheda dell'utente. Con due colonne
+   esplicite non serve decodificare niente: si guarda quale delle due non
+   e' NULL, e si passa quella a ex_scheda_mia() col tipo giusto. */
 function ex_esempio_mio(int $exId, int $userId): bool {
     if ($exId <= 0) return false;
-    
-    /* sec_one() restituisce la RIGA, non il valore: la colonna va presa per
-       nome. Prima si convertiva l'array intero con (int), che in PHP vale 1
-       sempre - quindi si finiva a controllare la scheda numero 1 e la risposta
-       era no per chiunque. */
-    $riga = sec_one("SELECT fc_image_id FROM fc_examples WHERE id = ?", [$exId]);
+
+    $riga = sec_one("SELECT parent_id, child_id FROM fc_examples WHERE id = ?", [$exId]);
     if ($riga === null) return false;
 
-    return ex_scheda_mia((int)$riga['fc_image_id'], $userId);
+    if ($riga['parent_id'] !== null) return ex_scheda_mia((int)$riga['parent_id'], 'parent', $userId);
+    if ($riga['child_id']  !== null) return ex_scheda_mia((int)$riga['child_id'], 'child', $userId);
+    return false; // riga orfana: ne' padre ne' figlio (non dovrebbe piu' potersi creare, con le FK)
 }
 
 /* Salva un allegato. Il tipo vero si legge con finfo e il nome lo genera il
@@ -89,11 +94,13 @@ $action = sec_enum($_GET['action'] ?? $_POST['action'] ?? null, ['get', 'save', 
 
 /* ---------- LETTURA ---------- */
 if ($action === 'get' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
-    $fc_id = sec_int($_GET['fc_id'] ?? 0, 1);
-    if (!ex_scheda_mia($fc_id, $current_user_id)) {
+    $fc_id   = sec_int($_GET['fc_id'] ?? 0, 1);
+    $fc_type = sec_enum($_GET['fc_type'] ?? 'parent', ['parent', 'child'], 'parent');
+    if (!ex_scheda_mia($fc_id, $fc_type, $current_user_id)) {
         ex_api_json_out(['success' => false, 'error' => t('fc.non_autorizzato_scheda')]);
     }
-    $examples = sec_all("SELECT * FROM fc_examples WHERE fc_image_id = ? ORDER BY id ASC", [$fc_id]);
+    $col = $fc_type === 'child' ? 'child_id' : 'parent_id';
+    $examples = sec_all("SELECT * FROM fc_examples WHERE $col = ? ORDER BY id ASC", [$fc_id]);
     ex_api_json_out(['success' => true, 'examples' => $examples]);
 }
 
@@ -101,9 +108,10 @@ if ($action === 'get' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
 if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     sec_guard_write($current_user_id, 'fc_examples', 0, 120, 60);
 
-    $fc_id = sec_int($_POST['fc_id'] ?? 0, 0);
-    $ex_id = sec_int($_POST['ex_id'] ?? 0, 0);
-    $text  = sec_str($_POST['text'] ?? '', 2000);
+    $fc_id   = sec_int($_POST['fc_id'] ?? 0, 0);
+    $fc_type = sec_enum($_POST['fc_type'] ?? 'parent', ['parent', 'child'], 'parent');
+    $ex_id   = sec_int($_POST['ex_id'] ?? 0, 0);
+    $text    = sec_text($_POST['text'] ?? '', 20000);
 
     /* Modifica di un esempio esistente, oppure aggiunta a una scheda: in
        entrambi i casi si verifica che la riga toccata sia sua. */
@@ -111,7 +119,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!ex_esempio_mio($ex_id, $current_user_id)) {
             ex_api_json_out(['success' => false, 'error' => t('fc.non_autorizzato_esempio')]);
         }
-    } elseif (!ex_scheda_mia($fc_id, $current_user_id)) {
+    } elseif (!ex_scheda_mia($fc_id, $fc_type, $current_user_id)) {
         ex_api_json_out(['success' => false, 'error' => t('fc.non_autorizzato_scheda')]);
     }
 
@@ -127,7 +135,8 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($ex_id > 0) {
         sec_q("UPDATE fc_examples SET " . implode(', ', $sets) . " WHERE id = ?", array_merge($vals, [$ex_id]));
     } else {
-        sec_q("INSERT INTO fc_examples (fc_image_id, example_text, example_image, example_audio)
+        $col = $fc_type === 'child' ? 'child_id' : 'parent_id';
+        sec_q("INSERT INTO fc_examples ($col, example_text, example_image, example_audio)
                VALUES (?, ?, ?, ?)", [$fc_id, $text, $img, $aud]);
         $ex_id = sec_insert_id();
     }

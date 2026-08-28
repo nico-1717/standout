@@ -29,7 +29,7 @@ $catName = (string)(sec_one("SELECT name FROM fc_categories WHERE id = ? AND use
 
 $cards = [];
 // Le carte principali (padri o indipendenti)
-$padri = sec_all("SELECT i.*, (SELECT COUNT(*) FROM fc_examples e WHERE e.fc_image_id = i.id) AS ex_count,
+$padri = sec_all("SELECT i.*, (SELECT COUNT(*) FROM fc_examples e WHERE e.parent_id = i.id) AS ex_count,
                          0 AS is_child
                   FROM fc_images i WHERE i.category_id = ? ORDER BY i.custom_order ASC", [$catID]);
 
@@ -39,7 +39,8 @@ $figliPer = [];
 if (!empty($padri)) {
     $ids = array_map(function ($r) { return (int)$r['id']; }, $padri);
     $ph  = implode(',', array_fill(0, count($ids), '?'));
-    foreach (sec_all("SELECT c.*, c.id_child AS id, 1 AS is_child, 0 AS ex_count
+    foreach (sec_all("SELECT c.*, c.id_child AS id, 1 AS is_child,
+                             (SELECT COUNT(*) FROM fc_examples e WHERE e.child_id = c.id_child) AS ex_count
                       FROM fc_child_cards c WHERE c.parent_id IN ($ph)
                       ORDER BY c.custom_order ASC", $ids) as $child) {
         $figliPer[(int)$child['parent_id']][] = $child;
@@ -333,7 +334,7 @@ foreach ($padri as $row) {
 
 <header class="app-header">
 
-    <button type="button" class="hdr-back" onclick="goBack()" aria-label=T('vocab.torna_indietro')>
+    <button type="button" class="hdr-back" onclick="goBack()" aria-label="<?php te('vocab.torna_indietro'); ?>">
 
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
 
@@ -355,7 +356,11 @@ foreach ($padri as $row) {
            l'interruttore del salvataggio automatico e l'ora dell'ultimo. */
         include 'autosave_bar.php';
         ?>
-        <div class="hdr-chip" id="row-count-chip"><?php te('fc.ibf_n_righe', ['n' => 0]); ?></div>
+        <?php /* fc.ibf_n_carte / fc.ibf_una_carta / fc.ibf_n_carte_plur: stesse
+                 chiavi nuove usate da inserimento_big_fc.php, da aggiungere al
+                 dizionario. Il conteggio (padri+figli) non cambia: cambia solo
+                 la parola, da "righe" a "carte". */ ?>
+        <div class="hdr-chip" id="row-count-chip"><?php te('fc.ibf_n_carte', ['n' => 0]); ?></div>
     </div>
 
 </header>
@@ -1327,7 +1332,13 @@ foreach ($padri as $row) {
 
 
 
-        if (chip) chip.textContent = n + T(n === 1 ? 'fc.ibf_una_riga' : 'fc.ibf_n_righe_plur', {n: n});
+        /* fc.ibf_una_carta / fc.ibf_n_carte_plur: le stesse chiavi nuove usate
+           da inserimento_big_fc.php (vedi il commento li' per il testo esatto
+           da aggiungere al dizionario in italiano e in inglese). */
+        const chiave = n === 1 ? 'fc.ibf_una_carta' : 'fc.ibf_n_carte_plur';
+        const etichetta = T(chiave, {n: n});
+        const mancante = !etichetta || etichetta === chiave || /^<<.*>>$/.test(etichetta);
+        if (chip) chip.textContent = mancante ? String(n) : (n + etichetta);
 
 
 
@@ -1553,33 +1564,37 @@ foreach ($padri as $row) {
 
 
 
-    function exChipHTML(domId, dbId, isNew, exCount){
+    function exChipHTML(domId, dbId, isChild, isNew, exCount){
 
         if (isNew){
 
             return `<button type="button" class="ex-chip ex-disabled" style="background:var(--surface-3); color:var(--text-3); border:1.5px solid transparent;"
 
-                onclick="showToast('Salva la tabella per generare un ID a questa carta e poter aggiungere esempi.')">${T('fc.befc_esempi')}</button>`;
+                onclick="showToast('Salva la tabella per generare un ID a questa carta e poter aggiungere esempi.')"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> ${T('fc.befc_esempi')}</button>`;
 
         }
 
         const hasEx = exCount > 0;
 
-        const bg = hasEx ? '#8e24aa' : '#f1f3f5';
+        const bg = hasEx ? 'var(--purple, #AF52DE)' : '#f1f3f5';
 
         const color = hasEx ? '#fff' : '#555';
 
-        const border = hasEx ? '#8e24aa' : '#ccc';
+        const border = hasEx ? 'var(--purple, #AF52DE)' : '#ccc';
 
-        const label = hasEx ? `💡 Esempi (${exCount})` : T('fc.exm_aggiungi');
+        const icon = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>';
 
-        
+        const label = hasEx ? `${icon} ${T('fc.exm_conteggio', {n: exCount})}` : T('fc.exm_aggiungi');
 
-        // Il suffisso _hidden è stato rimosso per puntare ai campi corretti della toolbar
+        const tipo = isChild ? 'child' : 'parent';
 
-        return `<button type="button" id="btn-ex-${dbId}" class="ex-chip" style="background:${bg}; color:${color}; border:1.5px solid ${border};"
+        /* Padre e figlio hanno sequenze di id indipendenti: possono condividere
+           lo stesso numero per coincidenza. Il prefisso p/c nell'id del
+           bottone li tiene distinti (prima lo faceva il segno di dbId, che
+           ora e' sempre l'id vero e positivo della riga). */
+        return `<button type="button" id="btn-ex-${tipo[0]}${dbId}" class="ex-chip" style="background:${bg}; color:${color}; border:1.5px solid ${border};"
 
-            onclick="openExamplesModal(${dbId}, document.getElementById('q-desc-${domId}').value, document.getElementById('a-desc-${domId}').value)">${label}</button>`;
+            onclick="openExamplesModal(${dbId}, '${tipo}', document.getElementById('q-desc-${domId}').value, document.getElementById('a-desc-${domId}').value)">${label}</button>`;
 
     }
 
@@ -1929,7 +1944,7 @@ foreach ($padri as $row) {
 
 
 
-                    ${exChipHTML(card.domId, card.dbId, card.status === 'new', card.exCount || 0)}
+                    ${exChipHTML(card.domId, card.dbId, card.isChild, card.status === 'new', card.exCount || 0)}
 
 
 
@@ -6526,7 +6541,7 @@ function hydrateInitialCards(){
         const vecchio = row.querySelector('.ex-chip');
         if (!vecchio) return;
         const contenitore = document.createElement('div');
-        contenitore.innerHTML = exChipHTML(row.dataset.rid, dbId, false, 0);
+        contenitore.innerHTML = exChipHTML(row.dataset.rid, dbId, isChildRow(row), false, 0);
         const nuovo = contenitore.firstElementChild;
         if (nuovo) vecchio.replaceWith(nuovo);
     }

@@ -755,11 +755,11 @@ if ($row_resume && $row_resume['resume_pos']) {
                 }
                 // Mettiamo colore e badge in base all'esito. Se vuoto = Da fare
                 if ($c['user_answer'] == 'Correct') {
-                    $oc_class = "ok"; $oc_icon = "&#10003;"; $oc_text = t('fc.res_corretto');
+                    $oc_class = "ok"; $oc_icon = "\u{2713}"; $oc_text = t('fc.res_corretto');
                 } elseif ($c['user_answer'] == 'Wrong') {
-                    $oc_class = "ko"; $oc_icon = "&#10005;"; $oc_text = t('fc.res_errato');
+                    $oc_class = "ko"; $oc_icon = "\u{2715}"; $oc_text = t('fc.res_errato');
                 } else {
-                    $oc_class = "wait"; $oc_icon = "&#9203;"; $oc_text = "Da fare";
+                    $oc_class = "wait"; $oc_icon = "\u{23F3}"; $oc_text = t('fc.res_da_fare');
                 }
             ?>
 
@@ -973,7 +973,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-            <a href="#" class="btn-continue is-done"><?php te('fc.res_categoria_finita'); ?></a>
+            <a href="#" class="btn-continue is-done"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg> <?php te('fc.res_categoria_finita'); ?></a>
 
 
 

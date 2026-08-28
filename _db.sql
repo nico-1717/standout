@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Creato il: Ago 25, 2026 alle 11:48
+-- Creato il: Ago 28, 2026 alle 14:49
 -- Versione del server: 8.0.45
 -- Versione PHP: 8.0.22
 
@@ -180,11 +180,12 @@ CREATE TABLE `fc_child_cards` (
 
 CREATE TABLE `fc_examples` (
   `id` int NOT NULL,
-  `fc_image_id` int NOT NULL,
+  `parent_id` bigint DEFAULT NULL,
+  `child_id` int DEFAULT NULL COMMENT 'fc_child_cards.id_child, se l''esempio è di un figlio',
   `example_text` text,
   `example_image` varchar(255) DEFAULT NULL,
   `example_audio` varchar(255) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ;
 
 -- --------------------------------------------------------
 
@@ -1470,7 +1471,9 @@ ALTER TABLE `fc_child_cards`
 -- Indici per le tabelle `fc_examples`
 --
 ALTER TABLE `fc_examples`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `fk_ex_parent` (`parent_id`),
+  ADD KEY `fk_ex_child` (`child_id`);
 
 --
 -- Indici per le tabelle `fc_gameplays`
@@ -2343,6 +2346,13 @@ ALTER TABLE `weather_cache`
 --
 ALTER TABLE `english_child_words`
   ADD CONSTRAINT `fk_english_child_parent` FOREIGN KEY (`parent_id`) REFERENCES `images` (`id`) ON DELETE CASCADE;
+
+--
+-- Limiti per la tabella `fc_examples`
+--
+ALTER TABLE `fc_examples`
+  ADD CONSTRAINT `fk_ex_child` FOREIGN KEY (`child_id`) REFERENCES `fc_child_cards` (`id_child`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_ex_parent` FOREIGN KEY (`parent_id`) REFERENCES `fc_images` (`id`) ON DELETE CASCADE;
 
 --
 -- Limiti per la tabella `fc_gameplays`

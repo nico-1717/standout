@@ -43,7 +43,7 @@ require_once 'azione_post.php';
    quelli non scrivono, e devono stare nella barra dell'indirizzo. */
 $azione = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $azione = sec_enum($_POST['action'] ?? null, ['grade', 'concludi', 'newsession', 'setorder'], '');
+    $azione = sec_enum($_POST['action'] ?? null, ['grade', 'concludi', 'newsession', 'setorder', 'togglelearnt'], '');
     if ($azione !== '') {
         /* Ora il metodo e' POST, quindi sec_guard_write controlla davvero il
            token oltre a limitare la frequenza. */
@@ -167,14 +167,13 @@ if ($status === 'all') {
 if ($azione === 'grade') {
     $esito = sec_enum($_POST['result'] ?? null, ['correct', 'learnt', 'wrong'], 'wrong');
     $result = ($esito === 'correct' || $esito === 'learnt') ? 'Correct' : 'Wrong';
-    /* L'id puo' essere negativo (le sotto-carte usano il negativo del proprio id),
-       quindi il minimo non e' 1. */
-    $id_to_mark = sec_int($_POST['img_id'] ?? 0, PHP_INT_MIN);
+    $id_to_mark = sec_int($_POST['img_id'] ?? 0, 1);
+    $is_child_vote = sec_bool($_POST['is_child'] ?? false);
 
     if ($esito === 'learnt') {
         $parent_to_mark = $id_to_mark;
-        if ($id_to_mark < 0) {
-            $c_row = sec_one("SELECT parent_id FROM fc_child_cards WHERE id_child = ?", [abs($id_to_mark)]);
+        if ($is_child_vote) {
+            $c_row = sec_one("SELECT parent_id FROM fc_child_cards WHERE id_child = ?", [$id_to_mark]);
             if ($c_row) { $parent_to_mark = (int)$c_row['parent_id']; }
         }
         /* La carta dev'essere sua: senza questo controllo si poteva riempire il
@@ -189,14 +188,14 @@ if ($azione === 'grade') {
 
     /* La clausola porta sempre game_id, e la partita e' gia' stata verificata
        come sua in cima al file: una riga di un'altra partita non si tocca. */
-    if ($id_to_mark > 0) {
+    if (!$is_child_vote) {
         sec_q("UPDATE fc_gameplays SET user_answer = ?, play_date = NOW()
                 WHERE game_id = ? AND position = ? AND fc_image_id = ?",
               [$result, $game_id, $position, $id_to_mark]);
     } else {
         sec_q("UPDATE fc_gameplays SET user_answer = ?, play_date = NOW()
                 WHERE game_id = ? AND position = ? AND fc_child_id = ?",
-              [$result, $game_id, $position, abs($id_to_mark)]);
+              [$result, $game_id, $position, $id_to_mark]);
     }
     // CRONOMETRO: durata della sessione corrente aggiornata a ogni risposta
     sec_q("UPDATE session_durations SET duration_seconds = TIMESTAMPDIFF(SECOND, start_time, NOW()), updated_at = NOW()
@@ -218,6 +217,40 @@ if ($azione === 'grade') {
 
     exit();
 
+}
+
+
+
+if ($azione === 'togglelearnt') {
+    header('Content-Type: application/json');
+
+    $id_to_mark = sec_int($_POST['img_id'] ?? 0, 1);
+    $is_child_vote = sec_bool($_POST['is_child'] ?? false);
+    $parent_to_mark = $id_to_mark;
+    if ($is_child_vote) {
+        $c_row = sec_one("SELECT parent_id FROM fc_child_cards WHERE id_child = ?", [$id_to_mark]);
+        if ($c_row) { $parent_to_mark = (int)$c_row['parent_id']; }
+    }
+
+    /* La carta dev'essere sua: stesso controllo che gia' c'era per il voto
+       "learnt", solo spostato qui perche' ora e' un'azione a se'. */
+    $mia = $parent_to_mark > 0 && sec_one("SELECT i.id FROM fc_images i JOIN fc_categories c ON c.id = i.category_id
+                                          WHERE i.id = ? AND c.user_id = ?", [$parent_to_mark, $user_id]);
+    if (!$mia) {
+        echo json_encode(['success' => false, 'error' => t('fc.non_autorizzato_scheda')]);
+        exit();
+    }
+
+    $gia_imparata = sec_one("SELECT 1 AS x FROM user_learnt_fc WHERE user_id = ? AND fc_image_id = ?", [$user_id, $parent_to_mark]);
+
+    if ($gia_imparata) {
+        sec_q("DELETE FROM user_learnt_fc WHERE user_id = ? AND fc_image_id = ?", [$user_id, $parent_to_mark]);
+        echo json_encode(['success' => true, 'learnt' => false]);
+    } else {
+        sec_q("INSERT IGNORE INTO user_learnt_fc (user_id, fc_image_id, learnt_date) VALUES (?, ?, CURDATE())", [$user_id, $parent_to_mark]);
+        echo json_encode(['success' => true, 'learnt' => true]);
+    }
+    exit();
 }
 
 
@@ -244,6 +277,28 @@ if ($chrono_last) {
 $gameplays = sec_all("SELECT * FROM fc_gameplays WHERE game_id = ? AND position = ?", [$game_id, $position]);
 
 
+
+if (empty($gameplays)) {
+
+    /* Due richieste possono arrivare qui insieme per la stessa posizione (il
+       precaricamento della carta successiva e il voto che vi rimanda), e la
+       carta di quella posizione non esiste ancora: la crea la prima che ci
+       passa. Senza lucchetto le supererebbero entrambe, generando la stessa
+       posizione due volte - ed e' esattamente cosi' che la stessa domanda
+       finiva per comparire due volte. */
+    $lock_name = 'nisama_fcgen_' . $game_id . '_' . $position;
+    sec_one("SELECT GET_LOCK(?, 10) AS l", [$lock_name]);
+
+    /* Rilettura DOPO il lucchetto: se e' stata l'altra richiesta a generare
+       mentre aspettavamo, ora le carte ci sono e non se ne creano altre. */
+    $gameplays = sec_all("SELECT * FROM fc_gameplays WHERE game_id = ? AND position = ?", [$game_id, $position]);
+
+    /* In quel caso il blocco di generazione qui sotto viene saltato del tutto,
+       quindi il lucchetto va liberato subito: nessun altro lo farebbe. */
+    if (!empty($gameplays)) {
+        sec_one("SELECT RELEASE_LOCK(?) AS r", [$lock_name]);
+    }
+}
 
 if (empty($gameplays)) {
 
@@ -292,7 +347,11 @@ $sql_order = ($order_param === 'in_order')
        a "?action=concludi", che ora e' un'azione POST e da un redirect non si
        puo' fare; la pulizia delle pagine vuote la fa result_fc.php quando
        calcola il punteggio. */
-    if (!$new_img) { header("Location: result_fc.php?game_id=$game_id"); exit(); }
+    if (!$new_img) {
+        sec_one("SELECT RELEASE_LOCK(?) AS r", [$lock_name]);
+        header("Location: result_fc.php?game_id=$game_id");
+        exit();
+    }
 
     
 
@@ -318,7 +377,7 @@ $sql_order = ($order_param === 'in_order')
     if ($new_img['is_father'] == 1) {
 
                 foreach (sec_all("SELECT * FROM fc_child_cards WHERE parent_id = ? ORDER BY custom_order ASC", [$img_id]) as $child) {
-            $c_id = (int)$child['id'];
+            $c_id = (int)$child['id_child'];
             $c_ans = mb_substr($child['answer_desc'], 0, 100, 'UTF-8');
 
             // MEMORIA ERRORI: questo figlio era gia' corretto?
@@ -339,11 +398,18 @@ $sql_order = ($order_param === 'in_order')
 
     }
 
+    sec_one("SELECT RELEASE_LOCK(?) AS r", [$lock_name]);
+
 }
 
 
 
 // 4. Preparazione Dati Visuali per la Pagina
+
+$learnt_ids_set = array_flip(array_column(
+    sec_all("SELECT fc_image_id FROM user_learnt_fc WHERE user_id = ?", [$user_id]),
+    'fc_image_id'
+));
 
 $cards_to_show = [];
 
@@ -374,7 +440,7 @@ foreach ($gameplays as $gp) {
 
         if($card) {
             $card['is_child'] = true;
-            $card['gameplay_idimmagine'] = -1 * $real_id; // Manteniamo compatibile il frontend JS
+            $card['gameplay_idimmagine'] = $real_id; // sempre positivo: il tipo lo dice is_child
         }
 
     }
@@ -385,10 +451,14 @@ foreach ($gameplays as $gp) {
 
         $card['user_answer'] = $gp['user_answer'];
 
-        // NUOVO: Conta quanti esempi ha questa flashcard (Usa sempre ID positivo assoluto anche per figli)
-        $lookup_ex_id = isset($gp['fc_image_id']) ? $id : -1 * $real_id;
-                $card['examples_count'] = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_examples WHERE fc_image_id = ?",
-                                                [$lookup_ex_id])['c'] ?? 0);
+        $learnt_parent_id = $card['is_child'] ? (int)($card['parent_id'] ?? 0) : (int)$card['gameplay_idimmagine'];
+        $card['learnt_parent_id'] = $learnt_parent_id;
+        $card['is_learnt'] = isset($learnt_ids_set[$learnt_parent_id]);
+
+        // Conta quanti esempi ha questa flashcard, sulla colonna giusta per il suo tipo
+        $col = $card['is_child'] ? 'child_id' : 'parent_id';
+        $card['examples_count'] = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_examples WHERE $col = ?",
+                                        [(int)$card['gameplay_idimmagine']])['c'] ?? 0);
 
         
 
@@ -568,6 +638,14 @@ foreach ($page_status as $p => $has_err) {
 
 
 
+$card_index_map = [];
+$idx_tmp = 0;
+foreach ($q_hist as $h) {
+    $idx_tmp++;
+    $chiave = $h['position'] . ':' . ($h['fc_child_id'] ? ('c' . $h['fc_child_id']) : ('p' . $h['fc_image_id']));
+    $card_index_map[$chiave] = $idx_tmp;
+}
+
 $jump_back_pos = $first_unanswered ? $first_unanswered : $furthest_page;
 
 $jump_back_card_index = $first_unanswered_card_idx ? $first_unanswered_card_idx : $card_index;
@@ -742,7 +820,11 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
          data-chrono-base="<?php echo (int)($chrono_base_seconds); ?>"
 
-         data-chrono-start="<?php echo (int)($chrono_start_ts); ?>">
+         data-chrono-start="<?php echo (int)($chrono_start_ts); ?>"
+         data-total-words="<?php echo (int)($total_words); ?>"
+         data-total-cards="<?php echo (int)($total_cards); ?>"
+         data-status="<?php echo sec_h($status); ?>"
+         data-order="<?php echo sec_h($order_param); ?>">
 
 
 
@@ -977,9 +1059,9 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                 <div id="shatter-actions" class="sheet-actions" style="display:none;">
 
-                    <a href="#" id="shatter-wrong-btn" class="btn btn-red action-btn" onclick="closeShatterModal()"><span class="gi">&#10005;</span> <?php te('fc.vg_sbagliato'); ?></a>
+                    <a href="#" id="shatter-wrong-btn" class="btn gc-wrong action-btn" onclick="closeShatterModal()" aria-label="<?php te('fc.vg_sbagliato'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
 
-                    <a href="#" id="shatter-correct-btn" class="btn btn-green action-btn" onclick="closeShatterModal()"><span class="gi">&#10003;</span> <?php te('fc.res_corretto'); ?></a>
+                    <a href="#" id="shatter-correct-btn" class="btn gc-correct action-btn" onclick="closeShatterModal()" aria-label="<?php te('fc.res_corretto'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></a>
 
                 </div>
 
@@ -1011,6 +1093,13 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
         <div id="api-slow-toast" class="api-slow-toast"><span>⏳</span><span><?php te('fc.gm_google_lente'); ?></span></div>
 
+        <div id="offlineIndicator" class="offline-indicator" style="display:none;">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.5a10 10 0 0 1 3-2.1M19 12.5a10 10 0 0 0-3.4-2.4M2 8.8a15 15 0 0 1 4-2.6M22 8.8a15 15 0 0 0-6-3.5M12 20h.01"/></svg>
+            <span><?php te('fc.gm_offline'); ?></span>
+        </div>
+
+        <div id="pendingToast" class="pending-toast"></div>
+
 
 
         <main class="feed">
@@ -1029,15 +1118,17 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                      data-card-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>"
 
+                     data-card-index="<?php echo (int)($card_index_map[$position . ':' . ($c['is_child'] ? 'c' : 'p') . $c['gameplay_idimmagine']] ?? $position); ?>"
+
                      data-qaudio="<?php echo sec_h($c['question_audio']); ?>" data-aaudio="<?php echo sec_h($c['answer_audio']); ?>"
 
                      <?php if (!$is_graded): ?>
 
                      data-swipe="1"
 
-                     data-url-wrong="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&result=wrong&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>"
+                     data-url-wrong="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=wrong&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>"
 
-                     data-url-correct="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&result=correct&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>"
+                     data-url-correct="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=correct&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>"
 
                      <?php endif; ?>>
 
@@ -1133,11 +1224,11 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                                 <?php if($c['examples_count'] > 0): ?>
 
-                                    <button id="btn-ex-<?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai has-ex" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_n_esempi', ['n' => (int)$c['examples_count']]); ?></button>
+                                    <button id="btn-ex-<?php echo $c['is_child'] ? 'c' : 'p'; ?><?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai has-ex" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, '<?php echo $c['is_child'] ? 'child' : 'parent'; ?>', <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_n_esempi', ['n' => (int)$c['examples_count']]); ?></button>
 
                                 <?php else: ?>
 
-                                    <button id="btn-ex-<?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_aggiungi_esempio'); ?></button>
+                                    <button id="btn-ex-<?php echo $c['is_child'] ? 'c' : 'p'; ?><?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, '<?php echo $c['is_child'] ? 'child' : 'parent'; ?>', <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_aggiungi_esempio'); ?></button>
 
                                 <?php endif; ?>
 
@@ -1157,41 +1248,19 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
 
 
+                            <?php $edit_param = $c['is_child'] ? 'child_id=' . abs($c['gameplay_idimmagine']) : 'fc_id=' . $c['gameplay_idimmagine']; ?>
+
+                            <button type="button" class="btn-edit-fab" onclick="event.stopPropagation(); location.href='modifica_immagine_fc.php?<?php echo sec_h($edit_param); ?>&return_to_game=1&game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>';" title="<?php te('comune.modifica'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+
                             <div class="grade-row">
 
-                                <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&result=wrong&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn btn-red action-btn"><span class="gi">&#10005;</span> <?php te('fc.vg_sbagliato'); ?></a>
+                                <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=wrong&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn gc-wrong action-btn" aria-label="<?php te('fc.vg_sbagliato'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
 
-                                <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&result=correct&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn btn-green action-btn"><span class="gi">&#10003;</span> <?php te('fc.res_corretto'); ?></a>
+                                <button type="button" class="btn gc-learnt<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
+
+                                <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=correct&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn gc-correct action-btn" aria-label="<?php te('fc.res_corretto'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></a>
 
                             </div>
-
-
-
-                            <?php if($status === '0' || $status === 'all'): ?>
-
-                                <div class="learnt-row">
-
-                                    <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&result=learnt&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn btn-learnt action-btn" style="flex:1;"><?php te('fc.gm_imparato'); ?></a>
-
-
-
-                                    <?php 
-
-                                    // Creiamo il parametro URL corretto a seconda che sia Padre (fc_id) o Figlio (child_id) convertendo il negativo in positivo
-
-                                    $edit_param = $c['is_child'] ? 'child_id=' . abs($c['gameplay_idimmagine']) : 'fc_id=' . $c['gameplay_idimmagine']; 
-
-                                    ?>
-
-
-
-                                    <a href="modifica_immagine_fc.php?<?php echo sec_h($edit_param); ?>&return_to_game=1&game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" 
-
-                                    class="btn btn-edit action-btn" title="<?php te('comune.modifica'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
-
-                                </div>
-
-                            <?php endif; ?>
 
 
 
@@ -1265,11 +1334,11 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                                 <?php if($c['examples_count'] > 0): ?>
 
-                                    <button id="btn-ex-graded-<?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai has-ex" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_n_esempi', ['n' => (int)$c['examples_count']]); ?></button>
+                                    <button id="btn-ex-graded-<?php echo $c['is_child'] ? 'c' : 'p'; ?><?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai has-ex" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, '<?php echo $c['is_child'] ? 'child' : 'parent'; ?>', <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_n_esempi', ['n' => (int)$c['examples_count']]); ?></button>
 
                                 <?php else: ?>
 
-                                    <button id="btn-ex-graded-<?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_aggiungi_esempio'); ?></button>
+                                    <button id="btn-ex-graded-<?php echo $c['is_child'] ? 'c' : 'p'; ?><?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, '<?php echo $c['is_child'] ? 'child' : 'parent'; ?>', <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_aggiungi_esempio'); ?></button>
 
                                 <?php endif; ?>
 
@@ -2908,7 +2977,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                     modalContent.innerHTML = parseTextForPreview(textData.text);
 
-                    if (typeof MathJax !== 'undefined') MathJax.typesetPromise([modalContent]);
+                    if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(modalContent);
 
                     
 
@@ -3182,15 +3251,15 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                     // Applica LaTeX se presente
 
-                    if (typeof MathJax !== 'undefined') MathJax.typesetPromise([contentDiv]);
+                    if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(contentDiv);
 
 
 
                     // Copia magicamente gli URL T('fc.lbl_corretto') e "Sbagliato" della flashcard originale!
 
-                    let wrongUrl = document.querySelector('#ans-section-' + index + ' a.btn-red').href;
+                    let wrongUrl = document.querySelector('#ans-section-' + index + ' a.gc-wrong').href;
 
-                    let correctUrl = document.querySelector('#ans-section-' + index + ' a.btn-green').href;
+                    let correctUrl = document.querySelector('#ans-section-' + index + ' a.gc-correct').href;
 
                     
 
@@ -3235,20 +3304,20 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
         // ==========================================
         function renderAllRawTexts() {
             try {
-                let mathNodes = [];
+                let nodes = [];
                 document.querySelectorAll('.raw-text').forEach(function(el) {
                     let rawData = el.getAttribute('data-raw');
                     if (rawData !== null) {
                         el.innerHTML = parseTextForPreview(rawData);
-                        mathNodes.push(el); // Salviamo solo gli elementi appena aggiornati
+                        nodes.push(el); // Salviamo solo gli elementi appena aggiornati
                     }
                 });
-                
-                // Aggiorniamo MathJax in modo sicuro e isolato
-                if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
-                    MathJax.typesetPromise(mathNodes).catch(function(err) {
-                        console.warn("MathJax typeset in coda...", err);
-                    });
+
+                // fcdDisegnaFormule avvolge il LaTeX grezzo nei delimitatori
+                // \( \)/\[ \] e SOLO DOPO chiama MathJax: chiamare MathJax
+                // direttamente su testo senza delimitatori non fa nulla.
+                if (typeof fcdDisegnaFormule === 'function') {
+                    nodes.forEach(function (el) { fcdDisegnaFormule(el); });
                 }
             } catch (error) {
                 console.error("Errore nel rendering dei testi:", error);
@@ -3647,7 +3716,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                 if (!azione) return { url: url, post: null };
 
                 var post = { action: azione };
-                ['result', 'img_id'].forEach(function (k) {
+                ['result', 'img_id', 'is_child'].forEach(function (k) {
                     var v = u.searchParams.get(k);
                     if (v !== null) { post[k] = v; u.searchParams.delete(k); }
                 });
@@ -3655,7 +3724,249 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                 return { url: u.pathname + (u.search ? u.search : '') , post: post };
             }
 
-            function navigateTo (url, opts) {
+            var __prefetchCache = {};   // url normalizzato -> {promise, html, resUrl}
+
+function prefetchGet (url) {
+    if (!url) return;
+    if (__prefetchCache[url]) return;   // gia' in corso o gia' pronta
+    var entry = { html: null, resUrl: null };
+    entry.promise = fetch(url, { method: 'GET', redirect: 'manual' }).then(function (res) {
+        /* Oltre l'ultima carta il server rimanda a result_fc.php. Seguire quel
+           redirect qui vorrebbe dire caricare la pagina dei risultati - che fa
+           pulizia dei dati - mentre si sta ancora giocando. Si scarta e basta:
+           quando ci si arrivera' per davvero, navigateTo fara' la richiesta
+           normale e seguira' il redirect come si deve. */
+        if (res.type === 'opaqueredirect' || res.redirected) {
+            delete __prefetchCache[url];
+            return;
+        }
+        return res.text().then(function (html) { entry.html = html; entry.resUrl = res.url; });
+    }).catch(function () {
+        delete __prefetchCache[url];   // fallita: si puo' ritentare piu' avanti
+    });
+    __prefetchCache[url] = entry;
+}
+
+/* Precarica avanti e indietro per questa posizione. Non dipende in alcun modo
+   dal voto che si dara' qui: il gestore di action=grade fa solo un redirect a
+   position+1 (o resta sulla stessa posizione se ci sono altri fratelli da
+   valutare) - la scelta della carta a position+1 e' la STESSA identica
+   funzione che gira sia arrivandoci votando sia navigando avanti a mano,
+   quindi si puo' precaricare gia' ora, mentre si sta ancora leggendo. */
+function schedulePrefetch () {
+    /* Ora e' sicuro: la sequenza della partita viene fissata tutta insieme
+       all'avvio (start_game_fc.php), quindi visitare una posizione e' una
+       pura lettura e precaricarla non crea piu' nessuna riga. */
+    var c = curC();
+    if (!c) return;
+    prefetchGet(c.getAttribute('data-back-url'));
+    prefetchGet(c.getAttribute('data-forward-url'));
+}
+
+/* ========================================================================
+   RESILIENZA OFFLINE: un voto mandato in background che fallisce NON deve
+   sparire nel nulla. Resta in una coda salvata in localStorage (sopravvive
+   anche chiudendo la scheda), mostra un pallino grigio sulla barra al posto
+   giusto, e si ritenta da solo appena torna la connessione (o comunque ogni
+   pochi secondi come rete di sicurezza).
+   ======================================================================== */
+
+var GAME_ID_PER_CODA = <?php echo (int)$game_id; ?>;
+var PENDING_KEY = 'nisama_pending_grades_' + GAME_ID_PER_CODA;
+
+function loadPendingGrades () {
+    try {
+        var raw = localStorage.getItem(PENDING_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch (e) { return {}; }
+}
+function savePendingGrades () {
+    try { localStorage.setItem(PENDING_KEY, JSON.stringify(pendingGrades)); } catch (e) { /* modalita' privata: pazienza */ }
+}
+var pendingGrades = loadPendingGrades();   // chiave "position:imgId" -> {url, position, cardIndex}
+
+/* L'icona "manca la connessione" non deve comparire per un rallentamento
+   passeggero: solo se i tentativi falliscono da un po'. */
+var OFFLINE_SHOW_AFTER_MS = 8000;
+var offlineSince = null;
+var offlineShowTimer = null;
+
+function noteGradeFailure () {
+    if (!offlineSince) {
+        offlineSince = Date.now();
+        clearTimeout(offlineShowTimer);
+        offlineShowTimer = setTimeout(function () {
+            if (offlineSince) setOfflineIndicator(true);
+        }, OFFLINE_SHOW_AFTER_MS);
+    }
+}
+function noteGradeSuccess () {
+    offlineSince = null;
+    clearTimeout(offlineShowTimer);
+    setOfflineIndicator(false);
+}
+function setOfflineIndicator (mostra) {
+    var el = document.getElementById('offlineIndicator');
+    if (el) el.style.display = mostra ? 'flex' : 'none';
+}
+
+var pendingToastTimer = null;
+function showPendingToast (messaggio) {
+    var el = document.getElementById('pendingToast');
+    if (!el) return;
+    el.textContent = messaggio || T('fc.gm_in_attesa_salvataggio');
+    el.classList.add('show');
+    clearTimeout(pendingToastTimer);
+    pendingToastTimer = setTimeout(function () { el.classList.remove('show'); }, 3200);
+}
+
+/* Aggiunge (se non c'e' gia') il pallino grigio sulle barre di progresso per
+   questa voce in sospeso. Sulla barra "carte" serve l'indice giusto - se non
+   lo conosciamo (carta non piu' in pagina) si salta quella barra piuttosto
+   che piazzarlo nel punto sbagliato. */
+function addPendingDot (entry) {
+    var c = curC();
+    if (!c) return;
+    var totalWords = parseInt(c.getAttribute('data-total-words') || '0', 10) || 1;
+    var totalCards = parseInt(c.getAttribute('data-total-cards') || '0', 10) || totalWords;
+    var bars = document.querySelectorAll('.progress-bar-bg');
+
+    bars.forEach(function (bar, i) {
+        if (bar.querySelector('.dot-pending[data-pending-key="' + entry.key + '"]')) return;
+        var isCardsBar = (i === 1);
+        if (isCardsBar && !entry.cardIndex) return;   // non sappiamo dove metterlo: meglio ometterlo che sbagliare
+        var total = isCardsBar ? totalCards : totalWords;
+        var idx = isCardsBar ? entry.cardIndex : entry.position;
+        var percent = ((idx - 0.5) / total) * 100;
+
+        var a = document.createElement('a');
+        a.href = 'game_fc.php?game_id=' + GAME_ID_PER_CODA + '&position=' + entry.position + '&status=' + (c.getAttribute('data-status') || '0') + '&order=' + (c.getAttribute('data-order') || 'random');
+        a.className = 'dot dot-gray dot-pending';
+        a.setAttribute('data-pending-key', entry.key);
+        a.style.left = percent + '%';
+        a.title = T('fc.gm_in_attesa_salvataggio');
+        a.addEventListener('click', function () { showPendingToast(); }, true);
+        bar.appendChild(a);
+    });
+}
+function removePendingDots (key) {
+    document.querySelectorAll('.dot-pending[data-pending-key="' + key + '"]').forEach(function (el) { el.remove(); });
+}
+function renderAllPendingDots () {
+    Object.keys(pendingGrades).forEach(function (key) { addPendingDot(pendingGrades[key]); });
+}
+
+/* Un solo punto che manda davvero la richiesta POST del voto, usato sia dal
+   primo tentativo sia da ogni riprova successiva. */
+function inviaVotoRichiesta (entry) {
+    var sp = splitAzione(entry.url);
+    if (!sp.post) return Promise.resolve(true);
+    var fd = new FormData();
+    Object.keys(sp.post).forEach(function (k) { fd.append(k, sp.post[k]); });
+    fd.append('csrf_token', NISAMA_CSRF);
+    return fetch(sp.url, { method: 'POST', body: fd, headers: { 'X-CSRF-Token': NISAMA_CSRF }, redirect: 'manual' })
+        .then(function (res) {
+            /* Una risposta "opaca" e' proprio il caso buono: il server ha
+               accettato il voto e ha risposto con un redirect, che qui non
+               vogliamo seguire. Solo se il tipo NON e' questo si guarda ok. */
+            if (res.type === 'opaqueredirect') return true;
+            if (!res.ok) throw new Error('risposta HTTP ' + res.status);
+            return true;
+        });
+}
+
+function retryPendingGrades () {
+    var keys = Object.keys(pendingGrades);
+    keys.forEach(function (key) {
+        var entry = pendingGrades[key];
+        inviaVotoRichiesta(entry).then(function () {
+            noteGradeSuccess();
+            delete pendingGrades[key];
+            savePendingGrades();
+            removePendingDots(key);
+        }).catch(function () {
+            noteGradeFailure();   // resta in coda: si ritenta al prossimo giro
+        });
+    });
+}
+window.addEventListener('online', retryPendingGrades);
+setInterval(retryPendingGrades, 7000);
+
+function inviaVotoConCoda (url, cardIndex) {
+    var sp = splitAzione(url);
+    if (!sp.post) return;
+    var position = 0;
+    try { position = parseInt(new URL(url, window.location.href).searchParams.get('position'), 10) || 0; } catch (e) {}
+    var key = position + ':' + (sp.post.img_id || '');
+    var entry = { key: key, url: url, position: position, cardIndex: cardIndex || 0 };
+
+    inviaVotoRichiesta(entry).then(function () {
+        noteGradeSuccess();
+    }).catch(function (err) {
+        console.error('[voto] invio fallito, verra\' ritentato automaticamente', err);
+        noteGradeFailure();
+        pendingGrades[key] = entry;
+        savePendingGrades();
+        addPendingDot(entry);
+    });
+}
+
+/* "Imparato" e' indipendente dal voto: non fa avanzare la carta, funziona
+   anche rivedendo una carta gia' valutata, e si puo' sia accendere sia
+   spegnere. Una chiamata leggera, senza passare da navigateTo(). */
+function toggleLearnt (btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+
+    var fd = new FormData();
+    fd.append('action', 'togglelearnt');
+    fd.append('img_id', btn.getAttribute('data-learnt-id'));
+    fd.append('is_child', btn.getAttribute('data-is-child') || '0');
+    fd.append('csrf_token', NISAMA_CSRF);
+
+    fetch('game_fc.php', { method: 'POST', body: fd, headers: { 'X-CSRF-Token': NISAMA_CSRF } })
+        .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+        .then(function (data) {
+            if (!data.success) throw new Error(data.error || 'errore');
+            btn.setAttribute('aria-pressed', data.learnt ? 'true' : 'false');
+            btn.classList.toggle('is-active', data.learnt);
+            if (data.learnt) {
+                btn.classList.remove('pop');
+                void btn.offsetWidth;   // riavvia l'animazione anche se era gia' stata fatta poco prima
+                btn.classList.add('pop');
+            }
+        })
+        .catch(function (err) {
+            console.error('[imparato] non salvato', err);
+            if (typeof showPendingToast === 'function') showPendingToast(T('fc.gm_imparato_errore'));
+        })
+        .then(function () { btn.disabled = false; });
+}
+
+/* Se questa e' l'ultima carta non ancora valutata a questa posizione, il voto
+   fara' sicuramente avanzare a position+1 - e quale carta sia non dipende in
+   alcun modo dall'esito appena dato (il gestore di action=grade fa solo un
+   redirect, la selezione della carta e' la stessa identica funzione sia
+   arrivandoci votando sia navigando avanti a mano). Percio' si puo' mostrare
+   subito quella gia' precaricata, mandando il voto per davvero ma senza
+   aspettarne la risposta. Se ci sono altri fratelli ancora da valutare in
+   questa posizione, invece, si resta con il percorso sicuro: bisogna sapere
+   davvero cosa dice il server, perche' potrebbe restare qui. */
+function gradeAndAdvance (url, feedbackPromise, cardIndex) {
+    var curContainer = curC();
+    var ungraded = curContainer ? curContainer.querySelectorAll('.card-box:not(.graded)').length : 2;
+    var fwdUrl = curContainer ? curContainer.getAttribute('data-forward-url') : null;
+
+    if (ungraded <= 1 && fwdUrl) {
+        prefetchGet(fwdUrl);
+        inviaVotoConCoda(url, cardIndex);
+        feedbackPromise.then(function () { navigateTo(fwdUrl); });
+    } else {
+        feedbackPromise.then(function () { navigateTo(url, { cardIndex: cardIndex }); });
+    }
+}
+
+function navigateTo (url, opts) {
                 opts = opts || {};
                 if (navLock) return;
                 navLock = true;
@@ -3671,6 +3982,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                 /* Se c'e' un'azione, la richiesta diventa un POST con il token. */
                 var sp = splitAzione(url);
+                var urlOriginale = url;
                 var richiesta = { method: 'GET' };
                 if (sp.post) {
                     var fd = new FormData();
@@ -3680,15 +3992,29 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                 }
                 url = sp.url;
 
-                fetch(url, richiesta).then(function (res) {
+                var pref = !sp.post ? __prefetchCache[url] : null;
+                delete __prefetchCache[url];
 
-                    if (res.url && res.url.indexOf('result_fc.php') !== -1) { window.location.href = res.url; return null; }
+                function richiestaNormale () {
+                    return fetch(url, richiesta).then(function (res) {
+                        if (!res.ok) throw new Error('risposta HTTP ' + res.status);
+                        return res.text().then(function (html) { return { res: res, html: html }; });
+                    });
+                }
 
-                    return res.text().then(function (html) { return { res: res, html: html }; });
+                var richiestaPromise = pref
+                    ? pref.promise.then(function () {
+                        /* Precaricamento scartato (un redirect, o fallito): si
+                           riparte da capo con una richiesta normale, senza che
+                           l'utente se ne accorga. */
+                        if (pref.html === null) return richiestaNormale();
+                        return { res: { url: pref.resUrl }, html: pref.html };
+                    })
+                    : richiestaNormale();
 
-                }).then(function (pack) {
+                richiestaPromise.then(function (pack) {
 
-                    if (!pack) return;
+                    if (pack.res.url && pack.res.url.indexOf('result_fc.php') !== -1) { window.location.href = pack.res.url; return; }
 
                     var doc = new DOMParser().parseFromString(pack.html, 'text/html');
 
@@ -3782,6 +4108,10 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                     renderAllRawTexts();
 
+                    schedulePrefetch();
+
+                    renderAllPendingDots();
+
                     setTimeout(checkAutoPlayQuestion, 300);
 
                     maybeCoach();
@@ -3798,7 +4128,33 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                 }).catch(function () {
 
-                    window.location.href = url;
+                    oldC.style.pointerEvents = '';
+
+                    navLock = false;
+
+                    if (sp.post) {
+
+                        var posCatch = 0;
+
+                        try { posCatch = parseInt(new URL(sp.url, window.location.href).searchParams.get('position'), 10) || 0; } catch (e) {}
+
+                        var keyCatch = posCatch + ':' + (sp.post.img_id || '');
+
+                        pendingGrades[keyCatch] = { key: keyCatch, url: urlOriginale, position: posCatch, cardIndex: opts.cardIndex || 0 };
+
+                        savePendingGrades();
+
+                        addPendingDot(pendingGrades[keyCatch]);
+
+                        noteGradeFailure();
+
+                        showPendingToast();
+
+                    } else {
+
+                        window.location.href = url;
+
+                    }
 
                 });
 
@@ -3844,7 +4200,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                     var card = link.closest('.card-box');
 
-                    gradeFeedback(card, result).then(function () { navigateTo(link.href); });
+                    gradeAndAdvance(link.href, gradeFeedback(card, result), parseInt(card.getAttribute('data-card-index') || '0', 10));
 
                 } else {
 
@@ -4064,7 +4420,11 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                     s.card.style.opacity = '0';
 
-                    setTimeout(function () { navigateTo(url); }, 140);
+                    setTimeout(function () {
+
+                        gradeAndAdvance(url, new Promise(function (resolve) { resolve(); }), parseInt(s.card.getAttribute('data-card-index') || '0', 10));
+
+                    }, 140);
 
                 } else {
 
@@ -4364,7 +4724,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                             e.preventDefault();
 
-                            gradeFeedback(card, good ? 'correct' : 'wrong').then(function () { navigateTo(url); });
+                            gradeAndAdvance(url, gradeFeedback(card, good ? 'correct' : 'wrong'), parseInt(card.getAttribute('data-card-index') || '0', 10));
 
                         }
 
@@ -4445,6 +4805,12 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                 setTimeout(syncHeader, 250);
 
                 try { renderAllRawTexts(); } catch (e) {}
+
+                schedulePrefetch();
+
+                renderAllPendingDots();
+
+                retryPendingGrades();
 
                 cardsIn(curC());
 
