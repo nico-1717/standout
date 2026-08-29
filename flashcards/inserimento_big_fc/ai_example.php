@@ -9,6 +9,7 @@ $__raw_input = file_get_contents('php://input');
 require_once 'config.php';
 require_once 'auth_check_api.php';
 require_once 'piano_helpers.php';
+require_once 'fc_ai_formato.php'; // riparazione automatica del formato, condivisa con fc_ai.php
 
 ob_start();
 
@@ -76,6 +77,9 @@ per formattarlo: per cose importanti: /bold{testo}, /underline{testo}. per aggiu
 -- primo sottopunto
 }
 3. FORMULE LATEX: Il LaTeX in riga va tra $ $ e quello isolato tra $$$$. Non mettere mai punteggiatura attaccata a$$. FARE L'ESCAPE DOPPIO di ogni backslash (es. \\\\frac, \\\\to).
+Ogni $ che apri deve chiudersi con un altro $ prima di continuare a scrivere altro testo: un $ dimenticato trasforma tutto cio' che scrivi dopo in una formula, fino al prossimo $ che trovi per caso.
+Dentro una formula ($...$ o $$...$$) non va MAI un tag di formattazione (niente /red{}, /bold{} eccetera): la formattazione dentro le formule non e' supportata e la riga si rompe. Se un pezzo deve risaltare, scrivilo in LaTeX puro, senza colore.
+Per le formule usa solo $ e $$, mai \\( \\) ne' \\[ \\].
 
 L'output deve essere un JSON valido con questa struttura:
 { \"example\": \"Testo dell'esempio qui...\" }";
@@ -138,8 +142,18 @@ if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
     if ($jsonObj && isset($jsonObj['example'])) {
         $token_usati = isset($responseData['usageMetadata']['totalTokenCount']) ? (int)$responseData['usageMetadata']['totalTokenCount'] : 300;
         nisama_incrementa_uso($utente_corrente['id'], 'token', $token_usati);
-        
-        echo json_encode(['success' => true, 'example' => $jsonObj['example']]);
+
+        /* Prima di mandarlo in pagina, si ripara: un $ dimenticato o un
+           colore scritto dentro una formula (es. "$= /red{0.5}$", che
+           Gemini scrive spesso nonostante le istruzioni sopra) altrimenti
+           arrivano cosi' come sono, e la formula si rompe in pagina — con
+           tanto di errore del motore che la renderizza mostrato all'utente.
+           E' una riparazione locale, gratis: non richiama l'IA, non spende
+           altri token, e non rifiuta l'esempio per un problema che si
+           sistema da solo. */
+        $example = fc_ai_ripara_formato((string)$jsonObj['example']);
+
+        echo json_encode(['success' => true, 'example' => $example]);
     } else {
         echo json_encode(['success' => false, 'error' => 'Formato JSON inatteso o rotto.', 'raw' => $testo_grezzo]);
     }

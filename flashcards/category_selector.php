@@ -166,7 +166,7 @@ if (!isset($cs_title)) $cs_title = t('fc.cs_seleziona_materia');
 
 if (!isset($cs_show_all_option)) $cs_show_all_option = false;
 
-if (!isset($cs_all_option_label)) $cs_all_option_label = T('fc.cs_tutte_materie');
+if (!isset($cs_all_option_label)) $cs_all_option_label = t('fc.cs_tutte_materie');
 
 if (!isset($cs_allow_create)) $cs_allow_create = true;
 
@@ -491,7 +491,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
             <h3 class="cs-sheet-title"><?php echo sec_h($cs_title); ?></h3>
 
-            <button type="button" class="cs-nav-btn" data-cs-mode="close" aria-label=T('comune.chiudi')>
+            <button type="button" class="cs-nav-btn" data-cs-mode="close" aria-label="<?php echo sec_h(t('comune.chiudi')); ?>">
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
 
@@ -509,9 +509,9 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
 
-                    <input type="text" class="cs-search-input" placeholder=T('fc.cs_cerca_materia') autocomplete="off">
+                    <input type="text" class="cs-search-input" placeholder="<?php echo sec_h(t('fc.cs_cerca_materia')); ?>" autocomplete="off">
 
-                    <button type="button" class="cs-search-clear" aria-label=T('fc.cs_cancella_ricerca')>
+                    <button type="button" class="cs-search-clear" aria-label="<?php echo sec_h(t('fc.cs_cancella_ricerca')); ?>">
 
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
 
@@ -553,7 +553,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                 <?php if ($cs_allow_create): ?>
 
-                <button type="button" class="cs-fab" data-cs-fab aria-label=T('fc.cs_aggiungi_materia')>
+                <button type="button" class="cs-fab" data-cs-fab aria-label="<?php echo sec_h(t('fc.cs_aggiungi_materia')); ?>">
 
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
 
@@ -575,7 +575,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                         <label><?php te('fc.cs_nome_materia'); ?></label>
 
-                        <input type="text" class="cs-name-input" placeholder=T('fc.cs_es_nome')>
+                        <input type="text" class="cs-name-input" placeholder="<?php echo sec_h(t('fc.cs_es_nome')); ?>">
 
                     </div>
 
@@ -591,13 +591,13 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
                             'cs_id' => $cs_nested_parent_uid,
 
-                            'cs_placeholder' => T('fc.cs_nessuna_padre'),
+                            'cs_placeholder' => t('fc.cs_nessuna_padre'),
 
-                            'cs_title' => T('fc.cs_categoria_padre_t'),
+                            'cs_title' => t('fc.cs_categoria_padre_t'),
 
                             'cs_show_all_option' => true,
 
-                            'cs_all_option_label' => T('fc.cs_nessuna_padre'),
+                            'cs_all_option_label' => t('fc.cs_nessuna_padre'),
 
                             'cs_allow_create' => false,
 

@@ -378,6 +378,17 @@ if (isset($_GET['category_id'])) {
 
 <header class="app-header">
 
+    <?php /* Ritorno alla categoria su cui si sta lavorando. E' un link vero e
+             non un window.history.back(): arrivando qui da un'altra pagina (o
+             da un ricaricamento) la storia del browser porterebbe altrove,
+             mentre la categoria e' sempre quella. L'id lo scrive il JS appena
+             il selettore ne ha uno: prima di allora il link torna all'elenco
+             delle categorie, che e' comunque il posto giusto. */ ?>
+    <a class="hdr-back" id="hdrBack" href="visualizzazione_fc.php" aria-label="Torna alla categoria">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>
+    </a>
+
+
 
 
 
@@ -438,6 +449,24 @@ if (isset($_GET['category_id'])) {
     <div class="hdr-chip" id="row-count-chip"><?php te('fc.ibf_n_carte', ['n' => 0]); ?></div>
 
 </header>
+
+<?php /* Popup "modifiche non salvate" per la freccia indietro. Riusa le
+         classi .fcai-modale del pannello IA (gia' caricate su questa pagina)
+         invece di scriverne di nuove: tre pulsanti invece di due, la stessa
+         forma. */ ?>
+<div class="fcai-modale" id="uscitaModale" hidden>
+    <div class="fcai-modale-scheda">
+        <div class="fcai-modale-tit">
+            <b><?php te('fc.ibf_uscire_titolo'); ?></b>
+            <span><?php te('fc.ibf_uscire_testo'); ?></span>
+        </div>
+        <div class="fcai-modale-piede">
+            <button type="button" class="btn btn-ghost btn-sm" id="uscitaAnnulla"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="btn btn-ghost btn-sm" id="uscitaSenzaSalvare"><?php te('fc.ibf_esci_lo_stesso'); ?></button>
+            <button type="button" class="btn btn-primary btn-sm" id="uscitaSalva"><?php te('fc.ibf_salva_ed_esci'); ?></button>
+        </div>
+    </div>
+</div>
 
 
 
@@ -523,45 +552,6 @@ if (isset($_GET['category_id'])) {
 
 
 
-    <div class="format-help">
-
-
-
-
-
-
-
-        <strong><?php te('vocab.ib_prompt_titolo'); ?></strong>
-
-
-
-
-
-
-
-        <p><?php te('fc.ibf_prompt_sub'); ?></p>
-
-
-
-
-
-
-
-        <div class="ai-prompt-box">
-
-            <span class="ai-copy-hint"><?php te('vocab.ib_tocca_copiare'); ?></span>
-
-            <textarea id="ai_prompt_textarea" readonly onclick="this.select(); navigator.clipboard.writeText(this.value).then(() => showToast('Copiato negli appunti! 📋')).catch(() => { document.execCommand('copy'); showToast('Copiato negli appunti! 📋'); });"></textarea>
-
-        </div>
-
-
-
-
-
-
-
-    </div>
 
 
 
@@ -681,141 +671,6 @@ if (isset($_GET['category_id'])) {
 
 
 
-            <div class="card-surface setup-card">
-
-
-
-
-
-
-
-                <div class="sc-label"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M4 7h2.2L8 4h8l1.8 3H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z"/></svg></span><?php te('vocab.ib_immagini_opz'); ?></div>
-
-
-
-
-
-
-
-                <label class="mini-label"><?php te('fc.ibfc_immagini_domanda'); ?></label>
-
-
-
-
-
-
-
-                <input type="file" id="question_images" accept="image/*" multiple style="margin-bottom:12px;">
-
-
-
-
-
-
-
-                <label class="mini-label"><?php te('fc.ibfc_immagini_risposta'); ?></label>
-
-
-
-
-
-
-
-                <input type="file" id="answer_images" accept="image/*" multiple>
-
-
-
-
-
-
-
-            </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            <div class="card-surface setup-card">
-
-                <div class="sc-label">
-
-                    <span class="ic">
-
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-
-                    </span>
-
-                    <?php te('vocab.ib_importa_testo'); ?>
-
-                </div>
-
-                
-
-                <!-- Switch per il formato -->
-
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; background: var(--surface-2); padding: 10px 12px; border-radius: 12px; border: 1px solid var(--hairline-2);">
-
-                    <label class="mini-label" style="margin:0; font-size: 13.5px;"><?php te('vocab.ib_separatori_pers'); ?></label>
-
-                    <input type="checkbox" id="format_switch" style="transform: scale(1.2); accent-color: var(--blue); cursor: pointer;" onchange="toggleImportFormat()">
-
-                </div>
-
-
-
-                <textarea id="import_text" rows="3" placeholder='Incolla qui l&#39;array JSON. Esempio: [{"q": "Domanda", "a": "Risposta"}]' style="font-size:14.5px;"></textarea>
-
-                
-
-                <!-- Contenitore separatori, nascosto di default -->
-
-                <div class="import-row" id="custom_separators_row" style="display: none;">
-
-                    <div>
-
-                        <label class="mini-label"><?php te('fc.ibfc_sep_flashcards'); ?></label>
-
-                        <select id="import_row_separator" onchange="updatePlaceholder()">
-
-                            <option value="@@@" selected><?php te('vocab.ib_sep_tre_chiocciole'); ?></option>
-
-                            <option value="@"><?php te('vocab.ib_sep_chiocciola'); ?></option>
-
-                            <option value="\n"><?php te('vocab.ib_sep_a_capo'); ?></option>
-
-                        </select>
-
-                    </div>
-
-                    <div>
-
-                        <label class="mini-label"><?php te('fc.ibfc_sep_domris'); ?></label>
-
-                        <select id="import_separator" onchange="updatePlaceholder()">
-
-                            <option value="###" selected><?php te('vocab.ib_sep_tre_hash'); ?></option>
-
-                            <option value="|"><?php te('vocab.ib_sep_pipe'); ?></option>
-
-                            <option value=";"><?php te('vocab.ib_sep_punto_virgola'); ?></option>
-
-                        </select>
-
-                    </div>
-
-                </div>
-
-            </div>
 
 
 
@@ -825,6 +680,10 @@ if (isset($_GET['category_id'])) {
 
         </div>
 
+        <?php /* Il pannello di inserimento (IA, immagini, importa) vive in un file suo:
+           questa pagina e' gia' lunga 6900 righe, e ogni pezzo nuovo che nasce fuori
+           e' un pezzo che si puo' cambiare senza riaprirla. */ ?>
+        <?php include 'fc_ai_pannello.php'; ?>
 
 
 
@@ -839,31 +698,7 @@ if (isset($_GET['category_id'])) {
 
 
 
-        <button type="button" id="btn-generate-table" class="btn btn-warn" onclick="generateTable()">
 
-
-
-
-
-
-
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
-
-
-
-
-
-
-
-            <?php te('vocab.ib_genera_tabella'); ?>
-
-
-
-
-
-
-
-        </button>
 
 
 
@@ -943,31 +778,11 @@ if (isset($_GET['category_id'])) {
 
 
 
-            <button type="submit" id="submitBtn" class="btn btn-success">
-
-
-
-
-
-
-
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg>
-
-
-
-
-
-
-
-                <?php te('vocab.ib_salva_tutto'); ?>
-
-
-
-
-
-
-
-            </button>
+            <?php /* Il pulsante "salva tutto" che stava qui e' stato tolto: il
+                     salvataggio vive nella barra in alto (autosave_bar.php),
+                     sempre visibile, mentre questo si raggiungeva solo dopo
+                     aver scorso tutte le carte. Il form resta, perche' e' lui
+                     a raccogliere i campi. */ ?>
 
 
 
@@ -1156,6 +971,9 @@ if (isset($_GET['category_id'])) {
     /* freccia che rientra: "figlio". Segno piu': "fratello". */
 
     const ICON_KID     = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5v6a3 3 0 0 0 3 3h9"/><path d="m13 10 4 4-4 4"/></svg>';
+    // Stessa forma usata nell'intestazione del pannello IA: e' il linguaggio visivo
+    // che nel sito dice "questo pulsante chiama l'intelligenza artificiale".
+    const ICON_MAGIC   = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align:-3px; margin-right:6px;"><path d="M9 2 11 7 16 9 11 11 9 16 7 11 2 9 7 7Z"/><path d="M18 3 19 5 21 6 19 7 18 9 17 7 15 6 17 5Z"/></svg>';
 
     const ICON_SIBLING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
 
@@ -1282,6 +1100,100 @@ if (isset($_GET['category_id'])) {
 
         markDirty();
 
+        aggiornaRigheTitolo();
+
+    }
+
+    /* ============================================================
+       CARTE TITOLO
+       ============================================================
+       Un padre con almeno due figli e nessuna risposta (ne' testo, ne'
+       immagine, ne' audio) diventa automaticamente un titolo: in gioco non
+       sara' una domanda a cui rispondere, solo un separatore che introduce i
+       suoi figli. Non serve un interruttore da spuntare a mano ne' una
+       colonna nuova nel database: e' calcolato ogni volta da quello che c'e'
+       gia' in tabella, e basta scrivere una risposta per farla tornare una
+       carta normale — e' per questo che si ricalcola a ogni tocco, non una
+       volta sola quando la riga nasce. */
+
+    /* Testo vero contenuto in un documento serializzato (JSON a blocchi o
+       vecchi tag): un documento "vuoto" non e' quasi mai una stringa vuota,
+       e' un JSON valido con dentro un paragrafo senza testo. Separata da
+       testoRigaPer perche' serve anche PRIMA che la riga esista nel DOM — al
+       momento di costruirne per la prima volta il markup, in appendRowHTML. */
+    function fcdTestoVero(raw) {
+        if (!raw) return '';
+        try {
+            const doc = fcdParse(raw);
+            return (doc.blocks || []).map(fcdBlockText).join('').trim();
+        } catch (e) {
+            return String(raw).trim();
+        }
+    }
+
+    function testoRigaPer(row, prefix) {
+        const el = document.getElementById(prefix + '-desc-' + row.dataset.rid);
+        let v = el ? el.value : '';
+        if (!v) {
+            const ed = document.getElementById(prefix + '-desc-' + row.dataset.rid + '_editor');
+            if (ed) v = ed.value || ed.innerText || '';
+        }
+        return fcdTestoVero(v);
+    }
+
+    function contaFigli(rigaPadre) {
+        let n = 0, sib = rigaPadre.nextElementSibling;
+        while (sib && sib.classList && sib.classList.contains('is-child')) { n++; sib = sib.nextElementSibling; }
+        return n;
+    }
+
+    /* Vero se il lato "prefix" (q oppure a) di una riga non ha ne' testo, ne'
+       immagine, ne' audio. rispostaDavveroVuota() e' rimasta col suo nome
+       perche' e' gia' usata altrove (le carte titolo guardano solo la
+       risposta); rigaCompletamenteVuota() controlla entrambi i lati, per
+       decidere se la riga intera vale la pena di essere salvata. */
+    function campoDavveroVuoto(row, prefix) {
+        if (testoRigaPer(row, prefix) !== '') return false;
+        if (row[prefix + 'NewImgFile']) return false;
+        const nomeImg = row.querySelector('.' + prefix + '-img-name');
+        if (nomeImg && nomeImg.value) return false;
+        if (row[prefix + 'AudioBlob']) return false;
+        const player = row.querySelector('.audio-player-' + prefix);
+        if (player && (player.classList.contains('has-audio') || player.src)) return false;
+        return true;
+    }
+    function rispostaDavveroVuota(row) { return campoDavveroVuoto(row, 'a'); }
+    function rigaCompletamenteVuota(row) { return campoDavveroVuoto(row, 'q') && campoDavveroVuoto(row, 'a'); }
+
+    /* Nonostante il nome, da qui in poi fa due cose correlate: lo stato
+       titolo (solo sui padri) e il testo del pulsante IA di ogni riga (padri
+       e figli). Le tengo insieme perche' condividono lo stesso controllo —
+       "la risposta di questa riga e' vuota?" — e gli stessi punti in cui
+       vanno ricalcolate: separarle vorrebbe dire agganciare due volte gli
+       stessi eventi per la stessa domanda. */
+    function aggiornaRigheTitolo() {
+        document.querySelectorAll('#fcRows .fc-row').forEach(function (row) {
+            const vuota = rispostaDavveroVuota(row);
+            const btnIA = row.querySelector('.btn-ia-riga-testo');
+            if (btnIA) btnIA.textContent = vuota ? T('fc.ibfai_sec_ia_titolo') : T('fc.ibfai_migliora_con_ia_btn');
+        });
+
+        document.querySelectorAll('#fcRows .fc-row:not(.is-child)').forEach(function (row) {
+            const titolo = contaFigli(row) >= 2 && rispostaDavveroVuota(row);
+            row.classList.toggle('is-title-row', titolo);
+
+            const etichettaQ = row.querySelector('.fc-field .field-label:not(.is-answer)');
+            if (!etichettaQ) return;
+            let badge = etichettaQ.querySelector('.titolo-badge');
+            if (titolo && !badge) {
+                badge = document.createElement('span');
+                badge.className = 'titolo-badge';
+                badge.textContent = T('fc.ibf_titolo_badge');
+                etichettaQ.appendChild(badge);
+            } else if (!titolo && badge) {
+                badge.remove();
+            }
+        });
     }
 
 
@@ -2009,7 +1921,7 @@ if (isset($_GET['category_id'])) {
            (era il "0<<fc.ibf_n_carte_plur>>" che si vedeva). Si riconosce
            dalle cornici, non dall'uguaglianza. */
         const mancante = !etichetta || etichetta === chiave || /^<<.*>>$/.test(etichetta);
-        if (chip) chip.textContent = mancante ? String(n) : (n + etichetta);
+        if (chip) chip.textContent = mancante ? String(n) : etichetta;
 
 
 
@@ -2037,6 +1949,17 @@ if (isset($_GET['category_id'])) {
     function updateGenerateButtonState(){
 
         const btn = document.getElementById('btn-generate-table');
+
+        /* Il pulsante "genera tabella" e' passato dentro fc_ai_pannello.php e
+           qui non c'e' piu'. La funzione pero' viene chiamata da una dozzina di
+           punti, compreso l'avvio: senza questa uscita anticipata la pagina si
+           fermerebbe alla prima riga aggiunta.
+
+           NON e' un return secco: in fondo a questa funzione ci sono
+           updateRowCountChip() e toggleEmptyHint(), che col pulsante non
+           c'entrano nulla e devono girare comunque — saltarle lasciava acceso
+           il messaggio "nessuna riga" anche con le righe in tabella. */
+        if (!btn) { updateRowCountChip(); toggleEmptyHint(); aggiornaRigheTitolo(); return; }
 
         if (righeVive().length > 0){
 
@@ -2720,6 +2643,10 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
         opzioni = opzioni || {};
 
+        // Serve gia' qui, prima ancora che la riga esista nel DOM: decide se il
+        // pulsante IA nasce con scritto "Genera con l'IA" o "Migliora con l'IA".
+        const aVuotaAllaNascita = fcdTestoVero(aText) === '';
+
         const list = document.getElementById('fcRows');
 
         const wrap = document.createElement('div');
@@ -2817,6 +2744,12 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
                     <button type="button" class="ns-add-kid" onclick="addKidFrom(this)">
 
                         ${isChild ? ICON_SIBLING + 'Aggiungi fratello' : ICON_KID + 'Aggiungi figlio'}
+
+                    </button>
+
+                    <button type="button" class="ns-add-kid btn-ia-riga" onclick="if(window.FCAIP) FCAIP.apriMigliora(this)">
+
+                        ${ICON_MAGIC}<span class="btn-ia-riga-testo">${aVuotaAllaNascita ? T('fc.ibfai_sec_ia_titolo') : T('fc.ibfai_migliora_con_ia_btn')}</span>
 
                     </button>
 
@@ -6472,7 +6405,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-                else { row.aAudioBlob = blob; row.aAudioExt = ext; }
+                else { row.aAudioBlob = blob; row.aAudioExt = ext; aggiornaRigheTitolo(); }
 
 
 
@@ -6684,6 +6617,21 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
             const isChild = row.classList.contains('is-child') ? 1 : 0;
 
+            /* Una riga completamente vuota — nessun testo, nessuna immagine,
+               nessun audio, ne' in domanda ne' in risposta — non si manda:
+               non ha senso creare o aggiornare una carta col nulla. L'unica
+               eccezione e' un padre che ha almeno un figlio subito sotto fra
+               le righe da inviare: saltarlo spezzerebbe il riferimento dei
+               figli, che puntano al padre per POSIZIONE nell'elenco inviato
+               (parent_idx), non per id. Le righe gia' segnate per la
+               cancellazione non vanno mai saltate qui: e' il loro status a
+               dover arrivare al server, altrimenti la cancellazione non
+               succede mai. */
+            if (row.dataset.status !== 'deleted' && rigaCompletamenteVuota(row)) {
+                const haFigli = !isChild && row.nextElementSibling && row.nextElementSibling.classList.contains('is-child');
+                if (!haFigli) return;
+            }
+
             if (!isChild) currentParentIndex = indiceInvio;
 
 
@@ -6719,6 +6667,14 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
                 aVal = aEd.value || aEd.innerText || '';
 
             }
+
+            /* Spazi e a capo superflui in testa e in coda si tolgono qui, non
+               prima: e' l'unico punto che entrambi i percorsi di salvataggio
+               (quello rapido e quello completo) attraversano sempre, quindi
+               una correzione sola vale per tutti e due. fcdTrimText lascia
+               stare il testo se non lo riconosce, invece di romperlo. */
+            qVal = fcdTrimText(qVal);
+            aVal = fcdTrimText(aVal);
 
 
 
@@ -6834,7 +6790,17 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
             row.dataset.status = 'clean';
 
-            if (eraNuova) aggiornaExChip(row, info.id);
+            if (eraNuova && !row.esempioIA) aggiornaExChip(row, info.id);
+
+            /* L'esempio generato dall'IA aspettava attaccato alla riga: adesso
+               la carta ha un id, quindi c'e' qualcosa a cui agganciarlo.
+
+               L'ordine conta: se c'e' un esempio in sospeso, si chiama SOLO
+               salvaEsempio() e non aggiornaExChip() sopra — salvaEsempio
+               aggiorna gia' da sola la pastiglia con il conteggio giusto, e
+               chiamarle entrambe la resetterebbe a zero un attimo prima,
+               creando uno sfarfallio e una richiesta sprecata. */
+            if (row.esempioIA && typeof FCAIP !== 'undefined') FCAIP.salvaEsempio(row, info.id, info.type);
 
 
 
@@ -6870,13 +6836,16 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
+        /* Il pulsante non e' piu' in pagina, ma questo gestore puo' ancora
+           scattare: in un form basta premere Invio in un campo. Quindi qui non
+           si da' per scontato che esista. */
         const subBtn = document.getElementById('submitBtn');
 
-        const originale = subBtn.innerHTML;
+        const originale = subBtn ? subBtn.innerHTML : '';
 
-        subBtn.disabled = true;
+        if (subBtn) subBtn.disabled = true;
 
-        subBtn.innerHTML = '<span class="spinner"></span> Salvataggio in corso…';
+        if (subBtn) subBtn.innerHTML = '<span class="spinner"></span> Salvataggio in corso…';
 
 
 
@@ -6884,9 +6853,9 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
         if (!ok) {
 
-            subBtn.disabled = false;
+            if (subBtn) subBtn.disabled = false;
 
-            subBtn.innerHTML = originale;
+            if (subBtn) subBtn.innerHTML = originale;
 
             return;
 
@@ -6911,6 +6880,67 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
     });
 
 
+
+    /* La freccia in alto a sinistra torna alla categoria su cui si sta
+       lavorando. L'indirizzo si aggiorna a ogni cambio di selezione, non una
+       volta sola all'avvio: la categoria si puo' cambiare a meta' lavoro. */
+    function aggiornaLinkRitorno(){
+        const back = document.getElementById('hdrBack');
+        if (!back) return;
+        const cat = document.querySelector('input[name="category_id"]');
+        // Senza una categoria scelta, "torna alla categoria" non ha un posto
+        // dove tornare: visualizzazione_fc.php senza id non mostrerebbe
+        // niente di utile. L'elenco delle categorie e' il posto giusto da
+        // cui ripartire in quel caso.
+        back.href = (cat && cat.value)
+            ? 'visualizzazione_fc.php?category_id=' + encodeURIComponent(cat.value)
+            : 'categories_fc.php';
+    }
+    document.addEventListener('DOMContentLoaded', aggiornaLinkRitorno);
+    document.addEventListener('change', aggiornaLinkRitorno);
+
+    /* Con modifiche in sospeso la freccia non se ne va in silenzio: propone
+       di salvare, di uscire comunque scartando le modifiche, o di restare.
+       Il beforeunload sotto resta come rete per tutti gli altri modi di
+       uscire (chiusura della scheda, tasto indietro del browser). */
+    document.addEventListener('DOMContentLoaded', function(){
+        const back = document.getElementById('hdrBack');
+        const modale = document.getElementById('uscitaModale');
+        if (!back || !modale) return;
+
+        function chiudiUscitaModale() {
+            modale.hidden = true;
+            if (typeof FCAI !== 'undefined') FCAI.unlockScroll();
+        }
+
+        back.addEventListener('click', function(e){
+            if (!isDirty) return;
+            e.preventDefault();
+            modale.hidden = false;
+            if (typeof FCAI !== 'undefined') FCAI.lockScroll();
+        });
+
+        modale.addEventListener('click', function(ev){
+            if (ev.target === modale) chiudiUscitaModale();
+        });
+
+        document.getElementById('uscitaAnnulla').addEventListener('click', chiudiUscitaModale);
+
+        document.getElementById('uscitaSenzaSalvare').addEventListener('click', function(){
+            chiudiUscitaModale();
+            isDirty = false; // altrimenti beforeunload chiederebbe conferma un'altra volta, subito dopo
+            window.location.href = back.href;
+        });
+
+        document.getElementById('uscitaSalva').addEventListener('click', async function(){
+            const btn = this;
+            btn.disabled = true;
+            if (!await salvaTutto(true)) { btn.disabled = false; return; }
+            chiudiUscitaModale();
+            isDirty = false;
+            window.location.href = back.href;
+        });
+    });
 
     /* Uscendo con delle modifiche non salvate il browser chiede conferma. */
 

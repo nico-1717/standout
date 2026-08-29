@@ -554,6 +554,69 @@ function fcdBackspaceAtStart(doc, sel) {
 
 function fcdStringify(doc) { return JSON.stringify(fcdNorm(doc)); }
 
+/* Toglie spazi e a capo superflui in testa e in coda al documento — non alla
+   stringa JSON che lo contiene (li' non ce ne sono mai), ma al CONTENUTO: i
+   paragrafi vuoti che restano quando si cancella tutto e si ricomincia a
+   scrivere piu' sotto, e gli spazi rimasti a inizio o fine dell'ultimo
+   paragrafo rimasto. Un a capo qui e' un blocco intero, non un carattere "\n"
+   dentro il testo: per questo la pulizia lavora a due livelli — prima i
+   blocchi (gli a capo), poi il testo del primo e dell'ultimo blocco rimasto
+   (gli spazi). Non tocca l'INTERNO del documento: un a capo in mezzo al
+   testo e' voluto, resta.
+   Usata al salvataggio, su domanda e risposta di ogni carta. */
+function fcdTrim(doc) {
+    var d = fcdNorm(doc);
+    var blocks = d.blocks;
+
+    function vuoto(b) {
+        if (b.t === 'fx') return String(b.tex || '').trim() === '';
+        return fcdBlockText(b).trim() === '';
+    }
+
+    // blocchi vuoti in testa e in coda: sono gli "a capo" di troppo. Se ne
+    // tiene sempre almeno uno, altrimenti un documento tutto vuoto non
+    // avrebbe piu' un blocco su cui scrivere.
+    while (blocks.length > 1 && vuoto(blocks[0])) blocks.shift();
+    while (blocks.length > 1 && vuoto(blocks[blocks.length - 1])) blocks.pop();
+
+    // spazi bianchi: solo ai due bordi del documento, cioe' l'inizio del
+    // primo run del primo blocco e la fine dell'ultimo run dell'ultimo
+    // blocco. Un run che resta vuoto dopo il taglio si toglie, per non
+    // lasciare un run fantasma senza testo ne' formula.
+    var primo = blocks[0];
+    if (primo && primo.t !== 'fx' && primo.runs && primo.runs.length) {
+        var r0 = primo.runs[0];
+        if (typeof r0.s === 'string') r0.s = r0.s.replace(/^[ \t\u00A0]+/, '');
+        while (primo.runs.length > 1 && typeof primo.runs[0].s === 'string' && primo.runs[0].s === '') {
+            primo.runs.shift();
+        }
+    }
+    var ultimo = blocks[blocks.length - 1];
+    if (ultimo && ultimo.t !== 'fx' && ultimo.runs && ultimo.runs.length) {
+        var rn = ultimo.runs[ultimo.runs.length - 1];
+        if (typeof rn.s === 'string') rn.s = rn.s.replace(/[ \t\u00A0]+$/, '');
+        while (ultimo.runs.length > 1 && typeof ultimo.runs[ultimo.runs.length - 1].s === 'string'
+               && ultimo.runs[ultimo.runs.length - 1].s === '') {
+            ultimo.runs.pop();
+        }
+    }
+
+    return d;
+}
+
+/* Come fcdTrim, ma prende e restituisce la stringa serializzata (quella che
+   viaggia nei campi nascosti e nel salvataggio): fcdParse il testo cosi'
+   com'e' arriva (JSON nuovo o vecchi tag, fcdParse riconosce da solo),
+   fcdTrim il modello, fcdStringify il risultato. */
+function fcdTrimText(raw) {
+    if (!raw) return raw;
+    try {
+        return fcdStringify(fcdTrim(fcdParse(raw)));
+    } catch (e) {
+        return raw; // testo non riconoscibile: si lascia intatto piuttosto che romperlo
+    }
+}
+
 /* Riconosce da sola cosa sta leggendo. Un documento nuovo e' JSON e comincia
    per "{"; tutto il resto e' formato vecchio, o testo semplice — che del
    formato vecchio e' un caso particolare. */
@@ -1364,6 +1427,7 @@ var FC_PALETTE = FCD_PALETTE;
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { fcdParse: fcdParse, fcdStringify: fcdStringify, fcdNorm: fcdNorm,
+        fcdTrim: fcdTrim, fcdTrimText: fcdTrimText,
         fcdToggleMark: fcdToggleMark, fcdSetMark: fcdSetMark, fcdRangeHas: fcdRangeHas,
         fcdToggleList: fcdToggleList, fcdIndent: fcdIndent, fcdSetListColor: fcdSetListColor,
         fcdToggleBlockMath: fcdToggleBlockMath, fcdToHTML: fcdToHTML, fcdFromLegacy: fcdFromLegacy,

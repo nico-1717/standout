@@ -493,3 +493,40 @@
     *{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
 
 }
+
+/* ================================================================
+   RIFINITURE AL PULSANTE TRIGGER
+   Aggiunte, non riscritture: lo stile di base resta quello sopra. Qui si
+   colma solo cio' che manca — invito al tocco da vuoto, riscontro al mouse,
+   anello per la tastiera — senza toccare una riga di quello che gia' c'e'.
+   ================================================================ */
+
+/* Da vuoto il pulsante era un rettangolo grigio piatto, indistinguibile a
+   colpo d'occhio da un'etichetta non interattiva. L'anello tratteggiato e' lo
+   stesso linguaggio usato altrove nel sito per "qui manca qualcosa, tocca per
+   aggiungerlo" (le zone di trascinamento file): outline invece di border
+   apposta, cosi' non sposta di un pixel il contenuto ne' richiede ritoccare
+   il padding gia' calibrato sopra. */
+.cs-trigger:not(.cs-has-value) {
+    outline:1.5px dashed var(--hairline-2);
+    outline-offset:-1.5px;
+}
+.cs-trigger:not(.cs-has-value):active {
+    outline-color:var(--blue);
+}
+
+/* Su schermo con mouse il pulsante era "morto" finche' non lo si cliccava:
+   dietro (hover:hover) perche' su touch il :hover resterebbe acceso dopo il
+   tocco finche' non se ne tocca un altro — il classico difetto dell'hover
+   "appiccicato" sui telefoni. */
+@media (hover:hover) {
+    .cs-trigger:hover { box-shadow:inset 0 0 0 1px var(--hairline-2), 0 2px 10px rgba(0,0,0,.06); }
+    .cs-trigger.cs-has-value:hover { filter:brightness(1.04); }
+}
+
+/* Anello di messa a fuoco per chi passa da un campo all'altro con Tab: senza,
+   il pulsante non aveva alcun segnale visibile di essere quello selezionato. */
+.cs-trigger:focus-visible {
+    outline:2.5px solid var(--blue);
+    outline-offset:2px;
+}
