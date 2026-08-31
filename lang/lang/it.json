@@ -28,6 +28,8 @@
   },
   "pomodoro": {
     "aggiungi_durata": "Aggiungi durata",
+    "altro_dispositivo": "Aggiornato da un altro dispositivo",
+    "apri_comandi": "Apri i comandi del pomodoro",
     "attivita": "Attività",
     "attivita_di_questo": "Le attività di questo pomodoro",
     "avvia_su_questo": "Avvia un pomodoro su questo progetto",
@@ -45,6 +47,7 @@
     "elimina_spuntate": "Elimina quelle spuntate",
     "elimina_tutte": "Elimina tutte",
     "gestisci": "Gestisci",
+    "gia_attivo_altrove": "C’è già un pomodoro in corso su un altro dispositivo",
     "hai_completato": "Hai completato: {progetto}",
     "interrompi": "Interrompi",
     "limite_raggiunto": "Limite di 10 ore raggiunto: sessione salvata.",

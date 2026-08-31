@@ -153,6 +153,87 @@ if (isset($_GET['ps_ajax']) && $_GET['ps_ajax'] === 'create_project') {
 }
 
 
+/* ==========================================================================
+
+   RESA AUTONOMA: project_selector.php?ps_render=1&...
+
+   Serve al popup della barra del pomodoro, che vive su pagine qualunque e
+
+   non puo' includere questo file da PHP: se lo includesse, il selettore
+
+   finirebbe su tutte le pagine anche quando nessuno lo aprira' mai.
+
+   Cosi' invece se lo va a prendere con una fetch al primo tocco, esattamente
+
+   come fa con la clessidra — e resta UN solo selettore, questo, non una
+
+   seconda copia semplificata da tenere allineata a mano.
+
+   Come il ramo qui sopra, apre da se' quello che gli serve: chiamato
+
+   direttamente non c'e' nessuna pagina che abbia gia' preparato $conn.
+
+   E' una lettura e basta: nessuna scrittura, quindi nessun token da
+
+   verificare, ma il login sì — l'albero dei progetti e' roba dell'utente.
+
+   ========================================================================== */
+
+if (isset($_GET['ps_render'])) {
+
+    if (!isset($conn) || !$conn) {
+
+        require_once 'config.php';
+
+        $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
+
+        require_once 'auth_check_api.php';
+
+        $current_user_id = $utente_corrente['id'];
+
+    }
+
+    if (!$conn) { http_response_code(500); exit(); }
+
+    /* I testi arrivano dall'indirizzo perche' chi chiama sa in che contesto
+
+       sta ("Collega progetto" nel pomodoro, altro altrove) e questo file non
+
+       deve conoscere i suoi chiamanti. Escono tutti da htmlspecialchars piu'
+
+       in basso, come quelli passati per include. */
+
+    $ps_id               = (string)($_GET['ps_id'] ?? 'std');
+
+    $ps_selected_id      = (int)($_GET['ps_selected_id'] ?? 0);
+
+    $ps_selected_name    = (string)($_GET['ps_selected_name'] ?? '');
+
+    $ps_selected_color   = ($_GET['ps_selected_color'] ?? '') !== '' ? (string)$_GET['ps_selected_color'] : null;
+
+    $ps_title            = (string)($_GET['ps_title'] ?? 'Seleziona progetto');
+
+    $ps_placeholder      = (string)($_GET['ps_placeholder'] ?? $ps_title);
+
+    $ps_show_all_option  = !empty($_GET['ps_show_all_option']);
+
+    $ps_all_option_label = (string)($_GET['ps_all_option_label'] ?? 'Nessun progetto');
+
+    $ps_allow_create     = !isset($_GET['ps_allow_create']) || !empty($_GET['ps_allow_create']);
+
+    /* Niente pulsante: chi chiede la resa autonoma ha gia' il suo, e apre il
+
+       popup con window.psOpen(). Renderne un secondo, invisibile in fondo a
+
+       una pagina che non se lo aspetta, sarebbe solo un modo di sbagliare. */
+
+    $ps_render_trigger   = false;
+
+    /* Da qui in poi prosegue il file normale: stessa resa dell'include. */
+
+}
+
+
 
 /* ==========================================================================
 

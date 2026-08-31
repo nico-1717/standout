@@ -120,8 +120,14 @@ function isSuccess(h, date) {
     return st.status === 'done';
 }
 
-/* streak corrente: skipped è neutro, oggi non ancora fatto non rompe */
+/* streak corrente: skipped è neutro, oggi non ancora fatto non rompe.
+   Le weekly/monthly sono "flessibili" (isDue le dà dovute ogni giorno): lo
+   streak per loro non è quindi giorno-per-giorno ma periodo-per-periodo,
+   vedi periodStreakOf più sotto. */
 function streakOf(h) {
+    if (h.kind !== 'quit' && (h.frequency_type === 'weekly' || h.frequency_type === 'monthly')) {
+        return periodStreakOf(h);
+    }
     var streak = 0, cursor = S.today, guard = 0;
     while (guard++ < 1200) {
         if (cursor < h.start_date) break;
@@ -137,6 +143,9 @@ function streakOf(h) {
     return streak;
 }
 function bestStreakOf(h) {
+    if (h.kind !== 'quit' && (h.frequency_type === 'weekly' || h.frequency_type === 'monthly')) {
+        return periodBestStreakOf(h);
+    }
     var best = h.best_streak || 0, run = 0, cursor = h.start_date, guard = 0;
     while (cursor <= S.today && guard++ < 1500) {
         if (isDue(h, cursor)) {
@@ -145,6 +154,46 @@ function bestStreakOf(h) {
             else if (st.status !== 'skipped') run = 0;
         }
         cursor = addDays(cursor, 1);
+    }
+    return best;
+}
+
+/* Primo giorno del mese successivo/precedente a 'date' (sempre un giorno 1):
+   setMonth() di Date gestisce da sé il cambio d'anno. */
+function nextMonthStart(date) { var d = toDate(date); d.setMonth(d.getMonth() + 1); return toStr(d); }
+function prevMonthStart(date) { var d = toDate(date); d.setMonth(d.getMonth() - 1); return toStr(d); }
+
+/* streak corrente per weekly/monthly: l'unità è il periodo (settimana o
+   mese), non il giorno. Un periodo conta se ci sono abbastanza spunte
+   (weeklyProgress/monthlyProgress, lo stesso target che vede l'utente). Il
+   periodo che contiene oggi è ancora in corso e non rompe la serie se non
+   ancora completato, esattamente come "oggi non ancora fatto" nelle daily;
+   un periodo già chiuso senza obiettivo raggiunto invece la rompe. */
+function periodStreakOf(h) {
+    var isWeekly = h.frequency_type === 'weekly';
+    var startPeriod = isWeekly ? weekStartOf(h.start_date) : monthStartOf(h.start_date);
+    var todayPeriod = isWeekly ? weekStartOf(S.today) : monthStartOf(S.today);
+    var periodStart = todayPeriod, streak = 0, guard = 0;
+    while (periodStart >= startPeriod && guard++ < 600) {
+        var prog = isWeekly ? weeklyProgress(h, periodStart) : monthlyProgress(h, periodStart);
+        if (prog.done >= prog.target) streak++;
+        else if (periodStart === todayPeriod) { /* periodo in corso: non rompe */ }
+        else break;
+        periodStart = isWeekly ? addDays(periodStart, -7) : prevMonthStart(periodStart);
+    }
+    return streak;
+}
+/* come periodStreakOf ma in avanti dall'inizio dell'abitudine, per il record */
+function periodBestStreakOf(h) {
+    var isWeekly = h.frequency_type === 'weekly';
+    var periodStart = isWeekly ? weekStartOf(h.start_date) : monthStartOf(h.start_date);
+    var todayPeriod = isWeekly ? weekStartOf(S.today) : monthStartOf(S.today);
+    var best = h.best_streak || 0, run = 0, guard = 0;
+    while (periodStart <= todayPeriod && guard++ < 600) {
+        var prog = isWeekly ? weeklyProgress(h, periodStart) : monthlyProgress(h, periodStart);
+        if (prog.done >= prog.target) { run++; if (run > best) best = run; }
+        else run = 0;
+        periodStart = isWeekly ? addDays(periodStart, 7) : nextMonthStart(periodStart);
     }
     return best;
 }

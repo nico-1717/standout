@@ -28,6 +28,8 @@
   },
   "pomodoro": {
     "aggiungi_durata": "Add a duration",
+    "altro_dispositivo": "Updated from another device",
+    "apri_comandi": "Open pomodoro controls",
     "attivita": "Tasks",
     "attivita_di_questo": "Tasks from this pomodoro",
     "avvia_su_questo": "Start a pomodoro on this project",
@@ -45,6 +47,7 @@
     "elimina_spuntate": "Delete the ticked ones",
     "elimina_tutte": "Delete all",
     "gestisci": "Manage",
+    "gia_attivo_altrove": "A pomodoro is already running on another device",
     "hai_completato": "You worked on: {progetto}",
     "interrompi": "End",
     "limite_raggiunto": "10-hour limit reached: session saved.",

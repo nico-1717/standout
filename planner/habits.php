@@ -317,6 +317,60 @@ function hb_is_due($habit, $dateStr) {
     }
 }
 
+/* Lunedì della settimana a cui appartiene la data (stesso criterio di
+   hb_is_due, che usa date('N') = 1 per lunedì). */
+function hb_week_start($dateStr) {
+    $n = (int)date('N', strtotime($dateStr));
+    return date('Y-m-d', strtotime($dateStr . ' -' . ($n - 1) . ' day'));
+}
+function hb_month_start($dateStr) { return substr($dateStr, 0, 7) . '-01'; }
+/* Primo giorno del mese precedente a un giorno-1 (togliere un giorno e
+   riallineare, non un mese intero: coi mesi corti strtotime('-1 month')
+   su un 31 salta indietro in modo irregolare). Serve solo all'indietro:
+   lo streak corrente lato server scorre solo verso il passato. */
+function hb_prev_month_start($monthStart) { return date('Y-m-01', strtotime($monthStart . ' -1 day')); }
+
+/* Quante volte fatta ('done') in quel periodo, dalla mappa data->stato già
+   in memoria (evita una query per periodo). */
+function hb_period_done_count($byDate, $periodStart, $isWeekly) {
+    $periodEnd = $isWeekly ? date('Y-m-d', strtotime($periodStart . ' +6 day')) : date('Y-m-t', strtotime($periodStart));
+    $n = 0;
+    foreach ($byDate as $d => $status) {
+        if ($status === 'done' && $d >= $periodStart && $d <= $periodEnd) $n++;
+    }
+    return $n;
+}
+
+/* Streak corrente per weekly/monthly: l'unità è il periodo (settimana o
+   mese), non il giorno — hb_is_due le dà dovute ogni giorno perché sono
+   "flessibili", ma lo streak deve guardare se il periodo ha raggiunto
+   times_per_week/times_per_month, non se OGNI giorno è stato fatto.
+   Il periodo che contiene oggi non rompe la serie se non ancora
+   completato (è ancora in corso), come "oggi non ancora fatto" nelle
+   daily; un periodo già chiuso senza obiettivo raggiunto la rompe. */
+function hb_current_period_streak($habit, $byDate) {
+    $isWeekly = $habit['frequency_type'] === 'weekly';
+    $target = $isWeekly ? max(1, (int)$habit['times_per_week']) : max(1, (int)$habit['times_per_month']);
+    $startPeriod = $isWeekly ? hb_week_start($habit['start_date']) : hb_month_start($habit['start_date']);
+    $todayPeriod = $isWeekly ? hb_week_start(date('Y-m-d')) : hb_month_start(date('Y-m-d'));
+
+    $streak = 0;
+    $periodStart = $todayPeriod;
+    $guard = 0;
+    while ($periodStart >= $startPeriod && $guard++ < 600) {
+        $done = hb_period_done_count($byDate, $periodStart, $isWeekly);
+        if ($done >= $target) {
+            $streak++;
+        } elseif ($periodStart === $todayPeriod) {
+            // periodo in corso: non rompe
+        } else {
+            break;
+        }
+        $periodStart = $isWeekly ? date('Y-m-d', strtotime($periodStart . ' -7 day')) : hb_prev_month_start($periodStart);
+    }
+    return $streak;
+}
+
 /* Streak corrente calcolata a ritroso dai log (skipped non spezza). */
 function hb_current_streak($conn, $habit, $userId) {
     $res = sec_all("SELECT log_date, status FROM habit_logs WHERE habit_id = ? AND user_id = ? ORDER BY log_date DESC LIMIT 1000",
@@ -324,13 +378,17 @@ function hb_current_streak($conn, $habit, $userId) {
     $byDate = [];
     foreach ($res as $row) { $byDate[$row['log_date']] = $row['status']; }
 
+    $isQuit = $habit['kind'] === 'quit';
+    if (!$isQuit && ($habit['frequency_type'] === 'weekly' || $habit['frequency_type'] === 'monthly')) {
+        return hb_current_period_streak($habit, $byDate);
+    }
+
     $streak = 0;
     /* Si scorre per date, non per secondi: togliere 86400 secondi sbaglia nei
        due giorni del cambio d'ora, quando un giorno dura 23 o 25 ore - la
        streak saltava un giorno a marzo e ne contava due volte lo stesso a
        ottobre. strtotime('-N day') ragiona in giorni di calendario. */
     $oggi = date('Y-m-d');
-    $isQuit = $habit['kind'] === 'quit';
     for ($i = 0; $i < 1000; $i++) {
         $d = date('Y-m-d', strtotime($oggi . ' -' . $i . ' day'));
         if ($d < $habit['start_date']) break;

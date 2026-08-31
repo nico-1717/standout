@@ -4,7 +4,13 @@ require_once 'security_core.php';
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
 require_once 'auth_check.php';
+require_once 'pomodoro_stato.php';   // il tetto delle 10 ore, pomo_color() e pomo_leggi_stato()
 $current_user_id = $utente_corrente['id'];
+
+/* La barra del pomodoro serve sulle ALTRE pagine: qui ci sarebbe il doppione
+   di quello che si sta gia' guardando. La costante la legge config.php quando
+   decide se innestarla. */
+define('NISAMA_NIENTE_BARRA', true);
 
 /* ==========================================================================
    NOTA SCHEMA: questa pagina usa due colonne in più rispetto allo script SQL
@@ -26,11 +32,6 @@ $current_user_id = $utente_corrente['id'];
 
 if (!function_exists('pomo_json')) { function pomo_json($arr) { header('Content-Type: application/json'); echo json_encode($arr, JSON_UNESCAPED_UNICODE); exit(); } }
 
-/* Il tetto di un pomodoro: dieci ore. Oltre non e' piu' una sessione di
-   studio, e' una pagina rimasta aperta. Sta qui in cima perche' serve sia al
-   blocco ajax sia alla pulizia in fondo. */
-const POMO_LIMITE_SECONDI = 36000;
-
 /* ==========================================================================
    AJAX ACTIONS
    ========================================================================== */
@@ -41,6 +42,16 @@ if (isset($_GET['ajax'])) {
        della sessione corrente: senza, la richiesta viene rifiutata. */
     if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         sec_guard_write((int)($utente_corrente['id'] ?? 0), 'pomodoro', 0, 300, 60);
+    }
+
+    /* Lo stato, cosi' com'e' adesso. Lo chiede il controllo periodico del
+       motore (per accorgersi di cosa e' stato fatto da un altro dispositivo)
+       ed e' la stessa identica cosa che la pagina si porta dentro al
+       caricamento: una sola funzione la costruisce, quindi non possono
+       raccontarla in due modi diversi. E' una lettura, non una scrittura,
+       percio' non passa dal token. */
+    if ($ajax === 'stato') {
+        pomo_json(['success' => true, 'stato' => pomo_leggi_stato((int)$current_user_id)]);
     }
 
     if ($ajax === 'start') {
@@ -56,6 +67,24 @@ if (isset($_GET['ajax'])) {
            incollato nella query, quindi il NULL va passato come valore vero. */
         $progVal = $progettoId > 0 ? $progettoId : null;
         $durVal = $durataMin !== null ? $durataMin : null;
+
+        /* Due dispositivi, due tasti avvia: senza questo controllo nascevano
+           due sessioni aperte insieme, e da quel momento i totali per progetto
+           contavano due volte lo stesso tempo. La verifica va fatta QUI e non
+           sul telefono: solo il server vede tutti i dispositivi insieme, e fra
+           il controllo del client e la sua scrittura ci passa la rete.
+           Chi viene rifiutato riceve indietro lo stato vero, cosi' puo'
+           mostrarlo invece della propria intenzione. */
+        $giaAperta = sec_one("SELECT id FROM pomodoro_sessions
+                              WHERE user_id=? AND end_time IS NULL ORDER BY id DESC LIMIT 1",
+                             [(int)$current_user_id]);
+        if ($giaAperta) {
+            pomo_json([
+                'success'   => false,
+                'conflitto' => 'sessione_gia_attiva',
+                'stato'     => pomo_leggi_stato((int)$current_user_id),
+            ]);
+        }
 
         sec_q("INSERT INTO pomodoro_sessions (user_id, `mode`, start_time, project_id, planned_duration_min, duration_seconds)
                VALUES (?, ?, NOW(), ?, ?, 0)", [(int)$current_user_id, $mode, $progVal, $durVal]);
@@ -259,85 +288,7 @@ foreach (sec_all("SELECT type, minutes FROM pomodoro_custom_durations WHERE user
 }
 sort($presetsPomodoro); sort($presetsPausa);
 
-/* ==========================================================================
-   STATO ATTUALE
-   ========================================================================== */
-function pomo_color($hex) { 
-    $hex = trim($hex ?? '');
-    return (!empty($hex) && (preg_match('/^#([0-9a-fA-F]{3,8})$/', $hex) || strpos($hex, 'rgb') === 0)) ? $hex : ''; 
-}
-
-/* ==========================================================================
-   POMODORO LASCIATI APERTI
-   Un pomodoro dimenticato acceso (telefono chiuso, scheda persa) restava "in
-   corso" per giorni: riaprendo la pagina lo si ritrovava vivo, con la
-   possibilita' di aggiungere alla sessione tutto il tempo passato. Qui si
-   taglia, PRIMA di leggere lo stato attuale, cosi' la pagina si apre pulita.
-
-   La durata salvata e' la piu' piccola fra il tempo davvero trascorso e la
-   durata prevista: un pomodoro da 50 minuti dimenticato per tre giorni vale
-   50 minuti, e uno messo in pausa dopo 12 vale 12. Il cronometro non ha una
-   durata prevista, quindi il suo tetto e' il limite stesso.
-
-   Il calcolo si fa qui e non dentro l'UPDATE apposta: in SQL avrebbe dovuto
-   rileggere la colonna appena scritta nella stessa istruzione, che funziona
-   ma dipende dall'ordine di valutazione ed e' illeggibile fra sei mesi. */
-foreach (sec_all("SELECT id, start_time, resume_time, status, duration_seconds, planned_duration_min
-                  FROM pomodoro_sessions
-                  WHERE user_id = ? AND end_time IS NULL
-                    AND TIMESTAMPDIFF(SECOND, start_time, NOW()) > ?",
-                 [(int)$current_user_id, POMO_LIMITE_SECONDI]) as $ab) {
-    $accumulati = (int)($ab['duration_seconds'] ?? 0);
-    // in pausa il segmento corrente non scorre: conta solo quello gia' accumulato
-    $segmento = ($ab['status'] === 'pausa')
-        ? 0
-        : max(0, time() - strtotime($ab['resume_time'] ?: $ab['start_time']));
-    $tetto  = $ab['planned_duration_min'] !== null ? ((int)$ab['planned_duration_min']) * 60 : POMO_LIMITE_SECONDI;
-    $durata = min($accumulati + $segmento, $tetto);
-
-    /* is_manual = 2, non 1. Sono tre cose diverse e meritano tre codici:
-         0 = misurata dal timer, gli orari sono un fatto
-         1 = scritta a mano dall'utente, gli orari li ha decisi lui
-         2 = chiusa d'ufficio da qui, gli orari sono una nostra stima
-       Con 1 non si sarebbe piu' potuto distinguere una sessione che l'utente
-       ha scritto da una che abbiamo ricostruito noi — e serve distinguerle:
-       la 2 va mostrata come "automatica" e ha diritto all'avviso, la 1 no.
-       Correggendola a mano diventa 1: da quel momento gli orari sono suoi. */
-    sec_q("UPDATE pomodoro_sessions
-           SET duration_seconds = ?, end_time = ?, status = 'abbandonato', resume_time = NULL, is_manual = 2
-           WHERE id = ? AND user_id = ?",
-          [$durata, date('Y-m-d H:i:s', strtotime($ab['start_time']) + $durata),
-           (int)$ab['id'], (int)$current_user_id]);
-}
-
-/* Anche una pausa puo' restare aperta: non c'e' niente da salvare, si butta. */
-sec_q("DELETE FROM pomodoro_current_breaks WHERE user_id = ? AND TIMESTAMPDIFF(SECOND, start_time, NOW()) > ?",
-      [(int)$current_user_id, POMO_LIMITE_SECONDI]);
-
-/* La piu' recente chiusa d'ufficio e non ancora segnalata: e' quella di cui
-   parla l'avviso in fondo alla pagina. */
-$avvisoAbbandono = sec_one("SELECT id, start_time, end_time, duration_seconds
-                            FROM pomodoro_sessions
-                            WHERE user_id = ? AND status = 'abbandonato'
-                            ORDER BY id DESC LIMIT 1", [(int)$current_user_id]);
-
-$activeSession = sec_one("SELECT s.*, p.name AS pn, p.color AS pcolor FROM pomodoro_sessions s LEFT JOIN projects p ON p.id=s.project_id AND p.user_id=s.user_id WHERE s.user_id=? AND s.end_time IS NULL ORDER BY s.id DESC LIMIT 1",
-                         [(int)$current_user_id]);
-
-/* La colonna e' project_id, non progetto_id: il resto del file (l'INSERT in
-   avvia_pausa, poche righe piu' su) scrive gia' project_id. Questo JOIN era
-   rimasto con il nome vecchio, e da quando le query passano da sec_q l'errore
-   non e' piu' zittito come faceva mysqli_query: la pagina moriva subito con
-   "Errore nella richiesta al database". */
-$pausaAttiva = sec_one("SELECT pc.*, p.name AS pn, p.color AS pcolor FROM pomodoro_current_breaks pc LEFT JOIN projects p ON p.id=pc.project_id AND p.user_id=pc.user_id WHERE pc.user_id=?",
-                       [(int)$current_user_id]);
-
-$lastSession = null;
-if (!$activeSession && !$pausaAttiva) {
-    $lastSession = sec_one("SELECT s.*, p.name AS pn, p.color AS pcolor FROM pomodoro_sessions s LEFT JOIN projects p ON p.id=s.project_id AND p.user_id=s.user_id WHERE s.user_id=? ORDER BY s.id DESC LIMIT 1",
-                           [(int)$current_user_id]);
-    if ($lastSession && $lastSession['status'] !== 'completato') { $lastSession = null; }
-}
+$statoCorrente = pomo_leggi_stato((int)$current_user_id);
 
 $preselectProjectId = sec_int($_GET['project_id'] ?? 0, 0);
 $preselectInfo = null;
@@ -363,43 +314,18 @@ foreach ($pomoProjMap as $pid => $info) {
     $pomoProjPaths[$pid] = array_slice($chain, -3);
 }
 
-/* dati js: stato iniziale */
-$jsState = [
-    'active' => $activeSession ? [
-        'id' => (int)$activeSession['id'], 'mode' => (int)$activeSession['mode'],
-        'data_inizio' => $activeSession['start_time'], 'durata_prevista_minuti' => $activeSession['planned_duration_min'] !== null ? (int)$activeSession['planned_duration_min'] : null,
-        'project_id' => $activeSession['project_id'] !== null ? (int)$activeSession['project_id'] : 0,
-        'progetto_nome' => $activeSession['pn'], 'progetto_colore' => pomo_color($activeSession['pcolor']),
-        'esito' => $activeSession['status'], 'durata_secondi' => (int)($activeSession['duration_seconds'] ?? 0),
-        'data_ripresa' => $activeSession['resume_time'],
-    ] : null,
-    'pausa' => $pausaAttiva ? [
-        'ora_inizio' => $pausaAttiva['start_time'], 'durata_prevista_minuti' => (int)$pausaAttiva['planned_duration_min'],
-        'project_id' => $pausaAttiva['project_id'] !== null ? (int)$pausaAttiva['project_id'] : 0,
-        'progetto_nome' => $pausaAttiva['pn'], 'progetto_colore' => pomo_color($pausaAttiva['pcolor']),
-    ] : null,
-    'last' => $lastSession ? [
-        'id' => (int)$lastSession['id'], 'mode' => (int)$lastSession['mode'], 'esito' => $lastSession['status'],
-        'data_inizio' => $lastSession['start_time'], 'data_fine' => $lastSession['end_time'],
-        'durata_prevista_minuti' => $lastSession['planned_duration_min'] !== null ? (int)$lastSession['planned_duration_min'] : null,
-        'project_id' => $lastSession['project_id'] !== null ? (int)$lastSession['project_id'] : 0,
-        'progetto_nome' => $lastSession['pn'], 'progetto_colore' => pomo_color($lastSession['pcolor']),
-        'durata_secondi' => (int)($lastSession['duration_seconds'] ?? 0)
-    ] : null,
-    'settings' => [
-        'ultima_modalita' => (int)$imp['last_mode'], 'ultima_durata_pomodoro_min' => (int)$imp['last_pomodoro_duration_min'],
-        'ultima_durata_pausa_min' => (int)$imp['last_break_duration_min'], 'stile' => $imp['last_display_style'],
-    ],
+/* dati js: stato iniziale.
+   La parte che riguarda il pomodoro (sessione, pausa, ultima chiusa, avviso,
+   impronta) arriva dalla stessa funzione che risponde a ?ajax=stato: la
+   pagina appena aperta e il controllo periodico leggono la stessa cosa. */
+$jsState = $statoCorrente + [
+    /* 'settings' non si ripete qui: arriva gia' dentro $statoCorrente,
+       che e' la stessa pomo_leggi_stato() usata dalla barra sulle altre
+       pagine — un solo posto che legge le durate salvate, non due che
+       rischiano di scostarsi. */
     'presets_pomodoro' => $presetsPomodoro, 'presets_pausa' => $presetsPausa,
     'preselect' => $preselectInfo ? ['id' => (int)$preselectInfo['id'], 'name' => $preselectInfo['name'], 'color' => pomo_color($preselectInfo['color'])] : null,
     'project_paths' => $pomoProjPaths,
-    /* L'avviso del pomodoro chiuso d'ufficio. Le stringhe le compone il JS,
-       che sa gia' in che lingua siamo: qui viaggiano solo i dati grezzi. */
-    'avviso' => $avvisoAbbandono ? [
-        'id' => (int)$avvisoAbbandono['id'],
-        'data_inizio' => $avvisoAbbandono['start_time'],
-        'durata_secondi' => (int)($avvisoAbbandono['duration_seconds'] ?? 0),
-    ] : null,
 ];
 ?>
 <!DOCTYPE html>
@@ -410,6 +336,10 @@ $jsState = [
 <title>Pomodoro</title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
+<!-- Il motore del pomodoro: stato, matematica del tempo e chiamate al server.
+     Lo stesso file che usera' la barra sulle altre pagine, cosi' le due viste
+     non possono divergere. -->
+<script src="pomodoro_core.js?v=<?php echo @filemtime(__DIR__ . '/pomodoro_core.js') ?: time(); ?>"></script>
 <link rel="stylesheet" href="/Vocabolary/pomodoro.css?v=<?php echo @filemtime(dirname(__FILE__) . '/pomodoro.css') ?: 1; ?>">
 <?php
 /* Le stringhe che servono al JavaScript di questa pagina. Solo i due gruppi
@@ -467,7 +397,11 @@ echo nisama_i18n_json(['comune', 'pomodoro', 'todo']);
              Il gruppo delle scintille lo riempie il JS all'avvio. -->
         <svg viewBox="0 0 220 220"><circle class="ring-track" cx="110" cy="110" r="100"/><circle class="ring-progress" id="ringProgress" cx="110" cy="110" r="100" stroke-dasharray="628.3" stroke-dashoffset="628.3"/><g class="ring-sparks" id="ringSparks"></g><g class="ring-spark is-off" id="ringSpark" transform="rotate(0 110 110)"><circle class="ring-spark-halo" cx="210" cy="110" r="11"/><circle class="ring-spark-core" cx="210" cy="110" r="6.4"/></g></svg>
         <div class="ring-center" onclick="onDisplayClick()">
-            <div class="ring-time" id="ringTime">25:00</div>
+            <?php /* Scritto dal server e non lasciato a "25:00" fisso: se per
+                     qualsiasi motivo l'idratazione non arriva in fondo, il
+                     quadrante mostra comunque la durata vera invece di una
+                     scritta di comodo che sembra un dato. */ ?>
+            <div class="ring-time" id="ringTime"><?php echo ((int)$imp['last_mode'] === 1) ? '00:00' : ((int)$imp['last_pomodoro_duration_min'] . ':00'); ?></div>
             <div class="ring-sub" id="ringSub"></div>
         </div>
     </div>
@@ -475,6 +409,11 @@ echo nisama_i18n_json(['comune', 'pomodoro', 'todo']);
     <div class="glass-wrap is-hidden" id="glassWrap" onclick="onDisplayClick()">
         <?php include 'clessidra.php'; ?>
     </div>
+
+    <?php /* La scena della pausa. Compare da sola quando il body prende la
+             classe pausa-mode: non c'e' niente da accendere dal JavaScript,
+             quindi non c'e' niente che possa restare acceso per sbaglio. */ ?>
+    <?php include 'pausa_scena.php'; ?>
 
     <div class="overtime-chip" id="overtimeChip" style="display:none;" onclick="onExtendClick()">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -690,20 +629,51 @@ var RING_CIRC = 2 * Math.PI * 100;
    ore, si cambia la costante e i due lati restano d'accordo. */
 var POMO_LIMITE_SEC = <?php echo (int)POMO_LIMITE_SECONDI; ?>;
 
+/* applica:false perche' questa pagina ha gia' il suo bootstrap: il motore
+   riceve i valori da sincronizzaMotore() invece di ricostruirseli, cosi' la
+   strada che porta allo stato resta una sola. */
+PomoCore.init({ stato: STATE0, endpoint: 'pomodoro.php', limite: POMO_LIMITE_SEC, applica: false });
+
+/* L'unico punto di travaso fra le variabili della pagina e il motore. Sta in
+   una funzione sola e viene chiamata a ogni cambio di fase (updateLockUI) e a
+   ogni battito: venti chiamate sparse sarebbero venti occasioni di
+   dimenticarne una, e il motore si troverebbe a fare i conti su dati vecchi. */
+function sincronizzaMotore(){
+    PomoCore.imposta({
+        fase: phase,
+        // a riposo comanda la modalita' scelta nell'interruttore, non quella
+        // dell'ultima sessione: e' quella che decide cosa mostrare sul quadrante
+        modo: (phase === 'idle') ? mode : activeMode,
+        sessioneId: activeSessionId,
+        durataMin: activeDurataMin,
+        accumulati: accumulatedSec,
+        inizioSegmentoMs: segmentStartMs,
+        fineCompletatoMs: completedEndMs,
+        pausaInizioMs: pausaStartMs,
+        pausaDurataMin: pausaDurataMin,
+        durataSceltaMin: selDurataPomo,
+        durataPausaMin: selDurataPausa,
+        progettoId: projectId, progettoNome: projectName, progettoColore: projectColor,
+        stile: displayStyle
+    });
+}
+
 function buzz(ms){ try{ if (navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
 function toast(msg){
     var t = document.getElementById('pomoToast');
     t.textContent = msg; t.classList.add('show');
     clearTimeout(t._tm); t._tm = setTimeout(function(){ t.classList.remove('show'); }, 2200);
 }
-function pad(n){ return String(n).padStart(2,'0'); }
-function fmtHMS(totalSec){
-    totalSec = Math.max(0, Math.floor(totalSec));
-    var h = Math.floor(totalSec/3600), m = Math.floor((totalSec%3600)/60), s = totalSec%60;
-    return h > 0 ? (h+':'+pad(m)+':'+pad(s)) : (pad(m)+':'+pad(s));
-}
+/* Formato e chiamate: gusci sul motore. I nomi restano questi perche' la
+   pagina li usa in cinquanta punti, ma il codice vero sta in un file solo. */
+function pad(n){ return PomoCore.pad(n); }
+function fmtHMS(totalSec){ return PomoCore.fmtHMS(totalSec); }
 function post(url, params){
-    return fetch(url, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams(params).toString() }).then(function(r){ return r.json(); });
+    /* 'pomodoro.php?ajax=pausa_task' -> azione('pausa_task'). Passando tutte
+       da qui, il motore sa sempre cosa e' appena stato scritto e non scambia
+       una nostra azione per quella di un altro dispositivo. */
+    var nome = String(url).split('ajax=')[1] || '';
+    return PomoCore.azione(nome, params);
 }
 function notify(title, body){
     try{
@@ -729,6 +699,8 @@ function updateLockUI(){
     document.body.classList.toggle('pomo-locked', phase !== 'idle');
     // espone la fase al CSS: guida alone, puntino di stato e micro-animazioni
     document.body.setAttribute('data-phase', phase);
+    // ogni cambio di fase passa da qui: e' il posto giusto per allineare il motore
+    sincronizzaMotore();
 }
 
 /* ---------------- mode switch ---------------- */
@@ -1075,11 +1047,8 @@ function renderIdleDisplay(){
     // Aggiungi questa riga per mostrare la durata della pausa
     document.getElementById('ringSub').textContent = T('pomodoro.pausa_di', {minuti: selDurataPausa});
     
-    if (mode === 0) {
-        document.getElementById('ringTime').textContent = selDurataPomo + ':00';
-    } else {
-        document.getElementById('ringTime').textContent = '00:00';
-    }
+    sincronizzaMotore();
+    document.getElementById('ringTime').textContent = PomoCore.tempi().testo;
     setRingFraction(0);
     lastGlassFlipped = false;
     if (window.Clessidra) window.Clessidra.idle();
@@ -1319,7 +1288,12 @@ function doStart(){
     activeMode = mode;
     post('pomodoro.php?ajax=start', { mode: mode, durata_minuti: selDurataPomo, project_id: projectId || 0 })
     .then(function(data){
-        if (!data.success) { toast(T('comune.errore_generico')); return; }
+        if (!data.success) {
+            // il conflitto lo racconta gia' l'ascoltatore piu' in basso, che nel
+            // frattempo ha anche riallineato la pagina allo stato vero
+            if (!data.conflitto) toast(T('comune.errore_generico'));
+            return;
+        }
         activeSessionId = data.session_id;
         
         // Portato a 500ms per un freeze più breve ed elegante
@@ -1349,10 +1323,8 @@ function doStart(){
 /* la pausa CONGELA la sessione (stessa riga sul server, si accumula durata_secondi) e mostra
    subito il tempo mancante fermo, con sotto solo "Riprendi"/"Interrompi": vedi bug #6 */
 window.onMidPauseClick = function(){
-    // Calcoliamo il tempo esatto, con l'arrotondamento corretto per non far "saltare" il secondo visivo
-    var textElapsed = accumulatedSec + Math.max(0, (Date.now() - segmentStartMs) / 1000);
-    // Usa ceil (per eccesso) per il Timer, floor (per difetto) per il Cronometro
-    var elapsedSec = (activeMode === 0) ? Math.ceil(textElapsed) : Math.floor(textElapsed);
+    sincronizzaMotore();
+    var elapsedSec = PomoCore.tempoDaCongelare();
     
     post('pomodoro.php?ajax=pausa_task', { 
         session_id: activeSessionId,
@@ -1371,20 +1343,13 @@ window.onMidPauseClick = function(){
 function renderFrozenPausedDisplay(){
     // congela il quadrante sul tempo mancante (timer) o trascorso (cronometro): non
     // viene più aggiornato finché non si preme "Riprendi"
-    if (activeMode === 0) {
-        var total = (activeDurataMin || 0) * 60;
-        var remaining = Math.max(0, total - accumulatedSec);
-        var frac = total > 0 ? Math.min(1, accumulatedSec / total) : 0;
-        document.getElementById('ringTime').textContent = fmtHMS(remaining);
-        setRingFraction(frac); setGlassFraction(frac, false, lastGlassFlipped);
-    } else {
-        var hourFrac = (accumulatedSec % 3600) / 3600;
-        var flipCount = Math.floor(accumulatedSec / 3600);
-        var flipped = flipCount % 2 === 1;
-        document.getElementById('ringTime').textContent = fmtHMS(accumulatedSec);
-        setRingFraction(hourFrac);
-        setGlassFraction(hourFrac, false, flipped);
-    }
+    sincronizzaMotore();
+    var t = PomoCore.tempi();
+    document.getElementById('ringTime').textContent = t.testo;
+    setRingFraction(t.frazione);
+    // col timer la clessidra resta come l'ha lasciata la sessione: rigirarla
+    // qui vorrebbe dire animare un capovolgimento che non e' successo
+    setGlassFraction(t.frazione, false, activeMode === 0 ? lastGlassFlipped : t.capovolta);
 }
 // DOPO:
     window.onResumeTaskClick = function(){
@@ -1399,7 +1364,8 @@ function renderFrozenPausedDisplay(){
     };
 
 window.onInterrompiClick = function(){
-    var elapsedSec = phase === 'paused_task' ? accumulatedSec : (accumulatedSec + (Date.now() - segmentStartMs) / 1000);
+    sincronizzaMotore();
+    var elapsedSec = PomoCore.tempi().trascorso;
     // sotto il minuto non c'e' niente da salvare e niente da chiedere: si butta
     if (elapsedSec < 60) { doInterrompi(true); return; }
 
@@ -1446,7 +1412,7 @@ function onNaturalComplete(){
     stopGrainFlow();
     if (window.Clessidra) window.Clessidra.finish();
     post('pomodoro.php?ajax=segna_completato', { session_id: activeSessionId }).then(function(data){
-        completedEndMs = data.data_fine ? new Date(data.data_fine.replace(' ', 'T')).getTime() : Date.now();
+        completedEndMs = PomoCore.msDa(data.data_fine) || Date.now();
         phase = 'completed';
         accumulatedSec = (activeDurataMin || 0) * 60; // Salva il totale dei secondi
         switchActionsPanel('actionsCompleted');
@@ -1555,73 +1521,28 @@ function startTicking(){
 function stopTicking(){ if (tickTimer) { clearInterval(tickTimer); tickTimer = null; } }
 
 function tick(){
+    /* Nessun conto qui dentro: si chiede al motore che ore sono e si disegna.
+       E' il motivo per cui la barra sulle altre pagine potra' mostrare lo
+       stesso avanzamento senza rifare una riga di questa matematica. */
+    sincronizzaMotore();
+    var t = PomoCore.tempi();
+
     if (phase === 'running') {
-        var now = Date.now();
-        // Sottraiamo i 500ms di freeze direttamente alla sorgente
-        var elapsed = accumulatedSec + Math.max(0, (now - segmentStartMs) / 1000);
-        var isTimer = (activeMode === 0);
+        if (t.finito)        { onNaturalComplete(); return; }
+        if (t.oltreIlLimite) { toast(T('pomodoro.limite_raggiunto')); doInterrompi(false); return; }
+        document.getElementById('ringTime').textContent = t.testo;
+        setRingFraction(t.frazione);
+        setGlassFraction(t.frazione, false, t.capovolta);
 
-        // Calcolo del tempo per il TESTO NUMERICO (con freeze di 500ms)
-        var textElapsed = accumulatedSec + Math.max(0, (now - segmentStartMs) / 1000);
-
-        // Calcolo del tempo per la GRAFICA (barra e sabbia: partono istantaneamente)
-        // Per il timer si calcola dallo start anticipato, per il cronometro coincide con il testo
-        var realElapsed = isTimer 
-            ? (accumulatedSec + Math.max(0, (now - (segmentStartMs - 500)) / 1000))
-            : textElapsed;
-
-        if (isTimer) {
-            // --- MODALITÀ TIMER ---
-            var total = (activeDurataMin || 0) * 60;
-            var remainingText = total - textElapsed;
-            if (total - realElapsed <= 0) { onNaturalComplete(); return; }
-            
-            document.getElementById('ringTime').textContent = fmtHMS(remainingText);
-            setRingFraction(total > 0 ? realElapsed / total : 0);
-            setGlassFraction(total > 0 ? realElapsed / total : 0, false, false);
-        } else {
-            // --- MODALITÀ CRONOMETRO ---
-            /* Il tetto delle dieci ore vale anche con la pagina aperta, non solo
-               alla riapertura: senza questo, chi lascia il cronometro acceso
-               tutta la notte lo ritrova a 14 ore invece che fermo al limite,
-               e i due percorsi darebbero risultati diversi. */
-            if (realElapsed >= POMO_LIMITE_SEC) {
-                toast(T('pomodoro.limite_raggiunto'));
-                doInterrompi(false);
-                return;
-            }
-            // Il testo mostra i secondi reali passati (bloccati per i primi 500ms a 00:00)
-            document.getElementById('ringTime').textContent = fmtHMS(textElapsed);
-            
-            var hourFrac = (realElapsed % 3600) / 3600;
-            setRingFraction(hourFrac);
-            var flipCount = Math.floor(realElapsed / 3600);
-            var flipped = flipCount % 2 === 1;
-            setGlassFraction(hourFrac, false, flipped);
-        }
     } else if (phase === 'completed') {
-        var overSec = (Date.now() - completedEndMs) / 1000;
-        document.getElementById('overtimeValue').textContent = fmtHMS(overSec);
-
-        /* Il pomodoro e' finito ma si continua a studiare: la barra resta
-           piena, perche' quel pomodoro e' completo e mostrarlo a meta' sarebbe
-           una bugia. La scintilla pero' riparte e fa un giro nuovo della stessa
-           durata del pomodoro: da' la misura di quanto tempo in piu' si sta
-           facendo, senza toccare il risultato gia' raggiunto. */
-        var giro = (activeDurataMin || 0) * 60;
+        document.getElementById('overtimeValue').textContent = fmtHMS(t.fuoritempo);
         setRingFraction(1);
-        if (giro > 0) setSparkFraction((overSec % giro) / giro);
+        if (t.frazioneScintilla !== null) setSparkFraction(t.frazioneScintilla);
+
     } else if (phase === 'pausa_running') {
-        var nowP = Date.now();
-        var pRealElapsed = Math.max(0, (nowP - (pausaStartMs - 500)) / 1000);
-        var pTextElapsed = Math.max(0, (nowP - pausaStartMs) / 1000);
-        var pTotal = pausaDurataMin * 60;
-        var pRemainingText = pTotal - pTextElapsed;
-
-        // Applica il colore verde al testo del timer durante la pausa
+        // il testo verde: la pausa non deve poter essere scambiata per lavoro
         document.getElementById('ringTime').style.color = 'var(--pausa-accent)';
-
-        if (pTotal - pRealElapsed <= 0 && !notifiedPausaEnd) {
+        if (t.finito && !notifiedPausaEnd) {
             notifiedPausaEnd = true; buzz([60,30,60]);
             notify(T('pomodoro.pausa_finita'), T('pomodoro.torna_al_lavoro'));
             phase = 'pausa_done';
@@ -1629,17 +1550,13 @@ function tick(){
             document.getElementById('statusLabel').textContent = T('pomodoro.pausa_conclusa');
             stopGrainFlow(); updateLockUI();
         }
-        if (pRemainingText > 0) {
-            document.getElementById('ringTime').textContent = fmtHMS(pRemainingText);
-            setRingFraction(pRealElapsed / pTotal); setGlassFraction(pRealElapsed / pTotal, true, false);
-        } else {
-            document.getElementById('ringTime').textContent = '+' + fmtHMS(Math.max(0, pTextElapsed - pTotal));
-            setRingFraction(1); setGlassFraction(1, true, false);
-        }
+        document.getElementById('ringTime').textContent = t.testo;
+        setRingFraction(t.frazione);
+        setGlassFraction(t.frazione, true, false);
+
     } else if (phase === 'pausa_done') {
-        var overP = (Date.now() - (pausaStartMs + pausaDurataMin*60*1000)) / 1000;
         document.getElementById('ringTime').style.color = 'var(--pausa-accent)';
-        document.getElementById('ringTime').textContent = '+' + fmtHMS(overP);
+        document.getElementById('ringTime').textContent = t.testo;
     }
 }
 
@@ -1720,8 +1637,11 @@ function bootstrap(){
             document.getElementById('statusLabel').textContent = T('pomodoro.sessione_in_pausa');
             renderFrozenPausedDisplay();
         } else {
-            segmentStartMs = a.data_ripresa ? new Date(a.data_ripresa.replace(' ', 'T')).getTime() : new Date(a.data_inizio.replace(' ', 'T')).getTime();
-            if (isNaN(segmentStartMs)) segmentStartMs = Date.now();
+            /* msDa() invece di new Date(...).replace(): la stessa lettura del
+               motore, e soprattutto non esplode se la data manca. Qui una
+               riga che esplode non si vede — l'idratazione si ferma a meta' e
+               la pagina resta a sembrare a riposo. */
+            segmentStartMs = PomoCore.msDa(a.data_ripresa) || PomoCore.msDa(a.data_inizio) || Date.now();
             phase = 'running';
             switchActionsPanel('actionsRunning');
             document.getElementById('statusLabel').textContent = mode === 0 ? T('pomodoro.concentrazione') : T('pomodoro.cronometro_in_corso');
@@ -1730,13 +1650,24 @@ function bootstrap(){
         updateLockUI(); updateGrainFlow();
     } else if (STATE0.pausa) {
         var p = STATE0.pausa;
-        pausaStartMs = new Date(p.start_time.replace(' ', 'T')).getTime();
+        /* Era p.start_time, ma il server ha sempre mandato data_inizio: con una
+           pausa aperta l'idratazione moriva qui (undefined.replace) e il
+           quadrante restava sul valore scritto nell'HTML. */
+        pausaStartMs = PomoCore.msDa(p.data_inizio) || Date.now();
         pausaDurataMin = p.durata_prevista_minuti;
         if (p.project_id) { projectId = p.project_id; projectName = p.progetto_nome; projectColor = p.progetto_colore; }
-        phase = 'pausa_running';
         document.body.classList.add('pausa-mode');
-        switchActionsPanel('actionsPausaRunning');
-        document.getElementById('statusLabel').textContent = T('pomodoro.pausa_in_corso');
+        if ((Date.now() - pausaStartMs) / 1000 >= pausaDurataMin * 60) {
+            /* gia' scaduta mentre la pagina era chiusa: si apre nella fase
+               giusta, senza rifare suonare la notifica di fine pausa */
+            phase = 'pausa_done'; notifiedPausaEnd = true;
+            switchActionsPanel('actionsPausaDone');
+            document.getElementById('statusLabel').textContent = T('pomodoro.pausa_conclusa');
+        } else {
+            phase = 'pausa_running';
+            switchActionsPanel('actionsPausaRunning');
+            document.getElementById('statusLabel').textContent = T('pomodoro.pausa_in_corso');
+        }
         updateLockUI(); updateGrainFlow();
         startTicking();
     } else if (STATE0.last && STATE0.last.esito === 'completato') {
@@ -1745,7 +1676,7 @@ function bootstrap(){
         /* Serve al giro della scintilla in fuoritempo: senza, riaprendo la
            pagina su un pomodoro gia' completato il pallino resterebbe fermo. */
         activeDurataMin = c.durata_prevista_minuti;
-        completedEndMs = new Date(c.data_fine.replace(' ', 'T')).getTime();
+        completedEndMs = PomoCore.msDa(c.data_fine) || Date.now();
         accumulatedSec = c.durata_secondi || (c.durata_prevista_minuti * 60) || 0; // Recupera il totale!
         if (c.project_id) { projectId = c.project_id; projectName = c.progetto_nome; projectColor = c.progetto_colore; if (window.psSetValue) window.psSetValue('ps-modal-pomo', projectId, projectName, projectColor); }
         phase = 'completed';
@@ -1765,6 +1696,37 @@ function bootstrap(){
     }
 }
 bootstrap();
+
+/* ---------------- lo stesso pomodoro su piu' dispositivi ----------------
+   Il pomodoro si mette in pausa dal telefono e si continua a guardarlo dal
+   computer: senza questo, la seconda pagina resta a raccontare una sessione
+   che non esiste piu' e la prima azione che le si chiede finisce nel vuoto.
+   Non si ricarica la pagina apposta — si perderebbe il post-it aperto e la
+   posizione nello storico: si sostituisce lo stato di partenza e si rifa'
+   l'idratazione, che e' la stessa strada del primo caricamento. */
+PomoCore.on('cambiato', function(st){
+    stopTicking(); stopGrainFlow();
+    STATE0.active = st.active; STATE0.pausa = st.pausa; STATE0.last = st.last;
+    phase = 'idle';
+    activeSessionId = null; activeDurataMin = null; accumulatedSec = 0;
+    segmentStartMs = null; completedEndMs = null;
+    pausaStartMs = null; pausaDurataMin = null;
+    notifiedEnd = false; notifiedPausaEnd = false;
+    document.body.classList.remove('pausa-mode');
+    document.getElementById('overtimeChip').style.display = 'none';
+    document.getElementById('ringTime').style.color = '';
+    document.getElementById('statusLabel').textContent = T('pomodoro.pronto');
+    switchActionsPanel('actionsIdle');
+    bootstrap();
+    toast(T('pomodoro.altro_dispositivo'));
+});
+
+/* Il rifiuto arriva dal server, che e' l'unico a vedere tutti i dispositivi
+   insieme: qui si dice soltanto cos'e' successo. */
+PomoCore.on('conflitto', function(){ toast(T('pomodoro.gia_attivo_altrove')); });
+
+PomoCore.avviaControllo(60000);
+
 mostraAvvisoAbbandono();
 proponiArgomentoDiOggi();
 pomoUpdateProjectPill(); // richiesta 17: mostra la catena nonno•padre•progetto dopo l'idratazione

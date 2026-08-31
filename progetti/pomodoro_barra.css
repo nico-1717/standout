@@ -1,0 +1,317 @@
+/* =====================================================================
+   NISAMA — LA BARRA DEL POMODORO
+   Una striscia in cima a ogni pagina mentre un pomodoro (o una pausa)
+   sta girando. Non mostra il tempo che scorre apposta: un orologio
+   sempre sott'occhio mentre si lavora e' esattamente la cosa che si
+   voleva togliere di mezzo accendendo un pomodoro. Al suo posto c'e'
+   una linea che si riempie — si capisce a che punto siamo con
+   un'occhiata, senza poter contare i minuti.
+
+   I colori non li chiede alla pagina ospite: questa barra finisce su
+   ventisette pagine con ventisette palette, e l'unica cosa che eredita
+   e' il colore del progetto.
+   ===================================================================== */
+
+/* --------------------------------------------------------------------
+   LO SPAZIO PER LA BARRA
+   Il --pomo-bar-pad e' il padding che il body aveva PRIMA: lo scrive il
+   JavaScript prima di aggiungere la classe. Senza, una pagina che si
+   teneva venti pixel di respiro in alto se li vedrebbe sostituiti dai
+   nostri, invece che sommati.
+
+   Solo padding-top, niente altro: box-sizing:border-box c'era in una
+   versione precedente "per prudenza", ma toccare il modello a scatola
+   di un elemento largo quanto tutta la pagina e' un rischio che non
+   avevamo verificato di dover correre, ed e' bastato a schiacciare il
+   contenuto su alcune pagine. Meglio un padding che fa una cosa sola.
+
+   ATTENZIONE — pomo-bar-attiva NON e' pomo-bar: sono nomi voluti
+   diversi, non abbreviati per sbaglio. "pomo-bar-attiva" e' solo un
+   segnalino su <html> ("c'e' la barra, fai spazio"); "pomo-bar" e' la
+   classe del VERO elemento della barra, quello con tutto lo stile
+   qui sotto (position:fixed, altezza, sfondo, sfocatura...). Chiamarli
+   allo stesso modo li farebbe combaciare per il CSS: <html> prenderebbe
+   anche lui position:fixed e un'altezza di 30px, diventando un
+   rettangolo minuscolo invece di restare grande quanto la pagina — e
+   siccome ogni elemento a posizionamento fisso della pagina (incluso
+   il pulsante della sidebar) cerca il primo antenato "fisso" per
+   sapere dove ancorarsi, troverebbe quello sbagliato. E' successo
+   davvero, ha rotto la pagina intera: i due nomi restano diversi.
+   -------------------------------------------------------------------- */
+html.pomo-bar-attiva{ --pomo-bar-h: calc(20px + env(safe-area-inset-top, 0px)); }
+html.pomo-bar-attiva body{
+    padding-top: calc(var(--pomo-bar-h) + var(--pomo-bar-pad, 0px));
+}
+
+/* --------------------------------------------------------------------
+   FARE SPAZIO ALLE INTESTAZIONI FISSE DELLA PAGINA OSPITE
+   Il padding qui sopra sposta solo il flusso normale: un'intestazione a
+   sua volta position:fixed (come #appHeader di visualizzazione_fc.php)
+   lo ignora del tutto e resta piantata a top:0, sovrapponendosi alla
+   barra invece di farle posto.
+
+   #appHeader e' nominata qui perche' e' verificata: e' cosi' che si
+   chiama davvero, non una supposizione. Per qualunque intestazione
+   fissa futura, pero', la via generale e' l'attributo — nessuna
+   scansione automatica del DOM: la scansione alla cieca di "tutto cio'
+   che e' fisso" e' esattamente quello che una volta ha spostato il
+   pulsante della sidebar per sbaglio. Solo chi lo dichiara viene
+   toccato:
+
+       <header data-pomo-fa-spazio> ... </header>
+
+   Su una pagina senza barra attiva questa regola non esiste nemmeno
+   (e' sotto html.pomo-bar-attiva), quindi l'intestazione resta dov'e'
+   sempre stata.
+   -------------------------------------------------------------------- */
+html.pomo-bar-attiva #appHeader,
+html.pomo-bar-attiva [data-pomo-fa-spazio]{
+    top: var(--pomo-bar-h, 20px);
+}
+
+/* --------------------------------------------------------------------
+   LA BARRA
+   -------------------------------------------------------------------- */
+.pomo-bar{
+    --pomo-bar-col: #E2725B;                 /* il colore del progetto, lo scrive il JS */
+    position: fixed; top: 0; left: 0; right: 0;
+    /* Sempre la prima cosa in cima, sopra qualunque intestazione della
+       pagina ospite. Qui e' passata da top:0 a var(--header-h) e
+       ritorno piu' di una volta: fissato a top:0, punto — la prossima
+       modifica a questa riga va concordata prima, non tentata. */
+    height: var(--pomo-bar-h, 20px);
+    padding: env(safe-area-inset-top, 0px) 12px 0;
+    box-sizing: border-box;
+    z-index: 9000;
+    display: flex; align-items: center; gap: 9px;
+    background: rgba(255, 253, 250, .86);
+    -webkit-backdrop-filter: saturate(1.5) blur(16px);
+    backdrop-filter: saturate(1.5) blur(16px);
+    border-bottom: 1px solid rgba(74, 68, 61, .10);
+    color: #4A443D;
+    font: 600 10.5px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    letter-spacing: .085em; text-transform: uppercase;
+    cursor: pointer;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    /* entra scendendo, cosi' lo spostamento della pagina si capisce invece
+       di sembrare un salto */
+    animation: pomo-bar-entra .34s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes pomo-bar-entra{ from{ transform: translateY(-100%); } to{ transform: none; } }
+
+@media (prefers-color-scheme: dark){
+    .pomo-bar{
+        background: rgba(24, 23, 26, .82);
+        border-bottom-color: rgba(255, 255, 255, .09);
+        color: #E8E3DC;
+    }
+}
+
+/* la linea che si riempie: il pezzo che racconta a che punto siamo.
+   La larghezza la anima il browser con una transizione lunga quanto il
+   tempo che manca — nessun battito di JavaScript, movimento continuo.
+   Si anima la width e non una variabile personalizzata: quelle non sono
+   animabili senza @property, che e' troppo recente per farci conto. */
+.pomo-bar-linea{
+    position: absolute; left: 0; bottom: -1px; height: 2.5px;
+    width: 0;
+    background: var(--pomo-bar-col);
+    border-radius: 0 2px 2px 0;
+    box-shadow: 0 0 12px color-mix(in srgb, var(--pomo-bar-col) 55%, transparent);
+}
+/* la stessa larghezza, ma come velo appena percettibile su tutta l'altezza:
+   il colore del progetto si vede senza che la barra diventi una insegna */
+.pomo-bar-velo{
+    position: absolute; top: 0; bottom: 0; left: 0;
+    width: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg,
+                transparent,
+                color-mix(in srgb, var(--pomo-bar-col) 16%, transparent));
+}
+
+.pomo-bar-punto{
+    position: relative;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--pomo-bar-col);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pomo-bar-col) 18%, transparent);
+    flex: 0 0 auto;
+}
+.pomo-bar-testo{
+    position: relative;
+    flex: 1 1 auto; min-width: 0;
+    text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    opacity: .72;
+}
+.pomo-bar-freccia{
+    position: relative;
+    flex: 0 0 auto; width: 12px; height: 12px; opacity: .38;
+    transition: transform .28s cubic-bezier(.22,1,.36,1);
+}
+.pomo-bar.is-aperta .pomo-bar-freccia{ transform: rotate(180deg); }
+
+/* Il respiro della pausa: lento, quattro secondi, il ritmo di un
+   sospiro. Serve a distinguere la pausa dal lavoro senza leggere
+   niente — e a ricordare che in pausa non si sta correndo. */
+.pomo-bar.is-pausa{ --pomo-bar-col: #3FA98C; }
+.pomo-bar.is-pausa .pomo-bar-punto{ animation: pomo-bar-respiro 4s ease-in-out infinite; }
+@keyframes pomo-bar-respiro{
+    0%, 100%{ transform: scale(1);   box-shadow: 0 0 0 3px color-mix(in srgb, var(--pomo-bar-col) 18%, transparent); }
+    50%     { transform: scale(1.5); box-shadow: 0 0 0 6px color-mix(in srgb, var(--pomo-bar-col)  6%, transparent); }
+}
+
+/* L'ultimo decimo: la linea pulsa piano. E' l'unico avviso che diamo
+   prima della fine, e vale piu' di un numero — dice "sta per finire"
+   senza far guardare l'orologio. */
+.pomo-bar.is-quasi .pomo-bar-linea{ animation: pomo-bar-battito 1.6s ease-in-out infinite; }
+@keyframes pomo-bar-battito{
+    0%, 100%{ opacity: 1; }
+    50%     { opacity: .45; }
+}
+
+/* Finito: piena e ferma, con il punto che chiama. Vale in entrambe le
+   modalita': e' l'unico segnale che l'indicatore si concede. */
+.pomo-bar.is-finita .pomo-bar-punto{ animation: pomo-bar-chiama 1.1s ease-in-out infinite; }
+@keyframes pomo-bar-chiama{
+    0%, 100%{ box-shadow: 0 0 0 3px  color-mix(in srgb, var(--pomo-bar-col) 30%, transparent); }
+    50%     { box-shadow: 0 0 0 8px  color-mix(in srgb, var(--pomo-bar-col)  0%, transparent); }
+}
+
+/* Modalita' indicatore (tasto vista nel popup): non e' piu' una barra di
+   avanzamento, solo un segnale che qualcosa sta girando. Niente linea che
+   scorre, niente battito prima della fine — quello lo decide riempiLinea()
+   in JavaScript, che con questa classe non tocca proprio la larghezza.
+   L'unica cosa che resta accesa e' is-finita qui sopra: e' voluto, e' il
+   "vedi solo quando termina". */
+.pomo-bar.is-indicatore .pomo-bar-linea,
+.pomo-bar.is-indicatore .pomo-bar-velo{ display: none; }
+
+@media (prefers-reduced-motion: reduce){
+    .pomo-bar, .pomo-bar-punto, .pomo-bar-linea{ animation: none !important; }
+}
+
+/* --------------------------------------------------------------------
+   IL POPUP
+   Qui il tempo si vede: e' il posto in cui si e' andati apposta, non
+   qualcosa che sta sott'occhio mentre si lavora.
+   -------------------------------------------------------------------- */
+.pomo-pop-velo{
+    position: fixed; inset: 0; z-index: 9001;
+    background: transparent;
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s ease;
+}
+.pomo-pop-velo.is-aperto{ opacity: 1; pointer-events: auto; }
+
+.pomo-pop{
+    position: fixed; z-index: 9002;
+    top: calc(var(--pomo-bar-h, 20px) + 8px);
+    left: 50%;
+    width: 226px;
+    transform: translateX(-50%) translateY(-10px) scale(.96);
+    transform-origin: top center;
+    opacity: 0; pointer-events: none;
+    transition: opacity .22s ease, transform .3s cubic-bezier(.22,1,.36,1);
+
+    background: #FFFDFA;
+    border: 1px solid rgba(74, 68, 61, .10);
+    border-radius: 18px;
+    box-shadow: 0 18px 44px rgba(0,0,0,.16), 0 2px 6px rgba(0,0,0,.06);
+    padding: 16px 14px 13px;
+    text-align: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #4A443D;
+}
+.pomo-pop.is-aperto{ opacity: 1; pointer-events: auto; transform: translateX(-50%) none; }
+@media (prefers-color-scheme: dark){
+    .pomo-pop{ background: #201F23; border-color: rgba(255,255,255,.09); color: #E8E3DC; }
+}
+
+/* il quadrante piccolo */
+.pomo-pop-disco{ position: relative; width: 96px; height: 96px; margin: 0 auto 10px; }
+.pomo-pop-disco svg{ width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
+.pomo-pop-pista{ fill: none; stroke: currentColor; stroke-width: 4; opacity: .10; }
+.pomo-pop-arco{
+    fill: none; stroke: var(--pomo-bar-col, #E2725B); stroke-width: 4; stroke-linecap: round;
+    transition: stroke-dashoffset .4s linear;
+}
+.pomo-pop-ora{
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums;
+    letter-spacing: -.01em;
+}
+.pomo-pop.is-pausa .pomo-pop-ora{ color: #3FA98C; }
+
+.pomo-pop-prog{
+    display: inline-flex; align-items: center; gap: 6px;
+    margin: 0 auto 12px; max-width: 100%;
+    padding: 5px 11px; border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--pomo-bar-col, #E2725B) 26%, transparent);
+    background: color-mix(in srgb, var(--pomo-bar-col, #E2725B) 10%, transparent);
+    color: var(--pomo-bar-col, #E2725B);
+    font: 600 11px/1.2 inherit; letter-spacing: .04em;
+    cursor: pointer;
+    transition: transform .18s cubic-bezier(.22,1,.36,1);
+}
+.pomo-pop-prog:active{ transform: scale(.95); }
+.pomo-pop-prog[hidden]{ display: none; }
+.pomo-pop-prog-punto{
+    width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto;
+    background: currentColor;
+}
+.pomo-pop-prog-testo{
+    min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.pomo-pop-extra{
+    display: none;
+    margin: -6px auto 10px;
+    font-size: 12px; font-variant-numeric: tabular-nums; opacity: .6;
+}
+.pomo-pop.is-finita .pomo-pop-extra{ display: block; }
+
+/* i tastini: le stesse icone della pagina pomodoro, perche' se il
+   triangolo li' vuol dire "parti", qui non puo' voler dire altro */
+.pomo-pop-tasti{ display: flex; justify-content: center; gap: 9px; flex-wrap: wrap; }
+.pomo-pop-tasto{
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 1px solid rgba(74, 68, 61, .12);
+    background: rgba(74, 68, 61, .05);
+    color: inherit;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0;
+    transition: transform .18s cubic-bezier(.22,1,.36,1), background-color .18s ease;
+}
+.pomo-pop-tasto:active{ transform: scale(.9); }
+.pomo-pop-tasto svg{ width: 17px; height: 17px; }
+.pomo-pop-tasto.is-primario{
+    background: var(--pomo-bar-col, #E2725B);
+    border-color: transparent;
+    color: #fff;
+}
+.pomo-pop-tasto[hidden]{ display: none; }
+@media (prefers-color-scheme: dark){
+    .pomo-pop-tasto{ border-color: rgba(255,255,255,.12); background: rgba(255,255,255,.06); }
+}
+
+/* il tastino sta in un angolo: non tocca il pomodoro, sceglie solo come
+   la barra in cima si comporta mentre gira (avanza o si limita a
+   segnalare) — vedi .pomo-bar.is-indicatore piu' sotto */
+.pomo-pop-vista{
+    position: absolute; top: 9px; right: 10px;
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 0; background: transparent; color: inherit; opacity: .4;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0;
+    transition: opacity .18s ease, background-color .18s ease, color .18s ease;
+}
+.pomo-pop-vista:hover{ opacity: .85; }
+.pomo-pop-vista.is-attiva{
+    opacity: 1;
+    background: color-mix(in srgb, var(--pomo-bar-col, #E2725B) 16%, transparent);
+    color: var(--pomo-bar-col, #E2725B);
+}
+.pomo-pop-vista svg{ width: 15px; height: 15px; }
