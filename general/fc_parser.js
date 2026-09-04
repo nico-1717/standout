@@ -122,6 +122,8 @@ function fcdNorm(doc) {
                di formule, che senza questo finiva sempre fuori dai punti. */
             var lv = parseInt(b.lvl, 10);
             if (lv >= 1) { fx.lvl = Math.min(lv, 12); if (FCD_LIST_COLORS.indexOf(b.c) !== -1) fx.c = b.c; }
+            var mFx2 = fcdCloneMarks(b.m);
+            if (mFx2) fx.m = mFx2;
             out.push(fx);
             return;
         }
@@ -131,7 +133,8 @@ function fcdNorm(doc) {
             if (!r || typeof r !== 'object') return;
 
             if (typeof r.x === 'string') {
-                if (r.x !== '' || true) runs.push({ x: r.x });   // formula vuota = chip da riempire
+                var mf = fcdCloneMarks(r.m);
+                runs.push(mf ? { x: r.x, m: mf } : { x: r.x });   // formula vuota = chip da riempire
                 return;
             }
             var s = String(r.s == null ? '' : r.s).replace(/\u200B/g, '');
@@ -218,7 +221,6 @@ function fcdSplitAt(block, pos) {
 function fcdRangeHas(doc, sel, key, val) {
     var vuoto = true, ok = true;
     fcdEachRunInRange(doc, sel, function (run) {
-        if (typeof run.x === 'string') return;      // le formule non si colorano
         vuoto = false;
         var m = run.m || {};
         if (val === undefined) { if (!m[key]) ok = false; }
@@ -231,7 +233,15 @@ function fcdEachRunInRange(doc, sel, fn) {
     var s = fcdOrder(sel);
     for (var bi = s.a.b; bi <= s.f.b; bi++) {
         var block = doc.blocks[bi];
-        if (!block || block.t === 'fx') continue;
+        if (!block) continue;
+
+        if (block.t === 'fx') {
+            var iniziaPrima = (bi > s.a.b) || (s.a.o < fcdBlockLen(block));
+            var finiscePoi = (bi < s.f.b) || (s.f.o > 0);
+            if (iniziaPrima && finiscePoi) fn({ m: block.m }, block);
+            continue;
+        }
+
         var from = (bi === s.a.b) ? s.a.o : 0;
         var to   = (bi === s.f.b) ? s.f.o : fcdBlockLen(block);
         if (from === to && s.a.b !== s.f.b) continue;
@@ -249,7 +259,23 @@ function fcdSetMark(doc, sel, key, val) {
     var s = fcdOrder(sel);
     for (var bi = s.a.b; bi <= s.f.b; bi++) {
         var block = doc.blocks[bi];
-        if (!block || block.t === 'fx') continue;
+        if (!block) continue;
+
+        if (block.t === 'fx') {
+            /* Un blocco intero, non un pezzo: se la selezione lo tocca in
+               un punto qualsiasi (le regole di fcdSplitAt sulle formule
+               arrotondano gia' a "tutta dentro o tutta fuori"), il marchio
+               si applica a tutto il blocco. */
+            var toccaFx = (bi > s.a.b || s.a.o < fcdBlockLen(block)) && (bi < s.f.b || s.f.o > 0);
+            if (!toccaFx) continue;
+            var mFx = fcdCloneMarks(block.m) || {};
+            if (val === null || val === undefined || val === false) delete mFx[key];
+            else mFx[key] = val;
+            var nmFx = fcdCloneMarks(mFx);
+            if (nmFx) block.m = nmFx; else delete block.m;
+            continue;
+        }
+
         var from = (bi === s.a.b) ? s.a.o : 0;
         var to   = (bi === s.f.b) ? s.f.o : fcdBlockLen(block);
         if (from >= to) continue;
@@ -258,7 +284,6 @@ function fcdSetMark(doc, sel, key, val) {
         var i1 = fcdSplitAt(block, to);
         for (var i = i0; i < i1 && i < block.runs.length; i++) {
             var r = block.runs[i];
-            if (typeof r.x === 'string') continue;
             var m = fcdCloneMarks(r.m) || {};
             if (val === null || val === undefined || val === false) delete m[key];
             else m[key] = val;
@@ -297,10 +322,21 @@ function fcdEachBlockInSel(doc, sel, fn) {
    esiste un modo di "applicarlo due volte". */
 function fcdToggleList(doc, sel) {
     var tutti = true, n = 0;
-    fcdEachBlockInSel(doc, sel, function (b) { if (b.t === 'fx') return; n++; if (b.t !== 'li') tutti = false; });
+    /* Per un paragrafo "e' gia' un elenco" vuol dire t==='li'; per una
+       formula a blocco vuol dire avere gia' un .lvl — non puo' cambiare
+       tipo, il pallino le si affianca e basta (vedi .fc-fx-li, gia'
+       pronto da quando le formule possono stare dentro una lista). */
+    fcdEachBlockInSel(doc, sel, function (b) {
+        n++;
+        if (b.t === 'fx' ? !b.lvl : b.t !== 'li') tutti = false;
+    });
     if (!n) return doc;
     fcdEachBlockInSel(doc, sel, function (b) {
-        if (b.t === 'fx') return;
+        if (b.t === 'fx') {
+            if (tutti) { delete b.lvl; delete b.c; }
+            else if (!b.lvl) b.lvl = 1;
+            return;
+        }
         if (tutti) { b.t = 'p'; delete b.lvl; delete b.c; }
         else if (b.t !== 'li') { b.t = 'li'; b.lvl = 1; }
     });
@@ -312,11 +348,11 @@ function fcdToggleList(doc, sel) {
    niente, e i pallini di Word farebbero la stessa cosa. */
 function fcdIndent(doc, sel, verso) {
     fcdEachBlockInSel(doc, sel, function (b, i) {
-        if (b.t !== 'li') return;
+        if (b.t !== 'li' && !(b.t === 'fx' && b.lvl)) return;
         var lvl = (b.lvl | 0) || 1;
         if (verso > 0) {
             var prev = null;
-            for (var k = i - 1; k >= 0; k--) { if (doc.blocks[k].t === 'li') { prev = doc.blocks[k]; break; } if (doc.blocks[k].t !== 'fx') break; }
+            for (var k = i - 1; k >= 0; k--) { if (doc.blocks[k].t === 'li' || (doc.blocks[k].t === 'fx' && doc.blocks[k].lvl)) { prev = doc.blocks[k]; break; } if (doc.blocks[k].t !== 'fx') break; }
             var max = prev ? ((prev.lvl | 0) || 1) + 1 : 1;
             b.lvl = Math.min(lvl + 1, max, 12);
         } else {
@@ -328,7 +364,7 @@ function fcdIndent(doc, sel, verso) {
 
 function fcdSetListColor(doc, sel, color) {
     fcdEachBlockInSel(doc, sel, function (b) {
-        if (b.t !== 'li') return;
+        if (b.t !== 'li' && !(b.t === 'fx' && b.lvl)) return;
         if (color && FCD_LIST_COLORS.indexOf(color) !== -1) b.c = color; else delete b.c;
     });
     return fcdNorm(doc);
@@ -348,6 +384,41 @@ function fcdToggleBlockMath(doc, sel) {
     if (b.t === 'fx') {
         doc.blocks[i] = { t: 'p', runs: b.tex ? [{ s: b.tex }] : [] };
         return { doc: fcdNorm(doc), caret: { b: i, o: (b.tex || '').length } };
+    }
+
+    /* Il cursore tocca una formula IN LINEA (senza una vera selezione di
+       testo)? Il tasto "a blocco" non ne apre una nuova sotto: trasforma
+       QUELLA, portandola sulla sua riga — il gemello di quello che fa
+       fcdToggleInlineMath quando trova il cursore dentro una formula a
+       blocco, qui sopra. Stessa identica meccanica dello spezzare in tre
+       usata per il testo selezionato, qui sotto: prima, la formula, dopo. */
+    if (s.a.b === s.f.b && s.a.o === s.f.o) {
+        var accF = 0, runsB = b.runs || [];
+        for (var kf = 0; kf < runsB.length; kf++) {
+            var lenF = fcdRunText(runsB[kf]).length;
+            if (typeof runsB[kf].x === 'string' && s.a.o >= accF && s.a.o <= accF + lenF) {
+                var texF = runsB[kf].x;
+                var idx0f = fcdSplitAt(b, accF), idx1f = fcdSplitAt(b, accF + lenF);
+                var dopoRunsF = b.runs.splice(idx1f);
+                var mConversione = fcdCloneMarks(runsB[kf].m);
+                b.runs.splice(idx0f);
+                var nuovoF = { t: 'fx', tex: texF };
+                if (mConversione) nuovoF.m = mConversione;
+                if (b.t === 'li') { nuovoF.lvl = b.lvl; if (b.c) nuovoF.c = b.c; }
+
+                var blocchiF = [];
+                if (fcdBlockLen(b) > 0) blocchiF.push(b);
+                blocchiF.push(nuovoF);
+                var dopoBloccoF = { t: b.t === 'li' ? 'li' : 'p', runs: dopoRunsF };
+                if (b.t === 'li') { dopoBloccoF.lvl = b.lvl; if (b.c) dopoBloccoF.c = b.c; }
+                if (fcdBlockLen(dopoBloccoF) > 0) blocchiF.push(dopoBloccoF);
+
+                var indiceNuovoF = blocchiF.indexOf(nuovoF);
+                doc.blocks.splice.apply(doc.blocks, [i, 1].concat(blocchiF));
+                return { doc: fcdNorm(doc), caret: { b: i + indiceNuovoF, o: texF.length } };
+            }
+            accF += lenF;
+        }
     }
 
     /* Con del testo selezionato la formula si fa CON QUEL TESTO, come gia'
@@ -409,7 +480,20 @@ function fcdToggleInlineMath(doc, sel) {
     var s = fcdOrder(sel);
     var bi = s.a.b;
     var block = doc.blocks[bi];
-    if (!block || block.t === 'fx') return { doc: fcdNorm(doc), caret: s.a };
+    if (!block) return { doc: fcdNorm(doc), caret: s.a };
+
+    if (block.t === 'fx') {
+        /* Dentro una formula A BLOCCO il tasto "in linea" non la scioglie: la
+           trasforma. Stesso LaTeX, ma dentro una riga di testo invece che
+           sulla sua — il gemello di quello che fa fcdToggleBlockMath quando
+           trova il cursore dentro una formula in linea, qui sotto. Se era in
+           una lista, la riga che ne prende il posto resta un punto della
+           stessa lista. */
+        var nuovoBlocco = { t: block.lvl ? 'li' : 'p', runs: [{ x: block.tex || '' }] };
+        if (block.lvl) { nuovoBlocco.lvl = block.lvl; if (block.c) nuovoBlocco.c = block.c; }
+        doc.blocks[bi] = nuovoBlocco;
+        return { doc: fcdNorm(doc), caret: { b: bi, o: (block.tex || '').length } };
+    }
 
     var runs = block.runs || (block.runs = []);
 
@@ -511,6 +595,130 @@ function fcdSplitBlock(doc, sel) {
     return { doc: fcdNorm(doc), caret: { b: bi + 1, o: 0 } };
 }
 
+/* Estrae la porzione di documento coperta dalla selezione COSI' COM'E' —
+   marchi (grassetto, colore...), livello e colore di lista, formule comprese
+   — senza toccare il documento di partenza: e' una copia, pensata per finire
+   da un'altra parte della stessa pagina o su un'altra pagina del sito
+   attraverso gli appunti. E' il gemello di fcdDeleteRange, che la stessa
+   porzione la toglie invece di restituirla. */
+function fcdEstraiSelezione(doc, sel) {
+    var s = fcdOrder(sel);
+    var blocchi = [];
+
+    for (var bi = s.a.b; bi <= s.f.b; bi++) {
+        var b = doc.blocks[bi];
+        if (!b) continue;
+
+        if (b.t === 'fx') {
+            /* Una formula a blocco si copia per intera se la selezione la
+               tocca anche solo in un punto: non esiste "mezza formula". */
+            var nuovaF = { t: 'fx', tex: b.tex || '' };
+            if (b.lvl) { nuovaF.lvl = b.lvl; if (b.c) nuovaF.c = b.c; }
+            var mCopia = fcdCloneMarks(b.m);
+            if (mCopia) nuovaF.m = mCopia;
+            blocchi.push(nuovaF);
+            continue;
+        }
+
+        var da = (bi === s.a.b) ? s.a.o : 0;
+        var a = (bi === s.f.b) ? s.f.o : fcdBlockLen(b);
+        var runsNuovi = [], acc = 0;
+        (b.runs || []).forEach(function (r) {
+            var len = fcdRunText(r).length;
+            var inizio = Math.max(da, acc), fine = Math.min(a, acc + len);
+            if (fine > inizio) {
+                var pezzo = fcdRunText(r).slice(inizio - acc, fine - acc);
+                var nuovo = (typeof r.x === 'string') ? { x: pezzo } : { s: pezzo };
+                var m = fcdCloneMarks(r.m);
+                if (m) nuovo.m = m;
+                runsNuovi.push(nuovo);
+            }
+            acc += len;
+        });
+
+        var nuovoBlocco = { t: b.t === 'li' ? 'li' : 'p', runs: runsNuovi };
+        if (b.t === 'li') { nuovoBlocco.lvl = b.lvl; if (b.c) nuovoBlocco.c = b.c; }
+        blocchi.push(nuovoBlocco);
+    }
+
+    if (!blocchi.length) blocchi.push({ t: 'p', runs: [] });
+    return fcdNorm({ v: 2, blocks: blocchi });
+}
+
+/* Incolla, in una posizione FERMA del cursore (non una selezione: chi chiama
+   toglie prima l'eventuale testo selezionato, con fcdDeleteRange), i blocchi
+   presi da fcdEstraiSelezione — marchi, liste, formule compresi. E' l'incollare
+   VERO, distinto dall'incollare solo testo semplice che il sito faceva finora. */
+function fcdIncollaSottodocumento(doc, pos, sotto) {
+    var blocchiIncollati = (sotto.blocks || []).map(function (bl) {
+        if (bl.t === 'fx') {
+            var f = { t: 'fx', tex: bl.tex || '' };
+            if (bl.lvl) { f.lvl = bl.lvl; if (bl.c) f.c = bl.c; }
+            var mIncolla = fcdCloneMarks(bl.m);
+            if (mIncolla) f.m = mIncolla;
+            return f;
+        }
+        var runs = (bl.runs || []).map(function (r) {
+            var rc = (typeof r.x === 'string') ? { x: r.x } : { s: r.s || '' };
+            var m = fcdCloneMarks(r.m);
+            if (m) rc.m = m;
+            return rc;
+        });
+        var nuovo = { t: bl.t === 'li' ? 'li' : 'p', runs: runs };
+        if (bl.t === 'li') { nuovo.lvl = bl.lvl; if (bl.c) nuovo.c = bl.c; }
+        return nuovo;
+    });
+    if (!blocchiIncollati.length) return { doc: fcdNorm(doc), caret: pos };
+
+    var bi = pos.b, o = pos.o;
+    var b = doc.blocks[bi];
+
+    if (!b || b.t === 'fx') {
+        /* Non si incolla DENTRO una formula a blocco: si mette subito dopo,
+           come farebbe chi scrive a mano dopo averla chiusa. */
+        doc.blocks.splice.apply(doc.blocks, [bi + 1, 0].concat(blocchiIncollati));
+        var ultimoF = blocchiIncollati[blocchiIncollati.length - 1];
+        return {
+            doc: fcdNorm(doc),
+            caret: { b: bi + blocchiIncollati.length, o: ultimoF.t === 'fx' ? ultimoF.tex.length : fcdBlockLen(ultimoF) }
+        };
+    }
+
+    if (blocchiIncollati.length === 1 && blocchiIncollati[0].t === 'p') {
+        /* Un paragrafo solo, testo normale: si infila dentro la riga
+           attuale, non se ne apre una nuova — incollare "rosso" in mezzo a
+           "colore _ acceso" deve dare "colore rosso acceso" su una riga
+           sola, non spezzarla in tre. Un punto elenco copiato invece
+           resta un blocco a se', anche se e' uno solo: merita la sua riga
+           e il suo pallino, non finire in mezzo a un'altra frase. */
+        var idx = fcdSplitAt(b, o);
+        b.runs.splice.apply(b.runs, [idx, 0].concat(blocchiIncollati[0].runs));
+        return { doc: fcdNorm(doc), caret: { b: bi, o: o + fcdBlockLen(blocchiIncollati[0]) } };
+    }
+
+    /* Piu' blocchi (o un blocco solo che e' un punto elenco o una formula):
+       la riga attuale si spezza in "prima" e "dopo", e in mezzo vanno i
+       blocchi incollati — la stessa idea, sempre, con cui fcdToggleBlockMath
+       spezza una riga attorno a una formula estratta dalla selezione. */
+    var idx0 = fcdSplitAt(b, o);
+    var dopoRuns = b.runs.splice(idx0);
+    var dopoBlocco = { t: b.t === 'li' ? 'li' : 'p', runs: dopoRuns };
+    if (b.t === 'li') { dopoBlocco.lvl = b.lvl; if (b.c) dopoBlocco.c = b.c; }
+
+    var pezzi = [];
+    if (fcdBlockLen(b) > 0 || (b.runs && b.runs.length)) pezzi.push(b);
+    pezzi = pezzi.concat(blocchiIncollati);
+    if (fcdBlockLen(dopoBlocco) > 0) pezzi.push(dopoBlocco);
+    if (!pezzi.length) pezzi.push({ t: 'p', runs: [] });
+
+    doc.blocks.splice.apply(doc.blocks, [bi, 1].concat(pezzi));
+
+    var ultimoIncollato = blocchiIncollati[blocchiIncollati.length - 1];
+    var idxUltimo = bi + pezzi.indexOf(ultimoIncollato);
+    var fineUltimo = ultimoIncollato.t === 'fx' ? ultimoIncollato.tex.length : fcdBlockLen(ultimoIncollato);
+    return { doc: fcdNorm(doc), caret: { b: idxUltimo, o: fineUltimo } };
+}
+
 function fcdDeleteRange(doc, sel) {
     var s = fcdOrder(sel);
     if (s.a.b === s.f.b) {
@@ -561,8 +769,19 @@ function fcdStringify(doc) { return JSON.stringify(fcdNorm(doc)); }
    paragrafo rimasto. Un a capo qui e' un blocco intero, non un carattere "\n"
    dentro il testo: per questo la pulizia lavora a due livelli — prima i
    blocchi (gli a capo), poi il testo del primo e dell'ultimo blocco rimasto
-   (gli spazi). Non tocca l'INTERNO del documento: un a capo in mezzo al
+   (gli spazi). Non tocca l'INTERNO del testo: un a capo in mezzo al
    testo e' voluto, resta.
+
+   Le formule VUOTE sono un'eccezione a questa regola, e si tolgono ovunque
+   si trovino, non solo ai bordi: mentre si scrive una formula senza contenuto
+   e' normale, e' un lavoro in corso, ma nel documento SALVATO non ha alcun
+   senso — non ha ne' un LaTeX da mostrare ne' del testo, solo un segnaposto
+   che nessuno saprebbe piu' come raggiungere per toglierlo (non essendoci
+   niente da vedere, non essendoci niente su cui cliccare). Chi la lascia
+   vuota uscendone col cursore la vede sparire subito (se ne occupa
+   ftMathRefresh in format_toolbar.php); questo e' il secondo livello di
+   sicurezza, per quelle che sfuggono a quel controllo — un'altra scheda,
+   un salvataggio automatico partito nel mezzo.
    Usata al salvataggio, su domanda e risposta di ogni carta. */
 function fcdTrim(doc) {
     var d = fcdNorm(doc);
@@ -572,6 +791,23 @@ function fcdTrim(doc) {
         if (b.t === 'fx') return String(b.tex || '').trim() === '';
         return fcdBlockText(b).trim() === '';
     }
+
+    // formule vuote, in QUALSIASI punto del documento: a blocco si toglie
+    // tutto il blocco, in linea si toglie solo il run, lasciando il resto
+    // del paragrafo (e l'eventuale pallino della lista) cosi' com'e'.
+    for (var bi = blocks.length - 1; bi >= 0; bi--) {
+        var bl = blocks[bi];
+        if (bl.t === 'fx') {
+            if (String(bl.tex || '').trim() === '') blocks.splice(bi, 1);
+            continue;
+        }
+        if (bl.runs) {
+            for (var ri = bl.runs.length - 1; ri >= 0; ri--) {
+                if (typeof bl.runs[ri].x === 'string' && bl.runs[ri].x.trim() === '') bl.runs.splice(ri, 1);
+            }
+        }
+    }
+    if (blocks.length === 0) blocks.push({ t: 'p', runs: [] });
 
     // blocchi vuoti in testa e in coda: sono gli "a capo" di troppo. Se ne
     // tiene sempre almeno uno, altrimenti un documento tutto vuoto non
@@ -794,7 +1030,21 @@ function fcdRunHTML(r) {
            Con loro il fuori esiste davvero e le frecce ci arrivano.
            Valgono zero caratteri nel conto delle posizioni e fcdNorm li toglie
            dal modello: nel salvato non compaiono mai. */
-        return '\u200B<span class="fc-x" data-x="1" data-tex="' + fcdEscape(r.x) + '">' + fcdEscape(r.x) + '</span>\u200B';
+        /* Un marchio (colore, grassetto...) va DIRETTAMENTE sullo stesso span,
+           non in un avvolgente separato. E' una scelta obbligata, non
+           estetica: tutto l'ingresso e l'uscita dal cursore (le frecce, il
+           backspace al bordo) cammina sui fratelli DOM di questo span — "il
+           nodo di testo appena prima", "appena dopo". Un avvolgente in mezzo
+           sposta la formula di un livello, e quei fratelli non sono piu' i
+           fratelli veri nel blocco ma quelli dentro l'avvolgente (spesso
+           nessuno): il cursore andava a finire nel posto sbagliato, ed era
+           quello a sembrare "la formula si cancella invece di aprirsi".
+           Aggiungendo qui la classe fc-t insieme a fc-x, le stesse regole CSS
+           gia' scritte per il testo colorato (".fc-t[data-c=...]") si
+           applicano identiche, senza bisogno di nuove regole. */
+        var classi = 'fc-x' + (r.m ? ' fc-t' : '');
+        var attrMarchi = r.m ? fcdMarkAttrs(r.m) : '';
+        return '\u200B<span class="' + classi + '" data-x="1" data-tex="' + fcdEscape(r.x) + '"' + attrMarchi + '>' + fcdEscape(r.x) + '</span>\u200B';
     }
     /* Il carattere invisibile dopo ogni <br> impedisce al browser di
        considerarlo un riempitivo e di eliminarlo appena si scrive: senza,
@@ -811,7 +1061,17 @@ function fcdBlockHTML(b) {
             attrFx = ' data-lvl="' + (b.lvl | 0) + '"';
             if (b.c) attrFx += ' data-c="' + fcdEscape(b.c) + '"';
         }
-        return '<div class="fc-fx' + (b.lvl ? ' fc-fx-li' : '') + '" data-fx="1"' + attrFx +
+        var classiFx = 'fc-fx' + (b.lvl ? ' fc-fx-li' : '');
+        if (b.m) {
+            classiFx += ' fc-t';
+            /* fcdMarkAttrs scrive "data-c" per il colore — giusto per il
+               testo normale, ma qui su un blocco che puo' gia' avere un suo
+               "data-c" per il pallino (vedi sopra). Si rinomina in data-mc,
+               senza toccare fcdMarkAttrs: la stessa funzione serve anche
+               altrove, dove "data-c" va benissimo cosi' com'e'. */
+            attrFx += fcdMarkAttrs(b.m).replace(/ data-c="/, ' data-mc="');
+        }
+        return '<div class="' + classiFx + '" data-fx="1"' + attrFx +
                ' data-tex="' + fcdEscape(b.tex) + '">' + fcdEscape(b.tex) + '</div>';
     }
     /* Il <br> che tiene aperta una riga vuota si DICHIARA con data-fill,
@@ -880,7 +1140,17 @@ function fcdFromDom(root) {
                riga vuota il testo a ogni salvataggio. */
             if (tag === 'br') { if (!ch.dataset || !ch.dataset.fill) runs.push({ s: '\n' }); return; }
             if (ch.classList && ch.classList.contains('fc-dict')) return;   // testo provvisorio della dettatura
-            if (ch.classList && ch.classList.contains('fc-x')) { runs.push({ x: fcdTexDi(ch) }); return; }
+            if (ch.classList && ch.classList.contains('fc-x')) {
+                var runFormula = { x: fcdTexDi(ch) };
+                /* I marchi stanno DIRETTAMENTE su questo span (vedi fcdRunHTML):
+                   marksOf legge i suoi data-* propri, uniti a quelli ereditati
+                   da un eventuale antenato — che di norma qui non c'e', ma la
+                   fusione resta corretta anche se un giorno ci fosse. */
+                var mFormula = marksOf(ch, marks);
+                if (mFormula) runFormula.m = mFormula;
+                runs.push(runFormula);
+                return;
+            }
             inline(ch, marksOf(ch, marks), runs);
         });
     }
@@ -890,6 +1160,18 @@ function fcdFromDom(root) {
             var bfx = { t: 'fx', tex: fcdTexDi(el) };
             var lv = parseInt(el.dataset.lvl, 10);
             if (lv >= 1) { bfx.lvl = lv; if (el.dataset.c && FCD_LIST_COLORS.indexOf(el.dataset.c) !== -1) bfx.c = el.dataset.c; }
+            /* Il colore del TESTO sta in data-mc (vedi fcdBlockHTML): il resto
+               dei marchi (grassetto...) sta dove sta sempre, su data-b ecc. —
+               solo il colore va rimappato per non confonderlo col colore del
+               pallino, che e' data-c e un'altra cosa. */
+            var mFx = {};
+            if (el.dataset.b) mFx.b = 1;
+            if (el.dataset.i) mFx.i = 1;
+            if (el.dataset.u) mFx.u = 1;
+            if (el.dataset.h) mFx.h = 1;
+            if (el.dataset.mc && FCD_LIST_COLORS.indexOf(el.dataset.mc) !== -1) mFx.c = el.dataset.mc;
+            var mFxPulito = fcdCloneMarks(mFx);
+            if (mFxPulito) bfx.m = mFxPulito;
             return bfx;
         }
         var b = { t: 'p', runs: [] };
@@ -1235,7 +1517,7 @@ function fcdSetSel(root, sel) {
            andare a capo come una parola qualsiasi: se non lo facesse,
            allargherebbe la cella o uscirebbe dallo schermo, e la nota
            diventerebbe illeggibile mentre la si scrive. */
-        '.fc-x{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.94em; color:var(--blue,#007AFF); background:var(--blue-soft,rgba(0,122,255,.09)); border-radius:6px; padding:0 3px; box-shadow:inset 0 0 0 1px rgba(0,122,255,.22); white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; min-width:0; }' +
+        '.fc-x{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.94em; color:inherit; background:var(--blue-soft,rgba(0,122,255,.09)); border-radius:6px; padding:0 3px; box-shadow:inset 0 0 0 1px rgba(0,122,255,.22); white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; min-width:0; }' +
         /* Una formula ancora vuota deve occupare spazio: larga zero non si
            vedrebbe e non ci si potrebbe cliccare dentro per riprenderla. */
         '.fc-x:empty{ display:inline-block; min-width:1.4em; }' +
@@ -1286,8 +1568,28 @@ function fcdSetSel(root, sel) {
         '.fc-x.fc-resa mjx-math{ display:inline; white-space:normal; word-wrap:break-word; line-height:inherit; }' +
         '.fc-x.fc-resa mjx-mover, .fc-x.fc-resa mjx-munder, .fc-x.fc-resa mjx-munderover, ' +
         '.fc-x.fc-resa mjx-mfrac, .fc-x.fc-resa mjx-msqrt, .fc-x.fc-resa mjx-mroot, ' +
+        /* Pedice ED esponente insieme ($A_i^c$) sono un impilamento anche
+           loro: MathJax li mette uno sopra l'altro dentro un mjx-script,
+           separati da un mjx-spacer con un margine — stessa identica
+           meccanica della barra di \overline{}, stessa dipendenza dal
+           line-height azzerato. Con il solo esponente ($A^c$) invece il
+           mjx-script ha un figlio solo, non impila niente e infatti non
+           dava problemi: ecco perche' il difetto si vedeva solo quando
+           c'erano tutti e due. */
+        '.fc-x.fc-resa mjx-msubsup, .fc-x.fc-resa mjx-msub, .fc-x.fc-resa mjx-msup, ' +
+        '.fc-x.fc-resa mjx-script, .fc-x.fc-resa mjx-stack, ' +
         '.fc-x.fc-resa mjx-mtable{ line-height:0; }' +
-        '.fc-x::before, .fc-x::after{ content:"$"; opacity:.45; }' +
+        /* La stessa correzione, mai estesa alla formula A BLOCCO: una
+           frazione o un \overline{} li' dentro avrebbe lo stesso identico
+           difetto, semplicemente nessuno l'aveva ancora notato. */
+        '.fc-fx.fc-resa mjx-mover, .fc-fx.fc-resa mjx-munder, .fc-fx.fc-resa mjx-munderover, ' +
+        '.fc-fx.fc-resa mjx-mfrac, .fc-fx.fc-resa mjx-msqrt, .fc-fx.fc-resa mjx-mroot, ' +
+        '.fc-fx.fc-resa mjx-msubsup, .fc-fx.fc-resa mjx-msub, .fc-fx.fc-resa mjx-msup, ' +
+        '.fc-fx.fc-resa mjx-script, .fc-fx.fc-resa mjx-stack, ' +
+        '.fc-fx.fc-resa mjx-mtable{ line-height:0; }' +
+        /* I due dollari decorativi ai lati sono stati tolti su richiesta: lo
+           sfondo azzurro del riquadro basta gia' a dire "qui c'e' una
+           formula", senza bisogno del simbolo. */
         /* La formula che ha una riga sua invece NON va a capo: una formula
            spezzata a meta' non si legge. Scorre in orizzontale, come un
            blocco di codice. */
@@ -1300,7 +1602,7 @@ function fcdSetSel(root, sel) {
            di contribuire alla larghezza naturale del contenitore: senza,
            un contenitore che si adatta al contenuto — come la cella di
            big_edit — verrebbe allargato dalla formula invece di contenerla. */
-        '.fc-fx{ display:block; margin:8px 0; padding:8px 12px; text-align:center; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.95em; color:var(--blue,#007AFF); background:var(--blue-soft,rgba(0,122,255,.09)); border-radius:10px; box-shadow:inset 0 0 0 1px rgba(0,122,255,.22); width:100%; max-width:100%; min-width:0; box-sizing:border-box; white-space:pre-wrap; overflow-wrap:anywhere; }' +
+        '.fc-fx{ display:block; margin:8px 0; padding:8px 12px; text-align:center; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.95em; color:inherit; background:var(--blue-soft,rgba(0,122,255,.09)); border-radius:10px; box-shadow:inset 0 0 0 1px rgba(0,122,255,.22); width:100%; max-width:100%; min-width:0; box-sizing:border-box; white-space:pre-wrap; overflow-wrap:anywhere; }' +
         /* min-width:0 qui e' ripetuto apposta, non solo ereditato da .fc-fx:
            e' la stessa rete di sicurezza vista sopra per .fc-x, e in un
            punto cosi' delicato meglio scriverla dov'e' visibile che
@@ -1317,7 +1619,15 @@ function fcdSetSel(root, sel) {
            che e' il comportamento voluto; quello orizzontale resta alla
            formula. overscroll-behavior-x:contain evita che, arrivati in
            fondo alla formula, il gesto continui trascinando la pagina. */
-        '.fc-fx.fc-resa{ white-space:nowrap; overflow-x:auto; overflow-y:hidden; min-width:0; max-width:100%; text-align:left; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; overscroll-behavior-x:contain; }' +
+        /* Lo scorrimento orizzontale delle formule larghe vive ORA
+           sull'involucro INTERNO (.fc-fx-vetro), non piu' su questo elemento:
+           qui sopra c'e' anche il pallino della lista, posizionato fuori dal
+           bordo con uno scostamento negativo — e un overflow su questo
+           stesso elemento lo ritaglierebbe via, esattamente il difetto che
+           faceva sparire il pallino appena la formula veniva disegnata.
+           .fc-fx resta libero, testo allineato a sinistra come prima. */
+        '.fc-fx.fc-resa{ text-align:left; }' +
+        '.fc-fx-vetro{ display:block; white-space:nowrap; overflow-x:auto; overflow-y:hidden; min-width:0; max-width:100%; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; overscroll-behavior-x:contain; }' +
         /* Qui il nowrap di MathJax va benissimo — anzi serve: e' cio' che
            tiene la formula su una riga sola da scorrere. L'unica cosa da
            impedire e' che il contenitore interno imponga la propria
@@ -1329,8 +1639,19 @@ function fcdSetSel(root, sel) {
         '.fc-fx::-webkit-scrollbar-thumb{ background:rgba(0,122,255,.3); border-radius:3px; }' +
         /* Formula dentro un elenco: rientra come il punto e tiene il pallino
            alla sua sinistra. */
-        '.fc-fx-li{ position:relative; margin-left:0; padding-left:calc(1.6em + var(--fc-lvl,1) * 1.15em); text-align:left; }' +
-        '.fc-fx-li::before{ content:"\\2022"; position:absolute; left:calc(var(--fc-lvl,1) * 1.15em); top:8px; color:var(--fc-bullet,var(--text-2,#8A8A8E)); font-weight:700; font-family:inherit; }' +
+        /* Il pallino di una formula a blocco sta FUORI dal suo riquadro, non
+           dentro. Prima lo spazio per il pallino era imbottitura INTERNA
+           (padding-left) e lo sfondo azzurro se lo mangiava: il pallino
+           finiva dentro la casella, come se facesse parte della formula.
+           Ora lo spazio e' margine ESTERNO, la casella si sposta a destra di
+           quel tanto, e il pallino si mette nel margine appena creato — che
+           e' fuori dallo sfondo. La larghezza va rifatta di conseguenza:
+           .fc-fx ha width:100%, che con un margine in piu' sfonderebbe a
+           destra. */
+        '.fc-fx-li{ position:relative; text-align:left;' +
+        '  margin-left:calc(1.6em + var(--fc-lvl,1) * 1.15em);' +
+        '  width:auto; max-width:calc(100% - (1.6em + var(--fc-lvl,1) * 1.15em)); }' +
+        '.fc-fx-li::before{ content:"\\2022"; position:absolute; left:-1.15em; top:8px; color:var(--fc-bullet,var(--text-2,#8A8A8E)); font-weight:700; font-family:inherit; }' +
         FCD_BULLETS.map(function (ch, i) { return '.fc-fx-li[data-lvl="' + (i + 1) + '"]::before{ content:"' + ch + '"; }' +
             '.fc-fx-li[data-lvl="' + (i + 1) + '"]{ --fc-lvl:' + (i + 1) + '; }'; }).join('') +
         /* Niente dollari sulla formula a blocco. Su un elemento di blocco
@@ -1343,8 +1664,42 @@ function fcdSetSel(root, sel) {
            Non modificabile: si torna al codice cliccandoci sopra. */
         '.fc-x.fc-resa, .fc-fx.fc-resa{ font-family:inherit; background:transparent; box-shadow:none; color:inherit; cursor:pointer; }' +
         '.fc-x.fc-resa::before, .fc-x.fc-resa::after, .fc-fx.fc-resa::before, .fc-fx.fc-resa::after{ content:""; }' +
+        /* ...ma il pallino non e' una decorazione della formula: e' il segno
+           che sta in un elenco, e deve restare anche a formula disegnata.
+           La riga qui sopra azzera il contenuto di TUTTI gli pseudo-elementi
+           (serviva per i dollari) e portava via anche lui: restava lo spazio
+           a sinistra e nessun pallino dentro. Qui glielo si rimette, per ogni
+           livello, con una regola piu' forte perche' viene dopo e nomina una
+           classe in piu'. */
+        '.fc-fx-li.fc-resa::before{ content:"\\2022"; }' +
+        FCD_BULLETS.map(function (ch, i) {
+            return '.fc-fx-li.fc-resa[data-lvl="' + (i + 1) + '"]::before{ content:"' + ch + '"; }';
+        }).join('') +
         '.fc-x.fc-resa{ padding:0 2px; border-radius:5px; }' +
         '.fc-x.fc-resa:hover, .fc-fx.fc-resa:hover{ background:var(--blue-soft,rgba(0,122,255,.09)); }' +
+        /* Il colore scelto su una formula deve sopravvivere anche da
+           DISEGNATA. Senza queste righe non succedeva, e per un motivo
+           preciso: ".fc-t[data-c=...]" (che mette il colore) e
+           ".fc-x.fc-resa" (che rimette color:inherit) hanno esattamente la
+           stessa forza, e a parita' di forza vince quella scritta dopo — cioe'
+           l'inherit, che riportava la formula al nero del testo intorno. Era
+           esattamente questo a lasciare le formule nere mentre tutto il resto
+           diventava verde. Nominando entrambe le classi la regola diventa piu'
+           forte, e il colore vince in tutti e tre gli stati: grezzo,
+           disegnato, e dentro MathQuill. */
+        Object.keys(FCD_PALETTE).map(function (k) {
+            return '.fc-x.fc-t[data-c="' + k + '"]{ color:' + FCD_PALETTE[k] + '; }' +
+                   '.fc-x.fc-t[data-c="' + k + '"] .mq-root-block, .fc-x.fc-t[data-c="' + k + '"] mjx-container{ color:' + FCD_PALETTE[k] + '; }' +
+                   /* Una formula a blocco puo' avere GIA' un data-c, per il
+                      colore del suo pallino se e' in una lista — un
+                      concetto del tutto separato dal colore del suo testo.
+                      Usare qui lo stesso attributo lo avrebbe sovrascritto,
+                      forzando bollino e testo sempre allo stesso colore.
+                      "data-mc" (colore del marchio) e' suo, non si scontra
+                      con niente. */
+                   '.fc-fx.fc-t[data-mc="' + k + '"]{ color:' + FCD_PALETTE[k] + '; }' +
+                   '.fc-fx.fc-t[data-mc="' + k + '"] .mq-root-block, .fc-fx.fc-t[data-mc="' + k + '"] mjx-container{ color:' + FCD_PALETTE[k] + '; }';
+        }).join('') +
         /* L'EVIDENZIAZIONE della formula quando la selezione la attraversa.
            Sta qui in fondo, e nomina anche .fc-resa, per un motivo preciso:
            due righe piu' su c'e' ".fc-x.fc-resa{ background:transparent }",
@@ -1434,6 +1789,7 @@ if (typeof module !== 'undefined' && module.exports) {
         fcdToggleInlineMath: fcdToggleInlineMath, fcdSplitBlock: fcdSplitBlock,
         fcdInsertSoftBreak: fcdInsertSoftBreak, fcdTexDi: fcdTexDi,
         fcdDeleteRange: fcdDeleteRange, fcdBackspaceAtStart: fcdBackspaceAtStart,
+        fcdEstraiSelezione: fcdEstraiSelezione, fcdIncollaSottodocumento: fcdIncollaSottodocumento,
         fcdBlockText: fcdBlockText, fcdBullet: fcdBullet,
         fcdDisegnaFormule: fcdDisegnaFormule, parseTextForPreview: parseTextForPreview };
 }

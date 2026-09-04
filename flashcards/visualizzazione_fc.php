@@ -2,6 +2,7 @@
 
 require_once 'config.php';
 require_once 'auth_check.php';
+require_once 'examples_box.php'; // render_examples_section(), condivisa con modifica_immagine_fc.php
 $current_user_id = (int)$utente_corrente['id'];
 /* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
 $conn = sec_db();
@@ -134,6 +135,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 
 
+
+// ==========================================
+// AJAX: crea una CARTELLA (categoria figlia) senza uscire dalla vista.
+// Il tasto "+" ora chiede prima cosa si vuole aggiungere; se la risposta e'
+// "cartella" si finisce qui invece che su categories_fc.php.
+// ==========================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'fc_create_subcat') {
+    header('Content-Type: application/json; charset=utf-8');
+    /* Token di sessione, origine e limite di frequenza. */
+    sec_guard_write($current_user_id, 'fc_vis', 0, 60, 60);
+
+    $nfNome   = sec_str($_POST['name'] ?? '', 120);
+    $nfPadre  = sec_int($_POST['parent_id'] ?? 0, 0);
+    $nfModo   = sec_enum($_POST['color_mode'] ?? null, ['auto', 'manual'], 'auto');
+    $nfColore = sec_color($_POST['color'] ?? null, '');
+
+    if (trim($nfNome) === '') {
+        echo json_encode(['success' => false, 'error' => t('fc.vis_nome_mancante')]); exit;
+    }
+    /* Il padre dev'essere suo: altrimenti si potrebbe appendere una cartella
+       propria sotto l'albero di un altro utente. parent_id 0 = radice. */
+    if ($nfPadre > 0 && !sec_owns('fc_categories', $nfPadre, $current_user_id)) {
+        echo json_encode(['success' => false, 'error' => t('fc.vis_categoria_non_valida')]); exit;
+    }
+
+    if ($nfModo === 'manual' && $nfColore !== '') {
+        $nfFinale = $nfColore;
+        $nfEdited = 1;
+    } else {
+        $nfFinale = fc_colore_ereditato($nfPadre, $current_user_id);
+        $nfEdited = 0;
+    }
+
+    sec_q("INSERT INTO fc_categories (name, parent_id, color, color_edited, user_id) VALUES (?, ?, ?, ?, ?)",
+          [$nfNome, $nfPadre, $nfFinale, $nfEdited, $current_user_id]);
+    $nfId = sec_insert_id();
+    if ($nfId <= 0) { echo json_encode(['success' => false, 'error' => t('fc.vis_creazione_fallita')]); exit; }
+
+    echo json_encode(['success' => true, 'id' => (int)$nfId, 'name' => $nfNome, 'color' => $nfFinale]);
+    exit;
+}
+
+/* Colore ereditato: si risale la catena dei padri finche' non si trova chi ha
+   un colore scelto a mano (color_edited = 1). E' la stessa regola di
+   categories_fc.php; il nome e' diverso apposta, per non azzuffarsi con
+   cs_resolve_color() se un domani questa pagina includesse quel file. */
+function fc_colore_ereditato($parentId, $userId) {
+    $parentId = (int)$parentId;
+    $guard = 0;
+    while ($parentId > 0 && $guard < 50) {
+        $guard++;
+        $row = sec_one("SELECT parent_id, color, color_edited FROM fc_categories WHERE id = ? AND user_id = ?",
+                       [$parentId, (int)$userId]);
+        if (!$row) break;
+        if ((int)$row['color_edited'] === 1 && !empty($row['color'])) return $row['color'];
+        $parentId = (int)$row['parent_id'];
+    }
+    return '#A0A0A0';
+}
+
+
 // ==========================================
 
 // GESTIONE SWAP POSIZIONI (LEGACY - non piu' usata dalla UI, tenuta per compatibilita')
@@ -154,7 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $mie = $padre ? fc_solo_mie([$id], $current_user_id) : fc_figli_miei([$id], $current_user_id);
     $current = !empty($mie)
         ? ($padre ? sec_one("SELECT * FROM fc_images WHERE id = ?", [$id])
-                  : sec_one("SELECT * FROM fc_child_cards WHERE id = ?", [$id]))
+                  : sec_one("SELECT * FROM fc_child_cards WHERE id_child = ?", [$id]))
         : null;
 
     if ($current) {
@@ -169,8 +231,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 : sec_one("SELECT id, custom_order FROM fc_images WHERE category_id = ? AND custom_order > ? ORDER BY custom_order ASC LIMIT 1", [$scope, $current_order]);
         } else {
             $adjacent = ($dir == 'up')
-                ? sec_one("SELECT id, custom_order FROM fc_child_cards WHERE parent_id = ? AND custom_order < ? ORDER BY custom_order DESC LIMIT 1", [$scope, $current_order])
-                : sec_one("SELECT id, custom_order FROM fc_child_cards WHERE parent_id = ? AND custom_order > ? ORDER BY custom_order ASC LIMIT 1", [$scope, $current_order]);
+                ? sec_one("SELECT id_child AS id, custom_order FROM fc_child_cards WHERE parent_id = ? AND custom_order < ? ORDER BY custom_order DESC LIMIT 1", [$scope, $current_order])
+                : sec_one("SELECT id_child AS id, custom_order FROM fc_child_cards WHERE parent_id = ? AND custom_order > ? ORDER BY custom_order ASC LIMIT 1", [$scope, $current_order]);
         }
         if ($adjacent) {
             $adj_id = (int)$adjacent['id'];
@@ -179,8 +241,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 sec_q("UPDATE fc_images SET custom_order = ? WHERE id = ?", [$adj_order, $id]);
                 sec_q("UPDATE fc_images SET custom_order = ? WHERE id = ?", [$current_order, $adj_id]);
             } else {
-                sec_q("UPDATE fc_child_cards SET custom_order = ? WHERE id = ?", [$adj_order, $id]);
-                sec_q("UPDATE fc_child_cards SET custom_order = ? WHERE id = ?", [$current_order, $adj_id]);
+                sec_q("UPDATE fc_child_cards SET custom_order = ? WHERE id_child = ?", [$adj_order, $id]);
+                sec_q("UPDATE fc_child_cards SET custom_order = ? WHERE id_child = ?", [$current_order, $adj_id]);
             }
         }
     }
@@ -223,7 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if ($type === 'parent') {
                 sec_q("UPDATE fc_images SET custom_order = ? WHERE id = ? AND category_id = ?", [$pos, $oid, $scope_id]);
             } else {
-                sec_q("UPDATE fc_child_cards SET custom_order = ? WHERE id = ? AND parent_id = ?", [$pos, $oid, $scope_id]);
+                sec_q("UPDATE fc_child_cards SET custom_order = ? WHERE id_child = ? AND parent_id = ?", [$pos, $oid, $scope_id]);
             }
             $pos++;
         }
@@ -240,7 +302,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // ==========================================
 
-// GESTIONE DELLE AZIONI DI MASSA E JOIN/UNJOIN (invariata)
+// GESTIONE DELLE AZIONI DI MASSA E JOIN/UNJOIN
+//
+// NOTA: la chiave primaria di fc_child_cards e' id_child, non id. Diverse
+// query di questa pagina usavano "WHERE id = ?": non trovavano mai niente e
+// uscivano in silenzio, senza errore. Da qui lo "split" (unjoin) che non
+// faceva nulla, e con lui il riordino dei figli, il loro ordine
+// personalizzato e la loro eliminazione di gruppo. Tutte le altre query del
+// progetto usavano gia' id_child.
 
 // ==========================================
 
@@ -262,7 +331,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
         $figli = fc_figli_miei($_POST['selected_child_ids'] ?? [], $current_user_id);
         if (!empty($figli)) {
             $ph = implode(',', array_fill(0, count($figli), '?'));
-            sec_q("DELETE FROM fc_child_cards WHERE id IN ($ph)", $figli);
+            sec_q("DELETE FROM fc_child_cards WHERE id_child IN ($ph)", $figli);
         }
     }
     elseif ($action === 'move' && isset($_POST['target_category'])) {
@@ -299,7 +368,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
     elseif ($action === 'unjoin') {
         $parents_to_check = [];
         foreach (fc_figli_miei($_POST['selected_child_ids'] ?? [], $current_user_id) as $child_id) {
-            $row = sec_one("SELECT * FROM fc_child_cards WHERE id = ?", [$child_id]);
+            $row = sec_one("SELECT * FROM fc_child_cards WHERE id_child = ?", [$child_id]);
             if (!$row) continue;
             $parent_id = (int)$row['parent_id'];
             $parents_to_check[$parent_id] = true;
@@ -314,7 +383,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
                   [$row['question_desc'], $row['question_image'], $row['question_audio'],
                    $row['answer_desc'], $row['answer_image'], $row['answer_audio'], $cat_id, $p_order]);
-            sec_q("DELETE FROM fc_child_cards WHERE id = ?", [$child_id]);
+            sec_q("DELETE FROM fc_child_cards WHERE id_child = ?", [$child_id]);
         }
         foreach (array_keys($parents_to_check) as $pid) {
             $n = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_child_cards WHERE parent_id = ?", [$pid])['c'] ?? 0);
@@ -334,7 +403,7 @@ $categoryID = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
 
 
 
-$cat_query = sec_all("SELECT id, name, color, parent_id FROM fc_categories WHERE user_id = ? ORDER BY name", [$current_user_id]);
+$cat_query = sec_all("SELECT id, name, color, color_edited, parent_id FROM fc_categories WHERE user_id = ? ORDER BY name", [$current_user_id]);
 $categories_list = [];
 
 $current_cat_name = 'Tutte le Categorie';
@@ -377,6 +446,432 @@ if ($categoryID != 0 && isset($fc_cat_by_id[$categoryID])) {
 // per la UI: radice a sinistra, padre a destra
 $fc_path_ltr = array_reverse($fc_ancestors);
 
+/* Serve al popup del colore: qual e' il colore che verrebbe ereditato dal
+   padre (la prima opzione, "colore di default") e se quello attuale e' invece
+   stato scelto a mano. */
+$fc_color_edited = 0;
+$fc_parent_color = '#A0A0A0';
+if ($categoryID != 0 && isset($fc_cat_by_id[$categoryID])) {
+    $fc_color_edited = (int)($fc_cat_by_id[$categoryID]['color_edited'] ?? 0);
+    $fc_parent_color = fc_colore_ereditato((int)($fc_cat_by_id[$categoryID]['parent_id'] ?? 0), $current_user_id);
+}
+
+// ==========================================
+// AJAX: RICERCA DENTRO LE CARTELLE SOTTO LA CATEGORIA CORRENTE.
+// La pagina stampa in memoria solo le carte di QUESTA categoria: per cercare
+// anche in quelle sotto, senza questa passata a parte bisognerebbe caricare
+// tutto l'albero a ogni apertura, anche quando non si sta cercando niente.
+// Torna HTML gia' pronto invece di dati grezzi perche' cosi' le carte trovate
+// escono dalle stesse render_qa_side()/render_examples_section() dell'elenco
+// normale: una sola descrizione della scheda, non due destinate a divergere.
+// ==========================================
+if (isset($_GET['fc_deep_search'])) {
+    header('Content-Type: application/json; charset=utf-8');
+
+    $fcTerm = trim((string)sec_str($_GET['q'] ?? '', 80));
+    if ($fcTerm === '' || mb_strlen($fcTerm) < 2 || $categoryID == 0) {
+        echo json_encode(['success' => true, 'html' => '', 'total' => 0]); exit;
+    }
+
+    /* L'albero e' gia' in memoria in $categories_list, che nasce da una query
+       filtrata sull'utente: la visita in ampiezza da' insieme i discendenti e
+       il percorso di ognuno a partire dalla categoria che si sta guardando. */
+    $fcFigliDi = []; $fcNomeDi = []; $fcColoreDi = [];
+    foreach ($categories_list as $__c) {
+        $fcFigliDi[(int)($__c['parent_id'] ?? 0)][] = (int)$__c['id'];
+        $fcNomeDi[(int)$__c['id']] = (string)$__c['name'];
+        $fcColoreDi[(int)$__c['id']] = fc_color_or_default($__c['color']);
+    }
+    $fcPercorso = []; $fcOrdine = []; $fcCoda = [];
+    foreach (($fcFigliDi[$categoryID] ?? []) as $__f) { $fcCoda[] = [$__f, [$fcNomeDi[$__f] ?? '']]; }
+    while (!empty($fcCoda) && count($fcOrdine) < 400) {
+        $__nodo = array_shift($fcCoda);
+        $fcPercorso[$__nodo[0]] = $__nodo[1];
+        $fcOrdine[] = $__nodo[0];
+        foreach (($fcFigliDi[$__nodo[0]] ?? []) as $__f) {
+            $fcCoda[] = [$__f, array_merge($__nodo[1], [$fcNomeDi[$__f] ?? ''])];
+        }
+    }
+    if (empty($fcOrdine)) { echo json_encode(['success' => true, 'html' => '', 'total' => 0]); exit; }
+
+    /* I jolly di LIKE vanno neutralizzati: cercando "_" o "%" si otterrebbe
+       altrimenti l'intero archivio invece delle carte che contengono quel
+       carattere. */
+    $fcLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $fcTerm) . '%';
+    $fcPh = implode(',', array_fill(0, count($fcOrdine), '?'));
+
+    $fcPadri = sec_all(
+        "SELECT i.*, c.name AS category_name, c.color AS category_color,
+                (CASE WHEN ul.fc_image_id IS NOT NULL THEN 1 ELSE 0 END) AS is_learnt
+         FROM fc_images i
+         JOIN fc_categories c ON c.id = i.category_id AND c.user_id = ?
+         LEFT JOIN user_learnt_fc ul ON ul.fc_image_id = i.id AND ul.user_id = ?
+         WHERE i.category_id IN ($fcPh) AND (i.question_desc LIKE ? OR i.answer_desc LIKE ?)
+         ORDER BY i.custom_order ASC, i.id ASC
+         LIMIT 300",
+        array_merge([$current_user_id, $current_user_id], $fcOrdine, [$fcLike, $fcLike]));
+
+    $fcFigli = sec_all(
+        "SELECT ch.*, ch.id_child AS id, i.category_id AS category_id
+         FROM fc_child_cards ch
+         JOIN fc_images i ON i.id = ch.parent_id
+         JOIN fc_categories c ON c.id = i.category_id AND c.user_id = ?
+         WHERE i.category_id IN ($fcPh) AND (ch.question_desc LIKE ? OR ch.answer_desc LIKE ?)
+         ORDER BY ch.custom_order ASC, ch.id_child ASC
+         LIMIT 300",
+        array_merge([$current_user_id], $fcOrdine, [$fcLike, $fcLike]));
+
+    if (empty($fcPadri) && empty($fcFigli)) {
+        echo json_encode(['success' => true, 'html' => '', 'total' => 0]); exit;
+    }
+
+    /* Conteggio esempi con le stesse due colonne separate dell'elenco normale
+       (chiave negativa = figlio, convenzione di render_examples_section). */
+    $fcEsempi = [];
+    $__idPadri = array_map(function ($r) { return (int)$r['id']; }, $fcPadri);
+    $__idFigli = array_map(function ($r) { return (int)$r['id']; }, $fcFigli);
+    if (!empty($__idPadri)) {
+        $__ph = implode(',', array_fill(0, count($__idPadri), '?'));
+        foreach (sec_all("SELECT parent_id, COUNT(*) AS c FROM fc_examples WHERE parent_id IN ($__ph) GROUP BY parent_id", $__idPadri) as $__ex) {
+            $fcEsempi[(int)$__ex['parent_id']] = (int)$__ex['c'];
+        }
+    }
+    if (!empty($__idFigli)) {
+        $__ph = implode(',', array_fill(0, count($__idFigli), '?'));
+        foreach (sec_all("SELECT child_id, COUNT(*) AS c FROM fc_examples WHERE child_id IN ($__ph) GROUP BY child_id", $__idFigli) as $__ex) {
+            $fcEsempi[-1 * (int)$__ex['child_id']] = (int)$__ex['c'];
+        }
+    }
+
+    $fcGruppi = [];
+    foreach ($fcPadri as $__r) { $fcGruppi[(int)$__r['category_id']]['padri'][] = $__r; }
+    foreach ($fcFigli as $__r) { $fcGruppi[(int)$__r['category_id']]['figli'][] = $__r; }
+
+    $fcTot = 0;
+    ob_start();
+    /* L'ordine e' quello della visita in ampiezza: prima le cartelle piu'
+       vicine alla categoria aperta, poi quelle piu' in fondo. */
+    foreach ($fcOrdine as $__cid) {
+        if (!isset($fcGruppi[$__cid])) continue;
+        $__padri = $fcGruppi[$__cid]['padri'] ?? [];
+        $__figli = $fcGruppi[$__cid]['figli'] ?? [];
+        $__n = count($__padri) + count($__figli);
+        $fcTot += $__n;
+        $__col = $fcColoreDi[$__cid] ?? '#007AFF';
+?>
+<section class="fc-deep-group" data-cat-id="<?= (int)$__cid ?>" style="--row-color:<?= sec_h($__col) ?>;">
+    <div class="fc-deep-head">
+        <button type="button" class="fdh-main" onclick="fcDeepToggle(this)" aria-expanded="true">
+            <span class="fdh-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+            <span class="fdh-path">
+                <?php foreach (($fcPercorso[$__cid] ?? []) as $__i => $__seg): ?>
+                    <?php if ($__i > 0): ?><span class="fdh-sep" aria-hidden="true">&rsaquo;</span><?php endif; ?><span class="fdh-seg"><?= sec_h($__seg) ?></span>
+                <?php endforeach; ?>
+            </span>
+            <span class="fdh-count"><?= (int)$__n ?></span>
+        </button>
+        <a class="fdh-go" href="visualizzazione_fc.php?category_id=<?= (int)$__cid ?>" aria-label="<?php te('fc.vis_apri_cartella'); ?>" title="<?php te('fc.vis_apri_cartella'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </a>
+    </div>
+    <div class="fc-deep-body">
+        <?php foreach ($__padri as $__row):
+            $__learnt = ((int)$__row['is_learnt'] === 1);
+            $__search = sec_h(strtolower($__row['question_desc'] . ' ' . $__row['answer_desc']));
+        ?>
+        <div class="fc-group fc-deep-item" data-parent-id="<?= (int)$__row['id'] ?>" data-category-id="<?= (int)$__cid ?>" data-reorderable="0" style="--row-color:<?= sec_h($__col) ?>;">
+            <div class="fc-card fc-parent<?= $__learnt ? ' is-learnt' : '' ?>"
+                 data-id="<?= (int)$__row['id'] ?>" data-type="parent"
+                 data-search="<?= $__search ?>" data-duplicate="false" data-reorderable="0"
+                 data-edit-url="modifica_immagine_fc.php?fc_id=<?= (int)$__row['id'] ?>&previous_catid=<?= (int)$__cid ?>"
+                 data-child-count="0">
+                <div class="swipe-actions">
+                    <button type="button" class="swipe-act act-edit" onclick="goEditCard(this)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                        <?php te('comune.modifica'); ?>
+                    </button>
+                    <button type="button" class="swipe-act act-delete" onclick="askDeleteCard(this)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+                        <?php te('comune.elimina'); ?>
+                    </button>
+                </div>
+                <div class="swipe-content">
+                    <div class="card-head">
+                        <?php if ($current_user_id == 3): ?>
+                            <div class="learnt-disabled">&ndash;</div>
+                        <?php else: ?>
+                            <label class="learnt-wrapper">
+                                <input type="checkbox" class="learnt-cb" <?= $__learnt ? 'checked' : '' ?> onclick="toggleLearnt(<?= (int)$__row['id'] ?>, this)">
+                                <div class="learnt-emoji">🧐</div>
+                                <div class="learnt-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                            </label>
+                        <?php endif; ?>
+                        <div class="card-head-spacer"></div>
+                    </div>
+                    <?php render_qa_side(T('fc.ifc_domanda'), $__row['question_desc'], $__row['question_image'], $__row['question_audio']); ?>
+                    <?php render_qa_side(T('fc.ifc_risposta'), $__row['answer_desc'], $__row['answer_image'], $__row['answer_audio']); ?>
+                    <?php render_examples_section($__row['id'], 'parent', $__row['id'], $fcEsempi); ?>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+
+        <?php foreach ($__figli as $__row):
+            $__search = sec_h(strtolower($__row['question_desc'] . ' ' . $__row['answer_desc']));
+        ?>
+        <div class="fc-group fc-deep-item" data-reorderable="0" style="--row-color:<?= sec_h($__col) ?>;">
+            <div class="fc-children">
+                <div class="fc-card fc-child" data-id="<?= (int)$__row['id'] ?>" data-type="child"
+                     data-parent-id="<?= (int)$__row['parent_id'] ?>" data-search="<?= $__search ?>"
+                     data-duplicate="false" data-reorderable="0"
+                     data-edit-url="modifica_immagine_fc.php?child_id=<?= (int)$__row['id'] ?>&previous_catid=<?= (int)$__cid ?>">
+                    <div class="swipe-actions">
+                        <button type="button" class="swipe-act act-edit" onclick="goEditCard(this)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                            <?php te('vocab.cat_modifica_attr'); ?>
+                        </button>
+                        <button type="button" class="swipe-act act-delete" onclick="askDeleteCard(this)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+                            <?php te('comune.elimina'); ?>
+                        </button>
+                    </div>
+                    <div class="swipe-content">
+                        <div class="card-head">
+                            <div class="child-tag"><span>&#8627;</span> <?php te('fc.vis_sotto_carta'); ?></div>
+                            <div class="card-head-spacer"></div>
+                        </div>
+                        <?php render_qa_side(T('fc.ifc_domanda'), $__row['question_desc'], $__row['question_image'], $__row['question_audio']); ?>
+                        <?php render_qa_side(T('fc.ifc_risposta'), $__row['answer_desc'], $__row['answer_image'], $__row['answer_audio']); ?>
+                        <?php render_examples_section($__row['id'], 'child', -1 * (int)$__row['id'], $fcEsempi); ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+</section>
+<?php
+    }
+    $fcHtml = ob_get_clean();
+    echo json_encode(['success' => true, 'html' => $fcHtml, 'total' => $fcTot]);
+    exit;
+}
+
+
+
+
+
+// ==========================================
+// AJAX: RIEPILOGO DI UN PROGETTO.
+// La pastiglia del progetto non porta piu' dritto a progetti.php: prima si
+// vede un riassunto, e da li' si decide se andarci. Tutti i numeri sono
+// calcolati sul progetto E sui suoi discendenti, come fa progetti.php: un
+// progetto padre senza tempo proprio ma con figli pieni non deve sembrare
+// vuoto.
+// ==========================================
+if (isset($_GET['fc_project_summary'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $prjId = sec_int($_GET['project_id'] ?? 0, 1);
+    if (!$prjId || !sec_owns('projects', $prjId, $current_user_id)) {
+        echo json_encode(['success' => false, 'error' => t('fc.vis_progetto_non_valido')]); exit;
+    }
+
+    /* Un solo giro sull'albero dei progetti: da qui escono antenati,
+       discendenti e figli diretti senza altre query. */
+    $prjTutti = []; $prjFigliDi = [];
+    foreach (sec_all("SELECT id, parent_id, name, notes, status, color, color_edited, is_favorite,
+                             target_date, due_date, created_at
+                      FROM projects WHERE user_id = ? ORDER BY custom_order ASC, id ASC",
+                     [$current_user_id]) as $__p) {
+        $prjTutti[(int)$__p['id']] = $__p;
+        $prjFigliDi[(int)($__p['parent_id'] ?? 0)][] = (int)$__p['id'];
+    }
+    if (!isset($prjTutti[$prjId])) {
+        echo json_encode(['success' => false, 'error' => t('fc.vis_progetto_non_valido')]); exit;
+    }
+    $prj = $prjTutti[$prjId];
+
+    // antenati, dal piu' lontano al padre
+    $prjAntenati = [];
+    $__cur = (int)($prj['parent_id'] ?? 0); $__g = 0;
+    while ($__cur > 0 && isset($prjTutti[$__cur]) && $__g < 60) {
+        array_unshift($prjAntenati, $prjTutti[$__cur]['name']);
+        $__cur = (int)($prjTutti[$__cur]['parent_id'] ?? 0);
+        $__g++;
+    }
+
+    // se stesso + tutti i discendenti
+    $prjRamo = []; $__stack = [$prjId];
+    while (!empty($__stack) && count($prjRamo) < 500) {
+        $__n = array_pop($__stack);
+        $prjRamo[] = $__n;
+        foreach (($prjFigliDi[$__n] ?? []) as $__c) { $__stack[] = $__c; }
+    }
+    $prjPh = implode(',', array_fill(0, count($prjRamo), '?'));
+
+    // figli diretti: quanti sono e quanti chiusi
+    $prjFigli = $prjFigliDi[$prjId] ?? [];
+    $prjFigliChiusi = 0;
+    $prjFigliElenco = [];
+    foreach ($prjFigli as $__c) {
+        $__chiuso = (($prjTutti[$__c]['status'] ?? '') === 'completed');
+        if ($__chiuso) $prjFigliChiusi++;
+        if (count($prjFigliElenco) < 6) {
+            $prjFigliElenco[] = [
+                'id' => $__c,
+                'name' => $prjTutti[$__c]['name'],
+                'done' => $__chiuso,
+                'color' => (preg_match('/^#[0-9A-Fa-f]{6}$/', (string)$prjTutti[$__c]['color']))
+                           ? $prjTutti[$__c]['color'] : '#8E8E93',
+            ];
+        }
+    }
+
+    // pomodoro: tempo e sessioni su tutto il ramo, piu' la settimana appena passata
+    $__pom = sec_one("SELECT COUNT(*) AS n, COALESCE(SUM(duration_seconds), 0) AS tot
+                      FROM pomodoro_sessions
+                      WHERE user_id = ? AND project_id IN ($prjPh)",
+                     array_merge([$current_user_id], $prjRamo));
+    $__pom7 = sec_one("SELECT COALESCE(SUM(duration_seconds), 0) AS tot
+                       FROM pomodoro_sessions
+                       WHERE user_id = ? AND project_id IN ($prjPh)
+                         AND start_time >= (CURDATE() - INTERVAL 6 DAY)",
+                      array_merge([$current_user_id], $prjRamo));
+
+    // attivita' collegate
+    $__todo = sec_one("SELECT COUNT(*) AS n, COALESCE(SUM(is_done), 0) AS fatti
+                       FROM todos WHERE user_id = ? AND project_id IN ($prjPh)",
+                      array_merge([$current_user_id], $prjRamo));
+
+    // mazzi di flashcard collegati al ramo
+    $prjMazzi = [];
+    foreach (sec_all("SELECT c.id, c.name, c.color, COUNT(i.id) AS carte
+                      FROM project_fc_categories pfc
+                      JOIN fc_categories c ON c.id = pfc.fc_category_id AND c.user_id = ?
+                      LEFT JOIN fc_images i ON i.category_id = c.id
+                      WHERE pfc.project_id IN ($prjPh)
+                      GROUP BY c.id, c.name, c.color
+                      ORDER BY c.name ASC
+                      LIMIT 8",
+                     array_merge([$current_user_id], $prjRamo)) as $__m) {
+        $prjMazzi[] = [
+            'id' => (int)$__m['id'],
+            'name' => $__m['name'],
+            'color' => fc_color_or_default($__m['color']),
+            'carte' => (int)$__m['carte'],
+            'corrente' => ((int)$__m['id'] === (int)$categoryID),
+        ];
+    }
+
+    // il prossimo appuntamento gia' in calendario per questo progetto
+    $__ev = sec_one("SELECT title, event_date, start_time, is_all_day
+                     FROM planner_events
+                     WHERE user_id = ? AND project_id IN ($prjPh)
+                       AND is_cancelled = 0 AND event_date >= CURDATE()
+                     ORDER BY event_date ASC, start_time ASC
+                     LIMIT 1",
+                    array_merge([$current_user_id], $prjRamo));
+
+    $__oggi = new DateTime('today');
+    $giorniA = function ($data) use ($__oggi) {
+        if (empty($data)) return null;
+        try { $d = new DateTime($data); } catch (Exception $e) { return null; }
+        return (int)$__oggi->diff($d)->format('%r%a');
+    };
+
+    echo json_encode([
+        'success'   => true,
+        'id'        => $prjId,
+        'name'      => $prj['name'],
+        'notes'     => mb_substr(trim((string)$prj['notes']), 0, 400),
+        'status'    => $prj['status'],
+        'favorite'  => (int)$prj['is_favorite'] === 1,
+        'color'     => preg_match('/^#[0-9A-Fa-f]{6}$/', (string)$prj['color']) ? $prj['color'] : '#8E8E93',
+        'path'      => $prjAntenati,
+        'target'    => $prj['target_date'],
+        'target_in' => $giorniA($prj['target_date']),
+        'due'       => $prj['due_date'],
+        'due_in'    => $giorniA($prj['due_date']),
+        'secondi'   => (int)($__pom['tot'] ?? 0),
+        'secondi7'  => (int)($__pom7['tot'] ?? 0),
+        'sessioni'  => (int)($__pom['n'] ?? 0),
+        'figli'     => count($prjFigli),
+        'figli_ok'  => $prjFigliChiusi,
+        'figli_el'  => $prjFigliElenco,
+        'todo'      => (int)($__todo['n'] ?? 0),
+        'todo_ok'   => (int)($__todo['fatti'] ?? 0),
+        'mazzi'     => $prjMazzi,
+        'evento'    => $__ev ? [
+            'title'    => $__ev['title'],
+            'date'     => $__ev['event_date'],
+            'time'     => ((int)$__ev['is_all_day'] === 1) ? '' : substr((string)$__ev['start_time'], 0, 5),
+            'giorni'   => $giorniA($__ev['event_date']),
+        ] : null,
+    ]);
+    exit;
+}
+
+// ==========================================
+// AJAX: rinomina la categoria che si sta guardando (tocco sul nome nella
+// barra in alto) e cambio del suo colore (tocco sulla pastiglia).
+// ==========================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])
+    && in_array($_POST['action'], ['fc_rename_cat', 'fc_recolor_cat'], true)) {
+    header('Content-Type: application/json; charset=utf-8');
+    sec_guard_write($current_user_id, 'fc_vis', 0, 120, 60);
+
+    $ccId = sec_int($_POST['category_id'] ?? 0, 1);
+    if (!sec_owns('fc_categories', $ccId, $current_user_id)) {
+        echo json_encode(['success' => false, 'error' => t('fc.vis_categoria_non_valida')]); exit;
+    }
+
+    if ($_POST['action'] === 'fc_rename_cat') {
+        $ccNome = sec_str($_POST['name'] ?? '', 120);
+        if (trim($ccNome) === '') {
+            echo json_encode(['success' => false, 'error' => t('fc.vis_nome_mancante')]); exit;
+        }
+        sec_q("UPDATE fc_categories SET name = ? WHERE id = ? AND user_id = ?",
+              [$ccNome, $ccId, $current_user_id]);
+        echo json_encode(['success' => true, 'name' => $ccNome]);
+        exit;
+    }
+
+    /* Colore. "auto" non e' un colore ma una rinuncia: si azzera color_edited e
+       si riprende quello del padre, poi lo si ripropaga ai discendenti che a
+       loro volta ereditano. */
+    $ccModo = sec_enum($_POST['color_mode'] ?? null, ['auto', 'manual'], 'auto');
+    $ccCol  = sec_color($_POST['color'] ?? null, '');
+    $ccRiga = sec_one("SELECT parent_id FROM fc_categories WHERE id = ? AND user_id = ?",
+                      [$ccId, $current_user_id]);
+    $ccPadre = $ccRiga ? (int)$ccRiga['parent_id'] : 0;
+
+    if ($ccModo === 'manual' && $ccCol !== '') {
+        $ccFinale = $ccCol; $ccEdited = 1;
+    } else {
+        $ccFinale = fc_colore_ereditato($ccPadre, $current_user_id); $ccEdited = 0;
+    }
+    sec_q("UPDATE fc_categories SET color = ?, color_edited = ? WHERE id = ? AND user_id = ?",
+          [$ccFinale, $ccEdited, $ccId, $current_user_id]);
+    fc_cascata_colore($ccId, $ccFinale, $current_user_id);
+
+    echo json_encode(['success' => true, 'color' => $ccFinale, 'edited' => $ccEdited]);
+    exit;
+}
+
+/* Ripropaga un colore ai discendenti che ereditano, fermandosi ai rami che
+   hanno un colore scelto a mano: quelli non si toccano. Stessa regola di
+   cs_cascade_color() in categories_fc.php. */
+function fc_cascata_colore($categoryId, $color, $userId, $depth = 0) {
+    if ($depth > 50) return;
+    foreach (sec_all("SELECT id, color_edited FROM fc_categories WHERE parent_id = ? AND user_id = ?",
+                     [(int)$categoryId, (int)$userId]) as $ch) {
+        if ((int)$ch['color_edited'] === 0) {
+            sec_q("UPDATE fc_categories SET color = ? WHERE id = ? AND user_id = ?",
+                  [$color, (int)$ch['id'], (int)$userId]);
+            fc_cascata_colore((int)$ch['id'], $color, $userId, $depth + 1);
+        }
+    }
+}
 
 
 // ==========================================
@@ -682,30 +1177,17 @@ $parent_reorder_enabled = ($sort === 'custom_asc' && $categoryID != 0);
 
 $child_reorder_enabled = ($sort === 'custom_asc');
 
+/* Stessa tavolozza di categories_fc.php: una cartella creata da qui deve
+   poter avere gli stessi colori di una creata di la'. */
+$colorPalette = ['#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#00C7BE', '#30B0C7',
+                 '#32ADE6', '#007AFF', '#5856D6', '#AF52DE', '#FF2D55', '#A2845E'];
+
 
 
 // Sezione "Examples": visibile solo se esistono davvero esempi per quella carta
 
-function render_examples_section($realId, $type, $lookupId, $examples_counts) {
-
-    $count = isset($examples_counts[$lookupId]) ? $examples_counts[$lookupId] : 0;
-
-    if ($count <= 0) return;
-
-    ?>
-
-    <div class="qa-examples">
-
-        <div class="qa-label"><?php te('fc.vis_n_esempi', ['n' => (int)$count]); ?></div>
-
-        <div class="qa-examples-box" data-fc-id="<?= (int)$realId ?>" data-fc-type="<?= sec_h($type) ?>"></div>
-
-    </div>
-
-    <?php
-
-}
-
+// render_examples_section() vive in examples_box.php, incluso in cima a
+// questo file — condivisa con modifica_immagine_fc.php.
 
 
 // ==========================================
@@ -877,9 +1359,13 @@ function render_audio_player($src) {
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
 <script src="fc_parser.js"></script>
+<script src="examples_modal.js"></script>
+<script src="<?php echo PWA_BASE; ?>fc_edit_popup.js"></script>
 
 
 
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_edit_popup.css">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>examples_box.css">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>visualizzazione_fc.css?v=<?php echo @filemtime(dirname(__FILE__) . '/visualizzazione_fc.css') ?: 1; ?>">
 
 </head>
@@ -902,7 +1388,7 @@ function render_audio_player($src) {
 
     <div class="header-top">
 
-        <div class="cat-pill" id="catPill" role="link" tabindex="0" onclick="window.location.href='categories_fc.php'">
+        <div class="cat-pill<?= $categoryID != 0 ? ' editable' : '' ?>" id="catPill" onclick="fcToccaPastiglia(event)">
 
             <span class="cat-pill-dot"></span>
 
@@ -910,12 +1396,15 @@ function render_audio_player($src) {
 
                 <div class="cat-pill-label"><?php te('vocab.cat_categoria'); ?></div>
 
-                <div class="cat-pill-name"><?= sec_h($current_cat_name) ?></div>
+                <div class="cat-pill-name" id="catPillName"<?php if ($categoryID != 0): ?> onclick="fcApriRinomina(event)" title="<?php te('fc.vis_rinomina'); ?>"<?php endif; ?>><?= sec_h($current_cat_name) ?></div>
+                <?php if ($categoryID != 0): ?>
+                <input type="text" class="cat-pill-name-input" id="catPillNameInput" maxlength="120" style="display:none;" aria-label="<?php te('fc.vis_rinomina'); ?>">
+                <?php endif; ?>
                 <?php if ($categoryID != 0): ?>
                     <?php if ($fc_linked_project): ?>
                     <button type="button" class="cat-proj-chip<?= !empty($fc_linked_project['via_ancestor']) ? ' via-ancestor' : '' ?>"
                             style="--cp-color:<?= sec_h($fc_linked_project['color']) ?>;"
-                            onclick="event.stopPropagation(); window.location.href='progetti.php?id=<?= (int)$fc_linked_project['id'] ?>';">
+                            onclick="event.stopPropagation(); fcApriProgetto(<?= (int)$fc_linked_project['id'] ?>);">
                         <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
                         <?php if (!empty($fc_linked_project['parent_name'])): ?><span class="cp-anc"><?= sec_h($fc_linked_project['parent_name']) ?></span><span class="cp-sep">•</span><?php endif; ?><span class="cp-leaf"><?= sec_h($fc_linked_project['name']) ?></span>
                     </button>
@@ -955,17 +1444,17 @@ function render_audio_player($src) {
             <?php endif; ?>
         </nav>
 
-        <a href="inserimento_fc.php?category_id=<?= sec_h($categoryID) ?>" class="icon-btn quick-add-btn" aria-label="<?php te('fc.vis_aggiungi_fc'); ?>" title="<?php te('fc.vis_aggiungi_in_cat'); ?>">
+        <button type="button" class="icon-btn quick-add-btn" onclick="fcApriAggiungi()" aria-label="<?php te('fc.vis_aggiungi_fc'); ?>" title="<?php te('fc.vis_aggiungi_in_cat'); ?>">
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
 
-        </a>
+        </button>
 
         <?php if ($categoryID != 0): ?>
         <a href="categories_game_fc.php?preselect_category=<?= sec_h($categoryID) ?>" class="icon-btn play-cat-btn" aria-label="<?php te('vocab.vi_gioca'); ?>" title="Gioca con questa categoria">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>
         </a>
-        <a href="big_edit_fc.php?category_id=<?= sec_h($categoryID) ?>" class="icon-btn big-edit-btn" aria-label="<?php te('vocab.vi_big_edit'); ?>" title="Big Edit">
+        <a href="inserimento_big_fc.php?category_id=<?= sec_h($categoryID) ?>&modo=edit" class="icon-btn big-edit-btn" aria-label="<?php te('vocab.vi_big_edit'); ?>" title="Big Edit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
         </a>
         <?php endif; ?>
@@ -980,7 +1469,7 @@ function render_audio_player($src) {
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
 
-            <input id="filterText" class="search-input" type="text" placeholder="<?php te('fc.vis_cerca'); ?>" oninput="visibleLimit=30; filterList()">
+            <input id="filterText" class="search-input" type="text" placeholder="<?php te('fc.vis_cerca'); ?>" oninput="fcOnSearchInput()">
 
         </div>
 
@@ -1000,27 +1489,17 @@ function render_audio_player($src) {
 
         </div>
 
-        <div class="tb-select-wrap">
+        <button type="button" class="tb-icon-btn" id="settingsBtn" onclick="fcApriImpostazioni()"
+                aria-label="<?php te('fc.vis_impostazioni'); ?>" title="<?php te('fc.vis_impostazioni'); ?>">
 
-            <select id="filterStatus" class="tb-select" onchange="visibleLimit=30; filterList()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.6 1.6 0 0 0 .32 1.77l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-1 1.47V21a2 2 0 1 1-4 0v-.11a1.6 1.6 0 0 0-1.05-1.46 1.6 1.6 0 0 0-1.77.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.47-1H3a2 2 0 1 1 0-4h.11A1.6 1.6 0 0 0 4.57 9a1.6 1.6 0 0 0-.32-1.77l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.6 1.6 0 0 0 1.77.32H9a1.6 1.6 0 0 0 1-1.47V3a2 2 0 1 1 4 0v.11a1.6 1.6 0 0 0 1 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.32 1.77V9a1.6 1.6 0 0 0 1.47 1H21a2 2 0 1 1 0 4h-.11a1.6 1.6 0 0 0-1.47 1Z"/></svg>
 
-                <option value="all"><?php te('fc.vis_tutte_carte'); ?></option>
+        </button>
 
-                <option value="not_learnt"><?php te('vocab.vi_da_imparare'); ?></option>
-
-                <option value="learnt"><?php te('vocab.vi_imparate'); ?></option>
-
-                <option value="duplicates"><?php te('vocab.vi_duplicati'); ?></option>
-
-            </select>
-
-        </div>
-
-        <button type="button" class="select-mode-btn" id="selectModeBtn" onclick="enterSelectMode()">
+        <button type="button" class="select-mode-btn icon-only" id="selectModeBtn" onclick="enterSelectMode()"
+                aria-label="<?php te('vocab.vi_seleziona'); ?>" title="<?php te('vocab.vi_seleziona'); ?>">
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="6"/></svg>
-
-            <?php te('vocab.vi_seleziona'); ?>
 
         </button>
 
@@ -1340,7 +1819,7 @@ function render_audio_player($src) {
 
                                 <div class="card-head">
 
-                                    <div class="child-tag"><span>↳</span> Sotto-carta</div>
+                                    <div class="child-tag"><span>↳</span> <?php te('fc.vis_sotto_carta'); ?></div>
 
                                     <label class="select-circle">
 
@@ -1401,6 +1880,8 @@ function render_audio_player($src) {
 
         </form>
 
+        <div class="fc-deep" id="fcDeep" hidden></div>
+
     </div>
 
 </main>
@@ -1439,35 +1920,296 @@ function render_audio_player($src) {
 
 
 
-<div class="sheet-overlay" id="moveSheet">
+<?php /* Lo spostamento usa ora category_selector.php invece di un elenco
+         piatto: le materie sono un albero con sottocategorie, e un elenco
+         piatto le mostrava tutte allo stesso livello, senza ricerca e senza
+         far capire dove si stesse spostando. Il selettore parte gia' aperto
+         sulla categoria in cui ci si trova, che e' quasi sempre il punto da
+         cui si vuole spostare di poco. */
+       $cs_id = 'move';
+       $cs_selected_id = (int)$categoryID;
+       $cs_selected_name = $current_cat_name ?? '';
+       $cs_title = t('fc.vis_sposta_dove');
+       $cs_placeholder = t('fc.vis_sposta_dove');
+       $cs_hidden_name = 'cs_move_target';
+       $cs_render_trigger = false;
+       $cs_allow_create = true;
+       include 'category_selector.php';
+       unset($cs_id, $cs_selected_id, $cs_selected_name, $cs_title,
+             $cs_placeholder, $cs_hidden_name, $cs_render_trigger, $cs_allow_create); ?>
 
+
+
+
+<!-- ============ IMPOSTAZIONI DELLA VISTA ============ -->
+<div class="sheet-overlay" id="settingsSheet">
     <div class="sheet-panel">
+        <h3><?php te('fc.vis_impostazioni'); ?></h3>
+        <p class="sheet-sub"><?php te('fc.vis_impostazioni_txt'); ?></p>
 
-        <h3><?php te('fc.vis_sposta_dove'); ?></h3>
-
-        <p class="sheet-sub"><?php te('fc.vis_sposta_txt'); ?></p>
-
-        <div class="cat-pick-list" id="moveCatList">
-
-            <?php foreach ($categories_list as $c): ?>
-
-                <button type="button" class="cat-pick-item" onclick="pickMoveCategory(<?= (int)$c['id'] ?>)">
-
-                    <span class="cat-pick-dot" style="background:<?= sec_h(fc_color_or_default($c['color'])) ?>"></span>
-
-                    <span class="cat-pick-name"><?= sec_h($c['name']) ?></span>
-
-                </button>
-
-            <?php endforeach; ?>
-
+        <div class="opt-group">
+            <div class="opt-group-label"><?php te('fc.vis_quali_carte'); ?></div>
+            <div class="opt-row">
+                <div class="opt-txt">
+                    <div class="opt-title"><?php te('fc.vis_filtro'); ?></div>
+                </div>
+                <div class="opt-select-wrap">
+                    <select id="filterStatus" class="opt-select" onchange="fcSalvaImpostazioni(); visibleLimit=30; filterList();">
+                        <option value="all"><?php te('fc.vis_tutte_carte'); ?></option>
+                        <option value="not_learnt"><?php te('vocab.vi_da_imparare'); ?></option>
+                        <option value="learnt"><?php te('vocab.vi_imparate'); ?></option>
+                        <option value="duplicates"><?php te('vocab.vi_duplicati'); ?></option>
+                    </select>
+                </div>
+            </div>
         </div>
 
-    </div>
+        <div class="opt-group">
+            <div class="opt-group-label"><?php te('fc.vis_come_mostrarle'); ?></div>
+            <div class="opt-row">
+                <div class="opt-txt">
+                    <div class="opt-title"><?php te('fc.vis_carte_intere'); ?></div>
+                    <div class="opt-sub"><?php te('fc.vis_carte_intere_txt'); ?></div>
+                </div>
+                <label class="opt-switch">
+                    <input type="checkbox" id="optFullCards" onchange="fcSalvaImpostazioni()">
+                    <span class="opt-track"><span class="opt-knob"></span></span>
+                </label>
+            </div>
+            <div class="opt-row">
+                <div class="opt-txt">
+                    <div class="opt-title"><?php te('fc.vis_esempi_interi'); ?></div>
+                    <div class="opt-sub"><?php te('fc.vis_esempi_interi_txt'); ?></div>
+                </div>
+                <label class="opt-switch">
+                    <input type="checkbox" id="optFullExamples" onchange="fcSalvaImpostazioni()">
+                    <span class="opt-track"><span class="opt-knob"></span></span>
+                </label>
+            </div>
+        </div>
 
+        <div class="sheet-actions">
+            <button type="button" class="sheet-btn" onclick="closeSheet('settingsSheet')"><?php te('comune.chiudi'); ?></button>
+        </div>
+    </div>
+</div>
+
+<!-- ============ COSA VUOI AGGIUNGERE? ============ -->
+<div class="sheet-overlay" id="addSheet">
+    <div class="sheet-panel">
+        <h3><?php te('fc.vis_cosa_aggiungere'); ?></h3>
+        <p class="sheet-sub"><?php te('fc.vis_cosa_aggiungere_txt'); ?></p>
+        <div class="pick-grid">
+            <button type="button" class="pick-tile" onclick="fcAggiungiCarta()">
+                <span class="pt-ic">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="2.2"/><path d="M7.5 7V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/></svg>
+                </span>
+                <span class="pt-lab"><?php te('fc.vis_una_carta'); ?></span>
+                <span class="pt-sub"><?php te('fc.vis_una_carta_txt'); ?></span>
+            </button>
+            <button type="button" class="pick-tile" onclick="fcApriNuovaCartella()">
+                <span class="pt-ic">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M12 11v5M9.5 13.5h5"/></svg>
+                </span>
+                <span class="pt-lab"><?php te('fc.vis_una_cartella'); ?></span>
+                <span class="pt-sub"><?php te('fc.vis_una_cartella_txt'); ?></span>
+            </button>
+        </div>
+        <div class="sheet-actions">
+            <button type="button" class="sheet-btn" onclick="closeSheet('addSheet')"><?php te('comune.annulla'); ?></button>
+        </div>
+    </div>
+</div>
+
+<!-- ============ NUOVA CARTELLA ============ -->
+<div class="sheet-overlay" id="newFolderSheet">
+    <div class="sheet-panel">
+        <h3><?php te('fc.vis_nuova_cartella'); ?></h3>
+        <p class="sheet-sub" id="newFolderSub"></p>
+
+        <input type="text" id="newFolderName" class="nf-input" maxlength="120"
+               placeholder="<?php te('fc.vis_nome_cartella'); ?>" autocomplete="off">
+
+        <div class="nf-color-head">
+            <span class="nf-color-dot" id="newFolderDot"></span>
+            <span class="nf-color-name" id="newFolderColorName"></span>
+        </div>
+
+        <div class="nf-grid" id="newFolderGrid">
+            <?php /* Prima opzione sempre il colore ereditato dal padre: e' il
+                     comportamento normale delle categorie, quello scelto a mano
+                     e' l'eccezione. */ ?>
+            <button type="button" class="nf-sw nf-sw-auto selected" data-auto="1" onclick="fcPickerAuto('cartella')"
+                    title="<?php te('fc.vis_colore_default'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v8h8"/></svg>
+            </button>
+            <?php foreach ($colorPalette as $__ci => $__hex): ?>
+            <button type="button" class="nf-sw" style="--sw:<?= sec_h($__hex) ?>;" data-hex="<?= sec_h($__hex) ?>"
+                    onclick="fcPickerManuale('cartella', '<?= sec_h($__hex) ?>')">
+                <svg class="nf-check" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            </button>
+            <?php endforeach; ?>
+        </div>
+
+        <div class="nf-custom">
+            <input type="color" id="newFolderCustom" value="#007AFF" oninput="fcPickerManuale('cartella', this.value)">
+            <span class="nf-custom-lab"><?php te('vocab.cat_colore_pers'); ?></span>
+            <span class="nf-custom-hex" id="newFolderHex">#A0A0A0</span>
+        </div>
+
+        <div class="sheet-actions">
+            <button type="button" class="sheet-btn" onclick="closeSheet('newFolderSheet')"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="sheet-btn primary" id="newFolderSave" onclick="fcCreaCartella()"><?php te('comune.salva'); ?></button>
+        </div>
+    </div>
 </div>
 
 
+
+<!-- ============ COLORE DELLA CATEGORIA ============ -->
+<div class="sheet-overlay" id="catColorSheet">
+    <div class="sheet-panel">
+        <h3><?php te('fc.vis_colore_categoria'); ?></h3>
+        <p class="sheet-sub"><?php te('fc.vis_colore_categoria_txt'); ?></p>
+
+        <div class="nf-color-head">
+            <span class="nf-color-dot" id="catColorDot"></span>
+            <span class="nf-color-name" id="catColorName"></span>
+        </div>
+
+        <div class="nf-grid" id="catColorGrid">
+            <button type="button" class="nf-sw nf-sw-auto selected" data-auto="1" onclick="fcPickerAuto('categoria')"
+                    title="<?php te('fc.vis_colore_default'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v8h8"/></svg>
+            </button>
+            <?php foreach ($colorPalette as $__ci2 => $__hex2): ?>
+            <button type="button" class="nf-sw" style="--sw:<?= sec_h($__hex2) ?>;" data-hex="<?= sec_h($__hex2) ?>"
+                    onclick="fcPickerManuale('categoria', '<?= sec_h($__hex2) ?>')">
+                <svg class="nf-check" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            </button>
+            <?php endforeach; ?>
+        </div>
+
+        <div class="nf-custom">
+            <input type="color" id="catColorCustom" value="#007AFF" oninput="fcPickerManuale('categoria', this.value)">
+            <span class="nf-custom-lab"><?php te('vocab.cat_colore_pers'); ?></span>
+            <span class="nf-custom-hex" id="catColorHex">#A0A0A0</span>
+        </div>
+
+        <div class="sheet-actions">
+            <button type="button" class="sheet-btn" onclick="closeSheet('catColorSheet')"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="sheet-btn primary" id="catColorSave" onclick="fcSalvaColoreCategoria()"><?php te('comune.salva'); ?></button>
+        </div>
+    </div>
+</div>
+
+<!-- ============ RIEPILOGO DEL PROGETTO ============ -->
+<div class="sheet-overlay" id="projectSheet">
+    <div class="sheet-panel prj-panel">
+        <div class="prj-body" id="prjBody"></div>
+        <div class="sheet-actions">
+            <button type="button" class="sheet-btn" onclick="closeSheet('projectSheet')"><?php te('comune.chiudi'); ?></button>
+            <a class="sheet-btn primary prj-go" id="prjGo" href="progetti.php"><?php te('fc.vis_prj_apri'); ?></a>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- ============ VISTA A FLASHCARD (una carta per volta) ============ -->
+<button type="button" class="fcv-fab" id="fcvFab" onclick="fcvApri()"
+        aria-label="<?php te('fc.vis_fcv_apri'); ?>" title="<?php te('fc.vis_fcv_apri'); ?>">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="3"/><path d="M8.5 4H19a2 2 0 0 1 2 2v10.5"/></svg>
+</button>
+
+<div id="fcv" class="fcv" aria-hidden="true">
+    <div class="fcv-back" id="fcvBack"></div>
+
+    <header class="fcv-top">
+        <button type="button" id="fcvClose" class="fcv-tb" aria-label="<?php te('comune.chiudi'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+        <div class="fcv-count"><span id="fcvIdx">1</span> / <span id="fcvTot">1</span></div>
+        <?php if ($categoryID != 0): ?>
+        <a class="fcv-tb fcv-play" href="categories_game_fc.php?preselect_category=<?= (int)$categoryID ?>"
+           aria-label="<?php te('vocab.vi_gioca'); ?>" title="<?php te('vocab.vi_gioca'); ?>">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>
+        </a>
+        <?php else: ?>
+        <span class="fcv-tb fcv-ghost" aria-hidden="true"></span>
+        <?php endif; ?>
+    </header>
+
+    <div class="fcv-progress"><span id="fcvBar"></span></div>
+    <?php /* Seconda barra, solo per le sotto-carte: dice a che punto si e'
+             fra i FRATELLI, non nell'intero mazzo. Sui padri non sparisce, si
+             limita a diventare invisibile (classe is-off): tolta dal flusso
+             farebbe scendere e risalire le carte a ogni cambio. */ ?>
+    <div class="fcv-progress fcv-progress-sib is-off" id="fcvBarSibWrap"><span id="fcvBarSib"></span></div>
+
+    <div class="fcv-stage" id="fcvStage">
+        <div class="fcv-card" id="fcvCard">
+            <div class="fcv-inner" id="fcvInner">
+                <div class="fcv-face fcv-front">
+                    <?php /* Le prime righe della domanda del padre: uguale per
+                             tutti i fratelli, fa da titolo del gruppo e riporta
+                             alla carta padre. Nascosta sui padri. */ ?>
+                    <button type="button" class="fcv-parent-strip" id="fcvParent" hidden>
+                        <span class="fcv-parent-lab">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                            <?php te('fc.vis_fcv_carta_padre'); ?>
+                        </span>
+                        <span class="fcv-parent-txt" id="fcvParentTxt"></span>
+                    </button>
+                    <div class="fcv-eyebrow"><?php te('fc.ifc_domanda'); ?></div>
+                    <div class="fcv-body" id="fcvQ"></div>
+                    <div class="fcv-hint"><?php te('fc.res_tocca_girare'); ?></div>
+                </div>
+                <div class="fcv-face fcv-backface">
+                    <div class="fcv-eyebrow ans"><?php te('fc.ifc_risposta'); ?></div>
+                    <div class="fcv-body" id="fcvA"></div>
+                </div>
+            </div>
+            <?php /* Fuori da .fcv-inner: cosi' il tastino resta fermo mentre la
+                     carta gira, invece di ritrovarsi specchiato sul retro. */ ?>
+            <button type="button" class="fcv-edit" id="fcvEdit"
+                    aria-label="<?php te('comune.modifica'); ?>" title="<?php te('comune.modifica'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="fcv-nav">
+        <button type="button" id="fcvPrev" class="fcv-nb" aria-label="<?php te('fc.res_precedente'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <button type="button" id="fcvFlip" class="fcv-nb fcv-nb-main" aria-label="<?php te('fc.res_gira'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v5h-5"/></svg>
+        </button>
+        <button type="button" id="fcvNext" class="fcv-nb" aria-label="<?php te('fc.res_successiva'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+    </div>
+</div>
+
+
+<!-- ============ ESEMPIO A TUTTO SCHERMO ============ -->
+<?php /* Vive fuori dal visore a flashcard e con uno z-index piu' alto: si apre
+         sia dall'elenco sia da dentro il visore, e nel secondo caso deve
+         starci sopra. */ ?>
+<div class="ex-modal" id="exModal" aria-hidden="true">
+    <div class="ex-modal-back" id="exModalBack"></div>
+    <div class="ex-modal-panel">
+        <header class="ex-modal-head">
+            <span class="ex-modal-title" id="exModalTitle"></span>
+            <button type="button" class="ex-modal-close" id="exModalClose" aria-label="<?php te('comune.chiudi'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </header>
+        <div class="ex-modal-body" id="exModalBody"></div>
+        <div class="ex-modal-nav" id="exModalNav"></div>
+    </div>
+</div>
 
 <div id="toast-host"></div>
 
@@ -1583,19 +2325,140 @@ function miniConfetti(x, y){
 
    ================================================================ */
 
+var fcZoomStato = null;
+
 function openImageZoom(src){
-
-    document.getElementById('overlay-img').src = src;
-
-    document.getElementById('image-overlay').style.display = 'flex';
-
+    var ov = document.getElementById('image-overlay');
+    var img = document.getElementById('overlay-img');
+    img.src = src;
+    /* Si riparte sempre dall'immagine intera: uscendo mentre era ingrandita,
+       riaprendone un'altra si erediterebbe lo zoom precedente. */
+    img.style.transition = 'none';
+    img.style.transform = '';
+    ov.style.background = '';
+    ov.style.display = 'flex';
+    /* La pagina dietro non deve scorrere ne' rispondere ai tocchi: qui si sta
+       guardando un'immagine, ogni gesto appartiene a lei. */
+    document.body.classList.add('fc-zoom-aperto');
+    fcZoomStato = { scala: 1, x: 0, y: 0, distIniziale: 0, scalaIniziale: 1,
+                    trascina: false, x0: 0, y0: 0, dy: 0, xPart: 0, yPart: 0 };
 }
 
 function closeImageZoom(){
-
-    document.getElementById('image-overlay').style.display = 'none';
-
+    var ov = document.getElementById('image-overlay');
+    var img = document.getElementById('overlay-img');
+    ov.style.display = 'none';
+    ov.style.background = '';
+    img.style.transform = '';
+    img.style.transition = '';
+    document.body.classList.remove('fc-zoom-aperto');
+    fcZoomStato = null;
 }
+
+/* ---------- Zoom con due dita, trascinamento verso il basso per chiudere ----------
+   Due gesti sullo stesso elemento: con due dita si ingrandisce e si sposta
+   l'immagine per guardarla da vicino; con un dito solo, e SOLO quando non e'
+   ingrandita, si trascina verso il basso per chiuderla — il gesto che su iOS
+   chiude qualunque visore a tutto schermo. A immagine ingrandita il dito
+   singolo serve invece a spostarla, altrimenti non si potrebbe esplorarla. */
+(function () {
+    var ov = null, img = null;
+
+    function elementi() {
+        if (!ov) ov = document.getElementById('image-overlay');
+        if (!img) img = document.getElementById('overlay-img');
+        return !!(ov && img);
+    }
+    function applica(z) {
+        img.style.transform = 'translate(' + z.x + 'px,' + z.y + 'px) scale(' + z.scala + ')';
+    }
+    function distanza(t) {
+        var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    function dentro(e) {
+        return e.target && e.target.closest && e.target.closest('#image-overlay');
+    }
+
+    document.addEventListener('touchstart', function (e) {
+        if (!fcZoomStato || !elementi() || !dentro(e)) return;
+        var z = fcZoomStato;
+        img.style.transition = 'none';
+        ov.style.transition = 'none';
+        if (e.touches.length === 2) {
+            z.distIniziale = distanza(e.touches);
+            z.scalaIniziale = z.scala;
+            z.trascina = false;
+        } else if (e.touches.length === 1) {
+            z.trascina = true;
+            z.x0 = e.touches[0].clientX;
+            z.y0 = e.touches[0].clientY;
+            z.dy = 0;
+            z.xPart = z.x;
+            z.yPart = z.y;
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function (e) {
+        if (!fcZoomStato || !elementi() || !dentro(e)) return;
+        var z = fcZoomStato;
+
+        if (e.touches.length === 2 && z.distIniziale > 0) {
+            e.preventDefault();
+            var f = distanza(e.touches) / z.distIniziale;
+            z.scala = Math.min(5, Math.max(1, z.scalaIniziale * f));
+            if (z.scala === 1) { z.x = 0; z.y = 0; }
+            applica(z);
+            return;
+        }
+
+        if (e.touches.length === 1 && z.trascina) {
+            var dx = e.touches[0].clientX - z.x0;
+            var dy = e.touches[0].clientY - z.y0;
+
+            if (z.scala > 1) {
+                e.preventDefault();
+                z.x = z.xPart + dx;
+                z.y = z.yPart + dy;
+                applica(z);
+                return;
+            }
+            /* Non ingrandita: conta solo il trascinamento verso il basso, e
+               solo se e' piu' verticale che orizzontale — altrimenti un
+               movimento obliquo chiuderebbe per sbaglio. */
+            if (dy > 0 && dy > Math.abs(dx)) {
+                e.preventDefault();
+                z.dy = dy;
+                img.style.transform = 'translateY(' + dy + 'px) scale(' + Math.max(0.75, 1 - dy / 1000) + ')';
+                /* Lo sfondo si schiarisce mentre si trascina: si vede che il
+                   gesto sta portando alla chiusura, e si fa in tempo a
+                   cambiare idea tornando su. */
+                ov.style.background = 'rgba(0,0,0,' + Math.max(0.3, 0.94 - dy / 500) + ')';
+            }
+        }
+    }, { passive: false });
+
+    document.addEventListener('touchend', function () {
+        if (!fcZoomStato || !elementi()) return;
+        var z = fcZoomStato;
+        z.distIniziale = 0;
+        if (!z.trascina) return;
+        z.trascina = false;
+        if (z.scala > 1) return;
+
+        img.style.transition = 'transform .28s cubic-bezier(.32,.72,0,1)';
+        ov.style.transition = 'background .28s ease';
+        if (z.dy > 110) {
+            img.style.transform = 'translateY(' + window.innerHeight + 'px) scale(.7)';
+            ov.style.background = 'rgba(0,0,0,0)';
+            setTimeout(closeImageZoom, 220);
+        } else {
+            img.style.transform = '';
+            ov.style.background = '';
+        }
+        z.dy = 0;
+    });
+})();
 
 
 
@@ -1865,7 +2728,9 @@ function filterList(){
     let matchedGroups = 0;
     const isTutteLeMaterie = <?php echo $categoryID == 0 ? 'true' : 'false'; ?>;
 
-    $all('.fc-group').forEach(function(group){
+    /* Solo i gruppi dell'elenco locale: quelli dei risultati nelle
+       sottocartelle sono gia' filtrati dal server e vivono fuori da #fcList. */
+    $all('#fcList > .fc-group').forEach(function(group){
         const parentCard = group.querySelector(':scope > .fc-card.fc-parent');
         const childCards = $all('.fc-children > .fc-card.fc-child', group);
 
@@ -1902,9 +2767,2619 @@ function filterList(){
             loadMoreBtn.style.display = 'none';
         }
     }
+
+    /* Le cartelle seguono la ricerca come le carte: se il testo non e' nel
+
+       loro nome spariscono, e sparisce anche l'intestazione se non ne resta
+
+       nessuna. Senza filtro tornano tutte. */
+
+    var sezioneSub = document.querySelector('.fc-subcats');
+
+    if (sezioneSub) {
+
+        var restano = 0;
+
+        $all('.fc-subcat-card', sezioneSub).forEach(function(sc){
+
+            var nome = sc.querySelector('.fc-subcat-name');
+
+            var testo = nome ? nome.textContent.toLowerCase() : '';
+
+            var ok = (textFilter === '') || testo.indexOf(textFilter) !== -1;
+
+            sc.style.display = ok ? '' : 'none';
+
+            if (ok) restano++;
+
+        });
+
+        sezioneSub.style.display = restano ? '' : 'none';
+
+    }
+
+    if (window.fcAfterFilter) window.fcAfterFilter();
 }
 
 </script>
+<script>
+
+/* ================================================================
+
+   RICERCA: EVIDENZIAZIONE + CARTE TROVATE NELLE SOTTOCARTELLE
+
+   In pagina ci sono solo le carte di questa categoria. Quelle che stanno
+
+   nelle cartelle sotto arrivano da visualizzazione_fc.php?fc_deep_search=1,
+
+   gia' come HTML: sono le stesse funzioni di render dell'elenco normale, cosi'
+
+   una modifica alla scheda vale per tutte e due gli elenchi.
+
+   ================================================================ */
+
+var FC_CAT_ID = <?= (int)$categoryID ?>;
+
+var FC_HA_SOTTOCARTELLE = <?= !empty($subcategories) ? 'true' : 'false' ?>;
+
+/* Stessa chiave che legge categories_fc.php: cosi', tornando li' (tasto Home
+
+   o "indietro" del browser), l'albero si ritrova gia' aperto su questa
+
+   categoria, anche se ci si e' arrivati scendendo per sotto-cartelle senza
+
+   mai passare da un clic su una riga di quella pagina. */
+
+if (FC_CAT_ID !== 0) { try { sessionStorage.setItem('nisama_cat_tree_focus', FC_CAT_ID); } catch(e){} }
+
+
+
+/* ---------- Evidenziazione ---------- */
+
+/* Si lavora sul testo gia' disegnato, non sul data-raw: il testo grezzo ha
+
+   dentro la formattazione (formule comprese) e infilarci dei tag lo
+
+   romperebbe. Qui invece si spezzano solo nodi di testo. */
+
+/* Il dito e' partito dentro qualcosa che scorre gia' per conto suo (una
+
+   formula larga, un testo che sborda)? Allora quel trascinamento e' suo: ne'
+
+   i tastini a scorrimento della carta ne' la sfogliata del visore devono
+
+   rubarglielo. Si risale fino a un limite, non fino in cima alla pagina. */
+
+function fcScorrevoleOrizz(el, limite){
+
+    while (el && el !== limite && el.nodeType === 1) {
+
+        if (el.scrollWidth - el.clientWidth > 2) {
+
+            var st = getComputedStyle(el);
+
+            if (st.overflowX === 'auto' || st.overflowX === 'scroll') return true;
+
+        }
+
+        el = el.parentElement;
+
+    }
+
+    return false;
+
+}
+
+
+
+function fcTogliEvidenze(root){
+
+    var scope = root || document;
+
+    Array.prototype.slice.call(scope.querySelectorAll('mark.fc-hl')).forEach(function(m){
+
+        var p = m.parentNode;
+
+        if (!p) return;
+
+        p.replaceChild(document.createTextNode(m.textContent), m);
+
+        p.normalize();
+
+    });
+
+}
+
+
+
+function fcEvidenziaIn(el, termine){
+
+    if (!el || !termine) return;
+
+    var basso = termine.toLowerCase();
+
+    var nodi = [];
+
+    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+
+    var n;
+
+    while ((n = walker.nextNode())) {
+
+        if (!n.nodeValue || n.nodeValue.toLowerCase().indexOf(basso) === -1) continue;
+
+        var p = n.parentNode;
+
+        if (!p || p.nodeType !== 1) continue;
+
+        /* MathJax ridisegna i propri nodi da capo: metterci dentro un <mark>
+
+           significa vederselo sparire o, peggio, rompere la formula. */
+
+        if (p.closest('mjx-container, .MathJax, script, style, mark.fc-hl')) continue;
+
+        nodi.push(n);
+
+    }
+
+    nodi.forEach(function(node){
+
+        var txt = node.nodeValue, low = txt.toLowerCase();
+
+        var frag = document.createDocumentFragment();
+
+        var i = 0, j;
+
+        while ((j = low.indexOf(basso, i)) !== -1) {
+
+            if (j > i) frag.appendChild(document.createTextNode(txt.slice(i, j)));
+
+            var mk = document.createElement('mark');
+
+            mk.className = 'fc-hl';
+
+            mk.textContent = txt.slice(j, j + basso.length);
+
+            frag.appendChild(mk);
+
+            i = j + basso.length;
+
+        }
+
+        if (i < txt.length) frag.appendChild(document.createTextNode(txt.slice(i)));
+
+        if (node.parentNode) node.parentNode.replaceChild(frag, node);
+
+    });
+
+}
+
+
+
+var fcEvidenzaAttiva = '';
+
+function fcApplicaEvidenze(){
+
+    var input = document.getElementById('filterText');
+
+    var termine = input ? input.value.trim() : '';
+
+    /* Ripulire tutto a ogni battuta costerebbe caro su elenchi lunghi: si
+
+       rifa' solo quando il termine cambia davvero. */
+
+    if (termine === fcEvidenzaAttiva) return;
+
+    fcTogliEvidenze(document);
+
+    fcEvidenzaAttiva = termine;
+
+    if (termine.length < 1) return;
+
+    var visibili = $all('.fc-card').filter(function(c){
+
+        if (c.offsetParent === null) return false;
+
+        var g = c.closest('.fc-group');
+
+        return !(g && g.style.display === 'none');
+
+    });
+
+    visibili.forEach(function(card){
+
+        $all('.qa-text, .qa-example-text', card).forEach(function(el){
+
+            fcEvidenziaIn(el, termine);
+
+        });
+
+    });
+
+    /* Anche il nome delle cartelle rimaste: se una resta a video per via del
+
+       testo cercato, si deve vedere dov'e' quel testo. */
+
+    $all('.fc-subcat-card .fc-subcat-name').forEach(function(el){
+
+        if (el.closest('.fc-subcat-card').style.display !== 'none') fcEvidenziaIn(el, termine);
+
+    });
+
+}
+
+
+
+/* ---------- Ricerca nelle sottocartelle ---------- */
+
+var fcDeepTimer = null, fcDeepCtl = null, fcDeepUltimo = null;
+
+
+
+function fcOnSearchInput(){
+
+    visibleLimit = 30;
+
+    filterList();
+
+    fcDeepProgramma();
+
+}
+
+
+
+function fcDeepProgramma(){
+
+    if (fcDeepTimer) clearTimeout(fcDeepTimer);
+
+    fcDeepTimer = setTimeout(fcDeepEsegui, 320);
+
+}
+
+
+
+function fcDeepEsegui(){
+
+    var wrap = document.getElementById('fcDeep');
+
+    var input = document.getElementById('filterText');
+
+    if (!wrap || !input) return;
+
+    var termine = input.value.trim();
+
+    if (termine === fcDeepUltimo) return;
+
+    fcDeepUltimo = termine;
+
+
+
+    if (fcDeepCtl) { try { fcDeepCtl.abort(); } catch(e){} fcDeepCtl = null; }
+
+
+
+    if (!FC_HA_SOTTOCARTELLE || FC_CAT_ID === 0 || termine.length < 2) {
+
+        wrap.innerHTML = ''; wrap.hidden = true;
+
+        return;
+
+    }
+
+
+
+    wrap.hidden = false;
+
+    wrap.innerHTML = '<div class="fc-deep-loading">' + fcEscapeHtml(T('fc.vis_cerco_sottocartelle')) + '</div>';
+
+
+
+    var opt = {};
+
+    if (window.AbortController) { fcDeepCtl = new AbortController(); opt.signal = fcDeepCtl.signal; }
+
+
+
+    fetch('visualizzazione_fc.php?fc_deep_search=1&category_id=' + FC_CAT_ID + '&q=' + encodeURIComponent(termine), opt)
+
+        .then(function(r){ return r.json(); })
+
+        .then(function(data){
+
+            /* Risposta di una battuta gia' superata: si butta. */
+
+            if (input.value.trim() !== termine) return;
+
+            if (!data || !data.success || !data.total) {
+
+                wrap.innerHTML = ''; wrap.hidden = true;
+
+                return;
+
+            }
+
+            wrap.innerHTML = '<div class="fc-deep-label">'
+
+                + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>'
+
+                + fcEscapeHtml(T('fc.vis_anche_sottocartelle', { n: data.total }))
+
+                + '</div>' + data.html;
+
+            if (typeof renderAllRawTexts === 'function') renderAllRawTexts(wrap);
+
+            if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes(wrap);
+
+            fcEvidenzaAttiva = '';   /* la roba nuova non e' ancora evidenziata */
+
+            fcApplicaEvidenze();
+
+        })
+
+        .catch(function(err){
+
+            if (err && err.name === 'AbortError') return;
+
+            wrap.innerHTML = ''; wrap.hidden = true;
+
+        });
+
+}
+
+
+
+/* Chiude/riapre una cartella dei risultati: il tocco sta sulla riga del
+
+   percorso, come chiesto. */
+
+function fcDeepToggle(btn){
+
+    var g = btn.closest('.fc-deep-group');
+
+    if (!g) return;
+
+    var chiuso = g.classList.toggle('collapsed');
+
+    btn.setAttribute('aria-expanded', chiuso ? 'false' : 'true');
+
+    buzz(6);
+
+}
+
+
+
+/* Chiamata in fondo a filterList(): tiene allineate evidenziazione e
+
+   ricerca profonda a ogni cambio di filtro. */
+
+window.fcAfterFilter = function(){
+
+    /* In selezione i risultati delle sottocartelle spariscono: non fanno parte
+
+       del modulo delle azioni di massa, tenerli sotto gli occhi mentre si
+
+       spunta farebbe credere che vengano toccati anche loro. */
+
+    var wrap = document.getElementById('fcDeep');
+
+    if (wrap) wrap.style.display = document.body.classList.contains('select-mode') ? 'none' : '';
+
+    fcApplicaEvidenze();
+
+};
+
+
+
+/* ---------- Ritorno da modifica_immagine_fc: si riparte dalla carta ----------
+
+   Il salvataggio torna qui con fc_focus / fc_focus_child nell'indirizzo:
+
+   senza, il browser ricomincia da capo e in un elenco lungo si perde il
+
+   punto in cui si stava lavorando. */
+
+function fcVaiAllaCartaDelFocus(){
+
+    var p = new URLSearchParams(window.location.search);
+
+    var idPadre = parseInt(p.get('fc_focus') || '0', 10);
+
+    var idFiglio = parseInt(p.get('fc_focus_child') || '0', 10);
+
+    if (!idPadre && !idFiglio) return;
+
+
+
+    var sel = idPadre
+
+        ? '.fc-card[data-type="parent"][data-id="' + idPadre + '"]'
+
+        : '.fc-card[data-type="child"][data-id="' + idFiglio + '"]';
+
+    var card = document.querySelector(sel);
+
+    if (!card) return;
+
+
+
+    /* Ci si e' appena tornati da una modifica: la carta deve comparire a
+
+       prescindere da un filtro o da una ricerca rimasti impostati da prima
+
+       (sono preferenze della vista, non un giudizio su questa carta in
+
+       particolare). Si azzerano solo se davvero stanno nascondendo qualcosa,
+
+       cosi' non si rifa' il filtro per niente quando non serve. */
+
+    var selStatus = document.getElementById('filterStatus');
+
+    var inputSearch = document.getElementById('filterText');
+
+    var toccato = false;
+
+    if (selStatus && selStatus.value !== 'all') { selStatus.value = 'all'; toccato = true; }
+
+    if (inputSearch && inputSearch.value !== '') { inputSearch.value = ''; toccato = true; }
+
+    if (toccato) { fcEvidenzaAttiva = ''; filterList(); }
+
+
+
+    /* In "tutte le categorie" l'elenco e' tagliato a 30 alla volta: se la
+
+       carta e' oltre il taglio si alza il limite finche' non compare. */
+
+    var guardia = 0;
+
+    var gruppo = card.closest('.fc-group');
+
+    while (gruppo && gruppo.style.display === 'none' && guardia < 80) {
+
+        visibleLimit += 30;
+
+        filterList();
+
+        guardia++;
+
+    }
+
+    if (gruppo && gruppo.style.display === 'none') return;
+
+
+
+    function porta(){
+
+        var h = document.getElementById('appHeader');
+
+        var alto = h ? h.offsetHeight + 12 : 80;
+
+        var y = card.getBoundingClientRect().top + window.pageYOffset - alto;
+
+        window.scrollTo(0, Math.max(0, y));
+
+    }
+
+    porta();
+
+    /* Le immagini arrivano dopo e spostano tutto: si ripassa due volte. */
+
+    setTimeout(porta, 160);
+
+    setTimeout(porta, 520);
+
+
+
+    card.classList.add('fc-focus-flash');
+
+    setTimeout(function(){ card.classList.remove('fc-focus-flash'); }, 2400);
+
+
+
+    /* Via il parametro dall'indirizzo: un aggiornamento della pagina non deve
+
+       rifare il salto e il lampeggio. */
+
+    try {
+
+        p.delete('fc_focus'); p.delete('fc_focus_child');
+
+        var q = p.toString();
+
+        history.replaceState(null, '', window.location.pathname + (q ? '?' + q : ''));
+
+    } catch(e){}
+
+}
+</script>
+
+<script>
+
+/* ================================================================
+
+   IMPOSTAZIONI DELLA VISTA + TASTO "+" A DUE STRADE
+
+   Il filtro (tutte / da imparare / imparate / duplicati) non e' piu' una
+
+   tendina nella barra ma sta nelle impostazioni, insieme a quanto in lungo
+
+   mostrare carte ed esempi. Le scelte restano nel browser: sono preferenze di
+
+   come si guarda l'elenco, non dati da tenere sul server.
+
+   ================================================================ */
+
+var FC_PREFS_KEY = 'nisama_fc_vis_prefs';
+
+var FC_COLORE_PADRE = '<?= sec_h(fc_color_or_default($current_cat_color)) ?>';
+
+/* json_encode e non sec_h: qui il nome finisce dentro una stringa JavaScript,
+
+   non nel testo della pagina, e le opzioni HEX chiudono la strada anche a un
+
+   nome che contenesse una chiusura di script. */
+
+var FC_CAT_NOME = <?= json_encode($current_cat_name, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+
+/* Il colore che si erediterebbe dal padre e quello attuale: servono al popup
+
+   del colore per sapere quale casella nasce selezionata. */
+
+var FC_COLORE_PADRE_CAT = '<?= sec_h(fc_color_or_default($fc_parent_color)) ?>';
+
+var FC_COLORE_CORRENTE = '<?= sec_h(fc_color_or_default($current_cat_color)) ?>';
+
+var FC_COLORE_EDITED = <?= $fc_color_edited ? 'true' : 'false' ?>;
+
+
+
+function fcLeggiPrefs(){
+
+    try {
+
+        var raw = localStorage.getItem(FC_PREFS_KEY);
+
+        return raw ? (JSON.parse(raw) || {}) : {};
+
+    } catch(e){ return {}; }
+
+}
+
+
+
+function fcApplicaPrefs(p){
+
+    document.body.classList.toggle('fc-full-cards', !!p.fullCards);
+
+    document.body.classList.toggle('fc-full-examples', !!p.fullExamples);
+
+    var btn = document.getElementById('settingsBtn');
+
+    /* Pallino sul tasto quando c'e' qualcosa di diverso dal normale:
+
+       altrimenti un filtro attivo diventa invisibile e sembra che manchino
+
+       delle carte. */
+
+    if (btn) btn.classList.toggle('has-dot', !!(p.fullCards || p.fullExamples || (p.status && p.status !== 'all')));
+
+}
+
+
+
+function fcCaricaImpostazioni(){
+
+    var p = fcLeggiPrefs();
+
+    var sel = document.getElementById('filterStatus');
+
+    if (sel && p.status) {
+
+        /* Se il valore salvato non esiste piu' fra le opzioni si torna a
+
+           "tutte", invece di lasciare la tendina su niente. */
+
+        sel.value = p.status;
+
+        if (!sel.value) sel.value = 'all';
+
+    }
+
+    var c = document.getElementById('optFullCards');
+
+    var e = document.getElementById('optFullExamples');
+
+    if (c) c.checked = !!p.fullCards;
+
+    if (e) e.checked = !!p.fullExamples;
+
+    fcApplicaPrefs(p);
+
+}
+
+
+
+function fcSalvaImpostazioni(){
+
+    var sel = document.getElementById('filterStatus');
+
+    var c = document.getElementById('optFullCards');
+
+    var e = document.getElementById('optFullExamples');
+
+    var p = {
+
+        status: sel ? sel.value : 'all',
+
+        fullCards: !!(c && c.checked),
+
+        fullExamples: !!(e && e.checked)
+
+    };
+
+    try { localStorage.setItem(FC_PREFS_KEY, JSON.stringify(p)); } catch(err){}
+
+    fcApplicaPrefs(p);
+
+}
+
+
+
+function fcApriImpostazioni(){
+
+    document.getElementById('settingsSheet').style.display = 'flex';
+
+    buzz(8);
+
+}
+
+
+
+/* ---------- Tasto "+": carta o cartella ---------- */
+
+function fcApriAggiungi(){
+
+    document.getElementById('addSheet').style.display = 'flex';
+
+    buzz(8);
+
+}
+
+
+
+
+/* Ricarica riportandosi sulla carta appena creata o modificata. Prima ci
+   pensava il redirect del server, che tornava con fc_focus/fc_focus_child
+   nell'indirizzo; ora che il modulo vive in un popup quel redirect non
+   avviene piu', quindi il parametro lo rimettiamo qui. Senza, si tornava
+   sempre in cima all'elenco. */
+function fcRicaricaSuCarta(dati){
+    var carta = dati && dati.carta;
+    if (!carta || !carta.id) { window.location.reload(); return; }
+    var u = new URL(window.location.href);
+    u.searchParams.delete('fc_focus');
+    u.searchParams.delete('fc_focus_child');
+    u.searchParams.set(carta.tipo === 'child' ? 'fc_focus_child' : 'fc_focus', carta.id);
+    window.location.href = u.toString();
+}
+
+function fcAggiungiCarta(){
+
+    /* Apre il modulo di inserimento nello stesso popup usato per la modifica:
+       e' la stessa pagina (modifica_immagine_fc.php) in modalita' insert.
+       Cosi' non si lascia l'elenco per aggiungere una carta, e dopo averla
+       creata si puo' restare li' e inserirne un'altra. Al ritorno si ricarica
+       solo se qualcosa e' stato davvero creato: chi apre e chiude senza
+       salvare ritrova l'elenco esattamente dov'era, senza uno sfarfallio. */
+    var url = 'modifica_immagine_fc.php?modo=insert&category_id=' + FC_CAT_ID;
+    if (typeof apriModificaPopup === 'function') {
+        apriModificaPopup(url, fcRicaricaSuCarta);
+    } else {
+        window.location.href = url;
+    }
+
+}
+
+
+
+/* ---------- Nuova cartella (categoria figlia di questa) ---------- */
+
+function fcApriNuovaCartella(){
+
+    closeSheet('addSheet');
+
+    /* Il selettore di colore e' quello condiviso con il popup del colore
+
+       della categoria: qui si apre sulla scelta ereditata. */
+
+    fcPickerApri('cartella', FC_COLORE_PADRE, false, '');
+
+    document.getElementById('newFolderName').value = '';
+
+    document.getElementById('newFolderSub').textContent = FC_CAT_ID === 0
+
+        ? T('fc.vis_cartella_radice')
+
+        : T('fc.vis_cartella_dentro', { nome: FC_CAT_NOME });
+
+    document.getElementById('newFolderSheet').style.display = 'flex';
+
+    setTimeout(function(){
+
+        var i = document.getElementById('newFolderName');
+
+        if (i) i.focus();
+
+    }, 320);
+
+}
+
+
+
+function fcCreaCartella(){
+
+    var nome = (document.getElementById('newFolderName').value || '').trim();
+
+    if (!nome) {
+
+        showToast(T('fc.vis_nome_mancante'));
+
+        document.getElementById('newFolderName').focus();
+
+        return;
+
+    }
+
+    var btn = document.getElementById('newFolderSave');
+
+    btn.disabled = true;
+
+
+
+    var fd = new FormData();
+
+    fd.append('action', 'fc_create_subcat');
+
+    fd.append('name', nome);
+
+    fd.append('parent_id', FC_CAT_ID);
+
+    fd.append('color_mode', fcPicker.cartella.manuale ? 'manual' : 'auto');
+
+    fd.append('color', fcPicker.cartella.manuale ? fcPicker.cartella.colore : '');
+
+
+
+    fetch('visualizzazione_fc.php', { method: 'POST', body: fd })
+
+        .then(function(r){ return r.json(); })
+
+        .then(function(data){
+
+            btn.disabled = false;
+
+            if (data && data.success) {
+
+                closeSheet('newFolderSheet');
+
+                showToast(T('fc.vis_cartella_creata', { nome: data.name }));
+
+                /* Ricarico: la griglia delle sottocartelle e i conteggi
+
+                   nascono lato server, rifarli a mano qui vorrebbe dire
+
+                   scrivere due volte la stessa cosa. */
+
+                setTimeout(function(){ window.location.reload(); }, 450);
+
+            } else {
+
+                showToast((data && data.error) ? data.error : T('fc.vis_creazione_fallita'));
+
+            }
+
+        })
+
+        .catch(function(){
+
+            btn.disabled = false;
+
+            showToast(T('comune.errore_rete'));
+
+        });
+
+}
+
+
+
+document.getElementById('settingsSheet').addEventListener('click', function(e){ if (e.target === this) closeSheet('settingsSheet'); });
+
+document.getElementById('addSheet').addEventListener('click', function(e){ if (e.target === this) closeSheet('addSheet'); });
+
+document.getElementById('newFolderSheet').addEventListener('click', function(e){ if (e.target === this) closeSheet('newFolderSheet'); });
+
+document.getElementById('newFolderName').addEventListener('keydown', function(e){ if (e.key === 'Enter') { e.preventDefault(); fcCreaCartella(); } });
+
+</script>
+
+<script>
+
+/* ================================================================
+
+   BARRA IN ALTO: NOME MODIFICABILE, COLORE, RIEPILOGO DEL PROGETTO
+
+   La pastiglia non porta piu' via dalla pagina. Il ritorno alle categorie
+
+   resta la casetta nel percorso, qui sotto: da li' non si tocca niente per
+
+   sbaglio, mentre un tocco sulla pastiglia larga capitava di continuo.
+
+   ================================================================ */
+
+
+
+/* ---------- Selettore di colore condiviso ----------
+
+   Due popup (nuova cartella e colore della categoria) hanno la stessa
+
+   griglia e la stessa prima casella "colore di default": tenerne due copie
+
+   voleva dire vederle divergere alla prima modifica. Cambia solo dove il
+
+   risultato viene poi letto. */
+
+var fcPicker = {
+
+    cartella:  { grid:'newFolderGrid', dot:'newFolderDot', nome:'newFolderColorName',
+
+                 hex:'newFolderHex', custom:'newFolderCustom',
+
+                 ereditato:'#A0A0A0', manuale:false, colore:'' },
+
+    categoria: { grid:'catColorGrid', dot:'catColorDot', nome:'catColorName',
+
+                 hex:'catColorHex', custom:'catColorCustom',
+
+                 ereditato:'#A0A0A0', manuale:false, colore:'' }
+
+};
+
+
+
+function fcPickerApri(k, ereditato, manuale, colore){
+
+    var s = fcPicker[k];
+
+    s.ereditato = ereditato || '#A0A0A0';
+
+    s.manuale = !!manuale;
+
+    s.colore = s.manuale ? (colore || s.ereditato) : '';
+
+    fcPickerDisegna(k);
+
+}
+
+function fcPickerAuto(k){ var s = fcPicker[k]; s.manuale = false; s.colore = ''; fcPickerDisegna(k); }
+
+function fcPickerManuale(k, hex){ var s = fcPicker[k]; s.manuale = true; s.colore = hex; fcPickerDisegna(k); }
+
+function fcPickerValore(k){ var s = fcPicker[k]; return s.manuale ? s.colore : s.ereditato; }
+
+
+
+function fcPickerDisegna(k){
+
+    var s = fcPicker[k];
+
+    var mostrato = fcPickerValore(k);
+
+    var el;
+
+    if ((el = document.getElementById(s.dot))) el.style.background = mostrato;
+
+    if ((el = document.getElementById(s.nome))) el.textContent = s.manuale ? T('vocab.cat_colore_pers') : T('fc.vis_colore_default');
+
+    if ((el = document.getElementById(s.hex))) el.textContent = String(mostrato).toUpperCase();
+
+    if ((el = document.getElementById(s.custom))) el.value = mostrato;
+
+    $all('#' + s.grid + ' .nf-sw').forEach(function(sw){
+
+        if (sw.dataset.auto) sw.classList.toggle('selected', !s.manuale);
+
+        else sw.classList.toggle('selected', s.manuale && (sw.dataset.hex || '').toLowerCase() === (s.colore || '').toLowerCase());
+
+    });
+
+}
+
+
+
+/* ---------- Tocco sulla pastiglia ---------- */
+
+function fcToccaPastiglia(e){
+
+    /* Il nome e la pastiglia del progetto hanno un loro comando: qui si
+
+       raccoglie solo il tocco sul resto, il "niente". */
+
+    if (e.target.closest && e.target.closest('.cat-pill-name, .cat-pill-name-input, .cat-proj-chip')) return;
+
+    if (FC_CAT_ID === 0) return;
+
+    fcApriColoreCategoria();
+
+}
+
+
+
+function fcApriColoreCategoria(){
+
+    fcPickerApri('categoria', FC_COLORE_PADRE_CAT, FC_COLORE_EDITED, FC_COLORE_CORRENTE);
+
+    document.getElementById('catColorSheet').style.display = 'flex';
+
+    buzz(8);
+
+}
+
+
+
+function fcSalvaColoreCategoria(){
+
+    var btn = document.getElementById('catColorSave');
+
+    var s = fcPicker.categoria;
+
+    btn.disabled = true;
+
+
+
+    var fd = new FormData();
+
+    fd.append('action', 'fc_recolor_cat');
+
+    fd.append('category_id', FC_CAT_ID);
+
+    fd.append('color_mode', s.manuale ? 'manual' : 'auto');
+
+    fd.append('color', s.manuale ? s.colore : '');
+
+
+
+    fetch('visualizzazione_fc.php', { method: 'POST', body: fd })
+
+        .then(function(r){ return r.json(); })
+
+        .then(function(data){
+
+            btn.disabled = false;
+
+            if (!data || !data.success) {
+
+                showToast((data && data.error) ? data.error : T('comune.errore_rete'));
+
+                return;
+
+            }
+
+            closeSheet('catColorSheet');
+
+            /* Colpo d'occhio immediato: --cat-color tinge mezza pagina. */
+
+            document.documentElement.style.setProperty('--cat-color', data.color);
+
+            FC_COLORE_CORRENTE = data.color;
+
+            FC_COLORE_EDITED = (data.edited === 1);
+
+            showToast(T('fc.vis_colore_aggiornato'));
+
+            /* Se ci sono cartelle sotto, il colore puo' essere sceso anche su
+
+               di loro: i loro riquadri li disegna il server, quindi si
+
+               ricarica invece di indovinare quali sono cambiate. */
+
+            if (FC_HA_SOTTOCARTELLE) setTimeout(function(){ window.location.reload(); }, 700);
+
+        })
+
+        .catch(function(){ btn.disabled = false; showToast(T('comune.errore_rete')); });
+
+}
+
+
+
+/* ---------- Nome della categoria modificabile sul posto ---------- */
+
+function fcApriRinomina(e){
+
+    if (e) e.stopPropagation();
+
+    if (FC_CAT_ID === 0) return;
+
+    var nome = document.getElementById('catPillName');
+
+    var input = document.getElementById('catPillNameInput');
+
+    if (!nome || !input) return;
+
+    input.value = nome.textContent.trim();
+
+    nome.style.display = 'none';
+
+    input.style.display = 'block';
+
+    input.focus();
+
+    input.select();
+
+}
+
+
+
+function fcChiudiRinomina(salva){
+
+    var nome = document.getElementById('catPillName');
+
+    var input = document.getElementById('catPillNameInput');
+
+    if (!nome || !input || input.style.display === 'none') return;
+
+    var nuovo = input.value.trim();
+
+    var vecchio = nome.textContent.trim();
+
+    input.style.display = 'none';
+
+    nome.style.display = '';
+
+    if (!salva || nuovo === '' || nuovo === vecchio) return;
+
+
+
+    /* Si scrive subito a schermo e poi si chiede al server: se rifiuta si
+
+       torna indietro. Aspettare la risposta per far comparire il nome nuovo
+
+       fa sembrare la pagina lenta su una cosa che non lo e'. */
+
+    nome.textContent = nuovo;
+
+    var corrente = document.querySelector('.cat-path-current');
+
+    if (corrente) corrente.textContent = nuovo;
+
+    FC_CAT_NOME = nuovo;
+
+
+
+    var fd = new FormData();
+
+    fd.append('action', 'fc_rename_cat');
+
+    fd.append('category_id', FC_CAT_ID);
+
+    fd.append('name', nuovo);
+
+
+
+    fetch('visualizzazione_fc.php', { method: 'POST', body: fd })
+
+        .then(function(r){ return r.json(); })
+
+        .then(function(data){
+
+            if (data && data.success) {
+
+                nome.textContent = data.name;
+
+                if (corrente) corrente.textContent = data.name;
+
+                FC_CAT_NOME = data.name;
+
+                showToast(T('fc.vis_rinominata'));
+
+            } else {
+
+                nome.textContent = vecchio;
+
+                if (corrente) corrente.textContent = vecchio;
+
+                FC_CAT_NOME = vecchio;
+
+                showToast((data && data.error) ? data.error : T('comune.errore_rete'));
+
+            }
+
+        })
+
+        .catch(function(){
+
+            nome.textContent = vecchio;
+
+            if (corrente) corrente.textContent = vecchio;
+
+            FC_CAT_NOME = vecchio;
+
+            showToast(T('comune.errore_rete'));
+
+        });
+
+}
+
+
+
+/* ---------- Riepilogo del progetto ---------- */
+
+function fcFormattaDurata(sec){
+
+    sec = Math.max(0, parseInt(sec || 0, 10));
+
+    var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+
+    if (h && m) return h + 'h ' + m + 'm';
+
+    if (h) return h + 'h';
+
+    return m + 'm';
+
+}
+
+
+
+function fcFormattaData(iso){
+
+    if (!iso) return '';
+
+    var d = new Date(iso + 'T00:00:00');
+
+    if (isNaN(d.getTime())) return iso;
+
+    try {
+
+        return d.toLocaleDateString(document.documentElement.lang || 'it',
+
+                                    { day: 'numeric', month: 'short', year: 'numeric' });
+
+    } catch(e){ return iso; }
+
+}
+
+
+
+/* Quanto manca, detto come lo direbbe una persona. */
+
+function fcQuandoTesto(giorni){
+
+    if (giorni === null || giorni === undefined) return '';
+
+    if (giorni === 0) return T('fc.vis_prj_oggi');
+
+    if (giorni === 1) return T('fc.vis_prj_domani');
+
+    if (giorni > 1)  return T('fc.vis_prj_fra_giorni', { n: giorni });
+
+    return T('fc.vis_prj_giorni_fa', { n: Math.abs(giorni) });
+
+}
+
+
+
+function fcApriProgetto(id){
+
+    var sheet = document.getElementById('projectSheet');
+
+    var body = document.getElementById('prjBody');
+
+    document.getElementById('prjGo').href = 'progetti.php?id=' + encodeURIComponent(id);
+
+    body.innerHTML = '<div class="prj-loading">' + fcEscapeHtml(T('fc.vis_prj_caricamento')) + '</div>';
+
+    sheet.style.display = 'flex';
+
+    buzz(8);
+
+
+
+    fetch('visualizzazione_fc.php?fc_project_summary=1&project_id=' + encodeURIComponent(id))
+
+        .then(function(r){ return r.json(); })
+
+        .then(function(d){
+
+            if (!d || !d.success) {
+
+                body.innerHTML = '<div class="prj-loading">' + fcEscapeHtml((d && d.error) ? d.error : T('comune.errore_rete')) + '</div>';
+
+                return;
+
+            }
+
+            body.innerHTML = fcRiepilogoHtml(d);
+
+        })
+
+        .catch(function(){
+
+            body.innerHTML = '<div class="prj-loading">' + fcEscapeHtml(T('comune.errore_rete')) + '</div>';
+
+        });
+
+}
+
+
+
+function fcRiepilogoHtml(d){
+
+    var h = '';
+
+    var esc = fcEscapeHtml;
+
+
+
+    h += '<div class="prj-head" style="--prj:' + esc(d.color) + ';">';
+
+    if (d.path && d.path.length) {
+
+        h += '<div class="prj-path">' + d.path.map(function(p){ return esc(p); }).join('<span class="prj-path-sep">›</span>') + '</div>';
+
+    }
+
+    h += '<div class="prj-title-row"><span class="prj-dot"></span><span class="prj-name">' + esc(d.name) + '</span></div>';
+
+
+
+    h += '<div class="prj-badges">';
+
+    h += '<span class="prj-badge ' + (d.status === 'completed' ? 'ok' : 'live') + '">'
+
+       + esc(d.status === 'completed' ? T('fc.vis_prj_completato') : T('fc.vis_prj_in_corso')) + '</span>';
+
+    if (d.favorite) h += '<span class="prj-badge fav">★ ' + esc(T('fc.vis_prj_preferito')) + '</span>';
+
+    h += '</div></div>';
+
+
+
+    if (d.notes) h += '<div class="prj-notes">' + esc(d.notes) + '</div>';
+
+
+
+    /* Quattro numeri, quelli che dicono davvero a che punto e' il progetto. */
+
+    h += '<div class="prj-stats">';
+
+    h += fcStatBox(fcFormattaDurata(d.secondi), T('fc.vis_prj_tempo'),
+
+                   d.secondi7 ? (T('fc.vis_prj_settimana') + ': ' + fcFormattaDurata(d.secondi7)) : '');
+
+    h += fcStatBox(String(d.sessioni), T('fc.vis_prj_pomodori'), '');
+
+    h += fcStatBox(d.figli ? (d.figli_ok + '/' + d.figli) : '—', T('fc.vis_prj_sottoprogetti'), '');
+
+    h += fcStatBox(d.todo ? (d.todo_ok + '/' + d.todo) : '—', T('fc.vis_prj_attivita'), '');
+
+    h += '</div>';
+
+
+
+    if (d.figli || d.todo) {
+
+        h += '<div class="prj-bars">';
+
+        if (d.figli) h += fcBarra(T('fc.vis_prj_sottoprogetti'), d.figli_ok, d.figli, d.color);
+
+        if (d.todo)  h += fcBarra(T('fc.vis_prj_attivita'), d.todo_ok, d.todo, d.color);
+
+        h += '</div>';
+
+    }
+
+
+
+    if (d.target || d.due) {
+
+        h += '<div class="prj-block"><div class="prj-block-lab">' + esc(T('fc.vis_prj_date')) + '</div><div class="prj-dates">';
+
+        if (d.target) h += fcRigaData(T('fc.vis_prj_obiettivo'), d.target, d.target_in, d.status === 'completed');
+
+        if (d.due)    h += fcRigaData(T('fc.vis_prj_scadenza'), d.due, d.due_in, d.status === 'completed');
+
+        h += '</div></div>';
+
+    }
+
+
+
+    if (d.evento) {
+
+        h += '<div class="prj-block"><div class="prj-block-lab">' + esc(T('fc.vis_prj_prossimo')) + '</div>';
+
+        h += '<a class="prj-event" href="planner.php?date=' + esc(d.evento.date) + '">'
+
+           + '<span class="prj-event-day">' + esc(fcFormattaData(d.evento.date)) + (d.evento.time ? ' · ' + esc(d.evento.time) : '') + '</span>'
+
+           + '<span class="prj-event-title">' + esc(d.evento.title) + '</span>'
+
+           + '<span class="prj-event-when">' + esc(fcQuandoTesto(d.evento.giorni)) + '</span></a>';
+
+        h += '</div>';
+
+    }
+
+
+
+    if (d.figli_el && d.figli_el.length) {
+
+        h += '<div class="prj-block"><div class="prj-block-lab">' + esc(T('fc.vis_prj_sottoprogetti')) + '</div><div class="prj-children">';
+
+        d.figli_el.forEach(function(c){
+
+            h += '<a class="prj-child' + (c.done ? ' done' : '') + '" href="progetti.php?id=' + encodeURIComponent(c.id) + '"'
+
+               + ' style="--prj:' + esc(c.color) + ';"><span class="prj-child-dot"></span>' + esc(c.name) + '</a>';
+
+        });
+
+        if (d.figli > d.figli_el.length) {
+
+            h += '<span class="prj-child more">+' + (d.figli - d.figli_el.length) + '</span>';
+
+        }
+
+        h += '</div></div>';
+
+    }
+
+
+
+    if (d.mazzi && d.mazzi.length) {
+
+        h += '<div class="prj-block"><div class="prj-block-lab">' + esc(T('fc.vis_prj_mazzi')) + '</div><div class="prj-decks">';
+
+        d.mazzi.forEach(function(m){
+
+            h += '<a class="prj-deck' + (m.corrente ? ' qui' : '') + '" href="visualizzazione_fc.php?category_id=' + encodeURIComponent(m.id) + '"'
+
+               + ' style="--prj:' + esc(m.color) + ';"><span class="prj-deck-dot"></span>'
+
+               + '<span class="prj-deck-name">' + esc(m.name) + '</span>'
+
+               + '<span class="prj-deck-n">' + m.carte + '</span>'
+
+               + (m.corrente ? '<span class="prj-deck-qui">' + esc(T('fc.vis_prj_qui')) + '</span>' : '')
+
+               + '</a>';
+
+        });
+
+        h += '</div></div>';
+
+    }
+
+
+
+    return h;
+
+}
+
+
+
+function fcStatBox(valore, etichetta, sotto){
+
+    return '<div class="prj-stat"><div class="prj-stat-v">' + fcEscapeHtml(valore) + '</div>'
+
+         + '<div class="prj-stat-l">' + fcEscapeHtml(etichetta) + '</div>'
+
+         + (sotto ? '<div class="prj-stat-s">' + fcEscapeHtml(sotto) + '</div>' : '')
+
+         + '</div>';
+
+}
+
+
+
+function fcBarra(etichetta, fatti, totale, colore){
+
+    var pct = totale ? Math.round(fatti / totale * 100) : 0;
+
+    return '<div class="prj-bar" style="--prj:' + fcEscapeHtml(colore) + ';">'
+
+         + '<div class="prj-bar-top"><span>' + fcEscapeHtml(etichetta) + '</span><span>' + pct + '%</span></div>'
+
+         + '<div class="prj-bar-track"><span style="width:' + pct + '%"></span></div></div>';
+
+}
+
+
+
+function fcRigaData(etichetta, iso, giorni, chiuso){
+
+    /* In rosso solo se e' passata e il progetto e' ancora aperto: su un
+
+       progetto chiuso una data passata e' la normalita', non un allarme. */
+
+    var scaduta = (giorni !== null && giorni < 0 && !chiuso);
+
+    return '<div class="prj-date' + (scaduta ? ' late' : '') + '">'
+
+         + '<span class="prj-date-lab">' + fcEscapeHtml(etichetta) + '</span>'
+
+         + '<span class="prj-date-val">' + fcEscapeHtml(fcFormattaData(iso)) + '</span>'
+
+         + '<span class="prj-date-when">' + fcEscapeHtml(fcQuandoTesto(giorni)) + '</span></div>';
+
+}
+
+
+
+document.getElementById('catColorSheet').addEventListener('click', function(e){ if (e.target === this) closeSheet('catColorSheet'); });
+
+document.getElementById('projectSheet').addEventListener('click', function(e){ if (e.target === this) closeSheet('projectSheet'); });
+
+(function(){
+
+    var input = document.getElementById('catPillNameInput');
+
+    if (!input) return;
+
+    input.addEventListener('keydown', function(e){
+
+        if (e.key === 'Enter') { e.preventDefault(); fcChiudiRinomina(true); }
+
+        else if (e.key === 'Escape') { e.preventDefault(); fcChiudiRinomina(false); }
+
+    });
+
+    input.addEventListener('blur', function(){ fcChiudiRinomina(true); });
+
+    input.addEventListener('click', function(e){ e.stopPropagation(); });
+
+})();
+
+</script>
+
+<script>
+
+/* ================================================================
+
+   VISTA A FLASHCARD — una carta per volta, si gira al tocco.
+
+   Il mazzo si costruisce da quello che e' VISIBILE in pagina: filtro,
+
+   ricerca e risultati nelle sottocartelle valgono anche qui, senza dover
+
+   rifare da capo la stessa selezione lato server.
+
+   ================================================================ */
+
+(function(){
+
+    'use strict';
+
+
+
+    var mazzo = [], idx = 0, girata = false, occupato = false;
+
+    var fcv, inner, qEl, aEl, cnt, tot, bar, prevB, nextB, card, edit, stage;
+
+    var barSib, barSibWrap, parentStrip, parentTxt;
+
+    var idxPadre = -1;   /* indice nel mazzo della carta padre di quella corrente */
+
+    var PASSO_EXTRA = 24;   /* aria fra una carta e l'altra nel carosello */
+
+
+
+    function elementi(){
+
+        fcv   = document.getElementById('fcv');
+
+        inner = document.getElementById('fcvInner');
+
+        qEl   = document.getElementById('fcvQ');
+
+        aEl   = document.getElementById('fcvA');
+
+        cnt   = document.getElementById('fcvIdx');
+
+        tot   = document.getElementById('fcvTot');
+
+        bar   = document.getElementById('fcvBar');
+
+        prevB = document.getElementById('fcvPrev');
+
+        nextB = document.getElementById('fcvNext');
+
+        card  = document.getElementById('fcvCard');
+
+        edit  = document.getElementById('fcvEdit');
+
+        stage = document.getElementById('fcvStage');
+
+        barSib     = document.getElementById('fcvBarSib');
+
+        barSibWrap = document.getElementById('fcvBarSibWrap');
+
+        parentStrip = document.getElementById('fcvParent');
+
+        parentTxt   = document.getElementById('fcvParentTxt');
+
+    }
+
+
+
+    /* Un lato della carta senza la sua etichetta: l'etichetta la mette gia' il
+
+       visore, ripeterla sarebbe scriverla due volte. */
+
+    function latoHtml(lato){
+
+        if (!lato) return '';
+
+        var copia = lato.cloneNode(true);
+
+        var lab = copia.querySelector('.qa-label');
+
+        if (lab) lab.remove();
+
+        return copia.innerHTML;
+
+    }
+
+
+
+    function costruisciMazzo(){
+
+        mazzo = [];
+
+        $all('.fc-card').forEach(function(c){
+
+            if (c.style.display === 'none') return;
+
+            var g = c.closest('.fc-group');
+
+            if (g && g.style.display === 'none') return;
+
+            var gDeep = c.closest('.fc-deep-group');
+
+            if (gDeep && gDeep.classList.contains('collapsed')) return;
+
+
+
+            var lati = c.querySelectorAll(':scope > .swipe-content > .qa-side');
+
+            if (!lati.length) return;
+
+            var esempi = c.querySelector(':scope > .swipe-content > .qa-examples');
+
+
+
+            /* Il testo semplice della domanda serve per la striscia "carta
+
+               padre" mostrata sulle figlie: li' bastano le prime righe, e il
+
+               testo nudo si taglia in modo prevedibile (l'HTML no). */
+
+            var testoQ = lati[0].querySelector('.qa-text');
+
+
+
+            mazzo.push({
+
+                q: latoHtml(lati[0]),
+
+                a: latoHtml(lati[1]) + (esempi ? esempi.outerHTML : ''),
+
+                url: c.getAttribute('data-edit-url') || '',
+
+                figlia: c.classList.contains('fc-child'),
+
+                id: c.getAttribute('data-id') || '',
+
+                idPadre: c.getAttribute('data-parent-id') || '',
+
+                testoQ: testoQ ? testoQ.textContent.trim() : '',
+
+                el: c   /* la carta nell'elenco: serve a capire da quale partire */
+
+            });
+
+        });
+
+    }
+
+
+
+    /* Indici dei fratelli di una sotto-carta (le figlie dello stesso padre),
+
+       nell'ordine in cui stanno nel mazzo. */
+
+    function fratelliDi(i){
+
+        var d = mazzo[i];
+
+        if (!d || !d.figlia || !d.idPadre) return [];
+
+        var out = [];
+
+        for (var k = 0; k < mazzo.length; k++) {
+
+            if (mazzo[k].figlia && mazzo[k].idPadre === d.idPadre) out.push(k);
+
+        }
+
+        return out;
+
+    }
+
+
+
+    function indicePadreDi(i){
+
+        var d = mazzo[i];
+
+        if (!d || !d.figlia || !d.idPadre) return -1;
+
+        for (var k = 0; k < mazzo.length; k++) {
+
+            if (!mazzo[k].figlia && mazzo[k].id === d.idPadre) return k;
+
+        }
+
+        return -1;
+
+    }
+
+
+
+    function riempi(i){
+
+        var d = mazzo[i];
+
+        qEl.innerHTML = d.q;
+
+        aEl.innerHTML = d.a;
+
+        cnt.textContent = (i + 1);
+
+        bar.style.width = ((i + 1) / mazzo.length * 100) + '%';
+
+        prevB.classList.toggle('off', i === 0);
+
+        nextB.classList.toggle('off', i === mazzo.length - 1);
+
+        qEl.scrollTop = 0; aEl.scrollTop = 0;
+
+        card.classList.toggle('is-child', !!d.figlia);
+
+        edit.style.display = d.url ? '' : 'none';
+
+
+
+        /* Barra dei fratelli: solo sulle sotto-carte, e solo se ce n'e' piu'
+
+           di una - con un fratello solo direbbe sempre "1 di 1".
+
+           Non si usa hidden: l'elemento resta sempre nel flusso e si limita a
+
+           diventare invisibile, altrimenti comparendo spingerebbe le carte piu'
+
+           in basso e a fine animazione si vedrebbe uno scatto. */
+
+        var frat = fratelliDi(i);
+
+        if (frat.length > 1) {
+
+            var pos = frat.indexOf(i) + 1;
+
+            barSibWrap.classList.remove('is-off');
+
+            barSib.style.width = (pos / frat.length * 100) + '%';
+
+        } else {
+
+            barSibWrap.classList.add('is-off');
+
+            barSib.style.width = '0%';
+
+        }
+
+
+
+        /* Striscia della carta padre: le prime righe della sua domanda, uguali
+
+           per tutti i fratelli. L'indice del padre si tiene da parte qui, cosi'
+
+           il tocco non deve ricalcolarlo. */
+
+        idxPadre = indicePadreDi(i);
+
+        if (idxPadre >= 0) {
+
+            parentTxt.textContent = mazzo[idxPadre].testoQ;
+
+            parentStrip.hidden = false;
+
+        } else {
+
+            parentStrip.hidden = true;
+
+        }
+
+    }
+
+
+
+    /* Salto diretto a una carta (dalla striscia del padre): non e' una
+
+       sfogliata fra vicine, quindi niente carosello - solo una dissolvenza
+
+       breve, che dice "siamo altrove" senza fingere una continuita' che non
+
+       c'e'. */
+
+    function vaiAIndice(ni){
+
+        if (occupato || ni < 0 || ni >= mazzo.length || ni === idx) return;
+
+        occupato = true;
+
+        pulisciVicini();
+
+        try {
+
+            var via = card.animate([{ opacity:1, transform:'none' },
+
+                                    { opacity:0, transform:'scale(.96)' }],
+
+                                   { duration:150, easing:'ease-in', fill:'forwards' });
+
+            via.onfinish = function(){
+
+                idx = ni; raddrizza(true); riempi(idx);
+
+                var dentro = card.animate([{ opacity:0, transform:'scale(1.03)' },
+
+                                           { opacity:1, transform:'none' }],
+
+                                          { duration:260, easing:'cubic-bezier(.22,1,.36,1)', fill:'both' });
+
+                via.cancel();
+
+                dentro.onfinish = function(){ dentro.cancel(); occupato = false; };
+
+                buzz(8);
+
+            };
+
+        } catch(e){
+
+            idx = ni; raddrizza(true); riempi(idx); occupato = false;
+
+        }
+
+    }
+
+
+
+    function raddrizza(subito){
+
+        girata = false;
+
+        if (subito) {
+
+            inner.style.transition = 'none';
+
+            inner.classList.remove('flipped');
+
+            void inner.offsetWidth;
+
+            inner.style.transition = '';
+
+        } else {
+
+            inner.classList.remove('flipped');
+
+        }
+
+    }
+
+
+
+    /* ---------- Carosello: la carta accanto esiste davvero ----------
+
+       Prima si animava la stessa carta due volte (fuori, poi di nuovo dentro
+
+       col contenuto nuovo): fra le due animazioni ricompariva per un istante
+
+       quella vecchia. Ora le carte vicine sono elementi veri, messi ai lati
+
+       e mossi insieme: quella che esce e quella che entra si vedono nello
+
+       stesso momento, come sfogliando davvero. */
+
+    var vicinoPrev = null, vicinoNext = null, passo = 0;
+
+    var animCard = null, animPrev = null, animNext = null;   /* animazioni in volo, da poter cancellare */
+
+
+
+    function creaVicino(i){
+
+        if (i < 0 || i >= mazzo.length) return null;
+
+        var el = card.cloneNode(true);
+
+        el.removeAttribute('id');
+
+        el.classList.add('fcv-vicino');
+
+        el.classList.toggle('is-child', !!mazzo[i].figlia);
+
+        $all('[id]', el).forEach(function(n){ n.removeAttribute('id'); });
+
+        var f = el.querySelector('.fcv-front .fcv-body');
+
+        var b = el.querySelector('.fcv-backface .fcv-body');
+
+        if (f) f.innerHTML = mazzo[i].q;
+
+        if (b) b.innerHTML = mazzo[i].a;
+
+        var inn = el.querySelector('.fcv-inner');
+
+        /* La carta accanto e' sempre sulla domanda: si arriva sempre a una
+
+           carta da indovinare, non a una gia' girata. */
+
+        if (inn) { inn.classList.remove('flipped'); inn.style.transition = 'none'; }
+
+        /* La striscia arriva dalla copia, quindi porterebbe il padre della
+
+           carta CORRENTE: va riscritta con quello della carta accanto, o tolta
+
+           se quella e' un padre. */
+
+        var strip = el.querySelector('.fcv-parent-strip');
+
+        if (strip) {
+
+            var ip = indicePadreDi(i);
+
+            if (ip >= 0) {
+
+                var t = strip.querySelector('.fcv-parent-txt');
+
+                if (t) t.textContent = mazzo[ip].testoQ;
+
+                strip.hidden = false;
+
+            } else {
+
+                strip.hidden = true;
+
+            }
+
+        }
+
+        var ed = el.querySelector('.fcv-edit');
+
+        if (ed) ed.remove();
+
+        stage.appendChild(el);
+
+        return el;
+
+    }
+
+
+
+    function preparaVicini(){
+
+        if (vicinoPrev || vicinoNext) return;
+
+        passo = (card.offsetWidth || 320) + PASSO_EXTRA;
+
+        vicinoPrev = creaVicino(idx - 1);
+
+        vicinoNext = creaVicino(idx + 1);
+
+        posiziona(0);
+
+    }
+
+
+
+    /* Il linguaggio visivo di prima, tenuto sincronizzato su piu' elementi:
+
+       la carta al centro ruota leggermente e sfuma andandosene (si sta
+
+       "staccando"), quella accanto cresce e si schiarisce avvicinandosi al
+
+       centro (sta "arrivando"). Una sola funzione per il trascinamento in
+
+       diretta e per il volo finale, cosi' il volo riparte esattamente da
+
+       dove il dito ha lasciato la carta invece che da una posa ferma. */
+
+    function trasfCorrente(dx){
+
+        var rot = dx / 26;
+
+        var op = Math.max(.5, 1 - Math.abs(dx) / 480);
+
+        return { transform: 'translateX(' + dx + 'px) rotate(' + rot.toFixed(2) + 'deg)', opacity: op };
+
+    }
+
+
+
+    function trasfVicino(base, dx){
+
+        var pos = base + dx;
+
+        var vicinanza = Math.max(0, 1 - Math.min(1, Math.abs(pos) / passo));
+
+        var scala = .92 + .08 * vicinanza;
+
+        var op = .55 + .45 * vicinanza;
+
+        var rot = pos / 90;
+
+        return { transform: 'translateX(' + pos + 'px) scale(' + scala.toFixed(3) + ') rotate(' + rot.toFixed(2) + 'deg)', opacity: op };
+
+    }
+
+
+
+    function applica(el, t){
+
+        if (!el) return;
+
+        el.style.transform = t.transform;
+
+        el.style.opacity = t.opacity;
+
+    }
+
+
+
+    function posiziona(dx){
+
+        applica(card, trasfCorrente(dx));
+
+        applica(vicinoPrev, trasfVicino(-passo, dx));
+
+        applica(vicinoNext, trasfVicino(passo, dx));
+
+    }
+
+
+
+    function pulisciVicini(){
+
+        if (vicinoPrev) { vicinoPrev.remove(); vicinoPrev = null; }
+
+        if (vicinoNext) { vicinoNext.remove(); vicinoNext = null; }
+
+        card.style.transform = '';
+
+        card.style.opacity = '';
+
+    }
+
+
+
+    /* Il volo finale: non piu' una transizione CSS che ripartiva sempre dalla
+
+       stessa posa ferma (da li' la sensazione "meccanica"), ma un'animazione
+
+       vera che parte esattamente da dove il dito ha lasciato la carta e
+
+       arriva con una piccola frenata elastica in fondo, la stessa curva di
+
+       prima. verso: 1 avanti, -1 indietro, 0 torna al suo posto. */
+
+    function concludi(verso, dxPartenza){
+
+        if (verso && !mazzo[idx + verso]) verso = 0;
+
+        occupato = true;
+
+
+
+        var dx0 = dxPartenza || 0;
+
+        /* Esattamente un passo, senza margine in piu'. Con un moltiplicatore
+
+           (prima 1.06, per buttare la carta uscente ben oltre il bordo) tutto
+
+           il carosello si spostava di quel 6% in eccesso: la carta ENTRANTE
+
+           finiva il volo un po' oltre il centro, e al momento di prendere il
+
+           posto di quella vera scattava indietro per rimettersi al suo posto.
+
+           Un passo intero basta comunque a portare fuori schermo l'uscente:
+
+           passo e' gia' la larghezza della carta piu' l'aria fra una e
+
+           l'altra. */
+
+        var dxF = verso ? (verso * -passo) : 0;
+
+        var durata = verso ? 300 : 260;
+
+        var easing = verso ? 'cubic-bezier(.19,.86,.32,1.04)' : 'cubic-bezier(.22,1,.36,1)';
+
+
+
+        var partenza = trasfCorrente(dx0);
+
+        var arrivo = trasfCorrente(dxF);
+
+        if (verso) arrivo.opacity = 0;
+
+
+
+        animCard = card.animate([partenza, arrivo], { duration: durata, easing: easing, fill: 'forwards' });
+
+        if (vicinoPrev) {
+
+            animPrev = vicinoPrev.animate(
+
+                [trasfVicino(-passo, dx0), trasfVicino(-passo, dxF)],
+
+                { duration: durata, easing: easing, fill: 'forwards' });
+
+        }
+
+        if (vicinoNext) {
+
+            animNext = vicinoNext.animate(
+
+                [trasfVicino(passo, dx0), trasfVicino(passo, dxF)],
+
+                { duration: durata, easing: easing, fill: 'forwards' });
+
+        }
+
+
+
+        setTimeout(function(){
+
+            /* La carta vera si porta dietro il fotogramma finale prima di
+
+               cancellare l'animazione: cosi' lo scambio non si vede. */
+
+            applica(card, arrivo);
+
+            if (animCard) { animCard.cancel(); animCard = null; }
+
+            if (animPrev) { animPrev.cancel(); animPrev = null; }
+
+            if (animNext) { animNext.cancel(); animNext = null; }
+
+
+
+            if (verso) {
+
+                idx += verso;
+
+                raddrizza(true);
+
+                riempi(idx);
+
+            }
+
+            pulisciVicini();
+
+            occupato = false;
+
+            if (verso) buzz(7);
+
+        }, durata + 10);
+
+    }
+
+
+
+    function vai(verso){
+
+        if (occupato) return;
+
+        if (!mazzo[idx + verso]) return;
+
+        preparaVicini();
+
+        concludi(verso, 0);
+
+    }
+
+
+
+    /* Quale carta si stava guardando nell'elenco: quella che occupa piu'
+
+       spazio nella parte utile dello schermo (sotto l'intestazione fissa).
+
+       Non la prima visibile in assoluto: se una carta e' tagliata a meta' in
+
+       cima e sotto ce n'e' una intera, e' quest'ultima che si stava leggendo. */
+
+    function indiceInVista(){
+
+        var h = document.getElementById('appHeader');
+
+        var alto = h ? h.offsetHeight : 0;
+
+        var finestra = window.innerHeight;
+
+        var migliore = 0, miglioreArea = -1;
+
+        for (var k = 0; k < mazzo.length; k++) {
+
+            var el = mazzo[k].el;
+
+            if (!el || !el.getBoundingClientRect) continue;
+
+            var r = el.getBoundingClientRect();
+
+            var area = Math.min(r.bottom, finestra) - Math.max(r.top, alto);
+
+            if (area > miglioreArea) { miglioreArea = area; migliore = k; }
+
+        }
+
+        return migliore;
+
+    }
+
+
+
+    window.fcvApri = function(i){
+
+        elementi();
+
+        costruisciMazzo();
+
+        if (!mazzo.length) { showToast(T('fc.vis_fcv_vuoto')); return; }
+
+        /* Senza un indice esplicito (il tasto flottante) si riparte da dove si
+
+           stava leggendo, non dall'inizio del mazzo. */
+
+        if (i === undefined || i === null) i = indiceInVista();
+
+        idx = Math.max(0, Math.min(mazzo.length - 1, i || 0));
+
+        tot.textContent = mazzo.length;
+
+        raddrizza(true);
+
+        riempi(idx);
+
+        bloccaPagina(true);
+
+        fcv.classList.add('on');
+
+        fcv.setAttribute('aria-hidden', 'false');
+
+        try {
+
+            card.animate([{ opacity:0, transform:'translateY(46px) scale(.92)' }, { opacity:1, transform:'none' }],
+
+                         { duration: 430, easing:'cubic-bezier(.24,1.2,.35,1)' });
+
+        } catch(e){}
+
+        buzz(8);
+
+    };
+
+
+
+    /* Apre il visore posizionandolo su una carta precisa invece che su un
+
+       indice: al ritorno da una modifica si conosce la carta, non la sua
+
+       posizione nel mazzo (che nel frattempo puo' essere cambiata). */
+
+    window.fcvApriSuCarta = function(tipo, id){
+
+        elementi();
+
+        costruisciMazzo();
+
+        if (!mazzo.length) return false;
+
+        var vuoleFiglia = (tipo === 'child');
+
+        for (var k = 0; k < mazzo.length; k++) {
+
+            if (mazzo[k].id === String(id) && !!mazzo[k].figlia === vuoleFiglia) {
+
+                window.fcvApri(k);
+
+                return true;
+
+            }
+
+        }
+
+        return false;
+
+    };
+
+
+
+    function chiudi(){
+
+        if (!fcv) return;
+
+        pulisciVicini();
+
+        fcv.classList.remove('on');
+
+        fcv.setAttribute('aria-hidden', 'true');
+
+        bloccaPagina(false);
+
+    }
+
+
+
+    /* ---------- La pagina sotto deve stare ferma ----------
+
+       overflow:hidden sul body non basta: il dito continua a trascinare la
+
+       pagina dietro al visore. Si congela la posizione con position:fixed e
+
+       la si restituisce identica alla chiusura. */
+
+    var scrollSalvato = 0;
+
+    function bloccaPagina(blocca){
+
+        var b = document.body;
+
+        if (blocca) {
+
+            scrollSalvato = window.pageYOffset || document.documentElement.scrollTop || 0;
+
+            b.classList.add('fcv-lock');
+
+            b.style.top = (-scrollSalvato) + 'px';
+
+        } else {
+
+            b.classList.remove('fcv-lock');
+
+            b.style.top = '';
+
+            window.scrollTo(0, scrollSalvato);
+
+        }
+
+    }
+
+
+
+    function gira(){
+
+        if (occupato) return;
+
+        girata = !girata;
+
+        inner.classList.toggle('flipped', girata);
+
+        buzz(9);
+
+    }
+
+
+
+    document.addEventListener('click', function(e){
+
+        if (!e.target || !e.target.closest) return;
+
+        if (e.target.closest('#fcvClose')) { chiudi(); return; }
+
+        if (!fcv || !fcv.classList.contains('on')) return;
+
+        if (e.target.closest('#fcvEdit')) {
+
+            var d = mazzo[idx];
+
+            if (d && d.url) {
+
+                /* Si lascia comunque detto dov'eravamo: al ricaricamento con
+                   cui si chiude il popup (qui sotto) il visore si riapre da
+                   solo sulla stessa carta invece di lasciare l'elenco —
+                   esattamente come faceva prima, quando si usciva davvero
+                   dalla pagina per andare a modificare. */
+                try { sessionStorage.setItem('nisama_fcv_riapri', (d.figlia ? 'child:' : 'parent:') + d.id); } catch(err){}
+
+                /* Ma la navigazione vera non serve piu': il visore resta
+                   aperto sotto al popup, che si apre sopra di lui. Nessun
+                   trucco per "tornare dove si era": non ci si e' mai
+                   spostati. */
+                if (typeof apriModificaPopup === 'function') {
+                    apriModificaPopup(d.url, fcRicaricaSuCarta);
+                } else {
+                    window.location.href = d.url;
+                }
+
+            }
+
+            return;
+
+        }
+
+        if (e.target.closest('#fcvParent')) { vaiAIndice(idxPadre); return; }
+
+        if (e.target.closest('#fcvPrev')) { vai(-1); return; }
+
+        if (e.target.closest('#fcvNext')) { vai(1); return; }
+
+        if (e.target.closest('#fcvFlip')) { gira(); return; }
+
+        if (e.target.closest('#fcvCard')) {
+
+            /* Dentro la carta ci sono immagini che ingrandiscono, audio da far
+
+               partire e il riquadro degli esempi che si apre a tutto schermo:
+
+               quelli hanno la precedenza sul giro. */
+
+            if (!e.target.closest('a, button, audio, .audio-player, .qa-image, .qa-examples-box')) gira();
+
+            return;
+
+        }
+
+        if (e.target.closest('.fcv-back')) { chiudi(); return; }
+
+    });
+
+
+
+    /* Sfogliata orizzontale, con tutto il carosello che segue il dito. */
+
+    (function(){
+
+        var x0 = 0, y0 = 0, attivo = false, deciso = '', dxAttuale = 0, punti = [];
+
+        document.addEventListener('touchstart', function(e){
+
+            if (!fcv || !fcv.classList.contains('on') || occupato) return;
+
+            if (!e.target.closest || !e.target.closest('#fcvStage')) return;
+
+            if (e.touches.length !== 1) return;
+
+            /* Il carosello degli esempi ha una sua sfogliata orizzontale (cambia
+
+               esempio, non carta): se il gesto nasce li' dentro e' suo. */
+
+            if (e.target.closest('.qa-examples-box')) return;
+
+            /* Se il dito parte dentro qualcosa che scorre di suo (una formula
+
+               larga, un testo che sborda), quel gesto e' suo: sfogliare qui
+
+               vorrebbe dire non poter piu' leggere la formula. */
+
+            if (fcScorrevoleOrizz(e.target, stage)) return;
+
+            x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+
+            attivo = true; deciso = ''; dxAttuale = 0;
+
+            punti = [{ x: x0, t: e.timeStamp }];
+
+        }, { passive: true });
+
+
+
+        document.addEventListener('touchmove', function(e){
+
+            if (!attivo) return;
+
+            var dx = e.touches[0].clientX - x0;
+
+            var dy = e.touches[0].clientY - y0;
+
+            if (!deciso) {
+
+                if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+
+                /* Un verso solo, e con un margine chiaro: se si comincia in
+
+                   verticale si lascia scorrere il testo lungo. */
+
+                if (Math.abs(dx) <= Math.abs(dy) * 1.3) { attivo = false; return; }
+
+                deciso = 'x';
+
+                preparaVicini();
+
+            }
+
+            /* Ai bordi del mazzo la carta si muove poco: si sente che di la'
+
+               non c'e' piu' niente invece di sbattere contro un muro. */
+
+            var freno = ((dx < 0 && !mazzo[idx + 1]) || (dx > 0 && !mazzo[idx - 1])) ? 0.28 : 1;
+
+            dxAttuale = dx * freno;
+
+            posiziona(dxAttuale);
+
+
+
+            /* Solo gli ultimi istanti contano per la velocita' di rilascio:
+
+               una sfogliata lunga che finisce lenta deve sentirsi lenta. */
+
+            punti.push({ x: e.touches[0].clientX, t: e.timeStamp });
+
+            if (punti.length > 6) punti.shift();
+
+        }, { passive: true });
+
+
+
+        function fine(e){
+
+            if (!attivo) return;
+
+            attivo = false;
+
+            if (deciso !== 'x') return;
+
+
+
+            var velocita = 0;
+
+            if (punti.length >= 2) {
+
+                var a = punti[0], b = punti[punti.length - 1];
+
+                var dt = b.t - a.t;
+
+                if (dt > 0) velocita = (b.x - a.x) / dt;   /* px al millisecondo */
+
+            }
+
+
+
+            /* Un colpo secco vale anche se il dito non ha percorso molta
+
+               strada: e' la differenza fra una sfogliata "trascinata fino in
+
+               fondo" e una "data con un colpetto", entrambe naturali. */
+
+            var soglia = Math.min(90, (card.offsetWidth || 320) * 0.22);
+
+            var scatto = Math.abs(velocita) > 0.55;
+
+            var verso = 0;
+
+            if (Math.abs(dxAttuale) > soglia || scatto) {
+
+                verso = (dxAttuale !== 0 ? dxAttuale < 0 : velocita < 0) ? 1 : -1;
+
+            }
+
+            concludi(verso, dxAttuale);
+
+        }
+
+        document.addEventListener('touchend', fine);
+
+        document.addEventListener('touchcancel', fine);
+
+    })();
+
+
+
+    document.addEventListener('keydown', function(e){
+
+        if (!fcv || !fcv.classList.contains('on')) return;
+
+        if (e.key === 'Escape') { e.preventDefault(); chiudi(); }
+
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); vai(-1); }
+
+        else if (e.key === 'ArrowRight') { e.preventDefault(); vai(1); }
+
+        else if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); gira(); }
+
+    });
+
+
+
+    /* ---------- Il tasto flottante alla stessa altezza di quello della
+
+       sidebar. La misura si prende a video invece di ricopiare un numero:
+
+       la sidebar ha il suo foglio di stile e un giorno potrebbe cambiarlo,
+
+       e due numeri uguali scritti in due posti diversi restano uguali solo
+
+       finche' qualcuno non ne tocca uno. ---------- */
+
+    function fabDellaSidebar(){
+
+        var candidati = ['#sbFab', '.sb-fab', '#sidebarFab', '.sidebar-fab'];
+
+        for (var i = 0; i < candidati.length; i++) {
+
+            var el = document.querySelector(candidati[i]);
+
+            if (el && el.id !== 'fcvFab') return el;
+
+        }
+
+        var trovato = null;
+
+        $all('[id*="fab" i], [class*="fab" i]').forEach(function(el){
+
+            if (trovato || el.id === 'fcvFab' || el.closest('#fcv')) return;
+
+            var st = getComputedStyle(el);
+
+            if (st.position === 'fixed' && el.offsetHeight > 20) trovato = el;
+
+        });
+
+        return trovato;
+
+    }
+
+
+
+    function allineaFab(){
+
+        var mio = document.getElementById('fcvFab');
+
+        var sb = fabDellaSidebar();
+
+        if (!mio || !sb) return;
+
+        var r = sb.getBoundingClientRect();
+
+        if (!r.height) return;
+
+        document.documentElement.style.setProperty('--fcv-fab-bottom',
+
+            Math.max(0, Math.round(window.innerHeight - r.bottom)) + 'px');
+
+        document.documentElement.style.setProperty('--fcv-fab-size', Math.round(r.height) + 'px');
+
+    }
+
+
+
+    window.fcvAllineaFab = allineaFab;
+
+    window.addEventListener('resize', allineaFab);
+
+})();
+
+</script>
+
+
+
+
+
+
+
+
 
 
 
@@ -2058,7 +5533,11 @@ function onBulkActionPick(action){
 
     if (action === 'move') {
 
-        document.getElementById('moveSheet').style.display = 'flex';
+        /* csOpen() vuole l'elemento del modale, non il suo id. Con $cs_id='move'
+           il componente lo chiama 'cs-modal-move'. */
+        var mv = document.getElementById('cs-modal-move');
+        if (mv && typeof csOpen === 'function') csOpen(mv);
+        else showToast(T('fc.vis_sposta_dove'));
 
         return;
 
@@ -2154,11 +5633,21 @@ function pickMoveCategory(categoryId){
 
     document.getElementById('hiddenTargetCategory').value = categoryId;
 
-    closeSheet('moveSheet');
+
 
     submitBulkForm('move');
 
 }
+
+/* Il selettore scrive la categoria scelta nel proprio campo nascosto: si
+   osserva quello invece di inventare una richiamata che il componente non
+   prevede. */
+document.addEventListener('change', function (e) {
+    if (e.target && e.target.name === 'cs_move_target' && e.target.value) {
+        pickMoveCategory(parseInt(e.target.value, 10) || 0);
+    }
+});
+
 
 
 
@@ -2196,7 +5685,6 @@ function openDeleteConfirm(count, warnText, onConfirm){
 
 document.getElementById('deleteSheet').addEventListener('click', function(e){ if (e.target === this) closeSheet('deleteSheet'); });
 
-document.getElementById('moveSheet').addEventListener('click', function(e){ if (e.target === this) closeSheet('moveSheet'); });
 
 
 
@@ -2212,7 +5700,15 @@ function goEditCard(btn){
 
     const url = card && card.getAttribute('data-edit-url');
 
-    if (url) window.location.href = url;
+    /* Apre il popup di modifica invece di lasciare la pagina: al salvataggio
+       o all'eliminazione si ricarica, cosi' l'elenco torna coerente con
+       quello che c'e' davvero nel database — piu' semplice e piu' sicuro
+       che provare ad aggiornare a mano solo la carta toccata. */
+    if (url && typeof apriModificaPopup === 'function') {
+        apriModificaPopup(url, fcRicaricaSuCarta);
+    } else if (url) {
+        window.location.href = url;
+    }
 
 }
 
@@ -2358,7 +5854,21 @@ function animateCardOut(el){
 
     function isInteractive(el){
 
-        return !!(el.closest && el.closest('button, a, input, select, textarea, audio, .ap-track, .audio-player'));
+        if (el.closest && el.closest('button, a, input, select, textarea, audio, .ap-track, .audio-player')) return true;
+
+        /* Una formula larga si legge scorrendola: se il gesto nasce li' dentro
+
+           non deve aprire i tastini modifica/elimina. */
+
+        if (typeof fcScorrevoleOrizz === 'function' && fcScorrevoleOrizz(el, el.closest('.fc-card'))) return true;
+
+        /* Gli esempi hanno un loro swipe orizzontale (cambia esempio): se il
+
+           gesto nasce li' dentro non deve aprire i tastini modifica/elimina. */
+
+        if (el.closest && el.closest('.qa-examples')) return true;
+
+        return false;
 
     }
 
@@ -2378,6 +5888,12 @@ function animateCardOut(el){
 
             openSwipeContent.style.transform = 'translateX(0px)';
 
+            var chiudiCard = openSwipeContent.closest('.fc-card');
+
+            var chiudiActions = chiudiCard && chiudiCard.querySelector('.swipe-actions');
+
+            if (chiudiActions) chiudiActions.classList.remove('revealing');
+
             openSwipeContent = null;
 
         }
@@ -2393,6 +5909,10 @@ function animateCardOut(el){
         content.style.transition = 'transform .3s var(--spring)';
 
         content.style.transform = 'translateX(0px)';
+
+        var actionsEl = card.querySelector('.swipe-actions');
+
+        if (actionsEl) actionsEl.classList.remove('revealing');
 
         if (openSwipeContent === content) openSwipeContent = null;
 
@@ -2600,6 +6120,12 @@ function animateCardOut(el){
 
         var actionsEl = ctx.card.querySelector('.swipe-actions');
 
+        /* Si rivela PRIMA di misurare: partono nascosti (display:none), e la
+
+           larghezza letta su un elemento non renderizzato sarebbe 0. */
+
+        if (actionsEl) actionsEl.classList.add('revealing');
+
         ctx.maxReveal = actionsEl ? actionsEl.offsetWidth : 150;
 
         ctx.startTranslate = getTranslateX(ctx.content);
@@ -2636,7 +6162,15 @@ function animateCardOut(el){
 
         if (target !== 0) { openSwipeContent = ctx.content; buzz(8); }
 
-        else if (openSwipeContent === ctx.content) openSwipeContent = null;
+        else {
+
+            if (openSwipeContent === ctx.content) openSwipeContent = null;
+
+            var actionsEl = ctx.card.querySelector('.swipe-actions');
+
+            if (actionsEl) actionsEl.classList.remove('revealing');
+
+        }
 
     }
 
@@ -2913,6 +6447,8 @@ function scrollCatPathToEnd(){
 
 function initPage(){
 
+    fcCaricaImpostazioni();
+
     syncHeaderHeight();
 
     setTimeout(syncHeaderHeight, 250);
@@ -2924,57 +6460,175 @@ function initPage(){
     scrollCatPathToEnd();
     setTimeout(scrollCatPathToEnd, 280);
 
+    fcVaiAllaCartaDelFocus();
+
+    if (window.fcvAllineaFab) { fcvAllineaFab(); setTimeout(fcvAllineaFab, 400); }
+
     fcLoadExampleBoxes();
 
+    fcRiapriVisoreSeServe();
+
 }
 
-/* ---------- Sezione "Esempi", sotto ogni scheda che ne ha almeno uno ----------
-   render_examples_section() (lato PHP) ha gia' deciso quali schede mostrano il
-   box e con quale conteggio; qui si va a prendere il contenuto vero via
-   examples_api.php, passando id e tipo cosi' come sono in data-fc-id/
-   data-fc-type: fc_examples ha ora due colonne separate (parent_id/
-   child_id), quindi non serve piu' nessuna conversione di segno. */
-function fcLoadExampleBoxes(root) {
-    var boxes = (root || document).querySelectorAll('.qa-examples-box[data-fc-id]');
-    boxes.forEach(function (box) {
-        var realId = parseInt(box.getAttribute('data-fc-id'), 10) || 0;
-        var type = box.getAttribute('data-fc-type') || 'parent';
-        if (!realId) return;
 
-        fetch('examples_api.php?action=get&fc_id=' + encodeURIComponent(realId) + '&fc_type=' + encodeURIComponent(type))
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (!data || !data.success || !data.examples || !data.examples.length) return;
-                fcRenderExampleBox(box, data.examples);
-            })
-            .catch(function () { /* la scheda resta col placeholder tratteggiato */ });
+
+/* Si tornava dal modulo di modifica dopo esserci andati DAL visore a
+
+   flashcard: si riapre il visore su quella carta, invece di lasciare a video
+
+   l'elenco. Il ricordo e' usa e getta - una volta consumato si toglie, cosi'
+
+   una visita successiva all'elenco non riapre il visore a sorpresa.
+
+   L'attesa serve a fcLoadExampleBoxes(): il visore copia la sezione esempi
+
+   com'e' in quel momento, e senza aspettare la copierebbe ancora vuota. */
+
+function fcRiapriVisoreSeServe(){
+
+    var ricordo = null;
+
+    try { ricordo = sessionStorage.getItem('nisama_fcv_riapri'); } catch(e){}
+
+    if (!ricordo) return;
+
+    try { sessionStorage.removeItem('nisama_fcv_riapri'); } catch(e){}
+
+
+
+    var pezzi = ricordo.split(':');
+
+    if (pezzi.length !== 2) return;
+
+    setTimeout(function(){
+
+        if (window.fcvApriSuCarta) window.fcvApriSuCarta(pezzi[0], pezzi[1]);
+
+    }, 450);
+
+}
+
+/* Il riquadro "N esempi" con il carosello (fcLoadExampleBoxes,
+   fcDisegnaEsempio, lo swipe orizzontale, fcRenderExampleBox e le altre
+   funzioni che lo compongono) e' stato estratto in examples_modal.js,
+   caricato da examples_modal.php: modifica_immagine_fc.php lo usa anche
+   lui, per lo stesso riquadro sotto la carta che si sta modificando. Qui
+   resta solo cio' che e' specifico di QUESTA pagina: il visore a schermo
+   intero che si apre toccando un riquadro gia' pieno (subito sotto). */
+
+
+/* ---------- Esempio a tutto schermo ----------
+   Dentro la scheda l'esempio ha poco spazio (un riquadro alto 120px che
+   scorre). Toccandolo si apre qui, dove ce n'e' quanto serve. Funziona
+   uguale dall'elenco e da dentro il visore a flashcard: il popup lavora sul
+   box da cui e' partito il tocco, quindi non gli importa dove sia. */
+
+var fcExBox = null;                 /* riquadro da cui e' partito il popup */
+
+function fcExApri(box) {
+    if (!fcHydrateEsempioBox(box)) return;
+    fcExBox = box;
+    fcExDisegna();
+    var modal = document.getElementById('exModal');
+    modal.classList.add('on');
+    modal.setAttribute('aria-hidden', 'false');
+    /* Se il visore a flashcard e' gia' aperto la pagina e' bloccata da lui:
+       rifarlo qui la sbloccherebbe alla chiusura del solo popup. */
+    if (!document.body.classList.contains('fcv-lock')) document.body.classList.add('ex-lock');
+    if (window.buzz) buzz(8);
+}
+
+function fcExChiudi() {
+    var modal = document.getElementById('exModal');
+    modal.classList.remove('on');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('ex-lock');
+    fcExBox = null;
+}
+
+function fcExDisegna() {
+    if (!fcExBox) return;
+    var esempi = fcExBox._fcExamples || [];
+    var i = fcExBox._fcIndex || 0;
+    if (!esempi.length) return;
+
+    document.getElementById('exModalTitle').textContent =
+        (esempi.length > 1) ? T('fc.vis_esempio_n_di', { n: i + 1, tot: esempi.length })
+                            : T('fc.vis_esempio_uno');
+
+    var body = document.getElementById('exModalBody');
+    body.innerHTML = '<div class="qa-example-item">' + fcEsempioHtml(esempi[i]) + '</div>';
+    body.scrollTop = 0;
+    /* Dentro il visore dell'esempio l'immagine e' comunque limitata in
+       altezza: toccandola si apre a tutto schermo, come gia' fa quella della
+       carta. Un solo ascoltatore sul contenitore, non uno per immagine, cosi'
+       vale anche per l'esempio successivo che verra' disegnato qui dentro. */
+    body.onclick = function (ev) {
+        var img = ev.target.closest && ev.target.closest('.qa-example-image');
+        if (!img) return;
+        ev.stopPropagation();
+        openImageZoom(img.src);
+    };
+    if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(body);
+
+    var nav = document.getElementById('exModalNav');
+    if (esempi.length < 2) { nav.innerHTML = ''; return; }
+    var html = '<button type="button" class="ex-modal-arrow" data-verso="-1" aria-label="' + fcEscapeHtml(T('fc.vis_esempio_prec')) + '">'
+             + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>'
+             + '<span class="qa-ex-dots">';
+    for (var d = 0; d < esempi.length; d++) html += '<span class="qa-ex-dot' + (d === i ? ' active' : '') + '"></span>';
+    html += '</span><button type="button" class="ex-modal-arrow" data-verso="1" aria-label="' + fcEscapeHtml(T('fc.vis_esempio_succ')) + '">'
+          + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>';
+    nav.innerHTML = html;
+}
+
+/* Qui le frecce fanno il giro, come lo swipe: nel popup non c'e' il riquadro
+   piccolo a fare da riferimento, quindi restare bloccati ai bordi
+   sembrerebbe solo un tasto rotto. Il riquadro sotto viene tenuto allineato,
+   cosi' chiudendo si ritrova lo stesso esempio che si stava leggendo. */
+function fcExVai(verso) {
+    if (!fcExBox) return;
+    var n = (fcExBox._fcExamples || []).length;
+    if (n < 2) return;
+    var ni = (fcExBox._fcIndex + verso + n) % n;
+    fcCambiaEsempioAnimato(fcExBox, ni, verso);
+    fcExDisegna();
+}
+
+(function () {
+    document.addEventListener('click', function (e) {
+        if (!e.target || !e.target.closest) return;
+
+        if (e.target.closest('#exModalClose') || e.target.closest('#exModalBack')) { fcExChiudi(); return; }
+
+        var freccia = e.target.closest('.ex-modal-arrow');
+        if (freccia) { fcExVai(parseInt(freccia.dataset.verso, 10)); return; }
+
+        /* Apertura: il tocco deve essere sul riquadro dell'esempio, non su un
+           comando che ha gia' un suo significato (frecce del carosello,
+           audio, immagini da ingrandire, link). */
+        var box = e.target.closest('.qa-examples-box-filled');
+        if (!box) return;
+        /* .qa-example-image NON e' piu' esclusa: dentro il riquadro l'immagine
+           e' l'esempio stesso, e toccarla non faceva niente — un esempio fatto
+           di sola immagine risultava, di fatto, non apribile. L'ingrandimento
+           a tutto schermo si ottiene dall'interno del popup. */
+        if (e.target.closest('.qa-ex-nav, a, audio, .audio-player')) return;
+        /* Fine di una sfogliata: il browser manda comunque un click, che
+           altrimenti aprirebbe il popup ogni volta che si cambia esempio. */
+        if (Date.now() - fcExUltimoSwipe < 400) return;
+        e.stopPropagation();
+        fcExApri(box);
     });
-}
 
-function fcEscapeHtml(s) {
-    var d = document.createElement('div');
-    d.textContent = (s == null) ? '' : String(s);
-    return d.innerHTML;
-}
-
-function fcRenderExampleBox(box, examples) {
-    var html = examples.map(function (ex) {
-        var parts = [];
-        if (ex.example_text) {
-            var htmlText = (typeof parseTextForPreview === 'function')
-                ? parseTextForPreview(ex.example_text)
-                : fcEscapeHtml(ex.example_text);
-            parts.push('<div class="qa-example-text">' + htmlText + '</div>');
-        }
-        if (ex.example_image) parts.push('<img class="qa-example-image" src="fc_images/' + fcEscapeHtml(ex.example_image) + '" alt="">');
-        if (ex.example_audio) parts.push('<audio class="qa-example-audio" src="fc_audio/' + fcEscapeHtml(ex.example_audio) + '" controls></audio>');
-        return '<div class="qa-example-item">' + parts.join('') + '</div>';
-    }).join('');
-
-    box.classList.add('qa-examples-box-filled');
-    box.innerHTML = html;
-    if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(box);
-}
+    document.addEventListener('keydown', function (e) {
+        var modal = document.getElementById('exModal');
+        if (!modal || !modal.classList.contains('on')) return;
+        if (e.key === 'Escape') { e.preventDefault(); fcExChiudi(); }
+        else if (e.key === 'ArrowLeft') { e.preventDefault(); fcExVai(-1); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); fcExVai(1); }
+    });
+})();
 
 /* ---------- Collega progetto (tasto nel riquadro CATEGORIA) ---------- */
 /* definito PRIMA di initPage() così, anche se l'init dovesse fallire, il tasto funziona */

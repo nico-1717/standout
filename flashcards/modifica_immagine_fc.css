@@ -70,7 +70,12 @@
             border-radius:99px; font-size:.62em; vertical-align:middle; margin-left:6px; font-weight:800;
         }
 
-        .page{ max-width:620px; margin:0 auto; padding:16px 14px calc(190px + var(--safe-bottom)); }
+        /* I 190px di riempimento in fondo servivano a non far coprire l'ultimo
+           campo dalla barra fissa in basso (Annulla/Salva). Quella barra non
+           esiste piu' — le azioni sono in alto — e quello spazio era diventato
+           un vuoto lungo mezzo schermo sotto il contenuto, ben visibile dentro
+           il popup. Resta solo il respiro normale piu' la tacca del telefono. */
+        .page{ max-width:620px; margin:0 auto; padding:16px 14px calc(20px + var(--safe-bottom)); }
 
         /* ---------------- Card generica ---------------- */
         .fc-card{
@@ -88,32 +93,44 @@
         }
         .pill-help:active{ transform:scale(.94); }
 
-        /* ---------------- Immagini ---------------- */
+        /* ---------------- Immagini: "Attuale" di sola lettura, "Nuova" si tocca ----------------
+           "Nuova" e' anche l'etichetta collegata al suo input file: premerla
+           apre il selettore, con o senza un'anteprima gia' scelta dentro.
+           Niente piu' pulsante "Scegli foto" a parte, ne' la casella
+           "sostituisci" che doveva restare sincronizzata col file scelto. */
         .img-compare{ display:flex; gap:10px; margin-bottom:10px; }
         .img-box{
             flex:1; min-width:0; border-radius:14px; padding:10px; text-align:center;
             background:var(--surface-2); box-shadow:inset 0 0 0 .5px var(--hairline);
+            transition:opacity .2s, box-shadow .2s;
         }
-        .img-box-new{ box-shadow:inset 0 0 0 1.5px rgba(0,122,255,.4); background:var(--blue-soft); }
         .img-tag{ display:block; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text-3); margin-bottom:6px; }
         .img-tag-new{ color:var(--blue); }
         .img-box img{ max-width:100%; max-height:96px; border-radius:9px; object-fit:contain; display:block; margin:0 auto; }
         .img-empty{ color:var(--text-3); font-size:12.5px; font-style:italic; padding:18px 4px; }
-        .img-empty-warn{ color:var(--r-ink); }
 
-        .file-row{ margin-bottom:10px; }
-        .file-btn{
-            display:inline-flex; align-items:center; gap:7px; cursor:pointer;
-            background:var(--surface-2); color:var(--text); font-weight:700; font-size:13.5px;
-            padding:9px 14px; border-radius:11px; box-shadow:inset 0 0 0 .5px var(--hairline);
-            transition:transform .15s var(--spring);
+        .img-pick-box{
+            cursor:pointer; border:1.5px dashed var(--hairline-2);
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            transition:transform .15s var(--spring), border-color .2s, background .2s;
         }
-        .file-btn:active{ transform:scale(.96); }
+        .img-pick-box:active{ transform:scale(.98); }
+        .img-pick-box.has-img{ border-style:solid; border-color:rgba(0,122,255,.4); background:var(--blue-soft); }
+        .img-pick-empty-sm{
+            display:flex; flex-direction:column; align-items:center; gap:5px;
+            color:var(--text-3); font-size:11.5px; font-weight:700; padding:10px 2px;
+        }
+        .img-pick-box.has-img .img-pick-empty-sm{ display:none; }
+        .img-pick-preview{ max-width:100%; max-height:96px; border-radius:9px; object-fit:contain; display:block; margin:0 auto; }
 
-        .control-panel{ display:flex; flex-direction:column; gap:9px; margin-bottom:12px; }
+        /* Il riquadro "Attuale" si smorza quando l'immagine e' segnata per la
+           rimozione: lo stesso principio del moncone di una carta eliminata
+           in inserimento_big_fc — si vede subito cosa sta per succedere. */
+        .img-marked-removed{ opacity:.4; box-shadow:inset 0 0 0 1.5px var(--red); }
+
+        .img-remove-row{ margin-top:10px; margin-bottom:4px; }
         .chk-row{ display:flex; align-items:center; gap:9px; font-size:13.5px; font-weight:600; cursor:pointer; color:var(--text); }
         .chk-row input[type="checkbox"]{ width:19px; height:19px; accent-color:var(--blue); flex-shrink:0; margin:0; }
-        .chk-blue{ color:var(--blue); }
         .chk-red{ color:var(--r-ink); }
         .chk-red input[type="checkbox"]{ accent-color:var(--red); }
 
@@ -169,12 +186,7 @@
             font-size:14.5px; font-weight:800; transition:transform .15s var(--spring);
         }
         .ex-btn:active{ transform:scale(.97); }
-        .ex-btn-filled{ background:var(--p-fill); color:var(--p-ink); box-shadow:inset 0 0 0 1.5px var(--p-line); }
         .ex-btn-empty{ background:var(--surface-2); color:var(--text-2); box-shadow:inset 0 0 0 .5px var(--hairline); }
-        .ex-badge{
-            display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px;
-            border-radius:99px; background:var(--p-ink); color:#fff; font-size:11.5px; font-weight:800;
-        }
 
         /* ---------------- Barra azioni fissa in basso ---------------- */
         .bottom-bar{
@@ -250,3 +262,261 @@
             .modal-content{ border-radius:26px; }
         }
     
+
+
+/* ================================================================
+   RIFINITURE ED ELEMENTI NUOVI (barra in alto, piede, conferma d'uscita)
+   Stavano in fc_editor_rifiniture.css, un foglio a parte. Sono rientrate qui
+   perche' quel file aveva un solo consumatore — inserimento_fc.php e'
+   diventato un rimando — e perche' un foglio in piu' e' un file in piu' da
+   ricordarsi di caricare sul server: se manca, i pulsanti restano quelli
+   grezzi del browser e non si capisce perche'. Qui viaggia con la pagina.
+   ================================================================ */
+/* fc_editor_rifiniture.css — rifiniture condivise da inserimento_fc.php e
+   modifica_immagine_fc.php.
+   Va caricato DOPO il foglio della pagina: qui ci sono ritocchi che devono
+   avere l'ultima parola su quello che la pagina ha gia' definito.
+
+   COSA AGGIUNGE, E PERCHE'
+   Le due pagine sono nate mobile-first e definiscono quasi solo :active —
+   il che le lascia inerti col mouse (niente reagisce al passaggio) e
+   invisibili alla tastiera (nessun contorno di messa a fuoco). Qui si
+   rimedia a entrambe le cose in un posto solo, invece che regola per
+   regola nei due fogli. */
+
+/* ---------------- Messa a fuoco da tastiera ----------------
+   :focus-visible e non :focus — cosi' il contorno compare a chi naviga con
+   Tab, e NON a ogni tocco o clic del mouse (dove sarebbe solo rumore). */
+.img-pick-box:focus-within,
+.fcm-fab:focus-visible,
+.fcm-genera:focus-visible,
+.cta-insert:focus-visible,
+.pill-help:focus-visible,
+.fcm-chip:focus-visible,
+.btn-save:focus-visible,
+.btn-cancel:focus-visible,
+.ex-btn:focus-visible,
+.fcm-textarea:focus-visible,
+.fc-edit-popup-close:focus-visible,
+.qa-ex-arrow:focus-visible {
+    outline: 2px solid var(--blue, #007AFF);
+    outline-offset: 2px;
+}
+
+/* Il riquadro immagine e' un <label>: il contorno va sull'elemento, ma e'
+   l'input dentro a ricevere davvero la messa a fuoco — da qui
+   :focus-within invece di :focus-visible. */
+.img-pick-box:focus-within { border-color: var(--blue, #007AFF); }
+
+/* ---------------- Stati per il mouse ----------------
+   Racchiusi in (hover:hover): senza, sui dispositivi touch l'effetto
+   resterebbe "appiccicato" dopo un tocco, perche' li' :hover non si annulla
+   finche' non si tocca altrove. */
+@media (hover: hover) and (pointer: fine) {
+    .fcm-fab:hover { filter: brightness(.97); }
+    .fcm-genera:hover { filter: brightness(.97); }
+    .cta-insert:hover { background: var(--surface-2, #F2F2F7); }
+    .pill-help:hover { filter: brightness(.97); }
+    .img-pick-box:hover { border-color: var(--blue, #007AFF); background: var(--blue-soft, rgba(0,122,255,.09)); }
+    .img-pick-remove:hover { background: rgba(0, 0, 0, .72); }
+    .fcm-chip:hover { filter: brightness(.96); }
+    .ex-btn:hover { filter: brightness(.97); }
+    .fc-edit-popup-close:hover { filter: brightness(.94); }
+    .qa-examples-box-filled:hover { border-color: color-mix(in srgb, var(--purple, #AF52DE), transparent 25%); }
+}
+
+/* ---------------- Separatore fra le scorciatoie ----------------
+   Big Insert e "Genera con l'IA" vivono nella stessa card: questa riga li
+   distingue senza il peso di due riquadri separati. */
+.fc-card-shortcuts .fc-shortcut-sep {
+    height: .5px; background: var(--hairline, rgba(60,60,67,.12));
+    margin: 10px -16px;
+}
+
+/* ---------------- Campi: transizione del bordo ----------------
+   Il passaggio a "campo attivo" era istantaneo. */
+.fcm-textarea, .img-pick-box {
+    transition: border-color .18s ease, background .18s ease, transform .15s var(--spring, cubic-bezier(.32,.72,0,1));
+}
+
+/* ---------------- Chi ha chiesto meno movimento ----------------
+   Un'impostazione di sistema, non un capriccio: c'e' chi con le animazioni
+   soffre di nausea o vertigini. Si tolgono gli spostamenti, si tengono i
+   cambi di colore (che non danno fastidio e servono a capire cosa succede). */
+@media (prefers-reduced-motion: reduce) {
+    .fc-edit-popup-panel,
+    .fcm-box,
+    .exm-panel {
+        animation: none !important;
+    }
+    .fcm-fab:active,
+    .fcm-genera:active,
+    .cta-insert:active,
+    .img-pick-box:active,
+    .pill-help:active,
+    .fc-edit-popup-close:active,
+    .qa-ex-arrow:active {
+        transform: none !important;
+    }
+    .qa-ex-dot { transition: background .15s ease !important; }
+}
+
+/* ================================================================
+   BARRA IN ALTO, PIEDE, CONFERMA D'USCITA
+   Le azioni stavano in fondo alla pagina: con un modulo lungo bisognava
+   scorrere fino in fondo per salvare, e dentro un popup era peggio.
+   ================================================================ */
+/* La barra e' ora quella condivisa (.exm-form-topbar): fuori dal pannello
+   degli esempi va ancorata a questo contenitore, non a quello, e senza i
+   margini negativi calibrati sul padding di quel popup. */
+/* Il selettore e' piu' specifico di proposito: examples_modal.css definisce
+   la stessa classe con top:-28px (li' serve a compensare il padding del suo
+   pannello) e viene caricato IN FONDO alla pagina, quindi dopo questo foglio.
+   A parita' di specificita' vinceva lui, ed e' per questo che la barra
+   continuava a scorrere via di 28px verso l'alto. */
+#editFcForm .exm-form-topbar {
+    position: sticky; top: 0; z-index: 20;
+    /* Nessun margine negativo in alto. Con margin-top:-16px la barra si
+       agganciava 16px PIU' IN SU del bordo — e' il margine a decidere dove
+       "tocca" il limite dello sticky — quindi scorrendo la sua parte alta
+       finiva tagliata fuori dalla finestra. Il respiro sopra lo toglie invece
+       .page (padding-top a zero qui sotto): cosi' la barra parte esattamente
+       dal bordo e ci resta. I margini laterali restano negativi, per farla
+       arrivare fino ai lati del riquadro. */
+    margin: 0 -14px 14px;
+    padding: 12px 14px;
+    border-radius: 0;
+}
+/* Il respiro in alto lo dava .page: ora lo darebbe SOPRA la barra, staccandola
+   dal bordo. Lo spazio se lo prende la barra stessa col suo padding. */
+.page { padding-top: 0; }
+/* Le vecchie .fc-topbar-* (Annulla/Salva testuali) sono state tolte: la barra
+   usa ora gli stessi pulsanti a icona del pannello esempi (.exm-icon-btn) e il
+   salvataggio del componente autosave_bar. */
+
+.fc-form-foot { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.btn-altra {
+    width: 100%; padding: 13px; border: none; border-radius: 13px; cursor: pointer;
+    font-family: inherit; font-size: 14.5px; font-weight: 800;
+    color: var(--blue, #007AFF); background: color-mix(in srgb, var(--blue, #007AFF), transparent 90%);
+    transition: transform .15s var(--spring, cubic-bezier(.32,.72,0,1));
+}
+.btn-altra:active { transform: scale(.98); }
+
+.fc-conf-overlay {
+    display: none; position: fixed; inset: 0; z-index: 12500;
+    align-items: center; justify-content: center; padding: 24px;
+    background: rgba(0,0,0,.45); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.fc-conf-overlay.on { display: flex; }
+.fc-conf-panel {
+    width: 100%; max-width: 340px; padding: 22px 20px; border-radius: 20px;
+    background: var(--surface, #fff); text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+    animation: fcConfIn .22s cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes fcConfIn { from { opacity: 0; transform: scale(.94); } }
+.fc-conf-panel b { display: block; font-size: 17px; font-weight: 800; color: var(--text, #1C1C1E); }
+.fc-conf-panel p { margin: 8px 0 0; font-size: 14px; line-height: 1.45; color: var(--text-2, #8A8A8E); }
+.fc-conf-azioni { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.fc-conf-azioni button {
+    width: 100%; padding: 12px; border: none; border-radius: 13px; cursor: pointer;
+    font-family: inherit; font-size: 14.5px; font-weight: 800;
+}
+.fc-conf-resta { background: var(--surface-2, #F2F2F7); color: var(--text, #1C1C1E); }
+.fc-conf-esci { background: var(--r-fill, rgba(255,59,48,.12)); color: var(--r-ink, #D70015); }
+
+
+/* ================================================================
+   DOMANDA E RISPOSTA, DISTINGUIBILI A COLPO D'OCCHIO
+   Erano due riquadri bianchi identici: scorrendo un modulo lungo, capire in
+   quale dei due si stava scrivendo richiedeva di leggere l'etichetta. Un
+   filetto colorato sul bordo sinistro e un'etichetta intonata bastano a
+   distinguerli senza appesantire: niente sfondi pieni, che con due editor di
+   testo sotto darebbero solo rumore.
+   ================================================================ */
+.fc-card-q, .fc-card-a { position: relative; overflow: hidden; }
+.fc-card-q::before, .fc-card-a::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+}
+.fc-card-q::before { background: var(--blue, #007AFF); }
+.fc-card-a::before { background: var(--green, #34C759); }
+
+.fc-card-q .fc-card-title { color: var(--blue, #007AFF); }
+.fc-card-a .fc-card-title { color: var(--green, #34C759); }
+
+/* L'editor attivo si intona alla sua sezione, cosi' il riscontro del "sto
+   scrivendo qui" e' coerente col colore appena visto sul bordo. */
+.fc-card-q .fmt-editor:focus-within { border-color: var(--blue, #007AFF); }
+.fc-card-a .fmt-editor:focus-within { border-color: var(--green, #34C759); }
+
+
+/* ================================================================
+   BARRA SEMPRE IN VISTA, E NIENTE SCORRIMENTO ORIZZONTALE
+   ================================================================
+   Lo scorrimento laterale non serve a niente qui (il modulo e' a colonna
+   singola) e nasceva da un elemento leggermente piu' largo del riquadro.
+   Si usa 'clip' e non 'hidden' di proposito: 'hidden' creerebbe un
+   contenitore di scorrimento, e position:sticky si aggancerebbe a quello
+   invece che alla finestra — cioe' la barra in alto smetterebbe di restare
+   in sovraimpressione, che e' esattamente il difetto da togliere. */
+html, body { max-width: 100%; overflow-x: clip; }
+
+/* La barra resta appiccicata in cima mentre il resto scorre sotto. */
+.exm-form-topbar {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+}
+
+/* Senza il riquadro "Attuale" (inserimento) quello "Nuova" resterebbe largo
+   meta' riga, spaiato: da solo se la prende tutta. */
+.img-compare-solo .img-pick-box { min-height: 120px; }
+
+/* ================================================================
+   INSERIMENTO MULTIPLO — il richiamo in cima, solo in modalita' inserimento
+   Lo stile viveva in inserimento_fc.css, che ora e' solo un rimando: viene
+   qui insieme al pulsante.
+   ================================================================ */
+.cta-insert{
+    display:flex; align-items:center; gap:14px; width:100%; text-decoration:none; border:none; cursor:pointer;
+    font-family:inherit; text-align:left;
+    background:linear-gradient(135deg, color-mix(in srgb, var(--purple), #fff 10%), var(--purple) 55%, color-mix(in srgb, var(--purple), #000 14%));
+    border-radius:var(--r-card); padding:16px;
+    box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 14px 30px -10px rgba(175,82,222,.55);
+    transition:transform .16s var(--spring), filter .2s, box-shadow .3s;
+    position:relative; overflow:hidden;
+}
+.cta-insert:active{ transform:translateY(1px) scale(.99); filter:brightness(.96); }
+.cta-insert-icon{
+    flex-shrink:0; width:46px; height:46px; border-radius:14px; background:rgba(255,255,255,.22);
+    display:flex; align-items:center; justify-content:center; color:#fff;
+}
+.cta-insert-text{ flex:1; min-width:0; }
+.cta-insert-title{ display:block; font-size:15.5px; font-weight:800; color:#fff; letter-spacing:-.01em; }
+.cta-insert-sub{ display:block; font-size:12.5px; font-weight:600; color:rgba(255,255,255,.88); margin-top:2px; }
+.cta-insert-chev{ color:rgba(255,255,255,.9); flex-shrink:0; transition:transform .3s var(--spring); }
+
+/* Un riflesso che attraversa il pulsante ogni tanto: e' la scorciatoia che fa
+   risparmiare piu' tempo di tutte e passava inosservata. Lento e raro di
+   proposito — un'animazione continua diventerebbe fastidiosa in un modulo
+   dove si scrive. */
+.cta-insert::after{
+    content:''; position:absolute; top:0; bottom:0; left:-60%; width:45%;
+    background:linear-gradient(100deg, transparent, rgba(255,255,255,.22), transparent);
+    transform:skewX(-18deg);
+    animation:ctaRiflesso 5.5s ease-in-out 1.5s infinite;
+    pointer-events:none;
+}
+@keyframes ctaRiflesso{
+    0%, 62% { left:-60%; }
+    82%, 100% { left:120%; }
+}
+@media (hover:hover){
+    .cta-insert:hover{ filter:brightness(1.04); box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 18px 34px -10px rgba(175,82,222,.65); }
+    .cta-insert:hover .cta-insert-chev{ transform:translateX(3px); }
+}
+/* Chi ha chiesto meno movimento non deve vedere il riflesso. */
+@media (prefers-reduced-motion: reduce){
+    .cta-insert::after{ animation:none; display:none; }
+}

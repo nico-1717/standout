@@ -60,6 +60,32 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
             script.src = '" . PWA_BASE . "fc_parser.js';
             document.head.appendChild(script);
         }
+        /* MathQuill: la modifica interattiva delle formule a blocco (lo stesso
+           motore di Desmos). Vuole jQuery, quindi l'ordine conta: prima
+           jQuery, e solo quando e' arrivato si chiede MathQuill. Se uno dei
+           due non arriva non succede niente di male — l'editor se ne accorge
+           da solo e resta al LaTeX scritto a mano, come prima. */
+        if (!document.querySelector('link[href*=\"mathquill.css\"]')) {
+            var mqCss = document.createElement('link');
+            mqCss.rel = 'stylesheet';
+            mqCss.href = '" . PWA_BASE . "mathquill/mathquill.css';
+            document.head.appendChild(mqCss);
+        }
+        if (!window.jQuery && !document.querySelector('script[src*=\"jquery.min.js\"]')) {
+            var jq = document.createElement('script');
+            jq.src = '" . PWA_BASE . "mathquill/jquery.min.js';
+            jq.onload = function () { caricaMathQuill(); };
+            document.head.appendChild(jq);
+        } else {
+            caricaMathQuill();
+        }
+        function caricaMathQuill() {
+            if (window.MathQuill) return;
+            if (document.querySelector('script[src*=\"mathquill.min.js\"]')) return;
+            var mq = document.createElement('script');
+            mq.src = '" . PWA_BASE . "mathquill/mathquill.min.js';
+            document.head.appendChild(mq);
+        }
     </script>\n";
 }
 
@@ -293,6 +319,24 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                         <path d="M16.4 7.3c0-1.9-2-3.1-4.4-3.1s-4.4 1.2-4.4 3.1c0 4.1 8.8 2.4 8.8 6.5 0 1.9-2 3.1-4.4 3.1s-4.4-1.2-4.4-3.1"/>
                     </svg>
                 </button>
+
+                <!-- Interruttore: riconosce da solo un comando LaTeX appena
+                     digitato ("\omega", "ciao_x", "a^2") e lo mette tra i dollari al
+                     posto dell'utente, senza nemmeno doverli scrivere. In
+                     linea se non e' l'unica cosa sulla riga, a blocco se lo
+                     e'. Spento per difetto, come l'altro: un "_" o una "\"
+                     dentro una parola normale (un nome di file, un
+                     nickname...) non deve trasformarsi in una formula senza
+                     che nessuno l'abbia chiesto. -->
+                <button type="button" class="fmt-btn fmt-intelligente" data-cmd="intelligente-auto"
+                        title="Riconosce da solo un comando LaTeX appena scritto e lo mette in formula" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9.5 3.5c-2.2 0-4 1.8-4 4 0 .6.1 1.1.4 1.6C4.7 9.7 4 10.9 4 12.2c0 1.6 1 2.9 2.4 3.5-.1.3-.1.6-.1.9 0 2.2 1.8 4 4 4 .5 0 1-.1 1.4-.3"/>
+                        <path d="M14.5 3.5c2.2 0 4 1.8 4 4 0 .6-.1 1.1-.4 1.6.8.6 1.5 1.8 1.5 3.1 0 1.6-1 2.9-2.4 3.5.1.3.1.6.1.9 0 2.2-1.8 4-4 4-.5 0-1-.1-1.4-.3"/>
+                        <path d="M12 3.5v17"/>
+                        <path d="M9.5 8c.7 0 1.3.5 1.3 1.2M9 12c.7 0 1.3.5 1.3 1.2M14.5 8c-.7 0-1.3.5-1.3 1.2M15 12c-.7 0-1.3.5-1.3 1.2"/>
+                    </svg>
+                </button>
             </div>
 
         </div>
@@ -366,10 +410,11 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 
 /* Lo srotolamento. max-width invece di width perche' il contenuto non ha una
    larghezza fissa: cambia con la lingua e con quali tasti ci sono. Il valore
-   e' generoso di proposito — serve solo come tetto per l'animazione. */
+   e' generoso di proposito — serve solo come tetto per l'animazione, non deve
+   mai essere lui a decidere dove la fila di tasti finisce. */
 .fmt-tools{
     display:flex; align-items:center; gap:2px;
-    max-width:760px; opacity:1;
+    max-width:1200px; opacity:1;
     overflow:hidden;
     transition:max-width .42s var(--spring,cubic-bezier(.32,.72,0,1)),
                opacity .26s ease .06s,
@@ -396,7 +441,78 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
     width:-moz-fit-content; width:fit-content; max-width:100%;
     margin-bottom:8px;
     transition:border-radius .3s var(--spring,cubic-bezier(.32,.72,0,1));
+    /* Scorrendo una casella lunga, la barra si ferma in cima allo schermo
+       invece di uscire di scena: resta raggiungibile mentre si scrive piu'
+       in basso. "sticky" e non "fixed" di proposito — cosi' la barra resta
+       agganciata alla SUA casella (scorrendo oltre la casella se ne va con
+       lei) e non se ne sta appiccicata allo schermo per tutta la pagina,
+       sopra caselle a cui non appartiene. Lo sfondo non e' trasparente e lo
+       z-index la tiene sopra il testo che le passa sotto. */
+    /* Non "sticky": nella pagina vera la carta che contiene questa casella ha
+       overflow:hidden (serve agli angoli arrotondati), e basta un solo
+       antenato cosi' — non importa quanto lontano — perche' sticky smetta di
+       funzionare e si comporti come se non ci fosse. Chi tiene la barra
+       agganciata allo schermo e' il JavaScript qui sotto, che le mette
+       position:fixed quando serve davvero. */
 }
+.fmt-toolbar.fmt-agganciata{
+    position:fixed; top:6px; z-index:1000;
+}
+/* Il vuoto che la barra lascerebbe andandosene in fixed: senza, tutto quello
+   sotto salterebbe su di colpo. */
+.fmt-toolbar-segnaposto{ display:none; }
+.fmt-toolbar-segnaposto.is-attivo{ display:block; }
+
+/* Agganciata, la barra non resta dentro la sua casella: la si sposta qui, in
+   fondo al body. Non e' un vezzo. position:fixed si misura dallo schermo solo
+   finche' nessun antenato ha una trasformazione, un filtro o un
+   will-change:transform: basta uno solo di questi — non importa quanto
+   lontano — perche' "fixed" cominci a misurarsi da QUELL'antenato. Nella
+   pagina vera la carta che contiene la casella ha will-change:transform (le
+   serve per lo scorrimento laterale) e overflow:hidden (gli angoli
+   arrotondati): la prima cosa mandava la barra agganciata dentro la carta
+   invece che in cima allo schermo, la seconda la ritagliava via del tutto —
+   ed e' per questo che scorrendo non compariva niente e il posto lasciato dal
+   segnaposto restava vuoto. Fuori da li', fixed torna a voler dire fixed.
+   L'involucro e' senza posizione propria: e' la barra dentro di lui a restare
+   fixed, quindi in pagina non occupa nessuno spazio. */
+.fmt-portale{ position:static; }
+/* Nel portale la barra e' larga quanto le dice il JavaScript (la larghezza
+   della casella da cui viene), quindi niente margine sotto e nessuna delle
+   riduzioni di altezza usate per farla comparire e sparire: qui e' sempre
+   visibile, altrimenti non ci sarebbe motivo di averla agganciata. */
+.fmt-portale .fmt-toolbar{ margin-bottom:0; max-height:none; opacity:1; }
+.fmt-portale.fmt-chiusa .fmt-toolbar{ border-radius:999px; }
+.fmt-portale.fmt-chiusa .fmt-row{ border-radius:999px; padding:5px; }
+.fmt-portale.fmt-chiusa .fmt-switch{ border-radius:999px; width:38px; }
+.fmt-portale.fmt-chiusa .fmt-tools{ max-width:0; opacity:0; margin-left:-4px; }
+.fmt-portale.fmt-chiusa .fmt-switch-pallino{ opacity:1; transform:scale(1); }
+
+/* La barra si vede solo mentre si sta scrivendo in quella casella. Non con
+   display:none ma richiudendola in altezza: cosi' il comparire e lo sparire
+   sono un movimento e non uno scatto, e lo spazio che occupa torna alla
+   pagina invece di restare vuoto sopra ogni casella della carta.
+   Il tetto e' generoso di proposito — serve solo come capolinea
+   dell'animazione, non deve mai essere lui a decidere quanto la barra e'
+   alta quando un pannello e' aperto. */
+.fmt-editor-wrap .fmt-toolbar{
+    max-height:700px;
+    transition:border-radius .3s var(--spring,cubic-bezier(.32,.72,0,1)),
+               max-height .28s var(--spring,cubic-bezier(.32,.72,0,1)),
+               opacity .18s ease,
+               margin-bottom .28s var(--spring,cubic-bezier(.32,.72,0,1));
+}
+.fmt-editor-wrap:not(.fmt-attiva) .fmt-toolbar{
+    max-height:0; opacity:0; margin-bottom:0; pointer-events:none;
+}
+
+/* Aperta prende TUTTA la larghezza disponibile, non solo quella dei suoi
+   tasti: e' cio' che fa entrare piu' colori nella riga senza doverla
+   scorrere. Con fit-content da solo la barra si stringeva sul contenuto piu'
+   corto (la fila dei tasti) e la riga dei colori restava schiacciata li'
+   dentro. Quando i colori sono comunque troppi per starci, la riga trabocca
+   e si scorre come prima — le due cose non sono in conflitto. */
+.fmt-editor-wrap:not(.fmt-chiusa) .fmt-toolbar{ width:100%; }
 /* Chiusa la barra e' un solo tasto: e allora che sia un tasto tondo, non un
    rettangolo con dentro una cosa sola. */
 .fmt-editor-wrap.fmt-chiusa .fmt-toolbar{ border-radius:999px; }
@@ -566,7 +682,57 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
    interruttore che cambia il modo in cui si parla. */
 .fmt-punt.is-active,
 .fmt-comandi-btn.is-active,
-.fmt-dollari.is-active{ background:var(--blue,#007AFF); color:#fff; box-shadow:none; }
+.fmt-dollari.is-active,
+.fmt-intelligente.is-active{ background:var(--blue,#007AFF); color:#fff; box-shadow:none; }
+
+/* La formula a blocco mentre la si modifica con MathQuill. Il campo porta con
+   se' un bordo e uno sfondo suoi: qui vanno tolti, perche' la cornice ce
+   l'ha gia' il blocco che lo contiene — altrimenti si vedrebbero due
+   riquadri uno dentro l'altro. */
+.fc-fx.fc-mq{
+    cursor:text;
+    /* Stessa correzione della formula in linea, qui a scopo preventivo: la
+       formula a blocco non mostra i "$" quindi non si vede l'impilamento,
+       ma il contenuto di MathQuill non ha comunque bisogno delle regole di
+       spezzatura aggressiva pensate per il LaTeX grezzo lungo. Una formula
+       davvero larga scorre in orizzontale invece di spezzarsi, come fa gia'
+       da disegnata. */
+    white-space:nowrap; overflow-wrap:normal; word-break:normal;
+    overflow-x:auto; max-width:100%;
+}
+.fc-fx.fc-mq .mq-editable-field,
+.fc-fx.fc-mq .mq-editable-field.mq-focused{
+    border:none; box-shadow:none; background:transparent; width:100%;
+}
+.fc-fx.fc-mq .mq-math-mode{ font-size:1.05em; }
+
+/* Stessa idea per la formula IN LINEA: il campo si inserisce nel testo, non
+   deve avere un bordo suo (quello ce l'ha gia' lo span quando e' chiuso, ma
+   qui e' aperto) ne' comportarsi da blocco — resta incastonato nella riga,
+   alla stessa altezza delle lettere attorno. */
+.fc-x.fc-mq{
+    display:inline-block; vertical-align:middle; cursor:text;
+    background:var(--blue-soft,rgba(0,122,255,.09)); border-radius:6px; padding:0 3px;
+    box-shadow:inset 0 0 0 1px rgba(0,122,255,.22);
+    /* .fc-x (la regola base, qualche riga sopra) porta overflow-wrap:anywhere
+       e word-break:break-word, pensati per un LaTeX grezzo lungo che non deve
+       sfondare il contenitore. Applicati al contenuto di MathQuill — il "$"
+       prima, il disegno della formula, il "$" dopo — spezzavano proprio li',
+       impilando i due dollari sopra e sotto invece di lasciarli ai lati. */
+    white-space:nowrap; overflow-wrap:normal; word-break:normal;
+    /* Niente max-width/overflow-x qui: un "auto" mostrava la freccina di
+       scorrimento anche su una formula piccolissima come "e^Y", per uno
+       scarto di un pixel nel calcolo interno di MathQuill — la casella
+       sembrava incapace di mostrare tutto pur essendoci lo spazio. La riga
+       di testo intorno e' gia' quella che decide quanto spazio c'e': la
+       formula lo occupa (inline-block cresce sul proprio contenuto, non
+       serve dirglielo) e basta. Se un giorno una formula in linea fosse
+       davvero enorme, il rimedio giusto e' scriverla a blocco — quella si'
+       pensata per contenuti larghi — non stringere qui quelle piccole. */
+}
+.fc-x.fc-mq .mq-editable-field,
+.fc-x.fc-mq .mq-editable-field.mq-focused{ border:none; box-shadow:none; background:transparent; }
+.fc-x.fc-mq .mq-math-mode{ font-size:1em; }
 
 /* I suggerimenti: cosa si puo' dire adesso. Scorrono, e si possono anche
    toccare — a volte una parola non viene riconosciuta, e restare bloccati
@@ -802,7 +968,7 @@ function ftSetupSwitch(wrap) {
         var chiusa = wrap.classList.toggle('fmt-chiusa');
         wrap.classList.toggle('fmt-aperta', !chiusa);
         sw.setAttribute('aria-expanded', chiusa ? 'false' : 'true');
-        if (chiusa) { var bar = wrap.querySelector('.fmt-toolbar'); if (bar) fcClosePanel(bar); }
+        if (chiusa) { var bar = ftBarra(wrap); if (bar) fcClosePanel(bar); }
     });
 }
 
@@ -881,6 +1047,13 @@ function ftPunteggiaturaAuto() {
    li' in poi $...$ e $$...$$ diventano formule mentre si scrive. */
 function ftDollariAuto() {
     return ftPrefLeggi('dollari', '0') === '1';
+}
+
+/* Spento per difetto, stesso motivo del dollaro: un "_" o una "\" dentro una
+   parola normale (un nome utente, un percorso di file...) non deve
+   trasformarsi in una formula senza che nessuno l'abbia chiesto. */
+function ftIntelligenteAuto() {
+    return ftPrefLeggi('intelligente', '0') === '1';
 }
 
 // ---------------------------------------------------------------
@@ -2119,6 +2292,19 @@ function ftUsciDallaFormula(wrap) {
 function ftEditor(wrap) { return document.getElementById(wrap.dataset.editorId); }
 function ftHidden(wrap) { return document.getElementById(wrap.dataset.field); }
 
+/* La barra di questa casella, ovunque sia. Quasi sempre e' dentro il wrap,
+   ma mentre e' agganciata in cima allo schermo vive fuori di li' (vedi
+   .fmt-portale): un wrap.querySelector('.fmt-toolbar') in quel momento
+   restituirebbe null, e chi lo chiama — l'aggiornamento dei tasti accesi, la
+   chiusura dei suggerimenti, il tastino apri/chiudi — si spegnerebbe in
+   silenzio proprio mentre si sta scrivendo. L'id invece non cambia mai. */
+function ftBarra(wrap) {
+    if (!wrap) return null;
+    var b = wrap.querySelector('.fmt-toolbar');
+    if (b) return b;
+    return wrap.dataset.editorId ? document.getElementById(wrap.dataset.editorId + '_bar') : null;
+}
+
 /* Il campo nascosto e' l'unica cosa che il server vedra': va tenuto allineato
    sempre, non solo al salvataggio, o un invio partito mentre il fuoco e'
    ancora nell'editor spedirebbe la versione precedente. */
@@ -2145,8 +2331,38 @@ function ftRender(wrap, doc, caret) {
    saltasse, salterebbe qui e in nessun altro punto. */
 function ftCmd(wrap, fn) {
     var ed = ftEditor(wrap);
+
+    /* Se si sta scrivendo dentro MathQuill, il blocco su cui il comando deve
+       agire e' LA FORMULA — ma la selezione del documento non lo sa: sta
+       nella casella nascosta di MathQuill e indica tutt'altro (di solito il
+       primo blocco). Peggio: il ed.focus() qui sotto strappa il fuoco a
+       MathQuill, e da quel momento la posizione e' persa del tutto.
+       Percio' PRIMA si chiude ordinatamente il campo (il suo LaTeX finisce in
+       data-tex, cosi' non si perde niente) e si ricorda su quale blocco si
+       stava lavorando; poi il comando parte da li'. E' questo che faceva
+       finire il pallino sul testo invece che sulla formula, e le conversioni
+       fra formula in linea e a blocco in un punto qualunque della casella. */
+    var biMQ = null;
+    var campoMQ = ftMQCampoAttivo(ed);
+    if (campoMQ && ftMQHaIlFuoco(campoMQ)) {
+        var elBloccoMQ = campoMQ.classList.contains('fc-fx')
+            ? campoMQ
+            : (campoMQ.closest ? campoMQ.closest('.fc-p, .fc-li, .fc-fx') : null);
+        biMQ = elBloccoMQ ? fcdBlockEls(ed).indexOf(elBloccoMQ) : -1;
+        if (biMQ === -1) biMQ = null;
+        ftMQSmonta(campoMQ);
+    }
+
     ed.focus();
     var sel = fcdGetSel(ed) || { a: { b: 0, o: 0 }, f: { b: 0, o: 0 } };
+    if (biMQ != null) {
+        /* La posizione letta adesso non vale niente (il fuoco e' appena
+           cambiato): si usa il blocco ricordato prima. */
+        var docTmp = fcdFromDom(ed);
+        var bloccoMQ = docTmp.blocks[biMQ];
+        var fineMQ = bloccoMQ ? (bloccoMQ.t === 'fx' ? 0 : fcdBlockLen(bloccoMQ)) : 0;
+        sel = { a: { b: biMQ, o: 0 }, f: { b: biMQ, o: fineMQ } };
+    }
     var doc = fcdFromDom(ed);
     var out = fn(doc, sel);
     if (!out) return;
@@ -2324,7 +2540,7 @@ var FT_MARK_CMD = { bold: 'b', italic: 'i', underline: 'u', yellow: 'h' };
 
 function ftRefreshState(wrap) {
     var ed = ftEditor(wrap);
-    var bar = wrap.querySelector('.fmt-toolbar');
+    var bar = ftBarra(wrap);
     if (!bar || !ed) return;
 
     var sel = fcdGetSel(ed);
@@ -2391,7 +2607,519 @@ function ftQuandoMathJaxPronto(fn) {
     }, 200);
 }
 
-function ftMathEdita(el, portaCursore) {
+/* ================================================================
+   MathQuill: la modifica interattiva delle formule A BLOCCO.
+
+   E' lo stesso motore che usa Desmos. Dentro una formula a blocco il
+   cursore non scorre piu' su del testo LaTeX: entra in un editor suo, dove
+   "\frac" o "/" aprono davvero i due quadratini di numeratore e
+   denominatore, "^" alza l'esponente, le frecce girano dentro la struttura.
+   Fuori dalla formula non cambia niente: appena si esce, MathJax la
+   ridisegna come sempre, e nel documento resta il suo LaTeX e basta.
+
+   Tutto quello che segue e' costruito per SPEGNERSI DA SOLO: se MathQuill
+   non e' stato caricato (file non ancora messo sul sito, rete lenta, un
+   errore qualsiasi), ftMQPronto() dice di no e ogni singolo punto qui sotto
+   ricade sul comportamento di prima, cioe' il LaTeX modificabile a mano.
+   Non e' prudenza di maniera: e' cio' che permette di aggiungere questo
+   pezzo senza mettere a rischio un editor che gia' funziona.
+   ================================================================ */
+
+/* Le lettere degli insiemi numerici, nel loro carattere vero. MathQuill non
+   sa leggere "\mathbb{R}" scritto a mano, ma il simbolo lo accetta senza
+   problemi: e' la scorciatoia che rende la scrittura possibile. */
+var FT_INSIEMI = {
+    R: '\u211D', N: '\u2115', Z: '\u2124',
+    Q: '\u211A', C: '\u2102', P: '\u2119'
+};
+
+function ftMQPronto() {
+    return !!(window.MathQuill && window.MathQuill.getInterface);
+}
+
+var FT_MQ = null;
+function ftMQ() {
+    if (!ftMQPronto()) return null;
+    if (!FT_MQ) { try { FT_MQ = window.MathQuill.getInterface(2); } catch (e) { return null; } }
+    return FT_MQ;
+}
+
+/* Il campo MathQuill vivo in questo momento, se c'e'. Ce n'e' al massimo
+   uno: si sta scrivendo in una formula per volta. */
+function ftMQCampoAttivo(ed) {
+    var el = ed && ed.querySelector ? ed.querySelector('.fc-fx.fc-mq, .fc-x.fc-mq') : null;
+    return el && el._mqCampo ? el : null;
+}
+
+/* Vero se il cursore, in questo momento, sta scrivendo dentro un campo
+   MathQuill. MathQuill riceve i tasti attraverso una casella di testo
+   nascosta dentro di se': percio' il cursore del DOCUMENTO non sta piu'
+   dentro il .fc-fx, e chi lo cercasse li' concluderebbe (a torto) che si e'
+   usciti dalla formula. E' esattamente questo il punto in cui, senza questo
+   controllo, la formula si richiuderebbe da sola a ogni tasto premuto. */
+function ftMQHaIlFuoco(el) {
+    if (!el || !el._mqCampo) return false;
+    var a = document.activeElement;
+    return !!(a && el.contains(a));
+}
+
+/* Monta l'editor interattivo sulla formula, mettendo il cursore dal lato da
+   cui si e' arrivati ('sinistra' o 'destra'). Restituisce false se non e'
+   stato possibile: chi chiama ricade sul LaTeX a mano. */
+function ftMQMonta(el, wrap, dove) {
+    var MQ = ftMQ();
+    if (!MQ || !el) return false;
+    if (el._mqCampo) { ftMQFuoco(el, dove); return true; }
+    /* Questa formula MathQuill ha gia' dimostrato di non saperla leggere.
+       Riprovare a ogni tasto non e' solo inutile: montare e subito smontare
+       un campo sposta il fuoco sulla casella nascosta di MathQuill e poi lo
+       toglie, e quel viavai rimandava il cursore in fondo a ogni freccia —
+       rendendo impossibile muoversi (e quindi correggere) dentro le formule
+       col ripiego, esattamente il difetto segnalato. Ci si ricorda del
+       rifiuto e non si insiste. */
+    if (el.dataset.mqNo === '1') {
+        /* Gia' si sa che non va: non si riprova il montaggio, ma la formula va
+           comunque sciolta se e' ancora disegnata — altrimenti resta li' come
+           se il clic non avesse fatto nulla. E' esattamente questo che
+           rendeva la seconda apertura impossibile: la prima volta il rifiuto
+           passava da ftMQRipiego (che scioglie), la seconda volta si usciva
+           qui PRIMA, senza scioglierla mai. */
+        if (el.classList.contains('fc-resa')) {
+            ftMQRipiego(el, el.dataset.tex != null ? el.dataset.tex : (el.textContent || '').replace(/\u200B/g, ''));
+        }
+        return false;
+    }
+
+    var tex = el.dataset.tex || '';
+    var aBlocco = el.classList.contains('fc-fx');
+    el.classList.remove('fc-resa');
+    el.classList.add('fc-mq');
+    /* Il div che ospita MathQuill non deve essere modificabile dal browser:
+       dentro ci scrive solo MathQuill, con la sua struttura. Lasciandolo
+       modificabile, i due cursori — quello del documento e quello di
+       MathQuill — finirebbero per contendersi lo stesso spazio. */
+    el.setAttribute('contenteditable', 'false');
+    el.textContent = '';
+
+    /* Il cursore del documento va tolto da qui PRIMA di montare, e questo e'
+       il punto in cui la formula creata dal tasto smetteva di accettare
+       qualunque cosa si scrivesse.
+       Con una formula che nasce da del testo selezionato il cursore e'
+       appoggiato a un NODO DI TESTO dentro l'elemento: la riga qui sopra
+       (el.textContent = '') porta via quel nodo, e il cursore se ne va con
+       lui — cosi' il focus() di MathQuill, un attimo dopo, trova campo
+       libero.
+       Con una formula VUOTA non c'e' nessun nodo di testo: il cursore sta
+       sull'ELEMENTO stesso, alla posizione zero, e a svuotarlo non succede
+       niente. Resta li' dentro un elemento che la riga sopra ha appena reso
+       contenteditable="false": il browser continua a disegnarcelo (si vedeva
+       lampeggiare) e riporta il fuoco alla casella modificabile subito dopo
+       il focus() di MathQuill, che quindi non attecchisce mai. Nessun tasto
+       arrivava ne' a MathQuill ne' alla formula, perche' quel punto non e'
+       scrivibile.
+       Togliendo la selezione si mette il caso vuoto nelle stesse condizioni
+       dell'altro. Se il montaggio poi fallisce non si perde niente: il
+       ripiego (ftMathEdita, subito dopo ftMQMonta) il cursore lo ripiazza. */
+    try {
+        var selPrima = window.getSelection();
+        if (selPrima && selPrima.rangeCount && selPrima.anchorNode && el.contains(selPrima.anchorNode)) {
+            selPrima.removeAllRanges();
+        }
+    } catch (eSel) {}
+
+    var campo;
+    try {
+        campo = MQ.MathField(el, {
+            spaceBehavesLikeTab: false,
+            handlers: {
+                edit: function () {
+                    /* "\mathbb{R}" e i suoi fratelli: MathQuill ha il comando
+                       in tabella ma di fatto non lo riconosce quando lo si
+                       scrive a mano — resta li' come testo, ed e' quello che
+                       si vedeva. Il SIMBOLO invece lo accetta benissimo, come
+                       qualunque altro carattere. Quindi appena la scrittura e'
+                       completa la si scambia col simbolo vero: chi scrive il
+                       comando LaTeX ottiene il risultato che si aspetta,
+                       senza doverlo sapere. */
+                    try {
+                        var texOra = campo.latex();
+                        var texNuovo = texOra
+                            /* La forma "pulita", se mai arrivasse cosi'. */
+                            .replace(/\\mathbb\s*\{\s*([RNZQCP])\s*\}/g, function (_, l) { return FT_INSIEMI[l] || _; })
+                            /* La forma che MathQuill produce DAVVERO scrivendo
+                               il comando lettera per lettera: non riconoscendo
+                               "\mathbb" lo degrada a testo con parentesi
+                               graffe, e diventa "\text{mathbb}\left\{R\right\}".
+                               E' questa che si incontra nell'uso reale — la
+                               prima da sola non intercettava niente. */
+                            .replace(/\\text\{mathbb\}\s*\\left\\\{\s*([RNZQCP])\s*\\right\\\}/g, function (_, l) { return FT_INSIEMI[l] || _; })
+                            /* MathQuill puo' aver gia' inghiottito il
+                               "\\text{mathbb}" per conto suo lasciando le sole
+                               graffe attorno alla lettera: anche quelle vanno
+                               tolte, o resterebbe "{R}" con le parentesi in
+                               bella vista. */
+                            .replace(/\\left\\\{\s*([\u211D\u2115\u2124\u211A\u2102\u2119])\s*\\right\\\}/g, '$1');
+                        if (texNuovo !== texOra) { campo.latex(texNuovo); campo.moveToRightEnd(); }
+                    } catch (eIns) { /* se qualcosa non torna si lascia com'e' */ }
+                    /* data-tex e' la fonte di verita' del documento: va tenuto
+                       al passo a ogni tasto, o il salvataggio (e tutto cio'
+                       che legge il modello) vedrebbe la formula di prima. */
+                    try { el.dataset.tex = campo.latex(); } catch (e2) {}
+                    ftSync(wrap);
+                },
+                /* Arrivati al bordo della formula, si esce nel testo: a
+                   blocco verso il blocco vicino, in linea nella stessa riga
+                   — sono gli stessi quattro casi (sinistra, destra, sopra,
+                   sotto) su cui e' costruito il movimento del cursore fuori
+                   di qui, solo con una destinazione diversa secondo il tipo. */
+                /* Invio dentro una formula: MathQuill da solo lo ignora, e
+                   una formula in fondo al documento diventava un vicolo
+                   cieco — nessun modo di scrivere altro sotto. Qui l'invio
+                   fa quello che ci si aspetta: esce sotto, aprendo una riga
+                   nuova se sotto non c'e' ancora niente (se ne occupa
+                   ftMQEsci, che la riga la crea quando serve). */
+                enter: function () {
+                    if (aBlocco) ftMQEsciNuovaRiga(el, wrap);
+                    else ftMQEsciInLinea(el, wrap, 1);
+                },
+                moveOutOf: function (direzione) {
+                    var verso = direzione === MQ.L ? -1 : 1;
+                    if (aBlocco) ftMQEsci(el, wrap, verso); else ftMQEsciInLinea(el, wrap, verso);
+                },
+                upOutOf: function () { if (aBlocco) ftMQEsci(el, wrap, -1); else ftMQEsciInLinea(el, wrap, -1); },
+                downOutOf: function () { if (aBlocco) ftMQEsci(el, wrap, 1); else ftMQEsciInLinea(el, wrap, 1); },
+                /* Cancellare oltre il bordo di una formula VUOTA la elimina,
+                   come gia' fa il resto dell'editor. */
+                deleteOutOf: function (direzione) {
+                    var verso = direzione === MQ.L ? -1 : 1;
+                    if (aBlocco) ftMQCancellaFuori(el, wrap, verso); else ftMQCancellaFuoriInLinea(el, wrap, verso);
+                }
+            }
+        });
+    } catch (e) {
+        el.classList.remove('fc-mq');
+        ftMQRipiego(el, tex);
+        return false;
+    }
+
+    el._mqCampo = campo;
+    try { campo.latex(tex); } catch (e3) { ftMQRipiego(el, tex); return false; }
+
+    /* La rete di sicurezza. MathQuill, davanti a qualcosa che non sa
+       interpretare — una matrice, "\mathbb{R}", "\underbrace", un comando
+       inventato — non avvisa con un errore: SVUOTA IL CAMPO IN SILENZIO. Se
+       si procedesse comunque, il prossimo smontaggio scriverebbe quella
+       stringa vuota in data-tex, e la formula sarebbe perduta per sempre —
+       esattamente il difetto segnalato. Il controllo e' semplice e diretto:
+       se il LaTeX di partenza non era vuoto ma quello letto indietro lo e',
+       vuol dire che MathQuill l'ha rifiutato. Si annulla tutto e si torna al
+       LaTeX scritto a mano, che quel comando lo sa gia' mostrare (anche se
+       non a quadratini) — un ripiego, mai una perdita. */
+    if (tex.trim() !== '' && campo.latex().trim() === '') {
+        ftMQRipiego(el, tex);
+        return false;
+    }
+
+    ftMQFuoco(el, dove);
+    return true;
+}
+
+/* Il ripiego: la stessa identica modalita' di modifica che l'editor usava
+   PRIMA di MathQuill, e che le formule in linea usano tuttora — LaTeX a
+   mano, con i due invisibili ai lati per rendere raggiungibile il punto
+   prima del primo carattere (vedi ftMathEdita). Non e' un vicolo cieco: da
+   li' si puo' continuare a scrivere e correggere normalmente, semplicemente
+   senza i quadratini interattivi per QUESTA formula specifica. */
+function ftMQRipiego(el, tex) {
+    if (el._mqCampo) { try { el._mqCampo.revert(); } catch (e) {} }
+    el._mqCampo = null;
+    /* Si annota che per QUESTA formula MathQuill non va: cosi' i tasti
+       successivi non riprovano (vedi ftMQMonta). L'annotazione va tolta
+       appena il LaTeX cambia — corretto a mano, il testo potrebbe diventare
+       qualcosa che MathQuill sa leggere benissimo. */
+    el.dataset.mqNo = '1';
+    el.classList.remove('fc-mq', 'fc-resa');
+    el.removeAttribute('contenteditable');
+    el.dataset.tex = tex;
+    el.textContent = '\u200B' + tex + '\u200B';
+}
+
+function ftMQFuoco(el, dove) {
+    if (!el || !el._mqCampo) return;
+    var mettiA = function () {
+        if (!el._mqCampo) return;   // smontata nel frattempo: non c'e' piu' niente da mettere a fuoco
+        try {
+            el._mqCampo.focus();
+            if (dove === 'destra') el._mqCampo.moveToRightEnd();
+            else if (dove === 'sinistra') el._mqCampo.moveToLeftEnd();
+        } catch (e) {}
+    };
+    /* Il terzo e ultimo tentativo, al prossimo fotogramma e SOLO se il fuoco
+       non e' arrivato davvero. Non e' un doppione dei due qui sotto: quelli
+       sparano comunque, questo prima guarda. Serve per chi cambia il fuoco
+       dopo di noi — una barra che si apre e ricalcola le altezze, un
+       pannello che compare — e non e' un ciclo: si prova una volta sola. */
+    var controlla = function () {
+        if (!el._mqCampo) return;
+        var att = document.activeElement;
+        if (att && el.contains(att)) return;   // c'e' gia': niente da fare
+        mettiA();
+    };
+
+    mettiA();
+    /* Un secondo tentativo, un istante dopo. Cliccare un <button> nativo puo'
+       — nei browser veri, non qui nei test — sistemare il SUO fuoco dopo che
+       il gestore del clic e' gia' finito, disfacendo un focus() chiamato
+       dentro quel gestore: e' esattamente il caso di "creo la formula col
+       tasto della barra e non ci si scrive dentro" — funzionava aprendo una
+       formula gia' scritta cliccandoci sopra (li' non c'e' nessun bottone di
+       mezzo) ma non creandone una nuova dal tasto. Il tentativo sincrono
+       resta per il caso normale; questo e' solo un rimedio per quell'unico
+       scenario. */
+    setTimeout(mettiA, 0);
+    if (window.requestAnimationFrame) window.requestAnimationFrame(controlla);
+    else setTimeout(controlla, 16);
+}
+
+/* Smonta l'editor interattivo e restituisce il LaTeX finale. Da qui in poi
+   la formula torna a essere quello che era: un div col suo data-tex, che
+   MathJax disegnera'. */
+function ftMQSmonta(el) {
+    if (!el || !el._mqCampo) return null;
+    var tex = '';
+    try { tex = el._mqCampo.latex(); } catch (e) { tex = el.dataset.tex || ''; }
+    try { el._mqCampo.revert(); } catch (e2) {}
+    el._mqCampo = null;
+    el.classList.remove('fc-mq');
+    el.dataset.tex = tex;
+    el.textContent = tex;
+    el.removeAttribute('contenteditable');
+    return tex;
+}
+
+/* Uscita dalla formula verso il blocco vicino (verso -1 = su/sinistra,
+   +1 = giu'/destra). Se di la' non c'e' niente, si apre una riga nuova: da
+   una formula a blocco si deve sempre poter uscire, o si resterebbe
+   intrappolati nell'ultima riga del documento. */
+/* L'uscita dell'INVIO: a differenza di quella delle frecce, apre SEMPRE una
+   riga nuova sotto la formula, anche se sotto c'era gia' qualcosa. E' la
+   differenza fra "spostarsi" e "andare a capo": premere invio in mezzo a un
+   testo non porta il cursore alla riga successiva gia' scritta, ne aggiunge
+   una. */
+function ftMQEsciNuovaRiga(el, wrap) {
+    var ed = ftEditor(wrap);
+    if (!ed) return;
+    var bi = fcdBlockEls(ed).indexOf(el);
+    ftMQSmonta(el);
+    if (bi === -1) { ftMathRefresh(wrap); return; }
+    ftCmd(wrap, function (d) {
+        d.blocks.splice(bi + 1, 0, { t: 'p', runs: [] });
+        return { doc: fcdNorm(d), caret: { b: bi + 1, o: 0 } };
+    });
+}
+
+function ftMQEsci(el, wrap, verso) {
+    var ed = ftEditor(wrap);
+    if (!ed) return;
+    var bi = fcdBlockEls(ed).indexOf(el);
+    ftMQSmonta(el);
+    if (bi === -1) { ftMathRefresh(wrap); return; }
+
+    var doc = fcdFromDom(ed);
+    var idx = verso < 0 ? bi - 1 : bi + 1;
+
+    if (idx < 0 || idx >= doc.blocks.length || doc.blocks[idx].t === 'fx') {
+        ftCmd(wrap, function (d) {
+            var punto = verso < 0 ? bi : bi + 1;
+            d.blocks.splice(punto, 0, { t: 'p', runs: [] });
+            return { doc: fcdNorm(d), caret: { b: punto, o: 0 } };
+        });
+        return;
+    }
+
+    ftCmd(wrap, function (d) {
+        var lung = fcdBlockLen(d.blocks[idx]);
+        return { doc: d, caret: { b: idx, o: verso < 0 ? lung : 0 } };
+    });
+}
+
+/* Backspace (o canc) al bordo di una formula VUOTA: la si toglie del tutto,
+   come fa gia' il resto dell'editor. Se invece ha un contenuto non si
+   cancella niente — si esce e basta, che e' la regola su cui e' costruito
+   tutto il resto: una formula non sparisce mai in un colpo solo. */
+function ftMQCancellaFuori(el, wrap, verso) {
+    var ed = ftEditor(wrap);
+    if (!ed) return;
+    var bi = fcdBlockEls(ed).indexOf(el);
+    var tex = ftMQSmonta(el);
+
+    if (tex && tex.trim() !== '') { ftMQEsciDaIndice(wrap, bi, verso); return; }
+    if (bi === -1) { ftMathRefresh(wrap); return; }
+
+    ftCmd(wrap, function (d) {
+        d.blocks.splice(bi, 1);
+        var docN = fcdNorm(d);
+        var idx = Math.max(0, Math.min(verso < 0 ? bi - 1 : bi, docN.blocks.length - 1));
+        var lung = docN.blocks[idx].t === 'fx' ? 0 : fcdBlockLen(docN.blocks[idx]);
+        return { doc: docN, caret: { b: idx, o: verso < 0 ? lung : 0 } };
+    });
+}
+
+function ftMQEsciDaIndice(wrap, bi, verso) {
+    var ed = ftEditor(wrap);
+    var doc = fcdFromDom(ed);
+    var idx = verso < 0 ? bi - 1 : bi + 1;
+    if (bi === -1 || idx < 0 || idx >= doc.blocks.length) { ftMathRefresh(wrap); return; }
+    ftCmd(wrap, function (d) {
+        var lung = d.blocks[idx].t === 'fx' ? 0 : fcdBlockLen(d.blocks[idx]);
+        return { doc: d, caret: { b: idx, o: verso < 0 ? lung : 0 } };
+    });
+}
+
+/* Per una formula IN LINEA (uno span .fc-x dentro un paragrafo), trova a che
+   punto del testo del blocco che la contiene comincia e finisce. Non serve
+   sapere dov'e' il cursore: serve sapere dov'e' LEI, per decidere dove
+   metterlo uscendo, o quale run togliere se resta vuota. La si trova
+   contando, fra i run del blocco, quale run-formula e' — lo stesso ordinale
+   dello span fra i suoi fratelli .fc-x nel DOM. */
+function ftMQPosizioneInLinea(ed, span) {
+    var blockEl = span.closest('.fc-p, .fc-li');
+    if (!blockEl) return null;
+    var bi = fcdBlockEls(ed).indexOf(blockEl);
+    if (bi === -1) return null;
+    var ordinale = Array.prototype.indexOf.call(blockEl.querySelectorAll('.fc-x'), span);
+    var doc = fcdFromDom(ed);
+    var blocco = doc.blocks[bi];
+    if (!blocco || !blocco.runs) return null;
+    var acc = 0, contate = -1;
+    for (var k = 0; k < blocco.runs.length; k++) {
+        var len = fcdRunText(blocco.runs[k]).length;
+        if (typeof blocco.runs[k].x === 'string') {
+            contate++;
+            if (contate === ordinale) return { bi: bi, nRuns: k, inizio: acc, fine: acc + len };
+        }
+        acc += len;
+    }
+    return null;
+}
+
+/* Uscita da una formula IN LINEA verso il testo che la circonda, nello
+   STESSO blocco — a differenza di quella a blocco, qui non c'e' mai un
+   "blocco vicino" da aprire: si esce semplicemente a sinistra o a destra
+   della formula, dentro la stessa riga. */
+function ftMQEsciInLinea(el, wrap, verso) {
+    var ed = ftEditor(wrap);
+    if (!ed) return;
+    var pos = ftMQPosizioneInLinea(ed, el);
+    ftMQSmonta(el);
+    if (!pos) { ftMathRefresh(wrap); return; }
+    ftCmd(wrap, function (d, s) {
+        return { doc: d, caret: { b: pos.bi, o: verso < 0 ? pos.inizio : pos.fine } };
+    });
+}
+
+/* Backspace/canc al bordo di una formula IN LINEA vuota: si toglie il run,
+   non solo si esce — stessa regola della formula a blocco, adattata al
+   fatto che qui non si tocca l'elenco dei blocchi ma quello dei run. */
+function ftMQCancellaFuoriInLinea(el, wrap, verso) {
+    var ed = ftEditor(wrap);
+    if (!ed) return;
+    var tex = ftMQSmonta(el);
+    var pos = ftMQPosizioneInLinea(ed, el);
+    if (!pos) { ftMathRefresh(wrap); return; }
+
+    if (tex && tex.trim() !== '') {
+        ftCmd(wrap, function (d, s) {
+            return { doc: d, caret: { b: pos.bi, o: verso < 0 ? pos.inizio : pos.fine } };
+        });
+        return;
+    }
+
+    ftCmd(wrap, function (d, s) {
+        var blocco = d.blocks[pos.bi];
+        blocco.runs.splice(pos.nRuns, 1);
+        return { doc: fcdNorm(d), caret: { b: pos.bi, o: pos.inizio } };
+    });
+}
+
+/* Vero se in QUESTO editor si sta scrivendo dentro una formula MathQuill. */
+function ftMQFuocoQui(ed) {
+    var el = ftMQCampoAttivo(ed);
+    return !!(el && ftMQHaIlFuoco(el));
+}
+
+/* Su quale blocco sta lavorando l'utente ADESSO. Non basta leggere la
+   selezione del documento: se MathQuill ha il fuoco, quella selezione sta
+   nella sua casella nascosta e indica tutt'altro blocco (di solito il
+   primo) — ed e' per questo che un comando come "elenco", premuto stando
+   dentro una formula, finiva per applicarsi al testo invece che a lei.
+   Restituisce null se non c'e' niente di sensato da dire. */
+/* Chiude (ridisegna) tutte le formule TRANNE quella su cui si sta
+   lavorando. Serve dove non si puo' chiamare ftMathRefresh per intero —
+   perche' un campo MathQuill appena montato verrebbe smontato — ma le altre
+   formule vanno comunque richiuse: senza, passando col clic da una formula
+   all'altra la prima restava aperta a mostrare il suo codice. */
+function ftChiudiAltreFormule(ed, tranne) {
+    ed.querySelectorAll('.fc-x, .fc-fx').forEach(function (altra) {
+        if (altra !== tranne) ftMathDisegna(altra);
+    });
+}
+
+function ftBloccoCorrente(ed) {
+    var campo = ftMQCampoAttivo(ed);
+    if (campo && ftMQHaIlFuoco(campo)) {
+        var i = fcdBlockEls(ed).indexOf(campo.classList.contains('fc-fx') ? campo : (campo.closest ? campo.closest('.fc-p, .fc-li, .fc-fx') : campo));
+        if (i !== -1) return i;
+    }
+    var sel = fcdGetSel(ed);
+    return sel ? sel.a.b : null;
+}
+
+/* Entra nella formula a blocco che sta all'indice dato, dal lato indicato.
+   Restituisce false se MathQuill non c'e' o non e' quel tipo di blocco: chi
+   chiama ricade sul comportamento di prima, il LaTeX modificabile a mano. */
+function ftMQEntra(ed, wrap, indice, dove) {
+    if (!ftMQPronto()) return false;
+    var el = fcdBlockEls(ed)[indice];
+    if (!el || !el.classList || !el.classList.contains('fc-fx')) return false;
+    /* Se e' disegnata, il LaTeX vero sta in data-tex: va recuperato prima di
+       svuotare il div per farci entrare MathQuill. */
+    if (el.dataset.tex == null) el.dataset.tex = (el.textContent || '').replace(/\u200B/g, '');
+    return ftMQMonta(el, wrap, dove);
+}
+
+function ftMathEdita(el, portaCursore, wrap, dove) {
+    /* Prima con MathQuill, quando c'e' — a blocco e in linea, la stessa
+       logica per entrambe. */
+    if ((el.classList.contains('fc-fx') || el.classList.contains('fc-x')) && ftMQPronto()) {
+        var w = wrap || (el.closest ? el.closest('.fmt-editor-wrap') : null);
+        if (w) {
+            if (ftMQMonta(el, w, dove || (portaCursore ? 'destra' : 'sinistra'))) return;
+            /* ftMQMonta ha rifiutato la formula — un integrale con "\,", una
+               matrice, un comando che MathQuill non sa leggere — e PRIMA di
+               restituire false ha gia' rimesso il LaTeX a mano con i due
+               invisibili ai lati (ftMQRipiego, chiamata al suo interno).
+               Qui sotto c'era un controllo ("se non e' fc-resa, esci") che
+               quel ripiego aveva appena reso vero da solo: si usciva PRIMA
+               di piazzare il cursore, lasciando la formula visibile e
+               modificabile ma senza nessuno dentro — ed e' li' che il clic
+               sembrava non aver fatto nulla di utile. Qui si piazza il
+               cursore nello stesso identico modo, dal lato da cui si e'
+               arrivati: dopo l'invisibile di apertura se si entra da
+               sinistra, prima di quello di chiusura se si entra da destra. */
+            if (el.firstChild) {
+                var daSinistra = dove === 'sinistra';
+                var r0 = document.createRange();
+                var lung0 = (el.textContent || '').length;
+                r0.setStart(el.firstChild, daSinistra ? Math.min(1, lung0) : Math.max(0, lung0 - 1));
+                r0.collapse(true);
+                var sel0 = window.getSelection();
+                sel0.removeAllRanges();
+                sel0.addRange(r0);
+            }
+            return;
+        }
+    }
     if (!el.classList.contains('fc-resa')) return;
     /* Senza data-tex non si torna indietro: rimettere il testo significherebbe
        svuotare la formula. Meglio lasciarla disegnata che cancellarla. */
@@ -2426,6 +3154,11 @@ function ftMathEdita(el, portaCursore) {
 }
 
 function ftMathDisegna(el) {
+    /* Se qui c'era MathQuill, prima lo si smonta: il suo LaTeX finale finisce
+       in data-tex, e da quel momento la formula e' di nuovo un div normale
+       che MathJax puo' disegnare. Senza questo passaggio si darebbe in pasto
+       a MathJax la struttura interna di MathQuill, che non e' LaTeX. */
+    if (el._mqCampo) ftMQSmonta(el);
     if (el.classList.contains('fc-resa')) return;
     /* Se dentro c'e' gia' il disegno di MathJax, quello che si vede NON e' il
        LaTeX: e' la formula scritta a parole ("ω" al posto di "\omega"). Puo'
@@ -2447,9 +3180,63 @@ function ftMathDisegna(el) {
        decine di elementi che non hanno niente a che vedere con la formula. Se
        il cursore ci finisse dentro, si scriverebbe dentro il disegno. */
     el.setAttribute('contenteditable', 'false');
-    el.textContent = blocco ? '\\[' + tex + '\\]' : '\\(' + tex + '\\)';
+
+    /* Le formule A BLOCCO hanno un involucro interno in piu'; quelle in linea
+       no, non ne hanno bisogno. Il motivo: lo scorrimento orizzontale delle
+       formule larghe (overflow-x:auto) e il pallino della lista, posizionato
+       FUORI dal bordo con uno scostamento negativo, non possono convivere
+       sullo stesso elemento — un overflow diverso da visible ritaglia
+       qualunque cosa provi a stare fuori dai propri confini, pallino
+       compreso. Prima il pallino spariva proprio per questo: lo spazio c'era
+       (il margine), ma quello che ci si doveva disegnare dentro veniva
+       tagliato via dallo stesso overflow pensato per le formule larghe.
+       Separando i due ruoli su due elementi — l'esterno porta il pallino e
+       non ritaglia niente, l'interno scorre e ritaglia solo il proprio
+       disegno — tornano a convivere senza pestarsi i piedi. */
+    var bersaglioMathJax = el;
+    if (blocco) {
+        el.innerHTML = '<span class="fc-fx-vetro"></span>';
+        bersaglioMathJax = el.firstChild;
+        bersaglioMathJax.textContent = '\\[' + tex + '\\]';
+    } else {
+        el.textContent = '\\(' + tex + '\\)';
+    }
+
+    /* Dov'e' il cursore ADESSO, prima di dare il via al disegno. MathJax
+       lavora in modo ASINCRONO: finisce di sostituire il contenuto della
+       formula molti millisecondi dopo, quando il cursore e' gia' stato messo
+       al suo posto — e quella sostituzione se lo porta via, tipicamente in
+       fondo alla riga. E' precisamente per questo che l'invio all'inizio di
+       una riga si comportava male SOLO dopo una formula a blocco: solo li'
+       c'era un disegno in ritardo a rimettere mano al DOM. Il cursore non e'
+       dentro la formula (li' non ci puo' stare), quindi rimetterlo dov'era e'
+       sempre sicuro. */
+    var edPadre = el.closest ? el.closest('.fc-editor') : null;
+    var selPrima = window.getSelection();
+    var nodoPrima = (selPrima && selPrima.rangeCount) ? selPrima.anchorNode : null;
+    var offsetPrima = (selPrima && selPrima.rangeCount) ? selPrima.anchorOffset : 0;
+    var avevaIlFuoco = !!(edPadre && document.activeElement &&
+                          (edPadre === document.activeElement || edPadre.contains(document.activeElement)));
+
+    function rimettiCursore() {
+        if (!avevaIlFuoco || !nodoPrima) return;
+        if (!edPadre || !edPadre.contains(nodoPrima)) return;   // quel punto non esiste piu'
+        if (el.contains(nodoPrima)) return;                      // era dentro la formula: ora non si puo'
+        var s = window.getSelection();
+        if (s && s.rangeCount && s.anchorNode === nodoPrima && s.anchorOffset === offsetPrima) return;
+        var lung = nodoPrima.nodeType === 3 ? (nodoPrima.nodeValue || '').length : nodoPrima.childNodes.length;
+        if (offsetPrima > lung) return;
+        try {
+            var r = document.createRange();
+            r.setStart(nodoPrima, offsetPrima);
+            r.collapse(true);
+            s.removeAllRanges();
+            s.addRange(r);
+        } catch (eR) { /* punto non piu' valido: si lascia dov'e' */ }
+    }
+
     try {
-        MathJax.typesetPromise([el]).catch(function () { ftMathEdita(el); });
+        MathJax.typesetPromise([bersaglioMathJax]).then(rimettiCursore, function () { ftMathEdita(el); });
     } catch (e) { ftMathEdita(el); }
 }
 
@@ -2459,7 +3246,25 @@ function ftMathRefresh(wrap) {
     var ed = ftEditor(wrap);
     if (!ed) return;
 
+    /* Se si sta scrivendo dentro MathQuill, siamo GIA' dentro quella formula
+       e non c'e' altro da decidere. Va controllato per primo, prima di
+       guardare dov'e' il cursore del documento: mentre MathQuill ha il fuoco
+       quel cursore non sta piu' dentro il .fc-fx (i tasti li riceve una
+       casella nascosta), e cercarlo li' porterebbe a concludere che si e'
+       usciti — richiudendo la formula sotto le dita, a ogni tasto. */
+    var mqAttivo = ftMQCampoAttivo(ed);
+    if (mqAttivo && ftMQHaIlFuoco(mqAttivo)) {
+        ed.querySelectorAll('.fc-x, .fc-fx').forEach(function (altro) {
+            if (altro !== mqAttivo) ftMathDisegna(altro);
+        });
+        return;
+    }
+
     var sel = window.getSelection();
+    /* Dove sta il cursore PRIMA di toccare qualunque cosa: serve per
+       rimetterlo li' in fondo (vedi in coda a questa funzione). */
+    var primaNodo = (sel && sel.rangeCount) ? sel.anchorNode : null;
+    var primaOffset = (sel && sel.rangeCount) ? sel.anchorOffset : 0;
     var dentro = null;
     if (sel && sel.rangeCount && ed.contains(sel.anchorNode)) {
         var n = sel.anchorNode;
@@ -2478,17 +3283,108 @@ function ftMathRefresh(wrap) {
            soltanto dov'e' finito. */
     }
 
+    /* Una formula che si sta per richiudere (non e' piu' "dentro") ma e'
+       rimasta vuota non ha senso: nessuno l'ha riempita, e disegnarla
+       lascerebbe un segnaposto invisibile e irraggiungibile — niente da
+       vedere, niente su cui cliccare per toglierlo. Si toglie lei, non si
+       disegna. Solo quelle ancora APERTE contano (non .fc-resa): una
+       formula gia' disegnata e vuota non dovrebbe esistere, ma deciderlo
+       non e' compito di un refresh scattato per il movimento del cursore.
+       fcdTrim() e' la seconda rete, per quelle che sfuggissero anche a
+       questa (un'altra scheda, un salvataggio partito nel mezzo). */
+    var daTogliere = null;
     ed.querySelectorAll('.fc-x, .fc-fx').forEach(function (el) {
-        if (el === dentro) ftMathEdita(el);
+        if (el === dentro || daTogliere) return;
+        if (el.classList.contains('fc-resa')) return;
+        if ((el.textContent || '').replace(/\u200B/g, '').trim() === '') daTogliere = el;
+    });
+    if (daTogliere) {
+        var aBlocco = daTogliere.classList.contains('fc-fx');
+        var elBlocco = aBlocco ? daTogliere : daTogliere.closest('.fc-p, .fc-li');
+        var bi = fcdBlockEls(ed).indexOf(elBlocco);
+        if (bi !== -1) {
+            var ordinale = Array.prototype.indexOf.call(elBlocco.querySelectorAll('.fc-x'), daTogliere);
+            ftCmd(wrap, function (d, s) {
+                var blocco = d.blocks[bi];
+                if (!blocco) return null;
+                if (aBlocco) {
+                    d.blocks.splice(bi, 1);
+                    var docNorm = fcdNorm(d);
+                    return { doc: docNorm, caret: { b: Math.min(bi, docNorm.blocks.length - 1), o: 0 } };
+                }
+                var acc = 0, contate = -1;
+                for (var k = 0; k < (blocco.runs || []).length; k++) {
+                    var rk = blocco.runs[k];
+                    if (typeof rk.x === 'string') {
+                        contate++;
+                        if (contate === ordinale) { blocco.runs.splice(k, 1); return { doc: fcdNorm(d), caret: { b: bi, o: acc } }; }
+                    }
+                    acc += fcdRunText(rk).length;
+                }
+                return null;
+            });
+            return;
+        }
+    }
+
+    ed.querySelectorAll('.fc-x, .fc-fx').forEach(function (el) {
+        if (el === dentro) {
+            /* Da che lato mettere il cursore MONTANDO MathQuill: non un
+               default fisso, ma quello vero, letto dal punto in cui il
+               cursore GIA' sta (appena piazzato da chi ha chiamato questo
+               refresh — un backspace dal testo, una freccia). Senza,
+               ftMathEdita(el) chiamata con un solo argomento risolveva
+               "dove" a 'sinistra' sempre e comunque: un backspace che
+               arrivava alla formula da SOTTO veniva rispedito a leggerla
+               dall'inizio invece che dalla fine, un dettaglio che ribaltava
+               esattamente il verso da cui si era entrati. */
+            var doveMR = 'destra';
+            if (sel && sel.rangeCount) {
+                var nMR = sel.anchorNode;
+                var testoMR = fcdSenzaZw(el.textContent || '');
+                var offMR = (nMR === el) ? sel.anchorOffset
+                    : (nMR && nMR.nodeType === 3 && el.contains(nMR))
+                        ? fcdSenzaZw((nMR.nodeValue || '').slice(0, sel.anchorOffset)).length
+                        : null;
+                if (offMR === 0) doveMR = 'sinistra';
+                else if (offMR != null && offMR >= testoMR.length) doveMR = 'destra';
+            }
+            ftMathEdita(el, false, wrap, doveMR);
+        }
         else ftMathDisegna(el);
     });
+
+    /* ftMathRefresh deve RIFLETTERE lo stato, mai spostare il cursore. Ma
+       ridisegnare una formula ne riscrive il contenuto, e riscrivere il nodo
+       su cui il cursore sta appoggiato lo fa scivolare in fondo: chi era a
+       meta' di "\cancel{ab}" si ritrovava dopo l'ultimo carattere, a ogni
+       freccia, senza riuscire piu' a muoversi ne' a correggere. Se il punto
+       in cui era e' ancora valido, ce lo si rimette. */
+    if (primaNodo && ed.contains(primaNodo)) {
+        var oraSel = window.getSelection();
+        if (oraSel && oraSel.rangeCount &&
+            (oraSel.anchorNode !== primaNodo || oraSel.anchorOffset !== primaOffset)) {
+            var lunghezza = primaNodo.nodeType === 3
+                ? (primaNodo.nodeValue || '').length
+                : primaNodo.childNodes.length;
+            if (primaOffset <= lunghezza) {
+                try {
+                    var rr = document.createRange();
+                    rr.setStart(primaNodo, primaOffset);
+                    rr.collapse(true);
+                    oraSel.removeAllRanges();
+                    oraSel.addRange(rr);
+                } catch (eSel) { /* punto non piu' valido: si lascia dov'e' */ }
+            }
+        }
+    }
 
     /* I suggerimenti aperti dal tasto della formula vivono quanto la formula:
        uscendone, o cancellandola, devono sparire. Restando aperti si potevano
        toccare fuori da una formula, e finivano nel testo come LaTeX crudo.
        Quelli aperti per la dettatura non si toccano: li' servono anche nel
        testo normale. */
-    var bar = wrap.querySelector('.fmt-toolbar');
+    var bar = ftBarra(wrap);
     if (!bar) return;
     var tastoCmd = bar.querySelector('.fmt-comandi-btn');
     var perVoce = !!(tastoCmd && tastoCmd.classList.contains('is-active'));
@@ -2501,6 +3397,201 @@ function ftMathRefresh(wrap) {
 // ---------------------------------------------------------------
 // Tastiera
 // ---------------------------------------------------------------
+/* ================================================================
+   La barra agganciata allo schermo.
+
+   position:sticky non basta: nella pagina vera la carta che contiene la
+   casella ha overflow:hidden per via degli angoli arrotondati, e un solo
+   antenato cosi' — non importa quanto lontano — spegne sticky del tutto.
+   Qui si rifa' la stessa cosa a mano: si guarda se la barra della casella
+   ATTIVA (quella con dentro il cursore) sta per uscire dalla cima dello
+   schermo scorrendo, e in quel momento le si mette position:fixed, con un
+   segnaposto della stessa altezza al suo posto perche' il resto della pagina
+   non salti su. Un solo ascoltatore per tutta la pagina, non uno per casella:
+   ha senso tenerne agganciata soltanto una alla volta — quella su cui si sta
+   scrivendo — non farle impilare tutte quante in cima.
+   ================================================================ */
+/* Quanto e' alta un'eventuale intestazione della pagina gia' fissa in cima
+   allo schermo — un header, una barra dei menu — sotto la quale la barra
+   agganciata deve mettersi, non sopra: altrimenti la nasconde o ci si
+   sovrappone. Non si puo' presumere una struttura fissa: questo file finisce
+   in pagine diverse, ognuna con la sua intestazione o senza. Si cerca quindi
+   a runtime: qualunque elemento gia' incollato in cima allo schermo (che sia
+   lui stesso position:fixed con top vicino a zero) conta come intestazione,
+   la barra si mette subito sotto quello piu' basso di tutti. Nessuna
+   intestazione cosi' -> si torna al margine minimo di prima. */
+var FT_ALTEZZA_INTESTAZIONE_CACHE = null;
+function ftAltezzaIntestazionePagina() {
+    if (FT_ALTEZZA_INTESTAZIONE_CACHE != null) return FT_ALTEZZA_INTESTAZIONE_CACHE;
+    var massimo = 0;
+    var candidati = document.querySelectorAll('body > *');
+    for (var i = 0; i < candidati.length; i++) {
+        var el = candidati[i];
+        if (el.classList && (el.classList.contains('fmt-editor-wrap') || el.closest('.fmt-editor-wrap'))) continue;
+        /* La barra agganciata sta anche lei in fondo al body: contarla come
+           intestazione la spingerebbe piu' giu' a ogni scorrimento, una
+           scalinata verso il fondo dello schermo. */
+        if (el.classList && el.classList.contains('fmt-portale')) continue;
+        var st = window.getComputedStyle(el);
+        if (st.position !== 'fixed' && st.position !== 'sticky') continue;
+        var r = el.getBoundingClientRect();
+        if (r.top > 4 || r.height === 0) continue;   // non e' in cima, o non e' visibile
+        if (r.bottom > massimo) massimo = r.bottom;
+    }
+    FT_ALTEZZA_INTESTAZIONE_CACHE = massimo;
+    return massimo;
+}
+window.addEventListener('resize', function () { FT_ALTEZZA_INTESTAZIONE_CACHE = null; });
+
+var FT_AGGANCIO = { wrap: null, toolbar: null, segnaposto: null, portale: null };
+
+/* La barra esce dalla sua casella e va nel portale, in fondo al body. E'
+   l'unico modo perche' position:fixed voglia dire davvero "fissa allo
+   schermo": dentro la carta ci sono un will-change:transform (che sposta il
+   riferimento di fixed sulla carta stessa) e un overflow:hidden (che ritaglia
+   via tutto cio' che ne esce). Vedi il commento sul .fmt-portale nel CSS. */
+function ftAggancioPortaFuori(a) {
+    if (!a.portale) {
+        a.portale = document.createElement('div');
+        a.portale.className = 'fmt-portale';
+    }
+    /* Chiusa o aperta la barra si disegna in modo diverso, e quelle regole
+       partono dal wrap: fuori di li' andrebbero perse. Si riporta qui la sola
+       cosa che serve a saperlo. */
+    a.portale.classList.toggle('fmt-chiusa', a.wrap.classList.contains('fmt-chiusa'));
+    if (a.portale.parentNode !== document.body) document.body.appendChild(a.portale);
+    if (a.toolbar.parentNode !== a.portale) a.portale.appendChild(a.toolbar);
+}
+
+/* Il viaggio di ritorno: la barra torna esattamente dov'era, subito prima del
+   segnaposto che le teneva il posto. */
+function ftAggancioRimetti(a) {
+    if (!a.toolbar || !a.segnaposto || !a.segnaposto.parentNode) return;
+    if (a.toolbar.parentNode !== a.segnaposto.parentNode) {
+        a.segnaposto.parentNode.insertBefore(a.toolbar, a.segnaposto);
+    }
+    if (a.portale && a.portale.parentNode) a.portale.parentNode.removeChild(a.portale);
+}
+
+function ftAggancioStacca() {
+    var a = FT_AGGANCIO;
+    if (a.toolbar) {
+        a.toolbar.classList.remove('fmt-agganciata');
+        a.toolbar.style.left = ''; a.toolbar.style.width = ''; a.toolbar.style.top = '';
+        ftAggancioRimetti(a);
+    }
+    if (a.segnaposto) {
+        a.segnaposto.classList.remove('is-attivo');
+        /* Il segnaposto va tolto, non solo spento: se ne creava uno nuovo a
+           ogni casella toccata e i vecchi restavano in pagina per sempre. */
+        if (a.segnaposto.parentNode) a.segnaposto.parentNode.removeChild(a.segnaposto);
+    }
+    if (a.portale && a.portale.parentNode) a.portale.parentNode.removeChild(a.portale);
+    FT_AGGANCIO = { wrap: null, toolbar: null, segnaposto: null, portale: null };
+}
+
+function ftAggancioSuCasella(wrap) {
+    if (FT_AGGANCIO.wrap === wrap) return;
+    ftAggancioStacca();
+    var toolbar = ftBarra(wrap);
+    if (!toolbar) return;
+    var segnaposto = document.createElement('div');
+    segnaposto.className = 'fmt-toolbar-segnaposto';
+    toolbar.parentNode.insertBefore(segnaposto, toolbar);
+    FT_AGGANCIO = { wrap: wrap, toolbar: toolbar, segnaposto: segnaposto, portale: null };
+    /* L'intestazione si rimisura a ogni casella su cui ci si mette: fra una e
+       l'altra puo' essere comparsa una barra di salvataggio, un avviso, un
+       banner — e la misura di mezz'ora fa manderebbe la barra sotto o sopra
+       il punto giusto. */
+    FT_ALTEZZA_INTESTAZIONE_CACHE = null;
+    ftAggancioAggiorna();
+}
+
+/* Chiamata a ogni scroll/resize: decide se la barra della casella attiva va
+   agganciata o no, in base a dove si trova adesso rispetto alla cima dello
+   schermo — e rispetto al fondo della sua stessa casella, perche' non
+   restare agganciata anche quando la casella e' finita e sotto c'e' gia'
+   altro. */
+function ftAggancioAggiorna() {
+    var a = FT_AGGANCIO;
+    if (!a.wrap || !document.body.contains(a.wrap)) { ftAggancioStacca(); return; }
+
+    var soglia = ftAltezzaIntestazionePagina() + 6;
+    if (a.toolbar.classList.contains('fmt-agganciata')) {
+        // gia' agganciata: la si stacca solo quando la casella e' scorsa
+        // via del tutto, o quando torna a stare sotto la soglia da sola
+        var rWrap = a.wrap.getBoundingClientRect();
+        var altezzaBarra = a.segnaposto.offsetHeight;
+        if (rWrap.top >= soglia || rWrap.bottom <= altezzaBarra + soglia) {
+            a.toolbar.classList.remove('fmt-agganciata');
+            a.toolbar.style.left = ''; a.toolbar.style.width = ''; a.toolbar.style.top = '';
+            ftAggancioRimetti(a);
+            a.segnaposto.classList.remove('is-attivo');
+        } else {
+            var rSeg = a.segnaposto.getBoundingClientRect();
+            a.toolbar.style.left = rSeg.left + 'px';
+            a.toolbar.style.width = rSeg.width + 'px';
+            a.toolbar.style.top = soglia + 'px';
+        }
+    } else {
+        var r = a.toolbar.getBoundingClientRect();
+        var rWrap2 = a.wrap.getBoundingClientRect();
+        /* Altezza zero = la barra si sta ancora aprendo (o e' appena
+           comparsa): misurarla adesso inchioderebbe in cima una striscia
+           alta niente. Si aspetta il prossimo scorrimento. */
+        if (r.height > 0 && r.top < soglia && rWrap2.bottom > r.height + soglia) {
+            a.segnaposto.style.height = r.height + 'px';
+            a.segnaposto.classList.add('is-attivo');
+            ftAggancioPortaFuori(a);
+            a.toolbar.style.left = r.left + 'px';
+            a.toolbar.style.width = r.width + 'px';
+            a.toolbar.style.top = soglia + 'px';
+            a.toolbar.classList.add('fmt-agganciata');
+        }
+    }
+}
+
+(function ftAggancioAvvia() {
+    if (window.__ftAggancioAvviato) return;
+    window.__ftAggancioAvviato = true;
+
+    /* Il fuoco e' ancora dentro questa casella? Vale anche il portale: la
+       barra agganciata e' sua a tutti gli effetti, anche se in quel momento
+       non le sta piu' dentro nel DOM. */
+    function ftFuocoAncoraQui(wrap) {
+        var att = document.activeElement;
+        if (!att) return false;
+        if (wrap.contains(att)) return true;
+        return !!(FT_AGGANCIO.portale && FT_AGGANCIO.wrap === wrap && FT_AGGANCIO.portale.contains(att));
+    }
+
+    document.addEventListener('focusin', function (e) {
+        var wrap = e.target.closest ? e.target.closest('.fmt-editor-wrap') : null;
+        if (!wrap) return;
+        /* La barra si vede solo mentre si scrive in questa casella: e' la
+           classe a deciderlo, il CSS la richiude da solo su tutte le altre. */
+        document.querySelectorAll('.fmt-editor-wrap.fmt-attiva').forEach(function (altro) {
+            if (altro !== wrap) altro.classList.remove('fmt-attiva');
+        });
+        wrap.classList.add('fmt-attiva');
+        ftAggancioSuCasella(wrap);
+    });
+    document.addEventListener('focusout', function (e) {
+        var wrap = e.target.closest ? e.target.closest('.fmt-editor-wrap') : null;
+        setTimeout(function () {
+            /* Rimandato di un attimo perche' nel momento esatto del focusout
+               il browser non ha ancora detto dove sta andando il fuoco: fra
+               una formula e il testo attorno, o fra la casella e un tasto
+               della barra, si passa sempre da un istante in cui non e' di
+               nessuno. */
+            if (FT_AGGANCIO.wrap && !ftFuocoAncoraQui(FT_AGGANCIO.wrap)) ftAggancioStacca();
+            if (wrap && !ftFuocoAncoraQui(wrap)) wrap.classList.remove('fmt-attiva');
+        }, 0);
+    });
+    window.addEventListener('scroll', ftAggancioAggiorna, { passive: true, capture: true });
+    window.addEventListener('resize', ftAggancioAggiorna);
+})();
+
 function ftSetupEditor(wrap) {
     var ed = ftEditor(wrap);
 
@@ -2538,6 +3629,34 @@ function ftSetupEditor(wrap) {
         return (el && el.closest) ? el.closest('.fc-x') : null;
     }
 
+    /* Vero se il cursore sta sulla riga VISIVA piu' in alto (su) o piu' in
+       basso (giu') del blocco che lo contiene. Non si puo' rispondere
+       guardando la posizione nel testo — un paragrafo che va a capo da solo
+       per la larghezza ha piu' righe visive pur essendo un blocco solo — si
+       guarda dove il cursore sta DAVVERO sullo schermo, confrontandolo con i
+       bordi del blocco. Senza rects utilizzabili (un elemento nascosto, o
+       l'ambiente di test) si assume di essere al bordo: e' la scelta piu'
+       prudente, quella che fa comunque provare a entrare nella formula
+       invece di lasciare che il cursore ci salti sopra senza accorgersene. */
+    /* Vero se il cursore sta sulla riga piu' in alto (su) o piu' in basso
+       (giu') del blocco che lo contiene, SECONDO IL TESTO: nessun a capo
+       manuale (uno "shift+invio", il solo modo in cui un blocco puo' avere
+       piu' di una riga scritta apposta) prima di lui, per "su" — nessuno
+       dopo, per "giu'".
+
+       La geometria vera (getBoundingClientRect) sembrava piu' precisa in
+       teoria, ma in pratica si e' rivelata fragile: il "min-height" dei
+       paragrafi e altri dettagli del layout la facevano sbagliare proprio
+       nel caso piu' comune, un paragrafo di una riga sola, che e' esattamente
+       quello che deve funzionare sempre. Il limite di questo controllo pero'
+       piu' semplice si vede solo su un paragrafo cosi' lungo da andare a capo
+       DA SOLO per la larghezza, senza nessuno shift+invio: in quel caso
+       "prima riga" e "ultima riga" restano indistinguibili dalla sola lunghezza
+       del testo, e ci si comporta come se lo fossero entrambe. */
+    function ftSulBordoVisivo(testoBlocco, o, su) {
+        return su ? testoBlocco.slice(0, o).indexOf('\n') === -1 : testoBlocco.slice(o).indexOf('\n') === -1;
+    }
+
     /* Mette il cursore in un punto preciso, dicendo esplicitamente da che
        parte del confine deve stare. */
     /* Dal k-esimo carattere VERO alla posizione reale dentro il nodo, che di
@@ -2561,6 +3680,17 @@ function ftSetupEditor(wrap) {
         if (!span) return false;
 
         if (dentro) {
+            /* Prima si prova con MathQuill, come per le formule a blocco: se
+               riesce a rappresentarla, l'editor interattivo prende il posto
+               del LaTeX a mano e il cursore lo mette gia' lui, dal lato da
+               cui si e' arrivati. "o === f.inizio" vuol dire che si e'
+               arrivati da destra (spostandosi a sinistra), quindi si entra
+               dal lato sinistro della formula — e viceversa. */
+            if (ftMQPronto()) {
+                var doveMQ = (o === f.inizio) ? 'sinistra' : 'destra';
+                if (span.dataset.tex == null) span.dataset.tex = (span.textContent || '').replace(/\u200B/g, '');
+                if (ftMQMonta(span, wrap, doveMQ)) return true;
+            }
             ftMathEdita(span);                     // dentro ci si sta sul LaTeX, non sul disegno
             var t = span.firstChild;
             /* Se la formula non era mai stata disegnata, gli appigli invisibili
@@ -2604,6 +3734,28 @@ function ftSetupEditor(wrap) {
     }
 
     ed.addEventListener('keydown', function (e) {
+        /* Dentro MathQuill i tasti li gestisce lui: frecce, cancella, tutto.
+           Intervenire qui vorrebbe dire muovere il cursore DEL DOCUMENTO
+           mentre l'utente sta muovendo quello DELLA FORMULA — due cursori
+           che si contendono lo stesso tasto. L'uscita dalla formula non si
+           perde: la annuncia MathQuill stesso, con i suoi
+           moveOutOf/upOutOf/downOutOf.
+
+           L'INVIO e' l'eccezione, e va intercettato PRIMA. MathQuill ha un
+           gestore "enter", ma lo chiama solo quando gli arriva un a capo
+           come carattere digitato — mai per il tasto Invio, che passa da
+           un'altra strada e lui semplicemente ignora. Il risultato era una
+           formula in fondo al documento senza piu' modo di scrivere sotto.
+           Qui l'invio fa quello che ci si aspetta: chiude la formula e apre
+           una riga nuova. */
+        var campoInvio = ftMQCampoAttivo(ed);
+        if (campoInvio && ftMQHaIlFuoco(campoInvio) && e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            if (campoInvio.classList.contains('fc-fx')) ftMQEsciNuovaRiga(campoInvio, wrap);
+            else ftMQEsciInLinea(campoInvio, wrap, 1);
+            return;
+        }
+        if (ftMQFuocoQui(ed)) return;
         /* Le frecce vicino a una formula.
 
            Il punto e' che la stessa posizione del documento, sul bordo di una
@@ -2656,12 +3808,118 @@ function ftSetupEditor(wrap) {
                         var fNuovo = ftFormulaA(blocco0, oNuovo);
                         if (blockEl && ftPiazzaCursore(blockEl, blocco0, oNuovo, dentroNuovo, fNuovo || f)) {
                             e.preventDefault();
-                            ftMathRefresh(wrap);
+                            /* Se il posto l'ha preso MathQuill, ftMathRefresh
+                               NON va chiamato: lui decide chi e' "dentro"
+                               guardando il fuoco, e il fuoco su un campo
+                               appena creato puo' non risultare ancora
+                               registrato — cosi' concludeva che eravamo
+                               fuori e SMONTAVA la formula appena aperta,
+                               facendo sparire il cursore dalla casella. Il
+                               campo appena montato e' gia' nello stato
+                               giusto: non c'e' niente da aggiornare. */
+                            var campoOra = ftMQCampoAttivo(ed);
+        if (campoOra) ftChiudiAltreFormule(ed, campoOra); else ftMathRefresh(wrap);
                             ftRefreshState(wrap);
                             return;
                         }
                     }
+
+                    /* Nessuna formula IN LINEA qui vicino: se pero' si e'
+                       esattamente al bordo del blocco (il suo inizio per la
+                       freccia sinistra, la sua fine per la destra) e li'
+                       accanto c'e' una formula A BLOCCO, la freccia ci
+                       salterebbe sopra — un div non modificabile non e' una
+                       fermata per il cursore nativo, e' come se non ci fosse.
+                       Si entra a mano, dal lato da cui ci si arriva: aperta,
+                       pronta a continuare a muoversi dentro con lo stesso
+                       tasto. */
+                    if (!agire) {
+                        var alBordoBlocco = e.key === 'ArrowLeft' ? (o === 0) : (o === fcdBlockLen(blocco0));
+                        if (alBordoBlocco) {
+                            var viciniIdxA = e.key === 'ArrowLeft' ? bi0 - 1 : bi0 + 1;
+                            var vicinoA = doc0.blocks[viciniIdxA];
+                            if (vicinoA && vicinoA.t === 'fx') {
+                                e.preventDefault();
+                                var testoVicinoA = vicinoA.tex || '';
+                                var daDestra = e.key === 'ArrowLeft';
+                                if (ftMQEntra(ed, wrap, viciniIdxA, daDestra ? 'destra' : 'sinistra')) return;
+                                ftCmd(wrap, function (d, s) {
+                                    return { doc: d, caret: { b: viciniIdxA, o: daDestra ? testoVicinoA.length : 0 } };
+                                });
+                                return;
+                            }
+                        }
+                    }
                 }
+            }
+        }
+
+        /* Su e giu': stesso identico problema di sinistra e destra, ma qui
+           non basta guardare la posizione nel testo — "sono all'inizio del
+           blocco" non vuol dire "sono sulla sua riga visiva piu' in alto" se
+           il paragrafo va a capo da solo per la larghezza. Serve la
+           geometria vera: dove sta il cursore sullo schermo, non dove sta nel
+           testo. E' l'unico modo che non si sbaglia anche quando un
+           paragrafo lungo occupa piu' righe. */
+        if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
+            !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            var selV = fcdGetSel(ed);
+            if (selV && selV.a.b === selV.f.b && selV.a.o === selV.f.o) {
+                var docV = fcdFromDom(ed);
+                var biV = selV.a.b;
+                var blockV = docV.blocks[biV];
+                if (blockV && blockV.t !== 'fx') {
+                    var suV = e.key === 'ArrowUp';
+                    if (ftSulBordoVisivo(fcdBlockText(blockV), selV.a.o, suV)) {
+                        var viciniIdxV = suV ? biV - 1 : biV + 1;
+                        var vicinoV = docV.blocks[viciniIdxV];
+                        if (vicinoV && vicinoV.t === 'fx') {
+                            e.preventDefault();
+                            var testoVicinoV = vicinoV.tex || '';
+                            if (ftMQEntra(ed, wrap, viciniIdxV, suV ? 'destra' : 'sinistra')) return;
+                            ftCmd(wrap, function (d, s) {
+                                return { doc: d, caret: { b: viciniIdxV, o: suV ? testoVicinoV.length : 0 } };
+                            });
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        if (e.key === 'Enter' && !e.shiftKey && ftIntelligenteAuto()) {
+            /* Stessa idea dello spazio, ma al contrario: l'invio dice "ho
+               finito con questa riga", quindi qui la parola diventa una
+               formula A BLOCCO — la riga tutta sua, con un'altra riga vuota
+               subito sotto pronta per continuare, esattamente come premere
+               a mano il tasto "a blocco". Se c'era gia' del testo prima
+               sulla stessa riga, quello resta com'era, sopra. */
+            var trovataE = ftParolaLatexDaConvertire(ed);
+            if (trovataE) {
+                e.preventDefault();
+                ftCmd(wrap, function (d, s) {
+                    var b = d.blocks[trovataE.bi];
+                    var i0 = fcdSplitAt(b, trovataE.inizio), i1 = fcdSplitAt(b, trovataE.fine);
+                    var dopoRuns = b.runs.splice(i1);
+                    b.runs.splice(i0);
+                    var nuovo = { t: 'fx', tex: trovataE.parola };
+                    if (b.t === 'li') { nuovo.lvl = b.lvl; if (b.c) nuovo.c = b.c; }
+                    var dopoBlocco = { t: b.t === 'li' ? 'li' : 'p', runs: dopoRuns };
+                    if (b.t === 'li') { dopoBlocco.lvl = b.lvl; if (b.c) dopoBlocco.c = b.c; }
+
+                    var pezzi = [];
+                    if (fcdBlockLen(b) > 0) pezzi.push(b);
+                    pezzi.push(nuovo);
+                    /* Dopo la formula ci va sempre una riga pronta a
+                       ricevere quello che si scrive di seguito: quella che
+                       c'era gia' (se c'era altro testo dopo il cursore) o,
+                       se non c'era, una nuova riga vuota apposta. */
+                    pezzi.push(fcdBlockLen(dopoBlocco) > 0 ? dopoBlocco : { t: 'p', runs: [] });
+
+                    var indiceFormula = trovataE.bi + pezzi.indexOf(nuovo);
+                    d.blocks.splice.apply(d.blocks, [trovataE.bi, 1].concat(pezzi));
+                    return { doc: fcdNorm(d), caret: { b: indiceFormula + 1, o: 0 } };
+                });
+                return;
             }
         }
         if (e.key === 'Enter') {
@@ -2855,6 +4113,31 @@ function ftSetupEditor(wrap) {
                             });
                             return;
                         }
+
+                        /* Riga vuota con un'altra riga qualunque accanto (non
+                           una formula): la si toglie qui, a mano. Lasciarlo
+                           fare al browser sembrava funzionare con UNA riga
+                           vuota sola, ma con piu' righe vuote di fila l'ultima
+                           restava sempre li': la fusione nativa di un
+                           paragrafo vuoto — che vuoto non e' del tutto, ha
+                           dentro il <br> che lo tiene aperto — non e'
+                           prevedibile allo stesso modo ogni volta. Togliendola
+                           noi il conto torna sempre: un colpo, una riga. */
+                        if (vuotoC) {
+                            var idxVicino = indietro ? biC - 1 : biC + 1;
+                            var vicinoQualunque = docC.blocks[idxVicino];
+                            if (vicinoQualunque && vicinoQualunque.t !== 'fx') {
+                                e.preventDefault();
+                                ftCmd(wrap, function (d) {
+                                    d.blocks.splice(biC, 1);
+                                    var docN = fcdNorm(d);
+                                    var idxFin = Math.max(0, Math.min(indietro ? biC - 1 : biC, docN.blocks.length - 1));
+                                    var lungFin = docN.blocks[idxFin].t === 'fx' ? 0 : fcdBlockLen(docN.blocks[idxFin]);
+                                    return { doc: docN, caret: { b: idxFin, o: indietro ? lungFin : 0 } };
+                                });
+                                return;
+                            }
+                        }
                     }
 
                     /* CASO 2: una formula IN LINEA tocca questa posizione.
@@ -2874,7 +4157,12 @@ function ftSetupEditor(wrap) {
                             e.preventDefault();
                             var blockElC = fcdBlockEls(ed)[biC];
                             if (blockElC && ftPiazzaCursore(blockElC, bC, oC, alBordoEsterno, fC)) {
-                                ftMathRefresh(wrap);
+                                /* Stesso motivo del ramo delle frecce: se
+                                   MathQuill ha appena preso il posto, un
+                                   refresh lo smonterebbe e il cursore
+                                   sparirebbe. */
+                                var campoOra = ftMQCampoAttivo(ed);
+        if (campoOra) ftChiudiAltreFormule(ed, campoOra); else ftMathRefresh(wrap);
                                 ftRefreshState(wrap);
                             }
                             return;
@@ -2901,6 +4189,9 @@ function ftSetupEditor(wrap) {
        l'editor riconosce "$...$" e ricostruisce la formula da solo. */
     ['copy', 'cut'].forEach(function (evento) {
         ed.addEventListener(evento, function (e) {
+            /* Dentro una formula copia e taglia li fa MathQuill, che sa
+               esattamente cosa significa "meta' frazione". */
+            if (ftMQFuocoQui(ed)) return;
             /* Selezione tutta dentro una sola formula: si sta copiando del
                CODICE, e il codice si copia com'e'. Aggiungerci i dollari
                attorno — cosa giusta quando si copia del testo che contiene
@@ -2941,14 +4232,41 @@ function ftSetupEditor(wrap) {
             var testo = pezzi.join('\n');
             if (!testo) return;
             e.preventDefault();
-            (e.clipboardData || window.clipboardData).setData('text/plain', testo);
+            var cd = (e.clipboardData || window.clipboardData);
+            cd.setData('text/plain', testo);
+            /* La formattazione vera — grassetto, colori, elenchi, formule —
+               passa da qui: un formato tutto nostro, che solo un'altra pagina
+               di questo editor sa leggere. Copiando fuori dal sito resta il
+               testo semplice qui sopra, che e' quello che qualunque altra
+               applicazione si aspetta comunque di trovare. */
+            try {
+                var sottodoc = fcdEstraiSelezione(doc, s0);
+                cd.setData('application/x-nisama-fcdoc', JSON.stringify(sottodoc));
+            } catch (errCopia) { /* niente di grave: resta il testo semplice sopra */ }
             if (evento === 'cut') ftCmd(wrap, function (d, s2) { return fcdDeleteRange(d, s2); });
         });
     });
 
     ed.addEventListener('paste', function (e) {
+        if (ftMQFuocoQui(ed)) return;   // dentro una formula incolla MathQuill
         e.preventDefault();
-        var t = (e.clipboardData || window.clipboardData).getData('text/plain') || '';
+        var cd = (e.clipboardData || window.clipboardData);
+        var ricco = cd.getData('application/x-nisama-fcdoc');
+        if (ricco) {
+            try {
+                var sottodoc = JSON.parse(ricco);
+                ftCmd(wrap, function (d, s2) {
+                    var posizione = s2.a;
+                    if (!(s2.a.b === s2.f.b && s2.a.o === s2.f.o)) {
+                        var tolto = fcdDeleteRange(d, s2);
+                        d = tolto.doc; posizione = tolto.caret;
+                    }
+                    return fcdIncollaSottodocumento(d, posizione, sottodoc);
+                });
+                return;
+            } catch (errIncolla) { /* formato non riconosciuto: si scende al testo semplice sotto */ }
+        }
+        var t = cd.getData('text/plain') || '';
         if (!t) return;
         /* Se quello che si incolla contiene formule scritte con i dollari, le
            si rimette come formule invece che come testo: e' il gesto piu'
@@ -2985,7 +4303,13 @@ function ftSetupEditor(wrap) {
            causa quando la selezione parte o passa da un clic con shift). */
         if (e.shiftKey) return;
         e.preventDefault();
-        ftMathEdita(resa, true);
+        /* Prima si chiude quella che era aperta, poi si apre questa. Senza,
+           passando col clic direttamente da una formula all'altra la prima
+           restava aperta a mostrare il suo codice, e per richiuderla si era
+           costretti a un giro fuori da tutte le formule. Il ridisegno di
+           quelle vecchie non tocca questa, che viene aperta subito dopo. */
+        ftChiudiAltreFormule(ed, resa);
+        ftMathEdita(resa, true, wrap, 'destra');
     });
 
     /* Scrivere "$...$" a mano crea la formula, senza passare dal tasto. Si
@@ -3023,12 +4347,77 @@ function ftSetupEditor(wrap) {
         return null;
     }
 
+    /* Una PAROLA che comincia con "\" seguita da lettere ("\omega",
+       "\sqrt{2}") o che ha la forma di un pedice, di un esponente, o di
+       entrambi insieme ("ciao_x", "a^2", "a_i^2") e' quasi certamente un
+       comando LaTeX scritto a mano: appena finisce (lo spazio che la segue
+       lo dice) diventa una formula da sola, senza che serva scrivere i
+       dollari. */
+    function ftLatexRilevato(parola) {
+        if (/^\\[a-zA-Z]+/.test(parola)) return true;
+        /* Un pedice, un esponente, o entrambi insieme in un ordine o
+           nell'altro — ma non una catena di piu' di uno dello stesso tipo:
+           "file_name_qui" resta un nome di variabile, non diventa una
+           formula solo perche' ha un underscore, anzi due. */
+        if (/^[a-zA-Z0-9]+(_[a-zA-Z0-9]+\^[a-zA-Z0-9]+|\^[a-zA-Z0-9]+_[a-zA-Z0-9]+|_[a-zA-Z0-9]+|\^[a-zA-Z0-9]+)$/.test(parola)) return true;
+        return false;
+    }
+
+    /* La parola LaTeX appena finita, se il cursore e' esattamente alla sua
+       fine e non si e' gia' dentro una formula: usata sia dallo spazio
+       (sotto) sia dall'invio (nel gestore dei tasti, piu' sotto). Tenerla
+       in un punto solo evita che i due si comportino in modo diverso per
+       una semplice disattenzione nel copiarla due volte. */
+    function ftParolaLatexDaConvertire(ed) {
+        var sel = fcdGetSel(ed);
+        if (!sel || sel.a.b !== sel.f.b || sel.a.o !== sel.f.o) return null;
+        var doc = fcdFromDom(ed);
+        var bl = doc.blocks[sel.a.b];
+        if (!bl || bl.t === 'fx') return null;
+        /* Il cursore e' gia' dentro una formula in linea (ancora aperta,
+           quindi modificabile — una gia' disegnata non si potrebbe nemmeno
+           raggiungere per scriverci)? Allora quello che sta scrivendo e'
+           LaTeX vero, non una parola candidata a diventarne una: applicarne
+           un'altra sopra non avrebbe alcun senso. */
+        if (ftFormulaA(bl, sel.a.o)) return null;
+        var testo = fcdBlockText(bl);
+        var prima = testo.slice(0, sel.a.o);
+        var ultimoSpazio = Math.max(prima.lastIndexOf(' '), prima.lastIndexOf('\n'));
+        var parola = prima.slice(ultimoSpazio + 1);
+        if (!parola || !ftLatexRilevato(parola)) return null;
+        return { bi: sel.a.b, inizio: sel.a.o - parola.length, fine: sel.a.o, parola: parola, testoBlocco: testo };
+    }
+
     ed.addEventListener('beforeinput', function (e) {
         /* Il segnaposto sparisce appena si comincia a scrivere, senza aspettare
            il giro di sincronizzazione: e' un dettaglio, ma vedere il testo
            d'esempio ancora li' mentre si digita da' l'impressione che la
            casella non stia ricevendo quello che si scrive. */
         if (e.inputType && e.inputType.indexOf('insert') === 0) ed.dataset.vuoto = '0';
+
+        /* Spento per difetto: qui sotto e' la stessa idea del dollaro
+           automatico, ma innescata dallo spazio dopo una parola invece che
+           dal dollaro stesso. Lo spazio fa SEMPRE una formula in linea: e'
+           il tasto che dice "continuo su questa riga", quindi la riga resta
+           quella, formula compresa. Chi vuole la riga tutta per la formula
+           preme invio, non spazio — se ne occupa il gestore dei tasti. */
+        if (e.inputType === 'insertText' && e.data === ' ' && ftIntelligenteAuto()) {
+            var trovataI = ftParolaLatexDaConvertire(ed);
+            if (trovataI) {
+                e.preventDefault();
+                /* La parola diventa la formula, e lo spazio appena digitato
+                   si rimette subito dopo — non si perde, altrimenti
+                   continuando a scrivere la frase successiva si salderebbe
+                   alla formula. */
+                ftCmd(wrap, function (d, s2) {
+                    var b = d.blocks[trovataI.bi];
+                    var i0 = fcdSplitAt(b, trovataI.inizio), i1 = fcdSplitAt(b, trovataI.fine);
+                    b.runs.splice(i0, i1 - i0, { x: trovataI.parola }, { s: ' ' });
+                    return { doc: fcdNorm(d), caret: { b: trovataI.bi, o: trovataI.inizio + trovataI.parola.length + 1 } };
+                });
+                return;
+            }
+        }
 
         /* Spento (il caso di default): il dollaro e' sempre e solo un
            carattere, "costa 5$$" o "costa 5$ e altri 3$" restano testo, punto
@@ -3089,22 +4478,75 @@ function ftSetupEditor(wrap) {
         if (sel && sel.rangeCount) {
             var n = sel.anchorNode, el = n && (n.nodeType === 1 ? n : n.parentNode);
             var f = el && el.closest ? el.closest('.fc-x, .fc-fx') : null;
-            if (f && !fcdEDisegnata(f)) f.dataset.tex = (f.textContent || '').replace(/\u200B/g, '');
+            if (f && !fcdEDisegnata(f)) {
+                f.dataset.tex = (f.textContent || '').replace(/\u200B/g, '');
+                /* Il LaTeX e' cambiato sotto le dita: se era una di quelle
+                   che MathQuill aveva rifiutato, va data un'altra
+                   possibilita' — correggendo a mano il pezzo che non
+                   capiva, adesso potrebbe leggerla benissimo. */
+                delete f.dataset.mqNo;
+            }
         }
         ftSync(wrap); ftRefreshState(wrap);
     });
-    ed.addEventListener('keyup', function () { ftRefreshState(wrap); ftMathRefresh(wrap); });
-    ed.addEventListener('mouseup', function () { ftRefreshState(wrap); ftMathRefresh(wrap); });
+    /* keyup e mouseup scattano dopo OGNI tasto e OGNI clic. Se in quel
+       momento si sta scrivendo dentro MathQuill, il refresh non va fatto:
+       lui decide chi e' "dentro" dal fuoco, e il fuoco di MathQuill sta su
+       una casella nascosta che non sempre risulta gia' registrata — cosi'
+       concludeva che si era usciti e smontava la formula sotto le dita,
+       facendo sparire il cursore a meta' di una parola. Lo stato di un campo
+       montato e' gia' quello giusto: non c'e' niente da aggiornare. */
+    ed.addEventListener('keyup', function () {
+        ftRefreshState(wrap);
+        var campoOra = ftMQCampoAttivo(ed);
+        if (campoOra) ftChiudiAltreFormule(ed, campoOra); else ftMathRefresh(wrap);
+    });
+    ed.addEventListener('mouseup', function () {
+        ftRefreshState(wrap);
+        var campoOra = ftMQCampoAttivo(ed);
+        if (campoOra) ftChiudiAltreFormule(ed, campoOra); else ftMathRefresh(wrap);
+    });
 
     /* All'uscita si ridisegna dal modello: qualunque stranezza lasciata dal
        browser (pezzi vuoti, marcatori doppi) sparisce, e quello che si vede
        torna a essere esattamente quello che verra' salvato. */
     ed.addEventListener('blur', function () {
+        /* Entrare in una formula NON e' uscire dall'editor. MathQuill riceve
+           i tasti da una casella nascosta dentro di se': quando il cursore
+           entra nella formula, per il browser l'editor ha perso il fuoco e
+           scatta questo blur — che ridisegnando tutto distruggeva il campo
+           appena aperto, e con lui il cursore, esattamente un istante dopo
+           averlo messo dentro. Era questo a far "sparire il cursore e il
+           focus dalla casella" premendo la freccia verso una formula.
+           Il fuoco non e' uscito: si e' spostato piu' dentro. */
+        if (ftMQCampoAttivo(ed)) return;
         if (wrap._ftFermaDettatura) wrap._ftFermaDettatura();
         var doc = fcdFromDom(ed);
         ed.innerHTML = fcdToHTML(doc);
         ftSync(wrap, doc);
         ftMathRefresh(wrap);       // fuori dall'editor si vedono tutte disegnate
+    });
+
+    /* L'uscita VERA, quella che il blur qui sopra non puo' piu' riconoscere:
+       si controlla dove e' finito il fuoco, non piu' se e' partito. Se e'
+       andato del tutto fuori da questa casella — un'altra casella, un altro
+       punto della pagina — allora si', si esce davvero: la formula aperta si
+       chiude e si ridisegna tutto dal modello, come si e' sempre fatto. Il
+       controllo e' rimandato di un attimo perche' nel momento esatto del
+       focusout il browser non ha ancora detto dove sta andando il fuoco. */
+    ed.addEventListener('focusout', function () {
+        setTimeout(function () {
+            if (!document.body.contains(ed)) return;
+            var dentroQui = document.activeElement && wrap.contains(document.activeElement);
+            if (dentroQui) return;                    // fuoco ancora qui (magari dentro una formula)
+            var campo = ftMQCampoAttivo(ed);
+            if (campo) ftMQSmonta(campo);
+            if (wrap._ftFermaDettatura) wrap._ftFermaDettatura();
+            var doc2 = fcdFromDom(ed);
+            ed.innerHTML = fcdToHTML(doc2);
+            ftSync(wrap, doc2);
+            ftMathRefresh(wrap);
+        }, 0);
     });
 }
 
@@ -3112,7 +4554,7 @@ function ftSetupEditor(wrap) {
 // I tasti della barra
 // ---------------------------------------------------------------
 function ftSetupToolbar(wrap) {
-    var bar = wrap.querySelector('.fmt-toolbar');
+    var bar = ftBarra(wrap);
     var ed = ftEditor(wrap);
     if (!bar || !ed) return;
 
@@ -3147,11 +4589,19 @@ function ftSetupToolbar(wrap) {
                    toglie e chiude il pannello, qualunque fosse il suo stato
                    prima del click: e' il pallino a decidere, non il tasto. */
                 var edLi = ftEditor(wrap);
-                var selLi = fcdGetSel(edLi);
                 var docLi = fcdFromDom(edLi);
-                var bloccoLi = selLi && docLi.blocks[selLi.a.b];
-                var eraLi = !!(bloccoLi && bloccoLi.t === 'li');
+                /* Il blocco vero, anche se il fuoco e' dentro MathQuill: la
+                   sola selezione del documento indicherebbe il testo attorno
+                   (o il primo blocco), ed e' li' che il pallino finiva per
+                   sbaglio invece che sulla formula. */
+                var biLi = ftBloccoCorrente(edLi);
+                var bloccoLi = (biLi != null) ? docLi.blocks[biLi] : null;
+                var eraLi = !!(bloccoLi && (bloccoLi.t === 'li' || (bloccoLi.t === 'fx' && bloccoLi.lvl)));
 
+                /* Nessun caso speciale per le formule: ftCmd sa gia' che, se
+                   il fuoco e' dentro MathQuill, il blocco su cui agire e' la
+                   formula — e fcdToggleList il pallino sulle formule lo sa
+                   mettere. Qui basta il comando normale. */
                 ftCmd(wrap, function (d, s) { return { doc: fcdToggleList(d, s), sel: s }; });
 
                 if (eraLi) fcClosePanel(bar);
@@ -3172,6 +4622,7 @@ function ftSetupToolbar(wrap) {
         if (cmd === 'dictate') return;
         if (cmd === 'punteggiatura') return;    // se ne occupa il pannello della dettatura
         if (cmd === 'dollari-auto') return;     // se ne occupa il suo interruttore, qui sotto
+        if (cmd === 'intelligente-auto') return;   // idem
 
         if (FT_MARK_CMD[cmd]) { ftMark(wrap, FT_MARK_CMD[cmd]); }
         else if (cmd === 'list')        ftCmd(wrap, function (d, s) { return { doc: fcdToggleList(d, s), sel: s }; });
@@ -3201,6 +4652,24 @@ function ftSetupToolbar(wrap) {
             var on = !dollariBtn.classList.contains('is-active');
             ftPrefScrivi('dollari', on ? '1' : '0');
             segnaDollari(on);
+        });
+    }
+
+    /* Stessa idea, per il riconoscimento automatico. */
+    var intelligenteBtn = bar.querySelector('.fmt-intelligente');
+    if (intelligenteBtn) {
+        var segnaIntelligente = function (on) {
+            intelligenteBtn.classList.toggle('is-active', on);
+            intelligenteBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            intelligenteBtn.title = on
+                ? 'Acceso — un comando LaTeX appena scritto ("\\omega", "ciao_x", "a^2") diventa subito una formula'
+                : 'Spento — un comando LaTeX scritto a mano resta testo normale finche\' non lo metti tu tra i dollari';
+        };
+        segnaIntelligente(ftIntelligenteAuto());
+        intelligenteBtn.addEventListener('click', function () {
+            var on = !intelligenteBtn.classList.contains('is-active');
+            ftPrefScrivi('intelligente', on ? '1' : '0');
+            segnaIntelligente(on);
         });
     }
 
@@ -3236,7 +4705,14 @@ function ftSuggerisciFormula(wrap, bar) {
     var ed = ftEditor(wrap);
     var sel = window.getSelection();
     var dentro = false;
-    if (sel && sel.rangeCount && ed.contains(sel.anchorNode)) {
+    /* Con MathQuill montato il cursore del documento non sta piu' dentro la
+       formula (i tasti li riceve una casella nascosta), e da poco non ci sta
+       piu' nemmeno per un istante: ftMQMonta lo toglie di mezzo di proposito.
+       Cercarlo li' porterebbe a concludere che si e' fuori, e i suggerimenti
+       "fine formula / frazione / radice" non comparirebbero proprio nel
+       momento in cui servono. Un campo montato e' gia' una risposta. */
+    if (ftMQCampoAttivo(ed)) dentro = true;
+    if (!dentro && sel && sel.rangeCount && sel.anchorNode && ed.contains(sel.anchorNode)) {
         var n = sel.anchorNode, el = n.nodeType === 1 ? n : n.parentNode;
         dentro = !!(el && el.closest && el.closest('.fc-x, .fc-fx'));
     }

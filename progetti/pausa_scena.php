@@ -70,14 +70,36 @@ body.pausa-mode .pausa-scena{ display:block; animation:psEntra .9s var(--ease-ou
 @keyframes psRaggi{ to{ transform:rotate(360deg); } }
 
 /* ---- il vapore della tisana: tre filini che salgono e svaniscono,
-        sfasati, cosi' non sembrano una cosa sola che pulsa */
-.ps-vapore path{ animation:psVapore 3.6s ease-in-out infinite; transform-origin:bottom center; }
-.ps-vapore path:nth-child(2){ animation-delay:1.2s; }
-.ps-vapore path:nth-child(3){ animation-delay:2.4s; }
+        sfasati, cosi' non sembrano una cosa sola che pulsa.
+
+        Tutta l'alzata sta in un numero solo, --ps-vapore-su, messa sul
+        gruppo: i tre filini restano dove sono nel disegno e si sposta
+        l'insieme. Il giorno che va alzato ancora si cambia quello e
+        basta, invece di tre coordinate a mano.
+
+        transform-box:fill-box sui filini non e' un dettaglio: senza,
+        l'origine "bottom center" non e' il piede del filino ma il fondo
+        dell'intero disegno (y=132, la riga del terreno), e lo scaleY
+        della salita diventava una slittata di venti pixel verso il
+        basso — il vapore partiva molto piu' in giu' di dove e'
+        disegnato, che e' il motivo per cui sembrava incollato al bordo
+        della tazza. Il resto del disegno la regola ce l'ha gia', questi
+        no perche' non hanno una classe loro.
+
+        E dura meno: due secondi e mezzo invece di tre e mezzo. Un filo
+        di vapore che ci mette troppo a salire si guarda, e questa scena
+        deve solo respirare. */
+.ps-vapore{ transform:translateY(var(--ps-vapore-su, -7px)); }
+.ps-vapore path{
+    transform-box:fill-box; transform-origin:bottom center;
+    animation:psVapore 2.5s ease-in-out infinite;
+}
+.ps-vapore path:nth-child(2){ animation-delay:.83s; }
+.ps-vapore path:nth-child(3){ animation-delay:1.66s; }
 @keyframes psVapore{
     0%   { opacity:0;  transform:translateY(2px)  scaleY(.7); }
     35%  { opacity:.7; }
-    100% { opacity:0;  transform:translateY(-9px) scaleY(1.15); }
+    100% { opacity:0;  transform:translateY(-7px) scaleY(1.15); }
 }
 
 /* ---- chi e' seduto: respira anche lui, appena appena. Due pixel di
@@ -178,20 +200,32 @@ body.pausa-mode .pausa-scena{ display:block; animation:psEntra .9s var(--ease-ou
     <g class="ps-persona">
         <!-- testa, un po' inclinata verso il sole -->
         <circle class="ps-tratto" cx="150" cy="62" r="7.5"/>
-        <!-- schiena e gambe incrociate: due archi, niente di piu' -->
-        <path class="ps-tratto" d="M150 70c-3 6-4 12-4 18"/>
-        <path class="ps-tratto" d="M136 106q10-10 22-8"/>
-        <path class="ps-tratto" d="M139 106q9-4 19-1" opacity=".55"/>
-        <!-- il braccio che porge la tazza -->
-        <path class="ps-tratto" d="M148 80q9 3 14-2"/>
+        <!-- La schiena arriva fino all'anca (147,90) e da li' partono le gambe:
+             prima erano due archi staccati, che cominciavano a terra a sinistra
+             del corpo e finivano nel vuoto a destra — il tronco restava
+             sospeso e le gambe sembravano un ghirigoro per terra.
+             Adesso ogni gamba e' una linea sola in due tratti: coscia in
+             avanti fino al ginocchio, stinco che rientra verso il corpo e
+             appoggia il piede sul terreno. E' la posa a gambe incrociate
+             vista di profilo, che e' quella che si stava cercando. -->
+        <path class="ps-tratto" d="M151 70q-6 16-4 33"/>
+        <path class="ps-tratto" d="M147 103q10-6 18-4q-4 9-13 7"/>
+        <path class="ps-tratto" d="M147 104q9-4 15-2q-4 6-11 4" opacity=".55"/>
+        <!-- il braccio che porge la tazza: parte dalla spalla, non da meta'
+             schiena, cosi' la mano arriva davvero al bordo della tazza -->
+        <path class="ps-tratto" d="M149 79q9 3 13-1"/>
         <!-- la tazza -->
         <path class="ps-tratto ps-vivo" d="M162 72h11v5a5.5 5.5 0 0 1-5.5 5.5h0A5.5 5.5 0 0 1 162 77z"/>
         <path class="ps-tratto ps-vivo" d="M173 74h2.4a2.2 2.2 0 0 1 0 4.4H173" opacity=".8"/>
-        <!-- il vapore: tre filini sfasati -->
+        <!-- Il vapore: tre filini sfasati. Le coordinate qui sotto sono il
+             disegno a riposo; a portarlo in alto e' la variabile ps-vapore-su
+             nel foglio di stile qui sopra, cosi' l'altezza si regola in un
+             posto solo. (Niente due trattini di fila qui dentro: dentro un
+             commento non sono ammessi.) -->
         <g class="ps-vapore ps-tratto ps-vivo" stroke-width="1.3">
-            <path d="M165 68q2.5-3 0-6"/>
-            <path d="M169 68q2.5-3 0-6"/>
-            <path d="M173 68q2.5-3 0-6" opacity=".7"/>
+            <path d="M165 70q2.5-3.5 0-7"/>
+            <path d="M169 70q2.5-3.5 0-7"/>
+            <path d="M172.5 70q2.5-3.5 0-7" opacity=".7"/>
         </g>
     </g>
 

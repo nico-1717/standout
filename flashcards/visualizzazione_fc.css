@@ -601,9 +601,19 @@ select.tb-select{
 
     position:absolute; top:0; right:0; bottom:0; z-index:1;
 
-    display:flex; align-items:stretch; border-radius:0 var(--r-card) var(--r-card) 0; overflow:hidden;
+    display:none; align-items:stretch; border-radius:0 var(--r-card) var(--r-card) 0; overflow:hidden;
 
 }
+
+/* La classe la aggiunge il JS solo dopo aver riconosciuto un vero
+
+   trascinamento orizzontale su QUESTA carta (e resta finche' non si
+
+   richiude): prima stavano sempre display:flex dietro al contenuto, ed era
+
+   facile vederli spuntare ai bordi arrotondati durante lo scroll. */
+
+.swipe-actions.revealing{ display:flex; }
 
 .swipe-act{
 
@@ -743,16 +753,6 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
 .qa-side:last-of-type{ margin-bottom:0; }
 
-.qa-label{
-
-    font-size:10.5px; font-weight:800; letter-spacing:.11em; text-transform:uppercase; color:var(--text-3);
-
-    margin-bottom:6px; display:flex; align-items:center; gap:6px;
-
-}
-
-.qa-label::after{ content:''; flex:1; height:.5px; background:var(--hairline); }
-
 .qa-content{ display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
 
 .qa-content.qa-split .qa-text{ flex:1 1 130px; min-width:0; }
@@ -761,7 +761,11 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
 .qa-content.qa-solo .qa-text{ flex:1 1 100%; font-size:16.5px; }
 
-.qa-content.qa-solo .qa-image{ flex:1 1 100%; width:100%; max-height:230px; height:auto; }
+/* Una carta con la SOLA immagine (niente testo): l'immagine occupava tutta la
+   larghezza e finiva ottica-mente a destra rispetto alle altre carte, dove il
+   contenuto parte da sinistra. Ora resta della sua dimensione naturale e si
+   allinea a sinistra come farebbe il testo che non c'e'. */
+.qa-content.qa-solo .qa-image{ flex:0 1 auto; width:auto; max-width:100%; max-height:230px; height:auto; margin-right:auto; }
 
 .qa-content.qa-empty{ color:var(--text-3); font-size:14px; }
 
@@ -835,55 +839,12 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
 
 
-/* ================================================================
-
-   SEZIONE EXAMPLES
-
-   ================================================================ */
-
-.qa-examples{ margin-top:12px; }
-
-.qa-examples .qa-label{ color:var(--purple); opacity:.75; }
-
-.qa-examples-box{
-
-    border:1.5px dashed color-mix(in srgb, var(--purple), transparent 55%);
-
-    border-radius:14px; padding:12px; min-height:38px;
-
-    display:flex; align-items:center; justify-content:center;
-
-    color:var(--text-3); font-size:12.5px; font-weight:600;
-
-    background:color-mix(in srgb, var(--purple), transparent 95%);
-
-}
-
-
-
-.qa-examples-box-filled{
-
-    display:block; text-align:left; padding:14px;
-
-    border-style:solid;
-
-    max-height:120px; overflow-y:auto; padding-right:10px;
-
-}
-
-.qa-examples-box-filled::-webkit-scrollbar{ width:5px; }
-
-.qa-examples-box-filled::-webkit-scrollbar-thumb{ background:var(--hairline-2); border-radius:4px; }
-
-.qa-example-item{ font-size:14.5px; line-height:1.5; color:var(--text); }
-
-.qa-example-item + .qa-example-item{ margin-top:12px; padding-top:12px; border-top:.5px solid color-mix(in srgb, var(--purple), transparent 70%); }
-
-.qa-example-text{ white-space:pre-wrap; }
-
-.qa-example-image{ max-width:100%; max-height:180px; border-radius:9px; display:block; margin-top:8px; }
-
-.qa-example-audio{ width:100%; height:32px; margin-top:8px; border-radius:10px; }
+/* Il riquadro esempi col carosello (.qa-examples, .qa-ex-*, .qa-example-*)
+   e .qa-label vivono in examples_box.css, caricato da questa pagina e da
+   modifica_immagine_fc.php: un file solo da cui dipendono entrambe,
+   invece delle stesse regole scritte in due punti da tenere allineati.
+   Gli aggiustamenti legati a QUESTA pagina (visore a flashcard, visore
+   a schermo intero degli esempi) restano piu' sotto. */
 
 
 
@@ -895,21 +856,42 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 
 #image-overlay{
 
-    position:fixed; inset:0; z-index:9999; display:none;
+    /* z-index sopra il popup dell'esempio (10350) e sopra gli avvisi (10500):
+       l'immagine a tutto schermo si apre DA quel popup, quindi deve stargli
+       davanti — prima ci finiva dietro e sembrava non succedesse niente.
+       touch-action:none perche' i gesti (due dita per ingrandire, trascinamento
+       verso il basso per chiudere) li gestiamo noi: lasciandoli al browser,
+       questo li interpreterebbe come scorrimento della pagina. */
+    position:fixed; inset:0; z-index:10600; display:none;
 
     justify-content:center; align-items:center; background:rgba(0,0,0,.94);
 
     -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
 
+    touch-action:none; overscroll-behavior:contain; -webkit-user-select:none; user-select:none;
+
+    animation:zoomIn .22s ease both;
+
 }
 
-#overlay-img{ max-width:100%; max-height:100%; object-fit:contain; animation:zoomIn .3s var(--spring); }
+/* Mentre si guarda un'immagine, dietro non si scorre e non si tocca niente. */
+body.fc-zoom-aperto{ overflow:hidden; }
 
-@keyframes zoomIn{ from{ transform:scale(.85); opacity:0; } }
+#overlay-img{ will-change:transform; transform-origin:center center; -webkit-user-drag:none; }
+
+/* L'animazione d'ingresso non sta piu' sull'immagine: agiva sul suo
+   transform, cioe' la stessa proprieta' che usano lo zoom a due dita e il
+   trascinamento per chiudere. Per i primi 0,3s i due si contendevano
+   l'elemento, e un gesto iniziato subito veniva mangiato dall'animazione.
+   Ora a comparire e' l'overlay, e il transform dell'immagine resta solo
+   nostro. */
+#overlay-img{ max-width:100%; max-height:100%; object-fit:contain; }
+
+@keyframes zoomIn{ from{ opacity:0; } }
 
 #close-overlay{
 
-    position:absolute; top:calc(var(--safe-top) + 12px); right:14px; z-index:10000;
+    position:absolute; top:calc(var(--safe-top) + 12px); right:14px; z-index:10610;
 
     width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.16); color:#fff;
 
@@ -1080,3 +1062,661 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
     .qa-content.qa-split .qa-image{ flex:0 0 96px; width:96px; height:96px; }
 
 }
+
+/* ================================================================
+   RICERCA — evidenziazione e risultati nelle sottocartelle
+   ================================================================ */
+
+/* Il tasto "seleziona" e' rimasto senza scritta: senza questo il padding
+   laterale, pensato per icona + testo, lo lascerebbe storto. */
+.select-mode-btn.icon-only{ padding:9px 11px; gap:0; }
+.select-mode-btn.icon-only svg{ width:16px; height:16px; }
+
+mark.fc-hl{
+    background:color-mix(in srgb, var(--cat-color), transparent 74%);
+    color:inherit; border-radius:4px; padding:0 1px;
+    box-shadow:0 0 0 1px color-mix(in srgb, var(--cat-color), transparent 55%);
+}
+
+/* Lampeggio della carta su cui si torna dopo una modifica: serve a ritrovarla
+   con l'occhio, quindi e' vistoso ma breve. */
+@keyframes fcFocusFlash{
+    0%{ box-shadow:0 0 0 0 color-mix(in srgb, var(--cat-color), transparent 30%); }
+    30%{ box-shadow:0 0 0 5px color-mix(in srgb, var(--cat-color), transparent 55%); }
+    100%{ box-shadow:0 0 0 0 color-mix(in srgb, var(--cat-color), transparent 100%); }
+}
+.fc-card.fc-focus-flash{ animation:fcFocusFlash 1.1s var(--spring) 2 both; border-radius:var(--r-card); }
+
+.fc-deep{ margin:6px 0 26px; }
+.fc-deep[hidden]{ display:none; }
+
+.fc-deep-label{
+    display:flex; align-items:center; gap:6px;
+    font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--text-3); padding:14px 4px 10px;
+}
+.fc-deep-label svg{ width:13px; height:13px; opacity:.85; }
+
+.fc-deep-loading{
+    font-size:13px; font-weight:700; color:var(--text-3);
+    padding:14px 4px; opacity:.9;
+}
+
+.fc-deep-group{ margin:0 0 14px; }
+
+/* La riga del percorso e' anche il comando che chiude la cartella: sta su una
+   striscia sua, staccata dalle carte, cosi' si capisce che comanda tutte
+   quelle che ha sotto. */
+.fc-deep-head{
+    display:flex; align-items:stretch; gap:0;
+    background:var(--surface); border-radius:var(--r-btn);
+    box-shadow:var(--shadow-card), inset 0 0 0 .5px var(--hairline);
+    overflow:hidden; margin-bottom:10px;
+    border-left:3px solid var(--row-color);
+}
+.fc-deep-head .fdh-main{
+    flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:8px;
+    padding:11px 6px 11px 12px; border:none; background:none; cursor:pointer;
+    font-family:inherit; color:var(--text); text-align:left;
+}
+.fc-deep-head .fdh-main:active{ background:var(--surface-2); }
+.fdh-chev{ flex-shrink:0; display:flex; width:15px; height:15px; color:var(--text-3); transition:transform .25s var(--spring); }
+.fdh-chev svg{ width:15px; height:15px; }
+.fdh-path{
+    flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:4px;
+    overflow-x:auto; scrollbar-width:none; white-space:nowrap;
+}
+.fdh-path::-webkit-scrollbar{ display:none; }
+.fdh-seg{ font-size:13.5px; font-weight:700; color:var(--text); }
+.fdh-seg:last-child{ color:var(--row-color); }
+.fdh-sep{ font-size:12px; font-weight:600; color:var(--text-3); }
+.fdh-count{
+    flex-shrink:0; min-width:22px; padding:2px 7px; border-radius:var(--r-chip);
+    font-size:11.5px; font-weight:800; text-align:center; color:#fff;
+    background:var(--row-color); font-variant-numeric:tabular-nums;
+}
+.fdh-go{
+    flex-shrink:0; display:flex; align-items:center; padding:0 12px;
+    color:var(--text-3); text-decoration:none;
+    border-left:.5px solid var(--hairline);
+}
+.fdh-go svg{ width:16px; height:16px; }
+.fdh-go:active{ background:var(--surface-2); }
+
+.fc-deep-body{ padding-left:2px; }
+.fc-deep-group.collapsed .fdh-chev{ transform:rotate(-90deg); }
+.fc-deep-group.collapsed .fc-deep-body{ display:none; }
+.fc-deep-group.collapsed .fc-deep-head{ margin-bottom:0; }
+
+/* ================================================================
+   IMPOSTAZIONI DELLA VISTA, TASTO "+" A DUE STRADE, NUOVA CARTELLA
+   ================================================================ */
+
+/* Tasto tondo nella barra degli strumenti: prende il posto della tendina del
+   filtro, che ora vive dentro le impostazioni. */
+.tb-icon-btn{
+    position:relative; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    width:36px; height:36px; border:none; border-radius:50%; cursor:pointer;
+    background:var(--surface-2); color:var(--text-2);
+    transition:transform .15s var(--spring), background .2s;
+}
+.tb-icon-btn:active{ transform:scale(.92); background:var(--surface-3); }
+.tb-icon-btn svg{ width:17px; height:17px; }
+/* Pallino: un filtro attivo non deve poter passare inosservato. */
+.tb-icon-btn.has-dot::after{
+    content:''; position:absolute; top:3px; right:3px; width:8px; height:8px; border-radius:50%;
+    background:var(--cat-color); box-shadow:0 0 0 2px var(--bg);
+}
+
+/* Carte ed esempi per intero: si toglie solo il tetto all'altezza, il resto
+   dello stile resta quello di sempre. */
+/* Solo il tetto all'altezza: l'overflow resta com'era. Mettendo
+   overflow-y:visible saltava anche lo scorrimento orizzontale (una sola delle
+   due direzioni non puo' restare "visible" se l'altra non lo e'), e una
+   formula larga spingeva fuori dallo schermo tutto il testo insieme a se'. */
+body.fc-full-cards .qa-text{ max-height:none; }
+body.fc-full-cards .qa-content.qa-solo .qa-image{ max-height:none; }
+body.fc-full-examples .qa-ex-viewport{ max-height:none; }
+
+/* E in ogni caso la formula a blocco si scorre da se', senza appoggiarsi
+   all'overflow del testo che la contiene. */
+.fc-fx{ max-width:100%; overflow-x:auto; overflow-y:hidden; }
+.fc-fx::-webkit-scrollbar{ height:4px; }
+.fc-fx::-webkit-scrollbar-thumb{ background:var(--hairline-2); border-radius:4px; }
+
+.opt-group{ margin:0 0 18px; }
+.opt-group-label{
+    font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--text-3); padding:0 2px 8px;
+}
+.opt-row{
+    display:flex; align-items:center; gap:14px; padding:12px 14px;
+    background:var(--surface-2); border-radius:14px;
+}
+.opt-row + .opt-row{ margin-top:8px; }
+.opt-txt{ flex:1 1 auto; min-width:0; }
+.opt-title{ font-size:15px; font-weight:700; color:var(--text); }
+.opt-sub{ margin-top:2px; font-size:12.5px; font-weight:500; color:var(--text-2); }
+
+.opt-select-wrap{ position:relative; flex-shrink:0; }
+.opt-select-wrap::after{
+    content:''; position:absolute; right:10px; top:50%; width:6px; height:6px; pointer-events:none;
+    border-right:1.6px solid var(--text-2); border-bottom:1.6px solid var(--text-2);
+    transform:translateY(-70%) rotate(45deg);
+}
+select.opt-select{
+    padding:8px 26px 8px 12px; border-radius:var(--r-chip); border:none;
+    font-family:inherit; font-size:13.5px; font-weight:700; color:var(--text);
+    background:var(--surface); -webkit-appearance:none; appearance:none; cursor:pointer;
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+}
+
+.opt-switch{ flex-shrink:0; position:relative; display:block; width:50px; height:30px; cursor:pointer; }
+.opt-switch input{ position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
+.opt-track{
+    position:absolute; inset:0; border-radius:99px; background:var(--hairline-2);
+    transition:background .25s var(--spring);
+}
+.opt-knob{
+    position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%;
+    background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.22);
+    transition:transform .28s var(--spring);
+}
+.opt-switch input:checked ~ .opt-track{ background:var(--cat-color); }
+.opt-switch input:checked ~ .opt-track .opt-knob{ transform:translateX(20px); }
+
+/* "Cosa vuoi aggiungere?" — due caselle grandi, si toccano al volo. */
+.pick-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+.pick-tile{
+    display:flex; flex-direction:column; align-items:flex-start; gap:4px;
+    padding:16px 14px; border:none; border-radius:16px; cursor:pointer; text-align:left;
+    font-family:inherit; color:var(--text); background:var(--surface-2);
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+    transition:transform .15s var(--spring), background .2s;
+}
+.pick-tile:active{ transform:scale(.96); background:var(--surface-3); }
+.pt-ic{
+    display:flex; align-items:center; justify-content:center; width:38px; height:38px;
+    border-radius:12px; margin-bottom:6px; color:#fff;
+    background:linear-gradient(180deg, var(--cat-light), var(--cat-color) 60%, var(--cat-dark));
+}
+.pt-ic svg{ width:19px; height:19px; }
+.pt-lab{ font-size:15px; font-weight:800; }
+.pt-sub{ font-size:12px; font-weight:500; color:var(--text-2); line-height:1.35; }
+
+.nf-input{
+    width:100%; padding:13px 14px; border:none; border-radius:14px; margin-bottom:16px;
+    font-family:inherit; font-size:16px; font-weight:600; color:var(--text);
+    background:var(--surface-2); box-shadow:inset 0 0 0 1px transparent;
+    transition:box-shadow .25s var(--spring), background .25s;
+}
+.nf-input:focus{ outline:none; background:var(--surface); box-shadow:inset 0 0 0 1.5px var(--cat-color), 0 0 0 4px var(--cat-soft); }
+
+.nf-color-head{ display:flex; align-items:center; gap:9px; padding:0 2px 10px; }
+.nf-color-dot{ width:18px; height:18px; border-radius:6px; box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2); }
+.nf-color-name{ font-size:13.5px; font-weight:700; color:var(--text-2); }
+
+.nf-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(42px, 1fr)); gap:8px; margin-bottom:14px; }
+.nf-sw{
+    position:relative; height:42px; border:none; border-radius:12px; cursor:pointer;
+    background:var(--sw, var(--surface-2));
+    box-shadow:inset 0 0 0 .5px rgba(0,0,0,.14);
+    transition:transform .15s var(--bounce);
+}
+.nf-sw:active{ transform:scale(.9); }
+.nf-sw .nf-check{ width:18px; height:18px; position:absolute; inset:0; margin:auto; opacity:0; transform:scale(.4); transition:all .2s var(--bounce); }
+.nf-sw.selected .nf-check{ opacity:1; transform:scale(1); }
+.nf-sw.selected{ box-shadow:inset 0 0 0 .5px rgba(0,0,0,.14), 0 0 0 3px var(--cat-soft-2); }
+/* Il "colore di default" e' una casella a sé: non ha un colore proprio da
+   mostrare, mostra che il colore lo decide il padre. */
+.nf-sw-auto{ background:var(--surface-2); color:var(--text-2); display:flex; align-items:center; justify-content:center; }
+.nf-sw-auto svg{ width:19px; height:19px; }
+
+.nf-custom{ display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+.nf-custom input[type="color"]{
+    width:40px; height:32px; padding:0; border:none; border-radius:9px; background:none; cursor:pointer;
+}
+.nf-custom-lab{ flex:1; font-size:13.5px; font-weight:600; color:var(--text-2); }
+.nf-custom-hex{ font-size:12.5px; font-weight:700; color:var(--text-3); font-variant-numeric:tabular-nums; }
+
+.sheet-btn.primary{
+    color:#fff; background:linear-gradient(180deg, var(--cat-light), var(--cat-color) 55%, var(--cat-dark));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.25), 0 8px 20px -8px var(--cat-line);
+}
+.sheet-btn.primary:disabled{ opacity:.5; box-shadow:none; }
+
+/* ================================================================
+   BARRA IN ALTO MODIFICABILE + RIEPILOGO DEL PROGETTO
+   ================================================================ */
+
+/* Il nome ha un tocco suo (rinomina), il resto della pastiglia apre il colore.
+   Niente display:inline-block e niente sottolineatura: il nome resta un blocco
+   a tutta larghezza, altrimenti la pastiglia del progetto gli si affianca
+   invece di stare sotto e la sezione della categoria si stringe. */
+.cat-pill.editable .cat-pill-name{ cursor:text; }
+.cat-pill-name-input{
+    display:block; width:100%; margin:1px 0 0; padding:1px 6px;
+    font-family:inherit; font-size:16px; font-weight:800; letter-spacing:-.01em;
+    color:#fff; background:rgba(0,0,0,.22); border:none; border-radius:8px;
+    box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.6);
+}
+.cat-pill-name-input:focus{ outline:none; background:rgba(0,0,0,.3); }
+
+.prj-panel{ padding-top:22px; }
+.prj-loading{ padding:26px 4px; text-align:center; font-size:14px; font-weight:700; color:var(--text-3); }
+
+.prj-head{ margin-bottom:14px; }
+.prj-path{
+    display:flex; align-items:center; gap:5px; flex-wrap:wrap;
+    font-size:11.5px; font-weight:700; color:var(--text-3); margin-bottom:4px;
+}
+.prj-path-sep{ opacity:.6; }
+.prj-title-row{ display:flex; align-items:center; gap:9px; }
+.prj-dot{ flex-shrink:0; width:12px; height:12px; border-radius:4px; background:var(--prj, var(--cat-color)); }
+.prj-name{ font-size:21px; font-weight:850; letter-spacing:-.025em; color:var(--text); line-height:1.2; }
+.prj-badges{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.prj-badge{
+    padding:3px 9px; border-radius:99px; font-size:11px; font-weight:800;
+    background:var(--surface-2); color:var(--text-2);
+}
+.prj-badge.ok{ background:var(--green-soft); color:var(--green); }
+.prj-badge.live{ background:var(--blue-soft); color:var(--blue); }
+.prj-badge.fav{ background:var(--orange-soft); color:var(--orange); }
+
+.prj-notes{
+    margin:0 0 16px; padding:11px 13px; border-radius:13px;
+    background:var(--surface-2); color:var(--text-2);
+    font-size:13.5px; font-weight:500; line-height:1.45; white-space:pre-wrap;
+}
+
+/* Quattro riquadri: si leggono in un colpo d'occhio, senza dover contare. */
+.prj-stats{ display:grid; grid-template-columns:repeat(4, 1fr); gap:7px; margin-bottom:16px; }
+.prj-stat{
+    padding:11px 8px; border-radius:13px; text-align:center; background:var(--surface-2);
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+}
+.prj-stat-v{ font-size:16px; font-weight:850; color:var(--text); font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+.prj-stat-l{ margin-top:2px; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--text-3); }
+.prj-stat-s{ margin-top:3px; font-size:9.5px; font-weight:700; color:var(--text-3); opacity:.85; line-height:1.2; }
+@media (max-width:420px){
+    .prj-stats{ grid-template-columns:repeat(2, 1fr); }
+}
+
+.prj-bars{ display:flex; flex-direction:column; gap:11px; margin-bottom:18px; }
+.prj-bar-top{
+    display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px;
+    font-size:12px; font-weight:800; color:var(--text-2);
+}
+.prj-bar-track{ height:7px; border-radius:99px; background:var(--surface-2); overflow:hidden; }
+.prj-bar-track span{
+    display:block; height:100%; border-radius:99px; background:var(--prj, var(--cat-color));
+    transition:width .6s var(--spring);
+}
+
+.prj-block{ margin-bottom:18px; }
+.prj-block-lab{
+    font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--text-3); padding:0 2px 8px;
+}
+
+.prj-dates{ display:flex; flex-direction:column; gap:7px; }
+.prj-date{
+    display:flex; align-items:center; gap:10px; padding:10px 13px; border-radius:13px;
+    background:var(--surface-2); font-size:13.5px;
+}
+.prj-date-lab{ font-weight:800; color:var(--text-2); flex-shrink:0; }
+.prj-date-val{ flex:1; font-weight:700; color:var(--text); }
+.prj-date-when{ font-size:12px; font-weight:700; color:var(--text-3); }
+/* Rosso solo quando c'e' davvero qualcosa da recuperare. */
+.prj-date.late{ background:var(--red-soft); }
+.prj-date.late .prj-date-val, .prj-date.late .prj-date-when, .prj-date.late .prj-date-lab{ color:var(--red); }
+
+.prj-event{
+    display:flex; flex-direction:column; gap:2px; padding:12px 14px; border-radius:14px;
+    background:var(--surface-2); text-decoration:none; color:inherit;
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+}
+.prj-event:active{ background:var(--surface-3); }
+.prj-event-day{ font-size:11px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; color:var(--cat-color); }
+.prj-event-title{ font-size:15px; font-weight:750; color:var(--text); }
+.prj-event-when{ font-size:12px; font-weight:600; color:var(--text-3); }
+
+.prj-children, .prj-decks{ display:flex; flex-wrap:wrap; gap:7px; }
+.prj-child{
+    display:inline-flex; align-items:center; gap:7px; max-width:100%;
+    padding:7px 12px; border-radius:99px; text-decoration:none;
+    background:var(--surface-2); color:var(--text); font-size:13px; font-weight:700;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.prj-child-dot{ width:8px; height:8px; border-radius:50%; background:var(--prj, var(--cat-color)); flex-shrink:0; }
+.prj-child.done{ opacity:.5; text-decoration:line-through; }
+.prj-child.more{ color:var(--text-3); font-weight:800; }
+
+.prj-deck{
+    display:inline-flex; align-items:center; gap:7px; max-width:100%;
+    padding:7px 8px 7px 12px; border-radius:99px; text-decoration:none;
+    background:var(--surface-2); color:var(--text); font-size:13px; font-weight:700;
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+}
+.prj-deck-dot{ width:8px; height:8px; border-radius:50%; background:var(--prj); flex-shrink:0; }
+.prj-deck-name{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.prj-deck-n{
+    padding:1px 7px; border-radius:99px; font-size:11px; font-weight:800;
+    background:var(--surface); color:var(--text-3); font-variant-numeric:tabular-nums;
+}
+/* Il mazzo che si sta guardando si riconosce senza doverlo cercare. */
+.prj-deck.qui{ box-shadow:inset 0 0 0 1.5px var(--prj); }
+.prj-deck-qui{
+    padding:1px 7px; border-radius:99px; font-size:10px; font-weight:800;
+    text-transform:uppercase; letter-spacing:.05em; background:var(--prj); color:#fff;
+}
+
+a.sheet-btn.prj-go{ display:flex; align-items:center; justify-content:center; text-decoration:none; }
+
+/* ================================================================
+   VISTA A FLASHCARD — tasto flottante e visore a tutto schermo
+   ================================================================ */
+
+:root{
+    /* Valori di riserva: all'avvio il JS li rifà misurando il tasto della
+       sidebar, così i due restano alla stessa altezza anche se quel foglio
+       di stile cambia. */
+    --fcv-fab-bottom: calc(18px + var(--safe-bottom));
+    --fcv-fab-size: 52px;
+}
+
+.fcv-fab{
+    position:fixed; right:16px; bottom:var(--fcv-fab-bottom); z-index:9000;
+    width:var(--fcv-fab-size); height:var(--fcv-fab-size);
+    display:flex; align-items:center; justify-content:center;
+    border:none; border-radius:50%; cursor:pointer; color:#fff;
+    background:linear-gradient(180deg, var(--cat-light), var(--cat-color) 55%, var(--cat-dark));
+    box-shadow:0 10px 26px -8px var(--cat-line), inset 0 1px 0 rgba(255,255,255,.28);
+    transition:transform .18s var(--spring), opacity .2s;
+    animation:fabIn .5s var(--bounce) both;
+}
+@keyframes fabIn{ from{ opacity:0; transform:scale(.6) translateY(14px); } }
+.fcv-fab svg{ width:24px; height:24px; }
+.fcv-fab:active{ transform:scale(.9); }
+/* In selezione e mentre il visore è aperto non deve stare fra i piedi. */
+body.select-mode .fcv-fab, body.fcv-lock .fcv-fab{ display:none; }
+
+.fcv{
+    position:fixed; inset:0; z-index:10200; display:none;
+    flex-direction:column; align-items:center;
+}
+.fcv.on{ display:flex; }
+/* Il body viene congelato dov'era (top negativo impostato dal JS): con il solo
+   overflow:hidden il dito continuava a trascinare la pagina dietro al visore. */
+body.fcv-lock{ position:fixed; left:0; right:0; width:100%; overflow:hidden; }
+.fcv-back{
+    position:absolute; inset:0; background:rgba(0,0,0,.55);
+    -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);
+    animation:fcvBackIn .32s ease-out both;
+}
+@keyframes fcvBackIn{ from{ opacity:0; } }
+
+.fcv-top{
+    position:relative; z-index:2; width:100%; max-width:620px;
+    display:flex; align-items:center; gap:10px;
+    padding:calc(var(--safe-top) + 12px) 16px 10px;
+}
+.fcv-tb{
+    flex-shrink:0; width:38px; height:38px; display:flex; align-items:center; justify-content:center;
+    border:none; border-radius:50%; cursor:pointer; text-decoration:none;
+    background:rgba(255,255,255,.16); color:#fff;
+    transition:transform .15s var(--spring), background .2s;
+}
+.fcv-tb:active{ transform:scale(.9); background:rgba(255,255,255,.26); }
+.fcv-tb svg{ width:18px; height:18px; }
+.fcv-play{ background:linear-gradient(180deg, var(--cat-light), var(--cat-color) 60%, var(--cat-dark)); }
+.fcv-ghost{ background:none; pointer-events:none; }
+.fcv-count{
+    flex:1; text-align:center; color:#fff; font-size:14px; font-weight:800;
+    font-variant-numeric:tabular-nums; text-shadow:0 1px 4px rgba(0,0,0,.4);
+}
+
+.fcv-progress{
+    position:relative; z-index:2; width:100%; max-width:620px; height:3px; margin:0 0 4px;
+    background:rgba(255,255,255,.18);
+}
+.fcv-progress span{
+    display:block; height:100%; width:0; background:var(--cat-light);
+    transition:width .35s var(--spring);
+}
+/* Barra dei fratelli: piu' sottile e in tono minore, per non farla scambiare
+   con quella dell'intero mazzo che le sta subito sopra. */
+.fcv-progress-sib{ height:2px; margin-top:-2px; background:rgba(255,255,255,.10); }
+/* Invisibile ma ancora nel flusso: e' quello che evita lo scatto quando si
+   passa da un padre a una figlia e viceversa. */
+.fcv-progress-sib.is-off{ opacity:0; }
+.fcv-progress-sib span{ background:rgba(255,255,255,.55); }
+
+/* Striscia con la domanda del padre, in cima alla faccia della sotto-carta. */
+.fcv-parent-strip{
+    flex-shrink:0; display:block; width:100%; text-align:left; cursor:pointer;
+    margin:0 0 12px; padding:9px 11px; border:none; border-radius:12px;
+    font-family:inherit; color:var(--text-2);
+    background:color-mix(in srgb, var(--cat-color), transparent 92%);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--cat-color), transparent 78%);
+    transition:transform .15s var(--spring), background .2s;
+}
+.fcv-parent-strip[hidden]{ display:none; }
+.fcv-parent-strip:active{ transform:scale(.98); background:color-mix(in srgb, var(--cat-color), transparent 85%); }
+.fcv-parent-lab{
+    display:flex; align-items:center; gap:4px; margin-bottom:3px;
+    font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--cat-color);
+}
+.fcv-parent-lab svg{ width:11px; height:11px; }
+/* Le prime due righe e basta: e' un richiamo al padre, non il suo contenuto. */
+.fcv-parent-txt{
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    overflow:hidden; font-size:13px; font-weight:650; line-height:1.35; color:var(--text);
+}
+
+.fcv-stage{
+    position:relative; z-index:2; flex:1; width:100%; max-width:620px;
+    min-height:0; perspective:1400px;
+}
+/* Stessi inset assoluti di .fcv-vicino qui sotto, non piu' width/height:100%
+   dentro un flex centrato: le due misure nascevano da due meccanismi CSS
+   diversi (percentuali su un flex item contro inset assoluti), che in certi
+   browser non tornano identici di un pelo - abbastanza da vedere uno scatto
+   quando la carta vicina, a fine volo, prendeva il posto di quella vera. */
+.fcv-card{
+    position:absolute; left:16px; right:16px; top:14px; bottom:14px;
+    will-change:transform, opacity;
+}
+/* Le carte accanto, quelle che entrano sfogliando: stessa area della carta
+   vera, che nello stage e' delimitata dal suo padding. Il movimento (durante
+   il trascinamento e nel volo finale) lo scrive il JS con la Web Animations
+   API: niente transizione CSS qui, altrimenti le due animazioni si
+   accavallerebbero. */
+.fcv-vicino{
+    position:absolute; left:16px; right:16px; top:14px; bottom:14px;
+    pointer-events:none; will-change:transform, opacity;
+}
+.fcv-inner{
+    position:relative; width:100%; height:100%;
+    transform-style:preserve-3d; transition:transform .55s var(--spring);
+}
+.fcv-inner.flipped{ transform:rotateY(180deg); }
+.fcv-face{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    -webkit-backface-visibility:hidden; backface-visibility:hidden;
+    background:var(--surface); color:var(--text);
+    border-radius:24px; padding:22px 20px;
+    box-shadow:0 20px 60px -18px rgba(0,0,0,.55), inset 0 0 0 .5px var(--hairline);
+    overflow:hidden;
+}
+.fcv-backface{ transform:rotateY(180deg); }
+/* Filetto colorato su ogni carta, come nell'elenco: pieno sui padri, a
+   trattini sulle sotto-carte, cosi' si distinguono anche a colpo d'occhio. */
+.fcv-face{ border-left:4px solid var(--cat-color); }
+.fcv-card.is-child .fcv-face{ border-left:3px dashed color-mix(in srgb, var(--cat-color), transparent 25%); }
+.fcv-eyebrow{
+    flex-shrink:0; font-size:10.5px; font-weight:800; letter-spacing:.11em;
+    text-transform:uppercase; color:var(--text-3); margin-bottom:10px;
+}
+.fcv-eyebrow.ans{ color:var(--cat-color); }
+.fcv-body{
+    flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;
+    font-size:17px; line-height:1.5;
+}
+.fcv-body .qa-content{ display:block; }
+.fcv-body .qa-text{ max-height:none; font-size:17px; }
+.fcv-body .qa-image{ width:100%; max-height:38vh; height:auto; object-fit:contain; margin-top:12px; }
+.fcv-body .qa-examples{ margin-top:16px; }
+.fcv-hint{
+    flex-shrink:0; padding-top:12px; text-align:center;
+    font-size:11.5px; font-weight:700; color:var(--text-3); opacity:.8;
+}
+
+.fcv-edit{
+    position:absolute; bottom:-14px; right:-6px; z-index:3;
+    width:38px; height:38px; display:flex; align-items:center; justify-content:center;
+    border:none; border-radius:50%; cursor:pointer; color:#fff;
+    background:linear-gradient(180deg, var(--cat-light), var(--cat-color) 60%, var(--cat-dark));
+    box-shadow:0 8px 20px -8px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.28);
+    transition:transform .15s var(--spring);
+}
+.fcv-edit:active{ transform:scale(.9); }
+.fcv-edit svg{ width:17px; height:17px; }
+
+.fcv-nav{
+    position:relative; z-index:2; display:flex; align-items:center; gap:16px;
+    padding:8px 16px calc(18px + var(--safe-bottom));
+}
+.fcv-nb{
+    width:50px; height:50px; display:flex; align-items:center; justify-content:center;
+    border:none; border-radius:50%; cursor:pointer;
+    background:rgba(255,255,255,.16); color:#fff;
+    transition:transform .15s var(--spring), opacity .2s;
+}
+.fcv-nb:active{ transform:scale(.9); }
+.fcv-nb.off{ opacity:.28; pointer-events:none; }
+.fcv-nb svg{ width:22px; height:22px; }
+.fcv-nb-main{
+    width:60px; height:60px;
+    background:linear-gradient(180deg, var(--cat-light), var(--cat-color) 55%, var(--cat-dark));
+    box-shadow:0 10px 26px -8px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.28);
+}
+.fcv-nb-main svg{ width:26px; height:26px; }
+
+/* ================================================================
+   ESEMPIO A TUTTO SCHERMO
+   ================================================================ */
+
+/* Sopra il visore a flashcard (10200) ma sotto i toast (10500): si apre anche
+   da dentro il visore e deve starci sopra, senza però coprire gli avvisi. */
+.ex-modal{
+    position:fixed; inset:0; z-index:10350; display:none;
+    align-items:center; justify-content:center; padding:0;
+}
+.ex-modal.on{ display:flex; }
+body.ex-lock{ overflow:hidden; }
+
+.ex-modal-back{
+    position:absolute; inset:0; background:rgba(0,0,0,.5);
+    -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);
+    animation:fcvBackIn .28s ease-out both;
+}
+
+.ex-modal-panel{
+    position:relative; z-index:1; display:flex; flex-direction:column;
+    width:100%; max-width:680px; max-height:100%;
+    padding:calc(var(--safe-top) + 14px) 18px calc(var(--safe-bottom) + 16px);
+    animation:exPanelIn .34s var(--spring) both;
+}
+@keyframes exPanelIn{ from{ opacity:0; transform:translateY(22px) scale(.97); } }
+@media (min-width:640px){
+    /* Su schermi larghi diventa una scheda staccata: a tutta pagina
+       sprecherebbe spazio ai lati senza dare altezza in più. */
+    .ex-modal-panel{
+        max-height:86vh; border-radius:24px; padding:18px;
+        background:var(--surface);
+        box-shadow:0 26px 70px -20px rgba(0,0,0,.6), inset 0 0 0 .5px var(--hairline);
+    }
+}
+
+.ex-modal-head{
+    flex-shrink:0; display:flex; align-items:center; gap:12px; margin-bottom:12px;
+}
+.ex-modal-title{
+    flex:1; font-size:11px; font-weight:800; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--purple);
+}
+.ex-modal-close{
+    flex-shrink:0; width:34px; height:34px; display:flex; align-items:center; justify-content:center;
+    border:none; border-radius:50%; cursor:pointer;
+    background:var(--surface-2); color:var(--text-2);
+    transition:transform .15s var(--spring), background .2s;
+}
+.ex-modal-close:active{ transform:scale(.9); background:var(--surface-3); }
+.ex-modal-close svg{ width:17px; height:17px; }
+
+/* Qui l'esempio ha finalmente spazio: nessun tetto all'altezza oltre a quello
+   del pannello, e le immagini possono crescere. */
+.ex-modal-body{
+    flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;
+    padding:16px 16px 18px; border-radius:18px;
+    background:var(--surface); box-shadow:inset 0 0 0 .5px var(--hairline);
+    font-size:16px; line-height:1.6;
+}
+@media (min-width:640px){
+    .ex-modal-body{ background:var(--surface-2); }
+}
+.ex-modal-body .qa-example-item{ font-size:16px; line-height:1.6; }
+.ex-modal-body .qa-example-image{ max-height:none; width:100%; object-fit:contain; margin-top:12px; }
+.ex-modal-body .qa-example-audio{ height:38px; margin-top:12px; }
+.ex-modal-body .fc-fx{ overflow-x:auto; }
+
+.ex-modal-nav{
+    flex-shrink:0; display:flex; align-items:center; justify-content:center; gap:16px;
+    padding-top:14px; min-height:0;
+}
+.ex-modal-nav:empty{ display:none; }
+.ex-modal-arrow{
+    width:42px; height:42px; display:flex; align-items:center; justify-content:center;
+    border:none; border-radius:50%; cursor:pointer;
+    background:var(--surface-2); color:var(--text-2);
+    transition:transform .15s var(--spring), background .2s, color .2s;
+}
+.ex-modal-arrow:hover{ background:var(--purple); color:#fff; }
+.ex-modal-arrow:active{ transform:scale(.9); }
+.ex-modal-arrow svg{ width:19px; height:19px; }
+
+
+/* ================================================================
+   FORMULE LUNGHE: MAI SCORRIMENTO ORIZZONTALE DELLA CARTA
+   ================================================================
+   Una formula in linea non puo' andare a capo dove capita: MathJax la
+   disegna come un blocco unico, e se e' piu' larga della carta la fa
+   debordare. .qa-text ha overflow-y:auto, e per come funziona il CSS questo
+   rende "auto" anche l'asse orizzontale: risultato, la carta diventava
+   trascinabile di lato.
+
+   Qui l'asse orizzontale si chiude esplicitamente, e a scorrere - se proprio
+   deve - e' la singola formula dentro il suo contenitore, non la carta. Cosi'
+   il resto del testo resta fermo e leggibile. */
+.qa-text{ overflow-x:hidden; }
+
+.qa-text mjx-container,
+.qa-example-item mjx-container,
+.fcv-body mjx-container{
+    max-width:100%;
+    overflow-x:auto;
+    overflow-y:hidden;
+    overscroll-behavior-x:contain;   /* lo scorrimento della formula non si propaga alla pagina */
+}
+.qa-text mjx-container::-webkit-scrollbar,
+.qa-example-item mjx-container::-webkit-scrollbar{ height:4px; }
+.qa-text mjx-container::-webkit-scrollbar-thumb,
+.qa-example-item mjx-container::-webkit-scrollbar-thumb{ background:var(--hairline-2); border-radius:4px; }
+
+/* Rete di sicurezza sull'intera pagina: qualunque cosa sfori, si taglia
+   invece di aggiungere una barra di scorrimento laterale. 'clip' e non
+   'hidden' per non creare un contenitore di scorrimento che romperebbe gli
+   elementi appiccicati in alto. */
+html, body{ max-width:100%; overflow-x:clip; }

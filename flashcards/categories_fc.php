@@ -174,15 +174,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $okParam = 'moved';
         }
 
-    } elseif ($action === 'color' && isset($_POST['category_id']) && isset($_POST['category_color'])) {
+    } elseif ($action === 'color' && isset($_POST['category_id'])) {
 
-                $catId = sec_int($_POST['category_id'] ?? 0, 1);
-        $color = sec_color($_POST['category_color'] ?? null, '');
-        if ($color !== '' && sec_owns('fc_categories', $catId, (int)$current_user_id)) {
-            sec_q("UPDATE fc_categories SET color = ?, color_edited = 1 WHERE id = ? AND user_id = ?",
-                  [$color, $catId, (int)$current_user_id]);
-            cs_cascade_color($catId, $color, $current_user_id);
-            $okParam = 'colored';
+        $catId = sec_int($_POST['category_id'] ?? 0, 1);
+        /* "auto" non e' un colore ma una rinuncia: si smette di averne uno
+           proprio e si riprende quello ereditato dal padre. Senza questo modo
+           il popup del colore poteva solo IMPORRE un colore, mai toglierlo. */
+        $colorMode = sec_enum($_POST['color_mode'] ?? null, ['auto', 'manual'], 'manual');
+        if (sec_owns('fc_categories', $catId, (int)$current_user_id)) {
+            if ($colorMode === 'auto') {
+                $catRow = sec_one("SELECT parent_id FROM fc_categories WHERE id = ? AND user_id = ?",
+                                  [$catId, (int)$current_user_id]);
+                $color = cs_resolve_color($catRow ? $catRow['parent_id'] : 0, $current_user_id);
+                sec_q("UPDATE fc_categories SET color = ?, color_edited = 0 WHERE id = ? AND user_id = ?",
+                      [$color, $catId, (int)$current_user_id]);
+                cs_cascade_color($catId, $color, $current_user_id);
+                $okParam = 'colored';
+            } else {
+                $color = sec_color($_POST['category_color'] ?? null, '');
+                if ($color !== '') {
+                    sec_q("UPDATE fc_categories SET color = ?, color_edited = 1 WHERE id = ? AND user_id = ?",
+                          [$color, $catId, (int)$current_user_id]);
+                    cs_cascade_color($catId, $color, $current_user_id);
+                    $okParam = 'colored';
+                }
+            }
         }
 
     }
@@ -283,6 +299,10 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent) {
         <button type="button" class="swipe-btn swipe-edit" aria-label="<?php te('comune.modifica'); ?>"
                         onclick="chiudiTuttiSwipe(); apriModalSalvaDaRiga(this)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </button>
+        <button type="button" class="swipe-btn swipe-addchild" aria-label="<?php te('vocab.cat_aggiungi_figlia'); ?>"
+                        onclick="chiudiTuttiSwipe(); aggiungiFiglioDaRiga(this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M12 11v5M9.5 13.5h5"/></svg>
         </button>
         <button type="button" class="swipe-btn swipe-move" aria-label="<?php te('vocab.cat_sposta_attr'); ?>"
                         onclick="avviaSpostaDaRiga(this)">
@@ -658,6 +678,14 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent) {
 
             </button>
 
+            <button type="button" class="action-item" id="azioneAggiungiFiglia">
+
+                <span class="a-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M12 11v5M9.5 13.5h5"/></svg></span>
+
+                <?php te('vocab.cat_aggiungi_figlia'); ?>
+
+            </button>
+
             <button type="button" class="action-item" id="azioneColore">
 
                 <span class="a-ic color-wheel"></span>
@@ -718,6 +746,16 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent) {
 
         <div class="color-grid" id="colorGrid">
 
+            <?php /* Prima opzione sempre il colore ereditato dal padre: senza
+                     questa il popup poteva solo IMPORRE un colore, mai
+                     toglierlo per tornare a quello del padre. */ ?>
+
+            <button type="button" class="color-swatch color-swatch-auto" id="colorSwatchAuto" data-auto="1" onclick="selectColorAuto()" title="<?php te('vocab.cat_auto_eredita'); ?>">
+
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v8h8"/></svg>
+
+            </button>
+
             <?php foreach ($colorPalette as $ci => $hex): ?>
 
             <button type="button" class="color-swatch" style="--sw:<?php echo sec_h($hex); ?>; animation-delay:<?php echo (int)($ci * 22); ?>ms;" data-hex="<?php echo sec_h($hex); ?>" onclick="selectColor('<?php echo sec_h($hex); ?>')">
@@ -751,6 +789,8 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent) {
             <input type="hidden" name="action" value="color">
 
             <input type="hidden" name="category_id" id="color_cat_id">
+
+            <input type="hidden" name="color_mode" id="color_cat_mode" value="manual">
 
             <input type="hidden" name="category_color" id="color_cat_value">
 
@@ -846,6 +886,20 @@ function avviaSpostaDaRiga(btn) {
 function apriConfermaEliminaDaRiga(btn) {
     var r = rigaFcDi(btn);
     apriConfermaElimina(parseInt(r.dataset.id, 10), r.dataset.name);
+}
+function aggiungiFiglioDaRiga(btn) {
+    var r = rigaFcDi(btn);
+    apriAggiungiFiglio(parseInt(r.dataset.id, 10), r.dataset.name, r.dataset.color);
+}
+/* La categoria toccata diventa il padre: si riusa lo stesso foglio di
+   creazione, solo con il padre gia' precompilato e il nome pronto da
+   scrivere (il fuoco arriva dal focus() gia' presente in apriModalSalva). */
+function apriAggiungiFiglio(parentId, parentName, parentColor) {
+    apriModalSalva({
+        id: 0, name: '', parentId: parentId,
+        parentName: parentName || '', parentColor: parentColor || '#A0A0A0',
+        color: parentColor || '#A0A0A0', colorEdited: false
+    });
 }
     if (window.matchMedia("(pointer:coarse)").matches) {
         document.body.classList.add("touch-device");
@@ -1259,7 +1313,15 @@ function apriConfermaEliminaDaRiga(btn) {
 
             chiudiModals();
 
-            setTimeout(function(){ apriColore(id, name, color); }, 260);
+            setTimeout(function(){ apriColore(id, name, color, colorEdited, parentColor); }, 260);
+
+        };
+
+        document.getElementById('azioneAggiungiFiglia').onclick = function(){
+
+            chiudiModals();
+
+            setTimeout(function(){ apriAggiungiFiglio(id, name, color); }, 260);
 
         };
 
@@ -1316,19 +1378,39 @@ function apriConfermaEliminaDaRiga(btn) {
 
     var colorTargetId = null;
 
+    var colorManual = true;
+
+    var colorParentColor = '#A0A0A0';
+
     var colorOriginal = '#007AFF';
+
+    var colorOriginalManual = true;
 
     var colorCurrent = '#007AFF';
 
 
 
-    function apriColore(id, name, color){
+    /* colorEdited/parentColor arrivano dagli stessi dati che gia' viaggiano
+
+       per ogni riga (data-color-edited, data-parent-color): servono per
+
+       sapere se si parte da "colore proprio" o da "eredita dal padre", e
+
+       cosa mostrare per l'opzione automatica. */
+
+    function apriColore(id, name, color, colorEdited, parentColor){
 
         colorTargetId = id;
 
-        colorOriginal = color;
+        colorManual = !!colorEdited;
 
-        colorCurrent = color;
+        colorParentColor = parentColor || '#A0A0A0';
+
+        colorOriginal = colorManual ? color : colorParentColor;
+
+        colorOriginalManual = colorManual;
+
+        colorCurrent = colorOriginal;
 
 
 
@@ -1336,15 +1418,9 @@ function apriConfermaEliminaDaRiga(btn) {
 
         document.getElementById('colorPreviewName').textContent = name;
 
-        document.getElementById('customColorInput').value = color;
-
-        document.getElementById('customColorHex').textContent = color.toUpperCase();
 
 
-
-        applyColorPreview(color);
-
-        highlightSwatch(color);
+        updateColorUI();
 
         openSheet(document.getElementById('sheetColor'));
 
@@ -1352,30 +1428,62 @@ function apriConfermaEliminaDaRiga(btn) {
 
 
 
-    function selectColor(hex){
+    function selectColorAuto(){
 
-        colorCurrent = hex;
+        colorManual = false;
 
-        document.getElementById('customColorInput').value = hex;
+        colorCurrent = colorParentColor;
 
-        document.getElementById('customColorHex').textContent = hex.toUpperCase();
-
-        applyColorPreview(hex);
-
-        highlightSwatch(hex);
+        updateColorUI();
 
     }
 
 
 
-    function highlightSwatch(hex){
-        var norm = hex.toLowerCase();
-        // Limitiamo la ricerca solo alla griglia del popup colore e aggiungiamo un controllo di sicurezza
+    function selectColor(hex){
+
+        colorManual = true;
+
+        colorCurrent = hex;
+
+        updateColorUI();
+
+    }
+
+
+
+    function updateColorUI(){
+
+        document.getElementById('customColorInput').value = colorCurrent;
+
+        document.getElementById('customColorHex').textContent = colorCurrent.toUpperCase();
+
+        applyColorPreview(colorCurrent);
+
+        highlightSwatch();
+
+    }
+
+
+
+    function highlightSwatch(){
+
+        var norm = colorCurrent.toLowerCase();
+
         document.querySelectorAll('#colorGrid .color-swatch').forEach(function(sw){
-            if (sw.dataset.hex) {
-                sw.classList.toggle('selected', sw.dataset.hex.toLowerCase() === norm);
+
+            if (sw.dataset.auto) {
+
+                sw.classList.toggle('selected', !colorManual);
+
+            } else if (sw.dataset.hex) {
+
+                sw.classList.toggle('selected', colorManual && sw.dataset.hex.toLowerCase() === norm);
+
             }
+
         });
+
     }
 
 
@@ -1423,6 +1531,8 @@ function apriConfermaEliminaDaRiga(btn) {
 
 
     function salvaColore(){
+
+        document.getElementById('color_cat_mode').value = colorManual ? 'manual' : 'auto';
 
         document.getElementById('color_cat_value').value = colorCurrent;
 
@@ -1494,16 +1604,25 @@ function apriConfermaEliminaDaRiga(btn) {
 
     })();
 
-    /* ---------- Gestione Swipe (Da Sinistra verso Destra) ---------- */
+    /* ---------- Gestione Swipe (Da Sinistra verso Destra) ----------
+   I tasti dietro la riga restano display:none finche' non si sente un vero
+   trascinamento orizzontale: prima stavano sempre nel flusso (nascosti solo
+   dall'overlap con la riga sopra) ed era facile vederli spuntare per un
+   istante, specie durante lo scroll verticale della pagina. Ora compaiono
+   SOLO quando lo swipe e' confermato, sulla riga giusta soltanto. */
 (function(){
 
     if (!window.matchMedia("(hover:none) and (pointer:coarse)").matches){
         return;
     }
 
+    var SOGLIA = 8;   /* px minimi prima di considerarlo un vero swipe orizzontale */
+
     var activeRow = null;
+    var activeActions = null;
     var startX = 0, startY = 0;
     var isDragging = false;
+    var confermato = false;
     var maxSwipe = 0;
 
     window.chiudiTuttiSwipe = function() {
@@ -1511,7 +1630,13 @@ function apriConfermaEliminaDaRiga(btn) {
             r.style.transform = 'translateX(0)';
             r.classList.remove('swiped-open');
         });
+        /* pulizia difensiva: qualunque riga fosse rimasta rivelata a meta'
+           gesto, a prescindere da quale sia activeRow in questo momento */
+        document.querySelectorAll('.cat-swipe-actions.revealing').forEach(function(a){
+            a.classList.remove('revealing');
+        });
         activeRow = null;
+        activeActions = null;
     };
 
     document.addEventListener('touchstart', function(e) {
@@ -1526,13 +1651,20 @@ function apriConfermaEliminaDaRiga(btn) {
         if (activeRow && activeRow !== rowMain) chiudiTuttiSwipe();
 
         activeRow = rowMain;
-        var actionsContainer = rowMain.parentElement.querySelector('.cat-swipe-actions');
-        if (!actionsContainer) return;
+        activeActions = rowMain.parentElement.querySelector('.cat-swipe-actions');
+        if (!activeActions) { activeRow = null; return; }
 
-        maxSwipe = actionsContainer.offsetWidth;
+        /* La larghezza NON si misura qui: i tasti partono display:none, e
+           offsetWidth su un elemento non renderizzato vale 0. Si misura al
+           momento della conferma, subito dopo averli resi visibili (vedi
+           touchmove). Con la misura presa qui il primo swipe si fermava dopo
+           una ventina di pixel, e solo il secondo - trovando i tasti rimasti
+           visibili dal tentativo precedente - funzionava. */
+        maxSwipe = 0;
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
         isDragging = true;
+        confermato = rowMain.classList.contains('swiped-open');   /* gia' aperta: nessuna soglia da riconfermare */
         rowMain.style.transition = 'none';
     }, {passive: true});
 
@@ -1541,12 +1673,23 @@ function apriConfermaEliminaDaRiga(btn) {
         var dx = e.touches[0].clientX - startX;
         var dy = e.touches[0].clientY - startY;
 
-        // Se lo scroll è verticale nativo, annulla lo swipe orizzontale
-        if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
-            isDragging = false;
-            chiudiTuttiSwipe();
-            return;
+        if (!confermato) {
+            // Se lo scroll è verticale nativo, annulla lo swipe orizzontale
+            if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
+                isDragging = false;
+                chiudiTuttiSwipe();
+                return;
+            }
+            // Sotto soglia: ambiguo, si aspetta il prossimo movimento senza
+            // rivelare ancora nulla (evita il lampo su un piccolo tremolio).
+            if (Math.abs(dx) < SOGLIA) return;
+            confermato = true;
+            activeActions.classList.add('revealing');
+            maxSwipe = activeActions.offsetWidth;   /* ora sono a schermo: la misura e' vera */
         }
+        /* Riga gia' aperta da prima: i tasti sono visibili ma la misura non e'
+           ancora stata presa in questo gesto. */
+        if (!maxSwipe) maxSwipe = activeActions.offsetWidth;
 
         if (dx > 0) {
             // Swipe da sinistra a destra (Rivela i tasti a sinistra)
@@ -1575,10 +1718,14 @@ function apriConfermaEliminaDaRiga(btn) {
         if (tx > maxSwipe / 2) {
             activeRow.style.transform = 'translateX(' + maxSwipe + 'px)';
             activeRow.classList.add('swiped-open');
+            /* resta 'revealing': i tasti devono restare visibili e toccabili
+               finche' la riga e' aperta */
         } else {
             activeRow.style.transform = 'translateX(0)';
             activeRow.classList.remove('swiped-open');
+            if (activeActions) activeActions.classList.remove('revealing');
             activeRow = null;
+            activeActions = null;
         }
     });
 })();
@@ -1591,8 +1738,64 @@ function fcCatRowNavigate(e, el){
     if (el.classList.contains('swiped-open')) { if (window.chiudiTuttiSwipe) chiudiTuttiSwipe(); return; }
     if (document.querySelector('.cat-row-main.swiped-open')) { if (window.chiudiTuttiSwipe) chiudiTuttiSwipe(); return; }
     var link = el.getAttribute('data-cat-link');
-    if (link) window.location.href = link;
+    if (!link) return;
+    /* Si ricorda quale categoria si sta per aprire: se poi si torna qui
+       (tasto Home dentro la categoria, o il "indietro" del browser), la si
+       ritrova gia' scoperta invece di ripartire dall'albero tutto chiuso. */
+    var row = el.closest('.cat-row');
+    if (row) { try { sessionStorage.setItem('nisama_cat_tree_focus', row.dataset.id); } catch(err){} }
+    window.location.href = link;
 }
+
+/* ---------- Ritorno da una categoria: la si ritrova gia' scoperta ----------
+   La chiave la scrive sia questa pagina (al clic su una riga) sia
+   visualizzazione_fc.php (a ogni sua apertura, cosi' vale anche se dentro ci
+   si e' spostati su una sotto-cartella senza passare di qui). E' un
+   ricordo "usa e getta": una volta applicato si toglie, cosi' un giro
+   successivo per l'albero non continua a riportare sempre li'. */
+function fcRestoreTreeFocus(){
+    var id = null;
+    try { id = sessionStorage.getItem('nisama_cat_tree_focus'); } catch(err){}
+    if (!id) return;
+    try { sessionStorage.removeItem('nisama_cat_tree_focus'); } catch(err){}
+
+    var row = document.querySelector('.cat-row[data-id="' + id + '"]');
+    if (!row) return;
+
+    // Catena degli antenati, dal piu' lontano (radice) al piu' vicino.
+    var catena = [];
+    var cur = row;
+    var guardia = 0;
+    while (cur && guardia < 60) {
+        guardia++;
+        var pid = cur.dataset.parent;
+        if (!pid || pid === '0') break;
+        catena.unshift(pid);
+        cur = document.querySelector('.cat-row[data-id="' + pid + '"]');
+    }
+
+    catena.forEach(function(pid){
+        var r = document.querySelector('.cat-row[data-id="' + pid + '"]');
+        if (!r) return;
+        var arrow = r.querySelector('.cat-arrow');
+        if (arrow) arrow.classList.add('open');
+        espandiFigli(pid);
+    });
+
+    function porta(){
+        var h = document.querySelector('.app-header');
+        var alto = h ? h.offsetHeight + 14 : 90;
+        var y = row.getBoundingClientRect().top + window.pageYOffset - alto;
+        window.scrollTo(0, Math.max(0, y));
+    }
+    porta();
+    /* le righe appena espanse animano l'ingresso: si ripassa quando e' finita */
+    setTimeout(porta, 220);
+
+    row.classList.add('cat-focus-flash');
+    setTimeout(function(){ row.classList.remove('cat-focus-flash'); }, 2400);
+}
+fcRestoreTreeFocus();
 
 // Helper per lo spostamento via swipe
 function avviaSposta(id, name) {

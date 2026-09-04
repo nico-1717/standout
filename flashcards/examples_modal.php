@@ -18,6 +18,15 @@ if (!document.querySelector('script[src*="fc_parser.js"]')) {
     __exmParserScript.src = '<?php echo PWA_BASE; ?>fc_parser.js';
     document.head.appendChild(__exmParserScript);
 }
+/* Stesso schema per il motore audio: modifica_immagine_fc.php e
+   inserimento_fc.php lo caricano gia' per conto proprio (serve anche prima
+   che questo componente entri in scena), qui si aggiunge solo per chi
+   include il pannello esempi senza averlo gia'. */
+if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
+    var __exmAudioScript = document.createElement('script');
+    __exmAudioScript.src = '<?php echo PWA_BASE; ?>fc_audio_recorder.js';
+    document.head.appendChild(__exmAudioScript);
+}
 </script>
 
 
@@ -197,9 +206,10 @@ let currentQ = '', currentA = '';
 
 let currentExamplesList = []; // Memoria degli esempi
 
-let exRecorder = null, exAudioChunks = [], exAudioBlob = null, exAudioExt = '';
-
-let exRecTimer = null, exRecSec = 0;
+// Lo stato della registrazione (blob, timer, contatore) vive in
+// fc_audio_recorder.js sotto la chiave 'esempio': niente piu' da dichiarare
+// qui, ed e' lo stesso motore che usano inserimento_fc.php e
+// modifica_immagine_fc.php.
 
 
 
@@ -234,17 +244,6 @@ function setExEditorText(rawText) {
     }
 }
 
-
-
-// Utility formattazione tempo per il registratore
-
-function fmtExTime(s) {
-
-    let m = Math.floor(s / 60), ss = s % 60;
-
-    return m + ':' + String(ss).padStart(2, '0');
-
-}
 
 
 
@@ -416,7 +415,7 @@ function openExampleForm(fc_id, fc_type, ex_id) {
 
     imgPreview.src = '';
 
-    exAudioBlob = null;
+    fcAudioResetta('esempio');
 
 
 
@@ -425,8 +424,6 @@ function openExampleForm(fc_id, fc_type, ex_id) {
     recBtn.querySelector('.ic-mic').style.display = '';
 
     recBtn.querySelector('.ic-stop').style.display = 'none';
-
-    clearInterval(exRecTimer);
 
     statusEl.textContent = T('fc.ifc_tocca_registrare');
 
@@ -481,92 +478,13 @@ function openExampleForm(fc_id, fc_type, ex_id) {
 
 
 
-async function toggleExampleRecord() {
-
-    let btn = document.getElementById('ex-rec-btn');
-
-    let statusEl = document.getElementById('ex-rec-status');
-
-    let isRecording = btn.classList.contains('recording');
-
-
-
-    if (!isRecording) {
-
-        try {
-
-            let stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-            exRecorder = new MediaRecorder(stream); 
-
-            exAudioChunks = [];
-
-            
-
-            exRecorder.ondataavailable = e => { if (e.data.size > 0) exAudioChunks.push(e.data); };
-
-            exRecorder.onstop = () => {
-
-                let mimeType = exRecorder.mimeType || 'audio/webm';
-
-                exAudioBlob = new Blob(exAudioChunks, { type: mimeType });
-
-                exAudioExt = mimeType.includes('mp4') ? 'm4a' : 'webm';
-
-                let player = document.getElementById('ex-audio-player');
-
-                player.src = URL.createObjectURL(exAudioBlob);
-
-                player.style.display = 'block';
-
-                stream.getTracks().forEach(t => t.stop());
-
-                markExDirty();
-
-            };
-
-            
-
-            exRecorder.start(); 
-
-            btn.classList.add('recording');
-
-            btn.querySelector('.ic-mic').style.display = 'none';
-
-            btn.querySelector('.ic-stop').style.display = '';
-
-            
-
-            exRecSec = 0;
-
-            statusEl.textContent = '0:00';
-
-            exRecTimer = setInterval(function () { 
-
-                exRecSec++; statusEl.textContent = fmtExTime(exRecSec); 
-
-            }, 1000);
-
-
-
-        } catch (err) { alert(T('fc.ifc_no_microfono')); }
-
-    } else {
-
-        exRecorder.stop();
-
-        clearInterval(exRecTimer);
-
-        btn.classList.remove('recording');
-
-        btn.querySelector('.ic-mic').style.display = '';
-
-        btn.querySelector('.ic-stop').style.display = 'none';
-
-        statusEl.textContent = T('fc.exm_audio_pronto');
-
-    }
-
+function toggleExampleRecord() {
+    toggleFcAudioRecord('esempio', 'ex-rec-btn', 'ex-rec-status', function (blob) {
+        let player = document.getElementById('ex-audio-player');
+        player.src = URL.createObjectURL(blob);
+        player.style.display = 'block';
+        markExDirty();
+    });
 }
 
 
@@ -681,7 +599,7 @@ async function exSalvaEsempio(manuale) {
        sec_guard_write chiude la porta con un 403 e il salvataggio non parte. */
     fd.append('csrf_token', EXM_CSRF);
 
-    if (exAudioBlob) fd.append('audio', exAudioBlob, 'ex_audio.' + exAudioExt);
+    if (fcAudioBlobDi('esempio')) fd.append('audio', fcAudioBlobDi('esempio'), 'ex_audio.' + fcAudioExtDi('esempio'));
 
     let fileInput = document.getElementById('ex-image-file');
     if (fileInput.files.length > 0) fd.append('image', fileInput.files[0]);
@@ -691,7 +609,7 @@ async function exSalvaEsempio(manuale) {
         let data = await res.json();
         if (data.success) {
             if (wasNew) currentExId = data.ex_id;
-            exAudioBlob = null;
+            fcAudioResetta('esempio');
             fileInput.value = '';
 
             let count = currentExamplesList.length + (wasNew ? 1 : 0);

@@ -1,0 +1,151 @@
+/* fc_editor_rifiniture.css — rifiniture condivise da inserimento_fc.php e
+   modifica_immagine_fc.php.
+   Va caricato DOPO il foglio della pagina: qui ci sono ritocchi che devono
+   avere l'ultima parola su quello che la pagina ha gia' definito.
+
+   COSA AGGIUNGE, E PERCHE'
+   Le due pagine sono nate mobile-first e definiscono quasi solo :active —
+   il che le lascia inerti col mouse (niente reagisce al passaggio) e
+   invisibili alla tastiera (nessun contorno di messa a fuoco). Qui si
+   rimedia a entrambe le cose in un posto solo, invece che regola per
+   regola nei due fogli. */
+
+/* ---------------- Messa a fuoco da tastiera ----------------
+   :focus-visible e non :focus — cosi' il contorno compare a chi naviga con
+   Tab, e NON a ogni tocco o clic del mouse (dove sarebbe solo rumore). */
+.img-pick-box:focus-within,
+.fcm-fab:focus-visible,
+.fcm-genera:focus-visible,
+.cta-insert:focus-visible,
+.pill-help:focus-visible,
+.fcm-chip:focus-visible,
+.btn-save:focus-visible,
+.btn-cancel:focus-visible,
+.ex-btn:focus-visible,
+.fcm-textarea:focus-visible,
+.fc-edit-popup-close:focus-visible,
+.qa-ex-arrow:focus-visible {
+    outline: 2px solid var(--blue, #007AFF);
+    outline-offset: 2px;
+}
+
+/* Il riquadro immagine e' un <label>: il contorno va sull'elemento, ma e'
+   l'input dentro a ricevere davvero la messa a fuoco — da qui
+   :focus-within invece di :focus-visible. */
+.img-pick-box:focus-within { border-color: var(--blue, #007AFF); }
+
+/* ---------------- Stati per il mouse ----------------
+   Racchiusi in (hover:hover): senza, sui dispositivi touch l'effetto
+   resterebbe "appiccicato" dopo un tocco, perche' li' :hover non si annulla
+   finche' non si tocca altrove. */
+@media (hover: hover) and (pointer: fine) {
+    .fcm-fab:hover { filter: brightness(.97); }
+    .fcm-genera:hover { filter: brightness(.97); }
+    .cta-insert:hover { background: var(--surface-2, #F2F2F7); }
+    .pill-help:hover { filter: brightness(.97); }
+    .img-pick-box:hover { border-color: var(--blue, #007AFF); background: var(--blue-soft, rgba(0,122,255,.09)); }
+    .img-pick-remove:hover { background: rgba(0, 0, 0, .72); }
+    .fcm-chip:hover { filter: brightness(.96); }
+    .ex-btn:hover { filter: brightness(.97); }
+    .fc-edit-popup-close:hover { filter: brightness(.94); }
+    .qa-examples-box-filled:hover { border-color: color-mix(in srgb, var(--purple, #AF52DE), transparent 25%); }
+}
+
+/* ---------------- Separatore fra le scorciatoie ----------------
+   Big Insert e "Genera con l'IA" vivono nella stessa card: questa riga li
+   distingue senza il peso di due riquadri separati. */
+.fc-card-shortcuts .fc-shortcut-sep {
+    height: .5px; background: var(--hairline, rgba(60,60,67,.12));
+    margin: 10px -16px;
+}
+
+/* ---------------- Campi: transizione del bordo ----------------
+   Il passaggio a "campo attivo" era istantaneo. */
+.fcm-textarea, .img-pick-box {
+    transition: border-color .18s ease, background .18s ease, transform .15s var(--spring, cubic-bezier(.32,.72,0,1));
+}
+
+/* ---------------- Chi ha chiesto meno movimento ----------------
+   Un'impostazione di sistema, non un capriccio: c'e' chi con le animazioni
+   soffre di nausea o vertigini. Si tolgono gli spostamenti, si tengono i
+   cambi di colore (che non danno fastidio e servono a capire cosa succede). */
+@media (prefers-reduced-motion: reduce) {
+    .fc-edit-popup-panel,
+    .fcm-box,
+    .exm-panel {
+        animation: none !important;
+    }
+    .fcm-fab:active,
+    .fcm-genera:active,
+    .cta-insert:active,
+    .img-pick-box:active,
+    .pill-help:active,
+    .fc-edit-popup-close:active,
+    .qa-ex-arrow:active {
+        transform: none !important;
+    }
+    .qa-ex-dot { transition: background .15s ease !important; }
+}
+
+/* ================================================================
+   BARRA IN ALTO, PIEDE, CONFERMA D'USCITA
+   Le azioni stavano in fondo alla pagina: con un modulo lungo bisognava
+   scorrere fino in fondo per salvare, e dentro un popup era peggio.
+   ================================================================ */
+.fc-topbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: 12px;
+    margin: -16px -16px 14px; padding: 12px 16px;
+    background: var(--surface, #fff);
+    border-bottom: .5px solid var(--hairline, rgba(60,60,67,.12));
+}
+.fc-topbar-title {
+    flex: 1; min-width: 0; text-align: center;
+    font-size: 15px; font-weight: 800; letter-spacing: -.01em; color: var(--text, #1C1C1E);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fc-topbar-btn {
+    flex-shrink: 0; border: none; cursor: pointer; padding: 8px 14px; border-radius: 11px;
+    font-family: inherit; font-size: 14.5px; font-weight: 700;
+    transition: transform .15s var(--spring, cubic-bezier(.32,.72,0,1)), filter .2s;
+}
+.fc-topbar-btn:active { transform: scale(.95); }
+.fc-topbar-cancel { background: transparent; color: var(--text-2, #8A8A8E); padding-left: 2px; }
+.fc-topbar-save {
+    color: #fff;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--blue, #007AFF), #fff 16%), var(--blue, #007AFF) 52%, color-mix(in srgb, var(--blue, #007AFF), #000 10%));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 6px 16px -6px rgba(0,122,255,.5);
+}
+.fc-topbar-save:disabled { opacity: .65; cursor: default; }
+
+.fc-form-foot { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.btn-altra {
+    width: 100%; padding: 13px; border: none; border-radius: 13px; cursor: pointer;
+    font-family: inherit; font-size: 14.5px; font-weight: 800;
+    color: var(--blue, #007AFF); background: color-mix(in srgb, var(--blue, #007AFF), transparent 90%);
+    transition: transform .15s var(--spring, cubic-bezier(.32,.72,0,1));
+}
+.btn-altra:active { transform: scale(.98); }
+
+.fc-conf-overlay {
+    display: none; position: fixed; inset: 0; z-index: 12500;
+    align-items: center; justify-content: center; padding: 24px;
+    background: rgba(0,0,0,.45); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.fc-conf-overlay.on { display: flex; }
+.fc-conf-panel {
+    width: 100%; max-width: 340px; padding: 22px 20px; border-radius: 20px;
+    background: var(--surface, #fff); text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+    animation: fcConfIn .22s cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes fcConfIn { from { opacity: 0; transform: scale(.94); } }
+.fc-conf-panel b { display: block; font-size: 17px; font-weight: 800; color: var(--text, #1C1C1E); }
+.fc-conf-panel p { margin: 8px 0 0; font-size: 14px; line-height: 1.45; color: var(--text-2, #8A8A8E); }
+.fc-conf-azioni { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.fc-conf-azioni button {
+    width: 100%; padding: 12px; border: none; border-radius: 13px; cursor: pointer;
+    font-family: inherit; font-size: 14.5px; font-weight: 800;
+}
+.fc-conf-resta { background: var(--surface-2, #F2F2F7); color: var(--text, #1C1C1E); }
+.fc-conf-esci { background: var(--r-fill, rgba(255,59,48,.12)); color: var(--r-ink, #D70015); }

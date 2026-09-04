@@ -1,0 +1,55 @@
+/* fc_edit_popup.css — l'overlay che ospita modifica_immagine_fc.php in un iframe.
+   Va incluso ovunque si usi fc_edit_popup.js. */
+
+.fc-edit-popup-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 12000;
+    justify-content: center; align-items: flex-end;
+    background: rgba(0, 0, 0, .5);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.fc-edit-popup-overlay.on { display: flex; }
+
+.fc-edit-popup-panel {
+    position: relative;
+    width: 100%; max-width: 640px; height: 94vh; max-height: 94vh;
+    background: var(--surface, #fff);
+    border-radius: 26px 26px 0 0;
+    box-shadow: 0 -12px 50px rgba(0, 0, 0, .4);
+    animation: fcEditPopupUp .38s cubic-bezier(.32, .72, 0, 1) both;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+}
+@keyframes fcEditPopupUp { from { transform: translateY(50%); opacity: .4; } }
+
+/* La "x" della cornice e' stata tolta: quella buona sta nella barra della
+   pagina dentro l'iframe. */
+
+/* La rotellina resta visibile finche' l'iframe non ha finito di caricare —
+   modifica_immagine_fc.php e' una pagina vera, con la sua roba da scaricare
+   (MathJax compreso), e uno schermo vuoto per una frazione di secondo
+   sembrerebbe un popup rotto piuttosto che un popup che sta arrivando. */
+.fc-edit-popup-spin {
+    position: absolute; inset: 0; z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-3, #AEAEB2);
+    background: var(--surface, #fff);
+    transition: opacity .2s ease;
+}
+.fc-edit-popup-spin svg { animation: fcEditPopupSpin .8s linear infinite; }
+@keyframes fcEditPopupSpin { to { transform: rotate(360deg); } }
+.fc-edit-popup-overlay.loaded .fc-edit-popup-spin { opacity: 0; pointer-events: none; }
+
+.fc-edit-popup-iframe {
+    flex: 1; width: 100%; border: none; z-index: 2; position: relative;
+    background: var(--surface, #fff);
+}
+
+/* La pagina che ospita il popup non deve scorrere sotto: lo stesso principio
+   gia' usato dai popup di fc_ai_pannello.js. */
+body.fc-edit-popup-open { overflow: hidden; }
+
+@media (min-width: 640px) {
+    .fc-edit-popup-overlay { align-items: center; padding: 24px; }
+    .fc-edit-popup-panel { border-radius: 22px; height: 90vh; }
+}

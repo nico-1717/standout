@@ -147,7 +147,7 @@ if (isset($_GET['ph_ajax']) && $_GET['ph_ajax'] === 'list') {
     $offset = sec_int($_POST['offset'] ?? 0, 0);
     $limit = 20;
     $filtri = ph_build_where($current_user_id);
-    if ($filtri === null) { echo json_encode(['success' => true, 'sessions' => [], 'has_more' => false]); exit(); }
+    if ($filtri === null) { echo json_encode(['success' => true, 'sessions' => [], 'has_more' => false, 'day_totals' => []]); exit(); }
     [$where, $par] = $filtri;
 
     /* $orderBy non e' un valore ma un pezzo di SQL, e non puo' essere un
@@ -167,7 +167,29 @@ if (isset($_GET['ph_ajax']) && $_GET['ph_ajax'] === 'list') {
         $sessions[] = ph_session_to_array($row, $current_user_id);
     }
 
-    echo json_encode(['success' => true, 'sessions' => $sessions, 'has_more' => count($sessions) === $limit], JSON_UNESCAPED_UNICODE);
+    /* Il totale per giorno: non piu' quanti pomodori, ma quanto tempo — ore
+       e minuti studiati quel GIORNO, INTESO COME QUELLO DI INIZIO. Mai
+       s.end_time, altrimenti una sessione iniziata alle 23:50 e chiusa il
+       giorno dopo conterebbe sul giorno sbagliato: e' lo stesso
+       raggruppamento che il JavaScript usa gia' per decidere sotto quale
+       intestazione mettere una riga (dayKey legge data_inizio, non
+       data_fine) — qui si aggiunge solo la somma, non si cambia la regola.
+       Va calcolato sull'INTERO risultato filtrato, non sulle 20 righe di
+       questa pagina: altrimenti il totale di un giorno gia' mostrato
+       cambierebbe (o peggio, resterebbe sbagliato) quando "carica altri" ne
+       porta altre dello stesso giorno. Per questo gira una volta sola, al
+       primo caricamento, e non ad ogni pagina. */
+    $giorniTotali = [];
+    if ($offset === 0) {
+        foreach (sec_all("SELECT DATE(s.start_time) AS giorno, SUM(s.duration_seconds) AS secondi
+                           FROM pomodoro_sessions s
+                           WHERE " . implode(' AND ', $where) . "
+                           GROUP BY DATE(s.start_time)", $par) as $row) {
+            $giorniTotali[$row['giorno']] = (int)$row['secondi'];
+        }
+    }
+
+    echo json_encode(['success' => true, 'sessions' => $sessions, 'has_more' => count($sessions) === $limit, 'day_totals' => $giorniTotali], JSON_UNESCAPED_UNICODE);
     exit();
 }
 
@@ -325,21 +347,13 @@ if (isset($_GET['ph_ajax']) && $_GET['ph_ajax'] === 'manual_update') {
     header('Content-Type: application/json');
     $id = sec_int($_POST['id'] ?? 0, 1);
 
-    /* Due condizioni, non una. sec_owns() dice che la riga e' sua; il secondo
-       controllo dice che e' una riga che si PUO' toccare.
-         is_manual = 1  scritta a mano
-         is_manual = 2  chiusa d'ufficio dalla pagina pomodoro (stima nostra)
-       Tutte e due si correggono; la 0, misurata dal cronometro, no: cambiarne
-       gli orari vorrebbe dire riscrivere una misura, e i totali per progetto
-       non varrebbero piu' niente. Il controllo sta qui e non solo nel browser:
-       il tasto si puo' far comparire con gli strumenti da sviluppatore. */
+    /* Qualunque sessione sua si puo' correggere, misurata dal cronometro
+       compresa: is_manual serve solo a raccontare la provenienza (badge
+       "manuale"/"automatica"), non a bloccare la modifica. sec_owns() resta
+       l'unico cancello, e non solo nel browser: il tasto si puo' far
+       comparire con gli strumenti da sviluppatore, la query no. */
     if (!sec_owns('pomodoro_sessions', $id, (int)$current_user_id)) {
         echo json_encode(['success' => false]); exit();
-    }
-    $vecchia = sec_one("SELECT is_manual FROM pomodoro_sessions WHERE id = ? AND user_id = ?",
-                       [$id, (int)$current_user_id]);
-    if (!$vecchia || (int)$vecchia['is_manual'] === 0) {
-        echo json_encode(['success' => false, 'error' => t('pomodoro.storico_solo_manuali')]); exit();
     }
 
     $data      = sec_date($_POST['data'] ?? null, '');
@@ -363,14 +377,15 @@ if (isset($_GET['ph_ajax']) && $_GET['ph_ajax'] === 'manual_update') {
 
     $progId = ($progettoId > 0 && sec_owns('projects', $progettoId, (int)$current_user_id)) ? $progettoId : null;
 
-    /* is_manual = 1 e status = 'archiviato': se la riga era una chiusura
-       d'ufficio (2, 'abbandonato'), da adesso gli orari li ha decisi l'utente
-       e il caso non e' piu' in sospeso — l'avviso non deve tornare a galla e
-       il tag non deve piu' dire "automatica". */
+    /* is_manual = 1 e status = 'archiviato' per qualunque sessione corretta
+       qui, misurata dal cronometro compresa: da adesso gli orari li ha decisi
+       l'utente. Vale anche per una chiusura d'ufficio (2, 'abbandonato') — il
+       caso non e' piu' in sospeso, l'avviso non deve tornare a galla e il tag
+       non deve piu' dire "automatica". */
     sec_q("UPDATE pomodoro_sessions
            SET start_time = ?, end_time = ?, duration_seconds = ?, planned_duration_min = ?,
                project_id = ?, status = 'archiviato', is_manual = 1
-           WHERE id = ? AND user_id = ? AND is_manual <> 0",
+           WHERE id = ? AND user_id = ?",
           [$startDt, $endDt, $durataSecondi, (int)round($durataSecondi / 60), $progId,
            $id, (int)$current_user_id]);
 
@@ -380,6 +395,144 @@ if (isset($_GET['ph_ajax']) && $_GET['ph_ajax'] === 'manual_update') {
                     LEFT JOIN projects p ON p.id = s.project_id AND p.user_id = s.user_id
                     WHERE s.id = ? AND s.user_id = ?", [$id, (int)$current_user_id]);
     echo json_encode(['success' => true, 'session' => ph_session_to_array($row, $current_user_id)], JSON_UNESCAPED_UNICODE);
+    exit();
+}
+
+/* -------------------------------------------------------------------------
+   AJAX: il pannello di panoramica in cima al popup — giorno/settimana/mese,
+   il confronto con ieri, l'ora in cui ci si concentra di piu', la serie di
+   giorni consecutivi, il progetto della settimana.
+
+   Sempre sull'intera storia dell'utente, MAI sul filtro attivo nell'elenco
+   sotto: "quanti pomodori oggi" o "il progetto di questa settimana" non
+   hanno senso ristretti a un progetto scelto a caso nel filtro, sono per
+   definizione un quadro d'insieme. Se un domani servisse anche filtrato,
+   e' un parametro in piu' da aggiungere qui — non e' questo il momento di
+   deciderlo da soli.
+   ------------------------------------------------------------------------- */
+if (isset($_GET['ph_ajax']) && $_GET['ph_ajax'] === 'insights') {
+    header('Content-Type: application/json');
+    $uid  = (int)$current_user_id;
+    $oggi = date('Y-m-d');
+    $ieri = date('Y-m-d', strtotime('-1 day'));
+
+    /* ---- oggi, diviso per progetto: il grafico a torta ---- */
+    $oggiProgetti = [];
+    foreach (sec_all("SELECT s.project_id, p.name AS nome, p.color AS colore, SUM(s.duration_seconds) AS secondi
+                       FROM pomodoro_sessions s
+                       LEFT JOIN projects p ON p.id = s.project_id AND p.user_id = s.user_id
+                       WHERE s.user_id = ? AND s.end_time IS NOT NULL AND DATE(s.start_time) = ?
+                       GROUP BY s.project_id
+                       ORDER BY secondi DESC", [$uid, $oggi]) as $row) {
+        $oggiProgetti[] = ['nome' => $row['nome'] ?: null, 'colore' => $row['colore'] ?: '#8A8A8E', 'secondi' => (int)$row['secondi']];
+    }
+
+    /* ---- gli ultimi sette giorni, per progetto: il grafico a barre.
+       Sette voci sempre, anche per i giorni senza niente: una barra mancante
+       si leggerebbe come un errore di caricamento, non come "zero quel
+       giorno". Il giorno e' quello di INIZIO — mai s.end_time, altrimenti un
+       pomodoro cominciato alle 23:50 conterebbe sul giorno sbagliato: e' la
+       stessa regola che il JavaScript usa gia' per raggruppare l'elenco. */
+    $settimana = [];
+    $chiaviSettimana = [];
+    for ($i = 6; $i >= 0; $i--) {
+        $k = date('Y-m-d', strtotime("-$i day"));
+        $chiaviSettimana[] = $k;
+        $settimana[$k] = ['giorno' => $k, 'progetti' => [], 'secondi' => 0];
+    }
+    $inizioSettimana = $chiaviSettimana[0] . ' 00:00:00';
+    foreach (sec_all("SELECT DATE(s.start_time) AS giorno, s.project_id, p.color AS colore, SUM(s.duration_seconds) AS secondi
+                       FROM pomodoro_sessions s
+                       LEFT JOIN projects p ON p.id = s.project_id AND p.user_id = s.user_id
+                       WHERE s.user_id = ? AND s.end_time IS NOT NULL AND s.start_time >= ?
+                       GROUP BY DATE(s.start_time), s.project_id", [$uid, $inizioSettimana]) as $row) {
+        $g = $row['giorno'];
+        if (!isset($settimana[$g])) continue; // fuori dai sette giorni attesi: si scarta, non dovrebbe capitare
+        $sec = (int)$row['secondi'];
+        $settimana[$g]['progetti'][] = ['colore' => $row['colore'] ?: '#8A8A8E', 'secondi' => $sec];
+        $settimana[$g]['secondi'] += $sec;
+    }
+    $settimana = array_values($settimana);
+
+    /* ---- il progetto che ha avuto piu' tempo negli ultimi sette giorni:
+       stessa finestra del grafico sopra, ma raggruppata per progetto invece
+       che per giorno — una query separata, piu' chiara di riaggregare qui in
+       PHP i risultati di quella di sopra. */
+    $progettoSettimana = null;
+    $rigaPs = sec_one("SELECT s.project_id, p.name AS nome, p.color AS colore, SUM(s.duration_seconds) AS secondi
+                        FROM pomodoro_sessions s
+                        LEFT JOIN projects p ON p.id = s.project_id AND p.user_id = s.user_id
+                        WHERE s.user_id = ? AND s.end_time IS NOT NULL AND s.start_time >= ? AND s.project_id IS NOT NULL
+                        GROUP BY s.project_id
+                        ORDER BY secondi DESC
+                        LIMIT 1", [$uid, $inizioSettimana]);
+    if ($rigaPs) $progettoSettimana = ['nome' => $rigaPs['nome'], 'colore' => $rigaPs['colore'] ?: '#8A8A8E', 'secondi' => (int)$rigaPs['secondi']];
+
+    /* ---- il mese in corso, giorno per giorno: la heatmap ---- */
+    $primoDelMese    = date('Y-m-01');
+    $primoMesePross  = date('Y-m-01', strtotime('+1 month'));
+    $giorniMese = [];
+    foreach (sec_all("SELECT DATE(s.start_time) AS giorno, SUM(s.duration_seconds) AS secondi, COUNT(*) AS n
+                       FROM pomodoro_sessions s
+                       WHERE s.user_id = ? AND s.end_time IS NOT NULL AND s.start_time >= ? AND s.start_time < ?
+                       GROUP BY DATE(s.start_time)", [$uid, $primoDelMese . ' 00:00:00', $primoMesePross . ' 00:00:00']) as $row) {
+        $giorniMese[$row['giorno']] = ['secondi' => (int)$row['secondi'], 'n' => (int)$row['n']];
+    }
+
+    /* ---- oggi contro ieri: il confronto ---- */
+    $confronto = ['oggi' => ['n' => 0, 'secondi' => 0], 'ieri' => ['n' => 0, 'secondi' => 0]];
+    foreach (sec_all("SELECT DATE(s.start_time) AS giorno, COUNT(*) AS n, SUM(s.duration_seconds) AS secondi
+                       FROM pomodoro_sessions s
+                       WHERE s.user_id = ? AND s.end_time IS NOT NULL AND DATE(s.start_time) IN (?, ?)
+                       GROUP BY DATE(s.start_time)", [$uid, $oggi, $ieri]) as $row) {
+        $confronto[$row['giorno'] === $oggi ? 'oggi' : 'ieri'] = ['n' => (int)$row['n'], 'secondi' => (int)$row['secondi']];
+    }
+
+    /* ---- come si distribuisce il tempo nelle ventiquattro ore del giorno:
+       ultimi 90 giorni, non tutta la storia — racconta come si lavora ADESSO,
+       non anni fa. Le ventiquattro fasce sempre tutte presenti (anche a
+       zero), cosi' il grafico non deve indovinare quali ore mancano. */
+    $oreDistribuzione = array_fill(0, 24, 0);
+    foreach (sec_all("SELECT HOUR(s.start_time) AS ora, SUM(s.duration_seconds) AS secondi
+                       FROM pomodoro_sessions s
+                       WHERE s.user_id = ? AND s.end_time IS NOT NULL AND s.start_time >= ?
+                       GROUP BY HOUR(s.start_time)", [$uid, date('Y-m-d 00:00:00', strtotime('-90 day'))]) as $row) {
+        $oreDistribuzione[(int)$row['ora']] = (int)$row['secondi'];
+    }
+    $oraTop = null;
+    $picco = max($oreDistribuzione);
+    if ($picco > 0) $oraTop = array_search($picco, $oreDistribuzione, true);
+
+    /* ---- la serie di giorni consecutivi: si cammina all'indietro dai giorni
+       con almeno un pomodoro. Da oggi, se oggi ne ha gia' uno; da ieri
+       altrimenti — un giorno non "rompe" la serie finche' non e' passato per
+       intero. E' un ciclo, non un'aggregazione: si fa in PHP, non in SQL, che
+       su un hosting condiviso resta piu' semplice e piu' robusto. */
+    $giorniConSessioni = [];
+    foreach (sec_all("SELECT DISTINCT DATE(s.start_time) AS giorno
+                       FROM pomodoro_sessions s
+                       WHERE s.user_id = ? AND s.end_time IS NOT NULL AND s.start_time >= ?
+                       ORDER BY giorno DESC", [$uid, date('Y-m-d 00:00:00', strtotime('-400 day'))]) as $row) {
+        $giorniConSessioni[$row['giorno']] = true;
+    }
+    $serieGiorni = 0;
+    $cursore = isset($giorniConSessioni[$oggi]) ? strtotime($oggi) : strtotime($ieri);
+    while (isset($giorniConSessioni[date('Y-m-d', $cursore)])) {
+        $serieGiorni++;
+        $cursore = strtotime('-1 day', $cursore);
+    }
+
+    echo json_encode([
+        'success'           => true,
+        'oggi_progetti'     => $oggiProgetti,
+        'settimana'         => $settimana,
+        'progetto_settimana'=> $progettoSettimana,
+        'mese'              => ['primo_giorno' => $primoDelMese, 'giorni_nel_mese' => (int)date('t'), 'oggi' => $oggi, 'valori' => $giorniMese],
+        'confronto'         => $confronto,
+        'ore_distribuzione' => $oreDistribuzione,
+        'ora_top'           => $oraTop,
+        'serie_giorni'      => $serieGiorni,
+    ], JSON_UNESCAPED_UNICODE);
     exit();
 }
 
@@ -473,6 +626,15 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
         </div>
 
         <div class="ph-list-scroll" id="phListScroll">
+            <?php /* Il pannello di panoramica vive QUI dentro, non sopra ai
+                     filtri: deve scorrere via insieme all'elenco, non restare
+                     fisso in sovraimpressione. Vuoto apposta — lo riempie il
+                     JavaScript quando il popup si apre, con dati sempre
+                     freschi, come tutto il resto di questo file. */ ?>
+            <div class="ph-insights" id="phInsights">
+                <div class="ph-insights-track" id="phInsightsTrack"></div>
+                <div class="ph-insights-dots" id="phInsightsDots"></div>
+            </div>
             <div class="ph-empty-msg" id="phEmptyMsg" style="display:none;"><?php te('pomodoro.storico_nessuna'); ?></div>
         </div>
     </div>
@@ -492,7 +654,7 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
 (function () {
     'use strict';
 
-    var state = { scope: 'all', projectIds: [], sort: 'recent', filterProject: 0, dateFrom: '', dateTo: '', offset: 0, hasMore: true, loading: false, selecting: false, selectedIds: {}, lastDay: null };
+    var state = { scope: 'all', projectIds: [], sort: 'recent', filterProject: 0, dateFrom: '', dateTo: '', offset: 0, hasMore: true, loading: false, selecting: false, selectedIds: {}, lastDay: null, dayTotals: {} };
 
     function buzz(ms){ try{ if (navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
     function toast(msg){
@@ -519,6 +681,14 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
     }
 
     function fmtTime(dt){ var d = new Date(dt.replace(' ', 'T')); return d.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'}); }
+    // il totale accanto al nome del giorno: letto da state.dayTotals, mai
+    // ricalcolato dalle righe a schermo (che sono solo una pagina alla volta)
+    function phGiornoTotaleHtml(dk){
+        var sec = state.dayTotals ? state.dayTotals[dk] : null;
+        if (!sec) return '';
+        return ' <span class="ph-day-total">' + esc(fmtDurataBreve(sec)) + '</span>';
+    }
+
     function fmtDayLabel(dt){
         var d = new Date(dt.replace(' ', 'T'));
         return d.toLocaleDateString('it-IT', { day:'numeric', month:'long', year: (d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined) });
@@ -536,6 +706,331 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
         if (manuale === 2) return '<span class="ph-manual-badge ph-auto-badge">' + T('pomodoro.storico_badge_automatica') + '</span>';
         return '';
     }
+
+    /* ==========================================================================
+       IL PANNELLO DI PANORAMICA — giorno/settimana/mese, oggi e la serie
+       insieme, l'ora in cui ci si concentra di piu', il progetto della
+       settimana. Sei schede, costruite qui in JavaScript da un solo giro
+       sul server (ph_ajax=insights): niente di tutto questo dipende dal
+       filtro dell'elenco sotto, e' sempre il quadro intero.
+
+       Vive dentro l'elenco che scorre (vedi il markup): scorrendo la lista
+       verso il basso se ne va, non resta in sovraimpressione.
+       ========================================================================== */
+    function fmtDurataBreve(sec){
+        sec = Math.max(0, parseInt(sec, 10) || 0);
+        var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+        return h > 0 ? (h + 'h ' + m + 'm') : (m + 'm');
+    }
+    // per il righello della settimana: piu' compatto di fmtDurataBreve, non
+    // deve mai avere piu' di quattro caratteri o rompe la colonna stretta
+    function phOreCompatte(sec){
+        var h = sec / 3600;
+        if (h >= 10) return Math.round(h) + 'h';
+        if (h >= 1) return (Math.round(h * 10) / 10) + 'h';
+        return Math.round(sec / 60) + 'm';
+    }
+    // un colore che arriva dal database, ma nel dubbio non fidarsi: finisce
+    // in uno style attribute e in un attributo SVG, non in testo
+    function phColoreSicuro(c){
+        return (typeof c === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(c)) ? c : '#8A8A8E';
+    }
+
+    // ---- giorno: la torta di oggi per progetto, col progetto principale a fianco ----
+    function phCardGiorno(righe){
+        var card = document.createElement('div'); card.className = 'ph-insight-card';
+        var label = '<div class="ph-insight-label">' + esc(T('pomodoro.storico_panoramica_giorno')) + '</div>';
+        righe = righe || [];
+        var totale = 0;
+        righe.forEach(function(r){ totale += r.secondi; });
+        if (!totale) {
+            card.innerHTML = label + '<div class="ph-insight-body"><div class="ph-insight-empty">' + esc(T('pomodoro.storico_oggi_vuoto')) + '</div></div>';
+            return card;
+        }
+        var C = 2 * Math.PI * 34, cum = 0, archi = '';
+        righe.forEach(function(r){
+            var len = C * (r.secondi / totale);
+            var colore = phColoreSicuro(r.colore);
+            archi += '<circle class="ph-pie-seg" cx="40" cy="40" r="34" stroke="' + colore + '" '
+                + 'stroke-dasharray="' + len.toFixed(2) + ' ' + (C - len).toFixed(2) + '" '
+                + 'stroke-dashoffset="' + (-cum).toFixed(2) + '"></circle>';
+            cum += len;
+        });
+        var primo = righe[0];
+        var nomePrimo = primo.nome || T('pomodoro.storico_nessun_progetto');
+        var sottotitolo = righe.length > 1 ? T('pomodoro.storico_torta_e_altri', { progetto: nomePrimo, n: righe.length - 1 }) : nomePrimo;
+        card.innerHTML = label + '<div class="ph-insight-body">'
+            + '<div class="ph-pie-wrap"><svg viewBox="0 0 80 80"><circle class="ph-pie-track" cx="40" cy="40" r="34"></circle>' + archi + '</svg>'
+            + '<div class="ph-pie-center"><b>' + esc(fmtDurataBreve(totale)) + '</b></div></div>'
+            + '<div class="ph-pie-caption">' + esc(sottotitolo) + '</div>'
+            + '</div>';
+        return card;
+    }
+
+    // ---- settimana: le barre impilate per progetto, col righello delle ore ----
+    function phCardSettimana(giorni){
+        var card = document.createElement('div'); card.className = 'ph-insight-card';
+        var label = '<div class="ph-insight-label">' + esc(T('pomodoro.storico_panoramica_settimana')) + '</div>';
+        giorni = giorni || [];
+        var totale = 0, max = 0;
+        giorni.forEach(function(g){ totale += g.secondi; if (g.secondi > max) max = g.secondi; });
+        if (!totale) {
+            card.innerHTML = label + '<div class="ph-insight-body"><div class="ph-insight-empty">' + esc(T('pomodoro.storico_settimana_vuota')) + '</div></div>';
+            return card;
+        }
+        var oggi = phTodayStr(), cols = '';
+        giorni.forEach(function(g){
+            /* Altezze in PERCENTUALE, non in pixel: la scheda ora e' alta
+               meta' del popup e cambia da schermo a schermo, quindi un
+               numero fisso lascerebbe il grafico schiacciato in alto con
+               tutto lo spazio sotto vuoto — che e' esattamente il difetto
+               che si vedeva. Cosi' invece riempie sempre quello che c'e'. */
+            var altColonna = max > 0 ? (g.secondi / max) * 100 : 0;
+            var segs = '';
+            (g.progetti || []).forEach(function(p){
+                // ogni segmento e' una quota della SUA colonna, non del massimo
+                var quota = g.secondi > 0 ? (p.secondi / g.secondi) * 100 : 0;
+                segs += '<span class="ph-bar-seg" style="height:' + quota.toFixed(2) + '%;background:' + phColoreSicuro(p.colore) + '"></span>';
+            });
+            var d = new Date(g.giorno + 'T00:00:00');
+            var wd = d.toLocaleDateString(T.lingua === 'en' ? 'en-US' : 'it-IT', { weekday: 'short' }).replace('.', '');
+            var isToday = g.giorno === oggi;
+            cols += '<div class="ph-bar-col">'
+                + '<div class="ph-bar-track"><div class="ph-bar-stack" style="height:' + Math.max(1.5, altColonna).toFixed(2) + '%">' + segs + '</div></div>'
+                + '<div class="ph-bar-day' + (isToday ? ' is-today' : '') + '">' + esc(wd) + '</div></div>';
+        });
+        card.innerHTML = label + '<div class="ph-insight-body"><div class="ph-week-wrap">'
+            + '<div class="ph-week-axis"><span>' + esc(phOreCompatte(max)) + '</span><span>' + esc(phOreCompatte(max / 2)) + '</span><span>0</span></div>'
+            + '<div class="ph-bars">' + cols + '</div>'
+            + '</div></div>';
+        return card;
+    }
+
+    // ---- mese: la heatmap ----
+    function phCardMese(mese){
+        var card = document.createElement('div'); card.className = 'ph-insight-card';
+        var label = '<div class="ph-insight-label">' + esc(T('pomodoro.storico_panoramica_mese')) + '</div>';
+        mese = mese || {};
+        var valori = mese.valori || {};
+        var chiavi = Object.keys(valori);
+        if (!chiavi.length) {
+            card.innerHTML = label + '<div class="ph-insight-body"><div class="ph-insight-empty">' + esc(T('pomodoro.storico_mese_vuoto')) + '</div></div>';
+            return card;
+        }
+        var max = 0;
+        chiavi.forEach(function(k){ if (valori[k].secondi > max) max = valori[k].secondi; });
+        var primo = new Date(mese.primo_giorno + 'T00:00:00');
+        var offset = (primo.getDay() + 6) % 7; // lunedi=0 ... domenica=6, per allineare la griglia
+        var celle = '';
+        for (var i = 0; i < offset; i++) celle += '<div class="ph-heat-cell is-empty"></div>';
+        for (var g = 1; g <= (mese.giorni_nel_mese || 30); g++) {
+            var k = mese.primo_giorno.slice(0, 8) + (g < 10 ? '0' : '') + g;
+            var v = valori[k];
+            var isToday = k === mese.oggi;
+            var stile = '';
+            if (v && max > 0) {
+                var alpha = Math.max(.16, v.secondi / max);
+                stile = ' style="background:color-mix(in srgb, var(--blue,#007AFF) ' + Math.round(alpha * 100) + '%, var(--hairline,#e4e4e6))"';
+            }
+            celle += '<div class="ph-heat-cell' + (isToday ? ' is-today' : '') + '"' + stile + '></div>';
+        }
+        card.innerHTML = label + '<div class="ph-insight-body"><div class="ph-heat">' + celle + '</div></div>';
+        return card;
+    }
+
+    // ---- oggi e la serie insieme: due meta' della stessa scheda ----
+    // ---- oggi: quanti pomodori, il confronto con ieri scritto in parole (non
+    // un numero colorato da solo, che non direbbe a cosa si riferisce) e in
+    // fondo la serie di giorni consecutivi — senza etichetta, la fiamma e le
+    // parole "giorni di fila" dicono gia' tutto
+    function phCardOggi(confronto, serieGiorni){
+        var card = document.createElement('div'); card.className = 'ph-insight-card';
+        var label = '<div class="ph-insight-label">' + esc(T('pomodoro.storico_panoramica_oggi')) + '</div>';
+        confronto = confronto || {};
+        var oggi = confronto.oggi || { n: 0, secondi: 0 };
+        var ieri = confronto.ieri || { n: 0, secondi: 0 };
+        var n = serieGiorni || 0;
+
+        var body;
+        if (!oggi.n) {
+            body = '<div class="ph-insight-empty">' + esc(T('pomodoro.storico_oggi_vuoto')) + '</div>';
+        } else {
+            var diff = oggi.n - ieri.n, testo, classe;
+            if (diff > 0) { testo = T('pomodoro.storico_oggi_in_piu', { n: diff }); classe = 'is-piu'; }
+            else if (diff < 0) { testo = T('pomodoro.storico_oggi_in_meno', { n: Math.abs(diff) }); classe = 'is-meno'; }
+            else { testo = T('pomodoro.storico_uguale_a_ieri'); classe = 'is-pari'; }
+            body = '<div class="ph-oggi-num">' + oggi.n + '</div>'
+                + '<div class="ph-insight-caption">' + esc(fmtDurataBreve(oggi.secondi)) + '</div>'
+                + '<div class="ph-oggi-confronto ' + classe + '">' + esc(testo) + '</div>';
+        }
+        // la serie compare solo se c'e' davvero: uno zero con la fiamma
+        // spenta sarebbe un rimprovero, non un'informazione
+        var serie = n > 0
+            ? '<div class="ph-oggi-serie"><span class="ph-oggi-fiamma">🔥</span>'
+              + '<b>' + n + '</b> ' + esc(T(n === 1 ? 'pomodoro.storico_serie_unita_uno' : 'pomodoro.storico_serie_unita_altri')) + '</div>'
+            : '';
+
+        card.innerHTML = label + '<div class="ph-insight-body">' + body + '</div>' + serie;
+        return card;
+    }
+
+    // ---- l'ora in cui ci si concentra di piu': ventiquattro fasce, non solo il picco ----
+    function phCardOraTop(distribuzione, oraTop){
+        var card = document.createElement('div'); card.className = 'ph-insight-card';
+        var label = '<div class="ph-insight-label">' + esc(T('pomodoro.storico_panoramica_ora_top')) + '</div>';
+        distribuzione = distribuzione || [];
+        var max = 0;
+        for (var i = 0; i < distribuzione.length; i++) if (distribuzione[i] > max) max = distribuzione[i];
+        if (!max) {
+            card.innerHTML = label + '<div class="ph-insight-body"><div class="ph-insight-empty">' + esc(T('pomodoro.storico_ora_top_vuoto')) + '</div></div>';
+            return card;
+        }
+        var barre = '';
+        for (var h = 0; h < 24; h++) {
+            var v = distribuzione[h] || 0;
+            // percentuale, non pixel: vale lo stesso discorso delle barre
+            // della settimana — la scheda cambia altezza da schermo a schermo
+            var alt = Math.max(1.5, (v / max) * 100);
+            var picco = (oraTop !== null && oraTop !== undefined && h === oraTop);
+            barre += '<span class="ph-hour-bar' + (picco ? ' is-top' : '') + '" style="height:' + alt.toFixed(2) + '%"></span>';
+        }
+        var due = function(hh){ return (hh < 10 ? '0' : '') + hh + ':00'; };
+        var didascalia = (oraTop !== null && oraTop !== undefined) ? (due(oraTop) + '–' + due((oraTop + 1) % 24)) : '';
+        /* Tre riferimenti sotto l'asse invece di niente: ventiquattro barre
+           senza nessun appiglio non si sa dove cadono nella giornata. */
+        card.innerHTML = label + '<div class="ph-insight-body">'
+            + '<div class="ph-hours">' + barre + '</div>'
+            + '<div class="ph-hours-axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>'
+            + '<div class="ph-insight-caption">' + esc(didascalia) + '</div>'
+            + '</div>';
+        return card;
+    }
+
+    // ---- il progetto che ha avuto piu' tempo questa settimana ----
+    function phCardProgettoSettimana(p){
+        var card = document.createElement('div'); card.className = 'ph-insight-card';
+        var label = '<div class="ph-insight-label">' + esc(T('pomodoro.storico_panoramica_progetto_settimana')) + '</div>';
+        var body;
+        if (!p) {
+            body = '<div class="ph-insight-empty">' + esc(T('pomodoro.storico_progetto_settimana_vuoto')) + '</div>';
+        } else {
+            var colore = phColoreSicuro(p.colore);
+            body = '<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:' + colore + ';margin-bottom:8px;"></span>'
+                + '<div class="ph-insight-value" style="font-size:18px;">' + esc(p.nome || '') + '</div>'
+                + '<div class="ph-insight-caption">' + esc(fmtDurataBreve(p.secondi)) + '</div>';
+        }
+        card.innerHTML = label + '<div class="ph-insight-body">' + body + '</div>';
+        return card;
+    }
+
+    /* ---- lo scorrimento: nativo, non intercettato a mano. Per farlo sembrare
+       senza inizio ne' fine si mette un clone dell'ultima scheda PRIMA della
+       prima e un clone della prima scheda DOPO l'ultima: si scorre normalmente
+       (a mano o da soli), e quando lo scorrimento si ferma su uno dei due
+       cloni si salta senza animazione alla scheda vera corrispondente — un
+       balzo invisibile perche' il clone e' identico a quello a cui si salta.
+       Intercettare i gesti a mano sarebbe piu' fragile: qui il browser fa
+       tutto il lavoro di scorrimento, noi guardiamo solo dove si e' fermato. ---- */
+    var phInsightsTimer = null, phInsightsIdle = null;
+    function phInsightsStep(track){
+        var first = track.children[0];
+        if (!first) return track.clientWidth || 1;
+        var gap = parseFloat(getComputedStyle(track).columnGap || '12') || 12;
+        return first.getBoundingClientRect().width + gap;
+    }
+    function phInsightsAvviaAuto(){
+        phInsightsFermaAuto();
+        phInsightsTimer = setInterval(function(){
+            var track = document.getElementById('phInsightsTrack');
+            if (!track || track.children.length < 3) return;   // meno di due schede vere: niente da scorrere
+            var step = phInsightsStep(track);
+            var next = Math.round(track.scrollLeft / step) + 1;
+            track.scrollTo({ left: next * step, behavior: 'smooth' });
+        }, 5000);
+    }
+    function phInsightsFermaAuto(){
+        if (phInsightsTimer) { clearInterval(phInsightsTimer); phInsightsTimer = null; }
+    }
+
+    function phBuildInsights(data){
+        var track = document.getElementById('phInsightsTrack');
+        var dots = document.getElementById('phInsightsDots');
+        if (!track || !dots) return;
+        track.innerHTML = ''; dots.innerHTML = '';
+        var cards = [
+            phCardGiorno(data.oggi_progetti),
+            phCardSettimana(data.settimana),
+            phCardMese(data.mese),
+            phCardOggi(data.confronto, data.serie_giorni),
+            phCardOraTop(data.ore_distribuzione, data.ora_top),
+            phCardProgettoSettimana(data.progetto_settimana)
+        ];
+        cards.forEach(function(c, i){
+            track.appendChild(c);
+            var d = document.createElement('span');
+            d.className = 'ph-insights-dot' + (i === 0 ? ' active' : '');
+            dots.appendChild(d);
+        });
+        if (cards.length > 1) {
+            // i due cloni, uno per estremo: aria-hidden perche' raccontano la
+            // stessa cosa della scheda vera, uno screen reader non deve leggerli due volte
+            var primaClone = cards[0].cloneNode(true);
+            var ultimaClone = cards[cards.length - 1].cloneNode(true);
+            primaClone.setAttribute('aria-hidden', 'true');
+            ultimaClone.setAttribute('aria-hidden', 'true');
+            track.insertBefore(ultimaClone, track.firstChild);
+            track.appendChild(primaClone);
+            // si parte dalla prima vera: l'indice 0 in questo momento e' il
+            // clone dell'ultima, la prima vera e' all'indice 1
+            requestAnimationFrame(function(){ track.scrollLeft = phInsightsStep(track); });
+        }
+        phInsightsAvviaAuto();
+    }
+
+    function phLoadInsights(){
+        fetch('pomodoro_storico.php?ph_ajax=insights', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: '' })
+        .then(function(r){ return r.json(); })
+        .then(function(data){ if (data && data.success) phBuildInsights(data); })
+        .catch(function(){ /* il pannello resta vuoto: non e' critico quanto l'elenco sotto */ });
+    }
+
+    (function(){
+        var track = document.getElementById('phInsightsTrack');
+        if (!track) return;
+        var settleTimer = null;
+
+        function pallini(idxReale){
+            document.querySelectorAll('.ph-insights-dot').forEach(function(d, i){ d.classList.toggle('active', i === idxReale); });
+        }
+        // a scorrimento fermo: se siamo su un clone, si salta senza
+        // animazione alla scheda vera — invisibile perche' sono identiche
+        function assestati(){
+            var step = phInsightsStep(track);
+            var totaliVeri = track.children.length - 2;
+            if (!step || totaliVeri < 1) return;
+            var pos = Math.round(track.scrollLeft / step);
+            if (pos <= 0) { track.scrollLeft = totaliVeri * step; pos = totaliVeri; }
+            else if (pos >= totaliVeri + 1) { track.scrollLeft = step; pos = 1; }
+            pallini(pos - 1);
+        }
+
+        track.addEventListener('pointerdown', function(){ phInsightsFermaAuto(); clearTimeout(phInsightsIdle); });
+        track.addEventListener('scroll', function(){
+            var step = phInsightsStep(track);
+            var totaliVeri = track.children.length - 2;
+            if (step && totaliVeri > 0) {
+                var pos = Math.max(0, Math.min(totaliVeri + 1, Math.round(track.scrollLeft / step)));
+                pallini(Math.max(0, Math.min(totaliVeri - 1, pos - 1)));
+            }
+            // il salto vero e proprio solo a scorrimento fermo (90ms di
+            // quiete): farlo mentre si sta ancora scorrendo litigherebbe
+            // con il gesto in corso, a mano o con l'inerzia del tocco
+            clearTimeout(settleTimer);
+            settleTimer = setTimeout(assestati, 90);
+            clearTimeout(phInsightsIdle);
+            phInsightsIdle = setTimeout(phInsightsAvviaAuto, 6000);
+        });
+    })();
 
     window.openPomodoroStorico = function(config){
         config = config || {};
@@ -583,6 +1078,9 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
         } else {
             phLoadPage(true);
         }
+        // il pannello di panoramica e' sempre lo stesso, indipendente dallo
+        // scope: si carica una volta per apertura, non ad ogni cambio filtro
+        phLoadInsights();
         document.getElementById('phOverlay').classList.add('show');
         document.documentElement.classList.add('sb-locked');
     };
@@ -590,6 +1088,8 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
         document.getElementById('phOverlay').classList.remove('show');
         document.documentElement.classList.remove('sb-locked');
         if (state.selecting) window.phToggleSelectMode();
+        // niente scorrimento automatico su un pannello che non si vede piu'
+        phInsightsFermaAuto();
     };
 
     function phLoadPage(reset){
@@ -613,6 +1113,9 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
                 // fondamentale: senza questo, ogni cambio di ordinamento/filtro RI-APPENDEVA le
                 // stesse righe sopra quelle già presenti invece di sostituirle (bug #7)
                 state.lastDay = null;
+                // arriva solo con la prima pagina (vedi PHP): sui giorni non
+                // dipende da quale pagina si sta guardando, si legge una volta
+                state.dayTotals = data.day_totals || {};
                 scroll.querySelectorAll('.ph-row-wrap, .ph-day-header, .ph-loadmore, .ph-go-riga').forEach(function(el){ el.remove(); });
                 phMettiTastoAvvia(scroll);
             }
@@ -669,7 +1172,7 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
             var head = document.createElement('div');
             head.className = 'ph-day-header';
             head.setAttribute('data-day', dk);
-            head.textContent = fmtDayLabel(s.data_inizio);
+            head.innerHTML = esc(fmtDayLabel(s.data_inizio)) + phGiornoTotaleHtml(dk);
             scroll.appendChild(head);
         }
         var wrap = document.createElement('div');
@@ -691,12 +1194,11 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
            quelle chiuse d'ufficio (2). Su una misurata dal cronometro (0) no:
            correggerne gli orari vorrebbe dire riscrivere una misura. Il server
            ricontrolla comunque. */
-        var azioni = '';
-        if (s.manuale) {
-            azioni += '<button type="button" class="ph-swipe-btn ph-swipe-edit" data-edit-id="' + s.id + '">'
-                + '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>'
-                + '<span>' + T('comune.modifica') + '</span></button>';
-        }
+        // Ogni sessione si puo' correggere adesso, misurata dal cronometro
+        // compresa: non solo quelle scritte a mano.
+        var azioni = '<button type="button" class="ph-swipe-btn ph-swipe-edit" data-edit-id="' + s.id + '">'
+            + '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>'
+            + '<span>' + T('comune.modifica') + '</span></button>';
         azioni += '<button type="button" class="ph-swipe-btn" data-delete-id="' + s.id + '">'
             + '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V5h6v2"/><path d="M6 7l1 13h10l1-13"/></svg>'
             + '<span>' + T('comune.elimina') + '</span></button>';
@@ -1011,7 +1513,10 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
             + '<path d="M8.4 5.2a1 1 0 0 1 1.53-.85l8.2 5.15a1 1 0 0 1 0 1.7l-8.2 5.15a1 1 0 0 1-1.53-.85z" transform="translate(-1.2 1)"/></svg></span>';
         b.appendChild(document.createTextNode(T('pomodoro.avvia_su_questo')));
         b.addEventListener('click', phAvviaPomodoro);
-        scroll.insertBefore(b, scroll.firstChild);
+        // subito dopo il pannello di panoramica, non davanti: quello resta
+        // sempre la primissima cosa, cosi' e' la prima a scorrere via
+        var insights = document.getElementById('phInsights');
+        scroll.insertBefore(b, insights ? insights.nextSibling : scroll.firstChild);
     }
 
     window.phAvviaPomodoro = function () {
@@ -1072,8 +1577,7 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
     function phOpenEdit(id){
         var wrap = document.querySelector('.ph-row-wrap[data-id="' + id + '"]');
         if (wrap) {
-            // 0 = misurata dal timer: non si tocca. 1 e 2 si correggono entrambe.
-            if (wrap.getAttribute('data-manual') === '0') { toast(T('pomodoro.storico_solo_manuali')); return; }
+            // Qualunque origine si corregge adesso: 0 (timer), 1 (manuale), 2 (automatica).
             phRiempiEdit(id, wrap.getAttribute('data-inizio'), wrap.getAttribute('data-fine'),
                          parseInt(wrap.getAttribute('data-project-id'), 10) || 0,
                          wrap.getAttribute('data-project-name'), wrap.getAttribute('data-project-color'));
@@ -1085,7 +1589,6 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
         .then(function(resp){
             if (!resp.success) { toast(T('pomodoro.storico_errore')); return; }
             var s = resp.session;
-            if (!s.manuale) { toast(T('pomodoro.storico_solo_manuali')); return; }
             phRiempiEdit(s.id, s.data_inizio, s.data_fine, s.project_id, s.progetto_nome, s.progetto_colore);
         })
         .catch(function(){ toast(T('pomodoro.storico_errore_rete')); });

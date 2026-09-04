@@ -1371,12 +1371,39 @@ window.onInterrompiClick = function(){
 
     /* Interrompere non e' una cosa sola: c'e' chi si ferma per fare la pausa e
        chi ha finito. Prima l'unica uscita era chiudere, e per fare la pausa
-       bisognava aspettare che il tempo finisse da solo. */
+       bisognava aspettare che il tempo finisse da solo.
+
+       La terza via, scartare, e' arrivata dopo e non e' un doppione di
+       "chiudi": chiudere salva quello che si e' fatto, scartare cancella la
+       riga dal database — quel tempo smette di esistere nei totali del
+       progetto e nello storico. Prima l'unico modo di buttare via una sessione
+       era che durasse meno di cinque minuti e rispondere "no" alla domanda che
+       veniva da sola; per tutto il resto bisognava andare nello storico a
+       cancellarla a mano. */
     showChoice(T('pomodoro.scelta_stop_titolo'), T('pomodoro.scelta_stop_testo'), [
         { chiave: 'pausa',  testo: T('pomodoro.scelta_pausa'),  icona: IC_PAUSA, primaria: true },
-        { chiave: 'chiudi', testo: T('pomodoro.scelta_chiudi'), icona: IC_STOP }
+        { chiave: 'chiudi', testo: T('pomodoro.scelta_chiudi'), icona: IC_STOP },
+        { chiave: 'scarta', testo: Tf('pomodoro.scelta_scarta', 'Scarta la sessione'), icona: IC_CESTINO }
     ], function(scelta){
         if (!scelta) return;   // popup chiuso senza decidere: il pomodoro resta com'e'
+
+        /* Scartare non si puo' disfare, quindi si chiede una volta sola ma si
+           chiede. Non si riusa showConfirm: i suoi due tasti sono scritti
+           nell'HTML e dicono "No" e "Si', salva" — l'esatto contrario di
+           quello che si sta per fare. */
+        if (scelta === 'scarta') {
+            showChoice(
+                Tf('pomodoro.scarta_titolo', 'Scartare questa sessione?'),
+                Tf('pomodoro.scarta_testo', 'Sparisce dallo storico e dai totali del progetto. Non si torna indietro.'),
+                [
+                    { chiave: 'annulla', testo: Tf('comune.annulla', 'Annulla'), icona: IC_INDIETRO, primaria: true },
+                    { chiave: 'si',      testo: Tf('pomodoro.scarta_si', 'Sì, scarta'), icona: IC_CESTINO }
+                ],
+                function(conferma){ if (conferma === 'si') doInterrompi(true); }
+            );
+            return;
+        }
+
         // la pausa parte DOPO che la sessione e' stata chiusa sul server, non prima
         var poi = (scelta === 'pausa') ? function(){ window.onAvviaPausaClick(); } : null;
 
@@ -1609,6 +1636,22 @@ function closeChoice(scelta){
 var IC_PLAY  = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.4 5.2a1 1 0 0 1 1.53-.85l8.2 5.15a1 1 0 0 1 0 1.7l-8.2 5.15a1 1 0 0 1-1.53-.85z" transform="translate(-1.2 1)"/></svg>';
 var IC_STOP  = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.4"/></svg>';
 var IC_PAUSA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 10.5h2.2a2.4 2.4 0 0 1 0 4.8H16"/><path d="M8 2.5v2.6M12 2.5v2.6"/></svg>';
+/* Il cestino: nel popup di interruzione e' l'unica via che cancella davvero.
+   Lo stop dice "fermati e salva", questo dice "come se non fosse successo" —
+   due gesti diversi non possono avere lo stesso disegno. */
+var IC_CESTINO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16"/><path d="M9.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v1.5"/><path d="M6.5 6.5l.9 12a2 2 0 0 0 2 1.9h5.2a2 2 0 0 0 2-1.9l.9-12"/><path d="M10.5 10.5v6M13.5 10.5v6"/></svg>';
+var IC_INDIETRO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg>';
+
+/* T() con una via d'uscita. Una chiave che il dizionario non ha ancora stampa
+   «<<pomodoro.qualcosa>>» dentro l'interfaccia — gia' successo col post-it e
+   le stringhe del gruppo todo. Finche' le voci nuove non sono state aggiunte
+   al dizionario, qui esce la parola giusta in italiano; il giorno in cui ci
+   sono, questo ripiego smette da solo di servire e non va tolto niente. */
+function Tf(chiave, ripiego){
+    var s = '';
+    try { s = T(chiave); } catch (e) {}
+    return (!s || /^<<.*>>$/.test(s)) ? ripiego : s;
+}
 
 /* ---------------- bootstrap dallo stato iniziale (server-rendered) ---------------- */
 function bootstrap(){
@@ -1727,7 +1770,10 @@ PomoCore.on('conflitto', function(){ toast(T('pomodoro.gia_attivo_altrove')); })
 
 PomoCore.avviaControllo(60000);
 
-mostraAvvisoAbbandono();
+/* Prima si prova ad aprire direttamente la correzione; se lo storico non e'
+   disponibile (o non c'e' niente da correggere) resta l'avviso in basso, che
+   e' quello che c'era prima e continua a fare il suo mestiere. */
+if (!apriModificaUltimoNonChiuso()) mostraAvvisoAbbandono();
 proponiArgomentoDiOggi();
 pomoUpdateProjectPill(); // richiesta 17: mostra la catena nonno•padre•progetto dopo l'idratazione
 
@@ -1786,6 +1832,45 @@ function scegliArgomento(a){
     /* Lo si dice, invece di farlo di nascosto: una scelta fatta al posto
        dell'utente che lui non vede è una scelta che non può correggere. */
     toast(T('pomodoro.scelto_da_studiare', { nome: a.name }));
+}
+
+/* ---------------- l'ultimo pomodoro che non ha chiuso l'utente ----------------
+   STATE0.avviso c'e' solo per le sessioni che abbiamo chiuso noi d'ufficio
+   (status 'abbandonato', is_manual=2): pagina lasciata aperta, telefono
+   bloccato, scheda persa. Sono le uniche in cui gli orari salvati sono una
+   NOSTRA stima e non un fatto — un pomodoro finito a tempo scaduto, o
+   interrotto a mano, ha gia' i suoi numeri giusti e non c'e' niente da
+   correggere.
+
+   Prima la correzione era a due tocchi: l'avviso in basso, e poi toccarlo per
+   arrivare allo storico gia' in modifica. Il primo tocco pero' non aggiungeva
+   niente — diceva solo che c'era qualcosa da sistemare — e la finestra che si
+   apre e' gia' compilata con la nostra stima, quindi si apre e basta.
+
+   Il segno di lettura si scrive subito: la finestra di modifica E' l'avviso,
+   e riproporla a ogni apertura della pagina finche' non la si usa vorrebbe
+   dire mettersi di traverso a chi quella stima l'ha gia' vista e gli va bene.
+   Chiuderla senza salvare non perde niente: la sessione resta esattamente com'e'
+   adesso, con la durata stimata, che e' quello che succedeva anche prima.
+   ---------------------------------------------------------------------------- */
+function apriModificaUltimoNonChiuso(){
+    var a = STATE0.avviso;
+    if (!a) return false;
+    // con qualcosa in corso non e' il momento: si sta guardando quello, non l'altro
+    if (STATE0.active || STATE0.pausa) return false;
+    if (!window.openPomodoroStorico) return false;
+
+    post('pomodoro.php?ajax=chiudi_avviso', { session_id: a.id });
+    STATE0.avviso = null;
+
+    /* Un attimo dopo l'idratazione: la pagina finisce di sistemarsi (il
+       quadrante, il tema del progetto, l'animazione d'entrata) e poi arriva
+       la finestra, invece di aprirsi in mezzo a tutto che si muove. */
+    setTimeout(function(){
+        try { window.openPomodoroStorico({ scope: 'all', editSessionId: a.id }); }
+        catch (e) { if (window.console) console.error('[pomo]', e); }
+    }, 350);
+    return true;
 }
 
 /* ---------------- avviso del pomodoro chiuso d'ufficio ----------------

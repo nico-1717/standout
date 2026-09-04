@@ -5,7 +5,7 @@
 
    PUNTI DI CONTATTO CON inserimento_big_fc.php
    Quattro funzioni che esistono gia' e che NON vengono toccate:
-     appendRowHTML(i, q, a, qUrl, qName, aUrl, aName, isChild) -> la riga
+     appendRowHTML({rid, q, a, qImgUrl, qImgName, aImgUrl, aImgName, isChild, ...}) -> la riga
      markDirty()             segna che c'e' roba da salvare
      showToast(msg, tipo)    avviso in basso
      showConfirm(t, m, ok)   conferma, restituisce una promessa
@@ -73,8 +73,12 @@ var FCAIP = (function () {
         carte.forEach(function (c, k) {
             var qUrl = c.qFile ? URL.createObjectURL(c.qFile) : '';
             var aUrl = c.aFile ? URL.createObjectURL(c.aFile) : '';
-            var riga = appendRowHTML(partenza + k, c.q || '', c.a || '',
-                qUrl, c.qFile ? c.qFile.name : '', aUrl, c.aFile ? c.aFile.name : '', false);
+            var riga = appendRowHTML({
+                rid: partenza + k,
+                q: c.q || '', a: c.a || '',
+                qImgUrl: qUrl, qImgName: c.qFile ? c.qFile.name : '',
+                aImgUrl: aUrl, aImgName: c.aFile ? c.aFile.name : ''
+            });
             /* Il file vero si attacca alla riga, come fa gia' generateTable():
                mandare solo il nome fa sbagliare bersaglio quando due immagini
                si chiamano uguale. */
@@ -815,7 +819,7 @@ var FCAIP = (function () {
                 dopo = dopo.nextElementSibling;
             }
         }
-        var riga = appendRowHTML(nuovoRid(), c.q, c.a, '', '', '', '', figlia, dopo ? { dopo: dopo } : {});
+        var riga = appendRowHTML({ rid: nuovoRid(), q: c.q, a: c.a, isChild: figlia, dopo: dopo || null });
         stato.righe[c.i] = riga;
         /* Il legame con il concetto resta sulla riga: e' cio' che permette al
            tasto universale "Migliora con l'IA" (nel piede di OGNI riga, non
@@ -868,15 +872,29 @@ var FCAIP = (function () {
         var qImgName = rigaVecchia.querySelector('.q-img-name');
         var aImgName = rigaVecchia.querySelector('.a-img-name');
 
-        var nuova = appendRowHTML(nuovoRid(), nuovoQ, nuovoA,
-            qImgEl ? qImgEl.src : '', qImgName ? qImgName.value : '',
-            aImgEl ? aImgEl.src : '', aImgName ? aImgName.value : '',
-            isChild, { dopo: rigaVecchia, dbId: dbId, status: status });
+        /* Anche l'audio gia' presente va riportato sulla riga nuova: prima
+           non lo si faceva perche' appendRowHTML non sapeva riceverlo, e
+           "Migliora con l'IA" su una carta con una registrazione la faceva
+           sparire in silenzio. */
+        var qAudioEl = rigaVecchia.querySelector('.audio-player-q');
+        var aAudioEl = rigaVecchia.querySelector('.audio-player-a');
+
+        var nuova = appendRowHTML({
+            rid: nuovoRid(),
+            q: nuovoQ, a: nuovoA,
+            qImgUrl: qImgEl ? qImgEl.src : '', qImgName: qImgName ? qImgName.value : '',
+            aImgUrl: aImgEl ? aImgEl.src : '', aImgName: aImgName ? aImgName.value : '',
+            qAudioUrl: qAudioEl ? qAudioEl.getAttribute('src') || '' : '',
+            aAudioUrl: aAudioEl ? aAudioEl.getAttribute('src') || '' : '',
+            isChild: isChild, dopo: rigaVecchia, dbId: dbId, status: status
+        });
 
         // immagini scelte ma non ancora caricate: sono proprieta' JS sulla riga,
         // spariscono col nodo se non le si trasporta a mano
         if (rigaVecchia.qNewImgFile) nuova.qNewImgFile = rigaVecchia.qNewImgFile;
         if (rigaVecchia.aNewImgFile) nuova.aNewImgFile = rigaVecchia.aNewImgFile;
+        if (rigaVecchia.qAudioBlob) { nuova.qAudioBlob = rigaVecchia.qAudioBlob; nuova.qAudioExt = rigaVecchia.qAudioExt; }
+        if (rigaVecchia.aAudioBlob) { nuova.aAudioBlob = rigaVecchia.aAudioBlob; nuova.aAudioExt = rigaVecchia.aAudioExt; }
         // un esempio dell'IA non ancora salvato aspetta anche lui il trasloco
         if (rigaVecchia.esempioIA) nuova.esempioIA = rigaVecchia.esempioIA;
 

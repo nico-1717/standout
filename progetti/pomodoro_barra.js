@@ -37,19 +37,53 @@ var elArco   = document.getElementById('pomoPopArco');
 var elProg      = document.getElementById('pomoPopProg');
 var elProgTesto = document.getElementById('pomoPopProgTesto');
 var elExtra  = document.getElementById('pomoPopExtra');
+var elNota   = document.getElementById('pomoPopNota');
 var tasti    = {
     pausaSessione: document.getElementById('pomoPopCongela'),
     riprendi:      document.getElementById('pomoPopRiprendi'),
     chiudi:        document.getElementById('pomoPopChiudi'),
     tisana:        document.getElementById('pomoPopTisana'),
     extra:         document.getElementById('pomoPopExtraBtn'),
-    nuovo:         document.getElementById('pomoPopNuovo')
+    nuovo:         document.getElementById('pomoPopNuovo'),
+    scarta:        document.getElementById('pomoPopScarta')
 };
 
 var CIRC = 2 * Math.PI * 44;     // il raggio dell'arco nel markup
 var timerFine = null;            // l'unico timer: scatta a fine tempo previsto
 var battito   = null;            // gira solo a popup aperto
 var selettoreChiesto = false;
+var azioneInCorso = false;       // un tasto per volta: vedi agisci()
+var scartaArmato  = null;        // il primo tocco del cestino arma, il secondo cancella
+
+function disarmaScarta(){
+    if (scartaArmato) { clearTimeout(scartaArmato); scartaArmato = null; }
+    if (tasti && tasti.scarta) tasti.scarta.classList.remove('is-armato');
+}
+
+/* ------------------------------------------------------------------
+   IL TOKEN DELLE SCRITTURE
+   Ogni POST del pomodoro passa da sec_guard_write(), che pretende il
+   token della sessione. Ad aggiungerlo alle richieste e' nisama_fetch.js,
+   che la pagina pomodoro si carica da sola in testa — ma questa barra
+   finisce su ventisette pagine, e non tutte se lo caricano.
+
+   Dove manca succedeva questo: il tasto si premeva, il server rifiutava,
+   il .catch della promessa ingoiava l'errore e la barra restava identica.
+   Un tasto che non risponde e un tasto che non c'e' si assomigliano
+   troppo — sembrava semplicemente rotto.
+
+   Si carica solo se non c'e' gia': avvolgere fetch due volte sulla stessa
+   pagina e' un guaio peggiore di quello che si sta risolvendo. Il
+   controllo e' sull'indirizzo dello script, che e' l'unica traccia certa
+   lasciata da un file che potrebbe non esporre niente di suo.
+   ------------------------------------------------------------------ */
+(function assicuraFetch(){
+    if (!D.fetchjs) return;
+    if (document.querySelector('script[src*="nisama_fetch"]')) return;
+    var s = document.createElement('script');
+    s.src = D.fetchjs;
+    document.head.appendChild(s);
+})();
 
 /* ------------------------------------------------------------------
    LO SPAZIO IN CIMA
@@ -271,6 +305,10 @@ function chiudiPopup(){
     velo.classList.remove('is-aperto');
     barra.classList.remove('is-aperta');
     if (battito) { clearInterval(battito); battito = null; }
+    /* Chiudere e' un ripensamento: il cestino armato e l'avviso di un'azione
+       non riuscita non devono ritrovarsi li' alla riapertura. */
+    disarmaScarta();
+    nota('');
 }
 
 function battitoPopup(){
@@ -298,24 +336,95 @@ function aggiornaTasti(fase){
                        || fase === 'pausa_running' || fase === 'pausa_done',
         tisana:        fase === 'running' || fase === 'completed',
         extra:         fase === 'completed',
-        nuovo:         fase === 'pausa_running' || fase === 'pausa_done'
+        nuovo:         fase === 'pausa_running' || fase === 'pausa_done',
+        /* Scartare vale solo su una sessione ancora aperta — in corso o
+           congelata. A pomodoro completato la riga e' gia' chiusa e conta nei
+           totali: buttarla via da qui, di nascosto, sarebbe un modo perfetto
+           per perdere un'ora di lavoro con un tocco. In pausa non c'e' proprio
+           niente da scartare, la pausa non si salva. */
+        scarta:        fase === 'running' || fase === 'paused_task'
     };
     for (var k in tasti) {
         if (tasti[k]) tasti[k].hidden = !mostra[k];
     }
 }
 
+/* ------------------------------------------------------------------
+   L'IDENTIFICATIVO DELLA SESSIONE
+   Tutte le azioni che chiudono, estendono o archiviano ne hanno bisogno,
+   e senza il server risponde success:false — cioe' il tasto sembra non
+   fare niente. Il modello ce l'ha quasi sempre, ma "quasi" non basta per
+   una cosa da cui dipendono tre tasti: se manca lo si ripesca dallo stato
+   grezzo del server, che e' la stessa fonte da cui il modello e' stato
+   riempito.
+   ------------------------------------------------------------------ */
+function idSessione(){
+    var M = PomoCore.modello();
+    if (M.sessioneId) return M.sessioneId;
+    var st = PomoCore.stato() || {};
+    if (st.active && st.active.id) return st.active.id;
+    if (st.last && st.last.esito === 'completato' && st.last.id) return st.last.id;
+    return 0;
+}
+
+/* Una riga sotto ai tasti, e sparisce da sola. Serve nell'unico caso in cui
+   prima non succedeva niente di niente: azione rifiutata dal server o rete
+   caduta. */
+var timerNota = null;
+function nota(testo){
+    if (!elNota) return;
+    elNota.textContent = testo || '';
+    elNota.classList.toggle('is-visibile', !!testo);
+    if (timerNota) { clearTimeout(timerNota); timerNota = null; }
+    if (testo) timerNota = setTimeout(function(){ nota(''); }, 3200);
+}
+
+/* ------------------------------------------------------------------
+   AGIRE
+   Tre cose che prima non c'erano, e sono tutte e tre lo stesso problema
+   visto da tre lati — un'azione che non riesce restava invisibile:
+
+   1. un tasto per volta. Due tocchi ravvicinati mandavano due scritture,
+      e la seconda arrivava su uno stato che la prima aveva gia' cambiato.
+   2. l'esito si guarda. PomoCore.azione() risolve anche quando il server
+      dice success:false: qui lo si legge davvero e lo si dice.
+   3. c'e' sempre un .catch, e comunque vada si rilegge lo stato e si
+      ridisegna. Una promessa che si rompe a meta' lasciava la barra ferma
+      su una realta' che non esisteva piu'.
+   ------------------------------------------------------------------ */
 function agisci(nome, dati, poi){
+    if (azioneInCorso) return Promise.resolve(null);
+    azioneInCorso = true;
+    popup.classList.add('is-occupato');
+
     return PomoCore.azione(nome, dati || {})
-        .then(function () { return PomoCore.aggiorna({ applica: true }); })
-        .then(function () { if (poi) return poi(); })
-        .then(disegna);
+        .then(function (d) {
+            /* Il conflitto ha gia' la sua strada: il motore adotta lo stato
+               vero e avvisa. Qui non c'e' niente da aggiungere. */
+            if (d && d.conflitto) return d;
+            if (d && d.success === false) { nota(T.non_riuscito || ''); return d; }
+            return PomoCore.aggiorna({ applica: true })
+                .then(function () { if (poi) return poi(); })
+                .then(function () { return d; });
+        })
+        .catch(function (e) {
+            nota(T.non_riuscito || '');
+            if (window.console) console.error('[pomo-barra]', nome, e);
+            // lo stato vero e' quello del server, non quello che speravamo
+            return PomoCore.aggiorna({ applica: true }).catch(function(){ return null; });
+        })
+        .then(function (d) {
+            azioneInCorso = false;
+            popup.classList.remove('is-occupato');
+            disegna();
+            return d;
+        });
 }
 
 tasti.pausaSessione.addEventListener('click', function (e) {
     e.stopPropagation();
     agisci('pausa_task', {
-        session_id: PomoCore.modello().sessioneId,
+        session_id: idSessione(),
         // l'arrotondamento lo decide il motore: congelare dalla barra e
         // congelare dalla pagina devono scrivere lo stesso numero
         tempo_esatto: PomoCore.tempoDaCongelare()
@@ -324,58 +433,80 @@ tasti.pausaSessione.addEventListener('click', function (e) {
 
 tasti.riprendi.addEventListener('click', function (e) {
     e.stopPropagation();
-    agisci('riprendi_task', { session_id: PomoCore.modello().sessioneId });
+    agisci('riprendi_task', { session_id: idSessione() });
 });
 
 tasti.chiudi.addEventListener('click', function (e) {
     e.stopPropagation();
-    var fase = PomoCore.fase(), M = PomoCore.modello();
+    var fase = PomoCore.fase();
     if (fase === 'pausa_running' || fase === 'pausa_done') { agisci('fine_pausa'); return; }
-    if (fase === 'completed') { agisci('archivia_completato', { session_id: M.sessioneId }); return; }
-    agisci('interrompi', { session_id: M.sessioneId, elimina: 0 });
+    if (fase === 'completed') { agisci('archivia_completato', { session_id: idSessione() }); return; }
+    agisci('interrompi', { session_id: idSessione(), elimina: 0 });
 });
 
 tasti.tisana.addEventListener('click', function (e) {
     e.stopPropagation();
     var M = PomoCore.modello();
     var fase = PomoCore.fase();
+    var sid  = idSessione();
     /* Prima si chiude la sessione, poi parte la pausa: mai il contrario,
        altrimenti per un istante esistono tutt'e due e il tempo della pausa
-       finirebbe dentro al pomodoro. */
-    var chiusura = (fase === 'completed')
-        ? PomoCore.azione('archivia_completato', { session_id: M.sessioneId })
-        : PomoCore.azione('interrompi', { session_id: M.sessioneId, elimina: 0 });
-
-    chiusura
-        .then(function () {
-            return PomoCore.azione('avvia_pausa', {
-                project_id: M.progettoId || 0,
-                durata_minuti: M.durataPausaMin || 5
-            });
-        })
-        .then(function () { return PomoCore.aggiorna({ applica: true }); })
-        .then(disegna);
+       finirebbe dentro al pomodoro. La seconda azione sta nel "poi" di
+       agisci(), cosi' anche questa catena passa dal controllo dell'esito e
+       dal .catch invece di correre per conto suo. */
+    agisci(fase === 'completed' ? 'archivia_completato' : 'interrompi',
+           fase === 'completed' ? { session_id: sid } : { session_id: sid, elimina: 0 },
+           function () {
+               return PomoCore.azione('avvia_pausa', {
+                   project_id: M.progettoId || 0,
+                   durata_minuti: M.durataPausaMin || 5
+               }).then(function () { return PomoCore.aggiorna({ applica: true }); });
+           });
 });
 
 tasti.extra.addEventListener('click', function (e) {
     e.stopPropagation();
-    agisci('estendi', { session_id: PomoCore.modello().sessioneId });
+    agisci('estendi', { session_id: idSessione() });
 });
 
 tasti.nuovo.addEventListener('click', function (e) {
     e.stopPropagation();
     var M = PomoCore.modello();
-    PomoCore.azione('fine_pausa')
-        .then(function () {
-            return PomoCore.azione('start', {
-                mode: 0,
-                durata_minuti: M.durataSceltaMin || 25,
-                project_id: M.progettoId || 0
-            });
-        })
-        .then(function () { return PomoCore.aggiorna({ applica: true }); })
-        .then(disegna);
+    agisci('fine_pausa', {}, function () {
+        return PomoCore.azione('start', {
+            mode: 0,
+            durata_minuti: M.durataSceltaMin || 25,
+            project_id: M.progettoId || 0
+        }).then(function () { return PomoCore.aggiorna({ applica: true }); });
+    });
 });
+
+/* ------------------------------------------------------------------
+   SCARTARE
+   L'unica azione del popup che non si puo' disfare: la riga sparisce dal
+   database, quindi quel tempo non conta piu' da nessuna parte — ne' nei
+   totali del progetto ne' nello storico. Percio' il primo tocco non
+   cancella, arma: il tasto diventa rosso pieno e chiede di ripetere. E'
+   il minimo indispensabile per non perdere un'ora di lavoro con un tocco
+   sbagliato dentro un popup piccolo, e costa meno di una finestra di
+   conferma che qui dentro non ci starebbe.
+   ------------------------------------------------------------------ */
+if (tasti.scarta) {
+    tasti.scarta.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (!scartaArmato) {
+            tasti.scarta.classList.add('is-armato');
+            nota(T.scarta_conferma || '');
+            // cinque secondi: passati quelli l'intenzione non c'e' piu'
+            scartaArmato = setTimeout(disarmaScarta, 5000);
+            return;
+        }
+        disarmaScarta();
+        agisci('interrompi', { session_id: idSessione(), elimina: 1 }, function () {
+            nota(T.scartata || '');
+        });
+    });
+}
 
 /* ------------------------------------------------------------------
    CARICARE UN PEZZO DI PAGINA AL VOLO

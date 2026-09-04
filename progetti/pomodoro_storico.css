@@ -39,6 +39,10 @@
 .ph-list-scroll{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:4px 12px calc(16px + var(--safe-bottom,0px)); }
 @keyframes phRowIn{ from{ opacity:0; transform:translateY(10px) scale(.98); } to{ opacity:1; transform:none; } }
 .ph-day-header{ font-size:12px; font-weight:800; color:var(--text-2,#888); text-transform:uppercase; letter-spacing:.4px; padding:14px 8px 6px; animation:phRowIn .35s var(--spring,ease) both; }
+/* Il totale non deve competere con il nome del giorno: stessa riga, peso e
+   trasformazione diversi apposta, altrimenti sembrano la stessa informazione
+   ripetuta due volte invece di due informazioni distinte. */
+.ph-day-total{ font-weight:600; text-transform:none; letter-spacing:normal; opacity:.68; }
 .ph-row-wrap{ position:relative; margin-bottom:6px; animation:phRowIn .35s var(--spring,ease) both; }
 .ph-row{ position:relative; overflow:hidden; border-radius:14px; }
 .ph-row-content{ position:relative; z-index:2; background:var(--surface-2,#f4f4f6); display:flex; align-items:center; gap:10px; padding:11px 12px; border-left:4px solid var(--row-color,#8A8A8E); transition:transform .1s; }
@@ -128,4 +132,138 @@
 .ph-go-ic{
     width:26px; height:26px; border-radius:50%; flex-shrink:0;
     background:rgba(255,255,255,.22); display:flex; align-items:center; justify-content:center;
+}
+
+/* ==========================================================================
+   IL PANNELLO DI PANORAMICA — giorno/settimana/mese e il resto. Vive dentro
+   l'elenco che scorre (vedi il markup): scorrendo la lista se ne va, non
+   resta in sovraimpressione. Una fila di schede che scorre da sola e si puo'
+   anche scorrere a mano — appena si tocca, l'avanzamento automatico si
+   ferma — e non ha ne' inizio ne' fine: oltre l'ultima si ritorna alla
+   prima, e viceversa (il meccanismo e' nel JavaScript, qui c'e' solo lo
+   scorrimento con lo scatto a ogni scheda).
+   ========================================================================== */
+/* Il -12px ai lati cancella esattamente il padding orizzontale che
+   .ph-list-scroll gli da' come contenitore (4px 12px ...): senza, il
+   carosello non arriverebbe fino al bordo e la scheda vicina non si
+   vedrebbe spuntare come deve. */
+.ph-insights{ margin:0 -12px 4px; padding-top:2px; }
+.ph-insights-track{
+    display:flex; align-items:flex-start; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory;
+    padding:2px 16px; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+}
+.ph-insights-track::-webkit-scrollbar{ display:none; }
+/* align-items:flex-start qui sopra non e' un dettaglio: senza, ogni scheda
+   si stira ad occupare tutta l'altezza che il flex avrebbe a disposizione
+   invece di fermarsi alla propria — su schermi larghi, dove quello spazio
+   e' grande, e' bastato a far sembrare il pannello alto quanto tutto il
+   popup. L'altezza vera la decide solo .ph-insight-card, qui sotto. */
+.ph-insight-card{
+    flex:0 0 auto; scroll-snap-align:center;
+    width:calc(100% - 60px);   /* margine ai due lati: si vede un'unghia della scheda vicina */
+    background:var(--surface-2,#f4f4f6); border-radius:16px; padding:16px 18px 18px;
+    display:flex; flex-direction:column; gap:4px; box-sizing:border-box;
+    /* meta' del foglio, non piu' un numero fisso: il foglio stesso e' 90vh/90dvh
+       (vedi .ph-sheet), quindi la scheda resta "meta' del popup" su qualunque
+       schermo invece di essere tarata su uno solo. Le due unita' insieme per
+       lo stesso motivo del foglio: dvh tiene conto della barra degli indirizzi
+       che cambia altezza sui browser mobili, vh e' il ripiego dove dvh manca. */
+    height:45vh; height:45dvh;
+    overflow:hidden;   /* rete di sicurezza: meglio tagliare un pixel che rompere il ritmo delle schede vicine */
+    animation:phRowIn .35s var(--spring,ease) both;
+}
+.ph-insight-label{ font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:var(--text-2,#888); flex-shrink:0; }
+/* justify-content:center centra i contenuti brevi (un numero, una frase), ma
+   i grafici che devono RIEMPIRE l'altezza usano flex:1 al loro interno e si
+   prendono lo spazio da soli: le due cose convivono senza doversi contendere
+   la regola. */
+.ph-insight-body{ flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; }
+.ph-insight-empty{ font-size:14px; color:var(--text-2,#888); text-align:center; padding:4px; }
+.ph-insights-dots{ display:flex; justify-content:center; gap:6px; padding-top:9px; }
+.ph-insights-dot{ width:6px; height:6px; border-radius:50%; background:var(--hairline-2,#ccc); transition:background-color .25s, transform .25s var(--spring,ease); }
+.ph-insights-dot.active{ background:var(--blue,#007AFF); transform:scale(1.35); }
+
+/* generiche, riusate da piu' schede */
+.ph-insight-value{ font-size:34px; font-weight:800; line-height:1.05; text-align:center; }
+.ph-insight-caption{ font-size:13px; color:var(--text-2,#888); text-align:center; font-weight:600; }
+.ph-insight-emoji{ font-size:32px; line-height:1; text-align:center; }
+
+/* ---- giorno: l'anello di oggi per progetto.
+   Anello sottile e grande invece di una ciambella spessa: la proporzione fra
+   i progetti si legge lo stesso — e' l'ampiezza dell'arco a raccontarla, non
+   il suo spessore — e il totale al centro respira invece di stare stretto in
+   un buco. Gli estremi restano squadrati: arrotondarli farebbe sovrapporre
+   gli archi vicini e falserebbe le proporzioni. ---- */
+.ph-pie-wrap{ position:relative; width:min(60%, 190px); aspect-ratio:1; flex-shrink:0; }
+.ph-pie-wrap svg{ width:100%; height:100%; transform:rotate(-90deg); display:block; overflow:visible; }
+.ph-pie-track{ fill:none; stroke:var(--hairline,#e4e4e6); stroke-width:5; }
+.ph-pie-seg{ fill:none; stroke-width:5; transition:stroke-dasharray .4s var(--spring,ease); }
+.ph-pie-center{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
+.ph-pie-center b{ font-size:26px; font-weight:800; line-height:1; letter-spacing:-.02em; }
+.ph-pie-caption{
+    font-size:13px; font-weight:700; color:var(--text-2,#888); text-align:center;
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
+/* ---- settimana: le barre impilate per progetto, col righello delle ore.
+   Tutte le altezze sono in percentuale (le mette il JavaScript): la scheda e'
+   alta meta' del popup e cambia da schermo a schermo, quindi qualunque numero
+   fisso lascerebbe il grafico schiacciato in alto con lo spazio sotto vuoto. */
+.ph-week-wrap{ display:flex; gap:12px; width:100%; flex:1; min-height:0; }
+.ph-week-axis{
+    flex-shrink:0; display:flex; flex-direction:column; justify-content:space-between;
+    font-size:10px; font-weight:700; color:var(--text-3,#AEAEB2); text-align:right;
+    /* lo stesso spazio che le colonne riservano all'etichetta del giorno,
+       cosi' lo "0" del righello cade esattamente sulla base delle barre */
+    padding-bottom:22px;
+}
+.ph-bars{ flex:1; display:flex; justify-content:space-between; gap:7px; min-width:0; }
+.ph-bar-col{ flex:1; display:flex; flex-direction:column; min-width:0; }
+.ph-bar-track{ flex:1; min-height:0; display:flex; align-items:flex-end; justify-content:center; }
+.ph-bar-stack{
+    width:100%; max-width:26px; height:100%;
+    display:flex; flex-direction:column-reverse;
+    border-radius:5px; overflow:hidden; background:var(--hairline,#e4e4e6);
+}
+.ph-bar-seg{ width:100%; }
+.ph-bar-day{ height:22px; line-height:22px; font-size:10.5px; font-weight:700; color:var(--text-3,#AEAEB2); text-transform:uppercase; text-align:center; }
+.ph-bar-day.is-today{ color:var(--blue,#007AFF); font-weight:800; }
+
+/* ---- mese: la heatmap. Celle quadrate e piccole, con lo spazio distribuito
+   dalla griglia: e' un calendario, e un calendario si legge se le celle sono
+   quadrate. ---- */
+.ph-heat{
+    display:grid; grid-template-columns:repeat(7, 1fr); gap:5px;
+    width:100%; max-width:230px; margin:0 auto;
+}
+.ph-heat-cell{ aspect-ratio:1; border-radius:4px; background:var(--hairline,#e4e4e6); }
+.ph-heat-cell.is-empty{ visibility:hidden; }
+.ph-heat-cell.is-today{ box-shadow:inset 0 0 0 1.5px var(--blue,#007AFF); }
+
+/* ---- oggi: il numero grande, il confronto con ieri in parole, la serie in
+   fondo — senza etichetta, la fiamma e "giorni di fila" bastano ---- */
+.ph-oggi-num{ font-size:52px; font-weight:800; line-height:1; letter-spacing:-.03em; }
+.ph-oggi-confronto{ font-size:13.5px; font-weight:700; margin-top:4px; }
+.ph-oggi-confronto.is-piu{ color:var(--green,#34C759); }
+.ph-oggi-confronto.is-meno{ color:var(--red,#FF3B30); }
+.ph-oggi-confronto.is-pari{ color:var(--text-3,#AEAEB2); }
+.ph-oggi-serie{
+    flex-shrink:0; display:flex; align-items:center; justify-content:center; gap:5px;
+    font-size:12.5px; font-weight:600; color:var(--text-2,#888);
+    padding-top:10px; border-top:.5px solid var(--hairline,#e4e4e6);
+}
+.ph-oggi-serie b{ font-weight:800; color:var(--text,#111); }
+.ph-oggi-fiamma{ font-size:14px; line-height:1; }
+
+/* ---- l'ora in cui ci si concentra di piu': ventiquattro fasce sottili ---- */
+.ph-hours{ display:flex; align-items:flex-end; gap:3px; width:100%; flex:1; min-height:0; }
+.ph-hour-bar{ flex:1; background:var(--hairline,#e4e4e6); border-radius:2px; min-width:2px; }
+.ph-hour-bar.is-top{ background:var(--blue,#007AFF); }
+.ph-hours-axis{
+    display:flex; justify-content:space-between; width:100%;
+    font-size:9.5px; font-weight:700; color:var(--text-3,#AEAEB2); padding-top:5px;
+}
+
+@media (prefers-reduced-motion: reduce){
+    .ph-insights-track{ scroll-behavior:auto; }
 }

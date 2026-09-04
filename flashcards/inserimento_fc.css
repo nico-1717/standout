@@ -84,26 +84,36 @@
         }
         .pill-help:active{ transform:scale(.94); }
 
-        /* ---------------- Immagine (upload singolo) ---------------- */
+        /* ---------------- Immagine: un riquadro solo, si tocca per scegliere ----------------
+           Prima c'era un pulsante "Scegli foto" separato dall'anteprima. Ora
+           il riquadro stesso e' l'etichetta collegata all'input file (vedi
+           fc_editor_immagine.php): premerlo, ovunque dentro, apre il
+           selettore. La "x" per togliere l'immagine e' l'unica eccezione,
+           protetta da preventDefault() nel proprio onclick. */
         .up-label{ font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text-3); margin-bottom:6px; }
-        .file-row{ margin-bottom:10px; }
-        .file-btn{
-            display:inline-flex; align-items:center; gap:7px; cursor:pointer;
-            background:var(--surface-2); color:var(--text); font-weight:700; font-size:13.5px;
-            padding:9px 14px; border-radius:11px; box-shadow:inset 0 0 0 .5px var(--hairline);
-            transition:transform .15s var(--spring);
+        .img-pick-box{
+            position:relative; display:flex; align-items:center; justify-content:center;
+            min-height:110px; border-radius:14px; padding:12px; text-align:center; cursor:pointer;
+            background:var(--surface-2); border:1.5px dashed var(--hairline-2);
+            transition:transform .15s var(--spring), border-color .2s, background .2s;
+            overflow:hidden;
         }
-        .file-btn:active{ transform:scale(.96); }
-        .img-upload-box{
-            margin-top:10px; border-radius:14px; padding:10px; text-align:center;
-            background:var(--blue-soft); box-shadow:inset 0 0 0 1.5px rgba(0,122,255,.4);
-            display:flex; flex-direction:column; align-items:center; gap:8px;
+        .img-pick-box:active{ transform:scale(.98); }
+        .img-pick-box.has-img{
+            border-style:solid; border-color:rgba(0,122,255,.4); background:var(--blue-soft);
         }
-        .img-upload-box img{ max-width:100%; max-height:120px; border-radius:9px; object-fit:contain; display:block; }
-        .mini-remove{
-            display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; color:var(--r-ink);
-            white-space:nowrap; cursor:pointer; border:none; background:none; padding:4px 8px; font-family:inherit;
+        .img-pick-empty{
+            display:flex; flex-direction:column; align-items:center; gap:6px;
+            color:var(--text-3); font-size:12.5px; font-weight:700;
         }
+        .img-pick-box.has-img .img-pick-empty{ display:none; }
+        .img-pick-preview{ max-width:100%; max-height:150px; border-radius:9px; object-fit:contain; display:block; }
+        .img-pick-remove{
+            position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:50%;
+            border:none; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center;
+            background:rgba(0,0,0,.55); color:#fff; transition:transform .15s var(--spring);
+        }
+        .img-pick-remove:active{ transform:scale(.9); }
 
         /* ---------------- Audio, compatto ed elegante ---------------- */
         .audio-card{

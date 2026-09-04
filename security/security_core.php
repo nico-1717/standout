@@ -80,13 +80,22 @@ function sec_boot_headers(): void {
          . "object-src 'none'; "
          . "frame-ancestors 'self'; "
          . "form-action 'self'; "
-         /* Riquadri di terze parti: solo la mappa incorporata di Google, nel
-            popup dell'evento del planner. Senza questa riga valeva il
+         /* Riquadri: la mappa incorporata di Google (nel popup dell'evento del
+            planner) e le nostre stesse pagine. Senza questa riga valeva il
             default-src 'self' e il browser rifiutava la mappa mostrando un
             riquadro grigio ("This content is blocked"). L'elenco resta corto
-            apposta: ogni voce qui e' un sito a cui si permette di disegnare
-            dentro le nostre pagine. */
-         . "frame-src https://www.google.com; "
+            apposta: ogni voce di terze parti qui e' un sito a cui si permette
+            di disegnare dentro le nostre pagine.
+
+            'self' serve perche' una direttiva frame-src SOSTITUISCE il
+            default-src, non lo integra: elencando solo google.com si era tolto
+            al sito il permesso di incorniciare SE STESSO, e il popup di
+            modifica della flashcard (fc_edit_popup.js, che apre
+            modifica_immagine_fc.php in un iframe) finiva nello stesso riquadro
+            grigio descritto qui sopra. Non e' un allentamento: frame-ancestors
+            'self' qui sotto continua a impedire che siano ALTRI a incorniciare
+            noi, che e' la difesa dal clickjacking. */
+         . "frame-src 'self' https://www.google.com; "
          . "img-src 'self' data: blob: https:; "
          . "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; "         
          . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
