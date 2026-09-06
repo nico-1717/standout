@@ -643,6 +643,51 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 /* Il colore in uso si vede: un anello attorno al pallino. Senza, per sapere
    di che colore si sta scrivendo bisogna guardare il testo e indovinare. */
 .fmt-pop-dot.is-scelto{ box-shadow:inset 0 0 0 1px rgba(0,0,0,.07), 0 0 0 2.5px var(--surface,#fff), 0 0 0 4.5px var(--blue,#007AFF); }
+
+/* I PALLINI DELLA LISTA, DIVERSI DA QUELLI DEL TESTO
+   Le due file di colori sono le stesse tinte negli stessi identici cerchi:
+   aperto il pannello non c'e' modo di sapere a colpo d'occhio se si sta
+   scegliendo il colore del TESTO o quello dei PALLINI dell'elenco — e si
+   sbaglia di continuo. Qui i secondi diventano riconoscibili senza dover
+   leggere niente: piu' piccoli (che e' poi la loro misura vera nel testo,
+   quindi il pannello mostra quello che si otterra'), con un bordo scuro
+   attorno e un riflesso in alto che li fa sembrare pastiglie in rilievo
+   invece che campioni di colore piatti.
+   Il pulsante resta grande quanto prima come area da toccare: a rimpicciolire
+   e' solo il disegno, con l'anello del colore di sfondo che fa da cornice. */
+.fmt-pop-dot[data-list-color]{
+    /* Rimpicciolito direttamente, non con un bordo trasparente piu'
+       background-clip: quei pulsanti hanno il colore scritto nello style in
+       linea, e la scorciatoia "background:" li' dentro riazzera il
+       background-clip — la cornice trasparente si sarebbe colorata anche lei
+       e il pallino sarebbe rimasto grande come prima. */
+    width:18px; height:18px;
+    /* Rilievo morbido, non un bordo nero e una lucina dura: quelli facevano
+       sembrare i pallini bottoni di un'interfaccia vecchia. Il contorno e'
+       appena accennato, il riflesso e' largo e sfumato in alto, l'ombra
+       interna sotto e' altrettanto morbida — la differenza dai colori del
+       testo (piatti e piu' grandi) resta netta, ma senza spigoli. */
+    box-shadow:
+        inset 0 0 0 .5px rgba(0,0,0,.15),                 /* contorno appena accennato */
+        inset 0 3.5px 4px -2px rgba(255,255,255,.9),      /* riflesso ampio e sfumato */
+        inset 0 -3.5px 4px -2.5px rgba(0,0,0,.18),        /* ombra morbida sotto */
+        0 1px 2.5px rgba(0,0,0,.16);                      /* stacco leggero dallo sfondo */
+}
+.fmt-pop-dot[data-list-color].is-scelto{
+    box-shadow:
+        inset 0 0 0 .5px rgba(0,0,0,.15),
+        inset 0 3.5px 4px -2px rgba(255,255,255,.9),
+        inset 0 -3.5px 4px -2.5px rgba(0,0,0,.18),
+        0 0 0 2px var(--surface,#fff),
+        0 0 0 3.5px var(--blue,#007AFF);
+}
+/* Il "predefinito" della lista segue la stessa misura degli altri della sua
+   fila, altrimenti sarebbe l'unico grande e sembrerebbe un'altra cosa. */
+.fmt-pop-dot-default[data-list-color]{
+    width:18px; height:18px;
+    box-shadow:inset 0 0 0 1.5px var(--hairline-2,rgba(60,60,67,.22));
+}
+.fmt-pop-dot-default[data-list-color] svg{ width:11px; height:11px; }
 /* Il terzo piano: stesso meccanismo del secondo, cassetto suo. */
 .fmt-drawer-2{
     height:0; overflow:hidden; position:relative; z-index:0;
@@ -2714,8 +2759,25 @@ function ftRefreshState(wrap) {
     });
 
     var pallini = bar.querySelectorAll('.fmt-pop-dot[data-color]');
-    var colore = collassata ? (marks.c || '') : '';
-    pallini.forEach(function (d) { d.classList.toggle('is-scelto', (d.dataset.color || '') === colore); });
+    /* Con del testo SELEZIONATO si guarda il colore di quel testo, non quello
+       che avrebbe il cursore: prima con una selezione si passava sempre
+       stringa vuota, e l'anello finiva sempre sul pallino neutro con la x —
+       anche selezionando del testo tutto rosso. Se il tratto scelto e' di un
+       colore solo, e' quello ad accendersi; se ne mescola piu' d'uno non si
+       accende niente, perche' non c'e' una risposta giusta da dare. */
+    var colore;
+    if (collassata) {
+        colore = marks.c || '';
+    } else {
+        var visti = {}, quanti = 0;
+        fcdEachRunInRange(doc, sel, function (run) {
+            var c = (run.m && run.m.c) || '';
+            if (!Object.prototype.hasOwnProperty.call(visti, c)) { visti[c] = 1; quanti++; }
+        });
+        var chiavi = Object.keys(visti);
+        colore = (quanti === 1) ? chiavi[0] : null;   // null = misto, nessuno acceso
+    }
+    pallini.forEach(function (d) { d.classList.toggle('is-scelto', colore !== null && (d.dataset.color || '') === colore); });
 
     /* Se in questo momento c'e' anche una copia in sovraimpressione, va
        rifatta: tutto quello che si e' appena aggiornato qui sopra (tasti
@@ -3317,7 +3379,7 @@ function ftMQPosizioneInLinea(ed, span) {
         var len = fcdRunText(blocco.runs[k]).length;
         if (typeof blocco.runs[k].x === 'string') {
             contate++;
-            if (contate === ordinale) return { bi: bi, nRuns: k, inizio: acc, fine: acc + len };
+            if (contate === ordinale) return { bi: bi, nRuns: k, inizio: acc, fine: acc + len, ordinale: ordinale };
         }
         acc += len;
     }
@@ -3334,9 +3396,45 @@ function ftMQEsciInLinea(el, wrap, verso) {
     var pos = ftMQPosizioneInLinea(ed, el);
     ftMQSmonta(el);
     if (!pos) { ftMathRefresh(wrap); return; }
+    /* "Sto uscendo": ftCmd qui sotto fa ripartire ftMathRefresh, che vedrebbe
+       il cursore appoggiato al bordo della formula, lo scambierebbe per un
+       cursore DENTRO di lei e rimonterebbe MathQuill riprendendosi il fuoco —
+       si usciva e si rientrava nello stesso istante, e la freccia destra
+       sembrava non fare niente. Con questo segno ftMathRefresh sa di non
+       rimontare niente per un attimo, il tempo che il cursore si sistemi
+       fuori. */
+    wrap._ftUscitaFormula = Date.now();
     ftCmd(wrap, function (d, s) {
         return { doc: d, caret: { b: pos.bi, o: verso < 0 ? pos.inizio : pos.fine } };
     });
+
+    /* PERCHE' NON BASTA IL CURSORE AL BORDO
+       Chiedere il cursore "alla fine della formula" lo mette in un punto che
+       appartiene ancora alla formula: per chi guarda il documento, la
+       posizione subito dopo l'ultimo carattere di una formula e' sia il suo
+       bordo destro sia l'inizio del testo dopo. ftMathRefresh, che scatta
+       subito dopo, la legge come "il cursore e' dentro quella formula" e
+       rimonta MathQuill — che si riprende il fuoco. Da fuori sembrava che la
+       freccia destra non facesse niente: si usciva e si rientrava nello
+       stesso istante, all'infinito. Non capitava sempre perche' dipende da
+       dove il browser normalizza il cursore, e con esponenti o pedici (che
+       aggiungono elementi dentro la formula) finisce piu' facilmente dentro.
+       Qui lo si posa esplicitamente FUORI dall'elemento, nel testo attorno:
+       da li' nessuno puo' scambiarlo per un cursore dentro la formula. */
+    try {
+        var edNuovo = ftEditor(wrap);
+        var bEl = fcdBlockEls(edNuovo)[pos.bi];
+        var spans = bEl ? bEl.querySelectorAll('.fc-x') : null;
+        var sp = (spans && pos.ordinale != null) ? spans[pos.ordinale] : null;
+        if (sp && sp.parentNode) {
+            var r = document.createRange();
+            if (verso < 0) r.setStartBefore(sp); else r.setStartAfter(sp);
+            r.collapse(true);
+            var sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(r);
+        }
+    } catch (e) {}
 }
 
 /* Backspace/canc al bordo di una formula IN LINEA vuota: si toglie il run,
@@ -3641,6 +3739,11 @@ function ftMathRefresh(wrap) {
        non e' compito di un refresh scattato per il movimento del cursore.
        fcdTrim() e' la seconda rete, per quelle che sfuggissero anche a
        questa (un'altra scheda, un salvataggio partito nel mezzo). */
+    /* Appena usciti da una formula non si rimonta nulla: vedi il commento in
+       ftMQEsciInLinea. Passato l'attimo, il segno si cancella da solo. */
+    if (wrap._ftUscitaFormula && Date.now() - wrap._ftUscitaFormula < 400) dentro = null;
+    else wrap._ftUscitaFormula = 0;
+
     var daTogliere = null;
     ed.querySelectorAll('.fc-x, .fc-fx').forEach(function (el) {
         if (el === dentro || daTogliere) return;
@@ -5273,6 +5376,35 @@ function ftSetupToolbar(wrap) {
     bar.addEventListener('click', function (e) {
 
         var dot = e.target.closest('.fmt-pop-dot');
+        /* Preso di poco fuori? Vale lo stesso. I pallini sono piccoli e
+           distanziati, e un dito che cade nel vuoto fra due — o appena sopra
+           o sotto la riga — non faceva niente: si doveva riprovare, spesso
+           piu' volte. Qui, se il tocco e' caduto dentro la fila dei colori ma
+           non su un pallino, si prende quello con il centro piu' vicino.
+           Solo entro una distanza ragionevole (18px dal bordo del pallino):
+           piu' lontano di cosi' non e' piu' "quasi centrato", e applicare un
+           colore che non si voleva sarebbe peggio che non applicarne
+           nessuno. */
+        if (!dot) {
+            /* Si cerca in tutto il pannello, non solo dentro la striscia dei
+               colori: cadere appena SOPRA o SOTTO la fila e' il caso piu'
+               comune di tutti, e li' il tocco atterra gia' fuori dalla
+               striscia — restringendo la ricerca a lei non si sarebbe preso
+               proprio il caso da risolvere. */
+            var fila = e.target.closest ? (e.target.closest('.fmt-panel') || e.target.closest('.fmt-swatches')) : null;
+            if (fila) {
+                var vicini = fila.querySelectorAll('.fmt-swatches .fmt-pop-dot');
+                var migliore = null, minima = Infinity;
+                for (var vi = 0; vi < vicini.length; vi++) {
+                    var rv = vicini[vi].getBoundingClientRect();
+                    var dx = Math.max(rv.left - e.clientX, 0, e.clientX - rv.right);
+                    var dy = Math.max(rv.top - e.clientY, 0, e.clientY - rv.bottom);
+                    var d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < minima) { minima = d; migliore = vicini[vi]; }
+                }
+                if (migliore && minima <= 18) dot = migliore;
+            }
+        }
         if (dot) {
             if (dot.hasAttribute('data-color')) ftMarkImposta(wrap, 'c', dot.dataset.color || undefined);
             else ftCmd(wrap, function (doc, sel) { return { doc: fcdSetListColor(doc, sel, dot.dataset.listColor || null), sel: sel }; });
