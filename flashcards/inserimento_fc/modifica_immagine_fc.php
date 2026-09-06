@@ -927,6 +927,22 @@
             .catch(function () { /* il numero resta quello di prima: meglio vecchio che sparito */ });
     }
 
+    /* Un passo di avvio che si rompe non deve portarsi dietro quelli dopo.
+       Questo blocco e' una fila di inizializzazioni indipendenti — il
+       guardiano dei pannelli, le anteprime delle immagini, l'IA — scritte una
+       sotto l'altra al primo livello dello script. Scritte cosi', un errore
+       nella prima ferma il file a meta' e le altre non partono mai: si va a
+       cercare il guasto nell'IA, e l'IA non c'entra niente, semplicemente non
+       e' mai stata avviata. Con questo involucro ogni passo cade da solo, e
+       la console dice quale.
+       Non e' un modo per nascondere gli errori: e' un modo per non
+       moltiplicarli. L'errore vero resta scritto in console, col nome del
+       passo davanti. */
+    function fcAvvia(nome, fn) {
+        try { fn(); }
+        catch (err) { console.error('[modifica_immagine] avvio "' + nome + '" non riuscito:', err); }
+    }
+
     /* ================================================================
        CHI STA SOPRA COMANDA
        ================================================================
@@ -952,16 +968,23 @@
        apre cambia style.display o l'attributo hidden e basta), quindi lo si
        guarda: un MutationObserver su style e hidden, che sono esattamente i
        due attributi con cui si aprono e si chiudono. */
-    (function () {
+    fcAvvia('guardiano dei pannelli', function () {
         /* Chi copre il modulo. Il riquadro IA della carta e' nell'elenco solo
            per lo scorrimento: quando e' aperto il suo pulsante puo' restare
            visibile, e' il suo. */
         var COPRONO   = '#ex-list-modal, #ex-form-modal, #agendaModal, .cs-modal-overlay, #fcMiglioraOverlay';
         var RUBANO_IA = '#ex-list-modal, #ex-form-modal, #agendaModal, .cs-modal-overlay';
 
+        /* "Ha un rettangolo sullo schermo?" invece di "che display ha?".
+           getComputedStyle diceva la verita' solo se il foglio di stile del
+           pannello era gia' arrivato: se per un istante non lo era, un <div>
+           nascosto risultava display:block, cioe' aperto, e il guardiano si
+           comportava come se ci fosse un pannello sopra quando non c'era
+           niente. getClientRects() non ha questo problema: un elemento
+           nascosto, in qualunque modo lo sia, non occupa nessun rettangolo. */
         function visibile(el) {
             if (!el || el.hasAttribute('hidden')) return false;
-            return getComputedStyle(el).display !== 'none';
+            return el.getClientRects().length > 0;
         }
         function qualcosaAperto(selettori) {
             var lista = document.querySelectorAll(selettori);
@@ -975,14 +998,22 @@
             var coperto = qualcosaAperto(COPRONO);
 
             var fab = document.getElementById('fcMiglioraFab');
-            var daNascondere = qualcosaAperto(RUBANO_IA);
-            /* Solo se cambia davvero. setAttribute risveglia l'osservatore
-               anche quando riscrive lo stesso identico valore: assegnare senza
-               guardare prima significherebbe nascondere il pulsante, essere
-               richiamati per quella modifica, nasconderlo di nuovo, e cosi'
-               via ogni 30ms finche' il pannello resta aperto. */
-            if (fab && fab.hidden !== daNascondere) fab.hidden = daNascondere;
+            /* Una CLASSE, non l'attributo hidden. Due motivi, e il secondo e'
+               quello che conta: l'attributo hidden su quel pulsante appartiene
+               gia' a fc_migliora_carta.js, e due padroni sullo stesso
+               attributo vuol dire che ogni tanto vince quello sbagliato e il
+               pulsante resta spento anche a pannelli chiusi. Il primo motivo
+               e' che l'osservatore qui sotto guarda proprio 'hidden': scriverlo
+               da dentro il gestore vuol dire farsi richiamare da se stessi,
+               ogni 30ms, finche' il pannello resta aperto. La classe non e'
+               osservata, quindi il giro si chiude. */
+            if (fab) fab.classList.toggle('is-coperto', qualcosaAperto(RUBANO_IA));
 
+            /* Primo giro: si prende nota e basta. Prima qui eraCoperto valeva
+               null, quindi il confronto falliva sempre e si finiva nel ramo
+               che "ripristina" lo scorrimento — a pagina appena aperta, con
+               scrollSalvato ancora a zero: uno scatto in cima senza motivo. */
+            if (eraCoperto === null) { eraCoperto = coperto; return; }
             if (coperto === eraCoperto) return;
             /* La posizione di scorrimento si mette da parte e si rimette a
                mano: overflow:hidden di norma la conserva, ma "di norma" su
@@ -1006,7 +1037,7 @@
         });
 
         aggiorna();
-    })();
+    });
 
     function fcSegnalaCambiato() {
         if (window.parent && window.parent !== window) {
@@ -1108,13 +1139,22 @@
     // scegliere un file nuovo e rimuovere insieme non avrebbe senso, e vince
     // il tocco piu' recente.
     // ============================================================
-    fcImgSetupPreview('qNew_image', 'q_preview', 'q_img_wrap', function () { fcImgAnnullaRimozione('q'); });
-    fcImgSetupPreview('aNew_image', 'a_preview', 'a_img_wrap', function () { fcImgAnnullaRimozione('a'); });
+    fcAvvia('anteprime immagini', function () {
+        fcImgSetupPreview('qNew_image', 'q_preview', 'q_img_wrap', function () { fcImgAnnullaRimozione('q'); });
+        fcImgSetupPreview('aNew_image', 'a_preview', 'a_img_wrap', function () { fcImgAnnullaRimozione('a'); });
+    });
 
     // ============================================================
     // GENERA/MIGLIORA CON L'IA
     // ============================================================
-    fcMigliora.inizializza({ campoQ: 'quest', campoA: 'answ' });
+    /* Senza questa chiamata il pulsante dell'IA c'e', si preme, e non succede
+       niente: apri() va a leggere due campi di cui non conosce ancora il nome
+       e si ferma sulla prima riga. E' il guasto piu' facile da diagnosticare
+       male, perche' il sintomo (un pulsante morto) non assomiglia per niente
+       alla causa (una riga piu' su che ha interrotto lo script). */
+    fcAvvia('IA', function () {
+        fcMigliora.inizializza({ campoQ: 'quest', campoA: 'answ' });
+    });
 
     /* A differenza di inserimento_fc.php, qui la carta esiste gia' e ha gia'
        un id: un esempio generato dall'IA si puo' salvare subito, senza
@@ -1140,22 +1180,7 @@
                 fcSegnalaCambiato();
                 /* Il riquadro esempi va ridisegnato: ora ce n'e' uno in piu' di
                    quelli che aveva letto al caricamento della pagina. */
-                document.querySelectorAll('.qa-examples-box').forEach(function (b) {
-                    b.classList.remove('qa-examples-box-filled');
-                    b.innerHTML = '';
-                    b._fcExamples = null;
-                });
-                if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes();
-
-    /* La sezione esempi si nasconde se il riquadro resta vuoto: il conteggio
-       lato server e' solo un'ipotesi (puo' essere cambiato da un'altra
-       scheda), quello che conta e' cosa ha davvero trovato l'API. */
-    setTimeout(function () {
-        var sez = document.querySelector('.qa-examples-wrap');
-        if (!sez || FC_MODO === 'insert') return;
-        var pieno = sez.querySelector('.qa-examples-box-filled');
-        sez.hidden = !pieno;
-    }, 900);
+                fcRinfrescaSezioneEsempi();
             }
         } catch (e) { /* la carta e' comunque aggiornata: l'esempio si puo' riaggiungere a mano */ }
     }
@@ -1189,17 +1214,52 @@
     // che e' di sola lettura — qui si e' gia' dentro un modulo di
     // modifica, ha piu' senso finire dritti dove si puo' cambiare.
     // ============================================================
-    if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes();
-
-    /* La sezione esempi si nasconde se il riquadro resta vuoto: il conteggio
-       lato server e' solo un'ipotesi (puo' essere cambiato da un'altra
-       scheda), quello che conta e' cosa ha davvero trovato l'API. */
-    setTimeout(function () {
+    /* ---- LA SEZIONE ESEMPI DELLA CARTA, RIDISEGNATA ----
+       Il riquadro col carosello si riempie una volta sola, all'apertura della
+       pagina, leggendo dall'API. Da li' in poi il pannello degli esempi vive
+       di vita propria: si aggiunge, si corregge, si elimina, e la carta sotto
+       non ne sa niente — si chiudeva il pannello e la sezione mostrava ancora
+       gli esempi di prima, col vecchio conteggio. Bastava che questo pezzo di
+       codice, che gia' esisteva, non venisse mai richiamato al momento giusto.
+       Qui e' una funzione con un nome, cosi' si puo' richiamare da tutti i
+       momenti giusti invece di essere copiata in alcuni di loro. */
+    function fcRinfrescaSezioneEsempi() {
         var sez = document.querySelector('.qa-examples-wrap');
-        if (!sez || FC_MODO === 'insert') return;
-        var pieno = sez.querySelector('.qa-examples-box-filled');
-        sez.hidden = !pieno;
-    }, 900);
+        if (!sez) return;
+
+        sez.querySelectorAll('.qa-examples-box').forEach(function (b) {
+            b.classList.remove('qa-examples-box-filled');
+            b.innerHTML = '';
+            /* L'elenco e l'indice del carosello vivono come proprieta' JS
+               sull'elemento (examples_modal.js): svuotare l'HTML e lasciarli
+               li' vorrebbe dire riempire un carosello nuovo con le frecce di
+               quello vecchio. */
+            b._fcExamples = null;
+            b._fcIndex = 0;
+        });
+
+        if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes(sez);
+        fcRicontaEsempi();
+
+        /* La sezione si nasconde se il riquadro resta vuoto: il conteggio
+           lato server e' solo un'ipotesi (puo' essere cambiato da un'altra
+           scheda), quello che conta e' cosa ha davvero trovato l'API. Il
+           ritardo aspetta che la richiesta di fcLoadExampleBoxes torni. */
+        setTimeout(function () {
+            if (FC_MODO === 'insert' && !FC_ID_CORRENTE) return;
+            sez.hidden = !sez.querySelector('.qa-examples-box-filled');
+        }, 900);
+    }
+
+    fcRinfrescaSezioneEsempi();
+
+    /* Il pannello degli esempi avvisa quando si chiude del tutto
+       (chiudiElencoEsempi in examples_modal.php). E' il momento in cui si
+       torna a guardare la carta, quindi e' il momento in cui la sua sezione
+       esempi deve gia' essere quella nuova — non dopo un ricaricamento. */
+    document.addEventListener('fc-esempi-chiusi', function () {
+        fcRinfrescaSezioneEsempi();
+    });
 
     document.addEventListener('click', function (e) {
         var box = e.target.closest('.qa-examples-box-filled');

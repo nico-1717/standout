@@ -5082,7 +5082,30 @@ function ftSetupEditor(wrap) {
         var ultimoSpazio = Math.max(prima.lastIndexOf(' '), prima.lastIndexOf('\n'));
         var parola = prima.slice(ultimoSpazio + 1);
         if (!parola || !ftLatexRilevato(parola)) return null;
-        return { bi: sel.a.b, inizio: sel.a.o - parola.length, fine: sel.a.o, parola: parola, testoBlocco: testo };
+
+        var inizio = sel.a.o - parola.length, fine = sel.a.o;
+
+        /* La parola non deve pescare dentro una formula GIA' FATTA.
+           fcdBlockText restituisce anche il LaTeX delle formule della riga
+           come se fosse testo normale: dopo aver scritto "\epsilon", averlo
+           visto diventare la lettera greca e aver aggiunto una parentesi di
+           fianco, la "parola prima del cursore" risultava "\epsilon)" —
+           comincia con una barra rovesciata, quindi veniva presa per un
+           comando nuovo da convertire. Premendo invio si ritrovava tutto
+           dentro una formula a blocco, che non e' mai quello che si voleva:
+           l'invio doveva solo andare a capo.
+           Il controllo che c'era gia' guardava solo il punto esatto del
+           cursore, che li' era gia' un carattere fuori dalla formula e quindi
+           non bastava; qui si guarda tutto il tratto della parola. */
+        var acc = 0, dentroFormula = false;
+        (bl.runs || []).forEach(function (r) {
+            var len = fcdRunText(r).length;
+            if (typeof r.x === 'string' && acc < fine && acc + len > inizio) dentroFormula = true;
+            acc += len;
+        });
+        if (dentroFormula) return null;
+
+        return { bi: sel.a.b, inizio: inizio, fine: fine, parola: parola, testoBlocco: testo };
     }
 
     /* La stessa idea dello spazio, ma al contrario: l'invio dice "ho finito

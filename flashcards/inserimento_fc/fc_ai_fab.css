@@ -78,3 +78,12 @@
 
 /* Mentre il riquadro dell'IA e' aperto il pulsante si toglie di mezzo. */
 .fc-aifab[hidden]{ display:none; }
+
+/* Nascosto perche' sopra c'e' un altro pannello — che ha il SUO pulsante IA,
+   nello stesso angolo. Due cerchi identici a un centimetro l'uno dall'altro
+   che fanno cose diverse: si sbaglia.
+   E' una classe e non l'attributo hidden apposta: hidden su questo pulsante
+   lo scrive gia' fc_migliora_carta.js, e due padroni sullo stesso attributo
+   vuol dire che ogni tanto vince quello sbagliato e il pulsante resta spento
+   quando invece dovrebbe esserci. */
+.fc-aifab.is-coperto{ display:none; }

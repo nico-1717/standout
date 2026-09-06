@@ -1720,3 +1720,178 @@ body.ex-lock{ overflow:hidden; }
    'hidden' per non creare un contenitore di scorrimento che romperebbe gli
    elementi appiccicati in alto. */
 html, body{ max-width:100%; overflow-x:clip; }
+
+
+/* ================================================================
+   BARRA DELLA SELEZIONE — TRE GRUPPI, DUE LINEETTE
+   ================================================================
+   Sette comandi in fila non dicevano che i primi parlano di CHI scegliere e
+   gli altri di che COSA farne. Le lineette separano quelle due cose, e
+   separano anche le azioni fra loro: Sposta ed Elimina agiscono sulle carte
+   scelte, Unisci e Separa cambiano la struttura padre/figlio.
+   Lineetta e gruppo si accendono e si spengono insieme (lo fa
+   aggiornaBarraSelezione): una lineetta senza niente a destra sarebbe un
+   divisorio che non divide. */
+.st-group{ display:flex; gap:6px; flex-shrink:0; }
+.st-sep{
+    flex-shrink:0; width:1.5px; height:20px; border-radius:2px; margin:0 3px;
+    background:var(--hairline-2); opacity:.7;
+}
+
+/* Il tasto della vista compatta: un'icona sola, come lo stesso interruttore in
+   inserimento_big_fc.php. Acceso, si colora della categoria — e' uno stato in
+   cui si resta, non un tocco che fa una cosa e finisce. */
+.st-compact{
+    flex-shrink:0; width:34px; height:34px; border-radius:var(--r-chip); border:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--text-2); background:var(--surface-2);
+    transition:transform .15s var(--spring), background .2s, color .2s;
+}
+.st-compact svg{ width:16px; height:16px; }
+.st-compact:active{ transform:scale(.9); }
+.st-compact.is-on{ color:#fff; background:var(--cat-color); box-shadow:0 4px 12px -4px var(--cat-line); }
+
+/* Il pulsante della modalita' in corso resta li', spento: e' il promemoria di
+   dove si e' finiti. Si riaccende da solo appena c'e' qualcosa su cui agire —
+   ed e' quello il segnale che si e' pronti, non un messaggio da leggere. */
+/* Spento vuol dire spento: pointer-events:none e non solo l'opacita'. Un
+   pulsante che sembra disattivato ma risponde con un rimprovero ("scegli
+   prima qualcosa") fa fare il gesto due volte per scoprire una cosa che
+   l'aspetto aveva gia' detto. */
+.st-action.is-spento{ opacity:.42; pointer-events:none; }
+.st-action.is-pronto{ color:#fff; background:var(--cat-color); box-shadow:0 4px 12px -4px var(--cat-line); }
+
+.mode-banner{ background:var(--cat-color); }
+
+
+/* ================================================================
+   VISTA COMPATTA — una carta per riga
+   ================================================================
+   Domanda su una riga, risposta sulla riga sotto, casella a sinistra e
+   attrezzi a destra. Serve a vedere venti carte insieme mentre se ne scelgono
+   alcune: e' una vista di lavoro, non un modo diverso di leggerle.
+   Tutto con il CSS, senza anteprime da costruire: il testo e' gia' nella
+   pagina, qui si limita a una riga sola.
+
+   La griglia mette la casella nella prima colonna a cavallo delle due righe,
+   gli attrezzi nella terza. I due .qa-side dichiarano solo la colonna: le
+   righe se le prendono da soli, nell'ordine in cui stanno nel markup, che e'
+   domanda e poi risposta. */
+body.is-compact .fc-card:not(.is-open) > .swipe-content{
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto;
+    align-items:center;
+    column-gap:10px; row-gap:1px;
+    padding:9px 12px;
+}
+body.is-compact .fc-card:not(.is-open) > .swipe-content > .card-head{
+    grid-column:1; grid-row:1 / span 2; margin:0; min-height:0;
+}
+body.is-compact .fc-card:not(.is-open) > .swipe-content > .qa-side{ grid-column:2; margin:0; }
+body.is-compact .fc-card:not(.is-open) > .swipe-content > .fc-compact-tools{ grid-column:3; grid-row:1 / span 2; }
+/* Il tastino "n sottocarte" e' anche lui figlio diretto di .swipe-content:
+   senza una colonna dichiarata, la griglia lo sistemerebbe da sola nel primo
+   buco che trova — sotto la casella, nella prima colonna. Va nella colonna del
+   testo, su una terza riga sua. */
+body.is-compact .fc-card:not(.is-open) > .swipe-content > .fc-kids-toggle{ grid-column:2; margin-top:6px; }
+
+/* Via tutto quello che non entra in due righe. Le etichette Domanda/Risposta
+   comprese: al loro posto distinguono le due righe il peso e il colore, come
+   nella vista compatta di inserimento_big_fc.php. */
+body.is-compact .fc-card:not(.is-open) .qa-label,
+body.is-compact .fc-card:not(.is-open) .qa-image,
+body.is-compact .fc-card:not(.is-open) .audio-player,
+body.is-compact .fc-card:not(.is-open) .qa-empty,
+body.is-compact .fc-card:not(.is-open) .qa-examples,
+body.is-compact .fc-card:not(.is-open) .dup-badge,
+body.is-compact .fc-card:not(.is-open) .cat-badge{ display:none; }
+
+body.is-compact .fc-card:not(.is-open) .qa-content{ display:block; }
+body.is-compact .fc-card:not(.is-open) .qa-text{
+    display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical;
+    overflow:hidden; line-height:1.35;
+}
+body.is-compact .fc-card:not(.is-open) .qa-q .qa-text{ font-size:13.5px; font-weight:650; color:var(--text); }
+body.is-compact .fc-card:not(.is-open) .qa-a .qa-text{ font-size:12.5px; font-weight:500; color:var(--text-2); }
+/* Il testo di un esempio puo' contenere blocchi (elenchi, formule): dentro una
+   riga sola vanno appiattiti, altrimenti la riga cresce lo stesso. */
+body.is-compact .fc-card:not(.is-open) .qa-text > *{ display:inline; margin:0; }
+
+body.is-compact .fc-card{ margin-bottom:6px; }
+body.is-compact .fc-group{ margin-bottom:8px; }
+
+/* Gli attrezzi: la freccia che apre questa carta sola, e su/giu' per
+   riordinare. Prima non c'erano perche' non c'era una vista in cui servissero:
+   trascinare una riga per venti posizioni e' peggio che premere venti volte. */
+.fc-compact-tools{ display:none; gap:2px; align-items:center; }
+body.is-compact .fc-compact-tools{ display:flex; }
+.ct-btn{
+    width:26px; height:26px; border-radius:8px; border:none; padding:0; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    background:transparent; color:var(--text-3);
+    transition:transform .14s var(--spring), background .2s, color .2s;
+}
+.ct-btn svg{ width:15px; height:15px; }
+.ct-btn:active{ transform:scale(.85); background:var(--surface-2); color:var(--text); }
+.fc-card.is-open .ct-open svg{ transform:rotate(180deg); }
+.ct-open svg{ transition:transform .22s var(--spring); }
+
+/* Dove riordinare non si puo' (ordinamento diverso da "Posizione", o "Tutte le
+   materie") le frecce non ci sono proprio: un pulsante che c'e' e non funziona
+   e' peggio di un pulsante che manca. */
+body.is-compact .fc-group[data-reorderable="0"] > .fc-card.fc-parent .ct-up,
+body.is-compact .fc-group[data-reorderable="0"] > .fc-card.fc-parent .ct-down,
+body.is-compact .fc-card.fc-child[data-reorderable="0"] .ct-up,
+body.is-compact .fc-card.fc-child[data-reorderable="0"] .ct-down{ display:none; }
+
+/* La carta aperta a mano esce dalla griglia e torna com'era: le regole qui
+   sopra sono tutte dietro :not(.is-open), quindi non c'e' niente da rimettere
+   a posto una per una. Gli attrezzi restano, in alto a destra, perche' da li'
+   la si richiude. */
+body.is-compact .fc-card.is-open > .swipe-content{ position:relative; }
+body.is-compact .fc-card.is-open .fc-compact-tools{ position:absolute; top:10px; right:12px; }
+
+
+/* ================================================================
+   MODALITA' SEPARA E UNISCI
+   ================================================================ */
+
+/* SEPARA: si spuntano i figli. Il padre non si puo' separare da se stesso,
+   quindi la sua casella non c'e' — e non essendoci non si puo' nemmeno
+   premerla per poi sentirsi dire di no. */
+body.action-unjoin .fc-card.fc-parent .select-circle{ display:none; }
+
+/* UNISCI: si sceglie fra i padri, e i figli restano chiusi finche' non si
+   chiede di vederli. Un elenco che mostra tutto costringe a scorrere per
+   pagine per trovare il padre giusto. */
+body.action-join .fc-children{ display:none; }
+body.action-join .fc-group.kids-open .fc-children{ display:block; }
+body.action-join .fc-card.fc-child .select-circle{ display:none; }
+
+/* Il tastino "n sottocarte", solo in modalita' Unisci: sbircia dentro un padre
+   senza uscire dalla modalita'. */
+.fc-kids-toggle{ display:none; }
+body.action-join .fc-kids-toggle{
+    display:flex; align-items:center; gap:5px; margin-top:8px;
+    padding:5px 10px; border:none; border-radius:var(--r-chip); cursor:pointer;
+    font-size:11.5px; font-weight:800; color:var(--row-color, var(--blue)); background:var(--surface-2);
+}
+.fc-kids-toggle svg{ width:13px; height:13px; transition:transform .22s var(--spring); }
+.fc-group.kids-open .fc-kids-toggle svg{ transform:rotate(180deg); }
+
+/* Scelta del padre: le carte diventano bersagli. Quella gia' scelta no — sta
+   per DIVENTARE figlia, non puo' essere anche il padre di se stessa. */
+body.join-picking .fc-card.fc-parent .swipe-content{
+    cursor:pointer;
+    box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--purple), transparent 55%);
+}
+body.join-picking .fc-card.fc-parent.selected-row .swipe-content{
+    box-shadow:none; opacity:.45; cursor:not-allowed;
+}
+body.join-picking .fc-card.fc-parent:active .swipe-content{ transform:scale(.99); }
+/* Mentre si sceglie il padre, sulle carte non c'e' nient'altro da premere: un
+   tocco qualunque su una carta VALE come scelta, quindi ogni altro pulsante li'
+   sopra e' una trappola. Il tastino delle sottocarte compreso. */
+body.join-picking .select-circle,
+body.join-picking .fc-kids-toggle,
+body.join-picking .fc-compact-tools{ display:none; }

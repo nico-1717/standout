@@ -42,7 +42,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
     <div class="exm-panel exm-panel-list">
 
-        <button class="exm-close" onclick="document.getElementById('ex-list-modal').style.display='none'" aria-label="<?php te('comune.chiudi'); ?>">
+        <button class="exm-close" onclick="chiudiElencoEsempi()" aria-label="<?php te('comune.chiudi'); ?>">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
 
@@ -409,6 +409,14 @@ function markExDirty() {
 /* Chiude scartando le modifiche non salvate, se ce ne sono: non si salva piu'
    nulla in questo caso, ne' subito ne' in un secondo momento (un eventuale
    salvataggio automatico gia' in coda va cancellato). */
+/* Chiudendo il modulo di un esempio si torna all'ELENCO, non alla carta.
+   Prima si tornava alla carta: scritto un esempio e premuta la X, il pannello
+   spariva tutto insieme e per scriverne un secondo bisognava riaprire da capo
+   dal pulsante della carta. Ma chi ne ha appena scritto uno quasi sempre ne
+   ha in mente un altro, e l'elenco e' il posto da cui aggiungerlo (il "+" in
+   basso) e da cui rileggere quello appena salvato.
+   Cosi' le due X dicono due cose diverse e ognuna ne disfa una sola: questa
+   chiude l'esempio, quella dell'elenco chiude gli esempi. */
 function closeExampleForm() {
     let sporco = (typeof NisamaSaveBar !== 'undefined') && NisamaSaveBar.isDirty('esempi');
     if (sporco) {
@@ -416,6 +424,7 @@ function closeExampleForm() {
         NisamaSaveBar.discard('esempi');
     }
     document.getElementById('ex-form-modal').style.display = 'none';
+    exTornaAllElenco();
 }
 
 
@@ -488,40 +497,81 @@ window.openExamplesModal = async function (fc_id, fc_type, q_text, a_text) {
 
         currentExamplesList = [];
 
-        openExampleForm(fc_id, fc_type, 0); 
+        openExampleForm(fc_id, fc_type, 0);
 
     } else {
 
         currentExamplesList = data.examples;
-
-        let html = '';
-
-        data.examples.forEach((ex, i) => {
-
-            html += `<div class="exm-example-card">
-
-                <div class="exm-example-label">${T('fc.exm_esempio_n', {n: i + 1})}</div>
-
-                ${ex.example_text ? `<div class="raw-text exm-example-text">${typeof parseTextForPreview === 'function' ? parseTextForPreview(ex.example_text) : ex.example_text}</div>` : ''}
-
-                ${ex.example_audio ? `<audio src="fc_audio/${ex.example_audio}" controls class="exm-example-audio"></audio>` : ''}
-                ${ex.example_image ? `<img src="fc_images/${ex.example_image}" class="exm-example-image">` : ''}
-
-                <button type="button" class="exm-example-edit-btn" onclick="openExampleForm(${fc_id}, '${fc_type}', ${ex.id})">${T('fc.exm_modifica')}</button>
-
-            </div>`;
-
-        });
-
-        document.getElementById('ex-list-content').innerHTML = html;
-
-        if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(document.getElementById('ex-list-content'));
-
+        exDisegnaElenco(fc_id, fc_type, data.examples);
         document.getElementById('ex-list-modal').style.display = 'flex';
 
     }
 
 };
+
+/* Il disegno dell'elenco era dentro openExamplesModal, che pero' fa anche
+   un'altra cosa: se non trova nessun esempio apre da se' il modulo del nuovo.
+   Serviva poterlo ridisegnare SENZA quella scorciatoia — chiudendo il modulo
+   di un esempio si torna all'elenco, e se l'elenco fosse ancora vuoto
+   riaprirebbe il modulo appena chiuso, all'infinito. */
+/* Stessa domanda che si fa il carosello (fcTestoVuoto in examples_modal.js):
+   un esempio di sola immagine arriva spesso con un a capo rimasto nel testo, e
+   per un `if` un a capo e' contenuto. Qui non si puo' chiamare direttamente
+   quella: examples_modal.js lo carica la PAGINA, non questo file, e non tutte
+   le pagine che includono questo pannello lo caricano. Se c'e' si usa lei, e
+   restano una definizione sola da tenere giusta. */
+function exTestoVuoto(t) {
+    if (typeof fcTestoVuoto === 'function') return fcTestoVuoto(t);
+    if (t == null) return true;
+    return String(t).replace(/<br\s*\/?>/gi, '').replace(/&nbsp;/gi, ' ').trim() === '';
+}
+
+function exDisegnaElenco(fc_id, fc_type, esempi) {
+    var html = '';
+    esempi.forEach(function (ex, i) {
+        html += `<div class="exm-example-card">
+                <div class="exm-example-label">${T('fc.exm_esempio_n', {n: i + 1})}</div>
+                ${!exTestoVuoto(ex.example_text) ? `<div class="raw-text exm-example-text">${typeof parseTextForPreview === 'function' ? parseTextForPreview(ex.example_text) : ex.example_text}</div>` : ''}
+                ${ex.example_audio ? `<audio src="fc_audio/${ex.example_audio}" controls class="exm-example-audio"></audio>` : ''}
+                ${ex.example_image ? `<img src="fc_images/${ex.example_image}" class="exm-example-image">` : ''}
+                <button type="button" class="exm-example-edit-btn" onclick="openExampleForm(${fc_id}, '${fc_type}', ${ex.id})">${T('fc.exm_modifica')}</button>
+            </div>`;
+    });
+    document.getElementById('ex-list-content').innerHTML = html;
+    if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(document.getElementById('ex-list-content'));
+}
+
+/* Riapre l'elenco con quello che c'e' ADESSO nel database. Se non c'e' piu'
+   niente non apre un pannello vuoto: chiude e basta, che e' l'unica cosa
+   sensata da mostrare quando non c'e' niente da mostrare. */
+function exTornaAllElenco() {
+    if (!currentFcId) { chiudiElencoEsempi(); return; }
+    fetch('examples_api.php?action=get&fc_id=' + encodeURIComponent(currentFcId)
+          + '&fc_type=' + encodeURIComponent(currentFcType))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            var esempi = (d && d.success && d.examples) ? d.examples : [];
+            currentExamplesList = esempi;
+            if (!esempi.length) { chiudiElencoEsempi(); return; }
+            exDisegnaElenco(currentFcId, currentFcType, esempi);
+            document.getElementById('ex-list-modal').style.display = 'flex';
+        })
+        .catch(function () { chiudiElencoEsempi(); });
+}
+
+/* L'ultima porta che si chiude. Da qui si torna alla carta, e la carta ha una
+   sezione "esempi" che nel frattempo puo' essere diventata vecchia di due
+   esempi: l'avviso serve a chi ospita questo pannello per rinfrescarla. Un
+   evento e non una chiamata diretta, perche' questo componente non sa in che
+   pagina si trova — lo ascolta chi vuole. */
+function chiudiElencoEsempi() {
+    document.getElementById('ex-list-modal').style.display = 'none';
+    document.dispatchEvent(new CustomEvent('fc-esempi-chiusi', {
+        detail: { fc_id: currentFcId, fc_type: currentFcType }
+    }));
+}
+window.chiudiElencoEsempi = chiudiElencoEsempi;
+window.exTornaAllElenco = exTornaAllElenco;
 
 
 
@@ -831,7 +881,11 @@ window.deleteExample = async function () {
 
             document.getElementById('ex-form-modal').style.display = 'none';
 
-            openExamplesModal(currentFcId, currentFcType, currentQ, currentA);
+            /* exTornaAllElenco e non openExamplesModal: quest'ultima, se non
+               trova piu' nessun esempio, riapre il modulo di uno nuovo — e
+               subito dopo un'eliminazione e' l'ultima cosa che si vuole
+               vedere. */
+            exTornaAllElenco();
 
             /* Anche qui il numero si chiede, non si sottrae: currentExamplesList
                poteva gia' essere vecchia di un esempio, e -1 su un numero

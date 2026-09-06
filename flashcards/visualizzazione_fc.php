@@ -608,8 +608,8 @@ if (isset($_GET['fc_deep_search'])) {
                         <?php endif; ?>
                         <div class="card-head-spacer"></div>
                     </div>
-                    <?php render_qa_side(T('fc.ifc_domanda'), $__row['question_desc'], $__row['question_image'], $__row['question_audio']); ?>
-                    <?php render_qa_side(T('fc.ifc_risposta'), $__row['answer_desc'], $__row['answer_image'], $__row['answer_audio']); ?>
+                    <?php render_qa_side(T('fc.ifc_domanda'), $__row['question_desc'], $__row['question_image'], $__row['question_audio'], 'q'); ?>
+                    <?php render_qa_side(T('fc.ifc_risposta'), $__row['answer_desc'], $__row['answer_image'], $__row['answer_audio'], 'a'); ?>
                     <?php render_examples_section($__row['id'], 'parent', $__row['id'], $fcEsempi); ?>
                 </div>
             </div>
@@ -640,8 +640,8 @@ if (isset($_GET['fc_deep_search'])) {
                             <div class="child-tag"><span>&#8627;</span> <?php te('fc.vis_sotto_carta'); ?></div>
                             <div class="card-head-spacer"></div>
                         </div>
-                        <?php render_qa_side(T('fc.ifc_domanda'), $__row['question_desc'], $__row['question_image'], $__row['question_audio']); ?>
-                        <?php render_qa_side(T('fc.ifc_risposta'), $__row['answer_desc'], $__row['answer_image'], $__row['answer_audio']); ?>
+                        <?php render_qa_side(T('fc.ifc_domanda'), $__row['question_desc'], $__row['question_image'], $__row['question_audio'], 'q'); ?>
+                        <?php render_qa_side(T('fc.ifc_risposta'), $__row['answer_desc'], $__row['answer_image'], $__row['answer_audio'], 'a'); ?>
                         <?php render_examples_section($__row['id'], 'child', -1 * (int)$__row['id'], $fcEsempi); ?>
                     </div>
                 </div>
@@ -1216,7 +1216,13 @@ function fc_color_or_default($color) {
 
 // ==========================================
 
-function render_qa_side($label, $text, $image, $audio) {
+/* $lato ('q' o 'a') finisce come classe sul contenitore. Serve alla vista
+   compatta: li' le etichette "Domanda"/"Risposta" spariscono per far posto,
+   e senza un segno che le distingua le due righe diventano due righe di
+   testo uguali di cui non si sa quale sia quale. Con la classe, la domanda
+   resta scura e la risposta piu' tenue — la stessa coppia che usa la vista
+   compatta di inserimento_big_fc.php. */
+function render_qa_side($label, $text, $image, $audio, $lato = '') {
 
     $text = trim((string)$text);
 
@@ -1234,7 +1240,7 @@ function render_qa_side($label, $text, $image, $audio) {
 
     ?>
 
-    <div class="qa-side">
+    <div class="qa-side<?= $lato === 'q' ? ' qa-q' : ($lato === 'a' ? ' qa-a' : '') ?>">
 
         <div class="qa-label"><?= sec_h($label) ?></div>
 
@@ -1507,64 +1513,81 @@ function render_audio_player($src) {
 
 
 
+    <?php /* LA BARRA DELLA SELEZIONE, IN TRE GRUPPI
+             Prima era una fila unica: X, Tutte, conteggio, Sposta, Unisci,
+             Separa, Elimina. Sette comandi di fila, e nessun segno che
+             dicesse che i primi tre parlano della SELEZIONE (chi scegliere)
+             e gli altri di che cosa FARNE. Le lineette dividono le due cose,
+             e dividono anche le azioni fra loro: Sposta ed Elimina agiscono
+             sulle carte scelte, Unisci e Separa cambiano la struttura
+             padre/figlio, che e' un altro mestiere.
+             Sposta ed Elimina, con niente di selezionato, non hanno nessun
+             lavoro da fare: se ne vanno e si portano dietro la loro lineetta,
+             cosi' non restano due stanghette appiccicate. */ ?>
     <div class="select-toolbar" id="selectToolbar" style="display:none;">
 
-        <button type="button" class="st-cancel" onclick="exitSelectMode()" aria-label="<?php te('fc.vis_annulla_sel'); ?>">
-
+        <button type="button" class="st-cancel" onclick="onSelectCancel()" aria-label="<?php te('fc.vis_annulla_sel'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-
         </button>
 
         <button type="button" class="st-selectall" id="selectAllBtn" onclick="toggleSelectAll()"><?php te('vocab.vi_tutte'); ?></button>
+
+        <?php /* La vista compatta e' lo stesso interruttore di
+                 inserimento_big_fc.php, con le stesse tre righine: una carta
+                 per riga, l'inizio della domanda e l'inizio della risposta.
+                 Sta qui e non nella barra normale perche' e' una vista di
+                 LAVORO — serve a vedere venti carte insieme mentre se ne
+                 scelgono alcune, non a leggerle. */ ?>
+        <button type="button" class="st-compact" id="compactBtn" onclick="toggleCompactMode()"
+                aria-label="<?php te('fc.vis_compatta'); ?>" title="<?php te('fc.vis_compatta'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 7h16M4 12h16M4 17h16"/>
+            </svg>
+        </button>
 
         <div class="st-count" id="selectCount">0</div>
 
         <div class="st-actions" id="stActions">
 
-            <button type="button" class="st-action" data-action="move" onclick="onBulkActionPick('move')">
+            <span class="st-sep" id="stSepScelte" aria-hidden="true"></span>
 
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/><path d="M17 22v-6M14 19h6"/></svg>
+            <span class="st-group" id="stGruppoScelte">
+                <button type="button" class="st-action" data-action="move" onclick="onBulkActionPick('move')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/><path d="M17 22v-6M14 19h6"/></svg>
+                    <?php te('vocab.cat_sposta_attr'); ?>
+                </button>
 
-                <?php te('vocab.cat_sposta_attr'); ?>
+                <button type="button" class="st-action danger" data-action="delete" onclick="onBulkActionPick('delete')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+                    <?php te('comune.elimina'); ?>
+                </button>
+            </span>
 
-            </button>
+            <span class="st-sep" id="stSepStruttura" aria-hidden="true"></span>
 
-            <button type="button" class="st-action" data-action="join" onclick="onBulkActionPick('join')">
+            <span class="st-group" id="stGruppoStruttura">
+                <button type="button" class="st-action" data-action="join" id="btnUnisci" onclick="onBulkActionPick('join')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="12" r="3"/><circle cx="17" cy="6" r="3"/><circle cx="17" cy="18" r="3"/><path d="M9.6 10.5 14.5 7.7M9.6 13.5l4.9 2.8"/></svg>
+                    <?php te('vocab.vi_unisci'); ?>
+                </button>
 
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="12" r="3"/><circle cx="17" cy="6" r="3"/><circle cx="17" cy="18" r="3"/><path d="M9.6 10.5 14.5 7.7M9.6 13.5l4.9 2.8"/></svg>
-
-                <?php te('vocab.vi_unisci'); ?>
-
-            </button>
-
-            <button type="button" class="st-action" data-action="unjoin" onclick="onBulkActionPick('unjoin')">
-
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></svg>
-
-                <?php te('vocab.vi_separa'); ?>
-
-            </button>
-
-            <button type="button" class="st-action danger" data-action="delete" onclick="onBulkActionPick('delete')">
-
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
-
-                <?php te('comune.elimina'); ?>
-
-            </button>
+                <button type="button" class="st-action" data-action="unjoin" id="btnSepara" onclick="onBulkActionPick('unjoin')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></svg>
+                    <?php te('vocab.vi_separa'); ?>
+                </button>
+            </span>
 
         </div>
 
     </div>
 
-
-
-    <div class="join-banner" id="joinBanner" style="display:none;">
-
+    <?php /* Una riga che dice cosa sta succedendo. Le modalita' Separa e
+             Unisci cambiano le regole sotto i piedi — spariscono delle carte,
+             certe caselle non ci sono piu' — e senza una frase che lo dica
+             sembra che la pagina si sia rotta. */ ?>
+    <div class="join-banner mode-banner" id="modeBanner" style="display:none;">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-
-        <?php te('fc.vis_tocca_padre'); ?>
-
+        <span id="modeBannerText"></span>
     </div>
 
 </header>
@@ -1662,6 +1685,14 @@ function render_audio_player($src) {
             <input type="hidden" name="bulk_action" id="hiddenBulkAction">
 
             <input type="hidden" name="target_category" id="hiddenTargetCategory">
+
+            <?php /* Il padre scelto arriva qui. Prima ci arrivava attraverso dei
+                     radio creati al volo al posto delle caselle: si sceglieva, poi
+                     si confermava con un pulsante in fondo allo schermo — due gesti
+                     per una cosa sola. Ora si tocca la carta e basta, come in
+                     inserimento_big_fc.php, e il valore lo scrive qui il
+                     JavaScript. */ ?>
+            <input type="hidden" name="father_id" id="hiddenFatherId">
 
 
 
@@ -1761,13 +1792,53 @@ function render_audio_player($src) {
 
 
 
-                            <?php render_qa_side(T('fc.ifc_domanda'), $row['question_desc'], $row['question_image'], $row['question_audio']); ?>
+                            <?php render_qa_side(T('fc.ifc_domanda'), $row['question_desc'], $row['question_image'], $row['question_audio'], 'q'); ?>
 
-                            <?php render_qa_side(T('fc.ifc_risposta'), $row['answer_desc'], $row['answer_image'], $row['answer_audio']); ?>
+                            <?php render_qa_side(T('fc.ifc_risposta'), $row['answer_desc'], $row['answer_image'], $row['answer_audio'], 'a'); ?>
 
 
 
                             <?php render_examples_section($row['id'], 'parent', $row['id'], $examples_counts); ?>
+
+                            <?php /* GLI ATTREZZI DELLA VISTA COMPATTA
+                                     Esistono sempre nel markup ma si vedono solo a
+                                     vista compatta accesa: costruirli da JavaScript
+                                     avrebbe voluto dire ricostruirli a ogni
+                                     accensione, su tutte le carte della pagina.
+                                     La freccia apre QUESTA carta a grandezza vera
+                                     senza spegnere la vista compatta per tutte le
+                                     altre: serve a controllare una carta prima di
+                                     spuntarla, non a uscire dalla vista.
+                                     Su e giu' salvano subito il nuovo ordine, come
+                                     il trascinamento; spariscono da sole dove
+                                     riordinare non si puo' (ordinamento diverso da
+                                     "Posizione", o "Tutte le materie"). */ ?>
+                            <div class="fc-compact-tools" aria-hidden="false">
+                                <button type="button" class="ct-btn ct-open" onclick="toggleCardOpen(this)"
+                                        aria-label="<?php te('fc.vis_apri_carta'); ?>" title="<?php te('fc.vis_apri_carta'); ?>">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                                <button type="button" class="ct-btn ct-up" onclick="moveCardBy(this, -1)"
+                                        aria-label="<?php te('fc.vis_su'); ?>" title="<?php te('fc.vis_su'); ?>">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+                                </button>
+                                <button type="button" class="ct-btn ct-down" onclick="moveCardBy(this, 1)"
+                                        aria-label="<?php te('fc.vis_giu'); ?>" title="<?php te('fc.vis_giu'); ?>">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                            </div>
+
+                            <?php /* Il tastino che rivela le sottocarte, e che si vede
+                                     solo in modalita' Unisci: li' l'elenco mostra i soli
+                                     padri, ma per decidere a chi attaccare una carta
+                                     serve poter sbirciare cosa c'e' gia' dentro. Lo
+                                     stesso tocco le richiude. */ ?>
+                            <?php if ($childCount > 0): ?>
+                            <button type="button" class="fc-kids-toggle" onclick="toggleKids(this)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                <span><?php echo sec_h(T('fc.vis_n_sottocarte', ['n' => (int)$childCount])); ?></span>
+                            </button>
+                            <?php endif; ?>
 
                         </div>
 
@@ -1835,13 +1906,30 @@ function render_audio_player($src) {
 
 
 
-                                <?php render_qa_side(T('fc.ifc_domanda'), $child['question_desc'], $child['question_image'], $child['question_audio']); ?>
+                                <?php render_qa_side(T('fc.ifc_domanda'), $child['question_desc'], $child['question_image'], $child['question_audio'], 'q'); ?>
 
-                                <?php render_qa_side(T('fc.ifc_risposta'), $child['answer_desc'], $child['answer_image'], $child['answer_audio']); ?>
+                                <?php render_qa_side(T('fc.ifc_risposta'), $child['answer_desc'], $child['answer_image'], $child['answer_audio'], 'a'); ?>
 
 
 
                                 <?php render_examples_section($child['id'], 'child', -1 * intval($child['id']), $examples_counts); ?>
+
+                                <?php /* Gli stessi attrezzi della carta padre: qui su e giu'
+                                         riordinano le sottocarte dentro il loro padre. */ ?>
+                                <div class="fc-compact-tools">
+                                    <button type="button" class="ct-btn ct-open" onclick="toggleCardOpen(this)"
+                                            aria-label="<?php te('fc.vis_apri_carta'); ?>" title="<?php te('fc.vis_apri_carta'); ?>">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                    </button>
+                                    <button type="button" class="ct-btn ct-up" onclick="moveCardBy(this, -1)"
+                                            aria-label="<?php te('fc.vis_su'); ?>" title="<?php te('fc.vis_su'); ?>">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+                                    </button>
+                                    <button type="button" class="ct-btn ct-down" onclick="moveCardBy(this, 1)"
+                                            aria-label="<?php te('fc.vis_giu'); ?>" title="<?php te('fc.vis_giu'); ?>">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                    </button>
+                                </div>
 
                             </div>
 
@@ -1888,11 +1976,11 @@ function render_audio_player($src) {
 
 
 
-<div class="confirm-bar" id="joinConfirmBar">
-
-    <button type="button" class="cb-btn" id="joinConfirmBtn" disabled onclick="confirmJoinExecution()"><?php te('fc.vis_confermo_padre'); ?></button>
-
-</div>
+<?php /* La barra "Confermo il padre" non c'e' piu': il padre si sceglie
+         toccando la sua carta, e un gesto che vale da solo non ha bisogno di
+         essere confermato da un secondo gesto in fondo allo schermo. Restano
+         le regole di prima su chi puo' diventare padre — le controlla
+         onBulkActionPick prima di far partire la scelta. */ ?>
 
 
 
@@ -2728,7 +2816,18 @@ function filterList(){
         else if (statusFilter === 'not_learnt') byStatus = !isLearnt;
         else if (statusFilter === 'duplicates') byStatus = isDup;
 
-        if (selecting && (actionFilter === 'unjoin') && !isFather && !isChild) byStatus = false;
+        /* SEPARA: hanno senso solo i padri con figli e i figli stessi. Una
+           carta che non sta in nessuna famiglia non ha niente da separare, e
+           tenerla nell'elenco vuol dire farla scorrere per niente. */
+        if (selecting && actionFilter === 'unjoin' && !isFather && !isChild) byStatus = false;
+
+        /* UNISCI: si lavora sui padri. I figli restano nel documento — il
+           tastino "n sottocarte" li rivela per far vedere cosa c'e' gia'
+           dentro a un padre — ma non sono loro l'oggetto della scelta, e
+           l'elenco parte senza. Li mostra il CSS quando il gruppo ha la classe
+           kids-open. */
+        if (selecting && actionFilter === 'join' && isChild) byStatus = true;
+
         if (!byStatus) return false;
 
         const searchText = card.getAttribute('data-search') || '';
@@ -5420,242 +5519,386 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
 
    SELECT MODE / AZIONI DI MASSA
 
+   ================================================================
+
+   Tre stati, non uno. Prima c'era solo "sto selezionando"; ora dentro la
+   selezione possono aprirsi due modalita' di lavoro che cambiano le regole:
+
+     ''       selezione normale: si scelgono carte e si fa qualcosa con loro
+     'unjoin' SEPARA: restano solo i padri con i loro figli, e si spuntano
+              soltanto i figli — un padre non si puo' separare da se stesso
+     'join'   UNISCI: restano solo i padri, se ne sceglie uno e poi si tocca
+              la carta che deve diventargli padre
+
+   Lo stato vive in document.body.dataset.bulkAction (piu' le classi
+   action-join / action-unjoin, che servono al CSS). Il CSS non sa fare "se",
+   quindi tutte le decisioni su cosa mostrare passano da qui.
+
    ================================================================ */
 
+/* Quale modalita' di struttura e' aperta ('', 'join', 'unjoin'). */
+function modoStruttura(){ return document.body.dataset.bulkAction || ''; }
+
+/* Siamo nel momento in cui si tocca la carta che diventera' padre? */
+function stoScegliendoIlPadre(){ return document.body.classList.contains('join-picking'); }
+
 function enterSelectMode(){
-
     document.body.classList.add('select-mode');
-
     document.getElementById('normalToolbar').style.display = 'none';
-
     document.getElementById('selectToolbar').style.display = 'flex';
-
     buzz(8);
-
-    updateSelectCount();
-
+    aggiornaBarraSelezione();
     filterList();
-
 }
-
-
 
 function exitSelectMode(){
-
-    document.body.classList.remove('select-mode', 'action-join', 'action-unjoin');
-
+    document.body.classList.remove('select-mode', 'action-join', 'action-unjoin',
+                                   'join-picking', 'is-compact');
     document.body.dataset.bulkAction = '';
-
     document.getElementById('normalToolbar').style.display = 'flex';
-
     document.getElementById('selectToolbar').style.display = 'none';
-
-    document.getElementById('joinBanner').style.display = 'none';
-
-    document.getElementById('joinConfirmBar').style.display = 'none';
-
+    document.getElementById('modeBanner').style.display = 'none';
     document.getElementById('stActions').style.display = 'flex';
-
     document.getElementById('selectAllBtn').style.display = '';
-
+    document.getElementById('compactBtn').classList.remove('is-on');
+    document.getElementById('hiddenFatherId').value = '';
     $all('.st-action').forEach(function(b){ b.classList.remove('active-pick'); });
-
-    restoreFatherRadiosToCheckboxes();
-
     $all('.record-cb').forEach(function(cb){ cb.checked = false; });
-
-    $all('.fc-card').forEach(function(c){ c.classList.remove('selected-row'); });
-
+    $all('.fc-card').forEach(function(c){ c.classList.remove('selected-row', 'is-open'); });
+    $all('.fc-group').forEach(function(g){ g.classList.remove('kids-open'); });
+    aggiornaBarraSelezione();
     filterList();
+}
 
+/* La X non chiude sempre la stessa cosa: chiude LO STRATO PIU' ESTERNO.
+   Aperta la modalita' Separa, la X toglie quella e riporta alla selezione
+   normale — perche' e' li' che si e' appena entrati e quasi sempre e' quello
+   che si vuole disfare. Solo dalla selezione nuda la X esce del tutto.
+   Un gesto solo che disfa un passo per volta, senza dover indovinare quale
+   dei due gesti serviva. */
+function onSelectCancel(){
+    if (stoScegliendoIlPadre()) { annullaSceltaPadre(); return; }
+    if (modoStruttura() !== '') { chiudiModalitaStruttura(); return; }
+    exitSelectMode();
 }
 
 
 
-function restoreFatherRadiosToCheckboxes(){
+/* ---------------- Conteggio e barra ---------------- */
 
-    $all('.father-radio').forEach(function(radio){
+function contaSpuntate(){ return $all('.record-cb:checked').length; }
 
-        radio.outerHTML = "<input type='checkbox' name='selected_ids[]' value='" + radio.value + "' class='bulk-checkbox standalone-cb record-cb' onchange='onRecordCbChange(this)'>";
-
-    });
-
-}
-
-
-
-function updateSelectCount(){
-
-    const n = $all('.record-cb:checked').length;
-
-    const el = document.getElementById('selectCount');
-
+/* Decide, ogni volta che qualcosa cambia, cosa si vede nella barra. Un posto
+   solo: prima queste stesse decisioni erano sparse fra enterSelectMode,
+   exitSelectMode e onBulkActionPick, e bastava aggiungere un caso perche' due
+   di loro si contraddicessero. */
+function aggiornaBarraSelezione(){
+    var n = contaSpuntate();
+    var modo = modoStruttura();
+    var el = document.getElementById('selectCount');
     if (el) el.textContent = n;
 
-    const joinBtn = document.getElementById('joinConfirmBtn');
+    /* Sposta ed Elimina hanno senso solo con qualcosa di scelto. La loro
+       lineetta se ne va con loro: due lineette di fila sarebbero un divisorio
+       che non divide niente. */
+    var conScelte = n > 0;
+    document.getElementById('stGruppoScelte').style.display = conScelte ? 'flex' : 'none';
+    document.getElementById('stSepScelte').style.display    = conScelte ? 'block' : 'none';
 
-    if (joinBtn) joinBtn.disabled = !document.querySelector('.father-radio:checked');
+    var bUnisci = document.getElementById('btnUnisci');
+    var bSepara = document.getElementById('btnSepara');
 
+    /* Dentro una modalita' l'altra sparisce: in Separa l'elenco mostra i figli,
+       e "Unisci" li' non avrebbe niente su cui lavorare. Il pulsante della
+       modalita' in corso resta, spento, come promemoria di dove si e' — e si
+       riaccende appena c'e' qualcosa da separare o da unire. */
+    bUnisci.style.display = (modo === 'unjoin') ? 'none' : '';
+    bSepara.style.display = (modo === 'join')   ? 'none' : '';
+    bUnisci.classList.toggle('is-spento', modo === 'join'   && n === 0);
+    bSepara.classList.toggle('is-spento', modo === 'unjoin' && n === 0);
+    bUnisci.classList.toggle('is-pronto', modo === 'join'   && n > 0);
+    bSepara.classList.toggle('is-pronto', modo === 'unjoin' && n > 0);
+
+    /* Scegliendo il padre non c'e' piu' niente da spuntare: via tutto tranne
+       la X, che e' l'unica cosa che serve se si e' cambiato idea. */
+    var scegliendo = stoScegliendoIlPadre();
+    document.getElementById('stActions').style.display    = scegliendo ? 'none' : 'flex';
+    document.getElementById('selectAllBtn').style.display = scegliendo ? 'none' : '';
+    document.getElementById('compactBtn').style.display   = scegliendo ? 'none' : '';
 }
 
-
+/* Nome storico: lo chiamano gli onchange delle caselle nel markup. */
+function updateSelectCount(){ aggiornaBarraSelezione(); }
 
 function onRecordCbChange(cb){
-
-    const card = cb.closest('.fc-card');
-
+    var card = cb.closest('.fc-card');
     if (card) card.classList.toggle('selected-row', cb.checked);
-
-    updateSelectCount();
-
+    aggiornaBarraSelezione();
     if (document.body.classList.contains('select-mode')) filterList();
-
 }
 
-
+/* Le caselle su cui "Tutte" ha effetto: solo quelle visibili, e solo quelle
+   che nella modalita' in corso hanno senso. In Separa si spuntano i figli (i
+   padri li' non hanno nemmeno la casella); in Unisci si sceglie fra i padri. */
+function caselleDiQuestaModalita(){
+    var modo = modoStruttura();
+    var sel = '.record-cb';
+    if (modo === 'unjoin') sel = '.child-cb';
+    else if (modo === 'join') sel = '.standalone-cb';
+    return $all(sel).filter(function(cb){
+        var card = cb.closest('.fc-card');
+        if (!card || card.style.display === 'none') return false;
+        var gruppo = card.closest('.fc-group');
+        if (gruppo && gruppo.style.display === 'none') return false;
+        /* Un figlio dentro un padre chiuso e' nel documento ma non a schermo:
+           spuntarlo vorrebbe dire scegliere qualcosa che non si sta vedendo. */
+        if (card.classList.contains('fc-child') && !card.offsetParent) return false;
+        return true;
+    });
+}
 
 function toggleSelectAll(){
-
-    const boxes = $all('.record-cb').filter(function(cb){
-
-        const card = cb.closest('.fc-card');
-
-        return card && card.style.display !== 'none';
-
-    });
-
-    const allChecked = boxes.length > 0 && boxes.every(function(cb){ return cb.checked; });
-
+    var boxes = caselleDiQuestaModalita();
+    var tutteSpuntate = boxes.length > 0 && boxes.every(function(cb){ return cb.checked; });
     boxes.forEach(function(cb){
-
-        cb.checked = !allChecked;
-
-        const card = cb.closest('.fc-card');
-
+        cb.checked = !tutteSpuntate;
+        var card = cb.closest('.fc-card');
         if (card) card.classList.toggle('selected-row', cb.checked);
-
     });
-
-    document.getElementById('selectAllBtn').textContent = allChecked ? 'Tutte' : T('vocab.vi_nessuna');
-
-    updateSelectCount();
-
+    document.getElementById('selectAllBtn').textContent =
+        tutteSpuntate ? T('vocab.vi_tutte') : T('vocab.vi_nessuna');
+    aggiornaBarraSelezione();
 }
 
 
 
+/* ---------------- VISTA COMPATTA ---------------- */
+
+/* Una carta per riga: inizio della domanda, inizio della risposta. Tutto il
+   lavoro lo fa il CSS (body.is-compact): niente anteprime da costruire, il
+   testo e' gia' nella pagina e si limita a una riga sola.
+   E' una vista di lavoro, non una preferenza: non si salva, e si spegne da
+   sola uscendo dalla selezione. */
+function toggleCompactMode(forza){
+    var acceso = (typeof forza === 'boolean')
+        ? forza
+        : !document.body.classList.contains('is-compact');
+    document.body.classList.toggle('is-compact', acceso);
+    document.getElementById('compactBtn').classList.toggle('is-on', acceso);
+    /* Spegnendola, le carte aperte a mano tornano al passo con le altre. */
+    if (!acceso) $all('.fc-card.is-open').forEach(function(c){ c.classList.remove('is-open'); });
+    buzz(6);
+}
+
+/* Apre UNA carta a grandezza vera senza spegnere la vista compatta per tutte
+   le altre: serve a controllare cosa c'e' dentro prima di spuntarla. */
+function toggleCardOpen(btn){
+    var card = btn.closest('.fc-card');
+    if (!card) return;
+    var apro = !card.classList.contains('is-open');
+    card.classList.toggle('is-open', apro);
+    btn.setAttribute('aria-label', T(apro ? 'fc.vis_chiudi_carta' : 'fc.vis_apri_carta'));
+    btn.setAttribute('title', btn.getAttribute('aria-label'));
+}
+
+/* Mostra o nasconde le sottocarte di un padre. Vale in modalita' Unisci, dove
+   l'elenco tiene i figli chiusi per non far scorrere per pagine. */
+function toggleKids(btn){
+    var gruppo = btn.closest('.fc-group');
+    if (!gruppo) return;
+    gruppo.classList.toggle('kids-open');
+    buzz(5);
+}
+
+/* Su e giu' al posto del trascinamento: nella vista compatta le carte sono
+   righe, e trascinare una riga per venti posizioni e' peggio che premere venti
+   volte una freccia. Sposta l'unita' giusta — il GRUPPO intero per un padre
+   (con i suoi figli appresso), la singola carta per un figlio — e salva subito
+   l'ordine con la stessa funzione che usa il trascinamento. */
+function moveCardBy(btn, verso){
+    var card = btn.closest('.fc-card');
+    if (!card) return;
+    var eUnPadre = card.classList.contains('fc-parent');
+    var unita = eUnPadre ? card.closest('.fc-group') : card;
+    if (!unita || !unita.parentElement) return;
+
+    if (unita.getAttribute('data-reorderable') !== '1') {
+        showToast(T('fc.vis_ordine_bloccato'));
+        return;
+    }
+
+    var scope = unita.parentElement;
+    var selettore = eUnPadre ? '.fc-group' : '.fc-card.fc-child';
+    /* Solo i vicini VISIBILI: con un filtro attivo, saltare sopra una carta
+       nascosta darebbe uno spostamento che a schermo non si vede. */
+    var vicini = Array.prototype.slice.call(scope.children).filter(function(el){
+        return el.matches(selettore) && el.style.display !== 'none';
+    });
+    var i = vicini.indexOf(unita);
+    var j = i + verso;
+    if (i < 0 || j < 0 || j >= vicini.length) { buzz(4); return; }
+
+    if (verso < 0) scope.insertBefore(unita, vicini[j]);
+    else           scope.insertBefore(vicini[j], unita);
+
+    buzz(8);
+    if (typeof window.fcSalvaOrdine === 'function') window.fcSalvaOrdine(unita, scope);
+    if (card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
+}
+
+
+
+/* ---------------- MODALITA' SEPARA / UNISCI ---------------- */
+
+/* mantieni=true quando la modalita' si apre da una selezione gia' fatta: si e'
+   scelto qualcosa e POI si e' premuto Unisci, e quelle carte sono l'oggetto
+   del lavoro, non un residuo da buttare. */
+function apriModalitaStruttura(modo, mantieni){
+    document.body.dataset.bulkAction = modo;
+    document.body.classList.remove('action-join', 'action-unjoin');
+    document.body.classList.add(modo === 'join' ? 'action-join' : 'action-unjoin');
+
+    /* Le due modalita' esistono per lavorare su molte carte insieme: la vista
+       compatta non e' un di piu', e' il motivo per cui si riesce a farlo. */
+    toggleCompactMode(true);
+
+    /* Quello che era spuntato prima appartiene alle regole di prima: in Separa
+       si spuntano i figli, in Unisci i padri, e portarsi dietro la selezione
+       vecchia vorrebbe dire partire con una scelta illegale gia' fatta. */
+    if (!mantieni) {
+        $all('.record-cb:checked').forEach(function(cb){
+            cb.checked = false;
+            var card = cb.closest('.fc-card');
+            if (card) card.classList.remove('selected-row');
+        });
+    }
+
+    var banner = document.getElementById('modeBanner');
+    document.getElementById('modeBannerText').textContent =
+        T(modo === 'join' ? 'fc.vis_modo_unisci' : 'fc.vis_modo_separa');
+    banner.style.display = 'flex';
+
+    buzz(10);
+    aggiornaBarraSelezione();
+    filterList();
+}
+
+function chiudiModalitaStruttura(){
+    document.body.dataset.bulkAction = '';
+    document.body.classList.remove('action-join', 'action-unjoin', 'join-picking');
+    document.getElementById('modeBanner').style.display = 'none';
+    document.getElementById('hiddenFatherId').value = '';
+    $all('.st-action').forEach(function(b){ b.classList.remove('active-pick'); });
+    $all('.fc-group').forEach(function(g){ g.classList.remove('kids-open'); });
+    $all('.record-cb:checked').forEach(function(cb){
+        cb.checked = false;
+        var card = cb.closest('.fc-card');
+        if (card) card.classList.remove('selected-row');
+    });
+    aggiornaBarraSelezione();
+    filterList();
+}
+
+function avviaSceltaPadre(){
+    document.body.classList.add('join-picking');
+    document.getElementById('modeBannerText').textContent = T('fc.vis_tocca_padre');
+    document.getElementById('modeBanner').style.display = 'flex';
+    buzz(12);
+    aggiornaBarraSelezione();
+    filterList();
+}
+
+function annullaSceltaPadre(){
+    document.body.classList.remove('join-picking');
+    document.getElementById('modeBannerText').textContent = T('fc.vis_modo_unisci');
+    aggiornaBarraSelezione();
+    filterList();
+}
+
+/* Il padre si sceglie toccandolo, punto: niente da spuntare e niente da
+   confermare. Prima le caselle delle carte non scelte venivano sostituite al
+   volo da dei radio e serviva un secondo gesto su un pulsante in fondo allo
+   schermo — due passi per dire una cosa sola, e nel frattempo il markup della
+   pagina veniva riscritto e poi rimesso a posto. E' lo stesso gesto che si fa
+   in inserimento_big_fc.php. */
+document.addEventListener('click', function(e){
+    if (!stoScegliendoIlPadre()) return;
+    var card = e.target.closest('.fc-card.fc-parent');
+    if (!card) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    var cb = card.querySelector('.standalone-cb');
+    if (cb && cb.checked) { showToast(T('fc.vis_padre_e_scelta')); return; }
+
+    document.getElementById('hiddenFatherId').value = card.getAttribute('data-id');
+    buzz(14);
+    submitBulkForm('join');
+}, true);
+
+
+
+/* ---------------- Il pulsante premuto ---------------- */
+
 function onBulkActionPick(action){
+    var scelte = contaSpuntate();
+    var modo = modoStruttura();
 
-    const totalChecked = $all('.record-cb:checked').length;
+    /* SEPARA e UNISCI hanno due significati a seconda di dove si e':
+       - da fuori, senza niente di scelto, APRONO la loro modalita' di lavoro
+       - dentro la modalita' (o con delle carte gia' scelte), ESEGUONO
+       E' la stessa idea del pulsante che apre un cassetto e poi lo conferma:
+       un solo posto dove cercarlo, invece di due pulsanti quasi uguali. */
+    if (action === 'unjoin' && modo !== 'unjoin' && scelte === 0) { apriModalitaStruttura('unjoin'); return; }
+    if (action === 'join'   && modo !== 'join'   && scelte === 0) { apriModalitaStruttura('join');   return; }
 
-    if (totalChecked === 0) { showToast(T('fc.vis_serve_carta')); return; }
+    if (scelte === 0) { showToast(T('fc.vis_serve_carta')); return; }
 
     $all('.st-action').forEach(function(b){ b.classList.toggle('active-pick', b.dataset.action === action); });
 
-
-
     if (action === 'delete') {
-
-        openDeleteConfirm(totalChecked, '', function(){ submitBulkForm('delete'); });
-
+        openDeleteConfirm(scelte, '', function(){ submitBulkForm('delete'); });
         return;
-
     }
 
     if (action === 'move') {
-
         /* csOpen() vuole l'elemento del modale, non il suo id. Con $cs_id='move'
            il componente lo chiama 'cs-modal-move'. */
         var mv = document.getElementById('cs-modal-move');
         if (mv && typeof csOpen === 'function') csOpen(mv);
         else showToast(T('fc.vis_sposta_dove'));
-
         return;
-
     }
 
     if (action === 'unjoin') {
-
         if ($all('.standalone-cb:checked').length > 0) {
-
             showToast(T('fc.vis_solo_sottocarte'));
-
             return;
-
         }
-
         submitBulkForm('unjoin');
-
         return;
-
     }
 
     if (action === 'join') {
-
-        const checkedFatherExists = $all('.standalone-cb:checked').some(function(cb){
-
-            const group = cb.closest('.fc-group');
-
+        var padreConFigli = $all('.standalone-cb:checked').some(function(cb){
+            var group = cb.closest('.fc-group');
             return group && group.querySelector('.fc-children .fc-card');
-
         });
-
-        if (checkedFatherExists) { showToast(T('fc.vis_no_padre_con_figli')); return; }
-
+        if (padreConFigli) { showToast(T('fc.vis_no_padre_con_figli')); return; }
         if ($all('.child-cb:checked').length > 0) { showToast(T('fc.vis_no_figlie')); return; }
 
-
-
-        document.body.dataset.bulkAction = 'join';
-
-        document.body.classList.add('action-join');
-
-        buzz(10);
-
-        document.getElementById('joinBanner').style.display = 'flex';
-
-        document.getElementById('stActions').style.display = 'none';
-
-        document.getElementById('selectAllBtn').style.display = 'none';
-
-        document.getElementById('joinConfirmBar').style.display = 'block';
-
-
-
-        $all('.standalone-cb').forEach(function(cb){
-
-            if (!cb.checked) {
-
-                cb.outerHTML = "<input type='radio' name='father_id' value='" + cb.value + "' class='father-radio' onchange='updateSelectCount()'>";
-
-            }
-
-        });
-
-        filterList();
-
+        /* Si arriva qui da fuori (carte gia' scelte, poi Unisci) o da dentro la
+           modalita'. Nel primo caso la modalita' si apre adesso, tenendosi le
+           carte scelte: sono loro l'oggetto del lavoro. */
+        if (modo !== 'join') apriModalitaStruttura('join', true);
+        avviaSceltaPadre();
     }
-
 }
-
-
-
-function confirmJoinExecution(){
-
-    if (!document.querySelector('.father-radio:checked')) { showToast(T('fc.vis_serve_padre')); return; }
-
-    submitBulkForm('join');
-
-}
-
-
 
 function submitBulkForm(actionValue){
-
     document.getElementById('hiddenBulkAction').value = actionValue;
-
     document.getElementById('bulkForm').submit();
-
 }
 
 
@@ -6368,6 +6611,12 @@ function animateCardOut(el){
     }
 
 
+
+    /* Le freccette su/giu' della vista compatta (moveCardBy) spostano le stesse
+       unita' che sposta il trascinamento, e devono salvare allo stesso modo:
+       una seconda funzione che scrive l'ordine sarebbe una seconda funzione da
+       tenere d'accordo con il server. */
+    window.fcSalvaOrdine = function(unit, scope){ persistReorderFromScope(unit, scope); };
 
     function persistReorderFromScope(unit, scope){
 

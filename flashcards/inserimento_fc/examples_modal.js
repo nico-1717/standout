@@ -68,9 +68,25 @@ function fcEscapeHtml(s) {
    alla copia), e fcHydrateEsempioBox() lo rilegge al primo tocco se
    _fcExamples manca — cosi' il carosello funziona anche dentro una copia. */
 
+/* Il testo si guarda DOPO averlo ripulito ai bordi. Un esempio fatto di sola
+   immagine arriva spesso dal database con un testo che vuoto non e': un a capo
+   rimasto nell'editor, uno spazio, un <br> solo. Per un `if` quella roba e'
+   piena, quindi il riquadro del testo veniva disegnato lo stesso — e siccome
+   .qa-example-text ha white-space:pre-wrap (in examples_box.css), quell'a capo
+   veniva reso per quello che e': una riga alta come le altre, vuota, sopra
+   l'immagine. Non era un margine da limare, era una riga di testo vera fatta
+   di niente.
+   Il segno < esclude anche il caso del solo <br>: un testo che, tolti gli
+   spazi, comincia con un tag e non ha nemmeno una lettera. */
+function fcTestoVuoto(t) {
+    if (t == null) return true;
+    var pulito = String(t).replace(/<br\s*\/?>/gi, '').replace(/&nbsp;/gi, ' ').trim();
+    return pulito === '';
+}
+
 function fcEsempioHtml(ex) {
     var parts = [];
-    if (ex.example_text) {
+    if (!fcTestoVuoto(ex.example_text)) {
         var htmlText = (typeof parseTextForPreview === 'function')
             ? parseTextForPreview(ex.example_text)
             : fcEscapeHtml(ex.example_text);
