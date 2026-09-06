@@ -68,29 +68,38 @@ function fcEscapeHtml(s) {
    alla copia), e fcHydrateEsempioBox() lo rilegge al primo tocco se
    _fcExamples manca — cosi' il carosello funziona anche dentro una copia. */
 
-/* Il testo si guarda DOPO averlo ripulito ai bordi. Un esempio fatto di sola
-   immagine arriva spesso dal database con un testo che vuoto non e': un a capo
-   rimasto nell'editor, uno spazio, un <br> solo. Per un `if` quella roba e'
-   piena, quindi il riquadro del testo veniva disegnato lo stesso — e siccome
-   .qa-example-text ha white-space:pre-wrap (in examples_box.css), quell'a capo
-   veniva reso per quello che e': una riga alta come le altre, vuota, sopra
-   l'immagine. Non era un margine da limare, era una riga di testo vera fatta
-   di niente.
-   Il segno < esclude anche il caso del solo <br>: un testo che, tolti gli
-   spazi, comincia con un tag e non ha nemmeno una lettera. */
-function fcTestoVuoto(t) {
-    if (t == null) return true;
-    var pulito = String(t).replace(/<br\s*\/?>/gi, '').replace(/&nbsp;/gi, ' ').trim();
-    return pulito === '';
+/* VUOTO SI DECIDE GUARDANDO IL RISULTATO, NON IL DATO
+   ---------------------------------------------------------------
+   Un esempio di sola immagine arriva dal database con un testo che vuoto non
+   e'. Nel caso visto: {"v":2,"blocks":[{"t":"p","runs":[]}]} — il documento
+   di un solo paragrafo senza parole dentro. Per un `if` e' una stringa piena;
+   ripulendola dagli spazi resta piena lo stesso, perche' di spazi non ne ha:
+   ha delle parentesi graffe. Il mio primo tentativo tagliava spazi e <br>, e
+   contro questo non poteva funzionare.
+   Quel paragrafo, disegnato, diventa un <div class="fc-p"> vuoto, e .fc-p ha
+   min-height:1.65em — cioe' esattamente la riga vuota che si vedeva sopra
+   l'immagine.
+   La domanda giusta quindi non e' "il dato e' vuoto?" ma "quello che verrebbe
+   fuori si vede?". Si disegna in un elemento appeso per aria, e si guarda se
+   contiene una parola o qualcosa da guardare. Cosi' vale per qualunque formato
+   il testo abbia oggi e per quelli che avra' domani, senza doverli conoscere. */
+function fcHtmlSiVede(html) {
+    if (!html) return false;
+    var d = document.createElement('div');
+    d.innerHTML = html;
+    /* Roba che si vede anche senza parole: un'immagine dentro il testo, una
+       formula, una tabella, una riga divisoria. */
+    if (d.querySelector('img, svg, table, hr, mjx-container, .fc-img, .fc-formula')) return true;
+    return d.textContent.replace(/\u00a0/g, ' ').trim() !== '';
 }
 
 function fcEsempioHtml(ex) {
     var parts = [];
-    if (!fcTestoVuoto(ex.example_text)) {
+    if (ex.example_text) {
         var htmlText = (typeof parseTextForPreview === 'function')
             ? parseTextForPreview(ex.example_text)
             : fcEscapeHtml(ex.example_text);
-        parts.push('<div class="qa-example-text">' + htmlText + '</div>');
+        if (fcHtmlSiVede(htmlText)) parts.push('<div class="qa-example-text">' + htmlText + '</div>');
     }
     if (ex.example_image) parts.push('<img class="qa-example-image" src="fc_images/' + fcEscapeHtml(ex.example_image) + '" alt="">');
     if (ex.example_audio) parts.push('<audio class="qa-example-audio" src="fc_audio/' + fcEscapeHtml(ex.example_audio) + '" controls></audio>');

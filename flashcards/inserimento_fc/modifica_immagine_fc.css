@@ -632,3 +632,51 @@ html.fc-popup-sopra, html.fc-popup-sopra body{ overflow:hidden; }
 .exm-overlay, .fcm-overlay, .cs-modal-overlay, .modal-overlay, .fc-conf-overlay{
     overscroll-behavior: contain;
 }
+
+/* ================================================================
+   LE SOTTOCARTE, IN FONDO AL MODULO
+   ================================================================
+   Chiusa di partenza: chi apre una carta padre nove volte su dieci e' venuto
+   per lei, non per le figlie, e un elenco aperto spingerebbe in fondo il
+   pulsante "inserisci un'altra" ogni volta. Aperta, ogni riga e' un
+   collegamento al modulo vero di quella sottocarta. */
+.fc-figli{ padding:0; overflow:hidden; }
+.fc-figli-testa{
+    width:100%; display:flex; align-items:center; gap:8px;
+    padding:14px 16px; border:none; background:none; cursor:pointer;
+    font-family:inherit; font-size:13px; font-weight:800; color:var(--text);
+    text-align:left;
+}
+.fc-figli-freccia{ width:15px; height:15px; flex-shrink:0; color:var(--text-3); transition:transform .24s var(--spring); }
+.fc-figli.is-aperta .fc-figli-freccia{ transform:rotate(90deg); }
+.fc-figli-corpo{ padding:0 10px 10px; display:flex; flex-direction:column; gap:6px; }
+
+.fc-figlio{
+    display:flex; align-items:center; gap:10px; text-decoration:none;
+    padding:10px 12px; border-radius:12px;
+    background:var(--surface-2, #F7F7FA);
+    transition:transform .15s var(--spring), background .2s;
+}
+.fc-figlio:active{ transform:scale(.985); background:var(--blue-soft, rgba(0,122,255,.09)); }
+.fc-figlio-n{
+    flex-shrink:0; width:20px; height:20px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:10.5px; font-weight:800; color:#fff; background:var(--text-3);
+}
+.fc-figlio-testi{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+/* Una riga a testa e mai piu' di una: qui si riconosce una sottocarta, non la
+   si legge — per leggerla si apre. */
+.fc-figlio-q, .fc-figlio-a{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fc-figlio-q{ font-size:13px; font-weight:700; color:var(--text); }
+.fc-figlio-a{ font-size:11.5px; font-weight:500; color:var(--text-2); }
+.fc-figlio-matita{ width:14px; height:14px; flex-shrink:0; color:var(--text-3); }
+
+/* Il ritorno alla carta principale, in cima al modulo di una sottocarta
+   aperta da li'. Senza, l'unica uscita sarebbe la X, che chiude tutto. */
+.fc-torna-padre{
+    display:inline-flex; align-items:center; gap:5px; margin-bottom:12px;
+    padding:7px 12px; border-radius:var(--r-chip, 999px); text-decoration:none;
+    font-size:12px; font-weight:800; color:var(--blue, #007AFF);
+    background:var(--blue-soft, rgba(0,122,255,.09));
+}
+.fc-torna-padre svg{ width:13px; height:13px; }

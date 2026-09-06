@@ -344,6 +344,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
         }
     } 
         elseif ($action === 'join' && isset($_POST['father_id'])) {
+        $nati = [];
         $father_id = sec_int($_POST['father_id'], 1);
         $miei = fc_solo_mie($_POST['selected_ids'] ?? [], $current_user_id);
         /* anche il padre dev'essere una carta sua */
@@ -359,6 +360,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                       [$father_id, $row['question_desc'], $row['question_image'], $row['question_audio'],
                        $row['answer_desc'], $row['answer_image'], $row['answer_audio'], $c_order]);
+                $nati[] = (int)sec_insert_id();
                 sec_q("DELETE FROM fc_images WHERE id = ?", [$child_id]);
                 $c_order++;
             }
@@ -366,6 +368,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
         }
     } 
     elseif ($action === 'unjoin') {
+        /* Gli id delle carte NUOVE. Separare non e' spostare: la riga della
+           sottocarta viene cancellata e ne nasce una in fc_images, con un id
+           nuovo. La pagina deve sapere quali sono, altrimenti dopo l'operazione
+           non ha modo di riconoscerle — e il filtro della modalita' Separa
+           (che tiene solo padri e figli) le fa sparire proprio nell'istante in
+           cui si vuole vedere il risultato. */
+        $nati = [];
+        $posto = [];
         $parents_to_check = [];
         foreach (fc_figli_miei($_POST['selected_child_ids'] ?? [], $current_user_id) as $child_id) {
             $row = sec_one("SELECT * FROM fc_child_cards WHERE id_child = ?", [$child_id]);
@@ -373,22 +383,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
             $parent_id = (int)$row['parent_id'];
             $parents_to_check[$parent_id] = true;
 
-            $p_row = sec_one("SELECT category_id FROM fc_images WHERE id = ?", [$parent_id]);
+            /* DOVE VA A FINIRE UNA CARTA SEPARATA
+               In fondo alla categoria, prima: il posto piu' lontano possibile da
+               dove stava. Ma una sottocarta separata resta la stessa carta sullo
+               stesso argomento, e ritrovarsela in coda a duecento altre vuol
+               dire doverla riportare a mano dov'era.
+               Adesso si posa subito sotto il padre da cui e' uscita. Per farle
+               spazio si spinge in giu' di uno tutto quello che veniva dopo:
+               nell'ordine non ci sono buchi da cui pescare, il posto va creato.
+               $posto tiene il conto per ogni padre: separandone tre in un colpo
+               solo, la seconda va sotto la prima e la terza sotto la seconda,
+               invece di infilarsi tutte nello stesso punto e uscirne in ordine
+               rovesciato. */
+            $p_row = sec_one("SELECT category_id, custom_order FROM fc_images WHERE id = ?", [$parent_id]);
             $cat_id = $p_row ? (int)$p_row['category_id'] : 0;
-            $p_order = (int)(sec_one("SELECT MAX(custom_order) AS m FROM fc_images WHERE category_id = ?",
-                                     [$cat_id])['m'] ?? 0) + 1;
+            if (!isset($posto[$parent_id])) $posto[$parent_id] = (int)($p_row['custom_order'] ?? 0);
+            sec_q("UPDATE fc_images SET custom_order = custom_order + 1
+                    WHERE category_id = ? AND custom_order > ?", [$cat_id, $posto[$parent_id]]);
+            $p_order = ++$posto[$parent_id];
 
             sec_q("INSERT INTO fc_images (question_desc, question_image, question_audio,
                                           answer_desc, answer_image, answer_audio, category_id, is_father, custom_order)
                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
                   [$row['question_desc'], $row['question_image'], $row['question_audio'],
                    $row['answer_desc'], $row['answer_image'], $row['answer_audio'], $cat_id, $p_order]);
+            /* sec_insert_id() e non "SELECT LAST_INSERT_ID()": quello e' un
+               valore della CONNESSIONE, e chiederlo con una query a parte vuol
+               dire sperare che sia la stessa connessione dell'INSERT. Era
+               questo il motivo per cui la carta separata continuava a sparire:
+               l'id tornava vuoto, la pagina non la riconosceva fra le altre e
+               il filtro se la mangiava. */
+            $nati[] = (int)sec_insert_id();
             sec_q("DELETE FROM fc_child_cards WHERE id_child = ?", [$child_id]);
         }
         foreach (array_keys($parents_to_check) as $pid) {
             $n = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_child_cards WHERE parent_id = ?", [$pid])['c'] ?? 0);
             if ($n === 0) sec_q("UPDATE fc_images SET is_father = 0 WHERE id = ?", [$pid]);
         }
+    }
+
+    /* Chiamata dalla pagina senza ricaricarla (bulk_ajax=1): si risponde con
+       due righe di JSON invece di un redirect. L'AZIONE E' LA STESSA — tutto
+       il codice qui sopra e' condiviso — cambia solo come si risponde. Se
+       invece la richiesta arriva da un invio normale del modulo (nessun
+       JavaScript, o un percorso che non ho previsto) il redirect resta dov'era
+       e la pagina si ricarica come ha sempre fatto: e' la rete di sicurezza,
+       non un ramo morto. */
+    if (!empty($_POST['bulk_ajax'])) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => true,
+            /* Le carte nate dall'operazione, e per un'unione anche il padre in
+               cui sono finite: sono le uniche che la pagina deve andare a
+               ripescare e tenere a schermo, invece di lasciarle sparire dietro
+               il filtro della modalita'. */
+            'nati'  => array_values(array_filter(array_unique($nati ?? []))),
+            'padre' => isset($father_id) ? (int)$father_id : 0,
+        ]);
+        exit;
     }
 
     header("Location: visualizzazione_fc.php" . $cat_param);
@@ -1222,6 +1274,50 @@ function fc_color_or_default($color) {
    testo uguali di cui non si sa quale sia quale. Con la classe, la domanda
    resta scura e la risposta piu' tenue — la stessa coppia che usa la vista
    compatta di inserimento_big_fc.php. */
+/* QUANDO UN TESTO E' DAVVERO VUOTO
+   ---------------------------------------------------------------
+   Non basta guardare se la stringa e' vuota. Il testo delle carte non e' testo:
+   e' un documento in JSON, e un campo lasciato in bianco arriva come
+   {"v":2,"blocks":[{"t":"p","runs":[]}]} — un paragrafo senza parole dentro.
+   Come stringa e' lunga quaranta caratteri; come contenuto non c'e' niente.
+   E' lo stesso equivoco che faceva comparire una riga vuota sopra le immagini
+   degli esempi.
+   Qui si guarda dentro: qualunque parola in un "run" e' contenuto, e cosi' e'
+   qualunque blocco che non sia un paragrafo o una voce di elenco (un'immagine,
+   una formula, una tabella: cose che si vedono anche senza parole). Un formato
+   che non si riesce a leggere come JSON viene dal vecchio testo semplice, e li'
+   basta il trim di sempre. */
+function fc_testo_vuoto($raw): bool {
+    $raw = trim((string)$raw);
+    if ($raw === '') return true;
+
+    $doc = json_decode($raw, true);
+    if (!is_array($doc) || !isset($doc['blocks']) || !is_array($doc['blocks'])) {
+        return trim(strip_tags($raw)) === '';
+    }
+
+    foreach ($doc['blocks'] as $b) {
+        if (!is_array($b)) continue;
+        $tipo = (string)($b['t'] ?? 'p');
+        /* Tutto quello che non e' testo scritto vale come contenuto: non
+           conoscere il nome esatto di ogni tipo di blocco non deve portare a
+           dichiarare vuota una carta che vuota non e'. */
+        if ($tipo !== 'p' && $tipo !== 'li') return false;
+        foreach (($b['runs'] ?? []) as $r) {
+            if (is_array($r) && trim((string)($r['s'] ?? '')) !== '') return false;
+            if (is_string($r) && trim($r) !== '') return false;
+        }
+    }
+    return true;
+}
+
+/* Un lato della carta e' vuoto se non ha ne' testo, ne' immagine, ne' audio. */
+function fc_lato_vuoto($testo, $immagine, $audio): bool {
+    return fc_testo_vuoto($testo)
+        && trim((string)$immagine) === ''
+        && trim((string)$audio) === '';
+}
+
 function render_qa_side($label, $text, $image, $audio, $lato = '') {
 
     $text = trim((string)$text);
@@ -1230,7 +1326,10 @@ function render_qa_side($label, $text, $image, $audio, $lato = '') {
 
     $audio = trim((string)$audio);
 
-    $hasText = $text !== '';
+    /* fc_testo_vuoto e non "!== ''": un campo lasciato in bianco arriva come un
+       documento JSON di un paragrafo senza parole, che per una stringa e'
+       pieno. Da qui il riquadro vuoto che compariva al posto del trattino. */
+    $hasText = !fc_testo_vuoto($text);
 
     $hasImage = $image !== '';
 
@@ -1549,6 +1648,32 @@ function render_audio_player($src) {
 
         <div class="st-actions" id="stActions">
 
+            <?php /* PRIMA la struttura, POI le carte scelte.
+                     Unisci e Separa sono i due modi in cui si ENTRA a lavorare:
+                     si preme uno dei due e l'elenco cambia faccia. Sposta ed
+                     Elimina invece agiscono su quello che si e' gia' scelto, e
+                     con niente di scelto non ci sono nemmeno. Mettere per primo
+                     il gruppo che c'e' sempre vuol dire che i pulsanti non
+                     ballano: comparendo, Sposta ed Elimina si aggiungono in
+                     coda invece di spingere di lato Unisci e Separa. */ ?>
+            <?php /* La lineetta che c'e' SEMPRE: separa il gruppo che parla di chi
+                     scegliere (X, Tutte, compatta, conteggio) da quello che parla
+                     di cosa farne. L'altra, quella prima di Sposta ed Elimina, va
+                     e viene con loro. */ ?>
+            <span class="st-sep" aria-hidden="true"></span>
+
+            <span class="st-group" id="stGruppoStruttura">
+                <button type="button" class="st-action" data-action="join" id="btnUnisci" onclick="onBulkActionPick('join')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="12" r="3"/><circle cx="17" cy="6" r="3"/><circle cx="17" cy="18" r="3"/><path d="M9.6 10.5 14.5 7.7M9.6 13.5l4.9 2.8"/></svg>
+                    <?php te('vocab.vi_unisci'); ?>
+                </button>
+
+                <button type="button" class="st-action" data-action="unjoin" id="btnSepara" onclick="onBulkActionPick('unjoin')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></svg>
+                    <?php te('vocab.vi_separa'); ?>
+                </button>
+            </span>
+
             <span class="st-sep" id="stSepScelte" aria-hidden="true"></span>
 
             <span class="st-group" id="stGruppoScelte">
@@ -1560,20 +1685,6 @@ function render_audio_player($src) {
                 <button type="button" class="st-action danger" data-action="delete" onclick="onBulkActionPick('delete')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
                     <?php te('comune.elimina'); ?>
-                </button>
-            </span>
-
-            <span class="st-sep" id="stSepStruttura" aria-hidden="true"></span>
-
-            <span class="st-group" id="stGruppoStruttura">
-                <button type="button" class="st-action" data-action="join" id="btnUnisci" onclick="onBulkActionPick('join')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="12" r="3"/><circle cx="17" cy="6" r="3"/><circle cx="17" cy="18" r="3"/><path d="M9.6 10.5 14.5 7.7M9.6 13.5l4.9 2.8"/></svg>
-                    <?php te('vocab.vi_unisci'); ?>
-                </button>
-
-                <button type="button" class="st-action" data-action="unjoin" id="btnSepara" onclick="onBulkActionPick('unjoin')">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></svg>
-                    <?php te('vocab.vi_separa'); ?>
                 </button>
             </span>
 
@@ -1710,15 +1821,29 @@ function render_audio_player($src) {
                     $qk = strtolower(trim($row['question_desc']));
                     $isDuplicate = (isset($global_fc_counts[$qk]) && $global_fc_counts[$qk] > 1);
                     $childCount = count($row['children']);
+
+                    /* UNA CARTA CHE NON E' UNA CARTA
+                       Domanda piena, risposta completamente vuota (niente testo,
+                       niente immagine, niente audio) e almeno due sottocarte: non
+                       e' una domanda senza risposta, e' il TITOLO delle sue
+                       sottocarte. Chi l'ha scritta lo sapeva; la pagina no, e la
+                       mostrava come una carta rotta — un riquadro "Risposta" con
+                       dentro un trattino, ripetuto per ogni gruppo.
+                       Due sottocarte e non una: con una sola figlia il dubbio
+                       resta (puo' essere una carta a cui manca la risposta), con
+                       due l'intenzione e' chiara. */
+                    $isTitolo = $childCount >= 2
+                             && fc_lato_vuoto($row['answer_desc'], $row['answer_image'], $row['answer_audio'])
+                             && !fc_testo_vuoto($row['question_desc']);
                     
                     // Pre-nascondi via PHP per evitare rendering lag
                     $hide_style = ($categoryID == 0 && $group_counter > 30) ? 'display: none;' : '';
                 ?>
-                <div class="fc-group" data-parent-id="<?= (int)$row['id'] ?>" data-category-id="<?= (int)$row['category_id'] ?>" data-reorderable="<?= $parent_reorder_enabled ? '1' : '0' ?>" style="--row-color:<?= sec_h($catColor) ?>; <?= sec_h($hide_style) ?>">
+                <div class="fc-group <?= $isTitolo ? 'is-titolo' : '' ?>" data-parent-id="<?= (int)$row['id'] ?>" data-category-id="<?= (int)$row['category_id'] ?>" data-reorderable="<?= $parent_reorder_enabled ? '1' : '0' ?>" style="--row-color:<?= sec_h($catColor) ?>; <?= sec_h($hide_style) ?>">
 
 
 
-                    <div class="fc-card fc-parent <?= $isLearnt ? 'is-learnt' : '' ?> <?= $isDuplicate ? 'duplicate-flag' : '' ?>"
+                    <div class="fc-card fc-parent <?= $isTitolo ? 'is-titolo' : '' ?> <?= $isLearnt ? 'is-learnt' : '' ?> <?= $isDuplicate ? 'duplicate-flag' : '' ?>"
 
                          data-id="<?= (int)$row['id'] ?>" data-type="parent"
 
@@ -1792,9 +1917,31 @@ function render_audio_player($src) {
 
 
 
+                            <?php if ($isTitolo): ?>
+
+                            <?php /* Il titolo, non una coppia domanda/risposta. Niente
+                                     etichette "Domanda" e "Risposta", niente riquadro
+                                     vuoto col trattino: quella risposta non manca, non
+                                     doveva esserci.
+                                     Nessun .qa-side qui dentro, ed e' voluto: il visore
+                                     a flashcard costruisce il mazzo cercando proprio
+                                     quelli (costruisciMazzo), quindi un titolo resta
+                                     fuori dal mazzo senza bisogno di un caso a parte —
+                                     e non c'e' modo che si presenti da solo come una
+                                     carta da rigirare. */ ?>
+                            <div class="fc-title">
+                                <span class="fc-title-lab"><?php te('fc.vis_titolo'); ?></span>
+                                <div class="fc-title-txt raw-text-content" data-raw="<?= sec_h(trim((string)$row['question_desc'])) ?>"></div>
+                                <span class="fc-title-count"><?= sec_h(T('fc.vis_n_sottocarte', ['n' => (int)$childCount])) ?></span>
+                            </div>
+
+                            <?php else: ?>
+
                             <?php render_qa_side(T('fc.ifc_domanda'), $row['question_desc'], $row['question_image'], $row['question_audio'], 'q'); ?>
 
                             <?php render_qa_side(T('fc.ifc_risposta'), $row['answer_desc'], $row['answer_image'], $row['answer_audio'], 'a'); ?>
+
+                            <?php endif; ?>
 
 
 
@@ -1814,17 +1961,13 @@ function render_audio_player($src) {
                                      riordinare non si puo' (ordinamento diverso da
                                      "Posizione", o "Tutte le materie"). */ ?>
                             <div class="fc-compact-tools" aria-hidden="false">
-                                <button type="button" class="ct-btn ct-open" onclick="toggleCardOpen(this)"
-                                        aria-label="<?php te('fc.vis_apri_carta'); ?>" title="<?php te('fc.vis_apri_carta'); ?>">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                                </button>
                                 <button type="button" class="ct-btn ct-up" onclick="moveCardBy(this, -1)"
                                         aria-label="<?php te('fc.vis_su'); ?>" title="<?php te('fc.vis_su'); ?>">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
                                 </button>
                                 <button type="button" class="ct-btn ct-down" onclick="moveCardBy(this, 1)"
                                         aria-label="<?php te('fc.vis_giu'); ?>" title="<?php te('fc.vis_giu'); ?>">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m6 13 6 6 6-6"/></svg>
                                 </button>
                             </div>
 
@@ -1917,13 +2060,9 @@ function render_audio_player($src) {
                                 <?php /* Gli stessi attrezzi della carta padre: qui su e giu'
                                          riordinano le sottocarte dentro il loro padre. */ ?>
                                 <div class="fc-compact-tools">
-                                    <button type="button" class="ct-btn ct-open" onclick="toggleCardOpen(this)"
-                                            aria-label="<?php te('fc.vis_apri_carta'); ?>" title="<?php te('fc.vis_apri_carta'); ?>">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                                    </button>
                                     <button type="button" class="ct-btn ct-up" onclick="moveCardBy(this, -1)"
                                             aria-label="<?php te('fc.vis_su'); ?>" title="<?php te('fc.vis_su'); ?>">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
                                     </button>
                                     <button type="button" class="ct-btn ct-down" onclick="moveCardBy(this, 1)"
                                             aria-label="<?php te('fc.vis_giu'); ?>" title="<?php te('fc.vis_giu'); ?>">
@@ -2296,11 +2435,40 @@ function render_audio_player($src) {
 <?php /* Vive fuori dal visore a flashcard e con uno z-index piu' alto: si apre
          sia dall'elenco sia da dentro il visore, e nel secondo caso deve
          starci sopra. */ ?>
+<?php /* Il riquadrino del titolo, aperto dalla striscia in cima a una sottocarta
+         quando il suo padre e' un titolo. Mostra il titolo e basta: non c'e'
+         una risposta da girare, non c'e' niente da studiare qui: e' l'etichetta
+         del gruppo. L'unica cosa che ha senso farci e' correggerla, e c'e' il
+         tasto per farlo. */ ?>
+<div class="tit-modal" id="titModal" aria-hidden="true">
+    <div class="tit-modal-back" id="titModalBack"></div>
+    <div class="tit-modal-panel">
+        <div class="tit-modal-lab"><?php te('fc.vis_titolo'); ?></div>
+        <div class="tit-modal-txt" id="titModalTxt"></div>
+        <button type="button" class="tit-modal-edit" id="titModalEdit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <?php te('comune.modifica'); ?>
+        </button>
+    </div>
+</div>
+
 <div class="ex-modal" id="exModal" aria-hidden="true">
     <div class="ex-modal-back" id="exModalBack"></div>
     <div class="ex-modal-panel">
         <header class="ex-modal-head">
             <span class="ex-modal-title" id="exModalTitle"></span>
+            <?php /* Da qui si va a CORREGGERE l'esempio che si sta guardando.
+                     Prima il visore era di sola lettura: accorgersi di un
+                     errore voleva dire chiudere, aprire la carta, aprire gli
+                     esempi, trovare quello giusto e solo allora modificarlo —
+                     cinque passi per una virgola.
+                     Porta al modulo dell'esempio dentro il popup di modifica
+                     della carta (fc_edit_popup.js, gia' caricato da questa
+                     pagina): non e' una scorciatoia scritta a parte, e' la
+                     stessa strada che si farebbe a mano, fatta in un tocco. */ ?>
+            <button type="button" class="ex-modal-edit" id="exModalEdit" aria-label="<?php te('fc.exm_modifica'); ?>" title="<?php te('fc.exm_modifica'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            </button>
             <button type="button" class="ex-modal-close" id="exModalClose" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
@@ -2815,6 +2983,12 @@ function filterList(){
         else if (statusFilter === 'learnt') byStatus = isLearnt;
         else if (statusFilter === 'not_learnt') byStatus = !isLearnt;
         else if (statusFilter === 'duplicates') byStatus = isDup;
+
+        /* Una carta appena separata o appena unita passa comunque: e' il
+           risultato dell'azione che si e' appena fatta, e nasconderlo per
+           rispettare un filtro vorrebbe dire nascondere proprio la cosa che si
+           stava cercando di ottenere. */
+        if (selecting && card.classList.contains('appena-cambiata')) return true;
 
         /* SEPARA: hanno senso solo i padri con figli e i figli stessi. Una
            carta che non sta in nessuna famiglia non ha niente da separare, e
@@ -4446,9 +4620,22 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
 
 
 
+    /* I titoli non entrano nel mazzo (non hanno .qa-side, quindi il giro qui
+       sotto li salta da solo), ma il loro testo serve comunque: e' quello che
+       le loro sottocarte mostrano nella striscia in cima. Si raccoglie a parte,
+       per id del padre. */
+    var titoli = {};
+
     function costruisciMazzo(){
 
         mazzo = [];
+
+        titoli = {};
+
+        $all('.fc-card.fc-parent.is-titolo').forEach(function(c){
+            var t = c.querySelector('.fc-title-txt');
+            titoli[c.getAttribute('data-id') || ''] = t ? t.textContent.trim() : '';
+        });
 
         $all('.fc-card').forEach(function(c){
 
@@ -4532,6 +4719,51 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
 
 
 
+    function apriRiquadroTitolo(){
+        var d = mazzo[idx];
+        if (!d || !d.idPadre) return;
+        var carta = document.querySelector('.fc-card.fc-parent.is-titolo[data-id="' + d.idPadre + '"]');
+        if (!carta) return;
+
+        var modal = document.getElementById('titModal');
+        document.getElementById('titModalTxt').textContent = titoli[d.idPadre] || '';
+        /* L'indirizzo di modifica e' quello della carta, preso dalla carta
+           stessa: e' gia' li' e vale anche quando la carta viene ridisegnata. */
+        document.getElementById('titModalEdit').dataset.url = carta.getAttribute('data-edit-url') || '';
+        modal.classList.add('on');
+        modal.setAttribute('aria-hidden', 'false');
+        if (window.buzz) buzz(8);
+    }
+
+    function chiudiRiquadroTitolo(){
+        var modal = document.getElementById('titModal');
+        modal.classList.remove('on');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+
+    document.addEventListener('click', function(e){
+        if (!e.target || !e.target.closest) return;
+        if (e.target.closest('#titModalBack')) { chiudiRiquadroTitolo(); return; }
+        var ed = e.target.closest('#titModalEdit');
+        if (!ed) return;
+        var url = ed.dataset.url || '';
+        chiudiRiquadroTitolo();
+        if (!url) return;
+        /* Il popup di modifica sopra il visore, senza uscire da dove si e'.
+           Salvando si ricarica: il titolo cambiato deve comparire su tutte le
+           sottocarte, non solo su quella che si stava guardando. */
+        if (typeof apriModificaPopup === 'function') apriModificaPopup(url, function(){ window.location.reload(); });
+        else window.location.href = url;
+    });
+
+    /* Il titolo del gruppo di cui questa carta e' figlia, se il padre e' un
+       titolo (e quindi non sta nel mazzo). Stringa vuota se non lo e'. */
+    function testoTitoloDi(i){
+        var d = mazzo[i];
+        if (!d || !d.figlia || !d.idPadre) return '';
+        return titoli[d.idPadre] || '';
+    }
+
     function indicePadreDi(i){
 
         var d = mazzo[i];
@@ -4612,26 +4844,22 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
 
         idxPadre = indicePadreDi(i);
 
-        if (idxPadre >= 0) {
+        var titolo = testoTitoloDi(i);
 
-            parentTxt.textContent = mazzo[idxPadre].testoQ;
+        /* Due sorgenti per la stessa striscia: la carta padre se e' nel mazzo,
+           altrimenti il titolo del gruppo. Cambia anche cosa fa il tocco, ed e'
+           per questo che lo stato finisce su un attributo: chi ascolta i click
+           non deve ricalcolare niente. */
+        var testoStriscia = (idxPadre >= 0) ? mazzo[idxPadre].testoQ : titolo;
 
-            parentStrip.hidden = false;
-
-            /* Stesso testo, stessa visibilita': sul retro serve lo stesso
-               contesto "di chi e' figlia", non una versione diversa. */
-
-            if (parentTxtA) parentTxtA.textContent = mazzo[idxPadre].testoQ;
-
-            if (parentStripA) parentStripA.hidden = false;
-
-        } else {
-
-            parentStrip.hidden = true;
-
-            if (parentStripA) parentStripA.hidden = true;
-
-        }
+        [parentStrip, parentStripA].forEach(function (strip) {
+            if (!strip) return;
+            if (!testoStriscia) { strip.hidden = true; return; }
+            var t = strip.querySelector('.fcv-parent-txt');
+            if (t) t.textContent = testoStriscia;
+            strip.classList.toggle('is-titolo', idxPadre < 0);
+            strip.hidden = false;
+        });
 
     }
 
@@ -4776,21 +5004,19 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
 
             var ip = indicePadreDi(i);
 
+            var testoStriscia = (ip >= 0) ? mazzo[ip].testoQ : testoTitoloDi(i);
+
             strips.forEach(function (strip) {
 
-                if (ip >= 0) {
+                if (!testoStriscia) { strip.hidden = true; return; }
 
-                    var t = strip.querySelector('.fcv-parent-txt');
+                var t = strip.querySelector('.fcv-parent-txt');
 
-                    if (t) t.textContent = mazzo[ip].testoQ;
+                if (t) t.textContent = testoStriscia;
 
-                    strip.hidden = false;
+                strip.classList.toggle('is-titolo', ip < 0);
 
-                } else {
-
-                    strip.hidden = true;
-
-                }
+                strip.hidden = false;
 
             });
 
@@ -5249,7 +5475,18 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
 
         }
 
-        if (e.target.closest('#fcvParent, #fcvParentA')) { vaiAIndice(idxPadre); return; }
+        var striscia = e.target.closest('#fcvParent, #fcvParentA');
+        if (striscia) {
+            /* Su una striscia normale si va alla carta padre, che nel mazzo c'e'.
+               Su un titolo non si puo': quella carta nel mazzo non c'e' apposta,
+               non e' una carta da rigirare. Portarci lo stesso vorrebbe dire
+               mostrare una domanda senza risposta — cioe' esattamente la cosa da
+               cui il titolo nasce. Si apre invece un riquadrino che mostra il
+               titolo e offre l'unica cosa sensata da farci: correggerlo. */
+            if (striscia.classList.contains('is-titolo')) apriRiquadroTitolo();
+            else vaiAIndice(idxPadre);
+            return;
+        }
 
         if (e.target.closest('#fcvPrev')) { vai(-1); return; }
 
@@ -5600,8 +5837,13 @@ function aggiornaBarraSelezione(){
 
     /* Sposta ed Elimina hanno senso solo con qualcosa di scelto. La loro
        lineetta se ne va con loro: due lineette di fila sarebbero un divisorio
-       che non divide niente. */
-    var conScelte = n > 0;
+       che non divide niente.
+       E dentro Separa o Unisci non ci sono comunque: li' si stanno scegliendo
+       delle carte per RISTRUTTURARLE, e trovarsi accanto un cestino rosso — che
+       cancella per sempre, a un tocco di distanza dal pulsante che si sta per
+       premere — e' un invito a un errore che non si disfa. Quelle due azioni
+       non spariscono, basta uscire dalla modalita'. */
+    var conScelte = n > 0 && modo === '';
     document.getElementById('stGruppoScelte').style.display = conScelte ? 'flex' : 'none';
     document.getElementById('stSepScelte').style.display    = conScelte ? 'block' : 'none';
 
@@ -5625,6 +5867,16 @@ function aggiornaBarraSelezione(){
     document.getElementById('stActions').style.display    = scegliendo ? 'none' : 'flex';
     document.getElementById('selectAllBtn').style.display = scegliendo ? 'none' : '';
     document.getElementById('compactBtn').style.display   = scegliendo ? 'none' : '';
+
+    /* L'intestazione e' fissa in cima e l'elenco le sta sotto grazie a un
+       padding alto quanto lei (--header-h, calcolato da syncHeaderHeight). La
+       barra della selezione e la riga che spiega la modalita' stanno DENTRO
+       l'intestazione: comparendo la fanno crescere, e se nessuno ricalcola
+       quel numero l'elenco resta dov'era e finisce coperto. Non e' il banner
+       che "sta sopra": e' il posto sotto che non e' stato allargato.
+       Dopo il prossimo disegno, cosi' si misura l'altezza vera e non quella
+       di un istante fa. */
+    requestAnimationFrame(function(){ if (typeof syncHeaderHeight === 'function') syncHeaderHeight(); });
 }
 
 /* Nome storico: lo chiamano gli onchange delle caselle nel markup. */
@@ -5691,15 +5943,32 @@ function toggleCompactMode(forza){
 }
 
 /* Apre UNA carta a grandezza vera senza spegnere la vista compatta per tutte
-   le altre: serve a controllare cosa c'e' dentro prima di spuntarla. */
-function toggleCardOpen(btn){
-    var card = btn.closest('.fc-card');
-    if (!card) return;
-    var apro = !card.classList.contains('is-open');
-    card.classList.toggle('is-open', apro);
-    btn.setAttribute('aria-label', T(apro ? 'fc.vis_chiudi_carta' : 'fc.vis_apri_carta'));
-    btn.setAttribute('title', btn.getAttribute('aria-label'));
-}
+   le altre: serve a controllare cosa c'e' dentro prima di spuntarla.
+
+   Ad aprirla e' la RIGA STESSA, non un pulsante accanto. Il pulsante c'era, ed
+   era una freccia a punta in giu' — cioe' lo stesso disegno della freccia
+   "sposta giu'" che gli stava a fianco. Due icone quasi identiche, una che
+   apre e una che sposta: la differenza si scopriva premendole. Toccare la riga
+   che si vuole leggere per intero e' anche piu' diretto di cercare un pulsante,
+   e libera le due frecce dal dover essere distinguibili da una terza.
+   Il bersaglio e' grande quanto la riga, cosa che sullo schermo di un telefono
+   conta piu' di qualunque icona. */
+document.addEventListener('click', function(ev){
+    if (!document.body.classList.contains('is-compact')) return;
+    if (stoScegliendoIlPadre()) return;
+    if (Date.now() - (window.fcUltimoRiordino || 0) < 400) return;
+    if (!ev.target || !ev.target.closest) return;
+    /* Dentro la riga possono esserci cose che hanno gia' un loro significato
+       (un lettore audio, un collegamento): li' il tocco e' loro. */
+    if (ev.target.closest('button, a, input, audio, .audio-player, .qa-examples')) return;
+    var lato = ev.target.closest('.fc-card .qa-side');
+    if (!lato) return;
+    var card = lato.closest('.fc-card');
+    if (!card || !card.closest('#fcList')) return;
+    ev.stopPropagation();
+    card.classList.toggle('is-open');
+    buzz(5);
+});
 
 /* Mostra o nasconde le sottocarte di un padre. Vale in modalita' Unisci, dove
    l'elenco tiene i figli chiusi per non far scorrere per pagine. */
@@ -5826,6 +6095,11 @@ document.addEventListener('click', function(e){
     var card = e.target.closest('.fc-card.fc-parent');
     if (!card) return;
 
+    /* Il tastino "n sottocarte" e' l'eccezione: serve proprio ADESSO, per
+       guardare cosa c'e' gia' dentro un padre prima di sceglierlo. Il suo tocco
+       resta suo, e la carta non viene scelta. */
+    if (e.target.closest('.fc-kids-toggle')) return;
+
     e.preventDefault();
     e.stopPropagation();
 
@@ -5834,7 +6108,12 @@ document.addEventListener('click', function(e){
 
     document.getElementById('hiddenFatherId').value = card.getAttribute('data-id');
     buzz(14);
-    submitBulkForm('join');
+    /* Scelto il padre si torna alla modalita' Unisci, pronti per il prossimo:
+       quasi mai se ne fa uno solo. */
+    annullaSceltaPadre();
+    eseguiAzioneStruttura('join').then(function(){
+        document.getElementById('hiddenFatherId').value = '';
+    });
 }, true);
 
 
@@ -5876,7 +6155,10 @@ function onBulkActionPick(action){
             showToast(T('fc.vis_solo_sottocarte'));
             return;
         }
-        submitBulkForm('unjoin');
+        /* Si resta dove si e': stessa modalita', stessa vista compatta, stesso
+           punto della pagina. Separare tre sottocarte una dopo l'altra non deve
+           voler dire ritrovare tre volte il posto in cui si era. */
+        eseguiAzioneStruttura('unjoin');
         return;
     }
 
@@ -5896,9 +6178,139 @@ function onBulkActionPick(action){
     }
 }
 
+/* Sposta ed Elimina continuano a passare dall'invio normale del modulo: sono
+   azioni che si fanno una volta e poi si esce dalla selezione, quindi la
+   pagina che si ricarica non toglie niente a nessuno. */
 function submitBulkForm(actionValue){
     document.getElementById('hiddenBulkAction').value = actionValue;
     document.getElementById('bulkForm').submit();
+}
+
+/* ---------------- SEPARA E UNISCI SENZA RICARICARE ----------------
+   Queste due invece si fanno a raffica: si separano tre sottocarte, poi
+   un'altra, poi se ne unisce una da un'altra parte. Ricaricando la pagina si
+   perdeva ogni volta tutto il contesto — la modalita', la vista compatta, il
+   punto in cui si era arrivati a scorrere — e si ricominciava da capo a
+   ritrovare il posto. Adesso parte la stessa richiesta di prima (stesso
+   gestore PHP, stessi controlli), ma con bulk_ajax=1: il server risponde due
+   righe di JSON invece di un redirect, e la pagina si limita a ridisegnare
+   l'elenco.
+
+   L'elenco si RIPRENDE DAL SERVER e non si aggiusta a mano. Non e' pigrizia:
+   separando una sottocarta il server CANCELLA la riga e ne crea una nuova, con
+   un id nuovo. Una carta spostata a mano nel DOM si porterebbe dietro l'id
+   vecchio, e la prima azione fatta su di lei — una modifica, un'eliminazione —
+   finirebbe su una riga che non esiste piu'. */
+function eseguiAzioneStruttura(action){
+    var form = document.getElementById('bulkForm');
+    document.getElementById('hiddenBulkAction').value = action;
+
+    var dati = new FormData(form);
+    dati.set('bulk_ajax', '1');
+
+    return fetch(window.location.href, { method: 'POST', body: dati, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (!d || !d.success) throw new Error('azione rifiutata');
+            return ricaricaElenco(d);
+        })
+        .catch(function(err){
+            /* Se qualcosa va storto si ricarica e basta: meglio una pagina che
+               riparte di una pagina che mostra uno stato che non e' piu' vero. */
+            console.error('[selezione] ' + action, err);
+            window.location.reload();
+        });
+}
+
+/* esito: quello che ha risposto il server (gli id nati, ed eventualmente il
+   padre in cui sono finiti). Serve per non perderli di vista dopo il
+   ridisegno. */
+function ricaricaElenco(esito){
+    var vecchio = document.getElementById('fcList');
+    if (!vecchio) { window.location.reload(); return Promise.resolve(); }
+
+    return fetch(window.location.href, { credentials: 'same-origin' })
+        .then(function(r){ return r.text(); })
+        .then(function(html){
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            var nuovo = doc.getElementById('fcList');
+            /* Nessun elenco nella risposta vuol dire che non e' rimasta nessuna
+               carta: quel caso il PHP lo disegna in un altro modo (il riquadro
+               "non c'e' niente qui"), e ricostruirlo qui sarebbe copiare. */
+            if (!nuovo) { window.location.reload(); return; }
+
+            nuovo = document.importNode(nuovo, true);
+            vecchio.replaceWith(nuovo);
+
+            disegnaTestiGrezzi(nuovo);
+            if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes(nuovo);
+
+            segnaAppenaCambiate(nuovo, esito);
+
+            /* La modalita', la vista compatta e i filtri sono rimasti sul
+               <body> e sulla barra: le carte nuove ci si devono solo adeguare.
+               Le spunte no: quelle carte non ci sono piu', e l'azione che le
+               riguardava e' appena stata fatta. */
+            filterList();
+            aggiornaBarraSelezione();
+            portaInVistaLeCambiate(nuovo);
+        })
+        .catch(function(err){
+            console.error('[selezione] ridisegno elenco', err);
+            window.location.reload();
+        });
+}
+
+/* LE CARTE APPENA SEPARATE (O UNITE) RESTANO A SCHERMO
+   ---------------------------------------------------------------
+   Il filtro della modalita' Separa tiene in elenco solo i padri con figli e i
+   loro figli: e' giusto, sono le uniche su cui si puo' lavorare. Ma appena
+   separata, una sottocarta diventa una carta come tutte le altre — e quindi
+   sparisce esattamente nell'istante in cui si vuole vedere il risultato.
+   Si usciva e si rientrava dalla modalita' solo per controllare cos'era
+   successo.
+   Marcarle risolve tutt'e due le cose: cardMatches le lascia passare
+   comunque, e il segno serve anche a farle notare, con l'animazione qui sotto.
+   Il marchio dura finche' si resta nella modalita': uscendo e rientrando
+   l'elenco riparte pulito, che e' quello che si vuole. */
+function segnaAppenaCambiate(radice, esito){
+    /* Solo quelle del giro appena fatto: le precedenti hanno gia' avuto il loro
+       momento e continuare a tenerle fuori dal filtro svuoterebbe il filtro. */
+    $all('.appena-cambiata').forEach(function(el){ el.classList.remove('appena-cambiata'); });
+    if (!esito) return;
+
+    (esito.nati || []).forEach(function(id){
+        var card = radice.querySelector('.fc-card[data-id="' + id + '"]');
+        if (card) card.classList.add('appena-cambiata');
+    });
+
+    /* Unendo, le carte finiscono DENTRO un padre, che in modalita' Unisci tiene
+       i figli chiusi: si apre quel padre, altrimenti il risultato e' vero ma
+       invisibile. */
+    if (esito.padre) {
+        var gruppo = radice.querySelector('.fc-group[data-parent-id="' + esito.padre + '"]');
+        if (gruppo) gruppo.classList.add('kids-open', 'appena-cambiata');
+    }
+}
+
+function portaInVistaLeCambiate(radice){
+    var prima = radice.querySelector('.appena-cambiata');
+    if (prima && prima.scrollIntoView) prima.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+/* Il testo delle carte arriva dal server come dato grezzo in data-raw e viene
+   disegnato dal JavaScript. Le carte appena arrivate non sono passate da
+   quel giro, quindi sarebbero righe vuote: si disegnano qui, con la stessa
+   funzione che usa il pannello degli esempi.
+   Solo quelle rimaste vuote: se qualcun altro le ha gia' disegnate, rifarlo
+   sarebbe buttare via il lavoro e, con le formule, anche rifarle due volte. */
+function disegnaTestiGrezzi(radice){
+    if (typeof parseTextForPreview !== 'function') return;
+    radice.querySelectorAll('.raw-text-content').forEach(function(el){
+        if (el.innerHTML.trim() !== '') return;
+        el.innerHTML = parseTextForPreview(el.getAttribute('data-raw') || '');
+    });
+    if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(radice);
 }
 
 
@@ -6274,7 +6686,19 @@ function animateCardOut(el){
 
     document.addEventListener('pointerdown', function(e){
 
-        if (document.body.classList.contains('select-mode')) return;
+        /* In selezione il trascinamento era spento del tutto. Aveva senso
+           finche' l'unico gesto sulle carte era lo swipe modifica/elimina, che
+           li' dentro non deve partire. Ma la vista compatta esiste proprio per
+           rimettere in ordine tante carte insieme, e riordinarle solo con le
+           freccette vuol dire premere venti volte per spostare di venti
+           posizioni. Quindi: in selezione si trascina se si e' in compatta, e
+           solo per riordinare — lo swipe resta spento (ctx.soloRiordino).
+           Mentre si sceglie il padre no: li' un tocco sulla carta ha gia' un
+           significato, e tenerlo premuto non deve averne un secondo. */
+        var inSelezione = document.body.classList.contains('select-mode');
+        var inCompatta  = document.body.classList.contains('is-compact');
+        if (inSelezione && !inCompatta) return;
+        if (document.body.classList.contains('join-picking')) return;
 
         if (pend || activeDrag) return;
 
@@ -6304,7 +6728,7 @@ function animateCardOut(el){
 
             pointerId: e.pointerId, startX: e.clientX, startY: e.clientY,
 
-            swiping: false, reordering: false,
+            swiping: false, reordering: false, soloRiordino: inSelezione,
 
             longPressTimer: reorderable ? setTimeout(function(){ if (pend && !pend.swiping) activateReorder(pend); }, LONG_PRESS_MS) : null
 
@@ -6333,6 +6757,10 @@ function animateCardOut(el){
         if (adx > TAP_SLOP && adx > ady * 1.25) {
 
             clearTimeout(pend.longPressTimer);
+
+            /* In selezione un movimento orizzontale non apre modifica/elimina:
+               annulla e basta, come fa gia' quello verticale. */
+            if (pend.soloRiordino) { pend = null; return; }
 
             pend.swiping = true;
 
@@ -6588,6 +7016,14 @@ function animateCardOut(el){
 
         gestureBlock = false;
 
+        /* Alla fine di un trascinamento il browser manda comunque un click su
+           dove si e' lasciato il dito. In vista compatta quel punto e' quasi
+           sempre una riga della carta, che ora e' il comando "apri": senza
+           questo, ogni riordino finirebbe con la carta spalancata. Stessa
+           medicina gia' usata per lo sfogliare degli esempi
+           (fcExUltimoSwipe). */
+        window.fcUltimoRiordino = Date.now();
+
         activeDrag = null;
 
 
@@ -6818,6 +7254,27 @@ function fcExApri(box) {
     if (window.buzz) buzz(8);
 }
 
+/* Apre il modulo dell'esempio che si sta guardando. La strada e' quella
+   normale — il popup di modifica della carta — con in piu' un parametro che
+   dice a quella pagina di aprire subito l'esempio giusto. Cosi' non c'e' un
+   secondo modo di modificare un esempio da tenere allineato al primo: c'e'
+   sempre e solo quello, raggiunto piu' in fretta.
+   Chiudendo il popup l'elenco della carta si ridisegna da solo, e con lui il
+   riquadro degli esempi qui sotto. */
+function fcExModifica() {
+    if (!fcExBox) return;
+    var esempi = fcExBox._fcExamples || [];
+    var ex = esempi[fcExBox._fcIndex || 0];
+    var card = fcExBox.closest('.fc-card');
+    var url = card && card.getAttribute('data-edit-url');
+    if (!ex || !url) return;
+
+    fcExChiudi();
+    var meta = url + (url.indexOf('?') === -1 ? '?' : '&') + 'apri_esempio=' + encodeURIComponent(ex.id);
+    if (typeof apriModificaPopup === 'function') apriModificaPopup(meta, function(){ window.location.reload(); });
+    else window.location.href = meta;
+}
+
 function fcExChiudi() {
     var modal = document.getElementById('exModal');
     modal.classList.remove('on');
@@ -6880,6 +7337,8 @@ function fcExVai(verso) {
         if (!e.target || !e.target.closest) return;
 
         if (e.target.closest('#exModalClose') || e.target.closest('#exModalBack')) { fcExChiudi(); return; }
+
+        if (e.target.closest('#exModalEdit')) { fcExModifica(); return; }
 
         var freccia = e.target.closest('.ex-modal-arrow');
         if (freccia) { fcExVai(parseInt(freccia.dataset.verso, 10)); return; }

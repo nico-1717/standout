@@ -73,7 +73,40 @@
        capitare — un dizionario di un'altra lingua, aggiunto domani, che quella
        voce non ce l'ha: meglio "Aggiungi esempio" che «<<fc.mfc_esempio_breve>>»
        stampato su un tasto. */
-    function mfc_parola_esempio(): string {
+    /* Le prime parole di un campo, in chiaro. Il testo delle carte e' un documento
+   JSON: stamparlo cosi' com'e' vorrebbe dire mostrare le parentesi graffe, e
+   disegnarlo per bene richiederebbe di tirare dentro il parser e il suo giro
+   di rendering per una riga di anteprima. Qui bastano le parole: si scendono i
+   blocchi e si prendono i "run".
+   Un formato che non si legge come JSON viene dal vecchio testo semplice, e li'
+   basta togliere i tag. */
+function mfc_testo_piano($raw, int $max = 90): string {
+    $raw = trim((string)$raw);
+    if ($raw === '') return '';
+
+    $doc = json_decode($raw, true);
+    if (!is_array($doc) || !isset($doc['blocks']) || !is_array($doc['blocks'])) {
+        $piano = trim(preg_replace('/\s+/u', ' ', strip_tags($raw)));
+    } else {
+        $pezzi = [];
+        foreach ($doc['blocks'] as $b) {
+            if (!is_array($b)) continue;
+            foreach (($b['runs'] ?? []) as $r) {
+                if (is_array($r)) $pezzi[] = (string)($r['s'] ?? '');
+                elseif (is_string($r)) $pezzi[] = $r;
+            }
+        }
+        $piano = trim(preg_replace('/\s+/u', ' ', implode(' ', $pezzi)));
+    }
+
+    if ($piano === '') return '';
+    if (function_exists('mb_strlen') && mb_strlen($piano) > $max) {
+        return mb_substr($piano, 0, $max - 1) . '…';
+    }
+    return $piano;
+}
+
+function mfc_parola_esempio(): string {
         return mfc_t('fc.mfc_esempio_breve', (string)t('fc.mfc_aggiungi_esempio'));
     }
 
@@ -466,6 +499,15 @@
         if ($row) {
             if ($fc_modo === 'edit') {
                 $category_id = $is_child ? $prev_cat : $row['category_id'];
+                /* Le sottocarte di questa carta, per la sezione in fondo. Solo
+                   quello che serve a una riga di anteprima: chiedere anche
+                   audio e immagini vorrebbe dire portarsi dietro dei dati che
+                   nessuno guarda. */
+                $figli = $is_child ? [] : sec_all(
+                    "SELECT id_child, question_desc, answer_desc
+                       FROM fc_child_cards WHERE parent_id = ?
+                      ORDER BY custom_order ASC, id_child ASC", [$id]);
+
                 $ex_col = $is_child ? 'child_id' : 'parent_id';
                 $ex_count = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_examples WHERE $ex_col = ?", [$id])['c'] ?? 0);
             }
@@ -579,6 +621,17 @@
                 <input type="hidden" name="position" value="<?php echo isset($_GET['position']) ? (int)$_GET['position'] : (isset($_POST['position']) ? (int)$_POST['position'] : 0); ?>">
                 <input type="hidden" name="status" value="<?php echo isset($_GET['status']) ? sec_h($_GET['status']) : (isset($_POST['status']) ? sec_h($_POST['status']) : '0'); ?>">
                 <input type="hidden" name="order" value="<?php echo isset($_GET['order']) ? sec_h($_GET['order']) : (isset($_POST['order']) ? sec_h($_POST['order']) : 'random'); ?>">
+
+                <?php if ($is_child && !empty($_GET['torna_a'])): ?>
+                <?php /* Si e' arrivati qui dalla sezione "sottocarte" del padre:
+                         il ritorno deve esserci, altrimenti l'unica uscita e' la
+                         X, che chiude tutto e riporta all'elenco — cioe' fa
+                         perdere il punto in cui si stava lavorando. */ ?>
+                <a class="fc-torna-padre" href="modifica_immagine_fc.php?fc_id=<?php echo (int)$_GET['torna_a']; ?>&previous_catid=<?php echo (int)$category_id; ?><?php echo !empty($_GET['fc_popup']) ? '&fc_popup=1' : ''; ?>">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    <?php te('fc.vis_fcv_carta_padre'); ?>
+                </a>
+                <?php endif; ?>
 
                 <?php if ($is_child): ?>
                     <input type="hidden" name="child_id" value="<?php echo (int)$id; ?>">
@@ -713,6 +766,49 @@
 </section>
 
 
+
+                <?php if (!empty($figli)): ?>
+                <?php /* LE SOTTOCARTE, IN FONDO E CHIUSE
+                         Aperto il modulo di un padre non c'era nessun segno che
+                         avesse delle sottocarte: per correggerne una si tornava
+                         all'elenco, la si cercava, la si apriva. Qui sono dove
+                         devono stare — sotto la carta a cui appartengono — e
+                         chiuse, perche' nove volte su dieci si e' venuti per il
+                         padre e non per loro.
+                         Ognuna porta al proprio modulo, quello vero, con tutto
+                         quello che ha (immagini, audio, esempi): una modifica a
+                         una sottocarta non e' una modifica di serie B e non
+                         merita una versione ridotta dell'editor. Il parametro
+                         torna_a fa comparire li' il ritorno a questa carta,
+                         cosi' non si resta in fondo a un percorso senza
+                         via d'uscita. */ ?>
+                <section class="fc-card fc-figli" id="fcFigli">
+                    <button type="button" class="fc-figli-testa" onclick="fcApriChiudiFigli(this)" aria-expanded="false">
+                        <svg class="fc-figli-freccia" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                        <span class="fc-figli-tit"><?php echo sec_h(T('fc.vis_n_sottocarte', ['n' => count($figli)])); ?></span>
+                    </button>
+
+                    <div class="fc-figli-corpo" hidden>
+                        <?php foreach ($figli as $i => $f):
+                            $fq = mfc_testo_piano($f['question_desc']);
+                            $fa = mfc_testo_piano($f['answer_desc'], 70);
+                            $url = 'modifica_immagine_fc.php?child_id=' . (int)$f['id_child']
+                                 . '&previous_catid=' . (int)$category_id
+                                 . '&torna_a=' . (int)$id
+                                 . (!empty($_GET['fc_popup']) ? '&fc_popup=1' : '');
+                        ?>
+                        <a class="fc-figlio" href="<?php echo sec_h($url); ?>">
+                            <span class="fc-figlio-n"><?php echo (int)$i + 1; ?></span>
+                            <span class="fc-figlio-testi">
+                                <span class="fc-figlio-q"><?php echo sec_h($fq !== '' ? $fq : '—'); ?></span>
+                                <span class="fc-figlio-a"><?php echo sec_h($fa !== '' ? $fa : '—'); ?></span>
+                            </span>
+                            <svg class="fc-figlio-matita" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        </a>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+                <?php endif; ?>
 
                 <div class="fc-form-foot">
                     <?php /* L'eliminazione sta nella barra in alto, col cestino:
@@ -944,6 +1040,75 @@
     }
 
     /* ================================================================
+       IL PULSANTE DELL'IA — PRIMA DI TUTTO IL RESTO
+       ================================================================
+       Questo aggancio stava in fondo al blocco, dopo una decina di altre
+       inizializzazioni. Ogni volta che ho provato a spiegarmi il pulsante
+       morto sono ripartito dal pulsante, e il pulsante non c'entrava: se una
+       qualunque riga PRECEDENTE si rompe, lo script si ferma li' e l'aggancio
+       non viene mai eseguito. Il cerchio resta a schermo, disegnato dal PHP,
+       con addosso un onclick che chiama una funzione che nessuno ha
+       preparato — e premerlo non fa niente, in silenzio, senza un errore che
+       colleghi le due cose.
+       Spostarlo in cima non e' un rimedio elegante a un guasto ignoto: e'
+       togliere di mezzo l'unica dipendenza che aveva. Qui davanti non c'e'
+       niente che possa cadere prima.
+
+       Due reti, non una:
+       - l'ascoltatore sul pulsante, con l'onclick tolto (quello fallisce in
+         silenzio: se fcMigliora non c'e', il browser lo scrive in console e
+         basta);
+       - un secondo ascoltatore in FASE DI CATTURA sul documento, che prende
+         il click prima di chiunque altro. Se qualcosa lungo la strada lo sta
+         fermando — un gestore che chiama stopPropagation, un elemento
+         trasparente sopra — questo lo intercetta lo stesso.
+       E se il click non arriva proprio, la controprova qui sotto dice chi c'e'
+       davvero in quel punto dello schermo. */
+    function fcApriIA(ev) {
+        if (ev) ev.preventDefault();
+        try {
+            if (typeof fcMigliora === 'undefined' || !fcMigliora || typeof fcMigliora.apri !== 'function') {
+                throw new Error('fc_migliora_carta.js non e\' stato caricato');
+            }
+            fcMigliora.apri();
+        } catch (err) {
+            console.error('[modifica_immagine] apertura IA:', err);
+            alert('IA: ' + (err && err.message ? err.message : err));
+        }
+    }
+
+    /* In cattura sul documento: arriva prima di qualunque altro gestore. */
+    document.addEventListener('click', function (ev) {
+        if (!ev.target || !ev.target.closest) return;
+        if (!ev.target.closest('#fcMiglioraFab')) return;
+        ev.stopPropagation();
+        fcApriIA(ev);
+    }, true);
+
+    fcAvvia('pulsante IA', function () {
+        var fab = document.getElementById('fcMiglioraFab');
+        if (!fab) throw new Error('#fcMiglioraFab non esiste nella pagina');
+
+        /* Appeso al <body>: nato dentro .fcm-wrap, dentro .page, dentro il
+           modulo, gli basta un antenato con un z-index piu' basso di un altro
+           elemento qualsiasi per finire SOTTO — e un pulsante sotto qualcosa
+           non e' invisibile, e' peggio: si vede, si preme, e il tocco lo prende
+           quello sopra. */
+        if (fab.parentElement !== document.body) document.body.appendChild(fab);
+        fab.removeAttribute('onclick');
+
+        setTimeout(function () {
+            var r = fab.getBoundingClientRect();
+            if (!r.width) { console.warn('[modifica_immagine] il pulsante IA non ha dimensioni: lo nasconde una regola CSS'); return; }
+            var sopra = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            if (sopra === fab || fab.contains(sopra)) return;
+            console.warn('[modifica_immagine] il pulsante IA e\' coperto da:', sopra,
+                         '| classi:', sopra && sopra.className,
+                         '| z-index:', sopra && getComputedStyle(sopra).zIndex);
+        }, 600);
+    });
+
+    /* ================================================================
        CHI STA SOPRA COMANDA
        ================================================================
        In questo documento i pannelli si impilano: il modulo della carta,
@@ -1156,6 +1321,19 @@
         fcMigliora.inizializza({ campoQ: 'quest', campoA: 'answ' });
     });
 
+    /* IL PULSANTE DELL'IA, RIAGGANCIATO A MANO
+       Il cerchio nasce con onclick="fcMigliora.apri()" scritto nell'attributo
+       (fc_ai_fab.php). Un attributo del genere fallisce in silenzio: se
+       fcMigliora non c'e' — il file non caricato, un errore prima — il browser
+       scrive una riga in console e il pulsante sembra semplicemente morto. Ed
+       e' impossibile distinguere "non ha caricato" da "ha caricato e non fa
+       niente" senza aprire gli strumenti da sviluppatore.
+       Qui l'attributo viene tolto e sostituito da un ascoltatore vero, che
+       prova ad aprire e, se non ci riesce, LO DICE: un avviso a schermo col
+       motivo, invece di un pulsante che non risponde. */
+    /* L'aggancio del pulsante IA sta ora in cima a questo blocco: vedi li'
+       il perche'. */
+
     /* A differenza di inserimento_fc.php, qui la carta esiste gia' e ha gia'
        un id: un esempio generato dall'IA si puo' salvare subito, senza
        aspettare il salvataggio della carta. fc_migliora_carta.js chiama
@@ -1223,6 +1401,18 @@
        codice, che gia' esisteva, non venisse mai richiamato al momento giusto.
        Qui e' una funzione con un nome, cosi' si puo' richiamare da tutti i
        momenti giusti invece di essere copiata in alcuni di loro. */
+    /* Apre e chiude l'elenco delle sottocarte. hidden e non una classe: e' un
+       contenuto che c'e' o non c'e', non un contenuto trasparente — e cosi' non
+       lo leggono nemmeno i lettori di schermo mentre e' chiuso. */
+    function fcApriChiudiFigli(btn) {
+        var corpo = document.querySelector('.fc-figli-corpo');
+        if (!corpo) return;
+        var apro = corpo.hidden;
+        corpo.hidden = !apro;
+        btn.setAttribute('aria-expanded', apro ? 'true' : 'false');
+        btn.closest('.fc-figli').classList.toggle('is-aperta', apro);
+    }
+
     function fcRinfrescaSezioneEsempi() {
         var sez = document.querySelector('.qa-examples-wrap');
         if (!sez) return;
@@ -1252,6 +1442,24 @@
     }
 
     fcRinfrescaSezioneEsempi();
+
+    /* Si arriva qui dal visore degli esempi di visualizzazione_fc.php, che
+       passa apri_esempio=<id>: la carta si apre e sopra ci si trova subito il
+       modulo di QUELL'esempio. Senza, l'unico modo di correggere un esempio
+       visto altrove era rifare a mano tutta la strada.
+       Il ritardo aspetta che examples_modal.php abbia definito le sue
+       funzioni: sta in fondo alla pagina, dopo questo script. */
+    <?php if (!empty($_GET['apri_esempio'])): ?>
+    setTimeout(function () {
+        if (typeof exApriEsempioSingolo !== 'function' || !FC_ID_CORRENTE) return;
+        var q = document.getElementById('quest'), a = document.getElementById('answ');
+        /* exApriEsempioSingolo e non openExampleForm: quest'ultima legge i campi
+           dalla memoria del pannello, che arrivando da un indirizzo e' ancora
+           vuota — il modulo si aprirebbe bianco. */
+        exApriEsempioSingolo(FC_ID_CORRENTE, FC_TIPO, <?php echo (int)$_GET['apri_esempio']; ?>,
+                             q ? q.value : '', a ? a.value : '');
+    }, 120);
+    <?php endif; ?>
 
     /* Il pannello degli esempi avvisa quando si chiude del tutto
        (chiudiElencoEsempi in examples_modal.php). E' il momento in cui si

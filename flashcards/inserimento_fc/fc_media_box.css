@@ -155,3 +155,8 @@
     .img-pick-box:active, .rec-btn:active{ transform:none; }
     .rec-btn.recording{ animation:none; }
 }
+
+/* Senza .fc-media-affiancati i due contenitori tornano in colonna, e allora
+   servono i loro margini: la riga affiancata li azzera (il gap fa il lavoro),
+   impilati no. */
+.img-compare + .audio-card{ margin-top:10px; }

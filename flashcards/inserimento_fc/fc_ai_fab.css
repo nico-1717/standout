@@ -87,3 +87,10 @@
    vuol dire che ogni tanto vince quello sbagliato e il pulsante resta spento
    quando invece dovrebbe esserci. */
 .fc-aifab.is-coperto{ display:none; }
+
+/* Appeso al <body> (lo fa il JavaScript della pagina) il pulsante non ha piu'
+   antenati che lo possano schiacciare sotto qualcos'altro, ma va anche portato
+   piu' in alto della pila: 40 bastava dentro il modulo, non contro tutto il
+   resto della pagina. Resta comunque molto sotto ai pannelli (11000 in su),
+   che devono continuare a coprirlo. */
+body > .fc-aifab{ z-index:9000; }

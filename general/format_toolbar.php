@@ -1916,17 +1916,37 @@ function ftSetupDictation(wrap, bar) {
     }
 
     // ---------- scrittura ----------
+    /* Cosa c'e' scritto PRIMA del cursore SULLA RIGA IN CUI SI STA SCRIVENDO.
+       Le due cose che decide sono lo spazio davanti alla prima parola dettata
+       e, con la punteggiatura automatica accesa, il segno con cui attaccarsi
+       a quello che c'era: entrambe hanno senso solo rispetto alla riga
+       corrente. Prima, quando non c'era un testo provvisorio da cui partire,
+       si restituiva il contenuto dell'INTERO riquadro: andando a capo dopo
+       "ciao" e dettando, per il calcolo c'era ancora "ciao" prima del
+       cursore, quindi partiva uno spazio a inizio riga e — con la
+       punteggiatura accesa — pure una virgola dal nulla, esattamente il
+       "ciao\n, " segnalato. Su una riga vuota adesso non c'e' niente prima,
+       e infatti non si attacca a niente. */
     function testoPrimaDelCursore() {
         var m = provv && ed.contains(provv) ? provv : null;
-        if (!m) return (ed.textContent || '').replace(/\u200B/g, '');
-        var pre = '';
-        var n = m.previousSibling;
-        while (n && pre.length < 200) { pre = (n.textContent || '') + pre; n = n.previousSibling; }
-        if (!pre && m.parentNode !== ed) {
-            var b = m.parentNode;
-            pre = (b.textContent || '');
+        if (m) {
+            var pre = '';
+            var n = m.previousSibling;
+            while (n && pre.length < 200) { pre = (n.textContent || '') + pre; n = n.previousSibling; }
+            /* Niente ripiego sul testo del blocco intero: quello comprende
+               anche cio' che sta DOPO il cursore, che qui non c'entra nulla.
+               Se davanti non c'e' nessun fratello, si e' a inizio riga. */
+            return pre.replace(/\u200B/g, '');
         }
-        return pre.replace(/\u200B/g, '');
+        try {
+            var sel = fcdGetSel(ed);
+            if (sel) {
+                var doc = fcdFromDom(ed);
+                var b = doc.blocks[sel.a.b];
+                if (b) return fcdBlockText(b).slice(0, sel.a.o).replace(/\u200B/g, '');
+            }
+        } catch (e) {}
+        return '';
     }
 
     function scriviTesto(t) {
@@ -3508,6 +3528,26 @@ function ftMQEntra(ed, wrap, indice, dove) {
 }
 
 function ftMathEdita(el, portaCursore, wrap, dove, offsetEsatto) {
+    /* Selezione aperta dentro una formula scritta a LaTeX a mano: non si
+       tocca niente e si esce subito.
+       Questa funzione, in piu' punti, RIPIAZZA il cursore in una posizione
+       precisa — cioe' lo richiude. Sulle formule che MathQuill non sa
+       gestire (\underbrace, \cancel...) la modifica avviene nella casella
+       modificabile, quindi ogni movimento della selezione fa ripartire tutto
+       questo, e la selezione veniva cancellata nell'istante in cui la si
+       creava: non si riusciva a selezionare un pezzo di formula per
+       copiarlo. Con MathQuill montato non si notava, perche' li' il fuoco e'
+       della sua casella nascosta e questi ripiazzamenti non vengono
+       nemmeno raggiunti.
+       Il controllo sta all'ingresso e non nei singoli punti perche' i punti
+       che spostano il cursore sono piu' d'uno: proteggerne uno solo lasciava
+       il difetto identico, ed e' esattamente quello che era successo al
+       primo tentativo. */
+    if (el && el.dataset && el.dataset.mqNo === '1') {
+        var selApertaE = window.getSelection();
+        if (selApertaE && selApertaE.rangeCount && !selApertaE.getRangeAt(0).collapsed
+            && el.contains(selApertaE.anchorNode)) return;
+    }
     /* Prima con MathQuill, quando c'e' — a blocco e in linea, la stessa
        logica per entrambe. */
     if ((el.classList.contains('fc-fx') || el.classList.contains('fc-x')) && ftMQPronto()) {
@@ -3538,6 +3578,18 @@ function ftMathEdita(el, portaCursore, wrap, dove, offsetEsatto) {
                preciso (ftMathRefresh lo calcola sempre, leggendolo da dove il
                cursore sta GIA') lo si usa; solo se non lo si ha si ripiega sul
                lato d'ingresso come prima. */
+            /* Non si tocca il cursore se c'e' una selezione aperta: qui sotto
+               lo si RIPIAZZA in un punto preciso, cioe' lo si richiude, e
+               fatto mentre si trascina una selezione la cancella nell'istante
+               in cui la si crea. Questo ramo e' quello delle formule scritte
+               a LaTeX a mano (comandi che MathQuill non sa fare, tipo
+               \underbrace) e viene rieseguito a ogni movimento della
+               selezione: era per questo che li' dentro non si riusciva a
+               selezionare niente per copiarlo. */
+            var selApertaR = window.getSelection();
+            if (selApertaR && selApertaR.rangeCount && !selApertaR.getRangeAt(0).collapsed
+                && el.contains(selApertaR.anchorNode)) return;
+
             if (el.firstChild) {
                 var testo0 = el.textContent || '';
                 var lung0 = testo0.length;
@@ -3839,7 +3891,19 @@ function ftMathRefresh(wrap) {
        ripristinare, e soprattutto niente da guastare. */
     if (primaNodo && ed.contains(primaNodo) && !(dentro && dentro._mqCampo && ftMQHaIlFuoco(dentro))) {
         var oraSel = window.getSelection();
-        if (oraSel && oraSel.rangeCount &&
+        /* Se in questo momento c'e' del testo SELEZIONATO non si tocca niente.
+           Quello che segue rimette il cursore in un punto preciso, cioe' lo
+           richiude: fatto mentre si sta trascinando una selezione, la
+           cancella nell'istante stesso in cui la si crea. Succedeva in una
+           situazione sola, ma fastidiosa: nelle formule scritte a LaTeX a
+           mano (quelle con comandi che MathQuill non sa fare, tipo
+           \underbrace). La' dentro il fuoco e' della casella modificabile, e
+           ogni movimento della selezione fa ripartire questo controllo — non
+           si riusciva piu' a selezionare un pezzo di formula per copiarlo.
+           Con MathQuill montato non si notava perche' il fuoco e' della sua
+           casella nascosta e questo pezzo non veniva nemmeno raggiunto. */
+        var selezioneAperta = oraSel && oraSel.rangeCount && !oraSel.getRangeAt(0).collapsed;
+        if (!selezioneAperta && oraSel && oraSel.rangeCount &&
             (oraSel.anchorNode !== primaNodo || oraSel.anchorOffset !== primaOffset)) {
             var lunghezza = primaNodo.nodeType === 3
                 ? (primaNodo.nodeValue || '').length

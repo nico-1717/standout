@@ -125,14 +125,36 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
                  Le classi .exm-img-box / .exm-audio-card / .exm-rec-btn
                  restano in examples_modal.css ma qui non le usa piu' nessuno. */ ?>
-        <div class="fc-media-affiancati">
+        <div class="fc-media-affiancati" id="ex-media-affiancati">
 
             <?php /* img-compare-solo: c'e' un riquadro solo, quello nuovo, e da
                      solo si prende tutta la colonna. L'anteprima dell'immagine
                      gia' salvata compare qui dentro, non in un secondo riquadro
                      "Attuale": un esempio ha una foto sola e la si sostituisce,
                      non la si confronta. */ ?>
-            <div class="img-compare img-compare-solo">
+            <div class="img-compare img-compare-solo" id="ex-img-compare">
+
+                <?php /* IL RIQUADRO "ATTUALE", COME NEL MODULO DELLA CARTA
+                         Prima l'immagine gia' salvata finiva DENTRO il riquadro
+                         "Nuova": si vedeva la foto che c'era, ma il riquadro
+                         diceva "Nuova" e non c'era modo di togliere quella foto
+                         senza caricarne un'altra. Due cose diverse — quella che
+                         c'e' e quella che si sta scegliendo — mostrate come una
+                         sola.
+                         Adesso sono due riquadri affiancati, esattamente come in
+                         modifica_immagine_fc.php: a sinistra quella che c'e',
+                         con la sua casella per toglierla, a destra quella nuova.
+                         Resta nascosto finche' un'immagine non c'e' davvero: su
+                         un esempio nuovo mostrerebbe una cornice vuota. */ ?>
+                <div class="img-box" id="ex-img-attuale" hidden>
+                    <span class="img-tag"><?php te('vocab.mi_attuale'); ?></span>
+                    <img id="ex-img-attuale-src" src="" alt="">
+                    <label class="img-remove-row">
+                        <input type="checkbox" id="ex-img-rimuovi" onchange="exSegnaRimozione(this)">
+                        <span><?php te('vocab.mi_rimuovi_immagine'); ?></span>
+                    </label>
+                </div>
+
                 <label for="ex-image-file" class="img-box img-pick-box" id="ex_img_wrap">
                     <input type="file" id="ex-image-file" accept="image/*" style="display:none;" onchange="previewExImage(this)">
                     <span class="img-tag img-tag-new"><?php te('vocab.mi_nuova'); ?></span>
@@ -514,16 +536,21 @@ window.openExamplesModal = async function (fc_id, fc_type, q_text, a_text) {
    Serviva poterlo ridisegnare SENZA quella scorciatoia — chiudendo il modulo
    di un esempio si torna all'elenco, e se l'elenco fosse ancora vuoto
    riaprirebbe il modulo appena chiuso, all'infinito. */
-/* Stessa domanda che si fa il carosello (fcTestoVuoto in examples_modal.js):
-   un esempio di sola immagine arriva spesso con un a capo rimasto nel testo, e
-   per un `if` un a capo e' contenuto. Qui non si puo' chiamare direttamente
-   quella: examples_modal.js lo carica la PAGINA, non questo file, e non tutte
-   le pagine che includono questo pannello lo caricano. Se c'e' si usa lei, e
-   restano una definizione sola da tenere giusta. */
-function exTestoVuoto(t) {
-    if (typeof fcTestoVuoto === 'function') return fcTestoVuoto(t);
-    if (t == null) return true;
-    return String(t).replace(/<br\s*\/?>/gi, '').replace(/&nbsp;/gi, ' ').trim() === '';
+/* Stessa domanda che si fa il carosello (fcHtmlSiVede in examples_modal.js):
+   non "il dato e' vuoto" ma "quello che verrebbe fuori si vede". Un esempio di
+   sola immagine arriva con un documento di un paragrafo senza parole, che come
+   stringa e' pienissimo e come riga e' vuoto.
+   La copia locale c'e' perche' examples_modal.js lo carica la PAGINA, non
+   questo file, e non tutte quelle che includono questo pannello lo caricano:
+   se c'e', si usa la sua, e resta una definizione sola da tenere giusta. */
+function exTestoSiVede(t) {
+    if (!t) return false;
+    var html = (typeof parseTextForPreview === 'function') ? parseTextForPreview(t) : String(t);
+    if (typeof fcHtmlSiVede === 'function') return fcHtmlSiVede(html);
+    var d = document.createElement('div');
+    d.innerHTML = html;
+    if (d.querySelector('img, svg, table, hr, mjx-container')) return true;
+    return d.textContent.replace(/\u00a0/g, ' ').trim() !== '';
 }
 
 function exDisegnaElenco(fc_id, fc_type, esempi) {
@@ -531,7 +558,7 @@ function exDisegnaElenco(fc_id, fc_type, esempi) {
     esempi.forEach(function (ex, i) {
         html += `<div class="exm-example-card">
                 <div class="exm-example-label">${T('fc.exm_esempio_n', {n: i + 1})}</div>
-                ${!exTestoVuoto(ex.example_text) ? `<div class="raw-text exm-example-text">${typeof parseTextForPreview === 'function' ? parseTextForPreview(ex.example_text) : ex.example_text}</div>` : ''}
+                ${exTestoSiVede(ex.example_text) ? `<div class="raw-text exm-example-text">${typeof parseTextForPreview === 'function' ? parseTextForPreview(ex.example_text) : ex.example_text}</div>` : ''}
                 ${ex.example_audio ? `<audio src="fc_audio/${ex.example_audio}" controls class="exm-example-audio"></audio>` : ''}
                 ${ex.example_image ? `<img src="fc_images/${ex.example_image}" class="exm-example-image">` : ''}
                 <button type="button" class="exm-example-edit-btn" onclick="openExampleForm(${fc_id}, '${fc_type}', ${ex.id})">${T('fc.exm_modifica')}</button>
@@ -540,6 +567,67 @@ function exDisegnaElenco(fc_id, fc_type, esempi) {
     document.getElementById('ex-list-content').innerHTML = html;
     if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(document.getElementById('ex-list-content'));
 }
+
+/* Apre il modulo di UN esempio preciso partendo da zero — da un indirizzo, da
+   un'altra pagina — senza essere passati dall'elenco.
+   openExampleForm da sola non basta: i campi non li chiede al server, li pesca
+   da currentExamplesList, che e' la memoria riempita da openExamplesModal.
+   Arrivando dritti, quella memoria e' vuota: la funzione non trova l'esempio e
+   apre il modulo di uno nuovo, vuoto. Con un esempio fatto di sola immagine il
+   guasto sembra piu' piccolo di quello che e' — "manca l'immagine" — ma non
+   manca l'immagine: manca tutto, e non c'era niente da vedere a parte lei.
+   Quindi prima si riempie la memoria, poi si apre. */
+/* Spuntata la casella, il riquadro si smorza: si vede subito che quella foto
+   sta per andarsene, prima ancora di salvare. */
+function exSegnaRimozione(cb) {
+    var box = document.getElementById('ex-img-attuale');
+    if (box) box.classList.toggle('img-marked-removed', cb.checked);
+    markExDirty();
+}
+
+/* Accende o spegne il riquadro dell'immagine gia' salvata, e con lui il modo
+   in cui i due riquadri si dividono la riga: da solo, quello "Nuova" si prende
+   tutta la colonna (img-compare-solo); in due stanno affiancati. */
+function exMostraImmagineAttuale(nomeFile) {
+    var box = document.getElementById('ex-img-attuale');
+    var img = document.getElementById('ex-img-attuale-src');
+    var rim = document.getElementById('ex-img-rimuovi');
+    var riga = document.getElementById('ex-img-compare');
+    if (!box || !riga) return;
+
+    var esiste = !!nomeFile;
+    box.hidden = !esiste;
+    box.classList.remove('img-marked-removed');
+    if (rim) rim.checked = false;
+    if (img) img.src = esiste ? ('fc_images/' + nomeFile) : '';
+    riga.classList.toggle('img-compare-solo', !esiste);
+
+    /* E CON DUE RIQUADRI IMMAGINE, L'AUDIO VA SOTTO.
+       E' la stessa regola del modulo della carta: li' immagine e audio si
+       affiancano solo quando l'immagine e' un riquadro solo. Con "Attuale" e
+       "Nuova" le colonne diventano tre, e su un telefono tre colonne vogliono
+       dire tre riquadri troppo stretti — il microfono con la sua scritta
+       accanto non ci sta piu', e infatti nello schermo si vedeva il cerchio
+       dell'IA appoggiato sopra la card dell'audio.
+       Togliendo la classe, i due contenitori tornano uno sotto l'altro. */
+    var affiancati = document.getElementById('ex-media-affiancati');
+    if (affiancati) affiancati.classList.toggle('fc-media-affiancati', !esiste);
+}
+
+window.exApriEsempioSingolo = function (fc_id, fc_type, ex_id, q_text, a_text) {
+    currentFcId = fc_id;
+    currentFcType = fc_type;
+    currentQ = q_text || '';
+    currentA = a_text || '';
+    return fetch('examples_api.php?action=get&fc_id=' + encodeURIComponent(fc_id)
+                 + '&fc_type=' + encodeURIComponent(fc_type))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            currentExamplesList = (d && d.success && d.examples) ? d.examples : [];
+            openExampleForm(fc_id, fc_type, ex_id);
+        })
+        .catch(function () { openExampleForm(fc_id, fc_type, ex_id); });
+};
 
 /* Riapre l'elenco con quello che c'e' ADESSO nel database. Se non c'e' piu'
    niente non apre un pannello vuoto: chiude e basta, che e' l'unica cosa
@@ -620,6 +708,7 @@ function openExampleForm(fc_id, fc_type, ex_id) {
        pieno e senza l'invito a scegliere, cioe' con l'aria di contenere
        ancora la foto dell'esempio precedente. */
     document.getElementById('ex_img_wrap').classList.remove('has-img');
+    exMostraImmagineAttuale('');
 
     fcAudioResetta('esempio');
 
@@ -659,11 +748,10 @@ function openExampleForm(fc_id, fc_type, ex_id) {
 
             }
 
-            if(ex.example_image) {
-                imgPreview.src = `fc_images/${ex.example_image}`;
-                imgPreviewCont.style.display = 'block';
-                document.getElementById('ex_img_wrap').classList.add('has-img');
-            }
+            /* L'immagine gia' salvata va nel riquadro "Attuale", non dentro
+               quello "Nuova": quello resta libero per la foto che eventualmente
+               la sostituira'. */
+            exMostraImmagineAttuale(ex.example_image || '');
 
         }
 
@@ -810,6 +898,11 @@ window.exSalvaEsempio = async function (manuale) {
 
     let fileInput = document.getElementById('ex-image-file');
     if (fileInput.files.length > 0) fd.append('image', fileInput.files[0]);
+
+    /* "Togli quella che c'e'". Senza, l'unico modo di levare un'immagine da un
+       esempio era caricarne un'altra: non c'era. */
+    var rimImg = document.getElementById('ex-img-rimuovi');
+    if (rimImg && rimImg.checked) fd.append('remove_image', '1');
 
     try {
         let res = await fetch('examples_api.php', { method: 'POST', body: fd });

@@ -2727,6 +2727,7 @@
         "vis_modo_unisci": "Pick the card that will become a sub-card",
         "vis_padre_e_scelta": "This card is already one of those being merged",
         "vis_n_sottocarte": "{n} sub-cards",
+        "vis_titolo": "Title",
         "vis_duplicato": "⧉ Duplicate",
         "vis_carica_altre": "Load 30 more cards",
         "vis_nessuna_carta": "No card found",

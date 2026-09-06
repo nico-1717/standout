@@ -126,10 +126,20 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $img = ex_salva('image', 'fc_images', false);
     $aud = ex_salva('audio', 'fc_audio', true);
 
+    /* TOGLIERE L'IMMAGINE, NON SOLO SOSTITUIRLA
+       ex_salva() torna null quando non e' stato caricato niente, e null vuol
+       dire "lascia com'era": giusto per un salvataggio in cui l'immagine non
+       si tocca, ma cosi' non c'era modo di dire "toglila". L'unica via era
+       caricarne un'altra, cioe' non c'era.
+       La casella "Rimuovi immagine" manda remove_image=1. Un file appena
+       caricato vince comunque: se si e' scelta una foto nuova e insieme
+       spuntata la casella, l'intenzione piu' recente e' la foto. */
+    if ($img === null && !empty($_POST['remove_image'])) $img = '';
+
     /* Le colonne da aggiornare crescono insieme ai valori: separati, prima o
        poi si sfasano. */
     $sets = ['example_text = ?']; $vals = [$text];
-    if ($img !== null) { $sets[] = 'example_image = ?'; $vals[] = $img; }
+    if ($img !== null) { $sets[] = 'example_image = ?'; $vals[] = ($img === '' ? null : $img); }
     if ($aud !== null) { $sets[] = 'example_audio = ?'; $vals[] = $aud; }
 
     if ($ex_id > 0) {

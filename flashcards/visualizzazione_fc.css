@@ -1833,8 +1833,11 @@ body.is-compact .fc-compact-tools{ display:flex; }
 }
 .ct-btn svg{ width:15px; height:15px; }
 .ct-btn:active{ transform:scale(.85); background:var(--surface-2); color:var(--text); }
-.fc-card.is-open .ct-open svg{ transform:rotate(180deg); }
-.ct-open svg{ transition:transform .22s var(--spring); }
+/* La riga della domanda e quella della risposta SONO il comando che apre la
+   carta: bersaglio grande, e nessuna icona da distinguere da quella accanto.
+   Il cursore lo dice, e il rientro al tocco da' la conferma. */
+body.is-compact .fc-card .qa-side{ cursor:pointer; border-radius:8px; }
+body.is-compact .fc-card:not(.is-open) .qa-side:active{ background:var(--surface-2); }
 
 /* Dove riordinare non si puo' (ordinamento diverso da "Posizione", o "Tutte le
    materie") le frecce non ci sono proprio: un pulsante che c'e' e non funziona
@@ -1889,9 +1892,172 @@ body.join-picking .fc-card.fc-parent.selected-row .swipe-content{
     box-shadow:none; opacity:.45; cursor:not-allowed;
 }
 body.join-picking .fc-card.fc-parent:active .swipe-content{ transform:scale(.99); }
-/* Mentre si sceglie il padre, sulle carte non c'e' nient'altro da premere: un
-   tocco qualunque su una carta VALE come scelta, quindi ogni altro pulsante li'
-   sopra e' una trappola. Il tastino delle sottocarte compreso. */
+/* Mentre si sceglie il padre, sulle carte non c'e' quasi nient'altro da
+   premere: un tocco qualunque su una carta VALE come scelta, quindi ogni altro
+   pulsante li' sopra sarebbe una trappola.
+   L'eccezione e' il tastino "n sottocarte", che resta e serve proprio adesso:
+   e' il momento in cui si decide a chi attaccare una carta, e per deciderlo si
+   vuole vedere cosa c'e' gia' dentro. Che il suo tocco non venga scambiato per
+   una scelta lo garantisce il gestore in visualizzazione_fc.php. */
 body.join-picking .select-circle,
-body.join-picking .fc-kids-toggle,
 body.join-picking .fc-compact-tools{ display:none; }
+
+/* Il padre aperto per sbirciare non deve sembrare gia' scelto: i figli che
+   compaiono non sono bersagli, sono contesto. */
+body.join-picking .fc-card.fc-child .swipe-content{ box-shadow:none; cursor:default; }
+
+/* Il tasto "modifica" nel visore dell'esempio: stessa forma della X che gli
+   sta accanto, ma nel colore degli esempi — non e' una chiusura, e' un'azione,
+   e a occhio le due cose non devono somigliarsi. */
+.ex-modal-edit{
+    width:32px; height:32px; flex-shrink:0; border:none; border-radius:50%; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; margin-left:auto;
+    color:var(--purple); background:color-mix(in srgb, var(--purple), transparent 88%);
+    transition:transform .15s var(--spring);
+}
+.ex-modal-edit svg{ width:15px; height:15px; }
+.ex-modal-edit:active{ transform:scale(.88); }
+
+
+/* ================================================================
+   LA CARTA CHE E' UN TITOLO
+   ================================================================
+   Domanda piena, risposta vuota del tutto, almeno due sottocarte: non e' una
+   carta a cui manca la risposta, e' l'intestazione del gruppo. Prima la si
+   vedeva come tutte le altre — riquadro "Risposta" con dentro un trattino, una
+   volta per gruppo — e sembrava un errore ripetuto.
+   Qui non ci sono etichette ne' riquadri: una riga di testo, larga, con una
+   barra del colore della materia a sinistra. Deve leggersi come un capitolo,
+   non come una domanda. */
+.fc-title{
+    display:flex; flex-direction:column; gap:5px;
+    padding:4px 0 4px 12px;
+    border-left:3px solid var(--row-color, var(--blue));
+}
+.fc-title-lab{
+    font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--row-color, var(--blue)); opacity:.75;
+}
+.fc-title-txt{ font-size:16.5px; font-weight:800; line-height:1.3; color:var(--text); }
+.fc-title-count{ font-size:11.5px; font-weight:700; color:var(--text-3); }
+
+/* Sfondo appena accennato, cosi' scorrendo l'elenco si capisce dove comincia
+   un gruppo senza doverlo leggere. */
+.fc-card.is-titolo > .swipe-content{
+    background:color-mix(in srgb, var(--row-color, var(--blue)) 6%, var(--surface));
+}
+
+/* In vista compatta il titolo occupa la colonna del testo, come farebbero le
+   due righe di domanda e risposta: senza dichiararlo, la griglia lo
+   sistemerebbe da sola sotto la casella di spunta. */
+body.is-compact .fc-card.is-titolo:not(.is-open) > .swipe-content > .fc-title{ grid-column:2; }
+body.is-compact .fc-card.is-titolo:not(.is-open) .fc-title{ padding-top:0; padding-bottom:0; gap:0; }
+body.is-compact .fc-card.is-titolo:not(.is-open) .fc-title-lab,
+body.is-compact .fc-card.is-titolo:not(.is-open) .fc-title-count{ display:none; }
+body.is-compact .fc-card.is-titolo:not(.is-open) .fc-title-txt{
+    font-size:13.5px;
+    display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden;
+}
+
+/* Nel visore, la striscia che porta al titolo invece che alla carta padre: si
+   apre un riquadrino, non si salta altrove, e la freccia lo dice. */
+.fcv-parent-strip.is-titolo{ cursor:pointer; }
+
+.tit-modal{
+    position:fixed; inset:0; z-index:10700; display:none;
+    align-items:center; justify-content:center; padding:22px;
+}
+.tit-modal.on{ display:flex; }
+.tit-modal-back{
+    position:absolute; inset:0; background:rgba(0,0,0,.5);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+}
+.tit-modal-panel{
+    position:relative; width:100%; max-width:420px;
+    display:flex; flex-direction:column; gap:12px;
+    padding:22px 20px; border-radius:22px;
+    background:var(--surface); box-shadow:0 24px 60px -20px rgba(0,0,0,.5);
+    animation:revealIn .32s var(--spring) both;
+}
+.tit-modal-lab{
+    font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--text-3);
+}
+.tit-modal-txt{ font-size:19px; font-weight:800; line-height:1.35; color:var(--text); }
+.tit-modal-edit{
+    align-self:flex-start; display:flex; align-items:center; gap:6px;
+    padding:9px 15px; border:none; border-radius:var(--r-chip); cursor:pointer;
+    font-family:inherit; font-size:13px; font-weight:800;
+    color:#fff; background:var(--cat-color); box-shadow:0 6px 16px -6px var(--cat-line);
+    transition:transform .15s var(--spring);
+}
+.tit-modal-edit svg{ width:14px; height:14px; }
+.tit-modal-edit:active{ transform:scale(.94); }
+
+
+/* ================================================================
+   LA CASELLA SI PRENDE PIU' SPAZIO DI QUANTO NE OCCUPI
+   ================================================================
+   Il cerchietto e' largo 28px: sullo schermo di un telefono e' un bersaglio
+   piccolo, e in selezione lo si prende decine di volte di fila — una volta su
+   cinque il dito cade appena fuori e non succede niente. Il rimedio non e'
+   ingrandire il disegno (invaderebbe la carta) ma allargare la ZONA che
+   risponde: uno strato invisibile intorno all'input, che nel disegno non si
+   vede e sotto il dito si sente.
+   Il rientro sta sul cerchio, non sull'area: la conferma deve arrivare da dove
+   si guarda, anche quando si e' premuto due centimetri piu' in la'. */
+body.select-mode .select-circle input{
+    inset:-14px -10px -14px -14px;
+}
+/* Dietro tutto il resto della testata: la zona allargata arriva sotto le
+   etichette accanto, e senza questo se le mangerebbe. */
+body.select-mode .select-circle{ z-index:2; }
+body.select-mode .card-head-spacer,
+body.select-mode .dup-badge,
+body.select-mode .cat-badge{ position:relative; z-index:3; }
+
+/* In vista compatta la casella e' l'unica cosa a sinistra e le righe sono
+   basse: la zona puo' coprire tutta l'altezza della carta senza rubare niente
+   a nessuno. */
+body.select-mode.is-compact .fc-card:not(.is-open) .select-circle input{
+    inset:-22px -12px -22px -16px;
+}
+
+
+/* ================================================================
+   IL RISULTATO SI VEDE SUCCEDERE
+   ================================================================
+   Una carta appena separata comparirebbe e basta, identica alle altre, in
+   mezzo a un elenco che nel frattempo si e' ridisegnato: senza un segno, non
+   si capisce quale sia — e il dubbio "l'ha fatto davvero?" e' esattamente
+   quello che porta a rifare l'operazione una seconda volta.
+   L'animazione fa una cosa sola e la fa una volta: la carta arriva da sinistra
+   (da dove stava, rientrata sotto il suo padre) e si posa fuori, con un alone
+   del colore della materia che si spegne da solo. Finita l'animazione resta
+   solo un filo di bordo, che dice "questa e' nuova" senza continuare ad
+   agitarsi. */
+@keyframes fcSeparata{
+    0%   { transform:translateX(-26px) scale(.97); opacity:.25; }
+    55%  { transform:translateX(4px)   scale(1.01); opacity:1; }
+    100% { transform:none;             opacity:1; }
+}
+@keyframes fcAlone{
+    0%   { box-shadow:0 0 0 3px var(--row-color, var(--blue)), 0 10px 26px -10px var(--row-color, var(--blue)); }
+    100% { box-shadow:0 0 0 1.5px color-mix(in srgb, var(--row-color, var(--blue)) 45%, transparent); }
+}
+.fc-card.appena-cambiata > .swipe-content{
+    animation:fcSeparata .5s cubic-bezier(.22,1,.36,1) both,
+              fcAlone 1.5s ease-out .3s both;
+}
+/* Il gruppo che ha appena accolto delle carte: nessuno spostamento, solo
+   l'alone — la carta e' finita dentro di lui, non e' lui a essersi mosso. */
+.fc-group.appena-cambiata > .fc-card > .swipe-content{
+    animation:fcAlone 1.5s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce){
+    .fc-card.appena-cambiata > .swipe-content,
+    .fc-group.appena-cambiata > .fc-card > .swipe-content{
+        animation:fcAlone 1.2s ease-out both;
+    }
+}
