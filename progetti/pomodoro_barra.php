@@ -27,6 +27,29 @@ function pomo_barra_html(): array
        non hanno caricato le difese: qui non c'e' niente da mostrare. */
     if (empty($_SESSION['user_id']) || !function_exists('sec_one')) return $vuoto;
 
+    /* Dentro una cornice la barra non ci va. Chi apre l'iframe e' una pagina
+       del sito che la barra ce l'ha gia': qui dentro sarebbe la stessa barra
+       due volte, a un centimetro di distanza, con due orologi che possono
+       anche non dire lo stesso secondo. E non e' solo una ripetizione: la
+       barra scrive padding-top sul <body> del documento incorniciato
+       (html.pomo-bar-attiva in pomodoro_barra.css), e in un popup a tutta
+       altezza come quello della modifica carta (fc_edit_popup.js) quel
+       padding stacca il modulo dal bordo alto del pannello — si vede subito,
+       e' la fascia verde sopra la barra "Edit" nello screenshot.
+
+       Sec-Fetch-Dest lo manda il browser da solo su ogni richiesta e vale
+       'iframe' quando la pagina viene caricata dentro una cornice. Chi non
+       lo manda (browser vecchi) e' coperto da fc_popup=1, che fc_edit_popup.js
+       aggiunge all'indirizzo; NISAMA_SENZA_BARRA_POMODORO resta come
+       interruttore per una pagina che voglia dire di no per conto proprio.
+
+       Uscendo di qui prima di leggere lo stato si risparmia anche la lettura
+       dal database: dentro un iframe non serve a nessuno. */
+    $dove = $_SERVER['HTTP_SEC_FETCH_DEST'] ?? '';
+    if ($dove === 'iframe' || $dove === 'frame'
+        || !empty($_GET['fc_popup'])
+        || defined('NISAMA_SENZA_BARRA_POMODORO')) return $vuoto;
+
     $file = dirname(__FILE__) . '/pomodoro_stato.php';
     if (!is_readable($file)) return $vuoto;
     require_once $file;

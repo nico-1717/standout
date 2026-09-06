@@ -80,6 +80,15 @@ function fc_img_box_modifica($p, $label, $imgAttuale) {
                      ramo "nessuna immagine" non serve piu', perche' senza
                      immagine il riquadro non viene proprio disegnato. */ ?>
             <img src="fc_Images/<?php echo sec_h($imgAttuale); ?>" id="<?php echo sec_h($p); ?>_current_img">
+            <?php /* "Rimuovi" dentro il riquadro dell'immagine che rimuove:
+                     prima era una riga a parte sotto ENTRAMBI i riquadri,
+                     staccata da quello a cui si riferiva — bastava vederla
+                     per chiedersi "rimuove cosa, la domanda o la risposta?"
+                     quando i due lati erano vicini. Qui e' inequivocabile. */ ?>
+            <label class="img-remove-row" id="<?php echo sec_h($p); ?>_remove_row">
+                <input type="checkbox" name="remove_<?php echo sec_h($p); ?>_img" id="remove_<?php echo sec_h($p); ?>_img" value="1" onchange="fcImgToggleRimuovi('<?php echo sec_h($p); ?>')">
+                <?php te('vocab.mi_rimuovi_immagine'); ?>
+            </label>
         </div>
         <?php endif; ?>
         <label for="<?php echo sec_h($p); ?>New_image" class="img-box img-pick-box" id="<?php echo sec_h($p); ?>_img_wrap">
@@ -92,10 +101,6 @@ function fc_img_box_modifica($p, $label, $imgAttuale) {
             <img class="img-pick-preview" id="<?php echo sec_h($p); ?>_preview" style="display:none;">
         </label>
     </div>
-    <label class="chk-row chk-red img-remove-row" id="<?php echo sec_h($p); ?>_remove_row"<?php echo empty($imgAttuale) ? ' style="display:none;"' : ''; ?>>
-        <input type="checkbox" name="remove_<?php echo sec_h($p); ?>_img" id="remove_<?php echo sec_h($p); ?>_img" value="1" onchange="fcImgToggleRimuovi('<?php echo sec_h($p); ?>')">
-        <?php te('vocab.mi_rimuovi_immagine'); ?>
-    </label>
     <?php
 }
 

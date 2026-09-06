@@ -3,7 +3,18 @@
    flusso della pagina. Stesso schema del blocco IA nel pannello esempi
    (.exm-ai-* in examples_modal.css), da cui riprende misure e colori. */
 
-.fcm-wrap { position: relative; min-height: 34px; }
+/* CORREZIONE — la causa vera del pulsante che tornava sempre in cima,
+   trovata solo ora: questa era la prima regola scritta per .fcm-wrap,
+   da quando il blocco era ancora una pastiglia che si espandeva in
+   pagina — mai aggiornata quando tutto e' diventato un popup. Il
+   position:relative qui intercettava l'ancoraggio di #fcMiglioraFab
+   (position:absolute) PRIMA che arrivasse a .page.fc-page-rel, il vero
+   riferimento voluto: "in basso" per un contenitore alto 34px, appena
+   sotto la barra, e' praticamente in cima. La riga piu' sotto
+   (min-height:0) copriva solo meta' del problema, senza toccare la
+   posizione — bastava pero' cercare OGNI ".fcm-wrap" nel file, non solo
+   quello che ricordavo di aver scritto io stesso di recente. */
+.fcm-wrap { min-height: 0; }
 
 /* ---- Chiuso: una pastiglia, non un bottone pieno ----
    Prima era un bottone viola a tutta larghezza: gridava piu' dei campi veri
@@ -88,3 +99,75 @@
 }
 .fcm-genera:active { transform: scale(.98); filter: brightness(.95); }
 .fcm-genera:disabled { opacity: .6; cursor: default; }
+
+/* ================================================================
+   IL RIQUADRO IA E' UN POPUP, NON UNA SEZIONE DELLA PAGINA
+   ================================================================
+   Prima compariva nel flusso, e aprendolo il modulo sotto si riorganizzava:
+   il pulsante doveva sparire per non restare orfano, e riapparire alla
+   chiusura. Ora il contenuto e' identico ma vive in un pannello sopra, cosi'
+   il pulsante puo' stare fermo dov'e' — in basso a destra — sempre. */
+.fcm-overlay{
+    position:fixed; inset:0; z-index:11500;
+    display:flex; align-items:flex-end; justify-content:center;
+    background:rgba(0,0,0,.45);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    padding:0;
+}
+.fcm-overlay[hidden]{ display:none; }
+
+.fcm-overlay .fcm-box{
+    width:100%; max-width:560px; max-height:86vh; overflow-y:auto;
+    border-radius:20px 20px 0 0;
+    padding:18px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+    background:var(--surface, #fff);
+    box-shadow:0 -12px 50px rgba(0,0,0,.4);
+    animation:fcmSu .32s cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes fcmSu{ from{ transform:translateY(45%); opacity:.4; } }
+
+@media (min-width:700px){
+    .fcm-overlay{ align-items:center; padding:24px; }
+    .fcm-overlay .fcm-box{ border-radius:20px; max-height:82vh; }
+}
+
+/* Mentre il popup e' aperto la pagina sotto non scorre. */
+body.fcm-aperto{ overflow:hidden; }
+
+/* Il contenitore non deve piu' riservare spazio nel flusso: dentro c'e' solo
+   il pulsante, che e' in sovraimpressione, e un popup a posizione fissa. */
+/* Non serve piu' alcun posizionamento qui: il pulsante e' fixed (si
+   ancora da solo alla finestra) e l'overlay lo stesso. */
+
+
+/* ================================================================
+   IL PULSANTE E' FISSO ALLA FINESTRA, NON AL MODULO
+   ================================================================
+   Con position:absolute (fc_ai_fab.css) il cerchio si ancorava a
+   .page.fc-page-rel, cioe' al modulo intero: "in basso a destra" voleva dire
+   in fondo a una colonna alta duemila pixel, quindi invisibile finche' non si
+   arrivava in fondo alla carta — e a schermo, sopra il modulo, non c'era piu'
+   niente. Fisso vuol dire fisso: sta sempre nello stesso punto dello schermo
+   mentre il modulo scorre sotto.
+
+   Dentro il popup (fc_edit_popup.js) questa pagina vive in un iframe, e per
+   un elemento fixed "la finestra" e' la finestra dell'iframe: in basso a
+   destra del pannello del popup, che e' esattamente il punto voluto. Non
+   serve nessun canale fra le due finestre.
+
+   L'unica cosa che puo' rompere un fixed e' un antenato con transform,
+   filter, backdrop-filter, perspective, contain o will-change: crea un nuovo
+   riferimento e il fixed si ancora a quello (e' il vecchio sintomo del
+   pulsante che compariva in alto). Gli antenati qui sono .page, body e html,
+   e nessuno dei tre ne ha: verificato in modifica_immagine_fc.css, dove
+   backdrop-filter compare solo su .app-header, .fc-conf-overlay e simili, che
+   antenati non sono.
+
+   Sull'id e non sulla classe apposta: .fc-aifab resta absolute per il suo
+   gemello dentro il pannello esempi (#ex-ai-fab), che li' e' al posto giusto
+   e non va toccato. */
+#fcMiglioraFab{
+    position: fixed;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+}

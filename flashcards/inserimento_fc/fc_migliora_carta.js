@@ -86,6 +86,9 @@ var fcMigliora = (function () {
        esempi e' una pastiglia fissa che dice solo "AI", e questa deve essere
        identica. Cosa fara' davvero lo decide il riquadro quando si apre,
        guardando se la carta e' gia' piena. */
+    /* Il pulsante e' un cerchio con un'icona: non ha piu' un testo da
+       aggiornare. Cosa fara' davvero lo decide il riquadro quando si apre,
+       guardando se la carta e' gia' piena. */
     function aggiornaTestoBottone() {}
 
     function apri() {
@@ -116,14 +119,17 @@ var fcMigliora = (function () {
         el('fcMiglioraEsempio').checked = false;
         el('fcMiglioraErrore').hidden = true;
 
-        el('fcMiglioraFab').hidden = true;
-        el('fcMiglioraBox').hidden = false;
+        /* Il pulsante non si nasconde piu': sta sempre in basso a destra, e a
+           comparire e' un popup sopra il modulo. Cosi' la pagina sotto non si
+           riorganizza ogni volta che si apre o si chiude l'IA. */
+        el('fcMiglioraOverlay').hidden = false;
+        document.body.classList.add('fcm-aperto');
         el('fcMiglioraNota').focus();
     }
 
     function chiudi() {
-        el('fcMiglioraBox').hidden = true;
-        el('fcMiglioraFab').hidden = false;
+        el('fcMiglioraOverlay').hidden = true;
+        document.body.classList.remove('fcm-aperto');
     }
 
     function mostraErrore(e) {
@@ -185,10 +191,33 @@ var fcMigliora = (function () {
         }
     }
 
+    /* Sposta il pulsante e il suo popup a figli diretti di <body>. Non e' un
+       capriccio: position:fixed va storto se un QUALSIASI antenato ha
+       transform, filter o backdrop-filter (crea un nuovo "contenitore" e il
+       fixed si ancora a quello invece che alla finestra) — ed e' esattamente
+       il sintomo visto (il pulsante compariva in alto invece che in basso a
+       destra). Nei fogli di questa pagina non ne ho trovato uno responsabile,
+       ma la pagina riceve anche markup iniettato da file che non ho mai
+       visto (pwa_head.php, la barra del pomodoro, aggiunti da config.php a
+       OGNI pagina del sito): invece di continuare a cercare alla cieca,
+       tolgo il problema alla radice. Appeso direttamente a <body>, il
+       pulsante non ha piu' nessun antenato che possa interferire, chiunque
+       esso sia. */
     function inizializza(opz) {
         opz = opz || {};
         campoQ = opz.campoQ || 'quest';
         campoA = opz.campoA || 'answ';
+
+        /* Il pulsante resta dove nasce nel markup, dentro .page.fc-page-rel:
+           niente piu' spostamenti a document.body ne' canale con la finestra
+           che lo ospita. Serviva perche' il pulsante compariva fuori posto —
+           ma la causa vera, trovata poi sul suo equivalente per gli esempi
+           (#ex-ai-fab in examples_modal.css), era un contenitore intermedio
+           con position:relative di troppo: piu' vicino nel DOM, ancorava lui
+           il pulsante invece di .page. Sistemato quello (fc_ai_fab.css e
+           .fc-page-rel in modifica_immagine_fc.css), position:absolute
+           funziona correttamente anche dentro un popup annidato in un
+           iframe, senza bisogno di farlo vivere altrove. */
 
         aggiornaTestoBottone();
         /* Il testo del pulsante segue quello che si scrive: ogni input nella
@@ -198,6 +227,9 @@ var fcMigliora = (function () {
         document.addEventListener('input', aggiornaTestoBottone);
 
         el('fcMiglioraSi').addEventListener('click', conferma);
+        el('fcMiglioraOverlay').addEventListener('click', function (ev) {
+            if (ev.target === el('fcMiglioraOverlay')) chiudi();
+        });
         document.querySelectorAll('#fcMiglioraChips .fcm-chip').forEach(function (chip) {
             chip.addEventListener('click', function () {
                 el('fcMiglioraNota').value = chip.getAttribute('data-nota');

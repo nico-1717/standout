@@ -24,17 +24,21 @@ if (!function_exists('fc_migliora_carta_blocco')) {
 
 function fc_migliora_carta_blocco() {
     ?>
-    <div class="exm-ai-wrap fcm-wrap" id="fcMiglioraWrap">
+    <?php /* Il riquadro non e' piu' una sezione che compare nella pagina: e' il
+         contenuto di un popup suo. Cosi' il pulsante puo' stare sempre nello
+         stesso posto (in basso a destra) senza che il modulo sotto si
+         riorganizzi ogni volta che lo si apre, e il contenuto e' esattamente
+         lo stesso di prima — solo dentro un pannello invece che in linea. */ ?>
+    <div class="fcm-wrap" id="fcMiglioraWrap">
 
-        <?php /* Stesso pulsante del pannello esempi: stesse classi (.exm-ai-fab),
-                 stesso SVG, stesso ordine testo-icona. Era l'unico elemento
-                 dei due moduli a non somigliarsi. */ ?>
-        <button type="button" class="exm-ai-fab fcm-fab" id="fcMiglioraFab" onclick="fcMigliora.apri()">
-            <span id="fcMiglioraFabTesto"><?php te('fc.exm_ia_label'); ?></span>
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2.5l2 5.7 5.7 2-5.7 2-2 5.7-2-5.7-5.7-2 5.7-2 2-5.7zM19 14l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1 1.1-3z"/></svg>
-        </button>
+        <?php /* Il pulsante non sta piu' nel flusso della pagina: e' un cerchio
+                 in sovraimpressione (fc_ai_fab.php), uguale in tutti i popup
+                 che offrono l'IA. Il riquadro qui sotto resta dov'e'. */
+           require_once 'fc_ai_fab.php';
+           fc_ai_fab('fcMiglioraFab', 'fcMigliora.apri()'); ?>
 
-        <div class="exm-ai-box fcm-box" id="fcMiglioraBox" hidden>
+        <div class="fcm-overlay" id="fcMiglioraOverlay" hidden>
+        <div class="exm-ai-box fcm-box" id="fcMiglioraBox">
             <button type="button" class="fcm-collapse" onclick="fcMigliora.chiudi()" aria-label="<?php echo sec_h(t('fc.ibfai_annulla')); ?>">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
@@ -60,9 +64,10 @@ function fc_migliora_carta_blocco() {
             <div class="fcm-errore" id="fcMiglioraErrore" hidden></div>
 
             <button type="button" class="fcm-genera" id="fcMiglioraSi"><?php te('fc.ibfai_migliora_bottone'); ?></button>
-        </div>
+        </div><!-- .fcm-box -->
+        </div><!-- .fcm-overlay -->
 
-    </div>
+    </div><!-- .fcm-wrap -->
     <?php
 }
 

@@ -64,10 +64,27 @@
         return overlay;
     }
 
+    /* Segna l'indirizzo come "caricato dentro un popup". Serve al server, che
+       altrimenti non ha modo di saperlo: la barra del pomodoro si innesta da
+       config.php in OGNI pagina del sito, e qui dentro sarebbe la stessa barra
+       della pagina sotto, piu' il padding che si porta dietro (vedi
+       pomodoro_barra.php). I browser recenti lo dicono da soli con
+       Sec-Fetch-Dest: iframe; questo parametro e' il ripiego per gli altri, e
+       costa una riga.
+       Il frammento (#...) resta in coda dov'era: un parametro infilato dopo
+       il cancelletto non arriverebbe mai al server. */
+    function conParametroPopup(url) {
+        if (!url || url.indexOf('fc_popup=') !== -1) return url;
+        var taglio = url.indexOf('#');
+        var base = taglio === -1 ? url : url.slice(0, taglio);
+        var frammento = taglio === -1 ? '' : url.slice(taglio);
+        return base + (base.indexOf('?') === -1 ? '?' : '&') + 'fc_popup=1' + frammento;
+    }
+
     function apriModificaPopup(url, onSalvato) {
         assicuraOverlay();
         overlay.classList.remove('loaded');
-        iframe.src = url;
+        iframe.src = conParametroPopup(url);
         overlay.classList.add('on');
         document.body.classList.add('fc-edit-popup-open');
         overlay._onSalvato = onSalvato || null;

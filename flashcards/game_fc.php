@@ -6,6 +6,52 @@ require_once 'piano_helpers.php';
 $current_user_id = (int)$utente_corrente['id']; // 2. ID utente sicuro
 /* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
 $conn = sec_db();
+require_once 'examples_box.php';
+
+/**
+ * Vero se il campo (answer_desc, question_desc...) non contiene testo o
+ * formule vere — solo struttura vuota. Serve perche' il campo non e' mai una
+ * stringa semplice: e' il documento di fc_parser.js, a blocchi con run di
+ * testo o di formula, e un documento "vuoto" resta comunque un JSON non
+ * vuoto (es. un paragrafo senza testo dentro).
+ */
+function fc_campo_e_vuoto(?string $raw): bool {
+    if ($raw === null) return true;
+    $raw = trim($raw);
+    if ($raw === '') return true;
+
+    // Formato nuovo (JSON a blocchi): si guarda dentro ogni blocco, non la
+    // stringa nel suo insieme.
+    $decoded = json_decode($raw, true);
+    if (is_array($decoded) && isset($decoded['blocks']) && is_array($decoded['blocks'])) {
+        foreach ($decoded['blocks'] as $block) {
+            if (!is_array($block)) continue;
+            if (($block['t'] ?? '') === 'fx') {                      // formula a blocco intero
+                if (trim((string)($block['tex'] ?? '')) !== '') return false;
+                continue;
+            }
+            foreach ((array)($block['runs'] ?? []) as $run) {
+                if (!is_array($run)) continue;
+                if (isset($run['x']) && trim((string)$run['x']) !== '') return false;  // formula in linea
+                if (isset($run['s']) && trim((string)$run['s']) !== '') return false;  // testo
+            }
+        }
+        return true; // JSON valido ma ogni blocco e' vuoto
+    }
+
+    // Non era JSON: e' il vecchio formato a tag (/bold{...} ecc.) o testo
+    // semplice. Si tolgono i tag noti e si guarda se resta qualcosa.
+    $senza_tag = preg_replace('/\/[a-zA-Z]+(-[a-zA-Z]+)?\{|\}/', '', $raw);
+    return trim($senza_tag) === '';
+}
+
+/** Vero se questa riga di fc_images va trattata come titolo, non come domanda. */
+function fc_e_titolo(array $padre, int $numero_figli): bool {
+    return $numero_figli >= 2
+        && fc_campo_e_vuoto($padre['answer_desc'] ?? null)
+        && empty($padre['answer_image'])
+        && empty($padre['answer_audio']);
+}
 
 // Stima tempo/lentezza IA per "spiega" e "metafora", da mostrare col timer nel popup
 // prima ancora di partire con la chiamata (vedi window.aiPerfStats più sotto).
@@ -43,7 +89,7 @@ require_once 'azione_post.php';
    quelli non scrivono, e devono stare nella barra dell'indirizzo. */
 $azione = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $azione = sec_enum($_POST['action'] ?? null, ['grade', 'concludi', 'newsession', 'setorder', 'togglelearnt'], '');
+    $azione = sec_enum($_POST['action'] ?? null, ['grade', 'concludi', 'newsession', 'setorder', 'togglelearnt', 'togglefavorite'], '');
     if ($azione !== '') {
         /* Ora il metodo e' POST, quindi sec_guard_write controlla davvero il
            token oltre a limitare la frequenza. */
@@ -253,6 +299,36 @@ if ($azione === 'togglelearnt') {
     exit();
 }
 
+if ($azione === 'togglefavorite') {
+    header('Content-Type: application/json');
+
+    $id_to_mark = sec_int($_POST['img_id'] ?? 0, 1);
+    $is_child_vote = sec_bool($_POST['is_child'] ?? false);
+    $parent_to_mark = $id_to_mark;
+    if ($is_child_vote) {
+        $c_row = sec_one("SELECT parent_id FROM fc_child_cards WHERE id_child = ?", [$id_to_mark]);
+        if ($c_row) { $parent_to_mark = (int)$c_row['parent_id']; }
+    }
+
+    $mia = $parent_to_mark > 0 && sec_one("SELECT i.id FROM fc_images i JOIN fc_categories c ON c.id = i.category_id
+                                          WHERE i.id = ? AND c.user_id = ?", [$parent_to_mark, $user_id]);
+    if (!$mia) {
+        echo json_encode(['success' => false, 'error' => t('fc.non_autorizzato_scheda')]);
+        exit();
+    }
+
+    $gia_preferita = sec_one("SELECT 1 AS x FROM user_favorites_fc WHERE user_id = ? AND fc_image_id = ?", [$user_id, $parent_to_mark]);
+
+    if ($gia_preferita) {
+        sec_q("DELETE FROM user_favorites_fc WHERE user_id = ? AND fc_image_id = ?", [$user_id, $parent_to_mark]);
+        echo json_encode(['success' => true, 'favorite' => false]);
+    } else {
+        sec_q("INSERT IGNORE INTO user_favorites_fc (user_id, fc_image_id, favorited_date) VALUES (?, ?, CURDATE())", [$user_id, $parent_to_mark]);
+        echo json_encode(['success' => true, 'favorite' => true]);
+    }
+    exit();
+}
+
 
 
 // --- CRONOMETRO: tempo totale della partita (somma sessioni precedenti + sessione corrente) ---
@@ -276,131 +352,74 @@ if ($chrono_last) {
 
 $gameplays = sec_all("SELECT * FROM fc_gameplays WHERE game_id = ? AND position = ?", [$game_id, $position]);
 
-
-
 if (empty($gameplays)) {
 
-    /* Due richieste possono arrivare qui insieme per la stessa posizione (il
-       precaricamento della carta successiva e il voto che vi rimanda), e la
-       carta di quella posizione non esiste ancora: la crea la prima che ci
-       passa. Senza lucchetto le supererebbero entrambe, generando la stessa
-       posizione due volte - ed e' esattamente cosi' che la stessa domanda
-       finiva per comparire due volte. */
-    $lock_name = 'nisama_fcgen_' . $game_id . '_' . $position;
-    sec_one("SELECT GET_LOCK(?, 10) AS l", [$lock_name]);
+    /* La sequenza della partita e' gia' stata decisa tutta insieme
+       all'avvio (start_game_fc.php, o start_retry.php per un ripasso: la
+       lista delle carte sbagliate nella partita di origine e' fissa da
+       quando il ripasso e' stato creato, non cambia durante il gioco -
+       non c'e' motivo per cui debba essere trattata diversamente da una
+       partita normale). Qui c'e' solo da leggere quale padre tocca a
+       questa posizione e scriverlo - un'operazione che il precaricamento
+       e la navigazione vera possono benissimo fare insieme: scrivono la
+       STESSA riga (la sequenza e' fissa), quindi il vincolo di unicita'
+       su fc_gameplays lascia passare solo la prima e scarta la seconda
+       (INSERT IGNORE) invece di creare un doppione. Nessun lucchetto
+       necessario. */
+    $seq = sec_one("SELECT fc_image_id FROM fc_game_sequence WHERE game_id = ? AND position = ?", [$game_id, $position]);
 
-    /* Rilettura DOPO il lucchetto: se e' stata l'altra richiesta a generare
-       mentre aspettavamo, ora le carte ci sono e non se ne creano altre. */
-    $gameplays = sec_all("SELECT * FROM fc_gameplays WHERE game_id = ? AND position = ?", [$game_id, $position]);
-
-    /* In quel caso il blocco di generazione qui sotto viene saltato del tutto,
-       quindi il lucchetto va liberato subito: nessun altro lo farebbe. */
-    if (!empty($gameplays)) {
-        sec_one("SELECT RELEASE_LOCK(?) AS r", [$lock_name]);
-    }
-}
-
-if (empty($gameplays)) {
-
-$sql_order = ($order_param === 'in_order') 
-
-        ? "ORDER BY gc.category_order ASC, i.custom_order ASC" 
-
-        : "ORDER BY gc.category_order ASC, RAND()";
-
-
-
-        if ($parent_id > 0) {
-        /* Ordine dei parametri: parent_id compare tre volte nel WHERE, poi
-           game_id due volte. $sql_order non porta segnaposto. */
-        $new_img = sec_one("SELECT i.* FROM fc_images i
-                            JOIN game_fc_categories gc ON i.category_id = gc.fc_category_id
-                            WHERE i.id IN (
-                                SELECT fc_image_id FROM fc_gameplays
-                                WHERE game_id = ?
-                                  AND fc_image_id IS NOT NULL
-                                  AND position IN (SELECT DISTINCT position FROM fc_gameplays WHERE game_id = ? AND user_answer = 'Wrong')
-                            )
-                            AND i.id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = ? AND fc_image_id IS NOT NULL)
-                            AND gc.game_id = ?
-                            $sql_order LIMIT 1",
-                           [$parent_id, $parent_id, $game_id, $game_id]);
-    } else {
-        // Prima per ordine categoria, poi per ordine personalizzato della carta
-        $sql_order = ($order_param === 'in_order')
-            ? "ORDER BY gc.category_order ASC, i.custom_order ASC"
-            : "ORDER BY gc.category_order ASC, RAND()";
-        /* Ordine dei parametri: game_id, poi quelli di $where_learnt (se il
-           filtro li ha), poi di nuovo game_id. */
-        $new_img = sec_one("SELECT i.* FROM fc_images i
-                  JOIN game_fc_categories gc ON i.category_id = gc.fc_category_id
-                  WHERE gc.game_id = ?
-                  AND $where_learnt
-                  AND i.id NOT IN (SELECT fc_image_id FROM fc_gameplays WHERE game_id = ? AND fc_image_id IS NOT NULL)
-                  $sql_order LIMIT 1",
-                 array_merge([$game_id], $learnt_par, [$game_id]));
-    }
-
-    
-
-        /* Le carte sono finite: si va direttamente ai risultati. Prima si rimandava
-       a "?action=concludi", che ora e' un'azione POST e da un redirect non si
-       puo' fare; la pulizia delle pagine vuote la fa result_fc.php quando
-       calcola il punteggio. */
-    if (!$new_img) {
-        sec_one("SELECT RELEASE_LOCK(?) AS r", [$lock_name]);
+    if (!$seq) {
         header("Location: result_fc.php?game_id=$game_id");
         exit();
     }
 
-    
+    $img_id = (int)$seq['fc_image_id'];
+    $img_row = sec_one("SELECT answer_desc, answer_image, answer_audio, is_father FROM fc_images WHERE id = ?", [$img_id]);
 
-        $img_id = (int)$new_img['id'];
-    $correct_ans = mb_substr($new_img['answer_desc'], 0, 100, 'UTF-8');
+    if ($img_row) {
+        $n_figli = (int)((int)$img_row['is_father'] === 1
+            ? (sec_one("SELECT COUNT(*) AS c FROM fc_child_cards WHERE parent_id = ?", [$img_id])['c'] ?? 0)
+            : 0);
+        $e_titolo = (int)$img_row['is_father'] === 1 && fc_e_titolo($img_row, $n_figli);
 
-    // MEMORIA ERRORI: il padre era gia' corretto nella partita precedente?
-    $parent_user_answer = '';
-    if ($parent_id > 0) {
-        $row_prev = sec_one("SELECT user_answer FROM fc_gameplays WHERE game_id = ? AND fc_image_id = ?",
-                            [$parent_id, $img_id]);
-        if ($row_prev && $row_prev['user_answer'] == 'Correct') $parent_user_answer = 'Correct';
-    }
+        $correct_ans = $e_titolo ? '' : mb_substr((string)$img_row['answer_desc'], 0, 100, 'UTF-8');
 
-    sec_q("INSERT INTO fc_gameplays (game_id, fc_image_id, correct_answer, user_answer, position) VALUES (?, ?, ?, ?, ?)",
-          [$game_id, $img_id, $correct_ans, $parent_user_answer, $position]);
-
-    // Per compatibilità javascript locale passiamo anche il mock per la view
-    $gameplays[] = ['fc_image_id' => $img_id, 'user_answer' => $parent_user_answer];
-
-    
-
-    if ($new_img['is_father'] == 1) {
-
-                foreach (sec_all("SELECT * FROM fc_child_cards WHERE parent_id = ? ORDER BY custom_order ASC", [$img_id]) as $child) {
-            $c_id = (int)$child['id_child'];
-            $c_ans = mb_substr($child['answer_desc'], 0, 100, 'UTF-8');
-
-            // MEMORIA ERRORI: questo figlio era gia' corretto?
-            $child_user_answer = '';
-            if ($parent_id > 0) {
-                $row_prev_c = sec_one("SELECT user_answer FROM fc_gameplays WHERE game_id = ? AND fc_child_id = ?",
-                                      [$parent_id, $c_id]);
-                if ($row_prev_c && $row_prev_c['user_answer'] == 'Correct') $child_user_answer = 'Correct';
-            }
-
-            sec_q("INSERT INTO fc_gameplays (game_id, fc_child_id, correct_answer, user_answer, position) VALUES (?, ?, ?, ?, ?)",
-                  [$game_id, $c_id, $c_ans, $child_user_answer, $position]);
-
-            // Manteniamo id_fcimg per non rompere il javascript nel while sotto, trasformando i figli
-            $gameplays[] = ['fc_child_id' => $c_id, 'user_answer' => $child_user_answer];
-
+        /* MEMORIA ERRORI, solo per un ripasso: se questo padre risulta gia'
+           corretto altrove nella storia della partita di origine (puo'
+           capitare se una carta compare a piu' posizioni), si parte gia'
+           segnati cosi' invece che vuoti. Per una partita normale $parent_id
+           e' sempre 0 e questo blocco non fa nulla. */
+        $user_answer_iniziale = $e_titolo ? 'Titolo' : '';
+        if (!$e_titolo && $parent_id > 0) {
+            $row_prev = sec_one("SELECT user_answer FROM fc_gameplays WHERE game_id = ? AND fc_image_id = ?", [$parent_id, $img_id]);
+            if ($row_prev && $row_prev['user_answer'] == 'Correct') $user_answer_iniziale = 'Correct';
         }
 
+        sec_q("INSERT IGNORE INTO fc_gameplays (game_id, fc_image_id, correct_answer, user_answer, position)
+               VALUES (?, ?, ?, ?, ?)", [$game_id, $img_id, $correct_ans, $user_answer_iniziale, $position]);
+
+        if ((int)$img_row['is_father'] === 1) {
+            foreach (sec_all("SELECT id_child, answer_desc FROM fc_child_cards WHERE parent_id = ? ORDER BY custom_order ASC", [$img_id]) as $child) {
+                $c_id = (int)$child['id_child'];
+                $c_ans = mb_substr((string)$child['answer_desc'], 0, 100, 'UTF-8');
+
+                $child_user_answer_iniziale = '';
+                if ($parent_id > 0) {
+                    $row_prev_c = sec_one("SELECT user_answer FROM fc_gameplays WHERE game_id = ? AND fc_child_id = ?", [$parent_id, $c_id]);
+                    if ($row_prev_c && $row_prev_c['user_answer'] == 'Correct') $child_user_answer_iniziale = 'Correct';
+                }
+
+                sec_q("INSERT IGNORE INTO fc_gameplays (game_id, fc_child_id, correct_answer, user_answer, position)
+                       VALUES (?, ?, ?, ?, ?)", [$game_id, $c_id, $c_ans, $child_user_answer_iniziale, $position]);
+            }
+        }
     }
 
-    sec_one("SELECT RELEASE_LOCK(?) AS r", [$lock_name]);
-
+    /* Rilettura: che sia stata questa richiesta o quella parallela a
+       scrivere per prima, ora la o le righe ci sono comunque. */
+    $gameplays = sec_all("SELECT * FROM fc_gameplays WHERE game_id = ? AND position = ?", [$game_id, $position]);
 }
+
 
 
 
@@ -408,6 +427,10 @@ $sql_order = ($order_param === 'in_order')
 
 $learnt_ids_set = array_flip(array_column(
     sec_all("SELECT fc_image_id FROM user_learnt_fc WHERE user_id = ?", [$user_id]),
+    'fc_image_id'
+));
+$favorite_ids_set = array_flip(array_column(
+    sec_all("SELECT fc_image_id FROM user_favorites_fc WHERE user_id = ?", [$user_id]),
     'fc_image_id'
 ));
 
@@ -451,9 +474,12 @@ foreach ($gameplays as $gp) {
 
         $card['user_answer'] = $gp['user_answer'];
 
+        $card['is_titolo'] = ($gp['user_answer'] === 'Titolo');
+
         $learnt_parent_id = $card['is_child'] ? (int)($card['parent_id'] ?? 0) : (int)$card['gameplay_idimmagine'];
         $card['learnt_parent_id'] = $learnt_parent_id;
         $card['is_learnt'] = isset($learnt_ids_set[$learnt_parent_id]);
+        $card['is_favorite'] = isset($favorite_ids_set[$learnt_parent_id]);
 
         // Conta quanti esempi ha questa flashcard, sulla colonna giusta per il suo tipo
         $col = $card['is_child'] ? 'child_id' : 'parent_id';
@@ -781,6 +807,8 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
 
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>game_fc.css?v=<?php echo @filemtime(dirname(__FILE__) . '/game_fc.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>examples_box.css?v=<?php echo @filemtime(dirname(__FILE__) . '/examples_box.css') ?: 1; ?>">
+<script src="<?php echo PWA_BASE; ?>examples_modal.js?v=<?php echo @filemtime(dirname(__FILE__) . '/examples_modal.js') ?: 1; ?>"></script>
 
     <script src="fc_parser.js"></script>
 
@@ -1111,8 +1139,25 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                 <?php foreach ($cards_to_show as $index => $c): 
 
                     $is_graded = ($c['user_answer'] != '');
+                    $edit_param = $c['is_child'] ? 'child_id=' . abs($c['gameplay_idimmagine']) : 'fc_id=' . $c['gameplay_idimmagine'];
 
                 ?>
+
+                <?php if (!empty($c['is_titolo'])): ?>
+
+                    <div class="card-title-header">
+
+                        <?php if (!empty(trim($c['question_image'] ?? ''))): ?>
+                            <img src="fc_Images/<?php echo sec_h(trim($c['question_image'])); ?>" class="fc-image">
+                        <?php endif; ?>
+
+                        <?php if (!empty(trim($c['question_desc'] ?? ''))): ?>
+                            <div class="raw-text" data-raw="<?php echo sec_h(trim($c['question_desc'])); ?>"></div>
+                        <?php endif; ?>
+
+                    </div>
+
+                <?php continue; endif; ?>
 
                 <div class="card-box <?php echo $is_graded ? 'graded' : ''; ?><?php if ($is_graded) echo ($c['user_answer'] == 'Correct') ? ' res-correct' : ' res-wrong'; ?>" id="card-<?php echo sec_h($index); ?>"
 
@@ -1131,6 +1176,10 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                      data-url-correct="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=correct&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>"
 
                      <?php endif; ?>>
+
+                    <button type="button" class="btn-edit-fab" onclick="event.stopPropagation(); location.href='modifica_immagine_fc.php?<?php echo sec_h($edit_param); ?>&return_to_game=1&game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>';" title="<?php te('comune.modifica'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+
+                    <button type="button" class="btn-fav-fab<?php echo $c['is_favorite'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); toggleFavorite(this)" aria-label="<?php te('fc.gm_preferiti'); ?>" aria-pressed="<?php echo $c['is_favorite'] ? 'true' : 'false'; ?>" title="<?php te('fc.gm_preferiti'); ?>"><svg viewBox="0 0 24 24" fill="<?php echo $c['is_favorite'] ? 'currentColor' : 'none'; ?>" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2.5 3 6.6 7.2.8-5.4 4.9 1.5 7.2L12 18.2l-6.3 3.8 1.5-7.2-5.4-4.9 7.2-.8Z"/></svg></button>
 
 
 
@@ -1204,6 +1253,8 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                             <?php endif; ?>
 
+                            <?php render_examples_section($c['gameplay_idimmagine'], $c['is_child'] ? 'child' : 'parent', $c['gameplay_idimmagine'], [$c['gameplay_idimmagine'] => $c['examples_count']]); ?>
+
                             <!-- BOTTONI AI TUTOR -->
 
                             <?php 
@@ -1247,10 +1298,6 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                             </div>
 
 
-
-                            <?php $edit_param = $c['is_child'] ? 'child_id=' . abs($c['gameplay_idimmagine']) : 'fc_id=' . $c['gameplay_idimmagine']; ?>
-
-                            <button type="button" class="btn-edit-fab" onclick="event.stopPropagation(); location.href='modifica_immagine_fc.php?<?php echo sec_h($edit_param); ?>&return_to_game=1&game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>';" title="<?php te('comune.modifica'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
 
                             <div class="grade-row">
 
@@ -1317,6 +1364,8 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                                 <div class="fc-text raw-text" data-raw="<?php echo sec_h(trim($c['answer_desc'])); ?>"></div>
 
                             <?php endif; ?>
+
+                            <?php render_examples_section($c['gameplay_idimmagine'], $c['is_child'] ? 'child' : 'parent', $c['gameplay_idimmagine'], [$c['gameplay_idimmagine'] => $c['examples_count']]); ?>
 
                             <?php 
 
@@ -1428,6 +1477,8 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
         // ==========================================
 
         document.addEventListener('click', function(e) {
+
+            if (window.__nisamaModaleAperto) return;
 
             if (e.target && e.target.classList.contains('fc-image')) {
 
@@ -1619,6 +1670,8 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
         // 2. EVENT DELEGATION
 
         document.addEventListener('click', function(e) {
+
+            if (window.__nisamaModaleAperto) return;
 
             let ttsBtn = e.target.closest('#ttsSettingsBtn');
 
@@ -2635,6 +2688,9 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
             ansBox.classList.add('reveal-anim');
 
+            var cardBox = ansBox.closest('.card-box');
+            if (cardBox) cardBox.classList.add('risposta-mostrata');
+
             try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {}
 
             
@@ -3506,6 +3562,8 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
             document.addEventListener('click', function (e) {
 
+                if (window.__nisamaModaleAperto) return;
+
                 var pill = e.target.closest && e.target.closest('#chrono-pill');
 
                 if (!pill) return;
@@ -3747,20 +3805,67 @@ function prefetchGet (url) {
     __prefetchCache[url] = entry;
 }
 
-/* Precarica avanti e indietro per questa posizione. Non dipende in alcun modo
+/* Precarica in una finestra scorrevole (10 avanti, 10 indietro) invece che
+   tenere tutta la partita in cache: abbastanza per rendere istantanea sia la
+   lettura in avanti sia un ripasso di quelle appena viste, senza accumulare
+   all'infinito man mano che la partita va avanti. Non dipende in alcun modo
    dal voto che si dara' qui: il gestore di action=grade fa solo un redirect a
    position+1 (o resta sulla stessa posizione se ci sono altri fratelli da
-   valutare) - la scelta della carta a position+1 e' la STESSA identica
-   funzione che gira sia arrivandoci votando sia navigando avanti a mano,
-   quindi si puo' precaricare gia' ora, mentre si sta ancora leggendo. */
+   valutare) - la scelta della carta a ciascuna posizione e' gia' fissata da
+   start_game_fc.php, quindi si puo' precaricare gia' ora, mentre si sta
+   ancora leggendo. */
+var PREFETCH_FINESTRA = 10;
+
+function urlPerPosizione (pos) {
+    var qs = new URLSearchParams(window.location.search);
+    var gameId = qs.get('game_id');
+    var status = qs.get('status') || '0';
+    var order = qs.get('order') || 'random';
+    return 'game_fc.php?game_id=' + gameId + '&position=' + pos + '&status=' + status + '&order=' + order;
+}
+
+function pulisciCacheFuoriFinestra (posAttuale, totale) {
+    var min = Math.max(1, posAttuale - PREFETCH_FINESTRA);
+    var max = totale ? Math.min(totale, posAttuale + PREFETCH_FINESTRA) : (posAttuale + PREFETCH_FINESTRA);
+    Object.keys(__prefetchCache).forEach(function (url) {
+        var m = url.match(/[?&]position=(\d+)/);
+        if (!m) return;
+        var p = parseInt(m[1], 10);
+        if (p < min || p > max) delete __prefetchCache[url];
+    });
+}
+
+window.__nisamaModaliAperti = window.__nisamaModaliAperti || new Set();
+window.nisamaOsservaModale = window.nisamaOsservaModale || function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    function aggiorna() {
+        var visibile = el.style.display && el.style.display !== 'none';
+        if (visibile) window.__nisamaModaliAperti.add(id); else window.__nisamaModaliAperti.delete(id);
+        window.__nisamaModaleAperto = window.__nisamaModaliAperti.size > 0;
+    }
+    if (typeof MutationObserver !== 'undefined') {
+        new MutationObserver(aggiorna).observe(el, { attributes: true, attributeFilter: ['style'] });
+    }
+    aggiorna();
+};
+['tts-modal', 'ai-modal', 'shatter-modal', 'token-limit-modal'].forEach(window.nisamaOsservaModale);
+
 function schedulePrefetch () {
     /* Ora e' sicuro: la sequenza della partita viene fissata tutta insieme
        all'avvio (start_game_fc.php), quindi visitare una posizione e' una
        pura lettura e precaricarla non crea piu' nessuna riga. */
     var c = curC();
     if (!c) return;
-    prefetchGet(c.getAttribute('data-back-url'));
-    prefetchGet(c.getAttribute('data-forward-url'));
+    var pos = parseInt(c.getAttribute('data-pos') || '1', 10);
+    var totale = parseInt(c.getAttribute('data-total-words') || '0', 10);
+
+    for (var i = 1; i <= PREFETCH_FINESTRA; i++) {
+        if (pos + i >= 1 && (!totale || pos + i <= totale)) prefetchGet(urlPerPosizione(pos + i));
+        if (pos - i >= 1) prefetchGet(urlPerPosizione(pos - i));
+    }
+
+    pulisciCacheFuoriFinestra(pos, totale);
 }
 
 /* ========================================================================
@@ -3914,6 +4019,21 @@ function inviaVotoConCoda (url, cardIndex) {
 /* "Imparato" e' indipendente dal voto: non fa avanzare la carta, funziona
    anche rivedendo una carta gia' valutata, e si puo' sia accendere sia
    spegnere. Una chiamata leggera, senza passare da navigateTo(). */
+document.addEventListener('click', function (e) {
+    if (window.__nisamaModaleAperto) return;
+    if (typeof fcExUltimoSwipe !== 'undefined' && Date.now() - fcExUltimoSwipe < 350) return;
+    var box = e.target.closest('.qa-examples-box-filled');
+    if (!box) return;
+    var fcId = parseInt(box.getAttribute('data-fc-id'), 10) || 0;
+    var fcType = box.getAttribute('data-fc-type') || 'parent';
+    var card = box.closest('.card-box');
+    var qEl = card ? card.querySelector('.q-section .raw-text') : null;
+    var aEl = card ? card.querySelector('.answer-box .raw-text') : null;
+    var qText = qEl ? (qEl.getAttribute('data-raw') || '') : '';
+    var aText = aEl ? (aEl.getAttribute('data-raw') || '') : '';
+    if (typeof openExamplesModal === 'function') openExamplesModal(fcId, fcType, qText, aText);
+});
+
 function toggleLearnt (btn) {
     if (btn.disabled) return;
     btn.disabled = true;
@@ -3938,6 +4058,35 @@ function toggleLearnt (btn) {
         })
         .catch(function (err) {
             console.error('[imparato] non salvato', err);
+            if (typeof showPendingToast === 'function') showPendingToast(T('fc.gm_imparato_errore'));
+        })
+        .then(function () { btn.disabled = false; });
+}
+
+function toggleFavorite (btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+
+    var fd = new FormData();
+    fd.append('action', 'togglefavorite');
+    fd.append('img_id', btn.getAttribute('data-learnt-id'));
+    fd.append('is_child', btn.getAttribute('data-is-child') || '0');
+    fd.append('csrf_token', NISAMA_CSRF);
+
+    fetch('game_fc.php', { method: 'POST', body: fd, headers: { 'X-CSRF-Token': NISAMA_CSRF } })
+        .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+        .then(function (data) {
+            if (!data.success) throw new Error(data.error || 'errore');
+            btn.setAttribute('aria-pressed', data.favorite ? 'true' : 'false');
+            btn.classList.toggle('is-active', data.favorite);
+            if (data.favorite) {
+                btn.classList.remove('pop');
+                void btn.offsetWidth;
+                btn.classList.add('pop');
+            }
+        })
+        .catch(function (err) {
+            console.error('[preferiti] non salvato', err);
             if (typeof showPendingToast === 'function') showPendingToast(T('fc.gm_imparato_errore'));
         })
         .then(function () { btn.disabled = false; });
@@ -3968,7 +4117,16 @@ function gradeAndAdvance (url, feedbackPromise, cardIndex) {
 
 function navigateTo (url, opts) {
                 opts = opts || {};
-                if (navLock) return;
+                if (navLock) {
+                    /* Non si scarta: si riprova a brevissimo. Un voto arrivato
+                       mentre una transizione precedente e' ancora in corso non
+                       deve sparire nel nulla - altrimenti quella posizione
+                       (tipicamente un figlio subito dopo un altro) non
+                       raggiungerebbe mai "tutti valutati" e la partita
+                       resterebbe bloccata li'. */
+                    setTimeout(function () { navigateTo(url, opts); }, 120);
+                    return;
+                }
                 navLock = true;
                 gestureBlock = false;
                 suppressNextClick = false;
@@ -4108,6 +4266,8 @@ function navigateTo (url, opts) {
 
                     renderAllRawTexts();
 
+                    if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes(newC);
+
                     schedulePrefetch();
 
                     renderAllPendingDots();
@@ -4168,6 +4328,8 @@ function navigateTo (url, opts) {
 
             document.addEventListener('click', function (e) {
 
+                if (window.__nisamaModaleAperto) return;
+
                 if (suppressNextClick) { suppressNextClick = false; e.stopPropagation(); e.preventDefault(); return; }
 
                 if (!e.target || !e.target.closest) return;
@@ -4180,7 +4342,7 @@ function navigateTo (url, opts) {
 
                 e.preventDefault();
 
-                if (navLock) return;
+                if (navLock && link.href.indexOf('action=grade') === -1) return;
 
                 if (link.href.indexOf('game_fc.php') === -1) {
 
@@ -4224,6 +4386,8 @@ function navigateTo (url, opts) {
 
             document.addEventListener('pointerdown', function (e) {
 
+                if (window.__nisamaModaleAperto) return;
+
                 if (navLock || sw) return;
 
                 if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -4233,6 +4397,8 @@ function navigateTo (url, opts) {
                 var card = e.target.closest('.card-box[data-swipe="1"]');
 
                 if (!card) return;
+
+                if (!card.classList.contains('risposta-mostrata')) return;
 
                 var c = curC();
 
@@ -4692,6 +4858,8 @@ function navigateTo (url, opts) {
 
             document.addEventListener('keydown', function (e) {
 
+                if (window.__nisamaModaleAperto) return;
+
                 if (e.metaKey || e.ctrlKey || e.altKey) return;
 
                 var tgt = e.target;
@@ -4712,7 +4880,7 @@ function navigateTo (url, opts) {
 
                 } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
 
-                    var card = c.querySelector('.card-box[data-swipe="1"]');
+                    var card = c.querySelector('.card-box[data-swipe="1"].risposta-mostrata');
 
                     if (card) {
 
@@ -4805,6 +4973,8 @@ function navigateTo (url, opts) {
                 setTimeout(syncHeader, 250);
 
                 try { renderAllRawTexts(); } catch (e) {}
+
+                if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes();
 
                 schedulePrefetch();
 

@@ -68,6 +68,29 @@ if (strpos($type, 'fc') !== false) {
     $pagina = 'game_flashcards.php';
 }
 
+if ($pagina === 'game_fc.php') {
+    $ids_sbagliati = array_map('intval', array_column(sec_all(
+        "SELECT DISTINCT fc_image_id FROM fc_gameplays
+         WHERE game_id = ? AND fc_image_id IS NOT NULL
+           AND position IN (SELECT DISTINCT position FROM fc_gameplays WHERE game_id = ? AND user_answer = 'Wrong')",
+        [$parent_id, $parent_id]
+    ), 'fc_image_id'));
+    shuffle($ids_sbagliati);
+
+    if (!empty($ids_sbagliati)) {
+        $righe = [];
+        foreach ($ids_sbagliati as $i => $pid) {
+            $righe[] = [$new_game_id, $i + 1, $pid];
+        }
+        foreach (array_chunk($righe, 300) as $blocco) {
+            $valori = [];
+            $ph = implode(',', array_fill(0, count($blocco), '(?, ?, ?)'));
+            foreach ($blocco as $r) { $valori = array_merge($valori, $r); }
+            sec_q("INSERT INTO fc_game_sequence (game_id, position, fc_image_id) VALUES $ph", $valori);
+        }
+    }
+}
+
 $qs = "?game_id=" . (int)$new_game_id . "&position=1";
 if ($pagina !== 'game_start.php') $qs .= "&status=" . (int)$status;
 

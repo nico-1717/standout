@@ -456,7 +456,15 @@ function fcdToggleBlockMath(doc, sel) {
         }
     }
 
-    if (fcdBlockLen(b) === 0) {
+    if (fcdBlockText(b).trim() === '') {
+        /* fcdBlockLen(b) === 0 e basta era troppo rigido: una riga che
+           sembra vuota ma ha uno spazio residuo (un tasto premuto per sbaglio
+           e mai cancellato del tutto, molto comune dopo qualche modifica)
+           risultava "non vuota" per un soffio, e il tasto apriva una riga
+           NUOVA sotto invece di usare quella su cui si era gia' messi —
+           esattamente lo spazio di troppo segnalato. Uno spazio solitario
+           non e' un contenuto da preservare: e' rumore, e la riga conta come
+           vuota anche con lui dentro. */
         var vuota = { t: 'fx', tex: '' };
         if (b.t === 'li') { vuota.lvl = b.lvl; if (b.c) vuota.c = b.c; }
         doc.blocks[i] = vuota;
@@ -1578,6 +1586,22 @@ function fcdSetSel(root, sel) {
            c'erano tutti e due. */
         '.fc-x.fc-resa mjx-msubsup, .fc-x.fc-resa mjx-msub, .fc-x.fc-resa mjx-msup, ' +
         '.fc-x.fc-resa mjx-script, .fc-x.fc-resa mjx-stack, ' +
+        /* Stessa storia per "|x|": senza \left...\right e' un semplice
+           operatore (mjx-mo), non un impilamento — ma acceso vicino a un
+           mjx-msup che QUELLA correzione ce l'ha gia' (line-height:0), i due
+           finiscono fratelli nella stessa riga con altezze di riga diverse,
+           e un browser allinea fratelli inline anche in base a quella:
+           la barra del valore assoluto si vedeva spostata rispetto
+           all'esponente accanto. Stessa cura, stesso motivo. */
+        '.fc-x.fc-resa mjx-mo, ' +
+        /* \cancel, \boxed e affini passano da mjx-menclose: la barra o il
+           riquadro sono un pezzo impilato SOPRA il contenuto con lo stesso
+           trucco del margine negativo (vedi il commento in cima a questo
+           blocco per \overline{}), quindi hanno la stessa identica
+           dipendenza dal line-height azzerato. Senza, la barra di \cancel
+           non cadeva sulla lettera ma altrove: esattamente il difetto delle
+           altre correzioni qui sopra, semplicemente su un comando diverso. */
+        '.fc-x.fc-resa mjx-menclose, ' +
         '.fc-x.fc-resa mjx-mtable{ line-height:0; }' +
         /* La stessa correzione, mai estesa alla formula A BLOCCO: una
            frazione o un \overline{} li' dentro avrebbe lo stesso identico
@@ -1586,6 +1610,8 @@ function fcdSetSel(root, sel) {
         '.fc-fx.fc-resa mjx-mfrac, .fc-fx.fc-resa mjx-msqrt, .fc-fx.fc-resa mjx-mroot, ' +
         '.fc-fx.fc-resa mjx-msubsup, .fc-fx.fc-resa mjx-msub, .fc-fx.fc-resa mjx-msup, ' +
         '.fc-fx.fc-resa mjx-script, .fc-fx.fc-resa mjx-stack, ' +
+        '.fc-fx.fc-resa mjx-mo, ' +
+        '.fc-fx.fc-resa mjx-menclose, ' +
         '.fc-fx.fc-resa mjx-mtable{ line-height:0; }' +
         /* I due dollari decorativi ai lati sono stati tolti su richiesta: lo
            sfondo azzurro del riquadro basta gia' a dire "qui c'e' una

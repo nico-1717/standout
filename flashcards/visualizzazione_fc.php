@@ -2166,6 +2166,17 @@ function render_audio_player($src) {
                     <div class="fcv-hint"><?php te('fc.res_tocca_girare'); ?></div>
                 </div>
                 <div class="fcv-face fcv-backface">
+                    <?php /* Stessa fascia della domanda, sul retro: prima compariva
+                             solo davanti, e girando la carta il contesto "di chi e'
+                             figlia" spariva — proprio quando serve di piu', leggendo
+                             una risposta senza piu' la domanda sotto gli occhi. */ ?>
+                    <button type="button" class="fcv-parent-strip" id="fcvParentA" hidden>
+                        <span class="fcv-parent-lab">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                            <?php te('fc.vis_fcv_carta_padre'); ?>
+                        </span>
+                        <span class="fcv-parent-txt" id="fcvParentTxtA"></span>
+                    </button>
                     <div class="fcv-eyebrow ans"><?php te('fc.ifc_risposta'); ?></div>
                     <div class="fcv-body" id="fcvA"></div>
                 </div>
@@ -4266,7 +4277,7 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
 
     var fcv, inner, qEl, aEl, cnt, tot, bar, prevB, nextB, card, edit, stage;
 
-    var barSib, barSibWrap, parentStrip, parentTxt;
+    var barSib, barSibWrap, parentStrip, parentTxt, parentStripA, parentTxtA;
 
     var idxPadre = -1;   /* indice nel mazzo della carta padre di quella corrente */
 
@@ -4307,6 +4318,10 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
         parentStrip = document.getElementById('fcvParent');
 
         parentTxt   = document.getElementById('fcvParentTxt');
+
+        parentStripA = document.getElementById('fcvParentA');
+
+        parentTxtA   = document.getElementById('fcvParentTxtA');
 
     }
 
@@ -4504,9 +4519,18 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
 
             parentStrip.hidden = false;
 
+            /* Stesso testo, stessa visibilita': sul retro serve lo stesso
+               contesto "di chi e' figlia", non una versione diversa. */
+
+            if (parentTxtA) parentTxtA.textContent = mazzo[idxPadre].testoQ;
+
+            if (parentStripA) parentStripA.hidden = false;
+
         } else {
 
             parentStrip.hidden = true;
+
+            if (parentStripA) parentStripA.hidden = true;
 
         }
 
@@ -4644,25 +4668,32 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
 
            se quella e' un padre. */
 
-        var strip = el.querySelector('.fcv-parent-strip');
+        /* Sono due, ora — una per faccia — quindi querySelectorAll e non
+           querySelector: un solo elemento trovato avrebbe aggiornato solo
+           la prima delle due, lasciando l'altra ferma al valore vecchio. */
+        var strips = el.querySelectorAll('.fcv-parent-strip');
 
-        if (strip) {
+        if (strips.length) {
 
             var ip = indicePadreDi(i);
 
-            if (ip >= 0) {
+            strips.forEach(function (strip) {
 
-                var t = strip.querySelector('.fcv-parent-txt');
+                if (ip >= 0) {
 
-                if (t) t.textContent = mazzo[ip].testoQ;
+                    var t = strip.querySelector('.fcv-parent-txt');
 
-                strip.hidden = false;
+                    if (t) t.textContent = mazzo[ip].testoQ;
 
-            } else {
+                    strip.hidden = false;
 
-                strip.hidden = true;
+                } else {
 
-            }
+                    strip.hidden = true;
+
+                }
+
+            });
 
         }
 
@@ -5119,7 +5150,7 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
 
         }
 
-        if (e.target.closest('#fcvParent')) { vaiAIndice(idxPadre); return; }
+        if (e.target.closest('#fcvParent, #fcvParentA')) { vaiAIndice(idxPadre); return; }
 
         if (e.target.closest('#fcvPrev')) { vai(-1); return; }
 

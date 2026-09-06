@@ -29,8 +29,12 @@
     });
 
     $categories = array();
-    foreach (sec_all("SELECT id, name FROM fc_categories WHERE user_id = ? ORDER BY name",
-                     [$current_user_id]) as $row) { $categories[$row['id']] = $row['name']; }
+    $categorie_colore = array();   /* serve al pulsante dell'inserimento multiplo, che si intona alla materia */
+    foreach (sec_all("SELECT id, name, color FROM fc_categories WHERE user_id = ? ORDER BY name",
+                     [$current_user_id]) as $row) {
+        $categories[$row['id']] = $row['name'];
+        $categorie_colore[$row['id']] = trim((string)$row['color']) !== '' ? trim((string)$row['color']) : '#AF52DE';
+    }
 
     /* I tipi di audio ammessi: sec_file() guarda il contenuto vero con finfo,
        non l'estensione dichiarata dal client. */
@@ -49,6 +53,28 @@
         if (!is_dir($cartella)) { @mkdir($cartella, 0755, true); }
         $nome = sec_safe_filename($ris['ext']);
         return move_uploaded_file($ris['tmp'], rtrim($cartella, '/') . '/' . $nome) ? $nome : '';
+    }
+
+    /* Una voce del dizionario che potrebbe non esserci ancora: t() restituisce
+       la chiave fra doppie parentesi angolari quando non la trova, e
+       «<<fc.mfc_esempio_breve>>» stampato su un tasto e' peggio di una parola
+       imprecisa. Appena la voce entra nel dizionario questo ripiego smette da
+       solo di servire, senza che nessuno debba tornare qui. Stesso schema gia'
+       usato da pomodoro_barra.php. */
+    function mfc_t(string $chiave, string $ripiego): string {
+        $v = function_exists('t') ? (string)t($chiave) : '';
+        return ($v === '' || strpos($v, '<<') === 0) ? $ripiego : $v;
+    }
+
+    /* La parola "Esempio" da sola, nella lingua del sito. La voce dedicata
+       adesso c'e' in it.json e in en.json (fc.mfc_esempio_breve), quindi qui
+       non serve piu' nessuna astuzia: si chiede e si stampa.
+       Il ripiego sulla dicitura lunga resta per l'unico caso che puo' ancora
+       capitare — un dizionario di un'altra lingua, aggiunto domani, che quella
+       voce non ce l'ha: meglio "Aggiungi esempio" che «<<fc.mfc_esempio_breve>>»
+       stampato su un tasto. */
+    function mfc_parola_esempio(): string {
+        return mfc_t('fc.mfc_esempio_breve', (string)t('fc.mfc_aggiungi_esempio'));
     }
 
     /* Cancella un file dal disco. basename(): il nome viene dal database, ma se
@@ -256,6 +282,48 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
+<script>
+/* 'unload' NON SI USA PIU', E IL BROWSER LO DICE
+   ------------------------------------------------------------------
+   E' l'errore rosso nello screenshot: "Permissions policy violation:
+   unload is not allowed in this document", con jquery.min.js come
+   colpevole apparente. jQuery e' solo il messaggero: la riga indicata e'
+   il suo addEventListener interno, chi ha chiesto 'unload' e' il codice
+   che ha scritto $(window).on('unload', ...) o .unload(...).
+
+   Chrome ed Edge stanno ritirando 'unload' (rompe la cache avanti/indietro)
+   e lo governano con una Permissions-Policy: dove non e' concesso — e in un
+   documento dentro un iframe di norma non lo e' — registrarlo non fa niente
+   e lascia in console quella violazione. Quindi non e' che l'evento arriva
+   tardi o male: non arriva proprio, e chiunque contasse su di lui per
+   salvare qualcosa in uscita sta gia' perdendo quel giro, in silenzio.
+
+   Il sostituto ufficiale e' 'pagehide': scatta negli stessi momenti di
+   'unload' e in piu' quando la pagina finisce nella cache avanti/indietro,
+   dove 'unload' non scattava. Qui si sostituisce alla fonte, su window: chi
+   chiede 'unload' riceve 'pagehide' senza accorgersene, la violazione non
+   ha piu' modo di prodursi e il gestore, per la prima volta, viene davvero
+   chiamato.
+
+   Sta come prima cosa nel <head> apposta: piu' avanti nella pagina
+   arrivano gli script che config.php innesta da se' (fra cui jQuery), e un
+   rattoppo che arriva dopo chi deve rattoppare non serve a niente.
+
+   Questo copre il documento del popup. Se la violazione compare anche
+   caricando una pagina normale, il legame vero e' altrove: si trova con
+   grep -rn "unload" sui file del sito e si sistema li', che e' meglio. */
+(function () {
+    if (!window.addEventListener) return;
+    var nativo = window.addEventListener;
+    window.addEventListener = function (tipo, fn, opz) {
+        return nativo.call(this, tipo === 'unload' ? 'pagehide' : tipo, fn, opz);
+    };
+    var toglieva = window.removeEventListener;
+    window.removeEventListener = function (tipo, fn, opz) {
+        return toglieva.call(this, tipo === 'unload' ? 'pagehide' : tipo, fn, opz);
+    };
+})();
+</script>
     <title><?php te('fc.mfc_titolo'); ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="mobile-web-app-capable" content="yes">
@@ -270,7 +338,17 @@
 
 <script>
         window.MathJax = {
+
+            /* \cancel (e \bcancel, \xcancel) non fanno parte del pacchetto
+               base di MathJax: senza caricare l'estensione che li definisce,
+               MathJax li mostra in rosso come comando sconosciuto — ed e'
+               esattamente quello che si vedeva. Il foglio di stile che allinea
+               la barretta sul simbolo c'era gia', ma allineava una cosa che
+               non veniva nemmeno disegnata. */
+            loader: { load: ['[tex]/cancel'] },
+
             tex: {
+                packages: { '[+]': ['cancel'] },
                 inlineMath: [['$', '$'], ['\\(', '\\)']],
                 displayMath: [['$$', '$$'], ['\\[', '\\]']]
             }
@@ -282,9 +360,23 @@
     <script src="<?php echo PWA_BASE; ?>examples_modal.js"></script>
     <script src="<?php echo PWA_BASE; ?>fc_migliora_carta.js"></script>
 
+<?php /* Il ?v= non e' un vezzo: questo foglio decide DOVE sta il cerchio
+         dell'IA, e finche' l'indirizzo restava identico il browser continuava
+         a servire la copia che aveva in cache — si correggeva la posizione e
+         non cambiava niente, il che rende impossibile capire se la correzione
+         era sbagliata o solo non arrivata. Con la data del file nell'indirizzo,
+         una modifica al foglio e' un indirizzo nuovo. Stesso schema gia' usato
+         qui sotto per modifica_immagine_fc.css. */ ?>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_ai_fab.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_ai_fab.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>autosave_bar.css">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>examples_box.css">
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_migliora_carta.css">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_migliora_carta.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_migliora_carta.css') ?: 1; ?>">
+<?php /* I riquadri immagine/audio non stanno piu' dentro il foglio di questa
+         pagina: sono gli stessi che usa il modulo dell'esempio, e vivono in
+         fc_media_box.css. Va caricato PRIMA di modifica_immagine_fc.css, cosi'
+         se un giorno questa pagina volesse ritoccarne uno puo' farlo da li'
+         senza combattere con l'ordine. */ ?>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_media_box.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_media_box.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>modifica_immagine_fc.css?v=<?php echo @filemtime(dirname(__FILE__) . '/modifica_immagine_fc.css') ?: 1; ?>">
 </head>
 <body>
@@ -407,7 +499,9 @@
                      Answer" e subito sotto "Cancel / NEW CARD / Create").
                      Ne resta una sola, quella condivisa col pannello esempi. */ ?>
 
-            <div class="page">
+            <div class="page fc-page-rel">
+            <?php /* Fuori dalle sezioni: il pulsante e' in sovraimpressione sulla
+                     pagina, non un elemento del modulo. */ fc_migliora_carta_blocco(); ?>
             <form id="editFcForm" method="POST" enctype="multipart/form-data">
                 <?php /* Stessa identica barra del pannello esempi: stesse classi
                          (.exm-form-topbar), stessa disposizione, stessi SVG e
@@ -417,13 +511,58 @@
                          perche' il suo sporco e' indipendente da quello del
                          pannello esempi che puo' aprirsi sopra. */ ?>
                 <div class="exm-form-topbar">
-                    <span class="exm-form-title" id="fcTopbarTitle"><?php echo $fc_modo === 'insert' ? sec_h(t('fc.ifc_nuova_scheda')) : sec_h(t('fc.mfc_titolo_breve')); ?></span>
+                    <?php /* Non piu' una scritta sola su una fascia bianca: un segno
+                             grafico, un occhiello piccolo e il nome sotto — la
+                             stessa gerarchia che l'intestazione della pagina aveva
+                             prima di essere tolta, ma dentro la barra. */ ?>
+                    <span class="fc-tb-mark" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/></svg>
+                    </span>
+                    <span class="exm-form-title fc-tb-testo">
+                        <span class="fc-tb-occhiello"><?php te('fc.ifc_domanda_risposta'); ?></span>
+                        <span class="fc-tb-nome" id="fcTopbarTitle"><?php echo $fc_modo === 'insert' ? sec_h(t('fc.ifc_nuova_scheda')) : sec_h(t('fc.mfc_titolo_breve')); ?></span>
+                    </span>
                     <div class="exm-form-actions">
                         <?php if ($fc_modo === 'edit'): ?>
                         <button type="submit" name="delete" value="1" class="exm-icon-btn exm-icon-btn-danger" onclick="return confirm('<?php echo sec_h(t('vocab.mi_elimina_def')); ?>?');" aria-label="<?php te('vocab.mi_elimina_def'); ?>">
                             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m2 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7"/></svg>
                         </button>
                         <?php endif; ?>
+                        <?php /* Aggiungere un esempio e' un'azione della carta, come
+                                 salvarla o eliminarla: sta qui, non sepolta in fondo
+                                 al modulo. In inserimento parte disabilitato — un
+                                 esempio ha bisogno di una carta che esista gia'. */ ?>
+                        <?php /* Non piu' un'icona sola: una pastiglia col testo, dello
+                                 stesso viola della famiglia IA/esempi — un "+" senza
+                                 scritta non diceva cosa avrebbe aggiunto. */ ?>
+                        <?php /* Il numero fra parentesi non e' una decorazione: senza,
+                                 il tasto dice sempre la stessa cosa a una carta nuda e
+                                 a una che ha gia' quattro esempi, e per sapere quale
+                                 delle due si ha davanti bisogna aprirlo. Parte dal
+                                 conteggio letto dal database qui sopra ($ex_count) e
+                                 poi lo tiene aggiornato il JS, che e' l'unico a sapere
+                                 cosa succede nel pannello degli esempi. */ ?>
+                        <?php /* "Esempio" e basta, non piu' "Aggiungi esempio": il verbo
+                                 diceva anche una cosa non piu' vera, perche' il tasto
+                                 ora apre l'elenco. In una barra dove convivono cestino,
+                                 salvataggio, interruttore e chiusura, due parole in meno
+                                 sono due parole di spazio guadagnate.
+                                 mfc_t() prende la voce breve dal dizionario se c'e', e
+                                 finche' non c'e' ripiega su quella lunga: meglio una
+                                 parola in piu' che «<<fc.mfc_esempio_breve>>» stampato
+                                 su un tasto. L'aria-label resta quello disteso — a chi
+                                 ascolta la pagina lo spazio non manca. */ ?>
+                        <button type="button" class="fc-btn-esempio" id="fcAddEsempio" onclick="fcApriEsempi()"
+                                <?php echo $fc_modo === 'insert' ? 'disabled' : ''; ?>
+                                aria-label="<?php te('fc.mfc_aggiungi_esempio'); ?>" title="<?php te('fc.mfc_aggiungi_esempio'); ?>">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+                                <path d="M13.5 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v5"/>
+                                <path d="M18.5 15.5v6M15.5 18.5h6"/>
+                            </svg>
+                            <span><?php echo sec_h(mfc_parola_esempio()); ?></span>
+                            <span class="fc-btn-esempio-conta" id="fcEsempiConta"><?php echo (!empty($ex_count) && (int)$ex_count > 0) ? '(' . (int)$ex_count . ')' : ''; ?></span>
+                        </button>
                         <?php $ns_instance = 'scheda'; include 'autosave_bar.php'; unset($ns_instance); ?>
                     </div>
                     <button type="button" class="exm-icon-btn exm-close-inline" onclick="fcAnnullaModifica('<?php echo sec_h($cancel_url); ?>')" aria-label="<?php te('comune.chiudi'); ?>">
@@ -449,14 +588,30 @@
                 <input type="hidden" name="previous_catid" value="<?php echo (int)$prev_cat; ?>">
 
                 <!-- ============== MIGLIORA CON L'IA ============== -->
+                <?php /* La card intera, non solo il pulsante dentro: in modifica non c'e'
+             niente da metterci (l'inserimento multiplo ha senso solo quando
+             si sta ancora scegliendo se creare una carta sola o tante), e una
+             card bianca vuota — si vede nello screenshot, un ovale senza
+             contenuto sotto la barra — restava comunque a occupare spazio e
+             a chiedersi cosa dovesse esserci. */ ?>
+                <?php if ($fc_modo === 'insert'): ?>
                 <section class="fc-card fc-card-tight fc-card-shortcuts">
-                    <?php if ($fc_modo === 'insert'): ?>
                     <?php /* L'inserimento multiplo era il primo pulsante della vecchia
                              pagina di inserimento, ed e' sparito nell'unione: chi deve
                              creare venti carte non vuole aprire venti volte questo
                              modulo. Sta qui in cima, dove stava prima, e porta con se'
                              la categoria gia' scelta. */ ?>
-                    <a class="cta-insert" href="inserimento_big_fc.php<?php echo $category_id > 0 ? ('?category_id=' . (int)$category_id) : ''; ?>">
+                    <?php /* target="_top": questo modulo vive dentro un iframe, e senza
+                             indicare la finestra vera l'inserimento multiplo si
+                             caricava DENTRO il popup — stretto, con la sua barra e
+                             senza via d'uscita. Cosi' invece prende tutta la
+                             pagina, come deve.
+                             Il colore e' quello della materia: il pulsante porta
+                             dentro quella categoria, e vederlo del suo colore lo
+                             lega a cio' su cui si sta lavorando. */
+                           $cat_col = $categorie_colore[$category_id] ?? '#AF52DE'; ?>
+                    <a class="cta-insert" target="_top" style="--cta-col:<?php echo sec_h($cat_col); ?>"
+                       href="inserimento_big_fc.php<?php echo $category_id > 0 ? ('?category_id=' . (int)$category_id) : ''; ?>">
                         <span class="cta-insert-icon">
                             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="4" rx="1"/><rect x="7" y="10" width="14" height="4" rx="1"/><rect x="3" y="16" width="14" height="4" rx="1"/></svg>
                         </span>
@@ -467,12 +622,11 @@
                         <svg class="cta-insert-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
                     </a>
                     <div class="fc-shortcut-sep"></div>
-                    <?php endif; ?>
-                    <?php fc_migliora_carta_blocco(); ?>
                 </section>
+                <?php endif; ?>
 
                 <!-- ============== CATEGORIA ============== -->
-                <section class="fc-card">
+                <section class="fc-card fc-card-categoria">
                     <div class="fc-card-head"><span class="fc-card-title"><?php te('vocab.cat_categoria'); ?></span></div>
                     <?php if (!$is_child): 
                         // Configuriamo le variabili per il nuovo componente "Plug & Play"
@@ -506,8 +660,14 @@
                     include 'format_toolbar.php';
                     ?>
 
+                    <?php /* Se non c'e' ne' immagine ne' audio i due riquadri stanno su una
+                             riga sola: vuoti e impilati occupavano mezza schermata
+                             per non dire niente. */
+                       $affianca_q = empty($row['question_image']) && empty($row['question_audio']); ?>
+                    <div class="<?php echo $affianca_q ? 'fc-media-affiancati' : ''; ?>">
                     <?php fc_img_box_modifica('q', t('fc.ifc_img_domanda'), $row['question_image']); ?>
                     <?php fc_audio_block('q', t('fc.ifc_voc_domanda'), $row['question_audio']); ?>
+                    </div>
                 </section>
 
                 <!-- ============== CARD RISPOSTA ============== -->
@@ -527,8 +687,14 @@
                     include 'format_toolbar.php';
                     ?>
 
+                    <?php /* Se non c'e' ne' immagine ne' audio i due riquadri stanno su una
+                             riga sola: vuoti e impilati occupavano mezza schermata
+                             per non dire niente. */
+                       $affianca_a = empty($row['answer_image']) && empty($row['answer_audio']); ?>
+                    <div class="<?php echo $affianca_a ? 'fc-media-affiancati' : ''; ?>">
                     <?php fc_img_box_modifica('a', t('fc.ifc_img_risposta'), $row['answer_image']); ?>
                     <?php fc_audio_block('a', t('fc.ifc_voc_risposta'), $row['answer_audio']); ?>
+                    </div>
                 </section>
 
                 <!-- ============== ESEMPI ============== -->
@@ -537,21 +703,14 @@
                          mostra il JS subito dopo la creazione. */ ?>
                 <section class="fc-card fc-card-tight qa-examples-wrap"<?php echo $fc_modo === 'insert' ? ' hidden' : ''; ?>>
                     <?php $ex_tipo = $is_child ? 'child' : 'parent'; ?>
-                    <?php if ($ex_count > 0): ?>
-                        <?php /* Il riquadro col carosello, come in visualizzazione_fc.php: si
-                                 riempie da solo via examples_modal.js/examples_api.php, e un
-                                 tocco sopra apre lo stesso popup di modifica che il pulsante
-                                 apriva prima — qui sotto, nello script della pagina, non il
-                                 visore a schermo intero che usa visualizzazione (quella pagina
-                                 e' di sola lettura, questa e' gia' un modulo di modifica: ha
-                                 piu' senso finire dritti nel popup che permette di cambiarlo). */ ?>
-                        <?php render_examples_section($id, $ex_tipo, $id, [$id => $ex_count]); ?>
-                    <?php else: ?>
-                        <button id="btn-ex-<?php echo $ex_tipo[0]; ?><?php echo (int)$id; ?>" type="button" class="ex-btn ex-btn-empty" onclick="openExamplesModal(<?php echo (int)$id; ?>, '<?php echo $ex_tipo; ?>', document.getElementById('quest').value, document.getElementById('answ').value)">
-                            <?php te('fc.mfc_aggiungi_esempio'); ?>
-                        </button>
-                    <?php endif; ?>
-                </section>
+                    <?php /* Il riquadro col carosello, identico a quello di
+                             visualizzazione_fc.php: si riempie da solo via
+                             examples_modal.js. Il pulsante "aggiungi" non e' piu'
+                             qui — sta nella barra in alto, fra le azioni della
+                             carta. Se non ci sono esempi la sezione resta vuota e
+                             il JS la nasconde. */ ?>
+                    <?php render_examples_section($id, $ex_tipo, $id, [$id => max(1, (int)$ex_count)]); ?>
+</section>
 
 
 
@@ -582,17 +741,68 @@
             <button class="close-btn" onclick="closeAgenda()">&times;</button>
             <h3 class="modal-title"><?php te('fc.ifc_guida_rapida'); ?></h3>
             <p class="modal-sub"><?php te('fc.ifc_guida_intro'); ?></p>
+
+            <?php /* La guida parlava solo della barra di formattazione, che e'
+                     rimasta com'era: nel frattempo pero' questo modulo ha
+                     preso l'IA, gli esempi, il salvataggio automatico e il
+                     tocco sul riquadro per scegliere un'immagine, e di quelli
+                     non diceva niente. Ora e' divisa per argomento, cosi' si
+                     trova quello che si cerca invece di leggere un elenco
+                     unico. */ ?>
+
+            <?php /* Le icone sono le STESSE di format_toolbar.php, copiate da li':
+                     una guida che disegna icone diverse da quelle sui pulsanti
+                     costringe a indovinare la corrispondenza. */ ?>
+            <div class="guide-sez"><?php te('fc.ifc_guida_sez_testo'); ?></div>
             <ul class="guide-list">
+                <li><span class="g-ic g-ic-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 16.6L10.4 4.6h1.5l5.6 12"/><path d="M7.1 12.6h8.1"/><path d="M4.4 20.2h15.2" opacity=".45"/></svg></span> <?php te('fc.ifc_guida_tab_testo'); ?></li>
+                <li><span class="g-ic"><b>B</b> <i>I</i> <u>U</u></span> <?php te('fc.ifc_guida_stili'); ?></li>
                 <li><span class="g-ic" style="color:var(--red)">A</span> <?php te('fc.ifc_guida_colore'); ?></li>
-                <li><span class="g-ic"><b>B</b></span> <?php te('fc.ifc_guida_stili'); ?></li>
-                <li><span class="g-ic">🖊</span> <?php te('fc.ifc_guida_evidenzia'); ?></li>
-                <li><span class="g-ic">≡</span><?php te('fc.ifc_guida_elenco'); ?></li>
+                <li><span class="g-ic g-ic-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 3.9l5.5 5.5-7.7 7.7-5.5-5.5z"/><path d="M6.9 11.6l-1.6 3.1 3.9 3.9 3.2-1.5"/><path d="M5.3 14.7l-1.4 3.6 3.6-1.4"/><path d="M4 21.4h16" stroke="var(--yellow,#FFCC00)" stroke-width="2.6"/></svg></span> <?php te('fc.ifc_guida_evidenzia'); ?></li>
+                <li><span class="g-ic g-ic-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></span> <?php te('fc.ifc_guida_detta'); ?></li>
+            </ul>
+
+            <div class="guide-sez"><?php te('fc.ifc_guida_sez_elenco'); ?></div>
+            <ul class="guide-list">
+                <li><span class="g-ic g-ic-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="4.6" cy="6.5" r="1.35" fill="currentColor" stroke="none"/><path d="M9.5 6.5h10.4"/><circle cx="4.6" cy="12" r="1.35" fill="currentColor" stroke="none"/><path d="M9.5 12h10.4"/><circle cx="4.6" cy="17.5" r="1.35" fill="currentColor" stroke="none"/><path d="M9.5 17.5h10.4"/></svg></span> <?php te('fc.ifc_guida_tab_elenco'); ?></li>
+                <li><span class="g-ic g-ic-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.8 5.2h16.4"/><path d="M10.6 9.7h9.6"/><path d="M10.6 14.3h9.6"/><path d="M3.8 18.8h16.4"/><path d="M3.8 9.4l3.6 2.6-3.6 2.6z" fill="currentColor" stroke="none"/></svg></span> <?php te('fc.ifc_guida_rientri'); ?></li>
+                <li><span class="g-ic g-ic-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="4.6" cy="6.8" r="1.35" fill="currentColor" stroke="none"/><path d="M9.5 6.8h10.4"/><path d="M20 12.4v2.2a2 2 0 01-2 2H10"/><path d="M12.6 14.1L9.9 16.6l2.7 2.5"/></svg></span> <?php te('fc.ifc_guida_acapo'); ?></li>
                 <li><span class="g-ic">🎨</span> <?php te('fc.ifc_guida_barra'); ?></li>
-                <li><span class="g-ic">$x$</span><?php te('fc.ifc_guida_formula_inline'); ?></li>
+            </ul>
+
+            <div class="guide-sez"><?php te('fc.ifc_guida_sez_formule'); ?></div>
+            <ul class="guide-list">
+                <li><span class="g-ic g-ic-svg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 12.9l2.3 1.2 2.4-8.4h13.7"/><path d="M11.8 11.2l5.4 6.6"/><path d="M17.2 11.2l-5.4 6.6"/></svg></span> <?php te('fc.ifc_guida_tab_formula'); ?></li>
+                <li><span class="g-ic">$x$</span> <?php te('fc.ifc_guida_formula_inline'); ?></li>
                 <li><span class="g-ic">$$x$$</span> <?php te('fc.ifc_guida_formula_blocco'); ?></li>
-                <li><span class="g-ic">&lt;/&gt;</span><?php te('fc.ifc_guida_grezzo'); ?></li>
+                <li><span class="g-ic">&lt;/&gt;</span> <?php te('fc.ifc_guida_grezzo'); ?></li>
             </ul>
             <p class="modal-note"><?php te('fc.ifc_guida_formula_modifica'); ?></p>
+
+            <div class="guide-sez"><?php te('fc.ifc_guida_sez_media'); ?></div>
+            <ul class="guide-list">
+                <li><span class="g-ic">🖼</span> <?php te('fc.ifc_guida_img'); ?></li>
+                <li><span class="g-ic">🎙</span> <?php te('fc.ifc_guida_audio'); ?></li>
+            </ul>
+
+            <div class="guide-sez"><?php te('fc.ifc_guida_sez_ia'); ?></div>
+            <ul class="guide-list">
+                <li><span class="g-ic" style="color:var(--purple)">✦</span> <?php te('fc.ifc_guida_ia'); ?></li>
+                <li><span class="g-ic">＋</span> <?php te('fc.ifc_guida_ia_esempio'); ?></li>
+            </ul>
+
+            <div class="guide-sez"><?php te('fc.ifc_guida_sez_esempi'); ?></div>
+            <ul class="guide-list">
+                <li><span class="g-ic">＋</span> <?php te('fc.ifc_guida_esempi_add'); ?></li>
+                <li><span class="g-ic">‹ ›</span> <?php te('fc.ifc_guida_esempi_box'); ?></li>
+            </ul>
+
+            <div class="guide-sez"><?php te('fc.ifc_guida_sez_salvataggio'); ?></div>
+            <ul class="guide-list">
+                <li><span class="g-ic" style="color:var(--green)">💾</span> <?php te('fc.ifc_guida_salva'); ?></li>
+                <li><span class="g-ic">↻</span> <?php te('fc.ifc_guida_altra'); ?></li>
+                <li><span class="g-ic">☰</span> <?php te('fc.ifc_guida_multiplo'); ?></li>
+            </ul>
         </div>
     </div>
 
@@ -618,7 +828,32 @@
        chiedere conferma uscendo — se non si e' toccato niente, chiedere
        sarebbe solo un ostacolo in piu'. */
     var fcSporco = false;
-    function fcSegnaSporco() { fcSporco = true; }
+
+    /* QUALE INPUT SPORCA LA CARTA
+       ---------------------------------------------------------------
+       Nel documento non c'e' solo la carta. Ci sono anche il pannello degli
+       esempi, il riquadro dell'IA e la guida rapida: tutti fuori da
+       #editFcForm, tutti con campi di testo dentro. Ascoltando 'input' su
+       tutto il documento, scrivere un esempio sporcava la CARTA — ed e'
+       esattamente il caso segnalato: si aggiunge un esempio (che si salva da
+       solo, con la sua barra e la sua istanza di autosave, e finisce nel
+       database subito), non si tocca niente della carta, si chiude e la
+       pagina chiede "uscire senza salvare?". Una domanda senza risposta
+       giusta: non c'era niente da salvare, e rispondere "esci" lasciava il
+       dubbio di aver buttato via l'esempio appena scritto.
+
+       La regola ora e' letterale: sporca la carta solo cio' che succede
+       dentro il modulo della carta. */
+    function fcEventoDellaCarta(ev) {
+        var form = document.getElementById('editFcForm');
+        var t = ev && ev.target;
+        if (!form || !t || t.nodeType !== 1) return false;
+        /* t.form copre il campo che sta fuori dal modulo ma gli e' legato con
+           l'attributo form= — oggi non ce ne sono, domani non si sa. */
+        return form.contains(t) || t.form === form;
+    }
+
+    function fcSegnaSporco(ev) { if (fcEventoDellaCarta(ev)) fcSporco = true; }
     document.addEventListener('input', fcSegnaSporco);
     document.addEventListener('change', fcSegnaSporco);
 
@@ -648,6 +883,131 @@
         if (ev.data.type === 'chiedi-chiusura') fcAnnullaModifica(FC_CANCEL_URL);
     });
 
+    /* Il tasto porta all'ELENCO degli esempi, non dritto al modulo di uno
+       nuovo. Prima ci saltava sopra: chi voleva rileggere o correggere un
+       esempio gia' scritto si ritrovava un foglio bianco, e l'unica via per
+       l'elenco era il riquadro in fondo alla carta — che pero' esiste solo se
+       almeno un esempio c'e' gia'.
+
+       Non serve nessun caso particolare per la carta senza esempi:
+       openExamplesModal, se non ne trova nemmeno uno, apre da se' il modulo
+       del nuovo (examples_modal.php). Quindi il tasto continua a fare la cosa
+       giusta in tutt'e due le situazioni, e "aggiungi" resta a un tocco di
+       distanza — il "+" in basso a destra del pannello. */
+    function fcApriEsempi() {
+        if (!FC_ID_CORRENTE) return;
+        var q = document.getElementById('quest'), a = document.getElementById('answ');
+        openExamplesModal(FC_ID_CORRENTE, FC_TIPO, q ? q.value : '', a ? a.value : '');
+    }
+    /* Il vecchio nome resta valido: e' citato in qualche onclick e non vale la
+       pena rompere una pagina per un nome. */
+    function fcApriNuovoEsempio() { fcApriEsempi(); }
+
+    /* ---- Quanti esempi ha la carta ----
+       Il numero stampato dal server e' una fotografia del momento in cui la
+       pagina e' partita: da li' in poi si aggiungono e si eliminano esempi
+       senza mai ricaricare, e l'unico modo di restare onesti e' richiederlo
+       all'API dopo ogni scrittura. */
+    function fcMostraContaEsempi(n) {
+        var el = document.getElementById('fcEsempiConta');
+        if (!el) return;
+        n = parseInt(n, 10) || 0;
+        el.textContent = n > 0 ? '(' + n + ')' : '';
+    }
+
+    function fcRicontaEsempi() {
+        if (!FC_ID_CORRENTE) { fcMostraContaEsempi(0); return; }
+        fetch('examples_api.php?action=get&fc_id=' + encodeURIComponent(FC_ID_CORRENTE)
+              + '&fc_type=' + encodeURIComponent(FC_TIPO))
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (!d || !d.success) return;
+                fcMostraContaEsempi((d.examples || []).length);
+            })
+            .catch(function () { /* il numero resta quello di prima: meglio vecchio che sparito */ });
+    }
+
+    /* ================================================================
+       CHI STA SOPRA COMANDA
+       ================================================================
+       In questo documento i pannelli si impilano: il modulo della carta,
+       sopra il pannello degli esempi, sopra il riquadro dell'IA degli esempi.
+       Due cose andavano storte, ed e' la stessa dimenticanza vista da due
+       lati: quello che sta sotto continuava a comportarsi come se fosse
+       ancora in primo piano.
+
+       1. Il cerchio dell'IA della carta e' fisso in basso a destra, quindi
+          restava li' anche con il pannello degli esempi aperto — accanto al
+          cerchio dell'IA DEGLI ESEMPI, che sta nello stesso angolo. Due
+          pulsanti identici a un centimetro uno dall'altro che fanno cose
+          diverse: si sbaglia, e sbagliando si chiede all'IA di riscrivere la
+          carta mentre si stava scrivendo un esempio.
+
+       2. Con un pannello aperto, la rotellina e il dito continuavano a
+          scorrere il modulo sottostante: si tornava indietro e la carta era
+          in un punto diverso da dove la si era lasciata.
+
+       Un guardiano solo per tutt'e due, perche' la domanda e' una sola: c'e'
+       qualcosa aperto sopra? I pannelli non avvisano quando si aprono (chi li
+       apre cambia style.display o l'attributo hidden e basta), quindi lo si
+       guarda: un MutationObserver su style e hidden, che sono esattamente i
+       due attributi con cui si aprono e si chiudono. */
+    (function () {
+        /* Chi copre il modulo. Il riquadro IA della carta e' nell'elenco solo
+           per lo scorrimento: quando e' aperto il suo pulsante puo' restare
+           visibile, e' il suo. */
+        var COPRONO   = '#ex-list-modal, #ex-form-modal, #agendaModal, .cs-modal-overlay, #fcMiglioraOverlay';
+        var RUBANO_IA = '#ex-list-modal, #ex-form-modal, #agendaModal, .cs-modal-overlay';
+
+        function visibile(el) {
+            if (!el || el.hasAttribute('hidden')) return false;
+            return getComputedStyle(el).display !== 'none';
+        }
+        function qualcosaAperto(selettori) {
+            var lista = document.querySelectorAll(selettori);
+            for (var i = 0; i < lista.length; i++) if (visibile(lista[i])) return true;
+            return false;
+        }
+
+        var eraCoperto = null, scrollSalvato = 0;
+
+        function aggiorna() {
+            var coperto = qualcosaAperto(COPRONO);
+
+            var fab = document.getElementById('fcMiglioraFab');
+            var daNascondere = qualcosaAperto(RUBANO_IA);
+            /* Solo se cambia davvero. setAttribute risveglia l'osservatore
+               anche quando riscrive lo stesso identico valore: assegnare senza
+               guardare prima significherebbe nascondere il pulsante, essere
+               richiamati per quella modifica, nasconderlo di nuovo, e cosi'
+               via ogni 30ms finche' il pannello resta aperto. */
+            if (fab && fab.hidden !== daNascondere) fab.hidden = daNascondere;
+
+            if (coperto === eraCoperto) return;
+            /* La posizione di scorrimento si mette da parte e si rimette a
+               mano: overflow:hidden di norma la conserva, ma "di norma" su
+               una cosa che si nota subito non basta — e ripristinarla costa
+               una riga. */
+            if (coperto) scrollSalvato = window.scrollY || document.documentElement.scrollTop || 0;
+            eraCoperto = coperto;
+            document.documentElement.classList.toggle('fc-popup-sopra', coperto);
+            if (!coperto) window.scrollTo(0, scrollSalvato);
+        }
+
+        var attesa = null;
+        new MutationObserver(function () {
+            /* Un filo di attesa: aprire un pannello tocca piu' attributi di
+               fila, e senza questo il controllo girerebbe una volta per
+               ognuno per arrivare sempre alla stessa conclusione. */
+            clearTimeout(attesa);
+            attesa = setTimeout(aggiorna, 30);
+        }).observe(document.documentElement, {
+            attributes: true, subtree: true, attributeFilter: ['style', 'hidden']
+        });
+
+        aggiorna();
+    })();
+
     function fcSegnalaCambiato() {
         if (window.parent && window.parent !== window) {
             window.parent.postMessage({
@@ -671,6 +1031,9 @@
             return fetchOriginale.apply(this, arguments).then(function (res) {
                 if (metodo === 'POST' && url.indexOf('examples_api.php') !== -1 && res.ok) {
                     fcSegnalaCambiato();
+                    /* Aggiunto o eliminato un esempio, il numero sul tasto in
+                       barra e' vecchio di un esempio: si richiede. */
+                    fcRicontaEsempi();
                 }
                 return res;
             });
@@ -714,6 +1077,9 @@
         /* La carta nuova non esiste ancora: si torna a "crea", si nasconde il
            riquadro esempi (non c'e' nulla a cui agganciarli) e si riparte. */
         FC_ID_CORRENTE = 0;
+        /* Anche il numero sul tasto: e' quello della carta precedente, e su una
+           carta che non esiste ancora vorrebbe dire il falso. */
+        fcMostraContaEsempi(0);
         document.getElementById('fcAltraBtn').hidden = true;
         var box = document.querySelector('.qa-examples');
         if (box) box.hidden = true;
@@ -780,6 +1146,16 @@
                     b._fcExamples = null;
                 });
                 if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes();
+
+    /* La sezione esempi si nasconde se il riquadro resta vuoto: il conteggio
+       lato server e' solo un'ipotesi (puo' essere cambiato da un'altra
+       scheda), quello che conta e' cosa ha davvero trovato l'API. */
+    setTimeout(function () {
+        var sez = document.querySelector('.qa-examples-wrap');
+        if (!sez || FC_MODO === 'insert') return;
+        var pieno = sez.querySelector('.qa-examples-box-filled');
+        sez.hidden = !pieno;
+    }, 900);
             }
         } catch (e) { /* la carta e' comunque aggiornata: l'esempio si puo' riaggiungere a mano */ }
     }
@@ -815,6 +1191,16 @@
     // ============================================================
     if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes();
 
+    /* La sezione esempi si nasconde se il riquadro resta vuoto: il conteggio
+       lato server e' solo un'ipotesi (puo' essere cambiato da un'altra
+       scheda), quello che conta e' cosa ha davvero trovato l'API. */
+    setTimeout(function () {
+        var sez = document.querySelector('.qa-examples-wrap');
+        if (!sez || FC_MODO === 'insert') return;
+        var pieno = sez.querySelector('.qa-examples-box-filled');
+        sez.hidden = !pieno;
+    }, 900);
+
     document.addEventListener('click', function (e) {
         var box = e.target.closest('.qa-examples-box-filled');
         if (!box) return;
@@ -831,6 +1217,16 @@
         var type = box.getAttribute('data-fc-type') || 'parent';
         var qEl = document.getElementById('quest'), aEl = document.getElementById('answ');
         openExamplesModal(realId, type, qEl ? qEl.value : '', aEl ? aEl.value : '');
+
+        /* Qui si e' gia' dentro un modulo di modifica: toccare un esempio deve
+           portare a modificare QUELLO, non a sfogliare l'elenco. Il carosello
+           sa quale sta mostrando (_fcIndex), quindi si apre direttamente il suo
+           modulo. Il ritardo aspetta l'animazione del pannello sotto. */
+        var esempi = box._fcExamples || [];
+        var corrente = esempi[box._fcIndex || 0];
+        if (corrente && corrente.id && typeof openExampleForm === 'function') {
+            setTimeout(function () { openExampleForm(realId, type, corrente.id); }, 260);
+        }
     });
 
     if (document.getElementById('editFcForm')) {
@@ -880,9 +1276,20 @@
                     /* Da qui in avanti non si crea piu': si modifica la carta
                        appena creata. Senza questo, premere di nuovo salva
                        creerebbe un doppione a ogni giro. */
+                    /* Da qui in poi questo popup E' quello di modifica: cambia
+                       la modalita', il titolo, e si accendono le azioni che
+                       hanno bisogno di una carta esistente (esempi, elimina).
+                       Senza questo, premere di nuovo salva creerebbe un
+                       doppione a ogni giro. */
                     FC_MODO = 'edit';
                     var campoModo = document.querySelector('input[name="modo"]');
                     if (campoModo) campoModo.value = 'edit';
+                    var titolo = document.getElementById('fcTopbarTitle');
+                    if (titolo) titolo.textContent = T('fc.mfc_titolo_breve');
+                    var addEx = document.getElementById('fcAddEsempio');
+                    if (addEx) addEx.disabled = false;
+                    var altra = document.getElementById('fcAltraBtn');
+                    if (altra) altra.hidden = false;
                     var campoId = document.querySelector('input[name="fc_id"]');
                     if (!campoId) {
                         campoId = document.createElement('input');
@@ -945,9 +1352,14 @@
         });
 
         /* Ogni modifica alza lo sporco anche sulla barra, cosi' il pallino
-           arancione compare e il salvataggio automatico (se acceso) parte. */
-        document.addEventListener('input', function () { NisamaSaveBar.touch('scheda'); });
-        document.addEventListener('change', function () { NisamaSaveBar.touch('scheda'); });
+           arancione compare e il salvataggio automatico (se acceso) parte.
+           Stesso filtro di fcSegnaSporco, e per lo stesso motivo: senza, ogni
+           lettera scritta in un esempio accendeva il pallino della CARTA e —
+           con l'interruttore acceso — le faceva partire un salvataggio per
+           qualcosa che non era cambiato. La barra degli esempi ce l'ha gia',
+           la sua, sull'istanza 'esempi'. */
+        document.addEventListener('input', function (ev) { if (fcEventoDellaCarta(ev)) NisamaSaveBar.touch('scheda'); });
+        document.addEventListener('change', function (ev) { if (fcEventoDellaCarta(ev)) NisamaSaveBar.touch('scheda'); });
     }
     </script>
 

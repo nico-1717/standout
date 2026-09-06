@@ -246,7 +246,12 @@ function sec_str($value, int $max = 255, string $fallback = ''): string {
     $s = str_replace(["\r\n", "\r"], "\n", $s);
     $s = str_replace("\n", ' ', $s);
     $s = preg_replace('/[\x00-\x1F\x7F]/u', '', $s);
-    $s = strip_tags($s);
+    /* Stesso difetto corretto poco sopra in sec_text(), e per lo stesso
+       motivo: strip_tags() su un '<' senza '>' di chiusura non toglie quel
+       carattere, elimina tutto cio' che segue fino alla fine della
+       stringa. Qui il rischio e' lo stesso su nomi e titoli brevi — una
+       materia chiamata "Grafi (n<m)" sarebbe sparita a meta'. sec_h() in
+       uscita scappa gia' correttamente '<'/'>', quindi qui non serviva. */
     $s = trim($s);
     if ($s === '') return $fallback;
     return mb_substr($s, 0, $max, 'UTF-8');
@@ -258,7 +263,24 @@ function sec_text($value, int $max = 8000, string $fallback = ''): string {
     $s = (string)$value;
     $s = str_replace(["\r\n", "\r"], "\n", $s);
     $s = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $s);
-    $s = strip_tags($s);
+    /* CORREZIONE — bug grave, dati persi in silenzio.
+       C'era qui strip_tags($s). Il suo scopo era ragionevole (un livello in
+       piu' di difesa, oltre a sec_h() usato ovunque in uscita), ma
+       strip_tags() ha un difetto notissimo di PHP: se trova un '<' senza
+       una '>' di chiusura corrispondente, non toglie solo quel carattere —
+       tratta TUTTO cio' che segue come se fosse ancora dentro un tag
+       aperto, e lo elimina fino alla FINE della stringa. Un testo con
+       "n<m" (una disuguaglianza matematica, non un tag) perdeva cosi'
+       tutto quello che veniva dopo, senza nessun errore: pareva un
+       salvataggio riuscito, e in un campo lungo il taglio poteva passare
+       inosservato per righe intere.
+       Il contenuto che passa da sec_text() — testo semplice, o il
+       documento JSON delle flashcard — non viene mai stampato cosi' com'e':
+       ogni punto di uscita di questo progetto usa sec_h() per l'HTML o
+       fcdEscape() (in fc_parser.js) per il documento delle carte, ed
+       entrambi scappano '<'/'>'/'&'/'"' correttamente. strip_tags() qui non
+       aggiungeva percio' nessuna protezione reale — solo il rischio di
+       perdere dati per un carattere del tutto legittimo. */
     $s = preg_replace("/\n{4,}/", "\n\n\n", $s);
     return mb_substr(trim($s), 0, $max, 'UTF-8');
 }

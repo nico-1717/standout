@@ -65,6 +65,30 @@ $cards     = (isset($_POST['cards']) && is_array($_POST['cards'])) ? $_POST['car
 $reordered = sec_int($_POST['reordered'] ?? 1, 0, 1, 1);
 $append    = sec_int($_POST['append'] ?? 0, 0, 1, 0);
 
+/* CORREZIONE — bug grave: agganciare una carta come figlia (o l'inverso,
+   scollegarla) sembrava salvarsi ma non cambiava niente nel database.
+   Il percorso veloce piu' sotto fa solo un UPDATE nella tabella che
+   $orig_type indica, senza mai spostare la riga fra fc_images e
+   fc_child_cards: e' pensato per quando NESSUNA struttura e' cambiata, solo
+   testo e allegati. Sapere se e' davvero cosi' dipendeva pero' del tutto da
+   $reordered, un valore mandato dal client — e un aggancio cambia la
+   struttura (padre diventa figlio o viceversa) senza necessariamente far
+   scattare quel flag, se la pagina che invia non lo prevede. Il risultato:
+   l'UPDATE va a buon fine, il server risponde successo, ma la carta resta
+   esattamente dov'era.
+   Invece di fidarsi ciecamente di $reordered, lo si verifica qui: se anche
+   una sola carta ha is_child in disaccordo con orig_type (una struttura e'
+   davvero cambiata, qualunque cosa dica il client), si passa al percorso
+   completo, che sa gestire la migrazione fra le due tabelle. */
+if ($reordered === 0) {
+    foreach ($cards as $c) {
+        if (!is_array($c)) continue;
+        $era_figlio  = sec_enum($c['orig_type'] ?? null, ['parent', 'child'], 'parent') === 'child';
+        $ora_figlio  = (int)($c['is_child'] ?? 0) === 1;
+        if ($era_figlio !== $ora_figlio) { $reordered = 1; break; }
+    }
+}
+
 /* indice della riga inviata -> id vero e tipo. La pagina la usa per
    aggiornarsi senza ricaricarsi. */
 $mappa = [];
@@ -313,12 +337,30 @@ foreach ($cards as $i => $c) {
                $all['question_audio'], $all['answer_audio'], $ordine]);
         $id = sec_insert_id();   // serve alla mappa: e' l'id con cui la pagina continuera' a lavorare
     } else {
+        /* Il vecchio padre serve DOPO l'update, per capire se e' rimasto
+           orfano di figli — va letto ORA, prima che parent_id venga
+           sovrascritto qui sotto. */
+        $vecchio_padre_id = (int)(sec_one("SELECT parent_id FROM fc_child_cards WHERE id_child = ?", [$id])['parent_id'] ?? 0);
+
         [$sets, $vals] = fc_set_allegati($all, $c);
         $clausole = array_merge(['parent_id = ?', 'custom_order = ?', 'question_desc = ?', 'answer_desc = ?'], $sets);
         $valori   = array_merge([$real_parent_id, $ordine, $q, $a], $vals);
         sec_q("UPDATE fc_child_cards SET " . implode(', ', $clausole) . "
                 WHERE id_child = ? AND parent_id IN (SELECT id FROM fc_images WHERE category_id = ?)",
               array_merge($valori, [$id, $categoryId]));
+    }
+
+    /* Il vecchio padre, se questa carta ne aveva uno diverso, potrebbe aver
+       appena perso il suo ultimo figlio: is_father andrebbe ricalcolato per
+       lui too, non solo acceso per il nuovo. Non e' la causa nota del bug
+       segnalato (la carta appartiene comunque al padre giusto in
+       fc_child_cards, questo flag serve solo a sapere se mostrare la
+       freccia "ha figli"), ma lasciarlo sbagliato avrebbe fatto vedere un
+       padre svuotato come se ne avesse ancora. */
+    if (isset($vecchio_padre_id) && $vecchio_padre_id > 0 && $vecchio_padre_id !== $real_parent_id) {
+        $ha_ancora_figli = sec_one("SELECT COUNT(*) AS c FROM fc_child_cards WHERE parent_id = ?", [$vecchio_padre_id])['c'] ?? 0;
+        sec_q("UPDATE fc_images SET is_father = ? WHERE id = ? AND category_id = ?",
+              [(int)$ha_ancora_figli > 0 ? 1 : 0, $vecchio_padre_id, $categoryId]);
     }
 
     sec_q("UPDATE fc_images SET is_father = 1 WHERE id = ? AND category_id = ?", [$real_parent_id, $categoryId]);

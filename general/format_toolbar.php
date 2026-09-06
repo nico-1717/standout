@@ -330,11 +330,18 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                      che nessuno l'abbia chiesto. -->
                 <button type="button" class="fmt-btn fmt-intelligente" data-cmd="intelligente-auto"
                         title="Riconosce da solo un comando LaTeX appena scritto e lo mette in formula" aria-pressed="false">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9.5 3.5c-2.2 0-4 1.8-4 4 0 .6.1 1.1.4 1.6C4.7 9.7 4 10.9 4 12.2c0 1.6 1 2.9 2.4 3.5-.1.3-.1.6-.1.9 0 2.2 1.8 4 4 4 .5 0 1-.1 1.4-.3"/>
-                        <path d="M14.5 3.5c2.2 0 4 1.8 4 4 0 .6-.1 1.1-.4 1.6.8.6 1.5 1.8 1.5 3.1 0 1.6-1 2.9-2.4 3.5.1.3.1.6.1.9 0 2.2-1.8 4-4 4-.5 0-1-.1-1.4-.3"/>
-                        <path d="M12 3.5v17"/>
-                        <path d="M9.5 8c.7 0 1.3.5 1.3 1.2M9 12c.7 0 1.3.5 1.3 1.2M14.5 8c-.7 0-1.3.5-1.3 1.2M15 12c-.7 0-1.3.5-1.3 1.2"/>
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" stroke="none">
+                        <!-- Scintilla a due punte, non piu' un cervello stile
+                             cartone animato: le altre icone della barra sono
+                             tutte forme geometriche pulite (punti, un
+                             segmento, un rettangolo), e quella coppia di
+                             lobi arrotondati stonava — leggeva come
+                             un'emoji incollata, non come parte dello stesso
+                             linguaggio visivo. Una scintilla e' il segno
+                             comune per "succede da solo, in automatico": si
+                             capisce a colpo d'occhio anche senza il titolo. -->
+                        <path d="M12 3.2c.4 3 1 4.9 2.1 6 1.1 1.1 3 1.7 6 2.1-3 .4-4.9 1-6 2.1-1.1 1.1-1.7 3-2.1 6-.4-3-1-4.9-2.1-6-1.1-1.1-3-1.7-6-2.1 3-.4 4.9-1 6-2.1 1.1-1.1 1.7-3 2.1-6z"/>
+                        <path d="M18.6 3.4c.2 1.3.5 2.1.9 2.5.4.4 1.2.7 2.5.9-1.3.2-2.1.5-2.5.9-.4.4-.7 1.2-.9 2.5-.2-1.3-.5-2.1-.9-2.5-.4-.4-1.2-.7-2.5-.9 1.3-.2 2.1-.5 2.5-.9.4-.4.7-1.2.9-2.5z"/>
                     </svg>
                 </button>
             </div>
@@ -458,29 +465,24 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 .fmt-toolbar.fmt-agganciata{
     position:fixed; top:6px; z-index:1000;
 }
-/* Il vuoto che la barra lascerebbe andandosene in fixed: senza, tutto quello
-   sotto salterebbe su di colpo. */
-.fmt-toolbar-segnaposto{ display:none; }
-.fmt-toolbar-segnaposto.is-attivo{ display:block; }
 
-/* Agganciata, la barra non resta dentro la sua casella: la si sposta qui, in
-   fondo al body. Non e' un vezzo. position:fixed si misura dallo schermo solo
-   finche' nessun antenato ha una trasformazione, un filtro o un
-   will-change:transform: basta uno solo di questi — non importa quanto
-   lontano — perche' "fixed" cominci a misurarsi da QUELL'antenato. Nella
-   pagina vera la carta che contiene la casella ha will-change:transform (le
-   serve per lo scorrimento laterale) e overflow:hidden (gli angoli
-   arrotondati): la prima cosa mandava la barra agganciata dentro la carta
-   invece che in cima allo schermo, la seconda la ritagliava via del tutto —
-   ed e' per questo che scorrendo non compariva niente e il posto lasciato dal
-   segnaposto restava vuoto. Fuori da li', fixed torna a voler dire fixed.
-   L'involucro e' senza posizione propria: e' la barra dentro di lui a restare
-   fixed, quindi in pagina non occupa nessuno spazio. */
+/* La copia in sovraimpressione vive qui, in fondo al body. Non e' un vezzo:
+   position:fixed si misura dallo schermo solo finche' nessun antenato ha una
+   trasformazione, un filtro o un will-change:transform — basta uno solo di
+   questi, non importa quanto lontano, perche' "fixed" cominci a misurarsi da
+   QUELL'antenato. Nella pagina vera la carta che contiene la casella ha
+   will-change:transform (le serve per lo scorrimento laterale) e
+   overflow:hidden (gli angoli arrotondati): il primo manderebbe la copia
+   dentro la carta invece che in cima allo schermo, il secondo la ritaglierebbe
+   via del tutto. Fuori da li', fixed torna a voler dire fixed.
+   L'involucro e' senza posizione propria: e' la copia dentro di lui a restare
+   fixed, quindi in pagina non occupa nessuno spazio — e l'originale, che non
+   si e' mai mossa, continua a occupare il suo. */
 .fmt-portale{ position:static; }
-/* Nel portale la barra e' larga quanto le dice il JavaScript (la larghezza
-   della casella da cui viene), quindi niente margine sotto e nessuna delle
-   riduzioni di altezza usate per farla comparire e sparire: qui e' sempre
-   visibile, altrimenti non ci sarebbe motivo di averla agganciata. */
+/* Nella copia la larghezza la detta il JavaScript (quella dell'originale),
+   quindi niente margine sotto e nessuna delle riduzioni di altezza che servono
+   a far comparire e sparire l'originale: la copia esiste solo quando deve
+   vedersi, quindi e' sempre visibile. */
 .fmt-portale .fmt-toolbar{ margin-bottom:0; max-height:none; opacity:1; }
 .fmt-portale.fmt-chiusa .fmt-toolbar{ border-radius:999px; }
 .fmt-portale.fmt-chiusa .fmt-row{ border-radius:999px; padding:5px; }
@@ -799,6 +801,23 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 .fc-editor:empty:before{ content:attr(data-placeholder); color:var(--text-3,#AEAEB2); }
 .fc-editor:focus{ box-shadow:inset 0 0 0 1.5px var(--blue,#007AFF); }
 
+/* Senza barra sopra, la casella deve reggersi da sola: bordo e angoli
+   COMPLETI, non solo quelli sotto. Con la barra chiusa via max-height:0 (vedi
+   sopra) il div della barra e' ancora li', a zero altezza — la casella non lo
+   sa e restava con la cima piatta e senza bordo, come se qualcosa dovesse
+   ancora esserci sopra: e' il "non chiusa in alto" segnalato.
+   La transizione e' la stessa della barra (stessa durata, stessa curva): le
+   due cose si muovono insieme, la barra che si apre e l'angolo che si
+   riduce, invece di scattare l'una dopo l'altra. */
+.fc-editor{
+    transition:border-radius .28s var(--spring,cubic-bezier(.32,.72,0,1)),
+               border-top-width .28s var(--spring,cubic-bezier(.32,.72,0,1));
+}
+.fmt-editor-wrap:not(.fmt-attiva) .fc-editor{
+    border-top:.5px solid var(--hairline-2,rgba(60,60,67,.22));
+    border-radius:var(--r-field,13px);
+}
+
 
 /* Le formule ora le disegna fc_doc.js (.fc-x in linea, .fc-fx a blocco):
    lo stile sta li' perche' serve identico anche alle pagine di sola
@@ -1114,6 +1133,41 @@ function ftChiudiFrase(testo, lingua) {
     return ftSegniDettati(t, lingua);
 }
 
+/* Vero solo se TUTTO quello che si e' detto, dalla prima all'ultima lettera,
+   e' un unico segno dettato ("punto", "punto e virgola"...) e nient'altro —
+   non una frase che contiene anche quella parola. Serve a distinguere un
+   comando di punteggiatura esplicito da una frase qualunque quando
+   l'automatismo e' acceso, cosa che ftGiunzione da sola non sa fare (vedi
+   sopra). "a capo"/"nuova riga" non passano da qui: un a capo e' un nuovo
+   paragrafo del documento, non un carattere da appendere al testo — se ne
+   occupa ftUtteranzaACapo, prima ancora di arrivare a questo punto. */
+function ftSegnoDaSolo(testo, lingua) {
+    var tab = FT_SEGNI[(lingua || 'it').slice(0, 2).toLowerCase()] || FT_SEGNI.it;
+    var t = ftSenzaAccenti(String(testo || '').trim());
+    if (!t) return null;
+    for (var k = 0; k < tab.length; k++) {
+        if (tab[k][1] === '\n') continue;
+        if (ftSenzaAccenti(tab[k][0]) === t) return tab[k][1];
+    }
+    return null;
+}
+
+/* Vero se tutto il respiro dettato e' solo "a capo" o "nuova riga" (nelle
+   varianti delle lingue supportate). Un a capo VERO va fatto con la stessa
+   funzione del tasto Invio (fcdSplitBlock): un semplice carattere "\n"
+   infilato nel testo non crea un nuovo blocco per il documento (che lavora a
+   paragrafi, non a righe), quindi dettandolo non succedeva nulla di
+   visibile — il modello lo trattava come uno spazio qualunque. */
+function ftUtteranzaACapo(testo, lingua) {
+    var tab = FT_SEGNI[(lingua || 'it').slice(0, 2).toLowerCase()] || FT_SEGNI.it;
+    var t = ftSenzaAccenti(String(testo || '').trim());
+    if (!t) return false;
+    for (var k = 0; k < tab.length; k++) {
+        if (tab[k][1] === '\n' && ftSenzaAccenti(tab[k][0]) === t) return true;
+    }
+    return false;
+}
+
 // ---------------------------------------------------------------
 // Il pannello
 // ---------------------------------------------------------------
@@ -1128,6 +1182,7 @@ function ftCostruisciPannelloMic(bar, alCambio) {
     FT_LINGUE.forEach(function (L) {
         var b = document.createElement('button');
         b.type = 'button';
+        b.tabIndex = -1;   // mai fuoco da solo: vedi il commento in ftSetupToolbar
         b.className = 'fmt-lingua';
         b.dataset.lang = L.l;
         b.title = L.n;
@@ -1730,6 +1785,7 @@ function ftSetupDictation(wrap, bar) {
             if (!def) return;
             var b = document.createElement('button');
             b.type = 'button';
+            b.tabIndex = -1;   // mai fuoco da solo: vedi il commento in ftSetupToolbar
             b.className = 'fmt-sugg-voce' + (FT_COMANDI_CHIUSURA.indexOf(ch) !== -1 ? ' fmt-sugg-chiudi' : '');
             b.dataset.cmdVoce = ch;
             b.textContent = def.eti;
@@ -1950,6 +2006,19 @@ function ftSetupDictation(wrap, bar) {
         var parole = String(frase).trim().split(/\s+/).filter(Boolean);
         if (!parole.length) return;
 
+        /* "A capo"/"nuova riga": un a capo VERO, non un carattere infilato nel
+           testo — vedi il commento su ftUtteranzaACapo per il perche'. Va
+           controllato PRIMA di ogni altra cosa, sempre (con o senza
+           l'automatismo di punteggiatura, con o senza i comandi vocali
+           accesi): dettarlo deve andare a capo punto e basta, non essere
+           un'opzione fra tante. Dentro una formula "a capo" non significa
+           niente di strutturale — la' e' gia' gestito da "fine formula" e
+           dai suoi comandi — quindi non si intercetta. */
+        if (!stato.formula && ftUtteranzaACapo(parole.join(' '), ftLinguaScelta())) {
+            eseguiStrutturale(function (d, s) { return fcdSplitBlock(d, s); });
+            return;
+        }
+
         var comandiAttivi = ftComandiAccesi();
         var buffer = [];
 
@@ -1981,8 +2050,28 @@ function ftSetupDictation(wrap, bar) {
                     grezzo = grezzo.charAt(0).toLowerCase() + grezzo.slice(1);
                     scriviTesto((testoPrimaDelCursore().replace(/\s+$/, '') ? ' ' : '') + grezzo);
                 } else {
-                    var g = ftGiunzione(testoPrimaDelCursore(), testo, ftLinguaScelta());
-                    scriviTesto(g.segno + (testoPrimaDelCursore() ? ' ' : '') + g.testo);
+                    /* Anche con la punteggiatura automatica accesa, un segno
+                       DETTATO A PAROLE ("punto", "virgola"...) resta un
+                       comando esplicito, non una frase da punteggiare da
+                       sola. ftGiunzione non lo sapeva distinguere da una
+                       parola qualunque: "punto" detto dopo una frase gia'
+                       lunga (8 parole o piu') cadeva nella sua regola "pezzo
+                       lungo, quindi periodo nuovo" — un punto VERO messo
+                       PRIMA — e poi scriveva comunque la parola "punto" come
+                       se fosse il contenuto della frase. Risultato: il
+                       segno E la parola, uno via l'altro, esattamente il
+                       doppione segnalato. Qui si controlla PRIMA se tutto
+                       quello che si e' detto e' solo quel segno: se lo e',
+                       si scrive solo il segno, attaccato a quello che c'era
+                       gia', senza far girare l'automatismo su un contenuto
+                       che contenuto non e'. */
+                    var segnoSolo = ftSegnoDaSolo(testo, ftLinguaScelta());
+                    if (segnoSolo != null) {
+                        scriviTesto(segnoSolo);
+                    } else {
+                        var g = ftGiunzione(testoPrimaDelCursore(), testo, ftLinguaScelta());
+                        scriviTesto(g.segno + (testoPrimaDelCursore() ? ' ' : '') + g.testo);
+                    }
                 }
             }
             buffer = [];
@@ -2000,7 +2089,25 @@ function ftSetupDictation(wrap, bar) {
                 eseguiComando(soloComando.chiave);
                 return;
             }
-            comandiAttivi = false;
+            /* "Pallino" e' un'eccezione voluta a questa regola: a differenza
+               di "formula" o "lista", nessuno lo dice per altro che aprire un
+               punto elenco — non e' una parola che possa capitare per caso in
+               mezzo a una frase di matematica. Riconoscerlo anche quando non
+               e' tutto il respiro (["pallino","cane"], non solo ["pallino"])
+               permette di dettare il punto e il suo contenuto in un fiato
+               solo, com'e' naturale fare: si esegue il comando per aprire il
+               punto e si continua a elaborare quello che resta come il testo
+               da scriverci dentro. Senza questa eccezione l'intera frase,
+               "pallino" compreso, finiva scritta alla lettera invece di
+               aprire il punto — il "pallino cane" scritto invece di un
+               nuovo punto elenco con dentro "cane". */
+            if (soloComando && soloComando.chiave === 'puntino' && soloComando.quante < parole.length) {
+                eseguiComando(soloComando.chiave);
+                parole = parole.slice(soloComando.quante);
+                if (!parole.length) return;
+            } else {
+                comandiAttivi = false;
+            }
         }
 
         var i = 0;
@@ -2531,6 +2638,30 @@ function ftMark(wrap, key, val) {
     ftCmd(wrap, function (doc, sl) { return { doc: fcdToggleMark(doc, sl, key, val), sel: sl }; });
 }
 
+/* Come ftMark, ma non alterna mai: mette sempre il valore dato, tolto solo
+   quando val e' quello del colore di default (undefined/null). Serve ai
+   pallini colore: cliccando piu' volte lo stesso colore su un testo
+   selezionato, ftMark lo avrebbe tolto al secondo click (e' un interruttore,
+   "guarda com'e' e fa il contrario" — bene per grassetto/corsivo, dove
+   esistono solo due stati, ma un colore non e' un interruttore: e' una
+   scelta fra tante, e ricliccare lo stesso rosso deve confermarlo, non
+   spegnerlo. Per toglierlo davvero si tocca il pallino del colore di
+   default, che passa val=undefined e finisce comunque nel "cancella". */
+function ftMarkImposta(wrap, key, val) {
+    var ed = ftEditor(wrap);
+    var s = window.getSelection();
+    var collassata = !s || !s.rangeCount || s.getRangeAt(0).collapsed || !ed.contains(s.anchorNode);
+    if (collassata) {
+        ed.focus();
+        var m = ftMarksAtCaret(ed);
+        if (val === null || val === undefined) delete m[key]; else m[key] = val;
+        ftInsertMarked(ed, m);
+        ftSync(wrap);
+        return;
+    }
+    ftCmd(wrap, function (doc, sl) { return { doc: fcdSetMark(doc, sl, key, val === undefined ? null : val), sel: sl }; });
+}
+
 // ---------------------------------------------------------------
 // Stato dei tasti: acceso quando lo e' davvero
 // ---------------------------------------------------------------
@@ -2560,6 +2691,16 @@ function ftRefreshState(wrap) {
     bar.querySelectorAll('.fmt-btn[data-cmd="list"]').forEach(function (b) {
         b.classList.toggle('is-active', !!(blocco && blocco.t === 'li'));
     });
+    /* Il pannello Elenco aperto ha senso solo su un punto elenco: e' li' che
+       si sceglie il tipo di pallino o si cambia livello. Spostandosi su una
+       riga che un pallino non ce l'ha, quelle scelte non significano piu'
+       niente per quella riga — lasciarlo aperto e' un pannello che parla di
+       un punto che non si sta piu' guardando. Si chiude da solo, come si
+       chiuderebbe a mano toccando di nuovo la linguetta. */
+    var listPanel = fcPanelOf(bar, 'list');
+    if (listPanel && listPanel.classList.contains('is-open') && sel && (!blocco || blocco.t !== 'li')) {
+        fcClosePanel(bar);
+    }
     bar.querySelectorAll('.fmt-btn[data-cmd="math-display"]').forEach(function (b) {
         b.classList.toggle('is-active', !!(blocco && blocco.t === 'fx'));
     });
@@ -2575,6 +2716,15 @@ function ftRefreshState(wrap) {
     var pallini = bar.querySelectorAll('.fmt-pop-dot[data-color]');
     var colore = collassata ? (marks.c || '') : '';
     pallini.forEach(function (d) { d.classList.toggle('is-scelto', (d.dataset.color || '') === colore); });
+
+    /* Se in questo momento c'e' anche una copia in sovraimpressione, va
+       rifatta: tutto quello che si e' appena aggiornato qui sopra (tasti
+       accesi, colore scelto, pannelli) sta nell'originale, e la copia
+       mostrerebbe ancora lo stato di un attimo fa. */
+    if (typeof ftAggancioAggiornaClone === 'function' &&
+        FT_AGGANCIO && FT_AGGANCIO.clone && FT_AGGANCIO.wrap === wrap) {
+        ftAggancioAggiornaClone();
+    }
 }
 
 // ---------------------------------------------------------------
@@ -2709,20 +2859,29 @@ function ftMQMonta(el, wrap, dove) {
        (el.textContent = '') porta via quel nodo, e il cursore se ne va con
        lui — cosi' il focus() di MathQuill, un attimo dopo, trova campo
        libero.
-       Con una formula VUOTA non c'e' nessun nodo di testo: il cursore sta
-       sull'ELEMENTO stesso, alla posizione zero, e a svuotarlo non succede
-       niente. Resta li' dentro un elemento che la riga sopra ha appena reso
-       contenteditable="false": il browser continua a disegnarcelo (si vedeva
-       lampeggiare) e riporta il fuoco alla casella modificabile subito dopo
-       il focus() di MathQuill, che quindi non attecchisce mai. Nessun tasto
-       arrivava ne' a MathQuill ne' alla formula, perche' quel punto non e'
-       scrivibile.
-       Togliendo la selezione si mette il caso vuoto nelle stesse condizioni
-       dell'altro. Se il montaggio poi fallisce non si perde niente: il
-       ripiego (ftMathEdita, subito dopo ftMQMonta) il cursore lo ripiazza. */
+       Con una formula VUOTA non c'e' nessun nodo di testo dentro cui stare:
+       chi ha messo il cursore li' (fcdSetSel, tramite fcdDomFromPos) lo ha
+       appoggiato o sull'ELEMENTO stesso (offset 0, un div senza figli non
+       ha altro posto) o — a seconda di come il browser normalizza un punto
+       "dentro un elemento vuoto" — sul suo GENITORE, con l'offset che punta
+       all'indice dell'elemento fra i suoi fratelli. Il primo tentativo
+       controllava solo il primo caso (el.contains(...)): quando il browser
+       sceglieva il secondo, il controllo restava falso, la selezione non
+       veniva tolta, e il bug proseguiva identico — questo e' il motivo per
+       cui il primo giro di correzione non bastava.
+       Qui si controlla invece l'intero editor (ed): a questo punto della
+       funzione il cursore sta per forza dentro la formula appena creata (chi
+       chiama ftMQMonta lo ha appena messo li', con fcdSetSel o con
+       l'appiglio di ftCaretInEmptyMath), quindi qualunque selezione ancora
+       presente da qualche parte dentro ed e' comunque quella da togliere di
+       mezzo per lasciare campo libero a MathQuill — non serve indovinare
+       esattamente su quale nodo il browser l'abbia normalizzata. Se il
+       montaggio poi fallisce non si perde niente: il ripiego (ftMathEdita,
+       subito dopo ftMQMonta) il cursore lo rimette dov'era. */
     try {
+        var edSel = ftEditor(wrap);
         var selPrima = window.getSelection();
-        if (selPrima && selPrima.rangeCount && selPrima.anchorNode && el.contains(selPrima.anchorNode)) {
+        if (edSel && selPrima && selPrima.rangeCount && selPrima.anchorNode && edSel.contains(selPrima.anchorNode)) {
             selPrima.removeAllRanges();
         }
     } catch (eSel) {}
@@ -2820,8 +2979,170 @@ function ftMQMonta(el, wrap, dove) {
         return false;
     }
 
+    ftMQTasti(el, wrap, campo);
     ftMQFuoco(el, dove);
     return true;
+}
+
+/* Comandi che MathQuill non sa scrivere: li si scopre chiedendolo a lui, una
+   volta sola per comando, invece di tenere una lista scritta a mano che
+   invecchia. Il metodo e' quello che ftMQMonta usa gia' piu' su: gli si da'
+   il comando, e se quello che ne riesce e' vuoto vuol dire che se l'e'
+   mangiato. */
+var FT_MQ_SUPPORTO = {};
+function ftMQSupporta(comando) {
+    if (Object.hasOwn ? Object.hasOwn(FT_MQ_SUPPORTO, comando) : (comando in FT_MQ_SUPPORTO)) {
+        return FT_MQ_SUPPORTO[comando];
+    }
+    var ok = false;
+    try {
+        var MQ = ftMQ();
+        var prova = document.createElement('span');
+        prova.style.cssText = 'position:absolute;left:-9999px;top:-9999px;';
+        document.body.appendChild(prova);
+        var c = MQ.MathField(prova, {});
+        /* Tre forme, perche' i comandi non hanno tutti la stessa forma: c'e'
+           chi non vuole argomenti (\vert, \times), chi ne vuole uno
+           (\overline, \sqrt) e chi due (\frac). Provandone una sola, quelli
+           delle altre due famiglie uscivano vuoti e passavano per non
+           supportati — \frac fra questi. Basta che UNA delle tre lasci
+           qualcosa perche' il comando sia buono. */
+        var forme = ['\\' + comando, '\\' + comando + '{ab}', '\\' + comando + '{a}{b}'];
+        for (var fi = 0; fi < forme.length && !ok; fi++) {
+            try { c.latex(''); c.write(forme[fi]); ok = c.latex().trim() !== ''; } catch (e2) {}
+        }
+        c.latex('');
+        /* Il metro e' "ne e' rimasto qualcosa", non "c'e' ancora il nome del
+           comando": tanti comandi che MathQuill sa fare benissimo spariscono
+           dal LaTeX perche' diventano il simbolo corrispondente — \vert esce
+           come "|", \times come il segno per. Cercando il nome li si
+           giudicava tutti non supportati e finivano nella modifica a LaTeX:
+           e' quello che e' successo a \vert. Quando invece un comando non lo
+           sa fare, MathQuill si mangia tutto e non resta niente. */
+        prova.remove();
+    } catch (e) { ok = false; }
+    FT_MQ_SUPPORTO[comando] = ok;
+    return ok;
+}
+
+/* Porta questa formula dalla modifica con MathQuill a quella con il LaTeX
+   scritto a mano, tenendo quello che c'era e aggiungendo in fondo il comando
+   che ha fatto scattare il passaggio. Serve per i comandi che MathQuill non
+   sa scrivere (\underbrace, \cancel...): invece di ingoiarli in silenzio —
+   lasciando la formula vuota e l'utente senza capire perche' — si passa alla
+   modalita' che quel comando lo sa gestire benissimo. */
+function ftMQPassaALatex(el, wrap, comando) {
+    var campo = el._mqCampo;
+    var tex = '';
+    var posComando = -1;
+    var pezzo = '\\' + comando + '{}';
+    if (campo) {
+        /* Il comando deve finire DOVE STA IL CURSORE, non in fondo alla
+           formula: attaccarlo alla fine e' sbagliato in tutti i casi in cui
+           si sta scrivendo in mezzo a qualcosa di gia' scritto.
+           Il punto esatto MathQuill non lo dice, ma si puo' fargli scrivere
+           un segnalino li' dove si trova e poi cercarlo nel LaTeX: dove sta
+           lui, sta il cursore. */
+        var segnalino = '\\text{@ftq@}';
+        try { campo.write(segnalino); } catch (e) {}
+        tex = campo.latex() || '';
+        var i = tex.indexOf(segnalino);
+        if (i === -1) i = tex.indexOf('\\text{@ftq@}');
+        if (i !== -1) {
+            tex = tex.slice(0, i) + pezzo + tex.slice(i + segnalino.length);
+            posComando = i;
+        } else {
+            /* Segnalino non ritrovato: meglio in fondo che perdere tutto. */
+            posComando = tex.length;
+            tex = tex + pezzo;
+        }
+    } else {
+        tex = el.dataset.tex || '';
+        posComando = tex.length;
+        tex = tex + pezzo;
+    }
+    try { if (campo && campo.revert) campo.revert(); } catch (e) {}
+    el._mqCampo = null;
+    el.classList.remove('fc-mq', 'mq-editable-field', 'mq-math-mode', 'mq-focused');
+    el.dataset.tex = tex;
+    ftMQRipiego(el, tex);
+    /* Cursore fra le graffe del comando appena inserito, dove si sta per
+       scrivere: non all'ultima graffa della formula, che con il comando in
+       mezzo a del testo gia' scritto sarebbe tutt'altro punto. */
+    try {
+        var t = el.firstChild;
+        if (t) {
+            var pos = (posComando >= 0)
+                ? posComando + pezzo.length - 1   // subito prima della graffa che chiude
+                : (el.textContent || '').lastIndexOf('}');
+            if (pos < 0) pos = (el.textContent || '').length;
+            /* Il testo mostrato ha un carattere invisibile in testa (lo mette
+               ftMQRipiego per poter mettere il cursore ai bordi): la posizione
+               contata sul LaTeX va spostata di uno. */
+            if ((t.nodeValue || '').charAt(0) === '\u200B') pos += 1;
+            var r = document.createRange();
+            r.setStart(t, Math.max(0, Math.min(pos, (t.nodeValue || '').length)));
+            r.collapse(true);
+            var sel = window.getSelection();
+            sel.removeAllRanges(); sel.addRange(r);
+        }
+    } catch (e) {}
+    if (wrap) ftSync(wrap);
+}
+
+/* I tasti che MathQuill da solo non gestisce bene. Si ascolta la casella
+   nascosta su cui lui riceve la tastiera. */
+function ftMQTasti(el, wrap, campo) {
+    var ta = el.querySelector('textarea');
+    if (!ta || ta._ftTasti) return;
+    ta._ftTasti = true;
+    var buffer = '';   // quello che si sta scrivendo dopo una barra rovesciata
+
+    ta.addEventListener('keydown', function (e) {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+        /* IL CANCELLETTO. MathQuill non ha "\#": scrivendolo se lo mangia e
+           la formula resta vuota, e digitando il carattere da solo prova a
+           leggerlo come inizio di una macro e protesta. Lo si scrive quindi
+           come "\text{#}", che lui accetta e che MathJax disegna come un
+           cancelletto normale — il risultato che si voleva. */
+        if (e.key === '#') {
+            e.preventDefault();
+            buffer = '';
+            try { campo.write('\\text{#}'); } catch (err) {}
+            return;
+        }
+
+        /* I COMANDI. Si GUARDA quello che viene digitato senza trattenerlo:
+           i tasti arrivano a MathQuill come sempre, quindi mentre si scrive
+           "\overline" lo si vede comparire lettera per lettera, com'e' giusto.
+           (Trattenerli per decidere con calma faceva sparire tutto quello che
+           si scriveva dopo la barra rovesciata fino all'invio: si scriveva al
+           buio, ed e' il difetto da togliere.)
+           Solo quando il nome del comando e' finito si controlla se MathQuill
+           lo sa fare: se si', non si fa niente e ci pensa lui come sempre; se
+           no, si cancella quello che ha in canna e si passa al LaTeX scritto
+           a mano, che quel comando lo mostra benissimo. */
+        if (e.key === '\\') { buffer = '\\'; return; }
+        if (!buffer) return;
+
+        if (/^[a-zA-Z]$/.test(e.key)) { buffer += e.key; return; }
+        if (e.key === 'Backspace') { buffer = buffer.slice(0, -1); return; }
+        if (e.key !== '{' && e.key !== ' ' && e.key !== 'Enter') { buffer = ''; return; }
+
+        var comando = buffer.slice(1);
+        buffer = '';
+        if (!comando || ftMQSupporta(comando)) return;   // sa farlo lui: non ci si mette in mezzo
+
+        e.preventDefault();
+        /* Il nome del comando e' gia' dentro MathQuill (lo si e' lasciato
+           scrivere apposta, per vederlo): va tolto un carattere alla volta,
+           barra rovesciata compresa, prima di leggere quello che resta. */
+        for (var k = 0; k <= comando.length; k++) {
+            try { campo.keystroke('Backspace'); } catch (err) {}
+        }
+        ftMQPassaALatex(el, wrap, comando);
+    });
 }
 
 /* Il ripiego: la stessa identica modalita' di modifica che l'editor usava
@@ -3088,7 +3409,7 @@ function ftMQEntra(ed, wrap, indice, dove) {
     return ftMQMonta(el, wrap, dove);
 }
 
-function ftMathEdita(el, portaCursore, wrap, dove) {
+function ftMathEdita(el, portaCursore, wrap, dove, offsetEsatto) {
     /* Prima con MathQuill, quando c'e' — a blocco e in linea, la stessa
        logica per entrambe. */
     if ((el.classList.contains('fc-fx') || el.classList.contains('fc-x')) && ftMQPronto()) {
@@ -3103,15 +3424,43 @@ function ftMathEdita(el, portaCursore, wrap, dove) {
                quel ripiego aveva appena reso vero da solo: si usciva PRIMA
                di piazzare il cursore, lasciando la formula visibile e
                modificabile ma senza nessuno dentro — ed e' li' che il clic
-               sembrava non aver fatto nulla di utile. Qui si piazza il
-               cursore nello stesso identico modo, dal lato da cui si e'
-               arrivati: dopo l'invisibile di apertura se si entra da
-               sinistra, prima di quello di chiusura se si entra da destra. */
+               sembrava non aver fatto nulla di utile.
+
+               PERCHE' IL CURSORE TORNAVA SEMPRE IN FONDO: ftRender ricostruisce
+               TUTTO l'HTML dell'editor da zero a ogni tasto (fcdToHTML), e per
+               una formula quell'HTML e' sempre "vergine" — senza i due
+               invisibili, senza sapere che QUESTA formula era gia' stata
+               rifiutata da MathQuill l'ultima volta. Cosi' ftMQMonta ci
+               riprovava a ogni carattere digitato, falliva di nuovo, e questo
+               ramo doveva rimettere il cursore da solo — ma sapeva solo "da
+               che lato si e' entrati", non la posizione precisa: il risultato
+               era sempre l'inizio o sempre la fine, mai il punto esatto appena
+               scritto, un carattere via via piu' lontano dal punto giusto man
+               mano che la formula cresceva. Quando chi chiama conosce l'offset
+               preciso (ftMathRefresh lo calcola sempre, leggendolo da dove il
+               cursore sta GIA') lo si usa; solo se non lo si ha si ripiega sul
+               lato d'ingresso come prima. */
             if (el.firstChild) {
-                var daSinistra = dove === 'sinistra';
+                var testo0 = el.textContent || '';
+                var lung0 = testo0.length;
+                var posReale;
+                if (typeof offsetEsatto === 'number') {
+                    /* offsetEsatto conta i caratteri VERI (senza gli
+                       invisibili): va ritradotto in una posizione dentro il
+                       nodo di testo, che gli invisibili li ha — stessa
+                       traduzione di fcdDomFromPos. */
+                    var vere0 = 0, contate0 = 0;
+                    while (vere0 < lung0 && contate0 < offsetEsatto) {
+                        if (testo0.charAt(vere0) !== '\u200B') contate0++;
+                        vere0++;
+                    }
+                    posReale = vere0;
+                } else {
+                    var daSinistra = dove === 'sinistra';
+                    posReale = daSinistra ? Math.min(1, lung0) : Math.max(0, lung0 - 1);
+                }
                 var r0 = document.createRange();
-                var lung0 = (el.textContent || '').length;
-                r0.setStart(el.firstChild, daSinistra ? Math.min(1, lung0) : Math.max(0, lung0 - 1));
+                r0.setStart(el.firstChild, posReale);
                 r0.collapse(true);
                 var sel0 = window.getSelection();
                 sel0.removeAllRanges();
@@ -3338,18 +3687,18 @@ function ftMathRefresh(wrap) {
                arrivava alla formula da SOTTO veniva rispedito a leggerla
                dall'inizio invece che dalla fine, un dettaglio che ribaltava
                esattamente il verso da cui si era entrati. */
-            var doveMR = 'destra';
+            var doveMR = 'destra', offMR = null;
             if (sel && sel.rangeCount) {
                 var nMR = sel.anchorNode;
                 var testoMR = fcdSenzaZw(el.textContent || '');
-                var offMR = (nMR === el) ? sel.anchorOffset
+                offMR = (nMR === el) ? sel.anchorOffset
                     : (nMR && nMR.nodeType === 3 && el.contains(nMR))
                         ? fcdSenzaZw((nMR.nodeValue || '').slice(0, sel.anchorOffset)).length
                         : null;
                 if (offMR === 0) doveMR = 'sinistra';
                 else if (offMR != null && offMR >= testoMR.length) doveMR = 'destra';
             }
-            ftMathEdita(el, false, wrap, doveMR);
+            ftMathEdita(el, false, wrap, doveMR, offMR);
         }
         else ftMathDisegna(el);
     });
@@ -3359,8 +3708,33 @@ function ftMathRefresh(wrap) {
        su cui il cursore sta appoggiato lo fa scivolare in fondo: chi era a
        meta' di "\cancel{ab}" si ritrovava dopo l'ultimo carattere, a ogni
        freccia, senza riuscire piu' a muoversi ne' a correggere. Se il punto
-       in cui era e' ancora valido, ce lo si rimette. */
-    if (primaNodo && ed.contains(primaNodo)) {
+       in cui era e' ancora valido, ce lo si rimette.
+
+       ECCEZIONE, e non da poco: se la formula "dentro" e' appena stata presa
+       in mano da MathQuill (ci ha appena messo il fuoco lui, un attimo fa,
+       dentro ftMathEdita/ftMQMonta), primaNodo e' ancora il vecchio nodo di
+       PRIMA del montaggio — lo stesso elemento .fc-fx, ma quando ancora non
+       aveva dentro la struttura di MathQuill. L'elemento e' lo stesso
+       (ed.contains(primaNodo) resta vero, un div non sparisce), ma il suo
+       CONTENUTO adesso e' tutt'altro: lo textarea nascosto di MathQuill, il
+       disegno del cursore finto, tutto cio' che lui gestisce da solo.
+       Rimettere qui la selezione del documento a (quell'elemento, 0)
+       significa piazzarla PRIMA del primo figlio di MathQuill — un punto che
+       per il documento sembra ragionevole ma che a MathQuill dice "il tuo
+       cursore non e' piu' dove pensavi": il fuoco del browser (document.
+       activeElement) resta sulla sua casella nascosta, i tasti continuano ad
+       arrivarci, ma quello che digiti non viene piu' mostrato — esattamente
+       il difetto "creo la formula col tasto e non ci si scrive dentro". Non
+       succedeva aprendo una formula gia' scritta cliccandoci sopra perche'
+       li' primaNodo era gia' un discendente della struttura di MathQuill (ci
+       si era gia' dentro), non l'elemento contenitore: la condizione qui
+       sotto restava falsa da sola. Creando una formula nuova invece
+       primaNodo e' SEMPRE il contenitore (fcdSetSel lo piazza li', un div
+       vuoto non ha altro posto), e la condizione scattava sempre — e sempre
+       nel momento sbagliato. Se chi e' "dentro" ora ha gia' il fuoco di
+       MathQuill, il suo cursore lo gestisce lui: non c'e' niente da
+       ripristinare, e soprattutto niente da guastare. */
+    if (primaNodo && ed.contains(primaNodo) && !(dentro && dentro._mqCampo && ftMQHaIlFuoco(dentro))) {
         var oraSel = window.getSelection();
         if (oraSel && oraSel.rangeCount &&
             (oraSel.anchorNode !== primaNodo || oraSel.anchorOffset !== primaOffset)) {
@@ -3420,74 +3794,261 @@ function ftMathRefresh(wrap) {
    lui stesso position:fixed con top vicino a zero) conta come intestazione,
    la barra si mette subito sotto quello piu' basso di tutti. Nessuna
    intestazione cosi' -> si torna al margine minimo di prima. */
-var FT_ALTEZZA_INTESTAZIONE_CACHE = null;
-function ftAltezzaIntestazionePagina() {
-    if (FT_ALTEZZA_INTESTAZIONE_CACHE != null) return FT_ALTEZZA_INTESTAZIONE_CACHE;
-    var massimo = 0;
-    var candidati = document.querySelectorAll('body > *');
-    for (var i = 0; i < candidati.length; i++) {
-        var el = candidati[i];
-        if (el.classList && (el.classList.contains('fmt-editor-wrap') || el.closest('.fmt-editor-wrap'))) continue;
-        /* La barra agganciata sta anche lei in fondo al body: contarla come
-           intestazione la spingerebbe piu' giu' a ogni scorrimento, una
-           scalinata verso il fondo dello schermo. */
-        if (el.classList && el.classList.contains('fmt-portale')) continue;
+/* DOVE DEVE INCOLLARSI LA COPIA, E FIN DOVE PUO' ARRIVARE
+   Non basta piu' guardare le barre in cima alla PAGINA: questo file finisce
+   anche dentro dei popup, e li' la cima non e' quella della finestra ma quella
+   del popup, che per giunta ha spesso una sua barra sticky (il titolo, i tasti
+   salva e chiudi). Guardando solo la pagina succedevano le due cose viste:
+   nel popup di modifica la copia si piazzava SOPRA la barra del popup
+   (calcolata sulla pagina sotto, non su di lui), e nel popup degli esempi non
+   compariva affatto — li' il contenuto scorre dentro un pannello, non nella
+   finestra, e per di piu' il popup sta a z-index 11000, ben sopra il 1000
+   della copia, che quindi ci sarebbe finita dietro anche comparendo.
+   Si risale quindi la catena degli antenati della casella e si raccoglie:
+     - i CONTENITORI che scorrono o sono fissi (il pannello del popup): danno
+       la cima sotto cui stare e il fondo oltre cui non sconfinare;
+     - le BARRE incollate in cima dentro ciascuno di loro (intestazione della
+       pagina, barra del popup): spingono la cima ancora piu' giu';
+     - lo z-index piu' alto incontrato: la copia deve stare sopra tutti.
+   Gli elementi si raccolgono una volta sola, quando si entra nella casella;
+   le loro posizioni si rileggono a ogni giro, perche' quelle cambiano
+   scorrendo. Cosi' non si scandisce mezza pagina a ogni pixel di scorrimento. */
+function ftAggancioRaccogli(wrap) {
+    var contenitori = [], barre = [], z = 1000;
+    var altezzaSchermo = window.innerHeight || 800;
+    var el = wrap;
+    while (el && el.nodeType === 1) {
         var st = window.getComputedStyle(el);
-        if (st.position !== 'fixed' && st.position !== 'sticky') continue;
-        var r = el.getBoundingClientRect();
-        if (r.top > 4 || r.height === 0) continue;   // non e' in cima, o non e' visibile
-        if (r.bottom > massimo) massimo = r.bottom;
+        var zi = parseInt(st.zIndex, 10);
+        if (!isNaN(zi) && zi + 10 > z) z = zi + 10;
+
+        if (el !== wrap) {
+            /* Contenitore vero = o e' fisso allo schermo, o scorre DAVVERO
+               (ha piu' contenuto di quanto ne mostri). Prima bastava
+               overflow-y:auto per essere promossi a contenitore, e quello ce
+               l'hanno tanti riquadri che in realta' non scorrono affatto: la
+               cima veniva presa da uno di loro, a meta' pagina, e la copia
+               compariva li' invece che sotto la barra in alto — troppo presto
+               e nel posto sbagliato, in tutte le pagine. */
+            var scorre = /(auto|scroll)/.test(st.overflowY) &&
+                         el.scrollHeight > el.clientHeight + 1;
+            if (st.position === 'fixed' || scorre) contenitori.push(el);
+        }
+
+        /* Le barre incollate in cima stanno FRA I FIGLI di questo antenato:
+           l'intestazione della pagina fra i figli del body, la barra del
+           popup fra i figli del pannello. Si saltano i rami che contengono la
+           casella stessa: la sua barra non e' un'intestazione da schivare. */
+        var figli = el.children;
+        for (var i = 0; i < figli.length; i++) {
+            var f = figli[i];
+            if (f.contains(wrap)) continue;
+            if (f.classList && f.classList.contains('fmt-portale')) continue;
+            var sf = window.getComputedStyle(f);
+            if (sf.position !== 'fixed' && sf.position !== 'sticky') continue;
+            /* Deve essere una barra ANCORATA IN CIMA: il 'top' con cui e'
+               incollata e' zero o poco piu'. Il "poco piu'" non e' pignoleria:
+               una barra puo' essere incollata a 20-30px perche' sopra di lei
+               ce n'e' gia' un'altra (in inserimento_big l'intestazione sta
+               sotto la striscia del pomodoro). Con la soglia a 8px quella
+               veniva scartata e la copia le finiva sopra; senza nessun filtro,
+               invece, passava qualunque elemento incollato a meta' pagina e la
+               copia finiva la' in mezzo. 60px prende le barre impilate vere e
+               lascia fuori tutto il resto. */
+            var topCss = parseFloat(sf.top);
+            if (isNaN(topCss) || topCss > 60) continue;
+            var rf = f.getBoundingClientRect();
+            /* Alta quanto mezzo schermo o piu' non e' una barra in cima, e'
+               una sovrapposizione a tutto schermo (un visore di immagini, una
+               finestra di conferma): contarla darebbe una cima piu' bassa del
+               fondo dello schermo, e nessuna copia comparirebbe mai. */
+            if (rf.height === 0 || rf.height > altezzaSchermo * 0.5) continue;
+            /* E deve passarle davanti: una barra che sta in un'altra colonna
+               non puo' nascondere questa casella, quindi non e' affar suo.
+               Senza questo controllo, in una pagina a due colonne bastava un
+               elemento incollato nella colonna accanto per spostare la copia. */
+            var rw = wrap.getBoundingClientRect();
+            if (rf.right <= rw.left + 4 || rf.left >= rw.right - 4) continue;
+            barre.push(f);
+        }
+
+        if (el === document.body) break;
+        el = el.parentNode;
     }
-    FT_ALTEZZA_INTESTAZIONE_CACHE = massimo;
-    return massimo;
+    return { contenitori: contenitori, barre: barre, z: z };
 }
-window.addEventListener('resize', function () { FT_ALTEZZA_INTESTAZIONE_CACHE = null; });
 
-var FT_AGGANCIO = { wrap: null, toolbar: null, segnaposto: null, portale: null };
-
-/* La barra esce dalla sua casella e va nel portale, in fondo al body. E'
-   l'unico modo perche' position:fixed voglia dire davvero "fissa allo
-   schermo": dentro la carta ci sono un will-change:transform (che sposta il
-   riferimento di fixed sulla carta stessa) e un overflow:hidden (che ritaglia
-   via tutto cio' che ne esce). Vedi il commento sul .fmt-portale nel CSS. */
-function ftAggancioPortaFuori(a) {
-    if (!a.portale) {
-        a.portale = document.createElement('div');
-        a.portale.className = 'fmt-portale';
+/* Rilegge le posizioni di quanto raccolto sopra e restituisce la cima sotto
+   cui incollarsi e il fondo oltre cui sparire. */
+/* Quanto e' occupata la cima dello SCHERMO, misurata guardando davvero cosa
+   c'e' li' sopra invece di indovinarlo dall'elenco delle regole CSS.
+   Si parte da zero e si scende: finche' il punto che si tocca appartiene a
+   qualcosa di fisso o incollato, quella e' roba che sta sopra la pagina —
+   una barra. Al primo punto che appartiene al contenuto normale ci si ferma:
+   li' comincia lo spazio libero.
+   Perche' cosi' e non come nel caso dei popup: nella pagina piena le barre
+   arrivano da fogli di stile diversi (l'intestazione, la striscia del
+   pomodoro, la barra laterale, quello che verra' aggiunto domani) e cercare
+   di riconoscerle una per una dalle loro regole e' un gioco che si perde —
+   ogni volta ne sbucava una che spostava la copia a meta' schermo. Cosa
+   c'e' davvero in cima invece lo si puo' semplicemente guardare.
+   Nei popup si continua a fare come prima, che li' funziona: la' la cima non
+   e' quella dello schermo ma quella del pannello, e questo metodo non
+   saprebbe distinguerle. */
+function ftSogliaDalloSchermo(toolbar) {
+    var r = toolbar.getBoundingClientRect();
+    var cx = Math.min(window.innerWidth - 2, Math.max(2, r.left + r.width / 2));
+    var limite = (window.innerHeight || 800) * 0.35;   // piu' giu' non e' piu' un'intestazione
+    var soglia = 0;
+    for (var y = 2; y < limite; y += 6) {
+        var el = document.elementFromPoint(cx, y);
+        if (!el) break;
+        /* La copia sta li' sopra anche lei: se la si contasse come barra,
+           a ogni giro si spingerebbe piu' in giu' da sola. */
+        if (el.closest && el.closest('.fmt-portale')) break;
+        var fisso = false, n = el;
+        while (n && n !== document.body) {
+            var st = window.getComputedStyle(n);
+            if (st.position === 'fixed' || st.position === 'sticky') { fisso = true; break; }
+            n = n.parentElement;
+        }
+        if (!fisso) break;
+        soglia = y;
     }
-    /* Chiusa o aperta la barra si disegna in modo diverso, e quelle regole
-       partono dal wrap: fuori di li' andrebbero perse. Si riporta qui la sola
-       cosa che serve a saperlo. */
-    a.portale.classList.toggle('fmt-chiusa', a.wrap.classList.contains('fmt-chiusa'));
-    if (a.portale.parentNode !== document.body) document.body.appendChild(a.portale);
-    if (a.toolbar.parentNode !== a.portale) a.portale.appendChild(a.toolbar);
+    return soglia;
 }
 
-/* Il viaggio di ritorno: la barra torna esattamente dov'era, subito prima del
-   segnaposto che le teneva il posto. */
-function ftAggancioRimetti(a) {
-    if (!a.toolbar || !a.segnaposto || !a.segnaposto.parentNode) return;
-    if (a.toolbar.parentNode !== a.segnaposto.parentNode) {
-        a.segnaposto.parentNode.insertBefore(a.toolbar, a.segnaposto);
+function ftAggancioMisure(a) {
+    var soglia = 0, limite = window.innerHeight;
+
+    var c = a.contenitori || [];
+    if (!c.length) {
+        /* Pagina piena, nessun pannello di mezzo: si guarda cosa occupa la
+           cima dello schermo. */
+        return { soglia: ftSogliaDalloSchermo(a.toolbar) + 6, limite: limite };
     }
+    for (var i = 0; i < c.length; i++) {
+        var rc = c[i].getBoundingClientRect();
+        if (rc.height === 0) continue;      // contenitore chiuso: non vincola niente
+        if (rc.top > soglia) soglia = rc.top;
+        if (rc.bottom < limite) limite = rc.bottom;
+    }
+
+    /* Una passata sola, dalla barra piu' in alto alla piu' in basso.
+       L'ORDINE e' la cosa importante: due barre impilate (la striscia del
+       pomodoro in cima, l'intestazione appoggiata sotto di lei) si accettano a
+       catena solo se si incontra prima quella sopra — nell'ordine del DOM
+       possono capitare al contrario, e allora l'intestazione veniva scartata
+       come "troppo in basso" e la copia le finiva sopra. Ordinandole per
+       posizione la catena e' sempre quella giusta.
+       Una passata sola e non un ciclo ripetuto: il ciclo che avevo messo qui
+       si incatenava all'infinito verso il basso — ogni elemento appoggiato a
+       quello appena accettato abbassava la cima ancora un po', e la copia
+       finiva a meta' pagina. */
+    var b = (a.barre || []).slice().sort(function (x, y) {
+        return x.getBoundingClientRect().top - y.getBoundingClientRect().top;
+    });
+    for (var j = 0; j < b.length; j++) {
+        var rb = b[j].getBoundingClientRect();
+        if (rb.height === 0) continue;      // barra nascosta in questo momento
+        /* Conta solo se e' davvero appoggiata alla cima di dove siamo: una
+           barra piu' in basso e' contenuto normale, non un ostacolo. */
+        if (rb.top > soglia + 4) continue;
+        if (rb.bottom > soglia) soglia = rb.bottom;
+    }
+
+    return { soglia: soglia + 6, limite: limite };
+}
+
+
+var FT_AGGANCIO = { wrap: null, toolbar: null, portale: null, clone: null };
+
+/* IL DUPLICATO IN SOVRAIMPRESSIONE
+   La barra originale non si sposta e non si nasconde MAI: resta nel suo posto
+   dentro la casella, per tutta la vita della pagina. Quando quel posto esce
+   dallo schermo scorrendo, non la si insegue e non la si porta via — se ne
+   AGGIUNGE una seconda, una copia, fissa in cima allo schermo. Tornando su, la
+   copia sparisce e si rivede l'originale dov'e' sempre stata.
+   I tentativi precedenti spostavano l'originale dentro un contenitore fisso e
+   le lasciavano al posto suo un segnaposto vuoto: bastava un intoppo qualunque
+   nel viaggio di andata o di ritorno per ritrovarsi con il buco e nessuna
+   barra da nessuna parte — ed e' esattamente quello che si vedeva. Una copia
+   non ha viaggi da fare: o c'e' o non c'e', e l'originale non rischia niente.
+   Il contenitore vive in fondo al body perche' dentro la carta ci sono un
+   will-change:transform (che sposta il riferimento di position:fixed sulla
+   carta stessa) e un overflow:hidden (che ritaglia via cio' che ne esce):
+   vedi il commento sul .fmt-portale nel CSS. */
+function ftAggancioCreaClone(a) {
+    if (a.clone) return;
+    a.portale = document.createElement('div');
+    a.portale.className = 'fmt-portale';
+    a.clone = a.toolbar.cloneNode(true);
+    a.clone.classList.add('fmt-agganciata', 'fmt-clone');
+    /* Gli id della copia darebbero duplicati in pagina: si tolgono, tanto la
+       copia non e' mai il bersaglio di nessuna ricerca per id — ogni cosa che
+       fa passa dall'originale (vedi ftAggancioInoltra). */
+    a.clone.removeAttribute('id');
+    a.clone.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
+    a.portale.appendChild(a.clone);
+    document.body.appendChild(a.portale);
+
+    /* Un tocco sulla copia non deve spostare il fuoco dalla casella, esatta-
+       mente come sull'originale. */
+    a.portale.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    /* La copia non ha nessuna logica propria: ogni click viene rigirato al
+       pulsante corrispondente dell'originale, cercato per posizione fra tutti
+       i pulsanti della barra. Cosi' non esistono due comportamenti da tenere
+       allineati — ce n'e' uno solo, quello di sempre. */
+    a.portale.addEventListener('click', ftAggancioInoltra);
+}
+
+function ftAggancioInoltra(e) {
+    var a = FT_AGGANCIO;
+    if (!a.clone || !a.toolbar) return;
+    var premuto = e.target.closest ? e.target.closest('button') : null;
+    if (!premuto) return;
+    var daCopia = a.clone.querySelectorAll('button');
+    var daVero = a.toolbar.querySelectorAll('button');
+    for (var i = 0; i < daCopia.length; i++) {
+        if (daCopia[i] === premuto) {
+            if (daVero[i]) daVero[i].click();
+            /* Il click ha cambiato lo stato dell'originale (un pannello che si
+               apre, un tasto che si accende): la copia va rifatta, o mostrerebbe
+               ancora com'erano le cose un attimo fa. */
+            ftAggancioAggiornaClone();
+            return;
+        }
+    }
+}
+
+/* Rifa' il contenuto della copia da quello dell'originale. Chiamata dopo ogni
+   click sulla copia e ogni volta che l'originale cambia aspetto
+   (ftRefreshState): la copia deve sempre mostrare esattamente quello che
+   mostrerebbe l'originale se la si stesse guardando. */
+function ftAggancioAggiornaClone() {
+    var a = FT_AGGANCIO;
+    if (!a.clone || !a.toolbar) return;
+    a.clone.innerHTML = a.toolbar.innerHTML;
+    a.clone.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
+    a.clone.className = a.toolbar.className + ' fmt-agganciata fmt-clone';
+    if (a.portale) a.portale.classList.toggle('fmt-chiusa', a.wrap.classList.contains('fmt-chiusa'));
+}
+
+function ftAggancioTogliClone(a) {
     if (a.portale && a.portale.parentNode) a.portale.parentNode.removeChild(a.portale);
+    a.portale = null;
+    a.clone = null;
 }
 
 function ftAggancioStacca() {
-    var a = FT_AGGANCIO;
-    if (a.toolbar) {
-        a.toolbar.classList.remove('fmt-agganciata');
-        a.toolbar.style.left = ''; a.toolbar.style.width = ''; a.toolbar.style.top = '';
-        ftAggancioRimetti(a);
+    /* Via gli ascoltatori messi sui contenitori di questa casella: lasciarli
+       significherebbe accumularne uno per ogni casella toccata. */
+    var vecchi = FT_AGGANCIO.contenitori || [];
+    for (var i = 0; i < vecchi.length; i++) {
+        vecchi[i].removeEventListener('scroll', ftAggancioAggiorna);
     }
-    if (a.segnaposto) {
-        a.segnaposto.classList.remove('is-attivo');
-        /* Il segnaposto va tolto, non solo spento: se ne creava uno nuovo a
-           ogni casella toccata e i vecchi restavano in pagina per sempre. */
-        if (a.segnaposto.parentNode) a.segnaposto.parentNode.removeChild(a.segnaposto);
-    }
-    if (a.portale && a.portale.parentNode) a.portale.parentNode.removeChild(a.portale);
-    FT_AGGANCIO = { wrap: null, toolbar: null, segnaposto: null, portale: null };
+    ftAggancioTogliClone(FT_AGGANCIO);
+    FT_AGGANCIO = { wrap: null, toolbar: null, portale: null, clone: null };
 }
 
 function ftAggancioSuCasella(wrap) {
@@ -3495,60 +4056,99 @@ function ftAggancioSuCasella(wrap) {
     ftAggancioStacca();
     var toolbar = ftBarra(wrap);
     if (!toolbar) return;
-    var segnaposto = document.createElement('div');
-    segnaposto.className = 'fmt-toolbar-segnaposto';
-    toolbar.parentNode.insertBefore(segnaposto, toolbar);
-    FT_AGGANCIO = { wrap: wrap, toolbar: toolbar, segnaposto: segnaposto, portale: null };
-    /* L'intestazione si rimisura a ogni casella su cui ci si mette: fra una e
-       l'altra puo' essere comparsa una barra di salvataggio, un avviso, un
-       banner — e la misura di mezz'ora fa manderebbe la barra sotto o sopra
-       il punto giusto. */
-    FT_ALTEZZA_INTESTAZIONE_CACHE = null;
+    FT_AGGANCIO = { wrap: wrap, toolbar: toolbar, portale: null, clone: null,
+                    contenitori: [], barre: [], z: 1000 };
+    /* Contenitori, barre e z-index si raccolgono qui, a ogni casella su cui ci
+       si mette: fra una e l'altra puo' essere cambiato tutto il contorno —
+       una casella dentro un popup ha sopra di se' cose completamente diverse
+       da una casella nella pagina, e la stessa casella puo' finire dentro un
+       popup che prima non c'era. */
+    var ctx = ftAggancioRaccogli(wrap);
+    FT_AGGANCIO.contenitori = ctx.contenitori;
+    FT_AGGANCIO.barre = ctx.barre;
+    FT_AGGANCIO.z = ctx.z;
+
+    /* Lo scorrimento DENTRO un contenitore (il pannello di un popup) va
+       ascoltato sul contenitore stesso. L'ascoltatore generale e' su window,
+       e li' quello scorrimento non arriva: la copia veniva creata al primo
+       tocco e poi restava ferma dov'era, senza piu' aggiornarsi ne' sparire
+       quando la cella finiva. Dentro i popup era proprio cosi'. */
+    for (var ci = 0; ci < ctx.contenitori.length; ci++) {
+        ctx.contenitori[ci].addEventListener('scroll', ftAggancioAggiorna, { passive: true });
+    }
     ftAggancioAggiorna();
+
+    /* Toccare una casella fa comparire la barra (fmt-attiva) partendo da
+       altezza zero e crescendo con una transizione — e sul telefono lo stesso
+       tocco fa anche scorrere da solo la pagina per tenere la casella sopra la
+       tastiera. Le due cose succedono insieme: nell'istante della misura qui
+       sopra la barra puo' non avere ancora disegnato un solo fotogramma della
+       sua altezza vera. Due giri di requestAnimationFrame aspettano che il
+       browser l'abbia davvero disegnata prima di rimisurare; il timeout e' la
+       rete di sicurezza per quando il fotogramma non arriva subito (scheda in
+       secondo piano, dispositivo lento). */
+    requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+            if (FT_AGGANCIO.wrap === wrap) ftAggancioAggiorna();
+        });
+    });
+    setTimeout(function () {
+        if (FT_AGGANCIO.wrap === wrap) ftAggancioAggiorna();
+    }, 320);
 }
 
-/* Chiamata a ogni scroll/resize: decide se la barra della casella attiva va
-   agganciata o no, in base a dove si trova adesso rispetto alla cima dello
-   schermo — e rispetto al fondo della sua stessa casella, perche' non
-   restare agganciata anche quando la casella e' finita e sotto c'e' gia'
-   altro. */
+/* Chiamata a ogni scroll/resize/tasto. Due domande, in quest'ordine:
+   1. la casella e' ancora sullo schermo? Se e' scorsa via del tutto, niente
+      copia: non ha piu' senso una barra per una casella che non si vede.
+   2. la barra ORIGINALE si vede? Se si', niente copia — si usa quella, che e'
+      sempre li' al suo posto. Se e' scorsa sopra la cima, si aggiunge la copia
+      fissa in alto.
+   Nient'altro entra nella decisione: non quanto e' lunga la casella, non
+   quanto ne resta sotto. Le condizioni in piu' che avevo aggiunto prima
+   ("non tenere la barra se sotto resta poco") facevano sparire tutto proprio
+   mentre si stava ancora scrivendo. */
 function ftAggancioAggiorna() {
     var a = FT_AGGANCIO;
     if (!a.wrap || !document.body.contains(a.wrap)) { ftAggancioStacca(); return; }
 
-    var soglia = ftAltezzaIntestazionePagina() + 6;
-    if (a.toolbar.classList.contains('fmt-agganciata')) {
-        // gia' agganciata: la si stacca solo quando la casella e' scorsa
-        // via del tutto, o quando torna a stare sotto la soglia da sola
-        var rWrap = a.wrap.getBoundingClientRect();
-        var altezzaBarra = a.segnaposto.offsetHeight;
-        if (rWrap.top >= soglia || rWrap.bottom <= altezzaBarra + soglia) {
-            a.toolbar.classList.remove('fmt-agganciata');
-            a.toolbar.style.left = ''; a.toolbar.style.width = ''; a.toolbar.style.top = '';
-            ftAggancioRimetti(a);
-            a.segnaposto.classList.remove('is-attivo');
-        } else {
-            var rSeg = a.segnaposto.getBoundingClientRect();
-            a.toolbar.style.left = rSeg.left + 'px';
-            a.toolbar.style.width = rSeg.width + 'px';
-            a.toolbar.style.top = soglia + 'px';
-        }
-    } else {
-        var r = a.toolbar.getBoundingClientRect();
-        var rWrap2 = a.wrap.getBoundingClientRect();
-        /* Altezza zero = la barra si sta ancora aprendo (o e' appena
-           comparsa): misurarla adesso inchioderebbe in cima una striscia
-           alta niente. Si aspetta il prossimo scorrimento. */
-        if (r.height > 0 && r.top < soglia && rWrap2.bottom > r.height + soglia) {
-            a.segnaposto.style.height = r.height + 'px';
-            a.segnaposto.classList.add('is-attivo');
-            ftAggancioPortaFuori(a);
-            a.toolbar.style.left = r.left + 'px';
-            a.toolbar.style.width = r.width + 'px';
-            a.toolbar.style.top = soglia + 'px';
-            a.toolbar.classList.add('fmt-agganciata');
-        }
-    }
+    var m = ftAggancioMisure(a);
+    var soglia = m.soglia;
+    var rWrap = a.wrap.getBoundingClientRect();
+    var r = a.toolbar.getBoundingClientRect();
+
+    /* Dentro un popup non c'e' spazio utile: il pannello e' chiuso o
+       schiacciato. Meglio niente copia che una copia che sbuca fuori dai
+       suoi bordi. */
+    if (m.limite - soglia < 24) { ftAggancioTogliClone(a); return; }
+
+    /* "Fuori" vuol dire fuori dallo SCHERMO, non fuori da un valore calcolato:
+       se la soglia risultasse per qualunque motivo sbagliata per eccesso, una
+       casella perfettamente visibile verrebbe scambiata per scomparsa e la
+       copia non nascerebbe mai. Legandola ai bordi veri della finestra questo
+       non puo' succedere: al massimo la copia resta qualche pixel piu' su o
+       piu' giu' del punto ideale, ma c'e'. */
+    /* La copia se ne va appena arriva a toccare il fondo della cella: se
+       della cella resta visibile solo un dito, e' giusto vedere quel dito e
+       non una barra che gli sta sopra coprendolo. Serve quindi che sotto la
+       copia ci sia ancora cella, non solo che la cella sia in qualche modo
+       sullo schermo. */
+    var casellaFuori = rWrap.bottom <= soglia + r.height || rWrap.top >= m.limite;
+    /* Altezza zero = la barra si sta ancora aprendo: non e' "scorsa via", e'
+       solo non ancora disegnata. Trattarla come fuori schermo farebbe
+       comparire una copia alta niente. */
+    var barraSotto = r.height > 0 && r.top < soglia;
+
+    if (casellaFuori || !barraSotto) { ftAggancioTogliClone(a); return; }
+
+    ftAggancioCreaClone(a);
+    ftAggancioAggiornaClone();
+    a.clone.style.left = r.left + 'px';
+    a.clone.style.width = r.width + 'px';
+    a.clone.style.top = soglia + 'px';
+    /* Sopra tutto quello che le sta attorno: i popup di questo sito arrivano a
+       z-index 12500, e con il 1000 del foglio di stile la copia ci sarebbe
+       finita dietro — invisibile pur essendo stata creata. */
+    a.clone.style.zIndex = String(a.z || 1000);
 }
 
 (function ftAggancioAvvia() {
@@ -3756,6 +4356,33 @@ function ftSetupEditor(wrap) {
             return;
         }
         if (ftMQFuocoQui(ed)) return;
+
+        /* Grassetto/corsivo/sottolineato da tastiera: il browser gestisce
+           Ctrl+B (e affini) DA SOLO in un contenteditable, con il suo comando
+           nativo — inserisce o toglie un <b> vero nel DOM, senza passare dal
+           nostro modello. E' esattamente questo il motivo per cui "premo
+           Ctrl+B per togliere il grassetto, poi lo riapplica": il comando
+           nativo lo toglie per un istante, ma il modello (fcdFromDom) non lo
+           sa — per lui quella porzione e' ancora segnata "b":1 — e al primo
+           ridisegno (che con il pannello Testo aperto scatta piu' spesso,
+           perche' i suoi pulsanti si tengono sincronizzati col cursore)
+           quella verita' vecchia riscrive il DOM e il grassetto torna.
+           Intercettando il tasto PRIMA che il browser lo veda (preventDefault
+           qui sotto) il comando nativo non parte mai: a togliere e mettere il
+           grassetto ci pensa sempre e solo ftMark, la stessa funzione che usa
+           il pulsante della barra — un'unica fonte di verita', mai due che
+           possono disallinearsi. */
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+            var tastoFmt = e.key === 'b' || e.key === 'B' ? 'b'
+                : e.key === 'i' || e.key === 'I' ? 'i'
+                : e.key === 'u' || e.key === 'U' ? 'u'
+                : null;
+            if (tastoFmt) {
+                e.preventDefault();
+                ftMark(wrap, tastoFmt);
+                return;
+            }
+        }
         /* Le frecce vicino a una formula.
 
            Il punto e' che la stessa posizione del documento, sul bordo di una
@@ -3887,40 +4514,7 @@ function ftSetupEditor(wrap) {
             }
         }
         if (e.key === 'Enter' && !e.shiftKey && ftIntelligenteAuto()) {
-            /* Stessa idea dello spazio, ma al contrario: l'invio dice "ho
-               finito con questa riga", quindi qui la parola diventa una
-               formula A BLOCCO — la riga tutta sua, con un'altra riga vuota
-               subito sotto pronta per continuare, esattamente come premere
-               a mano il tasto "a blocco". Se c'era gia' del testo prima
-               sulla stessa riga, quello resta com'era, sopra. */
-            var trovataE = ftParolaLatexDaConvertire(ed);
-            if (trovataE) {
-                e.preventDefault();
-                ftCmd(wrap, function (d, s) {
-                    var b = d.blocks[trovataE.bi];
-                    var i0 = fcdSplitAt(b, trovataE.inizio), i1 = fcdSplitAt(b, trovataE.fine);
-                    var dopoRuns = b.runs.splice(i1);
-                    b.runs.splice(i0);
-                    var nuovo = { t: 'fx', tex: trovataE.parola };
-                    if (b.t === 'li') { nuovo.lvl = b.lvl; if (b.c) nuovo.c = b.c; }
-                    var dopoBlocco = { t: b.t === 'li' ? 'li' : 'p', runs: dopoRuns };
-                    if (b.t === 'li') { dopoBlocco.lvl = b.lvl; if (b.c) dopoBlocco.c = b.c; }
-
-                    var pezzi = [];
-                    if (fcdBlockLen(b) > 0) pezzi.push(b);
-                    pezzi.push(nuovo);
-                    /* Dopo la formula ci va sempre una riga pronta a
-                       ricevere quello che si scrive di seguito: quella che
-                       c'era gia' (se c'era altro testo dopo il cursore) o,
-                       se non c'era, una nuova riga vuota apposta. */
-                    pezzi.push(fcdBlockLen(dopoBlocco) > 0 ? dopoBlocco : { t: 'p', runs: [] });
-
-                    var indiceFormula = trovataE.bi + pezzi.indexOf(nuovo);
-                    d.blocks.splice.apply(d.blocks, [trovataE.bi, 1].concat(pezzi));
-                    return { doc: fcdNorm(d), caret: { b: indiceFormula + 1, o: 0 } };
-                });
-                return;
-            }
+            if (ftCreaFormulaABloccoDaParola()) { e.preventDefault(); return; }
         }
         if (e.key === 'Enter') {
             var gestitoInvio = false;
@@ -4388,6 +4982,52 @@ function ftSetupEditor(wrap) {
         return { bi: sel.a.b, inizio: sel.a.o - parola.length, fine: sel.a.o, parola: parola, testoBlocco: testo };
     }
 
+    /* La stessa idea dello spazio, ma al contrario: l'invio dice "ho finito
+       con questa riga", quindi qui la parola diventa una formula A BLOCCO —
+       la riga tutta sua, con un'altra riga vuota subito sotto pronta per
+       continuare, esattamente come premere a mano il tasto "a blocco". Se
+       c'era gia' del testo prima sulla stessa riga, quello resta com'era,
+       sopra.
+       E' una funzione a se' (non piu' incollata dentro il solo gestore
+       keydown) perche' l'Invio, sulla tastiera VIRTUALE del telefono, spesso
+       non genera affatto un keydown riconoscibile — molte tastiere Android e
+       gli IME in generale saltano il keydown per l'Invio e passano
+       direttamente a beforeinput con inputType "insertParagraph". Il
+       cervello (il pulsante che riconosce da solo il LaTeX digitato) per
+       questo funzionava "solo in linea, mai a blocco" su chi scrive da
+       telefono: lo spazio arriva sempre come beforeinput/insertText e quindi
+       funzionava, l'invio arrivava SOLO come keydown e su quelle tastiere
+       non scattava mai. Restituisce true se ha agito (la chiamata deve
+       fermarsi li'), false se non c'era niente da convertire. */
+    function ftCreaFormulaABloccoDaParola() {
+        var trovataE = ftParolaLatexDaConvertire(ed);
+        if (!trovataE) return false;
+        ftCmd(wrap, function (d, s) {
+            var b = d.blocks[trovataE.bi];
+            var i0 = fcdSplitAt(b, trovataE.inizio), i1 = fcdSplitAt(b, trovataE.fine);
+            var dopoRuns = b.runs.splice(i1);
+            b.runs.splice(i0);
+            var nuovo = { t: 'fx', tex: trovataE.parola };
+            if (b.t === 'li') { nuovo.lvl = b.lvl; if (b.c) nuovo.c = b.c; }
+            var dopoBlocco = { t: b.t === 'li' ? 'li' : 'p', runs: dopoRuns };
+            if (b.t === 'li') { dopoBlocco.lvl = b.lvl; if (b.c) dopoBlocco.c = b.c; }
+
+            var pezzi = [];
+            if (fcdBlockLen(b) > 0) pezzi.push(b);
+            pezzi.push(nuovo);
+            /* Dopo la formula ci va sempre una riga pronta a
+               ricevere quello che si scrive di seguito: quella che
+               c'era gia' (se c'era altro testo dopo il cursore) o,
+               se non c'era, una nuova riga vuota apposta. */
+            pezzi.push(fcdBlockLen(dopoBlocco) > 0 ? dopoBlocco : { t: 'p', runs: [] });
+
+            var indiceFormula = trovataE.bi + pezzi.indexOf(nuovo);
+            d.blocks.splice.apply(d.blocks, [trovataE.bi, 1].concat(pezzi));
+            return { doc: fcdNorm(d), caret: { b: indiceFormula + 1, o: 0 } };
+        });
+        return true;
+    }
+
     ed.addEventListener('beforeinput', function (e) {
         /* Il segnaposto sparisce appena si comincia a scrivere, senza aspettare
            il giro di sincronizzazione: e' un dettaglio, ma vedere il testo
@@ -4400,7 +5040,9 @@ function ftSetupEditor(wrap) {
            dal dollaro stesso. Lo spazio fa SEMPRE una formula in linea: e'
            il tasto che dice "continuo su questa riga", quindi la riga resta
            quella, formula compresa. Chi vuole la riga tutta per la formula
-           preme invio, non spazio — se ne occupa il gestore dei tasti. */
+           preme invio, non spazio — se ne occupa il gestore dei tasti (e,
+           per le tastiere virtuali che l'invio lo mandano solo di qui, il
+           blocco subito sotto). */
         if (e.inputType === 'insertText' && e.data === ' ' && ftIntelligenteAuto()) {
             var trovataI = ftParolaLatexDaConvertire(ed);
             if (trovataI) {
@@ -4417,6 +5059,25 @@ function ftSetupEditor(wrap) {
                 });
                 return;
             }
+        }
+
+        /* L'invio da tastiera virtuale: il gestore keydown (piu' sopra nel
+           file) intercetta l'Invio fisico, ma su molte tastiere Android e
+           IME l'Invio non genera affatto un keydown riconoscibile — passa
+           qui direttamente, di solito con inputType "insertParagraph". Alcune
+           tastiere pero' segnalano un Invio semplice come "insertLineBreak"
+           (che dovrebbe voler dire solo "riga di continuo", non un vero a
+           capo) — una scorciatoia non proprio corretta, ma capita davvero,
+           ed e' molto probabilmente la ragione per cui il riconoscimento
+           restava "sempre in linea, mai a blocco" anche dopo aver
+           aggiunto qui sotto il solo "insertParagraph": su quelle tastiere
+           l'Invio vero non generava NESSUNO dei due segnali che si stava
+           ad ascoltare. Si accettano entrambi: il costo, un a capo voluto
+           con Maiusc+Invio che ogni tanto crea la formula invece di restare
+           un semplice ritorno a capo, e' minore del beneficio di riconoscere
+           l'Invio vero su chi scrive da telefono. */
+        if ((e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') && ftIntelligenteAuto()) {
+            if (ftCreaFormulaABloccoDaParola()) { e.preventDefault(); return; }
         }
 
         /* Spento (il caso di default): il dollaro e' sempre e solo un
@@ -4488,6 +5149,17 @@ function ftSetupEditor(wrap) {
             }
         }
         ftSync(wrap); ftRefreshState(wrap);
+        /* Scrivere puo' far crescere la casella (una riga nuova, un a capo
+           dentro una lista lunga) e spostare cosi' la barra rispetto alla
+           soglia — senza che nessuno abbia scorso la pagina, quindi senza
+           che il nostro ascoltatore sullo scroll se ne accorga da solo.
+           Ricontrollare anche qui, a ogni tasto, e' la rete di sicurezza:
+           se un caso di crescita sfuggisse ancora al solo scroll, si
+           corregge comunque al giro successivo, non resta scoperto finche'
+           non arriva uno scroll vero. Se non c'e' niente da agganciare (la
+           barra e' gia' a posto, o non e' il caso) la funzione non fa
+           nulla di visibile. */
+        if (typeof ftAggancioAggiorna === 'function') ftAggancioAggiorna();
     });
     /* keyup e mouseup scattano dopo OGNI tasto e OGNI clic. Se in quel
        momento si sta scrivendo dentro MathQuill, il refresh non va fatto:
@@ -4558,15 +5230,51 @@ function ftSetupToolbar(wrap) {
     var ed = ftEditor(wrap);
     if (!bar || !ed) return;
 
-    bar.addEventListener('mousedown', function (e) {
-        if (e.target.closest('.fmt-btn') || e.target.closest('.fmt-pop-dot') || e.target.closest('.fmt-sugg-voce')) e.preventDefault();
-    });
+    /* Nessun <button> della barra deve MAI poter tenere il fuoco per conto
+       suo: e' la causa vera, mai risolta del tutto, di "creo la formula col
+       tasto e non ci si scrive dentro". Non e' il mousedown il colpevole (lo
+       preveniamo gia' qui sotto, su tutta la barra): un <button> nativo, in
+       Chrome, si mette a fuoco da solo come parte della sua "attivazione"
+       quando il CLIC si completa — un passo distinto dal mousedown, che
+       preventDefault sul mousedown non tocca affatto — e lo fa DOPO che il
+       nostro gestore del click e' gia' finito. Il tentativo di rincorrerlo
+       (un secondo focus() con setTimeout/requestAnimationFrame, ancora piu'
+       sotto in ftMQFuoco) e' una corsa contro un tempo che il browser non
+       promette mai: a volte arriva prima lui, a volte prima noi — ed e'
+       esattamente per questo che il difetto sembrava capriccioso invece che
+       sempre uguale. tabindex="-1" lo toglie alla radice: un elemento con
+       quel valore resta cliccabile come sempre (il suo click parte
+       regolarmente) ma non e' piu' un candidato per il fuoco assegnato dal
+       click stesso ne' dal tasto Tab — puo' comunque prendere il fuoco se
+       lo si chiama esplicitamente da codice (mai il nostro caso), quindi
+       niente da rincorrere piu'. Si applica a chi c'e' gia' ora; i pulsanti
+       creati piu' tardi (lingue, suggerimenti vocali) lo impostano da soli
+       alla nascita. */
+    bar.querySelectorAll('button').forEach(function (b) { b.tabIndex = -1; });
+
+    /* Qualunque mousedown dentro la barra, non solo sui pulsanti: un tocco
+       nello spazio vuoto (il margine fra un gruppo e l'altro, lo sfondo del
+       cassetto) non e' su nessun elemento cliccabile, ma il comportamento di
+       default del mousedown su un'area non modificabile e' comunque togliere
+       il fuoco a cio' che ce l'ha — la casella, in questo caso — anche senza
+       che ci sia niente su cui il fuoco potrebbe spostarsi. Prima si
+       intercettavano solo i pulsanti conosciuti (.fmt-btn, .fmt-pop-dot,
+       .fmt-sugg-voce): un tocco a vuoto, o su un pulsante generato piu' tardi
+       con un'altra classe (.fmt-lingua, nel pannello delle lingue), passava
+       dritto e la casella perdeva il fuoco — la barra si richiudeva da sola
+       (vedi fmt-attiva) come se si fosse toccato fuori. Prevenendo il default
+       su OGNI mousedown qui dentro, un tocco a vuoto ora e' davvero come non
+       aver toccato niente: il fuoco resta dov'era, e i pulsanti veri
+       continuano a funzionare lo stesso — preventDefault sul mousedown non
+       tocca il click ne' lo stile :active, ferma solo lo spostamento del
+       fuoco che nessuno ha chiesto. */
+    bar.addEventListener('mousedown', function (e) { e.preventDefault(); });
 
     bar.addEventListener('click', function (e) {
 
         var dot = e.target.closest('.fmt-pop-dot');
         if (dot) {
-            if (dot.hasAttribute('data-color')) ftMark(wrap, 'c', dot.dataset.color || undefined);
+            if (dot.hasAttribute('data-color')) ftMarkImposta(wrap, 'c', dot.dataset.color || undefined);
             else ftCmd(wrap, function (doc, sel) { return { doc: fcdSetListColor(doc, sel, dot.dataset.listColor || null), sel: sel }; });
             ftRefreshState(wrap);
             return;
@@ -4584,10 +5292,15 @@ function ftSetupToolbar(wrap) {
         if (btn.classList.contains('fmt-tab')) {
 
             if (btn.dataset.panel === 'list') {
-                /* Frase senza pallino -> lo crea e apre il pannello (o lo
-                   lascia aperto se lo era gia'). Frase che ce l'ha gia' -> lo
-                   toglie e chiude il pannello, qualunque fosse il suo stato
-                   prima del click: e' il pallino a decidere, non il tasto. */
+                /* Comportamento voluto, a due tempi: sul pallino gia' messo,
+                   un click a pannello CHIUSO apre solo il pannello (non
+                   tocca il pallino); e' ricliccandolo a pannello GIA' APERTO
+                   che lo toglie. Frase senza pallino -> lo crea e apre
+                   sempre il pannello, in un solo click.
+                   (Avevo scambiato questa descrizione per un difetto da
+                   correggere in un giro precedente, rendendo tutto un
+                   singolo click — non era quello che veniva chiesto: qui e'
+                   ripristinato il comportamento a due tempi originale.) */
                 var edLi = ftEditor(wrap);
                 var docLi = fcdFromDom(edLi);
                 /* Il blocco vero, anche se il fuoco e' dentro MathQuill: la
@@ -4597,16 +5310,21 @@ function ftSetupToolbar(wrap) {
                 var biLi = ftBloccoCorrente(edLi);
                 var bloccoLi = (biLi != null) ? docLi.blocks[biLi] : null;
                 var eraLi = !!(bloccoLi && (bloccoLi.t === 'li' || (bloccoLi.t === 'fx' && bloccoLi.lvl)));
+                var pannelloEraAperto = fcPannelloAperto(bar, 'list');
 
-                /* Nessun caso speciale per le formule: ftCmd sa gia' che, se
-                   il fuoco e' dentro MathQuill, il blocco su cui agire e' la
-                   formula — e fcdToggleList il pallino sulle formule lo sa
-                   mettere. Qui basta il comando normale. */
+                if (eraLi && !pannelloEraAperto) {
+                    /* C'e' gia' il pallino ma il pannello e' chiuso: questo
+                       click apre solo il pannello, il pallino resta. */
+                    fcOpenPanelForce(bar, 'list');
+                    return;
+                }
+
                 ftCmd(wrap, function (d, s) { return { doc: fcdToggleList(d, s), sel: s }; });
 
                 if (eraLi) fcClosePanel(bar);
                 else fcOpenPanelForce(bar, 'list');
 
+                ftRefreshState(wrap);
                 return;
             }
 
@@ -4693,6 +5411,7 @@ function ftSuggBase(bar, stato) {
         if (!def) return;
         var b = document.createElement('button');
         b.type = 'button';
+        b.tabIndex = -1;   // mai fuoco da solo: vedi il commento in ftSetupToolbar
         b.className = 'fmt-sugg-voce' + (FT_COMANDI_CHIUSURA.indexOf(ch) !== -1 ? ' fmt-sugg-chiudi' : '');
         b.dataset.cmdVoce = ch;
         b.textContent = def.eti;

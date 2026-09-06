@@ -1,0 +1,157 @@
+/* fc_media_box.css — i riquadri "immagine" e "audio", condivisi.
+ *
+ * PERCHE' ESISTE
+ * Queste regole vivevano dentro modifica_immagine_fc.css, cioe' dentro il
+ * foglio di UNA pagina. Il pannello degli esempi ne aveva percio' una
+ * versione sua, riscritta con altri nomi (.exm-audio-card, .exm-img-box,
+ * .exm-rec-btn): stesso scopo, misure diverse, colori diversi, disposizione
+ * diversa — due riquadri che dovrebbero essere lo stesso oggetto e non si
+ * somigliavano. E non e' un dettaglio di gusto: chi allega una foto a una
+ * carta e chi la allega a un esempio sta facendo la stessa cosa, e se il
+ * riquadro cambia forma deve fermarsi a rileggerlo.
+ *
+ * Ora c'e' un posto solo. Chi lo include:
+ *   - modifica_immagine_fc.php   (il modulo della carta)
+ *   - examples_modal.php         (il modulo dell'esempio, che a sua volta
+ *                                 finisce dentro visualizzazione_fc.php)
+ *
+ * Ogni variabile ha il suo ripiego scritto accanto: questo foglio deve
+ * reggersi anche dove il tema non e' stato dichiarato (examples_modal.php
+ * viene incluso in pagine che non caricano modifica_immagine_fc.css).
+ */
+
+/* ================================================================
+   IMMAGINE E AUDIO SU UNA RIGA SOLA
+   ================================================================
+   Due riquadri vuoti impilati occupavano mezza schermata per dire "qui non
+   c'e' niente". Affiancati costano una riga sola. L'immagine a sinistra e
+   l'audio a destra, sempre nello stesso ordine: e' l'ordine che si e'
+   imparato sul modulo della carta, e cambiarlo nel modulo dell'esempio
+   costringerebbe a ricontrollare ogni volta quale dei due si sta toccando. */
+.fc-media-affiancati{ display:flex; gap:10px; align-items:stretch; }
+.fc-media-affiancati > *{ flex:1 1 0; min-width:0; }
+@media (max-width:420px){
+    .fc-media-affiancati{ flex-direction:column; }
+}
+
+/* ---------------- Immagini: "Attuale" di sola lettura, "Nuova" si tocca ----------------
+   "Nuova" e' anche l'etichetta collegata al suo input file: premerla apre il
+   selettore, con o senza un'anteprima gia' scelta dentro. Niente pulsante
+   "Scegli foto" a parte, ne' la casella "sostituisci" da tenere sincronizzata
+   col file scelto. */
+.img-compare{ display:flex; gap:10px; margin-bottom:10px; }
+.img-box{
+    flex:1; min-width:0; border-radius:14px; padding:10px; text-align:center;
+    background:var(--surface-2, #F7F7FA); box-shadow:inset 0 0 0 .5px var(--hairline, rgba(60,60,67,.12));
+    transition:opacity .2s, box-shadow .2s;
+}
+.img-tag{ display:block; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text-3, #AEAEB2); margin-bottom:6px; }
+.img-tag-new{ color:var(--blue, #007AFF); }
+.img-box img{ max-width:100%; max-height:96px; border-radius:9px; object-fit:contain; display:block; margin:0 auto; }
+.img-empty{ color:var(--text-3, #AEAEB2); font-size:12.5px; font-style:italic; padding:18px 4px; }
+
+.img-pick-box{
+    cursor:pointer; border:1.5px dashed var(--hairline-2, rgba(60,60,67,.25));
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    transition:border-color .18s ease, background .18s ease, transform .15s var(--spring, cubic-bezier(.32,.72,0,1));
+}
+.img-pick-box:active{ transform:scale(.98); }
+.img-pick-box.has-img{ border-style:solid; border-color:rgba(0,122,255,.4); background:var(--blue-soft, rgba(0,122,255,.09)); }
+.img-pick-empty-sm{
+    display:flex; flex-direction:column; align-items:center; gap:5px;
+    color:var(--text-3, #AEAEB2); font-size:11.5px; font-weight:700; padding:10px 2px;
+}
+.img-pick-box.has-img .img-pick-empty-sm{ display:none; }
+.img-pick-preview{ max-width:100%; max-height:96px; border-radius:9px; object-fit:contain; display:block; margin:0 auto; }
+
+/* Senza il riquadro "Attuale" (inserimento, e il modulo dell'esempio) quello
+   "Nuova" resterebbe largo meta' riga, spaiato: da solo se la prende tutta. */
+.img-compare-solo .img-pick-box{ min-height:120px; }
+
+/* Il riquadro immagine e' un <label>: il contorno della messa a fuoco va
+   sull'elemento, ma e' l'input dentro a riceverla davvero — da qui
+   :focus-within e non :focus-visible. */
+.img-pick-box:focus-within{
+    outline:2px solid var(--blue, #007AFF); outline-offset:2px;
+    border-color:var(--blue, #007AFF);
+}
+
+/* Il riquadro "Attuale" si smorza quando l'immagine e' segnata per la
+   rimozione: si vede subito cosa sta per succedere. */
+.img-marked-removed{ opacity:.4; box-shadow:inset 0 0 0 1.5px var(--red, #FF3B30); }
+
+/* "Rimuovi" vive DENTRO il riquadro "Attuale", non come riga a parte sotto
+   entrambi i riquadri: con Domanda e Risposta vicine non era chiaro a colpo
+   d'occhio quale delle due immagini quella riga volesse togliere. */
+.img-remove-row{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    margin-top:8px; padding-top:8px; border-top:.5px solid var(--hairline, rgba(60,60,67,.12));
+    font-size:11.5px; font-weight:700; color:var(--r-ink, #D70015); cursor:pointer;
+}
+.img-remove-row input[type="checkbox"]{
+    width:15px; height:15px; accent-color:var(--red, #FF3B30); flex-shrink:0; margin:0;
+}
+
+/* ---------------- Audio, compatto ed elegante ----------------
+   Lo stesso linguaggio visivo del riquadro "Nuova" immagine: stesso raggio
+   (14px), stesso sfondo, stesso filetto interno, contenuto centrato. Cosi' i
+   due affiancati sembrano la stessa famiglia di riquadri e non due stili
+   diversi messi vicini per caso. */
+.audio-card{
+    flex:1; min-width:0; border-radius:14px; padding:14px 12px; text-align:center;
+    background:var(--surface-2, #F7F7FA); box-shadow:inset 0 0 0 .5px var(--hairline, rgba(60,60,67,.12));
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    transition:opacity .2s, box-shadow .2s, background .2s;
+}
+/* Stessa altezza minima del riquadro immagine quando sono affiancati: senza,
+   due riquadri con contenuto diverso avrebbero altezze diverse e la riga
+   risulterebbe storta. */
+.fc-media-affiancati .audio-card{ min-height:120px; }
+/* .img-compare porta un margin-bottom:10px, pensato per staccarlo da quello
+   che segue quando e' su una riga tutta sua (la casella "Rimuovi immagine",
+   quando c'e'). Affiancato all'audio quel margine diventa spazio che l'audio
+   non ha: le due colonne, pur con la stessa altezza di contenuto, apparivano
+   sfalsate. */
+.fc-media-affiancati .img-compare{ margin-bottom:0; }
+
+.audio-row{ display:flex; flex-direction:column; align-items:center; gap:9px; }
+.rec-btn{
+    width:44px; height:44px; border-radius:50%; flex-shrink:0; border:none; cursor:pointer; padding:0;
+    display:flex; align-items:center; justify-content:center; position:relative;
+    background:var(--chip-bg, #fff); color:var(--text-2, #8A8A8E);
+    box-shadow:var(--pill-hl, inset 0 0 0 .5px rgba(60,60,67,.12)), var(--raise-sm, 0 2px 6px rgba(0,0,0,.08));
+    transition:transform .15s var(--spring, cubic-bezier(.32,.72,0,1)), background .2s, color .2s;
+}
+.rec-btn:active{ transform:scale(.9); }
+.rec-btn.recording{
+    background:var(--r-fill, rgba(255,59,48,.12)); color:var(--r-ink, #D70015);
+    box-shadow:inset 0 0 0 1.5px var(--r-line, rgba(255,59,48,.55));
+    animation:recPulse 1.6s ease-in-out infinite;
+}
+@keyframes recPulse{
+    0%,100%{ box-shadow:inset 0 0 0 1.5px var(--r-line, rgba(255,59,48,.55)), 0 0 0 0 var(--r-sh, rgba(255,59,48,.3)); }
+    50%{ box-shadow:inset 0 0 0 1.5px var(--r-line, rgba(255,59,48,.55)), 0 0 0 7px rgba(255,59,48,0); }
+}
+/* Centrato come il testo del riquadro immagine ("Tocca per scegliere"), non
+   allineato a sinistra accanto al pulsante. */
+.audio-info{ text-align:center; }
+.audio-title{ font-size:13px; font-weight:800; color:var(--text, #1C1C1E); }
+.audio-sub{ font-size:11.5px; font-weight:700; color:var(--text-3, #AEAEB2); margin-top:2px; font-variant-numeric:tabular-nums; }
+.audio-player-row{ display:flex; align-items:center; gap:10px; }
+.audio-player-row audio, .audio-player-row-new{ flex:1; min-width:0; height:34px; width:100%; }
+.mini-remove{ display:flex; align-items:center; gap:5px; font-size:12px; font-weight:700; color:var(--r-ink, #D70015); white-space:nowrap; cursor:pointer; }
+.mini-remove input{ width:15px; height:15px; accent-color:var(--red, #FF3B30); margin:0; }
+
+/* Col mouse, e solo col mouse: su un dispositivo touch :hover resta
+   "appiccicato" dopo un tocco, finche' non si tocca altrove. */
+@media (hover:hover) and (pointer:fine){
+    .img-pick-box:hover{ border-color:var(--blue, #007AFF); background:var(--blue-soft, rgba(0,122,255,.09)); }
+    .img-pick-remove:hover{ background:rgba(0,0,0,.72); }
+}
+
+/* Chi ha chiesto meno movimento: si tolgono gli spostamenti, si tengono i
+   cambi di colore, che non danno fastidio e servono a capire cosa succede. */
+@media (prefers-reduced-motion: reduce){
+    .img-pick-box:active, .rec-btn:active{ transform:none; }
+    .rec-btn.recording{ animation:none; }
+}

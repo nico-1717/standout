@@ -6,6 +6,12 @@
 if (!defined('EXM_CSS')) {
     define('EXM_CSS', 1);
     echo '<link rel="stylesheet" href="' . PWA_BASE . 'examples_modal.css?v=' . (@filemtime(dirname(__FILE__) . '/examples_modal.css') ?: 1) . '">' . "\n";
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc_ai_fab.css">' . "\n";
+    /* I riquadri immagine/audio sono gli stessi del modulo della carta: le
+       loro regole vivono in fc_media_box.css, non piu' dentro il foglio di
+       una pagina sola. Serve anche qui perche' questo pannello finisce in
+       visualizzazione_fc.php, che modifica_immagine_fc.css non lo carica. */
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc_media_box.css?v=' . (@filemtime(dirname(__FILE__) . '/fc_media_box.css') ?: 1) . '">' . "\n";
 }
 if (!defined('NS_AUTOSAVE_CSS_INCLUDED')) {
     define('NS_AUTOSAVE_CSS_INCLUDED', true);
@@ -82,31 +88,6 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
         </div>
 
-        <div class="exm-ai-wrap" id="ex-ai-wrap">
-
-            <button type="button" class="exm-ai-fab" id="ex-ai-fab" onclick="toggleAiBox(true)" aria-label="<?php te('fc.exm_genera_ia'); ?>">
-                <span><?php te('fc.exm_ia_label'); ?></span>
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M12 2.5l2 5.7 5.7 2-5.7 2-2 5.7-2-5.7-5.7-2 5.7-2 2-5.7zM19 14l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1 1.1-3z"/></svg>
-            </button>
-
-            <div class="exm-ai-box" id="ex-ai-box" style="display:none;">
-
-                <button type="button" class="exm-ai-collapse" onclick="toggleAiBox(false)" aria-label="<?php te('comune.chiudi'); ?>">
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                </button>
-
-                <div class="exm-ai-title"><?php te('fc.exm_genera_ia'); ?></div>
-
-                <textarea id="ex-ai-prompt" rows="2" onclick="this.select()"><?php te('fc.exm_genera_sub'); ?></textarea>
-
-                <button id="ex-ai-btn" class="exm-ai-generate" onclick="onGenerateAiClick()"><?php te('fc.exm_genera_btn'); ?></button>
-
-            </div>
-
-        </div>
-
-
-
         <label class="exm-label"><?php te('fc.exm_testo'); ?></label>
 
         <div style="margin-bottom: 16px; border: 1px solid var(--hairline-2, rgba(60,60,67,.25)); border-radius: 12px; overflow: hidden; background: var(--surface, #fff);">
@@ -127,57 +108,123 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
 
 
-        <label class="exm-label"><?php te('fc.exm_audio'); ?></label>
+        <?php /* IMMAGINE E AUDIO: GLI STESSI RIQUADRI DEL MODULO DELLA CARTA.
+                 Non "simili": gli stessi. Stesse classi (.fc-media-affiancati,
+                 .img-compare, .img-pick-box, .audio-card, .rec-btn), stesso
+                 foglio di stile (fc_media_box.css), stesso ordine — immagine a
+                 sinistra, audio a destra.
 
-        <div class="exm-audio-card">
+                 Prima qui c'era una coppia scritta a mano (.exm-img-box,
+                 .exm-audio-card): un rettangolo azzurro col bordo pieno e un
+                 pulsante "Scegli una foto dal dispositivo" da una parte, una
+                 card grigia col microfono a sinistra del testo dall'altra.
+                 Faceva le stesse identiche cose del modulo della carta con
+                 una faccia diversa, e allegare una foto a un esempio o a una
+                 carta e' la stessa azione: se il riquadro cambia forma
+                 bisogna fermarsi a rileggerlo.
 
-            <div class="exm-audio-row">
+                 Le classi .exm-img-box / .exm-audio-card / .exm-rec-btn
+                 restano in examples_modal.css ma qui non le usa piu' nessuno. */ ?>
+        <div class="fc-media-affiancati">
 
-                <button type="button" class="exm-rec-btn" id="ex-rec-btn" onclick="toggleExampleRecord()">
+            <?php /* img-compare-solo: c'e' un riquadro solo, quello nuovo, e da
+                     solo si prende tutta la colonna. L'anteprima dell'immagine
+                     gia' salvata compare qui dentro, non in un secondo riquadro
+                     "Attuale": un esempio ha una foto sola e la si sostituisce,
+                     non la si confronta. */ ?>
+            <div class="img-compare img-compare-solo">
+                <label for="ex-image-file" class="img-box img-pick-box" id="ex_img_wrap">
+                    <input type="file" id="ex-image-file" accept="image/*" style="display:none;" onchange="previewExImage(this)">
+                    <span class="img-tag img-tag-new"><?php te('vocab.mi_nuova'); ?></span>
+                    <span class="img-pick-empty img-pick-empty-sm">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.2h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.2" r="3.3"/></svg>
+                        <span><?php te('vocab.mi_tocca_per_scegliere'); ?></span>
+                    </span>
+                    <?php /* Il contenitore resta, con il suo id: e' quello che il
+                             JS accende e spegne (previewExImage, openExampleForm,
+                             il ripristino). Cambiargli forma qui senza cambiarlo
+                             li' avrebbe rotto l'anteprima in tre punti diversi. */ ?>
+                    <span id="ex-img-preview-container" style="display:none;">
+                        <img class="img-pick-preview" id="ex-img-preview" src="">
+                    </span>
+                </label>
+            </div>
 
-                    <svg class="ic-mic" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+            <div class="audio-card">
+                <div class="audio-row">
+                    <button type="button" class="rec-btn" id="ex-rec-btn" onclick="toggleExampleRecord()" aria-label="<?php te('fc.exm_vocale'); ?>">
+                        <svg class="ic-mic" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+                        <svg class="ic-stop" viewBox="0 0 24 24" width="18" height="18" style="display:none;"><rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor"/></svg>
+                    </button>
+                    <div class="audio-info">
+                        <div class="audio-title"><?php te('fc.exm_vocale'); ?></div>
+                        <div class="audio-sub" id="ex-rec-status"><?php te('fc.ifc_tocca_registrare'); ?></div>
+                    </div>
+                </div>
+                <audio id="ex-audio-player" controls class="audio-player-row-new" style="display:none;"></audio>
+            </div>
 
-                    <svg class="ic-stop" viewBox="0 0 24 24" width="18" height="18" style="display:none;"><rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor"/></svg>
+        </div><!-- .fc-media-affiancati -->
 
-                </button>
+        <?php /* IL BLOCCO IA STA IN FONDO AL PANNELLO, NON PIU' IN CIMA.
+                 Non e' un riordino estetico: e' quello che permette al cerchio
+                 di restare in basso a destra.
 
-                <div style="flex:1; min-width:0;">
+                 Il pannello e' lui stesso il contenitore che scorre
+                 (.exm-panel ha overflow-y:auto). Un elemento in
+                 position:absolute li' dentro si ancora al riquadro INTERO, non
+                 alla parte che si vede: quindi "bottom:16px" voleva dire in
+                 fondo al contenuto: giusto all'apertura, quando il contenuto e'
+                 corto quanto la finestra, sbagliato appena il modulo si allunga
+                 e il fondo del contenuto se ne va sotto il bordo.
 
-                    <div style="font-size:13.5px; font-weight:800; color:var(--text, #1C1C1E);"><?php te('fc.exm_vocale'); ?></div>
+                 La soluzione e' position:sticky (in examples_modal.css), che
+                 pero' funziona in un verso solo: tiene un elemento dentro la
+                 parte visibile spostandolo INDIETRO rispetto allo scorrimento,
+                 mai in avanti. Un elemento in cima al contenuto, con
+                 bottom:16px, e' gia' dentro il limite e non viene mosso di un
+                 pixel — ecco perche' non bastava aggiungere la regola e
+                 lasciarlo dov'era. Da qui in fondo, invece, la sua posizione
+                 naturale e' sotto il bordo visibile, e sticky lo tira su fino a
+                 16px dal fondo: esattamente dove deve stare, a ogni altezza del
+                 modulo.
 
-                    <div id="ex-rec-status" style="font-size:12px; font-weight:600; color:var(--text-2, #8A8A8E); margin-top:1px; font-variant-numeric:tabular-nums;">Tocca per registrare</div>
+                 Fixed no: il pannello e' largo 640px al centro di uno schermo
+                 che puo' esserne largo il triplo, e un pulsante ancorato alla
+                 FINESTRA finirebbe a mezz'aria sul velo scuro, staccato dal
+                 pannello a cui appartiene. */ ?>
+
+        <div class="exm-ai-wrap" id="ex-ai-wrap">
+
+            <?php /* Stesso cerchio in sovraimpressione del modulo della carta
+                     (fc_ai_fab.php): l'IA si chiede allo stesso modo ovunque, e
+                     la pastiglia piccola qui dentro era l'ultima superstite del
+                     disegno precedente. */
+                   require_once 'fc_ai_fab.php';
+                   fc_ai_fab('ex-ai-fab', 'toggleAiBox(true)'); ?>
+
+            <?php /* Popup vero, non piu' un riquadro che si espande in pagina: lo
+                     stesso cambiamento gia' fatto per l'IA della carta (
+                     fc_migliora_carta.php), qui applicato al suo equivalente
+                     per gli esempi. */ ?>
+            <div class="exm-ai-overlay" id="ex-ai-overlay" hidden>
+                <div class="exm-ai-box" id="ex-ai-box">
+
+                    <button type="button" class="exm-ai-collapse" onclick="toggleAiBox(false)" aria-label="<?php te('comune.chiudi'); ?>">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
+
+                    <div class="exm-ai-title"><?php te('fc.exm_genera_ia'); ?></div>
+
+                    <textarea id="ex-ai-prompt" rows="2" onclick="this.select()"><?php te('fc.exm_genera_sub'); ?></textarea>
+
+                    <button id="ex-ai-btn" class="exm-ai-generate" onclick="onGenerateAiClick()"><?php te('fc.exm_genera_btn'); ?></button>
 
                 </div>
-
             </div>
-
-            <audio id="ex-audio-player" controls style="display:none; height:34px;"></audio>
 
         </div>
 
-
-
-        <label class="exm-label"><?php te('vocab.immagine'); ?></label>
-
-        <div class="exm-img-box">
-
-            <div id="ex-img-preview-container" style="display:none; margin-bottom:12px;">
-
-                <img id="ex-img-preview" src="" style="max-width:100%; max-height:140px; border-radius:9px; display:block; margin:0 auto; box-shadow:0 2px 8px rgba(0,0,0,.1);">
-
-            </div>
-
-            <input type="file" id="ex-image-file" accept="image/*" style="display:none;" onchange="previewExImage(this)">
-
-            <label for="ex-image-file" class="exm-file-btn">
-
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.2h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.2" r="3.3"/></svg>
-
-                <?php te('fc.exm_scegli_foto'); ?>
-
-            </label>
-
-        </div>
 
 
 
@@ -188,6 +235,22 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
 
 <script>
+if (!window.__examplesModalCaricato) {
+window.__examplesModalCaricato = true;
+
+/* CORREZIONE — bug grave: "function" dichiarata dentro un blocco { } resta
+   visibile SOLO in quel blocco. Le funzioni normali hanno un'eccezione
+   storica (Annex B) che le fa comunque "uscire" nello scope globale in
+   modalita' non strict, per compatibilita' con pagine vecchie — ma quella
+   eccezione NON vale per le funzioni async: restano sempre confinate dentro
+   il blocco in cui nascono, senza eccezioni, in ogni modalita'.
+   Le quattro funzioni async di questo file nascevano dentro
+   if (!window.__examplesModalCaricato) { ... } — nessun errore alla
+   definizione, perche' e' codice perfettamente valido; ma "onclick=" nei
+   pulsanti (qui e nelle pagine che includono questo file) le cerca nello
+   scope globale, dove semplicemente non c'erano mai state. Diventano
+   assegnazioni a window invece di dichiarazioni: un'assegnazione non risente
+   dello scope del blocco in cui si trova. */
 
 /* Il token di sessione lo emette questo file, non la pagina che lo include:
    il componente compare in piu' pagine e non tutte espongono una variabile
@@ -198,11 +261,79 @@ const EXM_CSRF = <?php echo json_encode(sec_csrf_token()); ?>;
 
 const EXM_ICON_EXAMPLE = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>';
 
-let currentFcId = 0, currentFcType = 'parent', currentExId = 0;
+/* CORREZIONE — stessa categoria di bug delle quattro funzioni async
+   corrette sopra, qui su una variabile: "let" e' SEMPRE confinata al
+   blocco in cui nasce, senza nessuna eccezione — a differenza delle
+   funzioni normali, "let" non ha mai avuto un'eccezione di compatibilita'
+   che la faccia uscire dal blocco, in nessuna modalita'. Il pulsante "+"
+   per un nuovo esempio la cerca da un onclick esterno (scope globale),
+   dove semplicemente non e' mai esistita: "ReferenceError: currentFcId
+   is not defined". Diventa una proprieta' di window, che non risente
+   dello scope del blocco in cui si trova. */
+window.currentFcId = 0; window.currentFcType = 'parent'; window.currentExId = 0;
 
 function exChipKey(id, type) { return (type === 'child' ? 'c' : 'p') + id; }
 
-let currentQ = '', currentA = '';
+/* ---- IL CONTATORE SUL PULSANTE DELLA CARTA ----
+   Il pulsante "Esempi (n)" che sta sulla riga della carta — in
+   inserimento_big_fc.php e nelle pagine coi voti — lo riscrive questo
+   componente, perche' e' lui a sapere quando un esempio nasce o muore.
+
+   Prima il numero nuovo veniva CALCOLATO qui: currentExamplesList.length + 1
+   dopo un salvataggio, -1 dopo un'eliminazione. Funzionava per un giro solo.
+   currentExamplesList e' la fotografia scattata all'apertura del pannello e
+   non veniva mai aggiornata: aggiunto il secondo esempio senza chiudere e
+   riaprire, il conto ripartiva sempre dalla stessa fotografia e il pulsante
+   restava fermo sul numero di prima. Da fuori si vedeva solo il sintomo — si
+   salva, si chiude, e il pulsante dice ancora quello che diceva.
+
+   Ora il numero non si calcola: si chiede a chi lo sa, cioe' al server, che
+   e' anche l'unico modo di essere giusti se nel frattempo qualcosa e'
+   cambiato da un'altra scheda. Una richiesta piccola, solo quando un esempio
+   e' stato davvero scritto o cancellato. */
+function exAggiornaChip(fcId, fcType) {
+    if (!fcId) return Promise.resolve();
+    return fetch('examples_api.php?action=get&fc_id=' + encodeURIComponent(fcId)
+                 + '&fc_type=' + encodeURIComponent(fcType))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            if (!d || !d.success) return;
+            var esempi = d.examples || [];
+
+            /* La fotografia si aggiorna insieme al pulsante: e' la stessa che
+               legge l'elenco quando lo si riapre. */
+            if (fcId === currentFcId && fcType === currentFcType) currentExamplesList = esempi;
+
+            exScriviChip(exChipKey(fcId, fcType), esempi.length);
+        })
+        .catch(function () { /* il pulsante resta com'era: meglio vecchio che sbagliato */ });
+}
+
+/* Scrive il numero sui pulsanti di quella carta. Sono due perche' la stessa
+   carta puo' comparire in due elenchi diversi nella stessa pagina (quello
+   normale e quello dei voti, btn-ex-graded-*). */
+function exScriviChip(chipKey, quanti) {
+    ['btn-ex-' + chipKey, 'btn-ex-graded-' + chipKey].forEach(function (id) {
+        var b = document.getElementById(id);
+        if (!b) return;
+        if (quanti > 0) {
+            b.innerHTML = EXM_ICON_EXAMPLE + ' ' + T('fc.exm_conteggio', {n: quanti});
+            b.style.background = 'var(--purple, #AF52DE)';
+            b.style.color = 'white';
+            b.style.borderColor = 'var(--purple, #AF52DE)';
+        } else {
+            b.innerText = T('fc.exm_aggiungi');
+            b.style.background = 'var(--surface-3, #f1f3f5)';
+            b.style.color = 'var(--text-3, #555)';
+            b.style.borderColor = 'var(--hairline-2, #ccc)';
+        }
+    });
+}
+
+/* Stesso motivo della correzione qui sopra, anche se oggi nessun onclick
+   esterno le referenzia ancora — cosi' non si riproduce lo stesso bug se
+   in futuro qualcosa le usasse da fuori. */
+window.currentQ = ''; window.currentA = '';
 
 let currentExamplesList = []; // Memoria degli esempi
 
@@ -251,10 +382,21 @@ function setExEditorText(rawText) {
    Chiuso di default: solo il pulsante rotondo. Un tocco apre il campo del
    prompt e il pulsante di generazione; un altro tocco (o generare) richiude. */
 function toggleAiBox(open) {
-    document.getElementById('ex-ai-fab').style.display = open ? 'none' : '';
-    document.getElementById('ex-ai-box').style.display = open ? 'block' : 'none';
+    /* Il pulsante non si nasconde piu': sta sempre dov'e', e a comparire e'
+       un popup sopra — stesso cambiamento gia' fatto per l'IA della carta.
+       Il tocco fuori dal riquadro chiude, come gli altri popup del sito. */
+    var overlay = document.getElementById('ex-ai-overlay');
+    overlay.hidden = !open;
     if (open) document.getElementById('ex-ai-prompt').focus();
 }
+(function () {
+    var overlay = document.getElementById('ex-ai-overlay');
+    if (overlay) {
+        overlay.addEventListener('click', function (ev) {
+            if (ev.target === overlay) toggleAiBox(false);
+        });
+    }
+})();
 
 /* ---- Salvataggio ----
    Se ne occupa la barra vera (NisamaSaveBar, istanza "esempi"): qui restano
@@ -284,6 +426,11 @@ function previewExImage(input) {
 
     let previewImg = document.getElementById('ex-img-preview');
 
+    /* has-img sul riquadro: e' la classe che nasconde l'invito "tocca per
+       scegliere" e fa passare il bordo da tratteggiato a pieno. Il riquadro
+       resta cliccabile, cosi' la foto si cambia toccando quella che c'e'. */
+    let exImgWrap = document.getElementById('ex_img_wrap');
+
     markExDirty();
 
     if (input.files && input.files[0]) {
@@ -296,6 +443,8 @@ function previewExImage(input) {
 
             previewCont.style.display = 'block';
 
+            if (exImgWrap) exImgWrap.classList.add('has-img');
+
         }
 
         reader.readAsDataURL(input.files[0]);
@@ -306,13 +455,15 @@ function previewExImage(input) {
 
         previewImg.src = '';
 
+        if (exImgWrap) exImgWrap.classList.remove('has-img');
+
     }
 
 }
 
 
 
-async function openExamplesModal(fc_id, fc_type, q_text, a_text) {
+window.openExamplesModal = async function (fc_id, fc_type, q_text, a_text) {
 
     currentFcId = fc_id; currentFcType = fc_type; currentQ = q_text; currentA = a_text;
 
@@ -370,7 +521,7 @@ async function openExamplesModal(fc_id, fc_type, q_text, a_text) {
 
     }
 
-}
+};
 
 
 
@@ -415,6 +566,11 @@ function openExampleForm(fc_id, fc_type, ex_id) {
 
     imgPreview.src = '';
 
+    /* Il riquadro torna vuoto: senza togliere has-img resterebbe col bordo
+       pieno e senza l'invito a scegliere, cioe' con l'aria di contenere
+       ancora la foto dell'esempio precedente. */
+    document.getElementById('ex_img_wrap').classList.remove('has-img');
+
     fcAudioResetta('esempio');
 
 
@@ -456,6 +612,7 @@ function openExampleForm(fc_id, fc_type, ex_id) {
             if(ex.example_image) {
                 imgPreview.src = `fc_images/${ex.example_image}`;
                 imgPreviewCont.style.display = 'block';
+                document.getElementById('ex_img_wrap').classList.add('has-img');
             }
 
         }
@@ -498,7 +655,7 @@ function onGenerateAiClick() {
     generateAiExample();
 }
 
-async function generateAiExample() {
+window.generateAiExample = async function () {
 
     let btn = document.getElementById('ex-ai-btn');
 
@@ -573,7 +730,7 @@ async function generateAiExample() {
     clearInterval(exAiTimerInterval);
     btn.disabled = false; btn.innerText = T('fc.exm_genera_btn2');
 
-}
+};
 
 
 
@@ -582,7 +739,7 @@ async function generateAiExample() {
    l'automatico (o la sua rete di sicurezza ogni 25s) a farlo da solo. Deve
    restituire true/false (anche come Promise) e non deve mai ricaricare la
    pagina: ci pensa gia' NisamaSaveBar a gestire sporco/salvando/orario. */
-async function exSalvaEsempio(manuale) {
+window.exSalvaEsempio = async function (manuale) {
 
     if (typeof fcSyncAllEditors === 'function') fcSyncAllEditors();
 
@@ -612,21 +769,9 @@ async function exSalvaEsempio(manuale) {
             fcAudioResetta('esempio');
             fileInput.value = '';
 
-            let count = currentExamplesList.length + (wasNew ? 1 : 0);
-            let chipKey = exChipKey(currentFcId, currentFcType);
-            let btnUI = document.getElementById('btn-ex-' + chipKey);
-            let btnUIGraded = document.getElementById('btn-ex-graded-' + chipKey);
-            let updateBtn = (b) => {
-                if (count > 0) {
-                    b.innerHTML = `${EXM_ICON_EXAMPLE} ${T('fc.exm_conteggio', {n: count})}`;
-                    b.style.background = 'var(--purple, #AF52DE)'; b.style.color = 'white'; b.style.borderColor = 'var(--purple, #AF52DE)';
-                } else {
-                    b.innerText = T('fc.exm_aggiungi');
-                    b.style.background = 'var(--surface-3, #f1f3f5)'; b.style.color = 'var(--text-3, #555)'; b.style.borderColor = 'var(--hairline-2, #ccc)';
-                }
-            };
-            if (btnUI) updateBtn(btnUI);
-            if (btnUIGraded) updateBtn(btnUIGraded);
+            /* Il numero vero, chiesto al server: non si aspetta la chiusura del
+               pannello ne' un ricaricamento della pagina. */
+            exAggiornaChip(currentFcId, currentFcType);
 
             if (wasNew) {
                 document.getElementById('ex-delete-btn').style.display = 'flex';
@@ -642,7 +787,7 @@ async function exSalvaEsempio(manuale) {
         return false;
     }
 
-}
+};
 
 /* Nome storico, per chi la richiama da fuori (es. una scorciatoia da tastiera):
    un salvataggio manuale come un altro, chiesto alla barra vera. */
@@ -652,7 +797,7 @@ function saveExample() {
 
 
 
-async function deleteExample() {
+window.deleteExample = async function () {
 
     if (!confirm(T('fc.exm_conferma_elimina'))) return;
 
@@ -688,39 +833,10 @@ async function deleteExample() {
 
             openExamplesModal(currentFcId, currentFcType, currentQ, currentA);
 
-            
-
-            let chipKey = exChipKey(currentFcId, currentFcType);
-
-            let btnUI = document.getElementById('btn-ex-' + chipKey);
-
-            let btnUIGraded = document.getElementById('btn-ex-graded-' + chipKey);
-
-            let count = Math.max(0, currentExamplesList.length - 1);
-
-            
-
-            let updateBtn = (b) => {
-
-                if (count > 0) {
-
-                    b.innerHTML = `${EXM_ICON_EXAMPLE} ${T('fc.exm_conteggio', {n: count})}`;
-
-                    b.style.background = 'var(--purple, #AF52DE)'; b.style.color = 'white'; b.style.borderColor = 'var(--purple, #AF52DE)';
-
-                } else {
-
-                    b.innerText = T('fc.exm_aggiungi');
-
-                    b.style.background = 'var(--surface-3, #f1f3f5)'; b.style.color = 'var(--text-3, #555)'; b.style.borderColor = 'var(--hairline-2, #ccc)';
-
-                }
-
-            };
-
-            if(btnUI) updateBtn(btnUI);
-
-            if(btnUIGraded) updateBtn(btnUIGraded);
+            /* Anche qui il numero si chiede, non si sottrae: currentExamplesList
+               poteva gia' essere vecchia di un esempio, e -1 su un numero
+               vecchio da' un numero vecchio. */
+            exAggiornaChip(currentFcId, currentFcType);
 
         } else {
 
@@ -738,7 +854,7 @@ async function deleteExample() {
         btn.disabled = false; btn.innerHTML = originalHtml;
     }
 
-}
+};
 
 /* Ogni cambiamento nel testo dell'editor (contenteditable, quindi genera
    davvero l'evento 'input' del browser) segna il form come da salvare. Un solo
@@ -759,4 +875,48 @@ if (typeof NisamaSaveBar !== 'undefined') {
     NisamaSaveBar.setAuto(false, 'esempi', true);
 }
 
+(function () {
+    /* Registro condiviso "quali popup sono aperti": un Set su window invece
+       di una bandiera calcolata guardando solo i pannelli di QUESTO
+       componente, cosi' la pagina che lo include (es. game_fc.php) puo'
+       registrarci i propri popup nello stesso posto - altrimenti due
+       controlli scollegati rischierebbero di azzerarsi a vicenda (uno
+       vede i suoi chiusi e sovrascrive la bandiera anche se un altro
+       popup, che lui non conosce, e' ancora aperto). */
+    window.__nisamaModaliAperti = window.__nisamaModaliAperti || new Set();
+
+    window.nisamaOsservaModale = window.nisamaOsservaModale || function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        function aggiorna() {
+            var visibile = el.style.display && el.style.display !== 'none';
+            if (visibile) window.__nisamaModaliAperti.add(id); else window.__nisamaModaliAperti.delete(id);
+            var prima = window.__nisamaModaleAperto;
+            window.__nisamaModaleAperto = window.__nisamaModaliAperti.size > 0;
+            /* Se questa pagina vive dentro il popup di modifica (window.parent
+               diverso da window), il pulsante IA di QUELLA carta sta nella
+               finestra vera, fuori dall'iframe (fc_edit_popup.js lo crea li').
+               Quando un popup di esempio si apre sopra di lui, resta comunque
+               visibile e cliccabile — due cerchi viola sovrapposti, uno dei
+               due per una carta che in quel momento non si sta nemmeno
+               guardando. Un avviso ogni volta che __nisamaModaleAperto cambia
+               (solo al cambiamento, non ad ogni aggiornamento) gli dice
+               quando nascondersi e quando tornare. */
+            if (prima !== window.__nisamaModaleAperto && window.parent && window.parent !== window) {
+                window.parent.postMessage({
+                    source: 'fc-modifica-popup',
+                    type: window.__nisamaModaleAperto ? 'esempio-aperto' : 'esempio-chiuso'
+                }, window.location.origin);
+            }
+        }
+        if (typeof MutationObserver !== 'undefined') {
+            new MutationObserver(aggiorna).observe(el, { attributes: true, attributeFilter: ['style'] });
+        }
+        aggiorna();
+    };
+
+    ['ex-list-modal', 'ex-form-modal'].forEach(window.nisamaOsservaModale);
+})();
+
+}
 </script>

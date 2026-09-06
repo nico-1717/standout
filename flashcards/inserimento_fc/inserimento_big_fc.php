@@ -275,13 +275,17 @@ if ($modo === 'edit') {
 
         window.MathJax = {
 
-
-
-
-
-
+        /* \cancel (e \bcancel, \xcancel) non fanno parte del pacchetto base
+           di MathJax: senza caricare l'estensione che li definisce, MathJax
+           li mostra in rosso come comando sconosciuto — ed e' esattamente
+           quello che si vedeva. Il foglio di stile che allinea la barretta
+           sul simbolo c'era gia', ma allineava una cosa che non veniva
+           nemmeno disegnata. */
+        loader: { load: ['[tex]/cancel'] },
 
         tex: {
+            packages: { '[+]': ['cancel'] },
+
 
 
 
@@ -4039,21 +4043,6 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-
-        /* Mancava, ed e' lo stesso difetto gia' corretto per l'audio
-           cancellato e per il riordino: cambiare padre a una carta e' una
-           modifica a tutti gli effetti, ma non veniva segnata da nessuna
-           parte. Le conseguenze erano due, e la seconda peggio della prima:
-           il salvataggio automatico non scattava, e il percorso veloce del
-           salvataggio SALTA le righe rimaste 'clean' — quindi da quel momento
-           in poi quella carta non veniva piu' mandata al server, e ogni
-           modifica successiva si perdeva con lei.
-           markDirty() da solo non basta: segna la PAGINA come sporca, non la
-           riga, ed e' la riga che il salvataggio guarda per decidere se
-           mandarla. */
-        if (row.dataset.status === 'clean') row.dataset.status = 'edited';
-        if (typeof updateStatusVisual === 'function') updateStatusVisual(row);
-        markDirty();
         closeSwipe(row);
 
 
@@ -4510,13 +4499,6 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-
-        /* Stessa cosa in aggancio: la carta cambia padre, e senza questo
-           resterebbe 'clean' — non salvata, e da li' in poi nemmeno le
-           modifiche successive. */
-        if (pending.dataset.status === 'clean') pending.dataset.status = 'edited';
-        if (typeof updateStatusVisual === 'function') updateStatusVisual(pending);
-        markDirty();
         closeSwipe(pending);
 
 

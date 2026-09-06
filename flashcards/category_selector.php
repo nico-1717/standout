@@ -659,16 +659,73 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
 
 
+    /* Apre i rami fino alla categoria gia' selezionata, e la porta in vista.
+       Prima l'albero si apriva sempre tutto chiuso: con le sottocategorie, chi
+       arrivava qui da una materia annidata doveva ritrovarsela a mano, un
+       livello alla volta, pur avendola gia' selezionata. Il valore era noto
+       (sta nel campo nascosto): mancava solo che qualcuno lo usasse per
+       srotolare l'albero. */
+    function csEspandiFinoASelezionata(modal) {
+        /* IL CAMPO NASCOSTO NON STA DENTRO IL MODALE.
+           Qui c'era modal.querySelector('input[type="hidden"][name]'), e non
+           trovava mai niente: il campo vive nel widget (.cs-widget, dentro il
+           form della pagina), il modale e' un fratello che per giunta
+           csPortalModals() sposta in fondo a <body>. Quel querySelector
+           restituiva null, idSel restava 0, e la funzione usciva alla riga
+           dopo — sempre. Ecco perche' l'albero si apriva tutto chiuso anche
+           con una materia gia' scelta: il codice per srotolarlo c'era e non
+           veniva mai eseguito.
+           L'id giusto il modale ce l'ha addosso da sempre, in data-cs-hidden:
+           e' lo stesso che usa csApplySelection per scrivere la scelta. */
+        var idCampo = modal.getAttribute('data-cs-hidden');
+        var campo = idCampo ? document.getElementById(idCampo) : null;
+        if (!campo) campo = modal.querySelector('input[type="hidden"][name]');
+        var idSel = campo ? parseInt(campo.value, 10) : 0;
+        modal.querySelectorAll('.cs-name-corrente').forEach(function (n) { n.classList.remove('cs-name-corrente'); });
+        if (!idSel) return;
+
+        var voce = modal.querySelector('[data-cs-select="' + idSel + '"]');
+        if (!voce) return;
+
+        /* Si cerca, fra TUTTI i contenitori di figli del modale, quali
+           "contengono" la voce selezionata da qualche parte al loro interno
+           (Node.contains, affidabile a qualunque profondita'): sono loro i
+           rami da aprire, quelli fra la radice e questa foglia. Prima si
+           risaliva a mano genitore-per-genitore confrontando le classi: un
+           solo passo scritto in modo diverso da come l'albero e' davvero
+           annidato bastava a rompere tutto senza errori visibili. Con
+           contains() non c'e' nessuna ipotesi sulla profondita' o la forma
+           esatta dell'annidamento da azzeccare. */
+        modal.querySelectorAll('.cs-children').forEach(function (kids) {
+            if (!kids.contains(voce)) return;
+            kids.classList.remove('collapsed');
+            var wrap = kids.parentElement;
+            var freccia = wrap ? wrap.querySelector(':scope > .cs-row > .cs-arrow') : null;
+            if (freccia) freccia.classList.remove('collapsed');
+        });
+
+        voce.classList.add('cs-name-corrente');
+        /* Aperti i rami, la voce puo' essere finita fuori dalla parte visibile
+           dell'elenco: la si porta al centro. Due volte, e non e' uno spreco:
+           i rami si aprono con una transizione su max-height di .32s
+           (.cs-row-wrap > .cs-children in category_selector.css), quindi a 60ms
+           l'elenco e' ancora alto meta' di quanto sara' e il centro calcolato
+           allora e' il centro sbagliato. Il primo giro mette la voce grosso
+           modo in vista subito, il secondo la centra davvero a rami fermi. */
+        setTimeout(function () {
+            if (voce.scrollIntoView) voce.scrollIntoView({ block: 'center' });
+        }, 60);
+        setTimeout(function () {
+            if (voce.scrollIntoView) voce.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }, 380);
+    }
+
     function csOpen(modal) {
-
         if (!modal) return;
-
         csResetCreateView(modal);
-
         modal.style.display = 'flex';
-
         modal.classList.remove('closing');
-
+        csEspandiFinoASelezionata(modal);
     }
 
     function csClose(modal) {
