@@ -2061,3 +2061,78 @@ body.select-mode.is-compact .fc-card:not(.is-open) .select-circle input{
         animation:fcAlone 1.2s ease-out both;
     }
 }
+
+/* La matitina in fondo al percorso: si vede quando serve e non prima. Piccola
+   e senza sfondo, cosi' non compete con i nomi delle materie che le stanno
+   accanto — e' un'azione di servizio, non una voce del percorso. */
+.cat-path-edit{
+    flex-shrink:0; width:26px; height:26px; margin-left:2px;
+    border:none; border-radius:50%; padding:0; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    background:transparent; color:var(--text-3);
+    transition:transform .15s var(--spring), background .2s, color .2s;
+}
+.cat-path-edit svg{ width:13px; height:13px; }
+.cat-path-edit:active{ transform:scale(.86); background:var(--surface-2); color:var(--cat-color); }
+@media (hover:hover) and (pointer:fine){
+    .cat-path-edit:hover{ background:var(--surface-2); color:var(--cat-color); }
+}
+
+/* Nel selettore del padre: le materie che non si possono scegliere.
+   Spente e non premibili — un tocco che risponde con un rimprovero fa fare il
+   gesto due volte per scoprire una cosa che l'aspetto aveva gia' detto. */
+.cs-bloccata{ opacity:.35; pointer-events:none; }
+/* Questa materia e' un caso a parte fra le bloccate: le altre sono spente
+   perche' il giro si chiuderebbe, lei perche' e' il punto di partenza. Resta
+   leggibile e si riconosce, con un filetto del colore della materia: dice
+   "sei qui", che e' un'informazione, non un divieto. */
+.cs-e-questa{
+    opacity:1;
+    background:color-mix(in srgb, var(--cat-color) 12%, transparent);
+    box-shadow:inset 2px 0 0 var(--cat-color);
+    border-radius:8px;
+}
+
+/* Lo schema dello spostamento: le due materie una sopra l'altra, ciascuna col
+   suo colore, e in mezzo la freccia che dice il verso. Da leggere in un colpo
+   d'occhio — chi conferma deve vedere il movimento, non ricostruirlo da una
+   frase. */
+.cat-move-schema{ display:flex; flex-direction:column; align-items:flex-start; gap:6px; margin:2px 0 4px; }
+.cat-move-verbo{
+    font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--text-3);
+}
+.cat-move-chip{
+    max-width:100%; padding:8px 14px; border-radius:var(--r-chip, 999px);
+    font-size:15px; font-weight:800; line-height:1.25;
+    color:#fff; background:var(--chip, var(--text-3));
+    /* Un nome lungo va a capo invece di uscire dal riquadro: qui il nome per
+       intero conta piu' di una riga in piu'. */
+    overflow-wrap:anywhere;
+}
+/* La freccia e la parola stanno sulla stessa riga, incolonnate con le
+   pastiglie: e' il gradino fra una e l'altra. */
+.cat-move-freccia{
+    display:flex; align-items:center; gap:7px; padding-left:12px;
+    color:var(--text-3);
+}
+.cat-move-freccia svg{ width:17px; height:17px; }
+.cat-move-dentro{ font-size:13px; font-weight:700; }
+
+/* La conseguenza: si legge dopo aver capito il movimento, quindi sta sotto ed
+   e' in corsivo — un commento a quello che si e' appena visto, non un'altra
+   cosa da decidere. */
+.cat-move-nota{
+    font-style:italic; font-size:13px; line-height:1.45; color:var(--text-2);
+}
+
+/* I due pulsanti della conferma. "Annulla" e' scritto, non colorato: la via
+   d'uscita deve essere facile da trovare ma non da premere per sbaglio al
+   posto dell'altra. */
+.cat-move-azioni{ display:flex; align-items:center; gap:10px; margin-top:2px; }
+.cat-move-no{
+    padding:9px 14px; border:none; border-radius:var(--r-chip); cursor:pointer;
+    font-family:inherit; font-size:13px; font-weight:800;
+    color:var(--text-2); background:var(--surface-2);
+}
+.cat-move-azioni .tit-modal-edit{ margin-left:auto; }

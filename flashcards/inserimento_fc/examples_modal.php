@@ -6,7 +6,8 @@
 if (!defined('EXM_CSS')) {
     define('EXM_CSS', 1);
     echo '<link rel="stylesheet" href="' . PWA_BASE . 'examples_modal.css?v=' . (@filemtime(dirname(__FILE__) . '/examples_modal.css') ?: 1) . '">' . "\n";
-    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc_ai_fab.css">' . "\n";
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc_ai_fab.css?v='
+       . (@filemtime(dirname(__FILE__) . '/fc_ai_fab.css') ?: 1) . '">' . "\n";
     /* I riquadri immagine/audio sono gli stessi del modulo della carta: le
        loro regole vivono in fc_media_box.css, non piu' dentro il foglio di
        una pagina sola. Serve anche qui perche' questo pannello finisce in

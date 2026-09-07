@@ -366,8 +366,21 @@ function mfc_parola_esempio(): string {
     <?php echo nisama_i18n_json(['comune', 'fc', 'vocab']); ?>
 
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="<?php echo PWA_BASE; ?>nisama_fetch.js"></script>
-<script src="<?php echo PWA_BASE; ?>fc_parser.js"></script>
+<?php /* IL ?v= NON E' UN VEZZO — E' LA CAUSA DEL PULSANTE IA MORTO.
+         Questi file venivano serviti con un indirizzo sempre uguale, quindi
+         il browser continuava a usare la copia che aveva in cache. Sul disco
+         c'era la versione nuova di fc_migliora_carta.js, quella che apre il
+         popup; in memoria ne girava una vecchia, di quando il riquadro era
+         una sezione in linea e non un popup — e quella faceva due cose:
+         nascondeva il pulsante (per questo spariva al tocco) e mostrava
+         #fcMiglioraBox, che pero' sta dentro #fcMiglioraOverlay, rimasto
+         hidden. Risultato: il pulsante sparisce, non compare niente, nessun
+         errore. Nessuna delle mie ipotesi poteva essere giusta, perche'
+         leggevo un file che il browser non stava eseguendo.
+         Con la data del file nell'indirizzo, una modifica al file e' un
+         indirizzo nuovo, e la cache non ha piu' niente da riusare. */ ?>
+<script src="<?php echo PWA_BASE; ?>nisama_fetch.js?v=<?php echo @filemtime(dirname(__FILE__) . '/nisama_fetch.js') ?: 1; ?>"></script>
+<script src="<?php echo PWA_BASE; ?>fc_parser.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_parser.js') ?: 1; ?>"></script>
 
 <script>
         window.MathJax = {
@@ -388,10 +401,10 @@ function mfc_parola_esempio(): string {
         };
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    <script src="<?php echo PWA_BASE; ?>fc_audio_recorder.js"></script>
-    <script src="<?php echo PWA_BASE; ?>fc_editor_immagine.js"></script>
-    <script src="<?php echo PWA_BASE; ?>examples_modal.js"></script>
-    <script src="<?php echo PWA_BASE; ?>fc_migliora_carta.js"></script>
+    <script src="<?php echo PWA_BASE; ?>fc_audio_recorder.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_audio_recorder.js') ?: 1; ?>"></script>
+    <script src="<?php echo PWA_BASE; ?>fc_editor_immagine.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_editor_immagine.js') ?: 1; ?>"></script>
+    <script src="<?php echo PWA_BASE; ?>examples_modal.js?v=<?php echo @filemtime(dirname(__FILE__) . '/examples_modal.js') ?: 1; ?>"></script>
+    <script src="<?php echo PWA_BASE; ?>fc_migliora_carta.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_migliora_carta.js') ?: 1; ?>"></script>
 
 <?php /* Il ?v= non e' un vezzo: questo foglio decide DOVE sta il cerchio
          dell'IA, e finche' l'indirizzo restava identico il browser continuava
@@ -401,8 +414,8 @@ function mfc_parola_esempio(): string {
          una modifica al foglio e' un indirizzo nuovo. Stesso schema gia' usato
          qui sotto per modifica_immagine_fc.css. */ ?>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_ai_fab.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_ai_fab.css') ?: 1; ?>">
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>autosave_bar.css">
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>examples_box.css">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>autosave_bar.css?v=<?php echo @filemtime(dirname(__FILE__) . '/autosave_bar.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>examples_box.css?v=<?php echo @filemtime(dirname(__FILE__) . '/examples_box.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_migliora_carta.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_migliora_carta.css') ?: 1; ?>">
 <?php /* I riquadri immagine/audio non stanno piu' dentro il foglio di questa
          pagina: sono gli stessi che usa il modulo dell'esempio, e vivono in
@@ -1064,8 +1077,16 @@ function mfc_parola_esempio(): string {
          trasparente sopra — questo lo intercetta lo stesso.
        E se il click non arriva proprio, la controprova qui sotto dice chi c'e'
        davvero in quel punto dello schermo. */
+    var fcUltimoApriIA = 0;
+
     function fcApriIA(ev) {
         if (ev) ev.preventDefault();
+        /* Due strade portano qui (click e pointerup): la seconda serve solo
+           quando la prima non arriva, e senza questa guardia, quando arrivano
+           tutt'e due, il riquadro si aprirebbe e richiuderebbe. */
+        if (Date.now() - fcUltimoApriIA < 400) return;
+        fcUltimoApriIA = Date.now();
+
         try {
             if (typeof fcMigliora === 'undefined' || !fcMigliora || typeof fcMigliora.apri !== 'function') {
                 throw new Error('fc_migliora_carta.js non e\' stato caricato');
@@ -1074,15 +1095,53 @@ function mfc_parola_esempio(): string {
         } catch (err) {
             console.error('[modifica_immagine] apertura IA:', err);
             alert('IA: ' + (err && err.message ? err.message : err));
+            return;
         }
+
+        /* apri() puo' andare a buon fine e il riquadro non vedersi lo stesso —
+           e da fuori i due casi si assomigliano: in tutt'e due "premo e non
+           succede niente". Qui si guarda, e si dice quale dei due e'. */
+        setTimeout(function () {
+            var ov = document.getElementById('fcMiglioraOverlay');
+            if (!ov) { console.warn('[modifica_immagine] #fcMiglioraOverlay non esiste'); return; }
+            var st = getComputedStyle(ov);
+            if (ov.getBoundingClientRect().width > 0 && st.display !== 'none') return;
+            console.warn('[modifica_immagine] apri() e\' riuscito ma il riquadro non si vede |',
+                         'display:', st.display, '| visibility:', st.visibility,
+                         '| opacity:', st.opacity, '| hidden:', ov.hasAttribute('hidden'), ov);
+        }, 60);
     }
 
-    /* In cattura sul documento: arriva prima di qualunque altro gestore. */
-    document.addEventListener('click', function (ev) {
+    function fcTocchiIA(ev) {
         if (!ev.target || !ev.target.closest) return;
         if (!ev.target.closest('#fcMiglioraFab')) return;
         ev.stopPropagation();
         fcApriIA(ev);
+    }
+
+    /* DUE EVENTI, NON UNO, TUTT'E DUE IN CATTURA SUL DOCUMENTO.
+       La cattura sul documento arriva prima di qualunque altro gestore, quindi
+       nessuno puo' fermare il click strada facendo. Ma resta un caso che la
+       cattura non copre: se qualcosa chiama preventDefault() sul pointerdown,
+       il click NON VIENE MAI GENERATO — non c'e' niente da intercettare, e
+       tutto quello che si e' verificato finora resta vero (il pulsante c'e',
+       non e' coperto, la funzione esiste) mentre premerlo non fa niente.
+       'pointerup' scatta comunque, ed e' l'unica strada che resta se e' quello
+       il caso. Se arrivano entrambe, la guardia sui 400ms lascia passare la
+       prima. */
+    document.addEventListener('click', fcTocchiIA, true);
+    document.addEventListener('pointerup', fcTocchiIA, true);
+
+    /* Aprendo dal pointerup, il click arriva DOPO — e a quel punto sotto il
+       dito non c'e' piu' il pulsante ma il velo del riquadro appena aperto,
+       che al tocco si chiude. Si aprirebbe e richiuderebbe nello stesso gesto,
+       troppo in fretta per vederlo: da fuori sembrerebbe di nuovo un pulsante
+       che non fa niente. Il primo click subito dopo l'apertura non conta. */
+    document.addEventListener('click', function (ev) {
+        if (Date.now() - fcUltimoApriIA > 500) return;
+        if (!ev.target || !ev.target.closest) return;
+        if (!ev.target.closest('#fcMiglioraOverlay')) return;
+        ev.stopPropagation();
     }, true);
 
     fcAvvia('pulsante IA', function () {
@@ -1096,6 +1155,26 @@ function mfc_parola_esempio(): string {
            quello sopra. */
         if (fab.parentElement !== document.body) document.body.appendChild(fab);
         fab.removeAttribute('onclick');
+
+        /* E IL RIQUADRO CON LUI.
+           Il pulsante l'avevo gia' portato sul <body>; il riquadro che deve
+           aprire e' rimasto dentro .fcm-wrap, dentro .page, dentro il modulo.
+           E' quello a non vedersi: il pulsante infatti sparisce al tocco,
+           cioe' qualcosa gli passa sopra — apri() sta girando, il riquadro si
+           apre, e non arriva a schermo.
+           Un velo a tutto schermo non ha nessun motivo di stare in mezzo al
+           contenuto: gli basta un antenato con transform, filter,
+           backdrop-filter, contain o will-change per smettere di essere
+           ancorato alla finestra e diventare prigioniero di quell'antenato —
+           un rettangolo grande come un pezzo di modulo, sotto tutto il resto.
+           Attaccato al <body> quella catena non c'e' piu'.
+           Perche' nel pannello degli esempi lo stesso riquadro funziona: li'
+           l'antenato piu' vicino di quel tipo e' .exm-overlay, che a sua volta
+           e' fisso e grande quanto la finestra — il riquadro ci finisce dentro
+           e per pura combinazione si trova al posto giusto. Qui sopra di lui
+           c'e' il modulo, e la combinazione non c'e'. */
+        var ovIA = document.getElementById('fcMiglioraOverlay');
+        if (ovIA && ovIA.parentElement !== document.body) document.body.appendChild(ovIA);
 
         setTimeout(function () {
             var r = fab.getBoundingClientRect();

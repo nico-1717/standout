@@ -4025,11 +4025,19 @@ function ftAggancioRaccogli(wrap) {
             var topCss = parseFloat(sf.top);
             if (isNaN(topCss) || topCss > 60) continue;
             var rf = f.getBoundingClientRect();
-            /* Alta quanto mezzo schermo o piu' non e' una barra in cima, e'
-               una sovrapposizione a tutto schermo (un visore di immagini, una
-               finestra di conferma): contarla darebbe una cima piu' bassa del
-               fondo dello schermo, e nessuna copia comparirebbe mai. */
-            if (rf.height === 0 || rf.height > altezzaSchermo * 0.5) continue;
+            /* Quanto puo' essere alta una barra in cima? Poco. Le vere sono
+               tutte sulla sessantina di pixel (l'intestazione della pagina, la
+               barra del popup) o meno (la striscia del pomodoro, venti).
+               Quello che le supera di molto non e' una barra: e' un pannello
+               che galleggia — il popup del pomodoro, per dirne uno, e' alto
+               oltre duecento pixel e sta anche lui appeso in cima. Contarlo
+               spingeva la copia duecento pixel piu' giu', in mezzo al testo
+               che si stava scrivendo, e trascinava con se' anche le barre
+               vere che gli stavano sotto.
+               Il tetto di mezzo schermo che c'era prima serviva solo a
+               scartare le sovrapposizioni a tutto schermo, ed era troppo
+               generoso per accorgersi di un pannello di media misura. */
+            if (rf.height === 0 || rf.height > 140) continue;
             /* E deve passarle davanti: una barra che sta in un'altra colonna
                non puo' nascondere questa casella, quindi non e' affar suo.
                Senza questo controllo, in una pagina a due colonne bastava un

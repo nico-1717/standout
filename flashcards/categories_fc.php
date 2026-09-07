@@ -168,6 +168,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         /* sia la materia spostata sia la destinazione devono essere sue */
         if (sec_owns('fc_categories', $moveId, (int)$current_user_id)
             && ($targetParentId === 0 || sec_owns('fc_categories', $targetParentId, (int)$current_user_id))) {
+
+            /* SPOSTARE UNA MATERIA DENTRO UNA SUA DISCENDENTE
+               Preso alla lettera sarebbe impossibile: B dentro E, con E gia'
+               dentro B, chiude un anello — B sta in E e E sta in B, e nessuno
+               dei due si raggiunge piu' partendo dalla radice. Non e' un albero
+               storto, e' un albero che non c'e' piu'.
+               Ma la richiesta ha un senso, e uno solo: si vuole che E diventi
+               il padre di B. Perche' possa esserlo deve prima uscire da B, e
+               con lui i suoi fratelli — i figli di B salgono al posto che B
+               lascia, poi B si infila sotto E.
+                   A(B(E(G), F), C, D)   ->   A(E(B, G), F, C, D)
+               Nessuna materia si perde e nessun ramo resta appeso al vuoto:
+               quello che cambia e' solo di chi sono figli, ed e' esattamente
+               quello che si stava chiedendo.
+
+               La discendenza si risale dalla destinazione verso l'alto: se
+               incontra la materia che si sta spostando, e' dentro di lei. Il
+               contatore e' una rete contro un anello gia' esistente nel
+               database, che altrimenti farebbe girare questo ciclo per sempre. */
+            $eDentro = false;
+            $risali = $targetParentId; $giri = 0;
+            while ($risali > 0 && $giri < 200) {
+                if ($risali === $moveId) { $eDentro = true; break; }
+                $rr = sec_one("SELECT parent_id FROM fc_categories WHERE id = ? AND user_id = ?",
+                              [$risali, (int)$current_user_id]);
+                $risali = $rr ? (int)$rr['parent_id'] : 0;
+                $giri++;
+            }
+
+            if ($eDentro) {
+                $suo = sec_one("SELECT parent_id FROM fc_categories WHERE id = ? AND user_id = ?",
+                               [$moveId, (int)$current_user_id]);
+                $sopra = $suo ? (int)$suo['parent_id'] : 0;
+                /* Gli id dei figli si leggono PRIMA di spostarli: dopo l'UPDATE
+                   non sarebbero piu' figli di nessuno che sappiamo cercare, e
+                   servono ancora per rifargli il colore ereditato. */
+                $promossi = sec_all("SELECT id FROM fc_categories WHERE parent_id = ? AND user_id = ?",
+                                    [$moveId, (int)$current_user_id]);
+                sec_q("UPDATE fc_categories SET parent_id = ? WHERE parent_id = ? AND user_id = ?",
+                      [$sopra, $moveId, (int)$current_user_id]);
+                foreach ($promossi as $pr) {
+                    cs_apply_parent_color_update((int)$pr['id'], $sopra, $current_user_id);
+                }
+            }
+
             sec_q("UPDATE fc_categories SET parent_id = ? WHERE id = ? AND user_id = ?",
                   [$targetParentId, $moveId, (int)$current_user_id]);
             cs_apply_parent_color_update($moveId, $targetParentId, $current_user_id);

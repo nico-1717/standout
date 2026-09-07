@@ -498,6 +498,35 @@ if ($categoryID != 0 && isset($fc_cat_by_id[$categoryID])) {
 // per la UI: radice a sinistra, padre a destra
 $fc_path_ltr = array_reverse($fc_ancestors);
 
+/* Il padre diretto, che serve al selettore aperto dalla matitina nel percorso:
+   e' li' che deve trovarsi srotolato quando si apre. 0 = questa materia sta in
+   cima all'albero. */
+$fc_parent_id = ($categoryID != 0 && isset($fc_cat_by_id[$categoryID]))
+    ? (int)($fc_cat_by_id[$categoryID]['parent_id'] ?? 0) : 0;
+
+/* I discendenti di questa materia: nel selettore non devono essere
+   scegliibili. Spostare una materia dentro una sua sottocategoria staccherebbe
+   il ramo dall'albero — resterebbe agganciato solo a se stesso, invisibile da
+   ogni percorso e irraggiungibile. Il server controlla che le due materie
+   siano dell'utente, non che il giro non si chiuda: qui glielo si impedisce
+   prima di chiederglielo. */
+$fc_discendenti = [];
+if ($categoryID != 0) {
+    $__figli_di = [];
+    foreach ($categories_list as $__c) { $__figli_di[(int)$__c['parent_id']][] = (int)$__c['id']; }
+    $__coda = [$categoryID];
+    $__giri = 0;
+    while ($__coda && $__giri < 5000) {
+        $__n = array_pop($__coda);
+        foreach ($__figli_di[$__n] ?? [] as $__f) {
+            if (isset($fc_discendenti[$__f])) continue;   // ciclo gia' esistente: non ci si gira dentro
+            $fc_discendenti[$__f] = true;
+            $__coda[] = $__f;
+        }
+        $__giri++;
+    }
+}
+
 /* Serve al popup del colore: qual e' il colore che verrebbe ereditato dal
    padre (la prima opzione, "colore di default") e se quello attuale e' invece
    stato scelto a mano. */
@@ -1434,7 +1463,11 @@ function render_audio_player($src) {
 <title><?php te('fc.vis_titolo'); ?></title>
 
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="nisama_fetch.js"></script>
+<?php /* La data del file nell'indirizzo. Senza, il browser continua a servire
+         la copia che ha in cache anche dopo che il file e' cambiato: e'
+         esattamente cosi' che il pulsante dell'IA e' rimasto morto per giorni,
+         con il file giusto sul disco e uno vecchio in esecuzione. */ ?>
+<script src="nisama_fetch.js?v=<?php echo @filemtime(dirname(__FILE__) . '/nisama_fetch.js') ?: 1; ?>"></script>
 
 <?php echo nisama_i18n_json(['comune', 'fc', 'vocab']); ?>
 <script>
@@ -1463,14 +1496,14 @@ function render_audio_player($src) {
 
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
-<script src="fc_parser.js"></script>
-<script src="examples_modal.js"></script>
-<script src="<?php echo PWA_BASE; ?>fc_edit_popup.js"></script>
+<script src="fc_parser.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_parser.js') ?: 1; ?>"></script>
+<script src="examples_modal.js?v=<?php echo @filemtime(dirname(__FILE__) . '/examples_modal.js') ?: 1; ?>"></script>
+<script src="<?php echo PWA_BASE; ?>fc_edit_popup.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_edit_popup.js') ?: 1; ?>"></script>
 
 
 
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_edit_popup.css">
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>examples_box.css">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_edit_popup.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_edit_popup.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>examples_box.css?v=<?php echo @filemtime(dirname(__FILE__) . '/examples_box.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>visualizzazione_fc.css?v=<?php echo @filemtime(dirname(__FILE__) . '/visualizzazione_fc.css') ?: 1; ?>">
 
 </head>
@@ -1546,6 +1579,22 @@ function render_audio_player($src) {
                 <span class="cat-path-sep" aria-hidden="true">&rsaquo;</span>
                 <?php endforeach; ?>
             <span class="cat-path-item cat-path-current"><?= sec_h($current_cat_name) ?></span>
+
+            <?php /* Cambiare il padre di questa materia da qui, dove il percorso
+                     si vede: e' il posto in cui ci si accorge che sta nel ramo
+                     sbagliato. Prima bisognava tornare all'elenco delle materie,
+                     ritrovarla e spostarla di la'. */ ?>
+            <?php /* data-cs-open e non una chiamata a csOpen(): csOpen vive dentro
+                     la funzione anonima di category_selector.php e da fuori NON
+                     ESISTE — in console, su questa pagina, "typeof csOpen" dice
+                     undefined. Il componente offre invece un gestore delegato che
+                     apre il modale indicato in questo attributo, ed e' l'unico
+                     modo previsto per aprirlo da un altro pezzo di pagina. */ ?>
+            <button type="button" class="cat-path-edit" id="catPathEdit"
+                    data-cs-open="cs-modal-catparent"
+                    aria-label="<?php te('fc.vis_cambia_padre'); ?>" title="<?php te('fc.vis_cambia_padre'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            </button>
             <?php endif; ?>
         </nav>
 
@@ -1804,6 +1853,12 @@ function render_audio_player($src) {
                      inserimento_big_fc.php, e il valore lo scrive qui il
                      JavaScript. */ ?>
             <input type="hidden" name="father_id" id="hiddenFatherId">
+
+            <?php /* L'unica maniglia prevista da category_selector.php per aprire
+                     un modale da fuori e' un tocco su un elemento con
+                     data-cs-open. Questo esiste solo per riceverlo: non si vede,
+                     non e' raggiungibile a mano, e lo "preme" il JavaScript. */ ?>
+            <button type="button" id="apriModaleMove" data-cs-open="cs-modal-move" hidden aria-hidden="true"></button>
 
 
 
@@ -2165,6 +2220,36 @@ function render_audio_player($src) {
        unset($cs_id, $cs_selected_id, $cs_selected_name, $cs_title,
              $cs_placeholder, $cs_hidden_name, $cs_render_trigger, $cs_allow_create); ?>
 
+<?php /* Il selettore del PADRE di questa materia, aperto dalla matitina nel
+         percorso. Parte gia' srotolato sul padre attuale — lo fa da se'
+         category_selector.php, leggendo l'id nel campo nascosto — cosi' si
+         vede subito da dove si sta spostando.
+         "Nessuna" c'e' apposta: una materia deve poter tornare in cima
+         all'albero, e senza quella voce l'unico modo sarebbe passare da
+         un'altra pagina. */
+       if ($categoryID > 0):
+       $cs_id = 'catparent';
+       /* Srotolato fino a QUESTA materia, non fino al padre. Chi apre il
+          selettore vuole prima di tutto ritrovarsi: vedere dove si e' adesso,
+          con i rami aperti fin li', e poi decidere dove andare. Fermarsi al
+          padre mostra un pezzo di albero in cui la materia di cui si sta
+          parlando non compare — e la voce evidenziata sarebbe il padre, cioe'
+          proprio la cosa che si vuole cambiare. */
+       $cs_selected_id = (int)$categoryID;
+       $cs_selected_name = $current_cat_name ?? '';
+       $cs_title = t('fc.cs_categoria_padre_t');
+       $cs_placeholder = t('fc.cs_nessuna_padre');
+       $cs_hidden_name = 'cs_cat_parent';
+       $cs_render_trigger = false;
+       $cs_allow_create = false;
+       $cs_show_all_option = true;
+       $cs_all_option_label = t('fc.cs_nessuna_padre');
+       include 'category_selector.php';
+       unset($cs_id, $cs_selected_id, $cs_selected_name, $cs_title,
+             $cs_placeholder, $cs_hidden_name, $cs_render_trigger, $cs_allow_create,
+             $cs_show_all_option, $cs_all_option_label);
+       endif; ?>
+
 
 
 
@@ -2440,6 +2525,43 @@ function render_audio_player($src) {
          una risposta da girare, non c'e' niente da studiare qui: e' l'etichetta
          del gruppo. L'unica cosa che ha senso farci e' correggerla, e c'e' il
          tasto per farlo. */ ?>
+<?php /* La conferma dello spostamento di una materia. Piccola apposta: e' una
+         domanda sola, e una domanda sola non ha bisogno di una schermata. */ ?>
+<?php /* La conferma e' uno SCHEMA, non una frase.
+         Prima era un periodo con due nomi di materia infilati dentro fra
+         virgolette: per capirlo bisognava leggerlo tutto e ricostruire da
+         soli chi va dentro chi — proprio la cosa su cui si vuole essere
+         sicuri prima di premere. Qui le due materie sono una sopra l'altra,
+         ciascuna col SUO colore (lo stesso con cui si e' abituati a
+         riconoscerle nell'albero), e in mezzo una freccia che dice il verso.
+         Si legge in un colpo d'occhio e non si puo' invertire per sbaglio.
+         La conseguenza — che si porta dietro tutto il ramo — resta scritta,
+         in corsivo e sotto: e' la parte che si legge dopo aver capito il
+         movimento, non prima. */ ?>
+<div class="tit-modal" id="catMoveConfirm" aria-hidden="true">
+    <div class="tit-modal-back" id="catMoveConfirmBack"></div>
+    <div class="tit-modal-panel">
+        <div class="tit-modal-lab"><?php te('fc.vis_cambia_padre'); ?></div>
+
+        <div class="cat-move-schema">
+            <span class="cat-move-verbo"><?php te('fc.vis_sposta_verbo'); ?></span>
+            <span class="cat-move-chip" id="catMoveDa"></span>
+            <span class="cat-move-freccia" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v14"/><path d="m6 12 6 6 6-6"/></svg>
+                <span class="cat-move-dentro"><?php te('fc.vis_sposta_dentro'); ?></span>
+            </span>
+            <span class="cat-move-chip" id="catMoveA"></span>
+        </div>
+
+        <div class="cat-move-nota" id="catMoveConfirmTxt"></div>
+
+        <div class="cat-move-azioni">
+            <button type="button" class="cat-move-no" id="catMoveConfirmNo"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="tit-modal-edit" id="catMoveConfirmOk"><?php te('comune.conferma'); ?></button>
+        </div>
+    </div>
+</div>
+
 <div class="tit-modal" id="titModal" aria-hidden="true">
     <div class="tit-modal-back" id="titModalBack"></div>
     <div class="tit-modal-panel">
@@ -6142,10 +6264,13 @@ function onBulkActionPick(action){
     }
 
     if (action === 'move') {
-        /* csOpen() vuole l'elemento del modale, non il suo id. Con $cs_id='move'
-           il componente lo chiama 'cs-modal-move'. */
-        var mv = document.getElementById('cs-modal-move');
-        if (mv && typeof csOpen === 'function') csOpen(mv);
+        /* Stesso equivoco del pulsante nel percorso, e qui c'era gia': csOpen
+           non esiste fuori da category_selector.php, quindi questo ramo cadeva
+           sempre nell'"else" e mostrava un avviso invece del selettore. Il modo
+           previsto e' data-cs-open, e un tocco su un elemento che ce l'ha: qui
+           lo si simula su un pulsante che sta li' apposta, invisibile. */
+        var apri = document.getElementById('apriModaleMove');
+        if (apri) apri.click();
         else showToast(T('fc.vis_sposta_dove'));
         return;
     }
@@ -6314,6 +6439,129 @@ function disegnaTestiGrezzi(radice){
 }
 
 
+
+/* ================================================================
+   CAMBIARE IL PADRE DELLA MATERIA DAL PERCORSO
+   ================================================================
+   La matitina accanto all'ultima voce del percorso apre il selettore, gia'
+   srotolato sul padre attuale. Si tocca una materia e lo spostamento parte:
+   niente conferma, perche' non c'e' niente da comporre — si e' scelto un
+   posto, ed e' quello.
+
+   Chi NON si puo' scegliere e' segnato prima di aprire, non contestato dopo:
+   questa materia (una materia non e' padre di se stessa) e tutte le sue
+   sottocategorie. Spostare una materia dentro una sua discendente staccherebbe
+   il ramo dall'albero — resterebbe agganciato a se stesso, fuori da ogni
+   percorso. Un messaggio d'errore dopo il tocco spiegherebbe la stessa cosa
+   facendo prima sbagliare. */
+var CAT_ID_CORRENTE   = <?php echo (int)$categoryID; ?>;
+var CAT_NOME_CORRENTE   = <?php echo json_encode((string)($current_cat_name ?? ''), JSON_UNESCAPED_UNICODE); ?>;
+var CAT_COLORE_CORRENTE = <?php echo json_encode((string)($current_cat_color ?? '#5E5CE6')); ?>;
+var CAT_ID_PADRE      = <?php echo (int)($fc_parent_id ?? 0); ?>;
+/* Non scegliibili: questa materia (non e' padre di se stessa), le sue
+   discendenti (il ramo si staccherebbe dall'albero) e il padre che ha GIA' —
+   sceglierlo vorrebbe dire chiedere di spostarla dov'e', cioe' premere un
+   pulsante che non fa niente. */
+var CAT_NON_SCEGLIBILI = <?php echo json_encode(array_map('intval',
+        [$categoryID, (int)($fc_parent_id ?? 0)])); ?>;
+/* Le discendenti NON sono piu' bloccate: sceglierne una ha un significato
+   preciso — "voglio che sia lei il mio padre" — e categories_fc.php sa
+   eseguirlo, facendo prima salire i figli al posto lasciato libero. Restano
+   fuori solo questa materia (non e' padre di se stessa) e il padre che ha gia'
+   (sarebbe un pulsante che non fa niente). */
+var CAT_DISCENDENTI = <?php echo json_encode(array_map('intval', array_keys($fc_discendenti ?? []))); ?>;
+
+/* Le righe non scegliibili si marcano UNA VOLTA, a pagina pronta: l'albero
+   delle materie e' gia' tutto nel documento e non cambia. Farlo al momento del
+   tocco avrebbe voluto dire incastrarsi con il gestore del componente, che
+   apre il modale allo stesso click: due gestori sullo stesso evento, e chi
+   arriva primo dipende dall'ordine in cui sono stati registrati — cioe' da un
+   dettaglio che non si controlla. */
+function marcaMaterieNonScegliibili(){
+    var modale = document.getElementById('cs-modal-catparent');
+    if (!modale) return;
+
+    modale.querySelectorAll('[data-cs-select]').forEach(function(riga){
+        var id = parseInt(riga.getAttribute('data-cs-select'), 10);
+        var bloccata = CAT_NON_SCEGLIBILI.indexOf(id) !== -1;
+        riga.classList.toggle('cs-bloccata', bloccata);
+        /* Questa materia si distingue dalle altre bloccate: le sottocategorie
+           sono spente perche' sarebbe un giro chiuso, lei perche' e' il punto
+           di partenza — ed e' un'informazione utile, dice "sei qui". */
+        riga.classList.toggle('cs-e-questa', id === CAT_ID_CORRENTE);
+    });
+}
+
+if (CAT_ID_CORRENTE > 0) marcaMaterieNonScegliibili();
+
+document.addEventListener('categoryselected', function(e){
+    if (!e.detail || e.detail.uid !== 'catparent') return;
+    var nuovoPadre = parseInt(e.detail.id, 10) || 0;
+    if (CAT_NON_SCEGLIBILI.indexOf(nuovoPadre) !== -1) return;
+
+    /* Si chiede conferma, e non e' una formalita': spostare una materia muove
+       tutto il suo ramo, cambia il percorso di ogni carta che contiene e i
+       colori ereditati. Nel selettore basta sfiorare la voce sbagliata, e senza
+       questo passaggio l'albero sarebbe gia' cambiato prima di accorgersene.
+       La conferma nomina la destinazione: "sposto sotto X" e' controllabile,
+       "confermi?" no. */
+    chiediConfermaSpostamento(nuovoPadre, e.detail.name || T('fc.cs_nessuna_padre'), e.detail.color);
+});
+
+function chiediConfermaSpostamento(nuovoPadre, nomeDestinazione, coloreDestinazione){
+    var modale = document.getElementById('catMoveConfirm');
+
+    /* Ogni materia col suo colore: e' il colore con cui si e' abituati a
+       riconoscerla nell'albero e nell'intestazione, e ritrovarlo qui vuol dire
+       non dover rileggere il nome per essere sicuri di quale sia. */
+    var da = document.getElementById('catMoveDa');
+    da.textContent = CAT_NOME_CORRENTE;
+    da.style.setProperty('--chip', CAT_COLORE_CORRENTE);
+
+    var a = document.getElementById('catMoveA');
+    a.textContent = nomeDestinazione;
+    a.style.setProperty('--chip', coloreDestinazione || 'var(--text-3)');
+
+    /* Scegliendo una discendente si sta chiedendo qualcosa di piu' grande, e la
+       nota deve dirlo: non si sposta solo questa materia, i suoi figli salgono
+       al posto che lascia. Chiedere "confermi?" sarebbe far firmare senza far
+       leggere. */
+    var dentro = CAT_DISCENDENTI.indexOf(nuovoPadre) !== -1;
+    document.getElementById('catMoveConfirmTxt').textContent = dentro
+        ? T('fc.vis_sposta_nota_dentro', {cat: CAT_NOME_CORRENTE})
+        : T('fc.vis_sposta_nota');
+    document.getElementById('catMoveConfirmOk').onclick = function(){
+        modale.classList.remove('on');
+        spostaSottoIlPadre(nuovoPadre);
+    };
+    modale.classList.add('on');
+}
+
+document.addEventListener('click', function(e){
+    if (!e.target || !e.target.closest) return;
+    if (e.target.closest('#catMoveConfirmBack') || e.target.closest('#catMoveConfirmNo')) {
+        document.getElementById('catMoveConfirm').classList.remove('on');
+    }
+});
+
+function spostaSottoIlPadre(nuovoPadre){
+    /* Lo spostamento lo fa categories_fc.php, che ha gia' il suo controllo di
+       proprieta' e si porta dietro l'aggiornamento dei colori ereditati
+       (cs_apply_parent_color_update). Rifarlo qui vorrebbe dire avere due
+       posti che spostano una materia, e prima o poi uno dei due dimentica i
+       colori. */
+    var dati = new FormData();
+    dati.set('action', 'move');
+    dati.set('move_category_id', CAT_ID_CORRENTE);
+    dati.set('target_parent_id', nuovoPadre);
+
+    fetch('categories_fc.php', { method: 'POST', body: dati, credentials: 'same-origin' })
+        .then(function(){ window.location.reload(); })
+        .catch(function(err){
+            console.error('[percorso] spostamento materia', err);
+            showToast(T('fc.vis_azione_fallita'));
+        });
+}
 
 function pickMoveCategory(categoryId){
 
