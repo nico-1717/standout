@@ -95,3 +95,12 @@
    perche' ne occupi una. */
 .qa-example-text:empty{ display:none; }
 .qa-example-audio{ width:100%; height:32px; margin-top:8px; border-radius:10px; }
+
+/* SPAZIO PRENOTATO
+   Il riquadro nasce vuoto e si riempie dopo, quando la richiesta torna: da 38px
+   passa a ~150px, e tutto quello che sta sotto scivola giu' sotto gli occhi. Il
+   fastidio non e' il vuoto, e' il salto. Questo riquadro esiste solo sulle carte
+   che gli esempi ce li hanno davvero (render_examples_section non lo stampa
+   altrimenti), quindi lo spazio si puo' prenotare senza rischiare di lasciare un
+   buco che non si riempira' mai. */
+.qa-examples-box{ min-height:150px; }

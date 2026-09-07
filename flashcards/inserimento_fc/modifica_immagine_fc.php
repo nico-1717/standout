@@ -7,6 +7,26 @@
     /* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
     $conn = sec_db();
 
+    /* PERCHE' QUESTA PAGINA SI PUO' TENERE IN MEMORIA PER CINQUE SECONDI
+       visualizzazione_fc.php comincia a scaricarla appena il dito tocca una
+       carta, cosi' quando il popup si apre e' gia' arrivata. Ma session_start()
+       manda per default "Cache-Control: no-store": il browser scarterebbe
+       quello che ha appena preso e ricomincerebbe da capo all'apertura,
+       rendendo il precaricamento una richiesta in piu' e nient'altro.
+
+       Cinque secondi, e solo per l'apertura dentro un popup. Sono tanti per
+       coprire il tocco (millisecondi) e il passaggio del mouse (un secondo
+       scarso), e pochi perche' una versione vecchia possa arrivare a schermo:
+       per vederla bisognerebbe salvare una carta e riaprirla entro cinque
+       secondi, e in mezzo c'e' comunque il ricaricamento dell'elenco.
+       private: e' roba di una persona sola, nessun intermediario la tenga.
+       Le POST non passano di qui: piu' sotto la pagina esce prima. */
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && !empty($_GET['fc_popup'])) {
+        header('Cache-Control: private, max-age=5');
+        header_remove('Pragma');
+        header_remove('Expires');
+    }
+
     /* Rete di sicurezza, come in fc_ai.php/ai_example.php/inserimento_fc.php —
        qui con una ragione in piu': senza buffering, un avviso PHP stampato
        prima di un header('Location:...') non lo sporca soltanto, lo fa
@@ -315,6 +335,13 @@ function mfc_parola_esempio(): string {
 <html lang="it">
 <head>
     <meta charset="UTF-8">
+<?php /* Senza questa riga, il primo disegno di una pagina dentro un iframe e'
+         BIANCO, comunque sia il tema: il browser non sa ancora che sa stare
+         anche in scuro, e il bianco e' il suo colore di partenza. Su tema scuro
+         diventa un rettangolo bianco a tutto schermo che lampeggia all'apertura
+         del popup — la cosa che dava piu' fastidio nella registrazione.
+         color-scheme glielo dice prima ancora di leggere il foglio di stile. */ ?>
+    <meta name="color-scheme" content="light dark">
 <script>
 /* 'unload' NON SI USA PIU', E IL BROWSER LO DICE
    ------------------------------------------------------------------
@@ -382,24 +409,21 @@ function mfc_parola_esempio(): string {
 <script src="<?php echo PWA_BASE; ?>nisama_fetch.js?v=<?php echo @filemtime(dirname(__FILE__) . '/nisama_fetch.js') ?: 1; ?>"></script>
 <script src="<?php echo PWA_BASE; ?>fc_parser.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_parser.js') ?: 1; ?>"></script>
 
-<script>
-        window.MathJax = {
+<?php /* La configurazione di MathJax non e' piu' qui: la scrive fc_parser.js,
+         caricato apposta la riga sopra questa. E' lui a produrre le formule,
+         quindi e' lui a sapere cosa MathJax deve saper leggere — e una copia
+         sola non puo' allontanarsi da un'altra, come era gia' successo con
+         \cancel, che qui c'era e in visualizzazione_fc.php no.
 
-            /* \cancel (e \bcancel, \xcancel) non fanno parte del pacchetto
-               base di MathJax: senza caricare l'estensione che li definisce,
-               MathJax li mostra in rosso come comando sconosciuto — ed e'
-               esattamente quello che si vedeva. Il foglio di stile che allinea
-               la barretta sul simbolo c'era gia', ma allineava una cosa che
-               non veniva nemmeno disegnata. */
-            loader: { load: ['[tex]/cancel'] },
-
-            tex: {
-                packages: { '[+]': ['cancel'] },
-                inlineMath: [['$', '$'], ['\\(', '\\)']],
-                displayMath: [['$$', '$$'], ['\\[', '\\]']]
-            }
-        };
-    </script>
+         ATTENZIONE A UNA DIFFERENZA CHE HO DOVUTO SCIOGLIERE: qui i dollari
+         erano delimitatori di formula ($...$), in visualizzazione_fc.php no.
+         Ho tenuto la versione senza, che e' quella per cui il formato nuovo e'
+         stato fatto: la formattazione non sta piu' dentro il testo, il LaTeX
+         arriva gia' racchiuso in \( \), e col dollaro attivo una frase come
+         "costa 5$ e 3$" diventa una formula in corsivo matematico. Se pero'
+         qui dentro qualcuno scrive formule col dollaro a mano, quelle
+         smetteranno di essere riconosciute: e' l'unico cambiamento di
+         comportamento di questo accorpamento. */ ?>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="<?php echo PWA_BASE; ?>fc_audio_recorder.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_audio_recorder.js') ?: 1; ?>"></script>
     <script src="<?php echo PWA_BASE; ?>fc_editor_immagine.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_editor_immagine.js') ?: 1; ?>"></script>

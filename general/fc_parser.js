@@ -1,5 +1,53 @@
 // fc_doc.js
 // ================================================================
+// COME VANNO CONFIGURATE LE FORMULE — E PERCHE' QUI
+// ================================================================
+// Questa configurazione stava scritta a mano in ogni pagina che disegna
+// formule, e non era la stessa dappertutto: modifica_immagine_fc.php
+// conosceva \cancel, visualizzazione_fc.php no, e la stessa carta risultava
+// barrata nel popup di modifica e con un "\cancel" rosso nell'elenco. Un
+// difetto di questo tipo non lo si trova leggendo il codice: lo si trova per
+// caso, guardando la stessa cosa in due posti.
+//
+// Sta qui perche' e' questo file a produrre le formule: e' fcdDisegnaFormule()
+// a racchiudere il LaTeX in \( \), quindi e' questo file a sapere che cosa
+// MathJax dovra' essere in grado di leggere. Chi lo carica non deve piu'
+// saperlo.
+//
+// UNA CONDIZIONE, E VA RISPETTATA: window.MathJax dev'essere gia' scritto
+// quando MathJax parte, perche' MathJax lo legge una volta sola all'avvio.
+// Quindi in ogni pagina questo file va incluso PRIMA del <script> di MathJax.
+// (In modifica_immagine_fc.php lo era gia'; in visualizzazione_fc.php e' stato
+// spostato apposta.)
+//
+// Il "|| " non e' prudenza generica: una pagina che si e' scritta la sua
+// configurazione prima di questa riga continua a vincere, quindi aggiungere
+// questo blocco non puo' rompere niente di quello che c'era.
+if (typeof window !== 'undefined') {
+    window.MathJax = window.MathJax || {
+        /* \cancel, \bcancel, \xcancel non sono nel pacchetto base: senza
+           caricarne l'estensione, MathJax stampa il comando cosi' com'e', in
+           rosso, dentro la formula. */
+        loader: { load: ['[tex]/cancel'] },
+        tex: {
+            packages: { '[+]': ['cancel'] },
+
+            /* I DOLLARI NON SONO DELIMITATORI DI FORMULA.
+               Col formato nuovo la formattazione non sta dentro il testo: una
+               formula e' un elemento suo, e il LaTeX arriva a MathJax gia'
+               racchiuso in \( \) o \[ \] da fcdDisegnaFormule(). Lasciare
+               attivo il "$" vorrebbe dire che "il libro costa 5$ e il quaderno
+               3$" viene preso per una formula e stampato in corsivo
+               matematico — lo stesso identico difetto che il formato nuovo
+               esiste per eliminare. */
+            inlineMath: [['\\(', '\\)']],
+            displayMath: [['\\[', '\\]']]
+        }
+    };
+}
+
+// fc_doc.js
+// ================================================================
 // MOTORE DEL DOCUMENTO — sostituisce il formato a tag annidati.
 //
 // PERCHE' E' CAMBIATO TUTTO

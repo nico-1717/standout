@@ -81,6 +81,12 @@
         return base + (base.indexOf('?') === -1 ? '?' : '&') + 'fc_popup=1' + frammento;
     }
 
+    /* La stessa funzione la usa anche il precaricamento: perche' il browser
+       possa riusare quello che ha gia' scaricato, l'indirizzo chiesto in
+       anticipo dev'essere IDENTICO a quello che finira' nell'iframe — un
+       parametro di differenza e sono due pagine diverse. */
+    window.fcUrlPopup = conParametroPopup;
+
     function apriModificaPopup(url, onSalvato) {
         assicuraOverlay();
         overlay.classList.remove('loaded');

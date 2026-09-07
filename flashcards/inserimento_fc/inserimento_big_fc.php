@@ -1199,6 +1199,16 @@ if ($modo === 'edit') {
 
     let isDirty = false;
 
+    /* Un riordino non modifica nessuna riga: cambia solo la loro posizione, e
+       data-status resta 'clean' su tutte. Senza una spia a se', per la pagina
+       non c'era niente da salvare — l'ordine nuovo restava a video e basta, e
+       chiudendo la scheda spariva senza nemmeno l'avviso di beforeunload, che
+       guarda la stessa isDirty. Si tiene separata invece di marcare 'edited'
+       mezza pagina: quelle righe non sono cambiate davvero, e dirlo sarebbe
+       falso anche per chi legge lo stato per altri motivi (la pastiglia degli
+       esempi, il bordo colorato, le carte-titolo). */
+    let ordineCambiato = false;
+
     /* Vero se la riga ha un segnale di cancellazione (audio o immagine) in
        sospeso — non e' contenuto da guardare, e' una richiesta al server che
        va comunque inviata: senza questo controllo, una riga il cui unico
@@ -1220,6 +1230,12 @@ if ($modo === 'edit') {
        niente che il server debba fare per lei, e farla scattare vorrebbe dire
        un salvataggio automatico che parte per non salvare nulla. */
     function cSonoModificheDaSalvare(){
+        /* L'ordine e' cambiato: c'e' da salvare — ma solo se in pagina c'e'
+           almeno una carta vera. Riordinare due righe vuote non e' lavoro da
+           conservare, ed e' la stessa regola che vale per il testo qui sotto:
+           un salvataggio automatico non deve partire per non salvare nulla. */
+        if (ordineCambiato && Array.from(righeVive()).some(function(row){ return !rigaCompletamenteVuota(row); })) return true;
+
         return Array.from(document.querySelectorAll('#fcRows .fc-row')).some(function(row){
             if (row.dataset.status === 'clean') return false;
             if (row.dataset.status === 'deleted') return (parseInt(row.dataset.id, 10) || 0) > 0;
@@ -1713,6 +1729,9 @@ if ($modo === 'edit') {
         freccette o dal trascinamento: le due strade non devono avere
         conseguenze diverse solo perche' una e' piu' vecchia dell'altra. */
     function dopoRiordino(){
+        /* Prima di markDirty(), che legge questa spia per decidere se c'e'
+           qualcosa da salvare. */
+        ordineCambiato = true;
         markDirty();
         aggiornaFrecceRiordino();
         if (typeof aggiornaRigheTitolo === 'function') aggiornaRigheTitolo();
@@ -3454,7 +3473,21 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
         aggiornaPiedeRiga(row);
 
-        row.dataset.origType = isChildRow(row) ? 'child' : 'parent';
+        /* ATTENZIONE: qui NON si tocca data-orig-type.
+           origType non dice "cosa e' questa riga adesso" — quello lo dice gia'
+           la classe is-child — ma "cosa e' questa carta NEL DATABASE": e'
+           l'unico modo che il server ha di accorgersi che una carta sta
+           cambiando natura e va spostata fra fc_images e fc_child_cards.
+           Aggiornarlo qui, cioe' nel momento esatto in cui la riga diventa
+           figlia a video, cancellava proprio quell'informazione: al server
+           arrivava orig_type='child' e is_child=1, cioe' "figlia da sempre,
+           niente da spostare". Il server faceva allora un UPDATE su
+           fc_child_cards usando l'id della carta in fc_images — una riga che
+           in quella tabella non esiste: nessun errore, nessuna modifica, e la
+           carta restava padre. Da li' in poi la pagina lavorava con un id
+           sbagliato e ogni salvataggio successivo di quella carta cadeva nel
+           vuoto. Lo aggiornano solo appendRowHTML (quando la riga nasce) e
+           applicaMappa (quando il server ha detto com'e' finita davvero). */
 
         const badge = row.querySelector('.row-badge');
 
@@ -4059,6 +4092,16 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
+        /* Stessa ragione dell'aggancio: sganciare una carta la fa passare da
+           fc_child_cards a fc_images, ma non tocca nessun campo di testo — se
+           non lo si segna qui, per la pagina non e' successo niente da salvare
+           e il cambiamento non arriva mai al server. Va in fondo, a riga gia'
+           spostata: frecce e carte-titolo si calcolano su come sta l'elenco
+           adesso, non su com'era un attimo fa. */
+        if (row.dataset.status === 'clean') row.dataset.status = 'edited';
+        if (typeof updateStatusVisual === 'function') updateStatusVisual(row);
+        dopoRiordino();
+
         showToast(T('fc.ibf_sganciato'));
 
 
@@ -4421,6 +4464,16 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
         const pending = childRowPending;
 
+        /* Se la carta che sta scendendo di livello aveva dei figli suoi, i
+           figli vengono con lei. Spostando la sola riga, i suoi ex figli
+           restavano dov'erano: a video finivano sotto un padre a caso (il
+           primo che li precede) e al salvataggio ci finivano davvero, perche'
+           il server capisce di chi e' figlia una riga dalla posizione, non da
+           un id. Si legge la famiglia ORA, prima di muovere qualcosa: dopo lo
+           spostamento le righe non sono piu' consecutive e il conto non
+           tornerebbe piu'. */
+        const famiglia = getBlockRows(pending);
+
 
 
 
@@ -4443,7 +4496,11 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-            insertAfter.after(pending);
+            /* In fila, uno dopo l'altro: la carta e poi i suoi ex figli, che
+               diventano fratelli suoi sotto il nuovo padre (piu' di un livello
+               di annidamento non esiste, ne' qui ne' nel database). */
+            let ancora = insertAfter;
+            famiglia.forEach(function(r){ ancora.after(r); ancora = r; });
 
 
 
@@ -4476,6 +4533,21 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
         updateRowBadgeText(pending);
+
+        /* L'aggancio e' una modifica a tutti gli effetti, ma non passa da
+           nessuna casella di testo: senza segnarlo a mano queste righe
+           restavano "clean", e per la pagina non c'era niente da salvare —
+           il salvataggio automatico non partiva, e quello a mano rimandava
+           al server le stesse righe di prima. I figli venuti dietro cambiano
+           padre, quindi sono modificati anche loro.
+           dopoRiordino() e' la stessa cosa che si fa dopo uno spostamento con
+           le freccette: segna il lavoro da salvare e rimette a posto frecce e
+           carte-titolo, che dipendono da chi ha figli e da quanti. */
+        famiglia.forEach(function(r){
+            if (r.dataset.status === 'clean') r.dataset.status = 'edited';
+            if (typeof updateStatusVisual === 'function') updateStatusVisual(r);
+        });
+        dopoRiordino();
 
 
 
@@ -7434,6 +7506,13 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
             if (manuale) showToast(T('fc.ibf_serve_riga'), 'error');
 
+            /* Non c'era nessuna riga da mandare: qualunque riordino riguardava
+               righe vuote, che nel database non esistono. Lasciando la spia
+               accesa la pagina sarebbe rimasta "da salvare" per sempre, con un
+               salvataggio automatico che riparte ogni venticinque secondi per
+               non trovare mai niente da fare. */
+            ordineCambiato = false;
+
             isDirty = false;
 
             return false;
@@ -7451,6 +7530,11 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
             if (data.success) {
 
                 applicaMappa(inviate, data.map || {});
+
+                /* Il percorso completo del server riscrive custom_order di
+                   tutte le righe ricevute, quindi l'ordine a video e quello
+                   nel database ora coincidono. */
+                ordineCambiato = false;
 
                 isDirty = false;
 

@@ -99,15 +99,40 @@ function disarmaScarta(){
    ------------------------------------------------------------------ */
 function faiPosto(){
     var html = document.documentElement;
-    if (html.classList.contains('pomo-bar-attiva')) return;   // gia' fatto: rifarlo raddoppierebbe il padding
+    if (html.dataset.pomoPosto) return;   // rifarlo raddoppierebbe il padding
+    html.dataset.pomoPosto = '1';
+
+    /* La classe adesso puo' esserci gia': la scrive il server nel <head>
+       (pomodoro_barra.php), perche' lo spazio va fatto PRIMA che la pagina si
+       disegni, non dopo. Ma il padding del body va misurato com'era SENZA di
+       noi: con la classe attiva leggeremmo il nostro stesso padding e lo
+       sommeremmo a se' stesso a ogni giro. Si toglie, si misura, si rimette —
+       tutto dentro la stessa esecuzione, quindi il browser non disegna niente
+       nel mezzo e non si vede nessun tremolio. */
+    var eraGiaAttiva = html.classList.contains('pomo-bar-attiva');
+    if (eraGiaAttiva) html.classList.remove('pomo-bar-attiva');
 
     var padPrima = window.getComputedStyle(document.body).paddingTop;
     html.style.setProperty('--pomo-bar-pad', padPrima && padPrima !== 'auto' ? padPrima : '0px');
+
     html.classList.add('pomo-bar-attiva');
     barra.style.display = '';
+
+    /* L'animazione di discesa serve SOLO quando la barra compare a pagina gia'
+       aperta — si e' fatto partire un pomodoro e la pagina si sposta: li' il
+       movimento spiega lo spostamento. All'apertura di una pagina non spiega
+       niente, perche' non c'e' nessuno spostamento da spiegare: c'e' solo una
+       barra che scende addosso a un contenuto gia' fermo, ed e' proprio quella
+       la cosa che si vedeva scattare. */
+    if (!html.dataset.pomoPreacceso) barra.classList.add('is-entrata');
 }
 
 function togliPosto(){
+    /* Anche i segnalini, se no una barra che riparte piu' tardi nella stessa
+       pagina troverebbe "gia' fatto" e non si prenderebbe piu' il suo spazio. */
+    delete document.documentElement.dataset.pomoPosto;
+    delete document.documentElement.dataset.pomoPreacceso;
+    barra.classList.remove('is-entrata');
     document.documentElement.classList.remove('pomo-bar-attiva');
     barra.style.display = 'none';
     chiudiPopup();

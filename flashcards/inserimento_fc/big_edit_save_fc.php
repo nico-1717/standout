@@ -43,6 +43,22 @@
  *    dal browser come "Unexpected end of JSON input" a ogni salvataggio
  *    successivo di una carta figlia gia' esistente (la primissima INSERT,
  *    che non usa questa clausola, andava sempre a buon fine).
+ *
+ * 8. CORREZIONE (cambio di livello). Quando una carta cambia natura, la sua
+ *    riga viene cancellata da una tabella e ricreata nell'altra: e' una carta
+ *    che rinasce con un id nuovo, non una riga modificata. fc_examples e
+ *    fc_gameplays puntano alle carte con ON DELETE CASCADE, quindi sarebbero
+ *    sparite insieme alla vecchia riga; ora il legame si stacca prima della
+ *    cancellazione e si riattacca dopo, alla colonna dell'altro livello.
+ *    Nella stessa occasione: i figli del padre retrocesso passano al nuovo
+ *    padre (fc_child_cards non ha la cascata, sarebbero rimasti appesi a un
+ *    id inesistente) e is_father viene ricalcolato anche per il padre che
+ *    resta svuotato.
+ *    Restano fuori le partite gia' iniziate (fc_game_sequence conosce solo i
+ *    padri, con una colonna NOT NULL). I preferiti seguono la carta appena
+ *    migrazione_preferiti_figli.sql insegna a user_favorites_fc a puntare
+ *    anche a un figlio; finche' quella non e' stata eseguita quella tabella
+ *    viene semplicemente saltata, senza che nulla si rompa.
  */
 require_once 'config.php';
 require_once 'auth_check.php';
@@ -226,6 +242,86 @@ if ($reordered === 0) {
 }
 
 /* ============================================================
+   CIO' CHE SEGUE UNA CARTA QUANDO CAMBIA LIVELLO
+   ============================================================
+   Cambiare livello significa cancellare una riga da una tabella e ricrearla
+   nell'altra: non e' una modifica, e' una carta che rinasce con un id nuovo.
+   Le tabelle qui sotto puntano alle carte con ON DELETE CASCADE (vedi il
+   dump), quindi la cancellazione si porta via anche loro — e un UPDATE fatto
+   dopo non trova piu' niente da aggiornare. Il legame va staccato PRIMA, e
+   riattaccato all'id nuovo DOPO.
+   Per ogni tabella: la colonna che lega a un padre e quella che lega a un
+   figlio. Resta fuori solo fc_game_sequence, che conosce i padri e basta con
+   una colonna NOT NULL: una carta che scende di livello perde per forza il
+   posto in una partita gia' iniziata, perche' non c'e' dove scriverlo.
+   Nomi di tabelle e colonne stanno qui, scritti a mano: non arrivano mai dal
+   client, ed e' per questo che si possono incollare nella query dove un
+   segnaposto non e' ammesso. */
+const FC_SEGUONO = [
+    'fc_examples'       => ['parent_id',   'child_id'],
+    'fc_gameplays'      => ['fc_image_id', 'fc_child_id'],
+    /* I preferiti sanno puntare a un figlio solo dopo
+       migrazione_preferiti_figli.sql. Finche' non e' stata eseguita questa
+       riga si salta da sola (vedi fc_colonna_esiste), quindi il file funziona
+       sia prima sia dopo. */
+    'user_favorites_fc' => ['fc_image_id', 'fc_child_id'],
+];
+
+/* Vero se quella colonna esiste davvero. Serve perche' l'elenco qui sopra
+   guarda un po' avanti: una migrazione puo' non essere ancora stata eseguita,
+   e legare l'ordine di caricamento dei file all'ordine delle migrazioni e' il
+   modo piu' facile per ritrovarsi un errore fatale in mezzo a un salvataggio.
+   La risposta si tiene da parte: la si chiede una volta per richiesta, e solo
+   quando una carta cambia davvero livello — non a ogni salvataggio. */
+function fc_colonna_esiste(string $tabella, string $colonna): bool {
+    static $viste = [];
+    $chiave = $tabella . '.' . $colonna;
+    if (!isset($viste[$chiave])) {
+        $r = sec_one("SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+                       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                     [$tabella, $colonna]);
+        $viste[$chiave] = ((int)($r['c'] ?? 0)) > 0;
+    }
+    return $viste[$chiave];
+}
+
+function fc_ids(array $righe): array {
+    return array_map(function ($r) { return (int)$r['id']; }, $righe);
+}
+
+/* Stacca dalla carta che sta per essere cancellata tutto quello che la
+   seguirebbe nella tomba, e restituisce gli id delle righe staccate: dopo
+   l'azzeramento non c'e' piu' nessun altro modo di ritrovarle.
+   $daPadre dice da quale delle due colonne staccare. */
+function fc_stacca(int $id, bool $daPadre): array {
+    $tenute = [];
+    foreach (FC_SEGUONO as $tabella => $colonne) {
+        /* Si guarda la colonna dei figli, che e' quella che puo' mancare. Se
+           non c'e', questa tabella si lascia proprio stare: staccare senza
+           poter riagganciare sarebbe peggio che non fare niente — la riga
+           resterebbe senza padrone da tutte e due le parti. */
+        if (!fc_colonna_esiste($tabella, $colonne[1])) continue;
+        $col = $daPadre ? $colonne[0] : $colonne[1];
+        $ids = fc_ids(sec_all("SELECT id FROM $tabella WHERE $col = ?", [$id]));
+        if ($ids) sec_q("UPDATE $tabella SET $col = NULL WHERE $col = ?", [$id]);
+        $tenute[$tabella] = $ids;
+    }
+    return $tenute;
+}
+
+/* ...e le riattacca alla riga nuova, dall'altra parte del confine. */
+function fc_riattacca(array $tenute, int $nuovoId, bool $aPadre): void {
+    if ($nuovoId <= 0) return;
+    foreach (FC_SEGUONO as $tabella => $colonne) {
+        $ids = $tenute[$tabella] ?? [];
+        if (!$ids) continue;
+        $col   = $aPadre ? $colonne[0] : $colonne[1];
+        $segna = implode(',', array_fill(0, count($ids), '?'));
+        sec_q("UPDATE $tabella SET $col = ? WHERE id IN ($segna)", array_merge([$nuovoId], $ids));
+    }
+}
+
+/* ============================================================
    PERCORSO COMPLETO: riordino e cambi di struttura
    ============================================================ */
 
@@ -277,6 +373,15 @@ foreach ($cards as $i => $c) {
     if ($status === 'new' || $orig_type === 'child') {
         /* Una riga nuova, oppure un figlio promosso a padre: in entrambi i casi
            nasce una riga in fc_images. Se era un figlio, la vecchia si toglie. */
+        $ex_da_promuovere = ($orig_type === 'child' && $id > 0) ? $id : 0;
+        /* Va letto PRIMA della cancellazione: dopo, la riga che dice di chi
+           era figlia questa carta non c'e' piu'. */
+        $padre_lasciato = $ex_da_promuovere > 0
+            ? (int)(sec_one("SELECT parent_id FROM fc_child_cards WHERE id_child = ?", [$id])['parent_id'] ?? 0)
+            : 0;
+        /* Esempi e partite giocate della carta, messi al riparo dalla cascata
+           un attimo prima che la vecchia riga sparisca. */
+        $al_seguito = $ex_da_promuovere > 0 ? fc_stacca($id, false) : [];
         if ($orig_type === 'child') fc_elimina('child', $id, $categoryId);
 
         sec_q("INSERT INTO fc_images (category_id, question_desc, answer_desc, question_image, answer_image,
@@ -285,6 +390,20 @@ foreach ($cards as $i => $c) {
               [$categoryId, $q, $a, $all['question_image'], $all['answer_image'],
                $all['question_audio'], $all['answer_audio'], $custom_order_parent]);
         $real_parent_id = sec_insert_id();
+
+        /* Verso opposto della retrocessione (vedi FASE 2): la carta e' la
+           stessa, ma la riga e' nuova e sta in un'altra tabella. Esempi e
+           partite si riagganciano qui, alla colonna "padre". */
+        if ($ex_da_promuovere > 0) fc_riattacca($al_seguito, $real_parent_id, true);
+
+        /* Il padre da cui la carta se n'e' andata puo' essere rimasto senza
+           figli: se non si ricalcola, continua a mostrarsi come se ne avesse
+           ancora. Stessa cura che la FASE 2 ha gia' per il cambio di padre. */
+        if ($padre_lasciato > 0) {
+            $restano = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_child_cards WHERE parent_id = ?", [$padre_lasciato])['c'] ?? 0);
+            sec_q("UPDATE fc_images SET is_father = ? WHERE id = ? AND category_id = ?",
+                  [$restano > 0 ? 1 : 0, $padre_lasciato, $categoryId]);
+        }
     } else {
         [$sets, $vals] = fc_set_allegati($all, $c);
         $clausole = array_merge(['custom_order = ?', 'question_desc = ?', 'answer_desc = ?'], $sets);
@@ -308,6 +427,13 @@ foreach ($cards as $i => $c) {
     $id        = sec_int($c['id'] ?? 0, 0);
     $orig_type = sec_enum($c['orig_type'] ?? null, ['parent', 'child'], 'child');
 
+    /* In PHP una variabile assegnata dentro un giro di ciclo resta viva anche
+       nei giri successivi: senza questi azzeramenti, il controllo sul vecchio
+       padre in fondo poteva usare il valore rimasto dalla carta precedente, e
+       fc_riattacca appiccicare a questa carta gli esempi di quell'altra. */
+    $vecchio_padre_id = 0;
+    $al_seguito       = [];
+
     if ($status === 'deleted') {
         fc_elimina($orig_type, $id, $categoryId);
         $mappa[(int)$i] = ['id' => 0, 'type' => 'deleted'];
@@ -328,7 +454,22 @@ foreach ($cards as $i => $c) {
     if ($status === 'new' || $orig_type === 'parent') {
         /* Riga nuova, oppure un padre retrocesso a figlio: nasce una riga in
            fc_child_cards, e se era un padre la vecchia si toglie. */
-        if ($orig_type === 'parent') fc_elimina('parent', $id, $categoryId);
+        if ($orig_type === 'parent' && $id > 0) {
+            /* Prima di cancellare la vecchia riga bisogna occuparsi di cio'
+               che le sta attaccato, altrimenti se ne va con lei.
+               1. I suoi figli: fc_child_cards.parent_id non ha una chiave
+                  esterna, quindi non vengono cancellati — resterebbero pero'
+                  appesi a un id che non esiste piu'. Passano al nuovo padre,
+                  che e' anche quello che l'utente vede in pagina: la carta
+                  scende di un livello e si porta dietro i suoi, che le
+                  diventano fratelli. Vale anche come rete di sicurezza, se la
+                  pagina non li avesse mandati.
+               2. Esempi e partite giocate: quelli hanno la cascata, e si
+                  staccano un attimo prima (vedi fc_stacca). */
+            sec_q("UPDATE fc_child_cards SET parent_id = ? WHERE parent_id = ?", [$real_parent_id, $id]);
+            $al_seguito = fc_stacca($id, true);   // si riattaccano dopo l'INSERT, che da' l'id nuovo
+            fc_elimina('parent', $id, $categoryId);
+        }
 
         sec_q("INSERT INTO fc_child_cards (parent_id, question_desc, answer_desc, question_image, answer_image,
                                            question_audio, answer_audio, custom_order)
@@ -336,6 +477,10 @@ foreach ($cards as $i => $c) {
               [$real_parent_id, $q, $a, $all['question_image'], $all['answer_image'],
                $all['question_audio'], $all['answer_audio'], $ordine]);
         $id = sec_insert_id();   // serve alla mappa: e' l'id con cui la pagina continuera' a lavorare
+
+        /* Adesso che l'id nuovo esiste, esempi e partite tornano al loro
+           posto — dall'altra parte del confine, sulla colonna "figlio". */
+        fc_riattacca($al_seguito, $id, false);
     } else {
         /* Il vecchio padre serve DOPO l'update, per capire se e' rimasto
            orfano di figli — va letto ORA, prima che parent_id venga

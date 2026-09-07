@@ -133,7 +133,22 @@ function pomo_barra_html(): array
         ],
     ];
 
-    $head = "\n" . '<link rel="stylesheet" href="' . htmlspecialchars($ver('pomodoro_barra.css'), ENT_QUOTES, 'UTF-8') . '">'
+    /* LO SPAZIO SI FA PRIMA CHE LA PAGINA SI VEDA.
+       La classe la metteva il JavaScript, che parte a pagina costruita: il
+       primo disegno avveniva senza, poi arrivava il padding e TUTTA la pagina
+       scendeva di venti pixel sotto gli occhi. E' lo scatto che si vede a ogni
+       apertura — non e' la barra che entra male, e' la pagina che si sposta
+       dopo essere gia' comparsa.
+       Qui la classe c'e' gia' nell'HTML che arriva dal server, e questo file
+       viene richiamato solo quando la barra ci sara' davvero: quando dice di
+       si', la barra c'e', quindi lo spazio si puo' prenotare senza il rischio
+       di lasciarne venti pixer vuoti in cima a una pagina che non ne ha
+       bisogno.
+       In cima al <head>, prima del foglio di stile: la classe dev'esserci
+       quando il browser calcola la prima impaginazione, non dopo. */
+    $head = "\n" . '<script>document.documentElement.classList.add("pomo-bar-attiva");'
+                  . 'document.documentElement.dataset.pomoPreacceso="1";</script>'
+          . "\n" . '<link rel="stylesheet" href="' . htmlspecialchars($ver('pomodoro_barra.css'), ENT_QUOTES, 'UTF-8') . '">'
           . "\n" . '<script defer src="' . htmlspecialchars($ver('pomodoro_core.js'), ENT_QUOTES, 'UTF-8') . '"></script>'
           . "\n" . '<script defer src="' . htmlspecialchars($ver('pomodoro_barra.js'), ENT_QUOTES, 'UTF-8') . '"></script>' . "\n";
 

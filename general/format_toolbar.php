@@ -49,6 +49,62 @@ if (!isset($ft_open)) $ft_open = true;
 
 $ft_editor_id = $ft_field . '_editor';
 
+/* ================================================================
+   L'EDITOR NASCE GIA' CON DENTRO LE PAROLE
+   ================================================================
+   Il testo dell'editor lo scrive ftInit() a pagina caricata, leggendo
+   data-raw. Fino a quel momento il riquadro e' vuoto — e siccome
+   .fc-editor:empty:before mostra il segnaposto, quello che si vede per un
+   istante e' "Scrivi qui…" su una carta che il testo ce l'ha eccome. Aprendo
+   il popup di modifica si legge il segnaposto e POI compare la domanda: la
+   pagina sembra montarsi sotto gli occhi.
+   Qui si mettono dentro le sole parole, gia' impaginate come paragrafi (le
+   stesse .fc-p che produrra' fcdToHTML), cosi' l'altezza e' quella giusta e
+   niente si sposta quando arriva il testo vero. ftInit sovrascrive comunque
+   tutto il contenuto, quindi questo non e' una versione da tenere allineata a
+   un'altra: e' un'anteprima che dura duecento millisecondi e poi non esiste
+   piu'.
+
+   Il grassetto, gli elenchi e le formule non si provano nemmeno: rifarli qui
+   vorrebbe dire riscrivere fcdToHTML in PHP e tenere due disegnatori
+   d'accordo per sempre. Le parole sono quello che si legge; il resto arriva
+   subito dopo. */
+if (!function_exists('ft_testo_piano')) {
+function ft_testo_piano($raw): string {
+    $raw = trim((string)$raw);
+    if ($raw === '') return '';
+
+    /* I MODELLI NO. big_edit tiene una copia nascosta di questa barra con
+       dentro %%RAW_TEXT%%, che sostituisce clonandola. Se qui ci finisse
+       un'anteprima, la sostituzione la riempirebbe col JSON grezzo e per un
+       istante l'editor mostrerebbe delle parentesi graffe. */
+    if (strpos($raw, '%%') !== false) return '';
+
+    $doc = json_decode($raw, true);
+    if (!is_array($doc) || !isset($doc['blocks']) || !is_array($doc['blocks'])) {
+        $righe = [trim(strip_tags($raw))];
+    } else {
+        $righe = [];
+        foreach ($doc['blocks'] as $b) {
+            if (!is_array($b)) continue;
+            $pezzi = [];
+            foreach (($b['runs'] ?? []) as $r) {
+                if (is_array($r)) $pezzi[] = (string)($r['s'] ?? '');
+                elseif (is_string($r)) $pezzi[] = $r;
+            }
+            $righe[] = trim(implode('', $pezzi));
+        }
+    }
+
+    $out = '';
+    foreach ($righe as $riga) {
+        if ($riga === '') continue;
+        $out .= '<div class="fc-p">' . htmlspecialchars($riga, ENT_QUOTES, 'UTF-8') . '</div>';
+    }
+    return $out;
+}
+}
+
 
 
 if (!defined('FC_PARSER_JS_INCLUDED')) {
@@ -361,7 +417,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
         </div>
     </div>
 
-    <div class="fc-editor" id="<?= htmlspecialchars($ft_editor_id) ?>" contenteditable="true" data-placeholder="<?= htmlspecialchars($ft_placeholder) ?>"></div>
+    <div class="fc-editor" id="<?= htmlspecialchars($ft_editor_id) ?>" contenteditable="true" data-placeholder="<?= htmlspecialchars($ft_placeholder) ?>"><?= ft_testo_piano($ft_raw) ?></div>
 
     <input type="hidden" name="<?= htmlspecialchars($ft_field) ?>" id="<?= htmlspecialchars($ft_field) ?>">
 

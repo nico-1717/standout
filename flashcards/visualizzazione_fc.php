@@ -1340,6 +1340,44 @@ function fc_testo_vuoto($raw): bool {
     return true;
 }
 
+/* Le parole di un campo, in chiaro. Serve a mettere QUALCOSA nella carta gia'
+   nell'HTML che arriva dal server: oggi il testo viene disegnato dal
+   JavaScript leggendo data-raw, quindi al primo disegno le carte sono cornici
+   vuote e il contenuto ci cade dentro un istante dopo — e' quello che si vede
+   "costruirsi".
+   Qui non si ricostruisce la formattazione: si prendono le parole e basta. Le
+   parole sono il 90% di quello che c'e' da leggere, arrivano col primo disegno
+   e non costano una richiesta; il grassetto, gli elenchi e le formule li mette
+   il JavaScript subito dopo, al posto di queste. */
+function fc_testo_piano($raw, int $max = 400): string {
+    $raw = trim((string)$raw);
+    if ($raw === '') return '';
+
+    $doc = json_decode($raw, true);
+    if (!is_array($doc) || !isset($doc['blocks']) || !is_array($doc['blocks'])) {
+        $piano = trim(preg_replace('/\s+/u', ' ', strip_tags($raw)));
+    } else {
+        $righe = [];
+        foreach ($doc['blocks'] as $b) {
+            if (!is_array($b)) continue;
+            $pezzi = [];
+            foreach (($b['runs'] ?? []) as $r) {
+                if (is_array($r)) $pezzi[] = (string)($r['s'] ?? '');
+                elseif (is_string($r)) $pezzi[] = $r;
+            }
+            $riga = trim(implode('', $pezzi));
+            if ($riga !== '') $righe[] = $riga;
+        }
+        $piano = implode("\n", $righe);
+    }
+
+    if ($piano === '') return '';
+    if (function_exists('mb_strlen') && mb_strlen($piano) > $max) {
+        return mb_substr($piano, 0, $max - 1) . '…';
+    }
+    return $piano;
+}
+
 /* Un lato della carta e' vuoto se non ha ne' testo, ne' immagine, ne' audio. */
 function fc_lato_vuoto($testo, $immagine, $audio): bool {
     return fc_testo_vuoto($testo)
@@ -1378,7 +1416,14 @@ function render_qa_side($label, $text, $image, $audio, $lato = '') {
 
             <?php if ($hasText): ?>
 
-                <div class="qa-text raw-text-content" data-raw="<?= sec_h($text) ?>"></div>
+                <?php /* Il segnaposto e' un elemento a se', marcato: il disegnatore
+                         vero (fc_parser.js) riscrive tutto il contenuto di questo
+                         div, quindi appena passa lui il segnaposto sparisce da
+                         solo. E se per qualche motivo non passasse, la rete in
+                         fondo alla pagina se ne accorge proprio dal marchio
+                         rimasto e disegna lei. In nessuno dei due casi la carta
+                         resta vuota, che e' l'unica cosa che conta. */ ?>
+                <div class="qa-text raw-text-content" data-raw="<?= sec_h($text) ?>"><span class="qa-pre" data-fc-pre="1"><?= sec_h(fc_testo_piano($text)) ?></span></div>
 
             <?php endif; ?>
 
@@ -1834,7 +1879,18 @@ function render_audio_player($src) {
 
 
 
-        <div class="item-counter" id="itemCounter"><span class="ic-dot"></span> <?php th('fc.vis_n_carte_mostrate', ['n' => '<b id="itemCounterNum">0</b>']); ?></div>
+        <?php /* Il numero parte gia' giusto. Prima era uno zero fisso che il
+                 JavaScript correggeva subito dopo: per una frazione di secondo
+                 la pagina diceva "0 carte mostrate" sopra un elenco che stava
+                 per riempirsi — la prima cosa che si legge, ed e' falsa.
+                 Il conto qui e' quello di tutte le carte della materia, che e'
+                 anche quello vero all'apertura: i filtri partono tutti aperti,
+                 e appena qualcuno li tocca ci pensa filterList(). */ ?>
+        <div class="item-counter" id="itemCounter"><span class="ic-dot"></span> <?php
+            $__mostrate = 0;
+            foreach ($images_data as $__r) { $__mostrate += 1 + count($__r['children']); }
+            th('fc.vis_n_carte_mostrate', ['n' => '<b id="itemCounterNum">' . (int)$__mostrate . '</b>']);
+        ?></div>
 
 
 
@@ -6432,7 +6488,9 @@ function portaInVistaLeCambiate(radice){
 function disegnaTestiGrezzi(radice){
     if (typeof parseTextForPreview !== 'function') return;
     radice.querySelectorAll('.raw-text-content').forEach(function(el){
-        if (el.innerHTML.trim() !== '') return;
+        /* Vuoto, oppure col solo segnaposto del server addosso: in tutt'e due i
+           casi il testo vero non c'e' ancora. */
+        if (el.innerHTML.trim() !== '' && !el.querySelector('[data-fc-pre]')) return;
         el.innerHTML = parseTextForPreview(el.getAttribute('data-raw') || '');
     });
     if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(radice);
@@ -7382,17 +7440,30 @@ function animateCardOut(el){
 
 function playEntranceAnimations(){
 
+    /* ERA QUESTA LA COSA CHE "SI COSTRUIVA".
+       Venticinque gruppi, 35ms di ritardo l'uno dall'altro, 420ms di durata:
+       l'ultimo cominciava a comparire dopo quasi un secondo. E fill:'backwards'
+       vuol dire che PRIMA di cominciare l'elemento sta al primo fotogramma,
+       cioe' invisibile — quindi non era la pagina lenta ad assemblarsi, era la
+       pagina che si assemblava apposta, davanti agli occhi, per un secondo
+       intero. Un'animazione scritta per far sembrare le cose vive faceva
+       sembrare l'applicazione lenta.
+       Ora: solo i primi otto (gli unici che stanno a schermo), 14ms fra l'uno e
+       l'altro, 220ms di durata. Tutto finito in poco piu' di 300ms, e nessun
+       elemento resta invisibile abbastanza da farci caso. Il resto compare
+       gia' fatto — che e' esattamente il motivo per cui le applicazioni fluide
+       sembrano fluide: non fanno vedere il montaggio. */
     $all('.fc-group').forEach(function(group, i){
 
-        if (i > 25) return;
+        if (i > 7) return;
 
         try {
 
             group.animate(
 
-                [{ opacity:0, transform:'translateY(16px)' }, { opacity:1, transform:'none' }],
+                [{ opacity:0, transform:'translateY(8px)' }, { opacity:1, transform:'none' }],
 
-                { duration: 420, delay: 40 + i * 35, easing:'cubic-bezier(.22,1,.36,1)', fill:'backwards' }
+                { duration: 220, delay: i * 14, easing:'cubic-bezier(.22,1,.36,1)', fill:'backwards' }
 
             );
 
@@ -7407,6 +7478,85 @@ function playEntranceAnimations(){
 function scrollCatPathToEnd(){
     var cp = document.getElementById('catPath');
     if (cp) { cp.scrollLeft = cp.scrollWidth; }
+}
+
+/* LA RETE SOTTO IL SEGNAPOSTO
+   Il testo in chiaro messo dal server e' una comodita' finche' arriva quello
+   vero. Se il disegnatore per qualunque motivo non e' passato — un file non
+   caricato, un errore prima — il segnaposto resta li' e la carta si vede lo
+   stesso, ma senza grassetto ne' formule. Qui si guarda chi e' rimasto col
+   marchio addosso e lo si disegna. Riconoscerli dal marchio, e non dal fatto
+   che siano vuoti, e' quello che rende questo controllo innocuo: su una carta
+   gia' disegnata il marchio non c'e' piu' e non si tocca niente. */
+/* ================================================================
+   PRECARICARE LA CARTA CHE SI STA PER APRIRE
+   ================================================================
+   Fra il momento in cui il dito tocca una carta e quello in cui lo si alza
+   passano 80-150 millisecondi. Sono pochi per una persona e parecchi per una
+   richiesta: se si comincia a scaricare la pagina di modifica al
+   pointerdown, quando il popup si apre spesso e' gia' arrivata.
+
+   Una alla volta, e solo quella toccata. Precaricarle tutte all'apertura
+   dell'elenco vorrebbe dire trenta richieste a una pagina che ognuna fa le sue
+   interrogazioni al database, per carte che quasi certamente non si apriranno:
+   il precaricamento diventerebbe il motivo per cui la pagina e' lenta. Qui la
+   carta toccata la si aprira' quasi sempre — si indovina praticamente sempre,
+   e si spende una richiesta.
+
+   Col mouse si parte dal passaggio sopra la carta, ma con un ritardo: senza,
+   basterebbe attraversare l'elenco per far partire una richiesta per ognuna.
+
+   Non c'e' niente da svuotare cambiando materia: la memoria e' quella del
+   browser, e le pagine che non serviranno piu' scadono da sole. Qui si tiene
+   solo l'elenco di quelle gia' chieste, per non chiederle due volte. */
+var fcGiaPrecaricate = {};
+var fcAttesaPrecarico = null;
+
+function precaricaModifica(carta){
+    if (!carta) return;
+    var url = carta.getAttribute('data-edit-url');
+    if (!url) return;
+    /* Lo stesso indirizzo che usera' il popup, virgola per virgola: se
+       differisse anche solo per un parametro, il browser lo tratterebbe come
+       una pagina diversa e lo scaricherebbe una seconda volta. */
+    if (typeof window.fcUrlPopup === 'function') url = window.fcUrlPopup(url);
+    if (fcGiaPrecaricate[url]) return;
+    fcGiaPrecaricate[url] = true;
+    fetch(url, { credentials: 'same-origin' }).catch(function(){ delete fcGiaPrecaricate[url]; });
+}
+
+document.addEventListener('pointerdown', function(e){
+    /* In selezione il tocco non apre niente: precaricare sarebbe una richiesta
+       buttata a ogni spunta. */
+    if (document.body.classList.contains('select-mode')) return;
+    if (!e.target || !e.target.closest) return;
+    precaricaModifica(e.target.closest('.fc-card[data-edit-url]'));
+}, { passive: true });
+
+document.addEventListener('pointerover', function(e){
+    if (e.pointerType === 'touch') return;   /* col dito ci pensa il pointerdown */
+    if (document.body.classList.contains('select-mode')) return;
+    if (!e.target || !e.target.closest) return;
+    var carta = e.target.closest('.fc-card[data-edit-url]');
+    clearTimeout(fcAttesaPrecarico);
+    if (!carta) return;
+    /* 140ms: attraversare l'elenco col mouse non deve far partire una richiesta
+       per ogni carta che si sfiora. Chi si ferma su una, invece, quasi sempre
+       la aprira'. */
+    fcAttesaPrecarico = setTimeout(function(){ precaricaModifica(carta); }, 140);
+});
+
+function rifinisciTestiRimasti(radice){
+    (radice || document).querySelectorAll('.raw-text-content [data-fc-pre]').forEach(function(seg){
+        var box = seg.closest('.raw-text-content');
+        if (!box) { seg.remove(); return; }
+        if (typeof parseTextForPreview === 'function') {
+            box.innerHTML = parseTextForPreview(box.getAttribute('data-raw') || '');
+        } else {
+            seg.removeAttribute('data-fc-pre');   /* niente disegnatore: si tiene il chiaro */
+        }
+    });
+    if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(radice || document);
 }
 
 function initPage(){
@@ -7429,6 +7579,10 @@ function initPage(){
     if (window.fcvAllineaFab) { fcvAllineaFab(); setTimeout(fcvAllineaFab, 400); }
 
     fcLoadExampleBoxes();
+
+    /* Dopo il disegnatore, non prima: se e' passato lui qui non c'e' piu'
+       niente da fare, ed e' il caso normale. */
+    rifinisciTestiRimasti(document);
 
     fcRiapriVisoreSeServe();
 

@@ -29,8 +29,14 @@
    modifica_immagine_fc.php e' una pagina vera, con la sua roba da scaricare
    (MathJax compreso), e uno schermo vuoto per una frazione di secondo
    sembrerebbe un popup rotto piuttosto che un popup che sta arrivando. */
+/* SOPRA L'IFRAME, NON SOTTO.
+   Stava a z-index 1 contro il 2 dell'iframe: l'iframe la copriva dal primo
+   istante, quindi questa rotellina non l'ha mai vista nessuno. Quello che si
+   vedeva era il riquadro bianco dell'iframe ancora vuoto — e su tema scuro un
+   rettangolo bianco a tutto schermo e' la cosa piu' violenta che possa
+   succedere aprendo un popup. */
 .fc-edit-popup-spin {
-    position: absolute; inset: 0; z-index: 1;
+    position: absolute; inset: 0; z-index: 3;
     display: flex; align-items: center; justify-content: center;
     color: var(--text-3, #AEAEB2);
     background: var(--surface, #fff);
@@ -42,8 +48,17 @@
 
 .fc-edit-popup-iframe {
     flex: 1; width: 100%; border: none; z-index: 2; position: relative;
-    background: var(--surface, #fff);
+    /* transparent e non var(--surface): finche' la pagina dentro non ha
+       disegnato, si vede quello che c'e' sotto — il pannello, che ha gia' il
+       colore giusto del tema. Un colore scritto qui sarebbe un secondo posto
+       da tenere d'accordo col tema, e basta sbagliarlo una volta per avere un
+       lampo del colore sbagliato. */
+    background: transparent;
+    /* Non si mostra finche' non ha finito: mezzo disegnata e' peggio che non
+       esserci, perche' si vede il montaggio. La rotellina copre l'attesa. */
+    opacity: 0; transition: opacity .18s ease;
 }
+.fc-edit-popup-overlay.loaded .fc-edit-popup-iframe { opacity: 1; }
 
 /* La pagina che ospita il popup non deve scorrere sotto: lo stesso principio
    gia' usato dai popup di fc_ai_pannello.js. */

@@ -116,8 +116,18 @@ html.pomo-bar-attiva [data-pomo-fa-spazio]{
     cursor: pointer;
     -webkit-user-select: none; user-select: none;
     -webkit-tap-highlight-color: transparent;
-    /* entra scendendo, cosi' lo spostamento della pagina si capisce invece
-       di sembrare un salto */
+}
+
+/* LA DISCESA SOLO QUANDO C'E' QUALCOSA DA SPIEGARE.
+   Era su .pomo-bar, cioe' su ogni caricamento di ogni pagina: la barra
+   scendeva sempre, addosso a un contenuto gia' fermo. Non spiegava nessuno
+   spostamento — lo spazio ormai e' prenotato dal server prima del disegno —
+   e restava solo un movimento in cima allo schermo a ogni apertura.
+   La classe la mette il JavaScript nel solo caso in cui l'animazione dice
+   davvero qualcosa: la barra che compare a pagina gia' aperta, perche' si e'
+   appena fatto partire un pomodoro. Li' la pagina si sposta sul serio, e
+   vederla accompagnata e' meglio che vederla saltare. */
+.pomo-bar.is-entrata{
     animation: pomo-bar-entra .34s cubic-bezier(.22,1,.36,1) both;
 }
 @keyframes pomo-bar-entra{ from{ transform: translateY(-100%); } to{ transform: none; } }

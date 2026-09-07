@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Creato il: Ago 28, 2026 alle 14:49
+-- Creato il: Set 07, 2026 alle 10:43
 -- Versione del server: 8.0.45
 -- Versione PHP: 8.0.22
 
@@ -202,6 +202,18 @@ CREATE TABLE `fc_gameplays` (
   `user_answer` varchar(255) DEFAULT NULL,
   `position` int NOT NULL DEFAULT '0',
   `play_date` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struttura della tabella `fc_game_sequence`
+--
+
+CREATE TABLE `fc_game_sequence` (
+  `game_id` int UNSIGNED NOT NULL,
+  `position` int NOT NULL,
+  `fc_image_id` bigint NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -1328,6 +1340,18 @@ CREATE TABLE `users` (
 -- --------------------------------------------------------
 
 --
+-- Struttura della tabella `user_favorites_fc`
+--
+
+CREATE TABLE `user_favorites_fc` (
+  `user_id` int UNSIGNED NOT NULL,
+  `fc_image_id` bigint NOT NULL,
+  `favorited_date` date NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Struttura della tabella `user_learnt_english`
 --
 
@@ -1459,7 +1483,8 @@ ALTER TABLE `fc_ai_data`
 -- Indici per le tabelle `fc_categories`
 --
 ALTER TABLE `fc_categories`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_fc_categories_user` (`user_id`);
 
 --
 -- Indici per le tabelle `fc_child_cards`
@@ -1480,15 +1505,25 @@ ALTER TABLE `fc_examples`
 --
 ALTER TABLE `fc_gameplays`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_pos_parent` (`game_id`,`position`,`fc_image_id`),
+  ADD UNIQUE KEY `uniq_pos_child` (`game_id`,`position`,`fc_child_id`),
   ADD KEY `idx_fc_gameplays_game` (`game_id`),
   ADD KEY `idx_fc_gameplays_fc_image` (`fc_image_id`),
   ADD KEY `fk_fc_gameplays_fc_child` (`fc_child_id`);
 
 --
+-- Indici per le tabelle `fc_game_sequence`
+--
+ALTER TABLE `fc_game_sequence`
+  ADD PRIMARY KEY (`game_id`,`position`),
+  ADD KEY `fk_fc_game_sequence_image` (`fc_image_id`);
+
+--
 -- Indici per le tabelle `fc_images`
 --
 ALTER TABLE `fc_images`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_fc_images_category` (`category_id`);
 
 --
 -- Indici per le tabelle `fc_user_goals`
@@ -1951,6 +1986,13 @@ ALTER TABLE `users`
   ADD UNIQUE KEY `uniq_email` (`email`);
 
 --
+-- Indici per le tabelle `user_favorites_fc`
+--
+ALTER TABLE `user_favorites_fc`
+  ADD PRIMARY KEY (`user_id`,`fc_image_id`),
+  ADD KEY `fk_user_favorites_fc_image` (`fc_image_id`);
+
+--
 -- Indici per le tabelle `user_learnt_english`
 --
 ALTER TABLE `user_learnt_english`
@@ -2363,6 +2405,13 @@ ALTER TABLE `fc_gameplays`
   ADD CONSTRAINT `fk_fc_gameplays_game` FOREIGN KEY (`game_id`) REFERENCES `games` (`id`) ON DELETE CASCADE;
 
 --
+-- Limiti per la tabella `fc_game_sequence`
+--
+ALTER TABLE `fc_game_sequence`
+  ADD CONSTRAINT `fk_fc_game_sequence_game` FOREIGN KEY (`game_id`) REFERENCES `games` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_fc_game_sequence_image` FOREIGN KEY (`fc_image_id`) REFERENCES `fc_images` (`id`) ON DELETE CASCADE;
+
+--
 -- Limiti per la tabella `friends`
 --
 ALTER TABLE `friends`
@@ -2530,6 +2579,12 @@ ALTER TABLE `university_exam_groups`
 --
 ALTER TABLE `university_settings`
   ADD CONSTRAINT `fk_unisettings_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Limiti per la tabella `user_favorites_fc`
+--
+ALTER TABLE `user_favorites_fc`
+  ADD CONSTRAINT `fk_user_favorites_fc_image` FOREIGN KEY (`fc_image_id`) REFERENCES `fc_images` (`id`) ON DELETE CASCADE;
 
 --
 -- Limiti per la tabella `user_learnt_english`
