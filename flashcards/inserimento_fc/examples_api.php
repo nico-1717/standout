@@ -87,7 +87,11 @@ function ex_salva(string $campo, string $cartella, bool $audio): ?string {
     if (empty($ris['ok'])) return null;
     if (!is_dir($cartella)) { @mkdir($cartella, 0755, true); }
     $nome = sec_safe_filename($ris['ext']);
-    return move_uploaded_file($ris['tmp'], $cartella . '/' . $nome) ? $nome : null;
+    $dest = $cartella . '/' . $nome;
+    if (!move_uploaded_file($ris['tmp'], $dest)) return null;
+    // vedi fc_misure_immagini.php: si misura una volta, alla scrittura
+    if (!$audio) fc_misura_registra($nome, $dest);
+    return $nome;
 }
 
 $action = sec_enum($_GET['action'] ?? $_POST['action'] ?? null, ['get', 'save', 'delete'], '');

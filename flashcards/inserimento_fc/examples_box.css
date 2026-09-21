@@ -84,23 +84,14 @@
 /* Centrata: un esempio fatto di sola immagine, incollato a sinistra dentro un
    riquadro largo, sembrava disallineato rispetto al testo degli altri. */
 .qa-example-image{ max-width:100%; max-height:180px; border-radius:9px; display:block; margin:8px auto 0; cursor:pointer; }
-/* Gli 8px staccano l'immagine dal testo che sta sopra. Se sopra non c'e'
-   niente non c'e' niente da cui staccarsi, e quello stacco diventa un buco in
-   cima al riquadro. Vale anche per l'audio, che ha lo stesso margine per lo
-   stesso motivo. */
-.qa-example-item > .qa-example-image:first-child,
-.qa-example-item > .qa-example-audio:first-child{ margin-top:0; }
-/* Rete di sicurezza: un riquadro di testo rimasto senza testo non deve
-   occupare una riga. Con white-space:pre-wrap qui sopra, basta un a capo
-   perche' ne occupi una. */
-.qa-example-text:empty{ display:none; }
 .qa-example-audio{ width:100%; height:32px; margin-top:8px; border-radius:10px; }
 
-/* SPAZIO PRENOTATO
-   Il riquadro nasce vuoto e si riempie dopo, quando la richiesta torna: da 38px
-   passa a ~150px, e tutto quello che sta sotto scivola giu' sotto gli occhi. Il
-   fastidio non e' il vuoto, e' il salto. Questo riquadro esiste solo sulle carte
-   che gli esempi ce li hanno davvero (render_examples_section non lo stampa
-   altrimenti), quindi lo spazio si puo' prenotare senza rischiare di lasciare un
-   buco che non si riempira' mai. */
-.qa-examples-box{ min-height:150px; }
+/* Un esempio fatto di sola immagine: il riquadro si alza quanto basta a
+   mostrarla per intero, invece di tagliarla a 120px e costringere a
+   scorrere dentro un riquadro alto la meta' dell'immagine stessa. Il
+   limite normale resta per gli esempi con del testo, dove serve a non
+   far diventare la sezione altissima. */
+.qa-ex-viewport:has(.qa-example-image):not(:has(.qa-example-text)){
+    max-height:none;
+}
+.qa-ex-viewport:has(.qa-example-image) .qa-example-image{ max-height:220px; }

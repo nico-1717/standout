@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Creato il: Set 07, 2026 alle 10:43
+-- Creato il: Set 21, 2026 alle 12:32
 -- Versione del server: 8.0.45
 -- Versione PHP: 8.0.22
 
@@ -151,6 +151,7 @@ CREATE TABLE `fc_categories` (
   `parent_id` int UNSIGNED NOT NULL DEFAULT '0',
   `color` varchar(20) NOT NULL DEFAULT '#007AFF',
   `color_edited` tinyint(1) NOT NULL DEFAULT '0',
+  `archived` tinyint(1) NOT NULL DEFAULT '0',
   `user_id` int NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -238,6 +239,18 @@ CREATE TABLE `fc_images` (
 -- --------------------------------------------------------
 
 --
+-- Struttura della tabella `fc_image_meta`
+--
+
+CREATE TABLE `fc_image_meta` (
+  `filename` varchar(190) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `w` smallint UNSIGNED NOT NULL,
+  `h` smallint UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Struttura della tabella `fc_user_goals`
 --
 
@@ -302,6 +315,7 @@ CREATE TABLE `games` (
   `game_date` datetime DEFAULT NULL,
   `score` decimal(5,2) DEFAULT NULL,
   `type` varchar(20) NOT NULL,
+  `card_status` varchar(3) DEFAULT NULL,
   `user_id` int DEFAULT NULL,
   `parent_id` int DEFAULT NULL,
   `total_father_words` int DEFAULT '0',
@@ -1344,10 +1358,12 @@ CREATE TABLE `users` (
 --
 
 CREATE TABLE `user_favorites_fc` (
+  `id` int NOT NULL,
   `user_id` int UNSIGNED NOT NULL,
-  `fc_image_id` bigint NOT NULL,
+  `fc_image_id` bigint DEFAULT NULL,
+  `fc_child_id` int DEFAULT NULL,
   `favorited_date` date NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ;
 
 -- --------------------------------------------------------
 
@@ -1484,7 +1500,8 @@ ALTER TABLE `fc_ai_data`
 --
 ALTER TABLE `fc_categories`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_fc_categories_user` (`user_id`);
+  ADD KEY `idx_fc_categories_user` (`user_id`),
+  ADD KEY `idx_fc_cat_user_archived` (`user_id`,`archived`);
 
 --
 -- Indici per le tabelle `fc_child_cards`
@@ -1526,6 +1543,12 @@ ALTER TABLE `fc_images`
   ADD KEY `idx_fc_images_category` (`category_id`);
 
 --
+-- Indici per le tabelle `fc_image_meta`
+--
+ALTER TABLE `fc_image_meta`
+  ADD PRIMARY KEY (`filename`);
+
+--
 -- Indici per le tabelle `fc_user_goals`
 --
 ALTER TABLE `fc_user_goals`
@@ -1560,7 +1583,9 @@ ALTER TABLE `gameplays`
 -- Indici per le tabelle `games`
 --
 ALTER TABLE `games`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_games_user_date` (`user_id`,`game_date`),
+  ADD KEY `idx_games_parent` (`parent_id`);
 
 --
 -- Indici per le tabelle `game_categories`
@@ -1989,8 +2014,11 @@ ALTER TABLE `users`
 -- Indici per le tabelle `user_favorites_fc`
 --
 ALTER TABLE `user_favorites_fc`
-  ADD PRIMARY KEY (`user_id`,`fc_image_id`),
-  ADD KEY `fk_user_favorites_fc_image` (`fc_image_id`);
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_fav_padre` (`user_id`,`fc_image_id`),
+  ADD UNIQUE KEY `uq_fav_figlio` (`user_id`,`fc_child_id`),
+  ADD KEY `fk_user_favorites_fc_image` (`fc_image_id`),
+  ADD KEY `fk_user_favorites_fc_child` (`fc_child_id`);
 
 --
 -- Indici per le tabelle `user_learnt_english`
@@ -2374,6 +2402,12 @@ ALTER TABLE `users`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT per la tabella `user_favorites_fc`
+--
+ALTER TABLE `user_favorites_fc`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT per la tabella `weather_cache`
 --
 ALTER TABLE `weather_cache`
@@ -2584,6 +2618,7 @@ ALTER TABLE `university_settings`
 -- Limiti per la tabella `user_favorites_fc`
 --
 ALTER TABLE `user_favorites_fc`
+  ADD CONSTRAINT `fk_user_favorites_fc_child` FOREIGN KEY (`fc_child_id`) REFERENCES `fc_child_cards` (`id_child`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_user_favorites_fc_image` FOREIGN KEY (`fc_image_id`) REFERENCES `fc_images` (`id`) ON DELETE CASCADE;
 
 --

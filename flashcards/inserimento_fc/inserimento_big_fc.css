@@ -2092,3 +2092,79 @@
    quindi non serve un'altra classe apposta solo per questo. */
 body.no-select .fc-row-strip,
 body.no-select .fc-row-content { cursor:grabbing; }
+
+
+/* ================================================================
+   hidden VUOL DIRE NASCOSTO
+
+   L'attributo hidden dell'HTML nasconde con display:none, ma quella e' una
+   regola del BROWSER, e qualunque regola scritta qui la batte. Cosi'
+   .img-viewer{display:flex} e .fcai-modale{display:flex} vincevano sul
+   hidden del markup: il visore dell'immagine e la modale di uscita erano a
+   schermo dal primo disegno, e sparivano solo quando il JavaScript arrivava
+   a occuparsene. E' quel lampo di "Rimuovi / Sostituisci" con l'immagine
+   rotta che si vedeva aprendo la pagina.
+
+   La regola qui sotto vale per tutti, presenti e futuri: chi scrive hidden
+   nel markup si aspetta che l'elemento non si veda, punto. !important serve
+   perche' deve battere regole piu' specifiche come .img-viewer.
+   Per mostrare un elemento si toglie hidden, non lo si copre con del CSS.
+   ================================================================ */
+[hidden] { display: none !important; }
+
+
+/* ================================================================
+   SCHERMATA DI ATTESA
+   Stessa idea del popup di modifica carta (fc_edit_popup.css): questa pagina
+   ha parecchia roba da mettere in piedi — le barre di formattazione, il
+   registratore, il selettore di categoria, MathJax — e vederla montarsi
+   pezzo per pezzo sembra un errore piuttosto che un caricamento.
+   Copre dal primo disegno e se ne va quando c'e' qualcosa da guardare.
+   ================================================================ */
+.big-loading {
+    position: fixed; inset: 0; z-index: 20000;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg, #F2F2F7);
+    color: var(--text-3, #AEAEB2);
+    transition: opacity .2s ease;
+}
+/* will-change dice al browser, PRIMA che l'animazione parta, di preparare
+   questo elemento su un proprio livello grafico, gestito da un filo separato
+   da quello che esegue il JavaScript. Senza, il browser decide se farlo solo
+   dopo aver visto qualche fotogramma girare — e questa pagina ha un blocco di
+   JavaScript pesante (barre di formattazione, registratore, selettore
+   categoria, autosave, tutto quello che si vede nei commenti di
+   fc_edit_popup.js) che occupa il filo principale subito dopo l'apertura
+   della pagina. Se quel blocco parte prima che la promozione sia completa, la
+   rotazione resta appesa al filo occupato e si ferma con lui: e' esattamente
+   il "gira un istante, si blocca, riprende un istante" che si vedeva.
+   Con will-change la promozione e' immediata, e la rotazione prosegue sul suo
+   filo per tutta la durata del caricamento, a prescindere da quanto lavoro
+   sta facendo il JavaScript nel frattempo. */
+.big-loading svg { animation: bigLoadingSpin .8s linear infinite; will-change: transform; }
+@keyframes bigLoadingSpin { to { transform: rotate(360deg); } }
+.big-loading.via { opacity: 0; pointer-events: none; }
+
+/* PERCHE' POTEVA SEMBRARE FERMA
+   Piu' in basso in questo stesso file c'e' una regola che rispetta la
+   preferenza di sistema "riduci le animazioni":
+       @media (prefers-reduced-motion: reduce){
+           *, *::before, *::after{ animation-duration:.01ms !important; ... }
+       }
+   E' corretta e vale per tutto il sito: chi ha attivato quella preferenza
+   nel proprio sistema non deve vedere niente ruotare. Ma applicata a UNA
+   rotellina di caricamento, il risultato e' un mezzo cerchio che sta li'
+   immobile — e un mezzo cerchio fermo non sembra "attenzione all'utente",
+   sembra rotto.
+   Qui sotto si da' a questa rotellina, quando quella preferenza e' attiva,
+   un respiro (l'opacita' che sale e scende piano) al posto della rotazione:
+   niente rotazione piena, ma resta chiaro che sta succedendo qualcosa. La
+   specificita' di questo selettore (.big-loading svg) batte quella della
+   regola generale (*), quindi vince anche restando !important contro
+   !important — e deve restare !important per lo stesso motivo. */
+@media (prefers-reduced-motion: reduce) {
+    .big-loading svg {
+        animation: bigLoadingPulse 1.6s ease-in-out infinite !important;
+    }
+}
+@keyframes bigLoadingPulse { 50% { opacity: .35; } }

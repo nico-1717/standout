@@ -651,6 +651,44 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
 <script>
 
+/* ----------------------------------------------------------------------
+   Blocco dello scorrimento sotto ai popup.
+   Sta qui perche' questo script e' il primo a essere emesso nelle pagine che
+   includono il selettore: chi arriva dopo lo trova gia' pronto e non ne
+   scrive una seconda copia (la guardia if (!window.nsScrollLock)).
+   position:fixed e non overflow:hidden: su iOS il solo overflow non ferma il
+   rimbalzo e la pagina continua a muoversi sotto al foglio. Il contatore
+   serve perche' i popup si annidano: si sblocca solo all'ultima chiusura.
+   ---------------------------------------------------------------------- */
+if (!window.nsScrollLock) {
+    window.__nsLockN = 0;
+    window.__nsLockY = 0;
+    window.nsScrollLock = function (on) {
+        var b = document.body;
+        if (on) {
+            window.__nsLockN++;
+            if (window.__nsLockN > 1) return;
+            window.__nsLockY = window.pageYOffset || document.documentElement.scrollTop || 0;
+            b.style.position = 'fixed';
+            b.style.top = (-window.__nsLockY) + 'px';
+            b.style.left = '0';
+            b.style.right = '0';
+            b.style.width = '100%';
+            b.classList.add('ns-locked');
+        } else {
+            window.__nsLockN = Math.max(0, window.__nsLockN - 1);
+            if (window.__nsLockN > 0) return;
+            b.style.position = '';
+            b.style.top = '';
+            b.style.left = '';
+            b.style.right = '';
+            b.style.width = '';
+            b.classList.remove('ns-locked');
+            window.scrollTo(0, window.__nsLockY);
+        }
+    };
+}
+
 (function () {
 
     if (window.__csInit) return;
@@ -677,10 +715,16 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
            veniva mai eseguito.
            L'id giusto il modale ce l'ha addosso da sempre, in data-cs-hidden:
            e' lo stesso che usa csApplySelection per scrivere la scelta. */
+        /* data-cs-expand-to ha la precedenza sul campo nascosto: serve a chi
+           usa il selettore per una cosa diversa dal "scegli e ricorda", per
+           esempio lo spostamento di una categoria — li' il valore scelto sara'
+           la DESTINAZIONE, ma il punto da cui aprire l'albero e' la categoria
+           di partenza, che nel campo nascosto non c'e' e non ci deve andare. */
+        var idEsplicito = parseInt(modal.getAttribute('data-cs-expand-to') || '0', 10);
         var idCampo = modal.getAttribute('data-cs-hidden');
         var campo = idCampo ? document.getElementById(idCampo) : null;
         if (!campo) campo = modal.querySelector('input[type="hidden"][name]');
-        var idSel = campo ? parseInt(campo.value, 10) : 0;
+        var idSel = idEsplicito > 0 ? idEsplicito : (campo ? parseInt(campo.value, 10) : 0);
         modal.querySelectorAll('.cs-name-corrente').forEach(function (n) { n.classList.remove('cs-name-corrente'); });
         if (!idSel) return;
 
@@ -720,19 +764,54 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
         }, 380);
     }
 
+    /* Righe che restano visibili ma non si possono scegliere. Nascondere la
+       riga (com'era prima per la categoria che si sta spostando) toglie anche
+       il ramo che le sta sotto e fa sparire il riferimento visivo: qui invece
+       la si lascia dov'e', spenta, cosi' si capisce da dove si parte. Il
+       controllo vero resta comunque sul server, questo e' solo il modo di
+       dirlo prima di sbagliare. */
+    function csApplyDisabled(modal) {
+        modal.querySelectorAll('.cs-row-disabled').forEach(function (n) {
+            n.classList.remove('cs-row-disabled');
+            n.removeAttribute('data-cs-disabled-reason');
+        });
+        var grezzo = modal.getAttribute('data-cs-disabled-ids') || '';
+        if (!grezzo) return;
+        var motivo = modal.getAttribute('data-cs-disabled-reason') || '';
+        grezzo.split(',').forEach(function (raw) {
+            var id = parseInt(raw, 10);
+            if (isNaN(id)) return;
+            var voce = modal.querySelector('[data-cs-select="' + id + '"]');
+            if (!voce) return;
+            voce.classList.add('cs-row-disabled');
+            voce.classList.add('cs-name-corrente');
+            if (motivo) voce.setAttribute('data-cs-disabled-reason', motivo);
+        });
+    }
+
     function csOpen(modal) {
         if (!modal) return;
+        /* Il contatore del blocco scorrimento va mosso una volta sola per
+           apertura: riaprire un popup gia' aperto lo farebbe salire senza mai
+           tornare giu', e la pagina resterebbe inchiodata. */
+        var eraAperto = (modal.style.display === 'flex');
         csResetCreateView(modal);
         modal.style.display = 'flex';
         modal.classList.remove('closing');
+        csApplyDisabled(modal);
         csEspandiFinoASelezionata(modal);
+        if (!eraAperto && window.nsScrollLock) window.nsScrollLock(true);
     }
 
     function csClose(modal) {
 
         if (!modal) return;
 
+        var eraAperto = (modal.style.display === 'flex');
+
         modal.classList.add('closing');
+
+        if (eraAperto && window.nsScrollLock) window.nsScrollLock(false);
 
         setTimeout(function () {
 
@@ -1403,6 +1482,39 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
         csApplySelection(document.getElementById(modalId), id, name, color);
 
+    };
+
+    /* Dove aprire l'albero alla prossima apertura del popup. Serve quando il
+       punto di partenza non coincide con il valore selezionato: spostando una
+       categoria si sceglie la destinazione, ma l'albero deve srotolarsi sulla
+       categoria che si sta spostando. Passare 0 rimette il comportamento
+       normale (si apre sul valore del campo nascosto). */
+    window.csSetExpandTo = function (modalId, id) {
+        var m = document.getElementById(modalId);
+        if (!m) return;
+        var n = parseInt(id, 10);
+        if (n > 0) m.setAttribute('data-cs-expand-to', n);
+        else m.removeAttribute('data-cs-expand-to');
+    };
+
+    /* Voci che restano a schermo ma non si possono scegliere, con il motivo da
+       mostrare a chi ci prova. L'elenco si riscrive tutto a ogni chiamata:
+       passare un array vuoto le riaccende tutte. */
+    window.csSetDisabled = function (modalId, ids, reason) {
+        var m = document.getElementById(modalId);
+        if (!m) return;
+        var puliti = (ids || []).map(function (v) { return parseInt(v, 10); })
+                                .filter(function (v) { return !isNaN(v); });
+        if (puliti.length) {
+            m.setAttribute('data-cs-disabled-ids', puliti.join(','));
+            m.setAttribute('data-cs-disabled-reason', reason || '');
+        } else {
+            m.removeAttribute('data-cs-disabled-ids');
+            m.removeAttribute('data-cs-disabled-reason');
+        }
+        /* Se il popup e' gia' aperto l'effetto si vede subito, senza aspettare
+           la prossima apertura. */
+        if (m.style.display === 'flex') csApplyDisabled(m);
     };
 
 

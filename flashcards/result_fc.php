@@ -993,6 +993,16 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
+    <!-- Filtro "solo sbagliate" e apertura del visore dalla carta in vista -->
+    <div class="res-fabs">
+        <button type="button" id="fabSoloErrori" class="res-fab" onclick="toggleSoloErrori()" title="<?php te('fc.res_solo_errate'); ?>" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8Z"/></svg>
+        </button>
+        <button type="button" class="res-fab res-fab-primary" onclick="apriVisoreDaCartaCorrente()" title="<?php te('fc.flashcard'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="3"/><path d="M8.5 4H19a2 2 0 0 1 2 2v10.5"/></svg>
+        </button>
+    </div>
+
     <div id="fcv" class="fcv" aria-hidden="true">
 
 
@@ -1966,7 +1976,10 @@ if ($row_resume && $row_resume['resume_pos']) {
 
                 document.querySelectorAll('.rev-card .rev-entry').forEach(function (en) {
 
-
+                    /* Col filtro "solo sbagliate" attivo, il mazzo del visore
+                       contiene solo quelle: altrimenti si filtrava l'elenco ma
+                       poi le flashcard le mostravano comunque tutte. */
+                    if (en.style.display === 'none') return;
 
                     var q = en.querySelector('.rev-q');
 
@@ -2128,6 +2141,52 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
+            /* Apre il visore dalla carta che si sta guardando adesso nell'elenco,
+               invece che sempre dalla prima: si prende la .rev-entry piu' vicina
+               al centro dello schermo e si cerca la sua posizione nel mazzo. */
+            window.apriVisoreDaCartaCorrente = function () {
+                var entries = Array.prototype.slice.call(document.querySelectorAll('.rev-card .rev-entry'))
+                    .filter(function (en) { return en.offsetParent !== null; });   // solo quelle visibili col filtro attivo
+                if (!entries.length) { window.fcvOpen(0); return; }
+
+                var centro = window.innerHeight / 2;
+                var migliore = entries[0], minDist = Infinity;
+                entries.forEach(function (en) {
+                    var r = en.getBoundingClientRect();
+                    var d = Math.abs((r.top + r.bottom) / 2 - centro);
+                    if (d < minDist) { minDist = d; migliore = en; }
+                });
+
+                /* L'indice va calcolato sulle sole carte che finiranno nel mazzo
+                   (le visibili), non su tutte: col filtro attivo i numeri non
+                   corrisponderebbero. */
+                var i = entries.indexOf(migliore);
+                window.fcvOpen(i < 0 ? 0 : i);
+            };
+
+            /* Filtro "solo sbagliate": nasconde le carte corrette e le pagine che
+               restano senza nessuna carta da mostrare. */
+            window.toggleSoloErrori = function () {
+                var btn = document.getElementById('fabSoloErrori');
+                var attivo = btn.getAttribute('aria-pressed') !== 'true';
+                btn.setAttribute('aria-pressed', attivo ? 'true' : 'false');
+                btn.classList.toggle('is-active', attivo);
+
+                document.querySelectorAll('.rev-card .rev-entry').forEach(function (en) {
+                    var pill = en.querySelector('.oc-pill');
+                    var sbagliata = pill && pill.classList.contains('ko');
+                    en.style.display = (attivo && !sbagliata) ? 'none' : '';
+                });
+
+                /* Una pagina senza piu' nessuna carta visibile sparisce anche lei,
+                   altrimenti resterebbero intestazioni vuote. */
+                document.querySelectorAll('.rev-card').forEach(function (card) {
+                    var visibili = Array.prototype.slice.call(card.querySelectorAll('.rev-entry'))
+                        .filter(function (en) { return en.style.display !== 'none'; });
+                    card.style.display = (attivo && visibili.length === 0) ? 'none' : '';
+                });
+            };
+
             window.fcvOpen = function (i) {
 
 
@@ -2195,6 +2254,61 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
+
+            /* Trascinamento verso il basso per chiudere, come nei fogli di iOS:
+               il visore segue il dito, e se si e' scesi abbastanza (o si e'
+               lasciato andare di slancio) si chiude, altrimenti torna su. */
+            (function () {
+                var y0 = 0, dy = 0, attivo = false, deciso = '', t0 = 0;
+
+                document.addEventListener('touchstart', function (e) {
+                    if (!fcv || !fcv.classList.contains('on') || e.touches.length !== 1) return;
+                    /* Non si parte se il dito e' su una zona che scorre per conto
+                       suo e non e' gia' in cima: li' comanda lo scorrimento. */
+                    var scroller = e.target.closest ? e.target.closest('.fcv-body') : null;
+                    if (scroller && scroller.scrollTop > 0) return;
+                    if (e.target.closest && e.target.closest('.fcv-nb, #fcvClose')) return;
+                    attivo = true; deciso = ''; dy = 0;
+                    y0 = e.touches[0].clientY; t0 = Date.now();
+                }, { passive: true });
+
+                document.addEventListener('touchmove', function (e) {
+                    if (!attivo) return;
+                    dy = e.touches[0].clientY - y0;
+                    if (!deciso) {
+                        if (Math.abs(dy) < 8) return;
+                        /* Solo verso il basso: verso l'alto non chiude niente. */
+                        deciso = dy > 0 ? 'giu' : 'no';
+                    }
+                    if (deciso !== 'giu') return;
+                    e.preventDefault();
+                    var scala = Math.max(.88, 1 - dy / 1400);
+                    fcv.style.transition = 'none';
+                    fcv.style.transform = 'translateY(' + dy + 'px) scale(' + scala + ')';
+                    fcv.style.opacity = String(Math.max(.35, 1 - dy / 600));
+                }, { passive: false });
+
+                function fine() {
+                    if (!attivo) return;
+                    attivo = false;
+                    if (deciso !== 'giu') return;
+                    var velocita = dy / Math.max(1, Date.now() - t0);   // px per ms
+                    fcv.style.transition = 'transform .28s cubic-bezier(.32,.72,0,1), opacity .28s ease-out';
+                    if (dy > 130 || velocita > 0.6) {
+                        fcv.style.transform = 'translateY(100vh) scale(.92)';
+                        fcv.style.opacity = '0';
+                        setTimeout(function () {
+                            closeV();
+                            fcv.style.transition = ''; fcv.style.transform = ''; fcv.style.opacity = '';
+                        }, 200);
+                    } else {
+                        fcv.style.transform = ''; fcv.style.opacity = '';
+                    }
+                    dy = 0;
+                }
+                document.addEventListener('touchend', fine);
+                document.addEventListener('touchcancel', fine);
+            })();
 
             function closeV() {
 

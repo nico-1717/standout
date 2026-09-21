@@ -13,6 +13,15 @@
  * 3. Le categorie arrivavano dalla querystring e finivano nella query senza
  *    verificare che fossero dell'utente: si poteva giocare - e quindi leggere -
  *    le schede di un altro. Ora si tengono solo quelle sue.
+ *
+ * 4. "Tutte" e "Da imparare" scrivevano lo stesso tipo ('fc'): lo storico non
+ *    poteva distinguerle, e chi riprendeva la partita non sapeva con che stato
+ *    farlo. Ora lo stato sta in games.card_status.
+ *
+ * 5. Il totale veniva contato con una query a parte, prima di decidere la
+ *    sequenza: due conteggi dello stesso insieme che potevano non coincidere.
+ *    Ora il totale E' la sequenza, e una selezione vuota non crea nessuna
+ *    partita (prima nasceva una partita fantasma con totale 1).
  */
 require_once 'config.php';
 require_once 'auth_check.php';
@@ -57,47 +66,9 @@ if (!empty($chieste)) {
     }
 }
 
+/* Il tipo resta quello di sempre ('fc' / 'fc_L') perche' altre pagine lo
+   leggono; la distinzione vera fra le tre scelte sta in card_status. */
 $game_type = 'fc' . ($status === '1' ? '_L' : '');
-
-/* Quante schede entrano nella partita. Le tre forme della clausola sono scritte
-   per esteso: "$where_learnt" incollato nella query era il punto in cui prima
-   entravano valori costruiti a mano. */
-$par = [];
-if ($status === 'all') {
-    $where_learnt = '1=1';
-} elseif ($status === '1') {
-    $where_learnt = 'i.id IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = ?)';
-    $par[] = $current_user_id;
-} else {
-    $where_learnt = 'i.id NOT IN (SELECT fc_image_id FROM user_learnt_fc WHERE user_id = ?)';
-    $par[] = $current_user_id;
-}
-
-/* La JOIN su fc_categories con user_id e' la garanzia che si contino solo le
-   proprie schede, anche se l'elenco delle categorie fosse vuoto. */
-$sql = "SELECT COUNT(*) AS t FROM fc_images i
-        JOIN fc_categories c ON c.id = i.category_id
-        WHERE $where_learnt AND c.user_id = ?";
-$par[] = $current_user_id;
-if (!empty($valid_cats)) {
-    $ph = implode(',', array_fill(0, count($valid_cats), '?'));
-    $sql .= " AND i.category_id IN ($ph)";
-    $par = array_merge($par, $valid_cats);
-}
-$total_words_start = (int)(sec_one($sql, $par)['t'] ?? 0);
-if ($total_words_start === 0) $total_words_start = 1;
-
-sec_q("INSERT INTO games (game_date, score, type, user_id, total_father_words)
-       VALUES (NOW(), 0, ?, ?, ?)", [$game_type, $current_user_id, $total_words_start]);
-$new_game_id = sec_insert_id();
-
-sec_q("INSERT INTO session_durations (game_id, start_time, duration_seconds, updated_at)
-       VALUES (?, NOW(), 0, NOW())", [$new_game_id]);
-
-foreach ($valid_cats as $i => $cid) {
-    sec_q("INSERT INTO game_fc_categories (game_id, fc_category_id, category_order) VALUES (?, ?, ?)",
-          [$new_game_id, $cid, $i]);
-}
 
 /* ---------------------------------------------------------------------
    La sequenza della partita si decide QUI, una volta sola: quale padre va
@@ -107,11 +78,6 @@ foreach ($valid_cats as $i => $cid) {
    dietro il testo delle risposte ne' i figli: quelli si risolvono da soli
    quando la posizione viene letta la prima volta (game_fc.php), seguendo
    il loro custom_order come hanno sempre fatto.
-
-   Le partite di ripasso (quelle con parent_id, create dai risultati) non
-   passano di qui: continuano a generare le carte man mano, come prima -
-   li' la carta dipende da cosa e' stato sbagliato, e non avrebbe senso
-   deciderla in anticipo.
    --------------------------------------------------------------------- */
 $par_sel = [];
 if ($status === '1') {
@@ -124,50 +90,81 @@ if ($status === '1') {
     $where_sel = '1=1';
 }
 
-$sql_sel = "SELECT i.id, i.category_id, i.custom_order
-            FROM fc_images i
-            JOIN fc_categories c ON c.id = i.category_id
-            WHERE $where_sel AND c.user_id = ?";
+/* La JOIN su fc_categories con user_id e' la garanzia che si prendano solo
+   le proprie schede, anche se l'elenco delle categorie fosse vuoto. */
+$from_sel = "FROM fc_images i
+             JOIN fc_categories c ON c.id = i.category_id
+             WHERE $where_sel AND c.user_id = ?";
 $par_sel[] = $current_user_id;
 
 if (!empty($valid_cats)) {
     $ph_sel = implode(',', array_fill(0, count($valid_cats), '?'));
-    $sql_sel .= " AND i.category_id IN ($ph_sel)";
+    $from_sel .= " AND i.category_id IN ($ph_sel)";
     $par_sel = array_merge($par_sel, $valid_cats);
 }
 
-$schede = sec_all($sql_sel, $par_sel);
+$schede = sec_all("SELECT i.id, i.category_id, i.custom_order $from_sel", $par_sel);
 
-if (!empty($schede)) {
-    if ($order === 'random') {
-        shuffle($schede);
-    } else {
-        /* In ordine: prima la categoria (secondo la scelta dell'utente),
-           poi l'ordine personalizzato della scheda dentro la categoria. */
-        $pos_cat = array_flip($valid_cats);
-        usort($schede, function ($a, $b) use ($pos_cat) {
-            $ca = $pos_cat[(int)$a['category_id']] ?? PHP_INT_MAX;
-            $cb = $pos_cat[(int)$b['category_id']] ?? PHP_INT_MAX;
-            if ($ca !== $cb) return $ca <=> $cb;
-            return ((int)$a['custom_order']) <=> ((int)$b['custom_order']);
-        });
-    }
+/* Niente da giocare: si torna alla scelta senza creare una partita che
+   resterebbe vuota nello storico. */
+if (empty($schede)) {
+    header('Location: categories_game_fc.php?vuota=1');
+    exit();
+}
 
-    /* Scritta a blocchi: una INSERT per riga su una selezione enorme sarebbe
-       lenta proprio nel momento in cui l'utente sta aspettando. */
-    $righe = [];
-    $posizione = 0;
-    foreach ($schede as $s) {
-        $posizione++;
-        $righe[] = [$new_game_id, $posizione, (int)$s['id']];
-    }
+/* Carte totali, figli compresi, contate sullo stesso insieme della sequenza.
+   Solo i padri veri portano figli: e' la stessa regola con cui game_fc.php
+   li genera, cosi' i due numeri partono allineati. */
+$figli = (int)(sec_one("SELECT COUNT(*) AS n FROM fc_child_cards ch
+                        JOIN (SELECT i.id $from_sel AND i.is_father = 1) p ON p.id = ch.parent_id",
+                       $par_sel)['n'] ?? 0);
 
-    foreach (array_chunk($righe, 300) as $blocco) {
-        $valori = [];
-        $ph_riga = implode(',', array_fill(0, count($blocco), '(?, ?, ?)'));
-        foreach ($blocco as $r) { $valori = array_merge($valori, $r); }
-        sec_q("INSERT INTO fc_game_sequence (game_id, position, fc_image_id) VALUES $ph_riga", $valori);
-    }
+$tot_padri = count($schede);
+
+/* game_order si scrive subito: chi riprende la partita senza "order"
+   nell'indirizzo lo legge da qui, e prima restava sempre 'random'. */
+sec_q("INSERT INTO games (game_date, score, type, card_status, game_order, user_id,
+                          total_father_words, total_words_with_children)
+       VALUES (NOW(), 0, ?, ?, ?, ?, ?, ?)",
+      [$game_type, $status, $order, $current_user_id, $tot_padri, $tot_padri + $figli]);
+$new_game_id = sec_insert_id();
+
+sec_q("INSERT INTO session_durations (game_id, start_time, duration_seconds, updated_at)
+       VALUES (?, NOW(), 0, NOW())", [$new_game_id]);
+
+foreach ($valid_cats as $i => $cid) {
+    sec_q("INSERT INTO game_fc_categories (game_id, fc_category_id, category_order) VALUES (?, ?, ?)",
+          [$new_game_id, $cid, $i]);
+}
+
+if ($order === 'random') {
+    shuffle($schede);
+} else {
+    /* In ordine: prima la categoria (secondo la scelta dell'utente),
+       poi l'ordine personalizzato della scheda dentro la categoria. */
+    $pos_cat = array_flip($valid_cats);
+    usort($schede, function ($a, $b) use ($pos_cat) {
+        $ca = $pos_cat[(int)$a['category_id']] ?? PHP_INT_MAX;
+        $cb = $pos_cat[(int)$b['category_id']] ?? PHP_INT_MAX;
+        if ($ca !== $cb) return $ca <=> $cb;
+        return ((int)$a['custom_order']) <=> ((int)$b['custom_order']);
+    });
+}
+
+/* Scritta a blocchi: una INSERT per riga su una selezione enorme sarebbe
+   lenta proprio nel momento in cui l'utente sta aspettando. */
+$righe = [];
+$posizione = 0;
+foreach ($schede as $s) {
+    $posizione++;
+    $righe[] = [$new_game_id, $posizione, (int)$s['id']];
+}
+
+foreach (array_chunk($righe, 300) as $blocco) {
+    $valori = [];
+    $ph_riga = implode(',', array_fill(0, count($blocco), '(?, ?, ?)'));
+    foreach ($blocco as $r) { $valori = array_merge($valori, $r); }
+    sec_q("INSERT INTO fc_game_sequence (game_id, position, fc_image_id) VALUES $ph_riga", $valori);
 }
 
 header("Location: game_fc.php?game_id=" . (int)$new_game_id

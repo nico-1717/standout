@@ -72,7 +72,11 @@
         if (empty($ris['ok'])) return '';
         if (!is_dir($cartella)) { @mkdir($cartella, 0755, true); }
         $nome = sec_safe_filename($ris['ext']);
-        return move_uploaded_file($ris['tmp'], rtrim($cartella, '/') . '/' . $nome) ? $nome : '';
+        $dest = rtrim($cartella, '/') . '/' . $nome;
+        if (!move_uploaded_file($ris['tmp'], $dest)) return '';
+        // vedi fc_misure_immagini.php: si misura una volta, alla scrittura
+        if (!$audio) fc_misura_registra($nome, $dest);
+        return $nome;
     }
 
     /* Una voce del dizionario che potrebbe non esserci ancora: t() restituisce

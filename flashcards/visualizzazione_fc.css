@@ -2136,3 +2136,29 @@ body.select-mode.is-compact .fc-card:not(.is-open) .select-circle input{
     color:var(--text-2); background:var(--surface-2);
 }
 .cat-move-azioni .tit-modal-edit{ margin-left:auto; }
+
+
+/* ================================================================
+   ELENCHI LUNGHI — disegno pigro
+   La classe la mette il server solo quando le carte sono tante e il riordino
+   e' spento (vedi il commento sul <body> in visualizzazione_fc.php).
+   contain-intrinsic-size con "auto" fa ricordare al browser l'altezza vera di
+   ogni carta gia' passata sotto gli occhi: senza, tornando indietro la barra
+   di scorrimento salterebbe, perche' le carte gia' lette tornerebbero tutte
+   alla misura di riserva.
+   ================================================================ */
+body.fc-pigra .fc-group{
+    content-visibility:auto;
+    contain-intrinsic-size:auto 340px;
+}
+
+
+/* Formula non ancora disegnata da MathJax: si tiene il posto ma non si mostra
+   il codice sorgente. Per quelle in linea resta la pastiglia azzurra, che fa
+   da segnaposto; per quelle a blocco resta la riga vuota.
+   La classe la mette il server e la toglie fcDisegnaFormuleDi(), UNA FORMULA
+   ALLA VOLTA: prima era un interruttore unico sul <body>, e bastava una
+   formula lenta in fondo alla pagina per tenere invisibili anche quelle
+   gia' pronte in cima. */
+.fc-x.fc-attesa,
+.fc-fx.fc-attesa{ color:transparent; }

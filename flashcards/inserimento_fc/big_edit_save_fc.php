@@ -137,7 +137,12 @@ function fc_salva_file(string $campo, int $i, bool $audio): ?string {
 
     $nome = sec_safe_filename($ris['ext']);
     $dest = ($audio ? FC_AUDIO_DIR : FC_IMAGE_PATH_INSERT) . $nome;
-    return move_uploaded_file($ris['tmp'], $dest) ? $nome : null;
+    if (!move_uploaded_file($ris['tmp'], $dest)) return null;
+    /* Le misure si prendono adesso, con il file appena scritto sotto mano:
+       e' l'unico momento in cui leggerlo costa una apertura sola invece di
+       una per ogni volta che la carta verra' mostrata. */
+    if (!$audio) fc_misura_registra($nome, $dest);
+    return $nome;
 }
 
 /* I quattro allegati di una riga, in una volta sola. */

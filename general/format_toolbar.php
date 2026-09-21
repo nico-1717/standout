@@ -4259,13 +4259,39 @@ function ftAggancioInoltra(e) {
 function ftAggancioAggiornaClone() {
     var a = FT_AGGANCIO;
     if (!a.clone || !a.toolbar) return;
-    a.clone.innerHTML = a.toolbar.innerHTML;
-    a.clone.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
+
     a.clone.className = a.toolbar.className + ' fmt-agganciata fmt-clone';
     if (a.portale) a.portale.classList.toggle('fmt-chiusa', a.wrap.classList.contains('fmt-chiusa'));
+
+    /* SI RIFA' IL CONTENUTO SOLO SE E' DAVVERO CAMBIATO
+       Rifarlo a ogni giro sembrava innocuo e non lo era: la fila dei colori
+       scorre in orizzontale, e ogni scorrimento — anche il suo — fa scattare
+       il controllo dell'aggancio, che rigenerava la copia da capo. Una fila
+       appena rinata riparte da sinistra: il dito la spostava e lei tornava
+       subito indietro, cioe' "non scorre". Confrontando prima, quando non e'
+       cambiato nulla non si tocca niente e la posizione resta dov'e'. */
+    var htmlOra = a.toolbar.innerHTML;
+    if (a._ultimoHtml === htmlOra) return;
+    a._ultimoHtml = htmlOra;
+
+    /* Quando invece un cambiamento c'e' davvero (un pannello che si apre, un
+       tasto che si accende) si rifa' il contenuto, ma ci si segna dove erano
+       arrivate le file scorrevoli e ce le si rimette: il motivo per rifare il
+       contenuto e' lo stato dei tasti, non far ripartire da capo la fila che
+       si sta guardando. */
+    var scorrevoli = a.clone.querySelectorAll('.fmt-swatches, .fmt-lingue');
+    var posizioni = [];
+    for (var i = 0; i < scorrevoli.length; i++) posizioni.push(scorrevoli[i].scrollLeft);
+
+    a.clone.innerHTML = htmlOra;
+    a.clone.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
+
+    var nuove = a.clone.querySelectorAll('.fmt-swatches, .fmt-lingue');
+    for (var j = 0; j < nuove.length && j < posizioni.length; j++) nuove[j].scrollLeft = posizioni[j];
 }
 
 function ftAggancioTogliClone(a) {
+    a._ultimoHtml = null;   // la prossima copia si rifa' da zero
     if (a.portale && a.portale.parentNode) a.portale.parentNode.removeChild(a.portale);
     a.portale = null;
     a.clone = null;

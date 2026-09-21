@@ -1631,3 +1631,24 @@
 
 
     
+
+
+/* Pulsanti flottanti in basso a destra: filtro "solo sbagliate" e apertura
+   del visore a flashcard dalla carta che si sta guardando. Stanno sopra il
+   contenuto ma sotto il visore stesso, che li copre quando si apre. */
+.res-fabs{
+    position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom,0px) + 84px);
+    z-index:900; display:flex; flex-direction:column; gap:10px;
+}
+.res-fab{
+    width:46px; height:46px; border-radius:50%; border:1px solid rgba(255,255,255,.28);
+    display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer;
+    background:var(--surface-2, #EFEFF4); color:var(--text-2, #8A8A8E);
+    backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%);
+    box-shadow:0 8px 22px -8px rgba(0,0,0,.4), inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1));
+    transition:transform .15s cubic-bezier(.32,.72,0,1), background .2s, color .2s;
+}
+.res-fab svg{ width:19px; height:19px; }
+.res-fab:active{ transform:scale(.9); }
+.res-fab.is-active{ background:var(--red, #FF3B30); color:#fff; }
+.res-fab-primary{ background:var(--purple, #AF52DE); color:#fff; }

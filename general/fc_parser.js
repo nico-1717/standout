@@ -1774,6 +1774,32 @@ function fcdSetSel(root, sel) {
                    '.fc-fx.fc-t[data-mc="' + k + '"]{ color:' + FCD_PALETTE[k] + '; }' +
                    '.fc-fx.fc-t[data-mc="' + k + '"] .mq-root-block, .fc-fx.fc-t[data-mc="' + k + '"] mjx-container{ color:' + FCD_PALETTE[k] + '; }';
         }).join('') +
+        /* ANCHE L'EVIDENZIATORE, non solo il colore.
+           Stessa storia delle righe qui sopra, stesso rimedio: ".fc-x.fc-resa"
+           mette background:transparent, ha la stessa forza di una regola con
+           una sola classe e viene dopo — quindi vincerebbe lei, e la formula
+           resterebbe bianca in mezzo a una frase tutta gialla. Nominando due
+           classi (".fc-x.fc-t") la regola diventa piu' forte e il giallo
+           tiene in tutti e tre gli stati: grezzo, disegnato e dentro
+           MathQuill.
+           Il testo va forzato scuro come fa gia' l'evidenziatore sul testo
+           normale: su un fondo giallo un colore chiaro non si leggerebbe. E'
+           anche il motivo per cui queste righe stanno DOPO quelle del colore
+           — a parita' di forza vince l'ultima, e qui e' giusto che vinca il
+           giallo.
+           box-shadow:none toglie il bordino azzurro della formula grezza, che
+           sul giallo sembrerebbe una svista.
+           I simboli disegnati da MathJax hanno un colore loro, quindi non
+           basta dirlo al contenitore: va detto anche a mjx-container e al
+           blocco di MathQuill, esattamente come per il colore. */
+        '.fc-x.fc-t[data-h="1"], .fc-x.fc-resa.fc-t[data-h="1"]{ background:#FFE066; color:#1C1C1E; box-shadow:none; }' +
+        '.fc-x.fc-t[data-h="1"] .mq-root-block, .fc-x.fc-t[data-h="1"] mjx-container{ color:#1C1C1E; }' +
+        /* Per la formula a blocco vale il discorso di data-mc fatto sopra: il
+           colore del pallino usa data-c, quindi il marchio del testo viaggia
+           su data-mc. L'evidenziatore invece non si scontra con niente e
+           resta data-h. */
+        '.fc-fx.fc-t[data-h="1"], .fc-fx.fc-resa.fc-t[data-h="1"]{ background:#FFE066; color:#1C1C1E; box-shadow:none; }' +
+        '.fc-fx.fc-t[data-h="1"] .mq-root-block, .fc-fx.fc-t[data-h="1"] mjx-container{ color:#1C1C1E; }' +
         /* L'EVIDENZIAZIONE della formula quando la selezione la attraversa.
            Sta qui in fondo, e nomina anche .fc-resa, per un motivo preciso:
            due righe piu' su c'e' ".fc-x.fc-resa{ background:transparent }",
@@ -1836,6 +1862,14 @@ function renderAllRawTexts(root) {
     var scope = root || document;
     var trovato = false;
     scope.querySelectorAll('.raw-text-content').forEach(function (el) {
+        /* Se dentro c'e' gia' qualcosa e non e' il segnaposto del server, il
+           disegno l'ha gia' fatto qualcun altro: oggi lo fa il server, che
+           manda il markup finito. Rifarlo sarebbe buttare via il lavoro — e,
+           con le formule, chiedere a MathJax di disegnarle due volte.
+           Chi vuole essere disegnato da qui lascia il contenitore vuoto,
+           oppure ci mette dentro un elemento marcato data-fc-pre: e' la stessa
+           condizione che usa disegnaTestiGrezzi() in visualizzazione_fc.php. */
+        if (el.innerHTML.trim() !== '' && !el.querySelector('[data-fc-pre]')) return;
         el.innerHTML = parseTextForPreview(el.getAttribute('data-raw'));
         trovato = true;
     });

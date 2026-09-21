@@ -383,6 +383,44 @@ if ($modo === 'edit') {
 
 <body>
 
+<?php /* La schermata di attesa. Sta subito dopo l'apertura del body, prima di
+         qualunque altra cosa: cosi' c'e' gia' al primo disegno e copre il
+         montaggio invece di arrivare dopo, quando il pasticcio si e' gia'
+         visto. */ ?>
+<div class="big-loading" id="bigLoading" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></svg>
+</div>
+<script>
+(function(){
+    var velo = document.getElementById('bigLoading');
+    if (!velo) return;
+    var andato = false;
+    function via(){
+        if (andato) return;
+        andato = true;
+        velo.classList.add('via');
+        setTimeout(function(){ if (velo.parentNode) velo.parentNode.removeChild(velo); }, 250);
+    }
+
+    /* setTimeout(0) DENTRO DOMContentLoaded, non subito: cosi' si finisce in
+       coda a tutti gli altri ascoltatori dello stesso evento, che sono quelli
+       che montano la pagina. Uscire prima vorrebbe dire togliere il velo
+       giusto mentre il montaggio comincia. I due requestAnimationFrame
+       aspettano che il primo disegno vero sia fatto. */
+    document.addEventListener('DOMContentLoaded', function(){
+        setTimeout(function(){
+            requestAnimationFrame(function(){ requestAnimationFrame(via); });
+        }, 0);
+    });
+
+    /* Rete di sicurezza doppia: se un errore in uno degli script fermasse il
+       montaggio, il velo resterebbe li' per sempre e la pagina sarebbe
+       inutilizzabile. Meglio una pagina a meta' che una pagina murata. */
+    window.addEventListener('load', via);
+    setTimeout(via, 6000);
+})();
+</script>
+
 
 
 

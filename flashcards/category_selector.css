@@ -543,3 +543,20 @@
     color:var(--row-color, var(--blue));
     font-weight:800;
 }
+
+
+/* Riga spenta E di partenza insieme: e' il caso dello spostamento, dove la
+   categoria che si muove e il suo padre attuale restano visibili (servono a
+   capire da dove si parte) ma non si possono scegliere. Il grigio di
+   .cs-row-disabled da solo le farebbe sembrare rotte, l'evidenziazione di
+   .cs-name-corrente da sola le farebbe sembrare cliccabili: insieme dicono
+   "questa e' qui, ma non e' una destinazione". */
+.cs-name.cs-row-disabled.cs-name-corrente{
+    background:color-mix(in srgb, var(--row-color, var(--blue)) 10%, transparent);
+    color:color-mix(in srgb, var(--row-color, var(--blue)) 55%, var(--text-3));
+    font-weight:800;
+    cursor:not-allowed;
+}
+.cs-name.cs-row-disabled.cs-name-corrente:active{
+    background:color-mix(in srgb, var(--row-color, var(--blue)) 10%, transparent);
+}

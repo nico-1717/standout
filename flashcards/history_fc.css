@@ -1,1253 +1,453 @@
-/* history_fc.css — stile dello storico partite delle flashcard.
-   Estratto dal blocco <style> della pagina: serve per togliere
-   'unsafe-inline' dalla CSP. */
-
-/* ================================================================
-
-
-
-   DESIGN SYSTEM — stessi token di game_fc.php (iOS nativo, light+dark)
-
-
-
-   ================================================================ */
-
-
+/* history_fc.css - stile dello storico partite delle flashcard.
+   Stessi token di categories_fc e game_fc (iOS nativo, chiaro e scuro):
+   finche' non c'e' un base.css condiviso ogni pagina li porta con se'. */
 
 :root{
-
-
-
     color-scheme: light dark;
-
-
-
     --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-
-
-
     --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-
-
-
     --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-
-
-
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-
-
-
-    --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
-
-
-
-    --orange-soft:rgba(255,149,0,.14); --purple-soft:rgba(175,82,222,.12);
-
-
-
+    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE; --indigo:#5856D6;
+    --blue-soft:rgba(0,122,255,.10); --green-soft:rgba(52,199,89,.14); --red-soft:rgba(255,59,48,.12);
+    --orange-soft:rgba(255,149,0,.15);
     --header-glass:rgba(249,249,251,.82);
-
-
-
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-
-
-
+    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
     --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
-
-
-
     --pill-hl:inset 0 0 0 .5px var(--hairline);
-
-
-
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-
-
-
-    --r-chip:100px;
-
-
-
+    --r-card:18px;
     --spring:cubic-bezier(.32,.72,0,1);
-
-
-
     --safe-top:env(safe-area-inset-top, 0px);
-
-
-
     --safe-bottom:env(safe-area-inset-bottom, 0px);
-
-
-
 }
-
-
-
 @media (prefers-color-scheme: dark){
-
-
-
     :root{
-
-
-
         --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-
-
-
         --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-
-
-
         --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-
-
-
-        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-
-
-
-        --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17);
-
-
-
-        --orange-soft:rgba(255,159,10,.18); --purple-soft:rgba(191,90,242,.18);
-
-
-
+        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2; --indigo:#5E5CE6;
+        --blue-soft:rgba(10,132,255,.18); --green-soft:rgba(48,209,88,.18); --red-soft:rgba(255,69,58,.18);
+        --orange-soft:rgba(255,159,10,.19);
         --header-glass:rgba(16,16,18,.78);
-
-
-
-        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-
-
-
+        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.45);
         --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
-
-
-
         --pill-hl:inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 .5px var(--hairline);
-
-
-
-        --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-
-
-
     }
-
-
-
 }
-
-
 
 *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
-
-
 html{ -webkit-text-size-adjust:100%; }
-
-
-
 body{
-
-
-
     margin:0; background:var(--bg); color:var(--text);
-
-
-
     font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-
-
-
     font-size:16px; line-height:1.4;
-
-
-
     -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-
-
-
 }
-
-
-
-button, input, select{ font-family:inherit; }
-
-
-
+a{ color:inherit; text-decoration:none; }
+button, input{ font-family:inherit; }
+[hidden]{ display:none !important; }
 :focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
 
-
-
-
-
-
+.sfc{ max-width:640px; margin:0 auto; padding-bottom:calc(60px + var(--safe-bottom)); }
 
 /* ================================================================
-
-
-
-   HEADER
-
-
-
+   INTESTAZIONE
    ================================================================ */
 
-
-
-.fc-history{ max-width:640px; margin:0 auto; padding-bottom:calc(50px + var(--safe-bottom)); }
-
-
-
-.fh-header{
-
-
-
+.sfc-hdr{
     position:sticky; top:0; z-index:40;
-
-
-
-    padding:calc(var(--safe-top) + 16px) 16px 12px;
-
-
-
+    padding:calc(var(--safe-top) + 14px) 16px 12px;
     background:var(--header-glass);
-
-
-
     -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px);
-
-
-
     border-bottom:.5px solid var(--hairline);
-
-
-
 }
+.sfc-hdr-top{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.sfc-hdr-titoli{ min-width:0; }
+.sfc-titolo{ margin:0; font-size:28px; font-weight:800; letter-spacing:-.02em; line-height:1.15; }
+.sfc-sub{ margin-top:2px; font-size:13px; font-weight:500; color:var(--text-2); font-variant-numeric:tabular-nums;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sfc-hdr-azioni{ display:flex; align-items:center; gap:12px; flex-shrink:0; }
 
-
-
-.fh-title{ font-size:30px; font-weight:800; letter-spacing:-.03em; margin:0 0 14px; }
-
-
-
-.fh-toolbar{ display:flex; align-items:center; gap:10px; }
-
-
-
-
-
-
-
-.fh-user-pill{
-
-
-
-    flex:1; min-width:0; display:flex; align-items:center; gap:9px;
-
-
-
-    padding:7px 14px 7px 7px; border:none; border-radius:var(--r-chip); cursor:pointer;
-
-
-
-    background:var(--surface); color:var(--text);
-
-
-
-    box-shadow:var(--pill-hl), var(--raise-sm);
-
-
-
-    transition:transform .15s var(--spring), box-shadow .2s var(--spring);
-
-
-
-}
-
-
-
-.fh-user-pill:active{ transform:scale(.97); box-shadow:var(--pill-hl), inset 0 2px 6px rgba(0,0,0,.08); }
-
-
-
-.fh-user-avatar{
-
-
-
-    flex-shrink:0; width:32px; height:32px; border-radius:50%;
-
-
-
+.sfc-icon-btn{
+    position:relative; flex-shrink:0; width:40px; height:40px; padding:0; border:none; border-radius:50%; cursor:pointer;
     display:flex; align-items:center; justify-content:center;
-
-
-
-    font-size:13px; font-weight:800; color:#fff;
-
-
-
-    background:linear-gradient(160deg, var(--blue), color-mix(in srgb, var(--blue), #000 25%));
-
-
-
-}
-
-
-
-.fh-user-name{ flex:1; min-width:0; text-align:left; font-size:15px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-
-
-.fh-user-count{ flex-shrink:0; font-size:12px; font-weight:600; color:var(--text-2); }
-
-
-
-.fh-user-pill .chev{ flex-shrink:0; width:12px; height:12px; color:var(--text-3); }
-
-
-
-
-
-
-
-.fh-icon-btn{
-
-
-
-    position:relative; flex-shrink:0; width:42px; height:42px; border-radius:50%; border:none; cursor:pointer; padding:0;
-
-
-
     background:var(--surface); color:var(--text);
-
-
-
-    display:flex; align-items:center; justify-content:center;
-
-
-
     box-shadow:var(--pill-hl), var(--raise-sm);
-
-
-
-    transition:transform .15s var(--spring), box-shadow .2s var(--spring), color .2s;
-
-
-
+    transition:transform .15s var(--spring), color .2s, background .2s;
 }
-
-
-
-.fh-icon-btn:active{ transform:scale(.88); box-shadow:var(--pill-hl), inset 0 2px 5px rgba(0,0,0,.1); }
-
-
-
-.fh-icon-btn svg{ width:19px; height:19px; }
-
-
-
-.fh-icon-btn.has-filters{ color:var(--blue); }
-
-
-
-.fh-badge{
-
-
-
-    position:absolute; top:-2px; right:-2px; min-width:16px; height:16px; padding:0 4px; border-radius:99px;
-
-
-
+.sfc-icon-btn svg{ width:18px; height:18px; }
+.sfc-icon-btn:active{ transform:scale(.88); }
+.sfc-icon-btn.attivo{ color:var(--blue); background:var(--blue-soft); }
+.sfc-icon-btn.piccolo{ width:36px; height:36px; }
+.sfc-icon-btn.piccolo svg{ width:16px; height:16px; }
+.sfc-badge{
+    position:absolute; top:-3px; right:-3px; min-width:16px; height:16px; padding:0 4px; border-radius:99px;
     background:var(--red); color:#fff; font-size:10px; font-weight:800;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 2px var(--surface);
+}
 
-
-
+/* Il tasto play e' copiato da categories_fc.css: stesso aspetto, stessa
+   animazione, cosi' si riconosce al primo sguardo in tutte le pagine. */
+.hdr-play-btn{
+    position:relative; flex-shrink:0;
+    width:46px; height:46px; border-radius:50%;
     display:flex; align-items:center; justify-content:center;
-
-
-
-    box-shadow:0 0 0 2px var(--surface);
-
-
-
+    background:linear-gradient(135deg, var(--indigo), var(--blue));
+    color:#fff; text-decoration:none;
+    box-shadow:0 2px 6px rgba(10,132,255,.28), 0 10px 22px -8px rgba(88,86,214,.55);
+    animation:hdrPlayIn .5s var(--spring) both;
+    transition:transform .18s var(--spring), box-shadow .18s;
+}
+.hdr-play-btn svg{ width:19px; height:19px; margin-left:2px; }  /* il triangolo pesa piu' a sinistra: si centra otticamente */
+.hdr-play-btn:active{ transform:scale(.9); }
+.hdr-play-ring{
+    position:absolute; inset:0; border-radius:50%; z-index:-1;
+    background:linear-gradient(135deg, var(--indigo), var(--blue));
+    animation:hdrPlayPulse 2.2s ease-out infinite;
+}
+@keyframes hdrPlayIn{ from{ opacity:0; transform:scale(.5) rotate(-25deg); } }
+@keyframes hdrPlayPulse{
+    0%{ opacity:.45; transform:scale(1); }
+    100%{ opacity:0; transform:scale(1.75); }
 }
 
-
-
-
-
-
-
-.fh-chips{ display:flex; flex-wrap:wrap; gap:7px; padding-top:12px; }
-
-
-
-.fh-chip{
-
-
-
-    display:inline-flex; align-items:center; gap:6px;
-
-
-
-    padding:6px 6px 6px 12px; border-radius:99px;
-
-
-
-    background:var(--blue-soft); color:var(--blue);
-
-
-
-    font-size:12.5px; font-weight:700;
-
-
-
+.sfc-chips{ display:flex; flex-wrap:wrap; gap:7px; }
+.sfc-chips:not(:empty){ padding-top:10px; }
+.sfc-chip{
+    display:inline-flex; align-items:center; gap:6px; padding:5px 5px 5px 11px; border-radius:99px;
+    background:var(--blue-soft); color:var(--blue); font-size:12.5px; font-weight:700;
     animation:chipIn .3s var(--spring) both;
-
-
-
 }
-
-
-
-.fh-chip button{ display:flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:50%; border:none; background:rgba(10,132,255,.18); color:inherit; cursor:pointer; padding:0; }
-
-
-
-.fh-chip button svg{ width:9px; height:9px; }
-
-
-
+.sfc-chip button{ display:flex; align-items:center; justify-content:center; width:18px; height:18px; padding:0; border:none; border-radius:50%;
+    background:rgba(10,132,255,.18); color:inherit; cursor:pointer; }
+.sfc-chip button svg{ width:9px; height:9px; }
 @keyframes chipIn{ from{ opacity:0; transform:scale(.8); } }
 
-
-
-
-
-
-
 /* ================================================================
-
-
-
-   NUOVA PARTITA — bottone hero
-
-
-
+   SEZIONI COMUNI
    ================================================================ */
 
-
-
-.fh-new-btn{
-
-
-
-    display:flex; align-items:center; justify-content:center; gap:9px;
-
-
-
-    margin:18px 16px 4px; padding:16px; border:none; border-radius:18px; cursor:pointer;
-
-
-
-    font-size:16.5px; font-weight:800; letter-spacing:-.01em; color:#fff; text-decoration:none;
-
-
-
-    background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 18%), var(--blue) 55%, color-mix(in srgb, var(--blue), #000 8%));
-
-
-
-    box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 14px 30px -10px rgba(10,132,255,.5);
-
-
-
-    transition:transform .16s var(--spring), box-shadow .2s var(--spring), filter .2s;
-
-
-
-    animation:riseIn .5s var(--spring) both;
-
-
-
+.sfc-sezione-tit{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    margin:22px 20px 8px; font-size:13px; font-weight:700; color:var(--text-2);
 }
+.sfc-sezione-n{ font-variant-numeric:tabular-nums; }
 
+.sfc-punto{ display:inline-block; flex-shrink:0; width:8px; height:8px; border-radius:50%; }
+.sfc-punto.grande{ width:11px; height:11px; }
 
+.sfc-traccia{ flex:1; height:5px; border-radius:99px; background:var(--hairline); overflow:hidden; }
+.sfc-traccia > div{ height:100%; border-radius:99px; transition:width .6s var(--spring); }
 
-.fh-new-btn:active{ transform:translateY(1.5px) scale(.985); filter:brightness(.95); }
+.sfc-pill{
+    flex-shrink:0; padding:3px 9px; border-radius:99px; white-space:nowrap;
+    font-size:12px; font-weight:700; font-variant-numeric:tabular-nums;
+}
+.sfc-pill.buona{ background:var(--green-soft); color:var(--green); }
+.sfc-pill.media{ background:var(--orange-soft); color:var(--orange); }
+.sfc-pill.bassa{ background:var(--red-soft); color:var(--red); }
+.sfc-pill.nd{ background:var(--surface-2); color:var(--text-2); }
+.sfc-pill.sospesa{ background:var(--blue-soft); color:var(--blue); }
 
+.sfc-seg{ flex:1; display:flex; gap:2px; padding:3px; border-radius:12px; background:var(--hairline); }
+.sfc-seg button{
+    flex:1; min-width:0; padding:7px 4px; border:none; border-radius:9px; background:none; cursor:pointer;
+    font-size:13px; font-weight:600; color:var(--text-2); white-space:nowrap;
+    transition:background .25s var(--spring), color .2s;
+}
+.sfc-seg button.attivo{ background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+.sfc-seg.a-capo{ flex-wrap:wrap; }
+.sfc-seg.a-capo button{ flex:1 1 45%; }
 
-
-.fh-new-btn svg{ width:19px; height:19px; }
-
-
-
-@keyframes riseIn{ from{ opacity:0; transform:translateY(10px) scale(.97); } }
-
-
-
-
-
-
+.sfc-mini-btn{
+    flex-shrink:0; display:inline-flex; align-items:center; gap:5px; padding:6px 11px; border-radius:99px;
+    background:var(--blue-soft); color:var(--blue); font-size:12.5px; font-weight:700; white-space:nowrap;
+    transition:transform .15s var(--spring);
+}
+.sfc-mini-btn svg{ width:11px; height:11px; }
+.sfc-mini-btn:active{ transform:scale(.94); }
 
 /* ================================================================
-
-
-
-   LISTA PARTITE
-
-
-
+   DA RIPRENDERE - carosello orizzontale
    ================================================================ */
 
-
-
-.fh-list{ padding:10px 16px 8px; }
-
-
-
-.fh-item{ margin-bottom:12px; animation:cardIn .45s var(--spring) both; }
-
-
-
-@keyframes cardIn{ from{ opacity:0; transform:translateY(14px) scale(.98); } }
-
-
-
-
-
-
-
-.fh-swipe{ position:relative; border-radius:20px; overflow:hidden; }
-
-
-
-.fh-swipe-del{
-
-
-
-    position:absolute; inset:0 auto 0 0; width:88px; border:none; cursor:pointer; padding:0;
-
-
-
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
-
-
-
-    background:linear-gradient(160deg, var(--red), color-mix(in srgb, var(--red), #000 22%));
-
-
-
-    color:#fff;
-
-
-
+.sfc-carosello{
+    display:flex; gap:10px; overflow-x:auto; padding:2px 16px 6px;
+    scroll-snap-type:x mandatory; scroll-padding:0 16px; -webkit-overflow-scrolling:touch; scrollbar-width:none;
 }
-
-
-
-.fh-swipe-del svg{ width:20px; height:20px; transition:transform .25s var(--spring); }
-
-
-
-.fh-swipe-del.armed svg{ transform:scale(1.18); }
-
-
-
-.fh-swipe-del span{ font-size:11px; font-weight:800; letter-spacing:.01em; }
-
-
-
-
-
-
-
-.fh-card{
-
-
-
-    position:relative; z-index:2; background:var(--surface); border-radius:20px;
-
-
-
-    padding:15px 16px 14px; border:.5px solid var(--hairline); box-shadow:var(--shadow-card);
-
-
-
-    touch-action:pan-y; -webkit-user-select:none; user-select:none; cursor:pointer;
-
-
-
+.sfc-carosello::-webkit-scrollbar{ display:none; }
+.sfc-rip-card{
+    flex:0 0 228px; scroll-snap-align:start; display:flex; flex-direction:column; gap:3px;
+    padding:12px 13px; border-radius:var(--r-card); background:var(--surface);
+    border:.5px solid var(--hairline); box-shadow:var(--shadow-card);
+    transition:transform .15s var(--spring);
+    animation:cardIn .45s var(--spring) both;
 }
-
-
-
-.fh-card-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:9px; }
-
-
-
-.fh-date{ display:flex; align-items:baseline; gap:6px; }
-
-
-
-.fh-date .d-day{ font-size:15px; font-weight:800; color:var(--text); }
-
-
-
-.fh-date .d-time{ font-size:12.5px; font-weight:600; color:var(--text-2); }
-
-
-
-
-
-
-
-.fh-status{
-
-
-
-    display:inline-flex; align-items:center; padding:4px 10px; border-radius:var(--r-chip);
-
-
-
-    font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; flex-shrink:0;
-
-
-
+.sfc-rip-card:active{ transform:scale(.97); }
+.sfc-rip-testa{ display:flex; align-items:center; gap:7px; min-width:0; }
+.sfc-rip-nome{ font-size:15px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sfc-rip-sotto{ font-size:12.5px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sfc-rip-prog{ display:flex; align-items:center; gap:8px; margin:7px 0 5px; }
+.sfc-rip-prog span{ font-size:12px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums; }
+.sfc-rip-piede{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.sfc-rip-piede > span:first-child{ font-size:12px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sfc-rip-btn{
+    flex-shrink:0; display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border-radius:99px;
+    background:var(--blue); color:#fff; font-size:12.5px; font-weight:700;
 }
+.sfc-rip-btn svg{ width:10px; height:10px; }
+@keyframes cardIn{ from{ opacity:0; transform:translateY(10px) scale(.98); } }
 
+/* ================================================================
+   PERIODO E RIEPILOGO
+   ================================================================ */
 
+.sfc-periodo{ margin:16px 16px 0; padding:12px; border-radius:var(--r-card); background:var(--surface);
+    border:.5px solid var(--hairline); box-shadow:var(--shadow-card); }
+.sfc-seg-riga, .sfc-vista-riga{ display:flex; align-items:center; gap:8px; }
+.sfc-date{ display:flex; gap:10px; margin-top:10px; animation:chipIn .25s var(--spring) both; }
+.sfc-date label{ flex:1; display:flex; flex-direction:column; gap:4px; font-size:11.5px; font-weight:700; color:var(--text-2); }
+.sfc-date input{ width:100%; padding:9px 10px; border:none; border-radius:11px; background:var(--surface-2); color:var(--text); font-size:14.5px; }
 
-.fh-status.ok{ background:var(--orange-soft); color:var(--orange); }
+.sfc-riepilogo{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; margin-top:12px; }
+.sfc-metrica{ padding:8px 10px; border-radius:12px; background:var(--surface-2); }
+.sfc-metrica-lbl{ font-size:11.5px; font-weight:600; color:var(--text-2); }
+.sfc-metrica-val{ margin-top:1px; font-size:18px; font-weight:800; letter-spacing:-.01em; font-variant-numeric:tabular-nums;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
+.sfc-attivita{ display:flex; align-items:flex-end; gap:2px; height:32px; margin:12px 2px 0; }
+.sfc-attivita span{ flex:1; min-width:1px; border-radius:2px; transition:height .5s var(--spring); }
+.sfc-attivita span.si{ background:var(--blue); }
+.sfc-attivita span.no{ background:var(--hairline); }
 
+.sfc-vista-riga{ margin:18px 16px 0; }
 
-.fh-status.new{ background:var(--green-soft); color:var(--green); }
+/* ================================================================
+   ELENCO PARTITE
+   ================================================================ */
 
+.sfc-lista{ padding:4px 16px 0; }
+.sfc-giorno{ margin:18px 4px 6px; font-size:13px; font-weight:700; color:var(--text-2); }
+.sfc-giorno:first-child{ margin-top:12px; }
 
+.sfc-item{ margin-bottom:6px; border-radius:16px; background:var(--surface); border:.5px solid var(--hairline);
+    overflow:hidden; animation:cardIn .4s var(--spring) both; }
+.sfc-item.aperto{ box-shadow:var(--shadow-card); }
 
-
-
-
-
-.fh-category{
-
-
-
-    font-size:17px; font-weight:700; letter-spacing:-.01em; color:var(--text); margin-bottom:13px;
-
-
-
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-
-
-
+.sfc-swipe{ position:relative; }
+.sfc-swipe-del{
+    position:absolute; inset:0 0 0 auto; width:88px; padding:0; border:none; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    background:var(--red); color:#fff;
 }
+.sfc-swipe-del svg{ width:19px; height:19px; }
+.sfc-swipe-del span{ font-size:11px; font-weight:800; }
 
-
-
-
-
-
-
-.fh-card-bottom{ display:flex; align-items:center; gap:12px; }
-
-
-
-.fh-progress{ flex:1; display:flex; align-items:center; gap:9px; min-width:0; }
-
-
-
-.fh-track{ flex:1; height:5px; border-radius:99px; background:var(--hairline); overflow:hidden; }
-
-
-
-.fh-fill{ height:100%; border-radius:99px; background:var(--blue); transition:width .6s var(--spring); }
-
-
-
-.fh-progress-label{ flex-shrink:0; font-size:12px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums; }
-
-
-
-.fh-score{
-
-
-
-    flex-shrink:0; font-size:13.5px; font-weight:800; color:var(--text); font-variant-numeric:tabular-nums;
-
-
-
-    padding:5px 10px; border-radius:10px; background:var(--surface-2);
-
-
-
+.sfc-riga{
+    position:relative; z-index:2; display:flex; align-items:center; gap:12px;
+    padding:10px 12px; background:var(--surface); cursor:pointer;
+    touch-action:pan-y; -webkit-user-select:none; user-select:none;
 }
+.sfc-anello{ flex-shrink:0; width:32px; height:32px; transform:rotate(-90deg); }
+.sfc-anello circle{ fill:none; stroke-width:3.2; }
+.sfc-anello .traccia{ stroke:var(--hairline); }
+.sfc-anello .pieno{ stroke-linecap:round; }
+.sfc-riga-main{ flex:1; min-width:0; }
+.sfc-riga-nome{ font-size:15.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sfc-riga-meta{ margin-top:1px; font-size:12.5px; color:var(--text-2); font-variant-numeric:tabular-nums;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
+/* Vista dettagliata: la seconda riga c'e' sempre, qui si decide solo se
+   mostrarla. */
+.sfc-riga-extra{ display:none; flex-wrap:wrap; align-items:center; gap:4px 10px; margin-top:5px;
+    font-size:12px; font-weight:600; color:var(--text-2); font-variant-numeric:tabular-nums; }
+.sfc-lista.dettagliata .sfc-riga-extra{ display:flex; }
+.sfc-mini-barra{ flex:1 0 60px; display:flex; height:4px; border-radius:99px; overflow:hidden; background:var(--hairline); }
+.sfc-mini-barra i, .sfc-det-barra i{ display:block; height:100%; }
+.sfc-mini-barra .ok, .sfc-det-barra .ok{ background:var(--green); }
+.sfc-mini-barra .ko, .sfc-det-barra .ko{ background:var(--red); }
 
+.sfc-det{ padding:2px 12px 12px 56px; animation:detIn .3s var(--spring) both; }
+@keyframes detIn{ from{ opacity:0; transform:translateY(-6px); } }
+.sfc-det-griglia{ display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px; }
+.sfc-det-cella .lbl{ font-size:11px; font-weight:600; color:var(--text-2); }
+.sfc-det-cella .val{ font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sfc-det-barra{ display:flex; height:6px; margin:10px 0 7px; border-radius:99px; overflow:hidden; background:var(--hairline); }
+.sfc-det-meta{ font-size:12.5px; color:var(--text-2); }
 
+.sfc-ripassi{ margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+.sfc-ripasso{ display:flex; align-items:center; gap:8px; }
+.sfc-ripasso-link{ flex:1; min-width:0; display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:12px;
+    background:var(--surface-2); font-size:12.5px; transition:transform .15s var(--spring); }
+.sfc-ripasso-link:active{ transform:scale(.98); }
+.sfc-ripasso-icona{ display:flex; color:var(--purple); }
+.sfc-ripasso-icona svg{ width:14px; height:14px; }
+.sfc-ripasso-nome{ font-weight:700; white-space:nowrap; }
+.sfc-ripasso-data{ flex:1; min-width:0; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sfc-ripasso-prog{ color:var(--text-2); font-weight:700; font-variant-numeric:tabular-nums; }
 
-
-
-
-.fh-retry-toggle{
-
-
-
-    display:flex; align-items:center; gap:6px; width:100%; margin-top:4px;
-
-
-
-    padding:9px 4px 2px; border:none; background:none; cursor:pointer;
-
-
-
-    font-size:12.5px; font-weight:700; color:var(--blue);
-
-
-
+.sfc-det-azioni{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.sfc-btn{
+    display:inline-flex; align-items:center; gap:6px; padding:8px 13px; border:none; border-radius:99px; cursor:pointer;
+    background:var(--surface-2); color:var(--text); font-size:13px; font-weight:700;
+    box-shadow:var(--pill-hl); transition:transform .15s var(--spring);
 }
+.sfc-btn svg{ width:14px; height:14px; }
+.sfc-btn:active{ transform:scale(.95); }
+.sfc-btn.primario{ background:var(--blue); color:#fff; box-shadow:0 6px 16px -6px rgba(10,132,255,.6); }
+.sfc-btn.primario svg{ width:11px; height:11px; }
+.sfc-btn.icona{ padding:8px 10px; margin-left:auto; }
+.sfc-btn.pericolo{ color:var(--red); }
 
+.sfc-sentinella{ height:1px; }
 
-
-.fh-retry-toggle .chev{ width:12px; height:12px; transition:transform .3s var(--spring); }
-
-
-
-.fh-retry-toggle.expanded .chev{ transform:rotate(90deg); }
-
-
-
-
-
-
-
-.fh-retry-list{ max-height:0; overflow:hidden; transition:max-height .38s var(--spring); }
-
-
-
-.fh-retry-row{
-
-
-
-    display:flex; align-items:center; gap:10px; margin:8px 2px 0 2px; padding:10px 12px;
-
-
-
-    background:var(--surface-2); border-radius:13px; cursor:pointer;
-
-
-
-    transition:transform .15s var(--spring), background .2s;
-
-
-
-}
-
-
-
-.fh-retry-row:active{ transform:scale(.98); background:var(--hairline); }
-
-
-
-.fh-retry-row .r-badge{ flex-shrink:0; font-size:10px; font-weight:800; color:var(--purple); background:var(--purple-soft); padding:3px 7px; border-radius:8px; }
-
-
-
-.fh-retry-row .r-date{ flex:1; min-width:0; font-size:12.5px; font-weight:600; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-
-
-.fh-retry-row .r-progress{ flex-shrink:0; font-size:12px; font-weight:700; color:var(--text-2); }
-
-
-
-.fh-retry-row .r-score{ flex-shrink:0; font-size:12.5px; font-weight:800; color:var(--text); }
-
-
-
-
-
-
-
-/* Skeleton di caricamento */
-
-
-
-.fh-skel{ height:106px; border-radius:20px; margin-bottom:12px; border:.5px solid var(--hairline);
-
-
-
+.sfc-skel{ height:56px; margin:6px 0; border-radius:16px; border:.5px solid var(--hairline);
     background:linear-gradient(100deg, var(--surface) 25%, var(--surface-2) 45%, var(--surface) 65%);
+    background-size:250% 100%; animation:skel 1.3s ease-in-out infinite; }
+@keyframes skel{ 0%{ background-position:180% 0; } 100%{ background-position:-80% 0; } }
 
-
-
-    background-size:250% 100%; animation:skelShine 1.3s ease-in-out infinite; }
-
-
-
-@keyframes skelShine{ 0%{ background-position:180% 0; } 100%{ background-position:-80% 0; } }
-
-
-
-
-
-
-
-/* Stato vuoto */
-
-
-
-.fh-empty{ text-align:center; padding:64px 30px 40px; color:var(--text-2); }
-
-
-
-.fh-empty svg{ width:52px; height:52px; color:var(--text-3); margin-bottom:14px; }
-
-
-
-.fh-empty h3{ font-size:17px; font-weight:700; color:var(--text); margin:0 0 6px; }
-
-
-
-.fh-empty p{ font-size:14px; margin:0 0 18px; line-height:1.4; }
-
-
-
-.fh-empty button{ border:none; background:var(--blue-soft); color:var(--blue); font-weight:700; font-size:14px; padding:10px 18px; border-radius:99px; cursor:pointer; }
-
-
-
-
-
-
+.sfc-vuoto{ text-align:center; padding:48px 30px 30px; color:var(--text-2); }
+.sfc-vuoto svg{ width:48px; height:48px; color:var(--text-3); margin-bottom:12px; }
+.sfc-vuoto h3{ margin:0 0 6px; font-size:17px; font-weight:700; color:var(--text); }
+.sfc-vuoto p{ margin:0 0 16px; font-size:14px; }
+.sfc-vuoto button{ border:none; background:var(--blue-soft); color:var(--blue); font-size:14px; font-weight:700;
+    padding:10px 18px; border-radius:99px; cursor:pointer; }
 
 /* ================================================================
-
-
-
-   SHEET (menu utente / filtri) — foglio iOS dal basso
-
-
-
+   MATERIE
    ================================================================ */
 
+#sfcMaterie{ padding:0 16px; }
+#sfcMaterie .sfc-sezione-tit{ margin:18px 4px 6px; }
+.sfc-mat-riepilogo{ margin:14px 4px 0; font-size:13px; color:var(--text-2); }
+.sfc-mat-nota{ padding:10px 4px; font-size:13px; color:var(--text-2); }
+.sfc-ordina{ display:inline-flex; align-items:center; gap:3px; padding:2px 0; border:none; background:none; cursor:pointer;
+    font-size:12.5px; font-weight:700; color:var(--blue); }
+.sfc-ordina svg{ width:11px; height:11px; transform:rotate(90deg); }
 
+.sfc-mat-gruppo{ border-radius:16px; background:var(--surface); border:.5px solid var(--hairline); overflow:hidden;
+    animation:cardIn .4s var(--spring) both; }
+.sfc-mat-riga{ display:flex; align-items:center; gap:10px; padding:10px 12px; }
+.sfc-mat-gruppo > .sfc-mat-riga + .sfc-mat-riga,
+.sfc-mat-gruppo > .sfc-mat-item + .sfc-mat-item,
+.sfc-mat-figli > * + *{ border-top:.5px solid var(--hairline); }
+.sfc-mat-figli{ border-top:.5px solid var(--hairline); background:color-mix(in srgb, var(--surface-2) 45%, var(--surface)); }
+.sfc-mat-riga.giocata{ cursor:pointer; }
+.sfc-mat-riga.giocata:active{ background:var(--surface-2); }
+.sfc-mat-main{ flex:1; min-width:0; }
+.sfc-mat-nome{ display:flex; align-items:center; gap:7px; font-size:15px; font-weight:700;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sfc-mat-sotto{ margin-top:1px; font-size:12.5px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sfc-mat-tempo{ display:flex; align-items:center; gap:8px; margin-top:5px; }
+.sfc-mat-tempo span{ flex-shrink:0; font-size:12px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums; }
+.sfc-mat-chev{ flex-shrink:0; width:22px; height:22px; padding:0; border:none; background:none; cursor:pointer; color:var(--text-3);
+    display:flex; align-items:center; justify-content:center; }
+.sfc-mat-chev svg{ width:13px; height:13px; transition:transform .3s var(--spring); }
+.sfc-mat-item.aperta > .sfc-mat-riga .sfc-mat-chev svg{ transform:rotate(90deg); }
 
-.fh-sheet-overlay{
+/* ================================================================
+   FOGLIO FILTRI
+   ================================================================ */
 
-
-
+.sfc-sheet-overlay{
     position:fixed; inset:0; z-index:2000; display:flex; align-items:flex-end; justify-content:center;
-
-
-
     background:rgba(0,0,0,0); pointer-events:none; transition:background .3s var(--spring);
-
-
-
 }
-
-
-
-.fh-sheet-overlay.open{ background:rgba(0,0,0,.42); pointer-events:auto; -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); }
-
-
-
-.fh-sheet{
-
-
-
-    width:100%; max-width:600px; max-height:82vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
-
-
-
+.sfc-sheet-overlay.open{ background:rgba(0,0,0,.42); pointer-events:auto; -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); }
+.sfc-sheet{
+    width:100%; max-width:600px; max-height:84vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
     background:var(--surface); color:var(--text); border-radius:24px 24px 0 0;
-
-
-
-    padding:10px 20px calc(24px + var(--safe-bottom));
-
-
-
-    box-shadow:0 -12px 50px rgba(0,0,0,.3);
-
-
-
+    padding:10px 20px calc(24px + var(--safe-bottom)); box-shadow:0 -12px 50px rgba(0,0,0,.3);
     transform:translateY(100%); transition:transform .42s var(--spring);
-
-
-
 }
-
-
-
-.fh-sheet-overlay.open .fh-sheet{ transform:translateY(0); }
-
-
-
-.fh-sheet-handle{ width:36px; height:5px; border-radius:99px; background:var(--hairline-2); margin:6px auto 14px; }
-
-
-
-.fh-sheet-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
-
-
-
-.fh-sheet-head h3{ font-size:18px; font-weight:800; margin:0; }
-
-
-
-.fh-sheet-done{ border:none; background:none; color:var(--blue); font-size:15.5px; font-weight:700; cursor:pointer; padding:4px 6px; }
-
-
-
-
-
-
-
-.fh-user-search{
-
-
-
-    width:100%; padding:11px 14px; margin-bottom:8px; border:none; border-radius:13px;
-
-
-
-    background:var(--surface-2); color:var(--text); font-size:15px;
-
-
-
-    box-shadow:inset 0 0 0 .5px var(--hairline);
-
-
-
-}
-
-
-
-.fh-user-row{
-
-
-
-    display:flex; align-items:center; gap:12px; padding:11px 6px; border-bottom:.5px solid var(--hairline);
-
-
-
-    cursor:pointer; transition:background .15s;
-
-
-
-}
-
-
-
-.fh-user-row:last-child{ border-bottom:none; }
-
-
-
-.fh-user-row:active{ background:var(--surface-2); }
-
-
-
-.fh-user-row .u-avatar{
-
-
-
-    width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-
-
-
-    font-size:14px; font-weight:800; color:#fff; flex-shrink:0;
-
-
-
-    background:linear-gradient(160deg, var(--purple), color-mix(in srgb, var(--purple), #000 25%));
-
-
-
-}
-
-
-
-.fh-user-row .u-name{ flex:1; font-size:15.5px; font-weight:600; }
-
-
-
-.fh-user-row .u-check{ width:20px; height:20px; color:var(--blue); flex-shrink:0; opacity:0; transform:scale(.6); transition:all .25s var(--spring); }
-
-
-
-.fh-user-row.selected .u-check{ opacity:1; transform:scale(1); }
-
-
-
-
-
-
-
-.fh-filter-field{ margin-bottom:20px; }
-
-
-
-.fh-filter-field label{ display:block; font-size:12.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--text-2); margin-bottom:9px; }
-
-
-
-.fh-segmented{ display:flex; background:var(--surface-2); border-radius:12px; padding:3px; gap:2px; }
-
-
-
-.fh-segmented button{ flex:1; border:none; background:none; padding:9px 4px; border-radius:9px; font-size:13px; font-weight:700; color:var(--text-2); cursor:pointer; transition:all .25s var(--spring); }
-
-
-
-.fh-segmented button.active{ background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.12); }
-
-
-
-.fh-select{
-
-
-
-    width:100%; padding:12px 36px 12px 14px; border:none; border-radius:13px; appearance:none; -webkit-appearance:none;
-
-
-
-    background-color:var(--surface-2); color:var(--text); font-size:15px; font-weight:600;
-
-
-
-    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A8A8E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-
-
-
-    background-repeat:no-repeat; background-position:right 14px center;
-
-
-
-}
-
-
-
-.fh-date-range{ display:flex; align-items:center; gap:10px; }
-
-
-
-.fh-date-range input[type="date"]{ flex:1; padding:11px 12px; border:none; border-radius:13px; background:var(--surface-2); color:var(--text); font-size:14.5px; }
-
-
-
-.fh-date-range span{ color:var(--text-3); font-weight:700; }
-
-
-
-.fh-range-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-
-
-
-.fh-range-row label{ margin:0; }
-
-
-
-.fh-range-val{ font-size:14px; font-weight:800; color:var(--blue); }
-
-
-
-input[type="range"]{ width:100%; -webkit-appearance:none; appearance:none; height:5px; border-radius:99px; background:var(--hairline); }
-
-
-
-input[type="range"]::-webkit-slider-thumb{ -webkit-appearance:none; width:24px; height:24px; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.3), 0 0 0 1px var(--hairline); cursor:pointer; }
-
-
-
-input[type="range"]::-moz-range-thumb{ width:24px; height:24px; border:none; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.3), 0 0 0 1px var(--hairline); cursor:pointer; }
-
-
-
-
-
-
-
-.fh-sheet-reset{ display:block; width:100%; text-align:center; margin-top:4px; padding:12px; border:none; background:none; color:var(--red); font-size:14.5px; font-weight:700; cursor:pointer; }
-
-
-
-.fh-sheet-reset:active{ opacity:.6; }
-
-
-
-
-
-
+.sfc-sheet-overlay.open .sfc-sheet{ transform:translateY(0); }
+.sfc-sheet-maniglia{ width:36px; height:5px; margin:6px auto 14px; border-radius:99px; background:var(--hairline-2); }
+.sfc-sheet-testa{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.sfc-sheet-testa h3{ margin:0; font-size:18px; font-weight:800; }
+.sfc-sheet-fine{ padding:4px 6px; border:none; background:none; cursor:pointer; color:var(--blue); font-size:15.5px; font-weight:700; }
+.sfc-campo{ margin-bottom:18px; }
+.sfc-campo > label{ display:block; margin-bottom:8px; font-size:13px; font-weight:700; color:var(--text-2); }
+.sfc-campo .sfc-seg{ background:var(--surface-2); }
+.sfc-sheet-reset{ display:block; width:100%; margin-top:4px; padding:12px; border:none; background:none; cursor:pointer;
+    color:var(--red); font-size:14.5px; font-weight:700; }
 
 /* ================================================================
-
-
-
-   ALERT — conferma eliminazione, stile iOS
-
-
-
+   AVVISO ELIMINAZIONE
    ================================================================ */
 
-
-
-.fh-alert-overlay{
-
-
-
+.sfc-alert-overlay{
     position:fixed; inset:0; z-index:3000; display:flex; align-items:center; justify-content:center; padding:32px;
-
-
-
     background:rgba(0,0,0,0); pointer-events:none; transition:background .3s;
-
-
-
 }
-
-
-
-.fh-alert-overlay.open{ background:rgba(0,0,0,.4); pointer-events:auto; -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
-
-
-
-.fh-alert{
-
-
-
-    width:100%; max-width:290px; background:var(--surface); border-radius:20px; overflow:hidden; text-align:center;
-
-
-
-    transform:scale(.82); opacity:0; transition:transform .32s var(--spring), opacity .25s;
-
-
-
-    box-shadow:0 20px 60px rgba(0,0,0,.35);
-
-
-
+.sfc-alert-overlay.open{ background:rgba(0,0,0,.4); pointer-events:auto; -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+.sfc-alert{
+    width:100%; max-width:290px; overflow:hidden; text-align:center; border-radius:20px; background:var(--surface);
+    transform:scale(.82); opacity:0; transition:transform .32s var(--spring), opacity .25s; box-shadow:0 20px 60px rgba(0,0,0,.35);
 }
-
-
-
-.fh-alert-overlay.open .fh-alert{ transform:scale(1); opacity:1; }
-
-
-
-.fh-alert-icon{ width:44px; height:44px; margin:22px auto 8px; border-radius:50%; background:var(--red-soft); color:var(--red); display:flex; align-items:center; justify-content:center; }
-
-
-
-.fh-alert-icon svg{ width:22px; height:22px; }
-
-
-
-.fh-alert h4{ margin:0 18px 6px; font-size:16.5px; font-weight:800; color:var(--text); }
-
-
-
-.fh-alert p{ margin:0 18px 18px; font-size:13px; color:var(--text-2); line-height:1.42; }
-
-
-
-.fh-alert-actions{ display:flex; border-top:.5px solid var(--hairline); }
-
-
-
-.fh-alert-btn{ flex:1; padding:14px; border:none; background:none; font-size:16px; font-weight:600; color:var(--blue); cursor:pointer; }
-
-
-
-.fh-alert-actions .fh-alert-btn + .fh-alert-btn{ border-left:.5px solid var(--hairline); }
-
-
-
-.fh-alert-btn.destructive{ color:var(--red); font-weight:800; }
-
-
-
-.fh-alert-btn:active{ background:var(--surface-2); }
-
-
-
-
-
-
+.sfc-alert-overlay.open .sfc-alert{ transform:scale(1); opacity:1; }
+.sfc-alert-icona{ width:44px; height:44px; margin:22px auto 8px; border-radius:50%; background:var(--red-soft); color:var(--red);
+    display:flex; align-items:center; justify-content:center; }
+.sfc-alert-icona svg{ width:22px; height:22px; }
+.sfc-alert h4{ margin:0 18px 6px; font-size:16.5px; font-weight:800; }
+.sfc-alert p{ margin:0 18px 18px; font-size:13px; line-height:1.42; color:var(--text-2); }
+.sfc-alert-azioni{ display:flex; border-top:.5px solid var(--hairline); }
+.sfc-alert-btn{ flex:1; padding:14px; border:none; background:none; cursor:pointer; font-size:16px; font-weight:600; color:var(--blue); }
+.sfc-alert-btn + .sfc-alert-btn{ border-left:.5px solid var(--hairline); }
+.sfc-alert-btn.distruttivo{ color:var(--red); font-weight:800; }
 
 /* ================================================================
-
-
-
    TOAST
-
-
-
    ================================================================ */
 
-
-
-.fh-toast{
-
-
-
-    position:fixed; left:50%; bottom:calc(26px + var(--safe-bottom)); transform:translateX(-50%) translateY(24px);
-
-
-
-    display:flex; align-items:center; gap:8px;
-
-
-
-    background:rgba(28,28,30,.94); color:#fff; padding:12px 18px; border-radius:14px;
-
-
-
-    font-size:13.5px; font-weight:700; box-shadow:0 12px 30px rgba(0,0,0,.35);
-
-
-
-    opacity:0; pointer-events:none; z-index:4000; transition:opacity .3s var(--spring), transform .3s var(--spring);
-
-
-
-    max-width:86vw;
-
-
-
+.sfc-toast{
+    position:fixed; left:50%; bottom:calc(26px + var(--safe-bottom)); z-index:4000; max-width:86vw;
+    display:flex; align-items:center; gap:8px; padding:12px 18px; border-radius:14px;
+    background:rgba(28,28,30,.94); color:#fff; font-size:13.5px; font-weight:700; box-shadow:0 12px 30px rgba(0,0,0,.35);
+    opacity:0; pointer-events:none; transform:translateX(-50%) translateY(24px);
+    transition:opacity .3s var(--spring), transform .3s var(--spring);
 }
-
-
-
-.fh-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
-
-
-
-.fh-toast svg{ width:16px; height:16px; flex-shrink:0; color:#30D158; }
-
-
-
-
-
-
+.sfc-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+.sfc-toast svg{ width:16px; height:16px; flex-shrink:0; color:#30D158; }
 
 @media (prefers-reduced-motion: reduce){
-
-
-
     *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+    .hdr-play-ring{ animation:hdrPlayPulseSoft 2.6s ease-in-out infinite !important; }
+}
+@keyframes hdrPlayPulseSoft{ 50%{ opacity:.25; } }
 
+/* ── TICKER ─────────────────────────────────────────────────────────────────
+   Scorre il testo dei nomi lunghi avanti e indietro, ma solo mentre l'elemento
+   è visibile a schermo (IntersectionObserver nel JS lo attiva/disattiva). */
 
+.sfc-nome-wrap {
+    flex: 1; min-width: 0; overflow: hidden;
+}
+/* Senza IntersectionObserver: ellipsis classico come fallback. */
+.sfc-nome-wrap > .sfc-nome-inner {
+    display: inline-block; white-space: nowrap;
+    will-change: transform;
+}
+.sfc-nome-wrap > .sfc-nome-inner.ticker-on {
+    animation: sfcScorri var(--ticker-dur, 6s) ease-in-out 0.8s infinite alternate;
+}
+@keyframes sfcScorri {
+    0%,  20% { transform: translateX(0); }
+    80%, 100% { transform: translateX(var(--ticker-over, 0px)); }
+}
 
+/* Il nome nel carosello "da riprendere" è anche .sfc-rip-nome:
+   manteniamo i vecchi stili di layout ma eliminiamo white-space e overflow
+   perché ora li gestisce .sfc-nome-wrap. */
+.sfc-nome-wrap.sfc-rip-nome {
+    /* sovrascrive text-overflow:ellipsis del vecchio .sfc-rip-nome */
+    text-overflow: clip;
+}
+
+/* ── Allineamento materie non giocate ───────────────────────────────────────
+   Le righe giocate hanno lo spazio per il chevron (.sfc-mat-chev, 22px).
+   Ora anche le non giocate lo hanno (via .vuoto), quindi l'allineamento
+   del punto-colore e del nome è identico in entrambe le sezioni. */
+.sfc-mat-riga .sfc-mat-nome {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 15px; font-weight: 700;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }

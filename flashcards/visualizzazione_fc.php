@@ -1340,6 +1340,126 @@ function fc_testo_vuoto($raw): bool {
     return true;
 }
 
+/* ==========================================================================
+   IL DISEGNATORE DEL DOCUMENTO, LATO SERVER
+
+   Perche' esiste. Fino a ieri il server mandava il testo grezzo in data-raw e
+   il browser lo disegnava con fc_parser: la carta arrivava con dentro un
+   segnaposto in solo testo e un istante dopo veniva riscritta. Le due versioni
+   non sono alte uguale — il segnaposto salta le righe vuote, il disegno vero
+   le tiene come paragrafi — quindi la carta cambiava altezza sotto gli occhi,
+   superava il max-height di .qa-text e si riassestava con la barra laterale.
+   E' quello che si vedeva "costruirsi". Con mille carte, per giunta, erano
+   mille chiamate a parseTextForPreview() tutte sul filo principale.
+
+   La cura e' la stessa che usano le applicazioni che non si vedono mai
+   costruire: mandare il markup DEFINITIVO dal server, non un provvisorio da
+   sostituire. Queste funzioni sono la copia esatta, riga per riga, di
+   fcdRunHTML/fcdBlockHTML in fc_parser.js: stesse classi, stessi attributi
+   data-, stessi caratteri invisibili. Devono restare gemelle — se un giorno si
+   tocca il disegnatore JavaScript, va toccato anche questo.
+
+   Il formato VECCHIO (quello con /bold{...}) non passa di qui: convertirlo
+   vuol dire ricopiare anche fcdFromLegacy, che e' un lettore lungo e pieno di
+   casi particolari, e sono le carte scritte prima di fc_parser. Per quelle
+   resta il vecchio giro col segnaposto, che continua a funzionare com'e'.
+   ========================================================================== */
+
+function fcd_php_escape($s): string {
+    return str_replace(['&', '<', '>', '"'], ['&amp;', '&lt;', '&gt;', '&quot;'], (string)$s);
+}
+
+function fcd_php_mark_attrs($m): string {
+    $out = '';
+    if (!is_array($m)) return $out;
+    foreach (['b', 'i', 'u', 'h'] as $k) {
+        if (!empty($m[$k])) $out .= ' data-' . $k . '="1"';
+    }
+    if (!empty($m['c'])) $out .= ' data-c="' . fcd_php_escape($m['c']) . '"';
+    return $out;
+}
+
+function fcd_php_run_html($r): string {
+    if (is_string($r)) $r = ['s' => $r];
+    if (!is_array($r)) return '';
+
+    if (isset($r['x']) && is_string($r['x'])) {
+        /* I due caratteri invisibili ai lati ci sono anche nel disegnatore
+           JavaScript e servono al cursore dell'editor: qui non si usa il
+           cursore, ma il markup dev'essere identico, altrimenti la carta
+           cambierebbe comunque forma quando il JavaScript la ridisegna. */
+        /* Il contenuto e' gia' quello che MathJax si aspetta, \( ... \), e la
+           classe fc-resa dice che il lavoro di fcdDisegnaFormule qui e' gia'
+           fatto. Cosi' MathJax puo' partire appena arriva, senza aspettare che
+           il nostro JavaScript riscriva mille elementi uno per uno. */
+        $classi = 'fc-x fc-resa fc-attesa' . (isset($r['m']) ? ' fc-t' : '');
+        $attr   = isset($r['m']) ? fcd_php_mark_attrs($r['m']) : '';
+        return "\u{200B}" . '<span class="' . $classi . '" data-x="1" data-tex="'
+             . fcd_php_escape($r['x']) . '"' . $attr . '>'
+             . '\\(' . fcd_php_escape($r['x']) . '\\)'
+             . '</span>' . "\u{200B}";
+    }
+
+    $testo = str_replace("\n", '<br>' . "\u{200B}", fcd_php_escape($r['s'] ?? ''));
+    if (empty($r['m'])) return $testo;
+    return '<span class="fc-t"' . fcd_php_mark_attrs($r['m']) . '>' . $testo . '</span>';
+}
+
+function fcd_php_block_html($b): string {
+    if (!is_array($b)) return '';
+    $t = (string)($b['t'] ?? 'p');
+
+    if ($t === 'fx') {
+        $attr = '';
+        $classi = 'fc-fx fc-resa fc-attesa';
+        if (!empty($b['lvl'])) {
+            $classi .= ' fc-fx-li';
+            $attr .= ' data-lvl="' . (int)$b['lvl'] . '"';
+            if (!empty($b['c'])) $attr .= ' data-c="' . fcd_php_escape($b['c']) . '"';
+        }
+        if (!empty($b['m'])) {
+            $classi .= ' fc-t';
+            /* data-c su un blocco formula e' gia' preso dal pallino
+               dell'elenco: il colore del testo diventa data-mc, esattamente
+               come fa fcdBlockHTML. */
+            $attr .= preg_replace('/ data-c="/', ' data-mc="', fcd_php_mark_attrs($b['m']), 1);
+        }
+        return '<div class="' . $classi . '" data-fx="1"' . $attr
+             . ' data-tex="' . fcd_php_escape($b['tex'] ?? '') . '">'
+             . '\\[' . fcd_php_escape($b['tex'] ?? '') . '\\]' . '</div>';
+    }
+
+    $inner = '';
+    foreach (($b['runs'] ?? []) as $r) { $inner .= fcd_php_run_html($r); }
+    if ($inner === '') $inner = '<br data-fill="1">';
+
+    if ($t === 'li') {
+        $attr = ' data-lvl="' . (((int)($b['lvl'] ?? 0)) ?: 1) . '"';
+        if (!empty($b['c'])) $attr .= ' data-c="' . fcd_php_escape($b['c']) . '"';
+        return '<div class="fc-li"' . $attr . '>' . $inner . '</div>';
+    }
+    if (!empty($b['lvl'])) {
+        return '<div class="fc-p fc-p-lvl" data-lvl="' . (int)$b['lvl'] . '">' . $inner . '</div>';
+    }
+    return '<div class="fc-p">' . $inner . '</div>';
+}
+
+/* Restituisce l'HTML finito, oppure null se il documento non e' nel formato
+   nuovo: chi chiama, in quel caso, torna al segnaposto di sempre. */
+function fc_doc_html($raw): ?string {
+    $raw = trim((string)$raw);
+    if ($raw === '') return null;
+    if ($raw[0] !== '{' || strpos($raw, '"blocks"') === false) return null;
+
+    $doc = json_decode($raw, true);
+    if (!is_array($doc) || !isset($doc['blocks']) || !is_array($doc['blocks'])) return null;
+
+    $out = '';
+    foreach ($doc['blocks'] as $b) { $out .= fcd_php_block_html($b); }
+    return $out;
+}
+
+
 /* Le parole di un campo, in chiaro. Serve a mettere QUALCOSA nella carta gia'
    nell'HTML che arriva dal server: oggi il testo viene disegnato dal
    JavaScript leggendo data-raw, quindi al primo disegno le carte sono cornici
@@ -1423,13 +1543,39 @@ function render_qa_side($label, $text, $image, $audio, $lato = '') {
                          fondo alla pagina se ne accorge proprio dal marchio
                          rimasto e disegna lei. In nessuno dei due casi la carta
                          resta vuota, che e' l'unica cosa che conta. */ ?>
+                <?php
+                    /* Il markup DEFINITIVO, gia' disegnato qui. Se il documento
+                       e' nel formato nuovo esce di qui uguale a com'e' uscito
+                       dal JavaScript: niente sostituzione, niente salto di
+                       altezza, niente mille parseTextForPreview() al
+                       caricamento. data-raw resta comunque, perche' i pezzi di
+                       pagina che ridisegnano una carta (modifica, esempi,
+                       carte appena inserite) continuano a leggerlo da li'.
+                       Formato vecchio: si torna al segnaposto, che il
+                       JavaScript sostituira' come ha sempre fatto. */
+                    $qaHtml = fc_doc_html($text);
+                ?>
+                <?php if ($qaHtml !== null): ?>
+                <div class="qa-text raw-text-content" data-raw="<?= sec_h($text) ?>"><?= $qaHtml ?></div>
+                <?php else: ?>
                 <div class="qa-text raw-text-content" data-raw="<?= sec_h($text) ?>"><span class="qa-pre" data-fc-pre="1"><?= sec_h(fc_testo_piano($text)) ?></span></div>
+                <?php endif; ?>
 
             <?php endif; ?>
 
             <?php if ($hasImage): ?>
 
-                <img class="qa-image" src="fc_Images/<?= sec_h($image) ?>" alt="" loading="lazy" onclick="event.stopPropagation(); openImageZoom(this.src);">
+                <?php /* width e height dichiarati: il browser conosce la
+                         proporzione e tiene il posto giusto fin dal primo
+                         disegno, invece di lasciare l'immagine a zero e far
+                         saltare tutto quando arriva. Il CSS continua a
+                         decidere le misure VERE (76px nelle carte con testo,
+                         max 230px in quelle a sola immagine); questi attributi
+                         servono solo a dire la forma in anticipo.
+                         Se la misura non si sa (immagine di prima della
+                         migrazione, non ancora recuperata) non esce niente e
+                         quell'immagine si comporta come prima. */ ?>
+                <img class="qa-image" src="fc_Images/<?= sec_h($image) ?>"<?= function_exists('fc_misura_attr') ? fc_misura_attr($image) : '' ?> alt="" loading="lazy" onclick="event.stopPropagation(); openImageZoom(this.src);">
 
             <?php endif; ?>
 
@@ -1485,6 +1631,372 @@ function render_audio_player($src) {
 
 ?>
 
+<?php
+/* ==========================================================================
+   STAMPA UN BLOCCO DI CARTE
+
+   Prima questo ciclo stava dentro il markup e stampava TUTTE le carte, poi
+   nascondeva con display:none quelle oltre la trentesima. Il browser non le
+   disegnava, d'accordo, ma il PHP le generava lo stesso, viaggiavano lo stesso
+   sulla rete e il browser le analizzava lo stesso: su "tutte le materie" sono
+   piu' di mille carte di HTML per farne vedere trenta.
+
+   Ora e' una funzione, e la chiamano in due: il markup della pagina per il
+   primo blocco, e l'endpoint fc_feed_page per quelli successivi. Il corpo e'
+   rimasto identico riga per riga — l'unica differenza e' la finestra in cima
+   al ciclo — proprio perche' le due strade devono produrre lo stesso HTML.
+
+   $quanti = 0 vuol dire "da qui in fondo": serve a chi ha bisogno di tutto
+   l'elenco in una volta (la ricerca, il filtro di stato).
+   ========================================================================== */
+function fc_stampa_gruppi($da, $quanti) {
+    global $images_data, $categoryID, $global_fc_counts, $examples_counts,
+           $parent_reorder_enabled, $child_reorder_enabled, $current_user_id;
+
+    $group_counter = 0;
+    $saltati = 0;
+    $stampati = 0;
+ 
+                $group_counter = 0;
+                foreach ($images_data as $row):
+                    /* La finestra: si scorre tutto l'elenco ma si stampa solo il
+                       pezzo chiesto. Saltare con un contatore invece di usare
+                       array_slice tiene il codice del corpo identico a prima —
+                       $row e' ancora la riga del ciclo, e non c'e' nessuna copia
+                       dell'array da fare. */
+                    if ($saltati < $da) { $saltati++; continue; }
+                    if ($quanti > 0 && $stampati >= $quanti) break;
+                    $stampati++;
+                    $group_counter++;
+                    $isLearnt = $row['is_learnt'] == 1;
+                    $catColor = fc_color_or_default($row['category_color']);
+                    $catName = $row['category_name'] ? $row['category_name'] : T('vocab.vi_nessuna');
+                    $searchString = sec_h(strtolower($row['question_desc'] . ' ' . $row['answer_desc']));
+                    $qk = strtolower(trim($row['question_desc']));
+                    $isDuplicate = (isset($global_fc_counts[$qk]) && $global_fc_counts[$qk] > 1);
+                    $childCount = count($row['children']);
+
+                    /* UNA CARTA CHE NON E' UNA CARTA
+                       Domanda piena, risposta completamente vuota (niente testo,
+                       niente immagine, niente audio) e almeno due sottocarte: non
+                       e' una domanda senza risposta, e' il TITOLO delle sue
+                       sottocarte. Chi l'ha scritta lo sapeva; la pagina no, e la
+                       mostrava come una carta rotta — un riquadro "Risposta" con
+                       dentro un trattino, ripetuto per ogni gruppo.
+                       Due sottocarte e non una: con una sola figlia il dubbio
+                       resta (puo' essere una carta a cui manca la risposta), con
+                       due l'intenzione e' chiara. */
+                    $isTitolo = $childCount >= 2
+                             && fc_lato_vuoto($row['answer_desc'], $row['answer_image'], $row['answer_audio'])
+                             && !fc_testo_vuoto($row['question_desc']);
+                    
+                    // Pre-nascondi via PHP per evitare rendering lag
+                    /* Non esiste piu' la carta stampata e nascosta: quelle
+                       oltre il blocco non vengono proprio generate, ed e' tutto
+                       il punto della paginazione. La variabile resta perche' il
+                       markup qui sotto la usa, ma ora e' sempre vuota. */
+                    $hide_style = '';
+                ?>
+                <div class="fc-group <?= $isTitolo ? 'is-titolo' : '' ?>" data-parent-id="<?= (int)$row['id'] ?>" data-category-id="<?= (int)$row['category_id'] ?>" data-reorderable="<?= $parent_reorder_enabled ? '1' : '0' ?>" style="--row-color:<?= sec_h($catColor) ?>; <?= sec_h($hide_style) ?>">
+
+
+
+                    <div class="fc-card fc-parent <?= $isTitolo ? 'is-titolo' : '' ?> <?= $isLearnt ? 'is-learnt' : '' ?> <?= $isDuplicate ? 'duplicate-flag' : '' ?>"
+
+                         data-id="<?= (int)$row['id'] ?>" data-type="parent"
+
+                         data-search="<?= sec_h($searchString) ?>" data-duplicate="<?= $isDuplicate ? 'true' : 'false' ?>"
+
+                         data-edit-url="modifica_immagine_fc.php?fc_id=<?= (int)$row['id'] ?>&previous_catid=<?= (int)$categoryID ?>"
+
+                         data-child-count="<?= (int)$childCount ?>">
+
+
+
+                        <div class="swipe-actions">
+
+                            <button type="button" class="swipe-act act-edit" onclick="goEditCard(this)">
+
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+
+                                <?php te('comune.modifica'); ?>
+
+                            </button>
+
+                            <button type="button" class="swipe-act act-delete" onclick="askDeleteCard(this)">
+
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+
+                                <?php te('comune.elimina'); ?>
+
+                            </button>
+
+                        </div>
+
+
+
+                        <div class="swipe-content">
+
+                            <div class="card-head">
+
+                                <?php if ($current_user_id == 3): ?>
+
+                                    <div class="learnt-disabled">–</div>
+
+                                <?php else: ?>
+
+                                    <label class="learnt-wrapper">
+
+                                        <input type="checkbox" class="learnt-cb" <?= $isLearnt ? 'checked' : '' ?> onclick="toggleLearnt(<?= (int)$row['id'] ?>, this)">
+
+                                        <div class="learnt-emoji">🧐</div>
+
+                                        <div class="learnt-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+
+                                    </label>
+
+                                <?php endif; ?>
+
+                                <label class="select-circle">
+
+                                    <input type="checkbox" name="selected_ids[]" value="<?= (int)$row['id'] ?>" class="bulk-checkbox standalone-cb record-cb" onchange="onRecordCbChange(this)">
+
+                                    <span class="cc-visual"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+
+                                </label>
+
+                                <div class="card-head-spacer"></div>
+
+                                <?php if ($isDuplicate): ?><span class="dup-badge"><?php te('fc.vis_duplicato'); ?></span><?php endif; ?>
+
+                                <?php if ($categoryID == 0): ?><span class="cat-badge" style="background:<?= sec_h($catColor) ?>"><?= sec_h($catName) ?></span><?php endif; ?>
+
+                            </div>
+
+
+
+                            <?php if ($isTitolo): ?>
+
+                            <?php /* Il titolo, non una coppia domanda/risposta. Niente
+                                     etichette "Domanda" e "Risposta", niente riquadro
+                                     vuoto col trattino: quella risposta non manca, non
+                                     doveva esserci.
+                                     Nessun .qa-side qui dentro, ed e' voluto: il visore
+                                     a flashcard costruisce il mazzo cercando proprio
+                                     quelli (costruisciMazzo), quindi un titolo resta
+                                     fuori dal mazzo senza bisogno di un caso a parte —
+                                     e non c'e' modo che si presenti da solo come una
+                                     carta da rigirare. */ ?>
+                            <div class="fc-title">
+                                <span class="fc-title-lab"><?php te('fc.vis_titolo'); ?></span>
+                                <?php /* Anche il titolo del gruppo arriva gia' disegnato: era l'ultimo
+                                         pezzo di testo che restava vuoto fino al passaggio del
+                                         JavaScript, e su una carta-titolo il testo E' tutta la carta.
+                                         Formato vecchio: resta vuoto e lo riempie il disegnatore, come
+                                         ha sempre fatto. */
+                                    $__titoloRaw  = trim((string)$row['question_desc']);
+                                    $__titoloHtml = fc_doc_html($__titoloRaw);
+                                ?>
+                                <div class="fc-title-txt raw-text-content" data-raw="<?= sec_h($__titoloRaw) ?>"><?= $__titoloHtml !== null ? $__titoloHtml : '' ?></div>
+                                <span class="fc-title-count"><?= sec_h(T('fc.vis_n_sottocarte', ['n' => (int)$childCount])) ?></span>
+                            </div>
+
+                            <?php else: ?>
+
+                            <?php render_qa_side(T('fc.ifc_domanda'), $row['question_desc'], $row['question_image'], $row['question_audio'], 'q'); ?>
+
+                            <?php render_qa_side(T('fc.ifc_risposta'), $row['answer_desc'], $row['answer_image'], $row['answer_audio'], 'a'); ?>
+
+                            <?php endif; ?>
+
+
+
+                            <?php render_examples_section($row['id'], 'parent', $row['id'], $examples_counts); ?>
+
+                            <?php /* GLI ATTREZZI DELLA VISTA COMPATTA
+                                     Esistono sempre nel markup ma si vedono solo a
+                                     vista compatta accesa: costruirli da JavaScript
+                                     avrebbe voluto dire ricostruirli a ogni
+                                     accensione, su tutte le carte della pagina.
+                                     La freccia apre QUESTA carta a grandezza vera
+                                     senza spegnere la vista compatta per tutte le
+                                     altre: serve a controllare una carta prima di
+                                     spuntarla, non a uscire dalla vista.
+                                     Su e giu' salvano subito il nuovo ordine, come
+                                     il trascinamento; spariscono da sole dove
+                                     riordinare non si puo' (ordinamento diverso da
+                                     "Posizione", o "Tutte le materie"). */ ?>
+                            <div class="fc-compact-tools" aria-hidden="false">
+                                <button type="button" class="ct-btn ct-up" onclick="moveCardBy(this, -1)"
+                                        aria-label="<?php te('fc.vis_su'); ?>" title="<?php te('fc.vis_su'); ?>">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
+                                </button>
+                                <button type="button" class="ct-btn ct-down" onclick="moveCardBy(this, 1)"
+                                        aria-label="<?php te('fc.vis_giu'); ?>" title="<?php te('fc.vis_giu'); ?>">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m6 13 6 6 6-6"/></svg>
+                                </button>
+                            </div>
+
+                            <?php /* Il tastino che rivela le sottocarte, e che si vede
+                                     solo in modalita' Unisci: li' l'elenco mostra i soli
+                                     padri, ma per decidere a chi attaccare una carta
+                                     serve poter sbirciare cosa c'e' gia' dentro. Lo
+                                     stesso tocco le richiude. */ ?>
+                            <?php if ($childCount > 0): ?>
+                            <button type="button" class="fc-kids-toggle" onclick="toggleKids(this)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                <span><?php echo sec_h(T('fc.vis_n_sottocarte', ['n' => (int)$childCount])); ?></span>
+                            </button>
+                            <?php endif; ?>
+
+                        </div>
+
+                    </div>
+
+
+
+                    <?php if ($childCount > 0): ?>
+
+                    <div class="fc-children" data-parent-id="<?= (int)$row['id'] ?>">
+
+                        <?php foreach ($row['children'] as $child):
+
+                            $searchChild = sec_h(strtolower($child['question_desc'] . ' ' . $child['answer_desc']));
+
+                        ?>
+
+                        <div class="fc-card fc-child" data-id="<?= (int)$child['id'] ?>" data-type="child" data-parent-id="<?= (int)$row['id'] ?>"
+
+                             data-search="<?= sec_h($searchChild) ?>" data-duplicate="false" data-reorderable="<?= $child_reorder_enabled ? '1' : '0' ?>"
+
+                             data-edit-url="modifica_immagine_fc.php?child_id=<?= (int)$child['id'] ?>&previous_catid=<?= (int)$categoryID ?>">
+
+
+
+                            <div class="swipe-actions">
+
+                                <button type="button" class="swipe-act act-edit" onclick="goEditCard(this)">
+
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+
+                                    <?php te('vocab.cat_modifica_attr'); ?>
+
+                                </button>
+
+                                <button type="button" class="swipe-act act-delete" onclick="askDeleteCard(this)">
+
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
+
+                                    <?php te('comune.elimina'); ?>
+
+                                </button>
+
+                            </div>
+
+
+
+                            <div class="swipe-content">
+
+                                <div class="card-head">
+
+                                    <div class="child-tag"><span>↳</span> <?php te('fc.vis_sotto_carta'); ?></div>
+
+                                    <label class="select-circle">
+
+                                        <input type="checkbox" name="selected_child_ids[]" value="<?= (int)$child['id'] ?>" class="bulk-checkbox child-cb record-cb" onchange="onRecordCbChange(this)">
+
+                                        <span class="cc-visual"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+
+                                    </label>
+
+                                    <div class="card-head-spacer"></div>
+
+                                </div>
+
+
+
+                                <?php render_qa_side(T('fc.ifc_domanda'), $child['question_desc'], $child['question_image'], $child['question_audio'], 'q'); ?>
+
+                                <?php render_qa_side(T('fc.ifc_risposta'), $child['answer_desc'], $child['answer_image'], $child['answer_audio'], 'a'); ?>
+
+
+
+                                <?php render_examples_section($child['id'], 'child', -1 * intval($child['id']), $examples_counts); ?>
+
+                                <?php /* Gli stessi attrezzi della carta padre: qui su e giu'
+                                         riordinano le sottocarte dentro il loro padre. */ ?>
+                                <div class="fc-compact-tools">
+                                    <button type="button" class="ct-btn ct-up" onclick="moveCardBy(this, -1)"
+                                            aria-label="<?php te('fc.vis_su'); ?>" title="<?php te('fc.vis_su'); ?>">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
+                                    </button>
+                                    <button type="button" class="ct-btn ct-down" onclick="moveCardBy(this, 1)"
+                                            aria-label="<?php te('fc.vis_giu'); ?>" title="<?php te('fc.vis_giu'); ?>">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                    </button>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <?php endforeach; ?>
+
+                    </div>
+
+                    <?php endif; ?>
+
+                </div>
+
+                <?php                 endforeach;
+
+    return $stampati;
+}
+?>
+
+<?php
+/* Le misure delle immagini di questa pagina, tutte in una query.
+   Una per pagina e non una per immagine: e' il motivo per cui le misure
+   stanno in una tabella invece di essere lette dal disco al volo (vedi
+   fc_misure_immagini.php). Si raccolgono i nomi di domanda e risposta, delle
+   carte padre e di quelle figlie, e si chiedono in blocco. */
+$__fcNomiImg = [];
+foreach ($images_data as $__r) {
+    if (!empty($__r['question_image'])) $__fcNomiImg[] = $__r['question_image'];
+    if (!empty($__r['answer_image']))   $__fcNomiImg[] = $__r['answer_image'];
+    foreach (($__r['children'] ?? []) as $__c) {
+        if (!empty($__c['question_image'])) $__fcNomiImg[] = $__c['question_image'];
+        if (!empty($__c['answer_image']))   $__fcNomiImg[] = $__c['answer_image'];
+    }
+}
+if (!empty($__fcNomiImg) && function_exists('fc_misure_carica')) fc_misure_carica($__fcNomiImg);
+
+/* Quante carte per blocco. Trenta e' lo stesso numero che l'elenco mostrava
+   gia' prima con "carica altre": cambia solo che adesso le altre non sono
+   nascoste, sono da chiedere. */
+define('FC_BLOCCO_CARTE', 30);
+
+/* Si pagina solo su "tutte le materie". Non e' una scorciatoia: dentro una
+   categoria le carte sono poche, il riordino a trascinamento e' acceso (e
+   vuole tutte le vicine nel documento) e la ricerca locale deve poterle
+   guardare tutte senza aspettare. E' anche l'unico caso in cui il problema
+   esisteva davvero. */
+$fcPaginato = ($categoryID == 0);
+
+/* L'endpoint che serve i blocchi successivi. Sta qui, dopo che i dati sono
+   stati letti e prima che la pagina cominci a stamparsi: risponde solo con
+   l'HTML delle carte chieste e se ne va. */
+if (isset($_GET['fc_feed_page'])) {
+    header('Content-Type: text/html; charset=utf-8');
+    $fcDa = max(0, sec_int($_GET['fc_feed_page'] ?? 0, 0));
+    /* fc_feed_all=1: da qui alla fine, in una volta. Lo chiede il browser
+       quando sta per fare qualcosa che ha bisogno dell'elenco intero. */
+    $fcQuanti = (($_GET['fc_feed_all'] ?? '') === '1') ? 0 : FC_BLOCCO_CARTE;
+    fc_stampa_gruppi($fcDa, $fcQuanti);
+    exit;
+}
+?>
+
 <!DOCTYPE html>
 
 <html lang="it" style="--cat-color: <?= sec_h(fc_color_or_default($current_cat_color)) ?>;">
@@ -1533,7 +2045,15 @@ function render_audio_player($src) {
 
         displayMath: [['\\[', '\\]']]
 
-    }
+    },
+
+    /* MathJax, appena finisce di caricarsi, disegnerebbe da solo TUTTE le
+       formule del documento. Su "tutte le materie" sono migliaia, e le fa una
+       dopo l'altra sul filo principale: e' per questo che restavano dei buchi
+       bianchi per secondi. Qui gli si dice di non fare niente all'avvio; le
+       formule gliele passiamo noi, a mano a mano che si avvicinano allo
+       schermo (fcChiediDisegnoFormule). */
+    startup: { typeset: false }
 
     };
 
@@ -1553,7 +2073,41 @@ function render_audio_player($src) {
 
 </head>
 
-<body>
+<?php
+/* SALTARE IL DISEGNO DI QUELLO CHE NON SI VEDE.
+   Con "tutte le materie" in pagina finiscono tutte le carte dell'archivio, e
+   il browser calcola l'impaginazione di ognuna anche se sta mille schermate
+   piu' giu'. content-visibility gliela fa saltare finche' non serve: il
+   documento resta intero (ricerca, selezione multipla e contatori continuano a
+   trovare ogni carta), e' solo il disegno a diventare pigro.
+   Si accende SOLO dove il riordino a trascinamento e' spento: trascinare una
+   carta misura la posizione delle vicine, e una vicina mai disegnata
+   risponderebbe con la propria misura di riserva invece che con quella vera. */
+$fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
+?>
+<body<?= $fcPigra ? ' class="fc-pigra"' : '' ?>>
+<script>
+/* LE PREFERENZE DI VISTA, APPLICATE PRIMA CHE LA PAGINA SI DISEGNI.
+   "Carte intere" toglie il ritaglio a 190px di .qa-text, e "esempi interi" fa
+   lo stesso con i riquadri degli esempi: due classi sul <body> che finora
+   arrivavano dentro initPage(), cioe' a pagina gia' disegnata. Con la
+   preferenza accesa ogni carta nasceva ritagliata, con la sua barra laterale,
+   e un istante dopo si apriva: mille carte che cambiano altezza tutte insieme
+   sono ESATTAMENTE il "testo che si formatta sotto gli occhi".
+   Le preferenze stanno nel browser (localStorage), quindi il server non le
+   conosce e non puo' scrivere lui le classi: si leggono qui, subito dopo
+   l'apertura del <body> e prima che il feed venga impaginato. E' l'unico
+   punto in cui si arriva in tempo.
+   fcApplicaPrefs() piu' avanti rifara' lo stesso lavoro senza conseguenze:
+   toggle con un valore esplicito e' idempotente. */
+(function(){
+    try {
+        var p = JSON.parse(localStorage.getItem('nisama_fc_vis_prefs') || '{}') || {};
+        if (p.fullCards)    document.body.classList.add('fc-full-cards');
+        if (p.fullExamples) document.body.classList.add('fc-full-examples');
+    } catch(e){}
+})();
+</script>
 
 
 
@@ -1797,6 +2351,26 @@ function render_audio_player($src) {
 
 </header>
 
+<script>
+/* L'ALTEZZA DELL'INTESTAZIONE, MISURATA SUBITO.
+   .feed si stacca dall'alto di --header-h, che in CSS parte da un valore di
+   riserva (150px) e veniva corretto solo a pagina caricata, dentro initPage().
+   Quando l'intestazione vera e' piu' alta — e con il percorso della materia e
+   la riga di ricerca lo e' quasi sempre — al primo disegno il contenuto stava
+   troppo in su, mezzo nascosto sotto la barra, e un istante dopo scendeva
+   tutto di colpo: e' per questo che il contatore "N carte mostrate" sembrava
+   comparire dal nulla, quando in realta' stava li' da subito ma coperto.
+   Questo blocco sta apposta QUI, subito dopo </header> e prima di <main>: il
+   browser ha gia' impaginato l'intestazione e non ha ancora impaginato il
+   feed, quindi la misura e' vera e arriva in tempo per il primo disegno.
+   syncHeaderHeight() piu' avanti resta come correzione, per quando cambia
+   qualcosa (rotazione dello schermo, un carattere che finisce di caricarsi). */
+(function(){
+    var h = document.getElementById('appHeader');
+    if (h) document.documentElement.style.setProperty('--header-h', h.offsetHeight + 'px');
+})();
+</script>
+
 
 
 <?php include 'sidebar.html'; ?>
@@ -1887,8 +2461,17 @@ function render_audio_player($src) {
                  anche quello vero all'apertura: i filtri partono tutti aperti,
                  e appena qualcuno li tocca ci pensa filterList(). */ ?>
         <div class="item-counter" id="itemCounter"><span class="ic-dot"></span> <?php
-            $__mostrate = 0;
-            foreach ($images_data as $__r) { $__mostrate += 1 + count($__r['children']); }
+            $__mostrate = 0; $__visti = 0;
+            foreach ($images_data as $__r) {
+                $__visti++;
+                /* Con l'elenco paginato il numero giusto all'apertura non e'
+                   il totale dell'archivio ma quello del primo blocco: e'
+                   quello che si sta guardando, ed e' anche quello che
+                   filterList() scrivera' un istante dopo. Stampare il totale
+                   voleva dire far comparire 1051 e poi vederlo crollare a 30. */
+                if ($fcPaginato && $__visti > FC_BLOCCO_CARTE) break;
+                $__mostrate += 1 + count($__r['children']);
+            }
             th('fc.vis_n_carte_mostrate', ['n' => '<b id="itemCounterNum">' . (int)$__mostrate . '</b>']);
         ?></div>
 
@@ -1921,279 +2504,7 @@ function render_audio_player($src) {
             <?php if (count($images_data) > 0): ?>
 
             <div class="fc-list" id="fcList">
-                <?php 
-                $group_counter = 0;
-                foreach ($images_data as $row):
-                    $group_counter++;
-                    $isLearnt = $row['is_learnt'] == 1;
-                    $catColor = fc_color_or_default($row['category_color']);
-                    $catName = $row['category_name'] ? $row['category_name'] : T('vocab.vi_nessuna');
-                    $searchString = sec_h(strtolower($row['question_desc'] . ' ' . $row['answer_desc']));
-                    $qk = strtolower(trim($row['question_desc']));
-                    $isDuplicate = (isset($global_fc_counts[$qk]) && $global_fc_counts[$qk] > 1);
-                    $childCount = count($row['children']);
-
-                    /* UNA CARTA CHE NON E' UNA CARTA
-                       Domanda piena, risposta completamente vuota (niente testo,
-                       niente immagine, niente audio) e almeno due sottocarte: non
-                       e' una domanda senza risposta, e' il TITOLO delle sue
-                       sottocarte. Chi l'ha scritta lo sapeva; la pagina no, e la
-                       mostrava come una carta rotta — un riquadro "Risposta" con
-                       dentro un trattino, ripetuto per ogni gruppo.
-                       Due sottocarte e non una: con una sola figlia il dubbio
-                       resta (puo' essere una carta a cui manca la risposta), con
-                       due l'intenzione e' chiara. */
-                    $isTitolo = $childCount >= 2
-                             && fc_lato_vuoto($row['answer_desc'], $row['answer_image'], $row['answer_audio'])
-                             && !fc_testo_vuoto($row['question_desc']);
-                    
-                    // Pre-nascondi via PHP per evitare rendering lag
-                    $hide_style = ($categoryID == 0 && $group_counter > 30) ? 'display: none;' : '';
-                ?>
-                <div class="fc-group <?= $isTitolo ? 'is-titolo' : '' ?>" data-parent-id="<?= (int)$row['id'] ?>" data-category-id="<?= (int)$row['category_id'] ?>" data-reorderable="<?= $parent_reorder_enabled ? '1' : '0' ?>" style="--row-color:<?= sec_h($catColor) ?>; <?= sec_h($hide_style) ?>">
-
-
-
-                    <div class="fc-card fc-parent <?= $isTitolo ? 'is-titolo' : '' ?> <?= $isLearnt ? 'is-learnt' : '' ?> <?= $isDuplicate ? 'duplicate-flag' : '' ?>"
-
-                         data-id="<?= (int)$row['id'] ?>" data-type="parent"
-
-                         data-search="<?= sec_h($searchString) ?>" data-duplicate="<?= $isDuplicate ? 'true' : 'false' ?>"
-
-                         data-edit-url="modifica_immagine_fc.php?fc_id=<?= (int)$row['id'] ?>&previous_catid=<?= (int)$categoryID ?>"
-
-                         data-child-count="<?= (int)$childCount ?>">
-
-
-
-                        <div class="swipe-actions">
-
-                            <button type="button" class="swipe-act act-edit" onclick="goEditCard(this)">
-
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-
-                                <?php te('comune.modifica'); ?>
-
-                            </button>
-
-                            <button type="button" class="swipe-act act-delete" onclick="askDeleteCard(this)">
-
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
-
-                                <?php te('comune.elimina'); ?>
-
-                            </button>
-
-                        </div>
-
-
-
-                        <div class="swipe-content">
-
-                            <div class="card-head">
-
-                                <?php if ($current_user_id == 3): ?>
-
-                                    <div class="learnt-disabled">–</div>
-
-                                <?php else: ?>
-
-                                    <label class="learnt-wrapper">
-
-                                        <input type="checkbox" class="learnt-cb" <?= $isLearnt ? 'checked' : '' ?> onclick="toggleLearnt(<?= (int)$row['id'] ?>, this)">
-
-                                        <div class="learnt-emoji">🧐</div>
-
-                                        <div class="learnt-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-
-                                    </label>
-
-                                <?php endif; ?>
-
-                                <label class="select-circle">
-
-                                    <input type="checkbox" name="selected_ids[]" value="<?= (int)$row['id'] ?>" class="bulk-checkbox standalone-cb record-cb" onchange="onRecordCbChange(this)">
-
-                                    <span class="cc-visual"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-
-                                </label>
-
-                                <div class="card-head-spacer"></div>
-
-                                <?php if ($isDuplicate): ?><span class="dup-badge"><?php te('fc.vis_duplicato'); ?></span><?php endif; ?>
-
-                                <?php if ($categoryID == 0): ?><span class="cat-badge" style="background:<?= sec_h($catColor) ?>"><?= sec_h($catName) ?></span><?php endif; ?>
-
-                            </div>
-
-
-
-                            <?php if ($isTitolo): ?>
-
-                            <?php /* Il titolo, non una coppia domanda/risposta. Niente
-                                     etichette "Domanda" e "Risposta", niente riquadro
-                                     vuoto col trattino: quella risposta non manca, non
-                                     doveva esserci.
-                                     Nessun .qa-side qui dentro, ed e' voluto: il visore
-                                     a flashcard costruisce il mazzo cercando proprio
-                                     quelli (costruisciMazzo), quindi un titolo resta
-                                     fuori dal mazzo senza bisogno di un caso a parte —
-                                     e non c'e' modo che si presenti da solo come una
-                                     carta da rigirare. */ ?>
-                            <div class="fc-title">
-                                <span class="fc-title-lab"><?php te('fc.vis_titolo'); ?></span>
-                                <div class="fc-title-txt raw-text-content" data-raw="<?= sec_h(trim((string)$row['question_desc'])) ?>"></div>
-                                <span class="fc-title-count"><?= sec_h(T('fc.vis_n_sottocarte', ['n' => (int)$childCount])) ?></span>
-                            </div>
-
-                            <?php else: ?>
-
-                            <?php render_qa_side(T('fc.ifc_domanda'), $row['question_desc'], $row['question_image'], $row['question_audio'], 'q'); ?>
-
-                            <?php render_qa_side(T('fc.ifc_risposta'), $row['answer_desc'], $row['answer_image'], $row['answer_audio'], 'a'); ?>
-
-                            <?php endif; ?>
-
-
-
-                            <?php render_examples_section($row['id'], 'parent', $row['id'], $examples_counts); ?>
-
-                            <?php /* GLI ATTREZZI DELLA VISTA COMPATTA
-                                     Esistono sempre nel markup ma si vedono solo a
-                                     vista compatta accesa: costruirli da JavaScript
-                                     avrebbe voluto dire ricostruirli a ogni
-                                     accensione, su tutte le carte della pagina.
-                                     La freccia apre QUESTA carta a grandezza vera
-                                     senza spegnere la vista compatta per tutte le
-                                     altre: serve a controllare una carta prima di
-                                     spuntarla, non a uscire dalla vista.
-                                     Su e giu' salvano subito il nuovo ordine, come
-                                     il trascinamento; spariscono da sole dove
-                                     riordinare non si puo' (ordinamento diverso da
-                                     "Posizione", o "Tutte le materie"). */ ?>
-                            <div class="fc-compact-tools" aria-hidden="false">
-                                <button type="button" class="ct-btn ct-up" onclick="moveCardBy(this, -1)"
-                                        aria-label="<?php te('fc.vis_su'); ?>" title="<?php te('fc.vis_su'); ?>">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
-                                </button>
-                                <button type="button" class="ct-btn ct-down" onclick="moveCardBy(this, 1)"
-                                        aria-label="<?php te('fc.vis_giu'); ?>" title="<?php te('fc.vis_giu'); ?>">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m6 13 6 6 6-6"/></svg>
-                                </button>
-                            </div>
-
-                            <?php /* Il tastino che rivela le sottocarte, e che si vede
-                                     solo in modalita' Unisci: li' l'elenco mostra i soli
-                                     padri, ma per decidere a chi attaccare una carta
-                                     serve poter sbirciare cosa c'e' gia' dentro. Lo
-                                     stesso tocco le richiude. */ ?>
-                            <?php if ($childCount > 0): ?>
-                            <button type="button" class="fc-kids-toggle" onclick="toggleKids(this)">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                                <span><?php echo sec_h(T('fc.vis_n_sottocarte', ['n' => (int)$childCount])); ?></span>
-                            </button>
-                            <?php endif; ?>
-
-                        </div>
-
-                    </div>
-
-
-
-                    <?php if ($childCount > 0): ?>
-
-                    <div class="fc-children" data-parent-id="<?= (int)$row['id'] ?>">
-
-                        <?php foreach ($row['children'] as $child):
-
-                            $searchChild = sec_h(strtolower($child['question_desc'] . ' ' . $child['answer_desc']));
-
-                        ?>
-
-                        <div class="fc-card fc-child" data-id="<?= (int)$child['id'] ?>" data-type="child" data-parent-id="<?= (int)$row['id'] ?>"
-
-                             data-search="<?= sec_h($searchChild) ?>" data-duplicate="false" data-reorderable="<?= $child_reorder_enabled ? '1' : '0' ?>"
-
-                             data-edit-url="modifica_immagine_fc.php?child_id=<?= (int)$child['id'] ?>&previous_catid=<?= (int)$categoryID ?>">
-
-
-
-                            <div class="swipe-actions">
-
-                                <button type="button" class="swipe-act act-edit" onclick="goEditCard(this)">
-
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-
-                                    <?php te('vocab.cat_modifica_attr'); ?>
-
-                                </button>
-
-                                <button type="button" class="swipe-act act-delete" onclick="askDeleteCard(this)">
-
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
-
-                                    <?php te('comune.elimina'); ?>
-
-                                </button>
-
-                            </div>
-
-
-
-                            <div class="swipe-content">
-
-                                <div class="card-head">
-
-                                    <div class="child-tag"><span>↳</span> <?php te('fc.vis_sotto_carta'); ?></div>
-
-                                    <label class="select-circle">
-
-                                        <input type="checkbox" name="selected_child_ids[]" value="<?= (int)$child['id'] ?>" class="bulk-checkbox child-cb record-cb" onchange="onRecordCbChange(this)">
-
-                                        <span class="cc-visual"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
-
-                                    </label>
-
-                                    <div class="card-head-spacer"></div>
-
-                                </div>
-
-
-
-                                <?php render_qa_side(T('fc.ifc_domanda'), $child['question_desc'], $child['question_image'], $child['question_audio'], 'q'); ?>
-
-                                <?php render_qa_side(T('fc.ifc_risposta'), $child['answer_desc'], $child['answer_image'], $child['answer_audio'], 'a'); ?>
-
-
-
-                                <?php render_examples_section($child['id'], 'child', -1 * intval($child['id']), $examples_counts); ?>
-
-                                <?php /* Gli stessi attrezzi della carta padre: qui su e giu'
-                                         riordinano le sottocarte dentro il loro padre. */ ?>
-                                <div class="fc-compact-tools">
-                                    <button type="button" class="ct-btn ct-up" onclick="moveCardBy(this, -1)"
-                                            aria-label="<?php te('fc.vis_su'); ?>" title="<?php te('fc.vis_su'); ?>">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
-                                    </button>
-                                    <button type="button" class="ct-btn ct-down" onclick="moveCardBy(this, 1)"
-                                            aria-label="<?php te('fc.vis_giu'); ?>" title="<?php te('fc.vis_giu'); ?>">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                                    </button>
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                        <?php endforeach; ?>
-
-                    </div>
-
-                    <?php endif; ?>
-
-                </div>
-
-                <?php endforeach; ?>
+                <?php fc_stampa_gruppi(0, $fcPaginato ? FC_BLOCCO_CARTE : 0); ?>
             </div>
             
             <?php if ($categoryID == 0): ?>
@@ -3099,12 +3410,100 @@ function changeSort(){
 
    ================================================================ */
 
+/* ================================================================
+   L'ELENCO ARRIVA A BLOCCHI
+
+   Il server manda le prime FC_BLOCCO carte; le altre si chiedono a
+   visualizzazione_fc.php?fc_feed_page=N, che risponde con lo stesso HTML che
+   avrebbe stampato la pagina (e' proprio la stessa funzione PHP).
+
+   visibleLimit resta, ma ora non nasconde piu' niente di gia' presente: e' il
+   tetto di quante se ne mostrano, e sale insieme a quelle che arrivano.
+
+   La regola che tiene insieme tutto: le funzioni che guardano il DOCUMENTO per
+   decidere qualcosa — la ricerca, il filtro di stato, "seleziona tutte" —
+   devono avere davanti l'elenco intero, altrimenti darebbero una risposta
+   giusta su meta' dei dati, che e' peggio di nessuna risposta. Quando una di
+   loro parte e manca ancora qualcosa, si chiede tutto in un colpo
+   (fc_feed_all=1) e si rifa' il lavoro appena arriva.
+   ================================================================ */
+var FC_BLOCCO = <?= (int)FC_BLOCCO_CARTE ?>;
+var FC_PAGINATO = <?= $fcPaginato ? 'true' : 'false' ?>;
+var fcGruppiCaricati = <?= (int)($fcPaginato ? min(count($images_data), FC_BLOCCO_CARTE) : count($images_data)) ?>;
+var fcGruppiTotali = <?= (int)count($images_data) ?>;
+var fcTutteCaricate = (!FC_PAGINATO || fcGruppiCaricati >= fcGruppiTotali);
+var fcCaricamentoInCorso = false;
+
 let visibleLimit = 30; // Limite carte visibili per "Tutte le materie"
 
 function loadMoreCards() {
-    visibleLimit += 30;
-    filterList();
     buzz(10);
+    if (fcTutteCaricate) { visibleLimit += FC_BLOCCO; filterList(); return; }
+    fcCaricaAltreCarte(false);
+}
+
+function fcCaricaAltreCarte(tutto){
+    if (fcCaricamentoInCorso || fcTutteCaricate) return Promise.resolve();
+    fcCaricamentoInCorso = true;
+
+    var btn = document.getElementById('loadMoreBtn');
+    if (btn) { btn.disabled = true; btn.textContent = T('fc.vis_caricamento_carte'); }
+
+    /* L'indirizzo si costruisce da quello della pagina: cosi' categoria,
+       ordinamento e qualunque altro parametro arrivano identici all'endpoint,
+       che deve produrre le carte NELLO STESSO ORDINE — altrimenti il blocco
+       nuovo non e' il seguito di quello vecchio. */
+    var q = new URLSearchParams(window.location.search);
+    q.set('fc_feed_page', fcGruppiCaricati);
+    if (tutto) q.set('fc_feed_all', '1');
+
+    return fetch('visualizzazione_fc.php?' + q.toString(), { cache: 'no-store' })
+        .then(function(r){ return r.text(); })
+        .then(function(html){
+            var lista = document.getElementById('fcList');
+            if (!lista) return;
+            var tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            /* I nodi nuovi si tengono da parte PRIMA di appenderli: dopo
+               sarebbero mescolati a quelli gia' in elenco, e le rifiniture
+               (testi rimasti grezzi, riquadri degli esempi) ripasserebbero su
+               roba gia' fatta — nel caso degli esempi vuol dire chiederli al
+               server una seconda volta. */
+            var nuovi = Array.prototype.slice.call(tmp.querySelectorAll('.fc-group'));
+            var arrivati = nuovi.length;
+            while (tmp.firstChild) lista.appendChild(tmp.firstChild);
+
+            fcGruppiCaricati += arrivati;
+            if (tutto || arrivati < FC_BLOCCO || fcGruppiCaricati >= fcGruppiTotali) fcTutteCaricate = true;
+            /* Quello che e' appena arrivato si deve vedere: alzare il tetto
+               insieme al caricato evita di scaricare carte per poi tenerle
+               nascoste, che sarebbe il difetto di prima al contrario. */
+            visibleLimit = Math.max(visibleLimit, fcGruppiCaricati);
+
+            nuovi.forEach(function(g){
+                if (typeof rifinisciTestiRimasti === 'function') rifinisciTestiRimasti(g);
+                if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes(g);
+            });
+            filterList();
+        })
+        .catch(function(){ /* niente rete: il tasto torna com'era e si riprova */ })
+        .then(function(){
+            fcCaricamentoInCorso = false;
+            if (btn) { btn.disabled = false; btn.textContent = T('fc.vis_carica_altre'); }
+        });
+}
+
+/* Il tasto "carica altre" resta, ma di solito non lo si tocca: quando entra
+   nello schermo si carica da solo. E' il tasto a fare da sentinella, cosi' non
+   c'e' un secondo elemento da tenere in fondo all'elenco. */
+function fcOsservaFineElenco(){
+    var btn = document.getElementById('loadMoreBtn');
+    if (!btn || typeof IntersectionObserver === 'undefined') return;
+    new IntersectionObserver(function(voci){
+        voci.forEach(function(v){
+            if (v.isIntersecting && !fcCaricamentoInCorso) loadMoreCards();
+        });
+    }, { rootMargin: '400px 0px' }).observe(btn);
 }
 
 let displayedCount = 0;
@@ -3186,6 +3585,14 @@ function filterList(){
         return searchText.indexOf(textFilter) !== -1;
     }
 
+    /* Cercare o filtrare su meta' elenco darebbe una risposta sbagliata con
+       l'aria di essere giusta. Si chiede il resto e si rifa' il conto appena
+       arriva; intanto si filtra quello che c'e' gia', cosi' la pagina risponde
+       subito invece di restare ferma ad aspettare. */
+    if (!fcTutteCaricate && (textFilter !== '' || statusFilter !== 'all')) {
+        fcCaricaAltreCarte(true);
+    }
+
     let visibleCards = 0;
     let matchedGroups = 0;
     const isTutteLeMaterie = <?php echo $categoryID == 0 ? 'true' : 'false'; ?>;
@@ -3223,11 +3630,10 @@ function filterList(){
     
     const loadMoreBtn = document.getElementById('loadMoreBtn');
     if (loadMoreBtn) {
-        if (isTutteLeMaterie && matchedGroups > visibleLimit) {
-            loadMoreBtn.style.display = 'block';
-        } else {
-            loadMoreBtn.style.display = 'none';
-        }
+        /* Due motivi per mostrarlo: ci sono carte gia' scaricate oltre il
+           tetto, oppure ce ne sono ancora da scaricare. */
+        var altro = isTutteLeMaterie && (matchedGroups > visibleLimit || !fcTutteCaricate);
+        loadMoreBtn.style.display = altro ? 'block' : 'none';
     }
 
     /* Le cartelle seguono la ricerca come le carte: se il testo non e' nel
@@ -6088,6 +6494,12 @@ function caselleDiQuestaModalita(){
 }
 
 function toggleSelectAll(){
+    /* "Tutte" deve voler dire tutte, non "tutte quelle gia' scaricate": si
+       aspetta l'elenco intero e poi si spunta. */
+    if (!fcTutteCaricate) {
+        fcCaricaAltreCarte(true).then(toggleSelectAll);
+        return;
+    }
     var boxes = caselleDiQuestaModalita();
     var tutteSpuntate = boxes.length > 0 && boxes.every(function(cb){ return cb.checked; });
     boxes.forEach(function(cb){
@@ -7557,6 +7969,64 @@ function rifinisciTestiRimasti(radice){
         }
     });
     if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(radice || document);
+    fcChiediDisegnoFormule(radice || document);
+}
+
+/* IL DISEGNO DELLE FORMULE, UNA MANCIATA ALLA VOLTA
+
+   Le formule preparate dal server portano addosso 'fc-resa' (niente da
+   riscrivere) e 'fc-attesa' (non ancora disegnate). Chiedere a MathJax di
+   disegnarle tutte insieme non funziona: con un archivio intero in pagina sono
+   migliaia, le fa una dopo l'altra sul filo principale, e per diversi secondi
+   al loro posto c'e' un buco.
+
+   Si disegnano quindi solo quelle che stanno per arrivare sotto gli occhi, con
+   600px di anticipo: quando si scorre sono gia' pronte, e quelle in fondo alla
+   pagina non costano niente finche' non ci si arriva. Finche' una e' in attesa
+   il suo codice LaTeX non si vede — e' codice, non testo da leggere — ma lo
+   spazio resta occupato.
+
+   Se MathJax non arriva affatto (rete giu', CDN bloccata) si smette di
+   aspettare dopo qualche secondo e si mostra il codice: meglio del buco. */
+var fcOsservatoreFormule = null;
+
+function fcChiediDisegnoFormule(radice){
+    var scope = radice || document;
+    if (!scope.querySelectorAll) return;
+    var pendenti = scope.querySelectorAll('.fc-x.fc-attesa, .fc-fx.fc-attesa');
+    if (!pendenti.length) return;
+
+    /* Senza IntersectionObserver (browser molto vecchi) si torna al
+       comportamento di prima: tutto insieme, appena si puo'. */
+    if (typeof IntersectionObserver === 'undefined') {
+        fcDisegnaFormuleDi(Array.prototype.slice.call(pendenti), 0);
+        return;
+    }
+
+    if (!fcOsservatoreFormule) {
+        fcOsservatoreFormule = new IntersectionObserver(function(voci){
+            var lotto = [];
+            voci.forEach(function(v){
+                if (!v.isIntersecting) return;
+                fcOsservatoreFormule.unobserve(v.target);
+                lotto.push(v.target);
+            });
+            if (lotto.length) fcDisegnaFormuleDi(lotto, 0);
+        }, { rootMargin: '600px 0px' });
+    }
+    Array.prototype.forEach.call(pendenti, function(el){ fcOsservatoreFormule.observe(el); });
+}
+
+function fcDisegnaFormuleDi(elenco, tentativo){
+    function scopri(){
+        elenco.forEach(function(el){ el.classList.remove('fc-attesa'); });
+    }
+    if (window.MathJax && MathJax.typesetPromise) {
+        MathJax.typesetPromise(elenco).then(scopri).catch(scopri);
+        return;
+    }
+    if (tentativo > 25) { scopri(); return; }   /* ~5 secondi, poi si rinuncia */
+    setTimeout(function(){ fcDisegnaFormuleDi(elenco, tentativo + 1); }, 200);
 }
 
 function initPage(){
@@ -7579,6 +8049,8 @@ function initPage(){
     if (window.fcvAllineaFab) { fcvAllineaFab(); setTimeout(fcvAllineaFab, 400); }
 
     fcLoadExampleBoxes();
+
+    fcOsservaFineElenco();
 
     /* Dopo il disegnatore, non prima: se e' passato lui qui non c'e' piu'
        niente da fare, ed e' il caso normale. */

@@ -3,6 +3,18 @@ require_once 'config.php';
 require_once 'auth_check.php'; // 1. Protezione con login obbligatorio
 require_once 'piano_helpers.php';
 
+/* Oltre questa pausa non si sta piu' giocando: il tempo non viene contato, e
+   riaprendo la partita si apre una sessione nuova invece di continuare quella
+   vecchia (era il motivo per cui una partita di 5 minuti ripresa il giorno
+   dopo ne segnava molti di piu').
+
+   Deve stare QUI, in cima: la usa anche il gestore del voto, molto prima del
+   blocco del cronometro dove l'avevo messa - e una costante non ancora
+   definita, in PHP 8, e' un errore fatale. Era questo il 500 che faceva
+   finire ogni voto nella coda "in attesa di connessione", pur essendo il
+   voto gia' stato salvato. */
+define('NISAMA_PAUSA_MAX', 300);   // 5 minuti
+
 $current_user_id = (int)$utente_corrente['id']; // 2. ID utente sicuro
 /* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
 $conn = sec_db();
@@ -43,6 +55,40 @@ function fc_campo_e_vuoto(?string $raw): bool {
     // semplice. Si tolgono i tag noti e si guarda se resta qualcosa.
     $senza_tag = preg_replace('/\/[a-zA-Z]+(-[a-zA-Z]+)?\{|\}/', '', $raw);
     return trim($senza_tag) === '';
+}
+
+/**
+ * Prime parole di un campo testo, in chiaro: serve per elenchi e riepiloghi.
+ * Il campo non e' testo semplice ma il documento di fc_parser.js, quindi si
+ * estraggono i pezzi di testo dei blocchi invece di stampare il JSON.
+ */
+function fc_anteprima_testo(?string $raw, int $max = 70): string {
+    if ($raw === null || trim($raw) === '') return '';
+
+    $pezzi = [];
+    $decoded = json_decode($raw, true);
+
+    if (is_array($decoded) && isset($decoded['blocks']) && is_array($decoded['blocks'])) {
+        foreach ($decoded['blocks'] as $block) {
+            if (!is_array($block)) continue;
+            if (($block['t'] ?? '') === 'fx') { $pezzi[] = '[formula]'; continue; }
+            foreach ((array)($block['runs'] ?? []) as $run) {
+                if (!is_array($run)) continue;
+                if (isset($run['s']) && $run['s'] !== '') $pezzi[] = (string)$run['s'];
+                elseif (isset($run['x']) && $run['x'] !== '') $pezzi[] = '[formula]';
+            }
+        }
+    } else {
+        /* Vecchio formato a tag: si tolgono i marcatori noti. */
+        $pezzi[] = preg_replace('/\/[a-zA-Z]+(-[a-zA-Z]+)?\{|\}/', '', $raw);
+    }
+
+    $testo = trim(preg_replace('/\s+/u', ' ', implode(' ', $pezzi)));
+    if ($testo === '') return '';
+
+    return mb_strlen($testo, 'UTF-8') > $max
+        ? mb_substr($testo, 0, $max - 1, 'UTF-8') . '…'
+        : $testo;
 }
 
 /** Vero se questa riga di fc_images va trattata come titolo, non come domanda. */
@@ -170,7 +216,23 @@ $first_unanswered = $row_unanswered ? $row_unanswered['min_p'] : null;
 
 
 
-if ($first_unanswered && $first_unanswered < $position) {
+/* Chiedendo una posizione piu' avanti della prima ancora da rispondere si
+   viene rimandati indietro a quella: e' giusto per una visita vera, ma NON
+   per un precaricamento - li' si vuole proprio vedere cosa c'e' a quella
+   posizione, e il rimando faceva arrivare all'anteprima la pagina corrente
+   invece di quella successiva (da cui "sotto compare se stessa" o "il suo
+   stesso padre"). Con questo parametro il precaricamento chiede la pagina
+   cosi' com'e', senza rimandi. */
+$solo_anteprima = sec_bool($_GET['prefetch'] ?? false);
+
+/* Il rimando NON deve mai scattare per una richiesta che sta registrando un
+   voto: verrebbe eseguito prima del gestore piu' sotto, e quel voto andrebbe
+   perso - la pagina tornerebbe indietro e bisognerebbe premere Avanti a mano,
+   che e' esattamente il sintomo osservato. Un voto si registra e basta, poi
+   sara' il suo gestore a dire dove andare. */
+$sta_votando = ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== '');
+
+if (!$solo_anteprima && !$sta_votando && $first_unanswered && $first_unanswered < $position) {
 
     header("Location: game_fc.php?game_id=$game_id&position=$first_unanswered&status=$status&order=$order_param");
 
@@ -243,8 +305,15 @@ if ($azione === 'grade') {
                 WHERE game_id = ? AND position = ? AND fc_child_id = ?",
               [$result, $game_id, $position, $id_to_mark]);
     }
-    // CRONOMETRO: durata della sessione corrente aggiornata a ogni risposta
-    sec_q("UPDATE session_durations SET duration_seconds = TIMESTAMPDIFF(SECOND, start_time, NOW()), updated_at = NOW()
+    /* CRONOMETRO: si aggiunge il tempo passato DALL'ULTIMA attivita', non
+       quello dall'inizio della sessione. Prima era TIMESTAMPDIFF(start_time,
+       NOW()): riprendendo una partita ore dopo, quelle ore finivano tutte
+       nel conteggio anche se non si stava giocando. Con LEAST() una pausa
+       piu' lunga della soglia conta come la soglia, cosi' nemmeno una pausa
+       dentro la stessa sessione gonfia il totale. */
+    sec_q("UPDATE session_durations
+              SET duration_seconds = duration_seconds + LEAST(TIMESTAMPDIFF(SECOND, updated_at, NOW()), " . NISAMA_PAUSA_MAX . "),
+                  updated_at = NOW()
             WHERE game_id = ? ORDER BY id DESC LIMIT 1", [$game_id]);
     $unanswered = (int)(sec_one("SELECT COUNT(*) AS c FROM fc_gameplays WHERE game_id = ? AND position = ? AND user_answer = ''",
                                 [$game_id, $position])['c'] ?? 0);
@@ -253,7 +322,23 @@ if ($azione === 'grade') {
 
     if ($unanswered == 0) {
 
-        header("Location: game_fc.php?game_id=$game_id&position=" . ($position + 1) . "&status=$status&order=$order_param");
+        /* Se questa posizione era un ripasso (stava DIETRO al fronte gia'
+           raggiunto altrove), si torna dritti al fronte invece di continuare
+           ad avanzare una posizione alla volta fra pagine gia' fatte: prima,
+           corretto un errore alla 7 con 40 gia' raggiunta, si finiva alla 8 e
+           bisognava premere "avanti" altre 32 volte per tornare dove si era.
+           Stessa definizione di "risposta vera" usata ovunque nel file: non
+           conta ne' una riga vuota ne' una carta titolo, altrimenti il fronte
+           calcolato qui non coinciderebbe con $furthest_page piu' sotto. */
+        $row_fronte = sec_one(
+            "SELECT MAX(position) AS p FROM fc_gameplays
+              WHERE game_id = ? AND user_answer <> '' AND user_answer <> 'Titolo'",
+            [$game_id]
+        );
+        $fronte = ($row_fronte && $row_fronte['p']) ? (int)$row_fronte['p'] : $position;
+        $prossima_pos = ($position < $fronte) ? $fronte : ($position + 1);
+
+        header("Location: game_fc.php?game_id=$game_id&position=$prossima_pos&status=$status&order=$order_param");
 
     } else {
 
@@ -317,13 +402,18 @@ if ($azione === 'togglefavorite') {
         exit();
     }
 
-    $gia_preferita = sec_one("SELECT 1 AS x FROM user_favorites_fc WHERE user_id = ? AND fc_image_id = ?", [$user_id, $parent_to_mark]);
+    /* A differenza di "imparato" (che vale sempre per l'intera scheda, quindi
+       risale al padre), la tabella dei preferiti ha due colonne: si puo'
+       mettere fra i preferiti anche un singolo figlio. Quindi qui NON si
+       risale: si segna esattamente la carta toccata. */
+    $col = $is_child_vote ? 'fc_child_id' : 'fc_image_id';
+    $gia_preferita = sec_one("SELECT 1 AS x FROM user_favorites_fc WHERE user_id = ? AND $col = ?", [$user_id, $id_to_mark]);
 
     if ($gia_preferita) {
-        sec_q("DELETE FROM user_favorites_fc WHERE user_id = ? AND fc_image_id = ?", [$user_id, $parent_to_mark]);
+        sec_q("DELETE FROM user_favorites_fc WHERE user_id = ? AND $col = ?", [$user_id, $id_to_mark]);
         echo json_encode(['success' => true, 'favorite' => false]);
     } else {
-        sec_q("INSERT IGNORE INTO user_favorites_fc (user_id, fc_image_id, favorited_date) VALUES (?, ?, CURDATE())", [$user_id, $parent_to_mark]);
+        sec_q("INSERT IGNORE INTO user_favorites_fc (user_id, $col, favorited_date) VALUES (?, ?, CURDATE())", [$user_id, $id_to_mark]);
         echo json_encode(['success' => true, 'favorite' => true]);
     }
     exit();
@@ -331,26 +421,50 @@ if ($azione === 'togglefavorite') {
 
 
 
-// --- CRONOMETRO: tempo totale della partita (somma sessioni precedenti + sessione corrente) ---
+// --- CRONOMETRO: tempo EFFETTIVAMENTE giocato (le pause lunghe non contano) ---
 $chrono_base_seconds = 0;
 
 $chrono_start_ts = 0;
 
-$chrono_last = sec_one("SELECT id, UNIX_TIMESTAMP(start_time) AS ts FROM session_durations WHERE game_id = ? ORDER BY id DESC LIMIT 1", [$game_id]);
+$chrono_last = sec_one("SELECT id, duration_seconds, TIMESTAMPDIFF(SECOND, updated_at, NOW()) AS fermo_da
+                        FROM session_durations WHERE game_id = ? ORDER BY id DESC LIMIT 1", [$game_id]);
+
 if ($chrono_last) {
+    $fermo_da = (int)$chrono_last['fermo_da'];
 
-    $chrono_start_ts = intval($chrono_last['ts']);
+    if ($fermo_da > NISAMA_PAUSA_MAX) {
+        /* Ferma da troppo: quella sessione e' finita quando si e' smesso di
+           giocare, non adesso. Si lascia il suo totale com'e' (non si aggiunge
+           la pausa) e se ne apre una nuova che parte da zero. */
+        sec_q("INSERT INTO session_durations (game_id, start_time, duration_seconds, updated_at)
+               VALUES (?, NOW(), 0, NOW())", [$game_id]);
+    } else {
+        /* Pausa breve: e' tempo di gioco, si aggiunge alla sessione corrente. */
+        sec_q("UPDATE session_durations
+                  SET duration_seconds = duration_seconds + LEAST(TIMESTAMPDIFF(SECOND, updated_at, NOW()), " . NISAMA_PAUSA_MAX . "),
+                      updated_at = NOW()
+                WHERE id = ?", [(int)$chrono_last['id']]);
+    }
 
-        $chrono_base_seconds = (int)(sec_one("SELECT COALESCE(SUM(duration_seconds),0) AS tot FROM session_durations WHERE game_id = ? AND id <> ?",
-                                         [$game_id, (int)$chrono_last['id']])['tot'] ?? 0);
-
+    /* Il totale e' la somma di quanto EFFETTIVAMENTE giocato in tutte le
+       sessioni; il contatore che scorre in pagina riparte da li'. */
+    $chrono_base_seconds = (int)(sec_one("SELECT COALESCE(SUM(duration_seconds),0) AS tot
+                                          FROM session_durations WHERE game_id = ?", [$game_id])['tot'] ?? 0);
+    $chrono_start_ts = time();
 }
 
 
 
 // 3. Recupero o Generazione delle carte per questa Pagina (Position)
 
-$gameplays = sec_all("SELECT * FROM fc_gameplays WHERE game_id = ? AND position = ?", [$game_id, $position]);
+$gameplays = sec_all("SELECT g.* FROM fc_gameplays g
+                      LEFT JOIN fc_child_cards ch ON ch.id_child = g.fc_child_id
+                      WHERE g.game_id = ? AND g.position = ?
+                      /* Il padre (fc_child_id NULL) sempre per primo, poi i figli nel
+                         loro ordine: senza ORDER BY l'ordine lo decideva il database,
+                         ed e' cosi' che il concetto principale finiva in fondo. */
+                      ORDER BY (g.fc_child_id IS NOT NULL) ASC, ch.custom_order ASC, g.id ASC",
+                     [$game_id, $position]);
 
 if (empty($gameplays)) {
 
@@ -417,7 +531,14 @@ if (empty($gameplays)) {
 
     /* Rilettura: che sia stata questa richiesta o quella parallela a
        scrivere per prima, ora la o le righe ci sono comunque. */
-    $gameplays = sec_all("SELECT * FROM fc_gameplays WHERE game_id = ? AND position = ?", [$game_id, $position]);
+    $gameplays = sec_all("SELECT g.* FROM fc_gameplays g
+                      LEFT JOIN fc_child_cards ch ON ch.id_child = g.fc_child_id
+                      WHERE g.game_id = ? AND g.position = ?
+                      /* Il padre (fc_child_id NULL) sempre per primo, poi i figli nel
+                         loro ordine: senza ORDER BY l'ordine lo decideva il database,
+                         ed e' cosi' che il concetto principale finiva in fondo. */
+                      ORDER BY (g.fc_child_id IS NOT NULL) ASC, ch.custom_order ASC, g.id ASC",
+                     [$game_id, $position]);
 }
 
 
@@ -429,10 +550,14 @@ $learnt_ids_set = array_flip(array_column(
     sec_all("SELECT fc_image_id FROM user_learnt_fc WHERE user_id = ?", [$user_id]),
     'fc_image_id'
 ));
-$favorite_ids_set = array_flip(array_column(
-    sec_all("SELECT fc_image_id FROM user_favorites_fc WHERE user_id = ?", [$user_id]),
-    'fc_image_id'
-));
+/* Due insiemi separati: un preferito puo' essere su un padre o su un singolo
+   figlio (la tabella ha entrambe le colonne). */
+$fav_padri_set = [];
+$fav_figli_set = [];
+foreach (sec_all("SELECT fc_image_id, fc_child_id FROM user_favorites_fc WHERE user_id = ?", [$user_id]) as $r) {
+    if ($r['fc_image_id'] !== null) $fav_padri_set[(int)$r['fc_image_id']] = true;
+    if ($r['fc_child_id'] !== null) $fav_figli_set[(int)$r['fc_child_id']] = true;
+}
 
 $cards_to_show = [];
 
@@ -479,7 +604,9 @@ foreach ($gameplays as $gp) {
         $learnt_parent_id = $card['is_child'] ? (int)($card['parent_id'] ?? 0) : (int)$card['gameplay_idimmagine'];
         $card['learnt_parent_id'] = $learnt_parent_id;
         $card['is_learnt'] = isset($learnt_ids_set[$learnt_parent_id]);
-        $card['is_favorite'] = isset($favorite_ids_set[$learnt_parent_id]);
+        $card['is_favorite'] = $card['is_child']
+            ? isset($fav_figli_set[(int)$card['gameplay_idimmagine']])
+            : isset($fav_padri_set[(int)$card['gameplay_idimmagine']]);
 
         // Conta quanti esempi ha questa flashcard, sulla colonna giusta per il suo tipo
         $col = $card['is_child'] ? 'child_id' : 'parent_id';
@@ -592,6 +719,26 @@ sec_q("UPDATE games SET total_father_words = ?, total_words_with_children = ? WH
 
 
 
+/* ---------- Una sola convenzione per le percentuali sulle barre ----------
+   Prima ogni elemento se la calcolava per conto suo: i pallini rossi al
+   CENTRO della loro cella ((n - 0.5) / tot), tutti gli altri al bordo destro
+   (n / tot). A piena larghezza lo scarto e' mezza cella e non si nota; con lo
+   zoom attivo viene moltiplicato per la scala (circa x8) e diventa uno scarto
+   ben visibile - si toccava un pallino rosso e il pallino "sei qui" compariva
+   accanto invece che sopra, da cui l'impressione che la barra non seguisse.
+   Da qui in avanti esistono solo queste due funzioni:
+     - fc_pct_marker(): qualunque PALLINO, sempre al centro della sua cella;
+     - fc_pct_fill():   qualunque RIEMPIMENTO, al bordo destro della cella
+                        raggiunta (e' una lunghezza, non un punto). */
+function fc_pct_marker ($n, $tot) {
+    $tot = max(1, (int)$tot);
+    return max(0.0, min(100.0, (((float)$n - 0.5) / $tot) * 100));
+}
+function fc_pct_fill ($n, $tot) {
+    $tot = max(1, (int)$tot);
+    return max(0.0, min(100.0, ((float)$n / $tot) * 100));
+}
+
 // 6. GESTIONE STORICO ERRORI E CHECKPOINT (Pallini Rossi e Bianchi)
 
 $errors_pages = [];
@@ -600,13 +747,26 @@ $errors_cards = [];
 
 $furthest_page = 1;
 
+/* Come furthest_page, ma per la barra delle carte: si aggiorna dentro il
+   ciclo solo quando c'e' gia' una risposta, non per ogni riga che esiste
+   (il precaricamento ne crea anche per posizioni mai visitate davvero). */
+$furthest_card_index = 0;
+
 $jump_back_card_index = 0;
 
 $first_unanswered_card_idx = null;
 
 
 
-$q_hist = sec_all("SELECT position, fc_image_id, fc_child_id, user_answer FROM fc_gameplays WHERE game_id = ? ORDER BY position ASC, fc_image_id DESC, fc_child_id ASC", [$game_id]);
+/* Stesso ordine con cui le carte vengono poi mostrate (padre per primo, poi
+   i figli nel loro custom_order): numerandole diversamente, l'indice usato
+   dalla barra delle carte avrebbe indicato una carta diversa da quella che si
+   vede davvero. */
+$q_hist = sec_all("SELECT g.position, g.fc_image_id, g.fc_child_id, g.user_answer
+                   FROM fc_gameplays g
+                   LEFT JOIN fc_child_cards ch ON ch.id_child = g.fc_child_id
+                   WHERE g.game_id = ?
+                   ORDER BY g.position ASC, (g.fc_child_id IS NOT NULL) ASC, ch.custom_order ASC, g.id ASC", [$game_id]);
 
 
 
@@ -622,11 +782,32 @@ foreach ($q_hist as $h) {
 
     $p = intval($h['position']);
 
-    $ans = $h['user_answer'];
+    /* !== '' da solo non basta: in PHP null !== '' e' vero, quindi una riga
+       con user_answer NULL (anziche' stringa vuota) verrebbe scambiata per
+       "gia' risposta". trim((string)...) tratta allo stesso modo null,
+       stringa vuota e stringa fatta di soli spazi. */
+    $ans = trim((string)($h['user_answer'] ?? ''));
+
+    /* 'Titolo' NON e' una risposta: e' il segno che quella carta e' una
+       intestazione, scritto quando la riga viene creata. E le righe le crea
+       anche il precaricamento, fino a dieci posizioni piu' avanti di dove si
+       e' davvero - quindi contarlo come "risposto" spingeva la barra fino
+       alla posizione piu' lontana mai precaricata, non a quella raggiunta.
+       Era questo a farla arrivare sempre troppo avanti. */
+    $ans_e_risposta = ($ans !== '' && $ans !== 'Titolo');
 
     
 
-    if ($p > $furthest_page) $furthest_page = $p;
+    /* Non basta che la riga esista: il precaricamento crea la riga di una
+       posizione ancora prima che l'utente ci arrivi davvero, quindi "esiste
+       una riga" non vuol dire "ci sono passato". Conta solo se c'e' gia' una
+       risposta - e' quello il segno che quella posizione e' stata vissuta
+       per davvero, non solo scaricata in anticipo dietro le quinte. */
+    if ($ans_e_risposta && $p > $furthest_page) $furthest_page = $p;
+
+    /* Il ciclo va in ordine, quindi l'ultima volta che questo si avvera' e'
+       gia' la piu' avanzata: non serve confrontare, si sovrascrive e basta. */
+    if ($ans_e_risposta) $furthest_card_index = $card_index;
 
     if (!isset($page_status[$p])) $page_status[$p] = false;
 
@@ -638,7 +819,15 @@ foreach ($q_hist as $h) {
 
         $page_status[$p] = true;
 
-        $errors_cards[] = [ 'idx' => $card_index, 'pos' => $p ];
+        /* Si tiene anche di che carta si tratta: serve alla lista compatta degli
+           errori, che mostra l'inizio di ogni domanda invece di una fila di
+           pallini indistinguibili. */
+        $errors_cards[] = [
+            'idx'   => $card_index,
+            'pos'   => $p,
+            'img'   => $h['fc_image_id'] !== null ? (int)$h['fc_image_id'] : 0,
+            'child' => $h['fc_child_id'] !== null ? (int)$h['fc_child_id'] : 0,
+        ];
 
     }
 
@@ -664,6 +853,7 @@ foreach ($page_status as $p => $has_err) {
 
 
 
+
 $card_index_map = [];
 $idx_tmp = 0;
 foreach ($q_hist as $h) {
@@ -676,7 +866,146 @@ $jump_back_pos = $first_unanswered ? $first_unanswered : $furthest_page;
 
 $jump_back_card_index = $first_unanswered_card_idx ? $first_unanswered_card_idx : $card_index;
 
+/* Tratti di categoria sulla barra superiore: dalla sequenza (gia' decisa a
+   inizio partita) si sa quale categoria tocca a ogni posizione, quindi si
+   raggruppano le posizioni contigue della stessa categoria in un tratto con
+   il suo colore e il suo nome. Solo con piu' di una categoria: con una sola
+   non ci sarebbe niente da distinguere. */
+$segmenti_categorie = [];
+$cat_di_posizione = sec_all("SELECT s.position, c.id AS cid, c.name, c.color
+                             FROM fc_game_sequence s
+                             JOIN fc_images i ON i.id = s.fc_image_id
+                             JOIN fc_categories c ON c.id = i.category_id
+                             WHERE s.game_id = ?
+                             ORDER BY s.position ASC", [$game_id]);
 
+if (count($cat_di_posizione) > 0) {
+    $viste = [];
+    foreach ($cat_di_posizione as $r) { $viste[(int)$r['cid']] = true; }
+
+    if (count($viste) > 1) {
+        $corrente = null;
+        foreach ($cat_di_posizione as $r) {
+            $cid = (int)$r['cid'];
+            if ($corrente !== null && $corrente['cid'] === $cid) {
+                $corrente['fine'] = (int)$r['position'];
+                continue;
+            }
+            if ($corrente !== null) $segmenti_categorie[] = $corrente;
+            $corrente = ['cid' => $cid, 'nome' => (string)$r['name'],
+                         'colore' => (string)$r['color'],
+                         'inizio' => (int)$r['position'], 'fine' => (int)$r['position']];
+        }
+        if ($corrente !== null) $segmenti_categorie[] = $corrente;
+    }
+}
+
+/* Errori raggruppati per categoria: con piu' di una categoria, un pallino
+   raggruppato solo non direbbe quanti errori sono in ciascuna - li si separa
+   qui, usando gli stessi tratti gia' calcolati sopra per la barra colorata.
+   Con una sola categoria (o nessuna) resta un unico gruppo "generale", e il
+   comportamento e' identico a prima. */
+$errori_per_categoria = [];
+foreach ($errors_pages as $err_p) {
+    $nome_cat = null; $colore_cat = null;
+    foreach ($segmenti_categorie as $sg) {
+        if ($err_p >= $sg['inizio'] && $err_p <= $sg['fine']) {
+            $nome_cat = $sg['nome']; $colore_cat = $sg['colore'];
+            break;
+        }
+    }
+    $chiave = $nome_cat ?? '';
+    if (!isset($errori_per_categoria[$chiave])) {
+        $errori_per_categoria[$chiave] = ['nome' => $nome_cat, 'colore' => $colore_cat, 'posizioni' => []];
+    }
+    $errori_per_categoria[$chiave]['posizioni'][] = $err_p;
+}
+$errori_per_categoria = array_values($errori_per_categoria);
+
+/* Chiavi delle carte gia' risposte sul server: servono a ripulire la coda
+   locale dai voti che in realta' erano arrivati (ma il browser non se n'era
+   accorto, per esempio perche' la risposta si era persa per strada). Senza
+   questo, i pallini grigi restavano li' per sempre. */
+$chiavi_risposte = [];
+foreach (sec_all("SELECT position, fc_image_id, fc_child_id FROM fc_gameplays
+                  WHERE game_id = ? AND user_answer <> ''", [$game_id]) as $r) {
+    $id_carta = $r['fc_child_id'] !== null ? (int)$r['fc_child_id'] : (int)$r['fc_image_id'];
+    $chiavi_risposte[] = ((int)$r['position']) . ':' . $id_carta;
+}
+
+/* Indice (nella numerazione globale delle carte) della carta su cui ci si
+   trova adesso: e' li' che deve stare la testa della barra "carte". Prima si
+   usava sempre "quante ne ho risposte + 1", che tornando indietro a rivedere
+   una carta vecchia lasciava la barra ferma in fondo invece di seguirla. */
+$idx_prima_carta_pos = 0;
+$n_carte_pos = 0;
+$risposte_in_pos = 0;
+$scorri = 0;
+foreach ($q_hist as $h) {
+    $scorri++;
+    if ((int)$h['position'] !== (int)$position) continue;
+    if ($idx_prima_carta_pos === 0) $idx_prima_carta_pos = $scorri;
+    $n_carte_pos++;
+    /* Stessa normalizzazione di $ans_e_risposta qui sopra: senza
+       trim((string)...) una riga con user_answer NULL passa il test (in PHP
+       null !== '' e' vero) e viene contata come risposta, spingendo il
+       pallino "sei qui" della barra carte una carta piu' avanti di dove si e'
+       davvero. 'Titolo' invece qui conta DI PROPOSITO come carta consumata:
+       una carta titolo non si vota, quindi la carta corrente e' gia' la prima
+       figlia. E' l'unico punto del file in cui 'Titolo' va contato. */
+    if (trim((string)($h['user_answer'] ?? '')) !== '') $risposte_in_pos++;
+}
+if ($idx_prima_carta_pos === 0) $idx_prima_carta_pos = 1;
+
+$carta_corrente_idx = min(
+    $idx_prima_carta_pos + $risposte_in_pos,
+    $idx_prima_carta_pos + max(0, $n_carte_pos - 1)
+);
+
+/* Il tratto TENUE (oltre pippo) deve arrivare esattamente dove punta il
+   pallino di ritorno (dot-target, cioe' jump_back_pos) - non fermarsi a
+   furthest_page. Le due cose quasi sempre NON coincidono: in un gioco
+   lineare jump_back_pos e' furthest_page + 1 (la prima posizione ancora da
+   rispondere, subito dopo l'ultima vera), quindi fermarsi a furthest_page
+   lasciava un'intera cella di vuoto fra la punta del tratto tenue e il
+   pallino che dovrebbe segnarne la fine - un buco ben visibile, non un
+   dettaglio.
+   MAX con position per la stessa ragione di sempre: se ti trovi PIU' avanti
+   di jump_back_pos (capita nell'istante subito dopo aver votato, prima che
+   la pagina rifletta il nuovo fronte) il tratto deve comunque raggiungere
+   pippo, mai fermarsi prima. */
+$furthest_page_vista = max($jump_back_pos, $position);
+$furthest_card_vista = max($jump_back_card_index, $carta_corrente_idx);
+
+/* Inizio della domanda di ogni carta sbagliata, per la lista compatta che
+   compare quando i pallini rossi sono troppi per essere distinguibili. Due
+   query sole (padri e figli), non una per errore. */
+if (!empty($errors_cards)) {
+    $id_padri = array_values(array_filter(array_column($errors_cards, 'img')));
+    $id_figli = array_values(array_filter(array_column($errors_cards, 'child')));
+
+    $testi_padri = [];
+    if (!empty($id_padri)) {
+        $ph = implode(',', array_fill(0, count($id_padri), '?'));
+        foreach (sec_all("SELECT id, question_desc FROM fc_images WHERE id IN ($ph)", $id_padri) as $r) {
+            $testi_padri[(int)$r['id']] = (string)$r['question_desc'];
+        }
+    }
+
+    $testi_figli = [];
+    if (!empty($id_figli)) {
+        $ph = implode(',', array_fill(0, count($id_figli), '?'));
+        foreach (sec_all("SELECT id_child, question_desc FROM fc_child_cards WHERE id_child IN ($ph)", $id_figli) as $r) {
+            $testi_figli[(int)$r['id_child']] = (string)$r['question_desc'];
+        }
+    }
+
+    foreach ($errors_cards as $k => $e) {
+        $grezzo = $e['child'] ? ($testi_figli[$e['child']] ?? '') : ($testi_padri[$e['img']] ?? '');
+        $errors_cards[$k]['testo'] = fc_anteprima_testo($grezzo, 70);
+        $errors_cards[$k]['is_child'] = $e['child'] ? 1 : 0;
+    }
+}
 
 $row_max = sec_one("SELECT MAX(position) AS max_p FROM fc_gameplays WHERE game_id = ?", [$game_id]);
 
@@ -851,30 +1180,192 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
          data-chrono-start="<?php echo (int)($chrono_start_ts); ?>"
          data-total-words="<?php echo (int)($total_words); ?>"
          data-total-cards="<?php echo (int)($total_cards); ?>"
+         data-carte-testa="<?php echo (int)min($total_cards, max(1, $carta_corrente_idx)); ?>"
+         <?php /* Il MODELLO del progresso, non la sua geometria: il JavaScript
+                  deve poter ricalcolare ogni percentuale da questi numeri
+                  senza mai dedurla rileggendo uno style.width gia' scritto -
+                  era quella lettura a mandare fuori scala la barra zoomata. */ ?>
+         data-furthest-page="<?php echo (int)min($total_words, max(1, $furthest_page_vista)); ?>"
+         data-furthest-card="<?php echo (int)min($total_cards, max(0, $furthest_card_vista)); ?>"
+         data-carte-risposte="<?php echo (int)$answered_cards_count; ?>"
+         data-jump-back-pos="<?php echo (int)$jump_back_pos; ?>"
+         data-jump-back-card="<?php echo (int)$jump_back_card_index; ?>"
          data-status="<?php echo sec_h($status); ?>"
          data-order="<?php echo sec_h($order_param); ?>">
 
 
 
         <header class="app-header">
-            <div class="bars">
-                <div class="progress-bar-bg">
-                    <div class="progress-bar-fill fill-pages" style="width: <?php echo (float)min(100, ($answered_pages_count / $total_words) * 100); ?>%;"></div>
-                    <?php foreach($errors_pages as $err_p): $percent = (($err_p - 0.5) / $total_words) * 100; ?>
-                        <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($err_p); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-red" style="left: <?php echo sec_h($percent); ?>%;" title="<?php te('fc.gm_errore_pagina', ['n' => (int)$err_p]); ?>"></a>
+            <div class="bars" onclick="alternaVistaBarra(event)" title="<?php te('fc.gm_barra_vista'); ?>">
+                <?php /* Traccia d'insieme, visibile solo quando la barra sotto e'
+                         ingrandita. Serve perche' la finestra ingrandita e'
+                         CENTRATA sulla posizione corrente: il suo riempimento
+                         finisce quindi sempre a meta' (o schizza a 100% se si e'
+                         tornati indietro), e smette di dire "quanto manca". Qui
+                         invece la scala e' sempre l'intera partita, col tratto
+                         gia' fatto. */ ?>
+                <div class="barra-insieme" aria-hidden="true">
+                    <span class="insieme-fill"></span>
+                </div>
+                <?php if (!empty($segmenti_categorie)): ?>
+                <div class="cat-strip">
+                    <?php foreach ($segmenti_categorie as $sg):
+                        $sx = (($sg['inizio'] - 1) / max(1, $total_words)) * 100;
+                        $largh = (($sg['fine'] - $sg['inizio'] + 1) / max(1, $total_words)) * 100;
+                    ?>
+                        <span class="cat-seg" style="left:<?php echo (float)$sx; ?>%; width:<?php echo (float)$largh; ?>%; --cat:<?php echo sec_h($sg['colore']); ?>;" title="<?php echo sec_h($sg['nome']); ?>"><span class="cat-seg-nome"><?php echo sec_h($sg['nome']); ?></span></span>
                     <?php endforeach; ?>
-                    <?php $jump_percent = (($jump_back_pos - 0.5) / $total_words) * 100; ?>
-                    <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($jump_back_pos); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-white" style="left: <?php echo sec_h($jump_percent); ?>%;" title="<?php te('fc.gm_torna_pagina'); ?>"></a>
+                </div>
+                <?php endif; ?>
+
+                <div class="progress-bar-bg<?php echo !empty($segmenti_categorie) ? ' ha-categorie' : ''; ?>">
+                    <?php /* Il riempimento PIENO arriva sempre esattamente fino a pippo
+                             (posizione corrente) - mai oltre, per non sembrare "sballato"
+                             quando in realta' e' solo piu' avanti di dove stai guardando.
+
+                             ATTENZIONE alla convenzione: deve usare fc_pct_marker, la
+                             STESSA di pippo qui sotto (centro cella), non fc_pct_fill
+                             (bordo cella) come prima. Con fc_pct_fill il bordo del
+                             riempimento cadeva mezza cella DOPO il centro di pippo: a
+                             tinta unica non si notava, ma con la tinta tenue che segue
+                             (sotto) quella mezza cella e' diventata un gradino di colore
+                             ben visibile subito dopo pippo, come un padding indesiderato.
+
+                             Il fatto che tu sia ANCHE piu' avanti di cosi' (jump_back_pos
+                             piu' avanti di position, perche' stai rivedendo un vecchio
+                             errore) non deve sparire - altrimenti il colore
+                             retrocederebbe ogni volta che torni indietro, che e' il difetto
+                             opposto gia' visto in passato. Resta visibile ma in un tono piu'
+                             tenue, DOPO pippo, fino a dot-target incluso: stessa convenzione
+                             di dot-target qui sotto (anche lui fc_pct_marker), altrimenti il
+                             tratto tenue si fermava mezza cella prima del pallino che
+                             dovrebbe segnarne la fine. */
+                          $bordo_pos = fc_pct_marker($position, $total_words);
+                          $bordo_fronte = fc_pct_marker($furthest_page_vista, $total_words);
+                    ?>
+                    <div class="progress-bar-fill fill-pages" style="width: <?php echo $bordo_pos; ?>%;"></div>
+                    <div class="progress-bar-fill fill-pages-oltre" style="left: <?php echo $bordo_pos; ?>%; width: <?php echo max(0, $bordo_fronte - $bordo_pos); ?>%;"></div>
+                    <?php /* Un pallino esplicito per "sei qui": prima c'era solo il
+                             bordo del riempimento a dirlo, che quando la barra e'
+                             ingrandita e ritagliata puo' non essere un buon indizio
+                             visivo. Questo resta sempre ancorato al centro della
+                             finestra ingrandita (vedi applicaZoomBarra).
+
+                             ATTENZIONE alla convenzione, e alla sua storia: e'
+                             stato provato anche a BORDO cella (come il
+                             riempimento), per farlo toccare esattamente la
+                             punta della barra quando ci si trova sul fronte.
+                             Ma "sei qui" e' prima di tutto un pallino che si
+                             clicca e si raggiunge, ESATTAMENTE come i pallini
+                             rossi, quello di ritorno e quello raggruppato: se
+                             usa una convenzione diversa dalla loro, cliccare
+                             un pallino rosso porta pippo a comparire mezza
+                             cella PIU' A DESTRA di dove quel pallino stava -
+                             uno scarto piccolo a vista intera ma vistoso con
+                             lo zoom, che sembra un padding sbagliato. Deve
+                             quindi stare al CENTRO della sua cella come tutti
+                             gli altri: il prezzo e' che sul fronte esatto
+                             resta mezza cella prima della punta del
+                             riempimento, ma coincidere con cio' che si clicca
+                             conta piu' che toccare quella punta. */
+                          $qui_percent = fc_pct_marker($position, $total_words);
+                          /* Un tocco in piu': se la posizione che stai guardando
+                             ORA e' proprio una di quelle sbagliate (stai
+                             ricontrollando un errore), l'interno di pippo si tinge
+                             leggermente di rosso - un promemoria visivo che non
+                             sei semplicemente "avanti", sei qui apposta perche' hai
+                             sbagliato. Il confronto e' volutamente non-strict
+                             (in_array senza terzo parametro): $errors_pages puo'
+                             contenere numeri gia' interi o stringhe numeriche a
+                             seconda di come sono usciti dalla query, e qui basta
+                             che il VALORE coincida. */
+                          $sta_su_errore = in_array($position, $errors_pages);
+                    ?>
+                    <span class="dot dot-qui<?php echo $sta_su_errore ? ' dot-qui-errore' : ''; ?>" style="left: <?php echo $qui_percent; ?>%;"></span>
+                    <?php foreach ($segmenti_categorie as $sg):
+                        $sx = (($sg['inizio'] - 1) / max(1, $total_words)) * 100;
+                        $largh = (($sg['fine'] - $sg['inizio'] + 1) / max(1, $total_words)) * 100; ?>
+                        <span class="cat-tratto" style="left:<?php echo (float)$sx; ?>%; width:<?php echo (float)$largh; ?>%; background:<?php echo sec_h($sg['colore']); ?>;"></span>
+                        <?php if ($sg['fine'] < $total_words): $tacca = ($sg['fine'] / max(1, $total_words)) * 100; ?>
+                            <span class="cat-tacca" style="left:<?php echo (float)$tacca; ?>%;"></span>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+
+                    <?php
+                    /* Finche' sono pochi, un pallino per errore: si vede a colpo
+                       d'occhio dove sono. Oltre questa soglia si ammassano fino a
+                       diventare una macchia indistinguibile e impossibile da
+                       centrare col dito, quindi si compattano in uno solo che apre
+                       l'elenco con l'inizio di ogni domanda. */
+                    $errori_compatti = count($errors_pages) > 6;
+                    ?>
+
+                    <?php if (!$errori_compatti): ?>
+                        <?php foreach($errors_pages as $err_p):
+                            /* Se e' proprio la posizione su cui ci si trova ora, non si
+                               disegna: ci pensa gia' il pallino "sei qui" a segnarla, e
+                               due indicatori uno sopra l'altro sarebbero confusi. */
+                            if ((int)$err_p === (int)$position) continue;
+                            $percent = fc_pct_marker($err_p, $total_words); ?>
+                            <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($err_p); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-red" style="left: <?php echo sec_h($percent); ?>%;" title="<?php te('fc.gm_errore_pagina', ['n' => (int)$err_p]); ?>"></a>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <?php /* Un pallino raggruppato per categoria, non uno solo per
+                                 tutta la partita: cosi' si vede anche QUANTI errori sono
+                                 in ciascuna, non solo che ce ne sono in totale. Con una
+                                 sola categoria resta un pallino solo, comportamento
+                                 identico a prima. */ ?>
+                        <?php foreach ($errori_per_categoria as $ec):
+                            /* MEDIANA, non media: con errori alla 5 e alla 95 la
+                               media cadeva a meta' barra, cioe' su un punto dove
+                               non c'e' nessun errore. La mediana cade sempre su
+                               una posizione sbagliata vera, quindi il pallino
+                               indica un posto che esiste davvero. */
+                            $posizioni = $ec['posizioni'];
+                            sort($posizioni);
+                            $mediana = $posizioni[intdiv(count($posizioni), 2)];
+                            $percent_medio = fc_pct_marker($mediana, $total_words);
+                        ?>
+                            <button type="button" class="dot dot-red dot-cluster" style="left: <?php echo (float)$percent_medio; ?>%; <?php echo $ec['colore'] ? 'background:' . sec_h($ec['colore']) . ';' : ''; ?>" onclick="apriElencoErrori(event)" title="<?php echo $ec['nome'] ? sec_h($ec['nome']) : ''; ?>"><span><?php echo count($posizioni); ?></span></button>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    <?php /* Se ci si e' tornati indietro a rivedere una carta, la prima
+                             ancora da rispondere sta altrove rispetto a dove si e' ora
+                             (dot-qui, poco sopra): si aggiunge un riferimento vuoto e
+                             distinto per tornarci con un tocco. Se invece si coincide gia'
+                             con quel punto non serve mostrarlo due volte. */
+                          $mostra_ritorno = ($jump_back_pos > 0 && (int)$jump_back_pos !== (int)$position);
+                          $ritorno_percent = fc_pct_marker($jump_back_pos, $total_words); ?>
+                    <?php if ($mostra_ritorno): ?>
+                        <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($jump_back_pos); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-target" style="left: <?php echo sec_h($ritorno_percent); ?>%;" title="<?php te('fc.gm_torna_pagina'); ?>"></a>
+                    <?php endif; ?>
                 </div>
 
                 <?php if ($total_words != $total_cards): ?>
                 <div class="progress-bar-bg">
-                    <div class="progress-bar-fill fill-cards" style="width: <?php echo (float)min(100, ($answered_cards_count / $total_cards) * 100); ?>%;"></div>
-                    <?php foreach($errors_cards as $err_c): $percent = (($err_c['idx'] - 0.5) / $total_cards) * 100; ?>
-                        <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($err_c['pos']); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-red" style="left: <?php echo sec_h($percent); ?>%;" title="<?php te('fc.gm_errore_carta', ['n' => (int)$err_c['idx']]); ?>"></a>
-                    <?php endforeach; ?>
-                    <?php $jump_percent2 = (($jump_back_card_index - 0.5) / $total_cards) * 100; ?>
-                    <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($jump_back_pos); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-white dot-white-alt" style="left: <?php echo sec_h($jump_percent2); ?>%;" title="<?php te('fc.gm_torna_carta'); ?>"></a>
+                    <?php /* Stessa divisione in due toni della barra concetti qui sopra,
+                             stessa convenzione (fc_pct_marker, centro cella, non
+                             fc_pct_fill): pieno fino a pippo esatto, tenue oltre fino a
+                             dot-target-alt esatto se si e' arrivati piu' avanti altrove. */
+                          $carte_qui = min($total_cards, max(1, $carta_corrente_idx));
+                          $carte_bordo_qui = fc_pct_marker($carte_qui, $total_cards);
+                          $carte_bordo_fronte = fc_pct_marker($furthest_card_vista, $total_cards);
+                    ?>
+                    <div class="progress-bar-fill fill-cards" style="width: <?php echo $carte_bordo_qui; ?>%;"></div>
+                    <div class="progress-bar-fill fill-cards-oltre" style="left: <?php echo $carte_bordo_qui; ?>%; width: <?php echo max(0, $carte_bordo_fronte - $carte_bordo_qui); ?>%;"></div>
+                    <span class="dot dot-qui dot-qui-alt<?php echo $sta_su_errore ? ' dot-qui-errore' : ''; ?>" style="left: <?php echo fc_pct_marker($carte_qui, $total_cards); ?>%;"></span>
+
+                    <?php /* Niente pallini rossi qui: gli errori si leggono sulla barra
+                             sopra. Questa serve a vedere a che punto si e' DENTRO la
+                             posizione corrente (utile coi figli), e riempirla di segni
+                             la rendeva solo illeggibile. */ ?>
+                    <?php /* Il pallino "sei qui" (dot-qui-alt, poco sopra) ha gia' preso
+                             il posto di quello che c'era qui prima: mostrarli entrambi alla
+                             stessa posizione sarebbe stato ridondante. */
+                          $ritorno_percent2 = fc_pct_marker($jump_back_card_index, $total_cards); ?>
+                    <?php if ($mostra_ritorno && $jump_back_card_index > 0): ?>
+                        <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($jump_back_pos); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-target dot-target-alt" style="left: <?php echo sec_h($ritorno_percent2); ?>%;" title="<?php te('fc.gm_torna_carta'); ?>"></a>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
             </div>
@@ -1128,6 +1619,44 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
         <div id="pendingToast" class="pending-toast"></div>
 
+        <!-- Elenco compatto degli errori: si apre dal pallino raggruppato sulla
+             barra, e mostra l'inizio di ogni domanda sbagliata invece di una
+             fila di pallini tutti uguali. -->
+        <div id="erroriElenco" class="err-elenco" style="display:none;">
+            <div class="err-elenco-testa">
+                <span><?php te('fc.gm_errori_elenco'); ?></span>
+                <button type="button" class="err-elenco-chiudi" onclick="chiudiElencoErrori()" aria-label="<?php te('comune.chiudi'); ?>">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                </button>
+            </div>
+            <div class="err-elenco-corpo">
+                <?php
+                /* Con piu' di una categoria si mostra il nome come intestazione
+                   ogni volta che cambia: scorrendo si capisce sempre in quale
+                   zona della partita ci si trova, coerente coi pallini separati
+                   sulla barra. Con una sola categoria non serve, e non compare. */
+                $cat_precedente = null;
+                $multi_categoria = count($segmenti_categorie) > 1;
+                ?>
+                <?php foreach ($errors_cards as $err_c):
+                    $nome_cat = null;
+                    if ($multi_categoria) {
+                        foreach ($segmenti_categorie as $sg) {
+                            if ($err_c['pos'] >= $sg['inizio'] && $err_c['pos'] <= $sg['fine']) { $nome_cat = $sg['nome']; break; }
+                        }
+                    }
+                ?>
+                    <?php if ($multi_categoria && $nome_cat !== $cat_precedente): $cat_precedente = $nome_cat; ?>
+                        <div class="err-voce-categoria"><?php echo sec_h($nome_cat ?? ''); ?></div>
+                    <?php endif; ?>
+                    <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($err_c['pos']); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="err-voce action-btn">
+                        <span class="err-voce-num<?php echo !empty($err_c['is_child']) ? ' figlio' : ''; ?>"><?php echo (int)$err_c['pos']; ?></span>
+                        <span class="err-voce-testo"><?php echo sec_h($err_c['testo'] !== '' ? $err_c['testo'] : '—'); ?></span>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+
 
 
         <main class="feed">
@@ -1159,7 +1688,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                 <?php continue; endif; ?>
 
-                <div class="card-box <?php echo $is_graded ? 'graded' : ''; ?><?php if ($is_graded) echo ($c['user_answer'] == 'Correct') ? ' res-correct' : ' res-wrong'; ?>" id="card-<?php echo sec_h($index); ?>"
+                <div class="card-box <?php echo $is_graded ? 'graded' : ''; ?><?php if ($is_graded) echo ($c['user_answer'] == 'Correct') ? ' res-correct' : ' res-wrong'; ?><?php if (count($cards_to_show) <= 1) echo ' senza-etichetta'; ?><?php echo $c['is_favorite'] ? ' is-favorita' : ''; ?>" id="card-<?php echo sec_h($index); ?>"
 
                      data-card-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>"
 
@@ -1227,7 +1756,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
 
 
-                        <button id="btn-show-<?php echo sec_h($index); ?>" class="btn btn-primary" onclick="revealCard(<?php echo sec_h($index); ?>)">Mostra risposta <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+                        <button id="btn-show-<?php echo sec_h($index); ?>" class="btn btn-primary" onclick="revealCard(<?php echo sec_h($index); ?>)"><?php te('fc.gm_mostra_risposta'); ?> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
 
 
 
@@ -1427,7 +1956,10 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
 
 
-                    <?php if ($position < $max_position_generated): ?>
+                    <?php /* Avanti solo quando qui non c'e' piu' niente da rispondere:
+                             su una carta ancora da valutare offrire "Avanti" invita
+                             a saltarla, e la posizione resterebbe indietro. */ ?>
+                    <?php if ($all_answered && $position < $max_position_generated): ?>
 
                         <a href="game_fc.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position+1); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="nav-btn nav-fwd action-btn"><?php te('fc.gm_avanti'); ?> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></a>
 
@@ -1480,7 +2012,10 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
             if (window.__nisamaModaleAperto) return;
 
-            if (e.target && e.target.classList.contains('fc-image')) {
+            /* Anche le immagini dentro un esempio si aprono a schermo intero:
+               prima reagiva solo a .fc-image, quindi quelle degli esempi
+               (.qa-example-image) non si aprivano affatto. */
+            if (e.target && (e.target.classList.contains('fc-image') || e.target.classList.contains('qa-example-image'))) {
 
                 document.getElementById('overlay-img').src = e.target.src;
 
@@ -1494,13 +2029,62 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
 
 
-        document.getElementById('close-overlay').addEventListener('click', function() {
-
+        function chiudiOverlayImmagine() {
             document.getElementById('image-overlay').style.display = 'none';
-
             document.querySelector('meta[name="viewport"]').setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover');
+        }
 
-        });
+        document.getElementById('close-overlay').addEventListener('click', chiudiOverlayImmagine);
+
+        /* Trascinamento verso il basso per chiudere l'immagine a schermo intero,
+           come nei visori di iOS: segue il dito, si chiude se si scende
+           abbastanza o si lascia andare di slancio, altrimenti torna su. */
+        (function () {
+            var ov = document.getElementById('image-overlay');
+            var y0 = 0, dy = 0, attivo = false, deciso = '', t0 = 0;
+
+            ov.addEventListener('touchstart', function (e) {
+                if (e.touches.length !== 1) return;   /* con due dita si sta ingrandendo */
+                attivo = true; deciso = ''; dy = 0;
+                y0 = e.touches[0].clientY; t0 = Date.now();
+            }, { passive: true });
+
+            ov.addEventListener('touchmove', function (e) {
+                if (!attivo || e.touches.length !== 1) return;
+                dy = e.touches[0].clientY - y0;
+                if (!deciso) {
+                    if (Math.abs(dy) < 8) return;
+                    deciso = dy > 0 ? 'giu' : 'no';
+                }
+                if (deciso !== 'giu') return;
+                e.preventDefault();
+                var scala = Math.max(.85, 1 - dy / 1200);
+                ov.style.transition = 'none';
+                ov.style.transform = 'translateY(' + dy + 'px) scale(' + scala + ')';
+                ov.style.opacity = String(Math.max(.3, 1 - dy / 500));
+            }, { passive: false });
+
+            function fine() {
+                if (!attivo) return;
+                attivo = false;
+                if (deciso !== 'giu') return;
+                var velocita = dy / Math.max(1, Date.now() - t0);
+                ov.style.transition = 'transform .28s cubic-bezier(.32,.72,0,1), opacity .28s ease-out';
+                if (dy > 120 || velocita > 0.6) {
+                    ov.style.transform = 'translateY(100vh) scale(.9)';
+                    ov.style.opacity = '0';
+                    setTimeout(function () {
+                        chiudiOverlayImmagine();
+                        ov.style.transition = ''; ov.style.transform = ''; ov.style.opacity = '';
+                    }, 200);
+                } else {
+                    ov.style.transform = ''; ov.style.opacity = '';
+                }
+                dy = 0;
+            }
+            ov.addEventListener('touchend', fine);
+            ov.addEventListener('touchcancel', fine);
+        })();
 
 
 
@@ -1606,7 +2190,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
             let cont = scope || currentContainer() || document;
 
-            return cont.querySelectorAll('.card-box').length > 1;
+            return cont.querySelectorAll('.card-box:not(.anteprima-card)').length > 1;
 
         }
 
@@ -2662,13 +3246,13 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                 ansBox.classList.add('reveal-anim');
 
-                btn.innerText = 'Nascondi Risposta';
+                btn.innerText = T('fc.gm_nascondi_risposta');
 
             } else {
 
                 ansBox.style.display = 'none';
 
-                btn.innerText = 'Mostra Risposta';
+                btn.innerText = T('fc.gm_mostra_risposta');
 
             }
 
@@ -2722,7 +3306,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
             // Il conteggio va fatto DENTRO questo contenitore: vedi checkHasChildren().
             if (checkHasChildren(cont)) return;
 
-            let primaDomanda = cont.querySelector('.card-box:not(.graded)');
+            let primaDomanda = cont.querySelector('.card-box:not(.graded):not(.anteprima-card)');
 
             if (!primaDomanda || !primaDomanda.id) return;
 
@@ -2768,10 +3352,10 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
             out['7_container_scelto'] = cont ? (cont.id || '(senza id)') + ' data-pos=' + cont.getAttribute('data-pos') : '❌ NESSUNO';
             if (!cont) return debugAutoReadOut(out, mostraASchermo);
 
-            let cards = cont.querySelectorAll('.card-box');
+            let cards = cont.querySelectorAll('.card-box:not(.anteprima-card)');
             out['8_card_nel_container'] = cards.length + (cards.length > 1 ? ' ❌ (>1 = considerate sotto-concetti, lettura saltata)' : '');
 
-            let prima = cont.querySelector('.card-box:not(.graded)');
+            let prima = cont.querySelector('.card-box:not(.graded):not(.anteprima-card)');
             out['9_card_da_leggere'] = prima ? (prima.id || '❌ SENZA ID') : '❌ NESSUNA (tutte già "graded"?)';
             if (!prima) return debugAutoReadOut(out, mostraASchermo);
 
@@ -3289,7 +3873,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                             <div class="raw-text mini-q" id="shatter-qraw-${i}" data-raw="${escAttr(mini.q)}">${parseTextForPreview(mini.q)}</div>
 
-                            <button id="shatter-btn-${i}" class="btn btn-primary btn-sm" onclick="revealShatterCard(${i})">Mostra risposta</button>
+                            <button id="shatter-btn-${i}" class="btn btn-primary btn-sm" onclick="revealShatterCard(${i})">${T('fc.gm_mostra_risposta')}</button>
 
                             <div id="shatter-ans-${i}" class="mini-ans" style="display:none;">
 
@@ -3584,9 +4168,31 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
 
 
-            function cardsIn (root) {
+            /* rapido = durante un cambio di posizione: li' e' gia' il pannello
+               intero a scorrere, e far entrare anche le carte una alla volta
+               (partendo da invisibili, con 90ms + 70ms a carta di ritardo)
+               voleva dire guardare uno spazio vuoto per mezzo secondo - era
+               questo il "bianco" durante lo swipe. Al primo caricamento della
+               pagina l'entrata a scaglioni resta, li' non da' fastidio. */
+            function cardsIn (root, rapido) {
 
                 if (!root) return;
+
+                if (rapido) {
+
+                    $$('.card-box', root).forEach(function (card) {
+
+                        try {
+
+                            card.animate([{ opacity: .4 }, { opacity: 1 }], { duration: 140, easing: 'ease-out' });
+
+                        } catch (e) {}
+
+                    });
+
+                    return;
+
+                }
 
                 $$('.card-box', root).forEach(function (card, i) {
 
@@ -3680,6 +4286,20 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
             function gradeFeedback (card, result) {
 
+                /* Premendo Corretto/Sbagliato parte la stessa animazione di
+                   uscita dello swipe, quindi vale la stessa anteprima: senza,
+                   sotto la carta che vola via restava il bianco. La si apre
+                   subito al massimo, perche' qui non c'e' un trascinamento
+                   graduale da seguire - il gesto e' gia' deciso. */
+                try {
+                    if (typeof creaAnteprima === 'function') {
+                        creaAnteprima(card);
+                        setTimeout(function () {
+                            if (typeof aggiornaAnteprima === 'function') aggiornaAnteprima(1);
+                        }, 30);
+                    }
+                } catch (e) {}
+
                 return new Promise(function (resolve) {
 
                     var good = (result === 'correct');
@@ -3730,29 +4350,59 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
 
 
-            /* Le barre di progresso si riempiono animate dal valore vecchio al nuovo */
+            /* Le barre di progresso si riempiono animate dal valore vecchio al
+               nuovo. Due regole che prima non erano rispettate:
+
+               1) si chiama DOPO applicaZoomBarra(newC), non prima. Prima
+                  girava per prima e scriveva in style.width la larghezza gia'
+                  scalata della pagina vecchia; subito dopo applicaZoomBarra
+                  memorizzava la base dello zoom leggendo proprio quel valore
+                  (dataset.baseWidth) e restava avvelenata per sempre, e il
+                  requestAnimationFrame qui sotto finiva per riscrivere la
+                  percentuale NON zoomata cancellando lo zoom. Era il motivo
+                  principale per cui riempimento e pallini finivano su due
+                  scale diverse dopo ogni navigazione.
+
+               2) non tocca MAI dataset.baseWidth: quello e' il modello, qui si
+                  anima solo la geometria a schermo. Entrambe le larghezze
+                  (vecchia e nuova) sono gia' passate per lo zoom, quindi
+                  l'interpolazione avviene fra due valori omogenei. */
 
             function animateProgress (oldC, newC) {
 
-                var oldFills = $$('.progress-bar-fill', oldC).map(function (f) { return f.style.width; });
+                /* Le -oltre restano fuori: non rappresentano un avanzamento
+                   che sta accadendo ora, ma progresso gia' fatto in
+                   precedenza - farle "riempire" a ogni cambio pagina
+                   sembrerebbe un progresso nuovo che non c'e' stato. Devono
+                   solo comparire/aggiornarsi di scatto nella posizione
+                   finale (gia' impostata da applicaZoomBarra, chiamata prima
+                   di questa funzione) - vedi anche la transition:none
+                   dedicata a loro nel CSS. */
+                var SEL = '.progress-bar-fill:not(.fill-pages-oltre):not(.fill-cards-oltre)';
 
-                $$('.progress-bar-fill', newC).forEach(function (f, i) {
+                var vecchie = $$(SEL, oldC);
 
-                    var target = f.style.width;
+                $$(SEL, newC).forEach(function (f, i) {
 
-                    if (oldFills[i] !== undefined && oldFills[i] !== target) {
+                    var prec = vecchie[i];
 
-                        f.style.transition = 'none';
+                    if (!prec) return;
 
-                        f.style.width = oldFills[i];
+                    var da = prec.style.width;
 
-                        void f.offsetWidth;
+                    var a = f.style.width;   /* gia' definitivo: lo zoom e' passato */
 
-                        f.style.transition = '';
+                    if (!da || !a || da === a) return;
 
-                        requestAnimationFrame(function () { f.style.width = target; });
-
-                    }
+                    /* Web Animations invece di scrivere style.width e rimetterlo
+                       a posto in un requestAnimationFrame: cosi' non si tocca
+                       nessuna proprieta' inline, e se nel frattempo qualcun
+                       altro chiede un ridisegno (renderAllPendingDots, un voto
+                       su un figlio) l'animazione non viene ne' troncata a meta'
+                       ne' riportata indietro al valore di partenza. */
+                    try {
+                        f.animate([{ width: da }, { width: a }], { duration: 420, easing: EASE });
+                    } catch (e) {}
 
                 });
 
@@ -3784,9 +4434,9 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
             var __prefetchCache = {};   // url normalizzato -> {promise, html, resUrl}
 
-function prefetchGet (url) {
-    if (!url) return;
-    if (__prefetchCache[url]) return;   // gia' in corso o gia' pronta
+function prefetchGet (url, finito) {
+    if (!url) { if (finito) finito(); return; }
+    if (__prefetchCache[url]) { if (finito) finito(); return; }   // gia' in corso o gia' pronta
     var entry = { html: null, resUrl: null };
     entry.promise = fetch(url, { method: 'GET', redirect: 'manual' }).then(function (res) {
         /* Oltre l'ultima carta il server rimanda a result_fc.php. Seguire quel
@@ -3801,11 +4451,13 @@ function prefetchGet (url) {
         return res.text().then(function (html) { entry.html = html; entry.resUrl = res.url; });
     }).catch(function () {
         delete __prefetchCache[url];   // fallita: si puo' ritentare piu' avanti
+    }).then(function () {
+        if (finito) finito();          // libera il posto per la prossima in coda
     });
     __prefetchCache[url] = entry;
 }
 
-/* Precarica in una finestra scorrevole (10 avanti, 10 indietro) invece che
+/* Precarica in una finestra scorrevole (5 avanti, 3 indietro) invece che
    tenere tutta la partita in cache: abbastanza per rendere istantanea sia la
    lettura in avanti sia un ripasso di quelle appena viste, senza accumulare
    all'infinito man mano che la partita va avanti. Non dipende in alcun modo
@@ -3814,58 +4466,463 @@ function prefetchGet (url) {
    valutare) - la scelta della carta a ciascuna posizione e' gia' fissata da
    start_game_fc.php, quindi si puo' precaricare gia' ora, mentre si sta
    ancora leggendo. */
-var PREFETCH_FINESTRA = 10;
+/* ---------- Precaricamento a finestra scorrevole ----------
+   Politica: si tengono pronte le 5 posizioni successive e le 3 precedenti.
+   Avanzando di una carta entra una sola posizione nuova (la piu' lontana in
+   avanti) ed escono quelle uscite dalla finestra, che vengono buttate via
+   per non tenere in memoria mezza partita.
 
-function urlPerPosizione (pos) {
+   Le richieste NON partono tutte insieme (ogni posizione e' una pagina
+   intera, padre piu' tutti i suoi figli - chiederne molte insieme sovraccarica
+   l'hosting): la successiva parte subito e da sola (serve per l'anteprima
+   dello swipe e per il salto istantaneo), le altre arrivano in due ondate
+   successive, distanziate nel tempo - vedi schedulePrefetch(). */
+var PREFETCH_AVANTI = 5;        // dimezzata: dieci posizioni erano dieci PAGINE intere
+                                // (padre + tutti i suoi figli), troppe per l'hosting
+var PREFETCH_INDIETRO = 3;
+var PREFETCH_PARALLELE = 2;   // quante richieste "di scorta" contemporaneamente
+
+var __codaPrefetch = [];
+var __ondataPrefetch2 = null;   // timer della seconda ondata
+var __ondataPrefetch3 = null;   // timer della terza
+var __inCorsoPrefetch = 0;
+
+function accodaPrefetch (url) {
+    if (!url || __prefetchCache[url]) return;
+    if (__codaPrefetch.indexOf(url) !== -1) return;
+    __codaPrefetch.push(url);
+    scorriCodaPrefetch();
+}
+
+function scorriCodaPrefetch () {
+    while (__inCorsoPrefetch < PREFETCH_PARALLELE && __codaPrefetch.length) {
+        var url = __codaPrefetch.shift();
+        if (__prefetchCache[url]) continue;
+        __inCorsoPrefetch++;
+        prefetchGet(url, function () {
+            __inCorsoPrefetch--;
+            scorriCodaPrefetch();
+        });
+    }
+}
+
+function urlPerPosizione (pos, perAnteprima) {
     var qs = new URLSearchParams(window.location.search);
     var gameId = qs.get('game_id');
     var status = qs.get('status') || '0';
     var order = qs.get('order') || 'random';
-    return 'game_fc.php?game_id=' + gameId + '&position=' + pos + '&status=' + status + '&order=' + order;
+    return 'game_fc.php?game_id=' + gameId + '&position=' + pos + '&status=' + status + '&order=' + order
+         + (perAnteprima ? '&prefetch=1' : '');
 }
 
 function pulisciCacheFuoriFinestra (posAttuale, totale) {
-    var min = Math.max(1, posAttuale - PREFETCH_FINESTRA);
-    var max = totale ? Math.min(totale, posAttuale + PREFETCH_FINESTRA) : (posAttuale + PREFETCH_FINESTRA);
+    var min = Math.max(1, posAttuale - PREFETCH_INDIETRO);
+    var max = totale ? Math.min(totale, posAttuale + PREFETCH_AVANTI) : (posAttuale + PREFETCH_AVANTI);
     Object.keys(__prefetchCache).forEach(function (url) {
         var m = url.match(/[?&]position=(\d+)/);
         if (!m) return;
         var p = parseInt(m[1], 10);
         if (p < min || p > max) delete __prefetchCache[url];
     });
+    /* Anche la coda: quello che e' uscito dalla finestra non serve piu'
+       chiederlo, e chiederlo comunque ruberebbe il posto a cio' che serve. */
+    __codaPrefetch = __codaPrefetch.filter(function (url) {
+        var m = url.match(/[?&]position=(\d+)/);
+        if (!m) return false;
+        var p = parseInt(m[1], 10);
+        return p >= min && p <= max;
+    });
 }
 
-window.__nisamaModaliAperti = window.__nisamaModaliAperti || new Set();
-window.nisamaOsservaModale = window.nisamaOsservaModale || function (id) {
-    var el = document.getElementById(id);
+/* ---------- Elenco compatto degli errori ---------- */
+function apriElencoErrori (ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    var el = document.getElementById('erroriElenco');
     if (!el) return;
-    function aggiorna() {
-        var visibile = el.style.display && el.style.display !== 'none';
-        if (visibile) window.__nisamaModaliAperti.add(id); else window.__nisamaModaliAperti.delete(id);
-        window.__nisamaModaleAperto = window.__nisamaModaliAperti.size > 0;
+    el.style.display = 'block';
+    requestAnimationFrame(function () { el.classList.add('aperto'); });
+}
+
+function chiudiElencoErrori () {
+    var el = document.getElementById('erroriElenco');
+    if (!el) return;
+    el.classList.remove('aperto');
+    setTimeout(function () { el.style.display = 'none'; }, 180);
+}
+window.apriElencoErrori = apriElencoErrori;
+window.chiudiElencoErrori = chiudiElencoErrori;
+
+/* Si chiude toccando fuori: un pannello che resta aperto mentre si torna a
+   giocare darebbe fastidio piu' che aiutare. */
+document.addEventListener('click', function (e) {
+    var el = document.getElementById('erroriElenco');
+    if (!el || el.style.display === 'none') return;
+    if (e.target.closest && (e.target.closest('#erroriElenco') || e.target.closest('.dot-cluster'))) return;
+    chiudiElencoErrori();
+});
+
+/* ---------- Barra ingrandita sulla zona in cui si sta giocando ----------
+   Con un centinaio di posizioni e piu' categorie la barra intera comprime
+   tutto in pochi pixel: non si distingue dove si e' ne' quali categorie si
+   stanno attraversando. Si mostra allora solo la finestra attorno alla
+   posizione corrente, ingrandita; un tocco sulla barra passa alla vista
+   d'insieme, un altro torna a ingrandire. */
+var BARRA_SOGLIA_ZOOM = 30;     // sotto questo numero di posizioni sta gia' larga
+var BARRA_FINESTRA = 12;        // quante posizioni mostrare attorno a quella corrente
+
+/* Gemelle di fc_pct_marker()/fc_pct_fill() lato PHP: la stessa convenzione
+   deve valere per i pallini disegnati dal server e per quelli aggiunti dal
+   browser (voti in sospeso, avanzamento fra i figli), altrimenti gli stessi
+   numeri finiscono in due punti diversi della stessa barra. */
+function pctMarker (n, tot) {
+    tot = Math.max(1, tot || 0);
+    return Math.max(0, Math.min(100, ((n - 0.5) / tot) * 100));
+}
+function pctFill (n, tot) {
+    tot = Math.max(1, tot || 0);
+    return Math.max(0, Math.min(100, (n / tot) * 100));
+}
+
+/* La scelta "vista intera / vista ingrandita" e' dell'UTENTE, non della
+   pagina: stava in una classe sul contenitore corrente, e siccome ogni
+   navigazione AJAX sostituisce il contenitore con uno fresco dal server, la
+   scelta si perdeva ogni volta. Tipico: si apriva la vista d'insieme per
+   vedere tutti gli errori, si toccava un errore, e la barra tornava zoomata
+   da sola. Ora vive qui e viene riapplicata a ogni ridisegno. */
+var __vistaIntera = false;
+
+/* La finestra ingrandita stessa vive qui, non sul contenitore, per lo
+   stesso motivo: un oggetto {0: inizio-concetti, 1: inizio-carte}, ciascuno
+   in frazione 0-1 sulla propria scala. Persistere questo valore e' quello
+   che rende la finestra "appiccicosa" invece che ricentrata ad ogni singolo
+   spostamento - vedi la nota estesa dentro inizioFinestraDi(). */
+var __finestraInizio = {};
+
+/* Le basi (il modello in scala 0-100% sul totale vero) si scrivono UNA volta
+   per contenitore, leggendole dai data-attribute che il server pubblica - mai
+   rileggendo uno style.width che nel frattempo qualcun altro puo' avere
+   cambiato. Gli altri elementi (pallini rossi, tratti di categoria) non li
+   tocca nessuno dopo il render, quindi per loro va bene la lettura pigra
+   dentro rimappa(). */
+function seedBasiBarre (c) {
+    var bars = c.querySelector('.bars');
+    if (!bars || bars.dataset.basiPronte === '1') return;
+
+    var tw = parseInt(c.getAttribute('data-total-words') || '0', 10);
+    var tc = parseInt(c.getAttribute('data-total-cards') || '0', 10) || tw;
+    var pos = parseInt(c.getAttribute('data-pos') || '1', 10);
+    var testa = parseInt(c.getAttribute('data-carte-testa') || '1', 10);
+    var frontePagine = parseInt(c.getAttribute('data-furthest-page') || '0', 10);
+    var fronteCarte = parseInt(c.getAttribute('data-furthest-card') || '0', 10);
+
+    /* Il riempimento PIENO arriva sempre fino a pippo (mai oltre): vedi la
+       nota estesa nel PHP su $bordo_pos. L'eventuale tratto in piu' fino al
+       fronte vero (quando si sta rivedendo qualcosa di passato) e' un
+       elemento SEPARATO e piu' tenue - .fill-pages-oltre - che parte da dove
+       finisce quello pieno, non da 0: per questo serve seedare anche il suo
+       baseLeft, non solo la larghezza.
+       ATTENZIONE alla convenzione: pctMarker (centro cella) come pippo e
+       dot-target, NON pctFill (bordo cella) - altrimenti il bordo pieno cade
+       mezza cella dopo pippo, e quello tenue mezza cella prima di
+       dot-target: esattamente il "gradino subito dopo pippo" e il "si ferma
+       prima del pallino finale" notati. */
+    var fp = bars.querySelector('.progress-bar-fill.fill-pages');
+    var bordoQuiPagine = pctMarker(pos, tw);
+    if (fp) {
+        fp.dataset.baseLeft = 0;
+        fp.dataset.baseWidth = bordoQuiPagine;
     }
-    if (typeof MutationObserver !== 'undefined') {
-        new MutationObserver(aggiorna).observe(el, { attributes: true, attributeFilter: ['style'] });
+    var fpOltre = bars.querySelector('.progress-bar-fill.fill-pages-oltre');
+    if (fpOltre) {
+        fpOltre.dataset.baseLeft = bordoQuiPagine;
+        fpOltre.dataset.baseWidth = Math.max(0, pctMarker(frontePagine, tw) - bordoQuiPagine);
     }
-    aggiorna();
-};
-['tts-modal', 'ai-modal', 'shatter-modal', 'token-limit-modal'].forEach(window.nisamaOsservaModale);
+
+    var fc = bars.querySelector('.progress-bar-fill.fill-cards');
+    var bordoQuiCarte = pctMarker(testa, tc);
+    if (fc) {
+        fc.dataset.baseLeft = 0;
+        fc.dataset.baseWidth = bordoQuiCarte;
+    }
+    var fcOltre = bars.querySelector('.progress-bar-fill.fill-cards-oltre');
+    if (fcOltre) {
+        fcOltre.dataset.baseLeft = bordoQuiCarte;
+        fcOltre.dataset.baseWidth = Math.max(0, pctMarker(fronteCarte, tc) - bordoQuiCarte);
+    }
+
+    var dq = bars.querySelector('.dot-qui:not(.dot-qui-alt)');
+    /* Stessa convenzione dei pallini discreti (centro cella, non bordo): vedi
+       la nota nel PHP sopra a $qui_percent - coincidere con cio' che si
+       clicca (rossi, ritorno, raggruppato) conta piu' che toccare la punta
+       esatta del riempimento. */
+    if (dq) dq.dataset.baseLeft = pctMarker(pos, tw);
+
+    var dqa = bars.querySelector('.dot-qui-alt');
+    if (dqa) dqa.dataset.baseLeft = pctMarker(testa, tc);
+
+    bars.dataset.basiPronte = '1';
+}
+
+function applicaZoomBarra (c) {
+    c = c || curC();
+    if (!c) return;
+
+    var bars = c.querySelector('.bars');
+    if (!bars) return;
+
+    var barreEl = bars.querySelectorAll('.progress-bar-bg');
+    if (!barreEl.length) return;
+
+    seedBasiBarre(c);
+
+    /* La scelta dell'utente vive fuori dal contenitore (vedi __vistaIntera):
+       qui la si riporta sulla classe, non il contrario. */
+    bars.classList.toggle('vista-intera', __vistaIntera);
+
+    /* Si decide SE ingrandire guardando sempre i concetti (e' la barra che
+       da' il senso "quante ne mancano"): le carte possono essere di piu' o
+       di meno a seconda di quanti figli ci sono, ma non sono loro a decidere
+       se la vista e' troppo compressa per essere leggibile. */
+    var totaleConcetti = parseInt(c.getAttribute('data-total-words') || '0', 10);
+    var attivo = totaleConcetti > BARRA_SOGLIA_ZOOM && !__vistaIntera;
+    bars.classList.toggle('zoom-attivo', attivo);
+
+    /* La finestra e' una FRAZIONE del totale (es. 12 concetti su 104 = un
+       ottavo circa): la stessa frazione, applicata al totale delle carte,
+       tiene le due barre sincronizzate senza bisogno di convertire una
+       posizione nell'altra scala. */
+    var frazione = BARRA_FINESTRA / Math.max(1, totaleConcetti);
+    var scala = attivo ? (1 / frazione) : 1;
+
+    /* Ogni barra ha il proprio totale e la propria posizione corrente: usare
+       quelli dei concetti anche per la barra delle carte (che ha un totale
+       diverso, es. 173 invece di 104) la spingeva a percentuali fuori scala
+       - da qui la barra "sparita". */
+    var infoPerBarra = [
+        { totale: totaleConcetti, pos: parseInt(c.getAttribute('data-pos') || '1', 10) },
+        { totale: parseInt(c.getAttribute('data-total-cards') || '0', 10) || totaleConcetti,
+          pos: parseInt(c.getAttribute('data-carte-testa') || '1', 10) }
+    ];
+
+    function inizioFinestraDi (info, idx) {
+        if (!attivo || !info.totale) return 0;
+        var meta = frazione / 2;
+        /* ATTENZIONE alla convenzione: dot-qui usa di nuovo il centro-cella
+           ((pos - 0.5) / totale, come ogni altro pallino discreto - vedi la
+           nota su $qui_percent lato PHP). Il centro "ideale" della finestra
+           usa la STESSA formula, cosi' quando la finestra SI ricentra
+           dot-qui finisce sempre esattamente a meta'. */
+        var posFraz = (info.pos - 0.5) / info.totale;
+        var idealeInizio = Math.max(0, Math.min(1 - frazione, posFraz - meta));
+
+        /* La finestra e' APPICCICOSA: resta ferma finche' la posizione
+           corrente ci sta ancora dentro, e si ricentra SOLO quando ne
+           uscirebbe. Prima si ricentrava a ogni singola navigazione, anche
+           per un passo solo (da 10 a 8): tutti i pallini - anche quelli che
+           con quello spostamento non c'entravano nulla - cambiavano posto
+           sullo schermo, perche' cambiavano i bordi della finestra. Con
+           l'isteresi, spostandosi DENTRO alla finestra gia' visibile resta
+           tutto fermo e si muove solo pippo; la finestra scatta a un nuovo
+           centro solo quando la posizione richiesta e' davvero fuori vista -
+           esattamente come lo scorrimento automatico di un editor di testo,
+           non come una macchina fotografica che insegue ogni movimento. */
+        var corrente = __finestraInizio[idx];
+        var fuoriVista = (corrente === undefined)
+            || posFraz < corrente - 1e-9
+            || posFraz > corrente + frazione + 1e-9;
+
+        if (fuoriVista) __finestraInizio[idx] = idealeInizio;
+
+        return __finestraInizio[idx] * 100;
+    }
+
+    /* Alcuni pallini non devono MAI sparire del tutto, anche se la loro
+       posizione vera cade fuori dalla finestra ingrandita: restano ancorati
+       al bordo piu' vicino invece di essere ritagliati dal clip-path del
+       contenitore - che prima li faceva sparire senza alcun indizio che ci
+       fosse qualcosa da quella parte.
+       dot-target e' stato aggiunto all'elenco: e' il riferimento per tornare
+       alla prima carta ancora da rispondere, e sparire era proprio quello che
+       faceva nell'unico momento in cui serve davvero. Tornando indietro a un
+       errore (es. dalla 40 alla 7) la finestra si ricentra sulla 7, il
+       riferimento alla 40 finisce oltre il bordo destro e restava invisibile:
+       per tornare avanti non c'era piu' niente da toccare. */
+    function nonSparireMai (el) {
+        return el.classList.contains('dot-qui')
+            || el.classList.contains('dot-cluster')
+            || el.classList.contains('dot-target');
+    }
+
+    function rimappa (elementi, inizioFinestra) {
+        elementi.forEach(function (el) {
+            if (el.dataset.baseLeft === undefined) {
+                el.dataset.baseLeft = parseFloat(el.style.left) || 0;
+                el.dataset.baseWidth = parseFloat(el.style.width);
+            }
+        });
+        elementi.forEach(function (el) {
+            var base = parseFloat(el.dataset.baseLeft) || 0;
+            var largh = parseFloat(el.dataset.baseWidth);
+
+            if (el.classList.contains('progress-bar-fill')) {
+                /* Le due -oltre non partono da 0 come le altre (partono da
+                   dove finisce il tratto pieno, cioe' da pippo): serve il
+                   ritaglio pieno contro la finestra (inizio E fine), non solo
+                   la scorciatoia "width = (largh - inizio) * scala" buona
+                   quando si parte sempre dal bordo sinistro vero. */
+                if (el.classList.contains('fill-pages-oltre') || el.classList.contains('fill-cards-oltre')) {
+                    /* A vista intera (attivo=false) la "finestra" e' l'intera
+                       barra (0-100), non frazione*100: altrimenti qui si
+                       userebbe una finestra stretta anche senza zoom,
+                       tagliando via il tratto oltre pippo pure a vista intera. */
+                    var fineFinestra = attivo ? (inizioFinestra + frazione * 100) : 100;
+                    var visStart = Math.max(base, inizioFinestra);
+                    var visEnd = Math.min(base + largh, fineFinestra);
+                    if (visEnd <= visStart) {
+                        el.style.width = '0%';
+                    } else {
+                        el.style.left = ((visStart - inizioFinestra) * scala) + '%';
+                        el.style.width = ((visEnd - visStart) * scala) + '%';
+                    }
+                    return;
+                }
+                el.style.width = Math.max(0, Math.min(100, (largh - inizioFinestra) * scala)) + '%';
+                return;
+            }
+
+            var sinistra = (base - inizioFinestra) * scala;
+
+            /* Il blocco al bordo (e la freccetta che indica "sta di la'") ha
+               senso SOLO quando la finestra ingrandita e' davvero ritagliata
+               (attivo === true): e' li' che un valore fuori [0,100] verrebbe
+               tagliato via dal clip-path senza alcun indizio. In vista intera
+               (attivo === false) sinistra e' gia' la percentuale vera sull'
+               intera barra, e forzarla comunque tra 3 e 97 spingeva il
+               pallino "sei qui" della prima carta a 3% invece che a bordo
+               sinistro vero - che e' esattamente il "non scorre piu' indietro
+               della prima carta" notato. */
+            if (nonSparireMai(el)) {
+                if (attivo) {
+                    var bloccato = Math.max(3, Math.min(97, sinistra));
+                    el.classList.toggle('dot-oltre-sx', sinistra < bloccato - 0.01);
+                    el.classList.toggle('dot-oltre-dx', sinistra > bloccato + 0.01);
+                    sinistra = bloccato;
+                } else {
+                    el.classList.remove('dot-oltre-sx', 'dot-oltre-dx');
+                }
+            }
+
+            el.style.left = sinistra + '%';
+            if (!isNaN(largh)) el.style.width = (largh * scala) + '%';
+        });
+    }
+
+    barreEl.forEach(function (barra, idx) {
+        var info = infoPerBarra[idx] || infoPerBarra[0];
+        var elementi = barra.querySelectorAll('.dot, .cat-tacca, .cat-tratto, .progress-bar-fill');
+        rimappa(elementi, inizioFinestraDi(info, idx));
+    });
+
+    /* La striscia dei nomi di categoria segue la barra dei concetti, la
+       prima: e' su quella scala che le categorie sono definite - e usa
+       percio' la finestra "appiccicosa" con indice 0, la stessa della barra
+       dei concetti, non una sua copia indipendente. */
+    var catStrip = bars.querySelector('.cat-strip');
+    if (catStrip) {
+        rimappa(catStrip.querySelectorAll('.cat-seg'), inizioFinestraDi(infoPerBarra[0], 0));
+    }
+
+    /* Traccia d'insieme: sempre in scala 1:1 sull'intera partita, quindi NON
+       passa da rimappa(). E' l'unico elemento che continua a dire "quanto
+       manca" quando la barra sotto e' ingrandita su una finestra mobile. */
+    var insieme = bars.querySelector('.barra-insieme');
+    if (insieme) {
+        var insFill = insieme.querySelector('.insieme-fill');
+        if (insFill) {
+            insFill.style.width = pctFill(
+                parseInt(c.getAttribute('data-furthest-page') || '0', 10), totaleConcetti) + '%';
+        }
+    }
+}
+
+function alternaVistaBarra (ev) {
+    var c = curC();
+    if (!c) return;
+    var totale = parseInt(c.getAttribute('data-total-words') || '0', 10);
+    if (!totale || totale <= BARRA_SOGLIA_ZOOM) return;
+
+    /* Solo i pallini che FANNO qualcosa si tengono il tocco: rosso (vai
+       all'errore), raggruppato (apri l'elenco), ritorno (torna al fronte),
+       grigio (voto in sospeso). Il pallino "sei qui" invece non ha nessuna
+       azione propria - e' un indicatore - quindi prima toccarlo non faceva
+       assolutamente niente, e siccome e' ancorato al centro della finestra
+       era anche il punto piu' naturale su cui premere. Adesso si comporta
+       come il resto della barra e alterna la vista. */
+    if (ev && ev.target.closest && ev.target.closest('.dot:not(.dot-qui)')) return;
+
+    __vistaIntera = !__vistaIntera;
+
+    /* Rientrando nello zoom dopo aver visto la vista intera, la finestra
+       riparte centrata da capo sulla posizione attuale, invece di riprendere
+       quella di prima (che nel frattempo, guardando la vista intera, si
+       poteva anche aver toccato un errore lontano - riprenderla li' sarebbe
+       stato spiazzante quanto il difetto appena corretto). */
+    if (!__vistaIntera) __finestraInizio = {};
+
+    applicaZoomBarra(c);
+}
+window.alternaVistaBarra = alternaVistaBarra;
 
 function schedulePrefetch () {
-    /* Ora e' sicuro: la sequenza della partita viene fissata tutta insieme
-       all'avvio (start_game_fc.php), quindi visitare una posizione e' una
-       pura lettura e precaricarla non crea piu' nessuna riga. */
+    /* Sicuro: la sequenza della partita e' fissata all'avvio, quindi
+       visitare una posizione e' una pura lettura e non crea nulla. */
     var c = curC();
     if (!c) return;
     var pos = parseInt(c.getAttribute('data-pos') || '1', 10);
     var totale = parseInt(c.getAttribute('data-total-words') || '0', 10);
 
-    for (var i = 1; i <= PREFETCH_FINESTRA; i++) {
-        if (pos + i >= 1 && (!totale || pos + i <= totale)) prefetchGet(urlPerPosizione(pos + i));
-        if (pos - i >= 1) prefetchGet(urlPerPosizione(pos - i));
+    /* Le ondate programmate per la posizione precedente non servono piu':
+       si annullano, altrimenti arriverebbero a chiedere pagine ormai fuori
+       dalla finestra proprio mentre servono quelle nuove. */
+    clearTimeout(__ondataPrefetch2);
+    clearTimeout(__ondataPrefetch3);
+
+    /* Prima si fa spazio, poi si chiede: cosi' la coda non parte gia' piena
+       di roba che sta per essere buttata. */
+    pulisciCacheFuoriFinestra(pos, totale);
+
+    /* Tre ondate invece di una sola raffica: ogni posizione e' una PAGINA
+       intera (padre piu' tutti i suoi figli), quindi chiederne cinque tutte
+       insieme significa cinque volte il lavoro di database in un colpo -
+       ed e' quello che faceva rifiutare qualche richiesta all'hosting.
+
+       Prima ondata: la successiva, subito e da sola. E' l'unica che serve
+       entro un secondo, perche' la usa anche l'anteprima dello swipe. */
+    if (!totale || pos + 1 <= totale) prefetchGet(urlPerPosizione(pos + 1, true));
+
+    function accodaIntervallo (da, a) {
+        for (var i = da; i <= a; i++) {
+            if (totale && pos + i > totale) return;
+            accodaPrefetch(urlPerPosizione(pos + i, true));
+        }
     }
 
-    pulisciCacheFuoriFinestra(pos, totale);
+    /* Seconda ondata: le due dopo, quando la prima ha gia' avuto il tempo di
+       arrivare. Servono per chi sfoglia veloce, non per il caso normale. */
+    __ondataPrefetch2 = setTimeout(function () {
+        accodaIntervallo(2, 3);
+
+        /* Terza ondata: le ultime due, piu' l'indietro. Qui siamo nel
+           "casomai", quindi si aspetta ancora un po' e non si ruba banda a
+           niente di piu' urgente. */
+        __ondataPrefetch3 = setTimeout(function () {
+            accodaIntervallo(4, PREFETCH_AVANTI);
+            for (var j = 1; j <= PREFETCH_INDIETRO; j++) {
+                if (pos - j < 1) break;
+                accodaPrefetch(urlPerPosizione(pos - j, true));
+            }
+        }, 1200);
+    }, 500);
 }
 
 /* ========================================================================
@@ -3877,6 +4934,7 @@ function schedulePrefetch () {
    ======================================================================== */
 
 var GAME_ID_PER_CODA = <?php echo (int)$game_id; ?>;
+var CHIAVI_GIA_RISPOSTE = <?php echo json_encode($chiavi_risposte); ?>;
 var PENDING_KEY = 'nisama_pending_grades_' + GAME_ID_PER_CODA;
 
 function loadPendingGrades () {
@@ -3896,7 +4954,13 @@ var OFFLINE_SHOW_AFTER_MS = 8000;
 var offlineSince = null;
 var offlineShowTimer = null;
 
-function noteGradeFailure () {
+function noteGradeFailure (eraDiRete) {
+    /* Un errore del server (che quindi ha risposto) non e' assenza di
+       connessione: si mette in coda per riprovare, ma senza dire all'utente
+       che manca la rete. E se il browser stesso dice di essere in linea, non
+       lo si contraddice. */
+    if (eraDiRete === false) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === true && eraDiRete !== true) return;
     if (!offlineSince) {
         offlineSince = Date.now();
         clearTimeout(offlineShowTimer);
@@ -3934,7 +4998,12 @@ function addPendingDot (entry) {
     if (!c) return;
     var totalWords = parseInt(c.getAttribute('data-total-words') || '0', 10) || 1;
     var totalCards = parseInt(c.getAttribute('data-total-cards') || '0', 10) || totalWords;
-    var bars = document.querySelectorAll('.progress-bar-bg');
+    /* Solo le barre del contenitore CORRENTE: con document.querySelectorAll,
+       durante una transizione i contenitori in pagina sono due e l'elenco
+       diventava [vecchia-concetti, vecchia-carte, nuova-concetti, ...] - cosi'
+       il test i === 1 scambiava la barra delle carte con quella vecchia, e il
+       pallino finiva sulla barra sbagliata o spariva col contenitore vecchio. */
+    var bars = c.querySelectorAll('.progress-bar-bg');
 
     bars.forEach(function (bar, i) {
         if (bar.querySelector('.dot-pending[data-pending-key="' + entry.key + '"]')) return;
@@ -3942,21 +5011,47 @@ function addPendingDot (entry) {
         if (isCardsBar && !entry.cardIndex) return;   // non sappiamo dove metterlo: meglio ometterlo che sbagliare
         var total = isCardsBar ? totalCards : totalWords;
         var idx = isCardsBar ? entry.cardIndex : entry.position;
-        var percent = ((idx - 0.5) / total) * 100;
+        var percent = pctMarker(idx, total);
 
         var a = document.createElement('a');
         a.href = 'game_fc.php?game_id=' + GAME_ID_PER_CODA + '&position=' + entry.position + '&status=' + (c.getAttribute('data-status') || '0') + '&order=' + (c.getAttribute('data-order') || 'random');
         a.className = 'dot dot-gray dot-pending';
         a.setAttribute('data-pending-key', entry.key);
+        /* Prima si scriveva solo style.left con la percentuale grezza: su una
+           barra ingrandita finiva nel punto sbagliato e nessuno lo rimappava
+           piu', perche' renderAllPendingDots() gira DOPO applicaZoomBarra().
+           Scrivendo la base, la chiamata qui sotto lo mette dove va. */
+        a.dataset.baseLeft = percent;
         a.style.left = percent + '%';
         a.title = T('fc.gm_in_attesa_salvataggio');
         a.addEventListener('click', function () { showPendingToast(); }, true);
         bar.appendChild(a);
     });
+
+    if (typeof applicaZoomBarra === 'function') applicaZoomBarra(c);
 }
 function removePendingDots (key) {
     document.querySelectorAll('.dot-pending[data-pending-key="' + key + '"]').forEach(function (el) { el.remove(); });
 }
+/* Toglie dalla coda i voti che il server risulta aver gia' registrato: senza
+   questa pulizia un pallino grigio poteva restare per sempre, anche a voto
+   ormai salvato. */
+function purgaVotiGiaSalvati () {
+    if (!CHIAVI_GIA_RISPOSTE || !CHIAVI_GIA_RISPOSTE.length) return;
+    var salvate = {};
+    CHIAVI_GIA_RISPOSTE.forEach(function (k) { salvate[k] = true; });
+
+    var cambiato = false;
+    Object.keys(pendingGrades).forEach(function (key) {
+        if (salvate[key]) {
+            delete pendingGrades[key];
+            removePendingDots(key);
+            cambiato = true;
+        }
+    });
+    if (cambiato) { savePendingGrades(); noteGradeSuccess(); }
+}
+
 function renderAllPendingDots () {
     Object.keys(pendingGrades).forEach(function (key) { addPendingDot(pendingGrades[key]); });
 }
@@ -3973,10 +5068,25 @@ function inviaVotoRichiesta (entry) {
         .then(function (res) {
             /* Una risposta "opaca" e' proprio il caso buono: il server ha
                accettato il voto e ha risposto con un redirect, che qui non
-               vogliamo seguire. Solo se il tipo NON e' questo si guarda ok. */
-            if (res.type === 'opaqueredirect') return true;
-            if (!res.ok) throw new Error('risposta HTTP ' + res.status);
+               vogliamo seguire. */
+            if (res.type === 'opaqueredirect' || res.status === 0) return true;
+            if (!res.ok) {
+                /* Il server ha RISPOSTO, anche se con un errore: la connessione
+                   c'e' eccome. Si segnala come problema del server, non come
+                   assenza di rete - altrimenti compariva "manca la connessione"
+                   con la rete perfettamente funzionante. */
+                var e = new Error('risposta HTTP ' + res.status);
+                e.rete = false;
+                throw e;
+            }
             return true;
+        })
+        .catch(function (err) {
+            /* Solo qui la rete e' davvero il sospetto: fetch fallisce senza
+               risposta. Si marca l'errore perche' chi chiama sappia se deve
+               parlare di connessione o no. */
+            if (err.rete === undefined) err.rete = true;
+            throw err;
         });
 }
 
@@ -3989,8 +5099,8 @@ function retryPendingGrades () {
             delete pendingGrades[key];
             savePendingGrades();
             removePendingDots(key);
-        }).catch(function () {
-            noteGradeFailure();   // resta in coda: si ritenta al prossimo giro
+        }).catch(function (err) {
+            noteGradeFailure(err && err.rete);   // resta in coda: si ritenta al prossimo giro
         });
     });
 }
@@ -4009,7 +5119,7 @@ function inviaVotoConCoda (url, cardIndex) {
         noteGradeSuccess();
     }).catch(function (err) {
         console.error('[voto] invio fallito, verra\' ritentato automaticamente', err);
-        noteGradeFailure();
+        noteGradeFailure(err && err.rete);
         pendingGrades[key] = entry;
         savePendingGrades();
         addPendingDot(entry);
@@ -4044,7 +5154,7 @@ function toggleLearnt (btn) {
     fd.append('is_child', btn.getAttribute('data-is-child') || '0');
     fd.append('csrf_token', NISAMA_CSRF);
 
-    fetch('game_fc.php', { method: 'POST', body: fd, headers: { 'X-CSRF-Token': NISAMA_CSRF } })
+    fetch('game_fc.php?game_id=' + GAME_ID_PER_CODA, { method: 'POST', body: fd, headers: { 'X-CSRF-Token': NISAMA_CSRF } })
         .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
         .then(function (data) {
             if (!data.success) throw new Error(data.error || 'errore');
@@ -4063,6 +5173,11 @@ function toggleLearnt (btn) {
         .then(function () { btn.disabled = false; });
 }
 
+/* Gli onclick scritti nell'HTML cercano queste funzioni su window: qui non
+   erano globali (stanno dentro lo scope del blocco <script>), da cui
+   "toggleFavorite is not defined" al primo clic sulla stella. */
+window.toggleLearnt = toggleLearnt;
+
 function toggleFavorite (btn) {
     if (btn.disabled) return;
     btn.disabled = true;
@@ -4073,12 +5188,17 @@ function toggleFavorite (btn) {
     fd.append('is_child', btn.getAttribute('data-is-child') || '0');
     fd.append('csrf_token', NISAMA_CSRF);
 
-    fetch('game_fc.php', { method: 'POST', body: fd, headers: { 'X-CSRF-Token': NISAMA_CSRF } })
+    /* L'indirizzo deve portare il game_id: senza, la pagina non trova la
+       partita e reindirizza PRIMA di arrivare al gestore dell'azione - al
+       browser tornava una pagina HTML invece del JSON, da cui l'errore. */
+    fetch('game_fc.php?game_id=' + GAME_ID_PER_CODA, { method: 'POST', body: fd, headers: { 'X-CSRF-Token': NISAMA_CSRF } })
         .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
         .then(function (data) {
             if (!data.success) throw new Error(data.error || 'errore');
             btn.setAttribute('aria-pressed', data.favorite ? 'true' : 'false');
             btn.classList.toggle('is-active', data.favorite);
+            var cardEl = btn.closest('.card-box');
+            if (cardEl) cardEl.classList.toggle('is-favorita', data.favorite);
             if (data.favorite) {
                 btn.classList.remove('pop');
                 void btn.offsetWidth;
@@ -4091,6 +5211,7 @@ function toggleFavorite (btn) {
         })
         .then(function () { btn.disabled = false; });
 }
+window.toggleFavorite = toggleFavorite;
 
 /* Se questa e' l'ultima carta non ancora valutata a questa posizione, il voto
    fara' sicuramente avanzare a position+1 - e quale carta sia non dipende in
@@ -4101,22 +5222,222 @@ function toggleFavorite (btn) {
    aspettarne la risposta. Se ci sono altri fratelli ancora da valutare in
    questa posizione, invece, si resta con il percorso sicuro: bisogna sapere
    davvero cosa dice il server, perche' potrebbe restare qui. */
-function gradeAndAdvance (url, feedbackPromise, cardIndex) {
+/* Segna la carta come valutata SUL POSTO, senza ricaricare la posizione.
+   Prima, votare un figlio faceva una transizione completa verso la stessa
+   posizione: mezzo secondo di animazione a tutta pagina (da cui lo schermo
+   bianco) solo per marcare una carta e restare esattamente li'. Qui invece
+   si aggiorna la sola carta toccata e le altre restano ferme sotto gli
+   occhi. */
+function segnaCartaValutataInPagina (card, esito) {
+    if (!card) return;
+
+    /* gradeFeedback() e lo swipe fanno volare via la carta (traslata fuori
+       schermo, opacita' 0): serviva quando subito dopo si cambiava pagina.
+       Restando qui, quella carta deve tornare al suo posto - altrimenti
+       resta invisibile e lascia solo il buco dove stava. */
+    card.style.zIndex = '';
+    card.style.transition = 'none';
+    card.style.transform = 'translateY(-6px) scale(.99)';
+    card.style.opacity = '0';
+    void card.offsetWidth;
+    card.style.transition = 'transform .3s var(--spring), opacity .3s ease-out';
+    card.style.transform = 'none';
+    card.style.opacity = '1';
+
+    card.classList.add('graded');
+    card.classList.add(esito === 'correct' ? 'res-correct' : 'res-wrong');
+    card.setAttribute('data-swipe', '0');
+
+    avanzaBarraCarte();
+
+    /* Via i comandi di voto: da qui in poi questa carta non si vota piu'. */
+    var gradeRow = card.querySelector('.grade-row');
+    if (gradeRow) gradeRow.remove();
+
+    /* Via anche "frantuma" e il tasto "Mostra risposta" grande: una carta
+       gia' risposta li' non li ha (vedi il ramo "gia' valutata" del PHP). */
+    var toolRow = card.querySelector('.tool-row');
+    if (toolRow) toolRow.remove();
+    var btnShow = card.querySelector('[id^="btn-show-"]');
+    if (btnShow) btnShow.remove();
+
+    /* La risposta si richiude, con un tastino per riaprirla: identico a come
+       la disegna il server per una carta gia' risposta. */
+    var ansBox = card.querySelector('.answer-box.ans-block');
+    if (ansBox) {
+        ansBox.style.display = 'none';
+        ansBox.classList.add('is-revealed');
+        ansBox.style.marginTop = '12px';
+    }
+
+    /* La pastiglia con l'esito, come quella che disegnerebbe il server. */
+    if (!card.querySelector('.status-pill')) {
+        var testa = document.createElement('div');
+        testa.className = 'graded-head';
+        var ok = (esito === 'correct');
+        testa.innerHTML = '<div class="status-pill ' + (ok ? 'ok' : 'ko') + '">'
+            + '<span class="gi">' + (ok ? '\u2713' : '\u2715') + '</span> '
+            + fcEscapeHtmlLocale(ok ? T('fc.res_corretto') : T('fc.vg_sbagliato')) + '</div>'
+            + '<button class="nav-btn pill-toggle action-btn" type="button">' + fcEscapeHtmlLocale(T('fc.gm_mostra_risposta')) + '</button>';
+        var titolo = card.querySelector('.card-title');
+        if (titolo) titolo.insertAdjacentElement('afterend', testa);
+        else card.insertAdjacentElement('afterbegin', testa);
+        var btnToggle = testa.querySelector('.pill-toggle');
+        if (btnToggle && ansBox) {
+            btnToggle.addEventListener('click', function () {
+                var chiuso = (ansBox.style.display === 'none' || ansBox.style.display === '');
+                ansBox.style.display = chiuso ? 'block' : 'none';
+                if (chiuso) ansBox.classList.add('reveal-anim');
+                btnToggle.innerText = chiuso ? T('fc.gm_nascondi_risposta') : T('fc.gm_mostra_risposta');
+                if (chiuso && typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes(ansBox);
+            });
+        }
+
+        var pill = testa.querySelector('.status-pill');
+        try {
+            pill.animate([{ transform: 'scale(.6)', opacity: 0 }, { transform: 'scale(1.08)', opacity: 1 }, { transform: 'scale(1)', opacity: 1 }], { duration: 420, easing: EASE });
+        } catch (e) {}
+    }
+}
+
+/* Rispondendo a un figlio non si ricarica la pagina, quindi la barra delle
+   carte - che il server disegna al caricamento - resterebbe ferma per tutta
+   la posizione. Qui la si fa avanzare di una carta, come farebbe il server
+   al giro dopo.
+
+   ATTENZIONE alle TRE grandezze distinte, che prima erano una sola:
+     - "testa"     = su quale carta si e' ADESSO      -> muove il pallino
+     - "furthest"  = la carta piu' avanzata raggiunta -> muove il riempimento
+     - "risposte"  = quante ne sono state risposte    -> muove l'etichetta
+   Usare la testa anche per il riempimento faceva crollare la barra arancione
+   all'indietro (da 87% a 7%) appena si rispondeva a un errore vecchio, per poi
+   rivederla risalire alla ricarica successiva: era il salto piu' vistoso di
+   tutti. Il riempimento non deve MAI retrocedere. */
+function avanzaBarraCarte () {
+    var c = curC();
+    if (!c) return;
+
+    var totale = parseInt(c.getAttribute('data-total-cards') || '0', 10);
+    if (!totale) return;
+
+    var testa = parseInt(c.getAttribute('data-carte-testa') || '1', 10) + 1;
+    if (testa > totale) testa = totale;
+    c.setAttribute('data-carte-testa', String(testa));
+
+    /* Si aggiorna il MODELLO (dataset.base*), non la geometria a schermo: e'
+       da li' che applicaZoomBarra() ricalcola tutto con lo zoom giusto.
+       Stessa convenzione a centro cella dei pallini discreti: vedi la nota
+       su $qui_percent lato PHP. */
+    var dotQui = c.querySelector('.dot-qui-alt');
+    if (dotQui) dotQui.dataset.baseLeft = pctMarker(testa, totale);
+
+    /* Il tratto PIENO segue sempre pippo (testa), mai il fronte: stessa
+       divisione in due toni spiegata lato PHP su $bordo_pos. Convenzione
+       pctMarker come pippo/dot-target, non pctFill: vedi la stessa nota
+       nel PHP e in seedBasiBarre. */
+    var bordoQuiCarte = pctMarker(testa, totale);
+    var fill = c.querySelector('.progress-bar-fill.fill-cards');
+    if (fill) fill.dataset.baseWidth = bordoQuiCarte;
+
+    var furthest = parseInt(c.getAttribute('data-furthest-card') || '0', 10);
+    if (testa > furthest) {
+        furthest = testa;
+        c.setAttribute('data-furthest-card', String(furthest));
+    }
+    /* Il tratto tenue oltre pippo: resta a 0 nel caso comune (si sta
+       avanzando proprio sul fronte, quindi furthest === testa), ma non deve
+       sparire se si sta valutando un figlio di una posizione gia' dietro al
+       fronte vero raggiunto altrove. */
+    var fillOltre = c.querySelector('.progress-bar-fill.fill-cards-oltre');
+    if (fillOltre) {
+        fillOltre.dataset.baseLeft = bordoQuiCarte;
+        fillOltre.dataset.baseWidth = Math.max(0, pctMarker(furthest, totale) - bordoQuiCarte);
+    }
+
+    if (typeof applicaZoomBarra === 'function') applicaZoomBarra(c);
+
+    /* L'etichetta "Card 9/173" conta le carte RISPOSTE, che e' quello che ci
+       scrive il server ($answered_cards_count). Prima qui ci finiva l'indice
+       della carta corrente: due grandezze diverse nello stesso posto, quindi
+       il numero cambiava significato a ogni ricaricamento della pagina. */
+    var risposte = parseInt(c.getAttribute('data-carte-risposte') || '0', 10) + 1;
+    if (risposte > totale) risposte = totale;
+    c.setAttribute('data-carte-risposte', String(risposte));
+
+    var etichette = c.querySelectorAll('.hdr-sub b');
+    if (etichette.length > 1) etichette[etichette.length - 1].textContent = risposte + '/' + totale;
+}
+
+function fcEscapeHtmlLocale (s) {
+    var d = document.createElement('div');
+    d.textContent = (s == null) ? '' : String(s);
+    return d.innerHTML;
+}
+
+/* La prossima carta di QUESTA posizione ancora da valutare, cercando prima
+   sotto quella appena votata (e' li' che l'utente si aspetta di scendere) e
+   solo dopo, se sotto non ce n'e', tornando a guardare sopra. Se e' rimasta
+   solo quella appena votata, restituisce null: allora si passa davvero alla
+   posizione successiva. */
+function prossimaCartaDaValutare (contenitore, cardAppenaVotata) {
+    var tutte = Array.prototype.slice.call(contenitore.querySelectorAll('.card-box:not(.anteprima-card)'));
+    var i = tutte.indexOf(cardAppenaVotata);
+    for (var k = i + 1; k < tutte.length; k++) {
+        if (!tutte[k].classList.contains('graded')) return tutte[k];
+    }
+    return null;
+}
+
+function gradeAndAdvance (url, feedbackPromise, cardIndex, cardEl, esito) {
     var curContainer = curC();
-    var ungraded = curContainer ? curContainer.querySelectorAll('.card-box:not(.graded)').length : 2;
+    var ungraded = curContainer ? curContainer.querySelectorAll('.card-box:not(.graded):not(.anteprima-card)').length : 2;
     var fwdUrl = curContainer ? curContainer.getAttribute('data-forward-url') : null;
 
-    if (ungraded <= 1 && fwdUrl) {
-        prefetchGet(fwdUrl);
+    /* Restano altre carte da valutare qui: si aggiorna solo questa e si
+       scende alla prima non ancora risposta SOTTO, senza ricaricare niente.
+       Se sotto non ce n'e' piu' (l'utente ne aveva saltata una piu' su),
+       si resta fermi: la trovera' lui, come chiesto. */
+    if (ungraded > 1 && cardEl && curContainer) {
         inviaVotoConCoda(url, cardIndex);
-        feedbackPromise.then(function () { navigateTo(fwdUrl); });
-    } else {
-        feedbackPromise.then(function () { navigateTo(url, { cardIndex: cardIndex }); });
+        feedbackPromise.then(function () {
+            segnaCartaValutataInPagina(cardEl, esito);
+            var succ = prossimaCartaDaValutare(curContainer, cardEl);
+            if (succ) {
+                /* Scorrimento ISTANTANEO, non 'smooth': con quello animato
+                   restava una finestra di alcune centinaia di ms in cui la
+                   pagina era ancora in movimento quando il tocco successivo
+                   arrivava. Su iPhone, un tocco che arriva mentre la pagina
+                   sta ancora scorrendo viene spesso interpretato come "ferma
+                   lo scorrimento", non come un tap sul bottone sotto il dito
+                   - da qui la necessita' di toccare due volte "Mostra
+                   risposta" proprio e solo sui figli (la carta padre, la
+                   prima della pagina, non viene mai raggiunta con uno scroll
+                   appena prima di essere toccata, quindi non soffriva dello
+                   stesso problema). Un salto secco e' meno elegante di uno
+                   animato, ma non lascia mai quella finestra di conflitto. */
+                try { succ.scrollIntoView({ behavior: 'auto', block: 'center' }); }
+                catch (e) { succ.scrollIntoView(); }
+            }
+        });
+        return;
     }
+
+    /* Si passa SEMPRE dal percorso normale: si manda il voto e si aspetta la
+       risposta del server, che registra e dice dove andare. E' lui poi a
+       ridisegnare tutto - carta, barre, conteggi - in modo coerente.
+
+       Il salto "ottimistico" (mostrare subito la carta successiva mandando il
+       voto in background) sembrava piu' veloce ma lasciava lo stato a meta':
+       il server, non avendo ancora registrato il voto, rimandava indietro, e
+       il progresso restava fermo. La velocita' percepita la da' l'anteprima,
+       che copre l'animazione: quando finisce, la pagina vera e' gia' li'. */
+    if (fwdUrl) prefetchGet(fwdUrl);
+    feedbackPromise.then(function () { navigateTo(url, { cardIndex: cardIndex }); });
 }
 
 function navigateTo (url, opts) {
                 opts = opts || {};
+
                 if (navLock) {
                     /* Non si scarta: si riprova a brevissimo. Un voto arrivato
                        mentre una transizione precedente e' ancora in corso non
@@ -4150,11 +5471,18 @@ function navigateTo (url, opts) {
                 }
                 url = sp.url;
 
-                var pref = !sp.post ? __prefetchCache[url] : null;
+                /* Quando si avanza subito dopo un voto mandato in background, il
+                   server puo' non averlo ancora registrato: chiedendo la
+                   posizione successiva ci rimanderebbe indietro a quella appena
+                   votata (e' la sua regola per chi salta avanti). Si chiede
+                   allora con &prefetch=1, che quel rimando non lo fa, ma
+                   nell'indirizzo si scrive comunque quello pulito. */
+                var urlRichiesta = url;
+                var pref = !sp.post ? (__prefetchCache[url] || __prefetchCache[url + '&prefetch=1']) : null;
                 delete __prefetchCache[url];
 
                 function richiestaNormale () {
-                    return fetch(url, richiesta).then(function (res) {
+                    return fetch(urlRichiesta, richiesta).then(function (res) {
                         if (!res.ok) throw new Error('risposta HTTP ' + res.status);
                         return res.text().then(function (html) { return { res: res, html: html }; });
                     });
@@ -4196,7 +5524,42 @@ function navigateTo (url, opts) {
 
 
 
+                    /* Lo zoom si applica ORA, mentre newC e' ancora staccato dal
+                       documento (non ancora inserito) - non dopo. Prima veniva
+                       chiesto subito dopo document.body.appendChild(newC): il
+                       contenitore entrava nel DOM visibile con gli stili
+                       GREZZI del server (non zoomati) su pallini e riempimenti,
+                       e solo un istante dopo applicaZoomBarra li cambiava in
+                       quelli zoomati - un cambiamento che la transizione CSS su
+                       left/width vedeva come un movimento vero, animandolo: da
+                       "non zoomato" a "zoomato" in 0.3s, ogni singola volta.
+                       Sistemando i valori PRIMA che il contenitore sia mai
+                       visibile, il primo stato dipinto e' gia' quello zoomato
+                       definitivo: la transizione non ha nulla da animare per
+                       questo cambio pagina, e resta libera per i movimenti
+                       veri (l'avanzamento del riempimento via animateProgress,
+                       il prossimo vero spostamento della finestra). Funziona
+                       su un nodo staccato perche' applicaZoomBarra lavora solo
+                       su data-attribute e stili inline, mai su misure di
+                       layout (offsetWidth e simili) che su un nodo fuori dal
+                       documento darebbero comunque zero. */
+                    applicaZoomBarra(newC);
+
+
+
+                    /* Si guarda PRIMA di togliere l'anteprima: rimuovendola per
+                       prima, il controllo piu' sotto la trovava sempre assente,
+                       scambioMuto restava falso e partiva comunque l'animazione
+                       di ingresso dal basso - era questo lo scorrimento che si
+                       continuava a vedere. */
+                    var scambioMuto = !!(window.anteprimaInCorso && window.anteprimaInCorso());
+
                     document.body.appendChild(newC);
+
+                    /* Momento esatto in cui l'anteprima ha finito il suo
+                       compito: la pagina vera e' ora in pagina. Prima si
+                       lascerebbe un vuoto, dopo si sovrapporrebbe a lei. */
+                    if (window.togliAnteprima) window.togliAnteprima(true);
 
                     var newFeed = newC.querySelector('.feed');
 
@@ -4204,8 +5567,19 @@ function navigateTo (url, opts) {
 
                     if (dir === 'same' && oldFeed && newFeed) newFeed.scrollTop = oldFeed.scrollTop;
 
+                    /* Con lo scambio muto la carta nuova deve trovarsi esattamente
+                       dove l'anteprima la stava gia' mostrando: in cima. Senza
+                       questo, ereditando lo scorrimento di prima, si vedrebbe
+                       comparire piu' in basso o piu' in alto. */
+                    if (scambioMuto && newFeed) newFeed.scrollTop = 0;
 
-
+                    /* L'animazione del riempimento (animateProgress) resta
+                       DOPO l'inserimento nel DOM e DOPO lo zoom, come prima:
+                       lei interpola fra due valori gia' definitivi e zoomati
+                       (quello vecchio di oldC, quello nuovo di newC), quindi
+                       l'ordine fra lei e l'inserimento non cambia nulla - e'
+                       solo lo zoom che doveva anticipare l'inserimento, non
+                       anche lei. */
                     animateProgress(oldC, newC);
 
                     syncHeader();
@@ -4216,11 +5590,22 @@ function navigateTo (url, opts) {
 
                     var held = opts.held || 0;
 
-                    var D = 460;
+                    /* Ridotta da 460ms: era il grosso dell'attesa percepita fra
+                       una carta e l'altra, dato che navLock resta attivo per
+                       tutta la durata (D+60) e blocca il voto successivo. */
+                    var D = 260;
 
                     try {
 
-                        if (dir === 'up') {
+                        if (scambioMuto) {
+
+                            D = 1;
+
+                            if (oldHeader) oldHeader.style.opacity = '0';
+
+                            cardsIn(newC, true);
+
+                        } else if (dir === 'up') {
 
                             if (oldHeader) oldHeader.style.opacity = '0';
 
@@ -4228,7 +5613,7 @@ function navigateTo (url, opts) {
 
                             newFeed.animate([{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }], { duration: D, easing: EASE, fill: 'both' });
 
-                            cardsIn(newC);
+                            cardsIn(newC, true);
 
                         } else if (dir === 'down') {
 
@@ -4238,11 +5623,11 @@ function navigateTo (url, opts) {
 
                             newFeed.animate([{ transform: 'translateY(-100%)' }, { transform: 'translateY(0)' }], { duration: D, easing: EASE, fill: 'both' });
 
-                            cardsIn(newC);
+                            cardsIn(newC, true);
 
                         } else {
 
-                            D = 340;
+                            D = 200;
 
                             if (oldHeader) oldHeader.style.opacity = '0';
 
@@ -4262,11 +5647,20 @@ function navigateTo (url, opts) {
 
 
 
-                    window.history.pushState({}, '', pack.res.url || url);
+                    /* Mai l'indirizzo tecnico con prefetch=1 nella barra: si
+                       scrive quello pulito, cosi' ricaricando la pagina o
+                       tornando indietro si ottiene la navigazione normale. */
+                    var urlPulito = url;
+                    if (pack.res.url && pack.res.url.indexOf('prefetch=1') === -1) urlPulito = pack.res.url;
+                    window.history.pushState({}, '', urlPulito);
 
                     renderAllRawTexts();
 
                     if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes(newC);
+
+                    /* applicaZoomBarra(newC) e' gia' stata chiamata piu' sopra,
+                       prima di animateProgress: rifarla qui sovrascriverebbe
+                       l'animazione appena avviata con il valore d'arrivo. */
 
                     schedulePrefetch();
 
@@ -4306,7 +5700,7 @@ function navigateTo (url, opts) {
 
                         addPendingDot(pendingGrades[keyCatch]);
 
-                        noteGradeFailure();
+                        noteGradeFailure(true);
 
                         showPendingToast();
 
@@ -4362,7 +5756,7 @@ function navigateTo (url, opts) {
 
                     var card = link.closest('.card-box');
 
-                    gradeAndAdvance(link.href, gradeFeedback(card, result), parseInt(card.getAttribute('data-card-index') || '0', 10));
+                    gradeAndAdvance(link.href, gradeFeedback(card, result), parseInt(card.getAttribute('data-card-index') || '0', 10), card, result);
 
                 } else {
 
@@ -4394,7 +5788,7 @@ function navigateTo (url, opts) {
 
                 if (!e.target || !e.target.closest) return;
 
-                var card = e.target.closest('.card-box[data-swipe="1"]');
+                var card = e.target.closest('.card-box[data-swipe="1"]:not(.anteprima-card)');
 
                 if (!card) return;
 
@@ -4430,6 +5824,213 @@ function navigateTo (url, opts) {
 
 
 
+            /* ---------- Anteprima della carta successiva durante lo swipe ----------
+               Mentre si trascina la carta verso il bordo, quella che verra' dopo
+               si intravede gia' sotto, e cresce man mano che ci si avvicina al
+               punto di rilascio. Se si riporta il dito al centro, torna a
+               sparire: cosi' si capisce sempre cosa sta per succedere.
+
+               Si mostra solo quando lo swipe portera' davvero a un'altra
+               posizione (ultima carta da valutare qui): restando fra i figli
+               non cambia pagina, quindi non ci sarebbe niente da anticipare.
+               Il contenuto arriva dalla cache del precaricamento, quindi non
+               costa una richiesta in piu'; se non e' ancora pronto si lascia
+               perdere - meglio nessuna anteprima che una a scatti. */
+            var anteprima = null;
+
+            /* Di quanto sale la carta successiva mentre si trascina, in pixel.
+               Sta qui, accanto alla variabile che accompagna, e non piu' in
+               mezzo alle funzioni: nella riscrittura precedente era finita
+               dentro il blocco sostituito ed e' sparita, lasciando i tre usi
+               orfani - da cui l'errore a ogni movimento del dito. */
+            var ANTEPRIMA_SALITA = 70;
+
+            function costruisciAnteprima (html, cardTrascinata, cont) {
+                if (anteprima) return;
+
+                cont = cont || ((cardTrascinata && cardTrascinata.closest) ? cardTrascinata.closest('.container') : null);
+                /* Se nel frattempo quel contenitore e' uscito di scena (la
+                   pagina e' gia' cambiata), l'anteprima non serve piu' e
+                   soprattutto non deve finire altrove. */
+                if (!cont || !cont.isConnected || cont !== curC()) return;
+
+                var doc;
+                try { doc = new DOMParser().parseFromString(html, 'text/html'); } catch (e) { return; }
+
+                /* Solo la PRIMA carta (il padre): se la posizione successiva ne
+                   ha molte, farle salire tutte insieme sarebbe confuso e pesante.
+                   Le altre arrivano con la pagina vera, subito dopo. */
+                var primaCarta = doc.querySelector('.feed-inner .card-box, .feed-inner .card-title-header');
+                if (!primaCarta) return;
+
+                var feedAttuale = cont.querySelector('.feed-inner');
+                if (!feedAttuale) return;
+
+                anteprima = document.createElement('div');
+                anteprima.className = 'swipe-anteprima';
+                /* Ferma al suo posto e gia' visibile, non in salita da sotto:
+                   deve sembrare che la carta successiva fosse li' da sempre,
+                   coperta da quella che se ne va. Cosi' le due animazioni si
+                   fondono in una sola e non si percepisce nessun "cambio". */
+                anteprima.style.transform = 'none';
+                anteprima.style.opacity = '1';
+                var clone = primaCarta.cloneNode(true);
+                /* Marcata come "solo anteprima": e' una fotografia, non una
+                   carta del gioco. Senza questo segno veniva contata fra le
+                   carte ancora da valutare di QUESTA posizione, il conteggio
+                   passava da 1 a 2 e il gioco credeva di dover restare qui
+                   invece di passare alla successiva - era questa la causa del
+                   "mostra la carta ma non avanza". */
+                clone.classList.add('anteprima-card');
+                clone.querySelectorAll('.card-box').forEach(function (el) { el.classList.add('anteprima-card'); });
+                clone.removeAttribute('data-swipe');
+                anteprima.appendChild(clone);
+
+                /* Niente id duplicati in pagina: e' una fotografia, non deve
+                   essere raggiungibile da nessuno script. */
+                anteprima.querySelectorAll('[id]').forEach(function (el) { el.removeAttribute('id'); });
+                anteprima.setAttribute('aria-hidden', 'true');
+
+                /* Va messa dove comparira' la carta VERA, cioe' in cima all'area
+                   visibile: la pagina nuova parte sempre dall'inizio. Prima la
+                   mettevo all'altezza della carta trascinata - che con un padre
+                   e piu' figli puo' essere a meta' pagina - e al momento dello
+                   scambio la carta sembrava risalire da sotto. Non era
+                   un'animazione: era proprio in un punto diverso. */
+                var scroller = cont.querySelector('.feed');
+                anteprima.style.top = (scroller ? scroller.scrollTop : 0) + 'px';
+
+                /* Larghezza e rientro presi dalla carta vera, non da left:0/right:0:
+                   un elemento in posizione assoluta si allinea al bordo interno del
+                   contenitore, ignorandone il rientro laterale, quindi l'anteprima
+                   veniva piu' larga della carta - e a fine animazione si vedeva lo
+                   scatto di adattamento. */
+                var rifCarta = cardTrascinata || feedAttuale.querySelector('.card-box:not(.anteprima-card)');
+                if (rifCarta) {
+                    anteprima.style.left = rifCarta.offsetLeft + 'px';
+                    anteprima.style.width = rifCarta.offsetWidth + 'px';
+                    anteprima.style.right = 'auto';
+                }
+
+                feedAttuale.appendChild(anteprima);
+
+                /* Il testo delle carte non sta nell'HTML: sta nell'attributo
+                   data-raw, e lo converte renderAllRawTexts() quando la pagina
+                   viene disegnata. Nell'anteprima quel passaggio non era mai
+                   avvenuto, quindi si vedeva la carta con l'etichetta QUESTION
+                   ma senza domanda. Si fa qui, sulla sola anteprima. */
+                try {
+                    anteprima.querySelectorAll('.raw-text').forEach(function (el) {
+                        var grezzo = el.getAttribute('data-raw');
+                        if (grezzo !== null && typeof parseTextForPreview === 'function') {
+                            el.innerHTML = parseTextForPreview(grezzo);
+                        }
+                    });
+                } catch (e) {}
+
+                if (typeof fcdDisegnaFormule === 'function') {
+                    try { fcdDisegnaFormule(anteprima); } catch (e) {}
+                }
+
+                /* Si allinea subito al punto in cui e' gia' arrivato il dito:
+                   se l'HTML e' arrivato a meta' trascinamento, non deve
+                   ricominciare da zero. */
+                if (sw) aggiornaAnteprima(Math.min(1, Math.abs(sw.dx) / TH()));
+            }
+
+            /* SPENTA di proposito.
+               L'idea (far salire la carta successiva sotto quella che esce) e'
+               giusta, ma ogni versione ha finito per restare appesa sopra la
+               pagina nuova o per sfasare la navigazione: si vedevano due carte
+               sovrapposte e il gioco non avanzava davvero. Finche' non c'e' un
+               modo di ancorarla al contenitore in uscita con la certezza che se
+               ne vada con lui, meglio non averla: qui conta piu' che il gioco
+               avanzi in modo corretto.
+               Per riattivarla basta togliere il return qui sotto. */
+            var ANTEPRIMA_ATTIVA = true;
+
+            function creaAnteprima (cardTrascinata) {
+                if (!ANTEPRIMA_ATTIVA) return;
+                /* Il contenitore si prende ORA, da dove sta la carta che esce,
+                   e si porta dietro fino all'inserimento: leggendo "quello
+                   corrente" al momento dell'append, una risposta arrivata tardi
+                   finiva dentro la pagina NUOVA e ci restava sopra per sempre -
+                   erano quelle le carte sovrapposte. */
+                var cont = (cardTrascinata && cardTrascinata.closest) ? cardTrascinata.closest('.container') : curC();
+                if (!cont) return;
+
+                /* Solo se questo voto fara' cambiare posizione: restando fra i
+                   figli non si cambia pagina, quindi non c'e' niente da
+                   anticipare. Copre sia l'ultimo figlio di un elenco sia un
+                   padre che di figli non ne ha. */
+                if (cont.querySelectorAll('.card-box:not(.graded):not(.anteprima-card)').length > 1) return;
+
+                var pos = parseInt(cont.getAttribute('data-pos') || '0', 10);
+                if (!pos) return;
+
+                /* Indirizzo con &prefetch=1: chiede la posizione successiva
+                   cosi' com'e', senza farsi rimandare indietro alla prima non
+                   ancora risposta (che, non avendo ancora votato questa, e'
+                   proprio questa - ed e' il motivo per cui sotto compariva la
+                   carta corrente invece della successiva). */
+                var url = urlPerPosizione(pos + 1, true);
+
+                var entry = __prefetchCache[url];
+
+                if (entry && entry.html !== null) {
+                    costruisciAnteprima(entry.html, cardTrascinata, cont);
+                    return;
+                }
+
+                /* Precaricamento appena partito: ci si aggancia e si mostra
+                   appena arriva, anche a trascinamento gia' iniziato. */
+                if (entry && entry.promise) {
+                    entry.promise.then(function () {
+                        if (entry.html !== null) costruisciAnteprima(entry.html, cardTrascinata, cont);
+                    });
+                    return;
+                }
+
+                prefetchGet(url);
+                var nuova = __prefetchCache[url];
+                if (nuova && nuova.promise) {
+                    nuova.promise.then(function () {
+                        if (nuova.html !== null) costruisciAnteprima(nuova.html, cardTrascinata, cont);
+                    });
+                }
+            }
+
+            function aggiornaAnteprima (p) {
+                /* Non fa piu' nulla: l'anteprima resta ferma e piena per tutto
+                   il gesto. La funzione resta perche' e' chiamata da piu'
+                   punti, e perche' se un domani si volesse tornare a un
+                   ingresso graduale basta rimetterci il calcolo. */
+                return;
+            }
+
+            function aggiornaAnteprimaInutilizzata (p) {
+                if (!anteprima) return;
+                /* Comincia a farsi vedere presto, cosi' si capisce subito cosa
+                   sta arrivando, ma arriva a posto solo col rilascio. */
+                var q = Math.max(0, Math.min(1, (p - 0.12) / 0.88));
+                anteprima.style.transition = 'none';
+                anteprima.style.opacity = (q * 0.95).toFixed(3);
+                anteprima.style.transform = 'translateY(' + ((1 - q) * ANTEPRIMA_SALITA).toFixed(1) + 'px) scale(' + (0.93 + q * 0.07).toFixed(3) + ')';
+            }
+
+            window.togliAnteprima = function (subito) { togliAnteprima(subito); };
+            window.anteprimaInCorso = function () { return !!anteprima; };
+
+            function togliAnteprima (subito) {
+                if (!anteprima) return;
+                var el = anteprima;
+                anteprima = null;
+                if (subito) { el.remove(); return; }
+                el.style.transition = 'opacity .18s ease-out';
+                el.style.opacity = '0';
+                setTimeout(function () { el.remove(); }, 190);
+            }
+
             function activateSwipe () {
 
                 if (!sw) return;
@@ -4453,6 +6054,8 @@ function navigateTo (url, opts) {
                 sw.card.style.willChange = 'transform';
 
                 sw.card.style.transform = 'scale(1.02)';
+
+                creaAnteprima(sw.card);
 
             }
 
@@ -4506,6 +6109,8 @@ function navigateTo (url, opts) {
 
                 if (Math.abs(sw.dx) < 4) {
 
+                    aggiornaAnteprima(0);
+
                     tint.style.opacity = '0';
 
                     stamp.style.opacity = '0';
@@ -4521,6 +6126,8 @@ function navigateTo (url, opts) {
                     stamp.style.opacity = Math.min(1, p * 1.25).toFixed(3);
 
                     stamp.style.transform = 'translate(-50%,-50%) rotate(' + (good ? -10 : 10) + 'deg) scale(' + (0.8 + p * 0.28).toFixed(3) + ')';
+
+                    aggiornaAnteprima(p);
 
                     sw.card.style.boxShadow = '0 20px 55px rgba(' + (good ? '48,209,88' : '255,69,58') + ',' + (0.18 + p * 0.28).toFixed(3) + ')';
 
@@ -4560,11 +6167,32 @@ function navigateTo (url, opts) {
 
                 suppressNextClick = true;              // assorbe il ghost-click dopo il drag
 
+                /* SOLO per una manciata di ms: il click-fantasma che questo
+                   deve assorbire e' sintetizzato dal browser sotto il dito
+                   quasi subito dopo il rilascio, come parte della STESSA
+                   gesture appena finita - non un click qualunque che arrivera'
+                   chissa' quando. Senza questa scadenza, restando sulla
+                   pagina (si passa al figlio successivo senza ricaricare
+                   nulla, vedi gradeAndAdvance) il primo vero tocco
+                   dell'utente sul bottone "Mostra risposta" del figlio
+                   successivo - un'azione nuova e deliberata, su tutt'altro
+                   bottone - era quello che finiva assorbito al posto del
+                   fantasma: da qui il bisogno di toccarlo due volte, e SOLO
+                   sui figli, perche' un cambio di posizione vera passa invece
+                   da navigateTo(), che gia' azzera il flag esplicitamente. */
+                setTimeout(function () { suppressNextClick = false; }, 300);
+
                 s.card.classList.remove('dragging');
 
 
 
                 var committed = commit && Math.abs(s.dx) >= TH();
+
+                if (!committed) {
+                    /* Riportato al centro: l'anteprima si richiude, cosi' e'
+                       chiaro che non si sta piu' andando avanti. */
+                    togliAnteprima(false);
+                }
 
                 if (committed && (s.dx > 0 ? s.urlCorrect : s.urlWrong)) {
 
@@ -4586,11 +6214,26 @@ function navigateTo (url, opts) {
 
                     s.card.style.opacity = '0';
 
-                    setTimeout(function () {
+                    /* Restando su questa posizione (altri figli da valutare) la
+                       carta non se ne va davvero: e' stata spinta fuori schermo
+                       dall'animazione, e segnaCartaValutataInPagina la rimette
+                       al suo posto marcata come risposta.
 
-                        gradeAndAdvance(url, new Promise(function (resolve) { resolve(); }), parseInt(s.card.getAttribute('data-card-index') || '0', 10));
+                       Cambiando posizione, invece, non si aspetta piu' i 140ms
+                       di prima: la carta sta gia' volando via per conto suo e
+                       intanto parte subito il caricamento della successiva,
+                       cosi' e' pronta mentre l'animazione e' ancora in corso
+                       invece di cominciare solo quando e' finita. */
+                    var restaQui = (function () {
+                        var cont = curC();
+                        return cont && cont.querySelectorAll('.card-box:not(.graded):not(.anteprima-card)').length > 1;
+                    })();
 
-                    }, 140);
+                    var attesa = restaQui
+                        ? new Promise(function (r) { setTimeout(r, 140); })   /* si aspetta l'uscita, poi rientra */
+                        : Promise.resolve();                                  /* si cambia pagina: subito */
+
+                    gradeAndAdvance(url, attesa, parseInt(s.card.getAttribute('data-card-index') || '0', 10), s.card, good ? 'correct' : 'wrong');
 
                 } else {
 
@@ -4880,7 +6523,7 @@ function navigateTo (url, opts) {
 
                 } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
 
-                    var card = c.querySelector('.card-box[data-swipe="1"].risposta-mostrata');
+                    var card = c.querySelector('.card-box[data-swipe="1"].risposta-mostrata:not(.anteprima-card)');
 
                     if (card) {
 
@@ -4892,7 +6535,7 @@ function navigateTo (url, opts) {
 
                             e.preventDefault();
 
-                            gradeAndAdvance(url, gradeFeedback(card, good ? 'correct' : 'wrong'), parseInt(card.getAttribute('data-card-index') || '0', 10));
+                            gradeAndAdvance(url, gradeFeedback(card, good ? 'correct' : 'wrong'), parseInt(card.getAttribute('data-card-index') || '0', 10), card, good ? 'correct' : 'wrong');
 
                         }
 
@@ -4900,7 +6543,7 @@ function navigateTo (url, opts) {
 
                 } else if (e.key === ' ') {
 
-                    var b = c.querySelector('.card-box:not(.graded) button[id^="btn-show-"]');
+                    var b = c.querySelector('.card-box:not(.graded):not(.anteprima-card) button[id^="btn-show-"]');
 
                     if (b && b.offsetParent) { e.preventDefault(); b.click(); }
 
@@ -4922,7 +6565,7 @@ function navigateTo (url, opts) {
 
                 var c = curC();
 
-                if (!c || !c.querySelector('.card-box[data-swipe="1"]')) return;
+                if (!c || !c.querySelector('.card-box[data-swipe="1"]:not(.anteprima-card)')) return;
 
                 if (document.querySelector('.coach')) return;
 
@@ -4976,7 +6619,11 @@ function navigateTo (url, opts) {
 
                 if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes();
 
+                applicaZoomBarra();
+
                 schedulePrefetch();
+
+                purgaVotiGiaSalvati();
 
                 renderAllPendingDots();
 
