@@ -226,6 +226,11 @@
 }
 .fcai-mini svg { width:17px; height:17px; }
 .fcai-mini:active { color:var(--blue); }
+/* Rientro non possibile (prima voce dell'elenco, o voce che ha gia' figli):
+   il tasto resta al suo posto, cosi' la fila di comandi non balla da una riga
+   all'altra, ma si vede che non c'e' niente da toccare. */
+.fcai-mini:disabled { opacity:.28; cursor:default; }
+.fcai-voce.is-figlio .fcai-rientro { color:var(--blue); }
 
 /* Voce armata per la fusione: aspetta il tocco sulla seconda. */
 .fcai-voce.is-armata { box-shadow:inset 0 0 0 2px var(--blue); }
@@ -375,3 +380,96 @@
     background:var(--surface-2); box-shadow:var(--pill-hl);
 }
 .fcai-chip-mini.is-on { color:#fff; background:var(--blue); box-shadow:none; }
+
+
+/* ============================================================
+   GENERAZIONE IN CORSO (fc_ai_job.js)
+   ============================================================ */
+
+.fcaj-barra { height:8px; margin-top:6px; }
+.fcaj-righe { display:flex; justify-content:space-between; gap:12px; margin-top:10px;
+    font-size:13px; color:var(--text-2); font-variant-numeric:tabular-nums; }
+.fcaj-righe span:empty { display:none; }
+
+/* La pastiglia: in basso, sopra la barra del salvataggio, fuori dal pollice
+   che scorre la tabella. Toccarla riapre la schermata. */
+.fcaj-pillola {
+    position:fixed; z-index:940; left:50%; transform:translateX(-50%);
+    bottom:calc(18px + var(--safe-bottom, 0px));
+    display:flex; align-items:center; gap:10px; max-width:calc(100vw - 32px);
+    padding:10px 16px 12px; border:none; border-radius:100px; cursor:pointer;
+    background:var(--surface); color:var(--text); box-shadow:var(--shadow-card);
+    font:inherit; font-size:13.5px; font-weight:560; overflow:hidden;
+}
+.fcaj-pillola svg { width:16px; height:16px; flex-shrink:0; color:var(--purple); }
+.fcaj-pillola span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fcaj-pillola-barra { position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--surface-3); }
+.fcaj-pillola-barra i { display:block; height:100%; background:var(--purple); transition:width .3s var(--spring); }
+/* stessa attesa senza percentuale della barra grande */
+.fcaj-pillola.is-ignota .fcaj-pillola-barra i{
+    width:32% !important; transition:none;
+    animation:ns-scorre 1.5s var(--ns-molla, cubic-bezier(.32,.72,0,1)) infinite;
+}
+@media (prefers-reduced-motion: reduce){
+    .fcaj-pillola.is-ignota .fcaj-pillola-barra i{ width:100% !important; animation:none !important; opacity:.45; }
+}
+.fcaj-pillola:active { transform:translateX(-50%) scale(.97); }
+.fcaj-pillola.is-altrove { background:var(--purple-soft); color:var(--purple); }
+
+
+/* ============================================================
+   IMPEGNO E STILE (popup impostazioni)
+   ============================================================ */
+
+/* Il selettore dell'impegno e' una tendina condivisa (.ns-tendina in
+   nisama_ui.css): qui resta solo la spaziatura nel popup. */
+.fcai-impegno { margin-top:8px; }
+.fcai-stile { display:grid; grid-template-columns:1fr 1fr; gap:10px 12px; margin-top:10px; }
+@media (max-width:420px) { .fcai-stile { grid-template-columns:1fr; } }
+.fcai-stile-campo { display:flex; flex-direction:column; min-width:0; }
+.fcai-stile-campo .fcai-label { margin-top:0; }
+.fcai-stile select { width:100%; }
+/* una scelta fatta si distingue da "Automatico": e' cio' che verra' verificato */
+.fcai-stile select.is-scelto { border-color:var(--purple); color:var(--purple); font-weight:560; }
+.fcai-modello { margin-top:14px; }
+.fcai-modello summary { cursor:pointer; font-size:14px; font-weight:560; color:var(--blue); }
+.fcai-modello textarea { margin-top:8px; }
+
+/* E' un <button>, non un link: apre un popup e non porta via da qui. Resta
+   scritto come un link perche' e' quello che fa — mostra un'altra cosa. */
+.fcai-link-crediti{ display:inline-block; margin:12px 0 2px; padding:0; font:inherit;
+    font-size:13.5px; font-weight:560; border:none; background:none; cursor:pointer;
+    color:var(--blue); text-decoration:none; text-align:left; }
+.fcai-link-crediti:active{ opacity:.6; }
+
+/* ---- il popup dei crediti ----
+   Il contenuto e' quello di crediti.php: dentro il popup non serve il margine
+   della pagina intera, e l'ultima scheda non deve lasciare un buco in fondo. */
+#fcaiCreditiCorpo .cred-main{ max-width:none; padding:0; }
+#fcaiCreditiCorpo .cred-card:last-child{ margin-bottom:0; }
+#fcaiCreditiCorpo .cred-nota{ margin-bottom:0; }
+#fcaiCreditiCorpo .fcai-nota{ text-align:center; }
+
+
+/* ---- ricerca dentro l'elenco dei concetti ---- */
+.fcai-cerca-riga{ display:flex; align-items:center; gap:10px; margin:0 0 10px; }
+.fcai-cerca-riga .ns-cerca{ flex:1; min-width:0; }
+
+/* La barra luccica finche' il lavoro va avanti: ferma e opaca sembrerebbe
+   bloccata, ed e' la prima cosa che fa ricaricare la pagina. */
+.fcai-barra.is-viva > i{
+    background-image:linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
+    background-size:200% 100%; animation:ns-luccica 1.2s linear infinite;
+}
+
+/* Attesa senza percentuale: un lotto solo in volo, niente da misurare.
+   Il segmento attraversa la barra invece di restare fermo a zero.
+   Le regole vere stanno in nisama_ui.css (.ns-barra.is-ignota): qui si
+   ripetono per la barra di questo pannello, che ha una classe sua. */
+.fcai-barra.is-ignota > i{
+    width:32% !important; transition:none;
+    animation:ns-scorre 1.5s var(--ns-molla, cubic-bezier(.32,.72,0,1)) infinite;
+}
+@media (prefers-reduced-motion: reduce){
+    .fcai-barra.is-ignota > i{ width:100% !important; animation:none !important; opacity:.45; }
+}

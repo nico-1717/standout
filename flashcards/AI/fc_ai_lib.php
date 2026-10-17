@@ -1,23 +1,35 @@
 <?php
 /**
- * fc_ai.php — il cervello lato server della generazione IA delle flashcard.
+ * fc_ai_lib.php — la generazione IA delle flashcard, senza la parte HTTP.
  *
- * Serve inserimento_big_fc.php e risponde SEMPRE in JSON. Quattro azioni:
+ * Fino a questa versione tutto stava in fc_ai.php, e ogni azione finiva con
+ * sec_json(), cioe' con un exit. Andava bene finche' l'unico a chiamarla era
+ * il browser. Il motore dei job (ai_jobs.php) deve poter eseguire la stessa
+ * estrazione e la stessa scrittura delle carte un passo alla volta, dentro la
+ * propria richiesta, e ricevere un risultato da registrare — non una risposta
+ * gia' spedita al browser e uno script terminato.
  *
- *   stima     quanto costerebbe (token) una richiesta, senza chiamare l'IA
- *   concetti  primo giro: dal testo (o da un elenco/argomento) tira fuori
- *             l'elenco dei concetti chiave, con l'ancora nel documento
- *   densita   "piu' concetti" / "meno concetti" sull'elenco gia' ottenuto
- *   carte     genera un LOTTO di flashcard dai concetti scelti
+ * Quindi qui c'e' TUTTO il lavoro (prompt, chiamata a Gemini, validazione,
+ * riparazione), scritto come funzioni che restituiscono un array. fc_ai.php e'
+ * diventato un involucro sottile che legge la richiesta, chiama queste
+ * funzioni, addebita e risponde. Il motore dei job fa lo stesso con i suoi
+ * passi. Un prompt si corregge in un punto solo, e vale per entrambi.
  *
- * PERCHE' E' DIVISO COSI'
+ * I prompt, i controlli e le riparazioni sono quelli di prima, spostati e non
+ * riscritti: sono passati per molte correzioni, e riscriverli le perderebbe.
+ * Le differenze sono quattro, ciascuna spiegata dove sta:
  *
- * Il costo di questa funzione non e' la lunghezza del documento: sono le
- * chiamate ripetute con il documento allegato. Qui il testo integrale viaggia
- * UNA volta sola, nell'azione "concetti". Da li' in poi il client manda solo i
- * concetti e, per la generazione, la finestra di testo attorno all'ancora di
- * ciascuno (campo "estratto"): su un documento da 30.000 caratteri e 60 carte
- * si passa da ~180.000 caratteri inviati a ~25.000.
+ *   1. le INDICAZIONI dello studente arrivano anche alla scrittura delle carte
+ *      (prima si fermavano all'elenco dei concetti), intere e con gli a capo;
+ *   2. la chiamata a Gemini ha un BUDGET DI TEMPO: non parte se non fa in
+ *      tempo a finire, e non aspetta mai piu' di quanto resta (prima: 120
+ *      secondi per tentativo, due tentativi, contro un tempo massimo di PHP
+ *      di 30-60 — la causa delle attese lunghe finite in errore);
+ *   3. gli errori sono CLASSIFICATI (sovraccarico, quota, lento...): da questo
+ *      dipende se ritentare, e il client sa cosa dire;
+ *   4. i token sono contati in DUE modi: quelli del tentativo riuscito, che
+ *      si addebitano, e quelli di tutti i tentativi, che paghiamo noi e
+ *      restano nei registri.
  *
  * PERCHE' L'IA SCRIVE IL FORMATO VECCHIO A TAG
  *
@@ -26,22 +38,17 @@
  * i tag invece del JSON dei blocchi costa 3-4 volte meno token in uscita, e
  * soprattutto e' un formato che il modello sbaglia molto meno: la conversione
  * la fa codice nostro gia' collaudato, non il modello.
+ *
+ * Non e' un endpoint e non controlla il login: lo fa chi la include.
  */
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/security_core.php';
-require_once __DIR__ . '/auth_check_api.php'; // versione API: se manca il login risponde JSON, non reindirizza
 require_once __DIR__ . '/piano_helpers.php';
+require_once __DIR__ . '/ai_crediti.php';
 require_once __DIR__ . '/fc_ai_formato.php'; // validazione E riparazione, condivise con ai_example.php
+require_once __DIR__ . '/fc_ai_stile.php';   // stile della carta e impegno del modello
 
-$fc_ai_user_id = (int)($utente_corrente['id'] ?? 0);
-if ($fc_ai_user_id <= 0) sec_die_json('Sessione non valida.', 401, 'auth');
-
-/* Una riga sola: CSRF, origine, livello e limite di frequenza. 30 chiamate al
-   minuto sono gia' molte per un uso umano e fermano sul nascere uno script
-   impazzito — che qui non farebbe danni ai dati, ma brucerebbe i token
-   dell'utente, che e' il danno che conta. */
-sec_guard_write($fc_ai_user_id, 'fc_ai', 0, 30, 60);
 
 /* ============================================================
    COSTANTI DI TARATURA
@@ -65,53 +72,60 @@ define('FC_AI_MAX_CONCETTI', 120);
    che e' il verso giusto in cui sbagliare quando si blocca una spesa. */
 define('FC_AI_CHAR_PER_TOKEN', 3.3);
 
-/* ============================================================
-   INGRESSO: corpo JSON, CSRF, azione
-   ============================================================ */
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    fc_ai_esci(['ok' => false, 'error' => 'metodo'], 405);
-}
+/* Il modello che risponde oggi. Serve a ai_crediti_da_token() per pesare i
+   token: quando arrivera' la scelta del modello, sara' il risultato di quella
+   scelta a finire qui al posto della costante. Deve restare allineato con il
+   modello scritto dentro GEMINI_API_URL in config.php. */
+define('FC_AI_MODELLO', 'gemini-2.5-flash');
 
-$fc_ai_in = sec_body();
-if (!$fc_ai_in) {
-    fc_ai_esci(['ok' => false, 'error' => 'corpo_non_valido'], 400);
-}
+/* Quanto puo' durare al massimo un singolo tentativo, anche con tempo in
+   abbondanza. Una generazione sana di un lotto sta sotto i 30 secondi: oltre
+   i 45 e' quasi sempre un server sovraccarico, e conviene riprovare invece
+   di aspettare. */
+define('FC_AI_TENTATIVO_MAX', 45);
 
-$azione = fc_ai_enum($fc_ai_in['azione'] ?? '', ['stima', 'concetti', 'densita', 'carte', 'migliora'], '');
-if ($azione === '') {
-    fc_ai_esci(['ok' => false, 'error' => 'azione_sconosciuta'], 400);
-}
+/* I nomi dei tag HTML che fc_ai_documento() toglie da un testo incollato da
+   una pagina web. Un elenco chiuso apposta: tutto cio' che non c'e' (int, T,
+   String, K,V...) e' contenuto, non markup. */
+define('FC_AI_TAG_HTML', 'a|abbr|article|aside|b|big|blockquote|body|br|button|caption|center|cite|code|col|colgroup'
+    . '|dd|del|details|div|dl|dt|em|figcaption|figure|font|footer|form|h[1-6]|head|header|hr|html|i|iframe|img'
+    . '|input|ins|kbd|label|li|link|main|mark|meta|nav|ol|option|p|pre|q|s|samp|section|select|small|span'
+    . '|strike|strong|sub|summary|sup|table|tbody|td|textarea|tfoot|th|thead|title|tr|tt|u|ul|var|wbr');
 
 /* ============================================================
    VALIDATORI D'INGRESSO
    ============================================================
    Involucri sottili sui sec_*: esistono solo per dare un nome corto a cio' che
    in questo file si ripete decine di volte, e per avere UN punto dove cambiare
-   il trattamento del testo lungo (vedi fc_ai_documento, che di proposito non
-   passa da sec_text). */
-
+   il trattamento del testo lungo. */
 function fc_ai_testo($v, int $max): string {
     return sec_text($v, $max);
 }
 
 /**
- * Ripulitura del DOCUMENTO da mandare all'IA. Non usa sec_text apposta:
- * sec_text passa da strip_tags(), che mangia tutto quello che comincia per "<"
- * seguito da una lettera. In un testo di studio "P(X <b) " o "se x <n allora"
- * sono frasi normali, e sparirebbero pezzi di formula senza che nessuno se ne
- * accorga. Qui il testo non viene mai stampato come HTML — va a Gemini e torna
- * come carte, che escono comunque da fcdToHTML() con l'escaping — quindi la
- * difesa giusta e' togliere i tag veri, non ogni minore.
+ * Ripulitura del DOCUMENTO da mandare all'IA. Toglie i tag HTML veri (con il
+ * loro contenuto se sono script o style) e lascia stare ogni altro "<": in un
+ * testo di studio "P(X <b)" o "se x <n allora" sono frasi normali. Qui il
+ * testo non viene mai stampato come HTML — va a Gemini e torna come carte,
+ * che escono comunque da fcdToHTML() con l'escaping.
+ * (sec_text non usa piu' strip_tags, ma non toglie nemmeno i tag veri: un
+ * documento incollato da una pagina web li porterebbe tutti al modello.)
  */
 function fc_ai_documento($v, int $max): string {
     if (is_array($v) || is_object($v)) return '';
     $s = (string)$v;
     $s = str_replace(["\r\n", "\r"], "\n", $s);
     $s = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $s);
-    // solo i tag riconoscibili come HTML, con il loro contenuto se sono script o style
+    // script e style con tutto il loro contenuto
     $s = preg_replace('#<(script|style)\b[^>]*>.*?</\1>#is', ' ', $s);
-    $s = preg_replace('#</?[a-z][a-z0-9]*\b[^>]*>#i', ' ', $s);
+    /* Solo i tag HTML VERI, per nome. La versione precedente toglieva
+       qualunque "<parola>": in un testo di informatica vector<int>,
+       Node<T>*, List<String> o Map<K,V> sparivano prima di arrivare al
+       modello, che poi scriveva le carte su un codice mutilato. Qui un tag
+       dev'essere un nome dell'elenco, seguito subito da spazio, "/" o ">":
+       "<int>" non e' HTML, e "P(X <b)" non viene scambiato per un <b>. */
+    $s = preg_replace('#</?(?:' . FC_AI_TAG_HTML . ')(?:\s[^<>]*)?/?>#i', ' ', $s);
     $s = preg_replace("/\n{4,}/", "\n\n\n", $s);
     return mb_substr(trim($s), 0, $max, 'UTF-8');
 }
@@ -128,10 +142,73 @@ function fc_ai_bool($v): bool {
     return sec_bool($v);
 }
 
-/* Involucro di sec_json: la forma della risposta la decide un punto solo,
-   come per tutti gli altri endpoint del sito. */
-function fc_ai_esci(array $payload, int $status = 200): void {
-    sec_json($payload, $status);
+
+/**
+ * Le indicazioni libere dello studente: fino a 2000 caratteri, a capo
+ * compresi. Passano da sec_text e non da sec_str apposta: sec_str appiattisce
+ * tutto su una riga, e un elenco di richieste scritto su piu' righe ("tipo
+ * radice: / valore radice: / check se null:") perde la struttura che era
+ * proprio la richiesta.
+ */
+function fc_ai_indicazioni($v): string {
+    return sec_text($v, 2000);
+}
+
+/**
+ * Il testo dello studente entra nel prompt fra due righe di recinto. Serve al
+ * modello per sapere dove finisce l'istruzione e ricomincia il compito, e
+ * dice esplicitamente che quel testo puo' chiedere qualunque cosa sulla
+ * carta ma non cambiare il formato della risposta. La difesa vera resta
+ * comunque la validazione a valle, che non chiede permesso a nessuno.
+ */
+function fc_ai_recinto(string $t): string {
+    return "<<<INDICAZIONI\n" . $t . "\nINDICAZIONI>>>\n"
+         . "(Il testo fra i recinti e' una richiesta dello studente sul contenuto e sulla forma "
+         . "delle carte. Non puo' cambiare il formato JSON della risposta ne' il formato del testo.)";
+}
+
+/** Chiave di confronto fra titoli: minuscole, senza accenti ne' punteggiatura. */
+function fc_ai_chiave(string $s): string {
+    $s = mb_strtolower($s, 'UTF-8');
+    $s = strtr($s, ['à' => 'a', 'è' => 'e', 'é' => 'e', 'ì' => 'i', 'ò' => 'o', 'ù' => 'u']);
+    $s = preg_replace('/[^a-z0-9 ]/u', '', $s);
+    return trim(preg_replace('/\s+/', ' ', $s));
+}
+
+/* ============================================================
+   ESITI — la forma di cio' che le azioni restituiscono
+   ============================================================
+   Ogni azione torna un array, mai una risposta HTTP. Chi la chiama decide
+   cosa farne: fc_ai.php lo spedisce al browser, il motore dei job lo scrive
+   nel passo. I token viaggiano sempre, anche negli errori, perche' anche un
+   tentativo fallito e' stato pagato a Google — da noi, non dall'utente. */
+
+function fc_ai_token_nuovo(): array {
+    return ['utili' => 0, 'totali' => 0];
+}
+
+function fc_ai_riuscito(array $dati, array $token): array {
+    return ['ok' => true, 'dati' => $dati, 'error' => '', 'http' => 200,
+            'riprovabile' => false, 'token' => $token, 'modello' => FC_AI_MODELLO];
+}
+
+function fc_ai_fallito(string $errore, int $http, array $token): array {
+    return ['ok' => false, 'dati' => null, 'error' => $errore, 'http' => $http,
+            'riprovabile' => fc_ai_riprovabile($errore), 'token' => $token, 'modello' => FC_AI_MODELLO];
+}
+
+/**
+ * Se ha senso riprovare la stessa richiesta. Serve al client per scegliere
+ * fra il tasto "Riprova" e un messaggio diverso, e al motore dei job per
+ * decidere se rimettere il passo in coda o segnarlo fallito.
+ *
+ * Non sono riprovabili gli errori che si ripeterebbero identici: la chiave
+ * sbagliata, una richiesta malformata, una risposta troncata perche' troppo
+ * lunga (va accorciato il lotto, non ripetuto), un contenuto rifiutato.
+ */
+function fc_ai_riprovabile(string $errore): bool {
+    $e = preg_replace('/^ia_/', '', $errore);
+    return in_array($e, ['sovraccarico', 'rete', 'lento', 'tempo', 'quota', 'json', 'vuota', 'nessuna_carta', 'nessun_concetto', 'nessun_esempio'], true);
 }
 
 /* ============================================================
@@ -160,6 +237,14 @@ function fc_ai_stima(int $caratteri_ingresso, int $uscita_attesa): int {
 function fc_ai_preventivo(string $azione, array $in): int {
     $prompt_fisso = 900; // istruzioni + specifica di formato, sempre presenti
 
+    /* L'impegno scelto aggiunge i token di ragionamento, pagati come l'uscita;
+       la carta modello si rilegge a ogni chiamata. Entrambi vanno nel
+       preventivo, o l'utente scoprirebbe il prezzo di "massimo" solo dopo. */
+    $opz = (array)($in['opzioni'] ?? []);
+    $impegno = fc_ai_impegno_leggi($opz['impegno'] ?? 'medio');
+    $stile = fc_ai_stile_leggi($opz['stile'] ?? []);
+    $car_stile = mb_strlen($stile['modello_q'] . $stile['modello_a']) + (fc_ai_stile_vuoto($stile) ? 0 : 600);
+
     switch ($azione) {
         case 'concetti':
             $car = mb_strlen((string)($in['testo'] ?? '')) + mb_strlen((string)($in['indicazioni'] ?? ''));
@@ -168,7 +253,7 @@ function fc_ai_preventivo(string $azione, array $in): int {
                ~45 token. Quanti ne uscira'? Sulla prosa didattica viene circa un
                concetto ogni 600 caratteri. */
             $attesi = max(8, (int)ceil($car / 600));
-            return fc_ai_stima($car + $prompt_fisso * 3, $attesi * 45);
+            return fc_ai_stima($car + $prompt_fisso * 3, $attesi * 45) + fc_ai_pensiero_atteso($impegno, 'concetti');
 
         case 'densita':
             $car = mb_strlen(implode(' ', array_map('strval', (array)($in['titoli'] ?? []))));
@@ -186,7 +271,15 @@ function fc_ai_preventivo(string $azione, array $in): int {
             $car = mb_strlen((string)($in['domanda'] ?? '')) + mb_strlen((string)($in['risposta'] ?? ''))
                  + mb_strlen((string)($in['nota'] ?? '')) + mb_strlen((string)($in['estratto'] ?? ''));
             $uscita = fc_ai_bool($in['opzioni']['esempi'] ?? false) ? 190 : 130;
-            return fc_ai_stima($car + $prompt_fisso, $uscita);
+            return fc_ai_stima($car + $car_stile + $prompt_fisso, $uscita) + fc_ai_pensiero_atteso($impegno, 'migliora');
+
+        case 'esempio':
+            /* La carta di partenza, le indicazioni e l'esempio da scrivere: un
+               esempio sta sui 200 token, un esercizio svolto anche il doppio. */
+            $car = mb_strlen((string)($in['q'] ?? '')) + mb_strlen((string)($in['a'] ?? ''))
+                 + mb_strlen((string)($in['extra'] ?? ''));
+            $uscita = in_array($stile['esempio'], ['esercizio'], true) || $stile['lunghezza'] === 'lunga' ? 450 : 220;
+            return fc_ai_stima($car + $car_stile + $prompt_fisso, $uscita) + fc_ai_pensiero_atteso($impegno, 'esempio');
 
         case 'carte':
             $concetti = (array)($in['concetti'] ?? []);
@@ -198,7 +291,10 @@ function fc_ai_preventivo(string $azione, array $in): int {
             /* Una carta domanda+risposta formattata sta sui 130 token; con
                l'esempio acceso si arriva a ~190. */
             $per_carta = fc_ai_bool($in['opzioni']['esempi'] ?? false) ? 190 : 130;
-            return fc_ai_stima($car + $prompt_fisso * 2, max(1, count($concetti)) * $per_carta);
+            // una risposta lunga o esaustiva scrive di piu': il preventivo lo sa
+            if ($stile['lunghezza'] === 'lunga' || $stile['profondita'] === 'esaustivo') $per_carta *= 2;
+            return fc_ai_stima($car + $car_stile + $prompt_fisso * 2, max(1, count($concetti)) * $per_carta)
+                 + fc_ai_pensiero_atteso($impegno, 'carte');
     }
     return 0;
 }
@@ -211,17 +307,16 @@ function fc_ai_preventivo(string $azione, array $in): int {
  * fa solo il preventivo. Non e' una prenotazione: due chiamate lanciate insieme
  * possono ancora sforare di poco, ed e' un compromesso accettato — l'alternativa
  * (una riga di impegno da scrivere e ripulire) costa piu' di quanto valga.
+ *
+ * Legge il saldo da ai_crediti_stato(), la stessa funzione che usa il motore
+ * dei job: un solo modo di dire "quanti crediti restano".
  */
 function fc_ai_controlla_budget(int $user_id, int $stima): array {
-    $piano = nisama_get_piano_utente($user_id);
-    $limite = $piano ? $piano['text_tokens_limit'] : null;
-    $usato  = $piano ? (int)$piano['monthly_text_tokens'] : 0;
-
-    if ($limite === null) {
+    $s = ai_crediti_stato($user_id);
+    if ($s['disponibili'] === null) {
         return ['ok' => true, 'stima' => $stima, 'disponibili' => null];
     }
-    $disponibili = max(0, (int)$limite - $usato);
-    return ['ok' => ($stima <= $disponibili), 'stima' => $stima, 'disponibili' => $disponibili];
+    return ['ok' => ($stima <= $s['disponibili']), 'stima' => $stima, 'disponibili' => $s['disponibili']];
 }
 
 /* ============================================================
@@ -256,6 +351,42 @@ SPEC;
 }
 
 /* ============================================================
+   IL TEMPO — un budget, come i token
+   ============================================================
+   Su un hosting condiviso max_execution_time sta fra 30 e 60 secondi. Quando
+   scade PHP muore a meta': non esce nessun JSON, esce una pagina d'errore, e
+   il client puo' solo dire "errore di rete". Riprovando va, perche' la
+   seconda volta Gemini risponde in dieci secondi invece che in quaranta.
+
+   La regola qui e': si sa quanto tempo resta, e non si comincia mai qualcosa
+   che non si fa in tempo a finire. Un errore pulito ("lento", riprovabile) il
+   client e il motore dei job lo sanno gestire; una morte improvvisa no. */
+
+/**
+ * Fissa il tempo a disposizione di questa richiesta. Senza argomento lo
+ * ricava da max_execution_time, meno un margine per scrivere la risposta e
+ * aggiornare i contatori. Il motore dei job lo chiama con un valore suo.
+ */
+function fc_ai_scadenza_imposta(?float $secondi = null): void {
+    if ($secondi === null) {
+        $limite = (int)ini_get('max_execution_time');
+        /* 0 vuol dire "nessun limite" (riga di comando, o server configurato
+           cosi'). Non e' un invito ad aspettare all'infinito: davanti c'e'
+           comunque qualcuno che guarda una rotellina, e un proxy con un suo
+           tempo massimo di cui nessuno ci avvisa. */
+        if ($limite <= 0) $limite = 90;
+        $secondi = $limite - 4;
+    }
+    $GLOBALS['fc_ai_scadenza'] = microtime(true) + max(5.0, $secondi);
+}
+
+/** Secondi ancora spendibili in questa richiesta. */
+function fc_ai_tempo_rimasto(): float {
+    if (!isset($GLOBALS['fc_ai_scadenza'])) fc_ai_scadenza_imposta();
+    return $GLOBALS['fc_ai_scadenza'] - microtime(true);
+}
+
+/* ============================================================
    CHIAMATA A GEMINI
    ============================================================ */
 
@@ -266,15 +397,29 @@ SPEC;
  * $sistema e' l'istruzione stabile (identica fra le chiamate della stessa
  * sessione di lavoro): tenerla immutata e in testa e' cio' che permette alla
  * cache di contesto di far pagare poco le ripetizioni.
+ *
+ * L'errore torna classificato, perche' da quella parola dipendono tre
+ * decisioni diverse: se ritentare, quanto aspettare, cosa dire all'utente.
+ * Prima finiva tutto sotto "rete", e cosi' un limite di quota (ritentare non
+ * serve mai) veniva ritentato come un 503 passeggero (ritentare risolve).
  */
-function fc_ai_gemini(string $sistema, string $utente, array $schema, int $pensiero = 0): array {
+function fc_ai_gemini(string $sistema, string $utente, array $schema, int $pensiero = 0, float $temperatura = 0.25): array {
+    /* Sotto i otto secondi non vale la pena partire: nessuna risposta utile
+       arriva cosi' in fretta, e partire vorrebbe dire farsi tagliare a meta'
+       invece di restituire un errore che si sa gestire. */
+    $resta = fc_ai_tempo_rimasto();
+    if ($resta < 8.0) {
+        return ['ok' => false, 'dati' => null, 'token' => 0, 'errore' => 'tempo'];
+    }
+
     $payload = [
         'systemInstruction' => ['parts' => [['text' => $sistema]]],
         'contents' => [['role' => 'user', 'parts' => [['text' => $utente]]]],
         'generationConfig' => [
-            /* Bassa apposta: qui non serve fantasia, serve fedelta' al
-               documento e al formato. */
-            'temperature' => 0.25,
+            /* Bassa di serie: qui non serve fantasia, serve fedelta' al
+               documento e al formato. La alza solo il registro discorsivo
+               (fc_ai_temperatura), dove a 0,25 una spiegazione esce legnosa. */
+            'temperature' => $temperatura,
             'topP' => 0.9,
             'responseMimeType' => 'application/json',
             'responseSchema' => $schema,
@@ -292,23 +437,45 @@ function fc_ai_gemini(string $sistema, string $utente, array $schema, int $pensi
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
         CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-        CURLOPT_TIMEOUT => 120,
-        CURLOPT_CONNECTTIMEOUT => 15,
+        // mai piu' di quanto resta, e mai piu' di un tentativo ragionevole
+        CURLOPT_TIMEOUT => (int)floor(min($resta - 2.0, FC_AI_TENTATIVO_MAX)),
+        CURLOPT_CONNECTTIMEOUT => 10,
     ]);
     $risposta = curl_exec($ch);
     $http = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $errno = curl_errno($ch);
     $errCurl = curl_error($ch);
     curl_close($ch);
 
-    if ($risposta === false || $http !== 200) {
-        sec_log_error('fc_ai', 'Gemini HTTP ' . $http . ' ' . $errCurl);
-        return ['ok' => false, 'dati' => null, 'token' => 0, 'errore' => 'rete'];
-    }
-
-    $j = json_decode($risposta, true);
-    $testo = $j['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    $j = ($risposta === false) ? null : json_decode($risposta, true);
     $token = (int)($j['usageMetadata']['totalTokenCount'] ?? 0);
 
+    $errore = '';
+    if ($errno === CURLE_OPERATION_TIMEOUTED)      $errore = 'lento';
+    elseif ($errno !== 0 || $risposta === false)    $errore = 'rete';
+    elseif ($http === 429)                          $errore = 'quota';      // troppe richieste al minuto
+    elseif ($http === 401 || $http === 403)         $errore = 'chiave';
+    elseif ($http === 400)                          $errore = 'richiesta';  // il nostro payload e' sbagliato
+    elseif ($http >= 500)                           $errore = 'sovraccarico';
+    elseif ($http !== 200)                          $errore = 'rete';
+
+    if ($errore !== '') {
+        sec_log_error('fc_ai', "Gemini $errore http=$http curl=$errno " . mb_substr($errCurl, 0, 200));
+        return ['ok' => false, 'dati' => null, 'token' => $token, 'errore' => $errore];
+    }
+
+    /* HTTP 200 con un motivo di interruzione. MAX_TOKENS vuol dire risposta
+       tagliata a meta': il JSON non chiude, e ripeterla uguale la taglierebbe
+       di nuovo. Va accorciato il lotto, non ripetuta la chiamata. */
+    $motivo = $j['candidates'][0]['finishReason'] ?? '';
+    if ($motivo === 'MAX_TOKENS') {
+        return ['ok' => false, 'dati' => null, 'token' => $token, 'errore' => 'troncata'];
+    }
+    if (in_array($motivo, ['SAFETY', 'PROHIBITED_CONTENT', 'RECITATION', 'BLOCKLIST'], true)) {
+        return ['ok' => false, 'dati' => null, 'token' => $token, 'errore' => 'filtro'];
+    }
+
+    $testo = $j['candidates'][0]['content']['parts'][0]['text'] ?? '';
     if ($testo === '') {
         return ['ok' => false, 'dati' => null, 'token' => $token, 'errore' => 'vuota'];
     }
@@ -325,28 +492,39 @@ function fc_ai_gemini(string $sistema, string $utente, array $schema, int $pensi
 }
 
 /**
- * Chiamata con un ritentativo. Il secondo giro parte solo se il primo e'
- * fallito per rete o per JSON illeggibile: sono i casi in cui riprovare
- * identici ha davvero senso.
+ * Chiamata con un ritentativo, dentro il budget di tempo.
  *
- * Il conteggio dei token e' cumulativo apposta: anche il tentativo fallito e'
- * stato pagato, e non addebitarlo vorrebbe dire che il limite del piano non
- * corrisponde alla spesa reale.
+ * Il secondo giro parte solo per gli errori che riprovare puo' risolvere
+ * (sovraccarico, rete, lentezza, JSON illeggibile, risposta vuota), e solo se
+ * resta il tempo di completarlo: altrimenti si restituisce subito l'errore,
+ * che il chiamante sa gestire.
+ *
+ * $token accumula in due voci. 'totali': tutto cio' che Google ci ha fatto
+ * pagare, tentativi falliti compresi — resta nei registri, e' il costo nostro.
+ * 'utili': solo il tentativo andato a buon fine — e' cio' che si addebita
+ * all'utente. Prima si sommava tutto e si addebitava tutto: tecnicamente
+ * giusto, ma su una funzione a pagamento vuol dire far pagare due volte
+ * all'utente un 503 del nostro fornitore.
  */
-function fc_ai_gemini_ritenta(string $sistema, string $utente, array $schema, int $pensiero, int &$token_totali): array {
+function fc_ai_gemini_ritenta(string $sistema, string $utente, array $schema, int $pensiero,
+                              array &$token, string $etichetta = 'ia', float $temperatura = 0.25): array {
     $t0 = microtime(true);
-    $r = fc_ai_gemini($sistema, $utente, $schema, $pensiero);
-    $token_totali += $r['token'];
+    $r = fc_ai_gemini($sistema, $utente, $schema, $pensiero, $temperatura);
+    $token['totali'] += $r['token'];
 
-    if (!$r['ok'] && in_array($r['errore'], ['rete', 'json', 'vuota'], true)) {
-        usleep(700000); // mezzo secondo abbondante: quasi tutti i 503 passano da soli
-        $r = fc_ai_gemini($sistema, $utente, $schema, $pensiero);
-        $token_totali += $r['token'];
+    if (!$r['ok'] && in_array($r['errore'], ['sovraccarico', 'rete', 'lento', 'json', 'vuota'], true)) {
+        // mezzo secondo abbondante: quasi tutti i 503 passano da soli
+        if (fc_ai_tempo_rimasto() > 12.0) {
+            usleep(700000 + random_int(0, 300000));
+            $r = fc_ai_gemini($sistema, $utente, $schema, $pensiero, $temperatura);
+            $token['totali'] += $r['token'];
+        }
     }
+    if ($r['ok']) $token['utili'] += $r['token'];
 
     /* Il tempo medio per azione serve a mostrare un'attesa credibile prima di
        lanciare la chiamata (nisama_get_stima_tempo_ia lo rilegge da li'). */
-    nisama_registra_tempo_ia('fc_' . ($GLOBALS['azione'] ?? 'ia'), (int)round((microtime(true) - $t0) * 1000));
+    nisama_registra_tempo_ia('fc_' . $etichetta, (int)round((microtime(true) - $t0) * 1000));
     return $r;
 }
 
@@ -368,7 +546,7 @@ function fc_ai_gemini_ritenta(string $sistema, string $utente, array $schema, in
  * Controlla un lotto di carte contro i concetti richiesti.
  * Restituisce ['ok'=>[carte buone], 'da_rifare'=>[indice => motivo]].
  */
-function fc_ai_valida_lotto(array $carte, array $indici_attesi, bool $esempi_ammessi): array {
+function fc_ai_valida_lotto(array $carte, array $indici_attesi, bool $esempi_ammessi, ?array $stile = null): array {
     $buone = [];
     $problemi = [];
     $visti = [];
@@ -394,6 +572,10 @@ function fc_ai_valida_lotto(array $carte, array $indici_attesi, bool $esempi_amm
 
         $err = fc_ai_valida_formato($q);
         if ($err === '') $err = fc_ai_valida_formato($a);
+        /* Poi lo stile scelto dall'utente, con lo stesso meccanismo: il motivo
+           torna al modello nel secondo giro. Con tutto su "auto" non rifiuta
+           niente. */
+        if ($err === '' && $stile) $err = fc_ai_stile_verifica($stile, $q, $a);
         if ($err !== '') { $problemi[$i] = $err; continue; }
 
         $carta = ['i' => $i, 'q' => $q, 'a' => $a];
@@ -411,6 +593,8 @@ function fc_ai_valida_lotto(array $carte, array $indici_attesi, bool $esempi_amm
             $e = fc_ai_testo($e, 4000);
             $e = fc_ai_ripara_formato($e);
             $err_e = $e !== '' ? fc_ai_valida_formato($e) : '';
+            // e lo stile scelto per gli esempi (tipo, lunghezza, ambito)
+            if ($err_e === '' && $e !== '' && $stile) $err_e = fc_ai_stile_verifica_esempio($stile, $e);
             if ($err_e !== '') { $problemi[$i] = 'esempio: ' . $err_e; continue; }
             if ($e !== '') $carta['e'] = $e;
         }
@@ -541,76 +725,59 @@ function fc_ai_schema_carte(bool $esempi): array {
    ISTRUZIONE DI SISTEMA
    ============================================================ */
 
-function fc_ai_sistema(string $lingua): string {
+function fc_ai_sistema(string $lingua, ?array $stile = null): string {
+    /* Con il registro discorsivo "asciutte, niente giri di parole" direbbe il
+       contrario di cio' che l'utente ha chiesto: due istruzioni opposte nella
+       stessa chiamata, e vincerebbe quella scritta per prima, cioe' questa. */
+    $tono = ($stile && $stile['registro'] === 'discorsivo')
+        ? "risposte spiegate con calma, come a voce, ma senza divagare: "
+        : "risposte complete ma asciutte: ";
     return "Sei un docente che prepara flashcard di studio in lingua $lingua. "
-         . "Scrivi domande brevi e non ambigue e risposte complete ma asciutte: "
+         . "Scrivi domande brevi e non ambigue e " . $tono
          . "chi legge la risposta deve poter verificare da solo se sapeva rispondere. "
-         . "Niente giri di parole, niente formule di cortesia, niente ripetizione della domanda "
+         . "Niente formule di cortesia, niente ripetizione della domanda "
          . "dentro la risposta. Rispondi sempre e solo con il JSON richiesto.";
 }
 
 /* ============================================================
-   AZIONE: stima
-   ============================================================ */
+   LE AZIONI
+   ============================================================
+   Ognuna riceve l'ingresso gia' decodificato ($in, la stessa forma che il
+   browser manda a fc_ai.php) e restituisce un esito di fc_ai_riuscito() o
+   fc_ai_fallito(). Nessuna addebita: lo fa chi chiama, che sa se il lavoro e'
+   stato consegnato. Nessun controllo del budget: anche quello e' di chi
+   chiama, che conosce il contesto (una chiamata sola, o un passo di un job). */
 
-if ($azione === 'stima') {
-    $stima = fc_ai_preventivo(fc_ai_enum($fc_ai_in['per'] ?? 'concetti', ['concetti', 'densita', 'carte'], 'concetti'), $fc_ai_in);
-    $b = fc_ai_controlla_budget($fc_ai_user_id, $stima);
-    fc_ai_esci([
-        'ok' => true,
-        'stima' => $b['stima'],
-        'disponibili' => $b['disponibili'],
-        'sufficiente' => $b['ok'],
-    ]);
-}
-
-/* Da qui in poi si chiama davvero l'IA: prima si guarda il portafoglio.
-   Se non bastano, la risposta dice "ripiego" e il client offre il prompt da
-   copiare negli appunti — che e' la stessa strada di chi non ha abbonamento. */
-$preventivo = fc_ai_preventivo($azione, $fc_ai_in);
-$budget = fc_ai_controlla_budget($fc_ai_user_id, $preventivo);
-if (!$budget['ok']) {
-    fc_ai_esci([
-        'ok' => false,
-        'error' => 'limite_piano',
-        'stima' => $budget['stima'],
-        'disponibili' => $budget['disponibili'],
-        'ripiego' => true,
-    ]);
-}
-
-$lingua = fc_ai_enum($fc_ai_in['lingua'] ?? 'italiano', ['italiano', 'inglese'], 'italiano');
-$token_spesi = 0;
-
-/* ============================================================
-   AZIONE: concetti
-   ============================================================ */
-
-if ($azione === 'concetti') {
-    $fonte = fc_ai_enum($fc_ai_in['fonte'] ?? 'file', ['file', 'elenco', 'argomento'], 'file');
-    $testo = fc_ai_documento($fc_ai_in['testo'] ?? '', FC_AI_MAX_TESTO);
-    $titolo = fc_ai_riga($fc_ai_in['titolo'] ?? '', 200);
-    $indicazioni = fc_ai_riga($fc_ai_in['indicazioni'] ?? '', 1000);
-    $vuole_esempi = fc_ai_bool($fc_ai_in['opzioni']['esempi'] ?? false);
-    $esempi_figli = fc_ai_bool($fc_ai_in['opzioni']['esempi_figli'] ?? false);
-    $vuole_gerarchia = fc_ai_bool($fc_ai_in['opzioni']['gerarchia'] ?? false);
-    $solo_elenco = fc_ai_bool($fc_ai_in['opzioni']['solo_elenco'] ?? false);
+/**
+ * Dal testo (o da un elenco/argomento) l'elenco dei concetti chiave, con
+ * l'ancora nel documento.
+ */
+function fc_ai_azione_concetti(array $in, string $lingua): array {
+    $token = fc_ai_token_nuovo();
+    $fonte = fc_ai_enum($in['fonte'] ?? 'file', ['file', 'elenco', 'argomento'], 'file');
+    $testo = fc_ai_documento($in['testo'] ?? '', FC_AI_MAX_TESTO);
+    $titolo = fc_ai_riga($in['titolo'] ?? '', 200);
+    $indicazioni = fc_ai_indicazioni($in['indicazioni'] ?? '');
+    $vuole_esempi = fc_ai_bool($in['opzioni']['esempi'] ?? false);
+    $esempi_figli = fc_ai_bool($in['opzioni']['esempi_figli'] ?? false);
+    $vuole_gerarchia = fc_ai_bool($in['opzioni']['gerarchia'] ?? false);
+    $solo_elenco = fc_ai_bool($in['opzioni']['solo_elenco'] ?? false);
 
     $elenco = [];
-    foreach ((array)($fc_ai_in['elenco'] ?? []) as $v) {
+    foreach ((array)($in['elenco'] ?? []) as $v) {
         $t = fc_ai_riga($v, 300);
         if ($t !== '') $elenco[] = $t;
         if (count($elenco) >= FC_AI_MAX_CONCETTI) break;
     }
 
     if ($fonte === 'file' && $testo === '') {
-        fc_ai_esci(['ok' => false, 'error' => 'testo_mancante'], 400);
+        return fc_ai_fallito('testo_mancante', 400, $token);
     }
     if ($fonte === 'elenco' && !$elenco) {
-        fc_ai_esci(['ok' => false, 'error' => 'elenco_mancante'], 400);
+        return fc_ai_fallito('elenco_mancante', 400, $token);
     }
     if ($fonte === 'argomento' && $titolo === '') {
-        fc_ai_esci(['ok' => false, 'error' => 'argomento_mancante'], 400);
+        return fc_ai_fallito('argomento_mancante', 400, $token);
     }
 
     /* Il documento va IN TESTA e non cambia mai: e' la parte che la cache di
@@ -620,7 +787,15 @@ if ($azione === 'concetti') {
     if ($testo !== '') $u .= "DOCUMENTO:\n" . $testo . "\n\n";
     if ($titolo !== '') $u .= "ARGOMENTO: " . $titolo . "\n";
     if ($elenco) $u .= "ELENCO FORNITO DALLO STUDENTE:\n- " . implode("\n- ", $elenco) . "\n";
-    if ($indicazioni !== '') $u .= "INDICAZIONI DELLO STUDENTE: " . $indicazioni . "\n";
+    if ($indicazioni !== '') {
+        /* Le stesse indicazioni arrivano anche alla scrittura delle carte (vedi
+           fc_ai_azione_carte). Qui valgono solo per la SCELTA dei concetti: se
+           parlano di come scrivere le risposte, il modello deve ignorarle ora,
+           invece di provare a rispettarle sui titoli. */
+        $u .= "INDICAZIONI DELLO STUDENTE (qui contano solo per scegliere i concetti; "
+            . "quelle sulla forma delle carte verranno applicate dopo):\n"
+            . fc_ai_recinto($indicazioni) . "\n";
+    }
 
     $u .= "\nCOMPITO: elenca i concetti chiave che meritano una flashcard.\n"
         . "Ogni voce e' un TITOLO, non una spiegazione: \"Teorema delle probabilita' totali\", "
@@ -654,6 +829,19 @@ if ($azione === 'concetti') {
             . "Il padre dev'essere a sua volta un concetto che merita la sua flashcard, non "
             . "un'etichetta di raccolta: \"Integrali\", \"Introduzione\", \"Definizioni\" non sono padri.\n"
             . "Nel dubbio metti -1: un elenco piatto e' meglio di raggruppamenti forzati.\n";
+
+        /* Da un ELENCO scritto a mano la prudenza si ritorce contro. Chi scrive
+           "permutazioni, disposizioni, combinazioni" si aspetta di ritrovare
+           sotto "disposizioni" i due casi con e senza ripetizione: sono le
+           voci che studia davvero, e se non escono il raggruppamento sembra
+           non funzionare. Da un documento no: li' i concetti ci sono gia'
+           scritti e inventarne di nuovi vuol dire allontanarsi dal testo. */
+        if ($elenco && !$solo_elenco) {
+            $u .= "Le voci dell'elenco sono titoli larghi scritti a mano. Quando una si divide in "
+                . "casi standard della materia (con/senza ripetizione, finito/infinito, discreto/continuo, "
+                . "il teorema e il suo corollario), aggiungi quei casi come figli di quella voce invece "
+                . "di lasciarla da sola: sono loro le flashcard che servono per studiare.\n";
+        }
     } else {
         $u .= "Metti sempre \"p\": -1.\n";
     }
@@ -669,11 +857,21 @@ if ($azione === 'concetti') {
         }
     }
 
-    $r = fc_ai_gemini_ritenta(fc_ai_sistema($lingua), $u, fc_ai_schema_concetti(), 0, $token_spesi);
-    nisama_incrementa_uso($fc_ai_user_id, 'token', $token_spesi);
+    /* Livello e ambito tarano quali concetti meritano una carta (per uno
+       studente delle superiori "definizione di limite" si', per un esperto
+       no). La forma delle risposte qui non conta: si scelgono i titoli. */
+    $opz_c = (array)($in['opzioni'] ?? []);
+    $taratura = fc_ai_stile_prompt(fc_ai_stile_leggi($opz_c['stile'] ?? []), 'concetti');
+    if ($taratura !== '') $u .= $taratura;
+
+    /* L'estrazione di serie non ragiona (e' lettura, non scrittura): lo fa solo
+       da impegno "alto", dove su un documento difficile evita di scambiare un
+       esempio per un concetto. */
+    $pensiero_c = fc_ai_pensiero(fc_ai_impegno_leggi($opz_c['impegno'] ?? 'medio'), 'concetti');
+    $r = fc_ai_gemini_ritenta(fc_ai_sistema($lingua), $u, fc_ai_schema_concetti(), $pensiero_c, $token, 'concetti');
 
     if (!$r['ok']) {
-        fc_ai_esci(['ok' => false, 'error' => 'ia_' . $r['errore'], 'token' => $token_spesi], 502);
+        return fc_ai_fallito('ia_' . $r['errore'], 502, $token);
     }
 
     $out = [];
@@ -690,14 +888,10 @@ if ($azione === 'concetti') {
         if (count($out) >= FC_AI_MAX_CONCETTI) break;
     }
     if (!$out) {
-        fc_ai_esci(['ok' => false, 'error' => 'nessun_concetto', 'token' => $token_spesi], 502);
+        return fc_ai_fallito('nessun_concetto', 502, $token);
     }
 
-    fc_ai_esci([
-        'ok' => true,
-        'concetti' => array_values(fc_ai_appiana_gerarchia($out)),
-        'token' => $token_spesi,
-    ]);
+    return fc_ai_riuscito(['concetti' => array_values(fc_ai_appiana_gerarchia($out))], $token);
 }
 
 /* ============================================================
@@ -708,17 +902,21 @@ if ($azione === 'concetti') {
    fusioni, non l'elenco riscritto. "piu'" il documento ce l'ha per forza, ma
    restituisce solo le aggiunte. */
 
-if ($azione === 'densita') {
-    $verso = fc_ai_enum($fc_ai_in['verso'] ?? '', ['piu', 'meno'], '');
-    if ($verso === '') fc_ai_esci(['ok' => false, 'error' => 'verso_mancante'], 400);
+/**
+ * "piu' concetti" / "meno concetti" sull'elenco gia' ottenuto.
+ */
+function fc_ai_azione_densita(array $in, string $lingua): array {
+    $token = fc_ai_token_nuovo();
+    $verso = fc_ai_enum($in['verso'] ?? '', ['piu', 'meno'], '');
+    if ($verso === '') return fc_ai_fallito('verso_mancante', 400, $token);
 
     $titoli = [];
-    foreach ((array)($fc_ai_in['titoli'] ?? []) as $v) {
+    foreach ((array)($in['titoli'] ?? []) as $v) {
         $t = fc_ai_riga($v, 300);
         if ($t !== '') $titoli[] = $t;
         if (count($titoli) >= FC_AI_MAX_CONCETTI) break;
     }
-    if (count($titoli) < 2) fc_ai_esci(['ok' => false, 'error' => 'elenco_troppo_corto'], 400);
+    if (count($titoli) < 2) return fc_ai_fallito('elenco_troppo_corto', 400, $token);
 
     $numerato = '';
     foreach ($titoli as $i => $t) $numerato .= $i . '. ' . $t . "\n";
@@ -731,9 +929,8 @@ if ($azione === 'densita') {
            . "In \"t\", nello stesso ordine dei gruppi, il titolo unico del gruppo.\n"
            . "Non toccare i concetti che stanno bene da soli: non devono comparire in nessun gruppo.\n";
 
-        $r = fc_ai_gemini_ritenta(fc_ai_sistema($lingua), $u, fc_ai_schema_fusioni(), 0, $token_spesi);
-        nisama_incrementa_uso($fc_ai_user_id, 'token', $token_spesi);
-        if (!$r['ok']) fc_ai_esci(['ok' => false, 'error' => 'ia_' . $r['errore'], 'token' => $token_spesi], 502);
+        $r = fc_ai_gemini_ritenta(fc_ai_sistema($lingua), $u, fc_ai_schema_fusioni(), 0, $token, 'densita');
+        if (!$r['ok']) return fc_ai_fallito('ia_' . $r['errore'], 502, $token);
 
         /* Un indice puo' stare in un gruppo solo, altrimenti la fusione lato
            client diventa ambigua e due gruppi si mangerebbero lo stesso
@@ -755,14 +952,14 @@ if ($azione === 'densita') {
         }
 
         $modificato = count($gruppi) > 0; // serve al client per dire "non c'era piu' niente da unire"
-        fc_ai_esci([
-            'ok' => true, 'verso' => 'meno', 'fusioni' => $gruppi,
-            'titoli' => $nuovi_titoli, 'modificato' => $modificato, 'token' => $token_spesi,
-        ]);
+        return fc_ai_riuscito([
+            'verso' => 'meno', 'fusioni' => $gruppi,
+            'titoli' => $nuovi_titoli, 'modificato' => $modificato,
+        ], $token);
     }
 
     // verso === 'piu'
-    $testo = fc_ai_documento($fc_ai_in['testo'] ?? '', FC_AI_MAX_TESTO);
+    $testo = fc_ai_documento($in['testo'] ?? '', FC_AI_MAX_TESTO);
     $u = '';
     if ($testo !== '') $u .= "DOCUMENTO:\n" . $testo . "\n\n";
     $u .= "ELENCO ATTUALE:\n" . $numerato
@@ -773,9 +970,8 @@ if ($azione === 'densita') {
         $u .= "In \"a\" una citazione letterale di 4-8 parole copiata dal documento.\n";
     }
 
-    $r = fc_ai_gemini_ritenta(fc_ai_sistema($lingua), $u, fc_ai_schema_aggiunte(), 0, $token_spesi);
-    nisama_incrementa_uso($fc_ai_user_id, 'token', $token_spesi);
-    if (!$r['ok']) fc_ai_esci(['ok' => false, 'error' => 'ia_' . $r['errore'], 'token' => $token_spesi], 502);
+    $r = fc_ai_gemini_ritenta(fc_ai_sistema($lingua), $u, fc_ai_schema_aggiunte(), 0, $token, 'densita');
+    if (!$r['ok']) return fc_ai_fallito('ia_' . $r['errore'], 502, $token);
 
     /* Il modello a volte "aggiunge" un concetto che c'e' gia' con altre parole:
        il confronto sui titoli normalizzati lo intercetta senza spendere
@@ -796,35 +992,33 @@ if ($azione === 'densita') {
         ];
     }
 
-    fc_ai_esci([
-        'ok' => true, 'verso' => 'piu', 'aggiunte' => $aggiunte,
-        'modificato' => count($aggiunte) > 0, 'token' => $token_spesi,
-    ]);
+    return fc_ai_riuscito([
+        'verso' => 'piu', 'aggiunte' => $aggiunte,
+        'modificato' => count($aggiunte) > 0,
+    ], $token);
 }
 
-/** Chiave di confronto fra titoli: minuscole, senza accenti ne' punteggiatura. */
-function fc_ai_chiave(string $s): string {
-    $s = mb_strtolower($s, 'UTF-8');
-    $s = strtr($s, ['à' => 'a', 'è' => 'e', 'é' => 'e', 'ì' => 'i', 'ò' => 'o', 'ù' => 'u']);
-    $s = preg_replace('/[^a-z0-9 ]/u', '', $s);
-    return trim(preg_replace('/\s+/', ' ', $s));
-}
-
-/* ============================================================
-   AZIONE: carte  (un lotto, o una sola per la rigenerazione)
-   ============================================================ */
-
-if ($azione === 'carte') {
-    $opz = (array)($fc_ai_in['opzioni'] ?? []);
+/**
+ * Un LOTTO di flashcard dai concetti scelti (o una sola, per la
+ * rigenerazione).
+ */
+function fc_ai_azione_carte(array $in, string $lingua): array {
+    $token = fc_ai_token_nuovo();
+    $opz = (array)($in['opzioni'] ?? []);
     $esempi     = fc_ai_bool($opz['esempi'] ?? false);
     $integra    = fc_ai_bool($opz['integra'] ?? false);     // puo' usare conoscenze proprie
     $corregge   = fc_ai_bool($opz['corregge'] ?? false);    // puo' correggere errori del documento
     $testuale   = fc_ai_bool($opz['testuale'] ?? false);    // deve ricopiare le definizioni del documento
-    $estratto   = fc_ai_documento($fc_ai_in['estratto'] ?? '', FC_AI_MAX_TESTO);
-    $nota       = fc_ai_riga($fc_ai_in['nota'] ?? '', 500); // "rigenera, ma piu' corta" ecc.
+    $estratto   = fc_ai_documento($in['estratto'] ?? '', FC_AI_MAX_TESTO);
+    $nota       = fc_ai_riga($in['nota'] ?? '', 500); // "rigenera, ma piu' corta" ecc.
+    $indicazioni = fc_ai_indicazioni($in['indicazioni'] ?? '');
+    $stile      = fc_ai_stile_leggi($opz['stile'] ?? []);
+    $impegno    = fc_ai_impegno_leggi($opz['impegno'] ?? 'medio');
+    $righe_stile = fc_ai_stile_prompt($stile, 'carte');
+    $sistema    = fc_ai_sistema($lingua, $stile);
 
     $concetti = [];
-    foreach ((array)($fc_ai_in['concetti'] ?? []) as $c) {
+    foreach ((array)($in['concetti'] ?? []) as $c) {
         $t = fc_ai_riga($c['t'] ?? '', 300);
         if ($t === '') continue;
         $concetti[] = [
@@ -834,7 +1028,7 @@ if ($azione === 'carte') {
         ];
         if (count($concetti) >= FC_AI_LOTTO_MAX) break;
     }
-    if (!$concetti) fc_ai_esci(['ok' => false, 'error' => 'concetti_mancanti'], 400);
+    if (!$concetti) return fc_ai_fallito('concetti_mancanti', 400, $token);
 
     $indici = array_column($concetti, 'i');
     $lista = '';
@@ -864,29 +1058,54 @@ if ($azione === 'carte') {
         ? "Ricopia le definizioni del documento parola per parola, senza riformularle.\n"
         : "Puoi riformulare con parole tue, purche' il contenuto resti esattamente quello.\n";
     if ($esempi) {
-        $u .= "Per i concetti segnati [con esempio] aggiungi in \"e\" un esempio concreto e breve. "
+        // con "tipo di esempio" su auto la frase e' quella di sempre
+        $u .= "Per i concetti segnati [con esempio] aggiungi in \"e\" " . fc_ai_stile_istruzione_esempio($stile) . ". "
             . "Un solo esempio, e solo per quelli segnati.\n";
     }
     if ($nota !== '') $u .= "RICHIESTA AGGIUNTIVA DELLO STUDENTE: " . $nota . "\n";
 
-    $u .= "\n" . fc_ai_spec_formato();
+    /* Lo stile scelto nelle impostazioni: vuoto se e' tutto su "auto". Viene
+       prima delle indicazioni libere, che hanno la precedenza su di lui. */
+    if ($righe_stile !== '') $u .= "\n" . $righe_stile;
 
-    /* Un budget di pensiero piccolo: sulla generazione si ripaga, perche' una
-       carta rifatta costa molto piu' di qualche token di ragionamento. */
-    $r = fc_ai_gemini_ritenta(fc_ai_sistema($lingua), $u, fc_ai_schema_carte($esempi), 512, $token_spesi);
-
-    if (!$r['ok']) {
-        nisama_incrementa_uso($fc_ai_user_id, 'token', $token_spesi);
-        fc_ai_esci(['ok' => false, 'error' => 'ia_' . $r['errore'], 'token' => $token_spesi], 502);
+    /* LE INDICAZIONI DELLO STUDENTE — fino a questa versione non arrivavano
+       mai qui: il pannello le mandava solo all'estrazione dei concetti, e solo
+       con la fonte "argomento". Chi scriveva "voglio la risposta come elenco
+       descrizione - codice" le vedeva applicate alla scelta dei titoli, cioe'
+       a niente. Ora arrivano a chi scrive le carte, intere (a capo compresi),
+       con una precedenza dichiarata: vincono su tutte le indicazioni qui
+       sopra, ma non sul formato del sito, che resta l'ultima cosa letta. */
+    if ($indicazioni !== '') {
+        $u .= "\nISTRUZIONI DELLO STUDENTE. Hanno la precedenza su tutte le indicazioni qui sopra, "
+            . "tranne che sul formato del testo descritto sotto. Se chiedono una struttura precisa "
+            . "per la risposta (un elenco di voci, un ordine, delle etichette), quella struttura va "
+            . "rispettata voce per voce in ogni carta.\n"
+            . fc_ai_recinto($indicazioni) . "\n";
     }
 
-    $v = fc_ai_valida_lotto((array)($r['dati']['c'] ?? []), $indici, $esempi);
+    $u .= "\n" . fc_ai_spec_formato();
+
+    /* Il budget di ragionamento lo decide l'impegno scelto ("medio" = il 512
+       di sempre); la temperatura il registro. */
+    $pensiero = fc_ai_pensiero($impegno, 'carte');
+    $temp = fc_ai_temperatura($stile);
+    $r = fc_ai_gemini_ritenta($sistema, $u, fc_ai_schema_carte($esempi), $pensiero, $token, 'carte', $temp);
+
+    if (!$r['ok']) {
+        return fc_ai_fallito('ia_' . $r['errore'], 502, $token);
+    }
+
+    $v = fc_ai_valida_lotto((array)($r['dati']['c'] ?? []), $indici, $esempi, $stile);
 
     /* Secondo giro MIRATO: si richiedono solo i concetti andati storti, con il
        motivo preciso. Rimandare il lotto intero significherebbe ripagare anche
        le carte che erano gia' buone — ed e' il tipo di spreco che qui si somma
        in fretta. */
-    if ($v['da_rifare']) {
+    /* Il secondo giro parte solo se c'e' il tempo di finirlo: dentro il motore
+       dei job ogni passo vive in una richiesta con un tempo massimo, e un giro
+       interrotto a meta' costerebbe token senza consegnare niente. Le carte
+       non rifatte tornano come "mancanti", e il job le puo' riprendere. */
+    if ($v['da_rifare'] && fc_ai_tempo_rimasto() >= 20.0) {
         $rifare = '';
         foreach ($v['da_rifare'] as $i => $motivo) {
             $t = '';
@@ -895,19 +1114,20 @@ if ($azione === 'carte') {
         }
         $u2 = ($estratto !== '' ? "ESTRATTI DEL DOCUMENTO:\n" . $estratto . "\n\n" : '')
             . "Rifai SOLO queste flashcard, correggendo il problema indicato:\n" . $rifare . "\n"
+            // senza lo stile, le carte rifatte perderebbero la forma che le altre rispettano
+            . ($righe_stile !== '' ? $righe_stile . "\n" : '')
+            . ($indicazioni !== '' ? "Rispetta sempre queste istruzioni dello studente:\n" . fc_ai_recinto($indicazioni) . "\n\n" : '')
             . fc_ai_spec_formato();
 
-        $r2 = fc_ai_gemini_ritenta(fc_ai_sistema($lingua), $u2, fc_ai_schema_carte($esempi), 512, $token_spesi);
+        $r2 = fc_ai_gemini_ritenta($sistema, $u2, fc_ai_schema_carte($esempi), $pensiero, $token, 'carte', $temp);
         if ($r2['ok']) {
-            $v2 = fc_ai_valida_lotto((array)($r2['dati']['c'] ?? []), array_keys($v['da_rifare']), $esempi);
+            $v2 = fc_ai_valida_lotto((array)($r2['dati']['c'] ?? []), array_keys($v['da_rifare']), $esempi, $stile);
             foreach ($v2['ok'] as $i => $carta) $v['ok'][$i] = $carta;
         }
     }
 
-    nisama_incrementa_uso($fc_ai_user_id, 'token', $token_spesi);
-
     if (!$v['ok']) {
-        fc_ai_esci(['ok' => false, 'error' => 'nessuna_carta', 'token' => $token_spesi], 502);
+        return fc_ai_fallito('nessuna_carta', 502, $token);
     }
 
     /* Si torna anche l'elenco di chi e' rimasto scoperto: e' cio' che permette
@@ -917,12 +1137,7 @@ if ($azione === 'carte') {
     foreach ($indici as $i) if (!isset($v['ok'][$i])) $mancanti[] = $i;
 
     ksort($v['ok']);
-    fc_ai_esci([
-        'ok' => true,
-        'carte' => array_values($v['ok']),
-        'mancanti' => $mancanti,
-        'token' => $token_spesi,
-    ]);
+    return fc_ai_riuscito(['carte' => array_values($v['ok']), 'mancanti' => $mancanti], $token);
 }
 
 /* ============================================================
@@ -933,17 +1148,24 @@ if ($azione === 'carte') {
    indicazioni dello studente che ne fanno le veci). Serve al tasto presente
    su ogni riga della tabella, comprese quelle mai passate dall'IA. */
 
-if ($azione === 'migliora') {
-    $domanda  = fc_ai_documento($fc_ai_in['domanda'] ?? '', 6000);
-    $risposta = fc_ai_documento($fc_ai_in['risposta'] ?? '', 8000);
-    $nota     = fc_ai_riga($fc_ai_in['nota'] ?? '', 500);
-    $estratto = fc_ai_documento($fc_ai_in['estratto'] ?? '', FC_AI_MAX_TESTO);
-    $esempio  = fc_ai_bool($fc_ai_in['opzioni']['esempi'] ?? false);
+/**
+ * Una carta sola, qualunque sia la sua origine.
+ */
+function fc_ai_azione_migliora(array $in, string $lingua): array {
+    $token = fc_ai_token_nuovo();
+    $domanda  = fc_ai_documento($in['domanda'] ?? '', 6000);
+    $risposta = fc_ai_documento($in['risposta'] ?? '', 8000);
+    $nota     = fc_ai_riga($in['nota'] ?? '', 500);
+    $estratto = fc_ai_documento($in['estratto'] ?? '', FC_AI_MAX_TESTO);
+    $esempio  = fc_ai_bool($in['opzioni']['esempi'] ?? false);
+    $stile    = fc_ai_stile_leggi($in['opzioni']['stile'] ?? []);
+    $impegno  = fc_ai_impegno_leggi($in['opzioni']['impegno'] ?? 'medio');
+    $righe_stile = fc_ai_stile_prompt($stile, 'carte');
 
     $vuota = (trim($domanda) === '' && trim($risposta) === '');
     if ($vuota && $nota === '') {
         // niente da migliorare e niente indicazioni: non c'e' materiale per scrivere nulla
-        fc_ai_esci(['ok' => false, 'error' => 'serve_indicazione'], 400);
+        return fc_ai_fallito('serve_indicazione', 400, $token);
     }
 
     $u = '';
@@ -960,23 +1182,110 @@ if ($azione === 'migliora') {
             . "Il contenuto deve restare corretto ed equivalente a quello di partenza.\n";
         if ($nota !== '') $u .= "RICHIESTA AGGIUNTIVA DELLO STUDENTE: " . $nota . "\n";
     }
-    if ($esempio) $u .= "Aggiungi anche un esempio concreto e breve in \"e\".\n";
+    if ($esempio) $u .= "Aggiungi anche in \"e\" " . fc_ai_stile_istruzione_esempio($stile) . ".\n";
+    if ($righe_stile !== '') $u .= "\n" . $righe_stile;
     $u .= "Restituisci un solo elemento nell'elenco \"c\", con \"i\": 0.\n";
     $u .= "\n" . fc_ai_spec_formato();
 
-    $r = fc_ai_gemini_ritenta(fc_ai_sistema($lingua), $u, fc_ai_schema_carte($esempio), 512, $token_spesi);
-    nisama_incrementa_uso($fc_ai_user_id, 'token', $token_spesi);
+    $sistema = fc_ai_sistema($lingua, $stile);
+    $pensiero = fc_ai_pensiero($impegno, 'migliora');
+    $temp = fc_ai_temperatura($stile);
+    $r = fc_ai_gemini_ritenta($sistema, $u, fc_ai_schema_carte($esempio), $pensiero, $token, 'migliora', $temp);
 
     if (!$r['ok']) {
-        fc_ai_esci(['ok' => false, 'error' => 'ia_' . $r['errore'], 'token' => $token_spesi], 502);
+        return fc_ai_fallito('ia_' . $r['errore'], 502, $token);
     }
 
-    $v = fc_ai_valida_lotto((array)($r['dati']['c'] ?? []), [0], $esempio);
+    $v = fc_ai_valida_lotto((array)($r['dati']['c'] ?? []), [0], $esempio, $stile);
+
+    /* Una carta sola che non rispetta lo stile (o il formato): un secondo
+       tentativo con il motivo, come per i lotti, se c'e' il tempo. */
+    if (!isset($v['ok'][0]) && isset($v['da_rifare'][0]) && fc_ai_tempo_rimasto() >= 20.0) {
+        $u2 = $u . "\nIL TENTATIVO PRECEDENTE E' STATO RIFIUTATO: " . $v['da_rifare'][0] . ". Correggi questo punto.\n";
+        $r2 = fc_ai_gemini_ritenta($sistema, $u2, fc_ai_schema_carte($esempio), $pensiero, $token, 'migliora', $temp);
+        if ($r2['ok']) $v = fc_ai_valida_lotto((array)($r2['dati']['c'] ?? []), [0], $esempio, $stile);
+    }
     if (!isset($v['ok'][0])) {
-        fc_ai_esci(['ok' => false, 'error' => 'nessuna_carta', 'token' => $token_spesi], 502);
+        return fc_ai_fallito('nessuna_carta', 502, $token);
     }
 
-    fc_ai_esci(['ok' => true, 'carta' => $v['ok'][0], 'token' => $token_spesi]);
+    return fc_ai_riuscito(['carta' => $v['ok'][0]], $token);
 }
 
-fc_ai_esci(['ok' => false, 'error' => 'azione_sconosciuta'], 400);
+
+/* ============================================================
+   AZIONE: esempio  (il popup degli esempi, su una carta)
+   ============================================================
+   Prima viveva tutta in ai_example.php, con un prompt suo, senza schema,
+   senza budget di ragionamento e senza budget di tempo: gemini-2.5-flash
+   decideva da se' quanto pensare, e quando pensava molto superava i 25
+   secondi di timeout. Ora e' una sorella di fc_ai_azione_migliora: stesso
+   formato, stesso stile, stesso impegno, stessa verifica, stesso secondo
+   giro mirato. Le regole di formato sono quelle delle carte
+   (fc_ai_spec_formato), non piu' una copia che rischiava di divergere. */
+
+function fc_ai_schema_esempio(): array {
+    return [
+        'type' => 'OBJECT',
+        'properties' => ['e' => ['type' => 'STRING']],
+        'required' => ['e'],
+    ];
+}
+
+/**
+ * $in: q, a (il testo della carta), extra (indicazioni libere dello
+ * studente), opzioni{stile, impegno}. Torna ['esempio' => testo].
+ */
+function fc_ai_azione_esempio(array $in, string $lingua): array {
+    $token = fc_ai_token_nuovo();
+    $q = fc_ai_documento($in['q'] ?? '', 6000);
+    $a = fc_ai_documento($in['a'] ?? '', 8000);
+    if (trim($q) === '' && trim($a) === '') return fc_ai_fallito('carta_vuota', 400, $token);
+
+    $extra = fc_ai_indicazioni($in['extra'] ?? '');
+    $opz = (array)($in['opzioni'] ?? []);
+    $stile = fc_ai_stile_leggi($opz['stile'] ?? []);
+    $impegno = fc_ai_impegno_leggi($opz['impegno'] ?? 'medio');
+
+    $u = "FLASHCARD:\nDomanda: " . $q . "\nRisposta: " . $a . "\n\n"
+       . "COMPITO: scrivi in \"e\" " . fc_ai_stile_istruzione_esempio($stile) . " sul concetto di questa flashcard. "
+       . "Entra subito nell'esempio: niente introduzioni, niente \"ecco un esempio\". "
+       . "Se e' un esercizio, la consegna e subito dopo la soluzione.\n";
+    $righe = fc_ai_stile_prompt($stile, 'esempio');
+    if ($righe !== '') $u .= "\n" . $righe;
+    if ($extra !== '') {
+        $u .= "\nISTRUZIONI DELLO STUDENTE. Hanno la precedenza su tutto il resto, tranne che sul "
+            . "formato del testo descritto sotto.\n" . fc_ai_recinto($extra) . "\n";
+    }
+    $u .= "\n" . fc_ai_spec_formato();
+
+    $sistema = fc_ai_sistema($lingua, $stile);
+    $pensiero = fc_ai_pensiero($impegno, 'esempio');
+    $temp = fc_ai_temperatura($stile, 0.4);
+
+    $r = fc_ai_gemini_ritenta($sistema, $u, fc_ai_schema_esempio(), $pensiero, $token, 'esempio', $temp);
+    if (!$r['ok']) return fc_ai_fallito('ia_' . $r['errore'], 502, $token);
+
+    $e = fc_ai_ripara_formato(fc_ai_testo($r['dati']['e'] ?? '', 8000));
+    $err = trim($e) === '' ? 'esempio vuoto' : fc_ai_valida_formato($e);
+    if ($err === '') $err = fc_ai_stile_verifica_esempio($stile, $e);
+
+    // un secondo tentativo con il motivo, come per le carte, se c'e' il tempo
+    if ($err !== '' && fc_ai_tempo_rimasto() >= 20.0) {
+        $u2 = $u . "\nIL TENTATIVO PRECEDENTE E' STATO RIFIUTATO: " . $err . ". Correggi questo punto.\n";
+        $r2 = fc_ai_gemini_ritenta($sistema, $u2, fc_ai_schema_esempio(), $pensiero, $token, 'esempio', $temp);
+        if ($r2['ok']) {
+            $e = fc_ai_ripara_formato(fc_ai_testo($r2['dati']['e'] ?? '', 8000));
+            $err = trim($e) === '' ? 'esempio vuoto' : fc_ai_valida_formato($e);
+            if ($err === '') $err = fc_ai_stile_verifica_esempio($stile, $e);
+        }
+    }
+    /* Un esempio che non rispetta la LUNGHEZZA chiesta ma e' ben formato si
+       consegna lo stesso: e' comunque un buon esempio, e rifiutarlo dopo due
+       tentativi lascerebbe l'utente a mani vuote. Uno con il formato rotto
+       no: in pagina romperebbe la formula. */
+    if ($err !== '' && (trim($e) === '' || fc_ai_valida_formato($e) !== '')) {
+        return fc_ai_fallito('nessun_esempio', 502, $token);
+    }
+    return fc_ai_riuscito(['esempio' => $e], $token);
+}

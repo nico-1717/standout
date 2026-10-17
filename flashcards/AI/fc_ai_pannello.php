@@ -34,6 +34,22 @@ $fcai_css_v = @filemtime(__DIR__ . '/fc_ai_pannello.css') ?: 1;
 ?>
 <link rel="stylesheet" href="fc_ai_pannello.css?v=<?php echo $fcai_css_v; ?>">
 
+<?php
+/* Il livello condiviso di movimento e attesa (scheletri, entrate, pressione,
+   ricerca). Una volta sola anche se il pannello comparisse due volte. */
+if (!defined('NISAMA_UI')) {
+    define('NISAMA_UI', 1);
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'nisama_ui.css?v='
+       . (@filemtime(dirname(__FILE__) . '/nisama_ui.css') ?: 1) . '">' . "\n";
+    echo '<script src="' . PWA_BASE . 'nisama_ui.js?v='
+       . (@filemtime(dirname(__FILE__) . '/nisama_ui.js') ?: 1) . '"></script>' . "\n";
+}
+
+/* Le scelte di stile vengono dallo stesso elenco con cui il server le valida
+   (fc_ai_stile_valori): una voce aggiunta li' compare qui da sola, e una
+   tendina non puo' offrire un valore che il server rifiuterebbe. */
+require_once __DIR__ . '/fc_ai_stile.php';
+?>
 <div class="fcai-panel" id="fcaiPanel">
 
     <!-- ============================================================
@@ -86,9 +102,14 @@ $fcai_css_v = @filemtime(__DIR__ . '/fc_ai_pannello.css') ?: 1;
             <div data-fonte-pan="argomento" hidden>
                 <label class="fcai-label"><?php te('fc.ibfai_argomento_lbl'); ?></label>
                 <input type="text" id="fcaiArgomento" placeholder="<?php echo sec_h(t('fc.ibfai_argomento_ph')); ?>">
-                <label class="fcai-label"><?php te('fc.ibfai_indicazioni_lbl'); ?></label>
-                <textarea id="fcaiIndicazioni" placeholder="<?php echo sec_h(t('fc.ibfai_indicazioni_ph')); ?>" style="min-height:80px;"></textarea>
             </div>
+
+            <!-- Le indicazioni valgono per tutte e tre le fonti, e arrivano sia
+                 alla scelta dei concetti sia alla scrittura delle carte. Prima
+                 stavano solo sotto "argomento" e si fermavano ai concetti: chi
+                 chiedeva una forma precisa per le risposte non la vedeva mai. -->
+            <label class="fcai-label"><?php te('fc.ibfai_indicazioni_generali_lbl'); ?></label>
+            <textarea id="fcaiIndicazioni" placeholder="<?php echo sec_h(t('fc.ibfai_indicazioni_generali_ph')); ?>" style="min-height:80px;"></textarea>
 
             <button type="button" class="fcai-riep" id="fcaiApriImpostazioni">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -100,7 +121,7 @@ $fcai_css_v = @filemtime(__DIR__ . '/fc_ai_pannello.css') ?: 1;
             </button>
 
             <div class="fcai-azioni">
-                <button type="button" class="btn btn-primary" id="fcaiBtnConcetti">
+                <button type="button" class="btn btn-primary ns-preme" id="fcaiBtnConcetti">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h11M4 18h7"/></svg>
                     <?php te('fc.ibfai_trova_concetti'); ?>
                 </button>
@@ -109,13 +130,23 @@ $fcai_css_v = @filemtime(__DIR__ . '/fc_ai_pannello.css') ?: 1;
 
             <!-- elenco dei concetti + generazione -->
             <div id="fcaiRisultato" hidden>
+                <?php /* La ricerca compare solo quando serve davvero (oltre una
+                         trentina di concetti): su otto voci un campo di ricerca
+                         e' un ingombro, su ottocento e' l'unico modo di trovarne
+                         uno. La mostra e la nasconde disegnaElenco(). */ ?>
+                <div class="fcai-cerca-riga" id="fcaiCercaRiga" hidden>
+                    <input type="search" id="fcaiCerca" class="ns-cerca"
+                           placeholder="<?php echo sec_h(t('fc.ibfai_cerca_ph')); ?>"
+                           autocomplete="off" autocorrect="off" spellcheck="false">
+                    <span class="ns-conta" id="fcaiCercaConta"></span>
+                </div>
                 <div class="fcai-elenco" id="fcaiElenco"></div>
                 <div class="fcai-azioni">
-                    <button type="button" class="btn btn-ghost btn-sm" id="fcaiMeno"><?php te('fc.ibfai_meno_concetti'); ?></button>
-                    <button type="button" class="btn btn-ghost btn-sm" id="fcaiPiu"><?php te('fc.ibfai_piu_concetti'); ?></button>
+                    <button type="button" class="btn btn-ghost btn-sm ns-preme" id="fcaiMeno"><?php te('fc.ibfai_meno_concetti'); ?></button>
+                    <button type="button" class="btn btn-ghost btn-sm ns-preme" id="fcaiPiu"><?php te('fc.ibfai_piu_concetti'); ?></button>
                 </div>
                 <div class="fcai-azioni">
-                    <button type="button" class="btn btn-success" id="fcaiBtnCarte">
+                    <button type="button" class="btn btn-success ns-preme" id="fcaiBtnCarte">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5v14"/></svg>
                         <?php te('fc.ibfai_genera_flashcard'); ?>
                     </button>
@@ -260,6 +291,15 @@ $fcai_css_v = @filemtime(__DIR__ . '/fc_ai_pannello.css') ?: 1;
 
         <div class="fcai-modale-corpo">
 
+            <!-- IMPEGNO — in cima apposta: e' la scelta che cambia di piu' il
+                 prezzo, e nel popup di conferma il costo si ricalcola proprio
+                 qui sotto mentre la si fa. -->
+            <div class="fcai-opz-sep" style="margin-top:6px;"><?php te('fc.ibfai_impegno_sep'); ?></div>
+            <?php fc_ai_tendina_impegno('fcaiImpegno', 'medio'); ?>
+            <div class="fcai-nota" id="fcaiImpegnoDesc"><?php te('fc.ibfai_impegno_medio_desc'); ?></div>
+
+            <div class="fcai-opz-sep"><?php te('fc.ibfai_sezione_contenuto'); ?></div>
+
             <label class="fcai-opz">
                 <span class="fcai-opz-testo">
                     <b><?php te('fc.ibfai_opz_esempi_tit'); ?></b>
@@ -336,12 +376,76 @@ $fcai_css_v = @filemtime(__DIR__ . '/fc_ai_pannello.css') ?: 1;
                 </div>
             </div>
 
+            <!-- COME SCRIVERE LE CARTE — tutto parte da "Automatico", che vuol
+                 dire "come prima": nessuna riga in piu' nel prompt e nessun
+                 controllo in piu'. Ogni scelta fatta qui invece viene
+                 VERIFICATA sulla risposta, e una carta che non la rispetta
+                 viene fatta riscrivere con il motivo preciso. -->
+            <div class="fcai-opz-sep"><?php te('fc.ibfai_stile_sep'); ?></div>
+            <div class="fcai-nota" style="margin-top:0;"><?php te('fc.ibfai_stile_sub'); ?></div>
+            <div class="fcai-stile" id="fcaiStile">
+                <?php foreach (fc_ai_stile_valori() as $campo => $valori): ?>
+                    <label class="fcai-stile-campo">
+                        <span class="fcai-label"><?php te('fc.ibfai_stile_' . $campo); ?></span>
+                        <select data-stile="<?php echo $campo; ?>">
+                            <?php foreach ($valori as $v): ?>
+                                <option value="<?php echo $v; ?>"><?php te($v === 'auto' ? 'fc.ibfai_stile_auto' : 'fc.ibfai_stile_' . $campo . '_' . $v); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                <?php endforeach; ?>
+            </div>
+            <div id="fcaiStileSchema" hidden>
+                <label class="fcai-label"><?php te('fc.ibfai_stile_etichette_lbl'); ?></label>
+                <textarea id="fcaiStileEtichette" placeholder="<?php echo sec_h(t('fc.ibfai_stile_etichette_ph')); ?>" style="min-height:84px;"></textarea>
+            </div>
+            <details class="fcai-modello" id="fcaiModello">
+                <summary><?php te('fc.ibfai_stile_modello_sum'); ?></summary>
+                <div class="fcai-nota" style="margin-top:6px;"><?php te('fc.ibfai_stile_modello_desc'); ?></div>
+                <textarea id="fcaiModelloQ" placeholder="<?php echo sec_h(t('fc.ibfai_stile_modello_q_ph')); ?>" style="min-height:44px;"></textarea>
+                <textarea id="fcaiModelloA" placeholder="<?php echo sec_h(t('fc.ibfai_stile_modello_a_ph')); ?>" style="min-height:110px;"></textarea>
+            </details>
+            <button type="button" class="btn btn-ghost btn-sm" id="fcaiStileAzzera" style="margin-top:10px;"><?php te('fc.ibfai_stile_ripristina'); ?></button>
+
+            <?php /* Da qui si va a vedere cosa si e' speso: e' la domanda che
+                     viene subito dopo "quanto mi costa questa generazione", ed
+                     e' giusto che la risposta sia a un tocco.
+                     Un tocco, non un viaggio: si apre un popup sopra a quello
+                     che si stava facendo. Cambiare pagina qui vorrebbe dire
+                     perdere l'elenco dei concetti, le impostazioni appena
+                     scelte e, se sta girando, la generazione in corso. */ ?>
+            <button type="button" class="fcai-link-crediti" id="fcaiApriCrediti"><?php te('fc.cred_link'); ?></button>
+
             <div class="fcai-modale-conto" id="fcaiModaleConto" hidden></div>
         </div>
 
         <div class="fcai-modale-piede">
             <button type="button" class="btn btn-ghost btn-sm" id="fcaiModaleNo"><?php te('fc.ibfai_annulla'); ?></button>
             <button type="button" class="btn btn-primary btn-sm" id="fcaiModaleSi"><?php te('fc.ibfai_fatto'); ?></button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     I TUOI CREDITI (popup)
+     ============================================================
+     Il contenuto arriva da crediti.php?riquadro=1, cioe' dalla stessa pagina
+     che si apre anche per intero: un elenco di movimenti scritto due volte
+     sarebbe diventato diverso al primo ritocco. Si carica quando si apre e
+     non prima — chi non lo guarda non paga nessuna query. -->
+<?php
+echo '<link rel="stylesheet" href="' . PWA_BASE . 'crediti.css?v='
+   . (@filemtime(__DIR__ . '/crediti.css') ?: 1) . '">' . "\n";
+?>
+<div class="fcai-modale" id="fcaiCreditiModale" hidden>
+    <div class="fcai-modale-scheda">
+        <div class="fcai-modale-tit">
+            <b><?php te('fc.cred_titolo'); ?></b>
+        </div>
+        <div class="fcai-modale-corpo" id="fcaiCreditiCorpo"></div>
+        <div class="fcai-modale-piede">
+            <a class="btn btn-ghost btn-sm" href="<?php echo PWA_BASE; ?>crediti.php"><?php te('fc.cred_apri_pagina'); ?></a>
+            <button type="button" class="btn btn-primary btn-sm" id="fcaiCreditiChiudi"><?php te('fc.ibfai_job_chiudi_btn'); ?></button>
         </div>
     </div>
 </div>
@@ -369,8 +473,16 @@ $fcai_css_v = @filemtime(__DIR__ . '/fc_ai_pannello.css') ?: 1;
     </div>
 </div>
 
-<script src="fc_ai_client.js"></script>
-<script src="fc_ai_abbina.js"></script>
+<?php /* La data di modifica in coda all'indirizzo: senza, il browser continua a
+         usare la copia che ha gia' in cache anche quando sul server c'e' un
+         file nuovo. Su hosting con scadenze lunghe (Altervista) questo vuol
+         dire HTML nuovo + JavaScript vecchio, e il risultato e' un pezzo di
+         interfaccia disegnato ma morto: nessun errore in console, perche' il
+         codice vecchio cerca elementi che non esistono piu' e non trova
+         niente da agganciare. E' esattamente cosi' che la tendina
+         dell'impegno e' arrivata vuota e non cliccabile. */ ?>
+<script src="fc_ai_client.js?v=<?php echo @filemtime(__DIR__ . '/fc_ai_client.js') ?: 1; ?>"></script>
+<script src="fc_ai_abbina.js?v=<?php echo @filemtime(__DIR__ . '/fc_ai_abbina.js') ?: 1; ?>"></script>
 
 <!-- ============================================================
      MIGLIORA UNA CARTA CON L'IA
@@ -417,4 +529,42 @@ $fcai_css_v = @filemtime(__DIR__ . '/fc_ai_pannello.css') ?: 1;
         </div>
     </div>
 </div>
-<script src="fc_ai_pannello.js"></script>
+<!-- ============================================================
+     GENERAZIONE IN CORSO
+     ============================================================
+     La schermata del motore dei job (fc_ai_job.js). Resta aperta mentre il
+     lavoro avanza, si riduce a una pastiglia in basso per continuare a
+     lavorare sulle carte gia' arrivate, e si riapre toccandola. -->
+<div class="fcai-modale" id="fcajModale" hidden>
+    <div class="fcai-modale-scheda">
+        <div class="fcai-modale-tit">
+            <b id="fcajTit"><?php te('fc.ibfai_job_tit'); ?></b>
+            <span id="fcajFase"></span>
+        </div>
+        <div class="fcai-modale-corpo">
+            <div class="fcai-barra fcaj-barra" id="fcajBarra"><i style="width:0"></i></div>
+            <div class="fcaj-righe">
+                <span id="fcajTempo"></span>
+                <span id="fcajCrediti"></span>
+            </div>
+            <div class="fcai-modale-conto" id="fcajNota" role="status" aria-live="polite"></div>
+        </div>
+        <div class="fcai-modale-piede">
+            <button type="button" class="btn btn-ghost btn-sm" id="fcajAnnulla"><?php te('fc.ibfai_job_annulla_btn'); ?></button>
+            <button type="button" class="btn btn-primary btn-sm" id="fcajRiduci"><?php te('fc.ibfai_job_riduci_btn'); ?></button>
+            <button type="button" class="btn btn-primary btn-sm" id="fcajRiprendi" hidden><?php te('fc.ibfai_job_riprendi_btn'); ?></button>
+            <button type="button" class="btn btn-primary btn-sm" id="fcajRiprova" hidden><?php te('fc.ibfai_job_riprova_btn'); ?></button>
+            <button type="button" class="btn btn-ghost btn-sm" id="fcajChiudi" hidden><?php te('fc.ibfai_job_chiudi_btn'); ?></button>
+        </div>
+    </div>
+</div>
+
+<button type="button" class="fcaj-pillola" id="fcajPillola" hidden>
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 2 11 7 16 9 11 11 9 16 7 11 2 9 7 7Z"/></svg>
+    <span id="fcajPillolaTesto"></span>
+    <b class="fcaj-pillola-barra"><i style="width:0"></i></b>
+</button>
+
+<?php $fcaj_v = @filemtime(__DIR__ . '/fc_ai_job.js') ?: 1; ?>
+<script src="fc_ai_job.js?v=<?php echo $fcaj_v; ?>"></script>
+<script src="fc_ai_pannello.js?v=<?php echo @filemtime(__DIR__ . '/fc_ai_pannello.js') ?: 1; ?>"></script>

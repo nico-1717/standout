@@ -31,7 +31,23 @@ var FCAIP = (function () {
         daUnire: -1       // voce in attesa della seconda, per la fusione
     };
 
-    var MAX_CARATTERI = 40000; // deve coincidere con FC_AI_MAX_TESTO in fc_ai.php
+    var MAX_CARATTERI = 40000; // deve coincidere con FC_AI_MAX_TESTO in fc_ai_lib.php
+    /* Oltre MAX_CARATTERI il documento non si taglia piu': lo legge il motore
+       dei job, a blocchi, in background. Questo e' il suo tetto (circa 300
+       pagine fitte): deve coincidere con AI_JOB_TESTO_MAX in ai_jobs.php. */
+    var MAX_JOB = 1200000;
+    /* Oltre questo numero di concetti "meno concetti" non si puo' chiedere:
+       fc_ai.php ne guarda al massimo tanti (FC_AI_MAX_CONCETTI), e fondere
+       solo i primi centoventi di ottocento sarebbe un risultato a meta' senza
+       dirlo. */
+    var MAX_DENSITA = 120;
+
+    /** Il mazzo scelto nella pagina, o 0. Il job ne ha bisogno: e' li' che vivra'. */
+    function mazzo() {
+        var el = document.querySelector('input[name="category_id"]');
+        var v = el ? parseInt(el.value, 10) : 0;
+        return v > 0 ? v : 0;
+    }
 
     function $(id) { return document.getElementById(id); }
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -242,7 +258,11 @@ var FCAIP = (function () {
         }
 
         var pagine = stato.estratto.pagine.length;
-        var fino = FCAI.ultimaPaginaPossibile(stato.estratto, 1, MAX_CARATTERI);
+        /* Di serie si propone TUTTO il documento: un file lungo non va piu'
+           tagliato a mano, lo legge il motore dei job a blocchi. Si restringe
+           solo oltre il tetto del motore. */
+        var fino = stato.estratto.caratteri > MAX_JOB
+            ? FCAI.ultimaPaginaPossibile(stato.estratto, 1, MAX_JOB) : pagine;
         var serveIntervallo = stato.estratto.caratteri > MAX_CARATTERI;
 
         info.innerHTML =
@@ -314,19 +334,29 @@ var FCAIP = (function () {
         var r = normalizzaPagine(chi) || { da: 1, a: pagine };
 
         stato.testo = FCAI.intervallo(stato.estratto, r.da, r.a);
-        var quota = stato.testo.length / MAX_CARATTERI;
+        var lungo = stato.testo.length > MAX_CARATTERI;
+        var oltre = stato.testo.length > MAX_JOB;
+        var quota = stato.testo.length / (lungo ? MAX_JOB : MAX_CARATTERI);
 
         var barra = $('fcaiBarra');
-        barra.classList.toggle('is-over', quota > 1);
+        barra.classList.toggle('is-over', oltre);
         barra.firstElementChild.style.width = Math.min(100, quota * 100) + '%';
 
         var costo = $('fcaiCosto');
-        costo.className = quota > 1 ? 'fcai-nota is-warn' : 'fcai-nota';
-        if (quota > 1) {
+        costo.className = oltre ? 'fcai-nota is-warn' : 'fcai-nota';
+        if (oltre) {
             /* Non si tronca in silenzio: si dice fin dove arriverebbe, cosi' la
                correzione e' un numero da copiare invece di un tentativo. */
-            var possibile = FCAI.ultimaPaginaPossibile(stato.estratto, r.da, MAX_CARATTERI);
+            var possibile = FCAI.ultimaPaginaPossibile(stato.estratto, r.da, MAX_JOB);
             costo.textContent = T('fc.ibfai_troppo_lungo') + ' ' + T('fc.ibfai_intervallo_max', {da: r.da, fino: possibile});
+        } else if (lungo) {
+            /* Oltre un blocco: si dice come verra' letto e che succede in
+               background, cosi' la schermata di avanzamento non arriva a
+               sorpresa. */
+            costo.textContent = T('fc.ibfai_documento_lungo', {
+                car: stato.testo.length.toLocaleString('it-IT'),
+                blocchi: Math.ceil(stato.testo.length / MAX_CARATTERI)
+            });
         } else {
             costo.textContent = T('fc.ibfai_selezione_costo', {car: stato.testo.length.toLocaleString('it-IT'), tok: FCAI.stimaToken(stato.testo.length).toLocaleString('it-IT')});
         }
@@ -350,8 +380,117 @@ var FCAIP = (function () {
             corregge: $('fcaiOpzCorregge').checked,
             testuale: $('fcaiOpzTestuale').checked,
             solo_elenco: $('fcaiSoloElenco') ? $('fcaiSoloElenco').checked : false,
+            /* Le indicazioni libere valgono per qualunque fonte e arrivano sia
+               alla scelta dei concetti sia alla scrittura delle carte. Prima
+               esistevano solo per "argomento" e si fermavano ai concetti. */
+            indicazioni: $('fcaiIndicazioni') ? $('fcaiIndicazioni').value.trim() : '',
+            stile: leggiStile(),
+            impegno: impegnoScelto(),
             lingua: 'italiano'
         };
+    }
+
+    /* ============================================================
+       STILE E IMPEGNO
+       ============================================================
+       Tutto parte da "Automatico" e da impegno "medio": finche' l'utente non
+       sceglie niente, le carte escono esattamente come prima. Il server valida
+       di nuovo ogni valore (fc_ai_stile_leggi): qui si raccoglie e basta. */
+
+    function leggiStile() {
+        var st = {};
+        document.querySelectorAll('#fcaiStile select[data-stile]').forEach(function (sel) {
+            st[sel.getAttribute('data-stile')] = sel.value;
+        });
+        st.etichette = $('fcaiStileEtichette') ? $('fcaiStileEtichette').value.split('\n')
+            .map(function (r) { return r.trim(); }).filter(Boolean) : [];
+        st.modello_q = $('fcaiModelloQ') ? $('fcaiModelloQ').value.trim() : '';
+        st.modello_a = $('fcaiModelloA') ? $('fcaiModelloA').value.trim() : '';
+        return st;
+    }
+
+    /* L'impegno e' una tendina (NS.tendina): chiusa mostra la voce scelta,
+       aperta mostra le quattro con la spiegazione di ciascuna. Il valore si
+       legge sempre dal DOM e non da una variabile, cosi' resta una fonte
+       sola anche se la tendina non si e' potuta agganciare (nisama_ui.js non
+       caricato): in quel caso le voci restano cliccabili come pulsanti. */
+    var tendinaImpegno = null;
+
+    function impegnoScelto() {
+        if (tendinaImpegno) return tendinaImpegno.valore();
+        var b = document.querySelector('#fcaiImpegno [data-impegno].is-on');
+        return b ? b.getAttribute('data-impegno') : 'medio';
+    }
+
+    function scegliImpegno(valore) {
+        if (tendinaImpegno) tendinaImpegno.imposta(valore, true);
+        else document.querySelectorAll('#fcaiImpegno [data-impegno]').forEach(function (b) {
+            var su = b.getAttribute('data-impegno') === valore;
+            b.classList.toggle('is-on', su);
+            b.setAttribute('aria-selected', su ? 'true' : 'false');
+        });
+        if ($('fcaiImpegnoDesc')) $('fcaiImpegnoDesc').textContent = T('fc.ibfai_impegno_' + valore + '_desc');
+    }
+
+    function applicaStile(dati) {
+        if (!dati) return;
+        var st = dati.stile || {};
+        document.querySelectorAll('#fcaiStile select[data-stile]').forEach(function (sel) {
+            var v = st[sel.getAttribute('data-stile')];
+            // un valore che non esiste piu' fra le opzioni resta su "auto"
+            sel.value = Array.prototype.some.call(sel.options, function (o) { return o.value === v; }) ? v : 'auto';
+        });
+        if ($('fcaiStileEtichette')) $('fcaiStileEtichette').value = (st.etichette || []).join('\n');
+        if ($('fcaiModelloQ')) $('fcaiModelloQ').value = st.modello_q || '';
+        if ($('fcaiModelloA')) $('fcaiModelloA').value = st.modello_a || '';
+        if ($('fcaiModello')) $('fcaiModello').open = !!st.modello_a;
+        scegliImpegno(dati.impegno || 'medio');
+        aggiornaStileUI();
+    }
+
+    /* Le voci dello schema compaiono solo quando servono, e una scelta fatta
+       si distingue da "Automatico": e' cio' che verra' verificato. */
+    function aggiornaStileUI() {
+        document.querySelectorAll('#fcaiStile select[data-stile]').forEach(function (sel) {
+            sel.classList.toggle('is-scelto', sel.value !== 'auto');
+        });
+        var sel = document.querySelector('#fcaiStile select[data-stile="struttura"]');
+        if ($('fcaiStileSchema')) $('fcaiStileSchema').hidden = !sel || sel.value !== 'schema';
+    }
+
+    /* Lo stile si ricorda PER MAZZO: un mazzo di algoritmi e uno di storia
+       non vogliono le stesse risposte. Un mazzo mai visto parte dall'ultimo
+       stile usato, che e' il piu' probabile. Resta nel browser: e' una
+       comodita' di chi scrive, non un dato del mazzo. */
+    function chiaveStile() { var m = mazzo(); return 'fcai_stile:' + (m || 'ultimo'); }
+
+    function salvaStile() {
+        var dati = JSON.stringify({ stile: leggiStile(), impegno: impegnoScelto() });
+        try {
+            localStorage.setItem(chiaveStile(), dati);
+            localStorage.setItem('fcai_stile:ultimo', dati);
+        } catch (e) {}
+    }
+
+    function caricaStile() {
+        try {
+            var r = localStorage.getItem(chiaveStile()) || localStorage.getItem('fcai_stile:ultimo');
+            if (r) applicaStile(JSON.parse(r));
+        } catch (e) {}
+    }
+
+    /* Dopo ogni tocco: stato visivo, salvataggio, riassunto e, se il popup e'
+       quello della conferma, il costo ricalcolato. Per i campi di testo con
+       un attimo di ritardo: il preventivo a ogni lettera sarebbe una chiamata
+       per lettera. */
+    var attesaConto = null;
+    function stileCambiato(subito) {
+        aggiornaStileUI();
+        salvaStile();
+        $('fcaiRiepilogo').textContent = riepilogo();
+        if ($('fcaiModaleConto').hidden) return;
+        clearTimeout(attesaConto);
+        attesaConto = setTimeout(aggiornaConto, subito ? 0 : 500);
     }
 
     /* Un'opzione che dipende da un'altra si spegne e si blocca quando la
@@ -395,6 +534,11 @@ var FCAIP = (function () {
         if (o.gerarchia) v.push(T('fc.ibfai_riep_gerarchia'));
         v.push(o.integra ? (o.corregge ? T('fc.ibfai_riep_integra_corregge') : T('fc.ibfai_riep_integra')) : T('fc.ibfai_riep_solo_fonti'));
         if (o.testuale) v.push(T('fc.ibfai_riep_testuale'));
+        if (o.impegno !== 'medio') v.push(T('fc.ibfai_riep_impegno', { livello: T('fc.ibfai_impegno_' + o.impegno) }));
+        var scelte = Object.keys(o.stile).filter(function (k) {
+            return typeof o.stile[k] === 'string' && k.indexOf('modello') !== 0 && o.stile[k] !== 'auto';
+        }).length;
+        if (scelte || o.stile.modello_a) v.push(T('fc.ibfai_riep_stile'));
         return v.join(' · ');
     }
 
@@ -425,6 +569,70 @@ var FCAIP = (function () {
         aggiornaDipendenze();
         if (conConto) aggiornaConto();
         return new Promise(function (r) { modaleRisolvi = r; });
+    }
+
+    /* ============================================================
+       I TUOI CREDITI, SENZA USCIRE DA QUI
+       ============================================================
+       Il contenuto e' quello di crediti.php (?riquadro=1: solo il contenuto,
+       senza intestazione di pagina). I mesi si sfogliano dentro il popup: i
+       link restano quelli veri — la pagina intera continua a funzionare da
+       sola — e qui vengono intercettati e ricaricati al loro posto. */
+
+    var creditiInCorso = null;
+
+    function apriCrediti() {
+        if (!$('fcaiCreditiModale')) return;
+        if ($('fcaiCreditiModale').hidden) {
+            $('fcaiCreditiModale').hidden = false;
+            FCAI.lockScroll();        // una volta sola: sfogliare i mesi non riapre niente
+        }
+        caricaCrediti();
+    }
+
+    async function caricaCrediti(mese) {
+        var box = $('fcaiCreditiCorpo');
+        if (!box) return;
+
+        var finito = window.NS ? NS.scheletro(box, { righe: 7 }) : function () {};
+        var url = 'crediti.php?riquadro=1' + (mese ? '&mese=' + encodeURIComponent(mese) : '');
+        var mio = creditiInCorso = {};
+        try {
+            var r = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } });
+            var html = await r.text();
+            if (mio !== creditiInCorso) return;      // nel frattempo ne e' partita un'altra
+            finito();
+            if (!r.ok) throw new Error('http ' + r.status);
+            box.innerHTML = html;
+            /* I link dei mesi restano <a href> veri nel markup — la pagina
+               intera li usa cosi' — ma qui dentro navigare porterebbe via. */
+            box.querySelectorAll('a[href*="mese="]').forEach(function (a) {
+                a.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    var m = (a.getAttribute('href').match(/mese=([0-9]{4}-[0-9]{2})/) || [])[1];
+                    caricaCrediti(m);
+                });
+            });
+            /* I numeri delle carte dentro il popup non portano da nessuna
+               parte: sono un riepilogo, non una navigazione. */
+            if (window.NS) NS.preme(box);
+        } catch (e) {
+            if (mio !== creditiInCorso) return;
+            finito();
+            box.innerHTML = '';
+            var p = document.createElement('div');
+            p.className = 'fcai-nota';
+            p.textContent = T('fc.cred_non_caricato');
+            box.appendChild(p);
+        }
+    }
+
+    function chiudiCrediti() {
+        if (!$('fcaiCreditiModale')) return;
+        creditiInCorso = null;
+        $('fcaiCreditiModale').hidden = true;
+        $('fcaiCreditiCorpo').innerHTML = '';
+        FCAI.unlockScroll();
     }
 
     /* Il costo si ricalcola a ogni interruttore toccato: gli esempi lo alzano
@@ -467,11 +675,7 @@ var FCAIP = (function () {
     function mostraErrore(e) {
         var s = $('fcaiStato');
         s.className = 'fcai-nota is-err';
-        if (e && e.codice === 'limite_piano') {
-            s.textContent = T('fc.ibfai_limite_dettaglio', {stima: e.stima, disponibili: (e.disponibili === null ? '∞' : e.disponibili)});
-        } else {
-            s.textContent = T('fc.ibfai_errore_ia');
-        }
+        s.textContent = window.FCAIJ ? FCAIJ.messaggio(e) : T('fc.ibfai_errore_ia');
     }
 
     /* Vero se sotto c'e' lavoro che una nuova ricerca di concetti butterebbe
@@ -493,10 +697,28 @@ var FCAIP = (function () {
         }
 
         var o = opzioni();
-        var dati = { opzioni: o, lingua: o.lingua };
+        var dati = { opzioni: o, lingua: o.lingua, indicazioni: o.indicazioni };
 
         if (stato.fonte === 'file') {
             if (!stato.testo) { showToast(T('fc.ibfai_vuoto'), 'error'); return; }
+            if (stato.testo.length > MAX_JOB) { showToast(T('fc.ibfai_troppo_lungo'), 'error'); return; }
+
+            /* Documento piu' lungo di un blocco: lo legge il motore dei job.
+               Si fermera' da solo con l'elenco pronto (revisione), e l'elenco
+               arrivera' qui, in questo stesso pannello, con i soliti comandi. */
+            if (stato.testo.length > MAX_CARATTERI) {
+                var m = mazzo();
+                if (!m) { showToast(T('fc.ibf_serve_categoria'), 'error'); return; }
+                stato.elenco = []; stato.numeri = {}; stato.jobRevisione = null;
+                disegnaElenco();
+                $('fcaiStato').className = 'fcai-nota';
+                $('fcaiStato').textContent = '';
+                FCAIJ.avvia({
+                    context_id: m, testo: stato.testo,
+                    opzioni: Object.assign({}, o, { fonte: 'file', revisione: true })
+                });
+                return;
+            }
             dati.fonte = 'file';
             dati.testo = stato.testo;
         } else if (stato.fonte === 'elenco') {
@@ -510,14 +732,22 @@ var FCAIP = (function () {
             if (!arg) { showToast(T('fc.ibfai_vuoto'), 'error'); return; }
             dati.fonte = 'argomento';
             dati.titolo = arg;
-            dati.indicazioni = $('fcaiIndicazioni').value.trim();
         }
 
         $('fcaiStato').className = 'fcai-nota';
         $('fcaiStato').textContent = T('fc.ibfai_cerco');
         $('fcaiBtnConcetti').disabled = true;
         try {
-            stato.elenco = await FCAI.concetti(dati);
+            /* L'attesa prende la forma di cio' che sta arrivando: sei righe
+               finte al posto dell'elenco. Dice "sta arrivando una lista", che
+               una rotella non dice, e fa sembrare l'attesa piu' corta. */
+            $('fcaiRisultato').hidden = false;
+            var fineAttesa = window.NS ? NS.scheletro($('fcaiElenco'), { righe: 6 }) : function () {};
+            try {
+                stato.elenco = await FCAI.concetti(dati);
+            } finally {
+                fineAttesa();
+            }
             stato.numeri = {};
             disegnaElenco();
             $('fcaiStato').textContent = T('fc.ibfai_concetti_trovati', {n: stato.elenco.length});
@@ -531,6 +761,107 @@ var FCAIP = (function () {
     /** I concetti che verranno davvero generati: niente vuoti, niente sbarrati. */
     function concettiVivi() {
         return stato.elenco.filter(function (c) { return c.t.trim() !== '' && !c.tolto; });
+    }
+
+    /* ============================================================
+       L'ELENCO E' NUMERATO PER POSIZIONE: SPOSTARE UNA VOCE SPOSTA TUTTO
+       ============================================================
+       Tre cose sono legate ai concetti tramite la loro POSIZIONE nell'elenco,
+       non tramite un identificativo proprio:
+
+         stato.numeri[i]   il numero della carta di quel concetto
+         stato.righe[i]    la riga della tabella nata da quel concetto
+         c.p               il concetto padre, indicato come posizione
+         riga._concettoIdx il legame dalla parte della tabella
+
+       Quindi infilare una voce a meta' elenco fa scorrere di uno tutte quelle
+       sotto, e se non si aggiornano anche queste quattro cose il risultato e'
+       proprio quello che si vede: la voce nuova si prende il numero di chi
+       stava li' prima, l'ultima resta senza numero, e i figli finiscono
+       appesi al padre sbagliato.
+
+       Tutte le aggiunte e le rimozioni passano di qui. Una splice scritta a
+       mano da qualche parte rimette il difetto: se serve toglierne o
+       aggiungerne una, si usano queste due funzioni.
+    */
+
+    function mappaSposta(mappa, pos, delta) {
+        var nuova = {};
+        Object.keys(mappa).forEach(function (k) {
+            var i = Number(k);
+            if (delta < 0 && i === pos) return;   // la voce tolta si porta via il suo
+            nuova[i >= pos ? i + delta : i] = mappa[k];
+        });
+        return nuova;
+    }
+
+    /** Riallinea numeri, righe, padri e legami della tabella dopo uno spostamento. */
+    function elencoSposta(pos, delta, padreDelTolto) {
+        stato.numeri = mappaSposta(stato.numeri, pos, delta);
+        stato.righe  = mappaSposta(stato.righe,  pos, delta);
+
+        stato.elenco.forEach(function (c) {
+            if (c.p === null || c.p === undefined) return;
+            var p = Number(c.p);
+            if (delta < 0 && p === pos) { c.p = (padreDelTolto === undefined ? null : padreDelTolto); return; }
+            c.p = p >= pos ? p + delta : p;
+        });
+
+        var cont = $('fcRows');
+        if (!cont) return;
+        Array.prototype.forEach.call(cont.querySelectorAll('.fc-row'), function (r) {
+            if (r._concettoIdx === undefined || r._concettoIdx === null) return;
+            var i = Number(r._concettoIdx);
+            if (delta < 0 && i === pos) { r._concettoIdx = null; return; }
+            r._concettoIdx = i >= pos ? i + delta : i;
+        });
+    }
+
+    /* ---- gerarchia scritta a mano ---- */
+
+    /** true se qualche voce ha $i come padre. */
+    function haFigli(i) {
+        return stato.elenco.some(function (c) { return c.p !== null && c.p !== undefined && Number(c.p) === i; });
+    }
+
+    /**
+     * Il padre che spetta alla voce $i se la si fa rientrare: la prima voce
+     * piena sopra di lei. Se quella e' gia' figlia, si diventa sue sorelle —
+     * il sito ammette un livello solo, e un secondo livello che si appiattisce
+     * da solo confonde piu' di un rientro rifiutato.
+     */
+    function padreDi(i) {
+        for (var k = i - 1; k >= 0; k--) {
+            var c = stato.elenco[k];
+            if (c.t.trim() === '' || c.tolto) continue;
+            return (c.p === null || c.p === undefined) ? k : Number(c.p);
+        }
+        return null;
+    }
+
+    function rientraConcetto(i) {
+        var c = stato.elenco[i];
+        if (c.p !== null && c.p !== undefined) {
+            c.p = null;                       // torna al livello principale
+        } else {
+            if (haFigli(i)) return;           // un solo livello: chi ha figli non rientra
+            var p = padreDi(i);
+            if (p === null) return;
+            c.p = p;
+        }
+        disegnaElenco();
+    }
+
+    /** Aggiunge una voce in posizione $pos (in fondo se $pos e' la lunghezza). */
+    function elencoInserisci(pos, voce) {
+        stato.elenco.splice(pos, 0, voce || { t: '', a: '', p: null, e: 0 });
+        if (pos < stato.elenco.length - 1) elencoSposta(pos, 1);
+    }
+
+    /** Toglie la voce in posizione $pos. I suoi figli passano a $nuovoPadre. */
+    function elencoTogli(pos, nuovoPadre) {
+        stato.elenco.splice(pos, 1);
+        elencoSposta(pos, -1, nuovoPadre);
     }
 
     function disegnaElenco() {
@@ -557,7 +888,7 @@ var FCAIP = (function () {
             campo.addEventListener('keydown', function (ev) {
                 if (ev.key !== 'Enter') return;
                 ev.preventDefault();
-                stato.elenco.splice(i + 1, 0, { t: '', a: '', p: null, e: 0 });
+                elencoInserisci(i + 1);
                 disegnaElenco();
                 var campi = box.querySelectorAll('input');
                 if (campi[i + 1]) campi[i + 1].focus();
@@ -575,13 +906,36 @@ var FCAIP = (function () {
             u.addEventListener('click', function () { unisciConcetto(i); });
             riga.appendChild(u);
 
+            /* Rientro: rende questa voce un SOTTOCONCETTO di quella sopra, o
+               la riporta al livello principale.
+               Serviva e non c'era: chi scrive "disposizioni" e poi, sotto,
+               "con ripetizione" e "senza ripetizione" si aspetta che le due
+               finiscano appese alla prima — e finora non c'era nessun modo di
+               dirlo, ne' trascinando ne' altrimenti. La gerarchia proposta
+               dall'IA e' un'altra cosa: si accende dalle impostazioni, e
+               questa qui vale comunque, anche a interruttore spento, perche'
+               e' una scelta esplicita di chi scrive. */
+            var rientro = document.createElement('button');
+            rientro.type = 'button';
+            rientro.className = 'fcai-mini fcai-rientro';
+            var eFiglio = c.p !== null && c.p !== undefined;
+            var bloccato = !eFiglio && (haFigli(i) || padreDi(i) === null);
+            rientro.disabled = bloccato;
+            rientro.title = T(eFiglio ? 'fc.ibfai_rientro_su_titolo'
+                            : bloccato ? 'fc.ibfai_rientro_no_titolo' : 'fc.ibfai_rientro_giu_titolo');
+            rientro.innerHTML = eFiglio
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 6H9"/><path d="M21 18H9"/><path d="M21 12h-9"/><path d="m7 9-3 3 3 3"/></svg>'
+                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 6H9"/><path d="M21 18H9"/><path d="M21 12h-9"/><path d="m4 9 3 3-3 3"/></svg>';
+            rientro.addEventListener('click', function () { rientraConcetto(i); });
+            riga.appendChild(rientro);
+
             var piu = document.createElement('button');
             piu.type = 'button';
             piu.className = 'fcai-mini';
             piu.title = T('fc.ibfai_inserisci_sotto_titolo');
             piu.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>';
             piu.addEventListener('click', function () {
-                stato.elenco.splice(i + 1, 0, { t: '', a: '', p: null, e: 0 });
+                elencoInserisci(i + 1);
                 disegnaElenco();
                 var campi = box.querySelectorAll('input');
                 if (campi[i + 1]) campi[i + 1].focus();
@@ -614,7 +968,10 @@ var FCAIP = (function () {
         var ultima = stato.elenco[stato.elenco.length - 1];
         if (!stato.elenco.length || ultima.t !== '' || ultima.tolto) {
             var vuota = document.createElement('div');
-            vuota.className = 'fcai-voce';
+            /* La riga per aggiungere a mano: e' un comando, non un concetto.
+               Si marca, cosi' il filtro e i conteggi la lasciano fuori (e
+               resta raggiungibile anche mentre si cerca). */
+            vuota.className = 'fcai-voce is-aggiungi';
             vuota.innerHTML = '<input type="text" placeholder="' + esc(T('fc.ibfai_aggiungi_concetto_ph')) + '">';
             vuota.firstElementChild.addEventListener('focus', function () {
                 stato.elenco.push({ t: '', a: '', p: null, e: 0 });
@@ -626,6 +983,61 @@ var FCAIP = (function () {
         }
 
         $('fcaiRisultato').hidden = stato.elenco.length === 0;
+        aggiornaDensita();
+        aggiornaRicerca();
+        if (window.NS) {
+            NS.entra(box.querySelectorAll('.fcai-voce:not(.is-aggiungi)'));
+            NS.preme(box);
+        }
+    }
+
+    /* ---- ricerca dentro l'elenco ----
+       Su un documento lungo l'elenco arriva a centinaia di voci: senza un
+       filtro, togliere il concetto sbagliato e' questione di scorrimento e
+       fortuna. Si filtra cio' che e' gia' in pagina, senza chiedere niente al
+       server: la risposta e' immediata perche' non c'e' rete di mezzo. */
+    function aggiornaRicerca() {
+        var riga = $('fcaiCercaRiga');
+        if (!riga) return;
+        var molti = stato.elenco.length > 30;
+        riga.hidden = !molti;
+        if (!molti) { if ($('fcaiCerca').value) filtraElenco(''); return; }
+        if (!riga.__pronta && window.NS) {
+            riga.__pronta = true;
+            NS.ricerca($('fcaiCerca'), { onCerca: filtraElenco });
+        }
+        filtraElenco($('fcaiCerca').value.trim());
+    }
+
+    function filtraElenco(testo) {
+        if (!window.NS) return;
+        var voci = $('fcaiElenco').querySelectorAll('.fcai-voce:not(.is-aggiungi)');
+        var visibili = NS.filtra(voci, testo, function (v) {
+            var campo = v.querySelector('input');
+            return campo ? campo.value : v.textContent;
+        });
+        $('fcaiCercaConta').textContent = testo === ''
+            ? T('fc.ibfai_cerca_totale', { n: voci.length })
+            : T('fc.ibfai_cerca_conta', { n: visibili, tot: voci.length });
+        /* Niente risultati: si dice, invece di lasciare un vuoto che sembra un
+           guasto. E si ricorda che i concetti nascosti verranno generati lo
+           stesso: il filtro serve a guardare, non a scegliere. */
+        NS.vuoto($('fcaiElenco'), visibili === 0 && testo !== '' ? T('fc.ibfai_cerca_niente', { q: testo }) : null);
+    }
+
+    /* "Piu' concetti" rilegge il documento, che per un file lungo supera
+       quello che una chiamata singola puo' ricevere; "meno concetti" guarda al
+       massimo MAX_DENSITA titoli. Oltre, i due pulsanti si spengono dicendo
+       perche', invece di dare un risultato a meta'. */
+    function aggiornaDensita() {
+        var piu = $('fcaiPiu'), meno = $('fcaiMeno');
+        if (!piu || !meno) return;
+        var docLungo = (stato.testo || '').length > MAX_CARATTERI;
+        var tanti = concettiVivi().length > MAX_DENSITA;
+        piu.disabled = docLungo;
+        piu.title = docLungo ? T('fc.ibfai_densita_doc_lungo') : '';
+        meno.disabled = tanti;
+        meno.title = tanti ? T('fc.ibfai_densita_troppi', { n: MAX_DENSITA }) : '';
     }
 
     /**
@@ -666,9 +1078,12 @@ var FCAIP = (function () {
             p: primo.p,
             e: primo.e || secondo.e  // se uno dei due voleva l'esempio, lo vuole anche l'unione
         };
-        stato.elenco.splice(b, 1);
+        /* I figli del secondo passano al primo: e' dove e' finito il loro
+           contenuto. E i numeri NON si buttano via — prima si azzeravano tutti,
+           e dopo una fusione l'elenco perdeva il collegamento con le carte gia'
+           generate. */
+        elencoTogli(b, a);
         stato.daUnire = -1;
-        stato.numeri = {};
         disegnaElenco();
 
         // il titolo cresce sotto gli occhi, cosi' si vede DOVE e' finito il secondo
@@ -927,12 +1342,25 @@ var FCAIP = (function () {
     }
 
     async function generaCarte(giaConfermato, notaExtra) {
-        /* Le voci vuote si tolgono PRIMA di generare, cosi' l'indice di un
-           concetto nell'elenco e' lo stesso che viaggia nel campo "i" delle
-           carte. Senza questa potatura, "rigenera la terza" rigenererebbe un
-           concetto diverso da quello che l'utente vede al terzo posto. */
-        stato.elenco = concettiVivi();
+        /* Le voci vuote e quelle sbarrate si tolgono PRIMA di generare, cosi'
+           l'indice di un concetto nell'elenco e' lo stesso che viaggia nel
+           campo "i" delle carte. Togliendole, gli indici dei padri vanno
+           rimappati: prima non lo si faceva, e un figlio dopo un concetto
+           sbarrato puntava al padre sbagliato. */
+        var mappa = {}, vivi = [];
+        stato.elenco.forEach(function (c, i) {
+            if (c.t.trim() !== '' && !c.tolto) { mappa[i] = vivi.length; vivi.push(c); }
+        });
+        stato.elenco = vivi.map(function (c) {
+            var n = Object.assign({}, c);
+            n.p = (c.p !== null && c.p !== undefined && mappa[c.p] !== undefined) ? mappa[c.p] : null;
+            return n;
+        });
         if (!stato.elenco.length) return;
+
+        var m = mazzo();
+        if (!m) { showToast(T('fc.ibf_serve_categoria'), 'error'); return; }
+        if (FCAIJ.attivo() && !stato.jobRevisione) { showToast(T('fc.ibfai_job_gia_attivo'), 'error'); return; }
 
         var lista = $('fcRows');
         if (!giaConfermato) {
@@ -940,34 +1368,115 @@ var FCAIP = (function () {
             if (!ok) return;
         }
         lista.innerHTML = '';
-
-        $('fcaiBtnCarte').disabled = true;
-        $('fcaiProgresso').textContent = T('fc.ibfai_genero');
         stato.numeri = {};
         stato.righe = {};
+        $('fcaiProgresso').textContent = '';
 
-        try {
-            var risultato = await FCAI.generaTutte(stato.elenco, stato.testo, opzioni(), function (carte, fatti, tot) {
-                /* Le carte compaiono lotto per lotto invece che tutte alla fine:
-                   su sessanta concetti sono piu' di un minuto di attesa, e
-                   vedere le prime dieci dice che sta funzionando. */
-                carte.forEach(function (c) { inserisciCartaIA(c); });
-                markDirty();
-                aggiornaNumeri();
-                $('fcaiProgresso').textContent = T('fc.ibfai_generate_progresso', {fatti: fatti, tot: tot});
-            }, notaExtra || '');
+        /* Le ancore: quelle del motore (con il blocco del documento) se il
+           concetto arriva da una revisione e non e' stato toccato da una
+           fusione; altrimenti i testi, e il blocco lo ritrova il server. */
+        var concetti = stato.elenco.map(function (c) {
+            return {
+                t: c.t,
+                a: c.a || '',
+                ancore: (c.ancoreJob && c.ancoreJob.length) ? c.ancoreJob : (c.ancore || (c.a ? [c.a] : [])),
+                p: c.p,
+                e: c.e ? 1 : 0
+            };
+        });
 
-            if (typeof updateGenerateButtonState === 'function') updateGenerateButtonState();
-            $('fcaiRigeneraTutte').hidden = false;
-            $('fcaiProgresso').textContent = risultato.mancanti.length
-                ? T('fc.ibfai_scoperti', {n: risultato.mancanti.length})
-                : T('fc.ibfai_carte_generate', {n: risultato.carte.length});
-        } catch (e) {
-            mostraErrore(e);
-            $('fcaiProgresso').textContent = '';
-        } finally {
-            $('fcaiBtnCarte').disabled = false;
+        /* LA GENERAZIONE PASSA SEMPRE DAL MOTORE DEI JOB. Prima era un ciclo
+           nel browser, un lotto dopo l'altro: il primo lotto che falliva
+           fermava tutti quelli dopo, e l'utente vedeva un errore dopo una
+           lunga attesa. Ora ogni lotto e' un passo sul server, ritentato,
+           diviso se troppo grande, e le carte arrivano comunque. */
+        if (stato.jobRevisione) {
+            var id = stato.jobRevisione;
+            stato.jobRevisione = null;
+            FCAIJ.conferma(id, concetti);
+        } else {
+            FCAIJ.avvia({ context_id: m, testo: stato.testo, concetti: concetti, nota: notaExtra || '', opzioni: opzioni() });
         }
+    }
+
+    /* ---- ganci per fc_ai_job.js ---- */
+
+    /* Il testo piano di una domanda, per riconoscere una carta gia' in
+       tabella: dopo una ripresa il server rimanda tutte le carte del job, e
+       quelle gia' salvate (caricate dal database in modifica) non vanno
+       inserite una seconda volta. */
+    function chiaveDomanda(raw) {
+        return testoPiano(raw || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+
+    function suCarte(carte, info) {
+        var primaDi = $('fcRows').querySelectorAll('.fc-row').length;
+        /* Dopo una ripresa l'elenco dei concetti non c'e' piu' (la pagina si
+           e' ricaricata): lo si ricostruisce da quello del job, che serve a
+           numerare le carte e a ritrovare i padri. */
+        if (info.ripresa && info.job.concetti && !stato.elenco.length) {
+            stato.elenco = info.job.concetti.map(function (c) {
+                return { t: c.t, a: '', p: (c.p === undefined ? null : c.p), e: c.e || 0 };
+            });
+        }
+        if (info.ripresa) {
+            var gia = {};
+            $('fcRows').querySelectorAll('.fc-row').forEach(function (r) {
+                gia[chiaveDomanda(leggiCampo(r.dataset.rid, 'q'))] = true;
+            });
+            carte = carte.filter(function (c) { return !gia[chiaveDomanda(c.q)]; });
+        }
+        carte.forEach(function (c) { inserisciCartaIA(c); });
+        if (window.NS && carte.length) {
+            // solo le righe appena arrivate, non tutta la tabella
+            NS.entra(Array.prototype.slice.call($('fcRows').querySelectorAll('.fc-row'), primaDi));
+        }
+        if (carte.length) {
+            markDirty();
+            aggiornaNumeri();
+            if (typeof updateGenerateButtonState === 'function') updateGenerateButtonState();
+        }
+    }
+
+    /** L'estrazione di un documento lungo e' finita: l'elenco torna qui, da rivedere. */
+    function suRevisione(concetti, job) {
+        stato.elenco = concetti.map(function (c) {
+            var anc = c.ancore || [];
+            return {
+                t: c.t,
+                a: anc.length ? anc[0].a : '',
+                ancore: anc.map(function (x) { return x.a; }),  // la forma che usa la fusione
+                ancoreJob: anc,                                   // la forma che capisce il server
+                p: (c.p === undefined ? null : c.p),
+                e: c.e || 0
+            };
+        });
+        stato.jobRevisione = job.id;
+        stato.numeri = {};
+        disegnaElenco();
+        $('fcaiStato').className = 'fcai-nota';
+        $('fcaiStato').textContent = T('fc.ibfai_job_revisione', { n: stato.elenco.length });
+        /* apri() e' un interruttore: su una sezione gia' aperta la chiude. Qui
+           serve solo aprirla se e' chiusa, altrimenti l'elenco appena arrivato
+           sparirebbe proprio mentre gli si dice di rivederlo. */
+        var sez = $('fcaiSecIa');
+        if (sez && !sez.classList.contains('is-open')) apri('ia');
+        var box = $('fcaiRisultato');
+        if (box && box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function suFine(job, conti) {
+        $('fcaiRigeneraTutte').hidden = false;
+        $('fcaiProgresso').textContent = conti.mancanti
+            ? T('fc.ibfai_scoperti', { n: conti.mancanti })
+            : T('fc.ibfai_carte_generate', { n: conti.ricevute });
+        if (typeof updateGenerateButtonState === 'function') updateGenerateButtonState();
+    }
+
+    function suBlocco(attivo, revisione) {
+        $('fcaiBtnConcetti').disabled = attivo;
+        $('fcaiBtnCarte').disabled = attivo && !revisione;
+        $('fcaiRigeneraTutte').disabled = attivo;
     }
 
     /* ============================================================
@@ -1116,7 +1625,9 @@ var FCAIP = (function () {
         try {
             var carta = await FCAI.migliora({
                 domanda: q, risposta: a, nota: nota, estratto: estratto,
-                opzioni: { esempi: esempio }, lingua: 'italiano'
+                // lo stesso stile e lo stesso impegno delle carte generate: una
+                // carta migliorata non deve uscire scritta in un altro modo
+                opzioni: { esempi: esempio, stile: leggiStile(), impegno: impegnoScelto() }, lingua: 'italiano'
             });
             var nuova = sostituisciContenutoRiga(riga, carta.q, carta.a);
             if (carta.e) segnaEsempio(nuova, carta.e);
@@ -1234,6 +1745,12 @@ var FCAIP = (function () {
         $('fcaiMeno').addEventListener('click', function () { cambiaDensita('meno'); });
         $('fcaiPiu').addEventListener('click', function () { cambiaDensita('piu'); });
 
+        if ($('fcaiApriCrediti')) $('fcaiApriCrediti').addEventListener('click', function () { apriCrediti(); });
+        if ($('fcaiCreditiChiudi')) $('fcaiCreditiChiudi').addEventListener('click', chiudiCrediti);
+        if ($('fcaiCreditiModale')) $('fcaiCreditiModale').addEventListener('click', function (ev) {
+            if (ev.target === $('fcaiCreditiModale')) chiudiCrediti();
+        });
+
         /* Il numero della carta porta alla carta: e' il controllo che l'utente
            fa davvero, cioe' "questo concetto e' stato trattato?". */
         $('fcaiElenco').addEventListener('click', function (ev) {
@@ -1251,6 +1768,58 @@ var FCAIP = (function () {
                 : T('fc.ibfai_prompt_fallback');
             navigator.clipboard.writeText(p).then(function () { showToast(T('fc.ibfai_copiato')); });
         });
+
+        /* Le indicazioni si ricordano fra una visita e l'altra: chi ha scritto
+           una volta "voglio le risposte come elenco descrizione - codice" non
+           deve riscriverlo per ogni mazzo. Restano nel browser, non sul
+           server: sono una comodita' di chi scrive, non un dato del mazzo. */
+        var ind = $('fcaiIndicazioni');
+        if (ind) {
+            try { if (!ind.value) ind.value = localStorage.getItem('fcai_indicazioni') || ''; } catch (e) {}
+            ind.addEventListener('input', function () {
+                try { localStorage.setItem('fcai_indicazioni', ind.value); } catch (e) {}
+            });
+        }
+
+        if (window.NS && NS.tendina) {
+            tendinaImpegno = NS.tendina($('fcaiImpegno'), {
+                valore: 'medio',
+                onCambia: function (v) { scegliImpegno(v); stileCambiato(true); }
+            });
+        }
+        if (!tendinaImpegno) {
+            // ripiego senza nisama_ui.js: le voci restano quattro pulsanti
+            document.querySelectorAll('#fcaiImpegno [data-impegno]').forEach(function (b) {
+                b.addEventListener('click', function () { scegliImpegno(b.getAttribute('data-impegno')); stileCambiato(true); });
+            });
+        }
+        document.querySelectorAll('#fcaiStile select').forEach(function (sel) {
+            sel.addEventListener('change', function () { stileCambiato(true); });
+        });
+        ['fcaiStileEtichette', 'fcaiModelloQ', 'fcaiModelloA'].forEach(function (id) {
+            if ($(id)) $(id).addEventListener('input', function () { stileCambiato(false); });
+        });
+        if ($('fcaiStileAzzera')) $('fcaiStileAzzera').addEventListener('click', function () {
+            applicaStile({ stile: {}, impegno: 'medio' });
+            stileCambiato(true);
+        });
+        caricaStile();
+        $('fcaiRiepilogo').textContent = riepilogo();
+
+        // la risposta al dito su tutti i comandi del pannello, non solo sull'elenco
+        if (window.NS) NS.preme(document);
+
+        if (window.FCAIJ) {
+            FCAIJ.init({
+                deck: mazzo,
+                modo: typeof MODO !== 'undefined' ? MODO : 'insert',
+                onCarte: suCarte,
+                onRevisione: suRevisione,
+                onFine: suFine,
+                onBlocco: suBlocco
+            });
+            FCAIJ.riprendiAllAvvio();
+        }
 
         // Nessuna sezione si apre da sola all'avvio: le tre partono tutte
         // compatte, e chi arriva sceglie da quale cominciare. Un tempo la

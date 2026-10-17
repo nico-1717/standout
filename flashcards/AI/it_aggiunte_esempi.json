@@ -1,0 +1,10 @@
+{
+  "fc.ibfai_stile_esempio": "Tipo di esempio",
+  "fc.ibfai_stile_esempio_concreto": "Caso concreto",
+  "fc.ibfai_stile_esempio_esercizio": "Esercizio svolto",
+  "fc.ibfai_stile_esempio_controesempio": "Controesempio",
+  "fc.ibfai_stile_esempio_analogia": "Analogia",
+  "fc.exm_genera_ph": "Indicazioni facoltative: es. \"con numeri piccoli\", \"in C++\", \"un caso di vita quotidiana\"",
+  "fc.exm_limite_msg": "Questo esempio costerebbe circa {stima} crediti, ma questo mese te ne restano {disponibili}.",
+  "fc.exm_carta_vuota": "La carta è vuota: scrivi prima la domanda o la risposta, poi genera l'esempio."
+}

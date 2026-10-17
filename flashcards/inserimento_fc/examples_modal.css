@@ -449,3 +449,15 @@
    "traboccava" sulla pagina sotto, che si muoveva mentre si guardava altro.
    overscroll-behavior:contain lo tiene dentro. */
 .exm-overlay{ overscroll-behavior:contain; }
+
+
+/* ---- impegno e stile degli esempi ---- */
+.exm-ai-lbl{ font-size:12px; font-weight:600; letter-spacing:.02em; color:var(--text-2, #6e6e73); margin:4px 0 6px; }
+/* L'impegno e' la stessa tendina del pannello delle carte: le regole stanno
+   in nisama_ui.css (.ns-tendina), non qui. Nel popup degli esempi lo spazio
+   e' poco, quindi la riga chiusa e' un po' piu' compatta. */
+#ex-ai-impegno .ns-tendina-btn{ padding:9px 11px; font-size:14px; }
+.exm-ai-stile{ display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; margin-bottom:10px; }
+.exm-ai-stile label{ display:flex; flex-direction:column; gap:3px; min-width:0; font-size:12px; color:var(--text-2, #6e6e73); }
+.exm-ai-stile select{ width:100%; font:inherit; font-size:13.5px; padding:7px 8px; border-radius:10px;
+    border:1px solid var(--border, rgba(0,0,0,.12)); background:var(--surface, #fff); color:var(--text, #1d1d1f); }

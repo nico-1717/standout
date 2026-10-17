@@ -202,45 +202,13 @@ foreach ($gameplays as $gp) {
 
 
         // FIX: Contiamo come "giocate" solo quelle che hanno effettivamente una risposta per non sballare le percentuali
-
-
-
-
-
-
-
-        if ($card['user_answer'] != '') {
-
-
-
-
-
-
-
+        // Un titolo (fc_e_titolo in game_fc.php) parte gia' con user_answer='Titolo':
+        // non e' vuoto, quindi senza questo controllo finiva dritto nel ramo "sbagliata"
+        // qui sotto, e faceva scendere il punteggio per il solo fatto di esistere.
+        if ($card['user_answer'] != '' && $card['user_answer'] !== 'Titolo') {
             $played_items++;
-
-
-
-
-
-
-
             if ($card['user_answer'] == 'Correct') $correct_count++;
-
-
-
-
-
-
-
             else $error_count++;
-
-
-
-
-
-
-
         }
 
 
@@ -272,6 +240,33 @@ foreach ($gameplays as $gp) {
 
 
 
+
+/* Quanti esempi ha ciascuna carta: fc_examples ha una colonna diversa per
+   padri e figli (parent_id / child_id), esattamente come in game_fc.php.
+   Due query sole, non una per carta: con cinquanta carte sarebbero stati
+   altri cinquanta viaggi al database, proprio come per domanda/risposta
+   qui sopra. Il riquadro compare solo dove ci sono davvero esempi: mostrarlo
+   vuoto su ogni carta sarebbe stato rumore per la stragrande maggioranza
+   che non ne ha nessuno. */
+$examples_counts = [];
+$idPadriRisp = []; $idFigliRisp = [];
+foreach ($cards as $c) {
+    if (($c['user_answer'] ?? '') === 'Titolo') continue;
+    if ($c['is_child']) { if (!empty($c['id_child'])) $idFigliRisp[] = (int)$c['id_child']; }
+    else { if (!empty($c['id'])) $idPadriRisp[] = (int)$c['id']; }
+}
+if ($idPadriRisp) {
+    $ph = implode(',', array_fill(0, count($idPadriRisp), '?'));
+    foreach (sec_all("SELECT parent_id, COUNT(*) AS c FROM fc_examples WHERE parent_id IN ($ph) GROUP BY parent_id", $idPadriRisp) as $r) {
+        $examples_counts['p' . (int)$r['parent_id']] = (int)$r['c'];
+    }
+}
+if ($idFigliRisp) {
+    $ph = implode(',', array_fill(0, count($idFigliRisp), '?'));
+    foreach (sec_all("SELECT child_id, COUNT(*) AS c FROM fc_examples WHERE child_id IN ($ph) GROUP BY child_id", $idFigliRisp) as $r) {
+        $examples_counts['c' . (int)$r['child_id']] = (int)$r['c'];
+    }
+}
 
 $score = ($played_items > 0) ? ($correct_count / $played_items) * 100 : 0;
 
@@ -400,7 +395,14 @@ if ($row_resume && $row_resume['resume_pos']) {
 
     <script src="fc_parser.js"></script>
 
-
+    <?php /* Il riquadro "N esempi" e' un componente condiviso, non codice di
+             questa pagina: lo stesso usato da visualizzazione_fc.php e
+             modifica_immagine_fc.php. Qui prendiamo solo il pezzo che legge
+             e sfoglia (examples_modal.js): niente form di modifica, niente
+             IA, niente autosave — result_fc.php e' una pagina di sola
+             lettura, non ha senso portarci dietro un pannello per crearne
+             di nuovi. */ ?>
+    <script src="examples_modal.js"></script>
 
 </head>
 
@@ -410,7 +412,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-    <?php include 'sidebar.html'; ?>
+    <?php include 'sidebar.php'; ?>
 
 
 
@@ -753,6 +755,11 @@ if ($row_resume && $row_resume['resume_pos']) {
                 } else {
                     $child_counter++;
                 }
+                // Un titolo (padre senza risposta, solo per raggruppare i suoi figli)
+                // non ha un esito: non e' ne' giusto ne' sbagliato ne' "da fare", e
+                // mostrarlo come uno di questi tre era il punto sbagliato di partenza.
+                $is_titolo = ($c['user_answer'] === 'Titolo');
+
                 // Mettiamo colore e badge in base all'esito. Se vuoto = Da fare
                 if ($c['user_answer'] == 'Correct') {
                     $oc_class = "ok"; $oc_icon = "\u{2713}"; $oc_text = t('fc.res_corretto');
@@ -797,7 +804,22 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                    <div class="rev-entry">
+                    <div class="rev-entry<?php echo $is_titolo ? ' rev-titolo' : ''; ?>">
+
+                        <?php if ($is_titolo): ?>
+
+                        <?php /* Un titolo raggruppa le carte che seguono, non e'
+                                 una domanda a cui manca la risposta: niente pallino
+                                 "1", niente pillola di esito (non ne ha uno), niente
+                                 riquadro "Risposta" con dentro il vuoto — quel
+                                 riquadro vuoto era esattamente il problema. */ ?>
+                        <div class="rev-titolo-lab"><?php te('fc.vis_titolo'); ?></div>
+                        <div class="rev-titolo-txt">
+                            <span class="raw-text" data-raw="<?php echo sec_h($c['question_desc'] ?? ''); ?>"></span>
+                        </div>
+
+                        <?php else: ?>
+
 
 
 
@@ -907,6 +929,19 @@ if ($row_resume && $row_resume['resume_pos']) {
 
                                 </div>
 
+                                <?php
+                                    /* Il riquadro vive DENTRO rev-a-body apposta: quando il visore
+                                       a carte copia questa risposta con un innerHTML (vedi buildDeck
+                                       piu' sotto), il riquadro viaggia con lei senza bisogno di una
+                                       riga di JS in piu' per portarlo li' a parte. */
+                                    $c_ex_id = $c['is_child'] ? (int)($c['id_child'] ?? 0) : (int)($c['id'] ?? 0);
+                                    $c_ex_tipo = $c['is_child'] ? 'child' : 'parent';
+                                    $c_ex_n = $examples_counts[($c['is_child'] ? 'c' : 'p') . $c_ex_id] ?? 0;
+                                ?>
+                                <?php if ($c_ex_n > 0): ?>
+                                <div class="qa-examples-box" data-fc-id="<?php echo $c_ex_id; ?>" data-fc-type="<?php echo $c_ex_tipo; ?>"></div>
+                                <?php endif; ?>
+
 
 
                             </div>
@@ -915,7 +950,8 @@ if ($row_resume && $row_resume['resume_pos']) {
 
                         </div>
 
-
+                    
+                        <?php endif; ?>
 
                     </div>
 
@@ -1231,89 +1267,67 @@ if ($row_resume && $row_resume['resume_pos']) {
 
         window.renderAllRawTexts = function() {
 
-
-
             // Controllo di sicurezza nel caso in cui il file JS esterno non fosse caricato
-
-
-
             if (typeof parseTextForPreview !== 'function') {
-
-
-
                 console.error("Errore: fc_parser.js non è caricato correttamente in questa pagina!");
-
-
-
                 return;
-
-
-
             }
 
+            /* Con tante carte, disegnare le formule di TUTTE insieme (un solo
+               giro di parseTextForPreview + un solo, enorme typesetPromise
+               sull'intero documento) blocca il thread principale abbastanza
+               a lungo da far scattare anche l'anello del punteggio, che parte
+               nello stesso istante. Si procede quindi a piccoli gruppi,
+               lasciando respirare il browser fra un gruppo e l'altro: il
+               primo e' immediato (la prima schermata compare gia' pronta),
+               il resto arriva quando il browser ha un momento libero.
 
+               Il filtro su innerHTML==='' rende la funzione ripetibile senza
+               sprechi: ensureParsed() la richiama come rete di sicurezza se
+               si apre il visore prima che tutto sia finito, e qui si
+               riprende solo da dove il giro precedente (o quello ancora in
+               corso) non e' ancora arrivato, invece di rifare da capo. */
+            var DIM_BLOCCO = 8;
+            var elementi = Array.prototype.slice.call(document.querySelectorAll('.raw-text[data-raw]'))
+                .filter(function (el) { return el.innerHTML === ''; });
+            var indice = 0;
 
+            function prossimoGiro(fn) {
+                if (typeof requestIdleCallback === 'function') requestIdleCallback(fn, { timeout: 200 });
+                else setTimeout(fn, 32);
+            }
 
+            function blocco() {
+                var gruppo = elementi.slice(indice, indice + DIM_BLOCCO);
+                if (!gruppo.length) return;
+                indice += DIM_BLOCCO;
 
+                gruppo.forEach(function (el) {
+                    var rawData = el.getAttribute('data-raw');
+                    if (rawData) el.innerHTML = parseTextForPreview(rawData);   // DELEGA TOTALE A fc_parser.js
+                });
 
-
-            document.querySelectorAll('.raw-text').forEach(function(el) {
-
-
-
-                let rawData = el.getAttribute('data-raw');
-
-
-
-                if (rawData) {
-
-
-
-                    // DELEGA TOTALE A fc_parser.js
-
-
-
-                    el.innerHTML = parseTextForPreview(rawData);
-
-
-
+                /* parseTextForPreview() produce il TeX come TESTO. Per vederlo
+                   disegnato servono i delimitatori, che li mette
+                   fcdDisegnaFormule(): senza questa chiamata MathJax non trova
+                   niente da comporre e le formule restano codice a schermo.
+                   Qui si passa ogni elemento del gruppo, non l'intero
+                   documento: e' tutto il punto di procedere a blocchi. */
+                if (typeof fcdDisegnaFormule === 'function') {
+                    gruppo.forEach(function (el) { fcdDisegnaFormule(el); });
                 }
 
+                // Eseguiamo il rendering delle formule matematiche sul testo appena formattato,
+                // ma solo su questo gruppo: MathJax.typesetPromise() accetta un elenco preciso
+                // di elementi da ricomporre invece di dover ripassare tutta la pagina.
+                if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+                    MathJax.typesetPromise(gruppo).catch(err => console.log(err));
+                }
 
-
-            });
-
-
-
-
-
-
-
-            /* parseTextForPreview() produce il TeX come TESTO. Per vederlo
-               disegnato servono i delimitatori, che li mette
-               fcdDisegnaFormule(): senza questa chiamata MathJax non trova
-               niente da comporre e le formule restano codice a schermo. */
-
-            if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(document);
-
-
-
-            // Eseguiamo il rendering delle formule matematiche sul testo appena formattato
-
-
-
-            if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
-
-
-
-                MathJax.typesetPromise().catch(err => console.log(err));
-
-
-
+                if (indice < elementi.length) prossimoGiro(blocco);
             }
 
-
-
+            blocco();
         };
 
 
@@ -1326,19 +1340,20 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
+        function fcAvviaSubito() {
+            window.renderAllRawTexts();
+            /* I riquadri esempi sono pochi (solo le carte che ne hanno
+               davvero), quindi non serve spezzettare il loro caricamento
+               come si e' fatto sopra per le formule: e' gia' una manciata
+               di richieste, non centinaia. */
+            if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes();
+        }
+
         if (document.readyState === 'loading') {
 
 
 
-            document.addEventListener("DOMContentLoaded", function() {
-
-
-
-                window.renderAllRawTexts();
-
-
-
-            });
+            document.addEventListener("DOMContentLoaded", fcAvviaSubito);
 
 
 
@@ -1346,7 +1361,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-            window.renderAllRawTexts();
+            fcAvviaSubito();
 
 
 
@@ -1980,6 +1995,7 @@ if ($row_resume && $row_resume['resume_pos']) {
                        contiene solo quelle: altrimenti si filtrava l'elenco ma
                        poi le flashcard le mostravano comunque tutte. */
                     if (en.style.display === 'none') return;
+                    if (en.classList.contains('rev-titolo')) return;
 
                     var q = en.querySelector('.rev-q');
 
@@ -2494,7 +2510,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                        if (!e.target.closest('a, button, audio')) flip();
+                        if (!e.target.closest('a, button, audio, .qa-examples-box')) flip();
 
 
 
@@ -2520,9 +2536,9 @@ if ($row_resume && $row_resume['resume_pos']) {
 
                 var en = e.target.closest('.rev-entry');
 
-
-
-                if (en && !e.target.closest('a')) {
+                /* Un titolo non e' una domanda: toccarlo non deve provare ad
+                   aprire un visore che non avrebbe niente da mostrare. */
+                if (en && !en.classList.contains('rev-titolo') && !e.target.closest('a') && !e.target.closest('.qa-examples-box')) {
 
 
 
@@ -2571,6 +2587,11 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
                 if (!e.target.closest || !e.target.closest('#fcvCard')) return;
+
+                /* Il carosello degli esempi ha una sua sfogliata orizzontale
+                   (cambia esempio, non carta): se il gesto nasce li' dentro
+                   e' suo. */
+                if (e.target.closest('.qa-examples-box')) return;
 
 
 

@@ -364,7 +364,7 @@ $ajax = sec_enum($_GET['ajax'] ?? null, ['lista', 'sospese', 'materie'], '');
 if ($ajax === 'lista') {
     $da      = sfc_data($_GET['da'] ?? '');
     $a       = sfc_data($_GET['a'] ?? '');
-    $stato   = sec_enum($_GET['stato'] ?? null, ['tutte', 'sospese', 'concluse', 'con_errori'], 'tutte');
+    $stato   = sec_enum($_GET['stato'] ?? null, ['tutte', 'sospese', 'concluse'], 'tutte');
     $tipo    = sec_enum($_GET['tipo'] ?? null, ['tutti', 'all', '0', '1'], 'tutti');
     $ordina  = sec_enum($_GET['ordina'] ?? null, ['recenti', 'lunghe', 'errori', 'precisione'], 'recenti');
     $materia = max(0, sec_int($_GET['materia'] ?? 0, 0));
@@ -459,7 +459,6 @@ if ($ajax === 'lista') {
         foreach ($madre['ripassi'] as $rip) { if ($rip['sospesa']) $qualcuna_sospesa = true; }
         if ($stato === 'sospese' && !$qualcuna_sospesa) continue;
         if ($stato === 'concluse' && $qualcuna_sospesa) continue;
-        if ($stato === 'con_errori' && $madre['ko'] === 0 && !array_sum(array_column($madre['ripassi'], 'ko'))) continue;
 
         $righe[] = $madre;
     }
@@ -638,7 +637,7 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>history_fc.css?v=<?php echo @filemtime(dirname(__FILE__) . '/history_fc.css') ?: 1; ?>">
 </head>
 <body>
-<?php include 'sidebar.html'; ?>
+<?php include 'sidebar.php'; ?>
 
 <div class="sfc">
 
@@ -791,6 +790,46 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
     'use strict';
 
     var SPRING = 'cubic-bezier(.32,.72,0,1)';
+    /* Velocita' in pixel al secondo, non in secondi fissi: cosi' un nome
+       lungo il doppio ci mette il doppio a scorrere, non va il doppio piu'
+       veloce. Il ritorno e' molto piu' rapido dell'andata, come chiesto:
+       si legge scorrendo, si torna all'inizio solo per ripartire. */
+    var TICKER_PX_S_AVANTI = 26;
+    var TICKER_PX_S_INDIETRO = 170;
+    var TICKER_PAUSA_INIZIO = 700;   /* ms fermo prima di iniziare a scorrere */
+    var TICKER_PAUSA_FINE = 450;     /* ms fermo in fondo prima di tornare */
+
+    function avviaTickerEl(inner, over) {
+        /* Un numero di generazione invece di clearTimeout su 4 id: ogni
+           passo del ciclo controlla di essere ancora quello giusto, cosi'
+           fermare il ciclo (o farne ripartire un altro) e' un solo
+           incremento, senza dover tracciare quale timeout sia in corso. */
+        var gen = ++inner.__tickerGen;
+        function passo(fn, ms) { return setTimeout(function () { if (inner.__tickerGen === gen) fn(); }, ms); }
+        function ciclo() {
+            inner.style.transition = 'none';
+            inner.style.transform = 'translateX(0)';
+            void inner.offsetWidth; /* forza il browser a ridisegnare prima del prossimo transition */
+            passo(function () {
+                var msAndata = Math.round(over / TICKER_PX_S_AVANTI * 1000);
+                inner.style.transition = 'transform ' + msAndata + 'ms linear';
+                inner.style.transform = 'translateX(-' + over + 'px)';
+                passo(function () {
+                    var msRitorno = Math.round(over / TICKER_PX_S_INDIETRO * 1000);
+                    inner.style.transition = 'transform ' + msRitorno + 'ms cubic-bezier(.3,.7,.4,1)';
+                    inner.style.transform = 'translateX(0)';
+                    passo(ciclo, msRitorno + TICKER_PAUSA_INIZIO);
+                }, TICKER_PAUSA_FINE);
+            }, TICKER_PAUSA_INIZIO);
+        }
+        ciclo();
+    }
+    function fermaTickerEl(inner) {
+        inner.__tickerGen = (inner.__tickerGen || 0) + 1;   /* invalida il ciclo in corso */
+        inner.style.transition = 'none';
+        inner.style.transform = 'translateX(0)';
+    }
+
     var tickerObs = null;
     function initTicker() {
         if (!('IntersectionObserver' in window)) return;
@@ -800,11 +839,8 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
                 var wrap = v.target, inner = wrap.querySelector('.sfc-nome-inner');
                 if (!inner) return;
                 var over = inner.scrollWidth - wrap.clientWidth;
-                if (over > 6) {
-                    inner.style.setProperty('--ticker-over', '-' + over + 'px');
-                    inner.style.setProperty('--ticker-dur', Math.max(4, Math.min(10, over / 35)) + 's');
-                    inner.classList.toggle('ticker-on', v.isIntersecting);
-                } else { inner.classList.remove('ticker-on'); }
+                if (over > 6 && v.isIntersecting) avviaTickerEl(inner, over);
+                else fermaTickerEl(inner);
             });
         }, { threshold: 0.5 });
     }
@@ -923,6 +959,10 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
 
     function durata(sec) {
         sec = Math.max(0, Math.round(sec || 0));
+        /* Zero secondi vuol dire "non c'e' stato nessun gioco", non "meno di
+           un minuto di gioco": sono due informazioni diverse, e la seconda
+           lascia intendere che si sia comunque giocato qualcosa. */
+        if (sec === 0) return '0';
         if (sec < 60) return T('fc.sfc_dur_s');
         var m = Math.round(sec / 60);
         if (m < 60) return T('fc.sfc_dur_m', { m: m });
@@ -1241,7 +1281,7 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
         html += '<div class="sfc-det-azioni">' +
             (r.sospesa ? '<a class="sfc-btn primario" href="game_fc.php?game_id=' + r.id + '&amp;position=' + r.pos + '">' + ICONE.play + T('fc.sfc_riprendi') + '</a>' : '') +
             '<a class="sfc-btn" href="result_fc.php?game_id=' + r.id + '">' + ICONE.risultati + T('fc.sfc_risultati') + '</a>' +
-            (r.ko > 0 ? '<a class="sfc-btn" href="history_fc.php?stato=con_errori">' + ICONE.ripasso + T('fc.sfc_ripassa') + '</a>' : '') +
+            (r.ko > 0 ? '<a class="sfc-btn" href="result_fc.php?game_id=' + r.id + '&amp;solo_errori=1">' + ICONE.ripasso + T('fc.sfc_ripassa') + '</a>' : '') +
             '<button type="button" class="sfc-btn icona pericolo" data-elimina="' + r.id + '" aria-label="' + esc(T('comune.elimina')) + '">' + ICONE.cestino + '</button>' +
             '</div>';
         return html;
@@ -1708,15 +1748,66 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
         return html + '</div>';
     }
 
+    /* ── MENU DI ORDINAMENTO ───────────────────────────────────────────────
+       Un popover piccolo ancorato al bottone, con tutte le opzioni visibili
+       invece di doverle scoprire una alla volta toccando ripetutamente. */
+    var menuAperto = null;
+
+    function chiudiMenu() {
+        if (!menuAperto) return;
+        var m = menuAperto; menuAperto = null;
+        m.classList.remove('open');
+        setTimeout(function () { m.remove(); }, 160);
+        document.removeEventListener('pointerdown', chiudiMenuSeFuori, true);
+        window.removeEventListener('scroll', chiudiMenu, true);
+    }
+    function chiudiMenuSeFuori(e) {
+        if (menuAperto && !menuAperto.contains(e.target)) chiudiMenu();
+    }
+    function apriMenu(btn, opzioni, attivo, onScegli) {
+        chiudiMenu();
+        var pop = document.createElement('div');
+        pop.className = 'sfc-menu-pop';
+        pop.innerHTML = opzioni.map(function (o) {
+            return '<button type="button" class="sfc-menu-item' + (o === attivo ? ' attivo' : '') + '" data-mv="' + o + '">' +
+                '<span>' + esc(T('fc.sfc_ms_' + o)) + '</span>' + (o === attivo ? ICONE.spunta : '') + '</button>';
+        }).join('');
+        document.body.appendChild(pop);
+
+        var r = btn.getBoundingClientRect();
+        var pr = pop.getBoundingClientRect();
+        var left = Math.max(8, Math.min(r.right - pr.width, window.innerWidth - pr.width - 8));
+        var top = r.bottom + 6;
+        if (top + pr.height > window.innerHeight - 8) top = r.top - pr.height - 6;
+        pop.style.left = left + 'px';
+        pop.style.top = top + 'px';
+        requestAnimationFrame(function () { pop.classList.add('open'); });
+
+        pop.addEventListener('click', function (e) {
+            var it = e.target.closest('[data-mv]');
+            if (!it) return;
+            onScegli(it.getAttribute('data-mv'));
+            chiudiMenu();
+        });
+        menuAperto = pop;
+        /* setTimeout: altrimenti il click che ha appena aperto il menu
+           arriverebbe anche a questo listener e lo richiuderebbe subito. */
+        setTimeout(function () {
+            document.addEventListener('pointerdown', chiudiMenuSeFuori, true);
+            window.addEventListener('scroll', chiudiMenu, true);
+        }, 0);
+    }
+
     el.sfcMaterie.addEventListener('click', function (e) {
         var ord = e.target.closest('[data-ordina]');
         if (ord) {
-            if (ord.getAttribute('data-ordina') === 'non') {
-                state.ordNonToccate = ORD_NON[(ORD_NON.indexOf(state.ordNonToccate) + 1) % ORD_NON.length];
-            } else {
-                state.ordGiocate = ORD_GIOC[(ORD_GIOC.indexOf(state.ordGiocate) + 1) % ORD_GIOC.length];
-            }
-            disegnaMaterie();
+            var tipo = ord.getAttribute('data-ordina');
+            var opzioni = tipo === 'non' ? ORD_NON : ORD_GIOC;
+            var attivo = tipo === 'non' ? state.ordNonToccate : state.ordGiocate;
+            apriMenu(ord, opzioni, attivo, function (v) {
+                if (tipo === 'non') state.ordNonToccate = v; else state.ordGiocate = v;
+                disegnaMaterie();
+            });
             return;
         }
         var chev = e.target.closest('[data-apri]');
@@ -1753,7 +1844,7 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
             var p = new URLSearchParams(window.location.search);
             var ordina = p.get('ordina'), stato = p.get('stato');
             if (['recenti','lunghe','errori','precisione'].indexOf(ordina) > -1) state.filtri.ordina = ordina;
-            if (['tutte','sospese','concluse','con_errori'].indexOf(stato) > -1) state.filtri.stato = stato;
+            if (['tutte','sospese','concluse'].indexOf(stato) > -1) state.filtri.stato = stato;
         } catch(e) {}
     }
 

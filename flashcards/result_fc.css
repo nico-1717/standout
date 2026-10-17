@@ -712,6 +712,17 @@
 
         .rev-entry + .rev-entry{ border-top:1px dashed var(--hairline-2); margin-top:6px; }
 
+        /* Un titolo raggruppa le carte che seguono: si legge come un'intestazione
+           di capitolo, non come una domanda a cui manca la risposta. Stessa idea
+           di .fc-title in visualizzazione_fc.css, qui con i colori di questa
+           pagina (--blue al posto del --row-color per categoria, che qui non c'e'). */
+        .rev-titolo{ padding:2px 0 2px 12px; border-left:3px solid var(--blue); }
+        .rev-titolo-lab{
+            display:block; font-size:10px; font-weight:800; letter-spacing:.09em;
+            text-transform:uppercase; color:var(--blue); opacity:.78; margin-bottom:4px;
+        }
+        .rev-titolo-txt{ font-size:16px; font-weight:800; line-height:1.32; color:var(--text); }
+
 
 
         .rev-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
@@ -1147,6 +1158,11 @@
 
 
         .rev-entry:active{ transform:scale(.988); }
+
+        /* Il titolo non si gira: non e' una domanda con una risposta nascosta
+           dietro, quindi non deve sembrare toccabile come le altre. */
+        .rev-entry.rev-titolo{ cursor:default; }
+        .rev-entry.rev-titolo:active{ transform:none; }
 
 
 
@@ -1652,3 +1668,44 @@
 .res-fab:active{ transform:scale(.9); }
 .res-fab.is-active{ background:var(--red, #FF3B30); color:#fff; }
 .res-fab-primary{ background:var(--purple, #AF52DE); color:#fff; }
+
+/* ============================================================
+   RIQUADRO ESEMPI — STILE PROVVISORIO, DA SOSTITUIRE
+   ============================================================
+   .qa-examples-box e le classi che examples_modal.js gli disegna dentro
+   (.qa-ex-nav, .qa-ex-dot, .qa-ex-arrow, .qa-example-item, .qa-example-text,
+   .qa-example-image, .qa-example-audio, .qa-ex-viewport) non hanno uno
+   stile base in NESSUNO dei fogli che ho: ne' qui, ne' in examples_modal.css
+   (che ha solo le classi .exm-* del pannello di modifica), ne' in
+   visualizzazione_fc.css (che ha solo regole qualificate tipo
+   ".ex-modal-body .qa-example-item", non la classe base) ne' in game_fc.css.
+   Deve vivere in un foglio che non mi e' ancora arrivato, o essere generata
+   inline da render_examples_section() lato server.
+
+   Questo blocco e' un ripiego funzionale, non quello vero: basta a far
+   vedere e sfogliare gli esempi fin da subito, ma il vero riquadro di
+   visualizzazione_fc probabilmente ha un aspetto piu' curato. Quando arriva
+   il foglio giusto, questo blocco va tolto per non avere due regole per la
+   stessa classe. */
+.qa-examples-box{
+    margin-top:10px; padding:10px 12px; border-radius:12px;
+    border:1px dashed var(--hairline-2); min-height:20px;
+}
+.qa-examples-box-filled{ border-style:solid; border-color:var(--hairline); background:var(--surface-2); }
+.qa-ex-viewport{ overflow:hidden; }
+.qa-example-item{ font-size:14px; line-height:1.5; color:var(--text); }
+.qa-example-text{ margin-bottom:6px; }
+.qa-example-image{ max-width:100%; border-radius:8px; display:block; margin-top:6px; }
+.qa-example-audio{ width:100%; height:32px; margin-top:6px; }
+.qa-ex-nav{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.qa-ex-dots{ display:flex; gap:5px; }
+.qa-ex-dot{ width:5px; height:5px; border-radius:50%; background:var(--hairline-2); }
+.qa-ex-dot.active{ background:var(--purple); }
+.qa-ex-arrow{
+    display:flex; align-items:center; justify-content:center; width:24px; height:24px;
+    border:none; border-radius:50%; background:var(--surface); color:var(--purple); cursor:pointer;
+    box-shadow:0 1px 2px rgba(0,0,0,.12);
+}
+.qa-ex-arrow svg{ width:12px; height:12px; }
+.qa-ex-arrow:active{ transform:scale(.9); }
+.qa-ex-arrow-spacer{ width:24px; height:24px; }

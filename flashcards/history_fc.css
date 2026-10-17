@@ -176,7 +176,15 @@ button, input{ font-family:inherit; }
 }
 .sfc-carosello::-webkit-scrollbar{ display:none; }
 .sfc-rip-card{
-    flex:0 0 228px; scroll-snap-align:start; display:flex; flex-direction:column; gap:3px;
+    /* flex-basis:100% (della larghezza del carosello, gia' al netto del suo
+       padding) fa occupare tutto lo schermo a una carta per volta: si
+       scorre da una partita all'altra invece di vederne pezzi affiancati.
+       min-width:0 e' necessario perche' i flex item di default non si
+       restringono sotto il contenuto che non puo' andare a capo (il nome,
+       in nowrap per il ticker): senza, un nome lungo faceva ESPANDERE la
+       carta oltre lo schermo invece di restare dentro e scorrere. */
+    flex:0 0 100%; min-width:0; max-width:100%;
+    scroll-snap-align:start; scroll-snap-stop:always; display:flex; flex-direction:column; gap:3px;
     padding:12px 13px; border-radius:var(--r-card); background:var(--surface);
     border:.5px solid var(--hairline); box-shadow:var(--shadow-card);
     transition:transform .15s var(--spring);
@@ -415,23 +423,19 @@ button, input{ font-family:inherit; }
 @keyframes hdrPlayPulseSoft{ 50%{ opacity:.25; } }
 
 /* ── TICKER ─────────────────────────────────────────────────────────────────
-   Scorre il testo dei nomi lunghi avanti e indietro, ma solo mentre l'elemento
-   è visibile a schermo (IntersectionObserver nel JS lo attiva/disattiva). */
+   Il movimento vero e proprio (avanti a velocità costante, indietro veloce)
+   lo pilota il JS con transizioni inline: una singola animazione CSS a
+   durata fissa avrebbe fatto viaggiare alla stessa velocità un nome corto
+   e uno lunghissimo, il che è esattamente cio' che non deve succedere.
+   Qui restano solo le regole di base: il contenitore ritaglia, il testo
+   dentro non va mai a capo. */
 
 .sfc-nome-wrap {
     flex: 1; min-width: 0; overflow: hidden;
 }
-/* Senza IntersectionObserver: ellipsis classico come fallback. */
 .sfc-nome-wrap > .sfc-nome-inner {
     display: inline-block; white-space: nowrap;
     will-change: transform;
-}
-.sfc-nome-wrap > .sfc-nome-inner.ticker-on {
-    animation: sfcScorri var(--ticker-dur, 6s) ease-in-out 0.8s infinite alternate;
-}
-@keyframes sfcScorri {
-    0%,  20% { transform: translateX(0); }
-    80%, 100% { transform: translateX(var(--ticker-over, 0px)); }
 }
 
 /* Il nome nel carosello "da riprendere" è anche .sfc-rip-nome:
@@ -440,6 +444,7 @@ button, input{ font-family:inherit; }
 .sfc-nome-wrap.sfc-rip-nome {
     /* sovrascrive text-overflow:ellipsis del vecchio .sfc-rip-nome */
     text-overflow: clip;
+
 }
 
 /* ── Allineamento materie non giocate ───────────────────────────────────────
@@ -451,3 +456,26 @@ button, input{ font-family:inherit; }
     font-size: 15px; font-weight: 700;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+
+/* ── MENU DI ORDINAMENTO (Materie) ────────────────────────────────────────
+   Popover piccolo e leggero, non un foglio modale: la scelta è una sola
+   voce tra poche, non serve la stessa cerimonia dei filtri. Si apre
+   ancorato al bottone che lo ha aperto e si chiude toccando fuori. */
+
+.sfc-menu-pop{
+    position:fixed; z-index:5000; min-width:176px; padding:6px;
+    background:var(--surface); border-radius:14px; border:.5px solid var(--hairline);
+    box-shadow:0 14px 34px rgba(0,0,0,.24), var(--pill-hl);
+    opacity:0; transform:translateY(-6px) scale(.95); transform-origin:top right;
+    transition:opacity .16s var(--spring), transform .16s var(--spring);
+    pointer-events:none;
+}
+.sfc-menu-pop.open{ opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+.sfc-menu-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
+    padding:9px 11px; border:none; background:none; cursor:pointer; border-radius:9px;
+    font-size:14px; font-weight:600; color:var(--text); text-align:left; white-space:nowrap;
+}
+.sfc-menu-item:active{ background:var(--surface-2); }
+.sfc-menu-item.attivo{ color:var(--blue); font-weight:700; }
+.sfc-menu-item svg{ width:13px; height:13px; flex-shrink:0; color:var(--blue); }

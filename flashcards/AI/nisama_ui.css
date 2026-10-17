@@ -1,0 +1,278 @@
+/* =====================================================================
+   nisama_ui.css — come appaiono le cose, deciso una volta sola.
+   =====================================================================
+   PERCHE' ESISTE
+
+   Oggi ogni componente ha scritto per conto suo lo stesso movimento: cinque
+   @keyframes identici che fanno girare una rotella (ns-spin, exmSpin,
+   fcEditPopupSpin, spin, bigLoadingSpin), e sei "sale dal basso" che salgono
+   da altezze diverse (60%, 50%, 45%, 40%) con opacita' diverse. Nessuno di
+   questi e' sbagliato, ma insieme fanno sembrare il sito un insieme di pezzi
+   presi da posti diversi: e' esattamente cio' che si nota, senza saperlo
+   dire, quando un'applicazione "non sembra fatta bene".
+
+   Qui le stesse cose sono definite una volta. Chi le usa scrive una classe,
+   non un'animazione.
+
+   COME SI USA
+     class="ns-sale"      un foglio che sale dal basso (popup a tutta larghezza)
+     class="ns-appare"    un riquadro che compare al centro
+     class="ns-preme"     risponde al dito mentre lo si tiene premuto
+     class="ns-scheletro" la forma di cio' che sta arrivando, mentre arriva
+     class="ns-entra"     una riga appena comparsa nell'elenco
+
+   DUE REGOLE CHE NON SI TOCCANO
+
+   1. Chi ha chiesto meno animazioni le ottiene: il blocco
+      prefers-reduced-motion in fondo le spegne TUTTE, comprese quelle dei
+      componenti vecchi che se ne erano dimenticati. E' una preferenza di
+      sistema che su iOS si attiva per mal di testa e vertigini, non un
+      capriccio.
+   2. Si muovono solo transform e opacity. Animare altezze o margini fa
+      ricalcolare la pagina a ogni fotogramma, ed e' il motivo per cui certe
+      animazioni "scattano" sui telefoni meno recenti.
+   ===================================================================== */
+
+:root{
+    /* Le durate: tre, non dodici. Piu' corte di quanto sembri giusto — una
+       transizione che si nota e' una transizione troppo lenta. */
+    --ns-breve:.15s;    /* risposta al dito, cambi di stato */
+    --ns-media:.26s;    /* comparse, popup */
+    --ns-lunga:.4s;     /* movimenti grandi, rari */
+
+    /* La stessa curva che il sito usa gia' in tre file: parte decisa e
+       frena piano, come le schede di iOS. */
+    --ns-molla:cubic-bezier(.32,.72,0,1);
+    --ns-uscita:cubic-bezier(.4,0,1,1);
+}
+
+/* ---- comparse ---- */
+
+@keyframes ns-sale{ from{ transform:translateY(48%); opacity:.35; } }
+@keyframes ns-appare{ from{ transform:scale(.96); opacity:0; } }
+@keyframes ns-sfuma{ from{ opacity:0; } }
+@keyframes ns-gira{ to{ transform:rotate(360deg); } }
+
+.ns-sale{ animation:ns-sale var(--ns-media) var(--ns-molla); }
+.ns-appare{ animation:ns-appare var(--ns-media) var(--ns-molla); }
+.ns-sfuma{ animation:ns-sfuma var(--ns-media) ease; }
+
+/* ---- risposta al dito ----
+   Su iOS ogni cosa toccabile si abbassa appena mentre la si tiene premuta:
+   e' quello che fa sembrare l'interfaccia "viva". Il ritorno e' piu' lento
+   della pressione, cosi' il dito trova sempre il tasto gia' pronto. */
+.ns-preme{ transition:transform var(--ns-breve) var(--ns-molla), opacity var(--ns-breve) ease; }
+.ns-preme:active, .ns-preme.is-premuto{ transform:scale(.97); opacity:.9; }
+.ns-preme.ns-preme-forte:active, .ns-preme.ns-preme-forte.is-premuto{ transform:scale(.93); }
+
+/* ---- l'attesa ha la forma di cio' che sta arrivando ----
+   Una rotella dice "aspetta"; uno scheletro dice "sta arrivando una lista di
+   sei righe". La seconda e' un'informazione, e fa sembrare l'attesa piu'
+   breve di quanto sia. */
+@keyframes ns-luccica{ to{ background-position:200% 0; } }
+
+.ns-scheletro{
+    position:relative; overflow:hidden; border-radius:10px;
+    background:var(--surface-3, #EDEDF2);
+    background-image:linear-gradient(90deg,
+        transparent 0%, rgba(255,255,255,.55) 50%, transparent 100%);
+    background-size:200% 100%;
+    animation:ns-luccica 1.4s linear infinite;
+}
+@media (prefers-color-scheme: dark){
+    .ns-scheletro{ background-image:linear-gradient(90deg,
+        transparent 0%, rgba(255,255,255,.08) 50%, transparent 100%); }
+}
+.ns-scheletro-riga{ height:14px; margin:10px 0; }
+.ns-scheletro-riga.corta{ width:45%; }
+.ns-scheletro-riga.media{ width:72%; }
+.ns-scheletro-blocco{ height:64px; margin:10px 0; border-radius:14px; }
+/* Dentro uno scheletro non c'e' testo da leggere: va tolto ai lettori di schermo */
+.ns-scheletro-area{ }
+
+/* ---- righe che entrano in un elenco ----
+   Un ritardo piccolissimo a scalare: l'elenco "si posa" invece di apparire
+   tutto insieme. Oltre la decima riga il ritardo si azzera, altrimenti su
+   ottocento concetti l'ultimo arriverebbe fra un minuto. */
+@keyframes ns-entra{ from{ opacity:0; transform:translateY(6px); } }
+.ns-entra{ animation:ns-entra var(--ns-media) var(--ns-molla) backwards; }
+.ns-entra:nth-child(1){ animation-delay:0ms; }
+.ns-entra:nth-child(2){ animation-delay:22ms; }
+.ns-entra:nth-child(3){ animation-delay:44ms; }
+.ns-entra:nth-child(4){ animation-delay:66ms; }
+.ns-entra:nth-child(5){ animation-delay:88ms; }
+.ns-entra:nth-child(6){ animation-delay:110ms; }
+.ns-entra:nth-child(7){ animation-delay:132ms; }
+.ns-entra:nth-child(8){ animation-delay:154ms; }
+.ns-entra:nth-child(9){ animation-delay:176ms; }
+.ns-entra:nth-child(n+10){ animation-delay:198ms; }
+
+/* ---- la rotella, quando serve davvero ----
+   Serve quando non si sa cosa sta arrivando ne' quanto manca. Se si sa una
+   delle due, meglio uno scheletro o una barra. */
+.ns-rotella{
+    width:18px; height:18px; border-radius:50%; flex-shrink:0;
+    border:2px solid currentColor; border-top-color:transparent;
+    animation:ns-gira .7s linear infinite;
+}
+
+/* ---- barra di avanzamento ----
+   Con il luccichio finche' si muove: una barra ferma senza luccichio sembra
+   bloccata, ed e' la prima cosa che fa ricaricare la pagina. */
+.ns-barra{ height:6px; border-radius:99px; background:var(--surface-3, #EDEDF2); overflow:hidden; }
+.ns-barra > i{
+    display:block; height:100%; border-radius:99px; background:var(--blue, #007AFF);
+    transition:width var(--ns-lunga) var(--ns-molla);
+}
+.ns-barra.is-viva > i{
+    background-image:linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
+    background-size:200% 100%; animation:ns-luccica 1.2s linear infinite;
+}
+
+/* ---- barra senza percentuale ----
+   Quando il lavoro e' fatto di un pezzo solo — otto carte in una richiesta —
+   non esiste nessuna percentuale da mostrare: sarebbe 0% finche' non e' 100%.
+   Una barra ferma a zero per trenta secondi sembra un programma bloccato, ed
+   e' la prima cosa che fa ricaricare la pagina (perdendo il lavoro). Qui un
+   segmento attraversa la barra avanti e indietro: non dice "a che punto
+   siamo", dice "sto lavorando", che e' l'unica cosa vera che si puo' dire. */
+@keyframes ns-scorre{
+    0%   { transform:translateX(-100%); }
+    100% { transform:translateX(320%); }
+}
+.ns-barra.is-ignota > i{
+    width:32% !important; transition:none;
+    animation:ns-scorre 1.5s var(--ns-molla) infinite;
+}
+@media (prefers-reduced-motion: reduce){
+    /* Niente va avanti e indietro, ma la barra non deve sembrare a zero:
+       resta piena a mezza tinta, che e' un'attesa leggibile senza movimento. */
+    .ns-barra.is-ignota > i{ width:100% !important; animation:none !important; opacity:.45; }
+}
+
+/* ---- campo di ricerca ----
+   Con il tasto per svuotare, come iOS: senza, per tornare all'elenco intero
+   bisogna cancellare a mano lettera per lettera. */
+.ns-cerca{
+    display:flex; align-items:center; gap:8px; width:100%;
+    padding:9px 12px; border-radius:12px; border:1px solid transparent;
+    background:var(--surface-2, #F2F2F7); color:var(--text, #1C1C1E);
+    font:inherit; font-size:15px; -webkit-appearance:none;
+    transition:border-color var(--ns-breve) ease, background var(--ns-breve) ease;
+}
+.ns-cerca:focus{ outline:none; border-color:var(--blue, #007AFF); background:var(--surface, #fff); }
+.ns-cerca::-webkit-search-cancel-button{ -webkit-appearance:none; height:16px; width:16px;
+    background:var(--text-3, #AEAEB2); border-radius:50%; cursor:pointer;
+    -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 6l12 12M18 6L6 18' stroke='black' stroke-width='3.5' stroke-linecap='round'/></svg>") center/12px no-repeat; }
+.ns-conta{ font-size:12.5px; color:var(--text-2, #8A8A8E); white-space:nowrap; }
+.ns-evidenzia{ background:var(--yellow-soft, rgba(255,204,0,.35)); border-radius:3px; }
+.ns-nascosto{ display:none !important; }
+
+/* ---- quando non c'e' niente ----
+   Un elenco vuoto senza spiegazione sembra un guasto. */
+.ns-vuoto{ padding:26px 16px; text-align:center; color:var(--text-2, #8A8A8E); font-size:14px; line-height:1.5; }
+
+/* =====================================================================
+   TENDINA — una scelta fra poche voci che hanno bisogno di una spiegazione
+   =====================================================================
+   Quattro pastiglie in fila mostrano quattro parole e nient'altro: chi non
+   sa gia' cosa vuol dire "Accurato" deve sceglierlo per scoprirlo, e su un
+   telefono le quattro parole si spezzano su due righe. La tendina mostra
+   UNA riga quando e' chiusa (quella scelta, che e' l'unica informazione che
+   serve dopo aver scelto) e, quando si apre, ogni voce con la sua frase di
+   spiegazione accanto.
+
+   E' la stessa forma dei selettori di modello di Claude e di Gemini, e la
+   ragione e' la stessa: le voci non sono intercambiabili, vanno lette.
+
+   Il menu, mentre e' aperto, viene spostato in fondo al <body> e messo in
+   position:fixed. Deve poter uscire dal riquadro che lo contiene: qui i due
+   contenitori sono .fcai-modale-corpo (overflow:auto) e .exm-ai-box
+   (overflow-y:auto), e dentro a entrambi un menu "normale" verrebbe
+   tagliato a meta' o farebbe comparire una barra di scorrimento. */
+
+.ns-tendina{ position:relative; margin-bottom:10px; }
+
+.ns-tendina-btn{
+    display:flex; align-items:center; gap:10px; width:100%;
+    padding:11px 13px; border:none; border-radius:12px; cursor:pointer;
+    font:inherit; font-size:15px; font-weight:560; text-align:left;
+    color:var(--text, #1C1C1E); background:var(--surface-2, #F2F2F7);
+    box-shadow:var(--pill-hl, inset 0 0 0 .5px rgba(0,0,0,.06));
+    transition:background var(--ns-breve) ease, box-shadow var(--ns-breve) ease;
+}
+.ns-tendina-btn:focus-visible{ outline:none; box-shadow:inset 0 0 0 2px var(--blue, #007AFF); }
+.ns-tendina.is-aperta > .ns-tendina-btn{ background:var(--surface-3, #E9E9EF); }
+.ns-tendina-valore{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ns-tendina-frec{ flex:0 0 auto; width:12px; height:12px; color:var(--text-3, #AEAEB2);
+    transition:transform var(--ns-media) var(--ns-molla); }
+.ns-tendina.is-aperta .ns-tendina-frec{ transform:rotate(180deg); }
+
+/* Il menu vero. Appena aperto vive in fondo al body: niente qui dentro puo'
+   dipendere da dove si trovava prima. */
+.ns-tendina-menu{
+    position:fixed; z-index:11700; box-sizing:border-box;
+    max-height:min(52vh, 420px); overflow-y:auto; overscroll-behavior:contain;
+    padding:6px; border-radius:14px;
+    background:var(--surface, #fff);
+    box-shadow:0 1px 2px rgba(0,0,0,.08), 0 12px 38px rgba(0,0,0,.22),
+               inset 0 0 0 .5px var(--hairline, rgba(0,0,0,.1));
+    transform-origin:top center;
+    animation:ns-tendina-apre var(--ns-media) var(--ns-molla);
+}
+.ns-tendina-menu.is-su{ transform-origin:bottom center; }
+
+/* Ripiego: nisama_ui.js non e' arrivato e nessuno ha agganciato la tendina.
+   Le quattro voci si mostrano in fila, come un elenco: non si apre e non si
+   chiude, ma si sceglie. Meglio di una riga che non reagisce al tocco. */
+.ns-tendina-menu.is-ripiego{
+    position:static; width:auto; max-height:none; animation:none;
+    padding:0; box-shadow:none; background:none;
+}
+.ns-tendina-menu.is-ripiego .ns-tendina-voce{ background:var(--surface-2, #F2F2F7); margin-bottom:6px; }
+.ns-tendina-menu.is-ripiego .ns-tendina-voce.is-on{ box-shadow:inset 0 0 0 2px var(--blue, #007AFF); }
+@keyframes ns-tendina-apre{ from{ opacity:0; transform:scale(.97) translateY(-4px); } }
+.ns-tendina-menu[hidden]{ display:none; }
+
+.ns-tendina-voce{
+    display:flex; align-items:flex-start; gap:10px; width:100%;
+    padding:9px 10px; border:none; border-radius:10px; cursor:pointer;
+    font:inherit; text-align:left; color:var(--text, #1C1C1E); background:none;
+}
+/* is-attiva = la voce sotto la freccia della tastiera. Deve avere lo stesso
+   aspetto del passaggio del mouse, altrimenti chi usa le frecce non vede
+   dove si trova. */
+.ns-tendina-voce:hover, .ns-tendina-voce.is-attiva{ background:var(--surface-2, #F2F2F7); }
+.ns-tendina-voce-t{ flex:1; min-width:0; }
+.ns-tendina-voce-t b{ display:block; font-size:14.5px; font-weight:560; }
+.ns-tendina-voce-t small{ display:block; font-size:12.5px; line-height:1.35; margin-top:2px;
+    color:var(--text-2, #8A8A8E); }
+.ns-tendina-spunta{ flex:0 0 auto; width:15px; height:15px; margin-top:3px;
+    color:var(--blue, #007AFF); opacity:0; transition:opacity var(--ns-breve) ease; }
+.ns-tendina-voce.is-on .ns-tendina-spunta{ opacity:1; }
+.ns-tendina-voce.is-on .ns-tendina-voce-t b{ color:var(--blue, #007AFF); }
+
+@media (prefers-color-scheme: dark){
+    .ns-tendina-menu{ box-shadow:0 12px 38px rgba(0,0,0,.6),
+        inset 0 0 0 .5px var(--hairline, rgba(255,255,255,.14)); }
+}
+
+/* =====================================================================
+   CHI HA CHIESTO MENO MOVIMENTO
+   Spegne tutto: anche le animazioni dei componenti scritti prima di questo
+   file, che nella meta' dei casi non avevano questo blocco. Le transizioni
+   non si tolgono del tutto (1ms invece di 0) perche' il codice che aspetta
+   transitionend continui a funzionare.
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+        animation-duration:1ms !important;
+        animation-iteration-count:1 !important;
+        transition-duration:1ms !important;
+        scroll-behavior:auto !important;
+    }
+    /* la rotella e il luccichio sono informazione, non decorazione: restano,
+       ma senza girare all'impazzata */
+    .ns-rotella{ animation-duration:1.6s !important; animation-iteration-count:infinite !important; }
+    .ns-scheletro, .ns-barra.is-viva > i{ animation:none !important; }
+}

@@ -18,6 +18,20 @@ if (!defined('NS_AUTOSAVE_CSS_INCLUDED')) {
     define('NS_AUTOSAVE_CSS_INCLUDED', true);
     echo '<link rel="stylesheet" href="' . PWA_BASE . 'autosave_bar.css?v=' . (@filemtime(dirname(__FILE__) . '/autosave_bar.css') ?: 1) . '">' . "\n";
 }
+
+/* Il livello condiviso (movimento, attesa, tendine). Stessa costante del
+   pannello delle carte: se le due cose finiscono nella stessa pagina —
+   succede in inserimento_big_fc.php — si carica una volta sola.
+   Il tag <script> e' scritto nel markup e non aggiunto da JavaScript
+   apposta: uno script inserito da codice non blocca DOMContentLoaded, e
+   l'aggancio della tendina qui sotto gira proprio li'. */
+if (!defined('NISAMA_UI')) {
+    define('NISAMA_UI', 1);
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'nisama_ui.css?v='
+       . (@filemtime(dirname(__FILE__) . '/nisama_ui.css') ?: 1) . '">' . "\n";
+    echo '<script src="' . PWA_BASE . 'nisama_ui.js?v='
+       . (@filemtime(dirname(__FILE__) . '/nisama_ui.js') ?: 1) . '"></script>' . "\n";
+}
 ?>
 <script>
 if (!document.querySelector('script[src*="fc_parser.js"]')) {
@@ -239,7 +253,34 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
                     <div class="exm-ai-title"><?php te('fc.exm_genera_ia'); ?></div>
 
-                    <textarea id="ex-ai-prompt" rows="2" onclick="this.select()"><?php te('fc.exm_genera_sub'); ?></textarea>
+                    <?php /* Le stesse scelte del pannello delle carte, dallo stesso elenco
+                             con cui il server le valida (fc_ai_stile_valori): qui solo
+                             quelle che contano per un esempio. Tutto parte da
+                             "Automatico" e impegno "Equilibrato". */
+                          require_once __DIR__ . '/fc_ai_stile.php';
+                          $exm_valori = fc_ai_stile_valori(); ?>
+                    <div class="exm-ai-lbl"><?php te('fc.ibfai_impegno_sep'); ?></div>
+                    <?php /* La stessa tendina del pannello delle carte, dalla stessa
+                             funzione: due copie del selettore restavano uguali solo
+                             finche' nessuno ne toccava una. */
+                          fc_ai_tendina_impegno('ex-ai-impegno', 'medio'); ?>
+                    <div class="exm-ai-stile" id="ex-ai-stile">
+                        <?php foreach (['esempio', 'lunghezza', 'registro', 'dominio'] as $campo): ?>
+                            <label>
+                                <span><?php te('fc.ibfai_stile_' . $campo); ?></span>
+                                <select data-stile="<?php echo $campo; ?>">
+                                    <?php foreach ($exm_valori[$campo] as $v): ?>
+                                        <option value="<?php echo $v; ?>"><?php te($v === 'auto' ? 'fc.ibfai_stile_auto' : 'fc.ibfai_stile_' . $campo . '_' . $v); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <?php /* Segnaposto e non contenuto: prima la frase d'esempio era il
+                             testo vero del campo, e chi non la cancellava la mandava
+                             all'IA come "indicazione aggiuntiva" a ogni richiesta. */ ?>
+                    <textarea id="ex-ai-prompt" rows="2" placeholder="<?php echo sec_h(t('fc.exm_genera_ph')); ?>"></textarea>
 
                     <button id="ex-ai-btn" class="exm-ai-generate" onclick="onGenerateAiClick()"><?php te('fc.exm_genera_btn'); ?></button>
 
@@ -794,6 +835,73 @@ function onGenerateAiClick() {
     generateAiExample();
 }
 
+/* ---- Stile e impegno degli esempi ----
+   Si ricordano nel browser fra una volta e l'altra. Il primo giorno partono
+   da tono e materia scelti nel pannello delle carte, se ci sono: chi ha
+   detto "informatica" per le carte lo vuole anche per gli esempi. */
+function exmStile() {
+    var st = {};
+    document.querySelectorAll('#ex-ai-stile select[data-stile]').forEach(function (s) { st[s.getAttribute('data-stile')] = s.value; });
+    return st;
+}
+var exmTendinaImpegno = null;
+function exmImpegno() {
+    if (exmTendinaImpegno) return exmTendinaImpegno.valore();
+    var b = document.querySelector('#ex-ai-impegno [data-impegno].is-on');
+    return b ? b.getAttribute('data-impegno') : 'medio';
+}
+function exmScegliImpegno(v) {
+    if (exmTendinaImpegno) { exmTendinaImpegno.imposta(v, true); return; }
+    document.querySelectorAll('#ex-ai-impegno [data-impegno]').forEach(function (b) {
+        var su = b.getAttribute('data-impegno') === v;
+        b.classList.toggle('is-on', su);
+        b.setAttribute('aria-selected', su ? 'true' : 'false');
+    });
+}
+function exmSalvaStile() {
+    try { localStorage.setItem('exm_stile', JSON.stringify({ stile: exmStile(), impegno: exmImpegno() })); } catch (e) {}
+}
+function exmCaricaStile() {
+    var dati = null;
+    try {
+        dati = JSON.parse(localStorage.getItem('exm_stile') || 'null');
+        if (!dati) {
+            var carte = JSON.parse(localStorage.getItem('fcai_stile:ultimo') || 'null');
+            if (carte && carte.stile) dati = { stile: { registro: carte.stile.registro, dominio: carte.stile.dominio, esempio: carte.stile.esempio }, impegno: 'medio' };
+        }
+    } catch (e) { dati = null; }
+    if (!dati) return;
+    document.querySelectorAll('#ex-ai-stile select[data-stile]').forEach(function (s) {
+        var v = (dati.stile || {})[s.getAttribute('data-stile')];
+        s.value = Array.prototype.some.call(s.options, function (o) { return o.value === v; }) ? v : 'auto';
+    });
+    exmScegliImpegno(dati.impegno || 'medio');
+}
+/* Il testo della carta come lo leggerebbe una persona. I campi della carta
+   contengono il formato salvato (spesso il JSON dei blocchi): mandarlo cosi'
+   all'IA voleva dire pagare token per parentesi e chiavi, e far leggere al
+   modello la struttura invece del contenuto. */
+function exmTestoPiano(raw) {
+    if (!raw) return '';
+    if (typeof fcdParse !== 'function' || typeof fcdBlockText !== 'function') return String(raw);
+    try {
+        return (fcdParse(raw).blocks || []).map(function (b) { return fcdBlockText(b); }).join('\n').trim() || String(raw);
+    } catch (e) { return String(raw); }
+}
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.NS && NS.tendina) {
+        exmTendinaImpegno = NS.tendina(document.getElementById('ex-ai-impegno'),
+            { valore: 'medio', onCambia: exmSalvaStile });
+    }
+    if (!exmTendinaImpegno) {
+        document.querySelectorAll('#ex-ai-impegno [data-impegno]').forEach(function (b) {
+            b.addEventListener('click', function () { exmScegliImpegno(b.getAttribute('data-impegno')); exmSalvaStile(); });
+        });
+    }
+    document.querySelectorAll('#ex-ai-stile select').forEach(function (s) { s.addEventListener('change', exmSalvaStile); });
+    exmCaricaStile();
+});
+
 window.generateAiExample = async function () {
 
     let btn = document.getElementById('ex-ai-btn');
@@ -820,11 +928,18 @@ window.generateAiExample = async function () {
 
     try {
 
+        exmSalvaStile();
         let res = await fetch('ai_example.php', {
 
-            method: 'POST', headers: {'Content-Type': 'application/json'},
+            /* Il token va sempre, esplicito: ai_example.php ora lo controlla
+               (prima no), e questo popup vive anche in pagine dove non e' detto
+               che nisama_fetch.js sia caricato per primo. */
+            method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': EXM_CSRF},
 
-            body: JSON.stringify({ q: currentQ, a: currentA, extra: extra })
+            body: JSON.stringify({
+                q: exmTestoPiano(currentQ), a: exmTestoPiano(currentA), extra: extra.trim(),
+                opzioni: { stile: exmStile(), impegno: exmImpegno() }
+            })
 
         });
 
@@ -860,7 +975,13 @@ window.generateAiExample = async function () {
 
             showTokenLimitModal(data.message);
 
-        } else { alert("Errore IA: " + data.error + (data.raw ? "\nRaw: " + data.raw : "") + (data.debug ? "\n(" + data.debug + ")" : "")); }
+        } else {
+            /* Il messaggio lo sceglie il server, che conosce la causa, ed e' gia'
+               tradotto. Prima qui finivano il codice interno, la risposta grezza
+               e i dettagli tecnici: utili a chi sviluppa, incomprensibili (e
+               rivelatori) per chi usa il sito. */
+            alert(data.message || T('fc.ibfai_errore_ia'));
+        }
 
     } catch(e) { alert(T('vocab.errore_rete_p')); }
 
