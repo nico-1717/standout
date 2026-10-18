@@ -1,0 +1,714 @@
+/* fc_card_edit.css — stile della modifica di una flashcard.
+   Estratto dal blocco <style> della pagina: serve per togliere
+   'unsafe-inline' dalla CSP. */
+
+        /* ================================================================
+           DESIGN SYSTEM — stesso linguaggio visivo di fc_result.php
+           ================================================================ */
+        :root{
+            color-scheme: light dark;
+            --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
+            --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
+            --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
+            --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE; --teal:#30B0C7;
+            --blue-soft:rgba(0,122,255,.09);
+            --g-fill:#E7F8ED; --g-ink:#1E8A44; --g-line:rgba(52,199,89,.85); --g-sh:rgba(52,199,89,.34);
+            --r-fill:#FDECEC; --r-ink:#D70015; --r-line:rgba(255,59,48,.8);  --r-sh:rgba(255,59,48,.3);
+            --w-fill:#FFF3E0; --w-ink:#C77700; --w-line:rgba(255,149,0,.7);  --w-sh:rgba(255,149,0,.28);
+            --p-fill:#F5E9FB; --p-ink:#8E24AA; --p-line:rgba(175,82,222,.55);
+            --chip-bg:#FFFFFF;
+            --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
+            --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
+            --pill-hl:inset 0 0 0 .5px var(--hairline);
+            --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
+            --header-glass:rgba(249,249,251,.82);
+            --spring:cubic-bezier(.32,.72,0,1);
+            --r-card:20px; --r-field:13px;
+            --safe-top:env(safe-area-inset-top, 0px);
+            --safe-bottom:env(safe-area-inset-bottom, 0px);
+        }
+        @media (prefers-color-scheme: dark){
+            :root{
+                --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
+                --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
+                --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
+                --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2; --teal:#40C8E0;
+                --blue-soft:rgba(10,132,255,.16);
+                --g-fill:rgba(48,209,88,.15); --g-ink:#4CE07E; --g-line:rgba(48,209,88,.75); --g-sh:rgba(48,209,88,.5);
+                --r-fill:rgba(255,69,58,.16); --r-ink:#FF6F68; --r-line:rgba(255,69,58,.75); --r-sh:rgba(255,69,58,.45);
+                --w-fill:rgba(255,159,10,.16); --w-ink:#FFB340; --w-line:rgba(255,159,10,.65); --w-sh:rgba(255,159,10,.4);
+                --p-fill:rgba(191,90,242,.16); --p-ink:#D68CFF; --p-line:rgba(191,90,242,.55);
+                --chip-bg:#3A3A3C;
+                --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
+                --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
+                --pill-hl:inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 .5px var(--hairline);
+                --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
+                --header-glass:rgba(16,16,18,.78);
+            }
+        }
+
+        *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+        html{ -webkit-text-size-adjust:100%; }
+        body{
+            margin:0; background:var(--bg); color:var(--text);
+            font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
+            font-size:16px; line-height:1.45; -webkit-font-smoothing:antialiased;
+        }
+
+        /* ---------------- Header vetro ---------------- */
+        .app-header{
+            position:sticky; top:0; z-index:400;
+            padding:calc(var(--safe-top) + 12px) 16px 12px; text-align:center;
+            background:var(--header-glass);
+            -webkit-backdrop-filter:saturate(1.8) blur(22px); backdrop-filter:saturate(1.8) blur(22px);
+            border-bottom:.5px solid var(--hairline);
+        }
+        .hd-eyebrow{ font-size:10.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--text-3); }
+        h1{ margin:2px 0 0; font-size:20px; font-weight:800; letter-spacing:-.02em; color:var(--text); }
+        .child-badge{
+            display:inline-flex; align-items:center; background:var(--orange); color:#fff; padding:3px 10px;
+            border-radius:99px; font-size:.62em; vertical-align:middle; margin-left:6px; font-weight:800;
+        }
+
+        /* I 190px di riempimento in fondo servivano a non far coprire l'ultimo
+           campo dalla barra fissa in basso (Annulla/Salva). Quella barra non
+           esiste piu' — le azioni sono in alto — e quello spazio era diventato
+           un vuoto lungo mezzo schermo sotto il contenuto, ben visibile dentro
+           il popup. Resta solo il respiro normale piu' la tacca del telefono. */
+        .page{ max-width:620px; margin:0 auto; padding:16px 14px calc(20px + var(--safe-bottom)); }
+
+        /* ---------------- Card generica ---------------- */
+        .fc-card{
+            background:var(--surface); border-radius:var(--r-card); border:.5px solid var(--hairline);
+            box-shadow:var(--shadow-card); padding:16px; margin-bottom:14px;
+        }
+        .fc-card-tight{ padding:12px 16px; }
+        .fc-card-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+        .fc-card-title{ font-size:15.5px; font-weight:800; letter-spacing:-.01em; color:var(--text); }
+
+        .pill-help{
+            display:inline-flex; align-items:center; gap:5px; border:none; cursor:pointer;
+            background:var(--blue-soft); color:var(--blue); padding:7px 12px; border-radius:99px;
+            font-family:inherit; font-size:12.5px; font-weight:700; transition:transform .15s var(--spring);
+        }
+        .pill-help:active{ transform:scale(.94); }
+
+        /* ---------------- Immagini e audio ----------------
+           Le regole dei due riquadri (.img-compare, .img-box, .img-pick-*,
+           .audio-card, .rec-btn, .fc-media-affiancati...) sono uscite di qui:
+           vivono in fc_media_box.css, che questa pagina carica nel <head>.
+           Non era una questione di ordine, ma di un doppione vero: il
+           pannello degli esempi aveva riscritto gli stessi due riquadri con
+           nomi propri (.exm-audio-card, .exm-img-box), con misure e colori
+           un po' diversi — e allora due riquadri che dovrebbero essere lo
+           stesso oggetto smettono di somigliarsi appena qualcuno ritocca
+           uno dei due. Ora c'e' un posto solo, e lo leggono entrambi. */
+
+        /* ---------------- Categoria / Esempi ---------------- */
+        .cat-btn{
+            width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px;
+            background:var(--surface-2); border:none; border-radius:13px; padding:14px 15px; cursor:pointer;
+            font-family:inherit; font-size:15px; font-weight:700; color:var(--text);
+            box-shadow:inset 0 0 0 .5px var(--hairline); transition:transform .15s var(--spring);
+        }
+        .cat-btn:active{ transform:scale(.98); }
+        .cat-btn-empty{ color:var(--text-3); font-weight:600; }
+        .cat-btn svg{ color:var(--text-3); flex-shrink:0; }
+        .inherited-note{
+            text-align:center; padding:14px; border-radius:13px; background:var(--surface-2);
+            color:var(--text-2); font-size:13.5px; font-style:italic; box-shadow:inset 0 0 0 .5px var(--hairline);
+        }
+
+        .ex-btn{
+            width:100%; display:flex; align-items:center; justify-content:center; gap:8px;
+            border:none; border-radius:13px; padding:14px; cursor:pointer; font-family:inherit;
+            font-size:14.5px; font-weight:800; transition:transform .15s var(--spring);
+        }
+        .ex-btn:active{ transform:scale(.97); }
+        .ex-btn-empty{ background:var(--surface-2); color:var(--text-2); box-shadow:inset 0 0 0 .5px var(--hairline); }
+
+        /* ---------------- Barra azioni fissa in basso ---------------- */
+        .bottom-bar{
+            position:fixed; left:0; right:0; bottom:0; z-index:500;
+            padding:12px 16px calc(10px + var(--safe-bottom));
+            background:var(--header-glass);
+            -webkit-backdrop-filter:saturate(1.8) blur(22px); backdrop-filter:saturate(1.8) blur(22px);
+            border-top:.5px solid var(--hairline);
+        }
+        .bottom-bar-row{ display:flex; gap:10px; max-width:620px; margin:0 auto; }
+        .btn-cancel{
+            flex:0 0 auto; display:flex; align-items:center; justify-content:center; padding:15px 18px;
+            border:none; border-radius:15px; cursor:pointer; font-family:inherit; font-size:15.5px; font-weight:700;
+            color:var(--text-2); background:var(--chip-bg); box-shadow:var(--pill-hl), var(--raise-sm);
+            transition:transform .15s var(--spring);
+        }
+        .btn-cancel:active{ transform:scale(.96); }
+        .btn-save{
+            flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:15px;
+            border:none; border-radius:15px; cursor:pointer; font-family:inherit; font-size:16px; font-weight:800;
+            letter-spacing:-.01em; color:#fff;
+            background:linear-gradient(180deg, color-mix(in srgb, var(--green), #fff 16%), var(--green) 52%, color-mix(in srgb, var(--green), #000 10%));
+            box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 12px 26px -8px rgba(52,199,89,.55);
+            transition:transform .16s var(--spring), filter .2s;
+        }
+        .btn-save:active{ transform:translateY(1px) scale(.99); filter:brightness(.97); }
+        .btn-save:disabled{ opacity:.7; }
+        .btn-delete-link{
+            display:block; width:100%; text-align:center; margin-top:9px; border:none; background:none; cursor:pointer;
+            font-family:inherit; font-size:13px; font-weight:700; color:var(--text-3); padding:4px; transition:color .2s;
+        }
+        .btn-delete-link:active{ color:var(--r-ink); }
+
+        /* ---------------- Modale guida ---------------- */
+        .modal-overlay{
+            display:none; position:fixed; inset:0; z-index:900;
+            background:rgba(0,0,0,.5); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+            justify-content:center; align-items:flex-end;
+        }
+        .modal-content{
+            background:var(--surface); color:var(--text); padding:28px 20px calc(24px + var(--safe-bottom));
+            border-radius:26px 26px 0 0; max-width:540px; width:100%; position:relative;
+            max-height:88vh; overflow-y:auto; box-shadow:0 -12px 50px rgba(0,0,0,.4);
+            animation:sheetUp .42s var(--spring) both;
+        }
+        .modal-content::before{ content:""; position:absolute; top:9px; left:50%; transform:translateX(-50%); width:38px; height:5px; border-radius:99px; background:var(--hairline-2); }
+        .close-btn{
+            position:absolute; top:14px; right:16px; font-size:16px; cursor:pointer; color:var(--text-2);
+            border:none; background:var(--surface-2); font-weight:700; width:32px; height:32px; border-radius:50%;
+            display:flex; align-items:center; justify-content:center;
+        }
+        .modal-title{ margin:0 0 6px; font-size:19px; font-weight:800; letter-spacing:-.02em; }
+        .modal-sub{ margin:0 0 16px; font-size:14px; color:var(--text-2); line-height:1.5; }
+        .guide-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:13px; }
+        .guide-list li{ display:flex; align-items:center; gap:12px; font-size:14px; color:var(--text); line-height:1.4; }
+        .g-ic{
+            flex-shrink:0; min-width:34px; height:30px; display:flex; align-items:center; justify-content:center;
+            background:var(--surface-2); border-radius:9px; font-size:13px; font-weight:800;
+            box-shadow:inset 0 0 0 .5px var(--hairline); font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+        }
+        .modal-note{ margin:16px 0 0; font-size:12.5px; color:var(--text-3); font-style:italic; }
+
+        hr.fc-sep{ border:0; border-top:.5px solid var(--hairline); margin:20px 0; }
+
+        .empty-state{
+            text-align:center; padding:60px 20px; color:var(--text-2); font-size:15px; font-weight:600;
+        }
+
+        @keyframes sheetUp{ from{ transform:translateY(60%); opacity:.4; } }
+
+        @media (min-width:640px){
+            .modal-overlay{ align-items:center; padding:20px; }
+            .modal-content{ border-radius:26px; }
+        }
+    
+
+
+/* ================================================================
+   RIFINITURE ED ELEMENTI NUOVI (barra in alto, piede, conferma d'uscita)
+   Stavano in fc_editor_polish.css, un foglio a parte. Sono rientrate qui
+   perche' quel file aveva un solo consumatore — fc_insert_card.php e'
+   diventato un rimando — e perche' un foglio in piu' e' un file in piu' da
+   ricordarsi di caricare sul server: se manca, i pulsanti restano quelli
+   grezzi del browser e non si capisce perche'. Qui viaggia con la pagina.
+   ================================================================ */
+/* fc_editor_polish.css — rifiniture condivise da fc_insert_card.php e
+   fc_card_edit.php.
+   Va caricato DOPO il foglio della pagina: qui ci sono ritocchi che devono
+   avere l'ultima parola su quello che la pagina ha gia' definito.
+
+   COSA AGGIUNGE, E PERCHE'
+   Le due pagine sono nate mobile-first e definiscono quasi solo :active —
+   il che le lascia inerti col mouse (niente reagisce al passaggio) e
+   invisibili alla tastiera (nessun contorno di messa a fuoco). Qui si
+   rimedia a entrambe le cose in un posto solo, invece che regola per
+   regola nei due fogli. */
+
+/* ---------------- Messa a fuoco da tastiera ----------------
+   :focus-visible e non :focus — cosi' il contorno compare a chi naviga con
+   Tab, e NON a ogni tocco o clic del mouse (dove sarebbe solo rumore). */
+.fcm-fab:focus-visible,
+.fcm-genera:focus-visible,
+.cta-insert:focus-visible,
+.pill-help:focus-visible,
+.fcm-chip:focus-visible,
+.btn-save:focus-visible,
+.btn-cancel:focus-visible,
+.ex-btn:focus-visible,
+.fcm-textarea:focus-visible,
+.fc-edit-popup-close:focus-visible,
+.qa-ex-arrow:focus-visible {
+    outline: 2px solid var(--blue, #007AFF);
+    outline-offset: 2px;
+}
+
+/* ---------------- Stati per il mouse ----------------
+   Racchiusi in (hover:hover): senza, sui dispositivi touch l'effetto
+   resterebbe "appiccicato" dopo un tocco, perche' li' :hover non si annulla
+   finche' non si tocca altrove. */
+@media (hover: hover) and (pointer: fine) {
+    .fcm-fab:hover { filter: brightness(.97); }
+    .fcm-genera:hover { filter: brightness(.97); }
+    /* .cta-insert NON e' qui: ha una regola sua, piu' sotto, che gia' lo
+       gestisce a dovere (si alza, ombra piu' profonda) — questa era una
+       regola generica scritta per lui quando era ancora un pulsante grigio
+       semplice; dopo che ha preso il gradiente viola, "background:
+       var(--surface-2)" restava comunque attivo (una proprieta' cascata
+       resta finche' qualcosa non la ridichiara, e la regola successiva non
+       toccava "background") e lo sbiancava al passaggio del mouse. */
+    .pill-help:hover { filter: brightness(.97); }
+    .fcm-chip:hover { filter: brightness(.96); }
+    .ex-btn:hover { filter: brightness(.97); }
+    .fc-edit-popup-close:hover { filter: brightness(.94); }
+    .qa-examples-box-filled:hover { border-color: color-mix(in srgb, var(--purple, #AF52DE), transparent 25%); }
+}
+
+/* ---------------- Separatore fra le scorciatoie ----------------
+   Big Insert e "Genera con l'IA" vivono nella stessa card: questa riga li
+   distingue senza il peso di due riquadri separati. */
+.fc-card-shortcuts .fc-shortcut-sep {
+    height: .5px; background: var(--hairline, rgba(60,60,67,.12));
+    margin: 10px -16px;
+}
+
+/* ---------------- Campi: transizione del bordo ----------------
+   Il passaggio a "campo attivo" era istantaneo. */
+.fcm-textarea {
+    transition: border-color .18s ease, background .18s ease, transform .15s var(--spring, cubic-bezier(.32,.72,0,1));
+}
+
+/* ---------------- Chi ha chiesto meno movimento ----------------
+   Un'impostazione di sistema, non un capriccio: c'e' chi con le animazioni
+   soffre di nausea o vertigini. Si tolgono gli spostamenti, si tengono i
+   cambi di colore (che non danno fastidio e servono a capire cosa succede). */
+@media (prefers-reduced-motion: reduce) {
+    .fc-edit-popup-panel,
+    .fcm-box,
+    .exm-panel {
+        animation: none !important;
+    }
+    .fcm-fab:active,
+    .fcm-genera:active,
+    .cta-insert:active,
+    .pill-help:active,
+    .fc-edit-popup-close:active,
+    .qa-ex-arrow:active {
+        transform: none !important;
+    }
+    .qa-ex-dot { transition: background .15s ease !important; }
+}
+
+/* ================================================================
+   BARRA IN ALTO, PIEDE, CONFERMA D'USCITA
+   Le azioni stavano in fondo alla pagina: con un modulo lungo bisognava
+   scorrere fino in fondo per salvare, e dentro un popup era peggio.
+   ================================================================ */
+/* La barra e' ora quella condivisa (.exm-form-topbar): fuori dal pannello
+   degli esempi va ancorata a questo contenitore, non a quello, e senza i
+   margini negativi calibrati sul padding di quel popup. */
+/* Il selettore e' piu' specifico di proposito: fc_examples_modal.css definisce
+   la stessa classe con top:-28px (li' serve a compensare il padding del suo
+   pannello) e viene caricato IN FONDO alla pagina, quindi dopo questo foglio.
+   A parita' di specificita' vinceva lui, ed e' per questo che la barra
+   continuava a scorrere via di 28px verso l'alto. */
+#editFcForm .exm-form-topbar {
+    /* Da sticky a fixed: !important su sticky non bastava, la barra restava
+       staccata dal bordo un istante e si agganciava solo scorrendo. Sticky si
+       "assesta" solo quando il motore di scorrimento ricalcola la sua
+       posizione — e in un iframe, con MathJax che carica in modo asincrono e
+       puo' spostare il contenuto sotto di lei DOPO il primo disegno, quel
+       ricalcolo non scattava finche' non si scorreva davvero. fixed non ha
+       bisogno di nessun ricalcolo: si ancora alla finestra dell'iframe da
+       subito, sempre. In cambio serve lasciare io stesso lo spazio che la
+       barra ora toglie al flusso normale — vedi il padding-top aggiunto a
+       #editFcForm qui sotto, altrimenti il primo campo ci finirebbe sotto. */
+    position: fixed !important; top: 0; left: 0; right: 0; z-index: 20;
+    margin: 0 !important;
+    padding: 12px 14px;
+    border-radius: 0;
+}
+/* Il respiro in alto lo dava .page: ora lo darebbe SOPRA la barra, staccandola
+   dal bordo. Lo spazio se lo prende la barra stessa col suo padding. */
+/* La barra ora e' fixed, fuori dal flusso: senza questo spazio il primo
+   campo (Categoria) le finirebbe proprio sotto, nascosto. ~60px bastano per
+   la sua altezza (icona 32px + 12px di margine sopra e sotto) con un po' di
+   respiro in piu'. */
+.page { padding-top: 64px; }
+/* Le vecchie .fc-topbar-* (Annulla/Salva testuali) sono state tolte: la barra
+   usa ora gli stessi pulsanti a icona del pannello esempi (.exm-icon-btn) e il
+   salvataggio del componente autosave_bar. */
+
+.fc-form-foot { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.btn-altra {
+    width: 100%; padding: 13px; border: none; border-radius: 13px; cursor: pointer;
+    font-family: inherit; font-size: 14.5px; font-weight: 800;
+    color: var(--blue, #007AFF); background: color-mix(in srgb, var(--blue, #007AFF), transparent 90%);
+    transition: transform .15s var(--spring, cubic-bezier(.32,.72,0,1));
+}
+.btn-altra:active { transform: scale(.98); }
+
+.fc-conf-overlay {
+    display: none; position: fixed; inset: 0; z-index: 12500;
+    align-items: center; justify-content: center; padding: 24px;
+    background: rgba(0,0,0,.45); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.fc-conf-overlay.on { display: flex; }
+.fc-conf-panel {
+    width: 100%; max-width: 340px; padding: 22px 20px; border-radius: 20px;
+    background: var(--surface, #fff); text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+    animation: fcConfIn .22s cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes fcConfIn { from { opacity: 0; transform: scale(.94); } }
+.fc-conf-panel b { display: block; font-size: 17px; font-weight: 800; color: var(--text, #1C1C1E); }
+.fc-conf-panel p { margin: 8px 0 0; font-size: 14px; line-height: 1.45; color: var(--text-2, #8A8A8E); }
+.fc-conf-azioni { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.fc-conf-azioni button {
+    width: 100%; padding: 12px; border: none; border-radius: 13px; cursor: pointer;
+    font-family: inherit; font-size: 14.5px; font-weight: 800;
+}
+.fc-conf-resta { background: var(--surface-2, #F2F2F7); color: var(--text, #1C1C1E); }
+.fc-conf-esci { background: var(--r-fill, rgba(255,59,48,.12)); color: var(--r-ink, #D70015); }
+
+
+/* ================================================================
+   DOMANDA E RISPOSTA, DISTINGUIBILI A COLPO D'OCCHIO
+   Erano due riquadri bianchi identici: scorrendo un modulo lungo, capire in
+   quale dei due si stava scrivendo richiedeva di leggere l'etichetta. Un
+   filetto colorato sul bordo sinistro e un'etichetta intonata bastano a
+   distinguerli senza appesantire: niente sfondi pieni, che con due editor di
+   testo sotto darebbero solo rumore.
+   ================================================================ */
+.fc-card-q, .fc-card-a { position: relative; overflow: hidden; }
+.fc-card-q::before, .fc-card-a::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+}
+.fc-card-q::before { background: var(--blue, #007AFF); }
+.fc-card-a::before { background: var(--green, #34C759); }
+
+.fc-card-q .fc-card-title { color: var(--blue, #007AFF); }
+.fc-card-a .fc-card-title { color: var(--green, #34C759); }
+
+/* L'editor attivo si intona alla sua sezione, cosi' il riscontro del "sto
+   scrivendo qui" e' coerente col colore appena visto sul bordo. */
+.fc-card-q .fmt-editor:focus-within { border-color: var(--blue, #007AFF); }
+.fc-card-a .fmt-editor:focus-within { border-color: var(--green, #34C759); }
+
+
+/* ================================================================
+   BARRA SEMPRE IN VISTA, E NIENTE SCORRIMENTO ORIZZONTALE
+   ================================================================
+   Lo scorrimento laterale non serve a niente qui (il modulo e' a colonna
+   singola) e nasceva da un elemento leggermente piu' largo del riquadro.
+   Si usa 'clip' e non 'hidden' di proposito: 'hidden' creerebbe un
+   contenitore di scorrimento, e position:sticky si aggancerebbe a quello
+   invece che alla finestra — cioe' la barra in alto smetterebbe di restare
+   in sovraimpressione, che e' esattamente il difetto da togliere. */
+html, body { max-width: 100%; overflow-x: clip; }
+
+/* La barra resta appiccicata in cima mentre il resto scorre sotto. */
+.exm-form-topbar {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+}
+
+/* ================================================================
+   INSERIMENTO MULTIPLO — il richiamo in cima, solo in modalita' inserimento
+   Lo stile viveva in fc_insert_card.css, che ora e' solo un rimando: viene
+   qui insieme al pulsante.
+   ================================================================ */
+.cta-insert{
+    display:flex; align-items:center; gap:14px; width:100%; text-decoration:none; border:none; cursor:pointer;
+    font-family:inherit; text-align:left;
+    background:linear-gradient(135deg, color-mix(in srgb, var(--purple), #fff 10%), var(--purple) 55%, color-mix(in srgb, var(--purple), #000 14%));
+    border-radius:var(--r-card); padding:16px;
+    box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 14px 30px -10px rgba(175,82,222,.55);
+    transition:transform .16s var(--spring), filter .2s, box-shadow .3s;
+    position:relative; overflow:hidden;
+}
+.cta-insert:active{ transform:translateY(1px) scale(.99); filter:brightness(.96); }
+.cta-insert-icon{
+    flex-shrink:0; width:46px; height:46px; border-radius:14px; background:rgba(255,255,255,.22);
+    display:flex; align-items:center; justify-content:center; color:#fff;
+}
+.cta-insert-text{ flex:1; min-width:0; }
+.cta-insert-title{ display:block; font-size:15.5px; font-weight:800; color:#fff; letter-spacing:-.01em; }
+.cta-insert-sub{ display:block; font-size:12.5px; font-weight:600; color:rgba(255,255,255,.88); margin-top:2px; }
+.cta-insert-chev{ color:rgba(255,255,255,.9); flex-shrink:0; transition:transform .3s var(--spring); }
+
+/* Un riflesso che attraversa il pulsante ogni tanto: e' la scorciatoia che fa
+   risparmiare piu' tempo di tutte e passava inosservata. Lento e raro di
+   proposito — un'animazione continua diventerebbe fastidiosa in un modulo
+   dove si scrive. */
+.cta-insert::after{
+    content:''; position:absolute; top:0; bottom:0; left:-60%; width:45%;
+    background:linear-gradient(100deg, transparent, rgba(255,255,255,.22), transparent);
+    transform:skewX(-18deg);
+    animation:ctaRiflesso 5.5s ease-in-out 1.5s infinite;
+    pointer-events:none;
+}
+@keyframes ctaRiflesso{
+    0%, 62% { left:-60%; }
+    82%, 100% { left:120%; }
+}
+@media (hover:hover){
+    /* Niente filter:brightness qui: su un gradiente viola non lo illumina, lo
+       slava verso il bianco — ed e' esattamente quello che si vedeva passando
+       il puntatore. Si alza soltanto, con un'ombra piu' profonda. */
+    .cta-insert:hover{ transform:translateY(-2px); box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14), 0 20px 38px -10px rgba(175,82,222,.7); }
+    .cta-insert:hover .cta-insert-chev{ transform:translateX(3px); }
+}
+/* Chi ha chiesto meno movimento non deve vedere il riflesso. */
+@media (prefers-reduced-motion: reduce){
+    .cta-insert::after{ animation:none; display:none; }
+}
+
+/* ================================================================
+   BARRA IN ALTO — titolo con gerarchia, non una scritta sola
+   ================================================================ */
+#editFcForm .exm-form-topbar{
+    background:linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--surface), var(--bg) 55%));
+    -webkit-backdrop-filter:saturate(180%) blur(12px); backdrop-filter:saturate(180%) blur(12px);
+    box-shadow:0 1px 0 var(--hairline), 0 6px 18px -14px rgba(0,0,0,.45);
+}
+.fc-tb-mark{
+    flex-shrink:0; width:32px; height:32px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    background:color-mix(in srgb, var(--blue), transparent 88%);
+    color:var(--blue);
+}
+.fc-tb-mark svg{ width:16px; height:16px; }
+.fc-tb-testo{ display:flex; flex-direction:column; min-width:0; line-height:1.15; }
+.fc-tb-occhiello{
+    font-size:9.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.fc-tb-nome{
+    font-size:15px; font-weight:800; letter-spacing:-.015em; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* ================================================================
+   CATEGORIA — una pastiglia, non un blocco
+   ================================================================
+   Era una card intera con titolo e dentro un pulsante largo quanto la riga:
+   tanto ingombro per un dato che si sceglie una volta e poi si guarda
+   soltanto. Ora e' una pastiglia che si adatta al nome e sta in linea con
+   l'etichetta. */
+.fc-card-categoria{ display:flex; align-items:center; gap:10px; padding:12px 14px; }
+.fc-card-categoria .fc-card-head{ margin:0; flex-shrink:0; }
+.fc-card-categoria .cs-widget{ flex:1; min-width:0; display:flex; justify-content:flex-start; }
+
+.fc-card-categoria .cs-trigger{
+    width:auto; max-width:100%;
+    padding:7px 12px 7px 8px;
+    border-radius:100px;
+    gap:8px;
+}
+.fc-card-categoria .cs-trigger-icon{ width:22px; height:22px; border-radius:7px; }
+.fc-card-categoria .cs-trigger-icon svg{ width:12px; height:12px; }
+.fc-card-categoria .cs-trigger-text{ font-size:13.5px; }
+.fc-card-categoria .cs-trigger-chev{ width:12px; height:12px; }
+/* Da vuota niente anello tratteggiato: in una pastiglia piccola sarebbe
+   rumore, e qui la categoria e' quasi sempre gia' scelta. */
+.fc-card-categoria .cs-trigger:not(.cs-has-value){ outline:none; box-shadow:inset 0 0 0 1px var(--hairline-2); }
+
+/* .fc-media-affiancati e' anche lui in fc_media_box.css: lo usa allo stesso
+   modo il modulo dell'esempio, ed e' la regola che decide che l'immagine sta
+   a sinistra e l'audio a destra. */
+
+/* .fc-page-rel e' l'ancoraggio di #fcMiglioraFab (fc_ai_fab.css,
+   position:absolute): senza position:relative qui, il pulsante non
+   troverebbe nessun antenato posizionato e finirebbe ancorato all'intero
+   documento invece che a questo modulo. .fcm-wrap (il suo genitore diretto)
+   non ha position: se l'avesse, sarebbe LUI l'ancoraggio (essendo piu'
+   vicino nel DOM), non questo — esattamente il bug che ha tenuto il
+   pulsante fuori posto per un pezzo, capito solo dopo aver trovato lo
+   stesso identico problema su #ex-ai-fab (fc_examples_modal.css). */
+.fc-page-rel{ position:relative; }
+/* I 76px in fondo servivano al pulsante IA quando viveva ancora dentro
+   l'iframe, sopra il modulo: da quando (fc_edit_popup.js) lo crea nella
+   finestra vera, qui non c'e' piu' nessun elemento fisso da scansare. Quel
+   riempimento era rimasto com'e' spazio vuoto in fondo, oltre il necessario. */
+
+/* Titoletti di sezione dentro la guida: prima era un elenco unico, ora e'
+   divisa per argomento e serve un segnale che stacchi i gruppi. */
+.guide-sez{
+    font-size:10.5px; font-weight:800; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--text-3); margin:18px 0 8px;
+    display:flex; align-items:center; gap:8px;
+}
+.guide-sez::after{ content:''; flex:1; height:.5px; background:var(--hairline); }
+.guide-sez:first-of-type{ margin-top:14px; }
+
+/* Il pulsante dell'inserimento multiplo prende il colore della materia
+   (--cta-col, scritto nel markup): porta dentro quella categoria, e vederlo
+   del suo colore lo lega a cio' su cui si sta lavorando. Il viola resta come
+   ripiego per le materie senza colore. */
+.cta-insert{
+    background:linear-gradient(135deg,
+        color-mix(in srgb, var(--cta-col, var(--purple)), #fff 10%),
+        var(--cta-col, var(--purple)) 55%,
+        color-mix(in srgb, var(--cta-col, var(--purple)), #000 14%));
+    box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14),
+               0 14px 30px -10px color-mix(in srgb, var(--cta-col, var(--purple)) 55%, transparent);
+}
+@media (hover:hover){
+    .cta-insert:hover{
+        box-shadow:var(--btn-hl), 0 1px 2px rgba(0,0,0,.14),
+                   0 20px 38px -10px color-mix(in srgb, var(--cta-col, var(--purple)) 70%, transparent);
+    }
+}
+
+/* Una pastiglia col testo, non piu' un tondino a icona: un "+" da solo non
+   diceva cosa avrebbe aggiunto. Stesso viola della famiglia IA/esempi in
+   tutto il resto del sito — e' quello colore, non un grigio qualsiasi, che
+   dice "questo riguarda gli esempi". */
+.fc-btn-esempio{
+    display:inline-flex; align-items:center; gap:6px;
+    height:32px; padding:0 12px; border:none; border-radius:99px; cursor:pointer;
+    font-family:inherit; font-size:12.5px; font-weight:800; white-space:nowrap;
+    background:color-mix(in srgb, var(--purple), transparent 86%);
+    color:var(--purple);
+    box-shadow:inset 0 0 0 .5px color-mix(in srgb, var(--purple), transparent 60%);
+    transition:transform .15s var(--spring), filter .2s;
+}
+.fc-btn-esempio:active{ transform:scale(.95); }
+.fc-btn-esempio:disabled{ opacity:.4; pointer-events:none; }
+@media (hover:hover){ .fc-btn-esempio:hover{ filter:brightness(.96); } }
+
+/* Le icone della guida che sono SVG veri (gli stessi della toolbar) vanno
+   dimensionate: nel resto dell'elenco sono caratteri, qui no. */
+.g-ic-svg{ display:inline-flex; align-items:center; justify-content:center; }
+.g-ic-svg svg{ width:18px; height:18px; }
+
+/* Il rimbalzo elastico dello scorrimento (tipico di iOS/Android quando si
+   supera il bordo di una pagina) qui, dentro il popup, mostra per un attimo
+   lo sfondo scuro sopra e sotto il modulo — sembra spazio vuoto che non
+   dovrebbe esserci, ma e' solo il comportamento nativo del touch. Va tolto
+   esplicitamente: il browser non lo disattiva da solo dentro un iframe. */
+html, body { overscroll-behavior: contain; }
+
+/* ================================================================
+   SPAZIO IN FONDO PER IL CERCHIO DELL'IA
+   ================================================================
+   Da quando il pulsante e' fisso (#fcMiglioraFab in fc_improve_card.css)
+   sta sopra il contenuto, sempre nello stesso punto dello schermo. Senza
+   questo respiro in fondo, arrivati in fondo alla carta coprirebbe l'ultima
+   cosa che c'e': il riquadro degli esempi, o il tasto "Inserisci un'altra".
+   58px di pulsante + 16 sotto + 16 sopra. */
+.page{ padding-bottom: calc(20px + var(--safe-bottom) + 90px); }
+
+/* Il conteggio degli esempi dentro il tasto della barra: "Aggiungi esempio (3)".
+   Cifre a larghezza fissa, cosi' il tasto non cambia larghezza passando da 9
+   a 10 e non fa saltare la barra; leggermente piu' tenue del testo perche' e'
+   un dato, non il nome dell'azione. E se non c'e' nessun esempio sparisce da
+   solo — :empty evita di dover ricordarsi di rimettere l'attributo hidden. */
+.fc-btn-esempio-conta{ font-variant-numeric: tabular-nums; opacity: .72; }
+.fc-btn-esempio-conta:empty{ display: none; }
+
+/* ================================================================
+   IL TASTO DEGLI ESEMPI, PIU' PICCOLO
+   ================================================================
+   Sta in una barra dove ci sono gia' cestino, salvataggio, interruttore del
+   salvataggio automatico e chiusura: era il pezzo piu' largo di tutti, e con
+   il testo accorciato a una parola sola puo' anche restringersi. Restano
+   32px di altezza sui tasti a icona vicini per non rompere l'allineamento —
+   qui si scende a 30, che e' quanto basta a stare in riga senza spingere. */
+.fc-btn-esempio{ height:30px; padding:0 10px; gap:5px; font-size:11.5px; letter-spacing:.01em; }
+
+/* ================================================================
+   CON UN PANNELLO APERTO, SOTTO NON SI SCORRE
+   ================================================================
+   La classe la mette e la toglie il guardiano in fondo a
+   fc_card_edit.php. Su <html> e non solo su <body> perche' a
+   scorrere, in questo documento, e' l'elemento radice: bloccare il solo
+   body non ferma niente. */
+html.fc-popup-sopra, html.fc-popup-sopra body{ overflow:hidden; }
+
+/* E i pannelli tengono il proprio scorrimento dentro di se': arrivati in
+   fondo al loro contenuto, senza questo, il movimento passava alla pagina
+   sotto. */
+.exm-overlay, .fcm-overlay, .cs-modal-overlay, .modal-overlay, .fc-conf-overlay{
+    overscroll-behavior: contain;
+}
+
+/* ================================================================
+   LE SOTTOCARTE, IN FONDO AL MODULO
+   ================================================================
+   Chiusa di partenza: chi apre una carta padre nove volte su dieci e' venuto
+   per lei, non per le figlie, e un elenco aperto spingerebbe in fondo il
+   pulsante "inserisci un'altra" ogni volta. Aperta, ogni riga e' un
+   collegamento al modulo vero di quella sottocarta. */
+.fc-figli{ padding:0; overflow:hidden; }
+.fc-figli-testa{
+    width:100%; display:flex; align-items:center; gap:8px;
+    padding:14px 16px; border:none; background:none; cursor:pointer;
+    font-family:inherit; font-size:13px; font-weight:800; color:var(--text);
+    text-align:left;
+}
+.fc-figli-freccia{ width:15px; height:15px; flex-shrink:0; color:var(--text-3); transition:transform .24s var(--spring); }
+.fc-figli.is-aperta .fc-figli-freccia{ transform:rotate(90deg); }
+.fc-figli-corpo{ padding:0 10px 10px; display:flex; flex-direction:column; gap:6px; }
+
+.fc-figlio{
+    display:flex; align-items:center; gap:10px; text-decoration:none;
+    padding:10px 12px; border-radius:12px;
+    background:var(--surface-2, #F7F7FA);
+    transition:transform .15s var(--spring), background .2s;
+}
+.fc-figlio:active{ transform:scale(.985); background:var(--blue-soft, rgba(0,122,255,.09)); }
+.fc-figlio-n{
+    flex-shrink:0; width:20px; height:20px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:10.5px; font-weight:800; color:#fff; background:var(--text-3);
+}
+.fc-figlio-testi{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+/* Una riga a testa e mai piu' di una: qui si riconosce una sottocarta, non la
+   si legge — per leggerla si apre. */
+.fc-figlio-q, .fc-figlio-a{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fc-figlio-q{ font-size:13px; font-weight:700; color:var(--text); }
+.fc-figlio-a{ font-size:11.5px; font-weight:500; color:var(--text-2); }
+.fc-figlio-matita{ width:14px; height:14px; flex-shrink:0; color:var(--text-3); }
+
+/* Il ritorno alla carta principale, in cima al modulo di una sottocarta
+   aperta da li'. Senza, l'unica uscita sarebbe la X, che chiude tutto. */
+.fc-torna-padre{
+    display:inline-flex; align-items:center; gap:5px; margin-bottom:12px;
+    padding:7px 12px; border-radius:var(--r-chip, 999px); text-decoration:none;
+    font-size:12px; font-weight:800; color:var(--blue, #007AFF);
+    background:var(--blue-soft, rgba(0,122,255,.09));
+}
+.fc-torna-padre svg{ width:13px; height:13px; }
+
+
+/* ================================================================
+   MODULO DI UNA PAROLA (flashcard di lingua, ?course=N)
+   Campi semplici al posto degli editor ricchi: la parola e' grande perche'
+   e' la cosa che si impara, la traduzione normale, il significato piu'
+   piccolo e facoltativo.
+   ================================================================ */
+.fc-lang-title{ display:inline-flex; align-items:center; gap:7px; }
+.fc-lang-flag{ width:18px; height:18px; border-radius:50%; object-fit:cover; box-shadow:0 0 0 .5px rgba(0,0,0,.15); }
+.fc-vocab-input{
+    display:block; width:100%; padding:12px 14px; margin:0;
+    border:none; border-radius:13px; background:var(--surface-2, #F2F2F7); color:var(--text, #1C1C1E);
+    font:inherit; font-size:17px; font-weight:600; -webkit-appearance:none; appearance:none;
+    box-shadow:inset 0 0 0 .5px var(--hairline, rgba(60,60,67,.12));
+    transition:box-shadow .15s;
+}
+.fc-vocab-input:focus{ outline:none; box-shadow:0 0 0 3px var(--blue-soft, rgba(0,122,255,.12)), inset 0 0 0 1.5px var(--blue, #007AFF); }
+.fc-vocab-input::placeholder{ color:var(--text-3, #AEAEB2); font-weight:500; }
+.fc-vocab-input-big{ font-size:22px; font-weight:750; letter-spacing:-.01em; padding:14px 16px; }
+.fc-vocab-area{ font-size:15px; font-weight:500; resize:vertical; min-height:62px; line-height:1.4; }
+.fc-vocab-label{ display:block; margin:14px 2px 7px; font-size:11.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--text-2, #8A8A8E); }
+.fc-vocab-opt{ text-transform:none; letter-spacing:0; font-weight:600; color:var(--text-3, #AEAEB2); }
+.fc-vocab-speak{
+    margin-left:auto; width:34px; height:34px; padding:0; border:none; border-radius:50%; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:var(--blue-soft, rgba(0,122,255,.1)); color:var(--blue, #007AFF);
+    transition:transform .16s;
+}
+.fc-vocab-speak svg{ width:18px; height:18px; }
+.fc-vocab-speak:active{ transform:scale(.88); }
+.fc-vocab-speak.speaking{ background:var(--blue, #007AFF); color:#fff; }

@@ -1,0 +1,74 @@
+/* credits.css — la pagina "i tuoi crediti".
+   I colori sono gli stessi delle altre pagine (ogni pagina del sito porta i
+   propri token: qui si ripete lo stesso blocco, chiaro e scuro). */
+/* I colori: sulla pagina intera (:root) e, dentro un'altra pagina, solo da
+   .cred-main in giu', cosi' non si sovrascrivono quelli di chi ci ospita. */
+:root, .cred-main{
+    color-scheme: light dark;
+    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7; --surface-3:#EDEDF2;
+    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
+    --hairline:rgba(60,60,67,.12);
+    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
+    --safe-top:env(safe-area-inset-top, 0px); --safe-bottom:env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark){
+    :root, .cred-main{
+        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E; --surface-3:#333336;
+        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
+        --hairline:rgba(84,84,88,.42);
+    }
+}
+/* Le regole della PAGINA valgono solo sulla pagina. Questo foglio viene
+   caricato anche dentro fc_insert.php, per il popup dei crediti: un
+   body{font:...} non marcato cambierebbe il carattere di tutta quella pagina,
+   e un box-sizing globale ne cambierebbe le misure. */
+.cred-main, .cred-main *{ box-sizing:border-box; }
+body.cred-pagina{ margin:0; background:var(--bg); color:var(--text);
+    font:16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding-bottom:calc(32px + var(--safe-bottom)); }
+
+.app-header{ position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:6px;
+    padding:calc(8px + var(--safe-top)) 12px 8px; background:var(--surface);
+    border-bottom:1px solid var(--hairline); }
+.hdr-back{ display:flex; align-items:center; justify-content:center; width:36px; height:36px;
+    border-radius:50%; color:var(--blue); text-decoration:none; }
+.hdr-back svg{ width:22px; height:22px; }
+.hdr-back:active{ background:var(--surface-2); }
+.hdr-text h1{ margin:0; font-size:17px; font-weight:640; letter-spacing:-.01em; }
+
+.cred-main{ max-width:680px; margin:0 auto; padding:14px 14px 0; }
+.cred-card{ background:var(--surface); border-radius:16px; padding:14px 16px; margin-bottom:14px; }
+
+.cred-saldo{ text-align:center; padding:22px 16px 18px; }
+.cred-grande{ font-size:40px; font-weight:700; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+.cred-sotto{ color:var(--text-2); font-size:14px; margin-top:2px; }
+.cred-barra{ height:8px; border-radius:99px; background:var(--surface-3); margin:14px 0 0; overflow:hidden; }
+.cred-barra i{ display:block; height:100%; background:var(--blue); border-radius:99px; }
+.cred-barra.is-warn i{ background:var(--orange); }
+.cred-avviso{ margin-top:10px; font-size:13.5px; color:var(--orange); }
+.cred-piano{ margin-top:12px; font-size:13px; color:var(--text-3); }
+
+.cred-mesi{ display:flex; align-items:center; justify-content:center; gap:18px; margin:2px 0 14px; }
+.cred-mesi b{ font-size:15px; font-weight:600; min-width:160px; text-align:center; }
+.cred-mesi a{ display:flex; align-items:center; justify-content:center; width:34px; height:34px;
+    border-radius:50%; background:var(--surface); color:var(--blue); text-decoration:none; font-size:17px; }
+.cred-mesi a:active{ background:var(--surface-3); }
+.cred-mesi .cred-vuoto{ width:34px; color:var(--text-3); opacity:.35; text-align:center; }
+
+.cred-tit{ display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+    margin:0 4px 8px; font-size:13px; font-weight:640; text-transform:uppercase;
+    letter-spacing:.04em; color:var(--text-2); }
+.cred-tit span{ font-variant-numeric:tabular-nums; }
+
+.cred-riga{ display:flex; align-items:flex-start; gap:12px; padding:11px 0; border-bottom:1px solid var(--hairline); }
+.cred-riga:last-child{ border-bottom:none; }
+.cred-riga:first-child{ padding-top:2px; }
+.cred-riga-testo{ flex:1; min-width:0; }
+.cred-riga-testo b{ display:block; font-size:15px; font-weight:560; overflow-wrap:anywhere; }
+.cred-riga-testo small{ display:block; margin-top:2px; font-size:12.5px; color:var(--text-2); line-height:1.35; }
+.cred-tag{ color:var(--orange); }
+.cred-num{ font-variant-numeric:tabular-nums; font-size:15px; font-weight:600; white-space:nowrap; }
+.cred-num.is-piu{ color:var(--green); }
+
+.cred-niente{ text-align:center; color:var(--text-2); padding:26px 16px; }
+.cred-nota{ margin:4px 4px 20px; font-size:12.5px; line-height:1.5; color:var(--text-3); }

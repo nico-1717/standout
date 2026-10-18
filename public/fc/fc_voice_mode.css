@@ -1,0 +1,248 @@
+/* fc_voice_mode.css — stile della modalità di gioco vocale (componente condiviso).
+   Estratto dal blocco <style> della pagina: serve per togliere
+   'unsafe-inline' dalla CSP. */
+
+    /* ============================================================
+       POPUP COMANDI (sheet iOS, coerente con lo stile del gioco
+       ma con palette autonoma per essere indipendente da game_fc)
+       ============================================================ */
+    .vg-overlay{
+        position:fixed; inset:0; z-index:10030; display:none;
+        align-items:flex-end; justify-content:center;
+        background:rgba(0,0,0,.5);
+        -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    }
+    .vg-sheet{
+        position:relative; width:100%; max-width:520px; max-height:88vh; overflow-y:auto;
+        -webkit-overflow-scrolling:touch;
+        background:rgba(255,255,255,.98); color:#1C1C1E;
+        border-radius:28px 28px 0 0;
+        padding:14px 22px calc(22px + env(safe-area-inset-bottom,0px));
+        box-shadow:0 -10px 50px rgba(0,0,0,.35);
+        animation:vgSheetUp .42s cubic-bezier(.24,1.3,.35,1) both;
+        font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+        text-align:left;
+    }
+    @keyframes vgSheetUp{ from{ transform:translateY(50%); opacity:.3; } to{ transform:none; opacity:1; } }
+    @media (min-width:640px){
+        .vg-overlay{ align-items:center; padding:20px; }
+        .vg-sheet{ border-radius:28px; }
+    }
+    .vg-sheet-handle{ width:38px; height:5px; border-radius:99px; background:rgba(60,60,67,.24); margin:0 auto 14px; }
+
+    .vg-sheet-head{ text-align:center; padding:2px 6px 4px; }
+    .vg-sheet-icon{
+        width:56px; height:56px; margin:2px auto 12px; border-radius:50%; color:#fff;
+        display:flex; align-items:center; justify-content:center;
+        background:radial-gradient(circle at 32% 26%, #9d9bff, #5e5ce6 46%, #3634d1 100%);
+        box-shadow:0 8px 22px -6px rgba(94,92,230,.6);
+    }
+    .vg-sheet-icon svg{ width:26px; height:26px; }
+    .vg-sheet-head h3{ margin:0 0 6px; font-size:21px; font-weight:800; letter-spacing:-.02em; }
+    .vg-sheet-sub{ margin:0; font-size:13.5px; line-height:1.5; color:#8A8A8E; padding:0 4px; }
+
+    .vg-error-box{
+        display:flex; align-items:flex-start; gap:10px; margin:14px 0 4px; padding:12px 14px;
+        border-radius:14px; background:rgba(255,59,48,.1); color:#D70015; font-size:13.5px; font-weight:600; line-height:1.4;
+    }
+    .vg-error-box svg{ width:19px; height:19px; flex-shrink:0; margin-top:1px; }
+
+    .vg-cmd-list{ max-height:48vh; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-right:2px; margin-top:6px; }
+    .vg-group-label{ margin:16px 2px 6px; font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:#AEAEB2; }
+    .vg-cmd-list .vg-group-label:first-child{ margin-top:2px; }
+    .vg-cmd-row{ display:flex; align-items:center; gap:12px; padding:7px 2px; }
+    .vg-cmd-badge{ flex-shrink:0; width:36px; height:36px; border-radius:11px; display:flex; align-items:center; justify-content:center; }
+    .vg-cmd-badge svg{ width:18px; height:18px; }
+    .vg-cmd-txt{ display:flex; flex-direction:column; min-width:0; }
+    .vg-cmd-word{ font-size:14.5px; font-weight:800; letter-spacing:-.01em; }
+    .vg-cmd-desc{ font-size:12.5px; color:#8A8A8E; margin-top:1px; line-height:1.3; }
+
+    .vg-tint-indigo{ background:rgba(94,92,230,.13); color:#5E5CE6; }
+    .vg-tint-blue{ background:rgba(10,132,255,.12); color:#007AFF; }
+    .vg-tint-orange{ background:rgba(255,159,10,.15); color:#FF9500; }
+    .vg-tint-purple{ background:rgba(175,82,222,.13); color:#AF52DE; }
+    .vg-tint-green{ background:rgba(52,199,89,.14); color:#248A3D; }
+    .vg-tint-red{ background:rgba(255,59,48,.13); color:#D70015; }
+    .vg-tint-gray{ background:rgba(120,120,128,.14); color:#6E6E73; }
+
+    .vg-sheet-actions{ display:flex; gap:10px; margin-top:18px; }
+    .vg-btn{
+        flex:1; display:flex; align-items:center; justify-content:center;
+        padding:14px 16px; border:none; border-radius:15px; cursor:pointer;
+        font-family:inherit; font-size:15.5px; font-weight:700; letter-spacing:-.01em;
+        transition:transform .15s cubic-bezier(.32,.72,0,1), filter .2s;
+    }
+    .vg-btn:active{ transform:scale(.98); filter:brightness(.95); }
+    .vg-btn-primary{ color:#fff; background:linear-gradient(180deg,#6D6BFF,#5E5CE6 55%,#4744C4); box-shadow:0 8px 20px -6px rgba(94,92,230,.55); }
+    .vg-btn-ghost{ color:#1C1C1E; background:rgba(120,120,128,.12); }
+    .vg-btn-danger{ width:100%; margin-top:10px; color:#D70015; background:rgba(255,59,48,.1); }
+
+    @media (prefers-color-scheme: dark){
+        .vg-sheet{ background:rgba(28,28,30,.98); color:#F5F5F7; }
+        .vg-sheet-sub{ color:#98989F; }
+        .vg-cmd-desc{ color:#98989F; }
+        .vg-group-label{ color:#636366; }
+        .vg-sheet-handle{ background:rgba(235,235,245,.34); }
+        .vg-btn-ghost{ color:#F5F5F7; background:rgba(120,120,128,.24); }
+        .vg-btn-danger{ color:#FF6F68; background:rgba(255,69,58,.16); }
+        .vg-tint-green{ background:rgba(52,199,89,.2); color:#4CE07E; }
+        .vg-tint-red{ background:rgba(255,69,58,.2); color:#FF6F68; }
+        .vg-tint-gray{ background:rgba(120,120,128,.28); color:#AEAEB2; }
+    }
+
+    /* ============================================================
+       ORB — indicatore "microfono sempre acceso", stile Siri
+       ============================================================ */
+    #vg-orb-wrap{
+        position:fixed; left:18px; bottom:calc(env(safe-area-inset-bottom,0px) + 18px);
+        z-index:10021; display:none; flex-direction:column; align-items:flex-start; gap:10px;
+        font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+        /* Il wrap è solo un contenitore di layout, non deve intercettare NULLA.
+           Senza questo era un rettangolo invisibile largo quanto la didascalia
+           (fino a 260px) e con z-index 10021, cioè l'unico elemento del sito che
+           sta sopra al floating player (10020): gli rubava i tap sui tasti.
+           Peggiorava con l'uso, perché .vg-caption si nasconde con opacity:0 e
+           non con display:none, quindi il testo resta nel layout per sempre e il
+           wrap non torna più stretto. Solo l'orb, che è un bottone vero, riprende
+           i tap. Le didascalie hanno già pointer-events:none per conto loro. */
+        pointer-events:none;
+    }
+    #vg-orb{ pointer-events:auto; }
+
+    /* Quando è aperto un foglio (impostazioni audio, IA, esempi...) l'orb si
+       sposta in alto a sinistra: i fogli sono ancorati in basso e stanno sotto
+       come z-index, quindi da qui giù l'orb ne coprirebbe i controlli rendendoli
+       intoccabili. Il segnale body.sheet-open lo imposta fc_audio_player.php.
+       column-reverse tiene l'orb in cima e didascalie/suggerimenti sotto.
+       Le didascalie le togliamo del tutto: sono informazioni di passaggio e,
+       larghe come sono, coprirebbero il player spostato anche lui in alto. */
+    body.sheet-open #vg-orb-wrap{
+        top:calc(env(safe-area-inset-top,0px) + 10px);
+        bottom:auto;
+        left:14px;
+        flex-direction:column-reverse;
+    }
+    body.sheet-open #vg-caption,
+    body.sheet-open .vg-coldstart-hint{ display:none; }
+    #vg-orb{
+        position:relative; width:58px; height:58px; border:none; border-radius:50%; padding:0; cursor:pointer;
+        display:flex; align-items:center; justify-content:center; overflow:visible;
+        background:radial-gradient(circle at 32% 26%, #9d9bff, #5e5ce6 46%, #3634d1 100%);
+        box-shadow:0 10px 26px -8px rgba(94,92,230,.65), 0 2px 8px rgba(0,0,0,.22), inset 0 1px 1px rgba(255,255,255,.4);
+        transition:transform .15s cubic-bezier(.32,.72,0,1), background .35s;
+    }
+    #vg-orb:active{ transform:scale(.93); }
+    #vg-orb .vg-mic-ic{ width:23px; height:23px; color:#fff; position:relative; z-index:2; }
+    #vg-orb::before{
+        content:""; position:absolute; inset:-7px; border-radius:50%; pointer-events:none;
+        border:2px solid rgba(94,92,230,.5);
+        animation:vgBreathe 2.8s ease-in-out infinite;
+    }
+    @keyframes vgBreathe{
+        0%{ transform:scale(.92); opacity:.75; }
+        70%{ transform:scale(1.22); opacity:0; }
+        100%{ transform:scale(1.22); opacity:0; }
+    }
+    #vg-orb.vg-hearing{ animation:vgPulseFast .85s ease-in-out infinite; }
+    @keyframes vgPulseFast{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.09); } }
+
+    #vg-orb.vg-state-speaking{ background:radial-gradient(circle at 32% 26%, #7cffc0, #2fd158 55%, #049048 100%); }
+    #vg-orb.vg-state-speaking::before{ border-color:rgba(48,209,88,.55); animation-duration:1.6s; }
+
+    #vg-orb.vg-state-thinking{ background:radial-gradient(circle at 32% 26%, #ffd699, #ff9f0a 55%, #c96f00 100%); }
+    #vg-orb.vg-state-thinking::before{ border-color:rgba(255,159,10,.55); }
+    #vg-orb.vg-state-thinking .vg-mic-ic{ animation:vgSpin 1s linear infinite; }
+    @keyframes vgSpin{ to{ transform:rotate(360deg); } }
+
+    #vg-orb.vg-state-paused{ filter:grayscale(.55) brightness(.92); }
+    #vg-orb.vg-state-paused::before{ animation-play-state:paused; opacity:.3; }
+
+    #vg-orb.vg-state-waiting::after{
+        content:""; position:absolute; inset:-4px; border-radius:50%; pointer-events:none;
+        box-shadow:0 0 0 0 rgba(255,159,10,.55);
+        animation:vgWaitPing 1.5s ease-out infinite;
+    }
+    @keyframes vgWaitPing{
+        0%{ box-shadow:0 0 0 0 rgba(255,159,10,.55); }
+        100%{ box-shadow:0 0 0 16px rgba(255,159,10,0); }
+    }
+
+    /* Stato dedicato al "bug reset" iOS: distinto da vg-state-waiting,
+       che altrove significa "in attesa della prossima carta". */
+    #vg-orb.vg-state-coldstart{ filter:saturate(.85); }
+    #vg-orb.vg-state-coldstart::before{ border-color:rgba(255,149,0,.6); animation-duration:2.2s; }
+
+    .vg-coldstart-badge{
+        position:absolute; right:-6px; bottom:-4px;
+        min-width:34px; height:22px; padding:0 7px;
+        border-radius:11px;
+        background:rgba(255,149,0,.96); color:#fff;
+        font-size:11px; font-weight:800; font-variant-numeric:tabular-nums;
+        display:flex; align-items:center; justify-content:center;
+        box-shadow:0 3px 8px rgba(0,0,0,.3), 0 0 0 2px rgba(255,255,255,.9);
+        opacity:0; transform:scale(.7);
+        transition:opacity .2s, transform .2s, background .25s;
+        pointer-events:none; z-index:3;
+    }
+    .vg-coldstart-badge.vg-show{ opacity:1; transform:scale(1); }
+    .vg-coldstart-badge.vg-success{ background:rgba(52,199,89,.96); }
+    @media (prefers-color-scheme: dark){
+        .vg-coldstart-badge{ box-shadow:0 3px 8px rgba(0,0,0,.5), 0 0 0 2px rgba(28,28,30,.9); }
+    }
+
+    /* Spiegazione temporanea (primi ~5s del countdown): sopra l'orb, si
+       dissolve da sola lasciando solo il numerino del badge a contare. */
+    .vg-coldstart-hint{
+        max-width:220px; margin-bottom:8px; padding:8px 12px;
+        border-radius:14px; text-align:center;
+        background:rgba(255,149,0,.96); color:#fff;
+        font:600 12px/1.35 -apple-system,BlinkMacSystemFont,sans-serif;
+        box-shadow:0 4px 14px rgba(0,0,0,.3);
+        opacity:0; transform:translateY(6px) scale(.95);
+        transition:opacity .35s, transform .35s;
+        pointer-events:none;
+    }
+    .vg-coldstart-hint.vg-show{ opacity:1; transform:none; }
+
+    /* Modale "lo riuserai a breve?" */
+    .vg-ask-overlay{
+        position:fixed; inset:0; z-index:10040; display:none;
+        align-items:center; justify-content:center;
+        background:rgba(0,0,0,.55); padding:20px;
+        -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    }
+    .vg-ask-card{
+        width:100%; max-width:380px;
+        background:rgba(255,255,255,.98); color:#1C1C1E;
+        border-radius:22px; padding:22px 22px 18px;
+        box-shadow:0 20px 60px rgba(0,0,0,.4);
+        font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+        text-align:left;
+        animation:vgAskIn .28s cubic-bezier(.24,1.1,.4,1) both;
+    }
+    @keyframes vgAskIn{ from{ transform:scale(.92); opacity:0; } to{ transform:none; opacity:1; } }
+    .vg-ask-title{ font-size:17px; font-weight:800; margin:0 0 8px; }
+    .vg-ask-body{ font-size:14px; line-height:1.5; color:#3A3A3C; margin:0 0 18px; }
+    .vg-ask-actions{ display:flex; flex-direction:column; gap:8px; }
+    .vg-ask-actions .vg-btn{ width:100%; }
+    @media (prefers-color-scheme: dark){
+        .vg-ask-card{ background:rgba(28,28,30,.98); color:#F5F5F7; }
+        .vg-ask-body{ color:#98989F; }
+    }
+
+    @media (prefers-reduced-motion: reduce){
+        #vg-orb, #vg-orb::before, #vg-orb::after, #vg-orb .vg-mic-ic{ animation:none !important; }
+    }
+
+    .vg-caption{
+        max-width:260px; padding:9px 15px; border-radius:14px;
+        background:rgba(28,28,30,.88); color:#fff; font-size:13px; font-weight:600; line-height:1.35;
+        -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+        box-shadow:0 6px 20px rgba(0,0,0,.25);
+        opacity:0; transform:translateY(6px) scale(.96);
+        transition:opacity .22s, transform .22s;
+        pointer-events:none;
+    }
+    .vg-caption.vg-show{ opacity:1; transform:none; }
+    .vg-caption.vg-recognized{ background:rgba(10,132,255,.94); }
+    .vg-caption.vg-hint{ background:rgba(255,159,10,.94); }

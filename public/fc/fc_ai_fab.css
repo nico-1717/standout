@@ -1,0 +1,96 @@
+/* fc_ai_fab.css — il pulsante circolare dell'IA, in sovraimpressione.
+ *
+ * Componente a se' perche' lo usano piu' popup: inserimento/modifica carta e
+ * inserimento/modifica esempio. Non ha una posizione "sua" nel flusso: sta
+ * fisso in basso a destra rispetto al pannello che lo contiene, quindi il
+ * contenitore deve avere position:relative (o essere il popup stesso).
+ */
+
+.fc-aifab{
+    /* absolute, ancorato al pannello che lo contiene (deve avere
+       position:relative — vedi in cima al file). Per un pezzo qui c'era
+       fixed, per un sospetto sull'antenato che non prendeva: ma il vero
+       colpevole, trovato poi su #ex-ai-fab (fc_examples_modal.css) con lo
+       stesso identico sintomo, era un CONTENITORE INTERMEDIO con
+       position:relative di troppo, piu' vicino nel DOM e quindi ancorante
+       lui al posto di quello giusto. Sistemato quello, absolute torna a
+       essere la scelta giusta: si accompagna al pannello nello scorrimento
+       invece di restarne fuori, e non serve piu' nessun canale fra
+       finestre per farlo funzionare dentro un popup annidato. */
+    position:absolute; right:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+    z-index:40;
+    width:58px; height:58px; border-radius:50%; border:none; padding:0; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff;
+    background:linear-gradient(140deg,
+        color-mix(in srgb, var(--purple, #AF52DE), #fff 14%),
+        var(--purple, #AF52DE) 48%,
+        color-mix(in srgb, var(--blue, #007AFF), var(--purple, #AF52DE) 45%) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.28),
+        0 2px 6px rgba(0,0,0,.18),
+        0 14px 30px -8px color-mix(in srgb, var(--purple, #AF52DE) 65%, transparent);
+    transition:transform .18s cubic-bezier(.24,1.3,.35,1), box-shadow .3s, filter .2s;
+    -webkit-tap-highlight-color:transparent;
+}
+.fc-aifab:active{ transform:scale(.9); }
+@media (hover:hover){
+    .fc-aifab:hover{
+        transform:translateY(-2px);
+        box-shadow:
+            inset 0 1px 0 rgba(255,255,255,.28),
+            0 2px 8px rgba(0,0,0,.2),
+            0 20px 38px -8px color-mix(in srgb, var(--purple, #AF52DE) 75%, transparent);
+    }
+}
+
+/* Alone che pulsa piano: dice "qui c'e' qualcosa che lavora per te" senza
+   rubare l'attenzione a chi sta scrivendo. */
+.fc-aifab::before{
+    content:''; position:absolute; inset:-4px; border-radius:50%;
+    background:radial-gradient(circle, color-mix(in srgb, var(--purple, #AF52DE) 45%, transparent), transparent 70%);
+    animation:fcAifabAlone 3.4s ease-in-out infinite;
+    pointer-events:none;
+}
+@keyframes fcAifabAlone{
+    0%, 100%{ opacity:.35; transform:scale(1); }
+    50%     { opacity:.7;  transform:scale(1.14); }
+}
+
+.fc-aifab svg{ width:26px; height:26px; display:block; position:relative; z-index:1; }
+
+/* Le tre stelline non si muovono insieme: sfalsate, sembrano un pensiero che
+   si accende invece di un'icona che lampeggia. */
+.fc-aifab .fcaf-s1{ animation:fcAifabStella 2.6s ease-in-out infinite; transform-origin:12px 9px; }
+.fc-aifab .fcaf-s2{ animation:fcAifabStella 2.6s ease-in-out .55s infinite; transform-origin:19px 17px; }
+.fc-aifab .fcaf-s3{ animation:fcAifabStella 2.6s ease-in-out 1.1s infinite; transform-origin:6px 17px; }
+@keyframes fcAifabStella{
+    0%, 100%{ opacity:.55; transform:scale(.8) rotate(0deg); }
+    45%     { opacity:1;   transform:scale(1.15) rotate(18deg); }
+}
+
+/* Chi ha chiesto meno movimento vede un pulsante fermo, non uno che pulsa. */
+@media (prefers-reduced-motion: reduce){
+    .fc-aifab::before,
+    .fc-aifab .fcaf-s1, .fc-aifab .fcaf-s2, .fc-aifab .fcaf-s3{ animation:none; }
+    .fc-aifab .fcaf-s1, .fc-aifab .fcaf-s2, .fc-aifab .fcaf-s3{ opacity:1; }
+}
+
+/* Mentre il riquadro dell'IA e' aperto il pulsante si toglie di mezzo. */
+.fc-aifab[hidden]{ display:none; }
+
+/* Nascosto perche' sopra c'e' un altro pannello — che ha il SUO pulsante IA,
+   nello stesso angolo. Due cerchi identici a un centimetro l'uno dall'altro
+   che fanno cose diverse: si sbaglia.
+   E' una classe e non l'attributo hidden apposta: hidden su questo pulsante
+   lo scrive gia' fc_improve_card.js, e due padroni sullo stesso attributo
+   vuol dire che ogni tanto vince quello sbagliato e il pulsante resta spento
+   quando invece dovrebbe esserci. */
+.fc-aifab.is-coperto{ display:none; }
+
+/* Appeso al <body> (lo fa il JavaScript della pagina) il pulsante non ha piu'
+   antenati che lo possano schiacciare sotto qualcos'altro, ma va anche portato
+   piu' in alto della pila: 40 bastava dentro il modulo, non contro tutto il
+   resto della pagina. Resta comunque molto sotto ai pannelli (11000 in su),
+   che devono continuare a coprirlo. */
+body > .fc-aifab{ z-index:9000; }

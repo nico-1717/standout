@@ -1,0 +1,1326 @@
+/* fc_decks.css — stile dell'elenco materie delle flashcard.
+   Estratto dal blocco <style> della pagina: serve per togliere
+   'unsafe-inline' dalla CSP. */
+
+/* ================================================================
+
+   DESIGN SYSTEM — coerente con fc_game.php (iOS nativo, light+dark)
+
+   ================================================================ */
+
+:root{
+
+    color-scheme: light dark;
+
+    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
+
+    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
+
+    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
+
+    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
+
+    --teal:#30B0C7; --pink:#FF2D55; --indigo:#5856D6;
+
+    --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
+
+    --orange-soft:rgba(255,149,0,.14); --purple-soft:rgba(175,82,222,.12);
+
+    --teal-soft:rgba(48,176,199,.13); --pink-soft:rgba(255,45,85,.12); --indigo-soft:rgba(88,86,214,.12);
+
+    --header-glass:rgba(249,249,251,.82);
+
+    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
+
+    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
+
+    --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
+
+    --r-card:22px; --r-btn:15px;
+
+    --spring:cubic-bezier(.32,.72,0,1);
+
+    --safe-top:env(safe-area-inset-top, 0px);
+
+    --safe-bottom:env(safe-area-inset-bottom, 0px);
+
+}
+
+@media (prefers-color-scheme: dark){
+
+    :root{
+
+        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
+
+        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
+
+        --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
+
+        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
+
+        --teal:#40C8E0; --pink:#FF375F; --indigo:#5E5CE6;
+
+        --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17);
+
+        --orange-soft:rgba(255,159,10,.18); --purple-soft:rgba(191,90,242,.18);
+
+        --teal-soft:rgba(64,200,224,.18); --pink-soft:rgba(255,55,95,.18); --indigo-soft:rgba(94,92,230,.18);
+
+        --header-glass:rgba(16,16,18,.78);
+
+        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
+
+        --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
+
+        --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
+
+    }
+
+}
+
+
+
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+html{ -webkit-text-size-adjust:100%; }
+
+body{
+
+    margin:0; min-height:100vh;
+
+    background:var(--bg); color:var(--text);
+
+    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+    font-size:16px; line-height:1.4;
+
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+
+    padding-bottom:calc(24px + var(--safe-bottom));
+
+    overscroll-behavior-y:none;
+
+}
+
+a{ color:inherit; }
+
+button{ font-family:inherit; }
+
+:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
+
+
+
+/* ================================================================
+
+   HEADER — vetro smerigliato + ricerca
+
+   ================================================================ */
+
+.app-header{
+
+    position:sticky; top:0; z-index:100;
+
+    padding:calc(var(--safe-top) + 12px) 16px 12px;
+
+    background:var(--header-glass);
+
+    -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px);
+
+    border-bottom:.5px solid var(--hairline);
+
+}
+
+.hdr-title{ font-size:28px; font-weight:800; letter-spacing:-.02em; }
+
+.hdr-sub{ margin-top:2px; font-size:13px; color:var(--text-2); font-weight:500; font-variant-numeric:tabular-nums; }
+
+.search-box{
+
+    margin-top:12px; display:flex; align-items:center; gap:8px;
+
+    background:var(--surface-2); border-radius:12px; padding:10px 12px;
+
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+
+}
+
+.search-box svg{ width:17px; height:17px; color:var(--text-2); flex-shrink:0; }
+
+.search-box input{
+
+    flex:1; min-width:0; border:none; outline:none; background:transparent; color:var(--text);
+
+    font-size:16px; font-family:inherit; font-weight:500;
+
+}
+
+.search-box input::placeholder{ color:var(--text-3); }
+
+.search-clear{
+
+    display:none; align-items:center; justify-content:center;
+
+    width:20px; height:20px; border-radius:50%; border:none; cursor:pointer;
+
+    background:var(--text-3); color:var(--surface); flex-shrink:0; padding:0;
+
+}
+
+.search-clear svg{ width:10px; height:10px; }
+
+
+
+/* ================================================================
+
+   LAYOUT
+
+   ================================================================ */
+
+.page{ max-width:640px; margin:0 auto; padding:16px 14px calc(112px + var(--safe-bottom)); }
+
+
+
+@keyframes cardIn{ from{ opacity:0; transform:translateY(14px) scale(.985); } to{ opacity:1; transform:none; } }
+
+
+
+/* Hero: Tutte le materie — una riga sola.
+   Prima era un riquadro alto con il numerone: occupava il primo schermo intero
+   e spingeva giu' l'elenco, che e' quello che si viene a vedere. Adesso dice
+   le stesse tre cose (icona, etichetta, quante carte) in una fascia
+   dell'altezza di una riga qualsiasi. */
+.hero-card{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 12px; border-radius:14px; margin-bottom:12px;
+    background:linear-gradient(135deg, var(--blue), var(--indigo));
+    color:#fff; text-decoration:none;
+    box-shadow:0 1px 1px rgba(0,0,0,.05), 0 8px 18px -10px rgba(10,132,255,.55);
+    animation:cardIn .5s var(--spring) both;
+    transition:transform .16s var(--spring);
+}
+.hero-card:active{ transform:scale(.985); }
+.hero-icon{
+    width:26px; height:26px; border-radius:8px; flex-shrink:0;
+    background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center;
+}
+.hero-icon svg{ width:15px; height:15px; }
+.hero-label{ flex:1; min-width:0; font-size:14px; font-weight:700; letter-spacing:-.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hero-num{
+    flex-shrink:0; font-size:13px; font-weight:800; font-variant-numeric:tabular-nums;
+    background:rgba(255,255,255,.2); border-radius:99px; padding:2px 9px;
+}
+.hero-chev{ flex-shrink:0; opacity:.8; display:flex; }
+.hero-chev svg{ width:15px; height:15px; }
+/* In fondo alla pagina, non piu' in cima: e' una scorciatoia, non
+   l'intestazione dell'elenco, e da sopra rubava il primo schermo a quello che
+   si viene davvero a vedere. */
+.hero-fondo{ margin-bottom:0; margin-top:18px; }
+
+
+
+/* Card di ogni materia (radice + figli) */
+
+.materia-card{
+
+    position:relative; background:var(--surface); border-radius:var(--r-card);
+
+    margin-bottom:14px; overflow:hidden;
+
+    box-shadow:var(--shadow-card);
+
+    border-left:3px solid var(--accent, var(--blue));
+
+    animation:cardIn .5s var(--spring) both;
+
+}
+
+
+
+.cat-row-main{
+
+    display:flex; align-items:center; gap:10px; padding:15px 12px 15px 0;
+
+    transition:background .15s; flex:1; width:100%;
+
+}
+
+.cat-row:not([data-level="0"]) .cat-row-main{ border-top:.5px solid var(--hairline); padding:12px 12px 12px 0; }
+
+.cat-row-main:active{ background:var(--surface-2); }
+
+
+
+@keyframes rowIn{ from{ opacity:0; transform:translateY(-6px); } to{ opacity:1; transform:none; } }
+
+.cat-row.row-anim{ animation:rowIn .3s var(--spring) both; }
+
+
+
+.cat-arrow, .cat-arrow-spacer{ width:22px; height:22px; flex-shrink:0; }
+
+.cat-arrow{
+
+    display:flex; align-items:center; justify-content:center;
+
+    border:none; background:transparent; color:var(--text-3); cursor:pointer;
+
+    border-radius:50%; padding:0;
+
+    transition:transform .3s var(--spring), color .2s, background .15s;
+
+}
+
+.cat-arrow svg{ width:16px; height:16px; }
+
+.cat-arrow.open{ transform:rotate(90deg); color:var(--row-color, var(--blue)); }
+
+.cat-arrow:active{ background:var(--surface-2); }
+
+
+
+.cat-icon{
+
+    width:32px; height:32px; border-radius:9px; flex-shrink:0;
+
+    display:flex; align-items:center; justify-content:center;
+
+}
+
+.cat-icon svg{ width:16px; height:16px; }
+
+.cat-icon.lvl0{ background:color-mix(in srgb, var(--row-color, var(--blue)) 18%, var(--surface)); color:var(--row-color, var(--blue)); width:36px; height:36px; border-radius:10px; transition:background .3s, color .3s; }
+
+.cat-icon.lvl0 svg{ width:18px; height:18px; }
+
+.cat-icon.lvln{ background:color-mix(in srgb, var(--row-color, var(--text-2)) 16%, var(--surface)); color:var(--row-color, var(--text-2)); transition:background .3s, color .3s; }
+
+
+
+.cat-name{
+
+    flex:1; min-width:0; text-decoration:none; color:var(--text);
+
+    font-size:15.5px; font-weight:600; letter-spacing:-.01em;
+
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+
+}
+.cat-name-wrap{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:3px; }
+.cat-name-wrap .cat-name{ flex:0 1 auto; max-width:100%; }
+.cat-row-main{ cursor:pointer; }
+.cat-proj-tag{ display:inline-flex; align-items:center; gap:4px; text-decoration:none; padding:2px 8px 2px 6px; border-radius:999px;
+    /* Sfondo, testo e bordo derivati dal colore progetto MA sempre mescolati con le
+       variabili di tema (--surface/--text, che si invertono in chiaro/scuro): cosi il
+       tag resta leggibile anche con colori vicini al bianco o al nero. */
+    background:color-mix(in srgb, var(--cp-color, #8E8E93) 18%, color-mix(in srgb, var(--surface) 94%, var(--text)));
+    color:color-mix(in srgb, var(--cp-color, #8E8E93) 52%, var(--text));
+    box-shadow:inset 0 0 0 .75px color-mix(in srgb, var(--cp-color, #8E8E93) 45%, color-mix(in srgb, var(--text) 22%, transparent));
+    font-size:10.5px; font-weight:800; letter-spacing:-.1px; line-height:1.35; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cat-proj-tag svg{ flex-shrink:0; }
+.cat-proj-tag:active{ transform:scale(.94); }
+.cat-proj-anc{ opacity:.65; font-weight:700; }
+.cat-proj-sep{ opacity:.5; margin:0 1px; }
+.cat-proj-leaf{ font-weight:800; }
+
+.cat-row[data-level="0"] .cat-name{ font-size:17px; font-weight:800; }
+
+
+
+.cat-badge{
+
+    flex-shrink:0; background:var(--surface-2); color:var(--text-2);
+
+    font-size:12px; font-weight:700; padding:4px 9px; border-radius:99px;
+
+    box-shadow:inset 0 0 0 .5px var(--hairline); font-variant-numeric:tabular-nums;
+
+}
+
+
+
+.cat-kebab{
+
+    flex-shrink:0; width:30px; height:30px; border:none; border-radius:50%;
+
+    background:transparent; color:var(--text-3); cursor:pointer; padding:0;
+
+    display:flex; align-items:center; justify-content:center;
+
+    transition:background .15s;
+
+}
+
+.cat-kebab svg{ width:18px; height:18px; }
+
+.cat-kebab:active{ background:var(--surface-2); }
+
+/* ================================================================
+   SWIPE ACTIONS
+   ================================================================ */
+
+.cat-row{
+    position:relative;
+    overflow:hidden;
+    background:var(--surface);
+}
+
+/* Riga a cui si torna dopo aver aperto una categoria: un lampeggio breve per
+   ritrovarla con l'occhio subito, senza doverla cercare nell'albero appena
+   riaperto. */
+@keyframes catFocusFlash{
+    0%{ box-shadow:0 0 0 0 color-mix(in srgb, var(--row-color, var(--blue)), transparent 30%); }
+    30%{ box-shadow:0 0 0 4px color-mix(in srgb, var(--row-color, var(--blue)), transparent 55%); }
+    100%{ box-shadow:0 0 0 0 color-mix(in srgb, var(--row-color, var(--blue)), transparent 100%); }
+}
+.cat-row.cat-focus-flash{ animation:catFocusFlash 1.1s var(--spring) 2 both; }
+
+.cat-swipe-actions{
+    position:absolute;
+    top:0;
+    left:0;
+    bottom:0;
+    display:none;             /* nascosti di default */
+    align-items:stretch;
+    z-index:1;
+}
+
+.swipe-btn{
+    border:none;
+    margin:0;
+    padding:0;
+    cursor:pointer;
+    width:68px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#fff;
+}
+
+.swipe-btn svg{
+    width:22px;
+    height:22px;
+}
+
+.swipe-edit{
+    background:var(--blue);
+}
+
+.swipe-move{
+    background:var(--orange);
+}
+
+.swipe-delete{
+    background:var(--red);
+}
+
+/* La riga scorre sopra ai pulsanti */
+
+.cat-row-main{
+    position:relative;
+    z-index:2;
+    background:var(--surface);
+    will-change:transform;
+    background:var(--surface);
+}
+
+/* SOLO dispositivi touch: la classe .revealing la aggiunge il JS solo dopo
+   aver riconosciuto un vero trascinamento orizzontale su QUELLA riga (non
+   stanno piu' sempre nel flusso, dietro alla riga, dove capitava di vederli
+   spuntare per un istante durante lo scroll verticale). Resta anche a riga
+   aperta: i tasti devono restare toccabili finche' non la si richiude. */
+.cat-swipe-actions{
+    display:none;
+}
+
+body.touch-device .cat-swipe-actions.revealing{
+    display:flex;
+}
+
+body.touch-device .cat-kebab{
+    display:none;
+}
+
+
+
+/* ================================================================
+
+   FAB
+
+   ================================================================ */
+
+.fab{
+
+    position:fixed; right:20px; bottom:calc(22px + var(--safe-bottom)); z-index:60;
+
+    width:58px; height:58px; border-radius:50%; border:none; cursor:pointer;
+
+    color:#fff; background:var(--blue);
+
+    background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%));
+
+    display:flex; align-items:center; justify-content:center;
+
+    box-shadow:var(--btn-hl), 0 2px 6px rgba(0,0,0,.18), 0 14px 30px -8px rgba(10,132,255,.6);
+
+    animation:fabIn .5s var(--spring) .35s both;
+
+    transition:transform .16s var(--spring);
+
+}
+
+.fab svg{ width:25px; height:25px; }
+
+.fab:active{ transform:scale(.9); }
+
+@keyframes fabIn{ from{ opacity:0; transform:scale(.4) rotate(-25deg); } to{ opacity:1; transform:none; } }
+
+
+
+/* ================================================================
+
+   STATO VUOTO
+
+   ================================================================ */
+
+.empty-state{ text-align:center; padding:60px 20px 30px; animation:cardIn .5s var(--spring) both; }
+
+.empty-icon{
+
+    width:72px; height:72px; margin:0 auto 18px; border-radius:20px;
+
+    background:var(--blue-soft); color:var(--blue);
+
+    display:flex; align-items:center; justify-content:center;
+
+}
+
+.empty-icon svg{ width:32px; height:32px; }
+
+.empty-title{ font-size:19px; font-weight:800; margin-bottom:6px; }
+
+.empty-sub{ font-size:14.5px; color:var(--text-2); max-width:280px; margin:0 auto 20px; line-height:1.5; }
+
+.btn-create-first{
+
+    display:inline-flex; align-items:center; gap:8px; padding:13px 22px;
+
+    border:none; border-radius:var(--r-btn); cursor:pointer;
+
+    color:#fff; font-size:15.5px; font-weight:700;
+
+    background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%));
+
+    box-shadow:var(--btn-hl), 0 12px 26px -8px rgba(10,132,255,.55);
+
+    transition:transform .16s var(--spring);
+
+}
+
+.btn-create-first:active{ transform:scale(.96); }
+
+
+
+/* ================================================================
+
+   SHEET MODALI — stile foglio iOS dal basso
+
+   ================================================================ */
+
+.modal-overlay{
+
+    display:none; position:fixed; inset:0; z-index:1000;
+
+    justify-content:center; align-items:flex-end;
+
+    background:rgba(0,0,0,.45);
+
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+
+}
+
+.modal-overlay.closing{ animation:overlayOut .22s ease both; }
+
+@keyframes overlayOut{ to{ opacity:0; } }
+
+.sheet-panel{
+
+    position:relative; width:100%; max-width:600px;
+
+    max-height:88vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+
+    background:var(--surface); color:var(--text);
+
+    border-radius:24px 24px 0 0;
+
+    padding:26px 20px calc(22px + var(--safe-bottom));
+
+    box-shadow:0 -10px 50px rgba(0,0,0,.35);
+
+    animation:sheetUp .38s var(--spring) both;
+
+}
+
+.modal-overlay.closing .sheet-panel{ animation:sheetDown .24s ease both; }
+
+@keyframes sheetUp{ from{ transform:translateY(60%); opacity:.4; } to{ transform:none; opacity:1; } }
+
+@keyframes sheetDown{ to{ transform:translateY(60%); opacity:0; } }
+
+.sheet-panel::before{
+
+    content:""; position:absolute; top:8px; left:50%; transform:translateX(-50%);
+
+    width:38px; height:5px; border-radius:99px; background:var(--hairline-2);
+
+}
+
+.sheet-title{ margin:6px 0 18px; font-size:19px; font-weight:800; letter-spacing:-.01em; text-align:center; }
+
+.sheet-sub{ margin:-12px 0 16px; font-size:13.5px; color:var(--text-2); text-align:center; }
+
+@media (min-width:640px){
+
+    .modal-overlay{ align-items:center; padding:20px; }
+
+    .sheet-panel{ border-radius:24px; }
+
+}
+
+
+
+/* Campi form */
+
+.field{ margin-bottom:16px; }
+
+.field label{
+
+    display:block; margin-bottom:7px; font-size:11.5px; font-weight:800;
+
+    letter-spacing:.07em; text-transform:uppercase; color:var(--text-2);
+
+}
+
+.field input[type="text"], .field select{
+
+    width:100%; padding:13px 14px; font-family:inherit; font-size:16px; font-weight:600;
+
+    color:var(--text); background:var(--surface-2); border:.5px solid var(--hairline-2);
+
+    border-radius:14px; -webkit-appearance:none; appearance:none;
+
+}
+
+.field select{
+
+    padding-right:38px;
+
+    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238A8A8E' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+
+    background-repeat:no-repeat; background-position:right 13px center;
+
+}
+
+.field input:focus, .field select:focus{ outline:none; box-shadow:0 0 0 2.5px var(--blue-soft), inset 0 0 0 1.5px var(--blue); }
+
+
+
+.sheet-actions{ display:flex; gap:10px; margin-top:6px; }
+
+.btn{
+
+    flex:1; display:flex; align-items:center; justify-content:center; gap:7px;
+
+    padding:14px 16px; border:none; border-radius:var(--r-btn); cursor:pointer;
+
+    font-family:inherit; font-size:16px; font-weight:700; letter-spacing:-.01em;
+
+    text-decoration:none; transition:transform .16s var(--spring), filter .2s;
+
+}
+
+.btn:active{ transform:scale(.97); filter:brightness(.95); }
+
+.btn-cancel{ background:var(--surface-2); color:var(--text); }
+
+.btn-primary{
+
+    color:#fff;
+
+    background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%));
+
+    box-shadow:var(--btn-hl), 0 10px 22px -8px rgba(10,132,255,.55);
+
+}
+
+.btn-danger{
+
+    color:#fff;
+
+    background:linear-gradient(180deg, color-mix(in srgb, var(--red), #fff 16%), var(--red) 52%, color-mix(in srgb, var(--red), #000 10%));
+
+    box-shadow:var(--btn-hl), 0 10px 22px -8px rgba(255,59,48,.55);
+
+}
+
+
+
+/* Elenco azioni (action sheet) */
+
+.action-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
+
+.action-item{
+
+    display:flex; align-items:center; gap:12px; width:100%;
+
+    padding:12px 12px; border:none; border-radius:14px; cursor:pointer;
+
+    background:var(--surface-2); color:var(--text);
+
+    font-family:inherit; font-size:16px; font-weight:600; text-align:left;
+
+    transition:transform .15s var(--spring), background .15s;
+
+}
+
+.action-item:active{ transform:scale(.98); background:var(--hairline); }
+
+.action-item.danger{ color:var(--red); }
+
+.action-item .a-ic{
+
+    width:34px; height:34px; border-radius:9px; flex-shrink:0;
+
+    display:flex; align-items:center; justify-content:center;
+
+    background:var(--blue-soft); color:var(--blue);
+
+}
+
+.action-item .a-ic svg{ width:17px; height:17px; }
+
+.action-item.danger .a-ic{ background:var(--red-soft); color:var(--red); }
+
+
+
+/* Conferma eliminazione */
+
+.confirm-icon{
+
+    width:56px; height:56px; margin:4px auto 14px; border-radius:16px;
+
+    background:var(--red-soft); color:var(--red);
+
+    display:flex; align-items:center; justify-content:center;
+
+}
+
+.confirm-icon svg{ width:26px; height:26px; }
+
+.confirm-text{ text-align:center; font-size:15px; color:var(--text-2); margin-bottom:18px; line-height:1.5; }
+
+.confirm-text b{ color:var(--text); }
+
+
+
+
+/* ================================================================
+
+   COLORE CARTELLA — tavolozza dinamica con anteprima live
+
+   ================================================================ */
+
+.color-preview-row{
+
+    display:flex; align-items:center; gap:12px; padding:14px;
+
+    margin-bottom:18px; background:var(--surface-2); border-radius:16px;
+
+}
+
+.color-preview-icon{
+
+    width:44px; height:44px; border-radius:12px; flex-shrink:0;
+
+    display:flex; align-items:center; justify-content:center;
+
+    background:color-mix(in srgb, var(--row-color, var(--blue)) 18%, var(--surface));
+
+    color:var(--row-color, var(--blue));
+
+    transition:background .25s, color .25s;
+
+}
+
+.color-preview-icon svg{ width:22px; height:22px; }
+
+.color-preview-name{ font-size:16px; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+
+
+.color-grid{ display:grid; grid-template-columns:repeat(6, 1fr); gap:10px; margin-bottom:18px; }
+
+.color-swatch{
+
+    position:relative; width:100%; aspect-ratio:1; border-radius:50%; border:none; cursor:pointer;
+
+    padding:0; background:var(--sw); box-shadow:inset 0 0 0 .5px rgba(0,0,0,.1);
+
+    animation:swatchIn .4s var(--spring) both;
+
+    transition:transform .18s var(--spring), box-shadow .2s;
+
+}
+
+@keyframes swatchIn{ from{ opacity:0; transform:scale(0); } to{ opacity:1; transform:scale(1); } }
+
+.color-swatch:active{ transform:scale(.82); }
+
+.color-swatch.selected{ transform:scale(1.08); box-shadow:0 0 0 3px var(--surface), 0 0 0 5.5px var(--sw); }
+
+.color-swatch .check-ic{
+
+    position:absolute; inset:0; margin:auto; width:16px; height:16px;
+
+    opacity:0; transform:scale(.3);
+
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,.4));
+
+    transition:opacity .2s var(--spring), transform .3s var(--spring);
+
+}
+
+.color-swatch.selected .check-ic{ opacity:1; transform:scale(1); }
+
+
+
+.color-swatch-auto{
+
+    background:var(--surface); border:1.6px dashed var(--text-3); box-shadow:none;
+
+    color:var(--text-2); display:flex; align-items:center; justify-content:center;
+
+}
+
+.color-swatch-auto svg{ width:15px; height:15px; }
+
+.color-swatch-auto.selected{
+
+    border:1.6px solid var(--blue); color:var(--blue); transform:scale(1.08);
+
+    box-shadow:0 0 0 3px var(--surface), 0 0 0 5.5px var(--blue);
+
+}
+
+
+
+.custom-color-row{ display:flex; align-items:center; gap:12px; padding:10px 2px 4px; margin-bottom:6px; }
+
+.custom-color-row input[type="color"]{
+
+    width:42px; height:42px; border-radius:50%; border:none; padding:0; cursor:pointer;
+
+    -webkit-appearance:none; appearance:none; background:none; flex-shrink:0;
+
+    box-shadow:inset 0 0 0 .5px var(--hairline-2);
+
+}
+
+.custom-color-row input[type="color"]::-webkit-color-swatch-wrapper{ padding:0; border-radius:50%; }
+
+.custom-color-row input[type="color"]::-webkit-color-swatch{ border:none; border-radius:50%; }
+
+.custom-color-row .cc-label{ font-size:14.5px; font-weight:600; color:var(--text); }
+
+.custom-color-row .cc-hex{ margin-left:auto; font-size:14px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums; letter-spacing:.02em; }
+
+
+
+.a-ic.color-wheel{
+
+    background:conic-gradient(from 180deg, #FF3B30, #FF9500, #FFCC00, #34C759, #00C7BE, #30B0C7, #32ADE6, #007AFF, #5856D6, #AF52DE, #FF2D55, #FF3B30);
+
+}
+
+
+
+/* ================================================================
+
+   TOAST DI CONFERMA
+
+   ================================================================ */
+
+.toast{
+
+    position:fixed; top:calc(var(--safe-top) + 14px); left:50%; z-index:20000;
+
+    display:flex; align-items:center; gap:8px;
+
+    padding:12px 18px; border-radius:99px;
+
+    background:var(--text); color:var(--bg);
+
+    font-size:14px; font-weight:700;
+
+    box-shadow:0 12px 30px rgba(0,0,0,.28);
+
+    transform:translateX(-50%) translateY(-20px); opacity:0;
+
+    transition:transform .4s var(--spring), opacity .3s;
+
+}
+
+.toast.show{ transform:translateX(-50%) translateY(0); opacity:1; }
+
+.toast svg{ width:16px; height:16px; flex-shrink:0; }
+
+
+
+@media (prefers-reduced-motion: reduce){
+
+    *, *::before, *::after{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
+
+}
+
+
+/* ================================================================
+   CHIP DEI FILTRI DI RICERCA
+   Restano fuori strada finche' non si cerca davvero: la barra in cima e' gia'
+   densa e a campo vuoto non filtrerebbero niente.
+   ================================================================ */
+.search-filters{ display:none; gap:7px; margin-top:9px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.search-filters::-webkit-scrollbar{ display:none; }
+body.sta-cercando .search-filters{ display:flex; }
+.sf-chip{
+    flex-shrink:0; border:none; cursor:pointer; font-family:inherit;
+    padding:6px 12px; border-radius:99px; font-size:12.5px; font-weight:700; letter-spacing:-.01em;
+    background:var(--surface-2); color:var(--text-2);
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+    transition:transform .15s var(--spring), background .18s, color .18s;
+}
+.sf-chip:active{ transform:scale(.94); }
+.sf-chip.on{ background:var(--blue); color:#fff; box-shadow:var(--btn-hl); }
+
+
+/* ================================================================
+   BARRA STRUMENTI — ambito (attive/archiviate) + vista + comprimi + selezione
+   ================================================================ */
+.cat-toolbar{
+    display:flex; align-items:center; gap:8px; margin-bottom:14px;
+    animation:cardIn .5s var(--spring) both;
+}
+/* Il tasto della vista e' il primo della riga e non sta nel gruppetto a
+   destra: la scelta elenco/griglia viene prima di tutto il resto. */
+.tool-btn-view{ flex-shrink:0; }
+.seg{
+    display:flex; flex:1; min-width:0; padding:3px; gap:3px;
+    background:var(--surface-2); border-radius:12px;
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+}
+.seg-btn{
+    flex:1; min-width:0; border:none; cursor:pointer; font-family:inherit;
+    display:flex; align-items:center; justify-content:center; gap:5px;
+    padding:7px 6px; border-radius:9px; background:transparent; color:var(--text-2);
+    font-size:13px; font-weight:700; letter-spacing:-.01em; white-space:nowrap;
+    transition:background .2s, color .2s, box-shadow .2s;
+}
+.seg-btn.on{ background:var(--surface); color:var(--text); box-shadow:var(--raise-sm); }
+.seg-n{
+    font-size:11px; font-weight:800; font-variant-numeric:tabular-nums;
+    padding:1px 6px; border-radius:99px; background:var(--hairline); color:var(--text-2);
+}
+.seg-btn.on .seg-n{ background:var(--blue-soft); color:var(--blue); }
+
+.tool-btns{ display:flex; gap:6px; flex-shrink:0; }
+.tool-btn{
+    width:38px; height:38px; border:none; border-radius:11px; cursor:pointer; padding:0;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--surface-2); color:var(--text-2);
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+    transition:transform .15s var(--spring), background .18s, color .18s;
+}
+.tool-btn svg{ width:18px; height:18px; }
+.tool-btn:active{ transform:scale(.92); }
+.tool-btn.on{ background:var(--blue); color:#fff; box-shadow:var(--btn-hl); }
+/* Il tasto vista mostra l'icona di DOVE si va, non di dove si e': in elenco
+   propone la griglia, in griglia propone l'elenco. */
+.tb-grid{ display:flex; }
+.tb-list{ display:none; }
+body.vista-griglia .tb-grid{ display:none; }
+body.vista-griglia .tb-list{ display:flex; }
+.tb-grid, .tb-list{ align-items:center; justify-content:center; }
+
+
+/* ================================================================
+   VISTA A GRIGLIA
+   Stessi riquadri delle sottocartelle di visualizzazione_fc: se un giorno si
+   ritocca la' va ritoccato anche qui, sono due copie della stessa idea.
+   ================================================================ */
+.grid-crumbs{
+    display:flex; align-items:center; gap:2px; flex-wrap:wrap;
+    margin:0 0 12px; padding:0 2px;
+}
+.crumb{
+    border:none; background:transparent; cursor:pointer; padding:3px 6px; border-radius:8px;
+    font-family:inherit; font-size:12.5px; font-weight:700; color:var(--text-2);
+    max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.crumb:last-of-type{ color:var(--text); }
+.crumb:active{ background:var(--surface-2); }
+.crumb-sep{ color:var(--text-3); font-size:13px; }
+
+/* Lo stesso stacco che nell'elenco arriva dal margine sotto all'ultima scheda:
+   in griglia le schede non hanno margine proprio, quindi lo spazio prima della
+   fascia "tutte le materie" va messo qui, altrimenti l'ultima riga ci si
+   appoggia sopra. */
+.grid-pane{ margin-bottom:14px; }
+
+.fc-subcats-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(136px, 1fr)); gap:10px;
+}
+.fc-subcat-card{
+    position:relative; display:block; text-align:left; text-decoration:none; color:inherit; cursor:pointer;
+    background:var(--surface); border-radius:16px; padding:14px 14px 12px;
+    box-shadow:var(--shadow-card); overflow:hidden;
+    animation:revealIn .45s var(--spring) both;
+    transition:transform .15s var(--spring), box-shadow .2s var(--spring);
+}
+@keyframes revealIn{ from{ opacity:0; transform:translateY(10px) scale(.97); } to{ opacity:1; transform:none; } }
+.fc-subcats-grid .fc-subcat-card:nth-child(1){ animation-delay:.02s; }
+.fc-subcats-grid .fc-subcat-card:nth-child(2){ animation-delay:.05s; }
+.fc-subcats-grid .fc-subcat-card:nth-child(3){ animation-delay:.08s; }
+.fc-subcats-grid .fc-subcat-card:nth-child(4){ animation-delay:.11s; }
+.fc-subcats-grid .fc-subcat-card:nth-child(n+5){ animation-delay:.14s; }
+.fc-subcat-card::before{ content:""; position:absolute; top:0; left:0; right:0; height:4px; background:var(--sc-color); }
+.fc-subcat-card:active{ transform:scale(.96); }
+.fc-subcat-dot{
+    width:32px; height:32px; border-radius:10px; flex-shrink:0;
+    background:color-mix(in srgb, var(--sc-color) 16%, var(--surface)); color:var(--sc-color);
+    display:flex; align-items:center; justify-content:center; margin-bottom:10px;
+}
+.fc-subcat-dot svg{ width:16px; height:16px; }
+.fc-subcat-name{
+    font-size:14.5px; font-weight:800; letter-spacing:-.01em; color:var(--text);
+    line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    overflow:hidden; margin-bottom:9px; min-height:37px;
+}
+.fc-subcat-meta{ display:flex; align-items:center; gap:10px; font-size:11.5px; font-weight:700; color:var(--text-2); flex-wrap:wrap; }
+.fc-subcat-meta span{ display:flex; align-items:center; gap:4px; font-variant-numeric:tabular-nums; }
+.fc-subcat-meta svg{ opacity:.8; flex-shrink:0; }
+/* La freccia in alto a destra apre la categoria; il resto del riquadro scende
+   dentro. Sono due gesti diversi sullo stesso riquadro, quindi serve un
+   bersaglio suo, abbastanza grande da non sbagliare col dito. */
+.fc-subcat-go{
+    position:absolute; top:8px; right:6px; width:30px; height:30px; border-radius:9px;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--text-3); text-decoration:none;
+}
+.fc-subcat-go svg{ width:15px; height:15px; }
+.fc-subcat-go:active{ background:var(--surface-2); color:var(--text); }
+.fc-subcat-check{
+    position:absolute; top:8px; right:8px; width:22px; height:22px; border-radius:50%;
+    display:none; align-items:center; justify-content:center;
+    background:var(--surface-2); color:transparent; box-shadow:inset 0 0 0 1.5px var(--hairline-2);
+}
+.fc-subcat-check svg{ width:12px; height:12px; }
+body.sel-mode .fc-subcat-check{ display:flex; }
+body.sel-mode .fc-subcat-go{ display:none; }
+.fc-subcat-card.is-sel{ box-shadow:var(--shadow-card), 0 0 0 2.5px var(--blue); }
+.fc-subcat-card.is-sel .fc-subcat-check{ background:var(--blue); color:#fff; box-shadow:none; }
+
+.grid-empty{ text-align:center; padding:40px 20px; color:var(--text-2); font-size:14.5px; }
+
+
+/* ================================================================
+   RISULTATI DELLA RICERCA
+   ================================================================ */
+.sr-label{
+    font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--text-3); padding:6px 4px 10px; display:flex; align-items:center; gap:6px;
+}
+.sr-label span{
+    font-size:10.5px; letter-spacing:0; padding:1px 7px; border-radius:99px;
+    background:var(--surface-2); color:var(--text-2); box-shadow:inset 0 0 0 .5px var(--hairline);
+}
+.sr-cat{
+    display:flex; align-items:center; gap:11px; text-decoration:none; color:inherit;
+    background:var(--surface); border-radius:14px; padding:11px 12px; margin-bottom:8px;
+    box-shadow:var(--shadow-card); border-left:3px solid var(--row-color, var(--blue));
+    animation:revealIn .35s var(--spring) both;
+    transition:transform .15s var(--spring);
+}
+.sr-cat:active{ transform:scale(.985); }
+.sr-cat-ic{
+    width:30px; height:30px; border-radius:9px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:color-mix(in srgb, var(--row-color, var(--blue)) 16%, var(--surface));
+    color:var(--row-color, var(--blue));
+}
+.sr-cat-ic svg{ width:15px; height:15px; }
+.sr-cat-body{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.sr-cat-name{ font-size:15px; font-weight:700; letter-spacing:-.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sr-path{ font-size:11.5px; font-weight:600; color:var(--text-3); display:flex; align-items:center; gap:3px; flex-wrap:wrap; }
+.sr-path i{ font-style:normal; opacity:.6; }
+.sr-path-root{ opacity:.75; }
+.sr-cat-meta{ flex-shrink:0; display:flex; align-items:center; gap:9px; font-size:11.5px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums; }
+.sr-cat-meta svg{ opacity:.8; margin-right:3px; vertical-align:-1px; }
+
+.sr-group{
+    background:var(--surface); border-radius:16px; margin-bottom:10px; overflow:hidden;
+    box-shadow:var(--shadow-card); border-left:3px solid var(--row-color, var(--blue));
+    animation:revealIn .35s var(--spring) both;
+}
+.sr-group-head{ display:flex; align-items:center; gap:11px; padding:11px 12px; text-decoration:none; color:inherit; }
+.sr-group-head:active{ background:var(--surface-2); }
+.sr-n{
+    flex-shrink:0; font-size:12px; font-weight:800; font-variant-numeric:tabular-nums;
+    padding:3px 9px; border-radius:99px; background:var(--surface-2); color:var(--text-2);
+    box-shadow:inset 0 0 0 .5px var(--hairline);
+}
+.sr-group-body{ padding:0 12px 10px; display:flex; flex-direction:column; gap:7px; }
+.sr-card{
+    background:var(--surface-2); border-radius:11px; padding:9px 11px;
+    font-size:13.5px; line-height:1.45;
+}
+.sr-card.is-child{ margin-left:14px; border-left:2px solid var(--hairline-2); border-radius:8px 11px 11px 8px; }
+.sr-q{ font-weight:700; color:var(--text); }
+.sr-a{ color:var(--text-2); margin-top:2px; }
+.sr-more{ font-size:12px; font-weight:600; color:var(--text-3); padding-left:4px; }
+.sr-card mark, .sr-cat-name mark{
+    background:color-mix(in srgb, var(--orange) 38%, transparent);
+    color:inherit; border-radius:4px; padding:0 2px;
+}
+.sr-empty{ text-align:center; padding:40px 20px; color:var(--text-2); font-size:14.5px; }
+.sr-hint{ margin-top:8px; font-size:13px; color:var(--text-3); }
+
+
+/* ================================================================
+   ARCHIVIO
+   ================================================================ */
+.materia-card.is-archived{ opacity:.9; }
+.materia-card.is-archived .cat-icon.lvl0{ filter:saturate(.55); }
+.empty-icon.archive{ background:var(--orange-soft); color:var(--orange); }
+.empty-icon.archive svg{ width:32px; height:32px; }
+
+/* Il pannello che spunta da destra trascinando la riga verso sinistra.
+   Non ha una larghezza fissa in JS: la si misura quando compare, come per i
+   tasti a sinistra. */
+/* La larghezza la scrive il JavaScript mentre si trascina: il tasto occupa
+   sempre tutto lo spazio scoperto dal dito, cosi' non resta mai una fascia
+   vuota fra lui e il bordo della riga. Qui c'e' solo la misura di partenza. */
+.cat-swipe-arch{
+    position:absolute; top:0; right:0; bottom:0; width:96px;
+    display:none; align-items:stretch; z-index:1; overflow:hidden;
+}
+body.touch-device .cat-swipe-arch.revealing{ display:flex; }
+.swipe-archive{
+    width:100%; flex-direction:column; gap:3px;
+    background:var(--orange); color:#fff;
+    font-size:11px; font-weight:800; letter-spacing:-.01em;
+    transition:background .18s, padding .22s var(--spring), align-items .22s;
+}
+.swipe-archive svg{ width:20px; height:20px; flex-shrink:0; }
+.swipe-archive span{ white-space:nowrap; }
+.swipe-archive.is-restore{ background:var(--green); }
+/* ARMATO: oltre meta' riga il gesto vale da solo. Il colore si fa pieno e la
+   scritta scivola verso sinistra, restando dov'era sullo schermo mentre il
+   tasto cresce — e' il modo in cui iOS dice "se molli adesso, l'ho premuto". */
+.cat-swipe-arch.pronta .swipe-archive{
+    align-items:flex-start; padding-left:24px;
+    background:color-mix(in srgb, var(--orange), #000 22%);
+}
+.cat-swipe-arch.pronta .swipe-archive.is-restore{ background:color-mix(in srgb, var(--green), #000 22%); }
+
+
+/* ================================================================
+   TASTINO "+" IN CODA A UN RAMO ESPLOSO
+   ================================================================ */
+.cat-add-here{
+    display:none; justify-content:flex-end; align-items:center;
+    padding:6px 12px 10px 0; background:var(--surface);
+    border-top:.5px solid var(--hairline);
+    animation:rowIn .3s var(--spring) both;
+}
+.cat-add-btn{
+    display:inline-flex; align-items:center; gap:6px;
+    border:none; cursor:pointer; font-family:inherit;
+    padding:5px 12px 5px 9px; border-radius:99px;
+    font-size:12px; font-weight:800; letter-spacing:-.01em;
+    background:color-mix(in srgb, var(--row-color, var(--blue)) 14%, var(--surface));
+    color:var(--row-color, var(--blue));
+    box-shadow:inset 0 0 0 .75px color-mix(in srgb, var(--row-color, var(--blue)) 35%, transparent);
+    transition:transform .15s var(--spring);
+}
+.cat-add-btn svg{ width:13px; height:13px; }
+.cat-add-btn:active{ transform:scale(.93); }
+
+
+/* ================================================================
+   MODALITA' SELEZIONE
+   ================================================================ */
+.cat-check{
+    display:none; width:22px; height:22px; border-radius:50%; flex-shrink:0;
+    align-items:center; justify-content:center;
+    background:var(--surface-2); color:transparent;
+    box-shadow:inset 0 0 0 1.5px var(--hairline-2);
+    transition:background .18s, color .18s, box-shadow .18s;
+}
+.cat-check svg{ width:12px; height:12px; }
+body.sel-mode .cat-check{ display:flex; }
+/* In selezione la riga non naviga e i tasti a lato non servono: si toglie
+   tutto quello che potrebbe far partire un'altra azione per sbaglio. */
+body.sel-mode .cat-kebab{ display:none; }
+body.sel-mode .cat-add-here{ display:none !important; }
+.cat-row.is-sel .cat-row-main{ background:var(--blue-soft); }
+.cat-row.is-sel .cat-check{ background:var(--blue); color:#fff; box-shadow:none; }
+
+.selbar{
+    position:fixed; left:10px; right:10px; bottom:calc(12px + var(--safe-bottom)); z-index:900;
+    background:var(--surface); border-radius:20px; padding:10px 12px 12px;
+    box-shadow:0 2px 6px rgba(0,0,0,.14), 0 18px 40px -12px rgba(0,0,0,.45);
+    transform:translateY(140%); opacity:0; pointer-events:none;
+    transition:transform .38s var(--spring), opacity .25s;
+}
+.selbar.show{ transform:none; opacity:1; pointer-events:auto; }
+.selbar-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; padding:0 2px; }
+.selbar-n{ font-size:13px; font-weight:800; color:var(--text-2); font-variant-numeric:tabular-nums; }
+.selbar-close{
+    border:none; background:transparent; cursor:pointer; font-family:inherit;
+    font-size:15px; font-weight:700; color:var(--blue); padding:2px 4px;
+}
+.selbar-acts{ display:flex; gap:6px; }
+.selact{
+    flex:1; min-width:0; border:none; cursor:pointer; font-family:inherit;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    padding:9px 4px; border-radius:13px;
+    background:var(--surface-2); color:var(--text);
+    font-size:11px; font-weight:700; letter-spacing:-.01em;
+    transition:transform .15s var(--spring), opacity .2s;
+}
+.selact svg{ width:19px; height:19px; }
+.selact span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+.selact:active{ transform:scale(.94); }
+.selact:disabled{ opacity:.4; pointer-events:none; }
+.selact.danger{ color:var(--red); }
+.selact-wheel{
+    width:19px; height:19px; border-radius:50%;
+    background:conic-gradient(from 180deg, #FF3B30, #FF9500, #FFCC00, #34C759, #00C7BE, #30B0C7, #32ADE6, #007AFF, #5856D6, #AF52DE, #FF2D55, #FF3B30);
+}
+/* Con la barra aperta il "+" darebbe fastidio ed e' anche l'unico tasto che
+   sotto ci finirebbe sopra. */
+body.sel-mode .fab{ display:none; }
+
+
+/* ================================================================
+   RIGHE-AZIONE DENTRO IL FOGLIO DI MODIFICA
+   ================================================================ */
+.form-extra{ display:flex; flex-direction:column; gap:8px; }
+.row-action{
+    display:flex; align-items:center; gap:11px; width:100%;
+    padding:11px 12px; border:none; border-radius:13px; cursor:pointer;
+    background:var(--surface-2); color:var(--text);
+    font-family:inherit; font-size:15px; font-weight:600; text-align:left;
+    transition:transform .15s var(--spring), background .15s;
+}
+.row-action:active{ transform:scale(.98); background:var(--hairline); }
+.row-action .ra-ic{
+    width:30px; height:30px; border-radius:9px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--blue-soft); color:var(--blue);
+}
+.row-action .ra-ic svg{ width:16px; height:16px; }
+#formArchiveBtn .ra-ic{ background:var(--orange-soft); color:var(--orange); }
+
+
+/* ================================================================
+   PAGINA FERMA SOTTO AI POPUP
+   Il corpo pagina passa a position:fixed (lo fa nsScrollLock): qui si evita
+   che nel frattempo compaia una barra di scorrimento fantasma sul desktop.
+   ================================================================ */
+body.ns-locked{ overflow:hidden; }
+
+
+/* ================================================================
+   PEZZI DI CARTA DENTRO I RISULTATI
+   Li disegna fc_parser, che porta le proprie regole (grassetto, colori,
+   elenchi, formule). Qui si stringe soltanto: nel corpo di una carta un
+   paragrafo e' alto una riga e mezzo per respirare, in un estratto di due
+   righe quello spazio diventa un buco.
+   ================================================================ */
+.fc-snip{ overflow-wrap:anywhere; }
+.fc-snip .fc-p{ min-height:0; }
+.fc-snip .fc-p + .fc-p, .fc-snip .fc-li + .fc-li{ margin-top:2px; }
+.fc-snip .fc-li{ min-height:0; }
+.fc-snip .fc-fx{ font-size:.92em; }
+.fc-snip .fc-x{ font-size:.88em; }
+/* Le immagini non arrivano mai qui (l'estratto e' solo testo), ma se un
+   documento ne portasse una resterebbe nei limiti della riga. */
+.fc-snip img{ max-width:100%; height:auto; }
+
+
+/* ================================================================
+   IL TASTO PER GIOCARE, IN CIMA A DESTRA
+   Rotondo, in evidenza: qui in Categorie e' l'unico invito a giocare in tutta
+   la pagina, quindi puo' permettersi di farsi notare senza competere con
+   nient'altro. Il triangolo (play) e non un controller: si legge d'istinto
+   anche senza leggere l'etichetta.
+   ================================================================ */
+.hdr-top{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+}
+.hdr-titles{ min-width:0; }
+
+.hdr-play-btn{
+    position:relative; flex-shrink:0; margin-top:1px;
+    width:46px; height:46px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg, var(--indigo), var(--blue));
+    color:#fff; text-decoration:none;
+    box-shadow:0 2px 6px rgba(10,132,255,.28), 0 10px 22px -8px rgba(88,86,214,.55);
+    animation:hdrPlayIn .5s var(--spring) both;
+    transition:transform .18s var(--spring), box-shadow .18s;
+}
+.hdr-play-btn svg{ width:19px; height:19px; margin-left:2px; }  /* il triangolo pesa piu' a sinistra: si centra otticamente */
+.hdr-play-btn:active{ transform:scale(.9); }
+
+/* L'anello che pulsa intorno, dietro al pulsante: si allarga e sfuma in
+   loop. z-index negativo e non dietro nel markup, cosi' resta un cerchio
+   perfetto e non deforma la forma del tasto quando cresce. */
+.hdr-play-ring{
+    position:absolute; inset:0; border-radius:50%; z-index:-1;
+    background:linear-gradient(135deg, var(--indigo), var(--blue));
+    animation:hdrPlayPulse 2.2s ease-out infinite;
+}
+@keyframes hdrPlayIn{ from{ opacity:0; transform:scale(.5) rotate(-25deg); } }
+@keyframes hdrPlayPulse{
+    0%{ opacity:.45; transform:scale(1); }
+    100%{ opacity:0; transform:scale(1.75); }
+}
+@media (prefers-reduced-motion: reduce){
+    .hdr-play-ring{ animation: hdrPlayPulseSoft 2.6s ease-in-out infinite !important; }
+}
+@keyframes hdrPlayPulseSoft{ 50%{ opacity:.25; } }
+
+
+/* ================================================================
+   TIPO DI FLASHCARD: indietro, bandiera del corso, colore delle lingue
+   La stessa pagina fa da elenco dei mazzi di studio e dei mazzi di un
+   corso di lingua (?course=N). Per le lingue il titolo e' la lingua con
+   la sua bandiera, e il tasto play prende l'arancio della sezione lingue
+   (lo stesso di fc_home.php), cosi' si capisce sempre dove si e'.
+   ================================================================ */
+.hdr-titles{ flex:1; }
+.hdr-back{
+    width:34px; height:34px; flex-shrink:0; margin:5px -2px 0 -6px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--blue); text-decoration:none;
+    transition:transform .16s var(--spring), background .15s;
+}
+.hdr-back svg{ width:22px; height:22px; }
+.hdr-back:active{ transform:scale(.88); background:var(--surface-2); }
+.hdr-title-lang{ display:flex; align-items:center; gap:10px; }
+.hdr-flag{
+    width:30px; height:30px; border-radius:50%; object-fit:cover; flex-shrink:0;
+    box-shadow:0 0 0 .5px rgba(0,0,0,.14), 0 2px 6px -2px rgba(0,0,0,.25);
+}
+body.fc-vocab .hdr-play-btn, body.fc-vocab .hdr-play-ring{ background:linear-gradient(135deg, var(--pink), var(--orange)); }
+body.fc-vocab .hdr-play-btn{ box-shadow:0 2px 6px rgba(255,149,0,.3), 0 10px 22px -8px rgba(255,45,85,.5); }

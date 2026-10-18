@@ -1,10 +1,7 @@
 # File di configurazione con password e credenziali
-config.php
-SICUREZZA.md
-NISAMA_PROGETTO.md
-NISAMA_SOCIAL.md
-client_secret_778069627570-1q0hcq7susok68o1u4srdj2fj582l0e8.apps.googleusercontent.com.json
-_db.sql
+lib/config.php
+lib/client_secret_*.json
+docs/private/
 
 # File temporanei di sistema (Windows/Mac)
 .DS_Store

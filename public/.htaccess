@@ -1,0 +1,64 @@
+# Tipi MIME
+AddType application/manifest+json .webmanifest
+
+# ---------------------------------------------------------------
+# COMPRESSIONE
+# Le pagine delle flashcard sono HTML lungo e ripetitivo: e' il tipo
+# di testo su cui gzip lavora meglio (spesso un quinto della
+# dimensione). Tutto dentro IfModule: se il modulo non c'e', Apache
+# salta il blocco invece di rispondere 500.
+# ---------------------------------------------------------------
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css
+    AddOutputFilterByType DEFLATE application/javascript application/x-javascript text/javascript
+    AddOutputFilterByType DEFLATE application/json application/manifest+json
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# ---------------------------------------------------------------
+# CACHE
+# Un solo modulo a decidere, non due: mod_expires e mod_headers
+# scrivono tutti e due Cache-Control, e se non dicono la stessa cosa
+# vince l'ultimo che parla. Meglio una fonte sola.
+# ---------------------------------------------------------------
+<IfModule mod_headers.c>
+
+    # CSS e JS: l'indirizzo porta gia' ?v=<data del file>, quindi a ogni
+    # modifica cambia l'indirizzo e il vecchio non serve piu' a nessuno.
+    # Si puo' tenere per sempre senza mai richiederlo.
+    <FilesMatch "\.(css|js)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+
+    # Immagini, audio e caratteri: nomi generati dal server, ma senza
+    # versione nell'indirizzo. Un mese e non un anno: se un file venisse
+    # rimpiazzato tenendo lo stesso nome, un anno di cache sarebbe una
+    # trappola difficile da capire.
+    <FilesMatch "\.(png|jpe?g|gif|webp|svg|ico|mp3|m4a|ogg|wav|woff2?)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+
+    # Le pagine no: cambiano a ogni salvataggio, e una copia vecchia
+    # mostrerebbe carte che non ci sono piu'.
+    <FilesMatch "\.(php|html)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+
+</IfModule>
+
+# --- Flashcard: old addresses -> new pages (append to /Vocabolary/.htaccess) ---
+# The query string (?category_id=..., ?game_id=...) is kept automatically.
+RedirectMatch 301 ^/Vocabolary/categories_fc\.php$          /Vocabolary/fc_decks.php
+RedirectMatch 301 ^/Vocabolary/categories_game_fc\.php$     /Vocabolary/fc_game_setup.php
+RedirectMatch 301 ^/Vocabolary/visualizzazione_fc\.php$     /Vocabolary/fc_view.php
+RedirectMatch 301 ^/Vocabolary/game_fc\.php$                /Vocabolary/fc_game.php
+RedirectMatch 301 ^/Vocabolary/result_fc\.php$              /Vocabolary/fc_result.php
+RedirectMatch 301 ^/Vocabolary/history_fc\.php$             /Vocabolary/fc_history.php
+RedirectMatch 301 ^/Vocabolary/stats_fc\.php$               /Vocabolary/fc_stats.php
+RedirectMatch 301 ^/Vocabolary/inserimento_big_fc\.php$     /Vocabolary/fc_insert.php
+RedirectMatch 301 ^/Vocabolary/inserimento_fc\.php$         /Vocabolary/fc_insert_card.php
+RedirectMatch 301 ^/Vocabolary/modifica_immagine_fc\.php$   /Vocabolary/fc_card_edit.php
+RedirectMatch 301 ^/Vocabolary/crediti\.php$                /Vocabolary/credits.php
+RedirectMatch 301 ^/Vocabolary/admin_ia\.php$               /Vocabolary/admin_ai.php
+# old vocabulary pages: everything now starts from the languages page
+RedirectMatch 301 ^/Vocabolary/(categories|visualizzazione|inserimento|inserimento_big|big_edit|modifica_immagine|history_flashcards|categories_game)\.php$ /Vocabolary/fc_languages.php
