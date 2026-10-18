@@ -22,7 +22,7 @@
 
    Sono archivi zip. Il browser sa gia' scompattarli con DecompressionStream,
    quindi qui c'e' un lettore zip di ottanta righe invece di una dipendenza.
-   Per il PDF invece pdf.js e' inevitabile: va messo in /Vocabolary/pdfjs/ e la
+   Per il PDF invece pdf.js e' inevitabile: va messo in /_assets/vendor/pdfjs/ e la
    CSP deve permetterne il worker (vedi FCAI.PDFJS in fondo).
    ================================================================ */
 
@@ -551,7 +551,7 @@ var FCAI = (function () {
        ============================================================ */
 
     return {
-        /* pdf.js va copiato in /Vocabolary/pdfjs/. Non e' su CDN apposta: la
+        /* pdf.js va copiato in /_assets/vendor/pdfjs/. Non e' su CDN apposta: la
            CSP del sito non permette script esterni, e allargarla per una
            libreria varrebbe meno di due file copiati una volta sola. */
         PDFJS: { script: '../_assets/vendor/pdfjs/pdf.min.js', worker: '../_assets/vendor/pdfjs/pdf.worker.min.js' },

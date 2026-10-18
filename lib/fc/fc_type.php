@@ -282,7 +282,7 @@ function fc_gira_carta(array $card, string $verso): array {
 
 /** Cartella delle immagini, come la vede il browser (relativa alla pagina). */
 function fc_cartella_immagini(): string {
-    return PWA_BASE . (fc_is_vocab() ? 'Images/' : 'fc_Images/');
+    return PWA_BASE . 'media/' . (fc_is_vocab() ? 'vocab_images/' : 'flashcard_images/');
 }
 
 /** Cartella delle immagini sul disco, dove si salvano. */

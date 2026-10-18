@@ -1,10 +1,10 @@
 {
-  "id": "/Vocabolary/",
+  "id": "/",
   "name": "Standout",
   "short_name": "Standout",
   "description": "La produttivita', ovunque, senza installare niente.",
-  "start_url": "/Vocabolary/index.php",
-  "scope": "/Vocabolary/",
+  "start_url": "/index.php",
+  "scope": "/",
   "display": "standalone",
   "theme_color": "#EFE0AE",
   "background_color": "#FBF7EC",
@@ -12,8 +12,8 @@
   "dir": "ltr",
   "orientation": "any",
   "icons": [
-    { "src": "/Vocabolary/_assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/Vocabolary/_assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/Vocabolary/_assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/_assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/_assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/_assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

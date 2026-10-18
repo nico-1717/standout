@@ -531,7 +531,7 @@ $UNI_HAS_DATA = count($UNI_EXAMS) > 0;
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Voti</title>
-<link rel="stylesheet" href="/Vocabolary/exams/voti.css?v=<?php echo @filemtime(__DIR__ . '/voti.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>exams/voti.css?v=<?php echo @filemtime(__DIR__ . '/voti.css') ?: 1; ?>">
 <?php
 /* Le stringhe che servono al JavaScript di questa pagina. */
 echo nisama_i18n_json(['comune', 'voti']);

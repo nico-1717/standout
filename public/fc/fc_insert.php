@@ -1249,7 +1249,7 @@ if ($modo === 'edit') {
     /* Flashcard di lingua: stesse righe, campi diversi (parola, traduzione,
        significato, esempio, un'immagine). FC lo scrive fc_boot_json(). */
     const FCV = !!(window.FC && window.FC.tipo === 'vocab');
-    const FC_IMG_DIR = (window.FC && window.FC.immagini) || '../fc_Images/';
+    const FC_IMG_DIR = (window.FC && window.FC.immagini) || '../media/flashcard_images/';
 
 
 
@@ -3790,8 +3790,8 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
                 qImgName: c.question_image || '',
                 aImgUrl:  c.answer_image ? (FC_IMG_DIR + c.answer_image) : '',
                 aImgName: c.answer_image || '',
-                qAudioUrl: c.question_audio ? ('../fc_audio/' + c.question_audio) : '',
-                aAudioUrl: c.answer_audio ? ('../fc_audio/' + c.answer_audio) : '',
+                qAudioUrl: c.question_audio ? ('../media/flashcard_audio/' + c.question_audio) : '',
+                aAudioUrl: c.answer_audio ? ('../media/flashcard_audio/' + c.answer_audio) : '',
                 exCount: parseInt(c.ex_count, 10) || 0
             });
 

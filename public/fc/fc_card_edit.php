@@ -197,8 +197,8 @@ function mfc_parola_esempio(): string {
 
         $q_img = mfc_salva('qNew_image', FC_IMAGE_PATH_INSERT, false);
         $a_img = mfc_salva('aNew_image', FC_IMAGE_PATH_INSERT, false);
-        $q_aud = mfc_salva('audio_q', NISAMA_DATA_DIR . 'fc_audio', true);
-        $a_aud = mfc_salva('audio_a', NISAMA_DATA_DIR . 'fc_audio', true);
+        $q_aud = mfc_salva('audio_q', NISAMA_DATA_DIR . 'flashcard_audio', true);
+        $a_aud = mfc_salva('audio_a', NISAMA_DATA_DIR . 'flashcard_audio', true);
 
         if ($quest === '' && $answ === '' && $q_img === '' && $a_img === '' && $q_aud === '' && $a_aud === '') {
             echo json_encode(['success' => false, 'empty' => true, 'error' => t('fc.serve_qualcosa')]);
@@ -319,8 +319,8 @@ function mfc_parola_esempio(): string {
         if (isset($_POST['delete'])) {
             mfc_togli(FC_IMAGE_PATH_INSERT, $old['question_image'] ?? '');
             mfc_togli(FC_IMAGE_PATH_INSERT, $old['answer_image'] ?? '');
-            mfc_togli(NISAMA_DATA_DIR . 'fc_audio', $old['question_audio'] ?? '');
-            mfc_togli(NISAMA_DATA_DIR . 'fc_audio', $old['answer_audio'] ?? '');
+            mfc_togli(NISAMA_DATA_DIR . 'flashcard_audio', $old['question_audio'] ?? '');
+            mfc_togli(NISAMA_DATA_DIR . 'flashcard_audio', $old['answer_audio'] ?? '');
 
             if ($is_child) sec_q("DELETE FROM " . fc_t('subcards') . " WHERE id_child = ?", [$id]);
             else           sec_q("DELETE FROM " . fc_t('cards') . " WHERE id = ?", [$id]);
@@ -354,8 +354,8 @@ function mfc_parola_esempio(): string {
         foreach ([
             ['question_image', 'remove_q_img', 'qNew_image', FC_IMAGE_PATH_INSERT, false],
             ['answer_image',   'remove_a_img', 'aNew_image', FC_IMAGE_PATH_INSERT, false],
-            ['question_audio', 'remove_q_aud', 'audio_q',    NISAMA_DATA_DIR . 'fc_audio', true],
-            ['answer_audio',   'remove_a_aud', 'audio_a',    NISAMA_DATA_DIR . 'fc_audio', true],
+            ['question_audio', 'remove_q_aud', 'audio_q',    NISAMA_DATA_DIR . 'flashcard_audio', true],
+            ['answer_audio',   'remove_a_aud', 'audio_a',    NISAMA_DATA_DIR . 'flashcard_audio', true],
         ] as [$colonna, $rimuovi, $campoFile, $cartella, $audio]) {
             if (sec_bool($_POST[$rimuovi] ?? 0)) {
                 mfc_togli($cartella, $old[$colonna] ?? '');
@@ -551,7 +551,7 @@ function mfc_parola_esempio(): string {
             </div>
             <?php if (!empty($audioFile)): ?>
                 <div class="audio-player-row">
-                    <audio src="fc_audio/<?php echo sec_h($audioFile); ?>" controls></audio>
+                    <audio src="../media/flashcard_audio/<?php echo sec_h($audioFile); ?>" controls></audio>
                     <label class="mini-remove"><input type="checkbox" name="remove_<?php echo sec_h($p); ?>_aud" value="1"> Elimina</label>
                 </div>
             <?php endif; ?>

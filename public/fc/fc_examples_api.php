@@ -9,7 +9,7 @@
  *    riguarda anche la lettura.
  *
  * 2. I due file caricati prendevano l'estensione dal nome del client e non
- *    guardavano il contenuto: "x.php" finiva eseguibile in fc_images/.
+ *    guardavano il contenuto: "x.php" finiva eseguibile in example_images/.
  *
  * 3. Query costruite per concatenazione, e i messaggi di errore rimandavano al
  *    client il testo di mysqli_error(): e' una mappa del database regalata a chi
@@ -138,8 +138,8 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ex_api_json_out(['success' => false, 'error' => t('fc.non_autorizzato_scheda')]);
     }
 
-    $img = ex_salva('image', NISAMA_DATA_DIR . 'fc_images', false);
-    $aud = ex_salva('audio', NISAMA_DATA_DIR . 'fc_audio', true);
+    $img = ex_salva('image', NISAMA_DATA_DIR . 'example_images', false);
+    $aud = ex_salva('audio', NISAMA_DATA_DIR . 'flashcard_audio', true);
 
     /* TOGLIERE L'IMMAGINE, NON SOLO SOSTITUIRLA
        ex_salva() torna null quando non e' stato caricato niente, e null vuol

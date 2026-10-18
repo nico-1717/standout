@@ -1782,7 +1782,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                         <?php if (!empty($c['question_audio'])): ?>
 
-                            <audio id="player_q_<?php echo sec_h($index); ?>" src="../fc_audio/<?php echo sec_h($c['question_audio']); ?>" controls onclick="event.stopPropagation();"></audio>
+                            <audio id="player_q_<?php echo sec_h($index); ?>" src="../media/flashcard_audio/<?php echo sec_h($c['question_audio']); ?>" controls onclick="event.stopPropagation();"></audio>
 
                         <?php endif; ?>
 
@@ -1820,7 +1820,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                             <?php if (!empty($c['answer_audio'])): ?>
 
-                                <audio id="player_a_<?php echo sec_h($index); ?>" src="../fc_audio/<?php echo sec_h($c['answer_audio']); ?>" controls></audio>
+                                <audio id="player_a_<?php echo sec_h($index); ?>" src="../media/flashcard_audio/<?php echo sec_h($c['answer_audio']); ?>" controls></audio>
 
                             <?php endif; ?>
 
@@ -1928,7 +1928,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                             <?php if (!empty($c['answer_audio'])): ?>
 
-                                <audio id="player_a_<?php echo sec_h($index); ?>" src="../fc_audio/<?php echo sec_h($c['answer_audio']); ?>" controls></audio>
+                                <audio id="player_a_<?php echo sec_h($index); ?>" src="../media/flashcard_audio/<?php echo sec_h($c['answer_audio']); ?>" controls></audio>
 
                             <?php endif; ?>
 

@@ -888,6 +888,46 @@ del database, e un trasloco obbligato il giorno che si cresce.
    mostrarla in un quadratino è banda e attesa buttate.
 3. **Le sessioni PHP su disco.** Con molti utenti si spostano su Redis.
 
+### 10.4 Da fare in Google Cloud Console (a ogni cambio di indirizzo)
+
+Il sito passa da `nisama.altervista.org/Vocabolary/` alla radice
+`nisama.altervista.org/` (e un giorno a un dominio proprio sul VPS). Google
+ricorda gli indirizzi, quindi la console va aggiornata. Console:
+https://console.cloud.google.com → progetto di Nisama → *API e servizi*.
+
+**Credenziali → ID client OAuth (Google Calendar)**
+
+- *URI di reindirizzamento autorizzati*: aggiungere
+  `https://nisama.altervista.org/google_calendar.php?action=callback`
+  **senza togliere** quello vecchio (`.../Vocabolary/google_calendar.php?...`).
+  Il vecchio resta finche' `GOOGLE_REDIRECT_URI` in `lib/config.php` lo usa.
+- *Origini JavaScript autorizzate*: `https://nisama.altervista.org`
+  (l'origine non contiene il percorso, quindi di solito non cambia).
+- Poi si cambia `GOOGLE_REDIRECT_URI` in `lib/config.php` al nuovo indirizzo e
+  si prova il collegamento a Google Calendar.
+- Al trasloco sul dominio proprio: ripetere con il dominio nuovo.
+
+**Credenziali → chiavi API (Places, mappa incorporata, TTS)**
+
+- Se la chiave ha *restrizione per referrer HTTP*, il referrer era
+  `nisama.altervista.org/Vocabolary/*`: va cambiato in
+  `nisama.altervista.org/*` (e poi nel dominio nuovo). Se non si cambia, la
+  mappa e la ricerca luoghi smettono di funzionare senza errori evidenti.
+- La chiave usata dal server (Places, TTS) deve restare ristretta per
+  *indirizzo IP* o per API, non per referrer: le richieste partono dal server.
+
+**Schermata di consenso OAuth**
+
+- Se vi compaiono indirizzi della home, dell'informativa o dei termini,
+  aggiornarli al nuovo indirizzo.
+
+**Dopo ogni modifica**: Google impiega da pochi minuti a qualche ora ad
+applicarla. Provare in una finestra privata: collegare Google Calendar,
+aprire la mappa dei luoghi, far partire una voce.
+
+**Quando farlo**: subito dopo aver caricato la nuova struttura su Altervista
+(sito nella radice, file caricati in `media/`), e di nuovo il giorno del VPS.
+
 ---
 
 ## 11. Costi, per fase

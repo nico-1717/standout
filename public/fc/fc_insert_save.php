@@ -118,7 +118,7 @@ $mappa = [];
 
 /* Le cartelle di destinazione e i tipi ammessi. L'audio non e' un'immagine,
    quindi ha il suo elenco: sec_file() controlla il tipo vero, non l'estensione. */
-const FC_AUDIO_DIR = NISAMA_DATA_DIR . 'fc_audio/';
+const FC_AUDIO_DIR = NISAMA_DATA_DIR . '../media/flashcard_audio/';
 const FC_AUDIO_MIME = [
     'audio/mpeg' => 'mp3', 'audio/mp3' => 'mp3', 'audio/wav' => 'wav',
     'audio/x-wav' => 'wav', 'audio/webm' => 'webm', 'audio/ogg' => 'ogg',

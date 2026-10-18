@@ -79,9 +79,9 @@ if (!mb_check_encoding($clean_text_for_audio, 'UTF-8')) {
 // Senza l'impronta, cambiando un'impostazione che modifica il testo letto
 // (es. "Leggi LaTeX" da Sì a No, o la lingua), si sarebbe continuato a
 // riascoltare il vecchio MP3 in cache, generato da un testo diverso.
-if (!is_dir(NISAMA_DATA_DIR . 'ai_audio')) { @mkdir(NISAMA_DATA_DIR . 'ai_audio', 0755, true); }
+if (!is_dir(NISAMA_DATA_DIR . 'tutor_audio')) { @mkdir(NISAMA_DATA_DIR . 'tutor_audio', 0755, true); }
 $text_hash = substr(md5($clean_text_for_audio), 0, 10);
-$audio_filename = "ai_audio/" . $mode . "_" . $card_id . "_" . $voice_name . "_" . $text_hash . ".mp3";
+$audio_filename = "tutor_audio/" . $mode . "_" . $card_id . "_" . $voice_name . "_" . $text_hash . ".mp3";
 
 $audio_path = NISAMA_DATA_DIR . $audio_filename; // sul disco; $audio_filename resta l'indirizzo
 
@@ -167,6 +167,6 @@ ob_clean();
 echo json_encode([
     'success' => true,
     'text' => $final_text,
-    'audio_url' => '../' . $audio_filename
+    'audio_url' => '../media/' . $audio_filename
 ]);
 exit;

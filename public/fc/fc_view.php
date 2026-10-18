@@ -1666,7 +1666,7 @@ function render_qa_side($label, $text, $image, $audio, $lato = '', array $extra 
 
         <?php endif; ?>
 
-        <?php if ($hasAudio): render_audio_player('../fc_audio/' . sec_h($audio)); endif; ?>
+        <?php if ($hasAudio): render_audio_player('../media/flashcard_audio/' . sec_h($audio)); endif; ?>
 
         <?php if (!empty($extra['meaning']) && trim((string)$extra['meaning']) !== ''): ?>
         <div class="qa-meaning"><span class="qa-meaning-lab"><?php te('fcv.significato'); ?></span> <?= nl2br(sec_h(trim((string)$extra['meaning']))) ?></div>

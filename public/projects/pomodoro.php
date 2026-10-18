@@ -340,7 +340,7 @@ $jsState = $statoCorrente + [
      Lo stesso file che usera' la barra sulle altre pagine, cosi' le due viste
      non possono divergere. -->
 <script src="pomodoro_core.js?v=<?php echo @filemtime(__DIR__ . '/pomodoro_core.js') ?: time(); ?>"></script>
-<link rel="stylesheet" href="/Vocabolary/projects/pomodoro.css?v=<?php echo @filemtime(__DIR__ . '/pomodoro.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>projects/pomodoro.css?v=<?php echo @filemtime(__DIR__ . '/pomodoro.css') ?: 1; ?>">
 <?php
 /* Le stringhe che servono al JavaScript di questa pagina. Solo i due gruppi
    che usa davvero: il dizionario intero sono migliaia di voci. */

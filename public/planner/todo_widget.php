@@ -44,7 +44,7 @@ if (!defined('TODO_WIDGET_CSS')) {
        essersene dimenticato. */
     var TIPI = ['todo', 'buy', 'study', 'pills'];
     var TIPO_LAB = { todo: 'to do', buy: 'to buy', study: 'to study', pills: 'pastiglie' };
-    var IMG_DIR = '../uploads/tobuy/';
+    var IMG_DIR = '../media/uploads/tobuy/';
 
     function api(action, data, query) {
         var url = '../planner/todo_api.php?ajax=' + encodeURIComponent(action);

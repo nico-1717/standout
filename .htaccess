@@ -1,26 +1,42 @@
 # =====================================================================
-# NISAMA - .htaccess della RADICE del progetto (sul server: /Vocabolary/)
+# NISAMA - .htaccess della RADICE del sito (nisama.altervista.org/)
 #
-# Il browser vede solo public/: /Vocabolary/fc/fc_home.php viene servito
-# da /Vocabolary/public/fc/fc_home.php, senza "public" nell'indirizzo.
+# Il browser vede solo public/: /fc/fc_home.php viene servito da
+# /public/fc/fc_home.php, senza "public" nell'indirizzo.
 # Tutto il resto (lib/, lang/, docs/, tools/) non e' raggiungibile da
 # nessun indirizzo, perche' ogni richiesta finisce dentro public/.
+# I file caricati dagli utenti stanno in media/ (sezione 1).
 #
-# Il giorno del VPS: la radice del sito punta direttamente a public/,
-# in config.php PWA_BASE diventa '/' e le cartelle dei file caricati
-# (sezione 1 qui sotto) si servono con un Alias o si spostano in public/.
+# Il giorno del VPS: la radice del sito punta direttamente a public/ e
+# media/ si serve con un Alias (o si sposta in public/media/).
 # =====================================================================
 
 RewriteEngine On
-RewriteBase /Vocabolary/
+RewriteBase /
+
+# --- 0. Il vecchio indirizzo /Vocabolary/... ------------------------------
+# Il sito stava in una sottocartella. Ora e' nella radice: ogni indirizzo
+# vecchio (segnalibri, PWA installata, ritorno di Google Calendar) arriva
+# a quello nuovo. 308 e non 301: una POST resta una POST.
+RewriteRule ^Vocabolary/?(.*)$ /$1 [R=308,L]
 
 # --- 1. File caricati dagli utenti --------------------------------------
-# Restano dove sono sempre stati (/Vocabolary/fc_audio/...). Si servono
-# cosi' come sono, anche se una pagina li chiede con un percorso relativo
-# (/Vocabolary/fc/fc_audio/x.mp3 -> /Vocabolary/fc_audio/x.mp3): serve
-# anche per i testi delle carte salvati nel database con "fc_Images/...".
-RewriteRule ^(Images|fc_Images|fc_images|fc_audio|ai_audio|uploads)/ - [L]
-RewriteRule ^.+?/(Images|fc_Images|fc_images|fc_audio|ai_audio|uploads)/(.*)$ $1/$2 [L]
+# media/vocab_images, media/flashcard_images, media/example_images,
+# media/flashcard_audio, media/tutor_audio, media/uploads.
+# Si servono cosi' come sono, anche se una pagina li chiede con un
+# percorso relativo (/fc/media/flashcard_audio/x.mp3 -> /media/...).
+RewriteRule ^media/ - [L]
+RewriteRule ^.+?/media/(.*)$ media/$1 [L]
+
+# --- 1b. Nomi vecchi delle cartelle (alias, restano per sempre) ----------
+# I testi delle carte nel database possono contenere ancora "fc_Images/x.png"
+# e simili: l'indirizzo vecchio arriva alla cartella nuova (anche annidato).
+RewriteRule ^(?:.+?/)?Images/(.*)$ media/vocab_images/$1 [L]
+RewriteRule ^(?:.+?/)?fc_Images/(.*)$ media/flashcard_images/$1 [L]
+RewriteRule ^(?:.+?/)?fc_images/(.*)$ media/example_images/$1 [L]
+RewriteRule ^(?:.+?/)?fc_audio/(.*)$ media/flashcard_audio/$1 [L]
+RewriteRule ^(?:.+?/)?ai_audio/(.*)$ media/tutor_audio/$1 [L]
+RewriteRule ^(?:.+?/)?uploads/(.*)$ media/uploads/$1 [L]
 
 # --- 2. Indirizzi vecchi -> nuovi --------------------------------------
 # La query string (?category_id=..., ?game_id=...) passa da sola.
