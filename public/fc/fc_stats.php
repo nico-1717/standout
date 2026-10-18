@@ -1,6 +1,6 @@
 <?php
-require_once 'config.php';
-require_once 'auth_check.php'; // 1. Protezione con login obbligatorio
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php'; // 1. Protezione con login obbligatorio
 
 $current_user_id = (int)$utente_corrente['id']; // 2. ID Utente sicuro dal server
 
@@ -533,9 +533,9 @@ if ($debugMode) {
          consente gli script solo da 'self' e da cdn.jsdelivr.net, quindi
          cdnjs veniva bloccato. Senza Chart.js la pagina lanciava
          "Chart is not defined" al primo grafico e restava vuota. */ ?>
-<script src="<?php echo PWA_BASE; ?>vendor/chart.umd.js"></script>
+<script src="<?php echo PWA_BASE; ?>_assets/vendor/chart.umd.js"></script>
 <script src="fc_parser.js"></script>
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_stats.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_stats.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_stats.css?v=<?php echo @filemtime(__DIR__ . '/fc_stats.css') ?: 1; ?>">
 </head>
 <body>
 
@@ -551,7 +551,7 @@ if ($debugMode) {
     </div>
 </div>
 
-<?php include 'sidebar.html'; ?>
+<?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
 <?php if ($debugMode): ?>
 <div style="max-width:100%; overflow-x:auto; background:#fff; margin:12px; padding:12px; border-radius:12px; font-size:11px; font-family:monospace; color:#111; border:2px solid #FF3B30;">

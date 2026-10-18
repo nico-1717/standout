@@ -2,7 +2,7 @@
 /* =====================================================================
    NISAMA — LA SCENA DELLA PAUSA (componente includibile)
 
-       include 'pausa_scena.php';
+       include __DIR__ . '/pausa_scena.php';
 
    Perche' esiste: guardando il quadrante non si capiva se si era in
    pausa o al lavoro. Cambiava solo il colore del numero, e un numero

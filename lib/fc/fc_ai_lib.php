@@ -42,10 +42,10 @@
  * Non e' un endpoint e non controlla il login: lo fa chi la include.
  */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/security_core.php';
-require_once __DIR__ . '/piano_helpers.php';
-require_once __DIR__ . '/ai_credits.php';
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../security_core.php';
+require_once __DIR__ . '/../piano_helpers.php';
+require_once __DIR__ . '/../../public/ai/ai_credits.php';
 require_once __DIR__ . '/fc_ai_format.php'; // validazione E riparazione, condivise con ai_example.php
 require_once __DIR__ . '/fc_ai_style.php';   // stile della carta e impegno del modello
 

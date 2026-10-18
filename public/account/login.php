@@ -1,6 +1,6 @@
 <?php
-require_once 'config.php';
-require_once 'auth_core.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_core.php';
 header('Content-Type: application/json');
 
 $input = json_decode(file_get_contents('php://input'), true);

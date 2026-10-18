@@ -3,7 +3,7 @@
    NISAMA — SIDEBAR (componente includibile)
    Da includere una volta sola, prima di </body>:
 
-       include 'sidebar.php';
+       include __DIR__ . '/sidebar.php';
 
    La sidebar vera resta in `sidebar.html`, che è anche una pagina di
    prova apribile da sola: questo file ne estrae stili, markup e script e
@@ -19,7 +19,11 @@ define('NISAMA_SIDEBAR', true);
 
 $sbFile = __DIR__ . '/sidebar.html';
 if (is_readable($sbFile)):
-    $sbHtml = (string)file_get_contents($sbFile);
+    /* include e non file_get_contents: sidebar.html contiene PWA_BASE nei
+       collegamenti, quindi va eseguita da PHP come quando la si include. */
+    ob_start();
+    include $sbFile;
+    $sbHtml = (string)ob_get_clean();
 
     /* --- gli stili --- */
     if (preg_match_all('#<style[^>]*>(.*?)</style>#is', $sbHtml, $m)) {

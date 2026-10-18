@@ -10,7 +10,7 @@
    questo stesso file.
 
    Uso:
-     include 'habits_import.php';   // renderizza il popup (vuoto)
+     include __DIR__ . '/habits_import.php';   // renderizza il popup (vuoto)
      window.openHabitsImport();     // apre in JS
      window.exportHabitsFile();     // scarica l'export
 
@@ -33,12 +33,12 @@ $hi_files = get_included_files();
 $hi_direct = (!empty($hi_files) && realpath($hi_files[0]) === realpath(__FILE__));
 
 if (!isset($conn) || !$conn) {
-    require_once 'config.php';
-    require_once 'security_core.php';
+    require_once __DIR__ . '/../../lib/config.php';
+    require_once __DIR__ . '/../../lib/security_core.php';
     /* sec_db() riusa la connessione gia' aperta e la configura da sola. */
     $conn = sec_db();
-    if ($hi_direct && isset($_GET['hi_ajax'])) { require_once 'auth_check_api.php'; }
-    else { require_once 'auth_check.php'; }
+    if ($hi_direct && isset($_GET['hi_ajax'])) { require_once __DIR__ . '/../../lib/auth_check_api.php'; }
+    else { require_once __DIR__ . '/../../lib/auth_check.php'; }
 }
 if (!isset($current_user_id)) {
     $current_user_id = isset($utente_corrente['id']) ? $utente_corrente['id'] : 0;
@@ -1291,7 +1291,7 @@ define('HI_RENDERED', true);
 <?php
 if (!defined('HI_CSS')) {
     define('HI_CSS', 1);
-    echo '<link rel="stylesheet" href="' . PWA_BASE . 'habits_import.css?v=' . (@filemtime(dirname(__FILE__) . '/habits_import.css') ?: 1) . '">' . "\n";
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'planner/habits_import.css?v=' . (@filemtime(__DIR__ . '/habits_import.css') ?: 1) . '">' . "\n";
 }
 ?>
 

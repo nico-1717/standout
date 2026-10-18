@@ -1,0 +1,84 @@
+# =====================================================================
+# NISAMA - .htaccess della RADICE del progetto (sul server: /Vocabolary/)
+#
+# Il browser vede solo public/: /Vocabolary/fc/fc_home.php viene servito
+# da /Vocabolary/public/fc/fc_home.php, senza "public" nell'indirizzo.
+# Tutto il resto (lib/, lang/, docs/, tools/) non e' raggiungibile da
+# nessun indirizzo, perche' ogni richiesta finisce dentro public/.
+#
+# Il giorno del VPS: la radice del sito punta direttamente a public/,
+# in config.php PWA_BASE diventa '/' e le cartelle dei file caricati
+# (sezione 1 qui sotto) si servono con un Alias o si spostano in public/.
+# =====================================================================
+
+RewriteEngine On
+RewriteBase /Vocabolary/
+
+# --- 1. File caricati dagli utenti --------------------------------------
+# Restano dove sono sempre stati (/Vocabolary/fc_audio/...). Si servono
+# cosi' come sono, anche se una pagina li chiede con un percorso relativo
+# (/Vocabolary/fc/fc_audio/x.mp3 -> /Vocabolary/fc_audio/x.mp3): serve
+# anche per i testi delle carte salvati nel database con "fc_Images/...".
+RewriteRule ^(Images|fc_Images|fc_images|fc_audio|ai_audio|uploads)/ - [L]
+RewriteRule ^.+?/(Images|fc_Images|fc_images|fc_audio|ai_audio|uploads)/(.*)$ $1/$2 [L]
+
+# --- 2. Indirizzi vecchi -> nuovi --------------------------------------
+# La query string (?category_id=..., ?game_id=...) passa da sola.
+# Le richieste a public/ stesso non vanno toccate.
+RewriteRule ^public/ - [L]
+
+# 2a. nomi di prima della traduzione dei file
+RewriteRule ^categories_fc\.php$         fc/fc_decks.php      [R=301,L]
+RewriteRule ^categories_game_fc\.php$    fc/fc_game_setup.php [R=301,L]
+RewriteRule ^visualizzazione_fc\.php$    fc/fc_view.php       [R=301,L]
+RewriteRule ^game_fc\.php$               fc/fc_game.php       [R=301,L]
+RewriteRule ^result_fc\.php$             fc/fc_result.php     [R=301,L]
+RewriteRule ^history_fc\.php$            fc/fc_history.php    [R=301,L]
+RewriteRule ^stats_fc\.php$              fc/fc_stats.php      [R=301,L]
+RewriteRule ^inserimento_big_fc\.php$    fc/fc_insert.php     [R=301,L]
+RewriteRule ^inserimento_fc\.php$        fc/fc_insert_card.php [R=301,L]
+RewriteRule ^modifica_immagine_fc\.php$  fc/fc_card_edit.php  [R=301,L]
+RewriteRule ^crediti\.php$               ai/credits.php       [R=301,L]
+RewriteRule ^admin_ia\.php$              ai/admin_ai.php      [R=301,L]
+RewriteRule ^(categories|visualizzazione|inserimento|inserimento_big|big_edit|modifica_immagine|history_flashcards|categories_game)\.php$ fc/fc_languages.php [R=301,L]
+
+# 2b. le pagine quando il sito era tutto in una cartella
+#     (segnalibri, schede rimaste aperte, PWA installata). 308 e non 301:
+#     una POST resta una POST.
+RewriteRule ^(api_create_user\.php|login\.php|logout\.php|register\.php)$ account/$1 [R=308,L]
+RewriteRule ^(admin_ai\.css|admin_ai\.php|ai_credits\.php|ai_example\.php|ai_generate_text\.php|ai_job_api\.php|ai_jobs\.php|ai_shatter\.php|ai_tutor\.php|ai_worker\.php|credits\.css|credits\.php)$ ai/$1 [R=308,L]
+RewriteRule ^(credits_body\.php)$ ai/$1 [R=308,L]
+RewriteRule ^(csrf_token\.php)$ api/$1 [R=308,L]
+RewriteRule ^(exams_catalog\.json|voti\.css|voti\.php)$ exams/$1 [R=308,L]
+RewriteRule ^(fc_ai\.php|fc_ai_client\.js|fc_ai_fab\.css|fc_ai_fab\.php|fc_ai_job\.js|fc_ai_match\.js|fc_ai_panel\.css|fc_ai_panel\.js|fc_ai_panel\.php|fc_api_counts\.php|fc_audio_player\.css|fc_audio_player\.php)$ fc/$1 [R=308,L]
+RewriteRule ^(fc_audio_recorder\.js|fc_autosave_bar\.css|fc_autosave_bar\.js|fc_autosave_bar\.php|fc_card_edit\.css|fc_card_edit\.php|fc_deck_selector\.css|fc_deck_selector\.php|fc_decks\.css|fc_decks\.php|fc_edit_popup\.css|fc_edit_popup\.js)$ fc/$1 [R=308,L]
+RewriteRule ^(fc_editor_polish\.css|fc_examples_api\.php|fc_examples_box\.css|fc_examples_box\.php|fc_examples_modal\.css|fc_examples_modal\.js|fc_examples_modal\.php|fc_game\.css|fc_game\.php|fc_game_retry\.php|fc_game_setup\.css|fc_game_setup\.php)$ fc/$1 [R=308,L]
+RewriteRule ^(fc_game_start\.php|fc_history\.css|fc_history\.php|fc_home\.php|fc_hub\.css|fc_image_editor\.js|fc_image_editor\.php|fc_image_sizes\.php|fc_improve_card\.css|fc_improve_card\.js|fc_improve_card\.php|fc_insert\.css)$ fc/$1 [R=308,L]
+RewriteRule ^(fc_insert\.php|fc_insert_card\.css|fc_insert_card\.php|fc_insert_save\.php|fc_languages\.js|fc_languages\.php|fc_learnt\.php|fc_media_box\.css|fc_parser\.js|fc_read_aloud\.js|fc_result\.css|fc_result\.php)$ fc/$1 [R=308,L]
+RewriteRule ^(fc_speak\.js|fc_stats\.css|fc_stats\.php|fc_view\.css|fc_view\.php|fc_voice_mode\.css|fc_voice_mode\.php|post_action\.php)$ fc/$1 [R=308,L]
+RewriteRule ^(dashboard\.css|dashboard_content\.php|index\.css|landing\.css|landing_content\.php|trivia\.json)$ home/$1 [R=308,L]
+RewriteRule ^(format_toolbar\.php|notifiche_widget\.php|pwa_head\.php|sidebar\.html|sidebar\.php)$ partials/$1 [R=308,L]
+RewriteRule ^(diario\.css|diario\.js|diario\.php|diario_giorno\.php|diary_api\.php|habits\.css|habits\.js|habits\.php|habits_import\.css|habits_import\.php|meteo_api\.php)$ planner/$1 [R=308,L]
+RewriteRule ^(planner\.css|planner\.js|planner\.php|planner_ambient\.json|planner_smart\.json|study_api\.php|to_study\.css|to_study\.js|to_study\.php|todo\.css|todo\.php|todo_api\.php)$ planner/$1 [R=308,L]
+RewriteRule ^(todo_widget\.css|todo_widget\.php)$ planner/$1 [R=308,L]
+RewriteRule ^(clessidra\.php|pausa_scena\.php|pomodoro\.css|pomodoro\.php|pomodoro_barra\.css|pomodoro_barra\.js|pomodoro_barra\.php|pomodoro_core\.js|pomodoro_import\.php|pomodoro_stato\.php|pomodoro_storico\.css|pomodoro_storico\.php)$ projects/$1 [R=308,L]
+RewriteRule ^(progetti\.css|progetti\.php|project_selector\.php)$ projects/$1 [R=308,L]
+RewriteRule ^(friends\.php|friends_api\.php|friends_core\.php)$ social/$1 [R=308,L]
+RewriteRule ^(i18n\.js|nisama_fetch\.js)$ _assets/js/$1 [R=308,L]
+RewriteRule ^(nisama_ui\.css|nisama_ui\.js)$ _assets/ui/$1 [R=308,L]
+RewriteRule ^(pwa\.js|pwa\.css)$ _assets/$1 [R=308,L]
+
+# 2c. cartelle di prima
+RewriteRule ^icons/(.*)$      _assets/icons/$1           [R=301,L]
+RewriteRule ^mathquill/(.*)$  _assets/vendor/mathquill/$1 [R=301,L]
+RewriteRule ^pdfjs/(.*)$      _assets/vendor/pdfjs/$1    [R=301,L]
+RewriteRule ^vendor/(.*)$     _assets/vendor/$1          [R=301,L]
+RewriteRule ^svg/flags/(.*)$  _assets/svg/flags/$1       [R=301,L]
+
+# 2d. il ritorno di Google Calendar: l'indirizzo registrato su Google
+#     (GOOGLE_REDIRECT_URI) resta quello vecchio, cosi' non va cambiato
+#     niente nella console di Google.
+RewriteRule ^google_calendar\.php$ planner/google_calendar.php [R=302,L]
+
+# --- 3. Tutto il resto si serve da public/ ------------------------------
+RewriteRule ^(.*)$ public/$1 [L]

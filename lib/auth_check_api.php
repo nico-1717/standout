@@ -1,10 +1,10 @@
 <?php
 /**
  * Includi questo file in cima a OGNI endpoint AJAX/JSON che richiede il
- * login, SUBITO dopo require_once 'config.php':
+ * login, SUBITO dopo require_once __DIR__ . '/config.php':
  *
- *   require_once 'config.php';
- *   require_once 'auth_check_api.php';
+ *   require_once __DIR__ . '/config.php';
+ *   require_once __DIR__ . '/auth_check_api.php';
  *
  * A differenza di auth_check.php, qui NON facciamo un redirect (avrebbe
  * poco senso per una chiamata fetch/AJAX): rispondiamo con HTTP 401 e un

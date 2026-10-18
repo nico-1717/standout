@@ -31,7 +31,7 @@
         for (var j = 0; j < D.catalogo.length; j++) if (D.catalogo[j].b === codice) return D.catalogo[j];
         return null;
     }
-    function bandiera(f) { return 'svg/flags/' + f + '.svg'; }
+    function bandiera(f) { return '../_assets/svg/flags/' + f + '.svg'; }
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];

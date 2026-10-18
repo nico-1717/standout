@@ -4,7 +4,7 @@
  *
  * Si include con una riga sola dentro fc_insert.php:
  *
- *     <?php include 'fc_ai_panel.php'; ?>
+ *     <?php include __DIR__ . '/fc_ai_panel.php'; ?>
  *
  * Sostituisce, in quella pagina: il riquadro del prompt da copiare
  * (.format-help), la scheda "Immagini (opzionale)" e la scheda dei separatori
@@ -39,16 +39,16 @@ $fcai_css_v = @filemtime(__DIR__ . '/fc_ai_panel.css') ?: 1;
    ricerca). Una volta sola anche se il pannello comparisse due volte. */
 if (!defined('NISAMA_UI')) {
     define('NISAMA_UI', 1);
-    echo '<link rel="stylesheet" href="' . PWA_BASE . 'nisama_ui.css?v='
-       . (@filemtime(dirname(__FILE__) . '/nisama_ui.css') ?: 1) . '">' . "\n";
-    echo '<script src="' . PWA_BASE . 'nisama_ui.js?v='
-       . (@filemtime(dirname(__FILE__) . '/nisama_ui.js') ?: 1) . '"></script>' . "\n";
+    echo '<link rel="stylesheet" href="' . PWA_BASE . '_assets/ui/nisama_ui.css?v='
+       . (@filemtime(__DIR__ . '/../_assets/ui/nisama_ui.css') ?: 1) . '">' . "\n";
+    echo '<script src="' . PWA_BASE . '_assets/ui/nisama_ui.js?v='
+       . (@filemtime(__DIR__ . '/../_assets/ui/nisama_ui.js') ?: 1) . '"></script>' . "\n";
 }
 
 /* Le scelte di stile vengono dallo stesso elenco con cui il server le valida
    (fc_ai_stile_valori): una voce aggiunta li' compare qui da sola, e una
    tendina non puo' offrire un valore che il server rifiuterebbe. */
-require_once __DIR__ . '/fc_ai_style.php';
+require_once __DIR__ . '/../../lib/fc/fc_ai_style.php';
 
 /* Flashcard di lingua: il pannello resta lo stesso, ma senza la sezione
    dell'IA (per le parole arrivera' piu' avanti, vedi NISAMA_PROGETTO.md) e
@@ -444,8 +444,8 @@ $fcai_vocab = function_exists('fc_is_vocab') && fc_is_vocab();
      sarebbe diventato diverso al primo ritocco. Si carica quando si apre e
      non prima — chi non lo guarda non paga nessuna query. -->
 <?php
-echo '<link rel="stylesheet" href="' . PWA_BASE . 'credits.css?v='
-   . (@filemtime(__DIR__ . '/credits.css') ?: 1) . '">' . "\n";
+echo '<link rel="stylesheet" href="' . PWA_BASE . 'ai/credits.css?v='
+   . (@filemtime(__DIR__ . '/../ai/credits.css') ?: 1) . '">' . "\n";
 ?>
 <div class="fcai-modale" id="fcaiCreditiModale" hidden>
     <div class="fcai-modale-scheda">
@@ -454,7 +454,7 @@ echo '<link rel="stylesheet" href="' . PWA_BASE . 'credits.css?v='
         </div>
         <div class="fcai-modale-corpo" id="fcaiCreditiCorpo"></div>
         <div class="fcai-modale-piede">
-            <a class="btn btn-ghost btn-sm" href="<?php echo PWA_BASE; ?>credits.php"><?php te('fc.cred_apri_pagina'); ?></a>
+            <a class="btn btn-ghost btn-sm" href="<?php echo PWA_BASE; ?>ai/credits.php"><?php te('fc.cred_apri_pagina'); ?></a>
             <button type="button" class="btn btn-primary btn-sm" id="fcaiCreditiChiudi"><?php te('fc.ibfai_job_chiudi_btn'); ?></button>
         </div>
     </div>

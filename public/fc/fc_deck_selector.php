@@ -22,17 +22,17 @@
 
 /* Il tipo (studio o lingua) lo decide la pagina che include questo file con
    fc_avvia(); chi non lo chiama (progetti.php) resta sullo studio, com'era. */
-require_once __DIR__ . '/fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 
 if (isset($_GET['cs_ajax']) && $_GET['cs_ajax'] === 'create_category') {
 
     header('Content-Type: application/json');
 
         if (!isset($conn) || !$conn) {
-        require_once 'config.php';
+        require_once __DIR__ . '/../../lib/config.php';
         /* auth_check_api.php PRIMA di sec_db(): e' quello a caricare
            security_core.php, dove sec_db e le altre sec_* sono definite. */
-        require_once 'auth_check_api.php';
+        require_once __DIR__ . '/../../lib/auth_check_api.php';
         $current_user_id = (int)$utente_corrente['id'];
         $conn = sec_db();
     }
@@ -463,7 +463,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
 <?php if (!defined('CS_ASSETS_EMITTED')): define('CS_ASSETS_EMITTED', true); ?>
 
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_deck_selector.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_deck_selector.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_deck_selector.css?v=<?php echo @filemtime(__DIR__ . '/fc_deck_selector.css') ?: 1; ?>">
 
 <?php endif; ?>
 
@@ -1214,7 +1214,7 @@ if (!window.nsScrollLock) {
 
 
 
-        fetch((window.fcUrl ? fcUrl('fc_deck_selector.php?cs_ajax=create_category') : 'fc_deck_selector.php?cs_ajax=create_category'), { method: 'POST', body: body })
+        fetch((window.fcUrl ? fcUrl('../fc/fc_deck_selector.php?cs_ajax=create_category') : '../fc/fc_deck_selector.php?cs_ajax=create_category'), { method: 'POST', body: body })
 
             .then(function (r) { return r.json(); })
 

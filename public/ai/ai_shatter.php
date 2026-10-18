@@ -3,9 +3,9 @@
 // ai_example.php per il perché: php://input si legge una volta sola).
 $__raw_input = file_get_contents('php://input');
 
-require_once 'config.php';
-require_once 'auth_check_api.php';
-require_once 'piano_helpers.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check_api.php';
+require_once __DIR__ . '/../../lib/piano_helpers.php';
 
 // Inizializza il buffer per nascondere eventuali Warning/Notice di Altervista
 ob_start();

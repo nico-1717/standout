@@ -2,9 +2,9 @@
 
 // connessione al database
 
-require_once 'config.php';
+require_once __DIR__ . '/../../lib/config.php';
 
-require_once 'auth_check.php'; // 1. Protezione con login obbligatorio
+require_once __DIR__ . '/../../lib/auth_check.php'; // 1. Protezione con login obbligatorio
 
 
 
@@ -20,7 +20,7 @@ $conn = sec_db();
    traduzione, significato, esempio, immagine) invece di domande e risposte.
    Righe, figli, riordino, salvataggio automatico ed esempi restano gli
    stessi; cambiano solo i campi di ogni riga. Vedi fc_type.php. */
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia($current_user_id);
 $fc_vocab = fc_is_vocab();
 
@@ -194,7 +194,7 @@ if ($modo === 'edit') {
 
     <meta name="csrf-token" content="<?php echo sec_csrf_token(); ?>">
 
-    <script src="nisama_fetch.js"></script>
+    <script src="../_assets/js/nisama_fetch.js"></script>
 
 
 
@@ -359,9 +359,9 @@ if ($modo === 'edit') {
 
 
 
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_insert.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_insert.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_insert.css?v=<?php echo @filemtime(__DIR__ . '/fc_insert.css') ?: 1; ?>">
 
-    <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_autosave_bar.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_autosave_bar.css') ?: 1; ?>">
+    <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_autosave_bar.css?v=<?php echo @filemtime(__DIR__ . '/fc_autosave_bar.css') ?: 1; ?>">
 
 
 
@@ -376,7 +376,7 @@ if ($modo === 'edit') {
 
 
     <?php if ($fc_vocab): /* fc_parser e la barra di formattazione vivono solo nelle flashcard di studio */ ?>
-    <script src="<?php echo PWA_BASE; ?>fc_speak.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_speak.js') ?: 1; ?>"></script>
+    <script src="<?php echo PWA_BASE; ?>fc/fc_speak.js?v=<?php echo @filemtime(__DIR__ . '/fc_speak.js') ?: 1; ?>"></script>
     <?php else: ?>
     <script src="fc_parser.js"></script>
     <?php endif; ?>
@@ -441,7 +441,7 @@ if ($modo === 'edit') {
 
 
 
-<?php include 'sidebar.html'; ?>
+<?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
 
 
@@ -572,7 +572,7 @@ if ($modo === 'edit') {
 
        sopra la tastiera mentre si scrive. */
 
-    include 'fc_autosave_bar.php';
+    include __DIR__ . '/fc_autosave_bar.php';
 
     ?>
 
@@ -636,7 +636,7 @@ if ($modo === 'edit') {
 
         $ft_placeholder = '%%PLACEHOLDER%%';
 
-        include 'format_toolbar.php'; 
+        include __DIR__ . '/../partials/format_toolbar.php'; 
 
     ?>
 
@@ -796,7 +796,7 @@ if ($modo === 'edit') {
 
 
 
-                    include 'fc_deck_selector.php'; 
+                    include __DIR__ . '/fc_deck_selector.php'; 
 
 
 
@@ -840,7 +840,7 @@ if ($modo === 'edit') {
         <?php /* Il pannello di inserimento (IA, immagini, importa) vive in un file suo:
            questa pagina e' gia' lunga 6900 righe, e ogni pezzo nuovo che nasce fuori
            e' un pezzo che si puo' cambiare senza riaprirla. */ ?>
-        <?php include 'fc_ai_panel.php'; ?>
+        <?php include __DIR__ . '/fc_ai_panel.php'; ?>
 
 
 
@@ -1249,7 +1249,7 @@ if ($modo === 'edit') {
     /* Flashcard di lingua: stesse righe, campi diversi (parola, traduzione,
        significato, esempio, un'immagine). FC lo scrive fc_boot_json(). */
     const FCV = !!(window.FC && window.FC.tipo === 'vocab');
-    const FC_IMG_DIR = (window.FC && window.FC.immagini) || 'fc_Images/';
+    const FC_IMG_DIR = (window.FC && window.FC.immagini) || '../fc_Images/';
 
 
 
@@ -3790,8 +3790,8 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
                 qImgName: c.question_image || '',
                 aImgUrl:  c.answer_image ? (FC_IMG_DIR + c.answer_image) : '',
                 aImgName: c.answer_image || '',
-                qAudioUrl: c.question_audio ? ('fc_audio/' + c.question_audio) : '',
-                aAudioUrl: c.answer_audio ? ('fc_audio/' + c.answer_audio) : '',
+                qAudioUrl: c.question_audio ? ('../fc_audio/' + c.question_audio) : '',
+                aAudioUrl: c.answer_audio ? ('../fc_audio/' + c.answer_audio) : '',
                 exCount: parseInt(c.ex_count, 10) || 0
             });
 
@@ -7968,7 +7968,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 </script>
 
-<?php include 'fc_examples_modal.php'; ?>
+<?php include __DIR__ . '/fc_examples_modal.php'; ?>
 
 </body>
 

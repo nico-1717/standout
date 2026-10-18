@@ -11,14 +11,14 @@
  * 2. I conteggi non erano filtrati per utente: "SELECT COUNT(*) FROM fc_study_cards"
  *    contava le schede di tutti, e l'elenco per categoria le esponeva una a una.
  */
-require_once 'config.php';
-require_once 'auth_check_api.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check_api.php';
 
 header('Content-Type: application/json');
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia($current_user_id, true);
 
 $status = sec_enum($_GET['status'] ?? null, ['all', '1', '0'], '0');

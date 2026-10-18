@@ -6,15 +6,15 @@
    volta che si filtra, ordina, o si carica un'altra pagina di risultati.
 
    Uso:
-     include 'pomodoro_storico.php';               // renderizza il popup (vuoto)
+     include __DIR__ . '/pomodoro_storico.php';               // renderizza il popup (vuoto)
      window.openPomodoroStorico({ scope: 'all' });  // apre in JS, storico globale
      window.openPomodoroStorico({ scope: 'project', projectId: 5, projectName: 'Tesi' });
    ========================================================================== */
 
 if (!isset($conn) || !$conn) {
-    require_once 'config.php';
+    require_once __DIR__ . '/../../lib/config.php';
     /* auth_check PRIMA di sec_db(): e' quello a caricare security_core.php. */
-    require_once 'auth_check.php';
+    require_once __DIR__ . '/../../lib/auth_check.php';
     $current_user_id = (int)$utente_corrente['id'];
     $conn = sec_db();
 }
@@ -543,7 +543,7 @@ if (!isset($ph_id)) $ph_id = 'default';
 $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
 ?>
 <?php if (!defined('PH_ASSETS_EMITTED')): define('PH_ASSETS_EMITTED', true); ?>
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>pomodoro_storico.css?v=<?php echo @filemtime(dirname(__FILE__) . '/pomodoro_storico.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>projects/pomodoro_storico.css?v=<?php echo @filemtime(__DIR__ . '/pomodoro_storico.css') ?: 1; ?>">
 <?php endif; ?>
 
 <div class="ph-overlay" id="phOverlay">
@@ -616,7 +616,7 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
                     $ps_show_all_option = true; $ps_all_option_label = T('pomodoro.storico_nessun_progetto'); $ps_allow_create = false;
                     $ps_hidden_name = 'manual_project_id';
                     $ps_trigger_class = 'ps-trigger-pill';
-                    include 'project_selector.php';
+                    include __DIR__ . '/project_selector.php';
                 ?>
             </div>
             <div class="ph-manual-btns">
@@ -646,7 +646,7 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
     /* Popup di import/export: si apre dai due tasti in alto (openPomodoroImport
        ed exportPomodoroFile). Va incluso qui, dopo il selettore del pannello
        manuale, perche' porta con se' un secondo project_selector tutto suo. */
-    include 'pomodoro_import.php';
+    include __DIR__ . '/pomodoro_import.php';
 ?>
 
 <?php if (!defined('PH_SCRIPT_EMITTED')): define('PH_SCRIPT_EMITTED', true); ?>

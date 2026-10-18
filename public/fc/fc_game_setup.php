@@ -1,6 +1,6 @@
 <?php
-require_once 'config.php';
-require_once 'auth_check.php'; // Inserito il controllo login!
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php'; // Inserito il controllo login!
 
 $current_user_id = $utente_corrente['id'];
 
@@ -12,7 +12,7 @@ $conn = sec_db();
 
 /* Studio o lingua (?course=N): per le lingue si scelgono i mazzi del corso
    e, in piu', il verso della partita. Vedi fc_type.php. */
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia((int)$current_user_id);
 $fc_vocab = fc_is_vocab();
 
@@ -105,7 +105,7 @@ function renderGameCatRow($node, $level = 0) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
 <title><?php te('fc.cg_titolo'); ?></title>
 <?php echo fc_boot_json(); ?>
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_game_setup.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_game_setup.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_game_setup.css?v=<?php echo @filemtime(__DIR__ . '/fc_game_setup.css') ?: 1; ?>">
 </head>
 <body>
 
@@ -114,7 +114,7 @@ function renderGameCatRow($node, $level = 0) {
     <div class="hdr-sub"><?php if ($fc_vocab): $fcC = fc_corso(); ?><img class="fcv-hdr-flag" src="<?php echo sec_h(fc_lingua_bandiera($fcC['learn_lang'])); ?>" alt=""> <?php echo sec_h(fc_lingua_nome($fcC['learn_lang'])); ?><?php else: te('fc.cg_scegli_come'); endif; ?></div>
 </div>
 
-<?php include 'sidebar.html'; ?>
+<?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
 <div class="page" id="pageContent">
 

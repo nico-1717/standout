@@ -30,7 +30,7 @@ if (!function_exists('pwa_head_html')) {
             /* iOS non legge il manifest per tutto: nome sotto l'icona, icona e
                barra di stato li vuole da questi meta, altrimenti mette una
                miniatura della pagina e il testo del <title>. */
-            . '<link rel="apple-touch-icon" href="' . $base . 'icons/apple-touch-icon-180.png">' . "\n"
+            . '<link rel="apple-touch-icon" href="' . $base . '_assets/icons/apple-touch-icon-180.png">' . "\n"
             /* apple-mobile-web-app-capable e' deprecato ma serve ancora ai Safari
                piu' vecchi; mobile-web-app-capable e' quello standard di oggi.
                Si tengono tutti e due finche' i vecchi iOS sono in giro. */
@@ -41,12 +41,12 @@ if (!function_exists('pwa_head_html')) {
 
             /* Serve solo alla fascetta "installa" su iOS: e' minuscolo, e
                tenerlo qui evita stili scritti dentro pwa.js. */
-            . '<link rel="stylesheet" href="' . $base . 'pwa.css">' . "\n"
+            . '<link rel="stylesheet" href="' . $base . '_assets/pwa.css">' . "\n"
 
             /* defer: la registrazione non deve rallentare il disegno della
                pagina. L'indirizzo di sw.js viaggia in un attributo invece che
                scritto dentro pwa.js, cosi' PWA_BASE resta l'unico posto da
                cambiare il giorno del trasloco. */
-            . '<script src="' . $base . 'pwa.js" data-sw="' . $base . 'sw.js" defer></script>' . "\n";
+            . '<script src="' . $base . '_assets/pwa.js" data-sw="' . $base . 'sw.js" defer></script>' . "\n";
     }
 }

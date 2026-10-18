@@ -20,9 +20,9 @@
      meteo_api.php?ajax=preview      (POST)  lat, lon → previsione per quel
                                              punto SENZA toccare le impostazioni
    ===================================================================== */
-require_once 'config.php';
-require_once 'security_core.php';
-require_once 'auth_check_api.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/../../lib/auth_check_api.php';
 
 $uid = (int)$utente_corrente['id'];
 date_default_timezone_set('Europe/Rome');

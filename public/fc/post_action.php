@@ -31,7 +31,7 @@
  *
  * COME SI USA
  *
- *     <?php require_once 'post_action.php'; nisama_azione_form(); ?>
+ *     <?php require_once __DIR__ . '/post_action.php'; nisama_azione_form(); ?>
  *
  *     <button type="button" onclick="nisamaAzione('fc_game.php', {action:'concludi', game_id:5})">
  *

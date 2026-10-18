@@ -1,10 +1,10 @@
 <?php
-require_once 'config.php';
-require_once 'security_core.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
-require_once 'auth_check.php';
-require_once 'pomodoro_stato.php';   // il tetto delle 10 ore, pomo_color() e pomo_leggi_stato()
+require_once __DIR__ . '/../../lib/auth_check.php';
+require_once __DIR__ . '/pomodoro_stato.php';   // il tetto delle 10 ore, pomo_color() e pomo_leggi_stato()
 $current_user_id = $utente_corrente['id'];
 
 /* La barra del pomodoro serve sulle ALTRE pagine: qui ci sarebbe il doppione
@@ -335,12 +335,12 @@ $jsState = $statoCorrente + [
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <title>Pomodoro</title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
+<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
 <!-- Il motore del pomodoro: stato, matematica del tempo e chiamate al server.
      Lo stesso file che usera' la barra sulle altre pagine, cosi' le due viste
      non possono divergere. -->
 <script src="pomodoro_core.js?v=<?php echo @filemtime(__DIR__ . '/pomodoro_core.js') ?: time(); ?>"></script>
-<link rel="stylesheet" href="/Vocabolary/pomodoro.css?v=<?php echo @filemtime(dirname(__FILE__) . '/pomodoro.css') ?: 1; ?>">
+<link rel="stylesheet" href="/Vocabolary/projects/pomodoro.css?v=<?php echo @filemtime(__DIR__ . '/pomodoro.css') ?: 1; ?>">
 <?php
 /* Le stringhe che servono al JavaScript di questa pagina. Solo i due gruppi
    che usa davvero: il dizionario intero sono migliaia di voci. */
@@ -361,7 +361,7 @@ echo nisama_i18n_json(['comune', 'pomodoro', 'todo']);
     </button>
 </div>
 
-<?php include 'sidebar.html'; ?>
+<?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
 <button type="button" class="display-switch" id="displaySwitchBtn" onclick="toggleDisplayStyle()" aria-label="<?php te('pomodoro.cambia_vista'); ?>">
     <svg id="displaySwitchIcon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12"/><path d="M6 22h12"/><path d="M6 2v3.3c0 .6.24 1.2.66 1.6L12 12l5.34-5.1c.42-.4.66-1 .66-1.6V2"/><path d="M18 22v-3.3c0-.6-.24-1.2-.66-1.6L12 12l-5.34 5.1c-.42.4-.66 1-.66 1.6V22"/></svg>
@@ -380,7 +380,7 @@ echo nisama_i18n_json(['comune', 'pomodoro', 'todo']);
             $ps_show_all_option = true; $ps_all_option_label = t('pomodoro.nessun_progetto'); $ps_allow_create = true;
             $ps_hidden_name = 'pomo_project_id';
             $ps_trigger_class = 'ps-trigger-pill';
-            include 'project_selector.php';
+            include __DIR__ . '/project_selector.php';
         ?>
     </div>
 
@@ -407,13 +407,13 @@ echo nisama_i18n_json(['comune', 'pomodoro', 'todo']);
     </div>
 
     <div class="glass-wrap is-hidden" id="glassWrap" onclick="onDisplayClick()">
-        <?php include 'clessidra.php'; ?>
+        <?php include __DIR__ . '/clessidra.php'; ?>
     </div>
 
     <?php /* La scena della pausa. Compare da sola quando il body prende la
              classe pausa-mode: non c'e' niente da accendere dal JavaScript,
              quindi non c'e' niente che possa restare acceso per sbaglio. */ ?>
-    <?php include 'pausa_scena.php'; ?>
+    <?php include __DIR__ . '/pausa_scena.php'; ?>
 
     <div class="overtime-chip" id="overtimeChip" style="display:none;" onclick="onExtendClick()">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -601,7 +601,7 @@ echo nisama_i18n_json(['comune', 'pomodoro', 'todo']);
 
 <?php
     $ph_id = 'pomo';
-    include 'pomodoro_storico.php';
+    include __DIR__ . '/pomodoro_storico.php';
 ?>
 
 <script>
@@ -1791,7 +1791,7 @@ function proponiArgomentoDiOggi(){
     // con un pomodoro già in corso il progetto è quello della sessione: non si tocca
     if (activeSessionId || projectId) return;
 
-    fetch('study_api.php', {
+    fetch('../planner/study_api.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'st_ajax=oggi'
@@ -1914,7 +1914,7 @@ function fmtDurataBreve(sec){
 
 })();
 </script>
-<?php include 'todo_widget.php'; ?>
+<?php include __DIR__ . '/../planner/todo_widget.php'; ?>
 <script>
 /* Attività del pomodoro: il post-it con il timer in alto e l'elenco di cosa
    fare. Le attività ereditano orario di inizio e progetto del pomodoro, quindi

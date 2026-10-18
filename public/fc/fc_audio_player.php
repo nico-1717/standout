@@ -80,7 +80,7 @@
    giusto rispetto a chiedere a ogni pagina di ricordarselo. */
 if (!defined('FP_CSS')) {
     define('FP_CSS', 1);
-    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc_audio_player.css?v=' . (@filemtime(dirname(__FILE__) . '/fc_audio_player.css') ?: 1) . '">' . "\n";
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc/fc_audio_player.css?v=' . (@filemtime(__DIR__ . '/fc_audio_player.css') ?: 1) . '">' . "\n";
 }
 ?>
 

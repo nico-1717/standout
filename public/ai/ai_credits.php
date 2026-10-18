@@ -46,9 +46,9 @@
  * stessa cosa.
  */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/security_core.php';
-require_once __DIR__ . '/piano_helpers.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/../../lib/piano_helpers.php';
 
 /* ============================================================
    1. IL PREZZO

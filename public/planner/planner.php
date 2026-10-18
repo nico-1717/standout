@@ -6,15 +6,15 @@
    quindi è sempre un prepared statement e ogni riga toccata viene
    prima verificata come appartenente all'utente.
    ===================================================================== */
-require_once 'config.php';
-require_once 'security_core.php';
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();   // resa disponibile anche ai file inclusi (project_selector.php)
 date_default_timezone_set('Europe/Rome');
 
-define('PL_PHRASES_FILE', __DIR__ . '/planner_phrases.json');
+define('PL_PHRASES_FILE', __DIR__ . '/../../lib/data/planner_phrases.json');
 define('PL_MAX_OCCURRENCES', 400);
 
 /* =====================================================================
@@ -2708,7 +2708,7 @@ $boot = [
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title><?php te('planner.titolo'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
+<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
 <link rel="stylesheet" href="planner.css?v=<?php echo @filemtime(__DIR__ . '/planner.css') ?: time(); ?>">
 </head>
 <body class="pl-body">
@@ -2991,7 +2991,7 @@ $ps_id = 'plev'; $ps_selected_id = 0; $ps_selected_name = '';
 $ps_placeholder = 'Nessun progetto'; $ps_title = 'Collega a un progetto';
 $ps_show_all_option = true; $ps_all_option_label = 'Nessun progetto'; $ps_allow_create = true;
 $ps_hidden_name = 'plev_project_id';
-include 'project_selector.php';
+include __DIR__ . '/../projects/project_selector.php';
 /* nel planner il progetto si sceglie dal popup dell'evento: il pulsante
    inline del selettore non deve comparire in fondo alla pagina */
 /* La regola sta in planner.css. Prima era un echo di un blocco di stile: anche
@@ -3002,7 +3002,7 @@ include 'project_selector.php';
 <?php
 /* Diario del giorno + foglio scritto a mano: componente condiviso con
    habits.php e con la pagina diario.php (stessi dati, stesse tabelle). */
-include 'diario_giorno.php';
+include __DIR__ . '/diario_giorno.php';
 ?>
 
 <?php
@@ -3011,7 +3011,7 @@ include 'diario_giorno.php';
 echo nisama_i18n_json(['comune', 'planner']);
 ?>
 <script>window.PL_BOOT = <?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
-<?php include 'sidebar.php'; ?>
+<?php include __DIR__ . '/../partials/sidebar.php'; ?>
 <script src="planner.js?v=<?php echo @filemtime(__DIR__ . '/planner.js') ?: time(); ?>"></script>
 </body>
 </html>

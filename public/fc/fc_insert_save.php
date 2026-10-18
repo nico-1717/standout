@@ -60,8 +60,8 @@
  *    anche a un figlio; finche' quella non e' stata eseguita quella tabella
  *    viene semplicemente saltata, senza che nulla si rompa.
  */
-require_once 'config.php';
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
@@ -72,7 +72,7 @@ header('Content-Type: application/json');
    traduzione, significato, un'immagine, l'esempio scritto al volo) nelle
    tabelle fc_vocab_*. Il percorso e' lo stesso; cambiano solo le colonne,
    e le decide fc_contenuto() qui sotto. */
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia($current_user_id, true);
 
 /* Token di sessione, origine riconosciuta e limite di frequenza. */
@@ -118,7 +118,7 @@ $mappa = [];
 
 /* Le cartelle di destinazione e i tipi ammessi. L'audio non e' un'immagine,
    quindi ha il suo elenco: sec_file() controlla il tipo vero, non l'estensione. */
-const FC_AUDIO_DIR = 'fc_audio/';
+const FC_AUDIO_DIR = NISAMA_DATA_DIR . 'fc_audio/';
 const FC_AUDIO_MIME = [
     'audio/mpeg' => 'mp3', 'audio/mp3' => 'mp3', 'audio/wav' => 'wav',
     'audio/x-wav' => 'wav', 'audio/webm' => 'webm', 'audio/ogg' => 'ogg',

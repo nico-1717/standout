@@ -10,9 +10,9 @@
    spostare un blocco qui lo sposta anche nel planner senza nessuna
    sincronizzazione da mantenere.
    ===================================================================== */
-require_once 'config.php';
-require_once 'security_core.php';
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();   // la vogliono sidebar.php e project_selector.php
@@ -25,8 +25,8 @@ date_default_timezone_set('Europe/Rome');
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title><?php te('todo.to_study'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>to_study.css?v=<?php echo @filemtime(__DIR__ . '/to_study.css') ?: 1; ?>">
+<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>planner/to_study.css?v=<?php echo @filemtime(__DIR__ . '/to_study.css') ?: 1; ?>">
 </head>
 <body>
 
@@ -149,7 +149,7 @@ date_default_timezone_set('Europe/Rome');
    piedi da sola. */
 echo nisama_i18n_json(['comune', 'todo', 'planner']);
 ?>
-<script src="<?php echo PWA_BASE; ?>to_study.js?v=<?php echo @filemtime(__DIR__ . '/to_study.js') ?: 1; ?>" defer></script>
+<script src="<?php echo PWA_BASE; ?>planner/to_study.js?v=<?php echo @filemtime(__DIR__ . '/to_study.js') ?: 1; ?>" defer></script>
 <script>
 /* Rete di sicurezza: se to_study.js non parte (non caricato sul server, un
    404, la pagina troncata da un errore piu' su) il calendario resta vuoto e
@@ -174,9 +174,9 @@ $ps_placeholder = t('todo.nessun_progetto'); $ps_title = t('todo.collega_progett
 $ps_show_all_option = true; $ps_all_option_label = t('todo.nessun_progetto'); $ps_allow_create = true;
 $ps_render_trigger = false;   // serve solo il popup: il pulsante lo apre il foglio
 $ps_hidden_name = 'study_project_id';
-include 'project_selector.php';
+include __DIR__ . '/../projects/project_selector.php';
 
-include 'sidebar.php';
+include __DIR__ . '/../partials/sidebar.php';
 ?>
 </body>
 </html>

@@ -3,7 +3,7 @@
    NISAMA — ATTIVITÀ (componente condiviso)
    Da includere una volta sola in fondo alla pagina:
 
-       include 'todo_widget.php';
+       include __DIR__ . '/todo_widget.php';
 
    Poi si monta dove serve:
 
@@ -19,14 +19,14 @@
    ===================================================================== */
 if (!defined('NISAMA_TODO_WIDGET')):
 define('NISAMA_TODO_WIDGET', true);
-if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core.php'; }
+if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/security_core.php'; }
 ?>
 <?php
 /* Il componente puo' comparire piu' volte nella stessa pagina (todo.php, i
    progetti, il pomodoro): il foglio si carica una volta sola. */
 if (!defined('TODO_WIDGET_CSS')) {
     define('TODO_WIDGET_CSS', 1);
-    echo '<link rel="stylesheet" href="' . PWA_BASE . 'todo_widget.css?v=' . (@filemtime(dirname(__FILE__) . '/todo_widget.css') ?: 1) . '">' . "\n";
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'planner/todo_widget.css?v=' . (@filemtime(__DIR__ . '/todo_widget.css') ?: 1) . '">' . "\n";
     echo nisama_i18n_json(['comune', 'todo']);
 }
 ?>
@@ -44,10 +44,10 @@ if (!defined('TODO_WIDGET_CSS')) {
        essersene dimenticato. */
     var TIPI = ['todo', 'buy', 'study', 'pills'];
     var TIPO_LAB = { todo: 'to do', buy: 'to buy', study: 'to study', pills: 'pastiglie' };
-    var IMG_DIR = 'uploads/tobuy/';
+    var IMG_DIR = '../uploads/tobuy/';
 
     function api(action, data, query) {
-        var url = 'todo_api.php?ajax=' + encodeURIComponent(action);
+        var url = '../planner/todo_api.php?ajax=' + encodeURIComponent(action);
         if (query) { for (var k in query) if (query.hasOwnProperty(k)) url += '&' + k + '=' + encodeURIComponent(query[k]); }
         var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.NISAMA_CSRF || CSRF } };
         if (data) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(data); }
@@ -56,7 +56,7 @@ if (!defined('TODO_WIDGET_CSS')) {
     /* L'immagine viaggia come multipart: un file dentro il JSON andrebbe
        codificato in base64, cioè un terzo di peso in più per niente. */
     function apiFile(action, form) {
-        return fetch('todo_api.php?ajax=' + encodeURIComponent(action), {
+        return fetch('../planner/todo_api.php?ajax=' + encodeURIComponent(action), {
             method: 'POST', credentials: 'same-origin',
             headers: { 'X-CSRF-Token': window.NISAMA_CSRF || CSRF },
             body: form

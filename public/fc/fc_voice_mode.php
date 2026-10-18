@@ -118,7 +118,7 @@
     </div>
 </div>
 
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_voice_mode.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_voice_mode.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_voice_mode.css?v=<?php echo @filemtime(__DIR__ . '/fc_voice_mode.css') ?: 1; ?>">
 
 <script>
 (function () {

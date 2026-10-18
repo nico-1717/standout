@@ -1,7 +1,7 @@
 <?php
-require_once 'config.php';
-require_once 'auth_check.php'; // 1. Protezione con login obbligatorio
-require_once 'piano_helpers.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php'; // 1. Protezione con login obbligatorio
+require_once __DIR__ . '/../../lib/piano_helpers.php';
 
 /* Oltre questa pausa non si sta piu' giocando: il tempo non viene contato, e
    riaprendo la partita si apre una sessione nuova invece di continuare quella
@@ -18,7 +18,7 @@ define('NISAMA_PAUSA_MAX', 300);   // 5 minuti
 $current_user_id = (int)$utente_corrente['id']; // 2. ID utente sicuro
 /* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
 $conn = sec_db();
-require_once 'fc_examples_box.php';
+require_once __DIR__ . '/fc_examples_box.php';
 
 /**
  * Vero se il campo (answer_desc, question_desc...) non contiene testo o
@@ -125,7 +125,7 @@ if (!$game_info || (int)$game_info['user_id'] !== $current_user_id) {
    (fc_verso_da_tipo / fc_gira_carta in fc_type.php): parola davanti e
    traduzione dietro, o il contrario. Il resto del gioco — posizioni,
    figli, voti, barra, coda offline — e' lo stesso per i due tipi. */
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia_da_gioco($game_info);
 $fc_vocab = fc_is_vocab();
 $fc_verso = $fc_vocab ? fc_verso_da_tipo((string)$game_info['type']) : 'w2t';
@@ -172,7 +172,7 @@ $parent_id = isset($game_info['parent_id']) ? intval($game_info['parent_id']) : 
 // 3. Forziamo l'uso dell'ID sicuro per il resto dello script
 $user_id = $current_user_id;
 
-require_once 'post_action.php';
+require_once __DIR__ . '/post_action.php';
 
 /* LE AZIONI CHE SCRIVONO ARRIVANO SOLO IN POST.
    Prima erano link (?action=grade, ?action=concludi, ?newsession=1) e su GET
@@ -1190,12 +1190,12 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
 
 
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_game.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_game.css') ?: 1; ?>">
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_examples_box.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_examples_box.css') ?: 1; ?>">
-<script src="<?php echo PWA_BASE; ?>fc_examples_modal.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_examples_modal.js') ?: 1; ?>"></script>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_game.css?v=<?php echo @filemtime(__DIR__ . '/fc_game.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_examples_box.css?v=<?php echo @filemtime(__DIR__ . '/fc_examples_box.css') ?: 1; ?>">
+<script src="<?php echo PWA_BASE; ?>fc/fc_examples_modal.js?v=<?php echo @filemtime(__DIR__ . '/fc_examples_modal.js') ?: 1; ?>"></script>
 
     <?php if ($fc_vocab): /* fc_parser vive solo nelle flashcard di studio */ ?>
-    <script src="<?php echo PWA_BASE; ?>fc_speak.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_speak.js') ?: 1; ?>"></script>
+    <script src="<?php echo PWA_BASE; ?>fc/fc_speak.js?v=<?php echo @filemtime(__DIR__ . '/fc_speak.js') ?: 1; ?>"></script>
     <?php else: ?>
     <script src="fc_parser.js"></script>
     <?php endif; ?>
@@ -1782,7 +1782,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                         <?php if (!empty($c['question_audio'])): ?>
 
-                            <audio id="player_q_<?php echo sec_h($index); ?>" src="fc_audio/<?php echo sec_h($c['question_audio']); ?>" controls onclick="event.stopPropagation();"></audio>
+                            <audio id="player_q_<?php echo sec_h($index); ?>" src="../fc_audio/<?php echo sec_h($c['question_audio']); ?>" controls onclick="event.stopPropagation();"></audio>
 
                         <?php endif; ?>
 
@@ -1820,7 +1820,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                             <?php if (!empty($c['answer_audio'])): ?>
 
-                                <audio id="player_a_<?php echo sec_h($index); ?>" src="fc_audio/<?php echo sec_h($c['answer_audio']); ?>" controls></audio>
+                                <audio id="player_a_<?php echo sec_h($index); ?>" src="../fc_audio/<?php echo sec_h($c['answer_audio']); ?>" controls></audio>
 
                             <?php endif; ?>
 
@@ -1928,7 +1928,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                             <?php if (!empty($c['answer_audio'])): ?>
 
-                                <audio id="player_a_<?php echo sec_h($index); ?>" src="fc_audio/<?php echo sec_h($c['answer_audio']); ?>" controls></audio>
+                                <audio id="player_a_<?php echo sec_h($index); ?>" src="../fc_audio/<?php echo sec_h($c['answer_audio']); ?>" controls></audio>
 
                             <?php endif; ?>
 
@@ -3605,7 +3605,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                     // Genera testo
                     startAiTimer(mode);
 
-                    let textResponse = await fetch('ai_generate_text.php', {
+                    let textResponse = await fetch('../ai/ai_generate_text.php', {
 
                         method: 'POST',
 
@@ -3715,7 +3715,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                 }
 
-                let response = await fetch('ai_tutor.php', {
+                let response = await fetch('../ai/ai_tutor.php', {
 
                     method: 'POST',
 
@@ -3897,7 +3897,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
             try {
 
-                let response = await fetch('ai_shatter.php', {
+                let response = await fetch('../ai/ai_shatter.php', {
 
                     method: 'POST',
 
@@ -6713,11 +6713,11 @@ function navigateTo (url, opts) {
 
     </script>
 
-    <?php include 'fc_audio_player.php'; ?>
+    <?php include __DIR__ . '/fc_audio_player.php'; ?>
 
-    <?php include 'fc_examples_modal.php'; ?>
+    <?php include __DIR__ . '/fc_examples_modal.php'; ?>
 
-    <?php include 'fc_voice_mode.php'; ?>
+    <?php include __DIR__ . '/fc_voice_mode.php'; ?>
 
 </body>
 

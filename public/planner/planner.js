@@ -658,11 +658,11 @@ function rand(a, b) { return a + Math.random() * (b - a); }
    planner.php, perché gli indirizzi delle maschere sono impostati qui via
    JavaScript. Quindi 'svg/' significa la cartella svg accanto a planner.php.
    Se un giorno sposti i disegni, cambia solo questa riga. */
-var AMBIENT_DIR = 'svg/';
+var AMBIENT_DIR = '../_assets/svg/';
 
 function fondale(nome, colore, classe) {
     var n = el('div', classe);
-    var u = 'url("' + AMBIENT_DIR + nome + '.svg")';
+    var u = 'url("' + AMBIENT_DIR + (nome.indexOf('albero-') === 0 ? 'trees/' : 'animals/') + nome + '.svg")';
     n.style.webkitMaskImage = u;
     n.style.maskImage = u;
     n.style.backgroundColor = colore;
@@ -2711,7 +2711,7 @@ function prioProgetto(data) {
     }
 
     var vai = el('a', 'pl-btn pl-btn-primary pl-prj-vai', T('planner.apri_il_progetto'));
-    vai.href = 'progetti.php?id=' + encodeURIComponent(data.project_id);
+    vai.href = '../projects/progetti.php?id=' + encodeURIComponent(data.project_id);
     body.appendChild(vai);
 
     sheet.appendChild(body);
@@ -7230,7 +7230,7 @@ function handleEventTap(e, node, ev) {
     if (kind === 'pomo') {
         /* il pomodoro legge "project_id": con il vecchio nome arrivava senza
            progetto selezionato */
-        window.location.href = 'pomodoro.php?project_id=' + encodeURIComponent(act.dataset.project);
+        window.location.href = '../projects/pomodoro.php?project_id=' + encodeURIComponent(act.dataset.project);
         return;
     }
     /* il blocco compatto di una routine apre l'elenco dei suoi passaggi, non
@@ -11640,8 +11640,8 @@ var PL_NOTIFY = (function () {
         var opz = {
             body: testo(ev, off),
             tag: 'pl-ev-' + ev.id,
-            icon: 'icon-192.png',
-            badge: 'icon-192.png',
+            icon: '../_assets/icons/icon-192.png',
+            badge: '../_assets/icons/icon-192.png',
             data: { date: ev.date, id: ev.id },
             requireInteraction: false
         };
@@ -11704,7 +11704,7 @@ var PL_NOTIFY = (function () {
         if (!('Notification' in window)) return;
         load();
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').then(function (reg) {
+            navigator.serviceWorker.register('../sw.js').then(function (reg) {
                 swReg = reg;
             }).catch(function () { /* senza service worker si ripiega sul resto */ });
         }

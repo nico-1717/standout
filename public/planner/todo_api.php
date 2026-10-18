@@ -25,9 +25,9 @@
    e tre gli elenchi: anche un acquisto o uno studio con una data devono
    comparire in agenda, altrimenti la data non servirebbe a niente.
    ===================================================================== */
-require_once 'config.php';
-require_once 'security_core.php';
-require_once 'auth_check_api.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/../../lib/auth_check_api.php';
 
 $uid = (int)$utente_corrente['id'];
 date_default_timezone_set('Europe/Rome');
@@ -45,7 +45,7 @@ const TD_TIPI = ['todo', 'buy', 'study'];
 
 /* Cartella delle immagini degli articoli. Sta fuori dal database perché un
    file grande dentro una riga rallenta ogni lettura dell'elenco. */
-function td_img_dir(): string { return __DIR__ . '/uploads/tobuy'; }
+function td_img_dir(): string { return NISAMA_DATA_DIR . 'uploads/tobuy'; }
 
 /* ---------------------------------------------------------------------
    Pulizia: le attività spuntate ieri non servono più.

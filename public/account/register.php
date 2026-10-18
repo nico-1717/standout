@@ -1,6 +1,6 @@
 <?php
-require_once 'config.php';
-require_once 'auth_core.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_core.php';
 header('Content-Type: application/json');
 sec_require_rate('register', sec_ip(), 2, 3600);
 

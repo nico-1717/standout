@@ -16,14 +16,14 @@
 
 /* Cambiare questo numero a ogni rilascio: al primo avvio la vecchia cache
    viene cancellata per intero, quindi non restano avanzi di versioni passate. */
-const VERSIONE = 'standout-v1';
+const VERSIONE = 'standout-v2';
 
 const OFFLINE = './offline.html';
 
 /* Il minimo indispensabile per avere qualcosa da mostrare senza rete. */
 const PRECARICATI = [
   OFFLINE,
-  './icons/icon-192.png'
+  './_assets/icons/icon-192.png'
 ];
 
 /* Estensioni considerate "statiche": sono le uniche che finiscono in cache. */

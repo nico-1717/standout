@@ -19,9 +19,9 @@
  * restera' solo a mostrare l'avanzamento.
  */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/security_core.php';
-require_once __DIR__ . '/auth_check_api.php'; // se manca il login risponde JSON, non reindirizza
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/../../lib/auth_check_api.php'; // se manca il login risponde JSON, non reindirizza
 require_once __DIR__ . '/ai_jobs.php';
 
 $uid = (int)($utente_corrente['id'] ?? 0);

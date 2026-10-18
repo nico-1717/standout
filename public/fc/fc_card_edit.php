@@ -1,7 +1,7 @@
 <?php
-    require_once 'config.php';
-    require_once 'auth_check.php';
-    require_once 'fc_examples_box.php'; // render_examples_section(), condivisa con fc_view.php
+    require_once __DIR__ . '/../../lib/config.php';
+    require_once __DIR__ . '/../../lib/auth_check.php';
+    require_once __DIR__ . '/fc_examples_box.php'; // render_examples_section(), condivisa con fc_view.php
     $current_user_id = (int)$utente_corrente['id'];
 
     /* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
@@ -10,7 +10,7 @@
     /* Studio o lingua: con ?course=N questo modulo e' quello di una parola,
        con campi semplici (parola, traduzione, significato, immagine) al posto
        dei due editor ricchi. Vedi fc_type.php. */
-    require_once 'fc_type.php';
+    require_once __DIR__ . '/../../lib/fc/fc_type.php';
     fc_avvia($current_user_id);
 
     /* PERCHE' QUESTA PAGINA SI PUO' TENERE IN MEMORIA PER CINQUE SECONDI
@@ -197,8 +197,8 @@ function mfc_parola_esempio(): string {
 
         $q_img = mfc_salva('qNew_image', FC_IMAGE_PATH_INSERT, false);
         $a_img = mfc_salva('aNew_image', FC_IMAGE_PATH_INSERT, false);
-        $q_aud = mfc_salva('audio_q', 'fc_audio', true);
-        $a_aud = mfc_salva('audio_a', 'fc_audio', true);
+        $q_aud = mfc_salva('audio_q', NISAMA_DATA_DIR . 'fc_audio', true);
+        $a_aud = mfc_salva('audio_a', NISAMA_DATA_DIR . 'fc_audio', true);
 
         if ($quest === '' && $answ === '' && $q_img === '' && $a_img === '' && $q_aud === '' && $a_aud === '') {
             echo json_encode(['success' => false, 'empty' => true, 'error' => t('fc.serve_qualcosa')]);
@@ -319,8 +319,8 @@ function mfc_parola_esempio(): string {
         if (isset($_POST['delete'])) {
             mfc_togli(FC_IMAGE_PATH_INSERT, $old['question_image'] ?? '');
             mfc_togli(FC_IMAGE_PATH_INSERT, $old['answer_image'] ?? '');
-            mfc_togli('fc_audio', $old['question_audio'] ?? '');
-            mfc_togli('fc_audio', $old['answer_audio'] ?? '');
+            mfc_togli(NISAMA_DATA_DIR . 'fc_audio', $old['question_audio'] ?? '');
+            mfc_togli(NISAMA_DATA_DIR . 'fc_audio', $old['answer_audio'] ?? '');
 
             if ($is_child) sec_q("DELETE FROM " . fc_t('subcards') . " WHERE id_child = ?", [$id]);
             else           sec_q("DELETE FROM " . fc_t('cards') . " WHERE id = ?", [$id]);
@@ -354,8 +354,8 @@ function mfc_parola_esempio(): string {
         foreach ([
             ['question_image', 'remove_q_img', 'qNew_image', FC_IMAGE_PATH_INSERT, false],
             ['answer_image',   'remove_a_img', 'aNew_image', FC_IMAGE_PATH_INSERT, false],
-            ['question_audio', 'remove_q_aud', 'audio_q',    'fc_audio',            true],
-            ['answer_audio',   'remove_a_aud', 'audio_a',    'fc_audio',            true],
+            ['question_audio', 'remove_q_aud', 'audio_q',    NISAMA_DATA_DIR . 'fc_audio', true],
+            ['answer_audio',   'remove_a_aud', 'audio_a',    NISAMA_DATA_DIR . 'fc_audio', true],
         ] as [$colonna, $rimuovi, $campoFile, $cartella, $audio]) {
             if (sec_bool($_POST[$rimuovi] ?? 0)) {
                 mfc_togli($cartella, $old[$colonna] ?? '');
@@ -468,12 +468,12 @@ function mfc_parola_esempio(): string {
          leggevo un file che il browser non stava eseguendo.
          Con la data del file nell'indirizzo, una modifica al file e' un
          indirizzo nuovo, e la cache non ha piu' niente da riusare. */ ?>
-<script src="<?php echo PWA_BASE; ?>nisama_fetch.js?v=<?php echo @filemtime(dirname(__FILE__) . '/nisama_fetch.js') ?: 1; ?>"></script>
+<script src="<?php echo PWA_BASE; ?>_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: 1; ?>"></script>
 <?php echo fc_boot_json(); ?>
 <?php if (fc_is_vocab()): /* le parole sono testo semplice: niente fc_parser, niente formule */ ?>
-<script src="<?php echo PWA_BASE; ?>fc_speak.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_speak.js') ?: 1; ?>"></script>
+<script src="<?php echo PWA_BASE; ?>fc/fc_speak.js?v=<?php echo @filemtime(__DIR__ . '/fc_speak.js') ?: 1; ?>"></script>
 <?php else: ?>
-<script src="<?php echo PWA_BASE; ?>fc_parser.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_parser.js') ?: 1; ?>"></script>
+<script src="<?php echo PWA_BASE; ?>fc/fc_parser.js?v=<?php echo @filemtime(__DIR__ . '/fc_parser.js') ?: 1; ?>"></script>
 <?php endif; ?>
 
 <?php /* La configurazione di MathJax non e' piu' qui: la scrive fc_parser.js,
@@ -494,10 +494,10 @@ function mfc_parola_esempio(): string {
     <?php if (!fc_is_vocab()): ?>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <?php endif; ?>
-    <script src="<?php echo PWA_BASE; ?>fc_audio_recorder.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_audio_recorder.js') ?: 1; ?>"></script>
-    <script src="<?php echo PWA_BASE; ?>fc_image_editor.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_image_editor.js') ?: 1; ?>"></script>
-    <script src="<?php echo PWA_BASE; ?>fc_examples_modal.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_examples_modal.js') ?: 1; ?>"></script>
-    <?php if (!fc_is_vocab()): ?><script src="<?php echo PWA_BASE; ?>fc_improve_card.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_improve_card.js') ?: 1; ?>"></script><?php endif; ?>
+    <script src="<?php echo PWA_BASE; ?>fc/fc_audio_recorder.js?v=<?php echo @filemtime(__DIR__ . '/fc_audio_recorder.js') ?: 1; ?>"></script>
+    <script src="<?php echo PWA_BASE; ?>fc/fc_image_editor.js?v=<?php echo @filemtime(__DIR__ . '/fc_image_editor.js') ?: 1; ?>"></script>
+    <script src="<?php echo PWA_BASE; ?>fc/fc_examples_modal.js?v=<?php echo @filemtime(__DIR__ . '/fc_examples_modal.js') ?: 1; ?>"></script>
+    <?php if (!fc_is_vocab()): ?><script src="<?php echo PWA_BASE; ?>fc/fc_improve_card.js?v=<?php echo @filemtime(__DIR__ . '/fc_improve_card.js') ?: 1; ?>"></script><?php endif; ?>
 
 <?php /* Il ?v= non e' un vezzo: questo foglio decide DOVE sta il cerchio
          dell'IA, e finche' l'indirizzo restava identico il browser continuava
@@ -506,17 +506,17 @@ function mfc_parola_esempio(): string {
          era sbagliata o solo non arrivata. Con la data del file nell'indirizzo,
          una modifica al foglio e' un indirizzo nuovo. Stesso schema gia' usato
          qui sotto per fc_card_edit.css. */ ?>
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_ai_fab.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_ai_fab.css') ?: 1; ?>">
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_autosave_bar.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_autosave_bar.css') ?: 1; ?>">
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_examples_box.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_examples_box.css') ?: 1; ?>">
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_improve_card.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_improve_card.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_ai_fab.css?v=<?php echo @filemtime(__DIR__ . '/fc_ai_fab.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_autosave_bar.css?v=<?php echo @filemtime(__DIR__ . '/fc_autosave_bar.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_examples_box.css?v=<?php echo @filemtime(__DIR__ . '/fc_examples_box.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_improve_card.css?v=<?php echo @filemtime(__DIR__ . '/fc_improve_card.css') ?: 1; ?>">
 <?php /* I riquadri immagine/audio non stanno piu' dentro il foglio di questa
          pagina: sono gli stessi che usa il modulo dell'esempio, e vivono in
          fc_media_box.css. Va caricato PRIMA di fc_card_edit.css, cosi'
          se un giorno questa pagina volesse ritoccarne uno puo' farlo da li'
          senza combattere con l'ordine. */ ?>
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_media_box.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_media_box.css') ?: 1; ?>">
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_card_edit.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_card_edit.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_media_box.css?v=<?php echo @filemtime(__DIR__ . '/fc_media_box.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_card_edit.css?v=<?php echo @filemtime(__DIR__ . '/fc_card_edit.css') ?: 1; ?>">
 </head>
 <body class="<?php echo fc_is_vocab() ? 'fc-vocab' : 'fc-study'; ?>">
 
@@ -533,8 +533,8 @@ function mfc_parola_esempio(): string {
     // ============================================================
     // Il blocco immagine (fc_img_box_modifica) vive in
     // fc_image_editor.php, condiviso con fc_insert_card.php.
-    require_once 'fc_image_editor.php';
-    require_once 'fc_improve_card.php';
+    require_once __DIR__ . '/fc_image_editor.php';
+    require_once __DIR__ . '/fc_improve_card.php';
 
     function fc_audio_block($p, $label, $audioFile) {
         ?>
@@ -712,7 +712,7 @@ function mfc_parola_esempio(): string {
                             <span><?php echo sec_h(mfc_parola_esempio()); ?></span>
                             <span class="fc-btn-esempio-conta" id="fcEsempiConta"><?php echo (!empty($ex_count) && (int)$ex_count > 0) ? '(' . (int)$ex_count . ')' : ''; ?></span>
                         </button>
-                        <?php $ns_instance = 'scheda'; include 'fc_autosave_bar.php'; unset($ns_instance); ?>
+                        <?php $ns_instance = 'scheda'; include __DIR__ . '/fc_autosave_bar.php'; unset($ns_instance); ?>
                     </div>
                     <button type="button" class="exm-icon-btn exm-close-inline" onclick="fcAnnullaModifica('<?php echo sec_h($cancel_url); ?>')" aria-label="<?php te('comune.chiudi'); ?>">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -796,7 +796,7 @@ function mfc_parola_esempio(): string {
                         $cs_placeholder = t('fc.ifc_scegli_cat');
                         
                         // Il file genererà automaticamente il bottone, l'input nascosto e il popup!
-                        include 'fc_deck_selector.php'; 
+                        include __DIR__ . '/fc_deck_selector.php'; 
                     ?>
                     <?php else: ?>
                         <div class="inherited-note"><?php te('fc.mfc_categoria_ereditata'); ?></div>
@@ -853,7 +853,7 @@ function mfc_parola_esempio(): string {
                     $ft_field = 'quest';
                     $ft_raw = $row['question_desc'] ?? '';
                     $ft_placeholder = t('fc.ifc_ph_domanda');
-                    include 'format_toolbar.php';
+                    include __DIR__ . '/../partials/format_toolbar.php';
                     ?>
 
                     <?php /* Se non c'e' ne' immagine ne' audio i due riquadri stanno su una
@@ -880,7 +880,7 @@ function mfc_parola_esempio(): string {
                     $ft_field = 'answ';
                     $ft_raw = $row['answer_desc'] ?? '';
                     $ft_placeholder = t('fc.ifc_ph_risposta');
-                    include 'format_toolbar.php';
+                    include __DIR__ . '/../partials/format_toolbar.php';
                     ?>
 
                     <?php /* Se non c'e' ne' immagine ne' audio i due riquadri stanno su una
@@ -1853,7 +1853,7 @@ function mfc_parola_esempio(): string {
     }
     </script>
 
-    <?php include 'fc_examples_modal.php'; ?>
+    <?php include __DIR__ . '/fc_examples_modal.php'; ?>
 
 <div class="fc-conf-overlay" id="fcConfermaUscita">
     <div class="fc-conf-panel">

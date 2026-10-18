@@ -18,7 +18,7 @@
  * salvataggio tutto suo, per dire): si include questo stesso file impostando
  * $ns_instance PRIMA dell'include, cosi' gli id non si scontrano con quelli
  * della barra principale.
- *   <?php $ns_instance = 'esempi'; include 'fc_autosave_bar.php'; unset($ns_instance); ?>
+ *   <?php $ns_instance = 'esempi'; include __DIR__ . '/fc_autosave_bar.php'; unset($ns_instance); ?>
  * Senza $ns_instance si ottengono gli id di sempre (nsSaveBar, nsSaveNow...),
  * quindi le quattro pagine che gia' lo includono non cambiano comportamento.
  * Lo script fc_autosave_bar.js si carica una volta sola qualunque sia il numero
@@ -52,5 +52,5 @@ $ns_suffix = (isset($ns_instance) && $ns_instance !== '')
     </div>
 </div>
 <?php if (!defined('NS_AUTOSAVE_JS_INCLUDED')): define('NS_AUTOSAVE_JS_INCLUDED', true); ?>
-<script src="<?php echo PWA_BASE; ?>fc_autosave_bar.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_autosave_bar.js') ?: 1; ?>"></script>
+<script src="<?php echo PWA_BASE; ?>fc/fc_autosave_bar.js?v=<?php echo @filemtime(__DIR__ . '/fc_autosave_bar.js') ?: 1; ?>"></script>
 <?php endif; ?>

@@ -8,9 +8,9 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-require_once 'config.php';
-require_once 'auth_check_api.php';
-require_once 'piano_helpers.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check_api.php';
+require_once __DIR__ . '/../../lib/piano_helpers.php';
 
 ob_start(); // Avvia il buffer per evitare crash con JSON su Altervista
 

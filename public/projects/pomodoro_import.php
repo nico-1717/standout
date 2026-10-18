@@ -9,7 +9,7 @@
    stesso file, esattamente come fa pomodoro_storico.php.
 
    Uso:
-     include 'pomodoro_import.php';   // renderizza il popup (vuoto)
+     include __DIR__ . '/pomodoro_import.php';   // renderizza il popup (vuoto)
      window.openPomodoroImport();     // apre in JS
      window.exportPomodoroFile();     // scarica l'export
 
@@ -29,10 +29,10 @@ $ie_files = get_included_files();
 $ie_direct = (!empty($ie_files) && realpath($ie_files[0]) === realpath(__FILE__));
 
 if (!isset($conn) || !$conn) {
-    require_once 'config.php';
+    require_once __DIR__ . '/../../lib/config.php';
     $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-    if ($ie_direct && isset($_GET['ie_ajax'])) { require_once 'auth_check_api.php'; }
-    else { require_once 'auth_check.php'; }
+    if ($ie_direct && isset($_GET['ie_ajax'])) { require_once __DIR__ . '/../../lib/auth_check_api.php'; }
+    else { require_once __DIR__ . '/../../lib/auth_check.php'; }
 }
 if (!isset($current_user_id)) {
     $current_user_id = isset($utente_corrente['id']) ? $utente_corrente['id'] : 0;
@@ -1301,7 +1301,7 @@ define('IE_RENDERED', true);
     $ps_render_trigger = false;
     $ps_hidden_name = 'ie_project_id';
     $ps_exclude_id = 0;
-    include 'project_selector.php';
+    include __DIR__ . '/project_selector.php';
 
     /* project_selector legge le sue variabili con isset(): se le lasciassimo
        sporche, il prossimo include se le ritroverebbe addosso. */

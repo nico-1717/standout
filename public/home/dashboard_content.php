@@ -1,9 +1,9 @@
 <?php
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/auth_core.php';
-require_once __DIR__ . '/piano_helpers.php';
-require_once __DIR__ . '/friends_core.php';   // sezione amici
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_core.php';
+require_once __DIR__ . '/../../lib/piano_helpers.php';
+require_once __DIR__ . '/../social/friends_core.php';   // sezione amici
 
 $nisama_utente = nisama_utente_corrente();
 if (!$nisama_utente) { return; } // index.php dovrebbe già garantirlo, ma per sicurezza usciamo comunque
@@ -27,7 +27,7 @@ $nisama_conn = sec_db();
    insieme, una sola fonte. Prima qui c'erano query proprie che, fra l'altro,
    contavano le carte di TUTTI gli utenti e leggevano la vecchia tabella
    "gameplays", che non esiste piu'. */
-require_once __DIR__ . '/fc_summary.php';
+require_once __DIR__ . '/../../lib/fc/fc_summary.php';
 
 $nd_streak = 0; $nd_accuracy = 0; $nd_mastery_pct = 0;
 $nd_settimana = [];
@@ -66,7 +66,7 @@ $nd_giorni_lbl = [t('dashboard.g_lun'), t('dashboard.g_mar'), t('dashboard.g_mer
 $nd_week_max = max(1, max($nd_settimana));
 ?>
 
-<?php include 'sidebar.html'; ?>
+<?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
 <div class="nisama-dash">
   <div class="nd-wrap">
@@ -164,22 +164,22 @@ $nd_week_max = max(1, max($nd_settimana));
     <?php endif; ?>
 
     <div class="nd-actions">
-      <a href="fc_stats.php" class="nd-action nd-pop" style="animation-delay:.2s">
+      <a href="fc/fc_stats.php" class="nd-action nd-pop" style="animation-delay:.2s">
         <span class="ic" style="background:linear-gradient(135deg,var(--blue),var(--teal));">📊</span>
         <h3><?php te('dashboard.le_tue_statistiche'); ?></h3>
         <p><?php te('dashboard.streak_obiettivo_giornaliero_traguardi_e'); ?></p>
       </a>
-      <a href="fc_insert.php" class="nd-action nd-pop" style="animation-delay:.25s">
+      <a href="fc/fc_insert.php" class="nd-action nd-pop" style="animation-delay:.25s">
         <span class="ic" style="background:linear-gradient(135deg,var(--purple),var(--pink));">✦</span>
         <h3><?php te('dashboard.crea_nuove_flashcard'); ?></h3>
         <p><?php te('dashboard.da_solo_o_con_il'); ?></p>
       </a>
-      <a href="fc_home.php" class="nd-action nd-pop" style="animation-delay:.3s">
+      <a href="fc/fc_home.php" class="nd-action nd-pop" style="animation-delay:.3s">
         <span class="ic" style="background:linear-gradient(135deg,var(--orange),var(--yellow));">🎮</span>
         <h3><?php te('dashboard.gioca_ripassa'); ?></h3>
         <p><?php te('dashboard.scegli_una_categoria_e_mettiti'); ?></p>
       </a>
-      <a href="friends.php" class="nd-action nd-pop" style="animation-delay:.35s">
+      <a href="social/friends.php" class="nd-action nd-pop" style="animation-delay:.35s">
         <span class="ic" style="background:linear-gradient(135deg,#FFB302,#FF3B7A 46%,#7B3FE4);">👥</span>
         <?php if ($nd_notifiche > 0): ?><span class="nd-dot"><?php echo (int)$nd_notifiche; ?></span><?php endif; ?>
         <h3><?php te('dashboard.amici_e_classifica'); ?></h3>
@@ -199,7 +199,7 @@ $nd_week_max = max(1, max($nd_settimana));
   </div>
 </div>
 
-<?php include __DIR__ . '/notifiche_widget.php'; ?>
+<?php include __DIR__ . '/../partials/notifiche_widget.php'; ?>
 
 <?php echo nisama_i18n_json(['comune', 'dashboard']); ?>
 <script>
@@ -249,7 +249,7 @@ $nd_week_max = max(1, max($nd_settimana));
       // Se il database è vuoto, lo scarichiamo dal file locale
       if (databaseCarte.length === 0) {
         elQ.textContent = T('comune.carica'); // Mostra caricamento solo la prima volta
-        const res = await fetch('trivia.json');
+        const res = await fetch('home/trivia.json');
         if (!res.ok) throw new Error('File JSON non trovato');
         databaseCarte = await res.json();
       }

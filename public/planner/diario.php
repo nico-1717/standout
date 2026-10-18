@@ -6,9 +6,9 @@
    dati del popup "diario del giorno" (habits e planner): dove scrivi non
    importa. Tutto passa da diary_api.php.
    ===================================================================== */
-require_once 'config.php';
-require_once 'security_core.php';
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
@@ -30,7 +30,7 @@ $boot = [
 <meta name="theme-color" content="#FDFCF9">
 <title><?php te('diario.titolo'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
+<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
 <?php echo nisama_i18n_json(['comune', 'diario']); ?>
 <link rel="stylesheet" href="diario.css?v=<?php echo @filemtime(__DIR__ . '/diario.css') ?: time(); ?>">
 </head>
@@ -157,10 +157,10 @@ $boot = [
 
 <?php
 /* il popup condiviso porta anche window.nisamaFace: le faccine a matita */
-include 'diario_giorno.php';
+include __DIR__ . '/diario_giorno.php';
 ?>
 <script>window.DY_BOOT = <?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
-<?php include 'sidebar.php'; ?>
+<?php include __DIR__ . '/../partials/sidebar.php'; ?>
 <script src="diario.js?v=<?php echo @filemtime(__DIR__ . '/diario.js') ?: time(); ?>"></script>
 </body>
 </html>

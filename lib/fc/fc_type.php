@@ -24,7 +24,7 @@
    SICUREZZA.md, punto 3.
 
    DA INCLUDERE dopo auth_check.php (servono le sec_*):
-       require_once 'fc_type.php';
+       require_once __DIR__ . '/fc_type.php';
        fc_avvia($current_user_id);          // pagine normali
        fc_avvia_da_gioco($riga_di_fc_games) // pagine di una partita
    ============================================================================ */
@@ -104,7 +104,7 @@ function fc_avvia(int $userId, bool $isApi = false): void {
     $corso = fc_leggi_corso($corsoId, $userId);
     if (!$corso) {
         if ($isApi) sec_die_json('Non trovato.', 404, 'not_found');
-        header('Location: fc_languages.php');
+        header('Location: ' . PWA_BASE . 'fc/fc_languages.php');
         exit;
     }
     $s = ['tipo' => 'vocab', 'corso' => $corso];
@@ -282,7 +282,7 @@ function fc_gira_carta(array $card, string $verso): array {
 
 /** Cartella delle immagini, come la vede il browser (relativa alla pagina). */
 function fc_cartella_immagini(): string {
-    return fc_is_vocab() ? 'Images/' : 'fc_Images/';
+    return PWA_BASE . (fc_is_vocab() ? 'Images/' : 'fc_Images/');
 }
 
 /** Cartella delle immagini sul disco, dove si salvano. */
@@ -427,7 +427,7 @@ function fc_lingua_nativo(string $codice): string {
 /** File della bandiera (svg/flags/xx.svg). */
 function fc_lingua_bandiera(string $codice): string {
     $v = fc_lingua_voce($codice);
-    return 'svg/flags/' . ($v ? $v[0] : 'xx') . '.svg';
+    return PWA_BASE . '_assets/svg/flags/' . ($v ? $v[0] : 'xx') . '.svg';
 }
 
 /** Voce per sintesi e riconoscimento vocale: 'en-GB', 'de-DE'... */

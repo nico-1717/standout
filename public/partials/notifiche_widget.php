@@ -2,12 +2,12 @@
 /* =========================================================================
    NISAMA · PALLINO NOTIFICHE (avatar in alto a destra)
    Uso:
-     <?php include 'notifiche_widget.php'; ?>              -> flottante, in alto a destra
+     <?php include __DIR__ . '/notifiche_widget.php'; ?>              -> flottante, in alto a destra
      <?php $fr_widget_inline = true; include '...'; ?>     -> nel punto esatto in cui lo includi
    Si porta dietro tutto: stile, pannello, chiamate al server. Zero dipendenze.
    ========================================================================= */
 
-require_once __DIR__ . '/friends_core.php';
+require_once __DIR__ . '/../social/friends_core.php';
 
 if (defined('FR_WIDGET_RENDERED')) { return; }   // mai due volte nella stessa pagina
 define('FR_WIDGET_RENDERED', 1);
@@ -211,7 +211,7 @@ button.nisama-fab--login:active{ transform:scale(.96); }
                         <div class="fnw-txt"><b><?php echo $n; ?></b> ha accettato la tua richiesta. Ora potete confrontarvi.</div>
                         <div class="fnw-when"><?php echo htmlspecialchars(fr_quando($it['quando']), ENT_QUOTES); ?></div>
                         <div class="fnw-acts">
-                            <a class="fnw-b fnw-b-go" href="friends.php?u=<?php echo $u; ?>">Vedi il confronto</a>
+                            <a class="fnw-b fnw-b-go" href="<?php echo PWA_BASE; ?>social/friends.php?u=<?php echo $u; ?>">Vedi il confronto</a>
                         </div>
                     <?php else: ?>
                         <div class="fnw-txt">Richiesta inviata a <b><?php echo $n; ?></b>. In attesa di risposta.</div>
@@ -226,16 +226,16 @@ button.nisama-fab--login:active{ transform:scale(.96); }
     </div>
 
     <div class="fnw-foot">
-        <a class="fnw-row" href="friends.php">
+        <a class="fnw-row" href="<?php echo PWA_BASE; ?>social/friends.php">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>Amici e classifica</span>
             <span class="fnw-pill" id="fnwPill" <?php echo $fw_n > 0 ? '' : 'hidden'; ?>><?php echo (int)$fw_n; ?></span>
         </a>
-        <a class="fnw-row" href="fc_stats.php">
+        <a class="fnw-row" href="<?php echo PWA_BASE; ?>fc/fc_stats.php">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
             <span>Le tue statistiche</span>
         </a>
-        <a class="fnw-row fnw-danger" href="logout.php">
+        <a class="fnw-row fnw-danger" href="<?php echo PWA_BASE; ?>account/logout.php">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
             <span>Logout</span>
         </a>
@@ -309,7 +309,7 @@ button.nisama-fab--login:active{ transform:scale(.96); }
 
     function api(azione, dati) {
         var body = new URLSearchParams(Object.assign({ azione: azione }, dati || {}));
-        return fetch('friends_api.php', {
+        return fetch('<?php echo PWA_BASE; ?>social/friends_api.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Nisama': '1' },
             body: body,

@@ -2,16 +2,16 @@
 
 
 
-require_once 'config.php';
+require_once __DIR__ . '/../../lib/config.php';
 
-require_once 'auth_check.php'; // 1. Protezione della pagina con login obbligatorio
+require_once __DIR__ . '/../../lib/auth_check.php'; // 1. Protezione della pagina con login obbligatorio
 
 
 
 $current_user_id = (int)$utente_corrente['id']; // 2. ID Utente sicuro dal server
 /* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
 $conn = sec_db();
-if (!isset($_GET['game_id'])) { header('Location: index.php'); exit; }
+if (!isset($_GET['game_id'])) { header('Location: ../index.php'); exit; }
 $game_id = sec_int($_GET['game_id'] ?? 0, 1);
 
 
@@ -55,7 +55,7 @@ if ((int)$game['user_id'] !== $current_user_id) { die(sec_h(t('fc.res_non_propri
 /* Studio o lingua: lo dice la partita. Per le lingue le carte si rileggono
    girate come erano in gioco (il verso e' nel tipo della partita), cosi' il
    riepilogo mostra davanti quello che si e' visto davanti. */
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia_da_gioco($game);
 $fc_vocab = fc_is_vocab();
 $fc_verso = $fc_vocab ? fc_verso_da_tipo((string)$game['type']) : 'w2t';
@@ -402,7 +402,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_result.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_result.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_result.css?v=<?php echo @filemtime(__DIR__ . '/fc_result.css') ?: 1; ?>">
 
 
 
@@ -429,7 +429,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-    <?php include 'sidebar.php'; ?>
+    <?php include __DIR__ . '/../partials/sidebar.php'; ?>
 
 
 

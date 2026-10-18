@@ -4,7 +4,7 @@
    Usata da: friends.php, friends_api.php, notifiche_widget.php
    ========================================================================= */
 
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/../../lib/config.php';
 
 /* -------------------------------------------------------------------------
    CONFIGURAZIONE (le uniche 3 righe che potresti dover toccare)
@@ -16,7 +16,7 @@ require_once __DIR__ . '/config.php';
 const FR_POMO_OK = "ps.end_time IS NOT NULL AND ps.duration_seconds IS NOT NULL AND ps.duration_seconds > 0";
 
 /* La tua pagina di logout. */
-const FR_LOGOUT_URL = 'logout.php';
+const FR_LOGOUT_URL = PWA_BASE . 'account/logout.php';
 
 /* Se in index.php hai GIÀ un pallino/avatar con dentro il logout, scrivi qui il
    suo selettore CSS (es. '#userMenu' oppure '.avatar-btn'): il widget lo nasconde

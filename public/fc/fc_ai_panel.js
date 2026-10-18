@@ -613,7 +613,7 @@ var FCAIP = (function () {
         if (!box) return;
 
         var finito = window.NS ? NS.scheletro(box, { righe: 7 }) : function () {};
-        var url = 'credits.php?riquadro=1' + (mese ? '&mese=' + encodeURIComponent(mese) : '');
+        var url = '../ai/credits.php?riquadro=1' + (mese ? '&mese=' + encodeURIComponent(mese) : '');
         var mio = creditiInCorso = {};
         try {
             var r = await fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } });

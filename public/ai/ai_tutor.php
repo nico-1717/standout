@@ -8,9 +8,9 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-require_once 'config.php';
-require_once 'auth_check_api.php';
-require_once 'piano_helpers.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check_api.php';
+require_once __DIR__ . '/../../lib/piano_helpers.php';
 
 ob_start();
 
@@ -79,11 +79,13 @@ if (!mb_check_encoding($clean_text_for_audio, 'UTF-8')) {
 // Senza l'impronta, cambiando un'impostazione che modifica il testo letto
 // (es. "Leggi LaTeX" da Sì a No, o la lingua), si sarebbe continuato a
 // riascoltare il vecchio MP3 in cache, generato da un testo diverso.
-if (!is_dir('ai_audio')) { @mkdir('ai_audio', 0755, true); }
+if (!is_dir(NISAMA_DATA_DIR . 'ai_audio')) { @mkdir(NISAMA_DATA_DIR . 'ai_audio', 0755, true); }
 $text_hash = substr(md5($clean_text_for_audio), 0, 10);
 $audio_filename = "ai_audio/" . $mode . "_" . $card_id . "_" . $voice_name . "_" . $text_hash . ".mp3";
 
-if (!file_exists($audio_filename)) {
+$audio_path = NISAMA_DATA_DIR . $audio_filename; // sul disco; $audio_filename resta l'indirizzo
+
+if (!file_exists($audio_path)) {
     // Il controllo del limite ha senso SOLO qui: se il file è già in cache non
     // chiamiamo Google e non consumiamo nulla, quindi non c'è motivo di bloccare
     // l'utente che sta solo riascoltando un audio già generato. Contiamo inoltre
@@ -151,7 +153,7 @@ if (!file_exists($audio_filename)) {
         }
     }
 
-    $file_saved = file_put_contents($audio_filename, $audio_binary);
+    $file_saved = file_put_contents($audio_path, $audio_binary);
     if ($file_saved === false) {
         ob_clean();
         die(json_encode(['success' => false, 'error' => 'Impossibile creare il file MP3.']));
@@ -165,6 +167,6 @@ ob_clean();
 echo json_encode([
     'success' => true,
     'text' => $final_text,
-    'audio_url' => $audio_filename
+    'audio_url' => '../' . $audio_filename
 ]);
 exit;

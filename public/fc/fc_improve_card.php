@@ -34,7 +34,7 @@ function fc_migliora_carta_blocco() {
         <?php /* Il pulsante non sta piu' nel flusso della pagina: e' un cerchio
                  in sovraimpressione (fc_ai_fab.php), uguale in tutti i popup
                  che offrono l'IA. Il riquadro qui sotto resta dov'e'. */
-           require_once 'fc_ai_fab.php';
+           require_once __DIR__ . '/fc_ai_fab.php';
            fc_ai_fab('fcMiglioraFab', 'fcMigliora.apri()'); ?>
 
         <div class="fcm-overlay" id="fcMiglioraOverlay" hidden>

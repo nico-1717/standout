@@ -21,12 +21,12 @@
    (AES-256-GCM). Se cambi quella chiave, gli utenti devono ricollegare
    l'account: è il comportamento giusto, non un errore.
    ===================================================================== */
-require_once 'config.php';
-require_once 'security_core.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
 /* Le chiamate del planner vogliono JSON anche quando la sessione è scaduta;
    il collegamento con Google invece è una navigazione normale. */
-if (isset($_GET['ajax'])) { require_once 'auth_check_api.php'; }
-else                      { require_once 'auth_check.php'; }
+if (isset($_GET['ajax'])) { require_once __DIR__ . '/../../lib/auth_check_api.php'; }
+else                      { require_once __DIR__ . '/../../lib/auth_check.php'; }
 
 $uid = (int)$utente_corrente['id'];
 date_default_timezone_set('Europe/Rome');

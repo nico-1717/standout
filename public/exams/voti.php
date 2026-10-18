@@ -5,11 +5,11 @@
    Tutta la matematica "viva" (simulatore, grafici, proiezione) è lato client;
    il PHP fa da router AJAX per la persistenza e da bootstrap dei dati.
    ============================================================================ */
-require_once 'config.php';
+require_once __DIR__ . '/../../lib/config.php';
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
 mysqli_set_charset($conn, 'utf8mb4');
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 $current_user_id = (int)$utente_corrente['id'];
 
 /* -------------------------------------------------------------------------- */
@@ -531,7 +531,7 @@ $UNI_HAS_DATA = count($UNI_EXAMS) > 0;
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Voti</title>
-<link rel="stylesheet" href="/Vocabolary/voti.css?v=<?php echo @filemtime(dirname(__FILE__) . '/voti.css') ?: 1; ?>">
+<link rel="stylesheet" href="/Vocabolary/exams/voti.css?v=<?php echo @filemtime(__DIR__ . '/voti.css') ?: 1; ?>">
 <?php
 /* Le stringhe che servono al JavaScript di questa pagina. */
 echo nisama_i18n_json(['comune', 'voti']);
@@ -549,7 +549,7 @@ echo nisama_i18n_json(['comune', 'voti']);
     </button>
 </header>
 
-<?php include 'sidebar.html'; ?>
+<?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
 <main class="page">
 
@@ -1632,7 +1632,7 @@ function renderCosto(){
   var box=$('costoBody'); if(!box) return;
   if(COSTO){ disegnaCosto(box, COSTO); return; }
   box.innerHTML='<div class="empty" style="padding:24px 10px"><p style="margin:0">'+T('voti.caricamento')+'</p></div>';
-  fetch('study_api.php',{ method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+  fetch('../planner/study_api.php',{ method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
     body:'st_ajax=esami_fatti' })
     .then(function(r){ return r.json(); })
     .then(function(d){ if(!d||!d.ok) throw 0; COSTO=d; disegnaCosto(box, d); })

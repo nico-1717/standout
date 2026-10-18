@@ -214,7 +214,7 @@ function nisama_dizionario(string $lingua): array
     static $caricati = [];
     if (isset($caricati[$lingua])) return $caricati[$lingua];
 
-    $percorso = dirname(__FILE__) . '/lang/' . $lingua . '.json';
+    $percorso = __DIR__ . '/../lang/' . $lingua . '.json';
     if (!is_readable($percorso)) return $caricati[$lingua] = [];
 
     $dati = json_decode(file_get_contents($percorso), true);
@@ -357,7 +357,7 @@ JS;
         /* Senza defer, e va messo nel <head>: i blocchi <script> delle pagine
            non sono differiti e girano mentre la pagina si costruisce, quindi
            T() deve gia' esistere quando li incontra. */
-        . '<script src="' . (defined('PWA_BASE') ? PWA_BASE : '/') . 'i18n.js"></script>' . "\n";
+        . '<script src="' . (defined('PWA_BASE') ? PWA_BASE : '/') . '_assets/js/i18n.js"></script>' . "\n";
 }
 
 

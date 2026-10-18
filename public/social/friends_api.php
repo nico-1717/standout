@@ -5,8 +5,8 @@
    il client non può mai imporre chi è, né leggere i dati di un non-amico.
    ========================================================================= */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/auth_check.php';      // stessa protezione di stats_fc.php
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php';      // stessa protezione di stats_fc.php
 require_once __DIR__ . '/friends_core.php';
 
 header('Content-Type: application/json; charset=utf-8');

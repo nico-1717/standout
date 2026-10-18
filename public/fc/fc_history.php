@@ -24,8 +24,8 @@
  * I ripassi (partite con parent_id) non sono righe a se': stanno dentro la
  * partita da cui discendono, anche quando sono ripassi di un ripasso.
  */
-require_once 'config.php';
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 
 $current_user_id = (int)$utente_corrente['id'];
 /* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
@@ -34,7 +34,7 @@ $conn = sec_db();
 /* Studio o lingua (?course=N): lo storico mostra solo le partite di quel
    tipo e di quel corso (fc_sql_partite), e le statistiche per categoria
    solo i mazzi di quel corso. Vedi fc_type.php. */
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia($current_user_id);
 
 define('SFC_PAGINA', 25);
@@ -642,10 +642,10 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <title><?php te('fc.sfc_titolo_pagina'); ?></title>
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_history.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_history.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_history.css?v=<?php echo @filemtime(__DIR__ . '/fc_history.css') ?: 1; ?>">
 </head>
 <body>
-<?php include 'sidebar.php'; ?>
+<?php include __DIR__ . '/../partials/sidebar.php'; ?>
 
 <div class="sfc">
 
@@ -769,7 +769,7 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
                 $cs_show_all_option = true;
                 $cs_all_option_label = T('fc.cs_tutte_materie');
                 $cs_allow_create = false;
-                include 'fc_deck_selector.php';
+                include __DIR__ . '/fc_deck_selector.php';
             ?>
         </div>
 

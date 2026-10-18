@@ -11,12 +11,12 @@
    pagine che contano le stesse cose devono contarle nello stesso modo.
    ============================================================================ */
 
-require_once 'config.php';
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
-require_once 'fc_type.php';
-require_once 'fc_summary.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_summary.php';
 
 /* L'obiettivo giornaliero si cambia da qui, toccando l'anello. */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'goal') {
@@ -57,8 +57,8 @@ $circ = 2 * M_PI * 46;   // circonferenza dell'anello (r = 46)
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <title><?php te('fchub.home_titolo'); ?></title>
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_hub.css?v=<?php echo @filemtime(__DIR__ . '/fc_hub.css') ?: 1; ?>">
-<script src="<?php echo PWA_BASE; ?>nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: 1; ?>"></script>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_hub.css?v=<?php echo @filemtime(__DIR__ . '/fc_hub.css') ?: 1; ?>">
+<script src="<?php echo PWA_BASE; ?>_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: 1; ?>"></script>
 <?php echo nisama_i18n_json(['comune', 'fchub']); ?>
 </head>
 <body class="hub-body">
@@ -75,7 +75,7 @@ $circ = 2 * M_PI * 46;   // circonferenza dell'anello (r = 46)
     </div>
 </header>
 
-<?php include 'sidebar.html'; ?>
+<?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
 <main class="page">
 

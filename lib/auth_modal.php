@@ -149,7 +149,7 @@ button.nisama-fab--login:active{ transform:scale(.96); }
 
 <div id="nisama-auth-root">
   <?php if ($nisama_utente_fab):
-          include __DIR__ . '/notifiche_widget.php';
+          include __DIR__ . '/../public/partials/notifiche_widget.php';
         else: ?>
     <button class="nisama-fab nisama-fab--login" id="nisamaFabLogin" type="button">Accedi</button>
 
@@ -356,7 +356,7 @@ button.nisama-fab--login:active{ transform:scale(.96); }
     formLogin.addEventListener('submit', (e) => {
       e.preventDefault();
       const fd = new FormData(formLogin);
-      invia(formLogin, 'login.php', {
+      invia(formLogin, 'account/login.php', {
         identifier: fd.get('identifier'), password: fd.get('password'), csrf_token: NISAMA_CSRF
       }, document.getElementById('loginError'));
     });
@@ -368,7 +368,7 @@ button.nisama-fab--login:active{ transform:scale(.96); }
         mostraErrore(document.getElementById('registerError'), 'Le due password non coincidono.');
         return;
       }
-      invia(formRegister, 'register.php', {
+      invia(formRegister, 'account/register.php', {
         username: fd.get('username'), email: fd.get('email'),
         password: fd.get('password'), password_confirm: fd.get('password_confirm'), csrf_token: NISAMA_CSRF
       }, document.getElementById('registerError'));

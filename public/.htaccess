@@ -45,20 +45,3 @@ AddType application/manifest+json .webmanifest
     </FilesMatch>
 
 </IfModule>
-
-# --- Flashcard: old addresses -> new pages (append to /Vocabolary/.htaccess) ---
-# The query string (?category_id=..., ?game_id=...) is kept automatically.
-RedirectMatch 301 ^/Vocabolary/categories_fc\.php$          /Vocabolary/fc_decks.php
-RedirectMatch 301 ^/Vocabolary/categories_game_fc\.php$     /Vocabolary/fc_game_setup.php
-RedirectMatch 301 ^/Vocabolary/visualizzazione_fc\.php$     /Vocabolary/fc_view.php
-RedirectMatch 301 ^/Vocabolary/game_fc\.php$                /Vocabolary/fc_game.php
-RedirectMatch 301 ^/Vocabolary/result_fc\.php$              /Vocabolary/fc_result.php
-RedirectMatch 301 ^/Vocabolary/history_fc\.php$             /Vocabolary/fc_history.php
-RedirectMatch 301 ^/Vocabolary/stats_fc\.php$               /Vocabolary/fc_stats.php
-RedirectMatch 301 ^/Vocabolary/inserimento_big_fc\.php$     /Vocabolary/fc_insert.php
-RedirectMatch 301 ^/Vocabolary/inserimento_fc\.php$         /Vocabolary/fc_insert_card.php
-RedirectMatch 301 ^/Vocabolary/modifica_immagine_fc\.php$   /Vocabolary/fc_card_edit.php
-RedirectMatch 301 ^/Vocabolary/crediti\.php$                /Vocabolary/credits.php
-RedirectMatch 301 ^/Vocabolary/admin_ia\.php$               /Vocabolary/admin_ai.php
-# old vocabulary pages: everything now starts from the languages page
-RedirectMatch 301 ^/Vocabolary/(categories|visualizzazione|inserimento|inserimento_big|big_edit|modifica_immagine|history_flashcards|categories_game)\.php$ /Vocabolary/fc_languages.php

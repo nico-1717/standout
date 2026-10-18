@@ -11,8 +11,8 @@
  * pagine e potrebbe essere nei preferiti di qualcuno: rimanda, conservando
  * la categoria se c'era.
  */
-require_once 'config.php';
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 
 $cat = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
 /* Il corso (flashcard di lingua) viaggia con il resto: senza, la parola

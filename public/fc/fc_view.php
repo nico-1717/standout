@@ -1,15 +1,15 @@
 <?php
 
-require_once 'config.php';
-require_once 'auth_check.php';
-require_once 'fc_examples_box.php'; // render_examples_section(), condivisa con fc_card_edit.php
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
+require_once __DIR__ . '/fc_examples_box.php'; // render_examples_section(), condivisa con fc_card_edit.php
 $current_user_id = (int)$utente_corrente['id'];
 /* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
 $conn = sec_db();
 
 /* Studio o lingua: con ?course=N questa pagina mostra le parole di un corso
    di lingua, con le stesse funzioni. Vedi fc_type.php. */
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia((int)$current_user_id);
 
 /* Una carta copiata da una tabella all'altra (unisci, separa): i valori nello
@@ -1666,7 +1666,7 @@ function render_qa_side($label, $text, $image, $audio, $lato = '', array $extra 
 
         <?php endif; ?>
 
-        <?php if ($hasAudio): render_audio_player('fc_audio/' . sec_h($audio)); endif; ?>
+        <?php if ($hasAudio): render_audio_player('../fc_audio/' . sec_h($audio)); endif; ?>
 
         <?php if (!empty($extra['meaning']) && trim((string)$extra['meaning']) !== ''): ?>
         <div class="qa-meaning"><span class="qa-meaning-lab"><?php te('fcv.significato'); ?></span> <?= nl2br(sec_h(trim((string)$extra['meaning']))) ?></div>
@@ -2105,7 +2105,7 @@ if (isset($_GET['fc_feed_page'])) {
          la copia che ha in cache anche dopo che il file e' cambiato: e'
          esattamente cosi' che il pulsante dell'IA e' rimasto morto per giorni,
          con il file giusto sul disco e uno vecchio in esecuzione. */ ?>
-<script src="nisama_fetch.js?v=<?php echo @filemtime(dirname(__FILE__) . '/nisama_fetch.js') ?: 1; ?>"></script>
+<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: 1; ?>"></script>
 
 <?php echo nisama_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
 <?php echo fc_boot_json(); ?>
@@ -2113,7 +2113,7 @@ if (isset($_GET['fc_feed_page'])) {
          parole sono testo semplice, e caricare MathJax e fc_parser per niente
          vorrebbe dire rallentare ogni pagina di lingua. */ ?>
 <?php if (fc_is_vocab()): ?>
-<script src="<?php echo PWA_BASE; ?>fc_speak.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_speak.js') ?: 1; ?>"></script>
+<script src="<?php echo PWA_BASE; ?>fc/fc_speak.js?v=<?php echo @filemtime(__DIR__ . '/fc_speak.js') ?: 1; ?>"></script>
 <?php else: ?>
 <script>
 
@@ -2149,16 +2149,16 @@ if (isset($_GET['fc_feed_page'])) {
 
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
-<script src="fc_parser.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_parser.js') ?: 1; ?>"></script>
+<script src="fc_parser.js?v=<?php echo @filemtime(__DIR__ . '/fc_parser.js') ?: 1; ?>"></script>
 <?php endif; ?>
-<script src="fc_examples_modal.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_examples_modal.js') ?: 1; ?>"></script>
-<script src="<?php echo PWA_BASE; ?>fc_edit_popup.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_edit_popup.js') ?: 1; ?>"></script>
+<script src="fc_examples_modal.js?v=<?php echo @filemtime(__DIR__ . '/fc_examples_modal.js') ?: 1; ?>"></script>
+<script src="<?php echo PWA_BASE; ?>fc/fc_edit_popup.js?v=<?php echo @filemtime(__DIR__ . '/fc_edit_popup.js') ?: 1; ?>"></script>
 
 
 
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_edit_popup.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_edit_popup.css') ?: 1; ?>">
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_examples_box.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_examples_box.css') ?: 1; ?>">
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_view.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_view.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_edit_popup.css?v=<?php echo @filemtime(__DIR__ . '/fc_edit_popup.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_examples_box.css?v=<?php echo @filemtime(__DIR__ . '/fc_examples_box.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_view.css?v=<?php echo @filemtime(__DIR__ . '/fc_view.css') ?: 1; ?>">
 
 </head>
 
@@ -2462,7 +2462,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
 
 
-<?php include 'sidebar.html'; ?>
+<?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
 
 
@@ -2672,7 +2672,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
        $cs_hidden_name = 'cs_move_target';
        $cs_render_trigger = false;
        $cs_allow_create = true;
-       include 'fc_deck_selector.php';
+       include __DIR__ . '/fc_deck_selector.php';
        unset($cs_id, $cs_selected_id, $cs_selected_name, $cs_title,
              $cs_placeholder, $cs_hidden_name, $cs_render_trigger, $cs_allow_create); ?>
 
@@ -2700,7 +2700,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
        $cs_allow_create = false;
        $cs_show_all_option = true;
        $cs_all_option_label = t('fc.cs_nessuna_padre');
-       include 'fc_deck_selector.php';
+       include __DIR__ . '/fc_deck_selector.php';
        unset($cs_id, $cs_selected_id, $cs_selected_name, $cs_title,
              $cs_placeholder, $cs_hidden_name, $cs_render_trigger, $cs_allow_create,
              $cs_show_all_option, $cs_all_option_label);
@@ -2877,7 +2877,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
         <div class="prj-body" id="prjBody"></div>
         <div class="sheet-actions">
             <button type="button" class="sheet-btn" onclick="closeSheet('projectSheet')"><?php te('comune.chiudi'); ?></button>
-            <a class="sheet-btn primary prj-go" id="prjGo" href="progetti.php"><?php te('fc.vis_prj_apri'); ?></a>
+            <a class="sheet-btn primary prj-go" id="prjGo" href="../projects/progetti.php"><?php te('fc.vis_prj_apri'); ?></a>
         </div>
     </div>
 </div>
@@ -4931,7 +4931,7 @@ function fcApriProgetto(id){
 
     var body = document.getElementById('prjBody');
 
-    document.getElementById('prjGo').href = 'progetti.php?id=' + encodeURIComponent(id);
+    document.getElementById('prjGo').href = '../projects/progetti.php?id=' + encodeURIComponent(id);
 
     body.innerHTML = '<div class="prj-loading">' + fcEscapeHtml(T('fc.vis_prj_caricamento')) + '</div>';
 
@@ -5055,7 +5055,7 @@ function fcRiepilogoHtml(d){
 
         h += '<div class="prj-block"><div class="prj-block-lab">' + esc(T('fc.vis_prj_prossimo')) + '</div>';
 
-        h += '<a class="prj-event" href="planner.php?date=' + esc(d.evento.date) + '">'
+        h += '<a class="prj-event" href="../planner/planner.php?date=' + esc(d.evento.date) + '">'
 
            + '<span class="prj-event-day">' + esc(fcFormattaData(d.evento.date)) + (d.evento.time ? ' · ' + esc(d.evento.time) : '') + '</span>'
 
@@ -5075,7 +5075,7 @@ function fcRiepilogoHtml(d){
 
         d.figli_el.forEach(function(c){
 
-            h += '<a class="prj-child' + (c.done ? ' done' : '') + '" href="progetti.php?id=' + encodeURIComponent(c.id) + '"'
+            h += '<a class="prj-child' + (c.done ? ' done' : '') + '" href="../projects/progetti.php?id=' + encodeURIComponent(c.id) + '"'
 
                + ' style="--prj:' + esc(c.color) + ';"><span class="prj-child-dot"></span>' + esc(c.name) + '</a>';
 
@@ -8400,7 +8400,7 @@ else { initPage(); }
     $ps_placeholder = 'Seleziona progetto'; $ps_title = 'Collega a un progetto';
     $ps_show_all_option = false; $ps_allow_create = true; $ps_render_trigger = false;
     $ps_hidden_name = 'fc_link_project_id'; $ps_exclude_id = 0;
-    include 'project_selector.php';
+    include __DIR__ . '/../projects/project_selector.php';
 ?>
 
 </body>

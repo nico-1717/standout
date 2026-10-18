@@ -79,7 +79,7 @@ function fc_img_box_modifica($p, $label, $imgAttuale) {
             <?php /* Dentro questo blocco l'immagine c'e' per costruzione: il
                      ramo "nessuna immagine" non serve piu', perche' senza
                      immagine il riquadro non viene proprio disegnato. */ ?>
-            <img src="<?php echo sec_h((function_exists('fc_cartella_immagini') ? fc_cartella_immagini() : 'fc_Images/') . $imgAttuale); ?>" id="<?php echo sec_h($p); ?>_current_img">
+            <img src="<?php echo sec_h((function_exists('fc_cartella_immagini') ? fc_cartella_immagini() : '../fc_Images/') . $imgAttuale); ?>" id="<?php echo sec_h($p); ?>_current_img">
             <?php /* "Rimuovi" dentro il riquadro dell'immagine che rimuove:
                      prima era una riga a parte sotto ENTRAMBI i riquadri,
                      staccata da quello a cui si riferiva — bastava vederla

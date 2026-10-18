@@ -33,10 +33,10 @@
  * nella query stessa (AND user_id = ?).
  */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/security_core.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/ai_credits.php';
-require_once __DIR__ . '/fc_ai_lib.php';
+require_once __DIR__ . '/../../lib/fc/fc_ai_lib.php';
 
 /* ============================================================
    TARATURA

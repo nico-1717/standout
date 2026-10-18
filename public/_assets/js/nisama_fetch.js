@@ -17,6 +17,13 @@
 (function () {
     'use strict';
 
+    /* Cartella pubblica del sito, ricavata dall'indirizzo di questo file
+       (_assets/js/nisama_fetch.js): vale uguale da qualunque pagina. */
+    var BASE = (function () {
+        try { var s = document.currentScript; return s && s.src ? new URL('../../', s.src).pathname : '/'; }
+        catch (e) { return '/'; }
+    })();
+
     var meta = document.querySelector('meta[name="csrf-token"]');
     var TOKEN = meta ? meta.getAttribute('content') : (window.NISAMA_CSRF || '');
     if (!TOKEN) return;
@@ -46,7 +53,7 @@
     var refreshing = null;
     function refreshToken() {
         if (refreshing) return refreshing;
-        refreshing = nativeFetchRef('csrf_token.php', { credentials: 'same-origin' })
+        refreshing = nativeFetchRef(BASE + 'api/csrf_token.php', { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 if (d && d.ok && d.token) { TOKEN = d.token; window.NISAMA_CSRF = TOKEN; stampAll(); }

@@ -33,10 +33,10 @@
    per conto suo non deve poterlo svuotare. */
 $__raw_input = file_get_contents('php://input');
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/security_core.php';
-require_once __DIR__ . '/auth_check_api.php';
-require_once __DIR__ . '/fc_ai_lib.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/../../lib/auth_check_api.php';
+require_once __DIR__ . '/../../lib/fc/fc_ai_lib.php';
 
 $uid = (int)($utente_corrente['id'] ?? 0);
 if ($uid <= 0) sec_die_json('Sessione non valida.', 401, 'auth');

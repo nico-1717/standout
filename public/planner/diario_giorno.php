@@ -3,7 +3,7 @@
    NISAMA — DIARIO DEL GIORNO (popup condiviso)
    Da includere una volta sola, in fondo alla pagina:
 
-       include 'diario_giorno.php';
+       include __DIR__ . '/diario_giorno.php';
 
    Poi si apre da qualunque punto con:
 
@@ -20,7 +20,7 @@
    ===================================================================== */
 if (!defined('NISAMA_DIARY_POPUP')):
 define('NISAMA_DIARY_POPUP', true);
-if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/security_core.php'; }
+if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/security_core.php'; }
 ?>
 <div class="dg-ov" id="dgOv" data-skin="planner" aria-hidden="true">
     <div class="dg-sheet" role="dialog" aria-label="Diario del giorno">

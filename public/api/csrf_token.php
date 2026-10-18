@@ -11,8 +11,8 @@
    nisama_fetch.js chiama questo indirizzo, prende il token buono e
    rimanda la richiesta da sé, senza che l'utente si accorga di niente.
    ===================================================================== */
-require_once 'config.php';
-require_once 'security_core.php';
-require_once 'auth_check_api.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/../../lib/auth_check_api.php';
 
 sec_json(['ok' => true, 'token' => sec_csrf_token()]);

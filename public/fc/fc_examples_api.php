@@ -19,15 +19,15 @@
  * Resta l'ob_start() dell'originale: serve a impedire che un avviso di PHP
  * stampato prima del JSON lo renda illeggibile al browser.
  */
-require_once 'config.php';
-require_once 'auth_check_api.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check_api.php';
 
 ob_start();
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
 /* Studio o lingua: il corso arriva nell'indirizzo (?course=N), come per le pagine. */
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia($current_user_id, true);
 
 function ex_api_json_out(array $payload): void {
@@ -138,8 +138,8 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ex_api_json_out(['success' => false, 'error' => t('fc.non_autorizzato_scheda')]);
     }
 
-    $img = ex_salva('image', 'fc_images', false);
-    $aud = ex_salva('audio', 'fc_audio', true);
+    $img = ex_salva('image', NISAMA_DATA_DIR . 'fc_images', false);
+    $aud = ex_salva('audio', NISAMA_DATA_DIR . 'fc_audio', true);
 
     /* TOGLIERE L'IMMAGINE, NON SOLO SOSTITUIRLA
        ex_salva() torna null quando non e' stato caricato niente, e null vuol

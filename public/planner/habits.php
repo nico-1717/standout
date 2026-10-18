@@ -4,12 +4,12 @@
    Stessa impostazione di progetti.php: config -> connessione -> auth_check,
    endpoint JSON sotto ?ajax=..., HTML/CSS/JS mobile first.
    ===================================================================== */
-require_once 'config.php';
-require_once 'security_core.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
 /* sec_db() riusa la connessione gia' aperta e la configura (utf8mb4, errori
    come eccezioni) invece di aprirne una seconda. */
 $conn = sec_db();
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 $current_user_id = (int)$utente_corrente['id'];
 
 if (function_exists('date_default_timezone_set')) { date_default_timezone_set('Europe/Rome'); }
@@ -18,7 +18,7 @@ if (function_exists('date_default_timezone_set')) { date_default_timezone_set('E
    Costanti e piccole utility
    --------------------------------------------------------------------- */
 define('HB_HISTORY_DAYS', 420);   // quanti giorni di log mandiamo al client (heatmap annuale + margine)
-define('HB_PRESETS_FILE', __DIR__ . '/habits_presets.json');
+define('HB_PRESETS_FILE', __DIR__ . '/../../lib/data/habits_presets.json');
 
 function hb_json($payload) {
     header('Content-Type: application/json; charset=utf-8');
@@ -848,7 +848,7 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
 <meta name="theme-color" content="#000000">
 <title><?php te('abitudini.titolo'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
+<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
 <link rel="stylesheet" href="habits.css?v=<?php echo @filemtime(__DIR__ . '/habits.css') ?: time(); ?>">
 </head>
 <body class="hb-body" style="--accent:<?php echo sec_h($accent); ?>;">
@@ -877,7 +877,7 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
     <div class="hb-daystrip" id="hbDayStrip"></div>
 </header>
 
-<?php if (is_readable(__DIR__ . '/sidebar.html')) { include 'sidebar.html'; } ?>
+<?php if (is_readable(__DIR__ . '/../partials/sidebar.html')) { include __DIR__ . '/../partials/sidebar.html'; } ?>
 
 <main class="hb-page">
     <!-- carosello statistiche: scorre da solo e si aggiorna in tempo reale -->
@@ -1072,7 +1072,7 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
 /* Popup di import/export: si apre dal tasto "Importa"/"Esporta" nelle
    Impostazioni (vedi renderSettings() in habits.js). Va incluso qui, dopo
    tutti i pannelli della pagina, cosi' l'overlay sta sopra a tutto. */
-include 'habits_import.php';
+include __DIR__ . '/habits_import.php';
 ?>
 
 <?php
@@ -1085,7 +1085,7 @@ echo nisama_i18n_json(['comune', 'abitudini', 'import']);
 <?php
 /* Diario del giorno: componente condiviso con planner.php e diario.php,
    con in più gli elenchi "cose belle" e "cosa ho imparato". */
-include 'diario_giorno.php';
+include __DIR__ . '/diario_giorno.php';
 ?>
 <script src="habits.js?v=<?php echo @filemtime(__DIR__ . '/habits.js') ?: time(); ?>"></script>
 </body>

@@ -26,10 +26,10 @@
  * si passa da ~180.000 caratteri inviati a ~25.000.
  */
 
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/security_core.php';
-require_once __DIR__ . '/auth_check_api.php'; // versione API: se manca il login risponde JSON, non reindirizza
-require_once __DIR__ . '/fc_ai_lib.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/../../lib/auth_check_api.php'; // versione API: se manca il login risponde JSON, non reindirizza
+require_once __DIR__ . '/../../lib/fc/fc_ai_lib.php';
 
 $fc_ai_user_id = (int)($utente_corrente['id'] ?? 0);
 if ($fc_ai_user_id <= 0) sec_die_json('Sessione non valida.', 401, 'auth');

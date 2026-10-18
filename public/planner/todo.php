@@ -4,9 +4,9 @@
    Lo stesso componente che compare dentro i progetti e nel pomodoro,
    qui a tutta pagina e con la modalità seleziona attiva.
    ===================================================================== */
-require_once 'config.php';
-require_once 'security_core.php';
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
@@ -27,10 +27,10 @@ $tab = sec_enum(sec_in('tab'), ['todo', 'buy', 'study', 'pills'], '');
 <meta name="theme-color" content="#FDFCF9">
 <title><?php te('todo.titolo'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
+<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap">
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>todo.css?v=<?php echo @filemtime(dirname(__FILE__) . '/todo.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>planner/todo.css?v=<?php echo @filemtime(__DIR__ . '/todo.css') ?: 1; ?>">
 </head>
 <body class="tp-body">
 
@@ -56,15 +56,15 @@ $ps_id = 'todo'; $ps_selected_id = 0; $ps_selected_name = '';
 $ps_placeholder = t('todo.nessun_progetto'); $ps_title = t('todo.collega_progetto');
 $ps_show_all_option = true; $ps_all_option_label = t('todo.nessun_progetto'); $ps_allow_create = false;
 $ps_hidden_name = 'todo_project_id';
-include 'project_selector.php';
+include __DIR__ . '/../projects/project_selector.php';
 /* del selettore ci serve solo il popup: il pulsante inline qui non ha senso,
    il progetto si sceglie dalla riga dell'attività */
 /* la regola sta in todo.css: uno <style> stampato da PHP e' comunque uno stile
    inline, quindi bloccherebbe la CSP esattamente come gli altri */
 
-include 'todo_widget.php';
+include __DIR__ . '/todo_widget.php';
 ?>
-<?php include 'sidebar.php'; ?>
+<?php include __DIR__ . '/../partials/sidebar.php'; ?>
 <?php echo nisama_i18n_json(['comune', 'todo']); ?>
 <script>
 nisamaTodo.mount(document.getElementById('tpList'), {

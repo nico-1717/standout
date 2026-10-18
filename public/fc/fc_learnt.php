@@ -14,8 +14,8 @@
  *
  * 3. Nessuna verifica che la scheda fosse sua, e query per concatenazione.
  */
-require_once 'config.php';
-require_once 'auth_check_api.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check_api.php';
 
 header('Content-Type: application/json');
 
@@ -28,7 +28,7 @@ sec_guard_write($current_user_id, 'fc_learnt', 0, 300, 60);
 /* Studio o lingua lo dice l'indirizzo (?course=N), come in ogni pagina delle
    flashcard. Il vecchio parametro "type" (en/fc) non serve piu': le due
    strade sono diventate la stessa, su tabelle diverse. */
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia($current_user_id, true);
 
 $id     = sec_int($_POST['id'] ?? 0, 1);

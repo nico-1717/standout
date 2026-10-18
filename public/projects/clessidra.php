@@ -3,7 +3,7 @@
    clessidra.php — clessidra "bella" (fisica sabbia + capovolgimento), a parte
    rispetto a pomodoro.php per non appesantirlo.
 
-   Uso: <?php include 'clessidra.php'; ?>  dentro al contenitore che gestisce
+   Uso: <?php include __DIR__ . '/clessidra.php'; ?>  dentro al contenitore che gestisce
    già mostra/nascondi (in pomodoro.php questo è <div id="glassWrap">).
 
    Espone window.Clessidra con 5 metodi, pensati per essere pilotati dal

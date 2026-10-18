@@ -4,8 +4,8 @@
    Profilo, confronto con gli amici, duello 1 contro 1, classifica globale.
    ========================================================================= */
 
-require_once 'config.php';
-require_once 'auth_check.php';                 // stessa protezione di stats_fc.php
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php';                 // stessa protezione di stats_fc.php
 require_once __DIR__ . '/friends_core.php';
 
 $dati_u = fr_utente_corrente();
@@ -442,14 +442,14 @@ a{ color:inherit; text-decoration:none; }
 
 <div class="hdr">
     <div class="hdr-row">
-        <a class="hdr-back" href="index.php" aria-label="Torna alla home">
+        <a class="hdr-back" href="../index.php" aria-label="Torna alla home">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </a>
         <div class="hdr-title">Amici</div>
         <?php if ($quantiFocus > 0): ?>
             <span class="hdr-live"><i></i><?php echo $quantiFocus; ?> in focus</span>
         <?php endif; ?>
-        <?php include __DIR__ . '/notifiche_widget.php'; ?>
+        <?php include __DIR__ . '/../partials/notifiche_widget.php'; ?>
     </div>
     <div class="tabs" id="tabs" data-t="<?php echo htmlspecialchars($tabIniziale, ENT_QUOTES); ?>">
         <button type="button" data-tab="io">Io</button>
@@ -550,7 +550,7 @@ a{ color:inherit; text-decoration:none; }
         <h2 class="t-sec">Categorie delle ultime 24 ore</h2>
         <p class="t-sub">Quanto ci hai messo e quanto ci hai preso.</p>
         <?php if (empty($ioStats['categorie'])): ?>
-            <div class="vuoto">Nessuna categoria giocata nelle ultime 24 ore.<br><a href="history_fc.php" style="color:var(--blue); font-weight:800;">Fai una partita →</a></div>
+            <div class="vuoto">Nessuna categoria giocata nelle ultime 24 ore.<br><a href="../fc/fc_history.php" style="color:var(--blue); font-weight:800;">Fai una partita →</a></div>
         <?php else: $maxC = max(1, $ioStats['categorie'][0]['sec']); foreach ($ioStats['categorie'] as $cat): ?>
             <div class="cat">
                 <span class="cat-dot" style="background:<?php echo htmlspecialchars($cat['colore'], ENT_QUOTES); ?>"></span>
@@ -743,7 +743,7 @@ a{ color:inherit; text-decoration:none; }
 
 <div id="toast"></div>
 
-<?php include 'sidebar.html'; ?>
+<?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
 <script>
 (function () {

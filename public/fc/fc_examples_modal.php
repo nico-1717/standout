@@ -9,18 +9,18 @@ $exmVocab = function_exists('fc_is_vocab') && fc_is_vocab();
    giusto rispetto a chiedere a ogni pagina di ricordarselo. */
 if (!defined('EXM_CSS')) {
     define('EXM_CSS', 1);
-    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc_examples_modal.css?v=' . (@filemtime(dirname(__FILE__) . '/fc_examples_modal.css') ?: 1) . '">' . "\n";
-    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc_ai_fab.css?v='
-       . (@filemtime(dirname(__FILE__) . '/fc_ai_fab.css') ?: 1) . '">' . "\n";
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc/fc_examples_modal.css?v=' . (@filemtime(__DIR__ . '/fc_examples_modal.css') ?: 1) . '">' . "\n";
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc/fc_ai_fab.css?v='
+       . (@filemtime(__DIR__ . '/fc_ai_fab.css') ?: 1) . '">' . "\n";
     /* I riquadri immagine/audio sono gli stessi del modulo della carta: le
        loro regole vivono in fc_media_box.css, non piu' dentro il foglio di
        una pagina sola. Serve anche qui perche' questo pannello finisce in
        fc_view.php, che fc_card_edit.css non lo carica. */
-    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc_media_box.css?v=' . (@filemtime(dirname(__FILE__) . '/fc_media_box.css') ?: 1) . '">' . "\n";
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc/fc_media_box.css?v=' . (@filemtime(__DIR__ . '/fc_media_box.css') ?: 1) . '">' . "\n";
 }
 if (!defined('NS_AUTOSAVE_CSS_INCLUDED')) {
     define('NS_AUTOSAVE_CSS_INCLUDED', true);
-    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc_autosave_bar.css?v=' . (@filemtime(dirname(__FILE__) . '/fc_autosave_bar.css') ?: 1) . '">' . "\n";
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc/fc_autosave_bar.css?v=' . (@filemtime(__DIR__ . '/fc_autosave_bar.css') ?: 1) . '">' . "\n";
 }
 
 /* Il livello condiviso (movimento, attesa, tendine). Stessa costante del
@@ -31,10 +31,10 @@ if (!defined('NS_AUTOSAVE_CSS_INCLUDED')) {
    l'aggancio della tendina qui sotto gira proprio li'. */
 if (!defined('NISAMA_UI')) {
     define('NISAMA_UI', 1);
-    echo '<link rel="stylesheet" href="' . PWA_BASE . 'nisama_ui.css?v='
-       . (@filemtime(dirname(__FILE__) . '/nisama_ui.css') ?: 1) . '">' . "\n";
-    echo '<script src="' . PWA_BASE . 'nisama_ui.js?v='
-       . (@filemtime(dirname(__FILE__) . '/nisama_ui.js') ?: 1) . '"></script>' . "\n";
+    echo '<link rel="stylesheet" href="' . PWA_BASE . '_assets/ui/nisama_ui.css?v='
+       . (@filemtime(__DIR__ . '/../_assets/ui/nisama_ui.css') ?: 1) . '">' . "\n";
+    echo '<script src="' . PWA_BASE . '_assets/ui/nisama_ui.js?v='
+       . (@filemtime(__DIR__ . '/../_assets/ui/nisama_ui.js') ?: 1) . '"></script>' . "\n";
 }
 ?>
 <script>
@@ -49,7 +49,7 @@ if (typeof window.fcExApi !== 'function') {
 }
 if (<?php echo $exmVocab ? 'false' : 'true'; ?> && !document.querySelector('script[src*="fc_parser.js"]')) {
     var __exmParserScript = document.createElement('script');
-    __exmParserScript.src = '<?php echo PWA_BASE; ?>fc_parser.js';
+    __exmParserScript.src = '<?php echo PWA_BASE; ?>fc/fc_parser.js';
     document.head.appendChild(__exmParserScript);
 }
 /* Stesso schema per il motore audio: fc_card_edit.php e
@@ -58,7 +58,7 @@ if (<?php echo $exmVocab ? 'false' : 'true'; ?> && !document.querySelector('scri
    include il pannello esempi senza averlo gia'. */
 if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
     var __exmAudioScript = document.createElement('script');
-    __exmAudioScript.src = '<?php echo PWA_BASE; ?>fc_audio_recorder.js';
+    __exmAudioScript.src = '<?php echo PWA_BASE; ?>fc/fc_audio_recorder.js';
     document.head.appendChild(__exmAudioScript);
 }
 </script>
@@ -106,7 +106,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m2 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7"/></svg>
                 </button>
 
-                <?php $ns_instance = 'esempi'; include 'fc_autosave_bar.php'; unset($ns_instance); ?>
+                <?php $ns_instance = 'esempi'; include __DIR__ . '/fc_autosave_bar.php'; unset($ns_instance); ?>
 
             </div>
 
@@ -134,7 +134,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
                 $ft_placeholder = T('fc.exm_ph_testo');
 
-                include 'format_toolbar.php';
+                include __DIR__ . '/../partials/format_toolbar.php';
 
             ?>
             <?php endif; ?>
@@ -258,7 +258,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
                      (fc_ai_fab.php): l'IA si chiede allo stesso modo ovunque, e
                      la pastiglia piccola qui dentro era l'ultima superstite del
                      disegno precedente. */
-                   require_once 'fc_ai_fab.php';
+                   require_once __DIR__ . '/fc_ai_fab.php';
                    fc_ai_fab('ex-ai-fab', 'toggleAiBox(true)'); ?>
 
             <?php /* Popup vero, non piu' un riquadro che si espande in pagina: lo
@@ -278,7 +278,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
                              con cui il server le valida (fc_ai_stile_valori): qui solo
                              quelle che contano per un esempio. Tutto parte da
                              "Automatico" e impegno "Equilibrato". */
-                          require_once __DIR__ . '/fc_ai_style.php';
+                          require_once __DIR__ . '/../../lib/fc/fc_ai_style.php';
                           $exm_valori = fc_ai_stile_valori(); ?>
                     <div class="exm-ai-lbl"><?php te('fc.ibfai_impegno_sep'); ?></div>
                     <?php /* La stessa tendina del pannello delle carte, dalla stessa
@@ -622,7 +622,7 @@ function exDisegnaElenco(fc_id, fc_type, esempi) {
         html += `<div class="exm-example-card">
                 <div class="exm-example-label">${T('fc.exm_esempio_n', {n: i + 1})}</div>
                 ${exTestoSiVede(ex.example_text) ? `<div class="raw-text exm-example-text">${(window.FC && FC.tipo === 'vocab' && typeof fcEsempioTestoLingua === 'function') ? fcEsempioTestoLingua(ex.example_text, ex._parola) : (typeof parseTextForPreview === 'function' ? parseTextForPreview(ex.example_text) : fcEscapeHtml(ex.example_text))}</div>` : ''}
-                ${ex.example_audio ? `<audio src="fc_audio/${ex.example_audio}" controls class="exm-example-audio"></audio>` : ''}
+                ${ex.example_audio ? `<audio src="../fc_audio/${ex.example_audio}" controls class="exm-example-audio"></audio>` : ''}
                 ${ex.example_image ? `<img src="fc_images/${ex.example_image}" class="exm-example-image">` : ''}
                 <button type="button" class="exm-example-edit-btn" onclick="openExampleForm(${fc_id}, '${fc_type}', ${ex.id})">${T('fc.exm_modifica')}</button>
             </div>`;
@@ -950,7 +950,7 @@ window.generateAiExample = async function () {
     try {
 
         exmSalvaStile();
-        let res = await fetch('ai_example.php', {
+        let res = await fetch('../ai/ai_example.php', {
 
             /* Il token va sempre, esplicito: ai_example.php ora lo controlla
                (prima no), e questo popup vive anche in pagine dove non e' detto

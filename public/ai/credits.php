@@ -25,14 +25,14 @@
        lavoro in corso.
    Cambia anche il controllo del login: da una fetch un reindirizzo alla home
    finirebbe DENTRO il popup, e si vedrebbe la home dentro un riquadro. */
-require_once 'config.php';
+require_once __DIR__ . '/../../lib/config.php';
 $cred_riquadro = isset($_GET['riquadro']);
-if ($cred_riquadro) require_once 'auth_check_api.php';   // risponde JSON, non reindirizza
-else                require_once 'auth_check.php';
-require_once 'security_core.php';
-require_once 'piano_helpers.php';
-require_once 'ai_credits.php';
-require_once 'fc_ai_style.php';         // per rileggere la firma dello stile
+if ($cred_riquadro) require_once __DIR__ . '/../../lib/auth_check_api.php';   // risponde JSON, non reindirizza
+else                require_once __DIR__ . '/../../lib/auth_check.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/../../lib/piano_helpers.php';
+require_once __DIR__ . '/ai_credits.php';
+require_once __DIR__ . '/../../lib/fc/fc_ai_style.php';         // per rileggere la firma dello stile
 
 $uid = (int)$utente_corrente['id'];
 
@@ -153,12 +153,12 @@ if ($cred_riquadro) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title><?php echo sec_h($titolo); ?></title>
-    <link rel="stylesheet" href="<?php echo PWA_BASE; ?>credits.css?v=<?php echo @filemtime(dirname(__FILE__) . '/credits.css') ?: 1; ?>">
+    <link rel="stylesheet" href="<?php echo PWA_BASE; ?>ai/credits.css?v=<?php echo @filemtime(__DIR__ . '/credits.css') ?: 1; ?>">
 </head>
 <body class="cred-pagina">
 
 <header class="app-header">
-    <a class="hdr-back" href="index.php" aria-label="<?php echo sec_h(t('fc.cred_indietro')); ?>">
+    <a class="hdr-back" href="../index.php" aria-label="<?php echo sec_h(t('fc.cred_indietro')); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>
     </a>
     <div class="hdr-text"><h1><?php echo sec_h($titolo); ?></h1></div>

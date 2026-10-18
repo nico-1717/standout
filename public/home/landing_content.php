@@ -662,11 +662,11 @@
    Ospitandoli si evita di allargare la policy e si toglie una dipendenza da un
    sito di terzi che potrebbe cambiare o sparire. */
 ?>
-<script src="<?php echo PWA_BASE; ?>vendor/gsap.min.js"></script>
+<script src="<?php echo PWA_BASE; ?>_assets/vendor/gsap.min.js"></script>
 
 
 
-<script src="<?php echo PWA_BASE; ?>vendor/ScrollTrigger.min.js"></script>
+<script src="<?php echo PWA_BASE; ?>_assets/vendor/ScrollTrigger.min.js"></script>
 
 
 

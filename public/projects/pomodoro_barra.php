@@ -50,7 +50,7 @@ function pomo_barra_html(): array
         || !empty($_GET['fc_popup'])
         || defined('NISAMA_SENZA_BARRA_POMODORO')) return $vuoto;
 
-    $file = dirname(__FILE__) . '/pomodoro_stato.php';
+    $file = __DIR__ . '/pomodoro_stato.php';
     if (!is_readable($file)) return $vuoto;
     require_once $file;
 
@@ -72,7 +72,7 @@ function pomo_barra_html(): array
     $base = defined('PWA_BASE') ? PWA_BASE : '/';
     $ver  = static function (string $nome) use ($base): string {
         $p = dirname(__FILE__) . '/' . $nome;
-        return $base . $nome . '?v=' . (@filemtime($p) ?: 1);
+        return $base . 'projects/' . $nome . '?v=' . (@filemtime($p) ?: 1);
     };
 
     /* Le stringhe viaggiano nei dati e non passano da nisama_i18n_json:
@@ -89,21 +89,21 @@ function pomo_barra_html(): array
 
     $dati = [
         'stato'     => $stato,
-        'endpoint'  => $base . 'pomodoro.php',
+        'endpoint'  => $base . 'projects/pomodoro.php',
         /* Dove si va toccando il quadrante del popup. E' lo stesso indirizzo
            dell'endpoint, ma scritto a parte: se un domani le azioni ajax si
            spostassero altrove, il posto dove si va a mano non deve seguirle. */
-        'pagina'    => $base . 'pomodoro.php',
+        'pagina'    => $base . 'projects/pomodoro.php',
         /* L'involucro di fetch che aggiunge il token alle scritture. La pagina
            pomodoro se lo carica da sola; le altre ventisette non e' detto, e
            senza token ogni tasto del popup riceve un rifiuto dal server e
            sembra semplicemente non funzionare. Il JS lo aggiunge solo se non
            c'e' gia', cosi' dove c'e' non viene avvolto due volte. */
-        'fetchjs'   => $base . 'nisama_fetch.js?v=' . (@filemtime(dirname(__FILE__) . '/nisama_fetch.js') ?: 1),
+        'fetchjs'   => $base . '_assets/js/nisama_fetch.js?v=' . (@filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: 1),
         /* Il selettore dei progetti e' lo stesso di tutte le altre pagine, con
            la sua resa autonoma: se lo carica il popup al primo tocco, invece di
            finire incluso in ventisette pagine dove nessuno lo aprira' mai. */
-        'selettore' => $base . 'project_selector.php?' . http_build_query([
+        'selettore' => $base . 'projects/project_selector.php?' . http_build_query([
             'ps_render'           => 1,
             'ps_id'               => 'pomobarra',
             'ps_title'            => t('pomodoro.collega_progetto'),

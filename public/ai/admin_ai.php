@@ -30,10 +30,10 @@
  * quaranta chiavi di dizionario per una pagina interna sarebbero peso morto.
  */
 
-require_once 'config.php';
-require_once 'auth_check.php';
-require_once 'security_core.php';
-require_once 'ai_credits.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
+require_once __DIR__ . '/../../lib/security_core.php';
+require_once __DIR__ . '/ai_credits.php';
 
 sec_require_level(10, false);   // false = pagina, non endpoint: risponde in HTML
 
@@ -144,7 +144,7 @@ $attivi = sec_all(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>IA — come sta andando</title>
-    <link rel="stylesheet" href="<?php echo PWA_BASE; ?>admin_ai.css?v=<?php echo @filemtime(dirname(__FILE__) . '/admin_ai.css') ?: 1; ?>">
+    <link rel="stylesheet" href="<?php echo PWA_BASE; ?>ai/admin_ai.css?v=<?php echo @filemtime(__DIR__ . '/admin_ai.css') ?: 1; ?>">
 </head>
 <body>
 <header class="adm-header">

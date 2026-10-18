@@ -1,7 +1,7 @@
 <?php
 
-require_once 'config.php';
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 
 $current_user_id = (int)$utente_corrente['id'];
 
@@ -12,7 +12,7 @@ $conn = sec_db();
 
 /* Studio o lingua: con ?course=N questa e' la pagina dei mazzi di un corso di
    lingua, con le stesse funzioni. Vedi fc_type.php. */
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia($current_user_id);
 
 
@@ -908,7 +908,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
         <div class="cat-name-wrap">
         <span class="cat-name"><?php echo sec_h($nameEsc); ?></span>
         <?php $catProj = $cat_project_links[$id] ?? null; if ($catProj): ?>
-        <a class="cat-proj-tag" href="progetti.php?id=<?php echo (int)$catProj['id']; ?>" style="--cp-color:<?php echo sec_h($catProj['color']); ?>;" onclick="event.stopPropagation();">
+        <a class="cat-proj-tag" href="../projects/progetti.php?id=<?php echo (int)$catProj['id']; ?>" style="--cp-color:<?php echo sec_h($catProj['color']); ?>;" onclick="event.stopPropagation();">
             <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
             <?php if (!empty($catProj['parent_name'])): ?><span class="cat-proj-anc"><?php echo sec_h($catProj['parent_name']); ?></span><span class="cat-proj-sep">•</span><?php endif; ?>
             <span class="cat-proj-leaf"><?php echo sec_h($catProj['name']); ?></span>
@@ -973,7 +973,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
 <title><?php te('fc.cfc_titolo'); ?></title>
 
-<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc_decks.css?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_decks.css') ?: 1; ?>">
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_decks.css?v=<?php echo @filemtime(__DIR__ . '/fc_decks.css') ?: 1; ?>">
 
 <?php /* Lo stesso disegnatore delle carte vere: i risultati della ricerca sul
          testo mostrano pezzi di documento, e devono uscire formattati come
@@ -982,7 +982,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
          quindi non serve ricopiare qui nessun CSS dei marchi. */ ?>
 <?php /* fc_parser serve solo alle flashcard di studio: le parole sono testo semplice. */ ?>
 <?php if (!fc_is_vocab()): ?>
-<script src="<?php echo PWA_BASE; ?>fc_parser.js?v=<?php echo @filemtime(dirname(__FILE__) . '/fc_parser.js') ?: 1; ?>"></script>
+<script src="<?php echo PWA_BASE; ?>fc/fc_parser.js?v=<?php echo @filemtime(__DIR__ . '/fc_parser.js') ?: 1; ?>"></script>
 <?php endif; ?>
 <?php echo fc_boot_json(); ?>
 
@@ -1053,7 +1053,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
 
 
-<?php include 'sidebar.html'; ?>
+<?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
 
 
@@ -1308,7 +1308,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
                     $cs_allow_create = false;
 
-                    include 'fc_deck_selector.php';
+                    include __DIR__ . '/fc_deck_selector.php';
 
                 ?>
 
@@ -1440,7 +1440,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
     $cs_all_option_label = T('vocab.cat_in_cima');
     $cs_allow_create = false; // DISABILITA IL TASTO PER CREARE UNA NUOVA MATERIA
     $cs_render_trigger = false; // Nascondiamo il bottone standard, lo apriamo via JS
-    include 'fc_deck_selector.php';
+    include __DIR__ . '/fc_deck_selector.php';
 ?>
 
 

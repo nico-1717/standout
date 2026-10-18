@@ -1,9 +1,9 @@
 <?php
-require_once 'config.php';
-require_once 'security_core.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/security_core.php';
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 $current_user_id = $utente_corrente['id'];
 
 /* ==========================================================================
@@ -707,7 +707,7 @@ $clRighe = sec_all("SELECT pcf.project_id, pcf.fc_category_id, c.name, c.color
    (fc_languages.php). Qui il progetto mostra la lingua con la sua bandiera,
    e toccarla porta alle categorie di quella lingua.
    ========================================================================== */
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 $corsoLinks = [];
 foreach (sec_all("SELECT k.id, k.learn_lang, k.project_id
                     FROM fc_vocab_courses k
@@ -723,7 +723,7 @@ foreach (sec_all("SELECT k.id, k.learn_lang, k.project_id
 function prog_tag_corso(?array $k, string $tag = 'button'): string {
     if (!$k) return '';
     return '<' . $tag . ($tag === 'button' ? ' type="button"' : '') . ' class="pr-cat-tag pr-lang-tag"'
-         . ' onclick="event.stopPropagation(); window.location.href=\'fc_decks.php?course=' . (int)$k['id'] . '\'">'
+         . ' onclick="event.stopPropagation(); window.location.href=\'../fc/fc_decks.php?course=' . (int)$k['id'] . '\'">'
          . '<img src="' . sec_h($k['flag']) . '" alt="" width="12" height="12">' . sec_h($k['nome']) . '</' . $tag . '>';
 }
 
@@ -1021,7 +1021,7 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                         <?php endif; ?>
                         <?php if ($cat): ?>
                         <button type="button" class="pr-cat-tag" style="--cat-color:<?php echo sec_h($cat['color']); ?>;"
-                                onclick="event.stopPropagation(); window.location.href='fc_view.php?category_id=<?php echo (int)$cat['id']; ?>'">
+                                onclick="event.stopPropagation(); window.location.href='../fc/fc_view.php?category_id=<?php echo (int)$cat['id']; ?>'">
                             <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
                             <?php echo sec_h($cat['name']); ?>
                         </button>
@@ -1074,8 +1074,8 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <title>Progetti</title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/nisama_fetch.js') ?: time(); ?>"></script>
-<link rel="stylesheet" href="/Vocabolary/progetti.css?v=<?php echo @filemtime(dirname(__FILE__) . '/progetti.css') ?: 1; ?>">
+<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
+<link rel="stylesheet" href="/Vocabolary/projects/progetti.css?v=<?php echo @filemtime(__DIR__ . '/progetti.css') ?: 1; ?>">
 <?php
 /* Le stringhe che servono al JavaScript di questa pagina. */
 /* 'pomodoro' serve a pomodoro_storico.php, incluso da questa pagina: senza,
@@ -1084,7 +1084,7 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
    uscivano come <<todo.niente_da_fare>>. */
 echo nisama_i18n_json(['comune', 'progetti', 'pomodoro', 'todo']);
 ?>
-<script src="fc_parser.js?v=<?php echo time(); ?>"></script>
+<script src="../fc/fc_parser.js?v=<?php echo time(); ?>"></script>
 </head>
 <body>
 
@@ -1148,7 +1148,7 @@ echo nisama_i18n_json(['comune', 'progetti', 'pomodoro', 'todo']);
     <?php endif; ?>
 </div>
 
-<?php include 'sidebar.html'; ?>
+<?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
 <div class="page">
 <?php if ($viewFavorites): ?>
@@ -1282,7 +1282,7 @@ if ($deckProprio) {
            con la sua bandiera, che porta alle sue categorie. */
         $corsoHero = $corsoLinks[$selectedProject['id']] ?? null;
         if ($corsoHero && $deckStato === 'nessuno'): ?>
-            <a class="pr-tag pr-tag-deck is-on pr-tag-lang" style="--tc:#5856D6;" href="fc_decks.php?course=<?php echo (int)$corsoHero['id']; ?>">
+            <a class="pr-tag pr-tag-deck is-on pr-tag-lang" style="--tc:#5856D6;" href="../fc/fc_decks.php?course=<?php echo (int)$corsoHero['id']; ?>">
                 <img src="<?php echo sec_h($corsoHero['flag']); ?>" alt="" width="14" height="14">
                 <span><?php echo sec_h($corsoHero['nome']); ?></span>
             </a>
@@ -1384,7 +1384,7 @@ if ($deckProprio) {
                 $ft_raw = $selectedProject['note'] ?? '';
                 $ft_placeholder = t('progetti.nota_vuota');
                 $ft_open = false;   // la barra si apre a richiesta, come nel resto della pagina
-                include 'format_toolbar.php';
+                include __DIR__ . '/../partials/format_toolbar.php';
             ?>
             <div class="pr-nota-azioni">
                 <button type="button" class="pr-nota-btn" onclick="prNotaChiudi(false)"><?php te('comune.annulla'); ?></button>
@@ -1529,7 +1529,7 @@ if ($deckProprio) {
             <div class="pr-tags-row">
                 <?php if ($gCat): ?>
                 <span class="pr-cat-tag" style="--cat-color:<?php echo sec_h($gCat['color']); ?>;"
-                      onclick="event.stopPropagation(); window.location.href='fc_view.php?category_id=<?php echo (int)$gCat['id']; ?>'">
+                      onclick="event.stopPropagation(); window.location.href='../fc/fc_view.php?category_id=<?php echo (int)$gCat['id']; ?>'">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
                     <?php echo sec_h($gCat['name']); ?>
                 </span>
@@ -1623,7 +1623,7 @@ if ($deckProprio) {
                     $ps_title = t('progetti.scegli_progetto_padre');
                     $ps_show_all_option = true; $ps_all_option_label = t('progetti.nessuno_radice');
                     $ps_allow_create = false; $ps_hidden_name = 'parent_id';
-                    include 'project_selector.php';
+                    include __DIR__ . '/project_selector.php';
                 ?>
             </div>
             <div class="pr-field">
@@ -1635,7 +1635,7 @@ if ($deckProprio) {
                     $cs_title = t('progetti.collega_materia');
                     $cs_show_all_option = true; $cs_all_option_label = t('progetti.nessuna_materia');
                     $cs_allow_create = false; $cs_hidden_name = 'fc_category_id';
-                    include 'fc_deck_selector.php';
+                    include __DIR__ . '/../fc/fc_deck_selector.php';
                 ?>
             </div>
             <div class="pr-field-row">
@@ -1694,7 +1694,7 @@ if ($deckProprio) {
                        icone sopra a due righe di testo spostavano il peso
                        dalla parte sbagliata. */
                     $ft_open = false;
-                    include 'format_toolbar.php';
+                    include __DIR__ . '/../partials/format_toolbar.php';
                 ?>
             </div>
         </div>
@@ -1828,7 +1828,7 @@ if ($deckProprio) {
                 $ft_raw = '';
                 $ft_placeholder = t('progetti.nota_vuota');
                 $ft_open = false;
-                include 'format_toolbar.php';
+                include __DIR__ . '/../partials/format_toolbar.php';
             ?>
         </div>
     </div>
@@ -1844,12 +1844,12 @@ if ($deckProprio) {
     $ps_show_all_option = true; $ps_all_option_label = t('progetti.nessuno_radice');
     $ps_allow_create = false; $ps_render_trigger = false; $ps_hidden_name = 'bulk_reparent_project_id';
     $ps_exclude_id = 0;
-    include 'project_selector.php';
+    include __DIR__ . '/project_selector.php';
     unset($ps_id, $ps_selected_id, $ps_selected_name, $ps_selected_color, $ps_placeholder, $ps_title,
           $ps_show_all_option, $ps_all_option_label, $ps_allow_create, $ps_render_trigger, $ps_hidden_name, $ps_exclude_id);
 ?>
 
-<?php include 'pomodoro_storico.php'; ?> 
+<?php include __DIR__ . '/pomodoro_storico.php'; ?> 
 
 <!-- ================= FORM NASCOSTI ================= -->
 <form id="formSave" method="POST" style="display:none;">
@@ -3643,7 +3643,7 @@ window.prShowInlineInput = function(e, parentId, btn) {
 })();
 </script>
 
-<?php include 'todo_widget.php'; ?>
+<?php include __DIR__ . '/../planner/todo_widget.php'; ?>
 <script>
 /* La sezione attività del progetto: si accende dal tastino e mostra le
    attività collegate a questo progetto, le stesse della pagina to-do. */

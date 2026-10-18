@@ -134,7 +134,7 @@ function fcEsempioHtml(ex) {
         if (fcHtmlSiVede(htmlText)) parts.push('<div class="qa-example-text">' + htmlText + '</div>');
     }
     if (ex.example_image) parts.push('<img class="qa-example-image" src="fc_images/' + fcEscapeHtml(ex.example_image) + '" alt="">');
-    if (ex.example_audio) parts.push('<audio class="qa-example-audio" src="fc_audio/' + fcEscapeHtml(ex.example_audio) + '" controls></audio>');
+    if (ex.example_audio) parts.push('<audio class="qa-example-audio" src="../fc_audio/' + fcEscapeHtml(ex.example_audio) + '" controls></audio>');
     return parts.join('');
 }
 

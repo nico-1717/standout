@@ -55,7 +55,7 @@ var FCAIJ = (function () {
         var tid = ac ? setTimeout(function () { ac.abort(); }, 150000) : null;
         var r;
         try {
-            r = await fetch('ai_job_api.php', {
+            r = await fetch('../ai/ai_job_api.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 cache: 'no-store',

@@ -23,8 +23,8 @@
  *    Ora il totale E' la sequenza, e una selezione vuota non crea nessuna
  *    partita (prima nasceva una partita fantasma con totale 1).
  */
-require_once 'config.php';
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
@@ -33,7 +33,7 @@ $conn = sec_db();
    kind='vocab' e il suo corso, e porta nel tipo il verso scelto (vedi
    fc_verso_da_tipo in fc_type.php). Da li' in poi le pagine della partita
    leggono il tipo dalla partita, non dall'indirizzo. */
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia($current_user_id);
 
 /* Limite di frequenza: crea partite, quindi righe nel database. La pagina si

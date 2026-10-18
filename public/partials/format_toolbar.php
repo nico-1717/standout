@@ -113,7 +113,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
         // Controllo intelligente: inietta lo script solo se non esiste già nel DOM
         if (!document.querySelector('script[src*=\"fc_parser.js\"]')) {
             var script = document.createElement('script');
-            script.src = '" . PWA_BASE . "fc_parser.js';
+            script.src = '" . PWA_BASE . "fc/fc_parser.js';
             document.head.appendChild(script);
         }
         /* MathQuill: la modifica interattiva delle formule a blocco (lo stesso
@@ -124,12 +124,12 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
         if (!document.querySelector('link[href*=\"mathquill.css\"]')) {
             var mqCss = document.createElement('link');
             mqCss.rel = 'stylesheet';
-            mqCss.href = '" . PWA_BASE . "mathquill/mathquill.css';
+            mqCss.href = '" . PWA_BASE . "_assets/vendor/mathquill/mathquill.css';
             document.head.appendChild(mqCss);
         }
         if (!window.jQuery && !document.querySelector('script[src*=\"jquery.min.js\"]')) {
             var jq = document.createElement('script');
-            jq.src = '" . PWA_BASE . "mathquill/jquery.min.js';
+            jq.src = '" . PWA_BASE . "_assets/vendor/mathquill/jquery.min.js';
             jq.onload = function () { caricaMathQuill(); };
             document.head.appendChild(jq);
         } else {
@@ -139,7 +139,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
             if (window.MathQuill) return;
             if (document.querySelector('script[src*=\"mathquill.min.js\"]')) return;
             var mq = document.createElement('script');
-            mq.src = '" . PWA_BASE . "mathquill/mathquill.min.js';
+            mq.src = '" . PWA_BASE . "_assets/vendor/mathquill/mathquill.min.js';
             document.head.appendChild(mq);
         }
     </script>\n";

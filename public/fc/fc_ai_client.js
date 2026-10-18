@@ -554,7 +554,7 @@ var FCAI = (function () {
         /* pdf.js va copiato in /Vocabolary/pdfjs/. Non e' su CDN apposta: la
            CSP del sito non permette script esterni, e allargarla per una
            libreria varrebbe meno di due file copiati una volta sola. */
-        PDFJS: { script: 'pdfjs/pdf.min.js', worker: 'pdfjs/pdf.worker.min.js' },
+        PDFJS: { script: '../_assets/vendor/pdfjs/pdf.min.js', worker: '../_assets/vendor/pdfjs/pdf.worker.min.js' },
 
         estrai: estrai,
         intervallo: intervallo,

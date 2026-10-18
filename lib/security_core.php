@@ -6,9 +6,9 @@
  * Da includere in cima a OGNI pagina e a OGNI endpoint, subito
  * dopo config.php:
  *
- *   require_once 'config.php';
- *   require_once 'security_core.php';   // header + utility
- *   require_once 'auth_check.php';      // oppure auth_check_api.php
+ *   require_once __DIR__ . '/config.php';
+ *   require_once __DIR__ . '/security_core.php';   // header + utility
+ *   require_once __DIR__ . '/auth_check.php';      // oppure auth_check_api.php
  *
  * Cosa offre:
  *  - header HTTP di sicurezza + redirect a HTTPS

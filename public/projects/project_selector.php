@@ -26,11 +26,11 @@ if (isset($_GET['ps_ajax']) && $_GET['ps_ajax'] === 'create_project') {
 
     if (!isset($conn) || !$conn) {
 
-        require_once 'config.php';
+        require_once __DIR__ . '/../../lib/config.php';
 
         $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 
-        require_once 'auth_check_api.php';
+        require_once __DIR__ . '/../../lib/auth_check_api.php';
 
         $current_user_id = $utente_corrente['id'];
 
@@ -183,11 +183,11 @@ if (isset($_GET['ps_render'])) {
 
     if (!isset($conn) || !$conn) {
 
-        require_once 'config.php';
+        require_once __DIR__ . '/../../lib/config.php';
 
         $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 
-        require_once 'auth_check_api.php';
+        require_once __DIR__ . '/../../lib/auth_check_api.php';
 
         $current_user_id = $utente_corrente['id'];
 
@@ -1358,7 +1358,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
 
 
-        fetch('project_selector.php?ps_ajax=create_project', {
+        fetch('../projects/project_selector.php?ps_ajax=create_project', {
 
             method: 'POST',
 

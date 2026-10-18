@@ -24,8 +24,8 @@
  *    anche il ripasso di una vecchia partita di parole ora si gioca qui. Il
  *    tipo (studio o lingua, e il corso) lo eredita dalla partita di origine.
  */
-require_once 'config.php';
-require_once 'auth_check.php';
+require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/auth_check.php';
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
@@ -46,7 +46,7 @@ if (!$parent) {
     exit();
 }
 
-require_once 'fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 fc_avvia_da_gioco($parent);
 
 $type = (string)$parent['type'];
