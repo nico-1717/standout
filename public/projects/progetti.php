@@ -3093,138 +3093,187 @@ window.prDoDelete = function(deleteSessions){
 
 /* ================================================================
    DRAG REORDER (tramite maniglia ☰) — tra fratelli dello stesso padre
-   ================================================================ */
+   ================================================================
+   Rifatto il 19/10/2026 perché non era fluido. Prima la riga in mano veniva
+   spostata nel documento a ogni passo (insertBefore): saltava di posizione in
+   posizione invece di seguire il dito, e le altre righe si teletrasportavano
+   senza movimento. Adesso:
+   - la riga si SOLLEVA e segue il dito al pixel (position:fixed + transform,
+     niente ricalcolo della pagina a ogni movimento);
+   - al suo posto resta un SEGNAPOSTO della stessa altezza, ed è lui a
+     cambiare posto fra i fratelli;
+   - i fratelli SCIVOLANO (FLIP: si misura prima e dopo lo scambio e si
+     anima la differenza), invece di saltare;
+   - lasciando, la riga si POSA dolcemente dove sta il segnaposto;
+   - i rami chiusi all'inizio non spostano la pagina sotto il dito: la
+     differenza si compensa con lo scorrimento.
+   Le posizioni si leggono con offsetTop, che non risente delle animazioni in
+   corso: con getBoundingClientRect una riga a metà scivolamento sembrava
+   altrove, e la scelta del posto tremolava. */
 (function(){
     var drag = null;
-    /* Il trascinamento parte solo dopo mezzo secondo di pressione: prima
-       scattava al primo tocco e rendeva impossibile scorrere l'elenco
-       partendo dalla maniglia. Se nel frattempo il dito si muove, vince
-       lo scorrimento e il trascinamento non parte. */
     var dragArm = null;
+    /* Mezzo secondo era tanto: la maniglia è fatta apposta per spostare, e
+       l'attesa serve solo a distinguere uno scorrimento iniziato lì sopra. */
+    var ATTESA = 280;
+    var MOLLA = 'cubic-bezier(.2,.8,.2,1)';
+
+    function fratelli(list) {
+        return Array.prototype.filter.call(list.children, function (el) {
+            return el.classList.contains('pr-row-wrap') && !el.classList.contains('dragging');
+        });
+    }
+
     document.addEventListener('pointerdown', function(e){
         var grip = e.target.closest('.pr-grip');
         if (!grip) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
         var wrap = grip.closest('.pr-row-wrap');
-        var list = wrap.parentElement;
-        var startY = e.clientY, startX = e.clientX, pid = e.pointerId;
-
+        if (!wrap) return;
+        /* un'anticipazione mentre si tiene premuto: la riga si abbassa appena,
+           così si capisce che sta per staccarsi */
+        wrap.classList.add('pr-arming');
         dragArm = {
-            pid: pid, startY: startY, startX: startX,
+            pid: e.pointerId, startY: e.clientY, startX: e.clientX, wrap: wrap,
             timer: setTimeout(function(){
-                dragArm = null;
-                drag = { wrap: wrap, list: list, pid: pid, startY: startY, moved:false, rects:null, rectsAt:0 };
-                wrap.classList.add('dragging');
-                /* da qui il dito muove la riga, non la pagina */
-                document.body.style.touchAction = 'none';
-                /* Tenendo premuto, il telefono cercava di selezionare il testo
-                   sotto il dito (e faceva comparire la lente e il menù
-                   copia/incolla). Con la pagina in stato di trascinamento la
-                   selezione è disattivata via CSS, e qui si cancella anche
-                   quella eventualmente già iniziata. */
-                document.body.classList.add('pr-dragging-now');
-                /* Il gesto è cominciato come uno scorrimento orizzontale (lo
-                   swipe si arma sullo stesso tocco): da qui in poi comanda il
-                   trascinamento, quindi la riga torna al suo posto e i tasti
-                   modifica/elimina non devono più comparire. */
-                window.prDragging = true;
-                if (window.prCancelSwipe) window.prCancelSwipe();
-                /* Il titolo della riga che si sta spostando torna al suo
-                   inizio. Lo scorrimento automatico del nome lo lasciava
-                   spesso a metà corsa, cioè tradotto fuori dalla riga: nel
-                   momento in cui si prendeva la riga, il testo spariva.
-                   Qui l'animazione si ferma e il nome torna in vista. */
-                try {
-                    var titolo = wrap.querySelector('.pr-name');
-                    if (titolo && titolo._prMarquee) {
-                        var m = titolo._prMarquee;
-                        if (m.anim) { m.anim.cancel(); m.anim = null; }
-                        if (m.resumeTimer) { clearTimeout(m.resumeTimer); m.resumeTimer = null; }
-                        m.offset = 0;
-                        m.track.style.transform = 'translateX(0)';
-                    }
-                } catch (err) {}
-                try {
-                    var sel = window.getSelection();
-                    if (sel && sel.removeAllRanges) sel.removeAllRanges();
-                } catch (err) {}
-                /* Tutti i rami si chiudono, tranne quello che contiene i
-                   fratelli di chi si sta spostando. Con i sottoprogetti aperti
-                   una riga da spostare in cima poteva avere venti righe di
-                   figli altrui in mezzo, e trascinarla voleva dire attraversare
-                   mezzo schermo per ogni posizione guadagnata. Chiusi, i
-                   fratelli sono tutti visibili insieme e lo spostamento è un
-                   gesto solo. Alla fine si riaprono esattamente quelli che
-                   erano aperti: chiudere per comodità e non restituire com'era
-                   sarebbe un prezzo nascosto. */
-                drag.riaprire = [];
-                document.querySelectorAll('.pr-children').forEach(function (k) {
-                    if (k === drag.list) return;                 // i fratelli restano
-                    if (k.contains(drag.wrap)) return;           // e la strada per arrivarci
-                    if (k.classList.contains('collapsed')) return;
-                    k.classList.add('collapsed');
-                    drag.riaprire.push(k);
-                    var freccia = k.parentElement && k.parentElement.querySelector(':scope > .pr-row .pr-arrow');
-                    if (freccia) freccia.classList.remove('open');
-                });
-                buzz(15);
-            }, 500)
+                var a = dragArm; dragArm = null;
+                wrap.classList.remove('pr-arming');
+                inizia(wrap, a.startY, a.pid);
+            }, ATTESA)
         };
     }, { passive:true });
 
+    function disarma() {
+        if (!dragArm) return;
+        clearTimeout(dragArm.timer);
+        dragArm.wrap.classList.remove('pr-arming');
+        dragArm = null;
+    }
     /* se il dito scorre prima che scatti, il trascinamento si annulla */
     document.addEventListener('pointermove', function(e){
         if (!dragArm || e.pointerId !== dragArm.pid) return;
-        if (Math.abs(e.clientY - dragArm.startY) > 8 || Math.abs(e.clientX - dragArm.startX) > 8) {
-            clearTimeout(dragArm.timer);
-            dragArm = null;
-        }
+        if (Math.abs(e.clientY - dragArm.startY) > 8 || Math.abs(e.clientX - dragArm.startX) > 8) disarma();
     }, { passive:true });
-    document.addEventListener('pointerup', function(){
-        if (dragArm) { clearTimeout(dragArm.timer); dragArm = null; }
-    }, { passive:true });
-    document.addEventListener('pointercancel', function(){
-        if (dragArm) { clearTimeout(dragArm.timer); dragArm = null; }
-    }, { passive:true });
+    document.addEventListener('pointerup', disarma, { passive:true });
+    document.addEventListener('pointercancel', disarma, { passive:true });
 
-    /* Le posizioni delle righe si misurano una volta e si tengono da parte per
-       un attimo. Prima ogni singolo movimento del dito rimisurava tutte le
-       righe dell'elenco una per una: con molti sottoprogetti il trascinamento
-       diventava una melassa. Le misure si rifanno solo dopo uno scambio (che
-       le rende vecchie) o dopo 250ms. */
-    function misureRighe(){
-        var ora = Date.now();
-        if (drag.rects && ora - drag.rectsAt < 250) return drag.rects;
-        var out = [];
-        var figli = drag.list.children;
-        for (var i = 0; i < figli.length; i++) {
-            var el = figli[i];
-            if (!el.classList.contains('pr-row-wrap') || el === drag.wrap) continue;
-            var r = el.getBoundingClientRect();
-            out.push({ el: el, mid: r.top + r.height / 2 });
-        }
-        drag.rects = out; drag.rectsAt = ora;
-        return out;
+    function inizia(wrap, y0, pid) {
+        var list = wrap.parentElement;
+        document.body.style.touchAction = 'none';
+        document.body.classList.add('pr-dragging-now');
+        window.prDragging = true;
+        if (window.prCancelSwipe) window.prCancelSwipe();
+        /* il nome che scorreva torna all'inizio, se no resta a metà */
+        try {
+            var titolo = wrap.querySelector('.pr-name');
+            if (titolo && titolo._prMarquee) {
+                var m = titolo._prMarquee;
+                if (m.anim) { m.anim.cancel(); m.anim = null; }
+                if (m.resumeTimer) { clearTimeout(m.resumeTimer); m.resumeTimer = null; }
+                m.offset = 0;
+                m.track.style.transform = 'translateX(0)';
+            }
+        } catch (err) {}
+        try { var sel = window.getSelection(); if (sel && sel.removeAllRanges) sel.removeAllRanges(); } catch (err) {}
+
+        /* I rami che non c'entrano si chiudono (con i figli aperti, per salire
+           di un posto bisognava attraversarne venti), compreso quello della
+           riga stessa, che così in mano è una riga sola. Si chiudono di colpo e
+           la pagina viene riallineata: la riga deve restare sotto il dito. */
+        var prima = wrap.getBoundingClientRect().top;
+        document.body.classList.add('pr-senza-transizioni');
+        var riaprire = [];
+        document.querySelectorAll('.pr-children').forEach(function (k) {
+            if (k === list || k.contains(wrap)) return;
+            if (k.classList.contains('collapsed')) return;
+            k.classList.add('collapsed');
+            riaprire.push(k);
+            var freccia = k.parentElement && k.parentElement.querySelector(':scope > .pr-row .pr-arrow');
+            if (freccia) freccia.classList.remove('open');
+        });
+        var dopo = wrap.getBoundingClientRect().top;
+        if (Math.abs(dopo - prima) > 0.5) window.scrollBy(0, dopo - prima);
+        void document.body.offsetHeight;
+        document.body.classList.remove('pr-senza-transizioni');
+
+        var r = wrap.getBoundingClientRect();
+        var ph = document.createElement('div');
+        ph.className = 'pr-drag-ph';
+        ph.style.height = r.height + 'px';
+        list.insertBefore(ph, wrap);
+
+        wrap.classList.add('dragging');
+        wrap.style.position = 'fixed';
+        wrap.style.left = r.left + 'px';
+        wrap.style.top = r.top + 'px';
+        wrap.style.width = r.width + 'px';
+        wrap.style.zIndex = '600';
+        wrap.style.transition = 'box-shadow .2s ease';
+        wrap.style.transform = 'translate3d(0,0,0) scale(1.02)';
+
+        var prima = Array.prototype.filter.call(list.children, function(el){ return el.classList.contains('pr-row-wrap'); })
+                         .map(function(el){ return el.getAttribute('data-id'); }).join(',');
+        drag = { wrap: wrap, list: list, ph: ph, pid: pid, y0: y0, top0: r.top, y: y0, moved: false, riaprire: riaprire, prima: prima };
+        buzz(15);
     }
 
-    /* Scorrimento automatico ai bordi, come per i blocchi del planner.
-       Senza, per spostare un sottoprogetto oltre quelli visibili bisognava
-       lasciarlo, scorrere, riprenderlo — e con venti fratelli erano quattro
-       giri. La velocità cresce avvicinandosi al bordo: piano vicino alla
-       soglia, per aggiustare di poco, veloce sull'orlo, per fare strada. */
+    /* Le metà delle righe, in coordinate del documento, ricavate dal layout e
+       non da come appaiono (le animazioni in corso le sposterebbero). */
+    function meta(el) {
+        var op = el.offsetParent || document.body;
+        var opTop = op.getBoundingClientRect().top + window.scrollY;
+        return opTop + el.offsetTop + el.offsetHeight / 2;
+    }
+
+    /* Il segnaposto cambia posto e i fratelli scivolano a fargli spazio. */
+    function spostaSegnaposto(rif) {
+        var list = drag.list, ph = drag.ph;
+        /* già lì? (la riga in mano, fissa, sta ancora nell'elenco: si salta) */
+        var n = ph.nextElementSibling;
+        while (n && (n === drag.wrap || !n.classList.contains('pr-row-wrap'))) n = n.nextElementSibling;
+        if (n === rif) return;
+        var sib = fratelli(list);
+        var primaTop = sib.map(function (el) { return el.getBoundingClientRect().top; });
+        if (rif) list.insertBefore(ph, rif); else list.appendChild(ph);
+        sib.forEach(function (el, i) {
+            var d = primaTop[i] - el.getBoundingClientRect().top;
+            if (Math.abs(d) < 0.5) return;
+            el.style.transition = 'none';
+            el.style.transform = 'translate3d(0,' + d + 'px,0)';
+            void el.offsetHeight;
+            el.style.transition = 'transform .24s ' + MOLLA;
+            el.style.transform = '';
+        });
+        buzz(6);
+    }
+
+    function aggiorna() {
+        if (!drag) return;
+        drag.raf = null;
+        var dy = drag.y - drag.y0;
+        drag.wrap.style.transform = 'translate3d(0,' + dy + 'px,0) scale(1.02)';
+        var yDoc = drag.y + window.scrollY;
+        var sib = fratelli(drag.list), rif = null;
+        for (var i = 0; i < sib.length; i++) {
+            if (yDoc < meta(sib[i])) { rif = sib[i]; break; }
+        }
+        spostaSegnaposto(rif);
+    }
+
+    /* Scorrimento automatico ai bordi: piano vicino alla soglia, veloce
+       sull'orlo. La riga in mano è fissa sullo schermo e resta sotto il dito;
+       il segnaposto si ricalcola a ogni passo. */
     function scorriSeAlBordo() {
         if (!drag) return;
         if (!drag.scrollV) {
             if (drag.scrollRaf) { cancelAnimationFrame(drag.scrollRaf); drag.scrollRaf = null; }
             return;
         }
-        if (drag.scrollRaf) return;   // già in corso: cambia solo la velocità
+        if (drag.scrollRaf) return;
         (function passo() {
             if (!drag || !drag.scrollV) { if (drag) drag.scrollRaf = null; return; }
             window.scrollBy(0, drag.scrollV);
-            /* Le misure delle righe sono in coordinate dello schermo: scorrendo
-               diventano vecchie all'istante, e senza azzerarle la riga si
-               infilerebbe nel posto dove stava una riga un secondo fa. */
-            drag.rects = null;
+            aggiorna();
             drag.scrollRaf = requestAnimationFrame(passo);
         })();
     }
@@ -3233,62 +3282,57 @@ window.prDoDelete = function(deleteSessions){
         if (!drag || e.pointerId !== drag.pid) return;
         e.preventDefault();
         drag.moved = true;
-        /* La velocità cresce avvicinandosi al bordo: piano vicino alla soglia,
-           per aggiustare di poco, veloce sull'orlo, per fare strada. */
+        drag.y = e.clientY;
         var soglia = 90, y = e.clientY;
         var alto = y - soglia, basso = (window.innerHeight - soglia) - y;
         drag.scrollV = (alto < 0) ? Math.max(-18, alto / 5)
                      : ((basso < 0) ? Math.min(18, -basso / 5) : 0);
         scorriSeAlBordo();
-        /* un solo riposizionamento per fotogramma: gli eventi del puntatore
-           arrivano più fitti di quanto lo schermo sappia disegnare */
-        if (drag.raf) return;
-        var y = e.clientY;
-        drag.raf = requestAnimationFrame(function(){
-            if (!drag) return;
-            drag.raf = null;
-            var righe = misureRighe();
-            for (var i = 0; i < righe.length; i++) {
-                if (y < righe[i].mid) {
-                    drag.list.insertBefore(drag.wrap, righe[i].el);
-                    drag.rects = null;              // spostando, le misure non valgono più
-                    return;
-                }
-            }
-            drag.list.appendChild(drag.wrap);
-            drag.rects = null;
-        });
-    });
+        /* un solo aggiornamento per fotogramma */
+        if (!drag.raf) drag.raf = requestAnimationFrame(aggiorna);
+    }, { passive:false });
 
     function endDrag(){
-        document.body.style.touchAction = '';
-        document.body.classList.remove('pr-dragging-now');
-        window.prDragging = false;
         if (!drag) return;
-        if (drag.raf) cancelAnimationFrame(drag.raf);
         var d = drag; drag = null;
-        d.wrap.classList.remove('dragging');
-        // i rami tornano com'erano prima che li chiudessimo noi
-        (d.riaprire || []).forEach(function (k) {
-            k.classList.remove('collapsed');
-            var freccia = k.parentElement && k.parentElement.querySelector(':scope > .pr-row .pr-arrow');
-            if (freccia) freccia.classList.add('open');
-        });
-        if (d.scrollRaf) { cancelAnimationFrame(d.scrollRaf); d.scrollRaf = null; }
-        if (!d.moved) return;
-        var ids = Array.prototype.filter.call(d.list.children, function(el){ return el.classList.contains('pr-row-wrap'); })
-                        .map(function(el){ return el.getAttribute('data-id'); });
-        document.getElementById('fReorderIds').value = ids.join(',');
-        /* Il nuovo ordine si salva in background: la pagina non si ricarica
-           più, così l'elenco resta dov'è e non si perde la posizione dello
-           scorrimento dopo ogni spostamento. */
-        var form = document.getElementById('formReorder');
-        fetch(window.location.href, { method:'POST', body:new FormData(form), credentials:'same-origin' })
-            .then(function(){ toast(T('progetti.ordine_aggiornato')); })
-            .catch(function(){
-                toast(T('progetti.ordine_non_salvato'));
-                window.location.reload();
+        if (d.raf) cancelAnimationFrame(d.raf);
+        if (d.scrollRaf) cancelAnimationFrame(d.scrollRaf);
+        document.body.style.touchAction = '';
+        window.prDragging = false;
+
+        /* la riga si posa dove sta il segnaposto, poi torna al suo posto vero */
+        var dest = d.ph.getBoundingClientRect().top;
+        d.wrap.style.transition = 'transform .22s ' + MOLLA + ', box-shadow .22s ease';
+        d.wrap.style.transform = 'translate3d(0,' + (dest - d.top0) + 'px,0) scale(1)';
+        d.wrap.classList.add('pr-posando');
+
+        setTimeout(function () {
+            d.list.insertBefore(d.wrap, d.ph);
+            d.ph.remove();
+            ['position', 'left', 'top', 'width', 'zIndex', 'transition', 'transform'].forEach(function (p) { d.wrap.style[p] = ''; });
+            d.wrap.classList.remove('dragging', 'pr-posando');
+            fratelli(d.list).forEach(function (el) { el.style.transition = ''; el.style.transform = ''; });
+            document.body.classList.remove('pr-dragging-now');
+            // i rami tornano com'erano prima che li chiudessimo noi
+            d.riaprire.forEach(function (k) {
+                k.classList.remove('collapsed');
+                var freccia = k.parentElement && k.parentElement.querySelector(':scope > .pr-row .pr-arrow');
+                if (freccia) freccia.classList.add('open');
             });
+            if (!d.moved) return;
+            var ids = Array.prototype.filter.call(d.list.children, function(el){ return el.classList.contains('pr-row-wrap'); })
+                            .map(function(el){ return el.getAttribute('data-id'); });
+            if (ids.join(',') === d.prima) return;
+            document.getElementById('fReorderIds').value = ids.join(',');
+            /* il nuovo ordine si salva in background: la pagina resta dov'è */
+            var form = document.getElementById('formReorder');
+            fetch(window.location.href, { method:'POST', body:new FormData(form), credentials:'same-origin' })
+                .then(function(){ toast(T('progetti.ordine_aggiornato')); })
+                .catch(function(){
+                    toast(T('progetti.ordine_non_salvato'));
+                    window.location.reload();
+                });
+        }, 230);
     }
     document.addEventListener('pointerup', endDrag);
     document.addEventListener('pointercancel', endDrag);
