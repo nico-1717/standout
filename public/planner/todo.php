@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/auth_check.php';
+require_once __DIR__ . '/../../lib/stile.php';   // standard | paper (Diario, Planner, To do, To study)
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
@@ -20,7 +21,7 @@ date_default_timezone_set('Europe/Rome');
 $tab = sec_enum(sec_in('tab'), ['todo', 'buy', 'study', 'pills'], '');
 ?>
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" <?php echo standout_stile_attr(); ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -31,13 +32,17 @@ $tab = sec_enum(sec_in('tab'), ['todo', 'buy', 'study', 'pills'], '');
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>planner/todo.css?v=<?php echo @filemtime(__DIR__ . '/todo.css') ?: 1; ?>">
+<?php echo standout_stile_css(); ?>
 </head>
 <body class="tp-body">
 
+<div class="tp-top">
 <a class="tp-back" href="planner.php">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M14.5 5L8 12l6.5 7"/></svg>
     <span><?php te('todo.planner'); ?></span>
 </a>
+<?php /* pallino del profilo, in fila con il ritorno al planner */ $fr_widget_inline = true; include __DIR__ . '/../partials/notifiche_widget.php'; ?>
+</div>
 
 <main class="tp-sheet">
     <div class="tp-head">

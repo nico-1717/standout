@@ -1,0 +1,54 @@
+# =====================================================================
+# STANDOUT — pubblicazione automatica su Altervista
+# A ogni push sul ramo main, GitHub carica via FTP SOLO i file cambiati
+# (si ricorda cosa ha gia' caricato in .ftp-deploy-sync-state.json, sul
+# server). Un file cancellato dal repository viene cancellato anche sul
+# server, ma solo se l'aveva caricato lui: config.php e media/ non li
+# tocca mai, perche' nel repository non ci sono.
+#
+# Da fare UNA volta, su github.com -> repository -> Settings ->
+# Secrets and variables -> Actions -> New repository secret:
+#   FTP_SERVER    nisama.altervista.org
+#   FTP_USERNAME  nisama
+#   FTP_PASSWORD  la password FTP di Altervista
+# Si puo' anche lanciare a mano: scheda Actions -> Deploy -> Run workflow.
+# =====================================================================
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# due push ravvicinati non caricano in contemporanea
+concurrency:
+  group: deploy-altervista
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Scarica il repository
+        uses: actions/checkout@v4
+
+      - name: Carica su Altervista i file cambiati
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp
+          server-dir: ./
+          # sul server servono solo .htaccess, lib/, lang/ e public/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .github/**
+            docs/**
+            tools/**
+            sql/**
+            README.md
+            **/.DS_Store
+            **/Thumbs.db

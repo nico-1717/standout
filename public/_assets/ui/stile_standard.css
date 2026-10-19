@@ -1,0 +1,170 @@
+/* =====================================================================
+   STANDOUT — STILE STANDARD per Diario, Planner, To do e To study
+   Caricato solo quando l'utente usa lo stile standard (lib/stile.php),
+   dopo il foglio della pagina. Non riscrive i componenti: ridefinisce i
+   TOKEN della carta (colori, caratteri, ombre) con quelli del resto del
+   sito (fc_hub.css), in chiaro e in scuro. Tutto e' sotto
+   html[data-stile="standard"], quindi vince sui token della pagina per
+   specificita', non per ordine di caricamento.
+
+   Indice
+     1. Token, chiaro          4. Planner
+     2. Token, scuro           5. Diario
+     3. Caratteri               6. To do e To study
+   ===================================================================== */
+
+/* ------------------------------------------------------------------ */
+/* 1. TOKEN — CHIARO                                                    */
+/* ------------------------------------------------------------------ */
+html[data-stile="standard"]{
+    --so-font:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --so-bg:#F2F2F7; --so-surface:#FFFFFF; --so-fill:#E9E9EE; --so-fill-2:#DEDEE3;
+    --so-text:#1C1C1E; --so-text-2:#8A8A8E; --so-text-3:#AEAEB2;
+    --so-text-rgb:60,60,67;
+    --so-hair:rgba(60,60,67,.12); --so-hair-2:rgba(60,60,67,.22);
+    --so-blue:#007AFF; --so-blue-soft:rgba(0,122,255,.14); --so-blue-wash:rgba(0,122,255,.07); --so-blue-ink:#0062CC;
+    --so-red:#FF3B30; --so-red-soft:rgba(255,59,48,.12);
+    --so-shadow:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
+    --so-header:rgba(249,249,251,.94);
+    color-scheme:light;
+
+    /* planner */
+    --paper:var(--so-bg); --paper-2:var(--so-fill); --paper-3:var(--so-fill-2); --card:var(--so-surface);
+    --ink:var(--so-text);
+    --ink-rgb:var(--so-text-rgb); --card-rgb:255,255,255; --paper-rgb:242,242,247;
+    --ink-2:rgba(var(--so-text-rgb),calc(.56 + .08 * var(--k, 1)));
+    --ink-3:rgba(var(--so-text-rgb),calc(.30 + .08 * var(--k, 1)));
+    --hair:rgba(var(--so-text-rgb),calc(.07 + .03 * var(--k, 1)));
+    --hair-2:rgba(var(--so-text-rgb),calc(.14 + .05 * var(--k, 1)));
+    --accent:var(--so-blue); --accent-soft:var(--so-blue-soft); --accent-wash:var(--so-blue-wash);
+    --accent-ink:var(--so-blue-ink); --on-accent:#FFFFFF;
+    --neutral-ev:#E5E5EA;
+    --sh-soft:0 1px 1px rgba(0,0,0,.04), 0 6px 18px -10px rgba(0,0,0,.14);
+    --sh-card:var(--so-shadow);
+    --sh-sheet:0 -10px 40px -12px rgba(0,0,0,.22);
+
+    /* diario */
+    --dy-paper:var(--so-surface); --dy-paper-2:var(--so-bg); --dy-edge:var(--so-hair);
+    --dy-card:var(--so-surface); --dy-ink-rgb:var(--so-text-rgb); --dy-paper-rgb:255,255,255;
+    --dy-ink:var(--so-text); --dy-ink-2:var(--so-text-2); --dy-ink-3:var(--so-text-3);
+    --dy-pencil:var(--so-text-2); --dy-rule:rgba(60,60,67,.09);
+    --dy-accent:var(--so-blue); --dy-accent-2:var(--so-blue-wash); --dy-on-accent:#FFFFFF;
+    --dy-hair:var(--so-hair);
+    --dy-hand:var(--so-font); --dy-serif:var(--so-font); --dy-sans:var(--so-font);
+
+    /* to study */
+    --ts-bg:var(--so-bg); --ts-card:var(--so-surface); --ts-ink:var(--so-text);
+    --ts-ink-2:var(--so-text-2); --ts-ink-3:var(--so-text-3); --ts-hair:var(--so-hair);
+    --ts-grigio:var(--so-text-3); --ts-imp:var(--so-red);
+}
+
+/* le attivita': i token stanno su .td-wrap, e dentro planner e diario
+   quella regola li ricolora con l'accento della pagina */
+html[data-stile="standard"],
+html[data-stile="standard"] .td-wrap,
+html[data-stile="standard"] .pl-body .td-wrap,
+html[data-stile="standard"] .dy-body .td-wrap{
+    --td-paper:var(--so-surface); --td-panel:var(--so-bg); --td-card:var(--so-surface);
+    --td-ink:var(--so-text); --td-ink-2:var(--so-text-2); --td-ink-3:var(--so-text-3);
+    --td-ink-rgb:var(--so-text-rgb); --td-hair:var(--so-hair);
+    --td-accent:var(--so-blue); --td-accent-soft:var(--so-blue-soft); --td-on-accent:#FFFFFF;
+    --td-late:var(--so-red); --td-late-soft:var(--so-red-soft);
+    --td-serif:var(--so-font); --td-sans:var(--so-font);
+}
+
+/* ------------------------------------------------------------------ */
+/* 2. TOKEN — SCURO                                                     */
+/* ------------------------------------------------------------------ */
+@media (prefers-color-scheme: dark){
+    html[data-stile="standard"]{
+        --so-bg:#000000; --so-surface:#1C1C1E; --so-fill:#2C2C2E; --so-fill-2:#3A3A3C;
+        --so-text:#F5F5F7; --so-text-2:#98989F; --so-text-3:#636366;
+        --so-text-rgb:235,235,245;
+        --so-hair:rgba(84,84,88,.45); --so-hair-2:rgba(84,84,88,.65);
+        --so-blue:#0A84FF; --so-blue-soft:rgba(10,132,255,.24); --so-blue-wash:rgba(10,132,255,.13); --so-blue-ink:#64A8FF;
+        --so-red:#FF453A; --so-red-soft:rgba(255,69,58,.18);
+        --so-shadow:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
+        --so-header:rgba(22,22,24,.94);
+        color-scheme:dark;
+
+        --card-rgb:28,28,30; --paper-rgb:0,0,0; --dy-paper-rgb:28,28,30;
+        --neutral-ev:#3A3A3C;
+        --sh-soft:0 1px 1px rgba(0,0,0,.4), 0 6px 18px -8px rgba(0,0,0,.6);
+        --sh-sheet:0 -10px 40px -12px rgba(0,0,0,.7);
+        --dy-rule:rgba(235,235,245,.10);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* 3. CARATTERI                                                        */
+/* La carta usa tre famiglie (serif, grafia a mano, Jost) scritte anche  */
+/* direttamente nelle regole: qui si riporta tutto al carattere di       */
+/* sistema, e il corsivo decorativo diventa testo normale.              */
+/* ------------------------------------------------------------------ */
+html[data-stile="standard"] body,
+html[data-stile="standard"] body :where(*:not(svg):not(svg *)){
+    font-family:var(--so-font) !important;
+}
+html[data-stile="standard"] body :where(*:not(em):not(i)){
+    font-style:normal !important;
+}
+html[data-stile="standard"] body{
+    -webkit-font-smoothing:antialiased;
+    background:var(--so-bg);
+    color:var(--so-text);
+}
+
+/* ------------------------------------------------------------------ */
+/* 4. PLANNER                                                          */
+/* ------------------------------------------------------------------ */
+/* l'albero, gli animaletti e le foglie sono parte della carta */
+html[data-stile="standard"] .pl-ambient,
+html[data-stile="standard"] .pl-tree,
+html[data-stile="standard"] .pl-animal{ display:none !important; }
+
+/* la fascia in alto: niente cielo color carta, la barra di vetro del sito
+   (il meteo animato, se acceso, resta: e' un'informazione) */
+html[data-stile="standard"] .pl-topbar{
+    /* !important: planner.js scrive il cielo del mese in uno style inline */
+    background:var(--so-header) !important;
+    -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px);
+    box-shadow:0 .5px 0 var(--so-hair);
+}
+
+/* le impostazioni che con questo stile non fanno niente (colore della
+   pagina, alberi e animali): planner.js le marca .pl-solo-carta */
+html[data-stile="standard"] .pl-solo-carta{ display:none !important; }
+
+/* Gli eventi: in chiaro la tinta della categoria al 30% sul bianco va
+   bene; in scuro le tinte pastello diventavano fango. Meno tinta e la
+   striscia a sinistra piena. */
+@media (prefers-color-scheme: dark){
+    html[data-stile="standard"] .pl-ev{ background:color-mix(in srgb, var(--ev) 20%, var(--card)); }
+}
+
+/* ------------------------------------------------------------------ */
+/* 5. DIARIO                                                           */
+/* ------------------------------------------------------------------ */
+
+/* il popup "diario del giorno" (diario_giorno.php), aperto anche dal
+   planner: stessi token del sito invece della carta */
+html[data-stile="standard"] .dg-ov{
+    --dg-paper:var(--so-surface); --dg-panel:var(--so-bg);
+    --dg-ink:var(--so-text); --dg-ink-2:var(--so-text-2); --dg-ink-3:var(--so-text-3);
+    --dg-hair:var(--so-hair); --dg-accent:var(--so-blue); --dg-accent-soft:var(--so-blue-soft);
+    --dg-serif:var(--so-font); --dg-sans:var(--so-font);
+    --dg-shadow:var(--sh-sheet);
+    background:rgba(0,0,0,.4);
+}
+
+/* ------------------------------------------------------------------ */
+/* 6. TO DO e TO STUDY                                                 */
+/* ------------------------------------------------------------------ */
+html[data-stile="standard"] .tp-body,
+html[data-stile="standard"].tp-html{ background:var(--so-bg); color:var(--so-text); }
+html[data-stile="standard"]:has(.tp-body){ background:var(--so-bg); }
+html[data-stile="standard"] .tp-sheet{ background:var(--so-surface); box-shadow:var(--so-shadow); }
+html[data-stile="standard"] .tp-title{ font-weight:700; letter-spacing:-.02em; }
+html[data-stile="standard"] .tp-sub{ color:var(--so-text-3); }
+html[data-stile="standard"] .tp-back,
+html[data-stile="standard"] .tp-note{ color:var(--so-text-2); }

@@ -40,7 +40,9 @@ AddType application/manifest+json .webmanifest
 
     # Le pagine no: cambiano a ogni salvataggio, e una copia vecchia
     # mostrerebbe carte che non ci sono piu'.
-    <FilesMatch "\.(php|html)$">
+    # Tranne planner_js.php, che non e' una pagina ma il JavaScript del
+    # planner unito al volo: la cache la decide lui (un anno con ?v=).
+    <FilesMatch "^(?!planner_js\.php$).*\.(php|html)$">
         Header set Cache-Control "no-cache, must-revalidate"
     </FilesMatch>
 

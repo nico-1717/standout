@@ -13,13 +13,14 @@
 require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/auth_check.php';
+require_once __DIR__ . '/../../lib/stile.php';   // standard | paper (Diario, Planner, To do, To study)
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();   // la vogliono sidebar.php e project_selector.php
 date_default_timezone_set('Europe/Rome');
 ?>
 <!DOCTYPE html>
-<html lang="<?php echo sec_h(standout_lingua()); ?>">
+<html lang="<?php echo sec_h(standout_lingua()); ?>" <?php echo standout_stile_attr(); ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -27,6 +28,7 @@ date_default_timezone_set('Europe/Rome');
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>planner/to_study.css?v=<?php echo @filemtime(__DIR__ . '/to_study.css') ?: 1; ?>">
+<?php echo standout_stile_css(); ?>
 </head>
 <body>
 
@@ -58,6 +60,7 @@ date_default_timezone_set('Europe/Rome');
         <input type="checkbox" id="tsPlannerOn" aria-label="<?php te('todo.study_planner'); ?>">
         <button type="button" class="ts-planner-btn" id="tsPlanner"><?php te('todo.study_planner'); ?></button>
     </div>
+    <?php /* pallino del profilo, in fila con i pulsanti dell'intestazione */ $fr_widget_inline = true; include __DIR__ . '/../partials/notifiche_widget.php'; ?>
 </header>
 
 <!-- Il calendario. Scorrendo in orizzontale si cambia mese: qui non c'è la

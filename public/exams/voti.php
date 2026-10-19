@@ -2424,5 +2424,6 @@ function preventDoubleTapZoom(){
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 </script>
+<?php /* pallino del profilo: notifiche, amici, lingua, stile, logout */ include __DIR__ . '/../partials/notifiche_widget.php'; ?>
 </body>
 </html>

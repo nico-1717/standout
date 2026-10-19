@@ -3542,5 +3542,11 @@
     "ore_fa": "{n} h ago",
     "ieri": "yesterday",
     "giorni_fa": "{n} d ago"
+  },
+  "stile": {
+    "titolo": "Style",
+    "standard": "Standard",
+    "paper": "Paper",
+    "nota": "For Journal, Planner, To do and To study"
   }
 }

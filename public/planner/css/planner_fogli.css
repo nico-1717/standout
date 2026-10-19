@@ -1,0 +1,507 @@
+/* planner/css/planner_fogli.css — i fogli dal basso (editor evento e gli altri), il cambio giorno, la vista mese, la settimana a tabella, il menu delle viste.
+   Una parte di quello che era planner.css: le sei parti si caricano in
+   ordine da planner.php, e l'ordine conta (la cascata e' la stessa di prima). */
+/* ------------------------------------------------------------------ */
+/* 9. BOTTOM SHEET (editor evento e altri popup)                      */
+/* ------------------------------------------------------------------ */
+.pl-ov{
+    position:fixed; inset:0; z-index:100; display:flex; align-items:flex-end; justify-content:center;
+    background:rgba(var(--ink-rgb, 76,70,63),.24); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);
+    opacity:0; pointer-events:none; transition:opacity var(--t) var(--ease);
+}
+.pl-ov.pl-open{ opacity:1; pointer-events:auto; }
+.pl-sheet{
+    width:100%; max-width:620px; height:70dvh; background:var(--card);
+    border-radius:var(--r-xl) var(--r-xl) 0 0; box-shadow:var(--sh-sheet);
+    display:flex; flex-direction:column; overflow:hidden;
+    transform:translateY(101%); transition:transform .46s var(--ease);
+    padding-bottom:var(--safe-bottom);
+}
+.pl-ov.pl-open .pl-sheet{ transform:none; }
+/* Un foglio che nasce da dentro il pannello della settimana (105) deve
+   stargli sopra, se no compare a metà sotto le linguette. Resta comunque
+   sotto agli avvisi (130) e ai messaggini (140), che devono poter
+   interrompere anche lui. */
+.pl-ov-sopra{ z-index:126; }
+
+/* --- riassunto di un progetto, aperto da una priorità automatica --- */
+.pl-prj-stato{ display:flex; align-items:center; gap:8px; font-size:14px; color:var(--ink-2); margin-bottom:12px; }
+.pl-prj-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.pl-prj-riga{
+    display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+    padding:9px 0; border-bottom:.5px solid var(--hair);
+}
+.pl-prj-lab{ font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); }
+.pl-prj-val{ font-size:14px; color:var(--ink); text-align:right; }
+/* le note per intero: sono poche righe ed è la ragione per cui uno apre il
+   riassunto invece di andare dritto alla pagina */
+.pl-prj-note{
+    margin-top:14px; font-family:'Cormorant Garamond', Georgia, serif; font-size:15px; line-height:1.55;
+    color:var(--ink-2); white-space:pre-line;
+}
+.pl-prj-vai{ display:block; width:100%; margin-top:20px; text-align:center; text-decoration:none; }
+
+/* --- il ponte fra i calendari di Google e i miei --- */
+/* Nome a sinistra e menù a destra, su una riga sola: sono elenchi lunghi —
+   sette calendari sono normali — e due righe ciascuno li renderebbero un
+   muro da scorrere. Il nome si stringe per primo, il menù no: senza vedere
+   la scelta la riga non serve a niente. */
+.pl-gc-riga{
+    display:flex; align-items:center; gap:10px; padding:9px 0;
+    border-bottom:.5px solid var(--hair);
+}
+.pl-gc-riga:last-child{ border-bottom:none; }
+.pl-gc-nome{ display:flex; align-items:center; gap:8px; flex:1 1 auto; min-width:0; font-size:14px; }
+.pl-gc-nome > span:not(.pl-gc-dot):not(.pl-gc-tag){
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.pl-gc-riga .pl-pick{ flex:0 0 auto; max-width:48%; }
+.pl-gc-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+/* il principale non ha colore: un cerchietto vuoto invece di inventarne uno */
+.pl-gc-dot-vuoto{ background:none; box-shadow:inset 0 0 0 1.2px var(--hair-2); }
+.pl-gc-tag{
+    font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3);
+    background:var(--paper-2); border-radius:var(--r-pill); padding:2px 7px; flex-shrink:0;
+}
+.pl-gc-ponte{ margin-top:4px; }
+/* quanti eventi sono già entrati da quel calendario: un numero piccolo, che
+   non deve competere con il nome ma deve essere lì quando lo si cerca */
+.pl-gc-conta{
+    font-size:10.5px; color:var(--ink-3); flex-shrink:0;
+    font-variant-numeric:tabular-nums;
+}
+.pl-sheet-tall{ height:88dvh; }
+.pl-sheet-auto{ height:auto; max-height:88dvh; }
+.pl-sheet-tinted{ background:color-mix(in srgb, var(--ev, var(--accent)) 12%, var(--card)); transition:background var(--t-slow) var(--ease); }
+.pl-grab{ width:34px; height:4px; border-radius:99px; background:var(--hair-2); margin:8px auto 0; flex-shrink:0; }
+.pl-sheet-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 14px 8px; flex-shrink:0;
+}
+.pl-sheet-title{ font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:500; }
+.pl-sheet-body{
+    flex:1; overflow-y:auto; overflow-x:hidden;   /* niente scorrimento laterale a vuoto */
+    padding:10px 14px 18px; -webkit-overflow-scrolling:touch;
+}
+.pl-txt-btn{ font-size:14.5px; color:var(--ink-2); padding:4px 2px; }
+.pl-head-left{ display:flex; align-items:center; gap:6px; }
+.pl-trash{
+    width:30px; height:30px; border-radius:var(--r-pill); display:grid; place-items:center;
+    background:#F3DCDC; color:#8E5A5A;
+    transition:transform var(--t-fast) var(--ease);
+}
+.pl-trash svg{ width:15px; height:15px; }
+.pl-trash:active{ transform:scale(.9); }
+.pl-txt-btn.pl-strong{ color:var(--accent-ink); font-weight:500; }
+
+.pl-field{ margin-bottom:13px; }
+.pl-field > label{ display:block; margin:0 2px 5px; }
+.pl-in{
+    width:100%; border:none; border-radius:var(--r-md); background:var(--paper-2);
+    padding:12px 13px; color:var(--ink); box-shadow:inset 0 0 0 .5px var(--hair);
+}
+.pl-in::placeholder{ color:var(--ink-3); }
+/* Le note partono già alte come mezzo foglietto e crescono da sé mentre si
+   scrive (l'altezza la regola planner.js): 76px bastavano per tre righe, e
+   per una nota vera si finiva a scrivere dentro una fessura. */
+textarea.pl-in{
+    resize:none; min-height:168px; max-height:52dvh; line-height:1.55;
+    overflow-y:auto; scrollbar-width:thin;
+    transition:height var(--t-fast) var(--ease);
+}
+textarea.pl-in.pl-note{ min-height:200px; }
+.pl-title-row{ display:flex; align-items:center; gap:8px; background:var(--paper-2); border-radius:var(--r-md); box-shadow:inset 0 0 0 .5px var(--hair); padding-right:6px; }
+.pl-title-row .pl-in{ background:none; box-shadow:none; font-family:'Cormorant Garamond',serif; font-size:19px; }
+.pl-icon-btn{ width:32px; height:32px; border-radius:var(--r-pill); display:grid; place-items:center; color:var(--ink-2); flex-shrink:0; background:var(--card); box-shadow:inset 0 0 0 .5px var(--hair); }
+.pl-icon-btn svg{ width:15px; height:15px; }
+
+.pl-row{ display:flex; align-items:center; gap:9px; }
+.pl-row-sb{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 0; border-bottom:.5px solid var(--hair); }
+.pl-row-sb:last-child{ border-bottom:none; }
+.pl-row-lab{ font-size:14.5px; color:var(--ink); }
+.pl-row-sub{ font-size:11.5px; color:var(--ink-3); }
+.pl-pick{
+    padding:8px 12px; border-radius:var(--r-md); background:var(--paper-2); font-size:14px; color:var(--ink);
+    box-shadow:inset 0 0 0 .5px var(--hair); font-variant-numeric:tabular-nums;
+}
+/* Data e ora di fine sullo stesso rigo: sono la stessa informazione, cioè
+   quando finisce, e su due righe si sarebbe cercata in due posti. */
+.pl-finebox{ display:flex; align-items:center; gap:7px; min-width:0; }
+.pl-pick-data-fine{ padding-left:9px; padding-right:9px; transition:opacity .25s, color .25s, box-shadow .25s; }
+/* Sbiadita finché la fine cade nel giorno d'inizio: c'è, si legge se la si
+   cerca, ma non pretende attenzione — per quasi tutti gli eventi non si tocca
+   mai. Diventata un giorno diverso torna piena come gli altri campi, perché a
+   quel punto cambia la sostanza dell'evento.
+   Opacità e non un grigio fisso: il campo resta leggibile e toccabile in
+   entrambi i temi, e un colore spento scritto a mano sul tema scuro sarebbe
+   finito sotto il fondo. */
+.pl-pick-data-fine.pl-spenta{ opacity:.42; box-shadow:inset 0 0 0 .5px transparent; background:transparent; }
+.pl-pick-data-fine.pl-spenta:focus{ opacity:1; }
+/* lucchetto della durata: chiuso è lo stato normale, quindi si fa notare
+   poco; aperto deve invece saltare all'occhio, perché è l'eccezione */
+.pl-lock{
+    width:30px; height:30px; border-radius:var(--r-pill); display:grid; place-items:center;
+    flex-shrink:0; color:var(--ink-3); background:var(--card);
+    box-shadow:inset 0 0 0 .5px var(--hair);
+    transition:color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.pl-lock svg{ width:15px; height:15px; }
+/* Chiuso e aperto sono due decisioni prese, e si vestono uguale: sono due
+   modi di dire “so cosa voglio”, e a distinguerli basta il disegno del
+   lucchetto. Sbiadire l'aperto lo faceva sembrare uno stato a metà, cioè
+   proprio quello che non è.
+   A restare in disparte è il primo stato, quello di partenza: pallido e con
+   la riga che sbarra il lucchetto, perché lì la durata non è né sempre ferma
+   né mai ferma e la sbarra dice “non deciso” meglio di qualunque tinta. */
+.pl-lock{ opacity:1; }
+.pl-lock-auto{ opacity:.34; }
+.pl-lock-aperto,
+.pl-lock-chiuso{ color:var(--accent-ink); background:var(--accent-soft); box-shadow:inset 0 0 0 .5px var(--accent); }
+
+/* la durata sta fra inizio e fine, con la sua scritta a destra insieme al
+   campo: in corsivo, per non farsi scambiare per una voce alla pari */
+.pl-durbox{ display:flex; align-items:center; gap:7px; }
+.pl-dur-lab{ font-size:13px; font-style:italic; color:var(--ink-3); }
+
+/* suggerimenti della ricerca del luogo */
+.pl-sugg{
+    margin-top:6px; border-radius:var(--r-md); background:var(--card);
+    box-shadow:inset 0 0 0 .5px var(--hair); overflow:hidden;
+    max-height:min(38dvh, 300px); overflow-y:auto; scrollbar-width:thin;
+}
+.pl-sugg-row{
+    display:block; width:100%; text-align:left; padding:10px 12px;
+    border-bottom:.5px solid var(--hair); background:none;
+}
+.pl-sugg-row:last-child{ border-bottom:none; }
+.pl-sugg-row:active{ background:var(--paper-2); }
+.pl-sugg-row .pl-row-sub{ margin-top:2px; }
+.pl-sugg-vuoto{ padding:10px 12px; font-size:12.5px; color:var(--ink-3); }
+.pl-loc-stato{ display:flex; align-items:center; gap:8px; margin:7px 2px 0; min-height:14px; }
+.pl-linkish{ font-size:11.5px; color:var(--ink-2); text-decoration:underline; background:none; padding:0; }
+
+.pl-toggle{
+    width:44px; height:26px; border-radius:var(--r-pill); background:var(--paper-3); position:relative; flex-shrink:0;
+    transition:background var(--t) var(--ease);
+}
+.pl-toggle::after{
+    content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%;
+    background:var(--card); box-shadow:0 1px 3px rgba(var(--ink-rgb, 76,70,63),.22);
+    transition:transform var(--t) var(--ease);
+}
+.pl-toggle.pl-on{ background:var(--accent); }
+.pl-toggle.pl-on::after{ transform:translateX(18px); }
+
+.pl-tags{ display:flex; flex-wrap:wrap; gap:6px; }
+.pl-tag{
+    display:flex; align-items:center; gap:6px; padding:7px 12px; border-radius:var(--r-pill);
+    background:var(--paper-2); font-size:13px; color:var(--ink-2);
+    box-shadow:inset 0 0 0 .5px var(--hair);
+    transition:transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease), color var(--t-fast);
+}
+.pl-tag .pl-dot{ width:9px; height:9px; border-radius:50%; background:var(--ev,var(--accent)); flex-shrink:0; }
+.pl-tag:active{ transform:scale(.95); }
+.pl-tag.pl-on{ background:color-mix(in srgb, var(--ev,var(--accent)) 30%, var(--card)); color:var(--ink); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ev,var(--accent)) 60%, transparent); }
+.pl-tag.pl-off{ opacity:.42; }
+.pl-seg{ display:flex; background:var(--paper-2); border-radius:var(--r-pill); padding:2.5px; gap:2px; }
+.pl-seg button{
+    flex:1; padding:8px 6px; border-radius:var(--r-pill); font-size:12.5px; color:var(--ink-2);
+    transition:background var(--t) var(--ease), color var(--t) var(--ease);
+}
+.pl-seg button.pl-on{ background:var(--card); color:var(--ink); box-shadow:var(--sh-soft); font-weight:500; }
+
+.pl-swatches{ display:flex; flex-wrap:wrap; gap:8px; }
+.pl-sw{
+    width:34px; height:34px; border-radius:var(--r-pill); background:var(--ev);
+    box-shadow:inset 0 0 0 .5px var(--hair-2);
+    transition:transform var(--t-fast) var(--pop), box-shadow var(--t-fast);
+}
+.pl-sw.pl-on{ transform:scale(1.1); box-shadow:0 0 0 2px var(--card), 0 0 0 3.4px var(--ev); }
+
+/* elenco a scorrimento (ricerca, routine, categorie nelle impostazioni) */
+.pl-rows{ display:flex; flex-direction:column; }
+.pl-srow{
+    position:relative; overflow:hidden; border-bottom:.5px solid var(--hair);
+}
+.pl-srow-in{
+    display:flex; align-items:center; gap:10px; padding:12px 2px; background:var(--card);
+    transition:transform var(--t) var(--ease);
+}
+.pl-srow-acts{
+    position:absolute; right:0; top:0; bottom:0; display:flex; align-items:center; gap:6px; padding-left:10px;
+    /* nascosti finché la riga non viene scostata: prima si vedevano sempre
+       e lo scorrimento sembrava non servire a niente */
+    opacity:0; pointer-events:none; transition:opacity .2s ease;
+}
+.pl-srow.pl-swiped .pl-srow-acts{ opacity:1; pointer-events:auto; }
+.pl-srow-act{ width:38px; height:calc(100% - 10px); border-radius:var(--r-md); display:grid; place-items:center; color:var(--ink-2); background:var(--paper-2); }
+.pl-srow-act svg{ width:15px; height:15px; }
+.pl-srow-act.pl-del{ background:#F3DCDC; color:#8E5A5A; }
+.pl-srow.pl-swiped .pl-srow-in{ transform:translateX(-88px); }
+
+/* ------------------------------------------------------------------ */
+/* Cambio giorno a pagina intera (un giorno solo)                     */
+/* ------------------------------------------------------------------ */
+/* Le trasformazioni le scrive planner.js sui pochi elementi in gioco (barra
+   in alto, fascia, striscia dei giorni, pagina che entra). Qui restano solo
+   le regole che cambiano la forma della pagina mentre il gesto è in corso. */
+
+/* La finestra dei giorni si allarga fin sotto la colonna degli orari, che nel
+   frattempo diventa invisibile ma tiene il suo posto: al suo posto scorre la
+   copia infilata dentro la striscia, così orari e giorno viaggiano insieme
+   invece di lasciare una fessura vuota sul bordo sinistro. */
+.pl-swipe1 .pl-hclip{ margin-left:calc(-1 * var(--gutter-w)); }
+/* la copia dentro la striscia porta la stessa classe dell'originale, quindi
+   va tenuta fuori da questa regola: se no sparirebbero tutte e due */
+.pl-swipe1 .pl-gutter:not(.pl-swipe-gutter){ visibility:hidden; }
+.pl-swipe-gutter{ flex-shrink:0; }
+
+/* La pagina del giorno vicino: un clone senza vita, a una schermata di
+   distanza. Ha una trasformazione propria, quindi le sue parti a posizione
+   fissa si appoggiano a lei e non allo schermo: è questo che le fa entrare
+   tutte insieme. Non riceve tocchi, nemmeno nei suoi pulsanti finti. */
+.pl-swipe-page{
+    position:fixed; inset:0; z-index:59; pointer-events:none;
+    transform:translateX(100vw);
+}
+.pl-swipe-page.pl-swipe-prev{ transform:translateX(-100vw); }
+.pl-swipe-page *{ pointer-events:none !important; }
+/* dentro il clone la barra e la fascia non si spostano da sole: le muove il
+   clone che le contiene, e sommare i due movimenti le farebbe correre doppie */
+.pl-swipe-page .pl-topbar,
+.pl-swipe-page .pl-daybar{ transform:none !important; }
+
+/* La barra in alto ha una sua transizione sulla trasformazione (le serve per
+   uscire di scena nella vista mese). Durante il gesto va spenta: con quella
+   accesa la barra arrivava mezzo secondo dopo il dito, e alla fine, quando le
+   si toglieva lo spostamento, rientrava da sinistra come una tendina. */
+.pl-swipe1 .pl-topbar{ transition:none; }
+
+/* solo al rilascio il movimento diventa un'animazione: durante il gesto deve
+   restare incollato al dito */
+.pl-swipe-anim .pl-topbar,
+.pl-swipe-anim .pl-daybar,
+.pl-swipe-anim .pl-swipe-page{ transition:transform .3s var(--ease); }
+
+/* ------------------------------------------------------------------ */
+/* 10. VISTA MESE                                                     */
+/* ------------------------------------------------------------------ */
+.pl-month{
+    position:fixed; inset:0; z-index:50; background:var(--paper);
+    display:none; flex-direction:column;
+    padding-top:calc(var(--topbar-h) + 4px);
+    touch-action:none;
+}
+.pl-view-month .pl-month{ display:flex; }
+.pl-view-month .pl-body-scroll,
+.pl-view-month .pl-fabs{ display:none; }
+
+/* ------------------------------------------------------------------ */
+/* Vista settimanale a tabella                                         */
+/* ------------------------------------------------------------------ */
+/* Si chiama .pl-wkview e non .pl-week: quel nome era già del blocco della
+   settimana nella barra in alto, e riusarlo lo trasformava in un riquadro a
+   tutto schermo.
+
+   Intestazioni e colonna delle ore stanno fuori dal riquadro che scorre e lo
+   seguono per trasformazione: dentro non potevano restare ferme, perché un
+   elemento appiccicato dentro una griglia si può muovere solo entro la sua
+   cella e la colonna delle ore se ne andava appena si scorreva. */
+.pl-wkview{
+    --wk-gut:34px;
+    --wk-col:calc((100vw - var(--wk-gut)) / 7);
+    position:fixed; inset:0; z-index:50; background:var(--paper);
+    display:none; flex-direction:column;
+    padding-top:calc(var(--topbar-h) + 4px);
+}
+.pl-view-week .pl-wkview{ display:flex; }
+.pl-view-week .pl-body-scroll,
+.pl-view-week .pl-fabs{ display:none; }
+/* qui non servono: la settimana si guarda per sapere dove stanno le cose */
+.pl-view-week .pl-smart,
+.pl-view-week .pl-prio-wrap,
+.pl-view-week .pl-copyask{ display:none !important; }
+
+.pl-wk-top{ display:flex; flex-shrink:0; border-bottom:.5px solid var(--hair); }
+.pl-wk-corner{ width:var(--wk-gut); flex-shrink:0; }
+.pl-wk-topclip{ flex:1; overflow:hidden; }
+.pl-wk-heads{ display:grid; will-change:transform; }
+.pl-wk-head{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:1px; border:none; background:none; color:inherit; cursor:pointer;
+    padding:5px 0 6px; border-left:.5px solid var(--hair);
+}
+.pl-wk-dow{ font-size:8px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); }
+.pl-wk-num{ font-size:15px; font-variant-numeric:tabular-nums; color:var(--ink); }
+.pl-wk-allday{ width:5px; height:5px; border-radius:99px; background:var(--ev, var(--accent)); }
+
+/* oggi e il giorno scelto sono due cose diverse e si vedono diverse */
+.pl-wk-head.pl-oggi .pl-wk-num{ color:var(--accent-ink); font-weight:600; }
+.pl-wk-head.pl-oggi{ background:var(--accent-wash); }
+.pl-wk-head.pl-scelto{ box-shadow:inset 0 -2.5px 0 var(--ink-2); }
+
+.pl-wk-main{ flex:1; display:flex; min-height:0; }
+.pl-wk-gutclip{ width:var(--wk-gut); flex-shrink:0; overflow:hidden; }
+.pl-wk-gut{ will-change:transform; }
+/* La riga dell'ora tiene in colonna il numero e, quando c'è posto, il tempo
+   di quell'ora: affiancati, in trentaquattro pixel di larghezza, si
+   sovrapporrebbero. `overflow:hidden` perché stringendo le righe con lo zoom
+   il tag non debba sbordare su quella di sotto. */
+.pl-wk-ora{
+    height:var(--wk-row, 44px); font-size:9px; color:var(--ink-3);
+    font-variant-numeric:tabular-nums;
+    display:flex; flex-direction:column; align-items:center; gap:1px;
+    padding-top:2px; border-top:.5px solid var(--hair); overflow:hidden;
+}
+.pl-wk-ora-n{ line-height:1; }
+/* Il tag del meteo nella colonna della settimana: stessa roba della vista
+   giorno, ma qui la riga lo tiene già al posto suo e non serve appenderlo a
+   una coordinata. I colori restano quelli di `.pl-wxg`. */
+.pl-wk-wxg{
+    position:static; left:auto; right:auto; opacity:.95;
+}
+.pl-wk-wxg .pl-wxg-ic{ width:13px; height:13px; }
+.pl-wk-wxg .pl-wxg-t{ font-size:8px; margin-top:0; }
+
+/* Non scorre da sé: lo scorrimento lo guida il codice con i puntatori, per
+   poter tenere un verso per volta, scegliere il giorno solo quando il dito si
+   alza e agganciare la colonna a modo nostro. `overflow:hidden` non toglie la
+   possibilità di spostarlo da codice, che è tutto quello che serve, e toglie
+   di mezzo lo scatto del browser che si contendeva la stessa posizione. */
+.pl-wk-scroll{
+    flex:1; overflow:hidden; overscroll-behavior:contain; touch-action:none;
+    scrollbar-width:none;
+    padding-bottom:calc(18px + var(--safe-bottom));
+}
+.pl-wk-scroll::-webkit-scrollbar{ display:none; }
+/* `relative` per la riga di adesso, che è l'unico figlio fuori dalla griglia */
+.pl-wk-grid{ display:grid; grid-auto-rows:var(--wk-row, 44px); position:relative; }
+/* La riga di adesso. Pallida attraversa tutta la striscia — l'ora è la stessa
+   in ogni colonna, e serve a sapere a che altezza si è anche guardando
+   giovedì; marcata e col pallino solo sulla colonna di oggi, perché è lì che
+   vuol dire davvero «adesso». */
+.pl-wk-now{
+    position:absolute; left:0; right:0; height:1px; z-index:14;
+    pointer-events:none; background:var(--accent-ink); opacity:.18;
+}
+.pl-wk-now-oggi{ right:auto; opacity:.75; height:1.4px; }
+.pl-wk-now-oggi::after{
+    content:''; position:absolute; left:-3px; top:-2.5px; width:6px; height:6px;
+    border-radius:50%; background:var(--accent-ink);
+    animation:pl-pulse 3.4s var(--ease-soft) infinite;
+}
+.pl-wk-cell{
+    border-left:.5px solid var(--hair); border-top:.5px solid var(--hair);
+    overflow:hidden; padding:1px; display:flex; flex-direction:column; gap:1px;
+}
+.pl-wk-cell.pl-oggi{ background:var(--accent-wash); }
+.pl-wk-cell.pl-scelto{ background:var(--paper-2); }
+.pl-wk-cell.pl-oggi.pl-scelto{ background:var(--accent-soft); }
+.pl-wk-chip{
+    font-size:8.5px; line-height:1.3; border-radius:3px; padding:0 2px;
+    background:var(--ev, var(--accent-soft)); color:var(--ink);
+    overflow:hidden; white-space:nowrap; cursor:pointer; flex-shrink:0;
+}
+.pl-wk-chip.pl-done{ opacity:.5; text-decoration:line-through; }
+/* il mucchietto di quelli che non ci stanno: toccandolo si aprono tutti */
+.pl-wk-piu{
+    font-size:8.5px; line-height:1.3; color:var(--ink-3); text-align:center;
+    cursor:pointer; flex-shrink:0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Menu delle viste                                                    */
+/* ------------------------------------------------------------------ */
+/* Posizione `fixed` decisa da planner.js sotto al tastino: dentro la barra
+   in alto veniva ritagliata e non si vedeva per intero, e comunque doveva
+   passare sopra la fascia delle priorità. Piccolo e stretto, che lassù lo
+   spazio è quello che è. */
+.pl-viewmenu{
+    position:fixed; z-index:200;
+    padding:4px; border-radius:var(--r-md);
+    background:var(--card); box-shadow:0 12px 30px -12px rgba(var(--ink-rgb, 76,70,63),.55), inset 0 0 0 .5px var(--hair);
+    display:none; flex-direction:column; gap:0;
+}
+.pl-viewmenu.pl-open{ display:flex; }
+.pl-viewmenu button{
+    border:none; background:none; cursor:pointer; text-align:left;
+    padding:7px 10px; border-radius:8px; font:inherit;
+    font-size:13px; line-height:1.1; color:var(--ink); white-space:nowrap;
+}
+/* la vista di adesso porta il colore della pagina: si vede dov'è senza
+   dover ricordare da dove si è arrivati */
+.pl-viewmenu button.pl-on{ background:var(--accent-soft); color:var(--accent-ink); font-weight:600; }
+.pl-mchip{
+    padding:6px 14px; border-radius:var(--r-pill); font-size:12.5px; color:var(--ink-2);
+    background:var(--paper-2); white-space:nowrap; flex-shrink:0;
+}
+.pl-mchip.pl-on{ background:var(--accent-soft); color:var(--accent-ink); font-weight:500; }
+.pl-mgrid{ flex:1; display:grid; grid-template-rows:auto repeat(6, 1fr); padding:0 8px calc(96px + var(--safe-bottom)); overflow:hidden; }
+.pl-mwd{ display:grid; grid-template-columns:repeat(7,1fr); }
+.pl-mwd span{ text-align:center; font-size:8.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); padding:4px 0 5px; }
+.pl-mrow{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; padding-bottom:3px; position:relative; }
+
+/* Le barre degli eventi che durano più giorni. Stanno su uno strato SOPRA la
+   riga, non dentro le caselle: una casella ha il taglio ai bordi, e una barra
+   che deve attraversare il martedì sparirebbe al confine del lunedì.
+   Lo strato ripete la stessa griglia a sette colonne con lo stesso spazio fra
+   le celle, così una barra che copre due giorni copre anche il vuoto in mezzo
+   e si legge come una cosa sola.
+   Misure e colori sono gli stessi di .pl-mev, le pastiglie di un giorno solo:
+   una barra deve leggersi come un evento normale che continua, non come un
+   oggetto di un'altra specie.
+   --pl-corsia è l'altezza di una riga di barre, ed è la stessa misura che le
+   caselle lasciano vuota sopra: sta scritta qui una volta e il JavaScript la
+   rilegge, invece di ripeterla in due posti che poi si scollano.
+   pointer-events:none è voluto: il tocco passa attraverso e arriva alla
+   casella sotto, che entra nel giorno. Una barra cliccabile che copre cinque
+   giorni non saprebbe in quale entrare. */
+.pl-mgrid{ --pl-corsia:15px; }
+.pl-mspans{
+    position:absolute; left:0; right:0; z-index:3; pointer-events:none;
+    /* sotto il numero del giorno: 3px di bordo della casella + 13 di numero */
+    top:18px;
+    display:grid; grid-template-columns:repeat(7,1fr); gap:3px;
+    grid-auto-rows:13px; row-gap:2px;
+}
+.pl-mspan{
+    min-width:0; margin:0 1px; padding:1px 3px; border-radius:4px;
+    background:color-mix(in srgb, var(--ev) 34%, var(--card));
+    color:var(--ink); font-size:8px; line-height:1.35;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+/* Arrotondata solo dove l'evento comincia e dove finisce davvero. Il lato che
+   prosegue resta squadrato: è il segno che la barra continua nella settimana
+   dopo, senza bisogno di frecce. */
+.pl-msp-apre{ border-top-left-radius:5px; border-bottom-left-radius:5px; margin-left:2px; }
+.pl-msp-chiude{ border-top-right-radius:5px; border-bottom-right-radius:5px; margin-right:2px; }
+.pl-mcell-corsie{ flex-shrink:0; }
+.pl-mcell{
+    border-radius:var(--r-sm); background:var(--card); padding:3px 3px 2px; overflow:hidden;
+    box-shadow:inset 0 0 0 .5px var(--hair); display:flex; flex-direction:column; gap:2px;
+    transition:transform var(--t-fast) var(--ease);
+}
+.pl-mcell:active{ transform:scale(.96); }
+.pl-mcell.pl-out{ background:var(--paper-2); opacity:.6; }
+.pl-mcell-n{ font-family:'Cormorant Garamond',serif; font-size:13px; line-height:1; text-align:center; color:var(--ink-2); }
+.pl-mcell.pl-today-d .pl-mcell-n{
+    color:var(--on-accent, var(--card)); background:var(--accent); border-radius:var(--r-pill);
+    width:17px; height:17px; display:grid; place-items:center; margin:0 auto; font-weight:600;
+}
+.pl-mev{
+    font-size:8px; line-height:1.35; border-radius:4px; padding:1px 3px;
+    background:color-mix(in srgb, var(--ev) 34%, var(--card)); color:var(--ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.pl-mmore{ font-size:7.5px; color:var(--ink-3); text-align:center; }
+.pl-mdiary{ position:absolute; }
+.pl-mcell-foot{ margin-top:auto; display:flex; align-items:center; gap:2px; justify-content:flex-end; }
+.pl-mtag{ width:11px; height:11px; border-radius:3.5px; display:grid; place-items:center; background:var(--accent-wash); color:var(--accent-ink); }
+.pl-mtag svg{ width:7px; height:7px; }
+
+/* apertura/chiusura del giorno */
+@keyframes pl-day-open{ from{ opacity:0; transform:scale(.9) translateY(6px); } to{ opacity:1; transform:none; } }
+@keyframes pl-day-close{ from{ opacity:1; transform:none; } to{ opacity:0; transform:scale(.94); } }
+.pl-anim-open{ animation:pl-day-open .42s var(--ease); }
+.pl-anim-close{ animation:pl-day-close .3s var(--ease) forwards; }
+

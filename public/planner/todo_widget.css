@@ -9,6 +9,7 @@
     --td-paper:#FDFCF9; --td-panel:#F5F1EA; --td-ink:#4A443D; --td-ink-2:#8A8177;
     --td-ink-3:#B7AEA3; --td-hair:rgba(74,68,61,.12); --td-accent:#A9C3AE;
     --td-accent-soft:#E7EFE8; --td-late:#B4645F; --td-late-soft:#F6E4E2;
+    --td-card:#FFFDFA; --td-ink-rgb:74,68,61;
     --td-serif:'Cormorant Garamond', Georgia, serif;
     --td-sans:'Jost', -apple-system, system-ui, sans-serif;
     font-family:var(--td-sans); color:var(--td-ink);
@@ -21,39 +22,39 @@
 /* popup per dare data e ora a più attività insieme */
 .td-modal{
     position:fixed; inset:0; z-index:9850; display:grid; place-items:center; padding:24px;
-    background:rgba(74,68,61,.28); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+    background:rgba(var(--td-ink-rgb, 74,68,61),.28); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
     animation:td-fade .22s ease;
 }
 @keyframes td-fade{ from{ opacity:0; } to{ opacity:1; } }
 .td-card{
-    width:100%; max-width:320px; background:#FDFCF9; border-radius:22px; padding:20px 18px 14px;
-    box-shadow:0 24px 54px -22px rgba(74,68,61,.5);
-    font-family:'Jost', system-ui, sans-serif; color:#4A443D;
+    width:100%; max-width:320px; background:var(--td-paper, #FDFCF9); border-radius:22px; padding:20px 18px 14px;
+    box-shadow:0 24px 54px -22px rgba(var(--td-ink-rgb, 74,68,61),.5);
+    font-family:'Jost', system-ui, sans-serif; color:var(--td-ink, #4A443D);
     animation:td-pop .3s cubic-bezier(.34,1.3,.64,1);
     max-height:82vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
 }
 @keyframes td-pop{ from{ transform:scale(.93); } to{ transform:none; } }
 .td-card-t{ font-family:'Cormorant Garamond', serif; font-size:21px; margin-bottom:4px; }
-.td-card-s{ font-size:12.5px; color:#8A8177; line-height:1.45; margin-bottom:14px; }
-.td-field{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:.5px solid rgba(74,68,61,.1); }
+.td-card-s{ font-size:12.5px; color:var(--td-ink-2, #8A8177); line-height:1.45; margin-bottom:14px; }
+.td-field{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:.5px solid rgba(var(--td-ink-rgb, 74,68,61),.1); }
 .td-field span{ font-size:14px; }
 .td-field input{
-    border:none; background:#F5F1EA; border-radius:10px; padding:8px 10px;
-    font:inherit; font-size:14px; color:#4A443D; text-align:center; min-width:104px;
+    border:none; background:var(--td-panel, #F5F1EA); border-radius:10px; padding:8px 10px;
+    font:inherit; font-size:14px; color:var(--td-ink, #4A443D); text-align:center; min-width:104px;
 }
 .td-card-acts{ display:flex; gap:8px; margin-top:16px; }
 .td-card-acts button{
     flex:1; padding:11px; border-radius:13px; border:none; cursor:pointer;
-    background:#F5F1EA; color:#8A8177; font:inherit; font-size:14px;
+    background:var(--td-panel, #F5F1EA); color:var(--td-ink-2, #8A8177); font:inherit; font-size:14px;
 }
-.td-card-acts button.td-primary{ background:var(--td-accent, #A9C3AE); color:#FFFDFA; }
+.td-card-acts button.td-primary{ background:var(--td-accent, #A9C3AE); color:var(--td-on-accent, #FFFDFA); }
 
 /* immagine a tutto schermo: niente scheda intorno, solo la foto e i comandi */
 .td-modal-img{ padding:16px; }
 .td-imgview{ display:flex; flex-direction:column; align-items:stretch; width:auto; max-width:min(560px, 94vw); }
 .td-imgview img{
     display:block; max-width:100%; max-height:70dvh; margin:0 auto;
-    border-radius:18px; background:#FDFCF9; object-fit:contain;
+    border-radius:18px; background:var(--td-paper, #FDFCF9); object-fit:contain;
     box-shadow:0 24px 60px -24px rgba(0,0,0,.55);
 }
 .td-imgview .td-card-acts{ margin-top:14px; }
@@ -88,7 +89,7 @@
     width:30px; height:30px; flex-shrink:0; border-radius:50%; cursor:pointer;
     display:grid; place-items:center; padding:0;
     border:1.5px solid color-mix(in srgb, var(--pill, #B7A6D6) 60%, transparent);
-    background:none; color:#FFFDFA;
+    background:none; color:var(--td-on-accent, #FFFDFA);
 }
 .td-pill-check svg{ width:16px; height:16px; }
 .td-pill-taken .td-pill-check{ background:var(--pill, #B7A6D6); border-color:var(--pill, #B7A6D6); }
@@ -149,7 +150,7 @@
 }
 .td-pill-cal-c.td-vuoto{ visibility:hidden; }
 /* presa tutte le volte previste: pieno del colore della terapia */
-.td-pill-cal-c.td-ok{ background:var(--cc, #B7A6D6); color:#FFFDFA; }
+.td-pill-cal-c.td-ok{ background:var(--cc, #B7A6D6); color:var(--td-on-accent, #FFFDFA); }
 /* Presa in parte: due su tre è una cosa diversa da nessuna e diversa da
    tutte. Due gradini e non uno per numero — fino a metà e oltre metà — perché
    con cinque prese al giorno quattro sfumature nessuno le distinguerebbe.
@@ -199,14 +200,14 @@
     flex:1; padding:7px 6px; border:none; border-radius:10px; cursor:pointer;
     background:var(--td-panel); color:var(--td-ink-3); font:inherit; font-size:11.5px;
 }
-.td-pill-segb.td-on{ background:var(--td-accent, #A9C3AE); color:#FFFDFA; }
+.td-pill-segb.td-on{ background:var(--td-accent, #A9C3AE); color:var(--td-on-accent, #FFFDFA); }
 .td-pill-ritmo{ margin:8px 0 12px; }
 .td-pill-days{ display:flex; gap:4px; }
 .td-pill-day{
     flex:1; padding:7px 0; border:none; border-radius:9px; cursor:pointer;
     background:var(--td-panel); color:var(--td-ink-3); font:inherit; font-size:11px;
 }
-.td-pill-day.td-on{ background:var(--td-accent, #A9C3AE); color:#FFFDFA; }
+.td-pill-day.td-on{ background:var(--td-accent, #A9C3AE); color:var(--td-on-accent, #FFFDFA); }
 .td-pill-ora{ display:flex; align-items:center; gap:6px; margin-bottom:6px; }
 .td-pill-ora .td-in{ flex:1; }
 .td-pill-step{
@@ -222,7 +223,7 @@
     padding:8px 14px; border:none; border-radius:11px; cursor:pointer;
     background:var(--td-panel); color:var(--td-ink-3); font:inherit; font-size:13px;
 }
-.td-pill-att.td-on{ background:var(--td-accent, #A9C3AE); color:#FFFDFA; }
+.td-pill-att.td-on{ background:var(--td-accent, #A9C3AE); color:var(--td-on-accent, #FFFDFA); }
 .td-card-wide{ max-width:380px; max-height:82dvh; overflow:auto; }
 
 /* ---------- le tre linguette ---------- */
@@ -235,7 +236,7 @@
     color:var(--td-ink-2); padding:8px 4px; border-radius:999px; letter-spacing:.02em;
     transition:background-color .24s ease, color .24s ease;
 }
-.td-tab.td-on{ background:var(--td-paper); color:var(--td-ink); box-shadow:0 1px 3px rgba(74,68,61,.09); }
+.td-tab.td-on{ background:var(--td-paper); color:var(--td-ink); box-shadow:0 1px 3px rgba(var(--td-ink-rgb, 74,68,61),.09); }
 
 /* Ogni attività su tre righe: titolo, poi data/ora/durata, poi progetto.
    Su una riga sola il titolo non aveva spazio. */
@@ -268,7 +269,7 @@
     transition:background-color .3s, color .3s, transform .3s cubic-bezier(.34,1.3,.64,1);
 }
 .td-box svg{ width:11px; height:11px; }
-.td-row.td-done .td-box{ background:var(--td-accent); color:#FFFDFA; box-shadow:none; transform:scale(1.05); }
+.td-row.td-done .td-box{ background:var(--td-accent); color:var(--td-on-accent, #FFFDFA); box-shadow:none; transform:scale(1.05); }
 .td-title{
     flex:1; min-width:0; border:none; background:none; outline:none; font:inherit;
     font-size:15px; color:var(--td-ink); padding:3px 0;
@@ -300,7 +301,7 @@
 @media (pointer:coarse){
     .td-chip-del{ display:none; }
 }
-.td-card-acts button.td-danger-btn{ background:#D98C8C; color:#FFFDFA; }
+.td-card-acts button.td-danger-btn{ background:#D98C8C; color:var(--td-on-accent, #FFFDFA); }
 .td-row.td-late .td-chip.td-set{ background:var(--td-late-soft); color:var(--td-late); }
 .td-chip{ position:relative; }
 /* campo invisibile ma cliccabile, steso su tutto il chip */
@@ -354,7 +355,7 @@
     color:transparent; transition:background-color .25s, color .25s;
 }
 .td-pick svg{ width:11px; height:11px; }
-.td-pick.td-on{ background:var(--td-accent); color:#FFFDFA; box-shadow:none; }
+.td-pick.td-on{ background:var(--td-accent); color:var(--td-on-accent, #FFFDFA); box-shadow:none; }
 /* comandi della selezione: in alto, piccoli, con le icone */
 /* Resta in vista mentre l'elenco scorre sotto: le azioni di gruppo servono
    soprattutto in fondo alla lista, e prima bisognava risalire fino in cima per

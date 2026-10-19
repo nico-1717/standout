@@ -28,6 +28,9 @@ body{
     color:#8A8177; text-decoration:none; font-size:13px;
 }
 .tp-back svg{ width:15px; height:15px; }
+/* riga in alto: ritorno al planner a sinistra, pallino del profilo a destra */
+.tp-top{ display:flex; align-items:center; justify-content:space-between; max-width:680px; margin:0 auto 16px; }
+.tp-top .tp-back{ margin-bottom:0; }
 .tp-note{
     font-family:'Cormorant Garamond', serif; font-style:italic; font-size:15px;
     color:#8A8177; margin:2px 0 16px; line-height:1.5;

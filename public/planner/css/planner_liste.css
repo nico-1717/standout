@@ -1,0 +1,401 @@
+/* planner/css/planner_liste.css — la colonna delle liste, la chiusura della settimana, i pulsanti flottanti, anticipi e ritardi.
+   Una parte di quello che era planner.css: le sei parti si caricano in
+   ordine da planner.php, e l'ordine conta (la cascata e' la stessa di prima). */
+/* ------------------------------------------------------------------ */
+/* 6. COLONNA LISTE + CHIUSURA SETTIMANA                              */
+/* ------------------------------------------------------------------ */
+.pl-col-list .pl-canvas{ background-image:none; }
+.pl-lists{ padding:4px 12px 130px; display:flex; flex-direction:column; gap:12px; }
+.pl-list-card{
+    border-radius:var(--r-lg); background:var(--card); padding:11px 12px 9px;
+    box-shadow:var(--sh-soft);
+}
+.pl-list-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:7px; }
+.pl-list-title{ font-family:'Cormorant Garamond',serif; font-size:18px; font-weight:500; }
+.pl-list-items{ display:flex; flex-direction:column; }
+.pl-li{ display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:.5px solid var(--hair); }
+.pl-li:last-child{ border-bottom:none; }
+.pl-li-box{
+    width:16px; height:16px; border-radius:6px; flex-shrink:0;
+    box-shadow:inset 0 0 0 1.1px var(--hair-2); display:grid; place-items:center; color:transparent;
+    transition:background var(--t) var(--ease), color var(--t) var(--ease), transform var(--t) var(--pop);
+}
+.pl-li-box svg{ width:10px; height:10px; }
+.pl-li.pl-done .pl-li-box{ background:var(--accent); color:var(--on-accent, var(--card)); box-shadow:none; transform:scale(1.06); }
+.pl-li.pl-done .pl-li-in{ color:var(--ink-3); text-decoration:line-through; text-decoration-thickness:.6px; }
+.pl-li-in{ flex:1; min-width:0; border:none; background:none; font-size:14px; color:var(--ink); padding:2px 0; }
+.pl-li-in::placeholder{ color:var(--ink-3); }
+
+.pl-addlist{
+    display:flex; align-items:center; justify-content:center; gap:7px;
+    padding:10px; border-radius:var(--r-lg); color:var(--ink-2); font-size:13px;
+    box-shadow:inset 0 0 0 .8px var(--hair); background:rgba(var(--card-rgb, 255,253,250),.5);
+}
+.pl-addlist svg{ width:14px; height:14px; }
+
+/* --- pannello settimana: le tre linguette e le voci vere ------------ */
+.pl-wl-tabs{
+    display:flex; gap:4px; padding:3px; margin:6px 0 12px;
+    background:var(--paper-2); border-radius:var(--r-pill);
+}
+.pl-wl-tab{
+    flex:1; border:none; background:none; cursor:pointer; font:inherit; font-size:12.5px;
+    color:var(--ink-2); padding:8px 4px; border-radius:var(--r-pill);
+    transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.pl-wl-tab.pl-on{ background:var(--card); color:var(--ink); box-shadow:0 1px 3px rgba(var(--ink-rgb, 76,70,63),.09); }
+.pl-wl-link{ font-size:12px; color:var(--ink-3); text-decoration:none; }
+
+/* --- pastiglie nel pannello: le prese di un giorno --- */
+/* Le linguette sono quattro e non tre: su schermo stretto "Pastiglie" è la
+   parola più lunga, quindi le linguette respirano un po' meno di prima. */
+.pl-wl-tabs .pl-wl-tab{ padding:8px 2px; font-size:12px; }
+.pl-pill-day{
+    font-family:'Cormorant Garamond',serif; font-style:italic;
+    font-size:13.5px; color:var(--ink-3); padding:2px 0 6px;
+}
+.pl-pill{ gap:7px; }
+/* l'orario davanti a tutto: l'elenco si legge come un orologio, dall'alto in
+   basso, ed è il primo dato che si cerca */
+.pl-pill-h{
+    font-size:12px; color:var(--ink-2); font-variant-numeric:tabular-nums;
+    width:36px; flex-shrink:0;
+}
+.pl-pill-dot{ width:8px; height:8px; border-radius:99px; background:var(--ev, var(--accent)); flex-shrink:0; }
+.pl-pill-txt{ flex:1; min-width:0; }
+.pl-pill-name{ font-size:14px; color:var(--ink); line-height:1.25; }
+.pl-pill-dose{ font-size:11.5px; color:var(--ink-3); line-height:1.3; }
+.pl-pill.pl-done .pl-pill-name{ color:var(--ink-3); text-decoration:line-through; text-decoration-thickness:.6px; }
+/* saltata non è fatta e non è dimenticata: si vede che è stata una scelta,
+   quindi resta leggibile ma spenta, senza la spunta addosso */
+.pl-pill-skip{ opacity:.5; }
+.pl-pill-skip .pl-pill-name{ text-decoration:line-through; text-decoration-thickness:.6px; }
+.pl-pill-x{
+    width:26px; height:26px; flex-shrink:0; border:none; background:none; cursor:pointer;
+    border-radius:var(--r-pill); display:grid; place-items:center; color:var(--ink-3);
+    transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.pl-pill-x svg{ width:13px; height:13px; }
+.pl-pill-skip .pl-pill-x{ background:var(--paper-2); color:var(--ink-2); }
+/* «saltata» scritto invece della crocetta: dice da solo che cosa sta per
+   succedere, e da acceso dice che è già successo. Piccolo e spento, perché
+   è la risposta meno frequente delle due. */
+.pl-pill-salta{
+    flex-shrink:0; border:none; cursor:pointer; font:inherit;
+    font-size:10.5px; letter-spacing:.06em; text-transform:uppercase;
+    padding:4px 8px; border-radius:var(--r-pill);
+    background:var(--paper-2); color:var(--ink-3);
+    transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.pl-pill-salta.pl-on{ background:#EADCD9; color:#8E5A5A; }
+.pl-pill-stats{ font-size:11.5px; color:var(--ink-3); padding:8px 0 2px; }
+
+/* --- prese rimaste indietro, dentro il pannello --- */
+/* Rosso solo sul bordo e sul giorno: un riquadro rosso pieno tutte le
+   mattine diventa allarme di sottofondo, e dopo tre giorni non lo si vede
+   più. Deve chiamare, non gridare. */
+.pl-pill-lasect{ color:#A96A6A; padding:8px 0 2px; }
+.pl-pill-late{ border-left:2px solid #C98F8F; padding-left:8px; }
+.pl-pill-late .pl-li-box{ box-shadow:inset 0 0 0 1.1px #C98F8F; }
+.pl-pill-quando{ font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:#A96A6A; }
+/* un giorno che non è ancora arrivato: si legge, non si tocca */
+.pl-pill-futura{ opacity:.62; }
+.pl-pill-futura .pl-li-box{ opacity:.5; }
+.pl-pill-ok{ width:100%; margin-top:16px; }
+.pl-wl-empty{
+    font-family:'Cormorant Garamond',serif; font-style:italic; font-size:15px;
+    color:var(--ink-3); padding:10px 0; text-align:center;
+}
+.pl-wl-add{
+    display:flex; align-items:center; gap:7px; width:100%; margin-top:6px;
+    padding:8px 0; border:none; background:none; cursor:pointer;
+    font:inherit; font-size:13px; color:var(--ink-3);
+}
+.pl-wl-add svg{ width:14px; height:14px; }
+.pl-wl-more{
+    width:100%; margin-top:8px; padding:8px; border:none; cursor:pointer;
+    border-radius:var(--r-md); background:var(--paper-2); color:var(--ink-2);
+    font:inherit; font-size:12.5px;
+}
+.pl-wl-others{ margin-top:6px; }
+.pl-wl-glab{
+    font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3);
+    padding:10px 0 3px;
+}
+/* --- voci rimaste indietro, dentro il pannello ---
+   Stesso rosso delle pastiglie arretrate, e per la stessa ragione: sono le
+   voci che il planner tira su in priorità, e devono riconoscersi al volo
+   anche qui. Solo il bordo, la casella e la data: il testo resta nero,
+   perché è quello che si legge e il rosso lo renderebbe più faticoso. */
+.pl-li-late{ border-left:2px solid #C98F8F; padding-left:8px; }
+.pl-li-late .pl-li-box{ box-shadow:inset 0 0 0 1.1px #C98F8F; }
+.pl-li-late .pl-li-when{ color:#A96A6A; }
+/* la sua intestazione, dello stesso rosso di quella delle pastiglie: sono la
+   stessa cosa detta su due elenchi diversi */
+.pl-wl-lasect{ color:#A96A6A; padding:10px 0 2px; }
+
+/* le voci fuori settimana si toccano per portarle qui: niente campo di
+   testo, o il tocco finirebbe nel cursore invece che nel gesto */
+.pl-li-other{ cursor:pointer; }
+.pl-li-other:active{ background:var(--accent-wash); border-radius:var(--r-sm); }
+.pl-li-txt{
+    flex:1; min-width:0; font-size:14px; color:var(--ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.pl-li.pl-done .pl-li-txt{ color:var(--ink-3); text-decoration:line-through; text-decoration-thickness:.6px; }
+.pl-li-price{ font-size:11.5px; color:var(--ink-2); flex-shrink:0; }
+
+/* La riga sta dentro un involucro che ritaglia: il cestino aspetta fuori
+   quadro a sinistra e scorrendo la riga entra in vista. */
+.pl-li-wrap{ position:relative; overflow:hidden; }
+.pl-li-wrap .pl-li{ background:var(--card); transition:transform var(--t) var(--ease); }
+/* il bordo dell'ultima riga lo toglie l'involucro, non la riga */
+.pl-li-wrap:last-child .pl-li{ border-bottom:none; }
+.pl-li-trash{
+    position:absolute; left:0; top:0; bottom:0; width:56px;
+    display:flex; align-items:center; justify-content:center;
+    background:#F3DCDC; color:#8E5A5A; border:none; cursor:pointer; padding:0;
+    /* nascosto finché la riga non è scostata: se qualcosa andasse storto
+       nello scorrimento, non può restare in vista */
+    opacity:0; pointer-events:none; transition:opacity .2s ease;
+}
+.pl-li-trash svg{ width:16px; height:16px; }
+.pl-li-wrap.pl-swiped .pl-li{ transform:translateX(56px); }
+.pl-li-wrap.pl-swiped .pl-li-trash{ opacity:1; pointer-events:auto; }
+
+/* data e ora: sono un pulsante, non una scritta, perché da qui si cambiano */
+.pl-li-when{
+    font-size:11px; color:var(--ink-3); flex-shrink:0;
+    border:none; background:none; padding:2px 5px; margin:0; cursor:pointer;
+    border-radius:var(--r-pill); font-family:inherit;
+}
+.pl-li-when:active{ background:var(--accent-wash); }
+
+/* la priorità del "to buy": più è alta, più il pallino è caldo. Gli stessi
+   tre colori della pagina attività, così il numero 1 vuol dire la stessa
+   cosa nei due posti. */
+.pl-li-prio{
+    flex-shrink:0; width:19px; height:19px; border:none; cursor:pointer;
+    border-radius:var(--r-pill); font: inherit; font-size:10.5px; line-height:19px;
+    padding:0; text-align:center; font-variant-numeric:tabular-nums;
+}
+.pl-prio-1{ background:#EADCD9; color:#8E5A5A; }
+.pl-prio-2{ background:#EDE7DC; color:#8A7B5F; }
+.pl-prio-3{ background:#E6EAE6; color:#6F7D6F; }
+
+.pl-learned{ border-radius:var(--r-lg); background:var(--accent-wash); padding:11px 12px; }
+.pl-learned textarea{
+    width:100%; border:none; background:none; resize:none; color:var(--accent-ink);
+    font-family:'Cormorant Garamond',serif; font-size:16px; line-height:1.55; min-height:72px; padding:0;
+}
+.pl-learned textarea::placeholder{ color:color-mix(in srgb, var(--accent-ink) 42%, transparent); font-style:italic; }
+
+.pl-quote{
+    margin:2px 4px 0; padding:14px 8px; text-align:center;
+    font-family:'Cormorant Garamond',serif; font-style:italic; font-size:16px;
+    line-height:1.5; color:var(--ink-2);
+    border-top:.5px solid var(--hair);
+}
+.pl-quote::after{
+    content:''; display:block; width:22px; height:1px; margin:11px auto 0;
+    background:var(--hair-2);
+}
+
+/* ------------------------------------------------------------------ */
+/* 7. PULSANTI FLOTTANTI                                              */
+/* ------------------------------------------------------------------ */
+.pl-fabs{
+    position:fixed; right:12px;
+    /* Sopra la fascia dei giorni (56), non sotto: la sezione degli eventi di
+       tutto il giorno vive lì dentro e occupa tutta la larghezza, quindi i
+       tastini le passano sopra invece di farsi togliere il posto. */
+    z-index:61;
+    /* Ancorati alla FINE DELLE PRIORITÀ, non alla fine di tutta la fascia
+       in alto. `--daybar-h` comprende anche la sezione degli eventi di tutto
+       il giorno: usandola così com'è, i tastini scivolavano giù di venti
+       pixel ogni volta che compariva un evento di tutto il giorno e
+       risalivano quando spariva. Togliendo l'altezza di quella sezione, la
+       loro posizione non dipende più da quanto c'è dentro: restano dove
+       sono e le passano sopra. */
+    /* top:calc(var(--topbar-h) + var(--daybar-h) - var(--headrow-h, 0px) + 8px); */
+    display:flex; flex-direction:column; align-items:flex-end; gap:3px;
+    /* il contenitore è trasparente ai tocchi: solo i pulsanti e i menù li
+       ricevono. Senza questo, la sua area invisibile finiva per rubare lo
+       scorrimento verticale degli orari dopo aver aperto un menù. */
+    pointer-events:none;
+}
+/* Il contenitore era già trasparente ai tocchi, ma i suoi FIGLI no — e uno
+   di quei figli è il gruppo dei tastini, una colonna alta che con i tastini
+   aperti copre mezzo schermo. Nei buchi fra un tastino e l'altro non c'è
+   niente da premere, eppure il tocco finiva lì: da qui lo zoom che non
+   partiva e gli eventi che non si riuscivano a creare tenendo premuto.
+   Ricevono il tocco solo le cose che si possono davvero premere. */
+.pl-fabs > *{ pointer-events:none; }
+.pl-fabs button,
+.pl-fabs .pl-ring,
+.pl-fabs .pl-fab,
+.pl-fabs .pl-fab-menu.pl-open{ pointer-events:auto; }
+.pl-fab-menu:not(.pl-open){ pointer-events:none !important; }
+
+/* La colonna che si richiude sotto le abitudini. L'altezza si anima con
+   max-height, che per funzionare ha bisogno del ritaglio: ma i menù dei
+   tastini escono dal gruppo e ritagliati sparirebbero, quindi a corsa finita
+   il gruppo torna libero (classe messa da planner.js con il suo ritardo). */
+.pl-fab-group{
+    display:flex; flex-direction:column; align-items:flex-end; gap:3px;
+    max-height:0; opacity:0; overflow:hidden;
+    transition:max-height .34s var(--ease), opacity .26s var(--ease);
+}
+.pl-fab-group.pl-open{ max-height:420px; opacity:1; }
+.pl-fab-group.pl-libero{ overflow:visible; }
+/* al primo disegno la posizione va presa senza farla vedere in movimento */
+.pl-fab-group.pl-nomoto{ transition:none; }
+.pl-fab-group:not(.pl-open){ pointer-events:none; }
+
+/* la freccetta gira mentre la colonna scende, e da aperta punta in su */
+.pl-fab-toggle svg{ transition:transform .34s var(--ease); }
+.pl-fab-toggle.pl-aperto svg{ transform:rotate(180deg); }
+
+/* Mentre si cambia scatto lo scorrevole non deve provare a scorrere per conto
+   suo: se il browser si prende il gesto, la presa dei puntatori salta e il
+   pizzico muore a metà. */
+.pl-zoomando #plScroller{ touch-action:none; }
+.pl-fab{
+    width:36px; height:36px; border-radius:var(--r-pill); display:grid; place-items:center;
+    background:rgba(var(--card-rgb, 255,253,250),.82); color:var(--ink-2); box-shadow:var(--sh-soft), inset 0 0 0 .5px var(--hair);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+    transition:transform var(--t-fast) var(--ease), background var(--t-fast), color var(--t-fast);
+}
+.pl-fab svg{ width:17px; height:17px; }
+.pl-fab:active{ transform:scale(.9); }
+.pl-fab.pl-on{ background:var(--accent-soft); color:var(--accent-ink); }
+.pl-fab-cat.pl-picked{
+    width:auto; height:34px; padding:0 11px; gap:6px; font-size:12px; font-weight:500;
+    display:flex; align-items:center;   /* .pl-fab usa grid per l'icona sola: qui servono tre cose in riga */
+}
+.pl-fab-cat.pl-picked .pl-dot{ width:8px; height:8px; border-radius:50%; background:var(--ev, var(--accent)); }
+
+/* anello degli habit */
+.pl-ring{ width:46px; height:46px; position:relative; }
+.pl-ring svg{ position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg); }
+/* Un anello per famiglia di frequenza, disegnati da planner.js perché quanti
+   sono dipende da quali abitudini hai. Dal centro verso fuori: giornaliere,
+   settimanali, mensili, personalizzate.
+
+   Le corsie sono attaccate: lo spessore e lo stacco stanno in planner.js
+   (RING_LARGHEZZA e RING_STACCO), e lo stacco è volutamente più sottile della
+   corsia, così le corsie si leggono come un blocco unico diviso da un filo.
+   Le estremità sono squadrate, non arrotondate: con corsie così sottili e
+   vicine, le punte tonde si toccavano fra un anello e l'altro. */
+.pl-ring circle{ fill:none; stroke-linecap:butt; }
+/* Il fondo è un grigio chiarissimo: deve dire "qui c'è una corsia" senza
+   competere con la parte piena. */
+.pl-ring .pl-ring-track{ stroke:color-mix(in srgb, var(--ink) 8%, transparent); }
+.pl-ring .pl-ring-fill{ transition:stroke-dashoffset var(--t-slow) var(--ease); }
+/* Ogni famiglia ha la sua intensità dello stesso colore: si distinguono fra
+   loro senza introdurre una tavolozza nuova. */
+.pl-ring .pl-ring-daily{    stroke:var(--accent); }
+.pl-ring .pl-ring-weekly{   stroke:var(--accent-ink); }
+.pl-ring .pl-ring-monthly{  stroke:color-mix(in srgb, var(--accent-ink) 62%, var(--card)); }
+.pl-ring .pl-ring-interval{ stroke:color-mix(in srgb, var(--accent-ink) 38%, var(--card)); }
+.pl-ring.pl-ring-full .pl-ring-face{ color:var(--accent); }
+
+/* separatore fra le abitudini di oggi e quelle settimanali, nel menù */
+.pl-chip-sep{
+    align-self:stretch; height:1px; background:var(--hair-2);
+    margin:3px 8px 3px auto; width:60%;
+}
+.pl-chip-lab{
+    font-size:8.5px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--ink-3); padding:0 12px 2px; align-self:flex-end;
+}
+.pl-chip-ring{
+    width:22px; height:22px; flex-shrink:0; position:relative;
+    display:grid; place-items:center;
+}
+.pl-chip-ring svg{ position:absolute; inset:0; transform:rotate(-90deg); }
+.pl-chip-ring circle{ fill:none; stroke-width:2.6; stroke-linecap:round; }
+.pl-chip-ring .bg{ stroke:var(--hair-2); }
+.pl-chip-ring .fg{ stroke:var(--accent-ink); transition:stroke-dashoffset .5s var(--ease); }
+.pl-chip-ring span{ font-size:7.5px; color:var(--ink-2); font-variant-numeric:tabular-nums; }
+.pl-ring-face{
+    position:absolute; inset:0; display:grid; place-items:center; color:var(--ink-2);
+}
+.pl-ring-face svg{ position:static; width:17px; height:17px; transform:none; transition:width var(--t) var(--ease), height var(--t) var(--ease); }
+/* più corsie, meno foro: l'icona si stringe per non finirci sopra */
+.pl-ring[data-n="3"] .pl-ring-face svg{ width:13px; height:13px; }
+.pl-ring[data-n="4"] .pl-ring-face svg{ width:10px; height:10px; }
+
+/* menù a tendina sotto un fab */
+.pl-fab-menu{
+    display:flex; flex-direction:column; align-items:flex-end; gap:6px;
+    max-height:0; opacity:0; overflow:hidden; pointer-events:none;
+    transition:max-height var(--t) var(--ease), opacity var(--t) var(--ease);
+}
+.pl-fab-menu.pl-open{
+    opacity:1; pointer-events:auto; overflow-y:auto; overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch; padding:2px 2px 4px; scrollbar-width:none;
+}
+.pl-fab-menu.pl-open::-webkit-scrollbar{ width:0; }
+.pl-chip{
+    display:flex; align-items:center; gap:7px; padding:7px 12px; border-radius:var(--r-pill);
+    background:rgba(var(--card-rgb, 255,253,250),.9); box-shadow:var(--sh-soft), inset 0 0 0 .5px var(--hair);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+    font-size:13px; color:var(--ink); white-space:nowrap; max-width:74vw;
+    animation:pl-chip-in .34s var(--ease) backwards;
+    transition:transform var(--t-fast) var(--ease);
+}
+.pl-chip:active{ transform:scale(.95); }
+/* Abitudine a completamento già messa nel giorno: fondo grigio e scritta
+   smorzata. Prima prendeva il colore dell'abitudine, e un chip colorato
+   sembrava un invito invece di un avviso: qui deve dire "questa sarebbe la
+   seconda volta di oggi", quindi il grigio è il messaggio. */
+.pl-chip-messa{
+    background:#EDEAE4;
+    color:var(--ink-3);
+    box-shadow:var(--sh-soft), inset 0 0 0 .5px var(--hair);
+}
+.pl-chip-messa .pl-chip-sub{ color:var(--ink-3); }
+.pl-chip .pl-dot{ width:9px; height:9px; border-radius:50%; background:var(--ev,var(--accent)); flex-shrink:0; }
+.pl-chip-sub{ font-size:10.5px; color:var(--ink-3); }
+.pl-chip-x{ width:16px; height:16px; display:grid; place-items:center; color:var(--ink-3); }
+.pl-chip-x svg{ width:11px; height:11px; }
+@keyframes pl-chip-in{ from{ opacity:0; transform:translateX(10px) scale(.94); } to{ opacity:1; transform:none; } }
+
+.pl-plus{
+    position:fixed; right:14px; bottom:calc(18px + var(--safe-bottom)); z-index:61;
+    width:54px; height:54px; border-radius:var(--r-pill); display:grid; place-items:center;
+    background:var(--accent); color:var(--on-accent, var(--card));
+    box-shadow:0 6px 20px -8px color-mix(in srgb, var(--accent-ink) 60%, transparent);
+    transition:transform var(--t-fast) var(--pop);
+}
+.pl-plus svg{ width:22px; height:22px; }
+.pl-plus:active{ transform:scale(.9); }
+
+/* ------------------------------------------------------------------ */
+/* 8. MODALITÀ ANTICIPI / RITARDI                                     */
+/* ------------------------------------------------------------------ */
+.pl-shift-on .pl-topbar,
+.pl-shift-on .pl-daybar,
+.pl-shift-on .pl-quotebar,
+.pl-shift-on .pl-fabs > :not(#plFabShift),
+.pl-shift-on .pl-plus{ opacity:.28; pointer-events:none; filter:saturate(.6); transition:opacity var(--t) var(--ease); }
+.pl-shift-on #plFabShift{ background:var(--accent); color:var(--on-accent, var(--card)); }
+.pl-shift-bar{
+    position:fixed; left:10px; right:10px; top:calc(var(--safe-top) + 10px); z-index:80;
+    padding:10px 12px; border-radius:var(--r-lg); background:var(--card);
+    box-shadow:var(--sh-card); display:none; gap:9px; align-items:center;
+}
+.pl-shift-on .pl-shift-bar{ display:flex; animation:pl-drop .4s var(--ease); }
+@keyframes pl-drop{ from{ opacity:0; transform:translateY(-10px); } to{ opacity:1; transform:none; } }
+.pl-switch{ display:flex; background:var(--paper-2); border-radius:var(--r-pill); padding:2px; }
+.pl-switch button{
+    padding:6px 12px; border-radius:var(--r-pill); font-size:12px; color:var(--ink-2);
+    transition:background var(--t-fast) var(--ease), color var(--t-fast);
+}
+.pl-switch button.pl-on{ background:var(--card); color:var(--ink); box-shadow:var(--sh-soft); }
+.pl-time-in{
+    width:74px; text-align:center; border:none; background:var(--paper-2); border-radius:var(--r-md);
+    padding:7px 6px; font-size:15px; color:var(--ink); font-variant-numeric:tabular-nums;
+}
+

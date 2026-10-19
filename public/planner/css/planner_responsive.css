@@ -1,0 +1,338 @@
+/* planner/css/planner_responsive.css — schermi larghi e orizzontali, preferenze di movimento, ritocchi per telefono.
+   Una parte di quello che era planner.css: le sei parti si caricano in
+   ordine da planner.php, e l'ordine conta (la cascata e' la stessa di prima). */
+/* ------------------------------------------------------------------ */
+/* 12. Orizzontale e schermi larghi: priorità e diario a lato         */
+/* ------------------------------------------------------------------ */
+@media (min-width:760px){
+    /* i giorni affiancati si dividono lo spazio secondo le impostazioni */
+    .pl-col,
+    .pl-hcol{ width:calc((100vw - var(--gutter-w)) / var(--days-visible, 3)); }
+    .pl-col-list{ width:min(40vw, 340px); }
+    .pl-sheet{ border-radius:var(--r-xl); height:auto; max-height:82dvh; margin-bottom:26px; }
+    .pl-ov{ align-items:center; }
+    .pl-mcell-n{ font-size:15px; }
+    .pl-mev{ font-size:9.5px; }
+}
+@media (orientation:landscape) and (max-height:520px){
+    :root{ --topbar-h:calc(88px + env(safe-area-inset-top, 0px)); }
+    .pl-affirm{ display:none; }
+    .pl-col{ width:44vw; }
+}
+
+/* ------------------------------------------------------------------ */
+/* 13. Rispetto delle preferenze di movimento                         */
+/* ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+        animation-duration:.01ms !important; animation-iteration-count:1 !important;
+        transition-duration:.01ms !important;
+    }
+    .pl-part, .pl-drift{ display:none; }
+    /* del meteo resta il riassunto, che è informazione; la scena che si muove
+       (nuvole, veli, lampo) sparisce */
+    .pl-wxa-cloud, .pl-wxa-fog, .pl-wxa-flash{ display:none; }
+    .pl-tree{ animation:none; } .pl-animal-cammina, .pl-animal-vola{ animation:none; }
+}
+/* --- blocchi troppo bassi per gli orari ------------------------------
+   Sotto i 32px la riga degli orari verrebbe tagliata a metà: una cifra
+   mozzata non dice niente e toglie spazio al titolo, che è l'unica cosa
+   che serve a riconoscere il blocco a colpo d'occhio. */
+.pl-ev.pl-ev-senzaora .pl-ev-h{ display:none; }
+.pl-ev.pl-ev-senzaora{
+    display:flex; flex-direction:column; justify-content:center;
+    padding-top:0; padding-bottom:0;
+}
+.pl-ev.pl-ev-senzaora .pl-ev-t{
+    font-size:10.5px; line-height:1.05;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* --- riga «Tipo» nel popup dell'evento -------------------------------
+   Una scelta fra due parole non merita un campo intero con l'etichetta
+   sopra: sta su una riga sola, sotto il titolo, con il selettore rimpicciolito
+   di fianco all'etichetta invece che a capo. */
+.pl-tipo-riga{
+    display:flex; align-items:center; gap:10px;
+    margin:8px 2px 0;
+}
+.pl-tipo-lab{
+    font-size:9px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-3); flex-shrink:0;
+}
+.pl-tipo-riga .pl-seg{ flex:0 0 auto; padding:2px; }
+.pl-tipo-riga .pl-seg button{ font-size:10.5px; padding:3px 12px; }
+
+/* --- vista settimanale: gli eventi di tutto il giorno -----------------
+   Stavano nella fascia in alto, la stessa della vista giorno, e coprivano la
+   riga che dice quali sono i giorni — proprio la cosa che qui serve di più.
+
+   Non sono una riga della griglia: dentro la griglia `grid-auto-rows` li
+   stirava a un'ora intera, e da lì le righe degli orari smettevano di
+   corrispondere a quelle scritte a sinistra. Sono una striscia a sé, con le
+   stesse colonne, appiccicata in alto mentre si scorre. */
+.pl-wk-ad{
+    display:grid; will-change:transform;
+    background:var(--card);
+    border-bottom:.5px solid var(--hair-2);
+}
+.pl-wk-adcell{
+    border-left:.5px solid var(--hair);
+    overflow:hidden; padding:1px; display:flex; flex-direction:column; gap:1px;
+    background:var(--paper-2);
+}
+.pl-wk-adcell.pl-oggi{ background:var(--accent-wash); }
+.pl-wk-adcell.pl-scelto{ background:var(--paper); }
+.pl-wk-chip.pl-wk-chip-ad{ font-style:italic; }
+/* l'etichetta nella colonna delle ore: «gg», non un orario, perché questa
+   striscia non appartiene a nessuna ora. Si appiccica come la striscia,
+   se no scorrerebbe via e la fascia resterebbe senza nome. */
+.pl-wk-adlab{
+    display:flex; align-items:center; justify-content:flex-end;
+    padding-right:5px;
+    background:var(--card);
+    border-bottom:.5px solid var(--hair-2);
+    font-size:8px; letter-spacing:.1em; color:var(--ink-3);
+}
+/* l'angolo in alto a sinistra ospita il nome della fascia: da colonna a
+   colonna, se no l'etichetta e la striscia si scollano */
+.pl-wk-corner{ display:flex; flex-direction:column; justify-content:flex-end; }
+.pl-wk-topclip{ display:flex; flex-direction:column; justify-content:flex-end; }
+
+/* --- vista giorno: gli eventi di tutto il giorno, sezione a sé -------
+   Occupa tutta la larghezza, come deve: le colonne dei giorni sono spostate
+   di lato da una translateX scritta in JS, e togliere il posto della colonna
+   degli orari faceva finire i blocchi fuori dallo schermo a sinistra.
+
+   Sono invece i tastini a passarci sopra: sono fissi e galleggiano su tutto
+   il resto, quindi il posto per loro non va tolto a nessuno. */
+.pl-headrow{
+    border-top:.5px solid var(--hair);
+    padding-top:5px;
+    background:var(--paper);
+    position:relative; z-index:1;
+}
+
+/* Un attrezzo armato si riconosce dal tastino, che smette di essere
+   un'icona e diventa l'etichetta di quello che sta per essere inserito.
+   Stessa forma e stessa misura del tastino delle categorie: sono tre
+   risposte alla stessa domanda, e farle sembrare cose diverse non aiuta. */
+#plHabitRing.pl-picked,
+#plFabFav.pl-picked{
+    width:auto; height:34px; padding:0 11px; gap:6px;
+    font-size:12px; font-weight:500;
+    display:flex; align-items:center;
+    border-radius:var(--r-pill);
+    background:var(--card); color:var(--ink);
+    max-width:46vw; overflow:hidden; white-space:nowrap;
+}
+#plHabitRing.pl-picked .pl-dot,
+#plFabFav.pl-picked .pl-dot{
+    width:8px; height:8px; border-radius:50%;
+    background:var(--ev, var(--accent)); flex-shrink:0;
+}
+/* L'anello degli habit disegna i suoi archi con `position:absolute; inset:0`
+   su un quadrato di 46px. Quella regola prendeva anche la x del tastino
+   armato e la sparava nell'angolo in alto a sinistra: qui gli si ridà una
+   posizione normale, dentro la riga insieme al pallino e al nome. */
+#plHabitRing.pl-picked svg{
+    position:static; inset:auto; transform:none;
+    width:12px; height:12px;
+}
+#plFabFav.pl-picked svg{ width:12px; height:12px; }
+/* Rimuove lo spazio vuoto a sinistra negli eventi di tutto il giorno su smartphone */
+@media (max-width: 759px) {
+    .pl-headgutter {
+        display: none !important;
+    }
+    .pl-hcol {
+        width: 100vw !important;
+        border-left: none !important;
+        padding-left: 12px !important;
+    }
+}
+/* Nasconde il contenuto degli eventi tutto il giorno per i giorni non a fuoco,
+   evitando che dilatino la riga creando spazi bianchi inutili */
+.pl-hcol-hidden .pl-hcol-ad {
+    display: none !important;
+}
+/* --- eventi di tutto il giorno: uno per volta, a turno -----------------
+   Prima stavano incolonnati e la fascia cresceva a ogni evento, rubando
+   altezza agli orari e spostando tutto quello che sta sotto. Adesso è alta
+   sempre una riga: si vede il primo, ogni tanto passa al successivo, e i
+   pallini dicono quanti sono. Stesso modo delle priorità, così non c'è
+   niente di nuovo da capire. */
+.pl-hcol-ad.pl-ad-giro{
+    flex-direction:row; align-items:center; gap:6px;
+    position:relative;
+}
+/* Le voci restano tutte nel documento e si scambiano la visibilità invece di
+   essere ricostruite: ricostruirle a ogni cambio farebbe perdere il tocco a
+   chi stava premendo, e il giro va avanti da solo mentre si guarda. */
+.pl-hcol-ad.pl-ad-giro > .pl-ev{ display:none; flex:1; min-width:0; }
+.pl-hcol-ad.pl-ad-giro > .pl-ev.pl-on{ display:block; }
+/* In colonna, non in fila: uno per voce, e in verticale si legge «quante
+   righe ci sono» invece di sembrare tre puntini di sospensione. Sono gli
+   stessi pallini della fascia priorità, con lo stesso verso. */
+.pl-ad-pal{
+    display:flex; flex-direction:column; gap:2px;
+    flex-shrink:0; padding-right:3px; align-items:center;
+}
+.pl-ad-pallino{
+    width:4px; height:4px; border-radius:50%;
+    background:var(--hair-2); transition:background var(--t-fast) var(--ease);
+}
+.pl-ad-pallino.pl-on{ background:var(--ink-3); }
+
+/* --- avvisi in basso, una riga ciascuno --------------------------------
+   Stanno all'altezza del tasto +, in sovraimpressione. Qui finiscono le
+   pastiglie la cui ora è passata e la domanda sulla copia del giorno, che
+   prima stava in cima e allungava la barra ogni volta che compariva: un
+   avviso non deve rimettere in fila la pagina per farsi leggere. */
+.pl-avvisi{
+    position:fixed; z-index:58;
+    /* più largo: la domanda deve starci tutta, orario compreso */
+    /* A sinistra si lascia libero il tastino della barra laterale, a destra
+       il tasto +: l'avviso è una cosa in più, non deve mettersi davanti a
+       due comandi che servono sempre. E sta più in alto del + invece che
+       alla sua stessa altezza, se no da fermo lo copre comunque. */
+    left:58px; right:82px;
+    bottom:calc(34px + var(--safe-bottom, 0px));
+    display:flex; flex-direction:column-reverse; gap:5px;
+    pointer-events:none;
+}
+.pl-avvisi > *{ pointer-events:auto; }
+.pl-avviso{
+    display:flex; align-items:center; gap:8px;
+    padding:6px 8px 6px 6px;
+    background:var(--card); border-radius:var(--r-pill);
+    /* Un filo del colore della terapia sul bordo, non un blocco di colore
+       addosso: la riga deve dire quale pastiglia è con un'occhiata, senza
+       diventare l'unica cosa che si vede sulla pagina. */
+    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ev, var(--accent)) 40%, transparent),
+               0 2px 4px rgba(var(--ink-rgb, 76,70,63),.05), 0 14px 30px -18px rgba(var(--ink-rgb, 76,70,63),.30);
+    animation:plAvvisoEntra .3s var(--ease) both;
+}
+@keyframes plAvvisoEntra{ from{ opacity:0; transform:translateY(8px) scale(.97); } }
+/* Uscendo si sfila di lato invece di sparire: la riga sopra scende al suo
+   posto e si capisce che è stata registrata, non che il tocco è andato perso. */
+.pl-avviso.pl-avviso-via{
+    opacity:0; transform:translateX(-14px);
+    transition:opacity .24s var(--ease), transform .24s var(--ease);
+}
+/* Il testo su due righe al massimo, con la domanda che resta leggibile:
+   il nome della terapia in evidenza e il resto più tenue, così l'occhio
+   trova subito di cosa si parla senza rileggere tutta la frase. */
+.pl-avviso-t{
+    flex:1; min-width:0;
+    font-size:11px; line-height:1.25; color:var(--ink-2);
+    text-align:left;
+    /* Niente taglio a due righe: mancava proprio l'orario, cioè la parte che
+       distingue una presa dall'altra, e i tre puntini al suo posto rendevano
+       la domanda inutile. Va a capo quanto serve, il riquadro cresce. */
+    overflow-wrap:anywhere;
+}
+.pl-avviso-t b{ font-weight:600; color:var(--ink); }
+.pl-avviso-link{
+    background:none; border:none; padding:0; cursor:pointer;
+    color:var(--accent-ink); text-decoration:underline; text-decoration-thickness:.5px;
+}
+/* La spunta è il gesto principale: è la più grande delle tre e l'unica
+   colorata, così il pollice ci va sopra senza cercare. */
+.pl-avviso-ok{
+    width:26px; height:26px; flex-shrink:0; border-radius:50%;
+    border:none; cursor:pointer;
+    background:color-mix(in srgb, var(--ev, var(--accent)) 16%, var(--card));
+    color:var(--ev, var(--accent));
+    display:grid; place-items:center;
+    transition:transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.pl-avviso-ok svg{ width:12px; height:12px; }
+.pl-avviso-ok:active{ transform:scale(.88); }
+.pl-avviso-salta{
+    flex-shrink:0; border:none; background:none; cursor:pointer;
+    padding:3px 2px; font-size:10px; letter-spacing:.05em;
+    color:var(--ink-3); text-decoration:underline; text-decoration-thickness:.5px;
+    text-underline-offset:2px;
+}
+.pl-avviso-x{
+    width:20px; height:20px; flex-shrink:0; border:none; background:none;
+    color:var(--hair-2); display:grid; place-items:center; cursor:pointer;
+}
+.pl-avviso-x svg{ width:11px; height:11px; }
+/* Una x sola per liberare lo schermo quando le arretrate sono tante: sta
+   sopra la pila e non dentro nessuna riga, se no sembrerebbe riferita a
+   quella. */
+.pl-avviso-tutte{
+    align-self:flex-start; border:none; cursor:pointer;
+    background:color-mix(in srgb, var(--ink) 78%, transparent); color:var(--card);
+    border-radius:var(--r-pill); padding:3px 10px; font-size:10px; letter-spacing:.04em;
+    box-shadow:0 2px 4px rgba(var(--ink-rgb, 76,70,63),.05);
+}
+/* in vista mese e settimana non c'è un giorno a cui si riferiscono */
+.pl-view-month .pl-avvisi, .pl-view-week .pl-avvisi{ display:none; }
+
+/* --- fascia di tutto il giorno: pallini a sinistra, aperta o chiusa --- */
+.pl-hcol-ad.pl-ad-aperta{ flex-direction:column; align-items:stretch; }
+.pl-hcol-ad.pl-ad-aperta > .pl-ev{ display:block; }
+.pl-hcol-ad.pl-ad-aperta .pl-ad-pal{ display:none; }
+
+
+/* --- vista a lista: l'elenco prende tutta la larghezza ------------------
+   La colonna degli orari in vista a lista non ha niente da scrivere. La sua
+   altezza era già azzerata, ma restava la larghezza: era quella la striscia
+   vuota a sinistra dell'elenco, che sembrava un margine sbagliato e invece
+   era un righello senza numeri. */
+/* `--gutter-w` va a zero e basta: righello, intestazione e larghezza della
+   colonna la usano tutti e tre, quindi si spostano insieme e restano
+   d'accordo. Forzarne solo alcune faceva sfogliare i giorni con una misura
+   e disegnarli con un'altra. */
+body.pl-lista .pl-gutter{ display:none; }
+body.pl-lista .pl-col{ border-left:none; }
+
+/* Il riquadro della copia mantiene l'aspetto di sempre — il colore scelto
+   per la pagina, la domanda, sì e no — ma sta in fondo insieme agli altri
+   avvisi invece che in cima, dove allungava la barra ogni volta. */
+.pl-copyask.pl-copyask-basso{
+    margin:0; box-shadow:var(--sh-card);
+    border-radius:var(--r-pill); padding:6px 8px 6px 12px;
+}
+.pl-copyask.pl-copyask-basso .pl-copyask-t{ font-size:11.5px; }
+.pl-copyask.pl-copyask-basso .pl-mini-btn{ padding:4px 12px; font-size:11.5px; }
+/* Del selettore progetti serve solo il popup: il pulsante inline non ha senso
+   nel pannello evento, il progetto si sceglie dalla riga. */
+#ps-widget-plev{ display:none; }
+
+/* Anelli in attesa dei dati del giorno nuovo: restano quelli di prima, smorzati.
+   Prima si svuotavano e si ridisegnavano, e sfogliando i giorni si vedeva un
+   lampo a ogni cambio — anelli via, mezzo secondo di buco, anelli di ritorno.
+   Smorzarli dice «questi sono ancora quelli di ieri» senza far sparire niente. */
+.pl-ring-attesa{ opacity:.35; transition:opacity .18s; }
+
+/* Una presa sistemata esce di lato e poi si richiude. Le due transizioni hanno
+   tempi diversi apposta: prima lo scorrimento, poi il collasso dell'altezza —
+   così si vede dove va prima che il buco si chiuda. Le altre righe si spostano
+   perché l'altezza va a zero, non perché vengano ridisegnate. */
+.pl-pill-via{
+    transition:transform .23s cubic-bezier(.32,.72,0,1), opacity .2s,
+               height .26s cubic-bezier(.32,.72,0,1) .21s,
+               margin .26s cubic-bezier(.32,.72,0,1) .21s,
+               padding .26s cubic-bezier(.32,.72,0,1) .21s;
+    will-change:transform, height;
+}
+@media (prefers-reduced-motion: reduce){
+    .pl-pill-via{ transition-duration:.01ms !important; }
+}
+
+/* ---- linguetta «da studiare» nel pannello ----
+   Gli argomenti stanno sotto il loro blocco: «integrali tripli» da solo non
+   dice di quale esame è quando se ne preparano tre. */
+.pl-study-blocco{
+    display:flex; align-items:baseline; gap:8px; padding:10px 2px 5px;
+    border-left:3px solid var(--ev, #B7AEA3); padding-left:9px; margin-top:8px;
+}
+.pl-study-nome{ flex:1; min-width:0; font-size:13.5px; font-weight:600;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pl-study-mat{ flex-shrink:0; font-size:10.5px; opacity:.5; }
+.pl-study-li{ padding-left:9px; }
+

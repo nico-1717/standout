@@ -72,6 +72,7 @@ $circ = 2 * M_PI * 46;   // circonferenza dell'anello (r = 46)
         <a href="fc_stats.php" class="hdr-icon" aria-label="<?php te('fchub.statistiche'); ?>" title="<?php te('fchub.statistiche'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M6.5 20v-6M12 20V5M17.5 20v-9"/></svg>
         </a>
+        <?php /* pallino del profilo, in fila con i pulsanti dell'intestazione */ $fr_widget_inline = true; include __DIR__ . '/../partials/notifiche_widget.php'; ?>
     </div>
 </header>
 

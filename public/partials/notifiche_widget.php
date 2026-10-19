@@ -57,6 +57,10 @@ button.standout-fab--login:hover{ transform:translateY(-2px) scale(1.03); box-sh
 button.standout-fab--login:active{ transform:scale(.96); }
 
 .standout-fab--user{ display:flex; flex-direction:column; align-items:flex-end; }
+/* dentro l'intestazione di una pagina ($fr_widget_inline = true): sta in fila
+   con i pulsanti dell'intestazione invece di galleggiare sopra di loro */
+.standout-fab.fnw-inline{ position:relative; top:auto; right:auto; z-index:auto; flex-shrink:0; align-self:center; }
+.fnw-inline .standout-fab-avatar{ width:34px; height:34px; font-size:14px; border-width:1.5px; box-shadow:0 3px 10px rgba(0,0,0,.16); }
 .standout-fab-avatar{
   appearance:none; border:2px solid #fff; cursor:pointer; width:42px; height:42px; border-radius:50%;
   background:linear-gradient(135deg, var(--nis-accent), #A78BFA); color:#fff; font-weight:800; font-size:16px;
@@ -171,7 +175,7 @@ button.standout-fab--login:active{ transform:scale(.96); }
 }
 </style>
 
-<div class="standout-fab standout-fab--user fnw-scope fnw-anchor">
+<div class="standout-fab standout-fab--user fnw-scope fnw-anchor<?php echo $fw_inline ? ' fnw-inline' : ''; ?>">
     <button type="button" class="standout-fab-avatar" id="fnwBtn" 
             aria-label="<?php te('notifiche.aria_profilo'); ?>" aria-haspopup="true" aria-expanded="false">
         <?php echo htmlspecialchars(fr_iniziale($fw_nome), ENT_QUOTES); ?>
@@ -235,7 +239,7 @@ button.standout-fab--login:active{ transform:scale(.96); }
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
             <span><?php te('dashboard.le_tue_statistiche'); ?></span>
         </a>
-        <?php require_once __DIR__ . '/lang_picker.php'; standout_lang_picker('row'); ?>
+        <?php require_once __DIR__ . '/lang_picker.php'; standout_lang_picker('row'); standout_stile_picker(); ?>
         <a class="fnw-row fnw-danger" href="<?php echo PWA_BASE; ?>account/logout.php">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
             <span><?php te('notifiche.logout'); ?></span>
@@ -254,6 +258,10 @@ button.standout-fab--login:active{ transform:scale(.96); }
     var count = document.getElementById('fnwCount');
     var pill  = document.getElementById('fnwPill');
     if (!btn || !panel) { return; }
+    /* Pannello e velo vivono in fondo alla pagina: se il pulsante sta dentro
+       un'intestazione con sfocatura o transform, un elemento "fixed" li'
+       dentro resterebbe intrappolato e tagliato. */
+    if (panel.parentNode !== document.body) { document.body.appendChild(scrim); document.body.appendChild(panel); }
 
     var LEGACY = <?php echo json_encode(FR_LEGACY_AVATAR_SELECTOR); ?>;
     if (LEGACY) { try { document.querySelectorAll(LEGACY).forEach(function (e) { e.style.display = 'none'; }); } catch (e) {} }

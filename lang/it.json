@@ -3542,5 +3542,11 @@
     "ore_fa": "{n} h fa",
     "ieri": "ieri",
     "giorni_fa": "{n} g fa"
+  },
+  "stile": {
+    "titolo": "Stile",
+    "standard": "Standard",
+    "paper": "Carta",
+    "nota": "Per Diario, Planner, To do e To study"
   }
 }

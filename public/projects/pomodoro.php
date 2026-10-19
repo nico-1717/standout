@@ -359,6 +359,7 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v6l4 2"/><circle cx="12" cy="13" r="8"/></svg>
         <?php te('pomodoro.storico'); ?>
     </button>
+    <?php /* pallino del profilo, in fila con i pulsanti dell'intestazione */ $fr_widget_inline = true; include __DIR__ . '/../partials/notifiche_widget.php'; ?>
 </div>
 
 <?php include __DIR__ . '/../partials/sidebar.html'; ?>

@@ -25,6 +25,7 @@ function standout_lang_picker(string $forma = 'pill'): void
 
     if (!$risorse) {
         $risorse = true;
+
         ?>
 <style>
 .slp{ position:relative; font-family:inherit; -webkit-tap-highlight-color:transparent; }
@@ -86,6 +87,14 @@ function standout_lang_picker(string $forma = 'pill'): void
 .slp--row .slp-opt{ color:var(--fnw-text, inherit); padding:9px 12px 9px 42px; }
 .slp--row .slp-opt:hover{ background:var(--fnw-bg2, rgba(0,0,0,.05)); }
 .slp--row .slp-opt .slp-check{ color:var(--fnw-blue, #007AFF); }
+.slp-swatch{ width:20px; height:15px; border-radius:4px; flex-shrink:0; position:relative;
+    box-shadow:0 0 0 .5px rgba(0,0,0,.22); }
+.slp-swatch::after{ content:""; position:absolute; right:3px; bottom:3px; width:5px; height:5px; border-radius:50%; }
+.slp-swatch--standard{ background:#F2F2F7; }
+.slp-swatch--standard::after{ background:#007AFF; }
+.slp-swatch--paper{ background:#F5F1EA; }
+.slp-swatch--paper::after{ background:#A9C3AE; }
+.slp-nota{ display:block; padding:2px 12px 6px 42px; font-size:12px; font-weight:500; color:var(--fnw-t2, #8A8A8E); }
 @media (prefers-reduced-motion: reduce){ .slp *, .slp-menu{ transition:none !important; } }
 </style>
 <script>
@@ -111,13 +120,17 @@ function standout_lang_picker(string $forma = 'pill'): void
         if (opt) {
             e.preventDefault(); e.stopPropagation();
             var picker = opt.closest('.slp');
-            var lingua = opt.getAttribute('data-lingua');
+            /* Lo stesso selettore serve a piu' scelte: data-campo dice cosa si
+               manda all'API ("lingua", "stile"), data-valore il valore. */
+            var campo = picker.getAttribute('data-campo') || 'lingua';
+            var valore = opt.getAttribute('data-valore');
             if (opt.getAttribute('aria-checked') === 'true') { chiudiTutti(null); return; }
             picker.classList.add('slp-busy');
+            var corpo = {}; corpo[campo] = valore;
             fetch(picker.getAttribute('data-api'), {
                 method: 'POST', credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': picker.getAttribute('data-token') || '' },
-                body: JSON.stringify({ lingua: lingua })
+                body: JSON.stringify(corpo)
             }).then(function (r) { return r.json(); }).then(function (r) {
                 if (!r || !r.ok) throw new Error('ko');
                 /* se l'indirizzo aveva ?lang=, va tolto: vincerebbe sulla scelta appena fatta */
@@ -125,10 +138,15 @@ function standout_lang_picker(string $forma = 'pill'): void
                 u.searchParams.delete('lang');
                 window.location.replace(u.toString());
             }).catch(function () {
-                /* rete o token scaduto: ?lang= imposta comunque sessione e cookie */
-                var u = new URL(window.location.href);
-                u.searchParams.set('lang', lingua);
-                window.location.href = u.toString();
+                if (campo === 'lingua') {
+                    /* rete o token scaduto: ?lang= imposta comunque sessione e cookie */
+                    var u = new URL(window.location.href);
+                    u.searchParams.set('lang', valore);
+                    window.location.href = u.toString();
+                    return;
+                }
+                picker.classList.remove('slp-busy');
+                try { picker.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 }); } catch (e) {}
             });
             return;
         }
@@ -140,12 +158,15 @@ function standout_lang_picker(string $forma = 'pill'): void
         <?php
     }
 
+    /* chiamata solo per avere stili e JS (lo fa standout_stile_picker) */
+    if ($forma === '__solo_risorse__') return;
+
     $chev = '<svg class="slp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
           . ($forma === 'row' ? '<path d="m9 6 6 6-6 6"/>' : '<path d="m6 9 6 6 6-6"/>') . '</svg>';
     $check = '<svg class="slp-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg>';
     $nomeAttuale = $info[$attuale]['nome'] ?? strtoupper($attuale);
     ?>
-<div class="slp slp--<?php echo $forma === 'row' ? 'row' : 'pill'; ?>"
+<div class="slp slp--<?php echo $forma === 'row' ? 'row' : 'pill'; ?>" data-campo="lingua"
      data-api="<?php echo htmlspecialchars(PWA_BASE . 'api/lingua.php', ENT_QUOTES); ?>"
      data-token="<?php echo htmlspecialchars($token, ENT_QUOTES); ?>">
     <button type="button" class="slp-btn" aria-haspopup="true" aria-expanded="false"
@@ -164,13 +185,49 @@ function standout_lang_picker(string $forma = 'pill'): void
     <div class="slp-menu" role="menu"><div>
         <?php foreach (STANDOUT_LINGUE as $codice): $n = $info[$codice]['nome'] ?? strtoupper($codice); ?>
             <button type="button" class="slp-opt" role="menuitemradio" lang="<?php echo htmlspecialchars($codice, ENT_QUOTES); ?>"
-                    data-lingua="<?php echo htmlspecialchars($codice, ENT_QUOTES); ?>"
+                    data-valore="<?php echo htmlspecialchars($codice, ENT_QUOTES); ?>"
                     aria-checked="<?php echo $codice === $attuale ? 'true' : 'false'; ?>">
                 <img class="slp-flag" src="<?php echo htmlspecialchars($flag($codice), ENT_QUOTES); ?>" alt="">
                 <span><?php echo htmlspecialchars($n, ENT_QUOTES); ?></span>
                 <?php echo $check; ?>
             </button>
         <?php endforeach; ?>
+    </div></div>
+</div>
+    <?php
+}
+
+/* La riga "Stile" del pannello del profilo: stessa meccanica della lingua
+   (stesso JS, stesse classi), un'altra API. Vedi lib/stile.php. */
+function standout_stile_picker(): void
+{
+    require_once __DIR__ . '/../../lib/stile.php';
+    standout_lang_picker('__solo_risorse__');   // stili e JS condivisi, senza markup
+    $attuale = standout_stile();
+    $token = function_exists('sec_csrf_token') ? sec_csrf_token()
+           : (function_exists('standout_csrf_token') ? standout_csrf_token() : '');
+    $nomi = ['standard' => t('stile.standard'), 'paper' => t('stile.paper')];
+    $check = '<svg class="slp-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg>';
+    ?>
+<div class="slp slp--row" data-campo="stile"
+     data-api="<?php echo htmlspecialchars(PWA_BASE . 'api/stile.php', ENT_QUOTES); ?>"
+     data-token="<?php echo htmlspecialchars($token, ENT_QUOTES); ?>">
+    <button type="button" class="slp-btn" aria-haspopup="true" aria-expanded="false" title="<?php te('stile.titolo'); ?>">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.8-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3Z"/><circle cx="7.5" cy="11" r="1.2" fill="currentColor"/><circle cx="10.5" cy="7" r="1.2" fill="currentColor"/><circle cx="15" cy="7.5" r="1.2" fill="currentColor"/></svg>
+        <span><?php te('stile.titolo'); ?></span>
+        <span class="slp-val"><span class="slp-swatch slp-swatch--<?php echo $attuale; ?>"></span><?php echo htmlspecialchars($nomi[$attuale], ENT_QUOTES); ?></span>
+        <svg class="slp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+    </button>
+    <div class="slp-menu" role="menu"><div>
+        <?php foreach (STANDOUT_STILI as $s): ?>
+            <button type="button" class="slp-opt" role="menuitemradio" data-valore="<?php echo $s; ?>"
+                    aria-checked="<?php echo $s === $attuale ? 'true' : 'false'; ?>">
+                <span class="slp-swatch slp-swatch--<?php echo $s; ?>"></span>
+                <span><?php echo htmlspecialchars($nomi[$s], ENT_QUOTES); ?></span>
+                <?php echo $check; ?>
+            </button>
+        <?php endforeach; ?>
+        <span class="slp-nota"><?php te('stile.nota'); ?></span>
     </div></div>
 </div>
     <?php

@@ -1,0 +1,459 @@
+/* =====================================================================
+   STANDOUT — PLANNER
+   Linguaggio visivo: "carta e cielo".
+   Il fondo è carta calda (mai nero, mai bianco puro), il testo è un
+   taupe scuro, gli accenti sono pastelli lavati. Il display serif
+   (Cormorant) fa i numeri dei giorni e i nomi dei mesi come su
+   un'agenda stampata; il sans geometrico (Jost) in maiuscoletto
+   spaziato fa le etichette. Niente angoli vivi, niente colori accesi.
+   Elemento firma: la fascia "cielo" in alto, che cambia luce con l'ora
+   del giorno e ospita alberi e un insetto che vola lentissimo.
+
+   Il foglio e' diviso in sei parti, caricate in quest'ordine da planner.php:
+     planner_base.css        token, regole di base, fascia in alto (questo)
+     planner_griglia.css     griglia giorni/orari, elenco del mese, eventi
+     planner_liste.css       liste, chiusura settimana, pulsanti flottanti
+     planner_fogli.css       fogli dal basso, vista mese, settimana a tabella
+     planner_extra.css       popup, frase del giorno, ambiente e meteo
+     planner_responsive.css  schermi larghi, preferenze di movimento
+   Lo stile standard (_assets/ui/stile_standard.css) ne ridefinisce i token.
+   ===================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Jost:wght@300;400;500;600&display=swap');
+
+/* ------------------------------------------------------------------ */
+/* 1. TOKEN                                                            */
+/* ------------------------------------------------------------------ */
+:root{
+    /* carta */
+    --paper:#FBF9F6;
+    --paper-2:#F5F1EA;
+    --paper-3:#EDE7DE;
+    --card:#FFFDFA;
+    /* le stesse tinte in forma r,g,b, per le trasparenze: rgba(var(--ink-rgb),.4) */
+    --ink-rgb:76,70,63; --card-rgb:255,253,250; --paper-rgb:251,249,246;
+
+    /* inchiostro (nessun nero). --k è il moltiplicatore di marcatura,
+       impostato dalle impostazioni: 1 = tenue, 5 = deciso. */
+    --k:1;
+    --ink:#4C463F;
+    --ink-2:rgba(76,70,63,calc(.52 + .10 * var(--k)));
+    --ink-3:rgba(76,70,63,calc(.30 + .10 * var(--k)));
+    --hair:rgba(76,70,63,calc(.05 + .028 * var(--k)));
+    --hair-2:rgba(76,70,63,calc(.10 + .045 * var(--k)));
+
+    /* accento: sostituito da .pl-palette-* */
+    --accent:#A9C3AE;
+    --accent-soft:#DCE8DD;
+    --accent-wash:#EDF3EE;
+    --accent-ink:#4A5B4E;
+
+    /* colore evento senza categoria */
+    --neutral-ev:#E4DDD3;
+
+    /* forma */
+    --r-xl:26px; --r-lg:20px; --r-md:14px; --r-sm:10px; --r-pill:999px;
+
+    /* movimento: lento e morbido */
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --ease-soft:cubic-bezier(.33,.02,.28,1);
+    --pop:cubic-bezier(.34,1.3,.64,1);
+    --t-fast:.22s; --t:.38s; --t-slow:.62s;
+
+    /* misure */
+    --gutter-w:48px;
+    --head-h:26px;
+    --daybar-h:0px;
+    --headrow-h:0px;
+    --topbar-h:calc(126px + env(safe-area-inset-top, 0px));
+    --safe-top:env(safe-area-inset-top, 0px);
+    --safe-bottom:env(safe-area-inset-bottom, 0px);
+
+    /* griglia orari: impostate da planner.js in base allo zoom */
+    --slot-h:44px;
+    --slot-min:30;
+    --px-min:1.4667;
+
+    --sh-soft:0 1px 2px rgba(76,70,63,.04), 0 10px 26px -14px rgba(76,70,63,.16);
+    --sh-card:0 2px 4px rgba(76,70,63,.05), 0 18px 40px -22px rgba(76,70,63,.28);
+    --sh-sheet:0 -10px 50px -12px rgba(76,70,63,.30);
+}
+
+/* palette pastello selezionabili dalle impostazioni */
+.pl-palette-sage    { --accent:#A9C3AE; --accent-soft:#DCE8DD; --accent-wash:#EEF4EF; --accent-ink:#4A5B4E; }
+.pl-palette-mint    { --accent:#A5CCC4; --accent-soft:#D7EAE5; --accent-wash:#EDF5F3; --accent-ink:#456159; }
+.pl-palette-blush   { --accent:#E7B9C0; --accent-soft:#F6E1E4; --accent-wash:#FBF0F1; --accent-ink:#6E4A50; }
+.pl-palette-lavender{ --accent:#C2B8DC; --accent-soft:#E6E1F1; --accent-wash:#F3F0F8; --accent-ink:#544B6B; }
+.pl-palette-butter  { --accent:#E8D4A2; --accent-soft:#F6EBD2; --accent-wash:#FAF4E7; --accent-ink:#6A5A36; }
+.pl-palette-sky     { --accent:#B0C7DD; --accent-soft:#DCE7F0; --accent-wash:#EFF4F8; --accent-ink:#465768; }
+.pl-palette-clay    { --accent:#DDBCA6; --accent-soft:#F1E0D3; --accent-wash:#F8F1EB; --accent-ink:#6B5344; }
+.pl-palette-rose    { --accent:#DFAFB4; --accent-soft:#F3DCDF; --accent-wash:#FAF0F1; --accent-ink:#6B474B; }
+.pl-palette-sea     { --accent:#9FC2C6; --accent-soft:#DBEAEB; --accent-wash:#EFF6F6; --accent-ink:#40585B; }
+.pl-palette-olive   { --accent:#BFC49B; --accent-soft:#E7E9D4; --accent-wash:#F5F6EC; --accent-ink:#565A3B; }
+.pl-palette-plum    { --accent:#C3A9BE; --accent-soft:#E9DCE7; --accent-wash:#F7F1F6; --accent-ink:#5B4657; }
+.pl-palette-sand    { --accent:#E0CDA9; --accent-soft:#F3E9D6; --accent-wash:#FAF5EC; --accent-ink:#645639; }
+
+/* ------------------------------------------------------------------ */
+/* 2. RESET + regole "app": niente zoom, niente selezione            */
+/* ------------------------------------------------------------------ */
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+/* Quanto della colonna resta libero in fondo a destra. Lo stesso numero sta
+   in EV_CODA dentro planner.js, che lo usa per spartire le corsie: se si
+   cambia qui va cambiato anche là. */
+:root{ --ev-coda:5%; }
+/* La densità degli orari: quanto vale un minuto in pixel. Tutto quello che
+   sta sulla griglia si posiziona con `calc(var(--pxm) * minuti)`, così
+   pizzicando basta riscrivere questo numero e si sposta tutto insieme senza
+   ricostruire un solo nodo. Il valore di partenza è quello dello scatto da
+   mezz'ora; planner.js lo aggiorna appena parte. */
+:root{ --pxm:1.4667px; }
+html{
+    -webkit-text-size-adjust:100%; text-size-adjust:100%;
+    touch-action:manipulation;               /* il doppio tap non zooma */
+    overscroll-behavior:none;
+    background:var(--paper);
+}
+html.pl-locked{ overflow:hidden; }
+body.pl-body{
+    margin:0; min-height:100dvh; background:var(--paper); color:var(--ink);
+    font-family:'Jost', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-size:15px; font-weight:400; line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    user-select:none; -webkit-user-select:none;
+    -webkit-touch-callout:none;              /* niente menù al press lungo */
+    overflow:hidden;                          /* lo scroll è interno alla griglia */
+}
+input, textarea, [contenteditable="true"]{
+    user-select:text; -webkit-user-select:text; -webkit-touch-callout:default;
+    font-family:inherit; font-size:16px;      /* 16px: iOS non zooma sul focus */
+}
+button{ font-family:inherit; border:none; background:none; color:inherit; cursor:pointer; padding:0; }
+:focus{ outline:none; }
+:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
+
+.pl-label{
+    font-size:9.5px; font-weight:500; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--ink-3);
+}
+.pl-serif{ font-family:'Cormorant Garamond', Georgia, serif; }
+.pl-hidden{ display:none !important; }
+
+/* ------------------------------------------------------------------ */
+/* 3. FIRMA: la fascia cielo                                          */
+/* ------------------------------------------------------------------ */
+.pl-topbar{
+    position:fixed; top:0; left:0; right:0; z-index:60;
+    padding:calc(var(--safe-top) + 8px) 14px 9px;
+    background:var(--sky-grad, linear-gradient(170deg, #F2F5F2 0%, var(--paper) 78%));
+    box-shadow:0 1px 0 var(--hair), 0 14px 28px -26px rgba(var(--ink-rgb, 76,70,63),.4);
+    /* la barra sa anche uscire di scena: nel mese, con l'elenco degli eventi
+       aperto, scorre in alto per lasciare il posto al calendario */
+    transition:background 1.6s var(--ease-soft), transform .42s var(--ease);
+    overflow:hidden;
+}
+/* luci del giorno: la classe la mette planner.js sull'orario reale */
+.pl-sky-dawn     { --sky-grad:linear-gradient(168deg,#F7E7E4 0%,#F6EFE6 48%,var(--paper) 92%); }
+.pl-sky-morning  { --sky-grad:linear-gradient(168deg,#EAF1F3 0%,#F4F3EC 50%,var(--paper) 92%); }
+.pl-sky-afternoon{ --sky-grad:linear-gradient(168deg,#F1F0E4 0%,#F7F3EA 50%,var(--paper) 92%); }
+.pl-sky-sunset   { --sky-grad:linear-gradient(168deg,#F8E4D8 0%,#F7EDE3 52%,var(--paper) 92%); }
+.pl-sky-evening  { --sky-grad:linear-gradient(168deg,#E6E4EE 0%,#F1EDEC 52%,var(--paper) 92%); }
+.pl-sky-night    { --sky-grad:linear-gradient(168deg,#DFE1EA 0%,#EDEBEA 54%,var(--paper) 92%); }
+
+/* alberi: due silhouette morbidissime che respirano col vento */
+.pl-ambient{ position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+/* Quanto si vede la scena del mese: la barra nelle impostazioni scrive
+   --ambiente-op. La classe c'è solo sulla scena degli alberi, non su quella
+   del meteo: quella dice che tempo fa e sbiadirla vorrebbe dire nasconderla. */
+.pl-ambient.pl-amb-natura{
+    opacity:var(--ambiente-op, .9);
+    transition:opacity var(--t) var(--ease);
+}
+
+/* intestazione di una sezione delle impostazioni che si apre e si chiude */
+.pl-fold-head{
+    width:100%; display:flex; align-items:center; gap:8px;
+    padding:2px 2px 6px; margin:0; background:none; border:none;
+    cursor:pointer; text-align:left; color:inherit;
+}
+.pl-fold-n{ font-size:11.5px; color:var(--ink-3); }
+.pl-fold-arrow{
+    margin-left:auto; display:grid; place-items:center; color:var(--ink-3);
+    transition:transform var(--t-fast) var(--ease);
+}
+.pl-fold-arrow svg{ width:15px; height:15px; }
+.pl-fold-head.pl-open .pl-fold-arrow{ transform:rotate(90deg); }
+/* Alberi e animale sono disegni veri caricati come maschera: la forma la
+   ritaglia il file, il colore lo mette il fondo. Un file solo serve per
+   qualunque tinta, quindi la stessa sagoma vale per tutti i mesi in cui
+   ricompare, cambiando solo il colore della stagione. */
+.pl-tree, .pl-animal{
+    -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+}
+/* ==================================================================
+   L'ALBERO — le manopole da girare sono le quattro righe qui sotto.
+
+     --albero-x       posizione orizzontale. 0% tutto a sinistra,
+                      50% al centro, 100% tutto a destra.
+     --albero-largo   quanto è largo (più alto = più ciccione).
+     --albero-alto    quanto è alto.
+     --albero-giu     quanto scende sotto il bordo. 0px = appoggiato
+                      esattamente in fondo, valori negativi lo affondano.
+
+   Larghezza e altezza sono indipendenti grazie a mask-size:100% 100%,
+   che allarga il disegno fino a riempire il riquadro. Con "contain"
+   (che usano gli animali) sarebbe il lato più stretto a comandare, e
+   allargare soltanto la larghezza non cambierebbe nulla.
+
+   Tutte le proprietà dell'albero stanno in QUESTO blocco: se ne
+   avanzasse un altro sparso altrove, uno dei due vincerebbe a seconda
+   dell'ordine e le manopole sembrerebbero non funzionare.
+   ================================================================== */
+.pl-tree{
+    --albero-x: 34%;
+    --albero-largo: 190px;
+    --albero-alto: 160px;
+    --albero-giu: -32px;
+
+    position:absolute;
+    bottom:var(--albero-giu);
+    left:var(--albero-x);
+    width:var(--albero-largo);
+    height:var(--albero-alto);
+    margin-left:calc(-1 * var(--albero-largo) / 2);   /* il tronco cade su --albero-x */
+    opacity:.38;
+    transform-origin:50% 100%;   /* il vento lo piega dai piedi, non lo trascina */
+    animation:pl-wind 11s var(--ease-soft) infinite alternate;
+
+    -webkit-mask-size:100% 100%; mask-size:100% 100%;
+    -webkit-mask-position:bottom center; mask-position:bottom center;
+}
+
+/* ==================================================================
+   GLI ANIMALI — le manopole sono le quattro righe qui sotto.
+
+     --bestia-x       posizione orizzontale (ignorata da chi cammina:
+                      quelli attraversano tutta la barra).
+     --bestia-giu     quanto sta in basso. Più è alto, più sale.
+                      Metti 0px per appoggiarlo al bordo inferiore.
+     --bestia-largo   larghezza del riquadro.
+     --bestia-alto    altezza del riquadro.
+
+   Qui mask-size è "contain": il disegno entra nel riquadro senza
+   deformarsi, quindi comanda il lato più stretto dei due. In pratica
+   per ingrandire un animale conviene alzare ENTRAMBI i valori, perché
+   alzarne uno solo lascia spazio vuoto e non lo fa crescere.
+
+   Per una singola bestia si sovrascrive solo la sua manopola, come nei
+   due esempi qui sotto: valgono solo per quel mese e non toccano gli
+   altri.
+   ================================================================== */
+.pl-animal{
+    --bestia-x: 62%;
+    --bestia-giu: 2px;
+    --bestia-largo: 38px;
+    --bestia-alto: 34px;
+
+    position:absolute;
+    bottom:var(--bestia-giu);
+    left:var(--bestia-x);
+    width:var(--bestia-largo);
+    height:var(--bestia-alto);
+    opacity:.5;
+    -webkit-mask-size:contain; mask-size:contain;
+    -webkit-mask-position:bottom center; mask-position:bottom center;
+}
+
+/* Ritocchi per singolo animale. Il nome della classe è quello del file,
+   senza .svg: aggiungine altri sulla stessa falsariga.
+   Esempi già pronti da modificare: */
+.pl-animal-cane{      --bestia-giu:-5px;  --bestia-largo:46px; --bestia-alto:40px; }
+.pl-animal-tartaruga{ --bestia-giu:-3px;  --bestia-largo:33px; --bestia-alto:30px; }
+.pl-animal-riccio{    --bestia-giu:-3px;  --bestia-largo:30px; --bestia-alto:20px; }
+.pl-animal-gatto_dorme{ --bestia-x: 33%; --bestia-giu:-2px; --bestia-largo:48px; --bestia-alto:22px; }
+.pl-animal-slitta{    --bestia-largo:70px; --bestia-alto:45px; }
+.pl-animal-scoiattolo{ --bestia-x: 40%; --bestia-giu:-4px; --bestia-largo:55px; --bestia-alto:27px; }
+.pl-animal-criceto{ --bestia-x: 20%; --bestia-giu:-5px; --bestia-largo:55px; --bestia-alto:27px; }
+.pl-animal-anatra{ --bestia-x: 37%; --bestia-giu:-5px; --bestia-largo:50px; --bestia-alto:23px; }
+.pl-animal-coniglio{ --bestia-x: 30%; --bestia-giu:-5px; --bestia-largo:55px; --bestia-alto:27px; }
+.pl-animal-talpa{ --bestia-x: 33%; --bestia-giu:-7px; --bestia-largo:40px; --bestia-alto:22px; }
+.pl-animal-pinguino{ --bestia-x: 35%; --bestia-giu:-5px; --bestia-largo:55px; --bestia-alto:27px; }
+.pl-animal-volpe{ --bestia-x: 35%; --bestia-giu:-5px; --bestia-largo:55px; --bestia-alto:27px; }
+
+
+/* Chi cammina: attraversa e torna, l'andata a testa avanti e il ritorno
+   specchiato, così non scivola mai all'indietro. Molto lento: sono un cane a
+   spasso, una tartaruga e un riccio, non hanno fretta. */
+.pl-animal-cammina{
+    left:0;   /* la posizione la detta l'animazione, non --bestia-x */
+    animation:pl-passeggia 150s linear infinite;
+}
+@keyframes pl-passeggia{
+    0%   { transform:translateX(-46px) scaleX(1); }
+    48%  { transform:translateX(calc(100vw + 10px)) scaleX(1); }
+    50%  { transform:translateX(calc(100vw + 10px)) scaleX(-1); }
+    98%  { transform:translateX(-46px) scaleX(-1); }
+    100% { transform:translateX(-46px) scaleX(1); }
+}
+
+/* La slitta plana: attraversa in alto e insieme ondeggia su e giù, come i
+   gabbiani. Sono due animazioni sovrapposte — una porta, l'altra fa il
+   saliscendi — perché una sola non può avere due ritmi diversi. */
+.pl-animal-vola{
+    left:-60px; bottom:auto;
+    width:52px; height:32px; opacity:.55;
+    /* Due animazioni insieme, ma su proprietà DIVERSE: pl-cross muove il
+       transform, pl-plana muove il top. Se agissero entrambe sul transform la
+       seconda cancellerebbe la prima, e la slitta scivolerebbe di lato senza
+       mai salire. */
+    animation:pl-cross 46s linear infinite,
+              pl-plana 5.5s var(--ease-soft) infinite alternate;
+}
+@keyframes pl-plana{
+    from{ top:10%; }
+    to{   top:30%; }
+}
+@keyframes pl-wind{
+    0%   { transform:rotate(-1.1deg) translateY(0); }
+    50%  { transform:rotate(.6deg) translateY(-1px); }
+    100% { transform:rotate(1.3deg) translateY(0); }
+}
+/* insetto: vola su un percorso lentissimo, con le ali che battono appena */
+.pl-bug{
+    position:absolute; width:17px; height:17px; opacity:.42; color:var(--accent-ink);
+    offset-path:path('M -20 62 C 70 20, 150 84, 240 34 S 380 76, 460 26');
+    offset-rotate:0deg;
+    animation:pl-fly 46s linear infinite;
+}
+.pl-bug svg{ width:100%; height:100%; animation:pl-flutter 1.1s ease-in-out infinite alternate; }
+@keyframes pl-fly{ from{ offset-distance:0%; } to{ offset-distance:100%; } }
+@keyframes pl-flutter{ from{ transform:scaleX(1) rotate(-4deg); } to{ transform:scaleX(.72) rotate(4deg); } }
+
+/* riga 1: settimana a sinistra, tutti i pulsanti a destra */
+.pl-bar-tools{ position:relative; display:flex; align-items:center; gap:5px; }
+.pl-tools-sp{ flex:1; }
+.pl-week{
+    display:flex; align-items:center; gap:7px; flex-shrink:0;
+    padding:5px 10px 5px 8px; border-radius:var(--r-pill);
+    background:rgba(var(--card-rgb, 255,253,250),.72); box-shadow:inset 0 0 0 .5px var(--hair);
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+}
+.pl-week-n{ font-family:'Cormorant Garamond',serif; font-size:19px; font-weight:600; line-height:1; min-width:14px; text-align:center; }
+.pl-week-k{
+    font-size:8px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3);
+    line-height:1.1; white-space:nowrap;      /* mai spezzato in "SETTI-MANA" */
+}
+.pl-check{
+    width:19px; height:19px; border-radius:7px; flex-shrink:0;
+    box-shadow:inset 0 0 0 1.2px var(--hair-2);
+    display:grid; place-items:center; color:transparent;
+    transition:background var(--t) var(--ease), color var(--t) var(--ease), box-shadow var(--t) var(--ease);
+}
+.pl-check svg{ width:12px; height:12px; }
+.pl-check.pl-on{ background:var(--accent); color:var(--on-accent, var(--card)); box-shadow:none; }
+.pl-check.pl-on svg path{ animation:pl-draw .5s var(--ease) forwards; }
+@keyframes pl-draw{ from{ stroke-dasharray:16; stroke-dashoffset:16; } to{ stroke-dasharray:16; stroke-dashoffset:0; } }
+
+.pl-tool{
+    width:32px; height:32px; border-radius:var(--r-pill); display:grid; place-items:center;
+    color:var(--ink-2); background:rgba(var(--card-rgb, 255,253,250),.6); flex-shrink:0;
+    box-shadow:inset 0 0 0 .5px var(--hair);
+    transition:transform var(--t-fast) var(--ease), background var(--t-fast), color var(--t-fast);
+}
+.pl-tool svg{ width:16px; height:16px; }
+.pl-tool:active{ transform:scale(.9); }
+.pl-tool.pl-on{ background:var(--accent-soft); color:var(--accent-ink); }
+.pl-tool-today{ font-family:'Cormorant Garamond',serif; font-size:14px; font-weight:600; }
+
+/* riga 2: giorno · mese · calendarietto */
+.pl-bar-2{
+    position:relative; display:flex; align-items:flex-start; gap:10px;
+    margin-top:9px; min-height:46px;
+}
+.pl-day-btn{ display:flex; align-items:baseline; gap:6px; flex-shrink:0; align-self:flex-end; }
+/* il meteo del giorno: allineato in basso come il nome del giorno, così i due
+   stanno sulla stessa riga ottica invece che uno a mezz'aria */
+.pl-day-wx{ align-self:flex-end; margin-bottom:4px; flex-shrink:0; }
+.pl-day-num{ font-size:40px; font-weight:400; line-height:.9; letter-spacing:-.015em; }
+.pl-day-wd{
+    font-size:12px; letter-spacing:.15em; text-transform:uppercase; color:var(--ink-2);
+    white-space:nowrap; padding-bottom:3px;
+}
+/* nell'intervallo, il giorno della settimana sta accanto al suo numero */
+.pl-day-wd-in{
+    font-family:'Jost', sans-serif; font-size:11px; font-weight:400;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--ink-2);
+    margin-left:5px;
+}
+.pl-day-dash{ font-size:22px; color:var(--ink-3); margin:0 7px; }
+.pl-month-btn{
+    /* subito a sinistra del calendarietto, e alla sua stessa altezza */
+    margin-left:auto; flex:0 0 auto; min-width:0;
+    display:flex; flex-direction:column; align-items:flex-end; gap:0;
+    padding-top:1px; transition:transform var(--t-fast) var(--ease);
+}
+.pl-month-btn:active{ transform:scale(.97); }
+.pl-month-name{
+    font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:500; line-height:1.05;
+    white-space:nowrap;
+}
+.pl-month-year{ font-size:8.5px; letter-spacing:.2em; color:var(--ink-3); text-transform:uppercase; }
+
+/* calendarietto sempre visibile, con la settimana in corso evidenziata */
+.pl-mini-static{
+    flex-shrink:0; width:74px; padding:4px 4px 3px; border-radius:9px;
+    background:rgba(var(--card-rgb, 255,253,250),.6); box-shadow:inset 0 0 0 .5px var(--hair);
+    display:grid; grid-template-columns:repeat(7,1fr); gap:.5px;
+    transition:transform var(--t-fast) var(--ease);
+}
+.pl-mini-static:active{ transform:scale(.95); }
+.pl-mini-static span{
+    font-size:5.6px; line-height:1.5; text-align:center; color:var(--ink-3);
+    font-variant-numeric:tabular-nums; border-radius:2px;
+}
+.pl-mini-static span.pl-sw-wd{ color:var(--ink-3); opacity:.7; }
+.pl-mini-static span.pl-sw-out{ opacity:.32; }
+.pl-mini-static span.pl-sw-week{ background:var(--accent-soft); color:var(--accent-ink); }
+.pl-mini-static span.pl-sw-today{ font-weight:600; color:var(--accent-ink); }
+
+/* calendario grande a comparsa: si apre toccando il giorno o il mese.
+   È fuori dall'header e a posizione fissa apposta: qualunque cosa succeda
+   al suo contenuto non tocca mai l'altezza della barra sopra, quindi non
+   può mai spingere via orari e priorità, nemmeno per errore. */
+.pl-mini{
+    position:fixed; left:12px; right:12px; z-index:59;
+    top:calc(var(--topbar-h) + 6px);
+    max-height:min(320px, calc(100dvh - var(--topbar-h) - 18px));
+    padding:10px 9px 11px; border-radius:var(--r-lg);
+    background:var(--card); box-shadow:var(--sh-card), inset 0 0 0 .5px var(--hair);
+    display:grid; grid-template-columns:repeat(7,1fr); gap:2px 0; align-content:start;
+    overflow-y:auto; -webkit-overflow-scrolling:touch;
+    opacity:0; transform:translateY(-8px) scale(.98); pointer-events:none;
+    transition:opacity var(--t) var(--ease), transform var(--t) var(--ease);
+}
+.pl-mini.pl-open{ opacity:1; transform:none; pointer-events:auto; }
+.pl-mini-head{
+    grid-column:1/-1; text-align:center; margin-bottom:6px;
+    font-family:'Cormorant Garamond',serif; font-style:italic; font-size:14px; color:var(--ink-2);
+}
+.pl-mini-wd{ text-align:center; font-size:8px; letter-spacing:.1em; color:var(--ink-3); text-transform:uppercase; padding-bottom:5px; }
+.pl-mini-d{
+    position:relative; text-align:center; font-size:12px; color:var(--ink-2);
+    padding:6px 0; border-radius:8px; font-variant-numeric:tabular-nums;
+}
+.pl-mini-d.pl-out{ color:var(--ink-3); opacity:.5; }
+.pl-mini-d.pl-inweek{ background:var(--accent-wash); color:var(--accent-ink); }
+.pl-mini-d.pl-today-d{ font-weight:600; color:var(--ink); }
+.pl-mini-d.pl-today-d::after{
+    content:''; position:absolute; left:50%; bottom:1px; transform:translateX(-50%);
+    width:3px; height:3px; border-radius:50%; background:var(--accent);
+}
+
+/* affermazione positiva della settimana */
+.pl-affirm{
+    margin:8px 2px 2px; text-align:center;
+    font-family:'Cormorant Garamond',serif; font-style:italic; font-size:14px;
+    color:var(--ink-2); line-height:1.3;
+    opacity:0; animation:pl-fade-in 1.4s var(--ease) .3s forwards;
+}
+@keyframes pl-fade-in{ from{ opacity:0; transform:translateY(3px); } to{ opacity:1; transform:none; } }
+

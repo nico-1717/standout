@@ -9,6 +9,7 @@
 require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/auth_check.php';
+require_once __DIR__ . '/../../lib/stile.php';   // standard | paper (Diario, Planner, To do, To study)
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
@@ -23,7 +24,7 @@ $boot = [
 ];
 ?>
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" <?php echo standout_stile_attr(); ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -33,6 +34,7 @@ $boot = [
 <script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
 <?php echo standout_i18n_json(['comune', 'diario']); ?>
 <link rel="stylesheet" href="diario.css?v=<?php echo @filemtime(__DIR__ . '/diario.css') ?: time(); ?>">
+<?php echo standout_stile_css(); ?>
 </head>
 <body class="dy-body">
 
@@ -61,6 +63,7 @@ $boot = [
                 <svg viewBox="0 0 54 54" aria-hidden="true"></svg>
                 <span class="dy-ring-n" id="dyRingN">–</span>
             </button>
+            <?php /* pallino del profilo, in fila con i pulsanti dell'intestazione */ $fr_widget_inline = true; include __DIR__ . '/../partials/notifiche_widget.php'; ?>
         </header>
 
         <div class="dy-lists">
