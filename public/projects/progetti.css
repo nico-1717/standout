@@ -49,8 +49,6 @@ button{ font-family:inherit; }
     -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px); border-bottom:.5px solid var(--hairline);
     display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .hdr-title{ font-size:24px; font-weight:800; letter-spacing:-.02em; }
-.hdr-drawer-btn{ display:flex; align-items:center; gap:6px; background:var(--surface-2); border:none; border-radius:12px; padding:9px 13px; color:var(--text); font-weight:700; font-size:13.5px; flex-shrink:0; }
-.hdr-drawer-btn:active{ transform:scale(.95); }
 .hdr-title{ flex-shrink:0; }
 .hdr-root-pills{ flex:1; min-width:0; display:flex; gap:7px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; justify-content:flex-start; padding:2px; }
 .hdr-root-pills::-webkit-scrollbar{ display:none; }
@@ -110,8 +108,6 @@ button{ font-family:inherit; }
 
 .pr-hero-todo{ margin-top:14px; }
 .pr-hero-todo.pr-hidden{ display:none; }
-.pr-hero-btn-todo{ background:var(--surface-2); color:var(--text-2); }
-.pr-hero-btn-todo.is-on{ background:var(--accent); color:#fff; }
 
 .pr-hero-note{
     margin-top:10px; font-size:14px; color:var(--text-2); line-height:1.5;
@@ -127,22 +123,6 @@ button{ font-family:inherit; }
     background:color-mix(in srgb, var(--cat-color) 14%, var(--surface)); color:var(--cat-color); font-size:12px; font-weight:800;
     box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--cat-color) 30%, transparent); transition:transform .15s var(--spring); }
 .pr-hero-cat-chip:active{ transform:scale(.95); }
-/* Con il tondo in più i pulsanti non ci stavano più in riga e spingevano fuori
-   il bordo, facendo scorrere l'intera pagina in orizzontale. Più piccoli, meno
-   distanti, e se ancora non bastasse vanno a capo invece di uscire. */
-.pr-hero-actions{ display:flex; flex-wrap:wrap; gap:8px; row-gap:8px; margin-top:14px; max-width:100%; }
-.pr-hero-quickadd{ width:26px; height:26px; border-radius:8px; flex-shrink:0; align-self:center; }
-.pr-hero-quickadd svg{ width:14px; height:14px; }
-.pr-hero-btn{ display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; border:none; flex-shrink:0; }
-.pr-hero-btn svg{ width:17px; height:17px; }
-.pr-hero-btn-pomo{ background:var(--accent); color:#fff; box-shadow:var(--btn-hl), 0 6px 16px -6px color-mix(in srgb, var(--accent) 70%, transparent); transition:transform .15s var(--spring), opacity .2s; }
-.pr-hero-btn-pomo[disabled]{ background:var(--surface-2); color:var(--text-3); box-shadow:none; opacity:.7; }
-.pr-hero-btn-stats{ background:var(--surface-2); color:var(--text); transition:background-color .2s, color .2s; }
-.pr-hero-btn-stats.active{ background:var(--blue); color:#fff; }
-.pr-hero-btn-add{ background:var(--blue-soft); color:var(--blue); }
-.pr-hero-btn-quick{ background:var(--surface-2); color:var(--text-2); }
-.pr-hero-btn:active{ transform:scale(.9); }
-
 /* ---------- righe progetto ---------- */
 .pr-view-bar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; gap:10px; }
 .pr-view-switch{ display:flex; background:var(--surface); box-shadow:var(--shadow-card); border-radius:12px; padding:3px; gap:2px; }
@@ -272,9 +252,7 @@ button{ font-family:inherit; }
    checkbox al posto della spunta di completamento */
 #prList.pr-sub-selecting .pr-check{ display:none; }
 #prList.pr-sub-selecting .pr-select-chk{ display:flex; }
-#prList.pr-sub-selecting .pr-grip{ display:none; }
 #prList.pr-sub-selecting .pr-pomo-btn{ display:none; }
-#prList.pr-sub-selecting .pr-inline-add-btn{ display:none; }
 #prList.pr-sub-selecting .swipe-actions{ display:none; }
 #prList.pr-sub-selecting .pr-duration{ display:none; }
 .pr-row-wrap.pr-sub-selected > .pr-row > .pr-row-content{ background:color-mix(in srgb, var(--blue) 7%, var(--surface)); }
@@ -382,7 +360,6 @@ body.pr-selezionando .page{ padding-bottom:84px; }
     white-space:nowrap; margin:0; padding:0;
 }
 /* il tasto per il sottoprogetto, sotto il nome e discreto */
-.pr-inline-add-btn{ margin-top:0; order:-1; flex-shrink:0; align-self:center; }
 
 .pr-pomo-btn{ width:30px; height:30px; border-radius:50%; border:none; background:var(--row-color); color:#fff; flex-shrink:0; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px -1px color-mix(in srgb, var(--row-color) 60%, transparent); transition:transform .15s var(--spring), opacity .2s; }
 .pr-pomo-btn:active{ transform:scale(.88); }
@@ -453,26 +430,6 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
 .pr-empty-icon{ width:56px; height:56px; margin:0 auto 14px; color:var(--text-3); }
 .pr-empty-title{ font-size:17px; font-weight:800; color:var(--text); margin-bottom:6px; }
 .pr-btn-create-first{ margin-top:16px; display:inline-flex; align-items:center; gap:8px; padding:12px 20px; border-radius:14px; border:none; background:var(--blue); color:#fff; font-weight:700; }
-
-/* ---------- drawer progetti radice ---------- */
-.pd-scrim{ position:fixed; inset:0; z-index:9600; background:rgba(0,0,0,.42); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); opacity:0; pointer-events:none; transition:opacity .3s; }
-.pd-scrim.show{ opacity:1; pointer-events:auto; }
-.pd-panel{ position:fixed; top:0; right:0; z-index:9601; width:min(300px,84vw); height:100vh; height:100dvh; background:var(--surface);
-    transform:translateX(105%); transition:transform .42s var(--spring); display:flex; flex-direction:column; box-shadow:-14px 0 40px rgba(0,0,0,.25); }
-.pd-panel.show{ transform:translateX(0); }
-.pd-head{ padding:calc(var(--safe-top) + 18px) 18px 12px; font-size:19px; font-weight:800; border-bottom:.5px solid var(--hairline); display:flex; justify-content:space-between; align-items:center; }
-.pd-close{ width:30px; height:30px; border-radius:50%; border:none; background:var(--surface-2); color:var(--text-2); display:flex; align-items:center; justify-content:center; }
-.pd-list{ flex:1; overflow-y:auto; padding:10px 10px calc(20px + var(--safe-bottom)); }
-.pd-fav-star{ width:17px; height:17px; color:#E0B84A; flex-shrink:0; }
-.pd-item-fav.active .pd-fav-star{ color:#fff; }
-.pd-item{ display:flex; align-items:center; gap:10px; padding:12px 12px; border-radius:13px; margin-bottom:2px; cursor:pointer; }
-.pd-item:active{ background:var(--surface-2); }
-.pd-item.active{ background:var(--row-color, var(--blue)); }
-.pd-item.active .pd-item-name, .pd-item.active .pd-item-count{ color:#fff; }
-.pd-dot{ width:10px; height:10px; border-radius:50%; background:var(--row-color); flex-shrink:0; }
-.pd-item-name{ flex:1; font-weight:700; font-size:14.5px; }
-.pd-item-count{ font-size:12px; color:var(--text-2); font-weight:700; }
-.pd-add{ display:flex; align-items:center; gap:8px; padding:12px; color:var(--blue); font-weight:700; font-size:14px; border:1.5px dashed var(--hairline-2); border-radius:13px; margin:6px 10px 0; }
 
 /* ---------- edit sheet (iOS) ---------- */
 .pr-sheet-overlay{ position:fixed; inset:0; z-index:9700; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.42);
@@ -568,84 +525,6 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
     padding:11px 18px; border-radius:14px; font-size:13.5px; font-weight:600; z-index:9900; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s var(--spring); }
 .pr-toast.show{ opacity:1; transform:translate(-50%,0); }
 
-/* Tasto in linea grigio per aggiungere sottoprogetti */
-.pr-inline-add-btn {
-    background: var(--surface-2);
-    color: var(--text-2);
-    border: none;
-    border-radius: 6px;
-    width: 22px;
-    height: 22px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 6px;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background-color .15s, color .15s;
-}
-.pr-inline-add-btn:active {
-    transform: scale(0.92);
-}
-
-/* Riga di input rapido modificata con i tasti a destra */
-.pr-inline-input-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px 8px 34px;
-    background: var(--surface);
-    border-top: .5px solid var(--hairline);
-    animation: prIn .22s var(--spring) both;
-}
-.pr-inline-input-row input {
-    flex: 1;
-    padding: 9px 12px;
-    border-radius: 11px;
-    border: none;
-    background: var(--surface-2);
-    color: var(--text);
-    font-size: 14px;
-    font-family: inherit;
-    box-shadow: inset 0 0 0 .5px var(--hairline);
-    outline: none;
-    -webkit-appearance: none;
-}
-/* Pulsante Salva minimale con il colore del progetto */
-.pr-inline-save-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: none;
-    background: color-mix(in srgb, var(--row-color) 12%, var(--surface));
-    color: var(--row-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: transform .1s;
-}
-/* Pulsante Annulla minimale grigio chiaro */
-.pr-inline-cancel-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: none;
-    background: var(--surface-2);
-    color: var(--text-2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: transform .1s;
-}
-.pr-inline-save-btn:active, .pr-inline-cancel-btn:active {
-    transform: scale(0.9);
-}
-
-
 @media (prefers-reduced-motion: reduce){
     *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
 }
@@ -734,9 +613,8 @@ body.pr-dragging-now *{ -webkit-user-select:none; user-select:none; }
 
 /* «Mostra i tag» spento: l'unica delle cinque che non cambia quali progetti ci
    sono, solo quanto occupano — quindi si applica subito, senza ricaricare. */
-body.pr-senza-tag .pr-date-tag,
-body.pr-senza-tag .pr-note-tag,
-body.pr-senza-tag .pr-cat-tag{ display:none !important; }
+body.pr-senza-tag .pr-meta,
+body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 
 /* ================= la scheda del titolo =================
    Tutto quello che prima si faceva dal popup di modifica si fa qui, dove la
@@ -756,76 +634,6 @@ body.pr-senza-tag .pr-cat-tag{ display:none !important; }
    da compilare invece che il nome del progetto. */
 .pr-hero-name{ outline:none; border-radius:6px; padding:1px 3px; margin:0 -3px; }
 .pr-hero-name:focus{ background:var(--surface-2); box-shadow:inset 0 0 0 1.5px var(--blue); }
-
-/* ---- la fila dei tag ---- */
-.pr-hero-tags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
-.pr-tag{
-    display:inline-flex; align-items:center; gap:5px; max-width:100%;
-    padding:4px 9px; border:none; border-radius:999px; cursor:pointer;
-    font:inherit; font-size:11.5px; font-weight:600;
-    background:color-mix(in srgb, var(--tc, var(--text-2)) 15%, transparent);
-    color:var(--tc, var(--text-2));
-}
-.pr-tag span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-/* Vuoto: contorno tratteggiato e grigio leggero. Il tratteggio dice «qui
-   manca qualcosa» senza doverlo scrivere. */
-.pr-tag-vuoto{
-    background:transparent; color:var(--text-3);
-    box-shadow:inset 0 0 0 1px var(--hairline-2);
-    border:1px dashed var(--hairline-2); padding:3px 8px;
-}
-/* Ereditato dal padre: si vede ma non si tocca. Sbiadito perche' la differenza
-   fra «e' mio» e «e' di sopra» si deve capire senza leggere. */
-.pr-tag-deck.is-eredit{ opacity:.45; cursor:default; }
-.pr-tag-deck.is-figli{ background:var(--surface-2); color:var(--text-2); cursor:default; flex-wrap:wrap; }
-.pr-deck-f{
-    padding:1px 7px; border-radius:999px; font-size:10.5px; font-weight:700;
-    background:color-mix(in srgb, var(--fc) 18%, transparent); color:var(--fc);
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:110px;
-}
-/* oltre i primi due si nascondono: con otto sottoprogetti l'elenco intero
-   sarebbe piu' lungo del titolo del progetto */
-.pr-deck-f-extra{ display:none; }
-.pr-tag-deck.is-aperto .pr-deck-f-extra{ display:inline-block; }
-.pr-deck-piu{
-    border:none; background:none; cursor:pointer; font:inherit; font-size:10.5px;
-    font-weight:800; color:var(--text-2); padding:1px 3px;
-}
-
-/* ---- la sezione pomodoro ----
-   Il tasto grande e sotto, piu' piccolo, le statistiche: la stessa cosa
-   guardata prima e dopo. Sotto ancora il tempo totale, che e' il numero che da'
-   senso a tutti e due. */
-.pr-pomo-box{
-    position:absolute; right:14px; bottom:14px;
-    display:flex; flex-direction:column; align-items:center; gap:5px;
-    padding:8px 10px; border-radius:16px;
-    background:var(--surface-2); box-shadow:inset 0 0 0 .5px var(--hairline);
-}
-/* Stessa misura del tasto pomodoro sulle righe dei figli (30px): e' la stessa
-   azione sullo stesso genere di cosa, e farla piu' grande qui la faceva
-   sembrare un'altra funzione. */
-.pr-pomo-go{
-    width:30px; height:30px; border:none; border-radius:50%; cursor:pointer;
-    background:var(--accent); color:#fff; display:grid; place-items:center;
-    box-shadow:0 2px 6px -1px color-mix(in srgb, var(--accent) 60%, transparent);
-    transition:transform .15s var(--spring);
-}
-.pr-pomo-go svg{ width:16px; height:16px; }
-.pr-pomo-go:active{ transform:scale(.88); }
-.pr-pomo-go:disabled{ background:var(--text-3); box-shadow:none; opacity:.5; pointer-events:none; }
-/* Il tempo E' il tasto delle statistiche: quel numero e' il loro riassunto, e
-   chi lo guarda volendone sapere di piu' tocca lui. */
-.pr-pomo-tot{
-    border:none; background:none; padding:0; cursor:pointer; font:inherit;
-    font-size:10.5px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums;
-    text-decoration:underline; text-decoration-style:dotted; text-underline-offset:2px;
-    text-decoration-color:var(--hairline-2);
-}
-.pr-pomo-tot:active{ color:var(--text); }
-/* la scheda fa da riferimento al riquadro, e gli lascia spazio a destra */
-.pr-hero{ position:relative; }
-.pr-hero-tags, .pr-hero-note, .pr-hero-todo{ padding-right:76px; }
 
 /* ---- la nota, sempre presente ----
    Vuota mostra l'invito in corsivo: se comparisse solo da compilata nessuno
@@ -850,14 +658,6 @@ body.pr-senza-tag .pr-cat-tag{ display:none !important; }
    uno era la nota, era il giro piu' lungo per la cosa piu' semplice. */
 .pr-peek-edit{ padding:4px 0; }
 
-/* ---- il colore fra i tondi ----
-   Sul titolo era un pallino colorato accanto a un nome colorato: si leggeva
-   come decorazione. In fila con le altre azioni e' quello che e'. */
-.pr-hero-btn-colore .pr-btn-dot{
-    width:16px; height:16px; border-radius:50%; background:var(--dot);
-    display:block; box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.32);
-}
-
 /* ---- sezione colore del popup, richiudibile ----
    Aperta occupava mezzo popup con una tavolozza che quasi nessuno tocca — il
    colore di un sotto-progetto quasi sempre si eredita — e spingeva sotto il
@@ -876,22 +676,282 @@ body.pr-senza-tag .pr-cat-tag{ display:none !important; }
 .pr-color-toggle.is-aperta .pr-color-toggle-chev{ transform:rotate(180deg); }
 #prColorCard{ margin-top:8px; }
 
-/* Chiudi tutto / apri tutto, a destra dello switch elenco/griglia: e' un modo
-   di guardare l'albero, come gli altri due. La freccia si capovolge quando
-   tutto e' chiuso, cosi' il tasto dice sempre cosa fara' al prossimo tocco. */
-.pr-view-fold-btn{
-    width:32px; height:32px; border:none; border-radius:10px; cursor:pointer;
-    background:var(--surface-2); color:var(--text-2); display:grid; place-items:center;
-    flex-shrink:0; box-shadow:inset 0 0 0 .5px var(--hairline);
-    transition:transform .15s var(--spring), color .18s;
-}
-.pr-view-fold-btn:active{ transform:scale(.9); }
-.pr-view-fold-btn.is-chiuso{ background:var(--text); color:var(--surface); box-shadow:none; }
-.pr-view-fold-btn.is-chiuso svg{ transform:rotate(180deg); }
-.pr-view-bar{ display:flex; align-items:center; gap:8px; }
-
 /* tag della lingua: la bandiera al posto della cartella */
 .pr-lang-tag{ --cat-color:var(--blue); }
 .pr-lang-tag img{ width:12px; height:12px; border-radius:3px; object-fit:cover; flex-shrink:0; }
 .pr-tag-lang{ text-decoration:none; }
 .pr-tag-lang img{ width:14px; height:14px; border-radius:4px; object-fit:cover; flex-shrink:0; }
+
+/* =====================================================================
+   LA PAGINA CALMA (20/10/2026)
+   La pagina sembrava disordinata anche quando non lo era: sei tondi blu
+   uguali, tre etichette tratteggiate, quattro tondi senza scritte, una
+   barra laterale colorata, puntini per trascinare e un tasto ↳ sotto ogni
+   nome. Ognuno chiedeva attenzione. Le regole adesso sono poche:
+   - una sola cosa colorata per schermata: il tasto Concentrati (e, se c'è,
+     il pomodoro che sta andando);
+   - una riga per cosa: la spunta, il nome, sotto una riga grigia;
+   - quello che si fa di rado sta nel menu ⋯, con le parole;
+   - una forma per tipo: il tondo solo per le spunte, il rettangolo
+     arrotondato per i tasti, le schede bianche senza bordi.
+   Questa sezione viene dopo le altre apposta: dove una regola vecchia è
+   ancora in giro, vince questa.
+   ===================================================================== */
+:root{
+    --shadow-soft:0 1px 2px rgba(0,0,0,.05), 0 0 0 .5px rgba(0,0,0,.025);
+    --ink-soft:color-mix(in srgb, var(--text) 80%, var(--surface));
+}
+@media (prefers-color-scheme: dark){ :root{ --shadow-soft:0 0 0 .5px rgba(255,255,255,.07); } }
+
+/* ---- intestazione ---- */
+.app-header{ padding:calc(var(--safe-top) + 10px) 16px 8px; }
+.hdr-title{ font-size:28px; font-weight:800; letter-spacing:-.025em; }
+.hdr-tools{ gap:0; }
+.hdr-tool{ width:38px; height:38px; border-radius:50%; background:none; box-shadow:none; color:var(--text-2); }
+.hdr-tool:active{ background:var(--surface-2); transform:none; }
+.hdr-root-pills{ margin:8px -16px 0; padding:2px 16px; gap:2px; }
+.hdr-root-pill{ height:34px; padding:0 13px; background:none; box-shadow:none; color:var(--text-2);
+    font-size:14.5px; font-weight:500; text-decoration:none; gap:7px; }
+.hdr-root-pill.active, .hdr-root-pill.active-faded{ background:var(--surface); color:var(--text); font-weight:650;
+    box-shadow:0 1px 3px rgba(0,0,0,.08), 0 0 0 .5px rgba(0,0,0,.04); }
+.hdr-root-pill.active .hdr-root-pill-dot, .hdr-root-pill.active-faded .hdr-root-pill-dot{ background:var(--pill-color, var(--blue)); }
+.hdr-root-pill.active-faded{ color:var(--ink-soft); font-weight:600; }
+@media (prefers-color-scheme: dark){
+    .hdr-root-pill.active, .hdr-root-pill.active-faded{ background:var(--surface-2); box-shadow:none; }
+}
+
+.page{ padding:12px 16px calc(40px + var(--safe-bottom)); }
+.pr-crumbs{ padding:0 0 8px; }
+.pr-crumb{ text-decoration:none; font-weight:600; font-size:13px; padding:4px 6px; }
+
+/* ---- la scheda del progetto ---- */
+.pr-hero{ border-left:none; border-radius:20px; padding:16px; box-shadow:var(--shadow-soft); margin-bottom:0; position:relative; }
+.pr-hero-top{ align-items:center; gap:11px; }
+.pr-hero .pr-check{ width:26px; height:26px; }
+.pr-hero-title-wrap{ gap:7px; flex-wrap:nowrap; }
+.pr-hero-title{ font-size:24px; font-weight:800; letter-spacing:-.02em; line-height:1.2; min-width:0; overflow-wrap:anywhere; }
+.pr-hero-star{ width:17px; height:17px; color:#E0B84A; flex-shrink:0; }
+.pr-hero-star[hidden]{ display:none; }
+.pr-more-btn{ width:34px; height:34px; border-radius:50%; border:none; padding:0; cursor:pointer; flex-shrink:0;
+    background:var(--surface-2); color:var(--text-2); display:grid; place-items:center; transition:transform .15s var(--spring); }
+.pr-more-btn svg{ width:18px; height:18px; }
+.pr-more-btn:active{ transform:scale(.9); }
+
+/* Il puntino separatore sta a sinistra di ogni voce, in uno spazio di 14px
+   che la riga intera sposta fuori di sé e poi taglia: così, quando una riga
+   lunga va a capo, la voce che comincia la riga nuova non si porta dietro un
+   puntino appeso all'inizio. */
+.pr-hero-meta{ display:flex; flex-wrap:wrap; align-items:center; row-gap:2px; margin:8px 0 0 -14px; font-size:14px; color:var(--text-2);
+    clip-path:inset(0 0 0 14px); }
+.pr-hm{ display:inline-flex; align-items:center; gap:5px; font:inherit; font-size:inherit; color:inherit; background:none; border:none;
+    padding:0; margin:0; text-decoration:none; white-space:nowrap; }
+.pr-hm{ position:relative; padding-left:14px; }
+.pr-hm::before{ content:'·'; position:absolute; left:4px; color:var(--text-3); }
+.pr-hm-link{ cursor:pointer; color:var(--ink-soft); }
+.pr-hm-link:active{ opacity:.55; }
+.pr-hm-deck img{ border-radius:3px; }
+.pr-hm-eredit{ opacity:.6; }
+/* le date: rossa se è passata e non è fatta, arancio se è oggi, barrata se chiusa */
+.pr-md-past{ color:var(--red) !important; }
+.pr-md-today{ color:var(--orange) !important; }
+.pr-md-fatto, .pr-md-fatto-tardi{ text-decoration:line-through; }
+
+.pr-hero-bar{ height:5px; border-radius:99px; background:var(--surface-2); margin-top:12px; overflow:hidden; }
+.pr-hero-bar i{ display:block; height:100%; border-radius:99px; background:var(--accent); }
+.pr-hero-tags, .pr-hero-note, .pr-hero-todo{ padding-right:0; }
+.pr-hero-note{ margin-top:12px; font-size:15px; line-height:1.45; color:var(--ink-soft); }
+.pr-nota-vuota{ font-style:normal; color:var(--text-3); font-size:14.5px; padding:2px 0; }
+.pr-hero-todo{ margin-top:12px; }
+
+.pr-hero-actions{ display:flex; gap:8px; margin-top:14px; flex-wrap:nowrap; }
+.pr-act{ display:inline-flex; align-items:center; justify-content:center; gap:7px; height:42px; padding:0 16px;
+    border:none; border-radius:12px; background:var(--surface-2); color:var(--text); cursor:pointer;
+    font:inherit; font-size:15px; font-weight:600; white-space:nowrap; transition:transform .15s var(--spring), filter .2s; }
+.pr-act svg{ width:16px; height:16px; flex-shrink:0; }
+.pr-act:active{ transform:scale(.97); filter:brightness(.95); }
+.pr-act-focus{ flex:1; background:var(--accent); color:var(--accent-ink, #fff); }
+.pr-act-focus [data-pomo-live]{ font-variant-numeric:tabular-nums; }
+.pr-act-live{ width:8px; height:8px; border-radius:50%; background:currentColor; animation:prPulse 1.6s ease-in-out infinite; }
+@keyframes prPulse{ 50%{ opacity:.35; } }
+
+/* ---- l'etichetta sopra un elenco ---- */
+.pr-lab{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin:22px 6px 7px;
+    font-size:12.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--text-2); }
+.page > .pr-lab:first-child{ margin-top:6px; }
+
+/* ---- l'elenco ---- */
+.pr-list{ border-radius:18px; box-shadow:var(--shadow-soft); padding:0; margin-top:16px; }
+.pr-lab ~ .pr-list, .pr-lab ~ .pr-grid, .pr-fav-head + .pr-list{ margin-top:0; }
+.pr-row{ border-radius:0; }
+.pr-row-content{ gap:10px; padding:8px 10px 8px 8px; min-height:54px;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+/* la riga sottile fra una riga e l'altra parte dal nome, come negli elenchi
+   del telefono: la colonna delle spunte resta pulita */
+.pr-row-content::before{ content:''; position:absolute; top:0; left:74px; right:0; border-top:.5px solid var(--hairline); pointer-events:none; }
+.pr-list > .pr-row-wrap:first-child > .pr-row > .pr-row-content::before{ display:none; }
+.pr-row-content:active{ background:color-mix(in srgb, var(--text) 3%, var(--surface)); }
+.pr-arrow{ width:22px; height:30px; color:var(--text-3); }
+.pr-arrow svg{ width:13px; height:13px; }
+.pr-arrow-spacer{ width:22px; }
+.pr-check{ width:24px; height:24px; margin:0; color:var(--text-3); }
+.pr-check-completed .pr-ic-done{ color:var(--row-color, var(--accent, var(--blue))); transform:none; }
+.pr-main{ gap:1px; }
+.pr-name{ font-size:16px; font-weight:500; line-height:1.3; }
+.pr-name-done{ color:var(--text-3); text-decoration:line-through; text-decoration-color:color-mix(in srgb, var(--text-3) 70%, transparent); }
+.pr-star{ width:13px; height:13px; vertical-align:-1px; margin-right:5px; }
+
+.pr-meta{ display:flex; align-items:center; max-width:100%; overflow:hidden; white-space:nowrap;
+    font-size:12.5px; line-height:1.35; color:var(--text-2); }
+.pr-mi{ flex-shrink:0; display:inline-flex; align-items:center; gap:3px; }
+.pr-mi + .pr-mi::before{ content:'·'; margin:0 5px; color:var(--text-3); }
+.pr-meta .pr-cat-tag{ background:none; box-shadow:none; padding:0; border-radius:0; font:inherit; font-size:12.5px; font-weight:400;
+    color:var(--text-2); flex-shrink:1; min-width:0; max-width:none; overflow:hidden; text-overflow:ellipsis; letter-spacing:0; }
+.pr-meta .pr-cat-tag:active{ transform:none; opacity:.6; }
+.pr-meta .pr-note-tag{ width:auto; height:auto; padding:0; border-radius:0; background:none; color:var(--text-2); }
+.pr-meta .pr-duration{ font-size:inherit; font-weight:inherit; color:inherit; }
+
+/* il play: grigio e senza fondo; colorato solo se dentro qualcosa sta andando */
+.pr-pomo-btn{ width:34px; height:34px; border-radius:50%; background:none; box-shadow:none; color:var(--text-3); }
+.pr-pomo-btn svg{ width:14px; height:14px; }
+.pr-pomo-btn:active{ background:var(--surface-2); transform:none; }
+.pr-pomo-btn.pr-corre-dentro{ color:var(--row-color); }
+.pr-pomo-run{ display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px; flex-shrink:0; cursor:pointer;
+    border:none; border-radius:99px; font:inherit; font-size:13px; font-weight:650; font-variant-numeric:tabular-nums;
+    background:color-mix(in srgb, var(--row-color) 13%, var(--surface));
+    color:color-mix(in srgb, var(--row-color) 80%, var(--text)); }
+.pr-pomo-run i{ width:7px; height:7px; border-radius:50%; background:var(--row-color);
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--row-color) 22%, transparent); animation:prPulse 1.6s ease-in-out infinite; }
+#prList.pr-sub-selecting .pr-pomo-run, #prList.pr-sub-selecting .pr-add-line{ display:none; }
+
+/* i figli: rientrati di una colonna, senza la linea colorata a sinistra */
+.pr-children{ margin-left:0; padding-left:30px; border-left:none; }
+.pr-children .pr-row-content{ min-height:48px; }
+.pr-children .pr-name{ font-size:15px; }
+
+/* scorrendo la riga: aggiungi dentro, modifica, elimina */
+.swipe-btn{ width:72px; font-size:11px; font-weight:600; gap:4px; }
+.swipe-btn svg{ width:19px; height:19px; }
+.swipe-btn-add{ background:var(--blue); }
+.swipe-btn-edit{ background:#8E8E93; }
+.swipe-btn-delete{ background:var(--red); }
+
+/* ---- aggiungere: la riga in fondo e il campo che prende il suo posto ---- */
+.pr-add-line, .pr-add-in{ position:relative; display:flex; align-items:center; gap:10px; width:100%; min-height:50px;
+    padding:6px 10px 6px 40px; border:none; background:var(--surface); font:inherit; font-size:15.5px; font-weight:500; text-align:left; }
+.pr-add-line{ color:var(--row-color, var(--blue)); cursor:pointer; }
+.pr-add-line[hidden]{ display:none; }
+.pr-add-line::before, .pr-add-in::before{ content:''; position:absolute; top:0; left:74px; right:0; border-top:.5px solid var(--hairline); }
+.pr-list > .pr-add-line:first-child::before, .pr-list > .pr-add-in:first-child::before{ display:none; }
+.pr-add-line:active{ background:color-mix(in srgb, var(--text) 3%, var(--surface)); }
+.pr-add-ic{ width:24px; height:24px; display:grid; place-items:center; flex-shrink:0; }
+.pr-add-ic svg{ width:17px; height:17px; }
+.pr-add-sub{ min-height:44px; font-size:14.5px; color:color-mix(in srgb, var(--row-color, var(--blue)) 70%, var(--text-2)); }
+.pr-add-in .pr-add-ic{ color:var(--text-3); }
+.pr-add-in input{ flex:1; min-width:0; border:none; outline:none; background:none; padding:8px 0;
+    font:inherit; font-size:16px; font-weight:400; color:var(--text); }
+.pr-add-in input::placeholder{ color:var(--text-3); }
+.pr-add-ok{ width:32px; height:32px; border-radius:50%; border:none; padding:0; flex-shrink:0; cursor:pointer; display:grid; place-items:center;
+    background:color-mix(in srgb, var(--row-color, var(--blue)) 14%, var(--surface)); color:var(--row-color, var(--blue)); }
+.pr-add-ok svg{ width:15px; height:15px; }
+.pr-nuovo{ animation:prIn .25s var(--spring) both; }
+.pr-nuovo .pr-row-content{ opacity:.5; transition:opacity .3s; }
+.pr-nuovo.pr-nuovo-ok .pr-row-content{ opacity:1; }
+.pr-nuovo.pr-nuovo-ko .pr-name{ color:var(--red); text-decoration:line-through; }
+
+/* ---- la griglia (dal menu ⋯): le stesse cose, come schede ---- */
+.pr-grid{ grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+.pr-grid-card{ display:flex; flex-direction:column; gap:6px; min-height:124px; padding:14px; border-radius:16px;
+    background:var(--surface); box-shadow:var(--shadow-soft); color:var(--text); text-decoration:none; }
+.pr-grid-card::before{ display:none; }
+.pr-grid-card:active{ transform:scale(.97); }
+.pr-grid-top{ display:flex; align-items:center; justify-content:space-between; min-height:20px; }
+.pr-grid-dot{ width:10px; height:10px; border-radius:50%; margin:0; background:var(--row-color); }
+.pr-grid-card.is-done .pr-grid-dot{ background:none; box-shadow:inset 0 0 0 2px var(--row-color); }
+.pr-grid-top .pr-note-tag{ width:22px; height:22px; background:none; color:var(--text-3); }
+.pr-grid-name{ font-size:15px; font-weight:600; min-height:0; margin:0; }
+.pr-grid-name.pr-name-done{ color:var(--text-3); }
+.pr-grid-sub{ font-size:12px; line-height:1.35; color:var(--text-2); overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.pr-grid-sub:empty{ display:none; }
+.pr-grid-bar{ height:4px; border-radius:99px; background:var(--surface-2); overflow:hidden; margin-top:auto; }
+.pr-grid-bar i{ display:block; height:100%; border-radius:99px; background:var(--row-color); }
+.pr-grid-meta{ font-size:12px; font-weight:500; margin-top:auto; }
+.pr-grid-bar + .pr-grid-meta{ margin-top:0; }
+
+/* ---- «Tutti»: ogni progetto su una riga ---- */
+.pr-ov{ background:var(--surface); border-radius:18px; box-shadow:var(--shadow-soft); overflow:hidden; }
+.pr-ov-r{ position:relative; display:flex; align-items:center; gap:12px; min-height:62px; padding:11px 14px; color:var(--text); text-decoration:none; }
+.pr-ov-r + .pr-ov-r::before, .pr-ov .pr-add-line::before{ content:''; position:absolute; top:0; left:38px; right:0; border-top:.5px solid var(--hairline); }
+.pr-ov-r:active{ background:color-mix(in srgb, var(--text) 3%, var(--surface)); }
+.pr-ov-dot{ width:12px; height:12px; border-radius:50%; background:var(--row-color); flex-shrink:0; }
+.pr-ov-star{ width:14px; height:14px; color:#E0B84A; flex-shrink:0; }
+.pr-ov-t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.pr-ov-t b{ font-size:16px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pr-ov-t small{ font-size:12.5px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pr-ov-bar{ display:block; height:4px; max-width:260px; margin-top:6px; border-radius:99px; background:var(--surface-2); overflow:hidden; }
+.pr-ov-bar i{ display:block; height:100%; border-radius:99px; background:var(--row-color); }
+.pr-ov-f{ flex-shrink:0; text-align:right; font-size:12px; line-height:1.3; color:var(--text-2); }
+.pr-ov-f b{ display:block; font-size:14.5px; font-weight:600; color:var(--text); font-variant-numeric:tabular-nums; }
+.pr-ov-chev{ width:14px; height:14px; color:var(--text-3); flex-shrink:0; }
+.pr-ov .pr-add-line{ padding-left:8px; gap:6px; color:var(--blue); }
+
+/* ---- il menu ⋯ ---- */
+.pr-altro{ max-width:520px; }
+.pr-altro-tit{ padding:8px 20px 2px; text-align:center; font-size:13.5px; font-weight:600; color:var(--text-2);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pr-altro-body{ overflow-y:auto; -webkit-overflow-scrolling:touch; padding:4px 16px calc(18px + var(--safe-bottom)); }
+.pr-altro-grp{ margin-top:10px; border-radius:14px; overflow:hidden; background:var(--surface-2); }
+.pr-altro-it{ position:relative; display:flex; align-items:center; gap:12px; width:100%; min-height:48px; padding:0 14px;
+    border:none; background:none; color:var(--text); font:inherit; font-size:16px; text-align:left; text-decoration:none; cursor:pointer; }
+.pr-altro-it + .pr-altro-it::before{ content:''; position:absolute; top:0; left:48px; right:0; border-top:.5px solid var(--hairline); }
+.pr-altro-it:active{ background:color-mix(in srgb, var(--text) 6%, transparent); }
+.pr-altro-ic{ width:22px; display:grid; place-items:center; flex-shrink:0; color:var(--text-2); }
+.pr-altro-ic svg{ width:19px; height:19px; }
+.pr-altro-ic img{ width:18px; height:18px; border-radius:4px; object-fit:cover; }
+.pr-altro-ic:empty::after{ content:''; }
+.pr-altro-n{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.pr-altro-n small{ font-size:12px; color:var(--text-2); }
+.pr-altro-it em{ display:flex; align-items:center; gap:6px; flex-shrink:0; max-width:45%; overflow:hidden; white-space:nowrap;
+    font-style:normal; font-size:15px; color:var(--text-2); }
+.pr-altro-dot{ width:18px; height:18px; border-radius:50%; box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.3); }
+.pr-altro-chev{ width:14px; height:14px; color:var(--text-3); }
+.pr-altro-it.is-red, .pr-altro-it.is-red .pr-altro-ic{ color:var(--red); }
+.pr-altro-it.is-off{ cursor:default; }
+.pr-altro-it.is-off:active{ background:none; }
+/* l'interruttore, come quello del telefono */
+.pr-sw{ position:relative; width:44px; height:26px; border-radius:99px; background:var(--hairline-2); transition:background-color .2s; max-width:none !important; }
+.pr-sw i{ position:absolute; top:2px; left:2px; width:22px; height:22px; border-radius:50%; background:#fff;
+    box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .25s var(--spring); }
+.pr-sw.on{ background:var(--green); }
+.pr-sw.on i{ transform:translateX(18px); }
+
+/* ---- su computer: l'elenco dei progetti a sinistra ---- */
+.pr-side{ display:none; }
+@media (min-width:1024px){
+    body{ padding-left:280px; }
+    .pr-side{ display:flex; flex-direction:column; gap:1px; position:fixed; z-index:120; left:0; bottom:0; top:var(--pomo-bar-h, 0px);
+        width:280px; padding:20px 12px 110px; overflow-y:auto; background:var(--surface); border-right:.5px solid var(--hairline); }
+    .hdr-root-pills{ display:none; }
+    .page{ max-width:760px; padding:20px 32px 60px; }
+    .pr-sub-bulkbar{ left:300px; }
+    .pr-side-it{ display:flex; align-items:center; gap:10px; width:100%; min-height:38px; padding:0 10px; border:none; border-radius:10px;
+        background:none; color:var(--text); font:inherit; font-size:15px; text-align:left; text-decoration:none; cursor:pointer; }
+    .pr-side-it:hover{ background:var(--surface-2); }
+    .pr-side-it.on{ background:color-mix(in srgb, var(--text) 7%, transparent); font-weight:650; }
+    .pr-side-ic{ width:16px; height:16px; flex-shrink:0; color:var(--text-2); }
+    .pr-side-star{ color:#E0B84A; }
+    .pr-side-dot{ width:10px; height:10px; margin:0 3px; border-radius:50%; flex-shrink:0; }
+    .pr-side-n{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pr-side-c{ font-size:12.5px; color:var(--text-2); font-variant-numeric:tabular-nums; }
+    .pr-side-lab{ margin:18px 10px 6px; font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--text-2); }
+    .pr-side-add{ color:var(--blue); }
+    .pr-side-add svg{ width:16px; height:16px; flex-shrink:0; }
+    /* la scheda: i tasti salgono a destra del nome, il ⋯ resta in fondo alla riga */
+    .pr-hero{ display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:16px; padding:20px 22px; }
+    .pr-hero > *{ grid-column:1 / -1; }
+    .pr-hero > .pr-hero-top{ grid-column:1; grid-row:1; padding-right:0; }
+    .pr-hero > .pr-hero-actions{ grid-column:2; grid-row:1; margin:0 44px 0 0; align-self:center; }
+    .pr-more-btn{ position:absolute; top:24px; right:22px; }
+    .pr-act{ height:38px; }
+    .pr-act-focus{ flex:0 0 auto; padding:0 18px; }
+    .pr-hero-title{ font-size:28px; }
+}
