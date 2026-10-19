@@ -17,7 +17,7 @@ register_shutdown_function(function () {
     if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
         if (ob_get_level() > 0) { ob_clean(); }
         header('Content-Type: application/json');
-        echo json_encode(['success' => true, 'cards' => [["q" => "⚠️ Errore interno", "a" => $err['message'] . ' (riga ' . $err['line'] . ')']]]);
+        echo json_encode(['success' => true, 'cards' => [["q" => t('ai.errore_interno_breve'), "a" => t('ai.errore_interno', ['errore' => $err['message'], 'riga' => $err['line']])]]]);
     }
 });
 
@@ -25,15 +25,15 @@ $stima_limite = standout_verifica_limite_stimato($utente_corrente['id'], 300);
 if (!$stima_limite['ok']) {
     ob_clean();
     $msg = ($stima_limite['disponibili'] !== null)
-        ? "Frantumare questa flashcard costerebbe circa {$stima_limite['stima']} token, ma te ne restano solo {$stima_limite['disponibili']} questo mese."
-        : 'Hai raggiunto il limite mensile di Token IA.';
+        ? t('ai.stima_frantuma', ['stima' => $stima_limite['stima'], 'disponibili' => $stima_limite['disponibili']])
+        : t('ai.limite_mensile');
     die(json_encode(['success' => false, 'error' => 'limite_piano', 'message' => $msg, 'stima' => $stima_limite['stima'], 'disponibili' => $stima_limite['disponibili']]));
 }
 
 if (!defined('GEMINI_API_KEY')) {
     ob_clean();
     // Invece di far fallire il Javascript, mandiamo l'errore come se fosse una mini-card!
-    echo json_encode(['success' => true, 'cards' => [["q" => "⚠️ Errore", "a" => "API Key non configurata."]]]);
+    echo json_encode(['success' => true, 'cards' => [["q" => t('ai.errore'), "a" => t('ai.api_key_mancante')]]]);
     exit;
 }
 
@@ -41,7 +41,7 @@ $data = json_decode($__raw_input, true);
 if (!$data) {
     ob_clean();
     $diag = 'lunghezza corpo ricevuto: ' . strlen($__raw_input) . ' byte';
-    echo json_encode(['success' => true, 'cards' => [["q" => "⚠️ Errore", "a" => "Nessun dato ricevuto dal frontend. (" . $diag . ")"]]]);
+    echo json_encode(['success' => true, 'cards' => [["q" => t('ai.errore'), "a" => t('ai.nessun_dato_frontend', ['diag' => $diag])]]]);
     exit;
 }
 
@@ -54,7 +54,7 @@ La domanda di ognuna, dovrà essere super chiara e diretta su quale concetto di 
 Quando dico che le domande devono essere chiare, intendo anche dire che non devono essere simili tra di loro, e dunque confondore lo studente perché 2 o più domande sembrano chiedere lo stesso concetto.
 Per le formule, utilizza il Latex:
 Il LaTeX in riga va tra $ $ (es. la formula è $ formula $, bla bla). Quello isolato che va a capo va tra $$ $$ (es. la formula è $$ formula $$ Bla bla). ATTENZIONE: non mettere MAI il punto o la virgola subito dopo il doppio dollaro, altrimenti ci sarà una riga con un solo punto! Sbagliato: $$ formula $$, bla bla.
-.\nREGOLE RIGIDE:\n1. Mantieni sempre la formattazione originale del sito. Usa anche i tag /bold{}, /red{}, /italic{} se utili.\n2. L'output DEVE ESSERE ESCLUSIVAMENTE un Array JSON valido.\n3. FONDAMENTALE: Poiché c'è del codice LaTeX, DEVI FARE L'ESCAPE DOPPIO di ogni singolo backslash nel JSON! (Esempio: scrivi \\\\frac invece di \\frac, e \\\\to invece di \\to, altrimenti la decodifica JSON si rompe).\n\nStruttura JSON richiesta:\n[\n  {\"q\": \"Mini domanda 1...\", \"a\": \"Mini risposta 1...\"},\n  {\"q\": \"Mini domanda 2...\", \"a\": \"Mini risposta 2...\"}\n]\n\nFLASHCARD ORIGINALE:\nDomanda: " . $q . "\nRisposta: " . $a;
+.\nREGOLE RIGIDE:\n0. Scrivi le micro-flashcard nella stessa lingua della flashcard originale.\n1. Mantieni sempre la formattazione originale del sito. Usa anche i tag /bold{}, /red{}, /italic{} se utili.\n2. L'output DEVE ESSERE ESCLUSIVAMENTE un Array JSON valido.\n3. FONDAMENTALE: Poiché c'è del codice LaTeX, DEVI FARE L'ESCAPE DOPPIO di ogni singolo backslash nel JSON! (Esempio: scrivi \\\\frac invece di \\frac, e \\\\to invece di \\to, altrimenti la decodifica JSON si rompe).\n\nStruttura JSON richiesta:\n[\n  {\"q\": \"Mini domanda 1...\", \"a\": \"Mini risposta 1...\"},\n  {\"q\": \"Mini domanda 2...\", \"a\": \"Mini risposta 2...\"}\n]\n\nFLASHCARD ORIGINALE:\nDomanda: " . $q . "\nRisposta: " . $a;
 
 $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . GEMINI_API_KEY;
 
@@ -98,9 +98,9 @@ header('Content-Type: application/json');
 
 if ($err) {
     $msg_errore = ($err_no === CURLE_OPERATION_TIMEOUTED || strpos($err, 'timed out') !== false)
-        ? 'Gemini ci ha messo troppo a rispondere (le API di Google potrebbero essere più lente del solito). Riprova tra poco.'
+        ? t('ai.gemini_lento')
         : "cURL Error: " . $err;
-    echo json_encode(['success' => true, 'cards' => [["q" => "⚠️ Errore di Rete", "a" => $msg_errore]]]);
+    echo json_encode(['success' => true, 'cards' => [["q" => t('ai.errore_rete'), "a" => $msg_errore]]]);
     exit;
 }
 
@@ -134,15 +134,15 @@ if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
         // 3. Se proprio l'IA ha scritto in ostrogoto, mostriamo l'errore DENTRO il popup come se fosse una carta
         $error_msg = json_last_error_msg();
         $error_card = [
-            "q" => "⚠️ Errore Decodifica JSON",
-            "a" => "L'IA ha restituito un formato illeggibile.\n**Errore PHP:** " . $error_msg . "\n\n**Testo Generato:**\n" . htmlspecialchars($testo_grezzo)
+            "q" => t('ai.errore_json'),
+            "a" => t('ai.formato_illeggibile') . "\n**" . t('ai.errore_php') . "** " . $error_msg . "\n\n**" . t('ai.testo_generato') . "**\n" . htmlspecialchars($testo_grezzo)
         ];
         echo json_encode(['success' => true, 'cards' => [$error_card]]);
     }
 } else {
     // Gestione errori API (Es. blocco sicurezza / token esauriti)
-    $api_error = isset($responseData['error']['message']) ? $responseData['error']['message'] : 'Risposta API sconosciuta';
-    echo json_encode(['success' => true, 'cards' => [["q" => "⚠️ Errore API Gemini", "a" => $api_error]]]);
+    $api_error = isset($responseData['error']['message']) ? $responseData['error']['message'] : t('ai.risposta_sconosciuta');
+    echo json_encode(['success' => true, 'cards' => [["q" => t('ai.errore_api'), "a" => $api_error]]]);
 }
 exit;
 ?>

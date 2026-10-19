@@ -21,64 +21,65 @@
 if (!defined('STANDOUT_DIARY_POPUP')):
 define('STANDOUT_DIARY_POPUP', true);
 if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/security_core.php'; }
+echo standout_i18n_json(['comune', 'diario']);
 ?>
 <div class="dg-ov" id="dgOv" data-skin="planner" aria-hidden="true">
-    <div class="dg-sheet" role="dialog" aria-label="Diario del giorno">
+    <div class="dg-sheet" role="dialog" aria-label="<?php te('diario.diario_del_giorno'); ?>">
         <span class="dg-grab"></span>
         <div class="dg-head">
-            <span class="dg-date" id="dgDate">Oggi</span>
-            <button type="button" class="dg-txt" id="dgClose">Chiudi</button>
+            <span class="dg-date" id="dgDate"><?php te('comune.oggi'); ?></span>
+            <button type="button" class="dg-txt" id="dgClose"><?php te('comune.chiudi'); ?></button>
         </div>
         <div class="dg-body">
             <div class="dg-faces">
                 <div class="dg-face-block">
-                    <span class="dg-lab">Com'è andata</span>
+                    <span class="dg-lab"><?php te('diario.com_e_andata'); ?></span>
                     <div class="dg-face-row" id="dgMood"></div>
                 </div>
                 <div class="dg-face-block">
-                    <span class="dg-lab">Energia</span>
+                    <span class="dg-lab"><?php te('diario.energia'); ?></span>
                     <div class="dg-face-row" id="dgEnergy"></div>
                 </div>
             </div>
 
             <div class="dg-field">
-                <span class="dg-lab">Cose belle di oggi</span>
+                <span class="dg-lab"><?php te('diario.cose_belle_di_oggi'); ?></span>
                 <div class="dg-list" id="dgGood"></div>
             </div>
 
             <div class="dg-field">
-                <span class="dg-lab">Cosa ho imparato oggi</span>
+                <span class="dg-lab"><?php te('diario.cosa_ho_imparato_oggi'); ?></span>
                 <div class="dg-list" id="dgLearned"></div>
             </div>
 
             <div class="dg-field">
                 <div class="dg-lab-row">
-                    <span class="dg-lab">Com'è andata oggi</span>
-                    <button type="button" class="dg-mic" id="dgMic" hidden aria-label="Detta invece di scrivere">
+                    <span class="dg-lab"><?php te('diario.com_e_andata_oggi_lab'); ?></span>
+                    <button type="button" class="dg-mic" id="dgMic" hidden aria-label="<?php te('diario.detta_invece_di_scrivere'); ?>">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0013 0"/><path d="M12 18v3"/></svg>
-                        <span id="dgMicLab">Detta</span>
+                        <span id="dgMicLab"><?php te('diario.detta'); ?></span>
                     </button>
                 </div>
                 <textarea class="dg-text" id="dgText" rows="6" maxlength="20000"
-                          placeholder="Scrivi come vuoi. Si salva da solo."></textarea>
+                          placeholder="<?php te('diario.scrivi_come_vuoi'); ?>"></textarea>
             </div>
 
             <div class="dg-foot">
-                <span class="dg-saved" id="dgSaved">Salvato</span>
-                <a class="dg-txt dg-link" id="dgOpenFull" href="diario.php">Apri il diario</a>
+                <span class="dg-saved" id="dgSaved"><?php te('diario.salvato_m'); ?></span>
+                <a class="dg-txt dg-link" id="dgOpenFull" href="diario.php"><?php te('diario.apri_il_diario'); ?></a>
             </div>
         </div>
     </div>
 </div>
 
 <div class="dg-peek-ov" id="dgPeekOv" aria-hidden="true">
-    <div class="dg-peek" role="dialog" aria-label="Pagina di diario">
+    <div class="dg-peek" role="dialog" aria-label="<?php te('diario.pagina_di_diario'); ?>">
         <span class="dg-peek-tape" aria-hidden="true"></span>
         <div class="dg-peek-doodles" id="dgPeekFaces" aria-hidden="true"></div>
         <div class="dg-peek-date" id="dgPeekDate"></div>
         <div class="dg-peek-body" id="dgPeekBody"></div>
         <div class="dg-peek-foot">
-            <a class="dg-peek-link" id="dgPeekOpen" href="diario.php">Apri nel diario</a>
+            <a class="dg-peek-link" id="dgPeekOpen" href="diario.php"><?php te('diario.apri_nel_diario'); ?></a>
         </div>
     </div>
 </div>
@@ -251,8 +252,12 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
     if (window.standoutOpenDiary) return;
 
     var CSRF = <?php echo json_encode(sec_csrf_token()); ?>;
-    var GIORNI = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
-    var MESI = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+    var LINGUA = document.documentElement.lang || 'it';
+    /* «Lunedì 3 agosto» / «Monday 3 August», nella lingua della pagina */
+    function dataLunga(d) {
+        var s = new Intl.DateTimeFormat(LINGUA, { weekday: 'long', day: 'numeric', month: 'long' }).format(d);
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    }
 
     var state = { date: null, data: null, timers: {} };
     var ov = document.getElementById('dgOv');
@@ -395,7 +400,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
         input.type = 'text';
         input.value = it.content || '';
         input.maxLength = 300;
-        input.placeholder = it.id ? '' : (type === 'good' ? 'Una cosa bella…' : 'Una cosa imparata…');
+        input.placeholder = it.id ? '' : (type === 'good' ? T('diario.una_cosa_bella_ph') : T('diario.una_cosa_imparata_ph'));
         var x = document.createElement('button');
         x.type = 'button';
         x.className = 'dg-li-x';
@@ -441,8 +446,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
 
     function drawAll() {
         var d = parseIso(state.date);
-        var wd = (d.getDay() + 6) % 7;
-        $('dgDate').textContent = GIORNI[wd] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()];
+        $('dgDate').textContent = dataLunga(d);
         $('dgOpenFull').href = 'diario.php?data=' + state.date;
         drawFaces();
         drawList('dgGood', 'good');
@@ -467,6 +471,11 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
         'del','dello','della','dei','degli','delle','nel','nello','nella','nei','negli','nelle',
         'sul','sullo','sulla','sui','sugli','sulle','come','quando','dove','mentre','finché','finche'
     ];
+    /* in inglese: stesse due liste, con le sue parole */
+    var CONTINUA_EN = ['and','but','because','so','then','while','if','that','or','also','with','for','of','to',
+        'in','on','at','from','by','about','when','where','until','the','a','an','my','your'];
+    var DOMANDA_EN = ['who','what','how','when','where','why','which','is','are','was','were','can','could',
+        'should','would','will','did','does','have','has'];
     var DOMANDA = [
         'chi','cosa','che','come','quando','dove','perché','perche','quale','quali',
         'quanto','quanta','quanti','quante','sono','è','e\u0300','ho','hai','ha'
@@ -484,10 +493,11 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
         var first = words[0];
 
         /* comincia con una parola da domanda e non è troppo lunga: punto interrogativo */
-        if (DOMANDA.indexOf(first) !== -1 && words.length <= 12) return s + '?';
+        var inglese = LINGUA === 'en';
+        if ((inglese ? DOMANDA_EN : DOMANDA).indexOf(first) !== -1 && words.length <= 12) return s + '?';
 
         /* finisce con una parola che regge un seguito: la frase continua */
-        if (CONTINUA.indexOf(last) !== -1) return s + ',';
+        if ((inglese ? CONTINUA_EN : CONTINUA).indexOf(last) !== -1) return s + ',';
 
         /* frase molto corta: probabilmente un inciso, meglio la virgola */
         if (words.length <= 2) return s + ',';
@@ -511,14 +521,14 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
         function stop() {
             running = false;
             btn.classList.remove('dg-rec');
-            $('dgMicLab').textContent = 'Detta';
+            $('dgMicLab').textContent = T('diario.detta');
             if (rec) { try { rec.stop(); } catch (e) {} }
         }
 
         btn.addEventListener('click', function () {
             if (running) { stop(); return; }
             rec = new Rec();
-            rec.lang = 'it-IT';
+            rec.lang = LINGUA === 'en' ? 'en-US' : 'it-IT';
             rec.continuous = true;
             rec.interimResults = true;
 
@@ -543,8 +553,8 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
             rec.onerror = function (ev) {
                 stop();
                 if (ev && ev.error === 'not-allowed') {
-                    $('dgMicLab').textContent = 'Permesso negato';
-                    setTimeout(function () { $('dgMicLab').textContent = 'Detta'; }, 2200);
+                    $('dgMicLab').textContent = T('diario.permesso_negato');
+                    setTimeout(function () { $('dgMicLab').textContent = T('diario.detta'); }, 2200);
                 }
             };
             rec.onend = function () {
@@ -557,7 +567,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
                 rec.start();
                 running = true;
                 btn.classList.add('dg-rec');
-                $('dgMicLab').textContent = 'Sto ascoltando';
+                $('dgMicLab').textContent = T('diario.sto_ascoltando');
             } catch (e) { stop(); }
         });
 
@@ -612,8 +622,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
 
     window.standoutDiaryPeek = function (date) {
         var d = parseIso(date);
-        var wd = (d.getDay() + 6) % 7;
-        $('dgPeekDate').textContent = GIORNI[wd] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()];
+        $('dgPeekDate').textContent = dataLunga(d);
         $('dgPeekOpen').href = 'diario.php?data=' + date;
         $('dgPeekBody').innerHTML = '<p style="opacity:.5">…</p>';
         $('dgPeekFaces').innerHTML = '';
@@ -625,22 +634,22 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
             var day = r.day;
             var html = '';
             if (day.good && day.good.length) {
-                html += '<span class="dg-peek-k">Cose belle</span><ul>';
+                html += '<span class="dg-peek-k">' + escapeHtml(T('diario.cose_belle')) + '</span><ul>';
                 day.good.forEach(function (g) { html += '<li>' + escapeHtml(g.content) + '</li>'; });
                 html += '</ul>';
             }
             if (day.learned && day.learned.length) {
-                html += '<span class="dg-peek-k">Imparato</span><ul>';
+                html += '<span class="dg-peek-k">' + escapeHtml(T('diario.imparato')) + '</span><ul>';
                 day.learned.forEach(function (g) { html += '<li>' + escapeHtml(g.content) + '</li>'; });
                 html += '</ul>';
             }
             if (day.note && day.note.trim()) {
-                html += '<span class="dg-peek-k">Com\'è andata</span>';
+                html += '<span class="dg-peek-k">' + escapeHtml(T('diario.com_e_andata')) + '</span>';
                 day.note.split(/\n+/).forEach(function (line) {
                     if (line.trim()) html += '<p>' + escapeHtml(line) + '</p>';
                 });
             }
-            if (!html) html = '<p style="opacity:.55">Questa pagina è ancora bianca.</p>';
+            if (!html) html = '<p style="opacity:.55">' + escapeHtml(T('diario.pagina_bianca')) + '</p>';
             $('dgPeekBody').innerHTML = html;
 
             var faces = $('dgPeekFaces');

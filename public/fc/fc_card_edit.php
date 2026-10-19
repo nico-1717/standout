@@ -48,8 +48,8 @@
         if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
             if (ob_get_level() > 0) { ob_clean(); }
             if (!headers_sent()) http_response_code(500);
-            echo '<!DOCTYPE html><html lang="it"><body><div class="page"><div class="empty-state">'
-               . sec_h('Errore interno del server: ' . $err['message'] . ' (riga ' . $err['line'] . ')')
+            echo '<!DOCTYPE html><html lang="' . (function_exists('standout_lingua') ? standout_lingua() : 'it') . '"><body><div class="page"><div class="empty-state">'
+               . sec_h(t('api.errore_interno_riga', ['errore' => $err['message'], 'riga' => $err['line']]))
                . '</div></div></body></html>';
         }
     });
@@ -552,7 +552,7 @@ function mfc_parola_esempio(): string {
             <?php if (!empty($audioFile)): ?>
                 <div class="audio-player-row">
                     <audio src="../media/flashcard_audio/<?php echo sec_h($audioFile); ?>" controls></audio>
-                    <label class="mini-remove"><input type="checkbox" name="remove_<?php echo sec_h($p); ?>_aud" value="1"> Elimina</label>
+                    <label class="mini-remove"><input type="checkbox" name="remove_<?php echo sec_h($p); ?>_aud" value="1"> <?php te('comune.elimina'); ?></label>
                 </div>
             <?php endif; ?>
             <audio id="audio_preview_<?php echo sec_h($p); ?>" controls style="display:none;" class="audio-player-row-new"></audio>
@@ -1110,7 +1110,7 @@ function mfc_parola_esempio(): string {
        NON chiude niente: con il salvataggio automatico si salva di continuo, e
        chiudere a ogni salvataggio renderebbe il modulo inutilizzabile. Chi
        sta sotto si limita a prenderne nota e si aggiorna alla chiusura. */
-    var FC_CANCEL_URL = '<?php echo sec_h($cancel_url); ?>';
+    var FC_CANCEL_URL = '<?php echo sec_h($cancel_url ?? ''); ?>';
 
     /* La cornice del popup non ha piu' una sua "x": quando l'utente tocca
        fuori dal pannello, il popup CHIEDE a questa pagina di chiudersi invece
@@ -1830,7 +1830,7 @@ function mfc_parola_esempio(): string {
                 }
                 if (res.redirected && res.url) { window.location.href = res.url; return; }
             } catch (err) {
-                alert('Errore durante l\'eliminazione.');
+                alert(T('fc.errore_eliminazione'));
             }
         });
 

@@ -125,7 +125,7 @@ function sec_db(): mysqli {
         $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
     } catch (Throwable $e) {
         sec_log_error('db_connect', $e->getMessage());
-        sec_die_json('Servizio momentaneamente non disponibile.', 503);
+        sec_die_json(t('api.servizio_non_disponibile'), 503);
     }
     mysqli_set_charset($conn, 'utf8mb4');
     $GLOBALS['conn'] = $conn;
@@ -142,7 +142,7 @@ function sec_q(string $sql, array $params = [], ?string $types = null) {
     $stmt = mysqli_prepare($conn, $sql);
     if (!$stmt) {
         sec_log_error('sql_prepare', mysqli_error($conn) . ' | ' . substr($sql, 0, 120));
-        sec_die_json('Errore nella richiesta al database.', 500);
+        sec_die_json(t('api.errore_database'), 500);
     }
     if (!empty($params)) {
         if ($types === null) {
@@ -160,7 +160,7 @@ function sec_q(string $sql, array $params = [], ?string $types = null) {
     } catch (Throwable $e) {
         sec_log_error('sql_execute', $e->getMessage() . ' | ' . substr($sql, 0, 120));
         mysqli_stmt_close($stmt);
-        sec_die_json('Errore nella richiesta al database.', 500);
+        sec_die_json(t('api.errore_database'), 500);
     }
     $isSelect = stripos(ltrim($sql), 'SELECT') === 0 || stripos(ltrim($sql), 'SHOW') === 0;
     if ($isSelect) {
@@ -368,12 +368,12 @@ function sec_file(array $file, array $allowed = null, int $maxBytes = 5242880): 
     if ($allowed === null) {
         $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
     }
-    if (!isset($file['tmp_name'], $file['error'])) return ['ok' => false, 'message' => 'File non ricevuto.'];
-    if ($file['error'] !== UPLOAD_ERR_OK)          return ['ok' => false, 'message' => 'Caricamento non riuscito.'];
-    if (!is_uploaded_file($file['tmp_name']))      return ['ok' => false, 'message' => 'File non valido.'];
-    if (($file['size'] ?? 0) <= 0)                 return ['ok' => false, 'message' => 'Il file e vuoto.'];
+    if (!isset($file['tmp_name'], $file['error'])) return ['ok' => false, 'message' => t('api.file_non_ricevuto')];
+    if ($file['error'] !== UPLOAD_ERR_OK)          return ['ok' => false, 'message' => t('api.caricamento_non_riuscito')];
+    if (!is_uploaded_file($file['tmp_name']))      return ['ok' => false, 'message' => t('api.file_non_valido')];
+    if (($file['size'] ?? 0) <= 0)                 return ['ok' => false, 'message' => t('api.file_vuoto')];
     if ($file['size'] > $maxBytes) {
-        return ['ok' => false, 'message' => 'Il file supera ' . round($maxBytes / 1048576, 1) . ' MB.'];
+        return ['ok' => false, 'message' => t('api.file_supera', ['mb' => round($maxBytes / 1048576, 1)])];
     }
     $mime = null;
     if (function_exists('finfo_open')) {
@@ -382,10 +382,10 @@ function sec_file(array $file, array $allowed = null, int $maxBytes = 5242880): 
         finfo_close($fi);
     }
     if ($mime === null || !isset($allowed[$mime])) {
-        return ['ok' => false, 'message' => 'Formato non consentito.'];
+        return ['ok' => false, 'message' => t('api.formato_non_consentito')];
     }
     if (strpos($mime, 'image/') === 0 && @getimagesize($file['tmp_name']) === false) {
-        return ['ok' => false, 'message' => 'Immagine non leggibile.'];
+        return ['ok' => false, 'message' => t('api.immagine_non_leggibile')];
     }
     return ['ok' => true, 'ext' => $allowed[$mime], 'mime' => $mime, 'tmp' => $file['tmp_name']];
 }
@@ -432,7 +432,7 @@ function sec_require_csrf(): void {
         $hostOnly   = preg_replace('/:\d+$/', '', $host);
         if ($originHost !== '' && $originHost !== $hostOnly) {
             sec_audit('csrf_origin', 'denied', $originHost);
-            sec_die_json('Richiesta bloccata: origine non riconosciuta.', 403, 'origin');
+            sec_die_json(t('api.origine_non_riconosciuta'), 403, 'origin');
         }
     }
 
@@ -454,22 +454,22 @@ function sec_require_csrf(): void {
         if (!$isAjax) {
             http_response_code(403);
             header('Content-Type: text/html; charset=utf-8');
-            echo '<!DOCTYPE html><html lang="it"><head><meta charset="utf-8">'
+            $h = function (string $k): string { return htmlspecialchars(t($k), ENT_QUOTES, 'UTF-8'); };
+            echo '<!DOCTYPE html><html lang="' . standout_lingua() . '"><head><meta charset="utf-8">'
                . '<meta name="viewport" content="width=device-width,initial-scale=1">'
-               . '<title>Sessione scaduta</title><style>'
+               . '<title>' . $h('api.csrf_titolo') . '</title><style>'
                . 'body{margin:0;min-height:100vh;display:grid;place-items:center;background:#FBF9F6;'
                . 'color:#4C463F;font-family:system-ui,-apple-system,sans-serif;padding:28px;text-align:center}'
                . 'h1{font-weight:500;font-size:22px;margin:0 0 10px}p{color:#8A8177;margin:0 0 22px;line-height:1.5}'
                . 'a{display:inline-block;padding:12px 22px;border-radius:14px;background:#A9C3AE;color:#FFFDFA;'
                . 'text-decoration:none;font-size:15px}</style></head><body><div>'
-               . '<h1>Sessione scaduta</h1>'
-               . '<p>Per sicurezza la richiesta è stata annullata.<br>Ricarica la pagina e riprova: '
-               . 'quello che stavi facendo non è andato perso.</p>'
-               . '<a href="javascript:history.back()">Torna indietro</a>'
+               . '<h1>' . $h('api.csrf_titolo') . '</h1>'
+               . '<p>' . $h('api.csrf_testo_1') . '<br>' . $h('api.csrf_testo_2') . '</p>'
+               . '<a href="javascript:history.back()">' . $h('api.torna_indietro') . '</a>'
                . '</div></body></html>';
             exit;
         }
-        sec_die_json('Sessione scaduta: ricarica la pagina e riprova.', 403, 'csrf');
+        sec_die_json(t('api.sessione_scaduta'), 403, 'csrf');
     }
 }
 
@@ -503,9 +503,9 @@ function sec_can(int $minLevel, ?int $userId = null): bool {
 function sec_require_level(int $minLevel, bool $isApi = true): void {
     if (sec_can($minLevel)) return;
     sec_audit('rbac', 'denied', 'richiesto livello ' . $minLevel);
-    if ($isApi) sec_die_json('Non hai i permessi per questa operazione.', 403, 'forbidden');
+    if ($isApi) sec_die_json(t('api.non_hai_permessi'), 403, 'forbidden');
     http_response_code(403);
-    echo 'Accesso non consentito.';
+    echo t('api.accesso_non_consentito');
     exit;
 }
 
@@ -555,7 +555,7 @@ function sec_rate_limit(string $action, $subject, int $max, int $seconds): bool 
 function sec_require_rate(string $action, $subject, int $max, int $seconds): void {
     if (sec_rate_limit($action, $subject, $max, $seconds)) return;
     sec_audit($action, 'denied', 'rate limit');
-    sec_die_json('Troppe richieste in poco tempo. Riprova tra qualche istante.', 429, 'rate_limit');
+    sec_die_json(t('api.troppe_richieste'), 429, 'rate_limit');
 }
 
 /* ============================================================

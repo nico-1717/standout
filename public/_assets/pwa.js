@@ -91,12 +91,15 @@
 
     var testo = document.createElement('p');
     testo.className = 'pwa-invito-testo';
-    testo.textContent = 'Migliora la tua esperienza: tocca Condividi, poi Aggiungi a Home.';
+    var inglese = (document.documentElement.lang || '').slice(0, 2) === 'en';
+    testo.textContent = inglese
+      ? 'Get the full experience: tap Share, then Add to Home Screen.'
+      : 'Migliora la tua esperienza: tocca Condividi, poi Aggiungi a Home.';
 
     var chiudi = document.createElement('button');
     chiudi.type = 'button';
     chiudi.className = 'pwa-invito-chiudi';
-    chiudi.setAttribute('aria-label', 'Chiudi l\u2019avviso');
+    chiudi.setAttribute('aria-label', inglese ? 'Close this tip' : 'Chiudi l\u2019avviso');
     chiudi.textContent = '\u00D7';
     chiudi.addEventListener('click', function () {
       ricorda();

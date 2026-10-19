@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "note": "Regole con cui la barra intelligente del planner capisce data e ora da una frase scritta a mano libera. Nessuna intelligenza artificiale: solo elenchi di parole e schemi. Aggiungendo voci qui, la barra impara nuove espressioni senza toccare il codice.",
   "giorni_relativi": {
     "oggi": 0,
@@ -14,7 +14,21 @@
     "domani sera": 1,
     "dopodomani": 2,
     "dopo domani": 2,
-    "ieri": -1
+    "ieri": -1,
+    "today": 0,
+    "tonight": 0,
+    "this morning": 0,
+    "this afternoon": 0,
+    "this evening": 0,
+    "tomorrow": 1,
+    "tmrw": 1,
+    "tomorrow morning": 1,
+    "tomorrow afternoon": 1,
+    "tomorrow evening": 1,
+    "tomorrow night": 1,
+    "day after tomorrow": 2,
+    "the day after tomorrow": 2,
+    "yesterday": -1
   },
   "giorni_settimana": {
     "lunedì": 1,
@@ -35,7 +49,23 @@
     "sabato": 6,
     "sab": 6,
     "domenica": 7,
-    "dom": 7
+    "dom": 7,
+    "monday": 1,
+    "mon": 1,
+    "tuesday": 2,
+    "tue": 2,
+    "tues": 2,
+    "wednesday": 3,
+    "wed": 3,
+    "thursday": 4,
+    "thu": 4,
+    "thurs": 4,
+    "friday": 5,
+    "fri": 5,
+    "saturday": 6,
+    "sat": 6,
+    "sunday": 7,
+    "sun": 7
   },
   "mesi": {
     "gennaio": 1,
@@ -62,7 +92,27 @@
     "novembre": 11,
     "nov": 11,
     "dicembre": 12,
-    "dic": 12
+    "dic": 12,
+    "january": 1,
+    "jan": 1,
+    "february": 2,
+    "march": 3,
+    "april": 4,
+    "may": 5,
+    "june": 6,
+    "jun": 6,
+    "july": 7,
+    "jul": 7,
+    "august": 8,
+    "aug": 8,
+    "september": 9,
+    "sep": 9,
+    "sept": 9,
+    "october": 10,
+    "oct": 10,
+    "november": 11,
+    "december": 12,
+    "dec": 12
   },
   "fasce_orarie": {
     "stamattina": "09:00",
@@ -78,7 +128,21 @@
     "stasera": "20:00",
     "cena": "20:00",
     "notte": "22:00",
-    "stanotte": "22:00"
+    "stanotte": "22:00",
+    "this morning": "09:00",
+    "tomorrow morning": "09:00",
+    "morning": "09:00",
+    "noon": "12:00",
+    "midday": "12:00",
+    "this afternoon": "15:00",
+    "tomorrow afternoon": "15:00",
+    "afternoon": "15:00",
+    "evening": "20:00",
+    "this evening": "20:00",
+    "tomorrow evening": "20:00",
+    "tonight": "20:00",
+    "night": "22:00",
+    "tomorrow night": "22:00"
   },
   "parole_da_togliere": [
     "alle",
@@ -106,13 +170,23 @@
     "questo",
     "questa",
     "questi",
-    "queste"
+    "queste",
+    "at",
+    "on",
+    "around",
+    "about",
+    "next",
+    "this",
+    "o'clock",
+    "oclock"
   ],
   "settimana_prossima": [
     "prossimo",
     "prossima",
     "che viene",
-    "prossima settimana"
+    "prossima settimana",
+    "next",
+    "next week"
   ],
   "durata_predefinita_minuti": 60,
   "esempi": [
@@ -127,7 +201,13 @@
     "dopodomani riunione alle 9:30",
     "venerdì prossimo esame 8",
     "3/9 visita 16:45",
-    "13 agsoto dentista (con errore di battitura)"
+    "13 agsoto dentista (con errore di battitura)",
+    "tomorrow lunch 1pm",
+    "tuesday match 12:30",
+    "13 august dentist at 12",
+    "tonight cinema",
+    "next friday exam 8am",
+    "christmas presents"
   ],
   "festivita": {
     "capodanno": {
@@ -197,6 +277,38 @@
     "san silvestro": {
       "mese": 12,
       "giorno": 31
+    },
+    "christmas": {
+      "mese": 12,
+      "giorno": 25
+    },
+    "christmas day": {
+      "mese": 12,
+      "giorno": 25
+    },
+    "christmas eve": {
+      "mese": 12,
+      "giorno": 24
+    },
+    "boxing day": {
+      "mese": 12,
+      "giorno": 26
+    },
+    "new year's day": {
+      "mese": 1,
+      "giorno": 1
+    },
+    "new year's eve": {
+      "mese": 12,
+      "giorno": 31
+    },
+    "valentine's day": {
+      "mese": 2,
+      "giorno": 14
+    },
+    "valentines day": {
+      "mese": 2,
+      "giorno": 14
     }
   },
   "festivita_mobili": {
@@ -205,7 +317,11 @@
     "lunedi dell'angelo": 1,
     "venerdi santo": -2,
     "carnevale": -47,
-    "martedi grasso": -47
+    "martedi grasso": -47,
+    "easter": 0,
+    "easter sunday": 0,
+    "easter monday": 1,
+    "good friday": -2
   },
   "note_festivita": "Le festività mobili sono espresse in giorni di scarto dalla Pasqua, che il planner calcola da sé per l'anno giusto.",
   "fasce_da_conservare": [
@@ -213,7 +329,15 @@
     "stamattina",
     "stamane",
     "stanotte",
-    "domattina"
+    "domattina",
+    "tonight",
+    "this morning",
+    "this afternoon",
+    "this evening",
+    "tomorrow morning",
+    "tomorrow afternoon",
+    "tomorrow evening",
+    "tomorrow night"
   ],
   "pasti": {
     "colazione": "08:00",
@@ -223,8 +347,15 @@
     "aperitivo": "18:30",
     "apericena": "19:00",
     "cena": "20:00",
-    "spuntino": "17:00"
+    "spuntino": "17:00",
+    "breakfast": "08:00",
+    "lunch": "12:30",
+    "dinner": "20:00",
+    "supper": "20:00",
+    "snack": "17:00",
+    "drinks": "18:30"
   },
   "tutto_il_giorno_se_manca_ora": true,
-  "tolleranza_errori_battitura": 2
+  "tolleranza_errori_battitura": 2,
+  "note_inglese": "Dalla versione 2 ogni elenco contiene anche le parole inglesi: la barra capisce le due lingue insieme, qualunque sia la lingua del sito."
 }

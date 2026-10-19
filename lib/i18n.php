@@ -95,7 +95,18 @@ function standout_lingua(): string
 
     // 2. la scelta salvata dall'utente: si legge una volta sola, poi finisce in
     //    sessione e per il resto della navigazione non si torna al database
-    $dalDb = standout_lingua_utente();
+    /* Il guardiano serve ai messaggi d'errore del database, che sono tradotti
+       anche loro: se la connessione cade, il messaggio chiede la lingua, la
+       lingua chiede il database, e senza questo si girerebbe in tondo. */
+    static $staLeggendo = false;
+    if ($staLeggendo) return STANDOUT_LINGUA_BASE;
+    $staLeggendo = true;
+    try {
+        $dalDb = standout_lingua_utente();
+    } catch (Throwable $e) {
+        $dalDb = null;
+    }
+    $staLeggendo = false;
     if ($dalDb !== null) {
         if (session_status() === PHP_SESSION_ACTIVE) $_SESSION['lingua'] = $dalDb;
         return $scelta = $dalDb;
@@ -348,6 +359,19 @@ function standout_i18n_json(array $spazi): string
     $dizionario = standout_dizionario(standout_lingua());
     $base = standout_dizionario(STANDOUT_LINGUA_BASE);
 
+    /* Una pagina puo' chiamarla piu' volte: la sua e quella di ogni
+       componente che include (la lista delle attivita' dentro il planner,
+       il diario del giorno, il selettore dei progetti...). Ogni componente
+       chiede i SUOI gruppi, cosi' funziona in qualunque pagina finisca.
+       La prima chiamata stampa anche T(); le successive solo i gruppi che
+       mancano, in un altro contenitore che T() legge quando non trova una
+       chiave. */
+    static $stampati = [];
+    $prima = !$stampati;
+    $spazi = array_values(array_diff(array_unique($spazi), $stampati));
+    if (!$prima && !$spazi) return '';
+    $stampati = array_merge($stampati, $spazi);
+
     $fuori = [];
     foreach ($spazi as $spazio) {
         $tradotto  = isset($dizionario[$spazio]) && is_array($dizionario[$spazio]) ? $dizionario[$spazio] : [];
@@ -368,15 +392,23 @@ function standout_i18n_json(array $spazi): string
        Il dizionario pero' e' GIA' dentro la pagina, qui sopra: basta una T()
        minima definita prima, e la pagina funziona comunque. i18n.js, quando
        arriva, la sostituisce con quella completa. */
+    $json = json_encode($fuori, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+    if (!$prima) {
+        return '<script type="application/json" class="i18n-dati">' . $json . '</script>' . "\n";
+    }
+
     $minima = <<<'JS'
 <script>
 if (typeof window.T !== 'function') {
     window.T = function (chiave, sostituzioni) {
         var dati = {};
-        try {
-            var c = document.getElementById('i18n-dati');
-            if (c) dati = JSON.parse(c.textContent) || {};
-        } catch (e) {}
+        var cc = document.querySelectorAll('#i18n-dati, script.i18n-dati');
+        for (var k = 0; k < cc.length; k++) {
+            try {
+                var d = JSON.parse(cc[k].textContent) || {};
+                for (var g in d) if (Object.prototype.hasOwnProperty.call(d, g)) dati[g] = d[g];
+            } catch (e) {}
+        }
         var nodo = dati, pezzi = String(chiave).split('.');
         for (var i = 0; i < pezzi.length; i++) {
             if (nodo === null || typeof nodo !== 'object' || !(pezzi[i] in nodo)) return '<<' + chiave + '>>';
@@ -397,7 +429,7 @@ if (typeof window.T !== 'function') {
 JS;
 
     return '<script type="application/json" id="i18n-dati">'
-        . json_encode($fuori, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG)
+        . $json
         . '</script>' . "\n"
         . $minima . "\n"
         /* Senza defer, e va messo nel <head>: i blocchi <script> delle pagine
@@ -417,4 +449,15 @@ JS;
 if (isset($_GET['lang']) && standout_lingua_valida($_GET['lang'])) {
     standout_lingua_richiesta($_GET['lang']);
     standout_scrivi_cookie_lingua($_GET['lang']);
+}
+
+
+/* ============================================================
+   6. NOMI DI PRIMA
+   ============================================================
+   Un config.php scritto prima del cambio di nome chiama ancora
+   nisama_lingua(): senza questo alias ogni pagina si fermerebbe con un
+   errore fatale. */
+if (!function_exists('nisama_lingua')) {
+    function nisama_lingua(): string { return standout_lingua(); }
 }

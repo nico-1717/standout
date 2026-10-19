@@ -185,12 +185,12 @@ if (!function_exists('ie_xlsx_first_sheet')) {
 if (!function_exists('ie_read_xlsx')) {
     function ie_read_xlsx($path, &$error) {
         if (!class_exists('ZipArchive')) {
-            $error = 'Estensione ZipArchive non disponibile sul server: converti il file in CSV e riprova.';
+            $error = t('import.zip_mancante');
             return null;
         }
         $zip = new ZipArchive();
         if ($zip->open($path) !== true) {
-            $error = 'Il file non e\' un .xlsx valido (potrebbe essere un vecchio .xls: aprilo e risalvalo come .xlsx o .csv).';
+            $error = t('import.xlsx_non_valido');
             return null;
         }
         $shared = ie_xlsx_shared_strings($zip);
@@ -198,9 +198,9 @@ if (!function_exists('ie_read_xlsx')) {
         $sheetXml = ie_xlsx_first_sheet($zip);
         $zip->close();
 
-        if ($sheetXml === false) { $error = 'Nessun foglio trovato nel file.'; return null; }
+        if ($sheetXml === false) { $error = t('import.nessun_foglio'); return null; }
         $sx = @simplexml_load_string($sheetXml);
-        if (!$sx || !isset($sx->sheetData)) { $error = 'Foglio di calcolo illeggibile.'; return null; }
+        if (!$sx || !isset($sx->sheetData)) { $error = t('import.illeggibile'); return null; }
 
         $rows = [];
         foreach ($sx->sheetData->row as $row) {
@@ -260,7 +260,7 @@ if (!function_exists('ie_read_xlsx')) {
 if (!function_exists('ie_read_csv')) {
     function ie_read_csv($path, &$error) {
         $raw = file_get_contents($path);
-        if ($raw === false) { $error = 'Impossibile leggere il file.'; return null; }
+        if ($raw === false) { $error = t('import.illeggibile'); return null; }
         if (substr($raw, 0, 3) === "\xEF\xBB\xBF") $raw = substr($raw, 3);
         if (function_exists('mb_check_encoding') && !mb_check_encoding($raw, 'UTF-8')) {
             $raw = function_exists('mb_convert_encoding')
@@ -277,7 +277,7 @@ if (!function_exists('ie_read_csv')) {
             foreach ($counts as $d => $_) { $counts[$d] += substr_count($line, $d); }
             if (++$seen >= 6) break;
         }
-        if ($seen === 0) { $error = 'File vuoto.'; return null; }
+        if ($seen === 0) { $error = t('import.file_vuoto'); return null; }
         arsort($counts);
         $delim = key($counts);
         if ($counts[$delim] === 0) $delim = ',';
@@ -605,13 +605,13 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'parse') {
 
     if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
         $codes = [
-            UPLOAD_ERR_INI_SIZE => 'Il file supera il limite di upload del server.',
-            UPLOAD_ERR_FORM_SIZE => 'Il file e\' troppo grande.',
-            UPLOAD_ERR_PARTIAL => 'Caricamento interrotto, riprova.',
-            UPLOAD_ERR_NO_FILE => 'Nessun file selezionato.',
+            UPLOAD_ERR_INI_SIZE => t('import.troppo_grande_server'),
+            UPLOAD_ERR_FORM_SIZE => t('import.troppo_grande'),
+            UPLOAD_ERR_PARTIAL => t('import.caricamento_interrotto'),
+            UPLOAD_ERR_NO_FILE => t('import.nessun_file'),
         ];
         $e = isset($_FILES['file']) ? $_FILES['file']['error'] : UPLOAD_ERR_NO_FILE;
-        echo json_encode(['success' => false, 'error' => isset($codes[$e]) ? $codes[$e] : 'Errore nel caricamento del file.']);
+        echo json_encode(['success' => false, 'error' => isset($codes[$e]) ? $codes[$e] : t('import.errore_caricamento')]);
         exit();
     }
 
@@ -624,13 +624,13 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'parse') {
     $isZip = ($head === 'PK');
 
     if ($ext === 'xls' && !$isZip) {
-        echo json_encode(['success' => false, 'error' => 'I vecchi file .xls non sono supportati: aprilo e risalvalo come .xlsx o .csv.']);
+        echo json_encode(['success' => false, 'error' => t('import.xls_vecchio')]);
         exit();
     }
     $rows = $isZip ? ie_read_xlsx($tmpPath, $error) : ie_read_csv($tmpPath, $error);
 
-    if ($rows === null) { echo json_encode(['success' => false, 'error' => $error ?: 'File non leggibile.']); exit(); }
-    if (count($rows) === 0) { echo json_encode(['success' => false, 'error' => 'Il file e\' vuoto.']); exit(); }
+    if ($rows === null) { echo json_encode(['success' => false, 'error' => $error ?: t('import.non_leggibile')]); exit(); }
+    if (count($rows) === 0) { echo json_encode(['success' => false, 'error' => t('import.e_vuoto')]); exit(); }
 
     $cols = []; $score = 0;
     $headerIdx = ie_find_header($rows, $cols, $score);
@@ -748,16 +748,16 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'parse') {
     }
 
     if (count($sessions) === 0) {
-        echo json_encode(['success' => false, 'error' => 'Nessuna sessione valida trovata: controlla che il file abbia una colonna con data/ora di inizio e una con la durata.']);
+        echo json_encode(['success' => false, 'error' => t('import.pi_nessuna_sessione')]);
         exit();
     }
 
     usort($sessions, function ($a, $b) { return strcmp($a['start'], $b['start']); });
 
     $warnings = [];
-    if (!$isHeaderRow) $warnings[] = 'Intestazioni non riconosciute: ho usato le posizioni standard (2ª colonna = inizio, 4ª = tipo, 5ª = sotto-progetto, 6ª = durata, 8ª = progetto). Controlla la sezione Sessioni prima di salvare.';
-    if ($ambiguousDates) $warnings[] = 'Le date sono ambigue (nessun giorno oltre il 12): le ho lette come giorno/mese/anno. Controllale nella sezione Sessioni.';
-    if ($skipped > 0) $warnings[] = $skipped . ' rig' . ($skipped === 1 ? 'a ignorata' : 'he ignorate') . ' perche' . ' senza data di inizio o durata valida.';
+    if (!$isHeaderRow) $warnings[] = t('import.pi_warn_header');
+    if ($ambiguousDates) $warnings[] = t('import.pi_warn_date');
+    if ($skipped > 0) $warnings[] = t($skipped === 1 ? 'import.pi_riga_ignorata' : 'import.pi_righe_ignorate', ['n' => $skipped]);
 
     echo json_encode([
         'success' => true,
@@ -798,7 +798,7 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'save') {
 
     $payload = json_decode($_POST['payload'] ?? '', true);
     if (!is_array($payload) || empty($payload['sessions'])) {
-        echo json_encode(['success' => false, 'error' => 'Dati non validi.']); exit();
+        echo json_encode(['success' => false, 'error' => t('import.dati_non_validi')]); exit();
     }
 
     $uid = intval($current_user_id);
@@ -857,7 +857,7 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'save') {
             $name = trim((string)($l['name'] ?? ''));
             if ($name === '') continue;
             $newId = ie_create_project($conn, $uid, $name, 0);
-            if (!$newId) throw new Exception('Errore creando il progetto "' . $name . '"');
+            if (!$newId) throw new Exception(t('import.pi_errore_progetto', ['nome' => $name]));
             $listIds[$key] = $newId;
             $ownIds[$newId] = true;
             $createdProjects++;
@@ -874,7 +874,7 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'save') {
             $lk = (string)($t['listKey'] ?? '');
             $parentId = ($lk !== '' && isset($listIds[$lk])) ? $listIds[$lk] : 0;
             $newId = ie_create_project($conn, $uid, $name, $parentId);
-            if (!$newId) throw new Exception('Errore creando il sotto-progetto "' . $name . '"');
+            if (!$newId) throw new Exception(t('import.pi_errore_sotto', ['nome' => $name]));
             $titleIds[$key] = $newId;
             $ownIds[$newId] = true;
             $createdProjects++;
@@ -913,7 +913,7 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'save') {
         echo json_encode(['success' => true, 'projects' => $createdProjects, 'sessions' => $insertedSessions], JSON_UNESCAPED_UNICODE);
     } catch (Exception $e) {
         mysqli_rollback($conn);
-        echo json_encode(['success' => false, 'error' => 'Salvataggio annullato: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['success' => false, 'error' => t('import.salvataggio_annullato', ['motivo' => $e->getMessage()])], JSON_UNESCAPED_UNICODE);
     }
     exit();
 }
@@ -1264,14 +1264,15 @@ define('IE_RENDERED', true);
 }
 </style>
 
+<?php echo standout_i18n_json(['comune', 'import']); ?>
 <div class="ie-overlay" id="ieOverlay">
     <div class="ie-sheet">
         <div class="ie-head">
             <div>
-                <div class="ie-title">Importa</div>
-                <div class="ie-sub" id="ieHeadSub">Pomodori e progetti da un'altra app</div>
+                <div class="ie-title"><?php te('import.importa'); ?></div>
+                <div class="ie-sub" id="ieHeadSub"><?php te('import.pi_sottotitolo'); ?></div>
             </div>
-            <button type="button" class="ie-icon-btn" onclick="closePomodoroImport()" aria-label="Chiudi">
+            <button type="button" class="ie-icon-btn" onclick="closePomodoroImport()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
         </div>
@@ -1280,8 +1281,8 @@ define('IE_RENDERED', true);
 
         <div class="ie-foot" id="ieFoot">
             <div class="ie-foot-info" id="ieFootInfo"></div>
-            <button type="button" class="ie-btn-ghost" onclick="ieReset()">Cambia file</button>
-            <button type="button" class="ie-btn-save" id="ieSaveBtn" onclick="ieSave()">Salva</button>
+            <button type="button" class="ie-btn-ghost" onclick="ieReset()"><?php te('import.cambia_file'); ?></button>
+            <button type="button" class="ie-btn-save" id="ieSaveBtn" onclick="ieSave()"><?php te('comune.salva'); ?></button>
         </div>
     </div>
 </div>
@@ -1294,8 +1295,8 @@ define('IE_RENDERED', true);
        creazione al volo (i progetti nuovi li crea il salvataggio). */
     $ps_id = 'ieimport';
     $ps_selected_id = 0; $ps_selected_name = ''; $ps_selected_color = null;
-    $ps_placeholder = 'Seleziona progetto';
-    $ps_title = 'Collega a progetto esistente';
+    $ps_placeholder = t('progetti.ps_seleziona');
+    $ps_title = t('import.pi_collega');
     $ps_show_all_option = false;
     $ps_allow_create = false;
     $ps_render_trigger = false;
@@ -1349,11 +1350,11 @@ define('IE_RENDERED', true);
     }
     function fmtTime(dt) {
         var d = new Date(String(dt).replace(' ', 'T'));
-        return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        return d.toLocaleTimeString((document.documentElement.lang || 'it'), { hour: '2-digit', minute: '2-digit' });
     }
     function fmtDay(dt) {
         var d = new Date(String(dt).replace(' ', 'T'));
-        return d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+        return d.toLocaleDateString((document.documentElement.lang || 'it'), { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
     }
 
     function findList(key) {
@@ -1393,7 +1394,7 @@ define('IE_RENDERED', true);
         document.body.appendChild(a);
         a.click();
         a.remove();
-        toast('Export in corso...');
+        toast(T('import.export_in_corso'));
         buzz(8);
     };
 
@@ -1402,21 +1403,21 @@ define('IE_RENDERED', true);
        ====================================================================== */
     function ieRenderDrop() {
         byId('ieFoot').classList.remove('show');
-        byId('ieHeadSub').textContent = "Pomodori e progetti da un'altra app";
+        byId('ieHeadSub').textContent = T('import.pi_sottotitolo');
         byId('ieBody').innerHTML =
             '<div class="ie-drop" id="ieDrop">' +
                 '<div class="ie-drop-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v13"/></svg></div>' +
-                '<div class="ie-drop-title">Scegli il file da importare</div>' +
-                '<div class="ie-drop-text">Trascinalo qui oppure sfoglia.<br>Formati: .xlsx e .csv</div>' +
-                '<button type="button" class="ie-drop-btn" onclick="ieBrowse()">Sfoglia file</button>' +
+                '<div class="ie-drop-title">' + esc(T('import.scegli_file')) + '</div>' +
+                '<div class="ie-drop-text">' + esc(T('import.trascina')) + '<br>' + esc(T('import.formati')) + '</div>' +
+                '<button type="button" class="ie-drop-btn" onclick="ieBrowse()">' + esc(T('import.sfoglia')) + '</button>' +
             '</div>' +
-            '<div class="ie-hint">Servono una colonna con <b>data e ora di inizio</b>, una con la <b>durata</b>, il <b>tipo</b> (pomodoro o cronometro), il <b>titolo</b> (sotto-progetto) e la <b>lista</b> (progetto principale).<br>Le riconosco dal nome; se mancano uso le posizioni standard.</div>';
+            '<div class="ie-hint">' + T('import.pi_hint') + '</div>';
         ieBindDrop();
     }
 
     function ieRenderLoading(msg) {
         byId('ieFoot').classList.remove('show');
-        byId('ieBody').innerHTML = '<div class="ie-loading"><div class="ie-spinner"></div><div>' + esc(msg || 'Leggo il file...') + '</div></div>';
+        byId('ieBody').innerHTML = '<div class="ie-loading"><div class="ie-spinner"></div><div>' + esc(msg || T('import.leggo_il_file')) + '</div></div>';
     }
 
     function ieRenderError(msg) {
@@ -1425,7 +1426,7 @@ define('IE_RENDERED', true);
             '<div class="ie-error">' +
                 '<div class="ie-error-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>' +
                 '<div class="ie-error-text">' + esc(msg) + '</div>' +
-                '<button type="button" class="ie-drop-btn" onclick="ieReset()">Riprova</button>' +
+                '<button type="button" class="ie-drop-btn" onclick="ieReset()">' + esc(T('import.riprova')) + '</button>' +
             '</div>';
     }
 
@@ -1456,20 +1457,20 @@ define('IE_RENDERED', true);
        CARICAMENTO E ANALISI
        ====================================================================== */
     function ieUpload(file) {
-        ieRenderLoading('Leggo ' + file.name + '...');
+        ieRenderLoading(T('import.leggo_nome', { nome: file.name }));
         var fd = new FormData();
         fd.append('file', file);
         fetch('pomodoro_import.php?ie_ajax=parse', { method: 'POST', body: fd })
             .then(function (r) { return r.json(); })
             .then(function (d) {
-                if (!d || !d.success) { ieRenderError((d && d.error) || 'File non riconosciuto.'); return; }
+                if (!d || !d.success) { ieRenderError((d && d.error) || T('import.file_non_riconosciuto')); return; }
                 IE.data = { lists: d.lists || [], titles: d.titles || [], sessions: d.sessions || [] };
                 IE.map = { lists: {}, titles: {} };
                 IE.shown = PAGE;
                 ieRenderResult(d);
                 buzz(10);
             })
-            .catch(function () { ieRenderError('Errore di rete durante il caricamento.'); });
+            .catch(function () { ieRenderError(T('import.rete_caricamento')); });
     }
 
     function ieRenderResult(d) {
@@ -1480,24 +1481,24 @@ define('IE_RENDERED', true);
         });
 
         var c = d.columns || {};
-        var cols = '<div class="ie-cols">Colonne lette: '
-            + (c.date ? '<b>' + esc(c.date) + '</b> = data · ' : '')
-            + '<b>' + esc(c.start) + '</b> = inizio · <b>' + esc(c.dur) +
-            '</b> = durata · <b>' + esc(c.type) + '</b> = tipo · <b>' + esc(c.title) + '</b> = sotto-progetto · <b>' +
-            esc(c.list) + '</b> = progetto</div>';
+        var cols = '<div class="ie-cols">' + esc(T('import.pi_colonne_lette')) + ' '
+            + (c.date ? '<b>' + esc(c.date) + '</b> = ' + T('import.pi_c_data') + ' · ' : '')
+            + '<b>' + esc(c.start) + '</b> = ' + T('import.pi_c_inizio') + ' · <b>' + esc(c.dur) +
+            '</b> = ' + T('import.pi_c_durata') + ' · <b>' + esc(c.type) + '</b> = ' + T('import.pi_c_tipo') + ' · <b>' + esc(c.title) + '</b> = ' + T('import.pi_c_sotto') + ' · <b>' +
+            esc(c.list) + '</b> = ' + T('import.pi_c_progetto') + '</div>';
 
-        byId('ieHeadSub').textContent = (s.sessions || 0) + ' sessioni trovate nel file';
+        byId('ieHeadSub').textContent = T('import.pi_sessioni_trovate', { n: s.sessions || 0 });
         byId('ieBody').innerHTML =
             '<div class="ie-stats">' +
-                ieStat(s.pomodori || 0, 'Pomodori') +
-                ieStat(s.cronometri || 0, 'Cronometri') +
-                ieStat(s.lists || 0, 'Progetti') +
-                ieStat(s.titles || 0, 'Sotto-prog.') +
-                (s.skipped ? ieStat(s.skipped, 'Ignorate') : '') +
+                ieStat(s.pomodori || 0, T('import.pi_pomodori')) +
+                ieStat(s.cronometri || 0, T('import.pi_cronometri')) +
+                ieStat(s.lists || 0, T('import.pi_progetti')) +
+                ieStat(s.titles || 0, T('import.pi_sotto_breve')) +
+                (s.skipped ? ieStat(s.skipped, T('import.pi_ignorate')) : '') +
             '</div>' + cols + warn +
             '<div class="ie-section" id="ieSec1">' +
                 '<div class="ie-sec-head" onclick="ieToggleSec(\'ieSec1\')">' +
-                    '<span class="ie-sec-num">1</span><span class="ie-sec-title">Progetti</span>' +
+                    '<span class="ie-sec-num">1</span><span class="ie-sec-title">' + T('import.pi_progetti') + '</span>' +
                     '<span class="ie-sec-count" id="ieSec1Count"></span>' +
                     '<svg class="ie-sec-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>' +
                 '</div>' +
@@ -1505,7 +1506,7 @@ define('IE_RENDERED', true);
             '</div>' +
             '<div class="ie-section" id="ieSec2">' +
                 '<div class="ie-sec-head" onclick="ieToggleSec(\'ieSec2\')">' +
-                    '<span class="ie-sec-num">2</span><span class="ie-sec-title">Sessioni</span>' +
+                    '<span class="ie-sec-num">2</span><span class="ie-sec-title">' + T('import.pi_sessioni') + '</span>' +
                     '<span class="ie-sec-count" id="ieSec2Count"></span>' +
                     '<svg class="ie-sec-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>' +
                 '</div>' +
@@ -1514,7 +1515,7 @@ define('IE_RENDERED', true);
 
         byId('ieFoot').classList.add('show');
         byId('ieSaveBtn').disabled = false;
-        byId('ieSaveBtn').textContent = 'Salva';
+        byId('ieSaveBtn').textContent = T('comune.salva');
         ieRenderProjects();
         ieRenderSessions();
     }
@@ -1535,10 +1536,10 @@ define('IE_RENDERED', true);
             '<span class="ie-dot"></span>' +
             '<div class="ie-names">' +
                 '<div class="ie-name' + (isSub ? ' ie-name-sub' : '') + '">' + esc(name) + '</div>' +
-                (m ? '<div class="ie-from">dal file: ' + esc(origName) + '</div>' : '') +
+                (m ? '<div class="ie-from">' + esc(T('import.pi_dal_file', { nome: origName })) + '</div>' : '') +
             '</div>';
-        if (!m) h += '<span class="ie-tag">nuovo</span>';
-        else h += '<button type="button" class="ie-restore" aria-label="Ripristina" onclick="event.stopPropagation();ieRestore(\'' + kind + '\',\'' + key + '\')">' +
+        if (!m) h += '<span class="ie-tag">' + T('import.pi_nuovo') + '</span>';
+        else h += '<button type="button" class="ie-restore" aria-label="' + esc(T('import.pi_ripristina')) + '" onclick="event.stopPropagation();ieRestore(\'' + kind + '\',\'' + key + '\')">' +
                 '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>';
         return h + '</div>';
     }
@@ -1561,10 +1562,10 @@ define('IE_RENDERED', true);
 
         var orphans = byList[''] || [];
         if (orphans.length) {
-            html += '<div class="ie-none-title">Senza progetto principale</div>';
+            html += '<div class="ie-none-title">' + esc(T('import.pi_senza_principale')) + '</div>';
             orphans.forEach(function (t) { html += '<div class="ie-node">' + ieRowHTML('title', t.key, t.name, false) + '</div>'; });
         }
-        if (!html) html = '<div class="ie-none-title">Nessun progetto nel file: le sessioni verranno importate senza collegamento.</div>';
+        if (!html) html = '<div class="ie-none-title">' + esc(T('import.pi_nessun_progetto_file')) + '</div>';
 
         byId('ieProjects').innerHTML = html;
 
@@ -1572,7 +1573,7 @@ define('IE_RENDERED', true);
         var nuovi = 0;
         IE.data.lists.forEach(function (l) { if (!IE.map.lists[l.key]) nuovi++; });
         IE.data.titles.forEach(function (t) { if (!IE.map.titles[t.key]) nuovi++; });
-        byId('ieSec1Count').textContent = nuovi + ' nuovi su ' + tot;
+        byId('ieSec1Count').textContent = T('import.pi_nuovi_su', { nuovi: nuovi, tot: tot });
         ieUpdateFoot();
     }
 
@@ -1588,7 +1589,7 @@ define('IE_RENDERED', true);
             var ml = IE.map.lists[s.listKey], l = findList(s.listKey);
             return { name: ml ? ml.name : (l ? l.name : ''), color: ml ? ml.color : GREY, isNew: !ml };
         }
-        return { name: 'Nessun progetto', color: GREY, isNew: false, none: true };
+        return { name: T('import.pi_nessun_progetto'), color: GREY, isNew: false, none: true };
     }
 
     function ieRenderSessions() {
@@ -1608,17 +1609,17 @@ define('IE_RENDERED', true);
                     : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 6v6l4 2"/><circle cx="12" cy="13" r="8"/><path d="M9 2h6"/></svg>') + '</span>' +
                 '<div class="ie-sess-mid">' +
                     '<div class="ie-sess-proj' + (p.none ? ' ie-sess-empty' : '') + '">' + esc(p.name) + '</div>' +
-                    '<div class="ie-sess-meta">' + esc(fmtTime(s.start)) + ' – ' + esc(fmtTime(s.end)) + ' · ' + (s.mode === 1 ? 'Cronometro' : 'Pomodoro') + '</div>' +
+                    '<div class="ie-sess-meta">' + esc(fmtTime(s.start)) + ' – ' + esc(fmtTime(s.end)) + ' · ' + (s.mode === 1 ? T('import.pi_cronometro') : T('import.pi_pomodoro')) + '</div>' +
                 '</div>' +
-                (p.isNew ? '<span class="ie-tag">nuovo</span>' : '') +
+                (p.isNew ? '<span class="ie-tag">' + T('import.pi_nuovo') + '</span>' : '') +
                 '<span class="ie-sess-dur">' + fmtDur(s.dur) + '</span>' +
             '</div>';
         }
         if (n < list.length) {
-            html += '<button type="button" class="ie-more" onclick="ieMore()">Mostra altre ' + Math.min(PAGE, list.length - n) + ' di ' + (list.length - n) + '</button>';
+            html += '<button type="button" class="ie-more" onclick="ieMore()">' + T('import.pi_mostra_altre', { n: Math.min(PAGE, list.length - n), di: list.length - n }) + '</button>';
         }
         byId('ieSessions').innerHTML = html;
-        byId('ieSec2Count').textContent = list.length + (list.length === 1 ? ' sessione' : ' sessioni');
+        byId('ieSec2Count').textContent = T(list.length === 1 ? 'import.pi_n_sessione' : 'import.pi_n_sessioni', { n: list.length });
     }
     window.ieMore = function () { IE.shown += PAGE; ieRenderSessions(); };
 
@@ -1626,7 +1627,7 @@ define('IE_RENDERED', true);
         var nuovi = 0;
         IE.data.lists.forEach(function (l) { if (!IE.map.lists[l.key]) nuovi++; });
         IE.data.titles.forEach(function (t) { if (!IE.map.titles[t.key]) nuovi++; });
-        byId('ieFootInfo').innerHTML = '<b>' + nuovi + '</b> progett' + (nuovi === 1 ? 'o nuovo' : 'i nuovi') + '<br>' + IE.data.sessions.length + ' sessioni da salvare';
+        byId('ieFootInfo').innerHTML = T(nuovi === 1 ? 'import.pi_progetto_nuovo' : 'import.pi_progetti_nuovi', { n: nuovi }) + '<br>' + esc(T('import.pi_da_salvare', { n: IE.data.sessions.length }));
     }
 
     /* ======================================================================
@@ -1722,8 +1723,7 @@ define('IE_RENDERED', true);
         }
         var title = modal.querySelector('.ps-sheet-title');
         if (title) {
-            title.textContent = mode === 'any' ? 'Collega a progetto esistente'
-                : (mode === 'subonly' ? 'Scegli un sotto-progetto' : 'Scegli un sotto-progetto');
+            title.textContent = mode === 'any' ? T('import.pi_collega') : T('import.pi_scegli_sotto');
         }
         return selectable;
     }
@@ -1744,8 +1744,8 @@ define('IE_RENDERED', true);
         var n = ieRestrictTree(mode, rootId);
         if (n === 0) {
             toast(mode === 'under'
-                ? 'Questo progetto non ha ancora sotto-progetti da collegare'
-                : 'Non hai ancora sotto-progetti: verranno creati nuovi');
+                ? T('import.pi_niente_sotto_qui')
+                : T('import.pi_niente_sotto'));
             return;
         }
         IE.target = { kind: kind, key: key };
@@ -1809,7 +1809,7 @@ define('IE_RENDERED', true);
         if (IE.busy || !IE.data.sessions.length) return;
         IE.busy = true;
         var btn = byId('ieSaveBtn');
-        btn.disabled = true; btn.textContent = 'Salvo...';
+        btn.disabled = true; btn.textContent = T('import.salvo');
 
         var payload = {
             lists: IE.data.lists.map(function (l) {
@@ -1832,27 +1832,27 @@ define('IE_RENDERED', true);
         .then(function (d) {
             IE.busy = false;
             if (!d || !d.success) {
-                btn.disabled = false; btn.textContent = 'Salva';
-                toast((d && d.error) || 'Errore durante il salvataggio');
+                btn.disabled = false; btn.textContent = T('comune.salva');
+                toast((d && d.error) || T('import.errore_salvataggio'));
                 return;
             }
             buzz(20);
             byId('ieFoot').classList.remove('show');
-            byId('ieHeadSub').textContent = 'Import completato';
+            byId('ieHeadSub').textContent = T('import.import_completato');
             byId('ieBody').innerHTML =
                 '<div class="ie-error">' +
                     '<div class="ie-error-icon" style="background:var(--green-soft,rgba(52,199,89,.13));color:var(--green,#34C759);">' +
                         '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>' +
-                    '<div class="ie-drop-title">Fatto!</div>' +
-                    '<div class="ie-error-text">' + d.sessions + ' sessioni importate<br>' + d.projects + ' progetti creati</div>' +
-                    '<button type="button" class="ie-drop-btn" onclick="location.reload()">Chiudi e aggiorna</button>' +
+                    '<div class="ie-drop-title">' + esc(T('import.fatto')) + '</div>' +
+                    '<div class="ie-error-text">' + esc(T('import.pi_esito_sessioni', { n: d.sessions })) + '<br>' + esc(T('import.pi_esito_progetti', { n: d.projects })) + '</div>' +
+                    '<button type="button" class="ie-drop-btn" onclick="location.reload()">' + esc(T('import.chiudi_aggiorna')) + '</button>' +
                 '</div>';
             setTimeout(function () { location.reload(); }, 1800);
         })
         .catch(function () {
             IE.busy = false;
-            btn.disabled = false; btn.textContent = 'Salva';
-            toast('Errore di rete durante il salvataggio');
+            btn.disabled = false; btn.textContent = T('comune.salva');
+            toast(T('import.rete_salvataggio'));
         });
     };
 

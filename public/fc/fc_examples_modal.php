@@ -933,7 +933,7 @@ window.generateAiExample = async function () {
     if (exStats.slower_than_usual && typeof showApiSlowToast === 'function') showApiSlowToast();
 
     let exElapsed = 0;
-    let exStimaLabel = exStats.avg_seconds ? `di solito ≈ ${exStats.avg_seconds}s` : 'generazione in corso';
+    let exStimaLabel = exStats.avg_seconds ? T('fc.gm_di_solito', { s: exStats.avg_seconds }) : T('fc.gm_generazione');
 
     const exSpinnerSvg = '<svg class="exm-spin" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></svg>';
 

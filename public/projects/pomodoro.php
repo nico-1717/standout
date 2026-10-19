@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
+if (!$conn) { die(t('pomodoro.connessione_fallita', ['errore' => mysqli_connect_error()])); }
 require_once __DIR__ . '/../../lib/auth_check.php';
 require_once __DIR__ . '/pomodoro_stato.php';   // il tetto delle 10 ore, pomo_color() e pomo_leggi_stato()
 $current_user_id = $utente_corrente['id'];
@@ -268,7 +268,7 @@ if (isset($_GET['ajax'])) {
         pomo_json(['success' => true]);
     }
 
-    pomo_json(['success' => false, 'error' => 'azione sconosciuta']);
+    pomo_json(['success' => false, 'error' => t('pomodoro.azione_sconosciuta')]);
 }
 
 /* ==========================================================================
@@ -860,7 +860,7 @@ var currentCustomKind = 'pomo';
 
 window.openCustomDur = function(kind) {
     currentCustomKind = kind;
-    document.getElementById('cdurTipoTit').textContent = kind === 'pomo' ? 'Pomodoro' : 'Pausa';
+    document.getElementById('cdurTipoTit').textContent = kind === 'pomo' ? T('pomodoro.tipo_pomodoro') : T('pomodoro.tipo_pausa');
     document.getElementById('cdurTime').value = '00:00';
     document.getElementById('customDurOverlay').classList.add('show');
 };
@@ -921,7 +921,7 @@ var currentCustomKind = 'pomo';
 
 window.openCustomDur = function(kind) {
     currentCustomKind = kind;
-    document.getElementById('cdurTipoTit').textContent = kind === 'pomo' ? 'Pomodoro' : 'Pausa';
+    document.getElementById('cdurTipoTit').textContent = kind === 'pomo' ? T('pomodoro.tipo_pomodoro') : T('pomodoro.tipo_pausa');
     document.getElementById('cdurTime').value = '00:00';
     renderCustomList();
     document.getElementById('customDurOverlay').classList.add('show');
@@ -2006,7 +2006,7 @@ function fmtDurataBreve(sec){
             + '<span class="pomo-postit-tape"></span>'
             + '<div class="pomo-postit-titolo">' + T('pomodoro.attivita_di_questo') + '</div>'
             + '<div class="pomo-postit-sub">'
-            + doneCount + ' su ' + ids.length + ' spuntate. Cosa ne facciamo?</div>'
+            + T('pomodoro.n_su_n_spuntate', { fatte: doneCount, totale: ids.length }) + '</div>'
             + '<div class="pt-acts"></div></div>';
         document.body.appendChild(box);
 
@@ -2026,7 +2026,7 @@ function fmtDurataBreve(sec){
         }
         act(T('pomodoro.elimina_spuntate'), 'done', true);
         act(T('pomodoro.elimina_tutte'), 'all', false);
-        act('Tienile tutte', 'keep', false);
+        act(T('pomodoro.tienile_tutte'), 'keep', false);
     };
 })();
 </script>

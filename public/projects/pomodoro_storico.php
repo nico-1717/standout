@@ -551,16 +551,16 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
         <div class="ph-head">
             <div class="ph-title" id="phTitle"><?php te('progetti.pomodori'); ?></div>
             <div class="ph-head-btns">
-                <button type="button" class="ph-icon-btn" id="phSelectBtn" onclick="phToggleSelectMode()" aria-label="Seleziona">
+                <button type="button" class="ph-icon-btn" id="phSelectBtn" onclick="phToggleSelectMode()" aria-label="<?php te('pomodoro.ph_seleziona'); ?>">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 </button>
-                <button type="button" class="ph-icon-btn" onclick="phToggleManual()" aria-label="Aggiungi manualmente">
+                <button type="button" class="ph-icon-btn" onclick="phToggleManual()" aria-label="<?php te('pomodoro.ph_aggiungi_manuale'); ?>">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
                 </button>
-                <button type="button" class="ph-icon-btn" onclick="openPomodoroImport()" aria-label="Importa da file">
+                <button type="button" class="ph-icon-btn" onclick="openPomodoroImport()" aria-label="<?php te('pomodoro.ph_importa'); ?>">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
                 </button>
-                <button type="button" class="ph-icon-btn" onclick="exportPomodoroFile()" aria-label="Esporta tutto">
+                <button type="button" class="ph-icon-btn" onclick="exportPomodoroFile()" aria-label="<?php te('pomodoro.ph_esporta'); ?>">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 9l5-5 5 5"/><path d="M12 4v12"/></svg>
                 </button>
                 <button type="button" class="ph-icon-btn" onclick="closePomodoroStorico()" aria-label="<?php te('comune.chiudi'); ?>">
@@ -574,12 +574,12 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
             <button type="button" class="ph-filter-chip" data-sort="oldest" onclick="phSetSort('oldest')"><?php te('pomodoro.storico_vecchi'); ?></button>
             <button type="button" class="ph-filter-chip" data-sort="duration" onclick="phSetSort('duration')"><?php te('pomodoro.durata'); ?></button>
             <button type="button" class="ph-filter-chip" id="phDateFilterChip" onclick="phToggleDateFilter()"><?php te('pomodoro.storico_periodo'); ?></button>
-            <button type="button" class="ph-filter-chip" id="phProjectFilterChip" onclick="phOpenProjectFilter()">Progetto: tutti</button>
+            <button type="button" class="ph-filter-chip" id="phProjectFilterChip" onclick="phOpenProjectFilter()"><?php te('pomodoro.ph_progetto_tutti'); ?></button>
         </div>
         <div class="ph-date-range" id="phDateRange">
             <div class="ph-date-field"><label><?php te('pomodoro.storico_dal'); ?></label><input type="date" id="phDateFrom" onchange="phApplyDateFilter()"></div>
             <div class="ph-date-field"><label>Al</label><input type="date" id="phDateTo" onchange="phApplyDateFilter()"></div>
-            <button type="button" class="ph-date-clear" onclick="phClearDateFilter()" aria-label="Azzera periodo"><?php te('pomodoro.storico_azzera'); ?></button>
+            <button type="button" class="ph-date-clear" onclick="phClearDateFilter()" aria-label="<?php te('pomodoro.ph_azzera_periodo'); ?>"><?php te('pomodoro.storico_azzera'); ?></button>
         </div>
 
         <div class="ph-bulkbar" id="phBulkbar">
@@ -680,7 +680,7 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
         return phProjectTagInner({ project_id: name ? 1 : 0, progetto_nome: name, progetto_path: path || [] });
     }
 
-    function fmtTime(dt){ var d = new Date(dt.replace(' ', 'T')); return d.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'}); }
+    function fmtTime(dt){ var d = new Date(dt.replace(' ', 'T')); return d.toLocaleTimeString((document.documentElement.lang || 'it'), {hour:'2-digit', minute:'2-digit'}); }
     // il totale accanto al nome del giorno: letto da state.dayTotals, mai
     // ricalcolato dalle righe a schermo (che sono solo una pagina alla volta)
     function phGiornoTotaleHtml(dk){
@@ -691,7 +691,7 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
 
     function fmtDayLabel(dt){
         var d = new Date(dt.replace(' ', 'T'));
-        return d.toLocaleDateString('it-IT', { day:'numeric', month:'long', year: (d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined) });
+        return d.toLocaleDateString((document.documentElement.lang || 'it'), { day:'numeric', month:'long', year: (d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined) });
     }
     function dayKey(dt){ return dt.slice(0,10); }
 
@@ -1053,7 +1053,7 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
         document.querySelectorAll('.ph-filter-chip[data-sort]').forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-sort') === 'recent'); });
         
         var projectFilterChip = document.getElementById('phProjectFilterChip');
-        projectFilterChip.textContent = 'Progetto: tutti';
+        projectFilterChip.textContent = T('pomodoro.ph_progetto_tutti');
         projectFilterChip.style.display = config.scope === 'project' ? 'none' : ''; // Nasconde il tasto se siamo nel dettaglio progetto
 
         // richiesta 14: azzera la UI del filtro periodo ad ogni apertura
@@ -1274,7 +1274,7 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
             noneBtn.textContent = T('pomodoro.storico_senza_progetto');
             noneBtn.addEventListener('click', function(){
                 state.filterProject = -1;
-                document.getElementById('phProjectFilterChip').textContent = 'Progetto: nessuno';
+                document.getElementById('phProjectFilterChip').textContent = T('pomodoro.ph_progetto_nessuno');
                 phFilterPickMode = false;
                 if (window.psClose) window.psClose(manualOverlay);
                 phLoadPage(true);
@@ -1293,7 +1293,7 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
         if (!phFilterPickMode) return;
         phFilterPickMode = false;
         state.filterProject = e.detail.id; // 0 = "tutti" (nessun filtro), N = progetto specifico
-        document.getElementById('phProjectFilterChip').textContent = 'Progetto: ' + (e.detail.id > 0 ? e.detail.name : 'tutti');
+        document.getElementById('phProjectFilterChip').textContent = e.detail.id > 0 ? T('pomodoro.ph_progetto_nome', { nome: e.detail.name }) : T('pomodoro.ph_progetto_tutti');
         phLoadPage(true);
     });
 

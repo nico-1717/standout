@@ -122,7 +122,14 @@ function pl_pick_phrase(string $kind, string $weekStart, int $userId): ?array {
     $list = pl_phrases()[$kind] ?? [];
     if (empty($list)) return null;
     $seed = crc32($kind . '|' . $weekStart . '|' . $userId);
-    return $list[$seed % count($list)];
+    $frase = $list[$seed % count($list)];
+    /* Il file resta in italiano (e' l'elenco delle frasi, come per i preset
+       delle abitudini): la traduzione si cerca dall'id, che e' stabile. */
+    if (isset($frase['id'], $frase['text'])) {
+        $tradotta = t('planner.fr_' . strtolower((string)$frase['id']));
+        if (strpos($tradotta, '<<') !== 0) $frase['text'] = $tradotta;
+    }
+    return $frase;
 }
 
 /* --- numero progressivo della settimana ----------------------------- */

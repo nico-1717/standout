@@ -40,7 +40,7 @@ if (!isset($ft_field)) $ft_field = 'quest';
 
 if (!isset($ft_raw)) $ft_raw = '';
 
-if (!isset($ft_placeholder)) $ft_placeholder = 'Scrivi qui…';
+if (!isset($ft_placeholder)) $ft_placeholder = t('editor.scrivi_qui');
 /* Aperta o chiusa al caricamento. Predefinito: aperta, perché è com'era prima
    ovunque e nessuna pagina esistente deve cambiare comportamento senza che
    qualcuno lo chieda. Chi la vuole chiusa — progetti, dove la nota è un
@@ -172,7 +172,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                  barra sembrava sparire e ricomparire; qui si vede sempre dove
                  e' andata a finire. -->
             <button type="button" class="fmt-switch" aria-expanded="<?= $ft_open ? 'true' : 'false' ?>"
-                    aria-controls="<?= htmlspecialchars($ft_editor_id) ?>_bar" title="Formattazione">
+                    aria-controls="<?= htmlspecialchars($ft_editor_id) ?>_bar" title="<?php te('editor.formattazione'); ?>">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M4 6h9M4 12h6M4 18h9"/><path d="M15.5 15.5l5-5"/><path d="M18 8l3 3-6.5 6.5-3.5.5.5-3.5z"/>
                 </svg>
@@ -182,7 +182,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
             <div class="fmt-tools">
 
             <!-- TESTO — apre grassetto/corsivo/sottolineato/evidenziatore + colori -->
-            <button type="button" class="fmt-btn fmt-tab" data-panel="font" title="Testo" aria-expanded="false">
+            <button type="button" class="fmt-btn fmt-tab" data-panel="font" title="<?php te('editor.testo'); ?>" aria-expanded="false">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M4.8 16.6L10.4 4.6h1.5l5.6 12"/>
                     <path d="M7.1 12.6h8.1"/>
@@ -191,7 +191,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
             </button>
 
             <!-- ELENCO — apre rientri, a capo e colore dei pallini -->
-            <button type="button" class="fmt-btn fmt-tab" data-panel="list" title="Elenco" aria-expanded="false">
+            <button type="button" class="fmt-btn fmt-tab" data-panel="list" title="<?php te('editor.elenco'); ?>" aria-expanded="false">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="4.6" cy="6.5" r="1.35" fill="currentColor" stroke="none"/><path d="M9.5 6.5h10.4"/>
                     <circle cx="4.6" cy="12" r="1.35" fill="currentColor" stroke="none"/><path d="M9.5 12h10.4"/>
@@ -200,7 +200,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
             </button>
 
             <!-- FORMULA — apre in linea / a blocco -->
-            <button type="button" class="fmt-btn fmt-tab" data-panel="math" title="Formula" aria-expanded="false">
+            <button type="button" class="fmt-btn fmt-tab" data-panel="math" title="<?php te('editor.formula'); ?>" aria-expanded="false">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M2.8 12.9l2.3 1.2 2.4-8.4h13.7"/>
                     <path d="M11.8 11.2l5.4 6.6"/>
@@ -212,7 +212,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 
             <!-- DETTATURA. Nascosta dove il riconoscimento vocale non esiste:
                  un tasto che non puo' funzionare e' peggio di nessun tasto. -->
-            <button type="button" class="fmt-btn fmt-mic fmt-tab" data-panel="mic" data-cmd="dictate" title="Detta invece di scrivere" aria-expanded="false" hidden>
+            <button type="button" class="fmt-btn fmt-mic fmt-tab" data-panel="mic" data-cmd="dictate" title="<?php te('editor.detta'); ?>" aria-expanded="false" hidden>
                 <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="9.1" y="3" width="5.8" height="10.6" rx="2.9"/>
                     <path d="M5.6 11.4a6.4 6.4 0 0012.8 0"/>
@@ -229,12 +229,12 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
             <!-- ---------- TESTO ---------- -->
             <div class="fmt-panel" data-panel="font" hidden>
                 <div class="fmt-group">
-                    <button type="button" class="fmt-btn" data-cmd="bold" title="Grassetto"><b>B</b></button>
-                    <button type="button" class="fmt-btn" data-cmd="italic" title="Corsivo"><i>I</i></button>
-                    <button type="button" class="fmt-btn" data-cmd="underline" title="Sottolineato"><u>U</u></button>
+                    <button type="button" class="fmt-btn" data-cmd="bold" title="<?php te('editor.grassetto'); ?>"><b>B</b></button>
+                    <button type="button" class="fmt-btn" data-cmd="italic" title="<?php te('editor.corsivo'); ?>"><i>I</i></button>
+                    <button type="button" class="fmt-btn" data-cmd="underline" title="<?php te('editor.sottolineato'); ?>"><u>U</u></button>
                     <!-- L'evidenziatore di GoodNotes: pennarello inclinato, punta
                          a scalpello, e la striscia che lascia sotto. -->
-                    <button type="button" class="fmt-btn" data-cmd="yellow" title="Evidenziatore">
+                    <button type="button" class="fmt-btn" data-cmd="yellow" title="<?php te('editor.evidenziatore'); ?>">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M14.6 3.9l5.5 5.5-7.7 7.7-5.5-5.5z"/>
                             <path d="M6.9 11.6l-1.6 3.1 3.9 3.9 3.2-1.5"/>
@@ -248,15 +248,15 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 
                 <!-- I colori scorrono: ce ne stanno quanti se ne vuole senza
                      che la barra vada a capo o si stringa. -->
-                <div class="fmt-swatches" role="group" aria-label="Colore del testo">
-                    <button type="button" class="fmt-pop-dot fmt-pop-dot-default" data-color="" title="Predefinito">
+                <div class="fmt-swatches" role="group" aria-label="<?php te('editor.colore_testo'); ?>">
+                    <button type="button" class="fmt-pop-dot fmt-pop-dot-default" data-color="" title="<?php te('editor.predefinito'); ?>">
                         <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
                     </button>
-                    <button type="button" class="fmt-pop-dot" data-color="red"    style="background:var(--red,#FF3B30)"      title="Rosso"></button>
-                    <button type="button" class="fmt-pop-dot" data-color="orange" style="background:var(--orange,#FF9500)"   title="Arancione"></button>
-                    <button type="button" class="fmt-pop-dot" data-color="green"  style="background:var(--green,#34C759)"    title="Verde"></button>
-                    <button type="button" class="fmt-pop-dot" data-color="blue"   style="background:var(--blue,#007AFF)"     title="Blu"></button>
-                    <button type="button" class="fmt-pop-dot" data-color="purple" style="background:var(--purple,#AF52DE)"   title="Viola"></button>
+                    <button type="button" class="fmt-pop-dot" data-color="red"    style="background:var(--red,#FF3B30)"      title="<?php te('editor.rosso'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-color="orange" style="background:var(--orange,#FF9500)"   title="<?php te('editor.arancione'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-color="green"  style="background:var(--green,#34C759)"    title="<?php te('editor.verde'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-color="blue"   style="background:var(--blue,#007AFF)"     title="<?php te('editor.blu'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-color="purple" style="background:var(--purple,#AF52DE)"   title="<?php te('editor.viola'); ?>"></button>
                 </div>
             </div>
 
@@ -265,13 +265,13 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                 <div class="fmt-group">
                     <!-- Rientro a sinistra: righe e un triangolo che dice da che
                          parte va. Sono gli stessi delle tue immagini. -->
-                    <button type="button" class="fmt-btn" data-cmd="outdent" title="Riduci livello elenco">
+                    <button type="button" class="fmt-btn" data-cmd="outdent" title="<?php te('editor.riduci_livello'); ?>">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M3.8 5.2h16.4"/><path d="M3.8 9.7h9.6"/><path d="M3.8 14.3h9.6"/><path d="M3.8 18.8h16.4"/>
                             <path d="M20.2 9.4l-3.6 2.6 3.6 2.6z" fill="currentColor" stroke="none"/>
                         </svg>
                     </button>
-                    <button type="button" class="fmt-btn" data-cmd="indent" title="Crea sotto-punto (livello successivo)">
+                    <button type="button" class="fmt-btn" data-cmd="indent" title="<?php te('editor.sotto_punto'); ?>">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M3.8 5.2h16.4"/><path d="M10.6 9.7h9.6"/><path d="M10.6 14.3h9.6"/><path d="M3.8 18.8h16.4"/>
                             <path d="M3.8 9.4l3.6 2.6-3.6 2.6z" fill="currentColor" stroke="none"/>
@@ -279,7 +279,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                     </button>
                     <!-- A capo senza aprire un punto nuovo: la riga che continua
                          sotto lo stesso pallino. -->
-                    <button type="button" class="fmt-btn" data-cmd="soft-break" title="A capo (senza nuovo punto)">
+                    <button type="button" class="fmt-btn" data-cmd="soft-break" title="<?php te('editor.a_capo'); ?>">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="4.6" cy="6.8" r="1.35" fill="currentColor" stroke="none"/>
                             <path d="M9.5 6.8h10.4"/>
@@ -291,16 +291,16 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 
                 <span class="fmt-sep"></span>
 
-                <div class="fmt-swatches" role="group" aria-label="Colore dei pallini">
-                    <button type="button" class="fmt-pop-dot fmt-pop-dot-default" data-list-color="" title="Predefinito">
+                <div class="fmt-swatches" role="group" aria-label="<?php te('editor.colore_pallini'); ?>">
+                    <button type="button" class="fmt-pop-dot fmt-pop-dot-default" data-list-color="" title="<?php te('editor.predefinito'); ?>">
                         <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
                     </button>
-                    <button type="button" class="fmt-pop-dot" data-list-color="red"    style="background:var(--red,#FF3B30)"    title="Rosso"></button>
-                    <button type="button" class="fmt-pop-dot" data-list-color="orange" style="background:var(--orange,#FF9500)" title="Arancione"></button>
-                    <button type="button" class="fmt-pop-dot" data-list-color="green"  style="background:var(--green,#34C759)"  title="Verde"></button>
-                    <button type="button" class="fmt-pop-dot" data-list-color="blue"   style="background:var(--blue,#007AFF)"   title="Blu"></button>
-                    <button type="button" class="fmt-pop-dot" data-list-color="purple" style="background:var(--purple,#AF52DE)" title="Viola"></button>
-                    <button type="button" class="fmt-pop-dot" data-list-color="gray"   style="background:var(--text-2,#8A8A8E)" title="Grigio"></button>
+                    <button type="button" class="fmt-pop-dot" data-list-color="red"    style="background:var(--red,#FF3B30)"    title="<?php te('editor.rosso'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-list-color="orange" style="background:var(--orange,#FF9500)" title="<?php te('editor.arancione'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-list-color="green"  style="background:var(--green,#34C759)"  title="<?php te('editor.verde'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-list-color="blue"   style="background:var(--blue,#007AFF)"   title="<?php te('editor.blu'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-list-color="purple" style="background:var(--purple,#AF52DE)" title="<?php te('editor.viola'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-list-color="gray"   style="background:var(--text-2,#8A8A8E)" title="<?php te('editor.grigio'); ?>"></button>
                 </div>
             </div>
 
@@ -327,7 +327,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                 <!-- Punteggiatura: solo il disegno. La parola per esteso
                      allargava la barra piu' della riga di sopra. -->
                 <button type="button" class="fmt-btn fmt-punt" data-cmd="punteggiatura"
-                        title="Punteggiatura automatica" aria-pressed="false">
+                        title="<?php te('editor.punteggiatura_auto'); ?>" aria-pressed="false">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" stroke="none">
                         <circle cx="4.4" cy="16.6" r="1.5"/>
                         <path d="M9.6 15.1a1.5 1.5 0 110 3c-.2 0-.4 0-.6-.1l.5 1.7-1 .3-.7-2.4a1.5 1.5 0 011.8-2.5z"/>
@@ -342,7 +342,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                      decorazione: dettando non si vede niente, e senza l'elenco
                      davanti nessuno indovinerebbe che dire. -->
                 <button type="button" class="fmt-btn fmt-comandi-btn" data-cmd="comandi"
-                        title="Comandi vocali" aria-pressed="false">
+                        title="<?php te('editor.comandi_vocali'); ?>" aria-pressed="false">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M4 8.5v7"/><path d="M8 5.5v13"/><path d="M12 9.5v5"/><path d="M16 4.5v15"/><path d="M20 8.5v7"/>
                     </svg>
@@ -352,13 +352,13 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
             <!-- ---------- FORMULA ---------- -->
             <div class="fmt-panel" data-panel="math" hidden>
                 <div class="fmt-group">
-                    <button type="button" class="fmt-btn fmt-btn-wide" data-cmd="math-inline" title="Formula in linea">
+                    <button type="button" class="fmt-btn fmt-btn-wide" data-cmd="math-inline" title="<?php te('editor.formula_in_linea'); ?>">
                         <span class="fmt-ix">x</span>
-                        <span class="fmt-btn-lab">in linea</span>
+                        <span class="fmt-btn-lab"><?php te('editor.in_linea'); ?></span>
                     </button>
-                    <button type="button" class="fmt-btn fmt-btn-wide" data-cmd="math-display" title="Formula evidenziata, a capo">
+                    <button type="button" class="fmt-btn fmt-btn-wide" data-cmd="math-display" title="<?php te('editor.formula_a_blocco'); ?>">
                         <span class="fmt-blockmath"><span class="fmt-ix">x</span></span>
-                        <span class="fmt-btn-lab">a blocco</span>
+                        <span class="fmt-btn-lab"><?php te('editor.a_blocco'); ?></span>
                     </button>
                 </div>
 
@@ -369,7 +369,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                      difetto: chi scrive un prezzo ("costa 5$") non si aspetta
                      che il dollaro faccia altro che se stesso. -->
                 <button type="button" class="fmt-btn fmt-dollari" data-cmd="dollari-auto"
-                        title="Scrivendo $...$ o $$...$$ si crea subito la formula" aria-pressed="false">
+                        title="<?php te('editor.dollari_titolo'); ?>" aria-pressed="false">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 3.5v17"/>
                         <path d="M16.4 7.3c0-1.9-2-3.1-4.4-3.1s-4.4 1.2-4.4 3.1c0 4.1 8.8 2.4 8.8 6.5 0 1.9-2 3.1-4.4 3.1s-4.4-1.2-4.4-3.1"/>
@@ -385,7 +385,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                      nickname...) non deve trasformarsi in una formula senza
                      che nessuno l'abbia chiesto. -->
                 <button type="button" class="fmt-btn fmt-intelligente" data-cmd="intelligente-auto"
-                        title="Riconosce da solo un comando LaTeX appena scritto e lo mette in formula" aria-pressed="false">
+                        title="<?php te('editor.intelligente_titolo'); ?>" aria-pressed="false">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" stroke="none">
                         <!-- Scintilla a due punte, non piu' un cervello stile
                              cartone animato: le altre icone della barra sono
@@ -408,11 +408,11 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
              cosi' la barra resta di due righe finche' non serve davvero. -->
         <div class="fmt-drawer-2">
             <div class="fmt-panel fmt-panel-2" data-panel2="lingue" hidden>
-                <div class="fmt-lingue" role="group" aria-label="Lingua della dettatura"></div>
+                <div class="fmt-lingue" role="group" aria-label="<?php te('editor.lingua_dettatura'); ?>"></div>
             </div>
 
             <div class="fmt-panel fmt-panel-2" data-panel2="comandi" hidden>
-                <div class="fmt-sugg" role="group" aria-label="Comandi vocali disponibili"></div>
+                <div class="fmt-sugg" role="group" aria-label="<?php te('editor.comandi_disponibili'); ?>"></div>
             </div>
         </div>
     </div>
@@ -427,7 +427,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 
 <?php if (!defined('FT_ASSETS_EMITTED')): ?>
 
-<?php define('FT_ASSETS_EMITTED', true); ?>
+<?php define('FT_ASSETS_EMITTED', true); echo standout_i18n_json(['editor']); ?>
 
 <style>
 /* ================================================================
@@ -1301,14 +1301,14 @@ function ftCostruisciPannelloMic(bar, alCambio) {
             if (suo) trovata = b;
         });
         if (etichetta) etichetta.textContent = (scelta || 'it').slice(0, 2).toUpperCase();
-        if (tasto) tasto.title = 'Lingua della dettatura' + (trovata ? ' — ' + trovata.title : '');
+        if (tasto) tasto.title = T('editor.lingua_dettatura') + (trovata ? ' — ' + trovata.title : '');
         if (punt) {
             var on = ftPunteggiaturaAuto();
             punt.classList.toggle('is-active', on);
             punt.setAttribute('aria-pressed', on ? 'true' : 'false');
             punt.title = on
-                ? 'Punteggiatura automatica accesa — la mette il programma'
-                : 'Punteggiatura automatica spenta — dilla a voce: "virgola", "punto"\u2026';
+                ? T('editor.punt_accesa')
+                : T('editor.punt_spenta');
         }
     }
 
@@ -1890,7 +1890,7 @@ function ftSetupDictation(wrap, bar) {
             b.className = 'fmt-sugg-voce' + (FT_COMANDI_CHIUSURA.indexOf(ch) !== -1 ? ' fmt-sugg-chiudi' : '');
             b.dataset.cmdVoce = ch;
             b.textContent = def.eti;
-            b.title = perVoce ? 'Dillo, oppure toccalo' : 'Toccalo per inserirlo';
+            b.title = perVoce ? T('editor.dillo_o_toccalo') : T('editor.toccalo');
             cassetto.appendChild(b);
         });
         /* Il cassetto e' alto quanto il suo contenuto: cambiando i
@@ -2364,7 +2364,7 @@ function ftSetupDictation(wrap, bar) {
            rete locale, che https non ce l'ha. Si dice subito, invece di
            lasciare che l'errore generico di permesso neghi la causa vera. */
         if (window.isSecureContext === false) {
-            btn.title = 'Il microfono richiede una connessione sicura (https, oppure "localhost" se sei in locale): su una connessione non sicura il browser lo blocca senza nemmeno chiedere il permesso';
+            btn.title = T('editor.mic_https');
             btn.classList.add('fmt-mic-negato');
             return;
         }
@@ -2413,11 +2413,11 @@ function ftSetupDictation(wrap, bar) {
                    l'indirizzo di rete legge "permesso negato" e va a cercare
                    il problema nel posto sbagliato. */
                 btn.title = window.isSecureContext === false
-                    ? 'Il microfono richiede una connessione sicura (https, oppure "localhost" se sei in locale): su una connessione non sicura il browser lo blocca senza nemmeno chiedere il permesso'
-                    : 'Permesso per il microfono negato: va concesso dalle impostazioni del browser';
+                    ? T('editor.mic_https')
+                    : T('editor.mic_negato');
                 btn.classList.add('fmt-mic-negato');
             } else if (causa === 'audio-capture') {
-                btn.title = 'Nessun microfono disponibile';
+                btn.title = T('editor.mic_assente');
                 btn.classList.add('fmt-mic-negato');
             }
             stop();
@@ -2444,7 +2444,7 @@ function ftSetupDictation(wrap, bar) {
             /* Se non parte, si dice perche'. Sparire in silenzio lasciando un
                tasto inerte e' il modo peggiore di fallire: chi lo usa non ha
                nessun modo di capire se e' rotto il programma o il permesso. */
-            btn.title = 'Dettatura non avviata: ' + (e && e.message ? e.message : e);
+            btn.title = T('editor.dettatura_non_avviata', { errore: (e && e.message ? e.message : e) });
             btn.classList.add('fmt-mic-negato');
             if (window.console && console.warn) console.warn('Dettatura:', e);
             stop();
@@ -5671,8 +5671,8 @@ function ftSetupToolbar(wrap) {
             dollariBtn.classList.toggle('is-active', on);
             dollariBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
             dollariBtn.title = on
-                ? 'Acceso — scrivendo $...$ o $$...$$ si crea subito la formula'
-                : 'Spento — il simbolo $ resta un carattere normale, la formula si crea con i tasti sopra';
+                ? T('editor.dollari_acceso')
+                : T('editor.dollari_spento');
         };
         segnaDollari(ftDollariAuto());
         dollariBtn.addEventListener('click', function () {
@@ -5689,8 +5689,8 @@ function ftSetupToolbar(wrap) {
             intelligenteBtn.classList.toggle('is-active', on);
             intelligenteBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
             intelligenteBtn.title = on
-                ? 'Acceso — un comando LaTeX appena scritto ("\\omega", "ciao_x", "a^2") diventa subito una formula'
-                : 'Spento — un comando LaTeX scritto a mano resta testo normale finche\' non lo metti tu tra i dollari';
+                ? T('editor.intell_acceso')
+                : T('editor.intell_spento');
         };
         segnaIntelligente(ftIntelligenteAuto());
         intelligenteBtn.addEventListener('click', function () {
@@ -5724,7 +5724,7 @@ function ftSuggBase(bar, stato) {
         b.className = 'fmt-sugg-voce' + (FT_COMANDI_CHIUSURA.indexOf(ch) !== -1 ? ' fmt-sugg-chiudi' : '');
         b.dataset.cmdVoce = ch;
         b.textContent = def.eti;
-        b.title = 'Toccalo per inserirlo';
+        b.title = T('editor.toccalo');
         cassetto.appendChild(b);
     });
 }

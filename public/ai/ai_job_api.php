@@ -25,7 +25,7 @@ require_once __DIR__ . '/../../lib/auth_check_api.php'; // se manca il login ris
 require_once __DIR__ . '/ai_jobs.php';
 
 $uid = (int)($utente_corrente['id'] ?? 0);
-if ($uid <= 0) sec_die_json('Sessione non valida.', 401, 'auth');
+if ($uid <= 0) sec_die_json(t('api.sessione_non_valida'), 401, 'auth');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') sec_json(['ok' => false, 'error' => 'metodo'], 405);
 
@@ -72,12 +72,12 @@ switch ($azione) {
         $stato = (defined('AI_JOB_WORKER') && AI_JOB_WORKER)
             ? ai_job_stato(ai_job_leggi($job_id, $uid), $dopo)
             : ai_job_avanza($job_id, $uid, $dopo);
-        if (!$stato) sec_die_json('Non trovato.', 404, 'not_found');
+        if (!$stato) sec_die_json(t('api.non_trovato'), 404, 'not_found');
         sec_json(['ok' => true, 'job' => $stato]);
 
     case 'stato':
         $stato = ai_job_stato(ai_job_leggi($job_id, $uid), $dopo);
-        if (!$stato) sec_die_json('Non trovato.', 404, 'not_found');
+        if (!$stato) sec_die_json(t('api.non_trovato'), 404, 'not_found');
         sec_json(['ok' => true, 'job' => $stato]);
 
     case 'attivo':
@@ -85,7 +85,7 @@ switch ($azione) {
         sec_json(['ok' => true, 'job' => $job ? ai_job_stato($job, $dopo) : null]);
 
     case 'annulla':
-        if (!ai_job_annulla($job_id, $uid)) sec_die_json('Niente da annullare.', 409, 'non_annullabile');
+        if (!ai_job_annulla($job_id, $uid)) sec_die_json(t('api.niente_da_annullare'), 409, 'non_annullabile');
         sec_json(['ok' => true, 'job' => ai_job_stato(ai_job_leggi($job_id, $uid), $dopo)]);
 
     case 'riprendi':

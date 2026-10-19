@@ -108,7 +108,7 @@ $('dyUndo').addEventListener('click', function () {
     if (!step) { this.disabled = true; return; }
     haptic(10);
     step.revert();
-    toast('Annullato: ' + step.label);
+    toast(T('diario.annullato', { cosa: step.label }));
     if (!S.undo.length) this.disabled = true;
 });
 
@@ -373,8 +373,8 @@ function disegnaAnelli(dati) {
     var primo = dati.length ? dati[0] : null;
     $('dyRingN').textContent = primo ? (primo.done + '/' + primo.total) : '–';
 
-    var descr = dati.map(function (d) { return d.label + ' ' + d.done + ' su ' + d.total; }).join(', ');
-    ring.setAttribute('aria-label', descr || 'Nessuna abitudine');
+    var descr = dati.map(function (d) { return T('diario.n_su_n', { label: d.label, fatti: d.done, totale: d.total }); }).join(', ');
+    ring.setAttribute('aria-label', descr || T('diario.nessuna_abitudine'));
 }
 
 function loadDay(date, animate) {
@@ -589,7 +589,7 @@ $('dyRing').addEventListener('click', function () {
     var ov = el('div', 'dy-modal');
     var card = el('div', 'dy-card');
     card.style.maxWidth = '340px';
-    card.appendChild(el('div', 'dy-card-t', 'Abitudini'));
+    card.appendChild(el('div', 'dy-card-t', T('diario.abitudini')));
     card.appendChild(el('div', 'dy-card-s',
         GIORNI[dow(S.date)].toLowerCase() + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()));
 
@@ -669,7 +669,7 @@ $('dyNext').addEventListener('click', function () { turnPage(1); });
     btn.addEventListener('click', function () {
         if (running) { stop(); return; }
         rec = new Rec();
-        rec.lang = 'it-IT';
+        rec.lang = document.documentElement.lang === 'en' ? 'en-US' : 'it-IT';
         rec.continuous = true;
         rec.interimResults = true;
 
@@ -699,7 +699,7 @@ $('dyNext').addEventListener('click', function () { turnPage(1); });
             rec.start();
             running = true;
             btn.classList.add('dy-rec');
-            toast('Parla pure, ti ascolto');
+            toast(T('diario.parla_pure'));
         } catch (e) { stop(); }
     });
 })();

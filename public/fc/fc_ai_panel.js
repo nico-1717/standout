@@ -288,7 +288,7 @@ var FCAIP = (function () {
                 '<div style="flex:1; min-width:0;">' +
                     '<b>' + esc(file.name) + '</b>' +
                     '<small>' + pagine + ' ' + (pagine === 1 ? T('fc.ibfai_pagina_sing') : T('fc.ibfai_pagina_plur')) + ' · ' +
-                        stato.estratto.caratteri.toLocaleString('it-IT') + ' ' + T('fc.ibfai_caratteri') + '</small>' +
+                        stato.estratto.caratteri.toLocaleString((document.documentElement.lang || 'it')) + ' ' + T('fc.ibfai_caratteri') + '</small>' +
                 '</div>' +
                 '<button type="button" class="fcai-x" id="fcaiTogliFile" aria-label="' + esc(T('fc.ibfai_togli')) + '">' +
                     '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>' +
@@ -296,9 +296,9 @@ var FCAIP = (function () {
             '</div>' +
             (serveIntervallo || pagine > 1 ?
                 '<div class="fcai-riga" style="margin-top:10px;">' +
-                    '<div><label class="fcai-label">Dalla pagina</label>' +
+                    '<div><label class="fcai-label">' + T('fc.ibfai_dalla_pagina') + '</label>' +
                         '<input type="number" id="fcaiDa" min="1" max="' + pagine + '" value="1"></div>' +
-                    '<div><label class="fcai-label">alla</label>' +
+                    '<div><label class="fcai-label">' + T('fc.ibfai_alla') + '</label>' +
                         '<input type="number" id="fcaiA" min="1" max="' + pagine + '" value="' + fino + '"></div>' +
                 '</div>' : '') +
             '<div class="fcai-barra" id="fcaiBarra"><i style="width:0"></i></div>' +
@@ -372,11 +372,11 @@ var FCAIP = (function () {
                background, cosi' la schermata di avanzamento non arriva a
                sorpresa. */
             costo.textContent = T('fc.ibfai_documento_lungo', {
-                car: stato.testo.length.toLocaleString('it-IT'),
+                car: stato.testo.length.toLocaleString((document.documentElement.lang || 'it')),
                 blocchi: Math.ceil(stato.testo.length / MAX_CARATTERI)
             });
         } else {
-            costo.textContent = T('fc.ibfai_selezione_costo', {car: stato.testo.length.toLocaleString('it-IT'), tok: FCAI.stimaToken(stato.testo.length).toLocaleString('it-IT')});
+            costo.textContent = T('fc.ibfai_selezione_costo', {car: stato.testo.length.toLocaleString((document.documentElement.lang || 'it')), tok: FCAI.stimaToken(stato.testo.length).toLocaleString((document.documentElement.lang || 'it'))});
         }
     }
 
@@ -678,8 +678,8 @@ var FCAIP = (function () {
             });
             if (contoInCorso !== mio) return; // nel frattempo ne e' partita un'altra
             box.innerHTML = testo + '<br>' + (st.disponibili === null
-                ? T('fc.ibfai_costo_stimato_secco', {stima: st.stima.toLocaleString('it-IT')})
-                : T('fc.ibfai_costo_stimato_resto', {stima: st.stima.toLocaleString('it-IT'), disp: st.disponibili.toLocaleString('it-IT')}));
+                ? T('fc.ibfai_costo_stimato_secco', {stima: st.stima.toLocaleString((document.documentElement.lang || 'it'))})
+                : T('fc.ibfai_costo_stimato_resto', {stima: st.stima.toLocaleString((document.documentElement.lang || 'it')), disp: st.disponibili.toLocaleString((document.documentElement.lang || 'it'))}));
             if (!st.sufficiente) {
                 box.className = 'fcai-modale-conto is-warn';
                 box.innerHTML += '<br>' + T('fc.ibfai_niente_token');

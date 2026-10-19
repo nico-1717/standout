@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
+if (!$conn) { die(t('progetti.connessione_fallita', ['errore' => mysqli_connect_error()])); }
 require_once __DIR__ . '/../../lib/auth_check.php';
 $current_user_id = $utente_corrente['id'];
 
@@ -974,16 +974,16 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
         <div class="pr-row" data-id="<?php echo (int)$node['id']; ?>">
             <div class="pr-row-content">
                 <?php if ($hasChildren): ?>
-                <button type="button" class="pr-arrow<?php echo $depth < 1 ? ' open' : ''; ?>" onclick="event.stopPropagation(); prToggleChildren(<?php echo (int)$node['id']; ?>, this)" aria-label="Apri/chiudi sotto-progetti">
+                <button type="button" class="pr-arrow<?php echo $depth < 1 ? ' open' : ''; ?>" onclick="event.stopPropagation(); prToggleChildren(<?php echo (int)$node['id']; ?>, this)" aria-label="<?php te('progetti.apri_chiudi_sotto'); ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
                 </button>
                 <?php else: ?>
                 <span class="pr-arrow-spacer"></span>
                 <?php endif; ?>
-                <span class="pr-grip" aria-label="Trascina per riordinare">
+                <span class="pr-grip" aria-label="<?php te('progetti.trascina_riordinare'); ?>">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
                 </span>
-                <button type="button" class="pr-check pr-check-<?php echo sec_h($stato); ?>" data-id="<?php echo (int)$node['id']; ?>" aria-label="Cambia stato">
+                <button type="button" class="pr-check pr-check-<?php echo sec_h($stato); ?>" data-id="<?php echo (int)$node['id']; ?>" aria-label="<?php te('progetti.cambia_stato'); ?>">
                     <svg class="pr-ic-empty" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>
                     <svg class="pr-ic-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
                     <svg class="pr-ic-planned" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round"/></svg>
@@ -1007,7 +1007,7 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                              al nome e stonava con gli altri comandi. */ ?>
                     <div class="pr-tags-row">
                         <?php /* sempre per primo a sinistra, prima di nota, categoria e date */ ?>
-                        <button type="button" class="pr-inline-add-btn" onclick="prShowInlineInput(event, <?php echo (int)$node['id']; ?>, this)" aria-label="Aggiungi sottoprogetto rapido">
+                        <button type="button" class="pr-inline-add-btn" onclick="prShowInlineInput(event, <?php echo (int)$node['id']; ?>, this)" aria-label="<?php te('progetti.aggiungi_sotto_rapido'); ?>">
                             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M9 5v10a2 2 0 0 0 2 2h8"/>
                                 <path d="m16 14 3 3-3 3"/>
@@ -1015,7 +1015,7 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                         </button>
                         <?php if ($noteEsc !== ''): ?>
                         <button type="button" class="pr-note-tag" data-note-raw="<?php echo $noteEsc; ?>" data-note-id="<?php echo (int)$node['id']; ?>"
-                                onclick="event.stopPropagation(); prOpenNotePeek(<?php echo (int)$node['id']; ?>, this)" aria-label="Mostra nota">
+                                onclick="event.stopPropagation(); prOpenNotePeek(<?php echo (int)$node['id']; ?>, this)" aria-label="<?php te('progetti.mostra_nota'); ?>">
                             <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10l6-6V5a2 2 0 0 0-2-2Z"/><path d="M15 21v-4a2 2 0 0 1 2-2h4"/></svg>
                         </button>
                         <?php endif; ?>
@@ -1050,11 +1050,11 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
             <div class="swipe-actions">
                 <button type="button" class="swipe-btn swipe-btn-edit" onclick="prOpenEdit(<?php echo (int)$node['id']; ?>)">
                     <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                    <span>Modifica</span>
+                    <span><?php te('comune.modifica'); ?></span>
                 </button>
                 <button type="button" class="swipe-btn swipe-btn-delete" onclick="prConfirmDelete(<?php echo (int)$node['id']; ?>, <?php echo $hasChildren ? 'true' : 'false'; ?>)">
                     <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
-                    <span>Elimina</span>
+                    <span><?php te('comune.elimina'); ?></span>
                 </button>
             </div>
         </div>
@@ -1072,7 +1072,7 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>Progetti</title>
+<title><?php te('progetti.titolo_pagina'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>projects/progetti.css?v=<?php echo @filemtime(__DIR__ . '/progetti.css') ?: 1; ?>">
@@ -1261,7 +1261,7 @@ if ($deckProprio) {
                        . ' onclick="prToggleHeroFav(event, this)"'
                        . ' aria-pressed="' . ($stellaPiena ? 'true' : 'false') . '"'
                        . ' title="' . t($stellaPiena ? 'progetti.togli_dai_preferiti' : 'progetti.metti_tra_i_preferiti') . '"'
-                       . ' aria-label="Preferito">' . prog_star_svg($stellaPiena) . '</button>';
+                       . ' aria-label="' . sec_h(t('progetti.preferito')) . '">' . prog_star_svg($stellaPiena) . '</button>';
                     /* Il nome si modifica scrivendoci sopra. contenteditable
                        sul solo nome e non su tutto lo span: dentro c'è anche
                        la stella, e renderla modificabile vorrebbe dire poterla
@@ -1689,7 +1689,7 @@ if ($deckProprio) {
                 <?php
                     $ft_field = 'prFieldNote';
                     $ft_raw = '';
-                    $ft_placeholder = "Scrivi qui le note del progetto…";
+                    $ft_placeholder = t('progetti.note_placeholder');
                     /* Chiusa: qui la nota è un dettaglio del progetto, non il
                        motivo per cui si è aperta la pagina, e quattro righe di
                        icone sopra a due righe di testo spostavano il peso
@@ -2174,11 +2174,11 @@ window.prHeroQuickAdd = function(e, btn){
     input.type = 'text'; input.placeholder = T('progetti.nome_nuovo_sotto'); input.autocomplete = 'off';
 
     var cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button'; cancelBtn.className = 'pr-inline-cancel-btn'; cancelBtn.setAttribute('aria-label','Annulla');
+    cancelBtn.type = 'button'; cancelBtn.className = 'pr-inline-cancel-btn'; cancelBtn.setAttribute('aria-label', T('comune.annulla'));
     cancelBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
     var saveBtn = document.createElement('button');
-    saveBtn.type = 'button'; saveBtn.className = 'pr-inline-save-btn'; saveBtn.setAttribute('aria-label','Salva');
+    saveBtn.type = 'button'; saveBtn.className = 'pr-inline-save-btn'; saveBtn.setAttribute('aria-label', T('comune.salva'));
     saveBtn.style.background = 'color-mix(in srgb, var(--accent, var(--blue)) 14%, var(--surface))';
     saveBtn.style.color = 'var(--accent, var(--blue))';
     saveBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
@@ -2202,7 +2202,7 @@ window.prHeroQuickAdd = function(e, btn){
         document.getElementById('fRedirectId').value = CURRENT_PROJECT_ID;
         var form = document.getElementById('formSave');
         fetch(window.location.href, { method:'POST', body:new FormData(form) })
-            .then(function(r){ if (r.ok) window.location.reload(); else { toast('Errore'); reset(); } })
+            .then(function(r){ if (r.ok) window.location.reload(); else { toast(T('comune.errore')); reset(); } })
             .catch(function(){ toast(T('comune.errore_rete')); reset(); });
     }
     function reset(){ input.disabled = saveBtn.disabled = cancelBtn.disabled = false; saveBtn.style.opacity = '1'; input.focus(); }
@@ -2237,7 +2237,7 @@ function prUpdateSubBulkCount(){
     var el = document.getElementById('prSubBulkCount');
     if (el) el.textContent = n + ' selezionat' + (n === 1 ? 'o' : 'i');
     var allBtn = document.getElementById('prSubSelectAllBtn');
-    if (allBtn) allBtn.textContent = n > 0 ? 'Deseleziona tutti' : T('progetti.seleziona_tutti');
+    if (allBtn) allBtn.textContent = n > 0 ? T('progetti.deseleziona_tutti') : T('progetti.seleziona_tutti');
 }
 // tutte le righe-discendenti (nel DOM) di una data riga di #prList
 function prDomDescendantWraps(wrap){
@@ -2336,15 +2336,15 @@ window.prSubBulkDeleteOpen = function(){
         if (prHasChildren(parseInt(id, 10))) anyChildren = true;
     });
     var n = ids.length;
-    document.getElementById('prConfirmTitle').textContent = 'Eliminare ' + n + ' sotto-progett' + (n === 1 ? 'o' : 'i') + '?';
+    document.getElementById('prConfirmTitle').textContent = n === 1 ? T('progetti.eliminare_n_sotto_1') : T('progetti.eliminare_n_sotto', { n: n });
 
     if (totalSessions === 0) {
         var plainMsg = anyChildren ? T('progetti.alcuni_hanno_sotto') : '';
         plainMsg += T('progetti.questa_azione_non_puo_essere');
         document.getElementById('prConfirmMsg').textContent = plainMsg;
         document.getElementById('prConfirmActions').innerHTML =
-            '<button type="button" class="pr-btn pr-btn-danger" onclick="prSubBulkDeleteDo(false)">Elimina</button>' +
-            '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">Annulla</button>';
+            '<button type="button" class="pr-btn pr-btn-danger" onclick="prSubBulkDeleteDo(false)">'+T('comune.elimina')+'</button>' +
+            '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">'+T('comune.annulla')+'</button>';
         document.getElementById('prConfirmOverlay').classList.add('show');
         return;
     }
@@ -2354,18 +2354,18 @@ window.prSubBulkDeleteOpen = function(){
     document.getElementById('prConfirmMsg').textContent = msg;
     document.getElementById('prConfirmActions').innerHTML =
         '<button type="button" class="pr-btn pr-btn-danger" onclick="prSubBulkDeleteDo(true)">'+T('progetti.elimina_anche_pomodori')+'</button>' +
-        '<button type="button" class="pr-btn pr-btn-neutral" onclick="prSubBulkKeepSessions()">Mantieni i pomodori</button>' +
-        '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">Annulla</button>';
+        '<button type="button" class="pr-btn pr-btn-neutral" onclick="prSubBulkKeepSessions()">'+T('progetti.mantieni_pomodori')+'</button>' +
+        '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">'+T('comune.annulla')+'</button>';
     document.getElementById('prConfirmOverlay').classList.add('show');
 };
 window.prSubBulkKeepSessions = function(){
     document.getElementById('prConfirmTitle').textContent = T('progetti.pomodori_senza_progetto');
     document.getElementById('prConfirmMsg').textContent =
-        'Se preferisci, vai prima ai pomodori dei sotto-progetti selezionati e riassegnali a un altro progetto. Altrimenti, continuando, resteranno tutti senza progetto.';
+        T('progetti.sotto_bulk_orfani');
     document.getElementById('prConfirmActions').innerHTML =
-        '<button type="button" class="pr-btn pr-btn-neutral" onclick="prSubBulkGoToPomodori()">Vai ai pomodori</button>' +
+        '<button type="button" class="pr-btn pr-btn-neutral" onclick="prSubBulkGoToPomodori()">'+T('progetti.vai_ai_pomodori')+'</button>' +
         '<button type="button" class="pr-btn pr-btn-danger" onclick="prSubBulkDeleteDo(false)">'+T('progetti.elimina_comunque')+'</button>' +
-        '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">Annulla</button>';
+        '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">'+T('comune.annulla')+'</button>';
 };
 window.prSubBulkGoToPomodori = function(){
     var ids = prCollectDescendants(prBulkDeleteIds).map(function(x){ return parseInt(x, 10); });
@@ -2726,7 +2726,7 @@ function prDatesRender(){
         var tag = document.createElement('span');
         tag.className = 'pr-date-tag pr-date-tag-' + it.status;
         var d = new Date(it.raw + 'T00:00:00');
-        var label = d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+        var label = d.toLocaleDateString((document.documentElement.lang || 'it'), { day: '2-digit', month: 'short' });
         tag.textContent = icon + ' ' + label;
         btn.appendChild(tag);
 
@@ -2940,8 +2940,8 @@ window.prConfirmDelete = function(id, hasChildren){
         plainMsg += T('progetti.questa_azione_non_puo_essere');
         document.getElementById('prConfirmMsg').textContent = plainMsg;
         document.getElementById('prConfirmActions').innerHTML =
-            '<button type="button" class="pr-btn pr-btn-danger" onclick="prDoDelete(false)">Elimina</button>' +
-            '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">Annulla</button>';
+            '<button type="button" class="pr-btn pr-btn-danger" onclick="prDoDelete(false)">'+T('comune.elimina')+'</button>' +
+            '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">'+T('comune.annulla')+'</button>';
         document.getElementById('prConfirmOverlay').classList.add('show');
         return;
     }
@@ -2951,8 +2951,8 @@ window.prConfirmDelete = function(id, hasChildren){
     document.getElementById('prConfirmMsg').textContent = msg;
     document.getElementById('prConfirmActions').innerHTML =
         '<button type="button" class="pr-btn pr-btn-danger" onclick="prDoDelete(true)">'+T('progetti.elimina_anche_pomodori')+'</button>' +
-        '<button type="button" class="pr-btn pr-btn-neutral" onclick="prConfirmKeepSessions()">Mantieni i pomodori</button>' +
-        '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">Annulla</button>';
+        '<button type="button" class="pr-btn pr-btn-neutral" onclick="prConfirmKeepSessions()">'+T('progetti.mantieni_pomodori')+'</button>' +
+        '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">'+T('comune.annulla')+'</button>';
     document.getElementById('prConfirmOverlay').classList.add('show');
 };
 // scelto "mantieni i pomodori": prima di far confermare per davvero, suggeriamo
@@ -2965,9 +2965,9 @@ window.prConfirmKeepSessions = function(){
         T('progetti.avviso_pomodori_orfani',{progetto:name}) + ' ' +
         T(deletingHasChildren ? 'progetti.pomodori_orfani_con_sotto' : 'progetti.pomodori_orfani');
     document.getElementById('prConfirmActions').innerHTML =
-        '<button type="button" class="pr-btn pr-btn-neutral" onclick="prGoToPomodoriBeforeDelete()">Vai ai pomodori</button>' +
+        '<button type="button" class="pr-btn pr-btn-neutral" onclick="prGoToPomodoriBeforeDelete()">'+T('progetti.vai_ai_pomodori')+'</button>' +
         '<button type="button" class="pr-btn pr-btn-danger" onclick="prDoDelete(false)">'+T('progetti.elimina_comunque')+'</button>' +
-        '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">Annulla</button>';
+        '<button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseConfirm()">'+T('comune.annulla')+'</button>';
 };
 window.prGoToPomodoriBeforeDelete = function(){
     var info = PROJ_LOOKUP[deletingId];
@@ -3284,7 +3284,7 @@ window.prDoDelete = function(deleteSessions){
            scorrimento dopo ogni spostamento. */
         var form = document.getElementById('formReorder');
         fetch(window.location.href, { method:'POST', body:new FormData(form), credentials:'same-origin' })
-            .then(function(){ toast('Ordine aggiornato'); })
+            .then(function(){ toast(T('progetti.ordine_aggiornato')); })
             .catch(function(){
                 toast(T('progetti.ordine_non_salvato'));
                 window.location.reload();
@@ -3309,21 +3309,21 @@ window.prShowInlineInput = function(e, parentId, btn) {
     
     var input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = 'Nome nuovo sottoprogetto...';
+    input.placeholder = T('progetti.nome_nuovo_sotto');
     input.autocomplete = 'off';
     
     // Pulsante Annulla (Grigio chiaro con icona X)
     var cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'pr-inline-cancel-btn';
-    cancelBtn.setAttribute('aria-label', 'Annulla');
+    cancelBtn.setAttribute('aria-label', T('comune.annulla'));
     cancelBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
     
     // Pulsante Salva (Colore del progetto con icona Check)
     var saveBtn = document.createElement('button');
     saveBtn.type = 'button';
     saveBtn.className = 'pr-inline-save-btn';
-    saveBtn.setAttribute('aria-label', 'Salva');
+    saveBtn.setAttribute('aria-label', T('comune.salva'));
     saveBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
     
     inputRow.appendChild(input);

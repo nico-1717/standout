@@ -21,12 +21,12 @@ register_shutdown_function(function () {
     if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
         if (ob_get_level() > 0) { ob_clean(); }
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Errore interno del server: ' . $err['message'] . ' (riga ' . $err['line'] . ')']);
+        echo json_encode(['success' => false, 'error' => t('ai.errore_interno', ['errore' => $err['message'], 'riga' => $err['line']])]);
     }
 });
 
 // --- CONTROLLO CHIAVI ---
-if (!defined('GEMINI_API_KEY')) { ob_clean(); die(json_encode(['success' => false, 'error' => 'GEMINI_API_KEY non definita in config.php'])); }
+if (!defined('GEMINI_API_KEY')) { ob_clean(); die(json_encode(['success' => false, 'error' => t('ai.chiave_mancante', ['chiave' => 'GEMINI_API_KEY'])])); }
 
 /* sec_db() riusa la connessione gia' aperta e la configura da sola. */
 $conn = sec_db();
@@ -35,7 +35,7 @@ $data = json_decode($__raw_input, true);
 if (!$data) {
     ob_clean();
     $diag = 'lunghezza corpo ricevuto: ' . strlen($__raw_input) . ' byte';
-    die(json_encode(['success' => false, 'error' => 'Nessun dato ricevuto dal JavaScript.', 'debug' => $diag]));
+    die(json_encode(['success' => false, 'error' => t('ai.nessun_dato'), 'debug' => $diag]));
 }
 
 // PREVENZIONE BUG PHP 8
@@ -87,15 +87,15 @@ $stima_limite = standout_verifica_limite_stimato($utente_corrente['id'], 300);
 if (!$stima_limite['ok']) {
     ob_clean();
     $msg = ($stima_limite['disponibili'] !== null)
-        ? "Questa richiesta costerebbe circa {$stima_limite['stima']} token, ma te ne restano solo {$stima_limite['disponibili']} questo mese."
-        : 'Hai raggiunto il limite mensile di Token IA.';
+        ? t('ai.stima_token', ['stima' => $stima_limite['stima'], 'disponibili' => $stima_limite['disponibili']])
+        : t('ai.limite_mensile');
     die(json_encode(['success' => false, 'error' => 'limite_piano', 'message' => $msg, 'stima' => $stima_limite['stima'], 'disponibili' => $stima_limite['disponibili']]));
 }
 
 // Non in cache: interroghiamo Gemini
 $prompt = ($mode === 'explain')
-    ? "Spiega in modo semplice, discorsivo e chiaro il seguente concetto per uno studente universitario. Tono amichevole. Mantieni le formule matematiche nei dollari ($$). Testo: " . $raw_text
-    : "Crea una metafora o un esempio pratico per memorizzare il seguente concetto. Mantieni formule nei dollari ($$). Testo: " . $raw_text;
+    ? "Spiega in modo semplice, discorsivo e chiaro il seguente concetto per uno studente universitario. Tono amichevole. Mantieni le formule matematiche nei dollari ($$). Rispondi in " . t('ai.lingua_risposta') . ". Testo: " . $raw_text
+    : "Crea una metafora o un esempio pratico per memorizzare il seguente concetto. Mantieni formule nei dollari ($$). Rispondi in " . t('ai.lingua_risposta') . ". Testo: " . $raw_text;
 
 $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . GEMINI_API_KEY;
 $payload = json_encode(["contents" => [["parts" => [["text" => $prompt]]]]]);
@@ -118,8 +118,8 @@ if (curl_errno($ch)) {
     $errstr = curl_error($ch);
     ob_clean();
     $msg_errore = ($errno === CURLE_OPERATION_TIMEOUTED || strpos($errstr, 'timed out') !== false)
-        ? 'Gemini ci ha messo troppo a rispondere (le API di Google potrebbero essere più lente del solito in questo momento). Riprova tra poco.'
-        : 'Errore connessione a Gemini [curl errno ' . $errno . ']: ' . $errstr;
+        ? t('ai.gemini_lento')
+        : t('ai.gemini_connessione', ['n' => $errno, 'errore' => $errstr]);
     die(json_encode(['success' => false, 'error' => $msg_errore]));
 }
 curl_close($ch);

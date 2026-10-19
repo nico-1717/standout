@@ -1122,10 +1122,10 @@ if (!function_exists('hi_export_habit_rows')) {
 if (!function_exists('hi_safe_sheet_name')) {
     function hi_safe_sheet_name($name, &$used) {
         $name = trim((string)$name);
-        if ($name === '') $name = 'Abitudine';
+        if ($name === '') $name = t('import.abitudine_senza_nome');
         $name = preg_replace('/[\\\\\/\?\*\[\]:]/', '-', $name);
         $name = trim(mb_substr($name, 0, 31));
-        if ($name === '') $name = 'Abitudine';
+        if ($name === '') $name = t('import.abitudine_senza_nome');
         $base = $name; $i = 2;
         while (isset($used[$name])) {
             $suffix = ' (' . $i . ')';
@@ -1299,8 +1299,8 @@ if (!defined('HI_CSS')) {
     <div class="hi-sheet">
         <div class="hi-head">
             <div>
-                <div class="hi-title">Importa</div>
-                <div class="hi-sub" id="hiHeadSub">Abitudini e check-in da un altro file</div>
+                <div class="hi-title"><?php te('import.importa'); ?></div>
+                <div class="hi-sub" id="hiHeadSub"><?php te('import.sub_abitudini'); ?></div>
             </div>
             <button type="button" class="hi-icon-btn" onclick="closeHabitsImport()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -1311,8 +1311,8 @@ if (!defined('HI_CSS')) {
 
         <div class="hi-foot" id="hiFoot">
             <div class="hi-foot-info" id="hiFootInfo"></div>
-            <button type="button" class="hi-btn-ghost" onclick="hiReset()">Cambia file</button>
-            <button type="button" class="hi-btn-save" id="hiSaveBtn" onclick="hiSave()">Salva</button>
+            <button type="button" class="hi-btn-ghost" onclick="hiReset()"><?php te('import.cambia_file'); ?></button>
+            <button type="button" class="hi-btn-save" id="hiSaveBtn" onclick="hiSave()"><?php te('comune.salva'); ?></button>
         </div>
     </div>
 </div>
@@ -1323,8 +1323,8 @@ if (!defined('HI_CSS')) {
 <div class="hi-pick-overlay" id="hiPickOverlay">
     <div class="hi-pick-sheet">
         <div class="hi-pick-head">
-            <div class="hi-pick-title">Collega ad abitudine esistente</div>
-            <button type="button" class="hi-icon-btn" onclick="hiClosePicker()" aria-label="Chiudi">
+            <div class="hi-pick-title"><?php te('import.collega_esistente'); ?></div>
+            <button type="button" class="hi-icon-btn" onclick="hiClosePicker()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
         </div>
@@ -1366,12 +1366,12 @@ if (!defined('HI_CSS')) {
         if (!timeStr) return null;
         var d = new Date(dateStr + 'T' + timeStr);
         if (isNaN(d.getTime())) return null;
-        return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        return d.toLocaleTimeString((document.documentElement.lang || 'it'), { hour: '2-digit', minute: '2-digit' });
     }
     function fmtDay(dateStr) {
         var d = new Date(dateStr + 'T00:00:00');
         if (isNaN(d.getTime())) return dateStr;
-        return d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+        return d.toLocaleDateString((document.documentElement.lang || 'it'), { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
     }
     function existingHabits() { return (window.HB_BOOT && window.HB_BOOT.habits) || []; }
     function findHabit(key) {
@@ -1673,10 +1673,10 @@ if (!defined('HI_CSS')) {
             '<span class="hi-dot">' + esc(icon) + '</span>' +
             '<div class="hi-names">' +
                 '<div class="hi-name">' + esc(name) + '</div>' +
-                (m ? '<div class="hi-from">dal file: ' + esc(h.name) + '</div>' : '') +
+                (m ? '<div class="hi-from">' + esc(T('import.dal_file', { nome: h.name })) + '</div>' : '') +
             '</div>';
         if (!m) row += '<span class="hi-tag">' + T('import.nuova') + '</span>';
-        else row += '<button type="button" class="hi-restore" aria-label="Ripristina" onclick="event.stopPropagation();hiRestore(\'' + h.key + '\')">' +
+        else row += '<button type="button" class="hi-restore" aria-label="' + esc(T('comune.ripristina')) + '" onclick="event.stopPropagation();hiRestore(\'' + h.key + '\')">' +
                 '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>';
         return row + '</div>';
     }
@@ -1718,11 +1718,11 @@ if (!defined('HI_CSS')) {
                     '<div class="hi-sess-proj">' + esc(h.name) + '</div>' +
                     '<div class="hi-sess-meta">' + (time ? esc(time) : T('import.ora_non_indicata')) + (l.note ? ' · ' + esc(l.note) : '') + '</div>' +
                 '</div>' +
-                (h.isNew ? '<span class="hi-tag">nuova</span>' : '') +
+                (h.isNew ? '<span class="hi-tag">' + T('import.nuova') + '</span>' : '') +
             '</div>';
         }
         if (n < list.length) {
-            html += '<button type="button" class="hi-more" onclick="hiMore()">Mostra altri ' + Math.min(PAGE, list.length - n) + ' di ' + (list.length - n) + '</button>';
+            html += '<button type="button" class="hi-more" onclick="hiMore()">' + T('import.mostra_altri', { n: Math.min(PAGE, list.length - n), di: list.length - n }) + '</button>';
         }
         byId('hiLogs').innerHTML = html;
         byId('hiSec2Count').textContent = list.length + (list.length === 1 ? ' check-in' : ' check-in');

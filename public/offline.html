@@ -41,5 +41,16 @@
     <p>Standout ha bisogno del collegamento per mostrarti i tuoi dati. Riprova appena torna la linea.</p>
     <button type="button" onclick="location.reload()">Riprova</button>
   </div>
+  <script>
+  /* Questa pagina non passa dal server, quindi niente lang/*.json: la
+     lingua si prende dal browser e i quattro testi si cambiano qui. */
+  if ((navigator.language || '').slice(0, 2) !== 'it') {
+    document.documentElement.lang = 'en';
+    document.title = 'Offline - Standout';
+    document.querySelector('h1').textContent = "You're offline";
+    document.querySelector('p').textContent = 'Standout needs a connection to show your data. Try again once you are back online.';
+    document.querySelector('button').textContent = 'Try again';
+  }
+  </script>
 </body>
 </html>

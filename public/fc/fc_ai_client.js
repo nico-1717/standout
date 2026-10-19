@@ -228,7 +228,7 @@ var FCAI = (function () {
                       window.pdfjsLib.GlobalWorkerOptions.workerSrc = FCAI.PDFJS.worker;
                       risolvi(window.pdfjsLib);
                   };
-                  s.onerror = function () { rifiuta(new Error('pdfjs non caricato')); };
+                  s.onerror = function () { rifiuta(new Error(typeof T === 'function' ? T('fc.pdfjs_non_caricato') : 'pdf.js')); };
                   document.head.appendChild(s);
               });
         return pdfPromise;

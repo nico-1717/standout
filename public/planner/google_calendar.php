@@ -203,7 +203,7 @@ function gc_ensure_calendar(int $uid, string $token, array $acc): string {
 
     $made = gc_http('POST', 'https://www.googleapis.com/calendar/v3/calendars', [
         'summary'     => GC_CAL_NAME,
-        'description' => 'Gli eventi del tuo planner. Puoi nasconderlo o cancellarlo quando vuoi: il planner continua a funzionare.',
+        'description' => t('planner.gc_descrizione_calendario'),
         'timeZone'    => GC_TZ,
     ], $token);
 
@@ -324,7 +324,7 @@ function gc_log(int $uid, string $direction, string $outcome = 'ok', ?string $de
 /** Un evento del planner nel formato che vuole Google. */
 function gc_to_google(array $ev): array {
     $out = [
-        'summary'     => $ev['title'] !== '' ? $ev['title'] : 'Senza titolo',
+        'summary'     => $ev['title'] !== '' ? $ev['title'] : t('planner.gc_senza_titolo'),
         'description' => (string)$ev['notes'],
     ];
     if (!empty($ev['location'])) $out['location'] = (string)$ev['location'];
@@ -470,7 +470,7 @@ function gc_from_google(array $g): ?array {
             'start'    => '00:00:00',
             'end'      => '23:59:00',
             'all_day'  => 1,
-            'title'    => (string)($g['summary'] ?? 'Senza titolo'),
+            'title'    => (string)($g['summary'] ?? t('planner.gc_senza_titolo')),
             'notes'    => (string)($g['description'] ?? ''),
         ];
     }
@@ -498,7 +498,7 @@ function gc_from_google(array $g): ?array {
             'start'    => date('H:i:s', $s),
             'end'      => date('H:i:s', $e),
             'all_day'  => 0,
-            'title'    => (string)($g['summary'] ?? 'Senza titolo'),
+            'title'    => (string)($g['summary'] ?? t('planner.gc_senza_titolo')),
             'notes'    => (string)($g['description'] ?? ''),
         ];
     }
@@ -1238,7 +1238,7 @@ $ajax   = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
 if ($action === 'connect') {
     if (!gc_configured()) {
         http_response_code(500);
-        exit('Google Calendar non è ancora configurato: mancano le costanti in config.php.');
+        exit(t('planner.gc_non_configurato'));
     }
     $state = bin2hex(random_bytes(16));
     $_SESSION['gc_state'] = $state;
@@ -1465,9 +1465,9 @@ function gc_repair_cross_calendars(int $uid, string $token, string $dedicato): a
 if ($ajax === 'repair') {
     sec_guard_write($uid, 'google_sync', 0, 4, 300);
     $acc = gc_account($uid);
-    if (!$acc || (int)$acc['is_enabled'] !== 1) sec_die_json('Nessun account Google collegato.', 400, 'not_connected');
+    if (!$acc || (int)$acc['is_enabled'] !== 1) sec_die_json(t('api.nessun_account_google'), 400, 'not_connected');
     $token = gc_access_token($uid);
-    if (!$token) sec_die_json('Il collegamento con Google è scaduto: ricollega l\'account.', 401, 'reauth');
+    if (!$token) sec_die_json(t('api.google_scaduto'), 401, 'reauth');
 
     $dedicato = (string)($acc['calendar_id'] ?? '');
     $r = gc_repair_cross_calendars($uid, $token, $dedicato);
@@ -1482,9 +1482,9 @@ if ($ajax === 'repair') {
    dopo il collegamento. */
 if ($ajax === 'calendars') {
     $acc = gc_account($uid);
-    if (!$acc || (int)$acc['is_enabled'] !== 1) sec_die_json('Nessun account Google collegato.', 400, 'not_connected');
+    if (!$acc || (int)$acc['is_enabled'] !== 1) sec_die_json(t('api.nessun_account_google'), 400, 'not_connected');
     $token = gc_access_token($uid);
-    if (!$token) sec_die_json('Il collegamento con Google è scaduto: ricollega l\'account.', 401, 'reauth');
+    if (!$token) sec_die_json(t('api.google_scaduto'), 401, 'reauth');
 
     $mappa = gc_refresh_map($uid, $token, (string)($acc['calendar_id'] ?? ''));
 
@@ -1542,10 +1542,10 @@ if ($ajax === 'calendars') {
 if ($ajax === 'map_set') {
     sec_guard_write($uid, 'google_sync', 0, 30, 60);
     $ref = sec_str(sec_in('ref'), 255);
-    if ($ref === '') sec_die_json('Calendario non indicato.', 422, 'invalid');
+    if ($ref === '') sec_die_json(t('api.calendario_non_indicato'), 422, 'invalid');
     $dest = sec_int(sec_in('calendar_id'), 0, PHP_INT_MAX, 0);
     if ($dest > 0 && !sec_owns('planner_calendars', $dest, $uid)) {
-        sec_die_json('Calendario non trovato.', 404, 'not_found');
+        sec_die_json(t('api.calendario_non_trovato'), 404, 'not_found');
     }
 
     $prima = sec_one("SELECT calendar_id FROM google_calendar_map WHERE user_id = ? AND google_ref = ?",
@@ -1593,7 +1593,7 @@ if ($ajax === 'push_set') {
         sec_json(['ok' => true]);
     }
     $mio = sec_int(sec_in('calendar_id'), 1, PHP_INT_MAX, 0);
-    if (!sec_owns('planner_calendars', $mio, $uid)) sec_die_json('Calendario non trovato.', 404, 'not_found');
+    if (!sec_owns('planner_calendars', $mio, $uid)) sec_die_json(t('api.calendario_non_trovato'), 404, 'not_found');
     sec_q("UPDATE planner_calendars SET google_push_ref = ? WHERE id = ? AND user_id = ?",
           [$ref !== '' ? $ref : null, $mio, $uid], 'sii');
     sec_json(['ok' => true]);
@@ -1602,13 +1602,13 @@ if ($ajax === 'push_set') {
 /* ---------- sincronizza adesso ---------- */
 if ($ajax === 'sync') {
     sec_guard_write($uid, 'google_sync', 0, 20, 60);
-    if (!gc_configured()) sec_die_json('Google Calendar non è configurato su questo sito.', 503, 'not_configured');
+    if (!gc_configured()) sec_die_json(t('api.google_non_configurato'), 503, 'not_configured');
 
     $acc = gc_account($uid);
-    if (!$acc || (int)$acc['is_enabled'] !== 1) sec_die_json('Nessun account Google collegato.', 400, 'not_connected');
+    if (!$acc || (int)$acc['is_enabled'] !== 1) sec_die_json(t('api.nessun_account_google'), 400, 'not_connected');
 
     $token = gc_access_token($uid);
-    if (!$token) sec_die_json('Il collegamento con Google è scaduto: ricollega l\'account.', 401, 'reauth');
+    if (!$token) sec_die_json(t('api.google_scaduto'), 401, 'reauth');
 
     /* prima di tutto: il calendario dedicato esiste? Se l'utente l'ha
        cancellato dal suo Google, lo ricreiamo e ripartiamo da capo. */
@@ -1678,4 +1678,4 @@ if ($ajax === 'disconnect') {
     sec_json(['ok' => true]);
 }
 
-sec_die_json('Richiesta non riconosciuta.', 404, 'unknown_action');
+sec_die_json(t('api.richiesta_non_riconosciuta'), 404, 'unknown_action');

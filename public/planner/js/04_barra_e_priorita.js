@@ -97,13 +97,23 @@ function smartParse(raw) {
         return m;
     }
 
-    /* --- ora: 12:30, 12.30, "alle 15", "ore 9" --- */
-    var mTime = eat(/\s(?:alle|alla|ore|ora|verso)?\s*([01]?\d|2[0-3])[:.]([0-5]\d)\s/);
-    if (mTime) {
+    /* --- ora all'inglese: 3pm, 9.30am, "at 7 pm" --- */
+    var mAmPm = eat(/\s(?:at\s+)?(1[0-2]|0?[1-9])(?:[:.]([0-5]\d))?\s*(am|pm)\s/);
+    if (mAmPm) {
+        var h12 = parseInt(mAmPm[1], 10) % 12 + (mAmPm[3] === 'pm' ? 12 : 0);
+        time = pad(h12) + ':' + (mAmPm[2] || '00');
+        timeExplicit = true;
+    }
+
+    /* --- ora: 12:30, 12.30, "alle 15", "ore 9", "at 15" --- */
+    var mTime = mAmPm ? null : eat(/\s(?:alle|alla|ore|ora|verso|at)?\s*([01]?\d|2[0-3])[:.]([0-5]\d)\s/);
+    if (mAmPm) {
+        /* già fatto qui sopra */
+    } else if (mTime) {
         time = pad(parseInt(mTime[1], 10)) + ':' + mTime[2];
         timeExplicit = true;
     } else {
-        var mHour = eat(/\s(?:alle|ore|ora|verso)\s+([01]?\d|2[0-3])\s/);
+        var mHour = eat(/\s(?:alle|ore|ora|verso|at|around)\s+([01]?\d|2[0-3])\s/);
         if (!mHour) mHour = eat(/\s([01]?\d|2[0-3])\s*$/);
         if (mHour) { time = pad(parseInt(mHour[1], 10)) + ':00'; timeExplicit = true; }
     }
@@ -146,7 +156,10 @@ function smartParse(raw) {
 
     /* --- giorno e mese scritti: "13 agosto", anche con qualche svista --- */
     if (!date) {
-        var mm2 = text.match(/\s(\d{1,2})\s+([a-zàèéìòù]{3,12})\s/);
+        /* "13 agosto", "13th august" e, all'inglese, "august 13th" */
+        var mm2 = text.match(/\s(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?([a-zàèéìòù]{3,12})\s/);
+        var mm2b = mm2 ? null : text.match(/\s([a-z]{3,12})\s+(\d{1,2})(?:st|nd|rd|th)?\s/);
+        if (mm2b && trovaChiave(' ' + mm2b[1] + ' ', Object.keys(SMART.mesi), 0)) mm2 = [mm2b[0], mm2b[2], mm2b[1]];
         if (mm2) {
             var mese = trovaChiave(' ' + mm2[2] + ' ', Object.keys(SMART.mesi), tol);
             if (mese) {
@@ -226,7 +239,7 @@ function smartParse(raw) {
 
             /* "con luchino" è il caso sicuro: la preposizione dice che si
                parla di una persona e non di una parola qualsiasi */
-            if (text.indexOf(' con ' + nome + ' ') !== -1) {
+            if (text.indexOf(' con ' + nome + ' ') !== -1 || text.indexOf(' with ' + nome + ' ') !== -1) {
                 invitati.push({ email: c.email, name: c.name });
                 return;
             }
@@ -314,7 +327,7 @@ function setupSmartMic(btn, input) {
     btn.addEventListener('click', function () {
         if (running) { stop(false); return; }
         rec = new Rec();
-        rec.lang = 'it-IT';
+        rec.lang = document.documentElement.lang === 'en' ? 'en-US' : 'it-IT';
         rec.continuous = true;
         rec.interimResults = true;
         spoken = false;

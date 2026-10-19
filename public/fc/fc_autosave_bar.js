@@ -83,7 +83,7 @@
         var etichetta = el('nsLastSaved' + S.suffisso);
         if (etichetta) {
             if (S.salvando) {
-                etichetta.textContent = 'salvo…';
+                etichetta.textContent = T('comune.salvo');
                 etichetta.classList.remove('ns-mai');
             } else if (S.ultimo) {
                 etichetta.textContent = oraDi(S.ultimo);
@@ -155,7 +155,7 @@
         if (toggle) toggle.checked = S.auto;
         if (S.auto && S.sporco) programma(S); else clearTimeout(S.timer);
         if (!silenzioso && typeof showToast === 'function') {
-            showToast(S.auto ? 'Salvataggio automatico attivo' : 'Salvataggio automatico spento');
+            showToast(S.auto ? T('comune.auto_attivo') : T('comune.auto_spento'));
         }
     }
 

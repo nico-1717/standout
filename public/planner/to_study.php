@@ -163,7 +163,7 @@ setTimeout(function () {
     var g = document.getElementById('tsGrid');
     if (!g) return;
     g.innerHTML = '<div style="padding:26px 16px;text-align:center;font-size:13.5px;line-height:1.5;opacity:.75">'
-        + 'to_study.js non e\' partito. Controlla che il file sia sul server e guarda la console del browser.'
+        + <?php echo json_encode(t('todo.study_js_non_partito'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>
         + '</div>';
 }, 1000);
 </script>

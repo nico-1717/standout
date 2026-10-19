@@ -36,14 +36,21 @@ if (!defined('TODO_WIDGET_CSS')) {
     if (window.standoutTodo) return;
 
     var CSRF = <?php echo json_encode(sec_csrf_token()); ?>;
-    var MESI = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
+    /* nomi di mesi e giorni nella lingua della pagina, presi dal browser */
+    var LINGUA = document.documentElement.lang || 'it';
+    function nomiMesi(forma) {
+        var f = new Intl.DateTimeFormat(LINGUA, { month: forma }), out = [];
+        for (var m = 0; m < 12; m++) out.push(f.format(new Date(2026, m, 15)));
+        return out;
+    }
+    var MESI = nomiMesi('short');
     /* La quarta linguetta non è un quarto elenco di attività: è la sezione
        delle pastiglie, che ha dati suoi (terapie e prese) e un disegno suo.
        Sta qui perché è qui che uno guarda la mattina, insieme al resto della
        giornata, non in una pagina che si ricorderebbe di aprire solo dopo
        essersene dimenticato. */
     var TIPI = ['todo', 'buy', 'study', 'pills'];
-    var TIPO_LAB = { todo: 'to do', buy: 'to buy', study: 'to study', pills: 'pastiglie' };
+    var TIPO_LAB = { todo: 'to do', buy: 'to buy', study: 'to study', pills: T('todo.tipo_pills') };
     var IMG_DIR = '../media/uploads/tobuy/';
 
     function api(action, data, query) {
@@ -146,9 +153,9 @@ if (!defined('TODO_WIDGET_CSS')) {
 
         if (this.selectable) {
             var head = el('div', 'td-head');
-            this.headLab = el('span', 'td-lab', this.tabs ? TIPO_LAB[this.listType] : 'Attività');
+            this.headLab = el('span', 'td-lab', this.tabs ? TIPO_LAB[this.listType] : T('todo.titolo'));
             head.appendChild(this.headLab);
-            this.selBtn = el('button', 'td-sel-btn', 'Seleziona');
+            this.selBtn = el('button', 'td-sel-btn', T('comune.seleziona'));
             this.selBtn.type = 'button';
             this.selBtn.addEventListener('click', function () { self.toggleSelect(); });
             head.appendChild(this.selBtn);
@@ -171,7 +178,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         this.listType = t;
         this.picked = {};
         this.selecting = false;
-        if (this.selBtn) { this.selBtn.textContent = 'Seleziona'; this.selBtn.classList.remove('td-on'); }
+        if (this.selBtn) { this.selBtn.textContent = T('comune.seleziona'); this.selBtn.classList.remove('td-on'); }
         if (this.headLab) this.headLab.textContent = TIPO_LAB[t];
         for (var k in this.tabBtns) if (this.tabBtns.hasOwnProperty(k)) {
             this.tabBtns[k].classList.toggle('td-on', k === t);
@@ -471,10 +478,10 @@ if (!defined('TODO_WIDGET_CSS')) {
         var roots = this.ordina(this.items).filter(function (t) { return !t.parent_id; });
 
         var manage = el('div', 'td-head');
-        var b = el('button', 'td-sel-btn', 'Categorie');
+        var b = el('button', 'td-sel-btn', T('todo.categorie'));
         b.type = 'button';
         b.addEventListener('click', function () { self.catManager(); });
-        manage.appendChild(el('span', 'td-lab', roots.length ? roots.length + ' articoli' : ''));
+        manage.appendChild(el('span', 'td-lab', roots.length ? T('todo.n_articoli', { n: roots.length }) : ''));
         manage.appendChild(b);
         this.list.appendChild(manage);
 
@@ -575,7 +582,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         var url = el('input');
         url.type = 'url';
         url.value = t.url || '';
-        url.placeholder = 'link dell\'articolo';
+        url.placeholder = T('todo.link_articolo');
         url.addEventListener('change', function () {
             self.save(t, { url: url.value }, true).then(function () { self.renderLater(); });
         });
@@ -585,7 +592,7 @@ if (!defined('TODO_WIDGET_CSS')) {
             open.href = t.url;
             open.target = '_blank';
             open.rel = 'noopener noreferrer';
-            open.title = 'Apri';
+            open.title = T('comune.apri');
             open.innerHTML = ICON_LINK;
             lk.appendChild(open);
         }
@@ -661,7 +668,7 @@ if (!defined('TODO_WIDGET_CSS')) {
             chip.appendChild(el('span', null, c.name));
         } else {
             chip.innerHTML = ICON_TAG;
-            chip.appendChild(el('span', null, 'Categoria'));
+            chip.appendChild(el('span', null, T('todo.categoria')));
         }
         chip.addEventListener('click', function () {
             self.catPicker(function (id) {
@@ -685,11 +692,11 @@ if (!defined('TODO_WIDGET_CSS')) {
             var box = el('div', 'td-imgview');
             var big = document.createElement('img');
             big.src = IMG_DIR + encodeURIComponent(t.image);
-            big.alt = (t.title || 'Immagine').trim();
+            big.alt = (t.title || T('todo.immagine')).trim();
             box.appendChild(big);
 
             var acts = el('div', 'td-card-acts');
-            var rem = el('button', null, 'Togli');
+            var rem = el('button', null, T('todo.togli'));
             rem.type = 'button';
             rem.addEventListener('click', function () {
                 ov.remove();
@@ -699,7 +706,7 @@ if (!defined('TODO_WIDGET_CSS')) {
                     self.render();
                 });
             });
-            var chg = el('button', 'td-primary', 'Sostituisci');
+            var chg = el('button', 'td-primary', T('comune.sostituisci'));
             chg.type = 'button';
             chg.addEventListener('click', function () { ov.remove(); self.openFile(t); });
             acts.appendChild(rem); acts.appendChild(chg);
@@ -745,7 +752,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         card.appendChild(el('div', 'td-card-t', titolo));
         card.appendChild(el('div', 'td-card-s', testo));
         var acts = el('div', 'td-card-acts');
-        var ok = el('button', 'td-primary', 'Ho capito');
+        var ok = el('button', 'td-primary', T('comune.ho_capito'));
         ok.type = 'button';
         ok.addEventListener('click', function () { ov.remove(); });
         acts.appendChild(ok);
@@ -760,7 +767,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         var self = this;
         var ov = el('div', 'td-modal');
         var card = el('div', 'td-card');
-        card.appendChild(el('div', 'td-card-t', 'Categoria'));
+        card.appendChild(el('div', 'td-card-t', T('todo.categoria')));
 
         function riga(label, color, id) {
             var b = el('button', 'td-catpick');
@@ -777,10 +784,10 @@ if (!defined('TODO_WIDGET_CSS')) {
         this.cats.forEach(function (c) { riga(c.name, c.color, c.id); });
 
         var acts = el('div', 'td-card-acts');
-        var no = el('button', null, 'Annulla');
+        var no = el('button', null, T('comune.annulla'));
         no.type = 'button';
         no.addEventListener('click', function () { ov.remove(); });
-        var mng = el('button', 'td-primary', 'Gestisci');
+        var mng = el('button', 'td-primary', T('todo.gestisci'));
         mng.type = 'button';
         mng.addEventListener('click', function () { ov.remove(); self.catManager(); });
         acts.appendChild(no); acts.appendChild(mng);
@@ -794,8 +801,8 @@ if (!defined('TODO_WIDGET_CSS')) {
         var self = this;
         var ov = el('div', 'td-modal');
         var card = el('div', 'td-card');
-        card.appendChild(el('div', 'td-card-t', 'Categorie'));
-        card.appendChild(el('div', 'td-card-s', 'Il nome si cambia scrivendoci sopra. Cancellandone una, gli articoli restano senza categoria.'));
+        card.appendChild(el('div', 'td-card-t', T('todo.categorie')));
+        card.appendChild(el('div', 'td-card-s', T('todo.categorie_nota')));
 
         var box = el('div');
         card.appendChild(box);
@@ -868,7 +875,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         disegna();
 
         var acts = el('div', 'td-card-acts');
-        var fine = el('button', 'td-primary', 'Fine');
+        var fine = el('button', 'td-primary', T('comune.fine'));
         fine.type = 'button';
         fine.addEventListener('click', function () { ov.remove(); self.render(); });
         acts.appendChild(fine);
@@ -1022,7 +1029,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         var self = this;
         var chip = el('button', 'td-chip td-chip-del');
         chip.type = 'button';
-        chip.title = 'Elimina';
+        chip.title = T('comune.elimina');
         chip.setAttribute('aria-label', T('todo.elimina_attivita'));
         chip.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>';
         chip.addEventListener('click', function (e) {
@@ -1037,13 +1044,13 @@ if (!defined('TODO_WIDGET_CSS')) {
         var nome = (t.title || '').trim();
         var ov = el('div', 'td-modal');
         var card = el('div', 'td-card');
-        card.appendChild(el('div', 'td-card-t', this.listType === 'buy' ? 'Elimino l\'articolo?' : T('todo.elimino_attivita')));
+        card.appendChild(el('div', 'td-card-t', this.listType === 'buy' ? T('todo.elimino_articolo') : T('todo.elimino_attivita')));
         card.appendChild(el('div', 'td-card-s', nome ? T('todo.nome_non_recuperabile', {nome: nome}) : T('todo.non_recuperabile')));
         var acts = el('div', 'td-card-acts');
-        var no = el('button', null, 'Annulla');
+        var no = el('button', null, T('comune.annulla'));
         no.type = 'button';
         no.addEventListener('click', function () { ov.remove(); });
-        var si = el('button', 'td-primary td-danger-btn', 'Elimina');
+        var si = el('button', 'td-primary td-danger-btn', T('comune.elimina'));
         si.type = 'button';
         si.addEventListener('click', function () {
             ov.remove();
@@ -1070,7 +1077,7 @@ if (!defined('TODO_WIDGET_CSS')) {
             var dot = el('span', 'td-dot');
             dot.style.background = t.project_color || '#B7AEA3';
             projChip.appendChild(dot);
-            projChip.appendChild(el('span', null, t.project_name || 'Progetto'));
+            projChip.appendChild(el('span', null, t.project_name || T('todo.progetto')));
         } else {
             projChip.appendChild(el('span', null, T('todo.nessun_progetto_w')));
         }
@@ -1236,7 +1243,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         this.selecting = !this.selecting;
         this.picked = {};
         if (this.selBtn) {
-            this.selBtn.textContent = this.selecting ? 'Fine' : 'Seleziona';
+            this.selBtn.textContent = this.selecting ? T('comune.fine') : T('comune.seleziona');
             this.selBtn.classList.toggle('td-on', this.selecting);
         }
         this.render();
@@ -1253,7 +1260,7 @@ if (!defined('TODO_WIDGET_CSS')) {
             var scelti = this.items.filter(function (t) { return self.picked[t.id]; });
             this.countBox.appendChild(el('b', null, euro(sumCents(scelti))));
         }
-        this.countBox.appendChild(document.createTextNode(ids.length ? ids.length + ' scelti' : 'nessuna scelta'));
+        this.countBox.appendChild(document.createTextNode(ids.length ? T('todo.n_scelti', { n: ids.length }) : T('todo.nessuna_scelta')));
     };
 
     Todo.prototype.bulkBar = function () {
@@ -1266,7 +1273,7 @@ if (!defined('TODO_WIDGET_CSS')) {
             var cat = el('button');
             cat.type = 'button';
             cat.innerHTML = ICON_TAG;
-            cat.appendChild(el('span', null, 'Categoria'));
+            cat.appendChild(el('span', null, T('todo.categoria')));
             cat.addEventListener('click', function () {
                 var ids = Object.keys(self.picked).map(Number);
                 if (!ids.length) return;
@@ -1292,7 +1299,7 @@ if (!defined('TODO_WIDGET_CSS')) {
 
             var proj = el('button');
             proj.type = 'button';
-            proj.appendChild(el('span', null, 'Progetto'));
+            proj.appendChild(el('span', null, T('todo.progetto')));
             proj.addEventListener('click', function () {
                 var modal = document.getElementById('ps-modal-todo');
                 if (modal && window.psOpen) { self._pendingBulk = true; window.psOpen(modal); }
@@ -1302,7 +1309,7 @@ if (!defined('TODO_WIDGET_CSS')) {
 
         var del = el('button', 'td-danger');
         del.type = 'button';
-        del.title = 'Elimina';
+        del.title = T('comune.elimina');
         del.innerHTML = ICON_TRASH;
         del.addEventListener('click', function () {
             var ids = Object.keys(self.picked).map(Number);
@@ -1341,7 +1348,7 @@ if (!defined('TODO_WIDGET_CSS')) {
             card.appendChild(b);
         });
         var acts = el('div', 'td-card-acts');
-        var no = el('button', null, 'Annulla');
+        var no = el('button', null, T('comune.annulla'));
         no.type = 'button';
         no.addEventListener('click', function () { ov.remove(); });
         acts.appendChild(no);
@@ -1358,7 +1365,7 @@ if (!defined('TODO_WIDGET_CSS')) {
 
         var ov = el('div', 'td-modal');
         var card = el('div', 'td-card');
-        card.appendChild(el('div', 'td-card-t', ids.length + (ids.length === 1 ? ' attività' : ' attività')));
+        card.appendChild(el('div', 'td-card-t', ids.length === 1 ? T('todo.n_attivita_1') : T('todo.n_attivita', { n: ids.length })));
         card.appendChild(el('div', 'td-card-s', T('todo.stessa_data_per_tutte')));
 
         function field(label, type, value) {
@@ -1373,15 +1380,15 @@ if (!defined('TODO_WIDGET_CSS')) {
             card.appendChild(r);
             return i;
         }
-        var dateIn = field('Data', 'date', this.today);
-        var timeIn = field('Ora', 'time', '');
-        var durIn  = field('Durata (min)', 'number', 30);
+        var dateIn = field(T('comune.data'), 'date', this.today);
+        var timeIn = field(T('comune.ora'), 'time', '');
+        var durIn  = field(T('todo.durata_min'), 'number', 30);
 
         var acts = el('div', 'td-card-acts');
-        var no = el('button', null, 'Annulla');
+        var no = el('button', null, T('comune.annulla'));
         no.type = 'button';
         no.addEventListener('click', function () { ov.remove(); });
-        var yes = el('button', 'td-primary', 'Applica');
+        var yes = el('button', 'td-primary', T('comune.applica'));
         yes.type = 'button';
         yes.addEventListener('click', function () {
             api('bulk', {
@@ -1483,7 +1490,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         var late = p.late || [];
         if (late.length) {
             self.list.appendChild(el('div', 'td-pill-sect td-pill-lasect',
-                late.length === 1 ? 'Rimasta indietro' : 'Rimaste indietro'));
+                late.length === 1 ? T('todo.rimasta_indietro') : T('todo.rimaste_indietro')));
             late.forEach(function (d) { self.list.appendChild(self.pillDoseRow(d, true)); });
         }
 
@@ -1585,8 +1592,7 @@ if (!defined('TODO_WIDGET_CSS')) {
        quello il punto.
        ================================================================== */
     var CAL_GG = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
-    var CAL_MESI = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio',
-                    'agosto','settembre','ottobre','novembre','dicembre'];
+    var CAL_MESI = nomiMesi('long');
 
     /* Quante prese prevede in un giorno: «10:00x2,20:00x1» fa tre. È il
        numero da cui dipende tutto il resto — quanti colori hanno senso e
@@ -1776,10 +1782,10 @@ if (!defined('TODO_WIDGET_CSS')) {
     Todo.prototype.pillGrafico = function (plan) {
         var ov = el('div', 'td-modal');
         var card = el('div', 'td-card td-card-wide');
-        card.appendChild(el('div', 'td-card-t', plan.name || 'Terapia'));
+        card.appendChild(el('div', 'td-card-t', plan.name || T('todo.terapia')));
         card.appendChild(pillCalendario(plan, plan.dose || ''));
         var acts = el('div', 'td-card-acts');
-        var ok = el('button', 'td-primary', 'Chiudi');
+        var ok = el('button', 'td-primary', T('comune.chiudi'));
         ok.type = 'button';
         ok.addEventListener('click', function () { ov.remove(); });
         acts.appendChild(ok);
@@ -1795,7 +1801,7 @@ if (!defined('TODO_WIDGET_CSS')) {
 
         var box = el('button', 'td-pill-check');
         box.type = 'button';
-        box.setAttribute('aria-label', d.status === 'taken' ? 'Presa' : T('todo.segna_come_presa'));
+        box.setAttribute('aria-label', d.status === 'taken' ? T('todo.presa_maiusc') : T('todo.segna_come_presa'));
         box.style.setProperty('--pill', d.color || '#B7A6D6');
         if (d.status === 'taken') {
             box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
@@ -1849,9 +1855,9 @@ if (!defined('TODO_WIDGET_CSS')) {
         if (d.status === 'taken' && d.taken_at) {
             var quando = el('button', 'td-pill-sub td-pill-when');
             quando.type = 'button';
-            quando.textContent = 'presa ' + (d.date && d.date !== pillOggi()
-                ? 'il ' + pillGiornoDi(d.taken_at).slice(8, 10) + '/' + pillGiornoDi(d.taken_at).slice(5, 7) + ' alle '
-                : 'alle ') + pillOraDi(d.taken_at);
+            quando.textContent = (d.date && d.date !== pillOggi())
+                ? T('todo.presa_il_alle', { data: pillGiornoDi(d.taken_at).slice(8, 10) + '/' + pillGiornoDi(d.taken_at).slice(5, 7), ora: pillOraDi(d.taken_at) })
+                : T('todo.presa_alle', { ora: pillOraDi(d.taken_at) });
             quando.addEventListener('click', function () {
                 self.pillQuando(d, function (nuovoQuando) { segna('taken', nuovoQuando); });
             });
@@ -1904,14 +1910,11 @@ if (!defined('TODO_WIDGET_CSS')) {
 
     /* «lunedì 3 agosto», per dire di che giorno è una presa arretrata. */
     function pillGiornoLungo(iso) {
-        var GG = ['domenica','lunedì','martedì','mercoledì','giovedì','venerdì','sabato'];
-        var MM = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio',
-                  'agosto','settembre','ottobre','novembre','dicembre'];
         var d = new Date(iso + 'T12:00:00');
         var ieri = new Date(); ieri.setDate(ieri.getDate() - 1);
         var isoIeri = ieri.getFullYear() + '-' + pad(ieri.getMonth() + 1) + '-' + pad(ieri.getDate());
-        if (iso === isoIeri) return 'ieri';
-        return GG[d.getDay()] + ' ' + d.getDate() + ' ' + MM[d.getMonth()];
+        if (iso === isoIeri) return T('todo.ieri_min');
+        return new Intl.DateTimeFormat(LINGUA, { weekday: 'long', day: 'numeric', month: 'long' }).format(d);
     }
 
     /* Quando l'hai presa davvero. Sulle arretrate si chiede anche il giorno,
@@ -1927,7 +1930,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         var iData = null;
         if (chiediGiorno) {
             var fd = el('div', 'td-pill-field');
-            fd.appendChild(el('label', 'td-pill-lab', 'Giorno'));
+            fd.appendChild(el('label', 'td-pill-lab', T('todo.giorno')));
             iData = el('input', 'td-in');
             iData.type = 'date';
             iData.value = pillGiornoDi(d.taken_at) || d.date || pillOggi();
@@ -1935,7 +1938,7 @@ if (!defined('TODO_WIDGET_CSS')) {
             card.appendChild(fd);
         }
         var ft = el('div', 'td-pill-field');
-        ft.appendChild(el('label', 'td-pill-lab', 'Ora'));
+        ft.appendChild(el('label', 'td-pill-lab', T('comune.ora')));
         var iOra = el('input', 'td-in');
         iOra.type = 'time'; iOra.step = '60';
         iOra.value = pillOraDi(d.taken_at) || d.time || '08:00';
@@ -1943,8 +1946,8 @@ if (!defined('TODO_WIDGET_CSS')) {
         card.appendChild(ft);
 
         var az = el('div', 'td-card-az');
-        var no = el('button', 'td-b', 'Annulla'); no.type = 'button';
-        var si = el('button', 'td-b td-b-p', 'Salva'); si.type = 'button';
+        var no = el('button', 'td-b', T('comune.annulla')); no.type = 'button';
+        var si = el('button', 'td-b td-b-p', T('comune.salva')); si.type = 'button';
         no.addEventListener('click', function () { ov.remove(); });
         si.addEventListener('click', function () {
             var g = iData ? (iData.value || d.date || pillOggi()) : (d.date || pillOggi());
@@ -1981,7 +1984,7 @@ if (!defined('TODO_WIDGET_CSS')) {
 
         var ov = el('div', 'td-modal');
         var card = el('div', 'td-card td-card-wide');
-        card.appendChild(el('div', 'td-card-t', nuovo ? T('todo.nuova_terapia') : 'Terapia'));
+        card.appendChild(el('div', 'td-card-t', nuovo ? T('todo.nuova_terapia') : T('todo.terapia')));
 
         function campo(lab, node) {
             var f = el('div', 'td-pill-field');
@@ -1996,14 +1999,14 @@ if (!defined('TODO_WIDGET_CSS')) {
             return i;
         }
 
-        var iNome  = campo('Cosa', testo(pl.name, 'Vitamina D, magnesio…', 120));
-        var iDose  = campo('Quanto', testo(pl.dose, T('todo.esempio_dose'), 60));
-        var iNote  = campo('Nota', testo(pl.notes, T('todo.esempio_note'), 255));
+        var iNome  = campo(T('todo.cosa'), testo(pl.name, T('todo.esempio_pastiglia'), 120));
+        var iDose  = campo(T('todo.quanto'), testo(pl.dose, T('todo.esempio_dose'), 60));
+        var iNote  = campo(T('todo.nota_breve'), testo(pl.notes, T('todo.esempio_note'), 255));
 
         /* --- ritmo --- */
         var rit = el('div', 'td-pill-seg');
         var ritBtn = {};
-        [['daily', 'giorni della settimana'], ['monthly', T('todo.giorni_del_mese')], ['interval', T('todo.ogni_n_giorni')]]
+        [['daily', T('todo.giorni_settimana')], ['monthly', T('todo.giorni_del_mese')], ['interval', T('todo.ogni_n_giorni')]]
         .forEach(function (o) {
             var b = el('button', 'td-pill-segb' + (stato.freq === o[0] ? ' td-on' : ''), o[1]);
             b.type = 'button';
@@ -2015,7 +2018,7 @@ if (!defined('TODO_WIDGET_CSS')) {
             ritBtn[o[0]] = b;
             rit.appendChild(b);
         });
-        campo('Quando', rit);
+        campo(T('todo.quando'), rit);
         var ritBox = el('div', 'td-pill-ritmo');
         card.appendChild(ritBox);
 
@@ -2087,20 +2090,20 @@ if (!defined('TODO_WIDGET_CSS')) {
         campo(T('todo.a_che_ora'), oreBox);
 
         var iDa = el('input', 'td-in'); iDa.type = 'date'; iDa.value = pl.start_date || pillOggi();
-        campo('Da', iDa);
+        campo(T('todo.da'), iDa);
         var iA = el('input', 'td-in'); iA.type = 'date'; iA.value = pl.end_date || '';
-        campo('Fino a (vuoto = sempre)', iA);
+        campo(T('todo.fino_a'), iA);
 
-        var att = el('button', 'td-pill-att' + (pl.active ? ' td-on' : ''), pl.active ? 'Attiva' : 'Sospesa');
+        var att = el('button', 'td-pill-att' + (pl.active ? ' td-on' : ''), pl.active ? T('todo.attiva') : T('todo.sospesa'));
         att.type = 'button';
         att.dataset.on = pl.active ? '1' : '0';
         att.addEventListener('click', function () {
             var on = att.dataset.on !== '1';
             att.dataset.on = on ? '1' : '0';
             att.classList.toggle('td-on', on);
-            att.textContent = on ? 'Attiva' : 'Sospesa';
+            att.textContent = on ? T('todo.attiva') : T('todo.sospesa');
         });
-        campo('Stato', att);
+        campo(T('todo.stato'), att);
 
         /* Come è andata, in fondo e non in cima: la scheda si apre per
            cambiare la terapia, e la storia è quello che si guarda dopo aver
@@ -2109,13 +2112,13 @@ if (!defined('TODO_WIDGET_CSS')) {
         if (!nuovo && pl.id) card.appendChild(pillCalendario(pl));
 
         var acts = el('div', 'td-card-acts');
-        var ann = el('button', null, 'Annulla');
+        var ann = el('button', null, T('comune.annulla'));
         ann.type = 'button';
         ann.addEventListener('click', function () { ov.remove(); });
         acts.appendChild(ann);
 
         if (!nuovo) {
-            var del = el('button', null, 'Elimina');
+            var del = el('button', null, T('comune.elimina'));
             del.type = 'button';
             del.addEventListener('click', function () {
                 ov.remove();
@@ -2126,7 +2129,7 @@ if (!defined('TODO_WIDGET_CSS')) {
             acts.appendChild(del);
         }
 
-        var ok = el('button', 'td-primary', 'Salva');
+        var ok = el('button', 'td-primary', T('comune.salva'));
         ok.type = 'button';
         ok.addEventListener('click', function () {
             if (!iNome.value.trim()) { iNome.focus(); return; }

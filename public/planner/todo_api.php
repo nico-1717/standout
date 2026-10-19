@@ -100,7 +100,7 @@ function td_sync_planner(int $uid, int $todoId): void {
                                         + (int)substr($t['due_time'], 3, 2)
                                         + max(5, (int)$t['duration_minutes']));
     $end    = $allDay ? '23:59:00' : sprintf('%02d:%02d:00', intdiv($endMin, 60), $endMin % 60);
-    $title  = $t['title'] !== '' ? $t['title'] : 'Attività';
+    $title  = $t['title'] !== '' ? $t['title'] : t('todo.attivita_senza_titolo');
 
     if (!empty($t['planner_event_id'])) {
         $exists = sec_one("SELECT id FROM planner_events WHERE id = ? AND user_id = ?", [(int)$t['planner_event_id'], $uid], 'ii');
@@ -224,7 +224,7 @@ if ($ajax === 'list') {
             WHERE t.user_id = ? AND t.list_type = ?";
     $params = [$uid, $type];
     if ($scope === 'project') {
-        if ($projId > 0 && !sec_owns('projects', $projId, $uid)) sec_die_json('Progetto non trovato.', 404, 'not_found');
+        if ($projId > 0 && !sec_owns('projects', $projId, $uid)) sec_die_json(t('api.progetto_non_trovato'), 404, 'not_found');
         $sql .= " AND t.project_id = ?";
         $params[] = $projId;
     } elseif ($scope === 'pomodoro') {
@@ -306,7 +306,7 @@ if ($ajax === 'save') {
     $url   = td_url(sec_in('url'));
 
     if ($id > 0) {
-        if (!sec_owns('todos', $id, $uid)) sec_die_json('Attività non trovata.', 404, 'not_found');
+        if (!sec_owns('todos', $id, $uid)) sec_die_json(t('api.attivita_non_trovata'), 404, 'not_found');
         if ($title === '') {   // svuotare il titolo equivale a cancellarla
             $t = sec_one("SELECT planner_event_id, buy_image FROM todos WHERE id=? AND user_id=?", [$id, $uid], 'ii');
             if ($t && !empty($t['planner_event_id'])) {
@@ -346,7 +346,7 @@ if ($ajax === 'save') {
 
 if ($ajax === 'toggle') {
     $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
-    if (!sec_owns('todos', $id, $uid)) sec_die_json('Attività non trovata.', 404, 'not_found');
+    if (!sec_owns('todos', $id, $uid)) sec_die_json(t('api.attivita_non_trovata'), 404, 'not_found');
     $t = sec_one("SELECT is_done FROM todos WHERE id=? AND user_id=?", [$id, $uid], 'ii');
     $next = (int)$t['is_done'] === 1 ? 0 : 1;
     sec_q("UPDATE todos SET is_done=?, done_at=" . ($next ? 'NOW()' : 'NULL') . " WHERE id=? AND user_id=?",
@@ -360,7 +360,7 @@ if ($ajax === 'toggle') {
 
 if ($ajax === 'delete') {
     $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
-    if (!sec_owns('todos', $id, $uid)) sec_die_json('Attività non trovata.', 404, 'not_found');
+    if (!sec_owns('todos', $id, $uid)) sec_die_json(t('api.attivita_non_trovata'), 404, 'not_found');
     $kids = sec_all("SELECT id, planner_event_id, buy_image FROM todos WHERE user_id=? AND (id=? OR parent_id=?)", [$uid, $id, $id], 'iii');
     foreach ($kids as $k) {
         if (!empty($k['planner_event_id'])) {
@@ -377,14 +377,14 @@ if ($ajax === 'delete') {
 if ($ajax === 'bulk') {
     $ids    = sec_in('ids');
     $action = sec_enum(sec_in('action'), ['schedule', 'project', 'buy', 'move', 'delete'], 'schedule');
-    if (!is_array($ids) || empty($ids)) sec_die_json('Nessuna attività scelta.', 422, 'empty');
+    if (!is_array($ids) || empty($ids)) sec_die_json(t('api.nessuna_attivita_scelta'), 422, 'empty');
 
     $clean = [];
     foreach (array_slice($ids, 0, 200) as $raw) {
         $tid = sec_int($raw, 1, PHP_INT_MAX, 0);
         if ($tid > 0 && sec_owns('todos', $tid, $uid)) $clean[] = $tid;
     }
-    if (empty($clean)) sec_die_json('Nessuna attività valida.', 422, 'empty');
+    if (empty($clean)) sec_die_json(t('api.nessuna_attivita_valida'), 422, 'empty');
 
     if ($action === 'delete') {
         foreach ($clean as $tid) {
@@ -400,7 +400,7 @@ if ($ajax === 'bulk') {
 
     if ($action === 'project') {
         $projId = sec_int(sec_in('project_id'), 0, PHP_INT_MAX, 0);
-        if ($projId > 0 && !sec_owns('projects', $projId, $uid)) sec_die_json('Progetto non trovato.', 404, 'not_found');
+        if ($projId > 0 && !sec_owns('projects', $projId, $uid)) sec_die_json(t('api.progetto_non_trovato'), 404, 'not_found');
         foreach ($clean as $tid) {
             sec_q("UPDATE todos SET project_id=? WHERE id=? AND user_id=?",
                   [$projId > 0 ? $projId : null, $tid, $uid]);
@@ -417,7 +417,7 @@ if ($ajax === 'bulk') {
         $hasCat  = in_array('cat_id', $setti, true);
         $hasPrio = in_array('priority', $setti, true);
         $catId = sec_int(sec_in('cat_id'), 0, PHP_INT_MAX, 0);
-        if ($catId > 0 && !sec_owns('todo_buy_categories', $catId, $uid)) sec_die_json('Categoria non trovata.', 404, 'not_found');
+        if ($catId > 0 && !sec_owns('todo_buy_categories', $catId, $uid)) sec_die_json(t('api.categoria_non_trovata'), 404, 'not_found');
         $prio  = sec_int(sec_in('priority'), 1, 3, 3);   /* di partenza l'ultima: si alza a mano quello che conta */
         foreach ($clean as $tid) {
             if ($hasCat)  sec_q("UPDATE todos SET buy_category_id=? WHERE id=? AND user_id=?", [$catId > 0 ? $catId : null, $tid, $uid], 'iii');
@@ -448,7 +448,7 @@ if ($ajax === 'bulk') {
 
 if ($ajax === 'reorder') {
     $ids = sec_in('ids');
-    if (!is_array($ids)) sec_die_json('Ordine non valido.', 422, 'invalid');
+    if (!is_array($ids)) sec_die_json(t('api.ordine_non_valido'), 422, 'invalid');
     $n = 1;
     foreach (array_slice($ids, 0, 300) as $raw) {
         $tid = sec_int($raw, 1, PHP_INT_MAX, 0);
@@ -465,9 +465,9 @@ if ($ajax === 'cat_save') {
     $id    = sec_int(sec_in('id'), 0, PHP_INT_MAX, 0);
     $name  = sec_str(sec_in('name'), 60);
     $color = sec_color(sec_in('color'));
-    if ($name === '') sec_die_json('Serve un nome per la categoria.', 422, 'invalid');
+    if ($name === '') sec_die_json(t('api.serve_nome_categoria'), 422, 'invalid');
     if ($id > 0) {
-        if (!sec_owns('todo_buy_categories', $id, $uid)) sec_die_json('Categoria non trovata.', 404, 'not_found');
+        if (!sec_owns('todo_buy_categories', $id, $uid)) sec_die_json(t('api.categoria_non_trovata'), 404, 'not_found');
         sec_q("UPDATE todo_buy_categories SET name=?, color=? WHERE id=? AND user_id=?", [$name, $color, $id, $uid], 'ssii');
     } else {
         /* il nome è unico per utente: se esiste già si tiene quella, invece
@@ -488,7 +488,7 @@ if ($ajax === 'cat_save') {
 
 if ($ajax === 'cat_delete') {
     $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
-    if (!sec_owns('todo_buy_categories', $id, $uid)) sec_die_json('Categoria non trovata.', 404, 'not_found');
+    if (!sec_owns('todo_buy_categories', $id, $uid)) sec_die_json(t('api.categoria_non_trovata'), 404, 'not_found');
     /* gli articoli non si cancellano insieme alla categoria: restano, senza
        categoria, nel gruppo "senza categoria". Cancellare la spesa di uno
        perché si è cambiata idea sulle etichette sarebbe una sorpresa. */
@@ -504,13 +504,13 @@ if ($ajax === 'cat_delete') {
 
 if ($ajax === 'image') {
     $id = sec_int($_POST['id'] ?? 0, 1, PHP_INT_MAX, 0);
-    if (!sec_owns('todos', $id, $uid)) sec_die_json('Attività non trovata.', 404, 'not_found');
+    if (!sec_owns('todos', $id, $uid)) sec_die_json(t('api.attivita_non_trovata'), 404, 'not_found');
     if (!isset($_FILES['file']) || !is_array($_FILES['file']) || ($_FILES['file']['error'] ?? 1) !== UPLOAD_ERR_OK) {
-        sec_die_json('Immagine non ricevuta.', 422, 'invalid');
+        sec_die_json(t('api.immagine_non_ricevuta'), 422, 'invalid');
     }
     $tmp = $_FILES['file']['tmp_name'];
-    if (!is_uploaded_file($tmp)) sec_die_json('Immagine non valida.', 422, 'invalid');
-    if (filesize($tmp) > 4 * 1024 * 1024) sec_die_json('Immagine troppo grande: massimo 4 MB.', 422, 'too_big');
+    if (!is_uploaded_file($tmp)) sec_die_json(t('api.immagine_non_valida'), 422, 'invalid');
+    if (filesize($tmp) > 4 * 1024 * 1024) sec_die_json(t('api.immagine_troppo_grande_4'), 422, 'too_big');
 
     $ammessi = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
     $mime = '';
@@ -519,15 +519,15 @@ if ($ajax === 'image') {
         $mime = (string)finfo_file($fi, $tmp);
         finfo_close($fi);
     }
-    if (!isset($ammessi[$mime])) sec_die_json('Servono immagini jpg, png, webp o gif.', 422, 'bad_type');
+    if (!isset($ammessi[$mime])) sec_die_json(t('api.servono_immagini'), 422, 'bad_type');
     /* doppia verifica: un file può dichiarare un tipo immagine e non essere
        leggibile come tale */
     $dim = @getimagesize($tmp);
-    if ($dim === false) sec_die_json('Immagine non leggibile.', 422, 'bad_type');
+    if ($dim === false) sec_die_json(t('api.immagine_non_leggibile'), 422, 'bad_type');
 
     $dir = td_img_dir();
     if (!is_dir($dir)) @mkdir($dir, 0755, true);
-    if (!is_dir($dir) || !is_writable($dir)) sec_die_json('Cartella delle immagini non scrivibile.', 500, 'server');
+    if (!is_dir($dir) || !is_writable($dir)) sec_die_json(t('api.cartella_non_scrivibile'), 500, 'server');
     /* la cartella non deve poter eseguire niente: se un giorno ci finisse
        dentro un file interpretabile, resta un file e basta */
     if (!is_file($dir . '/.htaccess')) {
@@ -535,7 +535,7 @@ if ($ajax === 'image') {
     }
 
     $nome = 'b' . $uid . '_' . bin2hex(random_bytes(10)) . '.' . $ammessi[$mime];
-    if (!move_uploaded_file($tmp, $dir . '/' . $nome)) sec_die_json('Immagine non salvata.', 500, 'server');
+    if (!move_uploaded_file($tmp, $dir . '/' . $nome)) sec_die_json(t('api.immagine_non_salvata'), 500, 'server');
     @chmod($dir . '/' . $nome, 0644);
 
     // la vecchia immagine non serve più: una riga, una immagine
@@ -548,7 +548,7 @@ if ($ajax === 'image') {
 
 if ($ajax === 'image_del') {
     $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
-    if (!sec_owns('todos', $id, $uid)) sec_die_json('Attività non trovata.', 404, 'not_found');
+    if (!sec_owns('todos', $id, $uid)) sec_die_json(t('api.attivita_non_trovata'), 404, 'not_found');
     $t = sec_one("SELECT buy_image FROM todos WHERE id=? AND user_id=?", [$id, $uid], 'ii');
     if ($t) td_drop_image($t['buy_image'] ?? null);
     sec_q("UPDATE todos SET buy_image=NULL WHERE id=? AND user_id=?", [$id, $uid], 'ii');
@@ -806,9 +806,9 @@ if ($ajax === 'pills') {
 
 /* ---------------- spunta di una presa ---------------- */
 if ($ajax === 'pill_mark') {
-    if (!td_pills_c_e()) sec_die_json('Sezione non installata.', 400, 'no_table');
+    if (!td_pills_c_e()) sec_die_json(t('api.sezione_non_installata'), 400, 'no_table');
     $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
-    if (!sec_owns('pill_doses', $id, $uid)) sec_die_json('Presa non trovata.', 404, 'not_found');
+    if (!sec_owns('pill_doses', $id, $uid)) sec_die_json(t('api.presa_non_trovata'), 404, 'not_found');
     $st = sec_enum(sec_in('status'), ['pending', 'taken', 'skipped'], 'taken');
 
     /* L'ora vera della spunta, non quella prevista: è la differenza fra le due
@@ -840,9 +840,9 @@ if ($ajax === 'pill_mark') {
    finite; i giorni in cui la terapia non toccava non compaiono affatto,
    perché un buco lì non è una dimenticanza. */
 if ($ajax === 'pill_history') {
-    if (!td_pills_c_e()) sec_die_json('Sezione non installata.', 400, 'no_table');
+    if (!td_pills_c_e()) sec_die_json(t('api.sezione_non_installata'), 400, 'no_table');
     $id = sec_int(sec_in('plan_id'), 1, PHP_INT_MAX, 0);
-    if (!sec_owns('pill_plans', $id, $uid)) sec_die_json('Terapia non trovata.', 404, 'not_found');
+    if (!sec_owns('pill_plans', $id, $uid)) sec_die_json(t('api.terapia_non_trovata'), 404, 'not_found');
     /* Un mese per volta quando il calendario lo chiede, altrimenti gli ultimi
        N giorni. Il mese si valida con l'espressione e non con sec_date,
        perché qui manca il giorno e sec_date rifiuterebbe la stringa. */
@@ -875,10 +875,10 @@ if ($ajax === 'pill_history') {
 
 /* ---------------- terapia: crea o modifica ---------------- */
 if ($ajax === 'pill_save') {
-    if (!td_pills_c_e()) sec_die_json('Sezione non installata.', 400, 'no_table');
+    if (!td_pills_c_e()) sec_die_json(t('api.sezione_non_installata'), 400, 'no_table');
     $id    = sec_int(sec_in('id'), 0, PHP_INT_MAX, 0);
     $name  = sec_str(sec_in('name'), 120);
-    if ($name === '') sec_die_json('Manca il nome.', 422, 'empty');
+    if ($name === '') sec_die_json(t('api.manca_il_nome'), 422, 'empty');
     $dose  = sec_str(sec_in('dose'), 60);
     $notes = sec_str(sec_in('notes'), 255);
     $color = sec_color(sec_in('color'), '#B7A6D6');
@@ -900,7 +900,7 @@ if ($ajax === 'pill_save') {
     $att   = sec_bool(sec_in('active')) ? 1 : 0;
 
     if ($id > 0) {
-        if (!sec_owns('pill_plans', $id, $uid)) sec_die_json('Terapia non trovata.', 404, 'not_found');
+        if (!sec_owns('pill_plans', $id, $uid)) sec_die_json(t('api.terapia_non_trovata'), 404, 'not_found');
 
         /* Il ritmo è cambiato? Si guarda PRIMA di scrivere. Solo se cambia
            davvero si sposta schedule_from a oggi: correggere il nome o il
@@ -961,9 +961,9 @@ if ($ajax === 'pill_save') {
 
 /* ---------------- terapia: elimina ---------------- */
 if ($ajax === 'pill_del') {
-    if (!td_pills_c_e()) sec_die_json('Sezione non installata.', 400, 'no_table');
+    if (!td_pills_c_e()) sec_die_json(t('api.sezione_non_installata'), 400, 'no_table');
     $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
-    if (!sec_owns('pill_plans', $id, $uid)) sec_die_json('Terapia non trovata.', 404, 'not_found');
+    if (!sec_owns('pill_plans', $id, $uid)) sec_die_json(t('api.terapia_non_trovata'), 404, 'not_found');
     /* via anche le prese: senza la terapia non vogliono dire più niente, e
        tenerle farebbe un archivio di righe orfane */
     sec_q("DELETE FROM pill_doses WHERE plan_id=? AND user_id=?", [$id, $uid], 'ii');
@@ -971,4 +971,4 @@ if ($ajax === 'pill_del') {
     sec_json(['ok' => true, 'plans' => td_pill_plans($uid)]);
 }
 
-sec_die_json('Richiesta non riconosciuta.', 404, 'unknown_action');
+sec_die_json(t('api.richiesta_non_riconosciuta'), 404, 'unknown_action');

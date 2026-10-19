@@ -8,9 +8,10 @@
    specificita', non per ordine di caricamento.
 
    Indice
-     1. Token, chiaro          4. Planner
-     2. Token, scuro           5. Diario
-     3. Caratteri               6. To do e To study
+     1. Token, chiaro          5. Diario
+     2. Token, scuro           6. To do e To study
+     3. Caratteri              7. Caratteri piu' grandi (generato)
+     4. Planner                8. Gerarchia e superfici
    ===================================================================== */
 
 /* ------------------------------------------------------------------ */
@@ -19,9 +20,9 @@
 html[data-stile="standard"]{
     --so-font:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --so-bg:#F2F2F7; --so-surface:#FFFFFF; --so-fill:#E9E9EE; --so-fill-2:#DEDEE3;
-    --so-text:#1C1C1E; --so-text-2:#8A8A8E; --so-text-3:#AEAEB2;
-    --so-text-rgb:60,60,67;
-    --so-hair:rgba(60,60,67,.12); --so-hair-2:rgba(60,60,67,.22);
+    --so-text:#1C1C1E; --so-text-2:#55555A; --so-text-3:#86868B;
+    --so-text-rgb:44,44,48;
+    --so-hair:rgba(60,60,67,.16); --so-hair-2:rgba(60,60,67,.28);
     --so-blue:#007AFF; --so-blue-soft:rgba(0,122,255,.14); --so-blue-wash:rgba(0,122,255,.07); --so-blue-ink:#0062CC;
     --so-red:#FF3B30; --so-red-soft:rgba(255,59,48,.12);
     --so-shadow:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
@@ -32,10 +33,13 @@ html[data-stile="standard"]{
     --paper:var(--so-bg); --paper-2:var(--so-fill); --paper-3:var(--so-fill-2); --card:var(--so-surface);
     --ink:var(--so-text);
     --ink-rgb:var(--so-text-rgb); --card-rgb:255,255,255; --paper-rgb:242,242,247;
-    --ink-2:rgba(var(--so-text-rgb),calc(.56 + .08 * var(--k, 1)));
-    --ink-3:rgba(var(--so-text-rgb),calc(.30 + .08 * var(--k, 1)));
-    --hair:rgba(var(--so-text-rgb),calc(.07 + .03 * var(--k, 1)));
-    --hair-2:rgba(var(--so-text-rgb),calc(.14 + .05 * var(--k, 1)));
+    /* Più decisi della carta: il testo secondario resta leggibile anche
+       piccolo, le linee della griglia si vedono. --k (la "marcatura" delle
+       impostazioni) spinge ancora un po' più in là. */
+    --ink-2:rgba(var(--so-text-rgb),calc(.80 + .04 * var(--k, 1)));
+    --ink-3:rgba(var(--so-text-rgb),calc(.58 + .05 * var(--k, 1)));
+    --hair:rgba(var(--so-text-rgb),calc(.13 + .03 * var(--k, 1)));
+    --hair-2:rgba(var(--so-text-rgb),calc(.24 + .04 * var(--k, 1)));
     --accent:var(--so-blue); --accent-soft:var(--so-blue-soft); --accent-wash:var(--so-blue-wash);
     --accent-ink:var(--so-blue-ink); --on-accent:#FFFFFF;
     --neutral-ev:#E5E5EA;
@@ -78,9 +82,9 @@ html[data-stile="standard"] .dy-body .td-wrap{
 @media (prefers-color-scheme: dark){
     html[data-stile="standard"]{
         --so-bg:#000000; --so-surface:#1C1C1E; --so-fill:#2C2C2E; --so-fill-2:#3A3A3C;
-        --so-text:#F5F5F7; --so-text-2:#98989F; --so-text-3:#636366;
+        --so-text:#F5F5F7; --so-text-2:#BDBDC2; --so-text-3:#8E8E93;
         --so-text-rgb:235,235,245;
-        --so-hair:rgba(84,84,88,.45); --so-hair-2:rgba(84,84,88,.65);
+        --so-hair:rgba(120,120,128,.40); --so-hair-2:rgba(120,120,128,.60);
         --so-blue:#0A84FF; --so-blue-soft:rgba(10,132,255,.24); --so-blue-wash:rgba(10,132,255,.13); --so-blue-ink:#64A8FF;
         --so-red:#FF453A; --so-red-soft:rgba(255,69,58,.18);
         --so-shadow:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
@@ -168,3 +172,211 @@ html[data-stile="standard"] .tp-title{ font-weight:700; letter-spacing:-.02em; }
 html[data-stile="standard"] .tp-sub{ color:var(--so-text-3); }
 html[data-stile="standard"] .tp-back,
 html[data-stile="standard"] .tp-note{ color:var(--so-text-2); }
+
+/* ------------------------------------------------------------------ */
+/* 7. CARATTERI PIU' GRANDI (generato da tools/gen_standard_sizes.py) */
+/* La carta usa etichette minuscole e spaziate (8-11px): qui salgono   */
+/* di 2-3px e perdono la spaziatura, come nel resto del sito.          */
+/* ------------------------------------------------------------------ */
+html[data-stile="standard"] .pl-label{ font-size:12px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-fold-n{ font-size:13.5px; }
+html[data-stile="standard"] .pl-week-k{ font-size:10.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-day-wd{ font-size:14px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-day-wd-in{ font-size:13px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-month-year{ font-size:11px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-mini-wd{ font-size:10.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-mini-d{ font-size:14px; }
+html[data-stile="standard"] .pl-gutter-t{ font-size:12px; }
+html[data-stile="standard"] .pl-hcol-ad .pl-ev-t{ font-size:13.5px; }
+html[data-stile="standard"] .pl-col-wd{ font-size:11px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-ma-when{ font-size:13px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-ma-date{ font-size:13px; }
+html[data-stile="standard"] .pl-ma-hours{ font-size:13.5px; }
+html[data-stile="standard"] .pl-ma-sub{ font-size:13.5px; }
+html[data-stile="standard"] .pl-ma-allday{ font-size:13px; }
+html[data-stile="standard"] .pl-wx{ font-size:12px; }
+html[data-stile="standard"] .pl-wx-dove{ font-size:13.5px; }
+html[data-stile="standard"] .pl-wxc-h{ font-size:12px; }
+html[data-stile="standard"] .pl-wxc-p{ font-size:12px; }
+html[data-stile="standard"] .pl-wxc-et{ font-size:11.5px; }
+html[data-stile="standard"] .pl-wx-now{ font-size:14px; }
+html[data-stile="standard"] .pl-smart-note{ font-size:13px; }
+html[data-stile="standard"] .pl-prio-cell.pl-auto .pl-prio-in{ font-size:14px; }
+html[data-stile="standard"] .pl-prio.pl-slim .pl-prio-k .pl-label{ font-size:10.5px; }
+html[data-stile="standard"] .pl-prio-cell.pl-auto .pl-prio-tx{ font-size:14px; }
+html[data-stile="standard"] .pl-mini-btn{ font-size:14px; }
+html[data-stile="standard"] .pl-ev-prog{ font-size:12.5px; }
+html[data-stile="standard"] .pl-ev-stretto .pl-ev-t{ font-size:13px; }
+html[data-stile="standard"] .pl-ev-h{ font-size:12px; }
+html[data-stile="standard"] .pl-ev-with{ font-size:12.5px; }
+html[data-stile="standard"] .pl-routine-label span{ font-size:13.5px; }
+html[data-stile="standard"] .pl-ev-sub{ font-size:12px; }
+html[data-stile="standard"] .pl-ev-strip{ font-size:12px; }
+html[data-stile="standard"] .pl-ev-strip span{ font-size:12px; }
+html[data-stile="standard"] .pl-wl-link{ font-size:14px; }
+html[data-stile="standard"] .pl-wl-tabs .pl-wl-tab{ font-size:14px; }
+html[data-stile="standard"] .pl-pill-h{ font-size:14px; }
+html[data-stile="standard"] .pl-pill-dose{ font-size:13.5px; }
+html[data-stile="standard"] .pl-pill-salta{ font-size:12.5px; }
+html[data-stile="standard"] .pl-pill-stats{ font-size:13.5px; }
+html[data-stile="standard"] .pl-pill-quando{ font-size:12.5px; }
+html[data-stile="standard"] .pl-wl-glab{ font-size:11.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-li-price{ font-size:13.5px; }
+html[data-stile="standard"] .pl-li-when{ font-size:13px; }
+html[data-stile="standard"] .pl-li-prio{ font-size:12.5px; }
+html[data-stile="standard"] .pl-fab-cat.pl-picked{ font-size:14px; }
+html[data-stile="standard"] .pl-chip-lab{ font-size:11px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-chip-sub{ font-size:12.5px; }
+html[data-stile="standard"] .pl-switch button{ font-size:14px; }
+html[data-stile="standard"] .pl-prj-lab{ font-size:14px; }
+html[data-stile="standard"] .pl-gc-tag{ font-size:12px; }
+html[data-stile="standard"] .pl-gc-conta{ font-size:12.5px; }
+html[data-stile="standard"] .pl-row-sub{ font-size:13.5px; }
+html[data-stile="standard"] .pl-linkish{ font-size:13.5px; }
+html[data-stile="standard"] .pl-wk-dow{ font-size:10.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-wk-ora{ font-size:11.5px; }
+html[data-stile="standard"] .pl-wk-chip{ font-size:11px; }
+html[data-stile="standard"] .pl-wk-piu{ font-size:11px; }
+html[data-stile="standard"] .pl-mwd span{ font-size:11px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-mspan{ font-size:10.5px; }
+html[data-stile="standard"] .pl-zoom-step{ font-size:11px; }
+html[data-stile="standard"] .pl-wxa-tag{ font-size:14px; }
+html[data-stile="standard"] .pl-ev.pl-ev-senzaora .pl-ev-t{ font-size:12.5px; }
+html[data-stile="standard"] .pl-tipo-lab{ font-size:11.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .pl-tipo-riga .pl-seg button{ font-size:12.5px; }
+html[data-stile="standard"] .pl-wk-adlab{ font-size:10.5px; letter-spacing:.01em; }
+html[data-stile="standard"] #plHabitRing.pl-picked, html[data-stile="standard"] #plFabFav.pl-picked{ font-size:14px; }
+html[data-stile="standard"] .pl-avviso-t{ font-size:13px; }
+html[data-stile="standard"] .pl-avviso-salta{ font-size:12.5px; }
+html[data-stile="standard"] .pl-avviso-tutte{ font-size:12.5px; }
+html[data-stile="standard"] .pl-copyask.pl-copyask-basso .pl-copyask-t{ font-size:13.5px; }
+html[data-stile="standard"] .pl-copyask.pl-copyask-basso .pl-mini-btn{ font-size:13.5px; }
+html[data-stile="standard"] .pl-study-mat{ font-size:12.5px; }
+html[data-stile="standard"] .dy-lab{ font-size:11.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .dy-wd{ font-size:12.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .dy-card-s{ font-size:11.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .dy-hb-lab{ font-size:11.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .dy-li input::placeholder{ font-size:14px; }
+html[data-stile="standard"] .dy-saved{ font-size:12.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .dy-pop-lab{ font-size:11.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .dy-font-opt span:last-child{ font-size:11.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .dy-cal-wd span{ font-size:11px; letter-spacing:.01em; }
+html[data-stile="standard"] .dy-stat-k{ font-size:11px; letter-spacing:.01em; }
+html[data-stile="standard"] .dy-taped-li small{ font-size:11.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .td-pill-lab{ font-size:12.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .td-pill-hour{ font-size:14px; letter-spacing:.01em; }
+html[data-stile="standard"] .td-pill-late{ font-size:13px; }
+html[data-stile="standard"] .td-pill-sub{ font-size:13.5px; }
+html[data-stile="standard"] .td-pill-stats{ font-size:13.5px; }
+html[data-stile="standard"] .td-pill-lab-day{ font-size:12.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .td-pill-scorda{ font-size:13.5px; }
+html[data-stile="standard"] .td-pill-when{ font-size:13.5px; }
+html[data-stile="standard"] .td-pill-cal-dow{ font-size:12px; }
+html[data-stile="standard"] .td-pill-cal-c{ font-size:14px; }
+html[data-stile="standard"] .td-pill-cal-leg{ font-size:13.5px; }
+html[data-stile="standard"] .td-pill-cal-nota{ font-size:13.5px; }
+html[data-stile="standard"] .td-pill-sect{ font-size:12.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .td-pill-segb{ font-size:13.5px; }
+html[data-stile="standard"] .td-pill-day{ font-size:13px; }
+html[data-stile="standard"] .td-chip{ font-size:13px; }
+html[data-stile="standard"] .td-chip input{ font-size:13px; }
+html[data-stile="standard"] .td-lab{ font-size:11.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .td-sel-btn{ font-size:14px; }
+html[data-stile="standard"] .td-bulk .td-count{ font-size:13px; }
+html[data-stile="standard"] .td-plab{ font-size:11.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .td-ptot{ font-size:13px; }
+html[data-stile="standard"] .td-buylink{ font-size:13.5px; }
+html[data-stile="standard"] .td-buylink input{ font-size:13.5px; }
+html[data-stile="standard"] .td-total span{ font-size:12.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .ts-planner-btn{ font-size:13px; letter-spacing:.01em; }
+html[data-stile="standard"] .ts-fg-n{ font-size:13px; }
+html[data-stile="standard"] .ts-wd span{ font-size:11.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .ts-mini{ font-size:11.5px; }
+html[data-stile="standard"] .ts-piu{ font-size:11px; }
+html[data-stile="standard"] .ts-barra{ font-size:11.5px; }
+html[data-stile="standard"] .ts-mat-s{ font-size:13.5px; }
+html[data-stile="standard"] .ts-mat-fermo{ font-size:13.5px; }
+html[data-stile="standard"] .ts-mat-pia{ font-size:13px; }
+html[data-stile="standard"] .ts-piano-d{ font-size:13px; }
+html[data-stile="standard"] .ts-piano-p{ font-size:13px; }
+html[data-stile="standard"] .ts-conosco{ font-size:13.5px; }
+html[data-stile="standard"] .ts-sett-t{ font-size:12.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .ts-sett-l{ font-size:12.5px; }
+html[data-stile="standard"] .ts-sett-d{ font-size:13px; }
+html[data-stile="standard"] .ts-sett-m{ font-size:13.5px; }
+html[data-stile="standard"] .ts-grigi{ font-size:13.5px; }
+html[data-stile="standard"] .ts-lista-head{ font-size:12.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .ts-passati-t{ font-size:12.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .ts-ev-ora{ font-size:13.5px; }
+html[data-stile="standard"] .ts-giorno-w{ font-size:12.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .ts-ev-prog{ font-size:13px; }
+html[data-stile="standard"] .ts-senza{ font-size:12px; }
+html[data-stile="standard"] .ts-task-pom{ font-size:12.5px; }
+html[data-stile="standard"] .ts-sub{ font-size:12.5px; letter-spacing:.01em; }
+html[data-stile="standard"] .tp-sub{ font-size:12px; letter-spacing:.01em; }
+
+/* ------------------------------------------------------------------ */
+/* 8. GERARCHIA: numeri e titoli pieni, superfici solide              */
+/* La carta parla sottovoce (serif sottili, etichette spaziate, vetro  */
+/* color carta). Lo stile standard parla come il resto del sito: pesi  */
+/* decisi, testo che si legge al primo colpo, carte bianche vere.      */
+/* ------------------------------------------------------------------ */
+
+/* planner — intestazione */
+html[data-stile="standard"] .pl-day-num{ font-size:46px; font-weight:700; letter-spacing:-.035em; }
+html[data-stile="standard"] .pl-day-wd,
+html[data-stile="standard"] .pl-day-wd-in{ font-weight:600; color:var(--ink-2); }
+html[data-stile="standard"] .pl-month-name{ font-size:24px; font-weight:700; letter-spacing:-.02em; }
+html[data-stile="standard"] .pl-week-n{ font-size:19px; font-weight:700; }
+html[data-stile="standard"] .pl-tool-today{ font-size:14px; font-weight:700; }
+html[data-stile="standard"] .pl-affirm{ font-size:15px; font-weight:500; color:var(--ink-2); }
+html[data-stile="standard"] .pl-week,
+html[data-stile="standard"] .pl-tool,
+html[data-stile="standard"] .pl-mini-static{
+    background:var(--so-surface);
+    box-shadow:0 1px 2px rgba(0,0,0,.06), inset 0 0 0 .5px var(--hair-2);
+    -webkit-backdrop-filter:none; backdrop-filter:none;
+}
+html[data-stile="standard"] .pl-tool{ color:var(--ink); }
+html[data-stile="standard"] .pl-mini-static span{ font-size:6.2px; color:var(--ink-2); }
+
+/* planner — griglia: orari leggibili, giorni marcati */
+html[data-stile="standard"]{ --gutter-w:52px; }
+html[data-stile="standard"] .pl-gutter-t{ font-size:12.5px; font-weight:500; color:var(--ink-2); letter-spacing:0; }
+html[data-stile="standard"] .pl-gutter-t.pl-major{ color:var(--ink); font-weight:650; }
+html[data-stile="standard"] .pl-col-num{ font-size:19px; font-weight:700; }
+html[data-stile="standard"] .pl-col-wd{ font-weight:600; }
+html[data-stile="standard"] .pl-mcell-n{ font-size:14px; font-weight:600; color:var(--ink); }
+
+/* planner — eventi: tinta piu' piena e la striscia del colore a sinistra */
+html[data-stile="standard"] .pl-ev{
+    background:color-mix(in srgb, var(--ev) 26%, var(--card));
+    box-shadow:inset 3px 0 0 var(--ev), inset 0 0 0 .5px color-mix(in srgb, var(--ev) 50%, transparent);
+}
+html[data-stile="standard"] .pl-ev-t{ font-size:13.5px; font-weight:600; }
+html[data-stile="standard"] .pl-ev-h{ font-size:11.5px; font-weight:500; color:var(--ink-2); }
+
+/* planner — fogli e liste: i titoli erano serif sottili */
+html[data-stile="standard"] .pl-sheet-title,
+html[data-stile="standard"] .pl-list-title,
+html[data-stile="standard"] .pl-smart-title,
+html[data-stile="standard"] .pl-alert-t{ font-weight:700; letter-spacing:-.01em; }
+
+/* diario — il numero del giorno pieno, la pagina senza righe da quaderno */
+html[data-stile="standard"] .dy-num{ font-weight:700; letter-spacing:-.04em; }
+html[data-stile="standard"] .dy-wd{ font-weight:600; color:var(--dy-ink-2); }
+html[data-stile="standard"] .dy-card-t{ font-weight:700; }
+html[data-stile="standard"] .dy-write textarea{ background-image:none !important; }
+html[data-stile="standard"] .dy-li input{ border-bottom:.5px solid var(--dy-hair); }
+
+/* to do — titoli delle schede */
+html[data-stile="standard"] .td-card-t{ font-weight:700; }
+html[data-stile="standard"] .td-card,
+html[data-stile="standard"] .td-wrap .td-card{ background:var(--so-surface); }
+
+/* la fascia in alto e' gia' piena: qui i caratteri restano compatti, o
+   l'ultimo pulsante (il profilo) esce dallo schermo su un telefono */
+html[data-stile="standard"] .pl-week-k{ font-size:9.5px; letter-spacing:.02em; }
+html[data-stile="standard"] .pl-week{ padding:5px 9px 5px 8px; gap:6px; }
+html[data-stile="standard"] .pl-prio-in,
+html[data-stile="standard"] .pl-prio-cell.pl-auto .pl-prio-in{ font-size:13px; }

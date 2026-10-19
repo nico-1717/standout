@@ -568,7 +568,7 @@ function wxPopup(date) {
             oIco.innerHTML = WX_ICONE[oNome] || WX_ICONE.nubi;
             ora.appendChild(oIco);
             var pezzi = [T('planner.adesso_t', {t: WX.adesso.temp})];
-            if (WX.adesso.percepita !== null && WX.adesso.percepita !== undefined) pezzi.push('percepiti ' + WX.adesso.percepita + '°');
+            if (WX.adesso.percepita !== null && WX.adesso.percepita !== undefined) pezzi.push(T('planner.percepiti_t', { t: WX.adesso.percepita }));
             if (WX.adesso.vento !== null && WX.adesso.vento !== undefined) pezzi.push(WX.adesso.vento + T('planner.km_h'));
             if (WX.adesso.umidita !== null && WX.adesso.umidita !== undefined) pezzi.push(T('planner.umidita_lbl') + WX.adesso.umidita + '%');
             ora.appendChild(el('span', null, WX.adesso.label + ' · ' + pezzi.join(' · ')));

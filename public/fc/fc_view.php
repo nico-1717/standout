@@ -491,7 +491,7 @@ $categoryID = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
 $cat_query = sec_all("SELECT id, name, color, color_edited, parent_id FROM " . fc_t('decks') . " WHERE user_id = ?" . $fcW . " ORDER BY name", array_merge([$current_user_id], $fcP));
 $categories_list = [];
 
-$current_cat_name = 'Tutte le Categorie';
+$current_cat_name = t('fc.vis_tutte_categorie');
 
 $current_cat_color = '#5E5CE6'; // Colore neutro di default (vista "tutte le categorie")
 
@@ -2293,7 +2293,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
         </button>
 
         <?php if ($categoryID != 0): ?>
-        <a href="<?= sec_h(fc_url('fc_game_setup.php', ['preselect_category' => (int)$categoryID])) ?>" class="icon-btn play-cat-btn" aria-label="<?php te('vocab.vi_gioca'); ?>" title="Gioca con questa categoria">
+        <a href="<?= sec_h(fc_url('fc_game_setup.php', ['preselect_category' => (int)$categoryID])) ?>" class="icon-btn play-cat-btn" aria-label="<?php te('vocab.vi_gioca'); ?>" title="<?php te('fc.vis_gioca_categoria'); ?>">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>
         </a>
         <a href="<?= sec_h(fc_url('fc_insert.php', ['category_id' => (int)$categoryID, 'modo' => 'edit'])) ?>" class="icon-btn big-edit-btn" aria-label="<?php te('vocab.vi_big_edit'); ?>" title="Big Edit">
@@ -8378,13 +8378,13 @@ document.addEventListener('projectselected', function(e){
     .then(function(r){ return r.json(); })
     .then(function(data){
         if (data && data.success) {
-            if (window.showToast) showToast(data.created ? 'Progetto collegato: creato "Flashcards"' : 'Categoria collegata al progetto');
+            if (window.showToast) showToast(data.created ? T('fc.vis_progetto_creato') : T('fc.vis_categoria_collegata'));
             setTimeout(function(){ window.location.reload(); }, 500);
         } else {
-            if (window.showToast) showToast((data && data.error) ? data.error : 'Errore nel collegamento');
+            if (window.showToast) showToast((data && data.error) ? data.error : T('fc.vis_errore_collegamento'));
         }
     })
-    .catch(function(){ if (window.showToast) showToast('Errore di rete'); });
+    .catch(function(){ if (window.showToast) showToast(T('comune.errore_rete')); });
 });
 
 if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initPage); }
@@ -8397,7 +8397,7 @@ else { initPage(); }
     // Selettore progetto per il tasto "Collega progetto" (nessun trigger visibile:
     // lo apriamo noi da JS). Alla scelta creiamo un sotto-progetto "Flashcards".
     $ps_id = 'fclink'; $ps_selected_id = 0; $ps_selected_name = ''; $ps_selected_color = null;
-    $ps_placeholder = 'Seleziona progetto'; $ps_title = 'Collega a un progetto';
+    $ps_placeholder = t('progetti.seleziona_progetto'); $ps_title = t('todo.collega_progetto');
     $ps_show_all_option = false; $ps_allow_create = true; $ps_render_trigger = false;
     $ps_hidden_name = 'fc_link_project_id'; $ps_exclude_id = 0;
     include __DIR__ . '/../projects/project_selector.php';

@@ -10,16 +10,37 @@
 (function () {
 
   var dati = {};
-  try {
-    var contenitore = document.getElementById('i18n-dati');
-    if (contenitore) dati = JSON.parse(contenitore.textContent) || {};
-  } catch (e) {
-    // una pagina senza traduzioni deve restare usabile: si vedranno le chiavi,
-    // non una schermata bianca
-    if (window.console) console.warn('Traduzioni non leggibili:', e);
+  var letti = 0;
+
+  /* I contenitori sono uno per la pagina (id="i18n-dati") e uno per ogni
+     componente che ne porta altri (class="i18n-dati"). Quelli dei componenti
+     possono arrivare DOPO questo file, percio' quando una chiave manca si
+     rilegge: costa poco e succede solo la prima volta. */
+  function leggi() {
+    var tutti = document.querySelectorAll('#i18n-dati, script.i18n-dati');
+    if (tutti.length === letti) return false;
+    for (var i = letti; i < tutti.length; i++) {
+      try {
+        var d = JSON.parse(tutti[i].textContent) || {};
+        for (var g in d) if (Object.prototype.hasOwnProperty.call(d, g)) dati[g] = d[g];
+      } catch (e) {
+        // una pagina senza traduzioni deve restare usabile: si vedranno le
+        // chiavi, non una schermata bianca
+        if (window.console) console.warn('Translations not readable:', e);
+      }
+    }
+    letti = tutti.length;
+    return true;
   }
+  leggi();
 
   function cerca(chiave) {
+    var trovato = cercaIn(chiave);
+    if (trovato === null && leggi()) trovato = cercaIn(chiave);
+    return trovato;
+  }
+
+  function cercaIn(chiave) {
     var nodo = dati;
     var pezzi = String(chiave).split('.');
     for (var i = 0; i < pezzi.length; i++) {

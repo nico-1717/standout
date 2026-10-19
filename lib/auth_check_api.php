@@ -19,6 +19,6 @@ $utente_corrente = standout_utente_corrente();
 if (!$utente_corrente) {
     http_response_code(401);
     header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'error' => 'not_authenticated', 'message' => 'Devi effettuare il login per continuare.']);
+    echo json_encode(['success' => false, 'error' => 'not_authenticated', 'message' => t('api.devi_login')]);
     exit;
 }

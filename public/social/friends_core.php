@@ -31,7 +31,7 @@ function fr_conn(): mysqli {
     static $c = null;
     if ($c instanceof mysqli) { return $c; }
     $c = @mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-    if (!$c) { die('Connessione al database fallita.'); }
+    if (!$c) { die(t('amici.e_connessione')); }
     @mysqli_set_charset($c, 'utf8mb4');
     return $c;
 }
@@ -455,7 +455,7 @@ function fr_stats(mysqli $c, int $uid, string $username = ''): array {
         $carte24 += $v['n']; $ok24 += $v['ok'];
         $categorie[] = [
             'id'     => $cid,
-            'nome'   => $nomi[$cid]['nome']   ?? 'Senza categoria',
+            'nome'   => $nomi[$cid]['nome']   ?? t('amici.senza_categoria'),
             'colore' => $nomi[$cid]['colore'] ?? '#8A8A8E',
             'sec'    => (int)round($v['sec']),
             'carte'  => $v['n'],
@@ -489,22 +489,22 @@ function fr_stats(mysqli $c, int $uid, string $username = ''): array {
 
     /* ---------- BADGE ---------- */
     $badge = [
-        ['t' => 'target', 'l' => '10 carte giocate',       'v' => $carteGiocate    >= 10],
-        ['t' => 'flame',  'l' => 'Streak di 3 giorni',     'v' => $sFc['record']   >= 3],
-        ['t' => 'flame',  'l' => 'Streak di 7 giorni',     'v' => $sFc['record']   >= 7],
-        ['t' => 'flame',  'l' => 'Streak di 30 giorni',    'v' => $sFc['record']   >= 30],
-        ['t' => 'book',   'l' => '50 carte imparate',      'v' => $carteImparate   >= 50],
-        ['t' => 'book',   'l' => '100 carte imparate',     'v' => $carteImparate   >= 100],
-        ['t' => 'trophy', 'l' => 'Categoria completata',   'v' => $catCompleta],
-        ['t' => 'target', 'l' => '500 carte giocate',      'v' => $carteGiocate    >= 500],
-        ['t' => 'star',   'l' => '1000 carte giocate',     'v' => $carteGiocate    >= 1000],
-        ['t' => 'timer',  'l' => 'Primo pomodoro',         'v' => $sessioni        >= 1],
-        ['t' => 'clock',  'l' => '10 ore di focus',        'v' => $focusTotale     >= 36000],
-        ['t' => 'clock',  'l' => '50 ore di focus',        'v' => $focusTotale     >= 180000],
-        ['t' => 'bolt',   'l' => '4 ore in un giorno',     'v' => $record          >= 14400],
-        ['t' => 'flame',  'l' => 'Focus 7 giorni di fila', 'v' => $sPomo['record'] >= 7],
-        ['t' => 'gem',    'l' => 'Giornata perfetta',      'v' => $sCombo['record'] >= 1],
-        ['t' => 'gem',    'l' => '7 giornate perfette',    'v' => $sCombo['record'] >= 7],
+        ['t' => 'target', 'l' => t('amici.b_10_carte'),       'v' => $carteGiocate    >= 10],
+        ['t' => 'flame',  'l' => t('amici.b_streak_3'),     'v' => $sFc['record']   >= 3],
+        ['t' => 'flame',  'l' => t('amici.b_streak_7'),     'v' => $sFc['record']   >= 7],
+        ['t' => 'flame',  'l' => t('amici.b_streak_30'),    'v' => $sFc['record']   >= 30],
+        ['t' => 'book',   'l' => t('amici.b_50_imparate'),      'v' => $carteImparate   >= 50],
+        ['t' => 'book',   'l' => t('amici.b_100_imparate'),     'v' => $carteImparate   >= 100],
+        ['t' => 'trophy', 'l' => t('amici.b_cat_completa'),   'v' => $catCompleta],
+        ['t' => 'target', 'l' => t('amici.b_500_carte'),      'v' => $carteGiocate    >= 500],
+        ['t' => 'star',   'l' => t('amici.b_1000_carte'),     'v' => $carteGiocate    >= 1000],
+        ['t' => 'timer',  'l' => t('amici.b_primo_pomo'),         'v' => $sessioni        >= 1],
+        ['t' => 'clock',  'l' => t('amici.b_10_ore'),        'v' => $focusTotale     >= 36000],
+        ['t' => 'clock',  'l' => t('amici.b_50_ore'),        'v' => $focusTotale     >= 180000],
+        ['t' => 'bolt',   'l' => t('amici.b_4_ore'),     'v' => $record          >= 14400],
+        ['t' => 'flame',  'l' => t('amici.b_focus_7'), 'v' => $sPomo['record'] >= 7],
+        ['t' => 'gem',    'l' => t('amici.b_giornata_perfetta'),      'v' => $sCombo['record'] >= 1],
+        ['t' => 'gem',    'l' => t('amici.b_7_perfette'),    'v' => $sCombo['record'] >= 7],
     ];
     $badgeFatti = 0;
     foreach ($badge as $b) { if ($b['v']) { $badgeFatti++; } }
@@ -565,19 +565,19 @@ function fr_stats(mysqli $c, int $uid, string $username = ''): array {
    ========================================================================= */
 function fr_metriche(): array {
     return [
-        ['k' => 'livello',         'l' => 'Livello',             'f' => 'num',    'i' => 'star'],
-        ['k' => 'focus_oggi',      'l' => 'Focus di oggi',       'f' => 'durata', 'i' => 'timer'],
-        ['k' => 'streak_combo',    'l' => 'Streak perfetta',     'f' => 'giorni', 'i' => 'gem'],
-        ['k' => 'streak_pomo',     'l' => 'Streak pomodoro',     'f' => 'giorni', 'i' => 'flame'],
-        ['k' => 'streak_fc',       'l' => 'Streak flashcard',    'f' => 'giorni', 'i' => 'flame'],
-        ['k' => 'focus_record',    'l' => 'Record in un giorno', 'f' => 'durata', 'i' => 'trophy'],
-        ['k' => 'focus_media_7',   'l' => 'Media settimana',     'f' => 'durata', 'i' => 'clock'],
-        ['k' => 'focus_media_30',  'l' => 'Media mese',          'f' => 'durata', 'i' => 'clock'],
-        ['k' => 'focus_totale',    'l' => 'Focus totale',        'f' => 'durata', 'i' => 'bolt'],
-        ['k' => 'carte_24h',       'l' => 'Carte nelle 24h',     'f' => 'num',    'i' => 'book'],
-        ['k' => 'precisione_24h',  'l' => 'Precisione 24h',      'f' => 'pct',    'i' => 'target'],
-        ['k' => 'categorie_24h',   'l' => 'Categorie nelle 24h', 'f' => 'num',    'i' => 'book'],
-        ['k' => 'badge_fatti',     'l' => 'Badge sbloccati',     'f' => 'num',    'i' => 'trophy'],
+        ['k' => 'livello',         'l' => t('amici.livello'),             'f' => 'num',    'i' => 'star'],
+        ['k' => 'focus_oggi',      'l' => t('amici.focus_oggi'),       'f' => 'durata', 'i' => 'timer'],
+        ['k' => 'streak_combo',    'l' => t('amici.streak_combo'),     'f' => 'giorni', 'i' => 'gem'],
+        ['k' => 'streak_pomo',     'l' => t('amici.streak_pomo'),     'f' => 'giorni', 'i' => 'flame'],
+        ['k' => 'streak_fc',       'l' => t('amici.streak_fc'),    'f' => 'giorni', 'i' => 'flame'],
+        ['k' => 'focus_record',    'l' => t('amici.record_giorno'), 'f' => 'durata', 'i' => 'trophy'],
+        ['k' => 'focus_media_7',   'l' => t('amici.media_sett'),     'f' => 'durata', 'i' => 'clock'],
+        ['k' => 'focus_media_30',  'l' => t('amici.media_mese'),          'f' => 'durata', 'i' => 'clock'],
+        ['k' => 'focus_totale',    'l' => t('amici.focus_totale'),        'f' => 'durata', 'i' => 'bolt'],
+        ['k' => 'carte_24h',       'l' => t('amici.m_carte_24h'),     'f' => 'num',    'i' => 'book'],
+        ['k' => 'precisione_24h',  'l' => t('amici.m_precisione_24h'),      'f' => 'pct',    'i' => 'target'],
+        ['k' => 'categorie_24h',   'l' => t('amici.m_categorie_24h'), 'f' => 'num',    'i' => 'book'],
+        ['k' => 'badge_fatti',     'l' => t('amici.m_badge'),     'f' => 'num',    'i' => 'trophy'],
     ];
 }
 

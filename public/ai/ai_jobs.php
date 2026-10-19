@@ -341,7 +341,7 @@ function ai_job_scrivi_o_doppione(string $sql, array $params, string $types): bo
     $stmt = mysqli_prepare($conn, $sql);
     if (!$stmt) {
         sec_log_error('ai_jobs', 'prepare: ' . mysqli_error($conn));
-        sec_die_json('Errore nella richiesta al database.', 500);
+        sec_die_json(t('api.errore_database'), 500);
     }
     mysqli_stmt_bind_param($stmt, $types, ...$params);
     /* Il doppione arriva come eccezione se mysqli e' in modalita' "strict"
@@ -361,7 +361,7 @@ function ai_job_scrivi_o_doppione(string $sql, array $params, string $types): bo
         mysqli_stmt_close($stmt);
         if ($codice === 1062) return false;
         sec_log_error('ai_jobs', 'execute: ' . $messaggio);
-        sec_die_json('Errore nella richiesta al database.', 500);
+        sec_die_json(t('api.errore_database'), 500);
     }
     $GLOBALS['SEC_LAST_INSERT_ID'] = mysqli_insert_id($conn);
     $GLOBALS['SEC_LAST_AFFECTED']  = mysqli_stmt_affected_rows($stmt);

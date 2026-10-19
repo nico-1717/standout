@@ -17,10 +17,10 @@ function fr_ko(string $msg, int $code = 400) { http_response_code($code); fr_out
 
 /* Le chiamate arrivano solo dal nostro JS (che manda questo header):
    un form ostile su un altro sito non può aggiungerlo senza preflight. */
-if (empty($_SERVER['HTTP_X_STANDOUT'])) { fr_ko('Richiesta non valida.', 403); }
+if (empty($_SERVER['HTTP_X_STANDOUT'])) { fr_ko(t('amici.e_richiesta'), 403); }
 
 $me = fr_utente_corrente();
-if (!$me) { fr_ko('Sessione scaduta. Ricarica la pagina.', 401); }
+if (!$me) { fr_ko(t('amici.e_sessione'), 401); }
 $me = (int)$me['id'];
 
 $c      = fr_conn();
@@ -67,10 +67,10 @@ switch ($azione) {
 
     /* ------------------------------------------------- INVIA RICHIESTA */
     case 'richiedi': {
-        if ($uid <= 0 || $uid === $me)      { fr_ko('Utente non valido.'); }
+        if ($uid <= 0 || $uid === $me)      { fr_ko(t('amici.e_utente_non_valido')); }
         $r = mysqli_query($c, "SELECT username FROM users WHERE id = $uid AND is_active = 1");
-        if (!$r || !mysqli_num_rows($r))    { fr_ko('Utente non trovato.'); }
-        if (fr_sono_amici($c, $me, $uid))   { fr_ko('Siete già amici.'); }
+        if (!$r || !mysqli_num_rows($r))    { fr_ko(t('amici.e_utente_non_trovato')); }
+        if (fr_sono_amici($c, $me, $uid))   { fr_ko(t('amici.e_gia_amici')); }
 
         // Se lui aveva già chiesto a me, la richiesta si chiude subito: amici.
         $r = mysqli_query($c, "SELECT 1 FROM friends_notifications
@@ -83,20 +83,20 @@ switch ($azione) {
             mysqli_query($c, "INSERT INTO friends_notifications (from_user_id, to_user_id, is_accepted, is_read)
                               VALUES ($me, $uid, 1, 0)
                               ON DUPLICATE KEY UPDATE is_read = 0, created_at = NOW()");
-            fr_out(['ok' => true, 'stato' => 'amico', 'messaggio' => 'Vi siete cercati a vicenda: ora siete amici!']);
+            fr_out(['ok' => true, 'stato' => 'amico', 'messaggio' => t('amici.m_a_vicenda')]);
         }
 
         mysqli_query($c, "INSERT IGNORE INTO friends_notifications (from_user_id, to_user_id, is_accepted)
                           VALUES ($me, $uid, 0)");
-        fr_out(['ok' => true, 'stato' => 'inviata', 'messaggio' => 'Richiesta inviata']);
+        fr_out(['ok' => true, 'stato' => 'inviata', 'messaggio' => t('amici.m_inviata')]);
     }
 
     /* -------------------------------------------------------- ACCETTA */
     case 'accetta': {
-        if ($uid <= 0) { fr_ko('Utente non valido.'); }
+        if ($uid <= 0) { fr_ko(t('amici.e_utente_non_valido')); }
         $r = mysqli_query($c, "SELECT 1 FROM friends_notifications
                                WHERE from_user_id = $uid AND to_user_id = $me AND is_accepted =0 LIMIT 1");
-        if (!$r || !mysqli_num_rows($r)) { fr_ko('Questa richiesta non esiste più.'); }
+        if (!$r || !mysqli_num_rows($r)) { fr_ko(t('amici.e_non_esiste')); }
 
         [$a, $b] = fr_coppia($me, $uid);
         mysqli_query($c, "INSERT IGNORE INTO friends (user_id_a, user_id_b) VALUES ($a, $b)");
@@ -107,36 +107,36 @@ switch ($azione) {
                           ON DUPLICATE KEY UPDATE is_read = 0, created_at = NOW()");
 
         $u = fr_utenti($c, [$uid]);
-        fr_out(['ok' => true, 'messaggio' => 'Ora sei amico di ' . ($u[$uid]['username'] ?? ''),
+        fr_out(['ok' => true, 'messaggio' => t('amici.m_ora_amico', ['nome' => $u[$uid]['username'] ?? '']),
                 'n' => fr_conta_notifiche($c, $me)]);
     }
 
     /* --------------------------------------------------------- RIFIUTA */
     case 'rifiuta': {
-        if ($uid <= 0) { fr_ko('Utente non valido.'); }
+        if ($uid <= 0) { fr_ko(t('amici.e_utente_non_valido')); }
         // Nessuna notifica a chi ha chiesto: qui non si umilia nessuno.
         mysqli_query($c, "DELETE FROM friends_notifications
                           WHERE from_user_id = $uid AND to_user_id = $me AND is_accepted =0");
-        fr_out(['ok' => true, 'messaggio' => 'Richiesta rifiutata', 'n' => fr_conta_notifiche($c, $me)]);
+        fr_out(['ok' => true, 'messaggio' => t('amici.m_rifiutata'), 'n' => fr_conta_notifiche($c, $me)]);
     }
 
     /* --------------------------------------- ANNULLA RICHIESTA INVIATA */
     case 'annulla': {
-        if ($uid <= 0) { fr_ko('Utente non valido.'); }
+        if ($uid <= 0) { fr_ko(t('amici.e_utente_non_valido')); }
         mysqli_query($c, "DELETE FROM friends_notifications
                           WHERE from_user_id = $me AND to_user_id = $uid AND is_accepted =0");
-        fr_out(['ok' => true, 'messaggio' => 'Richiesta annullata', 'n' => fr_conta_notifiche($c, $me)]);
+        fr_out(['ok' => true, 'messaggio' => t('amici.m_annullata'), 'n' => fr_conta_notifiche($c, $me)]);
     }
 
     /* ---------------------------------------------------- TOGLI AMICO */
     case 'rimuovi': {
-        if ($uid <= 0) { fr_ko('Utente non valido.'); }
+        if ($uid <= 0) { fr_ko(t('amici.e_utente_non_valido')); }
         [$a, $b] = fr_coppia($me, $uid);
         mysqli_query($c, "DELETE FROM friends WHERE user_id_a = $a AND user_id_b = $b");
         mysqli_query($c, "DELETE FROM friends_notifications
                           WHERE (from_user_id = $me AND to_user_id = $uid)
                              OR (from_user_id = $uid AND to_user_id = $me)");
-        fr_out(['ok' => true, 'messaggio' => 'Amicizia rimossa', 'n' => fr_conta_notifiche($c, $me)]);
+        fr_out(['ok' => true, 'messaggio' => t('amici.m_rimossa'), 'n' => fr_conta_notifiche($c, $me)]);
     }
 
     /* ------------------------------------- SEGNA LE NOTIFICHE COME LETTE */
@@ -160,8 +160,8 @@ switch ($azione) {
 
     /* --------------------- STATISTICHE DI UN AMICO (solo se è davvero amico) */
     case 'stats': {
-        if ($uid <= 0) { fr_ko('Utente non valido.'); }
-        if ($uid !== $me && !fr_sono_amici($c, $me, $uid)) { fr_ko('Non siete amici.', 403); }
+        if ($uid <= 0) { fr_ko(t('amici.e_utente_non_valido')); }
+        if ($uid !== $me && !fr_sono_amici($c, $me, $uid)) { fr_ko(t('amici.e_non_amici'), 403); }
         fr_out(['ok' => true, 'stats' => fr_stats($c, $uid)]);
     }
 
@@ -178,4 +178,4 @@ switch ($azione) {
     }
 }
 
-fr_ko('Azione sconosciuta.');
+fr_ko(t('amici.e_azione'));

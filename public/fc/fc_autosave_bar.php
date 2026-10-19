@@ -31,9 +31,10 @@
 $ns_suffix = (isset($ns_instance) && $ns_instance !== '')
     ? '-' . preg_replace('/[^a-zA-Z0-9_-]/', '', $ns_instance)
     : '';
+echo standout_i18n_json(['comune']);
 ?>
 <div class="ns-savebar" id="nsSaveBar<?php echo $ns_suffix; ?>">
-    <button type="button" class="ns-save-btn" id="nsSaveNow<?php echo $ns_suffix; ?>" title="Salva ora" aria-label="Salva ora">
+    <button type="button" class="ns-save-btn" id="nsSaveNow<?php echo $ns_suffix; ?>" title="<?php te('comune.salva_ora'); ?>" aria-label="<?php te('comune.salva_ora'); ?>">
         <span class="ns-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/>
@@ -44,8 +45,8 @@ $ns_suffix = (isset($ns_instance) && $ns_instance !== '')
         <span class="ns-spin" aria-hidden="true"></span>
     </button>
     <div class="ns-auto">
-        <label class="ns-switch" title="Salvataggio automatico">
-            <input type="checkbox" id="nsAutoToggle<?php echo $ns_suffix; ?>" aria-label="Salvataggio automatico">
+        <label class="ns-switch" title="<?php te('comune.salvataggio_auto'); ?>">
+            <input type="checkbox" id="nsAutoToggle<?php echo $ns_suffix; ?>" aria-label="<?php te('comune.salvataggio_auto'); ?>">
             <span class="ns-track"><span class="ns-knob"></span></span>
         </label>
         <span class="ns-last ns-mai" id="nsLastSaved<?php echo $ns_suffix; ?>"></span>

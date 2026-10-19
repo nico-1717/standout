@@ -1449,7 +1449,7 @@ function openPresetPicker() {
         }).join('') + '</div>';
     }
 
-    body.innerHTML = '<div class="hb-search"><input class="hb-input" id="hbPresetSearch" placeholder="Cerca fra ' + presets.length + ' abitudini..."></div><div id="hbPresetList">' + draw('') + '</div>';
+    body.innerHTML = '<div class="hb-search"><input class="hb-input" id="hbPresetSearch" placeholder="' + esc(T('abitudini.cerca_fra_n', { n: presets.length })) + '"></div><div id="hbPresetList">' + draw('') + '</div>';
     body.oninput = function (e) {
         if (e.target.id !== 'hbPresetSearch') return;
         document.getElementById('hbPresetList').innerHTML = draw(e.target.value.toLowerCase().trim());
@@ -1588,9 +1588,9 @@ function heatmap(valueFn, color) {
     return '<div class="hb-heat-scroll" style="--hc:' + color + '">' +
         '<div class="hb-heat-months" style="grid-auto-columns:12px">' + months + '</div>' +
         '<div class="hb-heat">' + cells + '</div></div>' +
-        '<div class="hb-heat-legend">meno' +
+        '<div class="hb-heat-legend">' + T('abitudini.meno') +
             [0,1,2,3,4].map(function (l) { return '<i class="hb-heat-cell" data-l="' + l + '" style="--hc:' + color + '"></i>'; }).join('') +
-        'più</div>';
+        T('abitudini.piu') + '</div>';
 }
 
 /* calendario mensile di una singola abitudine */
@@ -1747,7 +1747,7 @@ function renderDetail() {
                 '<span class="hb-detail-tag">' + (h.kind === 'quit'
                     ? (h.goal_type === 'quantity' ? '🚫 &lt; ' + fmtNum(h.target_amount) + ' ' + esc(h.unit) : T('abitudini.da_evitare'))
                     : (h.goal_type === 'quantity' ? '🎯 ' + fmtNum(h.target_amount) + ' ' + esc(h.unit) : T('abitudini.da_fare_2'))) + '</span>' +
-                (h.end_date ? '<span class="hb-detail-tag">Fino al ' + esc(h.end_date) + '</span>' : '') +
+                (h.end_date ? '<span class="hb-detail-tag">' + esc(T('abitudini.fino_al', { data: h.end_date })) + '</span>' : '') +
             '</div>' +
         '</div>' +
 
@@ -1772,7 +1772,7 @@ function renderDetail() {
             '</div>' +
             '<div style="--cc:' + h.color + '">' + monthCalendar(h, S.detailMonth) + '</div>' +
             '<div class="hb-heat-legend" style="justify-content:space-between;margin-top:14px">' +
-                '<span>' + wMonth.ok + ' su ' + wMonth.due + ' nel mese</span>' +
+                '<span>' + T('abitudini.n_su_n_mese', { fatti: wMonth.ok, totale: wMonth.due }) + '</span>' +
                 '<span>' + Math.round(wMonth.rate * 100) + '%</span>' +
             '</div>' +
         '</div>' +
@@ -1783,7 +1783,7 @@ function renderDetail() {
         '</div>' +
 
         '<div class="hb-card">' +
-            '<div class="hb-card-head"><span class="hb-card-title">'+T('abitudini.ultimi_30_giorni')+'</span><span class="hb-card-note">' + Math.round(w30.rate * 100) + '% completato</span></div>' +
+            '<div class="hb-card-head"><span class="hb-card-title">'+T('abitudini.ultimi_30_giorni')+'</span><span class="hb-card-note">' + T('abitudini.pct_completato', { pct: Math.round(w30.rate * 100) }) + '</span></div>' +
             barsChart(30, function (d) { return isDue(h, d) ? stateOf(h, d).pct : 0; }, { color:h.color }) +
         '</div>' +
 
@@ -1866,7 +1866,7 @@ function renderStats() {
 
         '<div class="hb-card">' +
             '<div class="hb-card-head"><span class="hb-card-title">'+T('abitudini.andamento')+'</span>' +
-            '<span class="hb-card-note">' + Math.round(rangeRate(range) * 100) + '% medio</span></div>' +
+            '<span class="hb-card-note">' + T('abitudini.pct_medio', { pct: Math.round(rangeRate(range) * 100) }) + '</span></div>' +
             lineChart(pts, 'var(--accent)') +
         '</div>' +
 
@@ -2028,7 +2028,7 @@ function renderTable() {
         '</div>' +
         '<div class="hb-table-scroll"><table class="hb-table"><thead>' + head + '</thead><tbody>' + rows + '</tbody><tfoot>' + foot + '</tfoot></table></div>' +
         '<div class="hb-card" style="margin-top:16px">' +
-            '<div class="hb-card-head"><span class="hb-card-title">'+T('abitudini.completamento_giornaliero')+'</span><span class="hb-card-note" id="hbTblRate">' + Math.round(rangeRate(days) * 100) + '% medio</span></div>' +
+            '<div class="hb-card-head"><span class="hb-card-title">'+T('abitudini.completamento_giornaliero')+'</span><span class="hb-card-note" id="hbTblRate">' + T('abitudini.pct_medio', { pct: Math.round(rangeRate(days) * 100) }) + '</span></div>' +
             '<div id="hbTblBars">' + barsChart(days, function (d) { return dayProgress(d).pct; }) + '</div>' +
         '</div>' +
         '<div class="hb-card">' +

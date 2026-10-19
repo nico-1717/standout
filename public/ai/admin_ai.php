@@ -143,15 +143,15 @@ $attivi = sec_all(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>IA — come sta andando</title>
+    <title><?php te('admin.titolo'); ?></title>
     <link rel="stylesheet" href="<?php echo PWA_BASE; ?>ai/admin_ai.css?v=<?php echo @filemtime(__DIR__ . '/admin_ai.css') ?: 1; ?>">
 </head>
 <body>
 <header class="adm-header">
-    <h1>IA — come sta andando</h1>
+    <h1><?php te('admin.titolo'); ?></h1>
     <nav class="adm-periodo">
-        <?php foreach ([1 => 'oggi', 7 => '7 giorni', 30 => '30 giorni'] as $g => $et): ?>
-            <a href="?giorni=<?php echo $g; ?>"<?php echo $g === $giorni ? ' class="is-on"' : ''; ?>><?php echo $et; ?></a>
+        <?php foreach ([1 => t('admin.oggi'), 7 => t('admin.g7'), 30 => t('admin.g30')] as $g => $et): ?>
+            <a href="?giorni=<?php echo $g; ?>"<?php echo $g === $giorni ? ' class="is-on"' : ''; ?>><?php echo sec_h($et); ?></a>
         <?php endforeach; ?>
     </nav>
 </header>
@@ -160,19 +160,19 @@ $attivi = sec_all(
 
     <section class="adm-riquadri">
         <div class="adm-box">
-            <small>speso da noi (stima)</small>
+            <small><?php te('admin.speso'); ?></small>
             <b><?php echo soldi($tot_costo); ?></b>
-            <span><?php echo n($tot_token); ?> token</span>
+            <span><?php te('admin.n_token', ['n' => n($tot_token)]); ?></span>
         </div>
         <div class="adm-box">
-            <small>addebitato agli utenti</small>
+            <small><?php te('admin.addebitato'); ?></small>
             <b><?php echo n($addebitati); ?></b>
-            <span>crediti<?php if ($rimborsati) echo ', ' . n($rimborsati) . ' rimborsati'; ?></span>
+            <span><?php te('admin.crediti'); if ($rimborsati) te('admin.rimborsati', ['n' => n($rimborsati)]); ?></span>
         </div>
         <div class="adm-box<?php echo $costo_oggi > AI_SOGLIA_GIORNO ? ' is-allarme' : ''; ?>">
-            <small>oggi</small>
+            <small><?php te('admin.oggi'); ?></small>
             <b><?php echo soldi($costo_oggi); ?></b>
-            <span>soglia <?php echo soldi(AI_SOGLIA_GIORNO); ?></span>
+            <span><?php te('admin.soglia', ['n' => soldi(AI_SOGLIA_GIORNO)]); ?></span>
         </div>
         <?php
         /* Quanta parte dei token pagati NON e' stata addebitata: ritentativi,
@@ -180,27 +180,27 @@ $attivi = sec_all(
            del "non facciamo pagare i nostri inciampi". */
         $non_addebitato = $tot_token > 0 ? max(0, 100 - round($addebitati / $tot_token * 100)) : 0; ?>
         <div class="adm-box<?php echo $non_addebitato > 25 ? ' is-allarme' : ''; ?>">
-            <small>assorbito da noi</small>
+            <small><?php te('admin.assorbito'); ?></small>
             <b><?php echo $non_addebitato; ?>%</b>
-            <span>dei token pagati</span>
+            <span><?php te('admin.dei_token'); ?></span>
         </div>
     </section>
 
-    <h2>Salute</h2>
+    <h2><?php te('admin.salute'); ?></h2>
     <section class="adm-card">
         <?php
         $passi = (int)($salute['passi'] ?? 0);
         $perc_falliti = $passi ? round(100 * (int)$salute['falliti'] / $passi, 1) : 0;
         $perc_ritentati = $passi ? round(100 * (int)$salute['ritentati'] / $passi, 1) : 0; ?>
         <div class="adm-righe">
-            <div><b><?php echo n($passi); ?></b><small>passi eseguiti</small></div>
-            <div class="<?php echo $perc_falliti > 5 ? 'is-allarme' : ''; ?>"><b><?php echo n($perc_falliti, 1); ?>%</b><small>falliti del tutto</small></div>
-            <div class="<?php echo $perc_ritentati > 20 ? 'is-allarme' : ''; ?>"><b><?php echo n($perc_ritentati, 1); ?>%</b><small>ritentati</small></div>
-            <div><b><?php echo n((int)($salute['recuperati'] ?? 0)); ?></b><small>inciampati ma riusciti</small></div>
+            <div><b><?php echo n($passi); ?></b><small><?php te('admin.passi_eseguiti'); ?></small></div>
+            <div class="<?php echo $perc_falliti > 5 ? 'is-allarme' : ''; ?>"><b><?php echo n($perc_falliti, 1); ?>%</b><small><?php te('admin.falliti'); ?></small></div>
+            <div class="<?php echo $perc_ritentati > 20 ? 'is-allarme' : ''; ?>"><b><?php echo n($perc_ritentati, 1); ?>%</b><small><?php te('admin.ritentati'); ?></small></div>
+            <div><b><?php echo n((int)($salute['recuperati'] ?? 0)); ?></b><small><?php te('admin.inciampati'); ?></small></div>
         </div>
         <?php if ($errori): ?>
             <table class="adm-tab">
-                <tr><th>errore</th><th>quante volte</th><th></th></tr>
+                <tr><th><?php te('admin.errore'); ?></th><th><?php te('admin.quante_volte'); ?></th><th></th></tr>
                 <?php $max = max(array_column($errori, 'quanti')); foreach ($errori as $e): ?>
                     <tr>
                         <td><?php echo sec_h($e['errore']); ?></td>
@@ -211,16 +211,16 @@ $attivi = sec_all(
             </table>
         <?php endif; ?>
         <?php if ($pause): ?>
-            <p class="adm-nota">Job fermati: <?php
+            <p class="adm-nota"><?php te('admin.job_fermati'); ?> <?php
                 echo sec_h(implode(' · ', array_map(fn($p) => $p['motivo'] . ' ' . $p['quanti'], $pause))); ?></p>
         <?php endif; ?>
-        <p class="adm-nota">Un tasso di fallimento che sale, o molti "ia_troncata"/"ia_lento", vogliono dire lotti troppo grandi per questo hosting; molti "ia_filtro" vogliono dire un prompt che urta le regole di Google.</p>
+        <p class="adm-nota"><?php te('admin.nota_salute'); ?></p>
     </section>
 
-    <h2>Costo e resa per modello</h2>
+    <h2><?php te('admin.costo_modello'); ?></h2>
     <section class="adm-card">
         <table class="adm-tab">
-            <tr><th>modello</th><th>passi</th><th>token</th><th>costo</th><th>crediti</th><th>media</th><th>max</th></tr>
+            <tr><th><?php te('admin.modello'); ?></th><th><?php te('admin.passi'); ?></th><th><?php te('admin.token'); ?></th><th><?php te('admin.costo'); ?></th><th><?php te('admin.crediti'); ?></th><th><?php te('admin.media'); ?></th><th><?php te('admin.max'); ?></th></tr>
             <?php foreach ($per_modello as $m): ?>
                 <tr>
                     <td><?php echo sec_h($m['modello']); ?></td>
@@ -232,14 +232,14 @@ $attivi = sec_all(
                     <td class="num"><?php echo n(($m['max_ms'] ?? 0) / 1000, 1); ?>s</td>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$per_modello): ?><tr><td colspan="7" class="adm-niente">nessun passo nel periodo</td></tr><?php endif; ?>
+            <?php if (!$per_modello): ?><tr><td colspan="7" class="adm-niente"><?php te('admin.niente_passi'); ?></td></tr><?php endif; ?>
         </table>
     </section>
 
-    <h2>L'impegno serve?</h2>
+    <h2><?php te('admin.impegno_serve'); ?></h2>
     <section class="adm-card">
         <table class="adm-tab">
-            <tr><th>impegno</th><th>passi</th><th>token medi</th><th>secondi</th><th>tentativi medi</th><th>inciampi</th></tr>
+            <tr><th><?php te('admin.impegno'); ?></th><th><?php te('admin.passi'); ?></th><th><?php te('admin.token_medi'); ?></th><th><?php te('admin.secondi'); ?></th><th><?php te('admin.tentativi_medi'); ?></th><th><?php te('admin.inciampi'); ?></th></tr>
             <?php foreach ($per_impegno as $i): ?>
                 <tr>
                     <td><?php echo sec_h($i['impegno']); ?></td>
@@ -250,15 +250,15 @@ $attivi = sec_all(
                     <td class="num"><?php echo n($i['perc_inciampi'], 1); ?>%</td>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$per_impegno): ?><tr><td colspan="6" class="adm-niente">nessun lotto di carte nel periodo</td></tr><?php endif; ?>
+            <?php if (!$per_impegno): ?><tr><td colspan="6" class="adm-niente"><?php te('admin.niente_lotti'); ?></td></tr><?php endif; ?>
         </table>
-        <p class="adm-nota">Se "alto" costa il doppio di "medio" ma ha gli stessi tentativi e gli stessi inciampi, non sta servendo: il budget in fc_ai_pensiero() va abbassato, o la differenza va spiegata meglio all'utente. Se invece "basso" ha molti piu' inciampi, sta costando in secondi giri quello che fa risparmiare in ragionamento.</p>
+        <p class="adm-nota"><?php te('admin.nota_impegno'); ?></p>
     </section>
 
-    <h2>Stili piu' usati</h2>
+    <h2><?php te('admin.stili'); ?></h2>
     <section class="adm-card">
         <table class="adm-tab">
-            <tr><th>scelte</th><th>richieste</th><th>crediti</th></tr>
+            <tr><th><?php te('admin.scelte'); ?></th><th><?php te('admin.richieste'); ?></th><th><?php te('admin.crediti'); ?></th></tr>
             <?php foreach ($stili as $s): ?>
                 <tr>
                     <td><?php echo sec_h($s['note']); ?></td>
@@ -266,14 +266,14 @@ $attivi = sec_all(
                     <td class="num"><?php echo n($s['crediti']); ?></td>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$stili): ?><tr><td colspan="3" class="adm-niente">niente nel periodo</td></tr><?php endif; ?>
+            <?php if (!$stili): ?><tr><td colspan="3" class="adm-niente"><?php te('admin.niente'); ?></td></tr><?php endif; ?>
         </table>
     </section>
 
-    <h2>Chi spende</h2>
+    <h2><?php te('admin.chi_spende'); ?></h2>
     <section class="adm-card">
         <table class="adm-tab">
-            <tr><th>utente</th><th>crediti</th><th>job</th><th>ultimo uso</th></tr>
+            <tr><th><?php te('admin.utente'); ?></th><th><?php te('admin.crediti'); ?></th><th><?php te('admin.job'); ?></th><th><?php te('admin.ultimo_uso'); ?></th></tr>
             <?php foreach ($utenti as $u): ?>
                 <tr>
                     <td><?php echo sec_h($u['username'] ?? ('#' . $u['user_id'])); ?></td>
@@ -282,14 +282,14 @@ $attivi = sec_all(
                     <td class="num"><?php echo date('j/n H:i', strtotime($u['ultimo'])); ?></td>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$utenti): ?><tr><td colspan="4" class="adm-niente">nessun consumo nel periodo</td></tr><?php endif; ?>
+            <?php if (!$utenti): ?><tr><td colspan="4" class="adm-niente"><?php te('admin.niente_consumo'); ?></td></tr><?php endif; ?>
         </table>
     </section>
 
-    <h2>Job vivi adesso</h2>
+    <h2><?php te('admin.job_vivi'); ?></h2>
     <section class="adm-card">
         <table class="adm-tab">
-            <tr><th>job</th><th>utente</th><th>stato</th><th>avanzamento</th><th>crediti</th><th>fermo da</th></tr>
+            <tr><th><?php te('admin.job'); ?></th><th><?php te('admin.utente'); ?></th><th><?php te('admin.stato'); ?></th><th><?php te('admin.avanzamento'); ?></th><th><?php te('admin.crediti'); ?></th><th><?php te('admin.fermo_da'); ?></th></tr>
             <?php foreach ($attivi as $a):
                 /* "Fermo da" e' il numero da guardare: un job in corso che non
                    avanza da mezz'ora vuol dire che nessuno lo sta facendo
@@ -303,15 +303,15 @@ $attivi = sec_all(
                     <td class="num"><?php echo (int)$a['steps_done']; ?>/<?php echo (int)$a['steps_total']; ?></td>
                     <td class="num"><?php echo n($a['credits_used']); ?></td>
                     <td class="num <?php echo ($fermo !== null && $fermo > 30 && $a['status'] === 'running') ? 'is-allarme' : ''; ?>">
-                        <?php echo $fermo === null ? 'mai' : $fermo . ' min'; ?>
+                        <?php echo $fermo === null ? sec_h(t('admin.mai')) : sec_h(t('admin.n_min', ['n' => $fermo])); ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$attivi): ?><tr><td colspan="6" class="adm-niente">nessun job vivo</td></tr><?php endif; ?>
+            <?php if (!$attivi): ?><tr><td colspan="6" class="adm-niente"><?php te('admin.niente_job'); ?></td></tr><?php endif; ?>
         </table>
     </section>
 
-    <p class="adm-nota adm-fondo">I costi sono stime: i token si contano davvero, il prezzo per milione e' mediato fra ingresso e uscita (vedi AI_PREZZI in questo file). La cifra vera resta quella della console di Google, e le due vanno confrontate ogni tanto.</p>
+    <p class="adm-nota adm-fondo"><?php te('admin.nota_fondo'); ?></p>
 </main>
 </body>
 </html>

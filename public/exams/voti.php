@@ -7,7 +7,7 @@
    ============================================================================ */
 require_once __DIR__ . '/../../lib/config.php';
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-if (!$conn) { die("Connessione fallita: " . mysqli_connect_error()); }
+if (!$conn) { die(t('voti.connessione_fallita', ['errore' => mysqli_connect_error()])); }
 mysqli_set_charset($conn, 'utf8mb4');
 require_once __DIR__ . '/../../lib/auth_check.php';
 $current_user_id = (int)$utente_corrente['id'];
@@ -123,7 +123,7 @@ function uni_settings_out($s) {
    ordine. Devono restare allineati - e' l'unico punto delicato di questa
    funzione, quindi la clausola e l'elenco stanno uno sotto l'altro in fondo. */
 function uni_exam_assignments() {
-    $name    = uni_str_or_null(trim((string)($_POST['name'] ?? '')), 200) ?? 'Nuovo esame';
+    $name    = uni_str_or_null(trim((string)($_POST['name'] ?? '')), 200) ?? t('voti.nuovo_esame');
     $cfu     = sec_float($_POST['cfu'] ?? 0, 0, 90, 0);
     $status  = sec_enum($_POST['status'] ?? null, ['todo', 'done'], 'todo');
     $isPF    = !empty($_POST['is_pass_fail']) ? 1 : 0;
@@ -455,7 +455,7 @@ if (isset($_GET['ajax'])) {
         if (is_array($exams)) {
             foreach ($exams as $e) {
                 $ord++;
-                $name = uni_str_or_null(trim((string)($e['name'] ?? 'Esame')), 200) ?? 'Esame';
+                $name = uni_str_or_null(trim((string)($e['name'] ?? t('voti.esame'))), 200) ?? t('voti.esame');
                 $cfu  = sec_float($e['cfu'] ?? 0, 0, 90, 0);
                 $isPF = !empty($e['pass_fail']) ? 1 : 0;
                 $ssd  = uni_str_or_null($e['ssd'] ?? null, 20);
@@ -530,7 +530,7 @@ $UNI_HAS_DATA = count($UNI_EXAMS) > 0;
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
-<title>Voti</title>
+<title><?php te('voti.voti'); ?></title>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>exams/voti.css?v=<?php echo @filemtime(__DIR__ . '/voti.css') ?: 1; ?>">
 <?php
 /* Le stringhe che servono al JavaScript di questa pagina. */
@@ -542,7 +542,7 @@ echo standout_i18n_json(['comune', 'voti']);
 <header class="app-header">
     <div class="hdr-title"><?php te('voti.voti'); ?></div>
     <button class="hdr-degree" id="hdrDegree" onclick="uniOpenProgram()" style="<?php echo $UNI_HAS_DATA ? '' : 'display:none'; ?>">
-        <span class="dot"></span><span id="hdrDegreeName"><?php echo htmlspecialchars($UNI_SETTINGS['program_label'] ?: 'Imposta corso', ENT_QUOTES); ?></span>
+        <span class="dot"></span><span id="hdrDegreeName"><?php echo htmlspecialchars($UNI_SETTINGS['program_label'] ?: t('voti.imposta_corso'), ENT_QUOTES); ?></span>
     </button>
     <button class="hdr-icon-btn" onclick="uniOpenSettings()" aria-label="<?php te('voti.impostazioni'); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -919,7 +919,7 @@ function clampG(v){ v=Math.round(v); if(v<18)v=18; if(v>30)v=30; return v; }
 function shortName(s,n){ n=n||16; s=String(s||''); return s.length>n?s.slice(0,n-1)+'…':s; }
 function todayISO(){ var d=new Date(),m=d.getMonth()+1,g=d.getDate(); return d.getFullYear()+'-'+(m<10?'0':'')+m+'-'+(g<10?'0':'')+g; }
 function fmtDate(iso){ if(!iso) return ''; var p=String(iso).split('-'); if(p.length<3) return iso;
-  var m=['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic']; return parseInt(p[2],10)+' '+(m[parseInt(p[1],10)-1]||'')+' '+p[0]; }
+  return new Intl.DateTimeFormat(document.documentElement.lang || 'it', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(+p[0], +p[1] - 1, +p[2])); }
 function prefersReduced(){ return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
 function buzz(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms||10); }catch(e){} }
 var _toastT=null;
@@ -1432,7 +1432,7 @@ function uniSaveSimAsTarget(){ var sim=simulated(); if(sim.cfu<=0){ toast(T('vot
   var v=round2(sim.avg);
   uniPost('save_target',{ target_average:v, target_source:'simulation' }).then(function(){
     S().target_average=v; S().target_source='simulation'; STATE._reached=weighted(STATE.exams).avg>=v;
-    renderHero(); renderObjective(); renderChart(); burst(); toast(T('voti.obiettivo_da_simulazione',{media:fmt2(v)})); }).catch(function(){ toast('Errore'); }); }
+    renderHero(); renderObjective(); renderChart(); burst(); toast(T('voti.obiettivo_da_simulazione',{media:fmt2(v)})); }).catch(function(){ toast(T('voti.errore')); }); }
 
 /* ---- Lista esami ---- */
 var CHECK_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 13.1c1.7 1 3.4 2.7 4.8 4.7 2.4-5.9 6.3-10.8 11.9-14.6"/></svg>';
@@ -1713,9 +1713,9 @@ function updateSelCount(){
   show('selCreateBtn', ng===0); show('selUngroupBtn', ng>0);
 }
 function uniToggleSelect(){ if(STATE.selecting) exitSelect(); else { STATE.selecting=true; STATE.selected={}; STATE.selectedGroups={};
-    var b=$('examSelBtn'); if(b) b.textContent='Annulla'; renderExams(); } }
+    var b=$('examSelBtn'); if(b) b.textContent=T('voti.annulla'); renderExams(); } }
 function exitSelect(silent){ STATE.selecting=false; STATE.selected={}; STATE.selectedGroups={};
-  var b=$('examSelBtn'); if(b) b.textContent='Seleziona'; if(!silent) renderExams(); }
+  var b=$('examSelBtn'); if(b) b.textContent=T('voti.seleziona'); if(!silent) renderExams(); }
 function uniPickRow(id){ if(STATE.selected[id]) delete STATE.selected[id]; else STATE.selected[id]=true;
   buzz(6); renderExams(); }
 function uniPickGroup(gid){ if(STATE.selectedGroups[gid]) delete STATE.selectedGroups[gid]; else STATE.selectedGroups[gid]=true;
@@ -1728,7 +1728,7 @@ function uniDissolveSelectedGroups(){
   gids.forEach(function(gid){ chain=chain.then(function(){ return uniPost('dissolve_group',{ group_id:gid }); }); });
   chain.then(function(res){
     if(res&&res.exams) STATE.exams=res.exams; if(res&&res.groups) STATE.groups=res.groups;
-    exitSelect(true); renderAll(); toast(T('voti.gruppi_sciolti')); }).catch(function(){ toast('Errore'); });
+    exitSelect(true); renderAll(); toast(T('voti.gruppi_sciolti')); }).catch(function(){ toast(T('voti.errore')); });
 }
 /* elimina gli esami singoli selezionati e, per ogni gruppo selezionato, TUTTI i suoi esami */
 function uniDeleteSelected(){
@@ -1741,7 +1741,7 @@ function uniDeleteSelected(){
   if(ids.length) chain=chain.then(function(){ return uniPost('delete_exams',{ ids:ids }); });
   chain.then(function(res){
     if(res&&res.exams) STATE.exams=res.exams; if(res&&res.groups) STATE.groups=res.groups;
-    exitSelect(true); renderAll(); toast('Eliminati'); }).catch(function(){ toast('Errore'); });
+    exitSelect(true); renderAll(); toast(T('voti.eliminati')); }).catch(function(){ toast(T('voti.errore')); });
 }
 /* ---- Popup gruppo (crea/modifica) ---- */
 var GRP={ id:null, type:'choice', quota:null, picked:{} };
@@ -1817,18 +1817,18 @@ function uniSaveGroup(){
     if(res&&res.exams) STATE.exams=res.exams; if(res&&res.groups) STATE.groups=res.groups;
     exitSelect(true); uniCloseSheets(); renderAll();
     toast(wasNew ? (GRP.type==='split' ? T('voti.esame_suddiviso_creato') : T('voti.gruppo_creato',{cfu:trimNum(GRP.quota)})) : T('voti.gruppo_aggiornato'));
-  }).catch(function(){ toast('Errore'); });
+  }).catch(function(){ toast(T('voti.errore')); });
 }
 function uniDissolveGroupFromSheet(){ if(!GRP.id) return;
   if(!confirm(T('voti.sciogliere_il_gruppo'))) return;
   uniPost('dissolve_group',{ group_id:GRP.id }).then(function(res){
     if(res&&res.exams) STATE.exams=res.exams; if(res&&res.groups) STATE.groups=res.groups;
-    uniCloseSheets(); renderAll(); toast(T('voti.gruppo_sciolto')); }).catch(function(){ toast('Errore'); }); }
+    uniCloseSheets(); renderAll(); toast(T('voti.gruppo_sciolto')); }).catch(function(){ toast(T('voti.errore')); }); }
 function uniDissolveGroup(){ var e=EX.id?findExam(EX.id):null; if(!e||e.group_id==null) return;
   if(!confirm(T('voti.sciogliere_il_gruppo'))) return;
   uniPost('dissolve_group',{ group_id:e.group_id }).then(function(res){
     if(res&&res.exams) STATE.exams=res.exams; if(res&&res.groups) STATE.groups=res.groups;
-    uniCloseSheets(); renderAll(); toast(T('voti.gruppo_sciolto')); }).catch(function(){ toast('Errore'); }); }
+    uniCloseSheets(); renderAll(); toast(T('voti.gruppo_sciolto')); }).catch(function(){ toast(T('voti.errore')); }); }
 /* superato un esame di un gruppo "a scelta" → se la quota di CFU è stata raggiunta, proponi di
    togliere gli altri esami del gruppo ancora da sostenere (i gruppi "esame suddiviso" non si sciolgono mai qui) */
 function maybeClearGroup(examId, groupId){
@@ -1844,7 +1844,7 @@ function maybeClearGroup(examId, groupId){
     if(confirm(T('voti.quota_raggiunta_chiedi',{gruppo:gname,cfu:trimNum(quota),altri:others.length}))){
       uniPost('clear_group_todo',{ group_id:groupId, keep_id:examId }).then(function(res){
         if(res&&res.exams) STATE.exams=res.exams; if(res&&res.groups) STATE.groups=res.groups;
-        renderAll(); toast(T('voti.gruppo_completato')); }).catch(function(){ toast('Errore'); });
+        renderAll(); toast(T('voti.gruppo_completato')); }).catch(function(){ toast(T('voti.errore')); });
     } }, 500);
 }
 
@@ -2110,7 +2110,7 @@ function uniSaveExam(){
 function applyLocalExam(id,p){ var e=findExam(id); if(!e) return; for(var k in p){ if(p.hasOwnProperty(k)) e[k]=p[k]; } }
 function afterExamChange(celebrate){ renderAll(); if(celebrate){ setTimeout(function(){ burst(); toast(T('voti.ottimo_voto')); },200); buzz(20); } }
 function uniDeleteExam(){ if(!EX.id){ uniCloseSheets(); return; } if(!confirm(T('voti.eliminare_questo_esame'))) return;
-  uniPost('delete_exam',{ id:EX.id }).then(function(){ STATE.exams=STATE.exams.filter(function(e){ return String(e.id)!==String(EX.id); }); uniCloseSheets(); renderAll(); }).catch(function(){ toast('Errore'); }); }
+  uniPost('delete_exam',{ id:EX.id }).then(function(){ STATE.exams=STATE.exams.filter(function(e){ return String(e.id)!==String(EX.id); }); uniCloseSheets(); renderAll(); }).catch(function(){ toast(T('voti.errore')); }); }
 
 /* ---- Voto rapido ---- */
 var QG={ id:null, grade:26, honors:false, pf:false };
@@ -2165,9 +2165,9 @@ function tgSync(){ var big=$('tgtBig'); if(big) big.textContent=fmt2(TG.val);
 function uniSaveTarget(){ var v=Math.round(TG.val*100)/100;
   uniPost('save_target',{ target_average:v, target_source:'manual' }).then(function(){
     S().target_average=v; S().target_source='manual'; STATE._reached=weighted(STATE.exams).avg>=v;
-    uniCloseSheets(); renderHero(); renderObjective(); renderChart(); toast(T('voti.obiettivo_impostato',{media:fmt2(v)})); }).catch(function(){ toast('Errore'); }); }
+    uniCloseSheets(); renderHero(); renderObjective(); renderChart(); toast(T('voti.obiettivo_impostato',{media:fmt2(v)})); }).catch(function(){ toast(T('voti.errore')); }); }
 function uniClearTarget(){ uniPost('save_target',{ target_average:null, target_source:'manual' }).then(function(){
-    S().target_average=null; STATE._reached=false; uniCloseSheets(); renderHero(); renderObjective(); renderChart(); toast(T('voti.obiettivo_rimosso')); }).catch(function(){ toast('Errore'); }); }
+    S().target_average=null; STATE._reached=false; uniCloseSheets(); renderHero(); renderObjective(); renderChart(); toast(T('voti.obiettivo_rimosso')); }).catch(function(){ toast(T('voti.errore')); }); }
 
 /* ---- Bonus ---- */
 var BN={ id:null };
@@ -2195,10 +2195,10 @@ function uniSaveBonus(){ var name=(($('bnName')&&$('bnName').value)||'').trim();
     cap_points: (t==='honors_each' && $('bnCap').value!=='')?(parseFloat($('bnCap').value)||0):0, is_enabled:true };
   if(BN.id) payload.id=BN.id;
   uniPost(BN.id?'update_bonus':'add_bonus',payload).then(function(res){ if(res&&res.bonuses) STATE.bonuses=res.bonuses;
-    uniCloseSheets(); renderHero(); renderObjective(); renderThesisBonus(); toast(T('voti.bonus_salvato')); }).catch(function(){ toast('Errore'); }); }
+    uniCloseSheets(); renderHero(); renderObjective(); renderThesisBonus(); toast(T('voti.bonus_salvato')); }).catch(function(){ toast(T('voti.errore')); }); }
 function uniDeleteBonus(){ if(!BN.id){ uniCloseSheets(); return; } if(!confirm(T('voti.eliminare_questo_bonus'))) return;
   uniPost('delete_bonus',{ id:BN.id }).then(function(){ STATE.bonuses=STATE.bonuses.filter(function(b){ return String(b.id)!==String(BN.id); });
-    uniCloseSheets(); renderHero(); renderObjective(); renderThesisBonus(); }).catch(function(){ toast('Errore'); }); }
+    uniCloseSheets(); renderHero(); renderObjective(); renderThesisBonus(); }).catch(function(){ toast(T('voti.errore')); }); }
 
 /* ---- Impostazioni ---- */
 var SET={ accent:null, lode:30 };
@@ -2232,7 +2232,7 @@ function uniSaveSettings(){ var rc=$('setRound');
     round_half_up: rc?rc.checked:false, accent_color:SET.accent };
   uniPost('save_settings',payload).then(function(res){ if(res&&res.settings) STATE.settings=res.settings;
     else { for(var k in payload){ if(payload.hasOwnProperty(k)) STATE.settings[k]=payload[k]; } }
-    uniCloseSheets(); applyAccentFromSettings(); refreshHeaderDegree(); renderAll(); toast(T('voti.impostazioni_salvate')); }).catch(function(){ toast('Errore'); }); }
+    uniCloseSheets(); applyAccentFromSettings(); refreshHeaderDegree(); renderAll(); toast(T('voti.impostazioni_salvate')); }).catch(function(){ toast(T('voti.errore')); }); }
 
 /* ---- Corso ---- */
 var PROG_CACHE=null;
@@ -2383,7 +2383,7 @@ function uniSwipeDelete(id,ev){ if(ev){ ev.preventDefault(); ev.stopPropagation(
   if(!confirm(T('voti.eliminare_esame_nome',{nome:e.name}))) return;
   uniPost('delete_exam',{ id:id }).then(function(){
     STATE.exams=STATE.exams.filter(function(x){ return String(x.id)!==String(id); });
-    SWIPE_OPEN=null; renderAll(); }).catch(function(){ toast('Errore'); });
+    SWIPE_OPEN=null; renderAll(); }).catch(function(){ toast(T('voti.errore')); });
 }
 
 /* ---- Confetti ---- */

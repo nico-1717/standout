@@ -316,7 +316,7 @@ if ($ajax !== '') {
 
         if ($id > 0) {
             if (!sec_owns('planner_events', $id, $current_user_id)) {
-                sec_die_json('Evento non trovato.', 404, 'not_found');
+                sec_die_json(t('api.evento_non_trovato'), 404, 'not_found');
             }
             
             // SE STIAMO CREANDO UN'ECCEZIONE SINGOLA
@@ -409,7 +409,7 @@ if ($ajax !== '') {
         $date  = sec_date(sec_in('date'), null);
         $start = sec_time(sec_in('start'), null);
         if ($id === 0 || $start === null || !sec_owns('planner_events', $id, $current_user_id)) {
-            sec_die_json('Evento non trovato.', 404, 'not_found');
+            sec_die_json(t('api.evento_non_trovato'), 404, 'not_found');
         }
         $ev = sec_one("SELECT start_time, end_time, event_date, end_date FROM planner_events WHERE id = ? AND user_id = ?", [$id, $current_user_id], 'ii');
         $dur = pl_minutes($ev['end_time']) - pl_minutes($ev['start_time']);
@@ -437,7 +437,7 @@ if ($ajax !== '') {
     /* ---------------- spunta task / habit ---------------- */
     if ($ajax === 'event_toggle') {
         $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
-        if (!sec_owns('planner_events', $id, $current_user_id)) sec_die_json('Evento non trovato.', 404, 'not_found');
+        if (!sec_owns('planner_events', $id, $current_user_id)) sec_die_json(t('api.evento_non_trovato'), 404, 'not_found');
         $ev = sec_one("SELECT habit_id, is_completed, event_date FROM planner_events WHERE id=? AND user_id=?", [$id, $current_user_id], 'ii');
         $newState = (int)$ev['is_completed'] === 1 ? 0 : 1;
         sec_q("UPDATE planner_events SET is_completed=?, completed_at=" . ($newState ? 'NOW()' : 'NULL') . " WHERE id=? AND user_id=?",
@@ -461,7 +461,7 @@ if ($ajax !== '') {
         // stesso normalizzatore del salvataggio: dal frontend arriva spesso vuota
         $origDate = pl_date_or_null(sec_in('original_date'));
 
-        if (!sec_owns('planner_events', $id, $current_user_id)) sec_die_json('Evento non trovato.', 404, 'not_found');
+        if (!sec_owns('planner_events', $id, $current_user_id)) sec_die_json(t('api.evento_non_trovato'), 404, 'not_found');
         $ev = sec_one("SELECT series_id, routine_group, rrule, original_date FROM planner_events WHERE id=? AND user_id=?", [$id, $current_user_id], 'ii');
 
         if ($scope === 'series') {
@@ -526,7 +526,7 @@ if ($ajax !== '') {
         $ids       = sec_in('ids');
         $minutes   = sec_int(sec_in('minutes'), 0, 1439, 0);
         $direction = sec_enum(sec_in('direction'), ['late', 'early'], 'late');
-        if (!is_array($ids) || empty($ids) || $minutes === 0) sec_die_json('Niente da spostare.', 422, 'empty');
+        if (!is_array($ids) || empty($ids) || $minutes === 0) sec_die_json(t('api.niente_da_spostare'), 422, 'empty');
         $delta = $direction === 'late' ? $minutes : -$minutes;
 
         /* Prima leggiamo tutti gli eventi scelti, poi limitiamo lo spostamento
@@ -598,7 +598,7 @@ if ($ajax !== '') {
     if ($ajax === 'copy_day') {
         $from = sec_date(sec_in('from'), null);
         $to   = sec_date(sec_in('to'), null);
-        if (!$from || !$to || $from === $to) sec_die_json('Giorni non validi.', 422, 'invalid');
+        if (!$from || !$to || $from === $to) sec_die_json(t('api.giorni_non_validi'), 422, 'invalid');
         $rows = sec_all("SELECT * FROM planner_events WHERE user_id=? AND event_date=?", [$current_user_id, $from], 'is');
         $n = 0;
         foreach ($rows as $r) {
@@ -631,7 +631,7 @@ if ($ajax !== '') {
         $r = sec_one("SELECT name, color FROM planner_routines WHERE id=? AND user_id=?", [$rid, $current_user_id], 'ii');
         $items = sec_all("SELECT name, duration_minutes FROM planner_routine_items
                           WHERE routine_id=? AND user_id=? ORDER BY sort_order, id", [$rid, $current_user_id], 'ii');
-        if (empty($items)) sec_die_json('Questa routine non ha ancora eventi.', 422, 'empty');
+        if (empty($items)) sec_die_json(t('api.routine_senza_eventi'), 422, 'empty');
         $group = bin2hex(random_bytes(16));
         $cursor = pl_minutes($start);
         foreach ($items as $it) {
@@ -710,7 +710,7 @@ if ($ajax !== '') {
     }
     if ($ajax === 'list_remove') {
         $listId = sec_int(sec_in('list_id'), 1, PHP_INT_MAX, 0);
-        if (!sec_owns('planner_week_lists', $listId, $current_user_id)) sec_die_json('Lista non trovata.', 404, 'not_found');
+        if (!sec_owns('planner_week_lists', $listId, $current_user_id)) sec_die_json(t('api.lista_non_trovata'), 404, 'not_found');
         sec_q("DELETE FROM planner_week_list_items WHERE list_id=? AND user_id=?", [$listId, $current_user_id], 'ii');
         sec_q("DELETE FROM planner_week_lists WHERE id=? AND user_id=?", [$listId, $current_user_id], 'ii');
         sec_json(['ok' => true]);
@@ -721,7 +721,7 @@ if ($ajax !== '') {
         $text   = sec_str(sec_in('content'), 200);
         $done   = sec_bool(sec_in('done')) ? 1 : 0;
         if ($itemId > 0) {
-            if (!sec_owns('planner_week_list_items', $itemId, $current_user_id)) sec_die_json('Voce non trovata.', 404, 'not_found');
+            if (!sec_owns('planner_week_list_items', $itemId, $current_user_id)) sec_die_json(t('api.voce_non_trovata'), 404, 'not_found');
             if ($text === '') {
                 sec_q("DELETE FROM planner_week_list_items WHERE id=? AND user_id=?", [$itemId, $current_user_id], 'ii');
                 sec_json(['ok' => true, 'deleted' => true]);
@@ -730,7 +730,7 @@ if ($ajax !== '') {
                   [$text, $done, $itemId, $current_user_id], 'siii');
             sec_json(['ok' => true, 'id' => $itemId]);
         }
-        if ($listId === 0 || !sec_owns('planner_week_lists', $listId, $current_user_id)) sec_die_json('Lista non trovata.', 404, 'not_found');
+        if ($listId === 0 || !sec_owns('planner_week_lists', $listId, $current_user_id)) sec_die_json(t('api.lista_non_trovata'), 404, 'not_found');
         if ($text === '') sec_json(['ok' => true, 'id' => 0]);
         sec_q("INSERT INTO planner_week_list_items (list_id, user_id, content, is_done, sort_order)
                VALUES (?,?,?,?,(SELECT COALESCE(MAX(x.so),0)+1 FROM (SELECT sort_order AS so FROM planner_week_list_items WHERE list_id=?) x))",
@@ -743,9 +743,9 @@ if ($ajax !== '') {
         $id    = sec_int(sec_in('id'), 0, PHP_INT_MAX, 0);
         $name  = sec_str(sec_in('name'), 60);
         $color = sec_color(sec_in('color'));
-        if ($name === '') sec_die_json('Serve un nome per la categoria.', 422, 'invalid');
+        if ($name === '') sec_die_json(t('api.serve_nome_categoria'), 422, 'invalid');
         if ($id > 0) {
-            if (!sec_owns('planner_categories', $id, $current_user_id)) sec_die_json('Categoria non trovata.', 404, 'not_found');
+            if (!sec_owns('planner_categories', $id, $current_user_id)) sec_die_json(t('api.categoria_non_trovata'), 404, 'not_found');
             sec_q("UPDATE planner_categories SET name=?, color=? WHERE id=? AND user_id=?", [$name, $color, $id, $current_user_id], 'ssii');
         } else {
             sec_q("INSERT INTO planner_categories (user_id, name, color, sort_order)
@@ -756,7 +756,7 @@ if ($ajax !== '') {
     }
     if ($ajax === 'category_delete') {
         $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
-        if (!sec_owns('planner_categories', $id, $current_user_id)) sec_die_json('Categoria non trovata.', 404, 'not_found');
+        if (!sec_owns('planner_categories', $id, $current_user_id)) sec_die_json(t('api.categoria_non_trovata'), 404, 'not_found');
         sec_q("UPDATE planner_events SET category_id=NULL WHERE category_id=? AND user_id=?", [$id, $current_user_id], 'ii');
         sec_q("DELETE FROM planner_category_keywords WHERE category_id=? AND user_id=?", [$id, $current_user_id], 'ii');
         sec_q("DELETE FROM planner_categories WHERE id=? AND user_id=?", [$id, $current_user_id], 'ii');
@@ -765,7 +765,7 @@ if ($ajax !== '') {
     if ($ajax === 'category_hide') {
         $id     = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
         $hidden = sec_bool(sec_in('hidden')) ? 1 : 0;
-        if (!sec_owns('planner_categories', $id, $current_user_id)) sec_die_json('Categoria non trovata.', 404, 'not_found');
+        if (!sec_owns('planner_categories', $id, $current_user_id)) sec_die_json(t('api.categoria_non_trovata'), 404, 'not_found');
         sec_q("UPDATE planner_categories SET is_hidden=? WHERE id=? AND user_id=?", [$hidden, $id, $current_user_id], 'iii');
         sec_json(['ok' => true]);
     }
@@ -773,8 +773,8 @@ if ($ajax !== '') {
     if ($ajax === 'keyword_add') {
         $catId   = sec_int(sec_in('category_id'), 1, PHP_INT_MAX, 0);
         $keyword = sec_key(sec_in('keyword'), 60);
-        if (!sec_owns('planner_categories', $catId, $current_user_id)) sec_die_json('Categoria non trovata.', 404, 'not_found');
-        if ($keyword === '') sec_die_json('Scrivi una parola.', 422, 'invalid');
+        if (!sec_owns('planner_categories', $catId, $current_user_id)) sec_die_json(t('api.categoria_non_trovata'), 404, 'not_found');
+        if ($keyword === '') sec_die_json(t('api.scrivi_una_parola'), 422, 'invalid');
         $clash = sec_one("SELECT k.category_id, c.name FROM planner_category_keywords k
                           JOIN planner_categories c ON c.id = k.category_id
                           WHERE k.user_id = ? AND k.keyword = ? LIMIT 1", [$current_user_id, $keyword], 'is');
@@ -782,7 +782,7 @@ if ($ajax !== '') {
             sec_json([
                 'ok' => false, 'error' => 'duplicate',
                 'category_id' => (int)$clash['category_id'], 'category_name' => $clash['name'],
-                'message' => '"' . $keyword . '" è già in ' . $clash['name'] . '.',
+                'message' => t('api.parola_gia_in', ['parola' => $keyword, 'categoria' => $clash['name']]),
             ], 409);
         }
         sec_q("INSERT INTO planner_category_keywords (user_id, category_id, keyword) VALUES (?,?,?)",
@@ -803,7 +803,7 @@ if ($ajax !== '') {
         $name  = sec_str(sec_in('name'), 80);
         $color = sec_color(sec_in('color'), '#E3D9EE');
         $items = sec_in('items');
-        if ($name === '') sec_die_json('Serve un nome per la routine.', 422, 'invalid');
+        if ($name === '') sec_die_json(t('api.serve_nome_routine'), 422, 'invalid');
         if ($id > 0) {
             if (!sec_owns('planner_routines', $id, $current_user_id)) sec_die_json(t('planner.msg_routine_non_trovata'), 404, 'not_found');
             sec_q("UPDATE planner_routines SET name=?, color=? WHERE id=? AND user_id=?", [$name, $color, $id, $current_user_id], 'ssii');
@@ -1001,9 +1001,9 @@ if ($ajax !== '') {
         $id    = sec_int(sec_in('id'), 0, PHP_INT_MAX, 0);
         $name  = sec_str(sec_in('name'), 80);
         $color = sec_color(sec_in('color'));
-        if ($name === '') sec_die_json('Serve un nome per il calendario.', 422, 'invalid');
+        if ($name === '') sec_die_json(t('api.serve_nome_calendario'), 422, 'invalid');
         if ($id > 0) {
-            if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json('Calendario non trovato.', 404, 'not_found');
+            if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json(t('api.calendario_non_trovato'), 404, 'not_found');
             sec_q("UPDATE planner_calendars SET name = ?, color = ? WHERE id = ? AND user_id = ?",
                   [$name, $color, $id, $current_user_id], 'ssii');
         } else {
@@ -1017,7 +1017,7 @@ if ($ajax !== '') {
     if ($ajax === 'calendar_visible') {
         $id  = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
         $vis = sec_bool(sec_in('visible')) ? 1 : 0;
-        if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json('Calendario non trovato.', 404, 'not_found');
+        if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json(t('api.calendario_non_trovato'), 404, 'not_found');
         sec_q("UPDATE planner_calendars SET is_visible = ? WHERE id = ? AND user_id = ?",
               [$vis, $id, $current_user_id], 'iii');
         sec_json(['ok' => true]);
@@ -1029,7 +1029,7 @@ if ($ajax !== '') {
         if ($id === 0) {
             sec_q("UPDATE planner_calendars SET is_visible = 1 WHERE user_id = ?", [$current_user_id], 'i');
         } else {
-            if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json('Calendario non trovato.', 404, 'not_found');
+            if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json(t('api.calendario_non_trovato'), 404, 'not_found');
             sec_q("UPDATE planner_calendars SET is_visible = (id = ?) WHERE user_id = ?", [$id, $current_user_id], 'ii');
         }
         sec_json(['ok' => true, 'calendars' => pl_calendars($current_user_id)]);
@@ -1037,14 +1037,14 @@ if ($ajax !== '') {
 
     if ($ajax === 'calendar_delete') {
         $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
-        if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json('Calendario non trovato.', 404, 'not_found');
+        if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json(t('api.calendario_non_trovato'), 404, 'not_found');
         /* Il principale non si elimina: è il fondo del secchio, il posto in
            cui finisce quello che non ne ha scelto un altro. Senza, gli eventi
            che ci stanno dentro non avrebbero dove andare. */
         $chi = sec_one("SELECT is_default FROM planner_calendars WHERE id = ? AND user_id = ?",
                        [$id, $current_user_id], 'ii');
         if ($chi && (int)$chi['is_default'] === 1) {
-            sec_die_json('Il calendario principale non si può eliminare.', 422, 'is_default');
+            sec_die_json(t('api.calendario_principale'), 422, 'is_default');
         }
         /* gli eventi non si perdono: passano al principale */
         $princ = pl_default_calendar($current_user_id);
@@ -1062,7 +1062,7 @@ if ($ajax !== '') {
         $def_notify = sec_enum(sec_in('def_notify'), ['none','at_time','m30','h1','d1'], 'none');
         $apply_retro = sec_bool(sec_in('apply_retro'));
         
-        if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json('Calendario non trovato.', 404, 'not_found');
+        if (!sec_owns('planner_calendars', $id, $current_user_id)) sec_die_json(t('api.calendario_non_trovato'), 404, 'not_found');
         
         sec_q("UPDATE planner_calendars SET keywords=?, def_repeat=?, def_notify=? WHERE id=? AND user_id=?",
               [$keywords, $def_repeat, $def_notify, $id, $current_user_id], 'sssii');
@@ -1115,10 +1115,10 @@ if ($ajax !== '') {
         $id    = sec_int(sec_in('id'), 0, PHP_INT_MAX, 0);
         $nome  = sec_str(sec_in('name'), 80);
         $mail  = sec_email(sec_in('email'));
-        if (!$mail) sec_die_json('Indirizzo non valido.', 422, 'invalid');
+        if (!$mail) sec_die_json(t('api.indirizzo_non_valido'), 422, 'invalid');
         if ($nome === '') $nome = explode('@', $mail)[0];
         if ($id > 0) {
-            if (!sec_owns('contacts', $id, $current_user_id)) sec_die_json('Contatto non trovato.', 404, 'not_found');
+            if (!sec_owns('contacts', $id, $current_user_id)) sec_die_json(t('api.contatto_non_trovato'), 404, 'not_found');
             sec_q("UPDATE contacts SET name = ?, email = ? WHERE id = ? AND user_id = ?",
                   [$nome, $mail, $id, $current_user_id], 'ssii');
         } else {
@@ -1131,7 +1131,7 @@ if ($ajax !== '') {
 
     if ($ajax === 'contact_delete') {
         $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
-        if (!sec_owns('contacts', $id, $current_user_id)) sec_die_json('Contatto non trovato.', 404, 'not_found');
+        if (!sec_owns('contacts', $id, $current_user_id)) sec_die_json(t('api.contatto_non_trovato'), 404, 'not_found');
         sec_q("DELETE FROM contacts WHERE id = ? AND user_id = ?", [$id, $current_user_id], 'ii');
         sec_json(['ok' => true]);
     }
@@ -1156,8 +1156,8 @@ if ($ajax !== '') {
         sec_json(['ok' => true, 'results' => $out]);
     }
 
-    sec_die_json('Richiesta non riconosciuta.', 404, 'unknown_action');
+    sec_die_json(t('api.richiesta_non_riconosciuta'), 404, 'unknown_action');
 }
 
 /* senza ?ajax= questo indirizzo non serve a niente */
-sec_die_json('Richiesta non riconosciuta.', 404, 'unknown_action');
+sec_die_json(t('api.richiesta_non_riconosciuta'), 404, 'unknown_action');

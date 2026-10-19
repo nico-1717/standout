@@ -51,7 +51,7 @@ function standout_db(): mysqli {
         $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
         if (!$conn) {
             http_response_code(500);
-            die(json_encode(['success' => false, 'error' => 'Connessione al database non riuscita.']));
+            die(json_encode(['success' => false, 'error' => t('api.connessione_db')]));
         }
         mysqli_set_charset($conn, 'utf8mb4');
     }

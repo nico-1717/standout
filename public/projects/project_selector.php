@@ -88,7 +88,7 @@ if (isset($_GET['ps_ajax']) && $_GET['ps_ajax'] === 'create_project') {
 
     if ($name === '') {
 
-        echo json_encode(['success' => false, 'error' => 'Il nome è obbligatorio']);
+        echo json_encode(['success' => false, 'error' => t('progetti.ps_nome_obbligatorio')]);
 
         exit();
 
@@ -96,7 +96,7 @@ if (isset($_GET['ps_ajax']) && $_GET['ps_ajax'] === 'create_project') {
 
     if (!$conn) {
 
-        echo json_encode(['success' => false, 'error' => 'Connessione al database non disponibile']);
+        echo json_encode(['success' => false, 'error' => t('progetti.ps_db_non_disponibile')]);
 
         exit();
 
@@ -144,7 +144,7 @@ if (isset($_GET['ps_ajax']) && $_GET['ps_ajax'] === 'create_project') {
 
     } else {
 
-        echo json_encode(['success' => false, 'error' => 'Errore durante il salvataggio']);
+        echo json_encode(['success' => false, 'error' => t('progetti.ps_errore_salvataggio')]);
 
     }
 
@@ -211,13 +211,13 @@ if (isset($_GET['ps_render'])) {
 
     $ps_selected_color   = ($_GET['ps_selected_color'] ?? '') !== '' ? (string)$_GET['ps_selected_color'] : null;
 
-    $ps_title            = (string)($_GET['ps_title'] ?? 'Seleziona progetto');
+    $ps_title            = (string)($_GET['ps_title'] ?? t('progetti.ps_seleziona'));
 
     $ps_placeholder      = (string)($_GET['ps_placeholder'] ?? $ps_title);
 
     $ps_show_all_option  = !empty($_GET['ps_show_all_option']);
 
-    $ps_all_option_label = (string)($_GET['ps_all_option_label'] ?? 'Nessun progetto');
+    $ps_all_option_label = (string)($_GET['ps_all_option_label'] ?? t('progetti.ps_nessuno'));
 
     $ps_allow_create     = !isset($_GET['ps_allow_create']) || !empty($_GET['ps_allow_create']);
 
@@ -299,13 +299,13 @@ if (!isset($ps_selected_name)) $ps_selected_name = '';
 
 if (!isset($ps_selected_color)) $ps_selected_color = null;
 
-if (!isset($ps_placeholder)) $ps_placeholder = 'Seleziona progetto';
+if (!isset($ps_placeholder)) $ps_placeholder = t('progetti.ps_seleziona');
 
-if (!isset($ps_title)) $ps_title = 'Seleziona Progetto';
+if (!isset($ps_title)) $ps_title = t('progetti.ps_seleziona');
 
 if (!isset($ps_show_all_option)) $ps_show_all_option = false;
 
-if (!isset($ps_all_option_label)) $ps_all_option_label = 'Nessun progetto';
+if (!isset($ps_all_option_label)) $ps_all_option_label = t('progetti.ps_nessuno');
 
 if (!isset($ps_allow_create)) $ps_allow_create = true;
 
@@ -528,7 +528,7 @@ if (!function_exists('ps_render_node')) {
 
                 <?php if ($hasChildren): ?>
 
-                <button type="button" class="ps-arrow" onclick="window.psToggleTree(<?php echo (int)$node['id']; ?>, this)" aria-label="Espandi">
+                <button type="button" class="ps-arrow" onclick="window.psToggleTree(<?php echo (int)$node['id']; ?>, this)" aria-label="<?php te('progetti.ps_espandi'); ?>">
 
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
 
@@ -953,7 +953,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
             <h3 class="ps-sheet-title"><?php echo htmlspecialchars($ps_title, ENT_QUOTES); ?></h3>
 
-            <button type="button" class="ps-sheet-close" onclick="window.psClose(document.getElementById('<?php echo $ps_modal_id; ?>'))" aria-label="Chiudi">
+            <button type="button" class="ps-sheet-close" onclick="window.psClose(document.getElementById('<?php echo $ps_modal_id; ?>'))" aria-label="<?php te('comune.chiudi'); ?>">
 
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
 
@@ -969,7 +969,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
 
-                <input type="text" placeholder="Cerca progetto" oninput="window.psFilterTree(this.closest('.ps-modal-overlay'), this.value)" autocomplete="off">
+                <input type="text" placeholder="<?php te('progetti.ps_cerca'); ?>" oninput="window.psFilterTree(this.closest('.ps-modal-overlay'), this.value)" autocomplete="off">
 
             </div>
 
@@ -1030,7 +1030,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
                 ?>
 
                 <div class="ps-fav-block">
-                <div class="ps-fav-head">Preferiti</div>
+                <div class="ps-fav-head"><?php te('progetti.ps_preferiti'); ?></div>
                 <?php foreach ($ps_favs as $fav):
                     $path = [];
                     $cur = isset($psParents[(int)$fav['id']]) ? $psParents[(int)$fav['id']] : 0;
@@ -1065,7 +1065,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
                 <?php else: ?>
 
-                    <div style="padding:24px 8px; text-align:center; color:var(--text-2, #8A8177); font-size:14px;">Nessun progetto ancora — creane uno qui sotto.</div>
+                    <div style="padding:24px 8px; text-align:center; color:var(--text-2, #8A8177); font-size:14px;"><?php te('progetti.ps_vuoto'); ?></div>
 
                 <?php endif; ?>
 
@@ -1099,9 +1099,9 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
             <div class="ps-field">
 
-                <label>Nome progetto</label>
+                <label><?php te('progetti.ps_nome'); ?></label>
 
-                <input type="text" class="ps-new-name" placeholder="Es. Tesi, Palestra, Viaggio...">
+                <input type="text" class="ps-new-name" placeholder="<?php te('progetti.ps_esempio'); ?>">
 
             </div>
 
@@ -1113,7 +1113,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
                  valore proposto e' quello che si stava guardando. -->
             <div class="ps-field">
 
-                <label>Dentro a</label>
+                <label><?php te('progetti.ps_dentro_a'); ?></label>
 
                 <select class="ps-new-parent">
                     <option value="0"><?php echo sec_h(t('progetti.nessun_padre')); ?></option>
@@ -1126,9 +1126,9 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
             <div class="ps-create-actions">
 
-                <button type="button" class="ps-btn ps-btn-cancel" onclick="window.psSwitchView(this.closest('.ps-modal-overlay'), 'tree')">Annulla</button>
+                <button type="button" class="ps-btn ps-btn-cancel" onclick="window.psSwitchView(this.closest('.ps-modal-overlay'), 'tree')"><?php te('comune.annulla'); ?></button>
 
-                <button type="button" class="ps-btn ps-btn-save" onclick="window.psSubmitCreate(this.closest('.ps-modal-overlay'))">Crea</button>
+                <button type="button" class="ps-btn ps-btn-save" onclick="window.psSubmitCreate(this.closest('.ps-modal-overlay'))"><?php te('progetti.ps_crea'); ?></button>
 
             </div>
 
@@ -1374,7 +1374,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
             if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = '1'; }
 
-            if (!data.success) { psShowToast(data.error || 'Errore durante la creazione'); return; }
+            if (!data.success) { psShowToast(data.error || <?php echo json_encode(t('progetti.ps_errore_creazione'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>); return; }
 
             var scroll = overlay.querySelector('.ps-tree-scroll');
 
@@ -1384,7 +1384,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
             psApplySelection(overlay, data.id, data.name, data.color);
 
-            psShowToast('Progetto creato');
+            psShowToast(<?php echo json_encode(t('progetti.ps_creato'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>);
 
         })
 
@@ -1392,7 +1392,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
             if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = '1'; }
 
-            psShowToast('Errore di rete');
+            psShowToast(<?php echo json_encode(t('progetti.ps_errore_rete'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>);
 
         });
 
@@ -1547,7 +1547,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
         b.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" '
             + 'stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
             + '<span></span>';
-        b.querySelector('span').textContent = 'Crea \u00ab' + testo + '\u00bb';
+        b.querySelector('span').textContent = <?php echo json_encode(t('progetti.ps_crea_nome'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>.replace('{nome}', testo);
         b.addEventListener('click', function () { psSwitchView(overlay, 'create'); });
         scroll.appendChild(b);
     }

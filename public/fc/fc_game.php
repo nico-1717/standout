@@ -1439,15 +1439,15 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                     </div>
                 </div>
                 <div class="hdr-right">
-                    <button id="chrono-pill" class="chrono-pill" type="button" title="<?php te('fc.gm_durata'); ?>" aria-label="Durata partita">
+                    <button id="chrono-pill" class="chrono-pill" type="button" title="<?php te('fc.gm_durata'); ?>" aria-label="<?php te('fc.gm_durata'); ?>">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chrono-ic"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>
                         <span class="chrono-txt" id="chrono-txt">0:00</span>
                     </button>
                     <span class="chip chip-status <?php echo ($status === 'all') ? 'st-all' : (($status == 1) ? 'st-learnt' : ''); ?>"><?php echo sec_h($status_text); ?></span>
-                    <button id="ttsSettingsBtn" class="icon-btn" type="button" title="<?php te('fc.gm_impostazioni'); ?>" aria-label="Impostazioni lettura">
+                    <button id="ttsSettingsBtn" class="icon-btn" type="button" title="<?php te('fc.gm_impostazioni'); ?>" aria-label="<?php te('fc.gm_impostazioni'); ?>">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>
                     </button>
-                    <button id="voiceGameBtn" class="icon-btn" type="button" title="<?php te('fc.gm_gioca_audio'); ?>" aria-label="Gioca con audio" onclick="if(window.VoiceGameMode) VoiceGameMode.handleHeaderButton();">
+                    <button id="voiceGameBtn" class="icon-btn" type="button" title="<?php te('fc.gm_gioca_audio'); ?>" aria-label="<?php te('fc.gm_gioca_audio'); ?>" onclick="if(window.VoiceGameMode) VoiceGameMode.handleHeaderButton();">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
                     </button>
                 </div>
@@ -1460,7 +1460,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
             <div class="sheet-panel">
 
-                <h3>Impostazioni lettura</h3>
+                <h3><?php te('fc.gm_impostazioni'); ?></h3>
 
 
 
@@ -1470,7 +1470,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                     <select id="tts-mode">
 
-                        <option value="no">No</option>
+                        <option value="no"><?php te('comune.no'); ?></option>
 
                         <option value="click"><?php te('fc.gm_solo_click'); ?></option>
 
@@ -1478,7 +1478,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                     </select>
 
-                    <div class="field-hint" id="tts-mode-hint" style="display:none;"><?php th('fc.gm_modo_microfono', ['modo' => '<b>' . sec_h(t('fc.gm_modalita_microfono')) . '</b>']); ?>: è lei a decidere cosa leggere e quando, quindi qui non c'è nulla da scegliere. Le altre impostazioni (voce, velocità, LaTeX) restano valide.</div>
+                    <div class="field-hint" id="tts-mode-hint" style="display:none;"><?php th('fc.gm_modo_microfono', ['modo' => '<b>' . sec_h(t('fc.gm_modalita_microfono')) . '</b>']); ?>: <?php te('fc.gm_microfono_spiega'); ?></div>
 
                 </div>
 
@@ -1508,7 +1508,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                     <select id="tts-voice">
 
-                        <option value="">Automatica (migliore disponibile)</option>
+                        <option value=""><?php te('fc.gm_auto_migliore'); ?></option>
 
                     </select>
 
@@ -1586,9 +1586,9 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                     <select id="tts-math">
 
-                        <option value="yes">Sì</option>
+                        <option value="yes"><?php te('comune.si'); ?></option>
 
-                        <option value="no">No</option>
+                        <option value="no"><?php te('comune.no'); ?></option>
 
                     </select>
 
@@ -1658,7 +1658,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                 <h3 style="text-align:center;"><?php te('fc.gm_token_finiti'); ?></h3>
 
-                <div class="limit-modal-msg" id="token-limit-message">Hai raggiunto il limite mensile di Token IA.</div>
+                <div class="limit-modal-msg" id="token-limit-message"><?php te('fc.gm_limite_mensile'); ?></div>
 
                 <div class="limit-modal-sub"><?php te('fc.gm_limite_azzera'); ?></div>
 
@@ -1872,7 +1872,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                                 <button type="button" class="nav-btn chip-ai" onclick="playAI('explain', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_spiega'); ?></button>
 
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('metaphor', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)">🎭 Metafora</button><?php endif; ?>
+                                <button type="button" class="nav-btn chip-ai" onclick="playAI('metaphor', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_metafora'); ?></button><?php endif; ?>
 
                             </div>
 
@@ -1916,7 +1916,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                             <div class="status-pill <?php echo ($c['user_answer'] == 'Correct') ? 'ok' : 'ko'; ?>"><span class="gi"><?php echo ($c['user_answer'] == 'Correct') ? '&#10003;' : '&#10005;'; ?></span> <?php echo sec_h($msg); ?></div>
 
-                            <button class="nav-btn pill-toggle action-btn" type="button" onclick="toggleAnswer(<?php echo sec_h($index); ?>, this)">Mostra Risposta</button>
+                            <button class="nav-btn pill-toggle action-btn" type="button" onclick="toggleAnswer(<?php echo sec_h($index); ?>, this)"><?php te('fc.gm_mostra_risposta'); ?></button>
 
                         </div>
 
@@ -1976,7 +1976,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                                 <button type="button" class="nav-btn chip-ai" onclick="playAI('explain', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_spiega'); ?></button>
 
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('metaphor', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)">🎭 Metafora</button><?php endif; ?>
+                                <button type="button" class="nav-btn chip-ai" onclick="playAI('metaphor', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_metafora'); ?></button><?php endif; ?>
 
                             </div>
 
@@ -2723,13 +2723,13 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
             sel.innerHTML = '';
             let autoOpt = document.createElement('option');
             autoOpt.value = '';
-            autoOpt.textContent = list.length ? 'Automatica (migliore disponibile)' : 'Nessuna voce disponibile';
+            autoOpt.textContent = list.length ? T('fc.gm_auto_migliore') : T('fc.gm_nessuna_voce');
             sel.appendChild(autoOpt);
 
             function etichetta(v) {
                 if (/premium/i.test(v.name)) return ' ⭐️ Premium';
                 if (/enhanced/i.test(v.name)) return ' ⭐️ Enhanced';
-                if (v.localService === false) return ' ☁️ (di rete)';
+                if (v.localService === false) return ' ☁️ ' + T('fc.gm_di_rete');
                 return '';
             }
             function addTo(parent, v) {
@@ -2750,7 +2750,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
             }
             if (scarse.length) {
                 let g2 = document.createElement('optgroup');
-                g2.label = 'Bassa qualità (Eloquence e simili)';
+                g2.label = T('fc.gm_bassa_qualita');
                 scarse.forEach(v => addTo(g2, v));
                 sel.appendChild(g2);
             }
@@ -2774,7 +2774,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
             let isRete = v && v.localService === false;
             if (isRete && speed > 1.2) {
                 hint.style.display = 'block';
-                hint.innerHTML = '⚠️ <b>' + v.name + '</b> è una voce di rete: sopra 1.2&times; il browser la fa sbiascicare. È un limite del browser, non del sito. Usa 1.2&times; o meno, oppure usa il tasto <b>Leggi</b>, che passa dalla voce IA.';
+                hint.innerHTML = '⚠️ ' + T('fc.gm_voce_rete_avviso', { nome: v.name, leggi: T('fc.gm_leggi').replace(/^\S+\s/, '') });
             } else {
                 hint.style.display = 'none';
             }
@@ -3461,13 +3461,13 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                     'font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;' +
                     'white-space:pre-wrap;word-break:break-word;max-height:80vh;overflow:auto;' +
                     '-webkit-overflow-scrolling:touch;box-shadow:0 10px 40px rgba(0,0,0,.5)');
-                let righe = ['DIAGNOSTICA LETTURA AUTOMATICA', ''];
+                let righe = [T('fc.gm_diagnostica'), ''];
                 Object.keys(out).forEach(function (k) { righe.push(k + ': ' + out[k]); });
                 righe.push('');
                 righe.push('UA: ' + navigator.userAgent);
                 box.textContent = righe.join('\n');
                 let close = document.createElement('button');
-                close.textContent = '✕ chiudi';
+                close.textContent = T('fc.gm_chiudi_x');
                 close.setAttribute('style',
                     'display:block;margin-top:10px;background:#FF3B30;color:#fff;border:none;' +
                     'border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;');
@@ -3506,7 +3506,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
         }
 
         function showTokenLimitModal(message) {
-            document.getElementById('token-limit-message').textContent = message || 'Hai raggiunto il limite mensile di Token IA.';
+            document.getElementById('token-limit-message').textContent = message || T('fc.gm_limite_mensile');
             document.getElementById('token-limit-modal').style.display = 'flex';
         }
 
@@ -3528,7 +3528,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
             if (!timerEl || !textEl) return;
             let stats = (window.aiPerfStats && window.aiPerfStats[mode]) || { avg_seconds: null, slower_than_usual: false };
             let elapsed = 0;
-            let stimaLabel = stats.avg_seconds ? `di solito ≈ ${stats.avg_seconds}s` : 'generazione in corso';
+            let stimaLabel = stats.avg_seconds ? T('fc.gm_di_solito', { s: stats.avg_seconds }) : T('fc.gm_generazione');
             timerEl.style.display = 'flex';
             textEl.textContent = `0s · ${stimaLabel}`;
             clearInterval(aiTimerInterval);
@@ -3631,7 +3631,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                         stopAiTimer();
 
-                        alert("⚠️ ERRORE DAL SERVER (testo):\n\n" + textRawResult);
+                        alert(T('fc.gm_errore_server_testo') + "\n\n" + textRawResult);
 
                         btnElement.innerHTML = originalText;
 
@@ -3675,7 +3675,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                     let modalTitle = document.getElementById('ai-modal-title');
 
-                    modalTitle.innerText = mode === 'explain' ? '🧠 Spiegazione' : '🎭 Metafora';
+                    modalTitle.innerText = mode === 'explain' ? T('fc.gm_spiegazione') : T('fc.gm_metafora');
 
                     modalTitle.style.color = mode === 'explain' ? '#8e24aa' : '#f57c00';
 
@@ -3739,7 +3739,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                 catch(e) {
 
-                    alert("⚠️ ERRORE DAL SERVER (audio):\n\n" + rawResult);
+                    alert(T('fc.gm_errore_server_audio') + "\n\n" + rawResult);
 
                     btnElement.innerHTML = originalText;
 
@@ -3773,7 +3773,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                             document.getElementById('ai-audio-status').style.display = 'block';
 
-                            document.getElementById('ai-audio-status').innerHTML = '⚠️ Audio pronto. <button onclick="currentAiAudio.play()" style="padding:4px 8px; border-radius:4px; cursor:pointer;">▶️ Ascolta</button>';
+                            document.getElementById('ai-audio-status').innerHTML = T('fc.gm_audio_pronto') + ' <button onclick="currentAiAudio.play()" style="padding:4px 8px; border-radius:4px; cursor:pointer;">' + T('fc.gm_ascolta') + '</button>';
 
                         });
 
@@ -3793,7 +3793,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                 stopAiTimer();
 
-                alert("Errore di connessione.");
+                alert(T('fc.gm_errore_connessione'));
 
                 console.error(error);
 
@@ -3883,9 +3883,9 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
             let shatterStats = (window.aiPerfStats && window.aiPerfStats.shatter) || { avg_seconds: null, slower_than_usual: false };
 
-            let shatterEta = shatterStats.avg_seconds ? `Di solito ci mette circa ${shatterStats.avg_seconds}s.` : 'Potrebbe volerci qualche secondo, porta pazienza!';
+            let shatterEta = shatterStats.avg_seconds ? T('fc.gm_shatter_eta', { s: shatterStats.avg_seconds }) : T('fc.gm_shatter_attesa');
 
-            contentDiv.innerHTML = `<div style="text-align:center; padding: 30px; font-weight:700; color:var(--blue); line-height:1.5;">🧠 Gemini sta analizzando e dividendo la card in concetti atomici...<br><small style="color:var(--text-2); font-weight:500;">${shatterEta}</small></div>`;
+            contentDiv.innerHTML = `<div style="text-align:center; padding: 30px; font-weight:700; color:var(--blue); line-height:1.5;">${T('fc.gm_shatter_analizza')}<br><small style="color:var(--text-2); font-weight:500;">${shatterEta}</small></div>`;
 
             actionsDiv.style.display = 'none';
 
@@ -3915,7 +3915,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                 try { data = JSON.parse(rawResult); } catch(e) {
 
-                    contentDiv.innerHTML = '<div style="color:red; font-weight:bold;">Errore di formattazione API. Gemini ha risposto in modo anomalo.</div>';
+                    contentDiv.innerHTML = '<div style="color:red; font-weight:bold;">' + T('fc.gm_errore_formato') + '</div>';
 
                     console.error("Raw result:", rawResult);
 
@@ -3987,13 +3987,13 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                 } else {
 
-                    contentDiv.innerHTML = '<div style="color:red; font-weight:bold;">Nessun risultato valido restituito.</div>';
+                    contentDiv.innerHTML = '<div style="color:red; font-weight:bold;">' + T('fc.gm_nessun_risultato') + '</div>';
 
                 }
 
             } catch (err) {
 
-                contentDiv.innerHTML = '<div style="color:red; font-weight:bold;">Errore di rete o server offline.</div>';
+                contentDiv.innerHTML = '<div style="color:red; font-weight:bold;">' + T('fc.gm_errore_rete') + '</div>';
 
                 console.error(err);
 
@@ -6465,9 +6465,9 @@ function navigateTo (url, opts) {
 
                 chip.querySelector('.pc-tx').textContent = can
 
-                    ? (vp.mode === 'back' ? 'Pagina precedente' : 'Pagina successiva')
+                    ? (vp.mode === 'back' ? T('fc.gm_pagina_prec') : T('fc.gm_pagina_succ'))
 
-                    : (vp.mode === 'back' ? 'Sei alla prima pagina' : 'Rispondi per continuare');
+                    : (vp.mode === 'back' ? T('fc.gm_prima_pagina') : T('fc.gm_rispondi'));
 
                 chip.style.opacity = (can ? P : P * 0.7).toFixed(3);
 
@@ -6647,7 +6647,7 @@ function navigateTo (url, opts) {
 
                     t.className = 'coach';
 
-                    t.innerHTML = '👉 Trascina la card: <b>destra = corretto</b>, <b>sinistra = sbagliato</b>';
+                    t.innerHTML = T('fc.gm_trascina');
 
                     document.body.appendChild(t);
 

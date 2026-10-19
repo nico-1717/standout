@@ -9,7 +9,7 @@ require_once __DIR__ . '/../../lib/auth_check.php';                 // stessa pr
 require_once __DIR__ . '/friends_core.php';
 
 $dati_u = fr_utente_corrente();
-if (!$dati_u) { die('Utente non trovato, ricarica la pagina.'); }
+if (!$dati_u) { die(t('amici.e_utente_pagina')); }
 $me = (int)$dati_u['id'];
 $utente_corrente = $dati_u; // Assicura la compatibilità con il resto della pagina
 $c = fr_conn();
@@ -54,7 +54,8 @@ $FRJS = [
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<title>Amici · Standout</title>
+<title><?php te('amici.titolo_pagina'); ?></title>
+<?php echo standout_i18n_json(['comune', 'amici']); ?>
 <style>
 /* =================================================================
    DESIGN SYSTEM — identico a stats_fc.php, più l'accento "social"
@@ -442,19 +443,19 @@ a{ color:inherit; text-decoration:none; }
 
 <div class="hdr">
     <div class="hdr-row">
-        <a class="hdr-back" href="../index.php" aria-label="Torna alla home">
+        <a class="hdr-back" href="../index.php" aria-label="<?php te('amici.torna_home'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </a>
-        <div class="hdr-title">Amici</div>
+        <div class="hdr-title"><?php te('amici.amici'); ?></div>
         <?php if ($quantiFocus > 0): ?>
-            <span class="hdr-live"><i></i><?php echo $quantiFocus; ?> in focus</span>
+            <span class="hdr-live"><i></i><?php te('amici.n_in_focus', ['n' => $quantiFocus]); ?></span>
         <?php endif; ?>
         <?php include __DIR__ . '/../partials/notifiche_widget.php'; ?>
     </div>
     <div class="tabs" id="tabs" data-t="<?php echo htmlspecialchars($tabIniziale, ENT_QUOTES); ?>">
-        <button type="button" data-tab="io">Io</button>
-        <button type="button" data-tab="amici">Amici<?php echo count($amici) ? ' · ' . count($amici) : ''; ?></button>
-        <button type="button" data-tab="classifica">Classifica</button>
+        <button type="button" data-tab="io"><?php te('amici.tab_io'); ?></button>
+        <button type="button" data-tab="amici"><?php te('amici.amici'); ?><?php echo count($amici) ? ' · ' . count($amici) : ''; ?></button>
+        <button type="button" data-tab="classifica"><?php te('amici.classifica'); ?></button>
     </div>
     <div class="hdr-sp"></div>
 </div>
@@ -479,11 +480,11 @@ a{ color:inherit; text-decoration:none; }
             </div>
             <div style="flex:1; min-width:0;">
                 <h1 class="pro-nome"><?php echo htmlspecialchars($ioStats['username'], ENT_QUOTES); ?></h1>
-                <div class="pro-liv">Livello <b><?php echo (int)$ioStats['livello']; ?></b></div>
+                <div class="pro-liv"><?php te('amici.livello'); ?> <b><?php echo (int)$ioStats['livello']; ?></b></div>
                 <div class="xp"><i id="xpBar"></i></div>
                 <div class="xp-txt"><?php echo number_format($ioStats['xp'], 0, ',', '.'); ?> / <?php echo number_format($ioStats['xp_next'], 0, ',', '.'); ?> XP</div>
                 <?php if (isset($inFocus[$me])): ?>
-                    <div class="live-pill"><i></i>In focus da <?php echo (int)$inFocus[$me]; ?> min</div>
+                    <div class="live-pill"><i></i><?php te('amici.in_focus_da', ['n' => (int)$inFocus[$me]]); ?></div>
                 <?php endif; ?>
             </div>
         </div>
@@ -493,20 +494,20 @@ a{ color:inherit; text-decoration:none; }
         <div class="streak <?php echo $ioStats['streak_fc'] > 0 ? 'hot' : ''; ?>" style="animation-delay:.03s">
             <span class="em">🔥</span>
             <div class="n"><?php echo (int)$ioStats['streak_fc']; ?></div>
-            <div class="l">Streak flashcard</div>
-            <div class="r">record <?php echo (int)$ioStats['streak_fc_rec']; ?></div>
+            <div class="l"><?php te('amici.streak_fc'); ?></div>
+            <div class="r"><?php te('amici.record_n', ['n' => (int)$ioStats['streak_fc_rec']]); ?></div>
         </div>
         <div class="streak <?php echo $ioStats['streak_pomo'] > 0 ? 'hot' : ''; ?>" style="animation-delay:.07s">
             <span class="em">🍅</span>
             <div class="n"><?php echo (int)$ioStats['streak_pomo']; ?></div>
-            <div class="l">Streak pomodoro</div>
-            <div class="r">record <?php echo (int)$ioStats['streak_pomo_rec']; ?></div>
+            <div class="l"><?php te('amici.streak_pomo'); ?></div>
+            <div class="r"><?php te('amici.record_n', ['n' => (int)$ioStats['streak_pomo_rec']]); ?></div>
         </div>
         <div class="streak gem" style="animation-delay:.11s">
             <span class="em">💎</span>
             <div class="n"><?php echo (int)$ioStats['streak_combo']; ?></div>
-            <div class="l">Streak perfetta</div>
-            <div class="r">giorni con entrambe</div>
+            <div class="l"><?php te('amici.streak_combo'); ?></div>
+            <div class="r"><?php te('amici.giorni_entrambe'); ?></div>
         </div>
     </div>
 
@@ -514,7 +515,7 @@ a{ color:inherit; text-decoration:none; }
         <div class="focus-big">
             <div>
                 <div class="focus-n" data-count="<?php echo (int)$ioStats['focus_oggi']; ?>" data-fmt="durata"><?php echo fr_durata($ioStats['focus_oggi']); ?></div>
-                <div class="focus-l">Focus di oggi</div>
+                <div class="focus-l"><?php te('amici.focus_oggi'); ?></div>
             </div>
             <div class="spark" id="spark">
                 <?php $maxS = max(1, max($ioStats['serie_7'])); foreach ($ioStats['serie_7'] as $k => $v): ?>
@@ -525,38 +526,38 @@ a{ color:inherit; text-decoration:none; }
         <div class="grid4">
             <div class="tile">
                 <div class="n"><?php echo fr_durata($ioStats['focus_record']); ?></div>
-                <div class="l">Record in un giorno</div>
+                <div class="l"><?php te('amici.record_giorno'); ?></div>
                 <div class="s"><?php echo $ioStats['focus_record_d'] ? date('d/m/Y', strtotime($ioStats['focus_record_d'])) : '—'; ?></div>
             </div>
             <div class="tile">
                 <div class="n"><?php echo fr_durata($ioStats['focus_media_7']); ?></div>
-                <div class="l">Media settimana</div>
-                <div class="s">al giorno, ultimi 7</div>
+                <div class="l"><?php te('amici.media_sett'); ?></div>
+                <div class="s"><?php te('amici.al_giorno_7'); ?></div>
             </div>
             <div class="tile">
                 <div class="n"><?php echo fr_durata($ioStats['focus_media_30']); ?></div>
-                <div class="l">Media mese</div>
-                <div class="s">al giorno, ultimi 30</div>
+                <div class="l"><?php te('amici.media_mese'); ?></div>
+                <div class="s"><?php te('amici.al_giorno_30'); ?></div>
             </div>
             <div class="tile">
                 <div class="n"><?php echo fr_durata($ioStats['focus_totale']); ?></div>
-                <div class="l">Focus totale</div>
-                <div class="s"><?php echo (int)$ioStats['focus_sessioni']; ?> sessioni</div>
+                <div class="l"><?php te('amici.focus_totale'); ?></div>
+                <div class="s"><?php te('amici.n_sessioni', ['n' => (int)$ioStats['focus_sessioni']]); ?></div>
             </div>
         </div>
     </div>
 
     <div class="card" style="animation-delay:.08s">
-        <h2 class="t-sec">Categorie delle ultime 24 ore</h2>
-        <p class="t-sub">Quanto ci hai messo e quanto ci hai preso.</p>
+        <h2 class="t-sec"><?php te('amici.cat_24h'); ?></h2>
+        <p class="t-sub"><?php te('amici.cat_24h_sub'); ?></p>
         <?php if (empty($ioStats['categorie'])): ?>
-            <div class="vuoto">Nessuna categoria giocata nelle ultime 24 ore.<br><a href="../fc/fc_history.php" style="color:var(--blue); font-weight:800;">Fai una partita →</a></div>
+            <div class="vuoto"><?php te('amici.cat_24h_vuoto'); ?><br><a href="../fc/fc_history.php" style="color:var(--blue); font-weight:800;"><?php te('amici.fai_partita'); ?></a></div>
         <?php else: $maxC = max(1, $ioStats['categorie'][0]['sec']); foreach ($ioStats['categorie'] as $cat): ?>
             <div class="cat">
                 <span class="cat-dot" style="background:<?php echo htmlspecialchars($cat['colore'], ENT_QUOTES); ?>"></span>
                 <div class="cat-b">
                     <div class="cat-n"><?php echo htmlspecialchars($cat['nome'], ENT_QUOTES); ?></div>
-                    <div class="cat-m"><?php echo (int)$cat['carte']; ?> carte · <?php echo (int)$cat['pct']; ?>% corrette</div>
+                    <div class="cat-m"><?php te('amici.carte_pct', ['carte' => (int)$cat['carte'], 'pct' => (int)$cat['pct']]); ?></div>
                     <div class="cat-bar"><i data-w="<?php echo (int)round($cat['sec'] / $maxC * 100); ?>" style="background:<?php echo htmlspecialchars($cat['colore'], ENT_QUOTES); ?>"></i></div>
                 </div>
                 <div class="cat-r">
@@ -568,13 +569,13 @@ a{ color:inherit; text-decoration:none; }
     </div>
 
     <div class="card" style="animation-delay:.11s">
-        <h2 class="t-sec">Dove è finito il tuo focus</h2>
-        <p class="t-sub">Il progetto che si è preso più tempo.</p>
+        <h2 class="t-sec"><?php te('amici.focus_dove'); ?></h2>
+        <p class="t-sub"><?php te('amici.focus_dove_sub'); ?></p>
         <div style="display:grid; gap:9px;">
             <?php
             $prjRender = function ($p, $etichetta) {
                 if (!$p) {
-                    echo '<div class="prj"><span class="prj-dot" style="background:var(--hairline-2)">–</span><div><div class="prj-l">' . $etichetta . '</div><div class="prj-n" style="color:var(--text-2)">Nessun progetto</div></div></div>';
+                    echo '<div class="prj"><span class="prj-dot" style="background:var(--hairline-2)">–</span><div><div class="prj-l">' . $etichetta . '</div><div class="prj-n" style="color:var(--text-2)">' . htmlspecialchars(t('amici.nessun_progetto'), ENT_QUOTES) . '</div></div></div>';
                     return;
                 }
                 $col = htmlspecialchars($p['colore'], ENT_QUOTES);
@@ -583,15 +584,15 @@ a{ color:inherit; text-decoration:none; }
                    . '<div class="prj-n">' . htmlspecialchars($p['nome'], ENT_QUOTES) . '</div></div>'
                    . '<span class="prj-t">' . fr_durata($p['sec']) . '</span></div>';
             };
-            $prjRender($ioStats['progetto_oggi'], 'Oggi');
-            $prjRender($ioStats['progetto_sett'], 'Questa settimana');
+            $prjRender($ioStats['progetto_oggi'], htmlspecialchars(t('amici.oggi'), ENT_QUOTES));
+            $prjRender($ioStats['progetto_sett'], htmlspecialchars(t('amici.questa_settimana'), ENT_QUOTES));
             ?>
         </div>
     </div>
 
     <div class="card" style="animation-delay:.14s">
-        <h2 class="t-sec">Traguardi</h2>
-        <p class="t-sub"><?php echo (int)$ioStats['badge_fatti']; ?> su <?php echo (int)$ioStats['badge_totali']; ?> sbloccati.</p>
+        <h2 class="t-sec"><?php te('amici.traguardi'); ?></h2>
+        <p class="t-sub"><?php te('amici.n_su_n_sbloccati', ['fatti' => (int)$ioStats['badge_fatti'], 'totali' => (int)$ioStats['badge_totali']]); ?></p>
         <div class="bg-grid">
             <?php foreach ($ioStats['badge'] as $i => $b): ?>
                 <div class="bg <?php echo $b['v'] ? 'on' : ''; ?>" style="animation-delay:<?php echo 0.16 + $i * 0.03; ?>s">
@@ -609,7 +610,7 @@ a{ color:inherit; text-decoration:none; }
     <div class="storie">
         <button type="button" class="st add" id="btnAdd">
             <div class="st-r"><div class="st-in"><div class="st-a">+</div></div></div>
-            <div class="st-n">Aggiungi</div>
+            <div class="st-n"><?php te('amici.aggiungi'); ?></div>
             <div class="st-s">&nbsp;</div>
         </button>
         <?php foreach ($amici as $a):
@@ -629,14 +630,14 @@ a{ color:inherit; text-decoration:none; }
 
     <?php if (!empty($richieste)): ?>
     <div class="card" id="cardRichieste">
-        <h2 class="t-sec">Richieste di amicizia</h2>
-        <p class="t-sub">Ti stanno aspettando.</p>
+        <h2 class="t-sec"><?php te('amici.richieste'); ?></h2>
+        <p class="t-sub"><?php te('amici.ti_aspettano'); ?></p>
         <?php foreach ($richieste as $r): ?>
             <div class="req" data-req="<?php echo (int)$r['uid']; ?>">
                 <span class="req-a" style="background:<?php echo fr_gradiente((int)$r['uid']); ?>"><?php echo htmlspecialchars(fr_iniziale($r['username']), ENT_QUOTES); ?></span>
                 <div class="req-n"><?php echo htmlspecialchars($r['username'], ENT_QUOTES); ?><span><?php echo htmlspecialchars(fr_quando($r['quando']), ENT_QUOTES); ?></span></div>
-                <button type="button" class="mini ok" data-az="accetta">Accetta</button>
-                <button type="button" class="mini no" data-az="rifiuta">Rifiuta</button>
+                <button type="button" class="mini ok" data-az="accetta"><?php te('amici.accetta'); ?></button>
+                <button type="button" class="mini no" data-az="rifiuta"><?php te('amici.rifiuta'); ?></button>
             </div>
         <?php endforeach; ?>
     </div>
@@ -646,18 +647,18 @@ a{ color:inherit; text-decoration:none; }
         <div class="card">
             <div class="vuoto" style="padding:34px 12px 30px;">
                 <div style="font-size:40px; margin-bottom:10px;">👋</div>
-                <div style="font-size:16px; font-weight:800; color:var(--text); margin-bottom:6px;">Qui non c'è ancora nessuno</div>
-                Aggiungi il primo amico: da domani vedrete<br>chi tiene più a lungo la concentrazione.
+                <div style="font-size:16px; font-weight:800; color:var(--text); margin-bottom:6px;"><?php te('amici.vuoto_titolo'); ?></div>
+                <?php te('amici.vuoto_testo'); ?>
             </div>
             <button type="button" class="btn" id="btnAdd2" style="margin-bottom:0;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
-                Cerca un amico
+                <?php te('amici.cerca_amico'); ?>
             </button>
         </div>
     <?php else: ?>
         <button type="button" class="btn" id="btnTutti">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h3a2 2 0 0 1-2 4M7 5H4a2 2 0 0 0 2 4"/></svg>
-            Confronto con tutti
+            <?php te('amici.confronto_tutti'); ?>
         </button>
 
         <?php foreach ($amici as $a):
@@ -669,14 +670,14 @@ a{ color:inherit; text-decoration:none; }
                     <span class="fr-n"><?php echo htmlspecialchars($a['username'], ENT_QUOTES); ?></span>
                     <span class="fr-m">
                         <?php if ($live): ?>
-                            <span class="dot"></span>In focus adesso
+                            <span class="dot"></span><?php te('amici.in_focus_adesso'); ?>
                         <?php else: ?>
-                            🔥 <?php echo (int)$a['streak_pomo']; ?> · oggi <?php echo fr_durata($a['focus_oggi']); ?>
+                            🔥 <?php echo (int)$a['streak_pomo']; ?> · <?php te('amici.oggi_min', ['durata' => fr_durata($a['focus_oggi'])]); ?>
                         <?php endif; ?>
                     </span>
                 </span>
                 <span class="fr-r">
-                    <span class="fr-lv">Liv <?php echo (int)$a['livello']; ?></span>
+                    <span class="fr-lv"><?php te('amici.liv_n', ['n' => (int)$a['livello']]); ?></span>
                     <svg class="fr-c" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                 </span>
             </button>
@@ -684,7 +685,7 @@ a{ color:inherit; text-decoration:none; }
 
         <button type="button" class="btn ghost" id="btnAdd3">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
-            Aggiungi un altro amico
+            <?php te('amici.aggiungi_altro'); ?>
         </button>
     <?php endif; ?>
 </section>
@@ -692,14 +693,14 @@ a{ color:inherit; text-decoration:none; }
 <!-- ========================== CLASSIFICA ========================== -->
 <section class="tab<?php echo $tabIniziale === "classifica" ? " on" : ""; ?>" id="tab-classifica">
     <div class="seg" id="segPeriodo" data-p="oggi">
-        <button type="button" data-p="oggi">Oggi</button>
-        <button type="button" data-p="settimana">Settimana</button>
-        <button type="button" data-p="mese">Mese</button>
+        <button type="button" data-p="oggi"><?php te('amici.oggi'); ?></button>
+        <button type="button" data-p="settimana"><?php te('amici.settimana'); ?></button>
+        <button type="button" data-p="mese"><?php te('amici.mese'); ?></button>
     </div>
 
     <div class="card" id="cardClassifica">
-        <h2 class="t-sec">Chi è stato più concentrato</h2>
-        <p class="t-sub" id="clSub">Tempo di focus di oggi, tutti gli utenti.</p>
+        <h2 class="t-sec"><?php te('amici.chi_concentrato'); ?></h2>
+        <p class="t-sub" id="clSub"><?php te('amici.sub_oggi'); ?></p>
         <div id="clBody"></div>
     </div>
 </section>
@@ -712,7 +713,7 @@ a{ color:inherit; text-decoration:none; }
         <button type="button" class="hdr-back" data-chiudi>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </button>
-        <span class="sub-t" id="duelloT">Duello</span>
+        <span class="sub-t" id="duelloT"><?php te('amici.duello'); ?></span>
     </div>
     <div class="sub-b" id="duelloB"></div>
 </div>
@@ -723,20 +724,20 @@ a{ color:inherit; text-decoration:none; }
         <button type="button" class="hdr-back" data-chiudi>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </button>
-        <span class="sub-t">Confronto con tutti</span>
+        <span class="sub-t"><?php te('amici.confronto_tutti'); ?></span>
     </div>
     <div class="sub-b" id="tuttiB"></div>
 </div>
 
 <!-- ---------------- foglio: aggiungi amico ---------------- -->
 <div class="sheet-scrim" id="sheetScrim"></div>
-<div class="sheet" id="sheet" role="dialog" aria-label="Aggiungi un amico">
+<div class="sheet" id="sheet" role="dialog" aria-label="<?php te('amici.aggiungi_amico'); ?>">
     <div class="sheet-grip"></div>
-    <h2 class="sheet-t">Aggiungi un amico</h2>
-    <p class="sheet-s">Cerca per nome utente. Basta che sia iscritto.</p>
+    <h2 class="sheet-t"><?php te('amici.aggiungi_amico'); ?></h2>
+    <p class="sheet-s"><?php te('amici.cerca_sub'); ?></p>
     <div class="inp">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input type="text" id="cerca" placeholder="Nome utente…" autocomplete="off" autocapitalize="none" spellcheck="false">
+        <input type="text" id="cerca" placeholder="<?php te('amici.nome_utente'); ?>" autocomplete="off" autocapitalize="none" spellcheck="false">
     </div>
     <div class="res" id="risultati"></div>
 </div>
@@ -769,7 +770,7 @@ function durata(sec) {
 function fmt(v, f) {
     if (f === 'durata') { return durata(v); }
     if (f === 'pct')    { return (parseInt(v, 10) || 0) + '%'; }
-    if (f === 'giorni') { var n = parseInt(v, 10) || 0; return n + (n === 1 ? ' giorno' : ' giorni'); }
+    if (f === 'giorni') { var n = parseInt(v, 10) || 0; return T(n === 1 ? 'amici.n_giorno' : 'amici.n_giorni', { n: n }); }
     return String(parseInt(v, 10) || 0);
 }
 
@@ -878,7 +879,7 @@ function duello(uid) {
     var lui = trovaAmico(uid);
     if (!lui) { return; }
     var io = FR.me;
-    document.getElementById('duelloT').textContent = 'Tu contro ' + lui.username;
+    document.getElementById('duelloT').textContent = T('amici.tu_contro', { nome: lui.username });
 
     var vinteIo = 0, vinteLui = 0, righe = '';
     FR.metriche.forEach(function (m) {
@@ -902,24 +903,24 @@ function duello(uid) {
     });
 
     var esito = vinteIo > vinteLui
-        ? 'Sei avanti di <b>' + (vinteIo - vinteLui) + '</b>. Tieni il ritmo.'
+        ? T('amici.avanti', { n: vinteIo - vinteLui })
         : (vinteLui > vinteIo
-            ? 'Sei sotto di <b>' + (vinteLui - vinteIo) + '</b>. Una sessione di focus e recuperi.'
-            : 'Siete <b>pari</b>. La prossima sessione decide.');
+            ? T('amici.sotto', { n: vinteLui - vinteIo })
+            : T('amici.pari'));
 
     document.getElementById('duelloB').innerHTML =
         '<div class="vs">' +
           '<div class="vs-p ' + (vinteIo > vinteLui ? 'win' : '') + '">' +
             '<div class="vs-a" style="background:' + io.gradiente + '">' + esc(io.iniziale) + '</div>' +
-            '<div class="vs-n">Tu</div></div>' +
-          '<div class="vs-mid"><div class="vs-s">' + vinteIo + ' – ' + vinteLui + '</div><div class="vs-lbl">metriche vinte</div></div>' +
+            '<div class="vs-n">' + esc(T('amici.tu')) + '</div></div>' +
+          '<div class="vs-mid"><div class="vs-s">' + vinteIo + ' – ' + vinteLui + '</div><div class="vs-lbl">' + esc(T('amici.metriche_vinte')) + '</div></div>' +
           '<div class="vs-p ' + (vinteLui > vinteIo ? 'win' : '') + '">' +
             '<div class="vs-a" style="background:' + lui.gradiente + '">' + esc(lui.iniziale) + '</div>' +
             '<div class="vs-n">' + esc(lui.username) + '</div></div>' +
         '</div>' +
         '<div class="vs-esito">' + esito + '</div>' +
         righe +
-        '<button type="button" class="btn ghost" data-rimuovi="' + lui.uid + '" style="margin-top:16px; color:var(--red);">Rimuovi amicizia</button>';
+        '<button type="button" class="btn ghost" data-rimuovi="' + lui.uid + '" style="margin-top:16px; color:var(--red);">' + esc(T('amici.rimuovi')) + '</button>';
 
     apriSub(subD);
     requestAnimationFrame(function () {
@@ -936,7 +937,7 @@ document.addEventListener('click', function (e) {
 
     var rm = e.target.closest('[data-rimuovi]');
     if (rm) {
-        if (!confirm('Vuoi davvero rimuovere questa amicizia?')) { return; }
+        if (!confirm(T('amici.rimuovi_conferma'))) { return; }
         rm.disabled = true;
         api('rimuovi', { uid: rm.dataset.rimuovi }).then(function (r) {
             if (r && r.ok) { window.frToast(r.messaggio); chiudiSub(); window.frRicarica(); }
@@ -961,7 +962,7 @@ document.getElementById('btnTutti') && document.getElementById('btnTutti').addEv
             var io  = o.u.uid === FR.me.uid;
             return '<div class="mr ' + (top ? 'top ' : '') + (io ? 'io' : '') + '">' +
                      '<span class="mr-a" style="background:' + o.u.gradiente + '">' + esc(o.u.iniziale) + '</span>' +
-                     '<span class="mr-n">' + (io ? 'Tu' : esc(o.u.username)) + '</span>' +
+                     '<span class="mr-n">' + (io ? esc(T('amici.tu')) : esc(o.u.username)) + '</span>' +
                      '<span class="mr-t"><i data-w="' + (max > 0 ? Math.round(o.v / max * 100) : 0) + '"></i></span>' +
                      '<span class="mr-v">' + fmt(o.v, m.f) + '</span>' +
                      '<span class="mr-c">' + (top ? '👑' : '') + '</span>' +
@@ -974,8 +975,8 @@ document.getElementById('btnTutti') && document.getElementById('btnTutti').addEv
     document.getElementById('tuttiB').innerHTML =
         '<div class="sum"><div class="sum-n">' + primi + ' / ' + FR.metriche.length + '</div>' +
         '<div class="sum-l">' + (primi === 0
-            ? 'Nessun primato, per ora. Il bello è che si ribalta in fretta.'
-            : 'metriche in cui sei il migliore del gruppo') + '</div></div>' + html;
+            ? esc(T('amici.nessun_primato'))
+            : esc(T('amici.metriche_migliore'))) + '</div></div>' + html;
 
     apriSub(subT);
     requestAnimationFrame(function () {
@@ -1008,7 +1009,7 @@ document.addEventListener('click', function (e) {
         window.frRicarica();
     }).catch(function () {
         riga.querySelectorAll('button').forEach(function (x) { x.disabled = false; });
-        window.frToast('Non ha funzionato. Riprova.');
+        window.frToast(T('amici.non_funzionato'));
     });
 });
 
@@ -1018,27 +1019,27 @@ var seg = document.getElementById('segPeriodo');
 
 function caricaClassifica(periodo) {
     var body = document.getElementById('clBody');
-    body.innerHTML = '<div class="vuoto">Carico…</div>';
+    body.innerHTML = '<div class="vuoto">' + esc(T('amici.carico')) + '</div>';
     api('classifica', { periodo: periodo }).then(function (r) {
         if (!r || !r.ok) { throw new Error(); }
         clCaricata = true;
         disegnaClassifica(r.righe, periodo);
     }).catch(function () {
-        body.innerHTML = '<div class="vuoto">Classifica non disponibile. Riprova.</div>';
+        body.innerHTML = '<div class="vuoto">' + esc(T('amici.classifica_ko')) + '</div>';
     });
 }
 
 function disegnaClassifica(righe, periodo) {
-    var sub = { oggi: 'Tempo di focus di oggi, tutti gli utenti.',
-                settimana: 'Tempo di focus degli ultimi 7 giorni.',
-                mese: 'Tempo di focus degli ultimi 30 giorni.' };
+    var sub = { oggi: T('amici.sub_oggi'),
+                settimana: T('amici.sub_settimana'),
+                mese: T('amici.sub_mese') };
     document.getElementById('clSub').textContent = sub[periodo];
     var body = document.getElementById('clBody');
 
     if (!righe.length) {
         body.innerHTML = '<div class="vuoto" style="padding:30px 12px;">'
             + '<div style="font-size:34px; margin-bottom:8px;">🍅</div>'
-            + 'Nessuno ha ancora fatto focus.<br><b style="color:var(--text)">Sii il primo: bastano 25 minuti.</b></div>';
+            + esc(T('amici.nessuno_focus')) + '<br><b style="color:var(--text)">' + esc(T('amici.sii_primo')) + '</b></div>';
         return;
     }
 
@@ -1065,7 +1066,7 @@ function disegnaClassifica(righe, periodo) {
         html += '<div class="cl ' + (p.uid === FR.me.uid ? 'io' : '') + '">' +
                   '<span class="cl-p">' + p.pos + '</span>' +
                   '<span class="cl-a" style="background:' + p.gradiente + '">' + esc(p.iniziale) + '</span>' +
-                  '<span class="cl-n">' + esc(p.username) + (p.uid === FR.me.uid ? ' (tu)' : '') + '</span>' +
+                  '<span class="cl-n">' + esc(p.username) + (p.uid === FR.me.uid ? esc(T('amici.tu_paren')) : '') + '</span>' +
                   '<span class="cl-t">' + durata(p.sec) + '</span>' +
                 '</div>';
     });
@@ -1075,14 +1076,14 @@ function disegnaClassifica(righe, periodo) {
     righe.forEach(function (p, i) { if (p.uid === FR.me.uid) { mio = p; idx = i; } });
     var spinta;
     if (!mio) {
-        spinta = '<span>🎯</span><div>Non sei ancora in classifica. <b>Una sessione da 25 minuti</b> e ci entri.</div>';
+        spinta = '<span>🎯</span><div>' + T('amici.non_in_classifica') + '</div>';
     } else if (idx === 0) {
-        spinta = '<span>👑</span><div>Sei in testa con <b>' + durata(mio.sec) + '</b>. Il secondo è a ' +
-                 (righe[1] ? durata(mio.sec - righe[1].sec) : durata(mio.sec)) + ' da te.</div>';
+        spinta = '<span>👑</span><div>' + T('amici.in_testa', { tempo: durata(mio.sec),
+                 distacco: (righe[1] ? durata(mio.sec - righe[1].sec) : durata(mio.sec)) }) + '</div>';
     } else {
         var sopra = righe[idx - 1];
-        spinta = '<span>⚡</span><div>Ti mancano <b>' + durata(sopra.sec - mio.sec + 60) +
-                 '</b> per superare ' + esc(sopra.username) + '.</div>';
+        spinta = '<span>⚡</span><div>' + T('amici.ti_mancano', { tempo: durata(sopra.sec - mio.sec + 60),
+                 nome: esc(sopra.username) }) + '</div>';
     }
     html += '<div class="nudge">' + spinta + '</div>';
 
@@ -1136,21 +1137,21 @@ cerca.addEventListener('input', function () {
         api('cerca', { q: q }).then(function (r) {
             if (!r || !r.ok) { throw new Error(); }
             if (!r.risultati.length) {
-                risultati.innerHTML = '<div class="vuoto">Nessun utente con questo nome.</div>';
+                risultati.innerHTML = '<div class="vuoto">' + esc(T('amici.nessun_utente')) + '</div>';
                 return;
             }
             risultati.innerHTML = r.risultati.map(function (u) {
                 var b;
-                if (u.stato === 'amico')         { b = '<button class="mini no" disabled>Già amici</button>'; }
-                else if (u.stato === 'inviata')  { b = '<button class="mini no" disabled>Inviata</button>'; }
-                else if (u.stato === 'ricevuta') { b = '<button class="mini ok" data-add="' + u.uid + '">Accetta</button>'; }
-                else                             { b = '<button class="mini ok" data-add="' + u.uid + '">Aggiungi</button>'; }
+                if (u.stato === 'amico')         { b = '<button class="mini no" disabled>' + esc(T('amici.gia_amici')) + '</button>'; }
+                else if (u.stato === 'inviata')  { b = '<button class="mini no" disabled>' + esc(T('amici.inviata')) + '</button>'; }
+                else if (u.stato === 'ricevuta') { b = '<button class="mini ok" data-add="' + u.uid + '">' + esc(T('amici.accetta')) + '</button>'; }
+                else                             { b = '<button class="mini ok" data-add="' + u.uid + '">' + esc(T('amici.aggiungi')) + '</button>'; }
                 return '<div class="res-i">' +
                          '<span class="res-a" style="background:' + u.gradiente + '">' + esc(u.iniziale) + '</span>' +
                          '<span class="res-n">' + esc(u.username) + '</span>' + b +
                        '</div>';
             }).join('');
-        }).catch(function () { risultati.innerHTML = '<div class="vuoto">Ricerca non riuscita.</div>'; });
+        }).catch(function () { risultati.innerHTML = '<div class="vuoto">' + esc(T('amici.ricerca_ko')) + '</div>'; });
     }, 260);
 });
 
@@ -1161,13 +1162,13 @@ risultati.addEventListener('click', function (e) {
     buzz(16);
     api('richiedi', { uid: b.dataset.add }).then(function (r) {
         if (!r || !r.ok) { throw new Error((r && r.errore) || ''); }
-        b.textContent = r.stato === 'amico' ? 'Amici!' : 'Inviata';
+        b.textContent = r.stato === 'amico' ? T('amici.amici_esc') : T('amici.inviata');
         b.className = 'mini no';
         window.frToast(r.messaggio);
         if (r.stato === 'amico') { window.frCoriandoli(); window.frRicarica(); }
     }).catch(function (err) {
         b.disabled = false;
-        window.frToast((err && err.message) || 'Non ha funzionato. Riprova.');
+        window.frToast((err && err.message) || T('amici.non_funzionato'));
     });
 });
 

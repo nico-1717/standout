@@ -196,10 +196,10 @@ function dg_rings(int $uid, string $date): array {
     }
 
     $conto = [
-        'daily'    => ['done' => 0, 'total' => 0, 'label' => 'Oggi'],
-        'weekly'   => ['done' => 0, 'total' => 0, 'label' => 'Settimana'],
-        'monthly'  => ['done' => 0, 'total' => 0, 'label' => 'Mese'],
-        'interval' => ['done' => 0, 'total' => 0, 'label' => 'Personalizzate'],
+        'daily'    => ['done' => 0, 'total' => 0, 'label' => t('diario.abit_oggi')],
+        'weekly'   => ['done' => 0, 'total' => 0, 'label' => t('diario.abit_settimana')],
+        'monthly'  => ['done' => 0, 'total' => 0, 'label' => t('diario.abit_mese')],
+        'interval' => ['done' => 0, 'total' => 0, 'label' => t('diario.abit_personalizzate')],
     ];
 
     foreach ($habits as $h) {
@@ -286,7 +286,7 @@ if ($ajax === 'list_save') {
     $text   = sec_str(sec_in('content'), 300);
 
     if ($itemId > 0) {
-        if (!sec_owns('diary_list_items', $itemId, $uid)) sec_die_json('Voce non trovata.', 404, 'not_found');
+        if (!sec_owns('diary_list_items', $itemId, $uid)) sec_die_json(t('api.voce_non_trovata'), 404, 'not_found');
         if ($text === '') {
             sec_q("DELETE FROM diary_list_items WHERE id = ? AND user_id = ?", [$itemId, $uid], 'ii');
             sec_json(['ok' => true, 'deleted' => true, 'id' => $itemId]);
@@ -305,7 +305,7 @@ if ($ajax === 'list_save') {
 
 if ($ajax === 'list_delete') {
     $itemId = sec_int(sec_in('item_id'), 1, PHP_INT_MAX, 0);
-    if (!sec_owns('diary_list_items', $itemId, $uid)) sec_die_json('Voce non trovata.', 404, 'not_found');
+    if (!sec_owns('diary_list_items', $itemId, $uid)) sec_die_json(t('api.voce_non_trovata'), 404, 'not_found');
     sec_q("DELETE FROM diary_list_items WHERE id = ? AND user_id = ?", [$itemId, $uid], 'ii');
     sec_json(['ok' => true]);
 }
@@ -394,4 +394,4 @@ if ($ajax === 'month') {
     ]);
 }
 
-sec_die_json('Richiesta non riconosciuta.', 404, 'unknown_action');
+sec_die_json(t('api.richiesta_non_riconosciuta'), 404, 'unknown_action');

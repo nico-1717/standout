@@ -39,7 +39,7 @@ require_once __DIR__ . '/../../lib/auth_check_api.php';
 require_once __DIR__ . '/../../lib/fc/fc_ai_lib.php';
 
 $uid = (int)($utente_corrente['id'] ?? 0);
-if ($uid <= 0) sec_die_json('Sessione non valida.', 401, 'auth');
+if ($uid <= 0) sec_die_json(t('api.sessione_non_valida'), 401, 'auth');
 
 // CSRF, origine e limite di frequenza: 20 esempi al minuto sono gia' tanti per una persona
 sec_guard_write($uid, 'fc_ai_esempio', 0, 20, 60);

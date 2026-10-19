@@ -21,17 +21,17 @@ register_shutdown_function(function () {
     if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
         if (ob_get_level() > 0) { ob_clean(); }
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => 'Errore interno del server: ' . $err['message'] . ' (riga ' . $err['line'] . ')']);
+        echo json_encode(['success' => false, 'error' => t('ai.errore_interno', ['errore' => $err['message'], 'riga' => $err['line']])]);
     }
 });
 
 // --- CONTROLLO CHIAVI ---
-if (!defined('GOOGLE_TTS_API_KEY')) { ob_clean(); die(json_encode(['success' => false, 'error' => 'GOOGLE_TTS_API_KEY non definita in config.php'])); }
+if (!defined('GOOGLE_TTS_API_KEY')) { ob_clean(); die(json_encode(['success' => false, 'error' => t('ai.chiave_mancante', ['chiave' => 'GOOGLE_TTS_API_KEY'])])); }
 
 $data = json_decode($__raw_input, true);
 if (!$data) {
     ob_clean();
-    die(json_encode(['success' => false, 'error' => 'Nessun dato ricevuto dal JavaScript.', 'debug' => 'lunghezza corpo ricevuto: ' . strlen($__raw_input) . ' byte']));
+    die(json_encode(['success' => false, 'error' => t('ai.nessun_dato'), 'debug' => 'lunghezza corpo ricevuto: ' . strlen($__raw_input) . ' byte']));
 }
 
 // PREVENZIONE BUG PHP 8
@@ -96,7 +96,7 @@ if (!file_exists($audio_path)) {
         die(json_encode([
             'success' => false,
             'error' => 'limite_piano',
-            'message' => "Questa lettura richiede circa {$caratteri_audio} caratteri audio, ma hai raggiunto il limite mensile del tuo piano."
+            'message' => t('ai.audio_limite', ['n' => $caratteri_audio])
         ]));
     }
 
@@ -117,7 +117,7 @@ if (!file_exists($audio_path)) {
         
         if ($tts_payload === false) {
             ob_clean();
-            die(json_encode(['success' => false, 'error' => 'Errore JSON blocco ' . ($index + 1)]));
+            die(json_encode(['success' => false, 'error' => t('ai.json_blocco', ['n' => $index + 1])]));
         }
 
         $ch2 = curl_init($tts_url);
@@ -139,7 +139,7 @@ if (!file_exists($audio_path)) {
              $err = curl_error($ch2);
              curl_close($ch2);
              ob_clean();
-             die(json_encode(['success' => false, 'error' => 'Errore TTS (blocco ' . ($index + 1) . ') [curl errno ' . curl_errno($ch2) . ']: ' . $err]));
+             die(json_encode(['success' => false, 'error' => t('ai.tts_blocco', ['n' => $index + 1, 'errno' => curl_errno($ch2), 'errore' => $err])]));
         }
         curl_close($ch2);
 
@@ -149,14 +149,14 @@ if (!file_exists($audio_path)) {
             $audio_binary .= base64_decode($tts_json['audioContent']);
         } else {
              ob_clean();
-             die(json_encode(['success' => false, 'error' => 'Risposta anomala TTS: ' . $tts_response]));
+             die(json_encode(['success' => false, 'error' => t('ai.tts_anomala', ['risposta' => $tts_response])]));
         }
     }
 
     $file_saved = file_put_contents($audio_path, $audio_binary);
     if ($file_saved === false) {
         ob_clean();
-        die(json_encode(['success' => false, 'error' => 'Impossibile creare il file MP3.']));
+        die(json_encode(['success' => false, 'error' => t('ai.mp3')]));
     }
     
     // Il file è stato appena creato, ORA scaliamo i caratteri audio!

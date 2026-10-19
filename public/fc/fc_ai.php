@@ -32,7 +32,7 @@ require_once __DIR__ . '/../../lib/auth_check_api.php'; // versione API: se manc
 require_once __DIR__ . '/../../lib/fc/fc_ai_lib.php';
 
 $fc_ai_user_id = (int)($utente_corrente['id'] ?? 0);
-if ($fc_ai_user_id <= 0) sec_die_json('Sessione non valida.', 401, 'auth');
+if ($fc_ai_user_id <= 0) sec_die_json(t('api.sessione_non_valida'), 401, 'auth');
 
 /* Una riga sola: CSRF, origine, livello e limite di frequenza. 30 chiamate al
    minuto sono gia' molte per un uso umano e fermano sul nascere uno script

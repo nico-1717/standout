@@ -1555,7 +1555,7 @@ if ($modo === 'edit') {
 
             return `<button type="button" class="ex-chip ex-disabled" style="background:var(--surface-3); color:var(--text-3); border:1.5px solid transparent;"
 
-                onclick="showToast('Salva la carta per darle un id: solo allora puoi aggiungerci degli esempi.')"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> ${T('fc.befc_esempi')}</button>`;
+                onclick="showToast(T('fc.ifc_salva_prima'))"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> ${T('fc.befc_esempi')}</button>`;
 
         }
 
@@ -2596,9 +2596,9 @@ if ($modo === 'edit') {
 
 [
 
-{"q": "Prima domanda /bold{importante}", "a": "Prima risposta"},
+{"q": "${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}}", "a": "${T('fc.ibf_es_risposta1')}"},
 
-{"q": "Formula di $\\\\mu$?", "a": "La risposta:\\n$$\\\\frac{\\\\sigma}{\\\\sqrt{n}}$$\\n/red{Attenzione...}"}
+{"q": "${T('fc.ibf_es_formula_di')} $\\\\mu$?", "a": "${T('fc.ibf_es_la_risposta')}\\n$$\\\\frac{\\\\sigma}{\\\\sqrt{n}}$$\\n/red{${T('fc.ibf_es_attenzione')}}"}
 
 ]`;
 
@@ -2616,7 +2616,7 @@ if ($modo === 'edit') {
 
             exampleOutput = `${T('vocab.ib_esempio_output')}
 
-Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi la formula di $domanda$ ${colSepVal} La risposta è $$formula$$ /red{attenzione...}`;
+${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T('fc.ibf_es_risposta1')}${actualRowSep}${T('fc.ibf_es_dimmi')} ${colSepVal} ${T('fc.ibf_es_risposta_formula')} /red{${T('fc.ibf_es_attenzione')}}`;
 
         }
 
@@ -2650,11 +2650,11 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
             
 
-            textArea.placeholder = `Incolla qui il testo generato dall'IA con ${rowSep} e ${colSep}…`;
+            textArea.placeholder = T('fc.ibf_incolla_testo', { riga: rowSep, colonna: colSep });
 
         } else {
 
-            textArea.placeholder = 'Incolla qui l\'array JSON. Esempio: [{"q": "Domanda", "a": "Risposta"}]';
+            textArea.placeholder = T('fc.ibf_incolla_json');
 
         }
 
@@ -2776,7 +2776,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
                 } catch (error) {
 
-                    showToast('Errore: Il testo non è un JSON valido. Controlla la formattazione.', 'error');
+                    showToast(T('fc.ibf_json_non_valido'), 'error');
 
                     console.error("Dettaglio errore JSON:", error); // Così puoi vederlo in console se serve
 
@@ -3248,12 +3248,12 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
                 </div>
                 <div class="fc-row-grid">
                     ${FCV ? vocabGridHTML(rid, c) : `
-                    ${fieldTemplate('q', rid, qText, 'Domanda', c.qImgUrl || '', c.qImgName || '', c.qAudioUrl || '', isChild)}
-                    ${fieldTemplate('a', rid, aText, 'Risposta', c.aImgUrl || '', c.aImgName || '', c.aAudioUrl || '', isChild)}`}
+                    ${fieldTemplate('q', rid, qText, T('fc.ifc_domanda'), c.qImgUrl || '', c.qImgName || '', c.qAudioUrl || '', isChild)}
+                    ${fieldTemplate('a', rid, aText, T('fc.ifc_risposta'), c.aImgUrl || '', c.aImgName || '', c.aAudioUrl || '', isChild)}`}
                 </div>
                 <div class="ns-row-foot">
                     <button type="button" class="ns-add-kid" onclick="addKidFrom(this)">
-                        ${isChild ? ICON_SIBLING + 'Aggiungi fratello' : ICON_KID + 'Aggiungi figlio'}
+                        ${isChild ? ICON_SIBLING + T('fc.ifc_aggiungi_fratello') : ICON_KID + T('fc.ifc_aggiungi_figlio')}
                     </button>
                     ${FCV ? '' : `<button type="button" class="ns-add-kid btn-ia-riga" onclick="if(window.FCAIP) FCAIP.apriMigliora(this)">
                         ${ICON_MAGIC}<span class="btn-ia-riga-testo">${aVuotaAllaNascita ? T('fc.ibfai_sec_ia_titolo') : T('fc.ibfai_migliora_con_ia_btn')}</span>
@@ -3602,7 +3602,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
         if (!btn) return;
 
-        btn.innerHTML = isChildRow(row) ? ICON_SIBLING + 'Aggiungi fratello' : ICON_KID + 'Aggiungi figlio';
+        btn.innerHTML = isChildRow(row) ? ICON_SIBLING + T('fc.ifc_aggiungi_fratello') : ICON_KID + T('fc.ifc_aggiungi_figlio');
 
     }
 
@@ -7062,7 +7062,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
 
 
-            if (label) label.textContent = 'Registra';
+            if (label) label.textContent = T('fc.ibf_registra');
 
 
 
@@ -7687,7 +7687,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
                 isDirty = false;
 
-                if (manuale) showToast('Salvataggio completato');
+                if (manuale) showToast(T('fc.ifc_salvataggio_completato'));
 
                 return true;
 
@@ -7813,7 +7813,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
         if (subBtn) subBtn.disabled = true;
 
-        if (subBtn) subBtn.innerHTML = '<span class="spinner"></span> Salvataggio in corso…';
+        if (subBtn) subBtn.innerHTML = '<span class="spinner"></span> ' + T('fc.ifc_salvataggio');
 
 
 

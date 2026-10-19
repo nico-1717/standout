@@ -103,7 +103,7 @@ function fc_avvia(int $userId, bool $isApi = false): void {
 
     $corso = fc_leggi_corso($corsoId, $userId);
     if (!$corso) {
-        if ($isApi) sec_die_json('Non trovato.', 404, 'not_found');
+        if ($isApi) sec_die_json(t('api.non_trovato'), 404, 'not_found');
         header('Location: ' . PWA_BASE . 'fc/fc_languages.php');
         exit;
     }

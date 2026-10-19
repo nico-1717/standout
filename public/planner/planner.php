@@ -352,8 +352,8 @@ foreach (['base', 'griglia', 'liste', 'fogli', 'extra', 'responsive'] as $plCss)
    pomodoro.php e progetti.php). Il planner ascolta l'evento
    "projectselected" per collegare il progetto all'evento. */
 $ps_id = 'plev'; $ps_selected_id = 0; $ps_selected_name = '';
-$ps_placeholder = 'Nessun progetto'; $ps_title = 'Collega a un progetto';
-$ps_show_all_option = true; $ps_all_option_label = 'Nessun progetto'; $ps_allow_create = true;
+$ps_placeholder = t('todo.nessun_progetto'); $ps_title = t('todo.collega_progetto');
+$ps_show_all_option = true; $ps_all_option_label = t('todo.nessun_progetto'); $ps_allow_create = true;
 $ps_hidden_name = 'plev_project_id';
 include __DIR__ . '/../projects/project_selector.php';
 /* nel planner il progetto si sceglie dal popup dell'evento: il pulsante

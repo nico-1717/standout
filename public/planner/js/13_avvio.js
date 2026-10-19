@@ -28,10 +28,10 @@ function buildDayBar() {
     var ask = el('div', 'pl-copyask pl-hidden');
     ask.id = 'plCopyAsk';
     ask.appendChild(el('div', 'pl-copyask-t', T('planner.vuoi_partire_copiando_un_altro')));
-    var no = el('button', 'pl-mini-btn', 'No');
+    var no = el('button', 'pl-mini-btn', T('comune.no'));
     no.type = 'button';
     no.addEventListener('click', function () { ask.classList.add('pl-hidden'); syncScrollerTop(); });
-    var yes = el('button', 'pl-mini-btn pl-primary', 'Sì');
+    var yes = el('button', 'pl-mini-btn pl-primary', T('comune.si'));
     yes.type = 'button';
     yes.addEventListener('click', openCopyDay);
     ask.appendChild(no); ask.appendChild(yes);
@@ -227,10 +227,10 @@ function renderAvvisi() {
            in cima, dove allungava la barra ogni volta che compariva. */
         var c = el('div', 'pl-copyask pl-copyask-basso');
         c.appendChild(el('div', 'pl-copyask-t', T('planner.vuoi_partire_copiando_un_altro')));
-        var no = el('button', 'pl-mini-btn', 'No');
+        var no = el('button', 'pl-mini-btn', T('comune.no'));
         no.type = 'button';
         no.addEventListener('click', function () { S.copiaChiusa = true; renderAvvisi(); });
-        var si = el('button', 'pl-mini-btn pl-primary', 'Sì');
+        var si = el('button', 'pl-mini-btn pl-primary', T('comune.si'));
         si.type = 'button';
         si.addEventListener('click', function () { openCopyDay(); });
         c.appendChild(no); c.appendChild(si);

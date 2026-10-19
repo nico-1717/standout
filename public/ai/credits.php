@@ -126,10 +126,8 @@ function crediti_stile_leggibile(?string $nota): string {
 
 /** Il mese in lettere, senza dipendere da setlocale (che sugli hosting condivisi spesso non c'e'). */
 function strftime_it(string $iso): string {
-    $mesi = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
-             'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
     $t = strtotime($iso);
-    return t('fc.cred_mese_anno', ['mese' => $mesi[(int)date('n', $t) - 1], 'anno' => date('Y', $t)]);
+    return t('fc.cred_mese_anno', ['mese' => t('comune.mese_' . (int)date('n', $t)), 'anno' => date('Y', $t)]);
 }
 
 function crediti_data(string $iso): string {
