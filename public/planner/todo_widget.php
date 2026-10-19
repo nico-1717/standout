@@ -2303,8 +2303,16 @@ if (!defined('TODO_WIDGET_CSS')) {
             this._last = inst;
             return inst;
         },
-        api: api
+        api: api,
+        /* per le schede che vivono in un file loro (todo_buy.js) */
+        Todo: Todo,
+        h: { api: api, apiFile: apiFile, el: el, euro: euro, pad: pad, parseIso: parseIso, IMG_DIR: IMG_DIR,
+             ICON_CHECK: ICON_CHECK, ICON_PLUS: ICON_PLUS, ICON_TRASH: ICON_TRASH, ICON_TAG: ICON_TAG,
+             ICON_FLAG: ICON_FLAG, ICON_LINK: ICON_LINK, ICON_IMG: ICON_IMG }
     };
 })();
 </script>
+<?php /* il "to buy" sta in un file suo: si carica subito dopo, prima che
+         qualcuno monti il componente */ ?>
+<script src="<?php echo PWA_BASE; ?>planner/todo_buy.js?v=<?php echo @filemtime(__DIR__ . '/todo_buy.js') ?: 1; ?>"></script>
 <?php endif; ?>

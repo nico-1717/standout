@@ -172,7 +172,9 @@ function td_seed_categories(int $uid): void {
     $b = sec_one("SELECT COUNT(*) AS n FROM todos WHERE user_id = ? AND list_type = 'buy'", [$uid], 'i');
     if ((int)($b['n'] ?? 0) > 0) return;
 
-    $base = [['vestiti', '#C6B6A6'], ['casa', '#A9C3AE'], ['beauty', '#D9B7C0']];
+    /* nella lingua dell'utente: prima nascevano in italiano per tutti */
+    $base = [[t('todo.cat_seed_spesa'), '#E8B86B'], [t('todo.cat_seed_casa'), '#A9C3AE'],
+             [t('todo.cat_seed_beauty'), '#D9B7C0'], [t('todo.cat_seed_vestiti'), '#C6B6A6']];
     $i = 1;
     foreach ($base as $c) {
         sec_q("INSERT IGNORE INTO todo_buy_categories (user_id, name, color, sort_order) VALUES (?,?,?,?)",
@@ -210,7 +212,94 @@ function td_url($raw): ?string {
     return mb_substr($u, 0, 2048);
 }
 
+/* ---------------------------------------------------------------------
+   La memoria del "to buy".
+
+   Gli articoli comprati spariscono il giorno dopo (td_cleanup), e con loro
+   tutto quello che si sapeva: che il latte va nella spesa e costa 1,20, che
+   lo shampoo si compra ogni mese. Qui se ne tiene una riga per articolo
+   (per titolo normalizzato): categoria e prezzo dell'ultima volta, quante
+   volte è stato comprato, quando. Da qui vengono i suggerimenti mentre si
+   scrive e i «da ricomprare».
+
+   La tabella si crea da sola al primo uso: è piccola, non tocca le altre, e
+   così non serve ricordarsi una migrazione per avere la funzione.
+   --------------------------------------------------------------------- */
+function td_mem_c_e(): bool {
+    static $ok = null;
+    if ($ok !== null) return $ok;
+    try {
+        sec_q("CREATE TABLE IF NOT EXISTS todo_buy_memory (
+                 user_id INT NOT NULL,
+                 chiave VARCHAR(120) NOT NULL,
+                 title VARCHAR(300) NOT NULL,
+                 cat_id INT UNSIGNED NULL,
+                 cents INT UNSIGNED NULL,
+                 uses INT UNSIGNED NOT NULL DEFAULT 0,
+                 last_used DATETIME NULL,
+                 PRIMARY KEY (user_id, chiave),
+                 KEY idx_uso (user_id, uses, last_used)
+               ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $ok = true;
+    } catch (Throwable $e) {
+        $ok = false;
+    }
+    return $ok;
+}
+
+/* "  Latte  intero " e "latte intero" sono lo stesso articolo */
+function td_mem_chiave(string $title): string {
+    $t = mb_strtolower(trim(preg_replace('/\s+/u', ' ', $title)));
+    return mb_substr($t, 0, 120);
+}
+
+/* $comprato: true quando l'articolo è stato appena spuntato (conta una
+   volta in più); false quando si è solo cambiato categoria o prezzo. */
+function td_mem_ricorda(int $uid, int $todoId, bool $comprato): void {
+    if (!td_mem_c_e()) return;
+    $t = sec_one("SELECT title, list_type, buy_category_id, buy_price_cents FROM todos WHERE id = ? AND user_id = ?", [$todoId, $uid], 'ii');
+    if (!$t || $t['list_type'] !== 'buy') return;
+    $k = td_mem_chiave((string)$t['title']);
+    if ($k === '') return;
+    try {
+        sec_q("INSERT INTO todo_buy_memory (user_id, chiave, title, cat_id, cents, uses, last_used)
+               VALUES (?, ?, ?, ?, ?, ?, " . ($comprato ? 'NOW()' : 'NULL') . ")
+               ON DUPLICATE KEY UPDATE title = VALUES(title),
+                   cat_id = COALESCE(VALUES(cat_id), cat_id),
+                   cents = COALESCE(VALUES(cents), cents),
+                   uses = uses + VALUES(uses)" . ($comprato ? ", last_used = NOW()" : ''),
+              [$uid, $k, trim((string)$t['title']),
+               $t['buy_category_id'] !== null ? (int)$t['buy_category_id'] : null,
+               $t['buy_price_cents'] !== null ? (int)$t['buy_price_cents'] : null,
+               $comprato ? 1 : 0]);
+    } catch (Throwable $e) { /* la memoria è un di più: non deve far fallire il salvataggio */ }
+}
+
 /* ===================== ENDPOINT ===================== */
+
+/* I ricordi del "to buy": per i suggerimenti mentre si scrive e per i «da
+   ricomprare». I più comprati e i più recenti per primi. */
+if ($ajax === 'buy_memory') {
+    if (!td_mem_c_e()) sec_json(['ok' => true, 'items' => []]);
+    $rows = sec_all("SELECT chiave, title, cat_id, cents, uses, last_used FROM todo_buy_memory
+                     WHERE user_id = ? ORDER BY uses DESC, last_used DESC LIMIT 300", [$uid], 'i');
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = ['k' => $r['chiave'], 'title' => $r['title'],
+                  'cat_id' => $r['cat_id'] !== null ? (int)$r['cat_id'] : null,
+                  'cents' => $r['cents'] !== null ? (int)$r['cents'] : null,
+                  'uses' => (int)$r['uses'], 'last' => $r['last_used']];
+    }
+    sec_json(['ok' => true, 'items' => $out]);
+}
+
+/* Dimentica un suggerimento (tocco lungo sul suggerimento). */
+if ($ajax === 'buy_forget') {
+    if (td_mem_c_e()) {
+        sec_q("DELETE FROM todo_buy_memory WHERE user_id = ? AND chiave = ?", [$uid, td_mem_chiave((string)sec_str(sec_in('k'), 300))], 'is');
+    }
+    sec_json(['ok' => true]);
+}
 
 if ($ajax === 'list') {
     td_cleanup($uid);
@@ -326,6 +415,7 @@ if ($ajax === 'save') {
         if ($hasPrice) sec_q("UPDATE todos SET buy_price_cents=? WHERE id=? AND user_id=?", [$cents, $id, $uid]);
         if ($hasUrl)   sec_q("UPDATE todos SET buy_url=? WHERE id=? AND user_id=?", [$url, $id, $uid]);
         td_sync_planner($uid, $id);
+        if ($type === 'buy' && ($hasCat || $hasPrice)) td_mem_ricorda($uid, $id, false);
     } else {
         /* la nuova attività può nascere senza titolo: lo scrive l'utente
            subito dopo, e se lascia il campo vuoto viene tolta da sola */
@@ -357,6 +447,7 @@ if ($ajax === 'toggle') {
     sec_q("UPDATE todos SET is_done=?, done_at=" . ($next ? 'NOW()' : 'NULL') . " WHERE parent_id=? AND user_id=?",
           [$next, $id, $uid]);
     td_sync_planner($uid, $id);
+    if ($next === 1) td_mem_ricorda($uid, $id, true);
     sec_json(['ok' => true, 'done' => $next === 1]);
 }
 
