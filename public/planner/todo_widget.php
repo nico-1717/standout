@@ -539,7 +539,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         });
 
         var tot = el('div', 'td-total');
-        tot.appendChild(el('span', null, 'totale'));
+        tot.appendChild(el('span', null, T('todo.totale')));
         tot.appendChild(el('b', null, euro(sumCents(roots))));
         this.list.appendChild(tot);
         this.list.appendChild(this.addButton());
@@ -1601,7 +1601,13 @@ if (!defined('TODO_WIDGET_CSS')) {
        altri grafici qui direbbero “bravo” e “male”, e su una cura non è
        quello il punto.
        ================================================================== */
-    var CAL_GG = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
+    /* le iniziali dei giorni nella lingua della pagina (L M M G V S D, M T W T F S S):
+       il 1° gennaio 2024 era un lunedì */
+    var CAL_GG = (function () {
+        var f = new Intl.DateTimeFormat(document.documentElement.lang || 'it', { weekday: 'narrow' }), out = [];
+        for (var i = 0; i < 7; i++) out.push(f.format(new Date(2024, 0, 1 + i)));
+        return out;
+    })();
     var CAL_MESI = nomiMesi('long');
 
     /* Quante prese prevede in un giorno: «10:00x2,20:00x1» fa tre. È il
@@ -1654,7 +1660,58 @@ if (!defined('TODO_WIDGET_CSS')) {
         return voci;
     }
 
-    function pillCalendario(pl, titolo) {
+    /* Toccando un giorno: quante prese di quel giorno sono state fatte.
+       Un contatore e due scorciatoie (tutte, nessuna): il caso comune è
+       «l'ho presa e non l'ho segnata», o il contrario. */
+    function pillGiornoScelta(pl, iso, prese, tot, poi) {
+        var ov = el('div', 'td-modal');
+        var card = el('div', 'td-card td-pill-giorno');
+        var d = new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10));
+        var dataLunga = new Intl.DateTimeFormat(document.documentElement.lang || 'it', { weekday: 'long', day: 'numeric', month: 'long' }).format(d);
+        card.appendChild(el('div', 'td-card-t', dataLunga));
+        card.appendChild(el('div', 'td-card-s', (pl.name || '') + (pl.dose ? ' · ' + pl.dose : '') + ' — ' + T('todo.cal_quante')));
+        var n = prese;
+        var riga = el('div', 'td-pcs');
+        var meno = el('button', 'td-pcs-b', '−'); meno.type = 'button'; meno.setAttribute('aria-label', T('todo.cal_meno'));
+        var piu = el('button', 'td-pcs-b', '+'); piu.type = 'button'; piu.setAttribute('aria-label', T('todo.cal_piu'));
+        var val = el('div', 'td-pcs-v');
+        var num = el('b', null, String(n));
+        val.appendChild(num);
+        val.appendChild(el('span', null, T('todo.cal_di_tot', { tot: tot })));
+        riga.appendChild(meno); riga.appendChild(val); riga.appendChild(piu);
+        card.appendChild(riga);
+        var scorciatoie = el('div', 'td-pcs-q');
+        var tutte = el('button', null, T('todo.cal_tutte')); tutte.type = 'button';
+        var nessuna = el('button', null, T('todo.cal_nessuna')); nessuna.type = 'button';
+        scorciatoie.appendChild(nessuna); scorciatoie.appendChild(tutte);
+        card.appendChild(scorciatoie);
+        function aggiorna() {
+            num.textContent = String(n);
+            meno.disabled = n <= 0; piu.disabled = n >= tot;
+            tutte.classList.toggle('is-on', n === tot); nessuna.classList.toggle('is-on', n === 0);
+        }
+        meno.addEventListener('click', function () { if (n > 0) { n--; aggiorna(); } });
+        piu.addEventListener('click', function () { if (n < tot) { n++; aggiorna(); } });
+        tutte.addEventListener('click', function () { n = tot; aggiorna(); });
+        nessuna.addEventListener('click', function () { n = 0; aggiorna(); });
+        var acts = el('div', 'td-card-acts');
+        var no = el('button', null, T('comune.annulla')); no.type = 'button';
+        var si = el('button', 'td-primary', T('comune.salva')); si.type = 'button';
+        no.addEventListener('click', function () { ov.remove(); });
+        si.addEventListener('click', function () {
+            ov.remove();
+            if (n === prese) return;
+            poi(n);
+        });
+        acts.appendChild(no); acts.appendChild(si);
+        card.appendChild(acts);
+        ov.appendChild(card);
+        ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+        document.body.appendChild(ov);
+        aggiorna();
+    }
+
+    function pillCalendario(pl, titolo, cambiato) {
         var box = el('div', 'td-pill-cal-box');
         box.style.setProperty('--cc', pl.color || '#B7A6D6');
 
@@ -1714,14 +1771,15 @@ if (!defined('TODO_WIDGET_CSS')) {
            Il gesto sta sulla griglia e non sulla scheda intera: la scheda in
            verticale scorre, e rubarle il movimento vorrebbe dire non poter
            più arrivare in fondo. */
-        var px = 0, py = 0, vivo = false;
+        var px = 0, py = 0, vivo = false, ultimoDx = 0;
         griglia.addEventListener('pointerdown', function (e) {
-            px = e.clientX; py = e.clientY; vivo = true;
+            px = e.clientX; py = e.clientY; vivo = true; ultimoDx = 0;
         });
         griglia.addEventListener('pointerup', function (e) {
             if (!vivo) return;
             vivo = false;
             var dx = e.clientX - px, dy = e.clientY - py;
+            ultimoDx = dx;
             if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
             /* indietro sempre; avanti solo se c'è un mese da vedere, cioè
                mai oltre quello in corso */
@@ -1770,16 +1828,34 @@ if (!defined('TODO_WIDGET_CSS')) {
                     }
                     if (iso === oggi) cls += ' td-oggi';
                     if (iso > oggi) cls += ' td-futuro';
-                    var c = el('div', cls, String(d));
-                    if (g) {
-                        c.title = iso + ': ' + (g.taken || 0) + ' su '
-                                + ((g.taken || 0) + (g.skipped || 0) + (g.pending || 0));
+                    var passato = iso <= oggi;
+                    var c = el(passato ? 'button' : 'div', cls + (passato ? ' td-tocca' : ''), String(d));
+                    var totG = g ? (g.taken || 0) + (g.skipped || 0) + (g.pending || 0) : 0;
+                    if (g) c.title = T('todo.cal_titolo_giorno', { data: iso, n: (g.taken || 0), tot: totG });
+                    if (passato) {
+                        c.type = 'button';
+                        /* il giorno lo si tocca per dire quante se ne sono prese:
+                           senza un registro di quel giorno si parte da quante
+                           la terapia ne prevede, e il server controlla */
+                        (function (c, iso, prese, tot) {
+                            c.addEventListener('click', function () {
+                                if (Math.abs(ultimoDx) >= 40) return;   // era uno sfoglio, non un tocco
+                                pillGiornoScelta(pl, iso, prese, tot, function (n) {
+                                    api('pill_day_set', { plan_id: pl.id, date: iso, taken: n }).then(function (r) {
+                                        if (r && r.ok === false && r.message && typeof window.showToast === 'function') showToast(r.message, 'error');
+                                        disegna();
+                                        if (cambiato) cambiato();
+                                    });
+                                });
+                            });
+                        })(c, iso, g ? (g.taken || 0) : 0, totG || pillPerGiorno(pl));
                     }
                     griglia.appendChild(c);
                 }
                 nota.textContent = buchi
                     ? T('todo.giorni_presa_no', {presa: prese, no: buchi})
                     : (prese ? T('todo.presa_tutti_i_giorni') : T('todo.nessuna_presa'));
+                nota.appendChild(el('span', 'td-pill-cal-tocca', T('todo.cal_tocca')));
             });
         }
         disegna();
@@ -1793,7 +1869,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         var ov = el('div', 'td-modal');
         var card = el('div', 'td-card td-card-wide');
         card.appendChild(el('div', 'td-card-t', plan.name || T('todo.terapia')));
-        card.appendChild(pillCalendario(plan, plan.dose || ''));
+        card.appendChild(pillCalendario(plan, plan.dose || '', this.loadPills.bind(this)));
         var acts = el('div', 'td-card-acts');
         var ok = el('button', 'td-primary', T('comune.chiudi'));
         ok.type = 'button';
@@ -2170,7 +2246,7 @@ if (!defined('TODO_WIDGET_CSS')) {
            cambiare la terapia, e la storia è quello che si guarda dopo aver
            finito di guardare le regole. Sopra i tasti, però, perché con i
            tasti a metà scheda si perde di vista dove si salva. */
-        if (!nuovo && pl.id) card.appendChild(pillCalendario(pl));
+        if (!nuovo && pl.id) card.appendChild(pillCalendario(pl, '', function () { self.loadPills(); }));
 
         var acts = el('div', 'td-card-acts');
         var ann = el('button', null, T('comune.annulla'));

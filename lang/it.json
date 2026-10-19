@@ -835,7 +835,16 @@
     "prese_passate_1": "1 presa dei giorni scorsi.",
     "all_orario_previsto": "All'orario previsto",
     "tutte_adesso": "Tutte adesso",
-    "dimenticata": "dimenticata"
+    "dimenticata": "dimenticata",
+    "cal_titolo_giorno": "{data}: {n} su {tot}",
+    "cal_quante": "Quante ne hai prese?",
+    "cal_di_tot": "su {tot}",
+    "cal_tutte": "Tutte",
+    "cal_nessuna": "Nessuna",
+    "cal_tocca": "Tocca un giorno per segnare quante ne hai prese.",
+    "cal_meno": "Una in meno",
+    "cal_piu": "Una in più",
+    "totale": "totale"
   },
   "diario": {
     "lunedi": "Lunedì",
@@ -3963,7 +3972,10 @@
     "torna_indietro": "Torna indietro",
     "parola_gia_in": "\"{parola}\" è già in {categoria}.",
     "errore_interno_riga": "Errore interno del server: {errore} (riga {riga})",
-    "errore_interno": "Errore interno del server: {errore}"
+    "errore_interno": "Errore interno del server: {errore}",
+    "nessuna_presa_quel_giorno": "Quel giorno questa terapia non prevedeva prese.",
+    "data_futura": "Non si può segnare un giorno che deve ancora venire.",
+    "data_non_valida": "Data non valida."
   },
   "editor": {
     "scrivi_qui": "Scrivi qui…",

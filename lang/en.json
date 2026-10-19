@@ -835,7 +835,16 @@
     "prese_passate_1": "1 dose from past days.",
     "all_orario_previsto": "At the scheduled times",
     "tutte_adesso": "All now",
-    "dimenticata": "missed"
+    "dimenticata": "missed",
+    "cal_titolo_giorno": "{data}: {n} of {tot}",
+    "cal_quante": "How many did you take?",
+    "cal_di_tot": "of {tot}",
+    "cal_tutte": "All",
+    "cal_nessuna": "None",
+    "cal_tocca": "Tap a day to mark how many you took.",
+    "cal_meno": "One fewer",
+    "cal_piu": "One more",
+    "totale": "total"
   },
   "diario": {
     "lunedi": "Monday",
@@ -3963,7 +3972,10 @@
     "torna_indietro": "Go back",
     "parola_gia_in": "\"{parola}\" is already in {categoria}.",
     "errore_interno_riga": "Internal server error: {errore} (line {riga})",
-    "errore_interno": "Internal server error: {errore}"
+    "errore_interno": "Internal server error: {errore}",
+    "nessuna_presa_quel_giorno": "This treatment had no doses planned that day.",
+    "data_futura": "You can't mark a day that hasn't happened yet.",
+    "data_non_valida": "Invalid date."
   },
   "editor": {
     "scrivi_qui": "Write here…",

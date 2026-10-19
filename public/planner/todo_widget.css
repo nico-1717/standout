@@ -465,3 +465,31 @@
 .td-pill-tutte:active{ transform:scale(.96); }
 .td-card-acts-col{ flex-direction:column; }
 .td-card-acts button.td-ghost{ background:none; }
+
+/* il calendario di una terapia si tocca: ogni giorno passato è un pulsante */
+button.td-pill-cal-c{ border:none; padding:0; font:inherit; font-size:12px; background:none; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+button.td-pill-cal-c.td-ok{ background:var(--cc, #B7A6D6); }
+button.td-pill-cal-c.td-no{ background:#F3DFDF; }
+button.td-pill-cal-c.td-mezzo{ background:color-mix(in srgb, var(--cc, #B7A6D6) 22%, transparent); }
+button.td-pill-cal-c.td-mezzo2{ background:color-mix(in srgb, var(--cc, #B7A6D6) 55%, transparent); }
+.td-pill-cal-c.td-tocca{ transition:transform .15s ease; }
+.td-pill-cal-c.td-tocca:active{ transform:scale(.88); }
+@media (hover:hover){ .td-pill-cal-c.td-tocca:hover{ outline:1.5px solid var(--cc, #B7A6D6); outline-offset:1px; } }
+/* quante prese in un giorno */
+.td-pill-giorno .td-card-t::first-letter{ text-transform:uppercase; }
+.td-pcs{ display:flex; align-items:center; justify-content:center; gap:18px; margin:14px 0 10px; }
+.td-pcs-b{
+    width:46px; height:46px; border-radius:50%; border:none; cursor:pointer; font:inherit; font-size:24px; line-height:1;
+    background:var(--td-panel, #F5F1EA); color:var(--td-ink, #4A443D);
+}
+.td-pcs-b:disabled{ opacity:.35; cursor:default; }
+.td-pcs-v{ display:flex; flex-direction:column; align-items:center; min-width:70px; }
+.td-pcs-v b{ font-size:34px; font-weight:700; line-height:1.1; font-variant-numeric:tabular-nums; }
+.td-pcs-v span{ font-size:12.5px; color:var(--td-ink-2, #8A8177); }
+.td-pcs-q{ display:flex; justify-content:center; gap:8px; }
+.td-pcs-q button{
+    border:none; cursor:pointer; font:inherit; font-size:13px; padding:7px 14px; border-radius:99px;
+    background:var(--td-panel, #F5F1EA); color:var(--td-ink-2, #8A8177);
+}
+.td-pcs-q button.is-on{ background:var(--td-accent, #A9C3AE); color:var(--td-on-accent, #FFFDFA); }
+.td-pill-cal-tocca{ display:block; margin-top:4px; color:var(--td-ink-3); }

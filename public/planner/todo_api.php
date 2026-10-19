@@ -18,6 +18,7 @@
      todo_api.php?ajax=pills     (GET)   prese di un giorno + arretrate
      todo_api.php?ajax=pill_mark (POST)  presa / saltata, con l'ora a mano
      todo_api.php?ajax=pill_mark_all (POST) più prese insieme: all'orario previsto o adesso
+     todo_api.php?ajax=pill_day_set (POST) dal calendario: quante prese di un giorno
      todo_api.php?ajax=pill_history (GET) come è andata una terapia
 
    Un'attività con una data finisce anche nel planner come task: con
@@ -832,6 +833,48 @@ if ($ajax === 'pill_mark') {
     sec_q("UPDATE pill_doses SET status = ?, taken_at = ? WHERE id = ? AND user_id = ?",
           [$st, $quando, $id, $uid], 'ssii');
     sec_json(['ok' => true, 'taken_at' => $quando]);
+}
+
+/* ---------------- il calendario: quante prese in un giorno ----------------
+   Toccando un giorno del calendario di una terapia si dice quante se ne sono
+   prese (0 = nessuna, cioè togliere). Le prese del giorno si spuntano in
+   ordine di orario: le prime n prese, le altre tornano in sospeso.
+   Una presa già spuntata tiene la sua ora vera; una nuova prende l'ora in
+   cui era prevista (mai nel futuro). Una saltata resta saltata, a meno che
+   non serva per arrivare a n. */
+if ($ajax === 'pill_day_set') {
+    if (!td_pills_c_e()) sec_die_json(t('api.sezione_non_installata'), 400, 'no_table');
+    $pid = sec_int(sec_in('plan_id'), 1, PHP_INT_MAX, 0);
+    if (!sec_owns('pill_plans', $pid, $uid)) sec_die_json(t('api.terapia_non_trovata'), 404, 'not_found');
+    $giorno = sec_date(sec_in('date'), '');
+    if ($giorno === '') sec_die_json(t('api.data_non_valida'), 400, 'bad_date');
+    if ($giorno > date('Y-m-d')) sec_die_json(t('api.data_futura'), 400, 'future');
+    $n = sec_int(sec_in('taken'), 0, 50, 0);
+
+    td_pills_ensure_giorni($uid, [$giorno]);
+    $prese = sec_all("SELECT id, status, due_time FROM pill_doses
+                      WHERE user_id = ? AND plan_id = ? AND due_date = ?
+                      ORDER BY due_time, seq", [$uid, $pid, $giorno], 'iis');
+    if (!$prese) sec_die_json(t('api.nessuna_presa_quel_giorno'), 400, 'no_doses');
+
+    $n = min($n, count($prese));
+    $adesso = date('Y-m-d H:i:s');
+    /* quelle già prese contano per prime: se ne erano state spuntate due e
+       se ne chiedono due, non cambia niente */
+    $gia = array_values(array_filter($prese, function ($d) { return $d['status'] === 'taken'; }));
+    $altre = array_values(array_filter($prese, function ($d) { return $d['status'] !== 'taken'; }));
+    usort($altre, function ($a, $b) { return ($a['status'] === 'skipped') <=> ($b['status'] === 'skipped'); });
+    $togliere = array_slice($gia, $n);
+    $aggiungere = array_slice($altre, 0, max(0, $n - count($gia)));
+    foreach ($togliere as $d) {
+        sec_q("UPDATE pill_doses SET status = 'pending', taken_at = NULL WHERE id = ? AND user_id = ?", [(int)$d['id'], $uid], 'ii');
+    }
+    foreach ($aggiungere as $d) {
+        $quando = $giorno . ' ' . substr((string)$d['due_time'], 0, 5) . ':00';
+        if ($quando > $adesso) $quando = $adesso;
+        sec_q("UPDATE pill_doses SET status = 'taken', taken_at = ? WHERE id = ? AND user_id = ?", [$quando, (int)$d['id'], $uid], 'sii');
+    }
+    sec_json(['ok' => true, 'taken' => $n, 'tot' => count($prese)]);
 }
 
 /* ---------------- tutte prese, in un colpo ----------------
