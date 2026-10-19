@@ -126,6 +126,10 @@ $boot = [
     <button type="button" class="dy-tool" id="dyTodayBtn" aria-label="<?php te('diario.vai_a_oggi'); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.2v2.4M12 18.4v2.4M3.2 12h2.4M18.4 12h2.4"/></svg>
     </button>
+    <?php /* il diario in numeri: l'anno a colpo d'occhio, i resoconti e il libro */ ?>
+    <a class="dy-tool" id="dyNumeriBtn" href="diario_anno.php" aria-label="<?php te('diario.dn_apri'); ?>" title="<?php te('diario.dn_apri'); ?>">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+    </a>
     <button type="button" class="dy-tool" id="dyFontBtn" aria-label="<?php te('diario.scegli_la_scrittura'); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 18L10.5 6l5.5 12"/><path d="M7.2 14h6.6"/><path d="M18.5 18V9"/></svg>
     </button>

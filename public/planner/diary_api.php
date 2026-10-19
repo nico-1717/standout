@@ -8,6 +8,7 @@
 
    Chiamate:  diary_api.php?ajax=day&date=YYYY-MM-DD          (GET)
               diary_api.php?ajax=month&month=YYYY-MM          (GET)
+              diary_api.php?ajax=insights&year=YYYY           (GET)  il diario in numeri
               diary_api.php?ajax=save_text  ...               (POST)
               diary_api.php?ajax=save_mood  ...               (POST)
               diary_api.php?ajax=list_save  ...               (POST)
@@ -327,6 +328,64 @@ if ($ajax === 'settings_save') {
         sec_q("UPDATE diary_settings SET " . implode(', ', $fields) . " WHERE user_id = ?", $params);
     }
     sec_json(['ok' => true, 'settings' => dg_settings($uid)]);
+}
+
+/* --------------------------------------------------------------------- */
+/* Il diario in numeri: un anno giorno per giorno, gli anni a confronto, */
+/* i trimestri con il loro resoconto e il libro (diario_anno.php)        */
+/* --------------------------------------------------------------------- */
+if ($ajax === 'insights') {
+    require_once __DIR__ . '/../../lib/planner/diario_numeri.php';
+    $anno = (int)sec_in('year');
+    if ($anno < 2000 || $anno > 2100) $anno = (int)date('Y');
+    $giorni = dn_giorni($uid, $anno . '-01-01', $anno . '-12-31');
+    $oggi = date('Y-m-d');
+    $compatti = [];
+    foreach ($giorni as $d => $g) {
+        if ($d > $oggi) break;
+        $compatti[$d] = [$g['m'], $g['e'], $g['w'], $g['l'], $g['hd'], $g['hu'], $g['p'], $g['f']];
+    }
+
+    /* gli anni a confronto: dal primo in cui c'è qualcosa a oggi */
+    $primo = sec_one("SELECT MIN(entry_date) AS d FROM habit_daily_journal WHERE user_id = ?", [$uid], 'i');
+    $da = !empty($primo['d']) ? (int)substr($primo['d'], 0, 4) : (int)date('Y');
+    $anni = [];
+    for ($y = max($da, (int)date('Y') - 9); $y <= (int)date('Y'); $y++) {
+        $fine = $y === (int)date('Y') ? $oggi : $y . '-12-31';
+        $anni[] = ['anno' => $y] + dn_riassunto(dn_giorni($uid, $y . '-01-01', $fine));
+    }
+
+    /* i trimestri dell'anno: quanto è stato scritto, e cosa c'è già */
+    $resoconti = []; $libri = [];
+    if (dn_tabelle_ai()) {
+        foreach (sec_all("SELECT id, trimestre FROM diary_ai_reports WHERE user_id = ? AND anno = ?", [$uid, $anno], 'ii') as $r) {
+            $resoconti[(int)$r['trimestre']] = (int)$r['id'];
+        }
+        foreach (sec_all("SELECT id, titolo, periodo_da, periodo_a, stato, unito_a, created_at FROM diary_ai_books
+                          WHERE user_id = ? ORDER BY created_at DESC LIMIT 30", [$uid], 'i') as $b) {
+            $libri[] = ['id' => (int)$b['id'], 'titolo' => $b['titolo'], 'da' => $b['periodo_da'], 'a' => $b['periodo_a'],
+                        'stato' => $b['stato'], 'unito_a' => $b['unito_a'] !== null ? (int)$b['unito_a'] : null];
+        }
+    }
+    $trimestri = [];
+    for ($q = 1; $q <= 4; $q++) {
+        [$qda, $qa] = dn_trimestre($anno, $q);
+        if ($qda > $oggi) break;
+        $scritti = 0; $parole = 0;
+        foreach ($giorni as $d => $g) {
+            if ($d < $qda || $d > $qa) continue;
+            if ($g['w'] >= 10) $scritti++;
+            $parole += $g['w'];
+        }
+        $trimestri[] = ['q' => $q, 'da' => $qda, 'a' => $qa, 'in_corso' => $qa >= $oggi,
+                        'scritti' => $scritti, 'parole' => $parole,
+                        'min_giorni' => DN_MIN_GIORNI, 'min_parole' => DN_MIN_PAROLE,
+                        'idoneo' => $scritti >= DN_MIN_GIORNI && $parole >= DN_MIN_PAROLE,
+                        'resoconto' => $resoconti[$q] ?? null];
+    }
+
+    sec_json(['ok' => true, 'year' => $anno, 'today' => $oggi, 'days' => $compatti,
+              'anni' => $anni, 'trimestri' => $trimestri, 'libri' => $libri]);
 }
 
 /* --------------------------------------------------------------------- */
