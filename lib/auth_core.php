@@ -1,7 +1,7 @@
 <?php
 /**
  * ============================================================
- *  NISAMA — NUCLEO DI AUTENTICAZIONE
+ *  STANDOUT — NUCLEO DI AUTENTICAZIONE
  * ============================================================
  * Questo file NON va aperto direttamente dal browser: viene
  * incluso da altri file (auth_check.php, auth_check_api.php,
@@ -12,7 +12,7 @@
  *  - Gestisce il cookie "ricordami" (login persistente)
  *  - Genera/verifica il token CSRF
  *  - Applica un blocco temporaneo dopo troppi tentativi di login
- *  - Espone nisama_utente_corrente() per sapere chi è loggato
+ *  - Espone standout_utente_corrente() per sapere chi è loggato
  *
  * Non tocca in alcun modo config.php: usa le stesse costanti
  * DB_HOST / DB_USER / DB_PASSWORD / DB_NAME che già usi altrove.
@@ -45,7 +45,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 /** Connessione al DB condivisa per tutte le funzioni di questo file (stessa modalità mysqli già in uso nel sito) */
-function nisama_db(): mysqli {
+function standout_db(): mysqli {
     static $conn = null;
     if ($conn === null) {
         $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
@@ -60,22 +60,22 @@ function nisama_db(): mysqli {
 
 /* ================= CSRF ================= */
 
-function nisama_csrf_token(): string {
+function standout_csrf_token(): string {
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
     return $_SESSION['csrf_token'];
 }
 
-function nisama_csrf_verifica(?string $token): bool {
+function standout_csrf_verifica(?string $token): bool {
     return isset($_SESSION['csrf_token']) && is_string($token) && $token !== ''
         && hash_equals($_SESSION['csrf_token'], $token);
 }
 
 /* ============ Rate limiting sui login ============ */
 
-function nisama_login_bloccato(string $identifier): bool {
-    $conn = nisama_db();
+function standout_login_bloccato(string $identifier): bool {
+    $conn = standout_db();
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'sconosciuto';
     $minuti = LOGIN_BLOCCO_MINUTI;
 
@@ -91,8 +91,8 @@ function nisama_login_bloccato(string $identifier): bool {
     return intval($row['c']) >= LOGIN_MAX_TENTATIVI;
 }
 
-function nisama_registra_tentativo(string $identifier, bool $success): void {
-    $conn = nisama_db();
+function standout_registra_tentativo(string $identifier, bool $success): void {
+    $conn = standout_db();
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'sconosciuto';
     $s = $success ? 1 : 0;
 
@@ -104,8 +104,8 @@ function nisama_registra_tentativo(string $identifier, bool $success): void {
 
 /* ============ "Ricordami" — pattern selector/validator ============ */
 
-function nisama_imposta_remember_cookie(int $user_id): void {
-    $conn = nisama_db();
+function standout_imposta_remember_cookie(int $user_id): void {
+    $conn = standout_db();
     $selector  = bin2hex(random_bytes(9));
     $validator = bin2hex(random_bytes(33));
     $hash      = hash('sha256', $validator);
@@ -127,11 +127,11 @@ function nisama_imposta_remember_cookie(int $user_id): void {
     ]);
 }
 
-function nisama_elimina_remember_cookie(): void {
+function standout_elimina_remember_cookie(): void {
     if (!empty($_COOKIE['nisama_remember'])) {
         $parti = explode(':', $_COOKIE['nisama_remember']);
         if (!empty($parti[0])) {
-            $conn = nisama_db();
+            $conn = standout_db();
             $stmt = mysqli_prepare($conn, "DELETE FROM remember_tokens WHERE selector = ?");
             mysqli_stmt_bind_param($stmt, 's', $parti[0]);
             mysqli_stmt_execute($stmt);
@@ -141,14 +141,14 @@ function nisama_elimina_remember_cookie(): void {
     }
 }
 
-function nisama_verifica_remember_cookie(): ?array {
+function standout_verifica_remember_cookie(): ?array {
     if (empty($_COOKIE['nisama_remember'])) return null;
     $parti = explode(':', $_COOKIE['nisama_remember']);
     if (count($parti) !== 2) return null;
     [$selector, $validator] = $parti;
     if ($selector === '' || $validator === '') return null;
 
-    $conn = nisama_db();
+    $conn = standout_db();
     $stmt = mysqli_prepare($conn, "SELECT rt.user_id, rt.token_hash, u.username, u.email
         FROM remember_tokens rt JOIN users u ON u.id = rt.user_id
         WHERE rt.selector = ? AND rt.expires_at > NOW()");
@@ -167,7 +167,7 @@ function nisama_verifica_remember_cookie(): ?array {
         mysqli_stmt_bind_param($stmtDel, 'i', $row['user_id']);
         mysqli_stmt_execute($stmtDel);
         mysqli_stmt_close($stmtDel);
-        nisama_elimina_remember_cookie();
+        standout_elimina_remember_cookie();
         return null;
     }
 
@@ -178,31 +178,34 @@ function nisama_verifica_remember_cookie(): ?array {
     mysqli_stmt_execute($stmtDel2);
     mysqli_stmt_close($stmtDel2);
 
-    nisama_imposta_remember_cookie((int)$row['user_id']);
+    standout_imposta_remember_cookie((int)$row['user_id']);
 
     return ['id' => (int)$row['user_id'], 'username' => $row['username'], 'email' => $row['email']];
 }
 
 /* ============ Login / Logout ============ */
 
-function nisama_effettua_login(int $user_id, bool $ricordami = true): void {
+function standout_effettua_login(int $user_id, bool $ricordami = true): void {
     session_regenerate_id(true);
     $_SESSION['user_id'] = $user_id;
     unset($_SESSION['csrf_token']); // un nuovo login = nuovo token CSRF
 
-    $conn = nisama_db();
+    $conn = standout_db();
     $stmt = mysqli_prepare($conn, "UPDATE users SET last_login_at = NOW() WHERE id = ?");
     mysqli_stmt_bind_param($stmt, 'i', $user_id);
     mysqli_stmt_execute($stmt);
     mysqli_stmt_close($stmt);
 
     if ($ricordami) {
-        nisama_imposta_remember_cookie($user_id);
+        standout_imposta_remember_cookie($user_id);
     }
+
+    /* la lingua del profilo (o, se non c'e', quella scelta prima di entrare) */
+    if (function_exists('standout_lingua_dopo_login')) standout_lingua_dopo_login($user_id);
 }
 
-function nisama_effettua_logout(): void {
-    nisama_elimina_remember_cookie();
+function standout_effettua_logout(): void {
+    standout_elimina_remember_cookie();
     $_SESSION = [];
     if (ini_get('session.use_cookies')) {
         $p = session_get_cookie_params();
@@ -217,13 +220,13 @@ function nisama_effettua_logout(): void {
  * Ritorna ['id' => ..., 'username' => ..., 'email' => ...] se loggato,
  * altrimenti null. Prova prima la sessione, poi il cookie "ricordami".
  */
-function nisama_utente_corrente(): ?array {
+function standout_utente_corrente(): ?array {
     static $cache = null;
     static $verificato = false;
     if ($verificato) return $cache;
     $verificato = true;
 
-    $conn = nisama_db();
+    $conn = standout_db();
 
     if (!empty($_SESSION['user_id'])) {
         $uid = (int)$_SESSION['user_id'];
@@ -241,7 +244,7 @@ function nisama_utente_corrente(): ?array {
         unset($_SESSION['user_id']); // utente non più valido: puliamo la sessione
     }
 
-    $utente = nisama_verifica_remember_cookie();
+    $utente = standout_verifica_remember_cookie();
     if ($utente) {
         session_regenerate_id(true);
         $_SESSION['user_id'] = $utente['id'];

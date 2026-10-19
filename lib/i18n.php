@@ -1,5 +1,5 @@
 <?php
-/* Nisama - motore delle lingue.
+/* Standout - motore delle lingue.
  *
  * Incluso da config.php, quindi disponibile ovunque senza che nessuna pagina
  * debba ricordarsi di richiamarlo: la stessa logica per cui le difese stanno
@@ -10,7 +10,7 @@
  * Tutto quello che si scrive in $_SESSION mentre questo file viene incluso
  * viene buttato via appena la sessione parte davvero. Percio' qui non si tocca
  * la sessione: si registra soltanto cosa e' stato chiesto, e la si scrive alla
- * prima chiamata di nisama_lingua(), che avviene dentro la pagina, a sessione
+ * prima chiamata di standout_lingua(), che avviene dentro la pagina, a sessione
  * gia' avviata.
  *
  * Da dove viene la lingua, in ordine:
@@ -25,29 +25,41 @@
  */
 
 /* Le lingue che esistono davvero, cioe' quelle che hanno un file in lang/. */
-const NISAMA_LINGUE = ['it', 'en'];
+const STANDOUT_LINGUE = ['it', 'en'];
 
 /* La lingua in cui sono scritte le stringhe originali, quindi anche il ripiego
    quando una traduzione manca. */
-const NISAMA_LINGUA_BASE = 'it';
+const STANDOUT_LINGUA_BASE = 'it';
 
-const NISAMA_LINGUA_COOKIE = 'nisama_lingua';
+/* Il nome del cookie resta quello di prima del cambio di nome del sito: e'
+   invisibile, e cambiarlo farebbe perdere la lingua scelta a chi non e'
+   ancora entrato. */
+const STANDOUT_LINGUA_COOKIE = 'nisama_lingua';
+
+/* Come si presenta ogni lingua nel selettore: il nome scritto NELLA lingua
+   stessa (chi non capisce l'italiano deve trovare "English", non "Inglese")
+   e la bandiera in _assets/svg/flags/. Una lingua nuova: file in lang/,
+   codice in STANDOUT_LINGUE e una riga qui. */
+const STANDOUT_LINGUE_INFO = [
+    'it' => ['nome' => 'Italiano', 'bandiera' => 'it'],
+    'en' => ['nome' => 'English',  'bandiera' => 'gb'],
+];
 
 
 /* ============================================================
    1. QUALE LINGUA
    ============================================================ */
 
-function nisama_lingua_valida($codice): bool
+function standout_lingua_valida($codice): bool
 {
-    return is_string($codice) && in_array($codice, NISAMA_LINGUE, true);
+    return is_string($codice) && in_array($codice, STANDOUT_LINGUE, true);
 }
 
 /* La lingua decisa per questa richiesta. Sta in una funzione a parte e torna
-   per riferimento perche' anche nisama_imposta_lingua() deve poterla cambiare:
-   una static dentro nisama_lingua() non sarebbe raggiungibile da fuori, e dopo
+   per riferimento perche' anche standout_imposta_lingua() deve poterla cambiare:
+   una static dentro standout_lingua() non sarebbe raggiungibile da fuori, e dopo
    un cambio a meta' pagina il resto continuerebbe nella lingua vecchia. */
-function &nisama_lingua_cache()
+function &standout_lingua_cache()
 {
     static $scelta = null;
     return $scelta;
@@ -56,20 +68,20 @@ function &nisama_lingua_cache()
 /* Memoria di cosa e' stato chiesto con ?lang=. Con un argomento scrive, senza
    legge. Serve a rimandare la scrittura in sessione al momento in cui la
    sessione esiste. */
-function nisama_lingua_richiesta(?string $imposta = null): ?string
+function standout_lingua_richiesta(?string $imposta = null): ?string
 {
     static $codice = null;
     if ($imposta !== null) $codice = $imposta;
     return $codice;
 }
 
-function nisama_lingua(): string
+function standout_lingua(): string
 {
-    $scelta =& nisama_lingua_cache();
+    $scelta =& standout_lingua_cache();
     if ($scelta !== null) return $scelta;
 
     // 0. richiesta esplicita nell'indirizzo, registrata in fondo a questo file
-    $daGet = nisama_lingua_richiesta();
+    $daGet = standout_lingua_richiesta();
     if ($daGet !== null) {
         // ADESSO si puo': la sessione e' partita
         if (session_status() === PHP_SESSION_ACTIVE) $_SESSION['lingua'] = $daGet;
@@ -77,40 +89,40 @@ function nisama_lingua(): string
     }
 
     // 1. gia' decisa in questa sessione
-    if (!empty($_SESSION['lingua']) && nisama_lingua_valida($_SESSION['lingua'])) {
+    if (!empty($_SESSION['lingua']) && standout_lingua_valida($_SESSION['lingua'])) {
         return $scelta = $_SESSION['lingua'];
     }
 
     // 2. la scelta salvata dall'utente: si legge una volta sola, poi finisce in
     //    sessione e per il resto della navigazione non si torna al database
-    $dalDb = nisama_lingua_utente();
+    $dalDb = standout_lingua_utente();
     if ($dalDb !== null) {
         if (session_status() === PHP_SESSION_ACTIVE) $_SESSION['lingua'] = $dalDb;
         return $scelta = $dalDb;
     }
 
     // 3. il cookie: copre le pagine dove non si e' ancora loggati
-    if (!empty($_COOKIE[NISAMA_LINGUA_COOKIE]) && nisama_lingua_valida($_COOKIE[NISAMA_LINGUA_COOKIE])) {
-        return $scelta = $_COOKIE[NISAMA_LINGUA_COOKIE];
+    if (!empty($_COOKIE[STANDOUT_LINGUA_COOKIE]) && standout_lingua_valida($_COOKIE[STANDOUT_LINGUA_COOKIE])) {
+        return $scelta = $_COOKIE[STANDOUT_LINGUA_COOKIE];
     }
 
     // 4. quello che dichiara il browser
-    $dalBrowser = nisama_lingua_dal_browser();
+    $dalBrowser = standout_lingua_dal_browser();
     if ($dalBrowser !== null) return $scelta = $dalBrowser;
 
-    return $scelta = NISAMA_LINGUA_BASE;
+    return $scelta = STANDOUT_LINGUA_BASE;
 }
 
 /* Legge users.lang. Restituisce null anche quando la colonna e' vuota: vuol
    dire "non ho mai scelto", e allora si prosegue con cookie e browser.
    Non usa sec_* perche' questo file e' incluso prima di security_core.php:
    quelle funzioni qui non esistono ancora. */
-function nisama_lingua_utente(): ?string
+function standout_lingua_utente(): ?string
 {
     if (empty($_SESSION['user_id'])) return null;
-    if (!function_exists('nisama_db')) return null;   // auth_core non ancora incluso
+    if (!function_exists('standout_db')) return null;   // auth_core non ancora incluso
 
-    $conn = nisama_db();
+    $conn = standout_db();
     if (!$conn) return null;
 
     $uid = (int)$_SESSION['user_id'];
@@ -122,21 +134,21 @@ function nisama_lingua_utente(): ?string
     $trovato = mysqli_stmt_fetch($stmt);
     mysqli_stmt_close($stmt);
 
-    if (!$trovato || !nisama_lingua_valida($lang)) return null;
+    if (!$trovato || !standout_lingua_valida($lang)) return null;
     return $lang;
 }
 
 /* Accept-Language arriva come "it-IT,it;q=0.9,en-US;q=0.8". Si tengono le prime
    due lettere di ogni voce, in ordine di preferenza, e si prende la prima che
    sappiamo parlare. */
-function nisama_lingua_dal_browser(): ?string
+function standout_lingua_dal_browser(): ?string
 {
     $intestazione = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '';
     if ($intestazione === '') return null;
 
     foreach (explode(',', $intestazione) as $pezzo) {
         $codice = strtolower(substr(trim(explode(';', $pezzo)[0]), 0, 2));
-        if (nisama_lingua_valida($codice)) return $codice;
+        if (standout_lingua_valida($codice)) return $codice;
     }
     return null;
 }
@@ -149,17 +161,17 @@ function nisama_lingua_dal_browser(): ?string
 /* Il cookie e basta. Separata perche' e' l'unica parte che si puo' fare mentre
    config.php viene incluso: richiede le intestazioni ancora aperte, e a quel
    punto lo sono. */
-function nisama_scrivi_cookie_lingua(string $codice): void
+function standout_scrivi_cookie_lingua(string $codice): void
 {
     /* setcookie() prepara l'intestazione per il BROWSER e non tocca $_COOKIE.
        Senza la riga qui sotto, la pagina in corso continuerebbe a leggere il
        valore precedente: e' il motivo per cui ?lang=it sembrava ignorato. */
-    $_COOKIE[NISAMA_LINGUA_COOKIE] = $codice;
+    $_COOKIE[STANDOUT_LINGUA_COOKIE] = $codice;
 
     /* Un anno: e' una preferenza, non un dato di accesso. HttpOnly no, perche'
        un domani puo' servire al JavaScript sapere in che lingua siamo. */
     if (!headers_sent()) {
-        setcookie(NISAMA_LINGUA_COOKIE, $codice, [
+        setcookie(STANDOUT_LINGUA_COOKIE, $codice, [
             'expires'  => time() + 31536000,
             'path'     => '/',
             'secure'   => !empty($_SERVER['HTTPS']),
@@ -173,21 +185,21 @@ function nisama_scrivi_cookie_lingua(string $codice): void
    una GET non deve mai modificare il profilo, altrimenti basta un collegamento
    preparato da altri per cambiare le impostazioni a chi ci clicca. Dal modulo
    POST delle impostazioni, invece, si salva. */
-function nisama_imposta_lingua(string $codice, bool $salvaSulProfilo = false): bool
+function standout_imposta_lingua(string $codice, bool $salvaSulProfilo = false): bool
 {
-    if (!nisama_lingua_valida($codice)) return false;
+    if (!standout_lingua_valida($codice)) return false;
 
     /* Solo a sessione attiva: scriverci prima di session_start() non da' errore,
        riempie un array che verra' semplicemente sostituito. */
     if (session_status() === PHP_SESSION_ACTIVE) $_SESSION['lingua'] = $codice;
 
-    nisama_scrivi_cookie_lingua($codice);
+    standout_scrivi_cookie_lingua($codice);
 
-    $cache =& nisama_lingua_cache();
+    $cache =& standout_lingua_cache();
     $cache = $codice;
 
-    if ($salvaSulProfilo && !empty($_SESSION['user_id']) && function_exists('nisama_db')) {
-        $conn = nisama_db();
+    if ($salvaSulProfilo && !empty($_SESSION['user_id']) && function_exists('standout_db')) {
+        $conn = standout_db();
         if ($conn) {
             $uid = (int)$_SESSION['user_id'];
             $stmt = mysqli_prepare($conn, "UPDATE users SET lang = ? WHERE id = ?");
@@ -202,6 +214,40 @@ function nisama_imposta_lingua(string $codice, bool $salvaSulProfilo = false): b
 }
 
 
+/* Subito dopo il login. La lingua salvata sul profilo vale su ogni
+   dispositivo: se c'e', prende il posto di quella scelta da non connessi.
+   Se il profilo non ne ha ancora una (utente nuovo o di prima che esistesse
+   la scelta), ci si salva quella in uso adesso, cosi' chi ha scelto
+   "English" nella pagina d'ingresso se la ritrova ovunque. */
+function standout_lingua_dopo_login(int $uid): void
+{
+    if ($uid <= 0 || !function_exists('standout_db')) return;
+    $conn = standout_db();
+    if (!$conn) return;
+
+    $stmt = mysqli_prepare($conn, "SELECT lang FROM users WHERE id = ?");
+    if (!$stmt) return;
+    mysqli_stmt_bind_param($stmt, 'i', $uid);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_bind_result($stmt, $lang);
+    $trovato = mysqli_stmt_fetch($stmt);
+    mysqli_stmt_close($stmt);
+    if (!$trovato) return;
+
+    if (standout_lingua_valida($lang)) {
+        standout_imposta_lingua($lang, false);
+        return;
+    }
+    $attuale = standout_lingua();
+    $stmt = mysqli_prepare($conn, "UPDATE users SET lang = ? WHERE id = ?");
+    if ($stmt) {
+        mysqli_stmt_bind_param($stmt, 'si', $attuale, $uid);
+        mysqli_stmt_execute($stmt);
+        mysqli_stmt_close($stmt);
+    }
+}
+
+
 /* ============================================================
    3. IL DIZIONARIO
    ============================================================ */
@@ -209,7 +255,7 @@ function nisama_imposta_lingua(string $codice, bool $salvaSulProfilo = false): b
 /* I file stanno in lang/, uno per lingua, e sono JSON e non PHP apposta: quando
    l'app in React Native leggera' le stesse traduzioni dovra' poterli aprire
    senza passare da un interprete PHP. */
-function nisama_dizionario(string $lingua): array
+function standout_dizionario(string $lingua): array
 {
     static $caricati = [];
     if (isset($caricati[$lingua])) return $caricati[$lingua];
@@ -223,7 +269,7 @@ function nisama_dizionario(string $lingua): array
 
 /* Cerca una chiave a punti ("pomodoro.avvia") dentro l'array annidato.
    null se non c'e': serve a distinguere "manca" da "c'e' ma e' vuota". */
-function nisama_cerca_chiave(array $dizionario, string $chiave): ?string
+function standout_cerca_chiave(array $dizionario, string $chiave): ?string
 {
     $nodo = $dizionario;
     foreach (explode('.', $chiave) as $pezzo) {
@@ -247,10 +293,10 @@ function nisama_cerca_chiave(array $dizionario, string $chiave): ?string
  * inosservata per mesi. */
 function t(string $chiave, array $sostituzioni = []): string
 {
-    $testo = nisama_cerca_chiave(nisama_dizionario(nisama_lingua()), $chiave);
+    $testo = standout_cerca_chiave(standout_dizionario(standout_lingua()), $chiave);
 
-    if ($testo === null && nisama_lingua() !== NISAMA_LINGUA_BASE) {
-        $testo = nisama_cerca_chiave(nisama_dizionario(NISAMA_LINGUA_BASE), $chiave);
+    if ($testo === null && standout_lingua() !== STANDOUT_LINGUA_BASE) {
+        $testo = standout_cerca_chiave(standout_dizionario(STANDOUT_LINGUA_BASE), $chiave);
     }
     if ($testo === null) return '<<' . $chiave . '>>';
 
@@ -294,13 +340,13 @@ function th(string $chiave, array $frammenti = []): void
  * codice, quindi la CSP non lo blocca nemmeno il giorno che toglieremo
  * 'unsafe-inline'. Un <script> normale con dentro un oggetto invece lo sarebbe.
  *
- * Si passano solo i gruppi che servono - nisama_i18n_json(['comune','pomodoro'])
+ * Si passano solo i gruppi che servono - standout_i18n_json(['comune','pomodoro'])
  * - e non tutto il dizionario: le stringhe saranno migliaia, spedirle tutte a
  * ogni pagina sarebbe peso inutile su ogni caricamento. */
-function nisama_i18n_json(array $spazi): string
+function standout_i18n_json(array $spazi): string
 {
-    $dizionario = nisama_dizionario(nisama_lingua());
-    $base = nisama_dizionario(NISAMA_LINGUA_BASE);
+    $dizionario = standout_dizionario(standout_lingua());
+    $base = standout_dizionario(STANDOUT_LINGUA_BASE);
 
     $fuori = [];
     foreach ($spazi as $spazio) {
@@ -365,10 +411,10 @@ JS;
    5. ?lang= NELL'INDIRIZZO
    ============================================================
    Qui si fa solo la meta' che si PUO' fare adesso: il cookie, che ha bisogno
-   delle intestazioni ancora aperte. La sessione la scrive nisama_lingua() alla
+   delle intestazioni ancora aperte. La sessione la scrive standout_lingua() alla
    prima chiamata, quando session_start() e' gia' avvenuto - vedi la nota in
    cima al file. */
-if (isset($_GET['lang']) && nisama_lingua_valida($_GET['lang'])) {
-    nisama_lingua_richiesta($_GET['lang']);
-    nisama_scrivi_cookie_lingua($_GET['lang']);
+if (isset($_GET['lang']) && standout_lingua_valida($_GET['lang'])) {
+    standout_lingua_richiesta($_GET['lang']);
+    standout_scrivi_cookie_lingua($_GET['lang']);
 }

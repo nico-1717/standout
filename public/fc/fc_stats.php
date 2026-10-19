@@ -1052,7 +1052,7 @@ if ($debugMode) {
 
 </div>
 
-<?php echo nisama_i18n_json(['comune', 'fc']); ?>
+<?php echo standout_i18n_json(['comune', 'fc']); ?>
 <script>
 // ==========================================
 // DATI EMBEDDATI DAL SERVER

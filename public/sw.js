@@ -16,7 +16,7 @@
 
 /* Cambiare questo numero a ogni rilascio: al primo avvio la vecchia cache
    viene cancellata per intero, quindi non restano avanzi di versioni passate. */
-const VERSIONE = 'standout-v2';
+const VERSIONE = 'standout-v3';
 
 const OFFLINE = './offline.html';
 

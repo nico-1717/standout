@@ -24,20 +24,20 @@
  * COSA FA
  *
  * Stampa una volta per pagina un modulo nascosto e la funzione JavaScript
- * nisamaAzione(), che lo riempie e lo invia in POST con il token. Il risultato,
+ * standoutAzione(), che lo riempie e lo invia in POST con il token. Il risultato,
  * per l'utente, e' identico a prima: la pagina cambia. Per il server no: ora
  * sec_require_csrf() confronta il token e rifiuta le richieste che vengono da
  * fuori.
  *
  * COME SI USA
  *
- *     <?php require_once __DIR__ . '/post_action.php'; nisama_azione_form(); ?>
+ *     <?php require_once __DIR__ . '/post_action.php'; standout_azione_form(); ?>
  *
- *     <button type="button" onclick="nisamaAzione('fc_game.php', {action:'concludi', game_id:5})">
+ *     <button type="button" onclick="standoutAzione('fc_game.php', {action:'concludi', game_id:5})">
  *
  * Per chi ha bisogno del solo token (le chiamate fatte con fetch):
  *
- *     fetch(url, { method:'POST', headers:{'X-CSRF-Token': NISAMA_CSRF}, body: fd })
+ *     fetch(url, { method:'POST', headers:{'X-CSRF-Token': STANDOUT_CSRF}, body: fd })
  *
  * NOTA SUL FUNZIONAMENTO SENZA JAVASCRIPT
  *
@@ -48,29 +48,29 @@
  * cosi' continua a funzionare anche a JavaScript spento.
  */
 
-if (!function_exists('nisama_azione_form')) {
+if (!function_exists('standout_azione_form')) {
 
 /**
- * Stampa il modulo nascosto e la funzione nisamaAzione(). Si puo' chiamare piu'
+ * Stampa il modulo nascosto e la funzione standoutAzione(). Si puo' chiamare piu'
  * volte senza rischi: dalla seconda in poi non fa niente.
  */
-function nisama_azione_form(): void {
-    if (defined('NISAMA_AZIONE_FORM')) return;
-    define('NISAMA_AZIONE_FORM', 1);
+function standout_azione_form(): void {
+    if (defined('STANDOUT_AZIONE_FORM')) return;
+    define('STANDOUT_AZIONE_FORM', 1);
 
     $token = sec_h(sec_csrf_token());
     echo <<<HTML
-<form id="nisamaAzioneForm" method="post" action="" style="display:none" aria-hidden="true">
+<form id="standoutAzioneForm" method="post" action="" style="display:none" aria-hidden="true">
     <input type="hidden" name="csrf_token" value="$token">
 </form>
 <script>
 /* Il token serve anche alle chiamate fatte con fetch. */
-var NISAMA_CSRF = "$token";
+var STANDOUT_CSRF = "$token";
 
 /* Invia un'azione in POST: crea i campi che servono nel modulo nascosto e lo
    manda. La pagina cambia come con un link normale. */
-function nisamaAzione(pagina, campi) {
-    var f = document.getElementById('nisamaAzioneForm');
+function standoutAzione(pagina, campi) {
+    var f = document.getElementById('standoutAzioneForm');
     if (!f) return false;
 
     /* Si tolgono i campi del giro precedente, tranne il token: chiamate

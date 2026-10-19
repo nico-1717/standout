@@ -13,7 +13,7 @@ require_once __DIR__ . '/../../lib/piano_helpers.php';
    definita, in PHP 8, e' un errore fatale. Era questo il 500 che faceva
    finire ogni voto nella coda "in attesa di connessione", pur essendo il
    voto gia' stato salvato. */
-define('NISAMA_PAUSA_MAX', 300);   // 5 minuti
+define('STANDOUT_PAUSA_MAX', 300);   // 5 minuti
 
 $current_user_id = (int)$utente_corrente['id']; // 2. ID utente sicuro
 /* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
@@ -102,10 +102,10 @@ function fc_e_titolo(array $padre, int $numero_figli): bool {
 // Stima tempo/lentezza IA per "spiega" e "metafora", da mostrare col timer nel popup
 // prima ancora di partire con la chiamata (vedi window.aiPerfStats più sotto).
 $ai_perf_stats_js = [
-    'explain'  => nisama_get_stima_tempo_ia('explain'),
-    'metaphor' => nisama_get_stima_tempo_ia('metaphor'),
-    'example'  => nisama_get_stima_tempo_ia('example'),
-    'shatter'  => nisama_get_stima_tempo_ia('shatter'),
+    'explain'  => standout_get_stima_tempo_ia('explain'),
+    'metaphor' => standout_get_stima_tempo_ia('metaphor'),
+    'example'  => standout_get_stima_tempo_ia('example'),
+    'shatter'  => standout_get_stima_tempo_ia('shatter'),
 ];
 
 $game_id = sec_int($_GET['game_id'] ?? 0, 1);
@@ -359,7 +359,7 @@ if ($azione === 'grade') {
        piu' lunga della soglia conta come la soglia, cosi' nemmeno una pausa
        dentro la stessa sessione gonfia il totale. */
     sec_q("UPDATE fc_game_durations
-              SET duration_seconds = duration_seconds + LEAST(TIMESTAMPDIFF(SECOND, updated_at, NOW()), " . NISAMA_PAUSA_MAX . "),
+              SET duration_seconds = duration_seconds + LEAST(TIMESTAMPDIFF(SECOND, updated_at, NOW()), " . STANDOUT_PAUSA_MAX . "),
                   updated_at = NOW()
             WHERE game_id = ? ORDER BY id DESC LIMIT 1", [$game_id]);
     $unanswered = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('plays') . " WHERE game_id = ? AND position = ? AND user_answer = ''",
@@ -479,7 +479,7 @@ $chrono_last = sec_one("SELECT id, duration_seconds, TIMESTAMPDIFF(SECOND, updat
 if ($chrono_last) {
     $fermo_da = (int)$chrono_last['fermo_da'];
 
-    if ($fermo_da > NISAMA_PAUSA_MAX) {
+    if ($fermo_da > STANDOUT_PAUSA_MAX) {
         /* Ferma da troppo: quella sessione e' finita quando si e' smesso di
            giocare, non adesso. Si lascia il suo totale com'e' (non si aggiunge
            la pausa) e se ne apre una nuova che parte da zero. */
@@ -488,7 +488,7 @@ if ($chrono_last) {
     } else {
         /* Pausa breve: e' tempo di gioco, si aggiunge alla sessione corrente. */
         sec_q("UPDATE fc_game_durations
-                  SET duration_seconds = duration_seconds + LEAST(TIMESTAMPDIFF(SECOND, updated_at, NOW()), " . NISAMA_PAUSA_MAX . "),
+                  SET duration_seconds = duration_seconds + LEAST(TIMESTAMPDIFF(SECOND, updated_at, NOW()), " . STANDOUT_PAUSA_MAX . "),
                       updated_at = NOW()
                 WHERE id = ?", [(int)$chrono_last['id']]);
     }
@@ -1097,9 +1097,9 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
 
 
-    <?php echo nisama_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
+    <?php echo standout_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
     <?php echo fc_boot_json(); ?>
-<?php nisama_azione_form(); ?>
+<?php standout_azione_form(); ?>
 <script>
     /* ================================================================
        SPIA ERRORI JS — visibile a schermo.
@@ -2028,7 +2028,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                         <p><?php te('fc.gm_conferma_concludi'); ?></p>
 
                         <button type="button" class="btn btn-red end-link"
-                                onclick="nisamaAzione('fc_game.php?game_id=<?php echo (int)($game_id); ?>', {action: 'concludi', game_id: <?php echo (int)($game_id); ?>})"><?php te('fc.gm_si_risultati'); ?></button>
+                                onclick="standoutAzione('fc_game.php?game_id=<?php echo (int)($game_id); ?>', {action: 'concludi', game_id: <?php echo (int)($game_id); ?>})"><?php te('fc.gm_si_risultati'); ?></button>
 
                         <button type="button" class="nav-btn" onclick="annullaChiusura()"><?php te('fc.gm_no_continua'); ?></button>
 
@@ -2056,7 +2056,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
         document.addEventListener('click', function(e) {
 
-            if (window.__nisamaModaleAperto) return;
+            if (window.__standoutModaleAperto) return;
 
             /* Anche le immagini dentro un esempio si aprono a schermo intero:
                prima reagiva solo a .fc-image, quindi quelle degli esempi
@@ -2301,7 +2301,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
         document.addEventListener('click', function(e) {
 
-            if (window.__nisamaModaleAperto) return;
+            if (window.__standoutModaleAperto) return;
 
             let ttsBtn = e.target.closest('#ttsSettingsBtn');
 
@@ -4216,7 +4216,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
             document.addEventListener('click', function (e) {
 
-                if (window.__nisamaModaleAperto) return;
+                if (window.__standoutModaleAperto) return;
 
                 var pill = e.target.closest && e.target.closest('#chrono-pill');
 
@@ -5005,7 +5005,7 @@ function schedulePrefetch () {
 
 var GAME_ID_PER_CODA = <?php echo (int)$game_id; ?>;
 var CHIAVI_GIA_RISPOSTE = <?php echo json_encode($chiavi_risposte); ?>;
-var PENDING_KEY = 'nisama_pending_grades_' + GAME_ID_PER_CODA;
+var PENDING_KEY = 'standout_pending_grades_' + GAME_ID_PER_CODA;
 
 function loadPendingGrades () {
     try {
@@ -5133,8 +5133,8 @@ function inviaVotoRichiesta (entry) {
     if (!sp.post) return Promise.resolve(true);
     var fd = new FormData();
     Object.keys(sp.post).forEach(function (k) { fd.append(k, sp.post[k]); });
-    fd.append('csrf_token', NISAMA_CSRF);
-    return fetch(sp.url, { method: 'POST', body: fd, headers: { 'X-CSRF-Token': NISAMA_CSRF }, redirect: 'manual' })
+    fd.append('csrf_token', STANDOUT_CSRF);
+    return fetch(sp.url, { method: 'POST', body: fd, headers: { 'X-CSRF-Token': STANDOUT_CSRF }, redirect: 'manual' })
         .then(function (res) {
             /* Una risposta "opaca" e' proprio il caso buono: il server ha
                accettato il voto e ha risposto con un redirect, che qui non
@@ -5200,7 +5200,7 @@ function inviaVotoConCoda (url, cardIndex) {
    anche rivedendo una carta gia' valutata, e si puo' sia accendere sia
    spegnere. Una chiamata leggera, senza passare da navigateTo(). */
 document.addEventListener('click', function (e) {
-    if (window.__nisamaModaleAperto) return;
+    if (window.__standoutModaleAperto) return;
     if (typeof fcExUltimoSwipe !== 'undefined' && Date.now() - fcExUltimoSwipe < 350) return;
     var box = e.target.closest('.qa-examples-box-filled');
     if (!box) return;
@@ -5222,9 +5222,9 @@ function toggleLearnt (btn) {
     fd.append('action', 'togglelearnt');
     fd.append('img_id', btn.getAttribute('data-learnt-id'));
     fd.append('is_child', btn.getAttribute('data-is-child') || '0');
-    fd.append('csrf_token', NISAMA_CSRF);
+    fd.append('csrf_token', STANDOUT_CSRF);
 
-    fetch('fc_game.php?game_id=' + GAME_ID_PER_CODA, { method: 'POST', body: fd, headers: { 'X-CSRF-Token': NISAMA_CSRF } })
+    fetch('fc_game.php?game_id=' + GAME_ID_PER_CODA, { method: 'POST', body: fd, headers: { 'X-CSRF-Token': STANDOUT_CSRF } })
         .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
         .then(function (data) {
             if (!data.success) throw new Error(data.error || 'errore');
@@ -5256,12 +5256,12 @@ function toggleFavorite (btn) {
     fd.append('action', 'togglefavorite');
     fd.append('img_id', btn.getAttribute('data-learnt-id'));
     fd.append('is_child', btn.getAttribute('data-is-child') || '0');
-    fd.append('csrf_token', NISAMA_CSRF);
+    fd.append('csrf_token', STANDOUT_CSRF);
 
     /* L'indirizzo deve portare il game_id: senza, la pagina non trova la
        partita e reindirizza PRIMA di arrivare al gestore dell'azione - al
        browser tornava una pagina HTML invece del JSON, da cui l'errore. */
-    fetch('fc_game.php?game_id=' + GAME_ID_PER_CODA, { method: 'POST', body: fd, headers: { 'X-CSRF-Token': NISAMA_CSRF } })
+    fetch('fc_game.php?game_id=' + GAME_ID_PER_CODA, { method: 'POST', body: fd, headers: { 'X-CSRF-Token': STANDOUT_CSRF } })
         .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
         .then(function (data) {
             if (!data.success) throw new Error(data.error || 'errore');
@@ -5536,8 +5536,8 @@ function navigateTo (url, opts) {
                 if (sp.post) {
                     var fd = new FormData();
                     Object.keys(sp.post).forEach(function (k) { fd.append(k, sp.post[k]); });
-                    fd.append('csrf_token', NISAMA_CSRF);
-                    richiesta = { method: 'POST', body: fd, headers: { 'X-CSRF-Token': NISAMA_CSRF } };
+                    fd.append('csrf_token', STANDOUT_CSRF);
+                    richiesta = { method: 'POST', body: fd, headers: { 'X-CSRF-Token': STANDOUT_CSRF } };
                 }
                 url = sp.url;
 
@@ -5792,7 +5792,7 @@ function navigateTo (url, opts) {
 
             document.addEventListener('click', function (e) {
 
-                if (window.__nisamaModaleAperto) return;
+                if (window.__standoutModaleAperto) return;
 
                 if (suppressNextClick) { suppressNextClick = false; e.stopPropagation(); e.preventDefault(); return; }
 
@@ -5850,7 +5850,7 @@ function navigateTo (url, opts) {
 
             document.addEventListener('pointerdown', function (e) {
 
-                if (window.__nisamaModaleAperto) return;
+                if (window.__standoutModaleAperto) return;
 
                 if (navLock || sw) return;
 
@@ -6571,7 +6571,7 @@ function navigateTo (url, opts) {
 
             document.addEventListener('keydown', function (e) {
 
-                if (window.__nisamaModaleAperto) return;
+                if (window.__standoutModaleAperto) return;
 
                 if (e.metaKey || e.ctrlKey || e.altKey) return;
 

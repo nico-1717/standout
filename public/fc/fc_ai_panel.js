@@ -430,7 +430,7 @@ var FCAIP = (function () {
     /* L'impegno e' una tendina (NS.tendina): chiusa mostra la voce scelta,
        aperta mostra le quattro con la spiegazione di ciascuna. Il valore si
        legge sempre dal DOM e non da una variabile, cosi' resta una fonte
-       sola anche se la tendina non si e' potuta agganciare (nisama_ui.js non
+       sola anche se la tendina non si e' potuta agganciare (standout_ui.js non
        caricato): in quel caso le voci restano cliccabili come pulsanti. */
     var tendinaImpegno = null;
 
@@ -1806,7 +1806,7 @@ var FCAIP = (function () {
             });
         }
         if (!tendinaImpegno) {
-            // ripiego senza nisama_ui.js: le voci restano quattro pulsanti
+            // ripiego senza standout_ui.js: le voci restano quattro pulsanti
             document.querySelectorAll('#fcaiImpegno [data-impegno]').forEach(function (b) {
                 b.addEventListener('click', function () { scegliImpegno(b.getAttribute('data-impegno')); stileCambiato(true); });
             });

@@ -83,7 +83,7 @@ if ($row && !empty($row[$col_to_check])) {
 
 // Non in cache: qui davvero interrogheremo Gemini, quindi ORA ha senso controllare il limite,
 // usando la stima (il costo reale in token si scopre solo a chiamata avvenuta).
-$stima_limite = nisama_verifica_limite_stimato($utente_corrente['id'], 300);
+$stima_limite = standout_verifica_limite_stimato($utente_corrente['id'], 300);
 if (!$stima_limite['ok']) {
     ob_clean();
     $msg = ($stima_limite['disponibili'] !== null)
@@ -125,7 +125,7 @@ if (curl_errno($ch)) {
 curl_close($ch);
 
 // Registriamo quanto ci ha messo questa chiamata, per stimare i tempi delle prossime
-nisama_registra_tempo_ia($mode, $durata_ms);
+standout_registra_tempo_ia($mode, $durata_ms);
 
 $json = json_decode($response, true);
 if (isset($json['candidates'][0]['content']['parts'][0]['text'])) {
@@ -138,7 +138,7 @@ if (isset($json['candidates'][0]['content']['parts'][0]['text'])) {
 
     // ORA scaliamo i token perché abbiamo effettivamente usato l'API
     $token_usati = isset($json['usageMetadata']['totalTokenCount']) ? (int)$json['usageMetadata']['totalTokenCount'] : 300;
-    nisama_incrementa_uso($utente_corrente['id'], 'token', $token_usati);
+    standout_incrementa_uso($utente_corrente['id'], 'token', $token_usati);
 
     ob_clean();
     echo json_encode(['success' => true, 'text' => $final_text, 'duration_ms' => $durata_ms]);

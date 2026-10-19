@@ -37,12 +37,12 @@ $fcai_css_v = @filemtime(__DIR__ . '/fc_ai_panel.css') ?: 1;
 <?php
 /* Il livello condiviso di movimento e attesa (scheletri, entrate, pressione,
    ricerca). Una volta sola anche se il pannello comparisse due volte. */
-if (!defined('NISAMA_UI')) {
-    define('NISAMA_UI', 1);
-    echo '<link rel="stylesheet" href="' . PWA_BASE . '_assets/ui/nisama_ui.css?v='
-       . (@filemtime(__DIR__ . '/../_assets/ui/nisama_ui.css') ?: 1) . '">' . "\n";
-    echo '<script src="' . PWA_BASE . '_assets/ui/nisama_ui.js?v='
-       . (@filemtime(__DIR__ . '/../_assets/ui/nisama_ui.js') ?: 1) . '"></script>' . "\n";
+if (!defined('STANDOUT_UI')) {
+    define('STANDOUT_UI', 1);
+    echo '<link rel="stylesheet" href="' . PWA_BASE . '_assets/ui/standout_ui.css?v='
+       . (@filemtime(__DIR__ . '/../_assets/ui/standout_ui.css') ?: 1) . '">' . "\n";
+    echo '<script src="' . PWA_BASE . '_assets/ui/standout_ui.js?v='
+       . (@filemtime(__DIR__ . '/../_assets/ui/standout_ui.js') ?: 1) . '"></script>' . "\n";
 }
 
 /* Le scelte di stile vengono dallo stesso elenco con cui il server le valida
@@ -51,7 +51,7 @@ if (!defined('NISAMA_UI')) {
 require_once __DIR__ . '/../../lib/fc/fc_ai_style.php';
 
 /* Flashcard di lingua: il pannello resta lo stesso, ma senza la sezione
-   dell'IA (per le parole arrivera' piu' avanti, vedi NISAMA_PROGETTO.md) e
+   dell'IA (per le parole arrivera' piu' avanti, vedi STANDOUT_PROGETTO.md) e
    con un'immagine sola per carta. L'import legge quattro colonne: parola,
    traduzione, significato, esempio. */
 $fcai_vocab = function_exists('fc_is_vocab') && fc_is_vocab();

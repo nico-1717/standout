@@ -21,7 +21,7 @@ register_shutdown_function(function () {
     }
 });
 
-$stima_limite = nisama_verifica_limite_stimato($utente_corrente['id'], 300);
+$stima_limite = standout_verifica_limite_stimato($utente_corrente['id'], 300);
 if (!$stima_limite['ok']) {
     ob_clean();
     $msg = ($stima_limite['disponibili'] !== null)
@@ -90,7 +90,7 @@ $err = curl_error($ch);
 $err_no = curl_errno($ch);
 curl_close($ch);
 
-if (!$err) { nisama_registra_tempo_ia('shatter', $durata_ms); }
+if (!$err) { standout_registra_tempo_ia('shatter', $durata_ms); }
 
 // Pulisce qualsiasi cosa stampata finora per garantire un JSON puro
 ob_clean(); 
@@ -127,7 +127,7 @@ if (isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
     
     if ($cards && is_array($cards)) {
         $token_usati = isset($responseData['usageMetadata']['totalTokenCount']) ? (int)$responseData['usageMetadata']['totalTokenCount'] : 300;
-        nisama_incrementa_uso($utente_corrente['id'], 'token', $token_usati);
+        standout_incrementa_uso($utente_corrente['id'], 'token', $token_usati);
         
         echo json_encode(['success' => true, 'cards' => $cards]);
     } else {

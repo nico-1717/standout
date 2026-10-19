@@ -162,7 +162,7 @@ if (count($note) === 1) $linguaNota = reset($note);
 
 /* L'elenco per la ricerca, gia' ordinato e con i nomi nella lingua
    dell'interfaccia: il JavaScript filtra e basta. */
-$ui = nisama_lingua();
+$ui = standout_lingua();
 $catalogo = [];
 foreach (FC_LINGUE as $codice => $v) {
     $catalogo[] = [
@@ -200,8 +200,8 @@ function fcl_quando(?string $giorno): string {
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <title><?php te('fchub.lingue_titolo'); ?></title>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_hub.css?v=<?php echo @filemtime(__DIR__ . '/fc_hub.css') ?: 1; ?>">
-<script src="<?php echo PWA_BASE; ?>_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: 1; ?>"></script>
-<?php echo nisama_i18n_json(['comune', 'fchub']); ?>
+<script src="<?php echo PWA_BASE; ?>_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: 1; ?>"></script>
+<?php echo standout_i18n_json(['comune', 'fchub']); ?>
 </head>
 <body class="hub-body">
 

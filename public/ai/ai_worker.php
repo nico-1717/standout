@@ -6,7 +6,7 @@
  *
  * USO — una riga di crontab, ogni minuto:
  *
- *   * * * * * php /percorso/del/sito/ai_worker.php --durata=55 >> /var/log/nisama_ai.log 2>&1
+ *   * * * * * php /percorso/del/sito/ai_worker.php --durata=55 >> /var/log/standout_ai.log 2>&1
  *
  * Ogni esecuzione lavora per --durata secondi (di serie 55), un passo alla
  * volta, poi esce; il minuto dopo cron ne avvia un'altra. Un lucchetto su
@@ -63,7 +63,7 @@ $una_volta = isset($opz['una-volta']);   // esegue al massimo un passo: utile pe
 /* IL LUCCHETTO. flock e' rilasciato dal sistema anche se il processo muore:
    non resta mai un lucchetto orfano che blocca tutto fino a un intervento a
    mano, come succederebbe con un file "sto lavorando" scritto e cancellato. */
-$lucchetto = fopen(sys_get_temp_dir() . '/nisama_ai_worker.lock', 'c');
+$lucchetto = fopen(sys_get_temp_dir() . '/standout_ai_worker.lock', 'c');
 if (!$lucchetto || !flock($lucchetto, LOCK_EX | LOCK_NB)) {
     fwrite(STDOUT, date('c') . " un altro lavoratore e' gia' attivo, esco\n");
     exit(0);

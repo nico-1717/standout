@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — API DELLE ATTIVITÀ (TO DO / TO BUY / TO STUDY)
+   STANDOUT — API DELLE ATTIVITÀ (TO DO / TO BUY / TO STUDY)
    Un solo punto di scrittura per la pagina to-do, per la sezione dentro
    un progetto, per il post-it del pomodoro e per il pannello settimana
    del planner.
@@ -45,7 +45,7 @@ const TD_TIPI = ['todo', 'buy', 'study'];
 
 /* Cartella delle immagini degli articoli. Sta fuori dal database perché un
    file grande dentro una riga rallenta ogni lettura dell'elenco. */
-function td_img_dir(): string { return NISAMA_DATA_DIR . 'uploads/tobuy'; }
+function td_img_dir(): string { return STANDOUT_DATA_DIR . 'uploads/tobuy'; }
 
 /* ---------------------------------------------------------------------
    Pulizia: le attività spuntate ieri non servono più.

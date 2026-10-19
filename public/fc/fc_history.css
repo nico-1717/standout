@@ -423,7 +423,8 @@ button, input{ font-family:inherit; }
 @keyframes hdrPlayPulseSoft{ 50%{ opacity:.25; } }
 
 /* ── TICKER ─────────────────────────────────────────────────────────────────
-   Il movimento vero e proprio (avanti a velocità costante, indietro veloce)
+   Il movimento vero e proprio (avanti a velocità costante, pausa in fondo,
+   ritorno istantaneo all'inizio)
    lo pilota il JS con transizioni inline: una singola animazione CSS a
    durata fissa avrebbe fatto viaggiare alla stessa velocità un nome corto
    e uno lunghissimo, il che è esattamente cio' che non deve succedere.

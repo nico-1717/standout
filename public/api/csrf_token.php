@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — TOKEN DI SESSIONE
+   STANDOUT — TOKEN DI SESSIONE
    Restituisce il token CSRF valido in questo momento.
 
    Serve perché su hosting condiviso le sessioni PHP possono essere
@@ -8,7 +8,7 @@
    token ormai vecchio e la prima scrittura viene rifiutata con
    "sessione scaduta", anche se l'utente è ancora perfettamente loggato
    (il cookie "ricordami" lo rimette dentro con una sessione nuova).
-   nisama_fetch.js chiama questo indirizzo, prende il token buono e
+   standout_fetch.js chiama questo indirizzo, prende il token buono e
    rimanda la richiesta da sé, senza che l'utente si accorga di niente.
    ===================================================================== */
 require_once __DIR__ . '/../../lib/config.php';

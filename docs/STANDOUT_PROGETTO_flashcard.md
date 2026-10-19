@@ -1,6 +1,6 @@
 # Flashcard: studio e lingue — stato dopo la ristrutturazione (ottobre 2026)
 
-Da incollare in NISAMA_PROGETTO.md (sezione flashcard).
+Da incollare in STANDOUT_PROGETTO.md (sezione flashcard).
 
 ## Come funziona adesso
 

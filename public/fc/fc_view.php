@@ -2105,9 +2105,9 @@ if (isset($_GET['fc_feed_page'])) {
          la copia che ha in cache anche dopo che il file e' cambiato: e'
          esattamente cosi' che il pulsante dell'IA e' rimasto morto per giorni,
          con il file giusto sul disco e uno vecchio in esecuzione. */ ?>
-<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: 1; ?>"></script>
+<script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: 1; ?>"></script>
 
-<?php echo nisama_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
+<?php echo standout_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
 <?php echo fc_boot_json(); ?>
 <?php /* Formule e documento ricco esistono solo nelle flashcard di studio: le
          parole sono testo semplice, e caricare MathJax e fc_parser per niente
@@ -3062,7 +3062,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
 <script>
 
-const NISAMA_CURRENT_USER_ID = <?php echo (int)$current_user_id; ?>;
+const STANDOUT_CURRENT_USER_ID = <?php echo (int)$current_user_id; ?>;
 
 /* ================================================================
 
@@ -3433,7 +3433,7 @@ function toggleLearnt(id, checkbox){
 
     const status = checkbox.checked ? 1 : 0;
 
-    const userId = NISAMA_CURRENT_USER_ID;
+    const userId = STANDOUT_CURRENT_USER_ID;
 
     const card = checkbox.closest('.fc-card');
 

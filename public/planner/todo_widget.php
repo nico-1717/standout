@@ -1,13 +1,13 @@
 <?php
 /* =====================================================================
-   NISAMA — ATTIVITÀ (componente condiviso)
+   STANDOUT — ATTIVITÀ (componente condiviso)
    Da includere una volta sola in fondo alla pagina:
 
        include __DIR__ . '/todo_widget.php';
 
    Poi si monta dove serve:
 
-       nisamaTodo.mount(document.getElementById('box'), {
+       standoutTodo.mount(document.getElementById('box'), {
            scope: 'all' | 'project' | 'pomodoro',
            projectId: 12,          // per scope 'project'
            compact: false,         // niente data/ora/durata/progetto (pomodoro)
@@ -17,8 +17,8 @@
 
    Stessa estetica di planner e diario: carta calda, matita, angoli morbidi.
    ===================================================================== */
-if (!defined('NISAMA_TODO_WIDGET')):
-define('NISAMA_TODO_WIDGET', true);
+if (!defined('STANDOUT_TODO_WIDGET')):
+define('STANDOUT_TODO_WIDGET', true);
 if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/security_core.php'; }
 ?>
 <?php
@@ -27,13 +27,13 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
 if (!defined('TODO_WIDGET_CSS')) {
     define('TODO_WIDGET_CSS', 1);
     echo '<link rel="stylesheet" href="' . PWA_BASE . 'planner/todo_widget.css?v=' . (@filemtime(__DIR__ . '/todo_widget.css') ?: 1) . '">' . "\n";
-    echo nisama_i18n_json(['comune', 'todo']);
+    echo standout_i18n_json(['comune', 'todo']);
 }
 ?>
 
 <script>
 (function () {
-    if (window.nisamaTodo) return;
+    if (window.standoutTodo) return;
 
     var CSRF = <?php echo json_encode(sec_csrf_token()); ?>;
     var MESI = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
@@ -49,7 +49,7 @@ if (!defined('TODO_WIDGET_CSS')) {
     function api(action, data, query) {
         var url = '../planner/todo_api.php?ajax=' + encodeURIComponent(action);
         if (query) { for (var k in query) if (query.hasOwnProperty(k)) url += '&' + k + '=' + encodeURIComponent(query[k]); }
-        var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.NISAMA_CSRF || CSRF } };
+        var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.STANDOUT_CSRF || CSRF } };
         if (data) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(data); }
         return fetch(url, opt).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
     }
@@ -58,7 +58,7 @@ if (!defined('TODO_WIDGET_CSS')) {
     function apiFile(action, form) {
         return fetch('../planner/todo_api.php?ajax=' + encodeURIComponent(action), {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'X-CSRF-Token': window.NISAMA_CSRF || CSRF },
+            headers: { 'X-CSRF-Token': window.STANDOUT_CSRF || CSRF },
             body: form
         }).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
     }
@@ -1405,7 +1405,7 @@ if (!defined('TODO_WIDGET_CSS')) {
     /* il selettore progetti condiviso comunica così */
     document.addEventListener('projectselected', function (e) {
         if (!e.detail || e.detail.uid !== 'todo') return;
-        var inst = window.nisamaTodo._last;
+        var inst = window.standoutTodo._last;
         if (!inst) return;
         var pid = e.detail.id > 0 ? e.detail.id : 0;
         if (inst._pendingBulk) {
@@ -2157,7 +2157,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         iNome.focus();
     };
 
-    window.nisamaTodo = {
+    window.standoutTodo = {
         mount: function (host, opts) {
             var inst = new Todo(host, opts);
             this._last = inst;

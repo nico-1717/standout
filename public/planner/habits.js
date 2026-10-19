@@ -2208,8 +2208,8 @@ function openNote(habitId, date) {
     /* Il diario della giornata ora è il popup condiviso: lo stesso che si
        apre dal planner e che riempie la pagina diario.php. La nota legata a
        una singola abitudine resta invece qui sotto, come prima. */
-    if (!habitId && window.nisamaOpenDiary) {
-        window.nisamaOpenDiary(date, 'habits');
+    if (!habitId && window.standoutOpenDiary) {
+        window.standoutOpenDiary(date, 'habits');
         return;
     }
     var h = habitId ? habitById(habitId) : null;

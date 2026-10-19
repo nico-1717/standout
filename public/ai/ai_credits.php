@@ -38,7 +38,7 @@
  *
  * PERCHE' TUTTE LE QUERY PASSANO DA sec_q
  *
- * piano_helpers.php apre la sua connessione (nisama_db()), security_core ne
+ * piano_helpers.php apre la sua connessione (standout_db()), security_core ne
  * apre un'altra (sec_db()). Una transazione vale solo sulla connessione che
  * l'ha aperta: se l'INSERT nel registro andasse su una e l'UPDATE del saldo
  * sull'altra, il "tutti e due o nessuno" non varrebbe niente. Qui quindi si
@@ -119,7 +119,7 @@ function ai_crediti_mese(): string {
 /**
  * Lo stato del mese per un utente.
  *
- * Passa da nisama_get_piano_utente() e non da una query sua perche' quella
+ * Passa da standout_get_piano_utente() e non da una query sua perche' quella
  * funzione, prima di leggere, azzera i contatori se il mese e' cambiato:
  * leggere il saldo senza quel passaggio il primo del mese direbbe a un
  * utente che ha finito i crediti quando li ha appena ricevuti.
@@ -128,7 +128,7 @@ function ai_crediti_mese(): string {
  * null vuol dire illimitato.
  */
 function ai_crediti_stato(int $user_id): array {
-    $piano = nisama_get_piano_utente($user_id);
+    $piano = standout_get_piano_utente($user_id);
     if (!$piano) {
         /* Nessuna riga in user_plans: e' un errore di configurazione, non
            una scelta. piano_helpers in questo caso non blocca; qui si fa lo
@@ -215,7 +215,7 @@ function ai_crediti_movimento(int $user_id, int $delta, string $motivo, array $i
     if ($user_id <= 0 || $delta === 0) return false;
 
     // prima di tutto il cambio di mese: l'addebito deve finire nel mese giusto
-    nisama_reset_contatori_se_serve($user_id);
+    standout_reset_contatori_se_serve($user_id);
 
     $mese    = ai_crediti_mese();
     $job_id  = isset($info['job_id'])  ? (int)$info['job_id']  : null;

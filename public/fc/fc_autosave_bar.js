@@ -8,10 +8,10 @@
  * e - se l'interruttore e' acceso - che si fa da sola.
  *
  * COME SI USA
- *   NisamaSaveBar.init({ key: 'big_edit_fc', save: saveAll });
+ *   StandoutSaveBar.init({ key: 'big_edit_fc', save: saveAll });
  * dove save() e' la funzione della pagina che manda i dati al server e
  * restituisce (anche come Promise) true se e' andata bene, false altrimenti.
- * La pagina chiama NisamaSaveBar.touch() ogni volta che qualcosa cambia.
+ * La pagina chiama StandoutSaveBar.touch() ogni volta che qualcosa cambia.
  *
  * IMPORTANTE: save() non deve ricaricare la pagina. Se lo facesse, il
  * salvataggio automatico diventerebbe un ricaricamento automatico, cioe'
@@ -22,8 +22,8 @@
  * indipendente (gli esempi di una flashcard, per dire): stesso meccanismo,
  * ma un dirty/pulito tutto suo, separato da quello della pagina principale.
  * Per questo ogni funzione accetta un nome di istanza facoltativo:
- *   NisamaSaveBar.init({ instance: 'esempi', key: 'esempi', save: salvaEsempio });
- *   NisamaSaveBar.touch('esempi');
+ *   StandoutSaveBar.init({ instance: 'esempi', key: 'esempi', save: salvaEsempio });
+ *   StandoutSaveBar.touch('esempi');
  * Senza nome di istanza si usa quella "default" — che e' esattamente il
  * comportamento di sempre, per chi non sa che le istanze esistono. Ogni
  * istanza cerca i suoi elementi con l'id giusto: nsSaveBar per la default,
@@ -37,7 +37,7 @@
     function nuovoStato() {
         return {
             save: null,
-            chiave: 'nisama_autosave',
+            chiave: 'standout_autosave',
             attesa: 1800,      // ms di quiete prima di un salvataggio automatico
             controllo: 25000,  // rete di sicurezza: ogni 25s, se e' rimasto sporco
             sporco: false,
@@ -165,7 +165,7 @@
         var S = statoDi(nome);
         S.suffisso = nome === 'default' ? '' : ('-' + nome);
         S.save = opzioni.save || null;
-        if (opzioni.key) S.chiave = 'nisama_autosave_' + opzioni.key;
+        if (opzioni.key) S.chiave = 'standout_autosave_' + opzioni.key;
         if (opzioni.delay) S.attesa = opzioni.delay;
         if (opzioni.testoMaiSalvato) S.testoMaiSalvato = opzioni.testoMaiSalvato;
 
@@ -197,7 +197,7 @@
         disegna(S);
     }
 
-    window.NisamaSaveBar = {
+    window.StandoutSaveBar = {
         init: init,
         /* qualcosa e' cambiato in pagina (o nell'istanza indicata) */
         touch: function (istanza) {

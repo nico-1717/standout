@@ -1,5 +1,5 @@
 /* =====================================================================
-   NISAMA — PLANNER (motore della pagina)
+   STANDOUT — PLANNER (motore della pagina)
    Tutto quello che si muove: griglia degli orari con zoom, creazione
    con tocco o tenendo premuto, popup dell'evento, priorità, liste
    della settimana, routine, abitudini, vista mese, anticipi/ritardi.
@@ -372,7 +372,7 @@ function api(action, data, query, opt) {
         var req = {
             method: data ? 'POST' : 'GET',
             credentials: 'same-origin',
-            headers: { 'X-CSRF-Token': window.NISAMA_CSRF || S.csrf }
+            headers: { 'X-CSRF-Token': window.STANDOUT_CSRF || S.csrf }
         };
         if (data) { req.headers['Content-Type'] = 'application/json'; req.body = JSON.stringify(data); }
         if (opt.keepalive) req.keepalive = true;
@@ -1402,7 +1402,7 @@ function summaryRoutines(r) {
 function summaryDiary(d) {
     var f = sumSection(T('planner.diario_t'));
     f.appendChild(sumRow(null, T('planner.giorni_scritti'), null, T('planner.n_su_7', {n: d.days})));
-    var faces = window.nisamaFace;
+    var faces = window.standoutFace;
     var moodRow = sumRow(null, T('planner.come_e_andata_in_media'), null,
         d.mood_avg !== null ? String(d.mood_avg).replace('.', ',') : '—');
     var enRow = sumRow(null, T('planner.energia_in_media'), null,
@@ -4109,7 +4109,7 @@ function todoApi(action, data, query) {
            attimo e poi tornava indietro — non era il salvataggio a fallire,
            era la rilettura a non arrivare mai al server. */
         cache: 'no-store',
-        headers: { 'X-CSRF-Token': window.NISAMA_CSRF || S.csrf }
+        headers: { 'X-CSRF-Token': window.STANDOUT_CSRF || S.csrf }
     };
     if (data) { req.headers['Content-Type'] = 'application/json'; req.body = JSON.stringify(data); }
     return fetch(url, req)
@@ -8891,7 +8891,7 @@ function setShift(on) {
 
 /* diario del giorno */
 $('plFabDiary').addEventListener('click', function () {
-    if (window.nisamaOpenDiary) { window.nisamaOpenDiary(S.focusDate, 'planner'); return; }
+    if (window.standoutOpenDiary) { window.standoutOpenDiary(S.focusDate, 'planner'); return; }
     toast(T('planner.manca_il_file_diario_giorno'));
 });
 
@@ -9738,7 +9738,7 @@ function editRoutine(r) {
 /* Google Calendar                                                     */
 /* ------------------------------------------------------------------ */
 function gcall(action, write, dati) {
-    var opt = { method: write ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.NISAMA_CSRF || S.csrf } };
+    var opt = { method: write ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.STANDOUT_CSRF || S.csrf } };
     if (write) opt.headers['Content-Type'] = 'application/json';
     if (write) opt.body = JSON.stringify(dati || {});
     return fetch('google_calendar.php?ajax=' + action, opt)
@@ -10931,7 +10931,7 @@ function monthCell(date, inMonth, corsie, conBarra) {
         tag2.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 4h12v16H8a2 2 0 01-2-2z"/></svg>';
         tag2.addEventListener('click', function (e) {
             e.stopPropagation();
-            if (window.nisamaDiaryPeek) window.nisamaDiaryPeek(date);
+            if (window.standoutDiaryPeek) window.standoutDiaryPeek(date);
         });
         foot.appendChild(tag2);
         cell.appendChild(foot);

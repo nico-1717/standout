@@ -55,7 +55,7 @@ def controlla(percorso):
     # echo scritti "<?php echo $x ?>" sfuggivano al controllo
     for m in re.finditer(r'<\?(?:php\s+echo|=)\s+([^;?]{1,120})[;\s]*\?>', s):
         e = m.group(1).strip()
-        if e.startswith(('sec_h(', 'te(', 'th(', 'nisama_i18n_json', 'json_encode',
+        if e.startswith(('sec_h(', 'te(', 'th(', 'standout_i18n_json', 'json_encode',
                          '(int)', '(float)', 'pwa_head_html')): continue
         # Funzioni che fanno l'escape al loro interno: si dichiarano una volta
         # sola qui invece di aggiungere un secondo sec_h a ogni chiamata, che

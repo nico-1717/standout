@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — METEO
+   STANDOUT — METEO
    Fonte: Open-Meteo (open-meteo.com), dati sotto licenza CC BY 4.0.
    L'attribuzione va mostrata all'utente: è nel popup del planner.
 
@@ -248,7 +248,7 @@ function wx_place_nome(float $lat, float $lon): ?string {
             CURLOPT_CONNECTTIMEOUT => 4,
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
-            CURLOPT_USERAGENT      => 'Nisama planner (uso personale)',
+            CURLOPT_USERAGENT      => 'Standout planner (uso personale)',
             CURLOPT_HTTPHEADER     => ['Accept: application/json'],
         ]);
         $raw = curl_exec($ch);
@@ -308,7 +308,7 @@ function wx_cerca(string $q): array {
         'count'    => 8,
         /* la lingua dei nomi di luogo segue quella scelta: prima "Lombardia, Italia"
            usciva cosi' anche in inglese */
-        'language' => nisama_lingua(),
+        'language' => standout_lingua(),
         'format'   => 'json',
     ]);
 

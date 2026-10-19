@@ -46,7 +46,7 @@ var FCAIJ = (function () {
     /* ============================================================
        1. DIALOGO CON ai_job_api.php
        ============================================================
-       nisama_fetch.js aggiunge da se' il token CSRF. Il limite di 150 secondi
+       standout_fetch.js aggiunge da se' il token CSRF. Il limite di 150 secondi
        e' largo apposta: un passo sta dentro il tempo massimo di PHP, ma su un
        hosting lento la risposta puo' arrivare dopo un minuto buono, e
        interromperla vorrebbe dire rifare (e ripagare) un passo gia' fatto. */

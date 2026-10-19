@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — LA BARRA DEL POMODORO (componente)
+   STANDOUT — LA BARRA DEL POMODORO (componente)
 
    Non stampa niente: RESTITUISCE due pezzi di HTML, uno per il <head> e
    uno per la fine del <body>. Il motivo e' tecnico e va detto, perche'
@@ -40,7 +40,7 @@ function pomo_barra_html(): array
        Sec-Fetch-Dest lo manda il browser da solo su ogni richiesta e vale
        'iframe' quando la pagina viene caricata dentro una cornice. Chi non
        lo manda (browser vecchi) e' coperto da fc_popup=1, che fc_edit_popup.js
-       aggiunge all'indirizzo; NISAMA_SENZA_BARRA_POMODORO resta come
+       aggiunge all'indirizzo; STANDOUT_SENZA_BARRA_POMODORO resta come
        interruttore per una pagina che voglia dire di no per conto proprio.
 
        Uscendo di qui prima di leggere lo stato si risparmia anche la lettura
@@ -48,7 +48,7 @@ function pomo_barra_html(): array
     $dove = $_SERVER['HTTP_SEC_FETCH_DEST'] ?? '';
     if ($dove === 'iframe' || $dove === 'frame'
         || !empty($_GET['fc_popup'])
-        || defined('NISAMA_SENZA_BARRA_POMODORO')) return $vuoto;
+        || defined('STANDOUT_SENZA_BARRA_POMODORO')) return $vuoto;
 
     $file = __DIR__ . '/pomodoro_stato.php';
     if (!is_readable($file)) return $vuoto;
@@ -75,7 +75,7 @@ function pomo_barra_html(): array
         return $base . 'projects/' . $nome . '?v=' . (@filemtime($p) ?: 1);
     };
 
-    /* Le stringhe viaggiano nei dati e non passano da nisama_i18n_json:
+    /* Le stringhe viaggiano nei dati e non passano da standout_i18n_json:
        ogni pagina dichiara i propri gruppi di traduzioni, e la barra non
        puo' pretendere che ventisette pagine si ricordino di aggiungere il
        gruppo 'pomodoro'. Sono sei parole, se le porta dietro. */
@@ -99,7 +99,7 @@ function pomo_barra_html(): array
            senza token ogni tasto del popup riceve un rifiuto dal server e
            sembra semplicemente non funzionare. Il JS lo aggiunge solo se non
            c'e' gia', cosi' dove c'e' non viene avvolto due volte. */
-        'fetchjs'   => $base . '_assets/js/nisama_fetch.js?v=' . (@filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: 1),
+        'fetchjs'   => $base . '_assets/js/standout_fetch.js?v=' . (@filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: 1),
         /* Il selettore dei progetti e' lo stesso di tutte le altre pagine, con
            la sua resa autonoma: se lo carica il popup al primo tocco, invece di
            finire incluso in ventisette pagine dove nessuno lo aprira' mai. */

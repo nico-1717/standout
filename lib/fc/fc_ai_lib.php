@@ -214,7 +214,7 @@ function fc_ai_riprovabile(string $errore): bool {
 /* ============================================================
    STIMA DEI TOKEN
    ============================================================
-   piano_helpers ha gia' nisama_verifica_limite_stimato(), che usa la media
+   piano_helpers ha gia' standout_verifica_limite_stimato(), che usa la media
    storica delle chiamate. Qui NON va bene: quella media mescola le chiamate
    piccole (una spiegazione) con queste, che sono di un altro ordine di
    grandezza, e la dimensione di QUESTA richiesta la conosciamo esattamente
@@ -523,8 +523,8 @@ function fc_ai_gemini_ritenta(string $sistema, string $utente, array $schema, in
     if ($r['ok']) $token['utili'] += $r['token'];
 
     /* Il tempo medio per azione serve a mostrare un'attesa credibile prima di
-       lanciare la chiamata (nisama_get_stima_tempo_ia lo rilegge da li'). */
-    nisama_registra_tempo_ia('fc_' . $etichetta, (int)round((microtime(true) - $t0) * 1000));
+       lanciare la chiamata (standout_get_stima_tempo_ia lo rilegge da li'). */
+    standout_registra_tempo_ia('fc_' . $etichetta, (int)round((microtime(true) - $t0) * 1000));
     return $r;
 }
 

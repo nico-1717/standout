@@ -5,7 +5,7 @@
 
 
 
-<div class="nisama-landing">
+<div class="standout-landing">
 
 
 
@@ -21,7 +21,7 @@
 
 
 
-<div class="nl-eyebrow"><?php te('landing.nisama_studio_attivo_non_passivo'); ?></div>
+<div class="nl-eyebrow"><?php te('landing.standout_studio_attivo_non_passivo'); ?></div>
 
 
 
@@ -37,7 +37,7 @@
 
 
 
-<button class="nl-btn nl-btn--primary" onclick="window.NisamaAuth && NisamaAuth.apriRegistrazione()"><?php te('landing.inizia_gratis'); ?></button>
+<button class="nl-btn nl-btn--primary" onclick="window.StandoutAuth && StandoutAuth.apriRegistrazione()"><?php te('landing.inizia_gratis'); ?></button>
 
 
 
@@ -93,7 +93,7 @@
 
 
 
-<p data-nisama-tags><?php te('landing.blue_have_has_bold_gone'); ?></p>
+<p data-standout-tags><?php te('landing.blue_have_has_bold_gone'); ?></p>
 
 
 
@@ -458,7 +458,7 @@
 
 
 
-<div class="nl-eyebrow-num reveal"><?php te('landing.03_il_metodo_nisama'); ?></div>
+<div class="nl-eyebrow-num reveal"><?php te('landing.03_il_metodo_standout'); ?></div>
 
 
 
@@ -610,7 +610,7 @@
 
 
 
-<button class="nl-btn nl-btn--primary reveal" onclick="window.NisamaAuth && NisamaAuth.apriRegistrazione()"><?php te('landing.crea_il_tuo_account_gratis'); ?></button>
+<button class="nl-btn nl-btn--primary reveal" onclick="window.StandoutAuth && StandoutAuth.apriRegistrazione()"><?php te('landing.crea_il_tuo_account_gratis'); ?></button>
 
 
 
@@ -626,7 +626,7 @@
 
 
 
-<span><?php te('landing.nisama'); ?></span> <?php te('landing.impara_l_inglese_e_tutto'); ?>
+<span><?php te('landing.standout'); ?></span> <?php te('landing.impara_l_inglese_e_tutto'); ?>
 
 
 
@@ -1090,11 +1090,11 @@ cardsArray.push({ el: card, flyX, flyY, rectX, rectY, brainX, brainY, brainRot }
 
 
 
-function nisamaRenderTags(root) {
+function standoutRenderTags(root) {
 
 
 
-root.querySelectorAll('[data-nisama-tags]').forEach(el => {
+root.querySelectorAll('[data-standout-tags]').forEach(el => {
 
 
 
@@ -1138,7 +1138,7 @@ el.innerHTML = html;
 
 
 
-nisamaRenderTags(document);
+standoutRenderTags(document);
 
 
 
@@ -1146,7 +1146,7 @@ nisamaRenderTags(document);
 
 
 
-const revealEls = document.querySelectorAll('.nisama-landing .reveal');
+const revealEls = document.querySelectorAll('.standout-landing .reveal');
 
 
 

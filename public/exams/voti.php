@@ -534,7 +534,7 @@ $UNI_HAS_DATA = count($UNI_EXAMS) > 0;
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>exams/voti.css?v=<?php echo @filemtime(__DIR__ . '/voti.css') ?: 1; ?>">
 <?php
 /* Le stringhe che servono al JavaScript di questa pagina. */
-echo nisama_i18n_json(['comune', 'voti']);
+echo standout_i18n_json(['comune', 'voti']);
 ?>
 </head>
 <body style="--uni-accent:<?php echo sec_h(sec_color($UNI_SETTINGS['accent_color'])); ?>; --uni-accent-2:<?php echo sec_h(sec_color($UNI_SETTINGS['accent_color'])); ?>;">

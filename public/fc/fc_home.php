@@ -58,8 +58,8 @@ $circ = 2 * M_PI * 46;   // circonferenza dell'anello (r = 46)
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <title><?php te('fchub.home_titolo'); ?></title>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_hub.css?v=<?php echo @filemtime(__DIR__ . '/fc_hub.css') ?: 1; ?>">
-<script src="<?php echo PWA_BASE; ?>_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: 1; ?>"></script>
-<?php echo nisama_i18n_json(['comune', 'fchub']); ?>
+<script src="<?php echo PWA_BASE; ?>_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: 1; ?>"></script>
+<?php echo standout_i18n_json(['comune', 'fchub']); ?>
 </head>
 <body class="hub-body">
 

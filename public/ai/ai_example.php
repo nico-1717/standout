@@ -74,7 +74,7 @@ $esito = fc_ai_azione_esempio($dati, 'italiano');
 
 /* Il tempo medio della voce "example" e' quello che il popup rilegge per
    mostrare "di solito ≈ Ns" prima di partire: si continua ad aggiornarlo. */
-if ($esito['ok']) nisama_registra_tempo_ia('example', (int)round((microtime(true) - $t0) * 1000));
+if ($esito['ok']) standout_registra_tempo_ia('example', (int)round((microtime(true) - $t0) * 1000));
 
 if ($esito['ok']) {
     $crediti = ai_crediti_da_token($esito['token']['utili'], $esito['modello']);

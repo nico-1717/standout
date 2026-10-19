@@ -51,7 +51,7 @@ if ($mese_primo < date('Y-m-01', strtotime($mese_corrente . ' -12 months'))) {
 $e_questo_mese = ($mese_primo === $mese_corrente);
 
 $stato = ai_crediti_stato($uid);
-$piano = nisama_get_piano_utente($uid);
+$piano = standout_get_piano_utente($uid);
 
 /* ---- le generazioni lunghe (un job = una riga) ---- */
 $generazioni = sec_all(

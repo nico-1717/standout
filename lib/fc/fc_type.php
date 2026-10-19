@@ -412,7 +412,7 @@ function fc_lingua_voce(string $codice): ?array {
 function fc_lingua_nome(string $codice, bool $conVariante = true, ?string $ui = null): string {
     $v = fc_lingua_voce($codice);
     if (!$v) return $codice;
-    $ui = $ui ?? (function_exists('nisama_lingua') ? nisama_lingua() : 'it');
+    $ui = $ui ?? (function_exists('standout_lingua') ? standout_lingua() : 'it');
     [$nome, $variante] = $ui === 'en' ? [$v[4], $v[5]] : [$v[2], $v[3]];
     if (!$conVariante || strpos($codice, '-') === false || $variante === '') return $nome;
     return $nome . ' (' . $variante . ')';
@@ -438,7 +438,7 @@ function fc_lingua_voce_tts(string $codice): string {
 
 /** La lingua che l'utente conosce, se non ha ancora scelto: quella dell'interfaccia. */
 function fc_lingua_nota_predefinita(): string {
-    $ui = function_exists('nisama_lingua') ? nisama_lingua() : 'it';
+    $ui = function_exists('standout_lingua') ? standout_lingua() : 'it';
     return fc_lingua_nota_valida($ui) ? $ui : 'it';
 }
 

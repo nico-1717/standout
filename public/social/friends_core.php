@@ -1,6 +1,6 @@
 <?php
 /* =========================================================================
-   NISAMA · SEZIONE AMICI — libreria condivisa
+   STANDOUT · SEZIONE AMICI — libreria condivisa
    Usata da: friends.php, friends_api.php, notifiche_widget.php
    ========================================================================= */
 
@@ -40,9 +40,9 @@ function fr_conn(): mysqli {
    ospite (auth_check.php -> $utente_corrente, auth_core.php -> funzione). */
 function fr_utente_corrente(): ?array {
     if (!empty($GLOBALS['utente_corrente']['id'])) { return $GLOBALS['utente_corrente']; }
-    if (!empty($GLOBALS['nisama_utente']['id']))   { return $GLOBALS['nisama_utente']; }
-    if (function_exists('nisama_utente_corrente')) {
-        $u = nisama_utente_corrente();
+    if (!empty($GLOBALS['standout_utente']['id']))   { return $GLOBALS['standout_utente']; }
+    if (function_exists('standout_utente_corrente')) {
+        $u = standout_utente_corrente();
         if (!empty($u['id'])) { return $u; }
     }
     return null;
@@ -241,12 +241,12 @@ function fr_quando(string $datetime): string {
     $t = strtotime($datetime);
     if (!$t) { return ''; }
     $d = time() - $t;
-    if ($d < 60)     { return 'adesso'; }
-    if ($d < 3600)   { return intdiv($d, 60) . ' min fa'; }
-    if ($d < 86400)  { return intdiv($d, 3600) . ' h fa'; }
-    if ($d < 172800) { return 'ieri'; }
-    if ($d < 604800) { return intdiv($d, 86400) . ' g fa'; }
-    return date('d/m', $t);
+    if ($d < 60)     { return t('notifiche.adesso'); }
+    if ($d < 3600)   { return t('notifiche.min_fa', ['n' => intdiv($d, 60)]); }
+    if ($d < 86400)  { return t('notifiche.ore_fa', ['n' => intdiv($d, 3600)]); }
+    if ($d < 172800) { return t('notifiche.ieri'); }
+    if ($d < 604800) { return t('notifiche.giorni_fa', ['n' => intdiv($d, 86400)]); }
+    return date(standout_lingua() === 'en' ? 'm/d' : 'd/m', $t);
 }
 
 

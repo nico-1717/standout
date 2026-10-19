@@ -1,5 +1,5 @@
 /* =====================================================================
-   NISAMA — LA BARRA DEL POMODORO (comportamento)
+   STANDOUT — LA BARRA DEL POMODORO (comportamento)
 
    Qui non c'e' un solo calcolo sul tempo: tutto quello che riguarda
    "a che punto siamo" lo chiede a PomoCore, lo stesso motore che
@@ -63,7 +63,7 @@ function disarmaScarta(){
 /* ------------------------------------------------------------------
    IL TOKEN DELLE SCRITTURE
    Ogni POST del pomodoro passa da sec_guard_write(), che pretende il
-   token della sessione. Ad aggiungerlo alle richieste e' nisama_fetch.js,
+   token della sessione. Ad aggiungerlo alle richieste e' standout_fetch.js,
    che la pagina pomodoro si carica da sola in testa — ma questa barra
    finisce su ventisette pagine, e non tutte se lo caricano.
 
@@ -79,7 +79,7 @@ function disarmaScarta(){
    ------------------------------------------------------------------ */
 (function assicuraFetch(){
     if (!D.fetchjs) return;
-    if (document.querySelector('script[src*="nisama_fetch"]')) return;
+    if (document.querySelector('script[src*="standout_fetch"]')) return;
     var s = document.createElement('script');
     s.src = D.fetchjs;
     document.head.appendChild(s);

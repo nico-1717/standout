@@ -138,8 +138,8 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ex_api_json_out(['success' => false, 'error' => t('fc.non_autorizzato_scheda')]);
     }
 
-    $img = ex_salva('image', NISAMA_DATA_DIR . 'example_images', false);
-    $aud = ex_salva('audio', NISAMA_DATA_DIR . 'flashcard_audio', true);
+    $img = ex_salva('image', STANDOUT_DATA_DIR . 'example_images', false);
+    $aud = ex_salva('audio', STANDOUT_DATA_DIR . 'flashcard_audio', true);
 
     /* TOGLIERE L'IMMAGINE, NON SOLO SOSTITUIRLA
        ex_salva() torna null quando non e' stato caricato niente, e null vuol

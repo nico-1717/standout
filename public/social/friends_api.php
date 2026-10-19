@@ -1,6 +1,6 @@
 <?php
 /* =========================================================================
-   NISAMA · SEZIONE AMICI — endpoint AJAX
+   STANDOUT · SEZIONE AMICI — endpoint AJAX
    Risponde sempre in JSON. Ogni azione è verificata lato server:
    il client non può mai imporre chi è, né leggere i dati di un non-amico.
    ========================================================================= */
@@ -17,7 +17,7 @@ function fr_ko(string $msg, int $code = 400) { http_response_code($code); fr_out
 
 /* Le chiamate arrivano solo dal nostro JS (che manda questo header):
    un form ostile su un altro sito non può aggiungerlo senza preflight. */
-if (empty($_SERVER['HTTP_X_NISAMA'])) { fr_ko('Richiesta non valida.', 403); }
+if (empty($_SERVER['HTTP_X_STANDOUT'])) { fr_ko('Richiesta non valida.', 403); }
 
 $me = fr_utente_corrente();
 if (!$me) { fr_ko('Sessione scaduta. Ricarica la pagina.', 401); }

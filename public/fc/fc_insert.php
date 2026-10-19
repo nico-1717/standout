@@ -194,7 +194,7 @@ if ($modo === 'edit') {
 
     <meta name="csrf-token" content="<?php echo sec_csrf_token(); ?>">
 
-    <script src="../_assets/js/nisama_fetch.js"></script>
+    <script src="../_assets/js/standout_fetch.js"></script>
 
 
 
@@ -270,7 +270,7 @@ if ($modo === 'edit') {
 
 
 
-    <?php echo nisama_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
+    <?php echo standout_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
     <?php echo fc_boot_json(); ?>
 
 <?php if (!$fc_vocab): /* le parole sono testo semplice: niente formule, niente MathJax */ ?>
@@ -1228,7 +1228,7 @@ if ($modo === 'edit') {
 
     /* Il token di sessione viaggia insieme ai dati, cosi' il salvataggio non
 
-       dipende da chi ha caricato nisama_fetch.js. */
+       dipende da chi ha caricato standout_fetch.js. */
 
     const CSRF_TOKEN = <?php echo json_encode(sec_csrf_token()); ?>;
 
@@ -1309,10 +1309,10 @@ if ($modo === 'edit') {
 
         isDirty = cSonoModificheDaSalvare();
 
-        if (!window.NisamaSaveBar) return;
+        if (!window.StandoutSaveBar) return;
 
         if (isDirty) {
-            NisamaSaveBar.touch();
+            StandoutSaveBar.touch();
         } else {
             /* Tutto e' tornato vuoto o pulito: se un salvataggio automatico
                era gia' in coda (si era scritto qualcosa e poi cancellato tutto
@@ -1320,7 +1320,7 @@ if ($modo === 'edit') {
                comunque, per andare a salvare il nulla. discard() non fa danni
                nemmeno quando non c'era niente da togliere: e' gia' pensata
                per essere chiamata anche a vuoto. */
-            NisamaSaveBar.discard();
+            StandoutSaveBar.discard();
         }
 
     }
@@ -3821,7 +3821,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
         /* Mostrare altre carte non e' una modifica: le righe appena disegnate
            nascono 'clean', e la pagina non deve risultare sporca solo perche'
            si e' scorso piu' in basso. */
-        if (!isDirty && window.NisamaSaveBar) NisamaSaveBar.markSaved();
+        if (!isDirty && window.StandoutSaveBar) StandoutSaveBar.markSaved();
         updateRowCountChip();
         toggleEmptyHint();
         aggiornaRigheTitolo();
@@ -5717,7 +5717,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
             gestureBlock = true;
 
-            if (window.NisamaSaveBar) NisamaSaveBar.hide(true);
+            if (window.StandoutSaveBar) StandoutSaveBar.hide(true);
 
             buzz(12);
 
@@ -6529,7 +6529,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
         function finalizeReorder(ctx){
 
-            if (window.NisamaSaveBar) NisamaSaveBar.hide(false);
+            if (window.StandoutSaveBar) StandoutSaveBar.hide(false);
 
             stopAutoScroll();
 
@@ -7829,7 +7829,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
         }
 
-        if (window.NisamaSaveBar) NisamaSaveBar.markSaved();
+        if (window.StandoutSaveBar) StandoutSaveBar.markSaved();
 
 
 
@@ -7953,7 +7953,7 @@ Prima domanda /bold{importante} ${colSepVal} Prima risposta${actualRowSep}Dimmi 
 
     window.addEventListener('DOMContentLoaded', function(){
 
-        if (window.NisamaSaveBar) NisamaSaveBar.init({ key: 'inserimento_big_fc', save: salvaTutto });
+        if (window.StandoutSaveBar) StandoutSaveBar.init({ key: 'inserimento_big_fc', save: salvaTutto });
 
         /* In modifica la pagina nasce con le carte gia' nella categoria; in
            inserimento resta vuota, pronta per quelle nuove. */

@@ -1112,8 +1112,8 @@ function ftLinguaDettatura() {
        indicazioni si usa l'italiano, che e' la lingua dell'app. */
     var mappa = { it: 'it-IT', en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', pt: 'pt-PT', nl: 'nl-NL' };
     var fonti = [
-        window.NISAMA_LANG,
-        (window.NISAMA_I18N && window.NISAMA_I18N.lang),
+        window.STANDOUT_LANG,
+        (window.STANDOUT_I18N && window.STANDOUT_I18N.lang),
         document.documentElement.getAttribute('lang')
     ];
     for (var i = 0; i < fonti.length; i++) {
@@ -1229,7 +1229,7 @@ function ftChiudiFrase(testo, lingua) {
     var t = String(testo || '').trim();
     if (!t) return '';
     if (ftPunteggiaturaAuto()) {
-        return window.nisamaPunctuate ? window.nisamaPunctuate(t) : t;
+        return window.standoutPunctuate ? window.standoutPunctuate(t) : t;
     }
     return ftSegniDettati(t, lingua);
 }
@@ -5092,7 +5092,7 @@ function ftSetupEditor(wrap) {
                applicazione si aspetta comunque di trovare. */
             try {
                 var sottodoc = fcdEstraiSelezione(doc, s0);
-                cd.setData('application/x-nisama-fcdoc', JSON.stringify(sottodoc));
+                cd.setData('application/x-standout-fcdoc', JSON.stringify(sottodoc));
             } catch (errCopia) { /* niente di grave: resta il testo semplice sopra */ }
             if (evento === 'cut') ftCmd(wrap, function (d, s2) { return fcdDeleteRange(d, s2); });
         });
@@ -5102,7 +5102,7 @@ function ftSetupEditor(wrap) {
         if (ftMQFuocoQui(ed)) return;   // dentro una formula incolla MathQuill
         e.preventDefault();
         var cd = (e.clipboardData || window.clipboardData);
-        var ricco = cd.getData('application/x-nisama-fcdoc');
+        var ricco = cd.getData('application/x-standout-fcdoc');
         if (ricco) {
             try {
                 var sottodoc = JSON.parse(ricco);

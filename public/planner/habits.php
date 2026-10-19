@@ -498,7 +498,7 @@ $ajax = isset($_GET['ajax']) ? $_GET['ajax'] : '';
 
 /* Ogni chiamata che scrive deve portare il token della sessione e non può
    arrivare da un altro sito: lo verifica security_core.php. Il token lo
-   aggiunge da sé nisama_fetch.js, incluso nel <head>. */
+   aggiunge da sé standout_fetch.js, incluso nel <head>. */
 if ($ajax !== '' && strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     sec_guard_write((int)($utente_corrente['id'] ?? 0), 'habits', 0, 600, 60);
 }
@@ -848,7 +848,7 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
 <meta name="theme-color" content="#000000">
 <title><?php te('abitudini.titolo'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
+<script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
 <link rel="stylesheet" href="habits.css?v=<?php echo @filemtime(__DIR__ . '/habits.css') ?: time(); ?>">
 </head>
 <body class="hb-body" style="--accent:<?php echo sec_h($accent); ?>;">
@@ -1079,7 +1079,7 @@ include __DIR__ . '/habits_import.php';
 /* Le stringhe che servono a habits.js: vanno prima del file, T() deve
    esistere quando parte. */
 /* 'import' serve al pannello di importazione, incluso qui sotto. */
-echo nisama_i18n_json(['comune', 'abitudini', 'import']);
+echo standout_i18n_json(['comune', 'abitudini', 'import']);
 ?>
 <script>window.HB_BOOT = <?php echo json_encode($bootstrap, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
 <?php

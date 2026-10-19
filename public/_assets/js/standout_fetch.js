@@ -1,9 +1,9 @@
 /* =====================================================================
-   NISAMA — TOKEN AUTOMATICO SULLE CHIAMATE
+   STANDOUT — TOKEN AUTOMATICO SULLE CHIAMATE
    Va incluso nel <head>, prima di ogni altro script:
 
      <meta name="csrf-token" content="...">
-     <script src="nisama_fetch.js"></script>
+     <script src="standout_fetch.js"></script>
 
    Da qui in avanti ogni fetch() e ogni XMLHttpRequest che scrive
    (POST, PUT, PATCH, DELETE) verso il nostro dominio porta con sé
@@ -18,16 +18,16 @@
     'use strict';
 
     /* Cartella pubblica del sito, ricavata dall'indirizzo di questo file
-       (_assets/js/nisama_fetch.js): vale uguale da qualunque pagina. */
+       (_assets/js/standout_fetch.js): vale uguale da qualunque pagina. */
     var BASE = (function () {
         try { var s = document.currentScript; return s && s.src ? new URL('../../', s.src).pathname : '/'; }
         catch (e) { return '/'; }
     })();
 
     var meta = document.querySelector('meta[name="csrf-token"]');
-    var TOKEN = meta ? meta.getAttribute('content') : (window.NISAMA_CSRF || '');
+    var TOKEN = meta ? meta.getAttribute('content') : (window.STANDOUT_CSRF || '');
     if (!TOKEN) return;
-    window.NISAMA_CSRF = TOKEN;
+    window.STANDOUT_CSRF = TOKEN;
 
     var WRITE = { POST: 1, PUT: 1, PATCH: 1, DELETE: 1 };
 
@@ -56,7 +56,7 @@
         refreshing = nativeFetchRef(BASE + 'api/csrf_token.php', { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (d) {
-                if (d && d.ok && d.token) { TOKEN = d.token; window.NISAMA_CSRF = TOKEN; stampAll(); }
+                if (d && d.ok && d.token) { TOKEN = d.token; window.STANDOUT_CSRF = TOKEN; stampAll(); }
                 refreshing = null;
                 return TOKEN;
             })
@@ -99,11 +99,11 @@
 
             /* se il token era vecchio, lo rinnoviamo e riproviamo una volta */
             return nativeFetch.call(self, input, init).then(function (res) {
-                if (res.status !== 403 || init.__nisamaRetried) return res;
+                if (res.status !== 403 || init.__standoutRetried) return res;
                 return res.clone().text().then(function (text) {
                     if (!looksLikeCsrfFail(res, text)) return res;
                     return refreshToken().then(function (tok) {
-                        init.__nisamaRetried = true;
+                        init.__standoutRetried = true;
                         if (init.headers instanceof Headers) init.headers.set('X-CSRF-Token', tok);
                         else {
                             var h = {};
@@ -128,11 +128,11 @@
     var open = XMLHttpRequest.prototype.open;
     var send = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.open = function (method, url) {
-        this.__nisamaWrite = !!WRITE[String(method || '').toUpperCase()] && sameOrigin(url);
+        this.__standoutWrite = !!WRITE[String(method || '').toUpperCase()] && sameOrigin(url);
         return open.apply(this, arguments);
     };
     XMLHttpRequest.prototype.send = function () {
-        if (this.__nisamaWrite) {
+        if (this.__standoutWrite) {
             try { this.setRequestHeader('X-CSRF-Token', TOKEN); } catch (e) { /* già inviato */ }
         }
         return send.apply(this, arguments);

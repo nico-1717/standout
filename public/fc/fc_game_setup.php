@@ -225,10 +225,10 @@ function renderGameCatRow($node, $level = 0) {
     </a>
 </div>
 
-<?php echo nisama_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
+<?php echo standout_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
 <script>
     // Inietto l'ID dell'utente loggato in modo sicuro tramite PHP
-    const NISAMA_CURRENT_USER_ID = <?php echo (int)$current_user_id; ?>;
+    const STANDOUT_CURRENT_USER_ID = <?php echo (int)$current_user_id; ?>;
     // Categoria da pre-selezionare in automatico (0 = nessuna)
     const PRESELECT_CATEGORY_ID = <?php echo (int)$preselect_category_id; ?>;
 
@@ -362,14 +362,14 @@ function renderGameCatRow($node, $level = 0) {
 
         const status = document.querySelector('input[name="game_status"]:checked').value;
         const order = document.querySelector('input[name="game_order"]:checked').value;
-        const userId = NISAMA_CURRENT_USER_ID; // Usa la costante sicura
+        const userId = STANDOUT_CURRENT_USER_ID; // Usa la costante sicura
 
         window.location.href = fcUrl(`fc_game_start.php?category_id=${encodeURIComponent(finalCatIds)}&status=${status}&order=${order}&user_id=${userId}`) + extraAvvio();
     }
 
     async function updateCounts(){
         const status = document.querySelector('input[name="game_status"]:checked').value;
-        const userId = NISAMA_CURRENT_USER_ID; // Usa la costante sicura
+        const userId = STANDOUT_CURRENT_USER_ID; // Usa la costante sicura
 
         try {
             const response = await fetch(fcUrl(`fc_api_counts.php?status=${status}&user_id=${userId}`));
@@ -403,7 +403,7 @@ function renderGameCatRow($node, $level = 0) {
     function updateLinks(){
         const status = document.querySelector('input[name="game_status"]:checked').value;
         const order = document.querySelector('input[name="game_order"]:checked').value;
-        const userId = NISAMA_CURRENT_USER_ID; // Usa la costante sicura
+        const userId = STANDOUT_CURRENT_USER_ID; // Usa la costante sicura
 
         document.querySelectorAll('.play-btn').forEach(btn => {
             const catId = btn.getAttribute('data-catid');

@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — I SOTTO-TASK DELLO STUDIO
+   STANDOUT — I SOTTO-TASK DELLO STUDIO
 
    Qui non c'è una tabella nuova, ed è la cosa più importante da sapere
    leggendo questo file. Un sotto-task di «to study» È una riga di `projects`:

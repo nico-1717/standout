@@ -1,7 +1,7 @@
 <?php
 /* Per le lingue l'esempio e' una frase semplice (nessun editor ricco, niente
    fc_parser), senza vocale registrata (le parole si ascoltano con la sintesi)
-   e per ora senza IA: vedi NISAMA_PROGETTO.md, "rimandato". */
+   e per ora senza IA: vedi STANDOUT_PROGETTO.md, "rimandato". */
 $exmVocab = function_exists('fc_is_vocab') && fc_is_vocab();
 /* Il componente puo' comparire piu' volte nella stessa pagina: il foglio si
    carica una volta sola. Il <link> sta qui e non nel <head> perche' questo file
@@ -29,12 +29,12 @@ if (!defined('NS_AUTOSAVE_CSS_INCLUDED')) {
    Il tag <script> e' scritto nel markup e non aggiunto da JavaScript
    apposta: uno script inserito da codice non blocca DOMContentLoaded, e
    l'aggancio della tendina qui sotto gira proprio li'. */
-if (!defined('NISAMA_UI')) {
-    define('NISAMA_UI', 1);
-    echo '<link rel="stylesheet" href="' . PWA_BASE . '_assets/ui/nisama_ui.css?v='
-       . (@filemtime(__DIR__ . '/../_assets/ui/nisama_ui.css') ?: 1) . '">' . "\n";
-    echo '<script src="' . PWA_BASE . '_assets/ui/nisama_ui.js?v='
-       . (@filemtime(__DIR__ . '/../_assets/ui/nisama_ui.js') ?: 1) . '"></script>' . "\n";
+if (!defined('STANDOUT_UI')) {
+    define('STANDOUT_UI', 1);
+    echo '<link rel="stylesheet" href="' . PWA_BASE . '_assets/ui/standout_ui.css?v='
+       . (@filemtime(__DIR__ . '/../_assets/ui/standout_ui.css') ?: 1) . '">' . "\n";
+    echo '<script src="' . PWA_BASE . '_assets/ui/standout_ui.js?v='
+       . (@filemtime(__DIR__ . '/../_assets/ui/standout_ui.js') ?: 1) . '"></script>' . "\n";
 }
 ?>
 <script>
@@ -484,11 +484,11 @@ function toggleAiBox(open) {
 })();
 
 /* ---- Salvataggio ----
-   Se ne occupa la barra vera (NisamaSaveBar, istanza "esempi"): qui restano
+   Se ne occupa la barra vera (StandoutSaveBar, istanza "esempi"): qui restano
    solo il segnale "qualcosa e' cambiato" e la funzione che sa davvero
    mandare i dati al server, che le viene passata in init() piu' sotto. */
 function markExDirty() {
-    if (typeof NisamaSaveBar !== 'undefined') NisamaSaveBar.touch('esempi');
+    if (typeof StandoutSaveBar !== 'undefined') StandoutSaveBar.touch('esempi');
 }
 
 /* Chiude scartando le modifiche non salvate, se ce ne sono: non si salva piu'
@@ -503,10 +503,10 @@ function markExDirty() {
    Cosi' le due X dicono due cose diverse e ognuna ne disfa una sola: questa
    chiude l'esempio, quella dell'elenco chiude gli esempi. */
 function closeExampleForm() {
-    let sporco = (typeof NisamaSaveBar !== 'undefined') && NisamaSaveBar.isDirty('esempi');
+    let sporco = (typeof StandoutSaveBar !== 'undefined') && StandoutSaveBar.isDirty('esempi');
     if (sporco) {
         if (!confirm(T('fc.exm_conferma_uscita'))) return;
-        NisamaSaveBar.discard('esempi');
+        StandoutSaveBar.discard('esempi');
     }
     document.getElementById('ex-form-modal').style.display = 'none';
     exTornaAllElenco();
@@ -752,9 +752,9 @@ function openExampleForm(fc_id, fc_type, ex_id) {
 
     toggleAiBox(false);
 
-    if (typeof NisamaSaveBar !== 'undefined') {
-        NisamaSaveBar.reset('esempi');
-        NisamaSaveBar.setAuto(false, 'esempi', true);
+    if (typeof StandoutSaveBar !== 'undefined') {
+        StandoutSaveBar.reset('esempi');
+        StandoutSaveBar.setAuto(false, 'esempi', true);
     }
 
     player.style.display = 'none';
@@ -954,7 +954,7 @@ window.generateAiExample = async function () {
 
             /* Il token va sempre, esplicito: ai_example.php ora lo controlla
                (prima no), e questo popup vive anche in pagine dove non e' detto
-               che nisama_fetch.js sia caricato per primo. */
+               che standout_fetch.js sia caricato per primo. */
             method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': EXM_CSRF},
 
             body: JSON.stringify({
@@ -1015,11 +1015,11 @@ window.generateAiExample = async function () {
 
 
 
-/* Questa e' la funzione "save" passata a NisamaSaveBar.init() piu' sotto:
+/* Questa e' la funzione "save" passata a StandoutSaveBar.init() piu' sotto:
    manuale=true quando e' stato il tasto Salva a chiamarla, false quando e'
    l'automatico (o la sua rete di sicurezza ogni 25s) a farlo da solo. Deve
    restituire true/false (anche come Promise) e non deve mai ricaricare la
-   pagina: ci pensa gia' NisamaSaveBar a gestire sporco/salvando/orario. */
+   pagina: ci pensa gia' StandoutSaveBar a gestire sporco/salvando/orario. */
 window.exSalvaEsempio = async function (manuale) {
 
     if (typeof fcSyncAllEditors === 'function') fcSyncAllEditors();
@@ -1078,7 +1078,7 @@ window.exSalvaEsempio = async function (manuale) {
 /* Nome storico, per chi la richiama da fuori (es. una scorciatoia da tastiera):
    un salvataggio manuale come un altro, chiesto alla barra vera. */
 function saveExample() {
-    return (typeof NisamaSaveBar !== 'undefined') ? NisamaSaveBar.saveNow('esempi') : exSalvaEsempio(true);
+    return (typeof StandoutSaveBar !== 'undefined') ? StandoutSaveBar.saveNow('esempi') : exSalvaEsempio(true);
 }
 
 
@@ -1113,7 +1113,7 @@ window.deleteExample = async function () {
 
         if(data.success) {
 
-            if (typeof NisamaSaveBar !== 'undefined') NisamaSaveBar.discard('esempi');
+            if (typeof StandoutSaveBar !== 'undefined') StandoutSaveBar.discard('esempi');
 
             document.getElementById('ex-form-modal').style.display = 'none';
 
@@ -1155,14 +1155,14 @@ document.addEventListener('input', function (e) {
     if (e.target && e.target.id === 'ex_text_editor') markExDirty();
 });
 
-if (typeof NisamaSaveBar !== 'undefined') {
-    NisamaSaveBar.init({
+if (typeof StandoutSaveBar !== 'undefined') {
+    StandoutSaveBar.init({
         instance: 'esempi',
         key: 'esempi_form',
         save: exSalvaEsempio,
         testoMaiSalvato: T('fc.exm_autosave_breve')
     });
-    NisamaSaveBar.setAuto(false, 'esempi', true);
+    StandoutSaveBar.setAuto(false, 'esempi', true);
 }
 
 (function () {
@@ -1173,29 +1173,29 @@ if (typeof NisamaSaveBar !== 'undefined') {
        controlli scollegati rischierebbero di azzerarsi a vicenda (uno
        vede i suoi chiusi e sovrascrive la bandiera anche se un altro
        popup, che lui non conosce, e' ancora aperto). */
-    window.__nisamaModaliAperti = window.__nisamaModaliAperti || new Set();
+    window.__standoutModaliAperti = window.__standoutModaliAperti || new Set();
 
-    window.nisamaOsservaModale = window.nisamaOsservaModale || function (id) {
+    window.standoutOsservaModale = window.standoutOsservaModale || function (id) {
         var el = document.getElementById(id);
         if (!el) return;
         function aggiorna() {
             var visibile = el.style.display && el.style.display !== 'none';
-            if (visibile) window.__nisamaModaliAperti.add(id); else window.__nisamaModaliAperti.delete(id);
-            var prima = window.__nisamaModaleAperto;
-            window.__nisamaModaleAperto = window.__nisamaModaliAperti.size > 0;
+            if (visibile) window.__standoutModaliAperti.add(id); else window.__standoutModaliAperti.delete(id);
+            var prima = window.__standoutModaleAperto;
+            window.__standoutModaleAperto = window.__standoutModaliAperti.size > 0;
             /* Se questa pagina vive dentro il popup di modifica (window.parent
                diverso da window), il pulsante IA di QUELLA carta sta nella
                finestra vera, fuori dall'iframe (fc_edit_popup.js lo crea li').
                Quando un popup di esempio si apre sopra di lui, resta comunque
                visibile e cliccabile — due cerchi viola sovrapposti, uno dei
                due per una carta che in quel momento non si sta nemmeno
-               guardando. Un avviso ogni volta che __nisamaModaleAperto cambia
+               guardando. Un avviso ogni volta che __standoutModaleAperto cambia
                (solo al cambiamento, non ad ogni aggiornamento) gli dice
                quando nascondersi e quando tornare. */
-            if (prima !== window.__nisamaModaleAperto && window.parent && window.parent !== window) {
+            if (prima !== window.__standoutModaleAperto && window.parent && window.parent !== window) {
                 window.parent.postMessage({
                     source: 'fc-modifica-popup',
-                    type: window.__nisamaModaleAperto ? 'esempio-aperto' : 'esempio-chiuso'
+                    type: window.__standoutModaleAperto ? 'esempio-aperto' : 'esempio-chiuso'
                 }, window.location.origin);
             }
         }
@@ -1205,7 +1205,7 @@ if (typeof NisamaSaveBar !== 'undefined') {
         aggiorna();
     };
 
-    ['ex-list-modal', 'ex-form-modal'].forEach(window.nisamaOsservaModale);
+    ['ex-list-modal', 'ex-form-modal'].forEach(window.standoutOsservaModale);
 })();
 
 }

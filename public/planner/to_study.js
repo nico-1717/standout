@@ -1,4 +1,4 @@
-/* Nisama — to study.
+/* Standout — to study.
  *
  * Il calendario del mese, e sotto l'elenco giorno per giorno. Gli eventi sono
  * righe di planner_events: qui si leggono e si scrivono tramite study_api.php,

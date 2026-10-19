@@ -57,7 +57,7 @@ function fc_ai_impegno_valori(): array {
 }
 
 /**
- * Stampa il selettore dell'impegno come tendina (NS.tendina di nisama_ui.js).
+ * Stampa il selettore dell'impegno come tendina (NS.tendina di standout_ui.js).
  *
  * Sta qui, e non nelle due pagine che lo usano, per la ragione di sempre: era
  * gia' scritto due volte — nel pannello delle carte e nel popup degli esempi —
@@ -108,7 +108,7 @@ function fc_ai_tendina_impegno(string $id, string $scelto = 'medio'): void {
             <?php endforeach; ?>
         </div>
     </div>
-    <?php /* Rete di sicurezza. Se nisama_ui.js non arriva — non caricato, in
+    <?php /* Rete di sicurezza. Se standout_ui.js non arriva — non caricato, in
              cache vecchia, bloccato da un filtro — NS.tendina non aggancia
              niente e questa resterebbe una riga che non si apre. In quel caso
              le quattro voci si mostrano in fila sotto, come un elenco normale:

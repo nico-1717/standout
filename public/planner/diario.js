@@ -1,5 +1,5 @@
 /* =====================================================================
-   NISAMA — DIARIO (logica della pagina)
+   STANDOUT — DIARIO (logica della pagina)
    Si sfoglia con lo swipe, si salva da sé, si annulla con la freccia.
    Gli stessi dati del popup "diario del giorno": qui però è la casa.
    ===================================================================== */
@@ -62,7 +62,7 @@ function haptic(ms) { if (navigator.vibrate) { try { navigator.vibrate(ms || 8);
 function api(action, data, query) {
     var url = 'diary_api.php?ajax=' + encodeURIComponent(action);
     if (query) { for (var k in query) if (query.hasOwnProperty(k)) url += '&' + k + '=' + encodeURIComponent(query[k]); }
-    var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.NISAMA_CSRF || S.csrf } };
+    var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.STANDOUT_CSRF || S.csrf } };
     if (data) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(data); }
     return fetch(url, opt).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
 }
@@ -83,7 +83,7 @@ function flashSaved() {
 
 /* le faccine arrivano dal popup condiviso; se manca, un cerchio semplice */
 function face(kind, level, size) {
-    if (window.nisamaFace) return window.nisamaFace(kind, level, size);
+    if (window.standoutFace) return window.standoutFace(kind, level, size);
     /* senza il componente condiviso restiamo essenziali: un cerchio per
        l'umore, una stellina per l'energia */
     if (kind === 'energy') {
@@ -684,7 +684,7 @@ $('dyNext').addEventListener('click', function () { turnPage(1); });
             }
             if (fin) {
                 /* punteggiatura indovinata dal componente condiviso */
-                var chiusa = window.nisamaPunctuate ? window.nisamaPunctuate(fin.trim()) : fin.trim();
+                var chiusa = window.standoutPunctuate ? window.standoutPunctuate(fin.trim()) : fin.trim();
                 base = (base ? base.replace(/\s+$/, '') + ' ' : '') + chiusa;
             }
             ta.value = base + (interim ? (base ? ' ' : '') + interim : '');

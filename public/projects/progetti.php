@@ -396,7 +396,7 @@ if (!function_exists('prog_category_link_blocked')) {
    ========================================================================== */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     /* Anche i moduli classici (salva, elimina, riordina) sono scritture:
-       il token arriva nel body come csrf_token, aggiunto da nisama_fetch.js,
+       il token arriva nel body come csrf_token, aggiunto da standout_fetch.js,
        oppure nell'header X-CSRF-Token. Senza, la richiesta si ferma qui. */
     sec_guard_write((int)($utente_corrente['id'] ?? 0), 'progetti_form', 0, 200, 60);
 
@@ -1074,7 +1074,7 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <title>Progetti</title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
+<script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>projects/progetti.css?v=<?php echo @filemtime(__DIR__ . '/progetti.css') ?: 1; ?>">
 <?php
 /* Le stringhe che servono al JavaScript di questa pagina. */
@@ -1082,7 +1082,7 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
    tutte le sue stringhe uscirebbero come <<chiave>>. */
 /* 'todo' serve al widget attività incluso qui dentro: senza, le sue scritte
    uscivano come <<todo.niente_da_fare>>. */
-echo nisama_i18n_json(['comune', 'progetti', 'pomodoro', 'todo']);
+echo standout_i18n_json(['comune', 'progetti', 'pomodoro', 'todo']);
 ?>
 <script src="../fc/fc_parser.js?v=<?php echo time(); ?>"></script>
 </head>
@@ -3655,8 +3655,8 @@ window.prShowInlineInput = function(e, parentId, btn) {
     var mounted = false;
 
     function mount(){
-        if (mounted || !window.nisamaTodo) return;
-        window.nisamaTodo.mount(box, { scope:'project', projectId: pid });
+        if (mounted || !window.standoutTodo) return;
+        window.standoutTodo.mount(box, { scope:'project', projectId: pid });
         mounted = true;
     }
     if (btn.classList.contains('is-on')) mount();

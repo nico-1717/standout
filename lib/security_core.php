@@ -1,7 +1,7 @@
 <?php
 /**
  * ============================================================
- *  NISAMA — NUCLEO DI SICUREZZA
+ *  STANDOUT — NUCLEO DI SICUREZZA
  * ============================================================
  * Da includere in cima a OGNI pagina e a OGNI endpoint, subito
  * dopo config.php:
@@ -574,7 +574,7 @@ function sec_audit(string $action, string $outcome = 'ok', ?string $detail = nul
 
 /** Errore tecnico: nel log del server, mai a schermo. */
 function sec_log_error(string $where, string $message): void {
-    error_log('[nisama:' . $where . '] ' . $message);
+    error_log('[standout:' . $where . '] ' . $message);
 }
 
 /* ============================================================

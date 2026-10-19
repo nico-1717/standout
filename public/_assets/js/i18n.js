@@ -1,7 +1,7 @@
-/* Nisama - le traduzioni lato JavaScript.
+/* Standout - le traduzioni lato JavaScript.
  *
  * Le stringhe arrivano gia' nella pagina, dentro un <script type="application/json">
- * scritto da nisama_i18n_json(). Non c'e' nessuna richiesta al server: la pagina
+ * scritto da standout_i18n_json(). Non c'e' nessuna richiesta al server: la pagina
  * e' gia' stata costruita nella lingua giusta, quindi le sue stringhe viaggiano
  * insieme a lei.
  *

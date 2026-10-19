@@ -1,5 +1,5 @@
 /* =====================================================================
-   NISAMA — POMODORO_CORE.JS
+   STANDOUT — POMODORO_CORE.JS
    Il motore del pomodoro: il modello dello stato, la matematica del
    tempo e tutte le chiamate al server.
 

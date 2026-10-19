@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — DIARIO PERSONALE
+   STANDOUT — DIARIO PERSONALE
    Un quaderno vero: una pagina per ogni giorno, si sfoglia con lo swipe,
    si salva da sé. Umore, energia, testo e i due elenchi sono gli stessi
    dati del popup "diario del giorno" (habits e planner): dove scrivi non
@@ -30,8 +30,8 @@ $boot = [
 <meta name="theme-color" content="#FDFCF9">
 <title><?php te('diario.titolo'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
-<?php echo nisama_i18n_json(['comune', 'diario']); ?>
+<script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
+<?php echo standout_i18n_json(['comune', 'diario']); ?>
 <link rel="stylesheet" href="diario.css?v=<?php echo @filemtime(__DIR__ . '/diario.css') ?: time(); ?>">
 </head>
 <body class="dy-body">
@@ -156,7 +156,7 @@ $boot = [
 <div class="dy-toast" id="dyToast"></div>
 
 <?php
-/* il popup condiviso porta anche window.nisamaFace: le faccine a matita */
+/* il popup condiviso porta anche window.standoutFace: le faccine a matita */
 include __DIR__ . '/diario_giorno.php';
 ?>
 <script>window.DY_BOOT = <?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>

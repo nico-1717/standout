@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — GOOGLE CALENDAR
+   STANDOUT — GOOGLE CALENDAR
    Collegamento dell'account e sincronizzazione nei due sensi con
    planner_events. Un solo file, quattro ingressi:
 
@@ -169,7 +169,7 @@ function gc_access_token(int $uid): ?string {
     return $token;
 }
 
-define('GC_CAL_NAME', 'Planner — Nisama');
+define('GC_CAL_NAME', 'Planner — Standout');
 
 /**
  * Il calendario dedicato al sito. Tenuto separato da quello personale così

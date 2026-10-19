@@ -197,8 +197,8 @@ function mfc_parola_esempio(): string {
 
         $q_img = mfc_salva('qNew_image', FC_IMAGE_PATH_INSERT, false);
         $a_img = mfc_salva('aNew_image', FC_IMAGE_PATH_INSERT, false);
-        $q_aud = mfc_salva('audio_q', NISAMA_DATA_DIR . 'flashcard_audio', true);
-        $a_aud = mfc_salva('audio_a', NISAMA_DATA_DIR . 'flashcard_audio', true);
+        $q_aud = mfc_salva('audio_q', STANDOUT_DATA_DIR . 'flashcard_audio', true);
+        $a_aud = mfc_salva('audio_a', STANDOUT_DATA_DIR . 'flashcard_audio', true);
 
         if ($quest === '' && $answ === '' && $q_img === '' && $a_img === '' && $q_aud === '' && $a_aud === '') {
             echo json_encode(['success' => false, 'empty' => true, 'error' => t('fc.serve_qualcosa')]);
@@ -319,8 +319,8 @@ function mfc_parola_esempio(): string {
         if (isset($_POST['delete'])) {
             mfc_togli(FC_IMAGE_PATH_INSERT, $old['question_image'] ?? '');
             mfc_togli(FC_IMAGE_PATH_INSERT, $old['answer_image'] ?? '');
-            mfc_togli(NISAMA_DATA_DIR . 'flashcard_audio', $old['question_audio'] ?? '');
-            mfc_togli(NISAMA_DATA_DIR . 'flashcard_audio', $old['answer_audio'] ?? '');
+            mfc_togli(STANDOUT_DATA_DIR . 'flashcard_audio', $old['question_audio'] ?? '');
+            mfc_togli(STANDOUT_DATA_DIR . 'flashcard_audio', $old['answer_audio'] ?? '');
 
             if ($is_child) sec_q("DELETE FROM " . fc_t('subcards') . " WHERE id_child = ?", [$id]);
             else           sec_q("DELETE FROM " . fc_t('cards') . " WHERE id = ?", [$id]);
@@ -354,8 +354,8 @@ function mfc_parola_esempio(): string {
         foreach ([
             ['question_image', 'remove_q_img', 'qNew_image', FC_IMAGE_PATH_INSERT, false],
             ['answer_image',   'remove_a_img', 'aNew_image', FC_IMAGE_PATH_INSERT, false],
-            ['question_audio', 'remove_q_aud', 'audio_q',    NISAMA_DATA_DIR . 'flashcard_audio', true],
-            ['answer_audio',   'remove_a_aud', 'audio_a',    NISAMA_DATA_DIR . 'flashcard_audio', true],
+            ['question_audio', 'remove_q_aud', 'audio_q',    STANDOUT_DATA_DIR . 'flashcard_audio', true],
+            ['answer_audio',   'remove_a_aud', 'audio_a',    STANDOUT_DATA_DIR . 'flashcard_audio', true],
         ] as [$colonna, $rimuovi, $campoFile, $cartella, $audio]) {
             if (sec_bool($_POST[$rimuovi] ?? 0)) {
                 mfc_togli($cartella, $old[$colonna] ?? '');
@@ -452,7 +452,7 @@ function mfc_parola_esempio(): string {
     <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 
-    <?php echo nisama_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
+    <?php echo standout_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
 
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <?php /* IL ?v= NON E' UN VEZZO — E' LA CAUSA DEL PULSANTE IA MORTO.
@@ -468,7 +468,7 @@ function mfc_parola_esempio(): string {
          leggevo un file che il browser non stava eseguendo.
          Con la data del file nell'indirizzo, una modifica al file e' un
          indirizzo nuovo, e la cache non ha piu' niente da riusare. */ ?>
-<script src="<?php echo PWA_BASE; ?>_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: 1; ?>"></script>
+<script src="<?php echo PWA_BASE; ?>_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: 1; ?>"></script>
 <?php echo fc_boot_json(); ?>
 <?php if (fc_is_vocab()): /* le parole sono testo semplice: niente fc_parser, niente formule */ ?>
 <script src="<?php echo PWA_BASE; ?>fc/fc_speak.js?v=<?php echo @filemtime(__DIR__ . '/fc_speak.js') ?: 1; ?>"></script>
@@ -1491,7 +1491,7 @@ function mfc_parola_esempio(): string {
         document.getElementById('fcAltraBtn').hidden = true;
         var box = document.querySelector('.qa-examples');
         if (box) box.hidden = true;
-        NisamaSaveBar.reset('scheda');
+        StandoutSaveBar.reset('scheda');
         fcSporco = false;
         if (typeof fcMigliora !== 'undefined') fcMigliora.scartaEsempioInSospeso();
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1730,7 +1730,7 @@ function mfc_parola_esempio(): string {
         /* Il salvataggio ora e' una funzione a se': la chiama il pulsante verde
            della barra (fc_autosave_bar.js) e la chiama il salvataggio automatico
            quando l'interruttore e' acceso. Restituisce true/false, che e' il
-           contratto che NisamaSaveBar si aspetta. */
+           contratto che StandoutSaveBar si aspetta. */
         async function salvaScheda() {
             if (typeof fcSyncAllEditors === 'function') fcSyncAllEditors();
 
@@ -1816,7 +1816,7 @@ function mfc_parola_esempio(): string {
         document.getElementById('editFcForm').addEventListener('submit', async function (e) {
             var activeSubmit = e.submitter ? e.submitter.name : '';
             e.preventDefault();
-            if (activeSubmit !== 'delete') { NisamaSaveBar.saveNow('scheda'); return; }
+            if (activeSubmit !== 'delete') { StandoutSaveBar.saveNow('scheda'); return; }
 
             if (typeof fcSyncAllEditors === 'function') fcSyncAllEditors();
             var fd = new FormData(this);
@@ -1834,7 +1834,7 @@ function mfc_parola_esempio(): string {
             }
         });
 
-        NisamaSaveBar.init({
+        StandoutSaveBar.init({
             instance: 'scheda',
             key: 'fc_scheda',
             save: salvaScheda,
@@ -1848,8 +1848,8 @@ function mfc_parola_esempio(): string {
            con l'interruttore acceso — le faceva partire un salvataggio per
            qualcosa che non era cambiato. La barra degli esempi ce l'ha gia',
            la sua, sull'istanza 'esempi'. */
-        document.addEventListener('input', function (ev) { if (fcEventoDellaCarta(ev)) NisamaSaveBar.touch('scheda'); });
-        document.addEventListener('change', function (ev) { if (fcEventoDellaCarta(ev)) NisamaSaveBar.touch('scheda'); });
+        document.addEventListener('input', function (ev) { if (fcEventoDellaCarta(ev)) StandoutSaveBar.touch('scheda'); });
+        document.addEventListener('change', function (ev) { if (fcEventoDellaCarta(ev)) StandoutSaveBar.touch('scheda'); });
     }
     </script>
 

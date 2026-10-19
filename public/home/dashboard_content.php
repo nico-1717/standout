@@ -5,11 +5,11 @@ require_once __DIR__ . '/../../lib/auth_core.php';
 require_once __DIR__ . '/../../lib/piano_helpers.php';
 require_once __DIR__ . '/../social/friends_core.php';   // sezione amici
 
-$nisama_utente = nisama_utente_corrente();
-if (!$nisama_utente) { return; } // index.php dovrebbe già garantirlo, ma per sicurezza usciamo comunque
+$standout_utente = standout_utente_corrente();
+if (!$standout_utente) { return; } // index.php dovrebbe già garantirlo, ma per sicurezza usciamo comunque
 
-$nisama_piano = nisama_get_piano_utente($nisama_utente['id']);
-$uid = $nisama_utente['id'];
+$standout_piano = standout_get_piano_utente($standout_utente['id']);
+$uid = $standout_utente['id'];
 
 /* quante notifiche di amicizia in sospeso (serve per il pallino rosso) */
 $nd_notifiche = fr_conta_notifiche(fr_conn(), (int)$uid);
@@ -20,7 +20,7 @@ $nd_notifiche = fr_conta_notifiche(fr_conn(), (int)$uid);
    ========================================================================== */
 /* sec_db() riusa la connessione gia' aperta invece di aprirne una seconda:
    questo file e' incluso da index.php, che una connessione ce l'ha gia'. */
-$nisama_conn = sec_db();
+$standout_conn = sec_db();
 
 /* I numeri delle flashcard vengono da fc_summary.php, lo stesso riepilogo
    della pagina principale delle flashcard (fc_home.php): studio e lingue
@@ -33,7 +33,7 @@ $nd_streak = 0; $nd_accuracy = 0; $nd_mastery_pct = 0;
 $nd_settimana = [];
 for ($i = 6; $i >= 0; $i--) { $nd_settimana[date('Y-m-d', strtotime("-$i day"))] = 0; }
 
-if ($nisama_conn) {
+if ($standout_conn) {
     $nd_fc = fc_riepilogo((int)$uid);
     $nd_streak    = (int)$nd_fc['serie'];
     $nd_accuracy  = (int)$nd_fc['precisione'];
@@ -68,7 +68,7 @@ $nd_week_max = max(1, max($nd_settimana));
 
 <?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
-<div class="nisama-dash">
+<div class="standout-dash">
   <div class="nd-wrap">
 
     <div class="nd-hero nd-pop">
@@ -78,7 +78,7 @@ $nd_week_max = max(1, max($nd_settimana));
         <?php endif; ?>
       </div>
       <div class="nd-hero-content">
-        <h1 class="nd-greeting"><?php te('dashboard.saluto', ['nome' => $nisama_utente['username']]); ?></h1>
+        <h1 class="nd-greeting"><?php te('dashboard.saluto', ['nome' => $standout_utente['username']]); ?></h1>
         <p class="nd-greeting-sub"><?php te('dashboard.pronto_a_ripassare_qualcosa_oggi'); ?></p>
       </div>
     </div>
@@ -147,17 +147,17 @@ $nd_week_max = max(1, max($nd_settimana));
       </div>
     </div>
 
-    <?php if ($nisama_piano): ?>
+    <?php if ($standout_piano): ?>
     <div class="nd-plan-card nd-pop" style="animation-delay:.15s">
       <div class="nd-plan-head">
-        <span class="nd-plan-name"><?php echo sec_h(ucfirst($nisama_piano['name'])); ?></span>
+        <span class="nd-plan-name"><?php echo sec_h(ucfirst($standout_piano['name'])); ?></span>
         <span class="nd-plan-head-note"><?php te('dashboard.utilizzo_di_questo_mese'); ?></span>
       </div>
       <div class="nd-usage-grid">
         <?php
-          echo $nd_barra(t('dashboard.caratteri_audio'), (int)$nisama_piano['monthly_audio_chars'], $nisama_piano['audio_chars_limit'], 'var(--purple)');
-          echo $nd_barra(t('dashboard.immagini_generate'), (int)$nisama_piano['monthly_generated_images'], $nisama_piano['images_limit'], 'var(--pink)');
-          echo $nd_barra(t('dashboard.token_testuali'), (int)$nisama_piano['monthly_text_tokens'], $nisama_piano['text_tokens_limit'], 'var(--green)');
+          echo $nd_barra(t('dashboard.caratteri_audio'), (int)$standout_piano['monthly_audio_chars'], $standout_piano['audio_chars_limit'], 'var(--purple)');
+          echo $nd_barra(t('dashboard.immagini_generate'), (int)$standout_piano['monthly_generated_images'], $standout_piano['images_limit'], 'var(--pink)');
+          echo $nd_barra(t('dashboard.token_testuali'), (int)$standout_piano['monthly_text_tokens'], $standout_piano['text_tokens_limit'], 'var(--green)');
         ?>
       </div>
     </div>
@@ -187,7 +187,7 @@ $nd_week_max = max(1, max($nd_settimana));
       </a>
     </div>
 
-    <h2 class="nd-tips-title nd-pop" style="animation-delay:.4s"><?php te('dashboard.come_sfruttare_al_meglio_nisama'); ?></h2>
+    <h2 class="nd-tips-title nd-pop" style="animation-delay:.4s"><?php te('dashboard.come_sfruttare_al_meglio_standout'); ?></h2>
     <div class="nd-tips">
       <div class="nd-tip nd-pop" style="animation-delay:.38s; background:var(--purple-soft);"><span class="emoji">⚡</span><?php th('dashboard.consiglio_frantuma', ['evidenza' => '<b>' . t('dashboard.consiglio_frantuma_ev') . '</b>']); ?></div>
       <div class="nd-tip nd-pop" style="animation-delay:.41s; background:var(--blue-soft);"><span class="emoji">🎙</span><?php th('dashboard.consiglio_tutor', ['evidenza' => '<b>' . t('dashboard.consiglio_tutor_ev') . '</b>']); ?></div>
@@ -201,7 +201,7 @@ $nd_week_max = max(1, max($nd_settimana));
 
 <?php include __DIR__ . '/../partials/notifiche_widget.php'; ?>
 
-<?php echo nisama_i18n_json(['comune', 'dashboard']); ?>
+<?php echo standout_i18n_json(['comune', 'dashboard']); ?>
 <script>
 (function(){
   const slides = document.querySelectorAll('#ndStatsRotator .nd-stat-slide');
@@ -217,7 +217,17 @@ $nd_week_max = max(1, max($nd_settimana));
     }, 4000);
   }
 
-  const FALLBACK = [
+  /* Le domande esistono in una versione per lingua: trivia.json (italiano,
+     l'originale) e trivia_<lingua>.json. La lingua e' quella della pagina,
+     che config.php scrive in <html lang>. */
+  const LINGUA = (document.documentElement.lang || 'it').slice(0, 2);
+  const FILE_TRIVIA = LINGUA === 'it' ? 'home/trivia.json' : 'home/trivia_' + LINGUA + '.json';
+
+  const FALLBACK = LINGUA === 'en' ? [
+    { tipo: 'trivia', domanda: 'What is the capital of Romania?', risposta: 'Bucharest' },
+    { tipo: 'trivia', domanda: 'How many bones does the adult human body have?', risposta: '206' },
+    { tipo: 'quote', domanda: 'Live as if you were to die tomorrow. Learn as if you were to live forever.', risposta: 'Mahatma Gandhi (attributed)' }
+  ] : [
     { tipo: 'trivia', domanda: 'Qual è la capitale della Romania?', risposta: 'Bucarest' },
     { tipo: 'trivia', domanda: 'Quante ossa ha il corpo umano adulto?', risposta: '206' },
     { tipo: 'quote', domanda: 'Non smettere mai di imparare, perché la vita non smette mai di insegnare.', risposta: 'Proverbio' }
@@ -249,7 +259,9 @@ $nd_week_max = max(1, max($nd_settimana));
       // Se il database è vuoto, lo scarichiamo dal file locale
       if (databaseCarte.length === 0) {
         elQ.textContent = T('comune.carica'); // Mostra caricamento solo la prima volta
-        const res = await fetch('home/trivia.json');
+        let res = await fetch(FILE_TRIVIA);
+        /* una lingua senza file suo ripiega sull'italiano */
+        if (!res.ok && FILE_TRIVIA !== 'home/trivia.json') res = await fetch('home/trivia.json');
         if (!res.ok) throw new Error('File JSON non trovato');
         databaseCarte = await res.json();
       }

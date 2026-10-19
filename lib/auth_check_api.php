@@ -14,7 +14,7 @@
 
 require_once __DIR__ . '/auth_core.php';
 
-$utente_corrente = nisama_utente_corrente();
+$utente_corrente = standout_utente_corrente();
 
 if (!$utente_corrente) {
     http_response_code(401);

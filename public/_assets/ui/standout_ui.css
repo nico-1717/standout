@@ -1,5 +1,5 @@
 /* =====================================================================
-   nisama_ui.css — come appaiono le cose, deciso una volta sola.
+   standout_ui.css — come appaiono le cose, deciso una volta sola.
    =====================================================================
    PERCHE' ESISTE
 
@@ -222,7 +222,7 @@
 }
 .ns-tendina-menu.is-su{ transform-origin:bottom center; }
 
-/* Ripiego: nisama_ui.js non e' arrivato e nessuno ha agganciato la tendina.
+/* Ripiego: standout_ui.js non e' arrivato e nessuno ha agganciato la tendina.
    Le quattro voci si mostrano in fila, come un elenco: non si apre e non si
    chiude, ma si sceglie. Meglio di una riga che non reagisce al tocco. */
 .ns-tendina-menu.is-ripiego{

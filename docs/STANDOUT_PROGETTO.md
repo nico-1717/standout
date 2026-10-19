@@ -1,8 +1,8 @@
-# NISAMA — Documento di progetto
+# STANDOUT — Documento di progetto
 
 **Versione:** 1.0 — agosto 2026
 **A chi serve:** a chiunque (persona o intelligenza artificiale) debba lavorare su
-Nisama senza aver seguito le conversazioni precedenti. Leggendo questo file si
+Standout senza aver seguito le conversazioni precedenti. Leggendo questo file si
 deve sapere cos'è il progetto, com'è fatto oggi, dove deve arrivare, con quali
 regole si scrive il codice e in che ordine si procede.
 
@@ -22,7 +22,7 @@ un'opinione.
 Termini usati in tutto il documento. Se un nome non è qui e non si capisce dal
 contesto, va chiesto invece che immaginato.
 
-| Termine | Significato in Nisama |
+| Termine | Significato in Standout |
 |---|---|
 | **carta** | l'unità di studio: una parola da imparare, o una domanda con la sua risposta |
 | **carta padre / carta figlia** | una carta può raggruppare più sotto-carte (colonna `is_father` sulla padre, `parent_id` sulle figlie). **`child` nei nomi delle tabelle significa "figlia", non "per bambini"** |
@@ -38,9 +38,9 @@ contesto, va chiesto invece che immaginato.
 
 ---
 
-## 1. Cos'è Nisama
+## 1. Cos'è Standout
 
-Nisama è un'applicazione personale di produttività, scritta e usata da una
+Standout è un'applicazione personale di produttività, scritta e usata da una
 persona sola, che ora punta ad aprirsi ad altri utenti.
 
 Contiene, oggi:
@@ -156,7 +156,7 @@ accettazione delle condizioni, data di cancellazione richiesta. Vedi §7.4.
 
 ## 3. Convenzioni di codice (obbligatorie)
 
-Chi scrive codice per Nisama rispetta queste regole. Non sono preferenze
+Chi scrive codice per Standout rispetta queste regole. Non sono preferenze
 estetiche: sono il motivo per cui il codice esistente si può ancora leggere.
 
 1. **Commenti in italiano, che spiegano *perché*, non *cosa*.**
@@ -179,7 +179,7 @@ estetiche: sono il motivo per cui il codice esistente si può ancora leggere.
 
 ### 3.1 Anatomia di una pagina, oggi
 
-Chi non ha mai aperto un file di Nisama si aspetta un framework e non lo trova.
+Chi non ha mai aperto un file di Standout si aspetta un framework e non lo trova.
 Le pagine grosse (planner, habits) sono fatte così, dall'alto in basso:
 
 ```php
@@ -329,7 +329,7 @@ Oggi è tutto in una cartella. Struttura di arrivo:
   la differenza fra un fastidio e un sito compromesso.
 - **Un solo `bootstrap.php`.** Ogni pagina comincia con
   `require __DIR__.'/../lib/bootstrap.php';` e da lì include per costante
-  (`NISAMA_LIB`, `NISAMA_INC`), mai per percorso relativo: il prossimo
+  (`STANDOUT_LIB`, `STANDOUT_INC`), mai per percorso relativo: il prossimo
   spostamento costerà una riga.
 - **Lo spostamento si fa a scaglioni**, lasciando al vecchio indirizzo un file
   di due righe che rimanda al nuovo (301), così segnalibri e PWA installata non
@@ -752,7 +752,7 @@ aggiornato insieme alle migrazioni. Con 71 righe nell'elenco, la differenza fra
 
 #### 8.3.7 Cosa NON fare
 
-- **Non dividere in più database** (`nisama_planner`, `nisama_habits`…).
+- **Non dividere in più database** (`standout_planner`, `standout_habits`…).
   Tecnicamente si può, ma le query che attraversano due aree diventano goffe, i
   permessi si moltiplicano, i backup diventano N invece di uno e il giorno che il
   database va su una macchina sua bisogna rifare tutto. È organizzazione
@@ -893,7 +893,7 @@ del database, e un trasloco obbligato il giorno che si cresce.
 Il sito passa da `nisama.altervista.org/Vocabolary/` alla radice
 `nisama.altervista.org/` (e un giorno a un dominio proprio sul VPS). Google
 ricorda gli indirizzi, quindi la console va aggiornata. Console:
-https://console.cloud.google.com → progetto di Nisama → *API e servizi*.
+https://console.cloud.google.com → progetto di Standout → *API e servizi*.
 
 **Credenziali → ID client OAuth (Google Calendar)**
 
@@ -1118,7 +1118,7 @@ Mezza giornata di lavoro.
 ### 14.3 Parte social (futuro, solo nell'app)
 
 > **Documento dedicato:** la parte social ha un masterplan suo,
-> **`NISAMA_SOCIAL.md`** (visione, sezioni, regole dei pensieri, matchmaking,
+> **`STANDOUT_SOCIAL.md`** (visione, sezioni, regole dei pensieri, matchmaking,
 > ordine di rilascio). Quel documento comanda sul *prodotto*; questo comanda
 > sulle scelte *tecniche*. Il vecchio PDF "Project Masterplan v1.0" è superato:
 > diceva "Vanilla JS, no React" e metteva il social nel sito.

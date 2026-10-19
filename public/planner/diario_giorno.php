@@ -1,25 +1,25 @@
 <?php
 /* =====================================================================
-   NISAMA — DIARIO DEL GIORNO (popup condiviso)
+   STANDOUT — DIARIO DEL GIORNO (popup condiviso)
    Da includere una volta sola, in fondo alla pagina:
 
        include __DIR__ . '/diario_giorno.php';
 
    Poi si apre da qualunque punto con:
 
-       nisamaOpenDiary('2026-07-25');            // stile della pagina
-       nisamaOpenDiary('2026-07-25', 'habits');  // forza uno stile
+       standoutOpenDiary('2026-07-25');            // stile della pagina
+       standoutOpenDiary('2026-07-25', 'habits');  // forza uno stile
 
    Lo stile si adatta: 'planner' usa la carta pastello del planner,
    'habits' resta identico a com'è ora nella pagina delle abitudini.
    Scrive tutto tramite diary_api.php, quindi umore, energia, testo e i
    due elenchi sono gli stessi che vede la pagina del diario.
 
-   Espone anche window.nisamaFace(kind, level, size): le faccine
+   Espone anche window.standoutFace(kind, level, size): le faccine
    disegnate a matita, riusate dalla pagina diario.
    ===================================================================== */
-if (!defined('NISAMA_DIARY_POPUP')):
-define('NISAMA_DIARY_POPUP', true);
+if (!defined('STANDOUT_DIARY_POPUP')):
+define('STANDOUT_DIARY_POPUP', true);
 if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/security_core.php'; }
 ?>
 <div class="dg-ov" id="dgOv" data-skin="planner" aria-hidden="true">
@@ -248,7 +248,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
 
 <script>
 (function () {
-    if (window.nisamaOpenDiary) return;
+    if (window.standoutOpenDiary) return;
 
     var CSRF = <?php echo json_encode(sec_csrf_token()); ?>;
     var GIORNI = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
@@ -312,7 +312,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
      * kind: 'mood' oppure 'energy'. level: 1..5, oppure 0/null = da scegliere.
      * Ritorna il markup svg: matita morbida, niente colore pieno.
      */
-    function nisamaFace(kind, level, size) {
+    function standoutFace(kind, level, size) {
         var s = size || 40;
         var open = '<svg viewBox="0 0 40 40" width="' + s + '" height="' + s + '" fill="none" stroke="currentColor" '
                  + 'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">';
@@ -327,13 +327,13 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
                   + '<path d="' + MOUTHS[lv] + '"/>';
         return open + inner + '</svg>';
     }
-    window.nisamaFace = nisamaFace;
+    window.standoutFace = standoutFace;
 
     /* ---------- rete ---------- */
     function api(action, data, query) {
         var url = 'diary_api.php?ajax=' + encodeURIComponent(action);
         if (query) { for (var k in query) if (query.hasOwnProperty(k)) url += '&' + k + '=' + encodeURIComponent(query[k]); }
-        var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.NISAMA_CSRF || CSRF } };
+        var opt = { method: data ? 'POST' : 'GET', credentials: 'same-origin', headers: { 'X-CSRF-Token': window.STANDOUT_CSRF || CSRF } };
         if (data) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(data); }
         return fetch(url, opt).then(function (r) { return r.json(); }).catch(function () { return { ok: false }; });
     }
@@ -362,7 +362,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
                     var b = document.createElement('button');
                     b.type = 'button';
                     b.className = 'dg-face' + (current === level ? ' dg-on' : '');
-                    b.innerHTML = nisamaFace(kind, level, 40);
+                    b.innerHTML = standoutFace(kind, level, 40);
                     b.setAttribute('aria-label', kind + ' ' + level);
                     b.addEventListener('click', function () {
                         var next = state.data[kind] === level ? null : level;
@@ -472,7 +472,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
         'quanto','quanta','quanti','quante','sono','è','e\u0300','ho','hai','ha'
     ];
 
-    function nisamaPunctuate(phrase) {
+    function standoutPunctuate(phrase) {
         var s = String(phrase || '').trim();
         if (!s) return s;
         /* già chiusa da chi parlava ("punto", "virgola"…): non tocchiamo */
@@ -494,7 +494,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
 
         return s + '.';
     }
-    window.nisamaPunctuate = nisamaPunctuate;
+    window.standoutPunctuate = standoutPunctuate;
 
     /* ---------- dettatura ----------
        Usa il riconoscimento vocale del browser (Safari e Chrome): la voce
@@ -534,7 +534,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
                 }
                 if (finalTxt) {
                     /* la frase appena conclusa viene chiusa con il segno giusto */
-                    var chiusa = nisamaPunctuate(finalTxt.trim());
+                    var chiusa = standoutPunctuate(finalTxt.trim());
                     baseText = (baseText ? baseText.replace(/\s+$/, '') + ' ' : '') + chiusa;
                 }
                 ta.value = baseText + (interim ? (baseText ? ' ' : '') + interim : '');
@@ -585,7 +585,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
     $('dgClose').addEventListener('click', close);
     ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
 
-    window.nisamaOpenDiary = function (date, skin) {
+    window.standoutOpenDiary = function (date, skin) {
         state.date = date || new Date().toISOString().slice(0, 10);
         if (skin) ov.setAttribute('data-skin', skin);
         else ov.setAttribute('data-skin', document.body.classList.contains('pl-body') ? 'planner' : 'habits');
@@ -599,8 +599,8 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
             drawAll();
         });
     };
-    window.plOpenDiary = function (date) { window.nisamaOpenDiary(date, 'planner'); };
-    window.nisamaCloseDiary = close;
+    window.plOpenDiary = function (date) { window.standoutOpenDiary(date, 'planner'); };
+    window.standoutCloseDiary = close;
 
     /* ---------- foglio in sola lettura: quello che è stato scritto ---------- */
     var peekOv = document.getElementById('dgPeekOv');
@@ -610,7 +610,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
     }
     peekOv.addEventListener('click', function (e) { if (e.target === peekOv) closePeek(); });
 
-    window.nisamaDiaryPeek = function (date) {
+    window.standoutDiaryPeek = function (date) {
         var d = parseIso(date);
         var wd = (d.getDay() + 6) % 7;
         $('dgPeekDate').textContent = GIORNI[wd] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()];
@@ -648,7 +648,7 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
             [['mood', day.mood], ['energy', day.energy]].forEach(function (pair) {
                 if (!pair[1]) return;
                 var w = document.createElement('span');
-                w.innerHTML = nisamaFace(pair[0], pair[1], 30);
+                w.innerHTML = standoutFace(pair[0], pair[1], 30);
                 faces.appendChild(w);
             });
         });

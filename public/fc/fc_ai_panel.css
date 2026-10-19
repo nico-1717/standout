@@ -422,7 +422,7 @@
    ============================================================ */
 
 /* Il selettore dell'impegno e' una tendina condivisa (.ns-tendina in
-   nisama_ui.css): qui resta solo la spaziatura nel popup. */
+   standout_ui.css): qui resta solo la spaziatura nel popup. */
 .fcai-impegno { margin-top:8px; }
 .fcai-stile { display:grid; grid-template-columns:1fr 1fr; gap:10px 12px; margin-top:10px; }
 @media (max-width:420px) { .fcai-stile { grid-template-columns:1fr; } }
@@ -464,7 +464,7 @@
 
 /* Attesa senza percentuale: un lotto solo in volo, niente da misurare.
    Il segmento attraversa la barra invece di restare fermo a zero.
-   Le regole vere stanno in nisama_ui.css (.ns-barra.is-ignota): qui si
+   Le regole vere stanno in standout_ui.css (.ns-barra.is-ignota): qui si
    ripetono per la barra di questo pannello, che ha una classe sua. */
 .fcai-barra.is-ignota > i{
     width:32% !important; transition:none;

@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — ATTIVITÀ (pagina principale)
+   STANDOUT — ATTIVITÀ (pagina principale)
    Lo stesso componente che compare dentro i progetti e nel pomodoro,
    qui a tutta pagina e con la modalità seleziona attiva.
    ===================================================================== */
@@ -27,7 +27,7 @@ $tab = sec_enum(sec_in('tab'), ['todo', 'buy', 'study', 'pills'], '');
 <meta name="theme-color" content="#FDFCF9">
 <title><?php te('todo.titolo'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
+<script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>planner/todo.css?v=<?php echo @filemtime(__DIR__ . '/todo.css') ?: 1; ?>">
@@ -65,9 +65,9 @@ include __DIR__ . '/../projects/project_selector.php';
 include __DIR__ . '/todo_widget.php';
 ?>
 <?php include __DIR__ . '/../partials/sidebar.php'; ?>
-<?php echo nisama_i18n_json(['comune', 'todo']); ?>
+<?php echo standout_i18n_json(['comune', 'todo']); ?>
 <script>
-nisamaTodo.mount(document.getElementById('tpList'), {
+standoutTodo.mount(document.getElementById('tpList'), {
     scope: 'all',
     selectable: true,
     tabs: true,         // to do / to buy / to study / pastiglie

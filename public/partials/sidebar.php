@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — SIDEBAR (componente includibile)
+   STANDOUT — SIDEBAR (componente includibile)
    Da includere una volta sola, prima di </body>:
 
        include __DIR__ . '/sidebar.php';
@@ -14,8 +14,8 @@
    piccolo e quasi trasparente, così non copre quello che c'è sotto e si
    fa notare solo quando lo si sfiora.
    ===================================================================== */
-if (!defined('NISAMA_SIDEBAR')):
-define('NISAMA_SIDEBAR', true);
+if (!defined('STANDOUT_SIDEBAR')):
+define('STANDOUT_SIDEBAR', true);
 
 $sbFile = __DIR__ . '/sidebar.html';
 if (is_readable($sbFile)):

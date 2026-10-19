@@ -1,10 +1,10 @@
 /* =====================================================================
-   nisama_ui.js — i comportamenti che vanno uguali in tutto il sito.
+   standout_ui.js — i comportamenti che vanno uguali in tutto il sito.
    =====================================================================
-   Va incluso dopo nisama_fetch.js e prima degli script di pagina:
+   Va incluso dopo standout_fetch.js e prima degli script di pagina:
 
-     <link rel="stylesheet" href="nisama_ui.css">
-     <script src="nisama_ui.js"></script>
+     <link rel="stylesheet" href="standout_ui.css">
+     <script src="standout_ui.js"></script>
 
    Non fa niente da solo: non aggancia eventi globali, non cambia pagine che
    non lo chiedono. E' una cassetta degli attrezzi, non un'impalcatura — cosi'

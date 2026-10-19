@@ -3,7 +3,7 @@
    serve per togliere 'unsafe-inline' dalla CSP.
    Come dashboard.css: il <link> sta in index.php. */
 
-.nisama-landing {
+.standout-landing {
 
 
 
@@ -103,15 +103,15 @@ overflow-x: hidden;
 
 
 
-.nisama-landing * { box-sizing: border-box; }
+.standout-landing * { box-sizing: border-box; }
 
 
 
-.nisama-landing .reveal { opacity: 0; transform: translateY(28px); transition: opacity .7s ease, transform .7s cubic-bezier(.22,1,.36,1); }
+.standout-landing .reveal { opacity: 0; transform: translateY(28px); transition: opacity .7s ease, transform .7s cubic-bezier(.22,1,.36,1); }
 
 
 
-.nisama-landing .reveal.revealed { opacity: 1; transform: translateY(0); }
+.standout-landing .reveal.revealed { opacity: 1; transform: translateY(0); }
 
 
 
@@ -855,7 +855,7 @@ box-shadow: none !important;
 
 
 
-.nisama-landing .reveal { transition: none; opacity: 1; transform: none; }
+.standout-landing .reveal { transition: none; opacity: 1; transform: none; }
 
 
 

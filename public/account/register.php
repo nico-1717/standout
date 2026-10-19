@@ -7,12 +7,12 @@ sec_require_rate('register', sec_ip(), 2, 3600);
 $input = json_decode(file_get_contents('php://input'), true);
 if (!$input) {
     http_response_code(400);
-    die(json_encode(['success' => false, 'error' => 'dati_mancanti', 'message' => 'Nessun dato ricevuto.']));
+    die(json_encode(['success' => false, 'error' => 'dati_mancanti', 'message' => t('auth.err_nessun_dato')]));
 }
 
-if (!nisama_csrf_verifica($input['csrf_token'] ?? null)) {
+if (!standout_csrf_verifica($input['csrf_token'] ?? null)) {
     http_response_code(403);
-    die(json_encode(['success' => false, 'error' => 'csrf', 'message' => 'Sessione scaduta, ricarica la pagina e riprova.']));
+    die(json_encode(['success' => false, 'error' => 'csrf', 'message' => t('auth.err_sessione')]));
 }
 
 $username  = trim($input['username'] ?? '');
@@ -23,16 +23,16 @@ $password2 = (string)($input['password_confirm'] ?? '');
 $errori = [];
 
 if (!preg_match('/^[a-zA-Z0-9_.]{3,30}$/', $username)) {
-    $errori['username'] = 'Il nome utente deve avere 3-30 caratteri (lettere, numeri, punto o underscore, senza spazi).';
+    $errori['username'] = t('auth.err_username');
 }
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    $errori['email'] = 'Inserisci un indirizzo email valido.';
+    $errori['email'] = t('auth.err_email');
 }
 if (strlen($password) < 8 || !preg_match('/[A-Za-z]/', $password) || !preg_match('/[0-9]/', $password)) {
-    $errori['password'] = 'La password deve avere almeno 8 caratteri, con lettere e numeri.';
+    $errori['password'] = t('auth.err_password');
 }
 if ($password !== $password2) {
-    $errori['password_confirm'] = 'Le due password non coincidono.';
+    $errori['password_confirm'] = t('auth.err_password_diverse');
 }
 
 if (!empty($errori)) {
@@ -40,7 +40,7 @@ if (!empty($errori)) {
     die(json_encode(['success' => false, 'error' => 'validazione', 'errori' => $errori]));
 }
 
-$conn = nisama_db();
+$conn = standout_db();
 
 // Controlliamo separatamente unicità di username ed email, per poter dire
 // con precisione all'utente quale dei due è già in uso (in fase di
@@ -62,8 +62,8 @@ mysqli_stmt_close($stmt);
 if ($usernameEsiste || $emailEsiste) {
     http_response_code(409);
     $errori = [];
-    if ($usernameEsiste) $errori['username'] = 'Questo nome utente è già in uso.';
-    if ($emailEsiste)     $errori['email'] = 'Questa email è già registrata.';
+    if ($usernameEsiste) $errori['username'] = t('auth.err_username_usato');
+    if ($emailEsiste)     $errori['email'] = t('auth.err_email_usata');
     die(json_encode(['success' => false, 'error' => 'utente_esistente', 'errori' => $errori]));
 }
 
@@ -97,10 +97,10 @@ if ($ok) {
 } else {
     mysqli_rollback($conn);
     http_response_code(500);
-    die(json_encode(['success' => false, 'error' => 'db', 'message' => 'Errore durante la registrazione. Riprova.']));
+    die(json_encode(['success' => false, 'error' => 'db', 'message' => t('auth.err_registrazione')]));
 }
 
-nisama_registra_tentativo($email, true);
-nisama_effettua_login((int)$nuovo_id, true);
+standout_registra_tentativo($email, true);
+standout_effettua_login((int)$nuovo_id, true);
 
 echo json_encode(['success' => true, 'user' => ['id' => (int)$nuovo_id, 'username' => $username, 'email' => $email]]);

@@ -10,7 +10,7 @@ $current_user_id = $utente_corrente['id'];
 /* La barra del pomodoro serve sulle ALTRE pagine: qui ci sarebbe il doppione
    di quello che si sta gia' guardando. La costante la legge config.php quando
    decide se innestarla. */
-define('NISAMA_NIENTE_BARRA', true);
+define('STANDOUT_NIENTE_BARRA', true);
 
 /* ==========================================================================
    NOTA SCHEMA: questa pagina usa due colonne in più rispetto allo script SQL
@@ -335,7 +335,7 @@ $jsState = $statoCorrente + [
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <title>Pomodoro</title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
+<script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
 <!-- Il motore del pomodoro: stato, matematica del tempo e chiamate al server.
      Lo stesso file che usera' la barra sulle altre pagine, cosi' le due viste
      non possono divergere. -->
@@ -348,7 +348,7 @@ $jsState = $statoCorrente + [
    c'e' perche' il post-it monta todo_widget, che chiama T('todo.…'): senza,
    il foglietto mostrava <<todo.niente_da_fare>> al posto del testo. Non si
    passa tutto il dizionario perche' sono migliaia di voci. */
-echo nisama_i18n_json(['comune', 'pomodoro', 'todo']);
+echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
 ?>
 </head>
 <body>
@@ -1939,7 +1939,7 @@ function fmtDurataBreve(sec){
     }
 
     function mount(){
-        if (!window.nisamaTodo) return;
+        if (!window.standoutTodo) return;
         /* se il pomodoro ha già un progetto, si vedono le sue attività */
         /* Il progetto del pomodoro: quello scelto adesso nel selettore, o
            quello arrivato nell'indirizzo. La variabile "projectId" non esiste
@@ -1961,7 +1961,7 @@ function fmtDurataBreve(sec){
             defaultTime: nowHM(),
             defaultProjectId: pid || 0
         };
-        inst = window.nisamaTodo.mount(list, opts);
+        inst = window.standoutTodo.mount(list, opts);
     }
 
     btn.addEventListener('click', function(){
@@ -2016,7 +2016,7 @@ function fmtDurataBreve(sec){
             b.textContent = label;
             b.className = 'pomo-postit-act' + (primary ? ' is-primary' : '');
             b.addEventListener('click', function(){
-                window.nisamaTodo.api('pomodoro_close', { mode: mode, ids: ids }).then(function(){
+                window.standoutTodo.api('pomodoro_close', { mode: mode, ids: ids }).then(function(){
                     box.remove();
                     if (inst) inst.load();
                 });

@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — LO STATO DEL POMODORO
+   STANDOUT — LO STATO DEL POMODORO
    Un file a se' perche' la stessa lettura serve a tre posti: la pagina
    pomodoro quando si apre, la risposta a ?ajax=stato che il motore
    interroga, e la barra in cima a tutte le altre pagine. Tre copie

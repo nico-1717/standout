@@ -38,8 +38,8 @@
     }
 }
 
-.nisama-dash{ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding:28px 5vw calc(60px + var(--safe-bottom)); }
-.nisama-dash *{ box-sizing:border-box; }
+.standout-dash{ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding:28px 5vw calc(60px + var(--safe-bottom)); }
+.standout-dash *{ box-sizing:border-box; }
 .nd-wrap{ max-width:1080px; margin:0 auto; }
 .nd-pop{ opacity:0; transform:translateY(18px) scale(.98); animation:nd-in .55s var(--spring) forwards; }
 @keyframes nd-in{ to{ opacity:1; transform:none; } }

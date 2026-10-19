@@ -424,7 +424,7 @@ var FCAI = (function () {
        5. DIALOGO CON fc_ai.php
        ============================================================ */
 
-    /* nisama_fetch.js aggiunge da se' il token CSRF; qui si aggiunge solo
+    /* standout_fetch.js aggiunge da se' il token CSRF; qui si aggiunge solo
        no-store, perche' una risposta IA riletta dalla cache sarebbe la stessa
        identica generazione due volte. */
     async function chiama(azione, dati) {

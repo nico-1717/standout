@@ -1,6 +1,6 @@
 <?php
 /* =========================================================================
-   NISAMA · AMICI
+   STANDOUT · AMICI
    Profilo, confronto con gli amici, duello 1 contro 1, classifica globale.
    ========================================================================= */
 
@@ -54,7 +54,7 @@ $FRJS = [
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<title>Amici · Nisama</title>
+<title>Amici · Standout</title>
 <style>
 /* =================================================================
    DESIGN SYSTEM — identico a stats_fc.php, più l'accento "social"
@@ -804,7 +804,7 @@ function api(azione, dati) {
     var body = new URLSearchParams(Object.assign({ azione: azione }, dati || {}));
     return fetch('friends_api.php', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Nisama': '1' },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Standout': '1' },
         body: body, credentials: 'same-origin'
     }).then(function (r) { return r.json(); });
 }

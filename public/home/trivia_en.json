@@ -1,0 +1,1332 @@
+[
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Romania?",
+    "risposta": "Bucharest"
+  },
+  {
+    "tipo": "trivia - anatomy",
+    "domanda": "How many bones does the adult human body have?",
+    "risposta": "206"
+  },
+  {
+    "tipo": "trivia - physics",
+    "domanda": "What is the speed of light in a vacuum (approximately)?",
+    "risposta": "300,000 km/s"
+  },
+  {
+    "tipo": "trivia - biology",
+    "domanda": "Which human organ produces insulin?",
+    "risposta": "The pancreas"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "In what year did the French Revolution begin?",
+    "risposta": "1789"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "What is the largest planet in the Solar System?",
+    "risposta": "Jupiter"
+  },
+  {
+    "tipo": "trivia - physics",
+    "domanda": "Who formulated the theory of general relativity?",
+    "risposta": "Albert Einstein"
+  },
+  {
+    "tipo": "trivia - chemistry",
+    "domanda": "Which chemical element has the symbol Fe?",
+    "risposta": "Iron"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Australia?",
+    "risposta": "Canberra"
+  },
+  {
+    "tipo": "trivia - anatomy",
+    "domanda": "How many chambers does the human heart have?",
+    "risposta": "Four"
+  },
+  {
+    "tipo": "trivia - literature",
+    "domanda": "Who wrote the Divine Comedy?",
+    "risposta": "Dante Alighieri"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the highest mountain in the world?",
+    "risposta": "Mount Everest"
+  },
+  {
+    "tipo": "trivia - chemistry",
+    "domanda": "What is the approximate value of Avogadro's number?",
+    "risposta": "6.022 × 10^23"
+  },
+  {
+    "tipo": "trivia - earth science",
+    "domanda": "Which gas is the most abundant in Earth's atmosphere?",
+    "risposta": "Nitrogen"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Who was the first person to walk on the Moon?",
+    "risposta": "Neil Armstrong"
+  },
+  {
+    "tipo": "trivia - medicine",
+    "domanda": "Which disease is caused by a lack of vitamin C?",
+    "risposta": "Scurvy"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "In which century did the Industrial Revolution begin?",
+    "risposta": "The 18th century"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the longest river in Europe?",
+    "risposta": "The Volga"
+  },
+  {
+    "tipo": "trivia - biology",
+    "domanda": "What is the name of the cell division of somatic cells?",
+    "risposta": "Mitosis"
+  },
+  {
+    "tipo": "trivia - art",
+    "domanda": "Who painted the Sistine Chapel ceiling?",
+    "risposta": "Michelangelo"
+  },
+  {
+    "tipo": "trivia - physics",
+    "domanda": "Which fundamental force holds atomic nuclei together?",
+    "risposta": "The strong nuclear force"
+  },
+  {
+    "tipo": "trivia - anatomy",
+    "domanda": "What is the strongest muscle in the human body (relative to its weight)?",
+    "risposta": "The masseter (jaw muscle)"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Which event conventionally marks the end of the Middle Ages?",
+    "risposta": "The discovery of America (1492)"
+  },
+  {
+    "tipo": "trivia - astrophysics",
+    "domanda": "What is a black hole?",
+    "risposta": "A region of spacetime with extreme gravity"
+  },
+  {
+    "tipo": "trivia - medicine",
+    "domanda": "Which vitamin is known as the 'sunshine vitamin'?",
+    "risposta": "Vitamin D"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Which city was destroyed by the eruption of Vesuvius in 79 AD?",
+    "risposta": "Pompeii"
+  },
+  {
+    "tipo": "trivia - physics",
+    "domanda": "What is entropy in thermodynamics?",
+    "risposta": "A measure of the disorder of a system"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of France?",
+    "risposta": "Paris"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the longest river in Italy?",
+    "risposta": "The Po"
+  },
+  {
+    "tipo": "trivia - chemistry",
+    "domanda": "What is the chemical formula of water?",
+    "risposta": "H2O"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "Which planet is known as the Red Planet?",
+    "risposta": "Mars"
+  },
+  {
+    "tipo": "trivia - literature",
+    "domanda": "Who wrote 'Romeo and Juliet'?",
+    "risposta": "William Shakespeare"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "How many continents are there on Earth?",
+    "risposta": "Seven"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the largest ocean in the world?",
+    "risposta": "The Pacific Ocean"
+  },
+  {
+    "tipo": "trivia - biology",
+    "domanda": "Which gas do we breathe in to stay alive?",
+    "risposta": "Oxygen"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "In what year did Columbus reach the Americas?",
+    "risposta": "1492"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Italy?",
+    "risposta": "Rome"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "Which insect makes honey?",
+    "risposta": "The bee"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "What is the name of Earth's natural satellite?",
+    "risposta": "The Moon"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "Which animal is called the 'king of the jungle'?",
+    "risposta": "The lion"
+  },
+  {
+    "tipo": "trivia - mineralogy",
+    "domanda": "What colour is an emerald?",
+    "risposta": "Green"
+  },
+  {
+    "tipo": "trivia - chemistry",
+    "domanda": "What does the letter H stand for in H2O?",
+    "risposta": "Hydrogen"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "How many legs does a spider have?",
+    "risposta": "Eight"
+  },
+  {
+    "tipo": "trivia - language",
+    "domanda": "What is the opposite of 'sour'?",
+    "risposta": "Sweet"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "In which country is the Leaning Tower of Pisa?",
+    "risposta": "Italy"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which country has the most time zones in the world?",
+    "risposta": "France (thanks to its overseas territories)"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the strait that separates Spain from Morocco called?",
+    "risposta": "The Strait of Gibraltar"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the largest desert on the planet?",
+    "risposta": "The Antarctic Desert"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which disputed region lies between India and Pakistan?",
+    "risposta": "Kashmir"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the longest river in Africa?",
+    "risposta": "The Nile"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which country has the most islands in the world?",
+    "risposta": "Sweden"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "In which mountain range is Mont Blanc?",
+    "risposta": "The Alps"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What is 'cognitive dissonance'?",
+    "risposta": "The tension between conflicting beliefs or actions"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "Who came up with the famous pyramid of needs?",
+    "risposta": "Abraham Maslow"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What does 'classical conditioning' study?",
+    "risposta": "How stimuli become associated (Ivan Pavlov)"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What is the Dunning-Kruger effect?",
+    "risposta": "Overestimating your own abilities when you know little"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What are the three parts of the psyche according to Freud?",
+    "risposta": "Id, Ego and Superego"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What is the bystander effect?",
+    "risposta": "People in a group are less likely to help in an emergency"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What is resilience in psychology?",
+    "risposta": "The ability to adapt positively after hardship or trauma"
+  },
+  {
+    "tipo": "quote - philosophy",
+    "domanda": "It is not that we have a short time to live, but that we waste a lot of it.",
+    "risposta": "Seneca"
+  },
+  {
+    "tipo": "quote - physics/philosophy",
+    "domanda": "Logic will get you from A to B. Imagination will take you everywhere.",
+    "risposta": "Albert Einstein"
+  },
+  {
+    "tipo": "quote - philosophy",
+    "domanda": "It does not matter how slowly you go as long as you do not stop.",
+    "risposta": "Confucius"
+  },
+  {
+    "tipo": "quote - literature",
+    "domanda": "The secret of getting ahead is getting started.",
+    "risposta": "Mark Twain"
+  },
+  {
+    "tipo": "quote - philosophy",
+    "domanda": "I know that I know nothing.",
+    "risposta": "Socrates"
+  },
+  {
+    "tipo": "quote - literature",
+    "domanda": "Who controls the past controls the future.",
+    "risposta": "George Orwell"
+  },
+  {
+    "tipo": "quote - literature",
+    "domanda": "The real voyage of discovery consists not in seeking new landscapes, but in having new eyes.",
+    "risposta": "Marcel Proust"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the largest country in the world by area?",
+    "risposta": "Russia"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which sea has one of the highest salinities in the world?",
+    "risposta": "The Dead Sea"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Brazil?",
+    "risposta": "Brasília"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the deepest point of the ocean floor called?",
+    "risposta": "The Mariana Trench"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What is 'flow', the concept introduced by Mihaly Csikszentmihalyi?",
+    "risposta": "A state of total immersion in an activity"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What did Jung mean by the 'Shadow'?",
+    "risposta": "The unconscious side of the personality"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What is confirmation bias?",
+    "risposta": "The tendency to look for information that confirms what you already believe"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What did the Milgram experiment show?",
+    "risposta": "How strongly people tend to obey authority"
+  },
+  {
+    "tipo": "trivia - anatomy/psychology",
+    "domanda": "Which brain region is mainly associated with memory?",
+    "risposta": "The hippocampus"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What is the basic principle of Gestalt psychology?",
+    "risposta": "The whole is greater than the sum of its parts"
+  },
+  {
+    "tipo": "quote - politics/history",
+    "domanda": "Do what you can, with what you have, where you are.",
+    "risposta": "Theodore Roosevelt"
+  },
+  {
+    "tipo": "quote - philosophy",
+    "domanda": "It's not what happens to you, but how you react to it that matters.",
+    "risposta": "Epictetus"
+  },
+  {
+    "tipo": "quote - art",
+    "domanda": "The meaning of life is to find your gift. The purpose of life is to give it away.",
+    "risposta": "Pablo Picasso"
+  },
+  {
+    "tipo": "quote - politics/history",
+    "domanda": "Be the change you wish to see in the world.",
+    "risposta": "Mahatma Gandhi"
+  },
+  {
+    "tipo": "quote - politics/history",
+    "domanda": "Happiness is when what you think, what you say, and what you do are in harmony.",
+    "risposta": "Mahatma Gandhi"
+  },
+  {
+    "tipo": "quote - philosophy",
+    "domanda": "He who has a why to live can bear almost any how.",
+    "risposta": "Friedrich Nietzsche"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which is the only major city in the world located on two continents?",
+    "risposta": "Istanbul"
+  },
+  {
+    "tipo": "trivia - film",
+    "domanda": "Which films have won the most Oscars in history (11 each)?",
+    "risposta": "Ben-Hur, Titanic and The Lord of the Rings: The Return of the King"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Which ancient Mesopotamian code of laws is famous for 'an eye for an eye'?",
+    "risposta": "The Code of Hammurabi"
+  },
+  {
+    "tipo": "trivia - biology",
+    "domanda": "What is the only mammal capable of true flight?",
+    "risposta": "The bat"
+  },
+  {
+    "tipo": "trivia - physics",
+    "domanda": "Which scientist, according to legend, discovered universal gravitation by watching an apple fall?",
+    "risposta": "Isaac Newton"
+  },
+  {
+    "tipo": "trivia - computer science",
+    "domanda": "What does HTTP stand for?",
+    "risposta": "HyperText Transfer Protocol"
+  },
+  {
+    "tipo": "trivia - literature",
+    "domanda": "Who wrote the dystopian novel '1984'?",
+    "risposta": "George Orwell"
+  },
+  {
+    "tipo": "trivia - music",
+    "domanda": "How many symphonies did Ludwig van Beethoven compose?",
+    "risposta": "Nine"
+  },
+  {
+    "tipo": "trivia - anatomy",
+    "domanda": "What is the largest organ of the human body?",
+    "risposta": "The skin"
+  },
+  {
+    "tipo": "trivia - chemistry",
+    "domanda": "What is the only metal that is liquid at room temperature?",
+    "risposta": "Mercury"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Which Carthaginian general crossed the Alps with elephants to attack Rome?",
+    "risposta": "Hannibal"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "What is the closest star to Earth?",
+    "risposta": "The Sun"
+  },
+  {
+    "tipo": "trivia - art",
+    "domanda": "In which museum is Leonardo da Vinci's original Mona Lisa?",
+    "risposta": "The Louvre"
+  },
+  {
+    "tipo": "trivia - mythology",
+    "domanda": "In Greek mythology, who was the god of the sea and earthquakes?",
+    "risposta": "Poseidon"
+  },
+  {
+    "tipo": "trivia - botany",
+    "domanda": "What is the process by which plants turn sunlight into chemical energy?",
+    "risposta": "Photosynthesis"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the deepest lake in the world, located in Siberia?",
+    "risposta": "Lake Baikal"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What is the irrational, persistent fear of open or crowded spaces called?",
+    "risposta": "Agoraphobia"
+  },
+  {
+    "tipo": "trivia - pop culture",
+    "domanda": "In what year was the first iPhone released?",
+    "risposta": "2007"
+  },
+  {
+    "tipo": "quote - philosophy",
+    "domanda": "Man is born free, and everywhere he is in chains.",
+    "risposta": "Jean-Jacques Rousseau"
+  },
+  {
+    "tipo": "quote - science",
+    "domanda": "Nothing in life is to be feared, it is only to be understood.",
+    "risposta": "Marie Curie"
+  },
+  {
+    "tipo": "quote - literature",
+    "domanda": "To be, or not to be, that is the question.",
+    "risposta": "William Shakespeare"
+  },
+  {
+    "tipo": "quote - philosophy",
+    "domanda": "What does not kill me makes me stronger.",
+    "risposta": "Friedrich Nietzsche"
+  },
+  {
+    "tipo": "quote - art",
+    "domanda": "Good artists copy, great artists steal.",
+    "risposta": "Pablo Picasso"
+  },
+  {
+    "tipo": "trivia - economics",
+    "domanda": "Which economist wrote 'The Wealth of Nations', founding classical economics?",
+    "risposta": "Adam Smith"
+  },
+  {
+    "tipo": "trivia - sports",
+    "domanda": "How often are the modern Olympic Games normally held?",
+    "risposta": "Every four years"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Canada?",
+    "risposta": "Ottawa"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Switzerland (officially the 'federal city')?",
+    "risposta": "Bern"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Turkey?",
+    "risposta": "Ankara"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "In which country is Petra, one of the New Seven Wonders of the World?",
+    "risposta": "Jordan"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Morocco?",
+    "risposta": "Rabat"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the smallest country in the world by area?",
+    "risposta": "Vatican City"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Iceland?",
+    "risposta": "Reykjavík"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which river flows through ten European countries?",
+    "risposta": "The Danube"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Vietnam?",
+    "risposta": "Hanoi"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which archipelago includes the islands of Majorca and Ibiza?",
+    "risposta": "The Balearic Islands"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of New Zealand?",
+    "risposta": "Wellington"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the highest point in Africa?",
+    "risposta": "Kilimanjaro"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Portugal?",
+    "risposta": "Lisbon"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "In which US state is the Grand Canyon?",
+    "risposta": "Arizona"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of South Korea?",
+    "risposta": "Seoul"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which desert covers much of North Africa?",
+    "risposta": "The Sahara"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Ireland?",
+    "risposta": "Dublin"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the largest lake in Italy?",
+    "risposta": "Lake Garda"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the capital of Egypt?",
+    "risposta": "Cairo"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which strait separates Great Britain from France?",
+    "risposta": "The English Channel (Strait of Dover)"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Who was the first president of the United States?",
+    "risposta": "George Washington"
+  },
+  {
+    "tipo": "trivia - literature",
+    "domanda": "Who wrote 'The Little Prince'?",
+    "risposta": "Antoine de Saint-Exupéry"
+  },
+  {
+    "tipo": "trivia - science",
+    "domanda": "Who invented the telephone? (a famously disputed question)",
+    "risposta": "Antonio Meucci built an early version; Alexander Graham Bell got the patent"
+  },
+  {
+    "tipo": "trivia - music",
+    "domanda": "How many keys does a standard piano have?",
+    "risposta": "88"
+  },
+  {
+    "tipo": "trivia - art",
+    "domanda": "In which city is the famous Prado museum?",
+    "risposta": "Madrid"
+  },
+  {
+    "tipo": "trivia - biology",
+    "domanda": "Which blood type is known as the 'universal donor'?",
+    "risposta": "O negative"
+  },
+  {
+    "tipo": "trivia - film",
+    "domanda": "Who directed the film 'La Dolce Vita'?",
+    "risposta": "Federico Fellini"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "In what year did the Berlin Wall fall?",
+    "risposta": "1989"
+  },
+  {
+    "tipo": "trivia - sports",
+    "domanda": "Which tennis player holds the record for French Open (Roland Garros) titles?",
+    "risposta": "Rafael Nadal"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "What is the closest planet to the Sun?",
+    "risposta": "Mercury"
+  },
+  {
+    "tipo": "trivia - study methods",
+    "domanda": "Who first described the 'forgetting curve', showing how quickly we forget?",
+    "risposta": "Hermann Ebbinghaus (1885)"
+  },
+  {
+    "tipo": "trivia - study methods",
+    "domanda": "What is the phenomenon where actively recalling information strengthens memory more than re-reading it?",
+    "risposta": "The testing effect (retrieval practice)"
+  },
+  {
+    "tipo": "trivia - study methods",
+    "domanda": "Why does reviewing at growing intervals beat cramming everything in one night?",
+    "risposta": "The spacing effect: each review comes just as you're about to forget"
+  },
+  {
+    "tipo": "trivia - study methods",
+    "domanda": "Who invented the box system for flashcards, where cards you get wrong go back to the first box?",
+    "risposta": "Sebastian Leitner (1970s)"
+  },
+  {
+    "tipo": "trivia - study methods",
+    "domanda": "Who invented the Pomodoro Technique, and why is it called that?",
+    "risposta": "Francesco Cirillo, in the late 1980s: he used a tomato-shaped kitchen timer"
+  },
+  {
+    "tipo": "trivia - study methods",
+    "domanda": "Which study technique is named after a Nobel physicist and means explaining a concept as if to a child?",
+    "risposta": "The Feynman technique"
+  },
+  {
+    "tipo": "trivia - study methods",
+    "domanda": "Which Greek poet is credited with inventing the 'memory palace' (method of loci)?",
+    "risposta": "Simonides of Ceos"
+  },
+  {
+    "tipo": "trivia - study methods",
+    "domanda": "What is the effect that makes us remember unfinished tasks better than finished ones?",
+    "risposta": "The Zeigarnik effect"
+  },
+  {
+    "tipo": "trivia - study methods",
+    "domanda": "Mixing different topics while studying (instead of one at a time) feels harder at first: does it help or hurt learning?",
+    "risposta": "It helps: it's called interleaving"
+  },
+  {
+    "tipo": "trivia - study methods",
+    "domanda": "What happens to the day's memories while we sleep?",
+    "risposta": "Sleep consolidates them: sleeping after studying improves recall"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "According to George Miller (1956), how many items can working memory hold?",
+    "risposta": "About 7, plus or minus 2"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What is the effect where a teacher's expectations actually improve students' results?",
+    "risposta": "The Pygmalion (or Rosenthal) effect"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What is the 'evil twin' of the placebo effect?",
+    "risposta": "The nocebo effect: expecting harm can cause it"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "You learn a new word and suddenly see it everywhere: what's this phenomenon called?",
+    "risposta": "The frequency illusion (Baader-Meinhof phenomenon)"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "Who ran the famous Stanford prison experiment in 1971?",
+    "risposta": "Philip Zimbardo"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What did Walter Mischel's famous 'marshmallow test' measure?",
+    "risposta": "Children's ability to delay gratification"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "Why does a song we hear many times end up growing on us?",
+    "risposta": "The mere-exposure effect (Robert Zajonc)"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "What is the tendency to believe, after something happens, that you 'knew it all along'?",
+    "risposta": "Hindsight bias"
+  },
+  {
+    "tipo": "trivia - psychology",
+    "domanda": "Why do we tend to underestimate how long a task will take?",
+    "risposta": "The planning fallacy (Kahneman and Tversky)"
+  },
+  {
+    "tipo": "trivia - neuroscience",
+    "domanda": "The brain is about 2% of body weight: roughly what share of the body's energy does it use?",
+    "risposta": "About 20%"
+  },
+  {
+    "tipo": "trivia - neuroscience",
+    "domanda": "Roughly how many neurons are there in a human brain?",
+    "risposta": "About 86 billion"
+  },
+  {
+    "tipo": "trivia - neuroscience",
+    "domanda": "In which sleep stage do the most vivid dreams happen?",
+    "risposta": "REM sleep"
+  },
+  {
+    "tipo": "trivia - neuroscience",
+    "domanda": "What is it called when someone still feels a limb that has been amputated?",
+    "risposta": "Phantom limb"
+  },
+  {
+    "tipo": "trivia - neuroscience",
+    "domanda": "Is it true that we only use 10% of our brain?",
+    "risposta": "No, it's a myth: over a day we use virtually all of it"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "How many hearts does an octopus have?",
+    "risposta": "Three"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "What colour is octopus blood?",
+    "risposta": "Blue (because of copper-based haemocyanin)"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "Which animal produces cube-shaped poop?",
+    "risposta": "The wombat"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "Which Australian mammal lays eggs and has a duck-like bill?",
+    "risposta": "The platypus"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "Which appeared on Earth first: sharks or trees?",
+    "risposta": "Sharks (about 450 million years ago; trees about 385)"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "Which tiny animal has survived direct exposure to outer space?",
+    "risposta": "The tardigrade"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "Which jellyfish can revert to its juvenile stage and is called 'immortal'?",
+    "risposta": "Turritopsis dohrnii"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "Why are flamingos pink?",
+    "risposta": "Because of pigments (carotenoids) in the algae and shrimp they eat"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "Which is the only bird that can fly backwards?",
+    "risposta": "The hummingbird"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "Which marsupial has fingerprints almost identical to ours?",
+    "risposta": "The koala"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "Can crows recognise individual human faces?",
+    "risposta": "Yes, and they remember for years who treated them badly"
+  },
+  {
+    "tipo": "trivia - zoology",
+    "domanda": "What is the largest animal that has ever lived, dinosaurs included?",
+    "risposta": "The blue whale"
+  },
+  {
+    "tipo": "trivia - biology",
+    "domanda": "What is the largest living organism in the world?",
+    "risposta": "A fungus (Armillaria ostoyae) in Oregon, spreading over about 9 km²"
+  },
+  {
+    "tipo": "trivia - botany",
+    "domanda": "Botanically speaking, which is a berry: the strawberry or the banana?",
+    "risposta": "The banana (the strawberry isn't)"
+  },
+  {
+    "tipo": "trivia - botany",
+    "domanda": "Is the tomato botanically a fruit or a vegetable?",
+    "risposta": "A fruit (a berry)"
+  },
+  {
+    "tipo": "trivia - food",
+    "domanda": "Which food has been found still edible in Egyptian tombs after thousands of years?",
+    "risposta": "Honey"
+  },
+  {
+    "tipo": "trivia - anatomy",
+    "domanda": "Roughly how many bones does a newborn baby have?",
+    "risposta": "About 300: many fuse together until there are 206"
+  },
+  {
+    "tipo": "trivia - anatomy",
+    "domanda": "Which human organ can regrow even after losing a large part of it?",
+    "risposta": "The liver"
+  },
+  {
+    "tipo": "trivia - anatomy",
+    "domanda": "Roughly how many times does the human heart beat in a day?",
+    "risposta": "About 100,000"
+  },
+  {
+    "tipo": "trivia - anatomy",
+    "domanda": "Roughly what percentage of an adult's body is water?",
+    "risposta": "About 60%"
+  },
+  {
+    "tipo": "trivia - anatomy",
+    "domanda": "What is the smallest bone in the human body?",
+    "risposta": "The stapes (stirrup), in the ear"
+  },
+  {
+    "tipo": "trivia - medicine",
+    "domanda": "Who discovered penicillin by accident in 1928?",
+    "risposta": "Alexander Fleming"
+  },
+  {
+    "tipo": "trivia - medicine",
+    "domanda": "Which blood type is the universal plasma donor?",
+    "risposta": "AB"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "On which planet is a day longer than a year?",
+    "risposta": "Venus"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "Which is the hottest planet in the Solar System (even though it isn't closest to the Sun)?",
+    "risposta": "Venus, because of its greenhouse effect"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "How long does sunlight take to reach Earth?",
+    "risposta": "About 8 minutes and 20 seconds"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "Which planet would float in a big enough bathtub?",
+    "risposta": "Saturn: it's less dense than water"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "Which planet has the most known moons?",
+    "risposta": "Saturn"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "How long is a day on Mars?",
+    "risposta": "About 24 hours 37 minutes (called a 'sol')"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "How many sunrises do astronauts on the International Space Station see in a day?",
+    "risposta": "About 16: they circle Earth every 90 minutes"
+  },
+  {
+    "tipo": "trivia - astrophysics",
+    "domanda": "How much would a teaspoon of neutron-star matter weigh?",
+    "risposta": "About a billion tonnes"
+  },
+  {
+    "tipo": "trivia - astronomy",
+    "domanda": "Why can astronauts' footprints on the Moon last for millions of years?",
+    "risposta": "There's no wind or water on the Moon to erase them"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which is bigger: the Moon's diameter or Australia's width from east to west?",
+    "risposta": "Australia (about 4,000 km vs 3,474)"
+  },
+  {
+    "tipo": "trivia - chemistry",
+    "domanda": "What is the most abundant element in the universe?",
+    "risposta": "Hydrogen"
+  },
+  {
+    "tipo": "trivia - chemistry",
+    "domanda": "Which element was discovered by observing the Sun before it was found on Earth?",
+    "risposta": "Helium (from 'Helios', the Sun)"
+  },
+  {
+    "tipo": "trivia - chemistry",
+    "domanda": "What are diamonds made of?",
+    "risposta": "Pure carbon, like the graphite in pencils"
+  },
+  {
+    "tipo": "trivia - physics",
+    "domanda": "What is the phenomenon where, under some conditions, hot water freezes faster than cold water?",
+    "risposta": "The Mpemba effect"
+  },
+  {
+    "tipo": "trivia - physics",
+    "domanda": "By how much does the Eiffel Tower 'grow' in summer because of the heat?",
+    "risposta": "Up to about 15 cm (thermal expansion)"
+  },
+  {
+    "tipo": "trivia - physics",
+    "domanda": "Why can't you hear explosions in space?",
+    "risposta": "Sound needs a medium (air, water) to travel through"
+  },
+  {
+    "tipo": "trivia - science",
+    "domanda": "Are old stained-glass windows thicker at the bottom because glass 'flows' over centuries?",
+    "risposta": "No, it's a myth: it's down to how they were made"
+  },
+  {
+    "tipo": "trivia - science",
+    "domanda": "Who is the only person to have won Nobel Prizes in two different sciences?",
+    "risposta": "Marie Curie (Physics 1903, Chemistry 1911)"
+  },
+  {
+    "tipo": "trivia - science",
+    "domanda": "Which Italian won the 1909 Nobel Prize in Physics for radio?",
+    "risposta": "Guglielmo Marconi"
+  },
+  {
+    "tipo": "trivia - math",
+    "domanda": "How many people do you need in a room for a better-than-50% chance that two share a birthday?",
+    "risposta": "Just 23 (the birthday paradox)"
+  },
+  {
+    "tipo": "trivia - math",
+    "domanda": "In the Monty Hall game, after the host opens an empty door, should you switch?",
+    "risposta": "Yes: switching wins 2 times out of 3"
+  },
+  {
+    "tipo": "trivia - math",
+    "domanda": "What is a 'googol', the number Google is named after?",
+    "risposta": "10^100 (a 1 followed by a hundred zeros)"
+  },
+  {
+    "tipo": "trivia - math",
+    "domanda": "How many decimal places of π does NASA use for interplanetary navigation?",
+    "risposta": "Only 15"
+  },
+  {
+    "tipo": "trivia - math",
+    "domanda": "What is the only even prime number?",
+    "risposta": "2"
+  },
+  {
+    "tipo": "trivia - math",
+    "domanda": "Which mathematician from Pisa spread Arabic numerals, including zero, in Europe with the 'Liber Abaci' (1202)?",
+    "risposta": "Leonardo Fibonacci"
+  },
+  {
+    "tipo": "trivia - computer science",
+    "domanda": "Who is considered the first computer programmer in history?",
+    "risposta": "Ada Lovelace"
+  },
+  {
+    "tipo": "trivia - computer science",
+    "domanda": "Where does the term computer 'bug' come from, according to the most famous story?",
+    "risposta": "A moth found inside a Harvard computer in 1947 (Grace Hopper's team)"
+  },
+  {
+    "tipo": "trivia - computer science",
+    "domanda": "What does CAPTCHA stand for?",
+    "risposta": "Completely Automated Public Turing test to tell Computers and Humans Apart"
+  },
+  {
+    "tipo": "trivia - computer science",
+    "domanda": "Who helped crack the Enigma machine and is considered the father of computer science?",
+    "risposta": "Alan Turing (with his team at Bletchley Park)"
+  },
+  {
+    "tipo": "trivia - computer science",
+    "domanda": "In what year did the first website, created at CERN, go online?",
+    "risposta": "1991 (Tim Berners-Lee)"
+  },
+  {
+    "tipo": "trivia - computer science",
+    "domanda": "What is the Python programming language named after?",
+    "risposta": "Monty Python, not the snake"
+  },
+  {
+    "tipo": "trivia - technology",
+    "domanda": "Which Viking king is Bluetooth named after?",
+    "risposta": "Harald 'Bluetooth', king of Denmark and Norway"
+  },
+  {
+    "tipo": "trivia - technology",
+    "domanda": "Which play gave us the word 'robot'?",
+    "risposta": "Karel Čapek's R.U.R. (1920): 'robota' means forced labour in Czech"
+  },
+  {
+    "tipo": "trivia - economics",
+    "domanda": "Which country first used paper money?",
+    "risposta": "China"
+  },
+  {
+    "tipo": "trivia - economics",
+    "domanda": "What pseudonym does the unknown inventor of Bitcoin use?",
+    "risposta": "Satoshi Nakamoto"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Did Cleopatra live closer in time to the building of the Great Pyramid or to the Moon landing?",
+    "risposta": "To the Moon landing"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Which is older: the University of Oxford or the Aztec city of Tenochtitlan?",
+    "risposta": "Oxford (teaching there by 1096; Tenochtitlan was founded in 1325)"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "What was the shortest war in history?",
+    "risposta": "The Anglo-Zanzibar War of 1896: under 45 minutes"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Was Napoleon really very short?",
+    "risposta": "No: about 1.69 m, average for his time"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Did Viking helmets really have horns?",
+    "risposta": "No, it's a 19th-century myth (from costumes for Wagner's operas)"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Can you see the Great Wall of China from space with the naked eye?",
+    "risposta": "No, it's a myth: it's very long but too narrow"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "How many years did the Hundred Years' War actually last?",
+    "risposta": "116 (1337 to 1453)"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Which is the only one of the Seven Wonders of the Ancient World still standing?",
+    "risposta": "The Great Pyramid of Giza"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "Which country has more pyramids: Egypt or Sudan?",
+    "risposta": "Sudan"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "In which city did Gutenberg develop movable-type printing, around 1450?",
+    "risposta": "Mainz"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "What did the ancient Romans use urine for?",
+    "risposta": "Washing and whitening clothes (there was even a tax on collecting it)"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "In what year did the Titanic sink?",
+    "risposta": "1912"
+  },
+  {
+    "tipo": "trivia - history",
+    "domanda": "What was the largest empire in history?",
+    "risposta": "The British Empire (the Mongol Empire was the largest contiguous one)"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which country has more lakes than the rest of the world combined?",
+    "risposta": "Canada"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "How many time zones does China officially use, despite its size?",
+    "risposta": "Just one"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which US state is both the westernmost and the easternmost?",
+    "risposta": "Alaska (the Aleutian Islands cross the 180° meridian)"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the point in the ocean farthest from any land, where old spacecraft are crashed?",
+    "risposta": "Point Nemo"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which is the only country with a non-rectangular flag?",
+    "risposta": "Nepal"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which continent has the most countries?",
+    "risposta": "Africa (54)"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the oldest republic in the world still in existence?",
+    "risposta": "San Marino"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Roughly how many islands is Venice built on?",
+    "risposta": "About 118"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the driest non-polar place on Earth?",
+    "risposta": "The Atacama Desert, in Chile"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the highest seat of government in the world?",
+    "risposta": "La Paz, Bolivia (about 3,600 m)"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which country has the most active volcanoes?",
+    "risposta": "Indonesia"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which is the only continent with no native ants?",
+    "risposta": "Antarctica"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "Which country is called 'the Land of the Rising Sun'?",
+    "risposta": "Japan"
+  },
+  {
+    "tipo": "trivia - geography",
+    "domanda": "What is the highest navigable lake in the world?",
+    "risposta": "Lake Titicaca (between Peru and Bolivia)"
+  },
+  {
+    "tipo": "trivia - languages",
+    "domanda": "Which language has the most native speakers in the world?",
+    "risposta": "Mandarin Chinese"
+  },
+  {
+    "tipo": "trivia - languages",
+    "domanda": "What is the dot over the letter 'i' called in English?",
+    "risposta": "A tittle"
+  },
+  {
+    "tipo": "trivia - languages",
+    "domanda": "Which letters give the world's most common keyboard layout its name?",
+    "risposta": "The first six on the top row: QWERTY"
+  },
+  {
+    "tipo": "trivia - literature",
+    "domanda": "What is the most translated non-religious book in the world?",
+    "risposta": "The Little Prince"
+  },
+  {
+    "tipo": "trivia - literature",
+    "domanda": "Who wrote 'Frankenstein', starting it at just 18?",
+    "risposta": "Mary Shelley"
+  },
+  {
+    "tipo": "trivia - art",
+    "domanda": "What is Michelangelo's David made of?",
+    "risposta": "Carrara marble"
+  },
+  {
+    "tipo": "trivia - art",
+    "domanda": "Why is the Statue of Liberty green?",
+    "risposta": "It's made of copper: the green is a patina that formed over time"
+  },
+  {
+    "tipo": "trivia - art",
+    "domanda": "Which country gave the Statue of Liberty to the United States?",
+    "risposta": "France"
+  },
+  {
+    "tipo": "trivia - music",
+    "domanda": "Which composer wrote his Ninth Symphony while almost completely deaf?",
+    "risposta": "Ludwig van Beethoven"
+  },
+  {
+    "tipo": "trivia - music",
+    "domanda": "At what age did Mozart compose his first pieces?",
+    "risposta": "Around age 5"
+  },
+  {
+    "tipo": "trivia - film",
+    "domanda": "What was Disney's first full-length animated film?",
+    "risposta": "Snow White and the Seven Dwarfs (1937)"
+  },
+  {
+    "tipo": "trivia - sports",
+    "domanda": "Why is a marathon exactly 42.195 km long?",
+    "risposta": "That was the distance set at the 1908 London Olympics"
+  },
+  {
+    "tipo": "trivia - sports",
+    "domanda": "Which national team has won the most FIFA World Cups?",
+    "risposta": "Brazil (5)"
+  },
+  {
+    "tipo": "quote - literature",
+    "domanda": "You were not made to live like brutes, but to pursue virtue and knowledge.",
+    "risposta": "Dante Alighieri"
+  },
+  {
+    "tipo": "quote - proverb",
+    "domanda": "Repetition is the mother of learning (Repetitio mater studiorum).",
+    "risposta": "Latin proverb"
+  },
+  {
+    "tipo": "quote - politics/history",
+    "domanda": "Education is the most powerful weapon which you can use to change the world.",
+    "risposta": "Nelson Mandela"
+  },
+  {
+    "tipo": "quote - politics/history",
+    "domanda": "Live as if you were to die tomorrow. Learn as if you were to live forever.",
+    "risposta": "Mahatma Gandhi (attributed)"
+  },
+  {
+    "tipo": "quote - science",
+    "domanda": "I have not failed. I've just found 10,000 ways that won't work.",
+    "risposta": "Thomas Edison (attributed)"
+  },
+  {
+    "tipo": "quote - science",
+    "domanda": "And yet it moves.",
+    "risposta": "Galileo Galilei (attributed)"
+  },
+  {
+    "tipo": "quote - philosophy",
+    "domanda": "We are what we repeatedly do. Excellence, then, is not an act, but a habit.",
+    "risposta": "Will Durant, summarising Aristotle"
+  }
+]

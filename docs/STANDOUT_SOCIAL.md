@@ -1,4 +1,4 @@
-# NISAMA — Masterplan della parte social
+# STANDOUT — Masterplan della parte social
 
 **Versione 2.0 — agosto 2026.** Sostituisce il documento "Project Masterplan —
 L'Ecosistema Definitivo della Produttività Sociale" (v1.0), che conteneva scelte
@@ -6,7 +6,7 @@ tecniche poi cambiate.
 
 **Rapporto con gli altri documenti:**
 
-- **`NISAMA_PROGETTO.md` comanda sulle scelte tecniche** (struttura delle
+- **`STANDOUT_PROGETTO.md` comanda sulle scelte tecniche** (struttura delle
   cartelle, sicurezza, database, hosting, costi, ordine dei lavori). Se questo
   documento e quello dicono cose diverse su come si costruisce, vale quello.
 - **Questo documento comanda sul prodotto**: cosa fa la parte social, con quali
@@ -62,7 +62,7 @@ Motivo: il sito è *"la produttività, ovunque, senza installare niente"* — de
 funzionare da un computer qualsiasi, senza registrazione a uno store. Il social è
 esperienza, notifiche, tempo reale: vive nell'app.
 
-Conseguenza tecnica (dettagli in `NISAMA_PROGETTO.md` §5): **l'app non usa le
+Conseguenza tecnica (dettagli in `STANDOUT_PROGETTO.md` §5): **l'app non usa le
 pagine PHP, usa l'API**. Quindi ogni funzione social nasce come endpoint JSON
 sotto `/api/v1/`, mai come blocco dentro una pagina.
 
@@ -94,7 +94,7 @@ Elenco secco, per chi arriva adesso:
    riesca a leggerli quasi tutti.
 9. Esiste un **like "il migliore"**, uno per persona per ogni topic (§6.4).
 10. **Mercato dei mazzi di flashcard** dentro la parte social — specifiche
-    tecniche in `NISAMA_PROGETTO.md` §14.4.
+    tecniche in `STANDOUT_PROGETTO.md` §14.4.
 
 ---
 
@@ -164,7 +164,7 @@ sempre visibili.
 
 ## 6. Pensieri — il cuore del progetto
 
-È la sezione che distingue Nisama da tutto il resto, ed è quella da tarare con
+È la sezione che distingue Standout da tutto il resto, ed è quella da tarare con
 più cura. Si ispira a Reddit, correggendone il difetto: là chiunque apre un
 argomento e chiunque commenta con due parole, quindi trovare persone di qualità è
 impossibile.
@@ -352,7 +352,7 @@ l'amministratore. È un decimo del lavoro e verifica subito la cosa che conta �
 Si pubblicano e si vendono mazzi di flashcard già fatti; chi li prende può
 modificarne le carte.
 
-Le regole sono decise e stanno in **`NISAMA_PROGETTO.md` §14.4**: copia con
+Le regole sono decise e stanno in **`STANDOUT_PROGETTO.md` §14.4**: copia con
 genealogia, si vende un'edizione congelata, i file non si duplicano mai e i
 contenuti pubblicati vivono in un prefisso che sopravvive alla cancellazione
 dell'account. **I prezzi esistono nello schema da subito, ma partono tutti a 0 €.**
@@ -437,7 +437,7 @@ pesanti. È un altro motivo per rimandare.
 
 ### 12.1 Le basi
 
-Valgono le regole del sito (`NISAMA_PROGETTO.md` §6-7): prepared statement
+Valgono le regole del sito (`STANDOUT_PROGETTO.md` §6-7): prepared statement
 ovunque, validazione con le `sec_*`, controllo di proprietà prima di ogni
 modifica, password con `password_hash()`, accesso a token per l'app.
 
@@ -502,7 +502,7 @@ collo di bottiglia.
 
 | Fase | Cosa | Tempo |
 |---|---|---|
-| **0** | Fondamenta: sicurezza, cartelle, trasloco, API, app React Native con la produttività | vedi `NISAMA_PROGETTO.md` §15 |
+| **0** | Fondamenta: sicurezza, cartelle, trasloco, API, app React Native con la produttività | vedi `STANDOUT_PROGETTO.md` §15 |
 | **1** | Barra in basso + navigazione | 3-5 giorni |
 | **1** | Profilo + privacy per blocco | 3-4 settimane |
 | **1** | Follow, amicizia, ricerca persone | 1-2 settimane |
@@ -551,11 +551,11 @@ sopra.
 3. **Quanti punti** vale ciascun tipo di like, e la soglia di ogni livello.
    Numeri da tarare sui primi utenti veri, non da decidere a tavolino.
 4. **Quanti messaggi o giorni** servono per sbloccare la foto dopo un match.
-5. **Chi incassa** nel mercato dei mazzi (§10 e `NISAMA_PROGETTO.md` §14.4.6).
+5. **Chi incassa** nel mercato dei mazzi (§10 e `STANDOUT_PROGETTO.md` §14.4.6).
 6. **Verifica identità**: servizio esterno per tutti, o badge a pagamento su
    richiesta?
 7. Nome pubblico e identità visiva.
 
 ---
 
-*Fine documento. Le scelte tecniche stanno in `NISAMA_PROGETTO.md`.*
+*Fine documento. Le scelte tecniche stanno in `STANDOUT_PROGETTO.md`.*

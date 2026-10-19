@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — TO STUDY
+   STANDOUT — TO STUDY
    Due sezioni in verticale: sopra il calendario del mese, sotto l'elenco
    giorno per giorno di cosa c'è da studiare. L'elenco non è a scomparsa —
    è lì che si vive, il calendario serve a orientarsi.
@@ -19,13 +19,13 @@ $conn = sec_db();   // la vogliono sidebar.php e project_selector.php
 date_default_timezone_set('Europe/Rome');
 ?>
 <!DOCTYPE html>
-<html lang="<?php echo sec_h(nisama_lingua()); ?>">
+<html lang="<?php echo sec_h(standout_lingua()); ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title><?php te('todo.to_study'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
+<script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>planner/to_study.css?v=<?php echo @filemtime(__DIR__ . '/to_study.css') ?: 1; ?>">
 </head>
 <body>
@@ -147,7 +147,7 @@ date_default_timezone_set('Europe/Rome');
    con lo script in fondo, un inciampo in un componente lasciava il calendario
    completamente vuoto senza dire niente. Cosi' invece la pagina resta in
    piedi da sola. */
-echo nisama_i18n_json(['comune', 'todo', 'planner']);
+echo standout_i18n_json(['comune', 'todo', 'planner']);
 ?>
 <script src="<?php echo PWA_BASE; ?>planner/to_study.js?v=<?php echo @filemtime(__DIR__ . '/to_study.js') ?: 1; ?>" defer></script>
 <script>

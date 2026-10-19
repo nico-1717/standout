@@ -792,43 +792,42 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
 
 <div class="sfc-toast" id="sfcToast" role="status"></div>
 
-<?php echo nisama_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
+<?php echo standout_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
 <?php echo fc_boot_json(); ?>
 <script>
 (function () {
     'use strict';
 
     var SPRING = 'cubic-bezier(.32,.72,0,1)';
-    /* Velocita' in pixel al secondo, non in secondi fissi: cosi' un nome
-       lungo il doppio ci mette il doppio a scorrere, non va il doppio piu'
-       veloce. Il ritorno e' molto piu' rapido dell'andata, come chiesto:
-       si legge scorrendo, si torna all'inizio solo per ripartire. */
-    var TICKER_PX_S_AVANTI = 26;
-    var TICKER_PX_S_INDIETRO = 170;
-    var TICKER_PAUSA_INIZIO = 700;   /* ms fermo prima di iniziare a scorrere */
-    var TICKER_PAUSA_FINE = 450;     /* ms fermo in fondo prima di tornare */
+    /* Velocita' in pixel al secondo, non in secondi fissi: tutti i titoli
+       scorrono alla stessa velocita', quindi uno lungo il doppio ci mette il
+       doppio ad arrivare in fondo. Arrivato alla fine si ferma qualche
+       secondo (si legge l'ultima parola), poi riparte ISTANTANEAMENTE
+       dall'inizio, si ferma un attimo e ricomincia.
+       Prima il ritorno partiva 450 ms dopo l'INIZIO dello scorrimento invece
+       che dopo la sua fine: i titoli ripartivano senza mai arrivare in fondo. */
+    var TICKER_PX_S = 30;            /* velocita' di scorrimento, uguale per tutti */
+    var TICKER_PAUSA_INIZIO = 1200;  /* ms fermo all'inizio prima di scorrere */
+    var TICKER_PAUSA_FINE = 2500;    /* ms fermo in fondo prima di ripartire */
 
     function avviaTickerEl(inner, over) {
-        /* Un numero di generazione invece di clearTimeout su 4 id: ogni
+        /* Un numero di generazione invece di clearTimeout su piu' id: ogni
            passo del ciclo controlla di essere ancora quello giusto, cosi'
            fermare il ciclo (o farne ripartire un altro) e' un solo
            incremento, senza dover tracciare quale timeout sia in corso. */
-        var gen = ++inner.__tickerGen;
+        var gen = inner.__tickerGen = (inner.__tickerGen || 0) + 1;   /* ++undefined darebbe NaN, e NaN !== NaN fermerebbe tutto */
         function passo(fn, ms) { return setTimeout(function () { if (inner.__tickerGen === gen) fn(); }, ms); }
         function ciclo() {
+            /* ritorno all'inizio: istantaneo, senza transizione */
             inner.style.transition = 'none';
             inner.style.transform = 'translateX(0)';
-            void inner.offsetWidth; /* forza il browser a ridisegnare prima del prossimo transition */
+            void inner.offsetWidth; /* forza il ridisegno prima della prossima transition */
             passo(function () {
-                var msAndata = Math.round(over / TICKER_PX_S_AVANTI * 1000);
+                var msAndata = Math.round(over / TICKER_PX_S * 1000);
                 inner.style.transition = 'transform ' + msAndata + 'ms linear';
                 inner.style.transform = 'translateX(-' + over + 'px)';
-                passo(function () {
-                    var msRitorno = Math.round(over / TICKER_PX_S_INDIETRO * 1000);
-                    inner.style.transition = 'transform ' + msRitorno + 'ms cubic-bezier(.3,.7,.4,1)';
-                    inner.style.transform = 'translateX(0)';
-                    passo(ciclo, msRitorno + TICKER_PAUSA_INIZIO);
-                }, TICKER_PAUSA_FINE);
+                /* la pausa in fondo parte quando lo scorrimento e' FINITO */
+                passo(ciclo, msAndata + TICKER_PAUSA_FINE);
             }, TICKER_PAUSA_INIZIO);
         }
         ciclo();
@@ -848,8 +847,13 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
                 var wrap = v.target, inner = wrap.querySelector('.sfc-nome-inner');
                 if (!inner) return;
                 var over = inner.scrollWidth - wrap.clientWidth;
-                if (over > 6 && v.isIntersecting) avviaTickerEl(inner, over);
-                else fermaTickerEl(inner);
+                /* se sta gia' scorrendo non lo si fa ripartire da capo: un
+                   secondo avviso dell'osservatore lo interromperebbe a meta' */
+                if (over > 6 && v.isIntersecting) {
+                    if (!inner.__tickerOn) { inner.__tickerOn = true; avviaTickerEl(inner, over); }
+                } else {
+                    inner.__tickerOn = false; fermaTickerEl(inner);
+                }
             });
         }, { threshold: 0.5 });
     }

@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — PLANNER (vista giorno/settimana + vista mese)
+   STANDOUT — PLANNER (vista giorno/settimana + vista mese)
    Struttura come habits.php / progetti.php: endpoint JSON sotto
    ?ajax=..., poi la pagina. Ogni query passa da security_core.php,
    quindi è sempre un prepared statement e ogni riga toccata viene
@@ -1196,7 +1196,7 @@ function pl_place_google(string $q): array {
         /* la lingua dei risultati segue quella scelta: prima "Lombardia, Italia"
            compariva cosi' anche in inglese. regionCode resta 'it' perche' indica
            da dove si cerca, non in che lingua rispondere. */
-        ['input' => $q, 'languageCode' => nisama_lingua(), 'regionCode' => 'it'],
+        ['input' => $q, 'languageCode' => standout_lingua(), 'regionCode' => 'it'],
         ['X-Goog-Api-Key: ' . GOOGLE_PLACES_KEY]
     );
     if ($data === null) return [];
@@ -1234,7 +1234,7 @@ function pl_place_punto(string $placeId): ?array {
     if ($c !== null) return $c;
 
     $data = pl_google_call(
-        'https://places.googleapis.com/v1/places/' . rawurlencode($placeId) . '?languageCode=' . rawurlencode(nisama_lingua()),
+        'https://places.googleapis.com/v1/places/' . rawurlencode($placeId) . '?languageCode=' . rawurlencode(standout_lingua()),
         null,
         ['X-Goog-Api-Key: ' . GOOGLE_PLACES_KEY,
          'X-Goog-FieldMask: id,location,formattedAddress']
@@ -1284,7 +1284,7 @@ function pl_place_osm(string $q): array {
             CURLOPT_SSL_VERIFYHOST => 2,
             /* Nominatim rifiuta chi non si presenta: è nelle sue condizioni
                d'uso, non un dettaglio facoltativo. */
-            CURLOPT_USERAGENT      => 'Nisama planner (uso personale)',
+            CURLOPT_USERAGENT      => 'Standout planner (uso personale)',
             CURLOPT_HTTPHEADER     => ['Accept: application/json'],
         ]);
         $raw = curl_exec($ch);
@@ -1293,7 +1293,7 @@ function pl_place_osm(string $q): array {
     } else {
         $ctx = stream_context_create(['http' => [
             'timeout' => 8, 'ignore_errors' => true,
-            'header'  => "User-Agent: Nisama planner (uso personale)\r\nAccept: application/json\r\n",
+            'header'  => "User-Agent: Standout planner (uso personale)\r\nAccept: application/json\r\n",
         ]]);
         $raw = @file_get_contents($url, false, $ctx);
     }
@@ -2708,7 +2708,7 @@ $boot = [
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title><?php te('planner.titolo'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
-<script src="../_assets/js/nisama_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/nisama_fetch.js') ?: time(); ?>"></script>
+<script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
 <link rel="stylesheet" href="planner.css?v=<?php echo @filemtime(__DIR__ . '/planner.css') ?: time(); ?>">
 </head>
 <body class="pl-body">
@@ -3008,7 +3008,7 @@ include __DIR__ . '/diario_giorno.php';
 <?php
 /* Le stringhe che servono a planner.js. Va prima di PL_BOOT e prima dello
    <script src="planner.js">: T() deve esistere quando il file parte. */
-echo nisama_i18n_json(['comune', 'planner']);
+echo standout_i18n_json(['comune', 'planner']);
 ?>
 <script>window.PL_BOOT = <?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
 <?php include __DIR__ . '/../partials/sidebar.php'; ?>

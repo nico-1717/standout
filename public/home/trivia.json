@@ -1,141 +1,1332 @@
 [
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale della Romania?", "risposta": "Bucarest" },
-  { "tipo": "trivia - anatomia", "domanda": "Quante ossa ha il corpo umano adulto?", "risposta": "206" },
-  { "tipo": "trivia - fisica", "domanda": "Qual è la velocità della luce nel vuoto (approssimata)?", "risposta": "300.000 km/s" },
-  { "tipo": "trivia - biologia", "domanda": "Quale organo umano è responsabile della produzione dell'insulina?", "risposta": "Il pancreas" },
-  { "tipo": "trivia - storia", "domanda": "In quale anno è iniziata la Rivoluzione Francese?", "risposta": "1789" },
-  { "tipo": "trivia - astronomia", "domanda": "Qual è il pianeta più grande del sistema solare?", "risposta": "Giove" },
-  { "tipo": "trivia - fisica", "domanda": "Chi ha formulato la teoria della relatività generale?", "risposta": "Albert Einstein" },
-  { "tipo": "trivia - chimica", "domanda": "Quale elemento chimico ha simbolo Fe?", "risposta": "Ferro" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale dell'Australia?", "risposta": "Canberra" },
-  { "tipo": "trivia - anatomia", "domanda": "Quante camere ha il cuore umano?", "risposta": "Quattro" },
-  { "tipo": "trivia - letteratura", "domanda": "Chi ha scritto la Divina Commedia?", "risposta": "Dante Alighieri" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la montagna più alta del mondo?", "risposta": "Monte Everest" },
-  { "tipo": "trivia - chimica", "domanda": "Qual è il valore approssimativo del numero di Avogadro?", "risposta": "6,022 x 10^23" },
-  { "tipo": "trivia - scienze della terra", "domanda": "Quale gas è il più abbondante nell'atmosfera terrestre?", "risposta": "Azoto" },
-  { "tipo": "trivia - storia", "domanda": "Chi fu il primo uomo a camminare sulla Luna?", "risposta": "Neil Armstrong" },
-  { "tipo": "trivia - medicina", "domanda": "Quale malattia è causata dalla carenza di vitamina C?", "risposta": "Scorbuto" },
-  { "tipo": "trivia - storia", "domanda": "In che secolo è avvenuta la Rivoluzione Industriale?", "risposta": "XVIII secolo" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è il fiume più lungo d'Europa?", "risposta": "Il Volga" },
-  { "tipo": "trivia - biologia", "domanda": "Come si chiama la fase di divisione cellulare delle cellule somatiche?", "risposta": "Mitosi" },
-  { "tipo": "trivia - arte", "domanda": "Chi ha dipinto la Cappella Sistina?", "risposta": "Michelangelo" },
-  { "tipo": "trivia - fisica", "domanda": "Qual è la forza fondamentale che tiene insieme i nuclei atomici?", "risposta": "Forza nucleare forte" },
-  { "tipo": "trivia - anatomia", "domanda": "Qual è il muscolo più forte del corpo umano (in rapporto al peso)?", "risposta": "Il massetere" },
-  { "tipo": "trivia - storia", "domanda": "Quale evento segna convenzionalmente la fine del Medioevo?", "risposta": "Scoperta dell'America (1492)" },
-  { "tipo": "trivia - astrofisica", "domanda": "Cos'è un buco nero?", "risposta": "Regione di spazio-tempo con gravità estrema" },
-  { "tipo": "trivia - medicina", "domanda": "Quale vitamina è detta 'del sole'?", "risposta": "Vitamina D" },
-  { "tipo": "trivia - storia", "domanda": "Quale città fu distrutta dall'eruzione del Vesuvio nel 79 d.C.?", "risposta": "Pompei" },
-  { "tipo": "trivia - fisica", "domanda": "Che cos'è l'entropia in termodinamica?", "risposta": "Misura del disordine di un sistema" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale della Francia?", "risposta": "Parigi" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è il fiume più lungo d'Italia?", "risposta": "Il Po" },
-  { "tipo": "trivia - chimica", "domanda": "Qual è la formula chimica dell'acqua?", "risposta": "H2O" },
-  { "tipo": "trivia - astronomia", "domanda": "Quale pianeta è noto come il Pianeta Rosso?", "risposta": "Marte" },
-  { "tipo": "trivia - letteratura", "domanda": "Chi ha scritto 'Romeo e Giulietta'?", "risposta": "William Shakespeare" },
-  { "tipo": "trivia - geografia", "domanda": "Quanti sono i continenti sulla Terra?", "risposta": "Sette" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è l'oceano più grande del mondo?", "risposta": "Oceano Pacifico" },
-  { "tipo": "trivia - biologia", "domanda": "Quale gas respiriamo per vivere?", "risposta": "Ossigeno" },
-  { "tipo": "trivia - storia", "domanda": "In che anno è stata scoperta l'America?", "risposta": "1492" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale dell'Italia?", "risposta": "Roma" },
-  { "tipo": "trivia - zoologia", "domanda": "Quale insetto produce il miele?", "risposta": "L'ape" },
-  { "tipo": "trivia - astronomia", "domanda": "Come si chiama il satellite naturale della Terra?", "risposta": "La Luna" },
-  { "tipo": "trivia - zoologia", "domanda": "Quale animale è il 're della foresta'?", "risposta": "Il leone" },
-  { "tipo": "trivia - mineralogia", "domanda": "Di che colore è lo smeraldo?", "risposta": "Verde" },
-  { "tipo": "trivia - chimica", "domanda": "Cosa indica la letter H in H2O?", "risposta": "Idrogeno" },
-  { "tipo": "trivia - zoologia", "domanda": "Quante zampe ha un ragno?", "risposta": "Otto" },
-  { "tipo": "trivia - letteratura", "domanda": "Chi è l'autore della Divina Commedia?", "risposta": "Dante Alighieri" },
-  { "tipo": "trivia - lingua italiana", "domanda": "Qual è il contrario di 'aspro'?", "risposta": "Dolce" },
-  { "tipo": "trivia - storia della scienza", "domanda": "Quale frutto è associato a Newton?", "risposta": "La mela" },
-  { "tipo": "trivia - geografia", "domanda": "In quale stato si trova la Torre di Pisa?", "risposta": "Italia" },
-  { "tipo": "trivia - geografia", "domanda": "Quale Stato possiede il maggior numero di fusi orari al mondo?", "risposta": "La Francia (grazie ai territori d'oltremare)" },
-  { "tipo": "trivia - geografia", "domanda": "Come si chiama lo stretto che separa la Spagna dal Marocco?", "risposta": "Stretto di Gibilterra" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è il deserto più esteso del pianeta?", "risposta": "Il deserto Antartico" },
-  { "tipo": "trivia - geografia", "domanda": "Quale regione contesa si trova tra India e Pakistan?", "risposta": "Il Kashmir" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è il fiume più lungo dell'Africa?", "risposta": "Il Nilo" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è lo Stato con il maggior numero di isole al mondo?", "risposta": "La Svezia" },
-  { "tipo": "trivia - geografia", "domanda": "In quale catena montuosa si trova il Monte Bianco?", "risposta": "Alpi" },
-  { "tipo": "trivia - psicologia", "domanda": "Che cos'è la 'dissonanza cognitiva'?", "risposta": "Tensione tra credenze contrastanti" },
-  { "tipo": "trivia - psicologia", "domanda": "Chi ha ideato la nota piramide dei bisogni?", "risposta": "Abraham Maslow" },
-  { "tipo": "trivia - psicologia", "domanda": "Cosa studia il 'condizionamento classico'?", "risposta": "L'associazione di stimoli (Ivan Pavlov)" },
-  { "tipo": "trivia - psicologia", "domanda": "Cos'è l'effetto Dunning-Kruger?", "risposta": "Sopravvalutazione delle proprie capacità" },
-  { "tipo": "trivia - psicologia", "domanda": "Quali sono le tre istanze della psiche secondo Freud?", "risposta": "Es, Io e Super-Io" },
-  { "tipo": "trivia - psicologia", "domanda": "Cos'è l'effetto spettatore (bystander effect)?", "risposta": "Inerzia del gruppo di fronte a un'emergenza" },
-  { "tipo": "trivia - psicologia", "domanda": "Che cos'è la resilienza in psicologia?", "risposta": "Capacità di reagire positivamente ai traumi" },
-  { "tipo": "quote - filosofia", "domanda": "Non è che abbiamo poco tempo, ma che ne sprechiamo molto.", "risposta": "Seneca" },
-  { "tipo": "quote - fisica/filosofia", "domanda": "La logica vi porterà da A a B. L'immaginazione vi porterà dappertutto.", "risposta": "Albert Einstein" },
-  { "tipo": "quote - filosofia", "domanda": "Non importa quanto vai piano, l'importante è che non ti fermi.", "risposta": "Confucio" },
-  { "tipo": "quote - letteratura", "domanda": "Il segreto per andare avanti è iniziare.", "risposta": "Mark Twain" },
-  { "tipo": "quote - filosofia", "domanda": "So di non sapere.", "risposta": "Socrate" },
-  { "tipo": "quote - letteratura", "domanda": "Chi controlla il passato controlla il futuro.", "risposta": "George Orwell" },
-  { "tipo": "quote - letteratura", "domanda": "La vera scoperta non consiste nel trovare nuove terre, ma nell'avere nuovi occhi.", "risposta": "Marcel Proust" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è il paese con la maggiore estensione territoriale al mondo?", "risposta": "Russia" },
-  { "tipo": "trivia - geografia", "domanda": "Quale mare ha la salinità più elevata al mondo?", "risposta": "Mar Morto" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale del Brasile?", "risposta": "Brasilia" },
-  { "tipo": "trivia - geografia", "domanda": "Come si chiama il punto più profondo della crosta terrestre oceanica?", "risposta": "Fossa delle Marianne" },
-  { "tipo": "trivia - psicologia", "domanda": "Che cos'è il 'Flow' introdotto da Mihaly Csikszentmihalyi?", "risposta": "Stato di immersione totale in un'attività" },
-  { "tipo": "trivia - psicologia", "domanda": "Cosa intende Jung con il concetto di 'Ombra'?", "risposta": "Gli aspetti inconsci della personalità" },
-  { "tipo": "trivia - psicologia", "domanda": "Cos'è il 'Bias di conferma'?", "risposta": "Tendenza a cercare info che confermano le proprie tesi" },
-  { "tipo": "trivia - psicologia", "domanda": "Cosa dimostrò l'esperimento di Milgram?", "risposta": "La tendenza all'obbedienza verso l'autorità" },
-  { "tipo": "trivia - anatomia/psicologia", "domanda": "Quale regione del cervello è principalmente associata alla memoria?", "risposta": "Ippocampo" },
-  { "tipo": "trivia - psicologia", "domanda": "Qual è il principio base della Gestalt?", "risposta": "Il tutto è superiore alla somma delle singole parti" },
-  { "tipo": "quote - politica/storia", "domanda": "Fai quello che puoi, con quello che hai, dove sei.", "risposta": "Theodore Roosevelt" },
-  { "tipo": "quote - filosofia", "domanda": "Non è ciò che ti accade, ma come reagisci che conta.", "risposta": "Epitteto" },
-  { "tipo": "quote - arte", "domanda": "Il significato della vita è trovare il proprio dono. Lo scopo della vita è regalarlo.", "risposta": "Pablo Picasso" },
-  { "tipo": "quote - politica/storia", "domanda": "Sii il cambiamento che vuoi vedere nel mondo.", "risposta": "Mahatma Gandhi" },
-  { "tipo": "quote - politica/storia", "domanda": "La felicità è quando ciò che pensi, ciò che dici e ciò che fai sono in armonia.", "risposta": "Mahatma Gandhi" },
-  { "tipo": "quote - filosofia", "domanda": "Chi ha un perché per vivere può sopportare quasi ogni come.", "risposta": "Friedrich Nietzsche" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è l'unica città al mondo situata su due continenti?", "risposta": "Istanbul" },
-  { "tipo": "trivia - cinema", "domanda": "Quale film ha vinto il maggior numero di Premi Oscar nella storia (11 statuette, a pari merito)?", "risposta": "Titanic / Ben-Hur / Il Signore degli Anelli - Il ritorno del re" },
-  { "tipo": "trivia - storia", "domanda": "Quale codice di leggi dell'antica Mesopotamia è famoso per il principio dell'occhio per occhio?", "risposta": "Codice di Hammurabi" },
-  { "tipo": "trivia - biologia", "domanda": "Qual è l'unico mammifero in grado di volare?", "risposta": "Il pipistrello" },
-  { "tipo": "trivia - fisica", "domanda": "Quale scienziato ha scoperto la legge della gravitazione universale osservando (secondo la leggenda) una mela cadere?", "risposta": "Isaac Newton" },
-  { "tipo": "trivia - informatica", "domanda": "Cosa significa l'acronimo HTTP nei siti web?", "risposta": "HyperText Transfer Protocol" },
-  { "tipo": "trivia - letteratura", "domanda": "Chi ha scritto il romanzo distopico '1984'?", "risposta": "George Orwell" },
-  { "tipo": "trivia - musica", "domanda": "Quante sinfonie ha composto Ludwig van Beethoven?", "risposta": "Nove" },
-  { "tipo": "trivia - anatomia", "domanda": "Qual è l'organo più esteso del corpo umano?", "risposta": "La pelle" },
-  { "tipo": "trivia - chimica", "domanda": "Qual è l'unico metallo che si presenta liquido a temperatura ambiente?", "risposta": "Mercurio" },
-  { "tipo": "trivia - storia", "domanda": "Chi fu il celebre condottiero cartaginese che valicò le Alpi con gli elefanti per attaccare Roma?", "risposta": "Annibale" },
-  { "tipo": "trivia - astronomia", "domanda": "Qual è la stella più vicina alla Terra?", "risposta": "Il Sole" },
-  { "tipo": "trivia - arte", "domanda": "In quale museo si trova l'originale della Gioconda di Leonardo da Vinci?", "risposta": "Museo del Louvre" },
-  { "tipo": "trivia - mitologia", "domanda": "Nella mitologia greca, chi era il dio del mare e dei terremoti?", "risposta": "Poseidone" },
-  { "tipo": "trivia - botanica", "domanda": "Qual è il processo con cui le piante convertono la luce solare in energia chimica?", "risposta": "Fotosintesi clorofilliana" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è il lago più profondo del mondo, situato in Siberia?", "risposta": "Lago Bajkal" },
-  { "tipo": "trivia - psicologia", "domanda": "Come viene definita la paura irrazionale e persistente degli spazi aperti o affollati?", "risposta": "Agorafobia" },
-  { "tipo": "trivia - cultura pop", "domanda": "In quale anno è stato lanciato il primo modello di iPhone sul mercato?", "risposta": "2007" },
-  { "tipo": "quote - filosofia", "domanda": "L'uomo è nato libero, e dappertutto è in catene.", "risposta": "Jean-Jacques Rousseau" },
-  { "tipo": "quote - scienza", "domanda": "Niente nella vita va temuto, dev'essere solo capito.", "risposta": "Marie Curie" },
-  { "tipo": "quote - letteratura", "domanda": "Essere o non essere, questo è il dilemma.", "risposta": "William Shakespeare" },
-  { "tipo": "quote - filosofia", "domanda": "Ciò che non mi uccide mi rende più forte.", "risposta": "Friedrich Nietzsche" },
-  { "tipo": "quote - arte", "domanda": "I buoni artisti copiano, i grandi artisti rubano.", "risposta": "Pablo Picasso" },
-  { "tipo": "trivia - economia", "domanda": "Quale economista ha scritto 'La ricchezza delle nazioni', fondando l'economia politica classica?", "risposta": "Adam Smith" },
-  { "tipo": "trivia - sport", "domanda": "Ogni quanti anni si celebrano normalmente i Giochi Olimpici moderni?", "risposta": "Quattro" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale del Canada?", "risposta": "Ottawa" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale della Svizzera (nota come città federale)?", "risposta": "Berna" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale della Turchia?", "risposta": "Ankara" },
-  { "tipo": "trivia - geografia", "domanda": "In quale paese si trova la città di Petra, una delle sette meraviglie del mondo moderno?", "risposta": "Giordania" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale del Marocco?", "risposta": "Rabat" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la nazione più piccola del mondo per superficie?", "risposta": "Città del Vaticano" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale dell'Islanda?", "risposta": "Reykjavik" },
-  { "tipo": "trivia - geografia", "domanda": "Quale fiume attraversa ben dieci nazioni europee?", "risposta": "Danubio" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale del Vietnam?", "risposta": "Hanoi" },
-  { "tipo": "trivia - geografia", "domanda": "Come si chiama l'arcipelago che comprende le isole di Maiorca e Ibiza?", "risposta": "Isole Baleari" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale della Nuova Zelanda?", "risposta": "Wellington" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è il punto più alto dell'Africa?", "risposta": "Kilimangiaro" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale del Portogallo?", "risposta": "Lisbona" },
-  { "tipo": "trivia - geografia", "domanda": "In quale stato americano si trova il Grand Canyon?", "risposta": "Arizona" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale della Corea del Sud?", "risposta": "Seul" },
-  { "tipo": "trivia - geografia", "domanda": "Quale deserto copre gran parte del Nord Africa?", "risposta": "Sahara" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale dell'Irlanda?", "risposta": "Dublino" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è il lago più grande d'Italia?", "risposta": "Lago di Garda" },
-  { "tipo": "trivia - geografia", "domanda": "Qual è la capitale dell'Egitto?", "risposta": "Il Cairo" },
-  { "tipo": "trivia - geografia", "domanda": "Quale stretto separa la Gran Bretagna dalla Francia?", "risposta": "Canale della Manica" },
-  { "tipo": "trivia - storia", "domanda": "Chi era il primo presidente degli Stati Uniti d'America?", "risposta": "George Washington" },
-  { "tipo": "trivia - letteratura", "domanda": "Chi ha scritto 'Il Piccolo Principe'?", "risposta": "Antoine de Saint-Exupéry" },
-  { "tipo": "trivia - scienza", "domanda": "Chi è considerato l'inventore del telefono (contesa Meucci-Bell)?", "risposta": "Antonio Meucci" },
-  { "tipo": "trivia - musica", "domanda": "Quanti tasti ha un pianoforte standard?", "risposta": "88" },
-  { "tipo": "trivia - arte", "domanda": "In quale città si trova il celebre museo 'Prado'?", "risposta": "Madrid" },
-  { "tipo": "trivia - biologia", "domanda": "Qual è il gruppo sanguigno noto come 'donatore universale'?", "risposta": "0 negativo" },
-  { "tipo": "trivia - cinema", "domanda": "Chi ha diretto il film 'La dolce vita'?", "risposta": "Federico Fellini" },
-  { "tipo": "trivia - storia", "domanda": "In che anno è caduto il muro di Berlino?", "risposta": "1989" },
-  { "tipo": "trivia - sport", "domanda": "Quale tennista detiene il record di vittorie al Roland Garros?", "risposta": "Rafael Nadal" },
-  { "tipo": "trivia - astronomia", "domanda": "Qual è il pianeta più vicino al Sole?", "risposta": "Mercurio" }
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale della Romania?",
+    "risposta": "Bucarest"
+  },
+  {
+    "tipo": "trivia - anatomia",
+    "domanda": "Quante ossa ha il corpo umano adulto?",
+    "risposta": "206"
+  },
+  {
+    "tipo": "trivia - fisica",
+    "domanda": "Qual è la velocità della luce nel vuoto (approssimata)?",
+    "risposta": "300.000 km/s"
+  },
+  {
+    "tipo": "trivia - biologia",
+    "domanda": "Quale organo umano è responsabile della produzione dell'insulina?",
+    "risposta": "Il pancreas"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "In quale anno è iniziata la Rivoluzione Francese?",
+    "risposta": "1789"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Qual è il pianeta più grande del sistema solare?",
+    "risposta": "Giove"
+  },
+  {
+    "tipo": "trivia - fisica",
+    "domanda": "Chi ha formulato la teoria della relatività generale?",
+    "risposta": "Albert Einstein"
+  },
+  {
+    "tipo": "trivia - chimica",
+    "domanda": "Quale elemento chimico ha simbolo Fe?",
+    "risposta": "Ferro"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale dell'Australia?",
+    "risposta": "Canberra"
+  },
+  {
+    "tipo": "trivia - anatomia",
+    "domanda": "Quante camere ha il cuore umano?",
+    "risposta": "Quattro"
+  },
+  {
+    "tipo": "trivia - letteratura",
+    "domanda": "Chi ha scritto la Divina Commedia?",
+    "risposta": "Dante Alighieri"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la montagna più alta del mondo?",
+    "risposta": "Monte Everest"
+  },
+  {
+    "tipo": "trivia - chimica",
+    "domanda": "Qual è il valore approssimativo del numero di Avogadro?",
+    "risposta": "6,022 x 10^23"
+  },
+  {
+    "tipo": "trivia - scienze della terra",
+    "domanda": "Quale gas è il più abbondante nell'atmosfera terrestre?",
+    "risposta": "Azoto"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Chi fu il primo uomo a camminare sulla Luna?",
+    "risposta": "Neil Armstrong"
+  },
+  {
+    "tipo": "trivia - medicina",
+    "domanda": "Quale malattia è causata dalla carenza di vitamina C?",
+    "risposta": "Scorbuto"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "In che secolo è avvenuta la Rivoluzione Industriale?",
+    "risposta": "XVIII secolo"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è il fiume più lungo d'Europa?",
+    "risposta": "Il Volga"
+  },
+  {
+    "tipo": "trivia - biologia",
+    "domanda": "Come si chiama la fase di divisione cellulare delle cellule somatiche?",
+    "risposta": "Mitosi"
+  },
+  {
+    "tipo": "trivia - arte",
+    "domanda": "Chi ha dipinto la Cappella Sistina?",
+    "risposta": "Michelangelo"
+  },
+  {
+    "tipo": "trivia - fisica",
+    "domanda": "Qual è la forza fondamentale che tiene insieme i nuclei atomici?",
+    "risposta": "Forza nucleare forte"
+  },
+  {
+    "tipo": "trivia - anatomia",
+    "domanda": "Qual è il muscolo più forte del corpo umano (in rapporto al peso)?",
+    "risposta": "Il massetere"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Quale evento segna convenzionalmente la fine del Medioevo?",
+    "risposta": "Scoperta dell'America (1492)"
+  },
+  {
+    "tipo": "trivia - astrofisica",
+    "domanda": "Cos'è un buco nero?",
+    "risposta": "Regione di spazio-tempo con gravità estrema"
+  },
+  {
+    "tipo": "trivia - medicina",
+    "domanda": "Quale vitamina è detta 'del sole'?",
+    "risposta": "Vitamina D"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Quale città fu distrutta dall'eruzione del Vesuvio nel 79 d.C.?",
+    "risposta": "Pompei"
+  },
+  {
+    "tipo": "trivia - fisica",
+    "domanda": "Che cos'è l'entropia in termodinamica?",
+    "risposta": "Misura del disordine di un sistema"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale della Francia?",
+    "risposta": "Parigi"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è il fiume più lungo d'Italia?",
+    "risposta": "Il Po"
+  },
+  {
+    "tipo": "trivia - chimica",
+    "domanda": "Qual è la formula chimica dell'acqua?",
+    "risposta": "H2O"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Quale pianeta è noto come il Pianeta Rosso?",
+    "risposta": "Marte"
+  },
+  {
+    "tipo": "trivia - letteratura",
+    "domanda": "Chi ha scritto 'Romeo e Giulietta'?",
+    "risposta": "William Shakespeare"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Quanti sono i continenti sulla Terra?",
+    "risposta": "Sette"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è l'oceano più grande del mondo?",
+    "risposta": "Oceano Pacifico"
+  },
+  {
+    "tipo": "trivia - biologia",
+    "domanda": "Quale gas respiriamo per vivere?",
+    "risposta": "Ossigeno"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "In che anno è stata scoperta l'America?",
+    "risposta": "1492"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale dell'Italia?",
+    "risposta": "Roma"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Quale insetto produce il miele?",
+    "risposta": "L'ape"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Come si chiama il satellite naturale della Terra?",
+    "risposta": "La Luna"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Quale animale è il 're della foresta'?",
+    "risposta": "Il leone"
+  },
+  {
+    "tipo": "trivia - mineralogia",
+    "domanda": "Di che colore è lo smeraldo?",
+    "risposta": "Verde"
+  },
+  {
+    "tipo": "trivia - chimica",
+    "domanda": "Cosa indica la lettera H in H2O?",
+    "risposta": "Idrogeno"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Quante zampe ha un ragno?",
+    "risposta": "Otto"
+  },
+  {
+    "tipo": "trivia - lingua italiana",
+    "domanda": "Qual è il contrario di 'aspro'?",
+    "risposta": "Dolce"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "In quale stato si trova la Torre di Pisa?",
+    "risposta": "Italia"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Quale Stato possiede il maggior numero di fusi orari al mondo?",
+    "risposta": "La Francia (grazie ai territori d'oltremare)"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Come si chiama lo stretto che separa la Spagna dal Marocco?",
+    "risposta": "Stretto di Gibilterra"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è il deserto più esteso del pianeta?",
+    "risposta": "Il deserto Antartico"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Quale regione contesa si trova tra India e Pakistan?",
+    "risposta": "Il Kashmir"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è il fiume più lungo dell'Africa?",
+    "risposta": "Il Nilo"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è lo Stato con il maggior numero di isole al mondo?",
+    "risposta": "La Svezia"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "In quale catena montuosa si trova il Monte Bianco?",
+    "risposta": "Alpi"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Che cos'è la 'dissonanza cognitiva'?",
+    "risposta": "Tensione tra credenze contrastanti"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Chi ha ideato la nota piramide dei bisogni?",
+    "risposta": "Abraham Maslow"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Cosa studia il 'condizionamento classico'?",
+    "risposta": "L'associazione di stimoli (Ivan Pavlov)"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Cos'è l'effetto Dunning-Kruger?",
+    "risposta": "Sopravvalutazione delle proprie capacità"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Quali sono le tre istanze della psiche secondo Freud?",
+    "risposta": "Es, Io e Super-Io"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Cos'è l'effetto spettatore (bystander effect)?",
+    "risposta": "Inerzia del gruppo di fronte a un'emergenza"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Che cos'è la resilienza in psicologia?",
+    "risposta": "Capacità di reagire positivamente ai traumi"
+  },
+  {
+    "tipo": "quote - filosofia",
+    "domanda": "Non è che abbiamo poco tempo, ma che ne sprechiamo molto.",
+    "risposta": "Seneca"
+  },
+  {
+    "tipo": "quote - fisica/filosofia",
+    "domanda": "La logica vi porterà da A a B. L'immaginazione vi porterà dappertutto.",
+    "risposta": "Albert Einstein"
+  },
+  {
+    "tipo": "quote - filosofia",
+    "domanda": "Non importa quanto vai piano, l'importante è che non ti fermi.",
+    "risposta": "Confucio"
+  },
+  {
+    "tipo": "quote - letteratura",
+    "domanda": "Il segreto per andare avanti è iniziare.",
+    "risposta": "Mark Twain"
+  },
+  {
+    "tipo": "quote - filosofia",
+    "domanda": "So di non sapere.",
+    "risposta": "Socrate"
+  },
+  {
+    "tipo": "quote - letteratura",
+    "domanda": "Chi controlla il passato controlla il futuro.",
+    "risposta": "George Orwell"
+  },
+  {
+    "tipo": "quote - letteratura",
+    "domanda": "La vera scoperta non consiste nel trovare nuove terre, ma nell'avere nuovi occhi.",
+    "risposta": "Marcel Proust"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è il paese con la maggiore estensione territoriale al mondo?",
+    "risposta": "Russia"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Quale mare ha la salinità più elevata al mondo?",
+    "risposta": "Mar Morto"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale del Brasile?",
+    "risposta": "Brasilia"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Come si chiama il punto più profondo della crosta terrestre oceanica?",
+    "risposta": "Fossa delle Marianne"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Che cos'è il 'Flow' introdotto da Mihaly Csikszentmihalyi?",
+    "risposta": "Stato di immersione totale in un'attività"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Cosa intende Jung con il concetto di 'Ombra'?",
+    "risposta": "Gli aspetti inconsci della personalità"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Cos'è il 'Bias di conferma'?",
+    "risposta": "Tendenza a cercare info che confermano le proprie tesi"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Cosa dimostrò l'esperimento di Milgram?",
+    "risposta": "La tendenza all'obbedienza verso l'autorità"
+  },
+  {
+    "tipo": "trivia - anatomia/psicologia",
+    "domanda": "Quale regione del cervello è principalmente associata alla memoria?",
+    "risposta": "Ippocampo"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Qual è il principio base della Gestalt?",
+    "risposta": "Il tutto è superiore alla somma delle singole parti"
+  },
+  {
+    "tipo": "quote - politica/storia",
+    "domanda": "Fai quello che puoi, con quello che hai, dove sei.",
+    "risposta": "Theodore Roosevelt"
+  },
+  {
+    "tipo": "quote - filosofia",
+    "domanda": "Non è ciò che ti accade, ma come reagisci che conta.",
+    "risposta": "Epitteto"
+  },
+  {
+    "tipo": "quote - arte",
+    "domanda": "Il significato della vita è trovare il proprio dono. Lo scopo della vita è regalarlo.",
+    "risposta": "Pablo Picasso"
+  },
+  {
+    "tipo": "quote - politica/storia",
+    "domanda": "Sii il cambiamento che vuoi vedere nel mondo.",
+    "risposta": "Mahatma Gandhi"
+  },
+  {
+    "tipo": "quote - politica/storia",
+    "domanda": "La felicità è quando ciò che pensi, ciò che dici e ciò che fai sono in armonia.",
+    "risposta": "Mahatma Gandhi"
+  },
+  {
+    "tipo": "quote - filosofia",
+    "domanda": "Chi ha un perché per vivere può sopportare quasi ogni come.",
+    "risposta": "Friedrich Nietzsche"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è l'unica città al mondo situata su due continenti?",
+    "risposta": "Istanbul"
+  },
+  {
+    "tipo": "trivia - cinema",
+    "domanda": "Quale film ha vinto il maggior numero di Premi Oscar nella storia (11 statuette, a pari merito)?",
+    "risposta": "Titanic / Ben-Hur / Il Signore degli Anelli - Il ritorno del re"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Quale codice di leggi dell'antica Mesopotamia è famoso per il principio dell'occhio per occhio?",
+    "risposta": "Codice di Hammurabi"
+  },
+  {
+    "tipo": "trivia - biologia",
+    "domanda": "Qual è l'unico mammifero in grado di volare?",
+    "risposta": "Il pipistrello"
+  },
+  {
+    "tipo": "trivia - fisica",
+    "domanda": "Quale scienziato ha scoperto la legge della gravitazione universale osservando (secondo la leggenda) una mela cadere?",
+    "risposta": "Isaac Newton"
+  },
+  {
+    "tipo": "trivia - informatica",
+    "domanda": "Cosa significa l'acronimo HTTP nei siti web?",
+    "risposta": "HyperText Transfer Protocol"
+  },
+  {
+    "tipo": "trivia - letteratura",
+    "domanda": "Chi ha scritto il romanzo distopico '1984'?",
+    "risposta": "George Orwell"
+  },
+  {
+    "tipo": "trivia - musica",
+    "domanda": "Quante sinfonie ha composto Ludwig van Beethoven?",
+    "risposta": "Nove"
+  },
+  {
+    "tipo": "trivia - anatomia",
+    "domanda": "Qual è l'organo più esteso del corpo umano?",
+    "risposta": "La pelle"
+  },
+  {
+    "tipo": "trivia - chimica",
+    "domanda": "Qual è l'unico metallo che si presenta liquido a temperatura ambiente?",
+    "risposta": "Mercurio"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Chi fu il celebre condottiero cartaginese che valicò le Alpi con gli elefanti per attaccare Roma?",
+    "risposta": "Annibale"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Qual è la stella più vicina alla Terra?",
+    "risposta": "Il Sole"
+  },
+  {
+    "tipo": "trivia - arte",
+    "domanda": "In quale museo si trova l'originale della Gioconda di Leonardo da Vinci?",
+    "risposta": "Museo del Louvre"
+  },
+  {
+    "tipo": "trivia - mitologia",
+    "domanda": "Nella mitologia greca, chi era il dio del mare e dei terremoti?",
+    "risposta": "Poseidone"
+  },
+  {
+    "tipo": "trivia - botanica",
+    "domanda": "Qual è il processo con cui le piante convertono la luce solare in energia chimica?",
+    "risposta": "Fotosintesi clorofilliana"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è il lago più profondo del mondo, situato in Siberia?",
+    "risposta": "Lago Bajkal"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Come viene definita la paura irrazionale e persistente degli spazi aperti o affollati?",
+    "risposta": "Agorafobia"
+  },
+  {
+    "tipo": "trivia - cultura pop",
+    "domanda": "In quale anno è stato lanciato il primo modello di iPhone sul mercato?",
+    "risposta": "2007"
+  },
+  {
+    "tipo": "quote - filosofia",
+    "domanda": "L'uomo è nato libero, e dappertutto è in catene.",
+    "risposta": "Jean-Jacques Rousseau"
+  },
+  {
+    "tipo": "quote - scienza",
+    "domanda": "Niente nella vita va temuto, dev'essere solo capito.",
+    "risposta": "Marie Curie"
+  },
+  {
+    "tipo": "quote - letteratura",
+    "domanda": "Essere o non essere, questo è il dilemma.",
+    "risposta": "William Shakespeare"
+  },
+  {
+    "tipo": "quote - filosofia",
+    "domanda": "Ciò che non mi uccide mi rende più forte.",
+    "risposta": "Friedrich Nietzsche"
+  },
+  {
+    "tipo": "quote - arte",
+    "domanda": "I buoni artisti copiano, i grandi artisti rubano.",
+    "risposta": "Pablo Picasso"
+  },
+  {
+    "tipo": "trivia - economia",
+    "domanda": "Quale economista ha scritto 'La ricchezza delle nazioni', fondando l'economia politica classica?",
+    "risposta": "Adam Smith"
+  },
+  {
+    "tipo": "trivia - sport",
+    "domanda": "Ogni quanti anni si celebrano normalmente i Giochi Olimpici moderni?",
+    "risposta": "Quattro"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale del Canada?",
+    "risposta": "Ottawa"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale della Svizzera (nota come città federale)?",
+    "risposta": "Berna"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale della Turchia?",
+    "risposta": "Ankara"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "In quale paese si trova la città di Petra, una delle sette meraviglie del mondo moderno?",
+    "risposta": "Giordania"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale del Marocco?",
+    "risposta": "Rabat"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la nazione più piccola del mondo per superficie?",
+    "risposta": "Città del Vaticano"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale dell'Islanda?",
+    "risposta": "Reykjavik"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Quale fiume attraversa ben dieci nazioni europee?",
+    "risposta": "Danubio"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale del Vietnam?",
+    "risposta": "Hanoi"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Come si chiama l'arcipelago che comprende le isole di Maiorca e Ibiza?",
+    "risposta": "Isole Baleari"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale della Nuova Zelanda?",
+    "risposta": "Wellington"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è il punto più alto dell'Africa?",
+    "risposta": "Kilimangiaro"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale del Portogallo?",
+    "risposta": "Lisbona"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "In quale stato americano si trova il Grand Canyon?",
+    "risposta": "Arizona"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale della Corea del Sud?",
+    "risposta": "Seul"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Quale deserto copre gran parte del Nord Africa?",
+    "risposta": "Sahara"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale dell'Irlanda?",
+    "risposta": "Dublino"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è il lago più grande d'Italia?",
+    "risposta": "Lago di Garda"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la capitale dell'Egitto?",
+    "risposta": "Il Cairo"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Quale stretto separa la Gran Bretagna dalla Francia?",
+    "risposta": "Canale della Manica"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Chi era il primo presidente degli Stati Uniti d'America?",
+    "risposta": "George Washington"
+  },
+  {
+    "tipo": "trivia - letteratura",
+    "domanda": "Chi ha scritto 'Il Piccolo Principe'?",
+    "risposta": "Antoine de Saint-Exupéry"
+  },
+  {
+    "tipo": "trivia - scienza",
+    "domanda": "Chi è considerato l'inventore del telefono (contesa Meucci-Bell)?",
+    "risposta": "Antonio Meucci ne costruì una prima versione; il brevetto andò a Alexander Graham Bell"
+  },
+  {
+    "tipo": "trivia - musica",
+    "domanda": "Quanti tasti ha un pianoforte standard?",
+    "risposta": "88"
+  },
+  {
+    "tipo": "trivia - arte",
+    "domanda": "In quale città si trova il celebre museo 'Prado'?",
+    "risposta": "Madrid"
+  },
+  {
+    "tipo": "trivia - biologia",
+    "domanda": "Qual è il gruppo sanguigno noto come 'donatore universale'?",
+    "risposta": "0 negativo"
+  },
+  {
+    "tipo": "trivia - cinema",
+    "domanda": "Chi ha diretto il film 'La dolce vita'?",
+    "risposta": "Federico Fellini"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "In che anno è caduto il muro di Berlino?",
+    "risposta": "1989"
+  },
+  {
+    "tipo": "trivia - sport",
+    "domanda": "Quale tennista detiene il record di vittorie al Roland Garros?",
+    "risposta": "Rafael Nadal"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Qual è il pianeta più vicino al Sole?",
+    "risposta": "Mercurio"
+  },
+  {
+    "tipo": "trivia - metodo di studio",
+    "domanda": "Chi ha descritto per primo la 'curva dell'oblio', che mostra quanto in fretta dimentichiamo?",
+    "risposta": "Hermann Ebbinghaus (1885)"
+  },
+  {
+    "tipo": "trivia - metodo di studio",
+    "domanda": "Come si chiama il fenomeno per cui sforzarsi di richiamare un'informazione la fissa in memoria più che rileggerla?",
+    "risposta": "Effetto testing (pratica del recupero)"
+  },
+  {
+    "tipo": "trivia - metodo di studio",
+    "domanda": "Perché ripassare a intervalli crescenti funziona meglio che studiare tutto in una sera?",
+    "risposta": "Effetto spaziatura: ogni ripasso arriva quando stai per dimenticare"
+  },
+  {
+    "tipo": "trivia - metodo di studio",
+    "domanda": "Chi ha inventato il sistema a scatole per ripassare le flashcard, in cui le carte sbagliate tornano alla prima scatola?",
+    "risposta": "Sebastian Leitner (anni '70)"
+  },
+  {
+    "tipo": "trivia - metodo di studio",
+    "domanda": "Chi ha inventato la Tecnica del Pomodoro, e perché si chiama così?",
+    "risposta": "Francesco Cirillo, alla fine degli anni '80: usava un timer da cucina a forma di pomodoro"
+  },
+  {
+    "tipo": "trivia - metodo di studio",
+    "domanda": "Quale tecnica di studio prende il nome da un premio Nobel per la fisica e consiste nello spiegare un concetto come a un bambino?",
+    "risposta": "La tecnica Feynman"
+  },
+  {
+    "tipo": "trivia - metodo di studio",
+    "domanda": "A quale poeta greco si attribuisce il 'palazzo della memoria' (metodo dei loci)?",
+    "risposta": "Simonide di Ceo"
+  },
+  {
+    "tipo": "trivia - metodo di studio",
+    "domanda": "Come si chiama l'effetto per cui ricordiamo meglio i compiti lasciati a metà di quelli finiti?",
+    "risposta": "Effetto Zeigarnik"
+  },
+  {
+    "tipo": "trivia - metodo di studio",
+    "domanda": "Studiare argomenti diversi mescolati (invece che uno alla volta) all'inizio sembra più difficile: aiuta o peggiora l'apprendimento?",
+    "risposta": "Aiuta: si chiama interleaving"
+  },
+  {
+    "tipo": "trivia - metodo di studio",
+    "domanda": "Cosa succede ai ricordi della giornata mentre dormiamo?",
+    "risposta": "Il sonno li consolida: dormire dopo aver studiato migliora il ricordo"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Secondo George Miller (1956), quanti elementi riesce a tenere a mente la memoria di lavoro?",
+    "risposta": "Circa 7, più o meno 2"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Come si chiama l'effetto per cui le aspettative di un insegnante migliorano davvero i risultati degli studenti?",
+    "risposta": "Effetto Pigmalione (o Rosenthal)"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Qual è il 'gemello cattivo' dell'effetto placebo?",
+    "risposta": "L'effetto nocebo: aspettarsi un danno può farlo comparire"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Impari una parola nuova e da quel giorno la vedi ovunque: come si chiama il fenomeno?",
+    "risposta": "Illusione di frequenza (fenomeno Baader-Meinhof)"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Chi condusse il celebre esperimento carcerario di Stanford nel 1971?",
+    "risposta": "Philip Zimbardo"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Cosa misurava il famoso 'test del marshmallow' di Walter Mischel?",
+    "risposta": "La capacità dei bambini di rimandare una ricompensa"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Perché una canzone sentita più volte finisce per piacerci di più?",
+    "risposta": "Effetto di mera esposizione (Robert Zajonc)"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Come si chiama la tendenza a credere, dopo un evento, di averlo 'sempre saputo'?",
+    "risposta": "Bias del senno di poi"
+  },
+  {
+    "tipo": "trivia - psicologia",
+    "domanda": "Perché tendiamo a sottovalutare quanto tempo ci serve per finire un lavoro?",
+    "risposta": "Fallacia della pianificazione (Kahneman e Tversky)"
+  },
+  {
+    "tipo": "trivia - neuroscienze",
+    "domanda": "Il cervello pesa circa il 2% del corpo: che percentuale dell'energia consuma?",
+    "risposta": "Circa il 20%"
+  },
+  {
+    "tipo": "trivia - neuroscienze",
+    "domanda": "Circa quanti neuroni ci sono in un cervello umano?",
+    "risposta": "Circa 86 miliardi"
+  },
+  {
+    "tipo": "trivia - neuroscienze",
+    "domanda": "In quale fase del sonno avvengono i sogni più vividi?",
+    "risposta": "Fase REM"
+  },
+  {
+    "tipo": "trivia - neuroscienze",
+    "domanda": "Come si chiama la sensazione di sentire ancora un arto che è stato amputato?",
+    "risposta": "Arto fantasma"
+  },
+  {
+    "tipo": "trivia - neuroscienze",
+    "domanda": "È vero che usiamo solo il 10% del cervello?",
+    "risposta": "No, è un mito: nel corso della giornata lo usiamo praticamente tutto"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Quanti cuori ha un polpo?",
+    "risposta": "Tre"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Di che colore è il sangue di un polpo?",
+    "risposta": "Blu (per l'emocianina, a base di rame)"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Quale animale produce feci a forma di cubo?",
+    "risposta": "Il vombato"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Quale mammifero australiano depone le uova e ha un becco simile a quello di un'anatra?",
+    "risposta": "L'ornitorinco"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Sono comparsi prima sulla Terra gli squali o gli alberi?",
+    "risposta": "Gli squali (circa 450 milioni di anni fa, gli alberi circa 385)"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Quale minuscolo animale è sopravvissuto all'esposizione diretta allo spazio?",
+    "risposta": "Il tardigrado"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Quale medusa può tornare allo stadio giovanile ed è detta 'immortale'?",
+    "risposta": "Turritopsis dohrnii"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Perché i fenicotteri sono rosa?",
+    "risposta": "Per i pigmenti (carotenoidi) di alghe e gamberetti che mangiano"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Qual è l'unico uccello capace di volare all'indietro?",
+    "risposta": "Il colibrì"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Quale marsupiale ha impronte digitali quasi identiche alle nostre?",
+    "risposta": "Il koala"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "I corvi sono in grado di riconoscere i volti delle singole persone?",
+    "risposta": "Sì, e ricordano per anni chi li ha trattati male"
+  },
+  {
+    "tipo": "trivia - zoologia",
+    "domanda": "Qual è l'animale più grande mai esistito, dinosauri compresi?",
+    "risposta": "La balenottera azzurra"
+  },
+  {
+    "tipo": "trivia - biologia",
+    "domanda": "Qual è l'organismo vivente più grande del mondo?",
+    "risposta": "Un fungo (Armillaria ostoyae) in Oregon, esteso per circa 9 km²"
+  },
+  {
+    "tipo": "trivia - botanica",
+    "domanda": "Dal punto di vista botanico, è una bacca la fragola o la banana?",
+    "risposta": "La banana (la fragola no)"
+  },
+  {
+    "tipo": "trivia - botanica",
+    "domanda": "Il pomodoro è botanicamente un frutto o una verdura?",
+    "risposta": "Un frutto (una bacca)"
+  },
+  {
+    "tipo": "trivia - alimentazione",
+    "domanda": "Quale alimento è stato trovato ancora commestibile nelle tombe egizie dopo migliaia di anni?",
+    "risposta": "Il miele"
+  },
+  {
+    "tipo": "trivia - anatomia",
+    "domanda": "Circa quante ossa ha un neonato?",
+    "risposta": "Circa 300: crescendo molte si fondono fino a 206"
+  },
+  {
+    "tipo": "trivia - anatomia",
+    "domanda": "Quale organo umano può rigenerarsi anche dopo averne perso una buona parte?",
+    "risposta": "Il fegato"
+  },
+  {
+    "tipo": "trivia - anatomia",
+    "domanda": "Circa quante volte batte il cuore umano in un giorno?",
+    "risposta": "Circa 100.000"
+  },
+  {
+    "tipo": "trivia - anatomia",
+    "domanda": "Circa che percentuale del corpo di un adulto è acqua?",
+    "risposta": "Circa il 60%"
+  },
+  {
+    "tipo": "trivia - anatomia",
+    "domanda": "Qual è l'osso più piccolo del corpo umano?",
+    "risposta": "La staffa, nell'orecchio"
+  },
+  {
+    "tipo": "trivia - medicina",
+    "domanda": "Chi scoprì per caso la penicillina nel 1928?",
+    "risposta": "Alexander Fleming"
+  },
+  {
+    "tipo": "trivia - medicina",
+    "domanda": "Quale gruppo sanguigno è il donatore universale di plasma?",
+    "risposta": "AB"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Su quale pianeta un giorno dura più di un anno?",
+    "risposta": "Venere"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Qual è il pianeta più caldo del sistema solare (anche se non è il più vicino al Sole)?",
+    "risposta": "Venere, per l'effetto serra"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Quanto impiega la luce del Sole per arrivare sulla Terra?",
+    "risposta": "Circa 8 minuti e 20 secondi"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Quale pianeta galleggerebbe in una vasca d'acqua abbastanza grande?",
+    "risposta": "Saturno: è meno denso dell'acqua"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Quale pianeta ha più lune conosciute?",
+    "risposta": "Saturno"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Quanto dura un giorno su Marte?",
+    "risposta": "Circa 24 ore e 37 minuti (si chiama 'sol')"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Quante albe vedono in un giorno gli astronauti della Stazione Spaziale Internazionale?",
+    "risposta": "Circa 16: fanno un giro della Terra ogni 90 minuti"
+  },
+  {
+    "tipo": "trivia - astrofisica",
+    "domanda": "Quanto peserebbe un cucchiaino di materia di una stella di neutroni?",
+    "risposta": "Circa un miliardo di tonnellate"
+  },
+  {
+    "tipo": "trivia - astronomia",
+    "domanda": "Perché le impronte degli astronauti sulla Luna possono durare milioni di anni?",
+    "risposta": "Sulla Luna non ci sono vento né acqua a cancellarle"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "È più grande il diametro della Luna o la larghezza dell'Australia da est a ovest?",
+    "risposta": "L'Australia (circa 4.000 km contro 3.474)"
+  },
+  {
+    "tipo": "trivia - chimica",
+    "domanda": "Qual è l'elemento più abbondante nell'universo?",
+    "risposta": "L'idrogeno"
+  },
+  {
+    "tipo": "trivia - chimica",
+    "domanda": "Quale elemento fu scoperto osservando il Sole prima ancora di trovarlo sulla Terra?",
+    "risposta": "L'elio (da 'Helios', Sole)"
+  },
+  {
+    "tipo": "trivia - chimica",
+    "domanda": "Di cosa sono fatti i diamanti?",
+    "risposta": "Di carbonio puro, come la grafite delle matite"
+  },
+  {
+    "tipo": "trivia - fisica",
+    "domanda": "Come si chiama il fenomeno per cui, in certe condizioni, l'acqua calda congela prima di quella fredda?",
+    "risposta": "Effetto Mpemba"
+  },
+  {
+    "tipo": "trivia - fisica",
+    "domanda": "Di quanto 'cresce' la Torre Eiffel d'estate, per via del caldo?",
+    "risposta": "Fino a circa 15 cm (dilatazione termica)"
+  },
+  {
+    "tipo": "trivia - fisica",
+    "domanda": "Perché nello spazio non si sentono le esplosioni?",
+    "risposta": "Il suono ha bisogno di un mezzo (aria, acqua) per propagarsi"
+  },
+  {
+    "tipo": "trivia - scienza",
+    "domanda": "Le vetrate antiche sono più spesse in basso perché il vetro 'cola' nei secoli?",
+    "risposta": "No, è un mito: dipende da come venivano prodotte"
+  },
+  {
+    "tipo": "trivia - scienza",
+    "domanda": "Chi è l'unica persona ad aver vinto il Nobel in due diverse scienze?",
+    "risposta": "Marie Curie (fisica 1903, chimica 1911)"
+  },
+  {
+    "tipo": "trivia - scienza",
+    "domanda": "Quale italiano vinse il Nobel per la fisica nel 1909 per la radio?",
+    "risposta": "Guglielmo Marconi"
+  },
+  {
+    "tipo": "trivia - matematica",
+    "domanda": "Quante persone servono in una stanza perché ci sia più del 50% di probabilità che due compiano gli anni lo stesso giorno?",
+    "risposta": "Solo 23 (paradosso del compleanno)"
+  },
+  {
+    "tipo": "trivia - matematica",
+    "domanda": "Al gioco di Monty Hall, dopo che il presentatore apre una porta vuota, conviene cambiare porta?",
+    "risposta": "Sì: cambiando si vince 2 volte su 3"
+  },
+  {
+    "tipo": "trivia - matematica",
+    "domanda": "Quanto vale un 'googol', il numero da cui prende il nome Google?",
+    "risposta": "10^100 (un 1 seguito da cento zeri)"
+  },
+  {
+    "tipo": "trivia - matematica",
+    "domanda": "Quante cifre decimali di π usa la NASA per i calcoli di navigazione interplanetaria?",
+    "risposta": "Solo 15"
+  },
+  {
+    "tipo": "trivia - matematica",
+    "domanda": "Qual è l'unico numero primo pari?",
+    "risposta": "2"
+  },
+  {
+    "tipo": "trivia - matematica",
+    "domanda": "Quale matematico pisano diffuse in Europa i numeri arabi, zero compreso, con il 'Liber Abaci' (1202)?",
+    "risposta": "Leonardo Fibonacci"
+  },
+  {
+    "tipo": "trivia - informatica",
+    "domanda": "Chi è considerata la prima programmatrice della storia?",
+    "risposta": "Ada Lovelace"
+  },
+  {
+    "tipo": "trivia - informatica",
+    "domanda": "Da dove viene il termine 'bug' informatico, secondo l'aneddoto più famoso?",
+    "risposta": "Da una falena trovata in un computer di Harvard nel 1947 (squadra di Grace Hopper)"
+  },
+  {
+    "tipo": "trivia - informatica",
+    "domanda": "Per cosa sta la sigla CAPTCHA?",
+    "risposta": "Completely Automated Public Turing test to tell Computers and Humans Apart"
+  },
+  {
+    "tipo": "trivia - informatica",
+    "domanda": "Chi decifrò i codici della macchina Enigma ed è considerato il padre dell'informatica?",
+    "risposta": "Alan Turing (con il suo gruppo a Bletchley Park)"
+  },
+  {
+    "tipo": "trivia - informatica",
+    "domanda": "In che anno è andato online il primo sito web, creato al CERN?",
+    "risposta": "1991 (Tim Berners-Lee)"
+  },
+  {
+    "tipo": "trivia - informatica",
+    "domanda": "Da chi prende il nome il linguaggio di programmazione Python?",
+    "risposta": "Dai Monty Python, non dal serpente"
+  },
+  {
+    "tipo": "trivia - tecnologia",
+    "domanda": "Da quale re vichingo prende il nome il Bluetooth?",
+    "risposta": "Harald 'Dente Blu', re di Danimarca e Norvegia"
+  },
+  {
+    "tipo": "trivia - tecnologia",
+    "domanda": "Da quale opera teatrale viene la parola 'robot'?",
+    "risposta": "R.U.R. di Karel Čapek (1920): in ceco 'robota' vuol dire lavoro forzato"
+  },
+  {
+    "tipo": "trivia - economia",
+    "domanda": "Quale Paese ha usato per primo la cartamoneta?",
+    "risposta": "La Cina"
+  },
+  {
+    "tipo": "trivia - economia",
+    "domanda": "Con quale pseudonimo si firma l'inventore sconosciuto del Bitcoin?",
+    "risposta": "Satoshi Nakamoto"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Cleopatra è vissuta più vicina nel tempo alla costruzione della Grande Piramide o allo sbarco sulla Luna?",
+    "risposta": "Allo sbarco sulla Luna"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "È più antica l'Università di Oxford o la città azteca di Tenochtitlan?",
+    "risposta": "Oxford (vi si insegnava già nel 1096; Tenochtitlan fu fondata nel 1325)"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Quale fu la guerra più breve della storia?",
+    "risposta": "La guerra anglo-zanzibariana del 1896: meno di 45 minuti"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Napoleone era davvero bassissimo?",
+    "risposta": "No: circa 1,69 m, nella media del suo tempo"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Gli elmi dei vichinghi avevano davvero le corna?",
+    "risposta": "No, è un mito nato nell'Ottocento (con i costumi delle opere di Wagner)"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "La Grande Muraglia cinese si vede a occhio nudo dallo spazio?",
+    "risposta": "No, è un mito: è lunghissima ma troppo stretta"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Quanti anni durò in realtà la Guerra dei cent'anni?",
+    "risposta": "116 (dal 1337 al 1453)"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Qual è l'unica delle sette meraviglie del mondo antico ancora in piedi?",
+    "risposta": "La Grande Piramide di Giza"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Quale Paese ha più piramidi: l'Egitto o il Sudan?",
+    "risposta": "Il Sudan"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "In quale città Gutenberg sviluppò la stampa a caratteri mobili, intorno al 1450?",
+    "risposta": "Magonza (Mainz)"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Per cosa usavano l'urina gli antichi Romani?",
+    "risposta": "Per lavare e sbiancare i panni (c'era persino una tassa sulla sua raccolta)"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "In che anno affondò il Titanic?",
+    "risposta": "1912"
+  },
+  {
+    "tipo": "trivia - storia",
+    "domanda": "Qual è stato l'impero più esteso della storia?",
+    "risposta": "L'Impero britannico (quello mongolo fu il più grande in un territorio continuo)"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Quale Paese ha più laghi di tutto il resto del mondo messo insieme?",
+    "risposta": "Il Canada"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Quanti fusi orari usa ufficialmente la Cina, pur essendo enorme?",
+    "risposta": "Uno solo"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Quale Stato americano è contemporaneamente il più a ovest e il più a est?",
+    "risposta": "L'Alaska (le isole Aleutine superano il 180° meridiano)"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Come si chiama il punto dell'oceano più lontano da qualsiasi terra, dove si fanno cadere i satelliti dismessi?",
+    "risposta": "Point Nemo"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è l'unico Stato con una bandiera non rettangolare?",
+    "risposta": "Il Nepal"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è il continente con più Stati?",
+    "risposta": "L'Africa (54)"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la repubblica più antica del mondo ancora esistente?",
+    "risposta": "San Marino"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Su circa quante isole è costruita Venezia?",
+    "risposta": "Circa 118"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è il luogo non polare più arido del mondo?",
+    "risposta": "Il deserto di Atacama, in Cile"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è la sede di governo più alta del mondo?",
+    "risposta": "La Paz, in Bolivia (circa 3.600 m)"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Quale Paese ha il maggior numero di vulcani attivi?",
+    "risposta": "L'Indonesia"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è l'unico continente senza formiche autoctone?",
+    "risposta": "L'Antartide"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Quale Paese è chiamato 'il Paese del Sol Levante'?",
+    "risposta": "Il Giappone"
+  },
+  {
+    "tipo": "trivia - geografia",
+    "domanda": "Qual è il lago navigabile più alto del mondo?",
+    "risposta": "Il lago Titicaca (tra Perù e Bolivia)"
+  },
+  {
+    "tipo": "trivia - lingue",
+    "domanda": "Qual è la lingua con più parlanti madrelingua al mondo?",
+    "risposta": "Il cinese mandarino"
+  },
+  {
+    "tipo": "trivia - lingue",
+    "domanda": "Come si chiama in inglese il puntino sopra la 'i'?",
+    "risposta": "Tittle"
+  },
+  {
+    "tipo": "trivia - lingue",
+    "domanda": "Da quali lettere prende il nome la tastiera più diffusa al mondo?",
+    "risposta": "Dalle prime sei della riga in alto: QWERTY"
+  },
+  {
+    "tipo": "trivia - letteratura",
+    "domanda": "Qual è il libro non religioso più tradotto al mondo?",
+    "risposta": "Il Piccolo Principe"
+  },
+  {
+    "tipo": "trivia - letteratura",
+    "domanda": "Chi scrisse 'Frankenstein', iniziandolo a soli 18 anni?",
+    "risposta": "Mary Shelley"
+  },
+  {
+    "tipo": "trivia - arte",
+    "domanda": "Di che materiale è fatto il David di Michelangelo?",
+    "risposta": "Marmo di Carrara"
+  },
+  {
+    "tipo": "trivia - arte",
+    "domanda": "Perché la Statua della Libertà è verde?",
+    "risposta": "È di rame: il verde è la patina che si è formata col tempo"
+  },
+  {
+    "tipo": "trivia - arte",
+    "domanda": "Quale Paese regalò la Statua della Libertà agli Stati Uniti?",
+    "risposta": "La Francia"
+  },
+  {
+    "tipo": "trivia - musica",
+    "domanda": "Quale compositore scrisse la Nona Sinfonia quando era ormai quasi completamente sordo?",
+    "risposta": "Ludwig van Beethoven"
+  },
+  {
+    "tipo": "trivia - musica",
+    "domanda": "A che età Mozart compose i suoi primi brani?",
+    "risposta": "Intorno ai 5 anni"
+  },
+  {
+    "tipo": "trivia - cinema",
+    "domanda": "Qual è stato il primo lungometraggio animato della Disney?",
+    "risposta": "Biancaneve e i sette nani (1937)"
+  },
+  {
+    "tipo": "trivia - sport",
+    "domanda": "Perché la maratona è lunga proprio 42,195 km?",
+    "risposta": "È la distanza fissata alle Olimpiadi di Londra del 1908"
+  },
+  {
+    "tipo": "trivia - sport",
+    "domanda": "Quale nazionale ha vinto più Mondiali di calcio?",
+    "risposta": "Il Brasile (5)"
+  },
+  {
+    "tipo": "quote - letteratura",
+    "domanda": "Fatti non foste a viver come bruti, ma per seguir virtute e canoscenza.",
+    "risposta": "Dante Alighieri"
+  },
+  {
+    "tipo": "quote - proverbio",
+    "domanda": "La ripetizione è la madre dell'apprendimento (Repetitio mater studiorum).",
+    "risposta": "Proverbio latino"
+  },
+  {
+    "tipo": "quote - politica/storia",
+    "domanda": "L'istruzione è l'arma più potente che puoi usare per cambiare il mondo.",
+    "risposta": "Nelson Mandela"
+  },
+  {
+    "tipo": "quote - politica/storia",
+    "domanda": "Vivi come se dovessi morire domani. Impara come se dovessi vivere per sempre.",
+    "risposta": "Mahatma Gandhi (attribuita)"
+  },
+  {
+    "tipo": "quote - scienza",
+    "domanda": "Non ho fallito. Ho solo trovato 10.000 modi che non funzionano.",
+    "risposta": "Thomas Edison (attribuita)"
+  },
+  {
+    "tipo": "quote - scienza",
+    "domanda": "Eppur si muove.",
+    "risposta": "Galileo Galilei (attribuita)"
+  },
+  {
+    "tipo": "quote - filosofia",
+    "domanda": "Siamo ciò che facciamo ripetutamente. L'eccellenza, quindi, non è un atto ma un'abitudine.",
+    "risposta": "Will Durant, riassumendo Aristotele"
+  }
 ]

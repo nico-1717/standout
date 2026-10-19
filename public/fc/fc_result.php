@@ -363,7 +363,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-    <?php echo nisama_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
+    <?php echo standout_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
     <?php echo fc_boot_json(); ?>
 <?php if (!$fc_vocab): ?>
 <script>
@@ -719,7 +719,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-        <div class="sec-title"><?php te('fc.res_revisione'); ?> <span class="sec-count"><?php echo count($cards); ?></span></div>
+        <div class="sec-title" id="revTitle"><?php te('fc.res_revisione'); ?> <span class="sec-count"><?php echo count($cards); ?></span></div>
 
 
 
@@ -741,11 +741,15 @@ if ($row_resume && $row_resume['resume_pos']) {
 
         <?php else: ?>
 
-
-
-
-
-
+            <?php /* Le carte NON si disegnano subito: stanno in un <template>, che
+                     il browser legge ma non mostra, e le cui immagini non si
+                     scaricano. Le porta in pagina un po' alla volta il JS in fondo
+                     (CARICAMENTO A PACCHETTI): prima l'animazione del punteggio,
+                     poi la carta 1, la 2, la 3, poi fino alla 10 e poi dieci alla
+                     volta. Con centinaia di carte prima si costruiva tutto insieme
+                     e l'anello del punteggio scattava. */ ?>
+            <div class="rev-list" id="revList"></div>
+            <template id="revTpl">
 
             <?php 
 
@@ -983,6 +987,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
             <?php if ($current_pos !== -1) { echo '</div>'; } ?>
+            </template>
 
 
 
@@ -2178,6 +2183,7 @@ if ($row_resume && $row_resume['resume_pos']) {
                invece che sempre dalla prima: si prende la .rev-entry piu' vicina
                al centro dello schermo e si cerca la sua posizione nel mazzo. */
             window.apriVisoreDaCartaCorrente = function () {
+                if (typeof window.fcRevFlush === 'function') window.fcRevFlush();
                 var entries = Array.prototype.slice.call(document.querySelectorAll('.rev-card .rev-entry'))
                     .filter(function (en) { return en.offsetParent !== null; });   // solo quelle visibili col filtro attivo
                 if (!entries.length) { window.fcvOpen(0); return; }
@@ -2198,29 +2204,42 @@ if ($row_resume && $row_resume['resume_pos']) {
             };
 
             /* Filtro "solo sbagliate": nasconde le carte corrette e le pagine che
-               restano senza nessuna carta da mostrare. */
-            window.toggleSoloErrori = function () {
+               restano senza nessuna carta da mostrare. E' uno STATO e non solo
+               un'azione: le carte arrivano a pacchetti (vedi CARICAMENTO A
+               PACCHETTI), e quelle che entrano dopo devono rispettarlo anche
+               loro. toggleSoloErrori(true/false) lo imposta, senza argomenti
+               lo inverte. */
+            window.fcSoloErrori = false;
+            function filtraCarte(cards) {
+                var attivo = window.fcSoloErrori;
+                Array.prototype.forEach.call(cards, function (card) {
+                    var visibili = 0;
+                    card.querySelectorAll('.rev-entry').forEach(function (en) {
+                        var pill = en.querySelector('.oc-pill');
+                        var sbagliata = pill && pill.classList.contains('ko');
+                        var nascosta = attivo && !sbagliata;
+                        en.style.display = nascosta ? 'none' : '';
+                        if (!nascosta) visibili++;
+                    });
+                    /* Una pagina senza piu' nessuna carta visibile sparisce anche
+                       lei, altrimenti resterebbero intestazioni vuote. */
+                    card.style.display = (attivo && visibili === 0) ? 'none' : '';
+                });
+            }
+            window.fcFiltraCarte = filtraCarte;
+            window.toggleSoloErrori = function (stato) {
                 var btn = document.getElementById('fabSoloErrori');
-                var attivo = btn.getAttribute('aria-pressed') !== 'true';
-                btn.setAttribute('aria-pressed', attivo ? 'true' : 'false');
-                btn.classList.toggle('is-active', attivo);
-
-                document.querySelectorAll('.rev-card .rev-entry').forEach(function (en) {
-                    var pill = en.querySelector('.oc-pill');
-                    var sbagliata = pill && pill.classList.contains('ko');
-                    en.style.display = (attivo && !sbagliata) ? 'none' : '';
-                });
-
-                /* Una pagina senza piu' nessuna carta visibile sparisce anche lei,
-                   altrimenti resterebbero intestazioni vuote. */
-                document.querySelectorAll('.rev-card').forEach(function (card) {
-                    var visibili = Array.prototype.slice.call(card.querySelectorAll('.rev-entry'))
-                        .filter(function (en) { return en.style.display !== 'none'; });
-                    card.style.display = (attivo && visibili.length === 0) ? 'none' : '';
-                });
+                var attivo = (typeof stato === 'boolean') ? stato : !window.fcSoloErrori;
+                window.fcSoloErrori = attivo;
+                if (btn) {
+                    btn.setAttribute('aria-pressed', attivo ? 'true' : 'false');
+                    btn.classList.toggle('is-active', attivo);
+                }
+                filtraCarte(document.querySelectorAll('#revList .rev-card'));
             };
 
             window.fcvOpen = function (i) {
+                if (typeof window.fcRevFlush === 'function') window.fcRevFlush();
 
 
 
@@ -2887,6 +2906,155 @@ if ($row_resume && $row_resume['resume_pos']) {
         })();
 
 
+
+
+        /* ================================================================
+           CARICAMENTO A PACCHETTI delle carte del riepilogo
+           ----------------------------------------------------------------
+           Le carte arrivano dal server dentro <template id="revTpl">: il
+           browser le ha lette ma non le ha disegnate, e le loro immagini non
+           sono ancora partite. Qui si spostano nella pagina in quest'ordine:
+             1. prima niente: l'anello e i numeri del punteggio si animano
+                da soli, senza nessuno che rubi il thread;
+             2. poi la carta 1, la 2, la 3, una per volta;
+             3. poi fino alla 10, e da li' dieci alla volta (20, 30, ...).
+           Ogni pacchetto aspetta il frame successivo e un momento libero
+           del browser, cosi' lo scorrimento resta fluido anche con
+           centinaia di carte. Testi, formule e riquadri degli esempi si
+           preparano per pacchetto, non tutti insieme.
+
+           Si parte dopo l'animazione del punteggio, oppure subito se si
+           scende fino alle carte prima che finisca. Da "Ripassa errori"
+           (?solo_errori=1) si parte subito, col filtro gia' attivo e la
+           pagina gia' posizionata sulla revisione delle carte.
+           ================================================================ */
+        (function () {
+            'use strict';
+            var ATTESA_PUNTEGGIO = 1300;   /* ms: dura quanto l'anello (1,25 s) */
+
+            function pronto(fn) {
+                if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
+                else fn();
+            }
+
+            pronto(function () {
+                var tpl = document.getElementById('revTpl');
+                var list = document.getElementById('revList');
+                var titolo = document.getElementById('revTitle');
+                if (!tpl || !list || !tpl.content) { window.fcRevFlush = function () {}; return; }
+
+                var coda = Array.prototype.slice.call(tpl.content.children);
+                var fatte = 0, avviato = false;
+                var soloErrori = /[?&]solo_errori=1(?:&|$)/.test(window.location.search);
+
+                function dimensione() {
+                    if (fatte < 3) return 1;              /* 1, 2, 3 */
+                    if (fatte < 10) return 10 - fatte;    /* fino alla 10 */
+                    return 10;                            /* poi dieci alla volta */
+                }
+
+                function prepara(cards) {
+                    var testi = [];
+                    cards.forEach(function (card) {
+                        card.querySelectorAll('.raw-text[data-raw]').forEach(function (el) {
+                            if (el.innerHTML !== '') return;
+                            var raw = el.getAttribute('data-raw');
+                            if (raw && typeof parseTextForPreview === 'function') el.innerHTML = parseTextForPreview(raw);
+                            if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(el);
+                            testi.push(el);
+                        });
+                        if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes(card);
+                    });
+                    if (testi.length && window.MathJax && MathJax.typesetPromise) {
+                        MathJax.typesetPromise(testi).catch(function () {});
+                    }
+                    if (typeof window.fcFiltraCarte === 'function') window.fcFiltraCarte(cards);
+                }
+
+                function inserisci(n, animate) {
+                    var gruppo = coda.splice(0, n);
+                    if (!gruppo.length) return;
+                    var frag = document.createDocumentFragment();
+                    gruppo.forEach(function (el) { frag.appendChild(el); });
+                    list.appendChild(frag);
+                    fatte += gruppo.length;
+                    prepara(gruppo);
+                    if (animate) {
+                        gruppo.forEach(function (el, i) {
+                            try {
+                                el.animate([{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }],
+                                           { duration: 320, delay: Math.min(i, 5) * 35, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'backwards' });
+                            } catch (e) {}
+                        });
+                    }
+                    if (!coda.length) list.style.minHeight = '';
+                }
+
+                function dopo(fn) {
+                    requestAnimationFrame(function () {
+                        if (typeof requestIdleCallback === 'function') requestIdleCallback(fn, { timeout: 150 });
+                        else setTimeout(fn, 16);
+                    });
+                }
+
+                function giro() {
+                    if (!coda.length) return;
+                    inserisci(dimensione(), true);
+                    if (coda.length) dopo(giro);
+                }
+
+                function avvia() {
+                    if (avviato) return;
+                    avviato = true;
+                    giro();
+                }
+
+                /* Il visore a schede ha bisogno di tutte le carte: se lo si apre
+                   prima che siano arrivate, entrano tutte subito. */
+                window.fcRevFlush = function () {
+                    avviato = true;
+                    if (coda.length) inserisci(coda.length, false);
+                };
+
+                function vaiAllaRevisione() {
+                    if (!titolo) return;
+                    var hdr = document.querySelector('.app-header');
+                    var alto = hdr ? hdr.getBoundingClientRect().height : 0;
+                    var y = titolo.getBoundingClientRect().top + window.pageYOffset - alto - 8;
+                    window.scrollTo(0, Math.max(0, y));
+                }
+
+                if (soloErrori) {
+                    /* Spazio sotto il titolo mentre le carte arrivano: senza, la
+                       pagina sarebbe troppo corta per portare il titolo in alto. */
+                    list.style.minHeight = '100vh';
+                    if (typeof window.toggleSoloErrori === 'function') window.toggleSoloErrori(true);
+                    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+                    vaiAllaRevisione();
+                    avvia();
+                    /* le prime carte cambiano un po' l'altezza di cio' che sta sopra
+                       (font e formule): si riallinea una volta, se nel frattempo
+                       non si e' gia' scrollato a mano */
+                    var yAtteso = window.pageYOffset, toccato = false;
+                    ['touchstart', 'wheel', 'keydown'].forEach(function (ev) {
+                        window.addEventListener(ev, function () { toccato = true; }, { once: true, passive: true });
+                    });
+                    setTimeout(function () { if (!toccato && Math.abs(window.pageYOffset - yAtteso) < 4) vaiAllaRevisione(); }, 400);
+                    return;
+                }
+
+                setTimeout(avvia, ATTESA_PUNTEGGIO);
+                /* Se il titolo e' gia' in vista (schermo grande) si aspetta
+                   comunque il punteggio; si anticipa solo se ci si arriva
+                   scorrendo. */
+                if (titolo && 'IntersectionObserver' in window && titolo.getBoundingClientRect().top > window.innerHeight) {
+                    var io = new IntersectionObserver(function (voci) {
+                        if (voci.some(function (v) { return v.isIntersecting; })) { io.disconnect(); avvia(); }
+                    }, { rootMargin: '0px 0px 120px 0px' });
+                    io.observe(titolo);
+                }
+            });
+        })();
 
     </script>
 

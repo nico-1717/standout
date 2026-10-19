@@ -1647,7 +1647,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
 
 
-<?php echo nisama_i18n_json(['comune', 'fc', 'vocab']); ?>
+<?php echo standout_i18n_json(['comune', 'fc', 'vocab']); ?>
 <script>
 var CAT_DATA = <?php echo json_encode($catJs, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 </script>
@@ -1709,10 +1709,10 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
        non in sessionStorage: riaprendo le categorie domani si deve ritrovare
        l'albero come lo si era lasciato, non richiuso da capo.
        ====================================================================== */
-    var LS_VISTA   = 'nisama_cat_vista';
-    var LS_AMBITO  = 'nisama_cat_ambito';
-    var LS_APERTE  = 'nisama_cat_aperte';
-    var LS_FILTRI  = 'nisama_cat_filtri';
+    var LS_VISTA   = 'standout_cat_vista';
+    var LS_AMBITO  = 'standout_cat_ambito';
+    var LS_APERTE  = 'standout_cat_aperte';
+    var LS_FILTRI  = 'standout_cat_filtri';
 
     function lsGet(k, def) { try { var v = localStorage.getItem(k); return v === null ? def : v; } catch(e){ return def; } }
     function lsSet(k, v)   { try { localStorage.setItem(k, v); } catch(e){} }

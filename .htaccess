@@ -1,5 +1,5 @@
 # =====================================================================
-# NISAMA - .htaccess della RADICE del sito (nisama.altervista.org/)
+# STANDOUT - .htaccess della RADICE del sito (nisama.altervista.org/)
 #
 # Il browser vede solo public/: /fc/fc_home.php viene servito da
 # /public/fc/fc_home.php, senza "public" nell'indirizzo.
@@ -80,8 +80,10 @@ RewriteRule ^(todo_widget\.css|todo_widget\.php)$ planner/$1 [R=308,L]
 RewriteRule ^(clessidra\.php|pausa_scena\.php|pomodoro\.css|pomodoro\.php|pomodoro_barra\.css|pomodoro_barra\.js|pomodoro_barra\.php|pomodoro_core\.js|pomodoro_import\.php|pomodoro_stato\.php|pomodoro_storico\.css|pomodoro_storico\.php)$ projects/$1 [R=308,L]
 RewriteRule ^(progetti\.css|progetti\.php|project_selector\.php)$ projects/$1 [R=308,L]
 RewriteRule ^(friends\.php|friends_api\.php|friends_core\.php)$ social/$1 [R=308,L]
-RewriteRule ^(i18n\.js|nisama_fetch\.js)$ _assets/js/$1 [R=308,L]
-RewriteRule ^(nisama_ui\.css|nisama_ui\.js)$ _assets/ui/$1 [R=308,L]
+RewriteRule ^(i18n\.js)$ _assets/js/$1 [R=308,L]
+# file rinominati da nisama_* a standout_* (anche dalla vecchia posizione piatta)
+RewriteRule ^(?:_assets/js/)?nisama_fetch\.js$ _assets/js/standout_fetch.js [R=301,L]
+RewriteRule ^(?:_assets/ui/)?nisama_ui\.(css|js)$ _assets/ui/standout_ui.$1 [R=301,L]
 RewriteRule ^(pwa\.js|pwa\.css)$ _assets/$1 [R=308,L]
 
 # 2c. cartelle di prima

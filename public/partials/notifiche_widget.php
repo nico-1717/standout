@@ -1,6 +1,6 @@
 <?php
 /* =========================================================================
-   NISAMA · PALLINO NOTIFICHE (avatar in alto a destra)
+   STANDOUT · PALLINO NOTIFICHE (avatar in alto a destra)
    Uso:
      <?php include __DIR__ . '/notifiche_widget.php'; ?>              -> flottante, in alto a destra
      <?php $fr_widget_inline = true; include '...'; ?>     -> nel punto esatto in cui lo includi
@@ -47,22 +47,22 @@ $fw_inline = !empty($fr_widget_inline);
 .fnw-scope *{ box-sizing:border-box; }
 
 /* ---------- il pallino ---------- */
-.nisama-fab{ position:fixed; top:18px; right:18px; z-index:999990; }
-button.nisama-fab--login{
+.standout-fab{ position:fixed; top:18px; right:18px; z-index:999990; }
+button.standout-fab--login{
   appearance:none; border:none; cursor:pointer; background:var(--nis-ink); color:#fff;
   font-family:inherit; font-weight:700; font-size:14.5px; padding:11px 22px; border-radius:999px;
   box-shadow:0 6px 20px rgba(0,0,0,.18); transition:transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s ease;
 }
-button.nisama-fab--login:hover{ transform:translateY(-2px) scale(1.03); box-shadow:0 10px 26px rgba(0,0,0,.24); }
-button.nisama-fab--login:active{ transform:scale(.96); }
+button.standout-fab--login:hover{ transform:translateY(-2px) scale(1.03); box-shadow:0 10px 26px rgba(0,0,0,.24); }
+button.standout-fab--login:active{ transform:scale(.96); }
 
-.nisama-fab--user{ display:flex; flex-direction:column; align-items:flex-end; }
-.nisama-fab-avatar{
+.standout-fab--user{ display:flex; flex-direction:column; align-items:flex-end; }
+.standout-fab-avatar{
   appearance:none; border:2px solid #fff; cursor:pointer; width:42px; height:42px; border-radius:50%;
   background:linear-gradient(135deg, var(--nis-accent), #A78BFA); color:#fff; font-weight:800; font-size:16px;
   box-shadow:0 6px 18px rgba(0,0,0,.22); transition:transform .2s cubic-bezier(.34,1.56,.64,1);
 }
-.nisama-fab-avatar:hover{ transform:scale(1.06); }
+.standout-fab-avatar:hover{ transform:scale(1.06); }
 .fnw-avatar:active { transform: scale(.96); }
 
 .fnw-badge{
@@ -171,9 +171,9 @@ button.nisama-fab--login:active{ transform:scale(.96); }
 }
 </style>
 
-<div class="nisama-fab nisama-fab--user fnw-scope fnw-anchor">
-    <button type="button" class="nisama-fab-avatar" id="fnwBtn" 
-            aria-label="Notifiche e profilo" aria-haspopup="true" aria-expanded="false">
+<div class="standout-fab standout-fab--user fnw-scope fnw-anchor">
+    <button type="button" class="standout-fab-avatar" id="fnwBtn" 
+            aria-label="<?php te('notifiche.aria_profilo'); ?>" aria-haspopup="true" aria-expanded="false">
         <?php echo htmlspecialchars(fr_iniziale($fw_nome), ENT_QUOTES); ?>
         <span class="fnw-badge" id="fnwBadge" <?php echo $fw_n > 0 ? '' : 'hidden'; ?>><?php echo $fw_n > 99 ? '99+' : $fw_n; ?></span>
     </button>
@@ -181,17 +181,17 @@ button.nisama-fab--login:active{ transform:scale(.96); }
 
 <div class="fnw-scope fnw-scrim" id="fnwScrim"></div>
 
-<div class="fnw-scope fnw-panel" id="fnwPanel" role="dialog" aria-label="Notifiche">
+<div class="fnw-scope fnw-panel" id="fnwPanel" role="dialog" aria-label="<?php te('notifiche.titolo'); ?>">
     <div class="fnw-head">
-        <span class="fnw-title">Notifiche</span>
-        <span class="fnw-count" id="fnwCount" <?php echo $fw_n > 0 ? '' : 'hidden'; ?>><?php echo (int)$fw_n; ?> da vedere</span>
+        <span class="fnw-title"><?php te('notifiche.titolo'); ?></span>
+        <span class="fnw-count" id="fnwCount" <?php echo $fw_n > 0 ? '' : 'hidden'; ?>><?php te('notifiche.da_vedere', ['n' => (int)$fw_n]); ?></span>
     </div>
 
     <div class="fnw-list" id="fnwList">
         <?php if (empty($fw_items)): ?>
             <div class="fnw-empty" id="fnwEmpty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
-                <p>Nessuna notifica.<br>Aggiungi un amico e iniziate a confrontarvi.</p>
+                <p><?php te('notifiche.vuoto_1'); ?><br><?php te('notifiche.vuoto_2'); ?></p>
             </div>
         <?php else: foreach ($fw_items as $it):
             $n = htmlspecialchars($it['username'], ENT_QUOTES);
@@ -201,23 +201,23 @@ button.nisama-fab--login:active{ transform:scale(.96); }
                 <span class="fnw-ava" style="background:<?php echo fr_gradiente($u); ?>"><?php echo htmlspecialchars(fr_iniziale($it['username']), ENT_QUOTES); ?></span>
                 <div class="fnw-body">
                     <?php if ($it['tipo'] === 'ricevuta'): ?>
-                        <div class="fnw-txt"><b><?php echo $n; ?></b> ti ha inviato una richiesta di amicizia.</div>
+                        <div class="fnw-txt"><?php th('notifiche.ricevuta', ['nome' => '<b>' . $n . '</b>']); ?></div>
                         <div class="fnw-when"><?php echo htmlspecialchars(fr_quando($it['quando']), ENT_QUOTES); ?></div>
                         <div class="fnw-acts">
-                            <button type="button" class="fnw-b fnw-b-ok" data-az="accetta">Accetta</button>
-                            <button type="button" class="fnw-b fnw-b-no" data-az="rifiuta">Rifiuta</button>
+                            <button type="button" class="fnw-b fnw-b-ok" data-az="accetta"><?php te('notifiche.accetta'); ?></button>
+                            <button type="button" class="fnw-b fnw-b-no" data-az="rifiuta"><?php te('notifiche.rifiuta'); ?></button>
                         </div>
                     <?php elseif ($it['tipo'] === 'accettata'): ?>
-                        <div class="fnw-txt"><b><?php echo $n; ?></b> ha accettato la tua richiesta. Ora potete confrontarvi.</div>
+                        <div class="fnw-txt"><?php th('notifiche.accettata', ['nome' => '<b>' . $n . '</b>']); ?></div>
                         <div class="fnw-when"><?php echo htmlspecialchars(fr_quando($it['quando']), ENT_QUOTES); ?></div>
                         <div class="fnw-acts">
-                            <a class="fnw-b fnw-b-go" href="<?php echo PWA_BASE; ?>social/friends.php?u=<?php echo $u; ?>">Vedi il confronto</a>
+                            <a class="fnw-b fnw-b-go" href="<?php echo PWA_BASE; ?>social/friends.php?u=<?php echo $u; ?>"><?php te('notifiche.vedi_confronto'); ?></a>
                         </div>
                     <?php else: ?>
-                        <div class="fnw-txt">Richiesta inviata a <b><?php echo $n; ?></b>. In attesa di risposta.</div>
+                        <div class="fnw-txt"><?php th('notifiche.inviata', ['nome' => '<b>' . $n . '</b>']); ?></div>
                         <div class="fnw-when"><?php echo htmlspecialchars(fr_quando($it['quando']), ENT_QUOTES); ?></div>
                         <div class="fnw-acts">
-                            <button type="button" class="fnw-b fnw-b-no" data-az="annulla">Annulla</button>
+                            <button type="button" class="fnw-b fnw-b-no" data-az="annulla"><?php te('comune.annulla'); ?></button>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -228,16 +228,17 @@ button.nisama-fab--login:active{ transform:scale(.96); }
     <div class="fnw-foot">
         <a class="fnw-row" href="<?php echo PWA_BASE; ?>social/friends.php">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <span>Amici e classifica</span>
+            <span><?php te('dashboard.amici_e_classifica'); ?></span>
             <span class="fnw-pill" id="fnwPill" <?php echo $fw_n > 0 ? '' : 'hidden'; ?>><?php echo (int)$fw_n; ?></span>
         </a>
         <a class="fnw-row" href="<?php echo PWA_BASE; ?>fc/fc_stats.php">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-            <span>Le tue statistiche</span>
+            <span><?php te('dashboard.le_tue_statistiche'); ?></span>
         </a>
+        <?php require_once __DIR__ . '/lang_picker.php'; standout_lang_picker('row'); ?>
         <a class="fnw-row fnw-danger" href="<?php echo PWA_BASE; ?>account/logout.php">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
-            <span>Logout</span>
+            <span><?php te('notifiche.logout'); ?></span>
         </a>
     </div>
 </div>
@@ -256,6 +257,9 @@ button.nisama-fab--login:active{ transform:scale(.96); }
 
     var LEGACY = <?php echo json_encode(FR_LEGACY_AVATAR_SELECTOR); ?>;
     if (LEGACY) { try { document.querySelectorAll(LEGACY).forEach(function (e) { e.style.display = 'none'; }); } catch (e) {} }
+
+    var TXT = <?php echo json_encode(['da_vedere' => t('notifiche.da_vedere'), 'vuoto_1' => t('notifiche.vuoto_1'), 'vuoto_2' => t('notifiche.vuoto_2'), 'ko' => t('notifiche.non_ha_funzionato')], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    function escTxt(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
     var aperto = false;
     function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
@@ -298,7 +302,7 @@ button.nisama-fab--login:active{ transform:scale(.96); }
             el.textContent = n > 99 ? '99+' : String(n);
             el.hidden = n === 0;
         });
-        if (count) { count.textContent = n + (n === 1 ? ' da vedere' : ' da vedere'); count.hidden = n === 0; }
+        if (count) { count.textContent = TXT.da_vedere.replace('{n}', n); count.hidden = n === 0; }
         var sb = document.getElementById('sbFriendsBadge');
         if (sb) { sb.textContent = n > 9 ? '9+' : String(n); sb.hidden = n === 0; }
         var fab = document.getElementById('sbFab');
@@ -311,7 +315,7 @@ button.nisama-fab--login:active{ transform:scale(.96); }
         var body = new URLSearchParams(Object.assign({ azione: azione }, dati || {}));
         return fetch('<?php echo PWA_BASE; ?>social/friends_api.php', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Nisama': '1' },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Standout': '1' },
             body: body,
             credentials: 'same-origin'
         }).then(function (r) { return r.json(); });
@@ -332,7 +336,7 @@ button.nisama-fab--login:active{ transform:scale(.96); }
         if (list.querySelector('.fnw-item')) { return; }
         list.innerHTML = '<div class="fnw-empty">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>' +
-            '<p>Nessuna notifica.<br>Aggiungi un amico e iniziate a confrontarvi.</p></div>';
+            '<p>' + escTxt(TXT.vuoto_1) + '<br>' + escTxt(TXT.vuoto_2) + '</p></div>';
     }
 
     /* ---------- azioni sulle richieste ---------- */
@@ -356,7 +360,7 @@ button.nisama-fab--login:active{ transform:scale(.96); }
                 if (window.frRicarica) { window.frRicarica(); }
             }).catch(function () {
                 riga.querySelectorAll('button').forEach(function (x) { x.disabled = false; });
-                if (window.frToast) { window.frToast('Non ha funzionato. Riprova.'); }
+                if (window.frToast) { window.frToast(TXT.ko); }
             });
         });
     }

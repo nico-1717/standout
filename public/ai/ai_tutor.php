@@ -79,11 +79,11 @@ if (!mb_check_encoding($clean_text_for_audio, 'UTF-8')) {
 // Senza l'impronta, cambiando un'impostazione che modifica il testo letto
 // (es. "Leggi LaTeX" da Sì a No, o la lingua), si sarebbe continuato a
 // riascoltare il vecchio MP3 in cache, generato da un testo diverso.
-if (!is_dir(NISAMA_DATA_DIR . 'tutor_audio')) { @mkdir(NISAMA_DATA_DIR . 'tutor_audio', 0755, true); }
+if (!is_dir(STANDOUT_DATA_DIR . 'tutor_audio')) { @mkdir(STANDOUT_DATA_DIR . 'tutor_audio', 0755, true); }
 $text_hash = substr(md5($clean_text_for_audio), 0, 10);
 $audio_filename = "tutor_audio/" . $mode . "_" . $card_id . "_" . $voice_name . "_" . $text_hash . ".mp3";
 
-$audio_path = NISAMA_DATA_DIR . $audio_filename; // sul disco; $audio_filename resta l'indirizzo
+$audio_path = STANDOUT_DATA_DIR . $audio_filename; // sul disco; $audio_filename resta l'indirizzo
 
 if (!file_exists($audio_path)) {
     // Il controllo del limite ha senso SOLO qui: se il file è già in cache non
@@ -91,7 +91,7 @@ if (!file_exists($audio_path)) {
     // l'utente che sta solo riascoltando un audio già generato. Contiamo inoltre
     // i caratteri realmente inviati a Google, non quelli del testo grezzo.
     $caratteri_audio = mb_strlen($clean_text_for_audio, 'UTF-8');
-    if (!nisama_verifica_limite($utente_corrente['id'], 'audio', $caratteri_audio)) {
+    if (!standout_verifica_limite($utente_corrente['id'], 'audio', $caratteri_audio)) {
         ob_clean();
         die(json_encode([
             'success' => false,
@@ -160,7 +160,7 @@ if (!file_exists($audio_path)) {
     }
     
     // Il file è stato appena creato, ORA scaliamo i caratteri audio!
-    nisama_incrementa_uso($utente_corrente['id'], 'audio', $caratteri_audio);
+    standout_incrementa_uso($utente_corrente['id'], 'audio', $caratteri_audio);
 }
 
 ob_clean();

@@ -8,23 +8,23 @@
  * Uso tipico in un endpoint il cui costo si conosce SOLO a chiamata già
  * avvenuta (es. audio TTS, dove i caratteri da sintetizzare sono noti prima):
  *
- *   if (!nisama_verifica_limite($utente_corrente['id'], 'audio', $caratteri_audio)) {
+ *   if (!standout_verifica_limite($utente_corrente['id'], 'audio', $caratteri_audio)) {
  *       die(json_encode(['success' => false, 'error' => 'limite_piano', ...]));
  *   }
  *   // ... chiamata reale all'IA ...
- *   nisama_incrementa_uso($utente_corrente['id'], 'audio', $caratteri_audio);
+ *   standout_incrementa_uso($utente_corrente['id'], 'audio', $caratteri_audio);
  *
  * Uso tipico in un endpoint testuale IA (Gemini) il cui costo in token si
  * scopre solo DOPO la chiamata: usiamo una stima al posto di un numero fisso.
  *
- *   $stima = nisama_verifica_limite_stimato($utente_corrente['id']);
+ *   $stima = standout_verifica_limite_stimato($utente_corrente['id']);
  *   if (!$stima['ok']) {
  *       die(json_encode(['success' => false, 'error' => 'limite_piano',
  *           'message' => "Ti servirebbero circa {$stima['stima']} token, ma non li hai più a disposizione.",
  *           'stima' => $stima['stima'], 'disponibili' => $stima['disponibili']]));
  *   }
  *   // ... chiamata reale a Gemini ...
- *   nisama_incrementa_uso($utente_corrente['id'], 'token', $token_usati);
+ *   standout_incrementa_uso($utente_corrente['id'], 'token', $token_usati);
  */
 
 require_once __DIR__ . '/auth_core.php';
@@ -36,8 +36,8 @@ require_once __DIR__ . '/auth_core.php';
  *     salvato e quello nuovo, così la stima si affina mese dopo mese);
  *  2) azzera i 6 contatori mensili (3 utilizzi + 3 chiamate).
  */
-function nisama_reset_contatori_se_serve(int $user_id): void {
-    $conn = nisama_db();
+function standout_reset_contatori_se_serve(int $user_id): void {
+    $conn = standout_db();
     $meseCorrente = date('Y-m-01');
 
     $stmt = mysqli_prepare($conn, "SELECT reference_month, monthly_text_tokens, monthly_text_tokens_calls, historical_avg_tokens_per_call
@@ -71,9 +71,9 @@ function nisama_reset_contatori_se_serve(int $user_id): void {
 }
 
 /** Piano + utilizzo corrente dell'utente (con reset automatico di mese già applicato). */
-function nisama_get_piano_utente(int $user_id): ?array {
-    nisama_reset_contatori_se_serve($user_id);
-    $conn = nisama_db();
+function standout_get_piano_utente(int $user_id): ?array {
+    standout_reset_contatori_se_serve($user_id);
+    $conn = standout_db();
     $stmt = mysqli_prepare($conn, "SELECT p.id AS piano_id, p.name, p.monthly_price,
                p.audio_chars_limit, p.images_limit, p.text_tokens_limit,
                up.monthly_audio_chars, up.monthly_generated_images, up.monthly_text_tokens,
@@ -94,8 +94,8 @@ function nisama_get_piano_utente(int $user_id): ?array {
  * true se l'utente può ancora consumare $quantita unità di $tipo questo mese.
  * $tipo: 'audio' | 'immagini' | 'token'
  */
-function nisama_verifica_limite(int $user_id, string $tipo, int $quantita = 1): bool {
-    $piano = nisama_get_piano_utente($user_id);
+function standout_verifica_limite(int $user_id, string $tipo, int $quantita = 1): bool {
+    $piano = standout_get_piano_utente($user_id);
     if (!$piano) return true; // nessuna riga piano trovata: non blocchiamo, ma andrebbe controllata la configurazione
 
     switch ($tipo) {
@@ -110,9 +110,9 @@ function nisama_verifica_limite(int $user_id, string $tipo, int $quantita = 1): 
 }
 
 /** Aggiunge $quantita al contatore mensile di $tipo per l'utente, e incrementa di 1 il contatore di chiamate corrispondente. */
-function nisama_incrementa_uso(int $user_id, string $tipo, int $quantita): void {
+function standout_incrementa_uso(int $user_id, string $tipo, int $quantita): void {
     if ($quantita <= 0) return;
-    nisama_reset_contatori_se_serve($user_id);
+    standout_reset_contatori_se_serve($user_id);
 
     $colonne = [
         'audio'    => ['monthly_audio_chars', 'monthly_audio_calls'],
@@ -122,7 +122,7 @@ function nisama_incrementa_uso(int $user_id, string $tipo, int $quantita): void 
     if (!isset($colonne[$tipo])) return;
     [$colonna, $colonna_chiamate] = $colonne[$tipo]; // whitelist fissa: mai da input utente, sicuro da interpolare nel nome colonna
 
-    $conn = nisama_db();
+    $conn = standout_db();
     $stmt = mysqli_prepare($conn, "UPDATE user_plans SET {$colonna} = {$colonna} + ?, {$colonna_chiamate} = {$colonna_chiamate} + 1 WHERE user_id = ?");
     mysqli_stmt_bind_param($stmt, 'ii', $quantita, $user_id);
     mysqli_stmt_execute($stmt);
@@ -141,8 +141,8 @@ function nisama_incrementa_uso(int $user_id, string $tipo, int $quantita): void 
  *
  * $piano, se passato, evita di rileggere il piano dal DB (lo fa già il chiamante).
  */
-function nisama_stima_token_per_chiamata(int $user_id, int $fallback = 300, ?array $piano = null): float {
-    if ($piano === null) $piano = nisama_get_piano_utente($user_id);
+function standout_stima_token_per_chiamata(int $user_id, int $fallback = 300, ?array $piano = null): float {
+    if ($piano === null) $piano = standout_get_piano_utente($user_id);
 
     // 1) Media personale di questo mese
     if ($piano && (int)$piano['monthly_text_tokens_calls'] > 5) {
@@ -150,7 +150,7 @@ function nisama_stima_token_per_chiamata(int $user_id, int $fallback = 300, ?arr
     }
 
     // 2) Media di tutti gli utenti con >5 chiamate questo mese
-    $conn = nisama_db();
+    $conn = standout_db();
     $res = mysqli_query($conn, "SELECT AVG(monthly_text_tokens / monthly_text_tokens_calls) AS media
         FROM user_plans WHERE monthly_text_tokens_calls > 5");
     if ($res) {
@@ -170,16 +170,16 @@ function nisama_stima_token_per_chiamata(int $user_id, int $fallback = 300, ?arr
 }
 
 /**
- * Come nisama_verifica_limite() ma per le chiamate testuali IA: usa la stima
- * di nisama_stima_token_per_chiamata() al posto di un numero fisso, e
+ * Come standout_verifica_limite() ma per le chiamate testuali IA: usa la stima
+ * di standout_stima_token_per_chiamata() al posto di un numero fisso, e
  * restituisce anche i dettagli utili per costruire un messaggio d'errore
  * chiaro (quanti token servirebbero, quanti ne restano). Legge il piano UNA
  * sola volta (prima la funzione lo rileggeva dal DB fino a 3 volte per ogni
  * controllo, inutilmente).
  */
-function nisama_verifica_limite_stimato(int $user_id, int $fallback = 300): array {
-    $piano = nisama_get_piano_utente($user_id);
-    $stima = (int)ceil(nisama_stima_token_per_chiamata($user_id, $fallback, $piano));
+function standout_verifica_limite_stimato(int $user_id, int $fallback = 300): array {
+    $piano = standout_get_piano_utente($user_id);
+    $stima = (int)ceil(standout_stima_token_per_chiamata($user_id, $fallback, $piano));
     $limite = $piano ? $piano['text_tokens_limit'] : null;
     $usato = $piano ? (int)$piano['monthly_text_tokens'] : 0;
     $disponibili = ($limite === null) ? null : max(0, (int)$limite - $usato);
@@ -199,8 +199,8 @@ function nisama_verifica_limite_stimato(int $user_id, int $fallback = 300): arra
  * 'example', 'shatter', 'trivia'). Utile per mostrare un timer stimato prima
  * di lanciare la chiamata a Gemini e per avvisare se le API sembrano intasate.
  */
-function nisama_get_stima_tempo_ia(string $mode): array {
-    $conn = nisama_db();
+function standout_get_stima_tempo_ia(string $mode): array {
+    $conn = standout_db();
     $mode_safe = mysqli_real_escape_string($conn, $mode);
     $res = mysqli_query($conn, "SELECT avg_duration_ms, samples, last_duration_ms FROM ai_perf_stats WHERE mode = '$mode_safe'");
     $row = $res ? mysqli_fetch_assoc($res) : null;
@@ -218,8 +218,8 @@ function nisama_get_stima_tempo_ia(string $mode): array {
 }
 
 /** Registra la durata (ms) di una chiamata IA appena completata, aggiornando la media storica di quella modalità. */
-function nisama_registra_tempo_ia(string $mode, int $duration_ms): void {
-    $conn = nisama_db();
+function standout_registra_tempo_ia(string $mode, int $duration_ms): void {
+    $conn = standout_db();
     $mode_safe = mysqli_real_escape_string($conn, $mode);
     $res = mysqli_query($conn, "SELECT avg_duration_ms, samples FROM ai_perf_stats WHERE mode = '$mode_safe'");
     $row = $res ? mysqli_fetch_assoc($res) : null;

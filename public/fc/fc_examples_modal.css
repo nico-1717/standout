@@ -454,7 +454,7 @@
 /* ---- impegno e stile degli esempi ---- */
 .exm-ai-lbl{ font-size:12px; font-weight:600; letter-spacing:.02em; color:var(--text-2, #6e6e73); margin:4px 0 6px; }
 /* L'impegno e' la stessa tendina del pannello delle carte: le regole stanno
-   in nisama_ui.css (.ns-tendina), non qui. Nel popup degli esempi lo spazio
+   in standout_ui.css (.ns-tendina), non qui. Nel popup degli esempi lo spazio
    e' poco, quindi la riga chiusa e' un po' piu' compatta. */
 #ex-ai-impegno .ns-tendina-btn{ padding:9px 11px; font-size:14px; }
 .exm-ai-stile{ display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; margin-bottom:10px; }

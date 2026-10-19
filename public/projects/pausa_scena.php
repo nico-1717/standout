@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — LA SCENA DELLA PAUSA (componente includibile)
+   STANDOUT — LA SCENA DELLA PAUSA (componente includibile)
 
        include __DIR__ . '/pausa_scena.php';
 

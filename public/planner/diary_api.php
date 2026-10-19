@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   NISAMA — API DEL DIARIO
+   STANDOUT — API DEL DIARIO
    Un solo punto di scrittura per: popup "diario del giorno" (habits e
    planner) e pagina diario.php. Dove si compila non importa: umore,
    energia e testo stanno in habit_daily_journal, gli elenchi in
