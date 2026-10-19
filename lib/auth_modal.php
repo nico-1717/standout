@@ -3,7 +3,10 @@ require_once __DIR__ . '/auth_core.php';
 $standout_utente_fab = standout_utente_corrente();
 $standout_csrf = standout_csrf_token();
 ?>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap">
+<?php /* i caratteri senza bloccare il disegno: finche' non arrivano si usa
+   quello di sistema. Un <link> normale qui, in mezzo al body, fermava tutto
+   quello che veniva dopo, compreso il pulsante Accedi. */ ?>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'">
 <style>
 /*
   IMPORTANTE: queste variabili sono su :root (globali) e non su
@@ -27,7 +30,7 @@ $standout_csrf = standout_csrf_token();
 .standout-topbar{ position:fixed; top:18px; right:18px; z-index:999990; display:flex; align-items:center; gap:10px; }
 .standout-topbar .standout-fab{ position:static; }
 button.standout-fab--login{
-  appearance:none; border:none; cursor:pointer; background:var(--nis-ink); color:#fff;
+  appearance:none; border:none; cursor:pointer; background:#F5F3EE; color:#12131A;
   font-family:inherit; font-weight:700; font-size:14.5px; padding:11px 22px; border-radius:999px;
   box-shadow:0 6px 20px rgba(0,0,0,.18); transition:transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s ease;
 }
@@ -59,7 +62,7 @@ button.standout-fab--login:active{ transform:scale(.96); }
   position:fixed; inset:0; z-index:999999; background:rgba(18,17,12,.6);
   backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
   display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none;
-  transition:opacity .3s ease; padding:16px; perspective:1600px;
+  transition:opacity .3s ease; padding:16px;
 }
 .standout-overlay--open{ opacity:1; pointer-events:auto; }
 
@@ -67,15 +70,18 @@ button.standout-fab--login:active{ transform:scale(.96); }
   width:100%; max-width:400px; background:var(--nis-paper); border:1px solid var(--nis-paper-line);
   border-radius:26px; padding:30px 26px 26px; position:relative;
   box-shadow:0 40px 90px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.5) inset;
-  transform:scale(.9) translateY(16px); opacity:0; transform-style:preserve-3d;
-  transition:transform .45s cubic-bezier(.34,1.56,.64,1), opacity .3s ease, box-shadow .3s ease;
+  transform:scale(.94) translateY(16px); opacity:0;
+  transition:transform .4s cubic-bezier(.22,1,.36,1), opacity .3s ease, box-shadow .3s ease;
   max-height:calc(100vh - 32px); overflow-y:auto; overflow-x:hidden; color:var(--nis-ink);
 }
-.standout-overlay--open .standout-modal{ transform:scale(1) translateY(0); opacity:1; }
+/* aperto: nessuna trasformazione rimasta addosso. Un campo dentro un
+   elemento trasformato (peggio se in 3D) su iPhone a volte non apre la
+   tastiera, o la apre con il cursore nel posto sbagliato. */
+.standout-overlay--open .standout-modal{ transform:none; opacity:1; }
 .standout-modal.is-success{ box-shadow:0 0 0 3px var(--nis-good), 0 40px 90px rgba(0,0,0,.45); }
 .standout-modal.is-flip-away{
-  transition:transform .7s cubic-bezier(.5,0,.5,1), opacity .45s ease .3s;
-  transform:scale(.92) rotateY(180deg); opacity:0;
+  transition:transform .55s cubic-bezier(.5,0,.5,1), opacity .4s ease .15s;
+  transform:scale(.9); opacity:0;
 }
 
 .standout-modal-close{
@@ -90,14 +96,35 @@ button.standout-fab--login:active{ transform:scale(.96); }
 .standout-tab.active{ color:var(--nis-ink); }
 .standout-tab-indicator{ position:absolute; top:4px; left:4px; width:calc(50% - 4px); height:calc(100% - 8px); background:#fff; border-radius:9px; box-shadow:0 2px 8px rgba(0,0,0,.08); transition:transform .32s cubic-bezier(.34,1.56,.64,1); }
 
-/* --- vero meccanismo di flip: le due facce occupano la stessa cella
-   di una grid, così l'altezza del contenitore segue sempre la faccia
-   più alta senza bisogno di calcoli via Javascript --- */
-.standout-flip3d{ perspective:1400px; }
-.standout-flip3d-inner{ display:grid; transform-style:preserve-3d; transition:transform .75s cubic-bezier(.36,1.4,.36,1); }
-.standout-flip3d-inner.is-flipped{ transform:rotateY(180deg); }
-.standout-face{ grid-area:1 / 1; backface-visibility:hidden; -webkit-backface-visibility:hidden; min-width:0; }
-.standout-face-back{ transform:rotateY(180deg); }
+/* --- Accedi / Registrati: le due facce occupano la stessa cella di una
+   grid (l'altezza segue la piu' alta, senza calcoli) e si danno il cambio
+   scivolando di lato.
+   Prima era una carta che si girava in 3D (rotateY + preserve-3d). Bella,
+   ma su iPhone i campi dentro un elemento 3D spesso non aprivano la
+   tastiera al tocco: era il "tocco il campo e la tastiera non esce".
+   La faccia nascosta ha anche visibility:hidden, cosi' il tasto Tab e il
+   riempimento automatico non finiscono nei campi che non si vedono. --- */
+.standout-flip3d{ position:relative; }
+.standout-flip3d-inner{ position:relative; display:grid; transition:height .3s ease; }
+.standout-face{
+  grid-area:1 / 1; min-width:0;
+  transition:opacity .25s ease, transform .35s cubic-bezier(.22,1,.36,1), visibility 0s linear 0s;
+}
+.standout-face-back,
+.standout-flip3d-inner.is-flipped .standout-face-front{
+  /* fuori dal flusso: l'altezza del popup e' quella della faccia che si
+     vede, non della piu' alta (il login restava con mezzo foglio vuoto) */
+  position:absolute; top:0; left:0; right:0;
+  opacity:0; visibility:hidden; pointer-events:none;
+  transition:opacity .2s ease, transform .3s cubic-bezier(.22,1,.36,1), visibility 0s linear .3s;
+}
+.standout-face-back{ transform:translateX(28px); }
+.standout-flip3d-inner.no-anim .standout-face{ transition:none !important; }
+.standout-flip3d-inner.is-flipped .standout-face-front{ transform:translateX(-28px); }
+.standout-flip3d-inner.is-flipped .standout-face-back{
+  position:relative; opacity:1; visibility:visible; pointer-events:auto; transform:none;
+  transition:opacity .25s ease .05s, transform .35s cubic-bezier(.22,1,.36,1), visibility 0s linear 0s;
+}
 
 .standout-form-title{ font-family:'Fraunces',serif; font-size:23px; font-weight:700; color:var(--nis-ink); margin:0 0 4px; }
 .standout-form-sub{ font-size:13.5px; color:var(--nis-text-soft); margin:0 0 20px; }
@@ -105,7 +132,9 @@ button.standout-fab--login:active{ transform:scale(.96); }
 .standout-field{ display:block; margin-bottom:14px; position:relative; }
 .standout-field span{ display:block; font-size:12.5px; font-weight:700; color:var(--nis-text-soft); margin-bottom:6px; }
 .standout-field input{
-  width:100%; font-family:inherit; font-size:15px; color:var(--nis-ink); padding:12px 14px; border-radius:13px;
+  /* 16px e non meno: sotto i 16 iPhone ingrandisce la pagina a ogni tocco
+     sul campo, e il popup salta di lato mentre si apre la tastiera */
+  width:100%; font-family:inherit; font-size:16px; color:var(--nis-ink); padding:12px 14px; border-radius:13px;
   border:1.5px solid var(--nis-paper-line); background:rgba(255,255,255,.7); outline:none;
   transition:border-color .18s ease, box-shadow .18s ease;
 }
@@ -258,10 +287,10 @@ button.standout-fab--login:active{ transform:scale(.96); }
     tabRegister.classList.toggle('active', !isLogin);
     tabIndicator.style.transform = isLogin ? 'translateX(0%)' : 'translateX(100%)';
     if (animato === false) {
-      flipInner.style.transition = 'none';
+      flipInner.classList.add('no-anim');
       flipInner.classList.toggle('is-flipped', !isLogin);
       void flipInner.offsetWidth;
-      flipInner.style.transition = '';
+      flipInner.classList.remove('no-anim');
     } else {
       flipInner.classList.toggle('is-flipped', !isLogin);
     }
@@ -393,11 +422,17 @@ button.standout-fab--login:active{ transform:scale(.96); }
       overlay.setAttribute('aria-hidden', 'false');
     });
     document.body.style.overflow = 'hidden';
-    setTimeout(() => {
-      const form = (tab === 'registrati') ? formRegister : formLogin;
-      const firstInput = form.querySelector('input');
-      if (firstInput) firstInput.focus({ preventScroll: true });
-    }, 320);
+    /* Il primo campo si accende da solo solo con mouse e tastiera. Sul
+       telefono no: un focus() dato da un timer non apre la tastiera (iOS la
+       concede solo dentro il tocco), ma lascia il campo "gia' attivo" — e
+       toccandolo dopo, la tastiera non usciva piu'. */
+    if (window.matchMedia && window.matchMedia('(pointer:fine)').matches) {
+      setTimeout(() => {
+        const form = (tab === 'registrati') ? formRegister : formLogin;
+        const firstInput = form.querySelector('input');
+        if (firstInput) firstInput.focus({ preventScroll: true });
+      }, 320);
+    }
   }
 
   function chiudi() {

@@ -11,7 +11,7 @@ $utente_corrente = standout_utente_corrente();
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title><?php te($utente_corrente ? 'index.titolo_home' : 'index.titolo_landing'); ?></title>
 <meta name="description" content="<?php te('index.descrizione'); ?>">
-<meta name="theme-color" content="#12131A">
+<meta name="theme-color" content="<?php echo $utente_corrente ? '#12131A' : '#0E0F14'; ?>">
 <?php
 /* I fogli stanno qui e non dentro i file inclusi: quelli finiscono nel <body>,
    e un <link> nel corpo funziona ma fa sfarfallare il disegno mentre il foglio
@@ -23,17 +23,31 @@ $utente_corrente = standout_utente_corrente();
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>home/dashboard.css?v=<?php echo @filemtime(__DIR__ . '/home/dashboard.css') ?: 1; ?>">
 <?php else: ?>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>home/landing.css?v=<?php echo @filemtime(__DIR__ . '/home/landing.css') ?: 1; ?>">
+<?php
+/* I caratteri della pagina senza bloccare il disegno: con media="print" il
+   foglio si scarica in disparte e diventa "all" quando e' arrivato. Intanto
+   si legge con il carattere di sistema. Prima era un <link> normale in mezzo
+   al body, e il pulsante Accedi aspettava lui. */
+?>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Manrope:wght@400;600;700;800&display=swap" media="print" onload="this.media='all'">
+<script>document.documentElement.classList.add('lp-js');</script>
 <?php endif; ?>
 </head>
 <body>
 
 <?php if ($utente_corrente): ?>
     <?php include __DIR__ . '/home/dashboard_content.php'; ?>
+    <?php include __DIR__ . '/../lib/auth_modal.php'; ?>
 <?php else: ?>
+    <?php
+    /* Il popup di accesso PRIMA della pagina: cosi' il pulsante «Accedi» e il
+       suo script arrivano con il primo pezzo di HTML, invece di aspettare che
+       tutto il resto sia stato letto. */
+    include __DIR__ . '/../lib/auth_modal.php'; ?>
     <?php include __DIR__ . '/home/landing_content.php'; ?>
 <?php endif; ?>
-
-<?php include __DIR__ . '/../lib/auth_modal.php'; ?>
 
 </body>
 </html>
