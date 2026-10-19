@@ -152,10 +152,88 @@ function fc_salva_file(string $campo, int $i, bool $audio): ?string {
     return $nome;
 }
 
+/* Un'immagine da un indirizzo, per le righe importate con una colonna
+   "link"/"immagine" (Excel, JSON). Si scarica qui, sul server: dal browser
+   quasi tutti i siti lo vietano (CORS).
+   Le difese, perche' e' un indirizzo scelto da chi usa la pagina:
+   - solo http/https, e l'host deve risolvere a un indirizzo pubblico (niente
+     127.0.0.1, reti private, metadati del server): si controlla a ogni salto
+     di reindirizzamento, che si seguono a mano e al massimo tre;
+   - al massimo 5 MB, letti a pezzi: oltre si interrompe;
+   - dopo, lo stesso controllo dei file caricati (tipo vero e immagine
+     leggibile). Il nome lo decide il server.
+   Un link che non va resta semplicemente senza immagine: non deve far
+   fallire il salvataggio di tutte le altre carte. */
+/* L'indirizzo da contattare ("host:porta:ip", per CURLOPT_RESOLVE), o null se
+   il link non va bene. Si fissa l'IP controllato: se curl risolvesse di nuovo
+   il nome per conto suo, nel frattempo potrebbe puntare altrove. */
+function fc_link_sicuro(string $url): ?string {
+    $p = parse_url($url);
+    $schema = strtolower($p['scheme'] ?? '');
+    if (!$p || !in_array($schema, ['http', 'https'], true) || empty($p['host'])) return null;
+    if (isset($p['user']) || isset($p['pass'])) return null;
+    $ips = @gethostbynamel($p['host']);
+    if (!$ips) return null;
+    foreach ($ips as $ip) {
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return null;
+    }
+    $porta = (int)($p['port'] ?? ($schema === 'https' ? 443 : 80));
+    return $p['host'] . ':' . $porta . ':' . $ips[0];
+}
+function fc_immagine_da_link(string $url): ?string {
+    $url = trim($url);
+    if ($url === '' || strlen($url) > 2000 || !function_exists('curl_init')) return null;
+    $max = 5242880;
+    for ($salti = 0; $salti <= 3; $salti++) {
+        $fissa = fc_link_sicuro($url);
+        if ($fissa === null) return null;
+        $dati = ''; $troppo = false;
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RESOLVE => [$fissa],
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 12,
+            CURLOPT_USERAGENT => 'Standout/1.0 (+image import)',
+            CURLOPT_HEADER => false,
+            CURLOPT_WRITEFUNCTION => function ($ch, $pezzo) use (&$dati, &$troppo, $max) {
+                $dati .= $pezzo;
+                if (strlen($dati) > $max) { $troppo = true; return 0; }
+                return strlen($pezzo);
+            },
+        ]);
+        curl_exec($ch);
+        $codice = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $dove = (string)curl_getinfo($ch, CURLINFO_REDIRECT_URL);
+        curl_close($ch);
+        if ($troppo) return null;
+        if ($codice >= 300 && $codice < 400 && $dove !== '') { $url = $dove; continue; }
+        if ($codice !== 200 || $dati === '') return null;
+
+        $tmp = tempnam(sys_get_temp_dir(), 'fcimg');
+        if ($tmp === false || file_put_contents($tmp, $dati) === false) return null;
+        $tipi = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+        $mime = null;
+        if (function_exists('finfo_open')) {
+            $fi = finfo_open(FILEINFO_MIME_TYPE);
+            $mime = finfo_file($fi, $tmp);
+            finfo_close($fi);
+        }
+        if ($mime === null || !isset($tipi[$mime]) || @getimagesize($tmp) === false) { @unlink($tmp); return null; }
+        $nome = sec_safe_filename($tipi[$mime]);
+        $dest = fc_cartella_immagini_disco() . $nome;
+        if (!@rename($tmp, $dest)) { if (!@copy($tmp, $dest)) { @unlink($tmp); return null; } @unlink($tmp); }
+        @chmod($dest, 0644);
+        fc_misura_registra($nome, $dest);
+        return $nome;
+    }
+    return null;
+}
+
 /* I quattro allegati di una riga, in una volta sola. */
-function fc_allegati(int $i): array {
+function fc_allegati(int $i, array $c = []): array {
     return [
-        'question_image' => fc_salva_file('row_q_img', $i, false),
+        'question_image' => fc_salva_file('row_q_img', $i, false) ?? fc_immagine_da_link((string)($c['img_url'] ?? '')),
         'answer_image'   => fc_salva_file('row_a_img', $i, false),
         'question_audio' => fc_salva_file('audio_q',   $i, true),
         'answer_audio'   => fc_salva_file('audio_a',   $i, true),
@@ -237,9 +315,9 @@ function fc_contenuto(array $c, int $i, bool $figlio): array {
             'translation' => sec_str($c['a'] ?? '', $figlio ? 255 : 500),
             'meaning'     => $m !== '' ? $m : null,
         ];
-        return [$testi, ['image' => fc_salva_file('row_q_img', $i, false)]];
+        return [$testi, ['image' => fc_salva_file('row_q_img', $i, false) ?? fc_immagine_da_link((string)($c['img_url'] ?? ''))]];
     }
-    return [['question_desc' => fc_testo($c['q'] ?? ''), 'answer_desc' => fc_testo($c['a'] ?? '')], fc_allegati($i)];
+    return [['question_desc' => fc_testo($c['q'] ?? ''), 'answer_desc' => fc_testo($c['a'] ?? '')], fc_allegati($i, $c)];
 }
 
 /* Testi e allegati come clausole "campo = ?" per un UPDATE. */

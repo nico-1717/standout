@@ -87,23 +87,46 @@ var FCAIP = (function () {
      * carte: [{q, a, qFile, aFile}]. Restituisce il numero della prima carta
      * inserita, che serve alla numerazione dell'elenco dei concetti.
      */
-    async function fcaiInserisci(carte, svuota) {
+    /* Le righe nuove e ancora vuote (quella che la pagina mette all'inizio,
+       per esempio): aggiungendo carte in fondo non devono restare in mezzo. */
+    function togliRigheVuote() {
+        document.querySelectorAll('#fcRows .fc-row').forEach(function (r) {
+            if (r.dataset.id && r.dataset.id !== '0' && r.dataset.id !== '') return;   // gia' salvata
+            var rid = r.dataset.rid;
+            var q = $('q-desc-' + rid), a = $('a-desc-' + rid);
+            var piena = (q && q.value.trim()) || (a && a.value.trim()) || r.qNewImgFile || r.aNewImgFile || r.qImgLink;
+            if (!piena) r.remove();
+        });
+    }
+
+    async function fcaiInserisci(carte, svuota, aggiungi) {
         var lista = $('fcRows');
-        if (svuota && lista.children.length > 0) {
+        if (aggiungi) togliRigheVuote();
+        else if (svuota && lista.children.length > 0) {
             var ok = await showConfirm(T('fc.ibfai_ricrea_tit'), T('fc.ibfai_ricrea_testo'), T('fc.ibfai_si_ricrea'));
             if (!ok) return -1;
             lista.innerHTML = '';
         }
         var partenza = lista.querySelectorAll('.fc-row').length;
+        /* Il numero di riga (rid) deve essere nuovo anche se nel frattempo ne
+           sono state tolte: contando le righe si poteva ridare il numero di
+           una che c'e' ancora, e due righe con lo stesso rid si scambiano i campi. */
+        var ridBase = partenza;
+        lista.querySelectorAll('.fc-row').forEach(function (r) {
+            var n = parseInt(r.dataset.rid, 10);
+            if (!isNaN(n) && n + 1 > ridBase) ridBase = n + 1;
+        });
 
         carte.forEach(function (c, k) {
-            var qUrl = c.qFile ? URL.createObjectURL(c.qFile) : '';
+            var qUrl = c.qFile ? URL.createObjectURL(c.qFile) : (c.imgLink || '');
             var aUrl = c.aFile ? URL.createObjectURL(c.aFile) : '';
+            var nomeLink = '';
+            if (!c.qFile && c.imgLink) { try { nomeLink = new URL(c.imgLink).hostname.replace(/^www\./, ''); } catch (e) { nomeLink = 'link'; } }
             var riga = appendRowHTML({
-                rid: partenza + k,
+                rid: ridBase + k,
                 q: c.q || '', a: c.a || '',
                 m: c.m || '', ex: c.ex || '',
-                qImgUrl: qUrl, qImgName: c.qFile ? c.qFile.name : '',
+                qImgUrl: qUrl, qImgName: c.qFile ? c.qFile.name : nomeLink,
                 aImgUrl: aUrl, aImgName: c.aFile ? c.aFile.name : ''
             });
             /* Il file vero si attacca alla riga, come fa gia' generateTable():
@@ -111,6 +134,8 @@ var FCAIP = (function () {
                si chiamano uguale. */
             if (c.qFile) riga.qNewImgFile = c.qFile;
             if (c.aFile) riga.aNewImgFile = c.aFile;
+            /* un'immagine da un link la scarica il server al salvataggio */
+            if (!c.qFile && c.imgLink) riga.qImgLink = c.imgLink;
         });
 
         markDirty();
@@ -194,21 +219,36 @@ var FCAIP = (function () {
         });
     }
 
+    /* L'import capisce da solo cosa e' stato incollato (fc_smart_import.js) e
+       AGGIUNGE le carte in fondo: prima sostituiva tutta la tabella, e in un
+       mazzo gia' pieno voleva dire perdere le parole per aggiungerne altre. */
     async function importa() {
         var carte = [];
-        try {
-            carte = stato.modoImport === 'excel' ? leggiTsv($('fcaiExcel').value) : leggiTesto();
-        } catch (e) {
-            $('fcaiImportNota').className = 'fcai-nota is-err';
-            $('fcaiImportNota').textContent = T('fc.ibfai_formato_import_errato', {errore: e.message});
-            return;
+        if (window.FCSmart && $('fcaiSmart')) {
+            var tab = FCSmart.attuale();
+            if (!tab) {
+                $('fcaiImportNota').className = 'fcai-nota is-err';
+                $('fcaiImportNota').textContent = $('fcaiSmart').value.trim() ? T('fc.smi_non_capito') : T('fc.ibfai_vuoto');
+                return;
+            }
+            carte = FCSmart.carte(tab).carte;
+        } else {
+            try {
+                carte = stato.modoImport === 'excel' ? leggiTsv($('fcaiExcel').value) : leggiTesto();
+            } catch (e) {
+                $('fcaiImportNota').className = 'fcai-nota is-err';
+                $('fcaiImportNota').textContent = T('fc.ibfai_formato_import_errato', {errore: e.message});
+                return;
+            }
         }
         if (!carte.length) { showToast(T('fc.ibfai_vuoto'), 'error'); return; }
 
-        await fcaiInserisci(carte, true);
-        $('fcaiImportNota').className = 'fcai-nota';
-        $('fcaiImportNota').textContent = T('fc.ibfai_carte_create', {n: carte.length});
+        await fcaiInserisci(carte, false, true);
+        if (window.FCSmart) FCSmart.svuota();
+        $('fcaiImportNota').className = 'fcai-nota is-ok';
+        $('fcaiImportNota').textContent = T('fc.smi_aggiunte', {n: carte.length});
     }
+    window.FCAIInserisci = fcaiInserisci;
 
     /* ============================================================
        4. IMMAGINI

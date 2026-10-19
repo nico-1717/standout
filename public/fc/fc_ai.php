@@ -53,7 +53,7 @@ if (!$fc_ai_in) {
     sec_json(['ok' => false, 'error' => 'corpo_non_valido'], 400);
 }
 
-$azione = fc_ai_enum($fc_ai_in['azione'] ?? '', ['stima', 'concetti', 'densita', 'carte', 'migliora'], '');
+$azione = fc_ai_enum($fc_ai_in['azione'] ?? '', ['stima', 'concetti', 'densita', 'carte', 'migliora', 'parole'], '');
 if ($azione === '') {
     sec_json(['ok' => false, 'error' => 'azione_sconosciuta'], 400);
 }
@@ -63,7 +63,7 @@ if ($azione === '') {
    ============================================================ */
 
 if ($azione === 'stima') {
-    $stima = fc_ai_preventivo(fc_ai_enum($fc_ai_in['per'] ?? 'concetti', ['concetti', 'densita', 'carte'], 'concetti'), $fc_ai_in);
+    $stima = fc_ai_preventivo(fc_ai_enum($fc_ai_in['per'] ?? 'concetti', ['concetti', 'densita', 'carte', 'parole'], 'concetti'), $fc_ai_in);
     $b = fc_ai_controlla_budget($fc_ai_user_id, $stima);
     sec_json([
         'ok' => true,
@@ -90,7 +90,20 @@ if (!$budget['ok']) {
 
 $lingua = fc_ai_enum($fc_ai_in['lingua'] ?? 'italiano', ['italiano', 'inglese'], 'italiano');
 
+/* Le parole di un corso di lingua: le due lingue vengono dal corso, che deve
+   essere dell'utente — mai dal browser. I nomi si passano in inglese, la
+   lingua delle istruzioni al modello. */
+$fc_ai_lingue = null;
+if ($azione === 'parole') {
+    require_once __DIR__ . '/../../lib/fc/fc_type.php';
+    $corso = sec_one("SELECT known_lang, learn_lang FROM fc_vocab_courses WHERE id = ? AND user_id = ?",
+                     [(int)($fc_ai_in['corso'] ?? 0), $fc_ai_user_id], 'ii');
+    if (!$corso) sec_json(['ok' => false, 'error' => 'corso'], 404);
+    $fc_ai_lingue = [fc_lingua_nome($corso['learn_lang'], true, 'en'), fc_lingua_nome($corso['known_lang'], false, 'en')];
+}
+
 switch ($azione) {
+    case 'parole':   $esito = fc_ai_azione_parole($fc_ai_in, $fc_ai_lingue[0], $fc_ai_lingue[1]); break;
     case 'concetti': $esito = fc_ai_azione_concetti($fc_ai_in, $lingua); break;
     case 'densita':  $esito = fc_ai_azione_densita($fc_ai_in, $lingua);  break;
     case 'carte':    $esito = fc_ai_azione_carte($fc_ai_in, $lingua);    break;

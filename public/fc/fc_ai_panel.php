@@ -183,6 +183,62 @@ $fcai_vocab = function_exists('fc_is_vocab') && fc_is_vocab();
     <!-- ============================================================
          GENERAZIONE DA IMMAGINI
          ============================================================ -->
+    <?php if ($fcai_vocab): ?>
+    <?php /* GENERA CON L'IA — le parole. Le flashcard di studio hanno il loro
+             percorso (concetti -> carte, sopra); per una lingua basta dire
+             l'argomento, o incollare le parole da completare. */ ?>
+    <section class="fcai-sec" data-sec="ia-parole" id="fcaiSecParole">
+        <button type="button" class="fcai-head" data-apri="ia-parole">
+            <span class="fcai-ic fcai-ic-ia">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3l1.8 4.6L18.5 9l-4.7 1.5L12 15l-1.8-4.5L5.5 9l4.7-1.4z"/><path d="M19 15l.8 2 2 .8-2 .7-.8 2-.7-2-2-.7 2-.8z"/>
+                </svg>
+            </span>
+            <span class="fcai-titoli">
+                <b><?php te('fc.vai_titolo'); ?></b>
+                <span><?php te('fc.vai_sub'); ?></span>
+            </span>
+            <svg class="fcai-freccia" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </button>
+        <div class="fcai-body"><div><div class="fcai-inner">
+            <div class="fcai-chips" id="fcaiParoleModi">
+                <button type="button" class="fcai-chip is-on" data-modo="argomento"><?php te('fc.vai_modo_argomento'); ?></button>
+                <button type="button" class="fcai-chip" data-modo="elenco"><?php te('fc.vai_modo_elenco'); ?></button>
+            </div>
+            <div data-parole-pan="argomento">
+                <input type="text" id="fcaiParoleArg" maxlength="300" enterkeyhint="go"
+                       placeholder="<?php echo sec_h(t('fc.vai_argomento_ph')); ?>">
+                <label class="fcai-label"><?php te('fc.vai_livello'); ?></label>
+                <div class="fcai-chips fcai-chips-sm" id="fcaiParoleLiv">
+                    <button type="button" class="fcai-chip is-on" data-v=""><?php te('fc.vai_livello_qualsiasi'); ?></button>
+                    <?php foreach (['a1', 'a2', 'b1', 'b2', 'c1', 'c2'] as $lv): ?>
+                    <button type="button" class="fcai-chip" data-v="<?php echo $lv; ?>"><?php echo strtoupper($lv); ?></button>
+                    <?php endforeach; ?>
+                </div>
+                <label class="fcai-label"><?php te('fc.vai_quante'); ?></label>
+                <div class="fcai-chips fcai-chips-sm" id="fcaiParoleQuante">
+                    <?php foreach ([10, 20, 30, 50] as $nq): ?>
+                    <button type="button" class="fcai-chip<?php echo $nq === 20 ? ' is-on' : ''; ?>" data-v="<?php echo $nq; ?>"><?php echo $nq; ?></button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <div data-parole-pan="elenco" hidden>
+                <textarea id="fcaiParoleElenco" spellcheck="false" placeholder="<?php echo sec_h(t('fc.vai_elenco_ph')); ?>"></textarea>
+            </div>
+            <div class="fcai-spunte">
+                <label><input type="checkbox" id="fcaiParoleSig" checked> <?php te('fc.vai_con_significato'); ?></label>
+                <label><input type="checkbox" id="fcaiParoleEs" checked> <?php te('fc.vai_con_esempio'); ?></label>
+            </div>
+            <input type="text" id="fcaiParoleInd" maxlength="400" placeholder="<?php echo sec_h(t('fc.vai_indicazioni_ph')); ?>">
+            <div class="fcai-azioni">
+                <button type="button" class="btn btn-primary ns-preme" id="fcaiBtnParole"><?php te('fc.vai_genera'); ?></button>
+            </div>
+            <div class="fcai-nota" id="fcaiParoleCosto"></div>
+            <div class="fcai-nota" id="fcaiParoleNota"></div>
+        </div></div></div>
+    </section>
+    <?php endif; ?>
+
     <section class="fcai-sec" data-sec="immagini">
         <button type="button" class="fcai-head" data-apri="immagini">
             <span class="fcai-ic">
@@ -232,7 +288,18 @@ $fcai_vocab = function_exists('fc_is_vocab') && fc_is_vocab();
 
         <div class="fcai-body"><div><div class="fcai-inner">
 
-            <div class="fcai-chips" id="fcaiModiImport">
+            <?php /* Una casella sola: si incolla quello che si ha (celle di Excel o
+                     Fogli, un CSV, un JSON, righe "parola - traduzione") e sotto
+                     compare cosa e' stato capito, colonna per colonna, con la
+                     possibilita' di cambiarlo. La logica e' in fc_smart_import.js. */ ?>
+            <textarea id="fcaiSmart" class="fcai-smart-in" spellcheck="false"
+                      placeholder="<?php echo sec_h($fcai_vocab ? t('fc.smi_ph_vocab') : t('fc.smi_ph')); ?>"></textarea>
+            <div class="fcai-smart-esito" id="fcaiSmartEsito" hidden aria-live="polite"></div>
+
+            <?php /* I controlli di prima restano nascosti: il "copia il prompt"
+                     dell'IA legge ancora i separatori scelti qui. */ ?>
+            <div hidden style="display:none">
+            <div class="fcai-chips" id="fcaiModiImportVecchi">
                 <button type="button" class="fcai-chip is-on" data-modo="excel"><?php te('fc.ibfai_da_excel'); ?></button>
                 <button type="button" class="fcai-chip" data-modo="testo"><?php te('fc.ibfai_da_testo'); ?></button>
             </div>
@@ -273,6 +340,8 @@ $fcai_vocab = function_exists('fc_is_vocab') && fc_is_vocab();
                 </div>
                 <label class="fcai-label"><?php te('fc.ibfai_testo_lbl'); ?></label>
                 <textarea id="import_text" placeholder="<?php echo sec_h($fcai_vocab ? t('fcv.import_text_ph') : t('fc.ibfai_import_text_ph')); ?>"></textarea>
+            </div>
+
             </div>
 
             <div class="fcai-azioni">
@@ -577,4 +646,5 @@ echo '<link rel="stylesheet" href="' . PWA_BASE . 'ai/credits.css?v='
 
 <?php $fcaj_v = @filemtime(__DIR__ . '/fc_ai_job.js') ?: 1; ?>
 <script src="fc_ai_job.js?v=<?php echo $fcaj_v; ?>"></script>
+<script src="fc_smart_import.js?v=<?php echo @filemtime(__DIR__ . '/fc_smart_import.js') ?: 1; ?>"></script>
 <script src="fc_ai_panel.js?v=<?php echo @filemtime(__DIR__ . '/fc_ai_panel.js') ?: 1; ?>"></script>

@@ -3244,7 +3244,7 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
                     </span>
                     <span class="strip-spacer"></span>
                     ${exChipHTML(rid, dbId, isChild, dbId === 0, exCount)}
-                    <span class="strip-hint">${ICON_REORDER} Tieni premuto</span>
+                    <span class="strip-hint">${ICON_REORDER} ${T('fc.ibf_tieni_premuto')}</span>
                 </div>
                 <div class="fc-row-grid">
                     ${FCV ? vocabGridHTML(rid, c) : `
@@ -3419,7 +3419,7 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
 
 
 
-            if (type === 'q') row.qNewImgFile = file; else row.aNewImgFile = file;
+            if (type === 'q') { row.qNewImgFile = file; delete row.qImgLink; } else row.aNewImgFile = file;
 
 
 
@@ -3533,7 +3533,7 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
         const nomeImg = row.querySelector('.' + type + '-img-name');
         if (nomeImg) nomeImg.value = '';
 
-        if (type === 'q') delete row.qNewImgFile; else delete row.aNewImgFile;
+        if (type === 'q') { delete row.qNewImgFile; delete row.qImgLink; } else delete row.aNewImgFile;
         if (eraSalvata) row.dataset['clearImage' + (type === 'q' ? 'Q' : 'A')] = '1';
 
         if (row.dataset.status === 'clean') row.dataset.status = 'edited';
@@ -7619,6 +7619,8 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
                e si perdevano al salvataggio. */
 
             if (row.qNewImgFile) fd.append(`row_q_img[${indiceInvio}]`, row.qNewImgFile);
+            /* immagine da un link incollato (import da Excel/JSON): la scarica il server */
+            else if (row.qImgLink) fd.append(`cards[${indiceInvio}][img_url]`, row.qImgLink);
 
             if (row.aNewImgFile) fd.append(`row_a_img[${indiceInvio}]`, row.aNewImgFile);
 
@@ -7762,6 +7764,7 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
 
 
             delete row.qNewImgFile;
+            delete row.qImgLink;
 
             delete row.aNewImgFile;
 

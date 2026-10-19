@@ -281,6 +281,16 @@ function fc_ai_preventivo(string $azione, array $in): int {
             $uscita = in_array($stile['esempio'], ['esercizio'], true) || $stile['lunghezza'] === 'lunga' ? 450 : 220;
             return fc_ai_stima($car + $car_stile + $prompt_fisso, $uscita) + fc_ai_pensiero_atteso($impegno, 'esempio');
 
+        case 'parole':
+            /* Una parola con traduzione sta sui 25 token; il significato ne
+               aggiunge ~25, l'esempio ~35. Le parole da completare (incollate)
+               entrano anche in ingresso. */
+            $quante = fc_ai_parole_quante($in);
+            $per = 25 + (fc_ai_bool($in['significato'] ?? true) ? 25 : 0) + (fc_ai_bool($in['esempio'] ?? true) ? 35 : 0);
+            $car = mb_strlen((string)($in['argomento'] ?? '')) + mb_strlen(implode(' ', array_map('strval', (array)($in['parole'] ?? []))))
+                 + min(3000, mb_strlen(implode(' ', array_map('strval', (array)($in['escludi'] ?? [])))));
+            return fc_ai_stima($car + $prompt_fisso, $quante * $per);
+
         case 'carte':
             $concetti = (array)($in['concetti'] ?? []);
             /* Per il solo preventivo il client puo' mandare la LUNGHEZZA degli
@@ -1289,3 +1299,114 @@ function fc_ai_azione_esempio(array $in, string $lingua): array {
     }
     return fc_ai_riuscito(['esempio' => $e], $token);
 }
+
+
+/* ============================================================
+   PAROLE — "Genera con l'IA" nelle flashcard di lingua
+   ============================================================
+   Due modi, nella stessa chiamata:
+   - un ARGOMENTO ("in cucina", "phrasal verbs con get"): l'IA sceglie le
+     parole, quante ne chiede l'utente, al livello scelto;
+   - un ELENCO di parole incollate: l'IA le completa (traduzione, significato,
+     esempio) senza aggiungerne altre.
+   Le parole gia' nel mazzo (escludi) non si ripetono. La parola e il
+   significato e l'esempio sono nella lingua che si impara, la traduzione in
+   quella che si conosce. */
+
+const FC_AI_PAROLE_MAX = 60;
+
+function fc_ai_parole_quante(array $in): int {
+    $elenco = array_filter(array_map('trim', array_map('strval', (array)($in['parole'] ?? []))));
+    if ($elenco) return min(FC_AI_PAROLE_MAX, count($elenco));
+    return max(3, min(FC_AI_PAROLE_MAX, (int)($in['quante'] ?? 20)));
+}
+
+function fc_ai_schema_parole(bool $significato, bool $esempio): array {
+    $voce = [
+        'w' => ['type' => 'STRING'],
+        't' => ['type' => 'STRING'],
+    ];
+    $richiesti = ['w', 't'];
+    if ($significato) { $voce['m'] = ['type' => 'STRING']; $richiesti[] = 'm'; }
+    if ($esempio)     { $voce['e'] = ['type' => 'STRING']; $richiesti[] = 'e'; }
+    return [
+        'type' => 'OBJECT',
+        'properties' => ['parole' => ['type' => 'ARRAY', 'items' => [
+            'type' => 'OBJECT', 'properties' => $voce, 'required' => $richiesti,
+        ]]],
+        'required' => ['parole'],
+    ];
+}
+
+/**
+ * $impara e $conosce sono i NOMI delle lingue in inglese ("German",
+ * "Italian"): le istruzioni al modello sono in inglese, che e' la lingua in
+ * cui le segue meglio, qualunque sia la coppia.
+ */
+function fc_ai_azione_parole(array $in, string $impara, string $conosce): array {
+    $token = fc_ai_token_nuovo();
+    $significato = fc_ai_bool($in['significato'] ?? true);
+    $esempio = fc_ai_bool($in['esempio'] ?? true);
+    $livello = fc_ai_enum(strtolower((string)($in['livello'] ?? '')), ['a1', 'a2', 'b1', 'b2', 'c1', 'c2', ''], '');
+    $argomento = fc_ai_riga($in['argomento'] ?? '', 300);
+    $indicazioni = fc_ai_riga($in['indicazioni'] ?? '', 400);
+    $elenco = array_values(array_filter(array_map(function ($p) { return fc_ai_riga($p, 120); }, (array)($in['parole'] ?? []))));
+    $elenco = array_slice($elenco, 0, FC_AI_PAROLE_MAX);
+    $escludi = array_slice(array_values(array_filter(array_map(function ($p) { return fc_ai_riga($p, 80); }, (array)($in['escludi'] ?? [])))), 0, 400);
+    $quante = fc_ai_parole_quante($in);
+
+    if (!$elenco && $argomento === '') return fc_ai_fallito('vuota', 400, $token);
+
+    $sistema = "You are an expert language teacher who writes vocabulary flashcards. "
+        . "The learner speaks $conosce and is learning $impara. "
+        . "For every item return: w = the word or expression in $impara (dictionary form; articles or gender markers only where the language normally shows them, e.g. 'der Tisch'); "
+        . "t = its most common translation in $conosce (a short gloss, two variants at most separated by ', ')"
+        . ($significato ? "; m = a short definition written in simple $impara, without using the word itself" : '')
+        . ($esempio ? "; e = one short, natural example sentence in $impara that uses the word exactly as written in w, with the word replaced by a single underscore _ (it becomes the gap to guess, e.g. 'The _ is barking.')" : '')
+        . ". Never invent words. No numbering, no notes, no markdown.";
+
+    $utente = '';
+    if ($elenco) {
+        $utente .= "Complete these items, in this exact order, one output item per input item, keeping the input spelling unless it is clearly a typo:\n"
+                 . fc_ai_recinto(implode("\n", $elenco)) . "\n";
+    } else {
+        $utente .= "Choose exactly $quante useful items about this topic: " . fc_ai_recinto($argomento) . "\n";
+        $utente .= $livello !== '' ? "CEFR level: " . strtoupper($livello) . ". Pick words a learner at this level needs; examples and definitions at this level.\n"
+                                   : "Mix common and slightly less common items.\n";
+        if ($escludi) $utente .= "Do NOT include any of these, they are already in the deck: " . fc_ai_recinto(implode(', ', $escludi)) . "\n";
+    }
+    if ($indicazioni !== '') $utente .= "Extra instructions from the learner: " . fc_ai_recinto($indicazioni) . "\n";
+
+    $r = fc_ai_gemini_ritenta($sistema, $utente, fc_ai_schema_parole($significato, $esempio), 0, $token, 'parole', 0.5);
+    if (!$r['ok']) return fc_ai_fallito('ia_' . $r['errore'], 502, $token);
+
+    $visti = [];
+    foreach ($escludi as $x) $visti[mb_strtolower($x)] = true;
+    $out = [];
+    foreach ((array)($r['dati']['parole'] ?? []) as $p) {
+        if (!is_array($p)) continue;
+        $w = fc_ai_riga($p['w'] ?? '', 255);
+        $t = fc_ai_riga($p['t'] ?? '', 255);
+        if ($w === '' || $t === '') continue;
+        $k = mb_strtolower($w);
+        if (!$elenco && isset($visti[$k])) continue;   // gia' nel mazzo o doppione
+        $visti[$k] = true;
+        $ex = $esempio ? fc_ai_riga($p['e'] ?? '', 1000) : '';
+        /* il modello a volte scrive la parola invece del trattino: la
+           lacuna si fa qui, la prima volta che la parola compare */
+        if ($ex !== '' && strpos($ex, '_') === false) {
+            $pos = mb_stripos($ex, $w);
+            if ($pos !== false) $ex = mb_substr($ex, 0, $pos) . '_' . mb_substr($ex, $pos + mb_strlen($w));
+        }
+        $out[] = [
+            'q'  => $w,
+            'a'  => $t,
+            'm'  => $significato ? fc_ai_riga($p['m'] ?? '', 400) : '',
+            'ex' => $ex,
+        ];
+        if (count($out) >= $quante) break;
+    }
+    if (!$out) return fc_ai_fallito('nessuna_carta', 502, $token);
+    return fc_ai_riuscito(['parole' => $out], $token);
+}
+
