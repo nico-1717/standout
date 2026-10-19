@@ -103,6 +103,9 @@ function el(tag, cls, txt) {
     return n;
 }
 function esc(s) { return String(s == null ? '' : s); }
+/* Dentro una frase i mesi e i giorni in italiano vanno minuscoli
+   ("lunedì 3 agosto"), in inglese restano maiuscoli ("Monday 3 August"). */
+function minuscolo(s) { return document.documentElement.lang === 'en' ? String(s) : String(s).toLowerCase(); }
 function pad(n) { return (n < 10 ? '0' : '') + n; }
 
 function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -314,6 +317,9 @@ function calColor(ev) {
    Se il colore del calendario è già quello del blocco non si fa niente:
    sarebbe un contorno dello stesso colore, cioè niente. */
 function applicaCalendario(node, ev) {
+    /* tutte le forme di un evento (blocco, tastino, riga dell'elenco)
+       passano di qui: è il posto giusto per lo sbiadito dell'attesa */
+    if (S.inAttesa && (S.inAttesa[ev.id] || (ev.uid && S.inAttesa[ev.uid]))) node.classList.add('pl-attesa');
     var cc = calColor(ev);
     if (!cc || cc === evColor(ev)) return;
     node.style.setProperty('--cal', cc);
@@ -391,7 +397,9 @@ function api(action, data, query, opt) {
            cella, senza rischiare di applicare due volte la stessa cosa. */
         return new Promise(function (res) { setTimeout(res, 900); }).then(invia);
     }).catch(function () {
-        return { ok: false, message: T('planner.connessione_non_riuscita') };
+        /* `rete` distingue la rete caduta da un "no" del server: la coda
+           delle modifiche riprova la prima, mai il secondo. */
+        return { ok: false, rete: true, message: T('planner.connessione_non_riuscita') };
     });
 
     if (!data && !opt.keepalive) {
@@ -403,6 +411,275 @@ function api(action, data, query, opt) {
     }
     return p;
 }
+
+/* ------------------------------------------------------------------ */
+/* La coda delle modifiche                                             */
+/* ------------------------------------------------------------------ */
+/* Ogni modifica compare SUBITO, prima ancora di partire: l'evento si sposta,
+   nasce o sparisce sullo schermo e resta un po' sbiadito finché il server
+   non conferma; poi prende il suo colore pieno.
+
+   Le modifiche partono una alla volta, nell'ordine in cui sono state fatte,
+   da una coda che sopravvive alla chiusura della pagina (localStorage). Se
+   la rete cade la coda aspetta e riprova — dopo 1,5 s, 3, 6… fino a 30 — e
+   riparte da sola quando il telefono torna online: niente più "connessione
+   non riuscita" con la modifica persa. Se invece è il server a dire di no
+   (dati non validi, evento non più esistente) la modifica si scarta, si
+   avvisa e si ricaricano i dati veri.
+
+   Gli eventi nati qui hanno un id negativo provvisorio finché il server non
+   ne dà uno vero; le modifiche successive allo stesso evento, rimaste in
+   coda, ricevono l'id vero al momento di partire.
+
+   S.locali tiene l'ultima versione locale di ogni evento con modifiche in
+   viaggio (null = cancellato): dopo ogni lettura dal server la si rimette
+   sopra, così un ricaricamento non riporta indietro una modifica che il
+   server non ha ancora ricevuto. Vale per gli eventi semplici: quelli
+   ripetuti hanno lo stesso id in ogni occorrenza, e per loro si aspetta la
+   risposta e si rilegge la settimana. */
+var CODA_CHIAVE = 'pl_coda_' + ((B.user && B.user.id) || 0);
+var CODA = { ops: [], cb: {}, mappa: {}, inVolo: false, tentativi: 0, timer: null, seq: 1, temp: -1 };
+S.inAttesa = {};   // id -> quante modifiche in viaggio
+S.locali = {};     // id -> evento locale, o null se cancellato
+
+function codaSalva() {
+    try {
+        if (!CODA.ops.length) { localStorage.removeItem(CODA_CHIAVE); return; }
+        localStorage.setItem(CODA_CHIAVE, JSON.stringify({
+            ops: CODA.ops, mappa: CODA.mappa, locali: S.locali, seq: CODA.seq, temp: CODA.temp
+        }));
+    } catch (e) {}
+}
+function codaCarica() {
+    try {
+        var s = JSON.parse(localStorage.getItem(CODA_CHIAVE) || 'null');
+        if (!s || !s.ops || !s.ops.length) return;
+        CODA.ops = s.ops; CODA.mappa = s.mappa || {}; CODA.seq = s.seq || 1; CODA.temp = s.temp || -1;
+        S.locali = s.locali || {};
+        CODA.ops.forEach(function (op) { (op.ev || []).forEach(segnaInAttesa); });
+    } catch (e) {}
+}
+function segnaInAttesa(id) { S.inAttesa[id] = (S.inAttesa[id] || 0) + 1; }
+function togliAttesa(id) {
+    if (S.inAttesa[id] && --S.inAttesa[id] <= 0) {
+        delete S.inAttesa[id];
+        delete S.locali[id];
+    }
+}
+function idProvvisorio() { return CODA.temp--; }
+function idVero(id) { return (typeof id === 'number' && id < 0 && CODA.mappa[id]) ? CODA.mappa[id] : id; }
+
+/* Mette in coda. opt: ev (id toccati), temp (id provvisorio da sostituire),
+   ok(r) e ko(r) da chiamare a risposta arrivata. */
+function accoda(action, data, opt) {
+    opt = opt || {};
+    var op = { n: CODA.seq++, action: action, data: data || {}, ev: opt.ev || [], temp: opt.temp || null };
+    op.ev.forEach(segnaInAttesa);
+    CODA.cb[op.n] = opt;
+    CODA.ops.push(op);
+    codaSalva();
+    codaSpia();
+    codaGira();
+    return op;
+}
+
+/* Gli id provvisori dentro i dati, sostituiti con quelli veri. */
+function rimappa(d) {
+    var out = {};
+    for (var k in d) if (d.hasOwnProperty(k)) {
+        var v = d[k];
+        if (k === 'id' || k === 'event_id') v = idVero(v);
+        else if (k === 'ids' && Array.isArray(v)) v = v.map(idVero);
+        out[k] = v;
+    }
+    return out;
+}
+
+function codaGira() {
+    if (CODA.inVolo || !CODA.ops.length) return;
+    if (CODA.timer) { clearTimeout(CODA.timer); CODA.timer = null; }
+    var op = CODA.ops[0];
+    /* Un evento nato e cancellato prima ancora di arrivare al server: non
+       c'è niente da mandare. */
+    var dati = rimappa(op.data);
+    if ((op.action === 'event_delete' || op.action === 'event_move' || op.action === 'event_toggle')
+        && typeof dati.id === 'number' && dati.id < 0) {
+        CODA.ops.shift();
+        chiudiOp(op, { ok: true, saltata: true });
+        return codaGira();
+    }
+    CODA.inVolo = true;
+    api(op.action, dati, null, { noRetry: true }).then(function (r) {
+        CODA.inVolo = false;
+        if (!r || (r.ok === false && r.rete)) {
+            CODA.tentativi++;
+            codaSpia(true);
+            var attesa = Math.min(30000, 1500 * Math.pow(2, Math.min(5, CODA.tentativi - 1)));
+            CODA.timer = setTimeout(codaGira, attesa);
+            return;
+        }
+        CODA.tentativi = 0;
+        CODA.ops.shift();
+        chiudiOp(op, r);
+        codaGira();
+    });
+}
+
+function chiudiOp(op, r) {
+    var cb = CODA.cb[op.n] || {};
+    delete CODA.cb[op.n];
+    /* l'id vero dell'evento appena nato: da qui in poi lo usano anche le
+       modifiche ancora in coda e il segno di "in attesa" */
+    if (r.ok && op.temp && r.event && r.event.id) {
+        CODA.mappa[op.temp] = r.event.id;
+        CODA.ops.forEach(function (o) {
+            o.ev = o.ev.map(function (x) { return x === op.temp ? r.event.id : x; });
+        });
+        if (S.inAttesa[op.temp]) {
+            var resto = S.inAttesa[op.temp] - 1;
+            delete S.inAttesa[op.temp];
+            if (resto > 0) {
+                S.inAttesa[r.event.id] = (S.inAttesa[r.event.id] || 0) + resto;
+                if (S.locali[op.temp]) S.locali[r.event.id] = Object.assign({}, S.locali[op.temp], { id: r.event.id });
+            }
+            delete S.locali[op.temp];
+        }
+        togliDaGiorni(op.temp);
+        op.ev = op.ev.filter(function (x) { return x !== op.temp; });
+    }
+    op.ev.forEach(togliAttesa);
+    codaSalva();
+    codaSpia();
+    try {
+        if (r.ok) {
+            if (cb.ok) cb.ok(r);
+            /* Una modifica rimasta in coda da una visita precedente non ha più
+               chi la aspetta (le funzioni non sopravvivono alla pagina): l'evento
+               nato si mette al suo posto qui, se no sparirebbe fino alla
+               prossima lettura. */
+            else if (r.event && r.event.id && op.temp) { togliDaGiorni(r.event.id); indexEvents([r.event]); }
+        }
+        else {
+            if (cb.ko) cb.ko(r);
+            toast(r.message || T('planner.non_e_stato_possibile_salvare'));
+            /* il server ha detto di no: si torna ai dati veri */
+            S.weekCache = {};
+            loadWeek(monday(S.focusDate), true);
+        }
+    } catch (e) {}
+    if (!CODA.ops.length && typeof scheduleSync === 'function') scheduleSync();
+    renderDays();
+}
+
+/* Toglie un evento da tutte le giornate in memoria (anche le copie dei
+   giorni successivi di un evento lungo). */
+function togliDaGiorni(id) {
+    for (var g in S.events) if (S.events.hasOwnProperty(g)) {
+        var l = S.events[g];
+        if (!l || !l.length) continue;
+        var f = l.filter(function (x) { return x.id !== id; });
+        if (f.length !== l.length) S.events[g] = f;
+    }
+}
+
+/* Mostra subito la versione locale di un evento (o la sua assenza). */
+function mostraLocale(id, ev) {
+    S.locali[id] = ev ? Object.assign({}, ev) : null;
+    togliDaGiorni(id);
+    /* senzaLocali: la modifica non è ancora in coda (accoda arriva subito
+       dopo), e applicaLocali la scarterebbe come "già confermata" */
+    if (ev) indexEvents([ev], null, true);
+}
+
+/* Dopo ogni lettura dal server: le modifiche locali non ancora arrivate
+   tornano sopra a quello che il server ha mandato. */
+function applicaLocali() {
+    for (var id in S.locali) if (S.locali.hasOwnProperty(id)) {
+        var n = +id;
+        if (!S.inAttesa[n]) { delete S.locali[id]; continue; }
+        togliDaGiorni(n);
+        if (S.locali[id]) indexEvents([Object.assign({}, S.locali[id])], null, true);
+    }
+}
+
+/* L'evento come lo vedrà il server, costruito dai dati del salvataggio:
+   serve a disegnarlo subito. `base` è la versione di prima, se c'era. */
+function eventoLocale(d, base, id) {
+    var e = Object.assign({ guests: [], done: false, routine_group: null, repeat: 'none' }, base || {}, {
+        id: id, title: d.title || '', notes: d.notes || '', date: d.date,
+        end_date: d.end_date || d.date, start: d.start || '09:00', end: d.end || '10:00',
+        all_day: !!(d.all_day && d.all_day !== '0'),
+        category_id: +d.category_id || null,
+        calendar_id: +d.calendar_id || (base ? base.calendar_id : null),
+        project_id: +d.project_id || null, habit_id: +d.habit_id || null,
+        importance: d.importance || 'normal', color: d.color || null,
+        type: d.type || 'event', location: d.location || '',
+        notify: d.notify || 'none'
+    });
+    if (d.project_id && base && base.project_id === +d.project_id) {
+        e.project_name = base.project_name; e.project_color = base.project_color;
+    }
+    e.giorni = giorniFra(e.date, e.end_date);
+    e.multiday = e.giorni > 1;
+    e.occ_date = e.date; e.master_id = id; e.uid = id + '@' + e.date;
+    delete e.giorno_num; delete e.giorno_tot; delete e.mostrato_il;
+    return e;
+}
+
+/* L'evento con questo id, cercato prima nel giorno indicato e poi ovunque. */
+function trovaEvento(id, giorno) {
+    var l = S.events[giorno] || [];
+    for (var i = 0; i < l.length; i++) if (l[i].id === id && !l[i].giorno_num || (l[i].id === id && l[i].giorno_num === 1)) return l[i];
+    for (var g in S.events) if (S.events.hasOwnProperty(g)) {
+        var m = S.events[g] || [];
+        for (var j = 0; j < m.length; j++) if (m[j].id === id) return m[j];
+    }
+    return null;
+}
+
+/* Un evento nuovo: compare adesso, il server lo riceve quando può. */
+function creaSubito(payload, poi) {
+    var tmp = idProvvisorio();
+    mostraLocale(tmp, eventoLocale(payload, null, tmp));
+    renderDays();
+    var invio = Object.assign({}, payload, { id: 0 });
+    accoda('event_save', invio, {
+        ev: [tmp], temp: tmp,
+        ok: function (r) {
+            if (r.event) { togliDaGiorni(r.event.id); indexEvents([r.event]); }
+            if (poi) poi(r);
+        }
+    });
+    return tmp;
+}
+
+/* La spia: quante modifiche aspettano, e se manca la rete. */
+function codaSpia(senzaRete) {
+    var n = CODA.ops.length;
+    var spia = $('plCoda');
+    if (!spia) {
+        if (!n) return;
+        spia = el('div', 'pl-coda');
+        spia.id = 'plCoda';
+        spia.setAttribute('role', 'status');
+        document.body.appendChild(spia);
+    }
+    if (!n) { spia.classList.remove('pl-open', 'pl-coda-off'); return; }
+    var lento = senzaRete || CODA.tentativi > 0;
+    spia.classList.toggle('pl-coda-off', lento);
+    spia.textContent = lento ? T('planner.coda_offline')
+                             : (n === 1 ? T('planner.coda_1') : T('planner.coda_n', { n: n }));
+    /* le modifiche che partono e arrivano in un attimo non meritano la spia:
+       compare solo se qualcosa aspetta da più di un secondo, o se manca la rete */
+    clearTimeout(spia._t);
+    if (lento) spia.classList.add('pl-open');
+    else spia._t = setTimeout(function () { if (CODA.ops.length) spia.classList.add('pl-open'); }, 1000);
+}
+
+window.addEventListener('online', function () { CODA.tentativi = 0; codaGira(); });
+document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') codaGira();
+});
 
 /* I salvataggi rimandati.
 
@@ -492,7 +769,53 @@ document.addEventListener('click', function (e) {
 /* ------------------------------------------------------------------ */
 /* Dati: indicizzazione e caricamento                                  */
 /* ------------------------------------------------------------------ */
-function indexEvents(list, clearRange) {
+/* Gli eventi con un orario che finiscono in un altro giorno — dalle 11 del
+   27 alle 8 del 28 — si comportano come in Google Calendar:
+   - se durano meno di 24 ore stanno nella griglia delle ore, spezzati a
+     mezzanotte: il 27 dalle 11 a mezzanotte, il 28 da mezzanotte alle 8;
+   - se durano 24 ore o più vanno nella fascia in alto, con quelli di tutto
+     il giorno, perché una colonna intera piena non direbbe niente.
+   In tutti e due i casi il mese li disegna come una barra dal primo
+   all'ultimo giorno. Prima stavano solo nel giorno d'inizio, con la fine
+   (le 8) prima dell'inizio (le 11): ne usciva una riga sottilissima. */
+
+/* L'ultimo giorno vero. Finire a mezzanotte in punto vuol dire finire alla
+   fine del giorno prima: 22:00–00:00 è un evento di un giorno solo. */
+function ultimoGiorno(ev) {
+    var fine = ev.end_date || ev.date;
+    if (!ev.all_day && fine > ev.date && toMin(ev.end) === 0) fine = piuGiorni(fine, -1);
+    return fine;
+}
+/* Quanti minuti dura, contando i giorni attraversati. */
+function durataMinuti(ev) {
+    return (giorniFra(ev.date, ev.end_date || ev.date) - 1) * 1440 + toMin(ev.end) - toMin(ev.start);
+}
+/* Con un orario, su più giorni e lungo almeno 24 ore: va nella fascia in alto. */
+function evLungo(ev) {
+    return !ev.all_day && ultimoGiorno(ev) > ev.date && durataMinuti(ev) >= 1440;
+}
+/* Sta nella fascia in alto (tutto il giorno, o lungo) e non nella griglia. */
+function inFascia(ev) { return !!ev.all_day || evLungo(ev); }
+/* La parte che cade in questo giorno di un evento a cavallo della
+   mezzanotte: una copia con inizio e fine ritagliati. Gli orari veri restano
+   in vero_start e vero_end per l'etichetta; quando lo si tocca si apre
+   sempre l'evento vero (il nodo porta la data d'inizio vera). */
+function pezzoDelGiorno(ev, giorno) {
+    if (ev.all_day) return ev;
+    var fine = ultimoGiorno(ev);
+    if (fine === ev.date) {
+        if ((ev.end_date || ev.date) === ev.date) return ev;
+        /* 22:00 → mezzanotte: un giorno solo, che arriva fino in fondo */
+        return Object.assign({}, ev, { vero_start: ev.start, vero_end: ev.end, end: '24:00' });
+    }
+    var p = Object.assign({}, ev);
+    p.vero_start = ev.start; p.vero_end = ev.end;
+    p.start = giorno === ev.date ? ev.start : '00:00';
+    p.end = giorno === fine ? ev.end : '24:00';
+    return p;
+}
+
+function indexEvents(list, clearRange, senzaLocali) {
     if (clearRange) {
         for (var d = clearRange.from; d <= clearRange.to; d = addDays(d, 1)) S.events[d] = [];
     }
@@ -509,11 +832,13 @@ function indexEvents(list, clearRange) {
            Le copie tengono `date` uguale alla data VERA d'inizio: è quella che
            usano modifica, spostamento e cancellazione, e cambiarla vorrebbe
            dire che aprendo la copia del 12 si sposterebbe l'evento al 12.
-           Per ora solo gli eventi di tutto il giorno: quelli con un orario
-           vivono nella griglia delle ore, dove una copia trascinabile su un
-           altro giorno farebbe più danni che comodo. */
-        var tot = giorniFra(ev.date, ev.end_date || ev.date);
-        if (ev.all_day && tot > 1) {
+           Vale anche per gli eventi con un orario che passano la
+           mezzanotte: la griglia ne disegna il pezzo di ogni giorno
+           (pezzoDelGiorno) e il mese la barra. Non si trascinano: si
+           cambiano dal popup, dove inizio e fine hanno ciascuno la sua data. */
+        var tot = giorniFra(ev.date, ultimoGiorno(ev));
+        delete ev.giorno_num; delete ev.giorno_tot;
+        if (tot > 1) {
             ev.giorno_num = 1;
             ev.giorno_tot = tot;
             for (var i = 1; i < tot; i++) {
@@ -525,6 +850,7 @@ function indexEvents(list, clearRange) {
         ev.mostrato_il = ev.date;
         posa(ev.date, ev);
     });
+    if (!senzaLocali && S.locali) applicaLocali();
 }
 function indexPrio(map) {
     for (var k in map) if (map.hasOwnProperty(k)) S.prio[k] = map[k];
@@ -537,9 +863,12 @@ function indexPills(list) {
 }
 function eventsOf(date) {
     var list = (S.events[date] || []).filter(function (e) { return !evHidden(e); });
+    /* prima la fascia in alto, poi per orario — l'orario del pezzo di oggi,
+       così il seguito di un evento iniziato ieri sta in cima alla giornata */
     list.sort(function (a, b) {
-        if (a.all_day !== b.all_day) return a.all_day ? -1 : 1;
-        return toMin(a.start) - toMin(b.start);
+        var fa = inFascia(a), fb = inFascia(b);
+        if (fa !== fb) return fa ? -1 : 1;
+        return toMin(pezzoDelGiorno(a, date).start) - toMin(pezzoDelGiorno(b, date).start);
     });
     return list;
 }

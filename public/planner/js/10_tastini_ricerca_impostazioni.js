@@ -211,15 +211,11 @@ function confirmProjectTime(p, defaultStart, defaultDur) {
            che non va e si lascia il popup aperto per correggere */
         if (end <= start) { toast(T('planner.la_fine_deve_venire_dopo')); return; }
         ov.classList.remove('pl-open');
-        api('event_save', {
+        haptic(12);
+        creaSubito({
             title: p.name, date: S.focusDate, start: toHM(start),
             end: toHM(Math.min(1439, end)),
-            project_id: p.id, type: 'event', notify: 'none'
-        }).then(function (r) {
-            if (!r.ok) { toast(T('planner.non_e_stato_possibile_inserire_2')); return; }
-            indexEvents([r.event]);
-            renderDays();
-            haptic(12);
+            project_id: p.id, type: 'event', notify: 'none', color: p.color || ''
         });
     });
     acts.appendChild(no); acts.appendChild(yes);
@@ -407,7 +403,7 @@ $('plSearchBtn').addEventListener('click', function () {
                         txt.appendChild(el('div', 'pl-row-lab', x.title));
                         var dd = parseIso(x.date);
                         txt.appendChild(el('div', 'pl-row-sub',
-                            dd.getDate() + ' ' + MESI[dd.getMonth()].toLowerCase() + (x.all_day ? '' : '  ·  ' + x.start)));
+                            dd.getDate() + ' ' + minuscolo(MESI[dd.getMonth()]) + (x.all_day ? '' : '  ·  ' + x.start)));
                         inner.appendChild(txt);
                         row.appendChild(inner);
                         row.addEventListener('click', function () {

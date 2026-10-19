@@ -52,6 +52,7 @@ function parseIso(s) { var p = String(s).split('-'); return new Date(+p[0], +p[1
 function addDays(s, n) { var d = parseIso(s); d.setDate(d.getDate() + n); return iso(d); }
 function monday(s) { var d = parseIso(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); }
 function dow(s) { return (parseIso(s).getDay() + 6) % 7; }
+function minuscolo(s) { return document.documentElement.lang === 'en' ? String(s) : String(s).toLowerCase(); }
 
 function later(key, ms, fn) {
     if (S.timers[key]) clearTimeout(S.timers[key]);
@@ -564,7 +565,7 @@ function renderTaped(learned) {
         var li = el('div', 'dy-taped-li');
         li.appendChild(el('p', null, l.content));
         var d = parseIso(l.date);
-        li.appendChild(el('small', null, d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()));
+        li.appendChild(el('small', null, d.getDate() + ' ' + minuscolo(MESI[d.getMonth()])));
         body.appendChild(li);
     });
 }
@@ -591,7 +592,7 @@ $('dyRing').addEventListener('click', function () {
     card.style.maxWidth = '340px';
     card.appendChild(el('div', 'dy-card-t', T('diario.abitudini')));
     card.appendChild(el('div', 'dy-card-s',
-        GIORNI[dow(S.date)].toLowerCase() + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()));
+        minuscolo(GIORNI[dow(S.date)]) + ' ' + d.getDate() + ' ' + minuscolo(MESI[d.getMonth()])));
 
     var CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
 

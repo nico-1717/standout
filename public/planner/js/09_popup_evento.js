@@ -366,12 +366,12 @@ function renderEventSheet() {
                 }
             });
             untilWrap.appendChild(dInp);
-            
+
             // Auto-focus e apertura del calendario nativo se è stato appena cliccato
             if (S.draft.editing_until) {
-                setTimeout(function() { 
-                    dInp.focus(); 
-                    try { dInp.showPicker(); } catch(e) {} 
+                setTimeout(function() {
+                    dInp.focus();
+                    try { dInp.showPicker(); } catch(e) {}
                 }, 50);
             }
         }
@@ -394,24 +394,24 @@ function renderEventSheet() {
     if (calScegliibili.length > 1) {
         var fcal = el('div', 'pl-field');
         fcal.appendChild(el('label', 'pl-label', T('planner.calendario')));
-        
+
         var calOptions = [];
         var activeCalStr = '';
-        
+
         alpha(calScegliibili, 'name').forEach(function (c) {
             calOptions.push([String(c.id), c.name]);
             if (d.calendar_id ? d.calendar_id === c.id : c.is_default) {
                 activeCalStr = String(c.id);
             }
         });
-        
+
         var calSel = select(calOptions, activeCalStr, function (v) {
             d.calendar_id = parseInt(v, 10);
             S.draft.dirty = true;
             renderEventSheet();
         });
         calSel.style.width = '100%';
-        
+
         fcal.appendChild(calSel);
         body.appendChild(fcal);
     }
@@ -1197,56 +1197,45 @@ function saveEvent() {
         }
     }
 
+    /* Il salvataggio passa dalla coda: l'evento cambia SUBITO sullo
+       schermo, sbiadito finché il server non conferma. */
     function eseguiSalvataggio(dati) {
         var oldDate = S.draft.origDate;
-        var eventId = dati.id;
-        
         closeOv('plEventOv');
         S.draft = null;
 
-        /* OTTIMIZZAZIONE FLUIDITÀ (Optimistic Update):
-           Spostiamo istantaneamente l'evento in locale così non si avverte lag, 
-           mentre il server macina il salvataggio in background. */
-        if (eventId && S.events[oldDate]) {
-            var idx = S.events[oldDate].findIndex(function(x) { return x.id === eventId; });
-            if (idx > -1) {
-                var oldEv = S.events[oldDate][idx];
-                S.events[oldDate].splice(idx, 1); // Lo togliamo dalla vecchia data
-                
-                // Creiamo un fantasma temporaneo nel nuovo giorno/orario
-                var tempEv = Object.assign({}, oldEv, {
-                    date: dati.date,
-                    start: dati.start,
-                    end: dati.end,
-                    all_day: dati.all_day,
-                    title: dati.title
-                });
-                
-                if (!S.events[dati.date]) S.events[dati.date] = [];
-                S.events[dati.date].push(tempEv);
-            }
-        }
-        renderDays(); // Ridisegna tutto lo schermo all'istante senza attese
+        var vecchio = dati.id ? trovaEvento(dati.id, oldDate) : null;
+        var ripetuto = (dati.repeat && dati.repeat !== 'none') || !!dati.edit_mode
+                       || !!(vecchio && vecchio.is_occurrence);
+        haptic(10);
 
-        return api('event_save', dati).then(function (r) {
-            if (!r.ok) { 
-                toast(r.message || T('planner.non_e_stato_possibile_salvare')); 
-                // Se fallisce, ricarichiamo per annullare la modifica istantanea
-                loadWeek(monday(S.focusDate), true);
-                return; 
+        if (!dati.id) {
+            creaSubito(dati, function (r) {
+                if (ripetuto) { S.weekCache = {}; loadWeek(monday(S.focusDate), true); }
+                if (r.event && r.event.type === 'task' && S.todos) loadWeekTodos(S.todoTab, true);
+            });
+            return;
+        }
+
+        var chiave = dati.id;
+        if (ripetuto && vecchio) {
+            /* Una ripetizione: tutte le occorrenze hanno lo stesso id, quindi
+               si cambia solo quella toccata e la si segna con la sua chiave.
+               Il resto della serie lo ridisegna la rilettura dopo la conferma. */
+            chiave = vecchio.uid || dati.id;
+            Object.assign(vecchio, { title: dati.title, start: dati.start, end: dati.end,
+                                     all_day: !!dati.all_day, importance: dati.importance });
+        } else {
+            mostraLocale(dati.id, eventoLocale(dati, vecchio, dati.id));
+        }
+        renderDays();
+        accoda('event_save', dati, {
+            ev: [chiave],
+            ok: function (r) {
+                if (r.event) { togliDaGiorni(r.event.id); indexEvents([r.event]); }
+                if (ripetuto) { S.weekCache = {}; loadWeek(monday(S.focusDate), true); }
+                if (r.event && r.event.type === 'task' && S.todos) loadWeekTodos(S.todoTab, true);
             }
-            
-            // PULIZIA: Rimuoviamo gli eventuali cloni
-            if (oldDate && r.event && oldDate !== r.event.date && S.events[oldDate]) {
-                S.events[oldDate] = S.events[oldDate].filter(function (x) { return x.id !== r.event.id; });
-            }
-            
-            indexEvents([r.event]);
-            if (dati.repeat !== 'none' || dati.edit_mode === 'all') { S.weekCache = {}; loadWeek(monday(S.focusDate), true); }
-            renderDays();
-            if (r.event && r.event.type === 'task' && S.todos) loadWeekTodos(S.todoTab, true);
-            haptic(10);
-            scheduleSync();
         });
     }
 
@@ -1294,12 +1283,29 @@ function confirmDeleteEvent(d) {
 function deleteEvent(d, scopeParam) {
     closeOv('plEventOv');
     S.draft = null;
-    api('event_delete', { id: d.id, scope: scopeParam || 'one', original_date: d.date }).then(function (r) {
-        if (!r.ok) { toast(T('planner.non_e_stato_possibile_eliminare')); return; }
-        S.events[d.date] = (S.events[d.date] || []).filter(function (x) { return x.id !== d.id; });
-        S.weekCache = {}; 
-        loadWeek(monday(S.focusDate), true).then(renderDays);
-        scheduleSync();
+    var scope = scopeParam || 'one';
+    var serie = scope === 'series' || (d.repeat && d.repeat !== 'none');
+    /* sparisce subito; se il server dice di no, la rilettura lo rimette */
+    if (serie) {
+        var chiave = scope === 'series' ? d.id : (d.uid || d.id);
+        for (var g in S.events) if (S.events.hasOwnProperty(g)) {
+            S.events[g] = (S.events[g] || []).filter(function (x) {
+                return scope === 'series' ? (x.id !== d.id && x.master_id !== d.id) : !(x.id === d.id && (x.occ_date || x.date) === d.date);
+            });
+        }
+        renderDays();
+        accoda('event_delete', { id: d.id, scope: scope, original_date: d.date }, {
+            ev: [chiave],
+            ok: function () { S.weekCache = {}; loadWeek(monday(S.focusDate), true); }
+        });
+        return;
+    }
+    mostraLocale(d.id, null);
+    renderDays();
+    haptic(10);
+    accoda('event_delete', { id: d.id, scope: scope, original_date: d.date }, {
+        ev: [d.id],
+        ok: function () { if (d.type === 'task' && S.todos) loadWeekTodos(S.todoTab, true); }
     });
 }
 $('plEvSave').addEventListener('click', function () { if (S.draft) saveEvent(); });

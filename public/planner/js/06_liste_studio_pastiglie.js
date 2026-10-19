@@ -68,7 +68,7 @@ function renderWeekPanel() {
     wrap.innerHTML = '';
 
     var d1 = parseIso(rg.from), d2 = parseIso(rg.to);
-    var range = d1.getDate() + ' ' + MESI[d1.getMonth()].toLowerCase() + ' – ' + d2.getDate() + ' ' + MESI[d2.getMonth()].toLowerCase();
+    var range = d1.getDate() + ' ' + minuscolo(MESI[d1.getMonth()]) + ' – ' + d2.getDate() + ' ' + minuscolo(MESI[d2.getMonth()]);
     wrap.appendChild(el('div', 'pl-label', range));
 
     /* Le linguette: i tre elenchi più le pastiglie. Nella pagina attività ci
@@ -261,7 +261,7 @@ function weekTodoList() {
     var add = el('button', 'pl-wl-add');
     add.type = 'button';
     add.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
-    add.appendChild(el('span', null, T('planner.aggiungi_al', {giorno: parseIso(S.focusDate).getDate(), mese: MESI[parseIso(S.focusDate).getMonth()].toLowerCase()})));
+    add.appendChild(el('span', null, T('planner.aggiungi_al', {giorno: parseIso(S.focusDate).getDate(), mese: minuscolo(MESI[parseIso(S.focusDate).getMonth()])})));
     add.addEventListener('click', function () {
         todoApi('save', {
             id: 0, title: ' ', list_type: tipo, parent_id: 0, project_id: 0,
@@ -381,7 +381,9 @@ function weekPillsCard() {
        settimana, e senza dirlo qui si crederebbe di vedere le prese di
        tutt'e sette. */
     var d = parseIso(date);
-    card.appendChild(el('div', 'pl-pill-day', T('planner.prese_di', {quando: (date === S.today ? T('comune.oggi').toLowerCase() : GIORNI[dowIndex(date)].toLowerCase()), giorno: d.getDate(), mese: MESI[d.getMonth()].toLowerCase()})));
+    var rigaGiorno = el('div', 'pl-pill-dayrow');
+    rigaGiorno.appendChild(el('div', 'pl-pill-day', T('planner.prese_di', {quando: (date === S.today ? T('comune.oggi').toLowerCase() : minuscolo(GIORNI[dowIndex(date)])), giorno: d.getDate(), mese: minuscolo(MESI[d.getMonth()])})));
+    card.appendChild(rigaGiorno);
 
     if (!S.pills || S.pills.date !== date) {
         card.appendChild(el('div', 'pl-wl-empty', T('planner.un_momento')));
@@ -402,8 +404,11 @@ function weekPillsCard() {
        comunque — quindi compaiono anche sfogliando la settimana. */
     var late = S.pills.late || [];
     if (late.length) {
-        card.appendChild(el('div', 'pl-label pl-pill-lasect',
+        var testaLate = el('div', 'pl-pill-sectrow');
+        testaLate.appendChild(el('div', 'pl-label pl-pill-lasect',
             late.length === 1 ? T('planner.rimasta_indietro') : T('planner.rimaste_indietro')));
+        if (late.length > 1) testaLate.appendChild(tastoPreseTutte(late, true));
+        card.appendChild(testaLate);
         var lbox = el('div', 'pl-list-items');
         late.forEach(function (p) { lbox.appendChild(pillRow(p, T('planner.arretrata'))); });
         card.appendChild(lbox);
@@ -419,6 +424,10 @@ function weekPillsCard() {
            che ne uscirebbe sarebbe una data inventata. */
         var futuro = date > S.today;
         S.pills.doses.forEach(function (p) { box.appendChild(pillRow(p, futuro ? T('planner.futura') : null)); });
+        /* «prese tutte» quando ce n'è più di una da spuntare; su un giorno
+           passato chiede a che ora, su oggi vale adesso */
+        var daPrendere = S.pills.doses.filter(function (p) { return p.status !== 'taken'; });
+        if (!futuro && daPrendere.length > 1) rigaGiorno.appendChild(tastoPreseTutte(daPrendere, date < S.today));
         if (futuro) {
             box.appendChild(el('div', 'pl-row-sub', T('planner.si_spuntano_il_giorno_stesso')));
         }
@@ -574,6 +583,50 @@ function pillRow(p, modo) {
     return row;
 }
 
+/* Il tastino «prese tutte».
+   Sulle prese dei giorni scorsi chiede a che ora scriverle: quasi sempre le
+   si è prese all'ora giusta e ci si è scordati di spuntarle, e allora
+   l'orario previsto è quello vero; «tutte adesso» resta per chi le prende
+   in quel momento. Su oggi non chiede niente: vale l'orologio, come per la
+   spunta di una sola. */
+function tastoPreseTutte(lista, passate) {
+    var b = el('button', 'pl-pill-tutte', T('planner.prese_tutte'));
+    b.type = 'button';
+    b.setAttribute('aria-label', T('planner.prese_tutte_aria'));
+    b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var ids = lista.filter(function (p) { return p.status !== 'taken'; }).map(function (p) { return p.id; });
+        if (!ids.length) return;
+        if (!passate) { preseTutte(ids, 'now'); return; }
+        alertBox(T('planner.quando_le_hai_prese'),
+            ids.length === 1 ? T('planner.prese_passate_1') : T('planner.prese_passate_n', { n: ids.length }), [
+            { label: T('planner.all_orario_previsto'), kind: 'primary', onClick: function () { preseTutte(ids, 'on_time'); } },
+            { label: T('planner.tutte_adesso'), onClick: function () { preseTutte(ids, 'now'); } },
+            { label: T('planner.annulla') }
+        ]);
+    });
+    return b;
+}
+
+/* Si spuntano subito sullo schermo, poi parte la chiamata; la rilettura in
+   silenzio rimette in riga i conti in fondo. */
+function preseTutte(ids, mode) {
+    var set = {};
+    ids.forEach(function (id) { set[id] = true; });
+    if (S.pills) {
+        (S.pills.doses || []).forEach(function (p) { if (set[p.id]) p.status = 'taken'; });
+        S.pills.late = (S.pills.late || []).filter(function (p) { return !set[p.id]; });
+    }
+    haptic(14);
+    renderWeekPanel();
+    toast(T('planner.segnate_prese_n', { n: ids.length }));
+    todoApi('pill_mark_all', { ids: ids.join(','), mode: mode }).then(function () {
+        loadWeekPills(S.focusDate, true);
+        S.pillsDue = (S.pillsDue || []).filter(function (x) { return !set[x.id]; });
+        renderAvvisi();
+    });
+}
+
 /* «ieri» quando è ieri, se no «lun 3». Il nome del giorno da solo, su una
    cosa passata, si legge come il giorno che deve venire. */
 function pillGiornoBreve(iso) {
@@ -648,7 +701,7 @@ function pillQuandoPresa(p, poi) {
    All'indietro il numero sempre: «mar» su una cosa scaduta si leggerebbe
    come il martedì che deve venire. */
 function todoQuandoTesto(t) {
-    if (!t.date) return t.time ? t.time : 'quando';
+    if (!t.date) return t.time ? t.time : T('planner.quando_l');
     var avanti = diffDays(S.today, t.date);
     if (avanti === 0) return t.time ? t.time : T('comune.oggi').toLowerCase();
     if (avanti > 0 && avanti <= 7) return GIORNI[dowIndex(t.date)].slice(0, 3);
@@ -910,7 +963,7 @@ function takeIntoWeek(t) {
     }
     if (!t.date) { applica(); return; }
     var d = parseIso(t.date), n = parseIso(S.focusDate);
-    alertBox(T('planner.cambio_la_data'), T('planner.e_al_passa_al', {titolo: (t.title || T('planner.senza_titolo')), g1: d.getDate(), m1: MESI[d.getMonth()].toLowerCase(), g2: n.getDate(), m2: MESI[n.getMonth()].toLowerCase()}), [
+    alertBox(T('planner.cambio_la_data'), T('planner.e_al_passa_al', {titolo: (t.title || T('planner.senza_titolo')), g1: d.getDate(), m1: minuscolo(MESI[d.getMonth()]), g2: n.getDate(), m2: minuscolo(MESI[n.getMonth()])}), [
         { label: T('planner.lascia_stare') },
         { label: T('planner.sposta'), kind: 'primary', onClick: applica }
     ]);

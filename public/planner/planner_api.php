@@ -515,6 +515,29 @@ if ($ajax !== '') {
             $segn = implode(',', array_fill(0, count($ids), '?'));
             sec_q("DELETE FROM todos WHERE user_id = ? AND planner_event_id IN ($segn)",
                   array_merge([$current_user_id], $ids));
+
+            /* Il blocco di una routine su Google appartiene a un pezzo solo.
+               Cancellando quel pezzo e non gli altri, il blocco non deve
+               sparire: passa a un pezzo che resta, che diventa "da mandare"
+               e al giro dopo aggiorna orari e note del blocco. */
+            $capi = sec_all("SELECT id, routine_group, event_date, google_event_id, google_calendar_id
+                               FROM planner_events
+                              WHERE user_id = ? AND id IN ($segn) AND routine_group IS NOT NULL
+                                AND google_event_id IS NOT NULL AND google_origin = 0",
+                            array_merge([$current_user_id], $ids));
+            foreach ($capi as $capo) {
+                $erede = sec_one("SELECT id FROM planner_events
+                                   WHERE user_id = ? AND routine_group = ? AND event_date = ?
+                                     AND id NOT IN ($segn)
+                                   ORDER BY start_time, id LIMIT 1",
+                                 array_merge([$current_user_id, $capo['routine_group'], $capo['event_date']], $ids));
+                if (!$erede) continue;
+                sec_q("UPDATE planner_events SET google_event_id = NULL, google_calendar_id = NULL WHERE id = ? AND user_id = ?",
+                      [(int)$capo['id'], $current_user_id], 'ii');
+                sec_q("UPDATE planner_events SET google_event_id = ?, google_calendar_id = ?, google_synced_at = NULL
+                        WHERE id = ? AND user_id = ?",
+                      [$capo['google_event_id'], $capo['google_calendar_id'], (int)$erede['id'], $current_user_id], 'ssii');
+            }
         }
         pl_queue_google_delete($current_user_id, $where, $params);
         sec_q("DELETE FROM planner_events WHERE " . $where, $params);
@@ -611,12 +634,13 @@ if ($ajax !== '') {
             sec_q("INSERT INTO planner_events
                    (user_id, title, notes, event_date, end_date, start_time, end_time, is_all_day, category_id, project_id,
                     habit_id, routine_id, routine_group, routine_collapsed, importance, color, item_type,
-                    notify_type, notify_minutes, sort_order)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    notify_type, notify_minutes, sort_order, calendar_id)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                    [$current_user_id, $r['title'], $r['notes'], $to, $fineCopia, $r['start_time'], $r['end_time'],
                     (int)$r['is_all_day'], $r['category_id'], $r['project_id'], $r['habit_id'], $r['routine_id'],
                     $r['routine_group'], (int)$r['routine_collapsed'], $r['importance'], $r['color'],
-                    $r['item_type'], $r['notify_type'], (int)$r['notify_minutes'], (int)$r['sort_order']]);
+                    $r['item_type'], $r['notify_type'], (int)$r['notify_minutes'], (int)$r['sort_order'],
+                    $r['calendar_id'] ?? pl_default_calendar($current_user_id)]);
             $n++;
         }
         sec_json(['ok' => true, 'copied' => $n, 'events' => pl_events_range($current_user_id, $to, $to)]);
@@ -634,13 +658,17 @@ if ($ajax !== '') {
         if (empty($items)) sec_die_json(t('api.routine_senza_eventi'), 422, 'empty');
         $group = bin2hex(random_bytes(16));
         $cursor = pl_minutes($start);
+        /* Nel calendario principale, come ogni evento a cui non si sceglie
+           niente: senza calendario la routine restava fuori dai filtri e da
+           Google Calendar. */
+        $calRoutine = pl_default_calendar($current_user_id);
         foreach ($items as $it) {
             $dur = max(1, (int)$it['duration_minutes']);
             $end = min(1439, $cursor + $dur);
             sec_q("INSERT INTO planner_events
-                   (user_id, title, event_date, start_time, end_time, routine_id, routine_group, routine_collapsed, color, notify_type, notify_minutes)
-                   VALUES (?,?,?,?,?,?,?,1,?,'none',0)",
-                   [$current_user_id, $it['name'], $date, pl_time($cursor), pl_time($end), $rid, $group, $r['color']]);
+                   (user_id, title, event_date, start_time, end_time, routine_id, routine_group, routine_collapsed, color, notify_type, notify_minutes, calendar_id)
+                   VALUES (?,?,?,?,?,?,?,1,?,'none',0,?)",
+                   [$current_user_id, $it['name'], $date, pl_time($cursor), pl_time($end), $rid, $group, $r['color'], $calRoutine]);
             $cursor = $end;
             if ($cursor >= 1439) break;
         }

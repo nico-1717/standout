@@ -827,7 +827,15 @@
     "presa_alle": "taken at {ora}",
     "ieri_min": "yesterday",
     "study_js_non_partito": "to_study.js didn't start. Check that the file is on the server and look at the browser console.",
-    "attivita_senza_titolo": "Task"
+    "attivita_senza_titolo": "Task",
+    "prese_tutte": "All taken",
+    "prese_tutte_aria": "Mark all as taken",
+    "quando_le_hai_prese": "When did you take them?",
+    "prese_passate_n": "{n} doses from past days.",
+    "prese_passate_1": "1 dose from past days.",
+    "all_orario_previsto": "At the scheduled times",
+    "tutte_adesso": "All now",
+    "dimenticata": "missed"
   },
   "diario": {
     "lunedi": "Monday",
@@ -1663,7 +1671,20 @@
     "fr_a33": "I respect my limits: they protect me",
     "fr_a34": "I let the good things in",
     "fr_a35": "I'm alive, and that's already a lot",
-    "fr_a36": "My story is still waiting to be written"
+    "fr_a36": "My story is still waiting to be written",
+    "coda_n": "{n} changes waiting",
+    "coda_1": "1 change waiting",
+    "coda_offline": "Offline: changes will be sent when you are back online",
+    "coda_riprovo": "Retrying…",
+    "prese_tutte": "All taken",
+    "prese_tutte_aria": "Mark all as taken",
+    "quando_le_hai_prese": "When did you take them?",
+    "prese_passate_n": "{n} doses from past days.",
+    "prese_passate_1": "1 dose from past days.",
+    "all_orario_previsto": "At the scheduled times",
+    "tutte_adesso": "All now",
+    "segnate_prese_n": "{n} marked as taken",
+    "quando_l": "when"
   },
   "abitudini": {
     "abitudini": "Habits",

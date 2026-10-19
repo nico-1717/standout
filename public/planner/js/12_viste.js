@@ -114,7 +114,7 @@ function renderWeek() {
         head.dataset.date = date;
         head.appendChild(el('span', 'pl-wk-dow', GIORNI[dowIndex(date)].slice(0, 3)));
         head.appendChild(el('span', 'pl-wk-num', String(dd.getDate())));
-        var tutti = (S.events[date] || []).filter(function (x) { return x.all_day; });
+        var tutti = (S.events[date] || []).filter(inFascia);
         if (tutti.length) {
             var pt = el('span', 'pl-wk-allday');
             pt.style.setProperty('--ev', evColor(tutti[0]));
@@ -131,7 +131,7 @@ function renderWeek() {
     var adPerGiorno = [], adQualcuno = false;
     for (var a = 0; a < WK_GIORNI; a++) {
         var dAd = addDays(inizio, a);
-        var listAd = (S.events[dAd] || []).filter(function (x) { return x.all_day; });
+        var listAd = (S.events[dAd] || []).filter(inFascia);
         adPerGiorno.push({ date: dAd, list: listAd });
         if (listAd.length) adQualcuno = true;
     }
@@ -278,8 +278,10 @@ function wkCella(giorno, h) {
     cella.dataset.date = giorno;
     cella.dataset.ora = h;
 
+    /* un evento a cavallo della mezzanotte compare all'ora in cui comincia
+       il suo pezzo di oggi: il 28 a mezzanotte, non di nuovo alle 11 */
     var dentro = (S.events[giorno] || []).filter(function (ev) {
-        return !ev.all_day && Math.floor(toMin(ev.start) / 60) === h;
+        return !inFascia(ev) && Math.floor(toMin(pezzoDelGiorno(ev, giorno).start) / 60) === h;
     });
     /* prima i più importanti, e a parità i più lunghi: se qualcosa deve
        finire nel mucchietto, che sia il meno significativo */
@@ -288,7 +290,7 @@ function wkCella(giorno, h) {
         var pa = peso[a.importance] !== undefined ? peso[a.importance] : 2;
         var pb = peso[b.importance] !== undefined ? peso[b.importance] : 2;
         if (pa !== pb) return pa - pb;
-        return (toMin(b.end) - toMin(b.start)) - (toMin(a.end) - toMin(a.start));
+        return durataMinuti(b) - durataMinuti(a);
     });
 
     var posti = Math.max(1, Math.floor((WK.riga - 2) / 13));
@@ -1036,7 +1038,8 @@ function agendaRow(ev) {
         chip.style.flexShrink = '0';
         mid.appendChild(chip);
     } else {
-        mid.appendChild(el('span', 'pl-ma-hours', ev.start + ' – ' + ev.end));
+        mid.appendChild(el('span', 'pl-ma-hours', ev.start + ' – ' + ev.end
+            + (ev.giorno_tot > 1 ? ' (' + ev.giorno_num + '/' + ev.giorno_tot + ')' : '')));
     }
     var txt = el('div');
     txt.style.cssText = 'flex:1;min-width:0';

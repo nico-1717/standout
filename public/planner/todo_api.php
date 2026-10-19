@@ -17,6 +17,7 @@
      todo_api.php?ajax=image_del (POST)
      todo_api.php?ajax=pills     (GET)   prese di un giorno + arretrate
      todo_api.php?ajax=pill_mark (POST)  presa / saltata, con l'ora a mano
+     todo_api.php?ajax=pill_mark_all (POST) più prese insieme: all'orario previsto o adesso
      todo_api.php?ajax=pill_history (GET) come è andata una terapia
 
    Un'attività con una data finisce anche nel planner come task: con
@@ -831,6 +832,44 @@ if ($ajax === 'pill_mark') {
     sec_q("UPDATE pill_doses SET status = ?, taken_at = ? WHERE id = ? AND user_id = ?",
           [$st, $quando, $id, $uid], 'ssii');
     sec_json(['ok' => true, 'taken_at' => $quando]);
+}
+
+/* ---------------- tutte prese, in un colpo ----------------
+   Il tastino «prese tutte». `ids` è l'elenco delle prese, separate da
+   virgole; `mode` dice che ora scrivere:
+     - on_time: ognuna all'orario in cui era prevista (il caso normale per
+       quelle dei giorni scorsi: le si è prese, ci si è scordati di spuntarle);
+     - now: tutte adesso.
+   Si toccano solo le prese ancora in sospeso: una già spuntata ha già la
+   sua ora vera, e riscriverla la cancellerebbe. */
+if ($ajax === 'pill_mark_all') {
+    if (!td_pills_c_e()) sec_die_json(t('api.sezione_non_installata'), 400, 'no_table');
+    $mode = sec_enum(sec_in('mode'), ['on_time', 'now'], 'now');
+    $ids = [];
+    foreach (explode(',', (string)sec_str(sec_in('ids'), 4000)) as $x) {
+        $n = (int)trim($x);
+        if ($n > 0) $ids[$n] = true;
+    }
+    $ids = array_slice(array_keys($ids), 0, 200);
+    if (!$ids) sec_json(['ok' => true, 'n' => 0, 'taken' => new stdClass()]);
+
+    $segni = implode(',', array_fill(0, count($ids), '?'));
+    $rows = sec_all("SELECT id, due_date, due_time FROM pill_doses
+                     WHERE user_id = ? AND status <> 'taken' AND id IN ($segni)",
+                    array_merge([$uid], $ids), 'i' . str_repeat('i', count($ids)));
+    $adesso = date('Y-m-d H:i:s');
+    $fatte = [];
+    foreach ($rows as $r) {
+        $quando = $mode === 'on_time'
+            ? $r['due_date'] . ' ' . substr((string)$r['due_time'], 0, 5) . ':00'
+            : $adesso;
+        /* una presa prevista più avanti di adesso non si scrive nel futuro */
+        if ($quando > $adesso) $quando = $adesso;
+        sec_q("UPDATE pill_doses SET status = 'taken', taken_at = ? WHERE id = ? AND user_id = ?",
+              [$quando, (int)$r['id'], $uid], 'sii');
+        $fatte[(int)$r['id']] = $quando;
+    }
+    sec_json(['ok' => true, 'n' => count($fatte), 'taken' => $fatte ?: new stdClass()]);
 }
 
 /* ---------------- come è andata, giorno per giorno ----------------

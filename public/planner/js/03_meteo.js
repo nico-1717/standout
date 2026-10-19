@@ -516,7 +516,7 @@ function wxPopup(date) {
         dopo.addEventListener('click', function () { wxVaiA(date, 1); });
         nav.appendChild(prima);
         nav.appendChild(el('div', 'pl-label',
-            GIORNI[dowIndex(date)] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()));
+            GIORNI[dowIndex(date)] + ' ' + d.getDate() + ' ' + minuscolo(MESI[d.getMonth()])));
         nav.appendChild(dopo);
         testa.appendChild(nav);
 

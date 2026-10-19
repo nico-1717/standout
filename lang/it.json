@@ -827,7 +827,15 @@
     "presa_alle": "presa alle {ora}",
     "ieri_min": "ieri",
     "study_js_non_partito": "to_study.js non è partito. Controlla che il file sia sul server e guarda la console del browser.",
-    "attivita_senza_titolo": "Attività"
+    "attivita_senza_titolo": "Attività",
+    "prese_tutte": "Prese tutte",
+    "prese_tutte_aria": "Segna tutte come prese",
+    "quando_le_hai_prese": "Quando le hai prese?",
+    "prese_passate_n": "{n} prese dei giorni scorsi.",
+    "prese_passate_1": "1 presa dei giorni scorsi.",
+    "all_orario_previsto": "All'orario previsto",
+    "tutte_adesso": "Tutte adesso",
+    "dimenticata": "dimenticata"
   },
   "diario": {
     "lunedi": "Lunedì",
@@ -1663,7 +1671,20 @@
     "fr_a33": "Rispetto i miei limiti: mi proteggono",
     "fr_a34": "Lascio entrare le cose belle",
     "fr_a35": "Sono viva, e questo è già molto",
-    "fr_a36": "La mia storia è ancora tutta da scrivere"
+    "fr_a36": "La mia storia è ancora tutta da scrivere",
+    "coda_n": "{n} modifiche in attesa",
+    "coda_1": "1 modifica in attesa",
+    "coda_offline": "Senza rete: le modifiche partono appena torna",
+    "coda_riprovo": "Riprovo…",
+    "prese_tutte": "Prese tutte",
+    "prese_tutte_aria": "Segna tutte come prese",
+    "quando_le_hai_prese": "Quando le hai prese?",
+    "prese_passate_n": "{n} prese dei giorni scorsi.",
+    "prese_passate_1": "1 presa dei giorni scorsi.",
+    "all_orario_previsto": "All'orario previsto",
+    "tutte_adesso": "Tutte adesso",
+    "segnate_prese_n": "{n} segnate come prese",
+    "quando_l": "quando"
   },
   "abitudini": {
     "abitudini": "Abitudini",

@@ -137,7 +137,7 @@
                facendo credere di averle spostate tutte. Per muoverli si
                rizooma, e tornano separati. */
             if (!S.shift.on && !isAgenda() && canvas && evNode.style.position !== 'static'
-                && evNode.dataset.miniGroup !== '1') {
+                && evNode.dataset.miniGroup !== '1' && evNode.dataset.multi !== '1') {
                 startEventDrag(e, evNode, canvas);
             }
             /* Il dito è partito sopra un evento, ma se scorre in orizzontale
@@ -580,7 +580,7 @@ function startEventDrag(e, node, canvas) {
         var max = 16, speed = 0;
         if (lastY > vh - zoneGiu)      speed =  Math.min(max, (lastY - (vh - zoneGiu)) / 4);
         else if (lastY < top + zoneSu) speed = -Math.min(max, ((top + zoneSu) - lastY) / 4);
-        
+
         if (speed) {
             var before = sc.scrollTop;
             sc.scrollTop += speed;
@@ -612,8 +612,8 @@ function startEventDrag(e, node, canvas) {
            in dataset.newStart (place() lo scrive solo se il dito sale o scende). */
         var ns = node.dataset.newStart || toHM(blockStart);
         if (!dayChanged && toMin(ns) === blockStart) {
-            /* Niente da salvare: l'evento è tornato esattamente da dove era partito. 
-               Invece di affidarci a un calcolo fallato dei pixel CSS, ricarichiamo 
+            /* Niente da salvare: l'evento è tornato esattamente da dove era partito.
+               Invece di affidarci a un calcolo fallato dei pixel CSS, ricarichiamo
                direttamente la griglia in modo solido dalla memoria. */
             renderDays();
             return;
@@ -623,56 +623,56 @@ function startEventDrag(e, node, canvas) {
             /* tutti i passaggi si spostano dello stesso scarto, così le
                distanze fra loro restano quelle di prima */
             var shift = toMin(ns) - blockStart;
-            api('events_shift', {
-                ids: group.map(function (x) { return x.id; }),
+            var idsGruppo = group.map(function (x) { return x.id; });
+            /* tutto il blocco si sposta subito, la conferma arriva dopo */
+            group.forEach(function (x) {
+                var copia = Object.assign({}, x, {
+                    start: toHM(Math.max(0, Math.min(1439, toMin(x.start) + shift))),
+                    end: toHM(Math.max(0, Math.min(1439, toMin(x.end) + shift)))
+                });
+                mostraLocale(x.id, copia);
+            });
+            renderDays();
+            accoda('events_shift', {
+                ids: idsGruppo,
                 minutes: Math.abs(shift),
                 direction: shift > 0 ? 'late' : 'early'
-            }).then(function (r) {
-                if (!r.ok) { renderDays(); return; } // Rollback solido in caso di errore
-                if (r.moved === 0) toast(T('planner.il_blocco_non_ci_sta'));
-                S.weekCache = {};
-                loadWeek(monday(date), true).then(renderDays);
-                scheduleSync();
+            }, {
+                ev: idsGruppo,
+                ok: function (r) {
+                    if (r.moved === 0) toast(T('planner.il_blocco_non_ci_sta'));
+                    S.weekCache = {};
+                    loadWeek(monday(date), true);
+                }
             });
             return;
         }
 
-        /* --- OTTIMIZZAZIONE FLUIDITÀ (Optimistic Update) ---
-           Spostiamo istantaneamente l'evento in locale prima di aspettare la 
-           risposta del server. Questo impedisce che l'evento sparisca se un 
-           ridisegno interrompe l'attesa! */
-        ev.start = ns; 
-        ev.end = toHM(Math.min(1439, toMin(ns) + dur));
+        /* Si sposta subito, in locale; il server lo sa quando può. Se la rete
+           manca la modifica aspetta in coda, sbiadita, e parte da sola. */
+        var spostato = Object.assign({}, ev, { start: ns, end: toHM(Math.min(1439, toMin(ns) + dur)) });
         if (dayChanged) {
-            var vecchi = S.events[date] || [];
-            for (var vi = vecchi.length - 1; vi >= 0; vi--) {
-                if (vecchi[vi] === ev || vecchi[vi].id === id) vecchi.splice(vi, 1);
-            }
-            ev.date = curDate;
-            if (!S.events[curDate]) S.events[curDate] = [];
-            S.events[curDate] = S.events[curDate].filter(function (x) { return x.id !== id; });
-            S.events[curDate].push(ev);
+            var giorniPrima = giorniFra(ev.date, ev.end_date || ev.date);
+            spostato.date = curDate;
+            spostato.end_date = giorniPrima > 1 ? addDays(curDate, giorniPrima - 1) : curDate;
         }
-        renderDays(); // Renderizziamo subito la nuova posizione
+        var ripetuto = !!ev.is_occurrence;
+        if (ripetuto) {
+            Object.assign(ev, { start: spostato.start, end: spostato.end });
+        } else {
+            mostraLocale(id, spostato);
+        }
+        renderDays();
 
-        api('event_move', { id: id, date: curDate, start: ns }).then(function (r) {
-            if (!r.ok) {
-                /* In caso di errore (es. no rete), facciamo rollback ricaricando dal server */
-                loadWeek(monday(S.focusDate), true).then(renderDays);
-                return;
+        accoda('event_move', { id: id, date: curDate, start: ns }, {
+            ev: [ripetuto ? (ev.uid || id) : id],
+            ok: function (r) {
+                if (!ripetuto && S.locali[id]) { S.locali[id].start = r.start; S.locali[id].end = r.end; }
+                if (ripetuto || (dayChanged && monday(curDate) !== monday(date))) {
+                    S.weekCache = {};
+                    loadWeek(monday(S.focusDate), true);
+                }
             }
-            
-            // Confermiamo i dati esatti ritornati dal server
-            ev.start = r.start; 
-            ev.end = r.end;
-            
-            if (dayChanged && monday(curDate) !== monday(date)) {
-                S.weekCache = {};
-                loadWeek(monday(S.focusDate), true).then(renderDays);
-            } else {
-                renderDays();
-            }
-            scheduleSync();
         });
     }
     function cleanup() {
@@ -699,8 +699,8 @@ function firstFreeMinute(durMin) {
     var dur = Math.max(5, durMin || slot);
 
     var busy = eventsOf(S.focusDate)
-        .filter(function (e) { return !e.all_day; })
-        .map(function (e) { return { s: toMin(e.start), e: toMin(e.end) }; })
+        .filter(function (e) { return !inFascia(e); })
+        .map(function (e) { var p = pezzoDelGiorno(e, S.focusDate); return { s: toMin(p.start), e: toMin(p.end) }; })
         .sort(function (a, b) { return a.s - b.s; });
 
     var t = start, guard = 0;
@@ -739,11 +739,28 @@ function confirmRoutineTime(r, defaultStart) {
     yes.addEventListener('click', function () {
         var start = inp.value || defaultStart;
         ov.classList.remove('pl-open');
-        api('routine_insert', { routine_id: r.id, date: S.focusDate, start: start }).then(function (res) {
-            if (!res.ok) { toast(res.message || T('planner.non_e_stato_possibile_inserire')); return; }
-            indexEvents(res.events, { from: S.focusDate, to: S.focusDate });
-            renderDays();
-            haptic(14);
+        var giorno = S.focusDate;
+        var gruppoTmp = 'tmp' + Date.now();
+        var cursore = toMin(start), tmpIds = [];
+        (r.items || []).forEach(function (it) {
+            if (cursore >= 1439) return;
+            var fine = Math.min(1439, cursore + Math.max(1, it.minutes || 1));
+            var tmp = idProvvisorio();
+            tmpIds.push(tmp);
+            mostraLocale(tmp, eventoLocale({ title: it.name, date: giorno, start: toHM(cursore), end: toHM(fine),
+                                             color: r.color, type: 'event' }, null, tmp));
+            Object.assign(S.locali[tmp], { routine_id: r.id, routine_group: gruppoTmp, routine_collapsed: true, routine_name: r.name });
+            indexEvents([S.locali[tmp]], null, true);
+            cursore = fine;
+        });
+        renderDays();
+        haptic(14);
+        accoda('routine_insert', { routine_id: r.id, date: giorno, start: start }, {
+            ev: tmpIds,
+            ok: function (res) {
+                tmpIds.forEach(togliDaGiorni);
+                indexEvents(res.events, { from: giorno, to: giorno });
+            }
         });
     });
     acts.appendChild(no); acts.appendChild(yes);
@@ -805,7 +822,7 @@ function openRoutineInstance(group, date) {
 
     openSheet(routine ? routine.name : T('planner.routine_t'), function (body) {
         var d = parseIso(date);
-        body.appendChild(el('div', 'pl-row-sub', d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()
+        body.appendChild(el('div', 'pl-row-sub', d.getDate() + ' ' + minuscolo(MESI[d.getMonth()])
             + '  ·  ' + items[0].start + ' – ' + items[items.length - 1].end));
 
         var rows = el('div', 'pl-rows');
@@ -820,12 +837,11 @@ function openRoutineInstance(group, date) {
             alertBox(T('planner.elimino_tutta_la_routine'), T('planner.tutti_i_passaggi_di_questo'), [
                 { label: T('planner.annulla') },
                 { label: T('planner.elimina'), kind: 'danger', onClick: function () {
-                    api('event_delete', { id: items[0].id, scope: 'routine' }).then(function (r) {
-                        if (!r.ok) { toast(T('planner.non_e_stato_possibile_eliminare')); return; }
-                        S.events[date] = (S.events[date] || []).filter(function (e) { return e.routine_group !== group; });
-                        closeOv('plSheetOv');
-                        renderDays();
-                    });
+                    var idsRoutine = items.map(function (x) { return x.id; });
+                    idsRoutine.forEach(function (x) { mostraLocale(x, null); });
+                    closeOv('plSheetOv');
+                    renderDays();
+                    accoda('event_delete', { id: items[0].id, scope: 'routine' }, { ev: idsRoutine });
                 } }
             ]);
         });
@@ -943,9 +959,16 @@ function handleEventTap(e, node, ev) {
     if (kind === 'mini') { miniPopup([ev]); return; }
 
     if (kind === 'toggle') {
-        api('event_toggle', { id: ev.id }).then(function (r) {
-            if (!r.ok) return;
+        /* la spunta si vede subito; il conto degli anelli arriva con la conferma */
+        var fatto = !ev.done;
+        ev.done = fatto;
+        node.classList.toggle('pl-done', fatto);
+        node.classList.add('pl-attesa');
+        if (!ev.is_occurrence) S.locali[ev.id] = Object.assign({}, ev);
+        haptic(12);
+        accoda('event_toggle', { id: ev.id }, { ev: [ev.id], ok: function (r) {
             ev.done = r.done;
+            if (S.locali[ev.id]) S.locali[ev.id].done = r.done;
             node.classList.toggle('pl-done', r.done);
             if (ev.habit_id && S.habits[ev.date]) {
                 S.habits[ev.date].forEach(function (h) { if (h.id === ev.habit_id) h.done = r.done; });
@@ -961,7 +984,7 @@ function handleEventTap(e, node, ev) {
                sbarrata finché non lo si riapriva, e i due posti raccontavano
                storie diverse dello stesso to do. */
             if (ev.type === 'task' && S.todos) loadWeekTodos(S.todoTab, true);
-        });
+        } });
         return;
     }
     if (kind === 'fold') {

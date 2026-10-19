@@ -442,7 +442,7 @@ function psPane(dir) {
         hrow.style.borderTop = '';
         hrow.style.background = '';
 
-        var suoi = eventsOf(date).filter(function (e) { return e.all_day; });
+        var suoi = eventsOf(date).filter(inFascia);
         var many = visibleDays() >= 2;
 
         // Gestione corretta della visibilità per il giorno che entra
@@ -945,13 +945,9 @@ function inserisciArmato(date, startMin, endMin) {
     payload.start = toHM(startMin);
     payload.end = toHM(Math.min(1439, endMin));
     armaAttrezzo(null, null);
-    api('event_save', payload).then(function (r) {
-        if (!r.ok) { toast(T('planner.non_e_stato_possibile_inserirlo')); return; }
-        indexEvents([r.event]);
-        renderDays();
+    haptic(12);
+    creaSubito(payload, function () {
         if (a.kind === 'habit') { delete S.rings[date]; renderRing(); }
-        haptic(12);
-        scheduleSync();
     });
 }
 

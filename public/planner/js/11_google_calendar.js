@@ -44,7 +44,7 @@ function drawGoogle(box) {
         left.appendChild(el('div', 'pl-row-lab', st.email || T('planner.account_collegato')));
         var when = st.last_sync ? new Date(st.last_sync.replace(' ', 'T')) : null;
         left.appendChild(el('div', 'pl-row-sub', when
-            ? T('planner.ultima_sync') + when.getDate() + ' ' + MESI[when.getMonth()].toLowerCase() +
+            ? T('planner.ultima_sync') + when.getDate() + ' ' + minuscolo(MESI[when.getMonth()]) +
               ', ' + pad(when.getHours()) + ':' + pad(when.getMinutes())
             : T('planner.mai_sincronizzato')));
         info.appendChild(left);

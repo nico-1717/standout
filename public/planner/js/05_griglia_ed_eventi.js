@@ -330,7 +330,7 @@ function renderAllDay() {
         cell.classList.toggle('pl-hcol-hidden', !isAccanto);
         if (!isAccanto) continue;
         
-        var list = eventsOf(ds).filter(function (e) { return e.all_day; });
+        var list = eventsOf(ds).filter(inFascia);
         list.forEach(function (ev) { box.appendChild(buildEvent(ev, true)); });
         if (list.length && isVis) anyAllDay = true;
 
@@ -531,7 +531,8 @@ function renderCol(col, z) {
 
     var list = eventsOf(date);
     var timed = [];
-    list.forEach(function (ev) { if (!ev.all_day) timed.push(ev); });
+    /* gli eventi a cavallo della mezzanotte entrano col solo pezzo di oggi */
+    list.forEach(function (ev) { if (!inFascia(ev)) timed.push(pezzoDelGiorno(ev, date)); });
 
     if (isAgenda()) {
         var wrap = el('div', 'pl-agenda');
@@ -1091,6 +1092,7 @@ function buildEvent(ev, flow) {
     node.dataset.id = ev.id;
     node.dataset.date = ev.date || S.focusDate;
     if (ev.count) node.dataset.routineMerged = '1';   // il blocco compatto di una routine
+    if (ev.giorno_tot > 1 && !ev.all_day) node.dataset.multi = '1';   // a cavallo di più giorni: non si trascina
 
     var row = el('div', 'pl-ev-row');
     if (S.shift.on) {
@@ -1167,7 +1169,10 @@ function buildEvent(ev, flow) {
     row.appendChild(el('span', 'pl-ev-spacer'));   // lo spazio avanzato resta in coda
     node.appendChild(row);
     if (!ev.all_day && (!flow || ev.start)) {
-        node.appendChild(el('div', 'pl-ev-h', ev.start + ' – ' + ev.end + (ev.count ? '  ·  ' + T('planner.n_passaggi', {n: ev.count}) : '')));
+        /* il pezzo di un evento lungo mostra gli orari veri, non quelli
+           ritagliati sulla giornata */
+        var hS = ev.vero_start || ev.start, hE = ev.vero_end || ev.end;
+        node.appendChild(el('div', 'pl-ev-h', hS + ' – ' + hE + (ev.count ? '  ·  ' + T('planner.n_passaggi', {n: ev.count}) : '')));
     }
     return node;
 }

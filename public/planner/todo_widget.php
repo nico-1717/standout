@@ -1489,8 +1489,12 @@ if (!defined('TODO_WIDGET_CSS')) {
            adesso o resta un buco. */
         var late = p.late || [];
         if (late.length) {
-            self.list.appendChild(el('div', 'td-pill-sect td-pill-lasect',
+            var testaLate = el('div', 'td-pill-sect td-pill-lasect td-pill-sectrow');
+            testaLate.appendChild(el('span', null,
                 late.length === 1 ? T('todo.rimasta_indietro') : T('todo.rimaste_indietro')));
+            var lateAperte = late.filter(function (d) { return d.status !== 'taken'; });
+            if (lateAperte.length > 1) testaLate.appendChild(self.pillTutteBtn(lateAperte, true));
+            self.list.appendChild(testaLate);
             late.forEach(function (d) { self.list.appendChild(self.pillDoseRow(d, true)); });
         }
 
@@ -1502,6 +1506,12 @@ if (!defined('TODO_WIDGET_CSS')) {
                                           : T('todo.aggiungi_prima_terapia')));
         }
         var oraOra = pad(new Date().getHours()) + ':' + pad(new Date().getMinutes());
+        var aperteOggi = doses.filter(function (d) { return d.status !== 'taken'; });
+        if (aperteOggi.length > 1) {
+            var rigaTutte = el('div', 'td-pill-tutterow');
+            rigaTutte.appendChild(self.pillTutteBtn(aperteOggi, false));
+            self.list.appendChild(rigaTutte);
+        }
         var ultimoOrario = null;
         doses.forEach(function (d) {
             if (d.time !== ultimoOrario) {
@@ -1899,13 +1909,64 @@ if (!defined('TODO_WIDGET_CSS')) {
                 self.pillQuando(d, function (quando) { r.pillSegna('taken', quando); }, true);
             }, true);
 
-            var scorda = el('button', 'td-pill-scorda', 'dimenticata');
+            var scorda = el('button', 'td-pill-scorda', T('todo.dimenticata'));
             scorda.type = 'button';
             scorda.title = T('todo.non_ho_presa');
             scorda.addEventListener('click', function () { r.pillSegna('skipped'); });
             r.appendChild(scorda);
         }
         return r;
+    };
+
+    /* «Prese tutte». Su quelle dei giorni scorsi chiede a che ora scriverle:
+       all'orario previsto (le si è prese, ci si è scordati di spuntarle) o
+       tutte adesso. Su quelle di oggi vale l'orologio, come per una sola. */
+    Todo.prototype.pillTutteBtn = function (lista, passate) {
+        var self = this;
+        var b = el('button', 'td-pill-tutte', T('todo.prese_tutte'));
+        b.type = 'button';
+        b.setAttribute('aria-label', T('todo.prese_tutte_aria'));
+        b.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var aperte = lista.filter(function (d) { return d.status !== 'taken'; });
+            if (!aperte.length) return;
+            if (!passate) { self.pillSegnaTutte(aperte, 'now'); return; }
+            var ov = el('div', 'td-modal');
+            var card = el('div', 'td-card');
+            card.appendChild(el('div', 'td-card-t', T('todo.quando_le_hai_prese')));
+            card.appendChild(el('div', 'td-card-s', aperte.length === 1
+                ? T('todo.prese_passate_1') : T('todo.prese_passate_n', { n: aperte.length })));
+            var az = el('div', 'td-card-acts td-card-acts-col');
+            [['on_time', T('todo.all_orario_previsto'), 'td-primary'],
+             ['now', T('todo.tutte_adesso'), null],
+             [null, T('comune.annulla'), 'td-ghost']].forEach(function (o) {
+                var x = el('button', o[2], o[1]); x.type = 'button';
+                x.addEventListener('click', function () {
+                    ov.remove();
+                    if (o[0]) self.pillSegnaTutte(aperte, o[0]);
+                });
+                az.appendChild(x);
+            });
+            card.appendChild(az);
+            ov.appendChild(card);
+            ov.addEventListener('click', function (ev) { if (ev.target === ov) ov.remove(); });
+            document.body.appendChild(ov);
+        });
+        return b;
+    };
+    Todo.prototype.pillSegnaTutte = function (aperte, mode) {
+        var self = this;
+        var adesso = pillAdesso();
+        aperte.forEach(function (d) {
+            d.status = 'taken';
+            var previsto = (d.date || pillOggi()) + ' ' + (d.time || '08:00') + ':00';
+            d.taken_at = mode === 'on_time' && previsto < adesso ? previsto : adesso;
+        });
+        if (navigator.vibrate) { try { navigator.vibrate(14); } catch (e) {} }
+        self.renderLater(60);
+        api('pill_mark_all', { ids: aperte.map(function (d) { return d.id; }).join(','), mode: mode }).then(function () {
+            self.loadPills();
+        });
     };
 
     /* «lunedì 3 agosto», per dire di che giorno è una presa arretrata. */
@@ -1945,9 +2006,9 @@ if (!defined('TODO_WIDGET_CSS')) {
         ft.appendChild(iOra);
         card.appendChild(ft);
 
-        var az = el('div', 'td-card-az');
-        var no = el('button', 'td-b', T('comune.annulla')); no.type = 'button';
-        var si = el('button', 'td-b td-b-p', T('comune.salva')); si.type = 'button';
+        var az = el('div', 'td-card-acts');
+        var no = el('button', null, T('comune.annulla')); no.type = 'button';
+        var si = el('button', 'td-primary', T('comune.salva')); si.type = 'button';
         no.addEventListener('click', function () { ov.remove(); });
         si.addEventListener('click', function () {
             var g = iData ? (iData.value || d.date || pillOggi()) : (d.date || pillOggi());

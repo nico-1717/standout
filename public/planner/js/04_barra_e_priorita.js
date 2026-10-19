@@ -283,21 +283,20 @@ function smartCreate(input) {
     var start = p.allDay ? '00:00' : (p.time || toHM(firstFreeMinute(dur)));
     var end = p.allDay ? '23:59' : toHM(Math.min(1439, toMin(start) + dur));
 
-    api('event_save', {
+    var payload = {
         title: p.title, date: p.date, start: start, end: end,
         all_day: p.allDay ? 1 : 0,
         guests: p.guests || [],
         type: 'event', notify: p.allDay ? 'none' : 'h1'
-    }).then(function (r) {
-        if (!r.ok) { toast(r.message || T('planner.non_e_stato_possibile_creare')); return; }
-        indexEvents([r.event]);
-        input.value = '';
-        input.blur();
-        if (p.date !== S.focusDate) goToDate(p.date, true); else renderDays();
-        haptic(12);
-        smartReport(p, start, end, r.event);
-        scheduleSync();
-    });
+    };
+    /* compare subito: la barra si svuota e si passa al giorno giusto senza
+       aspettare il server */
+    var tmp = creaSubito(payload);
+    input.value = '';
+    input.blur();
+    if (p.date !== S.focusDate) goToDate(p.date, true); else renderDays();
+    haptic(12);
+    smartReport(p, start, end, S.locali[tmp] || eventoLocale(payload, null, tmp));
 }
 
 /* Dettatura della barra: si parla, e dopo un paio di secondi di silenzio
@@ -354,7 +353,7 @@ function setupSmartMic(btn, input) {
 /* Il riepilogo di quello che ha capito: resta qualche secondo e se ne va. */
 function smartReport(p, start, end, created) {
     var d = parseIso(p.date);
-    var quando = GIORNI[dowIndex(p.date)] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase();
+    var quando = GIORNI[dowIndex(p.date)] + ' ' + d.getDate() + ' ' + minuscolo(MESI[d.getMonth()]);
     var box = $('plSmartReport');
     if (!box) {
         box = el('div', 'pl-smart-report');
@@ -565,7 +564,7 @@ function rowInfo(lab, val) {
 
 function dataLunga(iso) {
     var d = parseIso(iso);
-    return GIORNI[dowIndex(iso)] + ' ' + d.getDate() + ' ' + MESI[d.getMonth()].toLowerCase()
+    return GIORNI[dowIndex(iso)] + ' ' + d.getDate() + ' ' + minuscolo(MESI[d.getMonth()])
          + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '');
 }
 

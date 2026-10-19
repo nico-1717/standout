@@ -399,3 +399,18 @@
     padding:7px 6px; font-size:15px; color:var(--ink); font-variant-numeric:tabular-nums;
 }
 
+
+/* «prese tutte»: in fondo alla riga del giorno e a quella delle arretrate */
+.pl-pill-dayrow, .pl-pill-sectrow{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.pl-pill-dayrow .pl-pill-day{ flex:1; min-width:0; }
+.pl-pill-tutte{
+    flex-shrink:0; border:none; cursor:pointer; font:inherit; font-size:12px;
+    padding:5px 11px; border-radius:99px;
+    background:var(--chip, rgba(var(--ink-rgb, 76,70,63),.07)); color:var(--ink);
+    transition:transform .15s ease;
+}
+.pl-pill-tutte:active{ transform:scale(.95); }
+
+/* tre scelte non stanno in riga senza spezzare le parole: una sotto l altra */
+#plAlertActs:has(> :nth-child(3)){ flex-direction:column; }
+#plAlertActs:has(> :nth-child(3)) .pl-btn{ width:100%; }

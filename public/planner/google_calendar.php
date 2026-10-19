@@ -712,12 +712,18 @@ function gc_pull_one(int $uid, string $token, string $ref, ?string $syncToken, ?
                e dopo qualche secondo l'evento tornerebbe dov'era.
                Se è "sporco" lo saltiamo: lo manderemo noi subito dopo. */
             $existing = sec_one(
-                "SELECT id, (google_synced_at IS NULL
+                "SELECT id, routine_group, google_origin, (google_synced_at IS NULL
                              OR updated_at > google_synced_at) AS dirty
                  FROM planner_events WHERE user_id = ? AND google_event_id = ? LIMIT 1",
                 [$uid, $gid], 'is');
             if ($existing && (int)$existing['dirty'] === 1) {
                 continue;   // vince la modifica fatta qui, non quella di Google
+            }
+            /* Il blocco di una routine nostra torna indietro con il nome della
+               routine e gli orari di tutto il blocco: scritto sul capo, gli
+               cambierebbe titolo e durata. Le routine le decide il planner. */
+            if ($existing && !empty($existing['routine_group']) && (int)$existing['google_origin'] === 0) {
+                continue;
             }
 
             /* Il gemello: lo stesso evento arrivato da un altro calendario.
@@ -1058,6 +1064,79 @@ function gc_push_eccezioni(int $uid, string $token, string $from, string $to): a
     return ['fatte' => $fatte, 'falliti' => $falliti];
 }
 
+/* =====================================================================
+   LE ROUTINE: UN BLOCCO SOLO SU GOOGLE
+   Nel planner una routine e' fatta di pezzi (sveglia, doccia, colazione…),
+   una riga per pezzo con lo stesso routine_group. Su Google interessano
+   come impegno, non come lista: ci va un evento solo, con il nome della
+   routine, dall'inizio del primo pezzo alla fine dell'ultimo, e i pezzi
+   elencati nelle note.
+
+   L'evento di Google appartiene a UN pezzo, il "capo": quello che ha gia'
+   un google_event_id, o il primo della giornata. Gli altri pezzi non hanno
+   mai un identificativo loro; se l'avevano (perche' prima venivano mandati
+   uno per uno) lo perdono, e il loro doppione su Google si cancella.
+   Il gruppo si riconosce da routine_group + giorno: copiando un giorno la
+   routine si porta dietro lo stesso routine_group, ma e' un altro blocco.
+   ===================================================================== */
+function gc_calendario_principale(int $uid): ?int {
+    static $cache = [];
+    if (!array_key_exists($uid, $cache)) {
+        $r = sec_one("SELECT id FROM planner_calendars WHERE user_id = ? ORDER BY is_default DESC, id LIMIT 1", [$uid], 'i');
+        $cache[$uid] = $r ? (int)$r['id'] : null;
+    }
+    return $cache[$uid];
+}
+
+/** I pezzi di un blocco routine in quel giorno, in ordine di orario. */
+function gc_pezzi_routine(int $uid, string $gruppo, string $giorno): array {
+    return sec_all("SELECT * FROM planner_events
+                     WHERE user_id = ? AND routine_group = ? AND event_date = ?
+                       AND (is_cancelled IS NULL OR is_cancelled = 0)
+                     ORDER BY start_time, id",
+                   [$uid, $gruppo, $giorno], 'iss');
+}
+
+/** Il pezzo che porta l'evento di Google per tutto il blocco. */
+function gc_capo_routine(array $pezzi): ?array {
+    foreach ($pezzi as $p) {
+        if (!empty($p['google_event_id']) && (int)($p['google_origin'] ?? 0) === 0) return $p;
+    }
+    return $pezzi[0] ?? null;
+}
+
+/** L'evento da mandare a Google al posto dei pezzi: la riga del capo con
+    titolo, orari e note del blocco intero. Le colonne vere del capo non si
+    toccano: questo array serve solo a costruire il payload. */
+function gc_blocco_routine(int $uid, array $capo, array $pezzi): array {
+    $nome = '';
+    if (!empty($capo['routine_id'])) {
+        $r = sec_one("SELECT name FROM planner_routines WHERE id = ? AND user_id = ?", [(int)$capo['routine_id'], $uid], 'ii');
+        $nome = $r ? trim((string)$r['name']) : '';
+    }
+    $inizio = null; $fine = null; $righe = [];
+    foreach ($pezzi as $p) {
+        $s = substr((string)$p['start_time'], 0, 5); $e = substr((string)$p['end_time'], 0, 5);
+        if ($inizio === null || $s < $inizio) $inizio = $s;
+        if ($fine === null || $e > $fine) $fine = $e;
+        $righe[] = $s . '–' . $e . '  ' . $p['title'];
+    }
+    $blocco = $capo;
+    $blocco['title']      = $nome !== '' ? $nome : (string)$capo['title'];
+    $blocco['start_time'] = ($inizio ?? '00:00') . ':00';
+    $blocco['end_time']   = ($fine ?? '00:30') . ':00';
+    $blocco['end_date']   = null;
+    $blocco['is_all_day'] = 0;
+    $blocco['rrule']      = null;
+    $blocco['repeat_type'] = 'none';
+    $blocco['notes']      = implode("\n", $righe);
+    /* I pezzi delle routine nate prima di questa versione non hanno un
+       calendario: senza, gc_target_for li lascerebbe fuori da Google. Vanno
+       nel principale, come qualunque evento a cui non si e' scelto niente. */
+    if (empty($blocco['calendar_id'])) $blocco['calendar_id'] = gc_calendario_principale($uid);
+    return $blocco;
+}
+
 function gc_push(int $uid, string $token, array $acc): array {
     $dedicated = $acc['calendar_id'] ?: 'primary';
     $modes = gc_modes($uid);
@@ -1077,6 +1156,17 @@ function gc_push(int $uid, string $token, array $acc): array {
     $from = date('Y-m-d', strtotime('-' . GC_WINDOW_BACK . ' days'));
     $to   = date('Y-m-d', strtotime('+' . GC_WINDOW_FWD . ' days'));
 
+    /* Le routine inserite prima che avessero un calendario non sono mai
+       arrivate su Google, e risultano gia' "viste". Si danno al principale e
+       si segnano da mandare: succede una volta sola, poi il calendario c'e'. */
+    $principale = gc_calendario_principale($uid);
+    if ($principale !== null) {
+        sec_q("UPDATE planner_events SET calendar_id = ?, google_synced_at = NULL
+                WHERE user_id = ? AND routine_group IS NOT NULL AND calendar_id IS NULL
+                  AND google_origin = 0 AND event_date BETWEEN ? AND ?",
+              [$principale, $uid, $from, $to], 'iiss');
+    }
+
     /* "Da mandare" vuol dire toccato qui dopo l'ultimo allineamento.
        Il confronto è stretto perché le scritture di servizio (quelle che
        segnano google_synced_at) rimettono updated_at al valore che aveva:
@@ -1095,7 +1185,31 @@ function gc_push(int $uid, string $token, array $acc): array {
     );
 
     $created = 0; $updated = 0; $failed = 0; $removed = 0;
+    $routineFatte = [];
     foreach ($rows as $ev) {
+        /* Un pezzo di routine non va su Google da solo: va il blocco intero,
+           una volta sola per gruppo e giorno, attaccato al capo. */
+        if (!empty($ev['routine_group']) && (int)($ev['google_origin'] ?? 0) === 0) {
+            $chiave = $ev['routine_group'] . '|' . $ev['event_date'];
+            if (isset($routineFatte[$chiave])) continue;
+            $routineFatte[$chiave] = true;
+            $pezzi = gc_pezzi_routine($uid, (string)$ev['routine_group'], (string)$ev['event_date']);
+            $capo = gc_capo_routine($pezzi);
+            if ($capo === null) continue;
+            foreach ($pezzi as $p) {
+                if ((int)$p['id'] === (int)$capo['id']) continue;
+                if (!empty($p['google_event_id'])) {
+                    gc_http('DELETE', 'https://www.googleapis.com/calendar/v3/calendars/'
+                            . rawurlencode($p['google_calendar_id'] ?: $dedicated) . '/events/'
+                            . rawurlencode((string)$p['google_event_id']), null, $token);
+                    $removed++;
+                }
+                sec_q("UPDATE planner_events SET google_event_id = NULL, google_calendar_id = NULL,
+                              google_synced_at = NOW(), updated_at = updated_at
+                       WHERE id = ? AND user_id = ?", [(int)$p['id'], $uid], 'ii');
+            }
+            $ev = gc_blocco_routine($uid, $capo, $pezzi);
+        }
         $target = gc_target_for($ev, $modes, $dedicated, $push);
         $oldCal = $ev['google_calendar_id'] ?? null;
         $oldId  = $ev['google_event_id'] ?? null;

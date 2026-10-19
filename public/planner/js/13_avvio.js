@@ -591,7 +591,11 @@ function boot() {
     S.categories.forEach(function (c) { if (c.hidden) S.hiddenCats[c.id] = true; });
     $('plFilterBtn').classList.toggle('pl-on', Object.keys(S.hiddenCats).length > 0);
 
+    /* le modifiche rimaste in coda dall'ultima visita (pagina chiusa senza
+       rete, per esempio) tornano visibili e ripartono */
+    codaCarica();
     indexEvents(B.events, B.range ? { from: B.range.from, to: B.range.to } : null);
+    if (CODA.ops.length) { codaSpia(); setTimeout(codaGira, 400); }
     indexPrio(B.priorities || {});
     S.habits[S.today] = B.habits || [];
     S.rings[S.today]  = B.rings || [];
