@@ -613,6 +613,11 @@ function wkSegnaScelto() {
 (function menuViste() {
     var btn = $('plViewBtn'), menu = $('plViewMenu');
     if (!btn || !menu) return;
+    /* Il menu vive nel body e non nell'intestazione: la barra in alto ha il
+       vetro (backdrop-filter), che per un figlio `fixed` diventa il riquadro
+       di riferimento e lo ritaglia. Con il pulsante nella seconda riga il
+       menu usciva dal fondo della barra e se ne vedeva solo metà. */
+    document.body.appendChild(menu);
 
     function chiudi() {
         if (!menu.classList.contains('pl-open')) return;
