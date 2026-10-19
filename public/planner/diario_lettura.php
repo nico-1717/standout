@@ -38,7 +38,7 @@ $par = function (string $t): string {
 };
 ?>
 <!DOCTYPE html>
-<html lang="it" <?php echo standout_stile_attr(); ?>>
+<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>" <?php echo standout_stile_attr(); ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

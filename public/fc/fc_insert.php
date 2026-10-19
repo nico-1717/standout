@@ -180,7 +180,7 @@ if ($modo === 'edit') {
 
 
 
-<html lang="it">
+<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>">
 
 
 

@@ -891,7 +891,8 @@
     "tb_dettagli": "Dettagli",
     "tb_link": "Link",
     "tb_aggiungi_foto": "Aggiungi foto",
-    "tb_suggerimento": "Puoi scrivere il prezzo, #categoria, !1 per la priorità, o incollare più righe insieme."
+    "tb_suggerimento": "Puoi scrivere il prezzo, #categoria, !1 per la priorità, o incollare più righe insieme.",
+    "nuova_categoria_puntini": "Nuova categoria…"
   },
   "diario": {
     "lunedi": "Lunedì",

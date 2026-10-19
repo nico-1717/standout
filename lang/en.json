@@ -891,7 +891,8 @@
     "tb_dettagli": "Details",
     "tb_link": "Link",
     "tb_aggiungi_foto": "Add photo",
-    "tb_suggerimento": "You can add a price, #category, !1 for priority, or paste several lines at once."
+    "tb_suggerimento": "You can add a price, #category, !1 for priority, or paste several lines at once.",
+    "nuova_categoria_puntini": "New category…"
   },
   "diario": {
     "lunedi": "Monday",

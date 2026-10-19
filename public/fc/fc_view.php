@@ -2080,7 +2080,7 @@ if (isset($_GET['fc_feed_page'])) {
 
 <!DOCTYPE html>
 
-<html lang="it" style="--cat-color: <?= sec_h(fc_color_or_default($current_cat_color)) ?>;">
+<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>" style="--cat-color: <?= sec_h(fc_color_or_default($current_cat_color)) ?>;">
 
 <head>
 

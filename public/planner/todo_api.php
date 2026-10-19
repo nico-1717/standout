@@ -946,7 +946,26 @@ if ($ajax === 'pill_day_set') {
     $prese = sec_all("SELECT id, status, due_time FROM pill_doses
                       WHERE user_id = ? AND plan_id = ? AND due_date = ?
                       ORDER BY due_time, seq", [$uid, $pid, $giorno], 'iis');
-    if (!$prese) sec_die_json(t('api.nessuna_presa_quel_giorno'), 400, 'no_doses');
+    /* IL CALENDARIO CHE NON SALVAVA.
+       Un giorno prima dell'inizio della terapia, o prima dell'ultima volta
+       che se ne sono cambiati gli orari, non ha prese: il ritmo di adesso non
+       vale lì. Ma se l'utente tocca quel giorno e dice «ne ho prese due», è
+       un fatto, e va scritto: si creano le prese di quel giorno con gli orari
+       della terapia. Prima la richiesta si fermava qui con un errore che la
+       pagina non mostrava, e sembrava che il calendario ignorasse le modifiche. */
+    if (!$prese && $n > 0) {
+        $piano = sec_one("SELECT times FROM pill_plans WHERE id = ? AND user_id = ?", [$pid, $uid], 'ii');
+        foreach (td_pill_times((string)($piano['times'] ?? '')) as $t) {
+            for ($seq = 1; $seq <= $t[1]; $seq++) {
+                sec_q("INSERT IGNORE INTO pill_doses (user_id, plan_id, due_date, due_time, seq) VALUES (?, ?, ?, ?, ?)",
+                      [$uid, $pid, $giorno, $t[0], $seq], 'iissi');
+            }
+        }
+        $prese = sec_all("SELECT id, status, due_time FROM pill_doses
+                          WHERE user_id = ? AND plan_id = ? AND due_date = ?
+                          ORDER BY due_time, seq", [$uid, $pid, $giorno], 'iis');
+    }
+    if (!$prese) sec_json(['ok' => true, 'taken' => 0, 'tot' => 0]);   // zero su un giorno vuoto: niente da fare
 
     $n = min($n, count($prese));
     $adesso = date('Y-m-d H:i:s');
@@ -957,8 +976,18 @@ if ($ajax === 'pill_day_set') {
     usort($altre, function ($a, $b) { return ($a['status'] === 'skipped') <=> ($b['status'] === 'skipped'); });
     $togliere = array_slice($gia, $n);
     $aggiungere = array_slice($altre, 0, max(0, $n - count($gia)));
+    /* Su un giorno passato, «ne ho prese una su due» vuol dire che l'altra
+       non è stata presa: si segna saltata. Lasciata in sospeso tornava a galla
+       fra le prese rimaste indietro, come se fosse ancora da decidere. Oggi
+       invece resta in sospeso: la giornata non è finita. */
+    $restoA = $giorno < date('Y-m-d') ? 'skipped' : 'pending';
     foreach ($togliere as $d) {
-        sec_q("UPDATE pill_doses SET status = 'pending', taken_at = NULL WHERE id = ? AND user_id = ?", [(int)$d['id'], $uid], 'ii');
+        sec_q("UPDATE pill_doses SET status = ?, taken_at = NULL WHERE id = ? AND user_id = ?", [$restoA, (int)$d['id'], $uid], 'sii');
+    }
+    if ($restoA === 'skipped') {
+        foreach (array_slice($altre, max(0, $n - count($gia))) as $d) {
+            if ($d['status'] === 'pending') sec_q("UPDATE pill_doses SET status = 'skipped' WHERE id = ? AND user_id = ?", [(int)$d['id'], $uid], 'ii');
+        }
     }
     foreach ($aggiungere as $d) {
         $quando = $giorno . ' ' . substr((string)$d['due_time'], 0, 5) . ':00';

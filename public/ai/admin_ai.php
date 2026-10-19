@@ -139,7 +139,7 @@ $attivi = sec_all(
       WHERE j.status IN ('queued', 'running', 'paused') ORDER BY j.last_tick_at IS NULL, j.last_tick_at LIMIT 20");
 ?>
 <!DOCTYPE html>
-<html lang="it">
+<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">

@@ -329,7 +329,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-<html lang="it">
+<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>">
 
 
 

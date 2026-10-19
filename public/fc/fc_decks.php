@@ -963,7 +963,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
 <!DOCTYPE html>
 
-<html lang="it">
+<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>">
 
 <head>
 

@@ -145,7 +145,7 @@ if ($cred_riquadro) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="it">
+<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>">
 <head>
     <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
     <meta charset="UTF-8">

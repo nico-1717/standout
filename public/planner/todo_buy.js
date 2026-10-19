@@ -503,29 +503,51 @@
         r1.appendChild(seg);
         box.appendChild(r1);
 
-        var r2 = el('div', 'tb-det-r tb-det-cats');
+        /* La categoria in un menu a tendina: con tante categorie le pastiglie
+           andavano su tre righe e il pannello diventava più lungo dell'elenco.
+           Il menu del telefono è quello che si sa già usare, e in fondo ha
+           «Nuova categoria…» per crearne una senza uscire da qui. */
+        var r2 = el('div', 'tb-det-r');
         r2.appendChild(el('span', 'tb-det-l', T('todo.categoria')));
-        var cats = el('div', 'tb-cats');
-        [{ id: 0, name: T('todo.senza_categoria'), color: null }].concat(this.cats).forEach(function (c) {
-            var b = el('button', 'tb-cat' + ((t.cat_id || 0) === c.id ? ' tb-on' : ''));
-            b.type = 'button';
-            if (c.color) { var d = el('i', 'tb-dot'); d.style.background = c.color; b.appendChild(d); }
-            b.appendChild(el('span', null, c.name));
-            b.addEventListener('click', function () {
-                self.inModifica(t.id);
-                t.cat_id = c.id || null;
-                cats.querySelectorAll('.tb-cat').forEach(function (x) { x.classList.toggle('tb-on', x === b); });
-                self.salvaAcquisto(t, { cat_id: c.id });
+        var selBox = el('label', 'tb-sel');
+        var pallino = el('i', 'tb-dot');
+        var sel = el('select', 'tb-sel-in');
+        sel.setAttribute('aria-label', T('todo.categoria'));
+        function colore() {
+            var c = self.cats.filter(function (x) { return x.id === (t.cat_id || 0); })[0];
+            pallino.style.background = c && c.color ? c.color : 'transparent';
+            pallino.style.boxShadow = c && c.color ? 'none' : 'inset 0 0 0 1.5px var(--td-ink-3, #C7C7CC)';
+        }
+        function riempi() {
+            sel.innerHTML = '';
+            [{ id: 0, name: T('todo.senza_categoria') }].concat(self.cats).forEach(function (c) {
+                var o = el('option', null, c.name);
+                o.value = String(c.id);
+                if ((t.cat_id || 0) === c.id) o.selected = true;
+                sel.appendChild(o);
             });
-            cats.appendChild(b);
+            var o2 = el('option', null, T('todo.nuova_categoria_puntini'));
+            o2.value = 'nuova';
+            sel.appendChild(o2);
+            colore();
+        }
+        riempi();
+        sel.addEventListener('change', function () {
+            if (sel.value === 'nuova') {
+                sel.value = String(t.cat_id || 0);
+                self.catManager();
+                return;
+            }
+            var id = parseInt(sel.value, 10) || 0;
+            self.inModifica(t.id);
+            t.cat_id = id || null;
+            colore();
+            self.salvaAcquisto(t, { cat_id: id });
         });
-        var nuova = el('button', 'tb-cat tb-cat-add');
-        nuova.type = 'button';
-        nuova.innerHTML = H.ICON_PLUS;
-        nuova.setAttribute('aria-label', T('todo.nuova_categoria'));
-        nuova.addEventListener('click', function () { self.catManager(); });
-        cats.appendChild(nuova);
-        r2.appendChild(cats);
+        selBox.appendChild(pallino);
+        selBox.appendChild(sel);
+        selBox.insertAdjacentHTML('beforeend', '<svg class="tb-sel-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
+        r2.appendChild(selBox);
         box.appendChild(r2);
 
         var r3 = el('div', 'tb-det-r');

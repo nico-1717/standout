@@ -76,13 +76,25 @@ if (!defined('TODO_WIDGET_CSS')) {
         return n;
     }
     function pad(n) { return (n < 10 ? '0' : '') + n; }
+    /* Un avviso breve in basso, per gli errori: il widget vive dentro pagine
+       diverse e non può contare sull'avviso di nessuna di loro. */
+    function avviso(msg) {
+        var a = el('div', 'td-avviso', msg);
+        document.body.appendChild(a);
+        requestAnimationFrame(function () { a.classList.add('is-on'); });
+        setTimeout(function () { a.classList.remove('is-on'); setTimeout(function () { a.remove(); }, 300); }, 2800);
+    }
     function parseIso(s) { var p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
     /* I prezzi si contano in centesimi e si scrivono in euro solo qui, in un
        posto solo: se ogni punto facesse la sua divisione i totali finirebbero
        per non tornare con le righe. */
+    /* nella lingua di chi guarda: «5,59 €» in italiano, «€5.59» in inglese */
+    var EURO_FMT = null;
+    try { EURO_FMT = new Intl.NumberFormat(document.documentElement.lang || 'it', { style: 'currency', currency: 'EUR' }); } catch (e) {}
     function euro(cents) {
-        var v = (Math.round(cents || 0) / 100).toFixed(2);
-        return v.replace('.', ',') + ' €';
+        var n = Math.round(cents || 0) / 100;
+        if (EURO_FMT) return EURO_FMT.format(n);
+        return n.toFixed(2).replace('.', ',') + ' €';
     }
 
     var ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>';
@@ -1842,7 +1854,9 @@ if (!defined('TODO_WIDGET_CSS')) {
                                 if (Math.abs(ultimoDx) >= 40) return;   // era uno sfoglio, non un tocco
                                 pillGiornoScelta(pl, iso, prese, tot, function (n) {
                                     api('pill_day_set', { plan_id: pl.id, date: iso, taken: n }).then(function (r) {
-                                        if (r && r.ok === false && r.message && typeof window.showToast === 'function') showToast(r.message, 'error');
+                                        /* l'errore si dice sempre: prima solo se la pagina aveva
+                                           un suo avviso, e quasi mai ce l'aveva */
+                                        if (!r || r.ok === false) avviso((r && r.message) || T('comune.errore_rete'));
                                         disegna();
                                         if (cambiato) cambiato();
                                     });

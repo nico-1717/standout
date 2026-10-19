@@ -394,7 +394,7 @@ function mfc_parola_esempio(): string {
 ?>
 
 <!DOCTYPE html>
-<html lang="it">
+<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>">
 <head>
     <meta charset="UTF-8">
 <?php /* Senza questa riga, il primo disegno di una pagina dentro un iframe e'

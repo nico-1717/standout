@@ -1075,7 +1075,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
 <!DOCTYPE html>
 
-<html lang="it">
+<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>">
 
 <head>
 

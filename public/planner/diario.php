@@ -24,7 +24,7 @@ $boot = [
 ];
 ?>
 <!DOCTYPE html>
-<html lang="it" <?php echo standout_stile_attr(); ?>>
+<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>" <?php echo standout_stile_attr(); ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">

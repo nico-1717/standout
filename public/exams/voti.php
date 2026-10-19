@@ -526,7 +526,7 @@ $UNI_GROUPS   = uni_fetch_groups($current_user_id);
 $UNI_HAS_DATA = count($UNI_EXAMS) > 0;
 ?>
 <!DOCTYPE html>
-<html lang="it">
+<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">

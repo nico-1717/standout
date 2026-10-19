@@ -627,3 +627,18 @@ button.td-pill-cal-c.td-mezzo2{ background:color-mix(in srgb, var(--cc, #B7A6D6)
 .tb-r.td-item.td-in-modifica{ padding-left:0; padding-right:0; border-radius:14px; }
 .tb-r .td-row{ background:transparent; }
 .tb-r.td-swiped .td-row{ background:var(--td-card, #FFFDFA); }
+
+/* l'avviso degli errori del widget */
+.td-avviso{ position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom, 0px)); z-index:100000;
+    transform:translate(-50%, 12px); opacity:0; transition:opacity .25s, transform .25s;
+    max-width:min(420px, calc(100vw - 32px)); padding:11px 16px; border-radius:14px;
+    background:rgba(28,28,30,.94); color:#fff; font-size:14px; line-height:1.35; text-align:center; pointer-events:none; }
+.td-avviso.is-on{ opacity:1; transform:translate(-50%, 0); }
+
+/* la categoria dell'acquisto: un menu a tendina con il pallino del colore */
+.tb-sel{ position:relative; flex:1; min-width:0; display:flex; align-items:center; gap:8px; padding:0 10px; border-radius:10px;
+    background:var(--td-panel); color:var(--td-ink); cursor:pointer; }
+.tb-sel .tb-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.tb-sel-in{ flex:1; min-width:0; -webkit-appearance:none; appearance:none; border:none; outline:none; background:none;
+    font:inherit; font-size:15px; color:inherit; padding:8px 22px 8px 0; cursor:pointer; text-overflow:ellipsis; }
+.tb-sel-chev{ position:absolute; right:10px; width:14px; height:14px; color:var(--td-ink-2); pointer-events:none; }
