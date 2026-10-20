@@ -1725,3 +1725,119 @@
 .qa-ex-arrow-spacer{ width:24px; height:24px; }
 
 .fcv-hdr-flag{ width:13px; height:13px; border-radius:3px; vertical-align:-2px; object-fit:cover; }
+
+/* ================================================================
+   INTESTAZIONE: indietro allo Storico, e il mazzo della partita
+   ================================================================ */
+.app-header{ position:sticky; }
+.hd-back{
+    position:absolute; left:12px; top:calc(var(--safe-top) + 12px);
+    width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    color:var(--blue, #007AFF); background:var(--surface-2, #F2F2F7); text-decoration:none;
+    box-shadow:inset 0 0 0 .5px var(--hairline); transition:transform .15s cubic-bezier(.32,.72,0,1);
+}
+.hd-back svg{ width:20px; height:20px; margin-left:-2px; }
+.hd-back:active, .hd-mazzo:active{ transform:scale(.92); }
+.hd-mazzo{
+    position:absolute; right:12px; top:calc(var(--safe-top) + 14px);
+    display:inline-flex; align-items:center; gap:6px; max-width:38%; height:34px; padding:0 12px 0 10px; border-radius:99px;
+    text-decoration:none; font-size:13px; font-weight:750; color:#fff;
+    background:var(--mz, #8E8E93); box-shadow:0 4px 12px -6px var(--mz, #000);
+    transition:transform .15s cubic-bezier(.32,.72,0,1);
+}
+.hd-mazzo svg{ width:15px; height:15px; flex-shrink:0; }
+.hd-mazzo span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hd-mazzo b{ flex-shrink:0; font-size:11px; opacity:.85; }
+
+/* ================================================================
+   LA STRADA FINO AL 100%
+   ================================================================ */
+.road-card{
+    margin-top:14px; padding:16px; border-radius:var(--r-card, 22px);
+    background:var(--surface); box-shadow:var(--shadow-card), inset 0 0 0 .5px var(--hairline);
+}
+.road-card.is-presa{
+    background:linear-gradient(var(--surface), var(--surface)) padding-box,
+               linear-gradient(135deg, #FFE066, #FFC300 40%, #FF9F0A 70%, #FFE066) border-box;
+    border:1.5px solid transparent;
+}
+.road-head{ display:flex; align-items:center; gap:12px; }
+.road-ic{ flex-shrink:0; width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    color:#fff; background:linear-gradient(135deg, #FF9F0A, #FF375F); }
+.road-card.is-presa .road-ic{ color:#7A4A00; background:linear-gradient(135deg, #FFE680, #FFC300 55%, #FF9F0A); }
+.road-ic svg{ width:20px; height:20px; }
+.road-tit{ font-size:16px; font-weight:800; letter-spacing:-.01em; color:var(--text); }
+.road-sub{ margin-top:1px; font-size:13px; font-weight:600; color:var(--text-2); }
+.road-grafico{ display:flex; align-items:stretch; gap:8px; height:132px; margin-top:14px; overflow-x:auto; scrollbar-width:none; }
+.road-grafico::-webkit-scrollbar{ display:none; }
+.road-step{
+    flex:1 0 40px; max-width:64px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:5px;
+    text-decoration:none; animation:roadIn .5s cubic-bezier(.34,1.56,.64,1) both; animation-delay:calc(var(--i) * 80ms + .2s);
+}
+@keyframes roadIn{ from{ opacity:0; transform:translateY(10px); } }
+.road-pct{ font-size:11.5px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--text-2); }
+.road-bar{ width:100%; max-height:82px; border-radius:8px 8px 4px 4px; background:var(--text-3);
+    display:flex; align-items:center; justify-content:center; transform-origin:bottom; animation:roadBar .7s cubic-bezier(.32,.72,0,1) both; animation-delay:inherit; }
+@keyframes roadBar{ from{ transform:scaleY(.05); } }
+.road-bar.ok{ background:var(--green, #34C759); } .road-bar.mid{ background:var(--orange, #FF9500); } .road-bar.low{ background:var(--red, #FF3B30); }
+.road-bar.oro{ background:linear-gradient(180deg, #FFE680, #FFC300 60%, #FF9F0A); }
+.road-bar.meta{ background:none; border:1.5px dashed rgba(255,195,0,.8); box-sizing:border-box; color:#FFC300; animation:none; }
+.road-bar.meta svg{ width:20px; height:20px; }
+.road-step.is-meta .road-pct{ color:#FFC300; }
+.road-lbl{ font-size:11px; font-weight:700; color:var(--text-3); white-space:nowrap; }
+.road-step.is-qui .road-lbl{ color:var(--text); }
+.road-step.is-qui .road-bar{ box-shadow:0 0 0 2px var(--surface), 0 0 0 4px color-mix(in srgb, var(--text) 30%, transparent); }
+.road-cta{
+    display:flex; align-items:center; justify-content:center; gap:8px; height:50px; margin-top:14px; border-radius:15px;
+    text-decoration:none; font-size:15.5px; font-weight:800; color:#fff;
+    background:linear-gradient(135deg, #FF9F0A, #FF375F); box-shadow:0 10px 24px -12px rgba(255,90,40,.9);
+    transition:transform .15s cubic-bezier(.32,.72,0,1);
+}
+.road-cta:active{ transform:scale(.98); }
+.road-cta svg{ width:19px; height:19px; }
+
+/* ================================================================
+   I POPUP: spiegazione a fine partita, festa al 100%
+   ================================================================ */
+.road-pop{ position:fixed; inset:0; z-index:12000; display:flex; align-items:center; justify-content:center; padding:20px;
+    background:rgba(0,0,0,0); transition:background .25s ease; }
+.road-pop[hidden]{ display:none; }
+.road-pop.is-on{ background:rgba(0,0,0,.55); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); }
+.road-pop-pan{
+    width:100%; max-width:380px; padding:24px 20px 18px; border-radius:28px; text-align:center;
+    background:var(--surface); color:var(--text); box-shadow:0 30px 70px -20px rgba(0,0,0,.6);
+    opacity:0; transform:scale(.9) translateY(10px); transition:transform .45s cubic-bezier(.34,1.56,.64,1), opacity .25s ease;
+}
+.road-pop.is-on .road-pop-pan{ opacity:1; transform:none; }
+.road-pop h2{ margin:16px 0 6px; font-size:23px; font-weight:850; letter-spacing:-.025em; }
+.road-pop p{ margin:0; font-size:15px; line-height:1.45; color:var(--text-2); }
+.road-pop-illu{ display:flex; align-items:flex-end; justify-content:center; gap:8px; height:84px; }
+.road-pop-illu span{ width:30px; height:var(--h); border-radius:8px 8px 4px 4px; display:flex; align-items:center; justify-content:center;
+    transform-origin:bottom; animation:roadBar .6s cubic-bezier(.32,.72,0,1) both; animation-delay:calc(var(--i) * 120ms + .3s); }
+.road-pop-illu .low{ background:var(--red, #FF3B30); } .road-pop-illu .mid{ background:var(--orange, #FF9500); } .road-pop-illu .ok{ background:var(--green, #34C759); }
+.road-pop-illu .oro{ background:linear-gradient(180deg, #FFE680, #FFC300 60%, #FF9F0A); color:#7A4A00; }
+.road-pop-illu svg{ width:18px; height:18px; }
+.road-pop-passi{ list-style:none; margin:16px 0 4px; padding:0; display:flex; flex-direction:column; gap:8px; text-align:left; }
+.road-pop-passi li{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:14px; background:var(--surface-2); font-size:14px; font-weight:600; }
+.road-pop-passi b{ flex-shrink:0; width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:800; color:#fff; background:linear-gradient(135deg, #FF9F0A, #FF375F); }
+.road-pop-passi b.oro{ color:#7A4A00; background:linear-gradient(135deg, #FFE680, #FFC300 55%, #FF9F0A); }
+.road-pop-passi b svg{ width:14px; height:14px; }
+.road-pop-btn{
+    display:flex; align-items:center; justify-content:center; width:100%; height:50px; margin-top:10px; border:none; border-radius:15px; cursor:pointer;
+    font:inherit; font-size:15.5px; font-weight:800; text-decoration:none; color:var(--text-2); background:transparent;
+}
+.road-pop-btn.primo{ margin-top:16px; color:#fff; background:linear-gradient(135deg, #FF9F0A, #FF375F); box-shadow:0 10px 24px -12px rgba(255,90,40,.9); }
+.road-pop-btn.primo.oro{ color:#5C3A00; background:linear-gradient(135deg, #FFE680, #FFC300 55%, #FF9F0A); box-shadow:0 10px 24px -12px rgba(255,170,0,.9); }
+.road-pop-medaglia{
+    display:inline-flex; width:92px; height:92px; border-radius:50%; align-items:center; justify-content:center;
+    color:#7A4A00; background:linear-gradient(135deg, #FFE680, #FFC300 55%, #FF9F0A);
+    box-shadow:0 0 0 10px rgba(255,195,0,.16), 0 18px 40px -12px rgba(255,159,10,.8);
+    animation:roadMedaglia .8s cubic-bezier(.34,1.56,.64,1) .3s both;
+}
+.road-pop-medaglia svg{ width:46px; height:46px; }
+@keyframes roadMedaglia{ 0%{ transform:scale(0) rotate(-30deg); } 70%{ transform:scale(1.12) rotate(6deg); } 100%{ transform:none; } }
+.road-coriandoli{ position:fixed; inset:0; width:100vw; height:100vh; z-index:12001; pointer-events:none; }
+@media (prefers-reduced-motion: reduce){
+    .road-step, .road-bar, .road-pop-illu span, .road-pop-medaglia, .road-pop-pan{ animation:none !important; transition:none !important; }
+}

@@ -269,7 +269,9 @@ CREATE TABLE `fc_study_decks` (
   `color` varchar(20) NOT NULL DEFAULT '#007AFF',
   `color_edited` tinyint(1) NOT NULL DEFAULT '0',
   `archived` tinyint(1) NOT NULL DEFAULT '0',
-  `user_id` int NOT NULL
+  `user_id` int NOT NULL,
+  `icon` varchar(24) DEFAULT NULL COMMENT 'icona del mazzo (chiave di fc_icone.php)',
+  `notes` text COMMENT 'note del mazzo, scritte dall utente'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Mazzi delle flashcard di studio, annidati con parent_id';
 
 -- --------------------------------------------------------
@@ -414,7 +416,8 @@ CREATE TABLE `fc_vocab_cards` (
   `meaning` varchar(400) DEFAULT NULL COMMENT 'il significato, nella lingua da imparare',
   `category_id` int UNSIGNED DEFAULT NULL,
   `is_father` tinyint(1) NOT NULL DEFAULT '0',
-  `custom_order` int DEFAULT '0'
+  `custom_order` int DEFAULT '0',
+  `notes` text COMMENT 'note della parola, scritte dall utente'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Carte di vocabolario: parola, traduzione, significato, immagine';
 
 -- --------------------------------------------------------
@@ -447,7 +450,9 @@ CREATE TABLE `fc_vocab_decks` (
   `color_edited` tinyint(1) NOT NULL DEFAULT '0',
   `archived` tinyint(1) NOT NULL DEFAULT '0',
   `user_id` int DEFAULT NULL,
-  `course_id` int UNSIGNED DEFAULT NULL COMMENT 'il corso: vale anche per le sottocategorie, non solo per quelle in cima'
+  `course_id` int UNSIGNED DEFAULT NULL COMMENT 'il corso: vale anche per le sottocategorie, non solo per quelle in cima',
+  `icon` varchar(24) DEFAULT NULL COMMENT 'icona del mazzo (chiave di fc_icone.php)',
+  `notes` text COMMENT 'note del mazzo, scritte dall utente'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Mazzi del vocabolario, annidati con parent_id, dentro un corso';
 
 -- --------------------------------------------------------
@@ -565,7 +570,8 @@ CREATE TABLE `fc_vocab_subcards` (
   `word` varchar(255) NOT NULL,
   `translation` varchar(255) NOT NULL,
   `meaning` text,
-  `custom_order` int DEFAULT '0'
+  `custom_order` int DEFAULT '0',
+  `notes` text COMMENT 'note della parola, scritte dall utente'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Carte figlie di una carta di vocabolario';
 
 -- --------------------------------------------------------

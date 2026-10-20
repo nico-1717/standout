@@ -2248,3 +2248,110 @@ body.is-compact .fc-card:not(.is-open) .qa-meaning{ display:none; }
 .fcv-liv-chip-padroneggiata.is-on{ color:#1C1C1E; background:linear-gradient(135deg, #FFE066, #FFC300 55%, #FF9F0A); }
 .fcv-liv-chip-padroneggiata.is-on i{ background:#1C1C1E; }
 .fcv-liv-chip-padroneggiata.is-on span{ color:rgba(28,28,30,.7); }
+
+/* ================================================================
+   LE PARTITE CON QUESTO MAZZO — il tasto accanto al nome e il foglio
+   ================================================================ */
+.hdr-partite{
+    position:relative; flex-shrink:0; width:44px; height:44px; border:none; border-radius:50%; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; padding:0;
+    color:var(--text); background:var(--surface); box-shadow:var(--shadow-card, 0 4px 14px rgba(0,0,0,.08)), inset 0 0 0 .5px var(--hairline);
+    transition:transform .15s cubic-bezier(.32,.72,0,1);
+}
+.hdr-partite svg{ width:21px; height:21px; }
+.hdr-partite:active{ transform:scale(.92); }
+.hdr-partite b{
+    position:absolute; top:-3px; right:-3px; min-width:19px; height:19px; padding:0 5px; border-radius:99px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:10.5px; font-weight:800; color:#fff; background:var(--blue, #007AFF); box-shadow:0 0 0 2px var(--bg, #F2F2F7);
+}
+.pm-lista{ display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+.pm-vuoto{ padding:18px 6px; text-align:center; font-size:14px; color:var(--text-2); }
+.pm-riga{
+    display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; padding:11px 12px; border-radius:14px;
+    text-decoration:none; color:var(--text); background:var(--surface-2);
+    transition:transform .15s cubic-bezier(.32,.72,0,1);
+}
+.pm-riga:active{ transform:scale(.98); }
+.pm-riga.is-oro{
+    background:linear-gradient(135deg, rgba(255,214,10,.16), rgba(255,159,10,.06)), var(--surface-2);
+    box-shadow:inset 0 0 0 1px rgba(255,195,0,.45);
+}
+.pm-data{ font-size:14px; font-weight:750; white-space:nowrap; }
+.pm-sotto{ min-width:0; font-size:12.5px; font-weight:600; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pm-sotto.da-fare{ color:var(--orange, #FF9500); }
+.pm-riga.is-oro .pm-sotto{ color:#C98A00; }
+@media (prefers-color-scheme: dark){ .pm-riga.is-oro .pm-sotto{ color:#FFD60A; } }
+.pm-pill{ padding:4px 9px; border-radius:99px; font-size:12px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.pm-pill.buona{ color:var(--green); background:color-mix(in srgb, var(--green) 15%, transparent); }
+.pm-pill.media{ color:var(--orange); background:color-mix(in srgb, var(--orange) 15%, transparent); }
+.pm-pill.bassa{ color:var(--red); background:color-mix(in srgb, var(--red) 15%, transparent); }
+.pm-pill.nd{ color:var(--text-2); background:var(--surface); }
+.pm-pill.sospesa{ color:var(--blue); background:color-mix(in srgb, var(--blue) 15%, transparent); }
+.pm-pill.oro{ color:#5C3A00; background:linear-gradient(135deg, #FFE680, #FFC300 60%, #FFAA1A); }
+.pm-azioni{ flex-direction:column; }
+.pm-azioni .sheet-btn{ display:flex; align-items:center; justify-content:center; gap:7px; text-decoration:none; }
+.pm-gioca{ color:#fff !important; background:linear-gradient(180deg, #3D9BFF, var(--blue, #007AFF)) !important; }
+
+/* ==========================================================================
+   LE NOTE DEL MAZZO
+   Un foglietto caldo (giallo carta, appena tinto dal colore del mazzo) in
+   cima al feed. Senza note resta solo un invito tratteggiato.
+   ========================================================================== */
+.deck-note{ margin:2px 0 14px; }
+.deck-note .dn-add{ display:none; align-items:center; gap:8px; width:100%; padding:10px 14px; border-radius:14px;
+    border:1.5px dashed color-mix(in srgb, var(--cat-color, #007AFF) 40%, var(--hairline, rgba(0,0,0,.12)));
+    background:transparent; color:var(--text-2); font:inherit; font-size:13.5px; font-weight:700; cursor:pointer;
+    transition:background .2s, transform .15s; }
+.deck-note .dn-add svg{ width:17px; height:17px; color:var(--cat-color, #007AFF); }
+.deck-note .dn-add:hover{ background:color-mix(in srgb, var(--cat-color, #007AFF) 6%, transparent); }
+.deck-note .dn-add:active{ transform:scale(.98); }
+.deck-note.is-vuota:not(.is-edit) .dn-add{ display:flex; }
+.deck-note.is-vuota:not(.is-edit) .dn-card{ display:none; }
+
+.dn-card{ position:relative; padding:12px 14px 13px; border-radius:16px;
+    background:color-mix(in srgb, #FFD60A 14%, color-mix(in srgb, var(--cat-color, #007AFF) 4%, var(--surface, #fff)));
+    box-shadow:inset 0 0 0 .75px color-mix(in srgb, #E0A800 30%, transparent), 0 6px 18px -12px rgba(0,0,0,.25);
+    animation:dnIn .35s cubic-bezier(.2,.9,.3,1.2) both; }
+@keyframes dnIn{ from{ opacity:0; transform:translateY(-6px) scale(.98); } to{ opacity:1; transform:none; } }
+.dn-head{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.dn-ic{ width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    background:color-mix(in srgb, #E0A800 20%, transparent); color:#B38600; }
+.dn-ic svg{ width:15px; height:15px; }
+.dn-title{ flex:1; font-size:12px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:color-mix(in srgb, #B38600 75%, var(--text)); }
+.dn-edit{ width:30px; height:30px; border:none; border-radius:50%; background:transparent; color:var(--text-2); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; }
+.dn-edit svg{ width:16px; height:16px; }
+.dn-edit:hover{ background:color-mix(in srgb, #E0A800 14%, transparent); }
+.dn-testo{ font-size:14.5px; line-height:1.5; color:var(--text); white-space:pre-wrap; overflow-wrap:anywhere; }
+.deck-note.is-lunga .dn-testo{ max-height:120px; overflow:hidden;
+    -webkit-mask-image:linear-gradient(#000 60%, transparent); mask-image:linear-gradient(#000 60%, transparent); }
+.dn-altro{ display:none; margin-top:4px; padding:4px 0; border:none; background:none; font:inherit; font-size:13px; font-weight:800;
+    color:color-mix(in srgb, #B38600 80%, var(--text)); cursor:pointer; }
+.deck-note.is-lunga .dn-altro{ display:inline-block; }
+.dn-form{ display:none; }
+.deck-note.is-edit .dn-testo, .deck-note.is-edit .dn-altro, .deck-note.is-edit .dn-edit{ display:none; }
+.deck-note.is-edit .dn-form{ display:block; }
+.dn-form textarea{ width:100%; box-sizing:border-box; min-height:96px; resize:vertical; padding:10px 12px; border-radius:12px;
+    border:1px solid color-mix(in srgb, #E0A800 35%, var(--hairline, rgba(0,0,0,.12))); background:var(--surface, #fff); color:var(--text);
+    font:inherit; font-size:15px; line-height:1.45; outline:none; }
+.dn-form textarea:focus{ border-color:#E0A800; box-shadow:0 0 0 3px color-mix(in srgb, #E0A800 22%, transparent); }
+.dn-azioni{ display:flex; align-items:center; gap:8px; margin-top:8px; }
+.dn-conta{ flex:1; font-size:11.5px; font-weight:700; color:var(--text-3); font-variant-numeric:tabular-nums; }
+.dn-btn{ border:none; border-radius:999px; padding:8px 16px; font:inherit; font-size:13.5px; font-weight:800; cursor:pointer;
+    background:var(--surface-2, rgba(0,0,0,.06)); color:var(--text); }
+.dn-btn.primario{ background:#E0A800; color:#fff; }
+.deck-note.is-salva .dn-btn.primario{ opacity:.6; pointer-events:none; }
+
+/* Le note di una parola, sotto il significato: il foglietto giallo carta. */
+.qa-nota{ display:flex; align-items:flex-start; gap:7px; margin-top:8px; padding:8px 10px; border-radius:11px;
+    background:color-mix(in srgb, #FFD60A 14%, var(--surface, #fff));
+    box-shadow:inset 0 0 0 .75px color-mix(in srgb, #E0A800 28%, transparent);
+    color:var(--text); font-size:13.5px; line-height:1.4; overflow-wrap:anywhere; }
+.qa-nota svg{ width:14px; height:14px; flex-shrink:0; margin-top:2px; color:#B38600; }
+body.is-compact .fc-card:not(.is-open) .qa-nota{ display:none; }
+
+/* L'icona del mazzo (fc_decks.php) al posto del pallino, nella pastiglia. */
+.cat-pill-ico{ width:34px; height:34px; border-radius:11px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,.22); color:#fff; box-shadow:inset 0 0 0 .75px rgba(255,255,255,.35); }
+.cat-pill-ico svg{ width:19px; height:19px; }

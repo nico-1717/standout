@@ -294,6 +294,66 @@ $is_learnt = (strpos($game['type'], '_L') !== false) ? 1 : 0;
 $total_pages = $game['total_father_words'] > 0 ? $game['total_father_words'] : max($played_positions_count, 1);
 $display_username = isset($game['username']) ? sec_h($game['username']) : t('fc.res_utente_sconosciuto');
 
+/* ==========================================
+   LA STRADA FINO AL 100% (come nello Storico)
+   ==========================================
+   La partita da cui tutto e' partito (si risale ai genitori), i suoi ripassi
+   in ordine, e per ognuno giuste e sbagliate. Serve alla sezione "La strada
+   fino al 100%", al tasto per sistemare gli errori rimasti e ai due popup:
+   la spiegazione a fine partita e la festa quando si arriva al 100%. */
+$fcr_tutte = [];
+foreach (sec_all("SELECT id, parent_id, game_date FROM fc_games WHERE user_id = ?", [$current_user_id]) as $r) {
+    $fcr_tutte[(int)$r['id']] = $r;
+}
+$fcr_radice = $game_id;
+for ($i = 0; $i < 60; $i++) {
+    $pp = (int)($fcr_tutte[$fcr_radice]['parent_id'] ?? 0);
+    if ($pp <= 0 || !isset($fcr_tutte[$pp])) break;
+    $fcr_radice = $pp;
+}
+$fcr_figli = [];
+foreach ($fcr_tutte as $id => $r) if ((int)$r['parent_id'] > 0) $fcr_figli[(int)$r['parent_id']][] = $id;
+$fcr_ids = []; $coda = [$fcr_radice];
+while ($coda) { $x = array_shift($coda); if (in_array($x, $fcr_ids, true)) continue; $fcr_ids[] = $x; foreach ($fcr_figli[$x] ?? [] as $f) $coda[] = $f; }
+$fcr_conti = [];
+$ph = implode(',', array_fill(0, count($fcr_ids), '?'));
+foreach (sec_all("SELECT game_id, SUM(user_answer = 'Correct') AS ok, SUM(user_answer = 'Wrong') AS ko, UNIX_TIMESTAMP(MAX(play_date)) AS t
+                    FROM " . fc_t('plays') . " WHERE game_id IN ($ph) GROUP BY game_id", $fcr_ids) as $r) {
+    $fcr_conti[(int)$r['game_id']] = ['ok' => (int)$r['ok'], 'ko' => (int)$r['ko'], 't' => (int)$r['t']];
+}
+usort($fcr_ids, function ($x, $y) use ($fcr_tutte, $fcr_radice) {
+    if ($x === $fcr_radice) return -1; if ($y === $fcr_radice) return 1;
+    return strcmp((string)$fcr_tutte[$x]['game_date'], (string)$fcr_tutte[$y]['game_date']) ?: ($x <=> $y);
+});
+$fcr_strada = [];
+foreach ($fcr_ids as $id) {
+    $c = $fcr_conti[$id] ?? ['ok' => 0, 'ko' => 0, 't' => 0];
+    if ($c['ok'] + $c['ko'] === 0 && $id !== $game_id) continue;
+    $n = $c['ok'] + $c['ko'];
+    $fcr_strada[] = ['id' => $id, 'pct' => $n ? (int)round($c['ok'] / $n * 100) : null, 'ko' => $c['ko'], 'qui' => $id === $game_id];
+}
+$fcr_ultimo = end($fcr_strada) ?: ['id' => $game_id, 'ko' => $error_count, 'pct' => null];
+$fcr_stato = 'aperta';
+if (count($fcr_strada) === 1 && $fcr_ultimo['ko'] === 0 && $fcr_ultimo['pct'] !== null) $fcr_stato = 'perfetta';
+elseif (count($fcr_strada) > 1 && $fcr_ultimo['ko'] === 0 && $fcr_ultimo['pct'] !== null) $fcr_stato = 'conquistata';
+/* finita da poco: e' da qui che partono i popup (una volta, vedi il JS) */
+$fcr_fresca = (time() - (int)($fcr_conti[$game_id]['t'] ?? 0)) < 3 * 3600;
+
+/* I mazzi della partita, per il tasto che ci porta (e per "Gioca ancora"). */
+$fcr_mazzi = sec_all("SELECT d.id, d.name, d.color FROM " . fc_t('game_decks') . " gd
+                        JOIN " . fc_t('decks') . " d ON d.id = gd.fc_category_id
+                       WHERE gd.game_id = ? AND d.user_id = ? ORDER BY gd.category_order ASC, d.id ASC",
+                     [$fcr_radice, $current_user_id]);
+$fcr_radice_game = sec_one("SELECT type, card_status, game_order FROM fc_games WHERE id = ?", [$fcr_radice]) ?: $game;
+$fcr_ancora = '';
+if ($fcr_mazzi) {
+    $fcr_q = ['category_id' => implode(',', array_column($fcr_mazzi, 'id')),
+              'status' => in_array((string)$fcr_radice_game['card_status'], ['all', '0', '1'], true) ? (string)$fcr_radice_game['card_status'] : '0',
+              'order' => $fcr_radice_game['game_order'] === 'in_order' ? 'in_order' : 'random'];
+    if ($fc_vocab) $fcr_q['dir'] = fc_verso_da_tipo((string)$fcr_radice_game['type']);
+    $fcr_ancora = fc_url('fc_game_start.php', $fcr_q);
+}
+
 // ==========================================
 // FIX RESUME INTELLIGENTE "CONTINUA PARTITA"
 // ==========================================
@@ -438,9 +498,17 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
     <header class="app-header">
-
-
-
+        <?php /* Indietro = allo Storico (prima era un riquadro in mezzo alla
+                 pagina); a destra il mazzo della partita, per andarci dritti. */ ?>
+        <a class="hd-back" href="<?php echo sec_h(fc_url('fc_history.php')); ?>" aria-label="<?php te('fc.js_storico'); ?>" title="<?php te('fc.js_storico'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
+        <?php if ($fcr_mazzi): $fcr_m = $fcr_mazzi[0]; $fcr_col = trim((string)$fcr_m['color']) !== '' ? $fcr_m['color'] : '#8E8E93'; ?>
+        <a class="hd-mazzo" href="<?php echo sec_h(fc_url('fc_view.php', ['category_id' => (int)$fcr_m['id']])); ?>" style="--mz:<?php echo sec_h($fcr_col); ?>" title="<?php te('fc.res_apri_mazzo'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="3"/><path d="M8.5 4H19a2 2 0 0 1 2 2v10.5"/></svg>
+            <span><?php echo sec_h($fcr_m['name']); ?></span><?php if (count($fcr_mazzi) > 1): ?><b>+<?php echo count($fcr_mazzi) - 1; ?></b><?php endif; ?>
+        </a>
+        <?php endif; ?>
         <div class="hd-eyebrow"><?php if ($fc_vocab): ?><img class="fcv-hdr-flag" src="<?php echo sec_h(fc_lingua_bandiera(fc_corso()['learn_lang'])); ?>" alt=""> <?php echo sec_h(fc_lingua_nome(fc_corso()['learn_lang'])); ?><?php else: te('fc.res_materie_fc'); endif; ?></div>
 
 
@@ -643,6 +711,14 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
+                <?php /* Al posto dello Storico (ora e' la freccia in alto): una
+                         partita nuova sugli stessi mazzi, con le stesse scelte. */ ?>
+                <?php if ($fcr_ancora !== ''): ?>
+                <a href="<?php echo sec_h($fcr_ancora); ?>" class="act-tile t-blue">
+                    <span class="t-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16l13-8z"/></svg></span>
+                    <span class="t-lab"><?php te('fc.res_gioca_ancora'); ?></span>
+                </a>
+                <?php else: ?>
                 <a href="<?php echo sec_h(fc_url('fc_history.php')); ?>" class="act-tile t-blue">
 
 
@@ -656,6 +732,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
                 </a>
+                <?php endif; ?>
 
 
 
@@ -708,6 +785,51 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
         </section>
+
+        <?php /* LA STRADA FINO AL 100%: la partita e i suoi ripassi a gradini,
+                 lo stato, e il tasto per il prossimo ripasso (dagli errori
+                 dell'ULTIMO passo). Non c'e' per una partita perfetta al
+                 primo colpo: li' basta il popup. */
+              $fcr_trofeo = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0Z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg>';
+              $fcr_mostra = count($fcr_strada) > 1 || ($fcr_stato === 'aperta' && $error_count > 0);
+              if ($fcr_mostra): ?>
+        <section class="road-card<?php echo $fcr_stato === 'conquistata' ? ' is-presa' : ''; ?>">
+            <div class="road-head">
+                <span class="road-ic"><?php echo $fcr_stato === 'conquistata' ? $fcr_trofeo : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>'; ?></span>
+                <div class="road-testi">
+                    <div class="road-tit"><?php te($fcr_stato === 'conquistata' ? 'fc.sfc_strada_presa' : 'fc.sfc_strada'); ?></div>
+                    <div class="road-sub"><?php
+                        if ($fcr_stato === 'conquistata') te(count($fcr_strada) - 1 === 1 ? 'fc.sfc_conquistata_1' : 'fc.sfc_conquistata_n', ['n' => count($fcr_strada) - 1]);
+                        else te($fcr_ultimo['ko'] === 1 ? 'fc.sfc_da_sistemare_1' : 'fc.sfc_da_sistemare_n', ['n' => (int)$fcr_ultimo['ko']]);
+                    ?></div>
+                </div>
+            </div>
+            <div class="road-grafico">
+                <?php foreach ($fcr_strada as $i => $st): $v = $st['pct']; ?>
+                <a class="road-step<?php echo $st['qui'] ? ' is-qui' : ''; ?>" href="<?php echo sec_h('fc_result.php?game_id=' . (int)$st['id']); ?>" style="--i:<?php echo $i; ?>">
+                    <span class="road-pct"><?php echo $v === null ? '–' : $v . '%'; ?></span>
+                    <span class="road-bar <?php echo $v === 100 ? 'oro' : ($v === null ? 'nd' : ($v >= 80 ? 'ok' : ($v >= 50 ? 'mid' : 'low'))); ?>" style="height:<?php echo $v === null ? 8 : max(10, $v); ?>%"></span>
+                    <span class="road-lbl"><?php echo $i === 0 ? sec_h(t('fc.sfc_strada_partita')) : sec_h(t('fc.sfc_strada_rip', ['n' => $i])); ?></span>
+                </a>
+                <?php endforeach; ?>
+                <?php if ($fcr_stato !== 'conquistata'): ?>
+                <div class="road-step is-meta" style="--i:<?php echo count($fcr_strada); ?>">
+                    <span class="road-pct">100%</span>
+                    <span class="road-bar meta" style="height:100%"><?php echo $fcr_trofeo; ?></span>
+                    <span class="road-lbl"><?php te('fc.sfc_strada_meta'); ?></span>
+                </div>
+                <?php endif; ?>
+            </div>
+            <?php if ($fcr_stato === 'aperta' && $fcr_ultimo['ko'] > 0): ?>
+            <a class="road-cta" href="fc_game_retry.php?parent_id=<?php echo (int)$fcr_ultimo['id']; ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.8-6.5"/><path d="M3 4v5h5"/></svg>
+                <span><?php te($fcr_ultimo['ko'] === 1 ? 'fc.sfc_sistema_1' : 'fc.sfc_sistema_n', ['n' => (int)$fcr_ultimo['ko']]); ?></span>
+            </a>
+            <?php endif; ?>
+        </section>
+        <?php endif; ?>
+
+
 
 
 
@@ -3136,6 +3258,79 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
+<?php
+/* I DUE POPUP DELLA STRADA FINO AL 100%
+   Solo per l'ultima partita della catena, solo se finita da poco, e una volta
+   per partita su questo dispositivo (localStorage).
+     spiega  la partita (o il ripasso) e' finita con errori: cosa fare adesso
+     festa   l'ultimo ripasso e' al 100% (o la partita e' perfetta al primo colpo) */
+$fcr_qui_ultima = (int)$fcr_ultimo['id'] === $game_id;
+$fcr_pop = '';
+if ($fcr_fresca && $fcr_qui_ultima) {
+    if ($fcr_stato === 'aperta' && $error_count > 0) $fcr_pop = 'spiega';
+    elseif ($fcr_stato === 'conquistata' || $fcr_stato === 'perfetta') $fcr_pop = 'festa';
+}
+if ($fcr_pop !== ''): $fcr_primo = $fcr_strada[0]['pct'] ?? null; ?>
+<div class="road-pop" id="roadPop" data-chiave="fcr_pop_<?php echo (int)$game_id; ?>" data-tipo="<?php echo $fcr_pop; ?>" hidden>
+    <div class="road-pop-pan" role="dialog" aria-modal="true" aria-labelledby="roadPopTit">
+        <?php if ($fcr_pop === 'spiega'): ?>
+        <div class="road-pop-illu" aria-hidden="true">
+            <span style="--h:35%;--i:0" class="low"></span><span style="--h:62%;--i:1" class="mid"></span><span style="--h:84%;--i:2" class="ok"></span>
+            <span style="--h:100%;--i:3" class="oro"><?php echo $fcr_trofeo; ?></span>
+        </div>
+        <h2 id="roadPopTit"><?php te('fc.res_pop_spiega_tit'); ?></h2>
+        <p><?php te($error_count === 1 ? 'fc.res_pop_spiega_sub_1' : 'fc.res_pop_spiega_sub_n', ['n' => (int)$error_count]); ?></p>
+        <ol class="road-pop-passi">
+            <li><b>1</b><span><?php te('fc.res_pop_passo1'); ?></span></li>
+            <li><b>2</b><span><?php te('fc.res_pop_passo2'); ?></span></li>
+            <li><b class="oro"><?php echo $fcr_trofeo; ?></b><span><?php te('fc.res_pop_passo3'); ?></span></li>
+        </ol>
+        <a class="road-pop-btn primo" href="fc_game_retry.php?parent_id=<?php echo (int)$game_id; ?>"><?php te($error_count === 1 ? 'fc.sfc_sistema_1' : 'fc.sfc_sistema_n', ['n' => (int)$error_count]); ?></a>
+        <button type="button" class="road-pop-btn" data-chiudi><?php te('fc.res_pop_dopo'); ?></button>
+        <?php else: ?>
+        <div class="road-pop-medaglia" aria-hidden="true"><?php echo $fcr_trofeo; ?></div>
+        <h2 id="roadPopTit"><?php te($fcr_stato === 'perfetta' ? 'fc.res_pop_perfetta_tit' : 'fc.res_pop_festa_tit'); ?></h2>
+        <p><?php if ($fcr_stato === 'perfetta') te('fc.res_pop_perfetta_sub');
+                 else te(count($fcr_strada) - 1 === 1 ? 'fc.res_pop_festa_sub_1' : 'fc.res_pop_festa_sub_n', ['da' => (int)$fcr_primo, 'n' => count($fcr_strada) - 1]); ?></p>
+        <a class="road-pop-btn primo oro" href="<?php echo sec_h(fc_url('fc_history.php')); ?>"><?php te('fc.res_pop_vedi_storico'); ?></a>
+        <button type="button" class="road-pop-btn" data-chiudi><?php te('comune.chiudi'); ?></button>
+        <?php endif; ?>
+    </div>
+</div>
+<script>
+(function () {
+    var pop = document.getElementById('roadPop');
+    if (!pop) return;
+    var k = pop.getAttribute('data-chiave');
+    try { if (localStorage.getItem(k)) return; localStorage.setItem(k, '1'); } catch (e) {}
+    function chiudi() { pop.classList.remove('is-on'); setTimeout(function () { pop.hidden = true; }, 250); }
+    pop.addEventListener('click', function (e) { if (e.target === pop || e.target.closest('[data-chiudi]')) chiudi(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !pop.hidden) chiudi(); });
+    setTimeout(function () {
+        pop.hidden = false;
+        requestAnimationFrame(function () { pop.classList.add('is-on'); });
+        if (pop.getAttribute('data-tipo') === 'festa') coriandoli();
+    }, 900);
+    /* coriandoli: una tela sopra tutto che si toglie da sola */
+    function coriandoli() {
+        if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        var c = document.createElement('canvas'); c.className = 'road-coriandoli';
+        var W = innerWidth, H = innerHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+        c.width = W * dpr; c.height = H * dpr; document.body.appendChild(c);
+        var g = c.getContext('2d'); g.scale(dpr, dpr);
+        var col = ['#FFD60A', '#FFC300', '#FF9F0A', '#FFE680', '#30D158', '#BF5AF2', '#0A84FF'], p = [];
+        for (var i = 0; i < 160; i++) p.push({ x: W / 2 + (Math.random() - .5) * W * .4, y: H * .35, vx: (Math.random() - .5) * 14, vy: -Math.random() * 14 - 4, r: 3 + Math.random() * 4, a: Math.random() * 6, va: (Math.random() - .5) * .3, c: col[i % col.length] });
+        var t0 = performance.now();
+        (function f(t) {
+            g.clearRect(0, 0, W, H);
+            p.forEach(function (q) { q.vy += .38; q.vx *= .99; q.x += q.vx; q.y += q.vy; q.a += q.va;
+                g.save(); g.translate(q.x, q.y); g.rotate(q.a); g.fillStyle = q.c; g.globalAlpha = Math.max(0, 1 - (t - t0) / 2800); g.fillRect(-q.r, -q.r / 2, q.r * 2, q.r); g.restore(); });
+            if (t - t0 < 2800) requestAnimationFrame(f); else c.remove();
+        })(t0);
+    }
+})();
+</script>
+<?php endif; ?>
 </body>
 
 

@@ -954,3 +954,9 @@ html.fc-popup-sopra, html.fc-popup-sopra body{ overflow:hidden; }
     .fcv-ex-item.is-nuova{ animation:none; }
     .fcv-ex-tok, .fcv-ex-btn, .fcv-ex-ico, .fcv-ex-add, .fcv-ex-scegli{ transition:none; }
 }
+
+/* Le note della parola (solo lingue): un foglietto giallo carta, come le note
+   del mazzo in fc_view.css. */
+.fcv-note-tit{ display:inline-flex; align-items:center; gap:7px; }
+.fcv-note-tit svg{ width:16px; height:16px; color:#E0A800; flex-shrink:0; }
+.fcv-note-area{ background:color-mix(in srgb, #FFD60A 10%, var(--surface, #fff)); min-height:76px; }

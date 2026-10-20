@@ -13,6 +13,7 @@ $conn = sec_db();
 /* Studio o lingua: con ?course=N questa e' la pagina dei mazzi di un corso di
    lingua, con le stesse funzioni. Vedi fc_type.php. */
 require_once __DIR__ . '/../../lib/fc/fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_icone.php';
 fc_avvia($current_user_id);
 
 
@@ -151,6 +152,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $parentId = sec_int($_POST['parent_id'] ?? 0, 0);
         $colorMode = sec_enum($_POST['color_mode'] ?? null, ['auto', 'manual'], 'auto');
         $manualColor = sec_str($_POST['category_color'] ?? '', 7);
+        /* L'icona: solo una chiave dell'elenco di fc_icone.php; la cartella,
+           che e' quella di sempre, si salva come NULL. */
+        $icona = sec_str($_POST['deck_icon'] ?? '', 24);
+        $icona = (fc_icona_valida($icona) && $icona !== 'cartella') ? $icona : null;
 
         /* Il padre dev'essere suo, e la categoria modificata anche: senza questi
            controlli si poteva agganciare una propria materia sotto quella di un
@@ -177,12 +182,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         if ($catId === 0) {
             [$xCol, $xPh, $xVal] = fc_mazzo_nuovo_extra();
-            sec_q("INSERT INTO " . fc_t('decks') . " (name, parent_id, color, color_edited, user_id$xCol) VALUES (?, ?, ?, ?, ?$xPh)",
-                  array_merge([$catName, $parentId, $finalColor, $colorEditedFlag, (int)$current_user_id], $xVal));
+            sec_q("INSERT INTO " . fc_t('decks') . " (name, parent_id, color, color_edited, icon, user_id$xCol) VALUES (?, ?, ?, ?, ?, ?$xPh)",
+                  array_merge([$catName, $parentId, $finalColor, $colorEditedFlag, $icona, (int)$current_user_id], $xVal));
             $okParam = 'added';
         } else {
-            sec_q("UPDATE " . fc_t('decks') . " SET name = ?, parent_id = ?, color = ?, color_edited = ? WHERE id = ? AND user_id = ?",
-                  [$catName, $parentId, $finalColor, $colorEditedFlag, $catId, (int)$current_user_id]);
+            sec_q("UPDATE " . fc_t('decks') . " SET name = ?, parent_id = ?, color = ?, color_edited = ?, icon = ? WHERE id = ? AND user_id = ?",
+                  [$catName, $parentId, $finalColor, $colorEditedFlag, $icona, $catId, (int)$current_user_id]);
             cs_cascade_color($catId, $finalColor, $current_user_id);
             $okParam = 'saved';
         }
@@ -410,6 +415,147 @@ foreach (sec_all("SELECT i.category_id AS cid, COUNT(*) AS c
                   INNER JOIN " . fc_t('decks') . " cc ON cc.id = i.category_id AND cc.user_id = ?" . fc_filtro_corso('cc')[0] . "
                   GROUP BY i.category_id", array_merge([(int)$current_user_id], fc_filtro_corso('cc')[1])) as $r) {
     $sub_card_counts[(int)$r['cid']] = (int)$r['c'];
+}
+
+
+/* ==========================================================================
+   LA RIGA DI NUMERI SOTTO OGNI MAZZO
+   Quante partite (senza i ripassi) hanno giocato il mazzo o un suo
+   sottomazzo, quando l'ultima, e come stanno le sue carte: i cinque livelli
+   di fc_vocab_gioco.php (nuova, difficile, in corso, buona, padroneggiata)
+   contati carta per carta, sottomazzi compresi.
+   Tre query in tutto, qualunque sia il numero dei mazzi: le risposte si
+   leggono una volta sola e si smistano qui.
+   ========================================================================== */
+require_once __DIR__ . '/../../lib/fc/fc_vocab_gioco.php';
+$fcm_stat = [];   // id mazzo => ['partite' => [id => true], 'ultima' => 'Y-m-d H:i:s', 'liv' => [livello => n]]
+$fcm_vuota = function () { return ['partite' => [], 'ultima' => null, 'liv' => ['difficile' => 0, 'in_corso' => 0, 'nuova' => 0, 'buona' => 0, 'padroneggiata' => 0]]; };
+if ($all_categories) {
+    [$fcmW, $fcmP] = fc_filtro_corso('cc');
+    /* di che mazzo e' ogni carta e ogni sottocarta */
+    $fcm_mazzo_di = [];
+    foreach (sec_all("SELECT i.id, i.category_id FROM " . fc_t('cards') . " i
+                       JOIN " . fc_t('decks') . " cc ON cc.id = i.category_id AND cc.user_id = ?" . $fcmW,
+                     array_merge([(int)$current_user_id], $fcmP)) as $r) {
+        $fcm_mazzo_di['p' . (int)$r['id']] = (int)$r['category_id'];
+    }
+    foreach (sec_all("SELECT ch.id_child, i.category_id FROM " . fc_t('subcards') . " ch
+                       JOIN " . fc_t('cards') . " i ON i.id = ch.parent_id
+                       JOIN " . fc_t('decks') . " cc ON cc.id = i.category_id AND cc.user_id = ?" . $fcmW,
+                     array_merge([(int)$current_user_id], $fcmP)) as $r) {
+        $fcm_mazzo_di['c' . (int)$r['id_child']] = (int)$r['category_id'];
+    }
+    /* le risposte, dalla piu' vecchia: come in fcv_stats_carte */
+    $fcm_carte = [];
+    foreach (sec_all("SELECT p.fc_image_id, p.fc_child_id, p.user_answer FROM " . fc_t('plays') . " p
+                       JOIN fc_games g ON g.id = p.game_id AND g.user_id = ? AND " . fc_sql_partite('g') . "
+                      WHERE p.user_answer IN ('Correct', 'Wrong')
+                      ORDER BY p.play_date ASC, p.id ASC",
+                     [(int)$current_user_id]) as $r) {
+        $k = $r['fc_child_id'] !== null ? 'c' . (int)$r['fc_child_id'] : 'p' . (int)$r['fc_image_id'];
+        if (!isset($fcm_mazzo_di[$k])) continue;
+        if (!isset($fcm_carte[$k])) $fcm_carte[$k] = ['c' => 0, 'w' => 0, 'u' => ''];
+        $giusta = $r['user_answer'] === 'Correct';
+        $fcm_carte[$k][$giusta ? 'c' : 'w']++;
+        $fcm_carte[$k]['u'] = substr($fcm_carte[$k]['u'] . ($giusta ? 'C' : 'W'), -6);
+    }
+    foreach ($fcm_mazzo_di as $k => $mid) {
+        if (!isset($fcm_stat[$mid])) $fcm_stat[$mid] = $fcm_vuota();
+        $st = $fcm_carte[$k] ?? ['c' => 0, 'w' => 0, 'u' => ''];
+        $fcm_stat[$mid]['liv'][fcv_livello($st['c'], $st['w'], $st['u'])]++;
+    }
+    /* le partite (le radici: un ripasso fa parte della sua partita) */
+    foreach (sec_all("SELECT gd.fc_category_id AS cid, g.id, g.game_date FROM fc_games g
+                       JOIN " . fc_t('game_decks') . " gd ON gd.game_id = g.id
+                      WHERE g.user_id = ? AND " . fc_sql_partite('g') . " AND (g.parent_id IS NULL OR g.parent_id = 0)",
+                     [(int)$current_user_id]) as $r) {
+        $mid = (int)$r['cid'];
+        if (!isset($all_categories[$mid])) continue;
+        if (!isset($fcm_stat[$mid])) $fcm_stat[$mid] = $fcm_vuota();
+        $fcm_stat[$mid]['partite'][(int)$r['id']] = true;
+        if ($r['game_date'] !== null && ($fcm_stat[$mid]['ultima'] === null || $r['game_date'] > $fcm_stat[$mid]['ultima'])) $fcm_stat[$mid]['ultima'] = $r['game_date'];
+    }
+    /* ogni mazzo somma i suoi sottomazzi (una partita contata una volta) */
+    $fcm_figli = [];
+    foreach ($all_categories as $cid => $c) $fcm_figli[(int)$c['parent_id']][] = (int)$cid;
+    $fcm_ramo = function (int $id, int $prof = 0) use (&$fcm_ramo, &$fcm_stat, $fcm_figli, $fcm_vuota) {
+        $tot = $fcm_stat[$id] ?? $fcm_vuota();
+        if ($prof < 40) foreach ($fcm_figli[$id] ?? [] as $f) {
+            $s = $fcm_ramo($f, $prof + 1);
+            $tot['partite'] += $s['partite'];
+            if ($s['ultima'] !== null && ($tot['ultima'] === null || $s['ultima'] > $tot['ultima'])) $tot['ultima'] = $s['ultima'];
+            foreach ($s['liv'] as $l => $n) $tot['liv'][$l] += $n;
+        }
+        return $tot;
+    };
+    $fcm_tot = [];
+    foreach ($all_categories as $cid => $c) $fcm_tot[(int)$cid] = $fcm_ramo((int)$cid);
+    /* ...e le partite fatte su un mazzo che lo contiene: giocare "Analisi"
+       vuol dire giocare anche "Integrali". Le carte no: quelle sono gia'
+       contate dove stanno. Stessa regola del filtro dello Storico. */
+    foreach ($fcm_tot as $cid => &$tot) {
+        $fcm_su = (int)$all_categories[$cid]['parent_id']; $fcm_g = 0;
+        while ($fcm_su > 0 && isset($all_categories[$fcm_su]) && $fcm_g++ < 40) {
+            $sopra = $fcm_stat[$fcm_su] ?? null;
+            if ($sopra) {
+                $tot['partite'] += $sopra['partite'];
+                if ($sopra['ultima'] !== null && ($tot['ultima'] === null || $sopra['ultima'] > $tot['ultima'])) $tot['ultima'] = $sopra['ultima'];
+            }
+            $fcm_su = (int)$all_categories[$fcm_su]['parent_id'];
+        }
+    }
+    unset($tot);
+    $fcm_stat = $fcm_tot;
+}
+
+/** "oggi", "ieri", "3 g fa", "2 sett fa", "5 mesi fa": quando, in breve. */
+function fcm_quando(?string $data): string {
+    if (!$data) return '';
+    $giorni = (int)floor((strtotime(date('Y-m-d')) - strtotime(substr($data, 0, 10))) / 86400);
+    if ($giorni <= 0) return t('fc.dk_oggi');
+    if ($giorni === 1) return t('fc.dk_ieri');
+    if ($giorni < 14) return t('fc.dk_giorni_fa', ['n' => $giorni]);
+    if ($giorni < 60) return t('fc.dk_sett_fa', ['n' => (int)floor($giorni / 7)]);
+    return t('fc.dk_mesi_fa', ['n' => (int)floor($giorni / 30)]);
+}
+
+/** I numeri di un mazzo pronti per la pagina (anche per la griglia, in JS). */
+function fcm_numeri(int $id): array {
+    global $fcm_stat;
+    $s = $fcm_stat[$id] ?? null;
+    $liv = $s ? $s['liv'] : [];
+    $tot = array_sum($liv);
+    return [
+        'g'  => $s ? count($s['partite']) : 0,
+        'q'  => $s ? fcm_quando($s['ultima']) : '',
+        'l'  => $liv,
+        'pp' => $tot ? (int)round((($liv['padroneggiata'] ?? 0) + ($liv['buona'] ?? 0)) / $tot * 100) : 0,
+    ];
+}
+
+/** La riga di numeri sotto il nome del mazzo, nella lista. */
+function fcm_riga_html(int $id, bool $note): string {
+    $n = fcm_numeri($id);
+    $tot = array_sum($n['l']);
+    $out = '<span class="cat-stats">';
+    if ($n['g'] > 0) {
+        $out .= '<span class="cs-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16l13-8Z"/></svg>'
+              . sec_h(t($n['g'] === 1 ? 'fc.dk_partite_1' : 'fc.dk_partite', ['n' => $n['g']])) . '</span>';
+        if ($n['q'] !== '') $out .= '<span class="cs-sep">·</span><span class="cs-item">' . sec_h($n['q']) . '</span>';
+    } elseif ($tot === ($n['l']['nuova'] ?? 0)) {
+        /* "mai giocato" solo se nessuna carta ha una risposta: le partite
+           senza mazzi registrati (le piu' vecchie) non devono smentirlo */
+        $out .= '<span class="cs-item cs-mai">' . sec_h(t('fc.dk_mai_giocato')) . '</span>';
+    }
+    if ($tot > 0 && $tot > ($n['l']['nuova'] ?? 0)) {
+        $out .= '<span class="cs-barra" title="' . sec_h(t('fc.dk_barra_titolo', ['n' => $n['pp']])) . '">';
+        foreach (['padroneggiata', 'buona', 'in_corso', 'difficile', 'nuova'] as $l) {
+            if (!empty($n['l'][$l])) $out .= '<i class="cs-' . $l . '" style="flex:' . (int)$n['l'][$l] . '"></i>';
+        }
+        $out .= '</span>' . ($n['pp'] > 0 ? '<span class="cs-pct">' . (int)$n['pp'] . '%</span>' : '');
+    }
+    if ($note) $out .= '<span class="cs-nota" title="' . sec_h(t('fc.dk_ha_note')) . '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg></span>';
+    return $out . '</span>';
 }
 
 
@@ -814,6 +960,9 @@ foreach ($all_categories as $cid => $crow) {
         'c'     => (!empty($crow['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $crow['color'])) ? $crow['color'] : '#007AFF',
         'arc'   => (int)$crow['archived'],
         'cards' => (int)$crow['image_count'] + (int)($sub_card_counts[$cid] ?? 0),
+        'ic'    => fc_icona_valida($crow['icon'] ?? null) ? (string)$crow['icon'] : 'cartella',
+        'st'    => fcm_numeri($cid),
+        'nt'    => trim((string)($crow['notes'] ?? '')) !== '' ? 1 : 0,
     ];
 }
 
@@ -850,11 +999,13 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
        i discendenti a seguirla, e offrire di disarchiviare una figlia il cui
        padre resta archiviato prometterebbe qualcosa che non si vedrebbe. */
     $mostraArchivio = $archPane ? ($level === 0) : true;
+    $iconaMazzo = fc_icona_valida($cat['icon'] ?? null) ? (string)$cat['icon'] : 'cartella';
 ?>
 <div class="cat-row" data-id="<?php echo (int)$id; ?>" data-parent="<?php echo (int)$cat['parent_id']; ?>" data-level="<?php echo (int)$level; ?>" data-name="<?php echo sec_h($nameEsc); ?>"
      data-parent-name="<?php echo sec_h($parentName); ?>" data-parent-color="<?php echo sec_h($parentColor); ?>"
      data-color="<?php echo sec_h($color); ?>" data-color-edited="<?php echo (int)($cat['color_edited'] ?? 0); ?>"
      data-archived="<?php echo (int)($cat['archived'] ?? 0); ?>" data-candelete="<?php echo (int)$can_delete; ?>"
+     data-icon="<?php echo sec_h($iconaMazzo); ?>"
      style="display:<?php echo sec_h($display); ?>; --row-color:<?php echo sec_h($color); ?>;">
 
     <!-- TASTI SWIPE VERSO DESTRA (Nascosti sotto, a sinistra) -->
@@ -902,7 +1053,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
         <?php endif; ?>
 
         <span class="cat-icon <?php echo $level === 0 ? 'lvl0' : 'lvln'; ?>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+            <?php echo fc_icona_svg($iconaMazzo); ?>
         </span>
 
         <div class="cat-name-wrap">
@@ -914,6 +1065,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
             <span class="cat-proj-leaf"><?php echo sec_h($catProj['name']); ?></span>
         </a>
         <?php endif; ?>
+        <?php echo fcm_riga_html((int)$id, trim((string)($cat['notes'] ?? '')) !== ''); ?>
         </div>
 
         <span class="cat-badge"><?php echo (int)$cat['image_count']; ?></span>
@@ -927,6 +1079,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
             data-color="<?php echo sec_h($color); ?>"
             data-color-edited="<?php echo (int)($cat['color_edited'] ?? 0); ?>"
             data-archived="<?php echo (int)($cat['archived'] ?? 0); ?>"
+            data-icon="<?php echo sec_h($iconaMazzo); ?>"
             onclick="event.stopPropagation(); apriAzioni(this);">
             <svg viewBox="0 0 24 24" fill="currentColor">
                 <circle cx="5" cy="12" r="1.7"/>
@@ -1368,6 +1521,24 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
             </div>
 
+            <?php /* L'icona del mazzo: l'elenco chiuso di fc_icone.php, colorato
+                     con il colore scelto qui sopra (--row-color, aggiornato da
+                     updateFormColorUI). La prima e' la cartella di sempre. */ ?>
+            <div class="field">
+                <label><?php te('fc.dk_icona'); ?></label>
+                <input type="hidden" name="deck_icon" id="form_icon" value="cartella">
+                <div class="icon-grid" id="formIconGrid" role="radiogroup" aria-label="<?php te('fc.dk_icona'); ?>">
+                    <?php $ii = 0; foreach (fc_icone_mazzo() as $ik => $_): ?>
+                    <button type="button" class="icon-swatch<?php echo $ik === 'cartella' ? ' selected' : ''; ?>" data-icon="<?php echo sec_h($ik); ?>"
+                            role="radio" aria-checked="<?php echo $ik === 'cartella' ? 'true' : 'false'; ?>"
+                            title="<?php te('fc.ico_' . $ik); ?>" aria-label="<?php te('fc.ico_' . $ik); ?>"
+                            style="animation-delay:<?php echo (int)($ii++ * 14); ?>ms;" onclick="setFormIcon('<?php echo sec_h($ik); ?>')">
+                        <?php echo fc_icona_svg($ik); ?>
+                    </button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
 
             <?php /* Le due scorciatoie che valgono solo per una categoria che
                      esiste gia': archiviarla e appenderle sotto una figlia
@@ -1650,6 +1821,8 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 <?php echo standout_i18n_json(['comune', 'fc', 'vocab']); ?>
 <script>
 var CAT_DATA = <?php echo json_encode($catJs, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+/* Il disegno di ogni icona dei mazzi (fc_icone.php), per la griglia e il foglio. */
+var ICONE_MAZZO = <?php $icJs = []; foreach (array_keys(fc_icone_mazzo()) as $ik) $icJs[$ik] = fc_icona_svg($ik); echo json_encode($icJs, JSON_UNESCAPED_SLASHES); ?>;
 </script>
 <script>
 
@@ -1673,7 +1846,8 @@ function apriModalSalvaDaRiga(btn) {
         parentColor: r.dataset.parentColor || '#A0A0A0',
         color:       r.dataset.color,
         colorEdited: r.dataset.colorEdited === '1',
-        archived:    r.dataset.archived === '1'
+        archived:    r.dataset.archived === '1',
+        icon:        r.dataset.icon || 'cartella'
     });
 }
 function avviaSpostaDaRiga(btn) {
@@ -1996,6 +2170,20 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
     var SVG_CARTELLA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>';
     var SVG_CARTE    = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="2.2"/><path d="M7.5 7V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/></svg>';
     var SVG_SOTTOC   = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.5l1.5 2H19a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>';
+    var SVG_PARTITE  = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16l13-8Z"/></svg>';
+    var SVG_NOTA     = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>';
+    /* La barretta dei livelli in fondo al riquadro: la stessa della lista
+       (fcm_riga_html), solo se qualche carta e' gia' stata giocata. */
+    function barraLivelli(st){
+        if (!st || !st.l) return '';
+        var tot = 0; for (var k in st.l) tot += st.l[k];
+        if (!tot || tot === (st.l.nuova || 0)) return '';
+        var html = '<div class="sc-livelli" title="' + esc(T('fc.dk_barra_titolo', { n: st.pp })) + '"><span class="cs-barra">';
+        ['padroneggiata', 'buona', 'in_corso', 'difficile', 'nuova'].forEach(function(l){
+            if (st.l[l]) html += '<i class="cs-' + l + '" style="flex:' + st.l[l] + '"></i>';
+        });
+        return html + '</span>' + (st.pp > 0 ? '<span class="cs-pct">' + st.pp + '%</span>' : '') + '</div>';
+    }
     var SVG_APRI     = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
 
     function disegnaGriglia(){
@@ -2016,13 +2204,16 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
             var nSub = figliVisibili(c.id).length;
             var sel = selezione[c.id] ? ' is-sel' : '';
             return '<div class="fc-subcat-card' + sel + '" data-id="' + c.id + '" data-subs="' + nSub + '" style="--sc-color:' + esc(c.c) + ';">' +
-                     '<span class="fc-subcat-dot">' + SVG_CARTELLA + '</span>' +
+                     '<span class="fc-subcat-dot">' + (ICONE_MAZZO[c.ic] || SVG_CARTELLA) + '</span>' +
                      '<a class="fc-subcat-go" href="' + fcUrl('fc_view.php?category_id=' + c.id) + '" aria-label="' + esc(T('fc.cfc_apri')) + '">' + SVG_APRI + '</a>' +
                      '<div class="fc-subcat-name">' + esc(c.n) + '</div>' +
                      '<div class="fc-subcat-meta">' +
                        '<span>' + SVG_CARTE + c.cards + '</span>' +
                        (nSub > 0 ? '<span>' + SVG_SOTTOC + nSub + '</span>' : '') +
+                       (c.st && c.st.g > 0 ? '<span>' + SVG_PARTITE + c.st.g + '</span>' : '') +
+                       (c.nt ? '<span class="sc-nota">' + SVG_NOTA + '</span>' : '') +
                      '</div>' +
+                     barraLivelli(c.st) +
                      '<span class="fc-subcat-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
                    '</div>';
         }).join('');
@@ -2366,6 +2557,7 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
         formParentColor = opts.parentColor || '#A0A0A0';
         formColorValue = formColorManual ? (opts.color || '#A0A0A0') : formParentColor;
         updateFormColorUI();
+        setFormIcon(opts.icon || 'cartella');
 
         /* Archiviare o aggiungere una figlia hanno senso solo su una categoria
            che esiste gia': su una da creare i due tasti restano fuori. */
@@ -2470,6 +2662,7 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
         document.getElementById('form_color_mode').value = formColorManual ? 'manual' : 'auto';
         document.getElementById('form_color_value').value = formColorValue;
         document.getElementById('formColorPreviewIcon').style.setProperty('--row-color', formColorValue);
+        document.getElementById('formIconGrid').style.setProperty('--row-color', formColorValue);
         document.getElementById('formColorPreviewName').textContent = formColorManual ? T('vocab.cat_colore_pers') : T('vocab.cat_auto_eredita');
         document.getElementById('formCustomColorInput').value = formColorValue;
         document.getElementById('formCustomColorHex').textContent = formColorValue.toUpperCase();
@@ -2480,6 +2673,19 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
                 sw.classList.toggle('selected', formColorManual && (sw.dataset.hex || '').toLowerCase() === formColorValue.toLowerCase());
             }
         });
+    }
+
+    /* L'icona scelta nel foglio: il campo nascosto, il riquadro acceso e
+       l'anteprima in cima (la stessa che mostra il colore). */
+    function setFormIcon(k){
+        if (!ICONE_MAZZO[k]) k = 'cartella';
+        document.getElementById('form_icon').value = k;
+        document.querySelectorAll('#formIconGrid .icon-swatch').forEach(function(b){
+            var on = b.dataset.icon === k;
+            b.classList.toggle('selected', on);
+            b.setAttribute('aria-checked', on ? 'true' : 'false');
+        });
+        document.getElementById('formColorPreviewIcon').innerHTML = ICONE_MAZZO[k];
     }
 
     function archiviaDalForm(){
@@ -2526,6 +2732,7 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
         var colorEdited = btn.dataset.colorEdited === '1';
         var canDelete = btn.dataset.candelete === '1';
         var archived = btn.dataset.archived === '1';
+        var icon = btn.dataset.icon || 'cartella';
 
         document.getElementById('azioniTitolo').textContent = name;
 
@@ -2535,7 +2742,7 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
                 apriModalSalva({
                     id: id, name: name, parentId: parentId,
                     parentName: parentName, parentColor: parentColor,
-                    color: color, colorEdited: colorEdited, archived: archived
+                    color: color, colorEdited: colorEdited, archived: archived, icon: icon
                 });
             }, 260);
         };

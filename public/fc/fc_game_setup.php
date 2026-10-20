@@ -13,6 +13,7 @@ $conn = sec_db();
 /* Studio o lingua (?course=N): per le lingue si scelgono i mazzi del corso
    e, in piu', il verso della partita. Vedi fc_type.php. */
 require_once __DIR__ . '/../../lib/fc/fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_icone.php';
 fc_avvia((int)$current_user_id);
 $fc_vocab = fc_is_vocab();
 
@@ -75,7 +76,7 @@ function renderGameCatRow($node, $level = 0) {
         <?php endif; ?>
 
         <span class="cat-icon <?php echo $level === 0 ? 'lvl0' : 'lvln'; ?>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+            <?php echo fc_icona_svg($node['icon'] ?? null); ?>
         </span>
 
         <span class="cat-name"><?php echo $nameEsc; ?></span>
@@ -110,8 +111,14 @@ function renderGameCatRow($node, $level = 0) {
 <body>
 
 <div class="app-header">
+    <?php /* Si arriva qui dallo Storico (il tasto Gioca): la freccia ci riporta. */ ?>
+    <a class="hdr-back" href="<?php echo sec_h(fc_url('fc_history.php')); ?>" aria-label="<?php te('fc.js_storico'); ?>" title="<?php te('fc.js_storico'); ?>">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    </a>
+    <div class="hdr-testi">
     <div class="hdr-title"><?php te('fc.cg_nuova_partita'); ?></div>
     <div class="hdr-sub"><?php if ($fc_vocab): $fcC = fc_corso(); ?><img class="fcv-hdr-flag" src="<?php echo sec_h(fc_lingua_bandiera($fcC['learn_lang'])); ?>" alt=""> <?php echo sec_h(fc_lingua_nome($fcC['learn_lang'])); ?><?php else: te('fc.cg_scegli_come'); endif; ?></div>
+    </div>
 </div>
 
 <?php include __DIR__ . '/../partials/sidebar.html'; ?>

@@ -10,6 +10,7 @@ $conn = sec_db();
 /* Studio o lingua: con ?course=N questa pagina mostra le parole di un corso
    di lingua, con le stesse funzioni. Vedi fc_type.php. */
 require_once __DIR__ . '/../../lib/fc/fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_icone.php';
 fc_avvia((int)$current_user_id);
 
 /* Una carta copiata da una tabella all'altra (unisci, separa): i valori nello
@@ -488,12 +489,14 @@ $categoryID = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
 
 
 [$fcW, $fcP] = fc_filtro_corso();
-$cat_query = sec_all("SELECT id, name, color, color_edited, parent_id FROM " . fc_t('decks') . " WHERE user_id = ?" . $fcW . " ORDER BY name", array_merge([$current_user_id], $fcP));
+$cat_query = sec_all("SELECT id, name, color, color_edited, parent_id, icon, notes FROM " . fc_t('decks') . " WHERE user_id = ?" . $fcW . " ORDER BY name", array_merge([$current_user_id], $fcP));
 $categories_list = [];
 
 $current_cat_name = t('fc.vis_tutte_categorie');
 
 $current_cat_color = '#5E5CE6'; // Colore neutro di default (vista "tutte le categorie")
+$current_cat_notes = '';
+$current_cat_icon = '';
 
 
 
@@ -506,6 +509,8 @@ foreach ($cat_query as $c) {
         $current_cat_name = $c['name'];
 
         $current_cat_color = !empty($c['color']) ? $c['color'] : '#007AFF';
+        $current_cat_notes = trim((string)($c['notes'] ?? ''));
+        $current_cat_icon = fc_icona_valida($c['icon'] ?? null) ? (string)$c['icon'] : '';
 
     }
 
@@ -691,7 +696,7 @@ if (isset($_GET['fc_deep_search'])) {
     <div class="fc-deep-body">
         <?php foreach ($__padri as $__row):
             $__learnt = ((int)$__row['is_learnt'] === 1);
-            $__search = sec_h(strtolower($__row['question_desc'] . ' ' . $__row['answer_desc'] . ' ' . ($__row['meaning'] ?? '')));
+            $__search = sec_h(strtolower($__row['question_desc'] . ' ' . $__row['answer_desc'] . ' ' . ($__row['meaning'] ?? '') . ' ' . ($__row['notes'] ?? '')));
         ?>
         <div class="fc-group fc-deep-item" data-parent-id="<?= (int)$__row['id'] ?>" data-category-id="<?= (int)$__cid ?>" data-reorderable="0" style="--row-color:<?= sec_h($__col) ?>;">
             <div class="fc-card fc-parent<?= $__learnt ? ' is-learnt' : '' ?>"
@@ -730,7 +735,7 @@ if (isset($_GET['fc_deep_search'])) {
         <?php endforeach; ?>
 
         <?php foreach ($__figli as $__row):
-            $__search = sec_h(strtolower($__row['question_desc'] . ' ' . $__row['answer_desc'] . ' ' . ($__row['meaning'] ?? '')));
+            $__search = sec_h(strtolower($__row['question_desc'] . ' ' . $__row['answer_desc'] . ' ' . ($__row['meaning'] ?? '') . ' ' . ($__row['notes'] ?? '')));
         ?>
         <div class="fc-group fc-deep-item" data-reorderable="0" style="--row-color:<?= sec_h($__col) ?>;">
             <div class="fc-children">
@@ -920,6 +925,24 @@ if (isset($_GET['fc_project_summary'])) {
             'giorni'   => $giorniA($__ev['event_date']),
         ] : null,
     ]);
+    exit;
+}
+
+// ==========================================
+// AJAX: le note del mazzo che si sta guardando (il riquadro in cima al
+// feed). Testo libero, al massimo 5000 caratteri; vuoto = nessuna nota.
+// ==========================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'fc_deck_notes') {
+    header('Content-Type: application/json; charset=utf-8');
+    sec_guard_write($current_user_id, 'fc_vis', 0, 120, 60);
+    $dnId = sec_int($_POST['category_id'] ?? 0, 1);
+    if (!fc_mazzo_mio($dnId, $current_user_id)) {
+        echo json_encode(['success' => false, 'error' => t('fc.vis_categoria_non_valida')]); exit;
+    }
+    $dnTesto = trim(sec_text($_POST['notes'] ?? '', 5000));
+    sec_q("UPDATE " . fc_t('decks') . " SET notes = ? WHERE id = ? AND user_id = ?",
+          [$dnTesto !== '' ? $dnTesto : null, $dnId, $current_user_id]);
+    echo json_encode(['success' => true, 'notes' => $dnTesto], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -1289,6 +1312,29 @@ if ($ids_array) { /* lingue e studio */
     }
 }
 
+/* LE PARTITE CON QUESTO MAZZO (il tasto accanto al nome): quante partite
+   (senza contare i ripassi) hanno giocato questo mazzo o una sua
+   sottocartella. L'elenco lo chiede il popup allo Storico. */
+$fcg_n_partite = 0;
+if ($categoryID != 0) {
+    $fcg_figli = [];
+    foreach (sec_all("SELECT id, parent_id FROM " . fc_t('decks') . " WHERE user_id = ?" . $fcW, array_merge([$current_user_id], $fcP)) as $c) {
+        $fcg_figli[(int)$c['parent_id']][] = (int)$c['id'];
+    }
+    $fcg_ramo = []; $coda = [(int)$categoryID];
+    while ($coda) { $x = array_pop($coda); if (isset($fcg_ramo[$x])) continue; $fcg_ramo[$x] = true; foreach ($fcg_figli[$x] ?? [] as $f) $coda[] = $f; }
+    /* anche le cartelle che lo contengono (come il filtro dello Storico) */
+    $fcg_padre = [];
+    foreach ($fcg_figli as $pid => $ff) foreach ($ff as $f) $fcg_padre[$f] = (int)$pid;
+    $fcg_su = $fcg_padre[(int)$categoryID] ?? 0; $fcg_g = 0;
+    while ($fcg_su > 0 && $fcg_g++ < 40) { $fcg_ramo[$fcg_su] = true; $fcg_su = $fcg_padre[$fcg_su] ?? 0; }
+    $ph = implode(',', array_fill(0, count($fcg_ramo), '?'));
+    $fcg_n_partite = (int)(sec_one("SELECT COUNT(DISTINCT g.id) AS n FROM fc_games g
+                                     JOIN " . fc_t('game_decks') . " gd ON gd.game_id = g.id
+                                    WHERE g.user_id = ? AND (g.parent_id IS NULL OR g.parent_id = 0) AND gd.fc_category_id IN ($ph)",
+                                   array_merge([$current_user_id], array_keys($fcg_ramo)))['n'] ?? 0);
+}
+
 /** L'etichetta del livello di una carta (vuota fuori dalle lingue). */
 function fcv_etichetta_livello(string $chiave): string {
     global $fcv_livelli;
@@ -1612,7 +1658,7 @@ function fc_lati_carta(array $r): void {
     render_qa_side(fc_lingua_nome($c['learn_lang'], false), $r['question_desc'] ?? '', $r['question_image'] ?? '', '', 'q',
                    ['speak' => 'learn', 'flag' => fc_lingua_bandiera($c['learn_lang'])]);
     render_qa_side(fc_lingua_nome($c['known_lang'], false), $r['answer_desc'] ?? '', '', '', 'a',
-                   ['speak' => 'known', 'flag' => fc_lingua_bandiera($c['known_lang']), 'meaning' => $r['meaning'] ?? '']);
+                   ['speak' => 'known', 'flag' => fc_lingua_bandiera($c['known_lang']), 'meaning' => $r['meaning'] ?? '', 'notes' => $r['notes'] ?? '']);
 }
 
 function render_qa_side($label, $text, $image, $audio, $lato = '', array $extra = []) {
@@ -1719,6 +1765,10 @@ function render_qa_side($label, $text, $image, $audio, $lato = '', array $extra 
         <div class="qa-meaning"><span class="qa-meaning-lab"><?php te('fcv.significato'); ?></span> <?= nl2br(sec_h(trim((string)$extra['meaning']))) ?></div>
         <?php endif; ?>
 
+        <?php if (!empty($extra['notes']) && trim((string)$extra['notes']) !== ''): ?>
+        <div class="qa-nota"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg><span><?= nl2br(sec_h(trim((string)$extra['notes']))) ?></span></div>
+        <?php endif; ?>
+
     </div>
 
     <?php
@@ -1802,7 +1852,7 @@ function fc_stampa_gruppi($da, $quanti) {
                     $isLearnt = $row['is_learnt'] == 1;
                     $catColor = fc_color_or_default($row['category_color']);
                     $catName = $row['category_name'] ? $row['category_name'] : T('vocab.vi_nessuna');
-                    $searchString = sec_h(strtolower($row['question_desc'] . ' ' . $row['answer_desc'] . ' ' . ($row['meaning'] ?? '')));
+                    $searchString = sec_h(strtolower($row['question_desc'] . ' ' . $row['answer_desc'] . ' ' . ($row['meaning'] ?? '') . ' ' . ($row['notes'] ?? '')));
                     $qk = strtolower(trim($row['question_desc']));
                     $isDuplicate = (isset($global_fc_counts[$qk]) && $global_fc_counts[$qk] > 1);
                     $childCount = count($row['children']);
@@ -1992,7 +2042,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                         <?php foreach ($row['children'] as $child):
 
-                            $searchChild = sec_h(strtolower($child['question_desc'] . ' ' . $child['answer_desc'] . ' ' . ($child['meaning'] ?? '')));
+                            $searchChild = sec_h(strtolower($child['question_desc'] . ' ' . $child['answer_desc'] . ' ' . ($child['meaning'] ?? '') . ' ' . ($child['notes'] ?? '')));
 
                         ?>
 
@@ -2264,7 +2314,11 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
         <div class="cat-pill<?= $categoryID != 0 ? ' editable' : '' ?>" id="catPill" onclick="fcToccaPastiglia(event)">
 
+            <?php if ($current_cat_icon !== '' && $current_cat_icon !== 'cartella'): ?>
+            <span class="cat-pill-ico"><?= fc_icona_svg($current_cat_icon, 2.2) ?></span>
+            <?php else: ?>
             <span class="cat-pill-dot"></span>
+            <?php endif; ?>
 
             <div class="cat-pill-text">
 
@@ -2295,6 +2349,14 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
             <span class="cat-pill-count" id="catCount"><?php if ((int)$fc_total_cards === 1) te('fc.vis_una_carta_n'); else te('fc.vis_n_carte', ['n' => (int)$fc_total_cards]); ?></span>
 
         </div>
+        <?php if ($categoryID != 0): ?>
+        <?php /* Le partite giocate con questo mazzo: si aprono in un foglio,
+                 senza lasciare il mazzo. */ ?>
+        <button type="button" class="hdr-partite" onclick="fcApriPartiteMazzo()" aria-label="<?php te('fc.vis_partite_mazzo'); ?>" title="<?php te('fc.vis_partite_mazzo'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <?php if ($fcg_n_partite > 0): ?><b><?= $fcg_n_partite > 99 ? '99+' : (int)$fcg_n_partite ?></b><?php endif; ?>
+        </button>
+        <?php endif; ?>
 
     </div>
 
@@ -2544,6 +2606,37 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
     <div class="feed-inner">
 
+        <?php if ($categoryID != 0): ?>
+        <?php /* LE NOTE DEL MAZZO: un foglietto in cima, che si scrive al
+                 tocco e si salva senza ricaricare (fc_deck_notes, piu' su).
+                 Senza note resta solo un invito discreto ad aggiungerne. */ ?>
+        <section class="deck-note<?= $current_cat_notes === '' ? ' is-vuota' : '' ?>" id="deckNote">
+            <button type="button" class="dn-add" onclick="fcNoteMazzoApri()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M12 12v6M9 15h6"/></svg>
+                <span><?php te('fc.dn_aggiungi'); ?></span>
+            </button>
+            <div class="dn-card">
+                <div class="dn-head">
+                    <span class="dn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg></span>
+                    <span class="dn-title"><?php te('fc.dn_titolo'); ?></span>
+                    <button type="button" class="dn-edit" onclick="fcNoteMazzoApri()" aria-label="<?php te('comune.modifica'); ?>" title="<?php te('comune.modifica'); ?>">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                    </button>
+                </div>
+                <div class="dn-testo" id="deckNoteText"><?= sec_h($current_cat_notes) ?></div>
+                <button type="button" class="dn-altro" id="deckNoteMore" onclick="fcNoteMazzoEspandi()"><?php te('fc.dn_mostra_tutto'); ?></button>
+                <div class="dn-form">
+                    <textarea id="deckNoteInput" maxlength="5000" rows="4" placeholder="<?php te('fc.dn_placeholder'); ?>"></textarea>
+                    <div class="dn-azioni">
+                        <span class="dn-conta" id="deckNoteCount"></span>
+                        <button type="button" class="dn-btn" onclick="fcNoteMazzoChiudi()"><?php te('comune.annulla'); ?></button>
+                        <button type="button" class="dn-btn primario" onclick="fcNoteMazzoSalva()"><?php te('comune.salva'); ?></button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <?php endif; ?>
+
 
 
         <?php if (!empty($subcategories)): ?>
@@ -2574,7 +2667,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
                     <span class="fc-subcat-dot">
 
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
+                        <?= fc_icona_svg($sc['icon'] ?? null, 2.2) ?>
 
                     </span>
 
@@ -2784,6 +2877,23 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
 
 <!-- ============ IMPOSTAZIONI DELLA VISTA ============ -->
+<?php if ($categoryID != 0): ?>
+<!-- ============ PARTITE CON QUESTO MAZZO ============ -->
+<div class="sheet-overlay" id="partiteSheet" data-materia="<?= (int)$categoryID ?>" data-nome="<?= sec_h($current_cat_name) ?>">
+    <div class="sheet-panel">
+        <h3><?php te('fc.vis_partite_mazzo'); ?></h3>
+        <p class="sheet-sub"><?php te('fc.vis_partite_mazzo_sub'); ?></p>
+        <div class="pm-lista" id="pmLista"><div class="pm-vuoto"><?php te('fc.vis_caricamento_carte'); ?></div></div>
+        <div class="sheet-actions pm-azioni">
+            <a class="sheet-btn pm-gioca" href="<?= sec_h(fc_url('fc_game_setup.php', ['preselect_category' => (int)$categoryID])) ?>">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
+                <?php te('fc.vis_gioca_mazzo'); ?>
+            </a>
+            <a class="sheet-btn" href="<?= sec_h(fc_url('fc_history.php', ['materia' => (int)$categoryID, 'materia_nome' => $current_cat_name])) ?>"><?php te('fc.vis_apri_storico'); ?></a>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 <div class="sheet-overlay" id="settingsSheet">
     <div class="sheet-panel">
         <h3><?php te('fc.vis_impostazioni'); ?></h3>
@@ -3900,6 +4010,72 @@ function filterList(){
 
 var FC_CAT_ID = <?= (int)$categoryID ?>;
 
+/* ======================================================================
+   LE NOTE DEL MAZZO (il foglietto in cima al feed)
+   Tre stati sulla sezione #deckNote: is-vuota (solo l'invito), normale (il
+   testo, accorciato con "mostra tutto" se lungo) e is-edit (il campo).
+   ====================================================================== */
+function fcNoteMazzoMisura(){
+    var box = document.getElementById('deckNote');
+    var t = document.getElementById('deckNoteText');
+    if (!box || !t) return;
+    box.classList.remove('is-lunga');
+    if (!box.classList.contains('is-aperta') && t.scrollHeight > 132) box.classList.add('is-lunga');
+}
+function fcNoteMazzoApri(){
+    var box = document.getElementById('deckNote');
+    var inp = document.getElementById('deckNoteInput');
+    inp.value = document.getElementById('deckNoteText').textContent;
+    box.classList.add('is-edit');
+    fcNoteMazzoConta();
+    setTimeout(function(){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }, 30);
+}
+function fcNoteMazzoChiudi(){
+    document.getElementById('deckNote').classList.remove('is-edit');
+}
+function fcNoteMazzoEspandi(){
+    var box = document.getElementById('deckNote');
+    box.classList.add('is-aperta');
+    box.classList.remove('is-lunga');
+}
+function fcNoteMazzoConta(){
+    var inp = document.getElementById('deckNoteInput');
+    var c = document.getElementById('deckNoteCount');
+    if (c) c.textContent = inp.value.length > 4000 ? (inp.value.length + ' / 5000') : '';
+}
+function fcNoteMazzoSalva(){
+    var box = document.getElementById('deckNote');
+    var testo = document.getElementById('deckNoteInput').value.trim();
+    var fd = new FormData();
+    fd.append('action', 'fc_deck_notes');
+    fd.append('category_id', FC_CAT_ID);
+    fd.append('notes', testo);
+    box.classList.add('is-salva');
+    fetch(fcUrl('fc_view.php'), { method: 'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            box.classList.remove('is-salva');
+            if (!d || !d.success) { showToast((d && d.error) || T('comune.errore_generico')); return; }
+            document.getElementById('deckNoteText').textContent = d.notes;
+            box.classList.toggle('is-vuota', d.notes === '');
+            box.classList.remove('is-edit');
+            fcNoteMazzoMisura();
+            showToast(d.notes === '' ? T('fc.dn_tolte') : T('fc.dn_salvate'));
+        })
+        .catch(function(){ box.classList.remove('is-salva'); showToast(T('comune.errore_generico')); });
+}
+(function(){
+    var inp = document.getElementById('deckNoteInput');
+    if (!inp) return;
+    inp.addEventListener('input', fcNoteMazzoConta);
+    inp.addEventListener('keydown', function(e){
+        if (e.key === 'Escape') fcNoteMazzoChiudi();
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); fcNoteMazzoSalva(); }
+    });
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fcNoteMazzoMisura);
+    else fcNoteMazzoMisura();
+})();
+
 var FC_HA_SOTTOCARTELLE = <?= !empty($subcategories) ? 'true' : 'false' ?>;
 
 /* Stessa chiave che legge fc_decks.php: cosi', tornando li' (tasto Home
@@ -4504,6 +4680,48 @@ function fcSalvaImpostazioni(){
 }
 
 
+
+/* ---------- Le partite con questo mazzo ----------
+   Le chiede allo Storico (lo stesso elenco, filtrato su questo mazzo e le sue
+   sottocartelle, da sempre) e le mostra in breve: data, percentuale, e l'oro
+   per quelle portate al 100%. Toccandone una si apre il suo risultato. */
+function fcApriPartiteMazzo(){
+    var sh = document.getElementById('partiteSheet');
+    if (!sh) return;
+    sh.style.display = 'flex';
+    buzz(8);
+    if (sh._caricato) return;
+    sh._caricato = true;
+    var lista = document.getElementById('pmLista');
+    var q = new URLSearchParams({ ajax: 'lista', da: '', a: '', stato: 'tutte', tipo: 'tutti', ordina: 'recenti', materia: sh.getAttribute('data-materia'), offset: 0 });
+    fetch(fcUrl('fc_history.php?' + q.toString()), { cache: 'no-store', credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+            var righe = (d && d.righe) || [];
+            if (!righe.length) { lista.innerHTML = '<div class="pm-vuoto">' + fcEscapeHtmlLocale(T('fc.vis_partite_nessuna')) + '</div>'; return; }
+            lista.innerHTML = righe.slice(0, 25).map(fcRigaPartita).join('');
+        })
+        .catch(function () { sh._caricato = false; lista.innerHTML = '<div class="pm-vuoto">' + fcEscapeHtmlLocale(T('fc.vis_partite_errore')) + '</div>'; });
+}
+function fcEscapeHtmlLocale(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function fcRigaPartita(r){
+    var n = r.ok + r.ko, p = n ? Math.round(r.ok / n * 100) : null;
+    var oro = r.catena === 'conquistata' || r.catena === 'perfetta';
+    var sospesa = r.sospesa || (r.ripassi || []).some(function (x) { return x.sospesa; });
+    var d = new Date(String(r.data).replace(' ', 'T'));
+    var quando = isNaN(d) ? '' : d.toLocaleDateString(document.documentElement.lang || undefined, { day: 'numeric', month: 'short', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined });
+    var nRip = (r.ripassi || []).length;
+    var sotto = oro ? (r.catena === 'perfetta' ? T('fc.sfc_perfetta') : T(nRip === 1 ? 'fc.sfc_conquistata_1' : 'fc.sfc_conquistata_n', { n: nRip }))
+              : (r.catena === 'aperta' && r.da_sistemare > 0 ? T(r.da_sistemare === 1 ? 'fc.sfc_da_sistemare_1' : 'fc.sfc_da_sistemare_n', { n: r.da_sistemare }) : T('fc.sfc_carte_n', { c: r.chiuse, t: r.totale }));
+    var cls = sospesa ? 'sospesa' : (oro ? 'oro' : (p === null ? 'nd' : (p >= 80 ? 'buona' : (p >= 50 ? 'media' : 'bassa'))));
+    var pill = sospesa ? T('fc.sfc_in_sospeso') : (oro ? '★ 100%' : (p === null ? '–' : p + '%'));
+    var href = sospesa && r.sospesa ? ('fc_game.php?game_id=' + r.id + '&position=' + r.pos) : ('fc_result.php?game_id=' + r.id);
+    return '<a class="pm-riga' + (oro ? ' is-oro' : '') + '" href="' + href + '">'
+        + '<span class="pm-data">' + fcEscapeHtmlLocale(quando) + '</span>'
+        + '<span class="pm-sotto' + (r.catena === 'aperta' && r.da_sistemare > 0 && !oro ? ' da-fare' : '') + '">' + fcEscapeHtmlLocale(sotto) + '</span>'
+        + '<span class="pm-pill ' + cls + '">' + fcEscapeHtmlLocale(pill) + '</span></a>';
+}
+document.addEventListener('click', function (e) { var sh = document.getElementById('partiteSheet'); if (sh && e.target === sh) closeSheet('partiteSheet'); });
 
 function fcApriImpostazioni(){
 

@@ -1794,3 +1794,13 @@ html.fcv-sig-aperto .fcv-meaning,
 @media (prefers-reduced-motion: reduce){
     .fcv-gs, .fcv-gs .sheet-panel, .fcv-gs-seg::before{ animation:none !important; transition:none !important; }
 }
+
+/* Le note della parola, con la risposta: il foglietto giallo carta delle note
+   (fc_view.css), piu' piccolo e centrato sotto la traduzione. */
+.fcv-nota{ display:flex; align-items:flex-start; gap:7px; max-width:440px; margin:12px auto 0; padding:8px 12px; border-radius:12px;
+    background:color-mix(in srgb, #FFD60A 15%, var(--surface, #fff));
+    box-shadow:inset 0 0 0 .75px color-mix(in srgb, #E0A800 30%, transparent);
+    color:var(--text); font-size:14px; line-height:1.4; text-align:left; overflow-wrap:anywhere;
+    animation:fcvNotaIn .35s ease both; }
+.fcv-nota svg{ width:14px; height:14px; flex-shrink:0; margin-top:2px; color:#B38600; }
+@keyframes fcvNotaIn{ from{ opacity:0; transform:translateY(4px); } to{ opacity:1; transform:none; } }

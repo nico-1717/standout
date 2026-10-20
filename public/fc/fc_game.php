@@ -159,6 +159,13 @@ function fc_gioco_testo(array $c, string $lato, string $classe = 'fc-text raw-te
     if ($lato === 'a' && trim((string)($c['meaning'] ?? '')) !== '') {
         echo '<div class="fcv-meaning" lang="' . sec_h(fc_corso()['learn_lang']) . '">' . sec_h(trim((string)$c['meaning'])) . '</div>';
     }
+    /* Le note della parola (fc_card_edit.php): solo con la risposta, come
+       ripasso di cio' che ci si era scritti per ricordarla. */
+    if ($lato === 'a' && trim((string)($c['notes'] ?? '')) !== '') {
+        echo '<div class="fcv-nota"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+           . '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>'
+           . '<span>' . nl2br(sec_h(trim((string)$c['notes']))) . '</span></div>';
+    }
 }
 
 /**

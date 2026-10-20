@@ -480,3 +480,72 @@ button, input{ font-family:inherit; }
 .sfc-menu-item:active{ background:var(--surface-2); }
 .sfc-menu-item.attivo{ color:var(--blue); font-weight:700; }
 .sfc-menu-item svg{ width:13px; height:13px; flex-shrink:0; color:var(--blue); }
+
+/* ================================================================
+   LA STRADA FINO AL 100%
+   ================================================================
+   Una partita portata al 100% a forza di ripassi (o perfetta al primo colpo)
+   e' oro: bordo dorato, medaglia al posto dell'anello, targa sotto il nome.
+   E' quello che si vuole far inseguire, quindi deve vedersi anche a elenco
+   compatto. Una partita con errori ancora aperti dice quanti, e mostra in
+   piccolo la salita fatta fin qui. */
+.sfc-item.is-oro{
+    border-color:transparent;
+    background:linear-gradient(var(--surface), var(--surface)) padding-box,
+               linear-gradient(135deg, #FFE066, #FFC300 40%, #FF9F0A 70%, #FFE066) border-box;
+    border:1.5px solid transparent;
+    box-shadow:0 8px 26px -14px rgba(255,180,0,.7);
+}
+.sfc-item.is-oro .sfc-riga{ background:linear-gradient(135deg, rgba(255,214,10,.10), transparent 55%), var(--surface); }
+.sfc-medaglia{
+    flex-shrink:0; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    color:#7A4A00; background:linear-gradient(135deg, #FFE680, #FFC300 55%, #FF9F0A);
+    box-shadow:0 0 0 3px rgba(255,195,0,.18), 0 4px 10px -4px rgba(255,159,10,.8);
+}
+.sfc-medaglia svg{ width:17px; height:17px; }
+.sfc-pill.oro{
+    display:inline-flex; align-items:center; gap:4px;
+    color:#5C3A00; background:linear-gradient(135deg, #FFE680, #FFC300 60%, #FFAA1A);
+}
+.sfc-pill.oro svg{ width:12px; height:12px; }
+
+.sfc-targa{
+    display:inline-flex; align-items:center; gap:5px; max-width:100%; margin-top:5px;
+    font-size:12px; font-weight:750; color:#C98A00;
+}
+.sfc-targa svg{ width:13px; height:13px; flex-shrink:0; }
+.sfc-targa span{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+@media (prefers-color-scheme: dark){ .sfc-targa{ color:#FFD60A; } }
+.sfc-targa.da-fare{ color:var(--orange); }
+.sfc-salita-mini{ display:inline-flex; align-items:flex-end; gap:2px; height:14px; margin-left:4px; }
+.sfc-salita-mini i{ display:block; width:4px; border-radius:1.5px; background:var(--text-3); }
+.sfc-salita-mini i.buona{ background:var(--green); } .sfc-salita-mini i.media{ background:var(--orange); } .sfc-salita-mini i.bassa{ background:var(--red); }
+.sfc-salita-mini i.meta{ height:100%; background:none; border:1px dashed color-mix(in srgb, #FFC300 80%, transparent); box-sizing:border-box; }
+
+/* il grafico a gradini nel dettaglio */
+.sfc-strada{ margin-top:12px; padding:12px 12px 10px; border-radius:14px; background:var(--surface-2); }
+.sfc-strada-tit{ display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:800; color:var(--orange); }
+.sfc-strada.presa .sfc-strada-tit{ color:#C98A00; }
+@media (prefers-color-scheme: dark){ .sfc-strada.presa .sfc-strada-tit{ color:#FFD60A; } }
+.sfc-strada-tit svg{ width:15px; height:15px; }
+.sfc-strada-grafico{ display:flex; align-items:stretch; gap:6px; height:118px; margin-top:10px; }
+.sfc-gradino{
+    flex:1 1 0; min-width:0; max-width:56px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:4px;
+    animation:gradinoIn .5s var(--spring) both; animation-delay:calc(var(--i) * 70ms);
+}
+@keyframes gradinoIn{ from{ opacity:0; transform:translateY(8px); } }
+.sfc-gradino-pct{ font-size:11px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--text-2); }
+.sfc-gradino-barra{
+    width:100%; max-height:70px; border-radius:7px 7px 4px 4px; background:var(--text-3);
+    display:flex; align-items:center; justify-content:center; color:#7A4A00;
+}
+.sfc-gradino-barra.buona{ background:var(--green); } .sfc-gradino-barra.media{ background:var(--orange); } .sfc-gradino-barra.bassa{ background:var(--red); }
+.sfc-gradino-barra.oro{ background:linear-gradient(180deg, #FFE680, #FFC300 60%, #FF9F0A); }
+.sfc-gradino-lbl{ font-size:10.5px; font-weight:700; color:var(--text-3); white-space:nowrap; }
+.sfc-gradino.meta .sfc-gradino-barra{
+    background:none; border:1.5px dashed color-mix(in srgb, #FFC300 75%, transparent); box-sizing:border-box; color:#FFC300;
+}
+.sfc-gradino.meta .sfc-gradino-barra svg{ width:18px; height:18px; }
+.sfc-gradino.meta .sfc-gradino-pct{ color:#FFC300; }
+.sfc-btn.sistema{ background:linear-gradient(135deg, #FF9F0A, #FF375F); color:#fff; box-shadow:0 6px 16px -8px rgba(255,90,40,.8); }
+@media (prefers-reduced-motion: reduce){ .sfc-gradino{ animation:none; } }

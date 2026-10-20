@@ -197,6 +197,36 @@ function sfc_riga(array $g, array $a): array {
     ];
 }
 
+/* LA STRADA FINO AL 100%
+   Una partita con errori si ripassa: ogni ripasso ha solo le carte sbagliate
+   in quello prima. Quando un ripasso finisce senza errori la partita e'
+   "conquistata", e lo Storico la mostra in oro: e' il traguardo che si vuole
+   far inseguire. Una partita finita senza errori al primo colpo e' "perfetta".
+     catena        'perfetta' | 'conquistata' | 'aperta' | null (niente di finito)
+     salita        la precisione di ogni passo, partita e ripassi in ordine
+     da_sistemare  gli errori rimasti nell'ultimo passo finito
+     ultimo_id     la partita da cui partire per il prossimo ripasso */
+function sfc_catena(array $madre, array $ripassi): array {
+    $membri = array_merge([$madre], $ripassi);
+    $salita = [];
+    foreach ($membri as $m) {
+        $n = $m['ok'] + $m['ko'];
+        $salita[] = $n ? (int)round($m['ok'] / $n * 100) : null;
+    }
+    $ultimo = null;
+    foreach ($membri as $m) if (!$m['sospesa'] && $m['ok'] + $m['ko'] > 0) $ultimo = $m;
+    if (!$ultimo) $stato = null;
+    elseif (!$madre['sospesa'] && $madre['ko'] === 0 && $madre['ok'] > 0) $stato = 'perfetta';
+    elseif ($ultimo['ko'] === 0 && $ultimo['id'] !== $madre['id']) $stato = 'conquistata';
+    else $stato = 'aperta';
+    return [
+        'catena' => $stato,
+        'salita' => $salita,
+        'da_sistemare' => $ultimo ? $ultimo['ko'] : 0,
+        'ultimo_id' => $ultimo ? $ultimo['id'] : $madre['id'],
+    ];
+}
+
 /* Le righe finite di un elenco di madri: la madre con i suoi ripassi dentro.
    Tenuta fuori dall'endpoint perche' serve due volte, sulla prima pagina
    (tutte le madri del periodo) e sulle successive (solo quelle della
@@ -225,7 +255,7 @@ function sfc_costruisci(array $madri, array $gruppi, array $mappa): array {
 
         $madre['ripassi'] = $ripassi;
         $madre['secondi_tot'] = $madre['secondi'] + array_sum(array_column($ripassi, 'secondi'));
-        $out[] = $madre;
+        $out[] = $madre + sfc_catena($madre, $ripassi);
     }
     return $out;
 }
@@ -439,6 +469,12 @@ if ($ajax === 'lista') {
             $ramo[$c] = true;
             foreach ($figli_cat[$c] ?? [] as $f) $coda[] = $f;
         }
+        /* ...e le cartelle che la contengono: una partita su "Analisi" ha
+           giocato anche le carte di "Integrali". */
+        $padre_di = [];
+        foreach ($figli_cat as $pid => $ff) foreach ($ff as $f) $padre_di[$f] = (int)$pid;
+        $sfc_su = $padre_di[$materia] ?? 0; $sfc_g = 0;
+        while ($sfc_su > 0 && $sfc_g++ < 40) { $ramo[$sfc_su] = true; $sfc_su = $padre_di[$sfc_su] ?? 0; }
     }
 
     /* Le madri si ordinano per la LORO data: $gruppi segue l'ordine in cui
@@ -870,6 +906,9 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
     var CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
 
     var ICONE = {
+        trofeo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0Z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg>',
+        stella: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.5 2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.6l-6 3.3 1.3-6.7-5-4.7 6.8-.8Z"/></svg>',
+        bersaglio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>',
         play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16l13-8L7 4Z"/></svg>',
         cestino: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>',
         ripasso: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>',
@@ -1228,9 +1267,23 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
         var meta = (perGiorno ? ora(d) : (d ? dataBreve(d) + ' · ' + ora(d) : ''));
         if (r.secondi_tot >= 60) meta += ' · ' + durata(r.secondi_tot);
 
+        /* LA STRADA FINO AL 100% (sfc_catena, lato server): una partita
+           conquistata a forza di ripassi, o perfetta al primo colpo, e' oro;
+           una con errori ancora da sistemare lo dice, e mostra la salita fatta. */
+        var oro = !qualcunaSospesa && (r.catena === 'conquistata' || r.catena === 'perfetta');
+        var nRipassi = (r.ripassi || []).length;
         var pill = qualcunaSospesa
             ? '<span class="sfc-pill sospesa">' + T('fc.sfc_in_sospeso') + '</span>'
-            : '<span class="sfc-pill ' + classePrecisione(p) + '">' + (p === null ? '–' : p + '%') + '</span>';
+            : (oro ? '<span class="sfc-pill oro">' + ICONE.stella + '100%</span>'
+                   : '<span class="sfc-pill ' + classePrecisione(p) + '">' + (p === null ? '–' : p + '%') + '</span>');
+        var targa = '';
+        if (oro) {
+            targa = '<div class="sfc-targa">' + ICONE.trofeo + '<span>' + (r.catena === 'perfetta'
+                ? T('fc.sfc_perfetta')
+                : T(nRipassi === 1 ? 'fc.sfc_conquistata_1' : 'fc.sfc_conquistata_n', { n: nRipassi })) + '</span></div>';
+        } else if (!qualcunaSospesa && r.catena === 'aperta' && r.da_sistemare > 0) {
+            targa = '<div class="sfc-targa da-fare">' + ICONE.bersaglio + '<span>' + T(r.da_sistemare === 1 ? 'fc.sfc_da_sistemare_1' : 'fc.sfc_da_sistemare_n', { n: r.da_sistemare }) + '</span>' + salitaMini(r) + '</div>';
+        }
 
         /* La riga "dettagliata" c'e' sempre nel markup e la mostra il CSS:
            cambiare densita' non ridisegna l'elenco ne' perde le righe aperte. */
@@ -1242,14 +1295,15 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
             '<span class="sfc-mini-barra"><i class="ok" style="width:' + (p === null ? 0 : p) + '%"></i><i class="ko" style="width:' + (p === null ? 0 : 100 - p) + '%"></i></span>' +
             '</div>';
 
-        return '<div class="sfc-item" data-id="' + r.id + '" style="animation-delay:' + (Math.min(i, 10) * 25) + 'ms">' +
+        return '<div class="sfc-item' + (oro ? ' is-oro' : '') + '" data-id="' + r.id + '" style="animation-delay:' + (Math.min(i, 10) * 25) + 'ms">' +
             '<div class="sfc-swipe">' +
                 '<button type="button" class="sfc-swipe-del" data-elimina="' + r.id + '">' + ICONE.cestino + '<span>' + T('comune.elimina') + '</span></button>' +
                 '<div class="sfc-riga" data-id="' + r.id + '">' +
-                    anello(r, col) +
+                    (oro ? '<span class="sfc-medaglia">' + ICONE.trofeo + '</span>' : anello(r, col)) +
                     '<div class="sfc-riga-main">' +
                         '<div class="sfc-nome-wrap"><span class="sfc-nome-inner">' + esc(nomePartita(r)) + '</span></div>' +
                         '<div class="sfc-riga-meta">' + meta + '</div>' +
+                        targa +
                         extra +
                     '</div>' +
                     pill +
@@ -1259,6 +1313,10 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
         '</div>';
     }
 
+    /* Accanto a "Sistema N errori" il vecchio "Ripassa errori" (che apre
+       solo l'elenco degli errori nei risultati) sembrava un doppione: li'
+       diventa "Vedi gli errori", con l'occhio. */
+    var ICONE_OCCHIO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
     function dettaglioHTML(r) {
         var p = precisione(r.ok, r.ko);
         var meta = [];
@@ -1274,6 +1332,8 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
             '</div>' +
             '<div class="sfc-det-barra"><i class="ok" style="width:' + (p === null ? 0 : p) + '%"></i><i class="ko" style="width:' + (p === null ? 0 : 100 - p) + '%"></i></div>' +
             '<div class="sfc-det-meta">' + meta.join(' · ') + '</div>';
+
+        html += stradaHTML(r);
 
         if (r.ripassi && r.ripassi.length) {
             html += '<div class="sfc-ripassi">' + r.ripassi.map(function (x, i) {
@@ -1291,13 +1351,51 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
             }).join('') + '</div>';
         }
 
+        /* il prossimo ripasso parte dagli errori dell'ULTIMO passo, non della
+           partita: e' cosi' che la catena arriva al 100% */
+        var sistema = !r.sospesa && r.catena === 'aperta' && r.da_sistemare > 0 && !(r.ripassi || []).some(function (x) { return x.sospesa; });
         html += '<div class="sfc-det-azioni">' +
             (r.sospesa ? '<a class="sfc-btn primario" href="fc_game.php?game_id=' + r.id + '&amp;position=' + r.pos + '">' + ICONE.play + T('fc.sfc_riprendi') + '</a>' : '') +
+            (sistema ? '<a class="sfc-btn primario sistema" href="fc_game_retry.php?parent_id=' + r.ultimo_id + '">' + ICONE.ripasso + T(r.da_sistemare === 1 ? 'fc.sfc_sistema_1' : 'fc.sfc_sistema_n', { n: r.da_sistemare }) + '</a>' : '') +
             '<a class="sfc-btn" href="fc_result.php?game_id=' + r.id + '">' + ICONE.risultati + T('fc.sfc_risultati') + '</a>' +
-            (r.ko > 0 ? '<a class="sfc-btn" href="fc_result.php?game_id=' + r.id + '&amp;solo_errori=1">' + ICONE.ripasso + T('fc.sfc_ripassa') + '</a>' : '') +
+            (r.ko > 0 ? '<a class="sfc-btn" href="fc_result.php?game_id=' + r.id + '&amp;solo_errori=1">' + (sistema ? ICONE_OCCHIO + T('fc.sfc_vedi_errori') : ICONE.ripasso + T('fc.sfc_ripassa')) + '</a>' : '') +
             '<button type="button" class="sfc-btn icona pericolo" data-elimina="' + r.id + '" aria-label="' + esc(T('comune.elimina')) + '">' + ICONE.cestino + '</button>' +
             '</div>';
         return html;
+    }
+
+    /* la salita in piccolo: una barretta per passo, alta quanto la precisione */
+    function salitaMini(r) {
+        var s = (r.salita || []).filter(function (x) { return x !== null; });
+        if (s.length < 2) return '';
+        return '<span class="sfc-salita-mini" aria-hidden="true">' + s.map(function (v) {
+            return '<i class="' + classePrecisione(v) + '" style="height:' + Math.max(12, v) + '%"></i>';
+        }).join('') + '<i class="meta"></i></span>';
+    }
+
+    /* LA STRADA FINO AL 100% nel dettaglio: un gradino per la partita e uno per
+       ogni ripasso, con la percentuale sopra, e in fondo il traguardo. */
+    function stradaHTML(r) {
+        var s = r.salita || [];
+        if (r.catena === 'perfetta' || s.length === 0 || (s.length === 1 && r.catena !== 'aperta')) return '';
+        var preso = r.catena === 'conquistata';
+        var passi = s.map(function (v, i) {
+            var h = v === null ? 8 : Math.max(10, v);
+            return '<div class="sfc-gradino" style="--i:' + i + '">' +
+                '<span class="sfc-gradino-pct">' + (v === null ? '–' : v + '%') + '</span>' +
+                '<span class="sfc-gradino-barra ' + (v === 100 ? 'oro' : classePrecisione(v)) + '" style="height:' + h + '%"></span>' +
+                '<span class="sfc-gradino-lbl">' + (i === 0 ? T('fc.sfc_strada_partita') : T('fc.sfc_strada_rip', { n: i })) + '</span>' +
+            '</div>';
+        }).join('');
+        if (!preso) {
+            passi += '<div class="sfc-gradino meta" style="--i:' + s.length + '">' +
+                '<span class="sfc-gradino-pct">100%</span>' +
+                '<span class="sfc-gradino-barra" style="height:100%">' + ICONE.trofeo + '</span>' +
+                '<span class="sfc-gradino-lbl">' + T('fc.sfc_strada_meta') + '</span></div>';
+        }
+        return '<div class="sfc-strada' + (preso ? ' presa' : '') + '">' +
+            '<div class="sfc-strada-tit">' + (preso ? ICONE.trofeo : ICONE.bersaglio) + '<span>' + T(preso ? 'fc.sfc_strada_presa' : 'fc.sfc_strada') + '</span></div>' +
+            '<div class="sfc-strada-grafico">' + passi + '</div></div>';
     }
 
     function cella(lbl, val) {
@@ -1858,6 +1956,13 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
             var ordina = p.get('ordina'), stato = p.get('stato');
             if (['recenti','lunghe','errori','precisione'].indexOf(ordina) > -1) state.filtri.ordina = ordina;
             if (['tutte','sospese','concluse'].indexOf(stato) > -1) state.filtri.stato = stato;
+            /* dal mazzo (fc_view, "Partite con questo mazzo"): solo quel mazzo, da sempre */
+            var m = parseInt(p.get('materia') || '0', 10);
+            if (m > 0) {
+                state.filtri.materia = m;
+                state.filtri.materiaNome = p.get('materia_nome') || '';
+                state.periodo = '0';
+            }
         } catch(e) {}
     }
 

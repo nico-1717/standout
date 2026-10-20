@@ -1324,3 +1324,44 @@ body.ns-locked{ overflow:hidden; }
 }
 body.fc-vocab .hdr-play-btn, body.fc-vocab .hdr-play-ring{ background:linear-gradient(135deg, var(--pink), var(--orange)); }
 body.fc-vocab .hdr-play-btn{ box-shadow:0 2px 6px rgba(255,149,0,.3), 0 10px 22px -8px rgba(255,45,85,.5); }
+
+/* ==========================================================================
+   NUMERI DEL MAZZO E ICONE
+   Sotto il nome: partite, quando l'ultima, la barretta dei livelli delle carte
+   (stessi colori dei livelli in fc_view.css) e la percentuale di carte buone
+   o padroneggiate. Nel foglio di modifica, la griglia delle icone.
+   ========================================================================== */
+.cat-stats{ display:flex; align-items:center; gap:6px; max-width:100%; min-width:0;
+    font-size:11.5px; font-weight:650; color:var(--text-3); line-height:1.2; white-space:nowrap; }
+.cat-stats .cs-item{ display:inline-flex; align-items:center; gap:4px; font-variant-numeric:tabular-nums; }
+.cat-stats .cs-item svg{ width:9px; height:9px; color:var(--row-color, var(--blue)); }
+.cat-stats .cs-mai{ font-style:italic; font-weight:600; opacity:.85; }
+.cat-stats .cs-sep{ opacity:.6; }
+.cs-barra{ display:flex; gap:1.5px; width:54px; height:5px; border-radius:99px; overflow:hidden; flex-shrink:0;
+    margin-left:4px; background:var(--surface-2); }
+.cs-barra i{ display:block; height:100%; min-width:2px; }
+.cs-barra .cs-padroneggiata{ background:#E0A800; }
+.cs-barra .cs-buona{ background:var(--green, #34C759); }
+.cs-barra .cs-in_corso{ background:var(--blue, #007AFF); }
+.cs-barra .cs-difficile{ background:var(--red, #FF3B30); }
+.cs-barra .cs-nuova{ background:color-mix(in srgb, #32ADE6 45%, var(--surface-2)); }
+.cs-pct{ font-size:11px; font-weight:800; color:var(--text-2); font-variant-numeric:tabular-nums; }
+.cs-nota{ display:inline-flex; color:var(--orange, #FF9500); margin-left:2px; }
+.cs-nota svg{ width:12px; height:12px; }
+.cat-row[data-level="0"] .cat-stats{ font-size:12px; }
+@media (max-width:380px){ .cs-barra{ width:38px; } }
+
+.sc-livelli{ display:flex; align-items:center; gap:6px; margin-top:9px; }
+.sc-livelli .cs-barra{ flex:1; width:auto; margin-left:0; }
+.fc-subcat-meta .sc-nota{ color:var(--orange, #FF9500); }
+
+.icon-grid{ display:grid; grid-template-columns:repeat(7, 1fr); gap:8px; margin-bottom:6px; }
+.icon-swatch{ aspect-ratio:1; width:100%; border:none; border-radius:12px; padding:0; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--surface-2); color:var(--text-2);
+    animation:swatchIn .4s var(--spring) both;
+    transition:transform .18s var(--spring), background .2s, color .2s, box-shadow .2s; }
+.icon-swatch svg{ width:20px; height:20px; }
+.icon-swatch:active{ transform:scale(.88); }
+.icon-swatch.selected{ background:color-mix(in srgb, var(--row-color, var(--blue)) 20%, var(--surface));
+    color:var(--row-color, var(--blue)); box-shadow:inset 0 0 0 2px var(--row-color, var(--blue)); }

@@ -190,6 +190,7 @@ function mfc_parola_esempio(): string {
             $parola = sec_str($_POST['word'] ?? '', 255);
             $trad   = sec_str($_POST['translation'] ?? '', 500);
             $sign   = sec_str($_POST['meaning'] ?? '', 400);
+            $nota   = trim(sec_text($_POST['notes'] ?? '', 3000));
             $img    = mfc_salva('qNew_image', IMAGE_PATH_INSERT, false);
             if ($parola === '' && $trad === '' && $img === '') {
                 echo json_encode(['success' => false, 'empty' => true, 'error' => t('fc.serve_qualcosa')]);
@@ -198,17 +199,17 @@ function mfc_parola_esempio(): string {
             if ($padreNuovo > 0) {
                 $max_o = (int)(sec_one("SELECT MAX(custom_order) AS m FROM " . fc_t('subcards') . " WHERE parent_id = ?",
                                        [$padreNuovo])['m'] ?? 0) + 1;
-                sec_q("INSERT INTO " . fc_t('subcards') . " (image, word, translation, meaning, parent_id, custom_order)
-                       VALUES (?, ?, ?, ?, ?, ?)",
-                      [$img !== '' ? $img : null, $parola, $trad, $sign !== '' ? $sign : null, $padreNuovo, $max_o]);
+                sec_q("INSERT INTO " . fc_t('subcards') . " (image, word, translation, meaning, notes, parent_id, custom_order)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)",
+                      [$img !== '' ? $img : null, $parola, $trad, $sign !== '' ? $sign : null, $nota !== '' ? $nota : null, $padreNuovo, $max_o]);
                 $nuovoId = (int)sec_insert_id();
                 sec_q("UPDATE " . fc_t('cards') . " SET is_father = 1 WHERE id = ?", [$padreNuovo]);
             } else {
                 $max_o = (int)(sec_one("SELECT MAX(custom_order) AS m FROM " . fc_t('cards') . " WHERE category_id = ?",
                                        [$catID])['m'] ?? 0) + 1;
-                sec_q("INSERT INTO " . fc_t('cards') . " (image, word, translation, meaning, category_id, is_father, custom_order)
-                       VALUES (?, ?, ?, ?, ?, 0, ?)",
-                      [$img !== '' ? $img : null, $parola, $trad, $sign !== '' ? $sign : null, $catID, $max_o]);
+                sec_q("INSERT INTO " . fc_t('cards') . " (image, word, translation, meaning, notes, category_id, is_father, custom_order)
+                       VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+                      [$img !== '' ? $img : null, $parola, $trad, $sign !== '' ? $sign : null, $nota !== '' ? $nota : null, $catID, $max_o]);
                 $nuovoId = (int)sec_insert_id();
             }
             /* Gli esempi scritti (o fatti dall'IA) insieme alla parola: stanno
@@ -348,10 +349,12 @@ function mfc_parola_esempio(): string {
                 header('Location: ' . $redirect_url);
                 exit;
             }
-            $sets = ['word = ?', 'translation = ?', 'meaning = ?'];
+            $sets = ['word = ?', 'translation = ?', 'meaning = ?', 'notes = ?'];
             $vals = [sec_str($_POST['word'] ?? '', 255), sec_str($_POST['translation'] ?? '', 500)];
             $sign = sec_str($_POST['meaning'] ?? '', 400);
             $vals[] = $sign !== '' ? $sign : null;
+            $nota = trim(sec_text($_POST['notes'] ?? '', 3000));
+            $vals[] = $nota !== '' ? $nota : null;
             if (sec_bool($_POST['remove_q_img'] ?? 0)) {
                 mfc_togli(IMAGE_PATH_INSERT, $old['image'] ?? '');
                 $sets[] = 'image = ?'; $vals[] = null;
@@ -629,7 +632,7 @@ function mfc_parola_esempio(): string {
         $category_id = $prev_cat;
         $ex_count = 0;
         $row = [
-            'word' => '', 'translation' => '', 'meaning' => '', 'image' => '',
+            'word' => '', 'translation' => '', 'meaning' => '', 'notes' => '', 'image' => '',
             'question_desc' => '', 'answer_desc' => '',
             'question_image' => '', 'answer_image' => '',
             'question_audio' => '', 'answer_audio' => '',
@@ -994,6 +997,20 @@ function mfc_parola_esempio(): string {
                 <section class="fc-card">
                     <div class="fc-card-head"><span class="fc-card-title"><?php te('fcv.immagine'); ?></span></div>
                     <?php fc_img_box_modifica('q', t('fcv.immagine'), $row['image'] ?? ''); ?>
+                </section>
+
+                <?php /* LE NOTE DELLA PAROLA: un appunto libero (un'eccezione, un
+                         trucco per ricordarla, la differenza da una parola
+                         simile). Si vedono nel mazzo e sul retro della carta. */ ?>
+                <section class="fc-card fcv-note">
+                    <div class="fc-card-head">
+                        <span class="fc-card-title fcv-note-tit">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>
+                            <?php te('fcv.note'); ?> <span class="fc-vocab-opt"><?php te('fcv.facoltativo'); ?></span>
+                        </span>
+                    </div>
+                    <textarea name="notes" id="fcNotes" class="fc-vocab-input fc-vocab-area fcv-note-area" rows="3" data-fc-vocab-field
+                              placeholder="<?php te('fcv.ph_note'); ?>" maxlength="3000"><?php echo sec_h($row['notes'] ?? ''); ?></textarea>
                 </section>
                 <?php else: ?>
                 <!-- ============== CARD DOMANDA ============== -->

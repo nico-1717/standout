@@ -292,7 +292,7 @@ function fcl_quando(?string $giorno): string {
                 </span>
                 <span class="lng-actions">
                     <?php if ($c['parole'] > 0): ?>
-                    <a class="pill-btn pill-play" href="<?php echo sec_h('fc_game_setup.php?course=' . (int)$c['id']); ?>" aria-label="<?php te('fchub.gioca'); ?>">
+                    <a class="pill-btn pill-play" href="<?php echo sec_h('fc_history.php?course=' . (int)$c['id']); ?>" aria-label="<?php te('fchub.gioca'); ?>">
                         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.1v13.8a1 1 0 0 0 1.5.9l11-6.9a1 1 0 0 0 0-1.8l-11-6.9A1 1 0 0 0 8 5.1Z"/></svg>
                         <span><?php te('fchub.gioca'); ?></span>
                     </a>

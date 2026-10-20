@@ -237,7 +237,7 @@ function fc_mazzo_nuovo_extra(): array {
  */
 function fc_colonne_contenuto(): array {
     return fc_is_vocab()
-        ? ['word', 'translation', 'meaning', 'image']
+        ? ['word', 'translation', 'meaning', 'notes', 'image']
         : ['question_desc', 'question_image', 'question_audio', 'answer_desc', 'answer_image', 'answer_audio'];
 }
 
