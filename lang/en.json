@@ -4008,7 +4008,16 @@
     "res_conf_delta": "{n}% compared to last time",
     "res_conf_pari": "Same as last time",
     "res_conf_titolo": "Last time on these decks: {n}%",
-    "res_conf_record": "Record on these decks"
+    "res_conf_record": "Record on these decks",
+    "vis_tutti_livelli": "Level",
+    "vis_strumenti": "Tools",
+    "vis_big_edit": "Edit all cards",
+    "vis_big_edit_txt": "Big Edit: every card of the deck in a table",
+    "vis_gioca_titolo": "Play",
+    "vis_gioca_tutto": "Play the deck",
+    "vis_gioca_tutto_txt": "Choose order and cards, then start",
+    "vis_gioca_difficili_txt": "A game right away on the cards you miss most",
+    "vis_ordina": "Sort the cards"
   },
   "fchub": {
     "home_titolo": "Flashcards",

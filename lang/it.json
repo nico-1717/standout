@@ -4008,7 +4008,16 @@
     "res_conf_delta": "{n}% rispetto all'ultima volta",
     "res_conf_pari": "Come l'ultima volta",
     "res_conf_titolo": "L'ultima volta su questi mazzi: {n}%",
-    "res_conf_record": "Record su questi mazzi"
+    "res_conf_record": "Record su questi mazzi",
+    "vis_tutti_livelli": "Livello",
+    "vis_strumenti": "Strumenti",
+    "vis_big_edit": "Modifica tutte le carte",
+    "vis_big_edit_txt": "Big Edit: tutte le carte del mazzo in una tabella",
+    "vis_gioca_titolo": "Gioca",
+    "vis_gioca_tutto": "Gioca il mazzo",
+    "vis_gioca_tutto_txt": "Scegli ordine e carte, poi si parte",
+    "vis_gioca_difficili_txt": "Subito una partita sulle carte che sbagli di più",
+    "vis_ordina": "Ordina le carte"
   },
   "fchub": {
     "home_titolo": "Flashcard",

@@ -2369,3 +2369,67 @@ body.is-compact .fc-card:not(.is-open) .qa-nota{ display:none; }
     box-shadow:0 6px 16px -8px rgba(255,45,85,.7); transition:transform .15s; }
 .ds-difficili:active{ transform:scale(.96); }
 .ds-difficili svg{ width:12px; height:12px; }
+
+/* ================================================================
+   TESTATA PIU' PULITA (20/10/2026)
+   Lo storico dentro la pastiglia, l'ingranaggio accanto al percorso, il
+   livello in un menu, il tasto di selezione senza colore.
+   ================================================================ */
+.cat-pill-side{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.cat-pill .hdr-partite{ width:38px; height:38px; color:#fff; text-decoration:none;
+    background:rgba(255,255,255,.22); box-shadow:inset 0 0 0 1px rgba(255,255,255,.3); text-shadow:none; }
+.cat-pill .hdr-partite svg{ width:19px; height:19px; }
+.cat-pill .hdr-partite b{ box-shadow:0 0 0 2px var(--cat-color); }
+.cat-pill .hdr-partite:active{ transform:scale(.9); background:rgba(255,255,255,.32); }
+
+.tb-icon-btn.hdr-gear{ width:38px; height:38px; background:var(--surface); box-shadow:var(--pill-hl), var(--raise-sm); }
+.tb-icon-btn.select-mode-neutro{ color:var(--text-2); }
+
+.search-wrap{ min-width:80px; }
+.tb-liv-wrap .tb-liv-dot{ position:absolute; left:11px; top:50%; width:8px; height:8px; margin-top:-4px; border-radius:50%;
+    pointer-events:none; background:var(--text-3); transition:background .2s; }
+select.tb-select.tb-liv{ padding-left:25px; max-width:122px; }
+.tb-liv-wrap[data-liv="difficile"] .tb-liv-dot{ background:var(--red, #FF3B30); }
+.tb-liv-wrap[data-liv="in_corso"] .tb-liv-dot{ background:var(--blue, #007AFF); }
+.tb-liv-wrap[data-liv="nuova"] .tb-liv-dot{ background:#32ADE6; }
+.tb-liv-wrap[data-liv="buona"] .tb-liv-dot{ background:var(--green, #34C759); }
+.tb-liv-wrap[data-liv="padroneggiata"] .tb-liv-dot{ background:#E0A800; }
+.tb-liv-wrap:not([data-liv=""]) select.tb-liv{ box-shadow:inset 0 0 0 1.5px var(--cat-color); }
+select.tb-select#filterSort{ max-width:112px; }
+
+/* il foglio "Gioca" */
+.play-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
+.play-opt{ display:flex; align-items:center; gap:12px; width:100%; padding:12px 14px; border:none; border-radius:16px; cursor:pointer;
+    text-align:left; text-decoration:none; font:inherit; color:var(--text); background:var(--surface-2);
+    transition:transform .15s var(--spring), background .2s; }
+.play-opt:active{ transform:scale(.98); background:var(--surface-3, var(--surface-2)); }
+.po-ic{ width:40px; height:40px; border-radius:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#fff; }
+.po-ic svg{ width:18px; height:18px; }
+.po-tutte{ background:linear-gradient(180deg, var(--cat-light), var(--cat-color) 55%, var(--cat-dark)); }
+.po-difficili{ background:linear-gradient(135deg, #FF5E57, #FF2D55); }
+.po-storico{ color:var(--text-2); background:var(--surface); box-shadow:inset 0 0 0 .5px var(--hairline); }
+.po-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.po-tit{ font-size:15px; font-weight:800; }
+.po-sub{ font-size:12.5px; font-weight:550; color:var(--text-2); }
+.po-go{ width:16px; height:16px; color:var(--text-3); flex-shrink:0; }
+
+/* Big Edit, nel foglio delle impostazioni */
+.opt-link{ text-decoration:none; color:inherit; cursor:pointer; gap:12px; }
+.opt-link-ic{ width:34px; height:34px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    color:#fff; background:linear-gradient(180deg, color-mix(in srgb, var(--green), white 18%), var(--green) 55%, color-mix(in srgb, var(--green), black 10%)); }
+.opt-link-ic svg{ width:17px; height:17px; }
+.opt-link-go{ width:16px; height:16px; color:var(--text-3); flex-shrink:0; }
+/* la fila della ricerca deve stare in 360px: ricerca, livello, ordine, selezione */
+#normalToolbar{ gap:6px; }
+#normalToolbar .search-wrap{ flex:1 1 90px; min-width:90px; }
+#normalToolbar select.tb-select{ padding-right:22px; font-size:13px; }
+#normalToolbar select.tb-select.tb-liv{ max-width:118px; }
+#normalToolbar select.tb-select#filterSort{ max-width:106px; padding-left:11px; }
+#normalToolbar .tb-select-wrap::after{ right:8px; }
+.tb-sort-ico{ width:36px; height:36px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background:var(--surface-2); color:var(--text-2); }
+.tb-sort-ico::after{ display:none; }
+.tb-sort-ico svg{ width:17px; height:17px; pointer-events:none; }
+#normalToolbar .tb-sort-ico select#filterSort{ position:absolute; inset:0; width:100%; height:100%; max-width:none; opacity:0; cursor:pointer; padding:0; }
+.tb-sort-ico.has-dot::before{ content:''; position:absolute; top:3px; right:3px; width:8px; height:8px; border-radius:50%;
+    background:var(--cat-color); box-shadow:0 0 0 2px var(--bg); }

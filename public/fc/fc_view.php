@@ -1950,7 +1950,6 @@ function fc_stampa_gruppi($da, $quanti) {
 
                                 <div class="card-head-spacer"></div><?= fcv_etichetta_livello('p' . (int)$row['id']) ?>
 
-                                <?php if ($isDuplicate): ?><span class="dup-badge"><?php te('fc.vis_duplicato'); ?></span><?php endif; ?>
 
                                 <?php if ($categoryID == 0): ?><span class="cat-badge" style="background:<?= sec_h($catColor) ?>"><?= sec_h($catName) ?></span><?php endif; ?>
 
@@ -2346,17 +2345,25 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
             </div>
 
-            <span class="cat-pill-count" id="catCount"><?php if ((int)$fc_total_cards === 1) te('fc.vis_una_carta_n'); else te('fc.vis_n_carte', ['n' => (int)$fc_total_cards]); ?></span>
+            <div class="cat-pill-side">
+                <span class="cat-pill-count" id="catCount"><?php if ((int)$fc_total_cards === 1) te('fc.vis_una_carta_n'); else te('fc.vis_n_carte', ['n' => (int)$fc_total_cards]); ?></span>
+                <?php /* LO STORICO, DENTRO LA PASTIGLIA (20/10/2026): prima stava
+                         fuori, accanto, e la testata sembrava tagliata. In un
+                         mazzo apre il foglio delle sue partite; in "tutte le
+                         categorie" porta allo Storico. */ ?>
+                <?php if ($categoryID != 0): ?>
+                <button type="button" class="hdr-partite" onclick="event.stopPropagation(); fcApriPartiteMazzo()" aria-label="<?php te('fc.vis_partite_mazzo'); ?>" title="<?php te('fc.vis_partite_mazzo'); ?>">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                    <?php if ($fcg_n_partite > 0): ?><b><?= $fcg_n_partite > 99 ? '99+' : (int)$fcg_n_partite ?></b><?php endif; ?>
+                </button>
+                <?php else: ?>
+                <a class="hdr-partite" href="<?= sec_h(fc_url('fc_history.php')) ?>" onclick="event.stopPropagation()" aria-label="<?php te('fc.vis_apri_storico'); ?>" title="<?php te('fc.vis_apri_storico'); ?>">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                </a>
+                <?php endif; ?>
+            </div>
 
         </div>
-        <?php if ($categoryID != 0): ?>
-        <?php /* Le partite giocate con questo mazzo: si aprono in un foglio,
-                 senza lasciare il mazzo. */ ?>
-        <button type="button" class="hdr-partite" onclick="fcApriPartiteMazzo()" aria-label="<?php te('fc.vis_partite_mazzo'); ?>" title="<?php te('fc.vis_partite_mazzo'); ?>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-            <?php if ($fcg_n_partite > 0): ?><b><?= $fcg_n_partite > 99 ? '99+' : (int)$fcg_n_partite ?></b><?php endif; ?>
-        </button>
-        <?php endif; ?>
 
     </div>
 
@@ -2396,6 +2403,13 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
             <?php endif; ?>
         </nav>
 
+        <button type="button" class="tb-icon-btn hdr-gear" id="settingsBtn" onclick="fcApriImpostazioni()"
+                aria-label="<?php te('fc.vis_impostazioni'); ?>" title="<?php te('fc.vis_impostazioni'); ?>">
+
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.6 1.6 0 0 0 .32 1.77l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-1 1.47V21a2 2 0 1 1-4 0v-.11a1.6 1.6 0 0 0-1.05-1.46 1.6 1.6 0 0 0-1.77.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.47-1H3a2 2 0 1 1 0-4h.11A1.6 1.6 0 0 0 4.57 9a1.6 1.6 0 0 0-.32-1.77l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.6 1.6 0 0 0 1.77.32H9a1.6 1.6 0 0 0 1-1.47V3a2 2 0 1 1 4 0v.11a1.6 1.6 0 0 0 1 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.32 1.77V9a1.6 1.6 0 0 0 1.47 1H21a2 2 0 1 1 0 4h-.11a1.6 1.6 0 0 0-1.47 1Z"/></svg>
+
+        </button>
+
         <button type="button" class="icon-btn quick-add-btn" onclick="fcApriAggiungi()" aria-label="<?php te('fc.vis_aggiungi_fc'); ?>" title="<?php te('fc.vis_aggiungi_in_cat'); ?>">
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -2403,12 +2417,12 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
         </button>
 
         <?php if ($categoryID != 0): ?>
-        <a href="<?= sec_h(fc_url('fc_game_setup.php', ['preselect_category' => (int)$categoryID])) ?>" class="icon-btn play-cat-btn" aria-label="<?php te('vocab.vi_gioca'); ?>" title="<?php te('fc.vis_gioca_categoria'); ?>">
+        <?php /* Il tasto play apre il foglio "Gioca" (qui sotto, #playSheet):
+                 tutto il mazzo o solo le carte difficili. Big Edit, che prima
+                 aveva un tasto verde suo, sta nel foglio delle impostazioni. */ ?>
+        <button type="button" class="icon-btn play-cat-btn" onclick="fcApriGioca()" aria-label="<?php te('vocab.vi_gioca'); ?>" title="<?php te('fc.vis_gioca_categoria'); ?>">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>
-        </a>
-        <a href="<?= sec_h(fc_url('fc_insert.php', ['category_id' => (int)$categoryID, 'modo' => 'edit'])) ?>" class="icon-btn big-edit-btn" aria-label="<?php te('vocab.vi_big_edit'); ?>" title="Big Edit">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-        </a>
+        </button>
         <?php endif; ?>
 
     </div>
@@ -2425,9 +2439,29 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
         </div>
 
-        <div class="tb-select-wrap">
+        <?php if (array_sum($fcv_conta_livelli) > 0): ?>
+        <?php /* IL FILTRO PER LIVELLO, IN UN MENU (20/10/2026): prima era una
+                 fila di pastiglie tutta sua sotto la ricerca. I livelli senza
+                 carte non compaiono; il numero conta carte e sottocarte. Il
+                 pallino accanto prende il colore del livello scelto. */ ?>
+        <div class="tb-select-wrap tb-liv-wrap" id="fcvLivWrap" data-liv="">
+            <i class="tb-liv-dot" aria-hidden="true"></i>
+            <select id="fcvLivSelect" class="tb-select tb-liv" aria-label="<?php te('fcv.vis_livello'); ?>">
+                <option value=""><?php te('fc.vis_tutti_livelli'); ?></option>
+                <?php foreach ($fcv_conta_livelli as $liv => $n): if (!$n) continue; ?>
+                <option value="<?= $liv ?>"><?php te('fcv.liv_' . $liv); ?> (<?= (int)$n ?>)</option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <?php endif; ?>
 
-            <select id="filterSort" class="tb-select" onchange="changeSort()">
+        <?php /* L'ordine e' un'icona (le frecce) con sopra il menu vero,
+                 trasparente: si cambia di rado, e il testo "Posizione" toglieva
+                 spazio alla ricerca. Il pallino dice che non e' quello di sempre. */ ?>
+        <div class="tb-select-wrap tb-sort-ico<?= $sort !== 'custom_asc' ? ' has-dot' : '' ?>" title="<?php te('fc.vis_ordina'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M17 20V4M13.5 7.5 17 4l3.5 3.5"/></svg>
+
+            <select id="filterSort" class="tb-select" onchange="changeSort()" aria-label="<?php te('fc.vis_ordina'); ?>">
 
                 <option value="custom_asc" <?= $sort == 'custom_asc' ? 'selected' : '' ?>><?php te('fc.vis_posizione'); ?></option>
 
@@ -2442,14 +2476,8 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
         </div>
 
-        <button type="button" class="tb-icon-btn" id="settingsBtn" onclick="fcApriImpostazioni()"
-                aria-label="<?php te('fc.vis_impostazioni'); ?>" title="<?php te('fc.vis_impostazioni'); ?>">
 
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.6 1.6 0 0 0 .32 1.77l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-1 1.47V21a2 2 0 1 1-4 0v-.11a1.6 1.6 0 0 0-1.05-1.46 1.6 1.6 0 0 0-1.77.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.47-1H3a2 2 0 1 1 0-4h.11A1.6 1.6 0 0 0 4.57 9a1.6 1.6 0 0 0-.32-1.77l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.6 1.6 0 0 0 1.77.32H9a1.6 1.6 0 0 0 1-1.47V3a2 2 0 1 1 4 0v.11a1.6 1.6 0 0 0 1 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.32 1.77V9a1.6 1.6 0 0 0 1.47 1H21a2 2 0 1 1 0 4h-.11a1.6 1.6 0 0 0-1.47 1Z"/></svg>
-
-        </button>
-
-        <button type="button" class="select-mode-btn icon-only" id="selectModeBtn" onclick="enterSelectMode()"
+        <button type="button" class="tb-icon-btn select-mode-neutro" id="selectModeBtn" onclick="enterSelectMode()"
                 aria-label="<?php te('vocab.vi_seleziona'); ?>" title="<?php te('vocab.vi_seleziona'); ?>">
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="6"/></svg>
@@ -2457,18 +2485,6 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
         </button>
 
     </div>
-    <?php if (array_sum($fcv_conta_livelli) > 0): ?>
-    <?php /* IL FILTRO PER LIVELLO (solo lingue): tutte, o solo le parole di un
-             livello. I livelli senza parole non compaiono. Il numero accanto
-             conta carte e sottocarte. Si combina con la ricerca e con il filtro
-             delle impostazioni (imparate / da imparare). */ ?>
-    <div class="fcv-livelli" id="fcvLivelli" role="radiogroup" aria-label="<?php te('fcv.vis_livello'); ?>">
-        <button type="button" class="fcv-liv-chip is-on" data-liv="" role="radio" aria-checked="true"><?php te('fc.vis_tutte_carte'); ?></button>
-        <?php foreach ($fcv_conta_livelli as $liv => $n): if (!$n) continue; ?>
-        <button type="button" class="fcv-liv-chip fcv-liv-chip-<?= $liv ?>" data-liv="<?= $liv ?>" role="radio" aria-checked="false"><i></i><?php te('fcv.liv_' . $liv); ?><span><?= (int)$n ?></span></button>
-        <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
 
 
 
@@ -2616,19 +2632,13 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
             $fcs_giorni = null;
             if ($fcs_esame) { $fcs_giorni = (int)round((strtotime(substr($fcs_esame, 0, 10)) - strtotime(date('Y-m-d'))) / 86400); if ($fcs_giorni < 0) $fcs_giorni = null; }
             $fcs_diff = (int)($fcv_conta_livelli['difficile'] ?? 0);
-            if ($fcs_giorni !== null || $fcs_diff > 0): ?>
+            if ($fcs_giorni !== null): ?>
         <div class="deck-strip">
             <?php if ($fcs_giorni !== null): ?>
             <span class="ds-esame<?= $fcs_giorni <= 3 ? ' is-urgente' : ($fcs_giorni <= 14 ? ' is-vicino' : '') ?>" title="<?= sec_h(date('d/m/Y', strtotime($fcs_esame))) ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
                 <span><b><?= sec_h($fcs_giorni === 0 ? t('fc.dk_esame_oggi') : ($fcs_giorni === 1 ? t('fc.dk_esame_domani') : t('fc.dk_esame_tra', ['n' => $fcs_giorni]))) ?></b><?php if ($fcs_esame_di !== ''): ?> · <?= sec_h($fcs_esame_di) ?><?php endif; ?></span>
             </span>
-            <?php endif; ?>
-            <?php if ($fcs_diff > 0): ?>
-            <a class="ds-difficili" href="<?= sec_h(fc_url('fc_game_start.php', ['category_id' => implode(',', array_merge([(int)$categoryID], array_keys($fc_discendenti))), 'status' => 'all', 'order' => 'random', 'solo' => 'difficili'])) ?>">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>
-                <?php te('fc.vis_gioca_difficili', ['n' => $fcs_diff]); ?>
-            </a>
             <?php endif; ?>
         </div>
             <?php endif; ?>
@@ -2965,11 +2975,68 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
             </div>
         </div>
 
+        <?php if ($categoryID != 0): ?>
+        <div class="opt-group">
+            <div class="opt-group-label"><?php te('fc.vis_strumenti'); ?></div>
+            <a class="opt-row opt-link" href="<?= sec_h(fc_url('fc_insert.php', ['category_id' => (int)$categoryID, 'modo' => 'edit'])) ?>">
+                <span class="opt-link-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+                <div class="opt-txt">
+                    <div class="opt-title"><?php te('fc.vis_big_edit'); ?></div>
+                    <div class="opt-sub"><?php te('fc.vis_big_edit_txt'); ?></div>
+                </div>
+                <svg class="opt-link-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
+        </div>
+        <?php endif; ?>
+
         <div class="sheet-actions">
             <button type="button" class="sheet-btn" onclick="closeSheet('settingsSheet')"><?php te('comune.chiudi'); ?></button>
         </div>
     </div>
 </div>
+
+<?php if ($categoryID != 0): $fcp_diff = (int)($fcv_conta_livelli['difficile'] ?? 0); ?>
+<!-- ============ GIOCA (20/10/2026) ============
+     Il tasto play della testata: tutto il mazzo (la scelta della partita,
+     come prima) o subito solo le carte difficili del mazzo e dei sottomazzi. -->
+<div class="sheet-overlay" id="playSheet">
+    <div class="sheet-panel">
+        <h3><?php te('fc.vis_gioca_titolo'); ?></h3>
+        <p class="sheet-sub"><?= sec_h($current_cat_name) ?></p>
+        <div class="play-list">
+            <a class="play-opt" href="<?= sec_h(fc_url('fc_game_setup.php', ['preselect_category' => (int)$categoryID])) ?>">
+                <span class="po-ic po-tutte"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg></span>
+                <span class="po-txt">
+                    <span class="po-tit"><?php te('fc.vis_gioca_tutto'); ?></span>
+                    <span class="po-sub"><?php te('fc.vis_gioca_tutto_txt'); ?></span>
+                </span>
+                <svg class="po-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
+            <?php if ($fcp_diff > 0): ?>
+            <a class="play-opt" href="<?= sec_h(fc_url('fc_game_start.php', ['category_id' => implode(',', array_merge([(int)$categoryID], array_keys($fc_discendenti))), 'status' => 'all', 'order' => 'random', 'solo' => 'difficili'])) ?>">
+                <span class="po-ic po-difficili"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.4-.5-2-1-3-1-2.1-.2-4.1 2-6 .5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.3a2.5 2.5 0 0 0 2.5 2.8Z"/></svg></span>
+                <span class="po-txt">
+                    <span class="po-tit"><?php te('fc.vis_gioca_difficili', ['n' => $fcp_diff]); ?></span>
+                    <span class="po-sub"><?php te('fc.vis_gioca_difficili_txt'); ?></span>
+                </span>
+                <svg class="po-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
+            <?php endif; ?>
+            <button type="button" class="play-opt" onclick="closeSheet('playSheet'); fcApriPartiteMazzo();">
+                <span class="po-ic po-storico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+                <span class="po-txt">
+                    <span class="po-tit"><?php te('fc.vis_partite_mazzo'); ?></span>
+                    <span class="po-sub"><?= $fcg_n_partite === 1 ? sec_h(t('fc.dk_partite_1')) : sec_h(t('fc.dk_partite', ['n' => (int)$fcg_n_partite])) ?></span>
+                </span>
+                <svg class="po-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+            </button>
+        </div>
+        <div class="sheet-actions">
+            <button type="button" class="sheet-btn" onclick="closeSheet('playSheet')"><?php te('comune.annulla'); ?></button>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- ============ COSA VUOI AGGIUNGERE? ============ -->
 <div class="sheet-overlay" id="addSheet">
@@ -3868,18 +3935,13 @@ function animateCounter(target){
 
 
 
-/* Il filtro per livello delle parole (la fila di pastiglie sotto la ricerca). */
+/* Il filtro per livello (il menu accanto alla ricerca). */
 var fcvLivelloScelto = '';
-document.addEventListener('click', function (e) {
-    var b = e.target.closest && e.target.closest('#fcvLivelli .fcv-liv-chip');
-    if (!b) return;
-    fcvLivelloScelto = b.getAttribute('data-liv') || '';
-    document.querySelectorAll('#fcvLivelli .fcv-liv-chip').forEach(function (x) {
-        var on = x === b;
-        x.classList.toggle('is-on', on);
-        x.setAttribute('aria-checked', on ? 'true' : 'false');
-    });
-    try { b.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' }); } catch (err) {}
+document.addEventListener('change', function (e) {
+    if (!e.target || e.target.id !== 'fcvLivSelect') return;
+    fcvLivelloScelto = e.target.value || '';
+    var w = document.getElementById('fcvLivWrap');
+    if (w) w.setAttribute('data-liv', fcvLivelloScelto);
     visibleLimit = 30;
     filterList();
 });
@@ -4748,6 +4810,12 @@ function fcRigaPartita(r){
 }
 document.addEventListener('click', function (e) { var sh = document.getElementById('partiteSheet'); if (sh && e.target === sh) closeSheet('partiteSheet'); });
 
+function fcApriGioca(){
+    var s = document.getElementById('playSheet');
+    if (s) s.style.display = 'flex';
+    buzz(8);
+}
+
 function fcApriImpostazioni(){
 
     document.getElementById('settingsSheet').style.display = 'flex';
@@ -4916,6 +4984,7 @@ function fcCreaCartella(){
 
 
 document.getElementById('settingsSheet').addEventListener('click', function(e){ if (e.target === this) closeSheet('settingsSheet'); });
+(function(){ var ps = document.getElementById('playSheet'); if (ps) ps.addEventListener('click', function(e){ if (e.target === this) closeSheet('playSheet'); }); })();
 
 document.getElementById('addSheet').addEventListener('click', function(e){ if (e.target === this) closeSheet('addSheet'); });
 
