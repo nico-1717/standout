@@ -1,0 +1,182 @@
+/* to_study_progetti.css — il calendario dello studio vestito da Progetti.
+   La pagina «to study» ora vive dentro Progetti (vista «Calendario» di
+   «Tutti»), e deve sembrare un pezzo di quella pagina: gli stessi colori,
+   le stesse schede bianche su fondo grigio, le stesse etichette e gli stessi
+   tasti quieti. Si carica solo dentro la cornice (?embed=1), dopo
+   to_study.css, e ne ridefinisce token e forme senza toccare il JS. */
+
+:root{
+    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7; --surface-3:#E7E7EC;
+    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
+    --hairline:rgba(60,60,67,.12);
+    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500;
+    --shadow-soft:0 1px 2px rgba(0,0,0,.05), 0 0 0 .5px rgba(0,0,0,.025);
+    --shadow-sheet:0 -14px 60px rgba(0,0,0,.18);
+    --spring:cubic-bezier(.32,.72,0,1);
+
+    --ts-bg:var(--surface-2); --ts-card:var(--surface); --ts-ink:var(--text);
+    --ts-ink-2:var(--text-2); --ts-ink-3:var(--text-3); --ts-hair:var(--hairline);
+    --ts-grigio:var(--text-3); --ts-imp:var(--red);
+}
+@media (prefers-color-scheme: dark){ :root{
+    --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E; --surface-3:#3A3A3C;
+    --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
+    --hairline:rgba(84,84,88,.42);
+    --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A;
+    --shadow-soft:0 0 0 .5px rgba(255,255,255,.07);
+    --shadow-sheet:0 -14px 60px rgba(0,0,0,.6);
+}}
+
+html.ts-embed body{
+    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, Roboto, Arial, sans-serif;
+    font-size:16px; color:var(--text); padding:0 0 calc(var(--safe-bottom) + 28px);
+}
+
+/* ---- la barra del mese: come l'intestazione di una scheda ---- */
+.ts-head{ padding:2px 16px 12px; gap:6px; }
+.ts-nav{
+    width:32px; height:32px; border-radius:50%; background:var(--surface); color:var(--text-2);
+    box-shadow:var(--shadow-soft);
+}
+.ts-nav svg{ width:16px; height:16px; }
+.ts-nav:active{ background:var(--surface-3); }
+.ts-mese{ font-size:21px; font-weight:700; letter-spacing:-.02em; padding-left:4px; }
+.ts-anno{ color:var(--text-3); font-weight:600; }
+.ts-oggi-btn{
+    width:30px; height:30px; font-size:13px; font-weight:700;
+    background:color-mix(in srgb, var(--blue) 13%, transparent); color:var(--blue);
+}
+.ts-planner-box{
+    gap:6px; padding:0 12px 0 10px; height:32px; border-radius:99px;
+    background:var(--surface); box-shadow:var(--shadow-soft);
+}
+.ts-planner-box input{ width:16px; height:16px; accent-color:var(--blue); }
+.ts-planner-btn{ font-size:13.5px; letter-spacing:0; text-transform:none; font-weight:600; color:var(--text); }
+
+/* ---- il mese: una scheda sola, con i giorni divisi da righe sottili ---- */
+.ts-cal{
+    margin:0 12px; padding:8px 4px 4px; border-radius:20px;
+    background:var(--surface); box-shadow:var(--shadow-soft);
+}
+.ts-wd span{ font-size:11px; letter-spacing:.02em; font-weight:600; color:var(--text-3); padding:2px 0 6px; }
+.ts-grid{ gap:0; }
+.ts-riga{ gap:0; border-top:.5px solid var(--hairline); }
+.ts-cella{
+    min-height:66px; border-radius:12px; margin:2px; padding:4px 3px 3px;
+    background:transparent; box-shadow:none;
+}
+.ts-cella.ts-fuori{ opacity:1; }
+.ts-cella.ts-fuori .ts-num{ color:var(--text-3); opacity:.6; }
+.ts-num{ font-size:13.5px; font-weight:500; color:var(--text); padding:3px 0 2px; }
+.ts-oggi .ts-num{
+    width:24px; height:24px; line-height:24px; padding:0; margin:0 auto;
+    background:var(--blue); color:#fff; font-weight:700;
+}
+.ts-cella.ts-sel{ background:color-mix(in srgb, var(--blue) 14%, transparent); }
+/* quanto è carico un giorno: velature leggere, il rosso solo all'ultimo livello */
+.ts-car-1{ background:color-mix(in srgb, var(--text) 3%, transparent); }
+.ts-car-2{ background:color-mix(in srgb, var(--text) 6%, transparent); }
+.ts-car-3{ background:color-mix(in srgb, var(--text) 10%, transparent); }
+.ts-car-4{ background:color-mix(in srgb, var(--red) 12%, transparent); }
+
+/* le barre: pillole tinte del colore del progetto, come le pastiglie in alto */
+.ts-barre{ gap:0; top:27px; grid-auto-rows:15px; row-gap:3px; }
+.ts-barra{
+    margin:0 2px; padding:1px 6px; border-radius:4px; box-shadow:none;
+    background:color-mix(in srgb, var(--c) 22%, var(--surface));
+    color:color-mix(in srgb, var(--c) 72%, var(--text));
+    font-size:10px; line-height:13px; font-weight:600;
+}
+.ts-b-apre{ border-top-left-radius:8px; border-bottom-left-radius:8px; margin-left:3px; }
+.ts-b-chiude{ border-top-right-radius:8px; border-bottom-right-radius:8px; margin-right:3px; }
+.ts-b-imp{ background:var(--red); color:#fff; font-weight:700; }
+.ts-mini{
+    border-radius:5px; box-shadow:none; font-size:10px; line-height:13px; font-weight:600;
+    background:color-mix(in srgb, var(--c) 22%, var(--surface));
+    color:color-mix(in srgb, var(--c) 72%, var(--text));
+}
+.ts-mini-imp{ background:var(--red); color:#fff; }
+.ts-ora{ background:var(--hairline); }
+.ts-ora-piena{ background:var(--text-3); }
+
+/* ---- come sei messo: schede come quelle dei progetti ---- */
+.ts-stato{ padding:16px 12px 0; }
+.ts-mat{
+    border-left:none; border-radius:18px; padding:14px 16px; margin-bottom:10px;
+    background:var(--surface); box-shadow:var(--shadow-soft);
+}
+.ts-mat-n{ display:flex; align-items:center; gap:8px; font-size:16px; font-weight:600; }
+.ts-mat-n::before{ content:""; width:9px; height:9px; border-radius:50%; background:var(--c); flex-shrink:0; }
+.ts-mat-g{ font-size:13.5px; font-weight:700; }
+.ts-sem-verde  .ts-mat-g{ color:var(--green); }
+.ts-sem-giallo .ts-mat-g{ color:var(--orange); }
+.ts-sem-rosso  .ts-mat-g{ color:var(--red); }
+.ts-mat-b{ height:4px; border-radius:99px; background:var(--surface-2); margin:10px 0 8px; }
+.ts-mat-b-in{ border-radius:99px; }
+.ts-mat-s{ font-size:13px; color:var(--text-2); }
+.ts-mat-pia{
+    margin-top:12px; padding:0 14px; height:36px; border-radius:11px; box-shadow:none;
+    font-size:14px; letter-spacing:0; text-transform:none; font-weight:600;
+    background:var(--surface-2); color:var(--text);
+}
+.ts-conosco{
+    border-radius:18px; padding:13px 16px; margin-bottom:10px; box-shadow:var(--shadow-soft);
+    background:var(--surface); font-size:13.5px; color:var(--text-2);
+}
+.ts-sett{ border-radius:18px; padding:14px 16px; margin-bottom:10px; box-shadow:var(--shadow-soft); background:var(--surface); }
+.ts-sett-t{ font-size:12.5px; letter-spacing:.05em; font-weight:600; color:var(--text-2); }
+.ts-sett-n{ font-size:24px; font-weight:700; letter-spacing:-.02em; }
+.ts-sett-l{ font-size:12.5px; color:var(--text-3); }
+.ts-sett-d{ font-size:12px; }
+.ts-sett-d.ts-su{ color:var(--green); }
+.ts-sett-d.ts-giu{ color:var(--red); }
+.ts-grigi{ border-radius:14px; font-size:13px; }
+
+/* ---- giorno per giorno ---- */
+.ts-lista-head{
+    padding:22px 18px 8px; font-size:12.5px; letter-spacing:.05em; font-weight:600; color:var(--text-2);
+}
+.ts-add-top, .ts-filtro{
+    width:32px; height:32px; border-radius:10px; box-shadow:none; background:none; color:var(--text-3);
+}
+.ts-add-top svg, .ts-filtro svg{ width:17px; height:17px; }
+.ts-add-top{ color:var(--blue); }
+.ts-filtro.ts-attivo{ background:color-mix(in srgb, var(--blue) 13%, transparent); color:var(--blue); }
+.ts-add-imp{ width:32px; height:32px; border-radius:10px; background:color-mix(in srgb, var(--red) 12%, transparent); color:var(--red); }
+.ts-passati-t{ font-size:12.5px; letter-spacing:.05em; font-weight:600; color:var(--text-2); }
+.ts-giorno-t{ padding:8px 6px 6px; }
+.ts-giorno-n{ font-size:20px; font-weight:700; }
+.ts-giorno-w{ font-size:12.5px; letter-spacing:.05em; font-weight:600; color:var(--text-2); }
+.ts-giorno-add{ width:30px; height:30px; color:var(--text-3); }
+.ts-ev{
+    border-radius:16px; margin-bottom:8px; background:var(--surface); box-shadow:var(--shadow-soft);
+}
+.ts-ev-imp{ background:color-mix(in srgb, var(--red) 8%, var(--surface)); border-left-color:var(--red); }
+.ts-ev-t{ padding:12px 14px; }
+.ts-ev-nome{ font-size:16px; font-weight:600; }
+.ts-ev-imp .ts-ev-nome{ font-weight:700; color:var(--red); }
+.ts-ev-prog{ font-size:12.5px; color:var(--text-3); }
+.ts-ev-ora{ color:var(--red); }
+.ts-task{ padding:9px 14px 9px 16px; border-top:.5px solid var(--hairline); }
+.ts-task-nome{ font-size:15px; color:var(--text); }
+.ts-task-pom{ font-size:12px; color:var(--text-3); }
+/* le spunte: i cerchi dei progetti */
+.ts-chk{ width:22px; height:22px; border:1.8px solid var(--text-3); }
+.ts-chk-s{ width:19px; height:19px; border-width:1.6px; }
+.ts-chk-on{ background:var(--c, var(--blue)); border-color:var(--c, var(--blue)); color:#fff; }
+.ts-senza{ border-radius:99px; font-size:11px; }
+
+/* ---- fogli e popup: come quelli dei progetti ---- */
+.ts-ov{ background:rgba(0,0,0,.42); }
+.ts-sheet{ border-radius:26px 26px 0 0; background:var(--surface); box-shadow:var(--shadow-sheet); padding:20px 18px calc(22px + var(--safe-bottom)); }
+.ts-sheet-tit{ font-size:20px; font-weight:700; letter-spacing:-.01em; }
+.ts-x{ width:30px; height:30px; background:var(--surface-2); color:var(--text-2); }
+.ts-sub{ font-size:12.5px; letter-spacing:.05em; font-weight:600; color:var(--text-2); }
+.ts-campo, .ts-quando{ border-radius:12px; background:var(--surface-2); box-shadow:none; font-size:16px; }
+.ts-campo-task, .ts-campo-data, .ts-campo-stima{ font-size:15px; }
+.ts-add-task, .ts-modello-b{ border-radius:12px; background:var(--surface-2); box-shadow:none; color:var(--text); font-weight:600; }
+.ts-elimina{ border-radius:12px; background:color-mix(in srgb, var(--red) 12%, transparent); color:var(--red); }
+.ts-scelta{ border-radius:20px; background:var(--surface); }
+.ts-scelta-b{ border-radius:12px; background:var(--surface-2); box-shadow:none; font-size:15px; }
+.ts-scelta-primo{ background:var(--blue); color:#fff; }
+.ts-fr input{ accent-color:var(--blue); }

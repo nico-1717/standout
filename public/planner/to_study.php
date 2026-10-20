@@ -30,7 +30,7 @@ if (!$embed) {
 date_default_timezone_set('Europe/Rome');
 ?>
 <!DOCTYPE html>
-<html lang="<?php echo sec_h(standout_lingua()); ?>" <?php echo standout_stile_attr(); ?> class="ts-embed">
+<html lang="<?php echo sec_h(standout_lingua()); ?>" class="ts-embed">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -38,7 +38,9 @@ date_default_timezone_set('Europe/Rome');
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>planner/to_study.css?v=<?php echo @filemtime(__DIR__ . '/to_study.css') ?: 1; ?>">
-<?php echo standout_stile_css(); ?>
+<?php /* Dentro Progetti vale lo stile di Progetti, non quello scelto per
+         Diario e Planner: è un pezzo di quella pagina. */ ?>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>planner/to_study_progetti.css?v=<?php echo @filemtime(__DIR__ . '/to_study_progetti.css') ?: 1; ?>">
 </head>
 <body>
 

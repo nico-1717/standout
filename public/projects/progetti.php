@@ -1116,7 +1116,7 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
         $sa = (string)$node['study_start']; $sb = !empty($node['study_end']) ? (string)$node['study_end'] : $sa;
         $studio = $sa === $sb ? prog_data_breve($sa) : prog_intervallo_breve($sa, $sb);
     }
-    $haMeta = $dateTags || $nTot > 0 || $durata !== '' || $cat || $corso || $noteEsc !== '' || $studio !== '';
+    $haMeta = $dateTags || $nTot > 0 || $cat || $corso || $noteEsc !== '' || $studio !== '';
     ?>
     <div class="pr-row-wrap" data-id="<?php echo $id; ?>" data-parent="<?php echo (int)($node['parent_id'] ?? 0); ?>" style="--row-color:<?php echo sec_h($color); ?>;">
         <div class="pr-row" data-id="<?php echo $id; ?>">
@@ -1150,7 +1150,6 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                         <?php endforeach; ?>
                         <?php if ($studio !== ''): ?><span class="pr-mi pr-mi-studio"><svg class="pr-mi-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><?php echo sec_h($studio); ?></span><?php endif; ?>
                         <?php if ($nTot > 0): ?><span class="pr-mi"><?php echo sec_h(t('progetti.n_di_m', ['n' => $nFatti, 'm' => $nTot])); ?></span><?php endif; ?>
-                        <?php if ($durata !== ''): ?><span class="pr-mi pr-duration"><?php echo sec_h($durata); ?></span><?php endif; ?>
                         <?php if ($cat): ?>
                         <button type="button" class="pr-mi pr-cat-tag" style="--cat-color:<?php echo sec_h($cat['color']); ?>;"
                                 onclick="event.stopPropagation(); window.location.href='../fc/fc_view.php?category_id=<?php echo (int)$cat['id']; ?>'">
@@ -1172,8 +1171,12 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                     <i></i><span data-pomo-live><?php echo sec_h(prog_tempo_vivo($pomoAttivo)); ?></span>
                 </button>
                 <?php else: ?>
-                <button type="button" class="pr-pomo-btn<?php echo $correDentro ? ' pr-corre-dentro' : ''; ?>"<?php echo $statsAttr; ?>
-                        aria-label="<?php te('progetti.concentrati'); ?>" title="<?php te('progetti.concentrati'); ?>"><?php echo prog_timer_svg(); ?></button>
+                <?php /* il timer e, sotto, il tempo speso qui in tutto (figli compresi) */ ?>
+                <span class="pr-pomo-col">
+                    <button type="button" class="pr-pomo-btn<?php echo $correDentro ? ' pr-corre-dentro' : ''; ?>"<?php echo $statsAttr; ?>
+                            aria-label="<?php te('progetti.concentrati'); ?>" title="<?php te('progetti.concentrati'); ?>"><?php echo prog_timer_svg(); ?></button>
+                    <?php if ($durata !== ''): ?><span class="pr-pomo-t"><?php echo sec_h($durata); ?></span><?php endif; ?>
+                </span>
                 <?php endif; ?>
             </div>
             <div class="swipe-actions">
@@ -1218,7 +1221,7 @@ echo standout_i18n_json(['comune', 'progetti', 'pomodoro', 'todo']);
 ?>
 <script src="../fc/fc_parser.js?v=<?php echo time(); ?>"></script>
 </head>
-<body>
+<body<?php echo $viewCal ? ' class="pr-vista-cal"' : ''; ?>>
 
 <div class="app-header">
     <!-- Sopra il nome della pagina e i due comandi che valgono per tutta la
@@ -3180,10 +3183,7 @@ window.prNuovoProgetto = function(btn){
        scorre: lo scorrimento è uno solo, quello del calendario */
     function misura(){
         var top = f.getBoundingClientRect().top + window.scrollY;
-        var h = Math.max(420, window.innerHeight - top);
-        f.style.height = h + 'px';
-        var avanza = document.documentElement.scrollHeight - window.innerHeight;
-        if (avanza > 0) f.style.height = Math.max(420, h - avanza) + 'px';
+        f.style.height = Math.max(420, window.innerHeight - top) + 'px';
     }
     misura();
     window.addEventListener('resize', misura);

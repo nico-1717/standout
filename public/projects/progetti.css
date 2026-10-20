@@ -1077,3 +1077,16 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 @media (min-width:1024px){ .pr-cal-frame{ width:100%; margin:0; } }
 .pr-pi-ant em{ display:block; font-style:normal; font-size:12.5px; color:var(--red); margin-top:1px; }
 .pr-pi-ant.is-tardi small{ color:var(--red); }
+
+/* il tempo speso, piccolo, sotto l'icona del timer di ogni riga */
+.pr-pomo-col{ display:flex; flex-direction:column; align-items:center; flex-shrink:0; min-width:34px; }
+.pr-pomo-col .pr-pomo-btn{ height:28px; }
+.pr-pomo-t{ margin-top:-1px; font-size:10.5px; line-height:1.1; font-weight:600; color:var(--text-3);
+    font-variant-numeric:tabular-nums; white-space:nowrap; pointer-events:none; }
+#prList.pr-sub-selecting .pr-pomo-col{ display:none; }
+
+/* la vista Calendario: la cornice arriva fino in fondo allo schermo, senza
+   il margine che le altre viste lasciano sotto (era la striscia nera) */
+body.pr-vista-cal{ padding-bottom:0; overflow:hidden; }
+body.pr-vista-cal .page{ padding-bottom:0; }
+html:has(body.pr-vista-cal){ overflow:hidden; }
