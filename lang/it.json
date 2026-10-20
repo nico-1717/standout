@@ -4037,7 +4037,17 @@
     "es_errore": "Non sono riuscito a salvare l'esempio. Riprova.",
     "tb_nuova": "Nuova parola",
     "tb_nuova_sotto": "Nuova sottocarta",
-    "tb_modifica": "Modifica parola"
+    "tb_modifica": "Modifica parola",
+    "gs_titolo": "Impostazioni del gioco",
+    "gs_sub": "Scegli cosa vedere sulla carta prima di rispondere.",
+    "gs_aperto": "Visibile",
+    "gs_tocco": "Al tocco",
+    "gs_dopo": "Con la risposta",
+    "gs_aperto_sub": "Sulla carta da subito.",
+    "gs_tocco_sub": "Coperto: lo tocchi quando ti serve un aiuto.",
+    "gs_dopo_sub": "Nascosto finché non vedi la risposta.",
+    "gs_nota_esempio": "Nell'esempio la parola è uno spazio vuoto, che si riempie quando vedi la risposta.",
+    "gs_demo_parola": "parola"
   },
   "sidebar": {
     "sezione_impara": "Impara",

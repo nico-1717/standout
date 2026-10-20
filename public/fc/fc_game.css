@@ -1639,18 +1639,158 @@
 .fcv-speak.speaking{ background:var(--blue, #007AFF); color:#fff; }
 .fcv-meaning{ margin-top:10px; font-size:15px; line-height:1.4; color:var(--text-2); font-style:italic; }
 
-/* ---- gli indizi delle lingue: significato ed esempio, coperti finché non si toccano ---- */
-.fcv-hints{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin-top:14px; }
-.fcv-hint{ display:inline-flex; align-items:center; max-width:100%; min-height:34px; padding:7px 13px; border:none; border-radius:12px; cursor:pointer;
-    background:var(--surface-2, #F2F2F7); color:var(--text, #1C1C1E); font:inherit; text-align:left; transition:background-color .2s; }
+/* ---- gli indizi delle lingue: significato ed esempio ----
+   Come si vedono prima della risposta lo sceglie chi gioca, nelle impostazioni
+   del gioco (il tasto a ingranaggio): classi su <html>, una per indizio.
+     fcv-sig-aperto / fcv-es-aperto   sulla carta da subito
+     fcv-sig-tocco  / fcv-es-tocco    coperti da un'etichetta, si toccano
+     fcv-sig-dopo   / fcv-es-dopo     nascosti finche' non si vede la risposta
+   Vista la risposta (.risposta-mostrata, o una carta gia' valutata .graded)
+   l'esempio si apre sempre: e' li' che lo spazio vuoto si riempie con la
+   parola. Il significato no: la risposta lo mostra gia' sotto la parola. */
+.fcv-hints{ display:flex; flex-direction:column; align-items:stretch; gap:8px; margin-top:16px; }
+.fcv-hint{
+    display:flex; flex-direction:column; align-items:flex-start; gap:3px; align-self:flex-start;
+    max-width:100%; min-height:34px; padding:7px 13px; border:none; border-radius:12px; cursor:pointer;
+    background:var(--surface-2, #F2F2F7); color:var(--text, #1C1C1E); font:inherit; text-align:left;
+    transition:background-color .2s, padding .2s;
+}
 .fcv-hint-lab{ font-size:12.5px; font-weight:650; letter-spacing:.04em; text-transform:uppercase; color:var(--text-2, #8A8A8E); }
-.fcv-hint-txt{ display:none; font-size:15px; line-height:1.4; }
-.fcv-hint-significato .fcv-hint-txt{ font-style:italic; }
-.fcv-hint.is-open .fcv-hint-lab, html.fcv-indizi-aperti .fcv-hint:not(.is-open) .fcv-hint-lab{ display:none; }
-.fcv-hint.is-open .fcv-hint-txt, html.fcv-indizi-aperti .fcv-hint:not(.is-open) .fcv-hint-txt{ display:block; }
-/* con gli indizi già aperti, toccarli li richiude: is-open fa da interruttore al contrario */
-html.fcv-indizi-aperti .fcv-hint.is-open .fcv-hint-lab{ display:inline; }
-html.fcv-indizi-aperti .fcv-hint.is-open .fcv-hint-txt{ display:none; }
+.fcv-hint-txt{ display:none; font-size:16px; line-height:1.55; }
+.fcv-hint-significato .fcv-hint-txt{ font-style:italic; color:var(--text-2, #8A8A8E); }
+
+/* aperto: la carta piu' grande, l'etichetta diventa un'intestazione piccola sopra il testo */
+.fcv-hint.is-open,
+html.fcv-sig-aperto .fcv-hint-significato,
+html.fcv-es-aperto .fcv-hint-esempio,
+.card-box.risposta-mostrata .fcv-hint-esempio,
+.card-box.graded .fcv-hint-esempio{ align-self:stretch; padding:10px 14px 11px; cursor:default; }
+.fcv-hint.is-open .fcv-hint-lab,
+html.fcv-sig-aperto .fcv-hint-significato .fcv-hint-lab,
+html.fcv-es-aperto .fcv-hint-esempio .fcv-hint-lab,
+.card-box.risposta-mostrata .fcv-hint-esempio .fcv-hint-lab,
+.card-box.graded .fcv-hint-esempio .fcv-hint-lab{ font-size:10px; letter-spacing:.09em; font-weight:800; color:var(--text-3, #AEAEB2); }
+.fcv-hint.is-open .fcv-hint-txt,
+html.fcv-sig-aperto .fcv-hint-significato .fcv-hint-txt,
+html.fcv-es-aperto .fcv-hint-esempio .fcv-hint-txt,
+.card-box.risposta-mostrata .fcv-hint-esempio .fcv-hint-txt,
+.card-box.graded .fcv-hint-esempio .fcv-hint-txt{ display:block; animation:fcvHintIn .28s cubic-bezier(.32,.72,0,1) both; }
+@keyframes fcvHintIn{ from{ opacity:0; transform:translateY(3px); } }
+/* l'esempio aperto ha il filetto viola della famiglia esempi */
+.fcv-hint-esempio{ position:relative; }
+.fcv-hint-esempio.is-open::before,
+html.fcv-es-aperto .fcv-hint-esempio::before,
+.card-box.risposta-mostrata .fcv-hint-esempio::before,
+.card-box.graded .fcv-hint-esempio::before{
+    content:''; position:absolute; left:0; top:11px; bottom:11px; width:3px; border-radius:0 3px 3px 0;
+    background:var(--purple, #AF52DE);
+}
+
+/* con la risposta: prima della risposta non ci sono proprio */
+html.fcv-sig-dopo .card-box:not(.risposta-mostrata):not(.graded) .fcv-hint-significato,
+html.fcv-es-dopo .card-box:not(.risposta-mostrata):not(.graded) .fcv-hint-esempio{ display:none; }
+/* il significato sotto la risposta non si ripete se e' gia' aperto sopra */
+html.fcv-sig-aperto .fcv-meaning,
+.card-box:has(.fcv-hint-significato.is-open) .fcv-meaning{ display:none; }
 .fcv-hint:active{ filter:brightness(.96); }
-.fcv-gap{ letter-spacing:-.05em; color:var(--text-2, #8A8A8E); }
-.fcv-hint-esempio b{ font-weight:700; }
+
+/* ---- lo spazio vuoto dell'esempio, che si riempie con la risposta ----
+   Prima: una casella tratteggiata, larga quanto basta a dire se la parola e'
+   corta, media o lunga. Vista la risposta, la casella sparisce e al suo posto
+   sale la parola, evidenziata, con un piccolo rimbalzo. */
+.fcv-gap{ display:inline-block; vertical-align:baseline; margin:0 1px; }
+.fcv-gap-vuoto{
+    display:inline-block; height:1.15em; vertical-align:-.22em; border-radius:6px 6px 3px 3px;
+    background:color-mix(in srgb, var(--purple, #AF52DE) 9%, transparent);
+    border-bottom:2px dashed color-mix(in srgb, var(--purple, #AF52DE) 65%, transparent);
+}
+.fcv-gap-s .fcv-gap-vuoto{ width:2.6em; }
+.fcv-gap-m .fcv-gap-vuoto{ width:4.4em; }
+.fcv-gap-l .fcv-gap-vuoto{ width:6.4em; }
+.fcv-gap-parola{
+    display:none; font-style:normal; font-weight:750; color:var(--text, #1C1C1E);
+    padding:0 6px; margin:0 -2px; border-radius:7px;
+    background:color-mix(in srgb, var(--purple, #AF52DE) 20%, transparent);
+    box-shadow:inset 0 -2px 0 var(--purple, #AF52DE);
+}
+.card-box.risposta-mostrata .fcv-gap-vuoto,
+.card-box.graded .fcv-gap-vuoto{ display:none; }
+.card-box.risposta-mostrata .fcv-gap-parola,
+.card-box.graded .fcv-gap-parola{ display:inline-block; }
+.card-box.risposta-mostrata .fcv-gap-parola{ animation:fcvRiempi .6s cubic-bezier(.34,1.56,.64,1) .12s both; }
+@keyframes fcvRiempi{
+    0%  { opacity:0; transform:translateY(.5em) scale(.8); filter:blur(3px); }
+    55% { opacity:1; filter:none; }
+    100%{ transform:none; }
+}
+@media (prefers-reduced-motion: reduce){
+    .card-box.risposta-mostrata .fcv-gap-parola, .fcv-hint-txt{ animation:none !important; }
+}
+
+/* ================================================================
+   IMPOSTAZIONI DEL GIOCO DELLE LINGUE (l'ingranaggio in alto)
+   ================================================================
+   Un foglio dal basso come gli altri (.sheet-panel). Per ogni indizio un
+   controllo a tre segmenti con la pastiglia che scorre, e sotto una riga che
+   dice cosa succede con la scelta fatta. */
+.fcv-gs{
+    position:fixed; inset:0; z-index:10001; display:flex;
+    justify-content:center; align-items:flex-end;
+    background:rgba(0,0,0,.45); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    animation:fcvGsVelo .25s ease both;
+}
+.fcv-gs[hidden]{ display:none; }
+.fcv-gs.is-uscita{ animation:fcvGsVelo .2s ease reverse both; }
+.fcv-gs.is-uscita .sheet-panel{ animation:fcvGsGiu .2s ease both; }
+@keyframes fcvGsVelo{ from{ opacity:0; } }
+@keyframes fcvGsGiu{ to{ transform:translateY(40%); opacity:0; } }
+@media (min-width:640px){ .fcv-gs{ align-items:center; padding:20px; } }
+
+.fcv-gs-sub{ margin:-6px 0 18px; font-size:14px; line-height:1.45; color:var(--text-2); }
+.fcv-gs-riga{ padding:14px; margin-bottom:10px; border-radius:18px; background:var(--surface-2); }
+.fcv-gs-testa{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.fcv-gs-ic{
+    width:30px; height:30px; flex-shrink:0; border-radius:9px;
+    display:flex; align-items:center; justify-content:center;
+}
+.fcv-gs-ic svg{ width:16px; height:16px; }
+.fcv-gs-ic-significato{ background:color-mix(in srgb, var(--blue, #007AFF) 15%, transparent); color:var(--blue, #007AFF); }
+.fcv-gs-ic-esempio{ background:color-mix(in srgb, var(--purple, #AF52DE) 15%, transparent); color:var(--purple, #AF52DE); }
+.fcv-gs-nome{ font-size:16px; font-weight:750; letter-spacing:-.01em; color:var(--text); }
+
+.fcv-gs-seg{
+    --fcv-i:1;
+    position:relative; display:grid; grid-template-columns:repeat(3, 1fr);
+    padding:3px; border-radius:12px; background:color-mix(in srgb, var(--text, #000) 7%, transparent);
+}
+.fcv-gs-seg::before{
+    content:''; position:absolute; top:3px; bottom:3px; left:3px; width:calc((100% - 6px) / 3);
+    border-radius:9px; background:var(--surface);
+    box-shadow:0 1px 2px rgba(0,0,0,.12), 0 3px 8px -2px rgba(0,0,0,.14);
+    transform:translateX(calc(var(--fcv-i) * 100%));
+    transition:transform .32s cubic-bezier(.32,.72,0,1);
+}
+.fcv-gs-seg button{
+    position:relative; z-index:1; height:34px; padding:0 4px; border:none; background:none; cursor:pointer;
+    font:inherit; font-size:13px; font-weight:650; color:var(--text-2); white-space:nowrap;
+    border-radius:9px; transition:color .2s;
+}
+.fcv-gs-seg button.is-on{ color:var(--text); font-weight:750; }
+.fcv-gs-seg button:focus-visible{ outline:2px solid var(--blue, #007AFF); outline-offset:-2px; }
+.fcv-gs-spiega{ margin:9px 2px 0; min-height:1.4em; font-size:12.5px; line-height:1.4; color:var(--text-2); }
+
+.fcv-gs-nota{
+    display:flex; flex-direction:column; gap:8px; margin:6px 2px 4px;
+    font-size:12.5px; line-height:1.45; color:var(--text-2);
+}
+.fcv-gs-demo{ display:inline-flex; align-items:center; gap:8px; font-size:15px; color:var(--text-3); }
+.fcv-gs-demo svg{ width:14px; height:14px; }
+.fcv-gs-demo-parola{
+    font-weight:750; color:var(--text); padding:0 6px; border-radius:7px;
+    background:color-mix(in srgb, var(--purple, #AF52DE) 20%, transparent);
+    box-shadow:inset 0 -2px 0 var(--purple, #AF52DE);
+}
+.fcv-gs-fatto{ width:100%; margin-top:16px; }
+@media (prefers-reduced-motion: reduce){
+    .fcv-gs, .fcv-gs .sheet-panel, .fcv-gs-seg::before{ animation:none !important; transition:none !important; }
+}

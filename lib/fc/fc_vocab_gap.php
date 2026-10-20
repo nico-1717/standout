@@ -85,28 +85,33 @@ function fcv_lacuna(string $testo, string $parola, ?string $scelta = null): ?arr
 }
 
 /**
- * La frase in HTML con la parte nascosta trattata come serve:
- *   $nascondi = true  → diventa lo spazio da indovinare (la parola e' dietro)
- *   $nascondi = false → resta, in grassetto (la parola e' davanti)
- * Una vecchia fila di _ rimasta altrove nella frase diventa comunque uno spazio.
+ * La frase del gioco in HTML: la parte nascosta diventa uno spazio vuoto che
+ * contiene gia' la parola, invisibile. Quando si vede la risposta il CSS
+ * (fc_game.css, .fcv-gap) toglie il vuoto e fa comparire la parola al suo
+ * posto: la frase si completa sotto gli occhi, senza ridisegnare niente.
+ * La larghezza del vuoto dice a grandi linee quanto e' lunga la parola
+ * (corta / media / lunga), non le lettere esatte.
+ * Una vecchia fila di _ rimasta altrove nella frase diventa uno spazio uguale,
+ * riempito con la parola della carta.
  */
-function fcv_lacuna_html(string $testo, string $parola, ?string $scelta, bool $nascondi): string {
-    $buco = '<span class="fcv-gap">_____</span>';
-    $resto = function (string $s) use ($buco): string {
-        return preg_replace('/_+/', $buco, sec_h($s)) ?? sec_h($s);
+function fcv_lacuna_html(string $testo, string $parola, ?string $scelta): string {
+    $buco = function (string $dentro): string {
+        $n = mb_strlen($dentro);
+        $taglia = $n <= 4 ? 's' : ($n <= 9 ? 'm' : 'l');
+        return '<span class="fcv-gap fcv-gap-' . $taglia . '">'
+             . '<span class="fcv-gap-vuoto" aria-hidden="true"></span>'
+             . '<span class="fcv-gap-parola">' . sec_h($dentro) . '</span></span>';
+    };
+    $riempi = $parola !== '' ? $parola : '…';
+    $resto = function (string $s) use ($buco, $riempi): string {
+        return preg_replace_callback('/_+/', function () use ($buco, $riempi) { return $buco($riempi); }, sec_h($s)) ?? sec_h($s);
     };
     $l = fcv_lacuna($testo, $parola, $scelta);
     if ($l === null) return $resto($testo);
     $prima  = mb_substr($testo, 0, $l['da']);
     $dentro = mb_substr($testo, $l['da'], $l['a'] - $l['da']);
     $dopo   = mb_substr($testo, $l['a']);
-    if ($nascondi) {
-        $mezzo = $buco;
-    } else {
-        /* una fila di _ non dice niente: davanti si vede la parola */
-        $mezzo = '<b>' . sec_h($l['tipo'] === 'trattini' ? ($parola !== '' ? $parola : $dentro) : $dentro) . '</b>';
-    }
-    return $resto($prima) . $mezzo . $resto($dopo);
+    return $resto($prima) . $buco($l['tipo'] === 'trattini' ? $riempi : $dentro) . $resto($dopo);
 }
 
 }

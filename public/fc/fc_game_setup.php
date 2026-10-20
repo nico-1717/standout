@@ -159,10 +159,22 @@ function renderGameCatRow($node, $level = 0) {
         </div>
         <script>
         (function () {
+            /* Le stesse scelte dell'ingranaggio nel gioco (fcv_mostra_*): acceso
+               = tutti e due visibili, spento = tutti e due al tocco. Nel gioco si
+               possono poi regolare uno per uno, anche "con la risposta". */
             var c = document.getElementById('fcvIndiziAperti');
-            try { c.checked = localStorage.getItem('fcv_indizi_aperti') === '1'; } catch (e) {}
+            try {
+                var sig = localStorage.getItem('fcv_mostra_significato'), es = localStorage.getItem('fcv_mostra_esempio');
+                var vecchio = localStorage.getItem('fcv_indizi_aperti') === '1';
+                c.checked = (sig || es) ? (sig === 'aperto' && es === 'aperto') : vecchio;
+            } catch (e) {}
             c.addEventListener('change', function () {
-                try { localStorage.setItem('fcv_indizi_aperti', c.checked ? '1' : '0'); } catch (e) {}
+                var v = c.checked ? 'aperto' : 'tocco';
+                try {
+                    localStorage.setItem('fcv_mostra_significato', v);
+                    localStorage.setItem('fcv_mostra_esempio', v);
+                    localStorage.setItem('fcv_indizi_aperti', c.checked ? '1' : '0');
+                } catch (e) {}
             });
         })();
         </script>

@@ -166,10 +166,11 @@ function fc_gioco_testo(array $c, string $lato, string $classe = 'fc-text raw-te
  * l'etichetta sparisce e compare il testo. Così si prova prima a ricordare da
  * soli, e l'aiuto c'è quando serve. Dalle opzioni della partita si può
  * scegliere di vederli già scoperti.
- * Se la parola da dire è dietro, nell'esempio la sua parte diventa «_____»:
- * la frase aiuta a ricordarla senza dirla. Se la parola è davanti, resta e si
- * vede in grassetto. Quale parte sia lo decide fcv_lacuna() (lib/fc/
- * fc_vocab_gap.php): quella scelta nel modulo, o la parola se c'è scritta uguale.
+ * Nell'esempio la parola è uno spazio vuoto, che si riempie quando si vede la
+ * risposta. Quale parte sia lo decide fcv_lacuna() (lib/fc/fc_vocab_gap.php):
+ * quella scelta nel modulo, o la parola se c'è scritta uguale.
+ * Come si vedono (subito / al tocco / con la risposta) lo decidono le classi
+ * fcv-sig-* e fcv-es-* su <html>, scelte nelle impostazioni del gioco.
  */
 function fc_gioco_indizi(array $c): void {
     if (!fc_is_vocab()) return;
@@ -178,8 +179,10 @@ function fc_gioco_indizi(array $c): void {
     $significato = trim((string)($c['meaning'] ?? ''));
     $esempio = trim((string)($c['fcv_esempio'] ?? ''));
     if ($significato === '' && $esempio === '') return;
+    /* Nell'esempio la parola e' sempre uno spazio vuoto, qualunque sia il
+       verso: si riempie quando si vede la risposta (fcv_lacuna_html). */
     $esHtml = $esempio !== ''
-        ? fcv_lacuna_html($esempio, $parola, $c['fcv_esempio_gap'] ?? '', $lato !== 'q')
+        ? fcv_lacuna_html($esempio, $parola, $c['fcv_esempio_gap'] ?? '')
         : '';
     $lingua = sec_h(fc_corso()['learn_lang']);
     echo '<div class="fcv-hints">';
@@ -1135,7 +1138,16 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 /* Gli indizi delle lingue (significato, esempio) scoperti fin dall'inizio, se
    lo si è scelto nelle opzioni della partita. Si decide prima di disegnare la
    pagina, così non si vedono coperti e poi aprirsi. */
-try { if (localStorage.getItem('fcv_indizi_aperti') === '1') document.documentElement.classList.add('fcv-indizi-aperti'); } catch (e) {}
+/* Come si vedono significato ed esempio (impostazioni del gioco, l'ingranaggio):
+   aperto / tocco / dopo. Chi aveva solo la vecchia scelta "gia' aperti" la
+   ritrova uguale. */
+try {
+    var fcvOk = ['aperto', 'tocco', 'dopo'];
+    var fcvVecchio = localStorage.getItem('fcv_indizi_aperti') === '1' ? 'aperto' : 'tocco';
+    var fcvSig = localStorage.getItem('fcv_mostra_significato'); if (fcvOk.indexOf(fcvSig) < 0) fcvSig = fcvVecchio;
+    var fcvEs = localStorage.getItem('fcv_mostra_esempio'); if (fcvOk.indexOf(fcvEs) < 0) fcvEs = fcvVecchio;
+    document.documentElement.classList.add('fcv-sig-' + fcvSig, 'fcv-es-' + fcvEs);
+} catch (e) { document.documentElement.classList.add('fcv-sig-tocco', 'fcv-es-tocco'); }
 </script>
 
     <meta charset="UTF-8">
@@ -1503,9 +1515,15 @@ try { if (localStorage.getItem('fcv_indizi_aperti') === '1') document.documentEl
                         <span class="chrono-txt" id="chrono-txt">0:00</span>
                     </button>
                     <span class="chip chip-status <?php echo ($status === 'all') ? 'st-all' : (($status == 1) ? 'st-learnt' : ''); ?>"><?php echo sec_h($status_text); ?></span>
+                    <?php if ($fc_vocab): /* le lingue non leggono ad alta voce le carte: le loro impostazioni sono gli indizi */ ?>
+                    <button id="fcvSettingsBtn" class="icon-btn" type="button" title="<?php te('fcv.gs_titolo'); ?>" aria-label="<?php te('fcv.gs_titolo'); ?>" aria-haspopup="dialog">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                    <?php else: ?>
                     <button id="ttsSettingsBtn" class="icon-btn" type="button" title="<?php te('fc.gm_impostazioni'); ?>" aria-label="<?php te('fc.gm_impostazioni'); ?>">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>
                     </button>
+                    <?php endif; ?>
                     <button id="voiceGameBtn" class="icon-btn" type="button" title="<?php te('fc.gm_gioca_audio'); ?>" aria-label="<?php te('fc.gm_gioca_audio'); ?>" onclick="if(window.VoiceGameMode) VoiceGameMode.handleHeaderButton();">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
                     </button>
@@ -1514,6 +1532,109 @@ try { if (localStorage.getItem('fcv_indizi_aperti') === '1') document.documentEl
         </header>
 
 
+
+        <?php if ($fc_vocab): ?>
+        <?php /* IMPOSTAZIONI DEL GIOCO DELLE LINGUE
+                 Al posto di quelle della lettura ad alta voce (voce, lingua,
+                 LaTeX), che qui non servono: si sceglie come vedere il
+                 significato e l'esempio prima di rispondere. Ogni tocco vale
+                 subito, anche sulla carta che si ha sotto — il foglio e' anche
+                 l'anteprima di se stesso. Si ricorda su questo dispositivo. */
+              $fcv_gs = [
+                  ['significato', 'fcv_mostra_significato', 'sig', '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>'],
+                  ['esempio', 'fcv_mostra_esempio', 'es', '<path d="M7 7h10M7 12h6"/><path d="M5 3h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6l-5 4v-4H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/>'],
+              ]; ?>
+        <div id="fcv-settings" class="fcv-gs" hidden>
+            <div class="sheet-panel fcv-gs-panel" role="dialog" aria-modal="true" aria-labelledby="fcvGsTit">
+                <button class="sheet-close" type="button" data-fcv-chiudi aria-label="<?php te('comune.chiudi'); ?>">&#10005;</button>
+                <h3 id="fcvGsTit"><?php te('fcv.gs_titolo'); ?></h3>
+                <p class="fcv-gs-sub"><?php te('fcv.gs_sub'); ?></p>
+                <?php foreach ($fcv_gs as [$k, $chiave, $cl, $ic]): ?>
+                <div class="fcv-gs-riga" data-chiave="<?php echo $chiave; ?>" data-classe="<?php echo $cl; ?>">
+                    <div class="fcv-gs-testa">
+                        <span class="fcv-gs-ic fcv-gs-ic-<?php echo $k; ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><?php echo $ic; ?></svg></span>
+                        <span class="fcv-gs-nome"><?php te('fcv.indizio_' . $k); ?></span>
+                    </div>
+                    <div class="fcv-gs-seg" role="radiogroup" aria-label="<?php te('fcv.indizio_' . $k); ?>">
+                        <?php foreach (['aperto', 'tocco', 'dopo'] as $v): ?>
+                        <button type="button" role="radio" aria-checked="false" data-v="<?php echo $v; ?>"><?php te('fcv.gs_' . $v); ?></button>
+                        <?php endforeach; ?>
+                    </div>
+                    <p class="fcv-gs-spiega" aria-live="polite"></p>
+                </div>
+                <?php endforeach; ?>
+                <div class="fcv-gs-nota">
+                    <span class="fcv-gs-demo" aria-hidden="true">
+                        <span class="fcv-gap fcv-gap-m"><span class="fcv-gap-vuoto"></span></span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                        <span class="fcv-gs-demo-parola"><?php te('fcv.gs_demo_parola'); ?></span>
+                    </span>
+                    <span><?php te('fcv.gs_nota_esempio'); ?></span>
+                </div>
+                <button type="button" class="btn btn-primary fcv-gs-fatto" data-fcv-chiudi><?php te('fcv.es_fatto'); ?></button>
+            </div>
+        </div>
+        <script>
+        (function () {
+            var foglio = document.getElementById('fcv-settings');
+            var apri = document.getElementById('fcvSettingsBtn');
+            if (!foglio || !apri) return;
+            var OK = ['aperto', 'tocco', 'dopo'];
+            var root = document.documentElement;
+            function attuale(classe) {
+                for (var i = 0; i < OK.length; i++) if (root.classList.contains('fcv-' + classe + '-' + OK[i])) return OK[i];
+                return 'tocco';
+            }
+            function segna(riga) {
+                var v = attuale(riga.getAttribute('data-classe'));
+                riga.querySelectorAll('[data-v]').forEach(function (b) {
+                    var on = b.getAttribute('data-v') === v;
+                    b.classList.toggle('is-on', on);
+                    b.setAttribute('aria-checked', on ? 'true' : 'false');
+                    b.tabIndex = on ? 0 : -1;
+                });
+                var seg = riga.querySelector('.fcv-gs-seg');
+                seg.style.setProperty('--fcv-i', String(OK.indexOf(v)));
+                riga.querySelector('.fcv-gs-spiega').textContent = T('fcv.gs_' + v + '_sub');
+            }
+            function scegli(riga, v) {
+                var classe = riga.getAttribute('data-classe');
+                OK.forEach(function (x) { root.classList.remove('fcv-' + classe + '-' + x); });
+                root.classList.add('fcv-' + classe + '-' + v);
+                try { localStorage.setItem(riga.getAttribute('data-chiave'), v); } catch (e) {}
+                segna(riga);
+                try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) {}
+            }
+            function chiudi() {
+                foglio.classList.add('is-uscita');
+                setTimeout(function () { foglio.hidden = true; foglio.classList.remove('is-uscita'); apri.focus(); }, 200);
+            }
+            apri.addEventListener('click', function (e) {
+                e.stopPropagation();
+                foglio.querySelectorAll('.fcv-gs-riga').forEach(segna);
+                foglio.hidden = false;
+                var primo = foglio.querySelector('.fcv-gs-seg .is-on');
+                if (primo) primo.focus({ preventScroll: true });
+            });
+            foglio.addEventListener('click', function (e) {
+                if (e.target === foglio || e.target.closest('[data-fcv-chiudi]')) { chiudi(); return; }
+                var b = e.target.closest('.fcv-gs-seg [data-v]');
+                if (b) scegli(b.closest('.fcv-gs-riga'), b.getAttribute('data-v'));
+            });
+            foglio.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') { e.preventDefault(); chiudi(); return; }
+                var b = e.target.closest && e.target.closest('.fcv-gs-seg [data-v]');
+                if (!b || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
+                e.preventDefault();
+                var i = OK.indexOf(b.getAttribute('data-v')) + (e.key === 'ArrowRight' ? 1 : -1);
+                i = (i + OK.length) % OK.length;
+                var riga = b.closest('.fcv-gs-riga');
+                scegli(riga, OK[i]);
+                riga.querySelector('[data-v="' + OK[i] + '"]').focus();
+            });
+        })();
+        </script>
+        <?php endif; ?>
 
         <div id="tts-modal" style="display:none;">
 

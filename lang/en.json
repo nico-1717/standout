@@ -4037,7 +4037,17 @@
     "es_errore": "Couldn't save the example. Try again.",
     "tb_nuova": "New word",
     "tb_nuova_sotto": "New sub-card",
-    "tb_modifica": "Edit word"
+    "tb_modifica": "Edit word",
+    "gs_titolo": "Game settings",
+    "gs_sub": "Choose what you see on the card before you answer.",
+    "gs_aperto": "Visible",
+    "gs_tocco": "On tap",
+    "gs_dopo": "With answer",
+    "gs_aperto_sub": "On the card right away.",
+    "gs_tocco_sub": "Covered: tap it when you need a hint.",
+    "gs_dopo_sub": "Hidden until you see the answer.",
+    "gs_nota_esempio": "In the example the word is a blank, which fills in when you see the answer.",
+    "gs_demo_parola": "word"
   },
   "sidebar": {
     "sezione_impara": "Learn",
