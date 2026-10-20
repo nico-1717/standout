@@ -106,18 +106,67 @@ function fcHtmlSiVede(html) {
     return d.textContent.replace(/\u00a0/g, ' ').trim() !== '';
 }
 
+/* LA PARTE NASCOSTA DI UNA FRASE D'ESEMPIO (solo lingue)
+   Gemella di fcv_lacuna() in lib/fc/fc_vocab_gap.php, nello stesso ordine:
+   1. 'scelta'   — il pezzo scelto a mano nel modulo (gap_text), se c'e' ancora;
+   2. 'trattini' — la vecchia fila di _ degli esempi importati;
+   3. 'parola'   — la parola della carta, se compare uguale e intera
+                   ("know" in "I don't know" si', in "knowledge" no).
+   Torna {da, a, tipo} (a escluso) oppure null. */
+function fcvLacunaNorm(s) { return String(s || '').replace(/[\u2019\u2018\u02BC]/g, "'"); }
+function fcvLacunaLettera(ch) { return !!ch && /[\p{L}\p{N}\p{M}]/u.test(ch); }
+function fcvLacunaTrova(testo, ago, ancheDentro) {
+    if (!ago) return -1;
+    var t = fcvLacunaNorm(testo), a = fcvLacunaNorm(ago);
+    var tl = t.toLowerCase(), al = a.toLowerCase();
+    if (tl.length !== t.length || al.length !== a.length) { tl = t; al = a; }
+    var primo = -1, da = 0, p;
+    while ((p = tl.indexOf(al, da)) !== -1) {
+        if (primo === -1) primo = p;
+        var bordoA = !fcvLacunaLettera(al.charAt(0)) || !fcvLacunaLettera(tl.charAt(p - 1));
+        var bordoB = !fcvLacunaLettera(al.charAt(al.length - 1)) || !fcvLacunaLettera(tl.charAt(p + al.length));
+        if (bordoA && bordoB) return p;
+        da = p + 1;
+    }
+    return ancheDentro ? primo : -1;
+}
+function fcvLacuna(testo, parola, scelta) {
+    testo = String(testo || '');
+    if (!testo.trim()) return null;
+    var s = String(scelta || '').trim(), p;
+    if (s) {
+        p = fcvLacunaTrova(testo, s, true);
+        if (p !== -1) return { da: p, a: p + s.length, tipo: 'scelta' };
+    }
+    var m = /_+/.exec(testo);
+    if (m) return { da: m.index, a: m.index + m[0].length, tipo: 'trattini' };
+    var w = String(parola || '').trim();
+    if (w) {
+        p = fcvLacunaTrova(testo, w, false);
+        if (p !== -1) return { da: p, a: p + w.length, tipo: 'parola' };
+    }
+    return null;
+}
+
 /* FRASE D'ESEMPIO DI UNA PAROLA
-   Nel vocabolario la frase si scrive con una fila di trattini bassi dove va
-   la parola ("The _ is barking."): cosi' la stessa frase serve anche al
-   gioco, dove la parola si nasconde. Qui i trattini diventano la parola in
-   evidenza, come faceva la vecchia pagina del vocabolario, e accanto c'e' il
-   tasto per sentire la frase intera. */
-function fcEsempioTestoLingua(testo, parola) {
+   La parte che nel gioco si nasconde (fcvLacuna) qui si vede in evidenza;
+   una vecchia fila di trattini bassi ("The _ is barking.") si riempie con la
+   parola. Accanto c'e' il tasto per sentire la frase intera. */
+function fcEsempioTestoLingua(testo, parola, scelta) {
     var p = String(parola || '').trim();
-    var html = fcEscapeHtml(testo).replace(/_+/g, function () {
-        return '<strong class="qa-ex-fill">' + (p ? fcEscapeHtml(p) : '&hellip;') + '</strong>';
-    });
-    var frase = String(testo || '').replace(/_+/g, p || '');
+    testo = String(testo || '');
+    function riempi(pezzo) {
+        return fcEscapeHtml(pezzo).replace(/_+/g, function () {
+            return '<strong class="qa-ex-fill">' + (p ? fcEscapeHtml(p) : '&hellip;') + '</strong>';
+        });
+    }
+    var l = fcvLacuna(testo, p, scelta);
+    var html = l
+        ? riempi(testo.slice(0, l.da))
+          + '<strong class="qa-ex-fill">' + (l.tipo === 'trattini' ? (p ? fcEscapeHtml(p) : '&hellip;') : fcEscapeHtml(testo.slice(l.da, l.a))) + '</strong>'
+          + riempi(testo.slice(l.a))
+        : riempi(testo);
+    var frase = testo.replace(/_+/g, p || '');
     return html + ' <button type="button" class="qa-speak qa-speak-ex" data-speak="learn" data-text="'
          + fcEscapeHtml(frase) + '" aria-label="' + fcEscapeHtml(T('fcv.ascolta')) + '">'
          + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button>';
@@ -127,7 +176,7 @@ function fcEsempioHtml(ex) {
     var parts = [];
     if (ex.example_text) {
         var vocab = window.FC && FC.tipo === 'vocab';
-        var htmlText = vocab ? fcEsempioTestoLingua(ex.example_text, ex._parola)
+        var htmlText = vocab ? fcEsempioTestoLingua(ex.example_text, ex._parola, ex.gap_text)
             : (typeof parseTextForPreview === 'function')
             ? parseTextForPreview(ex.example_text)
             : fcEscapeHtml(ex.example_text);

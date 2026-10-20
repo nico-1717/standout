@@ -3898,7 +3898,10 @@
     "res_restano_n": "ne restano {n}",
     "res_resta_1": "ne resta 1",
     "vis_una_carta_n": "1 carta",
-    "vis_una_carta_mostrata": "{n} carta mostrata"
+    "vis_una_carta_mostrata": "{n} carta mostrata",
+    "mfc_tb_nuova": "Nuova carta",
+    "mfc_tb_nuova_sotto": "Nuova sottocarta",
+    "mfc_tb_modifica": "Modifica carta"
   },
   "fchub": {
     "home_titolo": "Flashcard",
@@ -4016,7 +4019,25 @@
     "ia_disegno": "Disegno l'immagine… ci vogliono una decina di secondi.",
     "ia_immagine_pronta": "Ecco l'immagine. Salva per tenerla.",
     "ia_immagine_errore": "Non è stato possibile creare l'immagine. Riprova tra poco.",
-    "ia_limite_immagini": "Hai usato tutte le immagini del tuo piano per questo mese."
+    "ia_limite_immagini": "Hai usato tutte le immagini del tuo piano per questo mese.",
+    "es_titolo": "Esempi",
+    "es_vuoto": "Ancora nessun esempio. Una frase aiuta a ricordare la parola nel suo contesto.",
+    "es_ph_nuovo": "Scrivi un esempio…",
+    "es_aggiungi": "Aggiungi",
+    "es_con_parola": "Si salvano insieme alla parola.",
+    "es_nascosta": "Nascosta nel gioco",
+    "es_auto": "auto",
+    "es_cambia": "Cambia",
+    "es_scegli": "Scegli cosa nascondere",
+    "es_guida": "Tocca le parole da nascondere nel gioco",
+    "es_azzera": "Azzera",
+    "es_fatto": "Fatto",
+    "es_media": "Immagine e audio",
+    "es_elimina_conf": "Eliminare questo esempio?",
+    "es_errore": "Non sono riuscito a salvare l'esempio. Riprova.",
+    "tb_nuova": "Nuova parola",
+    "tb_nuova_sotto": "Nuova sottocarta",
+    "tb_modifica": "Modifica parola"
   },
   "sidebar": {
     "sezione_impara": "Impara",

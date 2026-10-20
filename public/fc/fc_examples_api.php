@@ -157,12 +157,27 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($img !== null) { $sets[] = 'example_image = ?'; $vals[] = ($img === '' ? null : $img); }
     if ($aud !== null) { $sets[] = 'example_audio = ?'; $vals[] = $aud; }
 
+    /* LINGUE: LA PARTE DA NASCONDERE NEL GIOCO
+       Solo se arriva: il modulo completo degli esempi non la manda, e un suo
+       salvataggio non deve cancellare quella scelta nel modulo della parola.
+       Vuota = nessuna scelta, si torna alla parola della carta. */
+    $gap = null;
+    if (fc_is_vocab() && isset($_POST['gap_text'])) {
+        $gap = sec_str($_POST['gap_text'], 255);
+        $sets[] = 'gap_text = ?'; $vals[] = ($gap === '' ? null : $gap);
+    }
+
     if ($ex_id > 0) {
         sec_q("UPDATE " . fc_t('examples') . " SET " . implode(', ', $sets) . " WHERE id = ?", array_merge($vals, [$ex_id]));
     } else {
         $col = $fc_type === 'child' ? 'child_id' : 'parent_id';
-        sec_q("INSERT INTO " . fc_t('examples') . " ($col, example_text, example_image, example_audio)
-               VALUES (?, ?, ?, ?)", [$fc_id, $text, $img, $aud]);
+        if ($gap !== null) {
+            sec_q("INSERT INTO " . fc_t('examples') . " ($col, example_text, gap_text, example_image, example_audio)
+                   VALUES (?, ?, ?, ?, ?)", [$fc_id, $text, $gap === '' ? null : $gap, $img, $aud]);
+        } else {
+            sec_q("INSERT INTO " . fc_t('examples') . " ($col, example_text, example_image, example_audio)
+                   VALUES (?, ?, ?, ?)", [$fc_id, $text, $img, $aud]);
+        }
         $ex_id = sec_insert_id();
     }
     ex_api_json_out(['success' => true, 'ex_id' => $ex_id]);

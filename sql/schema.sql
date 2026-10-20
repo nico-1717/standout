@@ -445,6 +445,7 @@ CREATE TABLE `fc_vocab_examples` (
   `parent_id` int DEFAULT NULL COMMENT 'fc_vocab_cards.id, se l esempio e di una carta padre',
   `child_id` int DEFAULT NULL COMMENT 'fc_vocab_subcards.id_child, se e di una figlia',
   `example_text` text COMMENT 'nella lingua da imparare; una fila di _ indica il posto della parola',
+  `gap_text` varchar(255) DEFAULT NULL COMMENT 'parte della frase nascosta nel gioco (NULL = la parola della carta)',
   `example_image` varchar(255) DEFAULT NULL,
   `example_audio` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Esempi delle carte di vocabolario, piu di uno per carta';

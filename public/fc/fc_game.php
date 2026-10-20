@@ -19,6 +19,7 @@ $current_user_id = (int)$utente_corrente['id']; // 2. ID utente sicuro
 /* sec_db() DOPO auth_check: e' quest'ultimo a caricare security_core.php. */
 $conn = sec_db();
 require_once __DIR__ . '/fc_examples_box.php';
+require_once __DIR__ . '/../../lib/fc/fc_vocab_gap.php';
 
 /**
  * Vero se il campo (answer_desc, question_desc...) non contiene testo o
@@ -165,8 +166,10 @@ function fc_gioco_testo(array $c, string $lato, string $classe = 'fc-text raw-te
  * l'etichetta sparisce e compare il testo. Così si prova prima a ricordare da
  * soli, e l'aiuto c'è quando serve. Dalle opzioni della partita si può
  * scegliere di vederli già scoperti.
- * Se la parola da dire è dietro, nell'esempio diventa «_»: la frase aiuta a
- * ricordarla senza dirla. Se la parola è davanti, resta e si vede in grassetto.
+ * Se la parola da dire è dietro, nell'esempio la sua parte diventa «_____»:
+ * la frase aiuta a ricordarla senza dirla. Se la parola è davanti, resta e si
+ * vede in grassetto. Quale parte sia lo decide fcv_lacuna() (lib/fc/
+ * fc_vocab_gap.php): quella scelta nel modulo, o la parola se c'è scritta uguale.
  */
 function fc_gioco_indizi(array $c): void {
     if (!fc_is_vocab()) return;
@@ -175,18 +178,9 @@ function fc_gioco_indizi(array $c): void {
     $significato = trim((string)($c['meaning'] ?? ''));
     $esempio = trim((string)($c['fcv_esempio'] ?? ''));
     if ($significato === '' && $esempio === '') return;
-    $esHtml = '';
-    if ($esempio !== '') {
-        $esHtml = sec_h($esempio);
-        if ($parola !== '' && mb_strlen($parola) >= 2) {
-            $re = '/(?<![\p{L}\p{N}])' . preg_quote(sec_h($parola), '/') . '(?![\p{L}\p{N}])/iu';
-            $esHtml = $lato === 'q'
-                ? (preg_replace($re, '<b>$0</b>', $esHtml) ?? $esHtml)
-                : (preg_replace($re, '_', $esHtml) ?? $esHtml);
-        }
-        // la lacuna, comunque sia scritta (_ o ___), si vede come uno spazio da riempire
-        $esHtml = preg_replace('/_{1,}/', '<span class="fcv-gap">_____</span>', $esHtml) ?? $esHtml;
-    }
+    $esHtml = $esempio !== ''
+        ? fcv_lacuna_html($esempio, $parola, $c['fcv_esempio_gap'] ?? '', $lato !== 'q')
+        : '';
     $lingua = sec_h(fc_corso()['learn_lang']);
     echo '<div class="fcv-hints">';
     foreach ([['significato', $significato !== '' ? sec_h($significato) : ''], ['esempio', $esHtml]] as [$k, $html]) {
@@ -707,10 +701,13 @@ foreach ($gameplays as $gp) {
                                         [(int)$card['gameplay_idimmagine']])['c'] ?? 0);
         /* Lingue: il primo esempio, per l'indizio sul davanti della carta */
         $card['fcv_esempio'] = '';
+        $card['fcv_esempio_gap'] = '';
         if ($fc_vocab && $card['examples_count'] > 0) {
-            $ex = sec_one("SELECT example_text FROM " . fc_t('examples') . " WHERE $col = ? AND example_text IS NOT NULL AND example_text <> '' ORDER BY id LIMIT 1",
+            /* gap_text: la parte che nel gioco si nasconde, scelta nel modulo */
+            $ex = sec_one("SELECT example_text, gap_text FROM " . fc_t('examples') . " WHERE $col = ? AND example_text IS NOT NULL AND example_text <> '' ORDER BY id LIMIT 1",
                           [(int)$card['gameplay_idimmagine']]);
             $card['fcv_esempio'] = $ex ? trim((string)$ex['example_text']) : '';
+            $card['fcv_esempio_gap'] = $ex ? (string)($ex['gap_text'] ?? '') : '';
         }
 
         

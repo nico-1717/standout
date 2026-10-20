@@ -211,18 +211,25 @@ function mfc_parola_esempio(): string {
                       [$img !== '' ? $img : null, $parola, $trad, $sign !== '' ? $sign : null, $catID, $max_o]);
                 $nuovoId = (int)sec_insert_id();
             }
-            /* L'esempio scritto (o fatto dall'IA) insieme alla parola: gli esempi
-               stanno nella loro tabella, e prima di questo momento la carta non
-               aveva un id a cui agganciarlo. Nel gioco la parola diventa «_»: se
-               la frase la contiene scritta per intero, la lacuna si fa qui. */
-            $esempio = sec_str($_POST['example'] ?? '', 1000);
-            if ($esempio !== '' && $nuovoId > 0) {
-                if (strpos($esempio, '_') === false && $parola !== '') {
-                    $pos = mb_stripos($esempio, $parola);
-                    if ($pos !== false) $esempio = mb_substr($esempio, 0, $pos) . '_' . mb_substr($esempio, $pos + mb_strlen($parola));
+            /* Gli esempi scritti (o fatti dall'IA) insieme alla parola: stanno
+               nella loro tabella, e prima di questo momento la carta non aveva
+               un id a cui agganciarli. Arrivano dall'elenco degli esempi del
+               modulo (examples[] con accanto examples_gap[], la parte scelta da
+               nascondere nel gioco). La frase resta INTERA: prima la parola
+               veniva sostituita da «_» qui, e la frase originale era persa —
+               ora la parte nascosta la calcola il gioco (fcv_lacuna). */
+            $esempi = isset($_POST['examples']) && is_array($_POST['examples']) ? array_values($_POST['examples']) : [];
+            $lacune = isset($_POST['examples_gap']) && is_array($_POST['examples_gap']) ? array_values($_POST['examples_gap']) : [];
+            if (isset($_POST['example'])) { $esempi[] = $_POST['example']; $lacune[] = ''; } // vecchio campo singolo
+            if ($nuovoId > 0) {
+                $colEs = $padreNuovo > 0 ? 'child_id' : 'parent_id';
+                foreach (array_slice($esempi, 0, 20) as $k => $grezzo) {
+                    $esempio = trim(sec_str($grezzo, 1000));
+                    if ($esempio === '') continue;
+                    $gap = trim(sec_str($lacune[$k] ?? '', 255));
+                    sec_q("INSERT INTO " . fc_t('examples') . " ($colEs, example_text, gap_text) VALUES (?, ?, ?)",
+                          [$nuovoId, $esempio, $gap !== '' ? $gap : null]);
                 }
-                sec_q("INSERT INTO " . fc_t('examples') . " (" . ($padreNuovo > 0 ? 'child_id' : 'parent_id') . ", example_text) VALUES (?, ?)",
-                      [$nuovoId, $esempio]);
             }
             echo json_encode(['success' => true, 'fc_id' => $nuovoId, 'is_child' => $padreNuovo > 0, 'category_id' => $catID]);
             exit;
@@ -545,6 +552,7 @@ function mfc_parola_esempio(): string {
     <script src="<?php echo PWA_BASE; ?>fc/fc_audio_recorder.js?v=<?php echo @filemtime(__DIR__ . '/fc_audio_recorder.js') ?: 1; ?>"></script>
     <script src="<?php echo PWA_BASE; ?>fc/fc_image_editor.js?v=<?php echo @filemtime(__DIR__ . '/fc_image_editor.js') ?: 1; ?>"></script>
     <script src="<?php echo PWA_BASE; ?>fc/fc_examples_modal.js?v=<?php echo @filemtime(__DIR__ . '/fc_examples_modal.js') ?: 1; ?>"></script>
+    <?php if (fc_is_vocab()): ?><script src="<?php echo PWA_BASE; ?>fc/fc_vocab_examples.js?v=<?php echo @filemtime(__DIR__ . '/fc_vocab_examples.js') ?: 1; ?>"></script><?php endif; ?>
     <?php if (!fc_is_vocab()): ?><script src="<?php echo PWA_BASE; ?>fc/fc_improve_card.js?v=<?php echo @filemtime(__DIR__ . '/fc_improve_card.js') ?: 1; ?>"></script><?php endif; ?>
 
 <?php /* Il ?v= non e' un vezzo: questo foglio decide DOVE sta il cerchio
@@ -727,48 +735,49 @@ function mfc_parola_esempio(): string {
                          lo stesso componente, qui con un'istanza propria ('scheda')
                          perche' il suo sporco e' indipendente da quello del
                          pannello esempi che puo' aprirsi sopra. */ ?>
-                <div class="exm-form-topbar">
-                    <?php /* Non piu' una scritta sola su una fascia bianca: un segno
-                             grafico, un occhiello piccolo e il nome sotto — la
-                             stessa gerarchia che l'intestazione della pagina aveva
-                             prima di essere tolta, ma dentro la barra. */ ?>
-                    <span class="fc-tb-mark" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/></svg>
-                    </span>
+                <?php /* LA BARRA IN ALTO (rifatta il 20/10/2026)
+                         Prima: un quadrato blu con l'icona di un documento che
+                         non diceva niente, il titolo schiacciato a zero (sul
+                         telefono non si vedeva proprio), e cinque comandi di
+                         forme diverse in fila. Ora tre zone: a sinistra la
+                         chiusura, al centro che cosa si sta facendo (la lingua
+                         con la sua bandiera, o "Domanda e risposta"), a destra
+                         il cestino e il salvataggio, raccolto in una pastiglia
+                         sola con il suo interruttore.
+                         Nelle lingue il tasto «Esempio» non c'e' piu': gli esempi
+                         hanno la loro sezione nel modulo (fcvEsempi), e due
+                         strade per la stessa cosa erano una di troppo. Nello
+                         studio resta, perche' li' e' l'unico modo di aggiungerne. */
+                      $fc_tb_titolo = fc_is_vocab()
+                          ? t($fc_modo === 'insert' ? (!empty($padre_nuovo) ? 'fcv.tb_nuova_sotto' : 'fcv.tb_nuova') : 'fcv.tb_modifica')
+                          : t($fc_modo === 'insert' ? (!empty($padre_nuovo) ? 'fc.mfc_tb_nuova_sotto' : 'fc.mfc_tb_nuova') : 'fc.mfc_tb_modifica'); ?>
+                <div class="exm-form-topbar fc-tb">
+                    <button type="button" class="exm-icon-btn exm-close-inline fc-tb-chiudi" onclick="fcAnnullaModifica('<?php echo sec_h($cancel_url); ?>')" aria-label="<?php te('comune.chiudi'); ?>">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                    </button>
                     <span class="exm-form-title fc-tb-testo">
-                        <span class="fc-tb-occhiello"><?php echo fc_is_vocab() ? sec_h(fc_lingua_nome(fc_corso()['learn_lang'], false)) : sec_h(t('fc.ifc_domanda_risposta')); ?></span>
-                        <span class="fc-tb-nome" id="fcTopbarTitle"><?php echo $fc_modo === 'insert' ? sec_h(t(!empty($padre_nuovo) ? 'fc.ifc_nuova_sottocarta' : 'fc.ifc_nuova_scheda')) : sec_h(t('fc.mfc_titolo_breve')); ?></span>
+                        <span class="fc-tb-occhiello">
+                            <?php if (fc_is_vocab()): ?>
+                            <img class="fc-tb-flag" src="<?php echo sec_h(fc_lingua_bandiera(fc_corso()['learn_lang'])); ?>" alt="">
+                            <span><?php echo sec_h(fc_lingua_nome(fc_corso()['learn_lang'], false)); ?></span>
+                            <?php else: ?>
+                            <svg class="fc-tb-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/></svg>
+                            <span><?php te('fc.ifc_domanda_risposta'); ?></span>
+                            <?php endif; ?>
+                        </span>
+                        <span class="fc-tb-nome" id="fcTopbarTitle"><?php echo sec_h($fc_tb_titolo); ?></span>
                     </span>
-                    <div class="exm-form-actions">
+                    <div class="exm-form-actions fc-tb-azioni">
                         <?php if ($fc_modo === 'edit'): ?>
-                        <button type="submit" name="delete" value="1" class="exm-icon-btn exm-icon-btn-danger" onclick="return confirm('<?php echo sec_h(t('vocab.mi_elimina_def')); ?>?');" aria-label="<?php te('vocab.mi_elimina_def'); ?>">
-                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m2 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7"/></svg>
+                        <button type="submit" name="delete" value="1" class="exm-icon-btn exm-icon-btn-danger fc-tb-elimina" onclick="return confirm('<?php echo sec_h(t('vocab.mi_elimina_def')); ?>?');" aria-label="<?php te('vocab.mi_elimina_def'); ?>">
+                            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m2 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7"/><path d="M10 11v6M14 11v6"/></svg>
                         </button>
                         <?php endif; ?>
-                        <?php /* Aggiungere un esempio e' un'azione della carta, come
-                                 salvarla o eliminarla: sta qui, non sepolta in fondo
-                                 al modulo. In inserimento parte disabilitato — un
-                                 esempio ha bisogno di una carta che esista gia'. */ ?>
-                        <?php /* Non piu' un'icona sola: una pastiglia col testo, dello
-                                 stesso viola della famiglia IA/esempi — un "+" senza
-                                 scritta non diceva cosa avrebbe aggiunto. */ ?>
-                        <?php /* Il numero fra parentesi non e' una decorazione: senza,
-                                 il tasto dice sempre la stessa cosa a una carta nuda e
-                                 a una che ha gia' quattro esempi, e per sapere quale
-                                 delle due si ha davanti bisogna aprirlo. Parte dal
-                                 conteggio letto dal database qui sopra ($ex_count) e
-                                 poi lo tiene aggiornato il JS, che e' l'unico a sapere
-                                 cosa succede nel pannello degli esempi. */ ?>
-                        <?php /* "Esempio" e basta, non piu' "Aggiungi esempio": il verbo
-                                 diceva anche una cosa non piu' vera, perche' il tasto
-                                 ora apre l'elenco. In una barra dove convivono cestino,
-                                 salvataggio, interruttore e chiusura, due parole in meno
-                                 sono due parole di spazio guadagnate.
-                                 mfc_t() prende la voce breve dal dizionario se c'e', e
-                                 finche' non c'e' ripiega su quella lunga: meglio una
-                                 parola in piu' che «<<fc.mfc_esempio_breve>>» stampato
-                                 su un tasto. L'aria-label resta quello disteso — a chi
-                                 ascolta la pagina lo spazio non manca. */ ?>
+                        <?php if (!fc_is_vocab()): ?>
+                        <?php /* Il numero fra parentesi lo tiene aggiornato il JS
+                                 (fcRicontaEsempi): il tasto apre l'elenco degli
+                                 esempi, e senza numero direbbe la stessa cosa a
+                                 una carta nuda e a una che ne ha gia' quattro. */ ?>
                         <button type="button" class="fc-btn-esempio" id="fcAddEsempio" onclick="fcApriEsempi()"
                                 <?php echo $fc_modo === 'insert' ? 'disabled' : ''; ?>
                                 aria-label="<?php te('fc.mfc_aggiungi_esempio'); ?>" title="<?php te('fc.mfc_aggiungi_esempio'); ?>">
@@ -780,11 +789,9 @@ function mfc_parola_esempio(): string {
                             <span><?php echo sec_h(mfc_parola_esempio()); ?></span>
                             <span class="fc-btn-esempio-conta" id="fcEsempiConta"><?php echo (!empty($ex_count) && (int)$ex_count > 0) ? '(' . (int)$ex_count . ')' : ''; ?></span>
                         </button>
+                        <?php endif; ?>
                         <?php $ns_instance = 'scheda'; include __DIR__ . '/fc_autosave_bar.php'; unset($ns_instance); ?>
                     </div>
-                    <button type="button" class="exm-icon-btn exm-close-inline" onclick="fcAnnullaModifica('<?php echo sec_h($cancel_url); ?>')" aria-label="<?php te('comune.chiudi'); ?>">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
-                    </button>
                 </div>
 
 
@@ -937,13 +944,51 @@ function mfc_parola_esempio(): string {
                     <label class="fc-vocab-label" for="fcMeaning"><?php te('fcv.significato'); ?> <span class="fc-vocab-opt"><?php te('fcv.facoltativo'); ?></span></label>
                     <textarea name="meaning" id="fcMeaning" class="fc-vocab-input fc-vocab-area" rows="2" data-fc-vocab-field
                               placeholder="<?php te('fcv.ph_significato'); ?>" lang="<?php echo sec_h($fcC['learn_lang']); ?>" maxlength="400"><?php echo sec_h($row['meaning'] ?? ''); ?></textarea>
-                    <?php if ($fc_modo === 'insert'): /* in modifica gli esempi hanno la loro sezione, più sotto */ ?>
-                    <div id="fcvEsempioNuovo">
-                        <label class="fc-vocab-label" for="fcExample"><?php te('fcv.esempio'); ?> <span class="fc-vocab-opt"><?php te('fcv.facoltativo'); ?></span></label>
-                        <textarea name="example" id="fcExample" class="fc-vocab-input fc-vocab-area" rows="2" data-fc-vocab-field
-                                  placeholder="<?php te('vocab.ins_ph_ex'); ?>" lang="<?php echo sec_h($fcC['learn_lang']); ?>" maxlength="1000"></textarea>
+                </section>
+
+                <?php /* GLI ESEMPI DELLA PAROLA (20/10/2026)
+                         Uno sotto l'altro, non piu' un carosello da sfogliare, e
+                         in ognuno si vede la parte che nel gioco diventa lo spazio
+                         da indovinare. Se la parola compare uguale nella frase e'
+                         gia' segnata; se no (un verbo coniugato, un plurale, una
+                         frase riformulata) c'e' il tasto per sceglierla toccando
+                         le parole. Sotto, la riga per aggiungerne un altro.
+                         Valgono in creazione come in modifica: prima che la carta
+                         esista restano nel modulo (examples[] / examples_gap[]) e
+                         partono con lei; dopo si salvano subito, uno per uno.
+                         data-fc-fuori-carta: scriverci non accende il pallino del
+                         salvataggio della CARTA — gli esempi si salvano da soli.
+                         Il comportamento e' in fc_vocab_examples.js. */
+                      $fcv_esempi = [];
+                      if ($fc_modo === 'edit' && $id > 0) {
+                          foreach (sec_all("SELECT id, example_text, gap_text, example_image, example_audio FROM " . fc_t('examples')
+                                           . " WHERE " . ($is_child ? 'child_id' : 'parent_id') . " = ? ORDER BY id ASC", [(int)$id]) as $r) {
+                              $fcv_esempi[] = ['id' => (int)$r['id'], 'testo' => (string)$r['example_text'], 'gap' => (string)($r['gap_text'] ?? ''),
+                                               'img' => (string)($r['example_image'] ?? ''), 'aud' => (string)($r['example_audio'] ?? '')];
+                          }
+                      } ?>
+                <section class="fc-card fcv-ex" id="fcvEsempi" data-fc-fuori-carta data-lingua="<?php echo sec_h($fcC['learn_lang']); ?>">
+                    <div class="fc-card-head">
+                        <span class="fc-card-title fcv-ex-tit">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10M7 12h6"/><path d="M5 3h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6l-5 4v-4H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/></svg>
+                            <?php te('fcv.es_titolo'); ?>
+                            <span class="fcv-ex-conta" id="fcvExConta"></span>
+                        </span>
                     </div>
-                    <?php endif; ?>
+                    <ul class="fcv-ex-list" id="fcvExList"></ul>
+                    <p class="fcv-ex-vuoto" id="fcvExVuoto" hidden><?php te('fcv.es_vuoto'); ?></p>
+                    <div class="fcv-ex-new">
+                        <textarea id="fcvExNuovo" class="fcv-ex-new-area" rows="1" maxlength="1000"
+                                  lang="<?php echo sec_h($fcC['learn_lang']); ?>" aria-label="<?php te('fcv.es_ph_nuovo'); ?>"
+                                  placeholder="<?php te('fcv.es_ph_nuovo'); ?>"></textarea>
+                        <button type="button" class="fcv-ex-add" id="fcvExAdd" disabled aria-label="<?php te('fcv.es_aggiungi'); ?>">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                            <span><?php te('fcv.es_aggiungi'); ?></span>
+                        </button>
+                    </div>
+                    <p class="fcv-ex-nota" id="fcvExNota"<?php echo $fc_modo === 'insert' ? '' : ' hidden'; ?>><?php te('fcv.es_con_parola'); ?></p>
+                    <div id="fcvExCampi" hidden></div>
+                    <script type="application/json" id="fcvExDati"><?php echo json_encode($fcv_esempi, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE); ?></script>
                 </section>
 
                 <section class="fc-card">
@@ -1006,10 +1051,11 @@ function mfc_parola_esempio(): string {
                 </section>
                 <?php endif; ?>
 
-                <!-- ============== ESEMPI ============== -->
+                <!-- ============== ESEMPI (studio; le lingue hanno fcvEsempi, sopra) ============== -->
                 <?php /* In inserimento la sezione parte nascosta: finche' la carta
                          non esiste non ha un id a cui agganciare un esempio. La
                          mostra il JS subito dopo la creazione. */ ?>
+                <?php if (!fc_is_vocab()): ?>
                 <section class="fc-card fc-card-tight qa-examples-wrap"<?php echo $fc_modo === 'insert' ? ' hidden' : ''; ?>>
                     <?php $ex_tipo = $is_child ? 'child' : 'parent'; ?>
                     <?php /* Il riquadro col carosello, identico a quello di
@@ -1020,6 +1066,7 @@ function mfc_parola_esempio(): string {
                              il JS la nasconde. */ ?>
                     <?php render_examples_section($id, $ex_tipo, $id, [$id => max(1, (int)$ex_count)]); ?>
 </section>
+                <?php endif; ?>
 
 
 
@@ -1209,6 +1256,9 @@ function mfc_parola_esempio(): string {
         var form = document.getElementById('editFcForm');
         var t = ev && ev.target;
         if (!form || !t || t.nodeType !== 1) return false;
+        /* Gli esempi delle parole (fcvEsempi) si salvano da soli: scriverci
+           non e' una modifica della carta. */
+        if (t.closest && t.closest('[data-fc-fuori-carta]')) return false;
         /* t.form copre il campo che sta fuori dal modulo ma gli e' legato con
            l'attributo form= — oggi non ce ne sono, domani non si sa. */
         return form.contains(t) || t.form === form;
@@ -1277,6 +1327,7 @@ function mfc_parola_esempio(): string {
     }
 
     function fcRicontaEsempi() {
+        if (!document.getElementById('fcEsempiConta')) return; // lingue: il tasto non c'e'
         if (!FC_ID_CORRENTE) { fcMostraContaEsempi(0); return; }
         fetch(fcExApi('action=get&fc_id=') + encodeURIComponent(FC_ID_CORRENTE)
               + '&fc_type=' + encodeURIComponent(FC_TIPO))
@@ -1569,6 +1620,13 @@ function mfc_parola_esempio(): string {
     })();
 
     var FC_MODO = '<?php echo sec_h($fc_modo); ?>';
+    /* I titoli della barra in alto, per quando il modulo passa da "nuova" a
+       "modifica" senza ricaricarsi (dopo la creazione, e con «Inserisci
+       un'altra»). */
+    var FC_TITOLI = <?php echo json_encode(fc_is_vocab()
+        ? ['nuova' => t('fcv.tb_nuova'), 'nuovaSotto' => t('fcv.tb_nuova_sotto'), 'modifica' => t('fcv.tb_modifica')]
+        : ['nuova' => t('fc.mfc_tb_nuova'), 'nuovaSotto' => t('fc.mfc_tb_nuova_sotto'), 'modifica' => t('fc.mfc_tb_modifica')],
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_UNESCAPED_UNICODE); ?>;
     var FC_ID_CORRENTE = <?php echo (int)$id; ?>;
     var FC_TIPO = '<?php echo $is_child ? 'child' : 'parent'; ?>';
 
@@ -1615,11 +1673,10 @@ function mfc_parola_esempio(): string {
         var campoModo = document.querySelector('input[name="modo"]');
         if (campoModo) campoModo.value = 'insert';
         var titolo = document.getElementById('fcTopbarTitle');
-        if (titolo) titolo.textContent = T(document.querySelector('input[name="parent_id"]') ? 'fc.ifc_nuova_sottocarta' : 'fc.ifc_nuova_scheda');
+        if (titolo) titolo.textContent = document.querySelector('input[name="parent_id"]') ? FC_TITOLI.nuovaSotto : FC_TITOLI.nuova;
         var addEx = document.getElementById('fcAddEsempio');
         if (addEx) addEx.disabled = true;
-        var esN = document.getElementById('fcvEsempioNuovo');
-        if (esN) esN.hidden = false;
+        if (window.fcvEsempi) fcvEsempi.azzera();
         /* Anche il numero sul tasto: e' quello della carta precedente, e su una
            carta che non esiste ancora vorrebbe dire il falso. */
         fcMostraContaEsempi(0);
@@ -1811,11 +1868,7 @@ function mfc_parola_esempio(): string {
         }
         /* il primo esempio gia' salvato della carta (in modifica) */
         function esempioDellaCarta() {
-            var nuovo = val('fcExample');
-            if (nuovo) return nuovo;
-            var b = document.querySelector('.qa-examples-box');
-            var es = b && b._fcExamples;
-            return (es && es[0] && es[0].example_text) ? String(es[0].example_text) : '';
+            return window.fcvEsempi ? fcvEsempi.primo() : '';
         }
         function serveLaParola() {
             if (val('fcWord') || val('fcTranslation')) return false;
@@ -1838,17 +1891,15 @@ function mfc_parola_esempio(): string {
                         return;
                     }
                     var p = r.parole[0];
-                    var tuttoPieno = !!(val('fcWord') && val('fcTranslation') && val('fcMeaning') && (!$id('fcExample') || val('fcExample')));
+                    var haEsempi = !!(window.fcvEsempi && fcvEsempi.conta() > 0);
+                    var tuttoPieno = !!(val('fcWord') && val('fcTranslation') && val('fcMeaning') && haEsempi);
                     if (!val('fcWord')) metti('fcWord', p.q);
                     if (!val('fcTranslation')) metti('fcTranslation', p.a);
                     if (!val('fcMeaning') || tuttoPieno) metti('fcMeaning', p.m);
-                    if (p.ex) {
-                        if ($id('fcExample')) {
-                            if (!val('fcExample') || tuttoPieno) metti('fcExample', p.ex);
-                        } else if (FC_ID_CORRENTE) {
-                            fcvSalvaEsempio(p.ex);
-                        }
-                    }
+                    /* L'esempio va in fondo all'elenco: se la carta non ne ha
+                       ancora, o se era gia' tutto pieno (si e' premuto apposta
+                       per averne uno nuovo). Uno uguale non si ripete. */
+                    if (p.ex && window.fcvEsempi && (!haEsempi || tuttoPieno)) fcvEsempi.aggiungi(p.ex, true);
                     dici(T('fcv.ia_compilato'));
                 })
                 .catch(function () { dici(T('fcv.ia_errore'), true); })
@@ -1884,6 +1935,8 @@ function mfc_parola_esempio(): string {
     /* Un esempio nuovo, salvato subito fra quelli della carta (che in modifica
        esiste gia'). Stessa strada del pannello degli esempi. */
     async function fcvSalvaEsempio(testo) {
+        /* nelle lingue c'e' l'elenco, che sa gia' come aggiungere */
+        if (window.fcvEsempi) { fcvEsempi.aggiungi(testo, true); return; }
         if (!FC_ID_CORRENTE || !testo) return;
         try {
             var fd = new FormData();
@@ -1914,6 +1967,8 @@ function mfc_parola_esempio(): string {
     }
 
     function fcRinfrescaSezioneEsempi() {
+        /* lingue: l'elenco degli esempi si rilegge da se' */
+        if (window.fcvEsempi) { fcvEsempi.ricarica(); return; }
         var sez = document.querySelector('.qa-examples-wrap');
         if (!sez) return;
 
@@ -1941,7 +1996,8 @@ function mfc_parola_esempio(): string {
         }, 900);
     }
 
-    fcRinfrescaSezioneEsempi();
+    /* (le lingue disegnano gli esempi da sole, con i dati gia' nella pagina) */
+    if (!window.fcvEsempi) fcRinfrescaSezioneEsempi();
 
     /* Si arriva qui dal visore degli esempi di fc_view.php, che
        passa apri_esempio=<id>: la carta si apre e sopra ci si trova subito il
@@ -2011,6 +2067,9 @@ function mfc_parola_esempio(): string {
            contratto che StandoutSaveBar si aspetta. */
         async function salvaScheda() {
             if (typeof fcSyncAllEditors === 'function') fcSyncAllEditors();
+            /* una frase scritta nella riga degli esempi ma non ancora aggiunta
+               parte con la carta, invece di restare li' e perdersi */
+            if (window.fcvEsempi) fcvEsempi.primaDelSalvataggio();
 
             var fd = new FormData(document.getElementById('editFcForm'));
             if (fcAudioBlobDi('q')) fd.append('audio_q', fcAudioBlobDi('q'), 'q.' + fcAudioExtDi('q'));
@@ -2053,7 +2112,7 @@ function mfc_parola_esempio(): string {
                     var campoModo = document.querySelector('input[name="modo"]');
                     if (campoModo) campoModo.value = 'edit';
                     var titolo = document.getElementById('fcTopbarTitle');
-                    if (titolo) titolo.textContent = T('fc.mfc_titolo_breve');
+                    if (titolo) titolo.textContent = FC_TITOLI.modifica;
                     var addEx = document.getElementById('fcAddEsempio');
                     if (addEx) addEx.disabled = false;
                     var altra = document.getElementById('fcAltraBtn');
@@ -2069,17 +2128,10 @@ function mfc_parola_esempio(): string {
                         document.getElementById('editFcForm').appendChild(campoId);
                     }
                     campoId.value = dati.fc_id;
-                    /* L'esempio scritto con la parola e' ora fra gli esempi della
-                       carta: il campo si svuota e si nasconde, se no un secondo
-                       salvataggio non lo rimanderebbe (la carta non e' piu'
-                       "nuova") ma resterebbe li' a dire il falso. */
-                    var esN = document.getElementById('fcvEsempioNuovo');
-                    if (esN) {
-                        var haEsempio = !!(document.getElementById('fcExample') || {}).value;
-                        esN.hidden = true;
-                        document.getElementById('fcExample').value = '';
-                        if (haEsempio) { fcRinfrescaSezioneEsempi(); fcRicontaEsempi(); }
-                    }
+                    /* Gli esempi scritti prima della creazione sono partiti con
+                       la carta: da qui in poi l'elenco li legge dal database e
+                       quelli nuovi si salvano uno per uno. */
+                    if (window.fcvEsempi) fcvEsempi.cartaCreata();
 
                     if (window.parent && window.parent !== window) {
                         window.parent.postMessage({ source: 'fc-modifica-popup', type: 'creato', fc_id: dati.fc_id }, window.location.origin);

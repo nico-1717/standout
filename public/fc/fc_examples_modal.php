@@ -621,7 +621,7 @@ function exDisegnaElenco(fc_id, fc_type, esempi) {
     esempi.forEach(function (ex, i) {
         html += `<div class="exm-example-card">
                 <div class="exm-example-label">${T('fc.exm_esempio_n', {n: i + 1})}</div>
-                ${exTestoSiVede(ex.example_text) ? `<div class="raw-text exm-example-text">${(window.FC && FC.tipo === 'vocab' && typeof fcEsempioTestoLingua === 'function') ? fcEsempioTestoLingua(ex.example_text, ex._parola) : (typeof parseTextForPreview === 'function' ? parseTextForPreview(ex.example_text) : fcEscapeHtml(ex.example_text))}</div>` : ''}
+                ${exTestoSiVede(ex.example_text) ? `<div class="raw-text exm-example-text">${(window.FC && FC.tipo === 'vocab' && typeof fcEsempioTestoLingua === 'function') ? fcEsempioTestoLingua(ex.example_text, ex._parola, ex.gap_text) : (typeof parseTextForPreview === 'function' ? parseTextForPreview(ex.example_text) : fcEscapeHtml(ex.example_text))}</div>` : ''}
                 ${ex.example_audio ? `<audio src="../media/flashcard_audio/${ex.example_audio}" controls class="exm-example-audio"></audio>` : ''}
                 ${ex.example_image ? `<img src="../media/example_images/${ex.example_image}" class="exm-example-image">` : ''}
                 <button type="button" class="exm-example-edit-btn" onclick="openExampleForm(${fc_id}, '${fc_type}', ${ex.id})">${T('fc.exm_modifica')}</button>

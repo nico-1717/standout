@@ -3898,7 +3898,10 @@
     "res_restano_n": "{n} left",
     "res_resta_1": "1 left",
     "vis_una_carta_n": "1 card",
-    "vis_una_carta_mostrata": "{n} card shown"
+    "vis_una_carta_mostrata": "{n} card shown",
+    "mfc_tb_nuova": "New card",
+    "mfc_tb_nuova_sotto": "New sub-card",
+    "mfc_tb_modifica": "Edit card"
   },
   "fchub": {
     "home_titolo": "Flashcards",
@@ -4016,7 +4019,25 @@
     "ia_disegno": "Drawing the image… it takes about ten seconds.",
     "ia_immagine_pronta": "Here is the image. Save to keep it.",
     "ia_immagine_errore": "The image couldn't be created. Try again shortly.",
-    "ia_limite_immagini": "You've used all the images in your plan this month."
+    "ia_limite_immagini": "You've used all the images in your plan this month.",
+    "es_titolo": "Examples",
+    "es_vuoto": "No examples yet. A sentence helps you remember the word in context.",
+    "es_ph_nuovo": "Write an example…",
+    "es_aggiungi": "Add",
+    "es_con_parola": "They'll be saved together with the word.",
+    "es_nascosta": "Hidden in the game",
+    "es_auto": "auto",
+    "es_cambia": "Change",
+    "es_scegli": "Choose what to hide",
+    "es_guida": "Tap the words to hide in the game",
+    "es_azzera": "Clear",
+    "es_fatto": "Done",
+    "es_media": "Image & audio",
+    "es_elimina_conf": "Delete this example?",
+    "es_errore": "Couldn't save the example. Try again.",
+    "tb_nuova": "New word",
+    "tb_nuova_sotto": "New sub-card",
+    "tb_modifica": "Edit word"
   },
   "sidebar": {
     "sezione_impara": "Learn",
