@@ -1111,7 +1111,10 @@
     "dn_libro_incompleto": "Il libro non è ancora finito: riprendi la scrittura dal diario in numeri.",
     "dn_indice": "Indice",
     "dn_capitolo_n": "Capitolo {n}",
-    "dn_libro_nota": "I tuoi pensieri, nell'ordine di un libro. Riscritti dall'IA senza aggiungere niente."
+    "dn_libro_nota": "I tuoi pensieri, nell'ordine di un libro. Riscritti dall'IA senza aggiungere niente.",
+    "umore_k": "Umore",
+    "tocca_per_scegliere": "Scegli",
+    "font_sistema": "Sistema"
   },
   "landing": {
     "il_tuo_cervello_dimentica_per": "Il tuo cervello dimentica per design.",

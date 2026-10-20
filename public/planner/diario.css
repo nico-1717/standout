@@ -57,6 +57,12 @@ button{ font-family:inherit; border:none; background:none; color:inherit; paddin
 :focus{ outline:none; }
 :focus-visible{ outline:2px solid var(--dy-accent); outline-offset:3px; border-radius:6px; }
 [hidden]{ display:none !important; }
+/* i pezzi dello stile standard (stile_standard.css li mostra) */
+.dy-std{ display:none; }
+.dy-col-head{ display:contents; }
+.dy-col-head.dy-std{ display:none; }
+/* il nome e la parola del livello sotto le faccine: solo nello standard */
+.dy-face-k, .dy-face-v, .dy-pop-cap{ display:none; }
 
 .dy-lab{
     display:block; font-family:var(--dy-sans);

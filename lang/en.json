@@ -1111,7 +1111,10 @@
     "dn_libro_incompleto": "The book isn't finished yet: continue writing it from Journal insights.",
     "dn_indice": "Contents",
     "dn_capitolo_n": "Chapter {n}",
-    "dn_libro_nota": "Your thoughts, in the order of a book. Rewritten by AI without adding anything."
+    "dn_libro_nota": "Your thoughts, in the order of a book. Rewritten by AI without adding anything.",
+    "umore_k": "Mood",
+    "tocca_per_scegliere": "Choose",
+    "font_sistema": "System"
   },
   "landing": {
     "il_tuo_cervello_dimentica_per": "Your brain forgets by design.",

@@ -54,6 +54,7 @@ $boot = [
                 <span class="dy-wd" id="dyWd"><?php te('diario.lunedi'); ?></span>
                 <button type="button" class="dy-month-btn" id="dyMonthBtn">
                     <span id="dyMonthLabel"><?php te('diario.luglio_2026'); ?></span>
+                    <svg class="dy-std" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
                 </button>
             </div>
 
@@ -62,28 +63,44 @@ $boot = [
                          quali famiglie di frequenza esistono davvero. */ ?>
                 <svg viewBox="0 0 54 54" aria-hidden="true"></svg>
                 <span class="dy-ring-n" id="dyRingN">–</span>
+                <span class="dy-ring-k dy-std"><?php te('diario.abitudini'); ?></span>
             </button>
             <?php /* pallino del profilo, in fila con i pulsanti dell'intestazione */ $fr_widget_inline = true; include __DIR__ . '/../partials/notifiche_widget.php'; ?>
         </header>
 
         <div class="dy-lists">
-            <section class="dy-list-col">
-                <span class="dy-lab"><?php te('diario.cose_belle_di_oggi'); ?></span>
+            <?php /* dy-std: i pezzi che si vedono solo nello stile standard
+                     (lib/stile.php); sulla carta restano nascosti. */ ?>
+            <section class="dy-list-col dy-col-good">
+                <div class="dy-col-head">
+                    <span class="dy-col-ic dy-std" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg></span>
+                    <span class="dy-lab"><?php te('diario.cose_belle_di_oggi'); ?></span>
+                </div>
                 <div class="dy-list" id="dyGood"></div>
             </section>
-            <section class="dy-list-col">
-                <span class="dy-lab"><?php te('diario.cosa_ho_imparato_oggi'); ?></span>
+            <section class="dy-list-col dy-col-learned">
+                <div class="dy-col-head">
+                    <span class="dy-col-ic dy-std" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21.5h4"/><path d="M12 2.5a6.5 6.5 0 0 0-3.8 11.8c.6.4.8 1 .8 1.7h6c0-.7.2-1.3.8-1.7A6.5 6.5 0 0 0 12 2.5Z"/></svg></span>
+                    <span class="dy-lab"><?php te('diario.cosa_ho_imparato_oggi'); ?></span>
+                </div>
                 <div class="dy-list" id="dyLearned"></div>
             </section>
         </div>
 
         <div class="dy-write">
+            <div class="dy-col-head dy-write-head dy-std">
+                <span class="dy-col-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+                <span class="dy-lab"><?php te('diario.com_e_andata_oggi_lab'); ?></span>
+            </div>
             <textarea id="dyText" spellcheck="true" maxlength="20000"
                       placeholder="<?php te('diario.com_e_andata_oggi'); ?>"></textarea>
+            <?php /* il microfono sta dentro il riquadro della scrittura: sulla
+                     carta .dy-write non e' posizionato, quindi resta dov'era
+                     (in basso a destra della pagina) */ ?>
+            <button type="button" class="dy-mic" id="dyMic" hidden aria-label="<?php te('diario.detta_invece_di_scrivere'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0013 0"/><path d="M12 18v3"/></svg>
+            </button>
         </div>
-        <button type="button" class="dy-mic" id="dyMic" hidden aria-label="<?php te('diario.detta_invece_di_scrivere'); ?>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0013 0"/><path d="M12 18v3"/></svg>
-        </button>
 
         <div class="dy-page-foot">
             <span class="dy-saved" id="dySaved"><?php te('diario.salvato'); ?></span>

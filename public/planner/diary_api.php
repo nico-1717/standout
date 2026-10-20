@@ -316,7 +316,9 @@ if ($ajax === 'settings_save') {
     $font = sec_in('font');
     if ($font !== null) {
         $fields[] = 'font_key = ?';
-        $params[] = sec_enum($font, ['caveat', 'kalam', 'patrick', 'cormorant', 'jost'], 'caveat');
+        $params[] = sec_enum($font, ['caveat', 'kalam', 'patrick', 'cormorant', 'jost',
+                                       /* scelte dallo stile standard (diario.js, fontEff) */
+                                       'sistema', 'std-caveat', 'std-kalam', 'std-patrick', 'std-cormorant', 'std-jost'], 'caveat');
     }
     $size = sec_in('size');
     if ($size !== null) { $fields[] = 'font_size = ?'; $params[] = sec_int($size, 14, 26, 18); }

@@ -367,6 +367,7 @@ echo standout_i18n_json(['comune', 'diario']);
                     var b = document.createElement('button');
                     b.type = 'button';
                     b.className = 'dg-face' + (current === level ? ' dg-on' : '');
+                    b.setAttribute('data-level', level);   // il colore del livello, nello stile standard
                     b.innerHTML = standoutFace(kind, level, 40);
                     b.setAttribute('aria-label', kind + ' ' + level);
                     b.addEventListener('click', function () {

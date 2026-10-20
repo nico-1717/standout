@@ -388,3 +388,461 @@ html[data-stile="standard"] .pl-prio-cell.pl-auto .pl-prio-in{ font-size:12.5px;
 html[data-stile="standard"] .pl-prio-tx,
 html[data-stile="standard"] .pl-prio-cell.pl-auto .pl-prio-tx{ font-size:12.5px; }
 html[data-stile="standard"] .pl-smart-in{ font-size:14px; }
+
+/* ------------------------------------------------------------------ */
+/* 9. DIARIO, RIDISEGNATO (20/10/2026)                                 */
+/* Prima lo standard era la carta con il carattere di sistema: un      */
+/* foglio bianco vuoto con le stesse faccine a matita. Ora e' una      */
+/* pagina del sito: fondo grigio, riquadri bianchi, la data in grande, */
+/* umore / energia / abitudini come tre tessere, gli elenchi e la      */
+/* scrittura in schede, gli strumenti in una capsula di vetro. Tutto   */
+/* qui sotto vale SOLO con lo stile standard: la carta non cambia.     */
+/* ------------------------------------------------------------------ */
+html[data-stile="standard"] .dy-body{
+    --dy-tile:var(--so-surface);
+    --dy-r:20px;
+    --dy-lv1:#FF453A; --dy-lv2:#FF9F0A; --dy-lv3:#FFD60A; --dy-lv4:#8BD450; --dy-lv5:#30D158;
+    background:var(--so-bg);
+}
+html[data-stile="standard"],
+html[data-stile="standard"] body.dy-body{ background:var(--so-bg); }
+html[data-stile="standard"] .dy-std{ display:revert; }
+
+/* -- la pagina: niente costa del quaderno, si scorre --------------- */
+html[data-stile="standard"] .dy-page{
+    background:transparent; box-shadow:none;
+    padding:calc(var(--safe-top) + 10px) 16px calc(104px + var(--safe-bottom));
+    overflow-y:auto; scrollbar-width:none; gap:12px;
+}
+html[data-stile="standard"] .dy-page::-webkit-scrollbar{ width:0; }
+html[data-stile="standard"] .dy-page::before{ display:none; }
+@keyframes dy-std-next{ 0%{ opacity:1; transform:none; } 40%{ opacity:0; transform:translateX(-18px); } 41%{ transform:translateX(18px); } 100%{ opacity:1; transform:none; } }
+@keyframes dy-std-prev{ 0%{ opacity:1; transform:none; } 40%{ opacity:0; transform:translateX(18px); } 41%{ transform:translateX(-18px); } 100%{ opacity:1; transform:none; } }
+html[data-stile="standard"] .dy-flip-next{ animation:dy-std-next .42s var(--dy-ease); }
+html[data-stile="standard"] .dy-flip-prev{ animation:dy-std-prev .42s var(--dy-ease); }
+
+/* -- la testata: data a sinistra, tre tessere sotto ---------------- */
+html[data-stile="standard"] .dy-head{
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px;
+    position:relative; align-items:stretch;
+}
+html[data-stile="standard"] .dy-faces{ display:contents; }
+html[data-stile="standard"] .dy-title{
+    grid-column:1 / -1; grid-row:1; order:-1;
+    display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto auto; align-items:center;
+    column-gap:12px; padding:6px 52px 4px 2px; text-align:left;
+}
+html[data-stile="standard"] .dy-num{
+    grid-row:1 / span 2; font-size:58px; font-weight:800; line-height:.9; letter-spacing:-.05em; color:var(--so-text);
+}
+html[data-stile="standard"] .dy-wd{
+    align-self:end; margin:0; font-size:20px; font-weight:750; letter-spacing:-.01em;
+    text-transform:none; color:var(--so-text);
+}
+html[data-stile="standard"] .dy-month-btn{
+    justify-self:start; align-self:start; margin-top:4px;
+    display:inline-flex; align-items:center; gap:6px; padding:5px 11px 5px 12px; border-radius:999px;
+    background:var(--so-blue-wash); color:var(--so-blue);
+    transition:transform .15s var(--dy-ease), background-color .2s;
+}
+html[data-stile="standard"] .dy-month-btn:active{ transform:scale(.95); }
+html[data-stile="standard"] .dy-month-btn span{
+    border:none; padding:0; font-size:14px; font-weight:650; color:inherit;
+}
+html[data-stile="standard"] .dy-month-btn svg{ width:14px; height:14px; }
+/* il pallino del profilo, in alto a destra */
+html[data-stile="standard"] .dy-head > .standout-fab.fnw-inline{ position:absolute; top:10px; right:0; }
+/* gli altri pezzi del widget (stile, pannello) non sono caselle della griglia */
+html[data-stile="standard"] .dy-head > style,
+html[data-stile="standard"] .dy-head > script{ display:none; }
+html[data-stile="standard"] .dy-head > .fnw-scrim,
+html[data-stile="standard"] .dy-head > .fnw-panel{ grid-column:1 / -1; }
+
+/* le tre tessere */
+html[data-stile="standard"] .dy-face-btn,
+html[data-stile="standard"] .dy-ring{
+    grid-row:2; width:auto; height:auto; min-height:104px; border-radius:var(--dy-r);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    padding:12px 6px 10px; background:var(--dy-tile); color:var(--so-text-3);
+    box-shadow:0 1px 2px rgba(0,0,0,.04), inset 0 0 0 .5px var(--so-hair);
+    transition:transform .18s var(--dy-ease), background-color .3s, box-shadow .3s;
+}
+html[data-stile="standard"] .dy-face-btn:active,
+html[data-stile="standard"] .dy-ring:active{ transform:scale(.96); }
+html[data-stile="standard"] .dy-face-btn svg{ width:38px; height:38px; flex-shrink:0; margin-bottom:3px; }
+html[data-stile="standard"] .dy-face-k,
+html[data-stile="standard"] .dy-ring-k{
+    display:block; font-size:11.5px; font-weight:650; color:var(--so-text-3); line-height:1.15;
+}
+html[data-stile="standard"] .dy-face-v{
+    display:block; font-size:13.5px; font-weight:750; color:var(--so-text); line-height:1.15;
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+html[data-stile="standard"] .dy-face-btn:not(.dy-set) .dy-face-v{ font-size:12px; font-weight:600; color:var(--so-blue); }
+/* il riquadro prende il colore del livello */
+html[data-stile="standard"] .dy-face-btn.dy-set{ --lv:var(--so-text-2); color:var(--lv);
+    background:color-mix(in srgb, var(--lv) 13%, var(--dy-tile));
+    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--lv) 30%, transparent); }
+html[data-stile="standard"] .dy-face-btn[data-level="1"]{ --lv:var(--dy-lv1); }
+html[data-stile="standard"] .dy-face-btn[data-level="2"]{ --lv:var(--dy-lv2); }
+html[data-stile="standard"] .dy-face-btn[data-level="3"]{ --lv:#E0B000; }
+html[data-stile="standard"] .dy-face-btn[data-level="4"]{ --lv:#5DB52A; }
+html[data-stile="standard"] .dy-face-btn[data-level="5"]{ --lv:#22B14C; }
+
+/* le abitudini: l'anello sopra, il numero dentro, il nome sotto */
+html[data-stile="standard"] .dy-ring{ position:relative; color:var(--so-text-2); }
+html[data-stile="standard"] .dy-ring svg{ position:relative; inset:auto; width:46px; height:46px; flex-shrink:0; margin-bottom:2px; }
+html[data-stile="standard"] .dy-ring-n{
+    position:absolute; inset:12px 0 auto; height:46px; display:grid; place-items:center;
+    font-size:12.5px; font-weight:800; color:var(--so-text); letter-spacing:-.02em;
+}
+html[data-stile="standard"] .dy-ring[data-n="3"] .dy-ring-n{ font-size:11px; }
+html[data-stile="standard"] .dy-ring[data-n="4"] .dy-ring-n{ font-size:10px; }
+html[data-stile="standard"] .dy-ring .dy-ring-k{ margin-top:3px; }
+html[data-stile="standard"] .dy-ring .dy-ring-track{ stroke:var(--so-text); opacity:.09; }
+html[data-stile="standard"] .dy-ring .dy-ring-fill{ stroke-linecap:round; }
+html[data-stile="standard"] .dy-ring .dy-ring-daily{ stroke:var(--so-blue); }
+html[data-stile="standard"] .dy-ring .dy-ring-weekly{ stroke:#30D158; }
+html[data-stile="standard"] .dy-ring .dy-ring-monthly{ stroke:#FF9F0A; }
+html[data-stile="standard"] .dy-ring .dy-ring-interval{ stroke:#BF5AF2; }
+
+/* -- gli elenchi e la scrittura: tre schede ------------------------ */
+html[data-stile="standard"] .dy-lists{ flex-direction:column; gap:12px; margin:0; }
+html[data-stile="standard"] .dy-list-col,
+html[data-stile="standard"] .dy-write{
+    background:var(--so-surface); border-radius:var(--dy-r); padding:14px 16px 10px;
+    box-shadow:0 1px 2px rgba(0,0,0,.04), inset 0 0 0 .5px var(--so-hair);
+}
+html[data-stile="standard"] .dy-col-head{ display:flex; align-items:center; gap:9px; margin-bottom:4px; }
+html[data-stile="standard"] .dy-col-ic{
+    width:28px; height:28px; border-radius:9px; flex-shrink:0; display:grid; place-items:center;
+}
+html[data-stile="standard"] .dy-col-ic svg{ width:16px; height:16px; }
+html[data-stile="standard"] .dy-col-good .dy-col-ic{ color:#C78A00; background:color-mix(in srgb, #FFCC00 22%, transparent); }
+html[data-stile="standard"] .dy-col-learned .dy-col-ic{ color:var(--so-blue); background:var(--so-blue-soft); }
+html[data-stile="standard"] .dy-write-head .dy-col-ic{ color:#AF52DE; background:color-mix(in srgb, #AF52DE 16%, transparent); }
+html[data-stile="standard"] .dy-lab{
+    font-size:14.5px !important; font-weight:750; letter-spacing:-.01em !important; text-transform:none; color:var(--so-text);
+}
+html[data-stile="standard"] .dy-list{ margin-top:2px; }
+html[data-stile="standard"] .dy-li{ align-items:center; gap:10px; padding:0; }
+html[data-stile="standard"] .dy-li + .dy-li{ border-top:.5px solid var(--so-hair); }
+html[data-stile="standard"] .dy-li-dot{
+    width:8px; height:8px; margin:0 0 0 10px; background:transparent;
+    box-shadow:inset 0 0 0 1.5px var(--so-text-3);
+}
+html[data-stile="standard"] .dy-li-filled .dy-li-dot{ transform:none; box-shadow:none; }
+html[data-stile="standard"] .dy-col-good .dy-li-filled .dy-li-dot{ background:#FFB800; }
+html[data-stile="standard"] .dy-col-learned .dy-li-filled .dy-li-dot{ background:var(--so-blue); }
+html[data-stile="standard"] .dy-li input{
+    border:none !important; padding:11px 0; font-size:16px; line-height:1.3; color:var(--so-text);
+}
+html[data-stile="standard"] .dy-li input::placeholder{ font-size:15px !important; color:var(--so-text-3); }
+html[data-stile="standard"] body .dy-li input,
+html[data-stile="standard"] body .dy-write textarea,
+html[data-stile="standard"] body .dy-taped-li p{ font-family:var(--dy-hand) !important; }
+html[data-stile="standard"] body.dy-font-sistema{ --dy-hand:var(--so-font); --dy-hand-lh:1.45; }
+
+html[data-stile="standard"] .dy-write{
+    position:relative; flex:1 0 auto; min-height:300px; display:flex; flex-direction:column; padding-bottom:14px;
+}
+html[data-stile="standard"] .dy-write textarea{
+    flex:1; min-height:240px; padding:8px 0 44px; line-height:1.55;
+    background:none !important; color:var(--so-text); overflow-y:visible;
+}
+html[data-stile="standard"] .dy-write textarea::placeholder{ color:var(--so-text-3); }
+
+/* il microfono dentro la scheda, in basso a destra */
+html[data-stile="standard"] .dy-mic{
+    right:12px; bottom:12px; width:42px; height:42px;
+    background:var(--so-blue); color:#fff; box-shadow:0 6px 16px -8px rgba(0,122,255,.8);
+}
+html[data-stile="standard"] .dy-mic svg{ width:20px; height:20px; stroke-width:2; }
+html[data-stile="standard"] .dy-mic.dy-rec{ background:var(--so-red); color:#fff; box-shadow:0 0 0 6px var(--so-red-soft); }
+
+/* "Salvato": una pastiglia in alto, al centro */
+html[data-stile="standard"] .dy-page-foot{
+    position:fixed; left:50%; bottom:auto; top:calc(var(--safe-top) + 8px); transform:translateX(-50%); z-index:30; pointer-events:none;
+}
+html[data-stile="standard"] .dy-saved{
+    display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px;
+    font-size:12px !important; font-weight:650; letter-spacing:0 !important; text-transform:none;
+    color:#1E9E46; background:color-mix(in srgb, #34C759 16%, var(--so-surface));
+    box-shadow:0 4px 14px -6px rgba(0,0,0,.25); transform:translateY(-6px); transition:opacity .3s, transform .3s var(--dy-pop);
+}
+html[data-stile="standard"] .dy-saved::before{ content:'✓'; font-weight:800; }
+html[data-stile="standard"] .dy-saved.dy-show{ transform:none; }
+
+/* -- gli strumenti: una capsula di vetro --------------------------- */
+html[data-stile="standard"] .dy-tools{
+    left:50%; right:auto; bottom:calc(14px + var(--safe-bottom)); transform:translateX(-50%);
+    gap:4px; padding:6px; border-radius:999px;
+    background:var(--so-header); -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px);
+    box-shadow:0 10px 30px -12px rgba(0,0,0,.35), inset 0 0 0 .5px var(--so-hair);
+}
+html[data-stile="standard"] .dy-tool{ width:46px; height:42px; border-radius:999px; color:var(--so-text-2); }
+html[data-stile="standard"] .dy-tool svg{ width:21px; height:21px; stroke-width:1.9; }
+html[data-stile="standard"] .dy-tool:hover{ background:var(--so-fill); }
+html[data-stile="standard"] .dy-tool:active{ background:var(--so-fill-2); color:var(--so-text); }
+html[data-stile="standard"] .dy-tool[disabled]{ opacity:.3; }
+
+html[data-stile="standard"] .dy-arrow{
+    background:var(--so-surface); color:var(--so-text-2);
+    box-shadow:0 2px 10px -4px rgba(0,0,0,.25), inset 0 0 0 .5px var(--so-hair);
+}
+
+/* -- i foglietti: faccine e scrittura ------------------------------ */
+html[data-stile="standard"] .dy-pop{
+    padding:14px; border-radius:22px; background:var(--so-surface);
+    box-shadow:0 24px 60px -18px rgba(0,0,0,.45), inset 0 0 0 .5px var(--so-hair);
+}
+html[data-stile="standard"] .dy-pop-lab{
+    font-size:15px !important; font-weight:750; letter-spacing:-.01em !important; text-transform:none;
+    color:var(--so-text); margin:0 2px 12px;
+}
+html[data-stile="standard"] .dy-pop-row{ gap:6px; }
+html[data-stile="standard"] .dy-pop-face{
+    --lv:var(--so-text-2);
+    width:58px; height:auto; padding:8px 2px 7px; border-radius:16px; color:var(--so-text-2);
+    display:flex; flex-direction:column; align-items:center; gap:5px; background:var(--so-fill);
+}
+html[data-stile="standard"] .dy-pop-face svg{ width:34px; height:34px; }
+html[data-stile="standard"] .dy-pop-cap{
+    display:block; font-size:10.5px; font-weight:650; color:var(--so-text-2); line-height:1.1;
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+html[data-stile="standard"] .dy-pop-face[data-level="1"]{ --lv:var(--dy-lv1); }
+html[data-stile="standard"] .dy-pop-face[data-level="2"]{ --lv:var(--dy-lv2); }
+html[data-stile="standard"] .dy-pop-face[data-level="3"]{ --lv:#E0B000; }
+html[data-stile="standard"] .dy-pop-face[data-level="4"]{ --lv:#5DB52A; }
+html[data-stile="standard"] .dy-pop-face[data-level="5"]{ --lv:#22B14C; }
+html[data-stile="standard"] .dy-pop-face:hover{ color:var(--lv); }
+html[data-stile="standard"] .dy-pop-face.dy-on{
+    transform:none; color:#fff; background:var(--lv);
+    box-shadow:0 8px 18px -8px var(--lv);
+}
+html[data-stile="standard"] .dy-pop-face.dy-on .dy-pop-cap{ color:#fff; }
+
+html[data-stile="standard"] .dy-font-list{ gap:4px; }
+html[data-stile="standard"] .dy-font-opt{ padding:10px 12px; border-radius:14px; background:var(--so-fill); }
+html[data-stile="standard"] .dy-font-opt.dy-on{ background:var(--so-blue-soft); box-shadow:inset 0 0 0 1.5px var(--so-blue); }
+html[data-stile="standard"] body .dy-font-opt .dy-fs{ font-family:var(--fs, inherit) !important; font-size:19px; color:var(--so-text); }
+html[data-stile="standard"] .dy-font-opt span:last-child{
+    font-size:12px !important; font-weight:650; letter-spacing:0 !important; text-transform:none; color:var(--so-text-3);
+}
+html[data-stile="standard"] .dy-font-opt.dy-on span:last-child{ color:var(--so-blue); }
+html[data-stile="standard"] .dy-size-row{ border-top:none; margin-top:12px; padding:0; gap:10px; }
+html[data-stile="standard"] .dy-size{
+    width:44px; height:38px; border-radius:12px; background:var(--so-fill); font-size:16px; font-weight:700; color:var(--so-text);
+}
+html[data-stile="standard"] .dy-size-v{ font-size:16px; font-weight:750; min-width:36px; color:var(--so-text); }
+
+/* -- il riepilogo delle abitudini ---------------------------------- */
+html[data-stile="standard"] .dy-modal{
+    background:rgba(0,0,0,.38); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    align-items:end; padding:0;
+}
+html[data-stile="standard"] .dy-card{
+    max-width:520px; margin:0 auto; border-radius:26px 26px 0 0;
+    padding:10px 18px calc(18px + var(--safe-bottom)); background:var(--so-surface);
+    box-shadow:0 -10px 40px -12px rgba(0,0,0,.35);
+    animation:dy-std-sheet .34s var(--dy-ease);
+}
+html[data-stile="standard"] .dy-card::before{
+    content:''; display:block; width:38px; height:5px; border-radius:3px; margin:0 auto 14px; background:var(--so-fill-2);
+}
+@keyframes dy-std-sheet{ from{ transform:translateY(100%); } to{ transform:none; } }
+@media (min-width:600px){
+    html[data-stile="standard"] .dy-modal{ align-items:center; padding:24px; }
+    html[data-stile="standard"] .dy-card{ border-radius:24px; }
+    html[data-stile="standard"] .dy-card::before{ display:none; }
+}
+html[data-stile="standard"] .dy-card-t{ font-size:22px; font-weight:800; letter-spacing:-.02em; }
+html[data-stile="standard"] .dy-card-s{
+    font-size:13.5px !important; letter-spacing:0 !important; text-transform:none; color:var(--so-text-3); margin-bottom:4px;
+}
+html[data-stile="standard"] .dy-hb-sec{
+    margin-top:14px; background:var(--so-fill); border-radius:16px; padding:4px 14px;
+}
+html[data-stile="standard"] .dy-hb-sec:not(:has(.dy-hb-row)){ padding:18px 14px; color:var(--so-text-2); text-align:center; font-size:14.5px; }
+html[data-stile="standard"] .dy-hb-lab{
+    font-size:12.5px !important; font-weight:700; letter-spacing:0 !important; text-transform:none;
+    color:var(--so-text-3); margin:8px 0 2px;
+}
+html[data-stile="standard"] .dy-hb-row{ padding:10px 0; border-bottom:.5px solid var(--so-hair); gap:11px; }
+html[data-stile="standard"] .dy-hb-row:last-child{ border-bottom:none; }
+html[data-stile="standard"] .dy-hb-dot{ width:11px; height:11px; }
+html[data-stile="standard"] .dy-hb-name{ font-size:15.5px; font-weight:550; }
+html[data-stile="standard"] .dy-hb-val{ font-size:14px; font-weight:750; color:var(--so-text-2); }
+html[data-stile="standard"] .dy-hb-check{ width:22px; height:22px; padding:4px; border-radius:50%; background:#30D158; color:#fff; }
+html[data-stile="standard"] .dy-card-acts{ margin-top:16px; gap:10px; }
+html[data-stile="standard"] .dy-card-acts button{
+    padding:13px; border-radius:14px; font-size:15.5px; font-weight:700;
+    background:var(--so-fill); color:var(--so-text);
+}
+html[data-stile="standard"] .dy-card-acts button.dy-primary{ background:var(--so-blue); color:#fff; }
+
+/* -- la pagina del mese -------------------------------------------- */
+html[data-stile="standard"] .dy-head-month{ display:flex; align-items:center; grid-template-columns:none; }
+html[data-stile="standard"] .dy-back{
+    width:38px; height:38px; border-radius:50%; background:var(--so-surface); color:var(--so-blue);
+    box-shadow:0 1px 2px rgba(0,0,0,.05), inset 0 0 0 .5px var(--so-hair);
+}
+html[data-stile="standard"] .dy-back svg{ stroke-width:2.4; }
+html[data-stile="standard"] .dy-back-ghost{ box-shadow:none; background:none; }
+html[data-stile="standard"] .dy-title-month{ display:flex; flex-direction:column; align-items:center; padding:0; }
+html[data-stile="standard"] .dy-num-month{ font-size:30px; font-weight:800; letter-spacing:-.03em; line-height:1.05; }
+html[data-stile="standard"] .dy-title-month .dy-wd{ font-size:14px; font-weight:650; color:var(--so-text-3); }
+
+html[data-stile="standard"] .dy-cal{
+    margin:0; padding:14px 10px 10px; background:var(--so-surface); border-radius:var(--dy-r);
+    box-shadow:0 1px 2px rgba(0,0,0,.04), inset 0 0 0 .5px var(--so-hair);
+}
+html[data-stile="standard"] .dy-cal-wd span{ font-size:11.5px !important; font-weight:700; color:var(--so-text-3); text-transform:none; letter-spacing:0 !important; }
+html[data-stile="standard"] .dy-cal-grid{ gap:4px; }
+html[data-stile="standard"] .dy-cal-d{ border-radius:12px; gap:2px; }
+html[data-stile="standard"] .dy-cal-d span{ font-size:15px; font-weight:600; color:var(--so-text); }
+html[data-stile="standard"] .dy-cal-d svg{ width:16px; height:16px; color:var(--so-text-2); }
+html[data-stile="standard"] .dy-cal-d.dy-out{ opacity:.28; }
+html[data-stile="standard"] .dy-cal-d.dy-written{ background:var(--so-blue-wash); }
+html[data-stile="standard"] .dy-cal-d.dy-written span{ color:var(--so-blue); font-weight:750; }
+html[data-stile="standard"] .dy-cal-d.dy-today{ box-shadow:inset 0 0 0 2px var(--so-blue); }
+html[data-stile="standard"] .dy-cal-d.dy-today::after{ display:none; }
+
+html[data-stile="standard"] .dy-stats{
+    margin:0; padding:0; border:none; gap:10px;
+}
+html[data-stile="standard"] .dy-stat{
+    background:var(--so-surface); border-radius:18px; padding:12px; gap:10px;
+    box-shadow:0 1px 2px rgba(0,0,0,.04), inset 0 0 0 .5px var(--so-hair);
+}
+html[data-stile="standard"] .dy-stat-ico{ width:34px; height:34px; padding:6px; border-radius:11px; background:var(--so-fill); color:var(--so-text-2); }
+html[data-stile="standard"] .dy-stat-v{ font-size:18px; font-weight:800; letter-spacing:-.02em; color:var(--so-text); }
+html[data-stile="standard"] .dy-stat-k{ font-size:11.5px !important; font-weight:600; letter-spacing:0 !important; text-transform:none; color:var(--so-text-3); line-height:1.2; }
+
+html[data-stile="standard"] .dy-taped{
+    margin:0 0 20px; padding:14px 16px; transform:none; border-radius:var(--dy-r);
+    background:var(--so-surface); box-shadow:0 1px 2px rgba(0,0,0,.04), inset 0 0 0 .5px var(--so-hair);
+}
+html[data-stile="standard"] .dy-tape{ display:none; }
+html[data-stile="standard"] .dy-taped-head .dy-lab{ font-size:15px !important; }
+html[data-stile="standard"] .dy-taped-n{
+    min-width:28px; padding:3px 9px; border-radius:999px; text-align:center;
+    font-size:13px; font-weight:800; color:var(--so-blue); background:var(--so-blue-wash);
+}
+html[data-stile="standard"] .dy-taped-li{ border-bottom:.5px solid var(--so-hair); }
+html[data-stile="standard"] .dy-taped-li small{ font-size:12px !important; letter-spacing:0 !important; text-transform:none; color:var(--so-text-3); }
+html[data-stile="standard"] .dy-taped-empty{ color:var(--so-text-3); font-size:14.5px; }
+
+html[data-stile="standard"] .dy-toast{
+    bottom:calc(80px + var(--safe-bottom)); padding:10px 18px; font-size:14px; font-weight:600;
+    background:rgba(30,30,32,.92); color:#fff; box-shadow:0 10px 30px -10px rgba(0,0,0,.5);
+}
+
+/* schermi larghi: una colonna centrata, non un quaderno */
+@media (min-width:820px){
+    html[data-stile="standard"] .dy-stage{ padding:0; }
+    html[data-stile="standard"] .dy-page{
+        inset:0; max-width:none; margin:0; border-radius:0; box-shadow:none;
+        padding-left:max(24px, calc(50% - 340px)); padding-right:max(24px, calc(50% - 340px));
+    }
+    html[data-stile="standard"] .dy-lists{ flex-direction:row; }
+    html[data-stile="standard"] .dy-num{ font-size:64px; }
+}
+/* la testata del mese non e' la griglia del giorno */
+html[data-stile="standard"] .dy-head-month{ display:flex; gap:10px; }
+html[data-stile="standard"] .dy-head-month .dy-title-month{ order:0; flex:1; display:flex; padding:0; }
+html[data-stile="standard"] .dy-head-month .dy-title-month .dy-wd{ align-self:center; margin:0; }
+/* il riepilogo delle abitudini: diario.js gli scrive max-width 340px */
+html[data-stile="standard"] .dy-modal .dy-card{ max-width:520px !important; width:100%; }
+
+/* ------------------------------------------------------------------ */
+/* 10. IL POPUP "DIARIO DEL GIORNO" E IL FOGLIO DA LEGGERE (20/10/2026) */
+/* diario_giorno.php, aperto dal diario, dal planner e dal calendario.  */
+/* Lo stesso linguaggio della pagina: titoli pieni, gruppi grigi, le    */
+/* faccine nei colori del livello. (La pelle "habits" resta com'e'.)    */
+/* ------------------------------------------------------------------ */
+html[data-stile="standard"] .dg-ov[data-skin="planner"]{
+    --dg-r:26px; --dg-r-sm:16px;
+    --dg-lv1:#FF453A; --dg-lv2:#FF9F0A; --dg-lv3:#E0B000; --dg-lv4:#5DB52A; --dg-lv5:#22B14C;
+}
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-sheet{ background:var(--so-surface); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-grab{ width:38px; height:5px; background:var(--so-fill-2); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-head{ padding:12px 18px 10px; }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-date{ font-size:21px; font-weight:800; letter-spacing:-.02em; }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] #dgClose{
+    padding:7px 14px; border-radius:999px; font-size:14.5px; font-weight:650; color:var(--so-blue); background:var(--so-blue-wash);
+}
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-body{ padding:4px 18px 22px; }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-lab{
+    font-size:14px !important; font-weight:750; letter-spacing:-.01em !important; text-transform:none;
+    color:var(--so-text); margin:0 2px 8px;
+}
+/* umore ed energia: due gruppi uno sopra l'altro, le faccine in fila */
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-faces{ flex-direction:column; gap:10px; margin-bottom:14px; }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face-block{
+    background:var(--so-bg); border-radius:var(--dg-r-sm); padding:12px 12px 12px;
+}
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face-row{ gap:8px; justify-content:space-between; }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face{
+    --lv:var(--so-text-2);
+    max-width:52px; padding:8px; color:var(--so-text-2); background:var(--so-surface);
+    box-shadow:0 1px 2px rgba(0,0,0,.05), inset 0 0 0 .5px var(--so-hair);
+}
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face[data-level="1"]{ --lv:var(--dg-lv1); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face[data-level="2"]{ --lv:var(--dg-lv2); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face[data-level="3"]{ --lv:var(--dg-lv3); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face[data-level="4"]{ --lv:var(--dg-lv4); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face[data-level="5"]{ --lv:var(--dg-lv5); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face:hover{ color:var(--lv); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face.dg-on{
+    transform:scale(1.06); color:#fff; background:var(--lv); box-shadow:0 8px 18px -8px var(--lv);
+}
+/* gli elenchi e la scrittura: gruppi grigi */
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-field{ margin-bottom:14px; }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-list{
+    background:var(--so-bg); border-radius:var(--dg-r-sm); padding:2px 14px;
+}
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-li{ padding:3px 0; border-bottom-color:var(--so-hair); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-dot{ width:8px; height:8px; background:transparent; box-shadow:inset 0 0 0 1.5px var(--so-text-3); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-li-filled .dg-dot{ transform:none; box-shadow:none; background:var(--so-blue); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] #dgGood .dg-li-filled .dg-dot{ background:#FFB800; }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-li input{ font-size:16px; padding:9px 0; }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-text{
+    background:var(--so-bg); box-shadow:none; border-radius:var(--dg-r-sm); font-size:16px; min-height:150px;
+}
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-mic{
+    padding:6px 12px; font-size:13px; font-weight:650; color:var(--so-blue); background:var(--so-blue-wash);
+}
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-mic.dg-rec{ color:#fff; background:var(--so-red); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-foot{ gap:12px; padding-top:4px; }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-saved{ font-size:13px; font-weight:650; color:#1E9E46; }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-link{
+    margin-left:auto; padding:11px 18px; border-radius:14px; font-size:15px; font-weight:700;
+    color:#fff; background:var(--so-blue); box-shadow:0 8px 18px -10px rgba(0,122,255,.8);
+}
+
+/* il foglio da leggere (sola lettura) */
+html[data-stile="standard"] .dg-peek-ov{ background:rgba(0,0,0,.38); }
+html[data-stile="standard"] .dg-peek{
+    background:var(--so-surface); color:var(--so-text); border-radius:24px; padding:20px 20px 16px;
+    box-shadow:0 30px 70px -24px rgba(0,0,0,.5), inset 0 0 0 .5px var(--so-hair);
+    transform:scale(.94);
+}
+html[data-stile="standard"] .dg-peek-ov.dg-open .dg-peek{ transform:none; }
+html[data-stile="standard"] .dg-peek-tape{ display:none; }
+html[data-stile="standard"] .dg-peek-doodles{ color:var(--so-text-2); opacity:1; top:16px; }
+html[data-stile="standard"] .dg-peek-doodles > *{ transform:none !important; }
+html[data-stile="standard"] .dg-peek-date{ font-size:20px; font-weight:800; letter-spacing:-.02em; color:var(--so-text); }
+html[data-stile="standard"] .dg-peek-body{ background-image:none; }
+html[data-stile="standard"] .dg-peek-body p,
+html[data-stile="standard"] .dg-peek-body li{ font-size:15.5px; line-height:1.55; color:var(--so-text); }
+html[data-stile="standard"] .dg-peek-body li::before{ top:9px; width:6px; height:6px; background:var(--so-blue); }
+html[data-stile="standard"] .dg-peek-k{
+    font-size:13px !important; font-weight:750; letter-spacing:0 !important; text-transform:none;
+    color:var(--so-text-3); line-height:1.4; margin:12px 0 4px;
+}
+html[data-stile="standard"] .dg-peek-link{
+    display:inline-block; padding:9px 16px; border:none; border-radius:12px;
+    font-size:14px; font-weight:700; color:var(--so-blue); background:var(--so-blue-wash);
+}

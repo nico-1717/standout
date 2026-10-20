@@ -20,6 +20,10 @@ var FONTS = [
     { key: 'jost',      label: 'Jost',     sample: ESEMPIO }
 ];
 
+/* Lo stile della pagina (lib/stile.php): "standard" e' quello del sito,
+   "paper" la carta. Cambia la scelta della scrittura, vedi fontEff(). */
+var STD = document.documentElement.getAttribute('data-stile') === 'standard';
+
 var MOOD_WORDS   = { 1: T('diario.umore_1'), 2: T('diario.umore_2'), 3: T('diario.umore_3'), 4: T('diario.umore_4'), 5: T('diario.umore_5') };
 var ENERGY_WORDS = { 1: T('diario.energia_1'), 2: T('diario.energia_2'), 3: T('diario.energia_3'), 4: T('diario.energia_4'), 5: T('diario.energia_5') };
 
@@ -116,10 +120,23 @@ $('dyUndo').addEventListener('click', function () {
 /* ------------------------------------------------------------------ */
 /* Impostazioni: scrittura e corpo                                     */
 /* ------------------------------------------------------------------ */
+/* LA SCRITTURA NEI DUE STILI (20/10/2026)
+   Sulla carta la scrittura e' quella scelta (Caveat se mai scelta). Nello
+   stile standard il testo e' sempre stato quello di sistema: una scrittura
+   a mano vale solo se e' stata scelta DA LI', e allora si salva con il
+   prefisso "std-" (std-kalam). Cosi' chi usa lo standard non si ritrova
+   all'improvviso il corsivo, e chi torna alla carta ritrova la sua. */
+function fontEff() {
+    var k = S.settings.font || 'caveat';
+    if (STD) return k.indexOf('std-') === 0 ? k.slice(4) : 'sistema';
+    k = k.replace(/^std-/, '');
+    return k === 'sistema' ? 'jost' : k;
+}
+
 function applySettings() {
     var body = document.body;
     body.className = body.className.replace(/dy-font-\S+/g, '').replace(/dy-paper-\S+/g, '').trim();
-    body.classList.add('dy-body', 'dy-font-' + S.settings.font, 'dy-paper-' + S.settings.paper);
+    body.classList.add('dy-body', 'dy-font-' + fontEff(), 'dy-paper-' + S.settings.paper);
     document.documentElement.style.setProperty('--dy-size', S.settings.size + 'px');
     var line = Math.round(S.settings.size * 1.62);
     document.documentElement.style.setProperty('--dy-line', line + 'px');
@@ -136,10 +153,17 @@ function renderDay() {
     $('dyMonthLabel').textContent = MESI[d.getMonth()] + ' ' + d.getFullYear();
     /* non porta più via subito: apre il riepilogo, e da lì si sceglie */
 
-    $('dyMoodBtn').innerHTML = face('mood', S.day.mood, 40);
-    $('dyMoodBtn').classList.toggle('dy-set', !!S.day.mood);
-    $('dyEnergyBtn').innerHTML = face('energy', S.day.energy, 40);
-    $('dyEnergyBtn').classList.toggle('dy-set', !!S.day.energy);
+    /* Le due faccine. Nello stile standard sono due riquadri con il nome e
+       la parola del livello (dy-face-k / dy-face-v, nascosti sulla carta);
+       data-level colora il riquadro. */
+    [['dyMoodBtn', 'mood', MOOD_WORDS, 'diario.umore_k'], ['dyEnergyBtn', 'energy', ENERGY_WORDS, 'diario.energia']].forEach(function (f) {
+        var b = $(f[0]), lv = S.day[f[1]];
+        b.innerHTML = face(f[1], lv, 40)
+            + '<span class="dy-face-k">' + T(f[3]) + '</span>'
+            + '<span class="dy-face-v">' + (lv ? f[2][lv] : T('diario.tocca_per_scegliere')) + '</span>';
+        b.classList.toggle('dy-set', !!lv);
+        b.setAttribute('data-level', lv || '');
+    });
 
     disegnaAnelli(S.day.rings || []);
 
@@ -239,7 +263,9 @@ function openFacePop(kind, anchor) {
         (function (level) {
             var b = el('button', 'dy-pop-face' + (S.day[kind] === level ? ' dy-on' : ''));
             b.type = 'button';
-            b.innerHTML = face(kind, level, 46);
+            b.setAttribute('data-level', level);
+            b.innerHTML = face(kind, level, 46)
+                + '<span class="dy-pop-cap">' + (kind === 'mood' ? MOOD_WORDS : ENERGY_WORDS)[level] + '</span>';
             b.addEventListener('click', function () {
                 var before = S.day[kind];
                 var next = before === level ? null : level;
@@ -292,20 +318,26 @@ $('dyFontBtn').addEventListener('click', function () {
     if (!pop.hidden) { closePops(); return; }
     var list = $('dyFontList');
     list.innerHTML = '';
-    FONTS.forEach(function (f) {
-        var b = el('button', 'dy-font-opt' + (S.settings.font === f.key ? ' dy-on' : ''));
+    /* nello stile standard la prima scelta e' il carattere del sito */
+    var scelte = STD ? [{ key: 'sistema', label: T('diario.font_sistema'), sample: ESEMPIO }].concat(FONTS) : FONTS;
+    scelte.forEach(function (f) {
+        var b = el('button', 'dy-font-opt' + (fontEff() === f.key ? ' dy-on' : ''));
         b.type = 'button';
-        var sample = el('span', null, f.sample);
-        sample.style.fontFamily = f.key === 'caveat' ? "'Caveat', cursive"
+        var sample = el('span', 'dy-fs', f.sample);
+        var fam = f.key === 'caveat' ? "'Caveat', cursive"
             : f.key === 'kalam' ? "'Kalam', cursive"
             : f.key === 'patrick' ? "'Patrick Hand', cursive"
-            : f.key === 'cormorant' ? "'Cormorant Garamond', serif" : "'Jost', sans-serif";
+            : f.key === 'cormorant' ? "'Cormorant Garamond', serif"
+            : f.key === 'sistema' ? 'inherit' : "'Jost', sans-serif";
+        sample.style.fontFamily = fam;
+        sample.style.setProperty('--fs', fam);
         b.appendChild(sample);
         b.appendChild(el('span', null, f.label));
         b.addEventListener('click', function () {
-            S.settings.font = f.key;
+            var chiave = STD ? (f.key === 'sistema' ? 'sistema' : 'std-' + f.key) : f.key;
+            S.settings.font = chiave;
             applySettings();
-            api('settings_save', { font: f.key });
+            api('settings_save', { font: chiave });
             Array.prototype.forEach.call(list.children, function (c) { c.classList.remove('dy-on'); });
             b.classList.add('dy-on');
         });
@@ -366,6 +398,9 @@ function disegnaAnelli(dati) {
               + ' stroke-dasharray="' + C.toFixed(1) + '"'
               + ' stroke-dashoffset="' + (C * (1 - frac)).toFixed(1) + '"/>';
     }
+    /* nello stile standard una tessera senza abitudini mostra almeno la
+       corsia vuota, invece di un trattino solo */
+    if (!pezzi && STD) pezzi = '<circle class="dy-ring-track" cx="27" cy="27" r="20" stroke-width="' + DY_LARGHEZZA + '"/>';
     svg.innerHTML = pezzi;
     ring.dataset.n = dati.length;
 
