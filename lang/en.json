@@ -4099,7 +4099,9 @@
     "gs_ck_spento": "No breaks: play straight to the end.",
     "gs_ck_ogni": "A break with your results every {n} words.",
     "gs_suoni": "Sounds",
-    "gs_suoni_sub": "Little sounds for answers, streaks and records."
+    "gs_suoni_sub": "Little sounds for answers, streaks and records.",
+    "vis_piu_difficili": "Hardest first",
+    "vis_livello": "Level"
   },
   "sidebar": {
     "sezione_impara": "Learn",

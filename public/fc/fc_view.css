@@ -2198,3 +2198,53 @@ body.fc-vocab .qa-q .qa-text{ font-size:19px; font-weight:750; letter-spacing:-.
 }
 .qa-meaning-lab{ font-style:normal; font-size:10.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); margin-right:4px; }
 body.is-compact .fc-card:not(.is-open) .qa-meaning{ display:none; }
+
+/* ================================================================
+   I LIVELLI DELLE PAROLE (solo lingue) — come nel gioco
+   ================================================================
+   L'etichetta in cima a ogni carta e la fila di filtri sotto la ricerca.
+   Stessi colori del gioco (fc_game_juice.css): rosso difficile, blu in
+   corso, azzurro nuova, verde buona, oro padroneggiata. */
+.fcv-liv{
+    --c:var(--text-3, #8E8E93);
+    flex-shrink:0; display:inline-flex; align-items:center; gap:5px;
+    height:22px; padding:0 9px 0 7px; border-radius:99px;
+    font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap;
+    color:var(--c); background:color-mix(in srgb, var(--c) 15%, transparent);
+}
+.fcv-liv i, .fcv-liv-chip i{ width:7px; height:7px; border-radius:50%; background:var(--c); box-shadow:0 0 0 2px color-mix(in srgb, var(--c) 25%, transparent); }
+.fcv-liv svg{ width:12px; height:12px; }
+.fcv-liv-nuova, .fcv-liv-chip-nuova{ --c:#32ADE6; }
+.fcv-liv-difficile, .fcv-liv-chip-difficile{ --c:var(--red, #FF3B30); }
+.fcv-liv-in_corso, .fcv-liv-chip-in_corso{ --c:var(--blue, #007AFF); }
+.fcv-liv-buona, .fcv-liv-chip-buona{ --c:var(--green, #34C759); }
+.fcv-liv-padroneggiata, .fcv-liv-chip-padroneggiata{ --c:#E0A800; }
+.fcv-liv-padroneggiata{
+    color:#1C1C1E; background:linear-gradient(135deg, #FFE066, #FFC300 55%, #FF9F0A);
+    box-shadow:0 2px 8px -2px rgba(255,195,0,.5);
+}
+.card-head .fcv-liv{ margin-left:6px; }
+
+.fcv-livelli{
+    display:flex; gap:7px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+    padding:2px 16px 10px; margin:-2px 0 0;
+    scroll-padding-inline:16px;
+}
+.fcv-livelli::-webkit-scrollbar{ display:none; }
+.fcv-liv-chip{
+    flex-shrink:0; display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px;
+    border:none; border-radius:99px; cursor:pointer;
+    font:inherit; font-size:13px; font-weight:700; white-space:nowrap;
+    color:var(--text, #1C1C1E); background:var(--surface, #fff);
+    box-shadow:inset 0 0 0 .5px var(--hairline-2, rgba(60,60,67,.22));
+    transition:background .2s, color .2s, transform .15s cubic-bezier(.32,.72,0,1);
+}
+.fcv-liv-chip span{ font-size:11.5px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--text-3, #AEAEB2); }
+.fcv-liv-chip:active{ transform:scale(.95); }
+.fcv-liv-chip.is-on{ color:#fff; background:var(--c, var(--text)); box-shadow:0 4px 12px -6px var(--c, transparent); }
+.fcv-liv-chip.is-on i{ background:#fff; box-shadow:none; }
+.fcv-liv-chip.is-on span{ color:rgba(255,255,255,.8); }
+.fcv-liv-chip[data-liv=""].is-on{ --c:var(--text, #1C1C1E); color:var(--surface, #fff); }
+.fcv-liv-chip-padroneggiata.is-on{ color:#1C1C1E; background:linear-gradient(135deg, #FFE066, #FFC300 55%, #FF9F0A); }
+.fcv-liv-chip-padroneggiata.is-on i{ background:#1C1C1E; }
+.fcv-liv-chip-padroneggiata.is-on span{ color:rgba(28,28,30,.7); }

@@ -4099,7 +4099,9 @@
     "gs_ck_spento": "Nessuna pausa: si gioca fino in fondo.",
     "gs_ck_ogni": "Una pausa con i risultati ogni {n} parole.",
     "gs_suoni": "Suoni",
-    "gs_suoni_sub": "Piccoli suoni per risposte, serie e record."
+    "gs_suoni_sub": "Piccoli suoni per risposte, serie e record.",
+    "vis_piu_difficili": "Più difficili prima",
+    "vis_livello": "Livello"
   },
   "sidebar": {
     "sezione_impara": "Impara",

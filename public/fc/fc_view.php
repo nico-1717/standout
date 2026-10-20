@@ -1212,7 +1212,7 @@ if ($categoryID != 0) { $query .= " AND i.category_id = ?"; $par[] = $categoryID
 if ($categoryID == 0 && !isset($_GET['sort'])) {
     $sort = 'id_desc';
 } else {
-        $sort = sec_enum($_GET['sort'] ?? null, ['custom_asc', 'id_desc', 'id_asc', 'q_asc'], 'custom_asc');
+        $sort = sec_enum($_GET['sort'] ?? null, array_merge(['custom_asc', 'id_desc', 'id_asc', 'q_asc'], fc_is_vocab() ? ['livello'] : []), 'custom_asc');
 }
 
 $order_by = "i.custom_order ASC"; 
@@ -1251,6 +1251,53 @@ if (count($ids_array) > 0) {
 }
 
 
+
+/* I LIVELLI DELLE PAROLE (solo lingue) — gli stessi del gioco: nuova,
+   difficile, in corso, buona, padroneggiata, dalle risposte di sempre
+   (lib/fc/fc_vocab_gioco.php). Servono all'etichetta su ogni carta, al
+   filtro per livello e all'ordine "piu' difficili prima". Chiavi 'p<id>' per
+   le carte e 'c<id>' per le sottocarte. */
+$fcv_livelli = [];
+$fcv_conta_livelli = ['difficile' => 0, 'in_corso' => 0, 'nuova' => 0, 'buona' => 0, 'padroneggiata' => 0];
+if (fc_is_vocab() && $ids_array) {
+    require_once __DIR__ . '/../../lib/fc/fc_vocab_gioco.php';
+    $fcv_figli = [];
+    foreach ($images_data as $r) foreach ($r['children'] as $ch) $fcv_figli[] = (int)$ch['id'];
+    $fcv_st = fcv_stats_carte($ids_array, $fcv_figli);
+    $fcv_precisione = [];
+    foreach ($fcv_st as $k => $st) {
+        $fcv_livelli[$k] = fcv_livello($st['c'], $st['w'], $st['u']);
+        $fcv_conta_livelli[$fcv_livelli[$k]]++;
+        $fcv_precisione[$k] = ($st['c'] + $st['w']) ? $st['c'] / ($st['c'] + $st['w']) : 1;
+    }
+    /* "Piu' difficili prima": una famiglia vale quanto la sua parola piu'
+       difficile (padre o sottocarta), e a parita' conta la precisione. */
+    if ($sort === 'livello') {
+        $fcv_rango = ['difficile' => 0, 'in_corso' => 1, 'nuova' => 2, 'buona' => 3, 'padroneggiata' => 4];
+        $fcv_peso = function (array $r) use ($fcv_livelli, $fcv_precisione, $fcv_rango) {
+            $chiavi = ['p' . (int)$r['id']];
+            foreach ($r['children'] as $ch) $chiavi[] = 'c' . (int)$ch['id'];
+            $rango = 9; $prec = 1;
+            foreach ($chiavi as $k) {
+                $rk = $fcv_rango[$fcv_livelli[$k] ?? 'nuova'];
+                if ($rk < $rango || ($rk === $rango && ($fcv_precisione[$k] ?? 1) < $prec)) { $rango = $rk; $prec = $fcv_precisione[$k] ?? 1; }
+            }
+            return [$rango, $prec];
+        };
+        uasort($images_data, function ($a, $b) use ($fcv_peso) { return $fcv_peso($a) <=> $fcv_peso($b); });
+        $ids_array = array_keys($images_data);
+    }
+}
+
+/** L'etichetta del livello di una carta (vuota fuori dalle lingue). */
+function fcv_etichetta_livello(string $chiave): string {
+    global $fcv_livelli;
+    if (!isset($fcv_livelli[$chiave])) return '';
+    $liv = $fcv_livelli[$chiave];
+    return '<span class="fcv-liv fcv-liv-' . $liv . '">'
+         . ($liv === 'padroneggiata' ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.5 2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.6l-6 3.3 1.3-6.7-5-4.7 6.8-.8Z"/></svg>' : '<i></i>')
+         . sec_h(t('fcv.liv_' . $liv)) . '</span>';
+}
 
 // Conteggio esempi reali: due liste separate (padri e figli), perche' ora
 // sono due colonne diverse in fc_study_examples (parent_id / child_id), non piu'
@@ -1733,6 +1780,7 @@ function render_audio_player($src) {
    l'elenco in una volta (la ricerca, il filtro di stato).
    ========================================================================== */
 function fc_stampa_gruppi($da, $quanti) {
+    global $fcv_livelli;
     global $images_data, $categoryID, $global_fc_counts, $examples_counts,
            $parent_reorder_enabled, $child_reorder_enabled, $current_user_id;
 
@@ -1794,7 +1842,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                          data-edit-url="<?= sec_h(fc_url('fc_card_edit.php', ['fc_id' => (int)$row['id'], 'previous_catid' => (int)$categoryID])) ?>"
 
-                         data-child-count="<?= (int)$childCount ?>">
+                         data-child-count="<?= (int)$childCount ?>"<?php if (isset($fcv_livelli['p' . (int)$row['id']])): ?> data-livello="<?= sec_h($fcv_livelli['p' . (int)$row['id']]) ?>"<?php endif; ?>>
 
 
 
@@ -1850,7 +1898,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                                 </label>
 
-                                <div class="card-head-spacer"></div>
+                                <div class="card-head-spacer"></div><?= fcv_etichetta_livello('p' . (int)$row['id']) ?>
 
                                 <?php if ($isDuplicate): ?><span class="dup-badge"><?php te('fc.vis_duplicato'); ?></span><?php endif; ?>
 
@@ -1950,7 +1998,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                         <div class="fc-card fc-child" data-id="<?= (int)$child['id'] ?>" data-type="child" data-parent-id="<?= (int)$row['id'] ?>"
 
-                             data-search="<?= sec_h($searchChild) ?>" data-duplicate="false" data-reorderable="<?= $child_reorder_enabled ? '1' : '0' ?>"
+                             data-search="<?= sec_h($searchChild) ?>" data-duplicate="false" data-reorderable="<?= $child_reorder_enabled ? '1' : '0' ?>"<?php if (isset($fcv_livelli['c' . (int)$child['id']])): ?> data-livello="<?= sec_h($fcv_livelli['c' . (int)$child['id']]) ?>"<?php endif; ?>
 
                              data-edit-url="<?= sec_h(fc_url('fc_card_edit.php', ['child_id' => (int)$child['id'], 'previous_catid' => (int)$categoryID])) ?>">
 
@@ -1992,7 +2040,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                                     </label>
 
-                                    <div class="card-head-spacer"></div>
+                                    <div class="card-head-spacer"></div><?= fcv_etichetta_livello('c' . (int)$child['id']) ?>
 
                                 </div>
 
@@ -2326,6 +2374,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
                 <option value="id_asc" <?= $sort == 'id_asc' ? 'selected' : '' ?>><?php te('fc.vis_id_meno_recenti'); ?></option>
 
                 <option value="q_asc" <?= $sort == 'q_asc' ? 'selected' : '' ?>><?php te('fc.vis_domanda_az'); ?></option>
+                <?php if (fc_is_vocab()): ?><option value="livello" <?= $sort == 'livello' ? 'selected' : '' ?>><?php te('fcv.vis_piu_difficili'); ?></option><?php endif; ?>
 
             </select>
 
@@ -2346,6 +2395,18 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
         </button>
 
     </div>
+    <?php if (fc_is_vocab() && array_sum($fcv_conta_livelli) > 0): ?>
+    <?php /* IL FILTRO PER LIVELLO (solo lingue): tutte, o solo le parole di un
+             livello. I livelli senza parole non compaiono. Il numero accanto
+             conta carte e sottocarte. Si combina con la ricerca e con il filtro
+             delle impostazioni (imparate / da imparare). */ ?>
+    <div class="fcv-livelli" id="fcvLivelli" role="radiogroup" aria-label="<?php te('fcv.vis_livello'); ?>">
+        <button type="button" class="fcv-liv-chip is-on" data-liv="" role="radio" aria-checked="true"><?php te('fc.vis_tutte_carte'); ?></button>
+        <?php foreach ($fcv_conta_livelli as $liv => $n): if (!$n) continue; ?>
+        <button type="button" class="fcv-liv-chip fcv-liv-chip-<?= $liv ?>" data-liv="<?= $liv ?>" role="radio" aria-checked="false"><i></i><?php te('fcv.liv_' . $liv); ?><span><?= (int)$n ?></span></button>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
 
 
 
@@ -3672,6 +3733,22 @@ function animateCounter(target){
 
 
 
+/* Il filtro per livello delle parole (la fila di pastiglie sotto la ricerca). */
+var fcvLivelloScelto = '';
+document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('#fcvLivelli .fcv-liv-chip');
+    if (!b) return;
+    fcvLivelloScelto = b.getAttribute('data-liv') || '';
+    document.querySelectorAll('#fcvLivelli .fcv-liv-chip').forEach(function (x) {
+        var on = x === b;
+        x.classList.toggle('is-on', on);
+        x.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    try { b.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' }); } catch (err) {}
+    visibleLimit = 30;
+    filterList();
+});
+
 function filterList(){
     const statusFilter = document.getElementById('filterStatus').value;
     const textFilter = document.getElementById('filterText').value.toLowerCase().trim();
@@ -3682,6 +3759,8 @@ function filterList(){
         if (!card) return false;
         const cb = card.querySelector('.select-circle input');
         if (selecting && cb && cb.checked) return true;
+        /* il livello della parola (lingue): una carta senza livello non passa */
+        if (fcvLivelloScelto && card.getAttribute('data-livello') !== fcvLivelloScelto) return false;
         const isLearnt = card.classList.contains('is-learnt');
         const isDup = card.getAttribute('data-duplicate') === 'true';
         const isChild = card.classList.contains('fc-child');
@@ -3722,7 +3801,7 @@ function filterList(){
        l'aria di essere giusta. Si chiede il resto e si rifa' il conto appena
        arriva; intanto si filtra quello che c'e' gia', cosi' la pagina risponde
        subito invece di restare ferma ad aspettare. */
-    if (!fcTutteCaricate && (textFilter !== '' || statusFilter !== 'all')) {
+    if (!fcTutteCaricate && (textFilter !== '' || statusFilter !== 'all' || fcvLivelloScelto)) {
         fcCaricaAltreCarte(true);
     }
 
