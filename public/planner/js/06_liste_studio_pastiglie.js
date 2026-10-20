@@ -145,7 +145,7 @@ function weekStudyCard() {
     var head = el('div', 'pl-list-head');
     head.appendChild(el('div', 'pl-list-title pl-serif', LIST_LABEL['study'] || 'study'));
     var link = el('a', 'pl-wl-link', T('planner.apri_2'));
-    link.href = 'to_study.php';
+    link.href = '../projects/progetti.php?view=cal';   // lo studio ora è il calendario dei progetti
     head.appendChild(link);
     card.appendChild(head);
 

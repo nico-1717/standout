@@ -17,10 +17,20 @@ require_once __DIR__ . '/../../lib/stile.php';   // standard | paper (Diario, Pl
 
 $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();   // la vogliono sidebar.php e project_selector.php
+
+/* Questa pagina ora vive dentro Progetti: è la vista «Calendario» di
+   «Tutti». Aperta da sola (un vecchio segnalibro, un link) ci si porta là;
+   dentro la cornice di Progetti arriva con ?embed=1 e lascia fuori il menu
+   laterale e il profilo, che la pagina intorno ha già. */
+$embed = !empty($_GET['embed']);
+if (!$embed) {
+    header('Location: ' . PWA_BASE . 'projects/progetti.php?view=cal');
+    exit;
+}
 date_default_timezone_set('Europe/Rome');
 ?>
 <!DOCTYPE html>
-<html lang="<?php echo sec_h(standout_lingua()); ?>" <?php echo standout_stile_attr(); ?>>
+<html lang="<?php echo sec_h(standout_lingua()); ?>" <?php echo standout_stile_attr(); ?> class="ts-embed">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -60,7 +70,6 @@ date_default_timezone_set('Europe/Rome');
         <input type="checkbox" id="tsPlannerOn" aria-label="<?php te('todo.study_planner'); ?>">
         <button type="button" class="ts-planner-btn" id="tsPlanner"><?php te('todo.study_planner'); ?></button>
     </div>
-    <?php /* pallino del profilo, in fila con i pulsanti dell'intestazione */ $fr_widget_inline = true; include __DIR__ . '/../partials/notifiche_widget.php'; ?>
 </header>
 
 <!-- Il calendario. Scorrendo in orizzontale si cambia mese: qui non c'è la
@@ -178,8 +187,6 @@ $ps_show_all_option = true; $ps_all_option_label = t('todo.nessun_progetto'); $p
 $ps_render_trigger = false;   // serve solo il popup: il pulsante lo apre il foglio
 $ps_hidden_name = 'study_project_id';
 include __DIR__ . '/../projects/project_selector.php';
-
-include __DIR__ . '/../partials/sidebar.php';
 ?>
 </body>
 </html>

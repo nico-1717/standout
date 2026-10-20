@@ -771,6 +771,9 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 .pr-act svg{ width:16px; height:16px; flex-shrink:0; }
 .pr-act:active{ transform:scale(.97); filter:brightness(.95); }
 .pr-act-focus{ flex:1; background:var(--accent); color:var(--accent-ink, #fff); }
+.pr-act-focus{ min-width:0; }
+.pr-hero-actions.is-stretta .pr-act:not(.pr-act-focus){ width:42px; padding:0; flex:none; }
+.pr-hero-actions.is-stretta .pr-act:not(.pr-act-focus) span{ display:none; }
 .pr-act-focus [data-pomo-live]{ font-variant-numeric:tabular-nums; }
 .pr-act-live{ width:8px; height:8px; border-radius:50%; background:currentColor; animation:prPulse 1.6s ease-in-out infinite; }
 @keyframes prPulse{ 50%{ opacity:.35; } }
@@ -982,3 +985,95 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
     .pr-act-focus{ flex:0 0 auto; padding:0 18px; }
     .pr-hero-title{ font-size:28px; }
 }
+
+/* ======================================================================
+   IL PIANO DI STUDIO (quello che era «to study»)
+   ====================================================================== */
+/* nelle righe: le date di studio, con un piccolo calendario davanti */
+.pr-mi-studio{ display:inline-flex; align-items:center; gap:4px; }
+.pr-mi-ic{ width:12px; height:12px; flex-shrink:0; color:var(--row-color, var(--text-3)); }
+
+/* la scheda del piano, sotto quella del progetto */
+.pr-piano{ display:flex; flex-direction:column; gap:6px; width:100%; margin-top:12px; padding:14px 16px;
+    border:none; border-radius:20px; background:var(--surface); box-shadow:var(--shadow-soft);
+    text-align:left; font:inherit; color:var(--text); cursor:pointer; -webkit-tap-highlight-color:transparent;
+    transition:transform .15s var(--spring); }
+.pr-piano:active{ transform:scale(.99); }
+.pr-piano-tit{ display:flex; align-items:center; justify-content:space-between; font-size:12.5px; font-weight:600;
+    letter-spacing:.05em; text-transform:uppercase; color:var(--text-2); }
+.pr-piano-chev{ width:14px; height:14px; color:var(--text-3); }
+.pr-piano-chiave{ display:flex; align-items:center; gap:7px; font-size:15.5px; flex-wrap:wrap; }
+.pr-piano-chiave svg{ width:15px; height:15px; color:var(--accent, var(--blue)); flex-shrink:0; }
+.pr-piano-chiave b{ font-weight:600; }
+.pr-piano-chiave span{ color:var(--text-2); }
+.pr-piano-chiave.is-vicina span{ color:var(--orange); font-weight:600; }
+.pr-piano-stato{ font-size:13.5px; color:var(--text-2); line-height:1.4; }
+.pr-piano-stato:empty{ display:none; }
+.pr-piano-sem{ display:inline-block; padding:1px 8px; border-radius:99px; font-size:12px; font-weight:700; margin-right:4px; }
+.pr-piano-sem.is-verde{ background:color-mix(in srgb, var(--green) 16%, transparent); color:var(--green); }
+.pr-piano-sem.is-giallo{ background:color-mix(in srgb, var(--orange) 18%, transparent); color:var(--orange); }
+.pr-piano-sem.is-rosso{ background:color-mix(in srgb, var(--red) 15%, transparent); color:var(--red); }
+.pr-piano-riga{ display:flex; justify-content:space-between; gap:10px; font-size:13.5px; color:var(--text-2); }
+.pr-piano-bar{ height:4px; border-radius:99px; background:var(--surface-2); overflow:hidden; }
+.pr-piano-bar i{ display:block; height:100%; border-radius:99px; background:var(--accent, var(--blue)); }
+.pr-piano-sett{ font-size:13.5px; color:var(--text); line-height:1.4; }
+
+/* il foglio del piano */
+.pr-piano-sheet .pr-sheet-title small{ display:block; font-size:13px; font-weight:500; color:var(--text-3); margin-top:1px; }
+.pr-pi-grp{ margin-top:16px; }
+.pr-pi-grp:first-child{ margin-top:4px; }
+.pr-pi-h{ margin:0 4px 6px; font-size:12.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--text-2); }
+.pr-pi-sub{ margin:-2px 4px 8px; font-size:13px; line-height:1.4; color:var(--text-3); }
+.pr-pi-center{ text-align:center; margin-top:8px; }
+.pr-pi-card{ background:var(--surface-2); border-radius:14px; padding:6px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.pr-pi-in{ flex:1 1 110px; min-width:0; height:42px; padding:0 12px; border:none; border-radius:10px;
+    background:var(--surface); color:var(--text); font:inherit; font-size:16px; }
+.pr-pi-in:focus{ outline:2px solid color-mix(in srgb, var(--accent, var(--blue)) 45%, transparent); outline-offset:0; }
+.pr-pi-data{ flex:0 1 150px; }
+.pr-pi-togli{ width:42px; height:42px; flex:none; padding:0; border:none; border-radius:10px; background:none; color:var(--red);
+    display:grid; place-items:center; cursor:pointer; }
+.pr-pi-togli svg{ width:18px; height:18px; }
+.pr-pi-periodo{ flex-wrap:nowrap; }
+.pr-pi-campo{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:3px; padding:4px 4px 2px; font-size:12px; color:var(--text-3); }
+.pr-pi-campo .pr-pi-data{ flex:none; width:100%; }
+.pr-pi-lista{ display:block; padding:0; overflow:hidden; }
+.pr-pi-arg{ position:relative; display:flex; align-items:center; gap:11px; min-height:50px; padding:6px 10px 6px 12px; }
+.pr-pi-arg + .pr-pi-arg::before{ content:''; position:absolute; top:0; left:46px; right:0; border-top:.5px solid var(--hairline); }
+.pr-pi-arg.is-busy{ opacity:.55; pointer-events:none; }
+.pr-pi-chk{ width:24px; height:24px; flex-shrink:0; border-radius:7px; padding:0; cursor:pointer;
+    border:1.8px solid var(--text-3); background:none; color:#fff; display:grid; place-items:center; }
+.pr-pi-chk svg{ width:15px; height:15px; opacity:0; }
+.pr-pi-arg.is-dentro .pr-pi-chk{ background:var(--accent, var(--blue)); border-color:var(--accent, var(--blue)); }
+.pr-pi-arg.is-dentro .pr-pi-chk svg{ opacity:1; }
+.pr-pi-arg-t{ flex:1; min-width:0; display:flex; flex-direction:column; cursor:pointer; }
+.pr-pi-arg-n{ font-size:15.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pr-pi-arg-t small{ font-size:12.5px; color:var(--text-3); }
+.pr-pi-arg.is-fatto .pr-pi-arg-n{ color:var(--text-3); text-decoration:line-through; }
+.pr-pi-stima{ display:flex; align-items:center; gap:2px; flex-shrink:0; }
+.pr-pi-st-b{ width:30px; height:30px; border:none; border-radius:9px; background:var(--surface); color:var(--text-2);
+    font:inherit; font-size:18px; line-height:1; cursor:pointer; }
+.pr-pi-st-n{ min-width:24px; text-align:center; font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
+.pr-pi-st-n.is-vuota{ color:var(--text-3); font-weight:500; }
+.pr-pi-vuoto{ margin:0 4px; font-size:14px; color:var(--text-3); }
+.pr-pi-auto{ display:block; width:100%; height:46px; border:none; border-radius:13px; cursor:pointer;
+    background:var(--accent, var(--blue)); color:var(--accent-ink, #fff); font:inherit; font-size:16px; font-weight:600; }
+.pr-pi-auto:disabled{ opacity:.55; }
+.pr-pi-applica{ margin-top:10px; }
+.pr-pi-esito{ margin-top:6px; }
+.pr-pi-riassunto{ margin:8px 4px; font-size:14.5px; line-height:1.45; }
+.pr-pi-avviso{ margin:8px 4px; font-size:14px; line-height:1.4; color:var(--orange); }
+.pr-pi-anteprima{ display:block; padding:2px 0; }
+.pr-pi-ant{ display:flex; justify-content:space-between; gap:12px; padding:9px 12px; font-size:14.5px; }
+.pr-pi-ant + .pr-pi-ant{ border-top:.5px solid var(--hairline); }
+.pr-pi-ant small{ color:var(--text-2); font-size:13px; white-space:nowrap; }
+.pr-pi-link{ display:block; margin:18px 0 6px; text-align:center; font-size:14.5px; font-weight:600; color:var(--accent, var(--blue)); text-decoration:none; }
+
+/* «Tutti»: elenco o calendario */
+.pr-seg{ display:flex; gap:2px; padding:3px; margin:4px 0 12px; border-radius:11px; background:color-mix(in srgb, var(--text) 7%, transparent); }
+.pr-seg-it{ flex:1; text-align:center; padding:7px 10px; border-radius:9px; font-size:14px; font-weight:600;
+    color:var(--text-2); text-decoration:none; }
+.pr-seg-it.on{ background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+.pr-cal-frame{ display:block; width:calc(100% + 32px); margin:0 -16px; border:0; height:70vh; background:transparent; }
+@media (min-width:1024px){ .pr-cal-frame{ width:100%; margin:0; } }
+.pr-pi-ant em{ display:block; font-style:normal; font-size:12.5px; color:var(--red); margin-top:1px; }
+.pr-pi-ant.is-tardi small{ color:var(--red); }

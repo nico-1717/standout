@@ -580,3 +580,10 @@ body.ts-trascino .ts-barra{ cursor:grabbing; }
 @media (prefers-reduced-motion: reduce){
     *{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
 }
+
+/* ---- dentro Progetti (vista «Calendario» di «Tutti») ----
+   La pagina sta in una cornice sotto l'intestazione dei progetti: niente
+   margine per la barra di stato (ce l'ha già la pagina intorno) e lo sfondo
+   trasparente, così si legge come un pezzo della stessa pagina. */
+html.ts-embed, html.ts-embed body{ background:transparent !important; }
+html.ts-embed body{ padding-top:2px; }

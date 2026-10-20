@@ -670,7 +670,7 @@ if (!function_exists('prog_build_branch')) {
 
 $byId = [];
 $childrenOf = [];
-foreach (sec_all("SELECT id, parent_id, name, notes, color, color_edited, status, custom_order, created_at, is_favorite, todo_enabled, target_date AS data_obiettivo, due_date AS data_scadenza FROM projects WHERE user_id = ? ORDER BY custom_order ASC, id ASC",
+foreach (sec_all("SELECT id, parent_id, name, notes, color, color_edited, status, custom_order, created_at, is_favorite, todo_enabled, target_date AS data_obiettivo, due_date AS data_scadenza, study_event_id, study_start, study_end, study_pomodori_stimati, study_ripasso_di FROM projects WHERE user_id = ? ORDER BY custom_order ASC, id ASC",
                  [(int)$current_user_id]) as $row) {
     $row['children'] = [];
     $row['stato'] = $row['status']; // Mappa retrocompatibile per le funzioni interne
@@ -892,12 +892,16 @@ foreach ($rootIds as $rid) { if (isset($byId[$rid])) $rootProjects[] = $byId[$ri
 /* La vista "Preferiti": non è un progetto vero, è un elenco costruito al
    volo con i progetti segnati con la stellina. I loro sottoprogetti si
    aprono come sempre, così si arriva in fondo senza cambiare pagina. */
-$vista = sec_enum($_GET['view'] ?? null, ['fav', 'all'], '');
+$vista = sec_enum($_GET['view'] ?? null, ['fav', 'all', 'cal'], '');
 $viewFavorites = $vista === 'fav';
 /* «Tutti»: la prima pastiglia. Un elenco calmo di ogni progetto, con quanto
    manca, la scadenza e il tempo speso. Prende il posto del cassetto laterale e
    della pastiglia dei preferiti: due cose diventano una. */
-$viewAll = $vista === 'all';
+$viewAll = $vista === 'all' || $vista === 'cal';
+/* Il calendario di tutti i progetti: quello che era la pagina «to study».
+   Sta dentro «Tutti», accanto all'elenco, perché è lo stesso insieme di
+   progetti visto nel tempo invece che in fila. */
+$viewCal = $vista === 'cal';
 $favProjects = [];
 foreach ($byId as $fid => $fp) {
     if ((int)($fp['is_favorite'] ?? 0) === 1) $favProjects[] = (int)$fid;
@@ -1000,6 +1004,16 @@ function prog_data_breve($ymd): string {
     return $s;
 }
 
+/* «19–30 ott» se il mese è lo stesso, «28 ott – 3 nov» altrimenti. */
+function prog_intervallo_breve($da, $a): string {
+    $ta = strtotime((string)$da); $tb = strtotime((string)$a);
+    if ($ta === false || $tb === false) return '';
+    if (date('Y-m', $ta) === date('Y-m', $tb)) {
+        return (int)date('j', $ta) . '–' . prog_data_breve($a);
+    }
+    return prog_data_breve($da) . ' – ' . prog_data_breve($a);
+}
+
 /* Il colore del testo sopra il colore di un progetto: bianco quasi sempre,
    scuro sui colori chiari (un giallo con la scritta bianca non si legge). */
 function prog_inchiostro($hex): string {
@@ -1096,7 +1110,13 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
     $correDentro = !$corre && isset($pomoRamo[$id]);
     $statsAttr = ' data-stats-id="' . $id . '" data-stats-nome="' . $nameEsc . '" data-stats-colore="' . sec_h($color) . '"'
                . ' onclick="event.stopPropagation(); prOpenStats(+this.dataset.statsId, this.dataset.statsNome, this.dataset.statsColore)"';
-    $haMeta = $dateTags || $nTot > 0 || $durata !== '' || $cat || $corso || $noteEsc !== '';
+    /* Le date di studio (il piano): «19–30 ott», con l'icona del calendario. */
+    $studio = '';
+    if (!empty($node['study_start'])) {
+        $sa = (string)$node['study_start']; $sb = !empty($node['study_end']) ? (string)$node['study_end'] : $sa;
+        $studio = $sa === $sb ? prog_data_breve($sa) : prog_intervallo_breve($sa, $sb);
+    }
+    $haMeta = $dateTags || $nTot > 0 || $durata !== '' || $cat || $corso || $noteEsc !== '' || $studio !== '';
     ?>
     <div class="pr-row-wrap" data-id="<?php echo $id; ?>" data-parent="<?php echo (int)($node['parent_id'] ?? 0); ?>" style="--row-color:<?php echo sec_h($color); ?>;">
         <div class="pr-row" data-id="<?php echo $id; ?>">
@@ -1128,6 +1148,7 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                             echo sec_h(t($dt['campo'] === 'scadenza' ? 'progetti.meta_scadenza' : 'progetti.meta_obiettivo', ['d' => $dt['label']]));
                         ?></span>
                         <?php endforeach; ?>
+                        <?php if ($studio !== ''): ?><span class="pr-mi pr-mi-studio"><svg class="pr-mi-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><?php echo sec_h($studio); ?></span><?php endif; ?>
                         <?php if ($nTot > 0): ?><span class="pr-mi"><?php echo sec_h(t('progetti.n_di_m', ['n' => $nFatti, 'm' => $nTot])); ?></span><?php endif; ?>
                         <?php if ($durata !== ''): ?><span class="pr-mi pr-duration"><?php echo sec_h($durata); ?></span><?php endif; ?>
                         <?php if ($cat): ?>
@@ -1298,7 +1319,23 @@ echo standout_i18n_json(['comune', 'progetti', 'pomodoro', 'todo']);
         <div><?php te('progetti.crea_il_tuo_primo_progetto'); ?></div>
         <button type="button" class="pr-btn-create-first" onclick="prNuovoProgetto(this)"><?php te('progetti.crea_progetto'); ?></button>
     </div>
+<?php elseif ($viewCal): ?>
+    <?php /* Elenco o calendario: lo stesso insieme di progetti, in fila o nel tempo. */ ?>
+    <nav class="pr-seg" aria-label="<?php te('progetti.tutti'); ?>">
+        <a class="pr-seg-it<?php echo $viewCal ? '' : ' on'; ?>" href="progetti.php?view=all"><?php te('progetti.vista_elenco'); ?></a>
+        <a class="pr-seg-it<?php echo $viewCal ? ' on' : ''; ?>" href="progetti.php?view=cal"><?php te('progetti.vista_calendario'); ?></a>
+    </nav>
+    <?php /* Il calendario di tutti i progetti: la pagina dello studio, dentro
+             i progetti. Vive in una cornice perché ha il suo modo di toccare e
+             trascinare i giorni, che qui sotto non deve litigare con quello
+             delle righe; per chi la usa è solo la vista «Calendario». */ ?>
+    <iframe class="pr-cal-frame" id="prCalFrame" src="../planner/to_study.php?embed=1" title="<?php te('progetti.vista_calendario'); ?>"></iframe>
 <?php elseif ($viewAll || !$selectedProject): ?>
+    <?php /* Elenco o calendario: lo stesso insieme di progetti, in fila o nel tempo. */ ?>
+    <nav class="pr-seg" aria-label="<?php te('progetti.tutti'); ?>">
+        <a class="pr-seg-it<?php echo $viewCal ? '' : ' on'; ?>" href="progetti.php?view=all"><?php te('progetti.vista_elenco'); ?></a>
+        <a class="pr-seg-it<?php echo $viewCal ? ' on' : ''; ?>" href="progetti.php?view=cal"><?php te('progetti.vista_calendario'); ?></a>
+    </nav>
     <?php
     /* ======================================================================
        TUTTI I PROGETTI
@@ -1433,6 +1470,72 @@ if ($deckProprio) {
                . ' onclick="prOpenStats(+this.dataset.statsId, this.dataset.statsNome, this.dataset.statsColore)"';
     $vuoiFigliAperti = false;
     foreach ($selectedTree['children'] ?? [] as $fc) { if (!empty($fc['children'])) { $vuoiFigliAperti = true; break; } }
+
+    /* ======================================================================
+       IL PIANO DI STUDIO DI QUESTO PROGETTO
+       Quello che prima si faceva solo nella pagina «to study», visto da qui:
+       la data importante (l'esame, la consegna), il periodo in cui si studia
+       e quali sotto-progetti ci stanno dentro. I dati sono gli stessi — eventi
+       del planner nel calendario dello studio, sotto-progetti con le loro
+       date — quindi il calendario di tutti i progetti mostra le stesse cose.
+       ====================================================================== */
+    $uidP = (int)$current_user_id;
+    $pianoCalR = sec_one("SELECT id FROM planner_calendars WHERE user_id = ? AND role = 'study' LIMIT 1", [$uidP], 'i');
+    $pianoCalId = $pianoCalR ? (int)$pianoCalR['id'] : 0;
+    $pianoChiavi = sec_all("SELECT id, title, event_date FROM planner_events
+                            WHERE user_id = ? AND project_id = ? AND importance <> 'normal'
+                              AND rrule IS NULL AND COALESCE(is_cancelled, 0) = 0
+                              AND event_date >= CURDATE()
+                            ORDER BY event_date, id LIMIT 5", [$uidP, $selId], 'ii');
+    $pianoChiave = $pianoChiavi[0] ?? null;
+    $pianoChiaveGiorni = $pianoChiave
+        ? max(0, (int)round((strtotime($pianoChiave['event_date']) - strtotime(date('Y-m-d'))) / 86400)) : 0;
+    $pianoBlocchi = $pianoCalId ? sec_all("SELECT id, title, event_date AS da, COALESCE(end_date, event_date) AS a
+                            FROM planner_events
+                            WHERE user_id = ? AND project_id = ? AND calendar_id = ? AND importance = 'normal'
+                              AND rrule IS NULL AND COALESCE(is_cancelled, 0) = 0
+                              AND COALESCE(end_date, event_date) >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
+                            ORDER BY event_date, id", [$uidP, $selId, $pianoCalId], 'iii') : [];
+
+    /* I sotto-progetti, in ordine d'albero e con la loro profondità: sono gli
+       argomenti che si possono mettere nel piano. I ripassi no — li crea il
+       piano da sé, non si scelgono. */
+    $pianoArgomenti = [];
+    $pianoTot = 0; $pianoFatti = 0; $pianoSettimana = [];
+    $lun = date('Y-m-d', strtotime('monday this week')); $dom = date('Y-m-d', strtotime('sunday this week'));
+    $visita = function ($pid, $prof) use (&$visita, &$pianoArgomenti, &$pianoTot, &$pianoFatti, &$pianoSettimana, $childrenOf, $byId, $lun, $dom) {
+        foreach ($childrenOf[$pid] ?? [] as $cid) {
+            $c = $byId[$cid] ?? null;
+            if (!$c) continue;
+            if (!empty($c['study_ripasso_di'])) continue;
+            $dentro = !empty($c['study_event_id']);
+            $fatto = $c['status'] === 'completed';
+            $da = $c['study_start'] ?? null;
+            $a = !empty($c['study_end']) ? $c['study_end'] : $da;
+            $pianoArgomenti[] = [
+                'id' => (int)$cid, 'nome' => (string)$c['name'], 'prof' => $prof, 'fatto' => $fatto,
+                'dentro' => $dentro, 'ev' => $dentro ? (int)$c['study_event_id'] : 0,
+                'da' => $da, 'a' => $a,
+                'stima' => $c['study_pomodori_stimati'] !== null ? (int)$c['study_pomodori_stimati'] : null,
+                'figli' => !empty($childrenOf[$cid]),
+            ];
+            if ($dentro) {
+                $pianoTot++;
+                if ($fatto) $pianoFatti++;
+                elseif ($da && $da <= $dom && $a >= $lun && count($pianoSettimana) < 3) $pianoSettimana[] = (string)$c['name'];
+            }
+            $visita((int)$cid, $prof + 1);
+        }
+    };
+    $visita($selId, 0);
+    $pianoMostra = $pianoChiave || $pianoBlocchi || $pianoTot > 0;
+    $pianoJs = [
+        'id' => $selId,
+        'nome' => (string)$selectedProject['name'],
+        'chiave' => $pianoChiave ? ['id' => (int)$pianoChiave['id'], 'titolo' => (string)$pianoChiave['title'], 'data' => (string)$pianoChiave['event_date']] : null,
+        'blocchi' => array_map(function ($b) { return ['id' => (int)$b['id'], 'da' => (string)$b['da'], 'a' => (string)$b['a']]; }, $pianoBlocchi),
+        'argomenti' => $pianoArgomenti,
+    ];
 ?>
     <?php
     /* ======================================================================
@@ -1538,11 +1641,46 @@ if ($deckProprio) {
                 <?php echo prog_timer_svg(); ?><span><?php te('progetti.concentrati'); ?></span>
                 <?php endif; ?>
             </button>
-            <button type="button" class="pr-act" onclick="prAggiungi(<?php echo $selId; ?>)">
+            <button type="button" class="pr-act" onclick="prAggiungi(<?php echo $selId; ?>)" aria-label="<?php te('progetti.aggiungi'); ?>">
                 <?php echo prog_piu_svg(); ?><span><?php te('progetti.aggiungi'); ?></span>
+            </button>
+            <button type="button" class="pr-act" onclick="prApriPiano()" aria-label="<?php te('progetti.piano'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span><?php te('progetti.piano'); ?></span>
             </button>
         </div>
     </div>
+
+    <?php if ($pianoMostra): ?>
+    <?php /* IL PIANO, IN BREVE: la data che conta, se ce la fai, quando si studia
+             e cosa tocca questa settimana. Un tocco apre il piano intero. */ ?>
+    <button type="button" class="pr-piano" onclick="prApriPiano()">
+        <span class="pr-piano-tit"><?php te('progetti.piano_titolo'); ?>
+            <svg class="pr-piano-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </span>
+        <?php if ($pianoChiave): ?>
+        <span class="pr-piano-chiave<?php echo $pianoChiaveGiorni <= 7 ? ' is-vicina' : ''; ?>">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3.2l2.6 5.5 6 .7-4.5 4.1 1.2 5.9L12 16.5l-5.3 2.9 1.2-5.9-4.5-4.1 6-.7z"/></svg>
+            <b><?php echo sec_h($pianoChiave['title']); ?></b>
+            <span><?php echo sec_h(prog_data_breve($pianoChiave['event_date'])); ?> · <?php
+                echo sec_h($pianoChiaveGiorni === 0 ? t('progetti.piano_oggi') : ($pianoChiaveGiorni === 1 ? t('progetti.piano_domani') : t('progetti.piano_tra_n', ['n' => $pianoChiaveGiorni])));
+            ?></span>
+        </span>
+        <?php endif; ?>
+        <span class="pr-piano-stato" id="prPianoStato"<?php echo $pianoChiave ? '' : ' data-vuoto="1"'; ?>><?php
+            if (!$pianoChiave) te('progetti.piano_senza_data');
+        ?></span>
+        <?php if ($pianoBlocchi || $pianoTot > 0): ?>
+        <span class="pr-piano-riga">
+            <?php if ($pianoBlocchi): ?><span><?php echo sec_h(prog_intervallo_breve($pianoBlocchi[0]['da'], $pianoBlocchi[0]['a'])); ?></span><?php endif; ?>
+            <?php if ($pianoTot > 0): ?><span><?php echo sec_h($pianoTot === 1 ? t('progetti.piano_n_di_1', ['n' => $pianoFatti]) : t('progetti.piano_n_di_m', ['n' => $pianoFatti, 'm' => $pianoTot])); ?></span><?php endif; ?>
+        </span>
+        <?php if ($pianoTot > 0): ?><span class="pr-piano-bar"><i style="width:<?php echo (int)round($pianoFatti * 100 / $pianoTot); ?>%"></i></span><?php endif; ?>
+        <?php endif; ?>
+        <?php if ($pianoSettimana): ?>
+        <span class="pr-piano-sett"><?php echo sec_h(t('progetti.piano_settimana', ['cosa' => implode(', ', $pianoSettimana)])); ?></span>
+        <?php endif; ?>
+    </button>
+    <?php endif; ?>
 
     <?php if (!empty($selectedTree['children'])): ?>
     <?php /* L'etichetta porta anche gli strumenti dell'elenco — scegliere,
@@ -1711,6 +1849,21 @@ if ($deckProprio) {
             </div>
         </div>
     </div>
+
+    <?php /* IL PIANO DI STUDIO: il foglio lo riempie il JS (prApriPiano). */ ?>
+    <div class="pr-sheet-overlay" id="prPianoOv" onclick="if(event.target===this) prChiudiPiano();">
+        <div class="pr-sheet pr-piano-sheet" role="dialog" aria-modal="true" aria-labelledby="prPianoTit" style="--accent:<?php echo sec_h($accent); ?>;">
+            <div class="pr-sheet-grabber"></div>
+            <div class="pr-sheet-head">
+                <div class="pr-sheet-title" id="prPianoTit"><?php te('progetti.piano_titolo'); ?><small><?php echo sec_h($selectedProject['name']); ?></small></div>
+                <button type="button" class="pr-sheet-close" onclick="prChiudiPiano()" aria-label="<?php te('comune.chiudi'); ?>">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                </button>
+            </div>
+            <div class="pr-sheet-body" id="prPianoBody"></div>
+        </div>
+    </div>
+    <script>window.PR_PIANO = <?php echo json_encode($pianoJs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
 <?php endif; ?>
 </div>
 
@@ -2712,6 +2865,330 @@ window.prNuovoProgetto = function(btn){
     });
     inp.focus();
 };
+
+/* ================================================================
+   IL PIANO DI STUDIO DEL PROGETTO
+   Quello che era la pagina «to study», per un progetto alla volta: la data
+   importante, il periodo, cosa studiare e «pianifica per me». Parla con lo
+   stesso study_api.php del calendario, quindi le due viste non possono
+   divergere. Ogni modifica si salva subito; chiudendo il foglio, se è
+   cambiato qualcosa, la pagina si ricarica una volta sola.
+   ================================================================ */
+(function(){
+    var P = window.PR_PIANO;
+    if (!P) return;
+    var cambiato = false;
+    var oggi = (function(){ var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
+
+    function api(azione, dati){
+        var body = new URLSearchParams();
+        body.set('st_ajax', azione);
+        Object.keys(dati || {}).forEach(function(k){ if (dati[k] !== undefined && dati[k] !== null) body.set(k, dati[k]); });
+        return fetch('../planner/study_api.php', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
+        }).then(function(r){ return r.json(); }).then(function(d){
+            if (!d || d.ok === false) throw new Error((d && (d.message || d.error)) || 'errore');
+            return d;
+        });
+    }
+    function sbaglio(e){ toast((e && e.message && e.message !== 'errore') ? e.message : T('progetti.piano_errore')); }
+    function piu(s, n){ var d = new Date(s + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+    function breve(s){
+        if (!s) return '';
+        var d = new Date(s + 'T12:00:00Z');
+        try { return d.toLocaleDateString(document.documentElement.lang || undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' }); }
+        catch (e) { return s; }
+    }
+    function intervallo(a, b){ return (!b || a === b) ? breve(a) : breve(a) + ' – ' + breve(b); }
+    function el(tag, cls, txt){ var e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
+
+    /* ---------- la riga di stato nella scheda: «In pari · ~23 da fare» ---------- */
+    var statoEl = document.getElementById('prPianoStato');
+    if (statoEl && !statoEl.dataset.vuoto) {
+        api('stato').then(function(d){
+            var m = (d.materie || []).filter(function(x){ return x.project_id === P.id; })[0];
+            if (!m || !m.semaforo) { statoEl.hidden = true; return; }
+            var nome = { verde: 'progetti.piano_in_pari', giallo: 'progetti.piano_stretto', rosso: 'progetti.piano_in_ritardo' }[m.semaforo];
+            statoEl.innerHTML = '';
+            var pill = el('b', 'pr-piano-sem is-' + m.semaforo, T(nome));
+            statoEl.appendChild(pill);
+            statoEl.appendChild(document.createTextNode(' ' + T('progetti.piano_stato', {
+                previsti: Math.round(m.previsti), disponibili: Math.round(m.disponibili || 0)
+            })));
+        }).catch(function(){ statoEl.hidden = true; });
+    }
+
+    /* ---------- il foglio ---------- */
+    var body = document.getElementById('prPianoBody');
+
+    function gruppo(titolo, sotto){
+        var g = el('section', 'pr-pi-grp');
+        if (titolo) g.appendChild(el('h3', 'pr-pi-h', titolo));
+        if (sotto) g.appendChild(el('p', 'pr-pi-sub', sotto));
+        body.appendChild(g);
+        return g;
+    }
+
+    function disegna(){
+        body.innerHTML = '';
+        disegnaChiave();
+        disegnaPeriodo();
+        disegnaArgomenti();
+        disegnaAuto();
+        var link = el('a', 'pr-pi-link', T('progetti.piano_calendario'));
+        link.href = 'progetti.php?view=cal';
+        body.appendChild(link);
+    }
+
+    /* La data importante: l'esame, la consegna. Un nome e un giorno. */
+    function disegnaChiave(){
+        var g = gruppo(T('progetti.piano_data_chiave'));
+        var box = el('div', 'pr-pi-card');
+        var nome = el('input', 'pr-pi-in');
+        nome.type = 'text'; nome.maxLength = 180;
+        nome.placeholder = T('progetti.piano_nome_data');
+        nome.value = P.chiave ? P.chiave.titolo : '';
+        var data = el('input', 'pr-pi-in pr-pi-data');
+        data.type = 'date'; data.min = oggi;
+        data.value = P.chiave ? P.chiave.data : '';
+        box.appendChild(nome);
+        box.appendChild(data);
+        if (P.chiave) {
+            var togli = el('button', 'pr-pi-togli');
+            togli.type = 'button';
+            togli.setAttribute('aria-label', T('progetti.piano_togli'));
+            togli.title = T('progetti.piano_togli');
+            togli.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>';
+            togli.onclick = function(){
+                api('elimina_evento', { event_id: P.chiave.id }).then(function(){
+                    P.chiave = null; cambiato = true; disegna();
+                }).catch(sbaglio);
+            };
+            box.appendChild(togli);
+        }
+        g.appendChild(box);
+        function salva(){
+            var d = data.value;
+            if (!d) return;
+            var titolo = nome.value.trim() || T('progetti.piano_esame');
+            var giro;
+            if (P.chiave) {
+                giro = api('salva_evento', { event_id: P.chiave.id, title: titolo }).then(function(){
+                    if (d === P.chiave.data) return;
+                    return api('sposta_evento', { event_id: P.chiave.id, start: d, end: d, modo: 'stringi' });
+                }).then(function(){ P.chiave.titolo = titolo; P.chiave.data = d; });
+            } else {
+                giro = api('crea_evento', { title: titolo, start: d, end: d, importance: 'high', project_id: P.id })
+                    .then(function(r){ P.chiave = { id: r.id, titolo: titolo, data: d }; disegna(); });
+            }
+            giro.then(function(){ cambiato = true; }).catch(sbaglio);
+        }
+        data.addEventListener('change', salva);
+        nome.addEventListener('change', function(){ if (P.chiave || data.value) salva(); });
+    }
+
+    /* Il periodo in cui si studia: il blocco nel calendario dello studio. */
+    function blocco(){ return P.blocchi[0] || null; }
+    function creaBlocco(da, a){
+        return api('crea_evento', { title: P.nome, start: da, end: a, importance: 'normal', project_id: P.id })
+            .then(function(r){ var b = { id: r.id, da: da, a: a }; P.blocchi.unshift(b); cambiato = true; return b; });
+    }
+    function disegnaPeriodo(){
+        var g = gruppo(T('progetti.piano_periodo'));
+        var box = el('div', 'pr-pi-card pr-pi-periodo');
+        var b = blocco();
+        function campo(lab, val){
+            var l = el('label', 'pr-pi-campo');
+            l.appendChild(el('span', '', lab));
+            var i = el('input', 'pr-pi-in pr-pi-data'); i.type = 'date'; i.value = val || '';
+            l.appendChild(i); box.appendChild(l);
+            return i;
+        }
+        var da = campo(T('progetti.piano_dal'), b ? b.da : '');
+        var a = campo(T('progetti.piano_al'), b ? b.a : '');
+        g.appendChild(box);
+        if (P.blocchi.length > 1) g.appendChild(el('p', 'pr-pi-sub', T('progetti.piano_altri_periodi', { n: P.blocchi.length - 1 })));
+        function salva(){
+            if (!da.value) return;
+            var x = da.value, y = a.value && a.value >= da.value ? a.value : da.value;
+            var b = blocco();
+            if (b) {
+                api('sposta_evento', { event_id: b.id, start: x, end: y, modo: 'stringi' })
+                    .then(function(){ b.da = x; b.a = y; cambiato = true; }).catch(sbaglio);
+            } else {
+                creaBlocco(x, y).catch(sbaglio);
+            }
+        }
+        da.addEventListener('change', salva);
+        a.addEventListener('change', salva);
+    }
+
+    /* Cosa studiare: i sotto-progetti, con una spunta per metterli nel piano e
+       la stima dei pomodori. */
+    function disegnaArgomenti(){
+        var g = gruppo(T('progetti.piano_cosa'), T('progetti.piano_cosa_sub'));
+        if (!P.argomenti.length) { g.appendChild(el('p', 'pr-pi-vuoto', T('progetti.piano_nessun_sotto'))); return; }
+        var lista = el('div', 'pr-pi-card pr-pi-lista');
+        P.argomenti.forEach(function(x){ lista.appendChild(rigaArgomento(x)); });
+        g.appendChild(lista);
+    }
+    function rigaArgomento(x){
+        var r = el('div', 'pr-pi-arg' + (x.dentro ? ' is-dentro' : '') + (x.fatto ? ' is-fatto' : ''));
+        r.style.paddingLeft = (12 + Math.min(x.prof, 4) * 18) + 'px';
+        var chk = el('button', 'pr-pi-chk');
+        chk.type = 'button';
+        chk.setAttribute('role', 'checkbox');
+        chk.setAttribute('aria-checked', x.dentro ? 'true' : 'false');
+        chk.setAttribute('aria-label', x.nome);
+        chk.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12.5l4 4 8-9"/></svg>';
+        var testo = el('span', 'pr-pi-arg-t');
+        testo.appendChild(el('span', 'pr-pi-arg-n', x.nome));
+        if (x.dentro && x.da) testo.appendChild(el('small', '', intervallo(x.da, x.a)));
+        r.appendChild(chk);
+        r.appendChild(testo);
+        if (x.dentro) r.appendChild(stima(x));
+        function cambia(){
+            if (r.classList.contains('is-busy')) return;
+            r.classList.add('is-busy');
+            var giro;
+            if (x.dentro) {
+                giro = api('remove', { id: x.id, modo: 'scollega' }).then(function(){ x.dentro = false; x.ev = 0; x.da = x.a = null; });
+            } else {
+                var b = blocco();
+                var pronto = b ? Promise.resolve(b) : (function(){
+                    /* Senza periodo se ne apre uno: da oggi al giorno prima della
+                       data importante, o quattro settimane se non c'è. */
+                    var fine = P.chiave ? piu(P.chiave.data, -1) : piu(oggi, 27);
+                    if (fine < oggi) fine = oggi;
+                    return creaBlocco(oggi, fine);
+                })();
+                giro = pronto.then(function(b){
+                    return api('aggancia', { id: x.id, event_id: b.id, stimati: x.stima || null }).then(function(d){
+                        x.dentro = true; x.ev = b.id; x.da = d.start; x.a = d.end;
+                    });
+                });
+            }
+            giro.then(function(){ cambiato = true; disegna(); }).catch(function(e){ r.classList.remove('is-busy'); sbaglio(e); });
+        }
+        chk.onclick = cambia;
+        testo.onclick = cambia;
+        return r;
+    }
+    function stima(x){
+        var box = el('span', 'pr-pi-stima');
+        box.setAttribute('aria-label', T('progetti.piano_stima'));
+        var meno = el('button', 'pr-pi-st-b', '−'); meno.type = 'button';
+        var n = el('span', 'pr-pi-st-n' + (x.stima ? '' : ' is-vuota'), String(x.stima || 3));
+        var piuB = el('button', 'pr-pi-st-b', '+'); piuB.type = 'button';
+        var t = null;
+        function metti(v){
+            v = Math.max(1, Math.min(99, v));
+            x.stima = v; n.textContent = String(v); n.classList.remove('is-vuota');
+            clearTimeout(t);
+            t = setTimeout(function(){ api('save', { id: x.id, stimati: v }).then(function(){ cambiato = true; }).catch(sbaglio); }, 450);
+        }
+        meno.onclick = function(e){ e.stopPropagation(); metti((x.stima || 3) - 1); };
+        piuB.onclick = function(e){ e.stopPropagation(); metti((x.stima || 3) + 1); };
+        box.appendChild(meno); box.appendChild(n); box.appendChild(piuB);
+        return box;
+    }
+
+    /* Pianifica per me: prima l'anteprima, poi «Applica». */
+    function disegnaAuto(){
+        var g = gruppo();
+        var btn = el('button', 'pr-pi-auto', T('progetti.piano_auto'));
+        btn.type = 'button';
+        g.appendChild(btn);
+        g.appendChild(el('p', 'pr-pi-sub pr-pi-center', T('progetti.piano_auto_sub')));
+        var esito = el('div', 'pr-pi-esito');
+        g.appendChild(esito);
+        btn.onclick = function(){
+            esito.innerHTML = '';
+            if (!P.chiave) { esito.appendChild(el('p', 'pr-pi-avviso', T('progetti.piano_serve_data'))); return; }
+            if (!P.argomenti.some(function(x){ return x.dentro && !x.fatto; })) { esito.appendChild(el('p', 'pr-pi-avviso', T('progetti.piano_serve_argomento'))); return; }
+            btn.disabled = true;
+            var ordine = P.argomenti.map(function(x){ return x.id; }).join(',');
+            api('pianifica', { project_id: P.id, ordine: ordine }).then(function(d){
+                btn.disabled = false;
+                if (d.niente) { esito.appendChild(el('p', 'pr-pi-avviso', T('progetti.piano_serve_argomento'))); return; }
+                esito.appendChild(el('p', 'pr-pi-riassunto', T('progetti.piano_anteprima', {
+                    servono: Math.round(d.servono), giorni: d.giorni, spazio: Math.round(d.spazio)
+                })));
+                if (d.fuori) esito.appendChild(el('p', 'pr-pi-avviso', T('progetti.piano_fuori', { n: d.fuori })));
+                var l = el('div', 'pr-pi-card pr-pi-anteprima');
+                d.piano.forEach(function(x){
+                    var r = el('div', 'pr-pi-ant');
+                    var n = el('span', '', x.nome);
+                    if (x.scade && x.a > x.scade) {
+                        r.classList.add('is-tardi');
+                        n.appendChild(el('em', '', T('progetti.piano_dopo_scadenza', { d: breve(x.scade) })));
+                    }
+                    r.appendChild(n);
+                    r.appendChild(el('small', '', intervallo(x.da, x.a)));
+                    l.appendChild(r);
+                });
+                esito.appendChild(l);
+                var ok = el('button', 'pr-pi-auto pr-pi-applica', T('progetti.piano_applica'));
+                ok.type = 'button';
+                ok.onclick = function(){
+                    ok.disabled = true;
+                    api('pianifica', { project_id: P.id, applica: 1, ordine: ordine }).then(function(){
+                        cambiato = true; window.prChiudiPiano();
+                    }).catch(function(e){ ok.disabled = false; sbaglio(e); });
+                };
+                esito.appendChild(ok);
+            }).catch(function(e){ btn.disabled = false; sbaglio(e); });
+        };
+    }
+
+    window.prApriPiano = function(){
+        disegna();
+        document.getElementById('prPianoOv').classList.add('show');
+    };
+    window.prChiudiPiano = function(){
+        document.getElementById('prPianoOv').classList.remove('show');
+        if (cambiato) setTimeout(function(){ window.location.reload(); }, 250);
+    };
+    document.addEventListener('keydown', function(e){
+        if (e.key === 'Escape' && document.getElementById('prPianoOv').classList.contains('show')) window.prChiudiPiano();
+    });
+})();
+
+/* ---------- i tre tasti della scheda: se le parole non ci stanno (in
+   italiano «Concentrati · Aggiungi · Pianifica» è più lungo), Aggiungi e
+   Pianifica restano solo icona invece di spingere la pagina di lato ---------- */
+(function(){
+    var box = document.querySelector('.pr-hero-actions');
+    if (!box) return;
+    function prova(){
+        box.classList.remove('is-stretta');
+        var serve = 0, kids = box.children;
+        for (var i = 0; i < kids.length; i++) serve += kids[i].scrollWidth + (i ? 8 : 0);
+        if (serve > box.clientWidth + 1) box.classList.add('is-stretta');
+    }
+    prova();
+    window.addEventListener('resize', prova);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(prova);
+})();
+
+/* ---------- il calendario di tutti i progetti: la cornice riempie lo schermo ---------- */
+(function(){
+    var f = document.getElementById('prCalFrame');
+    if (!f) return;
+    /* la cornice arriva fino in fondo allo schermo, e la pagina intorno non
+       scorre: lo scorrimento è uno solo, quello del calendario */
+    function misura(){
+        var top = f.getBoundingClientRect().top + window.scrollY;
+        var h = Math.max(420, window.innerHeight - top);
+        f.style.height = h + 'px';
+        var avanza = document.documentElement.scrollHeight - window.innerHeight;
+        if (avanza > 0) f.style.height = Math.max(420, h - avanza) + 'px';
+    }
+    misura();
+    window.addEventListener('resize', misura);
+    window.addEventListener('load', misura);
+})();
 
 /* Preferito: cambia subito e salva dopo; se il salvataggio non riesce torna
    com'era e lo dice. La stella accanto al nome c'è solo quando è acceso. */

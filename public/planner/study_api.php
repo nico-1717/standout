@@ -131,6 +131,26 @@ function st_per_ruolo(int $uid, string $tabella, string $ruolo): ?int {
     return $r ? (int)$r['id'] : null;
 }
 
+/* Il calendario e la categoria dello studio, creati se mancano. Un utente
+   nuovo non li ha: senza, il primo blocco nasceva fuori da ogni calendario e
+   non compariva da nessuna parte. Si creano la prima volta che servono, cioè
+   quando si pianifica qualcosa. */
+function st_assicura_ruoli(int $uid): array {
+    $cal = st_per_ruolo($uid, 'cal', 'study');
+    if ($cal === null) {
+        sec_q("INSERT INTO planner_calendars (user_id, name, color, role, sort_order)
+               VALUES (?, ?, '#FF9F0A', 'study', 50)", [$uid, t('todo.to_study')], 'is');
+        $cal = sec_insert_id();
+    }
+    $cat = st_per_ruolo($uid, 'cat', 'study');
+    if ($cat === null) {
+        sec_q("INSERT INTO planner_categories (user_id, name, color, role)
+               VALUES (?, ?, '#FF9F0A', 'study')", [$uid, t('todo.to_study')], 'is');
+        $cat = sec_insert_id();
+    }
+    return [$cal, $cat];
+}
+
 /* I filtri salvati: cosa si vuole vedere oltre ai blocchi di studio.
    NULL vuol dire «non ha mai scelto», e allora si parte dal minimo — studio e
    date importanti — che è quello che la pagina mostrava prima che il filtro
@@ -640,7 +660,7 @@ if ($ajax === 'pianifica') {
        pianificazione a ritroso rifà il piano, non aggiunge un secondo piano
        sopra al primo. */
     $argomenti = sec_all(
-        "SELECT p.id, p.name, p.study_pomodori_stimati, p.custom_order, p.study_start
+        "SELECT p.id, p.name, p.study_pomodori_stimati, p.custom_order, p.study_start, p.due_date
          FROM projects p
          JOIN planner_events e ON e.id = p.study_event_id AND e.user_id = p.user_id
          WHERE p.user_id = ? AND e.project_id = ? AND e.calendar_id <=> ?
@@ -648,6 +668,19 @@ if ($ajax === 'pianifica') {
          ORDER BY p.study_start, p.custom_order, p.id",
         [$uid, $progetto, $calStudio]);
     if (!$argomenti) sec_json(['ok' => true, 'niente' => true, 'piano' => []]);
+
+    /* L'ordine in cui studiarli. Dalla pagina del progetto arriva quello
+       dell'elenco dei sotto-progetti (`ordine`, gli id separati da virgola):
+       lì è l'ordine che l'utente vede e sistema trascinando. Senza, vale
+       quello di sempre — le date già messe, poi l'ordine di inserimento. */
+    $ordine = array_values(array_filter(array_map('intval', explode(',', (string)sec_in('ordine', '')))));
+    if ($ordine) {
+        $pos = array_flip($ordine);
+        usort($argomenti, function ($x, $y) use ($pos) {
+            $a = $pos[(int)$x['id']] ?? PHP_INT_MAX; $b = $pos[(int)$y['id']] ?? PHP_INT_MAX;
+            return $a <=> $b ?: ((int)$x['id'] <=> (int)$y['id']);
+        });
+    }
 
     /* Il ritmo e l'errore: gli stessi numeri dello stato. Un piano costruito
        su «otto pomodori al giorno» quando ne fai cinque è un piano che nasce
@@ -719,7 +752,10 @@ if ($ajax === 'pianifica') {
         }
         if ($da === null) { $fuori++; continue; }   // non c'è più spazio: resta senza date
         $piano[] = ['id' => (int)$a['id'], 'nome' => (string)$a['name'],
-                    'da' => $da, 'a' => $fine, 'pomodori' => round($costo, 1)];
+                    'da' => $da, 'a' => $fine, 'pomodori' => round($costo, 1),
+                    // la scadenza del sotto-progetto, se ne ha una: la pagina avvisa
+                    // quando il piano la supera
+                    'scade' => !empty($a['due_date']) ? (string)$a['due_date'] : null];
     }
     $piano = array_reverse($piano);
 
@@ -1203,8 +1239,7 @@ if ($ajax === 'crea_evento') {
     if ($projId > 0 && !sec_owns('projects', $projId, $uid)) $projId = 0;
     $examId = sec_int(sec_in('exam_id'), 0, PHP_INT_MAX, 0);
 
-    $calStudio = st_per_ruolo($uid, 'cal', 'study');
-    $catStudio = st_per_ruolo($uid, 'cat', 'study');
+    [$calStudio, $catStudio] = st_assicura_ruoli($uid);
 
     /* Il bivio deciso a suo tempo: i blocchi di studio vivono nel calendario
        'study', che si può spegnere dal filtro del planner; le date importanti
@@ -1385,6 +1420,36 @@ if ($ajax === 'add') {
                          study_pomodori_stimati, study_ripasso_di, study_fc_categoria
                   FROM projects WHERE id = ? AND user_id = ?", [$id, $uid], 'ii');
     sec_json(['ok' => true, 'task' => st_task_out($r)]);
+}
+
+/* ---------------------------------------------------------------------
+   AGGANCIO: un sotto-progetto che esiste già entra nel piano
+   Dalla pagina del progetto si sceglie COSA studiare fra i sotto-progetti che
+   ci sono, invece di riscriverli come argomenti nuovi: sono la stessa cosa
+   (vedi in cima), e duplicarli vorrebbe dire due righe per lo stesso
+   capitolo, con i pomodori divisi fra le due. Il padre resta il suo: cambia
+   solo il posto nel calendario. Le date partono dall'intero periodo del
+   blocco; «Pianifica per me» le stringe poi giorno per giorno.
+   --------------------------------------------------------------------- */
+if ($ajax === 'aggancia') {
+    $id      = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
+    $eventId = sec_int(sec_in('event_id'), 1, PHP_INT_MAX, 0);
+    $ev = st_evento($uid, $eventId);
+    if (!$ev) sec_die_json(t('todo.study_ev_non_trovato'), 404, 'not_found');
+    if (!sec_owns('projects', $id, $uid)) sec_die_json(t('todo.study_non_trovato'), 404, 'not_found');
+    // la materia stessa non è un suo argomento
+    if ($ev['project_id'] !== null && (int)$ev['project_id'] === $id) sec_die_json(t('todo.study_non_trovato'), 422, 'invalid');
+
+    [$da, $a] = st_dentro_al_padre((string)$ev['event_date'], st_fine($ev), $ev);
+    $campi = 'study_event_id = ?, study_start = ?, study_end = ?';
+    $vals = [$eventId, $da, $a];
+    if (sec_in('stimati') !== null) {
+        $st = sec_int(sec_in('stimati'), 0, 200, 0);
+        $campi .= ', study_pomodori_stimati = ?'; $vals[] = $st > 0 ? $st : null;
+    }
+    $vals[] = $id; $vals[] = $uid;
+    sec_q("UPDATE projects SET $campi WHERE id = ? AND user_id = ?", $vals);
+    sec_json(['ok' => true, 'start' => $da, 'end' => $a ?? $da]);
 }
 
 /* ---------------------------------------------------------------------
