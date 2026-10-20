@@ -144,8 +144,79 @@ function fcvLacuna(testo, parola, scelta) {
     if (w) {
         p = fcvLacunaTrova(testo, w, false);
         if (p !== -1) return { da: p, a: p + w.length, tipo: 'parola' };
+        var sim = fcvLacunaSimile(testo, w);
+        if (sim) return { da: sim.da, a: sim.a, tipo: 'simile' };
     }
     return null;
+}
+
+/* 4. 'simile' — LA PAROLA CON UN'ALTRA DESINENZA
+   Quando la parola non c'e' scritta uguale, si cerca una sua forma: "know" in
+   "knows", "watched", "studied", "stopping", "making"; "mangiare" in
+   "mangiato". Per ogni parola della carta (anche un'espressione di piu'
+   parole, "set up" in "sets up", con al massimo due parole in mezzo: "set it
+   up") si cerca nella frase la parola che le somiglia di piu':
+     - uguale;
+     - la stessa con una desinenza in coda (corte: solo -s -es -ed -d -ing -n
+       -en -ne -er, anche con la consonante raddoppiata: "run" → "running");
+     - lunghe (4+ lettere): lo stesso inizio per almeno il 70% e non piu' di
+       4 lettere di differenza ("study" → "studied", "make" → "making").
+   Se la carta ha piu' parole separate da virgola o barra ("set up, establish")
+   vale la migliore; un "to", un articolo o un pronome davanti si puo'
+   saltare ("I don't even know" trova "she doesn't even know"). Gemella di
+   fcv_lacuna_simile() in lib/fc/fc_vocab_gap.php. */
+var FCV_DESINENZE_CORTE = ['s', 'es', 'ed', 'd', 'ing', 'n', 'en', 'ne', 'er'];
+var FCV_PAROLINE = ['to', 'a', 'an', 'the', 'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'uno', 'una', 'el', 'los', 'las', 'der', 'die', 'das', 'les', 'une', 'you', 'he', 'she', 'it', 'we', 'they', 'io', 'tu', 'lui', 'lei', 'noi', 'voi', 'loro', 'yo', 'ich', 'du', 'er', 'sie', 'wir', 'je', 'elle', 'nous', 'vous', 'ils', 'elles'];
+function fcvLacunaParole(testo) {
+    var out = [], re = /[\p{L}\p{N}\p{M}]+(?:['\u2019][\p{L}\p{N}\p{M}]+)*/gu, m;
+    while ((m = re.exec(testo)) !== null) out.push({ t: fcvLacunaNorm(m[0]).toLowerCase(), da: m.index, a: m.index + m[0].length });
+    return out;
+}
+function fcvLacunaPunteggio(w, t) {
+    if (w === t) return 3;
+    /* forme contratte: "don't" ~ "doesn't", "can't" ~ "can't" */
+    if (/n't$/.test(w) && /n't$/.test(t)) return fcvLacunaPunteggio(w.slice(0, -3), t.slice(0, -3)) ? 2 : 0;
+    if (t.indexOf(w) === 0) {
+        var suf = t.slice(w.length);
+        if (w.length <= 3) {
+            var ult = w.charAt(w.length - 1);
+            return (FCV_DESINENZE_CORTE.indexOf(suf) >= 0 || suf === ult + 'ing' || suf === ult + 'ed' || suf === ult + 'er') ? 2 : 0;
+        }
+        return suf.length <= 4 ? 2 : 0;
+    }
+    if (w.length < 4 || t.length < 3 || Math.abs(t.length - w.length) > 4) return 0;
+    var cp = 0;
+    while (cp < w.length && cp < t.length && w.charAt(cp) === t.charAt(cp)) cp++;
+    return cp >= Math.max(3, Math.ceil(w.length * 0.7)) ? 1 : 0;
+}
+function fcvLacunaSimile(testo, parola) {
+    var frase = fcvLacunaParole(testo);
+    if (!frase.length) return null;
+    var meglio = null;
+    String(parola).split(/[,;\/]/).forEach(function (alt) {
+        var pz = fcvLacunaParole(alt).map(function (x) { return x.t; });
+        if (!pz.length) return;
+        var varianti = [pz];
+        if (pz.length > 1 && FCV_PAROLINE.indexOf(pz[0]) >= 0) varianti.push(pz.slice(1));
+        varianti.forEach(function (v) {
+            for (var i = 0; i < frase.length; i++) {
+                var s0 = fcvLacunaPunteggio(v[0], frase[i].t);
+                if (!s0) continue;
+                var tot = s0, j = i, ok = true;
+                for (var k = 1; k < v.length && ok; k++) {
+                    ok = false;
+                    for (var salto = 1; salto <= 3 && j + salto < frase.length; salto++) {
+                        var sk = fcvLacunaPunteggio(v[k], frase[j + salto].t);
+                        if (sk) { tot += sk - (salto - 1) * 0.5; j += salto; ok = true; break; }
+                    }
+                }
+                if (!ok) continue;
+                var punti = tot / v.length;
+                if (!meglio || punti > meglio.punti) meglio = { da: frase[i].da, a: frase[j].a, punti: punti };
+            }
+        });
+    });
+    return meglio;
 }
 
 /* FRASE D'ESEMPIO DI UNA PAROLA

@@ -80,8 +80,79 @@ function fcv_lacuna(string $testo, string $parola, ?string $scelta = null): ?arr
     if ($parola !== '') {
         $p = fcv_lacuna_trova($testo, $parola, false);
         if ($p !== null) return ['da' => $p, 'a' => $p + mb_strlen($parola), 'tipo' => 'parola'];
+        $sim = fcv_lacuna_simile($testo, $parola);
+        if ($sim) return ['da' => $sim['da'], 'a' => $sim['a'], 'tipo' => 'simile'];
     }
     return null;
+}
+
+/* 4. 'simile' — la parola con un'altra desinenza ("know" in "knows",
+   "watched", "studied", "running"; "mangiare" in "mangiato"). Le regole sono
+   spiegate in fcvLacunaSimile() (fc_examples_modal.js), che e' la gemella:
+   se cambia qui, va cambiata anche li'. */
+
+/** Le parole di un testo, minuscole, con la loro posizione in caratteri. */
+function fcv_lacuna_parole(string $testo): array {
+    $out = [];
+    if (!preg_match_all("/[\\p{L}\\p{N}\\p{M}]+(?:['\\x{2019}][\\p{L}\\p{N}\\p{M}]+)*/u", $testo, $m, PREG_OFFSET_CAPTURE)) return $out;
+    foreach ($m[0] as [$w, $byte]) {
+        $da = mb_strlen(substr($testo, 0, $byte));
+        $out[] = ['t' => mb_strtolower(fcv_lacuna_norm($w)), 'da' => $da, 'a' => $da + mb_strlen($w)];
+    }
+    return $out;
+}
+
+function fcv_lacuna_punteggio(string $w, string $t): float {
+    static $desinenze = ['s', 'es', 'ed', 'd', 'ing', 'n', 'en', 'ne', 'er'];
+    if ($w === $t) return 3;
+    /* forme contratte: "don't" ~ "doesn't" */
+    if (preg_match("/n't$/u", $w) && preg_match("/n't$/u", $t)) return fcv_lacuna_punteggio(mb_substr($w, 0, -3), mb_substr($t, 0, -3)) ? 2 : 0;
+    $lw = mb_strlen($w); $lt = mb_strlen($t);
+    if ($lt > $lw && mb_substr($t, 0, $lw) === $w) {
+        $suf = mb_substr($t, $lw);
+        if ($lw <= 3) {
+            $ult = mb_substr($w, -1);
+            return (in_array($suf, $desinenze, true) || $suf === $ult . 'ing' || $suf === $ult . 'ed' || $suf === $ult . 'er') ? 2 : 0;
+        }
+        return mb_strlen($suf) <= 4 ? 2 : 0;
+    }
+    if ($lw < 4 || $lt < 3 || abs($lt - $lw) > 4) return 0;
+    $cp = 0;
+    while ($cp < $lw && $cp < $lt && mb_substr($w, $cp, 1) === mb_substr($t, $cp, 1)) $cp++;
+    return $cp >= max(3, (int)ceil($lw * 0.7)) ? 1 : 0;
+}
+
+/** @return array{da:int,a:int}|null */
+function fcv_lacuna_simile(string $testo, string $parola): ?array {
+    static $paroline = ['to', 'a', 'an', 'the', 'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'uno', 'una', 'el', 'los', 'las', 'der', 'die', 'das', 'les', 'une', 'you', 'he', 'she', 'it', 'we', 'they', 'io', 'tu', 'lui', 'lei', 'noi', 'voi', 'loro', 'yo', 'ich', 'du', 'er', 'sie', 'wir', 'je', 'elle', 'nous', 'vous', 'ils', 'elles'];
+    $frase = fcv_lacuna_parole($testo);
+    if (!$frase) return null;
+    $meglio = null;
+    foreach (preg_split('~[,;/]~u', $parola) as $alt) {
+        $pz = array_column(fcv_lacuna_parole($alt), 't');
+        if (!$pz) continue;
+        $varianti = [$pz];
+        if (count($pz) > 1 && in_array($pz[0], $paroline, true)) $varianti[] = array_slice($pz, 1);
+        foreach ($varianti as $v) {
+            $nf = count($frase);
+            for ($i = 0; $i < $nf; $i++) {
+                $s0 = fcv_lacuna_punteggio($v[0], $frase[$i]['t']);
+                if (!$s0) continue;
+                $tot = $s0; $j = $i; $ok = true;
+                for ($k = 1; $k < count($v) && $ok; $k++) {
+                    $ok = false;
+                    for ($salto = 1; $salto <= 3 && $j + $salto < $nf; $salto++) {
+                        $sk = fcv_lacuna_punteggio($v[$k], $frase[$j + $salto]['t']);
+                        if ($sk) { $tot += $sk - ($salto - 1) * 0.5; $j += $salto; $ok = true; break; }
+                    }
+                }
+                if (!$ok) continue;
+                $punti = $tot / count($v);
+                if ($meglio === null || $punti > $meglio['punti']) $meglio = ['da' => $frase[$i]['da'], 'a' => $frase[$j]['a'], 'punti' => $punti];
+            }
+        }
+    }
+    return $meglio;
 }
 
 /**

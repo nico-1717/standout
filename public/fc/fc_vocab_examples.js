@@ -114,7 +114,7 @@
             ? '<button type="button" class="fcv-ex-stato" data-az="scegli" aria-label="' + esc(tr('fcv.es_nascosta', 'Hidden in the game') + ' — ' + tr('fcv.es_cambia', 'Change')) + '">'
               + IC.occhio + '<span class="fcv-ex-stato-t">' + esc(tr('fcv.es_nascosta', 'Hidden in the game')) + '</span>'
               /* «auto» al posto della freccia: due segni insieme non ci stanno */
-              + (l.tipo === 'parola' ? '<em>' + esc(tr('fcv.es_auto', 'auto')) + '</em>' : IC.freccia) + '</button>'
+              + ((l.tipo === 'parola' || l.tipo === 'simile') ? '<em>' + esc(tr('fcv.es_auto', 'auto')) + '</em>' : IC.freccia) + '</button>'
             : '<button type="button" class="fcv-ex-scegli" data-az="scegli">' + IC.mirino
               + '<span>' + esc(tr('fcv.es_scegli', 'Choose what to hide')) + '</span></button>';
         return '<li class="fcv-ex-item' + (l || !v.testo.trim() ? '' : ' is-senza') + (v.nuova ? ' is-nuova' : '') + '" data-i="' + i + '">'
@@ -297,7 +297,7 @@
         /* se e' proprio la parola della carta, non serve ricordarla: resta
            "automatica" e segue la parola se un giorno la si corregge */
         var auto = typeof fcvLacuna === 'function' ? fcvLacuna(v.testo, parola(), '') : null;
-        if (gap && auto && auto.tipo === 'parola' && v.testo.slice(auto.da, auto.a) === gap) gap = '';
+        if (gap && auto && (auto.tipo === 'parola' || auto.tipo === 'simile') && v.testo.slice(auto.da, auto.a) === gap) gap = '';
         var prima = v.gap;
         v.gap = gap;
         v.stato = ''; v.sel = null;

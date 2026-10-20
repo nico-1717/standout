@@ -20,6 +20,7 @@ $current_user_id = (int)$utente_corrente['id']; // 2. ID utente sicuro
 $conn = sec_db();
 require_once __DIR__ . '/fc_examples_box.php';
 require_once __DIR__ . '/../../lib/fc/fc_vocab_gap.php';
+require_once __DIR__ . '/../../lib/fc/fc_vocab_gioco.php';
 
 /**
  * Vero se il campo (answer_desc, question_desc...) non contiene testo o
@@ -723,6 +724,33 @@ foreach ($gameplays as $gp) {
 
 
 
+/* IL GIOCO DELLE LINGUE PIU' VIVO (fc_game_juice.js): il livello di ogni
+   parola sulla pagina, la serie di risposte giuste, i record del corso e fin
+   dove si e' arrivati. Viaggiano dentro la pagina (#fcg-dati e
+   data-fcv-stats), cosi' arrivano anche con le pagine caricate al volo. */
+$fcg_dati = null;
+if ($fc_vocab) {
+    $fcg_padri = []; $fcg_figli = [];
+    foreach ($cards_to_show as $cc) {
+        if (!empty($cc['is_titolo'])) continue;
+        if ($cc['is_child']) $fcg_figli[] = (int)$cc['gameplay_idimmagine']; else $fcg_padri[] = (int)$cc['gameplay_idimmagine'];
+    }
+    $fcg_stats = fcv_stats_carte($fcg_padri, $fcg_figli);
+    $fcg_serie = fcv_serie_partita($game_id);
+    $fcg_fronte = (int)(sec_one("SELECT MAX(position) AS p FROM " . fc_t('plays') . "
+                                  WHERE game_id = ? AND user_answer IN ('Correct', 'Wrong')", [$game_id])['p'] ?? 0);
+    $fcg_dati = [
+        'partita' => (int)$game_id,
+        'corso' => fc_corso_id(),
+        'pos' => (int)$position,
+        'fronte' => $fcg_fronte,
+        'serie' => $fcg_serie['serie'],
+        'migliore' => $fcg_serie['migliore'],
+        'risposte' => $fcg_serie['risposte'],
+        'record' => fcv_record($user_id, fc_corso_id()),
+    ];
+}
+
 // 5. Calcoli Progresso e Statistiche DOPPIA BARRA
 
 $played_data = sec_one("SELECT COUNT(DISTINCT position) AS c, COUNT(*) AS c2 FROM " . fc_t('plays') . " WHERE game_id = ?", [$game_id]);
@@ -1264,6 +1292,10 @@ try {
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_game.css?v=<?php echo @filemtime(__DIR__ . '/fc_game.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_examples_box.css?v=<?php echo @filemtime(__DIR__ . '/fc_examples_box.css') ?: 1; ?>">
 <script src="<?php echo PWA_BASE; ?>fc/fc_examples_modal.js?v=<?php echo @filemtime(__DIR__ . '/fc_examples_modal.js') ?: 1; ?>"></script>
+<?php if ($fc_vocab): ?>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_game_juice.css?v=<?php echo @filemtime(__DIR__ . '/fc_game_juice.css') ?: 1; ?>">
+<script src="<?php echo PWA_BASE; ?>fc/fc_game_juice.js?v=<?php echo @filemtime(__DIR__ . '/fc_game_juice.js') ?: 1; ?>"></script>
+<?php endif; ?>
 
     <?php if ($fc_vocab): /* fc_parser vive solo nelle flashcard di studio */ ?>
     <script src="<?php echo PWA_BASE; ?>fc/fc_speak.js?v=<?php echo @filemtime(__DIR__ . '/fc_speak.js') ?: 1; ?>"></script>
@@ -1321,6 +1353,7 @@ try {
          data-jump-back-card="<?php echo (int)$jump_back_card_index; ?>"
          data-status="<?php echo sec_h($status); ?>"
          data-order="<?php echo sec_h($order_param); ?>">
+        <?php if ($fcg_dati): ?><script type="application/json" class="fcg-dati"><?php echo json_encode($fcg_dati + ['totale' => (int)$total_words], JSON_HEX_TAG | JSON_HEX_AMP); ?></script><?php endif; ?>
 
 
 
@@ -1563,6 +1596,26 @@ try {
                     <p class="fcv-gs-spiega" aria-live="polite"></p>
                 </div>
                 <?php endforeach; ?>
+                <?php /* Checkpoint e suoni: li gestisce fc_game_juice.js */ ?>
+                <div class="fcv-gs-riga" data-fcg="checkpoint">
+                    <div class="fcv-gs-testa">
+                        <span class="fcv-gs-ic fcv-gs-ic-ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></span>
+                        <span class="fcv-gs-nome"><?php te('fcv.gs_checkpoint'); ?></span>
+                    </div>
+                    <div class="fcv-gs-seg fcv-gs-seg-6" role="radiogroup" aria-label="<?php te('fcv.gs_checkpoint'); ?>">
+                        <?php foreach (['0', '5', '10', '15', '20', '25'] as $v): ?>
+                        <button type="button" role="radio" aria-checked="false" data-v="<?php echo $v; ?>"><?php echo $v === '0' ? sec_h(t('fcv.gs_ck_no')) : $v; ?></button>
+                        <?php endforeach; ?>
+                    </div>
+                    <p class="fcv-gs-spiega" aria-live="polite"></p>
+                </div>
+                <label class="fcv-gs-riga fcv-gs-switch">
+                    <span class="fcv-gs-testa">
+                        <span class="fcv-gs-ic fcv-gs-ic-suoni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+                        <span class="fcv-gs-nome"><?php te('fcv.gs_suoni'); ?><small><?php te('fcv.gs_suoni_sub'); ?></small></span>
+                    </span>
+                    <span class="fcv-gs-toggle"><input type="checkbox" id="fcgSuoni" checked><span></span></span>
+                </label>
                 <div class="fcv-gs-nota">
                     <span class="fcv-gs-demo" aria-hidden="true">
                         <span class="fcv-gap fcv-gap-m"><span class="fcv-gap-vuoto"></span></span>
@@ -1575,12 +1628,16 @@ try {
             </div>
         </div>
         <script>
+        /* Il foglio sta dentro la pagina, che a ogni carta viene sostituita con
+           quella nuova: e gli script di una pagina arrivata cosi' non partono.
+           Quindi tutto passa da document (una volta sola) e il foglio si
+           cerca ogni volta nella pagina in cui si e' toccato l'ingranaggio. */
         (function () {
-            var foglio = document.getElementById('fcv-settings');
-            var apri = document.getElementById('fcvSettingsBtn');
-            if (!foglio || !apri) return;
+            if (window.__fcvGsPronto) return;
+            window.__fcvGsPronto = true;
             var OK = ['aperto', 'tocco', 'dopo'];
             var root = document.documentElement;
+            var aperto = null, bottone = null;
             function attuale(classe) {
                 for (var i = 0; i < OK.length; i++) if (root.classList.contains('fcv-' + classe + '-' + OK[i])) return OK[i];
                 return 'tocco';
@@ -1593,8 +1650,7 @@ try {
                     b.setAttribute('aria-checked', on ? 'true' : 'false');
                     b.tabIndex = on ? 0 : -1;
                 });
-                var seg = riga.querySelector('.fcv-gs-seg');
-                seg.style.setProperty('--fcv-i', String(OK.indexOf(v)));
+                riga.querySelector('.fcv-gs-seg').style.setProperty('--fcv-i', String(OK.indexOf(v)));
                 riga.querySelector('.fcv-gs-spiega').textContent = T('fcv.gs_' + v + '_sub');
             }
             function scegli(riga, v) {
@@ -1606,24 +1662,35 @@ try {
                 try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) {}
             }
             function chiudi() {
-                foglio.classList.add('is-uscita');
-                setTimeout(function () { foglio.hidden = true; foglio.classList.remove('is-uscita'); apri.focus(); }, 200);
+                var f = aperto; if (!f) return;
+                aperto = null;
+                f.classList.add('is-uscita');
+                setTimeout(function () { f.hidden = true; f.classList.remove('is-uscita'); if (bottone && bottone.isConnected) bottone.focus(); }, 200);
             }
-            apri.addEventListener('click', function (e) {
-                e.stopPropagation();
-                foglio.querySelectorAll('.fcv-gs-riga').forEach(segna);
-                foglio.hidden = false;
-                var primo = foglio.querySelector('.fcv-gs-seg .is-on');
-                if (primo) primo.focus({ preventScroll: true });
-            });
-            foglio.addEventListener('click', function (e) {
-                if (e.target === foglio || e.target.closest('[data-fcv-chiudi]')) { chiudi(); return; }
-                var b = e.target.closest('.fcv-gs-seg [data-v]');
+            document.addEventListener('click', function (e) {
+                var apri = e.target.closest && e.target.closest('#fcvSettingsBtn');
+                if (apri) {
+                    e.stopPropagation();
+                    var cont = apri.closest('.container') || document;
+                    var foglio = cont.querySelector('#fcv-settings') || document.getElementById('fcv-settings');
+                    if (!foglio) return;
+                    bottone = apri; aperto = foglio;
+                    foglio.querySelectorAll('.fcv-gs-riga[data-classe]').forEach(segna);
+                    foglio.hidden = false;
+                    var primo = foglio.querySelector('.fcv-gs-seg .is-on');
+                    if (primo) primo.focus({ preventScroll: true });
+                    document.dispatchEvent(new CustomEvent('fcv-impostazioni', { detail: { foglio: foglio } }));
+                    return;
+                }
+                if (!aperto || !aperto.contains(e.target)) return;
+                if (e.target === aperto || e.target.closest('[data-fcv-chiudi]')) { chiudi(); return; }
+                var b = e.target.closest('.fcv-gs-riga[data-classe] .fcv-gs-seg [data-v]');
                 if (b) scegli(b.closest('.fcv-gs-riga'), b.getAttribute('data-v'));
-            });
-            foglio.addEventListener('keydown', function (e) {
+            }, true);
+            document.addEventListener('keydown', function (e) {
+                if (!aperto) return;
                 if (e.key === 'Escape') { e.preventDefault(); chiudi(); return; }
-                var b = e.target.closest && e.target.closest('.fcv-gs-seg [data-v]');
+                var b = e.target.closest && e.target.closest('.fcv-gs-riga[data-classe] .fcv-gs-seg [data-v]');
                 if (!b || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
                 e.preventDefault();
                 var i = OK.indexOf(b.getAttribute('data-v')) + (e.key === 'ArrowRight' ? 1 : -1);
@@ -1931,6 +1998,7 @@ try {
                      data-card-index="<?php echo (int)($card_index_map[$position . ':' . ($c['is_child'] ? 'c' : 'p') . $c['gameplay_idimmagine']] ?? $position); ?>"
 
                      data-qaudio="<?php echo sec_h($c['question_audio']); ?>" data-aaudio="<?php echo sec_h($c['answer_audio']); ?>"
+                     <?php if ($fc_vocab): $fcg_k = ($c['is_child'] ? 'c' : 'p') . (int)$c['gameplay_idimmagine']; ?>data-fcv-stats="<?php echo sec_h(json_encode(($fcg_stats[$fcg_k] ?? ['c' => 0, 'w' => 0, 'u' => '']) + ['k' => $fcg_k])); ?>"<?php endif; ?>
 
                      <?php if (!$is_graded): ?>
 
@@ -2027,6 +2095,7 @@ try {
 
                             ?>
 
+                            <?php if (!$fc_vocab): /* lingue: restava solo il tasto «Esempi (n)», ma gli esempi sono gia' aperti sopra */ ?>
                             <div class="ai-tools-box">
 
                                 <?php if (!$fc_vocab): ?><span class="ai-spark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2 5.7 5.7 2-5.7 2-2 5.7-2-5.7-5.7-2 5.7-2 2-5.7zM19 14l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1 1.1-3z"/></svg></span><?php endif; ?>
@@ -2056,6 +2125,7 @@ try {
                                 <button type="button" class="nav-btn chip-ai" onclick="playAI('metaphor', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_metafora'); ?></button><?php endif; ?>
 
                             </div>
+                            <?php endif; ?>
 
 
 
@@ -2131,6 +2201,7 @@ try {
 
                             ?>
 
+                            <?php if (!$fc_vocab): /* lingue: restava solo il tasto «Esempi (n)», ma gli esempi sono gia' aperti sopra */ ?>
                             <div class="ai-tools-box">
 
                                 <?php if (!$fc_vocab): ?><span class="ai-spark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2 5.7 5.7 2-5.7 2-2 5.7-2-5.7-5.7-2 5.7-2 2-5.7zM19 14l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1 1.1-3z"/></svg></span><?php endif; ?>
@@ -2160,6 +2231,7 @@ try {
                                 <button type="button" class="nav-btn chip-ai" onclick="playAI('metaphor', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_metafora'); ?></button><?php endif; ?>
 
                             </div>
+                            <?php endif; ?>
 
                         </div>
 
@@ -5640,6 +5712,8 @@ function prossimaCartaDaValutare (contenitore, cardAppenaVotata) {
 }
 
 function gradeAndAdvance (url, feedbackPromise, cardIndex, cardEl, esito) {
+    /* lingue: serie, livello della parola, suoni (fc_game_juice.js) */
+    try { if (window.FcGioco) FcGioco.voto(esito, cardEl); } catch (e) {}
     var curContainer = curC();
     var ungraded = curContainer ? curContainer.querySelectorAll('.card-box:not(.graded):not(.anteprima-card)').length : 2;
     var fwdUrl = curContainer ? curContainer.getAttribute('data-forward-url') : null;
@@ -5920,6 +5994,7 @@ function navigateTo (url, opts) {
                     setTimeout(checkAutoPlayQuestion, 300);
 
                     maybeCoach();
+                    document.dispatchEvent(new CustomEvent('fc-pagina', { detail: { container: newC } }));
 
 
 
@@ -6883,6 +6958,7 @@ function navigateTo (url, opts) {
                 cardsIn(curC());
 
                 maybeCoach();
+                document.dispatchEvent(new CustomEvent('fc-pagina', { detail: { container: curC() } }));
 
             }
 

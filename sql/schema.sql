@@ -508,6 +508,25 @@ CREATE TABLE `fc_vocab_plays` (
 -- --------------------------------------------------------
 
 --
+-- Table `fc_vocab_records`
+--
+
+CREATE TABLE `fc_vocab_records` (
+  `user_id` int NOT NULL,
+  `course_id` int UNSIGNED NOT NULL,
+  `kind` varchar(20) NOT NULL,
+  `value` decimal(10,2) NOT NULL,
+  `game_id` int UNSIGNED DEFAULT NULL,
+  `achieved_at` datetime NOT NULL,
+  PRIMARY KEY (`user_id`,`course_id`,`kind`),
+  KEY `fk_vocab_records_course` (`course_id`),
+  CONSTRAINT `fk_vocab_records_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_vocab_records_course` FOREIGN KEY (`course_id`) REFERENCES `fc_vocab_courses` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Record personali del gioco delle lingue, uno per tipo e per corso';
+
+-- --------------------------------------------------------
+
+--
 -- Table `fc_vocab_sequence`
 --
 
