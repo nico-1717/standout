@@ -142,6 +142,32 @@ function renderGameCatRow($node, $level = 0) {
         </div>
 
         <hr class="opt-divider">
+
+        <?php /* Gli indizi sul davanti della carta: coperti (si toccano per
+                 vederli) o già scoperti. Si ricorda su questo dispositivo. */ ?>
+        <div class="opt-section">
+            <div class="toggle-row">
+                <div>
+                    <div class="toggle-row-label"><?php te('fcv.indizi_aperti'); ?></div>
+                    <div class="toggle-row-sub"><?php te('fcv.indizi_aperti_sub'); ?></div>
+                </div>
+                <label class="ios-switch">
+                    <input type="checkbox" id="fcvIndiziAperti">
+                    <span class="switch-track"><span class="switch-thumb"></span></span>
+                </label>
+            </div>
+        </div>
+        <script>
+        (function () {
+            var c = document.getElementById('fcvIndiziAperti');
+            try { c.checked = localStorage.getItem('fcv_indizi_aperti') === '1'; } catch (e) {}
+            c.addEventListener('change', function () {
+                try { localStorage.setItem('fcv_indizi_aperti', c.checked ? '1' : '0'); } catch (e) {}
+            });
+        })();
+        </script>
+
+        <hr class="opt-divider">
         <?php endif; ?>
         <div class="opt-section">
             <div class="opt-label"><?php te('fc.cg_ordine'); ?></div>
@@ -165,7 +191,7 @@ function renderGameCatRow($node, $level = 0) {
                 <input type="radio" id="gs_learnt" name="game_status" value="1" onchange="updateCounts()">
                 <label for="gs_learnt"><?php te('fc.cg_learnt'); ?></label>
                 <input type="radio" id="gs_all" name="game_status" value="all" onchange="updateCounts()">
-                <label for="gs_all">All</label>
+                <label for="gs_all"><?php te('fc.cg_tutti_stati'); ?></label>
                 <span class="segmented-thumb"></span>
             </div>
         </div>

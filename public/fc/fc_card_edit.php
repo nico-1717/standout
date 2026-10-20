@@ -167,6 +167,18 @@ function mfc_parola_esempio(): string {
 
         $catID = sec_int($_POST['category_id'] ?? 0, 0);
         if ($catID <= 0) $catID = sec_int($_POST['previous_catid'] ?? 0, 0);
+
+        /* UNA SOTTOCARTA NUOVA: arriva con parent_id. Nasce dentro quella
+           carta, che da quel momento e' un padre (is_father: e' quello che
+           fa comparire i figli nel gioco). La categoria e' quella del padre. */
+        $padreNuovo = sec_int($_POST['parent_id'] ?? 0, 0);
+        if ($padreNuovo > 0) {
+            $pr = sec_one("SELECT i.id, i.category_id FROM " . fc_t('cards') . " i
+                             JOIN " . fc_t('decks') . " c ON c.id = i.category_id
+                            WHERE i.id = ? AND c.user_id = ?", [$padreNuovo, $current_user_id]);
+            if (!$pr) { echo json_encode(['success' => false, 'error' => t('fc.non_proprietario')]); exit; }
+            $catID = (int)$pr['category_id'];
+        }
         if ($catID <= 0 || !fc_mazzo_mio($catID, $current_user_id)) {
             echo json_encode(['success' => false, 'error' => t('fc.categoria_non_valida')]);
             exit;
@@ -183,12 +195,36 @@ function mfc_parola_esempio(): string {
                 echo json_encode(['success' => false, 'empty' => true, 'error' => t('fc.serve_qualcosa')]);
                 exit;
             }
-            $max_o = (int)(sec_one("SELECT MAX(custom_order) AS m FROM " . fc_t('cards') . " WHERE category_id = ?",
-                                   [$catID])['m'] ?? 0) + 1;
-            sec_q("INSERT INTO " . fc_t('cards') . " (image, word, translation, meaning, category_id, is_father, custom_order)
-                   VALUES (?, ?, ?, ?, ?, 0, ?)",
-                  [$img !== '' ? $img : null, $parola, $trad, $sign !== '' ? $sign : null, $catID, $max_o]);
-            echo json_encode(['success' => true, 'fc_id' => sec_insert_id(), 'category_id' => $catID]);
+            if ($padreNuovo > 0) {
+                $max_o = (int)(sec_one("SELECT MAX(custom_order) AS m FROM " . fc_t('subcards') . " WHERE parent_id = ?",
+                                       [$padreNuovo])['m'] ?? 0) + 1;
+                sec_q("INSERT INTO " . fc_t('subcards') . " (image, word, translation, meaning, parent_id, custom_order)
+                       VALUES (?, ?, ?, ?, ?, ?)",
+                      [$img !== '' ? $img : null, $parola, $trad, $sign !== '' ? $sign : null, $padreNuovo, $max_o]);
+                $nuovoId = (int)sec_insert_id();
+                sec_q("UPDATE " . fc_t('cards') . " SET is_father = 1 WHERE id = ?", [$padreNuovo]);
+            } else {
+                $max_o = (int)(sec_one("SELECT MAX(custom_order) AS m FROM " . fc_t('cards') . " WHERE category_id = ?",
+                                       [$catID])['m'] ?? 0) + 1;
+                sec_q("INSERT INTO " . fc_t('cards') . " (image, word, translation, meaning, category_id, is_father, custom_order)
+                       VALUES (?, ?, ?, ?, ?, 0, ?)",
+                      [$img !== '' ? $img : null, $parola, $trad, $sign !== '' ? $sign : null, $catID, $max_o]);
+                $nuovoId = (int)sec_insert_id();
+            }
+            /* L'esempio scritto (o fatto dall'IA) insieme alla parola: gli esempi
+               stanno nella loro tabella, e prima di questo momento la carta non
+               aveva un id a cui agganciarlo. Nel gioco la parola diventa «_»: se
+               la frase la contiene scritta per intero, la lacuna si fa qui. */
+            $esempio = sec_str($_POST['example'] ?? '', 1000);
+            if ($esempio !== '' && $nuovoId > 0) {
+                if (strpos($esempio, '_') === false && $parola !== '') {
+                    $pos = mb_stripos($esempio, $parola);
+                    if ($pos !== false) $esempio = mb_substr($esempio, 0, $pos) . '_' . mb_substr($esempio, $pos + mb_strlen($parola));
+                }
+                sec_q("INSERT INTO " . fc_t('examples') . " (" . ($padreNuovo > 0 ? 'child_id' : 'parent_id') . ", example_text) VALUES (?, ?)",
+                      [$nuovoId, $esempio]);
+            }
+            echo json_encode(['success' => true, 'fc_id' => $nuovoId, 'is_child' => $padreNuovo > 0, 'category_id' => $catID]);
             exit;
         }
 
@@ -205,6 +241,18 @@ function mfc_parola_esempio(): string {
             exit;
         }
 
+        if ($padreNuovo > 0) {
+            $max_o = (int)(sec_one("SELECT MAX(custom_order) AS m FROM " . fc_t('subcards') . " WHERE parent_id = ?",
+                                   [$padreNuovo])['m'] ?? 0) + 1;
+            sec_q("INSERT INTO " . fc_t('subcards') . " (question_image, answer_image, question_desc, answer_desc, question_audio, answer_audio, parent_id, custom_order)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                  [$q_img, $a_img, $quest, $answ, $q_aud, $a_aud, $padreNuovo, $max_o]);
+            $nuovoId = (int)sec_insert_id();
+            sec_q("UPDATE " . fc_t('cards') . " SET is_father = 1 WHERE id = ?", [$padreNuovo]);
+            echo json_encode(['success' => true, 'fc_id' => $nuovoId, 'is_child' => true, 'category_id' => $catID]);
+            exit;
+        }
+
         $max_o = (int)(sec_one("SELECT MAX(custom_order) AS m FROM " . fc_t('cards') . " WHERE category_id = ?",
                                [$catID])['m'] ?? 0) + 1;
 
@@ -212,7 +260,7 @@ function mfc_parola_esempio(): string {
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
               [$q_img, $a_img, $quest, $answ, $catID, $q_aud, $a_aud, $max_o]);
 
-        echo json_encode(['success' => true, 'fc_id' => sec_insert_id(), 'category_id' => $catID]);
+        echo json_encode(['success' => true, 'fc_id' => sec_insert_id(), 'is_child' => false, 'category_id' => $catID]);
         exit;
     }
 
@@ -580,6 +628,26 @@ function mfc_parola_esempio(): string {
             'category_id' => $prev_cat,
         ];
         $cancel_url = fc_url('fc_view.php', $prev_cat > 0 ? ['category_id' => $prev_cat] : []);
+
+        /* Una sottocarta nuova, dalla sezione «sottocarte» di un padre: nasce
+           dentro quella carta, con la sua categoria. Si torna al padre sia
+           chiudendo sia dal collegamento in alto. */
+        $padre_nuovo = sec_int($_GET['parent_id'] ?? 0, 0);
+        if ($padre_nuovo > 0) {
+            $pn = sec_one("SELECT i.id, i.category_id FROM " . fc_t('cards') . " i
+                             JOIN " . fc_t('decks') . " c ON c.id = i.category_id
+                            WHERE i.id = ? AND c.user_id = ?", [$padre_nuovo, $current_user_id]);
+            if ($pn) {
+                $is_child = true;
+                $prev_cat = $category_id = (int)$pn['category_id'];
+                $row['category_id'] = $category_id;
+                $_GET['torna_a'] = $padre_nuovo;
+                $cancel_url = fc_url('fc_card_edit.php', ['fc_id' => $padre_nuovo, 'previous_catid' => $category_id])
+                            . (!empty($_GET['fc_popup']) ? '&fc_popup=1' : '');
+            } else {
+                $padre_nuovo = 0;
+            }
+        }
     }
 
     if ($fc_modo === 'insert' || isset($_GET['fc_id']) || isset($_GET['child_id'])) {
@@ -669,7 +737,7 @@ function mfc_parola_esempio(): string {
                     </span>
                     <span class="exm-form-title fc-tb-testo">
                         <span class="fc-tb-occhiello"><?php echo fc_is_vocab() ? sec_h(fc_lingua_nome(fc_corso()['learn_lang'], false)) : sec_h(t('fc.ifc_domanda_risposta')); ?></span>
-                        <span class="fc-tb-nome" id="fcTopbarTitle"><?php echo $fc_modo === 'insert' ? sec_h(t('fc.ifc_nuova_scheda')) : sec_h(t('fc.mfc_titolo_breve')); ?></span>
+                        <span class="fc-tb-nome" id="fcTopbarTitle"><?php echo $fc_modo === 'insert' ? sec_h(t(!empty($padre_nuovo) ? 'fc.ifc_nuova_sottocarta' : 'fc.ifc_nuova_scheda')) : sec_h(t('fc.mfc_titolo_breve')); ?></span>
                     </span>
                     <div class="exm-form-actions">
                         <?php if ($fc_modo === 'edit'): ?>
@@ -740,7 +808,9 @@ function mfc_parola_esempio(): string {
                 </a>
                 <?php endif; ?>
 
-                <?php if ($is_child): ?>
+                <?php if (!empty($padre_nuovo)): ?>
+                    <input type="hidden" name="parent_id" value="<?php echo (int)$padre_nuovo; ?>">
+                <?php elseif ($is_child): ?>
                     <input type="hidden" name="child_id" value="<?php echo (int)$id; ?>">
                 <?php else: ?>
                     <input type="hidden" name="fc_id" value="<?php echo (int)$id; ?>">
@@ -754,7 +824,7 @@ function mfc_parola_esempio(): string {
              card bianca vuota — si vede nello screenshot, un ovale senza
              contenuto sotto la barra — restava comunque a occupare spazio e
              a chiedersi cosa dovesse esserci. */ ?>
-                <?php if ($fc_modo === 'insert'): ?>
+                <?php if ($fc_modo === 'insert' && empty($padre_nuovo)): ?>
                 <section class="fc-card fc-card-tight fc-card-shortcuts">
                     <?php /* L'inserimento multiplo era il primo pulsante della vecchia
                              pagina di inserimento, ed e' sparito nell'unione: chi deve
@@ -822,6 +892,41 @@ function mfc_parola_esempio(): string {
                            lang="<?php echo sec_h($fcC['learn_lang']); ?>" autocomplete="off" autocapitalize="off" spellcheck="true" maxlength="255">
                 </section>
 
+                <?php /* L'ASSISTENTE IA DELLE PAROLE
+                         C'era nella vecchia pagina del vocabolario ed era sparito
+                         nell'unione: scritta la parola, «Compila» riempie
+                         traduzione, significato ed esempio, e «Genera immagine» ne
+                         disegna una. Le indicazioni valgono per tutti e due (com'è
+                         l'esempio, com'è l'immagine). L'esempio va fra gli esempi
+                         della carta; l'immagine nel suo riquadro, come se la si
+                         fosse scelta a mano. */ ?>
+                <section class="fc-card fcv-ai" id="fcvAi">
+                    <div class="fc-card-head">
+                        <span class="fc-card-title fcv-ai-tit">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+                            <?php te('vocab.ins_assistente'); ?>
+                        </span>
+                    </div>
+                    <p class="fcv-ai-sub"><?php te('vocab.ins_assistente_sub'); ?></p>
+                    <textarea id="fcvAiInd" class="fc-vocab-input fc-vocab-area fcv-ai-ind" rows="2" maxlength="400"
+                              aria-label="<?php te('vocab.ins_indicazioni'); ?>" placeholder="<?php echo sec_h(t('vocab.ins_indicazioni') . ' — ' . t('vocab.ins_ph_dir')); ?>"></textarea>
+                    <div class="fcv-ai-acts">
+                        <button type="button" class="fcv-ai-btn" id="fcvAiFill">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M4 12h16M4 17h7"/><path d="M17 15l1 2.5 2.5 1-2.5 1L17 22l-1-2.5-2.5-1 2.5-1z"/></svg>
+                            <span><?php te('vocab.ins_compila'); ?></span>
+                        </button>
+                        <button type="button" class="fcv-ai-btn" id="fcvAiImg">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-8 9"/></svg>
+                            <span><?php te('vocab.ins_genera_img'); ?></span>
+                        </button>
+                    </div>
+                    <div class="fcv-ai-opts">
+                        <label><input type="checkbox" id="fcvAiUsaEs"> <?php te('vocab.ins_usa_esempio'); ?></label>
+                        <label><input type="checkbox" id="fcvAiVett"> <?php te('vocab.ins_stile_vettoriale'); ?></label>
+                    </div>
+                    <div class="fcv-ai-stato" id="fcvAiStato" aria-live="polite"></div>
+                </section>
+
                 <section class="fc-card fc-card-a">
                     <div class="fc-card-head">
                         <span class="fc-card-title fc-lang-title"><img class="fc-lang-flag" src="<?php echo sec_h(fc_lingua_bandiera($fcC['known_lang'])); ?>" alt=""> <?php te('fcv.traduzione'); ?></span>
@@ -832,6 +937,13 @@ function mfc_parola_esempio(): string {
                     <label class="fc-vocab-label" for="fcMeaning"><?php te('fcv.significato'); ?> <span class="fc-vocab-opt"><?php te('fcv.facoltativo'); ?></span></label>
                     <textarea name="meaning" id="fcMeaning" class="fc-vocab-input fc-vocab-area" rows="2" data-fc-vocab-field
                               placeholder="<?php te('fcv.ph_significato'); ?>" lang="<?php echo sec_h($fcC['learn_lang']); ?>" maxlength="400"><?php echo sec_h($row['meaning'] ?? ''); ?></textarea>
+                    <?php if ($fc_modo === 'insert'): /* in modifica gli esempi hanno la loro sezione, più sotto */ ?>
+                    <div id="fcvEsempioNuovo">
+                        <label class="fc-vocab-label" for="fcExample"><?php te('fcv.esempio'); ?> <span class="fc-vocab-opt"><?php te('fcv.facoltativo'); ?></span></label>
+                        <textarea name="example" id="fcExample" class="fc-vocab-input fc-vocab-area" rows="2" data-fc-vocab-field
+                                  placeholder="<?php te('vocab.ins_ph_ex'); ?>" lang="<?php echo sec_h($fcC['learn_lang']); ?>" maxlength="1000"></textarea>
+                    </div>
+                    <?php endif; ?>
                 </section>
 
                 <section class="fc-card">
@@ -911,7 +1023,7 @@ function mfc_parola_esempio(): string {
 
 
 
-                <?php if (!empty($figli)): ?>
+                <?php if ($fc_modo === 'edit' && !$is_child): $figli = $figli ?? []; ?>
                 <?php /* LE SOTTOCARTE, IN FONDO E CHIUSE
                          Aperto il modulo di un padre non c'era nessun segno che
                          avesse delle sottocarte: per correggerne una si tornava
@@ -926,20 +1038,25 @@ function mfc_parola_esempio(): string {
                          torna_a fa comparire li' il ritorno a questa carta,
                          cosi' non si resta in fondo a un percorso senza
                          via d'uscita. */ ?>
-                <section class="fc-card fc-figli" id="fcFigli">
-                    <button type="button" class="fc-figli-testa" onclick="fcApriChiudiFigli(this)" aria-expanded="false">
+                <?php /* 20/10/2026: la sezione c'è sempre per una carta padre, e
+                         aperta: si vedono le sottocarte che ha e, in fondo, si
+                         può aggiungerne una. Prima compariva solo se ce n'erano
+                         già, e crearne una voleva dire passare dall'elenco
+                         (crea una carta, poi «unisci»). */ ?>
+                <section class="fc-card fc-figli is-aperta" id="fcFigli">
+                    <button type="button" class="fc-figli-testa" onclick="fcApriChiudiFigli(this)" aria-expanded="true">
                         <svg class="fc-figli-freccia" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                        <span class="fc-figli-tit"><?php echo sec_h(T('fc.vis_n_sottocarte', ['n' => count($figli)])); ?></span>
+                        <span class="fc-figli-tit"><?php echo $figli ? sec_h(count($figli) === 1 ? t('fc.mfc_una_sottocarta') : t('fc.vis_n_sottocarte', ['n' => count($figli)])) : sec_h(t('fc.mfc_sottocarte')); ?></span>
                     </button>
 
-                    <div class="fc-figli-corpo" hidden>
+                    <div class="fc-figli-corpo">
                         <?php foreach ($figli as $i => $f):
                             $fq = mfc_testo_piano($f['question_desc']);
                             $fa = mfc_testo_piano($f['answer_desc'], 70);
                             $url = fc_url('fc_card_edit.php', ['child_id' => (int)$f['id_child'], 'previous_catid' => (int)$category_id, 'torna_a' => (int)$id])
                                  . (!empty($_GET['fc_popup']) ? '&fc_popup=1' : '');
                         ?>
-                        <a class="fc-figlio" href="<?php echo sec_h($url); ?>">
+                        <a class="fc-figlio" href="<?php echo sec_h($url); ?>" onclick="return fcVaiSalvando(this.href)">
                             <span class="fc-figlio-n"><?php echo (int)$i + 1; ?></span>
                             <span class="fc-figlio-testi">
                                 <span class="fc-figlio-q"><?php echo sec_h($fq !== '' ? $fq : '—'); ?></span>
@@ -948,6 +1065,12 @@ function mfc_parola_esempio(): string {
                             <svg class="fc-figlio-matita" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                         </a>
                         <?php endforeach; ?>
+                        <?php $urlNuovo = fc_url('fc_card_edit.php', ['modo' => 'insert', 'parent_id' => (int)$id, 'previous_catid' => (int)$category_id])
+                                        . (!empty($_GET['fc_popup']) ? '&fc_popup=1' : ''); ?>
+                        <a class="fc-figlio fc-figlio-nuovo" href="<?php echo sec_h($urlNuovo); ?>" onclick="return fcVaiSalvando(this.href)">
+                            <span class="fc-figlio-n">+</span>
+                            <span class="fc-figlio-testi"><span class="fc-figlio-q"><?php te('fc.mfc_aggiungi_sottocarta'); ?></span></span>
+                        </a>
                     </div>
                 </section>
                 <?php endif; ?>
@@ -1485,6 +1608,18 @@ function mfc_parola_esempio(): string {
         /* La carta nuova non esiste ancora: si torna a "crea", si nasconde il
            riquadro esempi (non c'e' nulla a cui agganciarli) e si riparte. */
         FC_ID_CORRENTE = 0;
+        /* E si torna DAVVERO a creare: prima restava la modalita' modifica con
+           l'id della carta appena fatta, e il salvataggio successivo la
+           riscriveva invece di crearne una nuova. */
+        FC_MODO = 'insert';
+        var campoModo = document.querySelector('input[name="modo"]');
+        if (campoModo) campoModo.value = 'insert';
+        var titolo = document.getElementById('fcTopbarTitle');
+        if (titolo) titolo.textContent = T(document.querySelector('input[name="parent_id"]') ? 'fc.ifc_nuova_sottocarta' : 'fc.ifc_nuova_scheda');
+        var addEx = document.getElementById('fcAddEsempio');
+        if (addEx) addEx.disabled = true;
+        var esN = document.getElementById('fcvEsempioNuovo');
+        if (esN) esN.hidden = false;
         /* Anche il numero sul tasto: e' quello della carta precedente, e su una
            carta che non esiste ancora vorrebbe dire il falso. */
         fcMostraContaEsempi(0);
@@ -1626,6 +1761,149 @@ function mfc_parola_esempio(): string {
     /* Apre e chiude l'elenco delle sottocarte. hidden e non una classe: e' un
        contenuto che c'e' o non c'e', non un contenuto trasparente — e cosi' non
        lo leggono nemmeno i lettori di schermo mentre e' chiuso. */
+
+    /* Dalla sezione delle sottocarte si va a un altro modulo: se in questo c'e'
+       qualcosa di non salvato, prima si salva, poi si va. Senza, aggiungere una
+       sottocarta subito dopo aver corretto il padre faceva perdere la correzione. */
+    function fcVaiSalvando(href) {
+        if (typeof StandoutSaveBar === 'undefined' || !StandoutSaveBar.isDirty('scheda')) return true;
+        StandoutSaveBar.saveNow('scheda').then(function () { window.location.href = href; });
+        return false;
+    }
+
+    /* ============================================================
+       L'ASSISTENTE IA DELLE PAROLE (solo lingue)
+       «Compila»: traduzione, significato ed esempio dalla parola, con
+       l'azione «parole» di fc_ai.php (la stessa dell'inserimento multiplo,
+       crediti compresi). Riempie i campi vuoti; se erano gia' tutti pieni,
+       rifà significato ed esempio — vuol dire che se ne voleva un altro.
+       «Genera immagine»: fc_ai_immagine.php, che conta contro le immagini del
+       piano. L'immagine arriva nel riquadro come un file scelto a mano.
+       ============================================================ */
+    (function () {
+        var box = document.getElementById('fcvAi');
+        if (!box) return;
+        var CORSO = <?php echo fc_is_vocab() ? (int)fc_corso_id() : 0; ?>;
+        var stato = document.getElementById('fcvAiStato');
+        var bFill = document.getElementById('fcvAiFill');
+        var bImg = document.getElementById('fcvAiImg');
+        function $id(id) { return document.getElementById(id); }
+        function val(id) { var e = $id(id); return e ? e.value.trim() : ''; }
+        function metti(id, v) {
+            var e = $id(id);
+            if (!e || v === undefined || v === null) return;
+            e.value = v;
+            e.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        function dici(msg, errore) {
+            stato.textContent = msg || '';
+            stato.classList.toggle('is-err', !!errore);
+            stato.classList.toggle('is-on', !!msg);
+        }
+        function occupato(b, si) { b.disabled = si; b.classList.toggle('is-busy', si); }
+        function chiedi(url, dati) {
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            return fetch(url, {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': meta ? meta.content : '' },
+                body: JSON.stringify(dati)
+            }).then(function (r) { return r.json(); });
+        }
+        /* il primo esempio gia' salvato della carta (in modifica) */
+        function esempioDellaCarta() {
+            var nuovo = val('fcExample');
+            if (nuovo) return nuovo;
+            var b = document.querySelector('.qa-examples-box');
+            var es = b && b._fcExamples;
+            return (es && es[0] && es[0].example_text) ? String(es[0].example_text) : '';
+        }
+        function serveLaParola() {
+            if (val('fcWord') || val('fcTranslation')) return false;
+            dici(T('fcv.ia_serve_parola'), true);
+            var w = $id('fcWord'); if (w) w.focus();
+            return true;
+        }
+
+        bFill.addEventListener('click', function () {
+            if (serveLaParola()) return;
+            var w = val('fcWord'), tr = val('fcTranslation');
+            var ind = val('fcvAiInd');
+            if (!w) ind = 'The item is written in the learner\'s own language: give it in the learned language as w. ' + ind;
+            occupato(bFill, true);
+            dici(T('fcv.ia_compilo'));
+            chiedi('fc_ai.php', { azione: 'parole', corso: CORSO, parole: [w || tr], significato: true, esempio: true, indicazioni: ind })
+                .then(function (r) {
+                    if (!r || !r.ok || !r.parole || !r.parole[0]) {
+                        dici(T(r && r.error === 'limite_piano' ? 'fcv.ia_crediti_finiti' : 'fcv.ia_errore'), true);
+                        return;
+                    }
+                    var p = r.parole[0];
+                    var tuttoPieno = !!(val('fcWord') && val('fcTranslation') && val('fcMeaning') && (!$id('fcExample') || val('fcExample')));
+                    if (!val('fcWord')) metti('fcWord', p.q);
+                    if (!val('fcTranslation')) metti('fcTranslation', p.a);
+                    if (!val('fcMeaning') || tuttoPieno) metti('fcMeaning', p.m);
+                    if (p.ex) {
+                        if ($id('fcExample')) {
+                            if (!val('fcExample') || tuttoPieno) metti('fcExample', p.ex);
+                        } else if (FC_ID_CORRENTE) {
+                            fcvSalvaEsempio(p.ex);
+                        }
+                    }
+                    dici(T('fcv.ia_compilato'));
+                })
+                .catch(function () { dici(T('fcv.ia_errore'), true); })
+                .then(function () { occupato(bFill, false); });
+        });
+
+        bImg.addEventListener('click', function () {
+            if (serveLaParola()) return;
+            occupato(bImg, true);
+            dici(T('fcv.ia_disegno'));
+            chiedi('fc_ai_immagine.php', {
+                corso: CORSO, parola: val('fcWord'), traduzione: val('fcTranslation'),
+                esempio: esempioDellaCarta(), usa_esempio: $id('fcvAiUsaEs').checked,
+                vettoriale: $id('fcvAiVett').checked, indicazioni: val('fcvAiInd')
+            }).then(function (r) {
+                if (!r || !r.ok || !r.data) { dici((r && r.message) || T('fcv.ia_immagine_errore'), true); return; }
+                var bin = atob(r.data), arr = new Uint8Array(bin.length);
+                for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+                var est = r.mime === 'image/jpeg' ? '.jpg' : (r.mime === 'image/webp' ? '.webp' : '.png');
+                var file = new File([arr], 'ai-' + Date.now() + est, { type: r.mime });
+                var input = $id('qNew_image');
+                if (!input || typeof DataTransfer === 'undefined') { dici(T('fcv.ia_immagine_errore'), true); return; }
+                var dt = new DataTransfer();
+                dt.items.add(file);
+                input.files = dt.files;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                dici(T('fcv.ia_immagine_pronta'));
+            }).catch(function () { dici(T('fcv.ia_immagine_errore'), true); })
+              .then(function () { occupato(bImg, false); });
+        });
+    })();
+
+    /* Un esempio nuovo, salvato subito fra quelli della carta (che in modifica
+       esiste gia'). Stessa strada del pannello degli esempi. */
+    async function fcvSalvaEsempio(testo) {
+        if (!FC_ID_CORRENTE || !testo) return;
+        try {
+            var fd = new FormData();
+            fd.append('action', 'save');
+            fd.append('fc_id', FC_ID_CORRENTE);
+            fd.append('fc_type', FC_TIPO);
+            fd.append('ex_id', 0);
+            fd.append('text', testo);
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            fd.append('csrf_token', meta ? meta.content : '');
+            var r = await fetch(fcExApi(''), { method: 'POST', body: fd });
+            var j = await r.json();
+            if (j && j.success) {
+                fcSegnalaCambiato();
+                fcRinfrescaSezioneEsempi();
+                if (typeof fcRicontaEsempi === 'function') fcRicontaEsempi();
+            }
+        } catch (e) {}
+    }
+
     function fcApriChiudiFigli(btn) {
         var corpo = document.querySelector('.fc-figli-corpo');
         if (!corpo) return;
@@ -1780,14 +2058,28 @@ function mfc_parola_esempio(): string {
                     if (addEx) addEx.disabled = false;
                     var altra = document.getElementById('fcAltraBtn');
                     if (altra) altra.hidden = false;
-                    var campoId = document.querySelector('input[name="fc_id"]');
+                    /* una sottocarta appena nata si modifica come sottocarta */
+                    var nomeId = dati.is_child ? 'child_id' : 'fc_id';
+                    FC_TIPO = dati.is_child ? 'child' : 'parent';
+                    var campoId = document.querySelector('input[name="' + nomeId + '"]');
                     if (!campoId) {
                         campoId = document.createElement('input');
                         campoId.type = 'hidden';
-                        campoId.name = 'fc_id';
+                        campoId.name = nomeId;
                         document.getElementById('editFcForm').appendChild(campoId);
                     }
                     campoId.value = dati.fc_id;
+                    /* L'esempio scritto con la parola e' ora fra gli esempi della
+                       carta: il campo si svuota e si nasconde, se no un secondo
+                       salvataggio non lo rimanderebbe (la carta non e' piu'
+                       "nuova") ma resterebbe li' a dire il falso. */
+                    var esN = document.getElementById('fcvEsempioNuovo');
+                    if (esN) {
+                        var haEsempio = !!(document.getElementById('fcExample') || {}).value;
+                        esN.hidden = true;
+                        document.getElementById('fcExample').value = '';
+                        if (haEsempio) { fcRinfrescaSezioneEsempi(); fcRicontaEsempi(); }
+                    }
 
                     if (window.parent && window.parent !== window) {
                         window.parent.postMessage({ source: 'fc-modifica-popup', type: 'creato', fc_id: dati.fc_id }, window.location.origin);

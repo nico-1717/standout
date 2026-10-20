@@ -159,6 +159,47 @@ function fc_gioco_testo(array $c, string $lato, string $classe = 'fc-text raw-te
     }
 }
 
+/**
+ * GLI INDIZI DEL DAVANTI (solo lingue): il significato e un esempio.
+ * Stanno coperti da due etichette, «Significato» ed «Esempio»: toccandole
+ * l'etichetta sparisce e compare il testo. Così si prova prima a ricordare da
+ * soli, e l'aiuto c'è quando serve. Dalle opzioni della partita si può
+ * scegliere di vederli già scoperti.
+ * Se la parola da dire è dietro, nell'esempio diventa «_»: la frase aiuta a
+ * ricordarla senza dirla. Se la parola è davanti, resta e si vede in grassetto.
+ */
+function fc_gioco_indizi(array $c): void {
+    if (!fc_is_vocab()) return;
+    $lato = $c['fc_lato_parola'] ?? 'q';
+    $parola = trim((string)($c[$lato === 'q' ? 'question_desc' : 'answer_desc'] ?? ''));
+    $significato = trim((string)($c['meaning'] ?? ''));
+    $esempio = trim((string)($c['fcv_esempio'] ?? ''));
+    if ($significato === '' && $esempio === '') return;
+    $esHtml = '';
+    if ($esempio !== '') {
+        $esHtml = sec_h($esempio);
+        if ($parola !== '' && mb_strlen($parola) >= 2) {
+            $re = '/(?<![\p{L}\p{N}])' . preg_quote(sec_h($parola), '/') . '(?![\p{L}\p{N}])/iu';
+            $esHtml = $lato === 'q'
+                ? (preg_replace($re, '<b>$0</b>', $esHtml) ?? $esHtml)
+                : (preg_replace($re, '_', $esHtml) ?? $esHtml);
+        }
+        // la lacuna, comunque sia scritta (_ o ___), si vede come uno spazio da riempire
+        $esHtml = preg_replace('/_{1,}/', '<span class="fcv-gap">_____</span>', $esHtml) ?? $esHtml;
+    }
+    $lingua = sec_h(fc_corso()['learn_lang']);
+    echo '<div class="fcv-hints">';
+    foreach ([['significato', $significato !== '' ? sec_h($significato) : ''], ['esempio', $esHtml]] as [$k, $html]) {
+        if ($html === '') continue;
+        echo '<button type="button" class="fcv-hint fcv-hint-' . $k . '" onclick="event.stopPropagation(); this.classList.toggle(\'is-open\')"'
+           . ' aria-label="' . sec_h(t('fcv.indizio_' . $k)) . '">'
+           . '<span class="fcv-hint-lab">' . sec_h(t('fcv.indizio_' . $k)) . '</span>'
+           . '<span class="fcv-hint-txt" lang="' . $lingua . '">' . $html . '</span>'
+           . '</button>';
+    }
+    echo '</div>';
+}
+
 /** L'etichetta di un lato: "Domanda"/"Risposta", o la lingua con la sua bandiera. */
 function fc_gioco_etichetta(array $c, string $lato): string {
     if (!fc_is_vocab()) return sec_h(t($lato === 'q' ? 'fc.ifc_domanda' : 'fc.ifc_risposta'));
@@ -664,6 +705,13 @@ foreach ($gameplays as $gp) {
         $col = $card['is_child'] ? 'child_id' : 'parent_id';
         $card['examples_count'] = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('examples') . " WHERE $col = ?",
                                         [(int)$card['gameplay_idimmagine']])['c'] ?? 0);
+        /* Lingue: il primo esempio, per l'indizio sul davanti della carta */
+        $card['fcv_esempio'] = '';
+        if ($fc_vocab && $card['examples_count'] > 0) {
+            $ex = sec_one("SELECT example_text FROM " . fc_t('examples') . " WHERE $col = ? AND example_text IS NOT NULL AND example_text <> '' ORDER BY id LIMIT 1",
+                          [(int)$card['gameplay_idimmagine']]);
+            $card['fcv_esempio'] = $ex ? trim((string)$ex['example_text']) : '';
+        }
 
         
 
@@ -714,14 +762,22 @@ if ($parent_id > 0) {
 
 
 
-    // CARTE SINGOLE RIMANENTI
-
-        $to_play_cards_count = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('plays') . "
-                                            WHERE game_id = ?
-                                            AND position IN (SELECT DISTINCT position FROM " . fc_t('plays') . " WHERE game_id = ? AND user_answer = 'Wrong')
-                                            AND (fc_image_id NOT IN (SELECT fc_image_id FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_image_id IS NOT NULL)
-                                              OR fc_child_id NOT IN (SELECT fc_child_id FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_child_id IS NOT NULL))",
-                                         [$parent_id, $parent_id, $game_id, $game_id])['c'] ?? 0);
+    /* CARTE SINGOLE RIMANENTI: i padri che restano più i loro figli.
+       Prima si contavano le righe della partita di origine con
+       «fc_child_id NOT IN (…)»: per una carta senza figli fc_child_id è
+       vuoto, e in SQL «vuoto NOT IN (insieme vuoto)» è vero — quindi ogni
+       carta restava «da giocare» anche dopo averla giocata. Il totale delle
+       carte non tornava mai con quello dei concetti, e nel ripasso compariva
+       sempre la seconda barra, quella dei figli, anche senza figli. */
+    $restanti = "SELECT DISTINCT fc_image_id FROM " . fc_t('plays') . "
+                  WHERE game_id = ? AND fc_image_id IS NOT NULL
+                    AND position IN (SELECT DISTINCT position FROM " . fc_t('plays') . " WHERE game_id = ? AND user_answer = 'Wrong')
+                    AND fc_image_id NOT IN (SELECT fc_image_id FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_image_id IS NOT NULL)";
+    $figli_restanti = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('subcards') . " ch
+                                     JOIN " . fc_t('cards') . " i ON i.id = ch.parent_id AND i.is_father = 1
+                                     WHERE ch.parent_id IN ($restanti)",
+                                    [$parent_id, $parent_id, $game_id])['c'] ?? 0);
+    $to_play_cards_count = $to_play_count + $figli_restanti;
 
 } else {
 
@@ -744,7 +800,7 @@ if ($parent_id > 0) {
             SELECT COUNT(*) AS cnt FROM " . fc_t('cards') . " WHERE $where_learnt $cat_filter
                 AND id NOT IN (SELECT fc_image_id FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_image_id IS NOT NULL)
             UNION ALL
-            SELECT COUNT(*) AS cnt FROM " . fc_t('subcards') . " c JOIN " . fc_t('cards') . " i ON c.parent_id = i.id
+            SELECT COUNT(*) AS cnt FROM " . fc_t('subcards') . " c JOIN " . fc_t('cards') . " i ON c.parent_id = i.id AND i.is_father = 1
              WHERE $where_learnt $cat_filter
                 AND i.id NOT IN (SELECT fc_image_id FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_image_id IS NOT NULL)
         ) AS t",
@@ -1078,6 +1134,12 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 <html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>">
 
 <head>
+<script>
+/* Gli indizi delle lingue (significato, esempio) scoperti fin dall'inizio, se
+   lo si è scelto nelle opzioni della partita. Si decide prima di disegnare la
+   pagina, così non si vedono coperti e poi aprirsi. */
+try { if (localStorage.getItem('fcv_indizi_aperti') === '1') document.documentElement.classList.add('fcv-indizi-aperti'); } catch (e) {}
+</script>
 
     <meta charset="UTF-8">
 
@@ -1735,7 +1797,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
                     <div class="card-title-header">
 
                         <?php if (!empty(trim($c['question_image'] ?? ''))): ?>
-                            <img src="<?php echo fc_cartella_immagini() . sec_h(trim($c['question_image'])); ?>" class="fc-image">
+                            <img src="<?php echo fc_cartella_immagini() . sec_h(trim((string)($c['question_image'] ?? ''))); ?>" class="fc-image">
                         <?php endif; ?>
 
                         <?php fc_gioco_testo($c, 'q', 'raw-text'); ?>
@@ -1770,7 +1832,7 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                     <?php if(count($cards_to_show) > 1): ?>
 
-                        <div class="card-title <?php echo $c['is_child'] ? 'is-child' : ''; ?>"><?php echo $c['is_child'] ? '&#8627; Sottoconcetto' : T('fc.gm_concetto_principale'); ?></div>
+                        <div class="card-title <?php echo $c['is_child'] ? 'is-child' : ''; ?>"><?php echo $c['is_child'] ? '&#8627; ' . sec_h(t('fc.gm_sottoconcetto')) : sec_h(t('fc.gm_concetto_principale')); ?></div>
 
                     <?php endif; ?>
 
@@ -1786,13 +1848,14 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                         <?php endif; ?>
 
-                        <?php if (!empty(trim($c['question_image']))): ?>
+                        <?php if (!empty(trim((string)($c['question_image'] ?? '')))): ?>
 
-                            <img src="<?php echo fc_cartella_immagini() . sec_h(trim($c['question_image'])); ?>" class="fc-image">
+                            <img src="<?php echo fc_cartella_immagini() . sec_h(trim((string)($c['question_image'] ?? ''))); ?>" class="fc-image">
 
                         <?php endif; ?>
 
                         <?php fc_gioco_testo($c, 'q'); ?>
+                        <?php fc_gioco_indizi($c); ?>
 
                     </div>
 
@@ -1824,9 +1887,9 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                             <?php endif; ?>
 
-                            <?php if (!empty(trim($c['answer_image']))): ?>
+                            <?php if (!empty(trim((string)($c['answer_image'] ?? '')))): ?>
 
-                                <img src="<?php echo fc_cartella_immagini() . sec_h(trim($c['answer_image'])); ?>" class="fc-image">
+                                <img src="<?php echo fc_cartella_immagini() . sec_h(trim((string)($c['answer_image'] ?? ''))); ?>" class="fc-image">
 
                             <?php endif; ?>
 
@@ -1932,9 +1995,9 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
                             <?php endif; ?>
 
-                            <?php if (!empty(trim($c['answer_image']))): ?>
+                            <?php if (!empty(trim((string)($c['answer_image'] ?? '')))): ?>
 
-                                <img src="<?php echo fc_cartella_immagini() . sec_h(trim($c['answer_image'])); ?>" class="fc-image">
+                                <img src="<?php echo fc_cartella_immagini() . sec_h(trim((string)($c['answer_image'] ?? ''))); ?>" class="fc-image">
 
                             <?php endif; ?>
 

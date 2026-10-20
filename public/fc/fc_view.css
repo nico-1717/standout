@@ -273,7 +273,11 @@ img{ -webkit-touch-callout:none; }
 
 }
 
-.search-input:focus{ background:var(--surface); box-shadow:inset 0 0 0 1.5px var(--cat-color), 0 0 0 4px var(--cat-soft); }
+.search-input:focus{ background:var(--surface); box-shadow:inset 0 0 0 1.5px var(--cat-color), 0 0 0 4px var(--cat-soft); outline:none; }
+
+/* La ricerca durante la selezione: un filo di spazio sopra, altrimenti
+   l'alone del campo attivo veniva tagliato dal bordo della riga. */
+.sel-search-row{ padding-top:4px; }
 
 .search-input::placeholder{ color:var(--text-3); font-weight:500; }
 

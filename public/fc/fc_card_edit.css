@@ -712,3 +712,33 @@ html.fc-popup-sopra, html.fc-popup-sopra body{ overflow:hidden; }
 .fc-vocab-speak svg{ width:18px; height:18px; }
 .fc-vocab-speak:active{ transform:scale(.88); }
 .fc-vocab-speak.speaking{ background:var(--blue, #007AFF); color:#fff; }
+
+/* ---- l'assistente IA delle parole ----
+   Viola come il resto della famiglia IA/esempi. Due tasti uguali, le opzioni
+   dell'immagine piccole sotto, e una riga che dice cosa sta succedendo. */
+.fcv-ai-tit{ display:inline-flex; align-items:center; gap:7px; color:var(--purple, #AF52DE); }
+.fcv-ai-tit svg{ width:17px; height:17px; }
+.fcv-ai-sub{ margin:-2px 2px 10px; font-size:13px; color:var(--text-2, #8A8A8E); }
+.fcv-ai-ind{ min-height:52px; font-size:14.5px; }
+.fcv-ai-acts{ display:flex; gap:8px; margin-top:10px; }
+.fcv-ai-btn{ flex:1; display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:44px; padding:0 12px;
+    border:none; border-radius:12px; cursor:pointer; font:inherit; font-size:14.5px; font-weight:700;
+    background:color-mix(in srgb, var(--purple, #AF52DE) 13%, var(--surface, #fff)); color:var(--purple, #AF52DE);
+    transition:transform .15s, opacity .2s; }
+.fcv-ai-btn svg{ width:17px; height:17px; flex-shrink:0; }
+.fcv-ai-btn:active{ transform:scale(.97); }
+.fcv-ai-btn:disabled{ opacity:.55; cursor:default; }
+.fcv-ai-btn.is-busy svg{ animation:fcvAiGira 1s linear infinite; }
+@keyframes fcvAiGira{ to{ transform:rotate(360deg); } }
+.fcv-ai-opts{ display:flex; flex-wrap:wrap; gap:6px 16px; margin:10px 2px 0; font-size:13px; color:var(--text-2, #8A8A8E); }
+.fcv-ai-opts label{ display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+.fcv-ai-opts input{ width:16px; height:16px; accent-color:var(--purple, #AF52DE); margin:0; }
+.fcv-ai-stato{ display:none; margin:10px 2px 0; font-size:13px; font-weight:600; color:var(--purple, #AF52DE); }
+.fcv-ai-stato.is-on{ display:block; }
+.fcv-ai-stato.is-err{ color:var(--red, #FF3B30); }
+
+/* la riga per aggiungere una sottocarta, in fondo all'elenco */
+.fc-figlio-nuovo{ background:none; border:1.5px dashed var(--hairline-2, rgba(60,60,67,.24)); padding:9px 11px; }
+.fc-figlio-nuovo .fc-figlio-n{ background:var(--blue, #007AFF); font-size:14px; }
+.fc-figlio-nuovo .fc-figlio-q{ color:var(--blue, #007AFF); }
+#fcvEsempioNuovo[hidden]{ display:none; }

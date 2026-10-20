@@ -888,7 +888,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                                <img src="<?php echo fc_cartella_immagini() . sec_h($c['question_image']); ?>" class="fc-img">
+                                <img src="<?php echo fc_cartella_immagini() . sec_h($c['question_image']); ?>" class="fc-img" loading="lazy" decoding="async">
 
 
 
@@ -932,7 +932,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-                                    <img src="<?php echo fc_cartella_immagini() . sec_h($c['answer_image']); ?>" class="fc-img">
+                                    <img src="<?php echo fc_cartella_immagini() . sec_h($c['answer_image']); ?>" class="fc-img" loading="lazy" decoding="async">
 
 
 
@@ -988,6 +988,14 @@ if ($row_resume && $row_resume['resume_pos']) {
 
             <?php if ($current_pos !== -1) { echo '</div>'; } ?>
             </template>
+            <?php /* "Carica altre": in pagina entrano le prime pagine, le altre
+                     restano nel template (testo non disegnato, immagini non
+                     scaricate) finche' non le si chiede. Vedi CARICAMENTO A
+                     PACCHETTI in fondo. */ ?>
+            <button type="button" class="rev-more" id="revMore" hidden>
+                <span class="rev-more-lab"><?php te('fc.res_carica_altre'); ?></span>
+                <span class="rev-more-n" id="revMoreN"></span>
+            </button>
 
 
 
@@ -2236,6 +2244,7 @@ if ($row_resume && $row_resume['resume_pos']) {
                     btn.classList.toggle('is-active', attivo);
                 }
                 filtraCarte(document.querySelectorAll('#revList .rev-card'));
+                if (typeof window.fcRevRiempi === 'function') window.fcRevRiempi();
             };
 
             window.fcvOpen = function (i) {
@@ -2917,7 +2926,11 @@ if ($row_resume && $row_resume['resume_pos']) {
              1. prima niente: l'anello e i numeri del punteggio si animano
                 da soli, senza nessuno che rubi il thread;
              2. poi la carta 1, la 2, la 3, una per volta;
-             3. poi fino alla 10, e da li' dieci alla volta (20, 30, ...).
+             3. poi fino alla 10, e da li' dieci alla volta, fino a PASSO
+                pagine (20). Il resto aspetta nel template: sotto l'elenco c'e'
+                "Carica altre", che ne porta altre PASSO. Prima arrivavano
+                tutte da sole, e con centinaia di carte la pagina diventava
+                lunghissima e scaricava ogni immagine.
            Ogni pacchetto aspetta il frame successivo e un momento libero
            del browser, cosi' lo scorrimento resta fluido anche con
            centinaia di carte. Testi, formule e riquadri degli esempi si
@@ -2944,7 +2957,11 @@ if ($row_resume && $row_resume['resume_pos']) {
                 if (!tpl || !list || !tpl.content) { window.fcRevFlush = function () {}; return; }
 
                 var coda = Array.prototype.slice.call(tpl.content.children);
-                var fatte = 0, avviato = false;
+                var fatte = 0, avviato = false, inCorso = false;
+                var PASSO = 20;          /* pagine mostrate all'inizio e a ogni "Carica altre" */
+                var limite = PASSO;      /* quante pagine VISIBILI si vogliono in elenco */
+                var bottone = document.getElementById('revMore');
+                var bottoneN = document.getElementById('revMoreN');
                 var soloErrori = /[?&]solo_errori=1(?:&|$)/.test(window.location.search);
 
                 function dimensione() {
@@ -2997,23 +3014,82 @@ if ($row_resume && $row_resume['resume_pos']) {
                     });
                 }
 
+                /* Pagine in elenco che si vedono: col filtro "solo sbagliate"
+                   quelle senza errori ci sono ma sono nascoste, e non contano. */
+                function visibili() {
+                    var n = 0;
+                    for (var el = list.firstElementChild; el; el = el.nextElementSibling) {
+                        if (el.style.display !== 'none') n++;
+                    }
+                    return n;
+                }
+
+                /* Quante ne restano da caricare, contando col filtro: con "solo
+                   sbagliate" acceso contano solo le pagine con almeno un errore. */
+                function restanti() {
+                    if (!window.fcSoloErrori) return coda.length;
+                    var n = 0;
+                    coda.forEach(function (g) { if (g.querySelector('.oc-pill.ko')) n++; });
+                    return n;
+                }
+
+                function aggiornaBottone() {
+                    if (!bottone) return;
+                    var n = avviato ? restanti() : 0;
+                    bottone.hidden = n === 0;
+                    if (bottoneN && n > 0 && typeof window.T === 'function') {
+                        bottoneN.textContent = n === 1 ? T('fc.res_resta_1') : T('fc.res_restano_n', { n: n });
+                    }
+                }
+
+                /* Un pacchetto per frame finche' le pagine visibili arrivano al
+                   limite (o la coda e' vuota). Col filtro attivo una pagina
+                   inserita puo' restare nascosta: si continua finche' non se ne
+                   vedono abbastanza. */
                 function giro() {
-                    if (!coda.length) return;
-                    inserisci(dimensione(), true);
-                    if (coda.length) dopo(giro);
+                    var mancano = limite - visibili();
+                    if (!coda.length || mancano <= 0) {
+                        inCorso = false;
+                        list.style.minHeight = '';
+                        aggiornaBottone();
+                        return;
+                    }
+                    inserisci(Math.max(1, Math.min(dimensione(), mancano)), true);
+                    dopo(giro);
+                }
+
+                function avanti() {
+                    if (inCorso) return;      /* il giro in corso vede gia' il nuovo limite */
+                    inCorso = true;
+                    giro();
                 }
 
                 function avvia() {
                     if (avviato) return;
                     avviato = true;
-                    giro();
+                    avanti();
                 }
+
+                if (bottone) bottone.addEventListener('click', function () {
+                    limite = visibili() + PASSO;
+                    avanti();
+                });
+
+                /* Il filtro "solo sbagliate" cambia quante pagine si vedono:
+                   acceso, si riempie di nuovo fino al limite con le prossime
+                   pagine che hanno errori. */
+                window.fcRevRiempi = function () {
+                    if (!avviato) return;
+                    if (window.fcSoloErrori && visibili() < limite) avanti();
+                    else if (!inCorso) aggiornaBottone();
+                };
 
                 /* Il visore a schede ha bisogno di tutte le carte: se lo si apre
                    prima che siano arrivate, entrano tutte subito. */
                 window.fcRevFlush = function () {
                     avviato = true;
                     if (coda.length) inserisci(coda.length, false);
+                    aggiornaBottone();
                 };
 
                 function vaiAllaRevisione() {

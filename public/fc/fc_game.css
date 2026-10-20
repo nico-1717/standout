@@ -1638,3 +1638,19 @@
 .fcv-speak:active{ transform:scale(.9); }
 .fcv-speak.speaking{ background:var(--blue, #007AFF); color:#fff; }
 .fcv-meaning{ margin-top:10px; font-size:15px; line-height:1.4; color:var(--text-2); font-style:italic; }
+
+/* ---- gli indizi delle lingue: significato ed esempio, coperti finché non si toccano ---- */
+.fcv-hints{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin-top:14px; }
+.fcv-hint{ display:inline-flex; align-items:center; max-width:100%; min-height:34px; padding:7px 13px; border:none; border-radius:12px; cursor:pointer;
+    background:var(--surface-2, #F2F2F7); color:var(--text, #1C1C1E); font:inherit; text-align:left; transition:background-color .2s; }
+.fcv-hint-lab{ font-size:12.5px; font-weight:650; letter-spacing:.04em; text-transform:uppercase; color:var(--text-2, #8A8A8E); }
+.fcv-hint-txt{ display:none; font-size:15px; line-height:1.4; }
+.fcv-hint-significato .fcv-hint-txt{ font-style:italic; }
+.fcv-hint.is-open .fcv-hint-lab, html.fcv-indizi-aperti .fcv-hint:not(.is-open) .fcv-hint-lab{ display:none; }
+.fcv-hint.is-open .fcv-hint-txt, html.fcv-indizi-aperti .fcv-hint:not(.is-open) .fcv-hint-txt{ display:block; }
+/* con gli indizi già aperti, toccarli li richiude: is-open fa da interruttore al contrario */
+html.fcv-indizi-aperti .fcv-hint.is-open .fcv-hint-lab{ display:inline; }
+html.fcv-indizi-aperti .fcv-hint.is-open .fcv-hint-txt{ display:none; }
+.fcv-hint:active{ filter:brightness(.96); }
+.fcv-gap{ letter-spacing:-.05em; color:var(--text-2, #8A8A8E); }
+.fcv-hint-esempio b{ font-weight:700; }

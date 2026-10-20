@@ -3847,7 +3847,18 @@
     "vai_in_corso": "Sto scegliendo le parole…",
     "vai_fatto": "{n} parole aggiunte in fondo · {c} crediti",
     "vai_vuoto": "Scrivi un argomento o incolla delle parole.",
-    "ibf_tieni_premuto": "Tieni premuto"
+    "ibf_tieni_premuto": "Tieni premuto",
+    "gm_sottoconcetto": "Sottoconcetto",
+    "cg_tutti_stati": "Tutte",
+    "ifc_nuova_sottocarta": "NUOVA SOTTOCARTA",
+    "mfc_sottocarte": "Sottocarte",
+    "mfc_aggiungi_sottocarta": "Aggiungi una sottocarta",
+    "mfc_una_sottocarta": "1 sottocarta",
+    "res_carica_altre": "Carica altre",
+    "res_restano_n": "ne restano {n}",
+    "res_resta_1": "ne resta 1",
+    "vis_una_carta_n": "1 carta",
+    "vis_una_carta_mostrata": "{n} carta mostrata"
   },
   "fchub": {
     "home_titolo": "Flashcard",
@@ -3952,7 +3963,20 @@
     "verso": "Verso",
     "verso_w2t": "Parola → traduzione",
     "verso_t2w": "Traduzione → parola",
-    "verso_mix": "Misto"
+    "verso_mix": "Misto",
+    "indizio_significato": "Significato",
+    "indizio_esempio": "Esempio",
+    "indizi_aperti": "Significato ed esempio già visibili",
+    "indizi_aperti_sub": "Altrimenti sono coperti: li tocchi quando ti servono.",
+    "ia_serve_parola": "Scrivi prima la parola (o la traduzione).",
+    "ia_compilo": "Compilo traduzione, significato ed esempio…",
+    "ia_compilato": "Fatto. Controlla e salva.",
+    "ia_errore": "L'IA non ha risposto. Riprova tra poco: i crediti non sono stati scalati.",
+    "ia_crediti_finiti": "Non hai abbastanza crediti IA per questo mese.",
+    "ia_disegno": "Disegno l'immagine… ci vogliono una decina di secondi.",
+    "ia_immagine_pronta": "Ecco l'immagine. Salva per tenerla.",
+    "ia_immagine_errore": "Non è stato possibile creare l'immagine. Riprova tra poco.",
+    "ia_limite_immagini": "Hai usato tutte le immagini del tuo piano per questo mese."
   },
   "sidebar": {
     "sezione_impara": "Impara",

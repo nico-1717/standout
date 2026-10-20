@@ -2244,7 +2244,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
             </div>
 
-            <span class="cat-pill-count" id="catCount"><?= (int)$fc_total_cards ?> <?= ((int)$fc_total_cards === 1 ? 'carta' : 'carte') ?></span>
+            <span class="cat-pill-count" id="catCount"><?php if ((int)$fc_total_cards === 1) te('fc.vis_una_carta_n'); else te('fc.vis_n_carte', ['n' => (int)$fc_total_cards]); ?></span>
 
         </div>
 
@@ -2438,6 +2438,19 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
         <span id="modeBannerText"></span>
     </div>
 
+    <?php /* LA RICERCA MENTRE SI SCEGLIE.
+             Entrando nella selezione la barra con la ricerca spariva, e per
+             unire due carte bisognava trovare il padre scorrendo tutto
+             l'elenco. Adesso la ricerca resta: è la stessa di sopra (stesso
+             filtro, stesso testo), e le carte già scelte restano sempre in
+             vista anche se non corrispondono. */ ?>
+    <div class="toolbar-row sel-search-row" id="selSearchRow" style="display:none;">
+        <div class="search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="selSearch" class="search-input" type="text" enterkeyhint="search" autocomplete="off" placeholder="<?php te('fc.vis_cerca'); ?>" oninput="fcCercaInSelezione(this.value)">
+        </div>
+    </div>
+
 </header>
 
 <script>
@@ -2561,7 +2574,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
                 if ($fcPaginato && $__visti > FC_BLOCCO_CARTE) break;
                 $__mostrate += 1 + count($__r['children']);
             }
-            th('fc.vis_n_carte_mostrate', ['n' => '<b id="itemCounterNum">' . (int)$__mostrate . '</b>']);
+            th($__mostrate === 1 ? 'fc.vis_una_carta_mostrata' : 'fc.vis_n_carte_mostrate', ['n' => '<b id="itemCounterNum">' . (int)$__mostrate . '</b>']);
         ?></div>
 
 
@@ -3111,6 +3124,16 @@ function syncHeaderHeight(){
 }
 
 window.addEventListener('resize', syncHeaderHeight);
+/* L'intestazione cambia altezza anche senza ridimensionare la finestra: la
+   barra della selezione, la ricerca mentre si sceglie, la riga che dice in
+   che modalità si è. Si misura ogni volta che cambia, invece di ricordarsi di
+   farlo in ognuno di quei punti. */
+if (window.ResizeObserver) {
+    (function(){
+        var h = document.getElementById('appHeader');
+        if (h) new ResizeObserver(syncHeaderHeight).observe(h);
+    })();
+}
 
 
 
@@ -3596,9 +3619,30 @@ function fcOsservaFineElenco(){
 }
 
 let displayedCount = 0;
+
+/* "1 carta mostrata" e non "1 carte mostrate": quando il numero passa da
+   uno a tanti (o il contrario) si riscrive la frase intorno al numero, che
+   resta lo stesso elemento e continua ad animarsi. */
+function fcEtichettaContatore(n){
+    const box = document.getElementById('itemCounter');
+    const num = document.getElementById('itemCounterNum');
+    if (!box || !num || typeof T !== 'function') return;
+    const uno = (n === 1) ? '1' : '0';
+    if (box.dataset.uno === uno) return;
+    box.dataset.uno = uno;
+    const parti = T(uno === '1' ? 'fc.vis_una_carta_mostrata' : 'fc.vis_n_carte_mostrate', { n: '\u0001' }).split('\u0001');
+    const dot = box.querySelector('.ic-dot');
+    box.textContent = '';
+    if (dot) { box.appendChild(dot); box.appendChild(document.createTextNode(' ')); }
+    box.appendChild(document.createTextNode(parti[0] || ''));
+    box.appendChild(num);
+    box.appendChild(document.createTextNode(parti[1] || ''));
+}
+
 function animateCounter(target){
     const el = document.getElementById('itemCounterNum');
     if (!el) return;
+    fcEtichettaContatore(target);
 
     const start = displayedCount;
 
@@ -6452,10 +6496,24 @@ function modoStruttura(){ return document.body.dataset.bulkAction || ''; }
 /* Siamo nel momento in cui si tocca la carta che diventera' padre? */
 function stoScegliendoIlPadre(){ return document.body.classList.contains('join-picking'); }
 
+/* La ricerca della selezione scrive nello stesso campo di quella normale:
+   un filtro solo, così uscendo dalla selezione si ritrova quello che si
+   stava cercando. */
+function fcCercaInSelezione(testo){
+    var f = document.getElementById('filterText');
+    if (f) f.value = testo;
+    fcOnSearchInput();
+}
+
 function enterSelectMode(){
     document.body.classList.add('select-mode');
     document.getElementById('normalToolbar').style.display = 'none';
     document.getElementById('selectToolbar').style.display = 'flex';
+    var rs = document.getElementById('selSearchRow');
+    if (rs) {
+        rs.style.display = 'flex';
+        document.getElementById('selSearch').value = document.getElementById('filterText').value;
+    }
     buzz(8);
     aggiornaBarraSelezione();
     filterList();
@@ -6467,6 +6525,8 @@ function exitSelectMode(){
     document.body.dataset.bulkAction = '';
     document.getElementById('normalToolbar').style.display = 'flex';
     document.getElementById('selectToolbar').style.display = 'none';
+    var rs = document.getElementById('selSearchRow');
+    if (rs) rs.style.display = 'none';
     document.getElementById('modeBanner').style.display = 'none';
     document.getElementById('stActions').style.display = 'flex';
     document.getElementById('selectAllBtn').style.display = '';

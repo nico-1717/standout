@@ -3847,7 +3847,18 @@
     "vai_in_corso": "Picking the words…",
     "vai_fatto": "{n} words added at the end · {c} credits",
     "vai_vuoto": "Write a topic or paste some words.",
-    "ibf_tieni_premuto": "Press and hold"
+    "ibf_tieni_premuto": "Press and hold",
+    "gm_sottoconcetto": "Sub-concept",
+    "cg_tutti_stati": "All",
+    "ifc_nuova_sottocarta": "NEW SUB-CARD",
+    "mfc_sottocarte": "Sub-cards",
+    "mfc_aggiungi_sottocarta": "Add a sub-card",
+    "mfc_una_sottocarta": "1 sub-card",
+    "res_carica_altre": "Load more",
+    "res_restano_n": "{n} left",
+    "res_resta_1": "1 left",
+    "vis_una_carta_n": "1 card",
+    "vis_una_carta_mostrata": "{n} card shown"
   },
   "fchub": {
     "home_titolo": "Flashcards",
@@ -3952,7 +3963,20 @@
     "verso": "Direction",
     "verso_w2t": "Word → translation",
     "verso_t2w": "Translation → word",
-    "verso_mix": "Mixed"
+    "verso_mix": "Mixed",
+    "indizio_significato": "Meaning",
+    "indizio_esempio": "Example",
+    "indizi_aperti": "Meaning and example already visible",
+    "indizi_aperti_sub": "Otherwise they stay covered: tap them when you need them.",
+    "ia_serve_parola": "Write the word (or the translation) first.",
+    "ia_compilo": "Filling in the translation, meaning and example…",
+    "ia_compilato": "Done. Check it and save.",
+    "ia_errore": "The AI didn't respond. Try again shortly: no credits were used.",
+    "ia_crediti_finiti": "You don't have enough AI credits left this month.",
+    "ia_disegno": "Drawing the image… it takes about ten seconds.",
+    "ia_immagine_pronta": "Here is the image. Save to keep it.",
+    "ia_immagine_errore": "The image couldn't be created. Try again shortly.",
+    "ia_limite_immagini": "You've used all the images in your plan this month."
   },
   "sidebar": {
     "sezione_impara": "Learn",
