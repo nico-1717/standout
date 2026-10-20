@@ -30,7 +30,9 @@
  */
 (function () {
     'use strict';
-    if (!(window.FC && FC.tipo === 'vocab')) return;
+    /* Lingue e studio: le differenze (cosa si chiede nel boss, "parole" o
+       "carte" nei testi) passano tutte da VOCAB. */
+    var VOCAB = !!(window.FC && FC.tipo === 'vocab');
 
     /* ============================================================
        0. ATTREZZI
@@ -51,7 +53,14 @@
     function leggi(k, def) { try { var v = localStorage.getItem(k); return v === null ? def : v; } catch (e) { return def; } }
     function scrivi(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
     function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
-    function api(q) { return 'fc_vocab_game_api.php?' + (FC.qs ? FC.qs + '&' : '') + q; }
+    function api(q) { return 'fc_vocab_game_api.php?' + (window.FC && FC.qs ? FC.qs + '&' : '') + q; }
+    /* il testo di una carta di studio, disegnato come nel gioco (formule comprese) */
+    function disegnaTesto(el, raw) {
+        if (!el) return;
+        try { el.innerHTML = typeof parseTextForPreview === 'function' ? parseTextForPreview(raw || '') : esc(raw); }
+        catch (e) { el.textContent = raw || ''; }
+        try { if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(el); } catch (e) {}
+    }
     function vibra(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
 
     var IC = {
@@ -339,7 +348,10 @@
         if (!conta) return;
         var testo = su ? tr('fcv.gj_liv_su', null, 'Level up!')
                   : (dopo === 'difficile' ? tr('fcv.gj_liv_difficile', null, 'Marked as hard') : tr('fcv.gj_liv_giu', null, 'Level down'));
-        var parola = (card.querySelector('.fcv-game-text.is-word') || {}).textContent || '';
+        var parola = VOCAB ? ((card.querySelector('.fcv-game-text.is-word') || {}).textContent || '')
+                           : ((card.querySelector('.q-section .raw-text') || {}).textContent || '');
+        parola = parola.replace(/\s+/g, ' ').trim();
+        if (parola.length > 34) parola = parola.slice(0, 32).trim() + '…';
         avviso('<span class="fcg-toast-ic fcg-toast-ic-' + (su ? 'su' : 'giu') + '">' + (su ? IC.freccia : IC.giu) + '</span>'
              + '<span class="fcg-toast-col"><span><b>' + esc(testo) + '</b>' + (parola ? ' · ' + esc(parola.trim()) : '') + '</span>'
              + '<span class="fcg-toast-liv">' + badgeHtml(prima) + '<span class="fcg-toast-arr">→</span>' + badgeHtml(dopo) + '</span></span>',
@@ -482,7 +494,7 @@
             var tappe = [5, 10, 25, 50, 100, 200, 300, 500, 750, 1000];
             if (m && m.prima != null) {
                 var passata = tappe.filter(function (x) { return m.prima < x && m.valore >= x; }).pop();
-                if (passata) rec.push([IC.stella, tr('fcv.ck_padroneggiate', { n: m.valore }, m.valore + ' mastered!')]);
+                if (passata) rec.push([IC.stella, tr(VOCAB ? 'fcv.ck_padroneggiate' : 'fcv.ck_padroneggiate_carte', { n: m.valore }, m.valore + ' mastered!')]);
             }
         }
         if (S.comboDaSalvare && S.recordBattuto) rec.push([IC.fiamma, tr('fcv.ck_record_serie', { n: S.migliore }, 'Record streak!')]);
@@ -514,7 +526,22 @@
         if (!lista.length) { chiudiFoglio(); return; }
         var p = apriFoglio('fcg-boss');
         var i = 0, prese = 0;
+        function cartaStudio() {
+            var w = lista[i];
+            p.innerHTML =
+                  '<div class="fcg-boss-testa"><span class="fcg-boss-ic">' + IC.corona + '</span><span class="fcg-occhiello">' + esc(tr('fcv.boss_titolo', null, 'Boss round')) + '</span>'
+                + '<span class="fcg-boss-punti">' + lista.map(function (_, j) { return '<i class="' + (j < i ? 'is-fatto' : j === i ? 'is-ora' : '') + '"></i>'; }).join('') + '</span></div>'
+                + '<div class="fcg-boss-carta fcg-boss-studio">'
+                +   '<span class="fcg-boss-dom">' + esc(tr('fcv.boss_domanda_studio', null, 'Do you remember?')) + '</span>'
+                +   (w.img_domanda ? '<img class="fcg-boss-img" src="' + esc(w.img_domanda) + '" alt="">' : '')
+                +   '<div class="fcg-boss-testo fcg-boss-q"></div>'
+                +   '<div class="fcg-boss-parola fcg-boss-a" aria-live="polite"></div>'
+                + '</div>'
+                + '<div class="fcg-azioni"><button type="button" class="fcg-btn fcg-btn-primo" data-az="mostra">' + esc(tr('fcv.boss_mostra', null, 'Show')) + '</button></div>';
+            disegnaTesto($('.fcg-boss-q', p), w.domanda);
+        }
         function carta() {
+            if (!VOCAB) { cartaStudio(); return; }
             var w = lista[i];
             p.innerHTML =
                   '<div class="fcg-boss-testa"><span class="fcg-boss-ic">' + IC.corona + '</span><span class="fcg-occhiello">' + esc(tr('fcv.boss_titolo', null, 'Boss round')) + '</span>'
@@ -530,6 +557,11 @@
         function mostra() {
             var w = lista[i];
             $('.fcg-boss-carta', p).classList.add('is-vista');
+            if (!VOCAB) {
+                var a = $('.fcg-boss-a', p);
+                a.innerHTML = (w.img_risposta ? '<img class="fcg-boss-img" src="' + esc(w.img_risposta) + '" alt="">' : '') + '<div class="fcg-boss-testo"></div>';
+                disegnaTesto($('.fcg-boss-testo', a), w.risposta);
+            } else
             $('.fcg-boss-parola', p).innerHTML = '<span>' + esc(w.parola) + '</span>' + (w.significato ? '<small>' + esc(w.significato) + '</small>' : '');
             $('.fcg-azioni', p).innerHTML =
                   '<button type="button" class="fcg-btn fcg-btn-no" data-az="no">' + esc(tr('fcv.boss_mancato', null, 'Missed it')) + '</button>'
@@ -617,11 +649,11 @@
     /* ============================================================
        14. LE IMPOSTAZIONI NELL'INGRANAGGIO (checkpoint, suoni)
        ============================================================ */
-    function foglioAperto() { return $('.fcv-gs:not([hidden])') || document; }
+    /* Le righe "checkpoint" e "suoni" stanno nell'ingranaggio delle lingue e
+       nelle impostazioni dello studio, e durante il cambio di carta le pagine
+       sono due: si aggiornano tutte. */
     function segnaImpostazioni() {
-        var f = foglioAperto();
-        var r = $('.fcv-gs-riga[data-fcg="checkpoint"]', f);
-        if (r) {
+        $$('.fcv-gs-riga[data-fcg="checkpoint"]').forEach(function (r) {
             var v = String(ogniQuante());
             $$('[data-v]', r).forEach(function (b) {
                 var on = b.getAttribute('data-v') === v;
@@ -629,10 +661,9 @@
             });
             var seg = $('.fcv-gs-seg', r);
             if (seg) seg.style.setProperty('--fcv-i', String(PASSI_CK.indexOf(v)));
-            $('.fcv-gs-spiega', r).textContent = v === '0' ? tr('fcv.gs_ck_spento', null, '') : tr('fcv.gs_ck_ogni', { n: v }, '');
-        }
-        var sw = $('#fcgSuoni', f);
-        if (sw) sw.checked = suoniAccesi();
+            $('.fcv-gs-spiega', r).textContent = v === '0' ? tr('fcv.gs_ck_spento', null, '') : tr(VOCAB ? 'fcv.gs_ck_ogni' : 'fcv.gs_ck_ogni_carte', { n: v }, '');
+        });
+        $$('.fcg-suoni').forEach(function (sw) { sw.checked = suoniAccesi(); });
     }
     document.addEventListener('click', function (e) {
         var b = e.target.closest && e.target.closest('.fcv-gs-riga[data-fcg="checkpoint"] [data-v]');
@@ -643,8 +674,12 @@
         }
     });
     document.addEventListener('fcv-impostazioni', segnaImpostazioni);
+    /* studio: le impostazioni sono quelle della lettura (#ttsSettingsBtn) */
+    document.addEventListener('click', function (e) {
+        if (e.target.closest && e.target.closest('#ttsSettingsBtn')) setTimeout(segnaImpostazioni, 0);
+    });
     document.addEventListener('change', function (e) {
-        if (e.target && e.target.id === 'fcgSuoni') {
+        if (e.target && e.target.classList && e.target.classList.contains('fcg-suoni')) {
             scrivi('fcv_suoni', e.target.checked ? '1' : '0');
             if (e.target.checked) Audio.giusta(3);
         }

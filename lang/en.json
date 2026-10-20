@@ -4101,7 +4101,10 @@
     "gs_suoni": "Sounds",
     "gs_suoni_sub": "Little sounds for answers, streaks and records.",
     "vis_piu_difficili": "Hardest first",
-    "vis_livello": "Level"
+    "vis_livello": "Level",
+    "boss_domanda_studio": "Do you remember the answer?",
+    "ck_padroneggiate_carte": "{n} cards mastered!",
+    "gs_ck_ogni_carte": "A break with your results every {n} cards."
   },
   "sidebar": {
     "sezione_impara": "Learn",

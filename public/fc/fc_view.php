@@ -1212,7 +1212,7 @@ if ($categoryID != 0) { $query .= " AND i.category_id = ?"; $par[] = $categoryID
 if ($categoryID == 0 && !isset($_GET['sort'])) {
     $sort = 'id_desc';
 } else {
-        $sort = sec_enum($_GET['sort'] ?? null, array_merge(['custom_asc', 'id_desc', 'id_asc', 'q_asc'], fc_is_vocab() ? ['livello'] : []), 'custom_asc');
+        $sort = sec_enum($_GET['sort'] ?? null, ['custom_asc', 'id_desc', 'id_asc', 'q_asc', 'livello'], 'custom_asc');
 }
 
 $order_by = "i.custom_order ASC"; 
@@ -1252,14 +1252,14 @@ if (count($ids_array) > 0) {
 
 
 
-/* I LIVELLI DELLE PAROLE (solo lingue) — gli stessi del gioco: nuova,
+/* I LIVELLI DELLE PAROLE E DELLE CARTE (lingue e studio) — gli stessi del gioco: nuova,
    difficile, in corso, buona, padroneggiata, dalle risposte di sempre
    (lib/fc/fc_vocab_gioco.php). Servono all'etichetta su ogni carta, al
    filtro per livello e all'ordine "piu' difficili prima". Chiavi 'p<id>' per
    le carte e 'c<id>' per le sottocarte. */
 $fcv_livelli = [];
 $fcv_conta_livelli = ['difficile' => 0, 'in_corso' => 0, 'nuova' => 0, 'buona' => 0, 'padroneggiata' => 0];
-if (fc_is_vocab() && $ids_array) {
+if ($ids_array) { /* lingue e studio */
     require_once __DIR__ . '/../../lib/fc/fc_vocab_gioco.php';
     $fcv_figli = [];
     foreach ($images_data as $r) foreach ($r['children'] as $ch) $fcv_figli[] = (int)$ch['id'];
@@ -2374,7 +2374,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
                 <option value="id_asc" <?= $sort == 'id_asc' ? 'selected' : '' ?>><?php te('fc.vis_id_meno_recenti'); ?></option>
 
                 <option value="q_asc" <?= $sort == 'q_asc' ? 'selected' : '' ?>><?php te('fc.vis_domanda_az'); ?></option>
-                <?php if (fc_is_vocab()): ?><option value="livello" <?= $sort == 'livello' ? 'selected' : '' ?>><?php te('fcv.vis_piu_difficili'); ?></option><?php endif; ?>
+                <option value="livello" <?= $sort == 'livello' ? 'selected' : '' ?>><?php te('fcv.vis_piu_difficili'); ?></option>
 
             </select>
 
@@ -2395,7 +2395,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
         </button>
 
     </div>
-    <?php if (fc_is_vocab() && array_sum($fcv_conta_livelli) > 0): ?>
+    <?php if (array_sum($fcv_conta_livelli) > 0): ?>
     <?php /* IL FILTRO PER LIVELLO (solo lingue): tutte, o solo le parole di un
              livello. I livelli senza parole non compaiono. Il numero accanto
              conta carte e sottocarte. Si combina con la ricerca e con il filtro

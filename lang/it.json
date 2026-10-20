@@ -4101,7 +4101,10 @@
     "gs_suoni": "Suoni",
     "gs_suoni_sub": "Piccoli suoni per risposte, serie e record.",
     "vis_piu_difficili": "Più difficili prima",
-    "vis_livello": "Livello"
+    "vis_livello": "Livello",
+    "boss_domanda_studio": "Ti ricordi la risposta?",
+    "ck_padroneggiate_carte": "{n} carte padroneggiate!",
+    "gs_ck_ogni_carte": "Una pausa con i risultati ogni {n} carte."
   },
   "sidebar": {
     "sezione_impara": "Impara",

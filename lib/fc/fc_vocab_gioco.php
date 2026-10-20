@@ -1,7 +1,12 @@
 <?php
-/* fc_vocab_gioco.php — I NUMERI DIETRO IL GIOCO DELLE LINGUE
+/* fc_vocab_gioco.php — I NUMERI DIETRO IL GIOCO (lingue e studio)
  *
- * Il livello di ogni parola, la serie di risposte giuste di una partita e i
+ * Nato per le lingue, vale ora anche per le flashcard di studio: le tabelle
+ * vengono da fc_t() (fc_type.php), quindi si lavora su quelle del tipo della
+ * pagina. I record stanno in fc_vocab_records (per corso) o in
+ * fc_study_records (uno per utente).
+ *
+ * Il livello di ogni parola (o carta), la serie di risposte giuste di una partita e i
  * record personali. Li usano fc_game.php (per disegnare la carta) e
  * fc_vocab_game_api.php (checkpoint e record). La parte che si vede e' in
  * public/fc/fc_game_juice.js.
@@ -46,7 +51,7 @@ function fcv_stats_carte(array $padri, array $figli): array {
         if (!$ids) continue;
         foreach ($ids as $id) $out[$pre . $id] = ['c' => 0, 'w' => 0, 'u' => ''];
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        foreach (sec_all("SELECT $col AS id, user_answer FROM fc_vocab_plays
+        foreach (sec_all("SELECT $col AS id, user_answer FROM " . fc_t('plays') . "
                           WHERE $col IN ($ph) AND user_answer IN ('Correct', 'Wrong')
                           ORDER BY play_date ASC, id ASC", $ids) as $r) {
             $k = $pre . (int)$r['id'];
@@ -64,7 +69,7 @@ function fcv_stats_carte(array $padri, array $figli): array {
  */
 function fcv_serie_partita(int $game_id): array {
     $ora = 0; $max = 0; $n = 0;
-    foreach (sec_all("SELECT user_answer FROM fc_vocab_plays
+    foreach (sec_all("SELECT user_answer FROM " . fc_t('plays') . "
                       WHERE game_id = ? AND user_answer IN ('Correct', 'Wrong')
                       ORDER BY play_date ASC, id ASC", [$game_id]) as $r) {
         $n++;
@@ -74,12 +79,19 @@ function fcv_serie_partita(int $game_id): array {
     return ['serie' => $ora, 'migliore' => $max, 'risposte' => $n];
 }
 
-/** I record dell'utente in un corso: [tipo => valore]. */
+/* Dove stanno i record: lingue per corso, studio uno per utente. */
+function fcv_record_dove(int $user_id, int $course_id): array {
+    return fc_is_vocab()
+        ? ['fc_vocab_records', 'user_id = ? AND course_id = ?', [$user_id, $course_id], ['user_id', 'course_id'], [$user_id, $course_id]]
+        : ['fc_study_records', 'user_id = ?', [$user_id], ['user_id'], [$user_id]];
+}
+
+/** I record dell'utente (nel corso, per le lingue): [tipo => valore]. */
 function fcv_record(int $user_id, int $course_id): array {
     $out = [];
-    if ($course_id <= 0) return $out;
-    foreach (sec_all("SELECT kind, value FROM fc_vocab_records WHERE user_id = ? AND course_id = ?",
-                     [$user_id, $course_id]) as $r) {
+    if (fc_is_vocab() && $course_id <= 0) return $out;
+    [$tab, $dove, $par] = fcv_record_dove($user_id, $course_id);
+    foreach (sec_all("SELECT kind, value FROM $tab WHERE $dove", $par) as $r) {
         $out[$r['kind']] = (float)$r['value'];
     }
     return $out;
@@ -91,38 +103,41 @@ function fcv_record(int $user_id, int $course_id): array {
  * non c'era) e se e' cambiato.
  */
 function fcv_record_aggiorna(int $user_id, int $course_id, string $tipo, float $valore, int $game_id, bool $vince_minore = false): array {
-    $prima = sec_one("SELECT value FROM fc_vocab_records WHERE user_id = ? AND course_id = ? AND kind = ?",
-                     [$user_id, $course_id, $tipo]);
+    [$tab, $dove, $par, $cols, $vals] = fcv_record_dove($user_id, $course_id);
+    $prima = sec_one("SELECT value FROM $tab WHERE $dove AND kind = ?", array_merge($par, [$tipo]));
     $vecchio = $prima ? (float)$prima['value'] : null;
     $meglio = $vecchio === null || ($vince_minore ? $valore < $vecchio : $valore > $vecchio);
     if ($meglio) {
-        sec_q("INSERT INTO fc_vocab_records (user_id, course_id, kind, value, game_id, achieved_at)
-               VALUES (?, ?, ?, ?, ?, NOW())
+        sec_q("INSERT INTO $tab (" . implode(', ', $cols) . ", kind, value, game_id, achieved_at)
+               VALUES (" . implode(', ', array_fill(0, count($cols), '?')) . ", ?, ?, ?, NOW())
                ON DUPLICATE KEY UPDATE value = VALUES(value), game_id = VALUES(game_id), achieved_at = VALUES(achieved_at)",
-              [$user_id, $course_id, $tipo, round($valore, 2), $game_id ?: null]);
+              array_merge($vals, [$tipo, round($valore, 2), $game_id ?: null]));
     }
     return ['prima' => $vecchio, 'nuovo' => $meglio && $vecchio !== null, 'primo' => $vecchio === null];
 }
 
-/** Quante parole del corso sono "padroneggiate" (carte e sottocarte). */
+/** Quante parole del corso (o carte di studio) sono "padroneggiate". */
 function fcv_padroneggiate(int $user_id, int $course_id): int {
-    if ($course_id <= 0) return 0;
+    if (fc_is_vocab() && $course_id <= 0) return 0;
     $stats = [];
+    [$P, $C, $S, $D] = [fc_t('plays'), fc_t('cards'), fc_t('subcards'), fc_t('decks')];
+    $filtro = fc_is_vocab() ? 'd.user_id = ? AND d.course_id = ?' : 'd.user_id = ?';
+    $par = fc_is_vocab() ? [$user_id, $course_id] : [$user_id];
     $query = [
-        'p' => "SELECT p.fc_image_id AS id, p.user_answer FROM fc_vocab_plays p
-                  JOIN fc_vocab_cards c ON c.id = p.fc_image_id
-                  JOIN fc_vocab_decks d ON d.id = c.category_id
-                 WHERE d.user_id = ? AND d.course_id = ? AND p.user_answer IN ('Correct', 'Wrong')
+        'p' => "SELECT p.fc_image_id AS id, p.user_answer FROM $P p
+                  JOIN $C c ON c.id = p.fc_image_id
+                  JOIN $D d ON d.id = c.category_id
+                 WHERE $filtro AND p.user_answer IN ('Correct', 'Wrong')
                  ORDER BY p.play_date ASC, p.id ASC",
-        'c' => "SELECT p.fc_child_id AS id, p.user_answer FROM fc_vocab_plays p
-                  JOIN fc_vocab_subcards s ON s.id_child = p.fc_child_id
-                  JOIN fc_vocab_cards c ON c.id = s.parent_id
-                  JOIN fc_vocab_decks d ON d.id = c.category_id
-                 WHERE d.user_id = ? AND d.course_id = ? AND p.user_answer IN ('Correct', 'Wrong')
+        'c' => "SELECT p.fc_child_id AS id, p.user_answer FROM $P p
+                  JOIN $S s ON s.id_child = p.fc_child_id
+                  JOIN $C c ON c.id = s.parent_id
+                  JOIN $D d ON d.id = c.category_id
+                 WHERE $filtro AND p.user_answer IN ('Correct', 'Wrong')
                  ORDER BY p.play_date ASC, p.id ASC",
     ];
     foreach ($query as $pre => $sql) {
-        foreach (sec_all($sql, [$user_id, $course_id]) as $r) {
+        foreach (sec_all($sql, $par) as $r) {
             $k = $pre . (int)$r['id'];
             if (!isset($stats[$k])) $stats[$k] = ['c' => 0, 'w' => 0, 'u' => ''];
             $giusta = $r['user_answer'] === 'Correct';

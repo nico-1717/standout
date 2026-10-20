@@ -357,6 +357,22 @@ CREATE TABLE `fc_study_plays` (
 -- --------------------------------------------------------
 
 --
+-- Table `fc_study_records`
+--
+
+CREATE TABLE `fc_study_records` (
+  `user_id` int NOT NULL,
+  `kind` varchar(20) NOT NULL,
+  `value` decimal(10,2) NOT NULL,
+  `game_id` int UNSIGNED DEFAULT NULL,
+  `achieved_at` datetime NOT NULL,
+  PRIMARY KEY (`user_id`,`kind`),
+  CONSTRAINT `fk_study_records_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Record personali del gioco delle flashcard di studio';
+
+-- --------------------------------------------------------
+
+--
 -- Table `fc_study_sequence`
 --
 

@@ -729,7 +729,7 @@ foreach ($gameplays as $gp) {
    dove si e' arrivati. Viaggiano dentro la pagina (#fcg-dati e
    data-fcv-stats), cosi' arrivano anche con le pagine caricate al volo. */
 $fcg_dati = null;
-if ($fc_vocab) {
+if (true) { /* lingue e studio */
     $fcg_padri = []; $fcg_figli = [];
     foreach ($cards_to_show as $cc) {
         if (!empty($cc['is_titolo'])) continue;
@@ -741,13 +741,14 @@ if ($fc_vocab) {
                                   WHERE game_id = ? AND user_answer IN ('Correct', 'Wrong')", [$game_id])['p'] ?? 0);
     $fcg_dati = [
         'partita' => (int)$game_id,
-        'corso' => fc_corso_id(),
+        'corso' => $fc_vocab ? fc_corso_id() : 0,
+        'vocab' => $fc_vocab,
         'pos' => (int)$position,
         'fronte' => $fcg_fronte,
         'serie' => $fcg_serie['serie'],
         'migliore' => $fcg_serie['migliore'],
         'risposte' => $fcg_serie['risposte'],
-        'record' => fcv_record($user_id, fc_corso_id()),
+        'record' => fcv_record($user_id, $fc_vocab ? fc_corso_id() : 0),
     ];
 }
 
@@ -1292,7 +1293,8 @@ try {
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_game.css?v=<?php echo @filemtime(__DIR__ . '/fc_game.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_examples_box.css?v=<?php echo @filemtime(__DIR__ . '/fc_examples_box.css') ?: 1; ?>">
 <script src="<?php echo PWA_BASE; ?>fc/fc_examples_modal.js?v=<?php echo @filemtime(__DIR__ . '/fc_examples_modal.js') ?: 1; ?>"></script>
-<?php if ($fc_vocab): ?>
+<?php /* serie, checkpoint, boss, livelli: lingue e studio */ ?>
+<?php if (true): ?>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_game_juice.css?v=<?php echo @filemtime(__DIR__ . '/fc_game_juice.css') ?: 1; ?>">
 <script src="<?php echo PWA_BASE; ?>fc/fc_game_juice.js?v=<?php echo @filemtime(__DIR__ . '/fc_game_juice.js') ?: 1; ?>"></script>
 <?php endif; ?>
@@ -1614,7 +1616,7 @@ try {
                         <span class="fcv-gs-ic fcv-gs-ic-suoni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
                         <span class="fcv-gs-nome"><?php te('fcv.gs_suoni'); ?><small><?php te('fcv.gs_suoni_sub'); ?></small></span>
                     </span>
-                    <span class="fcv-gs-toggle"><input type="checkbox" id="fcgSuoni" checked><span></span></span>
+                    <span class="fcv-gs-toggle"><input type="checkbox" class="fcg-suoni" checked><span></span></span>
                 </label>
                 <div class="fcv-gs-nota">
                     <span class="fcv-gs-demo" aria-hidden="true">
@@ -1708,6 +1710,28 @@ try {
             <div class="sheet-panel">
 
                 <h3><?php te('fc.gm_impostazioni'); ?></h3>
+
+                <?php /* STUDIO: checkpoint e suoni del gioco (fc_game_juice.js),
+                         gli stessi dell'ingranaggio delle lingue. */ ?>
+                <div class="fcv-gs-riga" data-fcg="checkpoint">
+                    <div class="fcv-gs-testa">
+                        <span class="fcv-gs-ic fcv-gs-ic-ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></span>
+                        <span class="fcv-gs-nome"><?php te('fcv.gs_checkpoint'); ?></span>
+                    </div>
+                    <div class="fcv-gs-seg fcv-gs-seg-6" role="radiogroup" aria-label="<?php te('fcv.gs_checkpoint'); ?>">
+                        <?php foreach (['0', '5', '10', '15', '20', '25'] as $v): ?>
+                        <button type="button" role="radio" aria-checked="false" data-v="<?php echo $v; ?>"><?php echo $v === '0' ? sec_h(t('fcv.gs_ck_no')) : $v; ?></button>
+                        <?php endforeach; ?>
+                    </div>
+                    <p class="fcv-gs-spiega" aria-live="polite"></p>
+                </div>
+                <label class="fcv-gs-riga fcv-gs-switch">
+                    <span class="fcv-gs-testa">
+                        <span class="fcv-gs-ic fcv-gs-ic-suoni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+                        <span class="fcv-gs-nome"><?php te('fcv.gs_suoni'); ?><small><?php te('fcv.gs_suoni_sub'); ?></small></span>
+                    </span>
+                    <span class="fcv-gs-toggle"><input type="checkbox" class="fcg-suoni" checked><span></span></span>
+                </label>
 
 
 
@@ -1998,7 +2022,7 @@ try {
                      data-card-index="<?php echo (int)($card_index_map[$position . ':' . ($c['is_child'] ? 'c' : 'p') . $c['gameplay_idimmagine']] ?? $position); ?>"
 
                      data-qaudio="<?php echo sec_h($c['question_audio']); ?>" data-aaudio="<?php echo sec_h($c['answer_audio']); ?>"
-                     <?php if ($fc_vocab): $fcg_k = ($c['is_child'] ? 'c' : 'p') . (int)$c['gameplay_idimmagine']; ?>data-fcv-stats="<?php echo sec_h(json_encode(($fcg_stats[$fcg_k] ?? ['c' => 0, 'w' => 0, 'u' => '']) + ['k' => $fcg_k])); ?>"<?php endif; ?>
+                     <?php if (true): $fcg_k = ($c['is_child'] ? 'c' : 'p') . (int)$c['gameplay_idimmagine']; ?>data-fcv-stats="<?php echo sec_h(json_encode(($fcg_stats[$fcg_k] ?? ['c' => 0, 'w' => 0, 'u' => '']) + ['k' => $fcg_k])); ?>"<?php endif; ?>
 
                      <?php if (!$is_graded): ?>
 

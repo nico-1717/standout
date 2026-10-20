@@ -1,5 +1,8 @@
 <?php
-/* fc_vocab_game_api.php — CHECKPOINT E RECORD DEL GIOCO DELLE LINGUE
+/* fc_vocab_game_api.php — CHECKPOINT E RECORD DEL GIOCO (lingue e studio)
+ *
+ * Con ?course=N lavora sulle lingue, senza sulle flashcard di studio (come
+ * tutte le pagine delle flashcard, vedi fc_type.php).
  *
  * GET  ?course=N&action=blocco&game_id=G&da=A&a=B
  *      Il riassunto delle posizioni A..B della partita, per la schermata del
@@ -30,13 +33,27 @@ function fcga_out(array $dati): void {
     exit;
 }
 
-if (!fc_is_vocab()) fcga_out(['ok' => false, 'error' => 'solo_lingue']);
-$corso = fc_corso_id();
+$vocab = fc_is_vocab();
+$corso = $vocab ? fc_corso_id() : 0;
 
 $action = sec_enum($_GET['action'] ?? $_POST['action'] ?? null, ['blocco', 'combo'], '');
 $game_id = sec_int($_GET['game_id'] ?? $_POST['game_id'] ?? 0, 1);
-$partita = sec_one("SELECT id, course_id FROM fc_games WHERE id = ? AND user_id = ? AND kind = 'vocab'", [$game_id, $uid]);
-if (!$partita || (int)$partita['course_id'] !== $corso) fcga_out(['ok' => false, 'error' => t('fc.non_autorizzato_scheda')]);
+$partita = sec_one("SELECT id, course_id FROM fc_games WHERE id = ? AND user_id = ? AND kind = ?", [$game_id, $uid, $vocab ? 'vocab' : 'study']);
+if (!$partita || ($vocab && (int)$partita['course_id'] !== $corso)) fcga_out(['ok' => false, 'error' => t('fc.non_autorizzato_scheda')]);
+
+/* Un campo di una carta di studio in poche parole, per le pastiglie "prese
+   al volo": il documento a blocchi (fc_parser.js) o il vecchio testo. */
+function fcga_breve(?string $raw): string {
+    $raw = trim((string)$raw);
+    $doc = ($raw !== '' && $raw[0] === '{') ? json_decode($raw, true) : null;
+    if (is_array($doc) && isset($doc['blocks']) && is_array($doc['blocks'])) {
+        $parti = [];
+        foreach ($doc['blocks'] as $b) foreach ((array)($b['runs'] ?? []) as $r) $parti[] = is_array($r) ? (string)($r['s'] ?? '') : (string)$r;
+        $raw = implode(' ', $parti);
+    }
+    $t = trim(preg_replace('/\s+/u', ' ', strip_tags($raw)) ?? '');
+    return mb_strlen($t) > 36 ? rtrim(mb_substr($t, 0, 34)) . '…' : $t;
+}
 
 /* ---------- IL RIASSUNTO DI UN BLOCCO ---------- */
 if ($action === 'blocco' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -45,7 +62,7 @@ if ($action === 'blocco' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     if ($a - $da > 500) $a = $da + 500;
 
     $righe = sec_all("SELECT position, fc_image_id, fc_child_id, user_answer, UNIX_TIMESTAMP(play_date) AS t
-                        FROM fc_vocab_plays
+                        FROM " . fc_t('plays') . "
                        WHERE game_id = ? AND position BETWEEN ? AND ? AND user_answer IN ('Correct', 'Wrong')
                        ORDER BY play_date ASC, id ASC", [$game_id, $da, $a]);
     $giuste = 0; $sbagliate = 0;
@@ -62,7 +79,7 @@ if ($action === 'blocco' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
     /* IL TEMPO: si sommano gli intervalli fra una risposta e la successiva,
        ognuno al massimo un minuto — una pausa caffe' non e' lentezza. Si parte
        dall'ultima risposta prima del blocco, se c'e'. */
-    $prima = sec_one("SELECT UNIX_TIMESTAMP(MAX(play_date)) AS t FROM fc_vocab_plays
+    $prima = sec_one("SELECT UNIX_TIMESTAMP(MAX(play_date)) AS t FROM " . fc_t('plays') . "
                        WHERE game_id = ? AND position < ? AND user_answer IN ('Correct', 'Wrong')", [$game_id, $da]);
     if ($prima && $prima['t'] !== null) array_unshift($tempi, (int)$prima['t']);
     $secondi = 0;
@@ -72,8 +89,23 @@ if ($action === 'blocco' && $_SERVER['REQUEST_METHOD'] !== 'POST') {
 
     /* LE PAROLE: le sbagliate (per il boss) con tutto quello che serve a
        giocarle di nuovo; le giuste solo come nome, per i "presi al volo". */
-    $carta = function (string $k): ?array {
+    $carta = function (string $k) use ($vocab): ?array {
         $figlio = $k[0] === 'c'; $id = (int)substr($k, 1);
+        if (!$vocab) {
+            /* STUDIO: domanda e risposta come sono (le disegna il browser con
+               fc_parser.js, formule comprese) e le immagini dei due lati. */
+            $r = $figlio
+                ? sec_one("SELECT question_desc, answer_desc, question_image, answer_image FROM fc_study_subcards WHERE id_child = ?", [$id])
+                : sec_one("SELECT question_desc, answer_desc, question_image, answer_image FROM fc_study_cards WHERE id = ?", [$id]);
+            if (!$r) return null;
+            $img = function ($f) { $f = trim((string)$f); return $f !== '' ? fc_cartella_immagini() . rawurlencode($f) : ''; };
+            return [
+                'chiave' => $k,
+                'parola' => fcga_breve($r['question_desc']),
+                'domanda' => (string)$r['question_desc'], 'risposta' => (string)$r['answer_desc'],
+                'img_domanda' => $img($r['question_image']), 'img_risposta' => $img($r['answer_image']),
+            ];
+        }
         $r = $figlio
             ? sec_one("SELECT word, translation, meaning FROM fc_vocab_subcards WHERE id_child = ?", [$id])
             : sec_one("SELECT word, translation, meaning FROM fc_vocab_cards WHERE id = ?", [$id]);

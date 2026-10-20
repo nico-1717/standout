@@ -263,8 +263,8 @@ html.fcg-finale .fill-pages{
 .fcg-boss-es{ margin-top:14px; font-size:16px; line-height:1.55; color:var(--text-2); }
 .fcg-boss-parola{ min-height:0; }
 .fcg-boss-carta.is-vista .fcg-boss-parola{ margin-top:16px; padding-top:16px; border-top:.5px solid var(--hairline-2); }
-.fcg-boss-parola span{ display:inline-block; font-size:28px; font-weight:850; letter-spacing:-.02em; color:#BF5AF2; animation:fcgSale .45s cubic-bezier(.34,1.56,.64,1) both; }
-.fcg-boss-parola small{ display:block; margin-top:6px; font-size:14px; font-style:italic; color:var(--text-2); }
+.fcg-boss-parola > span{ display:inline-block; font-size:28px; font-weight:850; letter-spacing:-.02em; color:#BF5AF2; animation:fcgSale .45s cubic-bezier(.34,1.56,.64,1) both; }
+.fcg-boss-parola > small{ display:block; margin-top:6px; font-size:14px; font-style:italic; color:var(--text-2); }
 /* l'esempio del boss: lo spazio vuoto si riempie come nel gioco */
 .fcg-boss-carta.is-vista .fcv-gap-vuoto{ display:none; }
 .fcg-boss-carta.is-vista .fcv-gap-parola{ display:inline-block; animation:fcvRiempi .6s cubic-bezier(.34,1.56,.64,1) .1s both; }
@@ -301,6 +301,15 @@ html.fcg-finale .fill-pages{
 
 @media (prefers-reduced-motion: reduce){
     .fcg-combo, .fcg-toast, .fcg-pannello, .fcg-foglio, .fcg-nodo, .fcg-dato, .fcg-chip, .fcg-record,
-    .fcg-ck-tit, .fcg-btn-boss, .fcg-boss-carta, .fcg-boss-parola span, .fcg-boss-medaglia, .fcg-boss-fine h2,
+    .fcg-ck-tit, .fcg-btn-boss, .fcg-boss-carta, .fcg-boss-parola > span, .fcg-boss-medaglia, .fcg-boss-fine h2,
     .fcg-combo-ic, html.fcg-finale .fill-pages{ animation:none !important; transition:none !important; }
 }
+
+/* il boss delle flashcard di studio: domanda e risposta vere, con immagini e formule */
+.fcg-boss-studio{ text-align:left; }
+.fcg-boss-studio .fcg-boss-dom{ display:block; text-align:center; margin-bottom:10px; }
+.fcg-boss-testo{ font-size:17px; line-height:1.5; color:var(--text); overflow-wrap:anywhere; }
+.fcg-boss-q{ font-weight:650; }
+.fcg-boss-img{ display:block; max-width:100%; max-height:200px; margin:6px auto 10px; border-radius:12px; object-fit:contain; }
+.fcg-boss-studio.is-vista .fcg-boss-a{ animation:fcgSale .4s cubic-bezier(.34,1.56,.64,1) both; }
+.fcg-boss-studio .fcg-boss-a .fcg-boss-testo{ color:var(--text); }
