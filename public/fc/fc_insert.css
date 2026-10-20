@@ -2201,3 +2201,11 @@ body.no-select .fc-row-content { cursor:grabbing; }
 }
 .fcv-sub span { font-weight:600; color:var(--text-3); }
 .fcv-meaning, .fcv-example { font-size:15px; padding:9px 12px; }
+
+/* le note della parola (solo lingue): un foglietto giallo carta, come nel
+   modulo della carta; cresce con il testo dove il browser lo sa fare */
+.fcv-notes{ font-size:15px; padding:9px 12px; resize:vertical; min-height:42px; line-height:1.4; font-family:inherit;
+    field-sizing:content; max-height:180px;
+    background:color-mix(in srgb, #FFD60A 10%, var(--surface, #fff)) !important; }
+.fcai-smart-carta i.fcai-smart-nota{ color:#B38600; font-style:normal; }
+.fcai-smart-carta i.fcai-smart-nota::before{ content:'✎ '; }

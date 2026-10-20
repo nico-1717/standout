@@ -3040,6 +3040,9 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
             <input type="text" class="fcv-in fcv-meaning" id="m-desc-${rid}" value="${escAttr(c.m || '')}"
                    placeholder="${escAttr(T('fcv.ph_significato'))}" lang="${escAttr(imp.codice || '')}"
                    autocomplete="off" enterkeyhint="next" maxlength="400">
+            <label class="fcv-sub" for="n-desc-${rid}">${escAttr(T('fcv.note'))} <span>${escAttr(T('fcv.facoltativo'))}</span></label>
+            <textarea class="fcv-in fcv-notes" id="n-desc-${rid}" rows="2" maxlength="3000"
+                      placeholder="${escAttr(T('fcv.ph_note'))}">${escAttr(c.n || '')}</textarea>
             ${conEsempio ? `<div class="fcv-ex-wrap">
                 <label class="fcv-sub" for="e-desc-${rid}">${escAttr(T('fcv.esempio'))} <span>${escAttr(T('fcv.facoltativo'))}</span></label>
                 <input type="text" class="fcv-in fcv-example" id="e-desc-${rid}" value="${escAttr(c.ex || '')}"
@@ -3053,6 +3056,8 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
        salverebbe e porterebbe via dalla pagina). */
     function vocabInvio(e){
         if (!FCV || e.key !== 'Enter' || e.isComposing || !e.target.classList || !e.target.classList.contains('fcv-in')) return;
+        /* nelle note Maiusc+Invio va a capo */
+        if (e.shiftKey && e.target.classList.contains('fcv-notes')) return;
         e.preventDefault();
         const row = e.target.closest('.fc-row');
         if (!row) return;
@@ -3786,6 +3791,7 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
                 q: c.question_desc || '',
                 a: c.answer_desc || '',
                 m: c.meaning || '',
+                n: c.notes || '',
                 qImgUrl:  c.question_image ? (FC_IMG_DIR + c.question_image) : '',
                 qImgName: c.question_image || '',
                 aImgUrl:  c.answer_image ? (FC_IMG_DIR + c.answer_image) : '',
@@ -7609,6 +7615,8 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
                 const mEl = document.getElementById('m-desc-' + rid);
                 const eEl = document.getElementById('e-desc-' + rid);
                 fd.append(`cards[${indiceInvio}][meaning]`, mEl ? mEl.value.trim() : '');
+                const nEl = document.getElementById('n-desc-' + rid);
+                fd.append(`cards[${indiceInvio}][notes]`, nEl ? nEl.value.trim() : '');
                 if (eEl && eEl.value.trim() !== '' && row.dataset.status !== 'deleted') fd.append(`cards[${indiceInvio}][example]`, eEl.value.trim());
             }
 

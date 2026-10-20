@@ -519,3 +519,8 @@
 .fcai-spunte input{ width:18px; height:18px; accent-color:var(--blue); }
 #fcaiParoleArg{ margin-bottom:2px; }
 #fcaiBtnParole.is-busy{ opacity:.7; pointer-events:none; }
+/* vuota, la casella e' alta abbastanza da mostrare tutte le istruzioni
+   (con gli esempi su piu' righe); appena si incolla torna normale */
+.fcai-panel textarea.fcai-smart-in:placeholder-shown{
+    min-height:380px; font-family:-apple-system, BlinkMacSystemFont, system-ui, sans-serif; font-size:13.5px; line-height:1.45;
+}

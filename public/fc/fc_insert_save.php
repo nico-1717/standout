@@ -315,6 +315,12 @@ function fc_contenuto(array $c, int $i, bool $figlio): array {
             'translation' => sec_str($c['a'] ?? '', $figlio ? 255 : 500),
             'meaning'     => $m !== '' ? $m : null,
         ];
+        /* le note: solo se la pagina le ha mandate (una pagina vecchia rimasta
+           aperta non le manda, e non deve cancellarle) */
+        if (array_key_exists('notes', $c)) {
+            $n = trim(sec_text($c['notes'] ?? '', 3000));
+            $testi['notes'] = $n !== '' ? $n : null;
+        }
         return [$testi, ['image' => fc_salva_file('row_q_img', $i, false) ?? fc_immagine_da_link((string)($c['img_url'] ?? ''))]];
     }
     return [['question_desc' => fc_testo($c['q'] ?? ''), 'answer_desc' => fc_testo($c['a'] ?? '')], fc_allegati($i, $c)];

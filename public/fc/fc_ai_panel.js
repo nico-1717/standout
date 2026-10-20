@@ -125,7 +125,7 @@ var FCAIP = (function () {
             var riga = appendRowHTML({
                 rid: ridBase + k,
                 q: c.q || '', a: c.a || '',
-                m: c.m || '', ex: c.ex || '',
+                m: c.m || '', ex: c.ex || '', n: c.n || '',
                 qImgUrl: qUrl, qImgName: c.qFile ? c.qFile.name : nomeLink,
                 aImgUrl: aUrl, aImgName: c.aFile ? c.aFile.name : ''
             });

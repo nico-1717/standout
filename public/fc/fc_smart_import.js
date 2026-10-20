@@ -37,13 +37,15 @@
     /* ============================================================
        1. I CAMPI
        ============================================================ */
-    var CAMPI = VOCAB ? ['q', 'a', 'm', 'ex', 'img', ''] : ['q', 'a', 'img', ''];
+    /* 'n' = le note della parola (fc_vocab_cards.notes), solo nelle lingue */
+    var CAMPI = VOCAB ? ['q', 'a', 'm', 'ex', 'n', 'img', ''] : ['q', 'a', 'img', ''];
     function nomeCampo(c) {
         switch (c) {
             case 'q':   return T(VOCAB ? 'fc.smi_campo_q_vocab' : 'fc.smi_campo_q');
             case 'a':   return T(VOCAB ? 'fc.smi_campo_a_vocab' : 'fc.smi_campo_a');
             case 'm':   return T('fc.smi_campo_m');
             case 'ex':  return T('fc.smi_campo_ex');
+            case 'n':   return T('fc.smi_campo_n');
             case 'img': return T('fc.smi_campo_img');
             default:    return T('fc.smi_campo_salta');
         }
@@ -59,6 +61,9 @@
               'descrizione', 'spiegazione', 'explanation', 'm', 'gloss'],
         ex:  ['example', 'examples', 'esempio', 'esempi', 'sentence', 'sentences', 'frase', 'frasi', 'usage', 'uso',
               'context', 'contesto', 'e', 'ex'],
+        n:   ['notes', 'note', 'nota', 'notas', 'notizen', 'tip', 'tips', 'trick', 'trucco', 'trucchi', 'memo', 'promemoria',
+              'hint', 'hints', 'suggerimento', 'suggerimenti', 'remark', 'remarks', 'comment', 'comments', 'commento', 'commenti',
+              'mnemonic', 'mnemonico', 'appunti', 'appunto', 'n'],
         img: ['image', 'images', 'immagine', 'immagini', 'img', 'picture', 'pic', 'photo', 'foto', 'link', 'url',
               'imageurl', 'imagelink', 'linkimmagine', 'src']
     };
@@ -299,7 +304,7 @@
         if (!tab || !tab.righe) return { carte: [], lacune: 0 };
         var lacune = 0;
         var out = tab.righe.map(function (r) {
-            var c = { q: '', a: '', m: '', ex: '', imgLink: '' };
+            var c = { q: '', a: '', m: '', ex: '', n: '', imgLink: '' };
             tab.campi.forEach(function (campo, i) {
                 var v = r[i] || '';
                 if (!campo || !v) return;
@@ -367,7 +372,8 @@
                    + (c.imgLink ? '<img src="' + esc(c.imgLink) + '" alt="" loading="lazy" referrerpolicy="no-referrer">' : '')
                    + '<div><b>' + esc(c.q) + '</b>' + (c.a ? '<span> — ' + esc(c.a) + '</span>' : '')
                    + (c.m ? '<i>' + esc(c.m) + '</i>' : '')
-                   + (c.ex ? '<i class="fcai-smart-ex">' + esc(c.ex) + '</i>' : '') + '</div></div>';
+                   + (c.ex ? '<i class="fcai-smart-ex">' + esc(c.ex) + '</i>' : '')
+                   + (c.n ? '<i class="fcai-smart-nota">' + esc(c.n) + '</i>' : '') + '</div></div>';
             });
             if (risultato.lacune) h += '<div class="fcai-nota">' + esc(T('fc.smi_lacune_fatte', { n: risultato.lacune })) + '</div>';
             h += '</div>';
