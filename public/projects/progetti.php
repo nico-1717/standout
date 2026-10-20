@@ -49,6 +49,19 @@ if (!function_exists('prog_resolve_color')) {
  * Non si escapa in `&lt;` perché la nota viene mostrata da renderer diversi —
  * alcuni la stampano come testo — e in quelli si vedrebbe scritto «&lt;».
  */
+/* C'è qualcosa da leggere nella nota? Spazi, a capo, spazi non separabili,
+   caratteri a larghezza zero e segni di formattazione senza testo dentro non
+   contano: una nota così si disegnava come un riquadro vuoto, e al posto di
+   «Aggiungi una nota» restava un buco. */
+function prog_nota_vuota($s): bool {
+    $t = html_entity_decode(strip_tags((string)$s), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $t = preg_replace('/[\s\x{00A0}\x{1680}\x{2000}-\x{200F}\x{2028}\x{2029}\x{202F}\x{205F}\x{2060}\x{3000}\x{FEFF}]+/u', '', $t);
+    if ($t === null) return false;
+    $t = preg_replace('/[*_~`#>|=\-\[\]{}$\\\\]+/u', '', $t);
+    if ($t === null) return false;
+    // se una regex fallisse (null), meglio mostrare la nota che nasconderla
+    return $t === '';
+}
 function prog_nota_pulita($grezza, int $max): string {
     $t = (string)$grezza;
 
@@ -74,6 +87,8 @@ function prog_nota_pulita($grezza, int $max): string {
     // caratteri di controllo via, a capo e tabulazioni no: servono
     $t = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $t);
     $t = trim($t);
+    // una nota fatta solo di spazi, a capo o caratteri invisibili è una nota vuota
+    if (prog_nota_vuota($t)) return '';
     if (function_exists('mb_substr')) {
         if (mb_strlen($t, 'UTF-8') > $max) $t = mb_substr($t, 0, $max, 'UTF-8');
     } elseif (strlen($t) > $max) {
@@ -660,6 +675,7 @@ foreach (sec_all("SELECT id, parent_id, name, notes, color, color_edited, status
     $row['children'] = [];
     $row['stato'] = $row['status']; // Mappa retrocompatibile per le funzioni interne
     $row['note'] = $row['notes'];   // la colonna è `notes`, ma tutto il codice legge `note` (bug: le note non comparivano in modifica)
+    if (prog_nota_vuota($row['note'])) $row['note'] = '';   // vuota anche se ci sono solo spazi o invisibili
     $byId[(int)$row['id']] = $row;
     $pid = $row['parent_id'] === null ? 0 : (int)$row['parent_id'];
     $childrenOf[$pid][] = (int)$row['id'];
@@ -3899,6 +3915,18 @@ document.addEventListener('click', function () {
         document.addEventListener('touchend', ferma);
         document.addEventListener('mouseup', ferma);
     }
+    /* Rete di sicurezza: una nota che, disegnata, non mostra niente (per
+       esempio solo formattazione) diventa «Aggiungi una nota» invece di un
+       riquadro vuoto. */
+    function controllaVuota() {
+        if (vista.classList.contains('pr-nota-vuota')) return;
+        if ((vista.textContent || '').replace(/[\s\u00A0\u200B-\u200D\uFEFF]+/g, '') !== '') return;
+        if (vista.querySelector('img, svg, mjx-container, .MathJax')) return;
+        vista.classList.add('pr-nota-vuota');
+        vista.classList.remove('raw-text-content');
+        vista.textContent = T('progetti.aggiungi_nota');
+    }
+    window.addEventListener('load', function () { setTimeout(controllaVuota, 400); });
     /* vuota non c'è niente da leggere: un tocco semplice basta */
     vista.addEventListener('click', function () {
         if (vista.classList.contains('pr-nota-vuota')) window.prNotaApri();

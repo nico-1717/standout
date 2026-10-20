@@ -241,7 +241,8 @@ button{ font-family:inherit; }
 .pr-check svg{ position:absolute; inset:0; width:100%; height:100%; opacity:0; transition:opacity .2s, transform .3s var(--spring); }
 .pr-check .pr-ic-empty{ opacity:1; }
 .pr-check-completed .pr-ic-empty{ opacity:0; } .pr-check-completed .pr-ic-done{ opacity:1; color:var(--green); transform:scale(1.05); }
-.pr-check-planned .pr-ic-empty{ opacity:0; } .pr-check-planned .pr-ic-planned{ opacity:1; color:var(--purple); }
+.pr-check-planned .pr-ic-empty{ opacity:0; } .pr-check-planned .pr-ic-planned{ opacity:1; color:var(--row-color, var(--purple)); }
+.pr-hero .pr-check-planned .pr-ic-planned{ color:var(--accent, var(--purple)); }
 .pr-check.pr-just-tapped{ animation:prCheckPop .35s var(--spring); }
 @keyframes prCheckPop{ 0%{ transform:scale(1); } 45%{ transform:scale(1.35); } 100%{ transform:scale(1); } }
 
