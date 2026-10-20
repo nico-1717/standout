@@ -317,8 +317,56 @@ echo standout_i18n_json(['comune', 'diario']);
      * kind: 'mood' oppure 'energy'. level: 1..5, oppure 0/null = da scegliere.
      * Ritorna il markup svg: matita morbida, niente colore pieno.
      */
+    /* LO STILE STANDARD (20/10/2026): niente matita. L'umore e' una faccina
+       piena nel colore del livello (dal rosso al verde); l'energia e' una
+       batteria con le tacche, che si riempie e cambia colore. Vale ovunque
+       la pagina sia nello stile standard (diario, planner); la pagina delle
+       abitudini e la carta restano a matita. */
+    var STD_COL = { 1: '#FF453A', 2: '#FF9F0A', 3: '#FFCC00', 4: '#8BD450', 5: '#30D158' };
+    var STD_EYES = {
+        1: '<path d="M12.4 15.4l4-1.8M27.6 15.4l-4-1.8"/><circle cx="14.6" cy="19" r="1.7" fill="#1C1C1E" stroke="none"/><circle cx="25.4" cy="19" r="1.7" fill="#1C1C1E" stroke="none"/>',
+        2: '<circle cx="14.6" cy="17.6" r="1.8" fill="#1C1C1E" stroke="none"/><circle cx="25.4" cy="17.6" r="1.8" fill="#1C1C1E" stroke="none"/>',
+        3: '<circle cx="14.6" cy="17.2" r="1.8" fill="#1C1C1E" stroke="none"/><circle cx="25.4" cy="17.2" r="1.8" fill="#1C1C1E" stroke="none"/>',
+        4: '<circle cx="14.6" cy="16.8" r="1.9" fill="#1C1C1E" stroke="none"/><circle cx="25.4" cy="16.8" r="1.9" fill="#1C1C1E" stroke="none"/>',
+        5: '<path d="M12.2 17.6q2.4-3 4.8 0M23 17.6q2.4-3 4.8 0"/>'
+    };
+    var STD_MOUTH = {
+        1: '<path d="M13.5 28.6q6.5-6 13 0"/>',
+        2: '<path d="M14.5 27.4q5.5-3 11 0"/>',
+        3: '<path d="M14.8 26h10.4"/>',
+        4: '<path d="M13.8 24q6.2 5.6 12.4 0"/>',
+        5: '<path d="M12.4 22.6h15.2q-.6 8.2-7.6 8.2t-7.6-8.2Z" fill="#1C1C1E"/><path d="M15.6 28.4q4.4 2.6 8.8 0" stroke="#FF6B81" stroke-width="2.2"/>'
+    };
+    function standoutFaceStd(kind, level, s) {
+        var open = '<svg viewBox="0 0 40 40" width="' + s + '" height="' + s + '" fill="none" stroke-linecap="round" stroke-linejoin="round">';
+        if (kind === 'energy') {
+            /* la batteria: corpo, polo, cinque tacche */
+            var col = level ? STD_COL[level] : 'currentColor';
+            var out = open + '<rect x="4.5" y="11" width="27" height="18" rx="4.6" stroke="' + col + '" stroke-width="2.2"'
+                    + (level ? '' : ' stroke-dasharray="3.2 3" opacity=".75"') + '/>'
+                    + '<path d="M34.3 16.6v6.8" stroke="' + col + '" stroke-width="2.6"' + (level ? '' : ' opacity=".75"') + '/>';
+            for (var i = 0; i < 5; i++) {
+                var x = 7.6 + i * 4.6;
+                out += '<rect x="' + x.toFixed(1) + '" y="14.1" width="3.5" height="11.8" rx="1.3" fill="' + col + '"'
+                     + (level && i < level ? '' : ' opacity="' + (level ? '.16' : '0') + '"') + '/>';
+            }
+            if (level === 5) out += '<path d="M19.6 13.4l-3.6 7h3.4l-1.6 6.2 5-7.6h-3.5l1.6-5.6Z" fill="#fff" stroke="none"/>';
+            return out + '</svg>';
+        }
+        if (!level) {
+            return open + '<circle cx="20" cy="20" r="16.2" stroke="currentColor" stroke-width="2" stroke-dasharray="3.2 3.1" opacity=".75"/>'
+                 + '<path d="M20 15v10M15 20h10" stroke="currentColor" stroke-width="2" opacity=".55"/></svg>';
+        }
+        return open + '<circle cx="20" cy="20" r="17" fill="' + STD_COL[level] + '"/>'
+             + '<path d="M9.5 12.5A13 13 0 0 1 20 7" stroke="#fff" stroke-width="2.2" opacity=".45"/>'
+             + '<g stroke="#1C1C1E" stroke-width="2.2">' + STD_EYES[level] + STD_MOUTH[level] + '</g></svg>';
+    }
+
     function standoutFace(kind, level, size) {
         var s = size || 40;
+        if (document.documentElement.getAttribute('data-stile') === 'standard') {
+            return standoutFaceStd(kind, level ? Math.max(1, Math.min(5, level)) : 0, s);
+        }
         var open = '<svg viewBox="0 0 40 40" width="' + s + '" height="' + s + '" fill="none" stroke="currentColor" '
                  + 'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">';
         if (!level) {

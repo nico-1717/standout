@@ -846,3 +846,45 @@ html[data-stile="standard"] .dg-peek-link{
     display:inline-block; padding:9px 16px; border:none; border-radius:12px;
     font-size:14px; font-weight:700; color:var(--so-blue); background:var(--so-blue-wash);
 }
+
+/* ------------------------------------------------------------------ */
+/* 11. FACCINE A COLORI E BATTERIE (20/10/2026)                        */
+/* L'icona porta gia' il colore del livello (standoutFace, versione     */
+/* standard): scelta, la casella non si riempie piu' di colore pieno    */
+/* (l'icona ci sparirebbe dentro) ma si tinge e prende un bordo.        */
+/* ------------------------------------------------------------------ */
+html[data-stile="standard"] .dy-face-btn svg{ width:42px; height:42px; }
+html[data-stile="standard"] .dy-pop-face svg{ width:36px; height:36px; }
+html[data-stile="standard"] .dy-pop-face:hover{ background:color-mix(in srgb, var(--lv) 10%, var(--so-fill)); color:var(--so-text-2); }
+html[data-stile="standard"] .dy-pop-face.dy-on{
+    color:var(--so-text-2); transform:none;
+    background:color-mix(in srgb, var(--lv) 18%, var(--so-surface));
+    box-shadow:inset 0 0 0 2px var(--lv);
+}
+html[data-stile="standard"] .dy-pop-face.dy-on .dy-pop-cap{ color:var(--lv); font-weight:800; }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face{ padding:7px; }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face:hover{ background:color-mix(in srgb, var(--lv) 10%, var(--so-surface)); }
+html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-face.dg-on{
+    transform:scale(1.06); color:var(--so-text-2);
+    background:color-mix(in srgb, var(--lv) 20%, var(--so-surface));
+    box-shadow:inset 0 0 0 2px var(--lv), 0 6px 14px -8px var(--lv);
+}
+html[data-stile="standard"] .dy-cal-d svg{ width:18px; height:18px; }
+html[data-stile="standard"] .dy-stat-ico{ padding:4px; }
+
+/* l'anello delle abitudini: numero e anello nella stessa casella della
+   griglia, cosi' il numero sta al centro qualunque sia l'altezza della
+   tessera (prima era messo a 12px dall'alto, e la tessera e' centrata) */
+html[data-stile="standard"] .dy-ring{
+    display:grid; grid-template-areas:"anello" "nome"; justify-items:center; align-content:center; row-gap:5px;
+}
+html[data-stile="standard"] .dy-ring svg{ grid-area:anello; margin:0; }
+html[data-stile="standard"] .dy-ring-n{
+    grid-area:anello; position:static; inset:auto; height:auto; place-self:center;
+    line-height:1; font-variant-numeric:tabular-nums;
+}
+html[data-stile="standard"] .dy-ring .dy-ring-k{ grid-area:nome; margin:0; }
+/* "Salvato" in basso, sopra la capsula: in alto copriva il giorno */
+html[data-stile="standard"] .dy-page-foot{ top:auto; bottom:calc(76px + var(--safe-bottom)); }
+html[data-stile="standard"] .dy-saved{ transform:translateY(6px); }
+html[data-stile="standard"] .dy-saved.dy-show{ transform:none; }
