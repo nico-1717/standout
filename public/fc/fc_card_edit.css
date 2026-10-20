@@ -960,3 +960,45 @@ html.fc-popup-sopra, html.fc-popup-sopra body{ overflow:hidden; }
 .fcv-note-tit{ display:inline-flex; align-items:center; gap:7px; }
 .fcv-note-tit svg{ width:16px; height:16px; color:#E0A800; flex-shrink:0; }
 .fcv-note-area{ background:color-mix(in srgb, #FFD60A 10%, var(--surface, #fff)); min-height:76px; }
+
+/* ================================================================
+   LA FAMIGLIA DI UNA SOTTOCARTA E I TASTI "AGGIUNGI" (20/10/2026)
+   In una sottocarta: la carta padre in cima, poi le sorelle con questa
+   evidenziata. In fondo a ogni modulo: dove far nascere la prossima carta.
+   ================================================================ */
+.fc-famiglia .fc-figli-tit{ flex:1; }
+.fc-fam-conta{ font-size:11.5px; font-weight:700; color:var(--text-3); }
+.fc-fam-padre{ background:color-mix(in srgb, var(--blue, #007AFF) 8%, var(--surface-2, #F7F7FA));
+    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--blue, #007AFF) 18%, transparent); }
+.fc-fam-ic{ width:30px; height:30px; border-radius:9px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background:color-mix(in srgb, var(--blue, #007AFF) 16%, transparent); color:var(--blue, #007AFF); }
+.fc-fam-ic svg{ width:16px; height:16px; }
+.fc-fam-etichetta{ font-size:10px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--blue, #007AFF); }
+/* le sorelle appese al padre con una linea, come un ramo */
+.fc-fam-rami{ position:relative; display:flex; flex-direction:column; gap:6px; padding-left:22px; }
+.fc-fam-rami::before{ content:""; position:absolute; left:10px; top:-6px; bottom:18px; width:2px; border-radius:2px;
+    background:color-mix(in srgb, var(--blue, #007AFF) 22%, transparent); }
+.fc-fam-rami > .fc-figlio{ position:relative; }
+.fc-fam-rami > .fc-figlio::before{ content:""; position:absolute; left:-12px; top:50%; width:10px; height:2px; border-radius:2px;
+    background:color-mix(in srgb, var(--blue, #007AFF) 22%, transparent); }
+.fc-figlio.is-questa{ background:color-mix(in srgb, var(--blue, #007AFF) 12%, var(--surface, #fff));
+    box-shadow:inset 0 0 0 1.5px var(--blue, #007AFF); }
+.fc-figlio.is-questa .fc-figlio-n{ background:var(--blue, #007AFF); }
+.fc-figlio.is-nuova .fc-figlio-q{ font-style:italic; color:var(--text-2); }
+.fc-fam-qui{ flex-shrink:0; font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; color:#fff; background:var(--blue, #007AFF); }
+
+.fc-aggiungi{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.fc-aggiungi[hidden]{ display:none; }
+.fc-agg-btn{ display:flex; align-items:center; gap:10px; padding:12px; border-radius:16px; text-decoration:none; min-width:0;
+    background:var(--surface, #fff); box-shadow:inset 0 0 0 1px var(--hairline, rgba(0,0,0,.08)), 0 4px 14px -10px rgba(0,0,0,.3);
+    transition:transform .15s var(--spring), box-shadow .2s; }
+.fc-agg-btn:active{ transform:scale(.97); }
+.fc-agg-btn:hover{ box-shadow:inset 0 0 0 1.5px var(--blue, #007AFF), 0 6px 18px -10px rgba(0,0,0,.35); }
+.fc-agg-ic{ width:36px; height:36px; border-radius:11px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    background:var(--blue-soft, rgba(0,122,255,.1)); color:var(--blue, #007AFF); }
+.fc-agg-ic svg{ width:20px; height:20px; }
+.fc-agg-testi{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+.fc-agg-tit{ font-size:13.5px; font-weight:800; color:var(--text); line-height:1.2; }
+.fc-agg-sub{ font-size:11.5px; font-weight:550; color:var(--text-2); line-height:1.25; }
+@media (max-width:360px){ .fc-aggiungi{ grid-template-columns:1fr; } }

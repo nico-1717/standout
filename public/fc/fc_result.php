@@ -354,6 +354,47 @@ if ($fcr_mazzi) {
     $fcr_ancora = fc_url('fc_game_start.php', $fcr_q);
 }
 
+/* IL CONFRONTO CON L'ULTIMA VOLTA (20/10/2026)
+   Solo per una partita "madre" (un ripasso ha solo le carte sbagliate, il
+   confronto non direbbe niente): la partita precedente con ESATTAMENTE gli
+   stessi mazzi, e la sua precisione. Se questa batte tutte le precedenti
+   sugli stessi mazzi, e' un record. */
+$fcr_confronto = null;
+if ($game_id === $fcr_radice && $fcr_mazzi && $played_items > 0) {
+    $fcr_set = array_map('intval', array_column($fcr_mazzi, 'id')); sort($fcr_set);
+    $fcr_prima = sec_all("SELECT g.id FROM fc_games g
+                           WHERE g.user_id = ? AND " . fc_sql_partite('g') . " AND (g.parent_id IS NULL OR g.parent_id = 0)
+                             AND g.id <> ? AND g.game_date < ?
+                           ORDER BY g.game_date DESC, g.id DESC LIMIT 200",
+                         [$current_user_id, $game_id, (string)($fcr_tutte[$game_id]['game_date'] ?? date('Y-m-d H:i:s'))]);
+    if ($fcr_prima) {
+        $fcr_pid = array_map('intval', array_column($fcr_prima, 'id'));
+        $ph = implode(',', array_fill(0, count($fcr_pid), '?'));
+        $fcr_mz = [];
+        foreach (sec_all("SELECT game_id, fc_category_id FROM " . fc_t('game_decks') . " WHERE game_id IN ($ph)", $fcr_pid) as $r) {
+            $fcr_mz[(int)$r['game_id']][] = (int)$r['fc_category_id'];
+        }
+        $fcr_uguali = [];
+        foreach ($fcr_pid as $g) { $m = $fcr_mz[$g] ?? []; sort($m); if ($m === $fcr_set) $fcr_uguali[] = $g; }
+        if ($fcr_uguali) {
+            $ph = implode(',', array_fill(0, count($fcr_uguali), '?'));
+            $fcr_pct = [];
+            foreach (sec_all("SELECT game_id, SUM(user_answer = 'Correct') AS ok, SUM(user_answer IN ('Correct', 'Wrong')) AS n
+                                FROM " . fc_t('plays') . " WHERE game_id IN ($ph) GROUP BY game_id", $fcr_uguali) as $r) {
+                if ((int)$r['n'] > 0) $fcr_pct[(int)$r['game_id']] = (int)round($r['ok'] / $r['n'] * 100);
+            }
+            foreach ($fcr_uguali as $g) {      // la piu' recente con delle risposte
+                if (isset($fcr_pct[$g])) {
+                    $ora = (int)round($score);
+                    $fcr_confronto = ['delta' => $ora - $fcr_pct[$g], 'prima' => $fcr_pct[$g],
+                                      'record' => count($fcr_pct) >= 2 && $ora > max($fcr_pct), 'id' => $g];
+                    break;
+                }
+            }
+        }
+    }
+}
+
 // ==========================================
 // FIX RESUME INTELLIGENTE "CONTINUA PARTITA"
 // ==========================================
@@ -614,6 +655,21 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
+
+            <?php if ($fcr_confronto): $d = $fcr_confronto['delta']; ?>
+            <div class="res-confronto">
+                <a class="rc-delta <?php echo $d > 0 ? 'su' : ($d < 0 ? 'giu' : 'pari'); ?>" href="fc_result.php?game_id=<?php echo (int)$fcr_confronto['id']; ?>"
+                   title="<?php te('fc.res_conf_titolo', ['n' => (int)$fcr_confronto['prima']]); ?>">
+                    <?php if ($d > 0): ?><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 6-6 6 6"/></svg>
+                    <?php elseif ($d < 0): ?><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 10 6 6 6-6"/></svg>
+                    <?php else: ?><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 9.5h12M6 14.5h12"/></svg><?php endif; ?>
+                    <span><?php echo $d === 0 ? sec_h(t('fc.res_conf_pari')) : sec_h(t('fc.res_conf_delta', ['n' => ($d > 0 ? '+' : '−') . abs($d)])); ?></span>
+                </a>
+                <?php if ($fcr_confronto['record']): ?>
+                <span class="rc-record"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg><?php te('fc.res_conf_record'); ?></span>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
 
             <div class="stats-grid">
 

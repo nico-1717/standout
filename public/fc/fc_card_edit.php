@@ -698,6 +698,21 @@ function mfc_parola_esempio(): string {
                 $ex_count = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('examples') . " WHERE $ex_col = ?", [$id])['c'] ?? 0);
             }
 
+            /* LA FAMIGLIA DI UNA SOTTOCARTA (20/10/2026): la carta padre e le
+               sorelle, per la sezione in fondo e per i tasti "aggiungi".
+               $fc_padre_id e' il padre della sottocarta che si modifica, o di
+               quella che si sta creando (?parent_id=). */
+            $fc_padre_id = 0; $fc_padre = null; $fc_sorelle = [];
+            if ($is_child) {
+                $fc_padre_id = $fc_modo === 'edit' ? (int)($row['parent_id'] ?? 0) : (int)($padre_nuovo ?? 0);
+                if ($fc_padre_id > 0) {
+                    $colQ = fc_is_vocab() ? 'word AS question_desc, translation AS answer_desc' : 'question_desc, answer_desc';
+                    $fc_padre = sec_one("SELECT id, category_id, $colQ FROM " . fc_t('cards') . " WHERE id = ?", [$fc_padre_id]);
+                    $fc_sorelle = sec_all("SELECT id_child, $colQ FROM " . fc_t('subcards') . " WHERE parent_id = ?
+                                           ORDER BY custom_order ASC, id_child ASC", [$fc_padre_id]);
+                }
+            }
+
             /* Anche l'annullamento torna sulla carta da cui si e' partiti, non
                in cima all'elenco: chi annulla e' comunque nel bel mezzo di un
                giro fra le carte, ed e' li' che vuole ritrovarsi. Stessi
@@ -1139,14 +1154,100 @@ function mfc_parola_esempio(): string {
                 </section>
                 <?php endif; ?>
 
+                <?php if ($is_child && $fc_padre):
+                    /* LA FAMIGLIA, IN UNA SOTTOCARTA (20/10/2026)
+                       La carta padre in cima e, sotto, tutte le sorelle in
+                       ordine, con questa evidenziata: si salta dall'una
+                       all'altra senza tornare all'elenco, e si vede subito
+                       dove sta la carta che si sta scrivendo. */
+                    $fcPop = !empty($_GET['fc_popup']) ? '&fc_popup=1' : '';
+                    $pq = mfc_testo_piano($fc_padre['question_desc']);
+                    $pa = mfc_testo_piano($fc_padre['answer_desc'], 70); ?>
+                <section class="fc-card fc-figli fc-famiglia is-aperta" id="fcFamiglia">
+                    <button type="button" class="fc-figli-testa" onclick="fcApriChiudiFigli(this)" aria-expanded="true">
+                        <svg class="fc-figli-freccia" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                        <span class="fc-figli-tit"><?php te('fc.mfc_famiglia'); ?></span>
+                        <span class="fc-fam-conta"><?php te(count($fc_sorelle) === 1 ? 'fc.mfc_una_sottocarta' : 'fc.vis_n_sottocarte', ['n' => count($fc_sorelle)]); ?></span>
+                    </button>
+                    <div class="fc-figli-corpo">
+                        <a class="fc-figlio fc-fam-padre" href="<?php echo sec_h(fc_url('fc_card_edit.php', ['fc_id' => $fc_padre_id, 'previous_catid' => (int)$fc_padre['category_id']]) . $fcPop); ?>" onclick="return fcVaiSalvando(this.href)">
+                            <span class="fc-fam-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="2.2"/><path d="M7.5 7V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/></svg></span>
+                            <span class="fc-figlio-testi">
+                                <span class="fc-fam-etichetta"><?php te('fc.vis_fcv_carta_padre'); ?></span>
+                                <span class="fc-figlio-q"><?php echo sec_h($pq !== '' ? $pq : '—'); ?></span>
+                                <span class="fc-figlio-a"><?php echo sec_h($pa !== '' ? $pa : '—'); ?></span>
+                            </span>
+                            <svg class="fc-figlio-matita" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        </a>
+                        <div class="fc-fam-rami">
+                        <?php foreach ($fc_sorelle as $i => $f):
+                            $questa = $fc_modo === 'edit' && (int)$f['id_child'] === (int)$id;
+                            $fq = mfc_testo_piano($f['question_desc']);
+                            $fa = mfc_testo_piano($f['answer_desc'], 70);
+                            $url = fc_url('fc_card_edit.php', ['child_id' => (int)$f['id_child'], 'previous_catid' => (int)$category_id, 'torna_a' => $fc_padre_id]) . $fcPop; ?>
+                            <?php if ($questa): ?>
+                            <div class="fc-figlio is-questa" aria-current="true">
+                                <span class="fc-figlio-n"><?php echo (int)$i + 1; ?></span>
+                                <span class="fc-figlio-testi">
+                                    <span class="fc-figlio-q"><?php echo sec_h($fq !== '' ? $fq : '—'); ?></span>
+                                    <span class="fc-figlio-a"><?php echo sec_h($fa !== '' ? $fa : '—'); ?></span>
+                                </span>
+                                <span class="fc-fam-qui"><?php te('fc.mfc_questa'); ?></span>
+                            </div>
+                            <?php else: ?>
+                            <a class="fc-figlio" href="<?php echo sec_h($url); ?>" onclick="return fcVaiSalvando(this.href)">
+                                <span class="fc-figlio-n"><?php echo (int)$i + 1; ?></span>
+                                <span class="fc-figlio-testi">
+                                    <span class="fc-figlio-q"><?php echo sec_h($fq !== '' ? $fq : '—'); ?></span>
+                                    <span class="fc-figlio-a"><?php echo sec_h($fa !== '' ? $fa : '—'); ?></span>
+                                </span>
+                                <svg class="fc-figlio-matita" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                            </a>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                        <?php if ($fc_modo === 'insert'): ?>
+                            <div class="fc-figlio is-questa is-nuova" aria-current="true">
+                                <span class="fc-figlio-n"><?php echo count($fc_sorelle) + 1; ?></span>
+                                <span class="fc-figlio-testi"><span class="fc-figlio-q"><?php te('fc.mfc_questa_nuova'); ?></span></span>
+                                <span class="fc-fam-qui"><?php te('fc.mfc_questa'); ?></span>
+                            </div>
+                        <?php endif; ?>
+                        </div>
+                    </div>
+                </section>
+                <?php endif; ?>
+
                 <div class="fc-form-foot">
                     <?php /* L'eliminazione sta nella barra in alto, col cestino:
                              ripeterla qui sotto era lo stesso comando due volte,
                              e quello in fondo si trovava solo scorrendo. */ ?>
-                    <?php /* Compare solo DOPO che una carta e' stata creata: prima
-                             non avrebbe niente da ripulire. Tiene la categoria e
-                             azzera tutto il resto. */ ?>
-                    <button type="button" class="btn-altra" id="fcAltraBtn" hidden onclick="fcNuovaScheda()"><?php te('fc.ifc_inserisci_altra'); ?></button>
+                    <?php /* AGGIUNGI UNA SORELLA / UNA FIGLIA (20/10/2026)
+                             Al posto del vecchio "Inserisci un'altra": due tasti
+                             che dicono DOVE nasce la carta nuova.
+                               carta padre  -> sorella nel mazzo  | sottocarta di questa
+                               sottocarta   -> sorella (stesso padre) | carta nel mazzo
+                             Su una carta che si sta creando compaiono dopo il
+                             primo salvataggio: prima non c'e' un id a cui
+                             agganciare una figlia. Gli indirizzi li completa il
+                             JS (fcAggiornaAggiungi), che conosce l'id appena nato.
+                             Se c'e' qualcosa da salvare si salva prima di uscire
+                             (fcVaiSalvando). */ ?>
+                    <div class="fc-aggiungi" id="fcAggiungi"<?php echo $fc_modo === 'insert' ? ' hidden' : ''; ?>>
+                        <a class="fc-agg-btn" id="fcAggSorella" href="#" onclick="return fcVaiSalvando(this.href)">
+                            <span class="fc-agg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="9" height="12" rx="2"/><rect x="12.5" y="6" width="9" height="12" rx="2" stroke-dasharray="3 2.4"/><path d="M17 10.5v3M15.5 12h3"/></svg></span>
+                            <span class="fc-agg-testi">
+                                <span class="fc-agg-tit"><?php te($is_child ? 'fc.mfc_agg_sorella_figlia' : 'fc.mfc_agg_sorella'); ?></span>
+                                <span class="fc-agg-sub"><?php te($is_child ? 'fc.mfc_agg_sorella_figlia_sub' : 'fc.mfc_agg_sorella_sub'); ?></span>
+                            </span>
+                        </a>
+                        <a class="fc-agg-btn" id="fcAggAltro" href="#" onclick="return fcVaiSalvando(this.href)">
+                            <span class="fc-agg-ic"><?php if ($is_child): ?><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8.5v7M8.5 12h7"/></svg><?php else: ?><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="13" height="10" rx="2"/><path d="M7 13v4a2 2 0 0 0 2 2h4"/><rect x="13" y="15" width="8" height="6" rx="1.6" stroke-dasharray="2.6 2"/></svg><?php endif; ?></span>
+                            <span class="fc-agg-testi">
+                                <span class="fc-agg-tit"><?php te($is_child ? 'fc.mfc_agg_nel_mazzo' : 'fc.mfc_agg_figlia'); ?></span>
+                                <span class="fc-agg-sub"><?php te($is_child ? 'fc.mfc_agg_nel_mazzo_sub' : 'fc.mfc_agg_figlia_sub'); ?></span>
+                            </span>
+                        </a>
+                    </div>
                 </div>
 
             </form>
@@ -1646,6 +1747,35 @@ function mfc_parola_esempio(): string {
         JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_UNESCAPED_UNICODE); ?>;
     var FC_ID_CORRENTE = <?php echo (int)$id; ?>;
     var FC_TIPO = '<?php echo $is_child ? 'child' : 'parent'; ?>';
+    var FC_PADRE = <?php echo (int)($fc_padre_id ?? 0); ?>;
+    var FC_CAT = <?php echo (int)($category_id ?? 0); ?>;
+    var FC_POPUP = <?php echo !empty($_GET['fc_popup']) ? 'true' : 'false'; ?>;
+
+    /* Gli indirizzi dei due tasti "aggiungi" in fondo (vedi .fc-aggiungi):
+       dipendono dall'id della carta, che per una carta appena creata si
+       conosce solo dopo il salvataggio. */
+    function fcAggiornaAggiungi() {
+        var box = document.getElementById('fcAggiungi');
+        if (!box) return;
+        function url(p) {
+            var q = new URLSearchParams(p);
+            if (FC_POPUP) q.set('fc_popup', '1');
+            return fcUrl('fc_card_edit.php?' + q.toString());
+        }
+        var mazzo = { modo: 'insert', category_id: FC_CAT };
+        var sorella = document.getElementById('fcAggSorella');
+        var altro = document.getElementById('fcAggAltro');
+        if (FC_TIPO === 'child') {
+            sorella.href = url({ modo: 'insert', parent_id: FC_PADRE, previous_catid: FC_CAT });
+            altro.href = url(mazzo);
+        } else {
+            sorella.href = url(mazzo);
+            altro.href = url({ modo: 'insert', parent_id: FC_ID_CORRENTE, previous_catid: FC_CAT });
+        }
+        box.hidden = !FC_ID_CORRENTE;
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fcAggiornaAggiungi);
+    else setTimeout(fcAggiornaAggiungi, 0);
 
     function fcAnnullaModifica(cancelUrl) {
         if (!fcSporco) { fcEsci(cancelUrl); return; }
@@ -1697,7 +1827,7 @@ function mfc_parola_esempio(): string {
         /* Anche il numero sul tasto: e' quello della carta precedente, e su una
            carta che non esiste ancora vorrebbe dire il falso. */
         fcMostraContaEsempi(0);
-        document.getElementById('fcAltraBtn').hidden = true;
+        var agg = document.getElementById('fcAggiungi'); if (agg) agg.hidden = true;
         var box = document.querySelector('.qa-examples');
         if (box) box.hidden = true;
         StandoutSaveBar.reset('scheda');
@@ -2105,7 +2235,6 @@ function mfc_parola_esempio(): string {
 
                     FC_ID_CORRENTE = dati.fc_id;
                     fcSporco = false;
-                    document.getElementById('fcAltraBtn').hidden = false;
 
                     var sezEx = document.querySelector('.qa-examples-wrap');
                     if (sezEx) {
@@ -2132,8 +2261,6 @@ function mfc_parola_esempio(): string {
                     if (titolo) titolo.textContent = FC_TITOLI.modifica;
                     var addEx = document.getElementById('fcAddEsempio');
                     if (addEx) addEx.disabled = false;
-                    var altra = document.getElementById('fcAltraBtn');
-                    if (altra) altra.hidden = false;
                     /* una sottocarta appena nata si modifica come sottocarta */
                     var nomeId = dati.is_child ? 'child_id' : 'fc_id';
                     FC_TIPO = dati.is_child ? 'child' : 'parent';
@@ -2145,6 +2272,7 @@ function mfc_parola_esempio(): string {
                         document.getElementById('editFcForm').appendChild(campoId);
                     }
                     campoId.value = dati.fc_id;
+                    fcAggiornaAggiungi();
                     /* Gli esempi scritti prima della creazione sono partiti con
                        la carta: da qui in poi l'elenco li legge dal database e
                        quelli nuovi si salvano uno per uno. */

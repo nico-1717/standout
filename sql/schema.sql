@@ -271,7 +271,9 @@ CREATE TABLE `fc_study_decks` (
   `archived` tinyint(1) NOT NULL DEFAULT '0',
   `user_id` int NOT NULL,
   `icon` varchar(24) DEFAULT NULL COMMENT 'icona del mazzo (chiave di fc_icone.php)',
-  `notes` text COMMENT 'note del mazzo, scritte dall utente'
+  `notes` text COMMENT 'note del mazzo, scritte dall utente',
+  `pinned` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = fissato in cima all elenco',
+  `exam_date` date DEFAULT NULL COMMENT 'data dell esame, per il conto alla rovescia'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Mazzi delle flashcard di studio, annidati con parent_id';
 
 -- --------------------------------------------------------
@@ -452,7 +454,9 @@ CREATE TABLE `fc_vocab_decks` (
   `user_id` int DEFAULT NULL,
   `course_id` int UNSIGNED DEFAULT NULL COMMENT 'il corso: vale anche per le sottocategorie, non solo per quelle in cima',
   `icon` varchar(24) DEFAULT NULL COMMENT 'icona del mazzo (chiave di fc_icone.php)',
-  `notes` text COMMENT 'note del mazzo, scritte dall utente'
+  `notes` text COMMENT 'note del mazzo, scritte dall utente',
+  `pinned` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = fissato in cima all elenco',
+  `exam_date` date DEFAULT NULL COMMENT 'data dell esame, per il conto alla rovescia'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Mazzi del vocabolario, annidati con parent_id, dentro un corso';
 
 -- --------------------------------------------------------

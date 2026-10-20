@@ -842,6 +842,23 @@ if ($parent_id > 0) {
         ) AS t",
         array_merge($learnt_par, $cat_par, [$game_id], $learnt_par, $cat_par, [$game_id]))['c'] ?? 0);
 
+    /* UNA PARTITA SU UNA PARTE DEI MAZZI (20/10/2026): "solo le difficili"
+       (fc_game_start ?solo=difficili) mette nella sequenza meno carte di
+       quante ne abbiano i mazzi. Le carte che restano davvero sono quelle
+       della sequenza non ancora giocate: se sono meno, vale quel numero. In
+       una partita normale i due conti coincidono (o vince il vecchio, se nel
+       frattempo una carta e' stata segnata come imparata). */
+    $seq_rest = "SELECT fc_image_id FROM " . fc_t('sequence') . " WHERE game_id = ?
+                    AND fc_image_id NOT IN (SELECT fc_image_id FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_image_id IS NOT NULL)";
+    $seq_n = (int)(sec_one("SELECT COUNT(*) AS c FROM ($seq_rest) s", [$game_id, $game_id])['c'] ?? 0);
+    $seq_tot = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('sequence') . " WHERE game_id = ?", [$game_id])['c'] ?? 0);
+    if ($seq_tot > 0 && $seq_n < $to_play_count) {
+        $to_play_count = $seq_n;
+        $to_play_cards_count = $seq_n + (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('subcards') . " ch
+                                                        JOIN " . fc_t('cards') . " i ON i.id = ch.parent_id AND i.is_father = 1
+                                                       WHERE ch.parent_id IN ($seq_rest)", [$game_id, $game_id])['c'] ?? 0);
+    }
+
 }
 
 

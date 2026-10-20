@@ -1841,3 +1841,15 @@
 @media (prefers-reduced-motion: reduce){
     .road-step, .road-bar, .road-pop-illu span, .road-pop-medaglia, .road-pop-pan{ animation:none !important; transition:none !important; }
 }
+
+/* Il confronto con l'ultima partita sugli stessi mazzi, sotto il punteggio. */
+.res-confronto{ display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:-4px 0 16px; }
+.rc-delta, .rc-record{ display:inline-flex; align-items:center; gap:6px; padding:7px 13px 7px 10px; border-radius:999px;
+    font-size:13px; font-weight:800; text-decoration:none; }
+.rc-delta svg, .rc-record svg{ width:14px; height:14px; }
+.rc-delta.su{ color:#1E9E46; background:color-mix(in srgb, #34C759 15%, transparent); }
+.rc-delta.giu{ color:#E5352B; background:color-mix(in srgb, #FF3B30 13%, transparent); }
+.rc-delta.pari{ color:var(--text-2); background:color-mix(in srgb, var(--text) 7%, transparent); }
+.rc-record{ color:#7A5600; background:linear-gradient(135deg, #FFE082, #FFC107); box-shadow:0 6px 16px -8px rgba(224,168,0,.8);
+    animation:rcRecord .6s cubic-bezier(.2,.9,.3,1.4) .9s both; }
+@keyframes rcRecord{ from{ opacity:0; transform:scale(.6); } to{ opacity:1; transform:none; } }

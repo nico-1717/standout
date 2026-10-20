@@ -132,6 +132,41 @@ $figli = (int)(sec_one("SELECT COUNT(*) AS n FROM " . fc_t('subcards') . " ch
                         JOIN (SELECT i.id $from_sel AND i.is_father = 1) p ON p.id = ch.parent_id",
                        $par_sel)['n'] ?? 0);
 
+/* SOLO LE DIFFICILI (?solo=difficili, dal badge "da ripassare" dell'elenco
+   dei mazzi e dal tasto nel mazzo): restano le carte che sono, o hanno una
+   sottocarta che e', al livello "difficile" (fcv_livello). Lo stato delle
+   carte e' sempre "tutte": una carta difficile segnata come imparata va
+   ripassata lo stesso. */
+if (($_GET['solo'] ?? '') === 'difficili') {
+    require_once __DIR__ . '/../../lib/fc/fc_vocab_gioco.php';
+    $idsP = array_map(function ($s) { return (int)$s['id']; }, $schede);
+    $figliDi = [];
+    if ($idsP) {
+        $ph = implode(',', array_fill(0, count($idsP), '?'));
+        foreach (sec_all("SELECT id_child, parent_id FROM " . fc_t('subcards') . " WHERE parent_id IN ($ph)", $idsP) as $r) {
+            $figliDi[(int)$r['parent_id']][] = (int)$r['id_child'];
+        }
+    }
+    $st = fcv_stats_carte($idsP, array_merge([], ...array_values($figliDi ?: [[]])));
+    $schede = array_values(array_filter($schede, function ($s) use ($st, $figliDi) {
+        $chiavi = ['p' . (int)$s['id']];
+        foreach ($figliDi[(int)$s['id']] ?? [] as $f) $chiavi[] = 'c' . $f;
+        foreach ($chiavi as $k) {
+            $x = $st[$k] ?? ['c' => 0, 'w' => 0, 'u' => ''];
+            if (fcv_livello($x['c'], $x['w'], $x['u']) === 'difficile') return true;
+        }
+        return false;
+    }));
+    if (empty($schede)) {
+        header('Location: ' . fc_url('fc_decks.php', ['nessuna_difficile' => 1]));
+        exit();
+    }
+    $order = 'random';
+    /* i figli si ricontano sulle sole carte rimaste */
+    $figli = 0;
+    foreach ($schede as $s) $figli += count($figliDi[(int)$s['id']] ?? []);
+}
+
 $tot_padri = count($schede);
 
 /* game_order si scrive subito: chi riprende la partita senza "order"

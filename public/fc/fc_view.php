@@ -489,7 +489,7 @@ $categoryID = isset($_GET['category_id']) ? (int)$_GET['category_id'] : 0;
 
 
 [$fcW, $fcP] = fc_filtro_corso();
-$cat_query = sec_all("SELECT id, name, color, color_edited, parent_id, icon, notes FROM " . fc_t('decks') . " WHERE user_id = ?" . $fcW . " ORDER BY name", array_merge([$current_user_id], $fcP));
+$cat_query = sec_all("SELECT id, name, color, color_edited, parent_id, icon, notes, exam_date FROM " . fc_t('decks') . " WHERE user_id = ?" . $fcW . " ORDER BY name", array_merge([$current_user_id], $fcP));
 $categories_list = [];
 
 $current_cat_name = t('fc.vis_tutte_categorie');
@@ -2606,7 +2606,32 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
     <div class="feed-inner">
 
-        <?php if ($categoryID != 0): ?>
+        <?php if ($categoryID != 0):
+            /* LA STRISCIA IN CIMA (20/10/2026): l'esame (di questo mazzo o, se
+               non ne ha, del piu' vicino fra quelli che lo contengono) e il
+               tasto per giocare solo le carte difficili del ramo. */
+            $fcs_esame = $fc_cat_by_id[$categoryID]['exam_date'] ?? null;
+            $fcs_esame_di = '';
+            if (!$fcs_esame) foreach ($fc_ancestors as $__a) { if (!empty($__a['exam_date'])) { $fcs_esame = $__a['exam_date']; $fcs_esame_di = $__a['name']; break; } }
+            $fcs_giorni = null;
+            if ($fcs_esame) { $fcs_giorni = (int)round((strtotime(substr($fcs_esame, 0, 10)) - strtotime(date('Y-m-d'))) / 86400); if ($fcs_giorni < 0) $fcs_giorni = null; }
+            $fcs_diff = (int)($fcv_conta_livelli['difficile'] ?? 0);
+            if ($fcs_giorni !== null || $fcs_diff > 0): ?>
+        <div class="deck-strip">
+            <?php if ($fcs_giorni !== null): ?>
+            <span class="ds-esame<?= $fcs_giorni <= 3 ? ' is-urgente' : ($fcs_giorni <= 14 ? ' is-vicino' : '') ?>" title="<?= sec_h(date('d/m/Y', strtotime($fcs_esame))) ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+                <span><b><?= sec_h($fcs_giorni === 0 ? t('fc.dk_esame_oggi') : ($fcs_giorni === 1 ? t('fc.dk_esame_domani') : t('fc.dk_esame_tra', ['n' => $fcs_giorni]))) ?></b><?php if ($fcs_esame_di !== ''): ?> · <?= sec_h($fcs_esame_di) ?><?php endif; ?></span>
+            </span>
+            <?php endif; ?>
+            <?php if ($fcs_diff > 0): ?>
+            <a class="ds-difficili" href="<?= sec_h(fc_url('fc_game_start.php', ['category_id' => implode(',', array_merge([(int)$categoryID], array_keys($fc_discendenti))), 'status' => 'all', 'order' => 'random', 'solo' => 'difficili'])) ?>">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>
+                <?php te('fc.vis_gioca_difficili', ['n' => $fcs_diff]); ?>
+            </a>
+            <?php endif; ?>
+        </div>
+            <?php endif; ?>
         <?php /* LE NOTE DEL MAZZO: un foglietto in cima, che si scrive al
                  tocco e si salva senza ricaricare (fc_deck_notes, piu' su).
                  Senza note resta solo un invito discreto ad aggiungerne. */ ?>

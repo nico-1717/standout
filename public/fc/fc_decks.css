@@ -1365,3 +1365,41 @@ body.fc-vocab .hdr-play-btn{ box-shadow:0 2px 6px rgba(255,149,0,.3), 0 10px 22p
 .icon-swatch:active{ transform:scale(.88); }
 .icon-swatch.selected{ background:color-mix(in srgb, var(--row-color, var(--blue)) 20%, var(--surface));
     color:var(--row-color, var(--blue)); box-shadow:inset 0 0 0 2px var(--row-color, var(--blue)); }
+
+/* ==========================================================================
+   FISSATI, ESAME, DA RIPASSARE (20/10/2026)
+   ========================================================================== */
+.cat-stats{ flex-wrap:wrap; row-gap:5px; white-space:normal; }
+.cat-stats .cs-item{ white-space:nowrap; }
+.cat-pin{ display:inline-flex; vertical-align:-1px; margin-right:5px; color:var(--row-color, var(--blue)); }
+.cat-pin svg{ width:13px; height:13px; transform:rotate(-12deg); }
+.cat-row[data-level="0"] .cat-pin svg{ width:14px; height:14px; }
+
+.cs-esame, .sc-esame{ display:inline-flex; align-items:center; gap:4px; padding:2px 8px 2px 6px; border-radius:999px; white-space:nowrap;
+    font-size:11px; font-weight:800; font-style:normal; color:var(--text-2);
+    background:color-mix(in srgb, var(--text) 7%, transparent); }
+.cs-esame svg, .sc-esame svg{ width:11px; height:11px; }
+.cs-esame.is-vicino, .sc-esame.is-vicino{ color:#C76A00; background:color-mix(in srgb, #FF9500 16%, transparent); }
+.cs-esame.is-urgente, .sc-esame.is-urgente{ color:#fff; background:linear-gradient(135deg, #FF9500, #FF3B30);
+    box-shadow:0 3px 10px -4px rgba(255,59,48,.6); }
+.sc-esame{ margin:-4px 0 8px; }
+
+.cs-difficili{ display:inline-flex; align-items:center; gap:4px; padding:3px 9px 3px 7px; border-radius:999px; white-space:nowrap;
+    font-size:11px; font-weight:800; text-decoration:none; color:var(--red, #FF3B30);
+    background:color-mix(in srgb, var(--red, #FF3B30) 12%, transparent);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--red, #FF3B30) 25%, transparent);
+    transition:transform .15s var(--spring), background .2s; }
+.cs-difficili svg{ width:9px; height:9px; }
+.cs-difficili:hover{ background:color-mix(in srgb, var(--red, #FF3B30) 20%, transparent); }
+.cs-difficili:active{ transform:scale(.94); }
+.sc-difficili{ margin-top:9px; }
+
+.field-opt{ font-weight:600; text-transform:none; letter-spacing:0; color:var(--text-3); }
+.exam-row{ display:flex; align-items:center; gap:8px; }
+.exam-input{ flex:1; min-width:0; height:46px; padding:0 14px; border-radius:14px; border:none; box-sizing:border-box;
+    background:var(--surface-2); color:var(--text); font:inherit; font-size:16px; font-weight:600;
+    box-shadow:inset 0 0 0 .5px var(--hairline); color-scheme:light dark; }
+.exam-clear{ width:40px; height:40px; border-radius:50%; border:none; cursor:pointer; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; background:var(--surface-2); color:var(--text-2); }
+.exam-clear[hidden]{ display:none; }
+.exam-clear svg{ width:16px; height:16px; }
