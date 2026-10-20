@@ -155,7 +155,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         /* L'icona: solo una chiave dell'elenco di fc_icone.php; la cartella,
            che e' quella di sempre, si salva come NULL. */
         $icona = sec_str($_POST['deck_icon'] ?? '', 24);
-        $icona = (fc_icona_valida($icona) && $icona !== 'cartella') ? $icona : null;
+        /* '' = automatica (NULL: la indovina il nome, fc_icona_da_nome);
+           la cartella scelta a mano si salva, cosi' il nome non la cambia. */
+        $icona = fc_icona_valida($icona) ? $icona : null;
         /* La data dell'esame: AAAA-MM-GG valida, o niente. */
         $esame = sec_str($_POST['exam_date'] ?? '', 10);
         $esame = (preg_match('/^\d{4}-\d{2}-\d{2}$/', $esame) && checkdate((int)substr($esame, 5, 2), (int)substr($esame, 8, 2), (int)substr($esame, 0, 4))) ? $esame : null;
@@ -1014,7 +1016,7 @@ foreach ($all_categories as $cid => $crow) {
         'c'     => (!empty($crow['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $crow['color'])) ? $crow['color'] : '#007AFF',
         'arc'   => (int)$crow['archived'],
         'cards' => (int)$crow['image_count'] + (int)($sub_card_counts[$cid] ?? 0),
-        'ic'    => fc_icona_valida($crow['icon'] ?? null) ? (string)$crow['icon'] : 'cartella',
+        'ic'    => fc_icona_mazzo_di($crow),
         'st'    => fcm_numeri($cid),
         'nt'    => trim((string)($crow['notes'] ?? '')) !== '' ? 1 : 0,
         'pin'   => (int)($crow['pinned'] ?? 0),
@@ -1056,13 +1058,14 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
        i discendenti a seguirla, e offrire di disarchiviare una figlia il cui
        padre resta archiviato prometterebbe qualcosa che non si vedrebbe. */
     $mostraArchivio = $archPane ? ($level === 0) : true;
-    $iconaMazzo = fc_icona_valida($cat['icon'] ?? null) ? (string)$cat['icon'] : 'cartella';
+    $iconaMazzo = fc_icona_mazzo_di($cat);                                   // quella che si vede
+    $iconaScelta = fc_icona_valida($cat['icon'] ?? null) ? (string)$cat['icon'] : '';  // '' = automatica
 ?>
 <div class="cat-row" data-id="<?php echo (int)$id; ?>" data-parent="<?php echo (int)$cat['parent_id']; ?>" data-level="<?php echo (int)$level; ?>" data-name="<?php echo sec_h($nameEsc); ?>"
      data-parent-name="<?php echo sec_h($parentName); ?>" data-parent-color="<?php echo sec_h($parentColor); ?>"
      data-color="<?php echo sec_h($color); ?>" data-color-edited="<?php echo (int)($cat['color_edited'] ?? 0); ?>"
      data-archived="<?php echo (int)($cat['archived'] ?? 0); ?>" data-candelete="<?php echo (int)$can_delete; ?>"
-     data-icon="<?php echo sec_h($iconaMazzo); ?>" data-pinned="<?php echo (int)($cat['pinned'] ?? 0); ?>" data-exam="<?php echo sec_h((string)($cat['exam_date'] ?? '')); ?>"
+     data-icon="<?php echo sec_h($iconaScelta); ?>" data-icon-auto="<?php echo sec_h(fc_icona_da_nome((string)$cat['name'])); ?>" data-pinned="<?php echo (int)($cat['pinned'] ?? 0); ?>" data-exam="<?php echo sec_h((string)($cat['exam_date'] ?? '')); ?>"
      style="display:<?php echo sec_h($display); ?>; --row-color:<?php echo sec_h($color); ?>;">
 
     <!-- TASTI SWIPE VERSO DESTRA (Nascosti sotto, a sinistra) -->
@@ -1136,7 +1139,8 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
             data-color="<?php echo sec_h($color); ?>"
             data-color-edited="<?php echo (int)($cat['color_edited'] ?? 0); ?>"
             data-archived="<?php echo (int)($cat['archived'] ?? 0); ?>"
-            data-icon="<?php echo sec_h($iconaMazzo); ?>"
+            data-icon="<?php echo sec_h($iconaScelta); ?>"
+            data-icon-auto="<?php echo sec_h(fc_icona_da_nome((string)$cat['name'])); ?>"
             data-pinned="<?php echo (int)($cat['pinned'] ?? 0); ?>"
             data-exam="<?php echo sec_h((string)($cat['exam_date'] ?? '')); ?>"
             onclick="event.stopPropagation(); apriAzioni(this);">
@@ -1585,11 +1589,16 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
                      updateFormColorUI). La prima e' la cartella di sempre. */ ?>
             <div class="field">
                 <label><?php te('fc.dk_icona'); ?></label>
-                <input type="hidden" name="deck_icon" id="form_icon" value="cartella">
+                <input type="hidden" name="deck_icon" id="form_icon" value="">
                 <div class="icon-grid" id="formIconGrid" role="radiogroup" aria-label="<?php te('fc.dk_icona'); ?>">
-                    <?php $ii = 0; foreach (fc_icone_mazzo() as $ik => $_): ?>
-                    <button type="button" class="icon-swatch<?php echo $ik === 'cartella' ? ' selected' : ''; ?>" data-icon="<?php echo sec_h($ik); ?>"
-                            role="radio" aria-checked="<?php echo $ik === 'cartella' ? 'true' : 'false'; ?>"
+                    <?php /* La prima: automatica, cioe' indovinata dal nome del mazzo. */ ?>
+                    <button type="button" class="icon-swatch icon-swatch-auto selected" data-icon="" role="radio" aria-checked="true"
+                            title="<?php te('fc.dk_icona_auto'); ?>" aria-label="<?php te('fc.dk_icona_auto'); ?>" onclick="setFormIcon('')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9Z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9Z"/></svg>
+                    </button>
+                    <?php $ii = 1; foreach (fc_icone_mazzo() as $ik => $_): ?>
+                    <button type="button" class="icon-swatch" data-icon="<?php echo sec_h($ik); ?>"
+                            role="radio" aria-checked="false"
                             title="<?php te('fc.ico_' . $ik); ?>" aria-label="<?php te('fc.ico_' . $ik); ?>"
                             style="animation-delay:<?php echo (int)($ii++ * 14); ?>ms;" onclick="setFormIcon('<?php echo sec_h($ik); ?>')">
                         <?php echo fc_icona_svg($ik); ?>
@@ -1933,7 +1942,8 @@ function apriModalSalvaDaRiga(btn) {
         color:       r.dataset.color,
         colorEdited: r.dataset.colorEdited === '1',
         archived:    r.dataset.archived === '1',
-        icon:        r.dataset.icon || 'cartella',
+        icon:        r.dataset.icon || '',
+        iconAuto:    r.dataset.iconAuto || 'cartella',
         exam:        r.dataset.exam || ''
     });
 }
@@ -2648,7 +2658,8 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
         formParentColor = opts.parentColor || '#A0A0A0';
         formColorValue = formColorManual ? (opts.color || '#A0A0A0') : formParentColor;
         updateFormColorUI();
-        setFormIcon(opts.icon || 'cartella');
+        formIconAuto = opts.iconAuto || 'cartella';
+        setFormIcon(opts.icon || '');
         var ex = document.getElementById('form_exam');
         ex.value = opts.exam || '';
         document.getElementById('formExamClear').hidden = !ex.value;
@@ -2772,15 +2783,16 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
 
     /* L'icona scelta nel foglio: il campo nascosto, il riquadro acceso e
        l'anteprima in cima (la stessa che mostra il colore). */
+    var formIconAuto = 'cartella';
     function setFormIcon(k){
-        if (!ICONE_MAZZO[k]) k = 'cartella';
+        if (k !== '' && !ICONE_MAZZO[k]) k = '';
         document.getElementById('form_icon').value = k;
         document.querySelectorAll('#formIconGrid .icon-swatch').forEach(function(b){
             var on = b.dataset.icon === k;
             b.classList.toggle('selected', on);
             b.setAttribute('aria-checked', on ? 'true' : 'false');
         });
-        document.getElementById('formColorPreviewIcon').innerHTML = ICONE_MAZZO[k];
+        document.getElementById('formColorPreviewIcon').innerHTML = ICONE_MAZZO[k || formIconAuto] || ICONE_MAZZO.cartella;
     }
 
     function archiviaDalForm(){
@@ -2827,7 +2839,8 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
         var colorEdited = btn.dataset.colorEdited === '1';
         var canDelete = btn.dataset.candelete === '1';
         var archived = btn.dataset.archived === '1';
-        var icon = btn.dataset.icon || 'cartella';
+        var icon = btn.dataset.icon || '';
+        var iconAuto = btn.dataset.iconAuto || 'cartella';
         var exam = btn.dataset.exam || '';
         var pinned = btn.dataset.pinned === '1';
         document.getElementById('azionePinTxt').textContent = pinned ? T('fc.dk_togli_fissa') : T('fc.dk_fissa');
@@ -2845,7 +2858,7 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
                 apriModalSalva({
                     id: id, name: name, parentId: parentId,
                     parentName: parentName, parentColor: parentColor,
-                    color: color, colorEdited: colorEdited, archived: archived, icon: icon, exam: exam
+                    color: color, colorEdited: colorEdited, archived: archived, icon: icon, iconAuto: iconAuto, exam: exam
                 });
             }, 260);
         };

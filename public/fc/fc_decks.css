@@ -1403,3 +1403,14 @@ body.fc-vocab .hdr-play-btn{ box-shadow:0 2px 6px rgba(255,149,0,.3), 0 10px 22p
     display:flex; align-items:center; justify-content:center; background:var(--surface-2); color:var(--text-2); }
 .exam-clear[hidden]{ display:none; }
 .exam-clear svg{ width:16px; height:16px; }
+
+/* l'icona automatica (dal nome) e una griglia che non allunga troppo il foglio */
+.icon-swatch-auto{ background:transparent; box-shadow:inset 0 0 0 1.5px var(--hairline); border:1.5px dashed color-mix(in srgb, var(--text) 25%, transparent); }
+.icon-swatch-auto.selected{ border-color:transparent; }
+.icon-grid{ max-height:252px; overflow-y:auto; padding:2px; margin:-2px -2px 6px; scrollbar-width:thin;
+    -webkit-mask-image:linear-gradient(#000 88%, transparent); mask-image:linear-gradient(#000 88%, transparent); padding-bottom:22px; }
+/* Un mazzo di colore molto scuro (o molto chiaro) faceva sparire la sua icona
+   sullo sfondo: il disegno si mescola un po' col colore del testo, che segue
+   il tema, cosi' resta sempre leggibile. */
+.cat-icon.lvl0, .cat-icon.lvln{ color:color-mix(in srgb, var(--row-color, var(--blue)) 72%, var(--text)); }
+.fc-subcat-dot{ color:color-mix(in srgb, var(--sc-color) 72%, var(--text)); }

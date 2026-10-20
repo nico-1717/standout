@@ -510,7 +510,7 @@ foreach ($cat_query as $c) {
 
         $current_cat_color = !empty($c['color']) ? $c['color'] : '#007AFF';
         $current_cat_notes = trim((string)($c['notes'] ?? ''));
-        $current_cat_icon = fc_icona_valida($c['icon'] ?? null) ? (string)$c['icon'] : '';
+        $current_cat_icon = fc_icona_mazzo_di($c);
 
     }
 
@@ -2702,7 +2702,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
                     <span class="fc-subcat-dot">
 
-                        <?= fc_icona_svg($sc['icon'] ?? null, 2.2) ?>
+                        <?= fc_icona_svg(fc_icona_mazzo_di($sc), 2.2) ?>
 
                     </span>
 

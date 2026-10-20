@@ -76,7 +76,7 @@ function renderGameCatRow($node, $level = 0) {
         <?php endif; ?>
 
         <span class="cat-icon <?php echo $level === 0 ? 'lvl0' : 'lvln'; ?>">
-            <?php echo fc_icona_svg($node['icon'] ?? null); ?>
+            <?php echo fc_icona_svg(fc_icona_mazzo_di($node)); ?>
         </span>
 
         <span class="cat-name"><?php echo $nameEsc; ?></span>
