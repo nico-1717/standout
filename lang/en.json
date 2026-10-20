@@ -439,7 +439,7 @@
     "aggiungi_sotto_progetto_rapido": "Quick add sub-project",
     "alcuni_hanno_sotto": "Some of them have sub-projects of their own: those will be deleted too. ",
     "apri_tutto": "Expand all branches",
-    "apri_un_progetto_tocca_modifica": "Open a project, tap edit and press the star: it will show up here.",
+    "apri_un_progetto_tocca_modifica": "Open a project, tap ⋯ and turn on Favourite: it will show up here.",
     "attivita": "Tasks",
     "automatico_dal_padre": "(inherited from the parent)",
     "automatico_dal_padre_2": "Inherited from the parent",
@@ -602,7 +602,10 @@
     "mostra_elenco": "Show as list",
     "n_selezionati": "{n} selected",
     "n_selezionato": "{n} selected",
-    "scrivi_nota": "Write a note…"
+    "scrivi_nota": "Write a note…",
+    "sposta_in": "Move to…",
+    "livello_principale": "Top level",
+    "nome_nuovo_progetto": "New project name…"
   },
   "dashboard": {
     "pronto_a_ripassare_qualcosa_oggi": "Ready to review something today?",

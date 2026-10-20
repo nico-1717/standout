@@ -777,6 +777,19 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 /* ---- l'etichetta sopra un elenco ---- */
 .pr-lab{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin:22px 6px 7px;
     font-size:12.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--text-2); }
+/* gli strumenti dell'elenco, fra il nome e il conto: icone quiete, che si
+   colorano solo quando sono accese (la selezione) */
+.pr-lab:has(.pr-lab-tools){ align-items:center; margin-top:16px; margin-bottom:4px; }
+.pr-lab-tools{ display:flex; align-items:center; gap:2px; margin-left:auto; }
+.pr-lab-btn{ width:32px; height:32px; border:none; border-radius:10px; background:none; padding:0;
+    display:flex; align-items:center; justify-content:center; color:var(--text-3); cursor:pointer;
+    -webkit-tap-highlight-color:transparent; transition:background .15s, color .15s; }
+.pr-lab-btn svg{ width:17px; height:17px; }
+.pr-lab-btn:hover{ color:var(--text-2); background:color-mix(in srgb, var(--text) 5%, transparent); }
+.pr-lab-btn:active{ background:color-mix(in srgb, var(--text) 8%, transparent); }
+.pr-lab-btn.active{ color:var(--accent, var(--blue)); background:color-mix(in srgb, var(--accent, var(--blue)) 13%, transparent); }
+.pr-lab-btn[hidden]{ display:none; }
+.pr-lab-n{ min-width:34px; text-align:right; font-variant-numeric:tabular-nums; }
 .page > .pr-lab:first-child{ margin-top:6px; }
 
 /* ---- l'elenco ---- */
@@ -794,6 +807,11 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 .pr-arrow svg{ width:13px; height:13px; }
 .pr-arrow-spacer{ width:22px; }
 .pr-check{ width:24px; height:24px; margin:0; color:var(--text-3); }
+/* Il colore di ogni progetto sta nel cerchio della spunta, come negli elenchi
+   dei promemoria: si vede su ogni riga senza aggiungere niente. Il grigio
+   «senza colore» resta il grigio di sempre. */
+.pr-check .pr-ic-empty{ color:var(--row-color, var(--text-3)); stroke-width:2; }
+.pr-hero .pr-check .pr-ic-empty{ color:var(--accent, var(--text-3)); }
 .pr-check-completed .pr-ic-done{ color:var(--row-color, var(--accent, var(--blue))); transform:none; }
 .pr-main{ gap:1px; }
 .pr-name{ font-size:16px; font-weight:500; line-height:1.3; }
@@ -812,7 +830,7 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 
 /* il play: grigio e senza fondo; colorato solo se dentro qualcosa sta andando */
 .pr-pomo-btn{ width:34px; height:34px; border-radius:50%; background:none; box-shadow:none; color:var(--text-3); }
-.pr-pomo-btn svg{ width:14px; height:14px; }
+.pr-pomo-btn svg{ width:17px; height:17px; }
 .pr-pomo-btn:active{ background:var(--surface-2); transform:none; }
 .pr-pomo-btn.pr-corre-dentro{ color:var(--row-color); }
 .pr-pomo-run{ display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px; flex-shrink:0; cursor:pointer;
@@ -853,6 +871,14 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 .pr-add-ok{ width:32px; height:32px; border-radius:50%; border:none; padding:0; flex-shrink:0; cursor:pointer; display:grid; place-items:center;
     background:color-mix(in srgb, var(--row-color, var(--blue)) 14%, var(--surface)); color:var(--row-color, var(--blue)); }
 .pr-add-ok svg{ width:15px; height:15px; }
+/* il nome di un progetto nuovo: nell'elenco di tutti i progetti è una riga
+   come le altre; da solo (pagina vuota, barra laterale) è un piccolo campo */
+.pr-add-root.is-busy{ opacity:.55; pointer-events:none; }
+.pr-empty .pr-add-root, .pr-side .pr-add-root{ margin-top:14px; padding:4px 6px 4px 12px; min-height:46px;
+    border-radius:14px; box-shadow:inset 0 0 0 1px var(--hairline); text-align:left; }
+.pr-empty .pr-add-root::before, .pr-side .pr-add-root::before{ display:none; }
+.pr-side .pr-add-root{ margin-top:6px; font-size:14px; }
+.pr-side .pr-add-root input{ font-size:14px; }
 .pr-nuovo{ animation:prIn .25s var(--spring) both; }
 .pr-nuovo .pr-row-content{ opacity:.5; transition:opacity .3s; }
 .pr-nuovo.pr-nuovo-ok .pr-row-content{ opacity:1; }

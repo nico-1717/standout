@@ -439,7 +439,7 @@
     "aggiungi_sotto_progetto_rapido": "Aggiungi sotto-progetto rapido",
     "alcuni_hanno_sotto": "Alcuni hanno a loro volta dei sotto-progetti: verranno eliminati anche loro. ",
     "apri_tutto": "Apri tutti i rami",
-    "apri_un_progetto_tocca_modifica": "Apri un progetto, tocca modifica e premi la stellina: comparirà qui.",
+    "apri_un_progetto_tocca_modifica": "Apri un progetto, tocca ⋯ e accendi Preferito: comparirà qui.",
     "attivita": "Attività",
     "automatico_dal_padre": "(automatico dal padre)",
     "automatico_dal_padre_2": "Automatico dal padre",
@@ -602,7 +602,10 @@
     "mostra_elenco": "Mostra come elenco",
     "n_selezionati": "{n} selezionati",
     "n_selezionato": "{n} selezionato",
-    "scrivi_nota": "Scrivi una nota…"
+    "scrivi_nota": "Scrivi una nota…",
+    "sposta_in": "Sposta in…",
+    "livello_principale": "In cima",
+    "nome_nuovo_progetto": "Nome del nuovo progetto…"
   },
   "dashboard": {
     "pronto_a_ripassare_qualcosa_oggi": "Pronto a ripassare qualcosa oggi?",

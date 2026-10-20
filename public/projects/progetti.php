@@ -1041,10 +1041,10 @@ if (!function_exists('prog_date_tags_info')) {
         return $out;
     }
 }
-/* L'icona del play: è la stessa ovunque, e una sola definizione evita che le
-   copie divergano. */
-function prog_play_svg(): string {
-    return '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5l11 6.5-11 6.5z"/></svg>';
+/* L'icona della concentrazione: un timer, perché il tasto avvia un pomodoro.
+   È la stessa ovunque, e una sola definizione evita che le copie divergano. */
+function prog_timer_svg(): string {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 10v3.6l2.4 1.6M10 2.5h4M18.4 6.6l1.4-1.4"/></svg>';
 }
 function prog_piu_svg(): string {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
@@ -1136,17 +1136,13 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                 </button>
                 <?php else: ?>
                 <button type="button" class="pr-pomo-btn<?php echo $correDentro ? ' pr-corre-dentro' : ''; ?>"<?php echo $statsAttr; ?>
-                        aria-label="<?php te('progetti.concentrati'); ?>" title="<?php te('progetti.concentrati'); ?>"><?php echo prog_play_svg(); ?></button>
+                        aria-label="<?php te('progetti.concentrati'); ?>" title="<?php te('progetti.concentrati'); ?>"><?php echo prog_timer_svg(); ?></button>
                 <?php endif; ?>
             </div>
             <div class="swipe-actions">
                 <button type="button" class="swipe-btn swipe-btn-add" onclick="closeAllSwipes(null); prAggiungi(<?php echo $id; ?>)">
                     <?php echo prog_piu_svg(); ?>
                     <span><?php te('progetti.aggiungi_dentro'); ?></span>
-                </button>
-                <button type="button" class="swipe-btn swipe-btn-edit" onclick="prOpenEdit(<?php echo $id; ?>)">
-                    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                    <span><?php te('comune.modifica'); ?></span>
                 </button>
                 <button type="button" class="swipe-btn swipe-btn-delete" onclick="prConfirmDelete(<?php echo $id; ?>, <?php echo $hasChildren ? 'true' : 'false'; ?>)">
                     <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
@@ -1256,7 +1252,7 @@ echo standout_i18n_json(['comune', 'progetti', 'pomodoro', 'todo']);
         ?></span>
     </a>
     <?php endforeach; ?>
-    <button type="button" class="pr-side-it pr-side-add" onclick="prOpenEdit(0)">
+    <button type="button" class="pr-side-it pr-side-add" onclick="prNuovoProgetto(this)">
         <?php echo prog_piu_svg(); ?><span class="pr-side-n"><?php te('progetti.nuovo_progetto'); ?></span>
     </button>
 </aside>
@@ -1284,7 +1280,7 @@ echo standout_i18n_json(['comune', 'progetti', 'pomodoro', 'todo']);
         <svg class="pr-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M8 3v4"/></svg>
         <div class="pr-empty-title"><?php te('progetti.nessun_progetto_ancora'); ?></div>
         <div><?php te('progetti.crea_il_tuo_primo_progetto'); ?></div>
-        <button type="button" class="pr-btn-create-first" onclick="prOpenEdit(0)"><?php te('progetti.crea_progetto'); ?></button>
+        <button type="button" class="pr-btn-create-first" onclick="prNuovoProgetto(this)"><?php te('progetti.crea_progetto'); ?></button>
     </div>
 <?php elseif ($viewAll || !$selectedProject): ?>
     <?php
@@ -1342,7 +1338,7 @@ echo standout_i18n_json(['comune', 'progetti', 'pomodoro', 'todo']);
             <span class="pr-ov-f"><b><?php echo $rDur !== '' ? sec_h($rDur) : '–'; ?></b><small><?php te('progetti.in_tutto'); ?></small></span>
         </a>
         <?php endforeach; ?>
-        <button type="button" class="pr-add-line pr-add-proj" onclick="prOpenEdit(0)">
+        <button type="button" class="pr-add-line pr-add-proj" onclick="prNuovoProgetto(this)">
             <span class="pr-add-ic"><?php echo prog_piu_svg(); ?></span><span><?php te('progetti.nuovo_progetto'); ?></span>
         </button>
     </div>
@@ -1523,7 +1519,7 @@ if ($deckProprio) {
                 <?php if (isset($pomoRamo[$selId])): ?>
                 <i class="pr-act-live"></i><span data-pomo-live><?php echo sec_h(prog_tempo_vivo($pomoAttivo)); ?></span>
                 <?php else: ?>
-                <?php echo prog_play_svg(); ?><span><?php te('progetti.concentrati'); ?></span>
+                <?php echo prog_timer_svg(); ?><span><?php te('progetti.concentrati'); ?></span>
                 <?php endif; ?>
             </button>
             <button type="button" class="pr-act" onclick="prAggiungi(<?php echo $selId; ?>)">
@@ -1533,7 +1529,27 @@ if ($deckProprio) {
     </div>
 
     <?php if (!empty($selectedTree['children'])): ?>
-    <div class="pr-lab"><span><?php te('progetti.sotto_progetti'); ?></span><span><?php echo $selFatti . ' / ' . $selTot; ?></span></div>
+    <?php /* L'etichetta porta anche gli strumenti dell'elenco — scegliere,
+             griglia, chiudere i rami — fra il nome e il conto: prima stavano
+             nel menu ⋯, dove nessuno li andava a cercare. */ ?>
+    <div class="pr-lab">
+        <span><?php te('progetti.sotto_progetti'); ?></span>
+        <span class="pr-lab-tools">
+            <?php if (count($selectedTree['children']) >= 2): ?>
+            <button type="button" class="pr-lab-btn" id="prSelectSubBtn" onclick="prToggleSubSelecting()"
+                    aria-label="<?php te('progetti.seleziona_sotto_progetti'); ?>" title="<?php te('progetti.seleziona_sotto_progetti'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="M7.8 12.2l2.9 2.9 5.6-6"/></svg>
+            </button>
+            <?php endif; ?>
+            <button type="button" class="pr-lab-btn" id="prVistaBtn" onclick="prAltroVista()"
+                    aria-label="<?php te('progetti.mostra_griglia'); ?>" title="<?php te('progetti.mostra_griglia'); ?>"></button>
+            <?php if ($vuoiFigliAperti): ?>
+            <button type="button" class="pr-lab-btn" id="prRamiBtn" onclick="prFoldAll()"
+                    aria-label="<?php te('progetti.chiudi_tutto'); ?>" title="<?php te('progetti.chiudi_tutto'); ?>"></button>
+            <?php endif; ?>
+        </span>
+        <span class="pr-lab-n"><?php echo $selFatti . ' / ' . $selTot; ?></span>
+    </div>
     <?php endif; ?>
     <!-- La barra delle azioni della selezione resta in basso mentre si scorre. -->
     <div class="pr-sub-bulkbar" id="prSubBulkbar" data-sb-popup>
@@ -1623,7 +1639,7 @@ if ($deckProprio) {
                         <em class="pr-sw<?php echo $heroFav ? ' on' : ''; ?>"><i></i></em>
                     </button>
                     <button type="button" class="pr-altro-it" data-valore="<?php echo sec_h($selectedProject['data_scadenza'] ?? ''); ?>" onclick="prChiudiAltro(); prScegliData(<?php echo $selId; ?>, 'scadenza', this)">
-                        <span class="pr-altro-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2.5h6"/></svg></span>
+                        <span class="pr-altro-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span>
                         <span class="pr-altro-n"><?php te('progetti.data_scadenza'); ?></span>
                         <em><?php echo sec_h($altroVal('data_scadenza')); ?></em>
                     </button>
@@ -1661,32 +1677,15 @@ if ($deckProprio) {
                         <span class="pr-altro-n"><?php te('progetti.attivita'); ?></span>
                         <em class="pr-sw<?php echo $heroTodo ? ' on' : ''; ?>"><i></i></em>
                     </button>
-                    <button type="button" class="pr-altro-it" onclick="prChiudiAltro(); prOpenEdit(<?php echo $selId; ?>)">
-                        <span class="pr-altro-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
-                        <span class="pr-altro-n"><?php te('progetti.modifica_progetto'); ?></span>
-                        <em><svg class="pr-altro-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></em>
+                    <?php /* Spostare il progetto sotto un altro (o in cima): era l'ultima
+                             cosa che si faceva solo dal popup «Modifica progetto». */
+                    $padreSel = (int)($selectedProject['parent_id'] ?? 0); ?>
+                    <button type="button" class="pr-altro-it" onclick="prChiudiAltro(); prSpostaIn(<?php echo $selId; ?>)">
+                        <span class="pr-altro-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M10 13h6M13.5 10.5 16 13l-2.5 2.5"/></svg></span>
+                        <span class="pr-altro-n"><?php te('progetti.sposta_in'); ?></span>
+                        <em><?php echo sec_h($padreSel > 0 && isset($byId[$padreSel]) ? $byId[$padreSel]['name'] : t('progetti.livello_principale')); ?></em>
                     </button>
                 </div>
-                <?php if (!empty($selectedTree['children'])): ?>
-                <div class="pr-altro-grp">
-                    <?php if (count($selectedTree['children']) >= 2): ?>
-                    <button type="button" class="pr-altro-it" onclick="prChiudiAltro(); prToggleSubSelecting()">
-                        <span class="pr-altro-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M7.5 12.2l3 3 6-6.4"/></svg></span>
-                        <span class="pr-altro-n"><?php te('progetti.seleziona_sotto_progetti'); ?></span>
-                    </button>
-                    <?php endif; ?>
-                    <button type="button" class="pr-altro-it" id="prAltroVista" onclick="prChiudiAltro(); prAltroVista()">
-                        <span class="pr-altro-ic" id="prAltroVistaIc"></span>
-                        <span class="pr-altro-n" id="prAltroVistaN"><?php te('progetti.mostra_griglia'); ?></span>
-                    </button>
-                    <?php if ($vuoiFigliAperti): ?>
-                    <button type="button" class="pr-altro-it" id="prAltroRami" onclick="prChiudiAltro(); prFoldAll()">
-                        <span class="pr-altro-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 19h16M9 9l3-3 3 3M9 15l3 3 3-3"/></svg></span>
-                        <span class="pr-altro-n" id="prAltroRamiN"><?php te('progetti.chiudi_tutto'); ?></span>
-                    </button>
-                    <?php endif; ?>
-                </div>
-                <?php endif; ?>
                 <div class="pr-altro-grp">
                     <button type="button" class="pr-altro-it is-red" onclick="prChiudiAltro(); prConfirmDelete(<?php echo $selId; ?>, <?php echo !empty($selectedTree['children']) ? 'true' : 'false'; ?>)">
                         <span class="pr-altro-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg></span>
@@ -1699,114 +1698,19 @@ if ($deckProprio) {
 <?php endif; ?>
 </div>
 
-<!-- ================= EDIT SHEET ================= -->
-<div class="pr-sheet-overlay" id="prSheetOverlay" onclick="if(event.target===this) prCloseEdit();">
-    <div class="pr-sheet">
-        <div class="pr-sheet-grabber"></div>
-        <div class="pr-sheet-head">
-            <div class="pr-sheet-title" id="prSheetTitle"><?php te('progetti.nuovo_progetto'); ?></div>
-            <button type="button" class="pr-sheet-close" onclick="prCloseEdit()" aria-label="<?php te('comune.chiudi'); ?>">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
-            </button>
-        </div>
-        <div class="pr-sheet-body">
-            <div class="pr-field">
-                <label><?php te('progetti.nome'); ?></label>
-                <input type="text" id="prFieldName" placeholder="<?php te('progetti.es_tesi_di_laurea'); ?>">
-            </div>
-            <div class="pr-field">
-                <label><?php te('progetti.progetto_padre'); ?></label>
-                <?php
-                    $ps_id = 'parent';
-                    $ps_selected_id = 0; $ps_selected_name = ''; $ps_selected_color = null;
-                    $ps_placeholder = t('progetti.nessuno_radice');
-                    $ps_title = t('progetti.scegli_progetto_padre');
-                    $ps_show_all_option = true; $ps_all_option_label = t('progetti.nessuno_radice');
-                    $ps_allow_create = false; $ps_hidden_name = 'parent_id';
-                    include __DIR__ . '/project_selector.php';
-                ?>
-            </div>
-            <div class="pr-field">
-                <label><?php te('progetti.materia_collegata'); ?></label>
-                <?php
-                    $cs_id = 'category';
-                    $cs_selected_id = 0; $cs_selected_name = ''; $cs_selected_color = null;
-                    $cs_placeholder = t('progetti.nessuna_materia');
-                    $cs_title = t('progetti.collega_materia');
-                    $cs_show_all_option = true; $cs_all_option_label = t('progetti.nessuna_materia');
-                    $cs_allow_create = false; $cs_hidden_name = 'fc_category_id';
-                    include __DIR__ . '/../fc/fc_deck_selector.php';
-                ?>
-            </div>
-            <div class="pr-field-row">
-                <div class="pr-field">
-                    <label><?php te('progetti.preferito'); ?></label>
-                    <button type="button" class="pr-fav-btn" id="prFieldFav" aria-pressed="false">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
-                        <span><?php te('progetti.metti_tra_i_preferiti'); ?></span>
-                    </button>
-                </div>
-                <div class="pr-field"><label><?php te('progetti.data_obiettivo'); ?></label><input type="date" id="prFieldObiettivo"></div>
-                <div class="pr-field"><label><?php te('progetti.scadenza'); ?></label><input type="date" id="prFieldScadenza"></div>
-            </div>
-            <div class="pr-field" style="margin-bottom:4px;">
-                <!-- La sezione si apre a richiesta. Aperta com'era occupava
-                     mezzo popup con una tavolozza che quasi nessuno tocca —
-                     il colore di un sotto-progetto quasi sempre si eredita —
-                     e spingeva i campi che si compilano davvero sotto il
-                     bordo dello schermo. La riga dice già che colore è: chi
-                     lo vuole cambiare la apre. -->
-                <button type="button" class="pr-color-toggle" id="prColorToggle" onclick="prColorSezione()" aria-expanded="false">
-                    <span class="pr-color-toggle-lab"><?php te('progetti.colore'); ?>
-                        <span id="prColorModeLabel"><?php te('progetti.automatico_dal_padre'); ?></span>
-                    </span>
-                    <span class="pr-color-toggle-dot" id="prColorToggleDot"></span>
-                    <svg class="pr-color-toggle-chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                </button>
-                <div class="pr-color-card" id="prColorCard" hidden>
-                    <div class="pr-color-preview-row">
-                        <span class="pr-color-preview-icon" id="prColorPreviewIcon"></span>
-                        <span class="pr-color-preview-name" id="prColorPreviewName"><?php te('progetti.colore_automatico'); ?></span>
-                    </div>
-                    <div class="pr-color-grid" id="prColorGrid">
-                        <button type="button" class="pr-color-swatch pr-color-swatch-auto" id="prColorAutoBtn" onclick="prSetColorAuto()" aria-label="<?php te('progetti.automatico_dal_padre_2'); ?>">A</button>
-                        <?php foreach ($prColorPalette as $hex): ?>
-                        <button type="button" class="pr-color-swatch" style="background:<?php echo sec_h($hex); ?>; --sw:<?php echo sec_h($hex); ?>;" data-hex="<?php echo sec_h($hex); ?>" onclick="prSetColorManual('<?php echo sec_h($hex); ?>')">
-                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
-                        </button>
-                        <?php endforeach; ?>
-                    </div>
-                    <div class="pr-custom-color-row">
-                        <input type="color" class="pr-custom-color-input" id="prCustomColorInput" value="#8E8E93" oninput="prSetColorManual(this.value)">
-                        <span class="pr-custom-color-label"><?php te('progetti.colore_personalizzato'); ?></span>
-                        <span class="pr-custom-color-hex" id="prCustomColorHex"></span>
-                    </div>
-                </div>
-            </div>
-            <div class="pr-field" style="margin-bottom:0;">
-                <label><?php te('comune.note'); ?></label>
-                <?php
-                    $ft_field = 'prFieldNote';
-                    $ft_raw = '';
-                    $ft_placeholder = t('progetti.note_placeholder');
-                    /* Chiusa: qui la nota è un dettaglio del progetto, non il
-                       motivo per cui si è aperta la pagina, e quattro righe di
-                       icone sopra a due righe di testo spostavano il peso
-                       dalla parte sbagliata. */
-                    $ft_open = false;
-                    include __DIR__ . '/../partials/format_toolbar.php';
-                ?>
-            </div>
-        </div>
-        <div class="pr-sheet-actions">
-            <button type="button" class="pr-btn-icon-danger" id="prDeleteBtn" onclick="prDeleteCurrentProject()" aria-label="<?php te('progetti.elimina_progetto'); ?>" style="display:none;">
-                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-            </button>
-            <button type="button" class="pr-btn pr-btn-cancel" onclick="prCloseEdit()"><?php te('comune.annulla'); ?></button>
-            <button type="button" class="pr-btn pr-btn-save" onclick="prFlushAndRefresh()"><?php te('progetti.fatto'); ?></button>
-        </div>
-    </div>
-</div>
+<?php
+    /* Il selettore del deck, senza un tasto proprio: lo apre la voce
+       «Flashcard» del menu ⋯ (prScegliDeck). Prima viveva dentro il popup
+       «Modifica progetto», che non c'è più: tutto quello che conteneva sta
+       nel menu ⋯ o si cambia sul posto. */
+    $cs_id = 'category';
+    $cs_selected_id = 0; $cs_selected_name = ''; $cs_selected_color = null;
+    $cs_placeholder = t('progetti.nessuna_materia');
+    $cs_title = t('progetti.collega_materia');
+    $cs_show_all_option = true; $cs_all_option_label = t('progetti.nessuna_materia');
+    $cs_allow_create = false; $cs_render_trigger = false; $cs_hidden_name = 'fc_category_id';
+    include __DIR__ . '/../fc/fc_deck_selector.php';
+?>
 
 <!-- ================= SCADENZE E OBIETTIVI ================= -->
 <div class="pr-sheet-overlay" id="prDatesOverlay" onclick="if(event.target===this) prCloseDatesView();">
@@ -1910,7 +1814,7 @@ if ($deckProprio) {
         <div class="pr-note-peek-head">
             <span class="pr-note-peek-title"><?php te('progetti.nota'); ?></span>
             <div class="pr-note-peek-actions">
-                <button type="button" class="pr-note-peek-btn" id="prNotePeekEdit" aria-label="<?php te('progetti.modifica_progetto'); ?>">
+                <button type="button" class="pr-note-peek-btn" id="prNotePeekEdit" aria-label="<?php te('comune.modifica'); ?>">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                 </button>
                 <button type="button" class="pr-note-peek-btn" onclick="prCloseNotePeek()" aria-label="<?php te('comune.chiudi'); ?>">
@@ -1964,6 +1868,7 @@ if ($deckProprio) {
     <input type="hidden" name="data_obiettivo" id="fDataObiettivo">
     <input type="hidden" name="data_scadenza" id="fDataScadenza">
     <input type="hidden" name="redirect_id" id="fRedirectId">
+    <input type="hidden" name="posizione" id="fPosizione" value="">
 </form>
 <form id="formDelete" method="POST" style="display:none;">
     <input type="hidden" name="action" value="delete">
@@ -2180,6 +2085,7 @@ window.prFoldAll = function () {
         var w = k.parentElement;
         if (w && w.getAttribute('data-id')) prRamiRicorda(w.getAttribute('data-id'), !apertoQualcosa);
     });
+    if (window.prAggiornaStrumenti) window.prAggiornaStrumenti();
 };
 
 window.prTapRow = function(id){
@@ -2655,13 +2561,6 @@ var LIST_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 window.prApriAltro = function(){
     var ov = document.getElementById('prAltroOv');
     if (!ov) return;
-    var vn = document.getElementById('prAltroVistaN'), vi = document.getElementById('prAltroVistaIc');
-    if (vn) {
-        vn.textContent = T(prVista === 'grid' ? 'progetti.mostra_elenco' : 'progetti.mostra_griglia');
-        vi.innerHTML = prVista === 'grid' ? LIST_SVG : GRID_SVG;
-    }
-    var rn = document.getElementById('prAltroRamiN');
-    if (rn) rn.textContent = T(document.querySelector('#prList .pr-children:not(.collapsed)') ? 'progetti.chiudi_tutto' : 'progetti.apri_tutto');
     ov.classList.add('show');
 };
 window.prChiudiAltro = function(){
@@ -2670,6 +2569,133 @@ window.prChiudiAltro = function(){
 };
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape') window.prChiudiAltro(); });
 window.prAltroVista = function(){ window.prSetViewMode(prVista === 'grid' ? 'list' : 'grid'); };
+
+/* ================================================================
+   GLI STRUMENTI NELL'ETICHETTA «SOTTO-PROGETTI»
+   Griglia/elenco e chiudi/apri i rami mostrano l'icona di quello che
+   faranno, e la scritta per chi legge lo schermo cambia con loro.
+   ================================================================ */
+var RAMI_CHIUDI_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5l4 4 4-4M8 19.5l4-4 4 4M4 12h16"/></svg>';
+var RAMI_APRI_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8l4-4 4 4M8 16l4 4 4-4M4 12h16"/></svg>';
+function prEtichetta(btn, chiave){
+    var testo = T(chiave);
+    btn.setAttribute('aria-label', testo);
+    btn.setAttribute('title', testo);
+}
+window.prAggiornaStrumenti = function(){
+    var vb = document.getElementById('prVistaBtn');
+    if (vb) {
+        vb.innerHTML = prVista === 'grid' ? LIST_SVG : GRID_SVG;
+        prEtichetta(vb, prVista === 'grid' ? 'progetti.mostra_elenco' : 'progetti.mostra_griglia');
+    }
+    var rb = document.getElementById('prRamiBtn');
+    if (rb) {
+        var aperto = !!document.querySelector('#prList .pr-children:not(.collapsed)');
+        rb.innerHTML = aperto ? RAMI_CHIUDI_SVG : RAMI_APRI_SVG;
+        prEtichetta(rb, aperto ? 'progetti.chiudi_tutto' : 'progetti.apri_tutto');
+        rb.hidden = prVista === 'grid';   // nella griglia non ci sono rami
+    }
+};
+/* un ramo aperto o chiuso a mano cambia quello che il tasto farà */
+document.addEventListener('click', function(e){
+    if (e.target.closest && e.target.closest('#prList .pr-arrow')) setTimeout(window.prAggiornaStrumenti, 0);
+});
+setTimeout(window.prAggiornaStrumenti, 0);
+
+/* ================================================================
+   SPOSTA IN…
+   Lo stesso selettore del «Progetto padre» in blocco, con un progetto solo:
+   lui e i suoi discendenti non si possono scegliere.
+   ================================================================ */
+window.prSpostaIn = function(id){
+    prBulkReparentIds = [String(id)];
+    prBulkReparentRestrict(prCollectDescendants([id]));
+    var modal = document.getElementById('ps-modal-bulkreparent');
+    if (modal && window.psOpen) window.psOpen(modal);
+};
+
+/* ================================================================
+   NUOVO PROGETTO
+   Basta il nome, scritto dove si è toccato. Il progetto nasce con un colore
+   della tavolozza che nessun altro progetto principale usa ancora, e si apre:
+   colore, date, deck e nota sono nel suo menu ⋯.
+   ================================================================ */
+var PR_PALETTE = <?php echo json_encode(array_values($prColorPalette)); ?>;
+function prColoreLibero(){
+    var usati = {}, n = 0;
+    for (var k in PROJ_LOOKUP) {
+        var p = PROJ_LOOKUP[k];
+        if (p.parent_id) continue;
+        n++;
+        if (p.color) usati[String(p.color).toLowerCase()] = true;
+    }
+    for (var i = 0; i < PR_PALETTE.length; i++) {
+        if (!usati[PR_PALETTE[i].toLowerCase()]) return PR_PALETTE[i];
+    }
+    return PR_PALETTE[n % PR_PALETTE.length];
+}
+window.prNuovoProgetto = function(btn){
+    if (btn._input) { btn._input.focus(); return; }
+    var box = document.createElement('div');
+    box.className = 'pr-add-in pr-add-root';
+    box.innerHTML = '<span class="pr-add-ic">' + PIU_SVG + '</span>';
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.autocomplete = 'off';
+    inp.maxLength = 200;
+    inp.setAttribute('enterkeyhint', 'done');
+    inp.placeholder = T('progetti.nome_nuovo_progetto');
+    var ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'pr-add-ok';
+    ok.setAttribute('aria-label', T('comune.salva'));
+    ok.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+    box.appendChild(inp);
+    box.appendChild(ok);
+    btn.hidden = true;
+    btn._input = inp;
+    btn.parentNode.insertBefore(box, btn.nextSibling);
+    var mandato = false;
+
+    function crea(){
+        var nome = inp.value.trim();
+        if (!nome || mandato) return;
+        mandato = true;
+        inp.readOnly = true;
+        box.classList.add('is-busy');
+        document.getElementById('fProgettoId').value = '0';
+        document.getElementById('fProgettoName').value = nome;
+        document.getElementById('fProgettoNote').value = '';
+        document.getElementById('fParentId').value = '0';
+        document.getElementById('fFcCategoryId').value = '0';
+        document.getElementById('fColorMode').value = 'manual';
+        document.getElementById('fProgettoColor').value = prColoreLibero();
+        document.getElementById('fDataObiettivo').value = '';
+        document.getElementById('fDataScadenza').value = '';
+        document.getElementById('fRedirectId').value = '';
+        document.getElementById('fPosizione').value = 'fine';
+        document.getElementById('formSave').submit();   // il server apre il progetto nuovo
+    }
+    function chiudi(){
+        if (mandato || !btn._input) return;
+        btn._input = null;
+        box.remove();
+        btn.hidden = false;
+    }
+    ok.addEventListener('pointerdown', function(e){ e.preventDefault(); });
+    ok.addEventListener('click', crea);
+    inp.addEventListener('keydown', function(e){
+        if (e.key === 'Enter') { e.preventDefault(); crea(); }
+        else if (e.key === 'Escape') { e.preventDefault(); inp.value = ''; inp.blur(); }
+    });
+    inp.addEventListener('blur', function(){
+        setTimeout(function(){
+            if (document.activeElement === inp || mandato) return;
+            if (inp.value.trim()) crea(); else chiudi();
+        }, 150);
+    });
+    inp.focus();
+};
 
 /* Preferito: cambia subito e salva dopo; se il salvataggio non riesce torna
    com'era e lo dice. La stella accanto al nome c'è solo quando è acceso. */
@@ -2733,6 +2759,7 @@ window.prSetViewMode = function(mode){
     list.style.display = prVista === 'grid' ? 'none' : '';
     grid.style.display = prVista === 'grid' ? '' : 'none';
     try { localStorage.setItem('pr_view_mode', prVista); } catch (e) {}
+    if (window.prAggiornaStrumenti) window.prAggiornaStrumenti();
 };
 (function(){
     if (!document.getElementById('prGrid')) return;
@@ -2740,167 +2767,6 @@ window.prSetViewMode = function(mode){
     try { saved = localStorage.getItem('pr_view_mode') || 'list'; } catch (e) {}
     window.prSetViewMode(saved);
 })();
-
-/* ---------------- edit sheet ---------------- */
-
-/* mappa figlio -> [figli] ricavata invertendo CAT_PARENT, calcolata una sola volta */
-var CAT_CHILDREN = {};
-(function(){
-    for (var idStr in CAT_PARENT) {
-        if (!CAT_PARENT.hasOwnProperty(idStr)) continue;
-        var p = CAT_PARENT[idStr];
-        if (!CAT_CHILDREN[p]) CAT_CHILDREN[p] = [];
-        CAT_CHILDREN[p].push(parseInt(idStr, 10));
-    }
-})();
-
-/* Per il progetto in modifica (editingId), calcola l'insieme delle materie NON
-   selezionabili: una materia è bloccata se lei stessa, un suo discendente o un
-   suo antenato risultano già collegati a un progetto diverso da editingId.
-   Ritorna una mappa id -> { reason: testo da mostrare } */
-function prComputeBlockedCategories(editingId){
-    var blocked = {};
-    CAT_LINKS.forEach(function(link){
-        if (link.project_id === editingId) return; // il proprio collegamento non blocca nulla
-        var c = link.category_id;
-        var cName = CAT_NAME[c] || '?';
-
-        if (!blocked[c]) {
-            blocked[c] = T('progetti.materia_gia_collegata',{materia:cName,progetto:link.project_name});
-        }
-
-        // risale verso la radice: ogni padre viene bloccato perché un suo figlio (c) è collegato
-        var p = CAT_PARENT[c];
-        var guard = 0;
-        while (p && p !== 0 && guard < 100) {
-            guard++;
-            if (!blocked[p]) {
-                blocked[p] = T('progetti.sotto_materia_gia_collegata',{materia:cName,progetto:link.project_name});
-            }
-            p = CAT_PARENT[p];
-        }
-
-        // scende verso le foglie: ogni figlio/nipote viene bloccato perché un suo padre (c) è collegato
-        var stack = (CAT_CHILDREN[c] || []).slice();
-        var guard2 = 0;
-        while (stack.length && guard2 < 5000) {
-            guard2++;
-            var cur = stack.pop();
-            if (!blocked[cur]) {
-                blocked[cur] = T('progetti.materia_padre_gia_collegata',{materia:cName,progetto:link.project_name});
-            }
-            (CAT_CHILDREN[cur] || []).forEach(function(x){ stack.push(x); });
-        }
-    });
-    return blocked;
-}
-
-/* Applica il blocco calcolato al DOM del selettore materie del popup progetto */
-function prApplyCategoryLock(editingId){
-    var modal = document.getElementById('cs-modal-category');
-    if (!modal) return;
-    var blocked = prComputeBlockedCategories(editingId);
-    modal.querySelectorAll('[data-cs-select]').forEach(function(el){
-        var id = parseInt(el.getAttribute('data-cs-select'), 10);
-        var wrap = el.closest('.cs-row-wrap');
-        if (id > 0 && blocked[id]) {
-            el.classList.add('cs-row-disabled');
-            el.setAttribute('data-cs-disabled-reason', blocked[id]);
-            if (wrap) wrap.classList.add('cs-row-wrap-disabled');
-        } else {
-            el.classList.remove('cs-row-disabled');
-            el.removeAttribute('data-cs-disabled-reason');
-            if (wrap) wrap.classList.remove('cs-row-wrap-disabled');
-        }
-    });
-}
-
-var editingId = 0;
-var prColorManual = false, prColorValue = '#8E8E93', prParentColor = '#8E8E93';
-window.prOpenEdit = function(id, forceParentId){
-    editingId = id || 0;
-    document.getElementById('prSheetTitle').textContent = editingId ? T('progetti.modifica_progetto') : T('progetti.nuovo_progetto');
-    document.getElementById('prDeleteBtn').style.display = editingId > 0 ? '' : 'none';
-    document.getElementById('prFieldName').value = '';
-    var favBtn = document.getElementById('prFieldFav');
-    if (favBtn) { favBtn.classList.remove('is-fav'); favBtn.setAttribute('aria-pressed','false'); }
-    document.getElementById('prFieldObiettivo').value = '';
-    document.getElementById('prFieldScadenza').value = '';
-    var noteWrap = document.querySelector('.fmt-editor-wrap[data-field="prFieldNote"]');
-    if (noteWrap && window.fcHydrateWrap) window.fcHydrateWrap(noteWrap, '');
-
-    var parentToShow = 0;
-    prColorManual = false; prColorValue = '#8E8E93';
-    var linkedCatId = 0, linkedCatName = '', linkedCatColor = '';
-
-    if (editingId > 0 && PROJ_LOOKUP[editingId]) {
-        var info = PROJ_LOOKUP[editingId];
-        document.getElementById('prFieldName').value = info.name;
-        document.getElementById('prFieldObiettivo').value = info.data_obiettivo || '';
-        document.getElementById('prFieldScadenza').value = info.data_scadenza || '';
-        /* la stellina mostra subito se il progetto è già tra i preferiti */
-        if (window.prSetFavourite) window.prSetFavourite(info.is_favorite === 1);
-        parentToShow = info.parent_id || 0;
-        prColorManual = info.color_edited === 1;
-        prColorValue = info.color || '#8E8E93';
-        if (info.fc_category) { linkedCatId = info.fc_category.id; linkedCatName = info.fc_category.name; linkedCatColor = info.fc_category.color; }
-
-        // le note ora arrivano direttamente dai dati del progetto (prima si
-        // leggevano da un elemento nel DOM che non c'è più / non c'era in griglia)
-        if (noteWrap && window.fcHydrateWrap) {
-            window.fcHydrateWrap(noteWrap, info.note || '');
-        }
-    } else if (forceParentId) {
-        parentToShow = forceParentId;
-    }
-
-    // 1. Resetta lo stato di tutti i progetti (utile se apri/chiudi il popup più volte)
-    document.querySelectorAll('[data-ps-select]').forEach(function(node) {
-        var wrapper = node.closest('li, .ps-item') || node.parentElement;
-        if (wrapper) {
-            wrapper.style.pointerEvents = ''; // Riattiva i click
-            wrapper.style.opacity = '';       // Ripristina l'opacità originale
-            wrapper.style.filter = '';        // Rimuove la scala di grigi
-        }
-    });
-
-    // 2. Disabilita il progetto corrente (e l'intero ramo dei suoi figli)
-    if (editingId > 0) {
-        var currentNode = document.querySelector('[data-ps-select="' + editingId + '"]');
-        if (currentNode) {
-            var wrapperToDisable = currentNode.closest('li, .ps-item') || currentNode.parentElement;
-            if (wrapperToDisable) {
-                // Rende l'intero blocco (padre + figli) non cliccabile e non reattivo al passaggio del mouse
-                wrapperToDisable.style.pointerEvents = 'none'; 
-                
-                // Lo sbiadisce per farlo sembrare inattivo (grayed out)
-                wrapperToDisable.style.opacity = '0.4'; 
-                
-                // Applica un filtro per ingrigire anche il pallino colorato del progetto
-                wrapperToDisable.style.filter = 'grayscale(100%)'; 
-            }
-        }
-    }
-
-    prParentColor = (parentToShow > 0 && PROJ_LOOKUP[parentToShow]) ? PROJ_LOOKUP[parentToShow].color : '#8E8E93';
-    if (!prColorManual) prColorValue = prParentColor;
-    prUpdateColorUI();
-
-    if (window.psSetValue) {
-        if (parentToShow > 0 && PROJ_LOOKUP[parentToShow]) {
-            window.psSetValue('ps-modal-parent', parentToShow, PROJ_LOOKUP[parentToShow].name, PROJ_LOOKUP[parentToShow].color);
-        } else {
-            window.psSetValue('ps-modal-parent', 0, T('progetti.nessuno_radice'), '');
-        }
-    }
-    if (window.csSetValue) {
-        if (linkedCatId > 0) window.csSetValue('cs-modal-category', linkedCatId, linkedCatName, linkedCatColor);
-        else window.csSetValue('cs-modal-category', 0, T('progetti.nessuna_materia'), '');
-    }
-    prApplyCategoryLock(editingId);
-    document.getElementById('prSheetOverlay').classList.add('show');
-};
-window.prCloseEdit = function(){ document.getElementById('prSheetOverlay').classList.remove('show'); };
 
 /* ---------------- pannello "Scadenze e obiettivi" ---------------- */
 var prDatesState = { field: 'scadenza', filter: 'all', sortDir: 'asc' };
@@ -3037,151 +2903,6 @@ window.prDatesToggleSort = function(){
     prDatesRender();
 };
 
-/* ---------------- colore: automatico dal padre oppure scelto a mano (bug #4) ---------------- */
-window.prSetColorAuto = function(){
-    prColorManual = false;
-    prColorValue = prParentColor;
-    prUpdateColorUI();
-};
-window.prSetColorManual = function(hex){
-    prColorManual = true;
-    prColorValue = hex;
-    prUpdateColorUI();
-};
-function prUpdateColorUI(){
-    document.getElementById('fColorMode').value = prColorManual ? 'manual' : 'auto';
-    document.getElementById('fProgettoColor').value = prColorValue;
-    document.getElementById('prColorModeLabel').textContent = T(prColorManual ? 'progetti.scelto_manualmente' : 'progetti.automatico_dal_padre');
-    document.getElementById('prColorPreviewIcon').style.setProperty('--pr-preview-color', prColorValue);
-    /* Il pallino sulla riga chiusa: chi apre il popup per cambiare altro deve
-       poter vedere che colore è senza espandere la sezione. */
-    var dot = document.getElementById('prColorToggleDot');
-    if (dot) dot.style.background = prColorValue;
-    document.getElementById('prColorPreviewName').textContent = prColorManual ? T('progetti.colore_personalizzato') : T('progetti.colore_auto_padre');
-    document.getElementById('prColorAutoBtn').classList.toggle('sel', !prColorManual);
-    document.querySelectorAll('#prColorGrid .pr-color-swatch:not(.pr-color-swatch-auto)').forEach(function(s){
-        s.classList.toggle('sel', prColorManual && s.getAttribute('data-hex').toLowerCase() === prColorValue.toLowerCase());
-    });
-    document.getElementById('prCustomColorInput').value = prColorValue;
-    document.getElementById('prCustomColorHex').textContent = prColorManual ? prColorValue.toUpperCase() : '';
-}
-// se il padre scelto cambia mentre siamo in automatico, il colore anteprima segue subito
-document.addEventListener('projectselected', function(e){
-    if (e.detail.uid !== 'parent') return;
-    prParentColor = e.detail.color || '#8E8E93';
-    if (!prColorManual) { prColorValue = prParentColor; prUpdateColorUI(); }
-});
-
-/* la stellina si salva da sé, senza passare dal modulo */
-(function prFavourite(){
-    var btn = document.getElementById('prFieldFav');
-    if (!btn) return;
-    btn.addEventListener('click', function(){
-        if (!editingId) { toast(T('progetti.salva_prima_progetto')); return; }
-        var next = !btn.classList.contains('is-fav');
-        btn.classList.toggle('is-fav', next);
-        btn.setAttribute('aria-pressed', next ? 'true' : 'false');
-        btn.querySelector('span').textContent = T(next ? 'progetti.tra_i_preferiti' : 'progetti.metti_tra_i_preferiti');
-        var body = new URLSearchParams({ project_id: editingId, value: next ? 1 : 0 });
-        fetch('progetti.php?ajax=toggle_favorite', {
-            method:'POST', credentials:'same-origin',
-            headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
-            body: body.toString()
-        }).then(function(r){ return r.json(); }).then(function(r){
-            if (!r || !r.ok) { btn.classList.toggle('is-fav', !next); toast(T('progetti.non_salvato')); }
-        }).catch(function(){ btn.classList.toggle('is-fav', !next); toast(T('comune.errore_rete')); });
-    });
-    /* quando si apre un progetto, la stellina mostra il suo stato */
-    window.prSetFavourite = function(on){
-        btn.classList.toggle('is-fav', !!on);
-        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        btn.querySelector('span').textContent = T(on ? 'progetti.tra_i_preferiti' : 'progetti.metti_tra_i_preferiti');
-    };
-})();
-
-window.prSubmitEdit = function(){
-    var name = document.getElementById('prFieldName').value.trim();
-    if (!name) { document.getElementById('prFieldName').focus(); return; }
-    if (window.fcSyncAllEditors) window.fcSyncAllEditors();
-    document.getElementById('fProgettoId').value = editingId;
-    document.getElementById('fProgettoName').value = name;
-    document.getElementById('fProgettoNote').value = document.getElementById('prFieldNote').value;
-    document.getElementById('fParentId').value = document.getElementById('ps-value-parent') ? document.getElementById('ps-value-parent').value : '0';
-    document.getElementById('fFcCategoryId').value = document.getElementById('cs-value-category') ? document.getElementById('cs-value-category').value : '0';
-    document.getElementById('fDataObiettivo').value = document.getElementById('prFieldObiettivo').value;
-    document.getElementById('fDataScadenza').value = document.getElementById('prFieldScadenza').value;
-    document.getElementById('fRedirectId').value = editingId || '';
-    document.getElementById('formSave').submit();
-};
-
-/* ---------------- salvataggio automatico del popup progetto ----------------
-   Come nel diario: appena si scrive o si cambia qualcosa, si salva da sé in
-   background. Niente tasto Salva da premere e niente ricaricamenti: la pagina
-   si aggiorna solo quando si chiude il popup, se qualcosa è cambiato. */
-(function prAutoSave(){
-    var timer = null, pending = false, dirty = false;
-
-    function collect(){
-        var name = document.getElementById('prFieldName');
-        if (!name || !name.value.trim()) return null;   // senza nome non si salva
-        if (window.fcSyncAllEditors) window.fcSyncAllEditors();
-        document.getElementById('fProgettoId').value = editingId;
-        document.getElementById('fProgettoName').value = name.value.trim();
-        document.getElementById('fProgettoNote').value = document.getElementById('prFieldNote').value;
-        document.getElementById('fParentId').value = document.getElementById('ps-value-parent') ? document.getElementById('ps-value-parent').value : '0';
-        document.getElementById('fFcCategoryId').value = document.getElementById('cs-value-category') ? document.getElementById('cs-value-category').value : '0';
-        document.getElementById('fDataObiettivo').value = document.getElementById('prFieldObiettivo').value;
-        document.getElementById('fDataScadenza').value = document.getElementById('prFieldScadenza').value;
-        document.getElementById('fRedirectId').value = editingId || '';
-        return document.getElementById('formSave');
-    }
-
-    window.prSaveNow = function(){
-        var form = collect();
-        if (!form) return Promise.resolve(false);
-        pending = true;
-        return fetch(window.location.href, { method:'POST', body:new FormData(form), credentials:'same-origin' })
-            .then(function(){ pending = false; dirty = true; return true; })
-            .catch(function(){ pending = false; toast(T('progetti.modifica_non_salvata')); return false; });
-    };
-
-    function schedule(){
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(function(){ timer = null; window.prSaveNow(); }, 800);
-    }
-
-    /* Solo il popup di modifica progetto: la classe .pr-sheet la usano anche
-       altri pannelli, e salvare da lì scriverebbe sul progetto sbagliato.
-       Il riconoscimento è il campo del nome dentro lo stesso pannello. */
-    function fromEditSheet(e){
-        if (!e.target || !e.target.closest) return false;
-        /* Deve esserci un progetto davvero in modifica e il pannello davvero
-           aperto: senza questi due controlli bastava un evento "change"
-           generato da altro codice al caricamento della pagina per far
-           partire un salvataggio, che a sua volta rimandava alla pagina del
-           progetto — ed era questo a far "tornare indietro" la vista
-           preferiti appena aperta. */
-        if (!editingId) return false;
-        var overlay = e.target.closest('.pr-sheet-overlay');
-        if (overlay && !overlay.classList.contains('show')) return false;
-        var sheet = e.target.closest('.pr-sheet, #prEditModal, .pr-edit-modal');
-        return !!(sheet && sheet.querySelector('#prFieldName'));
-    }
-    document.addEventListener('input', function(e){ if (fromEditSheet(e)) schedule(); }, true);
-    document.addEventListener('change', function(e){ if (fromEditSheet(e)) schedule(); }, true);
-    /* progetto padre e categoria si scelgono da componenti esterni */
-    document.addEventListener('projectselected', schedule);
-    document.addEventListener('categoryselected', schedule);
-
-    /* chiudendo il popup: ultimo salvataggio e, se serve, aggiorno la pagina */
-    window.prFlushAndRefresh = function(){
-        if (timer) { clearTimeout(timer); timer = null; }
-        window.prSaveNow().then(function(){
-            if (dirty) window.location.reload();
-        });
-    };
-})();
-
 /* ---------------- popup pomodori (esternalizzato) ---------------- */
 window.prOpenStats = function(projectId, projectName, projectColor){
     if (window.openPomodoroStorico) {
@@ -3199,12 +2920,6 @@ function prHasChildren(id){
     for (var k in PROJ_LOOKUP) { if (PROJ_LOOKUP[k].parent_id === id) return true; }
     return false;
 }
-// l'onclick del tasto nel popup e' un attributo HTML: gira nello scope globale,
-// non dentro questa IIFE, quindi non vedrebbe ne' editingId ne' prHasChildren
-// se le chiamasse direttamente. Serve un ponte esposto su window.
-window.prDeleteCurrentProject = function(){
-    prConfirmDelete(editingId, prHasChildren(editingId));
-};
 var deletingId = 0, deletingHasChildren = false;
 
 window.prConfirmDelete = function(id, hasChildren){
@@ -3253,7 +2968,6 @@ window.prConfirmKeepSessions = function(){
 window.prGoToPomodoriBeforeDelete = function(){
     var info = PROJ_LOOKUP[deletingId];
     prCloseConfirm();
-    prCloseEdit();
     if (!window.openPomodoroStorico) return;
     window.openPomodoroStorico({ scope: 'project', projectId: deletingId, projectName: info ? info.name : '' });
     if (window.phToggleSelectMode) window.phToggleSelectMode(); // pronto per "Seleziona tutti" + "Assegna a..."
@@ -4152,19 +3866,6 @@ document.addEventListener('click', function () {
     var b = tag.querySelector('.pr-deck-piu');
     if (b) b.textContent = '+' + b.dataset.n;
 });
-
-/* La sezione colore del popup: si apre a richiesta. Il pallino sulla riga
-   mostra il colore attuale, così chi apre il popup per cambiare altro sa già
-   com'è senza dover espandere niente. */
-window.prColorSezione = function () {
-    var card = document.getElementById('prColorCard');
-    var btn = document.getElementById('prColorToggle');
-    if (!card || !btn) return;
-    var aperta = card.hidden;
-    card.hidden = !aperta;
-    btn.setAttribute('aria-expanded', aperta ? 'true' : 'false');
-    btn.classList.toggle('is-aperta', aperta);
-};
 
 /* -------- la nota, modificabile sul posto --------
    Un tocco lungo apre l'editore con la sua barra. Il tocco semplice no:
