@@ -1772,6 +1772,13 @@ function mfc_parola_esempio(): string {
             sorella.href = url(mazzo);
             altro.href = url({ modo: 'insert', parent_id: FC_ID_CORRENTE, previous_catid: FC_CAT });
         }
+        /* Su una carta padre che ha gia' la sezione "Sottocarte" (con il suo
+           "Aggiungi una sottocarta"), il secondo tasto sarebbe un doppione:
+           resta solo "Carta sorella", a tutta larghezza. Su una carta appena
+           creata la sezione non c'e', e il tasto serve. */
+        var doppione = FC_TIPO !== 'child' && !!document.getElementById('fcFigli');
+        altro.hidden = doppione;
+        box.classList.toggle('is-uno', doppione);
         box.hidden = !FC_ID_CORRENTE;
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fcAggiornaAggiungi);
