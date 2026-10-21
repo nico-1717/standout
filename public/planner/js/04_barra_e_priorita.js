@@ -116,6 +116,31 @@ function smartParse(raw) {
         var mHour = eat(/\s(?:alle|ore|ora|verso|at|around)\s+([01]?\d|2[0-3])\s/);
         if (!mHour) mHour = eat(/\s([01]?\d|2[0-3])\s*$/);
         if (mHour) { time = pad(parseInt(mHour[1], 10)) + ':00'; timeExplicit = true; }
+        /* Un numero subito dopo un giorno e' l'ora: "martedì 23 partita",
+           "tuesday 23 game", "domani 15 dentista". Prima valeva solo in fondo
+           alla frase, e in mezzo finiva nel titolo ("23 game"). Se dopo il
+           numero viene un mese ("venerdì 23 ottobre") resta una data; se dopo
+           c'e' una barra o "rd/th" non e' un numero da solo e non lo si tocca.
+           Il giorno resta nel testo: lo usano le regole della data qui sotto. */
+        if (!mHour) {
+            var paroleGiorno = Object.keys(SMART.giorni_settimana).concat(Object.keys(SMART.giorni_relativi))
+                .sort(function (a, b) { return b.length - a.length; })
+                .map(function (w) { return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); });
+            var mDopoGiorno = text.match(new RegExp('\\s(' + paroleGiorno.join('|') + ')\\s+([01]?\\d|2[0-3])(?=\\s)'));
+            if (mDopoGiorno) {
+                var resto = text.slice(mDopoGiorno.index + mDopoGiorno[0].length).trim();
+                var dopo = resto.split(/\s+/)[0] || '';
+                if (dopo === 'of' || dopo === 'di') dopo = resto.split(/\s+/)[1] || '';
+                var eMese = dopo.length >= 3 && trovaChiave(' ' + dopo + ' ', Object.keys(SMART.mesi), SMART.tolleranza_errori_battitura || 0);
+                if (!eMese) {
+                    time = pad(parseInt(mDopoGiorno[2], 10)) + ':00';
+                    timeExplicit = true;
+                    used.push(mDopoGiorno[2]);
+                    text = text.slice(0, mDopoGiorno.index) + ' ' + mDopoGiorno[1] + ' '
+                         + text.slice(mDopoGiorno.index + mDopoGiorno[0].length);
+                }
+            }
+        }
     }
 
     /* --- feste a data fissa: ferragosto, natale, capodanno… --- */
@@ -225,6 +250,15 @@ function smartParse(raw) {
             used.push(wd.key);
             text = text.replace(' ' + wd.match + ' ', ' ');
         }
+    } else {
+        /* La data e' gia' stata detta ("venerdì 23 ottobre"): il nome del
+           giorno accanto e' solo un rinforzo e non deve finire nel titolo
+           ("Venerdì partita"). Solo i nomi interi, scritti giusti: le
+           abbreviazioni ("mar", "sun") possono essere parole vere. */
+        Object.keys(SMART.giorni_settimana).forEach(function (w) {
+            if (w.length < 6) return;
+            if (text.indexOf(' ' + w + ' ') !== -1) { text = text.replace(' ' + w + ' ', ' '); used.push(w); }
+        });
     }
 
     /* --- con chi: "con luchino" invita luchino, e il nome resta nel titolo
