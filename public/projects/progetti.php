@@ -53,6 +53,16 @@ if (!function_exists('prog_resolve_color')) {
    caratteri a larghezza zero e segni di formattazione senza testo dentro non
    contano: una nota così si disegnava come un riquadro vuoto, e al posto di
    «Aggiungi una nota» restava un buco. */
+/* L'ULTIMO PROGETTO APERTO, letto dal cookie che scrive la pagina stessa.
+   Prima lo ricordava solo il browser (localStorage), e lo si poteva leggere
+   solo a pagina gia' disegnata: si vedeva il primo progetto e subito dopo la
+   pagina saltava sull'ultimo. Con il cookie il server disegna subito quello
+   giusto. Vale solo se l'indirizzo non chiede gia' un progetto o una vista. */
+function pr_id_ricordato(): int {
+    if (isset($_GET['id']) || (string)($_GET['view'] ?? '') !== '') return 0;
+    return max(0, (int)sec_int($_COOKIE['pr_last_project'] ?? 0, 0));
+}
+
 function prog_nota_vuota($s): bool {
     $t = html_entity_decode(strip_tags((string)$s), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $t = preg_replace('/[\s\x{00A0}\x{1680}\x{2000}-\x{200F}\x{2028}\x{2029}\x{202F}\x{205F}\x{2060}\x{3000}\x{FEFF}]+/u', '', $t);
@@ -828,7 +838,7 @@ if (!$prOpz['completati'] || $prOpz['solo_attivi']) {
        impostazioni: sparire dalla pagina che si sta guardando, spuntandolo, è
        la cosa più sconcertante che possa fare un elenco. Lo si legge
        dall'indirizzo perché $selectedId viene deciso più sotto, e serve qui. */
-    $apertoOra = sec_int($_GET['id'] ?? 0, 0);
+    $apertoOra = sec_int($_GET['id'] ?? 0, 0) ?: pr_id_ricordato();
     if ($apertoOra > 0) {
         unset($daTogliere[$apertoOra]);
         // e nemmeno i suoi antenati, o si perderebbe la strada per tornarci
@@ -911,6 +921,12 @@ usort($favProjects, function ($a, $b) use ($byId) {
 });
 
 $selectedId = sec_int($_GET['id'] ?? 0, 0);
+/* senza un progetto nell'indirizzo, quello aperto l'ultima volta (se esiste
+   ancora), e solo dopo il primo dell'elenco */
+if ($selectedId === 0 && !$viewFavorites && !$viewAll) {
+    $prRic = pr_id_ricordato();
+    if ($prRic > 0 && isset($byId[$prRic])) $selectedId = $prRic;
+}
 if ($selectedId === 0 && !$viewFavorites && !$viewAll && !empty($rootIds)) { $selectedId = $rootIds[0]; }
 if ($viewAll) $selectedId = 0;
 $selectedProject = $viewFavorites ? null : ($byId[$selectedId] ?? null);
@@ -2105,7 +2121,17 @@ if ($deckProprio) {
         }
         /* stando nei preferiti non si sovrascrive l'ultimo progetto aperto:
            uscendo di lì si torna dov'eri davvero */
-        if (cur > 0 && !vista) localStorage.setItem('pr_last_project', String(cur));
+        if (cur > 0 && !vista) {
+            localStorage.setItem('pr_last_project', String(cur));
+            /* lo stesso nel cookie: cosi' la prossima volta e' il server a
+               scegliere il progetto, prima di disegnare (pr_id_ricordato) */
+            document.cookie = 'pr_last_project=' + cur + '; path=/; max-age=31536000; SameSite=Lax';
+            /* arrivati senza id, l'indirizzo dice quale progetto si guarda */
+            if (!params.has('id')) {
+                params.set('id', String(cur));
+                try { history.replaceState(null, '', 'progetti.php?' + params.toString()); } catch (e2) {}
+            }
+        }
     } catch (e) {}
 })();
 
