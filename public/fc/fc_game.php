@@ -6353,7 +6353,15 @@ function navigateTo (url, opts) {
 
                 if (!c || card.closest('.container') !== c) return;
 
-                if (e.target.closest('a, button, audio, select, input, textarea')) return;
+                /* I comandi veri fermano lo swipe. Gli indizi "Significato" ed
+                   "Esempio" no: sono <button> solo per aprirsi al tocco, ma
+                   coprono buona parte della carta, e partendo da li' lo swipe
+                   non si avviava mai. Un tocco breve li apre come prima; un
+                   trascinamento diventa swipe, e il click che segue lo assorbe
+                   suppressNextClick (endSwipe), quindi l'indizio non si apre
+                   per sbaglio. */
+                var comando = e.target.closest('a, button, audio, select, input, textarea');
+                if (comando && !comando.classList.contains('fcv-hint')) return;
 
 
 
