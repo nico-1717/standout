@@ -4085,7 +4085,9 @@
     "sfc_elimina_rip_tit": "Delete this review?",
     "sfc_elimina_rip_txt": "Only this review's answers are deleted. The game and the other reviews stay.",
     "sfc_ripasso_eliminato": "Review deleted",
-    "gm_senza_rete": "No connection: try again in a moment"
+    "gm_senza_rete": "No connection: try again in a moment",
+    "vis_eliminata_1": "Card deleted",
+    "vis_eliminate_n": "{n} cards deleted"
   },
   "fchub": {
     "home_titolo": "Flashcards",

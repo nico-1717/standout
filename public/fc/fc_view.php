@@ -7101,6 +7101,16 @@ function fcCercaInSelezione(testo){
 }
 
 function enterSelectMode(){
+    /* IL DISEGNO PIGRO SI SPEGNE ENTRANDO NELLA SELEZIONE (e non si riaccende).
+       Con molte carte (body.fc-pigra) quelle fuori schermo non si disegnano e
+       tengono un'altezza ricordata: quella della vista normale, o 340px di
+       riserva. Nella vista compatta una carta e' alta un sesto: risalendo,
+       ogni carta che entrava sullo schermo si accorciava di colpo, e su
+       iPhone (Safari non compensa lo scorrimento) l'elenco saltava giu',
+       lasciava buchi neri e sembrava non voler salire. In compatta disegnarle
+       tutte costa poco; e tornando alla vista normale le altezze ricordate
+       sarebbero di nuovo sbagliate, quindi resta spento. */
+    document.body.classList.remove('fc-pigra');
     document.body.classList.add('select-mode');
     document.getElementById('normalToolbar').style.display = 'none';
     document.getElementById('selectToolbar').style.display = 'flex';
@@ -7110,6 +7120,13 @@ function enterSelectMode(){
         document.getElementById('selSearch').value = document.getElementById('filterText').value;
     }
     buzz(8);
+    /* la vista compatta e' quella della selezione: si parte da li' (il
+       tastino la spegne, se serve vedere le carte intere) */
+    if (!document.body.classList.contains('is-compact')) {
+        document.body.classList.add('is-compact');
+        var cb = document.getElementById('compactBtn');
+        if (cb) cb.classList.add('is-on');
+    }
     aggiornaBarraSelezione();
     filterList();
 }
@@ -7471,7 +7488,14 @@ function onBulkActionPick(action){
     $all('.st-action').forEach(function(b){ b.classList.toggle('active-pick', b.dataset.action === action); });
 
     if (action === 'delete') {
-        openDeleteConfirm(scelte, '', function(){ submitBulkForm('delete'); });
+        /* Si elimina senza ricaricare (come Separa, Unisci e Sposta): si resta
+           nella selezione, con la vista e i filtri di prima. */
+        openDeleteConfirm(scelte, '', function(){
+            eseguiAzioneStruttura('delete').then(function(){
+                $all('.st-action').forEach(function(b){ b.classList.remove('active-pick'); });
+                showToast(scelte === 1 ? T('fc.vis_eliminata_1') : T('fc.vis_eliminate_n', {n: scelte}));
+            });
+        });
         return;
     }
 
@@ -8214,6 +8238,10 @@ function animateCardOut(el){
         var inCompatta  = document.body.classList.contains('is-compact');
         if (inSelezione && !inCompatta) return;
         if (document.body.classList.contains('join-picking')) return;
+        /* In Unisci e Separa niente trascinamento: li' si scorre per cercare
+           le carte, e un dito appoggiato un attimo di troppo partiva a
+           riordinare invece di scorrere, bloccando la pagina. */
+        if (inSelezione && (document.body.dataset.bulkAction || '') !== '') return;
 
         if (pend || activeDrag) return;
 
