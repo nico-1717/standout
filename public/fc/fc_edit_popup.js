@@ -58,7 +58,9 @@
             if (dentro && overlay.classList.contains('loaded')) {
                 dentro.postMessage({ source: 'fc-popup-host', type: 'chiedi-chiusura' }, window.location.origin);
             } else {
+                var chiuso = overlay._onChiuso;
                 chiudiModificaPopup();
+                if (typeof chiuso === 'function') chiuso({ type: 'annulla' });
             }
         });
         return overlay;
@@ -87,13 +89,17 @@
        parametro di differenza e sono due pagine diverse. */
     window.fcUrlPopup = conParametroPopup;
 
-    function apriModificaPopup(url, onSalvato) {
+    /* onChiuso (facoltativo): chiamata a OGNI chiusura, salvato o no, e al
+       posto di onSalvato. Serve a chi apre il popup da una scorciatoia
+       (l'"Inserisci" della sidebar): chiuso il popup, si torna dove si era. */
+    function apriModificaPopup(url, onSalvato, onChiuso) {
         assicuraOverlay();
         overlay.classList.remove('loaded');
         iframe.src = conParametroPopup(url);
         overlay.classList.add('on');
         document.body.classList.add('fc-edit-popup-open');
         overlay._onSalvato = onSalvato || null;
+        overlay._onChiuso = onChiuso || null;
         overlay._qualcosaCreato = false;
         overlay._ultimaCarta = null;
     }
@@ -110,6 +116,12 @@
 
     window.addEventListener('message', function (e) {
         if (!e.data || e.data.source !== 'fc-modifica-popup') return;
+        var chiusura = overlay && overlay._onChiuso;
+        if (typeof chiusura === 'function' && (e.data.type === 'annulla' || e.data.type === 'salvato' || e.data.type === 'eliminato')) {
+            chiudiModificaPopup();
+            chiusura(e.data);
+            return;
+        }
         if (e.data.type === 'annulla') {
             var creato = overlay && overlay._qualcosaCreato;
             var cb = overlay && overlay._onSalvato;

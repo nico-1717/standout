@@ -460,7 +460,9 @@
                 msg.hidden = true;
             }
             function vai(url) { buzz(10); window.location.href = url; }
-            function apriVocab(id) { vai(base + 'fc/fc_view.php?course=' + encodeURIComponent(id) + '&inserisci=1'); }
+            /* torna: la pagina di adesso, per tornarci chiuso il popup */
+            function torna() { return '&torna=' + encodeURIComponent(window.location.pathname + window.location.search); }
+            function apriVocab(id) { vai(base + 'fc/fc_view.php?course=' + encodeURIComponent(id) + '&inserisci=1' + torna()); }
 
             btn.addEventListener('click', function () {
                 var aperto = pick.hidden;
@@ -474,7 +476,7 @@
                 if (!t) return;
                 if (t.hasAttribute('data-back')) { mostra('tipo'); return; }
                 var tipo = t.getAttribute('data-tipo');
-                if (tipo === 'study') { vai(base + 'fc/fc_view.php?inserisci=1'); return; }
+                if (tipo === 'study') { vai(base + 'fc/fc_view.php?inserisci=1' + torna()); return; }
                 if (tipo === 'vocab') {
                     t.disabled = true;
                     fetch(base + 'fc/fc_corsi_lista.php', { credentials: 'same-origin', cache: 'no-store' })

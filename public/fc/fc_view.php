@@ -2602,6 +2602,20 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
             <input id="selSearch" class="search-input" type="text" enterkeyhint="search" autocomplete="off" placeholder="<?php te('fc.vis_cerca'); ?>" oninput="fcCercaInSelezione(this.value)">
         </div>
+        <?php /* L'ordine accanto alla ricerca: nella selezione si riordina e si
+                 sposta, e scegliere in che ordine vedere le carte serve li'.
+                 Un menu vero, con scritto l'ordine di adesso. Cambiandolo la
+                 pagina si ricarica, ma resta nella selezione (changeSort). */ ?>
+        <div class="tb-select-wrap sel-sort-wrap">
+            <select id="selSort" class="tb-select" aria-label="<?php te('fc.vis_ordina'); ?>"
+                    onchange="document.getElementById('filterSort').value = this.value; changeSort();">
+                <option value="custom_asc" <?= $sort == 'custom_asc' ? 'selected' : '' ?>><?php te('fc.vis_posizione'); ?></option>
+                <option value="id_desc" <?= $sort == 'id_desc' ? 'selected' : '' ?>><?php te('fc.vis_id_recenti'); ?></option>
+                <option value="id_asc" <?= $sort == 'id_asc' ? 'selected' : '' ?>><?php te('fc.vis_id_meno_recenti'); ?></option>
+                <option value="q_asc" <?= $sort == 'q_asc' ? 'selected' : '' ?>><?php te('fc.vis_domanda_az'); ?></option>
+                <?php if ($fc_vocab ?? fc_is_vocab()): ?><option value="livello" <?= $sort == 'livello' ? 'selected' : '' ?>><?php te('fcv.vis_piu_difficili'); ?></option><?php endif; ?>
+            </select>
+        </div>
     </div>
 
 </header>
@@ -3827,6 +3841,13 @@ function changeSort(){
 
     urlParams.set('sort', sortVal);
 
+    /* Dalla selezione si torna nella selezione (e nella vista compatta, se
+       c'era): l'ordine si cambia per lavorarci, non per uscirne. */
+    if (document.body.classList.contains('select-mode')) {
+        urlParams.set('sel', '1');
+        if (document.body.classList.contains('is-compact')) urlParams.set('cmp', '1'); else urlParams.delete('cmp');
+    } else { urlParams.delete('sel'); urlParams.delete('cmp'); }
+
     window.location.search = urlParams.toString();
 
 }
@@ -4934,9 +4955,39 @@ function fcAggiungiCarta(){
     var u;
     try { u = new URL(window.location.href); } catch (e) { return; }
     if (u.searchParams.get('inserisci') !== '1') return;
+    /* torna: la pagina da cui si e' partiti (la scrive la sidebar). Solo un
+       percorso di questo sito: niente indirizzi esterni. Chiuso il popup, si
+       torna li', non all'elenco di tutte le carte. */
+    var torna = u.searchParams.get('torna') || '';
+    if (!/^\/(?!\/)/.test(torna)) torna = '';
     u.searchParams.delete('inserisci');
+    u.searchParams.delete('torna');
     try { history.replaceState(null, '', u.toString()); } catch (e) {}
-    window.addEventListener('load', function(){ setTimeout(fcAggiungiCarta, 150); });
+    window.addEventListener('load', function(){
+        setTimeout(function(){
+            var url = fcUrl('fc_card_edit.php?modo=insert&category_id=' + FC_CAT_ID);
+            if (torna && typeof apriModificaPopup === 'function') {
+                apriModificaPopup(url, null, function(){ window.location.href = torna; });
+            } else {
+                fcAggiungiCarta();
+            }
+        }, 150);
+    });
+})();
+
+/* Tornati da un cambio d'ordine fatto nella selezione (?sel=1&cmp=1): si
+   rientra nella selezione, e nella vista compatta se c'era. */
+(function(){
+    var u;
+    try { u = new URL(window.location.href); } catch (e) { return; }
+    if (u.searchParams.get('sel') !== '1') return;
+    var compatta = u.searchParams.get('cmp') === '1';
+    u.searchParams.delete('sel'); u.searchParams.delete('cmp');
+    try { history.replaceState(null, '', u.toString()); } catch (e) {}
+    window.addEventListener('load', function(){
+        if (typeof enterSelectMode === 'function') enterSelectMode();
+        if (compatta && typeof toggleCompactMode === 'function') toggleCompactMode(true);
+    });
 })();
 
 /* ---------- Nuova cartella (categoria figlia di questa) ---------- */

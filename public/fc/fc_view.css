@@ -278,6 +278,11 @@ img{ -webkit-touch-callout:none; }
 /* La ricerca durante la selezione: un filo di spazio sopra, altrimenti
    l'alone del campo attivo veniva tagliato dal bordo della riga. */
 .sel-search-row{ padding-top:4px; }
+/* l'ordine accanto alla ricerca, nella selezione: un menu con scritto
+   l'ordine di adesso, stretto quanto basta perche' la ricerca resti larga */
+.sel-search-row .search-wrap{ flex:1 1 120px; min-width:110px; }
+.sel-search-row .sel-sort-wrap{ flex:0 1 auto; }
+.sel-search-row select.tb-select{ max-width:150px; font-size:13px; padding-right:24px; }
 
 .search-input::placeholder{ color:var(--text-3); font-weight:500; }
 
