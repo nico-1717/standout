@@ -68,7 +68,12 @@ function sec_boot_headers(): void {
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: SAMEORIGIN');
     header('Referrer-Policy: strict-origin-when-cross-origin');
-    header('Permissions-Policy: geolocation=(), microphone=(self), camera=(), payment=(), usb=()');
+    /* geolocation=(self): la posizione la chiede solo il meteo del planner
+       (03_meteo.js), e solo dopo un tocco su "Meteo". Con geolocation=() il
+       browser la rifiutava sempre, e accendere il meteo finiva ogni volta
+       nella richiesta di scrivere il posto a mano. Siti esterni e iframe
+       restano esclusi. */
+    header('Permissions-Policy: geolocation=(self), microphone=(self), camera=(), payment=(), usb=()');
     header('Cross-Origin-Opener-Policy: same-origin');
     header('X-Permitted-Cross-Domain-Policies: none');
 
