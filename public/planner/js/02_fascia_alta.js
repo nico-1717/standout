@@ -491,10 +491,11 @@ function renderWeekBits() {
             btn.parentNode.insertBefore(wtop, btn.nextSibling);
         }
     }
-    $('plTodayBtn').textContent = String(parseIso(S.today).getDate());
+    /* il foglietto di "oggi": mese abbreviato in alto, numero sotto */
+    var oggiD = parseIso(S.today);
+    $('plTodayD').textContent = String(oggiD.getDate());
+    $('plTodayM').textContent = MESI[oggiD.getMonth()].slice(0, 3);
     $('plWeekN').textContent = S.week.number || 1;
-    $('plWeekDone').classList.toggle('pl-on', !!S.week.completed);
-    $('plWeekDone').setAttribute('aria-checked', S.week.completed ? 'true' : 'false');
 
     var aff = $('plAffirm');
     aff.textContent = S.settings.show_affirmations === false ? '' : (S.week.affirmation || '');
@@ -648,16 +649,7 @@ document.addEventListener('click', function (e) {
     mini.classList.remove('pl-open');
 });
 
-$('plWeekDone').addEventListener('click', function (e) {
-    e.stopPropagation();
-    var next = !S.week.completed;
-    S.week.completed = next;
-    this.classList.toggle('pl-on', next);
-    haptic(10);
-    api('week_save', { week_start: monday(S.focusDate), completed: next });
-});
-$('plWeekBtn').addEventListener('click', function (e) {
-    if (e.target.closest('#plWeekDone')) return;
+$('plWeekBtn').addEventListener('click', function () {
     askWeekNumber();
 });
 

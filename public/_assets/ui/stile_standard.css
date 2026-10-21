@@ -331,16 +331,18 @@ html[data-stile="standard"] .pl-day-wd-in{ font-weight:600; color:var(--ink-2); 
 html[data-stile="standard"] .pl-month-name{ font-size:22px; font-weight:700; letter-spacing:-.02em; }
 html[data-stile="standard"] .pl-week-n{ font-size:19px; font-weight:700; }
 html[data-stile="standard"] .pl-tool-today{ font-size:14px; font-weight:700; }
+html[data-stile="standard"] .pl-today-d{ font-family:inherit; font-size:15px; font-weight:700; letter-spacing:-.02em; }
 html[data-stile="standard"] .pl-affirm{ font-size:14px; font-weight:500; color:var(--ink-2); }
 html[data-stile="standard"] .pl-week,
 html[data-stile="standard"] .pl-tool,
+html[data-stile="standard"] .pl-today,
 html[data-stile="standard"] .pl-mini-static{
     background:var(--so-surface);
     box-shadow:0 1px 2px rgba(0,0,0,.06), inset 0 0 0 .5px var(--hair-2);
     -webkit-backdrop-filter:none; backdrop-filter:none;
 }
 html[data-stile="standard"] .pl-tool{ color:var(--ink); }
-html[data-stile="standard"] .pl-mini-static span{ font-size:6.2px; color:var(--ink-2); }
+html[data-stile="standard"] .pl-mini-static span{ font-size:7.4px; color:var(--ink-2); }
 
 /* planner — griglia: orari leggibili, giorni marcati */
 html[data-stile="standard"]{ --gutter-w:48px; }

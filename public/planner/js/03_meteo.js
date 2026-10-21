@@ -105,7 +105,7 @@ function wxApply(r) {
     WX.fonte = r.fonte || null;
     WX.fonte_url = r.fonte_url || null;
     if (r.nota_affidabilita) WX.nota = r.nota_affidabilita;
-    $('plWeatherBtn').classList.toggle('pl-weather-on', WX.on);
+    wxAvvisaCambio();
     /* scena, tag del giorno e tag nella colonna degli orari: renderDays() da
        solo non li tocca tutti, e appena acceso il meteo i gradi orari
        comparivano solo al ridisegno dopo */
@@ -628,11 +628,8 @@ function wxPopup(date) {
                immediato, perché la decisione è già stata presa. */
             /* si torna anche alla posizione vera: riaccendendolo dopo, il
                posto sbirciato ieri sera non deve tornare da solo */
-            WX.on = false; WX.giorni = {}; WX.adesso = null; WX.manuale = false;
-            $('plWeatherBtn').classList.remove('pl-weather-on');
             closeOv('plSheetOv');
-            wxRedraw();   // tornano l'albero e la bestia del mese
-            wxCall('disable', {}).then(function () { toast(T('planner.meteo_disattivato')); });
+            wxSpegni();
         });
         body.appendChild(off);
 
@@ -662,15 +659,28 @@ function wxPopup(date) {
     });
 }
 
-$('plWeatherBtn').addEventListener('click', function () {
-    if (WX.on) {
-        /* il tasto accende e spegne: le informazioni si aprono dai tag */
-        WX.on = false; WX.giorni = {}; WX.adesso = null; WX.manuale = false;
-        $('plWeatherBtn').classList.remove('pl-weather-on');
-        wxRedraw();
-        wxCall('disable', {}).then(function () { toast(T('planner.meteo_disattivato')); });
-        return;
-    }
+/* ACCENDERE E SPEGNERE IL METEO
+   Prima lo faceva un tasto suo nella barra in alto. Adesso il meteo sta in
+   cima alle impostazioni (10_tastini_ricerca_impostazioni.js), bene in
+   vista, e quella scheda chiama queste due. `wxAvvisaCambio` le fa sapere
+   quando lo stato cambia, cosi' si ridisegna senza dover essere riaperta. */
+var wxAscoltatori = [];
+function wxAvvisaCambio() {
+    wxAscoltatori = wxAscoltatori.filter(function (f) { return f() !== false; });
+}
+
+function wxSpegni() {
+    /* Si spegne subito e si avvisa il server dopo: spegnere una cosa deve
+       sembrare immediato, perche' la decisione e' gia' stata presa. Si torna
+       anche alla posizione vera: riaccendendolo, il posto sbirciato ieri sera
+       non deve tornare da solo. */
+    WX.on = false; WX.giorni = {}; WX.adesso = null; WX.manuale = false;
+    wxRedraw();   // tornano l'albero e la bestia del mese
+    wxAvvisaCambio();
+    wxCall('disable', {}).then(function () { toast(T('planner.meteo_disattivato')); });
+}
+
+function wxAccendi() {
     if (!navigator.geolocation) { wxChiediLuogo(T('planner.questo_browser_non_sa_dire')); return; }
     toast(T('planner.chiedo_la_posizione'));
     navigator.geolocation.getCurrentPosition(function (pos) {
@@ -678,18 +688,17 @@ $('plWeatherBtn').addEventListener('click', function () {
             lat: pos.coords.latitude,
             lon: pos.coords.longitude
         }).then(function (r) {
-            if (!r.ok) { toast(T('planner.meteo_non_attivato')); return; }
+            if (!r.ok) { toast(T('planner.meteo_non_attivato')); wxAvvisaCambio(); return; }
             wxApply(r);
             toast(r.place ? T('planner.meteo_attivo_per', {posto: r.place}) : T('planner.meteo_attivo'));
         });
     }, function () {
         /* Il permesso negato non è la fine del discorso: il posto lo si sa,
-           basta poterlo scrivere. Prima qui c'era solo il dispiacere, e
-           l'unico modo di avere le previsioni era andare a cambiare i
-           permessi del browser — cioè, in pratica, rinunciare. */
+           basta poterlo scrivere. */
         wxChiediLuogo(T('planner.non_riesco_a_rilevare_la'));
+        wxAvvisaCambio();
     }, { timeout: 12000, maximumAge: 600000 });
-});
+}
 
 /* Il luogo scritto a mano quando il telefono non lo dice. A differenza del
    cambio luogo dal popup, QUESTO si salva: non è una sbirciata a un'altra

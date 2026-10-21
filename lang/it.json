@@ -1810,7 +1810,14 @@
     "all_orario_previsto": "All'orario previsto",
     "tutte_adesso": "Tutte adesso",
     "segnate_prese_n": "{n} segnate come prese",
-    "quando_l": "quando"
+    "quando_l": "quando",
+    "wx_acceso": "Acceso",
+    "wx_spento_sub": "Spento. Accendilo per vedere le previsioni accanto ai giorni e agli orari.",
+    "wx_previsioni": "Previsioni di oggi",
+    "gc_collegato": "Collegato",
+    "gc_non_collegato": "Non collegato",
+    "gc_sub": "Porta i tuoi eventi su Google e quelli di Google qui",
+    "mp_n_giorni": "{n} giorni"
   },
   "abitudini": {
     "abitudini": "Abitudini",

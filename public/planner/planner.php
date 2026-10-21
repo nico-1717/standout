@@ -77,29 +77,31 @@ foreach (['base', 'griglia', 'liste', 'fogli', 'extra', 'responsive'] as $plCss)
 <body class="pl-body">
 
 <!-- ============ BARRA IN ALTO ============
-     riga 1: settimana + filtro, meteo, impostazioni, profilo
-     riga 2: vista/oggi/cerca sopra il giorno a sinistra, mese e calendarietto a destra
+     riga 1: settimana + oggi, impostazioni, profilo
+     riga 2: vista/cerca/filtro sopra il giorno a sinistra, mese e calendarietto a destra
      riga 3: affermazione positiva (se attiva) -->
 <header class="pl-topbar" id="plTopbar">
     <div class="pl-ambient" id="plAmbient" aria-hidden="true"></div>
 
     <div class="pl-bar-tools">
+        <?php /* La spunta "settimana completata" dentro la pastiglia non c'e'
+                 piu': non la si usava, e rubava spazio e un tocco sbagliato. */ ?>
         <button type="button" class="pl-week" id="plWeekBtn">
             <span class="pl-week-n pl-serif" id="plWeekN">1</span>
             <span class="pl-week-k"><?php te('planner.settimana'); ?></span>
-            <span class="pl-check" id="plWeekDone" role="checkbox" aria-checked="false" aria-label="<?php te('planner.settimana_completata'); ?>">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.2 5.2L20 6.6"/></svg>
-            </span>
+        </button>
+        <?php /* "Vai a oggi" come un foglietto di calendario (mese in alto, numero
+                 sotto): il numero da solo non diceva cosa faceva il tasto. */ ?>
+        <button type="button" class="pl-today" id="plTodayBtn" aria-label="<?php te('planner.vai_a_oggi'); ?>">
+            <span class="pl-today-m" id="plTodayM"></span>
+            <span class="pl-today-d" id="plTodayD">1</span>
         </button>
         <span class="pl-tools-sp"></span>
-        <button type="button" class="pl-tool" id="plFilterBtn" aria-label="<?php te('planner.filtra_per_categoria'); ?>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
-        </button>
-        <button type="button" class="pl-tool" id="plWeatherBtn" aria-label="<?php te('planner.meteo'); ?>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="3.2"/><path d="M9 3.4v1.2M9 13.4v1.2M3.4 9h1.2M13.4 9h1.2M5 5l.9.9M12.1 12.1l.9.9M5 13l.9-.9M12.1 5.9l.9-.9"/><path d="M13 19.5h5.5a2.75 2.75 0 100-5.5 3.6 3.6 0 00-6.9-1 2.5 2.5 0 00.4 6.5z"/></svg>
-        </button>
+        <?php /* Il meteo non ha piu' un tasto suo: sta in cima alle impostazioni,
+                 bene in vista. L'ingranaggio e' l'icona che tutti leggono come
+                 "impostazioni" (quella di prima sembrava un sole). */ ?>
         <button type="button" class="pl-tool" id="plSettingsBtn" aria-label="<?php te('comune.impostazioni'); ?>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M4.8 7.9l1.9 1.1M17.3 15l1.9 1.1M4.8 16.1l1.9-1.1M17.3 9l1.9-1.1"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         </button>
             <?php /* pallino del profilo, in fila con i pulsanti dell'intestazione */ $fr_widget_inline = true; include __DIR__ . '/../partials/notifiche_widget.php'; ?>
     </div>
@@ -111,8 +113,12 @@ foreach (['base', 'griglia', 'liste', 'fogli', 'extra', 'responsive'] as $plCss)
              giorno. Nella prima riga non ci stavano più tutti, e su un
              telefono stretto il pallino del profilo usciva dallo schermo. -->
         <div class="pl-tools-2" id="plTools2">
-            <button type="button" class="pl-tool" id="plViewBtn" aria-label="<?php te('planner.passa_alla_vista_mese'); ?>">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2.4"/><path d="M4 10h16M9 5V3M15 5V3"/></svg>
+            <?php /* Piu' grande, e con scritto la vista in cui si e': un'icona
+                     sola non diceva ne' cosa faceva ne' dove si era. */ ?>
+            <button type="button" class="pl-tool pl-viewbtn" id="plViewBtn" aria-label="<?php te('planner.passa_alla_vista_mese'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2.4"/><path d="M4 10h16M9 5V3M15 5V3"/></svg>
+                <span class="pl-viewbtn-lab" id="plViewLab"><?php te('planner.giorno'); ?></span>
+                <svg class="pl-viewbtn-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg>
             </button>
             <!-- Su telefono in verticale il pulsante non fa più da interruttore fra
                  due viste: le viste sono tre, e un interruttore non le dice. -->
@@ -121,9 +127,13 @@ foreach (['base', 'griglia', 'liste', 'fogli', 'extra', 'responsive'] as $plCss)
                 <button type="button" role="menuitem" data-v="week"><?php te('planner.settimana_2'); ?></button>
                 <button type="button" role="menuitem" data-v="day"><?php te('planner.giorno'); ?></button>
             </div>
-            <button type="button" class="pl-tool pl-tool-today" id="plTodayBtn" aria-label="<?php te('planner.vai_a_oggi'); ?>">1</button>
             <button type="button" class="pl-tool" id="plSearchBtn" aria-label="<?php te('comune.cerca'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+            </button>
+            <?php /* il filtro dei calendari, accanto alla ricerca: tutte e due
+                     decidono cosa si vede */ ?>
+            <button type="button" class="pl-tool" id="plFilterBtn" aria-label="<?php te('planner.filtra_per_categoria'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
             </button>
         </div>
         <button type="button" class="pl-day-btn" id="plDayBtn">

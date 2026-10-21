@@ -34,8 +34,10 @@ function openEventSheet(existing, seed) {
         id: 0, title: '', notes: '', location: '', guests: [], calendar_id: null,
         place_name: null, place_lat: null, place_lon: null, place_ref: null,
         duration_locked: false,  // si parte da 'auto': la durata segue l'inizio, non la fine
-        date: seed.date, end_date: seed.date, start: seed.start, end: seed.end,
-        all_day: false, category_id: S.defaultCat, project_id: null, importance: 'normal',
+        /* end_date e all_day li puo' dare chi apre (il mese, tenendo premuto
+           e trascinando su piu' giorni): se mancano, un giorno solo con orario */
+        date: seed.date, end_date: seed.end_date || seed.date, start: seed.start, end: seed.end,
+        all_day: !!seed.all_day, category_id: S.defaultCat, project_id: null, importance: 'normal',
         color: null, type: 'event', notify: 'h1', notify_min: 60,
         repeat: 'none', repeat_interval: 1, repeat_unit: 'week', repeat_until: null
     };

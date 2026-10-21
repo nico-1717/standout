@@ -14,9 +14,14 @@ function gcall(action, write, dati) {
         .catch(function () { return { ok: false, message: T('planner.connessione_non_riuscita') }; });
 }
 
-function drawGoogle(box) {
+/* `onStato` (facoltativo) riceve lo stato appena arriva: la sezione delle
+   impostazioni lo scrive nella sua intestazione. Resta attaccato al riquadro,
+   cosi' anche i ridisegni dopo Sincronizza o Scollega lo aggiornano. */
+function drawGoogle(box, onStato) {
+    if (onStato) box._onStato = onStato;
     gcall('status').then(function (st) {
         box.innerHTML = '';
+        if (box._onStato) box._onStato(st);
         if (!st.ok) {
             box.appendChild(el('div', 'pl-row-sub', T('planner.stato_non_disponibile')));
             return;

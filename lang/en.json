@@ -1810,7 +1810,14 @@
     "all_orario_previsto": "At the scheduled times",
     "tutte_adesso": "All now",
     "segnate_prese_n": "{n} marked as taken",
-    "quando_l": "when"
+    "quando_l": "when",
+    "wx_acceso": "On",
+    "wx_spento_sub": "Off. Turn it on to see the forecast next to days and times.",
+    "wx_previsioni": "Today's forecast",
+    "gc_collegato": "Connected",
+    "gc_non_collegato": "Not connected",
+    "gc_sub": "Sync your events with Google, both ways",
+    "mp_n_giorni": "{n} days"
   },
   "abitudini": {
     "abitudini": "Habits",

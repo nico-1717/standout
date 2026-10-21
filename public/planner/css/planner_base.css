@@ -342,15 +342,6 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
     font-size:8px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3);
     line-height:1.1; white-space:nowrap;      /* mai spezzato in "SETTI-MANA" */
 }
-.pl-check{
-    width:19px; height:19px; border-radius:7px; flex-shrink:0;
-    box-shadow:inset 0 0 0 1.2px var(--hair-2);
-    display:grid; place-items:center; color:transparent;
-    transition:background var(--t) var(--ease), color var(--t) var(--ease), box-shadow var(--t) var(--ease);
-}
-.pl-check svg{ width:12px; height:12px; }
-.pl-check.pl-on{ background:var(--accent); color:var(--on-accent, var(--card)); box-shadow:none; }
-.pl-check.pl-on svg path{ animation:pl-draw .5s var(--ease) forwards; }
 @keyframes pl-draw{ from{ stroke-dasharray:16; stroke-dashoffset:16; } to{ stroke-dasharray:16; stroke-dashoffset:0; } }
 
 .pl-tool{
@@ -363,6 +354,36 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-tool:active{ transform:scale(.9); }
 .pl-tool.pl-on{ background:var(--accent-soft); color:var(--accent-ink); }
 .pl-tool-today{ font-family:'Cormorant Garamond',serif; font-size:14px; font-weight:600; }
+
+/* "Vai a oggi": un foglietto di calendario. In alto la fascia col mese, sotto
+   il numero di oggi: si capisce cosa fa senza leggere niente. Alto quanto la
+   pastiglia della settimana, cosi' le due stanno sulla stessa riga ottica. */
+.pl-today{
+    flex-shrink:0; width:32px; height:33px; border-radius:9px; overflow:hidden;
+    display:flex; flex-direction:column; align-items:stretch;
+    background:rgba(var(--card-rgb, 255,253,250),.72); box-shadow:inset 0 0 0 .5px var(--hair);
+    transition:transform var(--t-fast) var(--ease);
+}
+.pl-today:active{ transform:scale(.92); }
+.pl-today-m{
+    flex:none; height:10px; display:grid; place-items:center;
+    background:var(--pl-today-band, #E5534B); color:#fff;
+    font-size:6.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; line-height:1;
+}
+.pl-today-d{
+    flex:1; display:grid; place-items:center; color:var(--ink);
+    font-family:'Cormorant Garamond',serif; font-size:16px; font-weight:600; line-height:1;
+    font-variant-numeric:tabular-nums;
+}
+
+/* Il tasto delle viste: piu' largo, con scritto la vista in cui si e' e una
+   freccetta che dice "si apre un menu". */
+.pl-tool.pl-viewbtn{
+    width:auto; padding:0 10px 0 10px; gap:6px; display:inline-flex; align-items:center;
+    font-size:13px; font-weight:600; color:var(--ink);
+}
+.pl-viewbtn-lab{ white-space:nowrap; }
+.pl-tool.pl-viewbtn svg.pl-viewbtn-chev{ width:12px; height:12px; margin-left:-1px; opacity:.6; }
 
 /* riga 2: giorno · mese · calendarietto */
 /* Una griglia e non una fila: a sinistra, in alto, i tre pulsanti di
@@ -409,14 +430,14 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 
 /* calendarietto sempre visibile, con la settimana in corso evidenziata */
 .pl-mini-static{
-    grid-column:5; grid-row:1 / 3; align-self:start; width:74px; padding:4px 4px 3px; border-radius:9px;
+    grid-column:5; grid-row:1 / 3; align-self:start; width:94px; padding:5px 5px 4px; border-radius:9px;
     background:rgba(var(--card-rgb, 255,253,250),.6); box-shadow:inset 0 0 0 .5px var(--hair);
     display:grid; grid-template-columns:repeat(7,1fr); gap:.5px;
     transition:transform var(--t-fast) var(--ease);
 }
 .pl-mini-static:active{ transform:scale(.95); }
 .pl-mini-static span{
-    font-size:5.6px; line-height:1.5; text-align:center; color:var(--ink-3);
+    font-size:7px; line-height:1.5; text-align:center; color:var(--ink-3);
     font-variant-numeric:tabular-nums; border-radius:2px;
 }
 .pl-mini-static span.pl-sw-wd{ color:var(--ink-3); opacity:.7; }

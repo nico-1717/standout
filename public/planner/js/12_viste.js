@@ -14,6 +14,7 @@ function setView(v) {
     var vb = $('plViewBtn');
     vb.classList.toggle('pl-on', v === 'month');
     vb.setAttribute('aria-label', v === 'month' ? T('planner.torna_alla_settimana') : T('planner.passa_alla_vista_mese'));
+    scriviVista();
     if (v === 'week') {
         closeMonthAgenda();
         $('plMonthsBar').classList.remove('pl-open');
@@ -33,6 +34,14 @@ function setView(v) {
     applyAmbient();
     applySky();
     renderWeekBits();
+}
+
+/* Sul tasto delle viste c'e' scritto dove si e': Giorno, Settimana o Mese. */
+function scriviVista() {
+    var lab = $('plViewLab');
+    if (!lab) return;
+    lab.textContent = S.view === 'month' ? T('planner.mese')
+        : (S.view === 'week' ? T('planner.settimana_2') : T('planner.giorno'));
 }
 
 /* ------------------------------------------------------------------ */
@@ -613,6 +622,7 @@ function wkSegnaScelto() {
 (function menuViste() {
     var btn = $('plViewBtn'), menu = $('plViewMenu');
     if (!btn || !menu) return;
+    scriviVista();
     /* Il menu vive nel body e non nell'intestazione: la barra in alto ha il
        vetro (backdrop-filter), che per un figlio `fixed` diventa il riquadro
        di riferimento e lo ritaglia. Con il pulsante nella seconda riga il
@@ -825,6 +835,7 @@ function stricheDellaSettimana(inizioRiga, corsie) {
 function monthCell(date, inMonth, corsie, conBarra) {
     var cell = el('div', 'pl-mcell' + (inMonth ? '' : ' pl-out')
         + (date < S.today ? ' pl-past-d' : '') + (date === S.today ? ' pl-today-d' : ''));
+    cell.dataset.date = date;   // serve a "tieni premuto e trascina" (MP, piu' sotto)
     var wtag = wxTag(date);
     if (wtag) cell.appendChild(wtag);   // sta nell'angolo, fuori dal flusso
     cell.appendChild(el('div', 'pl-mcell-n pl-serif', String(parseIso(date).getDate())));
@@ -889,6 +900,8 @@ function monthCell(date, inMonth, corsie, conBarra) {
            primo gesto che viene in mente per far sparire un pannello. */
         if (monthAgendaAperta()) { closeMonthAgenda(); return; }
         if (Date.now() - magendaChiusaA < 400) return;
+        /* il tocco che chiude un "tieni premuto" non e' un tocco per entrare */
+        if (MP.attivo || Date.now() - MP.finitoA < 500) return;
         entraNelGiorno(date, cell);
     });
     return cell;
@@ -1111,6 +1124,8 @@ function monthStep(months, years, dir) {
     mv.addEventListener('touchend', function (e) {
         if (!on) return;
         on = false;
+        /* il dito stava allungando un evento nuovo, non sfogliando i mesi */
+        if (MP.attivo || Date.now() - MP.finitoA < 500) return;
         if (Date.now() - t0 > 900) return;
         var t = e.changedTouches[0];
         var dx = t.clientX - x0, dy = t.clientY - y0;
@@ -1143,4 +1158,136 @@ function monthStep(months, years, dir) {
         }
         haptic(6);
     }, { passive: false });
+})();
+
+
+/* ------------------------------------------------------------------ */
+/* Tenere premuto un giorno del mese crea un evento                    */
+/* ------------------------------------------------------------------ */
+/* Il dito si appoggia su un giorno e ci resta: dopo un attimo compare il
+   blocco del nuovo evento in quel giorno. Muovendo il dito il blocco si
+   allunga fino al giorno sotto il dito (anche all'indietro, e anche su piu'
+   settimane): alzandolo si apre il popup del nuovo evento, gia' con quei
+   giorni. Un giorno solo resta un evento con orario; piu' giorni diventano
+   un evento "tutto il giorno", che e' quello che di solito si vuole quando
+   si segna una vacanza o un viaggio.
+   Prima dello scatto basta muovere il dito di poco per tornare ai gesti di
+   sempre: tocco per entrare nel giorno, scorrimento per cambiare mese. */
+var MP = { timer: null, attivo: false, da: null, a: null, x0: 0, y0: 0, id: null, finitoA: 0 };
+var MP_ATTESA = 380, MP_TOLLERANZA = 9;
+
+(function pressioneMese() {
+    var grid = $('plMonthGrid');
+    if (!grid) return;
+
+    function cellaSotto(x, y) {
+        var t = document.elementFromPoint(x, y);
+        return t && t.closest ? t.closest('.pl-mcell') : null;
+    }
+    function intervallo() {
+        return MP.da <= MP.a ? [MP.da, MP.a] : [MP.a, MP.da];
+    }
+    function pulisci() {
+        Array.prototype.forEach.call(grid.querySelectorAll('.pl-mprev'), function (n) { n.remove(); });
+        Array.prototype.forEach.call(grid.querySelectorAll('.pl-msel'), function (n) { n.classList.remove('pl-msel'); });
+    }
+    /* Il blocco si disegna riga per riga, come le barre degli eventi lunghi
+       (stricheDellaSettimana): uno strato sopra la settimana, largo quanto i
+       giorni scelti, arrotondato solo dove l'evento comincia e finisce. */
+    function disegna(primo) {
+        pulisci();
+        var r = intervallo(), n = giorniFra(r[0], r[1]);
+        Array.prototype.forEach.call(grid.querySelectorAll('.pl-mrow'), function (row) {
+            var celle = row.querySelectorAll('.pl-mcell');
+            var c0 = -1, c1 = -1;
+            for (var i = 0; i < celle.length; i++) {
+                var d = celle[i].dataset.date;
+                if (d >= r[0] && d <= r[1]) {
+                    celle[i].classList.add('pl-msel');
+                    if (c0 < 0) c0 = i;
+                    c1 = i;
+                }
+            }
+            if (c0 < 0) return;
+            var strato = el('div', 'pl-mprev');
+            var apre = celle[c0].dataset.date === r[0], chiude = celle[c1].dataset.date === r[1];
+            var b = el('div', 'pl-mprev-bar' + (primo ? ' pl-anim' : '') + (apre ? ' pl-msp-apre' : '') + (chiude ? ' pl-msp-chiude' : ''));
+            b.style.gridColumn = (c0 + 1) + ' / span ' + (c1 - c0 + 1);
+            var testo = T('planner.nuovo_evento');
+            if (n > 1) testo += ' · ' + T('planner.mp_n_giorni', {n: n});
+            b.textContent = apre ? testo : ('… ' + T('planner.nuovo_evento'));
+            strato.appendChild(b);
+            row.appendChild(strato);
+        });
+    }
+    function fermaAttesa() {
+        if (MP.timer) { clearTimeout(MP.timer); MP.timer = null; }
+    }
+    function annulla() {
+        fermaAttesa();
+        if (MP.attivo) { MP.attivo = false; MP.finitoA = Date.now(); pulisci(); }
+        document.body.classList.remove('pl-mpress');
+        MP.id = null;
+    }
+    function apriNuovo(da, a) {
+        var piuGiorni = a > da;
+        var slot = (zoomCfg(S.zoom) || {}).slot || 30;
+        var inizio = 9 * 60, durata = Math.max(60, slot);
+        openEventSheet(null, {
+            date: da, end_date: a, all_day: piuGiorni,
+            start: toHM(inizio), end: toHM(Math.min(1439, inizio + durata))
+        });
+    }
+
+    grid.addEventListener('pointerdown', function (e) {
+        if (e.button) return;                       // solo il tasto principale / il dito
+        if (MP.id !== null) { annulla(); return; }  // un secondo dito annulla
+        if (monthAgendaAperta()) return;
+        var c = e.target.closest ? e.target.closest('.pl-mcell') : null;
+        if (!c || !c.dataset.date) return;
+        if (e.target.closest('.pl-mtag, .pl-wx')) return;   // i tastini della casella fanno altro
+        MP.id = e.pointerId; MP.x0 = e.clientX; MP.y0 = e.clientY;
+        MP.da = MP.a = c.dataset.date;
+        MP.timer = setTimeout(function () {
+            MP.timer = null;
+            MP.attivo = true;
+            document.body.classList.add('pl-mpress');
+            haptic(14);
+            disegna(true);
+        }, MP_ATTESA);
+    });
+
+    window.addEventListener('pointermove', function (e) {
+        if (MP.id === null || e.pointerId !== MP.id) return;
+        if (!MP.attivo) {
+            /* il dito si e' mosso prima dello scatto: e' uno scorrimento */
+            if (Math.abs(e.clientX - MP.x0) > MP_TOLLERANZA || Math.abs(e.clientY - MP.y0) > MP_TOLLERANZA) {
+                fermaAttesa(); MP.id = null;
+            }
+            return;
+        }
+        var c = cellaSotto(e.clientX, e.clientY);
+        if (c && c.dataset.date && c.dataset.date !== MP.a) {
+            MP.a = c.dataset.date;
+            haptic(5);
+            disegna();
+        }
+    });
+
+    window.addEventListener('pointerup', function (e) {
+        if (MP.id === null || e.pointerId !== MP.id) return;
+        if (!MP.attivo) { fermaAttesa(); MP.id = null; return; }
+        var r = intervallo();
+        MP.attivo = false; MP.id = null; MP.finitoA = Date.now();
+        document.body.classList.remove('pl-mpress');
+        apriNuovo(r[0], r[1]);
+        /* il blocco resta un attimo, mentre sale il popup: poi va via */
+        setTimeout(pulisci, 320);
+    });
+
+    window.addEventListener('pointercancel', function (e) {
+        if (MP.id !== null && e.pointerId === MP.id) annulla();
+    });
+    /* su telefono il tieni-premuto aprirebbe il menu del browser */
+    grid.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 })();

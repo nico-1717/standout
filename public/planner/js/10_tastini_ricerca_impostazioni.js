@@ -557,8 +557,115 @@ function sezionePieghevole(titolo, quante) {
     return { field: field, corpo: corpo, apri: apri };
 }
 
+/* ------------------------------------------------------------------ */
+/* Le due schede in cima alle impostazioni: meteo e Google Calendar     */
+/* ------------------------------------------------------------------ */
+/* IL METEO. Prima aveva un tasto suo nella barra in alto, che accendeva e
+   spegneva senza dire niente. Qui sta in cima e bene in vista: dice se e'
+   acceso, per dove, che tempo fa oggi, e da' le previsioni a un tocco. Si
+   ridisegna da sola quando il meteo cambia (wxAscoltatori, 03_meteo.js). */
+function schedaMeteo() {
+    var card = el('div', 'pl-setcard pl-setcard-wx');
+    var nata = false;
+    function disegna() {
+        /* uscita dalla pagina (il foglio e' stato riempito con altro): si
+           smette di ascoltare */
+        if (nata && !card.isConnected) return false;
+        nata = true;
+        card.innerHTML = '';
+        card.classList.toggle('pl-on', !!WX.on);
+        var g = WX.on ? WX.giorni[S.today] : null;
+
+        var top = el('div', 'pl-setcard-top');
+        var ic = el('span', 'pl-setcard-ic');
+        var nome = g ? wxIconaNome(g.icon, S.today, null) : 'sole-nubi';
+        ic.innerHTML = WX_ICONE[nome] || WX_ICONE['sole-nubi'];
+        top.appendChild(ic);
+
+        var tx = el('div', 'pl-setcard-tx');
+        tx.appendChild(el('div', 'pl-setcard-t', T('planner.meteo')));
+        var sub;
+        if (WX.on) {
+            var pezzi = [];
+            if (WX.place) pezzi.push(WX.place);
+            if (WX.adesso && WX.adesso.temp !== null && WX.adesso.temp !== undefined) pezzi.push(WX.adesso.temp + '°');
+            if (g && g.tmin !== null && g.tmin !== undefined && g.tmax !== null && g.tmax !== undefined) pezzi.push(g.tmin + '/' + g.tmax + '°');
+            sub = pezzi.length ? pezzi.join(' · ') : T('planner.wx_acceso');
+        } else {
+            sub = T('planner.wx_spento_sub');
+        }
+        tx.appendChild(el('div', 'pl-setcard-sub', sub));
+        top.appendChild(tx);
+        top.appendChild(toggle(!!WX.on, function (v) { if (v) wxAccendi(); else wxSpegni(); }));
+        card.appendChild(top);
+
+        if (WX.on && g) {
+            var vai = el('button', 'pl-setcard-go', T('planner.wx_previsioni'));
+            vai.type = 'button';
+            vai.addEventListener('click', function () { wxPopup(S.today); });
+            card.appendChild(vai);
+        }
+    }
+    disegna();
+    wxAscoltatori.push(disegna);
+    return card;
+}
+
+/* GOOGLE CALENDAR. Una sezione sua, con lo stato scritto nell'intestazione
+   (collegato a chi, o non collegato). Il contenuto e' quello di sempre
+   (drawGoogle, 11_google_calendar.js) e si apre toccando l'intestazione; se
+   l'account non e' collegato si apre da solo, perche' il tasto per
+   collegarlo e' la cosa da vedere. */
+function schedaGoogle() {
+    var card = el('div', 'pl-setcard pl-setcard-gc');
+    var head = el('button', 'pl-setcard-top pl-setcard-head');
+    head.type = 'button';
+    var ic = el('span', 'pl-setcard-ic');
+    ic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2.6"/><path d="M4 10h16M9 3v4M15 3v4"/><path d="M9.5 14.5l1.8 1.8 3.4-3.6"/></svg>';
+    head.appendChild(ic);
+    var tx = el('div', 'pl-setcard-tx');
+    /* lo stato sta accanto al titolo, non a destra: li' rubava spazio alla
+       riga sotto e la spezzava in tre */
+    var tRiga = el('div', 'pl-setcard-trow');
+    tRiga.appendChild(el('span', 'pl-setcard-t', T('planner.google_calendar')));
+    var stato = el('span', 'pl-setcard-stato');
+    tRiga.appendChild(stato);
+    tx.appendChild(tRiga);
+    var sub = el('div', 'pl-setcard-sub', T('planner.controllo_del_collegamento'));
+    tx.appendChild(sub);
+    head.appendChild(tx);
+    var freccia = el('span', 'pl-fold-arrow');
+    freccia.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+    head.appendChild(freccia);
+    card.appendChild(head);
+
+    var corpo = el('div', 'pl-setcard-body pl-hidden');
+    card.appendChild(corpo);
+    function apri(on) {
+        corpo.classList.toggle('pl-hidden', !on);
+        head.classList.toggle('pl-open', on);
+        head.setAttribute('aria-expanded', on ? 'true' : 'false');
+    }
+    head.addEventListener('click', function () { apri(corpo.classList.contains('pl-hidden')); });
+
+    var prima = true;
+    drawGoogle(corpo, function (st) {
+        var su = st && st.ok && st.connected;
+        card.classList.toggle('pl-on', !!su);
+        stato.textContent = su ? T('planner.gc_collegato') : T('planner.gc_non_collegato');
+        stato.classList.toggle('pl-on', !!su);
+        sub.textContent = su ? (st.email || T('planner.account_collegato')) : T('planner.gc_sub');
+        if (prima) { prima = false; apri(!!(st && st.ok && st.configured && !st.connected)); }
+    });
+    return card;
+}
+
 function openSettings(focus) {
     openSheet(T('planner.impostazioni'), function (body) {
+        /* in cima, le due cose che contano di piu' */
+        body.appendChild(schedaMeteo());
+        body.appendChild(schedaGoogle());
+
         /* palette */
         /* pl-solo-carta: righe che valgono solo con lo stile "carta". Con lo
            stile standard il colore della pagina e gli alberi non si vedono,
@@ -657,14 +764,7 @@ function openSettings(focus) {
         }
         body.appendChild(fo);
 
-        /* ---- Google Calendar ---- */
-        var fg = el('div', 'pl-field');
-        fg.appendChild(el('label', 'pl-label', T('planner.google_calendar')));
-        var gBox = el('div');
-        gBox.appendChild(el('div', 'pl-row-sub', T('planner.controllo_del_collegamento')));
-        fg.appendChild(gBox);
-        body.appendChild(fg);
-        drawGoogle(gBox);
+        /* Google Calendar ora ha la sua sezione in cima (schedaGoogle). */
 
         /* chi arriva qui per le routine le sta cercando: chiuse gli
            mostrerebbero una riga sola con dentro niente */
