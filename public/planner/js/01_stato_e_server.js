@@ -569,6 +569,7 @@ function chiudiOp(op, r) {
     } catch (e) {}
     if (!CODA.ops.length && typeof scheduleSync === 'function') scheduleSync();
     renderDays();
+    ridisegnaVistaAperta();
 }
 
 /* Toglie un evento da tutte le giornate in memoria (anche le copie dei
@@ -637,11 +638,23 @@ function trovaEvento(id, giorno) {
     return null;
 }
 
+/* renderDays() ridisegna la griglia degli orari, non il mese ne' la
+   settimana a tabella. Senza questo un evento creato, cambiato o eliminato
+   dal mese restava invisibile li' finche' non si cambiava vista: si salvava,
+   e il calendario restava com'era. Va chiamata dopo ogni modifica locale e a
+   ogni conferma del server; non legge niente dalla rete, quindi funziona
+   anche offline, con l'evento ancora in coda. */
+function ridisegnaVistaAperta() {
+    if (S.view === 'month') renderMonth();
+    else if (S.view === 'week') renderWeek();
+}
+
 /* Un evento nuovo: compare adesso, il server lo riceve quando può. */
 function creaSubito(payload, poi) {
     var tmp = idProvvisorio();
     mostraLocale(tmp, eventoLocale(payload, null, tmp));
     renderDays();
+    ridisegnaVistaAperta();
     var invio = Object.assign({}, payload, { id: 0 });
     accoda('event_save', invio, {
         ev: [tmp], temp: tmp,

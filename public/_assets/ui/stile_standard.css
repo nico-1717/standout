@@ -342,7 +342,7 @@ html[data-stile="standard"] .pl-mini-static{
     -webkit-backdrop-filter:none; backdrop-filter:none;
 }
 html[data-stile="standard"] .pl-tool{ color:var(--ink); }
-html[data-stile="standard"] .pl-mini-static span{ font-size:7.4px; color:var(--ink-2); }
+html[data-stile="standard"] .pl-mini-static span{ font-size:7px; line-height:1.33; color:var(--ink-2); }
 
 /* planner — griglia: orari leggibili, giorni marcati */
 html[data-stile="standard"]{ --gutter-w:48px; }

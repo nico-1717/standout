@@ -1231,6 +1231,7 @@ function saveEvent() {
             mostraLocale(dati.id, eventoLocale(dati, vecchio, dati.id));
         }
         renderDays();
+        ridisegnaVistaAperta();
         accoda('event_save', dati, {
             ev: [chiave],
             ok: function (r) {
@@ -1296,6 +1297,7 @@ function deleteEvent(d, scopeParam) {
             });
         }
         renderDays();
+        ridisegnaVistaAperta();
         accoda('event_delete', { id: d.id, scope: scope, original_date: d.date }, {
             ev: [chiave],
             ok: function () { S.weekCache = {}; loadWeek(monday(S.focusDate), true); }
@@ -1304,6 +1306,7 @@ function deleteEvent(d, scopeParam) {
     }
     mostraLocale(d.id, null);
     renderDays();
+    ridisegnaVistaAperta();
     haptic(10);
     accoda('event_delete', { id: d.id, scope: scope, original_date: d.date }, {
         ev: [d.id],

@@ -77,8 +77,8 @@ foreach (['base', 'griglia', 'liste', 'fogli', 'extra', 'responsive'] as $plCss)
 <body class="pl-body">
 
 <!-- ============ BARRA IN ALTO ============
-     riga 1: settimana + oggi, impostazioni, profilo
-     riga 2: vista/cerca/filtro sopra il giorno a sinistra, mese e calendarietto a destra
+     riga 1: settimana, oggi, vista; a destra impostazioni e profilo
+     riga 2: cerca/filtro sopra il giorno a sinistra, mese e calendarietto a destra
      riga 3: affermazione positiva (se attiva) -->
 <header class="pl-topbar" id="plTopbar">
     <div class="pl-ambient" id="plAmbient" aria-hidden="true"></div>
@@ -96,6 +96,21 @@ foreach (['base', 'griglia', 'liste', 'fogli', 'extra', 'responsive'] as $plCss)
             <span class="pl-today-m" id="plTodayM"></span>
             <span class="pl-today-d" id="plTodayD">1</span>
         </button>
+        <?php /* Il selettore delle viste, accanto a "oggi": tutti e due dicono
+                 quale pezzo di calendario si sta guardando. Piu' grande di un
+                 tastino, con scritto la vista in cui si e'. */ ?>
+        <button type="button" class="pl-tool pl-viewbtn" id="plViewBtn" aria-label="<?php te('planner.passa_alla_vista_mese'); ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2.4"/><path d="M4 10h16M9 5V3M15 5V3"/></svg>
+            <span class="pl-viewbtn-lab" id="plViewLab"><?php te('planner.giorno'); ?></span>
+            <svg class="pl-viewbtn-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg>
+        </button>
+        <!-- Su telefono in verticale il pulsante non fa più da interruttore fra
+             due viste: le viste sono tre, e un interruttore non le dice. -->
+        <div class="pl-viewmenu" id="plViewMenu" role="menu" aria-hidden="true">
+            <button type="button" role="menuitem" data-v="month"><?php te('planner.mese'); ?></button>
+            <button type="button" role="menuitem" data-v="week"><?php te('planner.settimana_2'); ?></button>
+            <button type="button" role="menuitem" data-v="day"><?php te('planner.giorno'); ?></button>
+        </div>
         <span class="pl-tools-sp"></span>
         <?php /* Il meteo non ha piu' un tasto suo: sta in cima alle impostazioni,
                  bene in vista. L'ingranaggio e' l'icona che tutti leggono come
@@ -113,20 +128,6 @@ foreach (['base', 'griglia', 'liste', 'fogli', 'extra', 'responsive'] as $plCss)
              giorno. Nella prima riga non ci stavano più tutti, e su un
              telefono stretto il pallino del profilo usciva dallo schermo. -->
         <div class="pl-tools-2" id="plTools2">
-            <?php /* Piu' grande, e con scritto la vista in cui si e': un'icona
-                     sola non diceva ne' cosa faceva ne' dove si era. */ ?>
-            <button type="button" class="pl-tool pl-viewbtn" id="plViewBtn" aria-label="<?php te('planner.passa_alla_vista_mese'); ?>">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2.4"/><path d="M4 10h16M9 5V3M15 5V3"/></svg>
-                <span class="pl-viewbtn-lab" id="plViewLab"><?php te('planner.giorno'); ?></span>
-                <svg class="pl-viewbtn-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg>
-            </button>
-            <!-- Su telefono in verticale il pulsante non fa più da interruttore fra
-                 due viste: le viste sono tre, e un interruttore non le dice. -->
-            <div class="pl-viewmenu" id="plViewMenu" role="menu" aria-hidden="true">
-                <button type="button" role="menuitem" data-v="month"><?php te('planner.mese'); ?></button>
-                <button type="button" role="menuitem" data-v="week"><?php te('planner.settimana_2'); ?></button>
-                <button type="button" role="menuitem" data-v="day"><?php te('planner.giorno'); ?></button>
-            </div>
             <button type="button" class="pl-tool" id="plSearchBtn" aria-label="<?php te('comune.cerca'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
             </button>
