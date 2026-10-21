@@ -195,9 +195,12 @@ function renderGameCatRow($node, $level = 0) {
         <div class="opt-section">
             <div class="opt-label"><?php te('fc.cg_ordine'); ?></div>
             <div class="segmented seg-order">
-                <input type="radio" id="go_order" name="game_order" value="in_order" checked onchange="updateLinks(); updateOrderVisibility();">
+                <?php /* Lingue: si parte da "casuale". Le parole in ordine si imparano
+                         anche dall'ordine (la terza e' sempre dopo la seconda), e il
+                         ripasso vero e' quello mescolato. Lo studio resta in ordine. */ ?>
+                <input type="radio" id="go_order" name="game_order" value="in_order"<?php echo $fc_vocab ? '' : ' checked'; ?> onchange="updateLinks(); updateOrderVisibility();">
                 <label for="go_order"><?php te('fc.cg_in_ordine'); ?></label>
-                <input type="radio" id="go_random" name="game_order" value="random" onchange="updateLinks(); updateOrderVisibility();">
+                <input type="radio" id="go_random" name="game_order" value="random"<?php echo $fc_vocab ? ' checked' : ''; ?> onchange="updateLinks(); updateOrderVisibility();">
                 <label for="go_random"><?php te('fc.cg_random'); ?></label>
                 <span class="segmented-thumb"></span>
             </div>

@@ -4084,7 +4084,8 @@
     "sfc_elimina_ripasso": "Elimina questo ripasso",
     "sfc_elimina_rip_tit": "Eliminare questo ripasso?",
     "sfc_elimina_rip_txt": "Si cancellano solo le risposte di questo ripasso. La partita e gli altri ripassi restano.",
-    "sfc_ripasso_eliminato": "Ripasso eliminato"
+    "sfc_ripasso_eliminato": "Ripasso eliminato",
+    "gm_senza_rete": "Nessuna connessione: riprova tra poco"
   },
   "fchub": {
     "home_titolo": "Flashcard",

@@ -5986,7 +5986,7 @@ function gradeAndAdvance (url, feedbackPromise, cardIndex, cardEl, esito) {
        il progresso restava fermo. La velocita' percepita la da' l'anteprima,
        che copre l'animazione: quando finisce, la pagina vera e' gia' li'. */
     if (fwdUrl) prefetchGet(fwdUrl);
-    feedbackPromise.then(function () { navigateTo(url, { cardIndex: cardIndex }); });
+    feedbackPromise.then(function () { navigateTo(url, { cardIndex: cardIndex, cardEl: cardEl, esito: esito }); });
 }
 
 function navigateTo (url, opts) {
@@ -6036,10 +6036,19 @@ function navigateTo (url, opts) {
                 delete __prefetchCache[url];
 
                 function richiestaNormale () {
+                    /* Un voto con la rete che va e viene (4G debole) poteva
+                       restare appeso per un minuto: carta gia' volata via,
+                       anteprima della successiva in pagina, tutto fermo. Dopo
+                       10 secondi si rinuncia e si passa al ripiego qui sotto
+                       (il voto resta in coda e ripartira' da solo). Ripeterlo
+                       non fa danni: il server fa un UPDATE della stessa riga. */
+                    var ctrl = (sp.post && typeof AbortController !== 'undefined') ? new AbortController() : null;
+                    var scadenza = ctrl ? setTimeout(function () { ctrl.abort(); }, 10000) : null;
+                    if (ctrl) richiesta.signal = ctrl.signal;
                     return fetch(urlRichiesta, richiesta).then(function (res) {
                         if (!res.ok) throw new Error('risposta HTTP ' + res.status);
-                        return res.text().then(function (html) { return { res: res, html: html }; });
-                    });
+                        return res.text().then(function (html) { if (scadenza) clearTimeout(scadenza); return { res: res, html: html }; });
+                    }, function (err) { if (scadenza) clearTimeout(scadenza); throw err; });
                 }
 
                 var richiestaPromise = pref
@@ -6241,6 +6250,13 @@ function navigateTo (url, opts) {
 
                     navLock = false;
 
+                    /* L'anteprima della carta successiva (aperta dal voto,
+                       gradeFeedback) se ne va sempre: lasciata li' sembrava la
+                       carta vera, ma era una copia senza comandi - "Mostra
+                       risposta" non faceva niente e la pagina vecchia, sotto,
+                       spingeva "Indietro" in fondo allo schermo. */
+                    if (window.togliAnteprima) window.togliAnteprima(true);
+
                     if (sp.post) {
 
                         var posCatch = 0;
@@ -6258,6 +6274,36 @@ function navigateTo (url, opts) {
                         noteGradeFailure(true);
 
                         showPendingToast();
+
+                        /* Il voto aspetta in coda. Se la carta successiva e' gia'
+                           precaricata (di solito si), ci si va lo stesso: si
+                           continua a giocare e il voto arriva quando torna la
+                           rete. Se non c'e', la carta votata torna al suo posto,
+                           segnata come risposta, invece di restare volata via. */
+                        var fwdCatch = oldC.getAttribute('data-forward-url');
+                        var giaPronta = fwdCatch && ((__prefetchCache[fwdCatch] && __prefetchCache[fwdCatch].html)
+                                                  || (__prefetchCache[fwdCatch + '&prefetch=1'] && __prefetchCache[fwdCatch + '&prefetch=1'].html));
+                        if (giaPronta) { navigateTo(fwdCatch, {}); return; }
+                        if (opts.cardEl && opts.cardEl.isConnected) segnaCartaValutataInPagina(opts.cardEl, opts.esito || 'correct');
+                        /* Il server non sa ancora del voto, quindi la pagina era
+                           stata disegnata senza "Avanti": lo si aggiunge, per
+                           poter proseguire appena torna la rete. */
+                        var rigaNav = oldC.querySelector('.nav-row');
+                        if (rigaNav && fwdCatch && !rigaNav.querySelector('.nav-fwd')
+                            && !oldC.querySelector('.card-box:not(.graded):not(.anteprima-card)')) {
+                            var avanti = document.createElement('a');
+                            avanti.className = 'nav-btn nav-fwd action-btn';
+                            avanti.href = fwdCatch;
+                            avanti.innerHTML = fcEscapeHtmlLocale(T('fc.gm_avanti')) + ' <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
+                            rigaNav.appendChild(avanti);
+                        }
+
+                    } else if (navigator.onLine === false) {
+
+                        /* Senza rete andare all'indirizzo vorrebbe dire la pagina
+                           d'errore del browser e la partita persa di vista: si
+                           resta qui e lo si dice. */
+                        showPendingToast(T('fc.gm_senza_rete'));
 
                     } else {
 
