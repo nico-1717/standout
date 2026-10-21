@@ -398,6 +398,29 @@ if ($azione === 'grade') {
                 WHERE game_id = ? AND position = ? AND fc_child_id = ?",
               [$result, $game_id, $position, $id_to_mark]);
     }
+
+    /* CAMBIARE IL VERDETTO DI UNA CARTA GIA' GIOCATA (solo_voto=1).
+       Dalla pastiglia "Giusta/Sbagliata" si puo' correggere il voto dato: si
+       aggiorna la riga e basta, senza avanzare e senza contare tempo di gioco
+       (si sta rileggendo, non giocando). Una carta segnata sbagliata non puo'
+       restare "imparata": imparata vuol dire giusta, quindi passando a
+       Sbagliata il segno si toglie. Risponde in JSON. */
+    if (!empty($_POST['solo_voto'])) {
+        $parent_lt = $id_to_mark;
+        if ($is_child_vote) {
+            $c_row = sec_one("SELECT parent_id FROM " . fc_t('subcards') . " WHERE id_child = ?", [$id_to_mark]);
+            $parent_lt = $c_row ? (int)$c_row['parent_id'] : 0;
+        }
+        if ($result === 'Wrong' && $parent_lt > 0) {
+            sec_q("DELETE FROM " . fc_t('learnt') . " WHERE user_id = ? AND fc_image_id = ?", [$user_id, $parent_lt]);
+        }
+        $imparata = $parent_lt > 0 && (bool)sec_one("SELECT 1 AS x FROM " . fc_t('learnt') . " WHERE user_id = ? AND fc_image_id = ?", [$user_id, $parent_lt]);
+        $errori_qui = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('plays') . " WHERE game_id = ? AND position = ? AND user_answer = 'Wrong'",
+                                    [$game_id, $position])['c'] ?? 0);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => true, 'answer' => $result, 'learnt' => $imparata, 'errori_qui' => $errori_qui]);
+        exit();
+    }
     /* CRONOMETRO: si aggiunge il tempo passato DALL'ULTIMA attivita', non
        quello dall'inizio della sessione. Prima era TIMESTAMPDIFF(start_time,
        NOW()): riprendendo una partita ore dopo, quelle ore finivano tutte
@@ -2042,6 +2065,7 @@ try {
                 <div class="card-box <?php echo $is_graded ? 'graded' : ''; ?><?php if ($is_graded) echo ($c['user_answer'] == 'Correct') ? ' res-correct' : ' res-wrong'; ?><?php if (count($cards_to_show) <= 1) echo ' senza-etichetta'; ?><?php echo $c['is_favorite'] ? ' is-favorita' : ''; ?>" id="card-<?php echo sec_h($index); ?>"
 
                      data-card-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>"
+                     data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-position="<?php echo (int)$position; ?>"
 
                      data-card-index="<?php echo (int)($card_index_map[$position . ':' . ($c['is_child'] ? 'c' : 'p') . $c['gameplay_idimmagine']] ?? $position); ?>"
 
@@ -2181,7 +2205,7 @@ try {
 
                                 <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=wrong&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn gc-wrong action-btn" aria-label="<?php te('fc.vg_sbagliato'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
 
-                                <button type="button" class="btn gc-learnt<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
+                                <button type="button" class="btn gc-learnt<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); premiImparato(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
 
                                 <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=correct&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn gc-correct action-btn" aria-label="<?php te('fc.res_corretto'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></a>
 
@@ -2211,9 +2235,17 @@ try {
 
                         ?>
 
+                        <?php /* La pastiglia del verdetto si tocca: si apre un menu per
+                                 cambiarlo (vedi apriVerdetto). Accanto a "Giusta" c'e'
+                                 il tastino "imparata"; su "Sbagliata" no, perche'
+                                 imparata vuol dire giusta. */
+                              $vd_ok = ($c['user_answer'] == 'Correct'); ?>
                         <div class="graded-head">
 
-                            <div class="status-pill <?php echo ($c['user_answer'] == 'Correct') ? 'ok' : 'ko'; ?>"><span class="gi"><?php echo ($c['user_answer'] == 'Correct') ? '&#10003;' : '&#10005;'; ?></span> <?php echo sec_h($msg); ?></div>
+                            <div class="vd-gruppo">
+                                <button type="button" class="status-pill vd-btn <?php echo $vd_ok ? 'ok' : 'ko'; ?>" aria-haspopup="menu" aria-label="<?php te('fc.gm_cambia_verdetto'); ?>"><span class="gi"><?php echo $vd_ok ? '&#10003;' : '&#10005;'; ?></span> <span class="vd-txt"><?php echo sec_h($msg); ?></span><svg class="vd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button>
+                                <button type="button" class="btn gc-learnt gc-learnt-mini<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"<?php echo $vd_ok ? '' : ' hidden'; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
+                            </div>
 
                             <button class="nav-btn pill-toggle action-btn" type="button" onclick="toggleAnswer(<?php echo sec_h($index); ?>, this)"><?php te('fc.gm_mostra_risposta'); ?></button>
 
@@ -5549,6 +5581,152 @@ function toggleLearnt (btn) {
    "toggleFavorite is not defined" al primo clic sulla stella. */
 window.toggleLearnt = toggleLearnt;
 
+/* "IMPARATA" MENTRE SI GIOCA
+   Una carta imparata e' per forza una carta giusta: premere il tastino su
+   una carta non ancora votata la segna imparata E giusta in un colpo solo
+   (il server lo sa gia' fare: result=learnt), con la sua uscita dorata.
+   Se e' gia' accesa, o la carta e' gia' votata, resta un interruttore. */
+function premiImparato (btn) {
+    var card = btn.closest('.card-box');
+    var url = card ? card.getAttribute('data-url-correct') : '';
+    if (card && url && !card.classList.contains('graded') && !btn.classList.contains('is-active')) {
+        url = url.replace('result=correct', 'result=learnt');
+        var idx = parseInt(card.getAttribute('data-card-index') || '0', 10);
+        gradeAndAdvance(url, gradeFeedback(card, 'learnt'), idx, card, 'learnt');
+        return;
+    }
+    toggleLearnt(btn);
+}
+window.premiImparato = premiImparato;
+
+/* La testa di una carta gia' votata, disegnata dal JavaScript dopo un voto
+   dato senza ricaricare: deve essere identica a quella del PHP (ramo "gia'
+   valutata"), compreso il menu del verdetto e il tastino "imparata". */
+var VD_TOCCO = '<svg class="vd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg>';
+var VD_CAPPELLO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg>';
+function testaVerdettoHTML (card, ok, imparata) {
+    var id = card.getAttribute('data-card-id') || '';
+    var figlio = card.getAttribute('data-is-child') || '0';
+    return '<div class="vd-gruppo">'
+        + '<button type="button" class="status-pill vd-btn ' + (ok ? 'ok' : 'ko') + '" aria-haspopup="menu" aria-label="' + fcEscapeHtmlLocale(T('fc.gm_cambia_verdetto')) + '">'
+        + '<span class="gi">' + (ok ? '✓' : '✕') + '</span> <span class="vd-txt">'
+        + fcEscapeHtmlLocale(ok ? T('fc.lbl_corretto') : T('fc.lbl_errato')) + '</span>' + VD_TOCCO + '</button>'
+        + '<button type="button" class="btn gc-learnt gc-learnt-mini' + (imparata ? ' is-active' : '') + '" data-learnt-id="' + fcEscapeHtmlLocale(id) + '" data-is-child="' + figlio + '"'
+        + ' onclick="event.stopPropagation(); toggleLearnt(this)" aria-label="' + fcEscapeHtmlLocale(T('fc.gm_imparato')) + '" aria-pressed="' + (imparata ? 'true' : 'false') + '"' + (ok ? '' : ' hidden') + '>'
+        + VD_CAPPELLO + '</button>'
+        + '</div>';
+}
+
+/* IL MENU DEL VERDETTO
+   Toccando la pastiglia "Giusta"/"Sbagliata" di una carta gia' giocata si
+   apre un piccolo menu con le due scelte. Scegliendo l'altra il voto cambia
+   sul server (action=grade con solo_voto=1, che non fa avanzare) e qui si
+   aggiornano la carta, la pastiglia, il tastino "imparata" e il segno
+   d'errore sul pallino della barra. Uno solo per pagina, appeso al body:
+   dentro la carta sarebbe tagliato dai suoi bordi. */
+var vdMenu = null, vdPill = null;
+function vdChiudi () {
+    if (!vdMenu) return;
+    vdMenu.classList.remove('is-open');
+    if (vdPill) vdPill.setAttribute('aria-expanded', 'false');
+    vdPill = null;
+}
+function vdCostruisci () {
+    if (vdMenu) return vdMenu;
+    vdMenu = document.createElement('div');
+    vdMenu.className = 'vd-menu';
+    vdMenu.setAttribute('role', 'menu');
+    vdMenu.innerHTML =
+          '<div class="vd-menu-t">' + fcEscapeHtmlLocale(T('fc.gm_cambia_verdetto')) + '</div>'
+        + '<button type="button" role="menuitemradio" class="vd-opt vd-opt-ok" data-vd="correct"><span class="vd-opt-ic">✓</span><span>' + fcEscapeHtmlLocale(T('fc.lbl_corretto')) + '</span><span class="vd-opt-sel" aria-hidden="true"></span></button>'
+        + '<button type="button" role="menuitemradio" class="vd-opt vd-opt-ko" data-vd="wrong"><span class="vd-opt-ic">✕</span><span>' + fcEscapeHtmlLocale(T('fc.lbl_errato')) + '</span><span class="vd-opt-sel" aria-hidden="true"></span></button>';
+    document.body.appendChild(vdMenu);
+    vdMenu.addEventListener('click', function (e) {
+        var opt = e.target.closest('.vd-opt');
+        if (!opt || !vdPill) return;
+        e.stopPropagation();
+        var pill = vdPill;
+        vdChiudi();
+        vdCambia(pill, opt.getAttribute('data-vd'));
+    });
+    return vdMenu;
+}
+function vdApri (pill) {
+    var m = vdCostruisci();
+    if (vdPill === pill && m.classList.contains('is-open')) { vdChiudi(); return; }
+    vdPill = pill;
+    pill.setAttribute('aria-expanded', 'true');
+    var ok = pill.classList.contains('ok');
+    m.querySelector('.vd-opt-ok').classList.toggle('is-sel', ok);
+    m.querySelector('.vd-opt-ko').classList.toggle('is-sel', !ok);
+    m.querySelector('.vd-opt-ok').setAttribute('aria-checked', ok ? 'true' : 'false');
+    m.querySelector('.vd-opt-ko').setAttribute('aria-checked', ok ? 'false' : 'true');
+    var r = pill.getBoundingClientRect();
+    m.style.left = '0px'; m.style.top = '0px';
+    m.classList.add('is-open');
+    var w = m.offsetWidth, h = m.offsetHeight;
+    var x = Math.max(10, Math.min(window.innerWidth - w - 10, r.left));
+    var y = r.bottom + 8;
+    if (y + h > window.innerHeight - 10) y = Math.max(10, r.top - h - 8);
+    m.style.left = x + 'px'; m.style.top = y + 'px';
+    try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {}
+}
+function vdCambia (pill, esito) {
+    var card = pill.closest('.card-box');
+    if (!card) return;
+    var eraOk = pill.classList.contains('ok');
+    var ok = (esito === 'correct');
+    if (ok === eraOk) return;
+
+    var fd = new FormData();
+    fd.append('action', 'grade');
+    fd.append('solo_voto', '1');
+    fd.append('result', esito);
+    fd.append('img_id', card.getAttribute('data-card-id') || '0');
+    fd.append('is_child', card.getAttribute('data-is-child') || '0');
+    fd.append('csrf_token', STANDOUT_CSRF);
+    var pos = card.getAttribute('data-position') || '';
+    pill.classList.add('is-busy');
+    fetch('fc_game.php?game_id=' + GAME_ID_PER_CODA + '&position=' + encodeURIComponent(pos),
+          { method: 'POST', body: fd, headers: { 'X-CSRF-Token': STANDOUT_CSRF }, credentials: 'same-origin' })
+        .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+        .then(function (d) {
+            if (!d || !d.success) throw new Error('rifiutato');
+            var giusta = d.answer === 'Correct';
+            pill.classList.toggle('ok', giusta);
+            pill.classList.toggle('ko', !giusta);
+            pill.querySelector('.gi').textContent = giusta ? '✓' : '✕';
+            pill.querySelector('.vd-txt').textContent = giusta ? T('fc.lbl_corretto') : T('fc.lbl_errato');
+            card.classList.toggle('res-correct', giusta);
+            card.classList.toggle('res-wrong', !giusta);
+            var lt = card.querySelector('.gc-learnt-mini');
+            if (lt) {
+                lt.hidden = !giusta;
+                lt.classList.toggle('is-active', !!d.learnt);
+                lt.setAttribute('aria-pressed', d.learnt ? 'true' : 'false');
+            }
+            /* il pallino di questa pagina nella barra: rosso solo se qui
+               resta almeno una carta sbagliata */
+            document.querySelectorAll('.dot-qui').forEach(function (dq) {
+                dq.classList.toggle('dot-qui-errore', d.errori_qui > 0);
+            });
+            try { pill.animate([{ transform: 'scale(.8)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 360, easing: EASE }); } catch (e) {}
+            try { if (navigator.vibrate) navigator.vibrate(giusta ? 12 : 22); } catch (e) {}
+        })
+        .catch(function (err) {
+            console.error('[verdetto] non cambiato', err);
+            if (typeof showPendingToast === 'function') showPendingToast(T('fc.gm_verdetto_errore'));
+        })
+        .then(function () { pill.classList.remove('is-busy'); });
+}
+document.addEventListener('click', function (e) {
+    var pill = e.target.closest ? e.target.closest('.vd-btn') : null;
+    if (pill) { e.stopPropagation(); e.preventDefault(); vdApri(pill); return; }
+    if (vdMenu && vdMenu.classList.contains('is-open') && !e.target.closest('.vd-menu')) vdChiudi();
+}, true);
+window.addEventListener('scroll', vdChiudi, true);
+window.addEventListener('resize', vdChiudi);
+
 function toggleFavorite (btn) {
     if (btn.disabled) return;
     btn.disabled = true;
@@ -5615,6 +5793,9 @@ function segnaCartaValutataInPagina (card, esito) {
     card.style.transform = 'none';
     card.style.opacity = '1';
 
+    /* "imparata" e' una risposta giusta */
+    var imparata = (esito === 'learnt');
+    if (imparata) esito = 'correct';
     card.classList.add('graded');
     card.classList.add(esito === 'correct' ? 'res-correct' : 'res-wrong');
     card.setAttribute('data-swipe', '0');
@@ -5623,6 +5804,8 @@ function segnaCartaValutataInPagina (card, esito) {
 
     /* Via i comandi di voto: da qui in poi questa carta non si vota piu'. */
     var gradeRow = card.querySelector('.grade-row');
+    /* se "imparata" era gia' acceso, resta acceso anche nella testa nuova */
+    var giaImp = !!(gradeRow && gradeRow.querySelector('.gc-learnt.is-active'));
     if (gradeRow) gradeRow.remove();
 
     /* Via anche "frantuma" e il tasto "Mostra risposta" grande: una carta
@@ -5646,9 +5829,7 @@ function segnaCartaValutataInPagina (card, esito) {
         var testa = document.createElement('div');
         testa.className = 'graded-head';
         var ok = (esito === 'correct');
-        testa.innerHTML = '<div class="status-pill ' + (ok ? 'ok' : 'ko') + '">'
-            + '<span class="gi">' + (ok ? '\u2713' : '\u2715') + '</span> '
-            + fcEscapeHtmlLocale(ok ? T('fc.res_corretto') : T('fc.vg_sbagliato')) + '</div>'
+        testa.innerHTML = testaVerdettoHTML(card, ok, imparata || giaImp)
             + '<button class="nav-btn pill-toggle action-btn" type="button">' + fcEscapeHtmlLocale(T('fc.gm_mostra_risposta')) + '</button>';
         var titolo = card.querySelector('.card-title');
         if (titolo) titolo.insertAdjacentElement('afterend', testa);

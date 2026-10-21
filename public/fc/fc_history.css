@@ -292,6 +292,15 @@ button, input{ font-family:inherit; }
 .sfc-ripasso-nome{ font-weight:700; white-space:nowrap; }
 .sfc-ripasso-data{ flex:1; min-width:0; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .sfc-ripasso-prog{ color:var(--text-2); font-weight:700; font-variant-numeric:tabular-nums; }
+/* il cestino di un ripasso lasciato a meta': piccolo, accanto alla sua riga */
+.sfc-ripasso-del{
+    flex:none; width:34px; height:34px; border-radius:11px; border:0; padding:0;
+    display:grid; place-items:center; cursor:pointer;
+    background:var(--red-soft, rgba(255,59,48,.12)); color:var(--red, #FF3B30);
+    transition:transform .15s var(--spring);
+}
+.sfc-ripasso-del svg{ width:16px; height:16px; }
+.sfc-ripasso-del:active{ transform:scale(.88); }
 
 .sfc-det-azioni{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
 .sfc-btn{

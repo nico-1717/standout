@@ -4067,7 +4067,13 @@
     "vis_sposta_gia": "Sono già in questa categoria",
     "vis_sposta_solo_figlie": "Le sottocarte non si spostano da sole: separale prima, oppure scegli la carta madre",
     "vis_spostate_1": "Carta spostata in «{cat}»",
-    "vis_spostate_n": "{n} carte spostate in «{cat}»"
+    "vis_spostate_n": "{n} carte spostate in «{cat}»",
+    "gm_cambia_verdetto": "Cambia il verdetto",
+    "gm_verdetto_errore": "Verdetto non cambiato, riprova",
+    "sfc_elimina_ripasso": "Elimina questo ripasso",
+    "sfc_elimina_rip_tit": "Eliminare questo ripasso?",
+    "sfc_elimina_rip_txt": "Si cancellano solo le risposte di questo ripasso. La partita e gli altri ripassi restano.",
+    "sfc_ripasso_eliminato": "Ripasso eliminato"
   },
   "fchub": {
     "home_titolo": "Flashcard",

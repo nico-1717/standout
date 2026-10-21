@@ -395,6 +395,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['azione'] ?? '') === 'elimi
     sfc_json(['success' => fc_cancella_partita(sec_int($_POST['id'] ?? 0, 1), $current_user_id)]);
 }
 
+/* ELIMINARE UN RIPASSO (non la partita intera). Solo un ripasso: una
+   partita madre si elimina con "elimina" qui sopra, che si porta via tutto.
+   Risponde con la riga della madre ricalcolata (catena, barre, ripassi), cosi'
+   la pagina ridisegna il dettaglio aperto senza ricaricare l'elenco. */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['azione'] ?? '') === 'elimina_ripasso') {
+    sec_guard_write($current_user_id, 'fc_history', 0, 60, 60);
+    $id = sec_int($_POST['id'] ?? 0, 1);
+    $mappa = sfc_partite_utente($current_user_id);
+    if (!isset($mappa[$id]) || (int)($mappa[$id]['parent_id'] ?? 0) <= 0) sfc_json(['success' => false]);
+    $radice = sfc_radice($id, $mappa);
+    if (!fc_cancella_partita($id, $current_user_id)) sfc_json(['success' => false]);
+
+    $mappa = sfc_partite_utente($current_user_id);
+    $membri = [];
+    foreach ($mappa as $gid => $g) {
+        if ($gid !== $radice && sfc_radice($gid, $mappa) === $radice) $membri[] = $gid;
+    }
+    $righe = isset($mappa[$radice]) ? sfc_costruisci([$radice], [$radice => $membri], $mappa) : [];
+    sfc_json(['success' => true, 'madre' => $radice, 'riga' => $righe[0] ?? null]);
+}
+
 $ajax = sec_enum($_GET['ajax'] ?? null, ['lista', 'sospese', 'materie'], '');
 
 if ($ajax === 'lista') {
@@ -1347,6 +1368,9 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
                         '<span class="sfc-ripasso-prog">' + x.chiuse + '/' + x.totale + '</span>' +
                         '<span class="sfc-pill ' + classePrecisione(px) + '">' + (px === null ? '–' : px + '%') + '</span>' +
                     '</a>' +
+                    /* un ripasso lasciato a meta' si puo' buttare via da solo,
+                       senza toccare la partita e gli altri ripassi */
+                    (x.sospesa ? '<button type="button" class="sfc-ripasso-del" data-elimina-rip="' + x.id + '" data-madre="' + r.id + '" aria-label="' + esc(T('fc.sfc_elimina_ripasso')) + '">' + ICONE.cestino + '</button>' : '') +
                 '</div>';
             }).join('') + '</div>';
         }
@@ -1622,12 +1646,50 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
 
     var daEliminare = null;
 
+    var ripDaEliminare = null;   // { id, madre } quando si elimina un ripasso
+    var avvisoTit = el.sfcAlert.querySelector('h4'), avvisoTxt = el.sfcAlert.querySelector('p');
+    var avvisoTitOrig = avvisoTit ? avvisoTit.textContent : '', avvisoTxtOrig = avvisoTxt ? avvisoTxt.textContent : '';
+
     el.sfcLista.addEventListener('click', function (e) {
+        var rb = e.target.closest('[data-elimina-rip]');
+        if (rb) {
+            e.preventDefault();
+            ripDaEliminare = { id: rb.getAttribute('data-elimina-rip'), madre: rb.getAttribute('data-madre') };
+            daEliminare = null;
+            if (avvisoTit) avvisoTit.textContent = T('fc.sfc_elimina_rip_tit');
+            if (avvisoTxt) avvisoTxt.textContent = T('fc.sfc_elimina_rip_txt');
+            el.sfcAlert.classList.add('open');
+            return;
+        }
         var b = e.target.closest('[data-elimina]');
         if (!b) return;
         daEliminare = b.getAttribute('data-elimina');
+        ripDaEliminare = null;
+        if (avvisoTit) avvisoTit.textContent = avvisoTitOrig;
+        if (avvisoTxt) avvisoTxt.textContent = avvisoTxtOrig;
         el.sfcAlert.classList.add('open');
     });
+
+    function eliminaRipasso(rip) {
+        var dati = new FormData();
+        dati.append('azione', 'elimina_ripasso');
+        dati.append('id', rip.id);
+        dati.append('csrf_token', CSRF);
+        fetch(fcUrl('fc_history.php'), { method: 'POST', body: dati, credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (!d || !d.success) { toast(T('fc.sfc_no_elimina'), false); return; }
+                /* la riga della madre torna ricalcolata: si ridisegna il
+                   dettaglio aperto, con un ripasso in meno */
+                var mid = String(d.madre || rip.madre);
+                if (d.riga) state.righe[mid] = d.riga;
+                var det = document.getElementById('sfcDet' + mid);
+                if (det && !det.hidden && state.righe[mid]) det.innerHTML = dettaglioHTML(state.righe[mid]);
+                toast(T('fc.sfc_ripasso_eliminato'));
+                caricaSospese();
+            })
+            .catch(function () { toast(T('comune.errore_rete'), false); });
+    }
 
     function chiudiAvviso() {
         el.sfcAlert.classList.remove('open');
@@ -1638,8 +1700,10 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
     el.sfcAlert.addEventListener('click', function (e) { if (e.target === el.sfcAlert) chiudiAvviso(); });
 
     el.sfcAlertSi.addEventListener('click', function () {
-        var id = daEliminare;
+        var id = daEliminare, rip = ripDaEliminare;
         chiudiAvviso();
+        ripDaEliminare = null;
+        if (rip) { eliminaRipasso(rip); return; }
         if (!id) return;
         var dati = new FormData();
         dati.append('azione', 'elimina');
@@ -1784,17 +1848,19 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
 
         var html = '<div class="sfc-mat-riepilogo">' + T(gioc.length === 1 ? 'fc.sfc_mat_riepilogo_1' : 'fc.sfc_mat_riepilogo', { n: gioc.length, tot: radici.length }) + '</div>';
 
-        html += '<div class="sfc-sezione-tit"><span>' + T('fc.sfc_mat_non_toccate') + ' · ' + non.length + '</span>' +
-            (non.length > 1 ? '<button type="button" class="sfc-ordina" data-ordina="non">' + T('fc.sfc_ms_' + state.ordNonToccate) + ICONE.chev + '</button>' : '') + '</div>';
-        html += non.length
-            ? '<div class="sfc-mat-gruppo">' + ordinaNonToccate(non).map(function (id) { return materiaHTML(id, 0); }).join('') + '</div>'
-            : '<div class="sfc-mat-nota">' + T('fc.sfc_tutte_toccate') + '</div>';
-
+        /* Prima quelle giocate nel periodo, poi quelle non toccate: si guarda
+           prima cosa si e' fatto, e sotto cosa resta da riprendere. */
         if (gioc.length) {
             html += '<div class="sfc-sezione-tit"><span>' + T('fc.sfc_mat_giocate') + ' · ' + gioc.length + '</span>' +
                 (gioc.length > 1 ? '<button type="button" class="sfc-ordina" data-ordina="gioc">' + T('fc.sfc_ms_' + state.ordGiocate) + ICONE.chev + '</button>' : '') + '</div>';
             html += '<div class="sfc-mat-gruppo">' + ordinaGiocate(gioc).map(function (id) { return materiaHTML(id, 0, 0); }).join('') + '</div>';
         }
+
+        html += '<div class="sfc-sezione-tit"><span>' + T('fc.sfc_mat_non_toccate') + ' · ' + non.length + '</span>' +
+            (non.length > 1 ? '<button type="button" class="sfc-ordina" data-ordina="non">' + T('fc.sfc_ms_' + state.ordNonToccate) + ICONE.chev + '</button>' : '') + '</div>';
+        html += non.length
+            ? '<div class="sfc-mat-gruppo">' + ordinaNonToccate(non).map(function (id) { return materiaHTML(id, 0); }).join('') + '</div>'
+            : '<div class="sfc-mat-nota">' + T('fc.sfc_tutte_toccate') + '</div>';
         el.sfcMaterie.innerHTML = html;
     }
 
