@@ -2460,3 +2460,32 @@ select.tb-select#filterSort{ max-width:112px; }
 }
 .mv-dest-ic svg{ width:21px; height:21px; }
 .mv-dest-nome{ min-width:0; font-size:17px; font-weight:800; letter-spacing:-.02em; color:var(--text); overflow-wrap:anywhere; }
+
+
+/* ================================================================
+   PREFERITE — la stellina accanto a "imparata"
+   Vuota e tenue se la carta non e' fra le preferite, piena e gialla se lo
+   e'. Nella selezione se ne va come "imparata": li' si sceglie, non si segna.
+   ================================================================ */
+.fav-btn{
+    flex-shrink:0; width:30px; height:30px; border-radius:50%; border:0; padding:0;
+    display:grid; place-items:center; cursor:pointer; background:transparent;
+    color:color-mix(in srgb, var(--text-3, #8a8a8e) 70%, transparent);
+    -webkit-tap-highlight-color:transparent;
+    transition:transform .2s var(--spring, ease), color .2s ease;
+}
+.fav-btn svg{ width:19px; height:19px; fill:none; }
+.fav-btn:active{ transform:scale(.85); }
+.fav-btn.is-on{ color:#FFB800; }
+.fav-btn.is-on svg{ fill:currentColor; filter:drop-shadow(0 2px 5px rgba(255,184,0,.4)); }
+.fav-btn.pop{ animation:favPop .45s cubic-bezier(.24,1.3,.35,1); }
+@keyframes favPop{ 0%{ transform:scale(1); } 40%{ transform:scale(1.35) rotate(-10deg); } 100%{ transform:scale(1); } }
+body.select-mode .fav-btn{ display:none; }
+
+/* Nella selezione la nota del mazzo non serve, e occupa la cima dell'elenco */
+body.select-mode #deckNote{ display:none; }
+
+/* Lingue: gli esempi si leggono interi, senza un riquadro che scorre dentro
+   la carta (sono frasi brevi, e scorrere dentro una carta che a sua volta
+   scorre era scomodo) */
+body.fc-vocab .qa-ex-viewport{ max-height:none; overflow:visible; padding-right:0; }

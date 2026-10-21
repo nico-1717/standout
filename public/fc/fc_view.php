@@ -26,6 +26,32 @@ function fc_valori_contenuto(array $row): array {
     return $out;
 }
 
+/* PREFERITE: quali carte sono fra le preferite (la stellina del gioco). Una
+   lettura sola per pagina; carte e sottocarte stanno in due colonne diverse
+   della stessa tabella, perche' si puo' segnare anche un singolo figlio. */
+function fc_vis_preferite(int $uid): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = ['p' => [], 'c' => []];
+    foreach (sec_all("SELECT fc_image_id, fc_child_id FROM " . fc_t('favorites') . " WHERE user_id = ?", [$uid]) as $r) {
+        if (!empty($r['fc_image_id'])) $cache['p'][(int)$r['fc_image_id']] = true;
+        if (!empty($r['fc_child_id'])) $cache['c'][(int)$r['fc_child_id']] = true;
+    }
+    return $cache;
+}
+
+/* La stellina accanto a "imparata": piena se la carta e' fra le preferite,
+   e si tocca per metterla o toglierla (fc_toggle_fav, qui sotto). */
+function fc_vis_stella(int $id, bool $figlio, int $uid): string {
+    $pref = fc_vis_preferite($uid);
+    $on = isset($pref[$figlio ? 'c' : 'p'][$id]);
+    return '<button type="button" class="fav-btn' . ($on ? ' is-on' : '') . '" data-fav-id="' . $id . '" data-fav-child="' . ($figlio ? 1 : 0) . '"'
+         . ' onclick="event.stopPropagation(); fcStellaCarta(this)" aria-pressed="' . ($on ? 'true' : 'false') . '"'
+         . ' aria-label="' . sec_h(t('fc.gm_preferiti')) . '" title="' . sec_h(t('fc.gm_preferiti')) . '">'
+         . '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2.5 3 6.6 7.2.8-5.4 4.9 1.5 7.2L12 18.2l-6.3 3.8 1.5-7.2-5.4-4.9 7.2-.8Z"/></svg>'
+         . '</button>';
+}
+
 /* Filtra un elenco di id di carte tenendo solo quelle di questo utente.
    Prima non c'era: gli id del modulo finivano nelle query senza controllo, e
    cambiando i numeri si cancellavano le flashcard di un altro. */
@@ -739,6 +765,7 @@ if (isset($_GET['fc_deep_search'])) {
                                 <div class="learnt-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
                             </label>
                         <?php endif; ?>
+                        <?= fc_vis_stella((int)$__row['id'], false, (int)$current_user_id) ?>
                         <div class="card-head-spacer"></div>
                     </div>
                     <?php fc_lati_carta($__row); ?>
@@ -940,6 +967,33 @@ if (isset($_GET['fc_project_summary'])) {
         ] : null,
     ]);
     exit;
+}
+
+// ==========================================
+// AJAX: mette o toglie una carta (o una sottocarta) dalle preferite.
+// Stessa tabella e stessa regola del gioco (fc_game.php, togglefavorite):
+// la carta dev'essere dell'utente, e un figlio si segna da solo.
+// ==========================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'fc_toggle_fav') {
+    header('Content-Type: application/json; charset=utf-8');
+    sec_guard_write($current_user_id, 'fc_vis', 0, 240, 60);
+    $fvId = sec_int($_POST['id'] ?? 0, 1);
+    $fvFiglio = sec_bool($_POST['is_child'] ?? false);
+    $fvPadre = $fvId;
+    if ($fvFiglio) {
+        $fvRow = sec_one("SELECT parent_id FROM " . fc_t('subcards') . " WHERE id_child = ?", [$fvId]);
+        $fvPadre = $fvRow ? (int)$fvRow['parent_id'] : 0;
+    }
+    if ($fvPadre <= 0 || !fc_solo_mie([$fvPadre], $current_user_id)) {
+        echo json_encode(['success' => false]); exit;
+    }
+    $fvCol = $fvFiglio ? 'fc_child_id' : 'fc_image_id';
+    if (sec_one("SELECT 1 AS x FROM " . fc_t('favorites') . " WHERE user_id = ? AND $fvCol = ?", [$current_user_id, $fvId])) {
+        sec_q("DELETE FROM " . fc_t('favorites') . " WHERE user_id = ? AND $fvCol = ?", [$current_user_id, $fvId]);
+        echo json_encode(['success' => true, 'favorite' => false]); exit;
+    }
+    sec_q("INSERT IGNORE INTO " . fc_t('favorites') . " (user_id, $fvCol, favorited_date) VALUES (?, ?, CURDATE())", [$current_user_id, $fvId]);
+    echo json_encode(['success' => true, 'favorite' => true]); exit;
 }
 
 // ==========================================
@@ -1954,6 +2008,8 @@ function fc_stampa_gruppi($da, $quanti) {
 
                                 <?php endif; ?>
 
+                                <?= fc_vis_stella((int)$row['id'], false, (int)$current_user_id) ?>
+
                                 <label class="select-circle">
 
                                     <input type="checkbox" name="selected_ids[]" value="<?= (int)$row['id'] ?>" class="bulk-checkbox standalone-cb record-cb" onchange="onRecordCbChange(this)">
@@ -2094,6 +2150,8 @@ function fc_stampa_gruppi($da, $quanti) {
                                 <div class="card-head">
 
                                     <div class="child-tag"><span>↳</span> <?php te('fc.vis_sotto_carta'); ?></div>
+
+                                    <?= fc_vis_stella((int)$child['id'], true, (int)$current_user_id) ?>
 
                                     <label class="select-circle">
 
@@ -3782,6 +3840,35 @@ $all('.audio-player').forEach(function(wrap){
    TOGGLE "IMPARATO"
 
    ================================================================ */
+
+/* La stellina delle preferite (fc_vis_stella): cambia subito, e torna
+   com'era se il server dice di no. */
+function fcStellaCarta(btn){
+    if (btn.disabled) return;
+    var on = !btn.classList.contains('is-on');
+    btn.classList.toggle('is-on', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (on) { btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop'); }
+    buzz(on ? 10 : 6);
+    btn.disabled = true;
+    var fd = new FormData();
+    fd.append('action', 'fc_toggle_fav');
+    fd.append('id', btn.getAttribute('data-fav-id'));
+    fd.append('is_child', btn.getAttribute('data-fav-child') || '0');
+    fetch(fcUrl('fc_view.php'), { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (!d || !d.success) throw new Error('rifiutato');
+            btn.classList.toggle('is-on', !!d.favorite);
+            btn.setAttribute('aria-pressed', d.favorite ? 'true' : 'false');
+        })
+        .catch(function(){
+            btn.classList.toggle('is-on', !on);
+            btn.setAttribute('aria-pressed', !on ? 'true' : 'false');
+            showToast(T('fc.vis_azione_fallita'));
+        })
+        .then(function(){ btn.disabled = false; });
+}
 
 function toggleLearnt(id, checkbox){
 
