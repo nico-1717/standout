@@ -4310,7 +4310,14 @@
     "amici": "Amici",
     "apri_menu": "Apri menu",
     "chiudi_menu": "Chiudi menu",
-    "menu": "Menu"
+    "menu": "Menu",
+    "inserisci": "Inserisci",
+    "ins_dove": "Dove vuoi inserire?",
+    "ins_uni": "Università",
+    "ins_lingue": "Vocabolario",
+    "ins_quale": "In quale lingua?",
+    "ins_indietro": "‹ Indietro",
+    "ins_nessuna": "Non hai ancora una lingua: creane una"
   },
   "lingua": {
     "titolo": "Lingua",

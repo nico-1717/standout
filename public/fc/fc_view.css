@@ -1808,7 +1808,10 @@ body.is-compact .fc-card:not(.is-open) .audio-player,
 body.is-compact .fc-card:not(.is-open) .qa-empty,
 body.is-compact .fc-card:not(.is-open) .qa-examples,
 body.is-compact .fc-card:not(.is-open) .dup-badge,
-body.is-compact .fc-card:not(.is-open) .cat-badge{ display:none; }
+body.is-compact .fc-card:not(.is-open) .cat-badge,
+/* il livello (Difficile, Nuova, In corso...): in una riga sola ruba il posto
+   al testo, e per scegliere e spostare non serve */
+body.is-compact .fc-card:not(.is-open) .fcv-liv{ display:none; }
 
 body.is-compact .fc-card:not(.is-open) .qa-content{ display:block; }
 body.is-compact .fc-card:not(.is-open) .qa-text{

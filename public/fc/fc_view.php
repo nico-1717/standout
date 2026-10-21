@@ -478,6 +478,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
                il filtro della modalita'. */
             'nati'  => array_values(array_filter(array_unique($nati ?? []))),
             'padre' => isset($father_id) ? (int)$father_id : 0,
+            /* Sposta: quante e dove, per l'avviso (la pagina non si ricarica
+               piu', cosi' si resta nella selezione) */
+            'spostate'  => (int)($spostate ?? 0),
+            'dest_nome' => !empty($spostate)
+                ? (string)(sec_one("SELECT name FROM " . fc_t('decks') . " WHERE id = ? AND user_id = ?", [(int)$spostate_dest, $current_user_id])['name'] ?? '')
+                : '',
         ]);
         exit;
     }
@@ -4921,6 +4927,18 @@ function fcAggiungiCarta(){
 
 
 
+/* Arrivando dalla scorciatoia "Inserisci" della sidebar (?inserisci=1) il
+   popup per aggiungere una carta si apre da solo. Il parametro si toglie
+   subito dall'indirizzo: ricaricando la pagina non deve riaprirsi. */
+(function(){
+    var u;
+    try { u = new URL(window.location.href); } catch (e) { return; }
+    if (u.searchParams.get('inserisci') !== '1') return;
+    u.searchParams.delete('inserisci');
+    try { history.replaceState(null, '', u.toString()); } catch (e) {}
+    window.addEventListener('load', function(){ setTimeout(fcAggiungiCarta, 150); });
+})();
+
 /* ---------- Nuova cartella (categoria figlia di questa) ---------- */
 
 function fcApriNuovaCartella(){
@@ -7624,12 +7642,33 @@ function spostaSottoIlPadre(nuovoPadre){
         });
 }
 
+/* Lo spostamento non ricarica piu' la pagina: si manda come Separa e Unisci
+   (bulk_ajax=1) e si ridisegna solo l'elenco. Cosi' si resta nella selezione,
+   con la vista compatta e i filtri di prima: spostare a gruppi da una
+   categoria all'altra di solito si fa piu' volte di fila. */
 function pickMoveCategory(categoryId){
 
     document.getElementById('hiddenTargetCategory').value = categoryId;
+    document.getElementById('hiddenBulkAction').value = 'move';
 
-    submitBulkForm('move');
+    var dati = new FormData(document.getElementById('bulkForm'));
+    dati.set('bulk_ajax', '1');
 
+    fetch(window.location.href, { method: 'POST', body: dati, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (!d || !d.success) throw new Error('spostamento rifiutato');
+            $all('.st-action').forEach(function(b){ b.classList.remove('active-pick'); });
+            return ricaricaElenco(d).then(function(){
+                var n = d.spostate || 0;
+                if (n > 0) showToast(n === 1 ? T('fc.vis_spostate_1', {cat: d.dest_nome || ''})
+                                             : T('fc.vis_spostate_n', {n: n, cat: d.dest_nome || ''}));
+            });
+        })
+        .catch(function(err){
+            console.error('[selezione] sposta', err);
+            showToast(T('fc.vis_azione_fallita'));
+        });
 }
 
 /* LO SPOSTAMENTO DELLE CARTE: scelta la categoria, si chiede conferma.

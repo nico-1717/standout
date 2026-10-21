@@ -4310,7 +4310,14 @@
     "amici": "Friends",
     "apri_menu": "Open menu",
     "chiudi_menu": "Close menu",
-    "menu": "Menu"
+    "menu": "Menu",
+    "inserisci": "Insert",
+    "ins_dove": "Where do you want to insert?",
+    "ins_uni": "University",
+    "ins_lingue": "Vocabulary",
+    "ins_quale": "Which language?",
+    "ins_indietro": "‹ Back",
+    "ins_nessuna": "You have no language yet: create one"
   },
   "lingua": {
     "titolo": "Language",

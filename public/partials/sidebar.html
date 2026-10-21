@@ -139,6 +139,59 @@
 
         .sidebar-divider { height: 1px; background-color: var(--sb-hairline); margin: 10px 22px 2px; border: none; }
 
+
+        /* ================================================================
+           "INSERISCI" SOTTO FLASHCARDS
+           Un tasto piccolo, rientrato sotto la voce e legato a lei da un
+           filo del suo colore: si legge come una sua azione, non come una
+           pagina nuova. Toccandolo si apre sotto la scelta (Universita' o
+           Vocabolario, poi la lingua).
+           ================================================================ */
+        .sidebar-links li.sb-sub-li { margin: -1px 12px 4px 30px; position: relative; padding-left: 14px; }
+        .sb-sub-li::before {
+            content: ""; position: absolute; left: 0; top: -6px; width: 10px; height: 23px;
+            border-left: 1.5px solid color-mix(in srgb, #BF5AF2 55%, transparent);
+            border-bottom: 1.5px solid color-mix(in srgb, #BF5AF2 55%, transparent);
+            border-bottom-left-radius: 8px;
+        }
+        .sb-sub {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 12px 6px 7px; min-height: 32px; border: 0; border-radius: 999px; cursor: pointer;
+            background: color-mix(in srgb, var(--sb-c) 16%, transparent); color: rgba(255, 255, 255, .9);
+            font: inherit; font-size: .84rem; font-weight: 600; -webkit-tap-highlight-color: transparent;
+            transition: transform .25s var(--sb-spring), background-color .25s var(--sb-ease);
+        }
+        .sb-sub:active { transform: scale(.95); }
+        .sb-sub[aria-expanded="true"] { background: color-mix(in srgb, var(--sb-c) 30%, transparent); }
+        .sb-sub-ic {
+            width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; color: #fff;
+            background: linear-gradient(145deg, color-mix(in srgb, var(--sb-c) 88%, #fff), var(--sb-c));
+        }
+        .sb-sub-ic svg { width: 13px; height: 13px; }
+        .sb-pick {
+            margin: 8px 0 4px; padding: 8px; border-radius: 14px;
+            background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 1px var(--sb-hairline);
+            animation: sbPickIn .3s var(--sb-spring) both;
+        }
+        .sb-pick[hidden], .sb-pick-step[hidden], .sb-pick-msg[hidden] { display: none; }
+        @keyframes sbPickIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+        .sb-pick-t { padding: 2px 6px 6px; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--sb-muted); }
+        .sb-pick-opt {
+            display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 8px; border: 0; border-radius: 11px;
+            background: transparent; color: var(--sb-text); font: inherit; font-size: .9rem; font-weight: 600; text-align: left; cursor: pointer;
+        }
+        .sb-pick-opt:active { background: var(--sb-hover); transform: scale(.98); }
+        .sb-pick-ic {
+            width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center; color: #fff;
+            background: linear-gradient(145deg, color-mix(in srgb, var(--sb-c) 88%, #fff), var(--sb-c));
+        }
+        .sb-pick-ic svg { width: 16px; height: 16px; }
+        .sb-pick-flag { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(255,255,255,.18); }
+        .sb-pick-sub { display: block; font-size: .74rem; font-weight: 500; color: var(--sb-muted); }
+        .sb-pick-back { margin: 4px 0 0 6px; padding: 4px 2px; border: 0; background: none; color: var(--sb-muted); font: inherit; font-size: .8rem; cursor: pointer; }
+        .sb-pick-msg { padding: 6px; font-size: .82rem; color: var(--sb-muted); }
+        .sb-pick-msg a { color: #BF5AF2; font-weight: 600; text-decoration: none; }
+
         /* pallino rosso: notifiche di amicizia in sospeso */
         .sb-badge {
             margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px;
@@ -231,6 +284,35 @@
             <div class="sidebar-section-title"><?php te('sidebar.sezione_impara'); ?></div>
             <ul class="sidebar-links">
                 <li><a href="<?php echo PWA_BASE; ?>fc/fc_home.php" id="link-fc" style="--sb-c:#BF5AF2" data-sb-match="/fc/"><span class="sb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="13" height="16" rx="2.4"/><path d="M4 7.2V19a2 2 0 0 0 2 2h9.6"/><path d="m14.2 6.8-2.6 4.4h3l-2.4 4"/></svg></span><span><?php te('sidebar.flashcards'); ?></span></a></li>
+                <?php /* "Inserisci": scorciatoia legata a Flashcards. Chiede se
+                         Universita' o Vocabolario (e quale lingua, se sono piu'
+                         d'una) e apre il popup per aggiungere una carta. */ ?>
+                <li class="sb-sub-li">
+                    <button type="button" class="sb-sub" id="sbFcIns" style="--sb-c:#BF5AF2" aria-expanded="false"
+                            data-base="<?php echo PWA_BASE; ?>">
+                        <span class="sb-sub-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg></span>
+                        <span><?php te('sidebar.inserisci'); ?></span>
+                    </button>
+                    <div class="sb-pick" id="sbFcPick" hidden>
+                        <div class="sb-pick-step" data-step="tipo">
+                            <div class="sb-pick-t"><?php te('sidebar.ins_dove'); ?></div>
+                            <button type="button" class="sb-pick-opt" data-tipo="study">
+                                <span class="sb-pick-ic" style="--sb-c:#0A84FF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11.4V17c0 1.1 2.7 3 6 3s6-1.9 6-3v-5.6"/></svg></span>
+                                <span><?php te('sidebar.ins_uni'); ?></span>
+                            </button>
+                            <button type="button" class="sb-pick-opt" data-tipo="vocab">
+                                <span class="sb-pick-ic" style="--sb-c:#BF5AF2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h8M8 3v2M5.5 5c.8 3.6 3 6.4 6 8M10.5 5c-.9 4-3.4 7.2-6.5 9"/><path d="M13 21l4-10 4 10M14.5 17.5h5"/></svg></span>
+                                <span><?php te('sidebar.ins_lingue'); ?></span>
+                            </button>
+                        </div>
+                        <div class="sb-pick-step" data-step="lingua" hidden>
+                            <div class="sb-pick-t"><?php te('sidebar.ins_quale'); ?></div>
+                            <div class="sb-pick-lingue" id="sbFcLingue"></div>
+                            <button type="button" class="sb-pick-back" data-back="1"><?php te('sidebar.ins_indietro'); ?></button>
+                        </div>
+                        <div class="sb-pick-msg" id="sbFcMsg" data-vuoto="<?php echo sec_h(t('sidebar.ins_nessuna')); ?>" hidden></div>
+                    </div>
+                </li>
                 <li><a href="<?php echo PWA_BASE; ?>exams/voti.php" id="link-voti" style="--sb-c:#0FB5AE"><span class="sb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="5.6"/><path d="m8.6 13.6-1.4 7 4.8-2.4 4.8 2.4-1.4-7"/><path d="m10 9.1 1.4 1.4 2.8-2.9"/></svg></span><span><?php te('sidebar.voti'); ?></span></a></li>
             </ul>
 
@@ -358,6 +440,81 @@
                 setTimeout(function () { window.location.href = href; }, 150);
             });
         });
+
+
+        /* ============================== INSERISCI (sotto Flashcards) ============================== */
+        /* Universita' o Vocabolario; per il vocabolario la lingua (chiesta
+           solo se sono piu' d'una, letta da fc_corsi_lista.php al tocco). Poi
+           si va all'elenco delle carte con ?inserisci=1, che apre da solo il
+           popup per aggiungere una carta (fc_view.php). */
+        (function () {
+            var btn = document.getElementById('sbFcIns'), pick = document.getElementById('sbFcPick');
+            if (!btn || !pick) return;
+            var base = btn.getAttribute('data-base') || '/';
+            var stepTipo = pick.querySelector('[data-step="tipo"]'), stepLingua = pick.querySelector('[data-step="lingua"]');
+            var lista = document.getElementById('sbFcLingue'), msg = document.getElementById('sbFcMsg');
+
+            function mostra(step) {
+                stepTipo.hidden = step !== 'tipo';
+                stepLingua.hidden = step !== 'lingua';
+                msg.hidden = true;
+            }
+            function vai(url) { buzz(10); window.location.href = url; }
+            function apriVocab(id) { vai(base + 'fc/fc_view.php?course=' + encodeURIComponent(id) + '&inserisci=1'); }
+
+            btn.addEventListener('click', function () {
+                var aperto = pick.hidden;
+                pick.hidden = !aperto;
+                btn.setAttribute('aria-expanded', aperto ? 'true' : 'false');
+                if (aperto) mostra('tipo');
+                buzz(6);
+            });
+            pick.addEventListener('click', function (e) {
+                var t = e.target.closest ? e.target.closest('button') : null;
+                if (!t) return;
+                if (t.hasAttribute('data-back')) { mostra('tipo'); return; }
+                var tipo = t.getAttribute('data-tipo');
+                if (tipo === 'study') { vai(base + 'fc/fc_view.php?inserisci=1'); return; }
+                if (tipo === 'vocab') {
+                    t.disabled = true;
+                    fetch(base + 'fc/fc_corsi_lista.php', { credentials: 'same-origin', cache: 'no-store' })
+                        .then(function (r) { return r.json(); })
+                        .then(function (d) {
+                            t.disabled = false;
+                            var corsi = (d && d.corsi) || [];
+                            if (corsi.length === 1) { apriVocab(corsi[0].id); return; }
+                            if (!corsi.length) {
+                                stepTipo.hidden = true;
+                                msg.innerHTML = '';
+                                var a = document.createElement('a');
+                                a.href = base + 'fc/fc_home.php';
+                                a.textContent = msg.getAttribute('data-vuoto') || '';
+                                msg.appendChild(a);
+                                msg.hidden = false;
+                                return;
+                            }
+                            lista.innerHTML = '';
+                            corsi.forEach(function (c) {
+                                var b = document.createElement('button');
+                                b.type = 'button';
+                                b.className = 'sb-pick-opt';
+                                var img = document.createElement('img');
+                                img.className = 'sb-pick-flag'; img.src = c.bandiera; img.alt = '';
+                                var txt = document.createElement('span');
+                                txt.textContent = c.nome;
+                                var sub = document.createElement('span');
+                                sub.className = 'sb-pick-sub'; sub.textContent = c.da;
+                                txt.appendChild(sub);
+                                b.appendChild(img); b.appendChild(txt);
+                                b.addEventListener('click', function (ev) { ev.stopPropagation(); apriVocab(c.id); });
+                                lista.appendChild(b);
+                            });
+                            mostra('lingua');
+                        })
+                        .catch(function () { t.disabled = false; vai(base + 'fc/fc_home.php'); });
+                }
+            });
+        })();
 
         /* Evidenzia la pagina attiva. Una voce con data-sb-match vale per
            tutta una sezione (Flashcards: ogni pagina sotto /fc/); le altre
