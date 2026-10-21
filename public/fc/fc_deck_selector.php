@@ -23,6 +23,7 @@
 /* Il tipo (studio o lingua) lo decide la pagina che include questo file con
    fc_avvia(); chi non lo chiama (progetti.php) resta sullo studio, com'era. */
 require_once __DIR__ . '/../../lib/fc/fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_icone.php';
 
 if (isset($_GET['cs_ajax']) && $_GET['cs_ajax'] === 'create_category') {
 
@@ -85,7 +86,7 @@ if (isset($_GET['cs_ajax']) && $_GET['cs_ajax'] === 'create_category') {
           array_merge([$name, $parentId, $resolvedColor, (int)$current_user_id], $xVal));
     $newId = sec_insert_id();
     if ($newId > 0) {
-        echo json_encode(['success' => true, 'id' => $newId, 'name' => $name, 'parent_id' => $parentId, 'color' => $resolvedColor], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['success' => true, 'id' => $newId, 'name' => $name, 'parent_id' => $parentId, 'color' => $resolvedColor, 'icon_svg' => fc_icona_svg(fc_icona_da_nome($name))], JSON_UNESCAPED_UNICODE);
     } else {
         echo json_encode(['success' => false, 'error' => t('fc.cs_errore_salvataggio')]);
     }
@@ -379,17 +380,12 @@ if (!function_exists('cs_render_node')) {
 
 
 
+                <?php /* L'icona e' quella del mazzo (scelta, o ricavata dal nome),
+                         la stessa che si vede nell'elenco dei mazzi: cosi' la
+                         categoria si riconosce senza leggerne il nome. */ ?>
                 <span class="cs-icon">
 
-                    <?php if ($hasChildren): ?>
-
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
-
-                    <?php else: ?>
-
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/></svg>
-
-                    <?php endif; ?>
+                    <?php echo fc_icona_svg(fc_icona_mazzo_di($node)); ?>
 
                 </span>
 
@@ -1072,7 +1068,7 @@ if (!window.nsScrollLock) {
 
         var searchKey = nameEsc.toLowerCase();
 
-        var iconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/></svg>';
+        var iconSvg = node.icon_svg || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/></svg>';
 
         return '<div class="cs-row-wrap" style="--row-color:' + color + ';">' +
 
@@ -1146,13 +1142,7 @@ if (!window.nsScrollLock) {
 
             }
 
-            var iconEl = row.querySelector(':scope > .cs-icon');
-
-            if (iconEl) {
-
-                iconEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>';
-
-            }
+            /* L'icona resta la sua: ogni categoria ha la propria, genitore o no. */
 
             var nameEl = row.querySelector(':scope > .cs-name');
 

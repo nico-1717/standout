@@ -364,8 +364,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
         if (!empty($miei) && fc_mazzo_mio($target_cat, $current_user_id)) {
             $ph = implode(',', array_fill(0, count($miei), '?'));
             sec_q("UPDATE " . fc_t('cards') . " SET category_id = ? WHERE id IN ($ph)", array_merge([$target_cat], $miei));
+            /* Quante e dove: la pagina, ricaricandosi, lo dice con un avviso.
+               Senza, lo spostamento riusciva ma non si vedeva niente — la
+               pagina tornava uguale e sembrava che il tasto non avesse fatto
+               nulla. */
+            $spostate = count($miei);
+            $spostate_dest = $target_cat;
         }
-    } 
+    }
         elseif ($action === 'join' && isset($_POST['father_id'])) {
         $nati = [];
         $father_id = sec_int($_POST['father_id'], 1);
@@ -476,7 +482,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
         exit;
     }
 
-    header('Location: ' . fc_url('fc_view.php', isset($_GET['category_id']) ? ['category_id' => sec_int($_GET['category_id'], 0)] : []));
+    $redir = isset($_GET['category_id']) ? ['category_id' => sec_int($_GET['category_id'], 0)] : [];
+    if (!empty($spostate)) { $redir['spostate'] = (int)$spostate; $redir['dest'] = (int)$spostate_dest; }
+    header('Location: ' . fc_url('fc_view.php', $redir));
 
     exit;
 
@@ -2859,6 +2867,46 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 </div>
 
 
+
+<?php /* La conferma dello spostamento delle CARTE. Si apre dopo aver scelto la
+         categoria e nomina quante carte e dove vanno, con l'icona e il colore
+         della categoria: "sposto 3 carte in Food" si controlla, "confermi?"
+         no. Prima la scelta partiva da sola, e a spostamento fatto non c'era
+         nessun segno che fosse successo qualcosa. */ ?>
+<div class="sheet-overlay" id="moveSheet">
+    <div class="sheet-panel">
+        <h3 id="moveSheetTitle"></h3>
+        <p class="sheet-sub"><?php te('fc.vis_sposta_c_sub'); ?></p>
+        <div class="mv-dest" id="moveSheetDest">
+            <span class="mv-dest-ic" id="moveSheetIc"></span>
+            <span class="mv-dest-nome" id="moveSheetNome"></span>
+        </div>
+        <div class="sheet-warn" id="moveSheetWarn"></div>
+        <div class="sheet-actions">
+            <button type="button" class="sheet-btn" onclick="closeSheet('moveSheet')"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="sheet-btn primary" id="moveSheetConfirm"><?php te('fc.vis_sposta_ok'); ?></button>
+        </div>
+    </div>
+</div>
+
+<?php /* Dopo lo spostamento la pagina si ricarica con ?spostate=N&dest=ID:
+         qui si legge il nome della categoria (solo se e' sua) e si dice cosa e'
+         successo. */
+      $sp_n = sec_int($_GET['spostate'] ?? 0, 0);
+      $sp_dest = sec_int($_GET['dest'] ?? 0, 0);
+      if ($sp_n > 0 && $sp_dest > 0):
+          $sp_row = sec_one("SELECT name FROM " . fc_t('decks') . " WHERE id = ? AND user_id = ?", [$sp_dest, $current_user_id]);
+          if ($sp_row):
+              $sp_msg = $sp_n === 1 ? t('fc.vis_spostate_1', ['cat' => $sp_row['name']])
+                                    : t('fc.vis_spostate_n', ['n' => $sp_n, 'cat' => $sp_row['name']]); ?>
+<script>
+window.addEventListener('load', function(){
+    setTimeout(function(){ showToast(<?php echo json_encode($sp_msg, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>); }, 250);
+    /* L'indirizzo torna pulito: ricaricando a mano l'avviso non si ripete. */
+    try { var u = new URL(location.href); u.searchParams.delete('spostate'); u.searchParams.delete('dest'); history.replaceState(null, '', u.toString()); } catch (e) {}
+});
+</script>
+<?php endif; endif; ?>
 
 <?php /* Lo spostamento usa ora fc_deck_selector.php invece di un elenco
          piatto: le materie sono un albero con sottocategorie, e un elenco
@@ -7277,6 +7325,9 @@ function onBulkActionPick(action){
            sempre nell'"else" e mostrava un avviso invece del selettore. Il modo
            previsto e' data-cs-open, e un tocco su un elemento che ce l'ha: qui
            lo si simula su un pulsante che sta li' apposta, invisibile. */
+        /* Solo sottocarte scelte: non c'e' niente da spostare, e scoprirlo
+           dopo aver scelto la categoria sarebbe un giro a vuoto. */
+        if ($all('.standalone-cb:checked').length === 0) { showToast(T('fc.vis_sposta_solo_figlie')); return; }
         var apri = document.getElementById('apriModaleMove');
         if (apri) apri.click();
         else showToast(T('fc.vis_sposta_dove'));
@@ -7577,20 +7628,49 @@ function pickMoveCategory(categoryId){
 
     document.getElementById('hiddenTargetCategory').value = categoryId;
 
-
-
     submitBulkForm('move');
 
 }
 
-/* Il selettore scrive la categoria scelta nel proprio campo nascosto: si
-   osserva quello invece di inventare una richiamata che il componente non
-   prevede. */
-document.addEventListener('change', function (e) {
-    if (e.target && e.target.name === 'cs_move_target' && e.target.value) {
-        pickMoveCategory(parseInt(e.target.value, 10) || 0);
+/* LO SPOSTAMENTO DELLE CARTE: scelta la categoria, si chiede conferma.
+   Il selettore NON lancia un evento "change" sul suo campo nascosto (ne
+   cambia il valore da codice, e da codice non parte nessun evento): era
+   questo il motivo per cui scegliere la categoria non faceva niente. Quello
+   che il componente prevede e' l'evento "categoryselected", con l'uid che
+   gli si e' dato ('move'). */
+document.addEventListener('categoryselected', function(e){
+    if (!e.detail || e.detail.uid !== 'move') return;
+    var dest = parseInt(e.detail.id, 10) || 0;
+    if (dest <= 0) return;
+
+    /* Le carte scelte sono quelle "madri" o singole: le sottocarte non si
+       spostano da sole (stanno sotto la loro madre). */
+    var carte = $all('.standalone-cb:checked').length;
+    var figlie = $all('.child-cb:checked').length;
+    if (carte === 0) { showToast(T(figlie ? 'fc.vis_sposta_solo_figlie' : 'fc.vis_serve_carta')); return; }
+    if (dest === (typeof CAT_ID_CORRENTE === 'number' ? CAT_ID_CORRENTE : 0)) {
+        showToast(T('fc.vis_sposta_gia'));
+        return;
     }
+
+    document.getElementById('moveSheetTitle').textContent = carte === 1 ? T('fc.vis_sposta_c1') : T('fc.vis_sposta_cn', {n: carte});
+    document.getElementById('moveSheetNome').textContent = e.detail.name || '';
+    var chip = document.getElementById('moveSheetDest');
+    chip.style.setProperty('--chip', e.detail.color || '#007AFF');
+
+    /* L'icona e' quella che la categoria ha nell'albero del selettore. */
+    var voce = document.querySelector('#cs-modal-move [data-cs-select="' + dest + '"]');
+    var ic = voce && voce.closest('.cs-row') ? voce.closest('.cs-row').querySelector('.cs-icon') : null;
+    document.getElementById('moveSheetIc').innerHTML = ic ? ic.innerHTML : '';
+
+    var warn = document.getElementById('moveSheetWarn');
+    if (figlie > 0) { warn.textContent = T('fc.vis_sposta_c_figlie'); warn.style.display = 'block'; }
+    else warn.style.display = 'none';
+
+    document.getElementById('moveSheetConfirm').onclick = function(){ closeSheet('moveSheet'); pickMoveCategory(dest); };
+    document.getElementById('moveSheet').style.display = 'flex';
 });
+document.getElementById('moveSheet').addEventListener('click', function(ev){ if (ev.target === this) closeSheet('moveSheet'); });
 
 
 

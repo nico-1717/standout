@@ -76,7 +76,7 @@ if (!empty($chieste)) {
 
 /* Il tipo resta quello di sempre ('fc' / 'fc_L') perche' altre pagine lo
    leggono; la distinzione vera fra le tre scelte sta in card_status. */
-$game_type = (fc_is_vocab() ? sec_enum($_GET['dir'] ?? null, FC_VERSI, 'w2t') : 'fc') . ($status === '1' ? '_L' : '');
+$game_type = (fc_is_vocab() ? sec_enum($_GET['dir'] ?? null, FC_VERSI, 't2w') : 'fc') . ($status === '1' ? '_L' : '');
 
 /* ---------------------------------------------------------------------
    La sequenza della partita si decide QUI, una volta sola: quale padre va

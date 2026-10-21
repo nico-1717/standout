@@ -127,7 +127,11 @@ function renderGameCatRow($node, $level = 0) {
 
     <div class="options-card">
         <?php if ($fc_vocab):
-            /* Il verso: si sceglie qui, una volta per partita. "Misto" alterna
+            /* Di partenza e' sempre "dall'italiano all'inglese" (t2w: si vede
+               la traduzione, si risponde con la parola): e' il verso che si
+               vuole di solito, e lo stesso vale per gli avvii rapidi che non
+               passano da qui (fc_game_start.php). Gli altri due restano a un
+               tocco. Il verso scelto: una volta per partita. "Misto" alterna
                le posizioni, cosi' una parola si ripassa nei due sensi. Le
                scelte sono bandiere (inglese -> italiano...): a parole non ci
                stanno in tre su un telefono, e la bandiera si legge prima. */
@@ -138,9 +142,9 @@ function renderGameCatRow($node, $level = 0) {
         <div class="opt-section">
             <div class="opt-label"><?php te('fcv.verso'); ?></div>
             <div class="segmented seg-dir">
-                <input type="radio" id="gd_w2t" name="game_dir" value="w2t" checked onchange="updateLinks()">
+                <input type="radio" id="gd_w2t" name="game_dir" value="w2t" onchange="updateLinks()">
                 <label for="gd_w2t" title="<?php echo sec_h(t('fcv.verso_w2t')); ?>"><span class="sr-only"><?php te('fcv.verso_w2t'); ?></span><span class="dir-flags" aria-hidden="true"><?php echo $fcBi . $fcFr . $fcBk; ?></span></label>
-                <input type="radio" id="gd_t2w" name="game_dir" value="t2w" onchange="updateLinks()">
+                <input type="radio" id="gd_t2w" name="game_dir" value="t2w" checked onchange="updateLinks()">
                 <label for="gd_t2w" title="<?php echo sec_h(t('fcv.verso_t2w')); ?>"><span class="sr-only"><?php te('fcv.verso_t2w'); ?></span><span class="dir-flags" aria-hidden="true"><?php echo $fcBk . $fcFr . $fcBi; ?></span></label>
                 <input type="radio" id="gd_mix" name="game_dir" value="mix" onchange="updateLinks()">
                 <label for="gd_mix"><?php te('fcv.verso_mix'); ?></label>

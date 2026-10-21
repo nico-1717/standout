@@ -4051,7 +4051,16 @@
     "ico_moneta": "Coin",
     "ico_carrello": "Cart",
     "ico_calendario": "Calendar",
-    "ico_albero": "Tree"
+    "ico_albero": "Tree",
+    "vis_sposta_c1": "Move 1 card?",
+    "vis_sposta_cn": "Move {n} cards?",
+    "vis_sposta_c_sub": "The selected cards will go to:",
+    "vis_sposta_c_figlie": "Selected sub-cards stay where they are: only the cards are moved.",
+    "vis_sposta_ok": "Move",
+    "vis_sposta_gia": "They are already in this category",
+    "vis_sposta_solo_figlie": "Sub-cards can't be moved on their own: separate them first, or select the parent card",
+    "vis_spostate_1": "Card moved to “{cat}”",
+    "vis_spostate_n": "{n} cards moved to “{cat}”"
   },
   "fchub": {
     "home_titolo": "Flashcards",

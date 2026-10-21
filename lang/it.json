@@ -4051,7 +4051,16 @@
     "ico_moneta": "Moneta",
     "ico_carrello": "Carrello",
     "ico_calendario": "Calendario",
-    "ico_albero": "Albero"
+    "ico_albero": "Albero",
+    "vis_sposta_c1": "Spostare 1 carta?",
+    "vis_sposta_cn": "Spostare {n} carte?",
+    "vis_sposta_c_sub": "Le carte scelte andranno in:",
+    "vis_sposta_c_figlie": "Le sottocarte scelte restano dove sono: si spostano solo le carte.",
+    "vis_sposta_ok": "Sposta",
+    "vis_sposta_gia": "Sono già in questa categoria",
+    "vis_sposta_solo_figlie": "Le sottocarte non si spostano da sole: separale prima, oppure scegli la carta madre",
+    "vis_spostate_1": "Carta spostata in «{cat}»",
+    "vis_spostate_n": "{n} carte spostate in «{cat}»"
   },
   "fchub": {
     "home_titolo": "Flashcard",
