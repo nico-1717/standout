@@ -402,7 +402,10 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 .pl-day-btn{ grid-column:1; grid-row:2; display:flex; align-items:baseline; gap:6px; align-self:end; min-width:0; }
 /* il meteo del giorno: allineato in basso come il nome del giorno, così i due
    stanno sulla stessa riga ottica invece che uno a mezz'aria */
-.pl-day-wx{ grid-column:2; grid-row:2; align-self:end; margin-bottom:4px; justify-self:start; }
+/* Accanto al numero e sopra il nome del giorno (il margine sinistro, largo
+   quanto il numero, lo scrive il JS): sulla riga del nome non c'e' posto, e
+   li' lo copriva. */
+.pl-day-wx{ grid-column:1 / 4; grid-row:2; align-self:start; justify-self:start; margin-top:-1px; position:relative; z-index:1; }
 .pl-day-num{ font-size:40px; font-weight:400; line-height:.9; letter-spacing:-.015em; }
 .pl-day-wd{
     font-size:12px; letter-spacing:.15em; text-transform:uppercase; color:var(--ink-2);

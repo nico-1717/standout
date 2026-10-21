@@ -88,7 +88,7 @@ foreach (['base', 'griglia', 'liste', 'fogli', 'extra', 'responsive'] as $plCss)
                  piu': non la si usava, e rubava spazio e un tocco sbagliato. */ ?>
         <button type="button" class="pl-week" id="plWeekBtn">
             <span class="pl-week-n pl-serif" id="plWeekN">1</span>
-            <span class="pl-week-k"><?php te('planner.settimana'); ?></span>
+            <span class="pl-week-k"><?php te('planner.settimana_breve'); ?></span>
         </button>
         <?php /* "Vai a oggi" come un foglietto di calendario (mese in alto, numero
                  sotto): il numero da solo non diceva cosa faceva il tasto. */ ?>
@@ -258,9 +258,9 @@ foreach (['base', 'griglia', 'liste', 'fogli', 'extra', 'responsive'] as $plCss)
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4.4l3 1.8"/></svg>
     </button>
 
-    <button type="button" class="pl-fab" id="plFabDiary" aria-label="<?php te('planner.diario_del_giorno'); ?>">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 4h10a2 2 0 012 2v14H8a2 2 0 01-2-2z"/><path d="M6 4v16"/><path d="M10 9h5M10 13h5"/></svg>
-    </button>
+    <?php /* Il tastino del diario non c'e' piu': il diario del giorno sta nel
+             pannello della settimana (a sinistra), coperto finche' non lo si
+             apre. */ ?>
     </div>
 
     <!-- La freccetta chiude e riapre la colonna. Sta in fondo al gruppo, non

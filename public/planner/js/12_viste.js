@@ -41,7 +41,7 @@ function scriviVista() {
     var lab = $('plViewLab');
     if (!lab) return;
     lab.textContent = S.view === 'month' ? T('planner.mese')
-        : (S.view === 'week' ? T('planner.settimana_2') : T('planner.giorno'));
+        : (S.view === 'week' ? T('planner.settimana_breve') : T('planner.giorno'));
 }
 
 /* ------------------------------------------------------------------ */

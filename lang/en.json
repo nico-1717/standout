@@ -1817,7 +1817,18 @@
     "gc_collegato": "Connected",
     "gc_non_collegato": "Not connected",
     "gc_sub": "Sync your events with Google, both ways",
-    "mp_n_giorni": "{n} days"
+    "mp_n_giorni": "{n} days",
+    "settimana_breve": "Week",
+    "dp_titolo": "Diary",
+    "dp_mostra": "Show the diary",
+    "dp_nascondi": "Hide",
+    "dp_vuoto": "You haven't written anything for this day yet.",
+    "dp_scrivi": "Write in the diary",
+    "dp_apri": "Open the diary",
+    "dp_belle": "Good things",
+    "dp_imparato": "What I learned",
+    "dp_carico": "Opening the diary…",
+    "dp_errore": "Can't read the diary right now."
   },
   "abitudini": {
     "abitudini": "Habits",

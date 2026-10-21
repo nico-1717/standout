@@ -489,6 +489,11 @@ function renderWeekBits() {
             wtop.classList.add('pl-day-wx');
             var btn = $('plDayBtn');
             btn.parentNode.insertBefore(wtop, btn.nextSibling);
+            /* Accanto al numero e SOPRA il nome del giorno: sulla stessa riga
+               del nome non ci sta (mese e calendarietto ne prendono meta'), e
+               li' finiva per coprirlo. Si sposta di quanto e' largo il numero,
+               che cambia fra 1 e 31. */
+            wtop.style.marginLeft = ($('plDayNum').offsetWidth + 6) + 'px';
         }
     }
     /* il foglietto di "oggi": mese abbreviato in alto, numero sotto */

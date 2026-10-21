@@ -414,3 +414,41 @@
 /* tre scelte non stanno in riga senza spezzare le parole: una sotto l altra */
 #plAlertActs:has(> :nth-child(3)){ flex-direction:column; }
 #plAlertActs:has(> :nth-child(3)) .pl-btn{ width:100%; }
+
+/* ================================================================
+   IL DIARIO DEL GIORNO NEL PANNELLO DELLA SETTIMANA
+   Coperto da un velo: sotto c'e' testo inventato (dpTestoFinto), sfocato,
+   e al centro il tasto per mostrarlo. Il diario vero arriva solo dopo.
+   ================================================================ */
+.pl-dp{ border-radius:var(--r-lg); background:var(--accent-wash); padding:11px 12px 12px; margin-top:12px; }
+.pl-dp-testa{ display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:22px; }
+.pl-dp-nascondi{ font-size:12.5px; padding:2px 4px; }
+.pl-dp-velo{ position:relative; margin-top:8px; border-radius:var(--r-md); overflow:hidden; min-height:118px; }
+.pl-dp-finto{
+    filter:blur(5.5px); opacity:.75; pointer-events:none; user-select:none; -webkit-user-select:none;
+    padding:4px 2px;
+}
+.pl-dp-mostra{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    display:inline-flex; align-items:center; gap:8px; white-space:nowrap;
+    padding:10px 16px; border-radius:var(--r-pill);
+    background:var(--card); color:var(--accent-ink); font-size:14px; font-weight:600;
+    box-shadow:0 8px 22px -10px rgba(0,0,0,.45), inset 0 0 0 .5px var(--hair-2, var(--hair));
+    transition:transform var(--t-fast) var(--ease), opacity var(--t-fast);
+}
+.pl-dp-mostra svg{ width:17px; height:17px; }
+.pl-dp-mostra:active{ transform:translate(-50%,-50%) scale(.95); }
+.pl-dp-mostra:disabled{ opacity:.7; }
+.pl-dp-corpo{ margin-top:8px; animation:pl-dp-in .3s var(--ease) both; }
+@keyframes pl-dp-in{ from{ opacity:0; filter:blur(4px); } to{ opacity:1; filter:none; } }
+.pl-dp-testo{ font-size:14px; line-height:1.5; color:var(--ink); white-space:pre-wrap; overflow-wrap:anywhere; }
+.pl-dp-sez{ margin-top:10px; font-size:11.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-3); }
+.pl-dp-lista{ margin:5px 0 0; padding-left:18px; font-size:13.5px; line-height:1.45; color:var(--ink); }
+.pl-dp-lista li + li{ margin-top:3px; }
+.pl-dp-vuoto{ font-size:13.5px; color:var(--ink-2); font-style:italic; padding:6px 0 2px; }
+.pl-dp-apri{
+    margin-top:11px; width:100%; padding:9px 12px; border-radius:var(--r-md);
+    background:var(--card); color:var(--accent-ink); font-size:13.5px; font-weight:600;
+    box-shadow:inset 0 0 0 .5px var(--hair);
+}
+.pl-dp-apri:active{ transform:scale(.98); }

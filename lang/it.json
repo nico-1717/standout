@@ -1817,7 +1817,18 @@
     "gc_collegato": "Collegato",
     "gc_non_collegato": "Non collegato",
     "gc_sub": "Porta i tuoi eventi su Google e quelli di Google qui",
-    "mp_n_giorni": "{n} giorni"
+    "mp_n_giorni": "{n} giorni",
+    "settimana_breve": "Sett.",
+    "dp_titolo": "Diario",
+    "dp_mostra": "Mostra il diario",
+    "dp_nascondi": "Nascondi",
+    "dp_vuoto": "Per questo giorno non hai ancora scritto niente.",
+    "dp_scrivi": "Scrivi nel diario",
+    "dp_apri": "Apri il diario",
+    "dp_belle": "Cose belle",
+    "dp_imparato": "Cosa ho imparato",
+    "dp_carico": "Apro il diario…",
+    "dp_errore": "Non riesco a leggere il diario adesso."
   },
   "abitudini": {
     "abitudini": "Abitudini",

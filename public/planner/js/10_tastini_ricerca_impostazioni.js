@@ -325,11 +325,6 @@ function setShift(on) {
     renderDays();
 }
 
-/* diario del giorno */
-$('plFabDiary').addEventListener('click', function () {
-    if (window.standoutOpenDiary) { window.standoutOpenDiary(S.focusDate, 'planner'); return; }
-    toast(T('planner.manca_il_file_diario_giorno'));
-});
 
 /* quando il diario cambia, i tag della vista mese si aggiornano */
 document.addEventListener('diaryupdated', function () {

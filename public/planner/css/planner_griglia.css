@@ -510,12 +510,12 @@
 
 .pl-prio-wrap{ display:flex; align-items:stretch; gap:6px; margin:6px 0 0; }
 .pl-wp-btn{
-    flex-shrink:0; width:28px; border-radius:var(--r-md);
+    flex-shrink:0; width:34px; border-radius:var(--r-md);   /* un filo piu' largo: si prende meglio */
     background:var(--accent-wash); color:var(--accent-ink);
     display:grid; place-items:center;
     transition:transform var(--t-fast) var(--ease), background var(--t-fast);
 }
-.pl-wp-btn svg{ width:14px; height:14px; }
+.pl-wp-btn svg{ width:15px; height:15px; }
 .pl-wp-btn:active{ transform:scale(.93); }
 .pl-wp-btn.pl-filled{ background:var(--accent); color:var(--on-accent, var(--card)); }
 

@@ -96,21 +96,127 @@ function renderWeekPanel() {
     host.appendChild(S.todoTab === 'pills' ? weekPillsCard()
                    : (S.todoTab === 'study' ? weekStudyCard() : weekTodoList()));
 
-    var learned = el('div', 'pl-learned');
-    learned.appendChild(el('div', 'pl-label', T('planner.cosa_ho_imparato')));
-    var ta = el('textarea');
-    ta.placeholder = T('planner.questa_settimana_mi_ha_insegnato');
-    ta.value = S.week.learned || '';
-    ta.maxLength = 4000;
-    ta.addEventListener('input', function () {
-        S.week.learned = ta.value;
-        debounceSave('learned', 900, function () {
-            api('week_save', { week_start: rg.from, learned: ta.value });
-        });
-    });
-    learned.appendChild(ta);
-    host.appendChild(learned);
+    /* Al posto di "Cosa ho imparato" c'e' il diario del giorno, coperto:
+       si apre solo premendo, e ogni volta che il pannello si riapre torna
+       coperto. */
+    host.appendChild(diarioPannello());
 }
+
+/* ------------------------------------------------------------------ */
+/* Il diario del giorno nel pannello della settimana, coperto           */
+/* ------------------------------------------------------------------ */
+/* Sotto il velo NON c'e' il diario vero: c'e' testo inventato, di parole
+   che non esistono. Sfocare il testo vero non basta a nasconderlo (lunghezza
+   delle righe, a volte le parole stesse si intuiscono), e chi guarda lo
+   schermo da sopra la spalla non deve poter ricavare niente. Il diario vero
+   si legge dal server solo quando si preme "Mostra". */
+function dpTestoFinto() {
+    var sill = ['ra', 'mo', 'ten', 'li', 'sa', 've', 'no', 'ri', 'ta', 'pe', 'lu', 'co', 'mi', 'den', 'so', 'fa', 'gi', 'ne', 'tro', 'bel'];
+    function parola() {
+        var n = 1 + Math.floor(Math.random() * 3), w = '';
+        for (var i = 0; i < n; i++) w += sill[Math.floor(Math.random() * sill.length)];
+        return w;
+    }
+    function frase(min, max) {
+        var n = min + Math.floor(Math.random() * (max - min + 1)), out = [];
+        for (var i = 0; i < n; i++) out.push(parola());
+        var f = out.join(' ');
+        return f.charAt(0).toUpperCase() + f.slice(1) + '.';
+    }
+    var box = el('div', 'pl-dp-finto');
+    box.appendChild(el('div', 'pl-dp-testo', frase(9, 14) + ' ' + frase(6, 11) + ' ' + frase(5, 9)));
+    var l = el('ul', 'pl-dp-lista');
+    for (var k = 0, m = 2 + Math.floor(Math.random() * 2); k < m; k++) l.appendChild(el('li', null, frase(3, 6)));
+    box.appendChild(l);
+    return box;
+}
+
+function dpTitolo(date) {
+    var d = parseIso(date);
+    return T('planner.dp_titolo') + ' · ' + minuscolo(GIORNI[dowIndex(date)]) + ' ' + d.getDate() + ' ' + minuscolo(MESI[d.getMonth()]);
+}
+
+function diarioPannello() {
+    var date = S.focusDate;
+    var box = el('div', 'pl-dp');
+    var testa = el('div', 'pl-dp-testa');
+    testa.appendChild(el('div', 'pl-label', dpTitolo(date)));
+    box.appendChild(testa);
+
+    if (S.dpSvelato !== date) {
+        /* coperto: testo finto sfocato, e il tasto al centro */
+        var velo = el('div', 'pl-dp-velo');
+        velo.appendChild(dpTestoFinto());
+        var mostra = el('button', 'pl-dp-mostra');
+        mostra.type = 'button';
+        mostra.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+        mostra.appendChild(el('span', null, T('planner.dp_mostra')));
+        mostra.addEventListener('click', function () {
+            mostra.disabled = true;
+            mostra.lastChild.textContent = T('planner.dp_carico');
+            dpCarica(date).then(function (ok) {
+                if (!ok) { mostra.disabled = false; mostra.lastChild.textContent = T('planner.dp_mostra'); toast(T('planner.dp_errore')); return; }
+                S.dpSvelato = date;
+                renderWeekPanel();
+            });
+        });
+        velo.appendChild(mostra);
+        box.appendChild(velo);
+        return box;
+    }
+
+    var nascondi = el('button', 'pl-txt-btn pl-dp-nascondi', T('planner.dp_nascondi'));
+    nascondi.type = 'button';
+    nascondi.addEventListener('click', function () { S.dpSvelato = null; renderWeekPanel(); });
+    testa.appendChild(nascondi);
+
+    var g = (S.dpDati || {})[date] || {};
+    var corpo = el('div', 'pl-dp-corpo');
+    var note = (g.note || '').trim();
+    var belle = g.good || [], imp = g.learned || [];
+    if (!note && !belle.length && !imp.length) {
+        corpo.appendChild(el('div', 'pl-dp-vuoto', T('planner.dp_vuoto')));
+    } else {
+        if (note) corpo.appendChild(el('div', 'pl-dp-testo', note));
+        [[T('planner.dp_belle'), belle], [T('planner.dp_imparato'), imp]].forEach(function (sez) {
+            if (!sez[1].length) return;
+            corpo.appendChild(el('div', 'pl-dp-sez', sez[0]));
+            var ul = el('ul', 'pl-dp-lista');
+            sez[1].forEach(function (it) { ul.appendChild(el('li', null, it.content || '')); });
+            corpo.appendChild(ul);
+        });
+    }
+    box.appendChild(corpo);
+
+    var apri = el('button', 'pl-dp-apri', (note || belle.length || imp.length) ? T('planner.dp_apri') : T('planner.dp_scrivi'));
+    apri.type = 'button';
+    apri.addEventListener('click', function () {
+        if (window.standoutOpenDiary) window.standoutOpenDiary(date, 'planner');
+        else toast(T('planner.manca_il_file_diario_giorno'));
+    });
+    box.appendChild(apri);
+    return box;
+}
+
+/* Il diario vero di quel giorno, letto solo quando si preme "Mostra". */
+function dpCarica(date) {
+    return fetch('diary_api.php?ajax=day&date=' + encodeURIComponent(date), { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (r) {
+            if (!r || !r.ok || !r.day) return false;
+            S.dpDati = S.dpDati || {};
+            S.dpDati[date] = r.day;
+            return true;
+        })
+        .catch(function () { return false; });
+}
+
+/* Scritto qualcosa nel diario mentre il pannello lo mostrava: si rilegge. */
+document.addEventListener('diaryupdated', function () {
+    if (!S.dpSvelato) return;
+    var d = S.dpSvelato;
+    dpCarica(d).then(function () { renderWeekPanel(); });
+});
 
 /* ------------------------------------------------------------------ */
 /* Da studiare: quello che c'è in programma nel giorno a fuoco          */
@@ -987,6 +1093,8 @@ function updateWeekPanelBtn() {
 }
 
 function openWeekPanel() {
+    /* il diario riparte sempre coperto: va mostrato ogni volta */
+    S.dpSvelato = null;
     /* la classe prima del disegno: renderWeekPanel non lavora a pannello
        chiuso, e verrebbe chiamato a vuoto */
     $('plWeekPanelOv').classList.add('pl-open');
@@ -997,6 +1105,8 @@ function openWeekPanel() {
 }
 function closeWeekPanel() {
     $('plWeekPanelOv').classList.remove('pl-open');
+    S.dpSvelato = null;
+    if (S.dpDati) S.dpDati = {};   // niente diario in memoria a pannello chiuso
     if (!document.querySelector('.pl-ov.pl-open')) document.documentElement.classList.remove('pl-locked');
     /* il tocco che l'ha chiuso finisce qui e non prosegue verso la griglia */
     assorbiDopoChiusura();
