@@ -35,6 +35,7 @@ $conn = sec_db();
    tipo e di quel corso (fc_sql_partite), e le statistiche per categoria
    solo i mazzi di quel corso. Vedi fc_type.php. */
 require_once __DIR__ . '/../../lib/fc/fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_ripresa.php';
 fc_avvia($current_user_id);
 
 define('SFC_PAGINA', 25);
@@ -173,7 +174,12 @@ function sfc_riga(array $g, array $a): array {
        quella dopo l'ultima aperta. fc_game.php rimanda comunque alla prima
        vuota, ma senza questo "Riprendi" riaprirebbe la posizione 1. */
     $pos = $a['prima_vuota'] > 0 ? $a['prima_vuota'] : $a['max_pos'] + 1;
-    if ($seq > 0 && $pos > $seq) $pos = $seq;
+    if ($seq > 0 && ($pos > $seq || ($sospesa && $a['prima_vuota'] === 0))) {
+        /* «ultima + 1» puo' cadere oltre la sequenza, o su una posizione gia'
+           chiusa lasciandosene dietro di aperte: si chiede alla regola comune */
+        $r = fc_ripresa_posizione((int)$g['id'], fc_is_vocab() ? 'vocab' : 'study');
+        $pos = $r ?? min($pos, $seq);
+    }
 
     $ultima = max((string)$g['game_date'], $a['ultima_giocata'], $a['ultima_sessione']);
 

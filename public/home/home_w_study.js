@@ -158,6 +158,37 @@
     /* ------------------------------------------------------------------
        il riquadro flashcard
        ------------------------------------------------------------------ */
+    /* Una riga «Continua / Gioca» (vedi update del riquadro). */
+    function track(o) {
+        var g = o.game;
+        var row = el('div', 'ho-trk');
+        var ic = el('span', 'ico'); ic.style.setProperty('--c', o.color);
+        if (o.flag) { var im = el('img'); im.src = o.flag; im.alt = ''; ic.appendChild(im); } else ic.appendChild(H.svg(o.icon, 20, 2));
+        row.appendChild(ic);
+        var tx = el('div', 'tx');
+        tx.appendChild(el('b', null, o.title));
+        if (g) {
+            var sub = (g.lang ? o.langName + ' · ' : '') + (g.label ? g.label + ' · ' : '') + T('home.fc_fatte', { n: g.closed, tot: g.total });
+            tx.appendChild(el('span', null, sub));
+            var pb = el('div', 'ho-bar'); pb.style.setProperty('--c', o.color);
+            var pi = el('i'); pi.style.width = Math.round(g.closed / Math.max(1, g.total) * 100) + '%'; pb.appendChild(pi); tx.appendChild(pb);
+        } else tx.appendChild(el('span', null, o.idle));
+        row.appendChild(tx);
+        var acts = el('div', 'acts');
+        if (g) {
+            var c = el('a', 'ho-btn ho-btn--sm', T('home.continua'));
+            c.href = H.base + 'fc/fc_game.php?game_id=' + g.id + '&position=' + g.pos;
+            c.insertBefore(H.svg('play', 13, 2.4), c.firstChild);
+            acts.appendChild(c);
+        }
+        var p = el('a', g ? 'ho-btn ho-btn--soft ho-btn--sm' : 'ho-btn ho-btn--sm');
+        p.href = H.base + o.play;
+        p.appendChild(H.svg(o.playLabel ? 'plus' : 'play', 13, 2.4)); p.appendChild(document.createTextNode(o.playLabel || T('home.gioca')));
+        acts.appendChild(p);
+        row.appendChild(acts);
+        return row;
+    }
+
     H.register('cards', {
         title: 'home.w_flashcard', icon: 'cards', color: 'var(--purple)', wide: true, link: 'fc/fc_home.php',
         build: function (w) {
@@ -195,8 +226,9 @@
             w.btns.appendChild(ins);
             w.split = el('div', 'ho-split');
             w.drafts = el('div');
-            w.body.appendChild(w.goal); w.body.appendChild(form); w.body.appendChild(w.capHint); w.body.appendChild(w.btns);
-            w.body.appendChild(w.split); w.body.appendChild(w.drafts);
+            /* prima cio' che si fa piu' spesso: continuare o giocare */
+            w.body.appendChild(w.goal); w.body.appendChild(w.split); w.body.appendChild(form); w.body.appendChild(w.capHint); w.body.appendChild(w.btns);
+            w.body.appendChild(w.drafts);
         },
         update: function (w, d) {
             var fc = d.fc; if (!fc) return;
@@ -208,33 +240,25 @@
             var i = el('i'); i.style.width = Math.min(100, fc.goal ? Math.round(fc.today / fc.goal * 100) : 0) + '%'; bar.appendChild(i);
             w.goal.appendChild(bar); w.goal.appendChild(el('span', 'v', fc.today + '/' + fc.goal));
 
-            /* partita a meta' + mazzo da giocare */
+            /* Continua / Gioca, una riga per studio e una per lingue: ciascuna
+               riprende la SUA partita a meta' (se c'e') e porta a giocarne una nuova */
             w.split.innerHTML = '';
-            var u = fc.unfinished;
-            if (u) {
-                var t = el('div', 'ho-tile');
-                var tx = el('div', 'tx');
-                tx.appendChild(el('b', null, T('home.partita_a_meta')));
-                tx.appendChild(el('span', null, (u.label ? u.label + ' · ' : '') + T('home.risposte_di', { n: u.answered, tot: u.total })));
-                var pb = el('div', 'ho-bar'); pb.style.setProperty('--c', 'var(--orange)');
-                var pi = el('i'); pi.style.width = Math.round(u.answered / u.total * 100) + '%'; pb.appendChild(pi); tx.appendChild(pb);
-                t.appendChild(tx);
-                var rs = el('a', 'ho-btn ho-btn--sm', T('home.riprendi')); rs.href = H.base + 'fc/fc_game.php?game_id=' + u.id;
-                t.appendChild(rs); w.split.appendChild(t);
-            }
-            var n = fc.next;
-            if (n) {
-                var t2 = el('div', 'ho-tile');
-                var tx2 = el('div', 'tx');
-                tx2.appendChild(el('b', null, n.name));
-                var why = n.exam_days !== null ? T('home.esame_tra', { n: n.exam_days }) : (n.days_ago === null ? T('home.mai_giocato') : T('home.giocato_giorni_fa', { n: n.days_ago }));
-                tx2.appendChild(el('span', null, T('home.da_giocare') + ' · ' + why));
-                t2.appendChild(tx2);
-                var pl = el('a', 'ho-btn ho-btn--soft ho-btn--sm'); pl.href = H.base + 'fc/fc_game_setup.php?preselect_category=' + n.id;
-                pl.appendChild(H.svg('play', 13, 2.4)); pl.appendChild(document.createTextNode(T('home.gioca')));
-                t2.appendChild(pl); w.split.appendChild(t2);
-            }
-            w.split.style.display = w.split.childNodes.length ? '' : 'none';
+            var un = fc.unfinished || {};
+            w.split.appendChild(track({
+                icon: 'cap', color: 'var(--purple)', title: T('home.fc_studio'),
+                game: un.study,
+                idle: fc.next ? (fc.next.name + ' · ' + (fc.next.exam_days !== null ? T('home.esame_tra', { n: fc.next.exam_days }) : (fc.next.days_ago === null ? T('home.mai_giocato') : T('home.giocato_giorni_fa', { n: fc.next.days_ago })))) : T('home.nessun_mazzo'),
+                play: 'fc/fc_game_setup.php' + (fc.next ? '?preselect_category=' + fc.next.id : '')
+            }));
+            var co = fc.course;
+            w.split.appendChild(track({
+                icon: 'globe', color: 'var(--teal)', title: T('home.fc_lingue'), flag: co ? co.flag : null,
+                game: un.vocab,
+                langName: co ? co.name : '',
+                idle: co ? co.name : T('home.nessuna_lingua'),
+                play: co ? 'fc/fc_game_setup.php?course=' + co.id : 'fc/fc_languages.php#add',
+                playLabel: co ? null : T('home.aggiungi_lingua')
+            }));
 
             /* da completare: le bozze create offline vengono prima, segnate come in attesa */
             w.drafts.innerHTML = '';

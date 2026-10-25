@@ -17,6 +17,7 @@ $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
 require_once __DIR__ . '/../../lib/fc/fc_type.php';
 require_once __DIR__ . '/../../lib/fc/fc_summary.php';
+require_once __DIR__ . '/../../lib/fc/fc_ripresa.php';
 
 /* L'obiettivo giornaliero si cambia da qui, toccando l'anello. */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'goal') {
@@ -33,6 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'goal'
 }
 
 $R = fc_riepilogo($current_user_id);
+/* CONTINUA O GIOCA, per studio e per lingue: ciascuno riprende la sua partita
+   lasciata a meta' (stessa regola di Home e Storico, fc_ripresa.php) oppure ne
+   inizia una nuova. Sta sopra i numeri perche' e' la cosa che si viene a fare. */
+$goStudy = fc_partita_in_sospeso($current_user_id, 'study');
+$goVocab = fc_partita_in_sospeso($current_user_id, 'vocab');
+$goCorso = fc_corso_da_giocare($current_user_id);
 $corsi = $R['vocab']['corsi'];
 $pctOggi = min(100, (int)round($R['oggi'] / max(1, $R['obiettivo']) * 100));
 $sPct = $R['study']['carte'] > 0 ? (int)round($R['study']['imparate'] / $R['study']['carte'] * 100) : 0;
@@ -92,6 +99,151 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
 <?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
 <main class="page">
+
+    <!-- LE DUE STRADE -->
+    <section class="modes">
+
+        <article class="mode-card mode-study">
+            <a class="mode-main" href="fc_decks.php">
+                <span class="mode-ico" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11.4V17c0 1.1 2.7 3 6 3s6-1.9 6-3v-5.6"/><path d="M22 9v6.2"/></svg>
+                </span>
+                <span class="mode-txt">
+                    <span class="mode-title"><?php te('fchub.studio'); ?></span>
+                    <span class="mode-sub"><?php te('fchub.studio_sub'); ?></span>
+                </span>
+                <svg class="mode-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
+            <div class="mode-stats">
+                <span><b><?php echo (int)$R['study']['mazzi']; ?></b> <?php te($R['study']['mazzi'] === 1 ? 'fchub.mazzo' : 'fchub.mazzi'); ?></span>
+                <span><b><?php echo (int)$R['study']['carte']; ?></b> <?php te($R['study']['carte'] === 1 ? 'fchub.carta' : 'fchub.carte'); ?></span>
+                <span><b><?php echo $sPct; ?>%</b> <?php te('fchub.imparate'); ?></span>
+            </div>
+            <div class="mode-bar"><span style="width:<?php echo $sPct; ?>%"></span></div>
+            <?php if ($goStudy): ?>
+            <?php /* la partita lasciata a meta': si riprende da qui */ ?>
+            <a class="go-resume" href="<?php echo sec_h('fc_game.php?game_id=' . (int)$goStudy['id'] . '&position=' . (int)$goStudy['pos']); ?>">
+                <span class="go-resume-txt">
+                    <b><?php te('fchub.partita_in_corso'); ?></b>
+                    <span><?php echo sec_h(($goStudy['label'] !== '' ? $goStudy['label'] . ' · ' : '') . t('fchub.carte_fatte', ['n' => $goStudy['closed'], 'tot' => $goStudy['total']])); ?></span>
+                    <span class="go-resume-bar"><span style="width:<?php echo (int)round($goStudy['closed'] / max(1, $goStudy['total']) * 100); ?>%"></span></span>
+                </span>
+                <span class="pill-btn pill-play">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.1v13.8a1 1 0 0 0 1.5.9l11-6.9a1 1 0 0 0 0-1.8l-11-6.9A1 1 0 0 0 8 5.1Z"/></svg>
+                    <span><?php te('fchub.continua'); ?></span>
+                </span>
+            </a>
+            <?php endif; ?>
+            <div class="mode-actions">
+                <a class="pill-btn<?php echo $goStudy ? '' : ' pill-play'; ?>" href="fc_game_setup.php">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.1v13.8a1 1 0 0 0 1.5.9l11-6.9a1 1 0 0 0 0-1.8l-11-6.9A1 1 0 0 0 8 5.1Z"/></svg>
+                    <span><?php te('fchub.gioca'); ?></span>
+                </a>
+                <a class="pill-btn" href="fc_card_edit.php?modo=insert">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                    <span><?php te('fchub.nuova_carta'); ?></span>
+                </a>
+                <a class="pill-btn" href="fc_history.php">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
+                    <span><?php te('fchub.storico'); ?></span>
+                </a>
+                <?php if ($R['oggi_study'] > 0): ?><span class="mode-today"><?php te('fchub.oggi_n', ['n' => $R['oggi_study']]); ?></span><?php endif; ?>
+            </div>
+        </article>
+
+        <article class="mode-card mode-vocab">
+            <a class="mode-main" href="fc_languages.php">
+                <?php if ($corsi): ?>
+                <span class="flag-stack" aria-hidden="true">
+                    <?php foreach (array_slice($corsi, 0, 3) as $c): ?>
+                    <img class="flag" src="<?php echo sec_h(fc_lingua_bandiera($c['learn_lang'])); ?>" alt="">
+                    <?php endforeach; ?>
+                </span>
+                <?php else: ?>
+                <span class="mode-ico" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c2.6 2.8 3.9 6 3.9 9.5s-1.3 6.7-3.9 9.5c-2.6-2.8-3.9-6-3.9-9.5s1.3-6.7 3.9-9.5Z"/></svg>
+                </span>
+                <?php endif; ?>
+                <span class="mode-txt">
+                    <span class="mode-title"><?php te('fchub.lingue'); ?></span>
+                    <span class="mode-sub">
+                        <?php if ($corsi):
+                            echo sec_h(implode(', ', array_map(fn($c) => fc_lingua_nome($c['learn_lang'], false), array_slice($corsi, 0, 3)))
+                                       . (count($corsi) > 3 ? ' +' . (count($corsi) - 3) : ''));
+                        else: te('fchub.lingue_sub_vuoto'); endif; ?>
+                    </span>
+                </span>
+                <svg class="mode-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
+            <?php if ($corsi): ?>
+            <div class="mode-stats">
+                <span><b><?php echo count($corsi); ?></b> <?php te(count($corsi) === 1 ? 'fchub.lingua' : 'fchub.lingue_min'); ?></span>
+                <span><b><?php echo (int)$R['vocab']['parole']; ?></b> <?php te($R['vocab']['parole'] === 1 ? 'fchub.parola' : 'fchub.parole'); ?></span>
+                <span><b><?php echo $vPct; ?>%</b> <?php te('fchub.imparate'); ?></span>
+            </div>
+            <div class="mode-bar"><span style="width:<?php echo $vPct; ?>%"></span></div>
+            <?php /* Una riga grande per lingua, con le stesse tre azioni dello studio:
+                     gioca, nuova parola, storico. Prima erano pastiglie piccole
+                     che portavano solo ai mazzi. */ ?>
+            <div class="course-rows">
+                <?php foreach ($corsi as $c): $cid = (int)$c['id'];
+                      $qualeGioco = ($goVocab && (int)$goVocab['course'] === $cid) ? $goVocab : null;
+                      $cPct = $c['parole'] > 0 ? (int)round($c['imparate'] / $c['parole'] * 100) : 0; ?>
+                <div class="course-big">
+                    <a class="course-big-main" href="<?php echo sec_h('fc_decks.php?course=' . $cid); ?>">
+                        <img class="flag" src="<?php echo sec_h(fc_lingua_bandiera($c['learn_lang'])); ?>" alt="">
+                        <span class="course-big-txt">
+                            <span class="course-big-name"><?php echo sec_h(fc_lingua_nome($c['learn_lang'], false)); ?></span>
+                            <span class="course-big-sub"><?php echo (int)$c['parole']; ?> <?php te($c['parole'] === 1 ? 'fchub.parola' : 'fchub.parole'); ?> · <?php echo $cPct; ?>% <?php te('fchub.imparate'); ?></span>
+                        </span>
+                        <?php if ($c['oggi'] > 0): ?><span class="chip-n"><?php echo (int)$c['oggi']; ?></span><?php endif; ?>
+                        <svg class="mode-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                    </a>
+                    <?php if ($qualeGioco): ?>
+                    <a class="go-resume" href="<?php echo sec_h('fc_game.php?game_id=' . (int)$qualeGioco['id'] . '&position=' . (int)$qualeGioco['pos']); ?>">
+                        <span class="go-resume-txt">
+                            <b><?php te('fchub.partita_in_corso'); ?></b>
+                            <span><?php echo sec_h(($qualeGioco['label'] !== '' ? $qualeGioco['label'] . ' · ' : '') . t('fchub.carte_fatte', ['n' => $qualeGioco['closed'], 'tot' => $qualeGioco['total']])); ?></span>
+                            <span class="go-resume-bar"><span style="width:<?php echo (int)round($qualeGioco['closed'] / max(1, $qualeGioco['total']) * 100); ?>%"></span></span>
+                        </span>
+                        <span class="pill-btn pill-play">
+                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.1v13.8a1 1 0 0 0 1.5.9l11-6.9a1 1 0 0 0 0-1.8l-11-6.9A1 1 0 0 0 8 5.1Z"/></svg>
+                            <span><?php te('fchub.continua'); ?></span>
+                        </span>
+                    </a>
+                    <?php endif; ?>
+                    <div class="mode-actions">
+                        <a class="pill-btn<?php echo $qualeGioco ? '' : ' pill-play'; ?>" href="<?php echo sec_h('fc_game_setup.php?course=' . $cid); ?>">
+                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.1v13.8a1 1 0 0 0 1.5.9l11-6.9a1 1 0 0 0 0-1.8l-11-6.9A1 1 0 0 0 8 5.1Z"/></svg>
+                            <span><?php te('fchub.gioca'); ?></span>
+                        </a>
+                        <a class="pill-btn" href="<?php echo sec_h('fc_card_edit.php?modo=insert&course=' . $cid); ?>">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                            <span><?php te('fchub.nuova_carta'); ?></span>
+                        </a>
+                        <a class="pill-btn" href="<?php echo sec_h('fc_history.php?course=' . $cid); ?>">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
+                            <span><?php te('fchub.storico'); ?></span>
+                        </a>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+                <a class="course-add" href="fc_languages.php#add">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                    <span><?php te('fchub.aggiungi_lingua'); ?></span>
+                </a>
+            </div>
+            <?php else: ?>
+            <div class="mode-actions">
+                <a class="pill-btn pill-play" href="fc_languages.php#add">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                    <span><?php te('fchub.aggiungi_lingua'); ?></span>
+                </a>
+            </div>
+            <?php endif; ?>
+        </article>
+
+    </section>
 
     <!-- OGGI: obiettivo, serie, settimana -->
     <section class="today-card">
@@ -171,100 +323,6 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
         <script type="application/json" id="learnedDati"><?php echo json_encode(['giorni' => $impG, 'oggi' => date('Y-m-d'), 'lingua' => standout_lingua()], JSON_HEX_TAG); ?></script>
     </section>
 
-
-    <!-- LE DUE STRADE -->
-    <section class="modes">
-
-        <article class="mode-card mode-study">
-            <a class="mode-main" href="fc_decks.php">
-                <span class="mode-ico" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11.4V17c0 1.1 2.7 3 6 3s6-1.9 6-3v-5.6"/><path d="M22 9v6.2"/></svg>
-                </span>
-                <span class="mode-txt">
-                    <span class="mode-title"><?php te('fchub.studio'); ?></span>
-                    <span class="mode-sub"><?php te('fchub.studio_sub'); ?></span>
-                </span>
-                <svg class="mode-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-            </a>
-            <div class="mode-stats">
-                <span><b><?php echo (int)$R['study']['mazzi']; ?></b> <?php te($R['study']['mazzi'] === 1 ? 'fchub.mazzo' : 'fchub.mazzi'); ?></span>
-                <span><b><?php echo (int)$R['study']['carte']; ?></b> <?php te($R['study']['carte'] === 1 ? 'fchub.carta' : 'fchub.carte'); ?></span>
-                <span><b><?php echo $sPct; ?>%</b> <?php te('fchub.imparate'); ?></span>
-            </div>
-            <div class="mode-bar"><span style="width:<?php echo $sPct; ?>%"></span></div>
-            <div class="mode-actions">
-                <a class="pill-btn pill-play" href="fc_game_setup.php">
-                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.1v13.8a1 1 0 0 0 1.5.9l11-6.9a1 1 0 0 0 0-1.8l-11-6.9A1 1 0 0 0 8 5.1Z"/></svg>
-                    <span><?php te('fchub.gioca'); ?></span>
-                </a>
-                <a class="pill-btn" href="fc_card_edit.php?modo=insert">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                    <span><?php te('fchub.nuova_carta'); ?></span>
-                </a>
-                <a class="pill-btn" href="fc_history.php">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
-                    <span><?php te('fchub.storico'); ?></span>
-                </a>
-                <?php if ($R['oggi_study'] > 0): ?><span class="mode-today"><?php te('fchub.oggi_n', ['n' => $R['oggi_study']]); ?></span><?php endif; ?>
-            </div>
-        </article>
-
-        <article class="mode-card mode-vocab">
-            <a class="mode-main" href="fc_languages.php">
-                <?php if ($corsi): ?>
-                <span class="flag-stack" aria-hidden="true">
-                    <?php foreach (array_slice($corsi, 0, 3) as $c): ?>
-                    <img class="flag" src="<?php echo sec_h(fc_lingua_bandiera($c['learn_lang'])); ?>" alt="">
-                    <?php endforeach; ?>
-                </span>
-                <?php else: ?>
-                <span class="mode-ico" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c2.6 2.8 3.9 6 3.9 9.5s-1.3 6.7-3.9 9.5c-2.6-2.8-3.9-6-3.9-9.5s1.3-6.7 3.9-9.5Z"/></svg>
-                </span>
-                <?php endif; ?>
-                <span class="mode-txt">
-                    <span class="mode-title"><?php te('fchub.lingue'); ?></span>
-                    <span class="mode-sub">
-                        <?php if ($corsi):
-                            echo sec_h(implode(', ', array_map(fn($c) => fc_lingua_nome($c['learn_lang'], false), array_slice($corsi, 0, 3)))
-                                       . (count($corsi) > 3 ? ' +' . (count($corsi) - 3) : ''));
-                        else: te('fchub.lingue_sub_vuoto'); endif; ?>
-                    </span>
-                </span>
-                <svg class="mode-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-            </a>
-            <?php if ($corsi): ?>
-            <div class="mode-stats">
-                <span><b><?php echo count($corsi); ?></b> <?php te(count($corsi) === 1 ? 'fchub.lingua' : 'fchub.lingue_min'); ?></span>
-                <span><b><?php echo (int)$R['vocab']['parole']; ?></b> <?php te($R['vocab']['parole'] === 1 ? 'fchub.parola' : 'fchub.parole'); ?></span>
-                <span><b><?php echo $vPct; ?>%</b> <?php te('fchub.imparate'); ?></span>
-            </div>
-            <div class="mode-bar"><span style="width:<?php echo $vPct; ?>%"></span></div>
-            <?php /* Scorciatoie: un tocco e sei dentro il corso, senza passare
-                     dall'elenco delle lingue. */ ?>
-            <div class="course-chips">
-                <?php foreach ($corsi as $c): ?>
-                <a class="course-chip" href="<?php echo sec_h('fc_decks.php?course=' . (int)$c['id']); ?>">
-                    <img class="flag flag-xs" src="<?php echo sec_h(fc_lingua_bandiera($c['learn_lang'])); ?>" alt="">
-                    <span><?php echo sec_h(fc_lingua_nome($c['learn_lang'], false)); ?></span>
-                    <?php if ($c['oggi'] > 0): ?><span class="chip-n"><?php echo (int)$c['oggi']; ?></span><?php endif; ?>
-                </a>
-                <?php endforeach; ?>
-                <a class="course-chip chip-add" href="fc_languages.php#add" aria-label="<?php te('fchub.aggiungi_lingua'); ?>">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                </a>
-            </div>
-            <?php else: ?>
-            <div class="mode-actions">
-                <a class="pill-btn pill-play" href="fc_languages.php#add">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                    <span><?php te('fchub.aggiungi_lingua'); ?></span>
-                </a>
-            </div>
-            <?php endif; ?>
-        </article>
-
-    </section>
 
 </main>
 

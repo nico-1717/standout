@@ -30,6 +30,7 @@ require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 require_once __DIR__ . '/../../lib/planner/planner_lib.php';
 require_once __DIR__ . '/../../lib/fc/fc_summary.php';
+require_once __DIR__ . '/../../lib/fc/fc_ripresa.php';
 require_once __DIR__ . '/../../lib/piano_helpers.php';
 
 $uid = (int)$utente_corrente['id'];
@@ -150,37 +151,8 @@ function ho_voti(int $uid, string $oggi): array {
 }
 
 /* ---------------------------------------------------------------------
-   Flashcard: partita lasciata a meta', prossimo mazzo da giocare, bozze
+   Flashcard: il mazzo da giocare adesso
    --------------------------------------------------------------------- */
-function ho_partita_a_meta(int $uid): ?array {
-    $out = null;
-    foreach (['study' => 'fc_study_plays', 'vocab' => 'fc_vocab_plays'] as $kind => $tab) {
-        $g = sec_all("SELECT g.id, g.game_date, g.course_id,
-                             (SELECT COUNT(*) FROM $tab p WHERE p.game_id = g.id) AS tot,
-                             (SELECT COUNT(*) FROM $tab p WHERE p.game_id = g.id AND p.user_answer IN ('Correct','Wrong')) AS fatte
-                        FROM fc_games g
-                       WHERE g.user_id = ? AND g.kind = ? AND g.score IS NULL
-                         AND g.game_date >= (NOW() - INTERVAL 21 DAY)
-                       ORDER BY g.game_date DESC LIMIT 6", [$uid, $kind], 'is');
-        foreach ($g as $r) {
-            $tot = (int)$r['tot']; $fatte = (int)$r['fatte'];
-            if ($fatte < 1 || $fatte >= $tot) continue;
-            if ($out && strcmp((string)$r['game_date'], (string)$out['date']) <= 0) continue;
-            $etichetta = '';
-            if ($kind === 'study') {
-                $d = sec_one("SELECT d.name FROM fc_study_game_decks gd JOIN fc_study_decks d ON d.id = gd.fc_category_id
-                               WHERE gd.game_id = ? ORDER BY gd.category_order ASC LIMIT 1", [(int)$r['id']], 'i');
-                $etichetta = $d['name'] ?? '';
-            } else {
-                $c = sec_one("SELECT learn_lang FROM fc_vocab_courses WHERE id = ? AND user_id = ?", [(int)$r['course_id'], $uid], 'ii');
-                $etichetta = $c ? strtoupper((string)$c['learn_lang']) : '';
-            }
-            $out = ['id' => (int)$r['id'], 'kind' => $kind, 'course' => $r['course_id'] !== null ? (int)$r['course_id'] : null,
-                    'answered' => $fatte, 'total' => $tot, 'label' => $etichetta, 'date' => $r['game_date']];
-        }
-    }
-    return $out;
-}
 
 /** Il mazzo da giocare adesso: prima quello con l'esame piu' vicino, poi il meno ripassato. */
 function ho_mazzo_prossimo(int $uid, string $oggi): ?array {
@@ -229,7 +201,9 @@ function ho_flashcard(int $uid, string $oggi): array {
         'week' => $r['settimana'],
         'mastery' => $tot > 0 ? min(100, (int)round($imp / $tot * 100)) : 0,
         'cards_total' => $tot,
-        'unfinished' => ho_partita_a_meta($uid),
+        /* una partita a meta' per tipo (studio, lingue) e il corso su cui «Gioca» porta */
+        'unfinished' => ['study' => fc_partita_in_sospeso($uid, 'study'), 'vocab' => fc_partita_in_sospeso($uid, 'vocab')],
+        'course' => ($c = fc_corso_da_giocare($uid)) ? ['id' => $c['id'], 'name' => fc_lingua_nome($c['learn_lang'], false), 'flag' => fc_lingua_bandiera($c['learn_lang'])] : null,
         'next' => ho_mazzo_prossimo($uid, $oggi),
         'drafts' => array_map(function ($b) {
             return ['id' => (int)$b['id'], 'front' => $b['front'], 'back' => $b['back'],

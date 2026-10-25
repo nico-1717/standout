@@ -31,7 +31,7 @@ Read this first; open `docs/STANDOUT_PROGETTO.md` only for conventions detail, `
 
 ## 3. File map
 - `lib/` — shared PHP: `config.php` (DB, secrets), `security_core.php` (sec_* helpers), `auth_*.php` (session/login guard; `_api` variant returns JSON), `i18n.php`, `stile.php` (UI style).
-- `lib/fc/` — flashcard domain: `fc_type.php` (study vs vocabulary switch, URLs), `fc_impostazioni.php` (per-user game settings), `fc_vocab_gap.php` (example gap selection), `fc_ai_*.php` (AI prompts and formatting).
+- `lib/fc/` — flashcard domain: `fc_type.php` (study vs vocabulary switch, URLs), `fc_ripresa.php` (where an unfinished game resumes, shared by Result, History, Home and the Flashcards page), `fc_impostazioni.php` (per-user game settings), `fc_vocab_gap.php` (example gap selection), `fc_ai_*.php` (AI prompts and formatting).
 - `lib/planner/` — planner domain logic split by topic (events, places, categories, day view).
 - `lang/` — Italian and English dictionaries.
 - `sql/` — `schema.sql` plus dated `migrations/`.

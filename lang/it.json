@@ -4258,7 +4258,10 @@
     "per_mese": "Mesi",
     "questa_settimana": "questa settimana",
     "questo_mese": "questo mese",
-    "imparate_nota": "Contano le carte segnate come imparate e quelle che hai indovinato le ultime 5 volte di fila."
+    "imparate_nota": "Contano le carte segnate come imparate e quelle che hai indovinato le ultime 5 volte di fila.",
+    "continua": "Continua",
+    "carte_fatte": "{n} di {tot} carte fatte",
+    "partita_in_corso": "Partita in corso"
   },
   "fcv": {
     "conteggio": "{categorie} categorie · {carte} parole",
@@ -5107,9 +5110,6 @@
     "salva_carta": "Salva la carta",
     "scrivi_retro": "Scrivi prima il retro",
     "carta_salvata": "Carta salvata nel mazzo",
-    "partita_a_meta": "Partita a metà",
-    "risposte_di": "{n} risposte su {tot}",
-    "riprendi": "Riprendi",
     "da_giocare": "Da giocare",
     "gioca": "Gioca",
     "esame_tra": "esame tra {n} g",
@@ -5143,6 +5143,13 @@
     "hab_giornaliere": "Giornaliere",
     "hab_settimanali": "Settimanali",
     "hab_mensili": "Mensili",
-    "hab_intervallo": "Ogni tot giorni"
+    "hab_intervallo": "Ogni tot giorni",
+    "fc_studio": "Studio",
+    "fc_lingue": "Lingue",
+    "continua": "Continua",
+    "nessun_mazzo": "Crea un mazzo per iniziare",
+    "nessuna_lingua": "Nessuna lingua ancora",
+    "aggiungi_lingua": "Aggiungi una lingua",
+    "fc_fatte": "{n} di {tot} carte fatte"
   }
 }

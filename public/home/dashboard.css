@@ -222,6 +222,15 @@ select.ho-in{ appearance:none; background-image:linear-gradient(45deg,transparen
 .ho-tile .tx b{ display:block; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ho-tile .tx span{ font-size:13px; color:var(--text-2); }
 .ho-tile .ho-bar{ margin-top:6px; }
+/* Continua / Gioca: una riga per tipo di flashcard */
+.ho-trk{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 14px; border-radius:18px; background:var(--surface-2); }
+.ho-trk .ico{ width:42px; height:42px; flex:0 0 42px; border-radius:13px; display:grid; place-items:center; color:var(--c); background:color-mix(in srgb, var(--c) 15%, transparent); }
+.ho-trk .ico img{ width:26px; height:26px; border-radius:50%; object-fit:cover; }
+.ho-trk .tx{ flex:1 1 150px; min-width:0; }
+.ho-trk .tx b{ display:block; font-weight:750; }
+.ho-trk .tx span{ display:block; font-size:13px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ho-trk .ho-bar{ margin-top:6px; }
+.ho-trk .acts{ display:flex; gap:8px; flex:0 0 auto; margin-left:auto; }
 .ho-split{ display:grid; gap:10px; }
 @media (min-width:1100px){ .ho-w--wide .ho-split{ grid-template-columns:1fr 1fr; } }
 

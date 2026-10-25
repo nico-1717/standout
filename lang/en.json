@@ -4258,7 +4258,10 @@
     "per_mese": "Months",
     "questa_settimana": "this week",
     "questo_mese": "this month",
-    "imparate_nota": "Counts the cards marked as learned and the ones you got right the last 5 times in a row."
+    "imparate_nota": "Counts the cards marked as learned and the ones you got right the last 5 times in a row.",
+    "continua": "Continue",
+    "carte_fatte": "{n} of {tot} cards done",
+    "partita_in_corso": "Game in progress"
   },
   "fcv": {
     "conteggio": "{categorie} categories · {carte} words",
@@ -5107,9 +5110,6 @@
     "salva_carta": "Save card",
     "scrivi_retro": "Write the back first",
     "carta_salvata": "Card saved to the deck",
-    "partita_a_meta": "Game in progress",
-    "risposte_di": "{n} of {tot} answered",
-    "riprendi": "Resume",
     "da_giocare": "Next to play",
     "gioca": "Play",
     "esame_tra": "exam in {n} d",
@@ -5143,6 +5143,13 @@
     "hab_giornaliere": "Daily",
     "hab_settimanali": "Weekly",
     "hab_mensili": "Monthly",
-    "hab_intervallo": "Every few days"
+    "hab_intervallo": "Every few days",
+    "fc_studio": "Study",
+    "fc_lingue": "Languages",
+    "continua": "Continue",
+    "nessun_mazzo": "Create a deck to get started",
+    "nessuna_lingua": "No language yet",
+    "aggiungi_lingua": "Add a language",
+    "fc_fatte": "{n} of {tot} cards done"
   }
 }

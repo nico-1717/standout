@@ -609,6 +609,17 @@ if (empty($gameplays)) {
     $seq = sec_one("SELECT fc_image_id FROM " . fc_t('sequence') . " WHERE game_id = ? AND position = ?", [$game_id, $position]);
 
     if (!$seq) {
+        /* Posizione oltre la fine della sequenza. Se la partita ha ancora una
+           posizione da giocare (un vecchio link «Continua» che puntava oltre,
+           o un salto a mano), si va li' invece che ai risultati: li' si
+           tornerebbe in loop ogni volta. Solo se e' DIETRO a quella chiesta,
+           cosi' il rimando non puo' ripetersi. */
+        require_once __DIR__ . '/../../lib/fc/fc_ripresa.php';
+        $da_fare = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' : 'study');
+        if ($da_fare !== null && $da_fare < $position) {
+            header("Location: fc_game.php?game_id=$game_id&position=$da_fare&status=$status&order=$order_param");
+            exit();
+        }
         header("Location: fc_result.php?game_id=$game_id");
         exit();
     }

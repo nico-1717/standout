@@ -461,3 +461,37 @@ button{ font-family:inherit; }
 .lc-col.is-qui .lc-x{ color:var(--green); }
 .lc-nota{ margin:10px 2px 0; font-size:11.5px; line-height:1.4; color:var(--text-3); }
 @media (prefers-reduced-motion: reduce){ .learned-card, .lc-bar span{ animation:none; } }
+
+/* ================================================================ CONTINUA / GIOCA
+   Dentro le due strade (studio, lingue): la partita lasciata a meta' si
+   riprende da una riga a parte, sopra le tre azioni. */
+.go-resume{
+    position:relative; display:flex; align-items:center; gap:12px; margin:0 0 12px; padding:10px 10px 10px 14px;
+    border-radius:16px; background:var(--accent-soft); box-shadow:inset 0 0 0 .5px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.go-resume:active{ transform:scale(.985); }
+.go-resume-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+.go-resume-txt b{ font-size:14.5px; font-weight:800; letter-spacing:-.01em; }
+.go-resume-txt > span:not(.go-resume-bar){ font-size:12.5px; color:var(--text-2); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.go-resume-bar{ display:block; height:5px; margin-top:5px; border-radius:99px; background:color-mix(in srgb, var(--accent) 18%, transparent); overflow:hidden; }
+.go-resume-bar span{ display:block; height:100%; border-radius:99px; background:var(--accent); }
+.go-resume .pill-play{ flex-shrink:0; }
+.mode-vocab .go-resume .pill-play{ background:var(--orange); }
+
+/* UNA RIGA GRANDE PER LINGUA (prima: pastiglie piccole) */
+.course-rows{ position:relative; display:flex; flex-direction:column; gap:12px; }
+.course-big{ padding:12px; border-radius:18px; background:var(--surface-2); box-shadow:inset 0 0 0 .5px var(--hairline); }
+.course-big-main{ display:flex; align-items:center; gap:12px; padding:0 2px 12px; }
+.course-big-main .flag{ width:44px; height:44px; flex-shrink:0; box-shadow:0 0 0 2.5px var(--surface), 0 4px 10px -4px rgba(0,0,0,.3); }
+.course-big-txt{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.course-big-name{ font-size:18px; font-weight:800; letter-spacing:-.02em; line-height:1.2; }
+.course-big-sub{ font-size:13px; color:var(--text-2); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.course-big .go-resume{ background:var(--surface); }
+.course-big .mode-actions .pill-btn{ background:var(--surface); }
+.course-big .mode-actions .pill-play{ background:var(--orange); color:#fff; }
+.course-add{
+    display:flex; align-items:center; justify-content:center; gap:7px; padding:11px; border-radius:16px;
+    border:1.5px dashed color-mix(in srgb, var(--orange) 45%, transparent); color:var(--orange); font-size:14.5px; font-weight:700;
+}
+.course-add svg{ width:16px; height:16px; }
+.course-add:active{ transform:scale(.98); }

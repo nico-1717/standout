@@ -105,6 +105,21 @@ function fc_formatta_durata($secondi) {
 
 $durata_display = fc_formatta_durata($durata_totale_secondi);
 
+/* Il tasto «ascolta» di un lato della carta (solo lingue). Nella pagina dei
+   risultati mancava: si leggevano le frasi ma non si potevano piu' sentire,
+   mentre nel gioco c'erano. Il lato che porta la parola da imparare si legge
+   nella lingua che si studia, l'altro in quella che si conosce: lo dice
+   fc_lato_parola, lo stesso dato che usa fc_game.php. */
+function fcr_voce(array $c, string $lato): string {
+    if (!fc_is_vocab()) return '';
+    $testo = trim((string)($c[$lato === 'q' ? 'question_desc' : 'answer_desc'] ?? ''));
+    if ($testo === '') return '';
+    $chi = (($c['fc_lato_parola'] ?? 'q') === $lato) ? 'learn' : 'known';
+    return '<button type="button" class="fcr-voce" data-speak="' . $chi . '" data-text="' . sec_h($testo) . '"'
+         . ' aria-label="' . sec_h(t('fcv.ascolta')) . '" title="' . sec_h(t('fcv.ascolta')) . '">'
+         . '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.8 5.2a9.5 9.5 0 0 1 0 13.6"/></svg></button>';
+}
+
 
 
 
@@ -399,17 +414,12 @@ if ($game_id === $fcr_radice && $fcr_mazzi && $played_items > 0) {
 // FIX RESUME INTELLIGENTE "CONTINUA PARTITA"
 // ==========================================
 
-$q_resume = sec_one("SELECT MIN(position) AS resume_pos FROM " . fc_t('plays') . " WHERE game_id = ? AND user_answer = ''", [$game_id]);
-$row_resume = $q_resume;
-if ($row_resume && $row_resume['resume_pos']) {
-    // C'è una domanda (o figlio) non risposta, riprendiamo da qui!
-    $resume_position = $row_resume['resume_pos'];
-} else {
-    // Tutte le domande attuali sono risposte, passiamo alla prossima posizione inedita
-    $q_max = sec_one("SELECT MAX(position) AS max_pos FROM " . fc_t('plays') . " WHERE game_id = ?", [$game_id]);
-    $row_max = $q_max;
-    $resume_position = ($row_max && $row_max['max_pos']) ? $row_max['max_pos'] + 1 : 1;
-}
+/* Il punto da cui riprendere lo decide fc_ripresa_posizione(), lo stesso
+   dello Storico: «ultima posizione + 1» poteva cadere oltre la fine della
+   sequenza (i titoli precaricati restano dopo una chiusura), e allora
+   fc_game.php rimandava qui e «Continua partita» sembrava rotto. */
+require_once __DIR__ . '/../../lib/fc/fc_ripresa.php';
+$resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' : 'study');
 ?>
 
 
@@ -522,6 +532,9 @@ if ($row_resume && $row_resume['resume_pos']) {
              di nuovi. */ ?>
     <script src="<?php echo PWA_BASE; ?>fc/fc_vocab_gap.js?v=<?php echo @filemtime(__DIR__ . '/fc_vocab_gap.js') ?: 1; ?>"></script>
     <script src="fc_examples_modal.js"></script>
+    <?php if ($fc_vocab): /* il tasto «ascolta» (frasi e esempi) lo gestisce fc_speak.js */ ?>
+    <script src="<?php echo PWA_BASE; ?>fc/fc_speak.js?v=<?php echo @filemtime(__DIR__ . '/fc_speak.js') ?: 1; ?>"></script>
+    <?php endif; ?>
 
 </head>
 
@@ -551,7 +564,7 @@ if ($row_resume && $row_resume['resume_pos']) {
             <span><?php echo sec_h($fcr_m['name']); ?></span><?php if (count($fcr_mazzi) > 1): ?><b>+<?php echo count($fcr_mazzi) - 1; ?></b><?php endif; ?>
         </a>
         <?php endif; ?>
-        <div class="hd-eyebrow"><?php if ($fc_vocab): ?><img class="fcv-hdr-flag" src="<?php echo sec_h(fc_lingua_bandiera(fc_corso()['learn_lang'])); ?>" alt=""> <?php echo sec_h(fc_lingua_nome(fc_corso()['learn_lang'])); ?><?php else: te('fc.res_materie_fc'); endif; ?></div>
+        <div class="hd-eyebrow"><?php if ($fc_vocab): ?><img class="fcv-hdr-flag" src="<?php echo sec_h(fc_lingua_bandiera(fc_corso()['learn_lang'])); ?>" alt=""> <?php echo sec_h(fc_lingua_nome(fc_corso()['learn_lang'], false)); ?><?php else: te('fc.res_materie_fc'); endif; ?></div>
 
 
 
@@ -1084,6 +1097,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
                             </div>
+                            <?php echo fcr_voce($c, 'q'); ?>
 
 
 
@@ -1128,6 +1142,7 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
                                 </div>
+                                <?php echo fcr_voce($c, 'a'); ?>
 
                                 <?php
                                     /* Il riquadro vive DENTRO rev-a-body apposta: quando il visore
@@ -1202,15 +1217,15 @@ if ($row_resume && $row_resume['resume_pos']) {
 
 
 
-        // Mostra continua partita solo se ci sono pagine da finire o domande appese
+        // Mostra continua partita solo se c'e' davvero una posizione da cui riprendere
 
 
 
-        if ($played_positions_count < $total_pages || ($row_resume && $row_resume['resume_pos'])): ?>
+        if ($resume_position !== null): ?>
 
 
 
-            <a href="fc_game.php?game_id=<?php echo (int)$game_id; ?>&position=<?php echo sec_h($resume_position); ?>&status=<?php echo sec_h($is_learnt); ?>&newsession=1" class="btn-continue"><?php te('fc.res_continua'); ?> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></a>
+            <a href="fc_game.php?game_id=<?php echo (int)$game_id; ?>&position=<?php echo sec_h($resume_position); ?>&status=<?php echo sec_h(in_array((string)($game['card_status'] ?? ''), ['all', '1', '0'], true) ? $game['card_status'] : $is_learnt); ?>&newsession=1" class="btn-continue"><?php te('fc.res_continua'); ?> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></a>
 
 
 
