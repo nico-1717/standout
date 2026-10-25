@@ -1906,14 +1906,14 @@
    decimali che toccava il bordo. Ora: filo sottile, cifra grande e leggera con
    il % piccolo, tutto con aria intorno; la scritta «punteggio» sotto, discreta. */
 .ring-wrap{ width:188px; height:188px; margin:2px auto 14px; }
-.ring-bg{ stroke-width:2.2; stroke:color-mix(in srgb, currentColor 14%, transparent); }
-.ring-fg{ stroke-width:3.6; }
+.ring-bg{ stroke-width:3.4; stroke:color-mix(in srgb, currentColor 14%, transparent); }
+.ring-fg{ stroke-width:5.6; }
 .s-high .ring-fg, .s-mid .ring-fg, .s-low .ring-fg{ filter:drop-shadow(0 0 5px color-mix(in srgb, currentColor 40%, transparent)); }
 .ring-center{ gap:4px; padding-top:2px; }
 .score-line{ position:relative; align-items:flex-start; gap:1px; }
-.score-line #scoreNum{ font-size:64px; font-weight:300; letter-spacing:-.045em; line-height:.95; color:var(--text); }
-.score-line .pct{ font-size:18px; font-weight:500; margin-top:8px; color:currentColor; opacity:.9; }
-.score-eyebrow{ font-size:10px; font-weight:600; letter-spacing:.22em; color:var(--text-3); }
+.score-line #scoreNum{ font-size:64px; font-weight:500; letter-spacing:-.045em; line-height:.95; color:var(--text); }
+.score-line .pct{ font-size:19px; font-weight:700; margin-top:8px; color:currentColor; opacity:.9; }
+.score-eyebrow{ font-size:10px; font-weight:700; letter-spacing:.22em; color:var(--text-3); }
 
 /* TASTO «ASCOLTA» su ogni lato della carta (solo lingue) */
 .rev-q, .rev-a-body{ position:relative; }
@@ -1970,6 +1970,7 @@
 .t-ic svg{ width:16px; height:16px; }
 .t-lab{ font-size:12.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .t-badge{ top:-5px; right:-3px; min-width:17px; height:17px; padding:0 5px; font-size:10px; box-shadow:0 0 0 2px var(--surface); }
+.act-grid.cols-1{ grid-template-columns:1fr; }
 @media (max-width:420px){ .act-grid.cols-3{ grid-template-columns:1fr 1fr; } .act-grid.cols-3 .act-tile:first-child{ grid-column:1 / -1; } }
 /* la cifra vera (.cnt) eredita colore e corpo dal dato: la regola «.stat-num span» la faceva piccola e grigia */
 .stat-num .cnt{ color:inherit; font-size:inherit; font-weight:inherit; }

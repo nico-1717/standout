@@ -777,35 +777,20 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 
-            <div class="act-grid <?php echo ($error_count > 0) ? 'cols-3' : 'cols-2'; ?>">
-
-
-
-                <?php /* Al posto dello Storico (ora e' la freccia in alto): una
-                         partita nuova sugli stessi mazzi, con le stesse scelte. */ ?>
-                <?php if ($fcr_ancora !== ''): ?>
+            <?php
+                /* «Gioca ancora» solo a partita FINITA e CONCLUSA: niente da riprendere e
+                   nessun errore ancora da sistemare (tutti ripassati fino a essere giusti,
+                   stato «perfetta» o «conquistata»). Prima compariva sempre, anche a meta'
+                   partita, e portava a iniziarne un'altra lasciando questa in sospeso. */
+                $fcr_mostra_ancora = $fcr_ancora !== '' && $resume_position === null && in_array($fcr_stato, ['perfetta', 'conquistata'], true);
+                $fcr_n_tasti = ($fcr_mostra_ancora ? 1 : 0) + ($error_count > 0 ? 1 : 0) + 1; ?>
+            <div class="act-grid cols-<?php echo (int)$fcr_n_tasti; ?>">
+                <?php if ($fcr_mostra_ancora): ?>
                 <a href="<?php echo sec_h($fcr_ancora); ?>" class="act-tile t-blue">
                     <span class="t-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16l13-8z"/></svg></span>
                     <span class="t-lab"><?php te('fc.res_gioca_ancora'); ?></span>
                 </a>
-                <?php else: ?>
-                <a href="<?php echo sec_h(fc_url('fc_history.php')); ?>" class="act-tile t-blue">
-
-
-
-                    <span class="t-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
-
-
-
-                    <span class="t-lab"><?php te('fc.js_storico'); ?></span>
-
-
-
-                </a>
                 <?php endif; ?>
-
-
-
                 <?php if ($error_count > 0): ?>
 
 
