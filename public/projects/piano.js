@@ -61,7 +61,7 @@
         left: 'M14.5 5L8 12l6.5 7', right: 'M9.5 5L16 12l-6.5 7',
         lock: 'M7 11h10a1.5 1.5 0 011.5 1.5v6A1.5 1.5 0 0117 20H7a1.5 1.5 0 01-1.5-1.5v-6A1.5 1.5 0 017 11zM8.5 11V8a3.5 3.5 0 017 0v3',
         unlock: 'M7 11h10a1.5 1.5 0 011.5 1.5v6A1.5 1.5 0 0117 20H7a1.5 1.5 0 01-1.5-1.5v-6A1.5 1.5 0 017 11zM8.5 11V8a3.5 3.5 0 016.7-1.4',
-        chev: 'M9 6l6 6-6 6', gear: 'M12 15.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zM19.4 13a7.5 7.5 0 000-2l2-1.5-2-3.5-2.3.9a7.4 7.4 0 00-1.7-1L15 3.5h-4l-.4 2.4a7.4 7.4 0 00-1.7 1l-2.3-.9-2 3.5 2 1.5a7.5 7.5 0 000 2l-2 1.5 2 3.5 2.3-.9c.5.4 1.1.7 1.7 1l.4 2.4h4l.4-2.4c.6-.3 1.2-.6 1.7-1l2.3.9 2-3.5z',
+        chev: 'M9 6l6 6-6 6', undo: 'M9 14L4 9l5-5M4 9h9.5a6 6 0 010 12H11', gear: 'M12 15.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zM19.4 13a7.5 7.5 0 000-2l2-1.5-2-3.5-2.3.9a7.4 7.4 0 00-1.7-1L15 3.5h-4l-.4 2.4a7.4 7.4 0 00-1.7 1l-2.3-.9-2 3.5 2 1.5a7.5 7.5 0 000 2l-2 1.5 2 3.5 2.3-.9c.5.4 1.1.7 1.7 1l.4 2.4h4l.4-2.4c.6-.3 1.2-.6 1.7-1l2.3.9 2-3.5z',
         play: 'M8 5.5v13l11-6.5z', check: 'M4 12.5l5.2 5.2L20 6.6', plus: 'M12 5v14M5 12h14', x: 'M6 6l12 12M18 6L6 18'
     };
 
@@ -193,7 +193,7 @@
         return {
             host: host, mode: mode, pid: pid || 0, tab: 'cal', data: null, today: td,
             month: td.slice(0, 7) + '-01', scope: pid || 0, sel: null, tool: store('tool') || 'paint',
-            nodes: {}, kids: {}, paint: {}, plan: {}, done: {}, cap: {}, openRows: {}, cascadeBusy: false
+            nodes: {}, kids: {}, paint: {}, plan: {}, done: {}, cap: {}, openRows: {}, cascadeBusy: false, undo: []
         };
     }
 
@@ -217,7 +217,7 @@
             (d.plan || []).forEach(function (x) { var o = (S.plan[x.d] = S.plan[x.d] || {}); var e = (o[x.p] = o[x.p] || { study: 0, review: 0, manual: false }); e[x.k] = x.m; if (x.s === 'manual') e.manual = true; });
             (d.done || []).forEach(function (x) { (S.done[x.d] = S.done[x.d] || {})[x.p] = x.m; });
             if (S.mode === 'project' && !S.nodes[S.scope]) S.scope = S.pid;
-            if (S.sel === null || !S.nodes[S.sel]) S.sel = S.mode === 'project' ? S.scope : (chipsOf(0)[0] || null);
+            if (S.sel === null || !S.nodes[S.sel]) S.sel = S.mode === 'project' ? S.scope : (chipsOf(0).filter(function (x) { return subtree(x).some(function (y) { return goalMin(y) > 0; }); })[0] || chipsOf(0)[0] || null);
             return d;
         });
     }
@@ -229,8 +229,6 @@
     }
     function chipsOf(scope) {
         var ids = (S.kids[scope] || []).filter(function (id) { return S.nodes[id] && S.nodes[id].status !== 'completed'; });
-        /* nella vista di tutti i progetti, solo quelli che sono nel piano */
-        if (S.mode === 'master' && scope === 0) ids = ids.filter(function (id) { return subtree(id).some(function (x) { return goalMin(x) > 0; }); });
         return ids;
     }
     function goalMin(id) { var n = S.nodes[id]; return n && n.goal && n.goal.minutes ? n.goal.minutes : 0; }
@@ -341,10 +339,12 @@
             if (dn > 0) cell.appendChild(h('span', 'pp-tick', svg(IC.check, 9, 3.4)));
             (function (day) {
                 cell.addEventListener('click', function (e) {
-                    if (e.detail !== 0 || S.tool === 'look') { if (e.detail === 0) openDay(day); return; }   // il mouse e il dito passano dall'evidenziatore
-                    if (!S.sel || day < S.today) return;
-                    var on = S.paint[S.sel] && S.paint[S.sel][day];
-                    api('paint', { project: S.sel, mode: on ? 'remove' : 'add', days: [day] }).then(function () { return refresh(); }).catch(fail);
+                    if (S.tool === 'look') { openDay(day); return; }
+                    if (e.detail !== 0) return;                              // il mouse e il dito passano dall'evidenziatore
+                    if (!S.sel || day < S.today) return;                     // da tastiera: Invio accende e spegne
+                    var on = S.paint[S.sel] && S.paint[S.sel][day], id = S.sel, m = on ? 'remove' : 'add';
+                    pushUndo(function () { return api('paint', { project: id, mode: on ? 'add' : 'remove', days: [day] }); });
+                    api('paint', { project: id, mode: m, days: [day] }).then(function () { return refresh(); }).catch(fail);
                 });
             })(d);
             grid.appendChild(cell);
@@ -355,21 +355,38 @@
 
         root.appendChild(summaryCard());
 
-        /* strumenti */
-        var tools = h('div', 'pp-tools');
+        card.appendChild(h('div', 'pp-tip', t('tip_' + S.tool)));
+
+        /* la barra in basso: strumenti, annulla, e «pianifica per me» */
+        var dock = h('div', 'pp-dock');
+        var seg = h('div', 'pp-tseg');
         [['paint', IC.brush, t('evidenzia')], ['erase', IC.erase, t('cancella')], ['look', IC.eye, t('guarda')]].forEach(function (x) {
-            tools.appendChild(btn('pp-tool' + (S.tool === x[0] ? ' on' : ''), [svg(x[1], 20, 2), h('span', '', x[2])], function () { S.tool = x[0]; store('tool', x[0]); paintAll(); }));
+            var b = btn('pp-tbtn' + (S.tool === x[0] ? ' on' : ''), svg(x[1], 18, 2), function () { S.tool = x[0]; store('tool', x[0]); paintAll(); }, x[2]);
+            b.title = x[2]; seg.appendChild(b);
         });
-        var go = btn('pp-tool pp-go', [svg(IC.spark, 20, 1.8), h('span', '', t('pianifica_per_me'))], function () { autoplanFlow(); });
-        tools.appendChild(go);
-        root.appendChild(tools);
+        dock.appendChild(seg);
+        var un = btn('pp-undo', svg(IC.undo, 18, 2), function () { undo(); }, t('annulla'));
+        un.title = t('annulla'); un.disabled = !S.undo.length;
+        dock.appendChild(un);
+        dock.appendChild(btn('pp-act', [svg(IC.spark, 16, 1.9), h('span', '', t('pianifica_breve'))], function () { autoplanFlow(); }));
+        root.appendChild(dock);
+    }
+
+    /* Annulla: ogni modifica ai giorni mette nella pila il modo di tornare
+       indietro; il tasto toglie l'ultima e la esegue. */
+    function pushUndo(fn) { S.undo.push(fn); if (S.undo.length > 30) S.undo.shift(); }
+    function undo() {
+        var fn = S.undo.pop();
+        if (!fn) return;
+        fn().then(function () { return refresh(); }).catch(function (e) { fail(e); refresh(); });
     }
 
     function chip(id, isScope) {
         var n = S.nodes[id]; if (!n) return h('span');
         var on = S.sel === id;
         var kids = (S.kids[id] || []).length;
-        var b = h('button', 'pp-chip' + (on ? ' on' : ''));
+        var inPlan = subtree(id).some(function (x) { return goalMin(x) > 0; });
+        var b = h('button', 'pp-chip' + (on ? ' on' : '') + (inPlan ? '' : ' off'));
         b.type = 'button';
         b.style.setProperty('--c', n.color);
         b.appendChild(h('i', 'pp-chip-dot'));
@@ -410,6 +427,8 @@
         var acts = h('div', 'pp-sum-acts');
         acts.appendChild(btn('pp-link', t('modifica_ore'), function () { goPlan(id); }));
         if (days > 0) acts.appendChild(btn('pp-link pp-link-q', t('svuota_giorni'), function () {
+            var was = Object.keys(S.paint[id] || {});
+            pushUndo(function () { return api('paint', { project: id, mode: 'add', days: was }); });
             api('paint', { project: id, mode: 'clear' }).then(function () { refresh(); }).catch(fail);
         }));
         card.appendChild(acts);
@@ -429,7 +448,7 @@
     /* l'evidenziatore: tocco o trascinamento. Il primo giorno toccato decide
        se si sta accendendo o spegnendo, e vale per tutto il trascinamento. */
     function bindPaint(grid) {
-        var active = false, mode = 'add', touched = {}, order = [];
+        var active = false, mode = 'add', touched = {}, changed = [];
         function cellAt(x, y) {
             var el = document.elementFromPoint(x, y);
             return el && el.closest ? el.closest('.pp-day') : null;
@@ -437,17 +456,25 @@
         function apply(cell) {
             var d = cell.dataset.d;
             if (touched[d] || d < S.today) return;
-            touched[d] = true; order.push(d);
+            touched[d] = true;
             if (!S.paint[S.sel]) S.paint[S.sel] = {};
-            if (mode === 'add') { S.paint[S.sel][d] = true; cell.classList.add('sel'); cell.style.setProperty('--c', S.nodes[S.sel].color); cell.style.setProperty('--sel-ink', ink(S.nodes[S.sel].color)); }
-            else { delete S.paint[S.sel][d]; cell.classList.remove('sel'); }
+            var was = !!S.paint[S.sel][d];
+            if (mode === 'add') {
+                if (!was) changed.push(d);
+                S.paint[S.sel][d] = true; cell.classList.add('sel'); cell.style.setProperty('--c', S.nodes[S.sel].color); cell.style.setProperty('--sel-ink', ink(S.nodes[S.sel].color));
+            } else {
+                if (was) changed.push(d);
+                delete S.paint[S.sel][d]; cell.classList.remove('sel');
+            }
         }
+        /* Guarda: si apre il giorno solo col «click», che il browser non
+           genera quando il dito sta scorrendo la pagina. */
         grid.addEventListener('pointerdown', function (e) {
+            if (S.tool === 'look') return;
             var cell = e.target.closest ? e.target.closest('.pp-day') : null;
             if (!cell) return;
-            if (S.tool === 'look') { openDay(cell.dataset.d); return; }
             if (!S.sel || !S.nodes[S.sel]) { toast(t('scegli_figlio')); return; }
-            active = true; touched = {}; order = [];
+            active = true; touched = {}; changed = [];
             var painted = S.paint[S.sel] && S.paint[S.sel][cell.dataset.d];
             mode = S.tool === 'erase' ? 'remove' : (painted ? 'remove' : 'add');
             apply(cell);
@@ -462,13 +489,14 @@
         function end() {
             if (!active) return;
             active = false;
-            if (!order.length) return;
-            var id = S.sel, m = mode, days = order.slice();
-            api('paint', { project: id, mode: m, days: days }).then(function () { return load(); }).then(function () { paintAll(); }).catch(function (e) { fail(e); refresh(); });
+            if (!changed.length) return;
+            var id = S.sel, m = mode, days = changed.slice();
+            pushUndo(function () { return api('paint', { project: id, mode: m === 'add' ? 'remove' : 'add', days: days }); });
+            api('paint', { project: id, mode: m, days: days }).then(function () { return load(); }).then(function () { paintAll(); }).catch(function (e) { S.undo.pop(); fail(e); refresh(); });
         }
         grid.addEventListener('pointerup', end);
         grid.addEventListener('pointercancel', end);
-        grid.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+        grid.addEventListener('contextmenu', function (e) { if (S.tool !== 'look') e.preventDefault(); });
     }
 
     /* ---------------- il giorno ---------------- */
@@ -522,6 +550,8 @@
             box.appendChild(h('div', 'pp-day-add', [hrs, save, off]));
         }
         function setMin(id, m, isNew) {
+            var prev = (S.plan[d] && S.plan[d][id] && S.plan[d][id].study) || 0;
+            pushUndo(function () { return api('day_set', { project: id, day: d, minutes: prev }); });
             api('day_set', { project: id, day: d, minutes: m }).then(function () { return load(); }).then(function () {
                 if (isNew && !S.plan[d]) S.plan[d] = {};
                 draw(); paintAll();
@@ -655,10 +685,10 @@
                 })
             ]));
         }
-        var acts = h('div', 'pp-tools pp-tools-plan');
-        acts.appendChild(btn('pp-tool', [svg(IC.gear, 20, 1.8), h('span', '', t('il_tuo_tempo'))], function () { openSettings(); }));
-        acts.appendChild(btn('pp-tool', h('span', '', t('modelli')), function () { openTemplates(id); }));
-        acts.appendChild(btn('pp-tool pp-go', [svg(IC.spark, 20, 1.8), h('span', '', t('pianifica_per_me'))], function () { autoplanFlow(); }));
+        var acts = h('div', 'pp-dock pp-dock-plan');
+        acts.appendChild(btn('pp-act quiet', [svg(IC.gear, 16, 1.8), h('span', '', t('il_tuo_tempo'))], function () { openSettings(); }));
+        acts.appendChild(btn('pp-act quiet', h('span', '', t('modelli')), function () { openTemplates(id); }));
+        acts.appendChild(btn('pp-act', [svg(IC.spark, 16, 1.9), h('span', '', t('pianifica_per_me'))], function () { autoplanFlow(); }));
         root.appendChild(acts);
     }
     function refresh2() {
@@ -998,14 +1028,26 @@
             row.addEventListener('click', function () { window.location.href = 'progetti.php?id=' + g.id + '&pp=plan'; });
             list.appendChild(row);
         });
-        var rest = Object.keys(S.nodes).map(Number).filter(function (id) { return S.nodes[id].parent === null && S.nodes[id].status !== 'completed' && !mdata.goals.some(function (g) { return g.id === id; }); });
-        if (!m.goals.length) list.appendChild(h('div', 'pp-hint', t('ov_nessun_obiettivo')));
+        var rest = Object.keys(S.nodes).map(Number).filter(function (id) { return S.nodes[id].parent === null && S.nodes[id].status !== 'completed' && !m.goals.some(function (g) { return g.id === id; }); });
+        /* i progetti principali che non sono ancora nel piano: un tocco e si decide quanto tempo dargli */
+        if (rest.length) {
+            if (m.goals.length) list.appendChild(h('div', 'pp-lab', t('non_nel_piano')));
+            rest.forEach(function (id) {
+                var n = S.nodes[id];
+                var row = h('button', 'pp-goal-row off'); row.type = 'button';
+                var dot = h('i', 'pp-chip-dot'); dot.style.setProperty('--c', n.color); dot.style.background = 'none'; dot.style.boxShadow = 'inset 0 0 0 1.5px ' + n.color;
+                row.appendChild(dot); row.appendChild(h('div', 'pp-goal-info', h('div', 'pp-goal-n', n.name)));
+                row.appendChild(h('div', 'pp-goal-r', h('span', 'add', t('aggiungi_al_piano'))));
+                row.addEventListener('click', function () { window.location.href = 'progetti.php?id=' + id + '&pp=plan'; });
+                list.appendChild(row);
+            });
+        }
+        if (!m.goals.length && !rest.length) list.appendChild(h('div', 'pp-hint', t('ov_nessun_obiettivo')));
         root.appendChild(list);
-        var tools = h('div', 'pp-tools');
-        tools.appendChild(btn('pp-tool', [svg(IC.plus, 20, 2), h('span', '', t('aggiungi_obiettivo'))], function () { addGoalSheet(rest); }));
-        tools.appendChild(btn('pp-tool', [svg(IC.gear, 20, 1.8), h('span', '', t('il_tuo_tempo'))], function () { openSettings(); }));
-        tools.appendChild(btn('pp-tool pp-go', [svg(IC.spark, 20, 1.8), h('span', '', t('riempi_calendario'))], function () { autoplanFlow(); }));
-        root.appendChild(tools);
+        var dock = h('div', 'pp-dock pp-dock-plan');
+        dock.appendChild(btn('pp-act quiet', [svg(IC.gear, 16, 1.8), h('span', '', t('il_tuo_tempo'))], function () { openSettings(); }));
+        dock.appendChild(btn('pp-act', [svg(IC.spark, 16, 1.9), h('span', '', t('riempi_calendario'))], function () { autoplanFlow(); }));
+        root.appendChild(dock);
     }
     function goalLine(g) {
         var parts = [t('tipo_' + g.kind)];
@@ -1078,9 +1120,9 @@
         if (d.next_exam) wk.appendChild(h('div', 'pp-ov-nums', [h('span', '', t('esame_tra', { n: d.next_exam.name, d: d.next_exam.days })), null]));
         root.appendChild(wk);
         if (!d.blocks.length) {
-            var tools = h('div', 'pp-tools');
-            tools.appendChild(btn('pp-tool pp-go', [svg(IC.spark, 20, 1.8), h('span', '', t('riempi_calendario'))], function () { autoplanFlow(); }));
-            root.appendChild(tools);
+            var dock = h('div', 'pp-dock pp-dock-plan');
+            dock.appendChild(btn('pp-act', [svg(IC.spark, 16, 1.9), h('span', '', t('riempi_calendario'))], function () { autoplanFlow(); }));
+            root.appendChild(dock);
         }
     }
 

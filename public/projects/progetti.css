@@ -775,6 +775,13 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 .pr-hero-actions.is-stretta .pr-act:not(.pr-act-focus){ width:42px; padding:0; flex:none; }
 .pr-hero-actions.is-stretta .pr-act:not(.pr-act-focus) span{ display:none; }
 .pr-act-focus [data-pomo-live]{ font-variant-numeric:tabular-nums; }
+.pr-focus{ flex-shrink:0; height:34px; min-width:34px; border:none; border-radius:17px; padding:0; display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    background:var(--accent); color:var(--accent-ink, #fff); cursor:pointer; font:inherit; font-size:13px; font-weight:700;
+    transition:transform .15s var(--spring); }
+.pr-focus svg{ width:17px; height:17px; }
+.pr-focus:active{ transform:scale(.92); }
+.pr-focus.is-live{ padding:0 12px; }
+.pr-focus [data-pomo-live]{ font-variant-numeric:tabular-nums; }
 .pr-act-live{ width:8px; height:8px; border-radius:50%; background:currentColor; animation:prPulse 1.6s ease-in-out infinite; }
 @keyframes prPulse{ 50%{ opacity:.35; } }
 

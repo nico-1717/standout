@@ -4987,6 +4987,13 @@
     "api_modello_non_trovato": "Modello non trovato.",
     "api_azione_sconosciuta": "Azione sconosciuta.",
     "ap_pochi_giorni": "Per «{n}» i giorni evidenziati ancora utili sono solo {d}: aggiungine altri o togli l’evidenziatore.",
-    "ov_scadenze": "Il tempo in totale basta, ma non prima di alcune scadenze: sotto vedi cosa non entra."
+    "ov_scadenze": "Il tempo in totale basta, ma non prima di alcune scadenze: sotto vedi cosa non entra.",
+    "annulla": "Annulla",
+    "tip_paint": "Trascina sui giorni per evidenziarli. Tocca un giorno già evidenziato per toglierlo.",
+    "tip_erase": "Trascina sui giorni evidenziati per cancellarli.",
+    "tip_look": "Tocca un giorno per vedere i blocchi e cambiare le ore libere.",
+    "non_nel_piano": "Non ancora nel piano",
+    "aggiungi_al_piano": "Aggiungi",
+    "pianifica_breve": "Pianifica"
   }
 }

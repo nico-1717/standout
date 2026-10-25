@@ -1536,6 +1536,16 @@ if ($deckProprio) {
                 ?></span>
                 <svg class="pr-hero-star" id="prHeroStar" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"<?php echo $heroFav ? '' : ' hidden'; ?>><path d="M12 4.2l2.3 4.9 5.2.7-3.8 3.7 1 5.3-4.7-2.6-4.7 2.6 1-5.3-3.8-3.7 5.2-.7z"/></svg>
             </div>
+            <?php /* Concentrati: un tondo del colore del progetto accanto al ⋯, come
+                     il play di un lettore. Quando il pomodoro di questo progetto è
+                     in corso diventa una pastiglia col tempo che scorre. */ ?>
+            <button type="button" class="pr-focus<?php echo isset($pomoRamo[$selId]) ? ' is-live' : ''; ?>"<?php echo $statsHero; ?> aria-label="<?php te('progetti.concentrati'); ?>" title="<?php te('progetti.concentrati'); ?>">
+                <?php if (isset($pomoRamo[$selId])): ?>
+                <i class="pr-act-live"></i><span data-pomo-live><?php echo sec_h(prog_tempo_vivo($pomoAttivo)); ?></span>
+                <?php else: ?>
+                <?php echo prog_timer_svg(); ?>
+                <?php endif; ?>
+            </button>
             <button type="button" class="pr-more-btn" onclick="prApriAltro()" aria-label="<?php te('progetti.altro'); ?>" title="<?php te('progetti.altro'); ?>">
                 <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="18.5" cy="12" r="1.8"/></svg>
             </button>
@@ -1601,22 +1611,6 @@ if ($deckProprio) {
                 <button type="button" class="pr-nota-btn" onclick="prNotaChiudi(false)"><?php te('comune.annulla'); ?></button>
                 <button type="button" class="pr-nota-btn pr-nota-btn-ok" onclick="prNotaChiudi(true)"><?php te('comune.salva'); ?></button>
             </div>
-        </div>
-
-        <div class="pr-hero-actions">
-            <button type="button" class="pr-act pr-act-focus"<?php echo $statsHero; ?> aria-label="<?php te('progetti.concentrati'); ?>">
-                <?php if (isset($pomoRamo[$selId])): ?>
-                <i class="pr-act-live"></i><span data-pomo-live><?php echo sec_h(prog_tempo_vivo($pomoAttivo)); ?></span>
-                <?php else: ?>
-                <?php echo prog_timer_svg(); ?><span><?php te('progetti.concentrati'); ?></span>
-                <?php endif; ?>
-            </button>
-            <button type="button" class="pr-act" onclick="prAggiungi(<?php echo $selId; ?>)" aria-label="<?php te('progetti.aggiungi'); ?>">
-                <?php echo prog_piu_svg(); ?><span><?php te('progetti.aggiungi'); ?></span>
-            </button>
-            <button type="button" class="pr-act" onclick="ppVai('plan')" aria-label="<?php te('progetti.piano'); ?>">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span><?php te('progetti.piano'); ?></span>
-            </button>
         </div>
     </div>
 
@@ -2811,23 +2805,6 @@ window.prNuovoProgetto = function(btn){
     });
     inp.focus();
 };
-
-/* ---------- i tre tasti della scheda: se le parole non ci stanno (in
-   italiano «Concentrati · Aggiungi · Pianifica» è più lungo), Aggiungi e
-   Pianifica restano solo icona invece di spingere la pagina di lato ---------- */
-(function(){
-    var box = document.querySelector('.pr-hero-actions');
-    if (!box) return;
-    function prova(){
-        box.classList.remove('is-stretta');
-        var serve = 0, kids = box.children;
-        for (var i = 0; i < kids.length; i++) serve += kids[i].scrollWidth + (i ? 8 : 0);
-        if (serve > box.clientWidth + 1) box.classList.add('is-stretta');
-    }
-    prova();
-    window.addEventListener('resize', prova);
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(prova);
-})();
 
 /* Preferito: cambia subito e salva dopo; se il salvataggio non riesce torna
    com'era e lo dice. La stella accanto al nome c'è solo quando è acceso. */

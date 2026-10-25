@@ -4987,6 +4987,13 @@
     "api_modello_non_trovato": "Template not found.",
     "api_azione_sconosciuta": "Unknown action.",
     "ap_pochi_giorni": "For “{n}” only {d} of the highlighted days can still be used: add more days, or clear the highlighter.",
-    "ov_scadenze": "There’s enough time overall, but not before some deadlines: below you can see what doesn’t fit."
+    "ov_scadenze": "There’s enough time overall, but not before some deadlines: below you can see what doesn’t fit.",
+    "annulla": "Undo",
+    "tip_paint": "Drag over days to highlight them. Tap a highlighted day to remove it.",
+    "tip_erase": "Drag over highlighted days to clear them.",
+    "tip_look": "Tap a day to see its blocks and change its free hours.",
+    "non_nel_piano": "Not in the plan yet",
+    "aggiungi_al_piano": "Add",
+    "pianifica_breve": "Plan for me"
   }
 }
