@@ -4,7 +4,7 @@
      Il sito legge ad alta voce domande/risposte e resta sempre in
      ascolto per riconoscere i comandi parlati dall'utente (ripeti,
      pausa, riprendi, risposta, leggi/spiega/metafora, corretto/errato,
-     successiva, frantuma, chiudi).
+     frantuma, chiudi). Dopo un voto la domanda successiva parte da sola.
 
      Questo file va incluso una sola volta in fc_game.php, DOPO
      fc_audio_player.php (da cui riusa attachFloatingPlayer/
@@ -57,10 +57,12 @@
                 <span class="vg-cmd-badge vg-tint-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1v.2h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/></svg></span>
                 <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_risposta'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_risposta'); ?></span></span>
             </div>
+            <?php if (!fc_is_vocab()): /* le parole non hanno l'IA nel gioco */ ?>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-purple"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2 5.7 5.7 2-5.7 2-2 5.7-2-5.7-5.7-2 5.7-2 2-5.7zM19 14l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1 1.1-3z"/></svg></span>
                 <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_leggi'); ?>», «<?php te('fc.lbl_spiega'); ?>», «<?php te('fc.lbl_metafora'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_ai'); ?></span></span>
             </div>
+            <?php endif; ?>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
                 <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_corretto'); ?>» / «<?php te('fc.vg_giusto'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_corretto'); ?></span></span>
@@ -70,12 +72,13 @@
                 <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_errato'); ?>» / «<?php te('fc.vg_sbagliato'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_errato'); ?></span></span>
             </div>
 
-            <div class="vg-group-label"><?php te('fc.vg_per_avanti'); ?></div>
-            <div class="vg-cmd-row">
-                <span class="vg-cmd-badge vg-tint-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_successiva'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_successiva'); ?></span></span>
-            </div>
+            <?php /* «Successiva» non c'e' piu': dopo «corretto» o «sbagliato» la
+                     domanda dopo parte da sola. Era un passaggio in piu' a
+                     ogni carta, e a voce ogni passaggio e' una frase da dire
+                     e da far capire al microfono. */ ?>
+            <p class="vg-auto-note"><?php te('fc.vg_auto_avanti'); ?></p>
 
+            <?php if (!fc_is_vocab()): ?>
             <div class="vg-group-label"><?php te('fc.vg_frantuma_titolo'); ?></div>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-purple"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 3 14h7l-1 8 11-14h-7z"/></svg></span>
@@ -84,6 +87,22 @@
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-gray"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg></span>
                 <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_chiudi'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_chiudi'); ?></span></span>
+            </div>
+            <?php endif; ?>
+        </div>
+
+        <?php /* LA LINGUA DEI COMANDI. Il microfono trascrive in UNA lingua
+                 alla volta, ed e' quella a decidere quanto bene capisce: con
+                 l'interfaccia in inglese era fissa a en-US, e un accento
+                 italiano su "wrong" o "answer" diventava "Ron" o "and sir".
+                 Si sceglie qui, si ricorda su questo dispositivo, e i
+                 comandi dell'altra lingua valgono comunque. */ ?>
+        <div class="vg-lang">
+            <span class="vg-lang-lab"><?php te('fc.vg_lingua_comandi'); ?></span>
+            <div class="vg-lang-seg" role="radiogroup" aria-label="<?php te('fc.vg_lingua_comandi'); ?>">
+                <?php foreach (['it-IT' => 'Italiano', 'en-US' => 'English (US)', 'en-GB' => 'English (UK)'] as $vg_cod => $vg_nome): ?>
+                <button type="button" role="radio" aria-checked="false" data-lang="<?php echo $vg_cod; ?>"><?php echo $vg_nome; ?></button>
+                <?php endforeach; ?>
             </div>
         </div>
 
@@ -98,7 +117,7 @@
 <div id="vg-orb-wrap">
     <div id="vg-coldstart-hint" class="vg-coldstart-hint"></div>
     <div id="vg-caption" class="vg-caption" aria-live="polite"></div>
-    <button id="vg-orb" type="button" aria-label=T('fc.vg_attiva')>
+    <button id="vg-orb" type="button" aria-label="<?php te('fc.vg_attiva'); ?>">
         <svg class="vg-mic-ic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M17.3 11a5.3 5.3 0 0 1-10.6 0H5a7 7 0 0 0 6 6.93V21h2v-3.07A7 7 0 0 0 19 11h-1.7z"/></svg>
         <div id="vg-coldstart-badge" class="vg-coldstart-badge" aria-live="polite"></div>
     </button>
@@ -120,6 +139,24 @@
 
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_voice_mode.css?v=<?php echo @filemtime(__DIR__ . '/fc_voice_mode.css') ?: 1; ?>">
 
+<?php
+/* I comandi di TUTTE le lingue, non solo di quella del sito: chi ha il sito in
+   inglese ma pensa in italiano dice «corretto» senza accorgersene, e chi
+   studia inglese con il sito in italiano spesso risponde «correct». Le
+   etichette sullo schermo restano quelle della lingua del sito; qui ci sono
+   solo le frasi che il microfono confronta. */
+$vg_intenti = ['ripeti', 'pausa', 'riprendi', 'risposta', 'leggi', 'spiega', 'metafora', 'corretto', 'errato', 'frantuma', 'chiudi'];
+$vg_comandi = [];
+foreach (['it', 'en'] as $vg_l) {
+    $vg_diz = standout_dizionario($vg_l);
+    foreach ($vg_intenti as $vg_i) {
+        $vg_comandi[$vg_l][$vg_i] = (string)(standout_cerca_chiave($vg_diz, 'fc.cmd_' . $vg_i) ?? '');
+    }
+    $vg_comandi[$vg_l]['_fillers'] = (string)(standout_cerca_chiave($vg_diz, 'fc.vg_fillers') ?? '');
+}
+?>
+<script type="application/json" id="vg-comandi"><?php echo json_encode(['lingua_sito' => standout_lingua(), 'comandi' => $vg_comandi, 'vocab' => fc_is_vocab()], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?></script>
+
 <script>
 (function () {
     'use strict';
@@ -135,7 +172,7 @@
 
     var VG = {
         active: false,           // modalità vocale avviata?
-        phase: 'idle',           // idle | question | answer | awaiting-next | ai-audio |
+        phase: 'idle',           // idle | question | answer | grading | ai-audio |
                                   // shatter-loading | shatter-q | shatter-a | shatter-finished
         shatterIndex: 0,
         shatterCount: 0,
@@ -317,7 +354,21 @@
     /* Le parole di cortesia da togliere prima di riconoscere il comando
        ("puoi ripeti per favore" -> "ripeti"). Vengono dal dizionario perche' in
        inglese sono altre, e in italiano non aiuterebbero. */
-    var FILLERS = T('fc.vg_fillers').split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean);
+    var VG_DATI = {};
+    try { VG_DATI = JSON.parse(document.getElementById('vg-comandi').textContent) || {}; } catch (e) { VG_DATI = {}; }
+    function elencoVirgole(s) {
+        return String(s || '').split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean);
+    }
+    /* Le lingue dei comandi: prima quella del sito, poi le altre. */
+    var LINGUE_CMD = Object.keys(VG_DATI.comandi || {}).sort(function (a, b) {
+        return (a === VG_DATI.lingua_sito ? -1 : 0) - (b === VG_DATI.lingua_sito ? -1 : 0);
+    });
+    var FILLERS = [];
+    LINGUE_CMD.forEach(function (l) { FILLERS = FILLERS.concat(elencoVirgole(VG_DATI.comandi[l]._fillers)); });
+    if (!FILLERS.length) FILLERS = elencoVirgole(T('fc.vg_fillers'));
+    /* Le frasi piu' lunghe per prime: "thanks a lot" va tolto prima di "thanks". */
+    FILLERS = FILLERS.map(function (f) { return normalize(f); }).filter(Boolean);
+    FILLERS.sort(function (a, b) { return b.length - a.length; });
     function stripFillers(s) {
         var out = ' ' + s + ' ';
         FILLERS.forEach(function (f) {
@@ -355,10 +406,16 @@
        microfono confronta, quindi devono essere nella lingua in cui l'utente
        parla. Nel dizionario stanno come elenco separato da virgole. */
     var COMMANDS = {};
-    ['ripeti', 'pausa', 'riprendi', 'risposta', 'leggi', 'spiega', 'metafora', 'corretto', 'errato', 'successiva', 'frantuma', 'chiudi'].forEach(function (intento) {
-        COMMANDS[intento] = T('fc.cmd_' + intento).split(',').map(function (x) {
-            return x.trim().toLowerCase();
-        }).filter(Boolean);
+    /* Nelle parole non ci sono l'IA ne' "frantuma": comandi che non possono
+       fare niente sono solo occasioni per capire male una frase. */
+    var INTENTI = VG_DATI.vocab
+        ? ['ripeti', 'pausa', 'riprendi', 'risposta', 'corretto', 'errato']
+        : ['ripeti', 'pausa', 'riprendi', 'risposta', 'leggi', 'spiega', 'metafora', 'corretto', 'errato', 'frantuma', 'chiudi'];
+    INTENTI.forEach(function (intento) {
+        var frasi = [];
+        LINGUE_CMD.forEach(function (l) { frasi = frasi.concat(elencoVirgole((VG_DATI.comandi[l] || {})[intento])); });
+        if (!frasi.length) frasi = elencoVirgole(T('fc.cmd_' + intento));
+        COMMANDS[intento] = frasi.filter(function (f, i) { return frasi.indexOf(f) === i; });
     });
 
     /* Le etichette sono separate dai sinonimi: questa e' quella che si legge
@@ -423,7 +480,9 @@
     function currentCardBox() {
         var c = lastContainer();
         if (!c) return null;
-        return c.querySelector('.card-box:not(.graded)');
+        /* .anteprima-card: la fotografia della carta successiva che sale
+           durante il voto. Non e' una carta del gioco e non ha comandi. */
+        return c.querySelector('.card-box:not(.graded):not(.anteprima-card)');
     }
     function cardIndex(card) {
         if (!card) return null;
@@ -571,39 +630,89 @@
         });
     }
 
+    /* Il tasto del voto della carta. ERA QUI IL GUASTO PRINCIPALE: si
+       cercavano a.btn-green / a.btn-red, i tasti di prima del ridisegno della
+       riga dei voti, che ora sono a.gc-correct / a.gc-wrong. Il comando veniva
+       riconosciuto (la didascalia lo mostrava) ma il tasto non si trovava mai,
+       e la funzione usciva in silenzio. Si cercano entrambi, cosi' un prossimo
+       ritocco della grafica non lo rompe di nuovo senza farsi notare. */
+    function linkVoto(card, result) {
+        var sel = result === 'correct' ? 'a.gc-correct, a.btn-green' : 'a.gc-wrong, a.btn-red';
+        var idx = cardIndex(card);
+        var box = document.getElementById('ans-section-' + idx);
+        return (box && box.querySelector(sel)) || card.querySelector(sel);
+    }
+
     function markCard(result) {
-        if (VG.phase !== 'answer' && VG.phase !== 'ai-audio') return;
         var card = currentCardBox();
         if (!card) return;
-        var idx = cardIndex(card);
-        
-        var ansBox = document.getElementById('ans-section-' + idx) || document.getElementById('graded-ans-' + idx);
-        var link = ansBox ? ansBox.querySelector(result === 'correct' ? 'a.btn-green' : 'a.btn-red') : null;
+        var link = linkVoto(card, result);
         if (!link) return;
-        
+
         stopTuttoIlParlato();
-        
+
         // BLOCCA IMMEDIATAMENTE IL CARICAMENTO E L'AUDIO DELL'AI
         if (typeof window.cancelAiAudio === 'function') {
             window.cancelAiAudio();
         } else if (typeof currentAiAudio !== 'undefined' && currentAiAudio) {
             currentAiAudio.pause();
         }
-        
-        VG.pendingGrade = true;
-        VG.phase = 'awaiting-next';
+
+        /* Si puo' votare anche senza aver chiesto la risposta: chi sa di
+           averla detta giusta non deve dire «risposta» e aspettare che venga
+           letta per poi dire «corretto». La risposta si apre comunque, cosi'
+           la si vede passare mentre la carta se ne va. */
+        if (!card.classList.contains('risposta-mostrata')) {
+            try { revealCard(cardIndex(card)); } catch (e) {}
+        }
+
+        VG.phase = 'grading';
         setOrbState('waiting');
-        link.click(); 
+        link.click();
     }
 
-    function goSuccessiva() {
-        if (VG.phase === 'shatter-a') { advanceShatter(); return; }
-        if (VG.phase === 'awaiting-next') {
-            VG.phase = 'idle';
-            readQuestion();
-            return;
-        }
-        // in ogni altra fase non c'è nulla su cui avanzare: comando ignorato
+    /* DOPO UN VOTO: si legge da soli la domanda successiva (prima serviva
+       dire «successiva»). Le strade sono due:
+         - la posizione cambia: arriva un contenitore nuovo, e ci pensa
+           onNewPage;
+         - nella stessa pagina c'e' un'altra carta da fare (una carta con le
+           sue sottocarte): la pagina non cambia, la carta votata diventa
+           .graded e si scende alla successiva. Questo caso prima non aveva
+           nessuno che lo guardasse, e la voce restava muta.
+       Si guarda la pagina a intervalli brevi invece di indovinare quanto
+       duri l'animazione del voto. */
+    var dopoVotoTimer = null;
+    function fermaAttesaVoto() {
+        if (dopoVotoTimer) { clearInterval(dopoVotoTimer); dopoVotoTimer = null; }
+    }
+    function attendiDopoVoto(cardVotata) {
+        fermaAttesaVoto();
+        VG.phase = 'grading';
+        setOrbState('waiting');
+        var cont = lastContainer();
+        var inizio = Date.now();
+        dopoVotoTimer = setInterval(function () {
+            if (!VG.active) { fermaAttesaVoto(); return; }
+            if (lastContainer() !== cont) { fermaAttesaVoto(); return; }   // onNewPage
+            var votata = !cardVotata || !cardVotata.isConnected || cardVotata.classList.contains('graded');
+            if (votata) {
+                if (currentCardBox()) {
+                    fermaAttesaVoto();
+                    VG.phase = 'idle';
+                    setTimeout(readQuestion, 250);
+                    return;
+                }
+                /* Voto rimasto in coda senza rete: la pagina non cambia ma
+                   compare "Avanti". Si va avanti come se l'avesse toccato. */
+                var avanti = cont ? cont.querySelector('.nav-fwd') : null;
+                if (avanti) { fermaAttesaVoto(); avanti.click(); return; }
+            }
+            if (Date.now() - inizio > 20000) {
+                fermaAttesaVoto();
+                VG.phase = currentCardBox() ? 'question' : 'idle';
+                setOrbState('listening');
+            }
+        }, 200);
     }
 
     /* ============================================================
@@ -753,7 +862,14 @@
         setOrbState('speaking');
         var raw = rawTextOf('#shatter-araw-' + i);
         speakText(raw, function () {
-            if (VG.active && VG.phase === 'shatter-a') setOrbState('listening');
+            if (!(VG.active && VG.phase === 'shatter-a' && VG.shatterIndex === i)) return;
+            setOrbState('listening');
+            /* Niente «successiva» anche qui: letta la risposta, dopo un
+               respiro si passa da soli alla mini-domanda dopo. In quel respiro
+               si puo' ancora dire «ripeti» o «sbagliato». */
+            setTimeout(function () {
+                if (VG.active && VG.phase === 'shatter-a' && VG.shatterIndex === i) advanceShatter();
+            }, 1600);
         });
     }
 
@@ -778,8 +894,7 @@
         var link = document.getElementById(result === 'correct' ? 'shatter-correct-btn' : 'shatter-wrong-btn');
         if (!link) return;
         stopTuttoIlParlato();
-        VG.pendingGrade = true;
-        VG.phase = 'awaiting-next';
+        VG.phase = 'grading';
         setOrbState('waiting');
         link.click(); // chiama anche closeShatterModal() tramite il suo onclick, poi naviga
     }
@@ -841,10 +956,7 @@
                 readShatterQuestion(VG.shatterIndex);
                 break;
             case 'shatter-a':
-                setOrbState('speaking');
-                speakText(rawTextOf('#shatter-araw-' + VG.shatterIndex), function () {
-                    if (VG.active && VG.phase === 'shatter-a') setOrbState('listening');
-                });
+                readShatterAnswer();   // rilegge, e poi va avanti da sola come la prima volta
                 break;
             case 'shatter-finished':
                 setOrbState('speaking');
@@ -891,7 +1003,7 @@
         else if (VG.phase === 'shatter-q') readShatterAnswer();
     }
     function doCorretto() {
-        if (VG.phase === 'answer' || VG.phase === 'ai-audio') markCard('correct');
+        if (VG.phase === 'question' || VG.phase === 'answer' || VG.phase === 'ai-audio') markCard('correct');
         else if (VG.phase === 'shatter-finished') judgeShatter('correct');
         // "corretto" solo dall'ultima mini-card: per essere sicuri di aver
         // saputo TUTTA la carta serve averle riviste tutte.
@@ -902,7 +1014,7 @@
     }
 
     function doErrato() {
-        if (VG.phase === 'answer' || VG.phase === 'ai-audio') markCard('wrong');
+        if (VG.phase === 'question' || VG.phase === 'answer' || VG.phase === 'ai-audio') markCard('wrong');
         else if (VG.phase === 'shatter-finished') judgeShatter('wrong');
         // "errato" invece da QUALSIASI mini-card: basta sbagliarne una per
         // sapere di non aver saputo l'intera carta, niente bisogno di
@@ -923,10 +1035,109 @@
         metafora: function () { triggerAiTool('metaphor'); },
         corretto: doCorretto,
         errato: doErrato,
-        successiva: goSuccessiva,
         frantuma: startFrantuma,
         chiudi: closeFrantuma
     };
+
+    /* ============================================================
+       8-bis. FASE, ECO, LINGUA
+       ============================================================ */
+
+    /* La fase la tiene questo file, ma la carta si puo' toccare anche con le
+       dita mentre la voce e' accesa: chi apre la risposta con un tocco e poi
+       dice «corretto» era ancora in fase 'question'. Prima di ogni comando la
+       fase si riallinea a quello che c'e' davvero sullo schermo. */
+    function sincronizzaFase() {
+        if (VG.phase === 'grading' || VG.phase === 'ai-audio' || VG.phase.indexOf('shatter') === 0) return;
+        var card = currentCardBox();
+        if (!card) return;
+        if (card.classList.contains('risposta-mostrata')) {
+            if (VG.phase === 'question' || VG.phase === 'idle') VG.phase = 'answer';
+        } else if (VG.phase === 'idle' || VG.phase === 'answer') {
+            VG.phase = 'question';
+        }
+    }
+
+    /* ECO: il microfono sente anche la voce che legge la carta. Se quello
+       che ha trascritto e' un pezzo del testo che si sta leggendo (o appena
+       letto), non e' l'utente che parla: si ignora. Senza questo filtro, una
+       carta che contiene "right" o "giusto" si votava da sola. */
+    var letturaTesto = '';
+    var letturaFinoA = 0;      // 0 = sta leggendo adesso
+    function segnaLettura(testo) {
+        letturaTesto = normalize(String(testo || '').replace(/<[^>]+>/g, ' ').replace(/[$\\{}_^]/g, ' '));
+        letturaFinoA = 0;
+    }
+    function finitaLettura() { letturaFinoA = Date.now() + 1500; }
+    function eEco(trascritto) {
+        if (!letturaTesto) return false;
+        if (letturaFinoA && Date.now() > letturaFinoA) return false;
+        var t = normalize(trascritto);
+        return t.length > 0 && (' ' + letturaTesto + ' ').indexOf(' ' + t + ' ') !== -1;
+    }
+
+    var LINGUE_RICONOSCIMENTO = ['it-IT', 'en-US', 'en-GB'];
+    function linguaComandi() {
+        try {
+            var v = localStorage.getItem('vg_lingua_comandi');
+            if (LINGUE_RICONOSCIMENTO.indexOf(v) !== -1) return v;
+        } catch (e) {}
+        var sito = T('fc.voice_lang');
+        return LINGUE_RICONOSCIMENTO.indexOf(sito) !== -1 ? sito : 'it-IT';
+    }
+
+    /* Dove il browser lo permette (Chrome recente), si dice al riconoscitore
+       quali parole aspettarsi: e' lo stesso principio dei comandi di un
+       assistente vocale, che capisce "stop" anche detto male perche' sa che
+       e' una delle poche cose che puoi dire. Dove non c'e', non succede
+       niente. Solo le frasi corte e solo della lingua scelta. */
+    function applicaFrasiAttese() {
+        if (!recognition) return;
+        try {
+            if (typeof window.SpeechRecognitionPhrase !== 'function' || !('phrases' in recognition)) return;
+            var l = recognition.lang.slice(0, 2);
+            var cmd = (VG_DATI.comandi || {})[l] || {};
+            var lista = [];
+            INTENTI.forEach(function (i) {
+                elencoVirgole(cmd[i]).forEach(function (f) {
+                    if (f.split(' ').length <= 3 && lista.length < 80) lista.push(new window.SpeechRecognitionPhrase(f, 4.0));
+                });
+            });
+            recognition.phrases = lista;
+        } catch (e) {}
+    }
+
+    function impostaLinguaComandi(lang) {
+        try { localStorage.setItem('vg_lingua_comandi', lang); } catch (e) {}
+        segnaLinguaComandi();
+        if (!recognition) return;
+        recognition.lang = lang;
+        applicaFrasiAttese();
+        /* La lingua vale dalla sessione successiva: si chiude questa, e onend
+           la riapre con quella nuova. */
+        if (isRecognizing) { try { recognition.abort(); } catch (e) {} }
+    }
+
+    function segnaLinguaComandi() {
+        var attuale = linguaComandi();
+        document.querySelectorAll('.vg-lang-seg [data-lang]').forEach(function (b) {
+            var on = b.getAttribute('data-lang') === attuale;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-checked', on ? 'true' : 'false');
+        });
+    }
+
+    /* Un comando non deve partire due volte: puo' arrivare prima mentre si
+       parla (risultato provvisorio) e poi alla fine (risultato definitivo). */
+    var ultimoComando = { intento: '', t: 0 };
+    var risultatiGiaUsati = {};
+    function eseguiComando(best) {
+        if (ultimoComando.intento === best.intent && Date.now() - ultimoComando.t < 1800) return;
+        ultimoComando = { intento: best.intent, t: Date.now() };
+        sincronizzaFase();
+        showCaption(INTENT_LABELS[best.intent] || best.intent, 'recognized');
+        HANDLERS[best.intent]();
+    }
 
     /* ============================================================
        9. RICONOSCIMENTO VOCALE — sempre in ascolto
@@ -940,10 +1151,13 @@
         recognition = new SR();
         /* La lingua del riconoscimento segue quella del sito: era fissa a
            'it-IT', quindi in inglese il microfono non capiva nessun comando. */
-        recognition.lang = T('fc.voice_lang');
+        recognition.lang = linguaComandi();
         recognition.continuous = false; // Obbligatorio su iOS per non bloccare il demone
         recognition.interimResults = true;
-        recognition.maxAlternatives = 3;
+        /* Piu' alternative = piu' occasioni di trovare il comando fra le
+           trascrizioni meno probabili ("Ron" come prima, "wrong" come quinta). */
+        recognition.maxAlternatives = 5;
+        applicaFrasiAttese();
 
         // Ascoltatori "in parallelo" (addEventListener, non sovrascrivono onX):
         // servono solo a capire il prima possibile che il countdown "bug
@@ -957,6 +1171,7 @@
 
         recognition.onstart = function () {
             isRecognizing = true;
+            risultatiGiaUsati = {};
             if (elOrb) elOrb.classList.add('vg-hearing');
         };
 
@@ -970,19 +1185,33 @@
             var interim = '';
             for (var i = event.resultIndex; i < event.results.length; i++) {
                 var res = event.results[i];
+                if (risultatiGiaUsati[i]) continue;
+                if (eEco(res[0].transcript)) continue;
                 if (res.isFinal) {
                     var best = null;
                     for (var a = 0; a < res.length; a++) {
+                        if (eEco(res[a].transcript)) continue;
                         var cand = matchIntentDetailed(res[a].transcript);
                         if (cand && (!best || cand.weighted > best.weighted)) best = cand;
                     }
                     if (best && HANDLERS[best.intent] && (!piperStaParlando || best.weighted >= 0.8)) {
-                        showCaption(INTENT_LABELS[best.intent] || best.intent, 'recognized');
-                        HANDLERS[best.intent]();
+                        risultatiGiaUsati[i] = true;
+                        eseguiComando(best);
                     } else if (!piperStaParlando) {
                         showCaption(res[0].transcript, 'interim');
                     }
                 } else {
+                    /* Risultato provvisorio: se e' gia' un comando netto e
+                       corto («wrong», «risposta») si esegue subito, senza
+                       aspettare la pausa che chiude la frase. E' quella pausa
+                       a dare la sensazione di "lento". */
+                    var provv = matchIntentDetailed(res[0].transcript);
+                    var parole = normalize(res[0].transcript).split(' ').length;
+                    if (provv && HANDLERS[provv.intent] && !piperStaParlando && provv.score >= 0.97 && parole <= 3) {
+                        risultatiGiaUsati[i] = true;
+                        eseguiComando(provv);
+                        continue;
+                    }
                     interim += res[0].transcript;
                 }
             }
@@ -990,6 +1219,12 @@
         };
 
         recognition.onerror = function (e) {
+            /* Le frasi attese non sono accettate da questo riconoscitore: si
+               tolgono e si continua senza (onend riavvia). */
+            if (e.error === 'phrases-not-supported') {
+                try { recognition.phrases = []; } catch (er) {}
+                return;
+            }
             if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
                 VG.shouldListen = false;
                 showMicError();
@@ -1183,6 +1418,7 @@
     }
 
     function deactivate(isError) {
+        fermaAttesaVoto();
         VG.active = false;
         VG.shouldListen = false;
         VG.phase = 'idle';
@@ -1257,19 +1493,24 @@
         pageObserver.observe(document.body, { childList: true });
     }
 
+    /* Pagina nuova: si legge subito la domanda, che ci si arrivi da un voto o
+       da "Indietro"/"Avanti". */
     function onNewPage() {
         if (!VG.active) return;
+        fermaAttesaVoto();
         stopTuttoIlParlato();
-        if (VG.pendingGrade) {
-            VG.pendingGrade = false;
-            VG.phase = 'awaiting-next';
-            setOrbState('waiting');
-            showCaption(T('fc.vg_di_successiva', {successiva: T('fc.lbl_successiva')}), 'hint');
-        } else {
-            VG.phase = 'idle';
-            setTimeout(readQuestion, 350);
-        }
+        VG.pendingGrade = false;
+        VG.phase = 'idle';
+        setTimeout(readQuestion, 350);
     }
+
+    /* Un voto, da qualunque parte arrivi (anche il tocco o lo swipe mentre
+       la modalita' vocale e' accesa): fc_game.php lo annuncia con 'fc-voto'. */
+    document.addEventListener('fc-voto', function (e) {
+        if (!VG.active) return;
+        stopTuttoIlParlato();
+        attendiDopoVoto(e.detail ? e.detail.card : null);
+    });
 
     /* ---------- Cablaggio UI statica ---------- */
     function wireUi() {
@@ -1297,6 +1538,10 @@
         if (elAskNoBtn) elAskNoBtn.addEventListener('click', function () { closeAskOverlay(); });
         if (elOrb) elOrb.addEventListener('click', function () { openIntro(true); });
         if (elOverlay) elOverlay.addEventListener('click', function (e) { if (e.target === elOverlay) closeIntro(); });
+        document.querySelectorAll('.vg-lang-seg [data-lang]').forEach(function (b) {
+            b.addEventListener('click', function () { impostaLinguaComandi(b.getAttribute('data-lang')); });
+        });
+        segnaLinguaComandi();
     }
 
     if (document.readyState === 'loading') {
@@ -1319,8 +1564,13 @@
         if (VG && VG.active && typeof ttsSettings !== 'undefined' && window.PiperTTS && window.PiperTTS.isPiperVoice(ttsSettings.nativeVoice)) {
             acquireEchoCancelledStream();
         }
+        var fine = onEndCallback;
+        if (VG && VG.active) {
+            segnaLettura(rawText);
+            fine = function () { finitaLettura(); if (onEndCallback) onEndCallback.apply(this, arguments); };
+        }
         if (origSpeakText) {
-            origSpeakText(rawText, onEndCallback, resumeFromIndex);
+            origSpeakText(rawText, fine, resumeFromIndex);
         }
     };
 

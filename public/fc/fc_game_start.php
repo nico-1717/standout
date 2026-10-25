@@ -134,7 +134,8 @@ $figli = (int)(sec_one("SELECT COUNT(*) AS n FROM " . fc_t('subcards') . " ch
 
 /* SOLO LE DIFFICILI (?solo=difficili, dal badge "da ripassare" dell'elenco
    dei mazzi e dal tasto nel mazzo): restano le carte che sono, o hanno una
-   sottocarta che e', al livello "difficile" (fcv_livello). Lo stato delle
+   sottocarta che e', da ripassare: da imparare, difficile o difficilissima
+   (fcv_da_ripassare). Lo stato delle
    carte e' sempre "tutte": una carta difficile segnata come imparata va
    ripassata lo stesso. */
 if (($_GET['solo'] ?? '') === 'difficili') {
@@ -153,7 +154,7 @@ if (($_GET['solo'] ?? '') === 'difficili') {
         foreach ($figliDi[(int)$s['id']] ?? [] as $f) $chiavi[] = 'c' . $f;
         foreach ($chiavi as $k) {
             $x = $st[$k] ?? ['c' => 0, 'w' => 0, 'u' => ''];
-            if (fcv_livello($x['c'], $x['w'], $x['u']) === 'difficile') return true;
+            if (fcv_da_ripassare(fcv_livello($x['c'], $x['w'], $x['u']))) return true;
         }
         return false;
     }));

@@ -32,6 +32,19 @@ define('STANDOUT_NIENTE_BARRA', true);
 
 if (!function_exists('pomo_json')) { function pomo_json($arr) { header('Content-Type: application/json'); echo json_encode($arr, JSON_UNESCAPED_UNICODE); exit(); } }
 
+/* QUANTO HA ASPETTATO L'AZIONE, in secondi.
+   Toccato Avvia senza rete, l'azione resta in coda nel telefono e arriva
+   qui quando la rete torna (pomodoro_core.js, la coda). Il telefono manda
+   quanti millisecondi sono passati fra il tocco e l'invio, e qui si
+   tolgono da NOW(): la sessione comincia quando e' stato premuto il tasto,
+   non quando e' arrivata la richiesta. Una differenza e non un orario,
+   cosi' l'orologio del telefono avanti o indietro non conta; con il tetto
+   delle dieci ore, oltre il quale nessuna sessione ha senso. Senza il
+   campo (la richiesta normale) vale zero: NOW() come sempre. */
+function pomo_ritardo(): int {
+    return intdiv(sec_int($_POST['ritardo_ms'] ?? 0, 0, POMO_LIMITE_SECONDI * 1000, 0), 1000);
+}
+
 /* ==========================================================================
    AJAX ACTIONS
    ========================================================================== */
@@ -87,7 +100,7 @@ if (isset($_GET['ajax'])) {
         }
 
         sec_q("INSERT INTO pomodoro_sessions (user_id, `mode`, start_time, project_id, planned_duration_min, duration_seconds)
-               VALUES (?, ?, NOW(), ?, ?, 0)", [(int)$current_user_id, $mode, $progVal, $durVal]);
+               VALUES (?, ?, NOW() - INTERVAL ? SECOND, ?, ?, 0)", [(int)$current_user_id, $mode, pomo_ritardo(), $progVal, $durVal]);
         $newId = sec_insert_id();
 
         // ricorda ultima modalità/durata scelta
@@ -142,8 +155,8 @@ if (isset($_GET['ajax'])) {
     if ($ajax === 'riprendi_task') {
         $sid = sec_int($_POST['session_id'] ?? 0, 1);
         if (!sec_owns('pomodoro_sessions', $sid, (int)$current_user_id)) pomo_json(['success' => false]);
-        sec_q("UPDATE pomodoro_sessions SET status=NULL, resume_time=NOW()
-               WHERE id=? AND user_id=? AND end_time IS NULL AND status='pausa'", [$sid, (int)$current_user_id]);
+        sec_q("UPDATE pomodoro_sessions SET status=NULL, resume_time=NOW() - INTERVAL ? SECOND
+               WHERE id=? AND user_id=? AND end_time IS NULL AND status='pausa'", [pomo_ritardo(), $sid, (int)$current_user_id]);
         $row = sec_one("SELECT resume_time FROM pomodoro_sessions WHERE id=?", [$sid]);
         pomo_json(['success' => true, 'data_ripresa' => $row ? $row['resume_time'] : date('Y-m-d H:i:s')]);
     }
@@ -155,12 +168,17 @@ if (isset($_GET['ajax'])) {
         if ($elimina) {
             sec_q("DELETE FROM pomodoro_sessions WHERE id=? AND user_id=?", [$sid, (int)$current_user_id]);
         } else {
+            /* end_time IS NULL: una sessione gia' chiusa non si richiude. Con
+               la coda puo' arrivare due volte la stessa azione (la rete cade
+               dopo che il server l'ha ricevuta), e la seconda riscriveva
+               l'ora di fine e aggiungeva altro tempo. */
+            $rit = pomo_ritardo();
             sec_q("UPDATE pomodoro_sessions
-                   SET duration_seconds = COALESCE(duration_seconds,0) + CASE WHEN status='pausa' THEN 0 ELSE GREATEST(0, TIMESTAMPDIFF(SECOND, COALESCE(resume_time, start_time), NOW())) END,
-                       end_time=NOW(),
+                   SET duration_seconds = COALESCE(duration_seconds,0) + CASE WHEN status='pausa' THEN 0 ELSE GREATEST(0, TIMESTAMPDIFF(SECOND, COALESCE(resume_time, start_time), NOW() - INTERVAL ? SECOND)) END,
+                       end_time = NOW() - INTERVAL ? SECOND,
                        status='interrotto',
                        resume_time = NULL
-                   WHERE id=? AND user_id=?", [$sid, (int)$current_user_id]);
+                   WHERE id=? AND user_id=? AND end_time IS NULL", [$rit, $rit, $sid, (int)$current_user_id]);
         }
         pomo_json(['success' => true]);
     }
@@ -177,9 +195,11 @@ if (isset($_GET['ajax'])) {
     if ($ajax === 'estendi') {
         $sid = sec_int($_POST['session_id'] ?? 0, 1);
         if (!sec_owns('pomodoro_sessions', $sid, (int)$current_user_id)) pomo_json(['success' => false]);
+        $rit = pomo_ritardo();
         sec_q("UPDATE pomodoro_sessions
-               SET duration_seconds = COALESCE(duration_seconds,0) + GREATEST(0, TIMESTAMPDIFF(SECOND, end_time, NOW())), end_time=NOW()
-               WHERE id=? AND user_id=? AND status='completato'", [$sid, (int)$current_user_id]);
+               SET duration_seconds = COALESCE(duration_seconds,0) + GREATEST(0, TIMESTAMPDIFF(SECOND, end_time, NOW() - INTERVAL ? SECOND)),
+                   end_time = GREATEST(end_time, NOW() - INTERVAL ? SECOND)
+               WHERE id=? AND user_id=? AND status='completato'", [$rit, $rit, $sid, (int)$current_user_id]);
         $row = sec_one("SELECT end_time, duration_seconds FROM pomodoro_sessions WHERE id=?", [$sid]);
         pomo_json(['success' => true, 'data_fine' => $row ? $row['end_time'] : null, 'durata_secondi' => $row ? (int)$row['duration_seconds'] : 0]);
     }
@@ -196,10 +216,11 @@ if (isset($_GET['ajax'])) {
         $progettoId = sec_int($_POST['project_id'] ?? 0, 0);
         $durataMin = sec_int($_POST['durata_minuti'] ?? 5, 1, 600, 5);
         $progVal = $progettoId > 0 ? $progettoId : null;
+        $rit = pomo_ritardo();
         sec_q("INSERT INTO pomodoro_current_breaks (user_id, start_time, planned_duration_min, project_id)
-               VALUES (?, NOW(), ?, ?)
-               ON DUPLICATE KEY UPDATE start_time=NOW(), planned_duration_min=?, project_id=?",
-              [(int)$current_user_id, $durataMin, $progVal, $durataMin, $progVal]);
+               VALUES (?, NOW() - INTERVAL ? SECOND, ?, ?)
+               ON DUPLICATE KEY UPDATE start_time = NOW() - INTERVAL ? SECOND, planned_duration_min=?, project_id=?",
+              [(int)$current_user_id, $rit, $durataMin, $progVal, $rit, $durataMin, $progVal]);
         sec_q("UPDATE pomodoro_settings SET last_break_duration_min=? WHERE user_id=?",
               [$durataMin, (int)$current_user_id]);
         pomo_json(['success' => true]);
@@ -386,6 +407,11 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
     </div>
 
     <div class="pomo-status-label" id="statusLabel"><?php te('pomodoro.pronto'); ?></div>
+    <!-- la spia della coda: azioni fatte senza rete che aspettano di partire
+         (pomodoro_core.js). Compare solo se qualcosa aspetta davvero. -->
+    <div class="pomo-coda" id="pomoCoda" role="status" aria-live="polite" hidden>
+        <span class="pomo-coda-giro" aria-hidden="true"></span><span class="pomo-coda-testo"></span>
+    </div>
 
     <div class="ring-wrap" id="ringWrap">
         <div class="ring-halo"></div>
@@ -1749,6 +1775,7 @@ bootstrap();
    posizione nello storico: si sostituisce lo stato di partenza e si rifa'
    l'idratazione, che e' la stessa strada del primo caricamento. */
 PomoCore.on('cambiato', function(st){
+    var dallaCoda = !!(st && st.dallaCoda);
     stopTicking(); stopGrainFlow();
     STATE0.active = st.active; STATE0.pausa = st.pausa; STATE0.last = st.last;
     phase = 'idle';
@@ -1762,8 +1789,40 @@ PomoCore.on('cambiato', function(st){
     document.getElementById('statusLabel').textContent = T('pomodoro.pronto');
     switchActionsPanel('actionsIdle');
     bootstrap();
-    toast(T('pomodoro.altro_dispositivo'));
+    if (!dallaCoda) toast(T('pomodoro.altro_dispositivo'));
 });
+
+/* ---------------- senza rete ----------------
+   Le azioni fatte senza rete valgono subito (il motore le mette in coda):
+   qui si mostra solo che stanno aspettando. Il quadrante resta vivo ma un
+   po' sbiadito, come gli eventi del planner non ancora confermati, e sotto
+   la scritta di stato compare la spia con il giro che gira. */
+PomoCore.on('id', function(x){
+    // la sessione avviata senza rete ha ricevuto il suo numero vero
+    if (activeSessionId === x.provvisorio) activeSessionId = x.vero;
+});
+(function(){
+    var spia = document.getElementById('pomoCoda');
+    var testo = spia.querySelector('.pomo-coda-testo');
+    var attesa = null;
+    PomoCore.on('coda', function(c){
+        var n = c.n;
+        document.body.classList.toggle('pomo-attesa', n > 0);
+        clearTimeout(attesa);
+        if (!n) {
+            spia.classList.remove('is-aperta');
+            attesa = setTimeout(function(){ spia.hidden = true; }, 300);
+            return;
+        }
+        testo.textContent = c.offline ? T('pomodoro.coda_offline') : T('pomodoro.coda_invio');
+        spia.classList.toggle('is-offline', !!c.offline);
+        spia.hidden = false;
+        /* un'azione che parte e arriva in un attimo non merita la spia:
+           compare subito senza rete, se no dopo mezzo secondo */
+        attesa = setTimeout(function(){ spia.classList.add('is-aperta'); }, c.offline ? 0 : 500);
+    });
+    if (PomoCore.inCoda()) document.body.classList.add('pomo-attesa');
+})();
 
 /* Il rifiuto arriva dal server, che e' l'unico a vedere tutti i dispositivi
    insieme: qui si dice soltanto cos'e' successo. */

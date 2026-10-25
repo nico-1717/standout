@@ -65,6 +65,25 @@
     .vg-tint-red{ background:rgba(255,59,48,.13); color:#D70015; }
     .vg-tint-gray{ background:rgba(120,120,128,.14); color:#6E6E73; }
 
+    /* Al posto del gruppo «Per andare avanti»: una riga che dice che non serve. */
+    .vg-auto-note{
+        display:flex; align-items:flex-start; gap:8px; margin:10px 0 2px; padding:10px 12px;
+        border-radius:13px; background:rgba(52,199,89,.10); color:#1F7A37;
+        font-size:12.5px; font-weight:600; line-height:1.4;
+    }
+    .vg-auto-note::before{ content:'↻'; font-size:15px; line-height:1.15; }
+
+    /* La lingua dei comandi: un controllo a segmenti come quelli del gioco. */
+    .vg-lang{ margin-top:14px; padding:12px; border-radius:16px; background:rgba(120,120,128,.08); }
+    .vg-lang-lab{ display:block; margin:0 2px 8px; font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:#8A8A8E; }
+    .vg-lang-seg{ display:grid; grid-template-columns:repeat(3,1fr); gap:3px; padding:3px; border-radius:12px; background:rgba(120,120,128,.12); }
+    .vg-lang-seg button{
+        height:34px; border:0; border-radius:9px; background:transparent; cursor:pointer;
+        font-family:inherit; font-size:12.5px; font-weight:650; color:#6E6E73; white-space:nowrap;
+        transition:background .2s, color .2s, box-shadow .2s;
+    }
+    .vg-lang-seg button.is-on{ background:#fff; color:#1C1C1E; font-weight:750; box-shadow:0 1px 2px rgba(0,0,0,.12), 0 3px 8px -2px rgba(0,0,0,.14); }
+
     .vg-sheet-actions{ display:flex; gap:10px; margin-top:18px; }
     .vg-btn{
         flex:1; display:flex; align-items:center; justify-content:center;
@@ -88,6 +107,10 @@
         .vg-tint-green{ background:rgba(52,199,89,.2); color:#4CE07E; }
         .vg-tint-red{ background:rgba(255,69,58,.2); color:#FF6F68; }
         .vg-tint-gray{ background:rgba(120,120,128,.28); color:#AEAEB2; }
+        .vg-auto-note{ background:rgba(52,199,89,.16); color:#4CE07E; }
+        .vg-lang{ background:rgba(120,120,128,.16); }
+        .vg-lang-seg button{ color:#98989F; }
+        .vg-lang-seg button.is-on{ background:#3A3A3C; color:#F5F5F7; }
     }
 
     /* ============================================================

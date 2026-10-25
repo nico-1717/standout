@@ -28,6 +28,7 @@ $current_user_id = (int)$utente_corrente['id'];
 $conn = sec_db();
 /* Studio o lingua: il corso arriva nell'indirizzo (?course=N), come per le pagine. */
 require_once __DIR__ . '/../../lib/fc/fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_vocab_gap.php';
 fc_avvia($current_user_id, true);
 
 function ex_api_json_out(array $payload): void {
@@ -163,7 +164,10 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
        Vuota = nessuna scelta, si torna alla parola della carta. */
     $gap = null;
     if (fc_is_vocab() && isset($_POST['gap_text'])) {
-        $gap = sec_str($_POST['gap_text'], 255);
+        /* fcv_gap_pulisci: la scelta puo' essere a pezzi ([[pos,"testo"],…]):
+           tagliarla a 255 caratteri come una stringa qualunque poteva
+           spezzare il JSON a meta'. */
+        $gap = fcv_gap_pulisci(sec_str($_POST['gap_text'], 1000));
         $sets[] = 'gap_text = ?'; $vals[] = ($gap === '' ? null : $gap);
     }
 

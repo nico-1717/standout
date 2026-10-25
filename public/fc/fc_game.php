@@ -156,9 +156,9 @@ function fc_gioco_testo(array $c, string $lato, string $classe = 'fc-text raw-te
            . '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.8 5.2a9.5 9.5 0 0 1 0 13.6"/></svg>'
            . '</button></div>';
     }
-    if ($lato === 'a' && trim((string)($c['meaning'] ?? '')) !== '') {
-        echo '<div class="fcv-meaning" lang="' . sec_h(fc_corso()['learn_lang']) . '">' . sec_h(trim((string)$c['meaning'])) . '</div>';
-    }
+    /* Il significato non sta piu' qui sotto la risposta: e' sulla carta, fra
+       gli indizi (fc_gioco_indizi), e con la scelta "dopo la risposta"
+       compare li' insieme alla risposta. Ripeterlo sarebbe doppio. */
     /* Le note della parola (fc_card_edit.php): solo con la risposta, come
        ripasso di cio' che ci si era scritti per ricordarla. */
     if ($lato === 'a' && trim((string)($c['notes'] ?? '')) !== '') {
@@ -169,38 +169,48 @@ function fc_gioco_testo(array $c, string $lato, string $classe = 'fc-text raw-te
 }
 
 /**
- * GLI INDIZI DEL DAVANTI (solo lingue): il significato e un esempio.
- * Stanno coperti da due etichette, «Significato» ed «Esempio»: toccandole
- * l'etichetta sparisce e compare il testo. Così si prova prima a ricordare da
- * soli, e l'aiuto c'è quando serve. Dalle opzioni della partita si può
- * scegliere di vederli già scoperti.
- * Nell'esempio la parola è uno spazio vuoto, che si riempie quando si vede la
- * risposta. Quale parte sia lo decide fcv_lacuna() (lib/fc/fc_vocab_gap.php):
- * quella scelta nel modulo, o la parola se c'è scritta uguale.
- * Come si vedono (subito / al tocco / con la risposta) lo decidono le classi
- * fcv-sig-* e fcv-es-* su <html>, scelte nelle impostazioni del gioco.
+ * GLI INDIZI DELLA CARTA (solo lingue): il significato e TUTTI gli esempi,
+ * uno sotto l'altro.
+ * Come si vedono prima della risposta lo sceglie l'utente (l'ingranaggio del
+ * gioco, salvato sul suo profilo: lib/fc/fc_impostazioni.php): aperti,
+ * coperti da un'etichetta da toccare, o solo con la risposta. Le classi
+ * fcv-sig-* e fcv-es-* su <html> decidono quale.
+ * Negli esempi le parti nascoste sono spazi vuoti che si riempiono quando si
+ * vede la risposta: quali parti, lo decide fcv_lacune()
+ * (lib/fc/fc_vocab_gap.php). Il tasto per ascoltare un esempio compare solo
+ * con la risposta: prima la voce direbbe proprio la parola da indovinare.
  */
 function fc_gioco_indizi(array $c): void {
     if (!fc_is_vocab()) return;
     $lato = $c['fc_lato_parola'] ?? 'q';
     $parola = trim((string)($c[$lato === 'q' ? 'question_desc' : 'answer_desc'] ?? ''));
     $significato = trim((string)($c['meaning'] ?? ''));
-    $esempio = trim((string)($c['fcv_esempio'] ?? ''));
-    if ($significato === '' && $esempio === '') return;
-    /* Nell'esempio la parola e' sempre uno spazio vuoto, qualunque sia il
-       verso: si riempie quando si vede la risposta (fcv_lacuna_html). */
-    $esHtml = $esempio !== ''
-        ? fcv_lacuna_html($esempio, $parola, $c['fcv_esempio_gap'] ?? '')
-        : '';
+    $esempi = array_values(array_filter((array)($c['fcv_esempi'] ?? []), function ($e) { return trim((string)$e[0]) !== ''; }));
+    if ($significato === '' && !$esempi) return;
     $lingua = sec_h(fc_corso()['learn_lang']);
+    $apri = ' onclick="this.classList.add(\'is-open\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.classList.add(\'is-open\')}" role="button" tabindex="0"';
+    $voce = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>';
     echo '<div class="fcv-hints">';
-    foreach ([['significato', $significato !== '' ? sec_h($significato) : ''], ['esempio', $esHtml]] as [$k, $html]) {
-        if ($html === '') continue;
-        echo '<button type="button" class="fcv-hint fcv-hint-' . $k . '" onclick="event.stopPropagation(); this.classList.toggle(\'is-open\')"'
-           . ' aria-label="' . sec_h(t('fcv.indizio_' . $k)) . '">'
-           . '<span class="fcv-hint-lab">' . sec_h(t('fcv.indizio_' . $k)) . '</span>'
-           . '<span class="fcv-hint-txt" lang="' . $lingua . '">' . $html . '</span>'
-           . '</button>';
+    if ($significato !== '') {
+        echo '<div class="fcv-hint fcv-hint-significato"' . $apri . '>'
+           . '<span class="fcv-hint-lab">' . sec_h(t('fcv.indizio_significato')) . '</span>'
+           . '<p class="fcv-hint-txt" lang="' . $lingua . '">' . sec_h($significato) . '</p>'
+           . '</div>';
+    }
+    if ($esempi) {
+        $tit = count($esempi) > 1 ? t('fcv.indizio_esempi', ['n' => count($esempi)]) : t('fcv.indizio_esempio');
+        echo '<div class="fcv-hint fcv-hint-esempio"' . $apri . '>'
+           . '<span class="fcv-hint-lab">' . sec_h($tit) . '</span>'
+           . '<ol class="fcv-hint-txt fcv-esempi" lang="' . $lingua . '">';
+        foreach ($esempi as $i => [$testo, $gap]) {
+            $daSentire = preg_replace('/_+/u', $parola, $testo) ?? $testo;
+            echo '<li class="fcv-esempio" style="--fcv-ex-i:' . (int)$i . '">'
+               . '<span class="fcv-esempio-frase">' . fcv_lacuna_html($testo, $parola, $gap) . '</span>'
+               . '<button type="button" class="fcv-esempio-voce" data-speak="learn" data-text="' . sec_h($daSentire) . '"'
+               . ' aria-label="' . sec_h(t('fcv.ascolta')) . '" title="' . sec_h(t('fcv.ascolta')) . '">' . $voce . '</button>'
+               . '</li>';
+        }
+        echo '</ol></div>';
     }
     echo '</div>';
 }
@@ -733,15 +743,16 @@ foreach ($gameplays as $gp) {
         $col = $card['is_child'] ? 'child_id' : 'parent_id';
         $card['examples_count'] = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('examples') . " WHERE $col = ?",
                                         [(int)$card['gameplay_idimmagine']])['c'] ?? 0);
-        /* Lingue: il primo esempio, per l'indizio sul davanti della carta */
-        $card['fcv_esempio'] = '';
-        $card['fcv_esempio_gap'] = '';
+        /* Lingue: TUTTI gli esempi, uno sotto l'altro sul davanti della carta
+           (prima solo il primo). Otto al massimo: oltre, la carta diventa un
+           elenco e la parola si perde. gap_text: la parte che nel gioco si
+           nasconde, scelta nel modulo (vedi lib/fc/fc_vocab_gap.php). */
+        $card['fcv_esempi'] = [];
         if ($fc_vocab && $card['examples_count'] > 0) {
-            /* gap_text: la parte che nel gioco si nasconde, scelta nel modulo */
-            $ex = sec_one("SELECT example_text, gap_text FROM " . fc_t('examples') . " WHERE $col = ? AND example_text IS NOT NULL AND example_text <> '' ORDER BY id LIMIT 1",
-                          [(int)$card['gameplay_idimmagine']]);
-            $card['fcv_esempio'] = $ex ? trim((string)$ex['example_text']) : '';
-            $card['fcv_esempio_gap'] = $ex ? (string)($ex['gap_text'] ?? '') : '';
+            foreach (sec_all("SELECT example_text, gap_text FROM " . fc_t('examples') . " WHERE $col = ? AND example_text IS NOT NULL AND example_text <> '' ORDER BY id LIMIT 8",
+                             [(int)$card['gameplay_idimmagine']]) as $ex) {
+                $card['fcv_esempi'][] = [trim((string)$ex['example_text']), (string)($ex['gap_text'] ?? '')];
+            }
         }
 
         
@@ -771,6 +782,8 @@ if (true) { /* lingue e studio */
                                   WHERE game_id = ? AND user_answer IN ('Correct', 'Wrong')", [$game_id])['p'] ?? 0);
     $fcg_dati = [
         'partita' => (int)$game_id,
+        /* un ripasso ("rigioca gli errori"): le sue risposte pesano meno nei livelli */
+        'ripasso' => (int)($game_info['parent_id'] ?? 0) > 0,
         'corso' => $fc_vocab ? fc_corso_id() : 0,
         'vocab' => $fc_vocab,
         'pos' => (int)$position,
@@ -1205,26 +1218,20 @@ $status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T
 
 
 
+<?php
+/* Come si vedono significato ed esempi (l'ingranaggio del gioco delle
+   lingue): aperto / tocco / dopo. Sono scelte dell'UTENTE, salvate sul server
+   (lib/fc/fc_impostazioni.php), non del browser: prima stavano nel
+   localStorage, e su un altro telefono si ricominciava da capo. Si scrivono
+   gia' nel primo HTML, cosi' non si vedono coperti e poi aprirsi. */
+require_once __DIR__ . '/../../lib/fc/fc_impostazioni.php';
+$fc_imp = fc_impostazioni((int)$current_user_id);
+?>
 <!DOCTYPE html>
 
-<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>">
+<html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>" class="fcv-sig-<?php echo sec_h($fc_imp['significato']); ?> fcv-es-<?php echo sec_h($fc_imp['esempi']); ?>">
 
 <head>
-<script>
-/* Gli indizi delle lingue (significato, esempio) scoperti fin dall'inizio, se
-   lo si è scelto nelle opzioni della partita. Si decide prima di disegnare la
-   pagina, così non si vedono coperti e poi aprirsi. */
-/* Come si vedono significato ed esempio (impostazioni del gioco, l'ingranaggio):
-   aperto / tocco / dopo. Chi aveva solo la vecchia scelta "gia' aperti" la
-   ritrova uguale. */
-try {
-    var fcvOk = ['aperto', 'tocco', 'dopo'];
-    var fcvVecchio = localStorage.getItem('fcv_indizi_aperti') === '1' ? 'aperto' : 'tocco';
-    var fcvSig = localStorage.getItem('fcv_mostra_significato'); if (fcvOk.indexOf(fcvSig) < 0) fcvSig = fcvVecchio;
-    var fcvEs = localStorage.getItem('fcv_mostra_esempio'); if (fcvOk.indexOf(fcvEs) < 0) fcvEs = fcvVecchio;
-    document.documentElement.classList.add('fcv-sig-' + fcvSig, 'fcv-es-' + fcvEs);
-} catch (e) { document.documentElement.classList.add('fcv-sig-tocco', 'fcv-es-tocco'); }
-</script>
 
     <meta charset="UTF-8">
 
@@ -1339,6 +1346,7 @@ try {
 
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_game.css?v=<?php echo @filemtime(__DIR__ . '/fc_game.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_examples_box.css?v=<?php echo @filemtime(__DIR__ . '/fc_examples_box.css') ?: 1; ?>">
+<script src="<?php echo PWA_BASE; ?>fc/fc_vocab_gap.js?v=<?php echo @filemtime(__DIR__ . '/fc_vocab_gap.js') ?: 1; ?>"></script>
 <script src="<?php echo PWA_BASE; ?>fc/fc_examples_modal.js?v=<?php echo @filemtime(__DIR__ . '/fc_examples_modal.js') ?: 1; ?>"></script>
 <?php /* serie, checkpoint, boss, livelli: lingue e studio */ ?>
 <?php if (true): ?>
@@ -1619,12 +1627,12 @@ try {
         <?php /* IMPOSTAZIONI DEL GIOCO DELLE LINGUE
                  Al posto di quelle della lettura ad alta voce (voce, lingua,
                  LaTeX), che qui non servono: si sceglie come vedere il
-                 significato e l'esempio prima di rispondere. Ogni tocco vale
+                 significato e gli esempi prima di rispondere. Ogni tocco vale
                  subito, anche sulla carta che si ha sotto — il foglio e' anche
-                 l'anteprima di se stesso. Si ricorda su questo dispositivo. */
+                 l'anteprima di se stesso. Si ricorda sul profilo dell'utente. */
               $fcv_gs = [
-                  ['significato', 'fcv_mostra_significato', 'sig', '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>'],
-                  ['esempio', 'fcv_mostra_esempio', 'es', '<path d="M7 7h10M7 12h6"/><path d="M5 3h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6l-5 4v-4H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/>'],
+                  ['significato', 'significato', 'sig', '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>'],
+                  ['esempio', 'esempi', 'es', '<path d="M7 7h10M7 12h6"/><path d="M5 3h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6l-5 4v-4H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/>'],
               ]; ?>
         <div id="fcv-settings" class="fcv-gs" hidden>
             <div class="sheet-panel fcv-gs-panel" role="dialog" aria-modal="true" aria-labelledby="fcvGsTit">
@@ -1702,13 +1710,19 @@ try {
                 riga.querySelector('.fcv-gs-seg').style.setProperty('--fcv-i', String(OK.indexOf(v)));
                 riga.querySelector('.fcv-gs-spiega').textContent = T('fcv.gs_' + v + '_sub');
             }
+            /* La scelta vale subito sulla carta e si salva sul profilo
+               (fc_settings_api.php): la ritrova su ogni dispositivo. Se il
+               salvataggio non riesce resta comunque valida in questa pagina. */
             function scegli(riga, v) {
                 var classe = riga.getAttribute('data-classe');
                 OK.forEach(function (x) { root.classList.remove('fcv-' + classe + '-' + x); });
                 root.classList.add('fcv-' + classe + '-' + v);
-                try { localStorage.setItem(riga.getAttribute('data-chiave'), v); } catch (e) {}
                 segna(riga);
                 try { if (navigator.vibrate) navigator.vibrate(6); } catch (e) {}
+                var fd = new FormData();
+                fd.append(riga.getAttribute('data-chiave'), v);
+                fd.append('csrf_token', STANDOUT_CSRF);
+                fetch('fc_settings_api.php', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-CSRF-Token': STANDOUT_CSRF } }).catch(function () {});
             }
             function chiudi() {
                 var f = aperto; if (!f) return;
@@ -2113,12 +2127,60 @@ try {
                         <?php endif; ?>
 
                         <?php fc_gioco_testo($c, 'q'); ?>
-                        <?php fc_gioco_indizi($c); ?>
 
                     </div>
 
 
 
+                    <?php if ($fc_vocab): ?>
+                    <?php /* LA CARTA DI UNA PAROLA
+                             Dall'alto: la parola da tradurre, il POSTO DELLA
+                             RISPOSTA, gli indizi (significato ed esempi), i voti.
+                             Il posto della risposta c'e' da subito, velato come
+                             un messaggio "spoiler": e' anche il comando per
+                             vederla, quindi niente tasto blu "Mostra risposta" e
+                             niente riquadro azzurro che arriva da sotto. Toccato,
+                             il velo si dissolve sulla risposta, gli spazi vuoti
+                             degli esempi si riempiono uno dopo l'altro e salgono
+                             i voti. Gli id restano quelli di sempre (btn-show-,
+                             ans-section-, graded-ans-): li usano la tastiera,
+                             la modalita' vocale e l'anteprima della carta dopo. */ ?>
+                    <div class="fcv-slot">
+                        <?php if (!$is_graded): ?>
+                        <button id="btn-show-<?php echo sec_h($index); ?>" type="button" class="fcv-reveal" onclick="revealCard(<?php echo sec_h($index); ?>)" aria-label="<?php te('fc.gm_mostra_risposta'); ?>">
+                            <span class="fcv-reveal-lab"><?php echo fc_gioco_etichetta($c, 'a'); ?></span>
+                            <span class="fcv-reveal-velo" aria-hidden="true"></span>
+                            <span class="fcv-reveal-txt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z"/><circle cx="12" cy="12" r="3"/></svg><?php te('fc.gm_tocca_rivela'); ?></span>
+                        </button>
+                        <?php endif; ?>
+                        <div class="answer-box ans-block fcv-ans<?php echo $is_graded ? ' is-revealed' : ''; ?>" id="<?php echo $is_graded ? 'graded-ans-' : 'ans-section-'; ?><?php echo sec_h($index); ?>"<?php echo $is_graded ? '' : ' style="display:none;"'; ?>>
+                            <div class="section-title st-answer"><?php echo fc_gioco_etichetta($c, 'a'); ?></div>
+                            <?php fc_gioco_testo($c, 'a'); ?>
+                        </div>
+                    </div>
+
+                    <?php fc_gioco_indizi($c); ?>
+
+                    <?php if (!$is_graded): ?>
+                    <div class="grade-row fcv-grade-row">
+
+                                <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=wrong&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn gc-wrong action-btn" aria-label="<?php te('fc.vg_sbagliato'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
+
+                                <button type="button" class="btn gc-learnt<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); premiImparato(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
+
+                                <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=correct&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn gc-correct action-btn" aria-label="<?php te('fc.res_corretto'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></a>
+
+                    </div>
+                    <?php else: $vd_ok = ($c['user_answer'] == 'Correct'); ?>
+                    <div class="graded-head fcv-graded-head">
+                        <div class="vd-gruppo">
+                            <button type="button" class="status-pill vd-btn <?php echo $vd_ok ? 'ok' : 'ko'; ?>" aria-haspopup="menu" aria-label="<?php te('fc.gm_cambia_verdetto'); ?>"><span class="gi"><?php echo $vd_ok ? '&#10003;' : '&#10005;'; ?></span> <span class="vd-txt"><?php echo sec_h(t($vd_ok ? 'fc.lbl_corretto' : 'fc.lbl_errato')); ?></span><svg class="vd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button>
+                            <button type="button" class="btn gc-learnt gc-learnt-mini<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"<?php echo $vd_ok ? '' : ' hidden'; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php else: /* STUDIO: come prima */ ?>
                     <?php if (!$is_graded): ?>
 
                         <?php if (!$fc_vocab): /* l'IA per le parole arrivera' piu' avanti */ ?>
@@ -2318,6 +2380,8 @@ try {
 
 
                     <?php endif; ?>
+
+                    <?php endif; /* lingue / studio */ ?>
 
                 </div>
 
@@ -3671,12 +3735,15 @@ try {
 
             ansBox.style.display = 'block';
 
-            ansBox.classList.add('reveal-anim');
+            /* Le parole hanno la loro entrata (fcvRivela in fc_game.css): il
+               velo che si dissolve sulla risposta. 'reveal-anim' e' quella
+               del riquadro delle carte di studio, che arriva da sotto. */
+            ansBox.classList.add(ansBox.classList.contains('fcv-ans') ? 'fcv-rivelata' : 'reveal-anim');
 
             var cardBox = ansBox.closest('.card-box');
             if (cardBox) cardBox.classList.add('risposta-mostrata');
 
-            try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {}
+            try { if (navigator.vibrate) navigator.vibrate(ansBox.classList.contains('fcv-ans') ? [8, 40, 14] : 8); } catch (e) {}
 
             
 
@@ -4307,6 +4374,10 @@ try {
                     document.getElementById('shatter-wrong-btn').href = wrongUrl;
 
                     document.getElementById('shatter-correct-btn').href = correctUrl;
+
+                    document.getElementById('shatter-wrong-btn').setAttribute('data-card', 'card-' + index);
+
+                    document.getElementById('shatter-correct-btn').setAttribute('data-card', 'card-' + index);
 
                     
 
@@ -5815,6 +5886,25 @@ function segnaCartaValutataInPagina (card, esito) {
     var btnShow = card.querySelector('[id^="btn-show-"]');
     if (btnShow) btnShow.remove();
 
+    /* LE PAROLE: la risposta resta dov'e', e al posto dei voti arriva la
+       pastiglia dell'esito - come la disegna il server per una parola gia'
+       giocata (fc_game.php, ramo delle lingue). */
+    var ansVocab = card.querySelector('.answer-box.fcv-ans');
+    if (ansVocab) {
+        if (!card.querySelector('.status-pill')) {
+            var testaV = document.createElement('div');
+            testaV.className = 'graded-head fcv-graded-head';
+            testaV.innerHTML = testaVerdettoHTML(card, esito === 'correct', imparata || giaImp);
+            var dopoV = card.querySelector('.fcv-hints') || card.querySelector('.fcv-slot');
+            if (dopoV) dopoV.insertAdjacentElement('afterend', testaV); else card.appendChild(testaV);
+            var pillV = testaV.querySelector('.status-pill');
+            try {
+                pillV.animate([{ transform: 'scale(.6)', opacity: 0 }, { transform: 'scale(1.08)', opacity: 1 }, { transform: 'scale(1)', opacity: 1 }], { duration: 420, easing: EASE });
+            } catch (e) {}
+        }
+        return;
+    }
+
     /* La risposta si richiude, con un tastino per riaprirla: identico a come
        la disegna il server per una carta gia' risposta. */
     var ansBox = card.querySelector('.answer-box.ans-block');
@@ -5943,6 +6033,11 @@ function prossimaCartaDaValutare (contenitore, cardAppenaVotata) {
 function gradeAndAdvance (url, feedbackPromise, cardIndex, cardEl, esito) {
     /* lingue: serie, livello della parola, suoni (fc_game_juice.js) */
     try { if (window.FcGioco) FcGioco.voto(esito, cardEl); } catch (e) {}
+    /* Chi deve sapere che una carta e' stata votata (la modalita' vocale, che
+       poi legge la domanda dopo) lo sa da qui: il voto puo' arrivare dal
+       tocco, dallo swipe, dalla voce o dal popup di "Frantuma", e questa e'
+       l'unica strada che fanno tutti. */
+    try { document.dispatchEvent(new CustomEvent('fc-voto', { detail: { card: cardEl, esito: esito } })); } catch (e) {}
     var curContainer = curC();
     var ungraded = curContainer ? curContainer.querySelectorAll('.card-box:not(.graded):not(.anteprima-card)').length : 2;
     var fwdUrl = curContainer ? curContainer.getAttribute('data-forward-url') : null;
@@ -6355,7 +6450,14 @@ function navigateTo (url, opts) {
 
                     try { result = new URL(link.href, window.location.href).searchParams.get('result') || 'correct'; } catch (err) {}
 
-                    var card = link.closest('.card-box');
+                    /* I tasti del popup di "Frantuma" stanno fuori dalla carta:
+                       la carta la dice il loro data-card. Senza, card era null e
+                       card.getAttribute faceva fermare il voto con un errore -
+                       il popup si chiudeva e la carta restava senza voto. */
+                    var card = link.closest('.card-box')
+                        || (link.getAttribute('data-card') ? document.getElementById(link.getAttribute('data-card')) : null);
+
+                    if (!card) { navigateTo(link.href); return; }
 
                     gradeAndAdvance(link.href, gradeFeedback(card, result), parseInt(card.getAttribute('data-card-index') || '0', 10), card, result);
 

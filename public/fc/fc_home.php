@@ -49,6 +49,19 @@ elseif ($R['serie'] > 0)                $frase = t('fchub.salva_serie');
 else                                    $frase = t('fchub.inizia_oggi');
 
 $circ = 2 * M_PI * 46;   // circonferenza dell'anello (r = 46)
+
+/* LE CARTE CHE SAI: quante adesso, e quante imparate oggi / questa
+   settimana / questo mese (fcv_conosciute: col tastino o al livello la_sai). */
+$impG = $R['imparate_giorni'];
+$impOggi = (int)($impG[date('Y-m-d')] ?? 0);
+$impSett = 0; $impMese = 0;
+$lunedi = date('Y-m-d', strtotime('monday this week'));
+foreach ($impG as $d => $n) {
+    if ($d >= $lunedi) $impSett += $n;
+    if (substr($d, 0, 7) === date('Y-m')) $impMese += $n;
+}
+$impTot = (int)$R['imparate_tot'];
+$impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>">
@@ -129,6 +142,33 @@ $circ = 2 * M_PI * 46;   // circonferenza dell'anello (r = 46)
             </div>
             <?php $i++; endforeach; ?>
         </div>
+    </section>
+
+
+    <!-- LE CARTE CHE SAI -->
+    <section class="learned-card" id="learned" aria-labelledby="learnedTit">
+        <div class="lc-head">
+            <div class="lc-tot">
+                <span class="lc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/></svg></span>
+                <span>
+                    <span class="lc-num"><?php echo $impTot; ?><?php if ($impUnita > 0): ?><small>/<?php echo $impUnita; ?></small><?php endif; ?></span>
+                    <span class="lc-lbl" id="learnedTit"><?php te('fchub.carte_che_sai'); ?></span>
+                </span>
+            </div>
+            <div class="lc-seg" role="radiogroup" aria-label="<?php te('fchub.imparate_per'); ?>">
+                <button type="button" role="radio" aria-checked="true" class="is-on" data-passo="g"><?php te('fchub.per_giorno'); ?></button>
+                <button type="button" role="radio" aria-checked="false" data-passo="s"><?php te('fchub.per_settimana'); ?></button>
+                <button type="button" role="radio" aria-checked="false" data-passo="m"><?php te('fchub.per_mese'); ?></button>
+            </div>
+        </div>
+        <div class="lc-chips">
+            <span class="lc-chip<?php echo $impOggi ? ' is-on' : ''; ?>"><b>+<?php echo $impOggi; ?></b> <?php te('fchub.oggi'); ?></span>
+            <span class="lc-chip<?php echo $impSett ? ' is-on' : ''; ?>"><b>+<?php echo $impSett; ?></b> <?php te('fchub.questa_settimana'); ?></span>
+            <span class="lc-chip<?php echo $impMese ? ' is-on' : ''; ?>"><b>+<?php echo $impMese; ?></b> <?php te('fchub.questo_mese'); ?></span>
+        </div>
+        <div class="lc-chart" id="learnedChart" aria-hidden="true"></div>
+        <p class="lc-nota"><?php te('fchub.imparate_nota'); ?></p>
+        <script type="application/json" id="learnedDati"><?php echo json_encode(['giorni' => $impG, 'oggi' => date('Y-m-d'), 'lingua' => standout_lingua()], JSON_HEX_TAG); ?></script>
     </section>
 
 
@@ -278,6 +318,67 @@ $circ = 2 * M_PI * 46;   // circonferenza dell'anello (r = 46)
         }
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sheet.getAttribute('aria-hidden') === 'false') chiudi(sheet); });
+
+    /* LE CARTE IMPARATE, per giorno / settimana / mese. I giorni arrivano dal
+       server (fcv_conosciute); qui si raggruppano: 14 giorni, 8 settimane
+       (da lunedi'), 6 mesi. Barre semplici, il numero sopra quelle piene. */
+    (function () {
+        var box = $('learnedChart'), datiEl = $('learnedDati');
+        if (!box || !datiEl) return;
+        var D; try { D = JSON.parse(datiEl.textContent); } catch (e) { return; }
+        var giorni = D.giorni || {};
+        function iso(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+        var oggi = new Date(D.oggi + 'T12:00:00');
+        function gruppi(passo) {
+            var out = [], i, d, k, n;
+            if (passo === 'g') {
+                for (i = 13; i >= 0; i--) {
+                    d = new Date(oggi); d.setDate(d.getDate() - i); k = iso(d);
+                    out.push({ v: giorni[k] || 0, l: String(d.getDate()), qui: i === 0 });
+                }
+            } else if (passo === 's') {
+                var lun = new Date(oggi); lun.setDate(lun.getDate() - ((lun.getDay() + 6) % 7));
+                for (i = 7; i >= 0; i--) {
+                    var da = new Date(lun); da.setDate(da.getDate() - i * 7);
+                    n = 0;
+                    for (var j = 0; j < 7; j++) { d = new Date(da); d.setDate(d.getDate() + j); n += giorni[iso(d)] || 0; }
+                    out.push({ v: n, l: da.getDate() + '/' + (da.getMonth() + 1), qui: i === 0 });
+                }
+            } else {
+                for (i = 5; i >= 0; i--) {
+                    d = new Date(oggi.getFullYear(), oggi.getMonth() - i, 1);
+                    var pre = iso(d).slice(0, 7); n = 0;
+                    Object.keys(giorni).forEach(function (g) { if (g.slice(0, 7) === pre) n += giorni[g]; });
+                    var nome = '';
+                    try { nome = d.toLocaleDateString(D.lingua || undefined, { month: 'short' }); } catch (e) { nome = String(d.getMonth() + 1); }
+                    out.push({ v: n, l: nome, qui: i === 0 });
+                }
+            }
+            return out;
+        }
+        function disegna(passo) {
+            var g = gruppi(passo), max = 1;
+            g.forEach(function (x) { if (x.v > max) max = x.v; });
+            box.className = 'lc-chart lc-' + passo;
+            box.innerHTML = g.map(function (x, i) {
+                var h = x.v > 0 ? Math.max(8, Math.round(x.v / max * 100)) : 0;
+                return '<div class="lc-col' + (x.qui ? ' is-qui' : '') + '" style="--i:' + i + '">'
+                    + '<span class="lc-val">' + (x.v > 0 ? x.v : '') + '</span>'
+                    + '<span class="lc-bar"><span style="height:' + h + '%"></span></span>'
+                    + '<span class="lc-x">' + x.l + '</span></div>';
+            }).join('');
+        }
+        document.querySelectorAll('.lc-seg [data-passo]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                document.querySelectorAll('.lc-seg [data-passo]').forEach(function (x) {
+                    var on = x === b; x.classList.toggle('is-on', on); x.setAttribute('aria-checked', on ? 'true' : 'false');
+                });
+                disegna(b.getAttribute('data-passo'));
+                try { navigator.vibrate && navigator.vibrate(6); } catch (e) {}
+            });
+        });
+        disegna('g');
+    })();
     $('goalSalva').addEventListener('click', function () {
         var b = this; b.disabled = true;
         var corpo = new URLSearchParams();

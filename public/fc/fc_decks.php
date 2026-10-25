@@ -436,14 +436,14 @@ foreach (sec_all("SELECT i.category_id AS cid, COUNT(*) AS c
    LA RIGA DI NUMERI SOTTO OGNI MAZZO
    Quante partite (senza i ripassi) hanno giocato il mazzo o un suo
    sottomazzo, quando l'ultima, e come stanno le sue carte: i cinque livelli
-   di fc_vocab_gioco.php (nuova, difficile, in corso, buona, padroneggiata)
+   di fc_vocab_gioco.php (FCV_LIVELLI: da difficilissima a la_sai)
    contati carta per carta, sottomazzi compresi.
    Tre query in tutto, qualunque sia il numero dei mazzi: le risposte si
    leggono una volta sola e si smistano qui.
    ========================================================================== */
 require_once __DIR__ . '/../../lib/fc/fc_vocab_gioco.php';
 $fcm_stat = [];   // id mazzo => ['partite' => [id => true], 'ultima' => 'Y-m-d H:i:s', 'liv' => [livello => n]]
-$fcm_vuota = function () { return ['partite' => [], 'ultima' => null, 'liv' => ['difficile' => 0, 'in_corso' => 0, 'nuova' => 0, 'buona' => 0, 'padroneggiata' => 0]]; };
+$fcm_vuota = function () { return ['partite' => [], 'ultima' => null, 'liv' => fcv_livelli_vuoti(), 'sai' => 0]; };
 if ($all_categories) {
     [$fcmW, $fcmP] = fc_filtro_corso('cc');
     /* di che mazzo e' ogni carta e ogni sottocarta */
@@ -461,7 +461,17 @@ if ($all_categories) {
     }
     /* le risposte, dalla piu' vecchia: come in fcv_stats_carte */
     $fcm_carte = [];
-    foreach (sec_all("SELECT p.fc_image_id, p.fc_child_id, p.user_answer FROM " . fc_t('plays') . " p
+    /* imparate col tastino (sta sulla carta padre, vale per le sue sottocarte) */
+    $fcm_tastino = [];
+    foreach (sec_all("SELECT fc_image_id FROM " . fc_t('learnt') . " WHERE user_id = ?", [(int)$current_user_id]) as $r) $fcm_tastino[(int)$r['fc_image_id']] = true;
+    $fcm_padre_di = [];
+    foreach (sec_all("SELECT ch.id_child, ch.parent_id FROM " . fc_t('subcards') . " ch
+                       JOIN " . fc_t('cards') . " i ON i.id = ch.parent_id
+                       JOIN " . fc_t('decks') . " cc ON cc.id = i.category_id AND cc.user_id = ?" . $fcmW,
+                     array_merge([(int)$current_user_id], $fcmP)) as $r) {
+        $fcm_padre_di['c' . (int)$r['id_child']] = (int)$r['parent_id'];
+    }
+    foreach (sec_all("SELECT p.fc_image_id, p.fc_child_id, p.user_answer, (g.parent_id IS NOT NULL AND g.parent_id > 0) AS ripasso FROM " . fc_t('plays') . " p
                        JOIN fc_games g ON g.id = p.game_id AND g.user_id = ? AND " . fc_sql_partite('g') . "
                       WHERE p.user_answer IN ('Correct', 'Wrong')
                       ORDER BY p.play_date ASC, p.id ASC",
@@ -471,12 +481,16 @@ if ($all_categories) {
         if (!isset($fcm_carte[$k])) $fcm_carte[$k] = ['c' => 0, 'w' => 0, 'u' => ''];
         $giusta = $r['user_answer'] === 'Correct';
         $fcm_carte[$k][$giusta ? 'c' : 'w']++;
-        $fcm_carte[$k]['u'] = substr($fcm_carte[$k]['u'] . ($giusta ? 'C' : 'W'), -6);
+        $fcm_carte[$k]['u'] = substr($fcm_carte[$k]['u'] . fcv_lettera($giusta, (bool)$r['ripasso']), -FCV_STORIA);
     }
     foreach ($fcm_mazzo_di as $k => $mid) {
         if (!isset($fcm_stat[$mid])) $fcm_stat[$mid] = $fcm_vuota();
         $st = $fcm_carte[$k] ?? ['c' => 0, 'w' => 0, 'u' => ''];
-        $fcm_stat[$mid]['liv'][fcv_livello($st['c'], $st['w'], $st['u'])]++;
+        $liv = fcv_livello($st['c'], $st['w'], $st['u']);
+        $fcm_stat[$mid]['liv'][$liv]++;
+        /* "le sai": col tastino o al livello la_sai, come in fcv_conosciute */
+        $padre = $k[0] === 'p' ? (int)substr($k, 1) : ($fcm_padre_di[$k] ?? 0);
+        if ($liv === 'la_sai' || isset($fcm_tastino[$padre])) $fcm_stat[$mid]['sai']++;
     }
     /* le partite (le radici: un ripasso fa parte della sua partita) */
     foreach (sec_all("SELECT gd.fc_category_id AS cid, g.id, g.game_date FROM fc_games g
@@ -499,6 +513,7 @@ if ($all_categories) {
             $tot['partite'] += $s['partite'];
             if ($s['ultima'] !== null && ($tot['ultima'] === null || $s['ultima'] > $tot['ultima'])) $tot['ultima'] = $s['ultima'];
             foreach ($s['liv'] as $l => $n) $tot['liv'][$l] += $n;
+            $tot['sai'] += $s['sai'];
         }
         return $tot;
     };
@@ -543,7 +558,8 @@ function fcm_numeri(int $id): array {
         'g'  => $s ? count($s['partite']) : 0,
         'q'  => $s ? fcm_quando($s['ultima']) : '',
         'l'  => $liv,
-        'pp' => $tot ? (int)round((($liv['padroneggiata'] ?? 0) + ($liv['buona'] ?? 0)) / $tot * 100) : 0,
+        'pp' => $tot ? (int)round(($s['sai'] ?? 0) / $tot * 100) : 0,
+        'r'  => array_sum(array_map(function ($l) use ($liv) { return fcv_da_ripassare($l) ? (int)($liv[$l] ?? 0) : 0; }, FCV_LIVELLI)),
     ];
 }
 
@@ -587,7 +603,7 @@ function fcm_riga_html(int $id, bool $note, ?string $esame = null): string {
     $out = '<span class="cat-stats">' . fcm_chip_esame($esame);
     /* DA RIPASSARE: con due o piu' carte difficili nel ramo, un tasto che
        avvia subito una partita solo su quelle (fc_game_start ?solo=difficili). */
-    $diff = (int)($n['l']['difficile'] ?? 0);
+    $diff = (int)$n['r'];
     if ($diff >= 2) {
         $out .= '<a class="cs-difficili" href="' . sec_h(fcm_url_difficili($id)) . '" onclick="event.stopPropagation()"'
               . ' title="' . sec_h(t('fc.dk_gioca_difficili')) . '">'
@@ -605,7 +621,7 @@ function fcm_riga_html(int $id, bool $note, ?string $esame = null): string {
     }
     if ($tot > 0 && $tot > ($n['l']['nuova'] ?? 0)) {
         $out .= '<span class="cs-barra" title="' . sec_h(t('fc.dk_barra_titolo', ['n' => $n['pp']])) . '">';
-        foreach (['padroneggiata', 'buona', 'in_corso', 'difficile', 'nuova'] as $l) {
+        foreach (array_merge(array_reverse(array_diff(FCV_LIVELLI, ['nuova'])), ['nuova']) as $l) {
             if (!empty($n['l'][$l])) $out .= '<i class="cs-' . $l . '" style="flex:' . (int)$n['l'][$l] . '"></i>';
         }
         $out .= '</span>' . ($n['pp'] > 0 ? '<span class="cs-pct">' . (int)$n['pp'] . '%</span>' : '');
@@ -2278,7 +2294,7 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
         var tot = 0; for (var k in st.l) tot += st.l[k];
         if (!tot || tot === (st.l.nuova || 0)) return '';
         var html = '<div class="sc-livelli" title="' + esc(T('fc.dk_barra_titolo', { n: st.pp })) + '"><span class="cs-barra">';
-        ['padroneggiata', 'buona', 'in_corso', 'difficile', 'nuova'].forEach(function(l){
+        ['la_sai', 'quasi', 'sembra_facile', 'in_ripresa', 'da_imparare', 'insidiosa', 'difficile', 'difficilissima', 'nuova'].forEach(function(l){
             if (st.l[l]) html += '<i class="cs-' + l + '" style="flex:' + st.l[l] + '"></i>';
         });
         return html + '</span>' + (st.pp > 0 ? '<span class="cs-pct">' + st.pp + '%</span>' : '') + '</div>';
@@ -2314,7 +2330,7 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
                        (c.nt ? '<span class="sc-nota">' + SVG_NOTA + '</span>' : '') +
                      '</div>' +
                      barraLivelli(c.st) +
-                     (c.st && c.st.l && c.st.l.difficile >= 2 ? '<a class="cs-difficili sc-difficili" href="' + esc(c.dif) + '">' + SVG_PLAY_PIENO + esc(T('fc.dk_da_ripassare', { n: c.st.l.difficile })) + '</a>' : '') +
+                     (c.st && c.st.r >= 2 ? '<a class="cs-difficili sc-difficili" href="' + esc(c.dif) + '">' + SVG_PLAY_PIENO + esc(T('fc.dk_da_ripassare', { n: c.st.r })) + '</a>' : '') +
                      '<span class="fc-subcat-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
                    '</div>';
         }).join('');

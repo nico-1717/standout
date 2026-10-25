@@ -1,0 +1,88 @@
+/* fc_vocab_gap.css — LA PARTE NASCOSTA DEGLI ESEMPI DELLE PAROLE
+   Il componente per sceglierla (fc_vocab_gap.js) e il modo in cui si vede nei
+   moduli: lo usano il modulo della parola (fc_card_edit.php) e l'inserimento
+   multiplo (fc_insert.php). Viola: il colore della famiglia esempi. */
+
+/* La parte nascosta, in evidenza dentro una frase */
+.fcv-ex-gap{
+    color:inherit; font-weight:750; padding:1px 5px; margin:0 -1px; border-radius:6px;
+    background:color-mix(in srgb, var(--purple, #AF52DE) 22%, transparent);
+    box-shadow:inset 0 -2px 0 color-mix(in srgb, var(--purple, #AF52DE) 75%, transparent);
+    -webkit-box-decoration-break:clone; box-decoration-break:clone;
+}
+
+/* ---- la scelta a mano ----
+   Ogni parola e ogni apostrofo e' un tasto. Quelli scelti uno dopo l'altro
+   si uniscono in una fascia sola, spazi compresi, perche' nel gioco
+   spariranno come un pezzo unico; due fasce separate sono due spazi vuoti. */
+.fcv-ex-guida{ display:flex; align-items:flex-start; gap:6px; margin:0 0 10px; font-size:12.5px; line-height:1.35; font-weight:750; color:var(--purple, #AF52DE); }
+.fcv-ex-guida svg{ width:15px; height:15px; flex-shrink:0; margin-top:1px; }
+.fcv-ex-parole{ display:flex; flex-wrap:wrap; row-gap:8px; margin:0; font-size:17px; color:var(--text); overflow-wrap:anywhere; }
+/* stessa altezza esatta per parole e spazi: e' quello che fa sembrare la
+   fascia scelta un pezzo solo, senza tacche fra un tasto e l'altro */
+.fcv-ex-tok, .fcv-ex-sep{ display:inline-block; box-sizing:border-box; height:32px; line-height:26px; padding-top:3px; padding-bottom:3px; }
+.fcv-ex-tok{
+    margin:0; padding-left:7px; padding-right:7px; border:none; border-radius:8px; cursor:pointer;
+    font:inherit; font-weight:600; color:inherit;
+    background:var(--surface, #fff); box-shadow:inset 0 0 0 .5px var(--hairline-2, rgba(60,60,67,.25));
+    transition:background .14s, color .14s, transform .12s cubic-bezier(.32,.72,0,1);
+    -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
+}
+/* l'apostrofo e' un tasto stretto, ma abbastanza largo da prenderlo col dito */
+.fcv-ex-tok.is-apos{ min-width:22px; padding-left:4px; padding-right:4px; text-align:center; margin:0 1px; }
+.fcv-ex-tok:active{ transform:scale(.93); }
+.fcv-ex-sep{ white-space:pre; }
+.fcv-ex-tok.is-on, .fcv-ex-sep.is-on{ background:var(--purple, #AF52DE); color:#fff; box-shadow:none; }
+.fcv-ex-tok.is-on.is-apos{ margin:0; }
+.fcv-ex-tok.is-on:not(.is-inizio){ border-top-left-radius:0; border-bottom-left-radius:0; }
+.fcv-ex-tok.is-on:not(.is-fine){ border-top-right-radius:0; border-bottom-right-radius:0; }
+@media (hover:hover){ .fcv-ex-tok:not(.is-on):hover{ background:color-mix(in srgb, var(--purple, #AF52DE) 10%, var(--surface, #fff)); } }
+
+.fcv-ex-barra{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.fcv-ex-spazio{ flex:1; }
+.fcv-ex-btn{
+    display:inline-flex; align-items:center; gap:6px; height:34px; padding:0 14px;
+    border:none; border-radius:99px; cursor:pointer; white-space:nowrap;
+    font:inherit; font-size:13.5px; font-weight:800;
+    background:var(--surface, #fff); color:var(--text); box-shadow:inset 0 0 0 .5px var(--hairline-2, rgba(60,60,67,.25));
+    transition:transform .15s cubic-bezier(.32,.72,0,1), opacity .2s;
+}
+.fcv-ex-btn svg{ width:15px; height:15px; }
+.fcv-ex-btn:active{ transform:scale(.95); }
+.fcv-ex-btn:disabled{ opacity:.35; cursor:default; }
+.fcv-ex-btn.is-primo{ background:var(--purple, #AF52DE); color:#fff; box-shadow:none; }
+.fcv-ex-btn.is-piano{ background:transparent; box-shadow:none; color:var(--text-2); padding:0 6px; }
+
+/* ---- nell'inserimento multiplo ----
+   Sotto il campo dell'esempio: la frase con la parte nascosta in evidenza e
+   la pastiglia per cambiarla; aperta, il componente in un riquadro. */
+.fcv-gp-anteprima{ display:flex; align-items:flex-start; flex-wrap:wrap; gap:6px 10px; margin:8px 2px 0; }
+.fcv-gp-anteprima[hidden]{ display:none; }
+.fcv-gp-frase{ flex:1 1 220px; min-width:0; margin:0; font-size:14.5px; line-height:1.55; color:var(--text-2); overflow-wrap:anywhere; }
+.fcv-gp-chip{
+    display:inline-flex; align-items:center; gap:5px; height:28px; padding:0 10px 0 8px;
+    border:none; border-radius:99px; cursor:pointer; white-space:nowrap; flex-shrink:0;
+    font:inherit; font-size:12px; font-weight:750;
+    color:var(--purple, #AF52DE); background:color-mix(in srgb, var(--purple, #AF52DE) 12%, transparent);
+    transition:transform .15s cubic-bezier(.32,.72,0,1);
+}
+.fcv-gp-chip svg{ width:14px; height:14px; }
+.fcv-gp-chip em{
+    font-style:normal; font-size:9.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+    padding:2px 4px; border-radius:5px; background:color-mix(in srgb, var(--purple, #AF52DE) 16%, transparent);
+}
+.fcv-gp-chip.is-senza{ color:var(--orange, #FF9500); background:color-mix(in srgb, var(--orange, #FF9500) 14%, transparent); }
+.fcv-gp-chip:active{ transform:scale(.95); }
+.fcv-gp-box{
+    margin-top:8px; padding:14px 12px 12px 14px; border-radius:16px;
+    background:color-mix(in srgb, var(--purple, #AF52DE) 7%, var(--surface-2, #F2F2F7));
+    box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--purple, #AF52DE) 50%, transparent);
+    animation:fcvGpIn .28s cubic-bezier(.32,.72,0,1) both;
+}
+.fcv-gp-box[hidden]{ display:none; }
+@keyframes fcvGpIn{ from{ opacity:0; transform:translateY(-4px); } }
+
+@media (prefers-reduced-motion: reduce){
+    .fcv-ex-tok, .fcv-ex-btn, .fcv-gp-chip{ transition:none; }
+    .fcv-gp-box{ animation:none; }
+}

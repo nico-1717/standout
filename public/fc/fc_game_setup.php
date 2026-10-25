@@ -154,8 +154,11 @@ function renderGameCatRow($node, $level = 0) {
 
         <hr class="opt-divider">
 
-        <?php /* Gli indizi sul davanti della carta: coperti (si toccano per
-                 vederli) o già scoperti. Si ricorda su questo dispositivo. */ ?>
+        <?php /* Gli indizi sulla carta: gia' scoperti o coperti (si toccano
+                 per vederli). E' la stessa scelta dell'ingranaggio nel gioco,
+                 salvata sul profilo (lib/fc/fc_impostazioni.php). */
+              require_once __DIR__ . '/../../lib/fc/fc_impostazioni.php';
+              $fc_imp = fc_impostazioni((int)$current_user_id); ?>
         <div class="opt-section">
             <div class="toggle-row">
                 <div>
@@ -163,29 +166,24 @@ function renderGameCatRow($node, $level = 0) {
                     <div class="toggle-row-sub"><?php te('fcv.indizi_aperti_sub'); ?></div>
                 </div>
                 <label class="ios-switch">
-                    <input type="checkbox" id="fcvIndiziAperti">
+                    <input type="checkbox" id="fcvIndiziAperti"<?php echo ($fc_imp['significato'] === 'aperto' && $fc_imp['esempi'] === 'aperto') ? ' checked' : ''; ?>>
                     <span class="switch-track"><span class="switch-thumb"></span></span>
                 </label>
             </div>
         </div>
         <script>
         (function () {
-            /* Le stesse scelte dell'ingranaggio nel gioco (fcv_mostra_*): acceso
-               = tutti e due visibili, spento = tutti e due al tocco. Nel gioco si
-               possono poi regolare uno per uno, anche "con la risposta". */
+            /* Acceso = tutti e due visibili, spento = tutti e due al tocco. Nel
+               gioco si possono poi regolare uno per uno, anche "con la risposta". */
             var c = document.getElementById('fcvIndiziAperti');
-            try {
-                var sig = localStorage.getItem('fcv_mostra_significato'), es = localStorage.getItem('fcv_mostra_esempio');
-                var vecchio = localStorage.getItem('fcv_indizi_aperti') === '1';
-                c.checked = (sig || es) ? (sig === 'aperto' && es === 'aperto') : vecchio;
-            } catch (e) {}
+            var TOKEN = <?php echo json_encode(sec_csrf_token()); ?>;
             c.addEventListener('change', function () {
                 var v = c.checked ? 'aperto' : 'tocco';
-                try {
-                    localStorage.setItem('fcv_mostra_significato', v);
-                    localStorage.setItem('fcv_mostra_esempio', v);
-                    localStorage.setItem('fcv_indizi_aperti', c.checked ? '1' : '0');
-                } catch (e) {}
+                var fd = new FormData();
+                fd.append('significato', v);
+                fd.append('esempi', v);
+                fd.append('csrf_token', TOKEN);
+                fetch('fc_settings_api.php', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-CSRF-Token': TOKEN } }).catch(function () {});
             });
         })();
         </script>

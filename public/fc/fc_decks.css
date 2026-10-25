@@ -1340,10 +1340,15 @@ body.fc-vocab .hdr-play-btn{ box-shadow:0 2px 6px rgba(255,149,0,.3), 0 10px 22p
 .cs-barra{ display:flex; gap:1.5px; width:54px; height:5px; border-radius:99px; overflow:hidden; flex-shrink:0;
     margin-left:4px; background:var(--surface-2); }
 .cs-barra i{ display:block; height:100%; min-width:2px; }
-.cs-barra .cs-padroneggiata{ background:#E0A800; }
-.cs-barra .cs-buona{ background:var(--green, #34C759); }
-.cs-barra .cs-in_corso{ background:var(--blue, #007AFF); }
+/* i colori dei livelli: gli stessi della pastiglia sulla carta (fc_game_juice.css) */
+.cs-barra .cs-la_sai{ background:#E0A800; }
+.cs-barra .cs-quasi{ background:var(--green, #34C759); }
+.cs-barra .cs-sembra_facile{ background:#00C7BE; }
+.cs-barra .cs-in_ripresa{ background:var(--purple, #AF52DE); }
+.cs-barra .cs-da_imparare{ background:#5E5CE6; }
+.cs-barra .cs-insidiosa{ background:var(--orange, #FF9500); }
 .cs-barra .cs-difficile{ background:var(--red, #FF3B30); }
+.cs-barra .cs-difficilissima{ background:#C9003B; }
 .cs-barra .cs-nuova{ background:color-mix(in srgb, #32ADE6 45%, var(--surface-2)); }
 .cs-pct{ font-size:11px; font-weight:800; color:var(--text-2); font-variant-numeric:tabular-nums; }
 .cs-nota{ display:inline-flex; color:var(--orange, #FF9500); margin-left:2px; }

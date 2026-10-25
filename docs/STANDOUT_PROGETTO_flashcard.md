@@ -109,12 +109,20 @@ Nuove: `fc_vocab_courses`, `fc_vocab_examples`, `fc_vocab_favorites`, `fc_vocab_
 | `voice_game_mode.php` | `fc_voice_mode.php` |
 | `azione_post.php` | `post_action.php` |
 
+## Lingue: livelli, esempi, scelte (ottobre 2026)
+
+- **Livelli delle parole** (`lib/fc/fc_vocab_gioco.php`, gemello JS in `fc_game_juice.js`): nuova, da imparare, sembra facile, la sai (ultime 5 giuste), insidiosa (1 errore nelle ultime 5, ripassi esclusi), difficile (2 errori), difficilissima (difficile e sbagliata anche nei ripassi), in ripresa (era difficile, l'ultima giusta), quasi (era difficile, 2-3 giuste di fila). L'elenco ordinato è `FCV_LIVELLI`; le due funzioni devono restare identiche.
+- **Carte che sai** (`fcv_conosciute()`): segnate come imparate **oppure** al livello "la sai". La usano percentuali, cruscotto (`fc_home`, per giorno/settimana/mese) e `fc_stats`.
+- **Parte nascosta degli esempi** (`gap_text`, `lib/fc/fc_vocab_gap.php` + `public/fc/fc_vocab_gap.js`, identici): vuota = automatica; un testo = un pezzo; `[[pos,"testo"],...]` = più pezzi ("I want … to"). Le contrazioni si spezzano (I'm → I ' m). Il componente di scelta è lo stesso in modifica, inserimento multiplo e import.
+- **Significato ed esempi nel gioco** (aperti / al tocco / dopo la risposta) si salvano per utente in `fc_settings` (`lib/fc/fc_impostazioni.php`, `fc_settings_api.php`). La prima volta: aperti.
+- **Modalità voce:** niente più comando "avanti": dopo "giusto"/"sbagliato" si legge subito la domanda dopo. I comandi si riconoscono in italiano e in inglese insieme; la lingua del microfono si sceglie nel pannello.
+
 ## Rimandato (da fare)
 
 - **IA per le parole.** Nel gioco di lingua non ci sono Leggi/Spiega/Metafora/Frantuma, e nell'inserimento multiplo manca la sezione "Genera con l'IA". Le vecchie `generate_ai_text*.php` / `generate_ai_image*.php` del vocabolario non sono state portate: andranno rifatte sul motore IA delle flashcard di studio (`fc_ai_lib.php`).
 - **Statistiche delle lingue.** `fc_stats.php` conta solo lo studio (partite `kind='study'`). Per le lingue esistono solo i numeri di `fc_home`/`fc_languages` (parole, imparate, serie).
 - **Terzo giro di nomi:** colonne strutturali ancora in italiano/vecchio stile (`category_id` → `deck_id`, `fc_image_id` → `card_id`, `fc_child_id`, `id_child`, `fc_category_id`, `is_father`…), in entrambe le famiglie di tabelle insieme.
 - **Vecchie partite di vocabolario:** le posizioni partono da 0 e non hanno sequenza; si vedono nello storico e si possono ripassare (il ripasso crea una partita nuova normale), ma non si "riprendono".
-- **Comandi vocali** della modalità voce: si riconoscono nella lingua dell'interfaccia (sono comandi, non risposte). Rispondere a voce nella lingua che si impara è da progettare.
+- **Rispondere a voce** nella lingua che si impara (non solo comandi) è da progettare.
 - **Cruscotto:** la percentuale "padroneggiate" confronta carte imparate (padri) con carte totali (figlie e carte singole), come faceva prima.
 - Chiavi di traduzione già mancanti prima di questo lavoro: `fc.cred_apri_pagina`, `fc.cred_non_caricato`, `fc.ibfai_job_fase_carte_avvio`, `fc.ibfai_job_fase_concetti_avvio`, `fc.ibfai_job_pillola_avvio`.

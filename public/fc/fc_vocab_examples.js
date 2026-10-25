@@ -3,11 +3,14 @@
  *
  * Gli esempi uno sotto l'altro, e in ognuno la parte che nel gioco diventa lo
  * spazio da indovinare, in evidenza:
- *   - se la parola della carta compare uguale nella frase, e' segnata da sola
- *     (fcvLacuna in fc_examples_modal.js, gemella di lib/fc/fc_vocab_gap.php);
- *   - se no (verbo coniugato, plurale, frase riformulata) c'e' il tasto
- *     «Scegli cosa nascondere»: le parole della frase diventano tasti, se ne
- *     toccano una o piu' di fila, e quel pezzo si salva in gap_text.
+ *   - se la parola della carta compare nella frase, anche coniugata, contratta
+ *     ("I'm" per "I am") o a pezzi ("I want you to" per "I want to"), e'
+ *     segnata da sola (fcvGap in fc_vocab_gap.js, gemello di
+ *     lib/fc/fc_vocab_gap.php);
+ *   - si puo' sempre cambiare a mano con «Scegli cosa nascondere»: le parole
+ *     della frase (e gli apostrofi) diventano tasti, si accendono quelli da
+ *     nascondere, anche non vicini, e la scelta si salva in gap_text. Il
+ *     componente e' lo stesso dell'inserimento multiplo (fcvGap.monta).
  *
  * Prima che la carta esista (creazione) gli esempi restano qui e partono con
  * lei, come campi del modulo (examples[] / examples_gap[]). Dopo, ogni
@@ -30,7 +33,7 @@
     'use strict';
 
     var sez, lista, vuoto, nuovo, bAdd, campi, conta, nota;
-    var voci = [];      // { id, testo, gap, img, aud, stato: ''|'scelta'|'modifica', sel: [i, j] | null, nuova }
+    var voci = [];      // { id, testo, gap, img, aud, stato: ''|'scelta'|'modifica', nuova }
     var avviato = false;
 
     function $(id) { return document.getElementById(id); }
@@ -47,7 +50,7 @@
     function cartaTipo() { return (typeof FC_TIPO !== 'undefined' && FC_TIPO) ? FC_TIPO : 'parent'; }
     function inSospeso() { return !cartaId(); }
     function parola() { var w = $('fcWord'); return w ? w.value.trim() : ''; }
-    function lacuna(v) { return typeof fcvLacuna === 'function' ? fcvLacuna(v.testo, parola(), v.gap) : null; }
+    function lacune(v) { return window.fcvGap ? fcvGap.lacune(v.testo, parola(), v.gap) : []; }
 
     /* Gli esempi in attesa fanno parte della carta da creare: toccarli e' una
        modifica della carta (pallino arancione, salvataggio automatico). */
@@ -55,24 +58,6 @@
         if (!inSospeso()) return;
         try { fcSporco = true; } catch (e) {}
         if (window.StandoutSaveBar) StandoutSaveBar.touch('scheda');
-    }
-
-    /* ---------- le parole di una frase, per sceglierne un pezzo ----------
-       Una parola e' una fila di lettere/cifre (anche con l'apostrofo dentro:
-       "don't" e' una sola). Tutto il resto (spazi, virgole) sta in mezzo. */
-    var RE_PAROLA = /[\p{L}\p{N}\p{M}_]+(?:['’][\p{L}\p{N}\p{M}]+)*/gu;
-    function pezzi(testo) {
-        var out = [], m, ultimo = 0;
-        RE_PAROLA.lastIndex = 0;
-        while ((m = RE_PAROLA.exec(testo)) !== null) {
-            if (m.index > ultimo) out.push({ t: testo.slice(ultimo, m.index), parola: false });
-            out.push({ t: m[0], parola: true, da: m.index, a: m.index + m[0].length });
-            ultimo = m.index + m[0].length;
-        }
-        if (ultimo < testo.length) out.push({ t: testo.slice(ultimo), parola: false });
-        var n = 0;
-        out.forEach(function (p) { if (p.parola) p.k = n++; });
-        return out;
     }
 
     /* ---------- disegno ---------- */
@@ -89,20 +74,12 @@
     /* La frase con la parte nascosta in evidenza. Una vecchia fila di _ si
        riempie con la parola, come nel resto del sito. */
     function fraseHtml(v) {
-        var w = parola();
-        var riempi = function (s) {
-            return esc(s).replace(/_+/g, function () { return '<mark class="fcv-ex-gap">' + (w ? esc(w) : '&hellip;') + '</mark>'; });
-        };
-        var l = lacuna(v);
-        if (!l) return riempi(v.testo);
-        var dentro = l.tipo === 'trattini' ? (w ? esc(w) : '&hellip;') : esc(v.testo.slice(l.da, l.a));
-        return riempi(v.testo.slice(0, l.da)) + '<mark class="fcv-ex-gap">' + dentro + '</mark>' + riempi(v.testo.slice(l.a));
+        return window.fcvGap ? fcvGap.htmlEvidenza(v.testo, parola(), v.gap) : esc(v.testo);
     }
 
     function vocePronta(v, i) {
-        var l = lacuna(v);
-        var w = parola();
-        var daSentire = v.testo.replace(/_+/g, w || '');
+        var l = lacune(v);
+        var daSentire = window.fcvGap ? fcvGap.daSentire(v.testo, parola()) : v.testo;
         var lingua = sez.getAttribute('data-lingua') || '';
         var media = '';
         if (v.img) media += '<img class="fcv-ex-img" src="../media/example_images/' + esc(v.img) + '" alt="" loading="lazy">';
@@ -110,14 +87,14 @@
         /* Una pastiglia sola, che si tocca per cambiare la scelta: "Nascosta
            nel gioco" (con «auto» se l'ha trovata da sola) o, se non c'e'
            niente da nascondere, il tasto arancione per sceglierlo. */
-        var stato = !v.testo.trim() ? '' : l
+        var stato = !v.testo.trim() ? '' : l.length
             ? '<button type="button" class="fcv-ex-stato" data-az="scegli" aria-label="' + esc(tr('fcv.es_nascosta', 'Hidden in the game') + ' — ' + tr('fcv.es_cambia', 'Change')) + '">'
               + IC.occhio + '<span class="fcv-ex-stato-t">' + esc(tr('fcv.es_nascosta', 'Hidden in the game')) + '</span>'
               /* «auto» al posto della freccia: due segni insieme non ci stanno */
-              + ((l.tipo === 'parola' || l.tipo === 'simile') ? '<em>' + esc(tr('fcv.es_auto', 'auto')) + '</em>' : IC.freccia) + '</button>'
+              + (fcvGap.eAutomatica(l) ? '<em>' + esc(tr('fcv.es_auto', 'auto')) + '</em>' : IC.freccia) + '</button>'
             : '<button type="button" class="fcv-ex-scegli" data-az="scegli">' + IC.mirino
               + '<span>' + esc(tr('fcv.es_scegli', 'Choose what to hide')) + '</span></button>';
-        return '<li class="fcv-ex-item' + (l || !v.testo.trim() ? '' : ' is-senza') + (v.nuova ? ' is-nuova' : '') + '" data-i="' + i + '">'
+        return '<li class="fcv-ex-item' + (l.length || !v.testo.trim() ? '' : ' is-senza') + (v.nuova ? ' is-nuova' : '') + '" data-i="' + i + '">'
             + (v.testo.trim() ? '<p class="fcv-ex-frase" lang="' + esc(lingua) + '">' + fraseHtml(v) + '</p>' : '')
             + (media ? '<div class="fcv-ex-media">' + media + '</div>' : '')
             + '<div class="fcv-ex-piede">'
@@ -131,35 +108,9 @@
             + '</li>';
     }
 
+    /* La scelta a mano: il riquadro, che fcvGap.monta riempie subito dopo. */
     function voceScelta(v, i) {
-        var lingua = sez.getAttribute('data-lingua') || '';
-        var p = pezzi(v.testo), sel = v.sel;
-        var dentro = function (k) { return sel && k >= sel[0] && k <= sel[1]; };
-        var html = '', prec = -1;
-        p.forEach(function (x, n) {
-            if (x.parola) {
-                var on = dentro(x.k);
-                var cls = 'fcv-ex-tok' + (on ? ' is-on' : '')
-                        + (on && x.k === sel[0] ? ' is-inizio' : '') + (on && x.k === sel[1] ? ' is-fine' : '');
-                html += '<button type="button" class="' + cls + '" data-k="' + x.k + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(x.t) + '</button>';
-                prec = x.k;
-            } else {
-                /* lo spazio fra due parole scelte si colora anche lui: la parte
-                   nascosta si vede come un pezzo solo, com'e' nel gioco */
-                var fra = sel && dentro(prec) && dentro(prec + 1) && p[n + 1] && p[n + 1].parola;
-                html += '<span class="fcv-ex-sep' + (fra ? ' is-on' : '') + '">' + esc(x.t) + '</span>';
-            }
-        });
-        return '<li class="fcv-ex-item is-scelta" data-i="' + i + '">'
-            + '<p class="fcv-ex-guida">' + IC.mirino + '<span>' + esc(tr('fcv.es_guida', 'Tap the words to hide in the game')) + '</span></p>'
-            + '<p class="fcv-ex-parole" lang="' + esc(lingua) + '">' + html + '</p>'
-            + '<div class="fcv-ex-barra">'
-            +   '<button type="button" class="fcv-ex-btn is-piano" data-az="azzera"' + (sel ? '' : ' disabled') + '>' + esc(tr('fcv.es_azzera', 'Clear')) + '</button>'
-            +   '<span class="fcv-ex-spazio"></span>'
-            +   '<button type="button" class="fcv-ex-btn" data-az="annulla">' + esc(tr('comune.annulla', 'Cancel')) + '</button>'
-            +   '<button type="button" class="fcv-ex-btn is-primo" data-az="fatto">' + esc(tr('fcv.es_fatto', 'Done')) + '</button>'
-            + '</div>'
-            + '</li>';
+        return '<li class="fcv-ex-item is-scelta" data-i="' + i + '"><div class="fcv-gp-host"></div></li>';
     }
 
     function voceModifica(v, i) {
@@ -180,7 +131,17 @@
         lista.innerHTML = voci.map(function (v, i) {
             return v.stato === 'scelta' ? voceScelta(v, i) : v.stato === 'modifica' ? voceModifica(v, i) : vocePronta(v, i);
         }).join('');
-        voci.forEach(function (v) { v.nuova = false; });
+        voci.forEach(function (v, i) {
+            v.nuova = false;
+            if (v.stato !== 'scelta' || !window.fcvGap) return;
+            var host = lista.querySelector('.fcv-ex-item[data-i="' + i + '"] .fcv-gp-host');
+            if (!host) return;
+            fcvGap.monta(host, {
+                testo: v.testo, parola: parola(), gap: v.gap, lingua: sez.getAttribute('data-lingua') || '',
+                fatto: function (g) { conferma(v, g); },
+                annulla: function () { v.stato = ''; disegna(); }
+            });
+        });
         vuoto.hidden = voci.length > 0;
         conta.textContent = voci.length ? String(voci.length) : '';
         nota.hidden = !inSospeso();
@@ -260,49 +221,18 @@
 
     function scegli(v) {
         voci.forEach(function (x) { if (x !== v && x.stato) x.stato = ''; });
-        /* si parte dalla parte gia' nascosta, se c'e' */
-        v.sel = null;
-        var l = lacuna(v);
-        if (l && l.tipo !== 'trattini') {
-            var dentro = pezzi(v.testo).filter(function (p) { return p.parola && p.da < l.a && p.a > l.da; });
-            if (dentro.length) v.sel = [dentro[0].k, dentro[dentro.length - 1].k];
-        }
         v.stato = 'scelta';
         disegna();
     }
 
-    /* Un tocco su una parola:
-       - nessuna scelta ancora → quella parola;
-       - fuori dalla scelta → la scelta si allunga fino a lei (le parti
-         nascoste sono sempre un pezzo unico, come lo spazio del gioco);
-       - dentro una scelta di piu' parole → si riparte da quella sola;
-       - sull'unica scelta → si toglie. */
-    function tocca(v, k) {
-        var s = v.sel;
-        if (!s) v.sel = [k, k];
-        else if (k < s[0]) v.sel = [k, s[1]];
-        else if (k > s[1]) v.sel = [s[0], k];
-        else if (s[0] === s[1]) v.sel = null;
-        else v.sel = [k, k];
-        disegna();
-    }
-
-    function conferma(v) {
-        var gap = '';
-        if (v.sel) {
-            var p = pezzi(v.testo).filter(function (x) { return x.parola; });
-            var a = p[v.sel[0]], b = p[v.sel[1]];
-            if (a && b) gap = v.testo.slice(a.da, b.a);
-        }
-        /* se e' proprio la parola della carta, non serve ricordarla: resta
-           "automatica" e segue la parola se un giorno la si corregge */
-        var auto = typeof fcvLacuna === 'function' ? fcvLacuna(v.testo, parola(), '') : null;
-        if (gap && auto && (auto.tipo === 'parola' || auto.tipo === 'simile') && v.testo.slice(auto.da, auto.a) === gap) gap = '';
+    /* La scelta fatta nel componente: '' vuol dire "automatica". */
+    function conferma(v, gap) {
         var prima = v.gap;
-        v.gap = gap;
-        v.stato = ''; v.sel = null;
+        v.gap = gap || '';
+        v.stato = '';
         disegna();
         if (inSospeso()) { cartaSporca(); return; }
+        if (v.gap === prima) return;
         salva(v, true).catch(function () { v.gap = prima; disegna(); errore(); });
     }
 
@@ -371,15 +301,12 @@
             if (!li) return;
             var v = voci[parseInt(li.getAttribute('data-i'), 10)];
             if (!v) return;
-            var tok = e.target.closest('.fcv-ex-tok');
-            if (tok) { tocca(v, parseInt(tok.getAttribute('data-k'), 10)); return; }
+            if (e.target.closest('.fcv-gp-host')) return;   // il componente gestisce i suoi tocchi
             var b = e.target.closest('[data-az]');
             if (!b) return;
             switch (b.getAttribute('data-az')) {
                 case 'scegli':   scegli(v); break;
-                case 'azzera':   v.sel = null; disegna(); break;
-                case 'annulla':  v.stato = ''; v.sel = null; disegna(); break;
-                case 'fatto':    conferma(v); break;
+                case 'annulla':  v.stato = ''; disegna(); break;
                 case 'modifica': voci.forEach(function (x) { x.stato = ''; }); v.stato = 'modifica'; disegna(); break;
                 case 'salva':    salvaTesto(v, li); break;
                 case 'elimina':  elimina(v, false); break;
@@ -429,7 +356,7 @@
             var t = nuovo.value.trim();
             if (t) { nuovo.value = ''; cresci(nuovo); bAdd.disabled = true; voci.push({ id: 0, testo: t, gap: '', img: '', aud: '', stato: '' }); }
             /* una scelta o una correzione lasciata a meta' vale come chiusa */
-            voci.forEach(function (v) { v.stato = ''; v.sel = null; });
+            voci.forEach(function (v) { v.stato = ''; });
             disegna();
         },
         cartaCreata: function () { if (!avvia()) return; voci = []; ricarica(); },

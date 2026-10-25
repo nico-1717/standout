@@ -633,9 +633,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         if ($valid) {
             $parentVal = $newParentId > 0 ? $newParentId : null;
+            /* Chi arriva in un progetto nuovo si mette in fondo ai suoi nuovi
+               fratelli: col vecchio numero d'ordine finiva in un punto a caso,
+               e trascinandolo dentro un progetto lo si cercava fra gli altri. */
+            $maxOrd = $newParentId > 0
+                ? sec_one("SELECT MAX(custom_order) AS m FROM projects WHERE user_id=? AND parent_id=?", [(int)$current_user_id, $newParentId])
+                : sec_one("SELECT MAX(custom_order) AS m FROM projects WHERE user_id=? AND parent_id IS NULL", [(int)$current_user_id]);
+            $prossimoOrd = (int)($maxOrd['m'] ?? -1) + 1;
             foreach ($ids as $pid) {
-                $ownRow = sec_one("SELECT color, color_edited FROM projects WHERE id=? AND user_id=?", [$pid, (int)$current_user_id]);
+                $ownRow = sec_one("SELECT color, color_edited, parent_id FROM projects WHERE id=? AND user_id=?", [$pid, (int)$current_user_id]);
                 if (!$ownRow) continue;
+                $giaQui = ($ownRow['parent_id'] === null ? 0 : (int)$ownRow['parent_id']) === $newParentId;
+                if (!$giaQui) {
+                    sec_q("UPDATE projects SET custom_order=? WHERE id=? AND user_id=?", [$prossimoOrd++, $pid, (int)$current_user_id]);
+                }
                 if ((int)$ownRow['color_edited'] === 1) {
                     $finalColor = $ownRow['color'];
                 } else {
@@ -1200,6 +1211,10 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
                     <?php echo prog_piu_svg(); ?>
                     <span><?php te('progetti.aggiungi_dentro'); ?></span>
                 </button>
+                <button type="button" class="swipe-btn swipe-btn-move" onclick="closeAllSwipes(null); prSpostaIn(<?php echo $id; ?>)">
+                    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M10 13h6M13.5 10.5 16 13l-2.5 2.5"/></svg>
+                    <span><?php te('progetti.sposta'); ?></span>
+                </button>
                 <button type="button" class="swipe-btn swipe-btn-delete" onclick="prConfirmDelete(<?php echo $id; ?>, <?php echo $hasChildren ? 'true' : 'false'; ?>)">
                     <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
                     <span><?php te('comune.elimina'); ?></span>
@@ -1425,7 +1440,7 @@ echo standout_i18n_json(['comune', 'progetti', 'pomodoro', 'todo']);
         <?php foreach ($ancestorChain as $anc):
             $ancColor = (!empty($anc['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $anc['color'])) ? $anc['color'] : '#8E8E93';
         ?>
-        <a class="pr-crumb" style="--crumb-color:<?php echo sec_h($ancColor); ?>;" href="progetti.php?id=<?php echo (int)$anc['id']; ?>">
+        <a class="pr-crumb" style="--crumb-color:<?php echo sec_h($ancColor); ?>;" href="progetti.php?id=<?php echo (int)$anc['id']; ?>" data-drop-id="<?php echo (int)$anc['id']; ?>">
             <span class="pr-crumb-dot"></span><?php echo sec_h($anc['name']); ?>
         </a>
         <span class="pr-crumb-sep">›</span>
@@ -3606,6 +3621,48 @@ window.prDoDelete = function(deleteSessions){
 })();
 
 /* ================================================================
+   SPOSTARE DENTRO UN ALTRO PROGETTO: salvataggio e «Annulla»
+   ================================================================
+   Si salva con la stessa azione del selettore «Sposta in…» (bulk_reparent),
+   poi la pagina si ricarica: l'albero, i conti dei figli, i colori ereditati
+   e le righe «Aggiungi a…» li ridisegna il server, ed e' meglio che rifarli
+   qui a mano. L'avviso con «Annulla» sopravvive al ricaricamento passando da
+   sessionStorage. */
+window.prSpostaSalva = function (ids, nuovoPadre, info) {
+    var fd = new FormData(document.getElementById('formBulkReparent'));
+    fd.set('project_ids', ids.join(','));
+    fd.set('new_parent_id', String(nuovoPadre || 0));
+    fd.set('redirect_id', String(CURRENT_PROJECT_ID || 0));
+    return fetch(window.location.href, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); })
+        .then(function () {
+            try { if (info) sessionStorage.setItem('pr_spostato', JSON.stringify(info)); } catch (e) {}
+            window.location.reload();
+        })
+        .catch(function () { toast(T('progetti.sposta_errore')); setTimeout(function () { window.location.reload(); }, 1200); });
+};
+(function () {
+    var info = null;
+    try { info = JSON.parse(sessionStorage.getItem('pr_spostato') || 'null'); sessionStorage.removeItem('pr_spostato'); } catch (e) {}
+    if (!info || !info.testo) return;
+    var t = document.createElement('div');
+    t.className = 'pr-undo-toast';
+    t.setAttribute('role', 'status');
+    var sp = document.createElement('span'); sp.textContent = info.testo; t.appendChild(sp);
+    if (info.annulla) {
+        var b = document.createElement('button'); b.type = 'button'; b.textContent = T('comune.annulla');
+        b.addEventListener('click', function () {
+            b.disabled = true;
+            prSpostaSalva(info.annulla.ids, info.annulla.padre, { testo: T('progetti.spostamento_annullato') });
+        });
+        t.appendChild(b);
+    }
+    document.body.appendChild(t);
+    requestAnimationFrame(function () { t.classList.add('show'); });
+    setTimeout(function () { t.classList.remove('show'); setTimeout(function () { t.remove(); }, 300); }, info.annulla ? 6000 : 2500);
+})();
+
+/* ================================================================
    DRAG REORDER — tenendo premuta la riga, tra fratelli dello stesso padre
    ================================================================
    20/10/2026: la maniglia ⋮⋮ non c'è più. Era una colonna di puntini su ogni
@@ -3666,7 +3723,7 @@ window.prDoDelete = function(deleteSessions){
             var a = dragArm; dragArm = null;
             if (!a) return;
             wrap.classList.remove('pr-arming');
-            inizia(wrap, a.startY, a.pid);
+            inizia(wrap, a.startY, a.pid, a.startX);
         }, ATTESA);
         setTimeout(function(){ if (dragArm && dragArm.wrap === wrap) wrap.classList.add('pr-arming'); }, 120);
     }, { passive:true });
@@ -3684,7 +3741,7 @@ window.prDoDelete = function(deleteSessions){
         if (!dragArm || e.pointerId !== dragArm.pid) return;
         var dx = Math.abs(e.clientX - dragArm.startX), dy = Math.abs(e.clientY - dragArm.startY);
         if (dragArm.mouse) {
-            if (dy > 6 && dy > dx) { var a = dragArm; dragArm = null; inizia(a.wrap, a.startY, a.pid); }
+            if (dy > 6 && dy > dx) { var a = dragArm; dragArm = null; inizia(a.wrap, a.startY, a.pid, a.startX); }
             else if (dx > 6) disarma();
             return;
         }
@@ -3703,7 +3760,7 @@ window.prDoDelete = function(deleteSessions){
     document.addEventListener('pointerup', disarma, { passive:true });
     document.addEventListener('pointercancel', disarma, { passive:true });
 
-    function inizia(wrap, y0, pid) {
+    function inizia(wrap, y0, pid, x0) {
         var list = wrap.parentElement;
         document.body.style.touchAction = 'none';
         document.body.classList.add('pr-dragging-now');
@@ -3759,8 +3816,95 @@ window.prDoDelete = function(deleteSessions){
 
         var prima = Array.prototype.filter.call(list.children, function(el){ return el.classList.contains('pr-row-wrap'); })
                          .map(function(el){ return el.getAttribute('data-id'); }).join(',');
-        drag = { wrap: wrap, list: list, ph: ph, pid: pid, y0: y0, top0: r.top, y: y0, moved: false, riaprire: riaprire, prima: prima };
+        drag = { wrap: wrap, list: list, ph: ph, pid: pid, y0: y0, top0: r.top, y: y0, x: x0 || (r.left + r.width / 2), moved: false, riaprire: riaprire, prima: prima,
+                 dentro: null, candidato: null, candidatoDa: 0, molla: null };
+        /* la riga in mano non deve "coprire" quello che c'e' sotto il dito:
+           e' li' che si cerca dove lasciarla (elementsFromPoint) */
+        wrap.style.pointerEvents = 'none';
+        var dove = document.createElement('span');
+        dove.className = 'pr-drag-dove';
+        wrap.querySelector('.pr-row').appendChild(dove);
+        drag.dove = dove;
         buzz(15);
+    }
+
+    /* ---- DENTRO UN ALTRO PROGETTO ----
+       Come le cartelle del Finder o i progetti di Things: si porta la riga
+       SOPRA un altro progetto e la si lascia li'. Valgono:
+         - una riga qualunque dell'elenco, a qualunque profondita' (non la
+           riga stessa, non i suoi discendenti, non il padre che ha gia');
+           fra i fratelli conta la fascia centrale della riga, tenuta un
+           attimo: sopra e sotto quella fascia si continua a riordinare;
+         - l'etichetta «Sotto-progetti»: al primo livello di questo progetto
+           (per tirare fuori una riga da dentro un'altra);
+         - le briciole in alto (i progetti che contengono questo) e le
+           pastiglie dei progetti principali.
+       Tenendo la riga sopra un progetto chiuso per un po', si apre (come le
+       cartelle "a molla" del Finder) e si puo' scendere ancora. */
+    var ATTESA_NIDO = 280, ATTESA_MOLLA = 750;
+
+    function nomeDi(el) {
+        var n = el.querySelector('.pr-name, .pill-name');
+        return ((n || el).textContent || '').replace(/\s+/g, ' ').trim();
+    }
+    function bersaglioSotto(x, y) {
+        var els = document.elementsFromPoint ? document.elementsFromPoint(x, y) : [];
+        var padre = parseInt(drag.wrap.getAttribute('data-parent') || '0', 10);
+        for (var i = 0; i < els.length; i++) {
+            var el = els[i];
+            if (drag.wrap.contains(el)) continue;
+            var b = null;
+            var pill = el.closest('.hdr-root-pill[data-pill-id]');
+            var crumb = el.closest('.pr-crumb[data-drop-id]');
+            var lab = el.closest('.pr-lab');
+            var row = el.closest('#prList .pr-row');
+            if (pill) b = { tipo: 'pill', el: pill, id: +pill.getAttribute('data-pill-id'), nome: nomeDi(pill) };
+            else if (crumb) b = { tipo: 'crumb', el: crumb, id: +crumb.getAttribute('data-drop-id'), nome: nomeDi(crumb) };
+            else if (lab && CURRENT_PROJECT_ID) b = { tipo: 'lab', el: lab, id: CURRENT_PROJECT_ID, nome: '' };
+            else if (row) {
+                var w = row.closest('.pr-row-wrap');
+                if (!w || w === drag.wrap || drag.wrap.contains(w)) return null;
+                b = { tipo: 'riga', el: row, wrap: w, id: +w.getAttribute('data-id'), nome: nomeDi(row) };
+            }
+            if (!b) { if (el.closest('#prList') || el.closest('.pr-drag-ph')) return null; continue; }
+            if (!b.id || b.id === padre || b.id === +drag.wrap.getAttribute('data-id')) return null;
+            return b;
+        }
+        return null;
+    }
+    function togliDentro() {
+        if (drag.dentro) drag.dentro.el.classList.remove('pr-drop-dentro');
+        drag.dentro = null;
+        drag.wrap.classList.remove('pr-drag-nido');
+        if (drag.dove) drag.dove.textContent = '';
+        if (drag.molla) { clearTimeout(drag.molla); drag.molla = null; }
+    }
+    function segnaDentro(b) {
+        if (drag.dentro && drag.dentro.el === b.el) return;
+        togliDentro();
+        drag.dentro = b;
+        b.el.classList.add('pr-drop-dentro');
+        drag.wrap.classList.add('pr-drag-nido');
+        drag.dove.textContent = b.tipo === 'lab' ? T('progetti.drop_primo_livello') : T('progetti.drop_dentro', { nome: b.nome });
+        buzz(10);
+        /* il progetto ha figli chiusi: tenendolo, si apre */
+        if (b.tipo === 'riga') {
+            var figli = b.wrap.querySelector(':scope > .pr-children.collapsed');
+            if (figli) drag.molla = setTimeout(function () {
+                if (!drag || !drag.dentro || drag.dentro.el !== b.el) return;
+                figli.classList.remove('collapsed');
+                var fr = b.wrap.querySelector(':scope > .pr-row .pr-arrow');
+                if (fr) fr.classList.add('open');
+                buzz(8);
+            }, ATTESA_MOLLA);
+        }
+    }
+    /* Dove sta la fascia centrale di un fratello, in coordinate del documento. */
+    function fascia(wrap) {
+        var row = wrap.querySelector(':scope > .pr-row') || wrap;
+        var op = row.offsetParent || document.body;
+        var top = op.getBoundingClientRect().top + window.scrollY + row.offsetTop;
+        return { top: top, h: row.offsetHeight };
     }
 
     /* Le metà delle righe, in coordinate del documento, ricavate dal layout e
@@ -3801,6 +3945,30 @@ window.prDoDelete = function(deleteSessions){
         var dy = drag.y - drag.y0;
         drag.wrap.style.transform = 'translate3d(0,' + dy + 'px,0) scale(1.02)';
         var yDoc = drag.y + window.scrollY;
+
+        /* sopra un progetto che non e' un fratello: dentro, subito */
+        var b = bersaglioSotto(drag.x, drag.y);
+        var fratello = b && b.tipo === 'riga' && b.wrap.parentElement === drag.list;
+        if (b && !fratello) { drag.candidato = null; segnaDentro(b); return; }
+
+        /* fra i fratelli: la fascia centrale (tenuta un attimo) vuol dire
+           dentro, sopra e sotto si riordina come sempre */
+        if (fratello) {
+            var f = fascia(b.wrap);
+            var rel = (yDoc - f.top) / Math.max(1, f.h);
+            if (rel > 0.27 && rel < 0.73) {
+                if (drag.dentro && drag.dentro.el === b.el) return;
+                if (!drag.candidato || drag.candidato.el !== b.el) {
+                    drag.candidato = b; drag.candidatoDa = Date.now();
+                    setTimeout(function () { if (drag && drag.candidato === b) aggiorna(); }, ATTESA_NIDO + 20);
+                    return;
+                }
+                if (Date.now() - drag.candidatoDa >= ATTESA_NIDO) { segnaDentro(b); return; }
+                return;
+            }
+        }
+        drag.candidato = null;
+        togliDentro();
         var sib = fratelli(drag.list), rif = null;
         for (var i = 0; i < sib.length; i++) {
             if (yDoc < meta(sib[i])) { rif = sib[i]; break; }
@@ -3831,6 +3999,7 @@ window.prDoDelete = function(deleteSessions){
         e.preventDefault();
         drag.moved = true;
         drag.y = e.clientY;
+        drag.x = e.clientX;
         var soglia = 90, y = e.clientY;
         var alto = y - soglia, basso = (window.innerHeight - soglia) - y;
         drag.scrollV = (alto < 0) ? Math.max(-18, alto / 5)
@@ -3845,13 +4014,40 @@ window.prDoDelete = function(deleteSessions){
         var d = drag; drag = null;
         if (d.raf) cancelAnimationFrame(d.raf);
         if (d.scrollRaf) cancelAnimationFrame(d.scrollRaf);
+        if (d.molla) clearTimeout(d.molla);
         document.body.style.touchAction = '';
         window.prDragging = false;
+        d.wrap.style.pointerEvents = '';
+        if (d.dove) d.dove.remove();
         /* Lasciando la riga arriverebbe anche il clic sul nome, che apre il
            sotto-progetto: dopo un trascinamento il primo clic si ferma qui. */
         var fermaClic = function(ev){ ev.stopPropagation(); ev.preventDefault(); };
         document.addEventListener('click', fermaClic, true);
         setTimeout(function(){ document.removeEventListener('click', fermaClic, true); }, 350);
+
+        /* LASCIATA SOPRA UN PROGETTO: ci entra. La riga vola dentro il
+           bersaglio e sparisce, si salva, e la pagina si ridisegna con
+           l'albero nuovo; un avviso con «Annulla» la riporta dov'era. */
+        if (d.dentro) {
+            var b = d.dentro;
+            var rt = b.el.getBoundingClientRect(), rw = d.wrap.getBoundingClientRect();
+            var vx = (rt.left + rt.width / 2) - (rw.left + rw.width / 2);
+            var vy = (rt.top + rt.height / 2) - (rw.top + rw.height / 2);
+            var dy0 = parseFloat((d.wrap.style.transform.match(/translate3d\(0(?:px)?,\s*(-?[\d.]+)px/) || [0, 0])[1]) || 0;
+            d.wrap.style.transition = 'transform .32s cubic-bezier(.4,0,.2,1), opacity .32s ease';
+            d.wrap.style.transform = 'translate3d(' + vx + 'px,' + (dy0 + vy) + 'px,0) scale(.25)';
+            d.wrap.style.opacity = '0';
+            b.el.classList.remove('pr-drop-dentro');
+            b.el.classList.add('pr-drop-preso');
+            buzz([10, 30, 16]);
+            var id = d.wrap.getAttribute('data-id');
+            var vecchioPadre = parseInt(d.wrap.getAttribute('data-parent') || '0', 10);
+            var nome = nomeDi(d.wrap.querySelector('.pr-row'));
+            prSpostaSalva([id], b.id, { annulla: { ids: [id], padre: vecchioPadre }, testo: b.tipo === 'lab'
+                ? T('progetti.spostato_primo_livello', { nome: nome })
+                : T('progetti.spostato_dentro', { nome: nome, dove: b.nome }) });
+            return;
+        }
 
         /* la riga si posa dove sta il segnaposto, poi torna al suo posto vero */
         var dest = d.ph.getBoundingClientRect().top;

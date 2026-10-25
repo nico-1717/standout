@@ -399,8 +399,20 @@ echo standout_i18n_json(['comune', 'diario']);
         n.classList.add('dg-show');
         later('saved', 1400, function () { n.classList.remove('dg-show'); });
     }
+    /* Il resto della pagina (il planner rilegge la settimana e la ridisegna)
+       lo sa quando il foglio si chiude, non a ogni pausa mentre si scrive:
+       ridisegnare tutto quello che sta sotto, con la tastiera aperta, la
+       faceva chiudere sul telefono — e il foglio copre comunque la pagina. */
+    var daAnnunciare = null;
     function announce() {
-        document.dispatchEvent(new CustomEvent('diaryupdated', { detail: { date: state.date } }));
+        daAnnunciare = state.date;
+        if (!ov.classList.contains('dg-open')) annunciaOra();
+    }
+    function annunciaOra() {
+        if (daAnnunciare === null) return;
+        var d = daAnnunciare;
+        daAnnunciare = null;
+        document.dispatchEvent(new CustomEvent('diaryupdated', { detail: { date: d } }));
     }
 
     /* ---------- disegno ---------- */
@@ -440,6 +452,7 @@ echo standout_i18n_json(['comune', 'diario']);
         items.forEach(function (it) { host.appendChild(listRow(it, type, hostId)); });
     }
 
+    var contaRighe = 0;
     function listRow(it, type, hostId) {
         var row = document.createElement('div');
         row.className = 'dg-li' + (it.content ? ' dg-li-filled' : '');
@@ -457,27 +470,60 @@ echo standout_i18n_json(['comune', 'diario']);
 
         row.appendChild(dot); row.appendChild(input); row.appendChild(x);
 
-        function save(redraw) {
+        /* SCRIVENDO, LA RIGA NON SI RIDISEGNA MAI.
+           Prima, appena salvata una riga nuova si ridisegnava tutta la lista:
+           la casella in cui si stava scrivendo veniva tolta e rimessa, e sul
+           telefono la tastiera si chiudeva a ogni pausa di un attimo. E la
+           stessa cosa succedeva passando da una riga all'altra, perche'
+           l'uscita dalla prima ridisegnava la lista sotto il dito.
+           Ora la riga resta la stessa casella dall'inizio alla fine: quando
+           la riga vuota in fondo riceve il suo primo salvataggio, se ne
+           aggiunge un'altra vuota sotto, senza toccare quella in uso.
+           Un salvataggio alla volta per riga: l'uscita dalla casella mentre
+           quello di prima e' ancora in viaggio creava la stessa riga due
+           volte. */
+        var chiave = 'li' + (++contaRighe);
+        var inVolo = false, ancora = false, ancoraUscita = false;
+        var salvato = it.content || '';
+
+        function rigaVuotaSotto() {
+            if (!row.nextSibling && row.parentNode) row.parentNode.appendChild(listRow({ id: 0, content: '' }, type, hostId));
+        }
+        /* uscendo da una riga svuotata, questa sparisce (se non e' l'ultima) */
+        function riordina() {
+            if (!input.value.trim() && row.nextSibling && document.activeElement !== input) row.remove();
+        }
+        function save(uscita) {
+            if (state.timers[chiave]) { clearTimeout(state.timers[chiave]); delete state.timers[chiave]; }
+            if (inVolo) { ancora = true; ancoraUscita = ancoraUscita || uscita; return; }
             var text = input.value.trim();
-            if (!it.id && !text) return;
+            if (text === salvato || (!it.id && !text)) { if (uscita) riordina(); return; }
+            inVolo = true;
             api('list_save', { date: state.date, list_type: type, item_id: it.id || 0, content: text })
                 .then(function (r) {
-                    if (!r.ok) return;
-                    var arr = state.data[type === 'good' ? 'good' : 'learned'];
-                    if (r.deleted) {
-                        state.data[type === 'good' ? 'good' : 'learned'] = arr.filter(function (a) { return a.id !== it.id; });
-                    } else if (r.id && !it.id) {
-                        it.id = r.id; it.content = text; arr.push(it);
-                    } else {
-                        it.content = text;
+                    inVolo = false;
+                    if (r.ok) {
+                        var k = type === 'good' ? 'good' : 'learned';
+                        salvato = text;
+                        if (r.deleted) {
+                            state.data[k] = state.data[k].filter(function (a) { return a.id !== it.id; });
+                            it.id = 0; salvato = '';
+                        } else if (r.id && !it.id) {
+                            it.id = r.id; it.content = text; state.data[k].push(it);
+                            input.placeholder = '';
+                            rigaVuotaSotto();
+                        } else {
+                            it.content = text;
+                        }
+                        flashSaved(); announce();
                     }
-                    flashSaved(); announce();
-                    if (redraw) drawList(hostId, type);
+                    if (ancora) { var u = ancoraUscita; ancora = false; ancoraUscita = false; save(u); }
+                    else if (uscita) riordina();
                 });
         }
         input.addEventListener('input', function () {
             row.classList.toggle('dg-li-filled', !!input.value.trim());
-            later('li' + type + (it.id || 'new'), 700, function () { save(!it.id); });
+            later(chiave, 700, function () { save(false); });
         });
         input.addEventListener('blur', function () { save(true); });
         x.addEventListener('click', function () {
@@ -498,8 +544,11 @@ echo standout_i18n_json(['comune', 'diario']);
         $('dgDate').textContent = dataLunga(d);
         $('dgOpenFull').href = 'diario.php?data=' + state.date;
         drawFaces();
-        drawList('dgGood', 'good');
-        drawList('dgLearned', 'learned');
+        /* la lista in cui si sta gia' scrivendo non si ridisegna: succede se
+           si comincia prima che arrivi la lettura dal server */
+        [['dgGood', 'good'], ['dgLearned', 'learned']].forEach(function (l) {
+            if (!$(l[0]).contains(document.activeElement)) drawList(l[0], l[1]);
+        });
         var ta = $('dgText');
         if (document.activeElement !== ta) ta.value = state.data.note || '';
     }
@@ -637,9 +686,15 @@ echo standout_i18n_json(['comune', 'diario']);
     });
 
     function close() {
+        /* quello che si stava scrivendo parte adesso, senza aspettare la pausa */
+        var attivo = document.activeElement;
+        if (attivo && ov.contains(attivo) && attivo.blur) attivo.blur();
         ov.classList.remove('dg-open');
         ov.setAttribute('aria-hidden', 'true');
         document.documentElement.style.overflow = '';
+        /* i salvataggi appena partiti arrivano fra un attimo */
+        setTimeout(annunciaOra, 0);
+        setTimeout(annunciaOra, 1200);
     }
     $('dgClose').addEventListener('click', close);
     ov.addEventListener('click', function (e) { if (e.target === ov) close(); });

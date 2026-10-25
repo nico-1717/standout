@@ -11,8 +11,9 @@
  *                migliore, il tempo per carta, le parole prese al volo.
  *   BOSS         se nel tratto si e' sbagliato qualcosa, il checkpoint propone
  *                di rigiocare subito quelle parole. Vincerlo vale una festa.
- *   LIVELLI      ogni parola ha il suo (nuova, difficile, in corso, buona,
- *                padroneggiata), dalle volte giuste e sbagliate di sempre. Si
+ *   LIVELLI      ogni parola ha il suo (nuova, da imparare, sembra facile,
+ *                la sai, insidiosa, difficile, difficilissima, in ripresa, ci
+ *                sei quasi), dalla storia delle sue risposte. Si
  *                vede sulla carta e, quando cambia, lo si dice.
  *   PROGRESSO    la barra cambia colore andando avanti (blu → viola →
  *                arancio → oro) e nell'ultimo tratto luccica.
@@ -167,15 +168,46 @@
     /* ============================================================
        4. I LIVELLI DELLE PAROLE — gemella di fcv_livello() (PHP)
        ============================================================ */
-    var LIVELLI = ['nuova', 'difficile', 'in_corso', 'buona', 'padroneggiata'];
+    /* Dal peggiore al migliore. Le regole sono spiegate in fc_vocab_gioco.php:
+       la storia u ha 'C'/'W' per le partite normali e 'c'/'w' per i ripassi,
+       e "era difficile" si sa solo ripercorrendola, un passo alla volta. */
+    var LIVELLI = ['difficilissima', 'difficile', 'insidiosa', 'da_imparare', 'nuova', 'in_ripresa', 'sembra_facile', 'quasi', 'la_sai'];
+    var STORIA = 30;
+    function rango(l) { var i = LIVELLI.indexOf(l); return i < 0 ? 4 : i; }
+    function livelloPrefisso(s, n, rec) {
+        if (n <= 0 || !s) return 'nuova';
+        var tutte = s.toUpperCase();
+        var norm = s.replace(/[a-z]/g, '');
+        if (n <= 2 && tutte.indexOf('C') === -1) return 'da_imparare';
+        if (n >= 5 && tutte.slice(-5) === 'CCCCC') return 'la_sai';
+        function finestra() {
+            var wN = (norm.slice(-5).match(/W/g) || []).length;
+            if (wN >= 2) return s.slice(-10).indexOf('w') !== -1 ? 'difficilissima' : 'difficile';
+            return 'insidiosa';
+        }
+        if (rec) {
+            var serie = norm.length - norm.replace(/C+$/, '').length;
+            if (serie === 1) return 'in_ripresa';
+            if (serie >= 2) return 'quasi';
+            var f = finestra();
+            return rango(f) < rango('difficile') ? f : 'difficile';
+        }
+        if (tutte.indexOf('W') === -1) return 'sembra_facile';
+        return finestra();
+    }
     function livello(c, w, u) {
+        u = String(u || '');
         var n = c + w;
-        if (n === 0) return 'nuova';
-        var acc = c / n;
-        if (n >= 2 && (acc < 0.5 || u.slice(-2) === 'WW')) return 'difficile';
-        if (c >= 5 && acc >= 0.85 && u.slice(-3) === 'CCC') return 'padroneggiata';
-        if (c >= 3 && acc >= 0.7 && u.slice(-1) === 'C') return 'buona';
-        return 'in_corso';
+        if (n <= 0 || !u) return 'nuova';
+        var st = { s: '', n: Math.max(0, n - u.length), rec: false, liv: 'nuova' };
+        for (var i = 0; i < u.length; i++) {
+            st.s = (st.s + u.charAt(i)).slice(-STORIA);
+            st.n++;
+            st.liv = livelloPrefisso(st.s, st.n, st.rec);
+            if (st.liv === 'difficile' || st.liv === 'difficilissima') st.rec = true;
+            else if (st.liv === 'la_sai') st.rec = false;
+        }
+        return st.liv;
     }
     function statsDi(card) {
         try { var s = JSON.parse(card.getAttribute('data-fcv-stats') || 'null'); if (s) return s; } catch (e) {}
@@ -183,7 +215,7 @@
     }
     function badgeHtml(liv) {
         return '<span class="fcg-liv fcg-liv-' + liv + '" title="' + esc(tr('fcv.liv_' + liv)) + '">'
-            + (liv === 'padroneggiata' ? IC.stella : '<i></i>')
+            + (liv === 'la_sai' ? IC.stella : '<i></i>')
             + '<b>' + esc(tr('fcv.liv_' + liv)) + '</b></span>';
     }
     function disegnaLivelli(cont) {
@@ -336,18 +368,24 @@
         var s = card && statsDi(card);
         if (!s) return;
         var prima = livello(s.c, s.w, s.u);
-        var n = { c: s.c + (giusta ? 1 : 0), w: s.w + (giusta ? 0 : 1), u: (s.u + (giusta ? 'C' : 'W')).slice(-6), k: s.k };
+        /* in un ripasso la risposta si scrive in minuscolo, come fa il server */
+        var lettera = giusta ? 'C' : 'W';
+        if (DATI && DATI.ripasso) lettera = lettera.toLowerCase();
+        var n = { c: s.c + (giusta ? 1 : 0), w: s.w + (giusta ? 0 : 1), u: (String(s.u || '') + lettera).slice(-STORIA), k: s.k };
         var dopo = livello(n.c, n.w, n.u);
         card.setAttribute('data-fcv-stats', JSON.stringify(n));
         if (dopo === prima) return;
-        var su = LIVELLI.indexOf(dopo) > LIVELLI.indexOf(prima) && dopo !== 'difficile';
-        /* si dice solo quello che conta: arrivare a "buona" o "padroneggiata",
-           uscire da "difficile", finirci dentro. La prima risposta a una parola
-           nuova (nuova → in corso) succede di continuo e non e' una notizia. */
-        var conta = (su && (dopo === 'buona' || dopo === 'padroneggiata' || prima === 'difficile')) || dopo === 'difficile';
+        var giu = dopo === 'difficile' || dopo === 'difficilissima';
+        var su = !giu && rango(dopo) > rango(prima);
+        /* si dice solo quello che conta: arrivare a "la sai" o "ci sei quasi",
+           riprendersi da "difficile", finirci dentro. La prima risposta a una
+           parola nuova succede di continuo e non e' una notizia. */
+        var conta = (su && (dopo === 'la_sai' || dopo === 'quasi' || dopo === 'in_ripresa')) || (giu && prima !== dopo);
         if (!conta) return;
-        var testo = su ? tr('fcv.gj_liv_su', null, 'Level up!')
-                  : (dopo === 'difficile' ? tr('fcv.gj_liv_difficile', null, 'Marked as hard') : tr('fcv.gj_liv_giu', null, 'Level down'));
+        var testo = dopo === 'la_sai' ? tr('fcv.gj_liv_la_sai', null, 'Now you know it!')
+                  : dopo === 'in_ripresa' ? tr('fcv.gj_liv_ripresa', null, 'Bouncing back!')
+                  : su ? tr('fcv.gj_liv_su', null, 'Level up!')
+                  : (giu ? tr('fcv.gj_liv_difficile', null, 'Marked as hard') : tr('fcv.gj_liv_giu', null, 'Level down'));
         var parola = VOCAB ? ((card.querySelector('.fcv-game-text.is-word') || {}).textContent || '')
                            : ((card.querySelector('.q-section .raw-text') || {}).textContent || '');
         parola = parola.replace(/\s+/g, ' ').trim();
@@ -356,7 +394,7 @@
              + '<span class="fcg-toast-col"><span><b>' + esc(testo) + '</b>' + (parola ? ' · ' + esc(parola.trim()) : '') + '</span>'
              + '<span class="fcg-toast-liv">' + badgeHtml(prima) + '<span class="fcg-toast-arr">→</span>' + badgeHtml(dopo) + '</span></span>',
                su ? 'su' : 'giu', 2100);
-        if (su) { Audio.livello(); if (dopo === 'padroneggiata') coriandoli(60, sottoTesta() + 40); }
+        if (su) { Audio.livello(); if (dopo === 'la_sai') coriandoli(60, sottoTesta() + 40); }
     }
 
     /* ============================================================

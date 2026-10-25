@@ -654,6 +654,26 @@ PomoCore.init({
 faiPosto();
 
 PomoCore.on('cambiato', function () { disegna(); });
+
+/* SENZA RETE. Le azioni valgono subito (il motore le mette in coda e
+   aggiorna il modello da se'); la barra mostra solo che aspettano: la
+   linea si fa tratteggiata e un po' spenta, e a destra del testo compare
+   un giro piccolo con «Senza rete» o «Sto salvando…». */
+(function () {
+    var spia = document.getElementById('pomoBarraCoda');
+    if (!spia) return;
+    var testo = spia.querySelector('.pomo-bar-coda-t');
+    PomoCore.on('coda', function (c) {
+        var attesa = c.n > 0;
+        barra.classList.toggle('is-attesa', attesa);
+        popup.classList.toggle('is-attesa', attesa);
+        spia.hidden = !attesa;
+        spia.classList.toggle('is-offline', attesa && !!c.offline);
+        testo.textContent = attesa ? (c.offline ? (T.coda_offline || '') : (T.coda_invio || '')) : '';
+        disegna();
+    });
+})();
+
 PomoCore.avviaControllo({ attivo: 30000, riposo: 180000 });
 
 disegna();

@@ -17,25 +17,174 @@
 
 if (!function_exists('fcv_livello')) {
 
-/**
- * Il livello di una parola da quante volte e' stata giusta ($c) e sbagliata
- * ($w), e dalle ultime risposte ($ultime: 'C'/'W', dalla piu' vecchia alla
- * piu' recente). Gemella di livello() in fc_game_juice.js: se cambia qui va
- * cambiata anche li'.
- *   nuova          mai giocata
- *   difficile      sbagliata piu' spesso che indovinata, o le ultime due sbagliate
- *   in_corso       tutto il resto
- *   buona          almeno 3 giuste, 70% giuste, l'ultima giusta
- *   padroneggiata  almeno 5 giuste, 85% giuste, le ultime tre giuste
- */
+/* ============================================================
+   I LIVELLI DI UNA CARTA
+   ============================================================
+   Dalla storia delle sue risposte, dalla piu' vecchia alla piu' recente:
+   'C'/'W' giusta/sbagliata in una partita normale, 'c'/'w' in un RIPASSO
+   (una partita nata da "ripassa gli errori", fc_games.parent_id > 0: li' ci
+   sono solo carte appena sbagliate, quindi vale meno).
+
+     nuova           mai giocata
+     da_imparare     giocata al massimo due volte, sempre sbagliata
+     sembra_facile   mai sbagliata, ma meno di cinque volte
+     la_sai          giusta le ultime cinque volte
+     insidiosa       nelle ultime cinque partite normali, sbagliata una volta
+     difficile       nelle ultime cinque partite normali, sbagliata due volte o piu'
+     difficilissima  difficile, e sbagliata anche nei ripassi
+     in_ripresa      era difficile: l'ultima volta (partite normali) giusta
+     quasi           era difficile: le ultime 2-4 volte giusta (la quinta: la_sai)
+   Da in_ripresa o quasi, una risposta sbagliata riporta a difficile (o
+   difficilissima). "Era difficile" lo si sa solo ripercorrendo la storia,
+   quindi il livello si calcola un passo alla volta (fcv_livello_avanza).
+   Gemella di livello() in fc_game_juice.js: se cambia qui va cambiata li'. */
+
+/** Dal peggiore al migliore: per ordinare e per dire se si sale o si scende. */
+define('FCV_LIVELLI', ['difficilissima', 'difficile', 'insidiosa', 'da_imparare', 'nuova', 'in_ripresa', 'sembra_facile', 'quasi', 'la_sai']);
+/** Quanta storia si guarda (le ultime N risposte). */
+define('FCV_STORIA', 30);
+
+function fcv_livelli_vuoti(): array { return array_fill_keys(FCV_LIVELLI, 0); }
+function fcv_livello_rango(string $l): int { $i = array_search($l, FCV_LIVELLI, true); return $i === false ? 4 : (int)$i; }
+/** Le carte da ripassare: "solo le difficili", il badge "da ripassare". */
+function fcv_da_ripassare(string $l): bool { return in_array($l, ['difficilissima', 'difficile', 'da_imparare'], true); }
+
+/** Quante carte da ripassare, da un conteggio per livello. */
+function fcv_conta_da_ripassare(array $conta): int {
+    $n = 0;
+    foreach ($conta as $l => $x) if (fcv_da_ripassare((string)$l)) $n += (int)$x;
+    return $n;
+}
+
+/** Il livello di una storia gia' tagliata: $s = risposte, $n = quante in tutto, $rec = era difficile. */
+function fcv_livello_prefisso(string $s, int $n, bool $rec): string {
+    if ($n <= 0 || $s === '') return 'nuova';
+    $tutte = strtoupper($s);
+    $norm = preg_replace('/[a-z]/', '', $s);                      // solo le partite normali
+    if ($n <= 2 && strpos($tutte, 'C') === false) return 'da_imparare';
+    if ($n >= 5 && substr($tutte, -5) === 'CCCCC') return 'la_sai';
+    $finestra = function () use ($s, $norm): string {
+        $wN = substr_count(substr($norm, -5), 'W');
+        if ($wN >= 2) return strpos(substr($s, -10), 'w') !== false ? 'difficilissima' : 'difficile';
+        return 'insidiosa';
+    };
+    if ($rec) {
+        $serie = strlen($norm) - strlen(rtrim($norm, 'C'));
+        if ($serie === 1) return 'in_ripresa';
+        if ($serie >= 2) return 'quasi';
+        $f = $finestra();
+        return fcv_livello_rango($f) < fcv_livello_rango('difficile') ? $f : 'difficile';
+    }
+    if (strpos($tutte, 'W') === false) return 'sembra_facile';
+    return $finestra();
+}
+
+/** Un passo: lo stato dopo una risposta in piu' ('C', 'W', 'c', 'w'). */
+function fcv_livello_avanza(array $st, string $r): array {
+    $st['s'] = substr(($st['s'] ?? '') . $r, -FCV_STORIA);
+    $st['n'] = ($st['n'] ?? 0) + 1;
+    $st['liv'] = fcv_livello_prefisso($st['s'], $st['n'], !empty($st['rec']));
+    if ($st['liv'] === 'difficile' || $st['liv'] === 'difficilissima') $st['rec'] = true;
+    elseif ($st['liv'] === 'la_sai') $st['rec'] = false;
+    return $st;
+}
+
+/** Il livello da una storia ($u) e dal numero di risposte di sempre ($n). */
+function fcv_livello_storia(string $u, int $n): string {
+    if ($n <= 0 || $u === '') return 'nuova';
+    $st = ['s' => '', 'n' => max(0, $n - strlen($u)), 'rec' => false, 'liv' => 'nuova'];
+    foreach (str_split($u) as $r) $st = fcv_livello_avanza($st, $r);
+    return $st['liv'];
+}
+
+/** Come prima: giuste ($c), sbagliate ($w), storia ($ultime). */
 function fcv_livello(int $c, int $w, string $ultime): string {
-    $n = $c + $w;
-    if ($n === 0) return 'nuova';
-    $acc = $c / $n;
-    if ($n >= 2 && ($acc < 0.5 || substr($ultime, -2) === 'WW')) return 'difficile';
-    if ($c >= 5 && $acc >= 0.85 && substr($ultime, -3) === 'CCC') return 'padroneggiata';
-    if ($c >= 3 && $acc >= 0.7 && substr($ultime, -1) === 'C') return 'buona';
-    return 'in_corso';
+    return fcv_livello_storia($ultime, $c + $w);
+}
+
+/** La lettera di una risposta nella storia. */
+function fcv_lettera(bool $giusta, bool $ripasso): string {
+    $l = $giusta ? 'C' : 'W';
+    return $ripasso ? strtolower($l) : $l;
+}
+
+/**
+ * LE CARTE CHE SAI: quante sono adesso e QUANDO le hai imparate.
+ *
+ * Una carta "la sai" se e' segnata come imparata (il tastino col tocco)
+ * OPPURE se il suo livello e' la_sai (giusta le ultime cinque volte): prima
+ * contava solo il tastino, e chi non lo toccava mai restava a zero per
+ * sempre anche sapendo tutto.
+ * Il giorno in cui l'hai imparata e' il primo fra il giorno del tastino e il
+ * giorno della risposta che l'ha portata a la_sai. E' quel giorno che conta
+ * per "imparate oggi / questa settimana / questo mese".
+ *
+ * Le carte che si contano sono le stesse dei totali che gia' si mostrano
+ * (fc_summary.php): nello studio le carte senza sottocarte e le sottocarte
+ * (una carta con sottocarte e' il titolo del gruppo), nelle lingue tutte le
+ * parole e le sottoparole. Il tastino sta sulla carta padre e vale per le
+ * sue sottocarte.
+ *
+ * @return array{unita:int, totale:int, giorni:array<string,int>, per_corso:array<int,int>, dettaglio:array}
+ *   giorni    = [Y-m-d => quante imparate quel giorno], in ordine
+ *   dettaglio = [chiave => ['mazzo' => id, 'quando' => Y-m-d|null, 'ora' => la sai adesso, 'giocata' => bool]]
+ */
+function fcv_conosciute(int $uid, string $tipo): array {
+    $vocab = $tipo === 'vocab';
+    $T = $vocab
+        ? ['c' => 'fc_vocab_cards', 's' => 'fc_vocab_subcards', 'd' => 'fc_vocab_decks', 'p' => 'fc_vocab_plays', 'l' => 'fc_vocab_learnt']
+        : ['c' => 'fc_study_cards', 's' => 'fc_study_subcards', 'd' => 'fc_study_decks', 'p' => 'fc_study_plays', 'l' => 'fc_study_learnt'];
+    $corsoCol = $vocab ? 'd.course_id' : '0';
+
+    /* le carte che contano, con il loro corso */
+    $unita = [];   // chiave => ['padre' => id del padre per il tastino, 'corso' => id, 'mazzo' => id]
+    foreach (sec_all("SELECT c.id, c.is_father, c.category_id, $corsoCol AS corso FROM {$T['c']} c
+                        JOIN {$T['d']} d ON d.id = c.category_id WHERE d.user_id = ?", [$uid]) as $r) {
+        if (!$vocab && (int)$r['is_father'] === 1) continue;
+        $unita['p' . (int)$r['id']] = ['padre' => (int)$r['id'], 'corso' => (int)$r['corso'], 'mazzo' => (int)$r['category_id']];
+    }
+    foreach (sec_all("SELECT s.id_child, s.parent_id, c.category_id, $corsoCol AS corso FROM {$T['s']} s
+                        JOIN {$T['c']} c ON c.id = s.parent_id
+                        JOIN {$T['d']} d ON d.id = c.category_id WHERE d.user_id = ?", [$uid]) as $r) {
+        $unita['c' . (int)$r['id_child']] = ['padre' => (int)$r['parent_id'], 'corso' => (int)$r['corso'], 'mazzo' => (int)$r['category_id']];
+    }
+
+    $tastino = [];
+    foreach (sec_all("SELECT fc_image_id, MIN(learnt_date) AS d FROM {$T['l']} WHERE user_id = ? GROUP BY fc_image_id", [$uid]) as $r) {
+        $tastino[(int)$r['fc_image_id']] = (string)$r['d'];
+    }
+
+    /* la storia di ogni carta, un passo alla volta: il primo giorno in cui
+       arriva a la_sai e il livello di adesso */
+    $stato = []; $primo = [];
+    foreach (sec_all("SELECT p.fc_image_id, p.fc_child_id, p.user_answer, DATE(p.play_date) AS d,
+                             (g.parent_id IS NOT NULL AND g.parent_id > 0) AS ripasso
+                        FROM {$T['p']} p JOIN fc_games g ON g.id = p.game_id
+                       WHERE g.user_id = ? AND p.user_answer IN ('Correct', 'Wrong') AND p.play_date IS NOT NULL
+                       ORDER BY p.play_date ASC, p.id ASC", [$uid]) as $r) {
+        $k = $r['fc_child_id'] !== null ? 'c' . (int)$r['fc_child_id'] : 'p' . (int)$r['fc_image_id'];
+        if (!isset($unita[$k])) continue;
+        $st = fcv_livello_avanza($stato[$k] ?? ['s' => '', 'n' => 0, 'rec' => false, 'liv' => 'nuova'],
+                                 fcv_lettera($r['user_answer'] === 'Correct', (bool)$r['ripasso']));
+        $stato[$k] = $st;
+        if ($st['liv'] === 'la_sai' && !isset($primo[$k])) $primo[$k] = (string)$r['d'];
+    }
+
+    $totale = 0; $giorni = []; $perCorso = []; $dettaglio = [];
+    foreach ($unita as $k => $u) {
+        $dt = $tastino[$u['padre']] ?? null;
+        $dl = $primo[$k] ?? null;
+        $quando = ($dt !== null && $dl !== null) ? min($dt, $dl) : ($dt ?? $dl);
+        if ($quando !== null) $giorni[$quando] = ($giorni[$quando] ?? 0) + 1;
+        $ora = $dt !== null || (($stato[$k]['liv'] ?? 'nuova') === 'la_sai');
+        if ($ora) {
+            $totale++;
+            $perCorso[$u['corso']] = ($perCorso[$u['corso']] ?? 0) + 1;
+        }
+        $dettaglio[$k] = ['mazzo' => $u['mazzo'], 'quando' => $quando, 'ora' => $ora, 'giocata' => isset($stato[$k])];
+    }
+    ksort($giorni);
+    return ['unita' => count($unita), 'totale' => $totale, 'giorni' => $giorni, 'per_corso' => $perCorso, 'dettaglio' => $dettaglio];
 }
 
 /**
@@ -51,13 +200,15 @@ function fcv_stats_carte(array $padri, array $figli): array {
         if (!$ids) continue;
         foreach ($ids as $id) $out[$pre . $id] = ['c' => 0, 'w' => 0, 'u' => ''];
         $ph = implode(',', array_fill(0, count($ids), '?'));
-        foreach (sec_all("SELECT $col AS id, user_answer FROM " . fc_t('plays') . "
-                          WHERE $col IN ($ph) AND user_answer IN ('Correct', 'Wrong')
-                          ORDER BY play_date ASC, id ASC", $ids) as $r) {
+        /* il ripasso (una partita figlia di un'altra) conta in minuscolo */
+        foreach (sec_all("SELECT p.$col AS id, p.user_answer, (g.parent_id IS NOT NULL AND g.parent_id > 0) AS ripasso
+                            FROM " . fc_t('plays') . " p LEFT JOIN fc_games g ON g.id = p.game_id
+                          WHERE p.$col IN ($ph) AND p.user_answer IN ('Correct', 'Wrong')
+                          ORDER BY p.play_date ASC, p.id ASC", $ids) as $r) {
             $k = $pre . (int)$r['id'];
             $giusta = $r['user_answer'] === 'Correct';
             $out[$k][$giusta ? 'c' : 'w']++;
-            $out[$k]['u'] = substr($out[$k]['u'] . ($giusta ? 'C' : 'W'), -6);
+            $out[$k]['u'] = substr($out[$k]['u'] . fcv_lettera($giusta, (bool)$r['ripasso']), -FCV_STORIA);
         }
     }
     return $out;
@@ -124,15 +275,17 @@ function fcv_padroneggiate(int $user_id, int $course_id): int {
     $filtro = fc_is_vocab() ? 'd.user_id = ? AND d.course_id = ?' : 'd.user_id = ?';
     $par = fc_is_vocab() ? [$user_id, $course_id] : [$user_id];
     $query = [
-        'p' => "SELECT p.fc_image_id AS id, p.user_answer FROM $P p
+        'p' => "SELECT p.fc_image_id AS id, p.user_answer, (g.parent_id IS NOT NULL AND g.parent_id > 0) AS ripasso FROM $P p
                   JOIN $C c ON c.id = p.fc_image_id
                   JOIN $D d ON d.id = c.category_id
+                  LEFT JOIN fc_games g ON g.id = p.game_id
                  WHERE $filtro AND p.user_answer IN ('Correct', 'Wrong')
                  ORDER BY p.play_date ASC, p.id ASC",
-        'c' => "SELECT p.fc_child_id AS id, p.user_answer FROM $P p
+        'c' => "SELECT p.fc_child_id AS id, p.user_answer, (g.parent_id IS NOT NULL AND g.parent_id > 0) AS ripasso FROM $P p
                   JOIN $S s ON s.id_child = p.fc_child_id
                   JOIN $C c ON c.id = s.parent_id
                   JOIN $D d ON d.id = c.category_id
+                  LEFT JOIN fc_games g ON g.id = p.game_id
                  WHERE $filtro AND p.user_answer IN ('Correct', 'Wrong')
                  ORDER BY p.play_date ASC, p.id ASC",
     ];
@@ -142,11 +295,11 @@ function fcv_padroneggiate(int $user_id, int $course_id): int {
             if (!isset($stats[$k])) $stats[$k] = ['c' => 0, 'w' => 0, 'u' => ''];
             $giusta = $r['user_answer'] === 'Correct';
             $stats[$k][$giusta ? 'c' : 'w']++;
-            $stats[$k]['u'] = substr($stats[$k]['u'] . ($giusta ? 'C' : 'W'), -6);
+            $stats[$k]['u'] = substr($stats[$k]['u'] . fcv_lettera($giusta, (bool)$r['ripasso']), -FCV_STORIA);
         }
     }
     $n = 0;
-    foreach ($stats as $s) if (fcv_livello($s['c'], $s['w'], $s['u']) === 'padroneggiata') $n++;
+    foreach ($stats as $s) if (fcv_livello($s['c'], $s['w'], $s['u']) === 'la_sai') $n++;
     return $n;
 }
 

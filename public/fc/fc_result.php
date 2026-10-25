@@ -520,6 +520,7 @@ if ($row_resume && $row_resume['resume_pos']) {
              IA, niente autosave — fc_result.php e' una pagina di sola
              lettura, non ha senso portarci dietro un pannello per crearne
              di nuovi. */ ?>
+    <script src="<?php echo PWA_BASE; ?>fc/fc_vocab_gap.js?v=<?php echo @filemtime(__DIR__ . '/fc_vocab_gap.js') ?: 1; ?>"></script>
     <script src="fc_examples_modal.js"></script>
 
 </head>

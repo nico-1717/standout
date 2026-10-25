@@ -377,6 +377,10 @@ if ($modo === 'edit') {
 
     <?php if ($fc_vocab): /* fc_parser e la barra di formattazione vivono solo nelle flashcard di studio */ ?>
     <script src="<?php echo PWA_BASE; ?>fc/fc_speak.js?v=<?php echo @filemtime(__DIR__ . '/fc_speak.js') ?: 1; ?>"></script>
+    <?php /* la parte nascosta degli esempi: serve gia' mentre si disegnano le righe */
+          define('FCV_GAP', 1); ?>
+    <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_vocab_gap.css?v=<?php echo @filemtime(__DIR__ . '/fc_vocab_gap.css') ?: 1; ?>">
+    <script src="<?php echo PWA_BASE; ?>fc/fc_vocab_gap.js?v=<?php echo @filemtime(__DIR__ . '/fc_vocab_gap.js') ?: 1; ?>"></script>
     <?php else: ?>
     <script src="fc_parser.js"></script>
     <?php endif; ?>
@@ -3048,9 +3052,79 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
                 <input type="text" class="fcv-in fcv-example" id="e-desc-${rid}" value="${escAttr(c.ex || '')}"
                        placeholder="${escAttr(T('fcv.esempio_ph'))}" lang="${escAttr(imp.codice || '')}"
                        autocomplete="off" enterkeyhint="next" maxlength="1000">
+                <input type="hidden" class="fcv-example-gap" id="eg-desc-${rid}" value="${escAttr(c.exGap || '')}">
+                <div class="fcv-gp-anteprima" id="eg-prev-${rid}" hidden></div>
+                <div class="fcv-gp-box" id="eg-box-${rid}" hidden></div>
             </div>` : ''}
         </div>`;
     }
+
+    /* LA PARTE NASCOSTA DELL'ESEMPIO DI UNA RIGA
+       Come nel modulo della parola, con lo stesso componente (fcvGap, in
+       fc_vocab_gap.js): sotto il campo si vede la frase con la parte che nel
+       gioco sparira', e la pastiglia per sceglierla a mano. La frase resta
+       intera: prima, all'import, la parola diventava «_» e la frase vera era
+       persa. La scelta viaggia nel campo nascosto eg-desc-<rid>. */
+    const fcvGapIcone = {
+        occhio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-2.6 3.4M6.3 6.3C3.8 8 2.5 12 2.5 12S6 19 12 19a9.5 9.5 0 0 0 4.4-1.1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>',
+        mirino: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M8 12h8"/></svg>'
+    };
+    function fcvRigaEsempio(row){
+        if (!FCV || !row || !window.fcvGap) return;
+        const rid = row.dataset.rid;
+        const ex = document.getElementById('e-desc-' + rid);
+        const prev = document.getElementById('eg-prev-' + rid);
+        const gapEl = document.getElementById('eg-desc-' + rid);
+        const box = document.getElementById('eg-box-' + rid);
+        if (!ex || !prev || !gapEl) return;
+        const testo = ex.value.trim();
+        if (!testo || (box && !box.hidden)) { prev.hidden = !testo || (box && !box.hidden); return; }
+        const parola = (document.getElementById('q-desc-' + rid) || {}).value || '';
+        const l = fcvGap.lacune(testo, parola, gapEl.value);
+        const chip = l.length
+            ? `<button type="button" class="fcv-gp-chip" data-gp-apri>${fcvGapIcone.occhio}<span>${escAttr(T('fcv.es_nascosta'))}</span>${fcvGap.eAutomatica(l) ? `<em>${escAttr(T('fcv.es_auto'))}</em>` : ''}</button>`
+            : `<button type="button" class="fcv-gp-chip is-senza" data-gp-apri>${fcvGapIcone.mirino}<span>${escAttr(T('fcv.es_scegli'))}</span></button>`;
+        prev.innerHTML = `<p class="fcv-gp-frase">${fcvGap.htmlEvidenza(testo, parola, gapEl.value)}</p>${chip}`;
+        prev.hidden = false;
+    }
+    function fcvApriSceltaRiga(row){
+        const rid = row.dataset.rid;
+        const ex = document.getElementById('e-desc-' + rid);
+        const gapEl = document.getElementById('eg-desc-' + rid);
+        const box = document.getElementById('eg-box-' + rid);
+        if (!ex || !gapEl || !box || !ex.value.trim()) return;
+        const imp = FC.impara || {};
+        box.hidden = false;
+        fcvRigaEsempio(row);
+        fcvGap.monta(box, {
+            testo: ex.value.trim(),
+            parola: (document.getElementById('q-desc-' + rid) || {}).value || '',
+            gap: gapEl.value,
+            lingua: imp.codice || '',
+            fatto: function (g) {
+                const cambiata = gapEl.value !== g;
+                gapEl.value = g;
+                box.hidden = true; box.innerHTML = '';
+                if (cambiata) onRowChange(gapEl);
+                fcvRigaEsempio(row);
+            },
+            annulla: function () { box.hidden = true; box.innerHTML = ''; fcvRigaEsempio(row); }
+        });
+    }
+    let fcvRigaEsempioAttesa = null;
+    document.getElementById('fcRows').addEventListener('input', function (e) {
+        const t = e.target;
+        if (!FCV || !t.classList || !(t.classList.contains('fcv-example') || t.classList.contains('fcv-word'))) return;
+        const row = t.closest('.fc-row');
+        clearTimeout(fcvRigaEsempioAttesa);
+        fcvRigaEsempioAttesa = setTimeout(function () { fcvRigaEsempio(row); }, 180);
+    });
+    document.getElementById('fcRows').addEventListener('click', function (e) {
+        const b = e.target.closest && e.target.closest('[data-gp-apri]');
+        if (!b) return;
+        e.preventDefault();
+        fcvApriSceltaRiga(b.closest('.fc-row'));
+    });
 
     /* Invio nei campi di una parola: avanti, mai "invia il modulo" (che
        salverebbe e porterebbe via dalla pagina). */
@@ -3274,6 +3348,7 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
            il momento esatto in cui la riga nuova entra nel DOM e non ha
            bisogno di aspettare che qualcun altro se ne accorga. */
         if (typeof ftInitTutti === 'function') ftInitTutti(wrap);
+        if (FCV) fcvRigaEsempio(wrap);
         updateGenerateButtonState();
         return wrap;
     }
@@ -7617,7 +7692,11 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
                 fd.append(`cards[${indiceInvio}][meaning]`, mEl ? mEl.value.trim() : '');
                 const nEl = document.getElementById('n-desc-' + rid);
                 fd.append(`cards[${indiceInvio}][notes]`, nEl ? nEl.value.trim() : '');
-                if (eEl && eEl.value.trim() !== '' && row.dataset.status !== 'deleted') fd.append(`cards[${indiceInvio}][example]`, eEl.value.trim());
+                if (eEl && eEl.value.trim() !== '' && row.dataset.status !== 'deleted') {
+                    fd.append(`cards[${indiceInvio}][example]`, eEl.value.trim());
+                    const gEl = document.getElementById('eg-desc-' + rid);
+                    if (gEl && gEl.value) fd.append(`cards[${indiceInvio}][example_gap]`, gEl.value);
+                }
             }
 
 

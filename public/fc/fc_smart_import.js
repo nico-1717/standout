@@ -13,8 +13,8 @@
    l'esempio, le altre in ordine. Sotto la casella si vede subito cosa è
    stato capito, colonna per colonna, e ogni assegnazione si può cambiare.
 
-   Negli esempi delle parole la parola diventa "_" (la lacuna del gioco), se
-   compare scritta così com'è.
+   Negli esempi delle parole la frase resta intera: la parte nascosta nel
+   gioco la trova fcvGap (fc_vocab_gap.js), e si puo' cambiare nella riga.
 
    GENERA CON L'IA (solo lingue)
    Parole su un argomento, al livello scelto, oppure il completamento di un
@@ -311,10 +311,11 @@
                 if (campo === 'img') { if (sembraUrl(v) && !c.imgLink) c.imgLink = v; return; }
                 c[campo] = c[campo] ? c[campo] + ' · ' + v : v;
             });
-            if (VOCAB && c.ex && c.q && c.ex.indexOf('_') === -1) {
-                var p = c.ex.toLowerCase().indexOf(c.q.toLowerCase());
-                if (p !== -1) { c.ex = c.ex.slice(0, p) + '_' + c.ex.slice(p + c.q.length); lacune++; }
-            }
+            /* La frase resta intera: prima la parola diventava «_» e la frase
+               vera era persa. La parte da nascondere la trova il gioco
+               (fcvGap), e nella riga si puo' cambiare a mano. Qui si contano
+               solo gli esempi in cui la parola e' stata trovata. */
+            if (VOCAB && c.ex && c.q && window.fcvGap && fcvGap.lacune(c.ex, c.q, '').length) lacune++;
             return c;
         }).filter(function (c) { return c.q !== '' || c.a !== '' || c.imgLink; });
         return { carte: out, lacune: lacune };
