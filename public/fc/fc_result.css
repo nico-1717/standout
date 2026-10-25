@@ -1937,3 +1937,39 @@
 }
 .qa-speak-ex svg{ width:16px; height:16px; }
 .qa-speak-ex.speaking{ background:var(--blue); color:#fff; }
+
+/* ================================================================
+   RITOCCO 25/10/2026 (2) — il resto della scheda del punteggio, piu' leggero
+   ================================================================ */
+
+/* Confronto con l'altra volta: pastiglia piu' piccola e quieta */
+.res-confronto{ margin:-2px 0 18px; }
+.rc-delta, .rc-record{ padding:5px 11px 5px 8px; font-size:12px; font-weight:650; gap:5px; }
+.rc-delta svg, .rc-record svg{ width:13px; height:13px; }
+.rc-record{ box-shadow:none; }
+
+/* STATISTICHE: una sola fila di cinque dati, senza riquadri. Prima erano
+   cinque blocchi grigi alti quanto il loro contenuto tre volte. Ora cifra
+   sopra e nome sotto, separati da un filo. */
+.stats-grid{ grid-template-columns:repeat(5, minmax(0, 1fr)); gap:0; margin-top:4px; padding:12px 0 10px;
+    border-top:.5px solid var(--hairline); border-bottom:.5px solid var(--hairline); }
+.stats-grid .stat.tm{ grid-column:auto; }
+.stat{ background:none; box-shadow:none; border-radius:0; padding:0 2px; text-align:center; }
+.stat + .stat{ border-left:.5px solid var(--hairline); }
+.stat-num{ font-size:20px; font-weight:600; letter-spacing:-.02em; }
+.stat-num span{ font-size:11px; font-weight:500; }
+.stat-lab{ margin-top:4px; font-size:8.5px; font-weight:650; letter-spacing:.08em; color:var(--text-3); white-space:nowrap; }
+.stat.tm .stat-num{ font-size:17px; line-height:1.28; }
+
+/* TASTI AZIONE: piatti, piccoli, senza riquadro bianco con ombra */
+.act-grid{ gap:8px; margin-top:14px; }
+.act-tile{ flex-direction:row; justify-content:center; gap:7px; padding:0 10px; height:42px; border-radius:21px;
+    background:var(--surface-2); box-shadow:inset 0 0 0 .5px var(--hairline); }
+.act-tile:active{ box-shadow:inset 0 0 0 .5px var(--hairline); transform:scale(.96); }
+.t-ic{ width:auto; height:auto; border-radius:0; background:none !important; box-shadow:none !important; }
+.t-ic svg{ width:16px; height:16px; }
+.t-lab{ font-size:12.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.t-badge{ top:-5px; right:-3px; min-width:17px; height:17px; padding:0 5px; font-size:10px; box-shadow:0 0 0 2px var(--surface); }
+@media (max-width:420px){ .act-grid.cols-3{ grid-template-columns:1fr 1fr; } .act-grid.cols-3 .act-tile:first-child{ grid-column:1 / -1; } }
+/* la cifra vera (.cnt) eredita colore e corpo dal dato: la regola «.stat-num span» la faceva piccola e grigia */
+.stat-num .cnt{ color:inherit; font-size:inherit; font-weight:inherit; }
