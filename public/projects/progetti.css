@@ -1090,3 +1090,57 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 body.pr-vista-cal{ padding-bottom:0; overflow:hidden; }
 body.pr-vista-cal .page{ padding-bottom:0; }
 html:has(body.pr-vista-cal){ overflow:hidden; }
+
+/* ================================================================
+   TRASCINARE DENTRO UN ALTRO PROGETTO (progetti.php, DRAG REORDER)
+   ================================================================
+   Il progetto sotto il dito si "apre" per accogliere la riga: si colora del
+   suo colore e ha un bordo, come una cartella del Finder pronta a ricevere.
+   La riga in mano si fa un po' piu' piccola (sta per entrare) e dice dove
+   finira'. Lasciata, vola dentro e il bersaglio fa un piccolo "preso". */
+.pr-drop-dentro{
+    background:color-mix(in srgb, var(--row-color, var(--pill-color, var(--crumb-color, var(--blue)))) 14%, var(--surface)) !important;
+    box-shadow:inset 0 0 0 2px color-mix(in srgb, var(--row-color, var(--pill-color, var(--crumb-color, var(--blue)))) 70%, transparent) !important;
+    border-radius:13px;
+    transition:background .15s ease, box-shadow .15s ease;
+}
+.pr-lab.pr-drop-dentro{ padding:8px 10px; margin-left:0; margin-right:0; color:var(--text); }
+.hdr-root-pill.pr-drop-dentro, .pr-crumb.pr-drop-dentro{ color:var(--text) !important; transform:scale(1.06); transition:transform .2s cubic-bezier(.34,1.56,.64,1); }
+.pr-drop-preso{ animation:prPreso .45s cubic-bezier(.34,1.56,.64,1); }
+@keyframes prPreso{ 0%{ transform:scale(1); } 40%{ transform:scale(1.035); } 100%{ transform:scale(1); } }
+.pr-row-wrap.dragging.pr-drag-nido{ opacity:.82; }
+.pr-row-wrap.dragging.pr-drag-nido > .pr-row{ transform:scale(.94); transition:transform .2s cubic-bezier(.32,.72,0,1); }
+/* dove finira': un'etichetta sulla riga in mano, vuota finche' non c'e' un bersaglio */
+.pr-drag-dove{
+    position:absolute; right:10px; top:50%; transform:translateY(-50%); z-index:6;
+    display:inline-flex; align-items:center; gap:5px; max-width:60%;
+    padding:5px 10px 5px 8px; border-radius:99px; pointer-events:none;
+    font-size:12px; font-weight:750; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    background:var(--row-color, var(--blue)); box-shadow:0 6px 16px -6px rgba(0,0,0,.35);
+    opacity:0; transition:opacity .15s ease;
+}
+.pr-drag-dove::before{ content:'↳'; font-weight:800; }
+.pr-drag-dove:not(:empty){ opacity:1; }
+
+/* «Sposta» nello scorrimento laterale della riga */
+.swipe-btn-move{ background:var(--purple, #AF52DE); }
+
+/* l'avviso dopo lo spostamento, con «Annulla» */
+.pr-undo-toast{
+    position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom, 0px)); z-index:9000;
+    display:flex; align-items:center; gap:14px; max-width:calc(100% - 32px);
+    padding:11px 12px 11px 16px; border-radius:16px;
+    background:rgba(28,28,30,.94); color:#fff; font-size:14px; font-weight:600;
+    box-shadow:0 14px 36px -12px rgba(0,0,0,.5);
+    transform:translate(-50%, 20px); opacity:0; transition:transform .3s cubic-bezier(.32,.72,0,1), opacity .25s ease;
+}
+.pr-undo-toast.show{ transform:translate(-50%, 0); opacity:1; }
+.pr-undo-toast span{ min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.pr-undo-toast button{
+    flex-shrink:0; border:none; background:none; padding:6px 8px; border-radius:9px; cursor:pointer;
+    font:inherit; font-weight:800; color:#64D2FF;
+}
+.pr-undo-toast button:active{ background:rgba(255,255,255,.12); }
+@media (prefers-reduced-motion: reduce){
+    .pr-drop-preso, .pr-row-wrap.dragging.pr-drag-nido > .pr-row, .pr-undo-toast{ animation:none; transition:none; }
+}

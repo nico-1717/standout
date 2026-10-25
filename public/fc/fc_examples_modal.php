@@ -18,6 +18,15 @@ if (!defined('EXM_CSS')) {
        fc_view.php, che fc_card_edit.css non lo carica. */
     echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc/fc_media_box.css?v=' . (@filemtime(__DIR__ . '/fc_media_box.css') ?: 1) . '">' . "\n";
 }
+/* La parte nascosta degli esempi delle parole e il componente per sceglierla
+   (fc_vocab_gap.js): servono a questo pannello e alle pagine che lo includono
+   (l'inserimento multiplo lo prende solo da qui). Due volte non fa danni: lo
+   script controlla da se' se c'e' gia'. */
+if ($exmVocab && !defined('FCV_GAP')) {
+    define('FCV_GAP', 1);
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc/fc_vocab_gap.css?v=' . (@filemtime(__DIR__ . '/fc_vocab_gap.css') ?: 1) . '">' . "\n";
+    echo '<script src="' . PWA_BASE . 'fc/fc_vocab_gap.js?v=' . (@filemtime(__DIR__ . '/fc_vocab_gap.js') ?: 1) . '"></script>' . "\n";
+}
 if (!defined('NS_AUTOSAVE_CSS_INCLUDED')) {
     define('NS_AUTOSAVE_CSS_INCLUDED', true);
     echo '<link rel="stylesheet" href="' . PWA_BASE . 'fc/fc_autosave_bar.css?v=' . (@filemtime(__DIR__ . '/fc_autosave_bar.css') ?: 1) . '">' . "\n";

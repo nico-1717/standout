@@ -177,6 +177,31 @@ html.pomo-bar-attiva [data-pomo-fa-spazio]{
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     opacity: .72;
 }
+/* SENZA RETE: le azioni aspettano in coda (pomodoro_core.js). La linea
+   resta dov'e' ma tratteggiata e spenta, come una cosa non ancora
+   confermata; accanto al testo un giro piccolo e due parole. */
+.pomo-bar-coda{
+    position: relative; flex: 0 0 auto;
+    display: inline-flex; align-items: center; gap: 5px;
+    letter-spacing: .04em; opacity: .75;
+}
+.pomo-bar-coda[hidden]{ display: none; }
+.pomo-bar-coda.is-offline{ color: #B4645F; opacity: 1; }
+.pomo-bar-giro{
+    width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box;
+    border: 1.5px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor;
+    animation: pomo-bar-giro .9s linear infinite;
+}
+@keyframes pomo-bar-giro{ to{ transform: rotate(360deg); } }
+.pomo-bar.is-attesa .pomo-bar-linea{
+    background: repeating-linear-gradient(90deg, var(--pomo-bar-col) 0 6px, transparent 6px 10px);
+    box-shadow: none; opacity: .7;
+}
+.pomo-bar.is-attesa .pomo-bar-punto{ opacity: .5; }
+.pomo-pop.is-attesa .pomo-pop-disco{ opacity: .65; filter: saturate(.5); transition: opacity .4s, filter .4s; }
+@media (prefers-color-scheme: dark){ .pomo-bar-coda.is-offline{ color: #E59A93; } }
+@media (prefers-reduced-motion: reduce){ .pomo-bar-giro{ animation-duration: 2.4s; } }
+
 .pomo-bar-freccia{
     position: relative;
     flex: 0 0 auto; width: 12px; height: 12px; opacity: .38;

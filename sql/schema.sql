@@ -228,6 +228,19 @@ CREATE TABLE `fc_image_meta` (
 -- --------------------------------------------------------
 
 --
+-- Table `fc_settings`
+--
+
+CREATE TABLE `fc_settings` (
+  `user_id` int NOT NULL,
+  `vocab_meaning` varchar(8) NOT NULL DEFAULT 'aperto' COMMENT 'aperto | tocco | dopo',
+  `vocab_examples` varchar(8) NOT NULL DEFAULT 'aperto' COMMENT 'aperto | tocco | dopo',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Scelte di gioco delle flashcard, una riga per utente';
+
+-- --------------------------------------------------------
+
+--
 -- Table `fc_study_ai`
 --
 
@@ -470,7 +483,7 @@ CREATE TABLE `fc_vocab_examples` (
   `parent_id` int DEFAULT NULL COMMENT 'fc_vocab_cards.id, se l esempio e di una carta padre',
   `child_id` int DEFAULT NULL COMMENT 'fc_vocab_subcards.id_child, se e di una figlia',
   `example_text` text COMMENT 'nella lingua da imparare; una fila di _ indica il posto della parola',
-  `gap_text` varchar(255) DEFAULT NULL COMMENT 'parte della frase nascosta nel gioco (NULL = la parola della carta)',
+  `gap_text` varchar(1000) DEFAULT NULL COMMENT 'parti della frase nascoste nel gioco: testo, o [[pos,"testo"],...] (NULL = automatica)',
   `example_image` varchar(255) DEFAULT NULL,
   `example_audio` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Esempi delle carte di vocabolario, piu di uno per carta';
@@ -1714,6 +1727,12 @@ ALTER TABLE `fc_image_meta`
   ADD PRIMARY KEY (`filename`);
 
 --
+-- Indexes for table `fc_settings`
+--
+ALTER TABLE `fc_settings`
+  ADD PRIMARY KEY (`user_id`);
+
+--
 -- Indexes for table `fc_study_ai`
 --
 ALTER TABLE `fc_study_ai`
@@ -2726,6 +2745,12 @@ ALTER TABLE `ai_job_steps`
 --
 ALTER TABLE `fc_games`
   ADD CONSTRAINT `fk_games_course` FOREIGN KEY (`course_id`) REFERENCES `fc_vocab_courses` (`id`) ON DELETE CASCADE;
+
+--
+-- Foreign keys for table `fc_settings`
+--
+ALTER TABLE `fc_settings`
+  ADD CONSTRAINT `fk_fc_settings_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
 -- Foreign keys for table `fc_game_durations`

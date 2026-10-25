@@ -411,3 +411,53 @@ button{ font-family:inherit; }
 @media (prefers-reduced-motion: reduce){
     *, *::before, *::after{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
 }
+
+/* ================================================================
+   LE CARTE CHE SAI (fc_home.php)
+   Quante ne sai adesso (col tastino "imparata" o giuste le ultime cinque
+   volte) e quante ne hai imparate per giorno, settimana o mese. Verde: il
+   colore di "giusta" in tutto il gioco.
+   ================================================================ */
+.learned-card{
+    margin-top:14px; padding:16px 16px 12px; border-radius:var(--r-card);
+    background:var(--surface); box-shadow:var(--shadow-card);
+    animation:hubIn .5s var(--spring) .05s both;
+}
+.lc-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.lc-tot{ display:flex; align-items:center; gap:12px; min-width:0; }
+.lc-ico{
+    width:40px; height:40px; flex-shrink:0; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    background:var(--green-soft); color:var(--green);
+}
+.lc-ico svg{ width:21px; height:21px; }
+.lc-num{ display:block; font-size:26px; font-weight:800; letter-spacing:-.03em; line-height:1.05; color:var(--text); font-variant-numeric:tabular-nums; }
+.lc-num small{ font-size:14px; font-weight:700; color:var(--text-3); letter-spacing:0; }
+.lc-lbl{ display:block; font-size:12.5px; font-weight:650; color:var(--text-2); }
+.lc-seg{ display:grid; grid-template-columns:repeat(3, auto); gap:2px; padding:3px; border-radius:11px; background:var(--surface-2); }
+.lc-seg button{
+    height:30px; padding:0 11px; border:0; border-radius:8px; background:transparent; cursor:pointer;
+    font:inherit; font-size:12.5px; font-weight:700; color:var(--text-2); white-space:nowrap;
+    transition:background .2s, color .2s, box-shadow .2s;
+}
+.lc-seg button.is-on{ background:var(--surface); color:var(--text); box-shadow:0 1px 2px rgba(0,0,0,.1), 0 3px 8px -3px rgba(0,0,0,.14); }
+.lc-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.lc-chip{
+    display:inline-flex; align-items:baseline; gap:4px; padding:5px 10px; border-radius:99px;
+    font-size:12.5px; font-weight:650; color:var(--text-2); background:var(--surface-2);
+}
+.lc-chip b{ font-weight:800; color:var(--text-3); font-variant-numeric:tabular-nums; }
+.lc-chip.is-on{ background:var(--green-soft); color:var(--text); }
+.lc-chip.is-on b{ color:var(--green); }
+.lc-chart{ display:flex; align-items:flex-end; gap:5px; height:118px; margin-top:14px; padding-top:4px; border-top:.5px solid var(--hairline); }
+.lc-col{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end; }
+.lc-val{ font-size:10.5px; font-weight:800; color:var(--green); font-variant-numeric:tabular-nums; min-height:13px; }
+.lc-bar{ width:100%; max-width:24px; flex:1 1 auto; display:flex; align-items:flex-end; border-radius:7px; background:var(--surface-2); overflow:hidden; }
+.lc-bar span{
+    display:block; width:100%; border-radius:7px; background:var(--green); opacity:.55;
+    transform-origin:bottom; animation:barUp .6s var(--spring) both; animation-delay:calc(var(--i, 0) * 25ms);
+}
+.lc-col.is-qui .lc-bar span{ opacity:1; }
+.lc-x{ font-size:10px; font-weight:700; color:var(--text-3); white-space:nowrap; overflow:hidden; max-width:100%; text-transform:capitalize; }
+.lc-col.is-qui .lc-x{ color:var(--green); }
+.lc-nota{ margin:10px 2px 0; font-size:11.5px; line-height:1.4; color:var(--text-3); }
+@media (prefers-reduced-motion: reduce){ .learned-card, .lc-bar span{ animation:none; } }

@@ -151,25 +151,29 @@ $catDailyData = array_values($catDailyMap);
 // ==========================================
 // CARTE TOTALI / IMPARATE PER CATEGORIA
 // ==========================================
-$catCardTotals = [];
-$ctq = sec_all("SELECT category_id, COUNT(*) AS total FROM $CCMAP GROUP BY category_id", $CCP);
-foreach ($ctq as $row) { $catCardTotals[(int)$row['category_id']] = (int)$row['total']; }
-
-$catLearnt = [];
-$clq = sec_all("SELECT ccmap.category_id AS cat_id, COUNT(DISTINCT ulf.fc_image_id) AS learnt
-    FROM fc_study_learnt ulf JOIN $CCMAP ON ulf.fc_image_id = ccmap.card_id
-    WHERE ulf.user_id = ? GROUP BY ccmap.category_id", array_merge($CCP, [$current_user_id]));
-foreach ($clq as $row) { $catLearnt[(int)$row['cat_id']] = (int)$row['learnt']; }
+/* "IMPARATE" = segnate col tastino OPPURE giuste le ultime cinque volte (il
+   livello la_sai), e il giorno e' quello in cui lo sono diventate: lo conta
+   fcv_conosciute() (lib/fc/fc_vocab_gioco.php), lo stesso conto della pagina
+   principale e del cruscotto. Le carte sono quelle "vere": le carte senza
+   sottocarte e le sottocarte, sopra e sotto la frazione (prima si contavano
+   le padri segnate su un totale di figlie). */
+require_once __DIR__ . '/../../lib/fc/fc_vocab_gioco.php';
+$fcStudioConosciute = fcv_conosciute((int)$current_user_id, 'study');
+$catCardTotals = []; $catLearnt = []; $catLearntDailyMap = [];
+foreach ($fcStudioConosciute['dettaglio'] as $u) {
+    $m = (int)$u['mazzo'];
+    $catCardTotals[$m] = ($catCardTotals[$m] ?? 0) + 1;
+    if ($u['ora']) $catLearnt[$m] = ($catLearnt[$m] ?? 0) + 1;
+    if ($u['quando'] !== null) $catLearntDailyMap[$m][$u['quando']] = ($catLearntDailyMap[$m][$u['quando']] ?? 0) + 1;
+}
 
 // ==========================================
 // STORICO APPRENDIMENTO GIORNALIERO PER CATEGORIA (per previsioni scoped al ramo)
 // ==========================================
 $catLearntDaily = [];
-$cldq = sec_all("SELECT ccmap.category_id AS cat_id, ulf.learnt_date AS d, COUNT(*) AS c
-    FROM fc_study_learnt ulf JOIN $CCMAP ON ulf.fc_image_id = ccmap.card_id
-    WHERE ulf.user_id = ? GROUP BY ccmap.category_id, d", array_merge($CCP, [$current_user_id]));
-foreach ($cldq as $row) {
-    $catLearntDaily[] = ['cat' => (int)$row['cat_id'], 'd' => $row['d'], 'count' => (int)$row['c']];
+foreach ($catLearntDailyMap as $m => $gg) {
+    ksort($gg);
+    foreach ($gg as $d => $c) $catLearntDaily[] = ['cat' => (int)$m, 'd' => $d, 'count' => (int)$c];
 }
 
 // ==========================================
@@ -364,21 +368,10 @@ foreach ($resolvedPlays as $p) {
 // ==========================================
 // MASTERY COMPLESSIVA
 // ==========================================
-$totalCardsRes = sec_one("SELECT COUNT(*) AS c FROM (
-    SELECT i.id FROM fc_study_cards i JOIN fc_study_decks c ON i.category_id = c.id WHERE i.is_father = 0 AND c.user_id = ?
-    UNION ALL
-    SELECT cc.id_child FROM fc_study_subcards cc JOIN fc_study_cards fi ON cc.parent_id = fi.id JOIN fc_study_decks c2 ON fi.category_id = c2.id WHERE c2.user_id = ?
-) t", [$current_user_id, $current_user_id]);
-$totalCards = (int)($totalCardsRes['c'] ?? 0);
-
-$learntCardsRes = sec_one("SELECT COUNT(DISTINCT fc_image_id) AS c FROM fc_study_learnt WHERE user_id = ?", [$current_user_id]);
-$learntCards = (int)($learntCardsRes['c'] ?? 0);
-
-$attemptedNotLearntRes = sec_one("SELECT COUNT(DISTINCT gp.fc_image_id) AS c
-    FROM fc_study_plays gp JOIN fc_games gm ON gp.game_id = gm.id
-    WHERE gm.user_id = ? AND gp.user_answer IN ('Correct','Wrong')
-    AND gp.fc_image_id NOT IN (SELECT fc_image_id FROM fc_study_learnt WHERE user_id = ?)", [$current_user_id, $current_user_id]);
-$attemptedNotLearnt = (int)($attemptedNotLearntRes['c'] ?? 0);
+$totalCards = (int)$fcStudioConosciute['unita'];
+$learntCards = (int)$fcStudioConosciute['totale'];
+$attemptedNotLearnt = 0;
+foreach ($fcStudioConosciute['dettaglio'] as $u) if ($u['giocata'] && !$u['ora']) $attemptedNotLearnt++;
 $neverTried = max(0, $totalCards - $learntCards - $attemptedNotLearnt);
 
 // ==========================================
@@ -395,8 +388,7 @@ foreach ($sq as $row) {
 // STORICO APPRENDIMENTO CUMULATIVO
 // ==========================================
 $learntTrend = [];
-$ltq = sec_all("SELECT learnt_date AS d, COUNT(*) AS c FROM fc_study_learnt WHERE user_id = ? GROUP BY d ORDER BY d ASC", [$current_user_id]);
-foreach ($ltq as $row) { $learntTrend[] = ['date' => $row['d'], 'count' => (int)$row['c']]; }
+foreach ($fcStudioConosciute['giorni'] as $d => $c) $learntTrend[] = ['date' => $d, 'count' => (int)$c];
 
 // ==========================================
 // STREAK

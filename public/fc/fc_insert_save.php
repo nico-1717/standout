@@ -73,6 +73,7 @@ header('Content-Type: application/json');
    tabelle fc_vocab_*. Il percorso e' lo stesso; cambiano solo le colonne,
    e le decide fc_contenuto() qui sotto. */
 require_once __DIR__ . '/../../lib/fc/fc_type.php';
+require_once __DIR__ . '/../../lib/fc/fc_vocab_gap.php';
 fc_avvia($current_user_id, true);
 
 /* Token di sessione, origine riconosciuta e limite di frequenza. */
@@ -354,7 +355,9 @@ function fc_esempio_rapido(array $c, int $id, string $tipo): int {
     $testo = sec_str($c['example'] ?? '', 1000);
     if ($testo === '') return 0;
     $col = $tipo === 'child' ? 'child_id' : 'parent_id';
-    sec_q("INSERT INTO " . fc_t('examples') . " ($col, example_text) VALUES (?, ?)", [$id, $testo]);
+    /* La parte da nascondere scelta nella riga (fcvGap.monta); vuota = automatica. */
+    $gap = fcv_gap_pulisci(sec_str($c['example_gap'] ?? '', 1000));
+    sec_q("INSERT INTO " . fc_t('examples') . " ($col, example_text, gap_text) VALUES (?, ?, ?)", [$id, $testo, $gap !== '' ? $gap : null]);
     return 1;
 }
 

@@ -19,6 +19,11 @@
 if (defined('FC_SUMMARY_CARICATO')) return;
 define('FC_SUMMARY_CARICATO', true);
 
+/* "Imparate" non vuol dire piu' solo "col tastino": anche le carte al livello
+   la_sai (giuste le ultime cinque volte). Il conto, con il giorno in cui
+   ognuna e' stata imparata, e' fcv_conosciute() in fc_vocab_gioco.php. */
+require_once __DIR__ . '/fc_vocab_gioco.php';
+
 /**
  * Serie di giorni consecutivi da un elenco di date 'Y-m-d' ordinate.
  * La serie "attuale" vale solo se l'ultimo giorno e' oggi o ieri: chi ha
@@ -52,6 +57,14 @@ function fc_obiettivo(int $uid): int {
     }
 }
 
+/** fcv_conosciute una volta sola per richiesta: la usano piu' funzioni qui. */
+function fc_conosciute_cache(int $uid, string $tipo): array {
+    static $cache = [];
+    $k = $uid . ':' . $tipo;
+    if (!isset($cache[$k])) $cache[$k] = fcv_conosciute($uid, $tipo);
+    return $cache[$k];
+}
+
 /**
  * Statistiche dei corsi di lingua dell'utente, una riga per corso, in tre
  * query sole qualunque sia il numero di corsi.
@@ -81,11 +94,9 @@ function fc_corsi_con_numeri(int $uid): array {
                        WHERE d.user_id = ? GROUP BY d.course_id", [$uid], 'i') as $r) {
         if (isset($corsi[(int)$r['course_id']])) $corsi[(int)$r['course_id']]['parole'] += (int)$r['n'];
     }
-    foreach (sec_all("SELECT d.course_id, COUNT(*) AS n
-                        FROM fc_vocab_learnt l JOIN fc_vocab_cards c ON c.id = l.fc_image_id
-                        JOIN fc_vocab_decks d ON d.id = c.category_id
-                       WHERE l.user_id = ? AND d.user_id = ? GROUP BY d.course_id", [$uid, $uid], 'ii') as $r) {
-        if (isset($corsi[(int)$r['course_id']])) $corsi[(int)$r['course_id']]['imparate'] = (int)$r['n'];
+    /* imparate: col tastino O al livello la_sai (fcv_conosciute) */
+    foreach (fc_conosciute_cache($uid, 'vocab')['per_corso'] as $cid => $n) {
+        if (isset($corsi[(int)$cid])) $corsi[(int)$cid]['imparate'] = (int)$n;
     }
 
     /* giorni di studio per corso: servono sia per l'ultimo giorno sia per la
@@ -111,7 +122,8 @@ function fc_corsi_con_numeri(int $uid): array {
  * Tutto il riepilogo. Ogni chiave e' un numero o un piccolo array:
  *   serie, record, oggi, oggi_study, oggi_vocab, obiettivo, settimana[Y-m-d => n],
  *   precisione (0-100, ultimi 30 giorni), study{mazzi, carte, imparate},
- *   vocab{corsi[], parole, imparate}, ultima (ultima partita o null)
+ *   vocab{corsi[], parole, imparate}, ultima (ultima partita o null),
+ *   imparate_giorni[Y-m-d => n] (quante imparate quel giorno), imparate_tot
  */
 function fc_riepilogo(int $uid): array {
     $oggi = date('Y-m-d');
@@ -157,14 +169,20 @@ function fc_riepilogo(int $uid): array {
                               + (SELECT COUNT(*) FROM fc_study_subcards s JOIN fc_study_cards c ON c.id = s.parent_id
                                    JOIN fc_study_decks d ON d.id = c.category_id WHERE d.user_id = ?) AS n",
                             [$uid, $uid], 'ii')['n'] ?? 0);
-    $sImparate = (int)(sec_one("SELECT COUNT(DISTINCT l.fc_image_id) AS n FROM fc_study_learnt l
-                                  JOIN fc_study_cards c ON c.id = l.fc_image_id
-                                  JOIN fc_study_decks d ON d.id = c.category_id
-                                 WHERE l.user_id = ? AND d.user_id = ?", [$uid, $uid], 'ii')['n'] ?? 0);
+    /* Prima si contavano le carte padre segnate imparate e si dividevano per
+       le carte "vere" (figlie e carte singole): due unita' diverse, e la
+       percentuale non tornava. Ora le stesse carte sopra e sotto. */
+    $sConosciute = fc_conosciute_cache($uid, 'study');
+    $sImparate = $sConosciute['totale'];
 
     $corsi = fc_corsi_con_numeri($uid);
     $vParole = 0; $vImparate = 0;
     foreach ($corsi as $c) { $vParole += $c['parole']; $vImparate += $c['imparate']; }
+
+    /* il giorno in cui ogni carta e' stata imparata, studio e lingue insieme */
+    $imparateGiorni = $sConosciute['giorni'];
+    foreach (fc_conosciute_cache($uid, 'vocab')['giorni'] as $d => $n) $imparateGiorni[$d] = ($imparateGiorni[$d] ?? 0) + $n;
+    ksort($imparateGiorni);
 
     $ultima = sec_one("SELECT id, kind, course_id, game_date, score FROM fc_games
                         WHERE user_id = ? ORDER BY game_date DESC, id DESC LIMIT 1", [$uid], 'i');
@@ -177,6 +195,8 @@ function fc_riepilogo(int $uid): array {
         'precisione' => $precisione,
         'study' => ['mazzi' => $sMazzi, 'carte' => $sCarte, 'imparate' => $sImparate],
         'vocab' => ['corsi' => array_values($corsi), 'parole' => $vParole, 'imparate' => $vImparate],
+        'imparate_giorni' => $imparateGiorni,
+        'imparate_tot' => $sImparate + $vImparate,
         'ultima' => $ultima,
     ];
 }

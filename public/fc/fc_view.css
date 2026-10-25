@@ -2211,8 +2211,8 @@ body.is-compact .fc-card:not(.is-open) .qa-meaning{ display:none; }
    I LIVELLI DELLE PAROLE (solo lingue) — come nel gioco
    ================================================================
    L'etichetta in cima a ogni carta e la fila di filtri sotto la ricerca.
-   Stessi colori del gioco (fc_game_juice.css): rosso difficile, blu in
-   corso, azzurro nuova, verde buona, oro padroneggiata. */
+   Stessi colori del gioco (fc_game_juice.css): dal rosso scuro di
+   difficilissima all'oro di la_sai (vedi FCV_LIVELLI in fc_vocab_gioco.php). */
 .fcv-liv{
     --c:var(--text-3, #8E8E93);
     flex-shrink:0; display:inline-flex; align-items:center; gap:5px;
@@ -2223,11 +2223,15 @@ body.is-compact .fc-card:not(.is-open) .qa-meaning{ display:none; }
 .fcv-liv i, .fcv-liv-chip i{ width:7px; height:7px; border-radius:50%; background:var(--c); box-shadow:0 0 0 2px color-mix(in srgb, var(--c) 25%, transparent); }
 .fcv-liv svg{ width:12px; height:12px; }
 .fcv-liv-nuova, .fcv-liv-chip-nuova{ --c:#32ADE6; }
+.fcv-liv-da_imparare, .fcv-liv-chip-da_imparare{ --c:#5E5CE6; }
+.fcv-liv-sembra_facile, .fcv-liv-chip-sembra_facile{ --c:#00C7BE; }
+.fcv-liv-insidiosa, .fcv-liv-chip-insidiosa{ --c:var(--orange, #FF9500); }
 .fcv-liv-difficile, .fcv-liv-chip-difficile{ --c:var(--red, #FF3B30); }
-.fcv-liv-in_corso, .fcv-liv-chip-in_corso{ --c:var(--blue, #007AFF); }
-.fcv-liv-buona, .fcv-liv-chip-buona{ --c:var(--green, #34C759); }
-.fcv-liv-padroneggiata, .fcv-liv-chip-padroneggiata{ --c:#E0A800; }
-.fcv-liv-padroneggiata{
+.fcv-liv-difficilissima, .fcv-liv-chip-difficilissima{ --c:#C9003B; }
+.fcv-liv-in_ripresa, .fcv-liv-chip-in_ripresa{ --c:var(--purple, #AF52DE); }
+.fcv-liv-quasi, .fcv-liv-chip-quasi{ --c:var(--green, #34C759); }
+.fcv-liv-la_sai, .fcv-liv-chip-la_sai{ --c:#E0A800; }
+.fcv-liv-la_sai{
     color:#1C1C1E; background:linear-gradient(135deg, #FFE066, #FFC300 55%, #FF9F0A);
     box-shadow:0 2px 8px -2px rgba(255,195,0,.5);
 }
@@ -2253,9 +2257,9 @@ body.is-compact .fc-card:not(.is-open) .qa-meaning{ display:none; }
 .fcv-liv-chip.is-on i{ background:#fff; box-shadow:none; }
 .fcv-liv-chip.is-on span{ color:rgba(255,255,255,.8); }
 .fcv-liv-chip[data-liv=""].is-on{ --c:var(--text, #1C1C1E); color:var(--surface, #fff); }
-.fcv-liv-chip-padroneggiata.is-on{ color:#1C1C1E; background:linear-gradient(135deg, #FFE066, #FFC300 55%, #FF9F0A); }
-.fcv-liv-chip-padroneggiata.is-on i{ background:#1C1C1E; }
-.fcv-liv-chip-padroneggiata.is-on span{ color:rgba(28,28,30,.7); }
+.fcv-liv-chip-la_sai.is-on{ color:#1C1C1E; background:linear-gradient(135deg, #FFE066, #FFC300 55%, #FF9F0A); }
+.fcv-liv-chip-la_sai.is-on i{ background:#1C1C1E; }
+.fcv-liv-chip-la_sai.is-on span{ color:rgba(28,28,30,.7); }
 
 /* ================================================================
    LE PARTITE CON QUESTO MAZZO — il tasto accanto al nome e il foglio
@@ -2397,11 +2401,15 @@ body.is-compact .fc-card:not(.is-open) .qa-nota{ display:none; }
 .tb-liv-wrap .tb-liv-dot{ position:absolute; left:11px; top:50%; width:8px; height:8px; margin-top:-4px; border-radius:50%;
     pointer-events:none; background:var(--text-3); transition:background .2s; }
 select.tb-select.tb-liv{ padding-left:25px; max-width:122px; }
-.tb-liv-wrap[data-liv="difficile"] .tb-liv-dot{ background:var(--red, #FF3B30); }
-.tb-liv-wrap[data-liv="in_corso"] .tb-liv-dot{ background:var(--blue, #007AFF); }
 .tb-liv-wrap[data-liv="nuova"] .tb-liv-dot{ background:#32ADE6; }
-.tb-liv-wrap[data-liv="buona"] .tb-liv-dot{ background:var(--green, #34C759); }
-.tb-liv-wrap[data-liv="padroneggiata"] .tb-liv-dot{ background:#E0A800; }
+.tb-liv-wrap[data-liv="da_imparare"] .tb-liv-dot{ background:#5E5CE6; }
+.tb-liv-wrap[data-liv="sembra_facile"] .tb-liv-dot{ background:#00C7BE; }
+.tb-liv-wrap[data-liv="insidiosa"] .tb-liv-dot{ background:var(--orange, #FF9500); }
+.tb-liv-wrap[data-liv="difficile"] .tb-liv-dot{ background:var(--red, #FF3B30); }
+.tb-liv-wrap[data-liv="difficilissima"] .tb-liv-dot{ background:#C9003B; }
+.tb-liv-wrap[data-liv="in_ripresa"] .tb-liv-dot{ background:var(--purple, #AF52DE); }
+.tb-liv-wrap[data-liv="quasi"] .tb-liv-dot{ background:var(--green, #34C759); }
+.tb-liv-wrap[data-liv="la_sai"] .tb-liv-dot{ background:#E0A800; }
 .tb-liv-wrap:not([data-liv=""]) select.tb-liv{ box-shadow:inset 0 0 0 1.5px var(--cat-color); }
 select.tb-select#filterSort{ max-width:112px; }
 

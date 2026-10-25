@@ -1362,7 +1362,7 @@ function fc_ai_azione_parole(array $in, string $impara, string $conosce): array 
         . "For every item return: w = the word or expression in $impara (dictionary form; articles or gender markers only where the language normally shows them, e.g. 'der Tisch'); "
         . "t = its most common translation in $conosce (a short gloss, two variants at most separated by ', ')"
         . ($significato ? "; m = a short definition written in simple $impara, without using the word itself" : '')
-        . ($esempio ? "; e = one short, natural example sentence in $impara that uses the word exactly as written in w, with the word replaced by a single underscore _ (it becomes the gap to guess, e.g. 'The _ is barking.')" : '')
+        . ($esempio ? "; e = one short, natural example sentence in $impara that uses the word (any natural form of it is fine), written in full: do not blank out the word" : '')
         . ". Never invent words. No numbering, no notes, no markdown.";
 
     $utente = '';
@@ -1392,12 +1392,10 @@ function fc_ai_azione_parole(array $in, string $impara, string $conosce): array 
         if (!$elenco && isset($visti[$k])) continue;   // gia' nel mazzo o doppione
         $visti[$k] = true;
         $ex = $esempio ? fc_ai_riga($p['e'] ?? '', 1000) : '';
-        /* il modello a volte scrive la parola invece del trattino: la
-           lacuna si fa qui, la prima volta che la parola compare */
-        if ($ex !== '' && strpos($ex, '_') === false) {
-            $pos = mb_stripos($ex, $w);
-            if ($pos !== false) $ex = mb_substr($ex, 0, $pos) . '_' . mb_substr($ex, $pos + mb_strlen($w));
-        }
+        /* La frase resta intera: la parte da nascondere nel gioco la trova
+           fcv_lacune() (lib/fc/fc_vocab_gap.php), e si puo' cambiare a mano.
+           Se il modello ha messo lo stesso un trattino, ci torna la parola. */
+        if ($ex !== '' && strpos($ex, '_') !== false) $ex = preg_replace('/_+/u', $w, $ex, 1);
         $out[] = [
             'q'  => $w,
             'a'  => $t,

@@ -1349,9 +1349,10 @@ if (count($ids_array) > 0) {
    filtro per livello e all'ordine "piu' difficili prima". Chiavi 'p<id>' per
    le carte e 'c<id>' per le sottocarte. */
 $fcv_livelli = [];
-$fcv_conta_livelli = ['difficile' => 0, 'in_corso' => 0, 'nuova' => 0, 'buona' => 0, 'padroneggiata' => 0];
+require_once __DIR__ . '/../../lib/fc/fc_vocab_gioco.php';
+/* dal peggiore al migliore (FCV_LIVELLI): e' l'ordine del menu per livello */
+$fcv_conta_livelli = fcv_livelli_vuoti();
 if ($ids_array) { /* lingue e studio */
-    require_once __DIR__ . '/../../lib/fc/fc_vocab_gioco.php';
     $fcv_figli = [];
     foreach ($images_data as $r) foreach ($r['children'] as $ch) $fcv_figli[] = (int)$ch['id'];
     $fcv_st = fcv_stats_carte($ids_array, $fcv_figli);
@@ -1364,7 +1365,7 @@ if ($ids_array) { /* lingue e studio */
     /* "Piu' difficili prima": una famiglia vale quanto la sua parola piu'
        difficile (padre o sottocarta), e a parita' conta la precisione. */
     if ($sort === 'livello') {
-        $fcv_rango = ['difficile' => 0, 'in_corso' => 1, 'nuova' => 2, 'buona' => 3, 'padroneggiata' => 4];
+        $fcv_rango = array_flip(FCV_LIVELLI);
         $fcv_peso = function (array $r) use ($fcv_livelli, $fcv_precisione, $fcv_rango) {
             $chiavi = ['p' . (int)$r['id']];
             foreach ($r['children'] as $ch) $chiavi[] = 'c' . (int)$ch['id'];
@@ -1409,7 +1410,7 @@ function fcv_etichetta_livello(string $chiave): string {
     if (!isset($fcv_livelli[$chiave])) return '';
     $liv = $fcv_livelli[$chiave];
     return '<span class="fcv-liv fcv-liv-' . $liv . '">'
-         . ($liv === 'padroneggiata' ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.5 2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.6l-6 3.3 1.3-6.7-5-4.7 6.8-.8Z"/></svg>' : '<i></i>')
+         . ($liv === 'la_sai' ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.5 2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.6l-6 3.3 1.3-6.7-5-4.7 6.8-.8Z"/></svg>' : '<i></i>')
          . sec_h(t('fcv.liv_' . $liv)) . '</span>';
 }
 
@@ -2320,6 +2321,7 @@ if (isset($_GET['fc_feed_page'])) {
 
 <script src="fc_parser.js?v=<?php echo @filemtime(__DIR__ . '/fc_parser.js') ?: 1; ?>"></script>
 <?php endif; ?>
+<script src="<?php echo PWA_BASE; ?>fc/fc_vocab_gap.js?v=<?php echo @filemtime(__DIR__ . '/fc_vocab_gap.js') ?: 1; ?>"></script>
 <script src="fc_examples_modal.js?v=<?php echo @filemtime(__DIR__ . '/fc_examples_modal.js') ?: 1; ?>"></script>
 <script src="<?php echo PWA_BASE; ?>fc/fc_edit_popup.js?v=<?php echo @filemtime(__DIR__ . '/fc_edit_popup.js') ?: 1; ?>"></script>
 
@@ -2717,7 +2719,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
             if (!$fcs_esame) foreach ($fc_ancestors as $__a) { if (!empty($__a['exam_date'])) { $fcs_esame = $__a['exam_date']; $fcs_esame_di = $__a['name']; break; } }
             $fcs_giorni = null;
             if ($fcs_esame) { $fcs_giorni = (int)round((strtotime(substr($fcs_esame, 0, 10)) - strtotime(date('Y-m-d'))) / 86400); if ($fcs_giorni < 0) $fcs_giorni = null; }
-            $fcs_diff = (int)($fcv_conta_livelli['difficile'] ?? 0);
+            $fcs_diff = fcv_conta_da_ripassare($fcv_conta_livelli);
             if ($fcs_giorni !== null): ?>
         <div class="deck-strip">
             <?php if ($fcs_giorni !== null): ?>
@@ -3121,7 +3123,7 @@ window.addEventListener('load', function(){
     </div>
 </div>
 
-<?php if ($categoryID != 0): $fcp_diff = (int)($fcv_conta_livelli['difficile'] ?? 0); ?>
+<?php if ($categoryID != 0): $fcp_diff = fcv_conta_da_ripassare($fcv_conta_livelli); ?>
 <!-- ============ GIOCA (20/10/2026) ============
      Il tasto play della testata: tutto il mazzo (la scelta della partita,
      come prima) o subito solo le carte difficili del mazzo e dei sottomazzi. -->

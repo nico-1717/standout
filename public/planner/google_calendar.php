@@ -403,6 +403,35 @@ function gc_to_google(array $ev): array {
 }
 
 /**
+ * Il corpo di gc_to_google pronto per una PATCH.
+ *
+ * Una PATCH di Google FONDE gli oggetti annidati invece di sostituirli: se
+ * l'evento su Google ha l'orario (start.dateTime) e noi mandiamo
+ * start: {date: …}, Google tiene tutti e due, li trova incompatibili e
+ * risponde 400. Succedeva ogni volta che un evento gia' mandato diventava
+ * "tutto il giorno" — il caso tipico degli eventi di piu' giorni, creati
+ * dalla barra o trascinando sulla griglia e poi allungati dal popup — e
+ * all'inverso. Il rifiuto era silenzioso (la sincronizzazione automatica
+ * non mostra errori) e l'evento non arrivava mai.
+ * La chiave dell'altro tipo va mandata esplicitamente vuota, cosi' Google la
+ * toglie. Solo nella PATCH: in una creazione non c'e' niente da togliere.
+ */
+function gc_per_patch(array $corpo): array {
+    foreach (['start', 'end'] as $k) {
+        if (!isset($corpo[$k]) || !is_array($corpo[$k])) continue;
+        if (!empty($corpo[$k]['date']))         $corpo[$k]['dateTime'] = null;
+        elseif (!empty($corpo[$k]['dateTime'])) $corpo[$k]['date'] = null;
+    }
+    return $corpo;
+}
+
+/** Il motivo di un rifiuto di Google, in breve, per il registro. */
+function gc_motivo(array $res): string {
+    $m = $res['body']['error']['message'] ?? '';
+    return 'HTTP ' . (int)$res['code'] . ($m !== '' ? ' ' . mb_substr((string)$m, 0, 120) : '');
+}
+
+/**
  * La ripetizione di un evento di Google riportata alle colonne del planner.
  * Google manda un array `recurrence` che può contenere anche RDATE ed EXDATE:
  * qui interessa solo la RRULE, che è l'unica cosa che il planner sa generare.
@@ -1044,6 +1073,7 @@ function gc_push_eccezioni(int $uid, string $token, string $from, string $to): a
             /* Un'istanza non porta una regola sua: la ripetizione è del
                master, e mandare qui `recurrence` la farebbe rifiutare. */
             unset($corpo['recurrence']);
+            $corpo = gc_per_patch($corpo);
         }
 
         $res = gc_http('PATCH',
@@ -1058,7 +1088,7 @@ function gc_push_eccezioni(int $uid, string $token, string $from, string $to): a
             $fatte++;
         } else {
             $falliti++;
-            gc_log($uid, 'push', 'error', 'eccezione ' . $ecc['original_date'] . ': ' . $res['code']);
+            gc_log($uid, 'push', 'error', 'eccezione ' . $ecc['original_date'] . ': ' . gc_motivo($res));
         }
     }
     return ['fatte' => $fatte, 'falliti' => $falliti];
@@ -1175,17 +1205,24 @@ function gc_push(int $uid, string $token, array $acc): array {
        fatta non risultava "da mandare" — e siccome la lettura da Google
        viene prima dell'invio, quella modifica veniva sovrascritta e
        l'evento tornava dov'era dopo qualche secondo. */
+    /* L'ordine: prima l'ultima cosa toccata. Prima era per data, e le
+       righe che Google rifiuta (non vengono mai segnate come mandate)
+       occupavano per sempre i primi posti: oltre il limite, un evento nuovo
+       più avanti nel calendario non partiva mai. Così quello appena
+       creato o cambiato — cioè quello che l'utente sta guardando — passa
+       sempre per primo. */
     $rows = sec_all(
         "SELECT * FROM planner_events
          WHERE user_id = ? AND event_date BETWEEN ? AND ?
            AND (google_synced_at IS NULL OR updated_at > google_synced_at)
            AND (series_id IS NULL OR series_id = id)
-         ORDER BY event_date LIMIT " . GC_PUSH_LIMIT,
+         ORDER BY updated_at DESC, id DESC LIMIT " . GC_PUSH_LIMIT,
         [$uid, $from, $to], 'iss'
     );
 
     $created = 0; $updated = 0; $failed = 0; $removed = 0;
     $routineFatte = [];
+    $primoRifiuto = null;   // il motivo del primo «no» di Google, per il registro
     foreach ($rows as $ev) {
         /* Un pezzo di routine non va su Google da solo: va il blocco intero,
            una volta sola per gruppo e giorno, attaccato al capo. */
@@ -1270,8 +1307,18 @@ function gc_push(int $uid, string $token, array $acc): array {
             }
         }
 
+        /* Segnato come mandato solo se nel frattempo non è cambiato.
+           La sincronizzazione dura qualche secondo: se l'utente ritocca
+           l'evento proprio allora (lo allunga a più giorni subito dopo
+           averlo creato), quello che è partito è la versione di prima, e
+           segnarlo con NOW() faceva credere mandata anche la modifica, che
+           restava qui per sempre. Così resta «da mandare» e parte al giro
+           dopo. */
+        $vistoIl = isset($ev['updated_at']) ? (string)$ev['updated_at'] : null;
+        $segnaMandato = "google_synced_at = IF(updated_at = COALESCE(?, updated_at), NOW(), google_synced_at)";
+
         if (!empty($oldId)) {
-            $res = gc_http('PATCH', $base . '/' . rawurlencode($oldId), $payload, $token);
+            $res = gc_http('PATCH', $base . '/' . rawurlencode($oldId), gc_per_patch($payload), $token);
             if ($res['code'] === 404 || $res['code'] === 410) {
                 /* Non c'è più a quell'indirizzo. Prima si ricreava senza
                    pensarci, e se l'evento in realtà viveva in un ALTRO
@@ -1290,21 +1337,29 @@ function gc_push(int $uid, string $token, array $acc): array {
                 $oldId = null;   // nato qui: si può ricreare senza rischio di doppioni
             }
             elseif ($res['code'] >= 200 && $res['code'] < 300) {
-                sec_q("UPDATE planner_events SET google_calendar_id = ?, google_synced_at = NOW(), updated_at = updated_at
-                       WHERE id = ? AND user_id = ?", [$target, (int)$ev['id'], $uid], 'sii');
+                sec_q("UPDATE planner_events SET google_calendar_id = ?, $segnaMandato, updated_at = updated_at
+                       WHERE id = ? AND user_id = ?", [$target, $vistoIl, (int)$ev['id'], $uid], 'ssii');
                 $updated++;
                 continue;
-            } else { $failed++; continue; }
+            } else {
+                $failed++;
+                if ($primoRifiuto === null) $primoRifiuto = 'id ' . (int)$ev['id'] . ' modifica: ' . gc_motivo($res);
+                continue;
+            }
         }
 
         $res = gc_http('POST', $base, $payload, $token);
         if ($res['code'] >= 200 && $res['code'] < 300 && !empty($res['body']['id'])) {
-            sec_q("UPDATE planner_events SET google_event_id = ?, google_calendar_id = ?, google_synced_at = NOW(), updated_at = updated_at
-                   WHERE id = ? AND user_id = ?", [(string)$res['body']['id'], $target, (int)$ev['id'], $uid], 'ssii');
+            sec_q("UPDATE planner_events SET google_event_id = ?, google_calendar_id = ?, $segnaMandato, updated_at = updated_at
+                   WHERE id = ? AND user_id = ?", [(string)$res['body']['id'], $target, $vistoIl, (int)$ev['id'], $uid], 'sssii');
             $created++;
-        } else { $failed++; }
+        } else {
+            $failed++;
+            if ($primoRifiuto === null) $primoRifiuto = 'id ' . (int)$ev['id'] . ' creazione: ' . gc_motivo($res);
+        }
     }
-    gc_log($uid, 'push', $failed > 0 ? 'error' : 'ok', $failed > 0 ? $failed . ' non riusciti' : null, $created + $updated);
+    gc_log($uid, 'push', $failed > 0 ? 'error' : 'ok',
+           $failed > 0 ? $failed . ' non riusciti — ' . $primoRifiuto : null, $created + $updated);
     /* Le eccezioni vanno per ultime: hanno bisogno che il master sia già su
        Google, e il giro qui sopra è proprio quello che ce lo manda. */
     $ecc = gc_push_eccezioni($uid, $token, $from, $to);

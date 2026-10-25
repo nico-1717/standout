@@ -310,16 +310,258 @@ function leggiStato() {
         .catch(function () { return null; });
 }
 
+/* ------------------------------------------------------------------
+   SENZA RETE — LA CODA
+   Come nel planner: un tocco su Avvia, Pausa o Stop vale SUBITO, anche in
+   metro o in aereo. Il quadrante parte, si ferma, si chiude; l'azione
+   aspetta in una coda salvata nel telefono e parte da sola quando la rete
+   torna, nello stesso ordine in cui e' stata fatta.
+
+   IL TEMPO NON SI SPOSTA. Il server segna gli orari con il suo NOW(), e
+   un "Avvia" toccato alle 10:00 e arrivato alle 10:20 avrebbe fatto
+   cominciare la sessione alle 10:20. Ogni azione in coda si porta dietro
+   quanto ha aspettato (ritardo_ms, misurato con l'orologio del telefono
+   fra il tocco e l'invio): il server lo toglie dal suo NOW(). Si usa la
+   DIFFERENZA e non l'ora del telefono, cosi' un orologio avanti o indietro
+   di qualche minuto non sposta niente.
+
+   L'ID DELLA SESSIONE. Una sessione avviata senza rete non ha ancora il
+   suo numero: riceve un numero provvisorio negativo, e le azioni che la
+   riguardano (pausa, stop…) partono con quello. Quando il server risponde
+   all'avvio, il provvisorio si sostituisce col vero ovunque: nelle azioni
+   ancora in coda, nel modello, e nella pagina che ascolta 'id'.
+
+   Mentre la coda non e' vuota il controllo periodico non tocca niente:
+   quello che dice il server e' vecchio per definizione.
+   ------------------------------------------------------------------ */
+var CHIAVE_CODA = 'standout_pomo_coda_v1';
+var CODA = { ops: [], mappa: {}, seq: 1, provv: -1, inVolo: false, tentativi: 0, timer: null, riletta: false };
+
+function codaSalva() {
+    try { localStorage.setItem(CHIAVE_CODA, JSON.stringify({ ops: CODA.ops, mappa: CODA.mappa, seq: CODA.seq, provv: CODA.provv })); }
+    catch (e) {}
+}
+function codaCarica() {
+    try {
+        var c = JSON.parse(localStorage.getItem(CHIAVE_CODA) || 'null');
+        if (c && c.ops && c.ops.length) {
+            CODA.ops = c.ops; CODA.mappa = c.mappa || {}; CODA.seq = c.seq || 1; CODA.provv = c.provv || -1;
+            CODA.riletta = true;   // la pagina e' nata da uno stato che non sa niente di queste
+        } else if (c && c.mappa) {
+            CODA.mappa = c.mappa; CODA.provv = c.provv || -1;
+        }
+    } catch (e) {}
+}
+function senzaRete() { return typeof navigator !== 'undefined' && navigator.onLine === false; }
+
+/* La spia per chi disegna: quante azioni aspettano e se manca la rete. */
+function codaAvvisa() {
+    emetti('coda', { n: CODA.ops.length, offline: senzaRete() || CODA.tentativi > 0 });
+}
+
+/* L'id vero al posto di quello provvisorio. null = la sessione provvisoria
+   non e' mai nata (l'avvio e' stato rifiutato): l'azione non ha piu' senso. */
+function idVero(v) {
+    var n = +v;
+    if (!(n < 0)) return v;
+    return CODA.mappa[n] !== undefined ? CODA.mappa[n] : null;
+}
+function datiVeri(dati) {
+    var out = {};
+    for (var k in dati) if (Object.prototype.hasOwnProperty.call(dati, k)) out[k] = dati[k];
+    if (out.session_id !== undefined) {
+        var v = idVero(out.session_id);
+        if (v === null) return null;
+        out.session_id = v;
+    }
+    return out;
+}
+
+/* Quello che l'azione fa al modello, fatto qui: la barra, a differenza
+   della pagina, non ha un suo stato e lo legge tutto dal motore. */
+function applicaLocale(nome, dati) {
+    var ora = Date.now();
+    if (nome === 'start') {
+        M.fase = 'running'; M.modo = +dati.mode || 0;
+        M.durataMin = M.modo === 0 ? (+dati.durata_minuti || M.durataSceltaMin) : null;
+        M.accumulati = 0; M.inizioSegmentoMs = ora; M.fineCompletatoMs = null; M.pausaInizioMs = null;
+        M.sessioneId = dati.session_id;
+        if ((+dati.project_id || 0) !== (+M.progettoId || 0)) { M.progettoId = +dati.project_id || 0; M.progettoNome = ''; M.progettoColore = ''; }
+    } else if (nome === 'pausa_task') {
+        M.fase = 'paused_task'; M.accumulati = +dati.tempo_esatto || M.accumulati; M.inizioSegmentoMs = null;
+    } else if (nome === 'riprendi_task') {
+        M.fase = 'running'; M.inizioSegmentoMs = ora;
+    } else if (nome === 'segna_completato') {
+        M.fase = 'completed'; M.accumulati = (M.durataMin || 0) * 60; M.fineCompletatoMs = ora;
+    } else if (nome === 'estendi') {
+        if (M.fineCompletatoMs) M.accumulati += Math.max(0, Math.round((ora - M.fineCompletatoMs) / 1000));
+        M.fineCompletatoMs = ora;
+    } else if (nome === 'interrompi' || nome === 'archivia_completato' || nome === 'fine_pausa') {
+        M.fase = 'idle'; M.sessioneId = null; M.durataMin = null; M.accumulati = 0;
+        M.inizioSegmentoMs = null; M.pausaInizioMs = null; M.fineCompletatoMs = null;
+    } else if (nome === 'avvia_pausa') {
+        M.fase = 'pausa_running'; M.sessioneId = null; M.pausaInizioMs = ora;
+        M.pausaDurataMin = +dati.durata_minuti || M.durataPausaMin;
+    } else {
+        return;
+    }
+    emetti('modello', M);
+}
+
+/* La risposta che il server avrebbe dato, inventata con quello che si sa:
+   le pagine leggono questi campi per andare avanti come se fosse arrivata. */
+function rispostaFinta(nome, dati) {
+    var r = { success: true, inCoda: true };
+    if (nome === 'start') r.session_id = dati.session_id;
+    if (nome === 'pausa_task') r.durata_secondi = Math.round(+dati.tempo_esatto || 0);
+    if (nome === 'estendi') r.durata_secondi = M.accumulati;
+    return r;
+}
+
+function accoda(nome, dati) {
+    dati = dati || {};
+    var copia = {};
+    for (var k in dati) if (Object.prototype.hasOwnProperty.call(dati, k)) copia[k] = dati[k];
+    if (nome === 'start') copia.session_id = CODA.provv--;
+    CODA.ops.push({ n: CODA.seq++, nome: nome, dati: copia, t: Date.now() });
+    applicaLocale(nome, copia);
+    codaSalva();
+    codaAvvisa();
+    /* subito un tentativo: se la rete c'e' (la richiesta diretta e' caduta
+       per un attimo) parte adesso, se no aspetta 'online' */
+    setTimeout(codaGira, 0);
+    return Promise.resolve(rispostaFinta(nome, copia));
+}
+
+/* La sessione provvisoria non e' nata: via tutte le azioni che la
+   riguardano, che altrimenti finirebbero sulla sessione di un altro. */
+function scartaLegateA(provv) {
+    CODA.ops = CODA.ops.filter(function (o) { return +o.dati.session_id !== provv; });
+}
+
+function codaGira() {
+    if (CODA.timer) { clearTimeout(CODA.timer); CODA.timer = null; }
+    if (CODA.inVolo) return;
+    if (!CODA.ops.length) { codaAvvisa(); return; }
+    if (senzaRete()) { codaAvvisa(); return; }   // riparte con l'evento 'online'
+
+    var op = CODA.ops[0];
+    /* l'avvio porta il SUO numero provvisorio, non quello di una sessione
+       da cercare: non si traduce, si toglie e basta */
+    var dati;
+    if (op.nome === 'start') {
+        dati = {};
+        for (var k in op.dati) if (Object.prototype.hasOwnProperty.call(op.dati, k) && k !== 'session_id') dati[k] = op.dati[k];
+    } else {
+        dati = datiVeri(op.dati);
+    }
+    if (dati === null) {                          // sessione mai nata: niente da mandare
+        CODA.ops.shift(); codaSalva(); return codaGira();
+    }
+    dati.ritardo_ms = Math.max(0, Date.now() - op.t);
+
+    CODA.inVolo = true;
+    fetch(ENDPOINT + '?ajax=' + encodeURIComponent(op.nome), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        credentials: 'same-origin',
+        body: new URLSearchParams(dati).toString()
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+        CODA.inVolo = false;
+        CODA.tentativi = 0;
+        CODA.ops.shift();
+        if (op.nome === 'start') {
+            if (d && d.success && d.session_id) {
+                CODA.mappa[op.dati.session_id] = d.session_id;
+                if (M.sessioneId === op.dati.session_id) M.sessioneId = d.session_id;
+                emetti('id', { provvisorio: op.dati.session_id, vero: d.session_id });
+            } else {
+                scartaLegateA(op.dati.session_id);
+            }
+        }
+        if (d && d.conflitto) {
+            /* Mentre eravamo senza rete, da un altro dispositivo e' partito
+               un altro pomodoro: vince quello, che e' gia' vero. */
+            CODA.conflitto = d;
+        }
+        codaSalva();
+        if (CODA.ops.length) return codaGira();
+        return codaFinita();
+    })
+    .catch(function () {
+        /* Senza risposta. Si riprova con calma crescente; l'azione resta in
+           testa, cosi' l'ordine non cambia mai. */
+        CODA.inVolo = false;
+        CODA.tentativi++;
+        codaAvvisa();
+        var attesa = Math.min(30000, 1500 * Math.pow(2, Math.min(5, CODA.tentativi - 1)));
+        CODA.timer = setTimeout(codaGira, attesa);
+    });
+}
+
+/* Coda vuota: si confronta quello che dice il server con quello che si
+   vede. Se coincidono si prende solo l'impronta, in silenzio — la nostra
+   stessa azione non e' "un altro dispositivo". Se no, vince il server. */
+function faseDi(st) {
+    if (!st) return null;
+    if (st.active) return st.active.esito === 'pausa' ? 'paused_task' : 'running';
+    if (st.pausa) return 'pausa';
+    if (st.last && st.last.esito === 'completato') return 'completed';
+    return 'idle';
+}
+function codaFinita() {
+    codaAvvisa();
+    return leggiStato().then(function (st) {
+        if (!st || CODA.ops.length) return;
+        var conflitto = CODA.conflitto; CODA.conflitto = null;
+        var nostra = (M.fase === 'pausa_running' || M.fase === 'pausa_done') ? 'pausa' : M.fase;
+        var riletta = CODA.riletta;
+        var diversa = faseDi(st) !== nostra
+            || (st.active && +st.active.id !== +M.sessioneId);
+        CODA.riletta = false;
+        revisione = st.revisione; statoServer = st;
+        if (diversa || conflitto || riletta) {
+            /* dallaCoda: la pagina si riallinea senza dire «e' stato un altro
+               dispositivo», che qui non sarebbe vero — sono le nostre azioni
+               di una visita precedente, appena arrivate */
+            st.dallaCoda = riletta && !conflitto;
+            dalloStato(st);
+            emetti('cambiato', st);
+        }
+        if (conflitto) emetti('conflitto', conflitto);
+        emetti('allineato', st);
+    });
+}
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('online', function () { CODA.tentativi = 0; codaGira(); });
+    window.addEventListener('offline', codaAvvisa);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) codaGira(); });
+}
+
 function azione(nome, dati) {
+    dati = dati || {};
+    /* Con qualcosa gia' in coda si accoda anche questa: passarle davanti
+       vorrebbe dire, per esempio, fermare una sessione che il server non ha
+       ancora visto partire. Lo stesso senza rete. */
+    if (CODA.ops.length || senzaRete()) return accoda(nome, dati);
+    var veri = datiVeri(dati);
+    if (veri === null) return Promise.resolve({ success: false });
+    dati = veri;
+
     scrittureInCorso++;
     var chiudi = function () { if (scrittureInCorso > 0) scrittureInCorso--; };
 
+    var reteCaduta = false;
     return fetch(ENDPOINT + '?ajax=' + encodeURIComponent(nome), {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         credentials: 'same-origin',
         body: new URLSearchParams(dati || {}).toString()
     })
+    .catch(function (e) { reteCaduta = true; throw e; })
     .then(function (r) { return r.json(); })
     .then(function (d) {
         if (d && d.conflitto) {
@@ -344,7 +586,15 @@ function azione(nome, dati) {
             return d;
         });
     })
-    .catch(function (e) { chiudi(); throw e; });
+    .catch(function (e) {
+        chiudi();
+        /* La rete e' caduta proprio adesso (il telefono la crede ancora
+           accesa): invece dell'errore, l'azione va in coda come se fossimo
+           gia' senza rete. Se invece il server ha risposto male, l'errore
+           resta un errore. */
+        if (reteCaduta) return accoda(nome, dati);
+        throw e;
+    });
 }
 
 /* Legge lo stato e lo confronta con quello che sapevamo.
@@ -353,6 +603,7 @@ function azione(nome, dati) {
    il giro e' costato una query e nient'altro. */
 function aggiorna(opzioni) {
     opzioni = opzioni || {};
+    if (CODA.ops.length && senzaRete()) return Promise.resolve(statoServer);
     if (letturaInVolo) return letturaInVolo;
 
     letturaInVolo = leggiStato().then(function (st) {
@@ -363,6 +614,10 @@ function aggiorna(opzioni) {
            questa risposta puo' essere partita prima o dopo, e nel dubbio
            annunciare "e' stato un altro dispositivo" sarebbe una bugia. */
         if (scrittureInCorso > 0) return st;
+        /* Lo stesso con azioni in coda: il server non le ha ancora viste,
+           e adottare il suo stato rimetterebbe in moto un pomodoro appena
+           fermato senza rete. */
+        if (CODA.ops.length || CODA.inVolo) return st;
 
         var diverso = (revisione !== null && st.revisione !== revisione);
         revisione = st.revisione;
@@ -416,6 +671,7 @@ function fermaControllo() {
    ------------------------------------------------------------------ */
 function init(cfg) {
     cfg = cfg || {};
+    codaCarica();
     if (cfg.endpoint) ENDPOINT = cfg.endpoint;
     if (cfg.limite)   LIMITE_SEC = cfg.limite;
     if (cfg.stato) {
@@ -425,7 +681,12 @@ function init(cfg) {
            bootstrap e spinge i valori nel motore con imposta(): applicare
            anche qui vorrebbe dire fare due volte lo stesso lavoro con il
            rischio che le due strade si scostino. */
-        if (cfg.applica !== false) dalloStato(cfg.stato);
+        if (cfg.applica !== false) {
+            dalloStato(cfg.stato);
+            /* azioni rimaste in coda da una visita precedente: il modello le
+               rifa' sopra lo stato del server, che non le conosce ancora */
+            CODA.ops.forEach(function (o) { applicaLocale(o.nome, o.dati); });
+        }
         else if (cfg.stato.settings) {
             M.durataSceltaMin = cfg.stato.settings.ultima_durata_pomodoro_min || 25;
             M.durataPausaMin  = cfg.stato.settings.ultima_durata_pausa_min || 5;
@@ -433,6 +694,7 @@ function init(cfg) {
             M.modo            = cfg.stato.settings.ultima_modalita || 0;
         }
     }
+    if (CODA.ops.length) setTimeout(function () { codaAvvisa(); codaGira(); }, 0);
     return API;
 }
 
@@ -448,6 +710,8 @@ var API = {
     tempoDaCongelare: tempoDaCongelare,
     pad: pad, fmtHMS: fmtHMS, msDa: msDa,
     azione: azione,
+    inCoda: function () { return CODA.ops.length; },
+    senzaRete: function () { return senzaRete() || CODA.tentativi > 0; },
     aggiorna: aggiorna,
     avviaControllo: avviaControllo,
     fermaControllo: fermaControllo,

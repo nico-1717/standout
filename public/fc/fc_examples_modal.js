@@ -106,118 +106,9 @@ function fcHtmlSiVede(html) {
     return d.textContent.replace(/\u00a0/g, ' ').trim() !== '';
 }
 
-/* LA PARTE NASCOSTA DI UNA FRASE D'ESEMPIO (solo lingue)
-   Gemella di fcv_lacuna() in lib/fc/fc_vocab_gap.php, nello stesso ordine:
-   1. 'scelta'   — il pezzo scelto a mano nel modulo (gap_text), se c'e' ancora;
-   2. 'trattini' — la vecchia fila di _ degli esempi importati;
-   3. 'parola'   — la parola della carta, se compare uguale e intera
-                   ("know" in "I don't know" si', in "knowledge" no).
-   Torna {da, a, tipo} (a escluso) oppure null. */
-function fcvLacunaNorm(s) { return String(s || '').replace(/[\u2019\u2018\u02BC]/g, "'"); }
-function fcvLacunaLettera(ch) { return !!ch && /[\p{L}\p{N}\p{M}]/u.test(ch); }
-function fcvLacunaTrova(testo, ago, ancheDentro) {
-    if (!ago) return -1;
-    var t = fcvLacunaNorm(testo), a = fcvLacunaNorm(ago);
-    var tl = t.toLowerCase(), al = a.toLowerCase();
-    if (tl.length !== t.length || al.length !== a.length) { tl = t; al = a; }
-    var primo = -1, da = 0, p;
-    while ((p = tl.indexOf(al, da)) !== -1) {
-        if (primo === -1) primo = p;
-        var bordoA = !fcvLacunaLettera(al.charAt(0)) || !fcvLacunaLettera(tl.charAt(p - 1));
-        var bordoB = !fcvLacunaLettera(al.charAt(al.length - 1)) || !fcvLacunaLettera(tl.charAt(p + al.length));
-        if (bordoA && bordoB) return p;
-        da = p + 1;
-    }
-    return ancheDentro ? primo : -1;
-}
-function fcvLacuna(testo, parola, scelta) {
-    testo = String(testo || '');
-    if (!testo.trim()) return null;
-    var s = String(scelta || '').trim(), p;
-    if (s) {
-        p = fcvLacunaTrova(testo, s, true);
-        if (p !== -1) return { da: p, a: p + s.length, tipo: 'scelta' };
-    }
-    var m = /_+/.exec(testo);
-    if (m) return { da: m.index, a: m.index + m[0].length, tipo: 'trattini' };
-    var w = String(parola || '').trim();
-    if (w) {
-        p = fcvLacunaTrova(testo, w, false);
-        if (p !== -1) return { da: p, a: p + w.length, tipo: 'parola' };
-        var sim = fcvLacunaSimile(testo, w);
-        if (sim) return { da: sim.da, a: sim.a, tipo: 'simile' };
-    }
-    return null;
-}
-
-/* 4. 'simile' — LA PAROLA CON UN'ALTRA DESINENZA
-   Quando la parola non c'e' scritta uguale, si cerca una sua forma: "know" in
-   "knows", "watched", "studied", "stopping", "making"; "mangiare" in
-   "mangiato". Per ogni parola della carta (anche un'espressione di piu'
-   parole, "set up" in "sets up", con al massimo due parole in mezzo: "set it
-   up") si cerca nella frase la parola che le somiglia di piu':
-     - uguale;
-     - la stessa con una desinenza in coda (corte: solo -s -es -ed -d -ing -n
-       -en -ne -er, anche con la consonante raddoppiata: "run" → "running");
-     - lunghe (4+ lettere): lo stesso inizio per almeno il 70% e non piu' di
-       4 lettere di differenza ("study" → "studied", "make" → "making").
-   Se la carta ha piu' parole separate da virgola o barra ("set up, establish")
-   vale la migliore; un "to", un articolo o un pronome davanti si puo'
-   saltare ("I don't even know" trova "she doesn't even know"). Gemella di
-   fcv_lacuna_simile() in lib/fc/fc_vocab_gap.php. */
-var FCV_DESINENZE_CORTE = ['s', 'es', 'ed', 'd', 'ing', 'n', 'en', 'ne', 'er'];
-var FCV_PAROLINE = ['to', 'a', 'an', 'the', 'il', 'lo', 'la', 'i', 'gli', 'le', 'un', 'uno', 'una', 'el', 'los', 'las', 'der', 'die', 'das', 'les', 'une', 'you', 'he', 'she', 'it', 'we', 'they', 'io', 'tu', 'lui', 'lei', 'noi', 'voi', 'loro', 'yo', 'ich', 'du', 'er', 'sie', 'wir', 'je', 'elle', 'nous', 'vous', 'ils', 'elles'];
-function fcvLacunaParole(testo) {
-    var out = [], re = /[\p{L}\p{N}\p{M}]+(?:['\u2019][\p{L}\p{N}\p{M}]+)*/gu, m;
-    while ((m = re.exec(testo)) !== null) out.push({ t: fcvLacunaNorm(m[0]).toLowerCase(), da: m.index, a: m.index + m[0].length });
-    return out;
-}
-function fcvLacunaPunteggio(w, t) {
-    if (w === t) return 3;
-    /* forme contratte: "don't" ~ "doesn't", "can't" ~ "can't" */
-    if (/n't$/.test(w) && /n't$/.test(t)) return fcvLacunaPunteggio(w.slice(0, -3), t.slice(0, -3)) ? 2 : 0;
-    if (t.indexOf(w) === 0) {
-        var suf = t.slice(w.length);
-        if (w.length <= 3) {
-            var ult = w.charAt(w.length - 1);
-            return (FCV_DESINENZE_CORTE.indexOf(suf) >= 0 || suf === ult + 'ing' || suf === ult + 'ed' || suf === ult + 'er') ? 2 : 0;
-        }
-        return suf.length <= 4 ? 2 : 0;
-    }
-    if (w.length < 4 || t.length < 3 || Math.abs(t.length - w.length) > 4) return 0;
-    var cp = 0;
-    while (cp < w.length && cp < t.length && w.charAt(cp) === t.charAt(cp)) cp++;
-    return cp >= Math.max(3, Math.ceil(w.length * 0.7)) ? 1 : 0;
-}
-function fcvLacunaSimile(testo, parola) {
-    var frase = fcvLacunaParole(testo);
-    if (!frase.length) return null;
-    var meglio = null;
-    String(parola).split(/[,;\/]/).forEach(function (alt) {
-        var pz = fcvLacunaParole(alt).map(function (x) { return x.t; });
-        if (!pz.length) return;
-        var varianti = [pz];
-        if (pz.length > 1 && FCV_PAROLINE.indexOf(pz[0]) >= 0) varianti.push(pz.slice(1));
-        varianti.forEach(function (v) {
-            for (var i = 0; i < frase.length; i++) {
-                var s0 = fcvLacunaPunteggio(v[0], frase[i].t);
-                if (!s0) continue;
-                var tot = s0, j = i, ok = true;
-                for (var k = 1; k < v.length && ok; k++) {
-                    ok = false;
-                    for (var salto = 1; salto <= 3 && j + salto < frase.length; salto++) {
-                        var sk = fcvLacunaPunteggio(v[k], frase[j + salto].t);
-                        if (sk) { tot += sk - (salto - 1) * 0.5; j += salto; ok = true; break; }
-                    }
-                }
-                if (!ok) continue;
-                var punti = tot / v.length;
-                if (!meglio || punti > meglio.punti) meglio = { da: frase[i].da, a: frase[j].a, punti: punti };
-            }
-        });
-    });
-    return meglio;
-}
+/* LA PARTE NASCOSTA DI UNA FRASE D'ESEMPIO (solo lingue): il calcolo sta
+   in fc_vocab_gap.js (window.fcvGap), condiviso con il modulo della parola e
+   con l'inserimento multiplo. fcvLacuna/fcvLacune restano come nomi. */
 
 /* FRASE D'ESEMPIO DI UNA PAROLA
    La parte che nel gioco si nasconde (fcvLacuna) qui si vede in evidenza;
@@ -226,18 +117,16 @@ function fcvLacunaSimile(testo, parola) {
 function fcEsempioTestoLingua(testo, parola, scelta) {
     var p = String(parola || '').trim();
     testo = String(testo || '');
-    function riempi(pezzo) {
-        return fcEscapeHtml(pezzo).replace(/_+/g, function () {
-            return '<strong class="qa-ex-fill">' + (p ? fcEscapeHtml(p) : '&hellip;') + '</strong>';
-        });
+    var html, frase;
+    if (window.fcvGap) {
+        html = fcvGap.html(testo, p, scelta,
+            function (t) { return '<strong class="qa-ex-fill">' + fcEscapeHtml(t) + '</strong>'; },
+            function (t) { return fcEscapeHtml(t); });
+        frase = fcvGap.daSentire(testo, p);
+    } else {
+        html = fcEscapeHtml(testo);
+        frase = testo;
     }
-    var l = fcvLacuna(testo, p, scelta);
-    var html = l
-        ? riempi(testo.slice(0, l.da))
-          + '<strong class="qa-ex-fill">' + (l.tipo === 'trattini' ? (p ? fcEscapeHtml(p) : '&hellip;') : fcEscapeHtml(testo.slice(l.da, l.a))) + '</strong>'
-          + riempi(testo.slice(l.a))
-        : riempi(testo);
-    var frase = testo.replace(/_+/g, p || '');
     return html + ' <button type="button" class="qa-speak qa-speak-ex" data-speak="learn" data-text="'
          + fcEscapeHtml(frase) + '" aria-label="' + fcEscapeHtml(T('fcv.ascolta')) + '">'
          + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button>';

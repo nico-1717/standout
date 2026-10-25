@@ -11,6 +11,7 @@
        con campi semplici (parola, traduzione, significato, immagine) al posto
        dei due editor ricchi. Vedi fc_type.php. */
     require_once __DIR__ . '/../../lib/fc/fc_type.php';
+    require_once __DIR__ . '/../../lib/fc/fc_vocab_gap.php';
     fc_avvia($current_user_id);
 
     /* PERCHE' QUESTA PAGINA SI PUO' TENERE IN MEMORIA PER CINQUE SECONDI
@@ -227,7 +228,7 @@ function mfc_parola_esempio(): string {
                 foreach (array_slice($esempi, 0, 20) as $k => $grezzo) {
                     $esempio = trim(sec_str($grezzo, 1000));
                     if ($esempio === '') continue;
-                    $gap = trim(sec_str($lacune[$k] ?? '', 255));
+                    $gap = fcv_gap_pulisci(sec_str($lacune[$k] ?? '', 1000));
                     sec_q("INSERT INTO " . fc_t('examples') . " ($colEs, example_text, gap_text) VALUES (?, ?, ?)",
                           [$nuovoId, $esempio, $gap !== '' ? $gap : null]);
                 }
@@ -554,6 +555,7 @@ function mfc_parola_esempio(): string {
     <?php endif; ?>
     <script src="<?php echo PWA_BASE; ?>fc/fc_audio_recorder.js?v=<?php echo @filemtime(__DIR__ . '/fc_audio_recorder.js') ?: 1; ?>"></script>
     <script src="<?php echo PWA_BASE; ?>fc/fc_image_editor.js?v=<?php echo @filemtime(__DIR__ . '/fc_image_editor.js') ?: 1; ?>"></script>
+    <script src="<?php echo PWA_BASE; ?>fc/fc_vocab_gap.js?v=<?php echo @filemtime(__DIR__ . '/fc_vocab_gap.js') ?: 1; ?>"></script>
     <script src="<?php echo PWA_BASE; ?>fc/fc_examples_modal.js?v=<?php echo @filemtime(__DIR__ . '/fc_examples_modal.js') ?: 1; ?>"></script>
     <?php if (fc_is_vocab()): ?><script src="<?php echo PWA_BASE; ?>fc/fc_vocab_examples.js?v=<?php echo @filemtime(__DIR__ . '/fc_vocab_examples.js') ?: 1; ?>"></script><?php endif; ?>
     <?php if (!fc_is_vocab()): ?><script src="<?php echo PWA_BASE; ?>fc/fc_improve_card.js?v=<?php echo @filemtime(__DIR__ . '/fc_improve_card.js') ?: 1; ?>"></script><?php endif; ?>

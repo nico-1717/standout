@@ -130,6 +130,9 @@ function pomo_barra_html(): array
             'non_riuscito'      => $tt('pomodoro.non_riuscito', 'Non ha funzionato, riprova'),
             'scartata'          => $tt('pomodoro.sessione_scartata', 'Sessione scartata'),
             'scarta_conferma'   => $tt('pomodoro.scarta_conferma', 'Tocca di nuovo per scartare'),
+            /* la spia delle azioni fatte senza rete (pomodoro_core.js, la coda) */
+            'coda_offline'      => $tt('pomodoro.coda_offline_breve', 'Senza rete'),
+            'coda_invio'        => $tt('pomodoro.coda_invio', 'Sto salvando…'),
         ],
     ];
 
@@ -197,6 +200,7 @@ function pomo_barra_html(): array
     <span class="pomo-bar-linea" id="pomoBarraLinea" aria-hidden="true"></span>
     <span class="pomo-bar-punto" aria-hidden="true"></span>
     <span class="pomo-bar-testo" id="pomoBarraTesto"></span>
+    <span class="pomo-bar-coda" id="pomoBarraCoda" role="status" hidden><span class="pomo-bar-giro" aria-hidden="true"></span><span class="pomo-bar-coda-t"></span></span>
     <span class="pomo-bar-freccia" aria-hidden="true">{$icGiu}</span>
 </div>
 
