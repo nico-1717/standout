@@ -1472,6 +1472,88 @@ CREATE TABLE `todo_notes` (
 -- --------------------------------------------------------
 
 --
+-- Table `plan_goals`
+--
+
+CREATE TABLE `plan_goals` (
+  `user_id` int NOT NULL,
+  `project_id` int NOT NULL,
+  `active` tinyint(1) NOT NULL DEFAULT '1' COMMENT '1 = il progetto è nel piano',
+  `minutes` int NOT NULL DEFAULT '0' COMMENT 'tempo da dedicargli, in minuti; i figli con tempo propio dividono questo',
+  `locked` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'lucchetto: quando si sposta un fratello, questo non cambia',
+  `kind` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'plain' COMMENT 'plain | exam | steady | course | count',
+  `priority` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'should' COMMENT 'must | should | nice',
+  `start_date` date DEFAULT NULL,
+  `deadline` date DEFAULT NULL COMMENT 'NULL = eredita dal primo antenato che ce l ha',
+  `since` date DEFAULT NULL COMMENT 'da quando si contano i pomodori fatti',
+  `items` int DEFAULT NULL COMMENT 'solo kind=count: quante voci',
+  `unit_minutes` int DEFAULT NULL COMMENT 'solo kind=count: minuti per voce',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table `plan_paint`
+--
+
+CREATE TABLE `plan_paint` (
+  `user_id` int NOT NULL,
+  `project_id` int NOT NULL,
+  `day` date NOT NULL COMMENT 'giorno evidenziato dall utente per questo progetto'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table `plan_days`
+--
+
+CREATE TABLE `plan_days` (
+  `user_id` int NOT NULL,
+  `day` date NOT NULL,
+  `project_id` int NOT NULL,
+  `kind` varchar(8) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'study' COMMENT 'study | review',
+  `minutes` int NOT NULL DEFAULT '0',
+  `source` varchar(8) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'auto' COMMENT 'auto = lo ha messo il pianificatore; manual = a mano, non si tocca'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table `plan_settings`
+--
+
+CREATE TABLE `plan_settings` (
+  `user_id` int NOT NULL,
+  `weekday_min` int DEFAULT NULL COMMENT 'NULL = usa il ritmo misurato dai pomodori',
+  `weekend_min` int DEFAULT NULL,
+  `rest_dow` tinyint NOT NULL DEFAULT '0' COMMENT '0 = nessun giorno di riposo, 1 lunedì … 7 domenica',
+  `buffer_days` tinyint NOT NULL DEFAULT '0' COMMENT 'giorni prima di un esame solo di ripasso',
+  `floor_min` smallint NOT NULL DEFAULT '15' COMMENT 'blocco minimo; sotto, la cosa salta a giorni alterni',
+  `max_subjects` tinyint NOT NULL DEFAULT '3',
+  `reviews` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'ripassi a 1, 3 e 7 giorni',
+  `overrides` text COLLATE utf8mb4_unicode_ci COMMENT 'JSON: data => minuti liberi di quel giorno',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table `plan_templates`
+--
+
+CREATE TABLE `plan_templates` (
+  `id` int UNSIGNED NOT NULL,
+  `user_id` int NOT NULL,
+  `name` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `body` text COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'JSON: tempo, tipo e priorità per percorso di nome',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table `todo_buy_categories`
 --
 
@@ -2275,6 +2357,39 @@ ALTER TABLE `todo_notes`
   ADD PRIMARY KEY (`user_id`);
 
 --
+-- Indexes for table `plan_goals`
+--
+ALTER TABLE `plan_goals`
+  ADD PRIMARY KEY (`user_id`,`project_id`);
+
+--
+-- Indexes for table `plan_paint`
+--
+ALTER TABLE `plan_paint`
+  ADD PRIMARY KEY (`user_id`,`project_id`,`day`),
+  ADD KEY `idx_day` (`user_id`,`day`);
+
+--
+-- Indexes for table `plan_days`
+--
+ALTER TABLE `plan_days`
+  ADD PRIMARY KEY (`user_id`,`day`,`project_id`,`kind`),
+  ADD KEY `idx_proj` (`user_id`,`project_id`);
+
+--
+-- Indexes for table `plan_settings`
+--
+ALTER TABLE `plan_settings`
+  ADD PRIMARY KEY (`user_id`);
+
+--
+-- Indexes for table `plan_templates`
+--
+ALTER TABLE `plan_templates`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_user` (`user_id`);
+
+--
 -- Indexes for table `todo_buy_categories`
 --
 ALTER TABLE `todo_buy_categories`
@@ -2700,6 +2815,12 @@ ALTER TABLE `todos`
   MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `plan_templates`
+--
+ALTER TABLE `plan_templates`
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `todo_buy_categories`
 --
 ALTER TABLE `todo_buy_categories`
@@ -3027,6 +3148,39 @@ ALTER TABLE `university_settings`
 ALTER TABLE `user_plans`
   ADD CONSTRAINT `fk_user_piano_piano` FOREIGN KEY (`piano_id`) REFERENCES `plans` (`id`),
   ADD CONSTRAINT `fk_user_piano_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Foreign keys for table `plan_goals`
+--
+ALTER TABLE `plan_goals`
+  ADD CONSTRAINT `fk_plan_goals_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_plan_goals_proj` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE;
+
+--
+-- Foreign keys for table `plan_paint`
+--
+ALTER TABLE `plan_paint`
+  ADD CONSTRAINT `fk_plan_paint_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_plan_paint_proj` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE;
+
+--
+-- Foreign keys for table `plan_days`
+--
+ALTER TABLE `plan_days`
+  ADD CONSTRAINT `fk_plan_days_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_plan_days_proj` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE;
+
+--
+-- Foreign keys for table `plan_settings`
+--
+ALTER TABLE `plan_settings`
+  ADD CONSTRAINT `fk_plan_settings_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Foreign keys for table `plan_templates`
+--
+ALTER TABLE `plan_templates`
+  ADD CONSTRAINT `fk_plan_templates_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

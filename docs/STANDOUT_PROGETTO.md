@@ -1404,3 +1404,16 @@ chieste al proprietario.
 - **Trappole note nel codice:** gli endpoint del planner stanno *dentro* `planner.php`;
   `sidebar.php` innesta stili e script estratti da `sidebar.html` (una copia
   sola, non due); nel planner non vanno reintrodotte letture di layout in ciclo.
+
+---
+
+### Il piano dei progetti (26/10/2026)
+
+Sostituisce il vecchio «to study» (il calendario dentro i Progetti) con uno strumento solo, in minuti. File: `public/projects/piano_api.php` (API e pianificatore), `piano.js` (le viste), `piano.css`; stringhe nel gruppo `piano` di `lang/*.json`; tabelle `plan_goals`, `plan_paint`, `plan_days`, `plan_settings`, `plan_templates` (si creano da sole alla prima richiesta; migrazione `sql/migrations/2026-10-26_piano.sql`).
+
+- **Dentro un progetto**: tre viste, *Elenco · Calendario · Piano* (`#ppViews` in `progetti.php`, `?pp=cal|plan` nell'indirizzo). **Calendario**: si sceglie un sotto-progetto e si evidenziano i giorni passando il dito o il mouse come con un evidenziatore (il primo giorno toccato decide se si accende o si spegne; strumenti Evidenzia / Cancella / Guarda). Un giorno evidenziato per un progetto vuol dire «solo in questi giorni». Un tocco su «Guarda» apre il giorno: blocchi, +/− 15 minuti, tempo libero di quel giorno. **Piano**: le ore del progetto (ore o giorni), tipo (esame, costante, corso, a elementi, semplice), priorità (da fare, dovrei, se avanza), date, e la **divisione fra i figli**: un cursore per figlio, gli altri danno o prendono in proporzione, il lucchetto tiene fermo un valore, il totale resta sempre uguale; vale anche per i nipoti (cambiando un figlio, i suoi figli si ridimensionano).
+- **«Progetti → Calendario»** (tutti i progetti): *Oggi* (blocchi del giorno con tasto per avviare il pomodoro, cosa è stato saltato ieri con «Spostalo / Lascia stare», la settimana, i giorni all'esame), *Calendario* (stesso evidenziatore, sugli obiettivi principali) e *Panoramica* («ci sta tutto?», ore per settimana contro il tempo libero, gli obiettivi con le ore).
+- **«Pianifica per me»**: anteprima («ci sta / mancano 16 h», cosa non entra e perché), poi Applica. Non tocca i blocchi messi a mano. Il tempo libero lo misura da solo (media dei giorni con pomodori degli ultimi 60, feriali e weekend a parte), meno gli eventi con orario del planner; l'utente lo corregge in «Il tuo tempo» (giorno di riposo, giorni cuscinetto prima di un esame, blocco minimo, cose al giorno, ripassi a 1/3/7 giorni).
+- **Dal vecchio piano**: «Porta le stime nel nuovo piano» trasforma i pomodori stimati in minuti; i modelli di piano si salvano per nome di percorso e si riusano.
+- **Non ancora fatto**: i blocchi del piano non compaiono ancora come eventi nel planner; la revisione settimanale. I vecchi file (`planner/to_study*.php/js/css`, `study_api.php`) restano finché non si conferma che il nuovo strumento basta.
+
