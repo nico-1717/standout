@@ -77,6 +77,9 @@
                      ogni carta, e a voce ogni passaggio e' una frase da dire
                      e da far capire al microfono. */ ?>
             <p class="vg-auto-note"><?php te('fc.vg_auto_avanti'); ?></p>
+            <?php if (fc_is_vocab()): ?>
+            <p class="vg-auto-note vg-auto-parole"><?php te('fc.vg_parole_nota'); ?></p>
+            <?php endif; ?>
 
             <?php if (!fc_is_vocab()): ?>
             <div class="vg-group-label"><?php te('fc.vg_frantuma_titolo'); ?></div>
@@ -105,6 +108,38 @@
                 <?php endforeach; ?>
             </div>
         </div>
+
+        <?php /* COSA LEGGE (solo parole). Quattro scelte, salvate sul profilo
+                 (fc_settings.voice_read) cosi' le ritrova su ogni dispositivo.
+                 La domanda si legge appena compare la carta; risposta,
+                 significato ed esempi dopo che la risposta e' stata detta
+                 giusta (o chiesta): leggerli prima la regalerebbe. */
+        if (fc_is_vocab()):
+            if (!function_exists('fc_impostazioni')) require_once __DIR__ . '/../../lib/fc/fc_impostazioni.php';
+            $vg_lettura = fc_impostazioni((int)$current_user_id)['lettura'];
+            $vg_righe = [
+                'q' => ['fc.vg_legge_domanda',     [['0', 'fc.vg_no'], ['1', 'fc.vg_si']]],
+                'a' => ['fc.vg_legge_risposta',    [['1', 'fc.vg_una_volta'], ['2', 'fc.vg_due_volte']]],
+                'm' => ['fc.vg_legge_significato', [['0', 'fc.vg_no'], ['1', 'fc.vg_si']]],
+                'e' => ['fc.vg_legge_esempi',      [['0', 'fc.vg_nessuno'], ['1', 'fc.vg_uno'], ['2', 'fc.vg_tutti']]],
+            ];
+            $vg_pos = array_flip(['q', 'a', 'm', 'e']);
+        ?>
+        <div class="vg-lang vg-lettura" id="vg-lettura" data-valore="<?php echo sec_h($vg_lettura); ?>">
+            <span class="vg-lang-lab"><?php te('fc.vg_legge_titolo'); ?></span>
+            <?php foreach ($vg_righe as $vg_k => [$vg_etich, $vg_opz]): ?>
+            <div class="vg-lettura-riga" data-k="<?php echo $vg_k; ?>">
+                <span class="vg-lettura-nome"><?php te($vg_etich); ?></span>
+                <div class="vg-lang-seg vg-seg-n<?php echo count($vg_opz); ?>" role="radiogroup" aria-label="<?php te($vg_etich); ?>">
+                    <?php foreach ($vg_opz as [$vg_v, $vg_t]): ?>
+                    <button type="button" role="radio" aria-checked="<?php echo $vg_lettura[$vg_pos[$vg_k]] === $vg_v ? 'true' : 'false'; ?>" data-v="<?php echo $vg_v; ?>" class="<?php echo $vg_lettura[$vg_pos[$vg_k]] === $vg_v ? 'is-on' : ''; ?>"><?php te($vg_t); ?></button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+            <p class="vg-lettura-nota"><?php te('fc.vg_legge_nota'); ?></p>
+        </div>
+        <?php endif; ?>
 
         <div class="vg-sheet-actions">
             <button id="vg-cancel-btn" class="vg-btn vg-btn-ghost" type="button"><?php te('comune.annulla'); ?></button>
@@ -155,7 +190,7 @@ foreach (['it', 'en'] as $vg_l) {
     $vg_comandi[$vg_l]['_fillers'] = (string)(standout_cerca_chiave($vg_diz, 'fc.vg_fillers') ?? '');
 }
 ?>
-<script type="application/json" id="vg-comandi"><?php echo json_encode(['lingua_sito' => standout_lingua(), 'comandi' => $vg_comandi, 'vocab' => fc_is_vocab()], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?></script>
+<script type="application/json" id="vg-comandi"><?php echo json_encode(['lingua_sito' => standout_lingua(), 'comandi' => $vg_comandi, 'vocab' => fc_is_vocab(), 'lettura' => (fc_is_vocab() && isset($vg_lettura)) ? $vg_lettura : '1100'], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?></script>
 
 <script>
 (function () {
@@ -258,6 +293,8 @@ foreach (['it', 'en'] as $vg_l) {
     });
 
     function stopTuttoIlParlato() {
+        try { seqTok++; } catch (e) {}   // ferma anche le letture a catena delle parole
+        try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
         var fatto = false;
         try { if (typeof stopNativeTTS === 'function') { stopNativeTTS(); fatto = true; } } catch (e) {}
         if (!fatto) {
@@ -596,12 +633,202 @@ foreach (['it', 'en'] as $vg_l) {
     }
 
     /* ============================================================
+       3-bis. LE PAROLE: SI RISPONDE A VOCE, SI LEGGE COME SI E' SCELTO
+       Nelle parole non si dice «corretto»: si dice la risposta. Finche' il
+       microfono non la sente giusta non succede niente (le parole sbagliate
+       si ignorano, niente voto d'ufficio). Quando la sente: si mostra la
+       carta, si legge quello che si e' scelto (risposta, significato,
+       esempi) e passati 3 secondi — e comunque dopo aver finito di leggere —
+       si segna corretta e parte la domanda dopo. «Risposta» e «sbagliato»
+       restano per chi non la sa.
+       La voce e' fcSpeak (fc_speak.js): sa leggere la risposta due volte, la
+       seconda piano, e sceglie la voce giusta per ogni lingua.
+       ============================================================ */
+    var VOC = !!VG_DATI.vocab;
+    var PAUSA_AUTO_MS = 3000;
+    var seqTok = 0;              // cambia a ogni lettura nuova: le vecchie si fermano
+    var autoVotoTimer = null;    // c'e' un «corretto» in arrivo (fase 'auto-ok')
+
+    function leggiLettura(s) {
+        s = String(s || '');
+        if (!/^[01][12][01][012]$/.test(s)) s = '1100';
+        return { q: +s.charAt(0), a: +s.charAt(1), m: +s.charAt(2), e: +s.charAt(3) };
+    }
+    var LETTURA = leggiLettura(VG_DATI.lettura);
+
+    function voceLato(lato) {
+        var f = window.FC || {};
+        var o = lato === 'learn' ? f.impara : f.conosce;
+        return (o && o.voce) || (lato === 'learn' ? 'en-GB' : 'it-IT');
+    }
+    function latoDi(el) { return el && el.getAttribute('data-lato') === 'learn' ? 'learn' : 'known'; }
+
+    /* Legge una lista [{testo, lingua, volte}] una voce dopo l'altra. Il
+       microfono resta acceso: tutto cio' che si legge e' segnato come "eco"
+       per non scambiarlo per la voce dell'utente. */
+    function leggiSequenza(voci, fine) {
+        var mio = ++seqTok;
+        voci = (voci || []).filter(function (v) { return v && String(v.testo || '').trim(); });
+        if (!voci.length || typeof window.fcSpeak !== 'function') { if (fine) setTimeout(fine, 0); return; }
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+        segnaLettura(voci.map(function (v) { return v.testo; }).join(' '));
+        var i = 0;
+        (function prossima() {
+            if (mio !== seqTok) return;
+            if (i >= voci.length) { finitaLettura(); if (fine) fine(); return; }
+            var v = voci[i++];
+            window.fcSpeak(null, v.testo, v.lingua, v.volte !== 2, function () { prossima(); });
+        })();
+    }
+
+    function testoDi(sel) {
+        var el = document.querySelector(sel);
+        if (!el) return null;
+        var raw = el.getAttribute('data-raw');
+        return { testo: (raw !== null ? raw : el.textContent || '').trim(), lato: latoDi(el) };
+    }
+
+    /* Dopo la risposta: risposta (1 o 2 volte), significato, esempi. */
+    function vociDopoRisposta(card, idx) {
+        var voci = [];
+        var r = testoDi('#ans-section-' + idx + ' .raw-text') || testoDi('#graded-ans-' + idx + ' .raw-text');
+        if (r && r.testo) voci.push({ testo: r.testo, lingua: voceLato(r.lato), volte: LETTURA.a });
+        if (LETTURA.m) {
+            var sig = card.querySelector('.fcv-hint-significato .fcv-hint-txt');
+            if (sig && sig.textContent.trim()) voci.push({ testo: sig.textContent.trim(), lingua: voceLato('learn'), volte: 1 });
+        }
+        if (LETTURA.e) {
+            var frasi = card.querySelectorAll('.fcv-esempio-voce');
+            for (var k = 0; k < frasi.length && (LETTURA.e === 2 || k < 1); k++) {
+                var t = (frasi[k].getAttribute('data-text') || '').trim();
+                if (t) voci.push({ testo: t, lingua: voceLato('learn'), volte: 1 });
+            }
+        }
+        return voci;
+    }
+
+    function leggiDomandaParola(card, idx, forza) {
+        VG.phase = 'question';
+        aggiornaAscoltoParola(card, idx);
+        var q = testoDi('#q-section-' + idx + ' .raw-text');
+        if ((!LETTURA.q && !forza) || !q || !q.testo) { setOrbState('listening'); return; }
+        setOrbState('speaking');
+        leggiSequenza([{ testo: q.testo, lingua: voceLato(q.lato), volte: 1 }], function () {
+            if (VG.active && VG.phase === 'question') setOrbState('listening');
+        });
+    }
+
+    function leggiRispostaParola(card, idx) {
+        setOrbState('speaking');
+        leggiSequenza(vociDopoRisposta(card, idx), function () {
+            if (VG.active && VG.phase === 'answer') setOrbState('listening');
+        });
+    }
+
+    /* ----- la risposta giusta, a voce ----- */
+    /* Come normalize() ma senza buttare le lettere non latine (giapponese,
+       russo, accentate...): per confrontare risposte in qualunque lingua. */
+    function normRisp(s) {
+        return String(s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+    }
+    function variantiRisposta(raw) {
+        var out = [];
+        String(raw || '').replace(/\([^)]*\)/g, ' ').split(/\s*[\/;|]\s*|\s*,\s*|\s+or\s+/i).forEach(function (pezzo) {
+            var n = normRisp(pezzo);
+            if (!n) return;
+            out.push(n);
+            /* l'articolo o il "to" davanti non lo dice nessuno: "to give up" -> "give up" */
+            var senza = n.replace(/^(to|the|a|an|il|lo|la|i|gli|le|un|uno|una)\s+/, '');
+            if (senza && senza !== n) out.push(senza);
+        });
+        return out.filter(function (v, i) { return v.length >= 2 && out.indexOf(v) === i; });
+    }
+
+    var risposteAttese = [];
+    function leggiRispostaAttesa(card, idx) {
+        var r = testoDi('#ans-section-' + idx + ' .raw-text');
+        risposteAttese = r ? variantiRisposta(r.testo) : [];
+        return r;
+    }
+
+    /* La frase detta contiene la risposta? Parole corte solo esatte (una
+       lettera sbagliata cambia la parola), le altre con un po' di tolleranza:
+       il riconoscitore scrive "gif up" per "give up". Si guardano anche
+       finestre di parole dentro una frase piu' lunga ("uhm give up now"). */
+    function eRispostaGiusta(trascritto) {
+        var t = normRisp(trascritto);
+        if (!t || !risposteAttese.length) return false;
+        var parole = t.split(' ');
+        for (var k = 0; k < risposteAttese.length; k++) {
+            var v = risposteAttese[k];
+            var n = v.split(' ').length;
+            var soglia = v.length <= 4 ? 1 : 0.84;
+            for (var i = 0; i + n <= parole.length; i++) {
+                if (similarity(parole.slice(i, i + n).join(' '), v) >= soglia) return true;
+            }
+            if (n === 1 && v.length > 4 && similarity(t, v) >= soglia) return true;
+        }
+        return false;
+    }
+
+    function annullaAutoVoto() {
+        if (autoVotoTimer) { clearTimeout(autoVotoTimer.t); autoVotoTimer = null; }
+    }
+
+    function rispostaDettaGiusta() {
+        var card = currentCardBox();
+        if (!card || VG.phase !== 'question' || autoVotoTimer) return;
+        var idx = cardIndex(card);
+        VG.phase = 'auto-ok';
+        stopTuttoIlParlato();
+        var ans = testoDi('#ans-section-' + idx + ' .raw-text');
+        showCaption('✓ ' + (ans ? ans.testo : ''), 'recognized');
+        try { revealCard(idx); } catch (e) {}
+        setOrbState('speaking');
+        var stato = { letto: false, tempo: false, t: null };
+        autoVotoTimer = stato;
+        function prova() {
+            if (autoVotoTimer !== stato || !stato.letto || !stato.tempo) return;
+            autoVotoTimer = null;
+            markCard('correct');
+        }
+        stato.t = setTimeout(function () { stato.tempo = true; prova(); }, PAUSA_AUTO_MS);
+        leggiSequenza(vociDopoRisposta(card, idx), function () { stato.letto = true; setOrbState('listening'); prova(); });
+    }
+
+    /* Il microfono ascolta nella lingua della RISPOSTA (e' li' che la
+       trascrizione deve essere precisa), e gli si suggerisce la parola
+       attesa: lo stesso trucco dei comandi, con un peso piu' alto. */
+    function aggiornaAscoltoParola(card, idx) {
+        var r = leggiRispostaAttesa(card, idx);
+        if (!recognition || !r) return;
+        var voce = voceLato(r.lato);
+        if (recognition.lang !== voce) {
+            recognition.lang = voce;
+            if (isRecognizing) { try { recognition.abort(); } catch (e) {} }
+        }
+        applicaFrasiAttese();
+    }
+
+    /* Una trascrizione (provvisoria o finale, con le sue alternative): se e'
+       la risposta giusta, la carta va avanti da sola. */
+    function provaRispostaParola(res) {
+        if (!VOC || VG.phase !== 'question' || autoVotoTimer) return false;
+        for (var a = 0; a < res.length; a++) {
+            if (eEco(res[a].transcript)) continue;
+            if (eRispostaGiusta(res[a].transcript)) { rispostaDettaGiusta(); return true; }
+        }
+        return false;
+    }
+
+    /* ============================================================
        4. FLUSSO PRINCIPALE: DOMANDA / RISPOSTA / VALUTAZIONE
        ============================================================ */
-    function readQuestion() {
+    function readQuestion(forza) {
         var card = currentCardBox();
         if (!card) { setOrbState('listening'); return; }
         var idx = cardIndex(card);
+        if (VOC) { leggiDomandaParola(card, idx, forza === true); return; }
         VG.phase = 'question';
         setOrbState('speaking');
         var raw = rawTextOf('#q-section-' + idx + ' .raw-text');
@@ -621,6 +848,7 @@ foreach (['it', 'en'] as $vg_l) {
             revealCard(idx);
         }
         VG.phase = 'answer';
+        if (VOC) { leggiRispostaParola(card, idx); return; }
         setOrbState('speaking');
         var raw = rawTextOf('#ans-section-' + idx + ' .raw-text');
         var audioEl = document.getElementById('player_a_' + idx);
@@ -649,6 +877,7 @@ foreach (['it', 'en'] as $vg_l) {
         var link = linkVoto(card, result);
         if (!link) return;
 
+        annullaAutoVoto();
         stopTuttoIlParlato();
 
         // BLOCCA IMMEDIATAMENTE IL CARICAMENTO E L'AUDIO DELL'AI
@@ -935,6 +1164,7 @@ foreach (['it', 'en'] as $vg_l) {
             case 'question':
                 card = currentCardBox(); if (!card) return;
                 idx = cardIndex(card);
+                if (VOC) { leggiDomandaParola(card, idx, true); break; }
                 setOrbState('speaking');
                 speakText(rawTextOf('#q-section-' + idx + ' .raw-text'), function () {
                     var aEl = document.getElementById('player_q_' + idx);
@@ -945,6 +1175,7 @@ foreach (['it', 'en'] as $vg_l) {
             case 'answer':
                 card = currentCardBox(); if (!card) return;
                 idx = cardIndex(card);
+                if (VOC) { leggiRispostaParola(card, idx); break; }
                 setOrbState('speaking');
                 speakText(rawTextOf('#ans-section-' + idx + ' .raw-text'), function () {
                     var aEl2 = document.getElementById('player_a_' + idx);
@@ -975,6 +1206,7 @@ foreach (['it', 'en'] as $vg_l) {
     }
 
     function doPausa() {
+        if (VOC) { try { window.speechSynthesis.pause(); } catch (e) {} setOrbState('paused'); return; }
         if (VG.phase === 'ai-audio') {
             if (typeof currentAiAudio !== 'undefined' && currentAiAudio && !currentAiAudio.paused) currentAiAudio.pause();
         } else if (window.currentUtterance !== null) {
@@ -984,6 +1216,7 @@ foreach (['it', 'en'] as $vg_l) {
     }
 
     function doRiprendi() {
+        if (VOC) { try { window.speechSynthesis.resume(); } catch (e) {} setOrbState('speaking'); return; }
         if (VG.phase === 'ai-audio') {
             if (typeof currentAiAudio !== 'undefined' && currentAiAudio && currentAiAudio.paused) {
                 currentAiAudio.play().catch(function () {});
@@ -1003,7 +1236,7 @@ foreach (['it', 'en'] as $vg_l) {
         else if (VG.phase === 'shatter-q') readShatterAnswer();
     }
     function doCorretto() {
-        if (VG.phase === 'question' || VG.phase === 'answer' || VG.phase === 'ai-audio') markCard('correct');
+        if (VG.phase === 'question' || VG.phase === 'answer' || VG.phase === 'ai-audio' || VG.phase === 'auto-ok') markCard('correct');
         else if (VG.phase === 'shatter-finished') judgeShatter('correct');
         // "corretto" solo dall'ultima mini-card: per essere sicuri di aver
         // saputo TUTTA la carta serve averle riviste tutte.
@@ -1014,7 +1247,7 @@ foreach (['it', 'en'] as $vg_l) {
     }
 
     function doErrato() {
-        if (VG.phase === 'question' || VG.phase === 'answer' || VG.phase === 'ai-audio') markCard('wrong');
+        if (VG.phase === 'question' || VG.phase === 'answer' || VG.phase === 'ai-audio' || VG.phase === 'auto-ok') markCard('wrong');
         else if (VG.phase === 'shatter-finished') judgeShatter('wrong');
         // "errato" invece da QUALSIASI mini-card: basta sbagliarne una per
         // sapere di non aver saputo l'intera carta, niente bisogno di
@@ -1048,7 +1281,7 @@ foreach (['it', 'en'] as $vg_l) {
        dice «corretto» era ancora in fase 'question'. Prima di ogni comando la
        fase si riallinea a quello che c'e' davvero sullo schermo. */
     function sincronizzaFase() {
-        if (VG.phase === 'grading' || VG.phase === 'ai-audio' || VG.phase.indexOf('shatter') === 0) return;
+        if (VG.phase === 'grading' || VG.phase === 'ai-audio' || VG.phase === 'auto-ok' || VG.phase.indexOf('shatter') === 0) return;
         var card = currentCardBox();
         if (!card) return;
         if (card.classList.contains('risposta-mostrata')) {
@@ -1103,6 +1336,8 @@ foreach (['it', 'en'] as $vg_l) {
                     if (f.split(' ').length <= 3 && lista.length < 80) lista.push(new window.SpeechRecognitionPhrase(f, 4.0));
                 });
             });
+            /* nelle parole anche la risposta attesa, con il peso piu' alto */
+            if (VOC) risposteAttese.forEach(function (v) { if (v.split(' ').length <= 4 && lista.length < 90) lista.push(new window.SpeechRecognitionPhrase(v, 6.0)); });
             recognition.phrases = lista;
         } catch (e) {}
     }
@@ -1187,6 +1422,10 @@ foreach (['it', 'en'] as $vg_l) {
                 var res = event.results[i];
                 if (risultatiGiaUsati[i]) continue;
                 if (eEco(res[0].transcript)) continue;
+                /* Nelle parole la risposta detta giusta viene PRIMA dei
+                   comandi: se la parola da indovinare fosse «password» (o
+                   «answer») non deve essere scambiata per un comando. */
+                if (VOC && provaRispostaParola(res)) { risultatiGiaUsati[i] = true; continue; }
                 if (res.isFinal) {
                     var best = null;
                     for (var a = 0; a < res.length; a++) {
@@ -1419,6 +1658,7 @@ foreach (['it', 'en'] as $vg_l) {
 
     function deactivate(isError) {
         fermaAttesaVoto();
+        annullaAutoVoto();
         VG.active = false;
         VG.shouldListen = false;
         VG.phase = 'idle';
@@ -1498,6 +1738,7 @@ foreach (['it', 'en'] as $vg_l) {
     function onNewPage() {
         if (!VG.active) return;
         fermaAttesaVoto();
+        annullaAutoVoto();
         stopTuttoIlParlato();
         VG.pendingGrade = false;
         VG.phase = 'idle';
@@ -1528,6 +1769,34 @@ foreach (['it', 'en'] as $vg_l) {
         elAskOverlay = document.getElementById('vg-ask-overlay');
         elAskYesBtn = document.getElementById('vg-ask-yes-btn');
         elAskNoBtn = document.getElementById('vg-ask-no-btn');
+
+        /* Cosa leggere (solo nelle parole): ogni tocco cambia una cifra, si
+           salva subito sul server e vale dal prossimo giro, partita in corso
+           compresa. */
+        var pannelloLettura = document.getElementById('vg-lettura');
+        if (pannelloLettura) {
+            var TOKEN_LETTURA = <?php echo json_encode(sec_csrf_token()); ?>;
+            var POS_LETTURA = { q: 0, a: 1, m: 2, e: 3 };
+            pannelloLettura.addEventListener('click', function (ev) {
+                var bt = ev.target.closest ? ev.target.closest('button[data-v]') : null;
+                var riga = bt && bt.closest('.vg-lettura-riga');
+                if (!riga || !(riga.getAttribute('data-k') in POS_LETTURA)) return;
+                var cifre = leggiLettura(pannelloLettura.getAttribute('data-valore')), v = [cifre.q, cifre.a, cifre.m, cifre.e];
+                v[POS_LETTURA[riga.getAttribute('data-k')]] = bt.getAttribute('data-v');
+                var nuovo = v.join('');
+                pannelloLettura.setAttribute('data-valore', nuovo);
+                LETTURA = leggiLettura(nuovo);
+                riga.querySelectorAll('button[data-v]').forEach(function (x) {
+                    var on = x === bt;
+                    x.classList.toggle('is-on', on);
+                    x.setAttribute('aria-checked', on ? 'true' : 'false');
+                });
+                var fd = new FormData();
+                fd.append('lettura', nuovo);
+                fd.append('csrf_token', TOKEN_LETTURA);
+                fetch('fc_settings_api.php', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-CSRF-Token': TOKEN_LETTURA } }).catch(function () {});
+            });
+        }
 
         if (elStartBtn) elStartBtn.addEventListener('click', onStartClick);
         if (elCancelBtn) elCancelBtn.addEventListener('click', closeIntro);

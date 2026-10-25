@@ -1301,6 +1301,11 @@ Se funziona, il mercato è quella cosa lì più un prezzo e un incasso.
 
 ---
 
+### Pagina To do (25/10/2026)
+
+- **Nota veloce** in cima (`todo_nota.js`, tabella `todo_notes`, azioni `nota_leggi/nota_salva/nota_applica` in `todo_api.php`): si salva da sola (subito in `localStorage`, dopo 0,7 s sul server). **Smista a mano** (regole di `todo_smart.js`, gratis) o **con l'IA** (`todo_nota_ai.php`, crediti): in entrambi i casi si apre la schermata di conferma (modifica, togli, annulla, salva). Le righe non salvate restano nella nota.
+- **Barra intelligente** per to do e to study (`todo_barra.js` + `todo_smart.js`): data, ora, durata e `#progetto` dalla frase, con le stesse parole di `planner_smart.json`. Gruppi per giorno, righe pulite a riposo, scorciatoie data a riga aperta. Stile in `todo_nuovo.css` (togliendolo si torna a prima). Il to buy ha la sua barra in `todo_buy.js`.
+
 ## 15. Ordine dei lavori
 
 Ogni passo ha un criterio di "fatto": senza, si va avanti a metà.

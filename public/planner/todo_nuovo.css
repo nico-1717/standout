@@ -1,0 +1,228 @@
+/* todo_nuovo.css — il to do rinnovato (ottobre 2026).
+
+   Va DOPO todo_widget.css e lo ritocca senza riscriverlo: tutto quello che
+   segue vale solo dove il componente porta la classe .tn (to do e to study) o
+   per i pezzi nuovi (.tnota nota veloce, .tnc schermata di conferma). Il to
+   buy e le pastiglie non cambiano. Se qualcosa non piace basta togliere
+   questo foglio: il componente torna com'era.
+
+   Le tinte vengono dalle variabili --td-* del componente, quindi seguono da
+   sole lo stile scelto (carta, standard) e l'accento dell'utente. */
+
+/* ---------- le linguette: piu' grandi sotto il dito ---------- */
+.td-wrap .td-tabs{ padding:4px; margin-bottom:14px; }
+.td-wrap .td-tab{ padding:10px 4px; font-size:13px; font-weight:500; }
+.td-wrap .td-tab.td-on{ box-shadow:0 1px 2px rgba(var(--td-ink-rgb),.08), 0 6px 14px -8px rgba(var(--td-ink-rgb),.28); }
+
+/* ---------- la barra per aggiungere ---------- */
+.tn-bar{ margin:0 0 14px; }
+.tn-add{
+    display:flex; align-items:center; gap:6px; padding:5px 5px 5px 16px;
+    background:var(--td-card, #FFFDFA); border-radius:999px;
+    box-shadow:0 1px 2px rgba(var(--td-ink-rgb),.06), 0 10px 24px -14px rgba(var(--td-ink-rgb),.28), inset 0 0 0 .5px var(--td-hair);
+    transition:box-shadow .2s ease;
+}
+.tn-add:focus-within{
+    box-shadow:0 1px 2px rgba(var(--td-ink-rgb),.06), 0 14px 30px -14px rgba(var(--td-ink-rgb),.34), inset 0 0 0 1.5px var(--td-accent);
+}
+.tn-in{
+    flex:1; min-width:0; border:none; outline:none; background:none; font:inherit; font-size:16px;   /* 16px: niente zoom su iPhone */
+    color:var(--td-ink); padding:9px 0;
+}
+.tn-in::placeholder{ color:var(--td-ink-3); }
+.tn-mic, .tn-go{
+    flex-shrink:0; width:38px; height:38px; border-radius:50%; border:none; cursor:pointer;
+    display:grid; place-items:center; padding:0; font:inherit;
+    transition:transform .15s ease, background-color .2s ease, color .2s ease;
+}
+.tn-mic{ background:none; color:var(--td-ink-3); }
+.tn-mic:hover{ color:var(--td-ink); }
+.tn-mic svg, .tn-go svg{ width:19px; height:19px; }
+.tn-mic.tn-reg{ background:var(--td-late-soft); color:var(--td-late); animation:tn-pulsa 1.2s ease-in-out infinite; }
+@keyframes tn-pulsa{ 50%{ box-shadow:0 0 0 7px rgba(180,100,95,.14); } }
+.tn-go{ background:var(--td-accent); color:var(--td-on-accent, #FFFDFA); }
+.tn-go:active, .tn-mic:active{ transform:scale(.9); }
+
+/* cosa ha capito la barra, mentre si scrive */
+.tn-capito{ display:none; flex-wrap:wrap; gap:6px; padding:9px 6px 0; }
+.tn-capito.tn-on{ display:flex; }
+.tn-pez{
+    font-size:12px; padding:3px 10px; border-radius:999px; background:var(--td-accent-soft); color:var(--td-ink);
+    animation:tn-entra .22s ease both;
+}
+.tn-pez-date{ background:color-mix(in srgb, var(--td-accent) 24%, var(--td-paper)); }
+.tn-pez-project{ background:var(--td-panel); color:var(--td-ink-2); }
+.tn-pez-nessuno{ background:none; color:var(--td-ink-3); box-shadow:inset 0 0 0 .5px var(--td-hair); }
+@keyframes tn-entra{ from{ opacity:0; transform:translateY(3px) scale(.96); } }
+
+/* ---------- i gruppi per giorno ---------- */
+.tn-gh{
+    display:flex; align-items:baseline; gap:8px; margin:18px 2px 2px;
+    font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--td-ink-3);
+}
+.tn-gh:first-child{ margin-top:4px; }
+.tn-gn{ font-size:11px; letter-spacing:0; color:var(--td-ink-3); opacity:.8; }
+.tn-g-ritardo{ color:var(--td-late); }
+.tn-g-ritardo .tn-gn{ color:var(--td-late); }
+.tn-g-oggi{ color:var(--td-ink); }
+.tn-g-oggi .tn-gt::before{
+    content:''; display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:7px;
+    background:var(--td-accent); vertical-align:1px;
+}
+.tn-g-fatte{ margin-top:22px; }
+
+/* ---------- le righe ---------- */
+.tn .td-item{ border-bottom:none; border-radius:14px; margin:2px 0; }
+.tn .td-row{ padding:9px 6px; align-items:flex-start; border-radius:14px; }
+.tn .td-box{
+    width:22px; height:22px; border-radius:50%; margin-top:1px;
+    box-shadow:inset 0 0 0 1.6px color-mix(in srgb, var(--td-ink) 28%, transparent);
+}
+.tn .td-box svg{ width:12px; height:12px; }
+.tn .td-title{ font-size:16px; line-height:1.35; padding:2px 0; }
+.tn .td-main{ gap:5px; }
+.tn .td-row.td-done .td-title{ text-decoration-thickness:1px; }
+.tn .td-row.td-done{ opacity:.62; }
+.tn .tn-pend .td-row{ opacity:.55; pointer-events:none; }
+
+/* A riposo la riga mostra il titolo e una frase sola con quello che e'
+   impostato (giorno, ora, progetto). Gli strumenti veri (data, ora, durata,
+   progetto, cestino) compaiono quando la riga e' aperta. */
+.tn .td-item:not(.td-in-modifica) .td-tools{ display:none; }
+.tn .td-item.td-in-modifica .tn-meta{ display:none; }
+.tn-meta{ display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; font-size:12.5px; color:var(--td-ink-2); cursor:text; }
+.tn-meta-q{ white-space:nowrap; }
+.tn-meta-p{ display:inline-flex; align-items:center; gap:5px; }
+.tn-meta-dot{ width:7px; height:7px; border-radius:50%; display:inline-block; flex-shrink:0; }
+.tn .td-row.td-late .tn-meta-q{ color:var(--td-late); }
+.tn .td-row.td-done .tn-meta{ opacity:.8; }
+/* con la riga aperta gli strumenti hanno bordi piu' morbidi e tocchi piu' grandi */
+.tn .td-item.td-in-modifica .td-chip{ padding:6px 11px; font-size:12px; }
+.tn .td-item.td-in-modifica{ background:color-mix(in srgb, var(--td-accent) 11%, var(--td-paper)); }
+
+/* le scorciatoie per la data: solo a riga aperta */
+.tn-quick{ display:none; gap:6px; overflow-x:auto; padding:1px 0 3px; scrollbar-width:none; }
+.tn-quick::-webkit-scrollbar{ display:none; }
+.tn .td-item.td-in-modifica .tn-quick{ display:flex; }
+.tn-q{
+    flex-shrink:0; border:none; cursor:pointer; font:inherit; font-size:12px; padding:6px 12px; border-radius:999px;
+    background:var(--td-paper); color:var(--td-ink-2); box-shadow:inset 0 0 0 .5px var(--td-hair);
+    transition:background-color .2s, color .2s, transform .15s;
+}
+.tn-q:active{ transform:scale(.94); }
+.tn-q-on{ background:var(--td-accent); color:var(--td-on-accent, #FFFDFA); box-shadow:none; }
+
+.tn .td-empty{ padding:26px 2px 10px; }
+
+/* ====================================================================
+   LA NOTA VELOCE
+   ==================================================================== */
+.tnota{
+    margin:0 0 18px; padding:12px 14px 10px; border-radius:20px;
+    background:color-mix(in srgb, #F2D98A 20%, var(--td-paper, #FDFCF9));
+    box-shadow:inset 0 0 0 .5px color-mix(in srgb, #D9B84F 30%, transparent), 0 8px 20px -16px rgba(74,68,61,.3);
+    font-family:'Jost', -apple-system, system-ui, sans-serif; color:#4A443D;
+    transition:box-shadow .2s ease;
+}
+.tnota.tnota-attiva{ box-shadow:inset 0 0 0 1.4px color-mix(in srgb, #D9B84F 65%, transparent), 0 12px 26px -16px rgba(74,68,61,.38); }
+.tnota-h{ display:flex; align-items:center; gap:8px; margin-bottom:2px; }
+.tnota-ic{ display:grid; place-items:center; color:#A8873A; }
+.tnota-ic svg{ width:16px; height:16px; }
+.tnota-t{ font-size:10.5px; font-weight:500; letter-spacing:.16em; text-transform:uppercase; color:#8F7835; }
+.tnota-st{ margin-left:auto; font-size:11.5px; color:#A8873A; }
+.tnota-ta{
+    display:block; width:100%; border:none; outline:none; resize:none; background:none; font:inherit;
+    font-size:16px; line-height:1.5; color:#4A443D; padding:4px 0; min-height:46px; max-height:260px;
+}
+.tnota-ta::placeholder{ color:color-mix(in srgb, #8F7835 60%, transparent); }
+.tnota-az{ display:none; align-items:center; gap:8px; padding-top:6px; border-top:.5px solid color-mix(in srgb, #D9B84F 28%, transparent); }
+.tnota.tnota-piena .tnota-az{ display:flex; }
+.tnota-n{ font-size:12px; color:#A8873A; margin-right:auto; }
+.tnota-b{
+    display:inline-flex; align-items:center; gap:6px; border:none; cursor:pointer; font:inherit; font-size:13px;
+    padding:8px 14px; border-radius:999px; background:rgba(255,253,250,.75); color:#6F5E2C;
+    box-shadow:inset 0 0 0 .5px color-mix(in srgb, #D9B84F 40%, transparent);
+    transition:transform .15s ease, background-color .2s ease;
+}
+.tnota-b:active{ transform:scale(.95); }
+.tnota-b:disabled{ opacity:.45; cursor:default; }
+.tnota-b svg{ width:15px; height:15px; }
+.tnota-b-ia{ background:#4A443D; color:#FFFDFA; box-shadow:none; }
+.tnota-attesa{ opacity:.8; pointer-events:none; }
+.tnota-attesa svg{ animation:tnota-gira 1.4s linear infinite; }
+@keyframes tnota-gira{ to{ transform:rotate(360deg); } }
+
+/* ====================================================================
+   LA SCHERMATA DI CONFERMA
+   ==================================================================== */
+body.tnc-aperta{ overflow:hidden; }
+.tnc-ov{
+    position:fixed; inset:0; z-index:9900; display:flex; align-items:flex-end; justify-content:center;
+    background:rgba(74,68,61,.34); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+    animation:td-fade .22s ease;
+}
+.tnc{
+    width:100%; max-width:560px; max-height:92dvh; display:flex; flex-direction:column;
+    background:#FDFCF9; border-radius:26px 26px 0 0; color:#4A443D;
+    font-family:'Jost', -apple-system, system-ui, sans-serif;
+    box-shadow:0 -20px 50px -20px rgba(74,68,61,.5);
+    animation:tnc-su .32s cubic-bezier(.22,.9,.3,1);
+}
+@keyframes tnc-su{ from{ transform:translateY(40px); opacity:0; } }
+@media (min-width:640px){
+    .tnc-ov{ align-items:center; padding:24px; }
+    .tnc{ border-radius:26px; max-height:86dvh; }
+}
+.tnc-h{ padding:20px 20px 10px; }
+.tnc-t{ font-family:'Cormorant Garamond', Georgia, serif; font-size:25px; line-height:1.1; }
+.tnc-s{ font-size:13px; color:#8A8177; margin-top:4px; line-height:1.4; }
+.tnc-l{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:4px 14px 8px; display:flex; flex-direction:column; gap:10px; }
+.tnc-v{
+    padding:12px 12px 11px; border-radius:18px; background:#F7F3EC;
+    box-shadow:inset 0 0 0 .5px rgba(74,68,61,.1);
+}
+.tnc-v.tnc-ctrl{ box-shadow:inset 0 0 0 1.2px rgba(217,184,79,.6); }
+.tnc-top{ display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+.tnc-seg{ flex:1; min-width:0; display:flex; gap:3px; padding:3px; border-radius:999px; background:rgba(74,68,61,.07); }
+.tnc-d{
+    flex:1; min-width:0; border:none; cursor:pointer; font:inherit; font-size:12px; padding:7px 2px; border-radius:999px;
+    background:none; color:#8A8177; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    transition:background-color .2s, color .2s;
+}
+.tnc-d.tnc-on{ background:#FDFCF9; color:#4A443D; font-weight:500; box-shadow:0 1px 3px rgba(74,68,61,.12); }
+.tnc-d-event.tnc-on{ color:#4F6F8F; }
+.tnc-d-buy.tnc-on{ color:#9A7020; }
+.tnc-d-project.tnc-on{ color:#6B5BA0; }
+.tnc-x{
+    flex-shrink:0; width:32px; height:32px; border-radius:50%; border:none; cursor:pointer; display:grid; place-items:center;
+    background:none; color:#B7AEA3;
+}
+.tnc-x:hover{ background:#F3DCDC; color:#8E5A5A; }
+.tnc-x svg{ width:15px; height:15px; }
+.tnc-tit{
+    width:100%; border:none; outline:none; background:#FFFDFA; font:inherit; font-size:16px; color:#4A443D;
+    padding:10px 12px; border-radius:12px; box-shadow:inset 0 0 0 .5px rgba(74,68,61,.14);
+}
+.tnc-tit:focus{ box-shadow:inset 0 0 0 1.4px #A9C3AE; }
+.tnc-det{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.tnc-c{ display:flex; flex-direction:column; gap:3px; flex:1 1 120px; min-width:0; }
+.tnc-c span{ font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:#B7AEA3; padding-left:4px; }
+.tnc-c input, .tnc-c select{
+    width:100%; min-width:0; border:none; outline:none; background:#FFFDFA; font:inherit; font-size:14px; color:#4A443D;
+    padding:9px 10px; border-radius:11px; box-shadow:inset 0 0 0 .5px rgba(74,68,61,.14);
+}
+.tnc-c input:focus, .tnc-c select:focus{ box-shadow:inset 0 0 0 1.4px #A9C3AE; }
+.tnc-da{ margin-top:8px; font-size:12px; color:#B7AEA3; font-style:italic; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tnc-avv{ margin-top:8px; font-size:12px; color:#A8873A; }
+.tnc-vuoto{ padding:26px 10px; text-align:center; font-family:'Cormorant Garamond', Georgia, serif; font-style:italic; font-size:16px; color:#8A8177; }
+.tnc-f{
+    display:flex; gap:10px; padding:12px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    border-top:.5px solid rgba(74,68,61,.1); background:#FDFCF9;
+}
+.tnc-b{
+    flex:1; border:none; cursor:pointer; font:inherit; font-size:15px; padding:13px; border-radius:15px;
+    background:#F1ECE3; color:#6C645A; transition:transform .15s ease;
+}
+.tnc-b:active{ transform:scale(.97); }
+.tnc-b-ok{ flex:1.6; background:#A9C3AE; color:#FFFDFA; font-weight:500; }
+.tnc-b:disabled{ opacity:.5; cursor:default; }

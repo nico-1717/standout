@@ -27,6 +27,9 @@ if (!function_exists('sec_csrf_token')) { require_once __DIR__ . '/../../lib/sec
 if (!defined('TODO_WIDGET_CSS')) {
     define('TODO_WIDGET_CSS', 1);
     echo '<link rel="stylesheet" href="' . PWA_BASE . 'planner/todo_widget.css?v=' . (@filemtime(__DIR__ . '/todo_widget.css') ?: 1) . '">' . "\n";
+    /* il to do rinnovato (barra intelligente, gruppi per giorno, righe pulite):
+       un foglio a parte che ritocca il principale. Toglierlo = tornare a prima. */
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'planner/todo_nuovo.css?v=' . (@filemtime(__DIR__ . '/todo_nuovo.css') ?: 1) . '">' . "\n";
     echo standout_i18n_json(['comune', 'todo']);
 }
 ?>
@@ -2329,4 +2332,9 @@ if (!defined('TODO_WIDGET_CSS')) {
 <?php /* il "to buy" sta in un file suo: si carica subito dopo, prima che
          qualcuno monti il componente */ ?>
 <script src="<?php echo PWA_BASE; ?>planner/todo_buy.js?v=<?php echo @filemtime(__DIR__ . '/todo_buy.js') ?: 1; ?>"></script>
+<?php /* la barra intelligente del to do: legge date e ora con le regole del
+         planner (todo_smart.js) e porta gruppi per giorno e righe pulite
+         (todo_barra.js). Dopo il to buy, prima che qualcuno monti il componente. */ ?>
+<script src="<?php echo PWA_BASE; ?>planner/todo_smart.js?v=<?php echo @filemtime(__DIR__ . '/todo_smart.js') ?: 1; ?>"></script>
+<script src="<?php echo PWA_BASE; ?>planner/todo_barra.js?v=<?php echo @filemtime(__DIR__ . '/todo_barra.js') ?: 1; ?>"></script>
 <?php endif; ?>

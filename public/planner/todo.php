@@ -52,6 +52,7 @@ $tab = sec_enum(sec_in('tab'), ['todo', 'buy', 'study', 'pills'], '');
     <p class="tp-note">
         <?php te('todo.nota'); ?>
     </p>
+    <div id="tpNota"></div>
     <div id="tpList"></div>
 </main>
 
@@ -71,6 +72,7 @@ include __DIR__ . '/todo_widget.php';
 ?>
 <?php include __DIR__ . '/../partials/sidebar.php'; ?>
 <?php echo standout_i18n_json(['comune', 'todo']); ?>
+<script src="<?php echo PWA_BASE; ?>planner/todo_nota.js?v=<?php echo @filemtime(__DIR__ . '/todo_nota.js') ?: 1; ?>"></script>
 <script>
 standoutTodo.mount(document.getElementById('tpList'), {
     scope: 'all',
@@ -78,6 +80,8 @@ standoutTodo.mount(document.getElementById('tpList'), {
     tabs: true,         // to do / to buy / to study / pastiglie
     tab: <?php echo json_encode($tab); ?>   // vuoto = l'ultima usata
 });
+/* la nota veloce sopra l'elenco: dopo lo smistamento l'elenco si rilegge da sé */
+standoutTodoNota.mount(document.getElementById('tpNota'));
 </script>
 </body>
 </html>

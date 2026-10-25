@@ -117,12 +117,17 @@ Nuove: `fc_vocab_courses`, `fc_vocab_examples`, `fc_vocab_favorites`, `fc_vocab_
 - **Significato ed esempi nel gioco** (aperti / al tocco / dopo la risposta) si salvano per utente in `fc_settings` (`lib/fc/fc_impostazioni.php`, `fc_settings_api.php`). La prima volta: aperti.
 - **Modalità voce:** niente più comando "avanti": dopo "giusto"/"sbagliato" si legge subito la domanda dopo. I comandi si riconoscono in italiano e in inglese insieme; la lingua del microfono si sceglie nel pannello.
 
+## Modalità voce nelle parole (25/10/2026)
+
+- **Si risponde a voce.** Finché il microfono non sente la risposta giusta non succede niente (parole sbagliate ignorate, nessun voto d'ufficio). Quando la sente: mostra la carta, legge quello che si è scelto e, dopo 3 secondi (e a lettura finita), segna *corretta* e passa alla carta dopo. «Risposta» e «sbagliato» restano per chi non la sa; «corretto» durante i 3 secondi vale subito. Logica in `fc_voice_mode.php` (sezione 3-bis: `provaRispostaParola`, `rispostaDettaGiusta`).
+- **Cosa legge** (pannello di avvio, solo parole): domanda sì/no · risposta 1 o 2 volte (la seconda piano) · significato sì/no · esempi nessuno/uno/tutti. Quattro cifre in `fc_settings.voice_read` (default `1100`), regole in `fc_lettura_valida()`.
+- «password»/«passwords» sono alias di «answer» nel dizionario dei comandi (il riconoscitore le sente così).
+
 ## Rimandato (da fare)
 
 - **IA per le parole.** Nel gioco di lingua non ci sono Leggi/Spiega/Metafora/Frantuma, e nell'inserimento multiplo manca la sezione "Genera con l'IA". Le vecchie `generate_ai_text*.php` / `generate_ai_image*.php` del vocabolario non sono state portate: andranno rifatte sul motore IA delle flashcard di studio (`fc_ai_lib.php`).
 - **Statistiche delle lingue.** `fc_stats.php` conta solo lo studio (partite `kind='study'`). Per le lingue esistono solo i numeri di `fc_home`/`fc_languages` (parole, imparate, serie).
 - **Terzo giro di nomi:** colonne strutturali ancora in italiano/vecchio stile (`category_id` → `deck_id`, `fc_image_id` → `card_id`, `fc_child_id`, `id_child`, `fc_category_id`, `is_father`…), in entrambe le famiglie di tabelle insieme.
 - **Vecchie partite di vocabolario:** le posizioni partono da 0 e non hanno sequenza; si vedono nello storico e si possono ripassare (il ripasso crea una partita nuova normale), ma non si "riprendono".
-- **Rispondere a voce** nella lingua che si impara (non solo comandi) è da progettare.
 - **Cruscotto:** la percentuale "padroneggiate" confronta carte imparate (padri) con carte totali (figlie e carte singole), come faceva prima.
 - Chiavi di traduzione già mancanti prima di questo lavoro: `fc.cred_apri_pagina`, `fc.cred_non_caricato`, `fc.ibfai_job_fase_carte_avvio`, `fc.ibfai_job_fase_concetti_avvio`, `fc.ibfai_job_pillola_avvio`.

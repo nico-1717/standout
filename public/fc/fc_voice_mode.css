@@ -269,3 +269,13 @@
     .vg-caption.vg-show{ opacity:1; transform:none; }
     .vg-caption.vg-recognized{ background:rgba(10,132,255,.94); }
     .vg-caption.vg-hint{ background:rgba(255,159,10,.94); }
+
+/* ---- cosa legge (solo parole) ---- */
+.vg-lettura{ margin-top:12px; }
+.vg-lettura-riga{ display:flex; align-items:center; gap:10px; margin:0 0 8px; }
+.vg-lettura-nome{ flex:0 0 92px; font-size:13.5px; font-weight:700; color:inherit; }
+.vg-lettura-riga .vg-lang-seg{ flex:1; }
+.vg-lettura-riga .vg-seg-n2{ grid-template-columns:repeat(2,1fr); }
+.vg-lettura-riga .vg-seg-n3{ grid-template-columns:repeat(3,1fr); }
+.vg-lettura-nota{ margin:6px 2px 0; font-size:11.5px; line-height:1.4; color:#8A8A8E; }
+.vg-auto-parole{ margin-top:6px; font-weight:650; }

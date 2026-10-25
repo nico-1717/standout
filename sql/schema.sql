@@ -235,6 +235,7 @@ CREATE TABLE `fc_settings` (
   `user_id` int NOT NULL,
   `vocab_meaning` varchar(8) NOT NULL DEFAULT 'aperto' COMMENT 'aperto | tocco | dopo',
   `vocab_examples` varchar(8) NOT NULL DEFAULT 'aperto' COMMENT 'aperto | tocco | dopo',
+  `voice_read` varchar(4) DEFAULT NULL COMMENT 'lettura vocale: domanda, risposta (1-2), significato, esempi (0-2)',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Scelte di gioco delle flashcard, una riga per utente';
 
@@ -1459,6 +1460,18 @@ CREATE TABLE `todos` (
 -- --------------------------------------------------------
 
 --
+-- Table `todo_notes`
+--
+
+CREATE TABLE `todo_notes` (
+  `user_id` int NOT NULL,
+  `body` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'nota veloce: appunti da smistare dopo',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table `todo_buy_categories`
 --
 
@@ -2254,6 +2267,12 @@ ALTER TABLE `todos`
   ADD KEY `idx_todo_event` (`planner_event_id`),
   ADD KEY `idx_lista` (`user_id`,`list_type`,`is_done`),
   ADD KEY `idx_buy` (`user_id`,`list_type`,`buy_category_id`,`buy_priority`);
+
+--
+-- Indexes for table `todo_notes`
+--
+ALTER TABLE `todo_notes`
+  ADD PRIMARY KEY (`user_id`);
 
 --
 -- Indexes for table `todo_buy_categories`
