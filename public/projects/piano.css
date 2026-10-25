@@ -83,22 +83,22 @@ body[data-pp="cal"] #ppHost, body[data-pp="plan"] #ppHost{ display:block; }
 
 /* la barra in basso: tre strumenti in un selettore, annulla, e l'azione.
    Una pastiglia di vetro che resta sopra il contenuto mentre si scorre. */
-.pp-dock{ width:fit-content; max-width:100%; margin-left:auto; margin-right:auto; position:sticky; bottom:calc(86px + var(--safe-bottom)); z-index:5; display:flex; align-items:center; gap:6px; padding:5px; border-radius:999px;
+.pp-dock{ margin:0; max-width:440px; position:fixed; left:84px; right:16px; bottom:calc(23px + var(--safe-bottom)); z-index:30; display:flex; align-items:center; gap:6px; padding:5px; border-radius:999px;
     background:color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter:blur(16px) saturate(1.4); backdrop-filter:blur(16px) saturate(1.4);
     box-shadow:var(--shadow-soft), 0 8px 24px -8px rgba(0,0,0,.28); }
 .pp-tseg{ display:flex; padding:2px; border-radius:999px; background:color-mix(in srgb, var(--text) 8%, transparent); flex-shrink:0; }
-.pp-tbtn{ width:38px; height:34px; border:0; border-radius:999px; background:none; display:grid; place-items:center; color:var(--text-2); transition:background .15s, color .15s; }
+.pp-tbtn{ width:34px; height:34px; border:0; border-radius:999px; background:none; display:grid; place-items:center; color:var(--text-2); transition:background .15s, color .15s; }
 .pp-tbtn svg{ width:18px; height:18px; }
 .pp-tbtn.on{ background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.18); }
-.pp-undo{ width:36px; height:36px; border:0; border-radius:50%; background:none; display:grid; place-items:center; color:var(--text); flex-shrink:0; }
+.pp-undo{ width:32px; height:36px; border:0; border-radius:50%; background:none; display:grid; place-items:center; color:var(--text); flex-shrink:0; }
 .pp-undo svg{ width:18px; height:18px; }
 .pp-undo:disabled{ opacity:.28; cursor:default; }
-.pp-act{ flex:1; min-width:0; height:36px; padding:0 14px; border:0; border-radius:999px; background:var(--blue); color:#fff; font-size:13.5px; font-weight:600;
+.pp-act{ flex:1; min-width:0; height:36px; padding:0 12px; border:0; border-radius:999px; background:var(--blue); color:#fff; font-size:13.5px; font-weight:600;
     display:flex; align-items:center; justify-content:center; gap:6px; white-space:nowrap; overflow:hidden; box-shadow:var(--btn-hl); }
 .pp-act svg{ width:16px; height:16px; flex-shrink:0; }
 .pp-act.quiet{ background:var(--surface-2); color:var(--text); box-shadow:none; flex:none; }
 .pp-act span{ overflow:hidden; text-overflow:ellipsis; }
-.pp-dock-plan{ width:auto; max-width:none; margin:0; position:static; background:none; box-shadow:none; padding:0; -webkit-backdrop-filter:none; backdrop-filter:none; }
+.pp-dock-plan{ margin:0; left:auto; right:auto; bottom:auto; z-index:auto; position:static; background:none; box-shadow:none; padding:0; -webkit-backdrop-filter:none; backdrop-filter:none; }
 
 /* piano: tempo, tipo, date */
 .pp-goal{ display:flex; flex-direction:column; }
@@ -251,6 +251,8 @@ body[data-pp="cal"] #ppHost, body[data-pp="plan"] #ppHost{ display:block; }
 .pp-toast.show{ opacity:1; transform:translate(-50%,0); }
 
 /* il tondo del menu sta in basso a sinistra: la barra parte dopo di lui */
-@media (max-width:640px){ .pp-dock{ margin-left:50px; } .pp-dock-plan{ margin-left:0; } }
 @media (min-width:1024px){ .pp{ max-width:720px; } }
 @media (prefers-reduced-motion: reduce){ .pp-sheet,.pp-ov,.pp-sp-bar i,.pp-toast{ transition:none; } }
+
+/* spazio in fondo perché la barra fissa non copra l'ultima riga */
+.pp-has-dock{ padding-bottom:84px; }

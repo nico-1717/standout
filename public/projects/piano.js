@@ -370,6 +370,7 @@
         dock.appendChild(un);
         dock.appendChild(btn('pp-act', [svg(IC.spark, 16, 1.9), h('span', '', t('pianifica_breve'))], function () { autoplanFlow(); }));
         root.appendChild(dock);
+        root.classList.add('pp-has-dock');
     }
 
     /* Annulla: ogni modifica ai giorni mette nella pila il modo di tornare

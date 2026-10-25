@@ -646,12 +646,20 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 }
 .pr-hero-note{ -webkit-user-select:none; user-select:none; }
 .pr-nota-edit{ margin-top:8px; }
-.pr-nota-azioni{ display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
-.pr-nota-btn{
-    padding:8px 14px; border:none; border-radius:11px; cursor:pointer; font:inherit;
-    font-size:13.5px; font-weight:600; background:var(--surface-2); color:var(--text-2);
-}
-.pr-nota-btn-ok{ background:var(--blue); color:#fff; }
+.pr-nota-stato{ display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:30px; margin-top:6px; }
+.pr-nota-st{ font-size:12.5px; color:var(--text-3); min-width:0; }
+.pr-nota-st.ok{ color:var(--text-2); }
+.pr-nota-st.off{ color:#FF9500; }
+.pr-nota-st.err{ color:#FF3B30; }
+.pr-nota-undo{ border:0; background:var(--surface-2); color:var(--text-2); font:inherit; font-size:13px; font-weight:600; min-height:30px; padding:0 14px; border-radius:999px; flex-shrink:0; }
+.pr-nota-undo:disabled{ opacity:.35; }
+.pr-nota-undo:not(:disabled):active{ background:var(--hairline); }
+/* l'avviso «sei offline», in alto, finche' c'e' qualcosa da sincronizzare */
+.pr-offline{ position:fixed; left:50%; top:calc(10px + env(safe-area-inset-top, 0px)); transform:translate(-50%,-14px); z-index:200; max-width:calc(100vw - 32px);
+    padding:7px 14px; border-radius:999px; background:#FF9500; color:#fff; font-size:13px; font-weight:600; box-shadow:0 6px 20px -6px rgba(0,0,0,.4);
+    opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; text-align:center; }
+.pr-offline.show{ opacity:1; transform:translate(-50%,0); }
+.pr-offline.is-sync{ background:var(--blue); }
 
 .pr-empty-ic{ color:var(--text-3); margin-bottom:8px; }
 /* Il post-it in modifica: l'editore prende il posto del testo, nello stesso

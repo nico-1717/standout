@@ -652,7 +652,16 @@
     "spostato_dentro": "“{nome}” moved into “{dove}”",
     "spostato_primo_livello": "“{nome}” moved to the top level",
     "spostamento_annullato": "Move undone",
-    "sposta_errore": "Couldn't move it. Try again."
+    "sposta_errore": "Couldn't move it. Try again.",
+    "nota_salvo": "Saving…",
+    "nota_salvata": "Saved",
+    "nota_in_coda": "Offline · saved on this device, will sync when you're back online",
+    "nota_errore": "Couldn't save · retrying",
+    "nota_ripristinata": "Restored",
+    "offline": "You're offline",
+    "nota_offline_n": "You're offline · {n} waiting to sync",
+    "nota_sincronizzo": "Syncing…",
+    "nota_annulla": "Undo"
   },
   "dashboard": {
     "pronto_a_ripassare_qualcosa_oggi": "Ready to review something today?",
@@ -934,7 +943,7 @@
     "tb_lista": "Shopping list",
     "tb_da_spendere": "To spend",
     "tb_pill_carrello": "Cart",
-    "tb_svuota_carrello": "Clear the cart",
+    "tb_svuota_carrello": "Bought",
     "tb_carrello_nota": "Items in the cart disappear on their own tomorrow.",
     "tb_togli_dal_carrello": "Take out of the cart",
     "tb_preso": "Got it",

@@ -652,7 +652,16 @@
     "spostato_dentro": "«{nome}» spostato in «{dove}»",
     "spostato_primo_livello": "«{nome}» spostato al primo livello",
     "spostamento_annullato": "Spostamento annullato",
-    "sposta_errore": "Non sono riuscito a spostarlo. Riprova."
+    "sposta_errore": "Non sono riuscito a spostarlo. Riprova.",
+    "nota_salvo": "Salvo…",
+    "nota_salvata": "Salvata",
+    "nota_in_coda": "Offline · salvata sul telefono, parte appena torna la rete",
+    "nota_errore": "Non salvata · riprovo",
+    "nota_ripristinata": "Ripristinata",
+    "offline": "Sei offline",
+    "nota_offline_n": "Sei offline · {n} da sincronizzare",
+    "nota_sincronizzo": "Sincronizzo…",
+    "nota_annulla": "Annulla"
   },
   "dashboard": {
     "pronto_a_ripassare_qualcosa_oggi": "Pronto a ripassare qualcosa oggi?",
@@ -934,7 +943,7 @@
     "tb_lista": "Lista della spesa",
     "tb_da_spendere": "Da spendere",
     "tb_pill_carrello": "Carrello",
-    "tb_svuota_carrello": "Svuota il carrello",
+    "tb_svuota_carrello": "Comprato",
     "tb_carrello_nota": "Quello che è nel carrello sparisce da solo domani.",
     "tb_togli_dal_carrello": "Togli dal carrello",
     "tb_preso": "Preso",

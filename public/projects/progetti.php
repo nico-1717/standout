@@ -1607,10 +1607,6 @@ if ($deckProprio) {
                 $ft_open = false;
                 include __DIR__ . '/../partials/format_toolbar.php';
             ?>
-            <div class="pr-nota-azioni">
-                <button type="button" class="pr-nota-btn" onclick="prNotaChiudi(false)"><?php te('comune.annulla'); ?></button>
-                <button type="button" class="pr-nota-btn pr-nota-btn-ok" onclick="prNotaChiudi(true)"><?php te('comune.salva'); ?></button>
-            </div>
         </div>
     </div>
 
@@ -2208,27 +2204,23 @@ window.prOpenNotePeek = function(id, el){
     if (!raw && PROJ_LOOKUP[id]) raw = PROJ_LOOKUP[id].note || '';
     var body = document.getElementById('prNotePeekBody');
     body.setAttribute('data-raw', raw);
-    // prova i vari renderer di fc_parser.js; se nessuno c'è, testo semplice
-    var rendered = false;
-    try {
-        if (window.fcRenderInto) { window.fcRenderInto(body, raw); rendered = true; }
-        else if (window.fcRenderElement) { window.fcRenderElement(body); rendered = true; }
-        else if (window.fcHydrate) { window.fcHydrate(body); rendered = true; }
-        else if (window.fcRenderRaw) { body.innerHTML = window.fcRenderRaw(raw); rendered = true; }
-    } catch (e) { rendered = false; }
-    if (!rendered) body.textContent = raw;
+    /* Una versione ancora in coda (scritta offline) vale piu' di quella del server. */
+    var inCoda = window.PrNota ? PrNota.inCoda(id) : null;
+    if (inCoda) raw = inCoda.note;
+    if (window.PrNota) PrNota.disegna(body, raw); else body.textContent = '';
     /* Il tasto modifica del post-it rende il testo modificabile LÌ, con la
        sua barra di formattazione. Prima portava al popup di modifica del
        progetto: si usciva dalla nota per andare in una scheda con dentro dieci
        campi, di cui uno era la nota. */
     var peek = document.getElementById('prNotePeekOverlay');
     document.getElementById('prNotePeekEdit').onclick = function(){
-        if (peek.classList.contains('is-editing')) { prPeekSalva(id); return; }
+        if (peek.classList.contains('is-editing')) { prPeekFine(); return; }
         prPeekModifica(id, raw);
     };
     document.getElementById('prNotePeekOverlay').classList.add('show');
 };
 window.prCloseNotePeek = function(){
+    prPeekFine();
     var ov = document.getElementById('prNotePeekOverlay');
     ov.classList.remove('show');
     ov.classList.remove('is-editing');
@@ -2237,47 +2229,59 @@ window.prCloseNotePeek = function(){
     document.getElementById('prNotePeekBody').hidden = false;
 };
 
-/* Il post-it in modifica: la nota diventa un editore con la sua barra, e il
-   tasto della matita diventa «salva». Due tasti, uno che apre e uno che
-   conferma, avrebbero voluto dire un pulsante in più sempre presente per una
-   cosa che si fa di rado. */
+/* Il post-it in modifica: la nota diventa un editor con la sua barra, e si
+   salva da solo come quella in cima al progetto (nota_auto.js): niente tasto
+   «salva». La matita, mentre si scrive, vuol dire «ho finito». */
+var prPeekCtl = null, prPeekId = 0;
 window.prPeekModifica = function (id, raw) {
     var ov = document.getElementById('prNotePeekOverlay');
     var box = document.getElementById('prPeekEdit');
-    if (!box) return;
+    if (!box || !window.PrNota) return;
     document.getElementById('prNotePeekBody').hidden = true;
     box.hidden = false;
     ov.classList.add('is-editing');
-    box.dataset.id = id;
-    var campo = document.getElementById('prPeekField');
-    var ed = document.getElementById('prPeekEditor');
-    if (campo) campo.value = raw || '';
-    if (ed && window.fcHydrateWrap) {
-        var wrap = ed.closest('.fmt-editor-wrap');
-        if (wrap) window.fcHydrateWrap(wrap, raw || '');
+    prPeekId = id;
+    var wrap = box.querySelector('.fmt-editor-wrap');
+    if (wrap) {
+        wrap.dataset.raw = raw || '';
+        var ed = document.getElementById(wrap.dataset.editorId);
+        var campo = document.getElementById(wrap.dataset.field);
+        if (campo) campo.value = raw || '';
+        if (window.ftRender && window.fcdParse) window.ftRender(wrap, window.fcdParse(raw || ''), null);
     }
-    if (ed) ed.focus();
+    if (!prPeekCtl) {
+        prPeekCtl = PrNota.collega({
+            box: box,
+            id: function () { return prPeekId; },
+            iniziale: function () { return box.dataset.base || ''; },
+            alSalvato: function (pid, nota) {
+                document.querySelectorAll('[data-note-id="' + pid + '"]').forEach(function (t) { t.setAttribute('data-note-raw', nota); });
+                if (window.PROJ_LOOKUP && PROJ_LOOKUP[pid]) PROJ_LOOKUP[pid].note = nota;
+                if (String(pid) === String((document.getElementById('prNota') || {}).dataset && document.getElementById('prNota').dataset.id)) {
+                    var v = document.getElementById('prNota');
+                    if (v && !v.hidden) { v.dataset.raw = nota; if (nota) { v.classList.remove('pr-nota-vuota'); v.classList.add('raw-text-content'); PrNota.disegna(v, nota); } }
+                }
+            }
+        });
+    }
+    box.dataset.base = raw || '';
+    if (prPeekCtl) prPeekCtl.apri();
 };
 
-window.prPeekSalva = function (id) {
-    var campo = document.getElementById('prPeekField');
-    var testo = campo ? campo.value : '';
-    var body = new URLSearchParams();
-    body.set('project_id', id);
-    body.set('note', testo);
-    fetch('progetti.php?ajax=salva_nota', {
-        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
-    }).then(function (r) { return r.json(); }).then(function (d) {
-        if (!d || !d.ok) return;
-        /* Il tag della nota nella riga porta il testo grezzo: senza
-           aggiornarlo, riaprendo il post-it si rileggerebbe la versione di
-           prima come se il salvataggio non fosse avvenuto. */
-        document.querySelectorAll('[data-note-id="' + id + '"]').forEach(function (t) {
-            t.setAttribute('data-note-raw', d.note);
-        });
-        if (window.PROJ_LOOKUP && PROJ_LOOKUP[id]) PROJ_LOOKUP[id].note = d.note;
-        prCloseNotePeek();
-    });
+/* fine della modifica nel post-it: si salva quel che manca e si torna a leggere */
+window.prPeekFine = function () {
+    var ov = document.getElementById('prNotePeekOverlay');
+    var box = document.getElementById('prPeekEdit');
+    if (!box || !prPeekCtl || !prPeekCtl.aperto()) return;
+    var v = prPeekCtl.valore();
+    prPeekCtl.chiudi();
+    var body = document.getElementById('prNotePeekBody');
+    box.hidden = true;
+    ov.classList.remove('is-editing');
+    body.hidden = false;
+    PrNota.disegna(body, v);
+    document.querySelectorAll('[data-note-id="' + prPeekId + '"]').forEach(function (t) { t.setAttribute('data-note-raw', v); });
+    if (window.PROJ_LOOKUP && PROJ_LOOKUP[prPeekId]) PROJ_LOOKUP[prPeekId].note = v;
 };
 
 /* ---------------- selezione multipla dei sotto-progetti ---------------- */
@@ -3902,6 +3906,7 @@ window.prSpostaSalva = function (ids, nuovoPadre, info) {
 })();
 </script>
 
+<script src="nota_auto.js?v=<?php echo @filemtime(__DIR__ . '/nota_auto.js') ?: 1; ?>"></script>
 <script src="piano.js?v=<?php echo @filemtime(__DIR__ . '/piano.js') ?: 1; ?>"></script>
 <script>
 /* Il piano: le viste Calendario e Piano di un progetto, e la vista
@@ -4196,37 +4201,45 @@ document.addEventListener('click', function () {
 });
 
 /* -------- la nota, modificabile sul posto --------
-   Un tocco lungo apre l'editore con la sua barra. Il tocco semplice no:
-   leggendo una nota lunga si scorre, e aprire la tastiera a metà di una
-   lettura è un'interruzione continua. Il doppio tocco nemmeno: su iOS litiga
-   con lo zoom e con la selezione della parola. */
+   Un tocco apre l'editor con la sua barra; non ci sono Salva e Annulla: si
+   salva da solo mentre si scrive (nota_auto.js), anche senza rete, e c'e' un
+   «Annulla» per tornare indietro. Si chiude toccando fuori o con Esc.
+   Il tocco e' sicuro anche leggendo una nota lunga: scorrendo il browser non
+   genera nessun «click». */
 (function () {
     var vista = document.getElementById('prNota');
     var box = document.getElementById('prNotaEdit');
-    if (!vista || !box) return;
+    if (!vista || !box || !window.PrNota) return;
 
-    var t = null;
-    function parti(e) {
-        // solo dito o mouse fermo: se ci si muove si sta scorrendo, non premendo
-        var x0 = (e.touches ? e.touches[0] : e).clientX;
-        var y0 = (e.touches ? e.touches[0] : e).clientY;
-        t = setTimeout(function () { t = null; prNotaApri(); }, 480);
-        function muovi(ev) {
-            var p = ev.touches ? ev.touches[0] : ev;
-            if (Math.abs(p.clientX - x0) > 9 || Math.abs(p.clientY - y0) > 9) ferma();
+    function vuota(raw) { return !raw || !String(raw).trim(); }
+    /* La nota disegnata, o l'invito «Aggiungi una nota» se non c'e' niente. */
+    function mostra(raw) {
+        vista.dataset.raw = raw || '';
+        var etAltro = document.getElementById('prAltroNota');
+        if (etAltro) etAltro.textContent = T(vuota(raw) ? 'progetti.aggiungi_valore' : 'comune.modifica');
+        if (vuota(raw)) {
+            vista.classList.add('pr-nota-vuota');
+            vista.classList.remove('raw-text-content');
+            vista.textContent = T('progetti.aggiungi_nota');
+        } else {
+            vista.classList.remove('pr-nota-vuota');
+            vista.classList.add('raw-text-content');
+            PrNota.disegna(vista, raw);
         }
-        function ferma() {
-            if (t) { clearTimeout(t); t = null; }
-            document.removeEventListener('touchmove', muovi);
-            document.removeEventListener('mousemove', muovi);
-            document.removeEventListener('touchend', ferma);
-            document.removeEventListener('mouseup', ferma);
-        }
-        document.addEventListener('touchmove', muovi, { passive: true });
-        document.addEventListener('mousemove', muovi);
-        document.addEventListener('touchend', ferma);
-        document.addEventListener('mouseup', ferma);
     }
+    function id() { return parseInt(vista.dataset.id, 10) || 0; }
+
+    var ctl = PrNota.collega({
+        box: box,
+        id: id,
+        iniziale: function () { return vista.dataset.raw || ''; },
+        alSalvato: function (pid, nota) {
+            if (window.PROJ_LOOKUP && PROJ_LOOKUP[pid]) PROJ_LOOKUP[pid].note = nota;
+            if (box.hidden) mostra(nota);
+        }
+    });
+    if (!ctl) return;
+
     /* Rete di sicurezza: una nota che, disegnata, non mostra niente (per
        esempio solo formattazione) diventa «Aggiungi una nota» invece di un
        riquadro vuoto. */
@@ -4234,66 +4247,68 @@ document.addEventListener('click', function () {
         if (vista.classList.contains('pr-nota-vuota')) return;
         if ((vista.textContent || '').replace(/[\s\u00A0\u200B-\u200D\uFEFF]+/g, '') !== '') return;
         if (vista.querySelector('img, svg, mjx-container, .MathJax')) return;
-        vista.classList.add('pr-nota-vuota');
-        vista.classList.remove('raw-text-content');
-        vista.textContent = T('progetti.aggiungi_nota');
+        mostra('');
     }
     window.addEventListener('load', function () { setTimeout(controllaVuota, 400); });
-    /* vuota non c'è niente da leggere: un tocco semplice basta */
-    vista.addEventListener('click', function () {
-        if (vista.classList.contains('pr-nota-vuota')) window.prNotaApri();
+
+    /* Una modifica fatta offline e non ancora arrivata sul server vale piu'
+       di quello che il server ha mandato: la pagina la mostra subito. */
+    var q = PrNota.inCoda(id());
+    if (q) mostra(q.note);
+
+    window.prNotaApri = function () {
+        if (!box.hidden) return;
+        vista.hidden = true;
+        box.hidden = false;
+        ctl.apri();
+    };
+    window.prNotaChiudi = function () {
+        if (box.hidden) return;
+        var v = ctl.valore();
+        ctl.chiudi();
+        box.hidden = true;
+        vista.hidden = false;
+        mostra(v);
+    };
+
+    vista.addEventListener('click', function (e) {
+        // un link dentro la nota si apre, non fa partire la modifica
+        if (e.target.closest && e.target.closest('a[href]')) return;
+        var sel = window.getSelection && window.getSelection();
+        if (sel && !sel.isCollapsed && vista.contains(sel.anchorNode)) return;   // si stava selezionando del testo
+        window.prNotaApri();
     });
-    vista.addEventListener('touchstart', parti, { passive: true });
-    vista.addEventListener('mousedown', parti);
-    // il menù contestuale del browser sul tocco lungo darebbe due cose insieme
-    vista.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    vista.setAttribute('role', 'button');
+    vista.tabIndex = 0;
+    vista.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.prNotaApri(); }
+    });
+
+    /* fuori dall'editor = ho finito. La barra puo' stare agganciata in cima
+       e fuori dal riquadro, e le finestrelle (formule, colori) sono altrove:
+       per questo si controlla un elenco di cose "dell'editor" e non solo il
+       riquadro. */
+    function dellEditor(el) {
+        return el.closest && el.closest('#prNotaEdit, .fmt-toolbar, [id$="_bar"], .fmt-pop, .fmt-menu, .mq-editable-field, .mq-math-mode, .pr-toast, .pr-offline, dialog, [role="dialog"], [role="menu"]');
+    }
+    document.addEventListener('pointerdown', function (e) {
+        if (box.hidden || dellEditor(e.target)) return;
+        window.prNotaChiudi();
+    }, true);
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !box.hidden) window.prNotaChiudi();
+    });
+
+    /* Quando una modifica rimasta in coda parte (rete tornata, pagina
+       riaperta), la pagina si aggiorna con la versione che il server ha
+       ripulito — se non ci si sta scrivendo sopra. */
+    PrNota.alSincronizzare(function (pid, nota) {
+        if (pid === id() && box.hidden && nota !== null) mostra(nota);
+        if (window.PROJ_LOOKUP && PROJ_LOOKUP[pid] && nota !== null) PROJ_LOOKUP[pid].note = nota;
+    });
+    PrNota.svuota();
+    PrNota.aggiornaAvviso();
 })();
-
-window.prNotaApri = function () {
-    var vista = document.getElementById('prNota');
-    var box = document.getElementById('prNotaEdit');
-    if (!vista || !box) return;
-    vista.hidden = true;
-    box.hidden = false;
-    var ed = document.getElementById('prNotaEditor');
-    if (ed) { ed.focus(); }
-};
-
-window.prNotaChiudi = function (salva) {
-    var vista = document.getElementById('prNota');
-    var box = document.getElementById('prNotaEdit');
-    if (!vista || !box) return;
-    box.hidden = true;
-    vista.hidden = false;
-    if (!salva) return;
-
-    var campo = document.getElementById('prNotaField');
-    var testo = campo ? campo.value : '';
-    var body = new URLSearchParams();
-    body.set('project_id', vista.dataset.id);
-    body.set('note', testo);
-    fetch('progetti.php?ajax=salva_nota', {
-        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
-    }).then(function (r) { return r.json(); }).then(function (d) {
-        if (!d || !d.ok) return;
-        /* Si ridisegna qui invece di ricaricare: la nota è spesso l'ultima
-           cosa che si tocca prima di tornare a leggere, e una ricarica
-           riporterebbe in cima alla pagina. */
-        vista.dataset.raw = d.note;
-        var etAltro = document.getElementById('prAltroNota');
-        if (etAltro) etAltro.textContent = T(d.note === '' ? 'progetti.aggiungi_valore' : 'comune.modifica');
-        if (d.note === '') {
-            vista.classList.add('pr-nota-vuota');
-            vista.classList.remove('raw-text-content');
-            vista.textContent = T('progetti.aggiungi_nota');
-        } else {
-            vista.classList.remove('pr-nota-vuota');
-            vista.classList.add('raw-text-content');
-            if (window.fcRenderInto) window.fcRenderInto(vista, d.note);
-            else vista.textContent = d.note;
-        }
-    });
-};
 
 /* -------- le date --------
    Il campo data nativo: sul telefono apre la rotella del sistema, che è quella

@@ -99,6 +99,22 @@ html[data-stile="standard"] .dy-body .td-wrap{
     }
 }
 
+/* To do, in scuro: i pozzetti (selettore, campo, tasti) erano nero puro dentro
+   una scheda grigia e le fasce colorate della spesa diventavano marroni.
+   Qui i pozzetti usano il grigio di riempimento e la tinta si fa piu' leggera. */
+@media (prefers-color-scheme: dark){
+    html[data-stile="standard"],
+    html[data-stile="standard"] .td-wrap,
+    html[data-stile="standard"] .pl-body .td-wrap,
+    html[data-stile="standard"] .dy-body .td-wrap{ --td-panel:var(--so-fill); }
+    html[data-stile="standard"] body .tb-g{ --tinta:color-mix(in srgb, var(--c, #8E8E93) 4%, var(--td-card)); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--c, #8E8E93) 16%, transparent); }
+    html[data-stile="standard"] body .tb-g .tb-r + .tb-r{ border-top-color:var(--so-hair); }
+    html[data-stile="standard"] body .tb-gname,
+    html[data-stile="standard"] body .tb-gtot{ color:color-mix(in srgb, var(--c, #8E8E93) 55%, #fff); }
+    html[data-stile="standard"] body .tb-gn{ color:var(--so-text-3); }
+    html[data-stile="standard"] body .tb-price{ background:var(--so-fill); }
+}
+
 /* ------------------------------------------------------------------ */
 /* 3. CARATTERI                                                        */
 /* La carta usa tre famiglie (serif, grafia a mano, Jost) scritte anche  */
