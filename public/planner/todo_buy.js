@@ -21,7 +21,12 @@
      categoria, link, foto, elimina) si apre toccando la freccetta.
    - SPUNTARE È ISTANTANEO: la riga si sbarra e scivola nel CARRELLO in fondo,
      con il suo totale; da lì si toglie la spunta o si svuota il carrello.
-   - Totali sempre giusti: da comprare, nel carrello. */
+   - Totali sempre giusti: da comprare, nel carrello.
+   - DUE VESTI (todo_buy.css): standard = «Corsie» (una scheda colorata per
+     categoria + totale fisso in basso), paper = «Scontrino» (lista su carta
+     con puntini guida e bordo strappato). Il codice disegna sempre gli
+     stessi pezzi — .tb-paper, .tb-cap, .tb-lead, .tb-foot — e il foglio di
+     stile mostra o nasconde quelli che servono a ciascuna veste. */
 (function () {
     'use strict';
     var W = window.standoutTodo;
@@ -121,6 +126,8 @@
         var self = this;
         if (this.buyBar) return this.buyBar;
         var bar = el('div', 'tb-bar');
+        var aiuto = el('div', 'tb-hint');
+        var sugg = el('div', 'tb-sugg');
         var form = el('form', 'tb-add');
         form.setAttribute('autocomplete', 'off');
         var ic = el('span', 'tb-add-ic');
@@ -132,11 +139,46 @@
         inp.setAttribute('autocapitalize', 'sentences');
         inp.maxLength = 300;
         inp.placeholder = T('todo.tb_aggiungi_ph');
-        var go = el('button', 'tb-add-go', T('todo.tb_aggiungi'));
+        /* solo l'icona: il testo resta per gli schermi che leggono, non per gli occhi */
+        var go = el('button', 'tb-add-go');
         go.type = 'submit';
-        form.appendChild(ic); form.appendChild(inp); form.appendChild(go);
-        var aiuto = el('div', 'tb-hint');
-        var sugg = el('div', 'tb-sugg');
+        go.setAttribute('aria-label', T('todo.tb_aggiungi'));
+        go.innerHTML = H.ICON_PLUS;
+        go.appendChild(el('span', 'tb-add-t', T('todo.tb_aggiungi')));
+        form.appendChild(ic); form.appendChild(inp);
+        /* il microfono detta una frase e la aggiunge da sola, come nel to do */
+        var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (Rec) {
+            var mic = el('button', 'tb-mic');
+            mic.type = 'button';
+            mic.setAttribute('aria-label', T('todo.tn_detta'));
+            mic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/></svg>';
+            var rec = null, attivo = false;
+            mic.addEventListener('click', function () {
+                if (attivo && rec) { try { rec.stop(); } catch (e) {} return; }
+                try {
+                    rec = new Rec();
+                    rec.lang = (document.documentElement.lang || 'it') === 'en' ? 'en-US' : 'it-IT';
+                    rec.interimResults = true;
+                    rec.maxAlternatives = 1;
+                    var finale = '';
+                    rec.onresult = function (ev) {
+                        var t = '';
+                        for (var i = ev.resultIndex; i < ev.results.length; i++) t += ev.results[i][0].transcript;
+                        inp.value = t.trim();
+                        if (ev.results[ev.results.length - 1].isFinal) finale = t.trim();
+                    };
+                    rec.onerror = function () { attivo = false; mic.classList.remove('tb-reg'); };
+                    rec.onend = function () {
+                        attivo = false; mic.classList.remove('tb-reg');
+                        if (finale) { inp.value = ''; self.aggiungiAcquisto(finale); self.disegnaSuggerimenti(); aiuto.textContent = ''; }
+                    };
+                    rec.start(); attivo = true; mic.classList.add('tb-reg');
+                } catch (e) { attivo = false; }
+            });
+            form.appendChild(mic);
+        }
+        form.appendChild(go);
         bar.appendChild(form); bar.appendChild(aiuto); bar.appendChild(sugg);
 
         form.addEventListener('submit', function (e) {
@@ -317,7 +359,7 @@
         var conto = el('div', 'tb-sum-n');
         conto.appendChild(el('b', null, String(daFare.length)));
         conto.appendChild(el('span', null, ' ' + (daFare.length === 1 ? T('todo.tb_da_comprare_1') : T('todo.tb_da_comprare_n'))));
-        if (sommaCent(daFare)) { conto.appendChild(el('span', 'tb-sep', '·')); conto.appendChild(el('b', null, euro(sommaCent(daFare)))); }
+        if (sommaCent(daFare)) { conto.appendChild(el('span', 'tb-sep', '·')); conto.appendChild(el('b', 'tb-sum-tot', euro(sommaCent(daFare)))); }
         testa.appendChild(conto);
         var cb = el('button', 'tb-link', T('todo.categorie'));
         cb.type = 'button';
@@ -341,12 +383,24 @@
         var senza = daFare.filter(function (t) { return !self.catDi(t) || !self.catById(self.catDi(t)); });
         if (senza.length) gruppi.push({ cat: null, items: senza });
 
+        /* Il «foglio» che contiene categorie e carrello. Nella veste Corsie non
+           ha aspetto; in quella Scontrino è la striscia di carta. */
+        var ciSono = daFare.length || fatti.length;
+        var carta = el('div', 'tb-paper'), foglio = el('div', 'tb-paper-in');
+        carta.appendChild(foglio);
+        if (ciSono) {
+            var dataOggi = '';
+            try { dataOggi = new Intl.DateTimeFormat(document.documentElement.lang || 'it', { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date()); } catch (e) {}
+            foglio.appendChild(el('div', 'tb-cap', T('todo.tb_lista') + (dataOggi ? ' · ' + dataOggi : '')));
+        }
+
         gruppi.forEach(function (g) {
             var sez = el('section', 'tb-g');
             sez.style.setProperty('--c', (g.cat && g.cat.color) || '#B7AEA3');
             var h = el('div', 'tb-gh');
             h.appendChild(el('i', 'tb-dot'));
             h.appendChild(el('span', 'tb-gname', g.cat ? g.cat.name : T('todo.senza_categoria')));
+            h.appendChild(el('span', 'tb-lead'));   // la linea tratteggiata dello scontrino
             h.appendChild(el('span', 'tb-gn', String(g.items.length)));
             var sub = sommaCent(g.items);
             h.appendChild(el('span', 'tb-gtot', sub ? euro(sub) : ''));
@@ -355,7 +409,7 @@
                 var pa = self.prioDi(a), pb = self.prioDi(b);
                 return pa !== pb ? pa - pb : 0;
             }).forEach(function (t) { sez.appendChild(self.rigaAcquisto(t)); });
-            self.list.appendChild(sez);
+            foglio.appendChild(sez);
         });
 
         /* il carrello: quello che è già stato preso oggi */
@@ -382,8 +436,40 @@
             corpo.appendChild(svuota);
             corpo.appendChild(el('div', 'tb-cart-nota', T('todo.tb_carrello_nota')));
             cart.appendChild(corpo);
-            this.list.appendChild(cart);
+            foglio.appendChild(cart);
         }
+        if (ciSono) this.list.appendChild(carta);
+        if (ciSono) this.list.appendChild(this.piedeAcquisti(daFare, fatti));
+    };
+
+    /* Il totale fisso in fondo (veste Corsie; nell'altra è nascosto perché il
+       totale sta già sopra). Il tasto carrello apre il carrello e ci scorre. */
+    Todo.prototype.piedeAcquisti = function (daFare, fatti) {
+        var self = this;
+        var foot = el('div', 'tb-foot');
+        var sx = el('div', 'tb-foot-l');
+        var tot = sommaCent(daFare);
+        if (tot) {
+            sx.appendChild(el('span', 'tb-foot-k', T('todo.tb_da_spendere')));
+            sx.appendChild(el('b', 'tb-foot-v', euro(tot)));
+        } else {
+            sx.appendChild(el('b', 'tb-foot-v', daFare.length + ' ' + T(daFare.length === 1 ? 'todo.tb_da_comprare_1' : 'todo.tb_da_comprare_n')));
+        }
+        foot.appendChild(sx);
+        if (fatti.length) {
+            var pill = el('button', 'tb-foot-cart');
+            pill.type = 'button';
+            pill.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.2 10.2a1.5 1.5 0 001.5 1.2h8.6a1.5 1.5 0 001.4-1.1L21 8H6.3"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg>';
+            pill.appendChild(el('span', null, T('todo.tb_pill_carrello') + ' ' + fatti.length));
+            pill.addEventListener('click', function () {
+                self.cartAperto = true;
+                self.render();
+                var c = self.list.querySelector('.tb-cart');
+                if (c && c.scrollIntoView) c.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+            foot.appendChild(pill);
+        }
+        return foot;
     };
 
     Todo.prototype.rigaAcquisto = function (t) {

@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   STANDOUT — API DELLE ATTIVITÀ (TO DO / TO BUY / TO STUDY)
+   STANDOUT — API DELLE ATTIVITÀ (TO DO / TO BUY)
    Un solo punto di scrittura per la pagina to-do, per la sezione dentro
    un progetto, per il post-it del pomodoro e per il pannello settimana
    del planner.
@@ -43,7 +43,7 @@ $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
    voce può passare da un elenco all'altro senza spostare righe, e tutto
    quello che già funzionava (sotto-attività, planner, pomodoro) continua
    a funzionare senza duplicare il codice. */
-const TD_TIPI = ['todo', 'buy', 'study'];
+const TD_TIPI = ['todo', 'buy'];
 
 /* Cartella delle immagini degli articoli. Sta fuori dal database perché un
    file grande dentro una riga rallenta ogni lettura dell'elenco. */
@@ -299,6 +299,150 @@ if ($ajax === 'buy_forget') {
         sec_q("DELETE FROM todo_buy_memory WHERE user_id = ? AND chiave = ?", [$uid, td_mem_chiave((string)sec_str(sec_in('k'), 300))], 'is');
     }
     sec_json(['ok' => true]);
+}
+
+/* ---------------------------------------------------------------------
+   LA NOTA VELOCE
+
+   Una nota sola per utente, in cima alla pagina: per segnare qualcosa in
+   dieci secondi, senza decidere dove va. Poi, con calma, si smista (a mano o
+   con l'IA) in to do, to buy, planner o progetti.
+
+   La tabella si crea da sola al primo uso, come todo_buy_memory: la
+   migrazione 2026-10-25_todo_nota.sql esiste solo per tenere schema e
+   database allineati.
+
+   «nota_applica» e' il punto in cui le voci SMISTATE diventano vere. Arriva
+   gia' controllata dall'utente (schermata di conferma); qui si ricontrolla
+   tutto lo stesso, perche' il client non e' mai una garanzia.
+   --------------------------------------------------------------------- */
+function td_nota_c_e(): bool {
+    static $ok = null;
+    if ($ok !== null) return $ok;
+    try {
+        sec_q("CREATE TABLE IF NOT EXISTS todo_notes (
+                 user_id INT NOT NULL,
+                 body MEDIUMTEXT NOT NULL,
+                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                 PRIMARY KEY (user_id)
+               ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $ok = true;
+    } catch (Throwable $e) {
+        $ok = false;
+    }
+    return $ok;
+}
+
+/* Colori dei progetti nuovi: a rotazione, cosi' due progetti creati di fila
+   non nascono dello stesso colore. */
+const TD_COLORI_PROGETTO = ['#A9C3AE', '#E8B86B', '#D9B7C0', '#9FB7D1', '#C6B6A6', '#B7A6D6'];
+
+/* I progetti dell'utente, per riconoscere «#nome» nella barra: nome e colore,
+   i preferiti per primi. Corto apposta, si legge una volta per pagina. */
+if ($ajax === 'progetti') {
+    $rows = sec_all("SELECT id, name, color FROM projects WHERE user_id = ? AND study_event_id IS NULL
+                     ORDER BY is_favorite DESC, name ASC LIMIT 150", [$uid], 'i');
+    sec_json(['ok' => true, 'projects' => array_map(function ($r) {
+        return ['id' => (int)$r['id'], 'name' => $r['name'], 'color' => $r['color']];
+    }, $rows), 'categories' => td_categories($uid)]);
+}
+
+if ($ajax === 'nota_leggi') {
+    $r = td_nota_c_e() ? sec_one("SELECT body, updated_at FROM todo_notes WHERE user_id = ?", [$uid], 'i') : null;
+    sec_json(['ok' => true, 'body' => $r ? (string)$r['body'] : '', 'updated' => $r['updated_at'] ?? null]);
+}
+
+if ($ajax === 'nota_salva') {
+    if (!td_nota_c_e()) sec_die_json(t('todo.nota_errore'), 500, 'db');
+    $body = sec_text(sec_in('body'), 20000);
+    sec_q("INSERT INTO todo_notes (user_id, body) VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE body = VALUES(body)", [$uid, $body], 'is');
+    sec_json(['ok' => true]);
+}
+
+if ($ajax === 'nota_applica') {
+    $voci = sec_in('items');
+    if (!is_array($voci) || !$voci) sec_json(['ok' => true, 'results' => [], 'categories' => td_categories($uid)]);
+    $voci = array_slice($voci, 0, 80);
+    $oggi = date('Y-m-d');
+    $risultati = [];
+
+    foreach ($voci as $i => $v) {
+        if (!is_array($v)) { $risultati[] = ['i' => $i, 'ok' => false]; continue; }
+        $dest  = sec_enum($v['dest'] ?? '', ['todo', 'buy', 'event', 'project'], '');
+        $title = sec_str($v['title'] ?? '', $dest === 'event' ? 180 : 300);
+        if ($dest === '' || $title === '') { $risultati[] = ['i' => $i, 'ok' => false]; continue; }
+
+        $data = sec_date($v['date'] ?? '', null);
+        $ora  = !empty($v['time']) ? sec_time($v['time'], null) : null;
+        $min  = sec_int($v['minutes'] ?? 0, 1, 1440, $dest === 'event' ? 60 : 30);
+        $proj = sec_int($v['project_id'] ?? 0, 0, PHP_INT_MAX, 0);
+        if ($proj > 0 && !sec_owns('projects', $proj, $uid)) $proj = 0;
+
+        try {
+            if ($dest === 'project') {
+                /* un progetto che esiste gia' con quel nome non si duplica */
+                $ex = sec_one("SELECT id FROM projects WHERE user_id = ? AND LOWER(name) = LOWER(?) LIMIT 1", [$uid, $title], 'is');
+                if ($ex) { $risultati[] = ['i' => $i, 'ok' => true, 'dest' => 'project', 'id' => (int)$ex['id'], 'esisteva' => true]; continue; }
+                $n  = sec_one("SELECT COUNT(*) AS n, COALESCE(MAX(custom_order), -1) + 1 AS o FROM projects WHERE user_id = ? AND parent_id IS NULL", [$uid], 'i');
+                $col = TD_COLORI_PROGETTO[((int)($n['n'] ?? 0)) % count(TD_COLORI_PROGETTO)];
+                sec_q("INSERT INTO projects (user_id, parent_id, name, color, color_edited, status, custom_order, created_at)
+                       VALUES (?, NULL, ?, ?, 0, 'in_progress', ?, NOW())",
+                      [$uid, $title, $col, (int)($n['o'] ?? 0)], 'issi');
+                $risultati[] = ['i' => $i, 'ok' => true, 'dest' => 'project', 'id' => sec_insert_id()];
+                continue;
+            }
+
+            if ($dest === 'event') {
+                $giorno = $data ?: $oggi;
+                $tutto  = $ora === null ? 1 : 0;
+                $inizio = $tutto ? '00:00:00' : $ora;
+                $fineMin = $tutto ? 1439 : min(1439, (int)substr($inizio, 0, 2) * 60 + (int)substr($inizio, 3, 2) + max(5, $min));
+                $fine   = $tutto ? '23:59:00' : sprintf('%02d:%02d:00', intdiv($fineMin, 60), $fineMin % 60);
+                sec_q("INSERT INTO planner_events
+                       (user_id, title, event_date, start_time, end_time, is_all_day, project_id,
+                        item_type, is_completed, notify_type, notify_minutes)
+                       VALUES (?,?,?,?,?,?,?, 'event', 0, 'none', 0)",
+                      [$uid, $title, $giorno, $inizio, $fine, $tutto, $proj > 0 ? $proj : null]);
+                $risultati[] = ['i' => $i, 'ok' => true, 'dest' => 'event', 'id' => sec_insert_id()];
+                continue;
+            }
+
+            /* to do e to buy: la stessa riga di «save», una volta sola */
+            $catId = 0; $cents = null; $prio = 3;
+            if ($dest === 'buy') {
+                $catId = sec_int($v['cat_id'] ?? 0, 0, PHP_INT_MAX, 0);
+                if ($catId > 0 && !sec_owns('todo_buy_categories', $catId, $uid)) $catId = 0;
+                $catNome = sec_str($v['cat_name'] ?? '', 60);
+                if ($catId === 0 && $catNome !== '') {
+                    $ex = sec_one("SELECT id FROM todo_buy_categories WHERE user_id = ? AND LOWER(name) = LOWER(?) LIMIT 1", [$uid, $catNome], 'is');
+                    if ($ex) $catId = (int)$ex['id'];
+                    else {
+                        sec_q("INSERT INTO todo_buy_categories (user_id, name, color, sort_order)
+                               VALUES (?,?,?,(SELECT COALESCE(MAX(x.so),0)+1 FROM (SELECT sort_order AS so FROM todo_buy_categories WHERE user_id=?) x))",
+                              [$uid, $catNome, '#B7AEA3', $uid], 'issi');
+                        $catId = sec_insert_id();
+                    }
+                }
+                $cents = td_price_cents($v['price'] ?? '');
+                $prio  = sec_int($v['priority'] ?? 3, 1, 3, 3);
+            }
+            $next = sec_one("SELECT COALESCE(MAX(sort_order),0)+1 AS n FROM todos WHERE user_id = ?", [$uid], 'i');
+            sec_q("INSERT INTO todos (user_id, list_type, parent_id, project_id, title, due_date, due_time,
+                                      duration_minutes, sort_order, source,
+                                      buy_category_id, buy_priority, buy_price_cents, buy_url)
+                   VALUES (?,?,NULL,?,?,?,?,?,?,'page',?,?,?,NULL)",
+                  [$uid, $dest, $proj > 0 ? $proj : null, $title, $data, $ora, $min, (int)($next['n'] ?? 1),
+                   $catId > 0 ? $catId : null, $prio, $cents]);
+            $nuovo = sec_insert_id();
+            td_sync_planner($uid, $nuovo);
+            if ($dest === 'buy') td_mem_ricorda($uid, $nuovo, false);
+            $risultati[] = ['i' => $i, 'ok' => true, 'dest' => $dest, 'id' => $nuovo];
+        } catch (Throwable $e) {
+            $risultati[] = ['i' => $i, 'ok' => false];
+        }
+    }
+    sec_json(['ok' => true, 'results' => $risultati, 'categories' => td_categories($uid)]);
 }
 
 if ($ajax === 'list') {

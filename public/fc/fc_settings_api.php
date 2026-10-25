@@ -3,6 +3,7 @@
  *
  * GET              le scelte attuali
  * POST significato=aperto|tocco|dopo, esempi=aperto|tocco|dopo (una o tutte e due)
+ *      lettura=4 cifre: cosa legge la modalita' vocale (vedi fc_impostazioni.php)
  *
  * Le usa l'ingranaggio del gioco delle lingue (fc_game.php) e l'opzione
  * "indizi gia' aperti" nell'avvio della partita (fc_game_setup.php).
@@ -20,6 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $v = sec_in($k);
         if ($v !== null && $v !== '') $nuove[$k] = sec_enum($v, FC_INDIZI_MODI, 'aperto');
     }
+    $lettura = sec_in('lettura');
+    if (is_string($lettura) && fc_lettura_valida($lettura)) $nuove['lettura'] = $lettura;
     sec_json(['ok' => true, 'impostazioni' => fc_impostazioni_salva($uid, $nuove)]);
 }
 
