@@ -23,6 +23,30 @@
 
     function T(k, p) { return (window.T ? window.T(k, p) : k); }
 
+    /* Una nota e' vuota se non ha ne' testo ne' formule. Il formato nuovo e'
+       un documento JSON: un documento di soli paragrafi vuoti e' vuoto anche
+       se la stringa non lo e'. */
+    var INVISIBILI = /[\s\u00A0\u200B-\u200F\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]+/g;
+    function vuota(raw) {
+        if (raw == null) return true;
+        raw = String(raw);
+        if (raw.charAt(0) === '{') {
+            try {
+                var d = JSON.parse(raw);
+                if (d && Array.isArray(d.blocks)) {
+                    return !d.blocks.some(function (b) {
+                        if (!b) return false;
+                        if (b.t === 'fx' && String(b.tex || '').replace(INVISIBILI, '') !== '') return true;
+                        return (b.runs || []).some(function (r) {
+                            return r && ((typeof r.s === 'string' && r.s.replace(INVISIBILI, '') !== '') || (typeof r.x === 'string' && r.x.replace(INVISIBILI, '') !== ''));
+                        });
+                    });
+                }
+            } catch (e) { }
+        }
+        return raw.replace(INVISIBILI, '') === '';
+    }
+
     /* ---------------- la coda sul dispositivo ---------------- */
     function leggiCoda() {
         try { return JSON.parse(localStorage.getItem(CHIAVE) || '{}') || {}; } catch (e) { return {}; }
@@ -154,8 +178,8 @@
         var timer = null, pila = [], ultimo = '', nascondi = null, id = 0, aperto = false;
 
         function valore() {
-            if (ed && ed.dataset.vuoto === '1') return '';          // una nota svuotata e' una nota vuota
-            return campo ? campo.value : '';
+            var v = campo ? campo.value : '';
+            return vuota(v) ? '' : v;                               // una nota svuotata e' una nota vuota
         }
         function mostra(msg, cls) {
             clearTimeout(nascondi);
@@ -264,7 +288,7 @@
     setInterval(function () { if (quanteInCoda() && navigator.onLine !== false) svuota(); }, 20000);
 
     window.PrNota = {
-        disegna: disegna, collega: collega, inCoda: inCoda, svuota: svuota,
+        disegna: disegna, vuota: vuota, collega: collega, inCoda: inCoda, svuota: svuota,
         alSincronizzare: function (fn) { ascoltatori.push(fn); },
         aggiornaAvviso: aggiornaPillola
     };

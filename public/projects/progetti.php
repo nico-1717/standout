@@ -64,6 +64,29 @@ function pr_id_ricordato(): int {
 }
 
 function prog_nota_vuota($s): bool {
+    /* Il formato dell'editor e' un documento JSON ({"v":2,"blocks":[…]}): un
+       documento senza testo ne' formule ha comunque dei caratteri (le parentesi,
+       i nomi dei campi), quindi per le regole sotto sembrava una nota piena.
+       Risultato: una nota svuotata restava «piena» e la pagina mostrava un
+       riquadro vuoto, che si correggeva solo dopo che il JavaScript l'aveva
+       disegnata. Qui si guarda cosa c'e' DENTRO il documento. */
+    if (is_string($s) && isset($s[0]) && $s[0] === '{') {
+        $j = json_decode($s, true);
+        if (is_array($j) && isset($j['blocks']) && is_array($j['blocks'])) {
+            $invisibili = '/[\s\x{00A0}\x{1680}\x{2000}-\x{200F}\x{2028}\x{2029}\x{202F}\x{205F}\x{2060}\x{3000}\x{FEFF}]+/u';
+            foreach ($j['blocks'] as $b) {
+                if (!is_array($b)) continue;
+                if (($b['t'] ?? '') === 'fx' && trim((string)($b['tex'] ?? '')) !== '') return false;
+                foreach (($b['runs'] ?? []) as $r) {
+                    if (!is_array($r)) continue;
+                    foreach (['s', 'x'] as $k) {
+                        if (isset($r[$k]) && is_string($r[$k]) && preg_replace($invisibili, '', $r[$k]) !== '') return false;
+                    }
+                }
+            }
+            return true;
+        }
+    }
     $t = html_entity_decode(strip_tags((string)$s), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $t = preg_replace('/[\s\x{00A0}\x{1680}\x{2000}-\x{200F}\x{2028}\x{2029}\x{202F}\x{205F}\x{2060}\x{3000}\x{FEFF}]+/u', '', $t);
     if ($t === null) return false;
@@ -4211,7 +4234,7 @@ document.addEventListener('click', function () {
     var box = document.getElementById('prNotaEdit');
     if (!vista || !box || !window.PrNota) return;
 
-    function vuota(raw) { return !raw || !String(raw).trim(); }
+    function vuota(raw) { return PrNota.vuota(raw); }
     /* La nota disegnata, o l'invito «Aggiungi una nota» se non c'e' niente. */
     function mostra(raw) {
         vista.dataset.raw = raw || '';
@@ -4249,6 +4272,9 @@ document.addEventListener('click', function () {
         if (vista.querySelector('img, svg, mjx-container, .MathJax')) return;
         mostra('');
     }
+    /* appena fc_parser ha disegnato le note (DOMContentLoaded), non dopo */
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', controllaVuota);
+    else controllaVuota();
     window.addEventListener('load', function () { setTimeout(controllaVuota, 400); });
 
     /* Una modifica fatta offline e non ancora arrivata sul server vale piu'
