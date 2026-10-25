@@ -648,7 +648,7 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 
-                    <div class="score-line"><span id="scoreNum" data-score="<?php echo number_format($score, 2, '.', ''); ?>">0</span><span class="pct">%</span></div>
+                    <div class="score-line"><span id="scoreNum" title="<?php echo number_format($score, 2, '.', ''); ?>%" data-score="<?php echo number_format($score, 2, '.', ''); ?>">0</span><span class="pct">%</span></div>
 
 
 
@@ -1697,7 +1697,7 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 
-                    var dec = (target % 1 === 0) ? 0 : 2;
+                    var dec = 0;   // intero: due decimali in una cifra cosi' grande pesavano; il valore esatto resta nell'attributo data-score
 
 
 
