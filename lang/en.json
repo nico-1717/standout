@@ -5087,9 +5087,6 @@
     "nota_offline": "Offline: I’ll save it when you’re back online.",
     "nessuna_abitudine": "No habits due today.",
     "crea_abitudine": "Create one",
-    "abitudini_tutte": "All done, well done!",
-    "abitudini_mancano": "{n} to go today",
-    "questa_settimana": "This week",
     "carte_oggi": "Today",
     "carta_veloce": "Quick card",
     "carta_veloce_ph": "Quick card: type the front…",
@@ -5142,6 +5139,10 @@
     "api_manca_risposta": "Write the back of the card.",
     "api_scegli_mazzo": "Pick a deck.",
     "api_azione_sconosciuta": "Unknown action.",
-    "aggiunta": "Added"
+    "aggiunta": "Added",
+    "hab_giornaliere": "Daily",
+    "hab_settimanali": "Weekly",
+    "hab_mensili": "Monthly",
+    "hab_intervallo": "Every few days"
   }
 }

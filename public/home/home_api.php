@@ -273,6 +273,63 @@ function ho_importanti(int $uid, string $oggi): array {
     return array_slice($uniche, 0, 6);
 }
 
+
+/* ---------------------------------------------------------------------
+   Abitudini di oggi, divise per ritmo: giornaliere, settimanali, mensili,
+   ogni N giorni. Le stesse famiglie della pagina Abitudini, cosi' la home
+   non inventa un modo suo di contarle:
+     - giornaliere / a intervallo: contano solo nei giorni in cui sono previste
+     - settimanali: «n volte a settimana», si conta da lunedi' a oggi
+     - mensili: «n volte al mese», dal primo del mese a oggi
+   Una spunta e' sempre quella di OGGI (log_set con mode=toggle): per le
+   settimanali e le mensili vuol dire «oggi l'ho fatta», e il conto sale. Le
+   abitudini «da evitare» (quit) non compaiono: non si spuntano, si resiste.
+   --------------------------------------------------------------------- */
+function ho_abitudini(int $uid, string $oggi): array {
+    $lun = pl_monday($oggi);
+    $mese1 = substr($oggi, 0, 7) . '-01';
+    $da = min($lun, $mese1);
+    $hs = sec_all("SELECT id, name, icon, color, goal_type, target_amount, frequency_type, weekdays, interval_days,
+                          times_per_week, times_per_month, start_date, end_date, is_archived
+                     FROM habits WHERE user_id = ? AND habit_kind = 'build' AND is_archived = 0
+                    ORDER BY sort_order, id", [$uid], 'i');
+    if (!$hs) return [];
+    $per = [];
+    foreach (sec_all("SELECT habit_id, log_date, status, amount, target_amount FROM habit_logs
+                       WHERE user_id = ? AND log_date BETWEEN ? AND ?", [$uid, $da, $oggi], 'iss') as $l) {
+        $t = (float)$l['target_amount'];
+        $per[(int)$l['habit_id']][$l['log_date']] = [
+            'ok' => $l['status'] === 'done' || ($t > 0 && (float)$l['amount'] >= $t),
+            'part' => $t > 0 ? min(1.0, (float)$l['amount'] / $t) : 0.0,
+        ];
+    }
+    $gruppi = ['daily' => [], 'weekly' => [], 'monthly' => [], 'interval' => []];
+    foreach ($hs as $h) {
+        $suoi = $per[(int)$h['id']] ?? [];
+        $oggiLog = $suoi[$oggi] ?? null;
+        $fatta = $oggiLog && $oggiLog['ok'];
+        $item = ['id' => (int)$h['id'], 'name' => $h['name'], 'icon' => $h['icon'], 'color' => $h['color'],
+                 'done' => (bool)$fatta, 'part' => $fatta ? 1.0 : ($oggiLog ? round($oggiLog['part'], 2) : 0.0)];
+        $tipo = $h['frequency_type'];
+        if ($tipo === 'daily' || $tipo === 'interval') {
+            if (!pl_habit_due($h, $oggi)) continue;
+            $gruppi[$tipo][] = $item;
+        } elseif ($tipo === 'weekly' || $tipo === 'monthly') {
+            if ($h['start_date'] > $oggi) continue;
+            $inizio = $tipo === 'weekly' ? $lun : $mese1;
+            if (!empty($h['end_date']) && $h['end_date'] < $inizio) continue;
+            $n = 0;
+            foreach ($suoi as $d => $x) { if ($x['ok'] && $d >= $inizio) $n++; }
+            $item['n'] = $n;
+            $item['target'] = max(1, (int)($tipo === 'weekly' ? $h['times_per_week'] : $h['times_per_month']));
+            $gruppi[$tipo][] = $item;
+        }
+    }
+    $out = [];
+    foreach ($gruppi as $k => $items) { if ($items) $out[] = ['key' => $k, 'items' => $items]; }
+    return $out;
+}
+
 /* ---------------------------------------------------------------------
    summary
    --------------------------------------------------------------------- */
@@ -314,9 +371,6 @@ if ($ajax === 'summary') {
         $nota = $r ? (string)$r['body'] : '';
     } catch (Throwable $e) { /* tabella non ancora creata: la crea la pagina To do alla prima nota */ }
 
-    $abitudini = pl_habits_for_date($uid, $oggi);
-    $settimanali = pl_habits_weekly($uid, $oggi);
-
     sec_json([
         'ok' => true, 'today' => $oggi, 'now' => date('H:i'), 'name' => $utente_corrente['username'] ?? '',
         'layout' => ho_layout($uid),
@@ -332,7 +386,7 @@ if ($ajax === 'summary') {
         }, $buy),
         'buy_open' => $nBuy,
         'note' => $nota,
-        'habits' => $abitudini, 'habits_weekly' => $settimanali,
+        'habit_groups' => ho_abitudini($uid, $oggi),
         'grades' => ho_voti($uid, $oggi),
         'fc' => ho_flashcard($uid, $oggi),
     ]);

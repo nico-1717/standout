@@ -191,21 +191,20 @@ select.ho-in{ appearance:none; background-image:linear-gradient(45deg,transparen
 .ho-note-st{ font-size:12.5px; color:var(--text-2); font-weight:600; min-height:18px; }
 
 /* ---------- abitudini ---------- */
-.ho-hab{ display:flex; flex-wrap:wrap; gap:8px; }
-.ho-hb{ display:inline-flex; align-items:center; gap:7px; height:40px; padding:0 14px 0 11px; border:2px solid transparent; border-radius:999px; background:var(--surface-2); font-weight:650; font-size:14.5px; transition:background .2s, border-color .2s, transform .15s var(--spring); }
-.ho-hb:active{ transform:scale(.95); }
-.ho-hb .ic{ font-size:17px; line-height:1; }
-.ho-hb.is-on{ background:color-mix(in srgb,var(--c) 18%,transparent); border-color:var(--c); }
-.ho-hb.is-on .tk{ display:inline-block; }
-.ho-hb .tk{ display:none; width:15px; height:15px; color:var(--c); }
-.ho-ring{ position:relative; width:46px; height:46px; flex:none; }
-.ho-ring svg{ width:100%; height:100%; transform:rotate(-90deg); }
-.ho-ring b{ position:absolute; inset:0; display:grid; place-items:center; font-size:12.5px; font-variant-numeric:tabular-nums; }
-.ho-hab-top{ display:flex; align-items:center; gap:12px; }
-.ho-wk{ display:flex; align-items:center; gap:10px; font-size:14px; }
-.ho-wk .nm{ flex:0 1 38%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
-.ho-wk .ho-bar{ flex:1; }
-.ho-wk .v{ flex:none; font-variant-numeric:tabular-nums; color:var(--text-2); font-size:13px; font-weight:700; }
+.ho-hgs{ display:flex; flex-direction:column; gap:14px; }
+.ho-hg-h{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid var(--hairline); }
+.ho-hgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(78px,1fr)); gap:8px; }
+.ho-hc{ position:relative; display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 4px 9px; border:0; border-radius:20px; background:transparent; color:var(--text); transition:background-color .28s var(--spring), transform .2s var(--spring); }
+.ho-hc:active{ transform:scale(.93); }
+.ho-hc.is-on{ background:color-mix(in srgb, var(--c) 16%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent); }
+.ho-hc-ring{ position:relative; width:44px; height:44px; display:grid; place-items:center; }
+.ho-hc-ring > svg{ position:absolute; inset:0; width:44px; height:44px; transform:rotate(-90deg); }
+.ho-hc-ring circle:last-child{ transition:stroke-dashoffset .6s var(--spring); }
+.ho-hc .ic{ font-size:21px; line-height:1; }
+.ho-hc .tk{ position:absolute; right:-3px; bottom:-3px; width:17px; height:17px; border-radius:50%; background:var(--c); color:#fff; display:grid; place-items:center; box-shadow:0 0 0 2px var(--surface); }
+.ho-hc .nm{ font-size:12.5px; font-weight:700; line-height:1.2; text-align:center; max-width:100%; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere; }
+.ho-hc .cp{ font-size:11.5px; font-weight:800; color:var(--text-2); font-variant-numeric:tabular-nums; margin-top:-3px; }
+.ho-hc.is-on .cp{ color:var(--c); }
 
 /* ---------- flashcard ---------- */
 .ho-goal{ display:flex; align-items:center; gap:12px; }

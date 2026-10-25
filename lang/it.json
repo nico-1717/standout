@@ -5087,9 +5087,6 @@
     "nota_offline": "Offline: la salvo appena torna la rete.",
     "nessuna_abitudine": "Nessuna abitudine prevista oggi.",
     "crea_abitudine": "Creane una",
-    "abitudini_tutte": "Tutte fatte, bravo!",
-    "abitudini_mancano": "Ne mancano {n} per oggi",
-    "questa_settimana": "Questa settimana",
     "carte_oggi": "Oggi",
     "carta_veloce": "Carta veloce",
     "carta_veloce_ph": "Carta veloce: scrivi il fronte…",
@@ -5142,6 +5139,10 @@
     "api_manca_risposta": "Scrivi il retro della carta.",
     "api_scegli_mazzo": "Scegli un mazzo.",
     "api_azione_sconosciuta": "Azione sconosciuta.",
-    "aggiunta": "Aggiunta"
+    "aggiunta": "Aggiunta",
+    "hab_giornaliere": "Giornaliere",
+    "hab_settimanali": "Settimanali",
+    "hab_mensili": "Mensili",
+    "hab_intervallo": "Ogni tot giorni"
   }
 }

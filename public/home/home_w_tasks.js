@@ -258,65 +258,74 @@
 
     /* ------------------------------------------------------------------
        abitudini
+       Carte come quelle del selettore dei giorni nella pagina Abitudini:
+       l'icona sopra dentro un anello di avanzamento, il nome sotto. Divise
+       per ritmo (giornaliere, settimanali, mensili, ogni N giorni) da
+       un'etichetta con quante ne sono completate.
        ------------------------------------------------------------------ */
-    function ring(done, total, color) {
-        var box = el('div', 'ho-ring');
-        var pct = total ? done / total : 0, r = 20, c = 2 * Math.PI * r;
-        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('viewBox', '0 0 48 48');
-        svg.innerHTML = '<circle cx="24" cy="24" r="' + r + '" fill="none" stroke="var(--hairline)" stroke-width="6"/>' +
-            '<circle cx="24" cy="24" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="6" stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + (c * (1 - pct)).toFixed(1) + '"/>';
-        box.appendChild(svg);
-        box.appendChild(el('b', null, done + '/' + total));
-        return box;
+    var GRUPPI = { daily: 'home.hab_giornaliere', weekly: 'home.hab_settimanali', monthly: 'home.hab_mensili', interval: 'home.hab_intervallo' };
+    var R = 19, C = 2 * Math.PI * R;
+
+    function habitCard(h, key, d, w) {
+        var weekly = key === 'weekly' || key === 'monthly';
+        var complete = weekly ? h.n >= h.target : h.done;
+        var frac = weekly ? Math.min(1, h.n / h.target) : (h.done ? 1 : (h.part || 0));
+        var b = el('button', 'ho-hc' + (complete ? ' is-on' : '')); b.type = 'button';
+        b.style.setProperty('--c', h.color || 'var(--pink)');
+        b.setAttribute('aria-pressed', h.done ? 'true' : 'false');
+        var ring = el('span', 'ho-hc-ring');
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 44 44');
+        svg.innerHTML = '<circle cx="22" cy="22" r="' + R + '" fill="none" stroke="var(--hairline)" stroke-width="3"/>' +
+            '<circle cx="22" cy="22" r="' + R + '" fill="none" stroke="var(--c)" stroke-width="3" stroke-linecap="round" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + (C * (1 - frac)).toFixed(1) + '"/>';
+        ring.appendChild(svg);
+        ring.appendChild(el('span', 'ic', h.icon || '⭐'));
+        if (h.done) { var tk = el('span', 'tk'); tk.appendChild(H.svg('check', 10, 4)); ring.appendChild(tk); }
+        b.appendChild(ring);
+        b.appendChild(el('span', 'nm', h.name));
+        if (weekly) b.appendChild(el('span', 'cp', h.n + '/' + h.target));
+        b.addEventListener('click', function () {
+            /* subito sullo schermo; se il server dice no, si torna com'era */
+            var prev = { done: h.done, n: h.n, part: h.part };
+            h.done = !h.done;
+            if (weekly) h.n = Math.max(0, h.n + (h.done ? 1 : -1));
+            h.part = h.done ? 1 : 0;
+            H.repaint(['habits']);
+            H.api('planner/habits.php', 'log_set', { habit_id: h.id, date: d.today, mode: 'toggle', source: 'tap' }, true).then(function (r) {
+                var ok = r.status === 'done' || (r.target > 0 && r.amount >= r.target);
+                if (ok !== h.done) {   // abitudine a quantita': la spunta puo' non bastare
+                    h.done = ok; h.part = ok ? 1 : 0;
+                    if (weekly) h.n = Math.max(0, prev.n + (ok ? 1 : 0));
+                    H.repaint(['habits']);
+                }
+            }).catch(function (err) { h.done = prev.done; h.n = prev.n; h.part = prev.part; H.repaint(['habits']); H.fail(err); });
+        });
+        return b;
     }
 
     H.register('habits', {
         title: 'home.w_abitudini', icon: 'heart', color: 'var(--pink)', link: 'planner/habits.php',
-        build: function (w) { w.top = el('div', 'ho-hab-top'); w.chips = el('div', 'ho-hab'); w.wk = el('div'); w.body.appendChild(w.top); w.body.appendChild(w.chips); w.body.appendChild(w.wk); },
+        build: function (w) { w.groups = el('div', 'ho-hgs'); w.body.appendChild(w.groups); },
         update: function (w, d) {
-            var hs = d.habits || [];
-            w.top.innerHTML = ''; w.chips.innerHTML = ''; w.wk.innerHTML = '';
-            if (!hs.length && !(d.habits_weekly || []).length) {
+            var gs = d.habit_groups || [];
+            w.groups.innerHTML = '';
+            if (!gs.length) {
                 var e = el('div', 'ho-empty', T('home.nessuna_abitudine') + ' ');
                 var a = el('a', null, T('home.crea_abitudine')); a.href = H.base + 'planner/habits.php'; e.appendChild(a);
-                w.chips.appendChild(e); return;
+                w.groups.appendChild(e); return;
             }
-            if (hs.length) {
-                var done = hs.filter(function (h) { return h.done; }).length;
-                w.top.appendChild(ring(done, hs.length, 'var(--pink)'));
-                w.top.appendChild(el('div', 'ho-muted', done === hs.length ? T('home.abitudini_tutte') : T('home.abitudini_mancano', { n: hs.length - done })));
-            }
-            hs.forEach(function (h) {
-                var b = el('button', 'ho-hb' + (h.done ? ' is-on' : '')); b.type = 'button';
-                b.style.setProperty('--c', h.color || 'var(--pink)');
-                b.setAttribute('aria-pressed', h.done ? 'true' : 'false');
-                b.appendChild(el('span', 'ic', h.icon || '⭐'));
-                b.appendChild(el('span', null, h.name));
-                var tk = H.svg('check', 15, 3.4); tk.setAttribute('class', 'tk'); b.appendChild(tk);
-                b.addEventListener('click', function () {
-                    var was = h.done; h.done = !was;
-                    H.api('planner/habits.php', 'log_set', { habit_id: h.id, date: d.today, mode: 'toggle', source: 'tap' }, true).then(function (r) {
-                        h.done = r.status === 'done' || (r.target > 0 && r.amount >= r.target);
-                        H.repaint(['habits']);
-                    }).catch(function (err) { h.done = was; H.repaint(['habits']); H.fail(err); });
-                    H.repaint(['habits']);
-                });
-                w.chips.appendChild(b);
+            gs.forEach(function (g) {
+                var weekly = g.key === 'weekly' || g.key === 'monthly';
+                var fatte = g.items.filter(function (h) { return weekly ? h.n >= h.target : h.done; }).length;
+                var sec = el('div', 'ho-hg');
+                var head = el('div', 'ho-hg-h');
+                head.appendChild(el('span', 'ho-cap', T(GRUPPI[g.key])));
+                head.appendChild(el('span', 'ho-chip' + (fatte === g.items.length ? ' ho-chip--green' : ''), fatte + '/' + g.items.length));
+                sec.appendChild(head);
+                var grid = el('div', 'ho-hgrid');
+                g.items.forEach(function (h) { grid.appendChild(habitCard(h, g.key, d, w)); });
+                sec.appendChild(grid);
+                w.groups.appendChild(sec);
             });
-            var wk = d.habits_weekly || [];
-            if (wk.length) {
-                w.wk.appendChild(el('div', 'ho-cap', T('home.questa_settimana')));
-                wk.slice(0, 4).forEach(function (h) {
-                    var r = el('div', 'ho-wk'); r.style.marginTop = '8px';
-                    r.appendChild(el('span', 'nm', (h.icon || '') + ' ' + h.name));
-                    var bar = el('div', 'ho-bar'); bar.style.setProperty('--c', h.color || 'var(--pink)');
-                    var i = el('i'); i.style.width = Math.min(100, Math.round(h.done / h.target * 100)) + '%'; bar.appendChild(i);
-                    r.appendChild(bar);
-                    r.appendChild(el('span', 'v', h.done + '/' + h.target));
-                    w.wk.appendChild(r);
-                });
-            }
         }
     });
 })();
