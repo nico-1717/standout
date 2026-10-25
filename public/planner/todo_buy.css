@@ -1,0 +1,210 @@
+/* todo_buy.css — le due vesti del to buy (ottobre 2026).
+
+   Va DOPO todo_widget.css e todo_nuovo.css. todo_buy.js disegna sempre gli
+   stessi pezzi; qui si decide cosa mostrare:
+
+     standard  «Corsie»    una scheda colorata per categoria, totale fisso
+                           in basso con il tasto carrello
+     paper     «Scontrino» lista su striscia di carta: titoli in corsivo con
+                           linea tratteggiata e subtotale, righe puntinate,
+                           bordo inferiore strappato
+
+   I colori delle schede non sono scritti qui: ogni categoria porta il suo
+   (--c) e color-mix lo stempera sulla superficie del momento, quindi la
+   scheda funziona uguale in chiaro e in scuro e con qualunque colore scelga
+   l'utente. Se qualcosa non piace basta togliere questo foglio: il to buy
+   torna com'era. */
+
+/* ------------------------------------------------------------------ */
+/* COMUNE — i pezzi che servono a tutte e due                           */
+/* ------------------------------------------------------------------ */
+.tb-add-ic{ display:none; }                       /* la barra ha già «+» e microfono a destra */
+.tb-add-t{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.tb-add-go{ position:relative; width:44px; height:44px; padding:0; display:grid; place-items:center; flex-shrink:0; }
+.tb-add-go svg{ width:20px; height:20px; }
+.tb-mic{
+    width:44px; height:44px; flex-shrink:0; border:none; background:none; cursor:pointer;
+    display:grid; place-items:center; border-radius:14px; color:var(--td-ink-3);
+}
+.tb-mic svg{ width:20px; height:20px; }
+.tb-mic.tb-reg{ color:var(--td-late, #B4645F); animation:tb-reg 1.1s ease-in-out infinite; }
+@keyframes tb-reg{ 50%{ opacity:.45; } }
+.tb-cap, .tb-lead, .tb-foot{ display:none; }
+.tb-add{ padding-right:4px; }
+
+/* ------------------------------------------------------------------ */
+/* STANDARD — «Corsie»                                                  */
+/* ------------------------------------------------------------------ */
+html[data-stile="standard"] .tb-bar{ margin:2px 0 6px; }
+html[data-stile="standard"] .tb-add{
+    border-radius:20px; background:var(--td-panel); padding:5px 5px 5px 18px;
+    box-shadow:none;
+}
+html[data-stile="standard"] .tb-add:focus-within{ box-shadow:inset 0 0 0 1.5px var(--td-accent); background:var(--td-card); }
+html[data-stile="standard"] .tb-add-in{ font-size:16px; }
+html[data-stile="standard"] .tb-add-go{ border-radius:16px; }
+html[data-stile="standard"] .tb-chip{ background:var(--td-panel); }
+
+/* sopra l'elenco: quante cose; il totale sta nella barra in basso */
+html[data-stile="standard"] .tb-sum{ margin:10px 2px 8px; }
+html[data-stile="standard"] .tb-sum .tb-sep,
+html[data-stile="standard"] .tb-sum .tb-sum-tot{ display:none; }
+html[data-stile="standard"] .tb-sum-n{ font-size:15px; }
+html[data-stile="standard"] .tb-link{
+    min-height:40px; padding:0 14px; border-radius:999px; background:var(--td-panel);
+    font-size:13px; font-weight:500; color:var(--td-ink-2);
+}
+
+/* una scheda per categoria */
+html[data-stile="standard"] .tb-g{
+    --tinta:color-mix(in srgb, var(--c, #B7AEA3) 15%, var(--td-card));
+    background:var(--tinta); border-radius:24px; padding:12px 14px 4px; margin-top:12px;
+}
+html[data-stile="standard"] .tb-gh{ padding:0 4px 6px; gap:8px; }
+html[data-stile="standard"] .tb-gh .tb-dot{ width:10px; height:10px; }
+html[data-stile="standard"] .tb-gname{
+    font-size:15px; font-weight:600; letter-spacing:0;
+    color:color-mix(in srgb, var(--c, #B7AEA3) 62%, var(--td-ink));
+}
+html[data-stile="standard"] .tb-gn{ color:color-mix(in srgb, var(--c, #B7AEA3) 45%, var(--td-ink-2)); }
+html[data-stile="standard"] .tb-gtot{ font-size:13px; font-weight:500; color:color-mix(in srgb, var(--c, #B7AEA3) 62%, var(--td-ink)); }
+
+/* le righe: niente scheda dentro la scheda, solo linee sottili */
+html[data-stile="standard"] .tb-r{ border-radius:0; margin:0; background:none; box-shadow:none; overflow:hidden; }
+html[data-stile="standard"] .tb-g .tb-r + .tb-r{ border-top:1px solid color-mix(in srgb, var(--c, #B7AEA3) 20%, transparent); }
+html[data-stile="standard"] .tb-r .tb-row{ min-height:50px; padding:4px 0; gap:12px; }
+html[data-stile="standard"] .tb-r.td-swiped .td-row{ background:var(--tinta, var(--td-card)); }
+html[data-stile="standard"] .tb-chk{
+    width:26px; height:26px; border-radius:9px; background:var(--td-card);
+    box-shadow:inset 0 0 0 1.6px color-mix(in srgb, var(--c, #B7AEA3) 55%, var(--td-card));
+}
+html[data-stile="standard"] .tb-chk svg{ width:14px; height:14px; }
+/* spuntato: le regole sopra hanno più peso di quelle base, quindi lo si ripete */
+html[data-stile="standard"] .tb-done .tb-chk,
+html[data-stile="standard"] .tb-va .tb-chk{ background:var(--td-accent); color:var(--td-on-accent, #fff); box-shadow:none; }
+html[data-stile="standard"] .tb-tit{ font-size:16px; font-weight:500; }
+html[data-stile="standard"] .tb-price{
+    height:auto; padding:4px 10px; border-radius:999px;
+    background:color-mix(in srgb, var(--td-card) 72%, transparent); color:var(--td-ink-2);
+}
+html[data-stile="standard"] .tb-price input{ font-size:14px; width:48px; }
+html[data-stile="standard"] .tb-open{ box-shadow:none; background:color-mix(in srgb, var(--td-card) 45%, transparent); border-radius:14px; }
+html[data-stile="standard"] .tb-det{ padding-left:38px; padding-right:4px; }
+html[data-stile="standard"] .tb-det .tb-seg-b,
+html[data-stile="standard"] .tb-det .tb-sel,
+html[data-stile="standard"] .tb-det .tb-det-in,
+html[data-stile="standard"] .tb-det .tb-det-b{ background:var(--td-card); }
+
+/* il carrello: una scheda neutra in fondo */
+html[data-stile="standard"] .tb-cart{ margin-top:12px; border-radius:24px; background:var(--td-panel); }
+html[data-stile="standard"] .tb-cart-h{ padding:14px 16px; }
+html[data-stile="standard"] .tb-cart-b{ padding:0 14px 12px; }
+html[data-stile="standard"] .tb-cart .tb-r.tb-done .tb-chk{ border-radius:9px; }
+html[data-stile="standard"] .tb-cart .tb-r + .tb-r{ border-top:1px solid var(--td-hair); }
+
+/* il totale fisso in basso */
+html[data-stile="standard"] .tb-foot{
+    display:flex; align-items:center; gap:14px;
+    position:sticky; bottom:calc(12px + env(safe-area-inset-bottom, 0px)); z-index:5;
+    margin-top:14px; padding:11px 12px 11px 18px; border-radius:22px;
+    background:var(--td-ink); color:var(--td-card);
+    box-shadow:0 14px 30px -12px rgba(0,0,0,.45);
+}
+html[data-stile="standard"] .tb-foot-l{ flex:1; min-width:0; display:flex; flex-direction:column; }
+html[data-stile="standard"] .tb-foot-k{ font-size:12px; opacity:.72; letter-spacing:.02em; }
+html[data-stile="standard"] .tb-foot-v{ font-size:22px; font-weight:600; line-height:1.15; font-variant-numeric:tabular-nums; }
+html[data-stile="standard"] .tb-foot-cart{
+    display:flex; align-items:center; gap:8px; min-height:44px; padding:0 14px; border:none; cursor:pointer;
+    border-radius:16px; font:inherit; font-size:14px; font-weight:500;
+    background:color-mix(in srgb, var(--td-card) 16%, transparent); color:inherit;
+}
+html[data-stile="standard"] .tb-foot-cart svg{ width:18px; height:18px; }
+/* sul telefono il pulsante del menu (fisso in basso a sinistra) starebbe sopra
+   il totale: la barra parte dopo di lui */
+@media (max-width:640px){
+    html[data-stile="standard"] .tb-foot{ margin-left:46px; }
+}
+@media (prefers-color-scheme: dark){
+    html[data-stile="standard"] .tb-foot{ background:var(--so-fill-2, #3A3A3C); color:var(--so-text, #F5F5F7); box-shadow:0 14px 30px -12px rgba(0,0,0,.8); }
+    html[data-stile="standard"] .tb-foot-cart{ background:rgba(255,255,255,.1); }
+}
+
+/* ------------------------------------------------------------------ */
+/* PAPER — «Scontrino»                                                  */
+/* ------------------------------------------------------------------ */
+html[data-stile="paper"] .tb-add{
+    border-radius:14px; padding:6px 4px 6px 14px; background:var(--td-card);
+    box-shadow:0 1px 0 rgba(var(--td-ink-rgb),.16), 0 8px 18px -14px rgba(var(--td-ink-rgb),.5);
+}
+html[data-stile="paper"] .tb-add:focus-within{ box-shadow:0 1px 0 rgba(var(--td-ink-rgb),.16), 0 8px 18px -12px rgba(var(--td-ink-rgb),.5), inset 0 0 0 1.5px var(--td-accent); }
+/* si scrive a mano, come su un biglietto */
+html[data-stile="paper"] .tb-add-in{ font-family:'Caveat', 'Segoe Script', cursive; font-size:22px; line-height:1.1; padding:6px 0; }
+html[data-stile="paper"] .tb-add-in::placeholder{ font-family:'Caveat', 'Segoe Script', cursive; color:var(--td-ink-3); }
+html[data-stile="paper"] .tb-add-go{ border-radius:12px; background:var(--td-ink); color:var(--td-card); }
+html[data-stile="paper"] .tb-chip{ background:var(--td-card); box-shadow:inset 0 0 0 1px rgba(var(--td-ink-rgb),.16); font-size:12.5px; padding:5px 11px; }
+html[data-stile="paper"] .tb-hint{ font-family:'Caveat', 'Segoe Script', cursive; font-size:17px; }
+
+/* testata: «7 da comprare · 16,39 €» piccolo e discreto */
+html[data-stile="paper"] .tb-sum{ margin:12px 4px 10px; }
+html[data-stile="paper"] .tb-sum-n{ font-size:12px; letter-spacing:.08em; color:var(--td-ink-2); }
+html[data-stile="paper"] .tb-sum-n b{ font-weight:500; }
+html[data-stile="paper"] .tb-link{ font-size:13px; color:var(--td-ink-2); min-height:40px; padding:0 4px; }
+
+/* la striscia di carta con il bordo strappato (la sagoma è una maschera,
+   l'ombra sta sull'involucro: una maschera taglierebbe anche l'ombra) */
+html[data-stile="paper"] .tb-paper{
+    filter:drop-shadow(0 1px 0 rgba(var(--td-ink-rgb),.16)) drop-shadow(0 12px 12px rgba(var(--td-ink-rgb),.09));
+}
+html[data-stile="paper"] .tb-paper-in{
+    background:var(--td-card); border-radius:6px 6px 0 0; padding:18px 18px 30px;
+    -webkit-mask:radial-gradient(circle at 6px 100%, transparent 5px, #000 5.5px) bottom/12px 10px repeat-x,
+                 linear-gradient(#000 0 0) top/100% calc(100% - 10px) no-repeat;
+            mask:radial-gradient(circle at 6px 100%, transparent 5px, #000 5.5px) bottom/12px 10px repeat-x,
+                 linear-gradient(#000 0 0) top/100% calc(100% - 10px) no-repeat;
+}
+html[data-stile="paper"] .tb-cap{
+    display:block; text-align:center; font-size:10px; letter-spacing:.32em; text-transform:uppercase;
+    color:var(--td-ink-3); margin-bottom:12px;
+}
+
+/* ogni categoria è un titolo in corsivo, una linea tratteggiata e il subtotale */
+html[data-stile="paper"] .tb-g{ margin-top:0; }
+html[data-stile="paper"] .tb-g + .tb-g{ margin-top:18px; }
+html[data-stile="paper"] .tb-gh{ align-items:baseline; gap:10px; padding:6px 0 2px; }
+html[data-stile="paper"] .tb-gh .tb-dot,
+html[data-stile="paper"] .tb-gh .tb-gn{ display:none; }
+html[data-stile="paper"] .tb-gname{ font-family:var(--td-serif); font-size:21px; font-weight:500; font-style:italic; letter-spacing:0; }
+html[data-stile="paper"] .tb-lead{ display:block; flex:1; min-width:12px; border-bottom:1px dashed rgba(var(--td-ink-rgb),.28); transform:translateY(-4px); }
+html[data-stile="paper"] .tb-gtot{ margin-left:0; font-size:13px; color:var(--td-ink-2); }
+
+/* le righe: puntini sotto, nessuna scheda */
+html[data-stile="paper"] .tb-r{ border-radius:0; margin:0; background:none; box-shadow:none; overflow:hidden; }
+html[data-stile="paper"] .tb-r.td-item{ border-bottom:1px dotted rgba(var(--td-ink-rgb),.22); }
+html[data-stile="paper"] .tb-r .tb-row{ min-height:46px; padding:0; gap:12px; }
+html[data-stile="paper"] .tb-r.td-swiped .td-row{ background:var(--td-card); }
+html[data-stile="paper"] .tb-chk{ width:22px; height:22px; box-shadow:inset 0 0 0 1.6px rgba(var(--td-ink-rgb),.38); }
+html[data-stile="paper"] .tb-chk svg{ width:12px; height:12px; }
+html[data-stile="paper"] .tb-done .tb-chk,
+html[data-stile="paper"] .tb-va .tb-chk{ background:var(--td-accent); color:var(--td-on-accent, #fff); box-shadow:none; }
+html[data-stile="paper"] .tb-tit{ font-size:16px; }
+html[data-stile="paper"] .tb-price{ background:none; height:auto; padding:0; color:var(--td-ink-2); }
+html[data-stile="paper"] .tb-price input{ font-size:14px; width:50px; }
+html[data-stile="paper"] .tb-more{ color:rgba(var(--td-ink-rgb),.4); }
+html[data-stile="paper"] .tb-open{ box-shadow:none; background:rgba(var(--td-ink-rgb),.035); }
+html[data-stile="paper"] .tb-det{ padding-left:34px; padding-right:2px; }
+html[data-stile="paper"] .tb-det .tb-seg-b,
+html[data-stile="paper"] .tb-det .tb-sel,
+html[data-stile="paper"] .tb-det .tb-det-in,
+html[data-stile="paper"] .tb-det .tb-det-b{ background:var(--td-panel); }
+
+/* il carrello è l'ultima riga dello scontrino */
+html[data-stile="paper"] .tb-cart{ margin-top:18px; border-radius:0; background:none; overflow:visible; }
+html[data-stile="paper"] .tb-cart-h{ padding:0; gap:8px; font-size:13px; color:var(--td-ink-2); min-height:36px; }
+html[data-stile="paper"] .tb-cart-h svg{ width:16px; height:16px; }
+html[data-stile="paper"] .tb-cart-t{ font-size:13px; font-weight:400; }
+html[data-stile="paper"] .tb-cart-h .tb-gn{ font-size:13px; color:inherit; }
+html[data-stile="paper"] .tb-cart-h .tb-gn::before,
+html[data-stile="paper"] .tb-cart-h .tb-gtot:not(:empty)::before{ content:'· '; }
+html[data-stile="paper"] .tb-cart-h .tb-gtot{ margin-left:0; font-size:13px; }
+html[data-stile="paper"] .tb-cart-b{ padding:4px 0 0; }
+html[data-stile="paper"] .tb-cart-clear{ background:var(--td-panel); }

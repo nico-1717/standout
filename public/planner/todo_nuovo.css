@@ -148,6 +148,19 @@
 .tnota-b:disabled{ opacity:.45; cursor:default; }
 .tnota-b svg{ width:15px; height:15px; }
 .tnota-b-ia{ background:#4A443D; color:#FFFDFA; box-shadow:none; }
+/* scuro (solo stile standard: la carta non ha un tema scuro): il giallo si
+   spegne e il testo diventa chiaro, altrimenti scuro su scuro */
+@media (prefers-color-scheme: dark){
+    html[data-stile="standard"] .tnota{ background:color-mix(in srgb, #F2D98A 12%, var(--td-card)); color:var(--td-ink); }
+    html[data-stile="standard"] .tnota-ta{ color:var(--td-ink); }
+    html[data-stile="standard"] .tnota-ta::placeholder{ color:color-mix(in srgb, #E5CB7A 55%, transparent); }
+    html[data-stile="standard"] .tnota-t,
+    html[data-stile="standard"] .tnota-ic,
+    html[data-stile="standard"] .tnota-st,
+    html[data-stile="standard"] .tnota-n{ color:#E5CB7A; }
+    html[data-stile="standard"] .tnota-b{ background:rgba(255,255,255,.1); color:var(--td-ink); box-shadow:none; }
+    html[data-stile="standard"] .tnota-b-ia{ background:var(--td-ink); color:var(--td-card); }
+}
 .tnota-attesa{ opacity:.8; pointer-events:none; }
 .tnota-attesa svg{ animation:tnota-gira 1.4s linear infinite; }
 @keyframes tnota-gira{ to{ transform:rotate(360deg); } }

@@ -47,7 +47,7 @@ Contiene, oggi:
 
 - **Planner** — calendario a giorni/settimana/mese, eventi, routine, priorità
   del giorno, meteo, luoghi con mappa, sincronizzazione con Google Calendar.
-- **Attività** — tre elenchi (*to do*, *to buy*, *to study*) più la sezione
+- **Attività** — due elenchi (*to do*, *to buy*) più la sezione
   **pastiglie** (terapie e prese con spunta).
 - **Abitudini** — abitudini con obiettivo a completamento o a quantità, registro,
   traguardi, anelli concentrici di avanzamento.
@@ -1304,7 +1304,9 @@ Se funziona, il mercato è quella cosa lì più un prezzo e un incasso.
 ### Pagina To do (25/10/2026)
 
 - **Nota veloce** in cima (`todo_nota.js`, tabella `todo_notes`, azioni `nota_leggi/nota_salva/nota_applica` in `todo_api.php`): si salva da sola (subito in `localStorage`, dopo 0,7 s sul server). **Smista a mano** (regole di `todo_smart.js`, gratis) o **con l'IA** (`todo_nota_ai.php`, crediti): in entrambi i casi si apre la schermata di conferma (modifica, togli, annulla, salva). Le righe non salvate restano nella nota.
-- **Barra intelligente** per to do e to study (`todo_barra.js` + `todo_smart.js`): data, ora, durata e `#progetto` dalla frase, con le stesse parole di `planner_smart.json`. Gruppi per giorno, righe pulite a riposo, scorciatoie data a riga aperta. Stile in `todo_nuovo.css` (togliendolo si torna a prima). Il to buy ha la sua barra in `todo_buy.js`.
+- **Barra intelligente** per il to do (`todo_barra.js` + `todo_smart.js`): data, ora, durata e `#progetto` dalla frase, con le stesse parole di `planner_smart.json`. Gruppi per giorno, righe pulite a riposo, scorciatoie data a riga aperta. Stile in `todo_nuovo.css` (togliendolo si torna a prima). Il to buy ha la sua barra in `todo_buy.js`.
+- **«To study» non esiste più nella pagina To do** (25/10/2026): niente linguetta, niente smistamento verso lo studio. Lo studio vive nel planner (blocchi di studio) e nei progetti. Migrazione `2026-10-25_todo_senza_study.sql`: le attività già in «to study» diventano «to do». Il pannello settimana del planner ha la sua linguetta studio, a parte, e non è stata toccata.
+- **To buy in due vesti** (`todo_buy.js` disegna, `todo_buy.css` veste): **standard = «Corsie»** (una scheda per categoria tinta col colore della categoria via `color-mix`, quindi giusta anche in scuro; totale fisso in basso con tasto «Carrello»), **paper = «Scontrino»** (striscia di carta con bordo strappato, titoli in corsivo con linea tratteggiata e subtotale, righe puntinate, barra a mano in Caveat). Il codice produce sempre gli stessi pezzi (`.tb-paper`, `.tb-cap`, `.tb-lead`, `.tb-foot`); il CSS mostra quelli della veste attiva (`html[data-stile]`). Barra con microfono (una frase = un articolo).
 
 ## 15. Ordine dei lavori
 

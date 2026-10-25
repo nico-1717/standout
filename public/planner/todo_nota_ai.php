@@ -6,7 +6,7 @@
      {body}  ->  { ok, items: [...], crediti }
 
    Legge la nota (una riga per appunto) e propone dove va ogni voce: to do,
-   to buy, to study, evento del planner, nuovo progetto. NON salva niente:
+   to buy, evento del planner, nuovo progetto. NON salva niente:
    restituisce una proposta che l'utente controlla, corregge e conferma nella
    schermata di conferma. Il salvataggio vero e' «nota_applica» in
    todo_api.php.
@@ -34,7 +34,7 @@ sec_guard_write($uid, 'todo_nota_ai', 0, 20, 60);
 fc_ai_scadenza_imposta();
 
 const TNA_RIGHE_MAX = 80;
-const TNA_DEST = ['todo', 'buy', 'study', 'event', 'project'];
+const TNA_DEST = ['todo', 'buy', 'event', 'project'];
 
 /* le righe della nota: niente vuote, puntini e numeri davanti tolti, corte */
 $grezzo = sec_text(sec_in('body'), 20000);
@@ -62,7 +62,6 @@ $sistema = "You sort a person's quick note into the right lists of their planner
     . "For EACH jotting decide where it goes (field dest): "
     . "todo = something to do (an errand, a task, a call, a reminder); "
     . "buy = something to purchase; "
-    . "study = a topic or chapter to study or review; "
     . "event = something happening at a time with other people or a place (appointment, meeting, dinner, exam, trip) that belongs in the calendar; "
     . "project = a bigger goal that needs several steps and a name, NOT a single task. "
     . "Rules: keep the person's own words in title (fix typos, drop the date/time/price/priority words you moved into other fields, capitalise the first letter), never invent tasks or details. "

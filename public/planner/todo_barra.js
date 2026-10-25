@@ -17,7 +17,7 @@
      impostato (giorno scritto «domani», ora, progetto). Toccando la riga si
      aprono gli strumenti, con le scorciatoie per la data: Oggi, Domani,
      Weekend, Fra una settimana, Senza data.
-   Vale per to do e to study; il to buy ha la sua barra (todo_buy.js). */
+   Vale per il to do; il to buy ha la sua barra (todo_buy.js). */
 (function () {
     'use strict';
     var W = window.standoutTodo;
@@ -57,7 +57,7 @@
         return this._progettiInVolo;
     };
 
-    function usabile(t) { return t.listType === 'todo' || t.listType === 'study'; }
+    function usabile(t) { return t.listType === 'todo'; }
     function conBarra(t) { return usabile(t) && (t.scope === 'all' || t.scope === 'project'); }
 
     /* ---------------- la barra ---------------- */
@@ -165,7 +165,7 @@
         this.taInput = inp;
         this.taDisegna = disegna;
         this.taAggiorna = function () {
-            inp.placeholder = self.listType === 'study' ? T('todo.tn_ph_study') : T('todo.tn_ph_todo');
+            inp.placeholder = T('todo.tn_ph_todo');
         };
         return bar;
     };
@@ -374,7 +374,7 @@
     /* Il vuoto: con la barra in cima non serve il «+», basta una frase. */
     var vuotoBase = Todo.prototype.emptyText;
     Todo.prototype.emptyText = function () {
-        if (conBarra(this)) return this.listType === 'study' ? T('todo.tn_vuoto_study') : T('todo.tn_vuoto_todo');
+        if (conBarra(this)) return T('todo.tn_vuoto_todo');
         return vuotoBase.call(this);
     };
 })();

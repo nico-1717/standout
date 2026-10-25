@@ -1,6 +1,6 @@
 <?php
 /* =====================================================================
-   STANDOUT — API DELLE ATTIVITÀ (TO DO / TO BUY / TO STUDY)
+   STANDOUT — API DELLE ATTIVITÀ (TO DO / TO BUY)
    Un solo punto di scrittura per la pagina to-do, per la sezione dentro
    un progetto, per il post-it del pomodoro e per il pannello settimana
    del planner.
@@ -43,7 +43,7 @@ $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
    voce può passare da un elenco all'altro senza spostare righe, e tutto
    quello che già funzionava (sotto-attività, planner, pomodoro) continua
    a funzionare senza duplicare il codice. */
-const TD_TIPI = ['todo', 'buy', 'study'];
+const TD_TIPI = ['todo', 'buy'];
 
 /* Cartella delle immagini degli articoli. Sta fuori dal database perché un
    file grande dentro una riga rallenta ogni lettura dell'elenco. */
@@ -306,7 +306,7 @@ if ($ajax === 'buy_forget') {
 
    Una nota sola per utente, in cima alla pagina: per segnare qualcosa in
    dieci secondi, senza decidere dove va. Poi, con calma, si smista (a mano o
-   con l'IA) in to do, to buy, to study, planner o progetti.
+   con l'IA) in to do, to buy, planner o progetti.
 
    La tabella si crea da sola al primo uso, come todo_buy_memory: la
    migrazione 2026-10-25_todo_nota.sql esiste solo per tenere schema e
@@ -369,7 +369,7 @@ if ($ajax === 'nota_applica') {
 
     foreach ($voci as $i => $v) {
         if (!is_array($v)) { $risultati[] = ['i' => $i, 'ok' => false]; continue; }
-        $dest  = sec_enum($v['dest'] ?? '', ['todo', 'buy', 'study', 'event', 'project'], '');
+        $dest  = sec_enum($v['dest'] ?? '', ['todo', 'buy', 'event', 'project'], '');
         $title = sec_str($v['title'] ?? '', $dest === 'event' ? 180 : 300);
         if ($dest === '' || $title === '') { $risultati[] = ['i' => $i, 'ok' => false]; continue; }
 
@@ -408,7 +408,7 @@ if ($ajax === 'nota_applica') {
                 continue;
             }
 
-            /* to do, to buy, to study: la stessa riga di «save», una volta sola */
+            /* to do e to buy: la stessa riga di «save», una volta sola */
             $catId = 0; $cents = null; $prio = 3;
             if ($dest === 'buy') {
                 $catId = sec_int($v['cat_id'] ?? 0, 0, PHP_INT_MAX, 0);

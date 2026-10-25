@@ -12,7 +12,7 @@
            projectId: 12,          // per scope 'project'
            compact: false,         // niente data/ora/durata/progetto (pomodoro)
            selectable: true,       // modalità seleziona (pagina principale)
-           tabs: true              // to do / to buy / to study (solo scope 'all')
+           tabs: true              // to do / to buy / pastiglie (solo scope 'all')
        });
 
    Stessa estetica di planner e diario: carta calda, matita, angoli morbidi.
@@ -30,6 +30,8 @@ if (!defined('TODO_WIDGET_CSS')) {
     /* il to do rinnovato (barra intelligente, gruppi per giorno, righe pulite):
        un foglio a parte che ritocca il principale. Toglierlo = tornare a prima. */
     echo '<link rel="stylesheet" href="' . PWA_BASE . 'planner/todo_nuovo.css?v=' . (@filemtime(__DIR__ . '/todo_nuovo.css') ?: 1) . '">' . "\n";
+    /* le due vesti del to buy (Corsie / Scontrino): vedi l'intestazione del file */
+    echo '<link rel="stylesheet" href="' . PWA_BASE . 'planner/todo_buy.css?v=' . (@filemtime(__DIR__ . '/todo_buy.css') ?: 1) . '">' . "\n";
     echo standout_i18n_json(['comune', 'todo']);
 }
 ?>
@@ -52,8 +54,8 @@ if (!defined('TODO_WIDGET_CSS')) {
        Sta qui perché è qui che uno guarda la mattina, insieme al resto della
        giornata, non in una pagina che si ricorderebbe di aprire solo dopo
        essersene dimenticato. */
-    var TIPI = ['todo', 'buy', 'study', 'pills'];
-    var TIPO_LAB = { todo: 'to do', buy: 'to buy', study: 'to study', pills: T('todo.tipo_pills') };
+    var TIPI = ['todo', 'buy', 'pills'];
+    var TIPO_LAB = { todo: 'to do', buy: 'to buy', pills: T('todo.tipo_pills') };
     var IMG_DIR = '../media/uploads/tobuy/';
 
     function api(action, data, query) {
@@ -458,14 +460,12 @@ if (!defined('TODO_WIDGET_CSS')) {
 
     Todo.prototype.emptyText = function () {
         if (this.listType === 'buy') return T('todo.niente_da_comprare');
-        if (this.listType === 'study') return T('todo.niente_da_studiare');
         return T('todo.niente_da_fare');
     };
 
     Todo.prototype.addButton = function (inCima) {
         var self = this;
-        var lab = this.listType === 'buy' ? T('todo.nuovo_articolo')
-                : (this.listType === 'study' ? T('todo.nuovo_argomento') : T('todo.nuova_attivita'));
+        var lab = this.listType === 'buy' ? T('todo.nuovo_articolo') : T('todo.nuova_attivita');
         var add = el('button', 'td-add' + (inCima ? ' td-add-top' : ''));
         add.type = 'button';
         add.innerHTML = ICON_PLUS;
@@ -937,8 +937,7 @@ if (!defined('TODO_WIDGET_CSS')) {
         title.type = 'text';
         title.value = t.title;
         title.maxLength = 300;
-        title.placeholder = this.listType === 'buy' ? T('todo.cosa_vuoi_comprare')
-                          : (this.listType === 'study' ? T('todo.cosa_da_studiare') : T('todo.cosa_da_fare'));
+        title.placeholder = this.listType === 'buy' ? T('todo.cosa_vuoi_comprare') : T('todo.cosa_da_fare');
         /* Il titolo si salva senza ridisegnare l'elenco: ricostruire le righe
            mentre si scrive faceva perdere il fuoco al campo a ogni pausa. */
         title.addEventListener('input', function () {

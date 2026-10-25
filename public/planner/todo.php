@@ -18,7 +18,7 @@ date_default_timezone_set('Europe/Rome');
    «apri»: ritrovarsi sul to do dopo aver chiesto di aprire le pastiglie è un
    salto che non ha chiesto nessuno. Vale l'ultima usata se non arriva niente,
    e il valore si rivalida qui come qualunque cosa venga dal browser. */
-$tab = sec_enum(sec_in('tab'), ['todo', 'buy', 'study', 'pills'], '');
+$tab = sec_enum(sec_in('tab'), ['todo', 'buy', 'pills'], '');
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>" <?php echo standout_stile_attr(); ?>>
@@ -30,7 +30,8 @@ $tab = sec_enum(sec_in('tab'), ['todo', 'buy', 'study', 'pills'], '');
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap">
+<?php /* Caveat serve solo alla carta: lo scontrino del to buy si scrive a mano */ ?>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500<?php echo standout_stile() === 'paper' ? '&family=Caveat:wght@500' : ''; ?>&display=swap">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>planner/todo.css?v=<?php echo @filemtime(__DIR__ . '/todo.css') ?: 1; ?>">
 <?php echo standout_stile_css(); ?>
 </head>
@@ -77,7 +78,7 @@ include __DIR__ . '/todo_widget.php';
 standoutTodo.mount(document.getElementById('tpList'), {
     scope: 'all',
     selectable: true,
-    tabs: true,         // to do / to buy / to study / pastiglie
+    tabs: true,         // to do / to buy / pastiglie
     tab: <?php echo json_encode($tab); ?>   // vuoto = l'ultima usata
 });
 /* la nota veloce sopra l'elenco: dopo lo smistamento l'elenco si rilegge da sé */

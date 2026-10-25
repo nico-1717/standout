@@ -19,7 +19,7 @@ Read this first; open `docs/STANDOUT_PROGETTO.md` only for conventions detail, `
 - **Billing/AI**: `plans(id)`, `user_plans(user_id, piano_id)`, `ai_credit_ledger(id, user_id, delta)`, `ai_job_steps(id, job_id, seq)`.
 - **Planner**: `planner_events(id, user_id, title)`, `planner_calendars`, `planner_categories`, `planner_places`, `planner_priorities(id, user_id, priority_date)`, `planner_weeks(id, user_id, week_start)`, `planner_week_lists`/`_items`, `planner_routines`/`_items`, `planner_settings(user_id)`, `event_guests`, `contacts`.
 - **Google sync**: `google_calendar_accounts(user_id)`, `google_calendar_map(id)`, `google_sync_queue(id)`, `google_sync_log(id)`.
-- **To do**: `todos(id, user_id, list_type, parent_id, project_id, buy_category_id)`, `todo_buy_categories(id, user_id)`.
+- **To do**: `todos(id, user_id, list_type, parent_id, project_id, buy_category_id)` (list_type: todo|buy; the page no longer shows study), `todo_buy_categories(id, user_id)`, `todo_notes(user_id)`.
 - **Diary/habits**: `diary_list_items(id, user_id, entry_date)`, `diary_settings(user_id)`, `habits(id, user_id)`, `habit_logs(id, habit_id, log_date)`, `habit_categories`, `habit_achievements`, `pill_plans(id)`, `pill_doses(id, plan_id)`.
 - **Projects/Pomodoro**: `projects(id, user_id, parent_id)`, `pomodoro_sessions(id, user_id, start_time)`, `pomodoro_current_breaks(user_id)`, `pomodoro_settings(user_id)`.
 - **Flashcards (study)**: `fc_study_decks(id, user_id)`, `fc_study_cards(id, category_id)`, `fc_study_subcards(id_child, parent_id)`, `fc_study_learnt(user_id, fc_image_id)`, `fc_study_plays`, `fc_study_records(user_id, kind)`.
@@ -34,7 +34,7 @@ Read this first; open `docs/STANDOUT_PROGETTO.md` only for conventions detail, `
 - `lang/` — Italian and English dictionaries.
 - `sql/` — `schema.sql` plus dated `migrations/`.
 - `tools/` — Python checkers (CSP, columns, smoke test).
-- `public/planner/` — planner, diary, habits, **to do / to buy** (`todo_widget.php` component; `todo_api.php` backend; `todo_barra.js`/`todo_buy.js` quick-add bars; `todo_nota.js` + `todo_nota_ai.php` quick note and AI sorting), Google Calendar sync (`google_calendar.php`), `js/` planner scripts (`04_barra_e_priorita.js` holds the smart bar parser).
+- `public/planner/` — planner, diary, habits, **to do / to buy** (`todo_widget.php` component; `todo_api.php` backend; `todo_barra.js` quick-add bar for to do; `todo_buy.js` + `todo_buy.css` to buy with two looks, Aisles (standard) and Receipt (paper); `todo_nota.js` + `todo_nota_ai.php` quick note and AI sorting), Google Calendar sync (`google_calendar.php`), `js/` planner scripts (`04_barra_e_priorita.js` holds the smart bar parser).
 - `public/fc/` — flashcards: `fc_game.php` (the game page), `fc_game_start.php` (creates a game), `fc_voice_mode.php/.css` (hands-free voice mode), `fc_speak.js` (text-to-speech helper), `fc_settings_api.php` (game/voice settings).
 - `public/projects/` — projects tree and Pomodoro (`pomodoro_core.js` engine, `pomodoro_stato.php` state, `pomodoro_barra.*` global bar).
 - `public/ai/` — AI endpoints and the credit/job system (`ai_job_api.php`, `ai_worker.php`, `credits.php`).

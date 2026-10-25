@@ -262,7 +262,6 @@
        Solo un suggerimento: la schermata di conferma lascia cambiare tutto.
        --------------------------------------------------------------- */
     var RE_BUY = /^(compra(?:re)?|acquista(?:re)?|ordina(?:re)?|prendere|buy|purchase|order|get)\b|€|\beur(?:o)?\b/i;
-    var RE_STUDY = /^(studia(?:re)?|ripassa(?:re)?|ripasso|study|review|revise)\b|\b(capitolo|cap\.?|chapter|esame di|lezione|lecture)\b/i;
     var RE_EVENT = /\b(appuntamento|riunione|meeting|visita|dentista|dottore|cena|pranzo|aperitivo|call|colloquio|appointment|dinner|lunch|interview|concerto|concert|compleanno|birthday|volo|flight)\b/i;
     var RE_PROJECT = /^(progetto|project)\s*[:\-]?\s+/i;
 
@@ -270,7 +269,6 @@
         var s = String(riga || '').trim();
         if (RE_PROJECT.test(s)) return 'project';
         if (RE_BUY.test(s)) return 'buy';
-        if (RE_STUDY.test(s)) return 'study';
         if (letto && letto.date && RE_EVENT.test(s)) return 'event';
         return 'todo';
     }

@@ -30,8 +30,8 @@
     function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
     function lsSet(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
 
-    var DEST = ['todo', 'buy', 'study', 'event', 'project'];
-    var DEST_LAB = { todo: 'to do', buy: 'to buy', study: 'to study', event: null, project: null };
+    var DEST = ['todo', 'buy', 'event', 'project'];
+    var DEST_LAB = { todo: 'to do', buy: 'to buy', event: null, project: null };
     function destEtichetta(d) {
         if (d === 'event') return T('todo.nota_d_event');
         if (d === 'project') return T('todo.nota_d_project');
