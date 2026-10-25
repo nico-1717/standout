@@ -20,6 +20,13 @@ $utente_corrente = standout_utente_corrente();
 ?>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>home/index.css?v=<?php echo @filemtime(__DIR__ . '/home/index.css') ?: 1; ?>">
 <?php if ($utente_corrente): ?>
+<?php
+/* Il token delle scritture: la home spunta attivita', abitudini e pastiglie e
+   salva la nota, e il server rifiuta ogni scrittura senza token. Lo aggiunge
+   da solo standout_fetch.js a ogni fetch(). */
+?>
+<meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
+<script src="<?php echo PWA_BASE; ?>_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/_assets/js/standout_fetch.js') ?: 1; ?>"></script>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>home/dashboard.css?v=<?php echo @filemtime(__DIR__ . '/home/dashboard.css') ?: 1; ?>">
 <?php else: ?>
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>home/landing.css?v=<?php echo @filemtime(__DIR__ . '/home/landing.css') ?: 1; ?>">

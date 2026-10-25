@@ -155,6 +155,18 @@ button.standout-fab--login:active{ transform:scale(.96); }
 .fnw-empty svg{ width:34px; height:34px; color:var(--fnw-t3); margin-bottom:10px; }
 .fnw-empty p{ margin:0; font-size:13.5px; color:var(--fnw-t2); font-weight:600; line-height:1.5; }
 
+/* ---------- consumi IA del mese (si leggono all'apertura del pannello) ---------- */
+.fnw-ai{ flex-shrink:0; margin:0 10px 8px; padding:12px 14px; border-radius:16px; background:var(--fnw-bg2); display:flex; flex-direction:column; gap:10px; }
+.fnw-ai[hidden]{ display:none; }
+.fnw-ai-h{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.fnw-ai-t{ font-size:11.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--fnw-t2); }
+.fnw-ai-p{ font-size:12.5px; font-weight:700; color:var(--fnw-text); }
+.fnw-ai-r{ display:flex; flex-direction:column; gap:5px; }
+.fnw-ai-l{ display:flex; justify-content:space-between; gap:10px; font-size:13.5px; font-weight:600; color:var(--fnw-text); }
+.fnw-ai-l span:last-child{ color:var(--fnw-t2); font-variant-numeric:tabular-nums; }
+.fnw-ai-bar{ height:7px; border-radius:4px; background:var(--fnw-line); overflow:hidden; }
+.fnw-ai-bar i{ display:block; height:100%; border-radius:4px; background:var(--c); transition:width .6s var(--fnw-spring); }
+.fnw-ai-reset{ font-size:12px; color:var(--fnw-t2); }
 .fnw-foot{ border-top:.5px solid var(--fnw-line); padding:6px; flex-shrink:0; }
 .fnw-row{
     display:flex; align-items:center; gap:11px; padding:11px 12px; border-radius:13px;
@@ -229,6 +241,10 @@ button.standout-fab--login:active{ transform:scale(.96); }
         <?php endforeach; endif; ?>
     </div>
 
+    <?php /* i consumi dell'IA stavano nella home: ora vivono qui, sotto l'avatar, in ogni pagina.
+              Si riempiono alla prima apertura (home/home_api.php?ajax=ai_usage). */ ?>
+    <div class="fnw-ai" id="fnwAi" hidden></div>
+
     <div class="fnw-foot">
         <a class="fnw-row" href="<?php echo PWA_BASE; ?>social/friends.php">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -289,12 +305,60 @@ button.standout-fab--login:active{ transform:scale(.96); }
         btn.setAttribute('aria-expanded', 'true');
         buzz(10);
         segnaLette();
+        leggiAi();
     }
     function chiudi() {
         aperto = false;
         panel.classList.remove('fnw-on');
         scrim.classList.remove('fnw-on');
         btn.setAttribute('aria-expanded', 'false');
+    }
+
+    /* ---------- consumi IA ---------- */
+    var AI = <?php echo json_encode([
+        'titolo' => t('home.ai_titolo'), 'audio' => t('dashboard.caratteri_audio'), 'img' => t('dashboard.immagini_generate'),
+        'tok' => t('dashboard.token_testuali'), 'illimitato' => t('home.illimitato'), 'reset' => t('home.ai_reset'),
+    ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+    var aiLetto = 0;
+    function disegnaAi(p) {
+        var box = document.getElementById('fnwAi');
+        if (!box || !p) return;
+        function n(x) { try { return Number(x).toLocaleString(document.documentElement.lang || undefined); } catch (e) { return String(x); } }
+        box.innerHTML = '';
+        var h = document.createElement('div'); h.className = 'fnw-ai-h';
+        var t1 = document.createElement('span'); t1.className = 'fnw-ai-t'; t1.textContent = AI.titolo;
+        var t2 = document.createElement('span'); t2.className = 'fnw-ai-p'; t2.textContent = p.name;
+        h.appendChild(t1); h.appendChild(t2); box.appendChild(h);
+        [['audio', 'audio', '#AF52DE'], ['images', 'img', '#FF2D55'], ['tokens', 'tok', '#34C759']].forEach(function (r) {
+            var v = p[r[0]]; if (!v) return;
+            var pct = v.limit ? Math.max(0, Math.min(100, Math.round(v.used / v.limit * 100))) : 0;
+            var row = document.createElement('div'); row.className = 'fnw-ai-r';
+            var l = document.createElement('div'); l.className = 'fnw-ai-l';
+            var a = document.createElement('span'); a.textContent = AI[r[1]];
+            /* la barra sta dentro il proprio <span>: cosi' Safari su iPhone non
+               legge «12400 / 50000» come un numero di telefono (lo faceva) */
+            var b = document.createElement('span');
+            b.appendChild(document.createTextNode(n(v.used) + ' '));
+            b.appendChild(document.createElement('span')).textContent = '/';
+            b.appendChild(document.createTextNode(' ' + (v.limit === null ? AI.illimitato : n(v.limit))));
+            l.appendChild(a); l.appendChild(b); row.appendChild(l);
+            var bar = document.createElement('div'); bar.className = 'fnw-ai-bar';
+            var i = document.createElement('i'); i.style.setProperty('--c', r[2]); i.style.width = pct + '%'; bar.appendChild(i);
+            row.appendChild(bar); box.appendChild(row);
+        });
+        var rs = document.createElement('div'); rs.className = 'fnw-ai-reset';
+        try { rs.textContent = AI.reset.replace('{data}', new Date(p.resets + 'T00:00:00').toLocaleDateString(document.documentElement.lang || undefined, { day: 'numeric', month: 'long' })); } catch (e) {}
+        box.appendChild(rs);
+        box.hidden = false;
+    }
+    function leggiAi() {
+        /* al massimo una volta ogni due minuti: il consumo cambia piano */
+        if (Date.now() - aiLetto < 120000) return;
+        aiLetto = Date.now();
+        fetch('<?php echo PWA_BASE; ?>home/home_api.php?ajax=ai_usage', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { if (d && d.ok && d.plan) disegnaAi(d.plan); })
+            .catch(function () { aiLetto = 0; });
     }
 
     btn.addEventListener('click', function (e) { e.stopPropagation(); aperto ? chiudi() : apri(); });
