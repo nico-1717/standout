@@ -254,6 +254,18 @@ CREATE TABLE `fc_study_ai` (
 -- --------------------------------------------------------
 
 --
+-- Table `fc_study_ai_child`
+--
+
+CREATE TABLE `fc_study_ai_child` (
+  `child_id` int NOT NULL,
+  `ai_explanation` text,
+  `ai_metaphor` text
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Spiegazione e metafora salvate per una carta figlia di studio (fc_study_subcards.id_child). Si crea da sola: lib/fc/fc_ai_saved.php';
+
+-- --------------------------------------------------------
+
+--
 -- Table `fc_study_cards`
 --
 
@@ -1832,6 +1844,12 @@ ALTER TABLE `fc_settings`
 --
 ALTER TABLE `fc_study_ai`
   ADD PRIMARY KEY (`card_id`);
+
+--
+-- Indexes for table `fc_study_ai_child`
+--
+ALTER TABLE `fc_study_ai_child`
+  ADD PRIMARY KEY (`child_id`);
 
 --
 -- Indexes for table `fc_study_cards`

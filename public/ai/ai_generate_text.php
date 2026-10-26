@@ -11,6 +11,7 @@ error_reporting(E_ALL);
 require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 require_once __DIR__ . '/../../lib/piano_helpers.php';
+require_once __DIR__ . '/../../lib/fc/fc_ai_saved.php';
 
 ob_start(); // Avvia il buffer per evitare crash con JSON su Altervista
 
@@ -47,6 +48,11 @@ $raw_text = isset($data['text']) ? $data['text'] : '';
 sec_guard_write((int)$utente_corrente['id'], 'fc_ai_text', 0, 30, 60);
 
 $card_id = sec_int($data['id'] ?? 0, 1);
+/* Un figlio e un padre non stanno nella stessa tabella e le loro numerazioni
+   si sovrappongono: il gioco dice quale dei due e', e il testo salvato si
+   cerca (e si scrive) dalla parte giusta. Prima il numero di un figlio finiva
+   su un padre qualunque con lo stesso numero. */
+$is_child = !empty($data['is_child']);
 
 // Questo endpoint gestisce solo 'explain' e 'metaphor'. Per 'read' non c'è nulla da generare,
 // non si chiama mai Gemini e non si spende nessun token: niente controllo limite in questo caso.
@@ -56,28 +62,33 @@ if ($mode === 'read') {
     exit;
 }
 
+/* Qualunque altro valore sarebbe stato trattato come "metafora" e avrebbe
+   speso token per un testo che nessun pulsante chiede. */
+if ($mode !== 'explain' && $mode !== 'metaphor') {
+    ob_clean();
+    die(json_encode(['success' => false, 'error' => t('ai.nessun_dato')]));
+}
+
 /* $col_to_check e' un nome di colonna, non un valore: non si puo' legare a un
    segnaposto. Qui e' sicuro perche' esce da un ternario con due valori fissi. */
 $col_to_check = ($mode === 'explain') ? 'ai_explanation' : 'ai_metaphor';
+[$tab_ai, $col_key] = fc_ai_dove($is_child);
 
-/* La scheda dev'essere dell'utente: senza questo controllo si poteva far
-   generare - e pagare in token - spiegazioni sulle schede di un altro, e
+/* La carta dev'essere dell'utente: senza questo controllo si poteva far
+   generare - e pagare in token - spiegazioni sulle carte di un altro, e
    soprattutto rileggerle dalla cache. */
-$mia = sec_one("SELECT i.id FROM fc_study_cards i
-                JOIN fc_study_decks c ON c.id = i.category_id
-                WHERE i.id = ? AND c.user_id = ?", [$card_id, (int)$utente_corrente['id']]);
-if (!$mia) {
+if (!fc_ai_carta_mia($card_id, $is_child, (int)$utente_corrente['id'])) {
     ob_clean();
     die(json_encode(['success' => false, 'error' => t('fc.non_autorizzato_scheda')]));
 }
 
 // Cache: se la risposta c'e' gia', non si chiama Gemini e non si spendono token
-$row = sec_one("SELECT $col_to_check FROM fc_study_ai WHERE card_id = ?", [$card_id]);
+$row = sec_one("SELECT $col_to_check FROM $tab_ai WHERE $col_key = ?", [$card_id]);
 
 if ($row && !empty($row[$col_to_check])) {
     // Trovata nel DB, nessuna chiamata esterna necessaria (Nessun token scalato!)
     ob_clean();
-    echo json_encode(['success' => true, 'text' => $row[$col_to_check]]);
+    echo json_encode(['success' => true, 'text' => $row[$col_to_check], 'cached' => true]);
     exit;
 }
 
@@ -133,7 +144,7 @@ if (isset($json['candidates'][0]['content']['parts'][0]['text'])) {
 
     /* Il testo viaggia come valore legato: il nome della colonna resta scritto
        nella query, per il motivo detto sopra. */
-    sec_q("INSERT INTO fc_study_ai (card_id, $col_to_check) VALUES (?, ?)
+    sec_q("INSERT INTO $tab_ai ($col_key, $col_to_check) VALUES (?, ?)
            ON DUPLICATE KEY UPDATE $col_to_check = ?", [$card_id, $final_text, $final_text]);
 
     // ORA scaliamo i token perché abbiamo effettivamente usato l'API
@@ -141,7 +152,7 @@ if (isset($json['candidates'][0]['content']['parts'][0]['text'])) {
     standout_incrementa_uso($utente_corrente['id'], 'token', $token_usati);
 
     ob_clean();
-    echo json_encode(['success' => true, 'text' => $final_text, 'duration_ms' => $durata_ms]);
+    echo json_encode(['success' => true, 'text' => $final_text, 'duration_ms' => $durata_ms, 'cached' => false]);
     exit;
 } else {
     ob_clean();

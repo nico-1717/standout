@@ -1055,6 +1055,21 @@ foreach (['it', 'en'] as $vg_l) {
                 if (VG.phase === 'shatter-loading') { VG.phase = 'question'; setOrbState('listening'); }
                 return;
             }
+            /* L'IA ha risposto ma non c'e' niente da leggere: la carta e' un
+               concetto solo, oppure c'e' stato un errore. Inutile aspettare
+               i venti secondi: lo si dice subito e si chiude il pannello. */
+            var contenuto = document.getElementById('shatter-content');
+            var esito = contenuto ? contenuto.getAttribute('data-esito') : null;
+            if (esito === 'nosplit' || esito === 'errore') {
+                clearInterval(timer);
+                closeShatterModal();
+                VG.phase = 'question';
+                setOrbState('speaking');
+                speakText(esito === 'nosplit' ? T('fc.gm_frantuma_no') : T('fc.vg_no_frantuma'), function () {
+                    if (VG.active && VG.phase === 'question') setOrbState('listening');
+                });
+                return;
+            }
             if (document.getElementById('shatter-qraw-0')) {
                 clearInterval(timer);
                 VG.shatterIndex = 0;
@@ -1263,7 +1278,9 @@ foreach (['it', 'en'] as $vg_l) {
         pausa: doPausa,
         riprendi: doRiprendi,
         risposta: doRisposta,
-        leggi: function () { triggerAiTool('read'); },
+        /* «Leggi» non e' piu' un pulsante dell'IA: la lettura ad alta voce e'
+           quella nativa, la stessa di «ripeti» nella fase della risposta. */
+        leggi: function () { if (VG.phase === 'answer') doRipeti(); },
         spiega: function () { triggerAiTool('explain'); },
         metafora: function () { triggerAiTool('metaphor'); },
         corretto: doCorretto,

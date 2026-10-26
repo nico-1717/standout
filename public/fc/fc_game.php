@@ -21,6 +21,7 @@ $conn = sec_db();
 require_once __DIR__ . '/fc_examples_box.php';
 require_once __DIR__ . '/../../lib/fc/fc_vocab_gap.php';
 require_once __DIR__ . '/../../lib/fc/fc_vocab_gioco.php';
+require_once __DIR__ . '/../../lib/fc/fc_ai_saved.php';
 
 /**
  * Vero se il campo (answer_desc, question_desc...) non contiene testo o
@@ -754,6 +755,13 @@ foreach ($gameplays as $gp) {
         $col = $card['is_child'] ? 'child_id' : 'parent_id';
         $card['examples_count'] = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('examples') . " WHERE $col = ?",
                                         [(int)$card['gameplay_idimmagine']])['c'] ?? 0);
+        /* Studio: quali testi dell'IA (spiega, metafora) sono gia' salvati su
+           questa carta. Il pulsante lo dice prima ancora di toccarlo, cosi' chi
+           lo sa non teme di spendere crediti (vedi lib/fc/fc_ai_saved.php). */
+        $card['ai_saved'] = ['explain' => false, 'metaphor' => false];
+        if (!$fc_vocab) {
+            $card['ai_saved'] = fc_ai_salvati((int)$card['gameplay_idimmagine'], (bool)$card['is_child']);
+        }
         /* Lingue: TUTTI gli esempi, uno sotto l'altro sul davanti della carta
            (prima solo il primo). Otto al massimo: oltre, la carta diventa un
            elenco e la parola si perde. gap_text: la parte che nel gioco si
@@ -1815,6 +1823,8 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 <div id="ai-timer" class="ai-timer"><span class="dot"></span><span id="ai-timer-text"></span></div>
 
+                <div id="ai-saved-note" class="ai-saved-note" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg><span><?php te('fc.gm_salvato_nota'); ?></span></div>
+
                 <div id="ai-audio-status" class="ai-status" style="display: none;"><?php te('fc.gm_audio_in_corso'); ?></div>
 
                 <div id="ai-modal-content" class="raw-text ai-body"></div>
@@ -1855,7 +1865,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 <button class="sheet-close" type="button" onclick="closeTokenLimitModal()" aria-label="<?php te('comune.chiudi'); ?>">&#10005;</button>
 
-                <div class="limit-icon">⚡️</div>
+                <div class="limit-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.2 2 4.5 13.4c-.4.5 0 1.1.6 1.1H10l-1 7.1c-.1.7.8 1 1.2.5l8.6-11.3c.4-.5 0-1.1-.6-1.1H14l.9-7.1c.1-.7-.8-1-1.2-.5Z"/></svg></div>
 
                 <h3 style="text-align:center;"><?php te('fc.gm_token_finiti'); ?></h3>
 
@@ -1869,7 +1879,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
         </div>
 
-        <div id="api-slow-toast" class="api-slow-toast"><span>⏳</span><span><?php te('fc.gm_google_lente'); ?></span></div>
+        <div id="api-slow-toast" class="api-slow-toast"><span><?php te('fc.gm_google_lente'); ?></span></div>
 
         <div id="offlineIndicator" class="offline-indicator" style="display:none;">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 12.5a10 10 0 0 1 3-2.1M19 12.5a10 10 0 0 0-3.4-2.4M2 8.8a15 15 0 0 1 4-2.6M22 8.8a15 15 0 0 0-6-3.5M12 20h.01"/></svg>
@@ -2049,90 +2059,75 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                     </div>
                     <?php endif; ?>
 
-                    <?php else: /* STUDIO: come prima */ ?>
+                    <?php else: /* STUDIO: la stessa carta della parola */
+                        /* Prima la risposta arrivava da sotto in un riquadro blu,
+                           con una riga di pulsanti (Esempi / Leggi / Spiega /
+                           Metafora) e i voti DENTRO il riquadro. Ora e' il posto
+                           velato delle parole: stessi id (btn-show-, ans-section-,
+                           graded-ans-), perche' li usano tastiera, voce e anteprima.
+                           - Gli esempi, se ci sono, sono gia' nella risposta: niente
+                             pulsante. Se non ce ne sono, un tastino per aggiungerne.
+                           - "Leggi" non c'e' piu' (la lettura ad alta voce e' nativa).
+                           - Spiega e Metafora dicono se il testo e' gia' salvato. */
+                        $cid_s   = (int)$c['gameplay_idimmagine'];
+                        $tipo_s  = $c['is_child'] ? 'child' : 'parent';
+                        $chiave_s = ($c['is_child'] ? 'c' : 'p') . $cid_s;
+                        $ans_id_s = ($is_graded ? 'graded-ans-' : 'ans-section-') . $index;
+                        $ha_testo_s = trim((string)($c['answer_desc'] ?? '')) !== '';
+                        $qTextJs = "document.querySelector('#q-section-{$index} .raw-text') ? document.querySelector('#q-section-{$index} .raw-text').getAttribute('data-raw') : ''";
+                        $aTextJs = "document.querySelector('#{$ans_id_s} .raw-text') ? document.querySelector('#{$ans_id_s} .raw-text').getAttribute('data-raw') : ''";
+                    ?>
                     <?php if (!$is_graded): ?>
+                    <div class="tool-row">
 
-                        <?php if (!$fc_vocab): /* l'IA per le parole arrivera' piu' avanti */ ?>
-                        <div class="tool-row">
+                        <button type="button" class="chip-shatter" onclick="shatterCard(<?php echo sec_h($index); ?>, <?php echo sec_h($cid_s); ?>, this)"><?php te('fc.gm_frantuma'); ?></button>
 
-                            <button type="button" class="chip-shatter" onclick="shatterCard(<?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_frantuma'); ?></button>
+                    </div>
+                    <?php endif; ?>
 
-                        </div>
+                    <div class="fcv-slot">
+                        <?php if (!$is_graded): ?>
+                        <button id="btn-show-<?php echo sec_h($index); ?>" type="button" class="fcv-reveal" onclick="revealCard(<?php echo sec_h($index); ?>)" aria-label="<?php te('fc.gm_mostra_risposta'); ?>">
+                            <span class="fcv-reveal-lab"><?php echo fc_gioco_etichetta($c, 'a'); ?></span>
+                            <span class="fcv-reveal-velo" aria-hidden="true"></span>
+                            <span class="fcv-reveal-txt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z"/><circle cx="12" cy="12" r="3"/></svg><?php te('fc.gm_tocca_rivela'); ?></span>
+                        </button>
                         <?php endif; ?>
-
-
-
-                        <button id="btn-show-<?php echo sec_h($index); ?>" class="btn btn-primary" onclick="revealCard(<?php echo sec_h($index); ?>)"><?php te('fc.gm_mostra_risposta'); ?> <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
-
-
-
-                        <div class="answer-box ans-block" id="ans-section-<?php echo sec_h($index); ?>" style="display:none;">
+                        <div class="answer-box ans-block fcv-ans fcs-ans<?php echo $is_graded ? ' is-revealed' : ''; ?>" id="<?php echo sec_h($ans_id_s); ?>"<?php echo $is_graded ? '' : ' style="display:none;"'; ?>>
 
                             <div class="section-title st-answer"><?php echo fc_gioco_etichetta($c, 'a'); ?></div>
 
                             <?php if (!empty($c['answer_audio'])): ?>
-
                                 <audio id="player_a_<?php echo sec_h($index); ?>" src="../media/flashcard_audio/<?php echo sec_h($c['answer_audio']); ?>" controls></audio>
-
                             <?php endif; ?>
 
                             <?php if (!empty(trim((string)($c['answer_image'] ?? '')))): ?>
-
                                 <img src="<?php echo fc_cartella_immagini() . sec_h(trim((string)($c['answer_image'] ?? ''))); ?>" class="fc-image">
-
                             <?php endif; ?>
 
                             <?php fc_gioco_testo($c, 'a'); ?>
 
-                            <?php render_examples_section($c['gameplay_idimmagine'], $c['is_child'] ? 'child' : 'parent', $c['gameplay_idimmagine'], [$c['gameplay_idimmagine'] => $c['examples_count']]); ?>
-
-                            <!-- BOTTONI AI TUTOR -->
-
-                            <?php 
-
-                                // Preparazione sicura per il Javascript
-
-                                $qTextJs = "document.querySelector('#q-section-{$index} .raw-text') ? document.querySelector('#q-section-{$index} .raw-text').getAttribute('data-raw') : ''";
-
-                                $aTextJs = "document.querySelector('#ans-section-{$index} .raw-text') ? document.querySelector('#ans-section-{$index} .raw-text').getAttribute('data-raw') : ''";
-
-                            ?>
-
-                            <?php if (!$fc_vocab): /* lingue: restava solo il tasto «Esempi (n)», ma gli esempi sono gia' aperti sopra */ ?>
-                            <div class="ai-tools-box">
-
-                                <?php if (!$fc_vocab): ?><span class="ai-spark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2 5.7 5.7 2-5.7 2-2 5.7-2-5.7-5.7-2 5.7-2 2-5.7zM19 14l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1 1.1-3z"/></svg></span><?php endif; ?>
-
-
-
-                                <?php if($c['examples_count'] > 0): ?>
-
-                                    <button id="btn-ex-<?php echo $c['is_child'] ? 'c' : 'p'; ?><?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai has-ex" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, '<?php echo $c['is_child'] ? 'child' : 'parent'; ?>', <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_n_esempi', ['n' => (int)$c['examples_count']]); ?></button>
-
-                                <?php else: ?>
-
-                                    <button id="btn-ex-<?php echo $c['is_child'] ? 'c' : 'p'; ?><?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, '<?php echo $c['is_child'] ? 'child' : 'parent'; ?>', <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_aggiungi_esempio'); ?></button>
-
-                                <?php endif; ?>
-
-
-
-                                <?php if (!$fc_vocab): ?><div class="ai-sep"></div>
-
-
-
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('read', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_leggi'); ?></button>
-
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('explain', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_spiega'); ?></button>
-
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('metaphor', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_metafora'); ?></button><?php endif; ?>
-
+                            <?php /* Il contenitore c'e' sempre, anche vuoto: quando si salva
+                                     un esempio dal pannello, fcOnExamplesCount (in fondo)
+                                     ci mette dentro il riquadro senza ricaricare la pagina. */ ?>
+                            <div class="fcs-ex">
+                                <?php render_examples_section($cid_s, $tipo_s, $cid_s, [$cid_s => $c['examples_count']]); ?>
                             </div>
-                            <?php endif; ?>
 
+                            <div class="fcs-tools">
+                                <button id="btn-ex-<?php echo sec_h($chiave_s); ?>" type="button" class="fcs-chip fcs-add-ex" data-ex-btn="1"<?php echo $c['examples_count'] > 0 ? ' hidden' : ''; ?> onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($cid_s); ?>, '<?php echo sec_h($tipo_s); ?>', <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span><?php te('fc.gm_aggiungi_esempio'); ?></span></button>
+                                <?php if ($ha_testo_s): ?>
+                                <?php foreach (['explain' => ['fc.gm_spiega', 'explain'], 'metaphor' => ['fc.gm_metafora', 'metaphor']] as $modo_s => [$k_s, $_]): $salvato_s = !empty($c['ai_saved'][$modo_s]); ?>
+                                <button type="button" class="chip-ai fcs-chip<?php echo $salvato_s ? ' is-saved' : ''; ?>" data-ai-mode="<?php echo $modo_s; ?>" onclick="playAI('<?php echo $modo_s; ?>', <?php echo sec_h($index); ?>, <?php echo sec_h($cid_s); ?>, this)"><span class="fcs-chip-lab"><?php te($k_s); ?></span><span class="fcs-chip-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg><?php te('fc.gm_salvato'); ?></span></button>
+                                <?php endforeach; ?>
+                                <?php endif; ?>
+                            </div>
 
+                        </div>
+                    </div>
 
-                            <div class="grade-row">
+                    <?php if (!$is_graded): ?>
+                    <div class="grade-row fcv-grade-row">
 
                                 <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=wrong&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn gc-wrong action-btn" aria-label="<?php te('fc.vg_sbagliato'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
 
@@ -2140,114 +2135,16 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                                 <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=correct&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn gc-correct action-btn" aria-label="<?php te('fc.res_corretto'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></a>
 
-                            </div>
-
-
-
+                    </div>
+                    <?php else: $vd_ok = ($c['user_answer'] == 'Correct'); ?>
+                    <?php /* La pastiglia del verdetto si tocca per cambiarlo (apriVerdetto);
+                             accanto a "Giusta" c'e' il tastino "imparata". */ ?>
+                    <div class="graded-head fcv-graded-head">
+                        <div class="vd-gruppo">
+                            <button type="button" class="status-pill vd-btn <?php echo $vd_ok ? 'ok' : 'ko'; ?>" aria-haspopup="menu" aria-label="<?php te('fc.gm_cambia_verdetto'); ?>"><span class="gi"><?php echo $vd_ok ? '&#10003;' : '&#10005;'; ?></span> <span class="vd-txt"><?php echo sec_h(t($vd_ok ? 'fc.lbl_corretto' : 'fc.lbl_errato')); ?></span><svg class="vd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button>
+                            <button type="button" class="btn gc-learnt gc-learnt-mini<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"<?php echo $vd_ok ? '' : ' hidden'; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
                         </div>
-
-
-
-                    <?php else: ?>
-
-
-
-                        <?php 
-
-                        if ($c['user_answer'] == 'Correct') {
-
-                            $msg = T('fc.lbl_corretto');
-
-                        } else {
-
-                            $msg = T('fc.lbl_errato');
-
-                        }
-
-                        ?>
-
-                        <?php /* La pastiglia del verdetto si tocca: si apre un menu per
-                                 cambiarlo (vedi apriVerdetto). Accanto a "Giusta" c'e'
-                                 il tastino "imparata"; su "Sbagliata" no, perche'
-                                 imparata vuol dire giusta. */
-                              $vd_ok = ($c['user_answer'] == 'Correct'); ?>
-                        <div class="graded-head">
-
-                            <div class="vd-gruppo">
-                                <button type="button" class="status-pill vd-btn <?php echo $vd_ok ? 'ok' : 'ko'; ?>" aria-haspopup="menu" aria-label="<?php te('fc.gm_cambia_verdetto'); ?>"><span class="gi"><?php echo $vd_ok ? '&#10003;' : '&#10005;'; ?></span> <span class="vd-txt"><?php echo sec_h($msg); ?></span><svg class="vd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button>
-                                <button type="button" class="btn gc-learnt gc-learnt-mini<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"<?php echo $vd_ok ? '' : ' hidden'; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
-                            </div>
-
-                            <button class="nav-btn pill-toggle action-btn" type="button" onclick="toggleAnswer(<?php echo sec_h($index); ?>, this)"><?php te('fc.gm_mostra_risposta'); ?></button>
-
-                        </div>
-
-
-
-                        <div class="answer-box ans-block is-revealed" id="graded-ans-<?php echo sec_h($index); ?>" style="display:none; margin-top:12px;">
-
-                            <div class="section-title st-answer"><?php echo fc_gioco_etichetta($c, 'a'); ?></div>
-
-                            <?php if (!empty($c['answer_audio'])): ?>
-
-                                <audio id="player_a_<?php echo sec_h($index); ?>" src="../media/flashcard_audio/<?php echo sec_h($c['answer_audio']); ?>" controls></audio>
-
-                            <?php endif; ?>
-
-                            <?php if (!empty(trim((string)($c['answer_image'] ?? '')))): ?>
-
-                                <img src="<?php echo fc_cartella_immagini() . sec_h(trim((string)($c['answer_image'] ?? ''))); ?>" class="fc-image">
-
-                            <?php endif; ?>
-
-                            <?php fc_gioco_testo($c, 'a'); ?>
-
-                            <?php render_examples_section($c['gameplay_idimmagine'], $c['is_child'] ? 'child' : 'parent', $c['gameplay_idimmagine'], [$c['gameplay_idimmagine'] => $c['examples_count']]); ?>
-
-                            <?php 
-
-                                $qTextJs = "document.querySelector('#q-section-{$index} .raw-text') ? document.querySelector('#q-section-{$index} .raw-text').getAttribute('data-raw') : ''";
-
-                                $aTextJs = "document.querySelector('#graded-ans-{$index} .raw-text') ? document.querySelector('#graded-ans-{$index} .raw-text').getAttribute('data-raw') : ''";
-
-                            ?>
-
-                            <?php if (!$fc_vocab): /* lingue: restava solo il tasto «Esempi (n)», ma gli esempi sono gia' aperti sopra */ ?>
-                            <div class="ai-tools-box">
-
-                                <?php if (!$fc_vocab): ?><span class="ai-spark"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2 5.7 5.7 2-5.7 2-2 5.7-2-5.7-5.7-2 5.7-2 2-5.7zM19 14l1.1 3 3 1.1-3 1.1-1.1 3-1.1-3-3-1.1 3-1.1 1.1-3z"/></svg></span><?php endif; ?>
-
-
-
-                                <?php if($c['examples_count'] > 0): ?>
-
-                                    <button id="btn-ex-graded-<?php echo $c['is_child'] ? 'c' : 'p'; ?><?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai has-ex" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, '<?php echo $c['is_child'] ? 'child' : 'parent'; ?>', <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_n_esempi', ['n' => (int)$c['examples_count']]); ?></button>
-
-                                <?php else: ?>
-
-                                    <button id="btn-ex-graded-<?php echo $c['is_child'] ? 'c' : 'p'; ?><?php echo sec_h($c['gameplay_idimmagine']); ?>" type="button" class="nav-btn chip-ai" onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($c['gameplay_idimmagine']); ?>, '<?php echo $c['is_child'] ? 'child' : 'parent'; ?>', <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><?php te('fc.gm_aggiungi_esempio'); ?></button>
-
-                                <?php endif; ?>
-
-
-
-                                <?php if (!$fc_vocab): ?><div class="ai-sep"></div>
-
-
-
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('read', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_leggi'); ?></button>
-
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('explain', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_spiega'); ?></button>
-
-                                <button type="button" class="nav-btn chip-ai" onclick="playAI('metaphor', <?php echo sec_h($index); ?>, <?php echo sec_h($c['gameplay_idimmagine']); ?>, this)"><?php te('fc.gm_metafora'); ?></button><?php endif; ?>
-
-                            </div>
-                            <?php endif; ?>
-
-                        </div>
-
-
-
+                    </div>
                     <?php endif; ?>
 
                     <?php endif; /* lingue / studio */ ?>
@@ -2678,7 +2575,8 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
             let ansBlock = e.target.closest('.ans-block');
 
-            if (ansBlock && ttsSettings.mode === 'click') {
+            /* i tastini sotto la risposta (esempio, spiega, metafora) hanno il loro compito: non fanno leggere la risposta */
+            if (ansBlock && ttsSettings.mode === 'click' && !e.target.closest('.fcs-tools')) {
 
                 let match = ansBlock.id.match(/\d+$/);
 
@@ -2993,9 +2891,9 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
             sel.appendChild(autoOpt);
 
             function etichetta(v) {
-                if (/premium/i.test(v.name)) return ' ⭐️ Premium';
-                if (/enhanced/i.test(v.name)) return ' ⭐️ Enhanced';
-                if (v.localService === false) return ' ☁️ ' + T('fc.gm_di_rete');
+                if (/premium/i.test(v.name)) return ' (Premium)';
+                if (/enhanced/i.test(v.name)) return ' (Enhanced)';
+                if (v.localService === false) return ' ' + T('fc.gm_di_rete');
                 return '';
             }
             function addTo(parent, v) {
@@ -3040,7 +2938,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
             let isRete = v && v.localService === false;
             if (isRete && speed > 1.2) {
                 hint.style.display = 'block';
-                hint.innerHTML = '⚠️ ' + T('fc.gm_voce_rete_avviso', { nome: v.name, leggi: T('fc.gm_leggi').replace(/^\S+\s/, '') });
+                hint.innerHTML = T('fc.gm_voce_rete_avviso', { nome: v.name });
             } else {
                 hint.style.display = 'none';
             }
@@ -3827,12 +3725,20 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
         function closeAiModal() {
             document.getElementById('ai-modal').style.display = 'none';
+            var notaSalvato = document.getElementById('ai-saved-note');
+            if (notaSalvato) notaSalvato.style.display = 'none';
             window.cancelAiAudio(); // Usiamo la nuova funzione
             stopNativeTTS();
             hideFloatingPlayer();
             stopAiTimer();
         }
 
+        /* Spiega / Metafora. Il testo che l'IA scrive si salva da solo sulla
+           carta la prima volta (ai_generate_text.php) e da li' in poi si
+           riapre dal database senza spendere nulla: lo dice il pulsante
+           (classe is-saved, la spunta e la parola "Salvato") e lo ripete il
+           pannello. Un figlio e un padre non sono nella stessa tabella, quindi
+           il server deve sapere quale dei due e' (is_child). */
         async function playAI(mode, index, cardId, btnElement) {
             currentAiActionId++; 
             let myActionId = currentAiActionId;
@@ -3841,250 +3747,142 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
             document.querySelectorAll('audio').forEach(a => a.pause());
             currentAiAudio.pause();
 
-
-
-            let originalText = btnElement.innerHTML;
-
-            btnElement.innerHTML = "⏳...";
-
+            const giaSalvato = btnElement.classList.contains('is-saved');
+            const ripristina = () => {
+                btnElement.classList.remove('is-loading');
+                btnElement.disabled = false;
+            };
+            btnElement.classList.add('is-loading');
             btnElement.disabled = true;
 
+            const cardBox = btnElement.closest('.card-box');
+            const eFiglio = !!(cardBox && cardBox.getAttribute('data-is-child') === '1');
 
-
-            let sectionId = document.getElementById('ans-section-' + index).style.display !== 'none' 
-
-                            ? '#ans-section-' + index 
-
-                            : '#graded-ans-' + index;
-
-            
-
-            let rawTextEl = document.querySelector(sectionId + ' .raw-text');
-
-            let rawText = rawTextEl.getAttribute('data-raw');
+            // La risposta sta sempre nello stesso posto: la carta gia' risposta la mostra senza richiuderla.
+            const ansEl = document.getElementById('ans-section-' + index) || document.getElementById('graded-ans-' + index);
+            const rawTextEl = ansEl ? ansEl.querySelector('.raw-text') : null;
+            const rawText = rawTextEl ? (rawTextEl.getAttribute('data-raw') || '') : '';
+            if (!rawText.trim()) { ripristina(); return; }   // niente da spiegare: inutile chiamare l'IA
 
             let textForAudio = rawText;
 
-
-
             try {
-
                 if (mode !== 'read') {
 
-                    // Genera testo
-                    startAiTimer(mode);
+                    // Genera testo (o rilegge quello salvato). Il timer parte solo se il testo non c'e' ancora.
+                    if (!giaSalvato) startAiTimer(mode);
 
                     let textResponse = await fetch('../ai/ai_generate_text.php', {
-
                         method: 'POST',
-
-                        headers: { 'Content-Type': 'application/json' },
-
-                        body: JSON.stringify({ mode: mode, text: rawText, id: cardId })
-
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': STANDOUT_CSRF },
+                        body: JSON.stringify({ mode: mode, text: rawText, id: cardId, is_child: eFiglio })
                     });
-
-
 
                     if (myActionId !== currentAiActionId) return; // Se hai cliccato altrove, fermati.
 
-
-
                     let textRawResult = await textResponse.text();
-
                     let textData;
-
-                    try { textData = JSON.parse(textRawResult); } 
-
+                    try { textData = JSON.parse(textRawResult); }
                     catch (e) {
-
                         stopAiTimer();
-
                         alert(T('fc.gm_errore_server_testo') + "\n\n" + textRawResult);
-
-                        btnElement.innerHTML = originalText;
-
-                        btnElement.disabled = false;
-
+                        ripristina();
                         return;
-
                     }
-
-
 
                     stopAiTimer();
-
-                    if (!textData.success) {
-
+                    if (!textData.success || typeof textData.text !== 'string' || textData.text === '') {
                         if (textData.error === 'limite_piano') {
-
                             showTokenLimitModal(textData.message);
-
                         } else {
-
-                            alert("Errore AI: " + textData.error);
-
+                            alert(T('fc.gm_errore_ai', { errore: textData.error || T('fc.gm_nessun_risultato') }));
                         }
-
-                        btnElement.innerHTML = originalText;
-
-                        btnElement.disabled = false;
-
+                        ripristina();
                         return;
-
                     }
-
-
 
                     textForAudio = textData.text;
 
-
+                    // Da adesso il testo e' salvato sulla carta: il pulsante lo dice.
+                    btnElement.classList.add('is-saved');
 
                     // MOSTRA IL POPUP CON AVVISO AUDIO IN CORSO
-
                     let modalTitle = document.getElementById('ai-modal-title');
-
                     modalTitle.innerText = mode === 'explain' ? T('fc.gm_spiegazione') : T('fc.gm_metafora');
-
                     modalTitle.style.color = mode === 'explain' ? '#8e24aa' : '#f57c00';
 
-                    
-
                     let modalContent = document.getElementById('ai-modal-content');
-
                     modalContent.innerHTML = parseTextForPreview(textData.text);
-
                     if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(modalContent);
 
-                    
-
+                    document.getElementById('ai-saved-note').style.display = 'flex';
                     document.getElementById('ai-audio-status').style.display = 'block';
-
                     document.getElementById('ai-modal').style.display = 'flex';
-
                 }
-
-
 
                 // Genera Audio Google Cloud
                 //
                 // IMPORTANTE: mandiamo a Google il testo già passato per la stessa
                 // pipeline della voce nativa. Prima gli arrivava il testo GREZZO, e
                 // quindi leggeva ad alta voce i comandi del parser e il LaTeX
-                // ("slash bold graffa", "backslash frac"...). Ora "leggi", "spiega" e
+                // ("slash bold graffa", "backslash frac"...). Ora "spiega" e
                 // "metafora" seguono le stesse traduzioni delle formule del resto del sito.
+                // Il file audio si tiene sul server per testo: la seconda volta non costa.
 
                 let audioText = ttsCleanText(textForAudio, ttsDetectLang(textForAudio));
 
                 if (!audioText) {
-
                     document.getElementById('ai-audio-status').style.display = 'none';
-
                     return; // niente di leggibile: inutile spendere caratteri audio
-
                 }
 
                 let response = await fetch('../ai/ai_tutor.php', {
-
                     method: 'POST',
-
                     headers: { 'Content-Type': 'application/json' },
-
                     body: JSON.stringify({ mode: mode, text: audioText, id: cardId, voice: ttsSettings.aiVoice || 'it-IT-Chirp3-HD-Charon' })
-
                 });
-
-                
 
                 if (myActionId !== currentAiActionId) return; // Se l'utente ha chiuso il popup, fermati.
 
-
-
                 let rawResult = await response.text(); 
-
                 let data;
-
                 try { data = JSON.parse(rawResult); } 
-
                 catch(e) {
-
                     alert(T('fc.gm_errore_server_audio') + "\n\n" + rawResult);
-
-                    btnElement.innerHTML = originalText;
-
-                    btnElement.disabled = false;
-
+                    ripristina();
                     return;
-
                 }
 
-                
-
                 if (data.success) {
-
                     if (data.audio_url) {
-
                         document.getElementById('ai-audio-status').style.display = 'none';
-
                         currentAiAudio.src = data.audio_url + "?t=" + new Date().getTime();
-
-                        
-
                         attachFloatingPlayer(currentAiAudio);
-
-
-
                         currentAiAudio.play().catch(e => {
-
                             // Se il browser blocca lo stesso l'audio, mettiamo un bottone di emergenza
-
                             console.log("Autoplay bloccato", e);
-
                             document.getElementById('ai-audio-status').style.display = 'block';
-
                             document.getElementById('ai-audio-status').innerHTML = T('fc.gm_audio_pronto') + ' <button onclick="currentAiAudio.play()" style="padding:4px 8px; border-radius:4px; cursor:pointer;">' + T('fc.gm_ascolta') + '</button>';
-
                         });
-
                     }
-
                 } else {
-
                     if (data.error === 'limite_piano') {
                         showTokenLimitModal(data.message);
                     } else {
-                        alert("Errore AI: " + data.error);
+                        alert(T('fc.gm_errore_ai', { errore: data.error }));
                     }
-
                 }
 
             } catch (error) {
-
                 stopAiTimer();
-
                 alert(T('fc.gm_errore_connessione'));
-
                 console.error(error);
-
             } finally {
-
                 stopAiTimer();
-
                 // Ripristina il tasto se siamo ancora sulla stessa azione
-
-                if (myActionId === currentAiActionId) {
-
-                    btnElement.innerHTML = originalText;
-
-                    btnElement.disabled = false;
-
-                }
-
+                if (myActionId === currentAiActionId) ripristina();
             }
-
         }
-
-
 
         // 5. INTERCETTAZIONE AJAX — sostituita dal NUOVO MOTORE DI NAVIGAZIONE
 
@@ -4102,6 +3900,44 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
         // ==========================================
 
+        /* GLI ESEMPI NELLA CARTA DI STUDIO
+           fc_examples_modal.php, dopo aver scritto o cancellato un esempio,
+           chiede a questa funzione di aggiornare la carta (vedi exScriviChip).
+           Con almeno un esempio la risposta mostra il riquadro degli esempi e
+           il tastino «Aggiungi esempio» sparisce; senza, e' il contrario. Si
+           ricarica il riquadro dal server (fcLoadExampleBoxes) invece di
+           comporlo qui, cosi' il carosello e' quello di sempre. */
+        window.fcOnExamplesCount = function (chiave, quanti) {
+            var figlio = chiave.charAt(0) === 'c';
+            var id = chiave.slice(1);
+            var carte = document.querySelectorAll('.card-box[data-card-id="' + id + '"][data-is-child="' + (figlio ? '1' : '0') + '"]');
+            var fatto = false;
+            carte.forEach(function (carta) {
+                var spazio = carta.querySelector('.fcs-ex');
+                var tasto = carta.querySelector('.fcs-add-ex');
+                if (!spazio || !tasto) return;
+                fatto = true;
+                spazio.innerHTML = '';
+                if (quanti > 0) {
+                    spazio.innerHTML = '<div class="qa-examples"><div class="qa-label">' + fcEscapeHtmlLocale(T('fc.vis_n_esempi', { n: quanti })) + '</div>'
+                        + '<div class="qa-examples-box" data-fc-id="' + id + '" data-fc-type="' + (figlio ? 'child' : 'parent') + '"></div></div>';
+                    if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes(spazio);
+                }
+                tasto.hidden = quanti > 0;
+            });
+            return fatto;
+        };
+
+        /* FRANTUMA
+           L'IA legge la carta e dice se vale la pena dividerla (ai_shatter.php):
+           usa solo cio' che la carta gia' contiene, e spesso la risposta e'
+           "no, e' un concetto solo". Se la divide, il pannello mostra un titolo
+           (modificabile) e le mini carte, e le si puo' SALVARE: una carta padre
+           col titolo e i figli sotto (ai_shatter_save.php). L'originale non si
+           tocca.
+           Gli id shatter-qraw-N / shatter-ans-N / shatter-araw-N / shatter-btn-N
+           e shatter-correct-btn / shatter-wrong-btn li usa la modalita' vocale
+           (fc_voice_mode.php): non vanno cambiati. */
         function closeShatterModal() {
 
             document.getElementById('shatter-modal').style.display = 'none';
@@ -4122,13 +3958,17 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
         async function shatterCard(index, cardId, btn) {
 
-            let originalText = btn.innerHTML;
-
-            btn.innerHTML = "⏳ Frantumazione...";
+            btn.classList.add('is-loading');
 
             btn.disabled = true;
 
+            const ripristinaBtn = () => { btn.classList.remove('is-loading'); btn.disabled = false; };
 
+            const cardBox = document.getElementById('card-' + index);
+
+            const eFiglio = !!(cardBox && cardBox.getAttribute('data-is-child') === '1');
+
+            const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
             // Recuperiamo la Domanda e la Risposta originali dai div nascosti
 
@@ -4148,13 +3988,15 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
             let actionsDiv = document.getElementById('shatter-actions');
 
+            contentDiv.removeAttribute('data-esito');
+
             
 
             let shatterStats = (window.aiPerfStats && window.aiPerfStats.shatter) || { avg_seconds: null, slower_than_usual: false };
 
             let shatterEta = shatterStats.avg_seconds ? T('fc.gm_shatter_eta', { s: shatterStats.avg_seconds }) : T('fc.gm_shatter_attesa');
 
-            contentDiv.innerHTML = `<div style="text-align:center; padding: 30px; font-weight:700; color:var(--blue); line-height:1.5;">${T('fc.gm_shatter_analizza')}<br><small style="color:var(--text-2); font-weight:500;">${shatterEta}</small></div>`;
+            contentDiv.innerHTML = `<div class="shatter-attesa">${T('fc.gm_shatter_analizza')}<small>${shatterEta}</small></div>`;
 
             actionsDiv.style.display = 'none';
 
@@ -4163,6 +4005,11 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
             if (shatterStats.slower_than_usual) showApiSlowToast();
 
 
+
+            const messaggio = (testo, esito) => {
+                contentDiv.setAttribute('data-esito', esito);
+                contentDiv.innerHTML = '<div class="shatter-msg shatter-msg-' + esito + '">' + esc(testo) + '</div>';
+            };
 
             try {
 
@@ -4184,7 +4031,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 try { data = JSON.parse(rawResult); } catch(e) {
 
-                    contentDiv.innerHTML = '<div style="color:red; font-weight:bold;">' + T('fc.gm_errore_formato') + '</div>';
+                    messaggio(T('fc.gm_errore_formato'), 'errore');
 
                     console.error("Raw result:", rawResult);
 
@@ -4194,11 +4041,14 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
 
 
-                if (data.success && data.cards && data.cards.length > 0) {
+                if (data.success && data.split && data.cards && data.cards.length > 1) {
 
-                    let html = '';
+                    contentDiv.setAttribute('data-esito', 'ok');
 
-                    let escAttr = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    let html = `<div class="shatter-titolo-box">
+                        <label class="shatter-lab" for="shatter-title">${esc(T('fc.gm_frantuma_titolo'))}</label>
+                        <input id="shatter-title" class="shatter-title" type="text" maxlength="200" value="${esc(data.title)}">
+                    </div>`;
 
                     data.cards.forEach((mini, i) => {
 
@@ -4206,21 +4056,28 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                         <div class="mini-card">
 
-                            <div class="mini-card-label">Mini card ${i+1}</div>
+                            <div class="mini-card-label">${esc(T('fc.gm_mini_carta', { n: i + 1 }))}</div>
 
-                            <div class="raw-text mini-q" id="shatter-qraw-${i}" data-raw="${escAttr(mini.q)}">${parseTextForPreview(mini.q)}</div>
+                            <div class="raw-text mini-q" id="shatter-qraw-${i}" data-raw="${esc(mini.q)}">${parseTextForPreview(mini.q)}</div>
 
                             <button id="shatter-btn-${i}" class="btn btn-primary btn-sm" onclick="revealShatterCard(${i})">${T('fc.gm_mostra_risposta')}</button>
 
                             <div id="shatter-ans-${i}" class="mini-ans" style="display:none;">
 
-                                <div class="raw-text mini-a" id="shatter-araw-${i}" data-raw="${escAttr(mini.a)}">${parseTextForPreview(mini.a)}</div>
+                                <div class="raw-text mini-a" id="shatter-araw-${i}" data-raw="${esc(mini.a)}">${parseTextForPreview(mini.a)}</div>
 
                             </div>
 
                         </div>`;
 
                     });
+
+                    if (data.dropped > 0) html += `<div class="shatter-nota">${esc(T('fc.gm_frantuma_scartate', { n: data.dropped }))}</div>`;
+
+                    html += `<div class="shatter-salva" id="shatter-salva">
+                        <button type="button" id="shatter-save-btn" class="btn btn-primary">${esc(T('fc.gm_frantuma_salva'))}</button>
+                        <div class="shatter-nota" id="shatter-save-nota">${esc(T('fc.gm_frantuma_salva_nota', { n: data.cards.length }))}</div>
+                    </div>`;
 
                     contentDiv.innerHTML = html;
 
@@ -4230,27 +4087,70 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                     if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(contentDiv);
 
+                    // SALVA COME CARTE: una carta padre col titolo e i figli sotto.
+                    const saveBtn = document.getElementById('shatter-save-btn');
+                    const saveNota = document.getElementById('shatter-save-nota');
+                    saveBtn.addEventListener('click', async () => {
+                        const titolo = (document.getElementById('shatter-title').value || '').trim();
+                        if (!titolo) {
+                            saveNota.textContent = T('fc.gm_frantuma_titolo_vuoto');
+                            saveNota.classList.add('is-errore');
+                            document.getElementById('shatter-title').focus();
+                            return;
+                        }
+                        saveBtn.disabled = true;
+                        saveBtn.textContent = T('fc.gm_frantuma_salvando');
+                        saveNota.classList.remove('is-errore');
+                        try {
+                            const r = await fetch('../ai/ai_shatter_save.php', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': STANDOUT_CSRF },
+                                credentials: 'same-origin',
+                                body: JSON.stringify({ card_id: cardId, is_child: eFiglio, title: titolo, cards: data.cards.map(m => ({ q: m.q, a: m.a })) })
+                            });
+                            const j = await r.json();
+                            if (j && j.success) {
+                                document.getElementById('shatter-salva').innerHTML =
+                                    '<div class="shatter-salvata"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg><span>' + esc(T('fc.gm_frantuma_salvata', { n: j.children })) + '</span></div>';
+                                document.getElementById('shatter-title').readOnly = true;
+                                return;
+                            }
+                            saveNota.textContent = (j && j.error) ? j.error : T('fc.gm_frantuma_salva_errore');
+                        } catch (e) {
+                            saveNota.textContent = T('fc.gm_frantuma_salva_errore');
+                        }
+                        saveNota.classList.add('is-errore');
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = T('fc.gm_frantuma_salva');
+                    });
+
 
 
                     // Copia magicamente gli URL T('fc.lbl_corretto') e "Sbagliato" della flashcard originale!
+                    // I voti stanno fuori dal riquadro della risposta: si cercano nella carta.
 
-                    let wrongUrl = document.querySelector('#ans-section-' + index + ' a.gc-wrong').href;
+                    let wrongA = document.querySelector('#card-' + index + ' a.gc-wrong');
 
-                    let correctUrl = document.querySelector('#ans-section-' + index + ' a.gc-correct').href;
+                    let correctA = document.querySelector('#card-' + index + ' a.gc-correct');
 
-                    
+                    if (wrongA && correctA) {
 
-                    document.getElementById('shatter-wrong-btn').href = wrongUrl;
+                        document.getElementById('shatter-wrong-btn').href = wrongA.href;
 
-                    document.getElementById('shatter-correct-btn').href = correctUrl;
+                        document.getElementById('shatter-correct-btn').href = correctA.href;
 
-                    document.getElementById('shatter-wrong-btn').setAttribute('data-card', 'card-' + index);
+                        document.getElementById('shatter-wrong-btn').setAttribute('data-card', 'card-' + index);
 
-                    document.getElementById('shatter-correct-btn').setAttribute('data-card', 'card-' + index);
+                        document.getElementById('shatter-correct-btn').setAttribute('data-card', 'card-' + index);
 
-                    
+                        actionsDiv.style.display = 'flex';
 
-                    actionsDiv.style.display = 'flex';
+                    }
+
+                } else if (data.success && !data.split) {
+
+                    // Un concetto solo: dividerlo non servirebbe.
+                    messaggio(T('fc.gm_frantuma_no'), 'nosplit');
 
                 } else if (data.error === 'limite_piano') {
 
@@ -4260,25 +4160,24 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 } else {
 
-                    contentDiv.innerHTML = '<div style="color:red; font-weight:bold;">' + T('fc.gm_nessun_risultato') + '</div>';
+                    messaggio(data.error ? String(data.error) : T('fc.gm_nessun_risultato'), 'errore');
 
                 }
 
             } catch (err) {
 
-                contentDiv.innerHTML = '<div style="color:red; font-weight:bold;">' + T('fc.gm_errore_rete') + '</div>';
+                messaggio(T('fc.gm_errore_rete'), 'errore');
 
                 console.error(err);
 
+            } finally {
+
+                ripristinaBtn();
+
             }
 
-
-
-            btn.innerHTML = originalText;
-
-            btn.disabled = false;
-
         }
+
 
         // ==========================================
         // RENDERING TESTI CON IL NUOVO PARSER

@@ -815,56 +815,6 @@
 
 
 
-        /* Riga AI Tutor — chips scorrevoli */
-
-        .ai-tools-box{
-
-            display:flex; align-items:center; gap:7px;
-
-            margin-top:16px; padding:9px 9px;
-
-            background:var(--surface-2); border-radius:16px;
-
-            box-shadow:inset 0 1px 3px rgba(0,0,0,.06), inset 0 0 0 .5px var(--hairline);
-
-            overflow-x:auto; scrollbar-width:none;
-
-        }
-
-        .ai-tools-box::-webkit-scrollbar{ display:none; }
-
-        .ai-spark{ display:flex; flex-shrink:0; color:var(--purple); padding-left:3px; }
-
-        .ai-spark svg{ width:16px; height:16px; }
-
-        .ai-sep{ width:1px; height:22px; background:var(--hairline-2); flex-shrink:0; margin:0 2px; }
-
-        .chip-ai{
-
-            flex-shrink:0; padding:9px 13px;
-
-            font-size:13px; font-weight:600;
-
-            background:var(--chip-bg); color:var(--text);
-
-            box-shadow:var(--pill-hl), var(--raise-sm);
-
-        }
-
-        .chip-ai.has-ex{
-
-            color:#fff;
-
-            background:var(--purple);
-
-            background:linear-gradient(180deg, color-mix(in srgb, var(--purple), #fff 16%), var(--purple) 52%, color-mix(in srgb, var(--purple), #000 10%));
-
-            box-shadow:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16), 0 1px 2px rgba(0,0,0,.12), 0 6px 14px -4px rgba(191,90,242,.5);
-
-        }
-
-
-
         /* Carta già valutata */
 
         .graded-head{ display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:10px; }
@@ -1007,9 +957,10 @@
         }
         .limit-icon{
             width:60px; height:60px; margin:4px auto 14px; border-radius:50%;
-            display:flex; align-items:center; justify-content:center; font-size:28px;
+            display:flex; align-items:center; justify-content:center;
             background:var(--orange-soft); color:var(--orange);
         }
+        .limit-icon svg{ width:28px; height:28px; }
         .limit-modal-msg{ font-size:15.5px; line-height:1.5; color:var(--text); text-align:center; margin-bottom:6px; }
         .limit-modal-sub{ font-size:12.5px; color:var(--text-2); text-align:center; margin-bottom:4px; }
 
@@ -1420,7 +1371,7 @@
    giro di mezzo secondo. */
 .fcv-slot{ margin-top:16px; }
 .fcv-reveal,
-.fc-vocab .answer-box.fcv-ans{
+.answer-box.fcv-ans{
     position:relative; overflow:hidden; box-sizing:border-box; width:100%; min-height:96px;
     border-radius:20px; padding:13px 16px 15px;
     background:
@@ -1473,8 +1424,8 @@
 @media (hover:hover){ .fcv-reveal:hover .fcv-reveal-txt{ transform:translateY(-1px); } .fcv-reveal-txt{ transition:transform .2s var(--spring); } }
 
 /* la risposta, nello stesso punto e con la stessa forma del velo */
-.fc-vocab .answer-box.fcv-ans{ margin-top:0; }
-.fc-vocab .answer-box.fcv-ans .section-title{ margin-bottom:2px; }
+.answer-box.fcv-ans{ margin-top:0; }
+.answer-box.fcv-ans .section-title{ margin-bottom:2px; }
 .fc-vocab .answer-box.fcv-ans .fcv-game-text.is-word{ font-size:30px; font-weight:800; letter-spacing:-.025em; }
 .fcv-ans.fcv-rivelata{ animation:fcvRivela .62s cubic-bezier(.2,.9,.25,1.15) both; }
 .fcv-ans.fcv-rivelata .fcv-game-text.is-word{ animation:fcvParolaSu .7s cubic-bezier(.34,1.56,.64,1) .06s both; }
@@ -1840,3 +1791,91 @@ button.f2-d:active{ transform:translate(-50%,-50%) scale(1.18); }
 /* L'elenco degli errori prende l'accento della categoria, non piu' il rosso. */
 .err-elenco-testa{ color:var(--f2-a); }
 .err-voce-num{ background:color-mix(in srgb, var(--fc-acc) 18%, transparent); color:var(--f2-a); }
+
+/* ================================================================
+   LA CARTA DI STUDIO (fc_game.php, ramo dello studio)
+   ================================================================
+   Stessa carta della parola: posto velato, pannello sfumato (le regole
+   .fcv-* qui sopra), voti fuori dal pannello. Qui solo cio' che e' tipico
+   dello studio: gli esempi dentro la risposta, il tastino per aggiungerne,
+   i due strumenti dell'IA e il pannello di «Frantuma».
+   Niente emoji: i segni sono tracciati in SVG, con lo stesso tratto. */
+.fcs-ans .raw-text{ margin-top:2px; }
+.fcs-ans .fcs-ex{ margin-top:12px; }
+.fcs-ans .fcs-ex:empty{ display:none; }
+.fcs-ans .qa-examples{ margin-top:0; }
+
+.fcs-tools{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:14px; }
+.fcs-chip{
+    position:relative; display:inline-flex; align-items:center; gap:7px;
+    padding:8px 14px; border:none; border-radius:99px; cursor:pointer;
+    font:inherit; font-size:13px; font-weight:700; letter-spacing:-.005em;
+    color:var(--text); background:color-mix(in srgb, var(--surface) 82%, transparent);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--purple) 22%, transparent);
+    -webkit-tap-highlight-color:transparent;
+    transition:transform .15s var(--spring), box-shadow .2s ease, background .2s ease, color .2s ease;
+}
+.fcs-chip:active{ transform:scale(.94); }
+.fcs-chip[hidden]{ display:none; }
+.fcs-chip:disabled{ cursor:default; }
+.fcs-chip:focus-visible{ outline:2px solid var(--purple); outline-offset:2px; }
+/* «Aggiungi esempio»: piccolo e discreto, un tratteggio al posto del riempimento */
+.fcs-add-ex{
+    padding:6px 11px; font-size:12px; font-weight:650; color:var(--text-2);
+    background:transparent; box-shadow:inset 0 0 0 1px var(--hairline-2);
+}
+.fcs-add-ex svg{ width:12px; height:12px; }
+/* il segno «salvato»: nascosto finche' il testo non c'e' sulla carta */
+.fcs-chip-tag{
+    display:none; align-items:center; gap:4px; font-size:11px; font-weight:800; letter-spacing:.03em;
+    padding:2px 7px 2px 5px; border-radius:99px;
+    color:var(--green, #1f9d55); background:color-mix(in srgb, var(--green, #34C759) 16%, transparent);
+}
+.fcs-chip-tag svg{ width:11px; height:11px; }
+.fcs-chip.is-saved .fcs-chip-tag{ display:inline-flex; }
+.fcs-chip.is-saved{ box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--green, #34C759) 45%, transparent); }
+/* in attesa dell'IA: tre puntini che pulsano al posto di un'emoji */
+.fcs-chip.is-loading .fcs-chip-lab::after,
+.chip-shatter.is-loading::after{
+    content:''; display:inline-block; width:1.2em; margin-left:2px; vertical-align:baseline;
+    background:radial-gradient(circle, currentColor 1.4px, transparent 1.9px) 0 55%/.4em .4em repeat-x;
+    animation:fcsPunti 1s steps(4) infinite;
+}
+@keyframes fcsPunti{ 0%{ opacity:.25; } 50%{ opacity:1; } 100%{ opacity:.25; } }
+.fcs-chip.is-loading .fcs-chip-tag{ display:none; }
+
+/* il pannello di Spiega / Metafora: la nota «salvato» */
+.ai-saved-note{
+    display:none; align-items:center; gap:7px; margin:0 0 10px;
+    font-size:12.5px; font-weight:700; color:var(--green, #1f9d55);
+}
+.ai-saved-note svg{ width:14px; height:14px; flex-shrink:0; }
+
+/* il pannello di Frantuma */
+.shatter-attesa{ text-align:center; padding:30px 10px; font-weight:700; color:var(--purple); line-height:1.5; }
+.shatter-attesa small{ display:block; margin-top:6px; color:var(--text-2); font-weight:500; }
+.shatter-msg{ padding:22px 6px 8px; text-align:center; font-size:15px; line-height:1.5; color:var(--text); }
+.shatter-msg-errore{ color:var(--red, #d93025); font-weight:700; }
+.shatter-titolo-box{ margin-bottom:14px; }
+.shatter-lab{ display:block; margin:0 0 6px 2px; font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--text-2); }
+.shatter-title{
+    width:100%; box-sizing:border-box; padding:11px 14px; border:none; border-radius:14px;
+    font:inherit; font-size:16px; font-weight:750; color:var(--text); background:var(--surface-2);
+    box-shadow:inset 0 0 0 1px var(--hairline-2);
+}
+.shatter-title:focus{ outline:none; box-shadow:inset 0 0 0 1.5px var(--purple); }
+.shatter-title[readonly]{ opacity:.7; }
+.shatter-nota{ margin:10px 2px 0; font-size:12.5px; line-height:1.45; color:var(--text-2); }
+.shatter-nota.is-errore{ color:var(--red, #d93025); font-weight:650; }
+.shatter-salva{ margin:16px 0 4px; }
+.shatter-salva .btn{ width:100%; }
+.shatter-salvata{
+    display:flex; align-items:center; gap:9px; padding:12px 14px; border-radius:14px;
+    font-size:14px; font-weight:700; line-height:1.4; color:var(--green, #1f9d55);
+    background:color-mix(in srgb, var(--green, #34C759) 13%, transparent);
+}
+.shatter-salvata svg{ width:18px; height:18px; flex-shrink:0; }
+
+@media (prefers-reduced-motion:reduce){
+    .fcs-chip, .fcs-chip.is-loading .fcs-chip-lab::after, .chip-shatter.is-loading::after{ animation:none !important; transition:none !important; }
+}

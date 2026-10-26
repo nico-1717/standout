@@ -407,6 +407,11 @@ function exAggiornaChip(fcId, fcType) {
    carta puo' comparire in due elenchi diversi nella stessa pagina (quello
    normale e quello dei voti, btn-ex-graded-*). */
 function exScriviChip(chipKey, quanti) {
+    /* Una pagina puo' farsi carico lei del proprio pulsante: nel gioco di
+       studio gli esempi stanno gia' dentro la risposta, quindi il "pulsante"
+       e' o il riquadro degli esempi o il tastino «Aggiungi esempio», e il
+       numero sul pulsante non c'e' piu'. Se risponde true, ha fatto tutto lei. */
+    if (typeof window.fcOnExamplesCount === 'function' && window.fcOnExamplesCount(chipKey, quanti) === true) return;
     ['btn-ex-' + chipKey, 'btn-ex-graded-' + chipKey].forEach(function (id) {
         var b = document.getElementById(id);
         if (!b) return;
