@@ -1245,7 +1245,6 @@ $max_position_generated = $row_max ? $row_max['max_p'] : 1;
 
 
 
-$status_text = ($status === 'all') ? T('fc.gm_filtro_all') : (($status == 1) ? T('fc.cg_learnt') : T('fc.cg_to_learn'));
 
 ?>
 
@@ -1475,7 +1474,6 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chrono-ic"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>
                         <span class="chrono-txt" id="chrono-txt">0:00</span>
                     </button>
-                    <span class="chip chip-status <?php echo ($status === 'all') ? 'st-all' : (($status == 1) ? 'st-learnt' : ''); ?>"><?php echo sec_h($status_text); ?></span>
                     <?php if ($fc_vocab): /* le lingue non leggono ad alta voce le carte: le loro impostazioni sono gli indizi */ ?>
                     <button id="fcvSettingsBtn" class="icon-btn" type="button" title="<?php te('fcv.gs_titolo'); ?>" aria-label="<?php te('fcv.gs_titolo'); ?>" aria-haspopup="dialog">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -5004,10 +5002,9 @@ function f2Scrivi (c, v, senzaColore) {
     if (!senzaColore) { __f2Anim++; c.style.setProperty('--fc-acc', v.acc); }
     var path = c.querySelector('.f2-path');
     if (path) {
-        var l = path.querySelector('.f2-line'), o = path.querySelector('.f2-line-oltre'), p = path.querySelector('.f2-pin');
+        var l = path.querySelector('.f2-line'), o = path.querySelector('.f2-line-oltre');
         if (l) l.style.width = v.fill + '%';
         if (o) o.style.width = v.oltre + '%';
-        if (p) p.style.left = v.fill + '%';
     }
     var ring = c.querySelector('.f2-ring');
     if (ring) {
@@ -5032,7 +5029,7 @@ function f2Disegna (c, conSeme) {
     var N = f2Ogni();
 
     if (!path.__pronto) {
-        path.innerHTML = '<i class="f2-line-oltre"></i><i class="f2-line"></i><div class="f2-nodi"></div><i class="f2-pin"></i>';
+        path.innerHTML = '<i class="f2-line-oltre"></i><i class="f2-line"></i><div class="f2-nodi"></div>';
         path.__pronto = true;
     }
 
