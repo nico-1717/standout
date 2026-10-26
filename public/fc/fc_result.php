@@ -1025,19 +1025,8 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
                                      lo spazio senza dire nulla di utile. Resta solo la freccia sui figli,
                                      per distinguerli dal padre che li precede. */ ?>
                             <?php if ($c['is_child']): ?><span class="numb figlio">&#8627;</span><?php endif; ?>
-
-                            <span class="oc-pill <?php echo sec_h($oc_class); ?>"><span class="gi"><?php echo sec_h($oc_icon); ?></span> <?php echo sec_h($oc_text); ?></span>
-
-
-
-                        </div>
-
-
-
-
-
-
-
+                            <?php /* La domanda sta nello spazio che il numero lasciava libero, accanto
+                                     alla pillola dell'esito: prima la pillola stava da sola su una riga. */ ?>
                         <div class="rev-q">
 
 
@@ -1067,6 +1056,8 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 
+                        </div>
+                            <span class="oc-pill <?php echo sec_h($oc_class); ?>"><span class="gi"><?php echo sec_h($oc_icon); ?></span> <?php echo sec_h($oc_text); ?></span>
                         </div>
 
 

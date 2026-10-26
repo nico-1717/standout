@@ -739,9 +739,12 @@
 
 
 
-        .rev-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+        .rev-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:8px; }
+        /* La domanda occupa lo spazio libero a sinistra della pillola; min-width:0 perche'
+           il testo possa andare a capo invece di spingere la pillola fuori. */
+        .rev-top .rev-q{ flex:1 1 auto; min-width:0; }
         /* Senza il numero a sinistra la pillola resta sempre a destra, anche da sola. */
-        .rev-top .oc-pill{ margin-left:auto; }
+        .rev-top .oc-pill{ margin-left:auto; flex:0 0 auto; }
 
 
 
