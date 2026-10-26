@@ -9,6 +9,13 @@
 
    I numeri vengono da fc_summary.php, lo stesso file del cruscotto: due
    pagine che contano le stesse cose devono contarle nello stesso modo.
+
+   Le lingue vivono tutte qui: ogni corso ha la sua riga (bandiera della lingua
+   che impari con, in piccolo, quella da cui parti), "Gioca" porta allo storico
+   e il menu "..." apre le opzioni del corso. L'aggiunta di una lingua e' un
+   foglio di questa pagina. La vecchia pagina fc_languages.php non e' piu' una
+   pagina: resta solo come indirizzo a cui il foglio manda le sue richieste
+   (fc_languages.js) e rimanda qui chi ci arriva da un vecchio segnalibro.
    ============================================================================ */
 
 require_once __DIR__ . '/../../lib/config.php';
@@ -41,6 +48,35 @@ $goStudy = fc_partita_in_sospeso($current_user_id, 'study');
 $goVocab = fc_partita_in_sospeso($current_user_id, 'vocab');
 $goCorso = fc_corso_da_giocare($current_user_id);
 $corsi = $R['vocab']['corsi'];
+
+/* PER IL FOGLIO "AGGIUNGI UNA LINGUA". La lingua di partenza proposta e' quella
+   dei corsi che hai gia', se e' sempre la stessa (un italiano che impara anche
+   il tedesco parte dall'italiano), altrimenti quella dell'interfaccia. */
+$ui = standout_lingua();
+$linguaNota = fc_lingua_nota_predefinita();
+$note = array_unique(array_map(fn($c) => $c['known_lang'], $corsi));
+if (count($note) === 1) $linguaNota = reset($note);
+
+/* L'elenco per la ricerca, gia' ordinato e con i nomi nella lingua
+   dell'interfaccia: il JavaScript filtra e basta. */
+$catalogo = [];
+foreach (FC_LINGUE as $codice => $v) {
+    $catalogo[] = [
+        'c' => $codice, 'b' => fc_lingua_base($codice), 'f' => $v[0],
+        'n' => $ui === 'en' ? $v[4] : $v[2], 'v' => $ui === 'en' ? $v[5] : $v[3],
+        // gli altri nomi servono solo alla ricerca: "german" trova il tedesco anche in italiano
+        'a' => trim(($ui === 'en' ? $v[2] : $v[4]) . ' ' . $v[6] . ' ' . $v[7] . ' ' . $codice),
+        'nat' => $v[6],
+    ];
+}
+$coll = class_exists('Collator') ? new Collator($ui) : null;
+usort($catalogo, function ($x, $y) use ($coll) {
+    $a = $x['n'] . ' ' . $x['v']; $b = $y['n'] . ' ' . $y['v'];
+    return $coll ? $coll->compare($a, $b) : strcmp(iconv('UTF-8', 'ASCII//TRANSLIT', $a), iconv('UTF-8', 'ASCII//TRANSLIT', $b));
+});
+$giaCorsi = [];
+foreach ($corsi as $c) $giaCorsi[] = ['id' => (int)$c['id'], 'k' => $c['known_lang'], 'l' => $c['learn_lang']];
+
 $pctOggi = min(100, (int)round($R['oggi'] / max(1, $R['obiettivo']) * 100));
 $sPct = $R['study']['carte'] > 0 ? (int)round($R['study']['imparate'] / $R['study']['carte'] * 100) : 0;
 $vPct = $R['vocab']['parole'] > 0 ? (int)round($R['vocab']['imparate'] / $R['vocab']['parole'] * 100) : 0;
@@ -152,7 +188,9 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
         </article>
 
         <article class="mode-card mode-vocab">
-            <a class="mode-main" href="fc_languages.php">
+            <?php /* Un'intestazione e basta, non un link: la pagina "Lingue" non c'e'
+                     piu', ogni lingua ha qui sotto la sua riga con le sue azioni. */ ?>
+            <div class="mode-main">
                 <?php if ($corsi): ?>
                 <span class="flag-stack" aria-hidden="true">
                     <?php foreach (array_slice($corsi, 0, 3) as $c): ?>
@@ -173,8 +211,7 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
                         else: te('fchub.lingue_sub_vuoto'); endif; ?>
                     </span>
                 </span>
-                <svg class="mode-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-            </a>
+            </div>
             <?php if ($corsi): ?>
             <div class="mode-stats">
                 <span><b><?php echo count($corsi); ?></b> <?php te(count($corsi) === 1 ? 'fchub.lingua' : 'fchub.lingue_min'); ?></span>
@@ -182,23 +219,39 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
                 <span><b><?php echo $vPct; ?>%</b> <?php te('fchub.imparate'); ?></span>
             </div>
             <div class="mode-bar"><span style="width:<?php echo $vPct; ?>%"></span></div>
-            <?php /* Una riga grande per lingua, con le stesse tre azioni dello studio:
-                     gioca, nuova parola, storico. Prima erano pastiglie piccole
-                     che portavano solo ai mazzi. */ ?>
+            <?php /* Una riga grande per lingua. "Gioca" porta allo storico (da li' si
+                     sceglie cosa giocare), quindi il tasto "Storico" a parte non
+                     serve piu'. La bandiera grande e' la lingua che impari, quella
+                     piccola la lingua da cui parti: come nella vecchia pagina Lingue. */ ?>
             <div class="course-rows">
                 <?php foreach ($corsi as $c): $cid = (int)$c['id'];
                       $qualeGioco = ($goVocab && (int)$goVocab['course'] === $cid) ? $goVocab : null;
-                      $cPct = $c['parole'] > 0 ? (int)round($c['imparate'] / $c['parole'] * 100) : 0; ?>
-                <div class="course-big">
-                    <a class="course-big-main" href="<?php echo sec_h('fc_decks.php?course=' . $cid); ?>">
-                        <img class="flag" src="<?php echo sec_h(fc_lingua_bandiera($c['learn_lang'])); ?>" alt="">
-                        <span class="course-big-txt">
-                            <span class="course-big-name"><?php echo sec_h(fc_lingua_nome($c['learn_lang'], false)); ?></span>
-                            <span class="course-big-sub"><?php echo (int)$c['parole']; ?> <?php te($c['parole'] === 1 ? 'fchub.parola' : 'fchub.parole'); ?> · <?php echo $cPct; ?>% <?php te('fchub.imparate'); ?></span>
-                        </span>
-                        <?php if ($c['oggi'] > 0): ?><span class="chip-n"><?php echo (int)$c['oggi']; ?></span><?php endif; ?>
-                        <svg class="mode-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-                    </a>
+                      $cPct = $c['parole'] > 0 ? (int)round($c['imparate'] / $c['parole'] * 100) : 0;
+                      $nomeCorso = fc_lingua_nome($c['learn_lang'], false);
+                      $haVarianti = count(array_filter(array_keys(FC_LINGUE), fn($k) => fc_lingua_base($k) === fc_lingua_base($c['learn_lang']))) > 1; ?>
+                <div class="course-big" data-course-card data-id="<?php echo $cid; ?>"
+                     data-learn="<?php echo sec_h($c['learn_lang']); ?>" data-known="<?php echo sec_h($c['known_lang']); ?>"
+                     data-name="<?php echo sec_h($nomeCorso); ?>" data-words="<?php echo (int)$c['parole']; ?>"
+                     data-project="<?php echo (int)($c['project_id'] ?? 0); ?>" data-variants="<?php echo $haVarianti ? 1 : 0; ?>">
+                    <div class="course-big-top">
+                        <a class="course-big-main" href="<?php echo sec_h('fc_decks.php?course=' . $cid); ?>">
+                            <span class="lng-flags" aria-hidden="true">
+                                <img class="flag flag-big" src="<?php echo sec_h(fc_lingua_bandiera($c['learn_lang'])); ?>" alt="">
+                                <img class="flag flag-small" src="<?php echo sec_h(fc_lingua_bandiera($c['known_lang'])); ?>" alt="">
+                            </span>
+                            <span class="course-big-txt">
+                                <span class="course-big-name"><?php echo sec_h($nomeCorso); ?></span>
+                                <span class="course-big-sub"><?php echo (int)$c['parole']; ?> <?php te($c['parole'] === 1 ? 'fchub.parola' : 'fchub.parole'); ?> · <?php echo $cPct; ?>% <?php te('fchub.imparate'); ?></span>
+                            </span>
+                            <?php if ($c['oggi'] > 0): ?><span class="chip-n"><?php echo (int)$c['oggi']; ?></span><?php endif; ?>
+                            <svg class="mode-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                        </a>
+                        <?php /* il menu del corso (accento, progetto, elimina) sta fuori dal
+                                 link: un tocco qui non deve aprire i mazzi */ ?>
+                        <button type="button" class="icon-btn lng-more" aria-label="<?php te('fchub.opzioni'); ?>">
+                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                        </button>
+                    </div>
                     <?php if ($qualeGioco): ?>
                     <a class="go-resume" href="<?php echo sec_h('fc_game.php?game_id=' . (int)$qualeGioco['id'] . '&position=' . (int)$qualeGioco['pos']); ?>">
                         <span class="go-resume-txt">
@@ -213,7 +266,8 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
                     </a>
                     <?php endif; ?>
                     <div class="mode-actions">
-                        <a class="pill-btn<?php echo $qualeGioco ? '' : ' pill-play'; ?>" href="<?php echo sec_h('fc_game_setup.php?course=' . $cid); ?>">
+                        <?php if ($c['parole'] > 0): ?>
+                        <a class="pill-btn<?php echo $qualeGioco ? '' : ' pill-play'; ?>" href="<?php echo sec_h('fc_history.php?course=' . $cid); ?>">
                             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.1v13.8a1 1 0 0 0 1.5.9l11-6.9a1 1 0 0 0 0-1.8l-11-6.9A1 1 0 0 0 8 5.1Z"/></svg>
                             <span><?php te('fchub.gioca'); ?></span>
                         </a>
@@ -221,24 +275,26 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                             <span><?php te('fchub.nuova_carta'); ?></span>
                         </a>
-                        <a class="pill-btn" href="<?php echo sec_h('fc_history.php?course=' . $cid); ?>">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
-                            <span><?php te('fchub.storico'); ?></span>
+                        <?php else: /* senza parole non c'e' niente da giocare: si parte dal primo mazzo */ ?>
+                        <a class="pill-btn pill-play" href="<?php echo sec_h('fc_decks.php?course=' . $cid . '&new=1'); ?>">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                            <span><?php te('fchub.primo_mazzo'); ?></span>
                         </a>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <?php endforeach; ?>
-                <a class="course-add" href="fc_languages.php#add">
+                <button type="button" class="course-add" id="btnAggiungiCard">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                     <span><?php te('fchub.aggiungi_lingua'); ?></span>
-                </a>
+                </button>
             </div>
             <?php else: ?>
             <div class="mode-actions">
-                <a class="pill-btn pill-play" href="fc_languages.php#add">
+                <button type="button" class="pill-btn pill-play" id="btnAggiungiVuoto">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                     <span><?php te('fchub.aggiungi_lingua'); ?></span>
-                </a>
+                </button>
             </div>
             <?php endif; ?>
         </article>
@@ -349,7 +405,88 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
     </div>
 </div>
 
+<!-- AGGIUNGI UNA LINGUA (la logica e' in fc_languages.js, le richieste vanno a fc_languages.php) -->
+<div class="modal-overlay" id="sheetAdd" data-sb-popup aria-hidden="true">
+    <div class="sheet-panel sheet-tall" role="dialog" aria-modal="true" aria-labelledby="addTitolo">
+        <div class="sheet-head">
+            <h3 class="sheet-title" id="addTitolo"><?php te('fchub.aggiungi_lingua'); ?></h3>
+            <button type="button" class="sheet-close" data-chiudi aria-label="<?php te('comune.chiudi'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <?php /* La lingua di partenza e' gia' scelta. Si cambia solo se serve
+                 (un italiano che impara il giapponese dall'inglese): un tocco
+                 qui, e l'elenco sotto diventa quello delle lingue di partenza. */ ?>
+        <button type="button" class="known-row" id="knownRow">
+            <span class="known-lbl"><?php te('fchub.parto_da'); ?></span>
+            <img class="flag flag-xs" id="knownFlag" src="<?php echo sec_h(fc_lingua_bandiera($linguaNota)); ?>" alt="">
+            <span class="known-name" id="knownName"><?php echo sec_h(fc_lingua_nome($linguaNota, false)); ?></span>
+            <svg class="known-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+
+        <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="search" id="lngSearch" placeholder="<?php te('fchub.cerca_lingua'); ?>" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+        </div>
+
+        <div class="lng-list" id="lngList" role="listbox" aria-labelledby="addTitolo"></div>
+    </div>
+</div>
+
+
+<!-- OPZIONI DI UN CORSO -->
+<div class="modal-overlay" id="sheetMore" data-sb-popup aria-hidden="true">
+    <div class="sheet-panel" role="dialog" aria-modal="true">
+        <h3 class="sheet-title" id="moreTitolo"></h3>
+        <div class="row-actions">
+            <a class="row-action" id="moreDecks" href="#">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"/></svg>
+                <span><?php te('fchub.apri_mazzi'); ?></span>
+            </a>
+            <a class="row-action" id="moreHistory" href="#">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
+                <span><?php te('fchub.storico_partite'); ?></span>
+            </a>
+            <button type="button" class="row-action" id="moreVariant">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+                <span><?php te('fchub.cambia_accento'); ?></span>
+            </button>
+            <button type="button" class="row-action" id="moreProject">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3.5h6v2.5H9z"/><path d="M8.5 11h7M8.5 14.5h7"/></svg>
+                <span id="moreProjectTxt"><?php te('fchub.collega_progetto'); ?></span>
+            </button>
+            <button type="button" class="row-action row-danger" id="moreDelete">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/></svg>
+                <span><?php te('fchub.elimina_corso'); ?></span>
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<!-- CONFERMA ELIMINAZIONE -->
+<div class="modal-overlay" id="sheetDelete" data-sb-popup aria-hidden="true">
+    <div class="sheet-panel" role="alertdialog" aria-modal="true">
+        <h3 class="sheet-title" id="delTitolo"></h3>
+        <p class="sheet-sub" id="delTesto"></p>
+        <div class="sheet-actions">
+            <button type="button" class="btn btn-secondary" data-chiudi><?php te('comune.annulla'); ?></button>
+            <button type="button" class="btn btn-danger" id="delConferma"><?php te('fchub.elimina'); ?></button>
+        </div>
+    </div>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script type="application/json" id="lng-dati"><?php
+    echo json_encode([
+        'catalogo' => $catalogo,
+        'popolari' => FC_LINGUE_POPOLARI,
+        'corsi'    => $giaCorsi,
+        'nota'     => $linguaNota,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+?></script>
 
 <script>
 (function () {
@@ -452,5 +589,6 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
     });
 })();
 </script>
+<script src="<?php echo PWA_BASE; ?>fc/fc_languages.js?v=<?php echo @filemtime(__DIR__ . '/fc_languages.js') ?: 1; ?>"></script>
 </body>
 </html>

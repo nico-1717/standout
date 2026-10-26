@@ -256,7 +256,7 @@
                 game: un.vocab,
                 langName: co ? co.name : '',
                 idle: co ? co.name : T('home.nessuna_lingua'),
-                play: co ? 'fc/fc_game_setup.php?course=' + co.id : 'fc/fc_languages.php#add',
+                play: co ? 'fc/fc_game_setup.php?course=' + co.id : 'fc/fc_home.php#add',
                 playLabel: co ? null : T('home.aggiungi_lingua')
             }));
 

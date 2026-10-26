@@ -1,5 +1,6 @@
-/* fc_hub.css — stile della pagina principale delle flashcard (fc_home.php)
-   e della pagina delle lingue (fc_languages.php).
+/* fc_hub.css — stile della pagina principale delle flashcard (fc_home.php),
+   compresi i fogli delle lingue (aggiungi, opzioni del corso, elimina).
+   Le classi .lng-* sono rimaste dai tempi della pagina fc_languages.php.
 
    Stesso sistema di fc_decks.css e fc_game.css (iOS nativo, chiaro e scuro):
    gli stessi colori, raggi e curve, cosi' passando da qui ai mazzi non si ha
@@ -481,8 +482,15 @@ button{ font-family:inherit; }
 /* UNA RIGA GRANDE PER LINGUA (prima: pastiglie piccole) */
 .course-rows{ position:relative; display:flex; flex-direction:column; gap:12px; }
 .course-big{ padding:12px; border-radius:18px; background:var(--surface-2); box-shadow:inset 0 0 0 .5px var(--hairline); }
-.course-big-main{ display:flex; align-items:center; gap:12px; padding:0 2px 12px; }
-.course-big-main .flag{ width:44px; height:44px; flex-shrink:0; box-shadow:0 0 0 2.5px var(--surface), 0 4px 10px -4px rgba(0,0,0,.3); }
+/* in cima alla riga: il link ai mazzi e, accanto, il menu "..." del corso (fuori dal
+   link, cosi' un tocco sul menu non apre i mazzi) */
+.course-big-top{ display:flex; align-items:center; gap:2px; padding-bottom:12px; }
+.course-big-main{ flex:1; min-width:0; display:flex; align-items:center; gap:12px; padding:0 2px; }
+/* la bandiera grande e' la lingua che impari, la piccola quella da cui parti; l'anello
+   ha il colore dello sfondo della riga (surface-2) per staccarle senza un bordo visibile */
+.course-big .lng-flags{ width:54px; height:50px; }
+.course-big .lng-flags .flag-big{ width:44px; height:44px; box-shadow:0 0 0 2.5px var(--surface-2), 0 4px 10px -4px rgba(0,0,0,.3); }
+.course-big .lng-flags .flag-small{ width:22px; height:22px; box-shadow:0 0 0 2.5px var(--surface-2); }
 .course-big-txt{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .course-big-name{ font-size:18px; font-weight:800; letter-spacing:-.02em; line-height:1.2; }
 .course-big-sub{ font-size:13px; color:var(--text-2); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -492,6 +500,8 @@ button{ font-family:inherit; }
 .course-add{
     display:flex; align-items:center; justify-content:center; gap:7px; padding:11px; border-radius:16px;
     border:1.5px dashed color-mix(in srgb, var(--orange) 45%, transparent); color:var(--orange); font-size:14.5px; font-weight:700;
+    /* e' un tasto (apre il foglio), non piu' un link: si toglie lo stile del tasto */
+    width:100%; background:transparent; font-family:inherit; cursor:pointer;
 }
 .course-add svg{ width:16px; height:16px; }
 .course-add:active{ transform:scale(.98); }

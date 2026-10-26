@@ -1,9 +1,11 @@
-/* fc_languages.js — la pagina delle lingue.
+/* fc_languages.js — i fogli delle lingue, dentro fc_home.php.
  *
  * Tre cose: l'elenco da cui aggiungere una lingua (con ricerca), il menu di
  * un corso, e la conferma di eliminazione. I dati arrivano gia' in pagina
  * (#lng-dati), quindi la ricerca filtra in memoria mentre si scrive, senza
  * chiedere niente al server.
+ * Le richieste (aggiungi, variante, progetto, elimina) vanno a fc_languages.php,
+ * che non e' piu' una pagina ma solo il posto dove vengono gestite.
  */
 (function () {
     'use strict';
@@ -281,7 +283,8 @@
         var b = e.target.closest('.lng-more');
         if (!b) return;
         e.preventDefault();
-        corrente = b.closest('.lng-card');
+        corrente = b.closest('[data-course-card]');
+        if (!corrente) return;
         var id = corrente.getAttribute('data-id');
         $('moreTitolo').textContent = corrente.getAttribute('data-name');
         $('moreDecks').href = 'fc_decks.php?course=' + id;

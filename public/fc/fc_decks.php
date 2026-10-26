@@ -1227,8 +1227,9 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 <div class="app-header">
 
     <div class="hdr-top">
-        <?php /* Indietro: alle lingue per un corso, alla pagina principale delle flashcard per lo studio. */ ?>
-        <a href="<?php echo fc_is_vocab() ? 'fc_languages.php' : 'fc_home.php'; ?>" class="hdr-back" aria-label="<?php te('comune.indietro'); ?>">
+        <?php /* Indietro: alla pagina principale delle flashcard, sia per lo studio sia per un corso
+                 (le lingue stanno li': non c'e' piu' una pagina a parte). */ ?>
+        <a href="fc_home.php" class="hdr-back" aria-label="<?php te('comune.indietro'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
         </a>
         <div class="hdr-titles">

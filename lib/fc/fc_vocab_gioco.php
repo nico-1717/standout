@@ -125,6 +125,14 @@ function fcv_lettera(bool $giusta, bool $ripasso): string {
  * parole e le sottoparole. Il tastino sta sulla carta padre e vale per le
  * sue sottocarte.
  *
+ * Le carte di un mazzo ARCHIVIATO contano come imparate: archiviare vuol dire
+ * "con questo ho finito", e senza questa regola chi archivia una materia dopo
+ * l'esame vedrebbe scendere la percentuale. L'archivio e' a cascata (un ramo
+ * intero segue la sua radice, come fc_in_ramo_archiviato in fc_decks.php), quindi
+ * si risale dai padri. Della data di archiviazione non c'e' traccia: queste
+ * carte entrano nel totale ma non in "oggi / settimana / mese" (giorni), per
+ * non inventare un giorno.
+ *
  * @return array{unita:int, totale:int, giorni:array<string,int>, per_corso:array<int,int>, dettaglio:array}
  *   giorni    = [Y-m-d => quante imparate quel giorno], in ordine
  *   dettaglio = [chiave => ['mazzo' => id, 'quando' => Y-m-d|null, 'ora' => la sai adesso, 'giocata' => bool]]
@@ -148,6 +156,25 @@ function fcv_conosciute(int $uid, string $tipo): array {
                         JOIN {$T['d']} d ON d.id = c.category_id WHERE d.user_id = ?", [$uid]) as $r) {
         $unita['c' . (int)$r['id_child']] = ['padre' => (int)$r['parent_id'], 'corso' => (int)$r['corso'], 'mazzo' => (int)$r['category_id']];
     }
+
+    /* i mazzi con padre e flag di archivio, per sapere quali stanno in un ramo
+       archiviato */
+    $mazzi = [];
+    foreach (sec_all("SELECT id, parent_id, archived FROM {$T['d']} WHERE user_id = ?", [$uid]) as $r) {
+        $mazzi[(int)$r['id']] = ['p' => (int)$r['parent_id'], 'a' => (int)$r['archived'] === 1];
+    }
+    $archCache = [];
+    $inArchivio = function (int $id) use (&$mazzi, &$archCache): bool {
+        if (isset($archCache[$id])) return $archCache[$id];
+        $x = $id;
+        /* 50 salti bastano per qualunque albero vero; il limite protegge solo da un
+           ciclo nei dati (un mazzo padre di se stesso) */
+        for ($passi = 0; $x > 0 && isset($mazzi[$x]) && $passi < 50; $passi++) {
+            if ($mazzi[$x]['a']) return $archCache[$id] = true;
+            $x = $mazzi[$x]['p'];
+        }
+        return $archCache[$id] = false;
+    };
 
     $tastino = [];
     foreach (sec_all("SELECT fc_image_id, MIN(learnt_date) AS d FROM {$T['l']} WHERE user_id = ? GROUP BY fc_image_id", [$uid]) as $r) {
@@ -176,7 +203,7 @@ function fcv_conosciute(int $uid, string $tipo): array {
         $dl = $primo[$k] ?? null;
         $quando = ($dt !== null && $dl !== null) ? min($dt, $dl) : ($dt ?? $dl);
         if ($quando !== null) $giorni[$quando] = ($giorni[$quando] ?? 0) + 1;
-        $ora = $dt !== null || (($stato[$k]['liv'] ?? 'nuova') === 'la_sai');
+        $ora = $dt !== null || (($stato[$k]['liv'] ?? 'nuova') === 'la_sai') || $inArchivio($u['mazzo']);
         if ($ora) {
             $totale++;
             $perCorso[$u['corso']] = ($perCorso[$u['corso']] ?? 0) + 1;

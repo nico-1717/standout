@@ -92,8 +92,9 @@ function fc_leggi_corso(int $corsoId, int $userId): ?array {
 /**
  * Da chiamare in cima a ogni pagina e a ogni endpoint delle flashcard.
  * Con ?course=N (in GET o nel corpo) il tipo diventa "lingua"; il corso deve
- * essere dell'utente, altrimenti si torna alla pagina delle lingue — o, per
- * un endpoint, si risponde 404 senza dire se il corso esiste.
+ * essere dell'utente, altrimenti si torna alla pagina principale delle
+ * flashcard (dove stanno le lingue) — o, per un endpoint, si risponde 404
+ * senza dire se il corso esiste.
  */
 function fc_avvia(int $userId, bool $isApi = false): void {
     $s =& fc_stato();
@@ -104,7 +105,7 @@ function fc_avvia(int $userId, bool $isApi = false): void {
     $corso = fc_leggi_corso($corsoId, $userId);
     if (!$corso) {
         if ($isApi) sec_die_json(t('api.non_trovato'), 404, 'not_found');
-        header('Location: ' . PWA_BASE . 'fc/fc_languages.php');
+        header('Location: ' . PWA_BASE . 'fc/fc_home.php');
         exit;
     }
     $s = ['tipo' => 'vocab', 'corso' => $corso];
