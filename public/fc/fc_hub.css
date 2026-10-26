@@ -132,6 +132,9 @@ button{ font-family:inherit; }
 
 /* ================================================================ HOME */
 .today-card{
+    /* stesso respiro (14px) che le altre schede della pagina hanno fra loro:
+       senza, la scheda dell'obiettivo toccava quella delle due strade sopra */
+    margin-top:14px;
     display:grid; grid-template-columns:auto 1fr; gap:14px 18px; align-items:center;
     background:var(--surface); border-radius:var(--r-card); padding:18px;
     box-shadow:var(--shadow-card);
