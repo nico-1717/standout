@@ -894,12 +894,20 @@ if ($parent_id > 0) {
        quante ne abbiano i mazzi. Le carte che restano davvero sono quelle
        della sequenza non ancora giocate: se sono meno, vale quel numero. In
        una partita normale i due conti coincidono (o vince il vecchio, se nel
-       frattempo una carta e' stata segnata come imparata). */
+       frattempo una carta e' stata segnata come imparata).
+
+       CORREZIONE (26/10/2026): "vince il vecchio" era un errore. Il conto
+       sopra ($where_learnt) e' VIVO: se si segna come imparata una carta che
+       sta piu' avanti nella sequenza, esce dal conto e il totale cala, ma la
+       sequenza (e quindi la posizione) e' fissa dall'avvio e quella carta si
+       gioca lo stesso: si finiva con "97 / 95". Quando la sequenza esiste
+       (tutte le partite nuove) il totale e' SEMPRE quello della sequenza; il
+       conto vivo resta solo per le partite vecchie senza sequenza. */
     $seq_rest = "SELECT fc_image_id FROM " . fc_t('sequence') . " WHERE game_id = ?
                     AND fc_image_id NOT IN (SELECT fc_image_id FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_image_id IS NOT NULL)";
     $seq_n = (int)(sec_one("SELECT COUNT(*) AS c FROM ($seq_rest) s", [$game_id, $game_id])['c'] ?? 0);
     $seq_tot = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('sequence') . " WHERE game_id = ?", [$game_id])['c'] ?? 0);
-    if ($seq_tot > 0 && $seq_n < $to_play_count) {
+    if ($seq_tot > 0) {
         $to_play_count = $seq_n;
         $to_play_cards_count = $seq_n + (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('subcards') . " ch
                                                         JOIN " . fc_t('cards') . " i ON i.id = ch.parent_id AND i.is_father = 1
