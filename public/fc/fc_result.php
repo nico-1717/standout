@@ -936,7 +936,6 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 
-            $child_counter = 1;
 
 
 
@@ -949,9 +948,6 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
                 if ($is_new_group) {
                     if ($current_pos !== -1) { echo '</div>'; }
                     $current_pos = $c['position'];
-                    $child_counter = 1;
-                } else {
-                    $child_counter++;
                 }
                 // Un titolo (padre senza risposta, solo per raggruppare i suoi figli)
                 // non ha un esito: non e' ne' giusto ne' sbagliato ne' "da fare", e
@@ -1025,25 +1021,10 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 
-                            <?php if ($c['is_child']): ?>
-
-
-
-                                <span class="numb figlio"><?php echo sec_h($child_counter); ?> &#8627;</span>
-
-
-
-                            <?php else: ?>
-
-
-
-                                <span class="numb padre">1</span>
-
-
-
-                            <?php endif; ?>
-
-
+                            <?php /* Niente numero (prima "1" per il padre, "N" per i figli): occupava
+                                     lo spazio senza dire nulla di utile. Resta solo la freccia sui figli,
+                                     per distinguerli dal padre che li precede. */ ?>
+                            <?php if ($c['is_child']): ?><span class="numb figlio">&#8627;</span><?php endif; ?>
 
                             <span class="oc-pill <?php echo sec_h($oc_class); ?>"><span class="gi"><?php echo sec_h($oc_icon); ?></span> <?php echo sec_h($oc_text); ?></span>
 

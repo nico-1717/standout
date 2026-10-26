@@ -740,6 +740,8 @@
 
 
         .rev-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+        /* Senza il numero a sinistra la pillola resta sempre a destra, anche da sola. */
+        .rev-top .oc-pill{ margin-left:auto; }
 
 
 
@@ -751,7 +753,7 @@
 
 
 
-            min-width:26px; height:24px; padding:0 8px; border-radius:9px;
+            min-width:24px; height:24px; padding:0 6px; border-radius:9px;
 
 
 
