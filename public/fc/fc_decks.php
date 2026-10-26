@@ -616,7 +616,7 @@ function fcm_riga_html(int $id, bool $note, ?string $esame = null): string {
     /* Il "da ripassare" non sta piu' qui: vive come badge sull'icona del mazzo
        (fcm_badge_ripasso), cosi' la riga dei numeri resta tutta neutra. */
     if ($n['g'] > 0) {
-        $out .= '<span class="cs-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16l13-8Z"/></svg>'
+        $out .= '<span class="cs-item">'
               . sec_h(t($n['g'] === 1 ? 'fc.dk_partite_1' : 'fc.dk_partite', ['n' => $n['g']])) . '</span>';
         if ($n['q'] !== '') $out .= '<span class="cs-sep">·</span><span class="cs-item">' . sec_h($n['q']) . '</span>';
     } elseif ($tot === ($n['l']['nuova'] ?? 0)) {
@@ -624,14 +624,16 @@ function fcm_riga_html(int $id, bool $note, ?string $esame = null): string {
            senza mazzi registrati (le piu' vecchie) non devono smentirlo */
         $out .= '<span class="cs-item cs-mai">' . sec_h(t('fc.dk_mai_giocato')) . '</span>';
     }
+    /* La barra dei livelli va su una riga tutta sua (sotto partite e data):
+       la nota si mette prima, cosi' non scivola in una terza riga. */
+    if ($note) $out .= '<span class="cs-nota" title="' . sec_h(t('fc.dk_ha_note')) . '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg></span>';
     if ($tot > 0 && $tot > ($n['l']['nuova'] ?? 0)) {
-        $out .= '<span class="cs-barra" title="' . sec_h(t('fc.dk_barra_titolo', ['n' => $n['pp']])) . '">';
+        $out .= '<span class="cs-livelli"><span class="cs-barra" title="' . sec_h(t('fc.dk_barra_titolo', ['n' => $n['pp']])) . '">';
         foreach (array_merge(array_reverse(array_diff(FCV_LIVELLI, ['nuova'])), ['nuova']) as $l) {
             if (!empty($n['l'][$l])) $out .= '<i class="cs-' . $l . '" style="flex:' . (int)$n['l'][$l] . '"></i>';
         }
-        $out .= '</span>' . ($n['pp'] > 0 ? '<span class="cs-pct">' . (int)$n['pp'] . '%</span>' : '');
+        $out .= '</span>' . ($n['pp'] > 0 ? '<span class="cs-pct">' . (int)$n['pp'] . '%</span>' : '') . '</span>';
     }
-    if ($note) $out .= '<span class="cs-nota" title="' . sec_h(t('fc.dk_ha_note')) . '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg></span>';
     return $out . '</span>';
 }
 

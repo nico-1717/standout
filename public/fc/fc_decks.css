@@ -228,8 +228,6 @@ button{ font-family:inherit; }
 
     box-shadow:var(--shadow-card);
 
-    border-left:3px solid var(--accent, var(--blue));
-
     animation:cardIn .5s var(--spring) both;
 
 }
@@ -288,11 +286,12 @@ button{ font-family:inherit; }
 
 .cat-icon svg{ width:16px; height:16px; }
 
-.cat-icon.lvl0{ background:color-mix(in srgb, var(--row-color, var(--blue)) 18%, var(--surface)); color:var(--row-color, var(--blue)); width:36px; height:36px; border-radius:10px; transition:background .3s, color .3s; }
+.cat-icon.lvl0{ background:var(--row-color, var(--blue)); color:#fff; width:40px; height:40px; border-radius:12px; transition:background .3s, color .3s; }
 
-.cat-icon.lvl0 svg{ width:18px; height:18px; }
+.cat-icon.lvl0 svg{ width:20px; height:20px; }
 
-.cat-icon.lvln{ background:color-mix(in srgb, var(--row-color, var(--text-2)) 16%, var(--surface)); color:var(--row-color, var(--text-2)); transition:background .3s, color .3s; }
+.cat-icon.lvln{ background:var(--row-color, var(--text-2)); color:#fff; width:34px; height:34px; border-radius:10px; transition:background .3s, color .3s; }
+.cat-icon.lvln svg{ width:17px; height:17px; }
 
 
 
@@ -994,7 +993,7 @@ body.vista-griglia .tb-list{ display:flex; }
 .fc-subcat-card:active{ transform:scale(.96); }
 .fc-subcat-dot{
     width:32px; height:32px; border-radius:10px; flex-shrink:0;
-    background:color-mix(in srgb, var(--sc-color) 16%, var(--surface)); color:var(--sc-color);
+    background:var(--sc-color); color:#fff;
     display:flex; align-items:center; justify-content:center; margin-bottom:10px;
 }
 .fc-subcat-dot svg{ width:16px; height:16px; }
@@ -1350,6 +1349,9 @@ body.fc-vocab .hdr-play-btn{ box-shadow:0 2px 6px rgba(255,149,0,.3), 0 10px 22p
 .cs-barra .cs-difficile{ background:var(--red, #FF3B30); }
 .cs-barra .cs-difficilissima{ background:#C9003B; }
 .cs-barra .cs-nuova{ background:color-mix(in srgb, #32ADE6 45%, var(--surface-2)); }
+/* barra + percentuale occupano una riga intera sotto partite e data */
+.cat-stats .cs-livelli{ flex:0 0 100%; display:flex; align-items:center; gap:8px; }
+.cat-stats .cs-livelli .cs-barra{ flex:1; width:auto; max-width:150px; margin-left:0; }
 .cs-pct{ font-size:11px; font-weight:800; color:var(--text-2); font-variant-numeric:tabular-nums; }
 .cs-nota{ display:inline-flex; color:var(--orange, #FF9500); margin-left:2px; }
 .cs-nota svg{ width:12px; height:12px; }
@@ -1418,8 +1420,12 @@ body.fc-vocab .hdr-play-btn{ box-shadow:0 2px 6px rgba(255,149,0,.3), 0 10px 22p
 .icon-swatch-auto.selected{ border-color:transparent; }
 .icon-grid{ max-height:252px; overflow-y:auto; padding:2px; margin:-2px -2px 6px; scrollbar-width:thin;
     -webkit-mask-image:linear-gradient(#000 88%, transparent); mask-image:linear-gradient(#000 88%, transparent); padding-bottom:22px; }
-/* Un mazzo di colore molto scuro (o molto chiaro) faceva sparire la sua icona
-   sullo sfondo: il disegno si mescola un po' col colore del testo, che segue
-   il tema, cosi' resta sempre leggibile. */
-.cat-icon.lvl0, .cat-icon.lvln{ color:color-mix(in srgb, var(--row-color, var(--blue)) 72%, var(--text)); }
-.fc-subcat-dot{ color:color-mix(in srgb, var(--sc-color) 72%, var(--text)); }
+/* Tessera piena: un mazzo di colore molto chiaro (giallo, pastello) farebbe
+   sparire l'icona bianca. La luminosita' del colore decide da sola se il
+   disegno e' bianco o scuro; va in CSS (non in PHP) perche' il colore si
+   cambia dal foglio senza ricaricare la pagina. Dove lch(from ...) non c'e'
+   resta il bianco della regola base. */
+@supports (color: lch(from red l c h)){
+    .cat-icon.lvl0, .cat-icon.lvln{ color:lch(from var(--row-color, var(--blue)) calc((78 - l) * 1000) 0 0); }
+    .fc-subcat-dot{ color:lch(from var(--sc-color) calc((78 - l) * 1000) 0 0); }
+}
