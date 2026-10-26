@@ -93,18 +93,13 @@ else                                    $frase = t('fchub.inizia_oggi');
 
 $circ = 2 * M_PI * 46;   // circonferenza dell'anello (r = 46)
 
-/* LE CARTE CHE SAI: quante adesso, e quante imparate oggi / questa
-   settimana / questo mese (fcv_conosciute: col tastino o al livello la_sai). */
-$impG = $R['imparate_giorni'];
-$impOggi = (int)($impG[date('Y-m-d')] ?? 0);
-$impSett = 0; $impMese = 0;
-$lunedi = date('Y-m-d', strtotime('monday this week'));
-foreach ($impG as $d => $n) {
-    if ($d >= $lunedi) $impSett += $n;
-    if (substr($d, 0, 7) === date('Y-m')) $impMese += $n;
-}
-$impTot = (int)$R['imparate_tot'];
-$impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
+/* LE CARTE CHE SAI, divise fra studio e lingue: chi studia le parole vuole
+   sapere quante ne ha imparate, non un totale in cui si perdono. I conteggi di
+   oggi / settimana / mese li calcola il JavaScript dai giorni (per tipo),
+   cosi' cambiano insieme al grafico quando si sceglie studio o lingue
+   (fcv_conosciute: col tastino, al livello la_sai o in un mazzo archiviato). */
+$impStudio = (int)$R['study']['imparate'];   $unitaStudio = (int)$R['study']['carte'];
+$impLingue = (int)$R['vocab']['imparate'];   $unitaLingue = (int)$R['vocab']['parole'];
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>">
@@ -171,17 +166,15 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
             </a>
             <?php endif; ?>
             <div class="mode-actions">
-                <a class="pill-btn<?php echo $goStudy ? '' : ' pill-play'; ?>" href="fc_game_setup.php">
+                <?php /* "Gioca" porta allo storico (da li' si sceglie cosa giocare), come nelle
+                         lingue: il tasto "Storico" a parte non serve piu'. */ ?>
+                <a class="pill-btn<?php echo $goStudy ? '' : ' pill-play'; ?>" href="fc_history.php">
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.1v13.8a1 1 0 0 0 1.5.9l11-6.9a1 1 0 0 0 0-1.8l-11-6.9A1 1 0 0 0 8 5.1Z"/></svg>
                     <span><?php te('fchub.gioca'); ?></span>
                 </a>
                 <a class="pill-btn" href="fc_card_edit.php?modo=insert">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
                     <span><?php te('fchub.nuova_carta'); ?></span>
-                </a>
-                <a class="pill-btn" href="fc_history.php">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
-                    <span><?php te('fchub.storico'); ?></span>
                 </a>
                 <?php if ($R['oggi_study'] > 0): ?><span class="mode-today"><?php te('fchub.oggi_n', ['n' => $R['oggi_study']]); ?></span><?php endif; ?>
             </div>
@@ -358,10 +351,7 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
         <div class="lc-head">
             <div class="lc-tot">
                 <span class="lc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/></svg></span>
-                <span>
-                    <span class="lc-num"><?php echo $impTot; ?><?php if ($impUnita > 0): ?><small>/<?php echo $impUnita; ?></small><?php endif; ?></span>
-                    <span class="lc-lbl" id="learnedTit"><?php te('fchub.carte_che_sai'); ?></span>
-                </span>
+                <span class="lc-lbl lc-title" id="learnedTit"><?php te('fchub.carte_che_sai'); ?></span>
             </div>
             <div class="lc-seg" role="radiogroup" aria-label="<?php te('fchub.imparate_per'); ?>">
                 <button type="button" role="radio" aria-checked="true" class="is-on" data-passo="g"><?php te('fchub.per_giorno'); ?></button>
@@ -369,14 +359,32 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
                 <button type="button" role="radio" aria-checked="false" data-passo="m"><?php te('fchub.per_mese'); ?></button>
             </div>
         </div>
+        <?php /* Due numeri separati, studio e lingue. Sono anche tasti: toccandone uno il
+                 grafico e i "+N" mostrano solo quel tipo, toccandolo di nuovo tornano
+                 insieme. Le lingue compaiono solo se c'e' almeno un corso. */ ?>
+        <div class="lc-split" role="group" aria-label="<?php te('fchub.carte_che_sai'); ?>">
+            <button type="button" class="lc-tile" data-tipo="study" aria-pressed="false">
+                <span class="lc-num"><?php echo $impStudio; ?><?php if ($unitaStudio > 0): ?><small>/<?php echo $unitaStudio; ?></small><?php endif; ?></span>
+                <span class="lc-lbl"><?php te('fchub.studio'); ?></span>
+            </button>
+            <?php if ($corsi): ?>
+            <button type="button" class="lc-tile" data-tipo="vocab" aria-pressed="false">
+                <span class="lc-num"><?php echo $impLingue; ?><?php if ($unitaLingue > 0): ?><small>/<?php echo $unitaLingue; ?></small><?php endif; ?></span>
+                <span class="lc-lbl"><?php te('fchub.lingue'); ?> · <?php te('fchub.parole'); ?></span>
+            </button>
+            <?php endif; ?>
+        </div>
         <div class="lc-chips">
-            <span class="lc-chip<?php echo $impOggi ? ' is-on' : ''; ?>"><b>+<?php echo $impOggi; ?></b> <?php te('fchub.oggi'); ?></span>
-            <span class="lc-chip<?php echo $impSett ? ' is-on' : ''; ?>"><b>+<?php echo $impSett; ?></b> <?php te('fchub.questa_settimana'); ?></span>
-            <span class="lc-chip<?php echo $impMese ? ' is-on' : ''; ?>"><b>+<?php echo $impMese; ?></b> <?php te('fchub.questo_mese'); ?></span>
+            <span class="lc-chip" data-chip="oggi"><b>+0</b> <?php te('fchub.oggi'); ?></span>
+            <span class="lc-chip" data-chip="sett"><b>+0</b> <?php te('fchub.questa_settimana'); ?></span>
+            <span class="lc-chip" data-chip="mese"><b>+0</b> <?php te('fchub.questo_mese'); ?></span>
         </div>
         <div class="lc-chart" id="learnedChart" aria-hidden="true"></div>
         <p class="lc-nota"><?php te('fchub.imparate_nota'); ?></p>
-        <script type="application/json" id="learnedDati"><?php echo json_encode(['giorni' => $impG, 'oggi' => date('Y-m-d'), 'lingua' => standout_lingua()], JSON_HEX_TAG); ?></script>
+        <script type="application/json" id="learnedDati"><?php echo json_encode([
+            'giorni' => $R['imparate_giorni'], 'study' => $R['imparate_giorni_study'], 'vocab' => $R['imparate_giorni_vocab'],
+            'oggi' => date('Y-m-d'), 'lingua' => standout_lingua(),
+        ], JSON_HEX_TAG); ?></script>
     </section>
 
 
@@ -521,10 +529,13 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
         var box = $('learnedChart'), datiEl = $('learnedDati');
         if (!box || !datiEl) return;
         var D; try { D = JSON.parse(datiEl.textContent); } catch (e) { return; }
-        var giorni = D.giorni || {};
+        /* Quale tipo si guarda: '' = studio e lingue insieme, 'study' o 'vocab' = solo
+           quello (si sceglie toccando uno dei due numeri sopra). */
+        var tipo = '', passoAtt = 'g';
         function iso(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
         var oggi = new Date(D.oggi + 'T12:00:00');
         function gruppi(passo) {
+            var giorni = (tipo ? D[tipo] : D.giorni) || {};
             var out = [], i, d, k, n;
             if (passo === 'g') {
                 for (i = 13; i >= 0; i--) {
@@ -551,7 +562,26 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
             }
             return out;
         }
+        /* i "+N" di oggi / questa settimana / questo mese, dello stesso tipo del grafico */
+        function aggiornaChip() {
+            var giorni = (tipo ? D[tipo] : D.giorni) || {};
+            var lun = new Date(oggi); lun.setDate(lun.getDate() - ((lun.getDay() + 6) % 7));
+            var lunIso = iso(lun), mese = D.oggi.slice(0, 7), v = { oggi: 0, sett: 0, mese: 0 };
+            Object.keys(giorni).forEach(function (g) {
+                var n = giorni[g] || 0;
+                if (g === D.oggi) v.oggi += n;
+                if (g >= lunIso && g <= D.oggi) v.sett += n;
+                if (g.slice(0, 7) === mese) v.mese += n;
+            });
+            document.querySelectorAll('.lc-chip[data-chip]').forEach(function (c) {
+                var n = v[c.getAttribute('data-chip')] || 0;
+                c.querySelector('b').textContent = '+' + n;
+                c.classList.toggle('is-on', n > 0);
+            });
+        }
         function disegna(passo) {
+            passoAtt = passo;
+            aggiornaChip();
             var g = gruppi(passo), max = 1;
             g.forEach(function (x) { if (x.v > max) max = x.v; });
             box.className = 'lc-chart lc-' + passo;
@@ -569,6 +599,19 @@ $impUnita = (int)$R['study']['carte'] + (int)$R['vocab']['parole'];
                     var on = x === b; x.classList.toggle('is-on', on); x.setAttribute('aria-checked', on ? 'true' : 'false');
                 });
                 disegna(b.getAttribute('data-passo'));
+                try { navigator.vibrate && navigator.vibrate(6); } catch (e) {}
+            });
+        });
+        /* i due numeri sono anche tasti: uno solo alla volta, e di nuovo sullo stesso
+           per tornare a vedere tutto insieme */
+        document.querySelectorAll('.lc-tile[data-tipo]').forEach(function (t) {
+            t.addEventListener('click', function () {
+                var voglio = t.getAttribute('data-tipo');
+                tipo = tipo === voglio ? '' : voglio;
+                document.querySelectorAll('.lc-tile[data-tipo]').forEach(function (x) {
+                    x.setAttribute('aria-pressed', x.getAttribute('data-tipo') === tipo ? 'true' : 'false');
+                });
+                disegna(passoAtt);
                 try { navigator.vibrate && navigator.vibrate(6); } catch (e) {}
             });
         });

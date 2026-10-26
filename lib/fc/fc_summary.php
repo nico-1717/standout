@@ -123,7 +123,8 @@ function fc_corsi_con_numeri(int $uid): array {
  *   serie, record, oggi, oggi_study, oggi_vocab, obiettivo, settimana[Y-m-d => n],
  *   precisione (0-100, ultimi 30 giorni), study{mazzi, carte, imparate},
  *   vocab{corsi[], parole, imparate}, ultima (ultima partita o null),
- *   imparate_giorni[Y-m-d => n] (quante imparate quel giorno), imparate_tot
+ *   imparate_giorni[Y-m-d => n] (quante imparate quel giorno), imparate_tot,
+ *   imparate_giorni_study / imparate_giorni_vocab (gli stessi giorni, per tipo)
  */
 function fc_riepilogo(int $uid): array {
     $oggi = date('Y-m-d');
@@ -180,8 +181,9 @@ function fc_riepilogo(int $uid): array {
     foreach ($corsi as $c) { $vParole += $c['parole']; $vImparate += $c['imparate']; }
 
     /* il giorno in cui ogni carta e' stata imparata, studio e lingue insieme */
+    $vConosciute = fc_conosciute_cache($uid, 'vocab');
     $imparateGiorni = $sConosciute['giorni'];
-    foreach (fc_conosciute_cache($uid, 'vocab')['giorni'] as $d => $n) $imparateGiorni[$d] = ($imparateGiorni[$d] ?? 0) + $n;
+    foreach ($vConosciute['giorni'] as $d => $n) $imparateGiorni[$d] = ($imparateGiorni[$d] ?? 0) + $n;
     ksort($imparateGiorni);
 
     $ultima = sec_one("SELECT id, kind, course_id, game_date, score FROM fc_games
@@ -196,6 +198,10 @@ function fc_riepilogo(int $uid): array {
         'study' => ['mazzi' => $sMazzi, 'carte' => $sCarte, 'imparate' => $sImparate],
         'vocab' => ['corsi' => array_values($corsi), 'parole' => $vParole, 'imparate' => $vImparate],
         'imparate_giorni' => $imparateGiorni,
+        /* gli stessi giorni, divisi: la home mostra studio e lingue a parte, perche'
+           "quante parole ho imparato" non deve sparire dentro un totale unico */
+        'imparate_giorni_study' => $sConosciute['giorni'],
+        'imparate_giorni_vocab' => $vConosciute['giorni'],
         'imparate_tot' => $sImparate + $vImparate,
         'ultima' => $ultima,
     ];
