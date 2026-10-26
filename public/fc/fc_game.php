@@ -935,26 +935,6 @@ sec_q("UPDATE fc_games SET total_father_words = ?, total_words_with_children = ?
 
 
 
-/* ---------- Una sola convenzione per le percentuali sulle barre ----------
-   Prima ogni elemento se la calcolava per conto suo: i pallini rossi al
-   CENTRO della loro cella ((n - 0.5) / tot), tutti gli altri al bordo destro
-   (n / tot). A piena larghezza lo scarto e' mezza cella e non si nota; con lo
-   zoom attivo viene moltiplicato per la scala (circa x8) e diventa uno scarto
-   ben visibile - si toccava un pallino rosso e il pallino "sei qui" compariva
-   accanto invece che sopra, da cui l'impressione che la barra non seguisse.
-   Da qui in avanti esistono solo queste due funzioni:
-     - fc_pct_marker(): qualunque PALLINO, sempre al centro della sua cella;
-     - fc_pct_fill():   qualunque RIEMPIMENTO, al bordo destro della cella
-                        raggiunta (e' una lunghezza, non un punto). */
-function fc_pct_marker ($n, $tot) {
-    $tot = max(1, (int)$tot);
-    return max(0.0, min(100.0, (((float)$n - 0.5) / $tot) * 100));
-}
-function fc_pct_fill ($n, $tot) {
-    $tot = max(1, (int)$tot);
-    return max(0.0, min(100.0, ((float)$n / $tot) * 100));
-}
-
 // 6. GESTIONE STORICO ERRORI E CHECKPOINT (Pallini Rossi e Bianchi)
 
 $errors_pages = [];
@@ -1116,27 +1096,6 @@ if (count($cat_di_posizione) > 0) {
     }
 }
 
-/* Errori raggruppati per categoria: con piu' di una categoria, un pallino
-   raggruppato solo non direbbe quanti errori sono in ciascuna - li si separa
-   qui, usando gli stessi tratti gia' calcolati sopra per la barra colorata.
-   Con una sola categoria (o nessuna) resta un unico gruppo "generale", e il
-   comportamento e' identico a prima. */
-$errori_per_categoria = [];
-foreach ($errors_pages as $err_p) {
-    $nome_cat = null; $colore_cat = null;
-    foreach ($segmenti_categorie as $sg) {
-        if ($err_p >= $sg['inizio'] && $err_p <= $sg['fine']) {
-            $nome_cat = $sg['nome']; $colore_cat = $sg['colore'];
-            break;
-        }
-    }
-    $chiave = $nome_cat ?? '';
-    if (!isset($errori_per_categoria[$chiave])) {
-        $errori_per_categoria[$chiave] = ['nome' => $nome_cat, 'colore' => $colore_cat, 'posizioni' => []];
-    }
-    $errori_per_categoria[$chiave]['posizioni'][] = $err_p;
-}
-$errori_per_categoria = array_values($errori_per_categoria);
 
 /* Chiavi delle carte gia' risposte sul server: servono a ripulire la coda
    locale dai voti che in realta' erano arrivati (ma il browser non se n'era
@@ -1192,6 +1151,61 @@ $carta_corrente_idx = min(
    pippo, mai fermarsi prima. */
 $furthest_page_vista = max($jump_back_pos, $position);
 $furthest_card_vista = max($jump_back_card_index, $carta_corrente_idx);
+
+/* MODELLO DEL PERCORSO (intestazione a tracciato, 26/10/2026)
+   Il browser disegna il tracciato da questi numeri e dall'intervallo dei
+   checkpoint, che il server NON conosce (sta in localStorage, fcv_checkpoint):
+   per questo si passano i dati grezzi e non i nodi gia' pronti.
+   - cp:  quante carte (padre + figli) ha ogni posizione. Serve all'anello
+          interno, che conta le CARTE fino al prossimo checkpoint. Si parte
+          dalla sequenza, che e' fissa, e dove la partita ha gia' le sue righe
+          si usano quelle: sono la stessa numerazione di $carta_corrente_idx.
+   - err: [posizione, indice carta] di ogni carta sbagliata, per i numeri nei
+          dischi dei checkpoint.
+   - cat: tratti di categoria anche con UNA sola categoria (a differenza di
+          $segmenti_categorie): il colore dell'intestazione segue la carta
+          corrente e serve comunque. */
+$f2_cp = array_fill(1, max(1, (int)$total_words), 1);
+foreach (sec_all("SELECT s.position, COUNT(ch.id_child) AS f
+                    FROM " . fc_t('sequence') . " s
+                    LEFT JOIN " . fc_t('cards') . " i ON i.id = s.fc_image_id AND i.is_father = 1
+                    LEFT JOIN " . fc_t('subcards') . " ch ON ch.parent_id = i.id
+                   WHERE s.game_id = ?
+                   GROUP BY s.position", [$game_id]) as $r) {
+    $pp = (int)$r['position'];
+    if (isset($f2_cp[$pp])) $f2_cp[$pp] = 1 + (int)$r['f'];
+}
+$f2_conta = [];
+foreach ($q_hist as $h) {
+    $pp = (int)$h['position'];
+    $f2_conta[$pp] = ($f2_conta[$pp] ?? 0) + 1;
+}
+foreach ($f2_conta as $pp => $n) { if (isset($f2_cp[$pp])) $f2_cp[$pp] = $n; }
+
+$f2_cat = [];
+foreach ($cat_di_posizione as $r) {
+    $col = preg_match('/^#[0-9a-fA-F]{3,8}$/', (string)$r['color']) ? (string)$r['color'] : '';
+    $ult = count($f2_cat) - 1;
+    if ($ult >= 0 && $f2_cat[$ult][2] === $col && $f2_cat[$ult][4] === (int)$r['cid']) {
+        $f2_cat[$ult][1] = (int)$r['position'];
+    } else {
+        $f2_cat[] = [(int)$r['position'], (int)$r['position'], $col, (string)$r['name'], (int)$r['cid']];
+    }
+}
+
+$f2_err = [];
+foreach ($errors_cards as $e) { $f2_err[] = [(int)$e['pos'], (int)$e['idx']]; }
+
+$f2_dati = [
+    'tot'   => (int)$total_words,
+    'totC'  => (int)$total_cards,
+    'pos'   => (int)$position,
+    'testa' => (int)min($total_cards, max(1, $carta_corrente_idx)),
+    'fronte'=> (int)min($total_words, max(1, $furthest_page_vista)),
+    'cp'    => array_values($f2_cp),
+    'err'   => $f2_err,
+    'cat'   => $f2_cat,
+];
 
 /* Inizio della domanda di ogni carta sbagliata, per la lista compatta che
    compare quando i pallini rossi sono troppi per essere distinguibili. Due
@@ -1434,188 +1448,26 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
 
         <header class="app-header">
-            <div class="bars" onclick="alternaVistaBarra(event)" title="<?php te('fc.gm_barra_vista'); ?>">
-                <?php /* Traccia d'insieme, visibile solo quando la barra sotto e'
-                         ingrandita. Serve perche' la finestra ingrandita e'
-                         CENTRATA sulla posizione corrente: il suo riempimento
-                         finisce quindi sempre a meta' (o schizza a 100% se si e'
-                         tornati indietro), e smette di dire "quanto manca". Qui
-                         invece la scala e' sempre l'intera partita, col tratto
-                         gia' fatto. */ ?>
-                <div class="barra-insieme" aria-hidden="true">
-                    <span class="insieme-fill"></span>
-                </div>
-                <?php if (!empty($segmenti_categorie)): ?>
-                <div class="cat-strip">
-                    <?php foreach ($segmenti_categorie as $sg):
-                        $sx = (($sg['inizio'] - 1) / max(1, $total_words)) * 100;
-                        $largh = (($sg['fine'] - $sg['inizio'] + 1) / max(1, $total_words)) * 100;
-                    ?>
-                        <span class="cat-seg" style="left:<?php echo (float)$sx; ?>%; width:<?php echo (float)$largh; ?>%; --cat:<?php echo sec_h($sg['colore']); ?>;" title="<?php echo sec_h($sg['nome']); ?>"><span class="cat-seg-nome"><?php echo sec_h($sg['nome']); ?></span></span>
-                    <?php endforeach; ?>
-                </div>
-                <?php endif; ?>
-
-                <div class="progress-bar-bg<?php echo !empty($segmenti_categorie) ? ' ha-categorie' : ''; ?>">
-                    <?php /* Il riempimento PIENO arriva sempre esattamente fino a pippo
-                             (posizione corrente) - mai oltre, per non sembrare "sballato"
-                             quando in realta' e' solo piu' avanti di dove stai guardando.
-
-                             ATTENZIONE alla convenzione: deve usare fc_pct_marker, la
-                             STESSA di pippo qui sotto (centro cella), non fc_pct_fill
-                             (bordo cella) come prima. Con fc_pct_fill il bordo del
-                             riempimento cadeva mezza cella DOPO il centro di pippo: a
-                             tinta unica non si notava, ma con la tinta tenue che segue
-                             (sotto) quella mezza cella e' diventata un gradino di colore
-                             ben visibile subito dopo pippo, come un padding indesiderato.
-
-                             Il fatto che tu sia ANCHE piu' avanti di cosi' (jump_back_pos
-                             piu' avanti di position, perche' stai rivedendo un vecchio
-                             errore) non deve sparire - altrimenti il colore
-                             retrocederebbe ogni volta che torni indietro, che e' il difetto
-                             opposto gia' visto in passato. Resta visibile ma in un tono piu'
-                             tenue, DOPO pippo, fino a dot-target incluso: stessa convenzione
-                             di dot-target qui sotto (anche lui fc_pct_marker), altrimenti il
-                             tratto tenue si fermava mezza cella prima del pallino che
-                             dovrebbe segnarne la fine. */
-                          $bordo_pos = fc_pct_marker($position, $total_words);
-                          $bordo_fronte = fc_pct_marker($furthest_page_vista, $total_words);
-                    ?>
-                    <div class="progress-bar-fill fill-pages" style="width: <?php echo $bordo_pos; ?>%;"></div>
-                    <div class="progress-bar-fill fill-pages-oltre" style="left: <?php echo $bordo_pos; ?>%; width: <?php echo max(0, $bordo_fronte - $bordo_pos); ?>%;"></div>
-                    <?php /* Un pallino esplicito per "sei qui": prima c'era solo il
-                             bordo del riempimento a dirlo, che quando la barra e'
-                             ingrandita e ritagliata puo' non essere un buon indizio
-                             visivo. Questo resta sempre ancorato al centro della
-                             finestra ingrandita (vedi applicaZoomBarra).
-
-                             ATTENZIONE alla convenzione, e alla sua storia: e'
-                             stato provato anche a BORDO cella (come il
-                             riempimento), per farlo toccare esattamente la
-                             punta della barra quando ci si trova sul fronte.
-                             Ma "sei qui" e' prima di tutto un pallino che si
-                             clicca e si raggiunge, ESATTAMENTE come i pallini
-                             rossi, quello di ritorno e quello raggruppato: se
-                             usa una convenzione diversa dalla loro, cliccare
-                             un pallino rosso porta pippo a comparire mezza
-                             cella PIU' A DESTRA di dove quel pallino stava -
-                             uno scarto piccolo a vista intera ma vistoso con
-                             lo zoom, che sembra un padding sbagliato. Deve
-                             quindi stare al CENTRO della sua cella come tutti
-                             gli altri: il prezzo e' che sul fronte esatto
-                             resta mezza cella prima della punta del
-                             riempimento, ma coincidere con cio' che si clicca
-                             conta piu' che toccare quella punta. */
-                          $qui_percent = fc_pct_marker($position, $total_words);
-                          /* Un tocco in piu': se la posizione che stai guardando
-                             ORA e' proprio una di quelle sbagliate (stai
-                             ricontrollando un errore), l'interno di pippo si tinge
-                             leggermente di rosso - un promemoria visivo che non
-                             sei semplicemente "avanti", sei qui apposta perche' hai
-                             sbagliato. Il confronto e' volutamente non-strict
-                             (in_array senza terzo parametro): $errors_pages puo'
-                             contenere numeri gia' interi o stringhe numeriche a
-                             seconda di come sono usciti dalla query, e qui basta
-                             che il VALORE coincida. */
-                          $sta_su_errore = in_array($position, $errors_pages);
-                    ?>
-                    <span class="dot dot-qui<?php echo $sta_su_errore ? ' dot-qui-errore' : ''; ?>" style="left: <?php echo $qui_percent; ?>%;"></span>
-                    <?php foreach ($segmenti_categorie as $sg):
-                        $sx = (($sg['inizio'] - 1) / max(1, $total_words)) * 100;
-                        $largh = (($sg['fine'] - $sg['inizio'] + 1) / max(1, $total_words)) * 100; ?>
-                        <span class="cat-tratto" style="left:<?php echo (float)$sx; ?>%; width:<?php echo (float)$largh; ?>%; background:<?php echo sec_h($sg['colore']); ?>;"></span>
-                        <?php if ($sg['fine'] < $total_words): $tacca = ($sg['fine'] / max(1, $total_words)) * 100; ?>
-                            <span class="cat-tacca" style="left:<?php echo (float)$tacca; ?>%;"></span>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-
-                    <?php
-                    /* Finche' sono pochi, un pallino per errore: si vede a colpo
-                       d'occhio dove sono. Oltre questa soglia si ammassano fino a
-                       diventare una macchia indistinguibile e impossibile da
-                       centrare col dito, quindi si compattano in uno solo che apre
-                       l'elenco con l'inizio di ogni domanda. */
-                    $errori_compatti = count($errors_pages) > 6;
-                    ?>
-
-                    <?php if (!$errori_compatti): ?>
-                        <?php foreach($errors_pages as $err_p):
-                            /* Se e' proprio la posizione su cui ci si trova ora, non si
-                               disegna: ci pensa gia' il pallino "sei qui" a segnarla, e
-                               due indicatori uno sopra l'altro sarebbero confusi. */
-                            if ((int)$err_p === (int)$position) continue;
-                            $percent = fc_pct_marker($err_p, $total_words); ?>
-                            <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($err_p); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-red" style="left: <?php echo sec_h($percent); ?>%;" title="<?php te('fc.gm_errore_pagina', ['n' => (int)$err_p]); ?>"></a>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <?php /* Un pallino raggruppato per categoria, non uno solo per
-                                 tutta la partita: cosi' si vede anche QUANTI errori sono
-                                 in ciascuna, non solo che ce ne sono in totale. Con una
-                                 sola categoria resta un pallino solo, comportamento
-                                 identico a prima. */ ?>
-                        <?php foreach ($errori_per_categoria as $ec):
-                            /* MEDIANA, non media: con errori alla 5 e alla 95 la
-                               media cadeva a meta' barra, cioe' su un punto dove
-                               non c'e' nessun errore. La mediana cade sempre su
-                               una posizione sbagliata vera, quindi il pallino
-                               indica un posto che esiste davvero. */
-                            $posizioni = $ec['posizioni'];
-                            sort($posizioni);
-                            $mediana = $posizioni[intdiv(count($posizioni), 2)];
-                            $percent_medio = fc_pct_marker($mediana, $total_words);
-                        ?>
-                            <button type="button" class="dot dot-red dot-cluster" style="left: <?php echo (float)$percent_medio; ?>%; <?php echo $ec['colore'] ? 'background:' . sec_h($ec['colore']) . ';' : ''; ?>" onclick="apriElencoErrori(event)" title="<?php echo $ec['nome'] ? sec_h($ec['nome']) : ''; ?>"><span><?php echo count($posizioni); ?></span></button>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                    <?php /* Se ci si e' tornati indietro a rivedere una carta, la prima
-                             ancora da rispondere sta altrove rispetto a dove si e' ora
-                             (dot-qui, poco sopra): si aggiunge un riferimento vuoto e
-                             distinto per tornarci con un tocco. Se invece si coincide gia'
-                             con quel punto non serve mostrarlo due volte. */
-                          $mostra_ritorno = ($jump_back_pos > 0 && (int)$jump_back_pos !== (int)$position);
-                          $ritorno_percent = fc_pct_marker($jump_back_pos, $total_words); ?>
-                    <?php if ($mostra_ritorno): ?>
-                        <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($jump_back_pos); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-target" style="left: <?php echo sec_h($ritorno_percent); ?>%;" title="<?php te('fc.gm_torna_pagina'); ?>"></a>
-                    <?php endif; ?>
-                </div>
-
-                <?php if ($total_words != $total_cards): ?>
-                <div class="progress-bar-bg">
-                    <?php /* Stessa divisione in due toni della barra concetti qui sopra,
-                             stessa convenzione (fc_pct_marker, centro cella, non
-                             fc_pct_fill): pieno fino a pippo esatto, tenue oltre fino a
-                             dot-target-alt esatto se si e' arrivati piu' avanti altrove. */
-                          $carte_qui = min($total_cards, max(1, $carta_corrente_idx));
-                          $carte_bordo_qui = fc_pct_marker($carte_qui, $total_cards);
-                          $carte_bordo_fronte = fc_pct_marker($furthest_card_vista, $total_cards);
-                    ?>
-                    <div class="progress-bar-fill fill-cards" style="width: <?php echo $carte_bordo_qui; ?>%;"></div>
-                    <div class="progress-bar-fill fill-cards-oltre" style="left: <?php echo $carte_bordo_qui; ?>%; width: <?php echo max(0, $carte_bordo_fronte - $carte_bordo_qui); ?>%;"></div>
-                    <span class="dot dot-qui dot-qui-alt<?php echo $sta_su_errore ? ' dot-qui-errore' : ''; ?>" style="left: <?php echo fc_pct_marker($carte_qui, $total_cards); ?>%;"></span>
-
-                    <?php /* Niente pallini rossi qui: gli errori si leggono sulla barra
-                             sopra. Questa serve a vedere a che punto si e' DENTRO la
-                             posizione corrente (utile coi figli), e riempirla di segni
-                             la rendeva solo illeggibile. */ ?>
-                    <?php /* Il pallino "sei qui" (dot-qui-alt, poco sopra) ha gia' preso
-                             il posto di quello che c'era qui prima: mostrarli entrambi alla
-                             stessa posizione sarebbe stato ridondante. */
-                          $ritorno_percent2 = fc_pct_marker($jump_back_card_index, $total_cards); ?>
-                    <?php if ($mostra_ritorno && $jump_back_card_index > 0): ?>
-                        <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($jump_back_pos); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="dot dot-target dot-target-alt" style="left: <?php echo sec_h($ritorno_percent2); ?>%;" title="<?php te('fc.gm_torna_carta'); ?>"></a>
-                    <?php endif; ?>
-                </div>
-                <?php endif; ?>
+            <?php /* INTESTAZIONE A TRACCIATO (26/10/2026): al posto delle tre barre
+                     (concetti ingrandita, categorie, carte). Il browser disegna il
+                     tracciato da questo modello (vedi f2Disegna): i checkpoint
+                     dipendono da un'impostazione che vive solo nel browser. */ ?>
+            <div class="f2" role="group" aria-label="<?php te('fc.gm_f2_percorso'); ?>">
+                <script type="application/json" class="f2-dati"><?php echo json_encode($f2_dati, JSON_HEX_TAG | JSON_HEX_AMP); ?></script>
+                <div class="f2-path"></div>
             </div>
 
             <div class="hdr-row">
                 <div class="hdr-left">
+                    <div class="f2-ring" aria-hidden="true"></div>
+                    <div class="f2-testi">
                     <div class="hdr-title"><?php echo (int)($position); ?> <span>/ <?php echo (int)($total_words); ?></span></div>
                     <div class="hdr-sub">
                         <?php th('fc.gm_n_concetti', ['conteggio' => '<b>' . (int)$answered_pages_count . '/' . (int)$total_words . '</b>']); ?>
                         <?php if ($total_words != $total_cards): ?>
                             &middot; Card <b><?php echo (int)($answered_cards_count); ?>/<?php echo (int)($total_cards); ?></b>
                         <?php endif; ?>
+                    </div>
                     </div>
                 </div>
                 <div class="hdr-right">
@@ -2028,9 +1880,9 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
         <div id="pendingToast" class="pending-toast"></div>
 
-        <!-- Elenco compatto degli errori: si apre dal pallino raggruppato sulla
-             barra, e mostra l'inizio di ogni domanda sbagliata invece di una
-             fila di pallini tutti uguali. -->
+        <!-- Elenco compatto degli errori: si apre toccando il disco di un
+             checkpoint sul tracciato (f2Disegna) e mostra l'inizio di ogni
+             domanda sbagliata di QUEL tratto, con un tocco si salta alla carta. -->
         <div id="erroriElenco" class="err-elenco" style="display:none;">
             <div class="err-elenco-testa">
                 <span><?php te('fc.gm_errori_elenco'); ?></span>
@@ -2056,9 +1908,9 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                     }
                 ?>
                     <?php if ($multi_categoria && $nome_cat !== $cat_precedente): $cat_precedente = $nome_cat; ?>
-                        <div class="err-voce-categoria"><?php echo sec_h($nome_cat ?? ''); ?></div>
+                        <div class="err-voce-categoria" data-pos="<?php echo (int)$err_c['pos']; ?>"><?php echo sec_h($nome_cat ?? ''); ?></div>
                     <?php endif; ?>
-                    <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($err_c['pos']); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="err-voce action-btn">
+                    <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo sec_h($err_c['pos']); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="err-voce action-btn" data-pos="<?php echo (int)$err_c['pos']; ?>">
                         <span class="err-voce-num<?php echo !empty($err_c['is_child']) ? ' figlio' : ''; ?>"><?php echo (int)$err_c['pos']; ?></span>
                         <span class="err-voce-testo"><?php echo sec_h($err_c['testo'] !== '' ? $err_c['testo'] : '—'); ?></span>
                     </a>
@@ -4843,62 +4695,14 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
 
 
-            /* Le barre di progresso si riempiono animate dal valore vecchio al
-               nuovo. Due regole che prima non erano rispettate:
-
-               1) si chiama DOPO applicaZoomBarra(newC), non prima. Prima
-                  girava per prima e scriveva in style.width la larghezza gia'
-                  scalata della pagina vecchia; subito dopo applicaZoomBarra
-                  memorizzava la base dello zoom leggendo proprio quel valore
-                  (dataset.baseWidth) e restava avvelenata per sempre, e il
-                  requestAnimationFrame qui sotto finiva per riscrivere la
-                  percentuale NON zoomata cancellando lo zoom. Era il motivo
-                  principale per cui riempimento e pallini finivano su due
-                  scale diverse dopo ogni navigazione.
-
-               2) non tocca MAI dataset.baseWidth: quello e' il modello, qui si
-                  anima solo la geometria a schermo. Entrambe le larghezze
-                  (vecchia e nuova) sono gia' passate per lo zoom, quindi
-                  l'interpolazione avviene fra due valori omogenei. */
-
+            /* Il progresso (colore d'accento, linea, segnaposto, anelli) si muove
+               dal valore vecchio al nuovo. Si chiama DOPO l'inserimento del
+               contenitore nuovo: f2Disegna(newC, true), fatto prima mentre era
+               ancora staccato, gli ha dato i valori della pagina vecchia, e qui
+               f2Anima gli scrive quelli veri - la transizione CSS fa il resto.
+               oldC non serve piu': il seme sta in __f2Ultimo. */
             function animateProgress (oldC, newC) {
-
-                /* Le -oltre restano fuori: non rappresentano un avanzamento
-                   che sta accadendo ora, ma progresso gia' fatto in
-                   precedenza - farle "riempire" a ogni cambio pagina
-                   sembrerebbe un progresso nuovo che non c'e' stato. Devono
-                   solo comparire/aggiornarsi di scatto nella posizione
-                   finale (gia' impostata da applicaZoomBarra, chiamata prima
-                   di questa funzione) - vedi anche la transition:none
-                   dedicata a loro nel CSS. */
-                var SEL = '.progress-bar-fill:not(.fill-pages-oltre):not(.fill-cards-oltre)';
-
-                var vecchie = $$(SEL, oldC);
-
-                $$(SEL, newC).forEach(function (f, i) {
-
-                    var prec = vecchie[i];
-
-                    if (!prec) return;
-
-                    var da = prec.style.width;
-
-                    var a = f.style.width;   /* gia' definitivo: lo zoom e' passato */
-
-                    if (!da || !a || da === a) return;
-
-                    /* Web Animations invece di scrivere style.width e rimetterlo
-                       a posto in un requestAnimationFrame: cosi' non si tocca
-                       nessuna proprieta' inline, e se nel frattempo qualcun
-                       altro chiede un ridisegno (renderAllPendingDots, un voto
-                       su un figlio) l'animazione non viene ne' troncata a meta'
-                       ne' riportata indietro al valore di partenza. */
-                    try {
-                        f.animate([{ width: da }, { width: a }], { duration: 420, easing: EASE });
-                    } catch (e) {}
-
-                });
-
+                f2Anima(newC);
             }
 
 
@@ -5028,10 +4832,36 @@ function pulisciCacheFuoriFinestra (posAttuale, totale) {
 }
 
 /* ---------- Elenco compatto degli errori ---------- */
-function apriElencoErrori (ev) {
+/* Si apre toccando il disco di un checkpoint sul tracciato: con (a, b) mostra
+   solo gli errori di quel tratto di concetti. Il filtro e' sul posto, sulle
+   righe che il server ha gia' scritto: niente richieste in piu'. */
+function apriElencoErrori (ev, a, b) {
     if (ev) { ev.preventDefault(); ev.stopPropagation(); }
     var el = document.getElementById('erroriElenco');
     if (!el) return;
+    var corpo = el.querySelector('.err-elenco-corpo');
+    var testa = el.querySelector('.err-elenco-testa > span');
+    var filtra = !!(a && b);
+    if (corpo) {
+        var figli = corpo.children;
+        for (var i = 0; i < figli.length; i++) {
+            if (!figli[i].classList.contains('err-voce')) continue;
+            var p = parseInt(figli[i].getAttribute('data-pos') || '0', 10);
+            figli[i].style.display = (!filtra || (p >= a && p <= b)) ? '' : 'none';
+        }
+        /* L'intestazione di categoria sta sempre subito prima della sua prima
+           riga: se quella e' nascosta, resterebbe un titolo senza voci. */
+        for (var j = 0; j < figli.length; j++) {
+            if (!figli[j].classList.contains('err-voce-categoria')) continue;
+            var succ = figli[j + 1];
+            figli[j].style.display = (succ && succ.style.display === 'none') ? 'none' : '';
+        }
+        corpo.scrollTop = 0;
+    }
+    if (testa) {
+        if (testa.getAttribute('data-base') === null) testa.setAttribute('data-base', testa.textContent);
+        testa.textContent = filtra ? T('fc.gm_f2_elenco_tratto', { a: a, b: b }) : testa.getAttribute('data-base');
+    }
     el.style.display = 'block';
     requestAnimationFrame(function () { el.classList.add('aperto'); });
 }
@@ -5050,321 +4880,251 @@ window.chiudiElencoErrori = chiudiElencoErrori;
 document.addEventListener('click', function (e) {
     var el = document.getElementById('erroriElenco');
     if (!el || el.style.display === 'none') return;
-    if (e.target.closest && (e.target.closest('#erroriElenco') || e.target.closest('.dot-cluster'))) return;
+    if (e.target.closest && (e.target.closest('#erroriElenco') || e.target.closest('.f2-d'))) return;
     chiudiElencoErrori();
 });
 
-/* ---------- Barra ingrandita sulla zona in cui si sta giocando ----------
-   Con un centinaio di posizioni e piu' categorie la barra intera comprime
-   tutto in pochi pixel: non si distingue dove si e' ne' quali categorie si
-   stanno attraversando. Si mostra allora solo la finestra attorno alla
-   posizione corrente, ingrandita; un tocco sulla barra passa alla vista
-   d'insieme, un altro torna a ingrandire. */
-var BARRA_SOGLIA_ZOOM = 30;     // sotto questo numero di posizioni sta gia' larga
-var BARRA_FINESTRA = 12;        // quante posizioni mostrare attorno a quella corrente
+/* Un solo ascoltatore sul documento: i dischi sono ridisegnati a ogni pagina,
+   e gli ascoltatori attaccati a loro andrebbero persi con il contenitore. */
+document.addEventListener('click', function (e) {
+    var d = e.target.closest ? e.target.closest('.f2-d[data-a]') : null;
+    if (!d) return;
+    apriElencoErrori(e, parseInt(d.getAttribute('data-a'), 10), parseInt(d.getAttribute('data-b'), 10));
+});
 
-/* Gemelle di fc_pct_marker()/fc_pct_fill() lato PHP: la stessa convenzione
-   deve valere per i pallini disegnati dal server e per quelli aggiunti dal
-   browser (voti in sospeso, avanzamento fra i figli), altrimenti gli stessi
-   numeri finiscono in due punti diversi della stessa barra. */
-function pctMarker (n, tot) {
-    tot = Math.max(1, tot || 0);
-    return Math.max(0, Math.min(100, ((n - 0.5) / tot) * 100));
-}
-function pctFill (n, tot) {
-    tot = Math.max(1, tot || 0);
-    return Math.max(0, Math.min(100, (n / tot) * 100));
-}
+/* ---------- Intestazione a tracciato (26/10/2026) ----------
+   Un tracciato sottile con un disco per ogni tratto di checkpoint (col numero
+   degli errori di quel tratto), un anello doppio accanto al contatore
+   (esterno: concetti, interno: carte, fino al prossimo checkpoint) e un
+   colore d'accento che e' quello della categoria della carta corrente.
 
-/* La scelta "vista intera / vista ingrandita" e' dell'UTENTE, non della
-   pagina: stava in una classe sul contenitore corrente, e siccome ogni
-   navigazione AJAX sostituisce il contenitore con uno fresco dal server, la
-   scelta si perdeva ogni volta. Tipico: si apriva la vista d'insieme per
-   vedere tutti gli errori, si toccava un errore, e la barra tornava zoomata
-   da sola. Ora vive qui e viene riapplicata a ogni ridisegno. */
-var __vistaIntera = false;
+   Il modello (numeri grezzi) arriva dal server in .f2-dati; qui si decide solo
+   come disegnarlo, perche' l'intervallo dei checkpoint sta in localStorage
+   (stessa chiave di fc_game_juice.js) e il server non lo conosce.
 
-/* La finestra ingrandita stessa vive qui, non sul contenitore, per lo
-   stesso motivo: un oggetto {0: inizio-concetti, 1: inizio-carte}, ciascuno
-   in frazione 0-1 sulla propria scala. Persistere questo valore e' quello
-   che rende la finestra "appiccicosa" invece che ricentrata ad ogni singolo
-   spostamento - vedi la nota estesa dentro inizioFinestraDi(). */
-var __finestraInizio = {};
+   Come per le vecchie barre, il cambio pagina sostituisce l'intero contenitore:
+   la nuova intestazione nasce con i valori della vecchia (il "seme") e solo
+   dopo l'inserimento riceve quelli veri, cosi' colore, linea, segnaposto e
+   anelli si muovono con una transizione CSS invece di comparire di colpo. */
+var F2_PASSI = ['0', '5', '10', '15', '20', '25'];
+var F2_MAX_DISCHI = 14;        // sotto ~22px fra un disco e l'altro non si toccano col dito
+var F2_COLORE = '#B79CFF';     // senza categoria (o colore non valido): il lilla dei flashcard
+var F2_C1 = 2 * Math.PI * 14;  // circonferenze dei due anelli (raggi 14 e 9 nel viewBox 36)
+var F2_C2 = 2 * Math.PI * 9;
+var __f2Ultimo = null;         // ultimi valori disegnati: seme per la pagina successiva
 
-/* Le basi (il modello in scala 0-100% sul totale vero) si scrivono UNA volta
-   per contenitore, leggendole dai data-attribute che il server pubblica - mai
-   rileggendo uno style.width che nel frattempo qualcun altro puo' avere
-   cambiato. Gli altri elementi (pallini rossi, tratti di categoria) non li
-   tocca nessuno dopo il render, quindi per loro va bene la lettura pigra
-   dentro rimappa(). */
-function seedBasiBarre (c) {
-    var bars = c.querySelector('.bars');
-    if (!bars || bars.dataset.basiPronte === '1') return;
-
-    var tw = parseInt(c.getAttribute('data-total-words') || '0', 10);
-    var tc = parseInt(c.getAttribute('data-total-cards') || '0', 10) || tw;
-    var pos = parseInt(c.getAttribute('data-pos') || '1', 10);
-    var testa = parseInt(c.getAttribute('data-carte-testa') || '1', 10);
-    var frontePagine = parseInt(c.getAttribute('data-furthest-page') || '0', 10);
-    var fronteCarte = parseInt(c.getAttribute('data-furthest-card') || '0', 10);
-
-    /* Il riempimento PIENO arriva sempre fino a pippo (mai oltre): vedi la
-       nota estesa nel PHP su $bordo_pos. L'eventuale tratto in piu' fino al
-       fronte vero (quando si sta rivedendo qualcosa di passato) e' un
-       elemento SEPARATO e piu' tenue - .fill-pages-oltre - che parte da dove
-       finisce quello pieno, non da 0: per questo serve seedare anche il suo
-       baseLeft, non solo la larghezza.
-       ATTENZIONE alla convenzione: pctMarker (centro cella) come pippo e
-       dot-target, NON pctFill (bordo cella) - altrimenti il bordo pieno cade
-       mezza cella dopo pippo, e quello tenue mezza cella prima di
-       dot-target: esattamente il "gradino subito dopo pippo" e il "si ferma
-       prima del pallino finale" notati. */
-    var fp = bars.querySelector('.progress-bar-fill.fill-pages');
-    var bordoQuiPagine = pctMarker(pos, tw);
-    if (fp) {
-        fp.dataset.baseLeft = 0;
-        fp.dataset.baseWidth = bordoQuiPagine;
-    }
-    var fpOltre = bars.querySelector('.progress-bar-fill.fill-pages-oltre');
-    if (fpOltre) {
-        fpOltre.dataset.baseLeft = bordoQuiPagine;
-        fpOltre.dataset.baseWidth = Math.max(0, pctMarker(frontePagine, tw) - bordoQuiPagine);
-    }
-
-    var fc = bars.querySelector('.progress-bar-fill.fill-cards');
-    var bordoQuiCarte = pctMarker(testa, tc);
-    if (fc) {
-        fc.dataset.baseLeft = 0;
-        fc.dataset.baseWidth = bordoQuiCarte;
-    }
-    var fcOltre = bars.querySelector('.progress-bar-fill.fill-cards-oltre');
-    if (fcOltre) {
-        fcOltre.dataset.baseLeft = bordoQuiCarte;
-        fcOltre.dataset.baseWidth = Math.max(0, pctMarker(fronteCarte, tc) - bordoQuiCarte);
-    }
-
-    var dq = bars.querySelector('.dot-qui:not(.dot-qui-alt)');
-    /* Stessa convenzione dei pallini discreti (centro cella, non bordo): vedi
-       la nota nel PHP sopra a $qui_percent - coincidere con cio' che si
-       clicca (rossi, ritorno, raggruppato) conta piu' che toccare la punta
-       esatta del riempimento. */
-    if (dq) dq.dataset.baseLeft = pctMarker(pos, tw);
-
-    var dqa = bars.querySelector('.dot-qui-alt');
-    if (dqa) dqa.dataset.baseLeft = pctMarker(testa, tc);
-
-    bars.dataset.basiPronte = '1';
+function f2Ogni () {
+    var v = '10';
+    try { v = localStorage.getItem('fcv_checkpoint') || '10'; } catch (e) {}
+    return F2_PASSI.indexOf(v) >= 0 ? parseInt(v, 10) : 10;
 }
 
-function applicaZoomBarra (c) {
-    c = c || curC();
+function f2Colore (m) {
+    for (var i = 0; i < m.cat.length; i++) {
+        var s = m.cat[i];
+        if (m.pos >= s[0] && m.pos <= s[1]) return /^#[0-9a-fA-F]{3,8}$/.test(s[2]) ? s[2] : F2_COLORE;
+    }
+    return F2_COLORE;
+}
+
+/* I tratti mostrati come dischi. Con troppi checkpoint (partita lunga, passo
+   corto) piu' tratti si fondono in un disco solo; un avanzo finale piu'
+   corto di mezzo tratto si attacca all'ultimo, per non avere due dischi quasi
+   sovrapposti in fondo. Con i checkpoint spenti c'e' un tratto solo. */
+function f2Tratti (tot, N) {
+    if (!N || N >= tot) return [[1, tot]];
+    var g = Math.max(1, Math.ceil(Math.ceil(tot / N) / F2_MAX_DISCHI));
+    var passo = N * g, fine = [];
+    for (var b = passo; b < tot; b += passo) fine.push(b);
+    if (fine.length && tot - fine[fine.length - 1] < passo / 2) fine.pop();
+    fine.push(tot);
+    var out = [], a = 1;
+    fine.forEach(function (x) { out.push([a, x]); a = x + 1; });
+    return out;
+}
+
+function f2Errori (m, a, b) {
+    var n = 0;
+    for (var i = 0; i < m.err.length; i++) if (m.err[i][0] >= a && m.err[i][0] <= b) n++;
+    return n;
+}
+
+/* I numeri degli anelli: il tratto e' quello "vero" dei checkpoint (multipli
+   di N), non quello fuso dei dischi - l'anello dice quanto manca alla
+   prossima pausa, e quella arriva ogni N concetti. */
+function f2Calcola (m, N) {
+    var v = { acc: f2Colore(m), fill: 0, oltre: 0, o1: 0, o2: 0, ring: false, r2: false, mancaC: 0, mancaK: 0 };
+    v.fill = Math.min(100, (m.pos / m.tot) * 100);
+    v.oltre = Math.max(v.fill, Math.min(100, (m.fronte / m.tot) * 100));
+    if (!N || N >= m.tot) return v;
+    var a = Math.floor((m.pos - 1) / N) * N + 1;
+    var b = Math.min(m.tot, a + N - 1);
+    var prima = 0, dentro = 0, i;
+    for (i = 1; i < a; i++) prima += (m.cp[i - 1] || 1);
+    for (i = a; i <= b; i++) dentro += (m.cp[i - 1] || 1);
+    var fatte = Math.max(0, Math.min(dentro, m.testa - prima));
+    v.ring = true;
+    v.o1 = (m.pos - a + 1) / (b - a + 1);
+    v.r2 = dentro !== (b - a + 1);
+    v.o2 = dentro ? fatte / dentro : 0;
+    v.mancaC = b - m.pos;
+    v.mancaK = Math.max(0, dentro - fatte);
+    return v;
+}
+
+/* Il passaggio di colore fra due categorie si disegna qui e non con una
+   transizione CSS: quella interpola in sRGB, e fra due colori lontani (un
+   arancio e un verde acqua) passa per un grigio-oliva spento a meta' strada.
+   Mescolando in OKLCH il colore attraversa tinte vive, come ci si aspetta da
+   uno scorrimento di colore. Un solo giro alla volta: il contatore annulla
+   quello precedente. */
+var __f2Anim = 0;
+function f2AnimaColore (c, da, a) {
+    var id = ++__f2Anim;
+    var ridotto = false;
+    try { ridotto = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    if (ridotto || da === a || !(window.CSS && CSS.supports && CSS.supports('color', 'color-mix(in oklch, red 50%, blue)'))) {
+        c.style.setProperty('--fc-acc', a);
+        return;
+    }
+    var t0 = performance.now(), D = 900;
+    function passo (t) {
+        if (id !== __f2Anim || !c.isConnected) return;
+        var x = Math.min(1, (t - t0) / D);
+        var e = x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+        c.style.setProperty('--fc-acc', x >= 1 ? a : 'color-mix(in oklch, ' + a + ' ' + (e * 100).toFixed(1) + '%, ' + da + ')');
+        if (x < 1) requestAnimationFrame(passo);
+    }
+    requestAnimationFrame(passo);
+}
+
+function f2Scrivi (c, v, senzaColore) {
+    /* Sul contenitore, non sull'intestazione: anche l'elenco degli errori
+       (fratello dell'intestazione) deve avere lo stesso colore d'accento. */
+    if (!senzaColore) { __f2Anim++; c.style.setProperty('--fc-acc', v.acc); }
+    var path = c.querySelector('.f2-path');
+    if (path) {
+        var l = path.querySelector('.f2-line'), o = path.querySelector('.f2-line-oltre'), p = path.querySelector('.f2-pin');
+        if (l) l.style.width = v.fill + '%';
+        if (o) o.style.width = v.oltre + '%';
+        if (p) p.style.left = v.fill + '%';
+    }
+    var ring = c.querySelector('.f2-ring');
+    if (ring) {
+        var r1 = ring.querySelector('.f2-r1'), r2 = ring.querySelector('.f2-r2');
+        if (r1) r1.style.strokeDasharray = (F2_C1 * v.o1) + ' ' + F2_C1;
+        if (r2) r2.style.strokeDasharray = (F2_C2 * v.o2) + ' ' + F2_C2;
+    }
+}
+
+function f2Disegna (c, conSeme) {
+    if (!c) c = curC();
     if (!c) return;
+    var host = c.querySelector('.f2');
+    var path = c.querySelector('.f2-path');
+    if (!host || !path) return;
+    var m = host.__m;
+    if (!m) {
+        var js = host.querySelector('script.f2-dati');
+        try { m = JSON.parse(js.textContent); } catch (e) { return; }
+        host.__m = m;
+    }
+    var N = f2Ogni();
 
-    var bars = c.querySelector('.bars');
-    if (!bars) return;
-
-    var barreEl = bars.querySelectorAll('.progress-bar-bg');
-    if (!barreEl.length) return;
-
-    seedBasiBarre(c);
-
-    /* La scelta dell'utente vive fuori dal contenitore (vedi __vistaIntera):
-       qui la si riporta sulla classe, non il contrario. */
-    bars.classList.toggle('vista-intera', __vistaIntera);
-
-    /* Si decide SE ingrandire guardando sempre i concetti (e' la barra che
-       da' il senso "quante ne mancano"): le carte possono essere di piu' o
-       di meno a seconda di quanti figli ci sono, ma non sono loro a decidere
-       se la vista e' troppo compressa per essere leggibile. */
-    var totaleConcetti = parseInt(c.getAttribute('data-total-words') || '0', 10);
-    var attivo = totaleConcetti > BARRA_SOGLIA_ZOOM && !__vistaIntera;
-    bars.classList.toggle('zoom-attivo', attivo);
-
-    /* La finestra e' una FRAZIONE del totale (es. 12 concetti su 104 = un
-       ottavo circa): la stessa frazione, applicata al totale delle carte,
-       tiene le due barre sincronizzate senza bisogno di convertire una
-       posizione nell'altra scala. */
-    var frazione = BARRA_FINESTRA / Math.max(1, totaleConcetti);
-    var scala = attivo ? (1 / frazione) : 1;
-
-    /* Ogni barra ha il proprio totale e la propria posizione corrente: usare
-       quelli dei concetti anche per la barra delle carte (che ha un totale
-       diverso, es. 173 invece di 104) la spingeva a percentuali fuori scala
-       - da qui la barra "sparita". */
-    var infoPerBarra = [
-        { totale: totaleConcetti, pos: parseInt(c.getAttribute('data-pos') || '1', 10) },
-        { totale: parseInt(c.getAttribute('data-total-cards') || '0', 10) || totaleConcetti,
-          pos: parseInt(c.getAttribute('data-carte-testa') || '1', 10) }
-    ];
-
-    function inizioFinestraDi (info, idx) {
-        if (!attivo || !info.totale) return 0;
-        var meta = frazione / 2;
-        /* ATTENZIONE alla convenzione: dot-qui usa di nuovo il centro-cella
-           ((pos - 0.5) / totale, come ogni altro pallino discreto - vedi la
-           nota su $qui_percent lato PHP). Il centro "ideale" della finestra
-           usa la STESSA formula, cosi' quando la finestra SI ricentra
-           dot-qui finisce sempre esattamente a meta'. */
-        var posFraz = (info.pos - 0.5) / info.totale;
-        var idealeInizio = Math.max(0, Math.min(1 - frazione, posFraz - meta));
-
-        /* La finestra e' APPICCICOSA: resta ferma finche' la posizione
-           corrente ci sta ancora dentro, e si ricentra SOLO quando ne
-           uscirebbe. Prima si ricentrava a ogni singola navigazione, anche
-           per un passo solo (da 10 a 8): tutti i pallini - anche quelli che
-           con quello spostamento non c'entravano nulla - cambiavano posto
-           sullo schermo, perche' cambiavano i bordi della finestra. Con
-           l'isteresi, spostandosi DENTRO alla finestra gia' visibile resta
-           tutto fermo e si muove solo pippo; la finestra scatta a un nuovo
-           centro solo quando la posizione richiesta e' davvero fuori vista -
-           esattamente come lo scorrimento automatico di un editor di testo,
-           non come una macchina fotografica che insegue ogni movimento. */
-        var corrente = __finestraInizio[idx];
-        var fuoriVista = (corrente === undefined)
-            || posFraz < corrente - 1e-9
-            || posFraz > corrente + frazione + 1e-9;
-
-        if (fuoriVista) __finestraInizio[idx] = idealeInizio;
-
-        return __finestraInizio[idx] * 100;
+    if (!path.__pronto) {
+        path.innerHTML = '<i class="f2-line-oltre"></i><i class="f2-line"></i><div class="f2-nodi"></div><i class="f2-pin"></i>';
+        path.__pronto = true;
     }
 
-    /* Alcuni pallini non devono MAI sparire del tutto, anche se la loro
-       posizione vera cade fuori dalla finestra ingrandita: restano ancorati
-       al bordo piu' vicino invece di essere ritagliati dal clip-path del
-       contenitore - che prima li faceva sparire senza alcun indizio che ci
-       fosse qualcosa da quella parte.
-       dot-target e' stato aggiunto all'elenco: e' il riferimento per tornare
-       alla prima carta ancora da rispondere, e sparire era proprio quello che
-       faceva nell'unico momento in cui serve davvero. Tornando indietro a un
-       errore (es. dalla 40 alla 7) la finestra si ricentra sulla 7, il
-       riferimento alla 40 finisce oltre il bordo destro e restava invisibile:
-       per tornare avanti non c'era piu' niente da toccare. */
-    function nonSparireMai (el) {
-        return el.classList.contains('dot-qui')
-            || el.classList.contains('dot-cluster')
-            || el.classList.contains('dot-target');
-    }
-
-    function rimappa (elementi, inizioFinestra) {
-        elementi.forEach(function (el) {
-            if (el.dataset.baseLeft === undefined) {
-                el.dataset.baseLeft = parseFloat(el.style.left) || 0;
-                el.dataset.baseWidth = parseFloat(el.style.width);
-            }
-        });
-        elementi.forEach(function (el) {
-            var base = parseFloat(el.dataset.baseLeft) || 0;
-            var largh = parseFloat(el.dataset.baseWidth);
-
-            if (el.classList.contains('progress-bar-fill')) {
-                /* Le due -oltre non partono da 0 come le altre (partono da
-                   dove finisce il tratto pieno, cioe' da pippo): serve il
-                   ritaglio pieno contro la finestra (inizio E fine), non solo
-                   la scorciatoia "width = (largh - inizio) * scala" buona
-                   quando si parte sempre dal bordo sinistro vero. */
-                if (el.classList.contains('fill-pages-oltre') || el.classList.contains('fill-cards-oltre')) {
-                    /* A vista intera (attivo=false) la "finestra" e' l'intera
-                       barra (0-100), non frazione*100: altrimenti qui si
-                       userebbe una finestra stretta anche senza zoom,
-                       tagliando via il tratto oltre pippo pure a vista intera. */
-                    var fineFinestra = attivo ? (inizioFinestra + frazione * 100) : 100;
-                    var visStart = Math.max(base, inizioFinestra);
-                    var visEnd = Math.min(base + largh, fineFinestra);
-                    if (visEnd <= visStart) {
-                        el.style.width = '0%';
-                    } else {
-                        el.style.left = ((visStart - inizioFinestra) * scala) + '%';
-                        el.style.width = ((visEnd - visStart) * scala) + '%';
-                    }
-                    return;
-                }
-                el.style.width = Math.max(0, Math.min(100, (largh - inizioFinestra) * scala)) + '%';
-                return;
-            }
-
-            var sinistra = (base - inizioFinestra) * scala;
-
-            /* Il blocco al bordo (e la freccetta che indica "sta di la'") ha
-               senso SOLO quando la finestra ingrandita e' davvero ritagliata
-               (attivo === true): e' li' che un valore fuori [0,100] verrebbe
-               tagliato via dal clip-path senza alcun indizio. In vista intera
-               (attivo === false) sinistra e' gia' la percentuale vera sull'
-               intera barra, e forzarla comunque tra 3 e 97 spingeva il
-               pallino "sei qui" della prima carta a 3% invece che a bordo
-               sinistro vero - che e' esattamente il "non scorre piu' indietro
-               della prima carta" notato. */
-            if (nonSparireMai(el)) {
-                if (attivo) {
-                    var bloccato = Math.max(3, Math.min(97, sinistra));
-                    el.classList.toggle('dot-oltre-sx', sinistra < bloccato - 0.01);
-                    el.classList.toggle('dot-oltre-dx', sinistra > bloccato + 0.01);
-                    sinistra = bloccato;
-                } else {
-                    el.classList.remove('dot-oltre-sx', 'dot-oltre-dx');
-                }
-            }
-
-            el.style.left = sinistra + '%';
-            if (!isNaN(largh)) el.style.width = (largh * scala) + '%';
-        });
-    }
-
-    barreEl.forEach(function (barra, idx) {
-        var info = infoPerBarra[idx] || infoPerBarra[0];
-        var elementi = barra.querySelectorAll('.dot, .cat-tacca, .cat-tratto, .progress-bar-fill');
-        rimappa(elementi, inizioFinestraDi(info, idx));
-    });
-
-    /* La striscia dei nomi di categoria segue la barra dei concetti, la
-       prima: e' su quella scala che le categorie sono definite - e usa
-       percio' la finestra "appiccicosa" con indice 0, la stessa della barra
-       dei concetti, non una sua copia indipendente. */
-    var catStrip = bars.querySelector('.cat-strip');
-    if (catStrip) {
-        rimappa(catStrip.querySelectorAll('.cat-seg'), inizioFinestraDi(infoPerBarra[0], 0));
-    }
-
-    /* Traccia d'insieme: sempre in scala 1:1 sull'intera partita, quindi NON
-       passa da rimappa(). E' l'unico elemento che continua a dire "quanto
-       manca" quando la barra sotto e' ingrandita su una finestra mobile. */
-    var insieme = bars.querySelector('.barra-insieme');
-    if (insieme) {
-        var insFill = insieme.querySelector('.insieme-fill');
-        if (insFill) {
-            insFill.style.width = pctFill(
-                parseInt(c.getAttribute('data-furthest-page') || '0', 10), totaleConcetti) + '%';
+    /* I nodi si rifanno ogni volta (sono pochi e non si animano): lo stato di
+       ciascuno dipende da dove si e' e dagli errori, che qui cambiano anche
+       fra una carta e l'altra della stessa posizione. */
+    var html = '<i class="f2-n f2-n0"></i>';
+    f2Tratti(m.tot, N).forEach(function (t) {
+        var n = f2Errori(m, t[0], t[1]);
+        var stato = m.pos > t[1] ? 'ok' : (m.pos >= t[0] ? 'cur' : 'fut');
+        var x = (t[1] / m.tot) * 100;
+        var attr = ' style="left:' + x + '%"';
+        if (stato === 'cur') {
+            html += '<' + (n > 0 ? 'button type="button"' : 'i') + ' class="f2-n f2-d is-cur"' + attr +
+                    (n > 0 ? ' data-a="' + t[0] + '" data-b="' + t[1] + '" title="' + T('fc.gm_f2_nodo', { n: n }).replace(/"/g, '&quot;') + '"' : '') +
+                    '>' + (n > 0 ? n : '') + '</' + (n > 0 ? 'button' : 'i') + '>';
+        } else if (n > 0) {
+            html += '<button type="button" class="f2-n f2-d is-err"' + attr + ' data-a="' + t[0] + '" data-b="' + t[1] +
+                    '" title="' + T('fc.gm_f2_nodo', { n: n }).replace(/"/g, '&quot;') + '">' + n + '</button>';
+        } else {
+            html += '<i class="f2-n ' + (stato === 'ok' ? 'f2-ok' : 'f2-fut') + '"' + attr + '></i>';
         }
+    });
+    path.querySelector('.f2-nodi').innerHTML = html;
+
+    var v = f2Calcola(m, N);
+
+    var ring = c.querySelector('.f2-ring');
+    if (ring) {
+        if (!ring.__pronto) {
+            ring.innerHTML = '<svg viewBox="0 0 36 36" width="34" height="34" aria-hidden="true">' +
+                '<circle class="f2-rb" cx="18" cy="18" r="14"/><circle class="f2-r1" cx="18" cy="18" r="14" transform="rotate(-90 18 18)"/>' +
+                '<circle class="f2-rb f2-rb2" cx="18" cy="18" r="9"/><circle class="f2-r2" cx="18" cy="18" r="9" transform="rotate(-90 18 18)"/></svg>';
+            ring.__pronto = true;
+        }
+        ring.hidden = !v.ring;
+        ring.classList.toggle('f2-solo1', !v.r2);
+        ring.title = v.ring ? T('fc.gm_f2_ring', { c: v.mancaC, k: v.mancaK }) : '';
     }
+
+    var da = __f2Ultimo;
+    if (conSeme && da) {
+        /* Un anello che torna da pieno a quasi vuoto (appena passato un
+           checkpoint) non deve ripercorrere tutto il giro all'indietro: riparte
+           da zero. */
+        f2Scrivi(c, { acc: da.acc, fill: da.fill, oltre: da.oltre,
+                      o1: v.o1 < da.o1 ? 0 : da.o1, o2: v.o2 < da.o2 ? 0 : da.o2 });
+        host.__f2Fine = v;
+        host.__f2Da = da.acc;
+    } else {
+        f2Scrivi(c, v);
+        host.__f2Fine = null;
+    }
+    __f2Ultimo = v;
 }
 
-function alternaVistaBarra (ev) {
-    var c = curC();
-    if (!c) return;
-    var totale = parseInt(c.getAttribute('data-total-words') || '0', 10);
-    if (!totale || totale <= BARRA_SOGLIA_ZOOM) return;
-
-    /* Solo i pallini che FANNO qualcosa si tengono il tocco: rosso (vai
-       all'errore), raggruppato (apri l'elenco), ritorno (torna al fronte),
-       grigio (voto in sospeso). Il pallino "sei qui" invece non ha nessuna
-       azione propria - e' un indicatore - quindi prima toccarlo non faceva
-       assolutamente niente, e siccome e' ancorato al centro della finestra
-       era anche il punto piu' naturale su cui premere. Adesso si comporta
-       come il resto della barra e alterna la vista. */
-    if (ev && ev.target.closest && ev.target.closest('.dot:not(.dot-qui)')) return;
-
-    __vistaIntera = !__vistaIntera;
-
-    /* Rientrando nello zoom dopo aver visto la vista intera, la finestra
-       riparte centrata da capo sulla posizione attuale, invece di riprendere
-       quella di prima (che nel frattempo, guardando la vista intera, si
-       poteva anche aver toccato un errore lontano - riprenderla li' sarebbe
-       stato spiazzante quanto il difetto appena corretto). */
-    if (!__vistaIntera) __finestraInizio = {};
-
-    applicaZoomBarra(c);
+/* Secondo tempo del cambio pagina: il contenitore nuovo e' ormai nel
+   documento col seme addosso; si forza il calcolo dello stile e poi si
+   scrivono i valori veri, che e' cio' che fa partire le transizioni CSS di
+   linea, segnaposto e anelli (il colore lo anima f2AnimaColore). */
+function f2Anima (c) {
+    var host = c && c.querySelector('.f2');
+    if (!host || !host.__f2Fine) return;
+    var v = host.__f2Fine;
+    host.__f2Fine = null;
+    void host.offsetWidth;
+    f2Scrivi(c, v, true);
+    f2AnimaColore(c, host.__f2Da || v.acc, v.acc);
 }
-window.alternaVistaBarra = alternaVistaBarra;
+
+/* Una carta del tratto e' stata valutata senza cambiare posizione (un figlio):
+   avanza il conteggio delle carte, e se era sbagliata sale il numero del
+   disco. Il server, alla prossima pagina, rimanda comunque i numeri esatti. */
+function f2CartaValutata (c, sbagliata) {
+    var host = c && c.querySelector('.f2');
+    var m = host && host.__m;
+    if (!m) return;
+    if (sbagliata) m.err.push([m.pos, m.testa]);
+    if (m.testa < m.totC) m.testa++;
+    f2Disegna(c);
+}
+
+/* "Cambia verdetto" su questa pagina: gli errori della posizione corrente
+   diventano quanti ne dice il server (errori_qui). */
+function f2ErroriQui (c, n) {
+    var host = c && c.querySelector('.f2');
+    var m = host && host.__m;
+    if (!m) return;
+    m.err = m.err.filter(function (e) { return e[0] !== m.pos; });
+    for (var i = 0; i < n; i++) m.err.push([m.pos, 0]);
+    f2Disegna(c);
+}
 
 function schedulePrefetch () {
     /* Sicuro: la sequenza della partita e' fissata all'avvio, quindi
@@ -5482,47 +5242,13 @@ function showPendingToast (messaggio) {
     pendingToastTimer = setTimeout(function () { el.classList.remove('show'); }, 3200);
 }
 
-/* Aggiunge (se non c'e' gia') il pallino grigio sulle barre di progresso per
-   questa voce in sospeso. Sulla barra "carte" serve l'indice giusto - se non
-   lo conosciamo (carta non piu' in pagina) si salta quella barra piuttosto
-   che piazzarlo nel punto sbagliato. */
-function addPendingDot (entry) {
-    var c = curC();
-    if (!c) return;
-    var totalWords = parseInt(c.getAttribute('data-total-words') || '0', 10) || 1;
-    var totalCards = parseInt(c.getAttribute('data-total-cards') || '0', 10) || totalWords;
-    /* Solo le barre del contenitore CORRENTE: con document.querySelectorAll,
-       durante una transizione i contenitori in pagina sono due e l'elenco
-       diventava [vecchia-concetti, vecchia-carte, nuova-concetti, ...] - cosi'
-       il test i === 1 scambiava la barra delle carte con quella vecchia, e il
-       pallino finiva sulla barra sbagliata o spariva col contenitore vecchio. */
-    var bars = c.querySelectorAll('.progress-bar-bg');
-
-    bars.forEach(function (bar, i) {
-        if (bar.querySelector('.dot-pending[data-pending-key="' + entry.key + '"]')) return;
-        var isCardsBar = (i === 1);
-        if (isCardsBar && !entry.cardIndex) return;   // non sappiamo dove metterlo: meglio ometterlo che sbagliare
-        var total = isCardsBar ? totalCards : totalWords;
-        var idx = isCardsBar ? entry.cardIndex : entry.position;
-        var percent = pctMarker(idx, total);
-
-        var a = document.createElement('a');
-        a.href = 'fc_game.php?game_id=' + GAME_ID_PER_CODA + '&position=' + entry.position + '&status=' + (c.getAttribute('data-status') || '0') + '&order=' + (c.getAttribute('data-order') || 'random');
-        a.className = 'dot dot-gray dot-pending';
-        a.setAttribute('data-pending-key', entry.key);
-        /* Prima si scriveva solo style.left con la percentuale grezza: su una
-           barra ingrandita finiva nel punto sbagliato e nessuno lo rimappava
-           piu', perche' renderAllPendingDots() gira DOPO applicaZoomBarra().
-           Scrivendo la base, la chiamata qui sotto lo mette dove va. */
-        a.dataset.baseLeft = percent;
-        a.style.left = percent + '%';
-        a.title = T('fc.gm_in_attesa_salvataggio');
-        a.addEventListener('click', function () { showPendingToast(); }, true);
-        bar.appendChild(a);
-    });
-
-    if (typeof applicaZoomBarra === 'function') applicaZoomBarra(c);
-}
+/* Un tempo qui si aggiungeva un pallino grigio sulle barre per ogni voto in
+   sospeso (senza rete). Il tracciato non ha piu' le barre su cui metterlo: il
+   voto in coda lo segnalano il banner "offline" e il toast di salvataggio, e
+   il numero degli errori di ogni tratto lo corregge il server alla prossima
+   pagina. Resta la funzione perche' la chiamano il ripristino della coda e i
+   nuovi voti. */
+function addPendingDot (entry) {}
 function removePendingDots (key) {
     document.querySelectorAll('.dot-pending[data-pending-key="' + key + '"]').forEach(function (el) { el.remove(); });
 }
@@ -5795,11 +5521,8 @@ function vdCambia (pill, esito) {
                 lt.classList.toggle('is-active', !!d.learnt);
                 lt.setAttribute('aria-pressed', d.learnt ? 'true' : 'false');
             }
-            /* il pallino di questa pagina nella barra: rosso solo se qui
-               resta almeno una carta sbagliata */
-            document.querySelectorAll('.dot-qui').forEach(function (dq) {
-                dq.classList.toggle('dot-qui-errore', d.errori_qui > 0);
-            });
+            /* il numero di errori di questo tratto sul tracciato */
+            if (typeof d.errori_qui === 'number') f2ErroriQui(curC(), d.errori_qui);
             try { pill.animate([{ transform: 'scale(.8)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 360, easing: EASE }); } catch (e) {}
             try { if (navigator.vibrate) navigator.vibrate(giusta ? 12 : 22); } catch (e) {}
         })
@@ -5890,7 +5613,7 @@ function segnaCartaValutataInPagina (card, esito) {
     card.classList.add(esito === 'correct' ? 'res-correct' : 'res-wrong');
     card.setAttribute('data-swipe', '0');
 
-    avanzaBarraCarte();
+    avanzaBarraCarte(esito);
 
     /* Via i comandi di voto: da qui in poi questa carta non si vota piu'. */
     var gradeRow = card.querySelector('.grade-row');
@@ -5961,20 +5684,18 @@ function segnaCartaValutataInPagina (card, esito) {
     }
 }
 
-/* Rispondendo a un figlio non si ricarica la pagina, quindi la barra delle
-   carte - che il server disegna al caricamento - resterebbe ferma per tutta
-   la posizione. Qui la si fa avanzare di una carta, come farebbe il server
-   al giro dopo.
+/* Rispondendo a un figlio non si ricarica la pagina, quindi il conteggio delle
+   carte - che il server scrive al caricamento - resterebbe fermo per tutta la
+   posizione. Qui lo si fa avanzare di una carta, come farebbe il server al
+   giro dopo.
 
-   ATTENZIONE alle TRE grandezze distinte, che prima erano una sola:
-     - "testa"     = su quale carta si e' ADESSO      -> muove il pallino
-     - "furthest"  = la carta piu' avanzata raggiunta -> muove il riempimento
-     - "risposte"  = quante ne sono state risposte    -> muove l'etichetta
-   Usare la testa anche per il riempimento faceva crollare la barra arancione
-   all'indietro (da 87% a 7%) appena si rispondeva a un errore vecchio, per poi
-   rivederla risalire alla ricarica successiva: era il salto piu' vistoso di
-   tutti. Il riempimento non deve MAI retrocedere. */
-function avanzaBarraCarte () {
+   ATTENZIONE alle grandezze distinte:
+     - "testa"     = su quale carta si e' ADESSO      -> anello delle carte
+     - "furthest"  = la carta piu' avanzata raggiunta -> dato per i confronti
+     - "risposte"  = quante ne sono state risposte    -> etichetta "Card x/y"
+   Non vanno fuse: la testa puo' tornare indietro (si rivede un errore
+   vecchio), le risposte e il fronte no. */
+function avanzaBarraCarte (esito) {
     var c = curC();
     if (!c) return;
 
@@ -5985,37 +5706,13 @@ function avanzaBarraCarte () {
     if (testa > totale) testa = totale;
     c.setAttribute('data-carte-testa', String(testa));
 
-    /* Si aggiorna il MODELLO (dataset.base*), non la geometria a schermo: e'
-       da li' che applicaZoomBarra() ricalcola tutto con lo zoom giusto.
-       Stessa convenzione a centro cella dei pallini discreti: vedi la nota
-       su $qui_percent lato PHP. */
-    var dotQui = c.querySelector('.dot-qui-alt');
-    if (dotQui) dotQui.dataset.baseLeft = pctMarker(testa, totale);
-
-    /* Il tratto PIENO segue sempre pippo (testa), mai il fronte: stessa
-       divisione in due toni spiegata lato PHP su $bordo_pos. Convenzione
-       pctMarker come pippo/dot-target, non pctFill: vedi la stessa nota
-       nel PHP e in seedBasiBarre. */
-    var bordoQuiCarte = pctMarker(testa, totale);
-    var fill = c.querySelector('.progress-bar-fill.fill-cards');
-    if (fill) fill.dataset.baseWidth = bordoQuiCarte;
-
     var furthest = parseInt(c.getAttribute('data-furthest-card') || '0', 10);
-    if (testa > furthest) {
-        furthest = testa;
-        c.setAttribute('data-furthest-card', String(furthest));
-    }
-    /* Il tratto tenue oltre pippo: resta a 0 nel caso comune (si sta
-       avanzando proprio sul fronte, quindi furthest === testa), ma non deve
-       sparire se si sta valutando un figlio di una posizione gia' dietro al
-       fronte vero raggiunto altrove. */
-    var fillOltre = c.querySelector('.progress-bar-fill.fill-cards-oltre');
-    if (fillOltre) {
-        fillOltre.dataset.baseLeft = bordoQuiCarte;
-        fillOltre.dataset.baseWidth = Math.max(0, pctMarker(furthest, totale) - bordoQuiCarte);
-    }
+    if (testa > furthest) c.setAttribute('data-furthest-card', String(testa));
 
-    if (typeof applicaZoomBarra === 'function') applicaZoomBarra(c);
+    /* Il tracciato tiene il suo modello (.f2-dati): lo aggiorna lui, e aggiunge
+       l'errore al numero del disco se la carta era sbagliata. "imparata" e'
+       una risposta giusta. */
+    f2CartaValutata(c, !!esito && esito !== 'correct' && esito !== 'learnt');
 
     /* L'etichetta "Card 9/173" conta le carte RISPOSTE, che e' quello che ci
        scrive il server ($answered_cards_count). Prima qui ci finiva l'indice
@@ -6201,26 +5898,14 @@ function navigateTo (url, opts) {
 
 
 
-                    /* Lo zoom si applica ORA, mentre newC e' ancora staccato dal
-                       documento (non ancora inserito) - non dopo. Prima veniva
-                       chiesto subito dopo document.body.appendChild(newC): il
-                       contenitore entrava nel DOM visibile con gli stili
-                       GREZZI del server (non zoomati) su pallini e riempimenti,
-                       e solo un istante dopo applicaZoomBarra li cambiava in
-                       quelli zoomati - un cambiamento che la transizione CSS su
-                       left/width vedeva come un movimento vero, animandolo: da
-                       "non zoomato" a "zoomato" in 0.3s, ogni singola volta.
-                       Sistemando i valori PRIMA che il contenitore sia mai
-                       visibile, il primo stato dipinto e' gia' quello zoomato
-                       definitivo: la transizione non ha nulla da animare per
-                       questo cambio pagina, e resta libera per i movimenti
-                       veri (l'avanzamento del riempimento via animateProgress,
-                       il prossimo vero spostamento della finestra). Funziona
-                       su un nodo staccato perche' applicaZoomBarra lavora solo
-                       su data-attribute e stili inline, mai su misure di
-                       layout (offsetWidth e simili) che su un nodo fuori dal
-                       documento darebbero comunque zero. */
-                    applicaZoomBarra(newC);
+                    /* L'intestazione si prepara ORA, mentre newC e' ancora staccato
+                       dal documento: nasce con i valori della pagina vecchia (colore,
+                       linea, anelli), cosi' il primo stato dipinto e' quello di
+                       partenza. I valori veri li scrive animateProgress -> f2Anima
+                       dopo l'inserimento, ed e' quel cambio che la transizione CSS
+                       anima. Funziona su un nodo staccato perche' f2Disegna lavora
+                       solo sul modello e su stili inline, mai su misure di layout. */
+                    f2Disegna(newC, true);
 
 
 
@@ -6335,9 +6020,9 @@ function navigateTo (url, opts) {
 
                     if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes(newC);
 
-                    /* applicaZoomBarra(newC) e' gia' stata chiamata piu' sopra,
-                       prima di animateProgress: rifarla qui sovrascriverebbe
-                       l'animazione appena avviata con il valore d'arrivo. */
+                    /* f2Disegna(newC, true) e' gia' stata chiamata piu' sopra: rifarla
+                       qui scriverebbe subito i valori d'arrivo, cancellando
+                       l'animazione appena avviata da animateProgress. */
 
                     schedulePrefetch();
 
@@ -7349,7 +7034,7 @@ function navigateTo (url, opts) {
 
                 if (typeof fcLoadExampleBoxes === 'function') fcLoadExampleBoxes();
 
-                applicaZoomBarra();
+                f2Disegna();
 
                 schedulePrefetch();
 

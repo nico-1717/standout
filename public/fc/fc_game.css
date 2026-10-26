@@ -146,117 +146,7 @@
 
         }
 
-        .bars{ padding:0 16px; display:flex; flex-direction:column; gap:9px; }
-        /* Ordine esplicito: senza, la barra scritta dopo nell'HTML vinceva
-           sempre, assorbendo i tocchi destinati all'altra. */
-        .bars > .progress-bar-bg{ z-index:1; }
-        .bars > .progress-bar-bg:hover, .bars > .progress-bar-bg:focus-within{ z-index:3; }
 
-        /* Striscia dei nomi di categoria, sopra la barra dei concetti. */
-        .cat-strip{ position:relative; width:100%; height:11px; }
-        .cat-seg{
-            position:absolute; top:0; height:11px; overflow:hidden;
-            display:flex; align-items:center; justify-content:center;
-        }
-        .cat-seg-nome{
-            font-size:8.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
-            color:var(--cat); opacity:.9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-            max-width:100%; padding:0 3px;
-        }
-        /* I tratti colorati veri e propri, dipinti sulla barra sotto. */
-        .progress-bar-bg.ha-categorie{ background:transparent; }
-        .progress-bar-bg.ha-categorie::before{
-            content:""; position:absolute; inset:0; border-radius:99px; background:var(--hairline);
-        }
-        .cat-tratto{
-            position:absolute; top:0; height:100%; opacity:.28; z-index:1;
-        }
-        .cat-tacca{
-            position:absolute; top:-1.5px; width:1.5px; height:6.5px; border-radius:1px;
-            background:var(--surface); z-index:3; transform:translateX(-50%);
-        }
-
-        .progress-bar-bg{
-
-            position:relative; width:100%; height:3.5px; border-radius:99px;
-
-            background:var(--hairline); overflow:visible;
-
-        }
-
-        .progress-bar-fill{
-
-            height:100%; border-radius:99px; width:0;
-
-            position:relative; z-index:2;
-
-            /* La transizione la dichiara una regola sola, piu' in basso
-               (.bars .progress-bar-fill): qui ce n'era una seconda a .7s che
-               veniva comunque battuta per specificita', e faceva credere che
-               ripristinare transition:'' da JavaScript rimettesse .7s. */
-
-        }
-
-        /* Tratto "in piu'" oltre pippo: quando si e' arrivati piu' avanti
-           altrove ma si sta guardando indietro una carta gia' passata, il
-           progresso vero non deve sparire (altrimenti il colore
-           retrocederebbe ogni volta che si rivede qualcosa), ma nemmeno
-           confondersi con "quanto ho fatto fino a qui ORA" - da qui il tono
-           piu' tenue e una posizione assoluta indipendente dal tratto pieno,
-           dato che parte da dove pippo si trova, non dal bordo sinistro. */
-        .fill-pages-oltre, .fill-cards-oltre{
-            height:100%; border-radius:0 99px 99px 0;
-            position:absolute; top:0; left:0; width:0; z-index:2;
-        }
-        .fill-pages-oltre{ background:color-mix(in srgb, var(--blue), transparent 65%); }
-        .fill-cards-oltre{ background:color-mix(in srgb, var(--orange), transparent 65%); }
-
-        .fill-pages{ background:var(--blue); box-shadow:0 0 8px rgba(10,132,255,.35); }
-
-        .fill-cards{ background:var(--orange); box-shadow:0 0 8px rgba(255,159,10,.3); }
-
-        .dot{
-
-            position:absolute; top:50%; transform:translate(-50%,-50%);
-
-            width:8px; height:8px; border-radius:50%; z-index:10;
-
-            transition:transform .2s var(--spring);
-
-        }
-
-        /* Area di tocco allargata, ma piu' stretta in verticale: con inset:-11px
-           uniforme, e appena 6px fra le due barre, l'area dei pallini della barra
-           inferiore copriva del tutto quelli della barra superiore - che quindi
-           non si riuscivano piu' a toccare. In orizzontale lo spazio serve
-           davvero (i pallini sono piccoli e vicini), in verticale no. */
-        .dot::after{ content:""; position:absolute; left:-11px; right:-11px; top:-5px; bottom:-5px; border-radius:99px; }
-
-        .dot:active{ transform:translate(-50%,-50%) scale(1.7); }
-
-        .dot-red{ background:var(--red); box-shadow:0 0 0 1.5px var(--surface), 0 0 7px rgba(255,69,58,.55); }
-
-        .dot-white{
-
-            width:11px; height:11px; background:var(--surface);
-
-            border:2.5px solid var(--blue); z-index:11;
-
-            box-shadow:0 1px 4px rgba(0,0,0,.25);
-
-        }
-
-        .dot-white-alt{ border-color:var(--orange); }
-
-        .dot-gray{
-
-            background:#8E8E93; box-shadow:0 0 0 1.5px var(--surface);
-
-            animation:dotPendingPulse 1.8s ease-in-out infinite;
-
-        }
-
-        @keyframes dotPendingPulse{ 0%,100%{ opacity:.5; } 50%{ opacity:1; } }
 
 
 
@@ -312,17 +202,17 @@
 
         .hdr-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 16px 0; }
 
-        .hdr-left{ min-width:0; }
+        .hdr-left{ min-width:0; display:flex; align-items:center; gap:12px; }
 
         .hdr-title{
 
-            font-size:20px; font-weight:800; letter-spacing:-.02em; line-height:1.1;
+            font-size:26px; font-weight:800; letter-spacing:-.02em; line-height:1.1;
 
             font-variant-numeric:tabular-nums;
 
         }
 
-        .hdr-title span{ color:var(--text-2); font-weight:600; font-size:15px; }
+        .hdr-title span{ color:var(--text-2); font-weight:600; font-size:16px; }
 
         .hdr-sub{
 
@@ -1422,19 +1312,6 @@
     .card-box.is-favorita{ animation:none; }
 }
 
-/* Riferimento alla prima carta ancora da rispondere: vuoto e con un anello,
-   per non confondersi col pallino pieno che segna dove si e' arrivati.
-   Compare solo quando i due punti NON coincidono, cioe' quando si e' tornati
-   indietro a rivedere qualcosa. */
-.dot.dot-target{
-    background:transparent;
-    border:2px solid var(--blue);
-    box-shadow:0 0 0 1.5px var(--surface);
-    animation:targetPulsa 2s ease-in-out infinite;
-}
-.dot.dot-target-alt{ border-color:var(--orange); }
-@keyframes targetPulsa{ 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
-@media (prefers-reduced-motion:reduce){ .dot.dot-target{ animation:none; } }
 
 /* Anteprima della carta successiva, intravista sotto durante lo swipe.
    Sta dietro alla carta trascinata (che ha z-index 50) e non intercetta
@@ -1454,88 +1331,11 @@
     .swipe-anteprima{ display:none; }
 }
 
-/* ---------- Barra ingrandita sulla zona corrente ----------
-   Lo spostamento e l'ingrandimento li calcola il JavaScript rimappando le
-   posizioni: con una trasformazione CSS i pallini si sarebbero deformati in
-   ovali e i nomi di categoria sarebbero risultati stirati. */
-.bars{ cursor:pointer; }
-/* Serve tagliare SOLO in orizzontale (il contenuto che scorre oltre i bordi
-   della finestra ingrandita): i pallini sono pensati per sporgere sopra e
-   sotto la barra sottile, ed e' cosi' che restano ben rotondi. overflow:hidden
-   taglierebbe anche quella sporgenza verticale, schiacciandoli. Non si usa
-   nemmeno overflow-x:hidden + overflow-y:visible: quando i due assi sono
-   diversi il browser promuove "visible" ad "auto", creando uno scroll
-   verticale indesiderato (lo stesso problema gia' incontrato con le formule
-   di MathJax). clip-path e' un'unica proprieta' senza questa ambiguita': con
-   gli inset verticali negativi non taglia mai in verticale, solo ai lati. */
-.bars.zoom-attivo .progress-bar-bg, .bars.zoom-attivo .cat-strip{
-    clip-path:inset(-100px 0 -100px 0);
-}
-.bars .dot, .bars .cat-tacca, .bars .cat-tratto, .bars .cat-seg, .bars .progress-bar-fill{
-    transition:left .3s cubic-bezier(.22,1,.36,1), width .3s cubic-bezier(.22,1,.36,1);
-}
-/* Il tratto TENUE (oltre pippo) rappresenta progresso gia' fatto in
-   precedenza, non qualcosa che si sta "riempiendo adesso": deve comparire
-   di scatto nella sua posizione finale a ogni cambio pagina, non scorrere
-   o allargarsi come se stesse avanzando in quel momento - quel movimento e'
-   riservato al tratto pieno (fill-pages/fill-cards), l'unico a rappresentare
-   un avanzamento vero e proprio. Specificita' identica alla regola sopra:
-   vince perche' viene dopo. */
-.bars .fill-pages-oltre, .bars .fill-cards-oltre{
-    transition:none;
-}
-
-/* ---------- Traccia d'insieme (solo in vista ingrandita) ----------
-   La barra ingrandita e' centrata sulla posizione corrente, quindi il suo
-   riempimento finisce sempre a meta' e smette di dire "quanto manca". Questa
-   traccia resta in scala 1:1 sull'intera partita: il tratto pieno e' quanto
-   fatto, il rettangolino e' la fetta che si sta guardando ingrandita. */
-.barra-insieme{
-    position:relative; width:100%; height:2px; border-radius:99px;
-    background:var(--hairline); display:none;
-}
-.bars.zoom-attivo .barra-insieme{ display:block; }
-.insieme-fill{
-    position:absolute; left:0; top:0; height:100%; width:0;
-    border-radius:99px; background:var(--blue); opacity:.5;
-    transition:width .3s cubic-bezier(.22,1,.36,1);
-}
-
-/* ---------- Pallino ancorato al bordo perche' sta oltre la finestra ----------
-   Un pallino bloccato al bordo non e' nella sua posizione vera: senza dirlo,
-   sembrerebbe un pallino normale li' dove sta. La punta indica da che parte
-   si trova davvero (tipicamente il riferimento per tornare avanti, dopo un
-   salto indietro su un errore). */
-.dot.dot-oltre-sx::before, .dot.dot-oltre-dx::before{
-    content:""; position:absolute; top:50%; width:0; height:0;
-    border-top:3.5px solid transparent; border-bottom:3.5px solid transparent;
-}
-.dot.dot-oltre-sx::before{
-    right:100%; margin-right:3px; transform:translateY(-50%);
-    border-right:4px solid var(--punta, var(--blue));
-}
-.dot.dot-oltre-dx::before{
-    left:100%; margin-left:3px; transform:translateY(-50%);
-    border-left:4px solid var(--punta, var(--blue));
-}
-/* Una variabile a parte, non "color": il pallino raggruppato usa color per il
-   numero bianco che ha dentro, e tingerlo di rosso lo renderebbe illeggibile. */
-.dot.dot-qui-alt, .dot.dot-target-alt{ --punta:var(--orange); }
-.dot.dot-cluster{ --punta:var(--red); }
-
-/* ---------- Pallino che raggruppa piu' errori ---------- */
-.dot.dot-cluster{
-    width:16px; height:16px; border:none; padding:0; cursor:pointer;
-    display:flex; align-items:center; justify-content:center;
-    font-family:inherit; font-size:9px; font-weight:800; color:#fff;
-    background:var(--red); box-shadow:0 0 0 1.5px var(--surface), 0 0 8px rgba(255,69,58,.5);
-}
-.dot.dot-cluster:active{ transform:translate(-50%,-50%) scale(1.25); }
 
 /* ---------- Elenco compatto degli errori ---------- */
 .err-elenco{
     position:fixed; left:50%; transform:translateX(-50%) translateY(-8px);
-    top:calc(var(--safe-top, 0px) + 86px); z-index:950;
+    top:calc(var(--header-h, 86px) + 6px); z-index:950;
     width:min(92vw, 420px); max-height:52vh; display:flex; flex-direction:column;
     background:var(--surface); border-radius:18px;
     border:.5px solid var(--hairline);
@@ -1587,35 +1387,6 @@
 .err-voce-num.figlio{ background:color-mix(in srgb, var(--purple), transparent 86%); color:var(--purple); }
 .err-voce-testo{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-/* Pallino esplicito "sei qui": prima il bordo del riempimento era l'unico
-   indizio, che con la barra ingrandita e ritagliata poteva non bastare.
-
-   ATTENZIONE al colore: quando ti trovi DIETRO al fronte (stai rivedendo
-   qualcosa di gia' passato, es. un errore) il riempimento arriva comunque
-   fino al fronte vero, quindi pippo finisce a meta' di una zona GIA' blu, non
-   sul suo bordo. Un pallino pieno blu su sfondo blu si mimetizza quasi del
-   tutto - da qui "a volte pippo non si vede". Un centro CHIARO con un anello
-   colorato (lo stesso trattamento di .dot-white, rimasto pero' inutilizzato
-   nel markup) resta leggibile sia sopra il riempimento pieno sia sopra il
-   tratto ancora scarico, perche' il centro contrasta sempre con lo sfondo
-   sottostante, qualunque esso sia.
-   Anche lo z-index sale sopra quello dei pallini normali (10): prima era 5,
-   piu' basso persino di un pallino qualunque, quindi un rosso o un grigio
-   nello stesso punto avrebbe potuto coprire proprio l'indicatore piu'
-   importante della barra. */
-.dot.dot-qui{
-    width:11px; height:11px; z-index:11;
-    background:var(--surface); border:2.5px solid var(--blue);
-    box-shadow:0 1px 4px rgba(0,0,0,.25), 0 0 6px rgba(10,132,255,.35);
-}
-.dot.dot-qui-alt{ border-color:var(--orange); box-shadow:0 1px 4px rgba(0,0,0,.25), 0 0 6px rgba(255,149,0,.35); }
-
-/* Quando la posizione che stai guardando e' proprio una di quelle sbagliate
-   (stai ricontrollando un errore), l'INTERNO di pippo si tinge leggermente di
-   rosso - un promemoria discreto che non sei semplicemente avanti, sei qui
-   apposta perche' hai sbagliato. L'anello resta blu o arancione (dice ancora
-   "quale barra e'"): solo il centro, prima sempre bianco/neutro, cambia. */
-.dot.dot-qui-errore{ background:color-mix(in srgb, var(--red), var(--surface) 78%); }
 
 /* ============================================================
    PAROLE (partite di lingua)
@@ -1993,3 +1764,85 @@ html.fcv-es-dopo .card-box.risposta-mostrata .fcv-hint-esempio{ animation:fcvHin
     -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5 10 17l9-10'/%3E%3C/svg%3E") center/contain no-repeat;
             mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5 10 17l9-10'/%3E%3C/svg%3E") center/contain no-repeat;
 }
+
+/* ---------- Intestazione a tracciato (26/10/2026) ----------
+   Il colore d'accento e' quello della categoria della carta corrente: lo
+   scrive il JavaScript in --fc-acc sul contenitore (f2Scrivi), animandolo nel
+   passaggio da una categoria all'altra (f2AnimaColore). Tutti i toni usati
+   sotto si ricavano da lei, mescolandola col colore del testo o della
+   superficie: cosi' restano leggibili sia sul tema scuro che su quello
+   chiaro, qualunque sia il colore scelto per la categoria. */
+@property --fc-acc{ syntax:'<color>'; inherits:true; initial-value:#B79CFF; }
+.container{
+    --fc-acc:#B79CFF;
+    --f2-a:color-mix(in srgb, var(--fc-acc) 80%, var(--text));
+    --f2-b:color-mix(in srgb, var(--fc-acc) 68%, var(--surface));
+}
+.f2{ padding:0 16px; }
+.f2-path{ position:relative; height:34px; margin:0 10px; }
+.f2-path::before{
+    content:""; position:absolute; left:0; right:0; top:24px; height:2px; border-radius:99px;
+    background:color-mix(in srgb, var(--text) 14%, transparent);
+}
+.f2-line, .f2-line-oltre{
+    position:absolute; left:0; top:24px; height:2px; width:0; border-radius:99px; display:block;
+    transition:width .55s cubic-bezier(.22,1,.36,1);
+}
+.f2-line{
+    background:linear-gradient(90deg, color-mix(in srgb, var(--fc-acc) 85%, var(--surface)), var(--f2-a));
+    box-shadow:0 0 8px color-mix(in srgb, var(--fc-acc) 45%, transparent);
+}
+/* Il tratto gia' raggiunto piu' avanti, quando si sta rivedendo qualcosa
+   indietro: tenue, per non sembrare un avanzamento nuovo. */
+.f2-line-oltre{ background:color-mix(in srgb, var(--fc-acc) 30%, transparent); transition:none; }
+.f2-pin{
+    position:absolute; top:6px; left:0; width:0; height:0; transform:translateX(-50%);
+    border-left:4px solid transparent; border-right:4px solid transparent; border-top:6px solid var(--f2-a);
+    transition:left .55s cubic-bezier(.22,1,.36,1);
+}
+.f2-nodi{ position:absolute; left:0; right:0; top:25px; height:0; }
+.f2-n{
+    position:absolute; top:0; transform:translate(-50%,-50%); box-sizing:border-box; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; padding:0; border:0; font-family:inherit;
+}
+.f2-n0{ left:0; width:6px; height:6px; background:var(--f2-a); }
+.f2-ok{ width:5px; height:5px; background:var(--f2-a); opacity:.85; }
+.f2-fut{ width:4px; height:4px; background:color-mix(in srgb, var(--text) 22%, transparent); }
+.f2-d{ width:17px; height:17px; font-size:9.5px; font-weight:800; line-height:1; font-variant-numeric:tabular-nums; }
+button.f2-d{ cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .2s var(--spring); }
+/* Un disco di 17px e' troppo piccolo per il dito: l'area di tocco esce dal disco. */
+button.f2-d::before{ content:""; position:absolute; inset:-9px -7px; }
+button.f2-d:active{ transform:translate(-50%,-50%) scale(1.18); }
+.f2-d.is-err{
+    background:var(--f2-a); color:var(--surface);
+    box-shadow:0 0 12px color-mix(in srgb, var(--fc-acc) 55%, transparent);
+}
+/* Il numero deve contrastare col colore del disco, che cambia con la categoria:
+   dove il browser sa ricavarlo (colori relativi) lo si calcola dalla luminosita'. */
+@supports (color:lch(from red l c h)){
+    .f2-d.is-err{ color:lch(from var(--f2-a) calc((l - 62) * -1000) 0 0); }
+}
+.f2-d.is-cur{
+    background:var(--surface); border:1.5px solid var(--f2-a); color:var(--f2-a);
+    box-shadow:0 0 10px color-mix(in srgb, var(--fc-acc) 35%, transparent);
+}
+
+.f2-testi{ min-width:0; }
+.f2-ring{ flex:0 0 auto; width:34px; height:34px; }
+.f2-ring[hidden]{ display:none; }
+.f2-ring svg{ display:block; }
+.f2-ring circle{ fill:none; }
+.f2-rb{ stroke:color-mix(in srgb, var(--text) 12%, transparent); stroke-width:3; }
+.f2-rb2{ stroke-width:2.4; }
+.f2-r1, .f2-r2{
+    stroke-linecap:round; stroke-dasharray:0 100;
+    transition:stroke-dasharray .55s cubic-bezier(.22,1,.36,1);
+}
+.f2-r1{ stroke:var(--f2-a); stroke-width:3; }
+.f2-r2{ stroke:var(--f2-b); stroke-width:2.4; }
+/* Senza figli nel tratto l'anello interno direbbe lo stesso dell'esterno. */
+.f2-solo1 .f2-rb2, .f2-solo1 .f2-r2{ display:none; }
+
+/* L'elenco degli errori prende l'accento della categoria, non piu' il rosso. */
+.err-elenco-testa{ color:var(--f2-a); }
+.err-voce-num{ background:color-mix(in srgb, var(--fc-acc) 18%, transparent); color:var(--f2-a); }
