@@ -1876,6 +1876,35 @@ button.f2-d:active{ transform:translate(-50%,-50%) scale(1.18); }
 }
 .shatter-salvata svg{ width:18px; height:18px; flex-shrink:0; }
 
+/* Frantuma: tenere o sostituire l'originale, e dove vanno i suoi allegati */
+.shatter-scelta{
+    display:flex; gap:4px; padding:4px; margin-bottom:12px; border-radius:14px;
+    background:var(--surface-2); box-shadow:inset 0 0 0 1px var(--hairline);
+}
+.shatter-scelta button{
+    flex:1; padding:9px 8px; border:none; border-radius:11px; cursor:pointer;
+    font:inherit; font-size:13px; font-weight:650; color:var(--text-2); background:transparent;
+    transition:background .2s ease, color .2s ease, box-shadow .2s ease;
+}
+.shatter-scelta button.is-on{
+    color:var(--text); font-weight:750; background:var(--surface);
+    box-shadow:0 1px 2px rgba(0,0,0,.08), inset 0 0 0 1px color-mix(in srgb, var(--purple) 28%, transparent);
+}
+.shatter-scelta button:focus-visible{ outline:2px solid var(--purple); outline-offset:1px; }
+.shatter-assegna{ margin:0 0 12px; padding:12px; border-radius:14px; background:var(--surface-2); box-shadow:inset 0 0 0 1px var(--hairline); }
+.shatter-assegna[hidden]{ display:none; }
+.shatter-ass-tit{ margin:0 0 10px; font-size:13px; font-weight:700; line-height:1.4; color:var(--text); }
+.shatter-ass{ display:flex; flex-direction:column; gap:5px; margin-top:10px; }
+.shatter-ass-nome{ font-size:12.5px; font-weight:650; color:var(--text-2); overflow-wrap:anywhere; }
+.shatter-ass select{
+    width:100%; box-sizing:border-box; padding:9px 10px; border:none; border-radius:11px;
+    font:inherit; font-size:14px; color:var(--text); background:var(--surface);
+    box-shadow:inset 0 0 0 1px var(--hairline-2);
+}
+.shatter-ass select:focus{ outline:none; box-shadow:inset 0 0 0 1.5px var(--purple); }
+.shatter-salva .btn:disabled{ opacity:.45; cursor:default; }
+.shatter-salvata + .btn{ margin-top:12px; width:100%; }
+
 @media (prefers-reduced-motion:reduce){
     .fcs-chip, .fcs-chip.is-loading .fcs-chip-lab::after, .chip-shatter.is-loading::after{ animation:none !important; transition:none !important; }
 }

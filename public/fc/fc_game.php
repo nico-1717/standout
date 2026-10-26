@@ -4075,6 +4075,11 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                     if (data.dropped > 0) html += `<div class="shatter-nota">${esc(T('fc.gm_frantuma_scartate', { n: data.dropped }))}</div>`;
 
                     html += `<div class="shatter-salva" id="shatter-salva">
+                        <div class="shatter-scelta" role="radiogroup">
+                            <button type="button" class="is-on" role="radio" aria-checked="true" data-modo="keep">${esc(T('fc.gm_frantuma_tieni'))}</button>
+                            <button type="button" role="radio" aria-checked="false" data-modo="replace">${esc(T('fc.gm_frantuma_sostituisci'))}</button>
+                        </div>
+                        <div class="shatter-assegna" id="shatter-assegna" hidden></div>
                         <button type="button" id="shatter-save-btn" class="btn btn-primary">${esc(T('fc.gm_frantuma_salva'))}</button>
                         <div class="shatter-nota" id="shatter-save-nota">${esc(T('fc.gm_frantuma_salva_nota', { n: data.cards.length }))}</div>
                     </div>`;
@@ -4087,9 +4092,87 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                     if (typeof fcdDisegnaFormule === 'function') fcdDisegnaFormule(contentDiv);
 
-                    // SALVA COME CARTE: una carta padre col titolo e i figli sotto.
+                    // SALVA COME CARTE. Due modi: tenere l'originale (nasce una famiglia nuova
+                    // dopo di lui) o sostituirlo. Sostituendo, ogni immagine, audio ed esempio
+                    // dell'originale va assegnato a una carta nuova (o scartato) PRIMA di
+                    // poter salvare: lo controlla anche il server.
                     const saveBtn = document.getElementById('shatter-save-btn');
                     const saveNota = document.getElementById('shatter-save-nota');
+                    const assegnaBox = document.getElementById('shatter-assegna');
+                    let modo = 'keep';
+                    let vociAllegati = null;   // null = non ancora chiesto al server
+
+                    const notaModo = () => modo === 'keep'
+                        ? T('fc.gm_frantuma_salva_nota', { n: data.cards.length })
+                        : T(eFiglio ? 'fc.gm_frantuma_nota_figlio' : 'fc.gm_frantuma_nota_padre', { n: data.cards.length });
+                    const aggiornaSalva = () => {
+                        saveBtn.textContent = T(modo === 'keep' ? 'fc.gm_frantuma_salva' : 'fc.gm_frantuma_sostituisci_btn');
+                        const mancano = modo === 'replace' && (vociAllegati === null ||
+                            Array.from(assegnaBox.querySelectorAll('select')).some(sel => sel.value === ''));
+                        saveBtn.disabled = mancano;
+                    };
+                    const nomeAllegato = (v) => {
+                        if (v.kind !== 'ex') return T('fc.gm_frantuma_att_' + v.kind);
+                        let t = T('fc.gm_frantuma_att_ex', { n: v.n });
+                        if (v.preview) t += ': ' + v.preview;
+                        const extra = [];
+                        if (v.image) extra.push(T('fc.gm_frantuma_con_immagine'));
+                        if (v.audio) extra.push(T('fc.gm_frantuma_con_audio'));
+                        return extra.length ? t + ' (' + extra.join(', ') + ')' : t;
+                    };
+                    const disegnaAssegna = () => {
+                        if (!vociAllegati.length) { assegnaBox.hidden = true; return; }
+                        let h = '<div class="shatter-ass-tit">' + esc(T('fc.gm_frantuma_assegna')) + '</div>';
+                        vociAllegati.forEach((v) => {
+                            // Una carta titolo con una risposta (anche solo un audio) non e' piu' un titolo:
+                            // solo domanda-immagine e domanda-audio possono andarci.
+                            let opts = '<option value="">' + esc(T('fc.gm_frantuma_scegli')) + '</option>';
+                            if (v.kind === 'qimg' || v.kind === 'qaud') opts += '<option value="title">' + esc(T('fc.gm_frantuma_a_titolo')) + '</option>';
+                            data.cards.forEach((m, i) => {
+                                const anteprima = (document.getElementById('shatter-qraw-' + i).textContent || '').trim().slice(0, 36);
+                                opts += '<option value="' + i + '">' + esc(T('fc.gm_mini_carta', { n: i + 1 }) + (anteprima ? ': ' + anteprima : '')) + '</option>';
+                            });
+                            opts += '<option value="drop">' + esc(T('fc.gm_frantuma_scarta')) + '</option>';
+                            h += '<label class="shatter-ass"><span class="shatter-ass-nome">' + esc(nomeAllegato(v)) + '</span><select data-key="' + esc(v.key) + '">' + opts + '</select></label>';
+                        });
+                        assegnaBox.innerHTML = h;
+                        assegnaBox.hidden = false;
+                        assegnaBox.querySelectorAll('select').forEach(sel => sel.addEventListener('change', aggiornaSalva));
+                    };
+                    const scegliModo = async (nuovo) => {
+                        modo = nuovo;
+                        contentDiv.querySelectorAll('.shatter-scelta button').forEach(b => {
+                            const on = b.getAttribute('data-modo') === modo;
+                            b.classList.toggle('is-on', on);
+                            b.setAttribute('aria-checked', on ? 'true' : 'false');
+                        });
+                        saveNota.classList.remove('is-errore');
+                        saveNota.textContent = notaModo();
+                        if (modo === 'keep') { assegnaBox.hidden = true; aggiornaSalva(); return; }
+                        aggiornaSalva();
+                        if (vociAllegati === null) {
+                            // Cosa ha attaccato l'originale: lo sa solo il server.
+                            try {
+                                const r = await fetch('../ai/ai_shatter_save.php', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': STANDOUT_CSRF },
+                                    credentials: 'same-origin',
+                                    body: JSON.stringify({ action: 'info', card_id: cardId, is_child: eFiglio })
+                                });
+                                const j = await r.json();
+                                if (!j || !j.success) throw new Error((j && j.error) || 'info');
+                                vociAllegati = j.items || [];
+                            } catch (e) {
+                                saveNota.textContent = T('fc.gm_frantuma_info_errore');
+                                saveNota.classList.add('is-errore');
+                                scegliModo('keep');
+                                return;
+                            }
+                        }
+                        if (modo === 'replace') { disegnaAssegna(); aggiornaSalva(); }
+                    };
+                    contentDiv.querySelectorAll('.shatter-scelta button').forEach(b => b.addEventListener('click', () => scegliModo(b.getAttribute('data-modo'))));
+
                     saveBtn.addEventListener('click', async () => {
                         const titolo = (document.getElementById('shatter-title').value || '').trim();
                         if (!titolo) {
@@ -4098,6 +4181,8 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                             document.getElementById('shatter-title').focus();
                             return;
                         }
+                        const assegna = {};
+                        if (modo === 'replace') assegnaBox.querySelectorAll('select').forEach(sel => { assegna[sel.getAttribute('data-key')] = sel.value; });
                         saveBtn.disabled = true;
                         saveBtn.textContent = T('fc.gm_frantuma_salvando');
                         saveNota.classList.remove('is-errore');
@@ -4106,13 +4191,20 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': STANDOUT_CSRF },
                                 credentials: 'same-origin',
-                                body: JSON.stringify({ card_id: cardId, is_child: eFiglio, title: titolo, cards: data.cards.map(m => ({ q: m.q, a: m.a })) })
+                                body: JSON.stringify({ action: 'save', mode: modo, card_id: cardId, is_child: eFiglio, title: titolo, cards: data.cards.map(m => ({ q: m.q, a: m.a })), assign: assegna })
                             });
                             const j = await r.json();
                             if (j && j.success) {
+                                const sostituita = j.mode === 'replace';
                                 document.getElementById('shatter-salva').innerHTML =
-                                    '<div class="shatter-salvata"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg><span>' + esc(T('fc.gm_frantuma_salvata', { n: j.children })) + '</span></div>';
+                                    '<div class="shatter-salvata"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg><span>' + esc(T(sostituita ? 'fc.gm_frantuma_sostituita' : 'fc.gm_frantuma_salvata', { n: j.children })) + '</span></div>'
+                                    + (sostituita ? '<button type="button" class="btn btn-primary" id="shatter-reload-btn">' + esc(T('fc.gm_frantuma_ricarica')) + '</button>' : '');
                                 document.getElementById('shatter-title').readOnly = true;
+                                if (sostituita) {
+                                    // L'originale non c'e' piu' com'era: dare un voto da qui non avrebbe senso.
+                                    actionsDiv.style.display = 'none';
+                                    document.getElementById('shatter-reload-btn').addEventListener('click', () => location.reload());
+                                }
                                 return;
                             }
                             saveNota.textContent = (j && j.error) ? j.error : T('fc.gm_frantuma_salva_errore');
@@ -4120,8 +4212,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                             saveNota.textContent = T('fc.gm_frantuma_salva_errore');
                         }
                         saveNota.classList.add('is-errore');
-                        saveBtn.disabled = false;
-                        saveBtn.textContent = T('fc.gm_frantuma_salva');
+                        aggiornaSalva();
                     });
 
 

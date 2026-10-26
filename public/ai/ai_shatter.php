@@ -19,6 +19,7 @@ $__raw_input = file_get_contents('php://input');
 require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 require_once __DIR__ . '/../../lib/piano_helpers.php';
+require_once __DIR__ . '/../../lib/fc/fc_frantuma.php';
 
 // Inizializza il buffer per nascondere eventuali Warning/Notice di Altervista
 ob_start();
@@ -69,8 +70,10 @@ if (!$data) {
 
 /* Un tetto alla lunghezza: il testo finisce dritto nel prompt, e quindi nel
    conto dei token. Una flashcard vera sta molto sotto. */
-$q = mb_substr(is_string($data['q'] ?? null) ? $data['q'] : '', 0, 12000, 'UTF-8');
-$a = mb_substr(is_string($data['a'] ?? null) ? $data['a'] : '', 0, 12000, 'UTF-8');
+/* Il testo di una carta puo' essere un documento JSON di fc_parser: all'IA (e al
+   controllo di fedelta' piu' sotto) serve il testo vero, vedi fc_frantuma_in_testo. */
+$q = mb_substr(fc_frantuma_in_testo(is_string($data['q'] ?? null) ? $data['q'] : ''), 0, 12000, 'UTF-8');
+$a = mb_substr(fc_frantuma_in_testo(is_string($data['a'] ?? null) ? $data['a'] : ''), 0, 12000, 'UTF-8');
 if (trim($a) === '') {
     fc_frantuma_errore(t('fc.gm_frantuma_senza_testo'));
 }
