@@ -4,11 +4,13 @@
    sta in fc_ai_client.js: qui ci sono solo i pulsanti e cio' che mostrano.
 
    PUNTI DI CONTATTO CON fc_insert.php
-   Quattro funzioni che esistono gia' e che NON vengono toccate:
+   Cinque funzioni che esistono gia' e che NON vengono toccate:
      appendRowHTML({rid, q, a, qImgUrl, qImgName, aImgUrl, aImgName, isChild, ...}) -> la riga
      markDirty()             segna che c'e' roba da salvare
      showToast(msg, tipo)    avviso in basso
      showConfirm(t, m, ok)   conferma, restituisce una promessa
+     deleteRowSoft(riga, cascade)  elimina una riga: la nuova sparisce, la gia' salvata
+                             diventa un moncone che il server cancella al salvataggio
    Se un giorno cambiano nome, si cambia qui dentro, in fcaiInserisci().
    ================================================================ */
 
@@ -89,23 +91,58 @@ var FCAIP = (function () {
      */
     /* Le righe nuove e ancora vuote (quella che la pagina mette all'inizio,
        per esempio): aggiungendo carte in fondo non devono restare in mezzo. */
+    function rigaConTesto(r) {
+        var rid = r.dataset.rid;
+        var q = $('q-desc-' + rid), a = $('a-desc-' + rid);
+        return !!((q && q.value.trim()) || (a && a.value.trim()) || r.qNewImgFile || r.aNewImgFile || r.qImgLink);
+    }
+    function rigaSalvata(r) {
+        return (parseInt(r.dataset.id, 10) || 0) > 0 && r.dataset.status !== 'new';
+    }
+
     function togliRigheVuote() {
         document.querySelectorAll('#fcRows .fc-row').forEach(function (r) {
             if (r.dataset.id && r.dataset.id !== '0' && r.dataset.id !== '') return;   // gia' salvata
-            var rid = r.dataset.rid;
-            var q = $('q-desc-' + rid), a = $('a-desc-' + rid);
-            var piena = (q && q.value.trim()) || (a && a.value.trim()) || r.qNewImgFile || r.aNewImgFile || r.qImgLink;
-            if (!piena) r.remove();
+            if (!rigaConTesto(r)) r.remove();
         });
     }
 
+    /* "Crea le carte" SOSTITUISCE quelle che ci sono. Svuotare la lista a
+       colpi di innerHTML non basta: una riga gia' salvata (in modifica, o dopo
+       un salvataggio automatico) ha un id nel database, e toglierla dalla
+       pagina senza segnarla lascerebbe la carta vecchia al suo posto — e le
+       nuove si sommerebbero, cioe' sarebbe di nuovo un'aggiunta. Per quelle
+       si usa deleteRowSoft, la stessa strada del cestino di ogni riga: resta
+       un moncone ripristinabile e il server la cancella al salvataggio. Le
+       righe nuove, che il database non conosce, se ne vanno e basta.
+       Si chiede conferma solo se c'e' davvero qualcosa da perdere: la riga
+       vuota che la pagina mette all'inizio non e' una carta. Restituisce
+       false se l'utente annulla. */
+    async function svuotaTabella() {
+        var righe = Array.prototype.slice.call(document.querySelectorAll('#fcRows .fc-row'));
+        var daPerdere = righe.some(function (r) {
+            return r.dataset.status !== 'deleted' && (rigaSalvata(r) || rigaConTesto(r));
+        });
+        if (daPerdere) {
+            var ok = await showConfirm(T('fc.ibfai_ricrea_tit'), T('fc.ibfai_ricrea_testo'), T('fc.ibfai_si_ricrea'));
+            if (!ok) return false;
+        }
+        righe.forEach(function (r) {
+            if (!rigaSalvata(r)) { r.remove(); return; }
+            if (r.dataset.status !== 'deleted') deleteRowSoft(r, false);
+        });
+        if (typeof updateRowCountChip === 'function') updateRowCountChip();
+        return true;
+    }
+
+    /* svuota: sostituisce le carte presenti (vedi svuotaTabella);
+       aggiungi: le toglie solo le righe vuote e accoda; senza nessuno dei due
+       accoda e basta. */
     async function fcaiInserisci(carte, svuota, aggiungi) {
         var lista = $('fcRows');
         if (aggiungi) togliRigheVuote();
-        else if (svuota && lista.children.length > 0) {
-            var ok = await showConfirm(T('fc.ibfai_ricrea_tit'), T('fc.ibfai_ricrea_testo'), T('fc.ibfai_si_ricrea'));
-            if (!ok) return -1;
-            lista.innerHTML = '';
+        else if (svuota) {
+            if (!(await svuotaTabella())) return -1;
         }
         var partenza = lista.querySelectorAll('.fc-row').length;
         /* Il numero di riga (rid) deve essere nuovo anche se nel frattempo ne
@@ -220,8 +257,12 @@ var FCAIP = (function () {
     }
 
     /* L'import capisce da solo cosa e' stato incollato (fc_smart_import.js) e
-       AGGIUNGE le carte in fondo: prima sostituiva tutta la tabella, e in un
-       mazzo gia' pieno voleva dire perdere le parole per aggiungerne altre. */
+       SOSTITUISCE le carte presenti con quelle nuove, come dice il pulsante
+       "Crea le carte". Per un periodo le accodava in fondo, per non far
+       perdere le parole di un mazzo pieno: ora la sostituzione chiede conferma
+       quando c'e' qualcosa da perdere, e le carte gia' salvate restano
+       ripristinabili fino al salvataggio (vedi svuotaTabella). Chi vuole solo
+       aggiungere parole usa "Genera con l'IA", che accoda. */
     async function importa() {
         var carte = [];
         if (window.FCSmart && $('fcaiSmart')) {
@@ -243,10 +284,12 @@ var FCAIP = (function () {
         }
         if (!carte.length) { showToast(T('fc.ibfai_vuoto'), 'error'); return; }
 
-        await fcaiInserisci(carte, false, true);
+        /* -1 = l'utente ha annullato la sostituzione: il testo incollato
+           resta dov'e', cosi' non va riscritto. */
+        if (await fcaiInserisci(carte, true) === -1) return;
         if (window.FCSmart) FCSmart.svuota();
         $('fcaiImportNota').className = 'fcai-nota is-ok';
-        $('fcaiImportNota').textContent = T('fc.smi_aggiunte', {n: carte.length});
+        $('fcaiImportNota').textContent = T('fc.smi_create', {n: carte.length});
     }
     window.FCAIInserisci = fcaiInserisci;
 

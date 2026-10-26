@@ -3049,13 +3049,32 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
                       placeholder="${escAttr(T('fcv.ph_note'))}">${escAttr(c.n || '')}</textarea>
             ${conEsempio ? `<div class="fcv-ex-wrap">
                 <label class="fcv-sub" for="e-desc-${rid}">${escAttr(T('fcv.esempio'))} <span>${escAttr(T('fcv.facoltativo'))}</span></label>
-                <input type="text" class="fcv-in fcv-example" id="e-desc-${rid}" value="${escAttr(c.ex || '')}"
+                <div class="fcv-exq-lista">${fcvEsempioHTML(rid, 0, c.ex, c.exGap)}</div>
+                <button type="button" class="fcv-exq-add" data-exq-add>+ ${escAttr(T('fcv.esempio_altro'))}</button>
+            </div>` : ''}
+        </div>`;
+    }
+    /* UN ESEMPIO DELLA RIGA
+       Una parola puo' avere piu' esempi gia' in inserimento: ogni campo ha il
+       suo testo, la sua parte nascosta (campo nascosto + anteprima + scelta) e,
+       dal secondo in poi, il cestino. Il primo tiene gli id di sempre
+       (e-desc-<rid>, eg-desc-<rid>...) perche' l'etichetta punta a lui; gli
+       altri aggiungono -<k>. Il resto del codice non cerca per id ma dentro
+       .fcv-exq-item, cosi' vale per tutti allo stesso modo. */
+    function fcvEsempioHTML(rid, k, testo, gap){
+        const imp = FC.impara || {};
+        const sfx = k ? '-' + k : '';
+        return `<div class="fcv-exq-item" data-exq-k="${k}">
+            <div class="fcv-exq-riga">
+                <input type="text" class="fcv-in fcv-example" id="e-desc-${rid}${sfx}" value="${escAttr(testo || '')}"
                        placeholder="${escAttr(T('fcv.esempio_ph'))}" lang="${escAttr(imp.codice || '')}"
                        autocomplete="off" enterkeyhint="next" maxlength="1000">
-                <input type="hidden" class="fcv-example-gap" id="eg-desc-${rid}" value="${escAttr(c.exGap || '')}">
-                <div class="fcv-gp-anteprima" id="eg-prev-${rid}" hidden></div>
-                <div class="fcv-gp-box" id="eg-box-${rid}" hidden></div>
-            </div>` : ''}
+                ${k ? `<button type="button" class="fcv-exq-del" data-exq-del
+                               aria-label="${escAttr(T('fcv.esempio_togli'))}" title="${escAttr(T('fcv.esempio_togli'))}">${ICON_TRASH_SM}</button>` : ''}
+            </div>
+            <input type="hidden" class="fcv-example-gap" id="eg-desc-${rid}${sfx}" value="${escAttr(gap || '')}">
+            <div class="fcv-gp-anteprima" id="eg-prev-${rid}${sfx}" hidden></div>
+            <div class="fcv-gp-box" id="eg-box-${rid}${sfx}" hidden></div>
         </div>`;
     }
 
@@ -3069,17 +3088,20 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
         occhio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-2.6 3.4M6.3 6.3C3.8 8 2.5 12 2.5 12S6 19 12 19a9.5 9.5 0 0 0 4.4-1.1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>',
         mirino: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M8 12h8"/></svg>'
     };
+    /* Aggiorna l'anteprima della parte nascosta di TUTTI gli esempi della riga. */
     function fcvRigaEsempio(row){
         if (!FCV || !row || !window.fcvGap) return;
-        const rid = row.dataset.rid;
-        const ex = document.getElementById('e-desc-' + rid);
-        const prev = document.getElementById('eg-prev-' + rid);
-        const gapEl = document.getElementById('eg-desc-' + rid);
-        const box = document.getElementById('eg-box-' + rid);
+        row.querySelectorAll('.fcv-exq-item').forEach(function (item) { fcvAnteprimaEsempio(row, item); });
+    }
+    function fcvAnteprimaEsempio(row, item){
+        const ex = item.querySelector('.fcv-example');
+        const prev = item.querySelector('.fcv-gp-anteprima');
+        const gapEl = item.querySelector('.fcv-example-gap');
+        const box = item.querySelector('.fcv-gp-box');
         if (!ex || !prev || !gapEl) return;
         const testo = ex.value.trim();
         if (!testo || (box && !box.hidden)) { prev.hidden = !testo || (box && !box.hidden); return; }
-        const parola = (document.getElementById('q-desc-' + rid) || {}).value || '';
+        const parola = (document.getElementById('q-desc-' + row.dataset.rid) || {}).value || '';
         const l = fcvGap.lacune(testo, parola, gapEl.value);
         const chip = l.length
             ? `<button type="button" class="fcv-gp-chip" data-gp-apri>${fcvGapIcone.occhio}<span>${escAttr(T('fcv.es_nascosta'))}</span>${fcvGap.eAutomatica(l) ? `<em>${escAttr(T('fcv.es_auto'))}</em>` : ''}</button>`
@@ -3087,18 +3109,18 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
         prev.innerHTML = `<p class="fcv-gp-frase">${fcvGap.htmlEvidenza(testo, parola, gapEl.value)}</p>${chip}`;
         prev.hidden = false;
     }
-    function fcvApriSceltaRiga(row){
-        const rid = row.dataset.rid;
-        const ex = document.getElementById('e-desc-' + rid);
-        const gapEl = document.getElementById('eg-desc-' + rid);
-        const box = document.getElementById('eg-box-' + rid);
+    function fcvApriSceltaRiga(row, item){
+        if (!item) return;
+        const ex = item.querySelector('.fcv-example');
+        const gapEl = item.querySelector('.fcv-example-gap');
+        const box = item.querySelector('.fcv-gp-box');
         if (!ex || !gapEl || !box || !ex.value.trim()) return;
         const imp = FC.impara || {};
         box.hidden = false;
         fcvRigaEsempio(row);
         fcvGap.monta(box, {
             testo: ex.value.trim(),
-            parola: (document.getElementById('q-desc-' + rid) || {}).value || '',
+            parola: (document.getElementById('q-desc-' + row.dataset.rid) || {}).value || '',
             gap: gapEl.value,
             lingua: imp.codice || '',
             fatto: function (g) {
@@ -3123,8 +3145,85 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
         const b = e.target.closest && e.target.closest('[data-gp-apri]');
         if (!b) return;
         e.preventDefault();
-        fcvApriSceltaRiga(b.closest('.fc-row'));
+        fcvApriSceltaRiga(b.closest('.fc-row'), b.closest('.fcv-exq-item'));
     });
+    /* Un altro esempio / togliere un esempio. Il nuovo campo prende il fuoco
+       subito: si continua a scrivere senza ricercarlo con il dito. Togliere un
+       esempio gia' scritto e' una modifica come un'altra (segna la riga). */
+    document.getElementById('fcRows').addEventListener('click', function (e) {
+        const t = e.target.closest && e.target.closest('[data-exq-add], [data-exq-del]');
+        if (!t) return;
+        e.preventDefault();
+        const row = t.closest('.fc-row');
+        if (!row) return;
+        if (t.hasAttribute('data-exq-add')) {
+            const lista = row.querySelector('.fcv-exq-lista');
+            if (!lista) return;
+            const k = Array.from(lista.children).reduce(function (m, it) { return Math.max(m, (parseInt(it.dataset.exqK, 10) || 0) + 1); }, 1);
+            lista.insertAdjacentHTML('beforeend', fcvEsempioHTML(row.dataset.rid, k, '', ''));
+            const nuovo = lista.lastElementChild.querySelector('.fcv-example');
+            if (nuovo) nuovo.focus();
+            return;
+        }
+        const item = t.closest('.fcv-exq-item');
+        if (!item) return;
+        const aveva = (item.querySelector('.fcv-example') || {}).value;
+        item.remove();
+        if (aveva && aveva.trim()) onRowChange(row);
+    });
+    /* Dopo un salvataggio la zona degli esempi puo' restare aperta (vedi
+       fcvEsempiSalvati) perche' si stava scrivendo li' dentro. Quando il fuoco
+       esce e non c'e' piu' niente da scrivere, ha finito il suo lavoro: resta
+       il pulsante con il conteggio.
+       Il controllo e' RIMANDATO e guarda dove sta il fuoco DOPO: su Safari un
+       pulsante non prende il fuoco al tocco, quindi relatedTarget e' nullo
+       anche quando si sta toccando "+ Altro esempio", e toglierla subito
+       farebbe sparire il pulsante prima del suo click. */
+    document.getElementById('fcRows').addEventListener('focusout', function (e) {
+        const wrap = e.target.closest && e.target.closest('.fcv-ex-wrap[data-resto]');
+        if (!wrap) return;
+        setTimeout(function () {
+            if (!wrap.isConnected || wrap.contains(document.activeElement)) return;
+            const pieno = Array.from(wrap.querySelectorAll('.fcv-example')).some(function (i) { return i.value.trim() !== ''; });
+            if (!pieno) wrap.remove();
+        }, 300);
+    });
+    /* Dopo un salvataggio con esempi: quelli inviati (e rimasti uguali) sono
+       esempi veri e il loro campo non serve piu'. Restano solo i campi toccati
+       DOPO l'invio — il salvataggio automatico parte dopo 1,8 s di quiete, e si
+       puo' essere gia' a meta' del secondo esempio: toglierli farebbe perdere
+       quello che si sta scrivendo.
+       Il campo in cui si sta scrivendo proprio adesso non si toglie: si svuota
+       e resta dov'e', col fuoco (e con la tastiera aperta), pronto per
+       l'esempio dopo. Se non si scriveva li' dentro e non resta niente, la zona
+       sparisce come prima. */
+    function fcvEsempiSalvati(row){
+        const wrap = row.querySelector('.fcv-ex-wrap');
+        if (!wrap) return;
+        const attivo = document.activeElement;
+        const dentro = wrap.contains(attivo);
+        wrap.querySelectorAll('.fcv-exq-item').forEach(function (it) {
+            const inp = it.querySelector('.fcv-example');
+            const salvato = !!inp && it._inviato !== undefined && inp.value.trim() === it._inviato;
+            delete it._inviato;
+            if (!salvato) return;
+            if (inp !== attivo) { it.remove(); return; }
+            inp.value = '';
+            it.querySelector('.fcv-example-gap').value = '';
+            ['.fcv-gp-anteprima', '.fcv-gp-box'].forEach(function (s) {
+                const el = it.querySelector(s);
+                if (el) { el.hidden = true; el.innerHTML = ''; }
+            });
+        });
+        const pieno = Array.from(wrap.querySelectorAll('.fcv-example')).some(function (i) { return i.value.trim() !== ''; });
+        if (!pieno && !dentro) { wrap.remove(); return; }
+        wrap.dataset.resto = '1';
+        const lista = wrap.querySelector('.fcv-exq-lista');
+        if (lista && !lista.children.length) {
+            lista.insertAdjacentHTML('beforeend', fcvEsempioHTML(row.dataset.rid, 0, '', ''));
+            if (dentro) lista.querySelector('.fcv-example').focus();
+        }
+    }
 
     /* Invio nei campi di una parola: avanti, mai "invia il modulo" (che
        salverebbe e porterebbe via dalla pagina). */
@@ -7684,18 +7783,29 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
 
             fd.append(`cards[${indiceInvio}][a]`, aVal);
 
-            /* La parola ha due campi in piu': il significato, e l'esempio
-               scritto al volo (il server lo aggiunge agli esempi della carta). */
+            /* La parola ha campi in piu': il significato, le note e gli esempi
+               scritti al volo (il server li aggiunge agli esempi della carta). */
             if (FCV) {
                 const mEl = document.getElementById('m-desc-' + rid);
-                const eEl = document.getElementById('e-desc-' + rid);
                 fd.append(`cards[${indiceInvio}][meaning]`, mEl ? mEl.value.trim() : '');
                 const nEl = document.getElementById('n-desc-' + rid);
                 fd.append(`cards[${indiceInvio}][notes]`, nEl ? nEl.value.trim() : '');
-                if (eEl && eEl.value.trim() !== '' && row.dataset.status !== 'deleted') {
-                    fd.append(`cards[${indiceInvio}][example]`, eEl.value.trim());
-                    const gEl = document.getElementById('eg-desc-' + rid);
-                    if (gEl && gEl.value) fd.append(`cards[${indiceInvio}][example_gap]`, gEl.value);
+                /* Gli esempi scritti nella riga: uno per campo pieno, in
+                   ordine. Di ognuno si ricorda il testo inviato (_inviato):
+                   alla risposta serve a distinguere i campi salvati da quelli
+                   toccati nel frattempo (vedi fcvEsempiSalvati). */
+                if (row.dataset.status !== 'deleted') {
+                    let k = 0;
+                    row.querySelectorAll('.fcv-exq-item').forEach(function (it) {
+                        const inp = it.querySelector('.fcv-example');
+                        const testo = inp ? inp.value.trim() : '';
+                        if (!testo) return;
+                        fd.append(`cards[${indiceInvio}][examples][${k}][text]`, testo);
+                        const gEl = it.querySelector('.fcv-example-gap');
+                        if (gEl && gEl.value) fd.append(`cards[${indiceInvio}][examples][${k}][gap]`, gEl.value);
+                        it._inviato = testo;
+                        k++;
+                    });
                 }
             }
 
@@ -7818,15 +7928,14 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
 
 
 
-            /* L'esempio scritto nella riga e' diventato un esempio vero: il
-               campo sparisce, da qui in poi si gestisce dal pulsante.
-               Va tolto PRIMA di segnare la riga pulita: il campo ha appena
+            /* Gli esempi scritti nella riga sono diventati esempi veri: i loro
+               campi spariscono, da qui in poi si gestiscono dal pulsante (info.ex
+               e' quanti ne ha la carta in tutto). Restano solo i campi toccati
+               dopo l'invio — vedi fcvEsempiSalvati.
+               Va fatto PRIMA di segnare la riga pulita: il campo ha appena
                ricevuto il testo, e il browser, togliendolo, spara un "change"
                che la rimarcherebbe come modificata. */
-            if (info.ex) {
-                const exW = row.querySelector('.fcv-ex-wrap');
-                if (exW) { if (exW.contains(document.activeElement)) document.activeElement.blur(); exW.remove(); }
-            }
+            if (info.ex) fcvEsempiSalvati(row);
             const eraNuova = row.dataset.status === 'new' || parseInt(row.dataset.id, 10) !== parseInt(info.id, 10);
 
             row.dataset.id = info.id;

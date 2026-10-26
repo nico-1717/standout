@@ -347,18 +347,42 @@ function fc_ins_contenuto(array $testi, array $all): array {
     return [$cols, $vals];
 }
 
-/* L'esempio scritto nella riga di una parola: diventa un esempio vero della
-   carta, uguale a quelli aggiunti dal pulsante. Restituisce 1 se l'ha
-   aggiunto, cosi' la pagina puo' togliere il campo e accendere il pulsante. */
+/* Gli esempi scritti nella riga di una parola: ognuno diventa un esempio vero
+   della carta, uguale a quelli aggiunti dal pulsante. Restituisce 0 se non ne
+   ha aggiunto nessuno; altrimenti QUANTI ne ha la carta adesso, in totale (non
+   solo quelli appena scritti): la pagina lo scrive sul pulsante, e una carta
+   puo' riceverne altri con un secondo salvataggio — il salvataggio automatico
+   parte dopo pochi secondi di quiete, anche se si sta ancora scrivendo il
+   secondo esempio.
+   Arrivano in $c['examples'][k] = [text, gap]. Il formato di prima, un solo
+   example / example_gap, resta accettato: una pagina rimasta aperta da prima
+   del rilascio (il JS e' quello vecchio finche' non si ricarica) manda ancora
+   quello. */
 function fc_esempio_rapido(array $c, int $id, string $tipo): int {
     if (!fc_is_vocab() || $id <= 0) return 0;
-    $testo = sec_str($c['example'] ?? '', 1000);
-    if ($testo === '') return 0;
+    $voci = [];
+    if (isset($c['examples']) && is_array($c['examples'])) {
+        foreach ($c['examples'] as $e) {
+            if (is_array($e)) $voci[] = [$e['text'] ?? '', $e['gap'] ?? ''];
+        }
+    } else {
+        $voci[] = [$c['example'] ?? '', $c['example_gap'] ?? ''];
+    }
     $col = $tipo === 'child' ? 'child_id' : 'parent_id';
-    /* La parte da nascondere scelta nella riga (fcvGap.monta); vuota = automatica. */
-    $gap = fcv_gap_pulisci(sec_str($c['example_gap'] ?? '', 1000));
-    sec_q("INSERT INTO " . fc_t('examples') . " ($col, example_text, gap_text) VALUES (?, ?, ?)", [$id, $testo, $gap !== '' ? $gap : null]);
-    return 1;
+    $aggiunti = 0;
+    /* Venti per carta in un colpo solo: piu' che a sufficienza per una parola,
+       e un tetto a quante INSERT puo' provocare una sola richiesta. */
+    foreach (array_slice($voci, 0, 20) as $v) {
+        $testo = sec_str($v[0], 1000);
+        if ($testo === '') continue;
+        /* La parte da nascondere scelta nella riga (fcvGap.monta); vuota = automatica. */
+        $gap = fcv_gap_pulisci(sec_str($v[1], 1000));
+        sec_q("INSERT INTO " . fc_t('examples') . " ($col, example_text, gap_text) VALUES (?, ?, ?)", [$id, $testo, $gap !== '' ? $gap : null]);
+        $aggiunti++;
+    }
+    if ($aggiunti === 0) return 0;
+    $tot = sec_one("SELECT COUNT(*) AS n FROM " . fc_t('examples') . " WHERE $col = ?", [$id]);
+    return max($aggiunti, (int)($tot['n'] ?? 0));
 }
 
 /* ============================================================
