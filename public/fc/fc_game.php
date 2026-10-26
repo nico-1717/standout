@@ -1462,9 +1462,9 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                     <div class="f2-testi">
                     <div class="hdr-title"><?php echo (int)($position); ?> <span>/ <?php echo (int)($total_words); ?></span></div>
                     <div class="hdr-sub">
-                        <?php th('fc.gm_n_concetti', ['conteggio' => '<b>' . (int)$answered_pages_count . '/' . (int)$total_words . '</b>']); ?>
-                        <?php if ($total_words != $total_cards): ?>
-                            &middot; Card <b><?php echo (int)($answered_cards_count); ?>/<?php echo (int)($total_cards); ?></b>
+                        <span class="f2-riga"><?php th('fc.gm_n_concetti', ['conteggio' => '<b>' . (int)$answered_pages_count . '/' . (int)$total_words . '</b>']); ?></span>
+                        <?php if ($total_words != $total_cards): /* le carte sotto i concetti, su una riga a parte */ ?>
+                            <span class="f2-riga">Card <b><?php echo (int)($answered_cards_count); ?>/<?php echo (int)($total_cards); ?></b></span>
                         <?php endif; ?>
                     </div>
                     </div>
@@ -4907,8 +4907,8 @@ document.addEventListener('click', function (e) {
 var F2_PASSI = ['0', '5', '10', '15', '20', '25'];
 var F2_MAX_DISCHI = 14;        // sotto ~22px fra un disco e l'altro non si toccano col dito
 var F2_COLORE = '#B79CFF';     // senza categoria (o colore non valido): il lilla dei flashcard
-var F2_C1 = 2 * Math.PI * 14;  // circonferenze dei due anelli (raggi 14 e 9 nel viewBox 36)
-var F2_C2 = 2 * Math.PI * 9;
+var F2_C1 = 2 * Math.PI * 15.2;  // circonferenze dei due anelli (raggi 15.2 e 9.6 nel viewBox 36)
+var F2_C2 = 2 * Math.PI * 9.6;
 var __f2Ultimo = null;         // ultimi valori disegnati: seme per la pagina successiva
 
 function f2Ogni () {
@@ -4927,14 +4927,14 @@ function f2Colore (m) {
 
 /* I tratti mostrati come dischi. Con troppi checkpoint (partita lunga, passo
    corto) piu' tratti si fondono in un disco solo; un avanzo finale piu'
-   corto di mezzo tratto si attacca all'ultimo, per non avere due dischi quasi
+   corto di 6/10 di tratto si attacca all'ultimo, per non avere due dischi quasi
    sovrapposti in fondo. Con i checkpoint spenti c'e' un tratto solo. */
 function f2Tratti (tot, N) {
     if (!N || N >= tot) return [[1, tot]];
     var g = Math.max(1, Math.ceil(Math.ceil(tot / N) / F2_MAX_DISCHI));
     var passo = N * g, fine = [];
     for (var b = passo; b < tot; b += passo) fine.push(b);
-    if (fine.length && tot - fine[fine.length - 1] < passo / 2) fine.pop();
+    if (fine.length && tot - fine[fine.length - 1] < passo * 0.6) fine.pop();
     fine.push(tot);
     var out = [], a = 1;
     fine.forEach(function (x) { out.push([a, x]); a = x + 1; });
@@ -4996,6 +4996,15 @@ function f2AnimaColore (c, da, a) {
     requestAnimationFrame(passo);
 }
 
+/* Posizione sul tracciato, in percentuale 0-100. La linea occupa tutta la
+   larghezza (da bordo a bordo, come le carte sotto), ma un disco di 17px
+   centrato sul 100% sporgerebbe fuori di meta': le posizioni vengono quindi
+   mappate fra 8.5px e (larghezza - 8.5px), cosi' anche l'ultimo disco resta
+   dentro. Valgono per dischi e riempimento, che quindi restano allineati. */
+function f2X (p) {
+    return 'calc(8.5px + (100% - 17px) * ' + (p / 100) + ')';
+}
+
 function f2Scrivi (c, v, senzaColore) {
     /* Sul contenitore, non sull'intestazione: anche l'elenco degli errori
        (fratello dell'intestazione) deve avere lo stesso colore d'accento. */
@@ -5003,8 +5012,8 @@ function f2Scrivi (c, v, senzaColore) {
     var path = c.querySelector('.f2-path');
     if (path) {
         var l = path.querySelector('.f2-line'), o = path.querySelector('.f2-line-oltre');
-        if (l) l.style.width = v.fill + '%';
-        if (o) o.style.width = v.oltre + '%';
+        if (l) l.style.width = f2X(v.fill);
+        if (o) o.style.width = f2X(v.oltre);
     }
     var ring = c.querySelector('.f2-ring');
     if (ring) {
@@ -5041,7 +5050,7 @@ function f2Disegna (c, conSeme) {
         var n = f2Errori(m, t[0], t[1]);
         var stato = m.pos > t[1] ? 'ok' : (m.pos >= t[0] ? 'cur' : 'fut');
         var x = (t[1] / m.tot) * 100;
-        var attr = ' style="left:' + x + '%"';
+        var attr = ' style="left:' + f2X(x) + '"';
         if (stato === 'cur') {
             html += '<' + (n > 0 ? 'button type="button"' : 'i') + ' class="f2-n f2-d is-cur"' + attr +
                     (n > 0 ? ' data-a="' + t[0] + '" data-b="' + t[1] + '" title="' + T('fc.gm_f2_nodo', { n: n }).replace(/"/g, '&quot;') + '"' : '') +
@@ -5060,9 +5069,9 @@ function f2Disegna (c, conSeme) {
     var ring = c.querySelector('.f2-ring');
     if (ring) {
         if (!ring.__pronto) {
-            ring.innerHTML = '<svg viewBox="0 0 36 36" width="34" height="34" aria-hidden="true">' +
-                '<circle class="f2-rb" cx="18" cy="18" r="14"/><circle class="f2-r1" cx="18" cy="18" r="14" transform="rotate(-90 18 18)"/>' +
-                '<circle class="f2-rb f2-rb2" cx="18" cy="18" r="9"/><circle class="f2-r2" cx="18" cy="18" r="9" transform="rotate(-90 18 18)"/></svg>';
+            ring.innerHTML = '<svg viewBox="0 0 36 36" width="46" height="46" aria-hidden="true">' +
+                '<circle class="f2-rb" cx="18" cy="18" r="15.2"/><circle class="f2-r1" cx="18" cy="18" r="15.2" transform="rotate(-90 18 18)"/>' +
+                '<circle class="f2-rb f2-rb2" cx="18" cy="18" r="9.6"/><circle class="f2-r2" cx="18" cy="18" r="9.6" transform="rotate(-90 18 18)"/></svg>';
             ring.__pronto = true;
         }
         ring.hidden = !v.ring;
