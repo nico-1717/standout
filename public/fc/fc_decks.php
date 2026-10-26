@@ -596,20 +596,25 @@ function fcm_chip_esame(?string $data, string $classe = 'cs-esame'): string {
          . sec_h($testo) . '</span>';
 }
 
+/** Il badge sull'icona: con due o piu' carte difficili nel ramo, un tasto che
+    avvia subito una partita solo su quelle (fc_game_start ?solo=difficili).
+    Un numero sull'icona si legge a colpo d'occhio come una notifica, senza
+    il rosso "di allarme" della vecchia pastiglia nella riga dei numeri. */
+function fcm_badge_ripasso(int $id): string {
+    $diff = (int)fcm_numeri($id)['r'];
+    if ($diff < 2) return '';
+    return '<a class="cs-badge-rip" href="' . sec_h(fcm_url_difficili($id)) . '" onclick="event.stopPropagation()"'
+         . ' title="' . sec_h(t('fc.dk_gioca_difficili')) . '" aria-label="' . sec_h(t('fc.dk_da_ripassare', ['n' => $diff])) . '">'
+         . $diff . '</a>';
+}
+
 /** La riga di numeri sotto il nome del mazzo, nella lista. */
 function fcm_riga_html(int $id, bool $note, ?string $esame = null): string {
     $n = fcm_numeri($id);
     $tot = array_sum($n['l']);
     $out = '<span class="cat-stats">' . fcm_chip_esame($esame);
-    /* DA RIPASSARE: con due o piu' carte difficili nel ramo, un tasto che
-       avvia subito una partita solo su quelle (fc_game_start ?solo=difficili). */
-    $diff = (int)$n['r'];
-    if ($diff >= 2) {
-        $out .= '<a class="cs-difficili" href="' . sec_h(fcm_url_difficili($id)) . '" onclick="event.stopPropagation()"'
-              . ' title="' . sec_h(t('fc.dk_gioca_difficili')) . '">'
-              . '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>'
-              . sec_h(t('fc.dk_da_ripassare', ['n' => $diff])) . '</a>';
-    }
+    /* Il "da ripassare" non sta piu' qui: vive come badge sull'icona del mazzo
+       (fcm_badge_ripasso), cosi' la riga dei numeri resta tutta neutra. */
     if ($n['g'] > 0) {
         $out .= '<span class="cs-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16l13-8Z"/></svg>'
               . sec_h(t($n['g'] === 1 ? 'fc.dk_partite_1' : 'fc.dk_partite', ['n' => $n['g']])) . '</span>';
@@ -1130,6 +1135,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
         <span class="cat-icon <?php echo $level === 0 ? 'lvl0' : 'lvln'; ?>">
             <?php echo fc_icona_svg($iconaMazzo); ?>
+            <?php echo fcm_badge_ripasso((int)$id); ?>
         </span>
 
         <div class="cat-name-wrap">
@@ -2285,7 +2291,6 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
     var SVG_CARTE    = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="2.2"/><path d="M7.5 7V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/></svg>';
     var SVG_SOTTOC   = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.5l1.5 2H19a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>';
     var SVG_PIN      = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.5 2.5a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4l-1.6 1.6a1 1 0 0 1-1 .25l-2.2 2.2.4 4.2a1 1 0 0 1-.3.8l-1 1a1 1 0 0 1-1.4 0L10 15.1l-5.3 5.3a1 1 0 0 1-1.4-1.4L8.6 13.7 4.2 9.3a1 1 0 0 1 0-1.4l1-1a1 1 0 0 1 .8-.3l4.2.4 2.2-2.2a1 1 0 0 1 .25-1Z"/></svg>';
-    var SVG_PLAY_PIENO = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>';
     var SVG_PARTITE  = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v16l13-8Z"/></svg>';
     var SVG_NOTA     = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>';
     /* La barretta dei livelli in fondo al riquadro: la stessa della lista
@@ -2320,7 +2325,9 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
             var nSub = figliVisibili(c.id).length;
             var sel = selezione[c.id] ? ' is-sel' : '';
             return '<div class="fc-subcat-card' + sel + '" data-id="' + c.id + '" data-subs="' + nSub + '" style="--sc-color:' + esc(c.c) + ';">' +
-                     '<span class="fc-subcat-dot">' + (ICONE_MAZZO[c.ic] || SVG_CARTELLA) + '</span>' +
+                     '<span class="fc-subcat-dot">' + (ICONE_MAZZO[c.ic] || SVG_CARTELLA) +
+                       (c.st && c.st.r >= 2 ? '<a class="cs-badge-rip" href="' + esc(c.dif) + '" title="' + esc(T('fc.dk_gioca_difficili')) + '" aria-label="' + esc(T('fc.dk_da_ripassare', { n: c.st.r })) + '">' + c.st.r + '</a>' : '') +
+                     '</span>' +
                      '<a class="fc-subcat-go" href="' + fcUrl('fc_view.php?category_id=' + c.id) + '" aria-label="' + esc(T('fc.cfc_apri')) + '">' + SVG_APRI + '</a>' +
                      '<div class="fc-subcat-name">' + (c.pin ? '<span class="cat-pin">' + SVG_PIN + '</span>' : '') + esc(c.n) + '</div>' +
                      (c.ex || '') +
@@ -2331,7 +2338,6 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
                        (c.nt ? '<span class="sc-nota">' + SVG_NOTA + '</span>' : '') +
                      '</div>' +
                      barraLivelli(c.st) +
-                     (c.st && c.st.r >= 2 ? '<a class="cs-difficili sc-difficili" href="' + esc(c.dif) + '">' + SVG_PLAY_PIENO + esc(T('fc.dk_da_ripassare', { n: c.st.r })) + '</a>' : '') +
                      '<span class="fc-subcat-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
                    '</div>';
         }).join('');
@@ -2359,7 +2365,7 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
            riquadro scende dentro se c'e' qualcosa sotto, altrimenti apre
            anche lui (una cartella senza sottocartelle non ha un "dentro" da
            mostrare qui). */
-        if (e.target.closest('.fc-subcat-go, .cs-difficili')) return;
+        if (e.target.closest('.fc-subcat-go, .cs-badge-rip')) return;
         e.preventDefault();
         if (parseInt(card.dataset.subs, 10) > 0) {
             gridPercorso.push(id);

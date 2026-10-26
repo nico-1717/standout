@@ -1385,19 +1385,23 @@ body.fc-vocab .hdr-play-btn{ box-shadow:0 2px 6px rgba(255,149,0,.3), 0 10px 22p
     background:color-mix(in srgb, var(--text) 7%, transparent); }
 .cs-esame svg, .sc-esame svg{ width:11px; height:11px; }
 .cs-esame.is-vicino, .sc-esame.is-vicino{ color:#C76A00; background:color-mix(in srgb, #FF9500 16%, transparent); }
-.cs-esame.is-urgente, .sc-esame.is-urgente{ color:#fff; background:linear-gradient(135deg, #FF9500, #FF3B30);
-    box-shadow:0 3px 10px -4px rgba(255,59,48,.6); }
+/* Esame urgente: solo contorno rosso, niente gradiente pieno. Il colore si
+   mescola col testo del tema, cosi' resta leggibile sia chiaro che scuro. */
+.cs-esame.is-urgente, .sc-esame.is-urgente{ color:color-mix(in srgb, var(--red, #FF3B30) 70%, var(--text)); background:transparent;
+    box-shadow:inset 0 0 0 1.5px currentColor; }
 .sc-esame{ margin:-4px 0 8px; }
 
-.cs-difficili{ display:inline-flex; align-items:center; gap:4px; padding:3px 9px 3px 7px; border-radius:999px; white-space:nowrap;
-    font-size:11px; font-weight:800; text-decoration:none; color:var(--red, #FF3B30);
-    background:color-mix(in srgb, var(--red, #FF3B30) 12%, transparent);
-    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--red, #FF3B30) 25%, transparent);
-    transition:transform .15s var(--spring), background .2s; }
-.cs-difficili svg{ width:9px; height:9px; }
-.cs-difficili:hover{ background:color-mix(in srgb, var(--red, #FF3B30) 20%, transparent); }
-.cs-difficili:active{ transform:scale(.94); }
-.sc-difficili{ margin-top:9px; }
+/* Il "da ripassare" come badge sull'icona del mazzo (lista e griglia): scuro e
+   non rosso, come il numero di una notifica. Il bordo col colore della scheda
+   lo stacca dall'icona; ::before allarga l'area del tocco oltre i 20px. */
+.cat-icon, .fc-subcat-dot{ position:relative; }
+.cs-badge-rip{ position:absolute; top:-6px; right:-7px; z-index:2; min-width:20px; height:20px; box-sizing:border-box; padding:0 5px;
+    display:flex; align-items:center; justify-content:center; border-radius:99px; text-decoration:none;
+    background:var(--text); color:var(--surface); border:2px solid var(--surface);
+    font-size:11px; font-weight:800; line-height:1; font-variant-numeric:tabular-nums;
+    transition:transform .15s var(--spring); }
+.cs-badge-rip::before{ content:''; position:absolute; inset:-8px; }
+.cs-badge-rip:active{ transform:scale(.9); }
 
 .field-opt{ font-weight:600; text-transform:none; letter-spacing:0; color:var(--text-3); }
 .exam-row{ display:flex; align-items:center; gap:8px; }
