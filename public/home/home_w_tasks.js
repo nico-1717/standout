@@ -109,6 +109,10 @@
 
     H.register('tasks', {
         title: 'home.w_attivita', icon: 'list', color: 'var(--green)', wide: true, link: 'planner/todo.php',
+        /* le pillole arrivano dal motore (extra _pills): se si chiedessero dopo il
+           disegno, la linguetta "Pillole" comparirebbe a pagina gia' letta */
+        needs: ['tasks'],
+        extra: [{ key: '_pills', file: TODO_API, action: 'pills' }],
         build: function (w) {
             w.tab = H.lsGet('ho_tab') || 'todo';
             w.seg = el('div', 'ho-seg'); w.seg.setAttribute('role', 'tablist');
@@ -141,12 +145,6 @@
         },
         update: function (w, d, fromCache) {
             var pills = d._pills || null;
-            if (!w.pillsLoaded && !fromCache) {
-                w.pillsLoaded = true;
-                H.get(TODO_API, 'pills').then(function (p) {
-                    d._pills = p; H.repaint(['tasks']);
-                }).catch(function () {});
-            }
             var dosi = [], tardi = [];
             if (pills && pills.installed !== false) {
                 (pills.doses || []).forEach(function (x) { if (x.status === 'pending' || !x.status) dosi.push(x); });
@@ -197,6 +195,7 @@
 
     H.register('note', {
         title: 'home.w_nota', icon: 'note', color: 'var(--orange)', link: 'planner/todo.php', linkLabel: 'home.smista',
+        needs: ['note'],
         build: function (w) {
             var ta = el('textarea', 'ho-in ho-note'); ta.maxLength = 20000; ta.rows = 4;
             ta.placeholder = T('home.nota_ph'); ta.setAttribute('aria-label', T('home.w_nota'));
@@ -304,6 +303,7 @@
 
     H.register('habits', {
         title: 'home.w_abitudini', icon: 'heart', color: 'var(--pink)', link: 'planner/habits.php',
+        needs: ['habits'],
         build: function (w) { w.groups = el('div', 'ho-hgs'); w.body.appendChild(w.groups); },
         update: function (w, d) {
             var gs = d.habit_groups || [];

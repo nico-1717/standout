@@ -74,7 +74,8 @@
 .ho-w--full{ grid-column:1 / -1; }
 
 .ho-w{ position:relative; background:var(--surface); border-radius:var(--r-card); box-shadow:var(--shadow-card); padding:16px; min-width:0; display:flex; flex-direction:column; gap:12px; animation:ho-in .5s var(--spring) both; }
-@keyframes ho-in{ from{ opacity:0; transform:translateY(14px) scale(.985); } to{ opacity:1; transform:none; } }
+/* solo dissolvenza: uno scivolamento verso l'alto, su una home che si sta gia' leggendo, e' proprio il "si muove" che disturba */
+@keyframes ho-in{ from{ opacity:0; } to{ opacity:1; } }
 @media (prefers-reduced-motion: reduce){ .ho-w{ animation:none; } }
 .ho-w--bare{ background:none; box-shadow:none; padding:0; }
 
@@ -306,3 +307,11 @@ select.ho-in{ appearance:none; background-image:linear-gradient(45deg,transparen
 /* ---------- scheletro mentre arrivano i dati ---------- */
 .ho-skel{ border-radius:10px; background:linear-gradient(90deg,var(--surface-2) 25%,var(--hairline) 50%,var(--surface-2) 75%); background-size:200% 100%; animation:ho-sh 1.4s linear infinite; height:16px; }
 @keyframes ho-sh{ to{ background-position:-200% 0; } }
+
+/* riquadro in attesa dei suoi dati: scheletro al posto del corpo, altezza minima
+   fissa per non fare salti quando arriva il contenuto */
+.ho-w.is-loading > .ho-wb{ display:none; }
+.ho-wsk{ display:flex; flex-direction:column; gap:10px; min-height:118px; }
+.ho-load{ height:3px; border-radius:99px; background:var(--hairline); overflow:hidden; margin:0 0 12px; opacity:0; transition:opacity .3s; }
+.ho-load.is-on{ opacity:1; }
+.ho-load i{ display:block; height:100%; width:0; border-radius:99px; background:var(--blue); transition:width .45s var(--spring); }

@@ -6,8 +6,9 @@
    loro endpoint di sempre: todo_api.php, habits.php, planner_api.php. Qui
    ci sono solo le cose nuove:
 
-     home_api.php?ajax=summary       (GET)  tutto in una volta: agenda, attivita',
-                                            nota, abitudini, voti, flashcard, date importanti
+     home_api.php?ajax=summary       (GET)  agenda, attivita', nota, abitudini, voti, flashcard,
+                                            date importanti. ?g=agenda,fc,... ne chiede solo
+                                            alcuni gruppi (la home carica prima quelli in vista)
      home_api.php?ajax=layout_save   (POST) quali riquadri mostrare e in che ordine
      home_api.php?ajax=ai_usage      (GET)  il piano e i consumi del mese (popup dell'avatar)
      home_api.php?ajax=draft_add     (POST) una flashcard "da completare" (solo il fronte)
@@ -312,58 +313,80 @@ if ($ajax === 'summary') {
     $oggi = date('Y-m-d');
     $domani = pl_add_days($oggi, 1);
 
-    /* agenda di oggi e domani: i campi servono a disegnare la riga e a spuntarla */
-    $agenda = [];
-    foreach (pl_events_range($uid, $oggi, $domani) as $e) {
-        $agenda[] = [
-            'id' => $e['id'], 'uid' => $e['uid'], 'title' => $e['title'], 'date' => $e['date'], 'end_date' => $e['end_date'],
-            'start' => $e['start'], 'end' => $e['end'], 'all_day' => $e['all_day'], 'done' => $e['done'],
-            'color' => $e['color'] ?: ($e['habit_color'] ?: ($e['project_color'] ?: null)),
-            'project' => $e['project_name'], 'habit' => $e['habit_id'] !== null, 'icon' => $e['habit_icon'],
-            'type' => $e['type'], 'importance' => $e['importance'], 'place' => $e['location'] ?: ($e['place_name'] ?: ''),
-            'occurrence' => (bool)$e['is_occurrence'],
-        ];
-    }
+    /* PER GRUPPI (26/10/2026). La home chiede prima i dati dei due riquadri
+       che si vedono subito (?g=agenda,important) e poi, in sottofondo, tutto il
+       resto: cosi' la parte alta compare completa senza aspettare le query
+       dei riquadri piu' in basso. Senza ?g= risponde con tutto, come prima.
+       La lista dei gruppi e' del codice: un nome sconosciuto si scarta. */
+    $gruppi_ok = ['agenda', 'important', 'tasks', 'note', 'habits', 'grades', 'fc'];
+    $chiesti = isset($_GET['g'])
+        ? array_values(array_intersect($gruppi_ok, array_map('trim', explode(',', sec_str($_GET['g'], 120)))))
+        : $gruppi_ok;
+    $vuole = function (string $k) use ($chiesti): bool { return in_array($k, $chiesti, true); };
 
-    $todo = sec_all("SELECT t.id, t.title, t.due_date, t.due_time, t.project_id, p.name AS project, p.color AS project_color
-                       FROM todos t LEFT JOIN projects p ON p.id = t.project_id AND p.user_id = t.user_id
-                      WHERE t.user_id = ? AND t.list_type = 'todo' AND t.is_done = 0 AND t.parent_id IS NULL
-                      ORDER BY CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END, t.due_date ASC,
-                               CASE WHEN t.due_time IS NULL THEN 1 ELSE 0 END, t.due_time ASC, t.sort_order ASC, t.id ASC
-                      LIMIT 40", [$uid], 'i');
-    $nTodo = (int)(sec_one("SELECT COUNT(*) AS n FROM todos WHERE user_id = ? AND list_type = 'todo' AND is_done = 0 AND parent_id IS NULL", [$uid], 'i')['n'] ?? 0);
-    $fattiOggi = (int)(sec_one("SELECT COUNT(*) AS n FROM todos WHERE user_id = ? AND list_type = 'todo' AND is_done = 1 AND DATE(done_at) = ?", [$uid, $oggi], 'is')['n'] ?? 0);
-    $buy = sec_all("SELECT t.id, t.title, t.buy_priority, c.name AS cat, c.color AS cat_color
-                      FROM todos t LEFT JOIN todo_buy_categories c ON c.id = t.buy_category_id AND c.user_id = t.user_id
-                     WHERE t.user_id = ? AND t.list_type = 'buy' AND t.is_done = 0 AND t.parent_id IS NULL
-                     ORDER BY t.buy_priority ASC, t.sort_order ASC, t.id ASC LIMIT 40", [$uid], 'i');
-    $nBuy = (int)(sec_one("SELECT COUNT(*) AS n FROM todos WHERE user_id = ? AND list_type = 'buy' AND is_done = 0 AND parent_id IS NULL", [$uid], 'i')['n'] ?? 0);
-
-    $nota = '';
-    try {
-        $r = sec_one("SELECT body FROM todo_notes WHERE user_id = ?", [$uid], 'i');
-        $nota = $r ? (string)$r['body'] : '';
-    } catch (Throwable $e) { /* tabella non ancora creata: la crea la pagina To do alla prima nota */ }
-
-    sec_json([
+    $out = [
         'ok' => true, 'today' => $oggi, 'now' => date('H:i'), 'name' => $utente_corrente['username'] ?? '',
         'layout' => ho_layout($uid),
-        'agenda' => $agenda,
-        'important' => ho_importanti($uid, $oggi),
-        'todo' => array_map(function ($t) {
+    ];
+
+    /* agenda di oggi e domani: i campi servono a disegnare la riga e a spuntarla */
+    if ($vuole('agenda')) {
+        $agenda = [];
+        foreach (pl_events_range($uid, $oggi, $domani) as $e) {
+            $agenda[] = [
+                'id' => $e['id'], 'uid' => $e['uid'], 'title' => $e['title'], 'date' => $e['date'], 'end_date' => $e['end_date'],
+                'start' => $e['start'], 'end' => $e['end'], 'all_day' => $e['all_day'], 'done' => $e['done'],
+                'color' => $e['color'] ?: ($e['habit_color'] ?: ($e['project_color'] ?: null)),
+                'project' => $e['project_name'], 'habit' => $e['habit_id'] !== null, 'icon' => $e['habit_icon'],
+                'type' => $e['type'], 'importance' => $e['importance'], 'place' => $e['location'] ?: ($e['place_name'] ?: ''),
+                'occurrence' => (bool)$e['is_occurrence'],
+            ];
+        }
+        $out['agenda'] = $agenda;
+    }
+
+    if ($vuole('important')) $out['important'] = ho_importanti($uid, $oggi);
+
+    if ($vuole('tasks')) {
+        $todo = sec_all("SELECT t.id, t.title, t.due_date, t.due_time, t.project_id, p.name AS project, p.color AS project_color
+                           FROM todos t LEFT JOIN projects p ON p.id = t.project_id AND p.user_id = t.user_id
+                          WHERE t.user_id = ? AND t.list_type = 'todo' AND t.is_done = 0 AND t.parent_id IS NULL
+                          ORDER BY CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END, t.due_date ASC,
+                                   CASE WHEN t.due_time IS NULL THEN 1 ELSE 0 END, t.due_time ASC, t.sort_order ASC, t.id ASC
+                          LIMIT 40", [$uid], 'i');
+        $nTodo = (int)(sec_one("SELECT COUNT(*) AS n FROM todos WHERE user_id = ? AND list_type = 'todo' AND is_done = 0 AND parent_id IS NULL", [$uid], 'i')['n'] ?? 0);
+        $fattiOggi = (int)(sec_one("SELECT COUNT(*) AS n FROM todos WHERE user_id = ? AND list_type = 'todo' AND is_done = 1 AND DATE(done_at) = ?", [$uid, $oggi], 'is')['n'] ?? 0);
+        $buy = sec_all("SELECT t.id, t.title, t.buy_priority, c.name AS cat, c.color AS cat_color
+                          FROM todos t LEFT JOIN todo_buy_categories c ON c.id = t.buy_category_id AND c.user_id = t.user_id
+                         WHERE t.user_id = ? AND t.list_type = 'buy' AND t.is_done = 0 AND t.parent_id IS NULL
+                         ORDER BY t.buy_priority ASC, t.sort_order ASC, t.id ASC LIMIT 40", [$uid], 'i');
+        $nBuy = (int)(sec_one("SELECT COUNT(*) AS n FROM todos WHERE user_id = ? AND list_type = 'buy' AND is_done = 0 AND parent_id IS NULL", [$uid], 'i')['n'] ?? 0);
+        $out['todo'] = array_map(function ($t) {
             return ['id' => (int)$t['id'], 'title' => $t['title'], 'date' => $t['due_date'], 'time' => $t['due_time'] ? substr($t['due_time'], 0, 5) : null,
                     'project' => $t['project'], 'color' => $t['project_color']];
-        }, $todo),
-        'todo_open' => $nTodo, 'todo_done_today' => $fattiOggi,
-        'buy' => array_map(function ($t) {
+        }, $todo);
+        $out['todo_open'] = $nTodo;
+        $out['todo_done_today'] = $fattiOggi;
+        $out['buy'] = array_map(function ($t) {
             return ['id' => (int)$t['id'], 'title' => $t['title'], 'priority' => (int)$t['buy_priority'], 'cat' => $t['cat'], 'color' => $t['cat_color']];
-        }, $buy),
-        'buy_open' => $nBuy,
-        'note' => $nota,
-        'habit_groups' => ho_abitudini($uid, $oggi),
-        'grades' => ho_voti($uid, $oggi),
-        'fc' => ho_flashcard($uid, $oggi),
-    ]);
+        }, $buy);
+        $out['buy_open'] = $nBuy;
+    }
+
+    if ($vuole('note')) {
+        $nota = '';
+        try {
+            $r = sec_one("SELECT body FROM todo_notes WHERE user_id = ?", [$uid], 'i');
+            $nota = $r ? (string)$r['body'] : '';
+        } catch (Throwable $e) { /* tabella non ancora creata: la crea la pagina To do alla prima nota */ }
+        $out['note'] = $nota;
+    }
+
+    if ($vuole('habits')) $out['habit_groups'] = ho_abitudini($uid, $oggi);
+    if ($vuole('grades')) $out['grades'] = ho_voti($uid, $oggi);
+    if ($vuole('fc'))     $out['fc'] = ho_flashcard($uid, $oggi);
+
+    sec_json($out);
 }
 
 /* ---------------------------------------------------------------------

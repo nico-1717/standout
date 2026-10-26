@@ -191,6 +191,7 @@
 
     H.register('cards', {
         title: 'home.w_flashcard', icon: 'cards', color: 'var(--purple)', wide: true, link: 'fc/fc_home.php',
+        needs: ['fc'],
         build: function (w) {
             w.goal = el('div', 'ho-goal');
             /* cattura veloce */
@@ -362,6 +363,7 @@
        ------------------------------------------------------------------ */
     H.register('grades', {
         title: 'home.w_voti', icon: 'cap', color: 'var(--teal)', link: 'exams/voti.php',
+        needs: ['grades'],
         build: function (w) { /* tutto in update */ },
         update: function (w, d) {
             var g = d.grades; w.body.innerHTML = '';
@@ -409,6 +411,7 @@
        ------------------------------------------------------------------ */
     H.register('stats', {
         title: 'home.w_numeri', icon: 'chart', color: 'var(--blue)', link: 'fc/fc_stats.php',
+        needs: ['fc'],
         build: function () {},
         update: function (w, d) {
             var fc = d.fc; w.body.innerHTML = ''; if (!fc) return;

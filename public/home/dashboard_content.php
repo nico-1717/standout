@@ -4,8 +4,8 @@
    Questa pagina e' solo lo scheletro: intestazione, la griglia vuota e i
    dati che solo PHP conosce (nomi gia' tradotti delle pagine, notifiche).
    I riquadri li disegna home_core.js insieme ai file home_w_*.js, nell'ordine
-   che l'utente ha scelto con «Personalizza»; i dati arrivano da una sola
-   chiamata a home_api.php?ajax=summary.
+   che l'utente ha scelto con «Personalizza»; i dati arrivano da home_api.php?ajax=summary
+   in due tempi (prima i due riquadri in vista, poi gli altri in sottofondo).
 
    Perche' non scriverli qui in PHP: i riquadri si riordinano, si
    nascondono, si aggiornano dopo ogni spunta e devono funzionare anche con
@@ -69,6 +69,9 @@ $ho_v = function (string $f): int { return @filemtime(__DIR__ . '/' . $f) ?: 1; 
       <button type="button" class="ho-btn ho-btn--sm" id="hoEditDone"><?php te('home.fine'); ?></button>
     </div>
 
+    <?php /* barra di avanzamento della prima apertura: lo spazio c'e' sempre (3px), cosi' mostrarla non sposta niente */ ?>
+    <div class="ho-load" id="hoLoad" aria-hidden="true"><i></i></div>
+
     <main class="ho-grid" id="hoGrid">
       <?php /* scheletro: si vede per il tempo di una richiesta, poi lo sostituiscono i riquadri */ ?>
       <section class="ho-w ho-w--wide"><div class="ho-skel" style="width:40%"></div><div class="ho-skel" style="height:84px"></div><div class="ho-skel"></div><div class="ho-skel" style="width:70%"></div></section>
@@ -78,7 +81,8 @@ $ho_v = function (string $f): int { return @filemtime(__DIR__ . '/' . $f) ?: 1; 
   </div>
 </div>
 
-<div id="hoRoot" data-base="<?php echo sec_h(PWA_BASE); ?>" hidden></div>
+<?php /* data-uid: la copia salvata nel browser si mostra subito solo se e' di questa persona */ ?>
+<div id="hoRoot" data-base="<?php echo sec_h(PWA_BASE); ?>" data-uid="<?php echo (int)$standout_utente['id']; ?>" hidden></div>
 <script type="application/json" id="hoShortcuts"><?php echo json_encode($ho_scorciatoie, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?></script>
 
 <?php include __DIR__ . '/../partials/notifiche_widget.php'; ?>

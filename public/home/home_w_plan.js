@@ -80,6 +80,7 @@
     var pastOpen = false;
     H.register('agenda', {
         title: 'home.w_oggi', icon: 'calendar', color: 'var(--red)', wide: true, link: 'planner/planner.php',
+        needs: ['agenda'],
         build: function (w) {
             w.now = el('div'); w.list = el('div', 'ho-tl'); w.tom = el('div');
             w.body.appendChild(w.now); w.body.appendChild(w.list); w.body.appendChild(w.tom);
@@ -167,6 +168,10 @@
 
     H.register('projects', {
         title: 'home.w_progetti', icon: 'folder', color: 'var(--indigo)', link: 'projects/progetti.php',
+        /* il piano di oggi sta in un altro endpoint: lo carica il motore insieme
+           al resto (extra), cosi' il riquadro si disegna UNA volta sola, completo */
+        needs: ['important'],
+        extra: [{ key: '_piano', file: 'projects/piano_api.php', action: 'today' }],
         build: function (w) {
             w.date = el('div'); w.plan = el('div'); w.next = el('div');
             w.body.appendChild(w.plan); w.body.appendChild(w.date); w.body.appendChild(w.next);
@@ -187,16 +192,9 @@
                     w.next.appendChild(r);
                 });
             }
-            /* il piano di oggi arriva da piano_api: una richiesta a parte, che
-               non fa aspettare il resto della home. Offline si usa l'ultima. */
-            var drawn = d._piano || null;
-            if (drawn) drawPlan(w, drawn);
-            if (!fromCache) {
-                H.get('projects/piano_api.php', 'today').then(function (p) {
-                    d._piano = p; drawPlan(w, p);
-                    try { H.lsSet('ho_cache_v1', JSON.stringify(d)); } catch (e) {}
-                }).catch(function () { if (!drawn) drawPlan(w, null); });
-            } else if (!drawn) drawPlan(w, null);
+            /* il piano di oggi arriva dal motore (extra _piano); se non c'e'
+               (richiesta fallita e nessuna copia) il riquadro lo dice. */
+            drawPlan(w, d._piano || null);
         }
     });
 

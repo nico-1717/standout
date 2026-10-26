@@ -4,8 +4,13 @@
    contiene ciascuno: gestisce quello che hanno in comune.
 
      - Home.register(id, {...})  ogni riquadro (home_w_*.js) si presenta qui
-     - Home.load()               una sola richiesta (home_api.php?ajax=summary)
-                                 e poi ogni riquadro ridisegna la sua parte
+     - Home.load()               due richieste a home_api.php?ajax=summary: prima i
+                                 dati dei due riquadri che si vedono subito, poi
+                                 in sottofondo quelli di tutti gli altri; ogni
+                                 riquadro si disegna una volta sola, completo
+     - la copia salvata          l'ultima risposta si disegna SUBITO all'apertura
+                                 (stessa persona, stesso giorno) e poi si ridisegna
+                                 solo cio' che nel frattempo e' cambiato
      - il layout                 quali riquadri si vedono e in che ordine,
                                  salvato sul server e, per averlo subito,
                                  anche in localStorage
@@ -24,6 +29,7 @@
     var root = document.getElementById('hoRoot');
     if (!root) return;
     H.base = root.getAttribute('data-base') || '/';
+    H.uid = root.getAttribute('data-uid') || '';
     H.lang = (document.documentElement.lang || 'it').slice(0, 2);
     H.locale = H.lang === 'it' ? 'it-IT' : 'en-GB';
 
@@ -202,6 +208,10 @@
         var def = H.widgets[id];
         var sec = el('section', 'ho-w' + (def.wide ? ' ho-w--wide' : '') + (def.full ? ' ho-w--full' : '') + (def.bare ? ' ho-w--bare' : ''));
         sec.setAttribute('data-id', id);
+        /* L'ingresso dolce si gioca una volta sola: spostare il nodo nel DOM
+           (riordino, layout dal server) la farebbe ripartire e la home sembrerebbe
+           ridisegnarsi sotto gli occhi. */
+        sec.addEventListener('animationend', function () { sec.style.animation = 'none'; });
         var title = T(def.title);
         /* barra del «Personalizza»: nome, su, giu, occhio. Sempre nel DOM, la
            mostra la classe .ho-edit del contenitore. */
@@ -234,6 +244,17 @@
         if (def.bare) w.body.style.gap = '0';
         sec.appendChild(w.body);
         if (def.build) def.build(w);
+        /* Finche' i suoi dati non sono arrivati il riquadro mostra uno scheletro
+           (testata e titolo restano): niente corpo vuoto che poi si riempie e
+           spinge tutto quello che sta sotto. */
+        if ((def.needs || []).length) {
+            sec.classList.add('is-loading'); sec.setAttribute('aria-busy', 'true');
+            var sk = el('div', 'ho-wsk');
+            sk.appendChild(el('div', 'ho-skel')).style.width = '55%';
+            sk.appendChild(el('div', 'ho-skel')).style.height = '54px';
+            sk.appendChild(el('div', 'ho-skel')).style.width = '80%';
+            sec.appendChild(sk); w.sk = sk;
+        }
         return w;
     }
 
@@ -254,10 +275,14 @@
     }
     function applyLayout() {
         var grid = document.getElementById('hoGrid');
+        /* si riappende solo se l'ordine e' davvero diverso: farlo sempre rimette
+           in gioco le animazioni e fa sfarfallare una home gia' disegnata */
+        var attuale = Array.prototype.map.call(grid.children, function (n) { return n.getAttribute('data-id'); }).join(',');
+        var voluto = H.layout.map(function (v) { return v.id; }).join(',');
         H.layout.forEach(function (v) {
             var w = H.nodes[v.id];
             if (!w) return;
-            grid.appendChild(w.el);   // riappendere sposta il nodo nella nuova posizione
+            if (attuale !== voluto) grid.appendChild(w.el);   // riappendere sposta il nodo nella nuova posizione
             w.el.classList.toggle('is-off', !v.on);
             w.eye.innerHTML = ''; w.eye.appendChild(H.svg(v.on ? 'eye' : 'eyeoff', 16, 2.2));
             w.eye.classList.toggle('is-off', !v.on);
@@ -307,8 +332,32 @@
         H.toast(T('home.layout_ripristinato'));
     };
 
-    /* ---------------- dati ---------------- */
-    function paint(fromCache) {
+    /* ---------------- dati ----------------
+       Ogni riquadro dichiara cosa gli serve: `needs` (gruppi di home_api.php) e,
+       se ha dati da altri endpoint, `extra` ({key, file, action}). Il motore li
+       porta in H.data PRIMA di chiamare update(), quindi il riquadro si disegna
+       una volta sola e non per pezzi. */
+    var GRUPPO_CHIAVI = { agenda: ['agenda'], important: ['important'], tasks: ['todo', 'buy'], note: ['note'],
+                          habits: ['habit_groups'], grades: ['grades'], fc: ['fc'] };
+    function needsOf(id) { return (H.widgets[id] && H.widgets[id].needs) || []; }
+    function extraOf(id) { return (H.widgets[id] && H.widgets[id].extra) || []; }
+    function pronto(id) {
+        return needsOf(id).every(function (g) { return GRUPPO_CHIAVI[g].every(function (k) { return H.data && H.data[k] !== undefined; }); });
+    }
+    /* l'impronta dei dati di un riquadro: se non e' cambiata non si ridisegna,
+       cosi' un aggiornamento identico alla copia salvata non muove niente */
+    function firma(id) {
+        var d = H.data, o = [d.today];
+        needsOf(id).forEach(function (g) { GRUPPO_CHIAVI[g].forEach(function (k) { o.push(d[k]); }); });
+        extraOf(id).forEach(function (x) { o.push(d[x.key]); });
+        return JSON.stringify(o);
+    }
+    function finePrimaCarica(w) {
+        w.el.classList.remove('is-loading'); w.el.removeAttribute('aria-busy');
+        if (w.sk && w.sk.parentNode) w.sk.parentNode.removeChild(w.sk);
+        w.sk = null;
+    }
+    function paintHeader() {
         var d = H.data;
         H.serverMin = H.toMin(d.now);
         H.loadedAt = Date.now();
@@ -319,16 +368,26 @@
             var k = h < 5 ? 'home.saluto_notte' : h < 12 ? 'home.saluto_mattina' : h < 18 ? 'home.saluto_pomeriggio' : 'home.saluto_sera';
             hello.textContent = T(k, { nome: d.name });
         }
-        if (st) {
-            var s = d.fc ? d.fc.streak : 0;
+        /* la serie di giorni sta nei dati delle flashcard: finche' non sono
+           arrivate non si tocca la pastiglia (nascosta), invece di spegnerla */
+        if (st && d.fc) {
+            var s = d.fc.streak || 0;
             st.hidden = !(s > 0);
             st.textContent = '';
             st.appendChild(document.createTextNode('🔥 ' + s));
             st.title = T(s === 1 ? 'dashboard.giorno_di_fila' : 'dashboard.giorni_di_fila');
         }
-        H.layout.forEach(function (v) {
-            var w = H.nodes[v.id];
-            if (w && w.def.update) safe(function () { w.def.update(w, d, fromCache); }, w);
+    }
+    function paintWidgets(ids, fromCache) {
+        ids.forEach(function (id) {
+            var w = H.nodes[id];
+            if (!w || !pronto(id)) return;
+            var f = firma(id);
+            if (w.sig !== f) {
+                w.sig = f;
+                if (w.def.update) safe(function () { w.def.update(w, H.data, fromCache); }, w);
+            }
+            finePrimaCarica(w);
         });
     }
     H.repaint = function (ids) {
@@ -338,34 +397,118 @@
             var w = H.nodes[id];
             if (w && w.def.update) safe(function () { w.def.update(w, H.data, false); }, w);
         });
-        try { lsSet(LS_CACHE, JSON.stringify(H.data)); } catch (e) {}
+        salvaCopia();
     };
+    function salvaCopia() {
+        if (!H.data) return;
+        H.data._uid = H.uid;
+        try { lsSet(LS_CACHE, JSON.stringify(H.data)); } catch (e) {}
+    }
+    /* La copia salvata e' di QUESTA persona (altrimenti, su un browser condiviso,
+       si vedrebbero per un istante i dati di un altro account) e, per essere
+       mostrata subito, di OGGI (un'agenda di ieri che poi cambia e' peggio di
+       uno scheletro). Offline si accetta anche una copia di un altro giorno. */
+    function leggiCopia(soloOggi) {
+        var c = lsGet(LS_CACHE), d = null;
+        try { d = c ? JSON.parse(c) : null; } catch (e) { d = null; }
+        if (!d || !H.uid || d._uid !== H.uid) return null;
+        if (soloOggi) {
+            var n = new Date();
+            if (d.today !== n.getFullYear() + '-' + H.pad(n.getMonth() + 1) + '-' + H.pad(n.getDate())) return null;
+        }
+        return d;
+    }
     function setOffline(on) {
         var b = document.getElementById('hoOffline');
         if (b) b.classList.toggle('is-on', on);
     }
+    /* la sottile barra di avanzamento: solo alla prima apertura senza copia
+       salvata (con la copia non c'e' niente da aspettare). Lo spazio e' sempre
+       riservato, cosi' mostrarla non sposta la pagina. */
+    function progresso(p) {
+        var b = document.getElementById('hoLoad');
+        if (!b || !H.mostraProgresso) return;
+        b.firstChild.style.width = p + '%';
+        b.classList.toggle('is-on', p < 100);
+    }
+    /* quali riquadri chiedere prima: i primi due CON dati fra quelli visibili
+       (e i riquadri senza dati che stanno in mezzo, che non costano niente);
+       tutti gli altri, anche quelli nascosti, dopo e in sottofondo */
+    function fasi() {
+        var alto = [], nDati = 0;
+        H.layout.filter(function (v) { return v.on; }).some(function (v) {
+            if (needsOf(v.id).length) { if (nDati >= 2) return true; nDati++; }
+            alto.push(v.id);
+            return false;
+        });
+        var resto = H.layout.map(function (v) { return v.id; }).filter(function (id) { return alto.indexOf(id) < 0; });
+        return { alto: alto, resto: resto };
+    }
+    function carica(ids, base) {
+        var gr = [], ex = [];
+        ids.forEach(function (id) {
+            needsOf(id).forEach(function (g) { if (gr.indexOf(g) < 0) gr.push(g); });
+            extraOf(id).forEach(function (x) { if (!ex.some(function (y) { return y.key === x.key; })) ex.push(x); });
+        });
+        if (!base && !gr.length && !ex.length) return Promise.resolve();
+        var richieste = [gr.length || base ? H.get('home/home_api.php', 'summary', 'g=' + encodeURIComponent(gr.join(','))) : Promise.resolve(null)];
+        ex.forEach(function (x) {
+            /* un endpoint secondario che fallisce non blocca il riquadro: si tiene la copia che c'e' */
+            richieste.push(H.get(x.file, x.action).then(function (r) { return { key: x.key, val: r }; })
+                                                 .catch(function () { return { key: x.key, val: null }; }));
+        });
+        return Promise.all(richieste).then(function (res) {
+            var r0 = res[0];
+            if (r0) {
+                /* si fonde nello STESSO oggetto: i riquadri tengono in mano H.data
+                   (spunte, nuove voci) e non devono ritrovarsene uno vecchio */
+                if (!H.data) H.data = {};
+                Object.keys(r0).forEach(function (k) { if (k !== 'ok' && k !== 'layout') H.data[k] = r0[k]; });
+                /* il layout del server vince, tranne se questo dispositivo ha una modifica piu'
+                   recente non ancora arrivata (un salvataggio in corso e' piu' recente del server);
+                   si riapplica solo se e' diverso da quello gia' a video */
+                if (r0.layout && saveTimer === null) {
+                    var nl = cleanLayout(r0.layout);
+                    if (JSON.stringify(nl) !== JSON.stringify(H.layout)) { H.layout = nl; applyLayout(); }
+                    lsSet(LS_LAYOUT, JSON.stringify(H.layout));
+                }
+            }
+            res.slice(1).forEach(function (e) {
+                if (e.val !== null || H.data[e.key] === undefined) H.data[e.key] = e.val;
+            });
+            salvaCopia();
+        });
+    }
     H.load = function () {
-        return H.get('home/home_api.php', 'summary').then(function (d) {
-            H.data = d;
-            /* il layout del server vince, tranne se questo dispositivo ha una
-               modifica piu' recente non ancora arrivata (salvataggio fallito offline) */
-            if (saveTimer === null) H.layout = cleanLayout(d.layout);   // un salvataggio in corso e' piu' recente del server
-            lsSet(LS_LAYOUT, JSON.stringify(H.layout));
-            applyLayout();
-            try { lsSet(LS_CACHE, JSON.stringify(d)); } catch (e) {}
+        var f = fasi();
+        progresso(12);
+        return carica(f.alto, true).then(function () {
             setOffline(false);
-            paint(false);
+            paintHeader(); paintWidgets(f.alto, false);
+            progresso(60);
+            return carica(f.resto, false);
+        }).then(function () {
+            paintHeader(); paintWidgets(f.resto, false);
+            progresso(100);
+            H.mostraProgresso = false;
             return true;
         }).catch(function (e) {
-            var c = lsGet(LS_CACHE);
-            if (c && !H.data) {
-                try { H.data = JSON.parse(c); } catch (x) { H.data = null; }
+            if (!H.data) {
+                var c = leggiCopia(false);
+                if (c) {
+                    H.data = c;
+                    var l = lsGet(LS_LAYOUT);
+                    try { H.layout = cleanLayout(l ? JSON.parse(l) : c.layout); } catch (x) { H.layout = cleanLayout(c.layout); }
+                    applyLayout();
+                }
             }
-            if (H.data) {
-                var l = lsGet(LS_LAYOUT);
-                try { H.layout = cleanLayout(l ? JSON.parse(l) : H.data.layout); } catch (x) { H.layout = cleanLayout(H.data.layout); }
-                applyLayout(); paint(true);
+            if (H.data && H.data.today) {
+                paintHeader(); paintWidgets(Object.keys(H.nodes), true);
             }
+            /* quello che non e' arrivato non resta in scheletro per sempre */
+            Object.keys(H.nodes).forEach(function (id) { if (H.nodes[id].sk) finePrimaCarica(H.nodes[id]); });
+            progresso(100);
+            H.mostraProgresso = false;
             setOffline(true);
             return false;
         });
@@ -375,16 +518,24 @@
     function start() {
         var grid = document.getElementById('hoGrid');
         grid.innerHTML = '';
-        /* il layout locale serve a disegnare subito, prima che il server risponda */
+        /* La copia dell'ultima volta (se e' di oggi e di questa persona) si
+           disegna subito, senza aspettare la rete. Il layout locale serve a
+           disegnare nell'ordine giusto prima che il server risponda. */
+        var copia = leggiCopia(true);
         var l = lsGet(LS_LAYOUT), loc = null;
         try { loc = l ? JSON.parse(l) : null; } catch (e) {}
-        H.layout = cleanLayout(loc);
+        H.layout = cleanLayout(loc || (copia && copia.layout));
         H.layout.forEach(function (v) {
             var w = makeNode(v.id);
             H.nodes[v.id] = w;
             grid.appendChild(w.el);
         });
         applyLayout();
+        H.mostraProgresso = !copia;
+        if (copia) {
+            H.data = copia;
+            paintHeader(); paintWidgets(Object.keys(H.nodes), true);
+        }
 
         var eb = document.getElementById('hoEditBtn');
         if (eb) eb.addEventListener('click', function () { H.setEdit(!document.getElementById('hoWrap').classList.contains('ho-edit')); });
