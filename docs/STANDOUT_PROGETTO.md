@@ -67,6 +67,10 @@ progetti, pomodoro.
 **Il sito non avrà la parte social.** Nessun profilo pubblico, nessun messaggio,
 nessun contenuto condiviso.
 
+> **Unica eccezione (deciso il 26/10/2026): il mercato dei mazzi** si fa anche sul
+> sito, gratuito e con link condivisibile — vedi §14.4.10. Profili pubblici,
+> messaggi e pensieri restano fuori dal sito.
+
 ### 1.2 Obiettivo dell'app (React Native)
 
 L'app è **l'esperienza**. Rifatta da zero in React Native (iOS + Android),
@@ -78,7 +82,8 @@ riusando l'API del sito e non il suo HTML. Avrà in più:
 - funzionamento senza rete e sincronizzazione;
 - **la parte social**: profili, messaggi, immagini, file — solo qui;
 - **il mercato dei mazzi**: si pubblicano e si vendono mazzi di flashcard già
-  fatti, e chi li prende può modificarne le carte (§14.4).
+  fatti, e chi li prende può modificarne le carte (§14.4). *Una prima versione
+  gratuita vive anche sul sito: §14.4.10.*
 
 ### 1.3 Conseguenza pratica su come si lavora da adesso
 
@@ -1130,8 +1135,11 @@ arrivano dopo, obbligano a rifare il resto.
 
 ### 14.4 Mercato dei mazzi
 
-Dentro la parte social, quindi **solo nell'app**: le persone pubblicano mazzi di
+Dentro la parte social, quindi **nell'app**: le persone pubblicano mazzi di
 flashcard già fatti e altri li prendono. Chi li prende può modificarne le carte.
+*(Dal 26/10/2026 una versione gratuita esiste anche sul sito: vedi §14.4.10, che
+elenca anche i punti in cui la realtà del codice differisce da quanto scritto
+qui sotto.)*
 
 Questa sezione è già decisa nelle sue scelte di fondo. Chi la implementa segua
 quello che c'è scritto: ogni punto qui sotto risolve un problema che, se
@@ -1196,6 +1204,10 @@ study_decks / vocab_decks:
   is_locked           TINYINT    1 = mazzo congelato di una versione pubblicata
 ```
 
+*Nota sui nomi (26/10/2026): nel codice di oggi quelle tabelle si chiamano
+`fc_study_decks` e `fc_vocab_decks` (§8.3 del rinomino di area), e il mercato usa
+il prefisso `market_`. Il rinomino di §15 passo 5b le porterà ai nomi finali.*
+
 #### 14.4.4 Cosa succede all'acquisto, passo per passo
 
 1. Si verifica il pagamento (o, a prezzo 0, si salta).
@@ -1238,6 +1250,12 @@ La cancellazione di un account, quindi, diventa: via il prefisso `u/{id}/`, via
 le righe personali, **restano** gli annunci pubblicati e i loro file (con
 l'autore reso anonimo, se richiesto).
 
+> **Regola ponte finché non esiste R2** (26/10/2026): oggi le immagini sono nomi
+> di file su disco e la tabella `files` di §9.2 non c'è. Si usa una tabella
+> piccola `market_files` (percorso + contatore dei riferimenti) e la cartella
+> `media/pub/deck/{listing_id}/{versione}/`. Al passo 6 di §15 `market_files`
+> si fonde in `files`. Dettagli e rischi in §14.4.10.
+
 #### 14.4.6 Prezzi, pagamenti, rimborsi
 
 **I prezzi si mettono da subito nello schema** (`prezzo_cent`, `valuta`) ma
@@ -1265,6 +1283,11 @@ Quando si accenderanno davvero:
   può togliere. Finestra di rimborso stretta, e pace.
 - A prezzo 0 **niente di tutto questo si applica**: nessun pagamento, nessun
   rimborso, nessuna IVA.
+- **Pronto per i pagamenti, ma a 0 €** (26/10/2026): la scelta del fornitore
+  (Stripe o intermediario) resta aperta (§16 #7) e **non si scrive codice di
+  pagamento ora**. Si costruisce solo un punto d'ingresso unico che crea
+  l'acquisto e, a 0 €, salta il pagamento; un domani lì dentro entrerà il
+  fornitore, senza toccare il resto. Vedi §14.4.10.
 
 #### 14.4.7 Moderazione e diritto d'autore
 
@@ -1298,6 +1321,128 @@ Se funziona, il mercato è quella cosa lì più un prezzo e un incasso.
 - Non lasciare che l'autore modifichi una versione già venduta.
 - Non accendere i pagamenti prima di aver deciso chi incassa.
 - Non aprire la pubblicazione prima che esista il pulsante di segnalazione.
+
+#### 14.4.10 Il mercato sul sito, adesso: gratuito e pronto per i pagamenti
+
+*Aggiunta del 26/10/2026, su richiesta del proprietario. Non cancella nulla di
+§14.4.1-14.4.9: le regole di fondo restano tutte. Aggiunge una decisione e
+elenca i punti in cui il codice di oggi non corrisponde a quanto scritto sopra.*
+
+**La decisione.** Il proprietario vuole un negozio di mazzi **sul sito**, subito:
+ognuno può offrire i propri mazzi, scegliere se includere le immagini, condividerli
+con un link; ricerca, filtri e suggerimenti come in un negozio normale. Tutto
+**gratuito** (prezzo 0 €), ma costruito già **pronto per i pagamenti**, con un
+avviso che dice che in futuro si potrà fissare un prezzo.
+
+È un'**eccezione** a tre cose scritte altrove: «il sito non ha social» (§1.1),
+«il mercato è solo nell'app» (§14.4) e l'ordine di §15 (il passo 13 passa davanti
+al 12). Vale **solo per il mercato**: profili pubblici, messaggi e pensieri restano
+fuori dal sito.
+
+**Perché non si butta il lavoro** (§1.3): la logica sta in `lib/market/` in
+funzioni riusabili, gli endpoint rispondono in JSON con il flag `ok`, le pagine
+del sito sono sottili. L'app React Native riuserà tutto tale e quale.
+
+##### Pronto per i pagamenti, a 0 €
+
+- `prezzo_cent` e `valuta` ci sono da subito, a 0. Nel modulo di vendita il campo
+  prezzo è **disattivato**, mostra «0 €» e un avviso: *oggi i mazzi si condividono
+  gratis; in futuro potrai fissare un prezzo.*
+- Un **solo punto d'ingresso** per ottenere un mazzo (`mk_ottieni()` o simile):
+  controlla il prezzo, e a 0 € salta il pagamento e passa alla copia (§14.4.4).
+- Il fornitore di pagamento starà dietro **un'unica funzione** (`market_pay.php`),
+  che oggi non c'è: nessun'altra parte del codice saprà se dietro c'è Stripe o un
+  intermediario. Così la decisione di §16 #7 non costringe a rifare il resto.
+- «Pronto per Stripe» significa **solo questo**. La raccomandazione di §14.4.6
+  non cambia (intermediario tipo Paddle o Lemon Squeezy per partire, perché con
+  Stripe l'IVA e gli obblighi fiscali sono del proprietario). Non si usa Stripe
+  Connect nel piano iniziale.
+- Consenso alla consegna immediata, rimborsi, IVA, `market_payouts`: **non si
+  fanno ora**. Le colonne (`consenso_immediato_il`, `stato_pagamento`,
+  `id_transazione_esterna`) si mettono nello schema e restano vuote.
+
+##### Dove il codice di oggi non coincide con il documento (perplessità)
+
+1. **Il documento dice «solo app, dopo l'app, dopo i passi 1-2 di sicurezza».**
+   Qui si anticipa sul sito. Conseguenza: gli endpoint nuovi seguono le regole di
+   §7 fin dal primo giorno (`sec_*`, controllo di proprietà, `sec_guard_write`,
+   CSRF, registro `security_audit_log`), perché ogni mazzo pubblicato apre una
+   superficie verso altre persone. **Finché non esistono segnalazione, ritiro e
+   blocco, la pubblicazione resta accesa solo per il proprietario** (con i ruoli
+   `roles`/`user_roles`, già presenti).
+2. **I file di oggi si cancellano a mano.** Le immagini sono nomi di file in
+   `media/flashcard_images/` (studio) e `media/vocab_images/` (vocabolario), e le
+   pagine li cancellano direttamente (per esempio `mfc_togli()` in
+   `public/fc/fc_card_edit.php`). Con le copie che puntano allo stesso file,
+   **la modifica di una carta da parte di un compratore distruggerebbe l'immagine
+   di tutti gli altri.** Regola: **ogni cancellazione di file passa da una sola
+   funzione** che scende di uno il contatore e cancella solo a zero (un file non
+   registrato si cancella come prima). Prima di aprire, si cercano tutti i punti
+   che cancellano file in `media/` (immagini **e audio**): una dimenticata basta
+   a rompere i mazzi di qualcuno. È il rischio più grosso di tutto il lavoro.
+3. **La tabella `files` non esiste ancora.** Si usa la regola ponte di §14.4.5:
+   `market_files(percorso, riferimenti)` e la cartella `media/pub/deck/…`.
+4. **Nomi diversi.** Le tabelle dei mazzi oggi sono `fc_study_decks` e
+   `fc_vocab_decks`, con le carte in `fc_study_cards`, `fc_study_subcards`,
+   `fc_study_examples` (e gli equivalenti `fc_vocab_*`).
+5. **I mazzi di vocabolario appartengono a un corso**
+   (`fc_vocab_courses`, coppia `known_lang`/`learn_lang`), mentre §16.1 dice che la
+   coppia di lingue sta sul mazzo. Quindi: la coppia si legge dal corso e si copia
+   sull'annuncio (per i filtri); chi ottiene un mazzo di vocabolario ha bisogno di
+   un corso con la **stessa coppia** (si associa uno esistente o se ne crea uno), e
+   se la lingua conosciuta non coincide gli si mostra un avviso. I mazzi di studio
+   sono annidati (`parent_id`): un annuncio è un mazzo **con i suoi figli**.
+6. **Niente R2 né backup notturni finché non si trasloca** (§15 passi 5-6): i file
+   pubblicati stanno sul disco di Altervista. Serve un **limite di dimensione**
+   per versione pubblicata (valore da decidere) e un'attenzione in più allo spazio.
+7. **Il contenuto pubblicato sopravvive all'account** (§14.4.5): va scritto nelle
+   condizioni d'uso e confermato con una casella al momento di pubblicare.
+   Le condizioni d'uso **vanno scritte**, e il testo va fatto vedere a un legale
+   prima di aprire a persone esterne.
+8. **Diritto d'autore** (§14.4.7): le foto prese dai manuali arriveranno.
+   Mitigazioni: casella «il contenuto è mio o ho il diritto di pubblicarlo»,
+   segnalazione, ritiro con avviso ai compratori. Non risolvono tutto.
+9. **Nessun profilo pubblico**, quindi sull'annuncio non c'è un profilo da
+   mostrare: serve decidere come si presenta l'autore (§16 #10).
+
+##### Come si usa (schermate)
+
+- **Negozio:** ricerca con suggerimenti mentre si scrive, scorciatoie rapide,
+  sezioni «Per te», «I più ottenuti della settimana», «Novità», «Chi ha preso
+  questo ha preso anche». Risultati con filtri: coppia di lingue, materia,
+  con/senza immagini, numero di carte, voto, ordine.
+- **Scheda annuncio:** descrizione, carte di anteprima, versioni, recensioni,
+  avvisi di aggiornamento.
+- **Vendere (in realtà: offrire):** scelta del mazzo → titolo, descrizione, tag,
+  copertina → prezzo disattivato con l'avviso → interruttore «includi le immagini»
+  (con numero e peso) → anteprima come la vedrebbe un compratore → due caselle
+  obbligatorie (contenuto mio; resta anche se cancello l'account) → pubblica.
+  *La copertina si sceglie fra le immagini del mazzo: nessun caricamento nuovo.*
+- **I miei annunci** e **La mia libreria** (mazzi ottenuti, con l'avviso «l'autore
+  ha pubblicato una versione nuova»).
+- **Link pubblico** `/market/d/{codice}`, apribile **senza accesso**, con anteprima
+  per WhatsApp e Telegram; per ottenere il mazzo serve entrare.
+- **Ricerca:** `FULLTEXT` di MariaDB su titolo, descrizione e tag. **Suggerimenti:**
+  regole SQL semplici (lingue e materie dell'utente, più ottenuti, tag simili),
+  **senza IA**.
+
+##### Ordine di costruzione
+
+1. **Fondamenta:** migrazione (`market_*` + le tre colonne sui mazzi) e **la
+   funzione unica di cancellazione dei file** con tutte le pagine ricondotte a
+   lei. Nulla di visibile.
+2. **Pubblicare** un mazzo di studio (edizione congelata, file in `pub/`).
+3. **Negozio:** ricerca, filtri, suggerimenti, scheda annuncio, «Ottieni».
+4. **Link pubblico** con anteprima.
+5. **Sicurezza e moderazione:** segnalazione, ritiro con avviso, blocco del
+   venditore, pagina minima di moderazione. **Solo dopo questo passo la
+   pubblicazione si apre ad altri.**
+6. **Aggiornamenti e recensioni.** Poi i mazzi di vocabolario, se si decide di
+   separarli (§16 #11).
+
+File previsti: `public/market/*`, `lib/market/*`,
+`sql/migrations/2026-10-XX_market.sql`, gruppo `market` in `lang/it.json` e
+`lang/en.json`, aggiornamento di `ARCHITECTURE.md`.
 
 ---
 
@@ -1334,6 +1479,10 @@ Ogni passo ha un criterio di "fatto": senza, si va avanti a metà.
 | 14 | **Mercato con i prezzi accesi** (§14.4.6) | deciso chi incassa, consenso alla consegna immediata registrato, segnalazioni funzionanti |
 | 15 | **Parte social nell'app** | — |
 
+> **Nota (26/10/2026):** il passo 13 (condivisione gratuita) si fa **sul sito prima
+> del passo 12**, per decisione del proprietario (§14.4.10). Il passo 14 (prezzi
+> accesi) resta dopo e dipende dalla scelta di §16 #7.
+
 I passi 1-2 vanno fatti **prima** di aprire il sito ad altre persone. Finché
 l'unico utente sei tu, un buco è un problema tuo; con dentro dati di altri
 diventa un guaio serio, e in Europa anche con regole precise da rispettare.
@@ -1366,11 +1515,22 @@ chieste al proprietario.
 9. `meaning` ed `example` delle carte di vocabolario sono scritti nella lingua da
    imparare — **da confermare**, perché nel documento è dichiarato come
    convenzione e da lì in poi il codice ci farà affidamento.
+10. **Come si presenta l'autore di un annuncio sul sito** (§14.4.10): con il nome
+    utente, con un nome scelto apposta per il mercato, o anonimo? *Proposta di
+    Claude, da confermare: anonimo di default, nome a scelta.*
+11. **Mazzi di vocabolario subito o dopo quelli di studio?** Chi li ottiene ha
+    bisogno di un corso con la stessa coppia di lingue. *Proposta: prima lo studio.*
+12. **Chi modera all'inizio?** *Proposta: solo il proprietario, con i ruoli già
+    esistenti.*
+13. **La scheda di un annuncio si vede senza accesso?** *Proposta: sì, con poche
+    carte di testo di esempio; per ottenere il mazzo si entra.*
 
 ### 16.1 Decisioni già prese (non riaprirle senza motivo)
 
 - I mazzi si chiamano **`decks`**, non `categories`.
-- Il sito **non avrà** la parte social né la scelta del tema.
+- Il sito **non avrà** la parte social né la scelta del tema. **Eccezione decisa
+  il 26/10/2026:** il mercato dei mazzi, gratuito e pronto per i pagamenti, si fa
+  anche sul sito (§14.4.10).
 - L'app sarà **React Native**, non un guscio attorno al sito.
 - Le traduzioni stanno in **JSON**, non in array PHP, perché servono a entrambi.
 - Le immagini **non** vanno nel database.

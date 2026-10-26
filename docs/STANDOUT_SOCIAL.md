@@ -76,7 +76,9 @@ sotto `/api/v1/`, mai come blocco dentro una pagina.
 
 Elenco secco, per chi arriva adesso:
 
-1. Social **solo nell'app**, in React Native.
+1. Social **solo nell'app**, in React Native. **Unica eccezione (26/10/2026):** il
+   mercato dei mazzi esiste anche sul sito, gratuito e con link condivisibile
+   (`STANDOUT_PROGETTO.md` §14.4.10).
 2. **Il matchmaking è l'ultima cosa** che si costruisce, quando ci sarà abbastanza
    gente. Prima non ha senso: con pochi utenti l'algoritmo propone sempre le
    stesse persone e nessuno matcha.
@@ -360,6 +362,14 @@ dell'account. **I prezzi esistono nello schema da subito, ma partono tutti a 0 �
 Si comincia dalla **condivisione gratuita**: stesso meccanismo, senza pagamenti,
 senza IVA, senza rimborsi.
 
+**Aggiornamento del 26/10/2026:** la condivisione gratuita si fa **subito sul
+sito**, non solo nell'app, con ricerca, filtri, suggerimenti e link pubblico. Il
+prezzo resta disattivato a 0 € con un avviso («in futuro potrai fissare un
+prezzo»), ma il meccanismo è già pronto per i pagamenti. Sul sito **non ci sono
+profili pubblici**: l'autore si mostra con un nome a scelta o in forma anonima
+(da decidere, `STANDOUT_PROGETTO.md` §16 #10). Piano, rischi e ordine di
+costruzione stanno in `STANDOUT_PROGETTO.md` §14.4.10.
+
 ---
 
 ## 11. Matchmaking valoriale — per ultimo
@@ -539,7 +549,8 @@ sopra.
 - Non si mostra la posizione precisa di nessuno, mai: solo la provincia.
 - Non si riempiono le tre carte del match con profili a caso.
 - Non si mostra il contatore delle parole mancanti.
-- Non si mette il social nel sito.
+- Non si mette il social nel sito. *(Unica eccezione: il mercato dei mazzi,
+  gratuito, senza profili pubblici — §10.)*
 
 ---
 
@@ -552,6 +563,9 @@ sopra.
    Numeri da tarare sui primi utenti veri, non da decidere a tavolino.
 4. **Quanti messaggi o giorni** servono per sbloccare la foto dopo un match.
 5. **Chi incassa** nel mercato dei mazzi (§10 e `STANDOUT_PROGETTO.md` §14.4.6).
+   Sul mercato del sito restano aperte anche le domande di
+   `STANDOUT_PROGETTO.md` §16 dal 10 al 13 (autore, vocabolario, moderazione,
+   anteprima pubblica).
 6. **Verifica identità**: servizio esterno per tutti, o badge a pagamento su
    richiesta?
 7. Nome pubblico e identità visiva.
