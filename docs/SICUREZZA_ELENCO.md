@@ -50,10 +50,10 @@ mostrati all'utente**.
 | M3 | `ai_generate_text.php`, `ai_shatter.php`, `ai_tutor.php`, `fc_card_edit.php` | Il "rete di sicurezza" per gli errori fatali mandava al browser messaggio PHP e numero di riga. | **corretto** — nel log, a schermo messaggio generico |
 | M4 | `ai_generate_text.php`, `ai_tutor.php` | `display_errors = 1` forzato: ogni avviso PHP finiva in pagina, con i percorsi delle cartelle. | **corretto** — rimosso; in più `security_core.php` ora spegne `display_errors` ovunque, a meno che in `config.php` si scriva `define('STANDOUT_DEBUG', true);` |
 | M5 | `pomodoro.php`, `progetti.php`, `voti.php` | Se il database non si apriva: `mysqli_connect_error()` a schermo. | **corretto** — nel log, a schermo messaggio generico |
-| M6 | `ai_generate_text.php`, `ai_shatter.php`, `ai_tutor.php` | La chiave API di Google stava nell'indirizzo (`?key=…`): gli indirizzi finiscono nei log e nei messaggi d'errore. | **corretto** — ora nell'intestazione `x-goog-api-key`. *Resta* `GEMINI_API_URL` in `lib/config.php` (usata da `fc_ai_lib.php` e `fc_ai_immagine.php`, file non nel repository): vedi T3. |
+| M6 | `ai_generate_text.php`, `ai_shatter.php`, `ai_tutor.php` | La chiave API di Google stava nell'indirizzo (`?key=…`): gli indirizzi finiscono nei log e nei messaggi d'errore. | **corretto** — ora nell'intestazione `x-goog-api-key`. Anche `GEMINI_API_URL` di `lib/config.php` (che ha ancora `?key=…`) non porta più la chiave in rete nell'indirizzo: `fc_ai_lib.php` e `fc_ai_immagine.php` la tolgono (`sec_gemini_url`) e la mandano nell'intestazione, senza toccare `config.php`. |
 | M7 | `lib/auth_core.php` | `session.use_strict_mode` non impostato (lo chiede SICUREZZA.md §7.1): un id di sessione scelto da un attaccante veniva accettato. | **corretto** — strict mode + solo cookie |
 | M8 | `media/` (file caricati dagli utenti) | Nessuna difesa a livello server contro un `.php` finito lì dentro; il codice controlla tipo ed estensione, ma è una difesa sola. | **corretto** — nuovo `media/.htaccess` nel repository (nega `.php`, `.phtml`, `.phar` ecc., nasconde i file `.`, `nosniff` e CSP chiusa se un file si apre da solo). Provato con Apache 2.4: `.php` e `.PHP5` → 403, immagini e audio → 200. Parte da solo col prossimo deploy. |
-| M9 | `.github/workflows/deploy.yml` | Deploy in FTP semplice: password e codice viaggiano in chiaro. | **tuo / aperto** — passare a `protocol: ftps` se Altervista lo permette (va provato: se il deploy fallisce si torna a `ftp`) |
+| M9 | `.github/workflows/deploy.yml` | Deploy in FTP semplice: password e codice viaggiano in chiaro. | **corretto (27/10/2026)** — `protocol: ftps`; la prima esecuzione è andata a buon fine. |
 | M10 | `register.php`, `lib/auth_core.php` | La regola password è più debole di §7.1: 8 caratteri con lettera e cifra (la guida chiede 10, elenco di password comuni, verifica email). | **aperto** — è una funzione da costruire (verifica email), non una correzione |
 | M11 | tutte le pagine | La CSP ha ancora `'unsafe-inline'` per script e stile: restano 23 gestori inline (`onclick=…`) e i blocchi `<style>`. È il passo 10 (CSS esterno). | **deciso / aperto** — noto e documentato |
 | M12 | `public/social/friends_api.php` | La ricerca utenti non ha limite di frequenza: si possono raccogliere gli username a tappeto. | **chiuso (27/10/2026)** — la parte social è spenta sul sito (`lib/social_gate.php`, 404). Il limite di frequenza va aggiunto quando le pagine diventeranno l'API dell'app. |
@@ -73,11 +73,9 @@ mostrati all'utente**.
 
 ## Cosa va fatto da te (fuori dal codice)
 
-- **T1.** Dopo il deploy: provare **Frantuma** (`ai_shatter`) e **l'audio del tutor** una volta. Servono per vedere che la verifica del certificato (A4) funziona su Altervista.
+- **T1.** Frantuma ha mostrato «Gemini API error»: ora ritenta una volta e scrive nell'errore il codice di Google (es. «503 UNAVAILABLE»). Se compare ancora, quel codice dice se è Google sovraccarico, la chiave, o il testo bloccato. Da provare anche **l'audio del tutor** (A4).
 - **T2.** Provare di aprire un'immagine e un audio da `media/`: devono funzionare come prima (il nuovo `.htaccess` non tocca immagini/audio).
-- **T3.** In `lib/config.php` (non è nel repository): se `GEMINI_API_URL` contiene `?key=…`, la chiave resta nell'indirizzo per `fc_ai_lib.php` e `fc_ai_immagine.php`. Si cambia in un secondo passo, insieme a quei due file.
-- **T4.** Decidere se provare `ftps` nel deploy (M9).
-- **T5.** Ricordarsi la migrazione `2026-10-27_piano_chiavi.sql` (non c'entra con la sicurezza del codice, ma è in sospeso).
+- **T3.** Ricordarsi la migrazione `2026-10-27_piano_chiavi.sql` (non c'entra con la sicurezza del codice, ma è in sospeso).
 
 ---
 
