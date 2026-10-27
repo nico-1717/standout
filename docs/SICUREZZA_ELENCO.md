@@ -77,6 +77,20 @@ script e gli stili, `data-on-click` al posto degli `onclick`; dettagli nella sez
 
 ---
 
+## D. Prova dal vivo (27/10/2026, sera)
+
+Fatta sul sito vero con il browser, solo letture e richieste che devono essere rifiutate.
+
+| Esito | Cosa |
+|---|---|
+| **trovato e corretto** | `/partials/sidebar.html` si apriva dal browser con i tag PHP in chiaro e senza CSP: ora `public/partials/.htaccess` nega l'accesso (come `lib/`). |
+| **trovato e corretto** | Cookie `nisama_remember`, `nisama_lingua`, `pr_last_project` senza `Secure` (dietro il proxy `$_SERVER['HTTPS']` manca): ora `sec_is_https()`. |
+| **trovato e corretto** | `ai_tutor.php` non controllava CSRF né frequenza (spende credito audio): ora `sec_guard_write`, 40/min. Provato dal vivo: senza header 403, con header passa. |
+| **rafforzato** | MathJax bloccato alla 3.2.2 con SRI sha384 (hash identico ai byte serviti da jsDelivr). Import `.xlsx`: limite 40 MB decompressi (zip bomb) + `LIBXML_NONET`. |
+| **ok** | CSP nuova online, 0 gestori inline; HSTS, X-Frame-Options, nosniff, COOP; `lib/`, `.git`, `.env`, `sql/`, `tools/`, `docs/` non raggiungibili; http→https; login/registrazione senza token 403; scritture via GET 405; link di verifica falso → pagina generica. |
+| **ok** | Da un account verso dati altrui, solo lettura: ~150 mazzi, 120 progetti, 200 partite, ~330 carte e l'API esempi (get) rispondono come un id inesistente. |
+| **da fare** | Prove di scrittura tra account e sonde XSS salvata: servono due account di prova vuoti. |
+
 ## Cosa va fatto da te (fuori dal codice)
 
 - **T1.** Frantuma ha mostrato «Gemini API error»: ora ritenta una volta e scrive nell'errore il codice di Google (es. «503 UNAVAILABLE»). Se compare ancora, quel codice dice se è Google sovraccarico, la chiave, o il testo bloccato. Da provare anche **l'audio del tutor** (A4).
