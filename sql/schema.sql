@@ -3225,3 +3225,49 @@ CREATE TABLE IF NOT EXISTS `fc_quick_drafts` (
   PRIMARY KEY (`id`),
   KEY `idx_user` (`user_id`,`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Diario con IA e memoria della spesa (migrazione 2026-10-27_diario_ai_buy_memory.sql)
+
+CREATE TABLE IF NOT EXISTS `diary_ai_books` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `titolo` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `periodo_da` date NOT NULL,
+  `periodo_a` date NOT NULL,
+  `unito_a` int UNSIGNED DEFAULT NULL COMMENT 'il libro precedente che questo continua e riordina',
+  `stato` enum('scrittura','fatto') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'scrittura',
+  `piano` longtext COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'il piano dei capitoli deciso dall IA',
+  `capitoli` longtext COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'i capitoli scritti finora',
+  `crediti` int UNSIGNED NOT NULL DEFAULT '0' COMMENT 'crediti IA spesi per questo libro',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_utente` (`user_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `diary_ai_reports` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `anno` smallint UNSIGNED NOT NULL,
+  `trimestre` tinyint UNSIGNED NOT NULL,
+  `periodo_da` date NOT NULL,
+  `periodo_a` date NOT NULL,
+  `contenuto` longtext COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'il resoconto scritto dall IA',
+  `numeri` longtext COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'JSON: i numeri del trimestre su cui si basa',
+  `crediti` int UNSIGNED NOT NULL DEFAULT '0' COMMENT 'crediti IA spesi per questo resoconto',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_trimestre` (`user_id`,`anno`,`trimestre`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `todo_buy_memory` (
+  `user_id` int NOT NULL,
+  `chiave` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'il titolo normalizzato, per riconoscere la stessa cosa',
+  `title` varchar(300) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `cat_id` int UNSIGNED DEFAULT NULL COMMENT 'la categoria della spesa usata l ultima volta',
+  `cents` int UNSIGNED DEFAULT NULL COMMENT 'l ultimo prezzo, in centesimi',
+  `uses` int UNSIGNED NOT NULL DEFAULT '0' COMMENT 'quante volte è stata messa in lista',
+  `last_used` datetime DEFAULT NULL,
+  PRIMARY KEY (`user_id`,`chiave`),
+  KEY `idx_uso` (`user_id`,`uses`,`last_used`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
