@@ -174,10 +174,13 @@
     var LIVELLI = ['difficilissima', 'difficile', 'insidiosa', 'da_imparare', 'nuova', 'in_ripresa', 'sembra_facile', 'facile', 'quasi', 'la_sai'];
     var STORIA = 30;
     function rango(l) { var i = LIVELLI.indexOf(l); return i < 0 ? 4 : i; }
-    function livelloPrefisso(s, n, rec) {
+    function livelloPrefisso(s, n, rec, err) {
         if (n <= 0 || !s) return 'nuova';
         var tutte = s.toUpperCase();
         var norm = s.replace(/[a-z]/g, '');
+        if (err === undefined) err = tutte.indexOf('W') !== -1;
+        /* mai sbagliata in tutta la storia: sembra facile (1 risposta) o facile */
+        if (!err) return n >= 2 ? 'facile' : 'sembra_facile';
         if (n <= 2 && tutte.indexOf('C') === -1) return 'da_imparare';
         if (n >= 3 && tutte.slice(-3) === 'CCC') return 'la_sai';
         function finestra() {
@@ -192,18 +195,20 @@
             var f = finestra();
             return rango(f) < rango('difficile') ? f : 'difficile';
         }
-        if (tutte.indexOf('W') === -1) return n >= 2 ? 'facile' : 'sembra_facile';
         return finestra();
     }
     function livello(c, w, u) {
         u = String(u || '');
         var n = c + w;
         if (n <= 0 || !u) return 'nuova';
-        var st = { s: '', n: Math.max(0, n - u.length), rec: false, liv: 'nuova' };
+        /* sbagliate di sempre piu' di quelle viste nelle ultime risposte: una e' piu' vecchia */
+        var viste = (u.toUpperCase().match(/W/g) || []).length;
+        var st = { s: '', n: Math.max(0, n - u.length), rec: false, err: w > viste, liv: 'nuova' };
         for (var i = 0; i < u.length; i++) {
             st.s = (st.s + u.charAt(i)).slice(-STORIA);
             st.n++;
-            st.liv = livelloPrefisso(st.s, st.n, st.rec);
+            if (u.charAt(i).toUpperCase() === 'W') st.err = true;
+            st.liv = livelloPrefisso(st.s, st.n, st.rec, st.err);
             if (st.liv === 'difficile' || st.liv === 'difficilissima') st.rec = true;
             else if (st.liv === 'la_sai') st.rec = false;
         }

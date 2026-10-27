@@ -27,9 +27,11 @@ if (!function_exists('fcv_livello')) {
 
      nuova           mai giocata
      da_imparare     giocata al massimo due volte, sempre sbagliata
-     sembra_facile   mai sbagliata, ma giocata una volta sola
-     facile          mai sbagliata, giocata due volte (la terza: la_sai)
-     la_sai          giusta le ultime TRE volte di fila
+     sembra_facile   mai sbagliata (in tutta la storia), giocata una volta sola
+     facile          mai sbagliata (in tutta la storia), giocata due volte o piu'
+     la_sai          giusta le ultime TRE volte di fila, ma sbagliata almeno
+                     una volta nella storia (se non e' mai stata sbagliata e'
+                     "facile", non "la_sai")
      insidiosa       nelle ultime cinque partite normali (o in tutte, se sono
                      meno di cinque), sbagliata una volta
      difficile       come sopra, sbagliata due volte o piu'
@@ -109,10 +111,17 @@ function fcv_conta_da_ripassare(array $conta): int {
 }
 
 /** Il livello di una storia gia' tagliata: $s = risposte, $n = quante in tutto, $rec = era difficile. */
-function fcv_livello_prefisso(string $s, int $n, bool $rec): string {
+function fcv_livello_prefisso(string $s, int $n, bool $rec, ?bool $err = null): string {
     if ($n <= 0 || $s === '') return 'nuova';
     $tutte = strtoupper($s);
+    /* $err: sbagliata almeno una volta in TUTTA la storia (anche piu' vecchia
+       delle ultime FCV_STORIA risposte, che qui non si vedono) */
+    if ($err === null) $err = strpos($tutte, 'W') !== false;
     $norm = preg_replace('/[a-z]/', '', $s);                      // solo le partite normali
+    /* mai sbagliata: con una risposta sola "sembra facile", da due in poi
+       "facile" (e resta facile, non diventa la_sai: quella e' di chi ha
+       sbagliato e poi ce l'ha fatta) */
+    if (!$err) return $n >= 2 ? 'facile' : 'sembra_facile';
     if ($n <= 2 && strpos($tutte, 'C') === false) return 'da_imparare';
     if ($n >= 3 && substr($tutte, -3) === 'CCC') return 'la_sai';
     $finestra = function () use ($s, $norm): string {
@@ -129,9 +138,6 @@ function fcv_livello_prefisso(string $s, int $n, bool $rec): string {
         $f = $finestra();
         return fcv_livello_rango($f) < fcv_livello_rango('difficile') ? $f : 'difficile';
     }
-    /* mai sbagliata: con una sola risposta "sembra facile", con due (tre di fila
-       sono gia' la_sai, presa sopra) "facile" */
-    if (strpos($tutte, 'W') === false) return $n >= 2 ? 'facile' : 'sembra_facile';
     return $finestra();
 }
 
@@ -139,23 +145,33 @@ function fcv_livello_prefisso(string $s, int $n, bool $rec): string {
 function fcv_livello_avanza(array $st, string $r): array {
     $st['s'] = substr(($st['s'] ?? '') . $r, -FCV_STORIA);
     $st['n'] = ($st['n'] ?? 0) + 1;
-    $st['liv'] = fcv_livello_prefisso($st['s'], $st['n'], !empty($st['rec']));
+    $st['err'] = !empty($st['err']) || strtoupper($r) === 'W';
+    $st['liv'] = fcv_livello_prefisso($st['s'], $st['n'], !empty($st['rec']), $st['err']);
     if ($st['liv'] === 'difficile' || $st['liv'] === 'difficilissima') $st['rec'] = true;
     elseif ($st['liv'] === 'la_sai') $st['rec'] = false;
     return $st;
 }
 
 /** Il livello da una storia ($u) e dal numero di risposte di sempre ($n). */
-function fcv_livello_storia(string $u, int $n): string {
+function fcv_livello_storia(string $u, int $n, bool $errPrima = false): string {
     if ($n <= 0 || $u === '') return 'nuova';
-    $st = ['s' => '', 'n' => max(0, $n - strlen($u)), 'rec' => false, 'liv' => 'nuova'];
+    $st = ['s' => '', 'n' => max(0, $n - strlen($u)), 'rec' => false, 'err' => $errPrima, 'liv' => 'nuova'];
     foreach (str_split($u) as $r) $st = fcv_livello_avanza($st, $r);
     return $st['liv'];
 }
 
 /** Come prima: giuste ($c), sbagliate ($w), storia ($ultime). */
 function fcv_livello(int $c, int $w, string $ultime): string {
-    return fcv_livello_storia($ultime, $c + $w);
+    /* se le sbagliate di sempre sono piu' di quelle visibili nelle ultime
+       risposte, una e' piu' vecchia: la carta e' stata sbagliata davvero */
+    $errPrima = $w > substr_count(strtoupper($ultime), 'W');
+    return fcv_livello_storia($ultime, $c + $w, $errPrima);
+}
+
+/** "La sai" per i conteggi (carte che sai, padroneggiate): il livello la_sai, e
+ *  anche una carta "facile" (sempre giusta) dalla terza risposta in poi. */
+function fcv_e_saputa(string $liv, int $n): bool {
+    return $liv === 'la_sai' || ($liv === 'facile' && $n >= 3);
 }
 
 /** La lettera di una risposta nella storia. */
@@ -250,7 +266,7 @@ function fcv_conosciute(int $uid, string $tipo): array {
         $st = fcv_livello_avanza($stato[$k] ?? ['s' => '', 'n' => 0, 'rec' => false, 'liv' => 'nuova'],
                                  fcv_lettera($r['user_answer'] === 'Correct', (bool)$r['ripasso']));
         $stato[$k] = $st;
-        if ($st['liv'] === 'la_sai' && !isset($primo[$k])) $primo[$k] = (string)$r['d'];
+        if (fcv_e_saputa($st['liv'], $st['n']) && !isset($primo[$k])) $primo[$k] = (string)$r['d'];
     }
 
     $totale = 0; $giorni = []; $perCorso = []; $dettaglio = [];
@@ -259,7 +275,7 @@ function fcv_conosciute(int $uid, string $tipo): array {
         $dl = $primo[$k] ?? null;
         $quando = ($dt !== null && $dl !== null) ? min($dt, $dl) : ($dt ?? $dl);
         if ($quando !== null) $giorni[$quando] = ($giorni[$quando] ?? 0) + 1;
-        $ora = $dt !== null || (($stato[$k]['liv'] ?? 'nuova') === 'la_sai') || $inArchivio($u['mazzo']);
+        $ora = $dt !== null || fcv_e_saputa($stato[$k]['liv'] ?? 'nuova', (int)($stato[$k]['n'] ?? 0)) || $inArchivio($u['mazzo']);
         if ($ora) {
             $totale++;
             $perCorso[$u['corso']] = ($perCorso[$u['corso']] ?? 0) + 1;
@@ -385,7 +401,7 @@ function fcv_padroneggiate(int $user_id, int $course_id): int {
     $titoli = fc_is_vocab() ? [] : fcv_titoli_studio($user_id);
     foreach ($stats as $k => $s) {
         if (isset($titoli[$k])) continue;   // un titolo non ha livello
-        if (fcv_livello($s['c'], $s['w'], $s['u']) === 'la_sai') $n++;
+        if (fcv_e_saputa(fcv_livello($s['c'], $s['w'], $s['u']), $s['c'] + $s['w'])) $n++;
     }
     return $n;
 }

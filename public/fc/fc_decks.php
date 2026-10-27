@@ -493,7 +493,7 @@ if ($all_categories) {
         $fcm_stat[$mid]['liv'][$liv]++;
         /* "le sai": col tastino o al livello la_sai, come in fcv_conosciute */
         $padre = $k[0] === 'p' ? (int)substr($k, 1) : ($fcm_padre_di[$k] ?? 0);
-        if ($liv === 'la_sai' || isset($fcm_tastino[$padre])) $fcm_stat[$mid]['sai']++;
+        if (fcv_e_saputa($liv, $st['c'] + $st['w']) || isset($fcm_tastino[$padre])) $fcm_stat[$mid]['sai']++;
     }
     /* le partite (le radici: un ripasso fa parte della sua partita) */
     foreach (sec_all("SELECT gd.fc_category_id AS cid, g.id, g.game_date FROM fc_games g
