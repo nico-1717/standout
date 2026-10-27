@@ -1087,7 +1087,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
     $iconaMazzo = fc_icona_mazzo_di($cat);                                   // quella che si vede
     $iconaScelta = fc_icona_valida($cat['icon'] ?? null) ? (string)$cat['icon'] : '';  // '' = automatica
 ?>
-<div class="cat-row" data-id="<?php echo (int)$id; ?>" data-parent="<?php echo (int)$cat['parent_id']; ?>" data-level="<?php echo (int)$level; ?>" data-name="<?php echo sec_h($nameEsc); ?>"
+<div class="cat-row" data-id="<?php echo (int)$id; ?>" data-parent="<?php echo (int)$cat['parent_id']; ?>" data-level="<?php echo (int)$level; ?>" data-name="<?php echo $nameEsc; ?>"
      data-parent-name="<?php echo sec_h($parentName); ?>" data-parent-color="<?php echo sec_h($parentColor); ?>"
      data-color="<?php echo sec_h($color); ?>" data-color-edited="<?php echo (int)($cat['color_edited'] ?? 0); ?>"
      data-archived="<?php echo (int)($cat['archived'] ?? 0); ?>" data-candelete="<?php echo (int)$can_delete; ?>"
@@ -1144,7 +1144,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
         </span>
 
         <div class="cat-name-wrap">
-        <span class="cat-name"><?php if (!empty($cat['pinned'])): ?><span class="cat-pin" title="<?php te('fc.dk_fissato'); ?>"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.5 2.5a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4l-1.6 1.6a1 1 0 0 1-1 .25l-2.2 2.2.4 4.2a1 1 0 0 1-.3.8l-1 1a1 1 0 0 1-1.4 0L10 15.1l-5.3 5.3a1 1 0 0 1-1.4-1.4L8.6 13.7 4.2 9.3a1 1 0 0 1 0-1.4l1-1a1 1 0 0 1 .8-.3l4.2.4 2.2-2.2a1 1 0 0 1 .25-1Z"/></svg></span><?php endif; ?><?php echo sec_h($nameEsc); ?></span>
+        <span class="cat-name"><?php if (!empty($cat['pinned'])): ?><span class="cat-pin" title="<?php te('fc.dk_fissato'); ?>"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.5 2.5a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4l-1.6 1.6a1 1 0 0 1-1 .25l-2.2 2.2.4 4.2a1 1 0 0 1-.3.8l-1 1a1 1 0 0 1-1.4 0L10 15.1l-5.3 5.3a1 1 0 0 1-1.4-1.4L8.6 13.7 4.2 9.3a1 1 0 0 1 0-1.4l1-1a1 1 0 0 1 .8-.3l4.2.4 2.2-2.2a1 1 0 0 1 .25-1Z"/></svg></span><?php endif; ?><?php echo $nameEsc; ?></span>
         <?php $catProj = $cat_project_links[$id] ?? null; if ($catProj): ?>
         <a class="cat-proj-tag" href="../projects/progetti.php?id=<?php echo (int)$catProj['id']; ?>" style="--cp-color:<?php echo sec_h($catProj['color']); ?>;" data-on-click="event.stopPropagation();">
             <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
@@ -1158,7 +1158,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
         <span class="cat-badge"><?php echo (int)$cat['image_count']; ?></span>
         <button type="button" class="cat-kebab" aria-label="<?php te('vocab.cat_altre_azioni'); ?>"
             data-id="<?php echo (int)$id; ?>"
-            data-name="<?php echo sec_h($nameEsc); ?>"
+            data-name="<?php echo $nameEsc; ?>"
             data-parent="<?php echo (int)$cat['parent_id']; ?>"
             data-parent-name="<?php echo sec_h($parentName); ?>"
             data-parent-color="<?php echo sec_h($parentColor); ?>"
@@ -1192,7 +1192,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 ?>
 <div class="cat-add-here" data-parent="<?php echo (int)$id; ?>" style="display:none; padding-left:<?php echo (int)($pad + 24); ?>px;">
     <button type="button" class="cat-add-btn" style="--row-color:<?php echo sec_h($color); ?>;"
-            data-id="<?php echo (int)$id; ?>" data-name="<?php echo sec_h($nameEsc); ?>" data-color="<?php echo sec_h($color); ?>"
+            data-id="<?php echo (int)$id; ?>" data-name="<?php echo $nameEsc; ?>" data-color="<?php echo sec_h($color); ?>"
             data-on-click="aggiungiFiglioDaTastino(this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         <span><?php te('fc.cfc_sotto_categoria'); ?></span>
