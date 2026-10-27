@@ -3,9 +3,9 @@
 // php://input si legge una volta sola (vedi ai_example.php).
 $__raw_input = file_get_contents('php://input');
 
-// Forza la visualizzazione degli errori (se l'hosting lo permette)
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+// Gli errori vanno nel log del server, non a schermo: un avviso di PHP mostra
+// percorsi di cartelle e a volte pezzi di query. Per vederli mentre si sviluppa
+// si definisce STANDOUT_DEBUG in config.php (security_core.php lo rispetta).
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/../../lib/config.php';
@@ -21,7 +21,9 @@ register_shutdown_function(function () {
     if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
         if (ob_get_level() > 0) { ob_clean(); }
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => t('ai.errore_interno', ['errore' => $err['message'], 'riga' => $err['line']])]);
+        /* Il dettaglio (messaggio PHP, file, riga) va nel log del server, non al browser. */
+        sec_log_error('fatale', $err['message'] . ' @ ' . basename((string)$err['file']) . ':' . $err['line']);
+        echo json_encode(['success' => false, 'error' => t('comune.errore_generico')]);
     }
 });
 
@@ -100,7 +102,9 @@ if (!file_exists($audio_path)) {
         ]));
     }
 
-    $tts_url = "https://texttospeech.googleapis.com/v1/text:synthesize?key=" . GOOGLE_TTS_API_KEY;
+    $tts_url = "https://texttospeech.googleapis.com/v1/text:synthesize";
+    /* La chiave viaggia nell'intestazione e non nell'indirizzo: gli indirizzi finiscono
+       nei log dei server e nei messaggi d'errore, le intestazioni no. */
     $text_chunks = splitTextForTTS($clean_text_for_audio);
     $audio_binary = '';
 
@@ -125,9 +129,10 @@ if (!file_exists($audio_path)) {
         curl_setopt($ch2, CURLOPT_POST, true);
         curl_setopt($ch2, CURLOPT_POSTFIELDS, $tts_payload);
         
-        curl_setopt($ch2, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch2, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch2, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'x-goog-api-key: ' . GOOGLE_TTS_API_KEY]);
+        /* Certificato verificato (vedi ai_shatter.php): la chiave API è nell'indirizzo. */
+        curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch2, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch2, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
         curl_setopt($ch2, CURLOPT_FORBID_REUSE, true);
         curl_setopt($ch2, CURLOPT_FRESH_CONNECT, true);

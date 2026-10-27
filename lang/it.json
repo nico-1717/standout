@@ -4564,6 +4564,7 @@
     "serve_nome_calendario": "Serve un nome per il calendario.",
     "scrivi_una_parola": "Scrivi una parola.",
     "origine_non_riconosciuta": "Richiesta bloccata: origine non riconosciuta.",
+    "metodo_non_consentito": "Richiesta bloccata: questa azione si fa solo con POST.",
     "routine_senza_eventi": "Questa routine non ha ancora eventi.",
     "presa_non_trovata": "Presa non trovata.",
     "ordine_non_valido": "Ordine non valido.",

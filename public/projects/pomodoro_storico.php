@@ -25,6 +25,8 @@ if (!isset($conn) || !$conn) {
 if (isset($_GET['ph_ajax']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     sec_guard_write((int)$current_user_id, 'pomodoro_storico', 0, 300, 60);
 }
+/* Il client chiama sempre con POST: con GET non passa nessuna azione. */
+if (isset($_GET['ph_ajax'])) sec_solo_post_se_scrive(sec_str($_GET['ph_ajax'], 30), []);
 
 if (!function_exists('ph_project_ids_in_subtree')) {
         function ph_project_ids_in_subtree($userId, $rootId) {

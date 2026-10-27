@@ -3,9 +3,9 @@
 // ai_example.php per il perché: php://input si legge una volta sola).
 $__raw_input = file_get_contents('php://input');
 
-// Forza la visualizzazione degli errori (se l'hosting lo permette)
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+// Gli errori vanno nel log del server, non a schermo: un avviso di PHP mostra
+// percorsi di cartelle e a volte pezzi di query. Per vederli mentre si sviluppa
+// si definisce STANDOUT_DEBUG in config.php (security_core.php lo rispetta).
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/../../lib/config.php';
@@ -22,7 +22,9 @@ register_shutdown_function(function () {
     if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
         if (ob_get_level() > 0) { ob_clean(); }
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => t('ai.errore_interno', ['errore' => $err['message'], 'riga' => $err['line']])]);
+        /* Il dettaglio (messaggio PHP, file, riga) va nel log del server, non al browser. */
+        sec_log_error('fatale', $err['message'] . ' @ ' . basename((string)$err['file']) . ':' . $err['line']);
+        echo json_encode(['success' => false, 'error' => t('comune.errore_generico')]);
     }
 });
 
@@ -108,14 +110,16 @@ $prompt = ($mode === 'explain')
     ? "Spiega in modo semplice, discorsivo e chiaro il seguente concetto per uno studente universitario. Tono amichevole. Mantieni le formule matematiche nei dollari ($$). Rispondi in " . t('ai.lingua_risposta') . ". Testo: " . $raw_text
     : "Crea una metafora o un esempio pratico per memorizzare il seguente concetto. Mantieni formule nei dollari ($$). Rispondi in " . t('ai.lingua_risposta') . ". Testo: " . $raw_text;
 
-$url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . GEMINI_API_KEY;
+$url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+/* La chiave viaggia nell'intestazione e non nell'indirizzo: gli indirizzi finiscono
+   nei log dei server e nei messaggi d'errore, le intestazioni no. */
 $payload = json_encode(["contents" => [["parts" => [["text" => $prompt]]]]]);
 
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'Expect:']);
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'Expect:', 'x-goog-api-key: ' . GEMINI_API_KEY]);
 curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
 curl_setopt($ch, CURLOPT_TIMEOUT, 60);

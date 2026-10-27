@@ -27,6 +27,15 @@
 
 require_once __DIR__ . '/config.php';
 
+/* Errori PHP: nel log del server, mai a schermo. Un avviso mostra il percorso
+   delle cartelle e a volte pezzi di query (SICUREZZA.md §7). Se un giorno serve
+   vederli mentre si sviluppa, in config.php basta define('STANDOUT_DEBUG', true). */
+if (!defined('STANDOUT_DEBUG') || !STANDOUT_DEBUG) {
+    ini_set('display_errors', '0');
+    ini_set('display_startup_errors', '0');
+    ini_set('log_errors', '1');
+}
+
 /* ============================================================
    1. HEADER DI SICUREZZA  +  HTTPS OBBLIGATORIO
    ============================================================ */
@@ -585,6 +594,29 @@ function sec_log_error(string $where, string $message): void {
 /* ============================================================
    10. Scorciatoia per gli endpoint che scrivono
    ============================================================ */
+
+/**
+ * Un'azione che cambia qualcosa si accetta solo con POST.
+ *
+ * Perché: sec_require_csrf() lascia passare GET, HEAD e OPTIONS senza token,
+ * ed è giusto per le letture. Ma molti endpoint leggono i parametri con
+ * sec_in(), che guarda anche la query string: un link come
+ *   todo_api.php?ajax=delete&id=5
+ * aperto da un altro sito si porta dietro il cookie di sessione (SameSite=Lax
+ * lo permette per le navigazioni) e cancellerebbe senza che nessuno controlli
+ * il token. Qui l'elenco è quello delle sole LETTURE: tutto il resto, anche
+ * un'azione aggiunta domani e dimenticata, è POST per forza.
+ *
+ *   sec_solo_post_se_scrive($ajax, ['list', 'summary']);
+ */
+function sec_solo_post_se_scrive(string $azione, array $solaLettura = []): void {
+    $metodo = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+    /* Azione vuota = caricamento normale della pagina, non c'è niente da scrivere. */
+    if ($metodo === 'POST' || $azione === '' || in_array($azione, $solaLettura, true)) return;
+    if (!headers_sent()) header('Allow: POST');
+    sec_audit('metodo_non_consentito', 'denied', $azione);
+    sec_die_json(t('api.metodo_non_consentito'), 405, 'method');
+}
 
 /**
  * Una riga sola in cima a ogni endpoint di scrittura:

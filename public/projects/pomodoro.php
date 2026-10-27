@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-if (!$conn) { die(t('pomodoro.connessione_fallita', ['errore' => mysqli_connect_error()])); }
+if (!$conn) { error_log('[standout:db] ' . mysqli_connect_error()); die(t('comune.errore_generico')); } /* il motivo nel log, non a schermo */
 require_once __DIR__ . '/../../lib/auth_check.php';
 require_once __DIR__ . '/pomodoro_stato.php';   // il tetto delle 10 ore, pomo_color() e pomo_leggi_stato()
 $current_user_id = $utente_corrente['id'];
@@ -56,6 +56,8 @@ if (isset($_GET['ajax'])) {
     if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         sec_guard_write((int)($utente_corrente['id'] ?? 0), 'pomodoro', 0, 300, 60);
     }
+    /* Con GET si può solo leggere lo stato: le altre azioni sono POST. */
+    sec_solo_post_se_scrive(sec_str($ajax, 30), ['stato']);
 
     /* Lo stato, cosi' com'e' adesso. Lo chiede il controllo periodico del
        motore (per accorgersi di cosa e' stato fatto da un altro dispositivo)

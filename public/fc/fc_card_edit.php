@@ -49,8 +49,10 @@
         if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
             if (ob_get_level() > 0) { ob_clean(); }
             if (!headers_sent()) http_response_code(500);
+            /* Messaggio PHP e riga nel log del server, non a schermo. */
+            sec_log_error('fatale', $err['message'] . ' @ ' . basename((string)$err['file']) . ':' . $err['line']);
             echo '<!DOCTYPE html><html lang="' . (function_exists('standout_lingua') ? standout_lingua() : 'it') . '"><body><div class="page"><div class="empty-state">'
-               . sec_h(t('api.errore_interno_riga', ['errore' => $err['message'], 'riga' => $err['line']]))
+               . sec_h(t('comune.errore_generico'))
                . '</div></div></body></html>';
         }
     });

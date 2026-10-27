@@ -1483,8 +1483,8 @@ Ogni passo ha un criterio di "fatto": senza, si va avanti a metà.
 
 | # | Stato | Note |
 |---|---|---|
-| 1 | **in parte** | gli strumenti ci sono (`tools/verifica_sicurezza.py`, `controlla_colonne.py`, `controlla_csp.py`, funzioni `sec_*`); manca il giro su **tutte** le pagine e l'elenco ordinato per gravità |
-| 2 | da fare | dipende dal passo 1 |
+| 1 | **fatto (27/10/2026)** | giro su tutto `public/` e `lib/` con `tools/audit_sicurezza.py` + lettura del codice; l'elenco ordinato per gravità e per file è in `docs/SICUREZZA_ELENCO.md`. Resta fuori un test dal vivo contro il sito |
+| 2 | **in parte (27/10/2026)** | corretti i difetti ALTA e quasi tutti i MEDIA (scritture via GET senza token, «ricordami» di account disattivati, certificato TLS, errori a schermo, importazioni senza CSRF, `media/.htaccess`). Aperti: password più forti + verifica email, ftps nel deploy, limite alla ricerca amici, controllo d'uso prima di cancellare un file (serve al negozio) — vedi `docs/SICUREZZA_ELENCO.md` |
 | 3 | **in parte** | `lib/`, `sql/`, `data/` stanno fuori da `public/`; **manca `bootstrap.php`** (ogni pagina include ancora `config.php` per conto suo) |
 | 4 | **fatto** | tutte le migrazioni di §8.2 sono in produzione |
 | 5 | non fatto | il sito è ancora su Altervista |

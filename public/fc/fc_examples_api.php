@@ -188,7 +188,9 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 /* ---------- ELIMINAZIONE ---------- */
-if ($action === 'delete') {
+/* Solo POST: con GET sec_require_csrf() non controlla il token e un link
+   esterno potrebbe cancellare un esempio (?action=delete&ex_id=N). */
+if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     sec_guard_write($current_user_id, fc_t('examples'), 0, 120, 60);
 
     $ex_id = sec_int($_GET['ex_id'] ?? $_POST['ex_id'] ?? 0, 1);

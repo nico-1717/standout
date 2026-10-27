@@ -7,7 +7,7 @@
    ============================================================================ */
 require_once __DIR__ . '/../../lib/config.php';
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-if (!$conn) { die(t('voti.connessione_fallita', ['errore' => mysqli_connect_error()])); }
+if (!$conn) { error_log('[standout:db] ' . mysqli_connect_error()); die(t('comune.errore_generico')); } /* il motivo nel log, non a schermo */
 mysqli_set_charset($conn, 'utf8mb4');
 require_once __DIR__ . '/../../lib/auth_check.php';
 $current_user_id = (int)$utente_corrente['id'];
@@ -207,6 +207,8 @@ if (isset($_GET['ajax'])) {
        400/minuto: il riordino degli esami manda una richiesta per trascinamento,
        quindi il limite deve stare largo rispetto all'uso normale. */
     sec_guard_write($uid, 'voti', 0, 400, 60);
+    /* Ogni azione di questo blocco scrive: solo POST, dove il token si controlla davvero. */
+    sec_solo_post_se_scrive((string)$action, []);
 
     if ($action === 'save_settings') {
         $programKey   = uni_str_or_null($_POST['program_key'] ?? null, 80);

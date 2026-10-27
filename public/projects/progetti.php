@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-if (!$conn) { die(t('progetti.connessione_fallita', ['errore' => mysqli_connect_error()])); }
+if (!$conn) { error_log('[standout:db] ' . mysqli_connect_error()); die(t('comune.errore_generico')); } /* il motivo nel log, non a schermo */
 require_once __DIR__ . '/../../lib/auth_check.php';
 $current_user_id = $utente_corrente['id'];
 
@@ -192,6 +192,8 @@ if (!function_exists('prog_subtree_ids')) {
 if (isset($_GET['ajax']) && strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     sec_guard_write((int)($utente_corrente['id'] ?? 0), 'progetti', 0, 400, 60);
 }
+/* Con GET si può solo leggere l'albero dei sotto-progetti: il resto è POST. */
+if (isset($_GET['ajax'])) sec_solo_post_se_scrive(sec_str($_GET['ajax'], 30), ['project_ids_subtree']);
 
 /* Preferiti: la stellina nella modifica progetto. I preferiti compaiono in
    cima al selettore progetti e nel tastino a stella del planner. */

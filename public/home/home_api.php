@@ -41,6 +41,9 @@ if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     sec_guard_write($uid, 'home', 0, 300, 60);
 }
 $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
+/* Solo le letture possono arrivare con GET: il resto è POST, dove il token CSRF
+   viene davvero controllato (vedi sec_solo_post_se_scrive in security_core.php). */
+sec_solo_post_se_scrive($ajax, ['summary', 'ai_usage']);
 
 /* I riquadri che esistono, nell'ordine in cui compaiono la prima volta.
    Un id sconosciuto arrivato dal client si scarta: il layout e' dell'utente

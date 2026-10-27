@@ -1402,6 +1402,9 @@ function gc_flush_deletions(int $uid, string $token, array $acc): int {
    ===================================================================== */
 $action = isset($_GET['action']) ? sec_str($_GET['action'], 20) : '';
 $ajax   = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
+/* Con GET si leggono soltanto stato e calendari: riparare, sincronizzare,
+   scollegare e cambiare le scelte sono POST, dove il token si controlla davvero. */
+sec_solo_post_se_scrive($ajax, ['status', 'calendars']);
 
 /* ---------- collegamento: mandiamo l'utente al consenso Google ---------- */
 if ($action === 'connect') {

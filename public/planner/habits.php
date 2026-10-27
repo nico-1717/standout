@@ -506,6 +506,8 @@ $ajax = isset($_GET['ajax']) ? $_GET['ajax'] : '';
 if ($ajax !== '' && strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     sec_guard_write((int)($utente_corrente['id'] ?? 0), 'habits', 0, 600, 60);
 }
+/* Il client chiama sempre con POST, anche per leggere. */
+if ($ajax !== '') sec_solo_post_se_scrive($ajax, []);
 
 if ($ajax === 'bootstrap') {
     hb_json([

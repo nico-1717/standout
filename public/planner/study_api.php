@@ -39,6 +39,9 @@ $SOLA_LETTURA = ['eventi', 'list'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !in_array($ajax, $SOLA_LETTURA, true)) {
     sec_guard_write($uid, 'study', 0, 300, 60);
 }
+/* Il client usa sempre POST (anche per leggere, per portarsi il token): niente
+   GET, così una scrittura non passa mai senza controllo. */
+sec_solo_post_se_scrive($ajax, []);
 
 /* ---------------------------------------------------------------------
    Aiutanti

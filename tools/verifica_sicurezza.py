@@ -90,6 +90,15 @@ def controlla(percorso):
     voce("scritture protette da sec_guard_write()",
          (not scrive) or len(re.findall(r'sec_guard_write\(', php_nudo)) > 0)
 
+    # §5 le scritture arrivano solo in POST. sec_require_csrf() lascia passare le
+    # GET senza token: se la guardia vale solo per POST e l'azione si legge da
+    # ?ajax=, un link scritto da un altro sito basta a farla eseguire.
+    guardia_solo_post = re.search(r"REQUEST_METHOD[^\n]*===?\s*'POST'[^\n]*\n?[^\n]*sec_guard_write", php_nudo) is not None
+    usa_ajax = re.search(r"\$_GET\[\s*'(?:ajax|st_ajax|ph_ajax|hi_ajax|ie_ajax)'", php_nudo) is not None
+    voce("con GET si leggono soltanto dati (sec_solo_post_se_scrive)",
+         not (scrive and usa_ajax and guardia_solo_post)
+         or 'sec_solo_post_se_scrive' in php_nudo)
+
     # §6 nessuno <style> inline (serve per togliere 'unsafe-inline' dalla CSP)
     # "<styleSheet" e' un tag dei file .xlsx generati, non un blocco di stile:
     # si guarda che dopo "<style" ci sia > o uno spazio.
@@ -102,6 +111,13 @@ def controlla(percorso):
     return ok
 
 if __name__ == '__main__':
-    tutte = all(controlla(p) for p in sys.argv[1:])
+    if len(sys.argv) < 2:
+        # Senza file non si controlla niente: dire "a norma" sarebbe una bugia.
+        print("Uso: python3 tools/verifica_sicurezza.py file.php [altro.php ...]")
+        sys.exit(2)
+    # Lista e non generatore: all() si ferma al primo False e i file dopo il
+    # primo che non va non verrebbero mai controllati.
+    risultati = [controlla(p) for p in sys.argv[1:]]
+    tutte = all(risultati)
     print("\n" + ("Tutte a norma." if tutte else "Ci sono voci da sistemare."))
     sys.exit(0 if tutte else 1)

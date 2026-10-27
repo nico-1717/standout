@@ -26,6 +26,9 @@ $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 30) : '';
 if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     sec_guard_write($uid, 'diary', 0, 400, 60);
 }
+/* Solo le letture possono arrivare con GET: il resto è POST, dove il token CSRF
+   viene davvero controllato (vedi sec_solo_post_se_scrive in security_core.php). */
+sec_solo_post_se_scrive($ajax, ['day', 'insights', 'month']);
 
 /* --------------------------------------------------------------------- */
 /* Impostazioni della pagina diario                                      */

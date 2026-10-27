@@ -4564,6 +4564,7 @@
     "serve_nome_calendario": "The calendar needs a name.",
     "scrivi_una_parola": "Type a word.",
     "origine_non_riconosciuta": "Request blocked: unrecognised origin.",
+    "metodo_non_consentito": "Request blocked: this action only works with POST.",
     "routine_senza_eventi": "This routine has no events yet.",
     "presa_non_trovata": "Dose not found.",
     "ordine_non_valido": "Invalid order.",

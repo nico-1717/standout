@@ -39,7 +39,9 @@ register_shutdown_function(function () {
     if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
         if (ob_get_level() > 0) { ob_clean(); }
         header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'error' => t('ai.errore_interno', ['errore' => $err['message'], 'riga' => $err['line']])]);
+        /* Il dettaglio (messaggio PHP, file, riga) va nel log del server, non al browser. */
+        sec_log_error('fatale', $err['message'] . ' @ ' . basename((string)$err['file']) . ':' . $err['line']);
+        echo json_encode(['success' => false, 'error' => t('comune.errore_generico')]);
     }
 });
 
@@ -120,7 +122,9 @@ if (!empty($data['force'])) {
 }
 $prompt .= "\nDomanda: " . $q . "\nRisposta: " . $a;
 
-$url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . GEMINI_API_KEY;
+$url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+/* La chiave viaggia nell'intestazione e non nell'indirizzo: gli indirizzi finiscono
+   nei log dei server e nei messaggi d'errore, le intestazioni no. */
 
 // FORZIAMO IL FORMATO JSON DIRETTAMENTE NELL'API
 $payload = json_encode([
@@ -136,8 +140,12 @@ $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'x-goog-api-key: ' . GEMINI_API_KEY]);
+/* Certificato verificato: nell'indirizzo viaggia la chiave API, e con la verifica
+   spenta su una rete ostile si poteva leggere. Le altre chiamate dello stesso
+   server (meteo, Google Calendar, fc_ai_gemini) lo verificano già e funzionano. */
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 
 // Scudi Anti-Proxy per Altervista
 curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');

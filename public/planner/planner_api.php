@@ -25,6 +25,7 @@ $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 40) : '';
 if ($ajax !== '') {
     $isWrite = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
     if ($isWrite) sec_guard_write($current_user_id, 'planner', 0, 400, 60);
+    sec_solo_post_se_scrive($ajax, ['range', 'habits_day', 'place_search', 'place_details', 'week_summary', 'contacts', 'search']);
     $settings = pl_settings($current_user_id);
 
     /* ---------------- lettura di un intervallo ---------------- */

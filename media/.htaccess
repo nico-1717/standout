@@ -1,0 +1,30 @@
+# =====================================================================
+# STANDOUT - .htaccess di media/ (file caricati dagli utenti)
+#
+# Perche' esiste: in media/ finiscono file scelti da sconosciuti (immagini,
+# audio). Il codice controlla tipo ed estensione quando li riceve, ma e' una
+# sola difesa. Questa e' la seconda: anche se un giorno un file .php arrivasse
+# qui dentro, il server non lo eseguirebbe e non lo servirebbe nemmeno.
+#
+# La cartella non e' nel repository (i file degli utenti non ci vanno): in
+# repository c'e' soltanto questo file, e GitHub Actions lo porta sul server.
+# =====================================================================
+
+# Niente script, in nessuna forma. Vale qualunque sia il modo in cui il server
+# esegue PHP (modulo, FastCGI): si nega la richiesta, non si spegne l'handler.
+<FilesMatch "(?i)\.(php[0-9]*|phtml|pht|phps|phar|cgi|pl|py|sh|asp|aspx|jsp)$">
+    Require all denied
+</FilesMatch>
+
+# File nascosti (.htaccess compreso) mai leggibili da fuori.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Il browser non deve "indovinare" il tipo di un file, e se qualcuno apre un
+# file direttamente nella barra dell'indirizzo non puo' eseguirvi script.
+# Le immagini dentro le pagine non ne risentono.
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set Content-Security-Policy "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox"
+</IfModule>

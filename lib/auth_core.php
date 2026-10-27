@@ -40,6 +40,12 @@ if (session_status() === PHP_SESSION_NONE) {
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
+    /* Strict mode: PHP rifiuta un id di sessione che non ha creato lui. Senza,
+       chi riesce a far impostare un id scelto da lui nel browser di qualcuno
+       (session fixation) lo vedrebbe diventare la sessione dopo il login.
+       Solo cookie: l'id non deve mai viaggiare nell'indirizzo. */
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
     session_name('nisama_sess');
     session_start();
 }
@@ -149,7 +155,7 @@ function standout_verifica_remember_cookie(): ?array {
     if ($selector === '' || $validator === '') return null;
 
     $conn = standout_db();
-    $stmt = mysqli_prepare($conn, "SELECT rt.user_id, rt.token_hash, u.username, u.email
+    $stmt = mysqli_prepare($conn, "SELECT rt.user_id, rt.token_hash, u.username, u.email, u.is_active
         FROM remember_tokens rt JOIN users u ON u.id = rt.user_id
         WHERE rt.selector = ? AND rt.expires_at > NOW()");
     mysqli_stmt_bind_param($stmt, 's', $selector);
@@ -159,6 +165,14 @@ function standout_verifica_remember_cookie(): ?array {
     mysqli_stmt_close($stmt);
 
     if (!$row) return null;
+
+    /* Un account disattivato non rientra col «ricordami»: il controllo c'era
+       solo sulla sessione normale, e il cookie vale 60 giorni. Si butta anche
+       il cookie, così non viene riprovato a ogni richiesta. */
+    if ((int)$row['is_active'] !== 1) {
+        standout_elimina_remember_cookie();
+        return null;
+    }
 
     if (!hash_equals($row['token_hash'], hash('sha256', $validator))) {
         // Il validator non corrisponde al selector: possibile furto del cookie.

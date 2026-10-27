@@ -31,6 +31,9 @@ if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     sec_guard_write($uid, 'meteo', 0, 60, 60);
 }
 $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
+/* Solo le letture possono arrivare con GET: il resto è POST, dove il token CSRF
+   viene davvero controllato (vedi sec_solo_post_se_scrive in security_core.php). */
+sec_solo_post_se_scrive($ajax, ['status', 'place_search', 'preview']);
 
 define('WX_GIORNI', 10);       // oggi più nove: Open-Meteo ne dà fino a 16 senza costi in più
 define('WX_CACHE_MINUTI', 60);

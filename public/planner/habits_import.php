@@ -708,6 +708,11 @@ function hi_anteprima(array $rows, int $quante = 6): array {
 
 if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'parse') {
     header('Content-Type: application/json');
+    /* Scrive nel database: solo POST, con token di sessione, origine nostra e limite
+       di frequenza (prima qui non c'era niente e un altro sito poteva far partire
+       l'importazione dal browser dell'utente). Il token lo porta standout_fetch.js. */
+    sec_solo_post_se_scrive('parse', []);
+    sec_guard_write((int)$current_user_id, 'habits_import', 0, 60, 60);
 
     if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
         $codes = [
@@ -789,6 +794,7 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'parse') {
    ========================================================================== */
 if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'remap') {
     header('Content-Type: application/json');
+    sec_solo_post_se_scrive('remap', []);
     sec_guard_write((int)$current_user_id, 'habits_import', 0, 60, 60);
 
     $memo = $_SESSION['hi_fogli'] ?? null;
@@ -848,6 +854,11 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'remap') {
    ========================================================================== */
 if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'save') {
     header('Content-Type: application/json');
+    /* Scrive nel database: solo POST, con token di sessione, origine nostra e limite
+       di frequenza (prima qui non c'era niente e un altro sito poteva far partire
+       l'importazione dal browser dell'utente). Il token lo porta standout_fetch.js. */
+    sec_solo_post_se_scrive('save', []);
+    sec_guard_write((int)$current_user_id, 'habits_import', 0, 60, 60);
 
     $payload = json_decode($_POST['payload'] ?? '', true);
     if (!is_array($payload) || empty($payload['logs']) || empty($payload['habits'])) {
@@ -1010,7 +1021,9 @@ if ($hi_direct && isset($_GET['hi_ajax']) && $_GET['hi_ajax'] === 'save') {
         echo json_encode(['success' => true, 'habits' => $createdHabits, 'days' => $daysImported, 'events' => $eventsImported], JSON_UNESCAPED_UNICODE);
     } catch (Exception $e) {
         mysqli_rollback($conn);
-        echo json_encode(['success' => false, 'error' => t('import.salvataggio_annullato', ['motivo' => $e->getMessage()])], JSON_UNESCAPED_UNICODE);
+        /* Il motivo tecnico (anche il testo di MySQL) va nel log, non al browser. */
+        sec_log_error('import', $e->getMessage());
+        echo json_encode(['success' => false, 'error' => t('import.salvataggio_annullato', ['motivo' => t('comune.errore_generico')])], JSON_UNESCAPED_UNICODE);
     }
     exit();
 }
