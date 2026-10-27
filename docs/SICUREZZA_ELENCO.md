@@ -89,7 +89,11 @@ Fatta sul sito vero con il browser, solo letture e richieste che devono essere r
 | **rafforzato** | MathJax bloccato alla 3.2.2 con SRI sha384 (hash identico ai byte serviti da jsDelivr). Import `.xlsx`: limite 40 MB decompressi (zip bomb) + `LIBXML_NONET`. |
 | **ok** | CSP nuova online, 0 gestori inline; HSTS, X-Frame-Options, nosniff, COOP; `lib/`, `.git`, `.env`, `sql/`, `tools/`, `docs/` non raggiungibili; http→https; login/registrazione senza token 403; scritture via GET 405; link di verifica falso → pagina generica. |
 | **ok** | Da un account verso dati altrui, solo lettura: ~150 mazzi, 120 progetti, 200 partite, ~330 carte e l'API esempi (get) rispondono come un id inesistente. |
-| **da fare** | Prove di scrittura tra account e sonde XSS salvata: servono due account di prova vuoti. |
+| **ok** | Con due account di prova (A e B), 22 scritture da B sui dati di A (rinomina, fissa, archivia, colora, sposta, bulk, aggiungi/modifica carta, esempi, progetto, attività, cancellazioni): nessuna ha avuto effetto, tornati su A mazzi, carta, progetto e attività erano intatti. Letture degli stessi id da B: negate. |
+| **ok** | Testi ostili salvati (virgolette, `&`, tag, `<script>`, `<svg onload>`, `javascript:`) in mazzo, progetto, attività, carta: nessun elemento iniettato, nessun codice eseguito, 0 attributi `on*`, in 9+ pagine caricate nel browser. |
+| **trovato e corretto** | Registrazione bloccata da «Troppe richieste» dopo 2 tentativi per rete (limite troppo stretto e contava anche i tentativi rifiutati): ora 30 tentativi/ora e 5 account creati/ora per IP. Verificato che l'IP visto dal server è quello vero, non del proxy. |
+| **trovato e corretto** | Nome mazzo con `& " ' <` mostrato come entità (doppio escape in `fc_decks.php`). |
+| **ok (verificato)** | Cookie `nisama_lingua` e `pr_last_project` ora `Secure`. |
 
 ## Cosa va fatto da te (fuori dal codice)
 
