@@ -1922,6 +1922,3 @@ button.f2-d:active{ transform:translate(-50%,-50%) scale(1.18); }
 }
 
 .shatter-insisti{ width:100%; margin-top:14px; }
-
-/* Ripasso degli errori: il padre gia' giusto nella partita di origine non si rimostra. */
-.card-box.fc-padre-saltato{ display:none; }

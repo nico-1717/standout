@@ -264,13 +264,23 @@
     }
 
     /* ---------------- layout ---------------- */
-    function defaultLayout() { return Object.keys(H.widgets).map(function (id) { return { id: id, on: true }; }); }
+    /* L'ordine standard: prima cio' che si guarda ogni giorno (Oggi, la nota),
+       poi lo studio e i numeri; l'accesso rapido in fondo. E' lo stesso elenco
+       di HO_RIQUADRI in home_api.php. */
+    var ORDINE = ['agenda', 'note', 'cards', 'projects', 'grades', 'trivia', 'stats', 'shortcuts'];
+    function inOrdine(ids) {
+        return ids.slice().sort(function (a, b) {
+            var x = ORDINE.indexOf(a), y = ORDINE.indexOf(b);
+            return (x < 0 ? 99 : x) - (y < 0 ? 99 : y);
+        });
+    }
+    function defaultLayout() { return inOrdine(Object.keys(H.widgets)).map(function (id) { return { id: id, on: true }; }); }
     function cleanLayout(l) {
         var out = [], seen = {};
         (l || []).forEach(function (v) {
             if (v && H.widgets[v.id] && !seen[v.id]) { seen[v.id] = 1; out.push({ id: v.id, on: !!v.on }); }
         });
-        Object.keys(H.widgets).forEach(function (id) { if (!seen[id]) out.push({ id: id, on: true }); });
+        inOrdine(Object.keys(H.widgets)).forEach(function (id) { if (!seen[id]) out.push({ id: id, on: true }); });
         return out;
     }
     function applyLayout() {
@@ -338,9 +348,13 @@
        porta in H.data PRIMA di chiamare update(), quindi il riquadro si disegna
        una volta sola e non per pezzi. */
     var GRUPPO_CHIAVI = { agenda: ['agenda'], important: ['important'], tasks: ['todo', 'buy'], note: ['note'],
-                          habits: ['habit_groups', 'habit_rings'], grades: ['grades'], fc: ['fc'] };
+                          habits: ['habit_groups'], grades: ['grades'], fc: ['fc'] };
     function needsOf(id) { return (H.widgets[id] && H.widgets[id].needs) || []; }
     function extraOf(id) { return (H.widgets[id] && H.widgets[id].extra) || []; }
+    /* `later`: dati che al primo disegno non servono (le pillole di «Oggi»):
+       arrivano dopo, in parallelo ai riquadri in basso, e ridisegnano solo il
+       riquadro che li aspettava. */
+    function laterOf(id) { return (H.widgets[id] && H.widgets[id].later) || []; }
     function pronto(id) {
         return needsOf(id).every(function (g) { return GRUPPO_CHIAVI[g].every(function (k) { return H.data && H.data[k] !== undefined; }); });
     }
@@ -479,6 +493,23 @@
             salvaCopia();
         });
     }
+    function caricaDopo() {
+        var ex = [], ids = [];
+        Object.keys(H.nodes).forEach(function (id) {
+            laterOf(id).forEach(function (x) {
+                if (!ex.some(function (y) { return y.key === x.key; })) ex.push(x);
+                if (ids.indexOf(id) < 0) ids.push(id);
+            });
+        });
+        if (!ex.length) return Promise.resolve();
+        return Promise.all(ex.map(function (x) {
+            return H.get(x.file, x.action).then(function (r) { return { key: x.key, val: r }; })
+                                         .catch(function () { return { key: x.key, val: null }; });
+        })).then(function (res) {
+            res.forEach(function (e) { if (e.val !== null || H.data[e.key] === undefined) H.data[e.key] = e.val; });
+            H.repaint(ids.filter(pronto));      // ridisegna solo chi era gia' disegnato; salva anche la copia
+        });
+    }
     H.load = function () {
         var f = fasi();
         progresso(12);
@@ -486,7 +517,8 @@
             setOffline(false);
             paintHeader(); paintWidgets(f.alto, false);
             progresso(60);
-            return carica(f.resto, false);
+            /* il resto della pagina e i dati «dopo» partono insieme */
+            return Promise.all([carica(f.resto, false), caricaDopo()]);
         }).then(function () {
             paintHeader(); paintWidgets(f.resto, false);
             progresso(100);
@@ -546,13 +578,17 @@
         var retry = document.getElementById('hoRetry');
         if (retry) retry.addEventListener('click', function () { H.load(); });
 
+        var apertaOffline = navigator.onLine === false;
         H.load();
 
         /* tornando sulla scheda dopo un po', o quando torna la rete, si aggiorna */
         document.addEventListener('visibilitychange', function () {
             if (!document.hidden && Date.now() - H.loadedAt > 60000) H.load();
         });
-        window.addEventListener('online', function () { H.load(); });
+        /* Se la pagina e' stata aperta senza rete (servita dal service worker, con
+           il token di scrittura di allora), tornata la rete si ricarica del
+           tutto: cosi' dati e token tornano freschi. */
+        window.addEventListener('online', function () { if (apertaOffline) { location.reload(); return; } H.load(); });
         window.addEventListener('offline', function () { setOffline(true); });
         /* ogni minuto "adesso" si sposta: l'agenda ridisegna la sua parte */
         setInterval(function () {

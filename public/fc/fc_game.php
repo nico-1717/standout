@@ -785,10 +785,9 @@ foreach ($gameplays as $gp) {
 
 
 /* RIPASSO DEGLI ERRORI, carta con sottocarte: il padre che nella partita di
-   origine era gia' giusto non va rimostrato - l'utente deve rispondere ai
-   figli sbagliati, e vedersi davanti il padre prima era solo un passaggio in
-   piu'. Lo si nasconde (resta nel DOM, cosi' indici e conteggi non cambiano) e
-   la pagina scorre da sola alla prima sottocarta da fare. Si guarda la partita
+   origine era gia' giusto resta in pagina, gia' segnato come giusto, ma la
+   pagina scorre da sola alla prima sottocarta da fare: l'utente deve
+   rispondere ai figli sbagliati, e il padre e' appena sopra se vuole rivederlo. Si guarda la partita
    di ORIGINE e non la risposta di adesso: se il padre era sbagliato va
    risposto, e una volta risposto non deve sparire sotto le dita. */
 $fc_padre_saltato_id = 0;
@@ -1979,7 +1978,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 <?php continue; endif; ?>
 
-                <div class="card-box <?php echo (!$c['is_child'] && $fc_padre_saltato_id > 0 && (int)$c['gameplay_idimmagine'] === $fc_padre_saltato_id) ? 'fc-padre-saltato ' : ''; ?><?php echo $is_graded ? 'graded' : ''; ?><?php if ($is_graded) echo ($c['user_answer'] == 'Correct') ? ' res-correct' : ' res-wrong'; ?><?php if (count($cards_to_show) <= 1) echo ' senza-etichetta'; ?><?php echo $c['is_favorite'] ? ' is-favorita' : ''; ?>" id="card-<?php echo sec_h($index); ?>"
+                <div class="card-box <?php echo $is_graded ? 'graded' : ''; ?><?php if ($is_graded) echo ($c['user_answer'] == 'Correct') ? ' res-correct' : ' res-wrong'; ?><?php if (count($cards_to_show) <= 1) echo ' senza-etichetta'; ?><?php echo $c['is_favorite'] ? ' is-favorita' : ''; ?>" id="card-<?php echo sec_h($index); ?>"
 
                      data-card-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>"
                      data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-position="<?php echo (int)$position; ?>"
@@ -7079,7 +7078,7 @@ function navigateTo (url, opts) {
                 try {
                     if (!cont || cont.getAttribute('data-ripasso-salta') !== '1') return;
                     var feed = cont.querySelector('.feed');
-                    var el = cont.querySelector('.card-box:not(.graded):not(.fc-padre-saltato):not(.anteprima-card)');
+                    var el = cont.querySelector('.card-box:not(.graded):not(.anteprima-card)');
                     if (!feed || !el) return;
                     var pad = parseInt(getComputedStyle(feed).paddingTop, 10) || 0;
                     var top = el.getBoundingClientRect().top - feed.getBoundingClientRect().top + feed.scrollTop - pad;

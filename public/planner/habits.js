@@ -15,6 +15,7 @@ var S = {
     today:        BOOT.today,
     selected:     BOOT.today,
     habits:       BOOT.habits || [],
+    future:       BOOT.future || [],        // iniziano piu' avanti: non stanno nell'elenco
     logs:         {},                       // "habitId|YYYY-MM-DD" -> log
     categories:   BOOT.categories || [],
     journal:      BOOT.journal || {},       // "YYYY-MM-DD" -> { mood, energy, note }
@@ -932,8 +933,40 @@ function renderList() {
 }
 
 function renderAll() {
-    renderDayStrip(); renderCarousel(); renderDayHero(); renderFilters(); renderList();
+    renderDayStrip(); renderCarousel(); renderDayHero(); renderFilters(); renderList(); renderFutureBtn();
 }
+
+/* Il tastino «Vedi le abitudini future»: compare solo se ce ne sono. Aprono un
+   foglio con l'elenco; toccandone una si apre il modulo di modifica. */
+function renderFutureBtn() {
+    var b = document.getElementById('hbFutureBtn');
+    if (!b) return;
+    b.hidden = !S.future.length;
+    b.textContent = T('abitudini.future_vedi', { n: S.future.length });
+}
+function openFuture() {
+    var body = document.getElementById('hbFutureBody');
+    var loc = (document.documentElement.lang || 'it').slice(0, 2) === 'it' ? 'it-IT' : 'en-GB';
+    body.innerHTML = '<div class="hb-future-note">' + esc(T('abitudini.future_nota')) + '</div>' +
+        S.future.map(function (h) {
+            var p = h.start_date.split('-');
+            var data = new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString(loc, { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+            return '<button type="button" class="hb-future-row" data-fid="' + h.id + '">' +
+                '<span class="hb-future-ic">' + esc(h.icon) + '</span>' +
+                '<span class="hb-future-tx"><b>' + esc(h.name) + '</b><span>' + esc(T('abitudini.future_inizia', { data: data })) + '</span></span></button>';
+        }).join('');
+    body.onclick = function (e) {
+        var r = e.target.closest('[data-fid]');
+        if (!r) return;
+        var id = +r.getAttribute('data-fid');
+        var h = S.future.filter(function (x) { return x.id === id; })[0];
+        if (!h) return;
+        closeSheet('hbSheetFuture');
+        openEditor(h);
+    };
+    openSheet('hbSheetFuture');
+}
+
 
 /* =====================================================================
    11. GESTURE: swipe destra = fatto, swipe sinistra = togli
@@ -1369,6 +1402,7 @@ function bindEditor() {
             { label:T('comune.elimina'), cls:'hb-btn-danger', fn:function () {
                 api('habit_delete', { id:d.id }).then(function () {
                     S.habits = S.habits.filter(function (h) { return h.id !== d.id; });
+                    S.future = S.future.filter(function (h) { return h.id !== d.id; });
                     for (var k in S.logs) if (S.logs[k].habit_id === d.id) delete S.logs[k];
                     closeSheet('hbSheetEditor'); closeSheet('hbSheetDetail');
                     toast('🗑', T('abitudini.abitudine_eliminata')); renderAll();
@@ -1402,11 +1436,15 @@ function saveHabit() {
     api('habit_save', payload).then(function (res) {
         if (!res.ok) { toast('⚠️', res.error || T('abitudini.salvataggio_non_riuscito')); return; }
         var existing = habitById(res.habit.id);
-        /* data d'inizio nel futuro: l'abitudine e' salvata ma non si vede fino
-           a quel giorno (come fa il server al ricaricamento). */
+        /* data d'inizio nel futuro: l'abitudine e' salvata ma sta nella lista
+           «future» (dietro il tastino), non nell'elenco; e viceversa se la data
+           e' stata portata a oggi o prima. */
         var futura = res.habit.start_date > S.today;
+        S.future = S.future.filter(function (h) { return h.id !== res.habit.id; });
         if (futura) {
-            if (existing) S.habits = S.habits.filter(function (h) { return h.id !== res.habit.id; });
+            S.habits = S.habits.filter(function (h) { return h.id !== res.habit.id; });
+            S.future.push(res.habit);
+            S.future.sort(function (a, b) { return a.start_date < b.start_date ? -1 : 1; });
         } else if (existing) { for (var k in res.habit) existing[k] = res.habit[k]; }
         else S.habits.push(res.habit);
         closeSheet('hbSheetEditor');
@@ -2422,6 +2460,7 @@ function openReorder() {
 /* =====================================================================
    21. AVVIO
    ===================================================================== */
+document.getElementById('hbFutureBtn').onclick = openFuture;
 document.getElementById('hbFab').onclick = function () { buzz(12); openEditor(null); };
 document.getElementById('hbEmptyAdd').onclick = function () { openEditor(null); };
 document.getElementById('hbBtnStats').onclick = function () { renderStats(); openSheet('hbSheetStats'); buzz(8); };
@@ -2450,6 +2489,7 @@ document.addEventListener('visibilitychange', function () {
         if (!d || !d.ok) return;
         S.today   = d.today;
         S.habits  = d.habits || [];
+        S.future  = d.future || [];
         S.journal = d.journal || {};
         S.categories   = d.categories || [];
         S.achievements = d.achievements || [];

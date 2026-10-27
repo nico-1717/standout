@@ -124,15 +124,16 @@ function hb_habit_out($row) {
     ];
 }
 
-function hb_load_habits($conn, $userId) {
+/* $future = false: le abitudini gia' iniziate (quelle che la pagina mostra).
+   $future = true: quelle con data d'inizio futura, che la pagina non mostra ma
+   offre dietro un tastino «Vedi le abitudini future» (si possono modificare). */
+function hb_load_habits($conn, $userId, $future = false) {
     $sql = "SELECT h.*, r.best_streak
             FROM habits h
             LEFT JOIN habit_streak_records r ON r.habit_id = h.id
-            WHERE h.user_id = ? AND h.start_date <= ?
+            WHERE h.user_id = ? AND h.start_date " . ($future ? '>' : '<=') . " ?
             ORDER BY h.is_archived ASC, h.sort_order ASC, h.id ASC";
-    /* Un'abitudine con data d'inizio futura non si mostra fino a quel giorno:
-       resta salvata nel database, ma la pagina non la riceve proprio (cosi'
-       non finisce in liste, anelli o statistiche prima del tempo). */
+    if ($future) $sql = str_replace('ORDER BY h.is_archived ASC, h.sort_order ASC', 'ORDER BY h.start_date ASC', $sql);
     $res = sec_all($sql, [$userId, date('Y-m-d')], 'is');
     $out = [];
     foreach ($res as $row) { $out[] = hb_habit_out($row); }
@@ -511,6 +512,7 @@ if ($ajax === 'bootstrap') {
         'ok'           => true,
         'today'        => date('Y-m-d'),
         'habits'       => hb_load_habits($conn, $current_user_id),
+        'future'       => hb_load_habits($conn, $current_user_id, true),
         'logs'         => hb_load_logs($conn, $current_user_id),
         'journal'      => hb_load_journal($conn, $current_user_id),
         'categories'   => hb_load_categories($conn, $current_user_id),
@@ -834,6 +836,7 @@ $bootstrap = [
     'today'        => date('Y-m-d'),
     'user'         => ['id' => $current_user_id, 'name' => isset($utente_corrente['username']) ? $utente_corrente['username'] : ''],
     'habits'       => hb_load_habits($conn, $current_user_id),
+    'future'       => hb_load_habits($conn, $current_user_id, true),
     'logs'         => hb_load_logs($conn, $current_user_id),
     'journal'      => hb_load_journal($conn, $current_user_id),
     'categories'   => hb_load_categories($conn, $current_user_id),
@@ -900,6 +903,8 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
             <div class="hb-filters" id="hbFilters"></div>
         </div>
         <div class="hb-list" id="hbList"></div>
+        <?php /* Le abitudini che iniziano piu' avanti non stanno nell'elenco: si aprono da qui. */ ?>
+        <button type="button" class="hb-future-btn" id="hbFutureBtn" hidden></button>
         <div class="hb-empty" id="hbEmpty" hidden>
             <div class="hb-empty-emoji">🌱</div>
             <div class="hb-empty-title"><?php te('abitudini.qui_non_c_e_ancora'); ?></div>
@@ -929,6 +934,19 @@ $accent = hb_color($bootstrap['settings']['accent_color'] ?? '#7C5CFF');
         </div>
         <div class="hb-sheet-body" id="hbEditorBody"></div>
         <div class="hb-sheet-actions" id="hbEditorActions"></div>
+    </div>
+</div>
+
+<div class="hb-sheet-overlay" id="hbSheetFuture">
+    <div class="hb-sheet">
+        <div class="hb-grabber"></div>
+        <div class="hb-sheet-head">
+            <div class="hb-sheet-title"><?php te('abitudini.future_titolo'); ?></div>
+            <button type="button" class="hb-sheet-close" data-close="hbSheetFuture" aria-label="<?php te('comune.chiudi'); ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </div>
+        <div class="hb-sheet-body" id="hbFutureBody"></div>
     </div>
 </div>
 

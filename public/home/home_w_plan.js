@@ -82,25 +82,34 @@
     var pastOpen = false;
     H.register('agenda', {
         title: 'home.w_oggi', icon: 'calendar', color: 'var(--red)', wide: true, link: 'planner/planner.php',
-        /* tutto cio' che «Oggi» mostra arriva prima del disegno (pastiglie incluse,
-           come extra), cosi' il riquadro si disegna una volta sola e completo */
+        /* quasi tutto cio' che «Oggi» mostra arriva prima del disegno, cosi' il
+           riquadro si disegna una volta sola e completo */
         needs: ['agenda', 'important', 'tasks', 'habits'],
-        extra: [{ key: '_pills', file: 'planner/todo_api.php', action: 'pills' }],
+        /* le pillole non servono al primo disegno: arrivano subito dopo (later)
+           e il tastino compare quando ci sono */
+        later: [{ key: '_pills', file: 'planner/todo_api.php', action: 'pills' }],
         build: function (w) {
             /* in alto: la scheda «adesso» e l'anello delle abitudini */
             var top = el('div', 'ho-today-top');
             w.now = el('div', 'ho-today-now');
             w.ring = el('button', 'ho-ring'); w.ring.type = 'button';
             w.ring.addEventListener('click', function () { if (H.ui) H.ui.openHabits(); });
-            top.appendChild(w.now); top.appendChild(w.ring);
+            /* a destra: l'anello e, se ci sono terapie, il tastino delle pillole */
+            var side = el('div', 'ho-today-side');
+            w.pillBtn = el('button', 'ho-pillbtn'); w.pillBtn.type = 'button'; w.pillBtn.hidden = true;
+            w.pillBtn.appendChild(H.svg('pill', 20, 2));
+            w.pillBadge = el('span', 'ho-pillbtn-n'); w.pillBtn.appendChild(w.pillBadge);
+            w.pillBtn.addEventListener('click', function () { openPills(w); });
+            side.appendChild(w.ring); side.appendChild(w.pillBtn);
+            top.appendChild(w.now); top.appendChild(side);
             w.imp = el('div');
             /* sotto: a sinistra le ore, a destra pastiglie / attivita' / acquisti */
             var cols = el('div', 'ho-today-cols');
             var left = el('div', 'ho-today-l'), right = el('div', 'ho-today-r');
             w.list = el('div', 'ho-tl'); w.tom = el('div');
-            w.pills = el('div', 'ho-tsec'); w.todo = el('div', 'ho-tsec'); w.buy = el('div', 'ho-tsec');
+            w.todo = el('div', 'ho-tsec'); w.buy = el('div', 'ho-tsec');
             left.appendChild(w.list); left.appendChild(w.tom);
-            right.appendChild(w.pills); right.appendChild(w.todo); right.appendChild(w.buy);
+            right.appendChild(w.todo); right.appendChild(w.buy);
             cols.appendChild(left); cols.appendChild(right);
             w.body.appendChild(top); w.body.appendChild(w.imp); w.body.appendChild(cols);
         },
@@ -169,7 +178,7 @@
             /* il resto di «Oggi». H.ui lo mette home_w_tasks.js (caricato dopo
                questo file, ma prima del primo disegno). */
             if (!H.ui) return;
-            drawRing(w, d.habit_rings || []);
+            drawRing(w, d);
             drawImportant(w, d);
             drawPills(w, d);
             drawTodo(w, d);
@@ -180,48 +189,46 @@
     /* ------------------------------------------------------------------
        pezzi di «Oggi»
        ------------------------------------------------------------------ */
-    /* L'anello delle abitudini: stessi cerchi concentrici del Planner (uno per
-       ritmo, il piu' interno e' il giornaliero), con i numeri gia' contati dal
-       server (pl_rings). Se i cerchi sono gli stessi non si ricostruisce
-       niente: si aggiorna solo il riempimento, cosi' il ridisegno di ogni
-       minuto non lo fa ripartire da zero. */
-    var RING_LARG = 3.4, RING_STACCO = 0.9, RING_EXT = 21;
-    function drawRing(w, rings) {
-        var btn = w.ring;
-        var sig = rings.map(function (r) { return r.key; }).join(',');
-        var svg = btn.querySelector('svg');
-        if (!svg || btn.getAttribute('data-sig') !== sig) {
-            btn.innerHTML = '';
-            svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svg.setAttribute('viewBox', '0 0 46 46');
-            var pezzi = '';
-            var n = Math.max(1, rings.length);
-            for (var i = 0; i < n; i++) {
-                var r = RING_EXT - (n - 1 - i) * (RING_LARG + RING_STACCO);
-                if (r < 3) break;
-                var C = 2 * Math.PI * r;
-                pezzi += '<circle class="ho-ring-track" cx="23" cy="23" r="' + r.toFixed(2) + '" stroke-width="' + RING_LARG + '"/>' +
-                         (rings[i] ? '<circle class="ho-ring-fill ho-ring-' + rings[i].key + '" cx="23" cy="23" r="' + r.toFixed(2) +
-                                     '" stroke-width="' + RING_LARG + '" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + C.toFixed(1) +
-                                     '" data-c="' + C.toFixed(1) + '"/>' : '');
-            }
-            svg.innerHTML = pezzi;
-            btn.appendChild(svg);
-            var face = el('span', 'ho-ring-face'); face.appendChild(H.svg('check', 16, 2.2));
-            btn.appendChild(face);
-            btn.setAttribute('data-sig', sig);
-        }
-        var fills = svg.querySelectorAll('.ho-ring-fill');
-        Array.prototype.forEach.call(fills, function (c, i) {
-            var rg = rings[i]; if (!rg) return;
-            var C = parseFloat(c.getAttribute('data-c'));
-            var frac = rg.total > 0 ? Math.min(1, rg.done / rg.total) : 0;
-            requestAnimationFrame(function () { c.style.strokeDashoffset = (C * (1 - frac)).toFixed(1); });
+    /* L'anello delle abitudini: UNO solo, che dice quante abitudini di oggi
+       sono fatte (le stesse che si vedono nel popup). Nel Planner gli anelli
+       sono uno per ritmo, ma qui un colpo d'occhio vale piu' del dettaglio:
+       il dettaglio sta nel popup. Il disegno si crea una volta; dopo si
+       aggiorna solo il riempimento, cosi' il ridisegno di ogni minuto non lo
+       fa ripartire da zero. */
+    var RING_R = 20, RING_C = 2 * Math.PI * RING_R;
+    function contaAbitudini(d) {
+        var fatte = 0, tot = 0;
+        (d.habit_groups || []).forEach(function (g) {
+            var weekly = g.key === 'weekly' || g.key === 'monthly';
+            g.items.forEach(function (h) { tot++; if (weekly ? h.n >= h.target : h.done) fatte++; });
         });
-        btn.classList.toggle('is-full', rings.length > 0 && rings.every(function (r) { return r.total > 0 && r.done >= r.total; }));
-        var descr = rings.map(function (r) { return r.label + ' ' + r.done + '/' + r.total; }).join(', ');
-        btn.setAttribute('aria-label', T('home.w_abitudini') + (descr ? ': ' + descr : ''));
+        return { fatte: fatte, tot: tot };
+    }
+    function drawRing(w, d) {
+        var btn = w.ring, c = contaAbitudini(d);
+        if (!btn.firstChild) {
+            /* il cerchio parte a ore 12 con rotate(-90) SOLO sul disegno
+               dell'anello: la regola vale per `.ho-ring-svg`, non per le icone
+               che stanno dentro il bottone */
+            var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('viewBox', '0 0 46 46'); svg.setAttribute('class', 'ho-ring-svg');
+            svg.innerHTML = '<circle class="ho-ring-track" cx="23" cy="23" r="' + RING_R + '"/>' +
+                '<circle class="ho-ring-fill" cx="23" cy="23" r="' + RING_R + '" stroke-dasharray="' + RING_C.toFixed(1) +
+                '" stroke-dashoffset="' + RING_C.toFixed(1) + '"/>';
+            btn.appendChild(svg);
+            w.ringTx = el('span', 'ho-ring-face');
+            btn.appendChild(w.ringTx);
+        }
+        var fill = btn.querySelector('.ho-ring-fill');
+        var frac = c.tot ? c.fatte / c.tot : 0;
+        requestAnimationFrame(function () { fill.style.strokeDashoffset = (RING_C * (1 - frac)).toFixed(1); });
+        var pieno = c.tot > 0 && c.fatte >= c.tot;
+        btn.classList.toggle('is-full', pieno);
+        w.ringTx.innerHTML = '';
+        if (pieno) w.ringTx.appendChild(H.svg('check', 20, 2.6));
+        else w.ringTx.textContent = c.tot ? c.fatte + '/' + c.tot : '';
         btn.title = T('home.w_abitudini');
+        btn.setAttribute('aria-label', T('home.w_abitudini') + (c.tot ? ': ' + c.fatte + '/' + c.tot : ''));
     }
 
     /* la prossima data importante, in piccolo */
@@ -248,24 +255,42 @@
         return a;
     }
 
-    function drawPills(w, d) {
-        var box = w.pills; box.innerHTML = '';
-        var pills = d._pills || null, dosi = [], tardi = [];
-        if (pills && pills.installed !== false) {
-            (pills.doses || []).forEach(function (x) { if (x.status === 'pending' || !x.status) dosi.push(x); });
-            tardi = (pills.late || []).slice(0, 4);
-        }
-        var n = dosi.length + tardi.length;
-        var hasPills = !!(pills && pills.installed !== false && ((pills.plans || []).length || n));
-        box.style.display = hasPills ? '' : 'none';
-        if (!hasPills) return;
-        secHead(box, T('home.tab_pillole'), n);
+    /* Le pillole sono un popup, e solo quelle IN RITARDO: arretrate dei giorni
+       scorsi e quelle di oggi la cui ora e' gia' passata. Quelle della sera,
+       la mattina, non si vedono. La pagina completa si apre dal popup. */
+    function pillsInRitardo(d) {
+        var pills = d._pills;
+        if (!pills || pills.installed === false) return { has: false, list: [] };
+        function pend(x) { return x.status === 'pending' || !x.status; }
+        var tardi = (pills.late || []).filter(pend).map(function (p) { return { p: p, late: true }; });
+        var ora = (pills.doses || []).filter(function (x) { return pend(x) && H.toMin(x.time) <= H.nowMin(); })
+                                     .map(function (p) { return { p: p, late: false }; });
+        return { has: !!((pills.plans || []).length || tardi.length || ora.length), list: tardi.concat(ora) };
+    }
+    var pillsSheet = null;
+    function fillPills(body, w, d) {
+        body.innerHTML = '';
+        var due = pillsInRitardo(d).list;
         var list = el('div');
-        if (!n) list.appendChild(el('div', 'ho-empty', T('home.nessuna_pillola')));
-        tardi.forEach(function (p) { list.appendChild(H.ui.rowPill(w, p, d, true)); });
-        dosi.forEach(function (p) { list.appendChild(H.ui.rowPill(w, p, d, false)); });
-        box.appendChild(list);
-        box.appendChild(openBtn('planner/todo.php?tab=pills', T('home.apri_pillole')));
+        if (!due.length) list.appendChild(el('div', 'ho-empty', T('home.nessuna_pillola')));
+        due.forEach(function (x) { list.appendChild(H.ui.rowPill(w, x.p, d, x.late)); });
+        body.appendChild(list);
+        body.appendChild(openBtn('planner/todo.php?tab=pills', T('home.apri_pillole')));
+    }
+    function openPills(w) {
+        if (pillsSheet) return;
+        pillsSheet = H.sheet(T('home.tab_pillole'), function (sh) { fillPills(sh.body, w, H.data); }, function () { pillsSheet = null; });
+        pillsSheet.w = w;
+    }
+    function drawPills(w, d) {
+        var r = pillsInRitardo(d);
+        w.pillBtn.hidden = !r.has;
+        w.pillBadge.textContent = r.list.length ? String(r.list.length) : '';
+        w.pillBadge.hidden = !r.list.length;
+        w.pillBtn.classList.toggle('is-late', r.list.length > 0);
+        var lab = T('home.tab_pillole') + (r.list.length ? ': ' + r.list.length : '');
+        w.pillBtn.title = lab; w.pillBtn.setAttribute('aria-label', lab);
+        if (pillsSheet) fillPills(pillsSheet.body, w, d);
     }
 
     function drawTodo(w, d) {
