@@ -3,7 +3,13 @@ require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/auth_core.php';
 require_once __DIR__ . '/../../lib/password_policy.php';
 header('Content-Type: application/json');
-sec_require_rate('register', sec_ip(), 2, 3600);
+/* PERCHE': prima il limite era 2 registrazioni all'ora per indirizzo IP e contava
+   OGNI richiesta, anche quelle rifiutate (password troppo corta, email gia'
+   usata, token scaduto...). Bastavano due tentativi sbagliati per bloccare chi
+   stava usando la stessa rete: casa, scuola, telefono in hotspot. Ora ci sono
+   due limiti: uno largo sui tentativi (ferma chi martella il modulo) e uno
+   stretto sugli account davvero creati, piu' sotto. */
+sec_require_rate('register', sec_ip(), 30, 3600);
 
 $input = json_decode(file_get_contents('php://input'), true);
 if (!is_array($input)) {
@@ -74,6 +80,10 @@ if ($usernameEsiste || $emailEsiste) {
     if ($emailEsiste)     $errori['email'] = t('auth.err_email_usata');
     die(json_encode(['success' => false, 'error' => 'utente_esistente', 'errori' => $errori]));
 }
+
+/* Qui i dati sono validi e liberi: si sta per creare un account. Solo questo
+   passaggio consuma il limite stretto (5 account all'ora per rete). */
+sec_require_rate('register_ok', sec_ip(), 5, 3600);
 
 $hash = password_hash($password, PASSWORD_DEFAULT);
 
