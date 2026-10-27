@@ -1,0 +1,5 @@
+# PERCHE': le partials si includono con include da PHP (percorso su disco), mai
+# per HTTP. Aperte dal browser, sidebar.html mostrava i tag <?php non eseguiti
+# (codice sorgente a vista, senza CSP) e gli altri file giravano fuori contesto.
+# Come lib/: niente accesso diretto, l'include da PHP non e' toccato.
+Require all denied
