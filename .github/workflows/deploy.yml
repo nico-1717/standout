@@ -50,5 +50,6 @@ jobs:
             tools/**
             sql/**
             README.md
+            SECURITY.md
             **/.DS_Store
             **/Thumbs.db

@@ -1,0 +1,8 @@
+# Come segnalare un problema di sicurezza (RFC 9116).
+# Si usa la segnalazione privata di GitHub, cosi' nessun indirizzo email e'
+# pubblicato qui.
+Contact: https://github.com/nico-1717/standout/security/advisories/new
+Expires: 2027-10-27T00:00:00.000Z
+Preferred-Languages: it, en
+Canonical: https://nisama.altervista.org/.well-known/security.txt
+Policy: https://github.com/nico-1717/standout/blob/main/SECURITY.md
