@@ -5,6 +5,8 @@
    ========================================================================= */
 
 require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/social_gate.php';
+standout_social_chiudi();   // sul sito il social e' spento (lib/social_gate.php)
 require_once __DIR__ . '/../../lib/auth_check.php';                 // stessa protezione di stats_fc.php
 require_once __DIR__ . '/friends_core.php';
 

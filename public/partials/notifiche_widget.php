@@ -7,6 +7,7 @@
    Si porta dietro tutto: stile, pannello, chiamate al server. Zero dipendenze.
    ========================================================================= */
 
+require_once __DIR__ . '/../../lib/social_gate.php';
 require_once __DIR__ . '/../social/friends_core.php';
 
 if (defined('FR_WIDGET_RENDERED')) { return; }   // mai due volte nella stessa pagina
@@ -18,8 +19,10 @@ if (!$fw_u) { return; }
 $fw_c      = fr_conn();
 $fw_uid    = (int)$fw_u['id'];
 $fw_nome   = (string)$fw_u['username'];
-$fw_n      = fr_conta_notifiche($fw_c, $fw_uid);
-$fw_items  = fr_notifiche($fw_c, $fw_uid);
+/* Richieste di amicizia: solo se il social e' acceso sul sito (oggi no). */
+$fw_social = standout_social_attivo();
+$fw_n      = $fw_social ? fr_conta_notifiche($fw_c, $fw_uid) : 0;
+$fw_items  = $fw_social ? fr_notifiche($fw_c, $fw_uid) : [];
 $fw_inline = !empty($fr_widget_inline);
 ?>
 <style>
@@ -246,11 +249,13 @@ button.standout-fab--login:active{ transform:scale(.96); }
     <div class="fnw-ai" id="fnwAi" hidden></div>
 
     <div class="fnw-foot">
+        <?php if ($fw_social): ?>
         <a class="fnw-row" href="<?php echo PWA_BASE; ?>social/friends.php">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span><?php te('dashboard.amici_e_classifica'); ?></span>
             <span class="fnw-pill" id="fnwPill" <?php echo $fw_n > 0 ? '' : 'hidden'; ?>><?php echo (int)$fw_n; ?></span>
         </a>
+        <?php endif; ?>
         <a class="fnw-row" href="<?php echo PWA_BASE; ?>fc/fc_stats.php">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
             <span><?php te('dashboard.le_tue_statistiche'); ?></span>
@@ -438,7 +443,9 @@ button.standout-fab--login:active{ transform:scale(.96); }
     }
 
     /* ---------- aggiornamento silenzioso del contatore ---------- */
-    setInterval(function () {
+    /* Il controllo periodico serve solo alle richieste di amicizia: col social
+       spento non parte, e il sito non chiama piu' friends_api.php. */
+    if (<?php echo $fw_social ? 'true' : 'false'; ?>) setInterval(function () {
         if (document.hidden || aperto) { return; }
         api('notifiche').then(function (r) { if (r && r.ok) { setBadge(r.n); } }).catch(function () {});
     }, 45000);

@@ -58,6 +58,13 @@ sue stesse cose.
 | Scelta del tema grafico | ❌ uno stile solo | ✅ tre temi |
 | Notifiche | solo PWA, minime | ✅ complete |
 
+> **Stato sul sito (27/10/2026):** la parte social è **spenta** sul sito. Le pagine
+> `public/social/` (`friends.php`, `friends_api.php`, `friends_core.php`) restano nel
+> repository come base per il social dell'app, ma rispondono 404, e sono sparite la
+> voce della barra laterale, la scorciatoia della home e le richieste di amicizia nel
+> pallino delle notifiche. L'interruttore è `lib/social_gate.php`: si riaccende solo
+> con `define('STANDOUT_SOCIAL_SITO', true);` in `lib/config.php`.
+
 Motivo: il sito è *"la produttività, ovunque, senza installare niente"* — deve
 funzionare da un computer qualsiasi, senza registrazione a uno store. Il social è
 esperienza, notifiche, tempo reale: vive nell'app.

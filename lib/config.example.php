@@ -23,7 +23,9 @@ define('FC_IMAGE_PATH_INSERT', STANDOUT_DATA_DIR . 'flashcard_images/');
 
 // API Keys
 define('GEMINI_API_KEY', 'YOUR_GEMINI_API_KEY');
-define('GEMINI_API_URL', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . GEMINI_API_KEY);
+/* Senza la chiave in coda: viaggia nell'intestazione (vedi sec_gemini_url). Se la
+   riga ha ancora "?key=..." funziona lo stesso, la chiave viene tolta. */
+define('GEMINI_API_URL', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
 
 define('GOOGLE_TTS_API_KEY', 'YOUR_GOOGLE_TTS_API_KEY');
 

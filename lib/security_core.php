@@ -596,6 +596,21 @@ function sec_log_error(string $where, string $message): void {
    ============================================================ */
 
 /**
+ * Indirizzo di Gemini SENZA la chiave, e intestazioni con la chiave.
+ *
+ * In config.php GEMINI_API_URL e' scritto col "?key=..." in coda (cosi' e' sempre
+ * stato). Gli indirizzi finiscono nei log dei server: la chiave si toglie qui e
+ * viaggia nell'intestazione x-goog-api-key, che Google accetta uguale. Cosi'
+ * config.php non va toccato.
+ */
+function sec_gemini_url(string $url): string {
+    return preg_replace('/[?&]key=[^&]*/', '', $url);
+}
+function sec_gemini_intestazioni(): array {
+    return ['Content-Type: application/json', 'x-goog-api-key: ' . GEMINI_API_KEY];
+}
+
+/**
  * Un'azione che cambia qualcosa si accetta solo con POST.
  *
  * Perché: sec_require_csrf() lascia passare GET, HEAD e OPTIONS senza token,

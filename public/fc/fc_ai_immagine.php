@@ -99,11 +99,11 @@ $url = defined('GEMINI_IMAGE_API_URL')
     : preg_replace('#/models/[^:/]+:#', '/models/' . FC_AI_MODELLO_IMMAGINE . ':', GEMINI_API_URL);
 
 $t0 = microtime(true);
-$ch = curl_init($url);
+$ch = curl_init(sec_gemini_url($url));
 curl_setopt_array($ch, [
     CURLOPT_POST => true,
     CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+    CURLOPT_HTTPHEADER => sec_gemini_intestazioni(),
     CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
     CURLOPT_TIMEOUT => 60,
     CURLOPT_CONNECTTIMEOUT => 10,

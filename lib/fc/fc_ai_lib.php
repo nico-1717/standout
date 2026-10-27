@@ -441,11 +441,11 @@ function fc_ai_gemini(string $sistema, string $utente, array $schema, int $pensi
         ],
     ];
 
-    $ch = curl_init(GEMINI_API_URL);
+    $ch = curl_init(sec_gemini_url(GEMINI_API_URL));
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_HTTPHEADER => sec_gemini_intestazioni(),
         CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
         // mai piu' di quanto resta, e mai piu' di un tentativo ragionevole
         CURLOPT_TIMEOUT => (int)floor(min($resta - 2.0, FC_AI_TENTATIVO_MAX)),

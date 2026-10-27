@@ -15,12 +15,13 @@
 
 require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/auth_core.php';
-require_once __DIR__ . '/../social/friends_core.php';   // pallino delle richieste di amicizia
+require_once __DIR__ . '/../../lib/social_gate.php';
+require_once __DIR__ . '/../social/friends_core.php';   // pallino delle richieste di amicizia (solo se il social e' acceso)
 
 $standout_utente = standout_utente_corrente();
 if (!$standout_utente) { return; } // index.php dovrebbe già garantirlo, ma per sicurezza usciamo comunque
 
-$nd_notifiche = fr_conta_notifiche(fr_conn(), (int)$standout_utente['id']);
+$nd_notifiche = standout_social_attivo() ? fr_conta_notifiche(fr_conn(), (int)$standout_utente['id']) : 0;
 
 /* Le pagine del sito a un tocco. Etichette dal dizionario della barra
    laterale: un nome solo per pagina in tutta l'app. */
@@ -33,8 +34,11 @@ $ho_scorciatoie = [
     ['href' => 'exams/voti.php',        'label' => t('sidebar.voti'),       'icon' => 'cap',      'color' => '#0FB5AE'],
     ['href' => 'planner/habits.php',    'label' => t('sidebar.abitudini'),  'icon' => 'heart',    'color' => '#FF375F'],
     ['href' => 'planner/diario.php',    'label' => t('sidebar.diario'),     'icon' => 'book',     'color' => '#AC8E68'],
-    ['href' => 'social/friends.php',    'label' => t('sidebar.amici'),      'icon' => 'users',    'color' => '#5AC8FA', 'badge' => (int)$nd_notifiche],
 ];
+/* Gli amici solo se il social e' acceso sul sito (oggi no: vive nell'app). */
+if (standout_social_attivo()) {
+    $ho_scorciatoie[] = ['href' => 'social/friends.php', 'label' => t('sidebar.amici'), 'icon' => 'users', 'color' => '#5AC8FA', 'badge' => (int)$nd_notifiche];
+}
 
 $ho_v = function (string $f): int { return @filemtime(__DIR__ . '/' . $f) ?: 1; };
 ?>

@@ -136,48 +136,75 @@ $payload = json_encode([
     ]
 ]);
 
-$ch = curl_init($url);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'x-goog-api-key: ' . GEMINI_API_KEY]);
-/* Certificato verificato: nell'indirizzo viaggia la chiave API, e con la verifica
-   spenta su una rete ostile si poteva leggere. Le altre chiamate dello stesso
-   server (meteo, Google Calendar, fc_ai_gemini) lo verificano già e funzionano. */
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+/* Una chiamata a Gemini. Si ritenta UNA volta se Google risponde "troppe
+   richieste" o "sovraccarico" (429, 5xx) e il primo tentativo e' stato rapido:
+   sono errori che di solito passano da soli in un secondo. */
+function fc_frantuma_chiama(string $url, string $payload): array {
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'x-goog-api-key: ' . GEMINI_API_KEY]);
+    /* Certificato verificato: la chiave API viaggia in questa richiesta, e con la
+       verifica spenta su una rete ostile si poteva leggere. */
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 
-// Scudi Anti-Proxy per Altervista
-curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
-curl_setopt($ch, CURLOPT_FORBID_REUSE, true);
-curl_setopt($ch, CURLOPT_FRESH_CONNECT, true);
-// Timeout esplicito: senza, su hosting con limiti di esecuzione stretti (es. Altervista)
-// una risposta lenta di Gemini fa scadere lo script prima di poter restituire un JSON pulito.
-curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
-curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+    // Scudi Anti-Proxy per Altervista
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+    curl_setopt($ch, CURLOPT_FORBID_REUSE, true);
+    curl_setopt($ch, CURLOPT_FRESH_CONNECT, true);
+    // Timeout esplicito: senza, su hosting con limiti di esecuzione stretti (es. Altervista)
+    // una risposta lenta di Gemini fa scadere lo script prima di poter restituire un JSON pulito.
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 25);
 
-$tempo_inizio = microtime(true);
-$response = curl_exec($ch);
-$durata_ms = (int)round((microtime(true) - $tempo_inizio) * 1000);
-$err = curl_error($ch);
-$err_no = curl_errno($ch);
-curl_close($ch);
+    $t0 = microtime(true);
+    $risposta = curl_exec($ch);
+    $esito = [
+        'risposta' => $risposta,
+        'ms'       => (int)round((microtime(true) - $t0) * 1000),
+        'err'      => curl_error($ch),
+        'err_no'   => curl_errno($ch),
+        'http'     => (int)curl_getinfo($ch, CURLINFO_HTTP_CODE),
+    ];
+    curl_close($ch);
+    return $esito;
+}
+
+$esito = fc_frantuma_chiama($url, $payload);
+if ($esito['err'] === '' && in_array($esito['http'], [429, 500, 502, 503, 504], true) && $esito['ms'] < 10000) {
+    sleep(1);
+    $esito = fc_frantuma_chiama($url, $payload);
+}
+$response   = $esito['risposta'];
+$durata_ms  = $esito['ms'];
+$err        = $esito['err'];
+$err_no     = $esito['err_no'];
+$http       = $esito['http'];
 
 if (!$err) { standout_registra_tempo_ia('shatter', $durata_ms); }
 
 if ($err) {
+    sec_log_error('gemini', 'frantuma, curl ' . $err_no . ': ' . mb_substr($err, 0, 200));
     fc_frantuma_errore(($err_no === CURLE_OPERATION_TIMEOUTED || strpos($err, 'timed out') !== false)
         ? t('ai.gemini_lento')
         : t('ai.errore_rete'));
 }
 
-$responseData = json_decode($response, true);
+$responseData = json_decode((string)$response, true);
 
 if (!isset($responseData['candidates'][0]['content']['parts'][0]['text'])) {
-    // Gestione errori API (Es. blocco sicurezza / token esauriti). Il dettaglio
-    // va nel log: all'utente basta sapere che non e' andata.
-    sec_log_error('gemini', 'frantuma, risposta anomala: ' . substr((string)$response, 0, 500));
-    fc_frantuma_errore(t('ai.errore_api'));
+    /* Il dettaglio va nel log. All'utente (e a chi mi segnala il problema) si
+       dice solo il codice HTTP e lo stato di Google (es. "503 UNAVAILABLE",
+       "429 RESOURCE_EXHAUSTED", "400 API_KEY_INVALID"): non sono segreti, e
+       distinguono "Google e' sovraccarico" da "la chiave non va" da "il testo e'
+       stato bloccato". */
+    $stato  = (string)($responseData['error']['status'] ?? '');
+    $motivo = (string)($responseData['candidates'][0]['finishReason'] ?? ($responseData['promptFeedback']['blockReason'] ?? ''));
+    $sigla  = trim($http . ' ' . ($stato !== '' ? $stato : $motivo));
+    sec_log_error('gemini', 'frantuma, risposta anomala [' . $sigla . ']: ' . substr((string)$response, 0, 500));
+    fc_frantuma_errore(t('ai.errore_api') . ' (' . preg_replace('/[^A-Za-z0-9_ ]/', '', $sigla) . ')');
 }
 
 $testo_grezzo = trim($responseData['candidates'][0]['content']['parts'][0]['text']);

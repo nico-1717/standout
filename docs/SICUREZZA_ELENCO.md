@@ -56,7 +56,7 @@ mostrati all'utente**.
 | M9 | `.github/workflows/deploy.yml` | Deploy in FTP semplice: password e codice viaggiano in chiaro. | **tuo / aperto** — passare a `protocol: ftps` se Altervista lo permette (va provato: se il deploy fallisce si torna a `ftp`) |
 | M10 | `register.php`, `lib/auth_core.php` | La regola password è più debole di §7.1: 8 caratteri con lettera e cifra (la guida chiede 10, elenco di password comuni, verifica email). | **aperto** — è una funzione da costruire (verifica email), non una correzione |
 | M11 | tutte le pagine | La CSP ha ancora `'unsafe-inline'` per script e stile: restano 23 gestori inline (`onclick=…`) e i blocchi `<style>`. È il passo 10 (CSS esterno). | **deciso / aperto** — noto e documentato |
-| M12 | `public/social/friends_api.php` | La ricerca utenti non ha limite di frequenza: si possono raccogliere gli username a tappeto. Le scritture si difendono con l'intestazione `X-Standout` (un altro sito non può inviarla senza passare dal CORS: vale come token). | **aperto** — aggiungere `sec_require_rate` alla ricerca |
+| M12 | `public/social/friends_api.php` | La ricerca utenti non ha limite di frequenza: si possono raccogliere gli username a tappeto. | **chiuso (27/10/2026)** — la parte social è spenta sul sito (`lib/social_gate.php`, 404). Il limite di frequenza va aggiunto quando le pagine diventeranno l'API dell'app. |
 | M13 | `public/fc/fc_card_edit.php` — `mfc_togli()` | Cancella il file dal disco senza controllare se un'altra carta lo usa. Oggi ogni file è di una carta sola; con il negozio no. | **aperto** — da fare **prima** del negozio (esiste già `fc_frantuma_file_usato()` in `ai_shatter_save.php`: va generalizzata) |
 
 ## BASSA
