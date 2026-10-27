@@ -1479,6 +1479,27 @@ Ogni passo ha un criterio di "fatto": senza, si va avanti a metà.
 | 14 | **Mercato con i prezzi accesi** (§14.4.6) | deciso chi incassa, consenso alla consegna immediata registrato, segnalazioni funzionanti |
 | 15 | **Parte social nell'app** | — |
 
+**Stato dei passi (verificato il 27/10/2026 sul codice e sul dump di produzione):**
+
+| # | Stato | Note |
+|---|---|---|
+| 1 | **in parte** | gli strumenti ci sono (`tools/verifica_sicurezza.py`, `controlla_colonne.py`, `controlla_csp.py`, funzioni `sec_*`); manca il giro su **tutte** le pagine e l'elenco ordinato per gravità |
+| 2 | da fare | dipende dal passo 1 |
+| 3 | **in parte** | `lib/`, `sql/`, `data/` stanno fuori da `public/`; **manca `bootstrap.php`** (ogni pagina include ancora `config.php` per conto suo) |
+| 4 | **fatto** | tutte le migrazioni di §8.2 sono in produzione |
+| 5 | non fatto | il sito è ancora su Altervista |
+| 5b | **fatto, con nomi diversi** | `fc_study_*` e `fc_vocab_*` al posto di `study_*` / `vocab_*`; restano col nome vecchio `roles`, `user_roles`, `login_attempts`, `remember_tokens`, `rate_limits`, `security_audit_log`, `push_subscriptions`, `plans`, `user_plans`, `contacts` (rinomino facoltativo, da fare al trasloco) |
+| 5c | **fatto** | nessuna vista di compatibilità; l'ultimo codice con i nomi vecchi (`public/social/friends_core.php`) è stato corretto il 27/10/2026 |
+| 5d | **fatto, in forma diversa** | `word`/`translation` ci sono in `fc_vocab_cards`; la coppia di lingue sta sul **corso** (`fc_vocab_courses.known_lang` / `learn_lang`), non sul mazzo: §8.3.4 è superato |
+| 5e | **fatto in un'altra forma** | le descrizioni sono i `COMMENT` dentro `sql/schema.sql`, non un file `commenti.sql` |
+| 6 | non fatto | i file stanno ancora in `media/` |
+| 7 | non fatto | nessun accesso a token |
+| 8 | **fatto** | `manifest.webmanifest`, `sw.js`, `pwa_head.php` |
+| 9 | non fatto | `public/api/` ha solo `csrf_token`, `lingua`, `stile` |
+| 10 | non fatto | non esiste `base.css` |
+| 11 | **fatto** | `lang/it.json`, `lang/en.json`, `t()` |
+| 12-15 | non fatti | |
+
 > **Nota (26/10/2026):** il passo 13 (condivisione gratuita) si fa **sul sito prima
 > del passo 12**, per decisione del proprietario (§14.4.10). Il passo 14 (prezzi
 > accesi) resta dopo e dipende dalla scelta di §16 #7.

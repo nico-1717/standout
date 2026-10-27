@@ -396,8 +396,7 @@ CREATE TABLE `fc_study_records` (
   `value` decimal(10,2) NOT NULL,
   `game_id` int UNSIGNED DEFAULT NULL,
   `achieved_at` datetime NOT NULL,
-  PRIMARY KEY (`user_id`,`kind`),
-  CONSTRAINT `fk_study_records_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+  PRIMARY KEY (`user_id`,`kind`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Record personali del gioco delle flashcard di studio';
 
 -- --------------------------------------------------------
@@ -570,9 +569,7 @@ CREATE TABLE `fc_vocab_records` (
   `game_id` int UNSIGNED DEFAULT NULL,
   `achieved_at` datetime NOT NULL,
   PRIMARY KEY (`user_id`,`course_id`,`kind`),
-  KEY `fk_vocab_records_course` (`course_id`),
-  CONSTRAINT `fk_vocab_records_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_vocab_records_course` FOREIGN KEY (`course_id`) REFERENCES `fc_vocab_courses` (`id`) ON DELETE CASCADE
+  KEY `fk_vocab_records_course` (`course_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Record personali del gioco delle lingue, uno per tipo e per corso';
 
 -- --------------------------------------------------------
@@ -3199,6 +3196,19 @@ ALTER TABLE `plan_settings`
 --
 ALTER TABLE `plan_templates`
   ADD CONSTRAINT `fk_plan_templates_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Foreign keys for table `fc_study_records`
+--
+ALTER TABLE `fc_study_records`
+  ADD CONSTRAINT `fk_study_records_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Foreign keys for table `fc_vocab_records`
+--
+ALTER TABLE `fc_vocab_records`
+  ADD CONSTRAINT `fk_vocab_records_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_vocab_records_course` FOREIGN KEY (`course_id`) REFERENCES `fc_vocab_courses` (`id`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

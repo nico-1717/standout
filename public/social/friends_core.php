@@ -5,6 +5,8 @@
    ========================================================================= */
 
 require_once __DIR__ . '/../../lib/config.php';
+// FC_TABELLE: i nomi delle tabelle delle flashcard (studio e lingue), elenco chiuso
+require_once __DIR__ . '/../../lib/fc/fc_type.php';
 
 /* -------------------------------------------------------------------------
    CONFIGURAZIONE (le uniche 3 righe che potresti dover toccare)
@@ -153,7 +155,10 @@ function fr_attivi_oggi(mysqli $c, array $ids): array {
             SELECT ps.user_id AS u FROM pomodoro_sessions ps
              WHERE ps.user_id IN ($in) AND DATE(ps.start_time) = CURDATE()
             UNION
-            SELECT gm.user_id AS u FROM games gm JOIN fc_gameplays gp ON gp.game_id = gm.id
+            SELECT gm.user_id AS u FROM fc_games gm JOIN " . FC_TABELLE['study']['plays'] . " gp ON gp.game_id = gm.id
+                WHERE gm.user_id IN ($in) AND DATE(gp.play_date) = CURDATE()
+            UNION
+            SELECT gm.user_id AS u FROM fc_games gm JOIN " . FC_TABELLE['vocab']['plays'] . " gp ON gp.game_id = gm.id
                 WHERE gm.user_id IN ($in) AND DATE(gp.play_date) = CURDATE()
         ) t");
     while ($r && ($row = mysqli_fetch_assoc($r))) { $out[] = (int)$row['u']; }
@@ -307,10 +312,18 @@ function fr_stats(mysqli $c, int $uid, string $username = ''): array {
 
     /* ---------- FLASHCARD: giorni attivi, carte giocate, precisione ---------- */
     $fcGiorni = []; $carteGiocate = 0; $carteCorrette = 0;
-    $r = mysqli_query($c, "SELECT DATE(gp.play_date) AS d, COUNT(*) AS c, SUM(gp.user_answer='Correct') AS ok
-        FROM fc_gameplays gp JOIN games gm ON gp.game_id = gm.id
-        WHERE gm.user_id = $uid AND gp.play_date IS NOT NULL AND gp.user_answer IN ('Correct','Wrong')
-        GROUP BY d ORDER BY d ASC");
+    // Le giocate stanno in due tabelle (studio e lingue): si sommano con una UNION.
+    // I nomi di tabella vengono da FC_TABELLE (elenco chiuso), mai dal browser.
+    $pS = FC_TABELLE['study']['plays']; $pV = FC_TABELLE['vocab']['plays'];
+    $r = mysqli_query($c, "SELECT d, COUNT(*) AS c, SUM(ans = 'Correct') AS ok FROM (
+            SELECT DATE(gp.play_date) AS d, gp.user_answer AS ans
+                FROM $pS gp JOIN fc_games gm ON gp.game_id = gm.id
+                WHERE gm.user_id = $uid AND gp.play_date IS NOT NULL AND gp.user_answer IN ('Correct','Wrong')
+            UNION ALL
+            SELECT DATE(gp.play_date), gp.user_answer
+                FROM $pV gp JOIN fc_games gm ON gp.game_id = gm.id
+                WHERE gm.user_id = $uid AND gp.play_date IS NOT NULL AND gp.user_answer IN ('Correct','Wrong')
+        ) x GROUP BY d ORDER BY d ASC");
     while ($r && ($row = mysqli_fetch_assoc($r))) {
         $fcGiorni[]     = $row['d'];
         $carteGiocate  += (int)$row['c'];
@@ -348,83 +361,80 @@ function fr_stats(mysqli $c, int $uid, string $username = ''): array {
     // Se preferisci "almeno una delle due", sostituisci array_intersect con array_unique(array_merge(...)).
     $sCombo = fr_streak(array_values(array_intersect($fcGiorni, $pomoGiorni)));
 
-    /* ---------- CARTE TOTALI / IMPARATE (per mastery e badge) ---------- */
-    $CC = "(
-        SELECT i.id AS card_id, i.category_id
-            FROM fc_images i JOIN fc_categories c ON i.category_id = c.id
-            WHERE c.user_id = $uid
-            UNION ALL
-            SELECT -cc.id_child AS card_id, fi.category_id
-            FROM fc_child_cards cc
-            JOIN fc_images fi ON cc.parent_id = fi.id
-            JOIN fc_categories c2 ON fi.category_id = c2.id
-            WHERE c2.user_id = $uid
-    ) AS ccmap";
-
-    $r = mysqli_query($c, "SELECT COUNT(*) AS c FROM (
-            SELECT i.id FROM fc_images i JOIN fc_categories c ON i.category_id = c.id
-                WHERE i.is_father = 0 AND c.user_id = $uid
-                UNION ALL
-                SELECT cc.id_child FROM fc_child_cards cc
-                JOIN fc_images fi ON cc.parent_id = fi.id
-                JOIN fc_categories c2 ON fi.category_id = c2.id
-                WHERE c2.user_id = $uid) t");
-    $carteTotali = $r ? (int)mysqli_fetch_assoc($r)['c'] : 0;
-
-    $r = mysqli_query($c, "SELECT COUNT(DISTINCT fc_image_id) AS c FROM user_learnt_fc WHERE user_id = $uid");
-    $carteImparate = $r ? (int)mysqli_fetch_assoc($r)['c'] : 0;
-    $mastery = $carteTotali > 0 ? (int)round($carteImparate / $carteTotali * 100) : 0;
-
-    // categoria completata? (serve per il badge trofeo)
+    /* ---------- CARTE TOTALI / IMPARATE (per mastery e badge) ----------
+       Vale per studio e lingue insieme. In "learnt" c'e' sempre l'id della carta
+       padre (anche quando si impara una figlia: fc_game.php marca il padre). */
+    $carteTotali = 0; $carteImparate = 0;
     $catTot = []; $catImp = [];
-    $r = mysqli_query($c, "SELECT category_id, COUNT(*) AS t FROM $CC GROUP BY category_id");
-    while ($r && ($row = mysqli_fetch_assoc($r))) { $catTot[(int)$row['category_id']] = (int)$row['t']; }
-    $r = mysqli_query($c, "SELECT ccmap.category_id AS cid, COUNT(DISTINCT ulf.fc_image_id) AS l
-        FROM user_learnt_fc ulf JOIN $CC ON ulf.fc_image_id = ccmap.card_id
-        WHERE ulf.user_id = $uid GROUP BY ccmap.category_id");
-    while ($r && ($row = mysqli_fetch_assoc($r))) { $catImp[(int)$row['cid']] = (int)$row['l']; }
+    foreach (FC_TABELLE as $tipo => $T) {
+        // nello studio i padri sono contenitori e non contano; nelle lingue si'
+        $soloFoglie = $tipo === 'study' ? 'AND i.is_father = 0' : '';
+        $r = mysqli_query($c, "SELECT COUNT(*) AS c FROM {$T['cards']} i
+                JOIN {$T['decks']} d ON i.category_id = d.id WHERE d.user_id = $uid $soloFoglie");
+        $carteTotali += $r ? (int)mysqli_fetch_assoc($r)['c'] : 0;
+        $r = mysqli_query($c, "SELECT COUNT(*) AS c FROM {$T['subcards']} s
+                JOIN {$T['cards']} i ON s.parent_id = i.id
+                JOIN {$T['decks']} d ON i.category_id = d.id WHERE d.user_id = $uid");
+        $carteTotali += $r ? (int)mysqli_fetch_assoc($r)['c'] : 0;
+        $r = mysqli_query($c, "SELECT COUNT(DISTINCT fc_image_id) AS c FROM {$T['learnt']} WHERE user_id = $uid");
+        $carteImparate += $r ? (int)mysqli_fetch_assoc($r)['c'] : 0;
+
+        // mazzo completato (serve per il badge trofeo): tutte le sue carte sono imparate
+        $r = mysqli_query($c, "SELECT i.category_id AS cid, COUNT(*) AS t, SUM(l.fc_image_id IS NOT NULL) AS l
+                FROM {$T['cards']} i JOIN {$T['decks']} d ON i.category_id = d.id
+                LEFT JOIN {$T['learnt']} l ON l.fc_image_id = i.id AND l.user_id = $uid
+                WHERE d.user_id = $uid GROUP BY i.category_id");
+        while ($r && ($row = mysqli_fetch_assoc($r))) {
+            $catTot[$tipo . $row['cid']] = (int)$row['t'];
+            $catImp[$tipo . $row['cid']] = (int)$row['l'];
+        }
+    }
+    $mastery = $carteTotali > 0 ? (int)round($carteImparate / $carteTotali * 100) : 0;
     $catCompleta = false;
-    foreach ($catTot as $cid => $t) {
-        if ($t > 0 && isset($catImp[$cid]) && $catImp[$cid] >= $t) { $catCompleta = true; break; }
+    foreach ($catTot as $k => $t) {
+        if ($t > 0 && ($catImp[$k] ?? 0) >= $t) { $catCompleta = true; break; }
     }
 
     /* ---------- CATEGORIE GIOCATE NELLE ULTIME 24 ORE ----------
-       Categoria risolta a cascata come in stats_fc.php:
-       1) categoria vera della carta  2) partita mono-categoria  3) nome partita.
-       La durata della partita (session_durations) viene ripartita fra le sue
-       categorie in proporzione alle carte giocate. */
+       Categoria risolta a cascata come in fc_stats.php:
+       1) mazzo vero della carta  2) partita con un solo mazzo  3) primo mazzo della partita.
+       La durata della partita (fc_game_durations) viene ripartita fra i suoi
+       mazzi in proporzione alle carte giocate. Studio e lingue hanno mazzi con id
+       separati, quindi la chiave e' "tipo + id" (es. study12, vocab12). */
     $perPartita = [];
-    $r = mysqli_query($c, "SELECT gp.game_id AS gid, gp.user_answer AS ans,
-            COALESCE(
-                ccmap.category_id,
-                gc1.category_id,
-                (SELECT gfc.fc_category_id FROM game_fc_categories gfc
-                JOIN fc_categories fce ON fce.id = gfc.fc_category_id
-                WHERE gfc.game_id = gm.id AND fce.user_id = $uid
-                ORDER BY gfc.category_order ASC LIMIT 1)
-            ) AS cat
-        FROM fc_gameplays gp
-        JOIN games gm ON gp.game_id = gm.id
-        LEFT JOIN $CC ON gp.fc_image_id = ccmap.card_id
-        LEFT JOIN (SELECT game_id, MIN(fc_category_id) AS category_id FROM game_fc_categories
-                    GROUP BY game_id HAVING COUNT(*) = 1) gc1 ON gc1.game_id = gp.game_id
-        WHERE gm.user_id = $uid
-        AND gp.play_date >= (NOW() - INTERVAL 24 HOUR)
-        AND gp.user_answer IN ('Correct','Wrong')");
-    while ($r && ($row = mysqli_fetch_assoc($r))) {
-        $gid = (int)$row['gid'];
-        $cid = $row['cat'] !== null ? (int)$row['cat'] : 0;
-        if (!isset($perPartita[$gid])) { $perPartita[$gid] = ['tot' => 0, 'cat' => []]; }
-        if (!isset($perPartita[$gid]['cat'][$cid])) { $perPartita[$gid]['cat'][$cid] = ['n' => 0, 'ok' => 0]; }
-        $perPartita[$gid]['tot']++;
-        $perPartita[$gid]['cat'][$cid]['n']++;
-        if ($row['ans'] === 'Correct') { $perPartita[$gid]['cat'][$cid]['ok']++; }
+    foreach (FC_TABELLE as $tipo => $T) {
+        $r = mysqli_query($c, "SELECT gp.game_id AS gid, gp.user_answer AS ans,
+                COALESCE(
+                    ci.category_id,
+                    gc1.category_id,
+                    (SELECT gd.fc_category_id FROM {$T['game_decks']} gd
+                        JOIN {$T['decks']} de ON de.id = gd.fc_category_id
+                        WHERE gd.game_id = gm.id AND de.user_id = $uid
+                        ORDER BY gd.category_order ASC LIMIT 1)
+                ) AS cat
+            FROM {$T['plays']} gp
+            JOIN fc_games gm ON gp.game_id = gm.id
+            LEFT JOIN {$T['cards']} ci ON gp.fc_image_id = ci.id
+            LEFT JOIN (SELECT game_id, MIN(fc_category_id) AS category_id FROM {$T['game_decks']}
+                        GROUP BY game_id HAVING COUNT(*) = 1) gc1 ON gc1.game_id = gp.game_id
+            WHERE gm.user_id = $uid
+            AND gp.play_date >= (NOW() - INTERVAL 24 HOUR)
+            AND gp.user_answer IN ('Correct','Wrong')");
+        while ($r && ($row = mysqli_fetch_assoc($r))) {
+            $gid = (int)$row['gid'];
+            $cid = $row['cat'] !== null ? $tipo . (int)$row['cat'] : '';
+            if (!isset($perPartita[$gid])) { $perPartita[$gid] = ['tot' => 0, 'cat' => []]; }
+            if (!isset($perPartita[$gid]['cat'][$cid])) { $perPartita[$gid]['cat'][$cid] = ['n' => 0, 'ok' => 0]; }
+            $perPartita[$gid]['tot']++;
+            $perPartita[$gid]['cat'][$cid]['n']++;
+            if ($row['ans'] === 'Correct') { $perPartita[$gid]['cat'][$cid]['ok']++; }
+        }
     }
 
     $durPartita = [];
     if ($perPartita) {
         $in = implode(',', array_map('intval', array_keys($perPartita)));
-        $r = mysqli_query($c, "SELECT game_id, SUM(duration_seconds) AS s FROM session_durations
+        $r = mysqli_query($c, "SELECT game_id, SUM(duration_seconds) AS s FROM fc_game_durations
                                WHERE game_id IN ($in) GROUP BY game_id");
         while ($r && ($row = mysqli_fetch_assoc($r))) { $durPartita[(int)$row['game_id']] = (int)$row['s']; }
     }
@@ -440,13 +450,18 @@ function fr_stats(mysqli $c, int $uid, string $username = ''): array {
         }
     }
 
+    // i nomi si leggono dalla tabella dei mazzi del loro tipo
     $nomi = [];
-    $ids  = array_values(array_filter(array_keys($catAgg)));
-    if ($ids) {
-        $in = implode(',', array_map('intval', $ids));
-        $r = mysqli_query($c, "SELECT id, name, color FROM fc_categories WHERE id IN ($in)");
+    foreach (FC_TABELLE as $tipo => $T) {
+        $ids = [];
+        foreach (array_keys($catAgg) as $k) {
+            if ($k !== '' && strpos((string)$k, $tipo) === 0) { $ids[] = (int)substr((string)$k, strlen($tipo)); }
+        }
+        if (!$ids) { continue; }
+        $in = implode(',', $ids);
+        $r = mysqli_query($c, "SELECT id, name, color FROM {$T['decks']} WHERE id IN ($in) AND user_id = $uid");
         while ($r && ($row = mysqli_fetch_assoc($r))) {
-            $nomi[(int)$row['id']] = ['nome' => $row['name'], 'colore' => $row['color'] ?: '#007AFF'];
+            $nomi[$tipo . (int)$row['id']] = ['nome' => $row['name'], 'colore' => $row['color'] ?: '#007AFF'];
         }
     }
 
