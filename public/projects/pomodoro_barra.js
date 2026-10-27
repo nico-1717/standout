@@ -38,6 +38,10 @@ var elProg      = document.getElementById('pomoPopProg');
 var elProgTesto = document.getElementById('pomoPopProgTesto');
 var elExtra  = document.getElementById('pomoPopExtra');
 var elNota   = document.getElementById('pomoPopNota');
+var elScelta  = document.getElementById('pomoPopScelta');
+var elSceltaT = document.getElementById('pomoPopSceltaT');
+var elSceltaM = document.getElementById('pomoPopSceltaM');
+var elSceltaV = document.getElementById('pomoPopSceltaV');
 var tasti    = {
     pausaSessione: document.getElementById('pomoPopCongela'),
     riprendi:      document.getElementById('pomoPopRiprendi'),
@@ -334,6 +338,10 @@ function chiudiPopup(){
        non riuscita non devono ritrovarsi li' alla riapertura. */
     disarmaScarta();
     nota('');
+    /* Anche la domanda "pausa, chiudi o scarta?": chiudere il popup e' un
+       ripensamento, il pomodoro resta com'e' (come chiudere senza scegliere
+       sulla pagina) e alla riapertura non deve aspettare una risposta. */
+    chiudiScelta();
 }
 
 function battitoPopup(){
@@ -417,6 +425,11 @@ function nota(testo){
       ridisegna. Una promessa che si rompe a meta' lasciava la barra ferma
       su una realta' che non esisteva piu'.
    ------------------------------------------------------------------ */
+function riallinea(d){
+    if (d && d.inCoda) return Promise.resolve();
+    return PomoCore.aggiorna({ applica: true });
+}
+
 function agisci(nome, dati, poi){
     if (azioneInCorso) return Promise.resolve(null);
     azioneInCorso = true;
@@ -428,7 +441,11 @@ function agisci(nome, dati, poi){
                vero e avvisa. Qui non c'e' niente da aggiungere. */
             if (d && d.conflitto) return d;
             if (d && d.success === false) { nota(T.non_riuscito || ''); return d; }
-            return PomoCore.aggiorna({ applica: true })
+            /* Azione messa in coda dal motore (start, stop, pausa...): il
+               modello e' gia' a posto e il server verra' riallineato a coda
+               vuota, quindi una GET qui sarebbe solo un'attesa in piu' prima
+               di ridisegnare. */
+            return riallinea(d)
                 .then(function () { if (poi) return poi(); })
                 .then(function () { return d; });
         })
@@ -466,8 +483,107 @@ tasti.chiudi.addEventListener('click', function (e) {
     var fase = PomoCore.fase();
     if (fase === 'pausa_running' || fase === 'pausa_done') { agisci('fine_pausa'); return; }
     if (fase === 'completed') { agisci('archivia_completato', { session_id: idSessione() }); return; }
-    agisci('interrompi', { session_id: idSessione(), elimina: 0 });
+    // sessione ancora aperta (in corso o congelata): come sulla pagina, prima si chiede
+    chiediInterruzione();
 });
+
+/* ------------------------------------------------------------------
+   INTERROMPERE CHIEDE, COME SULLA PAGINA
+   Prima il quadrato del popup chiudeva e salvava al primo tocco, senza
+   nemmeno dire che c'erano altre strade: pausa, o buttare la sessione. La
+   pagina pomodoro (onInterrompiClick) le offre sempre, e una barra che si
+   comporta diversamente dalla pagina e' una trappola — si impara una cosa
+   da una parte e si perde un'ora di lavoro dall'altra. Le regole sono le
+   stesse, passo per passo:
+     - sotto il minuto non c'e' niente da salvare e niente da chiedere;
+     - altrimenti: pausa / chiudi / scarta (lo scarto chiede conferma);
+     - sotto i cinque minuti, scelto pausa o chiudi, resta la domanda
+       "e' durata pochissimo, la salvo?".
+   Chiudere il popup senza rispondere lascia il pomodoro com'e'.
+   ------------------------------------------------------------------ */
+var IC_TAZZA   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 10.5h2.2a2.4 2.4 0 0 1 0 4.8H16"/><path d="M8 2.5v2.6M12 2.5v2.6"/></svg>';
+var IC_QUADRO  = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.4"/></svg>';
+var IC_CEST    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5h16"/><path d="M9.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v1.5"/><path d="M6.5 6.5l.9 12a2 2 0 0 0 2 1.9h5.2a2 2 0 0 0 2-1.9l.9-12"/><path d="M10.5 10.5v6M13.5 10.5v6"/></svg>';
+var IC_INDIETRO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg>';
+var IC_SPUNTA  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
+
+function chiudiScelta(){
+    if (!elScelta) return;
+    popup.classList.remove('is-scelta');
+    elScelta.hidden = true;
+    elSceltaV.innerHTML = '';
+}
+
+/* voci = [{ testo, icona, primaria, pericolo, fai }]. I testi entrano come
+   testo e non come HTML: arrivano dal dizionario, ma non c'e' motivo di
+   fidarsi piu' del necessario. */
+function mostraScelta(titolo, testo, voci){
+    disarmaScarta();
+    nota('');
+    elSceltaT.textContent = titolo || '';
+    elSceltaM.textContent = testo || '';
+    elSceltaV.innerHTML = '';
+    voci.forEach(function (v) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'pomo-pop-voce' + (v.primaria ? ' is-primaria' : '') + (v.pericolo ? ' is-pericolo' : '');
+        var ic = document.createElement('span');
+        ic.className = 'pomo-pop-voce-ic';
+        ic.innerHTML = v.icona;                 // icone scritte qui sopra, non dati
+        var tx = document.createElement('span');
+        tx.textContent = v.testo || '';
+        b.appendChild(ic); b.appendChild(tx);
+        b.addEventListener('click', function (e) { e.stopPropagation(); v.fai(); });
+        elSceltaV.appendChild(b);
+    });
+    elScelta.hidden = false;
+    popup.classList.add('is-scelta');
+}
+
+// chiude la sessione (salvandola o no) e, se serve, fa partire la pausa dopo
+function interrompiSessione(elimina, poi){
+    chiudiScelta();
+    var progetto = PomoCore.modello().progettoId || 0;
+    var durataPausa = PomoCore.modello().durataPausaMin || 5;
+    agisci('interrompi', { session_id: idSessione(), elimina: elimina ? 1 : 0 }, function () {
+        nota(elimina ? (T.scartata || '') : (T.salvata || ''));
+        if (!poi) return;
+        // la pausa parte DOPO che la sessione e' chiusa, mai prima: vedi tasti.tisana
+        return PomoCore.azione('avvia_pausa', { project_id: progetto, durata_minuti: durataPausa })
+            .then(riallinea);
+    });
+}
+
+function confermaScarto(){
+    mostraScelta(T.scarta_titolo, T.scarta_testo, [
+        { testo: T.annulla,    icona: IC_INDIETRO, primaria: true, fai: chiudiScelta },
+        { testo: T.scarta_si,  icona: IC_CEST,     pericolo: true, fai: function () { interrompiSessione(true, false); } }
+    ]);
+}
+
+function chiediInterruzione(){
+    var trascorso = PomoCore.tempi().trascorso;
+    // sotto il minuto non c'e' niente da salvare e niente da chiedere: si butta
+    if (trascorso < 60) { interrompiSessione(true, false); return; }
+
+    function dopoLaScelta(conPausa){
+        // la domanda "e' durata pochissimo, la salvo?" riguarda cosa farne, non se fermarsi
+        if (trascorso < 300) {
+            mostraScelta(T.breve_titolo, T.breve_testo, [
+                { testo: T.si_salva, icona: IC_SPUNTA,  primaria: true, fai: function () { interrompiSessione(false, conPausa); } },
+                { testo: T.no,       icona: IC_CEST,     fai: function () { interrompiSessione(true, conPausa); } }
+            ]);
+        } else {
+            interrompiSessione(false, conPausa);
+        }
+    }
+
+    mostraScelta(T.scelta_titolo, T.scelta_testo, [
+        { testo: T.scelta_pausa,  icona: IC_TAZZA, primaria: true, fai: function () { dopoLaScelta(true); } },
+        { testo: T.scelta_chiudi, icona: IC_QUADRO,                 fai: function () { dopoLaScelta(false); } },
+        { testo: T.scelta_scarta, icona: IC_CEST,   pericolo: true, fai: confermaScarto }
+    ]);
+}
 
 tasti.tisana.addEventListener('click', function (e) {
     e.stopPropagation();
@@ -485,7 +601,7 @@ tasti.tisana.addEventListener('click', function (e) {
                return PomoCore.azione('avvia_pausa', {
                    project_id: M.progettoId || 0,
                    durata_minuti: M.durataPausaMin || 5
-               }).then(function () { return PomoCore.aggiorna({ applica: true }); });
+               }).then(riallinea);
            });
 });
 
@@ -502,7 +618,7 @@ tasti.nuovo.addEventListener('click', function (e) {
             mode: 0,
             durata_minuti: M.durataSceltaMin || 25,
             project_id: M.progettoId || 0
-        }).then(function () { return PomoCore.aggiorna({ applica: true }); });
+        }).then(riallinea);
     });
 });
 
@@ -663,13 +779,23 @@ PomoCore.on('cambiato', function () { disegna(); });
     var spia = document.getElementById('pomoBarraCoda');
     if (!spia) return;
     var testo = spia.querySelector('.pomo-bar-coda-t');
+    var timerSpia = null;
     PomoCore.on('coda', function (c) {
         var attesa = c.n > 0;
-        barra.classList.toggle('is-attesa', attesa);
-        popup.classList.toggle('is-attesa', attesa);
-        spia.hidden = !attesa;
-        spia.classList.toggle('is-offline', attesa && !!c.offline);
-        testo.textContent = attesa ? (c.offline ? (T.coda_offline || '') : (T.coda_invio || '')) : '';
+        if (timerSpia) { clearTimeout(timerSpia); timerSpia = null; }
+        function mostra(su){
+            barra.classList.toggle('is-attesa', su);
+            popup.classList.toggle('is-attesa', su);
+            spia.hidden = !su;
+            spia.classList.toggle('is-offline', su && !!c.offline);
+            testo.textContent = su ? (c.offline ? (T.coda_offline || '') : (T.coda_invio || '')) : '';
+        }
+        /* Ora che ogni Avvia/Stop passa dalla coda, mostrare «Sto salvando…»
+           e la linea tratteggiata a OGNI tocco farebbe lampeggiare la barra
+           per un decimo di secondo. Senza rete compare subito; con la rete
+           solo se il server ci mette piu' di mezzo secondo. */
+        if (!attesa || c.offline) mostra(attesa);
+        else timerSpia = setTimeout(function () { mostra(true); }, 500);
         disegna();
     });
 })();

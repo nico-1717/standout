@@ -133,6 +133,23 @@ function pomo_barra_html(): array
             /* la spia delle azioni fatte senza rete (pomodoro_core.js, la coda) */
             'coda_offline'      => $tt('pomodoro.coda_offline_breve', 'Senza rete'),
             'coda_invio'        => $tt('pomodoro.coda_invio', 'Sto salvando…'),
+            /* La domanda dell'interruzione: le stesse parole della pagina
+               pomodoro (onInterrompiClick), perche' fermare da qui o da li'
+               deve chiedere la stessa cosa. */
+            'scelta_titolo'     => $tt('pomodoro.scelta_stop_titolo', 'Fermi il pomodoro'),
+            'scelta_testo'      => $tt('pomodoro.scelta_stop_testo', 'Il tempo fatto finora viene salvato. Vuoi passare alla pausa o chiudere qui?'),
+            'scelta_pausa'      => $tt('pomodoro.scelta_pausa', 'Fai la pausa'),
+            'scelta_chiudi'     => $tt('pomodoro.scelta_chiudi', 'Chiudi'),
+            'scelta_scarta'     => $tt('pomodoro.scelta_scarta', 'Scarta la sessione'),
+            'scarta_titolo'     => $tt('pomodoro.scarta_titolo', 'Scartare questa sessione?'),
+            'scarta_testo'      => $tt('pomodoro.scarta_testo', 'Sparisce dallo storico e dai totali del progetto. Non si torna indietro.'),
+            'scarta_si'         => $tt('pomodoro.scarta_si', 'Sì, scarta'),
+            'annulla'           => $tt('comune.annulla', 'Annulla'),
+            'breve_titolo'      => $tt('pomodoro.molto_breve', 'Sessione molto breve'),
+            'breve_testo'       => $tt('pomodoro.molto_breve_testo', 'Sono passati meno di 5 minuti: vuoi comunque salvarla?'),
+            'si_salva'          => $tt('pomodoro.si_salva', 'Sì, salva'),
+            'no'                => $tt('comune.no', 'No'),
+            'salvata'           => $tt('pomodoro.sessione_salvata', 'Sessione salvata'),
         ],
     ];
 
@@ -241,6 +258,17 @@ function pomo_barra_html(): array
              conta piu' da nessuna parte. Sta in fondo, in rosso, e chiede
              conferma: e' l'unica cosa qui dentro che non si puo' disfare. -->
         <button type="button" class="pomo-pop-tasto is-pericolo" id="pomoPopScarta" hidden aria-label="{$lScarta}" title="{$lScarta}">{$icCestino}</button>
+    </div>
+
+    <!-- La domanda "pausa, chiudi o scarta?" quando si ferma una sessione.
+         Sta DENTRO il popup e prende il posto dei tasti: un modale a tutta
+         pagina qui non c'e' (la barra vive su ventisette pagine che non hanno
+         il riquadro della pagina pomodoro) e il popup e' gia' li' sotto il dito.
+         Le vie le disegna il JS, cambiano da un passo all'altro. -->
+    <div class="pomo-pop-scelta" id="pomoPopScelta" hidden role="group">
+        <div class="pomo-pop-scelta-t" id="pomoPopSceltaT"></div>
+        <div class="pomo-pop-scelta-m" id="pomoPopSceltaM"></div>
+        <div class="pomo-pop-scelta-v" id="pomoPopSceltaV"></div>
     </div>
 
     <!-- Quando un'azione non riesce lo si scrive qui. Il silenzio e' peggio:

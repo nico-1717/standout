@@ -1807,9 +1807,9 @@ PomoCore.on('id', function(x){
     var attesa = null;
     PomoCore.on('coda', function(c){
         var n = c.n;
-        document.body.classList.toggle('pomo-attesa', n > 0);
         clearTimeout(attesa);
         if (!n) {
+            document.body.classList.remove('pomo-attesa');
             spia.classList.remove('is-aperta');
             attesa = setTimeout(function(){ spia.hidden = true; }, 300);
             return;
@@ -1817,9 +1817,15 @@ PomoCore.on('id', function(x){
         testo.textContent = c.offline ? T('pomodoro.coda_offline') : T('pomodoro.coda_invio');
         spia.classList.toggle('is-offline', !!c.offline);
         spia.hidden = false;
-        /* un'azione che parte e arriva in un attimo non merita la spia:
-           compare subito senza rete, se no dopo mezzo secondo */
-        attesa = setTimeout(function(){ spia.classList.add('is-aperta'); }, c.offline ? 0 : 500);
+        /* un'azione che parte e arriva in un attimo non merita la spia, e
+           nemmeno il quadrante sbiadito: ora che ogni tocco passa dalla coda,
+           sbiadire subito vorrebbe dire lampeggiare a ogni Avvia/Stop.
+           Senza rete compare subito, se no dopo mezzo secondo. */
+        if (c.offline) document.body.classList.add('pomo-attesa');
+        attesa = setTimeout(function(){
+            document.body.classList.add('pomo-attesa');
+            spia.classList.add('is-aperta');
+        }, c.offline ? 0 : 500);
     });
     if (PomoCore.inCoda()) document.body.classList.add('pomo-attesa');
 })();

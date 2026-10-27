@@ -541,12 +541,29 @@ if (typeof window !== 'undefined') {
     document.addEventListener('visibilitychange', function () { if (!document.hidden) codaGira(); });
 }
 
+/* LE AZIONI CHE VALGONO SUBITO.
+   Prima Avvia/Stop/Pausa aspettavano il server DUE volte di fila (la scrittura
+   e poi la rilettura dello stato) prima di cambiare qualcosa a schermo: su una
+   rete lenta o un hosting condiviso erano da mezzo secondo a un secondo di
+   quadrante fermo dopo il tocco. La strada della coda (nata per la metro) fa
+   gia' quello che serve: il modello cambia al tocco, la richiesta parte subito
+   dietro le quinte, l'ordine e' garantito e a coda vuota si riallinea al
+   server (con il suo conflitto, se un altro dispositivo era arrivato prima).
+   Quindi la si usa SEMPRE per queste, non solo senza rete.
+   Restano fuori, di proposito, le azioni di cui la pagina legge la risposta
+   vera del server (segna_completato porta l'ora di fine, estendi la durata)
+   e le impostazioni, che non cambiano il quadrante. */
+var OTTIMISTE = {
+    start: 1, pausa_task: 1, riprendi_task: 1, interrompi: 1,
+    archivia_completato: 1, avvia_pausa: 1, fine_pausa: 1
+};
+
 function azione(nome, dati) {
     dati = dati || {};
     /* Con qualcosa gia' in coda si accoda anche questa: passarle davanti
        vorrebbe dire, per esempio, fermare una sessione che il server non ha
        ancora visto partire. Lo stesso senza rete. */
-    if (CODA.ops.length || senzaRete()) return accoda(nome, dati);
+    if (CODA.ops.length || senzaRete() || OTTIMISTE[nome] === 1) return accoda(nome, dati);
     var veri = datiVeri(dati);
     if (veri === null) return Promise.resolve({ success: false });
     dati = veri;
@@ -580,11 +597,16 @@ function azione(nome, dati) {
            del controllo periodico: una risposta partita PRIMA della scrittura
            ci riporterebbe l'impronta vecchia, e al giro dopo scambieremmo la
            nostra stessa azione per quella di un altro dispositivo. */
-        return leggiStato().then(function (st) {
+        /* La rilettura parte ma NON si aspetta: chi ha toccato il tasto vede
+           l'esito appena il server ha risposto alla scrittura, senza un
+           secondo giro. scrittureInCorso resta alzato finche' la rilettura non
+           e' tornata, cosi' il controllo periodico continua a non scambiare
+           questa azione per quella di un altro dispositivo. */
+        leggiStato().then(function (st) {
             if (st) { revisione = st.revisione; statoServer = st; }
             chiudi();
-            return d;
-        });
+        }, chiudi);
+        return d;
     })
     .catch(function (e) {
         chiudi();
