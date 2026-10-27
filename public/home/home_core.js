@@ -338,7 +338,7 @@
        porta in H.data PRIMA di chiamare update(), quindi il riquadro si disegna
        una volta sola e non per pezzi. */
     var GRUPPO_CHIAVI = { agenda: ['agenda'], important: ['important'], tasks: ['todo', 'buy'], note: ['note'],
-                          habits: ['habit_groups'], grades: ['grades'], fc: ['fc'] };
+                          habits: ['habit_groups', 'habit_rings'], grades: ['grades'], fc: ['fc'] };
     function needsOf(id) { return (H.widgets[id] && H.widgets[id].needs) || []; }
     function extraOf(id) { return (H.widgets[id] && H.widgets[id].extra) || []; }
     function pronto(id) {

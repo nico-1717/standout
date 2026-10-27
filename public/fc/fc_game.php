@@ -784,6 +784,25 @@ foreach ($gameplays as $gp) {
 
 
 
+/* RIPASSO DEGLI ERRORI, carta con sottocarte: il padre che nella partita di
+   origine era gia' giusto non va rimostrato - l'utente deve rispondere ai
+   figli sbagliati, e vedersi davanti il padre prima era solo un passaggio in
+   piu'. Lo si nasconde (resta nel DOM, cosi' indici e conteggi non cambiano) e
+   la pagina scorre da sola alla prima sottocarta da fare. Si guarda la partita
+   di ORIGINE e non la risposta di adesso: se il padre era sbagliato va
+   risposto, e una volta risposto non deve sparire sotto le dita. */
+$fc_padre_saltato_id = 0;
+if ($parent_id > 0) {
+    $fc_ha_figli = false; $fc_padre_in_pagina = 0;
+    foreach ($cards_to_show as $cc) {
+        if (!empty($cc['is_titolo'])) continue;
+        if ($cc['is_child']) $fc_ha_figli = true; else $fc_padre_in_pagina = (int)$cc['gameplay_idimmagine'];
+    }
+    if ($fc_ha_figli && $fc_padre_in_pagina > 0) {
+        $orig = sec_one("SELECT user_answer FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_image_id = ?", [$parent_id, $fc_padre_in_pagina]);
+        if ($orig && $orig['user_answer'] === 'Correct') $fc_padre_saltato_id = $fc_padre_in_pagina;
+    }
+}
 /* IL GIOCO DELLE LINGUE PIU' VIVO (fc_game_juice.js): il livello di ogni
    parola sulla pagina, la serie di risposte giuste, i record del corso e fin
    dove si e' arrivati. Viaggiano dentro la pagina (#fcg-dati e
@@ -1213,6 +1232,9 @@ $f2_dati = [
     'cp'    => array_values($f2_cp),
     'err'   => $f2_err,
     'cat'   => $f2_cat,
+    /* La prima posizione ancora da rispondere (0 = nessuna): serve alla freccia
+       che compare solo quando si sta rivedendo una carta gia' risposta. */
+    'dove'  => $first_unanswered ? (int)$first_unanswered : 0,
 ];
 
 /* Inizio della domanda di ogni carta sbagliata, per la lista compatta che
@@ -1432,6 +1454,8 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
          data-can-forward="<?php echo ($position < $max_position_generated || ($all_answered && $position < $total_words)) ? '1' : '0'; ?>"
 
          data-forward-url="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position+1); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>"
+
+         data-ripasso-salta="<?php echo $fc_padre_saltato_id > 0 ? '1' : '0'; ?>"
 
          data-chrono-base="<?php echo (int)($chrono_base_seconds); ?>"
 
@@ -1955,7 +1979,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 <?php continue; endif; ?>
 
-                <div class="card-box <?php echo $is_graded ? 'graded' : ''; ?><?php if ($is_graded) echo ($c['user_answer'] == 'Correct') ? ' res-correct' : ' res-wrong'; ?><?php if (count($cards_to_show) <= 1) echo ' senza-etichetta'; ?><?php echo $c['is_favorite'] ? ' is-favorita' : ''; ?>" id="card-<?php echo sec_h($index); ?>"
+                <div class="card-box <?php echo (!$c['is_child'] && $fc_padre_saltato_id > 0 && (int)$c['gameplay_idimmagine'] === $fc_padre_saltato_id) ? 'fc-padre-saltato ' : ''; ?><?php echo $is_graded ? 'graded' : ''; ?><?php if ($is_graded) echo ($c['user_answer'] == 'Correct') ? ' res-correct' : ' res-wrong'; ?><?php if (count($cards_to_show) <= 1) echo ' senza-etichetta'; ?><?php echo $c['is_favorite'] ? ' is-favorita' : ''; ?>" id="card-<?php echo sec_h($index); ?>"
 
                      data-card-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>"
                      data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-position="<?php echo (int)$position; ?>"
@@ -3956,7 +3980,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
 
 
-        async function shatterCard(index, cardId, btn) {
+        async function shatterCard(index, cardId, btn, force) {
 
             btn.classList.add('is-loading');
 
@@ -4019,7 +4043,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                     headers: { 'Content-Type': 'application/json' },
 
-                    body: JSON.stringify({ q: qText, a: aText, id: cardId })
+                    body: JSON.stringify({ q: qText, a: aText, id: cardId, force: !!force })
 
                 });
 
@@ -4240,8 +4264,17 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 } else if (data.success && !data.split) {
 
-                    // Un concetto solo: dividerlo non servirebbe.
-                    messaggio(T('fc.gm_frantuma_no'), 'nosplit');
+                    // Niente da dividere: o l'IA ha detto che e' un concetto solo, o le carte che
+                    // proponeva non venivano dal testo. In entrambi i casi l'utente puo' insistere.
+                    messaggio(T(data.reason === 'dropped' ? 'fc.gm_frantuma_scartate_tutte' : 'fc.gm_frantuma_no'), 'nosplit');
+                    if (!force) {
+                        const insisti = document.createElement('button');
+                        insisti.type = 'button';
+                        insisti.className = 'btn btn-primary shatter-insisti';
+                        insisti.textContent = T('fc.gm_frantuma_forza');
+                        insisti.addEventListener('click', () => shatterCard(index, cardId, btn, true));
+                        contentDiv.appendChild(insisti);
+                    }
 
                 } else if (data.error === 'limite_piano') {
 
@@ -4875,6 +4908,14 @@ document.addEventListener('click', function (e) {
 /* Un solo ascoltatore sul documento: i dischi sono ridisegnati a ogni pagina,
    e gli ascoltatori attaccati a loro andrebbero persi con il contenitore. */
 document.addEventListener('click', function (e) {
+    var rit = e.target.closest ? e.target.closest('.f2-ritorno[data-pos]') : null;
+    if (rit) {
+        /* Si riusa l'indirizzo "avanti" del contenitore cambiando solo la posizione:
+           game_id, status e order restano quelli giusti. */
+        var cc = curC(), fw = cc ? cc.getAttribute('data-forward-url') : null;
+        if (fw) navigateTo(fw.replace(/position=\d+/, 'position=' + parseInt(rit.getAttribute('data-pos'), 10)));
+        return;
+    }
     var d = e.target.closest ? e.target.closest('.f2-d[data-a]') : null;
     if (!d) return;
     apriElencoErrori(e, parseInt(d.getAttribute('data-a'), 10), parseInt(d.getAttribute('data-b'), 10));
@@ -5052,6 +5093,15 @@ function f2Disegna (c, conSeme) {
             html += '<i class="f2-n ' + (stato === 'ok' ? 'f2-ok' : 'f2-fut') + '"' + attr + '></i>';
         }
     });
+    /* Freccia di ritorno: solo se si sta guardando un'altra carta rispetto a
+       quella da rispondere (si e' tornati indietro col pulsante o toccando il
+       tracciato). Sulla carta da rispondere non compare niente. */
+    if (m.dove > 0 && m.dove !== m.pos && m.dove <= m.tot) {
+        var tt = T('fc.gm_f2_ritorno').replace(/"/g, '&quot;');
+        html += '<button type="button" class="f2-ritorno" data-pos="' + m.dove + '" style="left:' + f2X((m.dove / m.tot) * 100) +
+                '" title="' + tt + '" aria-label="' + tt + '"><svg viewBox="0 0 12 9" width="12" height="9" aria-hidden="true">' +
+                '<path d="M1.5 7.5 6 2l4.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+    }
     path.querySelector('.f2-nodi').innerHTML = html;
 
     var v = f2Calcola(m, N);
@@ -5930,6 +5980,7 @@ function navigateTo (url, opts) {
                        questo, ereditando lo scorrimento di prima, si vedrebbe
                        comparire piu' in basso o piu' in alto. */
                     if (scambioMuto && newFeed) newFeed.scrollTop = 0;
+                    scorriAlPrimoDaFare(newC);
 
                     /* L'animazione del riempimento (animateProgress) resta
                        DOPO l'inserimento nel DOM e DOPO lo zoom, come prima:
@@ -7020,6 +7071,21 @@ function navigateTo (url, opts) {
 
             /* ---------- Avvio ---------- */
 
+            /* Ripasso degli errori: se il padre e' stato saltato (nascosto), la
+               pagina parte dalla prima sottocarta ancora da fare invece che dal
+               fondo di un padre che non si vede. Non fa niente in tutti gli altri
+               casi. */
+            function scorriAlPrimoDaFare (cont) {
+                try {
+                    if (!cont || cont.getAttribute('data-ripasso-salta') !== '1') return;
+                    var feed = cont.querySelector('.feed');
+                    var el = cont.querySelector('.card-box:not(.graded):not(.fc-padre-saltato):not(.anteprima-card)');
+                    if (!feed || !el) return;
+                    var pad = parseInt(getComputedStyle(feed).paddingTop, 10) || 0;
+                    var top = el.getBoundingClientRect().top - feed.getBoundingClientRect().top + feed.scrollTop - pad;
+                    feed.scrollTop = Math.max(0, top - 4);
+                } catch (e) {}
+            }
             function initApp () {
 
                 syncHeader();
@@ -7041,6 +7107,7 @@ function navigateTo (url, opts) {
                 retryPendingGrades();
 
                 cardsIn(curC());
+                scorriAlPrimoDaFare(curC());
 
                 maybeCoach();
                 document.dispatchEvent(new CustomEvent('fc-pagina', { detail: { container: curC() } }));

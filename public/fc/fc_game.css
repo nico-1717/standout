@@ -1762,6 +1762,18 @@ button.f2-d:active{ transform:translate(-50%,-50%) scale(1.18); }
 @supports (color:lch(from red l c h)){
     .f2-d.is-err{ color:lch(from var(--f2-a) calc((l - 62) * -1000) 0 0); }
 }
+/* Freccia di ritorno alla prima carta da rispondere: piccola, sotto la linea,
+   nel colore d'accento; respira piano per farsi notare senza distrarre. */
+.f2-ritorno{
+    position:absolute; top:4px; transform:translateX(-50%); width:18px; height:10px; padding:0; border:0;
+    background:transparent; color:var(--f2-a); display:flex; align-items:flex-end; justify-content:center;
+    cursor:pointer; -webkit-tap-highlight-color:transparent; animation:f2-respiro 2.2s ease-in-out infinite;
+}
+.f2-ritorno::before{ content:""; position:absolute; inset:-8px -10px; }
+.f2-ritorno:active{ transform:translateX(-50%) scale(1.2); }
+.f2-ritorno svg{ display:block; filter:drop-shadow(0 1px 4px color-mix(in srgb, var(--fc-acc) 55%, transparent)); }
+@keyframes f2-respiro{ 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
+@media (prefers-reduced-motion:reduce){ .f2-ritorno{ animation:none; opacity:.9; } }
 .f2-d.is-cur{
     background:var(--surface); border:1.5px solid var(--f2-a); color:var(--f2-a);
     box-shadow:0 0 10px color-mix(in srgb, var(--fc-acc) 35%, transparent);
@@ -1908,3 +1920,8 @@ button.f2-d:active{ transform:translate(-50%,-50%) scale(1.18); }
 @media (prefers-reduced-motion:reduce){
     .fcs-chip, .fcs-chip.is-loading .fcs-chip-lab::after, .chip-shatter.is-loading::after{ animation:none !important; transition:none !important; }
 }
+
+.shatter-insisti{ width:100%; margin-top:14px; }
+
+/* Ripasso degli errori: il padre gia' giusto nella partita di origine non si rimostra. */
+.card-box.fc-padre-saltato{ display:none; }

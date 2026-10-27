@@ -101,4 +101,28 @@ function fc_frantuma_assegnazioni(array $presenti, $scelte, int $n): array {
     return ['ok' => true, 'map' => $mappa];
 }
 
+/**
+ * La citazione "src" di una mini carta viene davvero dalla flashcard originale?
+ * Entrambe sono gia' "radici" (solo lettere e cifre, minuscole). Prima si
+ * chiedeva una corrispondenza identica dell'intera citazione, ma bastava che
+ * il modello cambiasse una parola o saltasse un pezzo perche' una carta
+ * giusta venisse scartata - e se ne scartava una, la divisione crollava sotto
+ * le due carte e l'utente leggeva "e' un concetto solo" anche quando non lo era.
+ * Ora: citazione identica, oppure (per le lunghe) almeno il 60% dei suoi
+ * pezzetti da 8 caratteri si ritrova nell'originale. Una carta inventata non
+ * ci arriva, una citazione ritoccata si'.
+ */
+function fc_frantuma_citazione_ok(string $src, string $originale): bool {
+    $len = mb_strlen($src, 'UTF-8');
+    if ($len < 4) return false;
+    if (mb_strpos($originale, $src, 0, 'UTF-8') !== false) return true;
+    if ($len < 16) return false;
+    $tot = 0; $trovati = 0;
+    for ($i = 0; $i + 8 <= $len; $i += 4) {
+        $tot++;
+        if (mb_strpos($originale, mb_substr($src, $i, 8, 'UTF-8'), 0, 'UTF-8') !== false) $trovati++;
+    }
+    return $tot > 0 && ($trovati / $tot) >= 0.6;
+}
+
 }

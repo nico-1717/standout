@@ -315,3 +315,37 @@ select.ho-in{ appearance:none; background-image:linear-gradient(45deg,transparen
 .ho-load{ height:3px; border-radius:99px; background:var(--hairline); overflow:hidden; margin:0 0 12px; opacity:0; transition:opacity .3s; }
 .ho-load.is-on{ opacity:1; }
 .ho-load i{ display:block; height:100%; width:0; border-radius:99px; background:var(--blue); transition:width .45s var(--spring); }
+
+
+/* ---------- «Oggi» (agenda): anello delle abitudini, prossima data, pastiglie / attivita' / acquisti ---------- */
+.ho-today-top{ display:flex; align-items:stretch; gap:12px; }
+.ho-today-now{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.ho-today-now > .ho-now{ flex:1; }
+.ho-date-card--sm{ padding:9px 12px; gap:12px; border-radius:16px; }
+.ho-date-card--sm .big{ min-width:48px; }
+.ho-date-card--sm .big b{ font-size:24px; }
+.ho-today-cols{ display:grid; grid-template-columns:minmax(0,1fr); gap:18px; }
+.ho-today-l, .ho-today-r{ display:flex; flex-direction:column; gap:14px; min-width:0; }
+@media (min-width:760px){
+    .ho-today-cols{ grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:24px; }
+    /* le due colonne si separano con un filo, come le sezioni del Planner */
+    .ho-today-r{ padding-left:24px; border-left:1px solid var(--hairline); }
+}
+.ho-tsec{ display:flex; flex-direction:column; gap:6px; }
+.ho-tsec .ho-hg-h{ margin-bottom:2px; }
+.ho-tsec-open{ align-self:flex-start; margin-top:4px; text-decoration:none; }
+
+/* l'anello: stesso disegno del Planner, in piccolo */
+.ho-ring{ position:relative; flex:none; width:64px; align-self:center; aspect-ratio:1; padding:0; border:0; border-radius:50%; background:none; cursor:pointer; color:var(--text-2); -webkit-tap-highlight-color:transparent; transition:transform .2s var(--spring); }
+.ho-ring:active{ transform:scale(.93); }
+.ho-ring svg{ display:block; width:100%; height:100%; transform:rotate(-90deg); }
+.ho-ring circle{ fill:none; }
+.ho-ring-track{ stroke:color-mix(in srgb, var(--text) 12%, transparent); }
+.ho-ring-fill{ stroke-linecap:round; transition:stroke-dashoffset .9s cubic-bezier(.22,1,.36,1); }
+.ho-ring-daily{ stroke:var(--pink); }
+.ho-ring-weekly{ stroke:var(--orange); }
+.ho-ring-monthly{ stroke:var(--purple); }
+.ho-ring-interval{ stroke:var(--teal); }
+.ho-ring-face{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; opacity:.45; transition:opacity .3s, color .3s; }
+.ho-ring.is-full .ho-ring-face{ opacity:1; color:var(--green); }
+@media (prefers-reduced-motion: reduce){ .ho-ring-fill{ transition:none; } }

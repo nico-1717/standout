@@ -83,11 +83,11 @@ Sei un tutor universitario. Ti do una flashcard formata da una Domanda e una Ris
 
 REGOLA ASSOLUTA: usa ESCLUSIVAMENTE le informazioni scritte nella flashcard. Non aggiungere definizioni, esempi, contesto, spiegazioni, sinonimi o nozioni che conosci tu e che nella flashcard non ci sono, nemmeno se sono corrette. Ogni risposta deve essere costruita con parole e informazioni prese dalla risposta originale: puoi accorciare e riordinare, non puoi aggiungere.
 
-QUANDO DIVIDERE. Dividi solo se la flashcard contiene almeno due concetti DISTINTI, ciascuno dei quali ha senso come domanda a se' e si puo' ripassare senza gli altri. NON dividere, e rispondi con "split": false, se:
-- e' una sola definizione, un solo fatto, una sola formula, un solo procedimento o un solo ragionamento, anche se lungo;
-- e' un elenco di elementi che hanno senso solo insieme (per esempio i passi di uno stesso procedimento);
-- dividerla darebbe frammenti banali, oppure frammenti che per essere capiti dipendono l'uno dall'altro.
-Nel dubbio NON dividere.
+QUANDO DIVIDERE. Dividi quando la flashcard contiene almeno due concetti DISTINTI, ciascuno dei quali ha senso come domanda a se' e si puo' ripassare senza gli altri. Per esempio: piu' definizioni diverse, piu' cause, piu' proprieta' o caratteristiche indipendenti, piu' casi o tipi, piu' elementi di un elenco che hanno ognuno un significato proprio. Una risposta lunga che elenca punti indipendenti SI divide.
+NON dividere, e rispondi con "split": false, solo se:
+- e' una sola definizione, un solo fatto, una sola formula, un solo procedimento o un solo ragionamento (anche se lungo) che non ha parti indipendenti;
+- e' un elenco di passi che hanno senso solo insieme (per esempio i passi di uno stesso procedimento);
+- dividerla darebbe solo frammenti banali, oppure frammenti che per essere capiti dipendono l'uno dall'altro.
 
 QUANTE CARTE. Il minimo indispensabile: di solito 2 o 3, al massimo 5. Un dettaglio, un'eccezione, un esempio o una precisazione appartengono alla carta del concetto a cui si riferiscono: non diventano mai una carta a parte. Le carte non devono ripetere la stessa informazione, ne' avere domande simili tra loro che confondano lo studente.
 
@@ -113,6 +113,11 @@ Struttura JSON richiesta se NON dividi:
 
 FLASHCARD ORIGINALE:
 PROMPT;
+if (!empty($data['force'])) {
+    /* L'utente ha visto "e' un concetto solo" e ha chiesto lo stesso di dividere:
+       gli si dice di cercare la divisione piu' naturale, sempre senza aggiungere. */
+    $prompt = str_replace('FLASHCARD ORIGINALE:', "L'UTENTE HA CHIESTO ESPLICITAMENTE DI DIVIDERE QUESTA CARTA. Trova la divisione piu' naturale in 2 o 3 carte usando solo cio' che c'e' scritto (per esempio una carta per ogni frase o punto importante). Rispondi con \"split\": false solo se la risposta e' una frase sola e non si puo' dividere in alcun modo.\n\nFLASHCARD ORIGINALE:", $prompt);
+}
 $prompt .= "\nDomanda: " . $q . "\nRisposta: " . $a;
 
 $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . GEMINI_API_KEY;
@@ -201,8 +206,15 @@ if ($risposta !== [] && array_keys($risposta) === range(0, count($risposta) - 1)
     $risposta = ['split' => true, 'title' => '', 'cards' => $risposta];
 }
 
-$non_dividere = ['success' => true, 'split' => false, 'title' => '', 'cards' => [], 'dropped' => 0];
-if (empty($risposta['split']) || !is_array($risposta['cards'] ?? null)) {
+/* 'reason' dice PERCHE' non si divide, e la pagina scrive due frasi diverse:
+   'model'  l'IA ha letto la carta e ha detto che e' un concetto solo;
+   'dropped' l'IA voleva dividere ma le sue carte non venivano dal testo
+             della carta (o erano meno di due dopo il controllo).
+   Prima c'era un solo messaggio ("e' un concetto solo") per entrambi i casi, e
+   un controllo troppo severo faceva sembrare cosi' ogni carta. */
+$non_dividere = ['success' => true, 'split' => false, 'title' => '', 'cards' => [], 'dropped' => 0, 'reason' => 'model'];
+$vuole_dividere = filter_var($risposta['split'] ?? false, FILTER_VALIDATE_BOOLEAN);
+if (!$vuole_dividere || !is_array($risposta['cards'] ?? null)) {
     ob_clean();
     header('Content-Type: application/json');
     echo json_encode($non_dividere);
@@ -211,10 +223,12 @@ if (empty($risposta['split']) || !is_array($risposta['cards'] ?? null)) {
 
 /* CONTROLLO DI FEDELTA'. Il modello deve citare, per ogni carta, il pezzo
    originale da cui l'ha ricavata. Una carta la cui citazione non si ritrova
-   davvero nella flashcard (domanda o risposta) e' inventata, o ricavata da
-   cio' che il modello "sa": e' esattamente cio' che qui non vogliamo, quindi
-   si scarta. Si confronta senza spazi, formattazione e punteggiatura (vedi
-   fc_frantuma_radice) perche' quelle il modello le cambia spesso. */
+   nella flashcard (domanda o risposta) e' inventata, o ricavata da cio' che il
+   modello "sa": e' esattamente cio' che qui non vogliamo, quindi si scarta.
+   Si confronta senza spazi, formattazione e punteggiatura (fc_frantuma_radice)
+   e con un po' di tolleranza (fc_frantuma_citazione_ok): il modello ritocca
+   spesso una parola, e scartare una carta giusta per quello faceva crollare
+   la divisione. */
 $radice_originale = fc_frantuma_radice($q . ' ' . $a);
 $carte = [];
 $scartate = 0;
@@ -223,8 +237,7 @@ foreach ($risposta['cards'] as $c) {
     $cq = trim((string)($c['q'] ?? ''));
     $ca = trim((string)($c['a'] ?? ''));
     if ($cq === '' || $ca === '') { $scartate++; continue; }
-    $r = fc_frantuma_radice((string)($c['src'] ?? ''));
-    if (mb_strlen($r, 'UTF-8') < 4 || mb_strpos($radice_originale, $r, 0, 'UTF-8') === false) { $scartate++; continue; }
+    if (!fc_frantuma_citazione_ok(fc_frantuma_radice((string)($c['src'] ?? '')), $radice_originale)) { $scartate++; continue; }
     $carte[] = ['q' => $cq, 'a' => $ca];
 }
 
@@ -232,6 +245,8 @@ foreach ($risposta['cards'] as $c) {
    non serve, e un titolo con un figlio solo non e' una carta titolo. */
 if (count($carte) < 2) {
     $non_dividere['dropped'] = $scartate;
+    $non_dividere['reason'] = $scartate > 0 ? 'dropped' : 'model';
+    if ($scartate > 0) sec_log_error('frantuma', 'carte scartate per fedelta: ' . $scartate . ' | ' . substr($testo_grezzo, 0, 400));
     ob_clean();
     header('Content-Type: application/json');
     echo json_encode($non_dividere);

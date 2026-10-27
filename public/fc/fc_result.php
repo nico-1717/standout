@@ -998,7 +998,13 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 
-                    <div class="rev-entry<?php echo $is_titolo ? ' rev-titolo' : ''; ?>">
+                    <?php /* Dove porta la matita: la scheda (o sottocarta) di questa voce, con
+                             il ritorno al riepilogo dopo il salvataggio. */
+                    $c_edit_url = fc_url('fc_card_edit.php', [
+                        ($c['is_child'] ? 'child_id' : 'fc_id') => $c['is_child'] ? (int)($c['id_child'] ?? 0) : (int)($c['id'] ?? 0),
+                        'return_to_result' => 1, 'game_id' => (int)$game_id,
+                    ]); ?>
+                    <div class="rev-entry<?php echo $is_titolo ? ' rev-titolo' : ''; ?>" data-edit-url="<?php echo sec_h($c_edit_url); ?>">
 
                         <?php if ($is_titolo): ?>
 
@@ -1058,6 +1064,7 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
                         </div>
                             <span class="oc-pill <?php echo sec_h($oc_class); ?>"><span class="gi"><?php echo sec_h($oc_icon); ?></span> <?php echo sec_h($oc_text); ?></span>
+                            <a class="rev-edit" href="<?php echo sec_h($c_edit_url); ?>" aria-label="<?php te('comune.modifica'); ?>" title="<?php te('comune.modifica'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
                         </div>
 
 
@@ -1241,6 +1248,7 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
             <span id="fcvPill" class="oc-pill ok"></span>
+            <a id="fcvEdit" class="fcv-edit" href="#" aria-label="<?php te('comune.modifica'); ?>" title="<?php te('comune.modifica'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
 
 
 
@@ -2203,6 +2211,7 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
                         pill: oc ? oc.outerHTML : '',
+                        edit: en.getAttribute('data-edit-url') || '',
 
 
 
@@ -2258,6 +2267,8 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 
+                var ed = document.getElementById('fcvEdit');
+                if (ed) { ed.href = d.edit || '#'; ed.style.display = d.edit ? '' : 'none'; }
                 cnt.textContent = (i + 1);
 
 
@@ -2479,7 +2490,7 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
                        suo e non e' gia' in cima: li' comanda lo scorrimento. */
                     var scroller = e.target.closest ? e.target.closest('.fcv-body') : null;
                     if (scroller && scroller.scrollTop > 0) return;
-                    if (e.target.closest && e.target.closest('.fcv-nb, #fcvClose')) return;
+                    if (e.target.closest && e.target.closest('.fcv-nb, #fcvClose, .fcv-edit')) return;
                     attivo = true; deciso = ''; dy = 0;
                     y0 = e.touches[0].clientY; t0 = Date.now();
                 }, { passive: true });

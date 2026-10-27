@@ -128,9 +128,12 @@ function hb_load_habits($conn, $userId) {
     $sql = "SELECT h.*, r.best_streak
             FROM habits h
             LEFT JOIN habit_streak_records r ON r.habit_id = h.id
-            WHERE h.user_id = ?
+            WHERE h.user_id = ? AND h.start_date <= ?
             ORDER BY h.is_archived ASC, h.sort_order ASC, h.id ASC";
-    $res = sec_all($sql, [$userId]);
+    /* Un'abitudine con data d'inizio futura non si mostra fino a quel giorno:
+       resta salvata nel database, ma la pagina non la riceve proprio (cosi'
+       non finisce in liste, anelli o statistiche prima del tempo). */
+    $res = sec_all($sql, [$userId, date('Y-m-d')], 'is');
     $out = [];
     foreach ($res as $row) { $out[] = hb_habit_out($row); }
     return $out;

@@ -45,7 +45,11 @@ $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
 /* I riquadri che esistono, nell'ordine in cui compaiono la prima volta.
    Un id sconosciuto arrivato dal client si scarta: il layout e' dell'utente
    ma l'elenco dei riquadri e' del codice. */
-const HO_RIQUADRI = ['shortcuts', 'agenda', 'projects', 'tasks', 'note', 'habits', 'cards', 'trivia', 'grades', 'stats'];
+/* «tasks» e «habits» non sono piu' riquadri: attivita', acquisti, pastiglie e l'anello
+   delle abitudini vivono dentro «agenda» (Oggi); le abitudini complete si aprono in un
+   popup. I gruppi di dati con quei nomi esistono ancora (li chiede «agenda»), e un
+   layout salvato che li nomina ancora li perde da solo (vedi ho_layout). */
+const HO_RIQUADRI = ['shortcuts', 'agenda', 'projects', 'note', 'cards', 'trivia', 'grades', 'stats'];
 
 function ho_tabelle(): void {
     static $fatto = false;
@@ -382,7 +386,11 @@ if ($ajax === 'summary') {
         $out['note'] = $nota;
     }
 
-    if ($vuole('habits')) $out['habit_groups'] = ho_abitudini($uid, $oggi);
+    if ($vuole('habits')) {
+        $out['habit_groups'] = ho_abitudini($uid, $oggi);
+        /* gli anelli concentrici, calcolati come nel Planner (stessa funzione) */
+        $out['habit_rings'] = pl_rings($uid, $oggi);
+    }
     if ($vuole('grades')) $out['grades'] = ho_voti($uid, $oggi);
     if ($vuole('fc'))     $out['fc'] = ho_flashcard($uid, $oggi);
 

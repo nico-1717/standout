@@ -745,6 +745,10 @@
         .rev-top .rev-q{ flex:1 1 auto; min-width:0; }
         /* Senza il numero a sinistra la pillola resta sempre a destra, anche da sola. */
         .rev-top .oc-pill{ margin-left:auto; flex:0 0 auto; }
+        /* La matita per modificare la carta: discreta, stessa altezza della pillola dell'esito. */
+        .rev-edit{ flex:0 0 auto; width:28px; height:28px; margin-left:6px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; color:var(--ink-3, #8a8f9c); text-decoration:none; transition:background .15s, color .15s; }
+        .rev-edit svg{ width:15px; height:15px; }
+        .rev-edit:hover, .rev-edit:focus-visible{ background:rgba(127,127,140,.14); color:var(--ink, #1c1f26); }
 
 
 
@@ -1381,6 +1385,8 @@
 
 
 
+        .fcv-edit{ width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.16); color:#fff; text-decoration:none; -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); }
+        .fcv-edit svg{ width:16px; height:16px; }
         .fcv-count{ color:#fff; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:.02em; text-shadow:0 1px 8px rgba(0,0,0,.4); }
 
 

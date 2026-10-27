@@ -337,6 +337,10 @@ function mfc_parola_esempio(): string {
                 . '&position=' . sec_int($_POST['position'] ?? 1, 1)
                 . '&status=' . urlencode(sec_enum($_POST['status'] ?? null, ['all', '1', '0'], '0'))
                 . '&order=' . urlencode(sec_enum($_POST['order'] ?? null, ['in_order', 'random'], 'random'));
+        } elseif (sec_bool($_POST['return_to_result'] ?? 0)) {
+            /* Modifica aperta dal riepilogo della partita: si torna li'. */
+            $redirect_url = fc_url('fc_result.php', ['game_id' => sec_int($_POST['game_id'] ?? 0, 1)]);
+            $return_to_game = true;     // niente fc_focus: il riepilogo non lo legge
         } else {
             $redirect_url = fc_url('fc_view.php', ['category_id' => (int)$catID]);
         }
@@ -734,8 +738,10 @@ function mfc_parola_esempio(): string {
                     . "&position=" . sec_int($_GET['position'] ?? 1, 1)
                     . "&status=" . urlencode(sec_enum($_GET['status'] ?? null, ['all', '1', '0'], '0'))
                     . "&order=" . urlencode(sec_enum($_GET['order'] ?? null, ['in_order', 'random'], 'random'))
-                : fc_url('fc_view.php', ['category_id' => $category_id])
-                  . ($is_child ? "&fc_focus_child=" : "&fc_focus=") . (int)$id;
+                : (isset($_GET['return_to_result'])
+                    ? fc_url('fc_result.php', ['game_id' => sec_int($_GET['game_id'] ?? 0, 1)])
+                    : fc_url('fc_view.php', ['category_id' => $category_id])
+                      . ($is_child ? "&fc_focus_child=" : "&fc_focus=") . (int)$id);
             ?>
 
             <?php /* Niente app-header: diceva le stesse cose della barra qui
@@ -819,6 +825,7 @@ function mfc_parola_esempio(): string {
                 <input type="hidden" name="modo" value="<?php echo sec_h($fc_modo); ?>">
 
                 <input type="hidden" name="return_to_game" value="<?php echo isset($_GET['return_to_game']) ? 1 : 0; ?>">
+                <input type="hidden" name="return_to_result" value="<?php echo isset($_GET['return_to_result']) ? 1 : 0; ?>">
                 <input type="hidden" name="game_id" value="<?php echo isset($_GET['game_id']) ? (int)$_GET['game_id'] : (isset($_POST['game_id']) ? (int)$_POST['game_id'] : 0); ?>">
                 <input type="hidden" name="position" value="<?php echo isset($_GET['position']) ? (int)$_GET['position'] : (isset($_POST['position']) ? (int)$_POST['position'] : 0); ?>">
                 <input type="hidden" name="status" value="<?php echo isset($_GET['status']) ? sec_h($_GET['status']) : (isset($_POST['status']) ? sec_h($_POST['status']) : '0'); ?>">

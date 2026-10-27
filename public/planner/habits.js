@@ -1402,10 +1402,16 @@ function saveHabit() {
     api('habit_save', payload).then(function (res) {
         if (!res.ok) { toast('⚠️', res.error || T('abitudini.salvataggio_non_riuscito')); return; }
         var existing = habitById(res.habit.id);
-        if (existing) { for (var k in res.habit) existing[k] = res.habit[k]; }
+        /* data d'inizio nel futuro: l'abitudine e' salvata ma non si vede fino
+           a quel giorno (come fa il server al ricaricamento). */
+        var futura = res.habit.start_date > S.today;
+        if (futura) {
+            if (existing) S.habits = S.habits.filter(function (h) { return h.id !== res.habit.id; });
+        } else if (existing) { for (var k in res.habit) existing[k] = res.habit[k]; }
         else S.habits.push(res.habit);
         closeSheet('hbSheetEditor');
-        toast(res.habit.icon, d.id ? T('abitudini.modifiche_salvate') : T('abitudini.abitudine_creata'));
+        toast(res.habit.icon, futura ? T('abitudini.comparira_il', {data: res.habit.start_date})
+                                     : (d.id ? T('abitudini.modifiche_salvate') : T('abitudini.abitudine_creata')));
         if (!d.id) { buzz(20); burst(window.innerWidth / 2, window.innerHeight * 0.6, res.habit.color, 34); }
         renderAll();
     });
