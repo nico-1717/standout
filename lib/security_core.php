@@ -589,6 +589,14 @@ function sec_rate_limit(string $action, $subject, int $max, int $seconds): bool 
     if (random_int(1, 40) === 1) {
         sec_q("DELETE FROM rate_limits WHERE created_at < (NOW() - INTERVAL 1 DAY)");
     }
+    /* Le scadenze promesse nell'informativa privacy (lib/legale/privacy_*.php):
+       tentativi di accesso 30 giorni, registro di sicurezza 12 mesi. WHY qui:
+       questa funzione gira a ogni scrittura, quindi la pulizia avviene senza
+       un cron (su Altervista gratuito non c'e'); una volta ogni ~2000 chiamate basta. */
+    if (random_int(1, 2000) === 1) {
+        sec_q("DELETE FROM login_attempts WHERE attempted_at < (NOW() - INTERVAL 30 DAY)");
+        sec_q("DELETE FROM security_audit_log WHERE created_at < (NOW() - INTERVAL 12 MONTH)");
+    }
     $row = sec_one(
         "SELECT COUNT(*) AS c FROM rate_limits WHERE bucket = ? AND created_at > (NOW() - INTERVAL ? SECOND)",
         [$bucket, $seconds], 'si'

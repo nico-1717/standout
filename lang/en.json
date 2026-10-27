@@ -4483,6 +4483,8 @@
     "errore": "Couldn't change the language. Please try again."
   },
   "auth": {
+    "accetto": "I am at least 14 years old and I accept the {termini} and the {privacy}.",
+    "err_accetta": "To sign up you must accept the terms of use and the privacy policy.",
     "accedi": "Log in",
     "registrati": "Sign up",
     "chiudi": "Close",
@@ -4531,6 +4533,7 @@
     "avviso_errore": "I couldn't send it. Please try again later."
   },
   "notifiche": {
+    "privacy_dati": "Privacy and data",
     "titolo": "Notifications",
     "aria_profilo": "Notifications and profile",
     "da_vedere": "{n} new",
@@ -5233,5 +5236,29 @@
     "nessuna_lingua": "No language yet",
     "aggiungi_lingua": "Add a language",
     "fc_fatte": "{n} of {tot} cards done"
+  },
+  "legale": {
+    "titolo_privacy": "Privacy policy",
+    "titolo_termini": "Terms of use",
+    "torna": "← Back to Standout",
+    "versione": "Version {v}"
+  },
+  "privacydati": {
+    "titolo": "Privacy and data",
+    "intro": "Here you can read how we handle your data, download it or delete your account.",
+    "scarica_t": "Download your data",
+    "scarica_p": "A ZIP file with everything you entered (as JSON), plus your images and audio. It does not contain your password.",
+    "scarica_btn": "Download",
+    "scarica_attesa": "Preparing the file…",
+    "elimina_t": "Delete account",
+    "elimina_p": "Permanently deletes your account and all your data: flashcards, planner, diary, uploaded files. This cannot be undone. Before deleting, we recommend downloading your data.",
+    "elimina_ack": "I understand this cannot be undone",
+    "elimina_pw": "Type your password to confirm",
+    "elimina_btn": "Delete my account",
+    "elimina_attesa": "Deleting…",
+    "elimina_ok": "Account deleted. Taking you back to the start page.",
+    "err_password": "Wrong password.",
+    "err_troppe": "Too many attempts. Try again shortly.",
+    "err_generico": "Something went wrong. Please try again."
   }
 }

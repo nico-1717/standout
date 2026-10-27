@@ -1685,7 +1685,9 @@ CREATE TABLE `users` (
   `password_hash` varchar(255) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_login_at` datetime DEFAULT NULL,
-  `is_active` tinyint(1) NOT NULL DEFAULT '1'
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `terms_accepted_at` datetime DEFAULT NULL COMMENT 'quando ha accettato privacy e condizioni (NULL = account precedente alla richiesta)',
+  `terms_version` varchar(20) DEFAULT NULL COMMENT 'versione dei testi accettata (data, es. 2026-10-27)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------

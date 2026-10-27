@@ -4483,6 +4483,8 @@
     "errore": "Non sono riuscito a cambiare lingua. Riprova."
   },
   "auth": {
+    "accetto": "Ho almeno 14 anni e accetto le {termini} e l'{privacy}.",
+    "err_accetta": "Per registrarti devi accettare le condizioni d'uso e l'informativa sulla privacy.",
     "accedi": "Accedi",
     "registrati": "Registrati",
     "chiudi": "Chiudi",
@@ -4531,6 +4533,7 @@
     "avviso_errore": "Non sono riuscito a inviarla. Riprova più tardi."
   },
   "notifiche": {
+    "privacy_dati": "Privacy e dati",
     "titolo": "Notifiche",
     "aria_profilo": "Notifiche e profilo",
     "da_vedere": "{n} da vedere",
@@ -5233,5 +5236,29 @@
     "nessuna_lingua": "Nessuna lingua ancora",
     "aggiungi_lingua": "Aggiungi una lingua",
     "fc_fatte": "{n} di {tot} carte fatte"
+  },
+  "legale": {
+    "titolo_privacy": "Informativa sulla privacy",
+    "titolo_termini": "Condizioni d'uso",
+    "torna": "← Torna a Standout",
+    "versione": "Versione {v}"
+  },
+  "privacydati": {
+    "titolo": "Privacy e dati",
+    "intro": "Qui puoi leggere come trattiamo i tuoi dati, scaricarli o eliminare il tuo account.",
+    "scarica_t": "Scarica i tuoi dati",
+    "scarica_p": "Un file ZIP con tutto quello che hai inserito (in formato JSON), più le tue immagini e i tuoi audio. Non contiene la password.",
+    "scarica_btn": "Scarica",
+    "scarica_attesa": "Preparo il file…",
+    "elimina_t": "Elimina l'account",
+    "elimina_p": "Cancella per sempre il tuo account e tutti i tuoi dati: flashcard, planner, diario, file caricati. Non si può annullare. Prima di eliminare, ti consigliamo di scaricare i tuoi dati.",
+    "elimina_ack": "Ho capito che non si può annullare",
+    "elimina_pw": "Scrivi la tua password per confermare",
+    "elimina_btn": "Elimina il mio account",
+    "elimina_attesa": "Elimino…",
+    "elimina_ok": "Account eliminato. Ti riportiamo alla pagina iniziale.",
+    "err_password": "Password errata.",
+    "err_troppe": "Troppi tentativi. Riprova tra poco.",
+    "err_generico": "Qualcosa non ha funzionato. Riprova."
   }
 }

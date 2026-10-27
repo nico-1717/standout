@@ -277,6 +277,10 @@ button.standout-fab--login:active{ transform:scale(.96); }
             <span><?php te('dashboard.le_tue_statistiche'); ?></span>
         </a>
         <?php require_once __DIR__ . '/lang_picker.php'; standout_lang_picker('row'); standout_stile_picker(); ?>
+        <a class="fnw-row" href="<?php echo PWA_BASE; ?>account/privacy_dati.php">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span><?php te('notifiche.privacy_dati'); ?></span>
+        </a>
         <a class="fnw-row fnw-danger" href="<?php echo PWA_BASE; ?>account/logout.php">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
             <span><?php te('notifiche.logout'); ?></span>

@@ -32,6 +32,14 @@ $password2 = $testo($input['password_confirm'] ?? '');
 
 $errori = [];
 
+/* PERCHE': il consenso a privacy e condizioni (e il «ho almeno 14 anni») deve
+   essere vero sul SERVER, non solo nel modulo: chi chiama l'indirizzo a mano
+   non vedrebbe mai la casella. Si accetta solo con true, non con "1" o con un
+   testo qualunque. */
+if (($input['accetto'] ?? false) !== true) {
+    $errori['accetto'] = t('auth.err_accetta');
+}
+
 if (!preg_match('/^[a-zA-Z0-9_.]{3,30}$/', $username)) {
     $errori['username'] = t('auth.err_username');
 }
@@ -90,10 +98,13 @@ $hash = password_hash($password, PASSWORD_DEFAULT);
 mysqli_begin_transaction($conn);
 $ok = true;
 
-$stmt = mysqli_prepare($conn, "INSERT INTO users (username, email, password_hash, created_at) VALUES (?, ?, ?, NOW())");
+/* con il consenso: quando e quale versione dei testi (lib/legale.php) */
+require_once __DIR__ . '/../../lib/legale.php';
+$versione_testi = STANDOUT_LEGALE_VERSIONE;
+$stmt = mysqli_prepare($conn, "INSERT INTO users (username, email, password_hash, created_at, terms_accepted_at, terms_version) VALUES (?, ?, ?, NOW(), NOW(), ?)");
 if (!$stmt) { $ok = false; }
 if ($ok) {
-    mysqli_stmt_bind_param($stmt, 'sss', $username, $email, $hash);
+    mysqli_stmt_bind_param($stmt, 'ssss', $username, $email, $hash, $versione_testi);
     $ok = mysqli_stmt_execute($stmt);
 }
 $nuovo_id = $ok ? mysqli_insert_id($conn) : 0;

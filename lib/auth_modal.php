@@ -162,6 +162,10 @@ button.standout-fab--login:active{ transform:scale(.96); }
 .standout-spinner{ width:16px; height:16px; border-radius:50%; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff; animation:standout-spin .7s linear infinite; }
 @keyframes standout-spin{ to{ transform:rotate(360deg); } }
 
+.standout-accept{ display:flex; gap:10px; align-items:flex-start; font-size:13px; line-height:1.45; color:var(--nis-text-soft); margin:2px 0 14px; cursor:pointer; }
+.standout-accept input{ margin-top:2px; flex-shrink:0; width:18px; height:18px; accent-color:var(--nis-accent); }
+.standout-accept a{ color:var(--nis-accent); font-weight:700; text-decoration:none; }
+.standout-accept a:hover{ text-decoration:underline; }
 .standout-switch{ text-align:center; font-size:13px; color:var(--nis-text-soft); margin:18px 0 0; }
 .standout-switch a{ color:var(--nis-accent); font-weight:700; text-decoration:none; }
 .standout-switch a:hover{ text-decoration:underline; }
@@ -253,6 +257,16 @@ button.standout-fab--login:active{ transform:scale(.96); }
                     <input type="password" name="password_confirm" autocomplete="new-password" required>
                   </label>
 
+                  <?php /* Si accetta condizioni e privacy PRIMA di creare l'account: il consenso si
+                           registra sul server (register.php), non basta il controllo del modulo. */ ?>
+                  <label class="standout-accept">
+                    <input type="checkbox" name="accetto" required>
+                    <span><?php th('auth.accetto', [
+                        'termini' => '<a href="' . PWA_BASE . 'legal/termini.php" target="_blank" rel="noopener">' . htmlspecialchars(t('legale.titolo_termini'), ENT_QUOTES, 'UTF-8') . '</a>',
+                        'privacy' => '<a href="' . PWA_BASE . 'legal/privacy.php" target="_blank" rel="noopener">' . htmlspecialchars(t('legale.titolo_privacy'), ENT_QUOTES, 'UTF-8') . '</a>',
+                    ]); ?></span>
+                  </label>
+
                   <div class="standout-error" id="registerError" hidden></div>
 
                   <button type="submit" class="standout-submit">
@@ -275,7 +289,7 @@ button.standout-fab--login:active{ transform:scale(.96); }
 <script nonce="<?php echo sec_nonce(); ?>">
 (function(){
   const STANDOUT_CSRF = "<?php echo htmlspecialchars($standout_csrf, ENT_QUOTES); ?>";
-  const TXT = <?php echo json_encode(['generico' => t('auth.err_generico'), 'rete' => t('auth.err_rete'), 'password_diverse' => t('auth.err_password_diverse')], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+  const TXT = <?php echo json_encode(['generico' => t('auth.err_generico'), 'rete' => t('auth.err_rete'), 'password_diverse' => t('auth.err_password_diverse'), 'accetta' => t('auth.err_accetta')], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>;
   const loginFab = document.getElementById('standoutFabLogin');
   const template = document.getElementById('standoutAuthTemplate');
 
@@ -405,9 +419,13 @@ button.standout-fab--login:active{ transform:scale(.96); }
         mostraErrore(document.getElementById('registerError'), TXT.password_diverse);
         return;
       }
+      if (!fd.get('accetto')) {
+        mostraErrore(document.getElementById('registerError'), TXT.accetta);
+        return;
+      }
       invia(formRegister, 'account/register.php', {
         username: fd.get('username'), email: fd.get('email'),
-        password: fd.get('password'), password_confirm: fd.get('password_confirm'), csrf_token: STANDOUT_CSRF
+        password: fd.get('password'), password_confirm: fd.get('password_confirm'), accetto: true, csrf_token: STANDOUT_CSRF
       }, document.getElementById('registerError'));
     });
 

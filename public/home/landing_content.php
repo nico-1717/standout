@@ -202,6 +202,8 @@ $lp_card = function (string $k, string $colore) use ($lp_ico) {
 
 <footer class="lp-foot">
     <span>Standout</span> — <?php te('lp.footer'); ?> · © <?php echo date('Y'); ?>
+    <br><a href="<?php echo PWA_BASE; ?>legal/privacy.php"><?php te('legale.titolo_privacy'); ?></a> ·
+    <a href="<?php echo PWA_BASE; ?>legal/termini.php"><?php te('legale.titolo_termini'); ?></a>
 </footer>
 </div>
 

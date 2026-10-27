@@ -67,9 +67,11 @@ progetti, pomodoro.
 **Il sito non avrà la parte social.** Nessun profilo pubblico, nessun messaggio,
 nessun contenuto condiviso.
 
-> **Unica eccezione (deciso il 26/10/2026): il mercato dei mazzi** si fa anche sul
-> sito, gratuito e con link condivisibile — vedi §14.4.10. Profili pubblici,
-> messaggi e pensieri restano fuori dal sito.
+> **~~Unica eccezione (26/10/2026): il mercato dei mazzi sul sito~~ — RINVIATA
+> (27/10/2026).** Il proprietario ha deciso che la condivisione dei mazzi si fa
+> **solo nell'app**; sul sito non si fa per ora (§14.4.10 resta come progetto
+> per quando e se si riprenderà). Profili pubblici, messaggi e pensieri restano
+> fuori dal sito.
 
 ### 1.2 Obiettivo dell'app (React Native)
 
@@ -82,8 +84,8 @@ riusando l'API del sito e non il suo HTML. Avrà in più:
 - funzionamento senza rete e sincronizzazione;
 - **la parte social**: profili, messaggi, immagini, file — solo qui;
 - **il mercato dei mazzi**: si pubblicano e si vendono mazzi di flashcard già
-  fatti, e chi li prende può modificarne le carte (§14.4). *Una prima versione
-  gratuita vive anche sul sito: §14.4.10.*
+  fatti, e chi li prende può modificarne le carte (§14.4). *Una versione sul
+  sito era stata decisa il 26/10 e poi rinviata il 27/10: §14.4.10.*
 
 ### 1.3 Conseguenza pratica su come si lavora da adesso
 
@@ -531,6 +533,18 @@ senza nonce, così non tornano per sbaglio.
 - Nessuna chiave dentro l'app React Native: un'app si può aprire e leggere.
 
 ### 7.8 Dati personali (obbligo di legge in Europa)
+
+> **STATO (27/10/2026): FATTO sul sito.** Pagine `legal/privacy.php` e
+> `legal/termini.php` (it/en, testi in `lib/legale/`, versione e contatto del
+> titolare in `lib/legale.php`); accettazione obbligatoria alla registrazione con
+> data e versione in `users.terms_accepted_at/terms_version`; pagina «Privacy e
+> dati» (`account/privacy_dati.php`) con **scarica i miei dati** (ZIP: JSON + file,
+> senza password né token) e **elimina il mio account** (righe + file, richiede
+> password; `lib/account_dati.php`). `tools/controlla_dati_utente.py` fallisce se
+> una tabella nuova non è coperta. Scadenze promesse nell'informativa: registro di
+> sicurezza 12 mesi e tentativi di accesso 30 giorni (pulizia automatica in
+> `sec_rate_limit`); **i backup contengono i dati cancellati: vanno eliminati entro
+> 12 mesi**. Da fare: gli utenti già registrati non hanno `terms_accepted_at`.
 
 Con utenti veri e contenuti loro:
 
@@ -1155,9 +1169,9 @@ arrivano dopo, obbligano a rifare il resto.
 
 Dentro la parte social, quindi **nell'app**: le persone pubblicano mazzi di
 flashcard già fatti e altri li prendono. Chi li prende può modificarne le carte.
-*(Dal 26/10/2026 una versione gratuita esiste anche sul sito: vedi §14.4.10, che
-elenca anche i punti in cui la realtà del codice differisce da quanto scritto
-qui sotto.)*
+*(Il 26/10/2026 era stata decisa una versione gratuita anche sul sito, rinviata il
+27/10/2026: vedi §14.4.10, che elenca anche i punti in cui la realtà del codice
+differisce da quanto scritto qui sotto.)*
 
 Questa sezione è già decisa nelle sue scelte di fondo. Chi la implementa segua
 quello che c'è scritto: ogni punto qui sotto risolve un problema che, se
@@ -1342,6 +1356,11 @@ Se funziona, il mercato è quella cosa lì più un prezzo e un incasso.
 
 #### 14.4.10 Il mercato sul sito, adesso: gratuito e pronto per i pagamenti
 
+> **STATO (27/10/2026): RINVIATO.** Il proprietario ha deciso di fare la
+> condivisione dei mazzi **solo nell'app**. Questa sezione resta come progetto
+> pronto da riprendere, ma NON è nel lavoro in corso. Prima servono le basi
+> legali (§7.8), ora fatte.
+
 *Aggiunta del 26/10/2026, su richiesta del proprietario. Non cancella nulla di
 §14.4.1-14.4.9: le regole di fondo restano tutte. Aggiunge una decisione e
 elenca i punti in cui il codice di oggi non corrisponde a quanto scritto sopra.*
@@ -1518,8 +1537,9 @@ Ogni passo ha un criterio di "fatto": senza, si va avanti a metà.
 | 11 | **fatto** | `lang/it.json`, `lang/en.json`, `t()` |
 | 12-15 | non fatti | |
 
-> **Nota (26/10/2026):** il passo 13 (condivisione gratuita) si fa **sul sito prima
-> del passo 12**, per decisione del proprietario (§14.4.10). Il passo 14 (prezzi
+> **Nota (aggiornata il 27/10/2026):** il 26/10 si era deciso di fare il passo 13
+> (condivisione gratuita) **sul sito prima del passo 12**; il 27/10 il proprietario
+> l'ha **rinviato: la condivisione si farà solo nell'app** (§14.4.10). Il passo 14 (prezzi
 > accesi) resta dopo e dipende dalla scelta di §16 #7.
 
 I passi 1-2 vanno fatti **prima** di aprire il sito ad altre persone. Finché
@@ -1567,9 +1587,9 @@ chieste al proprietario.
 ### 16.1 Decisioni già prese (non riaprirle senza motivo)
 
 - I mazzi si chiamano **`decks`**, non `categories`.
-- Il sito **non avrà** la parte social né la scelta del tema. **Eccezione decisa
-  il 26/10/2026:** il mercato dei mazzi, gratuito e pronto per i pagamenti, si fa
-  anche sul sito (§14.4.10).
+- Il sito **non avrà** la parte social né la scelta del tema. Il mercato dei mazzi
+  si farà **solo nell'app**: l'eccezione «anche sul sito» del 26/10/2026 è stata
+  **rinviata il 27/10/2026** (§14.4.10).
 - L'app sarà **React Native**, non un guscio attorno al sito.
 - Le traduzioni stanno in **JSON**, non in array PHP, perché servono a entrambi.
 - Le immagini **non** vanno nel database.
