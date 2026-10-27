@@ -3267,7 +3267,7 @@
     "gm_frantuma_sostituisci_btn": "Replace with these cards",
     "gm_frantuma_nota_padre": "This card becomes the title card and the {n} new cards go under it, before any cards it already had. Its answer and its saved explanation and metaphor are replaced. Learnt state, favourite and game history stay.",
     "gm_frantuma_nota_figlio": "This card is deleted. A new title card with the {n} new cards is created right after its parent card.",
-    "gm_frantuma_assegna": "This card has images, audio or examples. Choose where each one goes.",
+    "gm_frantuma_assegna": "This card has images, audio or examples. Choose where each one goes. A file you do not keep is deleted from the server, unless another card still uses it.",
     "gm_frantuma_scegli": "Choose...",
     "gm_frantuma_a_titolo": "Title card",
     "gm_frantuma_scarta": "Don't keep it",

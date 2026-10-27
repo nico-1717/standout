@@ -3267,7 +3267,7 @@
     "gm_frantuma_sostituisci_btn": "Sostituisci con queste carte",
     "gm_frantuma_nota_padre": "Questa carta diventa la carta titolo e le {n} carte nuove vanno sotto, prima di quelle che aveva già. La sua risposta e la spiegazione e la metafora salvate vengono sostituite. Imparata, preferita e storico restano.",
     "gm_frantuma_nota_figlio": "Questa carta viene eliminata. Subito dopo la sua carta padre nasce una nuova carta titolo con le {n} carte nuove.",
-    "gm_frantuma_assegna": "Questa carta ha immagini, audio o esempi. Scegli dove va ciascuno.",
+    "gm_frantuma_assegna": "Questa carta ha immagini, audio o esempi. Scegli dove va ciascuno. Un file che non tieni viene cancellato dal server, a meno che un'altra carta lo usi ancora.",
     "gm_frantuma_scegli": "Scegli...",
     "gm_frantuma_a_titolo": "Carta titolo",
     "gm_frantuma_scarta": "Non tenerlo",

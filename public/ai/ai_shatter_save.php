@@ -151,6 +151,7 @@ $n = count($figli);
 $att_titolo = [];                 // colonna => nome file, per la carta titolo
 $att_figlio = array_fill(0, $n, []);   // indice => [colonna => nome file]
 $dest_esempio = [];               // id esempio => indice | 'drop'
+$da_togliere = [];                // [cartella, nome file] dei file scartati: si cancellano a salvataggio riuscito
 if ($modo === 'replace') {
     $presenti = array_keys($allegati);
     foreach ($esempi as $e) $presenti[] = 'ex:' . (int)$e['id'];
@@ -158,12 +159,59 @@ if ($modo === 'replace') {
     if (!$verifica['ok']) {
         fc_frantuma_salva_errore(t('fc.gm_frantuma_scegli_tutto'));
     }
+    $file_esempio = [];
+    foreach ($esempi as $e) $file_esempio[(int)$e['id']] = $e;
     foreach ($verifica['map'] as $chiave => $dest) {
-        if (strpos($chiave, 'ex:') === 0) { $dest_esempio[(int)substr($chiave, 3)] = $dest; continue; }
-        if ($dest === 'drop') continue;
+        if (strpos($chiave, 'ex:') === 0) {
+            $id_ex = (int)substr($chiave, 3);
+            $dest_esempio[$id_ex] = $dest;
+            if ($dest === 'drop') {
+                $img = trim((string)($file_esempio[$id_ex]['example_image'] ?? ''));
+                $aud = trim((string)($file_esempio[$id_ex]['example_audio'] ?? ''));
+                if ($img !== '') $da_togliere[] = [STANDOUT_DATA_DIR . 'example_images/', $img];
+                if ($aud !== '') $da_togliere[] = [STANDOUT_DATA_DIR . 'flashcard_audio/', $aud];
+            }
+            continue;
+        }
+        if ($dest === 'drop') {
+            /* Immagini di carta: cartella delle immagini di studio; audio: quella degli audio. */
+            $da_togliere[] = [in_array($chiave, ['qimg', 'aimg'], true) ? FC_IMAGE_PATH_INSERT : STANDOUT_DATA_DIR . 'flashcard_audio/', $allegati[$chiave]];
+            continue;
+        }
         $colonna = $colonne_all[$chiave];
         if ($dest === 'title') $att_titolo[$colonna] = $allegati[$chiave];
         else $att_figlio[$dest][$colonna] = $allegati[$chiave];
+    }
+}
+
+/**
+ * Un file e' ancora usato da qualche carta o esempio, di QUALSIASI utente?
+ * Va chiesto a tutte le tabelle che possono nominarlo: un mazzo copiato (o preso
+ * dal mercato) punta agli stessi file dell'originale, e cancellarne uno ancora
+ * in uso lascerebbe l'altro mazzo con un'immagine rotta.
+ */
+function fc_frantuma_file_usato(string $nome): bool {
+    $dove = [
+        ['fc_study_cards',    ['question_image', 'answer_image', 'question_audio', 'answer_audio']],
+        ['fc_study_subcards', ['question_image', 'answer_image', 'question_audio', 'answer_audio']],
+        ['fc_study_examples', ['example_image', 'example_audio']],
+    ];
+    foreach ($dove as [$tabella, $colonne]) {
+        $cond = implode(' OR ', array_map(function ($c) { return "$c = ?"; }, $colonne));
+        if (sec_one("SELECT 1 AS ok FROM $tabella WHERE $cond LIMIT 1", array_fill(0, count($colonne), $nome)) !== null) return true;
+    }
+    return false;
+}
+
+/** Cancella dal disco i file che nessuno usa piu'. basename(): il nome viene dal database, ma non deve poter uscire dalla cartella. */
+function fc_frantuma_pulisci_file(array $elenco): void {
+    $visti = [];
+    foreach ($elenco as [$cartella, $nome]) {
+        $nome = basename((string)$nome);
+        if ($nome === '' || isset($visti[$cartella . $nome])) continue;
+        $visti[$cartella . $nome] = true;
+        $f = rtrim($cartella, '/') . '/' . $nome;
+        if (is_file($f) && !fc_frantuma_file_usato($nome)) @unlink($f);
     }
 }
 
@@ -259,6 +307,11 @@ try {
     sec_log_error('frantuma_salva', $e->getMessage());
     fc_frantuma_salva_errore(t('fc.gm_frantuma_salva_errore'));
 }
+
+/* Le righe sono salvate: ora i file scartati che nessun'altra carta usa si
+   cancellano dal disco. Dopo il commit e non prima, perche' un file non si
+   "annulla" come una riga: se il salvataggio fosse fallito sarebbe perso. */
+fc_frantuma_pulisci_file($da_togliere);
 
 echo json_encode([
     'success'   => true,
