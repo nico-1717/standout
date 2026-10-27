@@ -36,6 +36,13 @@ if (!$data) {
     die(json_encode(['success' => false, 'error' => t('ai.nessun_dato'), 'debug' => 'lunghezza corpo ricevuto: ' . strlen($__raw_input) . ' byte']));
 }
 
+/* PERCHE': questo endpoint spende il credito audio di Google (e la quota del
+   piano) ma non controllava il token CSRF ne' la frequenza: ora lo fa come
+   ai_generate_text.php. La pagina del gioco usa fetch(), a cui
+   standout_fetch.js aggiunge da solo l'header X-CSRF-Token. 40 al minuto basta
+   a un ripasso normale (un audio per carta) e ferma chi ne chiede a raffica. */
+sec_guard_write((int)$utente_corrente['id'], 'ai_tutor', 0, 40, 60);
+
 // PREVENZIONE BUG PHP 8
 // $mode finisce dentro il NOME DI UN FILE poco più sotto: va ripulito, altrimenti
 // un valore come "../../qualcosa" farebbe scrivere l'MP3 fuori dalla cartella.

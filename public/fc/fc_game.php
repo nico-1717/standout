@@ -3861,7 +3861,8 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 let response = await fetch('../ai/ai_tutor.php', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    /* il token serve: ai_tutor.php ora controlla CSRF e frequenza */
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': STANDOUT_CSRF },
                     body: JSON.stringify({ mode: mode, text: audioText, id: cardId, voice: ttsSettings.aiVoice || 'it-IT-Chirp3-HD-Charon' })
                 });
 

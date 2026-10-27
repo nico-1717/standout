@@ -116,7 +116,7 @@ if (!function_exists('ie_xlsx_shared_strings')) {
         $out = [];
         $xml = $zip->getFromName('xl/sharedStrings.xml');
         if ($xml === false) return $out;
-        $sx = @simplexml_load_string($xml);
+        $sx = @simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NONET);
         if (!$sx) return $out;
         foreach ($sx->si as $si) {
             $text = '';
@@ -138,7 +138,7 @@ if (!function_exists('ie_xlsx_date_styles')) {
         $isDate = [];
         $xml = $zip->getFromName('xl/styles.xml');
         if ($xml === false) return $isDate;
-        $sx = @simplexml_load_string($xml);
+        $sx = @simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NONET);
         if (!$sx) return $isDate;
 
         $customFmts = [];
@@ -193,13 +193,27 @@ if (!function_exists('ie_read_xlsx')) {
             $error = t('import.xlsx_non_valido');
             return null;
         }
+        /* PERCHE': un .xlsx e' uno zip, e uno zip di pochi KB puo' "gonfiarsi" in
+           centinaia di MB (zip bomb) e far esaurire la memoria. Si guarda la
+           dimensione DOPO la decompressione dei tre file che leggiamo e, se
+           e' esagerata, ci si ferma prima di caricarli. */
+        $tot = 0;
+        foreach (['xl/sharedStrings.xml', 'xl/styles.xml', 'xl/worksheets/sheet1.xml'] as $nomeInterno) {
+            $st = $zip->statName($nomeInterno);
+            if ($st !== false) $tot += (int)$st['size'];
+        }
+        if ($tot > 40 * 1024 * 1024) {
+            $zip->close();
+            $error = t('import.troppo_grande');
+            return null;
+        }
         $shared = ie_xlsx_shared_strings($zip);
         $dateStyles = ie_xlsx_date_styles($zip);
         $sheetXml = ie_xlsx_first_sheet($zip);
         $zip->close();
 
         if ($sheetXml === false) { $error = t('import.nessun_foglio'); return null; }
-        $sx = @simplexml_load_string($sheetXml);
+        $sx = @simplexml_load_string($sheetXml, 'SimpleXMLElement', LIBXML_NONET);
         if (!$sx || !isset($sx->sheetData)) { $error = t('import.illeggibile'); return null; }
 
         $rows = [];
