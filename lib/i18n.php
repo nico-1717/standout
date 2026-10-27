@@ -185,7 +185,7 @@ function standout_scrivi_cookie_lingua(string $codice): void
         setcookie(STANDOUT_LINGUA_COOKIE, $codice, [
             'expires'  => time() + 31536000,
             'path'     => '/',
-            'secure'   => !empty($_SERVER['HTTPS']),
+            'secure'   => function_exists('sec_is_https') ? sec_is_https() : !empty($_SERVER['HTTPS']),
             'httponly' => false,
             'samesite' => 'Lax',
         ]);

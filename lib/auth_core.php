@@ -167,7 +167,11 @@ function standout_imposta_remember_cookie(int $user_id): void {
     mysqli_stmt_execute($stmt);
     mysqli_stmt_close($stmt);
 
-    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    /* PERCHE': sul sito vero $_SERVER['HTTPS'] puo' mancare (il server sta dietro
+       un proxy) e il cookie "ricordami" usciva senza Secure, cioe' inviabile
+       anche in chiaro. sec_is_https() guarda anche le intestazioni del proxy,
+       come fa gia' il cookie di sessione. */
+    $isHttps = function_exists('sec_is_https') ? sec_is_https() : (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
     setcookie('nisama_remember', $selector . ':' . $validator, [
         'expires'  => time() + 60 * 60 * 24 * REMEMBER_ME_DURATA_GIORNI,
         'path'     => '/',

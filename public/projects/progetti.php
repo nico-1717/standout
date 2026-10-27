@@ -2057,7 +2057,7 @@ if ($deckProprio) {
             localStorage.setItem('pr_last_project', String(cur));
             /* lo stesso nel cookie: cosi' la prossima volta e' il server a
                scegliere il progetto, prima di disegnare (pr_id_ricordato) */
-            document.cookie = 'pr_last_project=' + cur + '; path=/; max-age=31536000; SameSite=Lax';
+            document.cookie = 'pr_last_project=' + cur + '; path=/; max-age=31536000; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : ''); /* PERCHE': anche una preferenza non deve viaggiare in chiaro */
             /* arrivati senza id, l'indirizzo dice quale progetto si guarda */
             if (!params.has('id')) {
                 params.set('id', String(cur));
