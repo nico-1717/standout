@@ -244,7 +244,7 @@ button.standout-fab--login:active{ transform:scale(.96); }
                   </label>
                   <label class="standout-field standout-field--password">
                     <span><?php te('auth.password'); ?></span>
-                    <input type="password" name="password" id="registerPasswordInput" autocomplete="new-password" required minlength="8">
+                    <input type="password" name="password" id="registerPasswordInput" autocomplete="new-password" required minlength="10" maxlength="128">
                     <button type="button" class="standout-toggle-pw" aria-label="<?php te('auth.mostra_password'); ?>">&#128065;</button>
                   </label>
                   <div class="standout-pw-strength" id="pwStrength"><span></span></div>

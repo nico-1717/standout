@@ -4507,10 +4507,26 @@
     "err_credenziali": "Wrong email/username or password.",
     "err_username": "The username must be 3–30 characters (letters, numbers, dot or underscore, no spaces).",
     "err_email": "Enter a valid email address.",
-    "err_password": "The password must be at least 8 characters, with letters and numbers.",
+    "err_password": "The password must be at least 10 characters long.",
+    "err_password_comune": "This password is too common: pick a more original one — a short phrase works well.",
+    "err_password_utente": "The password must not contain your username or your email.",
     "err_username_usato": "This username is already taken.",
     "err_email_usata": "This email is already registered.",
     "err_registrazione": "Registration failed. Please try again."
+  },
+  "verifica_email": {
+    "mail_oggetto": "Confirm your email on Standout",
+    "mail_corpo": "Hi {nome},\n\nto confirm your email open this link (valid for {ore} hours):\n\n{link}\n\nIf you did not sign up, ignore this message: nothing happens without the link.\n\nStandout",
+    "titolo_ok": "Email confirmed",
+    "testo_ok": "Thank you, your address is verified.",
+    "titolo_ko": "Invalid link",
+    "testo_ko": "This link is not valid, has expired or was already used. Once signed in, you can ask for a new one from the panel at the top right.",
+    "vai_alla_home": "Go to Standout",
+    "avviso_testo": "Confirm your email: we sent you a link.",
+    "avviso_bottone": "Send again",
+    "avviso_inviata": "Email sent. Check your spam folder too.",
+    "avviso_attendi": "You just asked for one: wait a couple of minutes.",
+    "avviso_errore": "I couldn't send it. Please try again later."
   },
   "notifiche": {
     "titolo": "Notifications",

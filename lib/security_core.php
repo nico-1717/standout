@@ -65,7 +65,13 @@ function sec_boot_headers(): void {
 
     // HTTPS su ogni pagina (in locale non forziamo, altrimenti non si sviluppa)
     if (!sec_is_https() && !sec_is_local()) {
-        $url = 'https://' . ($_SERVER['HTTP_HOST'] ?? '') . ($_SERVER['REQUEST_URI'] ?? '/');
+        /* Il nome del sito NON si prende da HTTP_HOST: quell'intestazione la sceglie
+           chi manda la richiesta, e un link con un Host falso farebbe rimbalzare
+           l'utente su un sito altrui (host header injection). SERVER_NAME lo fissa
+           il server; STANDOUT_HOST in config.php, se esiste, vince su tutto. */
+        $nome = defined('STANDOUT_HOST') ? (string)STANDOUT_HOST : (string)($_SERVER['SERVER_NAME'] ?? '');
+        if (!preg_match('/^[A-Za-z0-9.-]+$/', $nome)) { http_response_code(400); exit; }
+        $url = 'https://' . $nome . ($_SERVER['REQUEST_URI'] ?? '/');
         header('Location: ' . $url, true, 301);
         exit;
     }

@@ -11,6 +11,7 @@
        con campi semplici (parola, traduzione, significato, immagine) al posto
        dei due editor ricchi. Vedi fc_type.php. */
     require_once __DIR__ . '/../../lib/fc/fc_type.php';
+    require_once __DIR__ . '/../../lib/fc/fc_files.php';   // fc_file_togli_dopo(): mai cancellare un file che un altro mazzo usa ancora
     require_once __DIR__ . '/../../lib/fc/fc_vocab_gap.php';
     fc_avvia($current_user_id);
 
@@ -148,8 +149,11 @@ function mfc_parola_esempio(): string {
        ci finisse un percorso non deve poter uscire dalla cartella. */
     function mfc_togli($cartella, $nome) {
         if (empty($nome)) return;
-        $f = rtrim($cartella, '/') . '/' . basename($nome);
-        if (is_file($f)) @unlink($f);
+        /* Un mazzo copiato o preso dal mercato punta agli STESSI file dell'originale:
+           il file si cancella solo se nessun'altra carta lo usa, e lo si controlla a
+           fine richiesta, quando la carta e' gia' stata eliminata o aggiornata
+           (lib/fc/fc_files.php). */
+        fc_file_togli_dopo($cartella, (string)$nome);
     }
 
     /* --- CREAZIONE (modo=insert) ---

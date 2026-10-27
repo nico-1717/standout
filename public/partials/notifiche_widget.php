@@ -24,6 +24,11 @@ $fw_social = standout_social_attivo();
 $fw_n      = $fw_social ? fr_conta_notifiche($fw_c, $fw_uid) : 0;
 $fw_items  = $fw_social ? fr_notifiche($fw_c, $fw_uid) : [];
 $fw_inline = !empty($fr_widget_inline);
+
+/* Avviso «conferma la tua email»: solo per chi ha un'email non ancora verificata
+   (e solo dopo la migrazione 2026-10-27_verifica_email.sql). */
+require_once __DIR__ . '/../../lib/email_verifica.php';
+$fw_da_verificare = !ev_verificata($fw_uid);
 ?>
 <style>
 /* ---------- token isolati: il widget funziona su qualsiasi pagina ---------- */
@@ -180,6 +185,10 @@ button.standout-fab--login:active{ transform:scale(.96); }
 .fnw-row:hover{ background:var(--fnw-bg2); }
 .fnw-row svg{ width:19px; height:19px; flex-shrink:0; }
 .fnw-row.fnw-danger{ color:var(--fnw-red); }
+.fnw-verify{ display:flex; align-items:center; gap:10px; margin:6px; padding:10px 12px; border-radius:13px; background:var(--fnw-bg2); font-size:13px; color:var(--fnw-t2); line-height:1.35; }
+.fnw-verify span{ flex:1; }
+.fnw-verify button{ appearance:none; border:none; cursor:pointer; font:inherit; font-weight:700; font-size:12.5px; color:#fff; background:var(--fnw-blue); padding:7px 12px; border-radius:999px; white-space:nowrap; }
+.fnw-verify button:disabled{ opacity:.55; cursor:default; }
 .fnw-row .fnw-pill{
     margin-left:auto; font-size:11px; font-weight:800; color:#fff; background:var(--fnw-red);
     padding:2px 7px; border-radius:999px;
@@ -247,6 +256,13 @@ button.standout-fab--login:active{ transform:scale(.96); }
     <?php /* i consumi dell'IA stavano nella home: ora vivono qui, sotto l'avatar, in ogni pagina.
               Si riempiono alla prima apertura (home/home_api.php?ajax=ai_usage). */ ?>
     <div class="fnw-ai" id="fnwAi" hidden></div>
+
+    <?php if ($fw_da_verificare): ?>
+    <div class="fnw-verify" id="fnwVerify">
+        <span id="fnwVerifyTxt"><?php te('verifica_email.avviso_testo'); ?></span>
+        <button type="button" id="fnwVerifyBtn"><?php te('verifica_email.avviso_bottone'); ?></button>
+    </div>
+    <?php endif; ?>
 
     <div class="fnw-foot">
         <?php if ($fw_social): ?>
@@ -438,6 +454,28 @@ button.standout-fab--login:active{ transform:scale(.96); }
             }).catch(function () {
                 riga.querySelectorAll('button').forEach(function (x) { x.disabled = false; });
                 if (window.frToast) { window.frToast(TXT.ko); }
+            });
+        });
+    }
+
+    /* ---------- «conferma la tua email»: reinvio del link ---------- */
+    var vBtn = document.getElementById('fnwVerifyBtn');
+    if (vBtn) {
+        var VT = <?php echo json_encode(['inviata' => t('verifica_email.avviso_inviata'), 'attendi' => t('verifica_email.avviso_attendi'), 'errore' => t('verifica_email.avviso_errore')], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+        vBtn.addEventListener('click', function () {
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            vBtn.disabled = true;
+            fetch('<?php echo PWA_BASE; ?>account/invia_verifica.php', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'X-CSRF-Token': window.STANDOUT_CSRF || (meta ? meta.content : '') }
+            }).then(function (r) { return r.json(); }).then(function (r) {
+                var t = document.getElementById('fnwVerifyTxt');
+                if (r && r.stato === 'gia_verificata') { var box = document.getElementById('fnwVerify'); if (box) box.remove(); return; }
+                if (t) t.textContent = r && r.ok ? VT.inviata : (r && r.stato === 'attendi' ? VT.attendi : VT.errore);
+                if (!(r && r.ok)) vBtn.disabled = false;
+            }).catch(function () {
+                var t = document.getElementById('fnwVerifyTxt'); if (t) t.textContent = VT.errore;
+                vBtn.disabled = false;
             });
         });
     }

@@ -1,11 +1,12 @@
 <?php
 require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/auth_core.php';
+require_once __DIR__ . '/../../lib/password_policy.php';
 header('Content-Type: application/json');
 sec_require_rate('register', sec_ip(), 2, 3600);
 
 $input = json_decode(file_get_contents('php://input'), true);
-if (!$input) {
+if (!is_array($input)) {
     http_response_code(400);
     die(json_encode(['success' => false, 'error' => 'dati_mancanti', 'message' => t('auth.err_nessun_dato')]));
 }
@@ -15,10 +16,13 @@ if (!standout_csrf_verifica($input['csrf_token'] ?? null)) {
     die(json_encode(['success' => false, 'error' => 'csrf', 'message' => t('auth.err_sessione')]));
 }
 
-$username  = trim($input['username'] ?? '');
-$email     = trim($input['email'] ?? '');
-$password  = (string)($input['password'] ?? '');
-$password2 = (string)($input['password_confirm'] ?? '');
+/* Solo testo: se qualcuno manda un array o un numero al posto di una stringa,
+   trim() lancerebbe un errore PHP (500) invece di una risposta pulita. */
+$testo = function ($v): string { return is_string($v) ? $v : ''; };
+$username  = trim($testo($input['username'] ?? ''));
+$email     = trim($testo($input['email'] ?? ''));
+$password  = $testo($input['password'] ?? '');
+$password2 = $testo($input['password_confirm'] ?? '');
 
 $errori = [];
 
@@ -28,8 +32,12 @@ if (!preg_match('/^[a-zA-Z0-9_.]{3,30}$/', $username)) {
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     $errori['email'] = t('auth.err_email');
 }
-if (strlen($password) < 8 || !preg_match('/[A-Za-z]/', $password) || !preg_match('/[0-9]/', $password)) {
-    $errori['password'] = t('auth.err_password');
+/* Regola in lib/password_policy.php: 10+ caratteri, non fra le password piu'
+   diffuse, non il proprio nome utente o la propria email. */
+$esito_password = standout_password_errore($password, $username, $email);
+if ($esito_password !== null) {
+    $errori['password'] = t($esito_password === 'comune' ? 'auth.err_password_comune'
+                          : ($esito_password === 'utente' ? 'auth.err_password_utente' : 'auth.err_password'));
 }
 if ($password !== $password2) {
     $errori['password_confirm'] = t('auth.err_password_diverse');
@@ -104,3 +112,17 @@ standout_registra_tentativo($email, true);
 standout_effettua_login((int)$nuovo_id, true);
 
 echo json_encode(['success' => true, 'user' => ['id' => (int)$nuovo_id, 'username' => $username, 'email' => $email]]);
+
+/* Email di verifica (lib/email_verifica.php). Si manda DOPO aver risposto: mail()
+   puo' essere lenta e chi si e' appena registrato non deve aspettarla. Se
+   qualcosa va storto la registrazione resta valida: l'avviso nel pannello
+   permette di richiederla di nuovo. */
+while (ob_get_level() > 0) { @ob_end_flush(); }   // config.php apre un buffer: va svuotato perche' la risposta parta
+if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); }
+else { @flush(); }
+try {
+    require_once __DIR__ . '/../../lib/email_verifica.php';
+    ev_invia((int)$nuovo_id);
+} catch (Throwable $e) {
+    sec_log_error('registrazione', 'email di verifica: ' . $e->getMessage());
+}

@@ -1677,6 +1677,7 @@ CREATE TABLE `users` (
   `id` int NOT NULL,
   `username` varchar(50) NOT NULL,
   `email` varchar(255) DEFAULT NULL,
+  `email_verified_at` datetime DEFAULT NULL COMMENT 'Quando ha confermato l''email dal link ricevuto (NULL = non ancora)',
   `lang` varchar(5) DEFAULT NULL,
   `ui_style` varchar(10) DEFAULT NULL COMMENT 'Stile delle pagine planner/diario/to do/to study: standard | paper (NULL = standard)',
   `password_hash` varchar(255) DEFAULT NULL,
@@ -3281,3 +3282,17 @@ CREATE TABLE IF NOT EXISTS `todo_buy_memory` (
   PRIMARY KEY (`user_id`,`chiave`),
   KEY `idx_uso` (`user_id`,`uses`,`last_used`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `email_verifications` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `email` varchar(255) NOT NULL COMMENT 'L''indirizzo a cui e'' stato mandato: se l''utente lo cambia, il link non vale piu''',
+  `token_hash` char(64) NOT NULL COMMENT 'sha256 del token: il token vero sta solo nel link dell''email',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` datetime NOT NULL,
+  `used_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `token_unico` (`token_hash`),
+  KEY `utente_data` (`user_id`, `created_at`),
+  CONSTRAINT `fk_email_verifications_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

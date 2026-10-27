@@ -4,7 +4,7 @@ require_once __DIR__ . '/../../lib/auth_core.php';
 header('Content-Type: application/json');
 
 $input = json_decode(file_get_contents('php://input'), true);
-if (!$input) {
+if (!is_array($input)) {
     http_response_code(400);
     die(json_encode(['success' => false, 'error' => 'dati_mancanti', 'message' => t('auth.err_nessun_dato')]));
 }
@@ -14,8 +14,9 @@ if (!standout_csrf_verifica($input['csrf_token'] ?? null)) {
     die(json_encode(['success' => false, 'error' => 'csrf', 'message' => t('auth.err_sessione')]));
 }
 
-$identifier = trim($input['identifier'] ?? '');
-$password   = (string)($input['password'] ?? '');
+/* Solo testo: un array al posto di una stringa farebbe lanciare un errore a trim(). */
+$identifier = is_string($input['identifier'] ?? null) ? trim($input['identifier']) : '';
+$password   = is_string($input['password'] ?? null) ? $input['password'] : '';
 
 if ($identifier === '' || $password === '') {
     http_response_code(422);

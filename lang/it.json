@@ -4507,10 +4507,26 @@
     "err_credenziali": "Email/nome utente o password non corretti.",
     "err_username": "Il nome utente deve avere 3-30 caratteri (lettere, numeri, punto o underscore, senza spazi).",
     "err_email": "Inserisci un indirizzo email valido.",
-    "err_password": "La password deve avere almeno 8 caratteri, con lettere e numeri.",
+    "err_password": "La password deve avere almeno 10 caratteri.",
+    "err_password_comune": "Questa password è troppo comune: scegline una più originale, anche una frase va bene.",
+    "err_password_utente": "La password non deve contenere il tuo nome utente o la tua email.",
     "err_username_usato": "Questo nome utente è già in uso.",
     "err_email_usata": "Questa email è già registrata.",
     "err_registrazione": "Errore durante la registrazione. Riprova."
+  },
+  "verifica_email": {
+    "mail_oggetto": "Conferma la tua email su Standout",
+    "mail_corpo": "Ciao {nome},\n\nper confermare la tua email apri questo link (vale {ore} ore):\n\n{link}\n\nSe non ti sei registrato tu, ignora questo messaggio: senza il link non succede nulla.\n\nStandout",
+    "titolo_ok": "Email confermata",
+    "testo_ok": "Grazie, il tuo indirizzo è verificato.",
+    "titolo_ko": "Link non valido",
+    "testo_ko": "Questo link non è valido, è scaduto o è già stato usato. Puoi chiederne uno nuovo dal pannello in alto a destra, una volta entrato.",
+    "vai_alla_home": "Vai a Standout",
+    "avviso_testo": "Conferma la tua email: ti abbiamo scritto un link.",
+    "avviso_bottone": "Invia di nuovo",
+    "avviso_inviata": "Email inviata. Controlla anche fra la posta indesiderata.",
+    "avviso_attendi": "Ne hai appena chiesta una: aspetta un paio di minuti.",
+    "avviso_errore": "Non sono riuscito a inviarla. Riprova più tardi."
   },
   "notifiche": {
     "titolo": "Notifiche",

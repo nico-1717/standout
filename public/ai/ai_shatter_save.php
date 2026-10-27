@@ -34,6 +34,7 @@ require_once __DIR__ . '/../../lib/config.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 require_once __DIR__ . '/../../lib/fc/fc_ai_saved.php';
 require_once __DIR__ . '/../../lib/fc/fc_frantuma.php';
+require_once __DIR__ . '/../../lib/fc/fc_files.php';   // fc_file_in_uso(): i file sono condivisi fra mazzi copiati
 
 header('Content-Type: application/json');
 
@@ -191,16 +192,7 @@ if ($modo === 'replace') {
  * in uso lascerebbe l'altro mazzo con un'immagine rotta.
  */
 function fc_frantuma_file_usato(string $nome): bool {
-    $dove = [
-        ['fc_study_cards',    ['question_image', 'answer_image', 'question_audio', 'answer_audio']],
-        ['fc_study_subcards', ['question_image', 'answer_image', 'question_audio', 'answer_audio']],
-        ['fc_study_examples', ['example_image', 'example_audio']],
-    ];
-    foreach ($dove as [$tabella, $colonne]) {
-        $cond = implode(' OR ', array_map(function ($c) { return "$c = ?"; }, $colonne));
-        if (sec_one("SELECT 1 AS ok FROM $tabella WHERE $cond LIMIT 1", array_fill(0, count($colonne), $nome)) !== null) return true;
-    }
-    return false;
+    return fc_file_in_uso($nome);   // elenco delle tabelle in lib/fc/fc_files.php
 }
 
 /** Cancella dal disco i file che nessuno usa piu'. basename(): il nome viene dal database, ma non deve poter uscire dalla cartella. */

@@ -80,26 +80,70 @@ function standout_csrf_verifica(?string $token): bool {
 
 /* ============ Rate limiting sui login ============ */
 
+/** Lo stesso identificativo scritto in modo diverso (Mario / mario) e' lo stesso conto. */
+function standout_login_normalizza(string $identifier): string {
+    return mb_strtolower(mb_substr(trim($identifier), 0, 255));
+}
+
+/**
+ * Chi e' bloccato, e per quanto.
+ *
+ * Prima il blocco scattava per identificativo OPPURE per IP: bastavano 6
+ * password sbagliate scritte da chiunque sul tuo nome per chiuderti fuori
+ * dal tuo account (blocco usato come arma). Ora il conto principale e' la
+ * COPPIA identificativo+IP: chi sbaglia 6 volte viene fermato lui, da
+ * quell'indirizzo, e il vero proprietario da un altro indirizzo entra lo
+ * stesso. Restano due tetti alti, contro chi cambia strada:
+ *   - un solo IP che prova tanti conti diversi      (30 errori in 15 minuti)
+ *   - un solo conto attaccato da tanti IP insieme    (30 errori in 15 minuti)
+ * E l'attesa cresce per la coppia che insiste: 15 minuti dopo 6 errori,
+ * 1 ora dopo 12 errori in un giorno, 24 ore dopo 24.
+ */
 function standout_login_bloccato(string $identifier): bool {
     $conn = standout_db();
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'sconosciuto';
+    $id = standout_login_normalizza($identifier);
     $minuti = LOGIN_BLOCCO_MINUTI;
 
-    $stmt = mysqli_prepare($conn, "SELECT COUNT(*) AS c FROM login_attempts
-        WHERE (identifier = ? OR ip_address = ?) AND success = 0
-        AND attempted_at > (NOW() - INTERVAL ? MINUTE)");
-    mysqli_stmt_bind_param($stmt, 'ssi', $identifier, $ip, $minuti);
+    $stmt = mysqli_prepare($conn, "SELECT
+            SUM(identifier = ? AND ip_address = ? AND attempted_at > (NOW() - INTERVAL ? MINUTE)) AS coppia_15,
+            SUM(identifier = ? AND ip_address = ? AND attempted_at > (NOW() - INTERVAL 1 DAY))   AS coppia_24h,
+            TIMESTAMPDIFF(SECOND, MAX(CASE WHEN identifier = ? AND ip_address = ? THEN attempted_at END), NOW()) AS coppia_fa,
+            SUM(ip_address = ? AND attempted_at > (NOW() - INTERVAL ? MINUTE))                   AS solo_ip,
+            SUM(identifier = ? AND attempted_at > (NOW() - INTERVAL ? MINUTE))                   AS solo_conto
+        FROM login_attempts
+        WHERE success = 0 AND attempted_at > (NOW() - INTERVAL 1 DAY)
+          AND (identifier = ? OR ip_address = ?)");
+    mysqli_stmt_bind_param($stmt, 'ssisssssisiss',
+        $id, $ip, $minuti,
+        $id, $ip,
+        $id, $ip,
+        $ip, $minuti,
+        $id, $minuti,
+        $id, $ip);
     mysqli_stmt_execute($stmt);
     $res = mysqli_stmt_get_result($stmt);
-    $row = $res ? mysqli_fetch_assoc($res) : ['c' => 0];
+    $r = $res ? mysqli_fetch_assoc($res) : [];
     mysqli_stmt_close($stmt);
 
-    return intval($row['c']) >= LOGIN_MAX_TENTATIVI;
+    $c15  = (int)($r['coppia_15'] ?? 0);
+    $c24  = (int)($r['coppia_24h'] ?? 0);
+    /* I secondi dall'ultimo errore li calcola il database, con il SUO orologio: farlo
+       in PHP confronterebbe due fusi orari che possono non coincidere. */
+    $fa   = isset($r['coppia_fa']) && $r['coppia_fa'] !== null ? (int)$r['coppia_fa'] : PHP_INT_MAX;
+
+    if ($c15 >= LOGIN_MAX_TENTATIVI) return true;
+    if ($c24 >= 12 && $fa < 3600)    return true;           // 1 ora
+    if ($c24 >= 24 && $fa < 86400)   return true;           // 24 ore
+    if ((int)($r['solo_ip'] ?? 0)    >= 30) return true;
+    if ((int)($r['solo_conto'] ?? 0) >= 30) return true;
+    return false;
 }
 
 function standout_registra_tentativo(string $identifier, bool $success): void {
     $conn = standout_db();
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'sconosciuto';
+    $identifier = standout_login_normalizza($identifier);
     $s = $success ? 1 : 0;
 
     $stmt = mysqli_prepare($conn, "INSERT INTO login_attempts (identifier, ip_address, success) VALUES (?, ?, ?)");
