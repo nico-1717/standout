@@ -2225,6 +2225,7 @@ body.is-compact .fc-card:not(.is-open) .qa-meaning{ display:none; }
 .fcv-liv-nuova, .fcv-liv-chip-nuova{ --c:#32ADE6; }
 .fcv-liv-da_imparare, .fcv-liv-chip-da_imparare{ --c:#5E5CE6; }
 .fcv-liv-sembra_facile, .fcv-liv-chip-sembra_facile{ --c:#00C7BE; }
+.fcv-liv-facile, .fcv-liv-chip-facile{ --c:#2FD39B; }
 .fcv-liv-insidiosa, .fcv-liv-chip-insidiosa{ --c:var(--orange, #FF9500); }
 .fcv-liv-difficile, .fcv-liv-chip-difficile{ --c:var(--red, #FF3B30); }
 .fcv-liv-difficilissima, .fcv-liv-chip-difficilissima{ --c:#C9003B; }
@@ -2404,6 +2405,7 @@ select.tb-select.tb-liv{ padding-left:25px; max-width:122px; }
 .tb-liv-wrap[data-liv="nuova"] .tb-liv-dot{ background:#32ADE6; }
 .tb-liv-wrap[data-liv="da_imparare"] .tb-liv-dot{ background:#5E5CE6; }
 .tb-liv-wrap[data-liv="sembra_facile"] .tb-liv-dot{ background:#00C7BE; }
+.tb-liv-wrap[data-liv="facile"] .tb-liv-dot{ background:#2FD39B; }
 .tb-liv-wrap[data-liv="insidiosa"] .tb-liv-dot{ background:var(--orange, #FF9500); }
 .tb-liv-wrap[data-liv="difficile"] .tb-liv-dot{ background:var(--red, #FF3B30); }
 .tb-liv-wrap[data-liv="difficilissima"] .tb-liv-dot{ background:#C9003B; }

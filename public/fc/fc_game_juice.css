@@ -32,6 +32,7 @@ html.fcg-finale .fill-pages{
 .fcg-liv-nuova{ --c:#64D2FF; }
 .fcg-liv-da_imparare{ --c:#5E5CE6; }
 .fcg-liv-sembra_facile{ --c:#00C7BE; }
+.fcg-liv-facile{ --c:#2FD39B; }
 .fcg-liv-insidiosa{ --c:var(--orange, #FF9500); }
 .fcg-liv-difficile{ --c:var(--red, #FF3B30); }
 .fcg-liv-difficilissima{ --c:#C9003B; }

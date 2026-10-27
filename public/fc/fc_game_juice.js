@@ -171,7 +171,7 @@
     /* Dal peggiore al migliore. Le regole sono spiegate in fc_vocab_gioco.php:
        la storia u ha 'C'/'W' per le partite normali e 'c'/'w' per i ripassi,
        e "era difficile" si sa solo ripercorrendola, un passo alla volta. */
-    var LIVELLI = ['difficilissima', 'difficile', 'insidiosa', 'da_imparare', 'nuova', 'in_ripresa', 'sembra_facile', 'quasi', 'la_sai'];
+    var LIVELLI = ['difficilissima', 'difficile', 'insidiosa', 'da_imparare', 'nuova', 'in_ripresa', 'sembra_facile', 'facile', 'quasi', 'la_sai'];
     var STORIA = 30;
     function rango(l) { var i = LIVELLI.indexOf(l); return i < 0 ? 4 : i; }
     function livelloPrefisso(s, n, rec) {
@@ -192,7 +192,7 @@
             var f = finestra();
             return rango(f) < rango('difficile') ? f : 'difficile';
         }
-        if (tutte.indexOf('W') === -1) return 'sembra_facile';
+        if (tutte.indexOf('W') === -1) return n >= 2 ? 'facile' : 'sembra_facile';
         return finestra();
     }
     function livello(c, w, u) {

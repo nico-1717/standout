@@ -2305,7 +2305,7 @@ function apriAggiungiFiglio(parentId, parentName, parentColor) {
         var tot = 0; for (var k in st.l) tot += st.l[k];
         if (!tot || tot === (st.l.nuova || 0)) return '';
         var html = '<div class="sc-livelli" title="' + esc(T('fc.dk_barra_titolo', { n: st.pp })) + '"><span class="cs-barra">';
-        ['la_sai', 'quasi', 'sembra_facile', 'in_ripresa', 'da_imparare', 'insidiosa', 'difficile', 'difficilissima', 'nuova'].forEach(function(l){
+        ['la_sai', 'quasi', 'facile', 'sembra_facile', 'in_ripresa', 'da_imparare', 'insidiosa', 'difficile', 'difficilissima', 'nuova'].forEach(function(l){
             if (st.l[l]) html += '<i class="cs-' + l + '" style="flex:' + st.l[l] + '"></i>';
         });
         return html + '</span>' + (st.pp > 0 ? '<span class="cs-pct">' + st.pp + '%</span>' : '') + '</div>';

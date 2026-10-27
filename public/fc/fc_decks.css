@@ -1343,6 +1343,7 @@ body.fc-vocab .hdr-play-btn{ box-shadow:0 2px 6px rgba(255,149,0,.3), 0 10px 22p
 .cs-barra .cs-la_sai{ background:#E0A800; }
 .cs-barra .cs-quasi{ background:var(--green, #34C759); }
 .cs-barra .cs-sembra_facile{ background:#00C7BE; }
+.cs-barra .cs-facile{ background:#2FD39B; }
 .cs-barra .cs-in_ripresa{ background:var(--purple, #AF52DE); }
 .cs-barra .cs-da_imparare{ background:#5E5CE6; }
 .cs-barra .cs-insidiosa{ background:var(--orange, #FF9500); }

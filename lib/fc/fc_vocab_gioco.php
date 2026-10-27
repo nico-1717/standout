@@ -27,7 +27,8 @@ if (!function_exists('fcv_livello')) {
 
      nuova           mai giocata
      da_imparare     giocata al massimo due volte, sempre sbagliata
-     sembra_facile   mai sbagliata, ma giocata solo una o due volte
+     sembra_facile   mai sbagliata, ma giocata una volta sola
+     facile          mai sbagliata, giocata due volte (la terza: la_sai)
      la_sai          giusta le ultime TRE volte di fila
      insidiosa       nelle ultime cinque partite normali (o in tutte, se sono
                      meno di cinque), sbagliata una volta
@@ -44,7 +45,7 @@ if (!function_exists('fcv_livello')) {
    Gemella di livello() in fc_game_juice.js: se cambia qui va cambiata li'. */
 
 /** Dal peggiore al migliore: per ordinare e per dire se si sale o si scende. */
-define('FCV_LIVELLI', ['difficilissima', 'difficile', 'insidiosa', 'da_imparare', 'nuova', 'in_ripresa', 'sembra_facile', 'quasi', 'la_sai']);
+define('FCV_LIVELLI', ['difficilissima', 'difficile', 'insidiosa', 'da_imparare', 'nuova', 'in_ripresa', 'sembra_facile', 'facile', 'quasi', 'la_sai']);
 /** Quanta storia si guarda (le ultime N risposte). */
 define('FCV_STORIA', 30);
 
@@ -128,7 +129,9 @@ function fcv_livello_prefisso(string $s, int $n, bool $rec): string {
         $f = $finestra();
         return fcv_livello_rango($f) < fcv_livello_rango('difficile') ? $f : 'difficile';
     }
-    if (strpos($tutte, 'W') === false) return 'sembra_facile';
+    /* mai sbagliata: con una sola risposta "sembra facile", con due (tre di fila
+       sono gia' la_sai, presa sopra) "facile" */
+    if (strpos($tutte, 'W') === false) return $n >= 2 ? 'facile' : 'sembra_facile';
     return $finestra();
 }
 
