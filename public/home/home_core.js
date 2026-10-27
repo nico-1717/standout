@@ -264,10 +264,11 @@
     }
 
     /* ---------------- layout ---------------- */
-    /* L'ordine standard: prima cio' che si guarda ogni giorno (Oggi, la nota),
-       poi lo studio e i numeri; l'accesso rapido in fondo. E' lo stesso elenco
-       di HO_RIQUADRI in home_api.php. */
-    var ORDINE = ['agenda', 'note', 'cards', 'projects', 'grades', 'trivia', 'stats', 'shortcuts'];
+    /* L'ordine standard: prima l'accesso rapido (i tasti delle pagine, che non
+       costano dati e si usano ogni volta), poi cio' che si guarda ogni giorno
+       (Oggi, la nota), poi lo studio e i numeri. E' lo stesso elenco di
+       HO_RIQUADRI in home_api.php. */
+    var ORDINE = ['shortcuts', 'agenda', 'note', 'cards', 'projects', 'grades', 'trivia', 'stats'];
     function inOrdine(ids) {
         return ids.slice().sort(function (a, b) {
             var x = ORDINE.indexOf(a), y = ORDINE.indexOf(b);

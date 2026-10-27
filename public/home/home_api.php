@@ -50,7 +50,7 @@ $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
    popup. I gruppi di dati con quei nomi esistono ancora (li chiede «agenda»), e un
    layout salvato che li nomina ancora li perde da solo (vedi ho_layout). */
 /* L'ordine qui e' quello standard (lo stesso di ORDINE in home_core.js). */
-const HO_RIQUADRI = ['agenda', 'note', 'cards', 'projects', 'grades', 'trivia', 'stats', 'shortcuts'];
+const HO_RIQUADRI = ['shortcuts', 'agenda', 'note', 'cards', 'projects', 'grades', 'trivia', 'stats'];
 
 function ho_tabelle(): void {
     static $fatto = false;
