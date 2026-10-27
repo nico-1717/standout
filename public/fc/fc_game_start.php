@@ -149,8 +149,10 @@ if (($_GET['solo'] ?? '') === 'difficili') {
         }
     }
     $st = fcv_stats_carte($idsP, array_merge([], ...array_values($figliDi ?: [[]])));
-    $schede = array_values(array_filter($schede, function ($s) use ($st, $figliDi) {
-        $chiavi = ['p' . (int)$s['id']];
+    $titoli = fc_is_vocab() ? [] : fcv_titoli_studio((int)$current_user_id);
+    $schede = array_values(array_filter($schede, function ($s) use ($st, $figliDi, $titoli) {
+        /* un titolo non ha livello: conta solo per le sue sottocarte */
+        $chiavi = isset($titoli['p' . (int)$s['id']]) ? [] : ['p' . (int)$s['id']];
         foreach ($figliDi[(int)$s['id']] ?? [] as $f) $chiavi[] = 'c' . $f;
         foreach ($chiavi as $k) {
             $x = $st[$k] ?? ['c' => 0, 'w' => 0, 'u' => ''];

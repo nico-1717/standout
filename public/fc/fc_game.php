@@ -1986,7 +1986,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                      data-card-index="<?php echo (int)($card_index_map[$position . ':' . ($c['is_child'] ? 'c' : 'p') . $c['gameplay_idimmagine']] ?? $position); ?>"
 
                      data-qaudio="<?php echo sec_h($c['question_audio']); ?>" data-aaudio="<?php echo sec_h($c['answer_audio']); ?>"
-                     <?php if (true): $fcg_k = ($c['is_child'] ? 'c' : 'p') . (int)$c['gameplay_idimmagine']; ?>data-fcv-stats="<?php echo sec_h(json_encode(($fcg_stats[$fcg_k] ?? ['c' => 0, 'w' => 0, 'u' => '']) + ['k' => $fcg_k])); ?>"<?php endif; ?>
+                     <?php /* il titolo di un gruppo non ha livello: senza data-fcv-stats il gioco non gli disegna niente */ if (empty($c['is_titolo'])): $fcg_k = ($c['is_child'] ? 'c' : 'p') . (int)$c['gameplay_idimmagine']; ?>data-fcv-stats="<?php echo sec_h(json_encode(($fcg_stats[$fcg_k] ?? ['c' => 0, 'w' => 0, 'u' => '']) + ['k' => $fcg_k])); ?>"<?php endif; ?>
 
                      <?php if (!$is_graded): ?>
 

@@ -1357,7 +1357,10 @@ if ($ids_array) { /* lingue e studio */
     foreach ($images_data as $r) foreach ($r['children'] as $ch) $fcv_figli[] = (int)$ch['id'];
     $fcv_st = fcv_stats_carte($ids_array, $fcv_figli);
     $fcv_precisione = [];
+    /* i titoli dei gruppi non hanno livello: non sono una domanda */
+    $fcv_titoli = fc_is_vocab() ? [] : fcv_titoli_studio((int)$current_user_id);
     foreach ($fcv_st as $k => $st) {
+        if (isset($fcv_titoli[$k])) continue;
         $fcv_livelli[$k] = fcv_livello($st['c'], $st['w'], $st['u']);
         $fcv_conta_livelli[$fcv_livelli[$k]]++;
         $fcv_precisione[$k] = ($st['c'] + $st['w']) ? $st['c'] / ($st['c'] + $st['w']) : 1;
@@ -1366,8 +1369,8 @@ if ($ids_array) { /* lingue e studio */
        difficile (padre o sottocarta), e a parita' conta la precisione. */
     if ($sort === 'livello') {
         $fcv_rango = array_flip(FCV_LIVELLI);
-        $fcv_peso = function (array $r) use ($fcv_livelli, $fcv_precisione, $fcv_rango) {
-            $chiavi = ['p' . (int)$r['id']];
+        $fcv_peso = function (array $r) use ($fcv_livelli, $fcv_precisione, $fcv_rango, $fcv_titoli) {
+            $chiavi = isset($fcv_titoli['p' . (int)$r['id']]) ? [] : ['p' . (int)$r['id']];
             foreach ($r['children'] as $ch) $chiavi[] = 'c' . (int)$ch['id'];
             $rango = 9; $prec = 1;
             foreach ($chiavi as $k) {

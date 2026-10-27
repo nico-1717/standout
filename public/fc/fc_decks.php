@@ -483,8 +483,11 @@ if ($all_categories) {
         $fcm_carte[$k][$giusta ? 'c' : 'w']++;
         $fcm_carte[$k]['u'] = substr($fcm_carte[$k]['u'] . fcv_lettera($giusta, (bool)$r['ripasso']), -FCV_STORIA);
     }
+    /* i titoli dei gruppi (solo studio) non hanno livello e non si contano */
+    $fcm_titoli = fc_is_vocab() ? [] : fcv_titoli_studio((int)$current_user_id);
     foreach ($fcm_mazzo_di as $k => $mid) {
         if (!isset($fcm_stat[$mid])) $fcm_stat[$mid] = $fcm_vuota();
+        if (isset($fcm_titoli[$k])) continue;
         $st = $fcm_carte[$k] ?? ['c' => 0, 'w' => 0, 'u' => ''];
         $liv = fcv_livello($st['c'], $st['w'], $st['u']);
         $fcm_stat[$mid]['liv'][$liv]++;

@@ -179,10 +179,10 @@
         var tutte = s.toUpperCase();
         var norm = s.replace(/[a-z]/g, '');
         if (n <= 2 && tutte.indexOf('C') === -1) return 'da_imparare';
-        if (n >= 5 && tutte.slice(-5) === 'CCCCC') return 'la_sai';
+        if (n >= 3 && tutte.slice(-3) === 'CCC') return 'la_sai';
         function finestra() {
             var wN = (norm.slice(-5).match(/W/g) || []).length;
-            if (wN >= 2) return s.slice(-10).indexOf('w') !== -1 ? 'difficilissima' : 'difficile';
+            if (wN >= 2) return s.slice(-5).indexOf('w') !== -1 ? 'difficilissima' : 'difficile';
             return 'insidiosa';
         }
         if (rec) {

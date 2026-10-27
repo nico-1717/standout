@@ -27,16 +27,20 @@ if (!function_exists('fcv_livello')) {
 
      nuova           mai giocata
      da_imparare     giocata al massimo due volte, sempre sbagliata
-     sembra_facile   mai sbagliata, ma meno di cinque volte
-     la_sai          giusta le ultime cinque volte
-     insidiosa       nelle ultime cinque partite normali, sbagliata una volta
-     difficile       nelle ultime cinque partite normali, sbagliata due volte o piu'
-     difficilissima  difficile, e sbagliata anche nei ripassi
+     sembra_facile   mai sbagliata, ma giocata solo una o due volte
+     la_sai          giusta le ultime TRE volte di fila
+     insidiosa       nelle ultime cinque partite normali (o in tutte, se sono
+                     meno di cinque), sbagliata una volta
+     difficile       come sopra, sbagliata due volte o piu'
+     difficilissima  difficile, e sbagliata anche in un ripasso fra le ultime
+                     CINQUE risposte
      in_ripresa      era difficile: l'ultima volta (partite normali) giusta
-     quasi           era difficile: le ultime 2-4 volte giusta (la quinta: la_sai)
+     quasi           era difficile: le ultime DUE volte giusta (la terza: la_sai)
    Da in_ripresa o quasi, una risposta sbagliata riporta a difficile (o
    difficilissima). "Era difficile" lo si sa solo ripercorrendo la storia,
    quindi il livello si calcola un passo alla volta (fcv_livello_avanza).
+   I TITOLI delle sottocarte (solo studio) non hanno livello: non sono una
+   domanda a cui si risponde (vedi fcv_titoli_studio).
    Gemella di livello() in fc_game_juice.js: se cambia qui va cambiata li'. */
 
 /** Dal peggiore al migliore: per ordinare e per dire se si sale o si scende. */
@@ -48,6 +52,53 @@ function fcv_livelli_vuoti(): array { return array_fill_keys(FCV_LIVELLI, 0); }
 function fcv_livello_rango(string $l): int { $i = array_search($l, FCV_LIVELLI, true); return $i === false ? 4 : (int)$i; }
 /** Le carte da ripassare: "solo le difficili", il badge "da ripassare". */
 function fcv_da_ripassare(string $l): bool { return in_array($l, ['difficilissima', 'difficile', 'da_imparare'], true); }
+
+/** Vero se un campo di testo (documento a blocchi di fc_parser.js, o vecchio
+ *  testo semplice) non contiene niente di scritto. Gemella di fc_testo_vuoto()
+ *  in fc_view.php: li' non si puo' prendere, la pagina non e' sempre caricata. */
+function fcv_testo_vuoto($raw): bool {
+    $raw = trim((string)$raw);
+    if ($raw === '') return true;
+    $doc = json_decode($raw, true);
+    if (!is_array($doc) || !isset($doc['blocks']) || !is_array($doc['blocks'])) {
+        return trim(strip_tags($raw)) === '';
+    }
+    foreach ($doc['blocks'] as $b) {
+        if (!is_array($b)) continue;
+        $tipo = (string)($b['t'] ?? 'p');
+        if ($tipo !== 'p' && $tipo !== 'li') return false;
+        foreach (($b['runs'] ?? []) as $r) {
+            if (is_array($r) && trim((string)($r['s'] ?? '')) !== '') return false;
+            if (is_string($r) && trim($r) !== '') return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * I TITOLI di un utente (solo flashcard di studio): le carte padre con almeno
+ * due sottocarte, la domanda scritta e la risposta completamente vuota. Non
+ * sono una domanda a cui si risponde ma il titolo del gruppo, quindi non hanno
+ * un livello ("nuova", "difficile"...): non si mostra, non si conta, non conta
+ * per "da ripassare". E' la stessa regola con cui l'elenco (is-titolo) e il
+ * gioco (fc_e_titolo) li riconoscono.
+ * Ritorna ['p<id>' => true]. Vuoto per le lingue: una parola padre e' una
+ * parola vera anche lei.
+ */
+function fcv_titoli_studio(int $uid): array {
+    static $cache = [];
+    if (isset($cache[$uid])) return $cache[$uid];
+    $out = [];
+    foreach (sec_all("SELECT i.id, i.question_desc, i.answer_desc
+                        FROM fc_study_cards i
+                        JOIN fc_study_decks d ON d.id = i.category_id AND d.user_id = ?
+                       WHERE i.is_father = 1
+                         AND TRIM(IFNULL(i.answer_image, '')) = '' AND TRIM(IFNULL(i.answer_audio, '')) = ''
+                         AND (SELECT COUNT(*) FROM fc_study_subcards s WHERE s.parent_id = i.id) >= 2", [$uid]) as $r) {
+        if (!fcv_testo_vuoto($r['question_desc']) && fcv_testo_vuoto($r['answer_desc'])) $out['p' . (int)$r['id']] = true;
+    }
+    return $cache[$uid] = $out;
+}
 
 /** Quante carte da ripassare, da un conteggio per livello. */
 function fcv_conta_da_ripassare(array $conta): int {
@@ -62,16 +113,18 @@ function fcv_livello_prefisso(string $s, int $n, bool $rec): string {
     $tutte = strtoupper($s);
     $norm = preg_replace('/[a-z]/', '', $s);                      // solo le partite normali
     if ($n <= 2 && strpos($tutte, 'C') === false) return 'da_imparare';
-    if ($n >= 5 && substr($tutte, -5) === 'CCCCC') return 'la_sai';
+    if ($n >= 3 && substr($tutte, -3) === 'CCC') return 'la_sai';
     $finestra = function () use ($s, $norm): string {
         $wN = substr_count(substr($norm, -5), 'W');
-        if ($wN >= 2) return strpos(substr($s, -10), 'w') !== false ? 'difficilissima' : 'difficile';
+        /* il ripasso sbagliato conta se e' fra le ultime CINQUE risposte (prima
+           dieci: una carta restava "difficilissima" troppo a lungo) */
+        if ($wN >= 2) return strpos(substr($s, -5), 'w') !== false ? 'difficilissima' : 'difficile';
         return 'insidiosa';
     };
     if ($rec) {
         $serie = strlen($norm) - strlen(rtrim($norm, 'C'));
         if ($serie === 1) return 'in_ripresa';
-        if ($serie >= 2) return 'quasi';
+        if ($serie >= 2) return 'quasi';   // 3 di fila sono gia' la_sai, presa sopra
         $f = $finestra();
         return fcv_livello_rango($f) < fcv_livello_rango('difficile') ? $f : 'difficile';
     }
@@ -112,7 +165,7 @@ function fcv_lettera(bool $giusta, bool $ripasso): string {
  * LE CARTE CHE SAI: quante sono adesso e QUANDO le hai imparate.
  *
  * Una carta "la sai" se e' segnata come imparata (il tastino col tocco)
- * OPPURE se il suo livello e' la_sai (giusta le ultime cinque volte): prima
+ * OPPURE se il suo livello e' la_sai (giusta le ultime tre volte): prima
  * contava solo il tastino, e chi non lo toccava mai restava a zero per
  * sempre anche sapendo tutto.
  * Il giorno in cui l'hai imparata e' il primo fra il giorno del tastino e il
@@ -326,7 +379,11 @@ function fcv_padroneggiate(int $user_id, int $course_id): int {
         }
     }
     $n = 0;
-    foreach ($stats as $s) if (fcv_livello($s['c'], $s['w'], $s['u']) === 'la_sai') $n++;
+    $titoli = fc_is_vocab() ? [] : fcv_titoli_studio($user_id);
+    foreach ($stats as $k => $s) {
+        if (isset($titoli[$k])) continue;   // un titolo non ha livello
+        if (fcv_livello($s['c'], $s['w'], $s['u']) === 'la_sai') $n++;
+    }
     return $n;
 }
 
