@@ -561,7 +561,7 @@ function mfc_parola_esempio(): string {
          smetteranno di essere riconosciute: e' l'unico cambiamento di
          comportamento di questo accorpamento. */ ?>
     <?php if (!fc_is_vocab()): ?>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js" integrity="sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei" crossorigin="anonymous"></script>
     <?php endif; ?>
     <script src="<?php echo PWA_BASE; ?>fc/fc_audio_recorder.js?v=<?php echo @filemtime(__DIR__ . '/fc_audio_recorder.js') ?: 1; ?>"></script>
     <script src="<?php echo PWA_BASE; ?>fc/fc_image_editor.js?v=<?php echo @filemtime(__DIR__ . '/fc_image_editor.js') ?: 1; ?>"></script>

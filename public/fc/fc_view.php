@@ -2320,7 +2320,7 @@ if (isset($_GET['fc_feed_page'])) {
 
 </script>
 
-<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js" integrity="sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei" crossorigin="anonymous"></script>
 
 <script src="fc_parser.js?v=<?php echo @filemtime(__DIR__ . '/fc_parser.js') ?: 1; ?>"></script>
 <?php endif; ?>
