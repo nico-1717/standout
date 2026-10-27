@@ -82,6 +82,75 @@ function fc_t(string $nome): string {
     return FC_TABELLE[$tipo][$nome];
 }
 
+/* ----------------------------------------------------------------------------
+   "IMPARATA" DI PADRE E FIGLIO, DUE COSE SEPARATE
+
+   Nella tabella degli imparati ogni riga e' (utente, id, is_child): is_child=0
+   e' una carta padre, is_child=1 una carta figlia (id_child). Un padre puo'
+   essere imparato e il figlio no, e viceversa.
+
+   Una carta PADRE (una posizione di gioco) entra in una partita "da imparare"
+   se ALMENO UNA delle sue parti e' ancora da imparare, e in una "imparate" se
+   almeno una e' imparata. Le parti che non corrispondono al filtro restano
+   sulla pagina ma solo da guardare (user_answer = 'Visione'), non si giocano.
+   Il padre che e' un TITOLO di gruppo (studio) non e' una parte: non si
+   impara, quindi non conta mai come "da imparare".
+   ---------------------------------------------------------------------------- */
+
+/** Le due uniche non-risposte che chiudono una posizione senza dare un voto. */
+function fc_senza_voto(?string $risposta): bool {
+    return $risposta === 'Titolo' || $risposta === 'Visione';
+}
+
+/**
+ * Condizione SQL "questa carta padre ha almeno una parte che corrisponde al
+ * filtro". $status: 'all' | '1' (imparate) | '0' (da imparare). $alias e'
+ * l'alias della tabella dei padri nella query. L'id utente e' un intero
+ * (cast) scritto nel testo: cosi' la condizione non porta segnaposto e si
+ * puo' incollare dove serve senza contare i parametri.
+ */
+function fc_sql_stato_imparata(string $alias, string $status, int $uid): string {
+    if ($status !== '1' && $status !== '0') return '1=1';
+    $L = fc_t('learnt');
+    $S = fc_t('subcards');
+    $u = (int)$uid;
+    $padre_imp = "EXISTS (SELECT 1 FROM $L pl WHERE pl.user_id = $u AND pl.fc_image_id = $alias.id AND pl.is_child = 0)";
+    $figlio_imp = "EXISTS (SELECT 1 FROM $L fl WHERE fl.user_id = $u AND fl.fc_image_id = c.id_child AND fl.is_child = 1)";
+    if ($status === '1') {
+        return "($padre_imp OR EXISTS (SELECT 1 FROM $S c WHERE c.parent_id = $alias.id AND $figlio_imp))";
+    }
+    /* i titoli (solo studio) non si imparano: la loro parte non conta */
+    $no_titolo = '';
+    if (!fc_is_vocab()) {
+        require_once __DIR__ . '/fc_vocab_gioco.php';
+        $ids = [];
+        foreach (array_keys(fcv_titoli_studio($u)) as $k) $ids[] = (int)substr((string)$k, 1);
+        if ($ids) $no_titolo = " AND $alias.id NOT IN (" . implode(',', $ids) . ")";
+    }
+    return "((NOT $padre_imp$no_titolo) OR EXISTS (SELECT 1 FROM $S c WHERE c.parent_id = $alias.id AND NOT $figlio_imp))";
+}
+
+/**
+ * Condizione SQL "questa PARTE (un padre o un figlio) corrisponde al filtro":
+ * serve a contare le carte che si giocano davvero. $idExpr e' l'espressione
+ * SQL dell'id (es. 'i.id' per un padre, 'ch.id_child' per un figlio).
+ */
+function fc_sql_parte_stato(string $idExpr, bool $figlio, string $status, int $uid): string {
+    if ($status !== '1' && $status !== '0') return '1=1';
+    $imp = "EXISTS (SELECT 1 FROM " . fc_t('learnt') . " xl WHERE xl.user_id = " . (int)$uid
+         . " AND xl.fc_image_id = $idExpr AND xl.is_child = " . ($figlio ? 1 : 0) . ")";
+    return $status === '1' ? $imp : "NOT $imp";
+}
+
+/** Gli id delle carte imparate dell'utente: ['p' => [id => true], 'c' => [id_child => true]]. */
+function fc_insiemi_imparate(int $uid): array {
+    $out = ['p' => [], 'c' => []];
+    foreach (sec_all("SELECT fc_image_id, is_child FROM " . fc_t('learnt') . " WHERE user_id = ?", [$uid]) as $r) {
+        $out[(int)$r['is_child'] === 1 ? 'c' : 'p'][(int)$r['fc_image_id']] = true;
+    }
+    return $out;
+}
+
 /** Il corso dell'utente, oppure null se non e' suo o non esiste. */
 function fc_leggi_corso(int $corsoId, int $userId): ?array {
     if ($corsoId <= 0 || $userId <= 0) return null;

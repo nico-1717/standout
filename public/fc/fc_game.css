@@ -353,6 +353,9 @@
 
         .card-box.res-wrong{ box-shadow:var(--shadow-card), 0 0 0 1.5px rgba(255,69,58,.4); }
 
+        /* una parte solo da guardare (gia' imparata in una partita "da imparare", o viceversa): resta sulla pagina un po' piu' spenta, senza bordo di esito */
+        .card-box.res-vista{ opacity:.78; }
+
 
 
         .card-title{
@@ -832,6 +835,7 @@
         .status-pill.ok{ background:var(--green-soft); color:var(--green); }
 
         .status-pill.ko{ background:var(--red-soft); color:var(--red); }
+        .status-pill.vd-vista{ background:var(--hairline, rgba(120,120,128,.14)); color:var(--text-2, inherit); }
 
         .pill-toggle{ padding:9px 14px; font-size:13px; flex-shrink:0; }
 

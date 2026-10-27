@@ -88,15 +88,9 @@ $game_type = (fc_is_vocab() ? sec_enum($_GET['dir'] ?? null, FC_VERSI, 't2w') : 
    il loro custom_order come hanno sempre fatto.
    --------------------------------------------------------------------- */
 $par_sel = [];
-if ($status === '1') {
-    $where_sel = 'i.id IN (SELECT fc_image_id FROM ' . fc_t('learnt') . ' WHERE user_id = ?)';
-    $par_sel[] = $current_user_id;
-} elseif ($status === '0') {
-    $where_sel = 'i.id NOT IN (SELECT fc_image_id FROM ' . fc_t('learnt') . ' WHERE user_id = ?)';
-    $par_sel[] = $current_user_id;
-} else {
-    $where_sel = '1=1';
-}
+/* "Imparata" vale per ogni parte della carta (padre e figli, ognuno suo):
+   la carta entra se almeno una parte corrisponde al filtro (vedi fc_type.php). */
+$where_sel = fc_sql_stato_imparata('i', $status, (int)$current_user_id);
 
 /* La JOIN su fc_study_decks con user_id e' la garanzia che si prendano solo
    le proprie schede, anche se l'elenco delle categorie fosse vuoto. */

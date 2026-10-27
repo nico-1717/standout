@@ -621,7 +621,7 @@ if ($ajax === 'materie') {
     foreach (sec_all("SELECT i.category_id AS cat, COUNT(*) AS carte, SUM(u.fc_image_id IS NOT NULL) AS imparate
                         FROM " . fc_t('cards') . " i
                         JOIN " . fc_t('decks') . " c ON c.id = i.category_id AND c.user_id = ?
-                        LEFT JOIN " . fc_t('learnt') . " u ON u.fc_image_id = i.id AND u.user_id = ?
+                        LEFT JOIN " . fc_t('learnt') . " u ON u.fc_image_id = i.id AND u.is_child = 0 AND u.user_id = ?
                        GROUP BY i.category_id", [$current_user_id, $current_user_id]) as $r) {
         if (!isset($cats[(int)$r['cat']])) continue;
         $cats[(int)$r['cat']]['carte'] = (int)$r['carte'];

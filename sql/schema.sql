@@ -364,6 +364,7 @@ CREATE TABLE `fc_study_game_decks` (
 CREATE TABLE `fc_study_learnt` (
   `user_id` int NOT NULL,
   `fc_image_id` int NOT NULL,
+  `is_child` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0 = carta padre, 1 = carta figlia (id_child)',
   `learnt_date` date NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Flashcard di studio segnate come imparate';
 
@@ -535,6 +536,7 @@ CREATE TABLE `fc_vocab_game_decks` (
 CREATE TABLE `fc_vocab_learnt` (
   `user_id` int NOT NULL,
   `fc_image_id` int UNSIGNED NOT NULL,
+  `is_child` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0 = carta padre, 1 = carta figlia (id_child)',
   `learnt_date` date NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Parole segnate come imparate';
 
@@ -1900,7 +1902,7 @@ ALTER TABLE `fc_study_game_decks`
 -- Indexes for table `fc_study_learnt`
 --
 ALTER TABLE `fc_study_learnt`
-  ADD PRIMARY KEY (`user_id`,`fc_image_id`);
+  ADD PRIMARY KEY (`user_id`,`fc_image_id`,`is_child`);
 
 --
 -- Indexes for table `fc_study_plays`
@@ -1978,7 +1980,7 @@ ALTER TABLE `fc_vocab_game_decks`
 -- Indexes for table `fc_vocab_learnt`
 --
 ALTER TABLE `fc_vocab_learnt`
-  ADD PRIMARY KEY (`user_id`,`fc_image_id`),
+  ADD PRIMARY KEY (`user_id`,`fc_image_id`,`is_child`),
   ADD KEY `image_id` (`fc_image_id`);
 
 --

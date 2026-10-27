@@ -3337,6 +3337,8 @@
     "exm_autosave_breve": "Auto save",
     "exm_conferma_uscita": "There are unsaved changes: leaving will discard them. Do you really want to leave without saving?",
     "res_da_fare": "To do",
+    "gm_solo_vista": "Just for reference",
+    "gm_solo_vista_tip": "Part of this card but not one to play now: you can see it, not grade it.",
     "gm_offline": "No connection",
     "gm_in_attesa_salvataggio": "Waiting for connection to save the answer",
     "gm_imparato_errore": "Not saved, try again",

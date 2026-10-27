@@ -248,9 +248,10 @@ function fcv_conosciute(int $uid, string $tipo): array {
         return $archCache[$id] = false;
     };
 
+    /* il tastino e' di ogni carta, padre e figli separati: chiavi 'p<id>' / 'c<id>' */
     $tastino = [];
-    foreach (sec_all("SELECT fc_image_id, MIN(learnt_date) AS d FROM {$T['l']} WHERE user_id = ? GROUP BY fc_image_id", [$uid]) as $r) {
-        $tastino[(int)$r['fc_image_id']] = (string)$r['d'];
+    foreach (sec_all("SELECT fc_image_id, is_child, MIN(learnt_date) AS d FROM {$T['l']} WHERE user_id = ? GROUP BY fc_image_id, is_child", [$uid]) as $r) {
+        $tastino[((int)$r['is_child'] === 1 ? 'c' : 'p') . (int)$r['fc_image_id']] = (string)$r['d'];
     }
 
     /* la storia di ogni carta, un passo alla volta: il primo giorno in cui
@@ -271,7 +272,7 @@ function fcv_conosciute(int $uid, string $tipo): array {
 
     $totale = 0; $giorni = []; $perCorso = []; $dettaglio = [];
     foreach ($unita as $k => $u) {
-        $dt = $tastino[$u['padre']] ?? null;
+        $dt = $tastino[$k] ?? null;
         $dl = $primo[$k] ?? null;
         $quando = ($dt !== null && $dl !== null) ? min($dt, $dl) : ($dt ?? $dl);
         if ($quando !== null) $giorni[$quando] = ($giorni[$quando] ?? 0) + 1;

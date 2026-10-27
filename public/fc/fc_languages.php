@@ -127,7 +127,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $azione !== '') {
                                  [(int)$corso['id'], $current_user_id], 'ii'));
         foreach (array_chunk($ids, 500) as $blocco) {
             $ph = implode(',', array_fill(0, count($blocco), '?'));
-            sec_q("DELETE FROM fc_vocab_learnt WHERE user_id = ? AND fc_image_id IN ($ph)", array_merge([$current_user_id], $blocco));
+            /* le sottocarte spariscono per cascata con il padre, ma il loro "imparata"
+               (is_child = 1) sta in una riga a parte: va tolto prima, finche' si sanno gli id */
+            sec_q("DELETE FROM fc_vocab_learnt WHERE user_id = ? AND is_child = 1
+                      AND fc_image_id IN (SELECT id_child FROM fc_vocab_subcards WHERE parent_id IN ($ph))",
+                  array_merge([$current_user_id], $blocco));
+            sec_q("DELETE FROM fc_vocab_learnt WHERE user_id = ? AND is_child = 0 AND fc_image_id IN ($ph)", array_merge([$current_user_id], $blocco));
             sec_q("DELETE FROM fc_vocab_cards WHERE id IN ($ph)", $blocco);
         }
         sec_q("DELETE FROM fc_vocab_courses WHERE id = ? AND user_id = ?", [(int)$corso['id'], $current_user_id], 'ii');

@@ -33,21 +33,32 @@ fc_avvia($current_user_id, true);
 
 $id     = sec_int($_POST['id'] ?? 0, 1);
 $status = sec_bool($_POST['status'] ?? 0) ? 1 : 0;
+/* Padre e figlio sono due carte con due stati: is_child=1 vuol dire che $id e'
+   un id_child (fc_*_subcards), altrimenti un id di fc_*_cards. */
+$figlio = sec_bool($_POST['is_child'] ?? 0) ? 1 : 0;
 
 if ($id <= 0) { echo json_encode(['success' => false]); exit; }
 
-/* La scheda dev'essere sua: si passa dalla categoria. Senza questo controllo
-   si poteva riempire il proprio storico con le schede altrui. */
-$mia = sec_one("SELECT i.id FROM " . fc_t('cards') . " i
-                JOIN " . fc_t('decks') . " c ON c.id = i.category_id
-                WHERE i.id = ? AND c.user_id = ?", [$id, $current_user_id]);
+/* La scheda dev'essere sua: si passa dalla categoria (per un figlio, da quella
+   del suo padre). Senza questo controllo si poteva riempire il proprio storico
+   con le schede altrui. */
+if ($figlio) {
+    $mia = sec_one("SELECT s.id_child FROM " . fc_t('subcards') . " s
+                    JOIN " . fc_t('cards') . " i ON i.id = s.parent_id
+                    JOIN " . fc_t('decks') . " c ON c.id = i.category_id
+                    WHERE s.id_child = ? AND c.user_id = ?", [$id, $current_user_id]);
+} else {
+    $mia = sec_one("SELECT i.id FROM " . fc_t('cards') . " i
+                    JOIN " . fc_t('decks') . " c ON c.id = i.category_id
+                    WHERE i.id = ? AND c.user_id = ?", [$id, $current_user_id]);
+}
 if (!$mia) { echo json_encode(['success' => false]); exit; }
 
 if ($status === 1) {
-    sec_q("INSERT IGNORE INTO " . fc_t('learnt') . " (user_id, fc_image_id, learnt_date) VALUES (?, ?, CURDATE())",
-          [$current_user_id, $id]);
+    sec_q("INSERT IGNORE INTO " . fc_t('learnt') . " (user_id, fc_image_id, is_child, learnt_date) VALUES (?, ?, ?, CURDATE())",
+          [$current_user_id, $id, $figlio]);
 } else {
-    sec_q("DELETE FROM " . fc_t('learnt') . " WHERE user_id = ? AND fc_image_id = ?", [$current_user_id, $id]);
+    sec_q("DELETE FROM " . fc_t('learnt') . " WHERE user_id = ? AND fc_image_id = ? AND is_child = ?", [$current_user_id, $id, $figlio]);
 }
 
 echo json_encode(['success' => true]);

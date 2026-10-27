@@ -230,7 +230,7 @@ foreach ($gameplays as $gp) {
         // Un titolo (fc_e_titolo in fc_game.php) parte gia' con user_answer='Titolo':
         // non e' vuoto, quindi senza questo controllo finiva dritto nel ramo "sbagliata"
         // qui sotto, e faceva scendere il punteggio per il solo fatto di esistere.
-        if ($card['user_answer'] != '' && $card['user_answer'] !== 'Titolo') {
+        if ($card['user_answer'] != '' && !fc_senza_voto($card['user_answer'])) {
             $played_items++;
             if ($card['user_answer'] == 'Correct') $correct_count++;
             else $error_count++;
@@ -959,6 +959,9 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
                     $oc_class = "ok"; $oc_icon = "\u{2713}"; $oc_text = t('fc.res_corretto');
                 } elseif ($c['user_answer'] == 'Wrong') {
                     $oc_class = "ko"; $oc_icon = "\u{2715}"; $oc_text = t('fc.res_errato');
+                } elseif ($c['user_answer'] === 'Visione') {
+                    /* parte solo da guardare (gia' imparata in una partita "da imparare", o viceversa): non e' da fare */
+                    $oc_class = "wait"; $oc_icon = "\u{1F441}"; $oc_text = t('fc.gm_solo_vista');
                 } else {
                     $oc_class = "wait"; $oc_icon = "\u{23F3}"; $oc_text = t('fc.res_da_fare');
                 }

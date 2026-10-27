@@ -361,16 +361,12 @@ if (count($cat_ids) > 0) {
     $cat_filter = "AND category_id IN (" . implode(',', array_fill(0, count($cat_ids), '?')) . ")";
     $cat_par = $cat_ids;
 }
+/* "Imparata" e' di ogni singola parte (padre e figli): una carta si conta se
+   almeno una sua parte corrisponde al filtro. La condizione non ha segnaposto
+   (l'id utente e' un intero scritto nel testo), quindi $learnt_par e' vuoto:
+   resta perche' le query qui sotto lo mettono ancora nell'ordine dei parametri. */
 $learnt_par = [];
-if ($status === 'all') {
-    $where_learnt = "1=1";
-} elseif ($status === '1') {
-    $where_learnt = "id IN (SELECT fc_image_id FROM " . fc_t('learnt') . " WHERE user_id = ?)";
-    $learnt_par = [$user_id];
-} else {
-    $where_learnt = "id NOT IN (SELECT fc_image_id FROM " . fc_t('learnt') . " WHERE user_id = ?)";
-    $learnt_par = [$user_id];
-}
+$where_learnt = fc_sql_stato_imparata('i', $status, (int)$user_id);
 
 
 
@@ -383,18 +379,20 @@ if ($azione === 'grade') {
     $is_child_vote = sec_bool($_POST['is_child'] ?? false);
 
     if ($esito === 'learnt') {
+        /* "Imparata" e' della carta che si vota, padre o figlio che sia: l'altra
+           parte non cambia. Il padre serve solo a controllare che sia sua. */
         $parent_to_mark = $id_to_mark;
         if ($is_child_vote) {
             $c_row = sec_one("SELECT parent_id FROM " . fc_t('subcards') . " WHERE id_child = ?", [$id_to_mark]);
-            if ($c_row) { $parent_to_mark = (int)$c_row['parent_id']; }
+            $parent_to_mark = $c_row ? (int)$c_row['parent_id'] : 0;
         }
         /* La carta dev'essere sua: senza questo controllo si poteva riempire il
            proprio storico "imparate" con le carte di un altro. */
         if ($parent_to_mark > 0
             && sec_one("SELECT i.id FROM " . fc_t('cards') . " i JOIN " . fc_t('decks') . " c ON c.id = i.category_id
                         WHERE i.id = ? AND c.user_id = ?", [$parent_to_mark, $user_id])) {
-            sec_q("INSERT IGNORE INTO " . fc_t('learnt') . " (user_id, fc_image_id, learnt_date) VALUES (?, ?, CURDATE())",
-                  [$user_id, $parent_to_mark]);
+            sec_q("INSERT IGNORE INTO " . fc_t('learnt') . " (user_id, fc_image_id, is_child, learnt_date) VALUES (?, ?, ?, CURDATE())",
+                  [$user_id, $id_to_mark, $is_child_vote ? 1 : 0]);
         }
     }
 
@@ -417,15 +415,15 @@ if ($azione === 'grade') {
        restare "imparata": imparata vuol dire giusta, quindi passando a
        Sbagliata il segno si toglie. Risponde in JSON. */
     if (!empty($_POST['solo_voto'])) {
-        $parent_lt = $id_to_mark;
-        if ($is_child_vote) {
-            $c_row = sec_one("SELECT parent_id FROM " . fc_t('subcards') . " WHERE id_child = ?", [$id_to_mark]);
-            $parent_lt = $c_row ? (int)$c_row['parent_id'] : 0;
+        /* Una carta segnata sbagliata non resta imparata: si toglie il segno
+           a LEI (padre o figlio), non all'altra parte. La riga e' dell'utente
+           (user_id) e l'id e' quello della carta votata: niente da controllare
+           oltre, al piu' non cancella nulla. */
+        $fl_child = $is_child_vote ? 1 : 0;
+        if ($result === 'Wrong') {
+            sec_q("DELETE FROM " . fc_t('learnt') . " WHERE user_id = ? AND fc_image_id = ? AND is_child = ?", [$user_id, $id_to_mark, $fl_child]);
         }
-        if ($result === 'Wrong' && $parent_lt > 0) {
-            sec_q("DELETE FROM " . fc_t('learnt') . " WHERE user_id = ? AND fc_image_id = ?", [$user_id, $parent_lt]);
-        }
-        $imparata = $parent_lt > 0 && (bool)sec_one("SELECT 1 AS x FROM " . fc_t('learnt') . " WHERE user_id = ? AND fc_image_id = ?", [$user_id, $parent_lt]);
+        $imparata = (bool)sec_one("SELECT 1 AS x FROM " . fc_t('learnt') . " WHERE user_id = ? AND fc_image_id = ? AND is_child = ?", [$user_id, $id_to_mark, $fl_child]);
         $errori_qui = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('plays') . " WHERE game_id = ? AND position = ? AND user_answer = 'Wrong'",
                                     [$game_id, $position])['c'] ?? 0);
         header('Content-Type: application/json; charset=utf-8');
@@ -459,7 +457,7 @@ if ($azione === 'grade') {
            calcolato qui non coinciderebbe con $furthest_page piu' sotto. */
         $row_fronte = sec_one(
             "SELECT MAX(position) AS p FROM " . fc_t('plays') . "
-              WHERE game_id = ? AND user_answer <> '' AND user_answer <> 'Titolo'",
+              WHERE game_id = ? AND user_answer <> '' AND user_answer NOT IN ('Titolo', 'Visione')",
             [$game_id]
         );
         $fronte = ($row_fronte && $row_fronte['p']) ? (int)$row_fronte['p'] : $position;
@@ -499,13 +497,15 @@ if ($azione === 'togglelearnt') {
         exit();
     }
 
-    $gia_imparata = sec_one("SELECT 1 AS x FROM " . fc_t('learnt') . " WHERE user_id = ? AND fc_image_id = ?", [$user_id, $parent_to_mark]);
+    /* Solo la carta toccata: un padre puo' essere imparato e il figlio no. */
+    $fl_child = $is_child_vote ? 1 : 0;
+    $gia_imparata = sec_one("SELECT 1 AS x FROM " . fc_t('learnt') . " WHERE user_id = ? AND fc_image_id = ? AND is_child = ?", [$user_id, $id_to_mark, $fl_child]);
 
     if ($gia_imparata) {
-        sec_q("DELETE FROM " . fc_t('learnt') . " WHERE user_id = ? AND fc_image_id = ?", [$user_id, $parent_to_mark]);
+        sec_q("DELETE FROM " . fc_t('learnt') . " WHERE user_id = ? AND fc_image_id = ? AND is_child = ?", [$user_id, $id_to_mark, $fl_child]);
         echo json_encode(['success' => true, 'learnt' => false]);
     } else {
-        sec_q("INSERT IGNORE INTO " . fc_t('learnt') . " (user_id, fc_image_id, learnt_date) VALUES (?, ?, CURDATE())", [$user_id, $parent_to_mark]);
+        sec_q("INSERT IGNORE INTO " . fc_t('learnt') . " (user_id, fc_image_id, is_child, learnt_date) VALUES (?, ?, ?, CURDATE())", [$user_id, $id_to_mark, $fl_child]);
         echo json_encode(['success' => true, 'learnt' => true]);
     }
     exit();
@@ -649,6 +649,22 @@ if (empty($gameplays)) {
             if ($row_prev && $row_prev['user_answer'] == 'Correct') $user_answer_iniziale = 'Correct';
         }
 
+        /* PARTI SOLO DA GUARDARE. In una partita "da imparare" una parte gia'
+           imparata (il padre o un figlio) resta sulla pagina ma non si gioca;
+           in una "imparate" vale il contrario. Si decide qui, quando la riga
+           nasce, e resta cosi' per tutta la partita. Un ripasso degli errori
+           ($parent_id > 0) ha gia' le sue carte scelte: nessuna 'Visione'.
+           Un titolo resta 'Titolo'. */
+        $stato_partita = (string)($game_info['card_status'] ?? 'all');
+        $solo_vista = ($parent_id == 0 && ($stato_partita === '0' || $stato_partita === '1'));
+        if ($solo_vista) $imp_ora = fc_insiemi_imparate((int)$user_id);
+        $e_da_guardare = function (bool $figlio, int $id) use ($solo_vista, &$imp_ora, $stato_partita): bool {
+            if (!$solo_vista) return false;
+            $imparata = isset($imp_ora[$figlio ? 'c' : 'p'][$id]);
+            return $stato_partita === '0' ? $imparata : !$imparata;
+        };
+        if ($user_answer_iniziale === '' && $e_da_guardare(false, $img_id)) $user_answer_iniziale = 'Visione';
+
         sec_q("INSERT IGNORE INTO " . fc_t('plays') . " (game_id, fc_image_id, correct_answer, user_answer, position)
                VALUES (?, ?, ?, ?, ?)", [$game_id, $img_id, $correct_ans, $user_answer_iniziale, $position]);
 
@@ -663,6 +679,8 @@ if (empty($gameplays)) {
                     $row_prev_c = sec_one("SELECT user_answer FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_child_id = ?", [$parent_id, $c_id]);
                     if ($row_prev_c && $row_prev_c['user_answer'] == 'Correct') $child_user_answer_iniziale = 'Correct';
                 }
+
+                if ($child_user_answer_iniziale === '' && $e_da_guardare(true, $c_id)) $child_user_answer_iniziale = 'Visione';
 
                 sec_q("INSERT IGNORE INTO " . fc_t('plays') . " (game_id, fc_child_id, correct_answer, user_answer, position)
                        VALUES (?, ?, ?, ?, ?)", [$game_id, $c_id, $c_ans, $child_user_answer_iniziale, $position]);
@@ -687,10 +705,8 @@ if (empty($gameplays)) {
 
 // 4. Preparazione Dati Visuali per la Pagina
 
-$learnt_ids_set = array_flip(array_column(
-    sec_all("SELECT fc_image_id FROM " . fc_t('learnt') . " WHERE user_id = ?", [$user_id]),
-    'fc_image_id'
-));
+/* Le carte imparate, padri e figli separati: ['p' => [...], 'c' => [...]] */
+$learnt_ids_set = fc_insiemi_imparate((int)$user_id);
 /* Due insiemi separati: un preferito puo' essere su un padre o su un singolo
    figlio (la tabella ha entrambe le colonne). */
 $fav_padri_set = [];
@@ -743,10 +759,11 @@ foreach ($gameplays as $gp) {
         $card['user_answer'] = $gp['user_answer'];
 
         $card['is_titolo'] = ($gp['user_answer'] === 'Titolo');
+        $card['solo_vista'] = ($gp['user_answer'] === 'Visione');
 
         $learnt_parent_id = $card['is_child'] ? (int)($card['parent_id'] ?? 0) : (int)$card['gameplay_idimmagine'];
         $card['learnt_parent_id'] = $learnt_parent_id;
-        $card['is_learnt'] = isset($learnt_ids_set[$learnt_parent_id]);
+        $card['is_learnt'] = isset($learnt_ids_set[$card['is_child'] ? 'c' : 'p'][(int)$card['gameplay_idimmagine']]);
         $card['is_favorite'] = $card['is_child']
             ? isset($fav_figli_set[(int)$card['gameplay_idimmagine']])
             : isset($fav_padri_set[(int)$card['gameplay_idimmagine']]);
@@ -834,11 +851,12 @@ if (true) { /* lingue e studio */
 
 // 5. Calcoli Progresso e Statistiche DOPPIA BARRA
 
-$played_data = sec_one("SELECT COUNT(DISTINCT position) AS c, COUNT(*) AS c2 FROM " . fc_t('plays') . " WHERE game_id = ?", [$game_id]);
+/* c2 = carte (parti) giocate: le righe 'Visione' sono parti solo da guardare e non contano */
+$played_data = sec_one("SELECT COUNT(DISTINCT position) AS c, SUM(COALESCE(user_answer, '') <> 'Visione') AS c2 FROM " . fc_t('plays') . " WHERE game_id = ?", [$game_id]);
 
 $played_count = $played_data['c'];
 
-$played_cards_count = $played_data['c2'];
+$played_cards_count = (int)$played_data['c2'];
 
 
 
@@ -893,27 +911,29 @@ if ($parent_id > 0) {
     // POSIZIONI RIMANENTI
 
         /* ordine: i parametri di $where_learnt, poi quelli di $cat_filter, poi game_id */
-    $to_play_count = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('cards') . " WHERE $where_learnt $cat_filter
-                                    AND id NOT IN (SELECT fc_image_id FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_image_id IS NOT NULL)",
+    $to_play_count = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('cards') . " i WHERE $where_learnt $cat_filter
+                                    AND i.id NOT IN (SELECT fc_image_id FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_image_id IS NOT NULL)",
                                    array_merge($learnt_par, $cat_par, [$game_id]))['c'] ?? 0);
 
 
 
     // CARTE SINGOLE RIMANENTI
-
-        /* $where_learnt e $cat_filter compaiono DUE volte (i due rami della UNION):
-       i loro parametri vanno ripetuti nello stesso ordine. E' il punto piu'
-       delicato del file. */
+    /* Si contano le PARTI che si giocheranno: il padre se la sua parte
+       corrisponde al filtro, e ogni figlio che corrisponde. Le parti che non
+       corrispondono resteranno sulla pagina solo da guardare ('Visione') e
+       non fanno parte del totale. */
+    $parte_padre  = fc_sql_parte_stato('i.id', false, $status, (int)$user_id);
+    $parte_figlio = fc_sql_parte_stato('c.id_child', true, $status, (int)$user_id);
     $to_play_cards_count = (int)(sec_one("
         SELECT SUM(cnt) AS c FROM (
-            SELECT COUNT(*) AS cnt FROM " . fc_t('cards') . " WHERE $where_learnt $cat_filter
-                AND id NOT IN (SELECT fc_image_id FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_image_id IS NOT NULL)
+            SELECT COUNT(*) AS cnt FROM " . fc_t('cards') . " i WHERE $where_learnt $cat_filter AND $parte_padre
+                AND i.id NOT IN (SELECT fc_image_id FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_image_id IS NOT NULL)
             UNION ALL
             SELECT COUNT(*) AS cnt FROM " . fc_t('subcards') . " c JOIN " . fc_t('cards') . " i ON c.parent_id = i.id AND i.is_father = 1
-             WHERE $where_learnt $cat_filter
+             WHERE $where_learnt $cat_filter AND $parte_figlio
                 AND i.id NOT IN (SELECT fc_image_id FROM " . fc_t('plays') . " WHERE game_id = ? AND fc_image_id IS NOT NULL)
         ) AS t",
-        array_merge($learnt_par, $cat_par, [$game_id], $learnt_par, $cat_par, [$game_id]))['c'] ?? 0);
+        array_merge($cat_par, [$game_id], $cat_par, [$game_id]))['c'] ?? 0);
 
     /* UNA PARTITA SU UNA PARTE DEI MAZZI (20/10/2026): "solo le difficili"
        (fc_game_start ?solo=difficili) mette nella sequenza meno carte di
@@ -935,9 +955,12 @@ if ($parent_id > 0) {
     $seq_tot = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('sequence') . " WHERE game_id = ?", [$game_id])['c'] ?? 0);
     if ($seq_tot > 0) {
         $to_play_count = $seq_n;
-        $to_play_cards_count = $seq_n + (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('subcards') . " ch
-                                                        JOIN " . fc_t('cards') . " i ON i.id = ch.parent_id AND i.is_father = 1
-                                                       WHERE ch.parent_id IN ($seq_rest)", [$game_id, $game_id])['c'] ?? 0);
+        /* le sole parti che si giocano (vedi sopra): padre e figli che corrispondono al filtro */
+        $seq_padri = (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('cards') . " i
+                                     WHERE i.id IN ($seq_rest) AND $parte_padre", [$game_id, $game_id])['c'] ?? 0);
+        $to_play_cards_count = $seq_padri + (int)(sec_one("SELECT COUNT(*) AS c FROM " . fc_t('subcards') . " c
+                                                        JOIN " . fc_t('cards') . " i ON i.id = c.parent_id AND i.is_father = 1
+                                                       WHERE c.parent_id IN ($seq_rest) AND $parte_figlio", [$game_id, $game_id])['c'] ?? 0);
     }
 
 }
@@ -1016,7 +1039,7 @@ foreach ($q_hist as $h) {
        e' davvero - quindi contarlo come "risposto" spingeva la barra fino
        alla posizione piu' lontana mai precaricata, non a quella raggiunta.
        Era questo a farla arrivare sempre troppo avanti. */
-    $ans_e_risposta = ($ans !== '' && $ans !== 'Titolo');
+    $ans_e_risposta = ($ans !== '' && !fc_senza_voto($ans));
 
     
 
@@ -1978,7 +2001,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 <?php continue; endif; ?>
 
-                <div class="card-box <?php echo $is_graded ? 'graded' : ''; ?><?php if ($is_graded) echo ($c['user_answer'] == 'Correct') ? ' res-correct' : ' res-wrong'; ?><?php if (count($cards_to_show) <= 1) echo ' senza-etichetta'; ?><?php echo $c['is_favorite'] ? ' is-favorita' : ''; ?>" id="card-<?php echo sec_h($index); ?>"
+                <div class="card-box <?php echo $is_graded ? 'graded' : ''; ?><?php if ($is_graded) echo ($c['user_answer'] === 'Visione') ? ' res-vista' : (($c['user_answer'] == 'Correct') ? ' res-correct' : ' res-wrong'); ?><?php if (count($cards_to_show) <= 1) echo ' senza-etichetta'; ?><?php echo $c['is_favorite'] ? ' is-favorita' : ''; ?>" id="card-<?php echo sec_h($index); ?>"
 
                      data-card-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>"
                      data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-position="<?php echo (int)$position; ?>"
@@ -2076,8 +2099,12 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                     <?php else: $vd_ok = ($c['user_answer'] == 'Correct'); ?>
                     <div class="graded-head fcv-graded-head">
                         <div class="vd-gruppo">
+                            <?php if ($c['user_answer'] === 'Visione'): /* parte solo da guardare: niente verdetto da dare o cambiare */ ?>
+                            <span class="status-pill vd-vista" title="<?php echo sec_h(t('fc.gm_solo_vista_tip')); ?>"><span class="gi">&#128065;</span> <span class="vd-txt"><?php te('fc.gm_solo_vista'); ?></span></span>
+                            <?php else: ?>
                             <button type="button" class="status-pill vd-btn <?php echo $vd_ok ? 'ok' : 'ko'; ?>" aria-haspopup="menu" aria-label="<?php te('fc.gm_cambia_verdetto'); ?>"><span class="gi"><?php echo $vd_ok ? '&#10003;' : '&#10005;'; ?></span> <span class="vd-txt"><?php echo sec_h(t($vd_ok ? 'fc.lbl_corretto' : 'fc.lbl_errato')); ?></span><svg class="vd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button>
-                            <button type="button" class="btn gc-learnt gc-learnt-mini<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-on-click="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"<?php echo $vd_ok ? '' : ' hidden'; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
+                            <?php endif; ?>
+                            <button type="button" class="btn gc-learnt gc-learnt-mini<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-on-click="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"<?php echo ($vd_ok || $c['user_answer'] === 'Visione') ? '' : ' hidden'; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
                         </div>
                     </div>
                     <?php endif; ?>
@@ -2164,8 +2191,12 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                              accanto a "Giusta" c'e' il tastino "imparata". */ ?>
                     <div class="graded-head fcv-graded-head">
                         <div class="vd-gruppo">
+                            <?php if ($c['user_answer'] === 'Visione'): /* parte solo da guardare: niente verdetto da dare o cambiare */ ?>
+                            <span class="status-pill vd-vista" title="<?php echo sec_h(t('fc.gm_solo_vista_tip')); ?>"><span class="gi">&#128065;</span> <span class="vd-txt"><?php te('fc.gm_solo_vista'); ?></span></span>
+                            <?php else: ?>
                             <button type="button" class="status-pill vd-btn <?php echo $vd_ok ? 'ok' : 'ko'; ?>" aria-haspopup="menu" aria-label="<?php te('fc.gm_cambia_verdetto'); ?>"><span class="gi"><?php echo $vd_ok ? '&#10003;' : '&#10005;'; ?></span> <span class="vd-txt"><?php echo sec_h(t($vd_ok ? 'fc.lbl_corretto' : 'fc.lbl_errato')); ?></span><svg class="vd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button>
-                            <button type="button" class="btn gc-learnt gc-learnt-mini<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-on-click="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"<?php echo $vd_ok ? '' : ' hidden'; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
+                            <?php endif; ?>
+                            <button type="button" class="btn gc-learnt gc-learnt-mini<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-on-click="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"<?php echo ($vd_ok || $c['user_answer'] === 'Visione') ? '' : ' hidden'; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
                         </div>
                     </div>
                     <?php endif; ?>

@@ -3337,6 +3337,8 @@
     "exm_autosave_breve": "Auto save",
     "exm_conferma_uscita": "Ci sono modifiche non salvate: uscendo andranno perse. Vuoi davvero uscire senza salvare?",
     "res_da_fare": "Da fare",
+    "gm_solo_vista": "Solo da vedere",
+    "gm_solo_vista_tip": "Fa parte di questa carta ma non è tra quelle da giocare: la vedi, non la voti.",
     "gm_offline": "Connessione assente",
     "gm_in_attesa_salvataggio": "In attesa di connessione per salvare la risposta",
     "gm_imparato_errore": "Non salvato, riprova",

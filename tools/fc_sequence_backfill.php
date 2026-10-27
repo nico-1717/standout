@@ -96,10 +96,10 @@ foreach ($partite as $p) {
 
             $par = [];
             if ($stato === '1') {
-                $where = 'i.id IN (SELECT fc_image_id FROM fc_study_learnt WHERE user_id = ?)';
+                $where = 'i.id IN (SELECT fc_image_id FROM fc_study_learnt WHERE user_id = ? AND is_child = 0)';
                 $par[] = $current_user_id;
             } elseif ($stato === '0') {
-                $where = 'i.id NOT IN (SELECT fc_image_id FROM fc_study_learnt WHERE user_id = ?)';
+                $where = 'i.id NOT IN (SELECT fc_image_id FROM fc_study_learnt WHERE user_id = ? AND is_child = 0)';
                 $par[] = $current_user_id;
             } else {
                 $where = '1=1';

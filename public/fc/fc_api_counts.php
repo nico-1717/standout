@@ -26,15 +26,8 @@ $status = sec_enum($_GET['status'] ?? null, ['all', '1', '0'], '0');
 /* Le tre forme della clausola sono scritte per esteso: prima "$where" veniva
    composto e incollato nella query. */
 $par = [];
-if ($status === 'all') {
-    $where = '1=1';
-} elseif ($status === '1') {
-    $where = 'i.id IN (SELECT fc_image_id FROM ' . fc_t('learnt') . ' WHERE user_id = ?)';
-    $par[] = $current_user_id;
-} else {
-    $where = 'i.id NOT IN (SELECT fc_image_id FROM ' . fc_t('learnt') . ' WHERE user_id = ?)';
-    $par[] = $current_user_id;
-}
+/* una carta conta se almeno una sua parte (padre o figlio) corrisponde al filtro */
+$where = fc_sql_stato_imparata('i', $status, (int)$current_user_id);
 
 /* La JOIN su fc_study_decks con user_id e' quello che mancava: senza, i
    conteggi comprendevano le schede di tutti gli utenti. */

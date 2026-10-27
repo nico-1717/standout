@@ -461,15 +461,10 @@ if ($all_categories) {
     }
     /* le risposte, dalla piu' vecchia: come in fcv_stats_carte */
     $fcm_carte = [];
-    /* imparate col tastino (sta sulla carta padre, vale per le sue sottocarte) */
+    /* imparate col tastino: ogni carta ha il suo, padre e figli separati (chiavi 'p<id>' / 'c<id>') */
     $fcm_tastino = [];
-    foreach (sec_all("SELECT fc_image_id FROM " . fc_t('learnt') . " WHERE user_id = ?", [(int)$current_user_id]) as $r) $fcm_tastino[(int)$r['fc_image_id']] = true;
-    $fcm_padre_di = [];
-    foreach (sec_all("SELECT ch.id_child, ch.parent_id FROM " . fc_t('subcards') . " ch
-                       JOIN " . fc_t('cards') . " i ON i.id = ch.parent_id
-                       JOIN " . fc_t('decks') . " cc ON cc.id = i.category_id AND cc.user_id = ?" . $fcmW,
-                     array_merge([(int)$current_user_id], $fcmP)) as $r) {
-        $fcm_padre_di['c' . (int)$r['id_child']] = (int)$r['parent_id'];
+    foreach (sec_all("SELECT fc_image_id, is_child FROM " . fc_t('learnt') . " WHERE user_id = ?", [(int)$current_user_id]) as $r) {
+        $fcm_tastino[((int)$r['is_child'] === 1 ? 'c' : 'p') . (int)$r['fc_image_id']] = true;
     }
     foreach (sec_all("SELECT p.fc_image_id, p.fc_child_id, p.user_answer, (g.parent_id IS NOT NULL AND g.parent_id > 0) AS ripasso FROM " . fc_t('plays') . " p
                        JOIN fc_games g ON g.id = p.game_id AND g.user_id = ? AND " . fc_sql_partite('g') . "
@@ -492,8 +487,7 @@ if ($all_categories) {
         $liv = fcv_livello($st['c'], $st['w'], $st['u']);
         $fcm_stat[$mid]['liv'][$liv]++;
         /* "le sai": col tastino o al livello la_sai, come in fcv_conosciute */
-        $padre = $k[0] === 'p' ? (int)substr($k, 1) : ($fcm_padre_di[$k] ?? 0);
-        if (fcv_e_saputa($liv, $st['c'] + $st['w']) || isset($fcm_tastino[$padre])) $fcm_stat[$mid]['sai']++;
+        if (fcv_e_saputa($liv, $st['c'] + $st['w']) || isset($fcm_tastino[$k])) $fcm_stat[$mid]['sai']++;
     }
     /* le partite (le radici: un ripasso fa parte della sua partita) */
     foreach (sec_all("SELECT gd.fc_category_id AS cid, g.id, g.game_date FROM fc_games g

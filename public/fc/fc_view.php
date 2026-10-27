@@ -52,6 +52,23 @@ function fc_vis_stella(int $id, bool $figlio, int $uid): string {
          . '</button>';
 }
 
+/* "Imparata" di una SOTTOCARTA: ogni figlio ha il suo stato, indipendente da
+   quello del padre. Le carte imparate si leggono una volta sola per pagina. */
+function fc_vis_figlio_imparato(int $idFiglio, int $uid): bool {
+    static $set = null;
+    if ($set === null) $set = fc_insiemi_imparate($uid)['c'];
+    return isset($set[$idFiglio]);
+}
+
+/* La casella "imparata" di una sottocarta: la stessa della carta padre, ma
+   manda is_child=1 cosi' il server tocca solo questo figlio. */
+function fc_vis_casella_figlio(int $idFiglio, bool $imparato): string {
+    return '<label class="learnt-wrapper"><input type="checkbox" class="learnt-cb"' . ($imparato ? ' checked' : '')
+         . ' data-on-click="toggleLearnt(' . $idFiglio . ', this, 1)">'
+         . '<div class="learnt-emoji">&#129488;</div>'
+         . '<div class="learnt-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div></label>';
+}
+
 /* Filtra un elenco di id di carte tenendo solo quelle di questo utente.
    Prima non c'era: gli id del modulo finivano nelle query senza controllo, e
    cambiando i numeri si cancellavano le flashcard di un altro. */
@@ -664,7 +681,7 @@ if (isset($_GET['fc_deep_search'])) {
                 (CASE WHEN ul.fc_image_id IS NOT NULL THEN 1 ELSE 0 END) AS is_learnt
          FROM " . fc_t('cards') . " i
          JOIN " . fc_t('decks') . " c ON c.id = i.category_id AND c.user_id = ?
-         LEFT JOIN " . fc_t('learnt') . " ul ON ul.fc_image_id = i.id AND ul.user_id = ?
+         LEFT JOIN " . fc_t('learnt') . " ul ON ul.fc_image_id = i.id AND ul.is_child = 0 AND ul.user_id = ?
          WHERE i.category_id IN ($fcPh) AND (i." . fc_col_fronte() . " LIKE ? OR i." . fc_col_retro() . " LIKE ?)
          ORDER BY i.custom_order ASC, i.id ASC
          LIMIT 300",
@@ -780,7 +797,8 @@ if (isset($_GET['fc_deep_search'])) {
         ?>
         <div class="fc-group fc-deep-item" data-reorderable="0" style="--row-color:<?= sec_h($__col) ?>;">
             <div class="fc-children">
-                <div class="fc-card fc-child" data-id="<?= (int)$__row['id'] ?>" data-type="child"
+                <?php $__figlioImp = fc_vis_figlio_imparato((int)$__row['id'], (int)$current_user_id); ?>
+                <div class="fc-card fc-child<?= $__figlioImp ? ' is-learnt' : '' ?>" data-id="<?= (int)$__row['id'] ?>" data-type="child"
                      data-parent-id="<?= (int)$__row['parent_id'] ?>" data-search="<?= $__search ?>"
                      data-duplicate="false" data-reorderable="0"
                      data-edit-url="<?= sec_h(fc_url('fc_card_edit.php', ['child_id' => (int)$__row['id'], 'previous_catid' => (int)$__cid])) ?>">
@@ -797,6 +815,7 @@ if (isset($_GET['fc_deep_search'])) {
                     <div class="swipe-content">
                         <div class="card-head">
                             <div class="child-tag"><span>&#8627;</span> <?php te('fc.vis_sotto_carta'); ?></div>
+                            <?= fc_vis_casella_figlio((int)$__row['id'], $__figlioImp) ?>
                             <div class="card-head-spacer"></div>
                         </div>
                         <?php fc_lati_carta($__row); ?>
@@ -1290,7 +1309,7 @@ foreach (sec_all("SELECT i." . fc_col_fronte() . " AS question_desc FROM " . fc_
 $query = "SELECT " . fc_colonne_carta('i') . ", c.name AS category_name, c.color AS category_color, (CASE WHEN ul.fc_image_id IS NOT NULL THEN 1 ELSE 0 END) as is_learnt 
           FROM " . fc_t('cards') . " AS i 
           JOIN " . fc_t('decks') . " AS c ON i.category_id = c.id 
-          LEFT JOIN " . fc_t('learnt') . " ul ON i.id = ul.fc_image_id AND ul.user_id = ? 
+          LEFT JOIN " . fc_t('learnt') . " ul ON i.id = ul.fc_image_id AND ul.is_child = 0 AND ul.user_id = ? 
           WHERE c.user_id = ?" . $fcW;
 
 // Se è selezionata una categoria specifica, aggiunge la condizione con AND invece di WHERE
@@ -2119,7 +2138,8 @@ function fc_stampa_gruppi($da, $quanti) {
 
                         ?>
 
-                        <div class="fc-card fc-child" data-id="<?= (int)$child['id'] ?>" data-type="child" data-parent-id="<?= (int)$row['id'] ?>"
+                        <?php $__figlioImp = fc_vis_figlio_imparato((int)$child['id'], (int)$current_user_id); ?>
+                        <div class="fc-card fc-child<?= $__figlioImp ? ' is-learnt' : '' ?>" data-id="<?= (int)$child['id'] ?>" data-type="child" data-parent-id="<?= (int)$row['id'] ?>"
 
                              data-search="<?= sec_h($searchChild) ?>" data-duplicate="false" data-reorderable="<?= $child_reorder_enabled ? '1' : '0' ?>"<?php if (isset($fcv_livelli['c' . (int)$child['id']])): ?> data-livello="<?= sec_h($fcv_livelli['c' . (int)$child['id']]) ?>"<?php endif; ?>
 
@@ -2155,6 +2175,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                                     <div class="child-tag"><span>↳</span> <?php te('fc.vis_sotto_carta'); ?></div>
 
+                                    <?= fc_vis_casella_figlio((int)$child['id'], $__figlioImp) ?>
                                     <?= fc_vis_stella((int)$child['id'], true, (int)$current_user_id) ?>
 
                                     <label class="select-circle">
@@ -3875,7 +3896,7 @@ function fcStellaCarta(btn){
         .then(function(){ btn.disabled = false; });
 }
 
-function toggleLearnt(id, checkbox){
+function toggleLearnt(id, checkbox, isChild){
 
     const status = checkbox.checked ? 1 : 0;
 
@@ -3911,7 +3932,7 @@ function toggleLearnt(id, checkbox){
 
     };
 
-    xhr.send("id=" + id + "&status=" + status + "&user_id=" + userId + "&type=fc");
+    xhr.send("id=" + id + "&status=" + status + "&is_child=" + (isChild ? 1 : 0) + "&user_id=" + userId + "&type=fc");
 
 }
 

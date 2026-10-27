@@ -362,31 +362,39 @@ function fr_stats(mysqli $c, int $uid, string $username = ''): array {
     $sCombo = fr_streak(array_values(array_intersect($fcGiorni, $pomoGiorni)));
 
     /* ---------- CARTE TOTALI / IMPARATE (per mastery e badge) ----------
-       Vale per studio e lingue insieme. In "learnt" c'e' sempre l'id della carta
-       padre (anche quando si impara una figlia: fc_game.php marca il padre). */
+       Vale per studio e lingue insieme. In "learnt" ogni carta ha la sua riga:
+       is_child=0 per un padre, is_child=1 per una figlia (id_child). Un padre
+       puo' essere imparato e la figlia no, e viceversa, quindi si contano le
+       due cose separate. Si contano solo le righe di carte che esistono
+       ancora e sono sue (una carta cancellata non deve far salire il conto). */
     $carteTotali = 0; $carteImparate = 0;
     $catTot = []; $catImp = [];
     foreach (FC_TABELLE as $tipo => $T) {
         // nello studio i padri sono contenitori e non contano; nelle lingue si'
         $soloFoglie = $tipo === 'study' ? 'AND i.is_father = 0' : '';
-        $r = mysqli_query($c, "SELECT COUNT(*) AS c FROM {$T['cards']} i
-                JOIN {$T['decks']} d ON i.category_id = d.id WHERE d.user_id = $uid $soloFoglie");
-        $carteTotali += $r ? (int)mysqli_fetch_assoc($r)['c'] : 0;
-        $r = mysqli_query($c, "SELECT COUNT(*) AS c FROM {$T['subcards']} s
-                JOIN {$T['cards']} i ON s.parent_id = i.id
-                JOIN {$T['decks']} d ON i.category_id = d.id WHERE d.user_id = $uid");
-        $carteTotali += $r ? (int)mysqli_fetch_assoc($r)['c'] : 0;
-        $r = mysqli_query($c, "SELECT COUNT(DISTINCT fc_image_id) AS c FROM {$T['learnt']} WHERE user_id = $uid");
-        $carteImparate += $r ? (int)mysqli_fetch_assoc($r)['c'] : 0;
-
-        // mazzo completato (serve per il badge trofeo): tutte le sue carte sono imparate
+        // (padri) totale, imparati e per mazzo
         $r = mysqli_query($c, "SELECT i.category_id AS cid, COUNT(*) AS t, SUM(l.fc_image_id IS NOT NULL) AS l
                 FROM {$T['cards']} i JOIN {$T['decks']} d ON i.category_id = d.id
-                LEFT JOIN {$T['learnt']} l ON l.fc_image_id = i.id AND l.user_id = $uid
+                LEFT JOIN {$T['learnt']} l ON l.fc_image_id = i.id AND l.is_child = 0 AND l.user_id = $uid
+                WHERE d.user_id = $uid $soloFoglie GROUP BY i.category_id");
+        while ($r && ($row = mysqli_fetch_assoc($r))) {
+            $carteTotali += (int)$row['t'];
+            $carteImparate += (int)$row['l'];
+            $catTot[$tipo . $row['cid']] = ($catTot[$tipo . $row['cid']] ?? 0) + (int)$row['t'];
+            $catImp[$tipo . $row['cid']] = ($catImp[$tipo . $row['cid']] ?? 0) + (int)$row['l'];
+        }
+        // (figlie) totale, imparate e per mazzo: la figlia sta nel mazzo del suo padre
+        $r = mysqli_query($c, "SELECT i.category_id AS cid, COUNT(*) AS t, SUM(l.fc_image_id IS NOT NULL) AS l
+                FROM {$T['subcards']} s
+                JOIN {$T['cards']} i ON s.parent_id = i.id
+                JOIN {$T['decks']} d ON i.category_id = d.id
+                LEFT JOIN {$T['learnt']} l ON l.fc_image_id = s.id_child AND l.is_child = 1 AND l.user_id = $uid
                 WHERE d.user_id = $uid GROUP BY i.category_id");
         while ($r && ($row = mysqli_fetch_assoc($r))) {
-            $catTot[$tipo . $row['cid']] = (int)$row['t'];
-            $catImp[$tipo . $row['cid']] = (int)$row['l'];
+            $carteTotali += (int)$row['t'];
+            $carteImparate += (int)$row['l'];
+            $catTot[$tipo . $row['cid']] = ($catTot[$tipo . $row['cid']] ?? 0) + (int)$row['t'];
+            $catImp[$tipo . $row['cid']] = ($catImp[$tipo . $row['cid']] ?? 0) + (int)$row['l'];
         }
     }
     $mastery = $carteTotali > 0 ? (int)round($carteImparate / $carteTotali * 100) : 0;
