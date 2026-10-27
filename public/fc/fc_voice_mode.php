@@ -55,7 +55,7 @@
             <div class="vg-group-label"><?php te('fc.vg_per_rispondere'); ?></div>
             <div class="vg-cmd-row">
                 <span class="vg-cmd-badge vg-tint-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1v.2h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_risposta'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_risposta'); ?></span></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_risposta'); ?>» / «<?php te('fc.vg_mostra'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_risposta'); ?></span></span>
             </div>
             <?php if (!fc_is_vocab()): /* le parole non hanno l'IA nel gioco */ ?>
             <div class="vg-cmd-row">
@@ -187,6 +187,12 @@ foreach (['it', 'en'] as $vg_l) {
     foreach ($vg_intenti as $vg_i) {
         $vg_comandi[$vg_l][$vg_i] = (string)(standout_cerca_chiave($vg_diz, 'fc.cmd_' . $vg_i) ?? '');
     }
+    /* Le parole "quasi giuste": come il microfono scrive spesso questi tre
+       comandi quando li sente male («swear» per «answer», «ron» per «wrong»).
+       Valgono solo dove l'utente non puo' dire altro (vedi intentiLoose). */
+    foreach (['risposta', 'corretto', 'errato'] as $vg_i) {
+        $vg_comandi[$vg_l]['vicini_' . $vg_i] = (string)(standout_cerca_chiave($vg_diz, 'fc.cmd_vicini_' . $vg_i) ?? '');
+    }
     $vg_comandi[$vg_l]['_fillers'] = (string)(standout_cerca_chiave($vg_diz, 'fc.vg_fillers') ?? '');
 }
 ?>
@@ -253,9 +259,14 @@ foreach (['it', 'en'] as $vg_l) {
     // È il "cancello": qualsiasi punto che vorrebbe (ri)avviare il micro deve
     // rispettarlo. Durante il playback il micro DEVE restare spento.
     function micPuoRiavviarsi() {
-        // Ignora isSpeakingNative se a parlare è Piper e non la voce robotica di Apple
-        var isRealNativeVoice = window.isSpeakingNative && !piperPlaybackAttivo;
-        return VG.active && VG.shouldListen && !isRealNativeVoice;
+        /* ERA QUI IL "NON MI ASCOLTA MENTRE LEGGE": la sessione del microfono
+           dura pochi secondi e poi finisce (onend). Prima, se in quel momento
+           la voce nativa stava leggendo (player flottante visibile) o era in
+           pausa (isSpeakingNative resta true dopo la pausa), il riavvio veniva
+           negato, e il micro restava sordo fino a fine lettura, o per sempre
+           se in pausa. Ma e' proprio mentre legge che serve ascoltare:
+           «risposta», «corretto», «pausa». L'eco della voce lo filtra eEco(). */
+        return VG.active && VG.shouldListen;
     }
 
     function apriGatePiper() {
@@ -505,6 +516,65 @@ foreach (['it', 'en'] as $vg_l) {
 
         if (best && best.score >= MATCH_SIM_MIN && best.weighted >= MATCH_WEIGHTED_MIN) return best;
         return null;
+    }
+
+    /* ---- RICONOSCIMENTO "LARGO" -------------------------------------------
+       Ci sono momenti in cui l'utente puo' dire solo due o tre cose: con la
+       domanda davanti «risposta» (o «show»), con la risposta aperta «giusto»
+       o «sbagliato». Li' un suono che somiglia anche solo un po' a uno di quei
+       comandi E' quel comando: il microfono scrive «swear» per «answer», «ron»
+       o «long» per «wrong», «write» per «right», e la somiglianza di lettere
+       da sola non ci arriva. Per questo, solo in quei momenti, si guarda
+       anche una lista di "quasi giuste" (cmd_vicini_* nel dizionario) e una
+       somiglianza sulle sole consonanti. Gli altri comandi restano severi. */
+    var VICINI = {};
+    ['risposta', 'corretto', 'errato'].forEach(function (intento) {
+        var lista = (COMMANDS[intento] || []).slice();
+        LINGUE_CMD.forEach(function (l) { lista = lista.concat(elencoVirgole((VG_DATI.comandi[l] || {})['vicini_' + intento])); });
+        VICINI[intento] = lista.map(normalize).filter(function (f, i, a) { return f && a.indexOf(f) === i; });
+    });
+
+    function scheletro(s) { return s.replace(/[aeiouy\s]/g, ''); }
+
+    /* Il punteggio di una parola contro una frase: 1 = identiche. Le parole
+       cortissime (<=3 lettere) devono essere identiche, altrimenti "no" e
+       "ron" si scambierebbero. */
+    function punteggioLargo(c, p) {
+        if (c === p) return 1;
+        if (c.length <= 3 || p.length <= 3) return 0;
+        var s = similarity(c, p);
+        var sc = scheletro(c), sp = scheletro(p);
+        if (sc.length >= 3 && sp.length >= 3) s = Math.max(s, similarity(sc, sp) * 0.9);
+        return s;
+    }
+
+    function matchLoose(transcript, intenti) {
+        var pulito = stripFillers(normalize(transcript));
+        if (!pulito || !intenti || !intenti.length) return null;
+        var parole = pulito.split(' ').filter(Boolean);
+        if (parole.length > 4) return null;     // una frase lunga non e' un comando
+        var cand = [pulito];
+        parole.forEach(function (w) { if (w.length >= 2 && cand.indexOf(w) === -1) cand.push(w); });
+        if (parole.length > 1) cand.push(parole.join(''));   // "core ect" -> "coreect"
+
+        var migliori = [];
+        intenti.forEach(function (intento) {
+            var m = 0;
+            cand.forEach(function (c) {
+                (VICINI[intento] || []).forEach(function (p) {
+                    var s = punteggioLargo(c, p);
+                    if (s > m) m = s;
+                });
+            });
+            migliori.push({ intent: intento, score: m });
+        });
+        migliori.sort(function (a, b) { return b.score - a.score; });
+        var top = migliori[0];
+        if (!top || top.score < MATCH_SIM_MIN) return null;
+        /* Se due comandi opposti (giusto / sbagliato) hanno quasi lo stesso
+           punteggio non si indovina: meglio non votare che votare al contrario. */
+        if (migliori[1] && top.score - migliori[1].score < 0.05) return null;
+        return { intent: top.intent, score: top.score, weighted: top.score, loose: true };
     }
 
     /* ============================================================
@@ -1221,13 +1291,23 @@ foreach (['it', 'en'] as $vg_l) {
     }
 
     function doPausa() {
-        if (VOC) { try { window.speechSynthesis.pause(); } catch (e) {} setOrbState('paused'); return; }
+        if (VOC) {
+            try { window.speechSynthesis.pause(); } catch (e) {}
+            setOrbState('paused');
+            setTimeout(function () { if (micPuoRiavviarsi() && !isRecognizing) safeStart(); }, 200);
+            return;
+        }
         if (VG.phase === 'ai-audio') {
             if (typeof currentAiAudio !== 'undefined' && currentAiAudio && !currentAiAudio.paused) currentAiAudio.pause();
         } else if (window.currentUtterance !== null) {
             pauseNativeTTS();
+            /* il player flottante deve mostrare "play", non restare su "pausa" */
+            try { if (typeof setFpIcon === 'function') setFpIcon('play'); } catch (e) {}
         }
         setOrbState('paused');
+        /* In pausa si deve poter dire «riprendi»: se il micro si era fermato
+           durante la lettura, lo si riaccende subito (non fra 5s di guardiano). */
+        setTimeout(function () { if (micPuoRiavviarsi() && !isRecognizing) safeStart(); }, 200);
     }
 
     function doRiprendi() {
@@ -1324,6 +1404,34 @@ foreach (['it', 'en'] as $vg_l) {
         if (letturaFinoA && Date.now() > letturaFinoA) return false;
         var t = normalize(trascritto);
         return t.length > 0 && (' ' + letturaTesto + ' ').indexOf(' ' + t + ' ') !== -1;
+    }
+
+    /* Come eEco ma piu' larga, SOLO per il riconoscimento largo: se tutte le
+       parole sentite sono parole della lettura in corso, e' la voce che legge
+       la carta (il microfono ne sente pezzi sparsi), non l'utente. Il
+       riconoscimento largo e' permissivo, quindi senza questo filtro si
+       voterebbe da solo con il testo della risposta. */
+    function eEcoLarga(trascritto) {
+        if (!letturaTesto) return false;
+        if (letturaFinoA && Date.now() > letturaFinoA) return false;
+        var lettura = ' ' + letturaTesto + ' ';
+        var parole = normalize(trascritto).split(' ').filter(Boolean);
+        return parole.length > 0 && parole.every(function (w) { return lettura.indexOf(' ' + w + ' ') !== -1; });
+    }
+
+    /* Quali comandi si accettano "alla larga" in questo momento. Con la
+       domanda davanti si puo' dire solo «risposta»/«show» (o votare), con la
+       risposta aperta solo giusto/sbagliato. Nelle parole non vale per
+       «risposta»: li' quello che si dice e' la parola da indovinare. */
+    function intentiLoose() {
+        switch (VG.phase) {
+            case 'question': return VOC ? [] : ['risposta'];
+            case 'shatter-q': return ['risposta'];
+            case 'answer': case 'auto-ok': case 'ai-audio':
+            case 'shatter-a': case 'shatter-finished':
+                return ['corretto', 'errato'];
+            default: return [];
+        }
     }
 
     var LINGUE_RICONOSCIMENTO = ['it-IT', 'en-US', 'en-GB'];
@@ -1429,6 +1537,11 @@ foreach (['it', 'en'] as $vg_l) {
 
         recognition.onresult = function (event) {
             if (!VG.active || !VG.shouldListen) return;
+            /* La fase si riallinea PRIMA di guardare cosa si e' detto: il
+               riconoscimento largo dipende da cosa c'e' sullo schermo (domanda
+               o risposta), e la carta si puo' aprire anche con un tocco. */
+            sincronizzaFase();
+            var larghi = intentiLoose();
             // Mentre una voce-file (Piper/server) parla dalle casse, il microfono
             // può sentire NOI: alziamo l'asticella dei comandi (accettiamo solo
             // match molto netti) e non mostriamo le trascrizioni live, che
@@ -1450,6 +1563,15 @@ foreach (['it', 'en'] as $vg_l) {
                         var cand = matchIntentDetailed(res[a].transcript);
                         if (cand && (!best || cand.weighted > best.weighted)) best = cand;
                     }
+                    /* Niente di netto? Dove si puo' dire solo una o due cose,
+                       il suono piu' somigliante vince. */
+                    if (!best && larghi.length) {
+                        for (var b = 0; b < res.length; b++) {
+                            if (eEco(res[b].transcript) || eEcoLarga(res[b].transcript)) continue;
+                            var largo = matchLoose(res[b].transcript, larghi);
+                            if (largo && (!best || largo.score > best.score)) best = largo;
+                        }
+                    }
                     if (best && HANDLERS[best.intent] && (!piperStaParlando || best.weighted >= 0.8)) {
                         risultatiGiaUsati[i] = true;
                         eseguiComando(best);
@@ -1463,6 +1585,14 @@ foreach (['it', 'en'] as $vg_l) {
                        a dare la sensazione di "lento". */
                     var provv = matchIntentDetailed(res[0].transcript);
                     var parole = normalize(res[0].transcript).split(' ').length;
+                    /* Anche una "quasi giusta" nota (swear, ron, write...)
+                       si esegue subito, ma solo se identica a quella nota: il
+                       provvisorio cambia ancora, la somiglianza vaga aspetta
+                       il risultato finale. */
+                    if (!provv && larghi.length && !eEcoLarga(res[0].transcript)) {
+                        var provvLargo = matchLoose(res[0].transcript, larghi);
+                        if (provvLargo && provvLargo.score >= 0.99) provv = { intent: provvLargo.intent, score: 0.99, weighted: provvLargo.score, loose: true };
+                    }
                     if (provv && HANDLERS[provv.intent] && !piperStaParlando && provv.score >= 0.97 && parole <= 3) {
                         risultatiGiaUsati[i] = true;
                         eseguiComando(provv);
