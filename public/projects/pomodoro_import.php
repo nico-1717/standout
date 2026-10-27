@@ -1133,7 +1133,7 @@ if ($ie_direct && isset($_GET['ie_export'])) {
 if (defined('IE_RENDERED')) return;
 define('IE_RENDERED', true);
 ?>
-<style>
+<style nonce="<?php echo sec_nonce(); ?>">
 /* --- il foglio ---------------------------------------------------------- */
 .ie-overlay{ position:fixed; inset:0; z-index:9600; display:flex; align-items:flex-end; justify-content:center;
     background:rgba(0,0,0,.42); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
@@ -1282,7 +1282,7 @@ define('IE_RENDERED', true);
                 <div class="ie-title"><?php te('import.importa'); ?></div>
                 <div class="ie-sub" id="ieHeadSub"><?php te('import.pi_sottotitolo'); ?></div>
             </div>
-            <button type="button" class="ie-icon-btn" onclick="closePomodoroImport()" aria-label="<?php te('comune.chiudi'); ?>">
+            <button type="button" class="ie-icon-btn" data-on-click="closePomodoroImport()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
         </div>
@@ -1291,8 +1291,8 @@ define('IE_RENDERED', true);
 
         <div class="ie-foot" id="ieFoot">
             <div class="ie-foot-info" id="ieFootInfo"></div>
-            <button type="button" class="ie-btn-ghost" onclick="ieReset()"><?php te('import.cambia_file'); ?></button>
-            <button type="button" class="ie-btn-save" id="ieSaveBtn" onclick="ieSave()"><?php te('comune.salva'); ?></button>
+            <button type="button" class="ie-btn-ghost" data-on-click="ieReset()"><?php te('import.cambia_file'); ?></button>
+            <button type="button" class="ie-btn-save" id="ieSaveBtn" data-on-click="ieSave()"><?php te('comune.salva'); ?></button>
         </div>
     </div>
 </div>
@@ -1321,7 +1321,7 @@ define('IE_RENDERED', true);
           $ps_render_trigger, $ps_hidden_name, $ps_exclude_id, $ps_trigger_class);
 ?>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function () {
     'use strict';
 
@@ -1419,7 +1419,7 @@ define('IE_RENDERED', true);
                 '<div class="ie-drop-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v13"/></svg></div>' +
                 '<div class="ie-drop-title">' + esc(T('import.scegli_file')) + '</div>' +
                 '<div class="ie-drop-text">' + esc(T('import.trascina')) + '<br>' + esc(T('import.formati')) + '</div>' +
-                '<button type="button" class="ie-drop-btn" onclick="ieBrowse()">' + esc(T('import.sfoglia')) + '</button>' +
+                '<button type="button" class="ie-drop-btn" data-on-click="ieBrowse()">' + esc(T('import.sfoglia')) + '</button>' +
             '</div>' +
             '<div class="ie-hint">' + T('import.pi_hint') + '</div>';
         ieBindDrop();
@@ -1436,7 +1436,7 @@ define('IE_RENDERED', true);
             '<div class="ie-error">' +
                 '<div class="ie-error-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>' +
                 '<div class="ie-error-text">' + esc(msg) + '</div>' +
-                '<button type="button" class="ie-drop-btn" onclick="ieReset()">' + esc(T('import.riprova')) + '</button>' +
+                '<button type="button" class="ie-drop-btn" data-on-click="ieReset()">' + esc(T('import.riprova')) + '</button>' +
             '</div>';
     }
 
@@ -1507,7 +1507,7 @@ define('IE_RENDERED', true);
                 (s.skipped ? ieStat(s.skipped, T('import.pi_ignorate')) : '') +
             '</div>' + cols + warn +
             '<div class="ie-section" id="ieSec1">' +
-                '<div class="ie-sec-head" onclick="ieToggleSec(\'ieSec1\')">' +
+                '<div class="ie-sec-head" data-on-click="ieToggleSec(\'ieSec1\')">' +
                     '<span class="ie-sec-num">1</span><span class="ie-sec-title">' + T('import.pi_progetti') + '</span>' +
                     '<span class="ie-sec-count" id="ieSec1Count"></span>' +
                     '<svg class="ie-sec-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>' +
@@ -1515,7 +1515,7 @@ define('IE_RENDERED', true);
                 '<div class="ie-sec-body" id="ieProjects"></div>' +
             '</div>' +
             '<div class="ie-section" id="ieSec2">' +
-                '<div class="ie-sec-head" onclick="ieToggleSec(\'ieSec2\')">' +
+                '<div class="ie-sec-head" data-on-click="ieToggleSec(\'ieSec2\')">' +
                     '<span class="ie-sec-num">2</span><span class="ie-sec-title">' + T('import.pi_sessioni') + '</span>' +
                     '<span class="ie-sec-count" id="ieSec2Count"></span>' +
                     '<svg class="ie-sec-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>' +
@@ -1542,14 +1542,14 @@ define('IE_RENDERED', true);
         var m = IE.map[kind === 'list' ? 'lists' : 'titles'][key];
         var color = m ? m.color : GREY;
         var name = m ? m.name : origName;
-        var h = '<div class="ie-row" style="--row-color:' + esc(color) + ';" data-row="' + kind + ':' + key + '" onclick="iePick(\'' + kind + '\',\'' + key + '\')">' +
+        var h = '<div class="ie-row" style="--row-color:' + esc(color) + ';" data-row="' + kind + ':' + key + '" data-on-click="iePick(\'' + kind + '\',\'' + key + '\')">' +
             '<span class="ie-dot"></span>' +
             '<div class="ie-names">' +
                 '<div class="ie-name' + (isSub ? ' ie-name-sub' : '') + '">' + esc(name) + '</div>' +
                 (m ? '<div class="ie-from">' + esc(T('import.pi_dal_file', { nome: origName })) + '</div>' : '') +
             '</div>';
         if (!m) h += '<span class="ie-tag">' + T('import.pi_nuovo') + '</span>';
-        else h += '<button type="button" class="ie-restore" aria-label="' + esc(T('import.pi_ripristina')) + '" onclick="event.stopPropagation();ieRestore(\'' + kind + '\',\'' + key + '\')">' +
+        else h += '<button type="button" class="ie-restore" aria-label="' + esc(T('import.pi_ripristina')) + '" data-on-click="event.stopPropagation();ieRestore(\'' + kind + '\',\'' + key + '\')">' +
                 '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>';
         return h + '</div>';
     }
@@ -1626,7 +1626,7 @@ define('IE_RENDERED', true);
             '</div>';
         }
         if (n < list.length) {
-            html += '<button type="button" class="ie-more" onclick="ieMore()">' + T('import.pi_mostra_altre', { n: Math.min(PAGE, list.length - n), di: list.length - n }) + '</button>';
+            html += '<button type="button" class="ie-more" data-on-click="ieMore()">' + T('import.pi_mostra_altre', { n: Math.min(PAGE, list.length - n), di: list.length - n }) + '</button>';
         }
         byId('ieSessions').innerHTML = html;
         byId('ieSec2Count').textContent = T(list.length === 1 ? 'import.pi_n_sessione' : 'import.pi_n_sessioni', { n: list.length });
@@ -1855,7 +1855,7 @@ define('IE_RENDERED', true);
                         '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>' +
                     '<div class="ie-drop-title">' + esc(T('import.fatto')) + '</div>' +
                     '<div class="ie-error-text">' + esc(T('import.pi_esito_sessioni', { n: d.sessions })) + '<br>' + esc(T('import.pi_esito_progetti', { n: d.projects })) + '</div>' +
-                    '<button type="button" class="ie-drop-btn" onclick="location.reload()">' + esc(T('import.chiudi_aggiorna')) + '</button>' +
+                    '<button type="button" class="ie-drop-btn" data-on-click="location.reload()">' + esc(T('import.chiudi_aggiorna')) + '</button>' +
                 '</div>';
             setTimeout(function () { location.reload(); }, 1800);
         })

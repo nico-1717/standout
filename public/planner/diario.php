@@ -183,7 +183,7 @@ $boot = [
 /* il popup condiviso porta anche window.standoutFace: le faccine a matita */
 include __DIR__ . '/diario_giorno.php';
 ?>
-<script>window.DY_BOOT = <?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
+<script nonce="<?php echo sec_nonce(); ?>">window.DY_BOOT = <?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
 <?php include __DIR__ . '/../partials/sidebar.php'; ?>
 <script src="diario.js?v=<?php echo @filemtime(__DIR__ . '/diario.js') ?: time(); ?>"></script>
 </body>

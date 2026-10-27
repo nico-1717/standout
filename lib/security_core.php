@@ -54,6 +54,26 @@ function sec_is_local(): bool {
 }
 
 /** Chiamata automaticamente al primo include: forza https e manda gli header. */
+/* Il "nonce" della Content-Security-Policy: un codice casuale nuovo a ogni
+   richiesta. La CSP dice al browser "esegui solo gli <script> e applica solo gli
+   <style> che portano questo codice"; chi riesce a infilare un suo <script> nella
+   pagina non lo conosce e il browser lo rifiuta. Va scritto a mano nei template:
+       <script nonce="<?php echo sec_nonce(); ?>">
+   NON si puo' aggiungere "da fuori" a tutta la pagina con un filtro d'uscita:
+   metterebbe il codice anche sugli script dell'attaccante e non servirebbe a niente. */
+function sec_nonce(): string {
+    static $n = null;
+    if ($n === null) $n = rtrim(strtr(base64_encode(random_bytes(16)), '+/', '-_'), '=');
+    return $n;
+}
+
+/* Cartella degli asset (con la barra finale), per le poche pagine di servizio che
+   non passano da pwa_head_html(). */
+function sec_base_assets(): string {
+    $base = defined('PWA_BASE') ? (string)PWA_BASE : '/';
+    return $base . '_assets/js/';
+}
+
 function sec_boot_headers(): void {
     static $done = false;
     if ($done) return;
@@ -93,14 +113,14 @@ function sec_boot_headers(): void {
     header('X-Permitted-Cross-Domain-Policies: none');
 
     // Content Security Policy.
-    // 'unsafe-inline' su style e script resta necessario finche' le pagine
-    // hanno <style>/<script> inline: e' documentato qui per non dimenticarlo.
-    // Misura del 2026-10-27: ~500 gestori onclick/onchange nell'HTML, ~110 blocchi
-    // <script> inline e ~600 attributi style="" in 61 file. Toglierlo a mmano senza
-    // poter provare ogni schermata nel browser romperebbe pulsanti in silenzio;
-    // il piano a tappe e' in docs/SICUREZZA_ELENCO.md. Il resto della policy
-    // (object-src, base-uri, frame-ancestors, form-action) e' gia' stretto, quindi
-    // anche con questa riga un XSS non puo' caricare script da altri siti.
+    // Script e stili inline SOLO se portano il nonce di questa richiesta (sec_nonce):
+    // un <script> infilato da un attaccante non lo ha e il browser lo rifiuta.
+    // Gli attributi onclick="..." non esistono piu': si scrive data-on-click="..." e
+    // li esegue public/_assets/js/standout_events.js (che non usa eval). Per questo
+    // script-src-attr e' 'none': anche se un onclick ricomparisse, non partirebbe.
+    // style="" negli attributi resta ammesso (style-src-attr): puo' cambiare
+    // l'aspetto ma non eseguire codice, e sono ~600 in tutto il sito.
+    $nonce = sec_nonce();
     $csp = "default-src 'self'; "
          . "base-uri 'self'; "
          . "object-src 'none'; "
@@ -124,8 +144,10 @@ function sec_boot_headers(): void {
          . "frame-src 'self' https://www.google.com; "
          . "img-src 'self' data: blob: https:; "
          . "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; "         
-         . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-         . "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+         . "style-src 'self' 'nonce-" . $nonce . "' https://fonts.googleapis.com; "
+         . "style-src-attr 'unsafe-inline'; "
+         . "script-src 'self' 'nonce-" . $nonce . "' https://cdn.jsdelivr.net; "
+         . "script-src-attr 'none'; "
          . "connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com";
     header('Content-Security-Policy: ' . $csp);
 }
@@ -483,7 +505,7 @@ function sec_require_csrf(): void {
             $h = function (string $k): string { return htmlspecialchars(t($k), ENT_QUOTES, 'UTF-8'); };
             echo '<!DOCTYPE html><html lang="' . standout_lingua() . '"><head><meta charset="utf-8">'
                . '<meta name="viewport" content="width=device-width,initial-scale=1">'
-               . '<title>' . $h('api.csrf_titolo') . '</title><style>'
+               . '<title>' . $h('api.csrf_titolo') . '</title><style nonce="' . sec_nonce() . '">'
                . 'body{margin:0;min-height:100vh;display:grid;place-items:center;background:#FBF9F6;'
                . 'color:#4C463F;font-family:system-ui,-apple-system,sans-serif;padding:28px;text-align:center}'
                . 'h1{font-weight:500;font-size:22px;margin:0 0 10px}p{color:#8A8177;margin:0 0 22px;line-height:1.5}'
@@ -491,8 +513,8 @@ function sec_require_csrf(): void {
                . 'text-decoration:none;font-size:15px}</style></head><body><div>'
                . '<h1>' . $h('api.csrf_titolo') . '</h1>'
                . '<p>' . $h('api.csrf_testo_1') . '<br>' . $h('api.csrf_testo_2') . '</p>'
-               . '<a href="javascript:history.back()">' . $h('api.torna_indietro') . '</a>'
-               . '</div></body></html>';
+               . '<a href="#" data-on-click="history.back(); return false">' . $h('api.torna_indietro') . '</a>'
+               . '</div><script src="' . sec_base_assets() . 'standout_events.js"></script></body></html>';
             exit;
         }
         sec_die_json(t('api.sessione_scaduta'), 403, 'csrf');

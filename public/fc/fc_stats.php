@@ -617,13 +617,13 @@ if ($debugMode) {
 <div class="page">
 
     <div class="segmented seg-4 seg-period">
-        <input type="radio" id="per_7" name="period" value="7" onchange="setPeriod(7)">
+        <input type="radio" id="per_7" name="period" value="7" data-on-change="setPeriod(7)">
         <label for="per_7"><?php te('fc.7_giorni'); ?></label>
-        <input type="radio" id="per_30" name="period" value="30" checked onchange="setPeriod(30)">
+        <input type="radio" id="per_30" name="period" value="30" checked data-on-change="setPeriod(30)">
         <label for="per_30"><?php te('fc.30_giorni'); ?></label>
-        <input type="radio" id="per_90" name="period" value="90" onchange="setPeriod(90)">
+        <input type="radio" id="per_90" name="period" value="90" data-on-change="setPeriod(90)">
         <label for="per_90"><?php te('fc.90_giorni'); ?></label>
-        <input type="radio" id="per_all" name="period" value="0" onchange="setPeriod(0)">
+        <input type="radio" id="per_all" name="period" value="0" data-on-change="setPeriod(0)">
         <label for="per_all"><?php te('fc.tutto'); ?></label>
         <span class="segmented-thumb"></span>
     </div>
@@ -672,13 +672,13 @@ if ($debugMode) {
     </div>
 
     <div class="segmented seg-4 seg-tabs segmented-tabs" style="margin-bottom:16px;">
-        <input type="radio" id="tab_activity" name="stattab" value="activity" checked onchange="switchStatsTab('activity')">
+        <input type="radio" id="tab_activity" name="stattab" value="activity" checked data-on-change="switchStatsTab('activity')">
         <label for="tab_activity"><?php te('fc.attivita'); ?></label>
-        <input type="radio" id="tab_cat" name="stattab" value="cat" onchange="switchStatsTab('cat')">
+        <input type="radio" id="tab_cat" name="stattab" value="cat" data-on-change="switchStatsTab('cat')">
         <label for="tab_cat"><?php te('fc.categorie'); ?></label>
-        <input type="radio" id="tab_trend" name="stattab" value="trend" onchange="switchStatsTab('trend')">
+        <input type="radio" id="tab_trend" name="stattab" value="trend" data-on-change="switchStatsTab('trend')">
         <label for="tab_trend"><?php te('fc.andamento'); ?></label>
-        <input type="radio" id="tab_goals" name="stattab" value="goals" onchange="switchStatsTab('goals')">
+        <input type="radio" id="tab_goals" name="stattab" value="goals" data-on-change="switchStatsTab('goals')">
         <label for="tab_goals"><?php te('fc.obiettivi'); ?></label>
         <span class="segmented-thumb"></span>
     </div>
@@ -688,11 +688,11 @@ if ($debugMode) {
 
         <div class="card">
             <div class="cal-header">
-                <button type="button" class="cal-nav-btn" onclick="changeMonth(-1)" aria-label="<?php te('fc.mese_precedente'); ?>">
+                <button type="button" class="cal-nav-btn" data-on-click="changeMonth(-1)" aria-label="<?php te('fc.mese_precedente'); ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                 </button>
                 <h3 id="cal-month-title"><?php te('fc.mese_anno'); ?></h3>
-                <button type="button" class="cal-nav-btn" onclick="changeMonth(1)" aria-label="<?php te('fc.mese_successivo'); ?>">
+                <button type="button" class="cal-nav-btn" data-on-click="changeMonth(1)" aria-label="<?php te('fc.mese_successivo'); ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                 </button>
             </div>
@@ -737,19 +737,19 @@ if ($debugMode) {
             <div class="section-title"><?php te('fc.filtra_per_materia'); ?></div>
             <div class="section-sub"><?php te('fc.tocca_una_materia_per_l'); ?></div>
             <div class="cat-pills-scroll" id="catRootPills">
-                <button type="button" class="pill-cat active" data-id="all" onclick="selectCatPill(this)"><?php te('fc.tutte'); ?></button>
+                <button type="button" class="pill-cat active" data-id="all" data-on-click="selectCatPill(this)"><?php te('fc.tutte'); ?></button>
                 <?php foreach ($macro_cats as $mc): ?>
-                <button type="button" class="pill-cat" data-id="<?php echo sec_h($mc['id']); ?>" onclick="selectCatPill(this)"><?php echo sec_h($mc['name']); ?></button>
+                <button type="button" class="pill-cat" data-id="<?php echo sec_h($mc['id']); ?>" data-on-click="selectCatPill(this)"><?php echo sec_h($mc['name']); ?></button>
                 <?php endforeach; ?>
             </div>
             <div class="date-range-row">
                 <div class="date-field">
                     <label><?php te('fc.dal'); ?></label>
-                    <input type="date" id="catStart" value="<?php echo date('Y-m-d', strtotime('-30 days')); ?>" onchange="renderCategoryTab()">
+                    <input type="date" id="catStart" value="<?php echo date('Y-m-d', strtotime('-30 days')); ?>" data-on-change="renderCategoryTab()">
                 </div>
                 <div class="date-field">
                     <label><?php te('fc.al'); ?></label>
-                    <input type="date" id="catEnd" value="<?php echo date('Y-m-d'); ?>" onchange="renderCategoryTab()">
+                    <input type="date" id="catEnd" value="<?php echo date('Y-m-d'); ?>" data-on-change="renderCategoryTab()">
                 </div>
             </div>
             <div id="catTreeContainer"></div>
@@ -779,7 +779,7 @@ if ($debugMode) {
 
       <div id="catDeepDiveSection" style="display:none;">
 
-        <button type="button" class="dd-back-btn" onclick="closeCatDeepDive()">
+        <button type="button" class="dd-back-btn" data-on-click="closeCatDeepDive()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
             <?php te('fc.panoramica_categorie'); ?>
         </button>
@@ -793,12 +793,12 @@ if ($debugMode) {
                 </div>
             </div>
             <div class="dd-period-scroll" id="ddPeriodPills">
-                <button type="button" class="pill-cat" data-days="1" onclick="setDeepDivePeriod(1, this)"><?php te('comune.oggi'); ?></button>
-                <button type="button" class="pill-cat" data-days="3" onclick="setDeepDivePeriod(3, this)"><?php te('fc.3_giorni'); ?></button>
-                <button type="button" class="pill-cat" data-days="7" onclick="setDeepDivePeriod(7, this)"><?php te('fc.7_giorni'); ?></button>
-                <button type="button" class="pill-cat" data-days="30" onclick="setDeepDivePeriod(30, this)"><?php te('fc.30_giorni'); ?></button>
-                <button type="button" class="pill-cat" data-days="90" onclick="setDeepDivePeriod(90, this)"><?php te('fc.90_giorni'); ?></button>
-                <button type="button" class="pill-cat active" data-days="0" onclick="setDeepDivePeriod(0, this)"><?php te('fc.tutto'); ?></button>
+                <button type="button" class="pill-cat" data-days="1" data-on-click="setDeepDivePeriod(1, this)"><?php te('comune.oggi'); ?></button>
+                <button type="button" class="pill-cat" data-days="3" data-on-click="setDeepDivePeriod(3, this)"><?php te('fc.3_giorni'); ?></button>
+                <button type="button" class="pill-cat" data-days="7" data-on-click="setDeepDivePeriod(7, this)"><?php te('fc.7_giorni'); ?></button>
+                <button type="button" class="pill-cat" data-days="30" data-on-click="setDeepDivePeriod(30, this)"><?php te('fc.30_giorni'); ?></button>
+                <button type="button" class="pill-cat" data-days="90" data-on-click="setDeepDivePeriod(90, this)"><?php te('fc.90_giorni'); ?></button>
+                <button type="button" class="pill-cat active" data-days="0" data-on-click="setDeepDivePeriod(0, this)"><?php te('fc.tutto'); ?></button>
             </div>
 
             <div class="dd-hero-scroll">
@@ -995,11 +995,11 @@ if ($debugMode) {
                 <div class="goal-controls">
                     <div class="goal-controls-label"><?php te('fc.obiettivo_carte_al_giorno'); ?></div>
                     <div class="stepper">
-                        <button type="button" class="stepper-btn" onclick="adjustGoal(-5)" aria-label="<?php te('fc.diminuisci'); ?>">
+                        <button type="button" class="stepper-btn" data-on-click="adjustGoal(-5)" aria-label="<?php te('fc.diminuisci'); ?>">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg>
                         </button>
                         <div class="stepper-value" id="goalStepperValue"><?php echo (int)$dailyGoal; ?></div>
-                        <button type="button" class="stepper-btn" onclick="adjustGoal(5)" aria-label="<?php te('fc.aumenta'); ?>">
+                        <button type="button" class="stepper-btn" data-on-click="adjustGoal(5)" aria-label="<?php te('fc.aumenta'); ?>">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
                         </button>
                     </div>
@@ -1045,7 +1045,7 @@ if ($debugMode) {
 </div>
 
 <?php echo standout_i18n_json(['comune', 'fc']); ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 // ==========================================
 // DATI EMBEDDATI DAL SERVER
 // ==========================================
@@ -1495,7 +1495,7 @@ function renderCatNode(id, level, container, stats, timeStats){
     row.style.setProperty('--row-color', color);
 
     const arrowHtml = children.length > 0
-        ? `<button type="button" class="cat-arrow" onclick="event.stopPropagation(); toggleStatBranch(this)" aria-label="${T('fc.st_espandi')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></button>`
+        ? `<button type="button" class="cat-arrow" data-on-click="event.stopPropagation(); toggleStatBranch(this)" aria-label="${T('fc.st_espandi')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></button>`
         : `<span class="cat-arrow-spacer"></span>`;
 
     let accHtml = `<span class="cat-acc-pill acc-none">—</span>`;
@@ -2262,7 +2262,7 @@ function renderWorstCards(subtreeIds){
         // Otteniamo il testo grezzo (o un fallback)
         const rawDesc = info.desc || T('fc.st_senza_descrizione');
         const imgHtml = info.img
-            ? `<img class="worst-card-thumb" src="${escapeHtml(info.img)}" onerror="this.outerHTML='<span class=&quot;worst-card-thumb-fallback&quot;><svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;><path d=&quot;M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z&quot;/></svg></span>'">`
+            ? `<img class="worst-card-thumb" src="${escapeHtml(info.img)}">`
             : `<span class="worst-card-thumb-fallback"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg></span>`;
 
         const div = document.createElement('div');
@@ -2275,6 +2275,21 @@ function renderWorstCards(subtreeIds){
             </div>
             <span class="worst-card-wrong">${e.wrong}×</span>
         `;
+        /* Se la miniatura non si carica si mette l'icona al suo posto. Prima c'era un
+           onerror="..." nell'HTML: con la CSP senza 'unsafe-inline' non gira piu',
+           quindi l'ascoltatore si aggancia qui. `complete` copre l'immagine che e'
+           gia' fallita prima che l'ascoltatore esistesse. */
+        const thumb = div.querySelector('img.worst-card-thumb');
+        if (thumb) {
+            const sostituisci = () => {
+                const fb = document.createElement('span');
+                fb.className = 'worst-card-thumb-fallback';
+                fb.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>';
+                if (thumb.parentNode) thumb.parentNode.replaceChild(fb, thumb);
+            };
+            thumb.addEventListener('error', sostituisci);
+            if (thumb.complete && thumb.naturalWidth === 0) sostituisci();
+        }
         list.appendChild(div);
     });
 

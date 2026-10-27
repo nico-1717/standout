@@ -390,7 +390,7 @@ include __DIR__ . '/diario_giorno.php';
    motore del planner (planner_js.php): T() deve esistere quando parte. */
 echo standout_i18n_json(['comune', 'planner']);
 ?>
-<script>window.PL_BOOT = <?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
+<script nonce="<?php echo sec_nonce(); ?>">window.PL_BOOT = <?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
 <?php include __DIR__ . '/../partials/sidebar.php'; ?>
 <?php /* il motore del planner: le parti in js/, unite da planner_js.php */
 $plJsV = 0; foreach (glob(__DIR__ . '/js/[0-9][0-9]_*.js') ?: [] as $plJs) $plJsV = max($plJsV, (int)filemtime($plJs)); ?>

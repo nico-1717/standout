@@ -460,6 +460,6 @@ function fc_boot_json(): string {
     }
     return '<script type="application/json" id="fc-boot">'
          . json_encode($dati, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) . '</script>'
-         . "\n<script>window.FC = (function(){ try { return JSON.parse(document.getElementById('fc-boot').textContent); } catch (e) { return {tipo:'study', qs:''}; } })();"
+         . "\n<script nonce=\"" . sec_nonce() . "\">window.FC = (function(){ try { return JSON.parse(document.getElementById('fc-boot').textContent); } catch (e) { return {tipo:'study', qs:''}; } })();"
          . " window.fcUrl = function (pagina) { if (!FC.qs) return pagina; return pagina + (pagina.indexOf('?') === -1 ? '?' : '&') + FC.qs; };</script>\n";
 }

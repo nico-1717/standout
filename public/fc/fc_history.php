@@ -857,7 +857,7 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
 
 <?php echo standout_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
 <?php echo fc_boot_json(); ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function () {
     'use strict';
 

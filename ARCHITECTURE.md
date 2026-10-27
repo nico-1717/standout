@@ -7,6 +7,7 @@ Read this first; open `docs/STANDOUT_PROGETTO.md` only for conventions detail, `
 - Every query goes through `lib/security_core.php` helpers: `sec_q`, `sec_one`, `sec_all`, `sec_in`, `sec_int`, `sec_enum`, `sec_h`; writes call `sec_guard_write` (rate limit); JSON via `sec_json`; CSRF via `sec_csrf_token()` + `X-CSRF-Token` header. Never concatenate SQL.
 - Every row is scoped by `user_id`; check ownership in every query.
 - CSP (set in `security_core.php`) blocks external script/style hosts: load nothing from CDNs; vendor files live in `public/_assets/`.
+- **CSP has no `'unsafe-inline'` for scripts.** Never write `onclick="..."` (any `on*=` attribute) or a bare `<script>`/`<style>`: use `data-on-click="fn(args)"` (also `data-on-change`, `data-on-input`, `data-on-submit`, ...; run by `public/_assets/js/standout_events.js`, a tiny safe interpreter: calls, `this`, `event`, literals, `if`, `return`, few assignments - for anything more write a real function in a `.js` file) and `<script nonce="<?php echo sec_nonce(); ?>">`. `style=""` attributes are still allowed. `tools/audit_sicurezza.py` flags violations.
 - i18n: all UI text in `lang/it.json` and `lang/en.json`, used via `t()`, `te()` (echo), `T()` (JS). Keep both files in sync.
 - Comments are in Italian and explain *why*, not what. Do not rewrite working code; make minimal, targeted changes.
 - Inside `function_exists` blocks use `define()`, not `const`.

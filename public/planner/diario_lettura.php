@@ -55,7 +55,7 @@ $par = function (string $t): string {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M14.5 5L8 12l6.5 7"/></svg>
     </a>
     <span class="dn-head-sp"></span>
-    <button type="button" class="dn-btn" onclick="window.print()"><?php te('diario.dn_stampa'); ?></button>
+    <button type="button" class="dn-btn" data-on-click="window.print()"><?php te('diario.dn_stampa'); ?></button>
 </header>
 
 <main class="dn-read">

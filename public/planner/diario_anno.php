@@ -89,7 +89,7 @@ if ($anno < 2000 || $anno > 2100) $anno = (int)date('Y');
 <div class="dy-toast" id="dyToast"></div>
 
 <?php include __DIR__ . '/diario_giorno.php'; /* porta window.standoutFace */ ?>
-<script>window.DN_BOOT = <?php echo json_encode(['anno' => $anno, 'oggi' => date('Y-m-d')]); ?>;</script>
+<script nonce="<?php echo sec_nonce(); ?>">window.DN_BOOT = <?php echo json_encode(['anno' => $anno, 'oggi' => date('Y-m-d')]); ?>;</script>
 <?php include __DIR__ . '/../partials/sidebar.php'; ?>
 <script src="diario_anno.js?v=<?php echo @filemtime(__DIR__ . '/diario_anno.js') ?: 1; ?>"></script>
 </body>

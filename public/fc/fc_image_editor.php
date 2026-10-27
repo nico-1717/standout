@@ -40,7 +40,7 @@ function fc_img_box_nuova($p, $label) {
             <span><?php te('vocab.ins_scegli_foto'); ?></span>
         </span>
         <img class="img-pick-preview" id="<?php echo sec_h($p); ?>_preview" style="display:none;">
-        <button type="button" class="img-pick-remove" id="<?php echo sec_h($p); ?>_remove" style="display:none;" onclick="event.preventDefault(); fcImgRimuovi('<?php echo sec_h($p); ?>');" aria-label="<?php te('vocab.ins_rimuovi'); ?>">
+        <button type="button" class="img-pick-remove" id="<?php echo sec_h($p); ?>_remove" style="display:none;" data-on-click="event.preventDefault(); fcImgRimuovi('<?php echo sec_h($p); ?>');" aria-label="<?php te('vocab.ins_rimuovi'); ?>">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
     </label>
@@ -86,7 +86,7 @@ function fc_img_box_modifica($p, $label, $imgAttuale) {
                      per chiedersi "rimuove cosa, la domanda o la risposta?"
                      quando i due lati erano vicini. Qui e' inequivocabile. */ ?>
             <label class="img-remove-row" id="<?php echo sec_h($p); ?>_remove_row">
-                <input type="checkbox" name="remove_<?php echo sec_h($p); ?>_img" id="remove_<?php echo sec_h($p); ?>_img" value="1" onchange="fcImgToggleRimuovi('<?php echo sec_h($p); ?>')">
+                <input type="checkbox" name="remove_<?php echo sec_h($p); ?>_img" id="remove_<?php echo sec_h($p); ?>_img" value="1" data-on-change="fcImgToggleRimuovi('<?php echo sec_h($p); ?>')">
                 <?php te('vocab.mi_rimuovi_immagine'); ?>
             </label>
         </div>

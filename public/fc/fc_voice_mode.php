@@ -198,7 +198,7 @@ foreach (['it', 'en'] as $vg_l) {
 ?>
 <script type="application/json" id="vg-comandi"><?php echo json_encode(['lingua_sito' => standout_lingua(), 'comandi' => $vg_comandi, 'vocab' => fc_is_vocab(), 'lettura' => (fc_is_vocab() && isset($vg_lettura)) ? $vg_lettura : '1100'], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?></script>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function () {
     'use strict';
 
@@ -1056,7 +1056,7 @@ foreach (['it', 'en'] as $vg_l) {
         var ansBox = document.getElementById('ans-section-' + idx) || document.getElementById('graded-ans-' + idx);
         if (!ansBox) return;
         
-        var btn = ansBox.querySelector('.chip-ai[onclick*="playAI(\'' + mode + '\'"]');
+        var btn = ansBox.querySelector('.chip-ai[data-on-click*="playAI(\'' + mode + '\'"]');
         if (!btn) return;
         
         // Muta istantaneamente il TTS nativo e resetta i suoi controlli

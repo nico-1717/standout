@@ -514,7 +514,7 @@ if (!function_exists('ps_render_node')) {
 
                 <?php if ($hasChildren): ?>
 
-                <button type="button" class="ps-arrow" onclick="window.psToggleTree(<?php echo (int)$node['id']; ?>, this)" aria-label="<?php te('progetti.ps_espandi'); ?>">
+                <button type="button" class="ps-arrow" data-on-click="window.psToggleTree(<?php echo (int)$node['id']; ?>, this)" aria-label="<?php te('progetti.ps_espandi'); ?>">
 
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
 
@@ -617,7 +617,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
 <?php if (!defined('PS_ASSETS_EMITTED')): define('PS_ASSETS_EMITTED', true); ?>
 
-<style>
+<style nonce="<?php echo sec_nonce(); ?>">
 
 .ps-widget{ display:inline-block; width:100%; }
 
@@ -939,7 +939,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
             <h3 class="ps-sheet-title"><?php echo htmlspecialchars($ps_title, ENT_QUOTES); ?></h3>
 
-            <button type="button" class="ps-sheet-close" onclick="window.psClose(document.getElementById('<?php echo $ps_modal_id; ?>'))" aria-label="<?php te('comune.chiudi'); ?>">
+            <button type="button" class="ps-sheet-close" data-on-click="window.psClose(document.getElementById('<?php echo $ps_modal_id; ?>'))" aria-label="<?php te('comune.chiudi'); ?>">
 
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
 
@@ -955,7 +955,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
 
-                <input type="text" placeholder="<?php te('progetti.ps_cerca'); ?>" oninput="window.psFilterTree(this.closest('.ps-modal-overlay'), this.value)" autocomplete="off">
+                <input type="text" placeholder="<?php te('progetti.ps_cerca'); ?>" data-on-input="window.psFilterTree(this.closest('.ps-modal-overlay'), this.value)" autocomplete="off">
 
             </div>
 
@@ -1057,7 +1057,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
             <div style="padding:0 16px calc(16px + var(--safe-bottom, 0px));">
 
-                <button type="button" class="ps-create-trigger" onclick="window.psSwitchView(this.closest('.ps-modal-overlay'), 'create')">
+                <button type="button" class="ps-create-trigger" data-on-click="window.psSwitchView(this.closest('.ps-modal-overlay'), 'create')">
 
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
 
@@ -1106,9 +1106,9 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
             <div class="ps-create-actions">
 
-                <button type="button" class="ps-btn ps-btn-cancel" onclick="window.psSwitchView(this.closest('.ps-modal-overlay'), 'tree')"><?php te('comune.annulla'); ?></button>
+                <button type="button" class="ps-btn ps-btn-cancel" data-on-click="window.psSwitchView(this.closest('.ps-modal-overlay'), 'tree')"><?php te('comune.annulla'); ?></button>
 
-                <button type="button" class="ps-btn ps-btn-save" onclick="window.psSubmitCreate(this.closest('.ps-modal-overlay'))"><?php te('progetti.ps_crea'); ?></button>
+                <button type="button" class="ps-btn ps-btn-save" data-on-click="window.psSubmitCreate(this.closest('.ps-modal-overlay'))"><?php te('progetti.ps_crea'); ?></button>
 
             </div>
 
@@ -1124,7 +1124,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
 <?php if (!defined('PS_SCRIPT_EMITTED')): define('PS_SCRIPT_EMITTED', true); ?>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 (function () {
 
@@ -1418,7 +1418,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
         if (arrow) {
 
-            // Lasciamo gestire l'espansione all'attributo onclick nativo
+            // Lasciamo gestire l'espansione all'attributo data-on-click (gestito da standout_events.js)
 
             return;
 

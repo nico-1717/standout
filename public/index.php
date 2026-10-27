@@ -41,8 +41,8 @@ if ($utente_corrente) header('X-Standout-Shell: home');
 ?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Manrope:wght@400;600;700;800&display=swap" media="print" onload="this.media='all'">
-<script>document.documentElement.classList.add('lp-js');</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Manrope:wght@400;600;700;800&display=swap" media="print" data-on-load="this.media='all'">
+<script nonce="<?php echo sec_nonce(); ?>">document.documentElement.classList.add('lp-js');</script>
 <?php endif; ?>
 </head>
 <body>

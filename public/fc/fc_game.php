@@ -189,7 +189,7 @@ function fc_gioco_indizi(array $c): void {
     $esempi = array_values(array_filter((array)($c['fcv_esempi'] ?? []), function ($e) { return trim((string)$e[0]) !== ''; }));
     if ($significato === '' && !$esempi) return;
     $lingua = sec_h(fc_corso()['learn_lang']);
-    $apri = ' onclick="this.classList.add(\'is-open\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.classList.add(\'is-open\')}" role="button" tabindex="0"';
+    $apri = ' data-on-click="this.classList.add(\'is-open\')" data-on-keydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.classList.add(\'is-open\')}" role="button" tabindex="0"';
     $voce = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>';
     echo '<div class="fcv-hints">';
     if ($significato !== '') {
@@ -1315,7 +1315,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
     <?php echo standout_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
     <?php echo fc_boot_json(); ?>
 <?php standout_azione_form(); ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
     /* ================================================================
        SPIA ERRORI JS — visibile a schermo.
        Serve su iPhone/iPad, dove non c'è una console da consultare: se un
@@ -1384,7 +1384,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
 
     <?php if (!$fc_vocab): /* parole: niente formule */ ?>
-    <script>
+    <script nonce="<?php echo sec_nonce(); ?>">
 
         window.MathJax = {
 
@@ -1424,7 +1424,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
 <body class="<?php echo $fc_vocab ? 'fc-vocab' : 'fc-study'; ?>">
 
-    <script>
+    <script nonce="<?php echo sec_nonce(); ?>">
         // Stime lato server: tempo medio storico e se le ultime chiamate sono state
         // più lente del solito, per ciascuna modalità IA testuale (vedi playAI()/shatterCard()).
         window.aiPerfStats = <?php echo json_encode($ai_perf_stats_js); ?>;
@@ -1514,7 +1514,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>
                     </button>
                     <?php endif; ?>
-                    <button id="voiceGameBtn" class="icon-btn" type="button" title="<?php te('fc.gm_gioca_audio'); ?>" aria-label="<?php te('fc.gm_gioca_audio'); ?>" onclick="if(window.VoiceGameMode) VoiceGameMode.handleHeaderButton();">
+                    <button id="voiceGameBtn" class="icon-btn" type="button" title="<?php te('fc.gm_gioca_audio'); ?>" aria-label="<?php te('fc.gm_gioca_audio'); ?>" data-on-click="if(window.VoiceGameMode) VoiceGameMode.handleHeaderButton();">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
                     </button>
                 </div>
@@ -1584,7 +1584,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                 <button type="button" class="btn btn-primary fcv-gs-fatto" data-fcv-chiudi><?php te('fcv.es_fatto'); ?></button>
             </div>
         </div>
-        <script>
+        <script nonce="<?php echo sec_nonce(); ?>">
         /* Il foglio sta dentro la pagina, che a ogni carta viene sostituita con
            quella nuova: e gli script di una pagina arrivata cosi' non partono.
            Quindi tutto passa da document (una volta sola) e il foglio si
@@ -1840,7 +1840,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
             <div class="sheet-panel">
 
-                <button class="sheet-close" type="button" onclick="closeAiModal()" aria-label="<?php te('comune.chiudi'); ?>">&#10005;</button>
+                <button class="sheet-close" type="button" data-on-click="closeAiModal()" aria-label="<?php te('comune.chiudi'); ?>">&#10005;</button>
 
                 <h3 id="ai-modal-title"><?php te('fc.gm_spiegazione_ai'); ?></h3>
 
@@ -1862,7 +1862,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
             <div class="sheet-panel">
 
-                <button class="sheet-close" type="button" onclick="closeShatterModal()" aria-label="<?php te('comune.chiudi'); ?>">&#10005;</button>
+                <button class="sheet-close" type="button" data-on-click="closeShatterModal()" aria-label="<?php te('comune.chiudi'); ?>">&#10005;</button>
 
                 <h3 style="color: var(--purple);"><?php te('fc.gm_frantumata'); ?></h3>
 
@@ -1870,9 +1870,9 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 <div id="shatter-actions" class="sheet-actions" style="display:none;">
 
-                    <a href="#" id="shatter-wrong-btn" class="btn gc-wrong action-btn" onclick="closeShatterModal()" aria-label="<?php te('fc.vg_sbagliato'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
+                    <a href="#" id="shatter-wrong-btn" class="btn gc-wrong action-btn" data-on-click="closeShatterModal()" aria-label="<?php te('fc.vg_sbagliato'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
 
-                    <a href="#" id="shatter-correct-btn" class="btn gc-correct action-btn" onclick="closeShatterModal()" aria-label="<?php te('fc.res_corretto'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></a>
+                    <a href="#" id="shatter-correct-btn" class="btn gc-correct action-btn" data-on-click="closeShatterModal()" aria-label="<?php te('fc.res_corretto'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></a>
 
                 </div>
 
@@ -1886,7 +1886,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
             <div class="sheet-panel" style="text-align:center;">
 
-                <button class="sheet-close" type="button" onclick="closeTokenLimitModal()" aria-label="<?php te('comune.chiudi'); ?>">&#10005;</button>
+                <button class="sheet-close" type="button" data-on-click="closeTokenLimitModal()" aria-label="<?php te('comune.chiudi'); ?>">&#10005;</button>
 
                 <div class="limit-icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.2 2 4.5 13.4c-.4.5 0 1.1.6 1.1H10l-1 7.1c-.1.7.8 1 1.2.5l8.6-11.3c.4-.5 0-1.1-.6-1.1H14l.9-7.1c.1-.7-.8-1-1.2-.5Z"/></svg></div>
 
@@ -1896,7 +1896,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 <div class="limit-modal-sub"><?php te('fc.gm_limite_azzera'); ?></div>
 
-                <button class="btn btn-primary" type="button" onclick="closeTokenLimitModal()"><?php te('fc.gm_ho_capito'); ?></button>
+                <button class="btn btn-primary" type="button" data-on-click="closeTokenLimitModal()"><?php te('fc.gm_ho_capito'); ?></button>
 
             </div>
 
@@ -1917,7 +1917,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
         <div id="erroriElenco" class="err-elenco" style="display:none;">
             <div class="err-elenco-testa">
                 <span><?php te('fc.gm_errori_elenco'); ?></span>
-                <button type="button" class="err-elenco-chiudi" onclick="chiudiElencoErrori()" aria-label="<?php te('comune.chiudi'); ?>">
+                <button type="button" class="err-elenco-chiudi" data-on-click="chiudiElencoErrori()" aria-label="<?php te('comune.chiudi'); ?>">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
                 </button>
             </div>
@@ -1998,9 +1998,9 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                      <?php endif; ?>>
 
-                    <button type="button" class="btn-edit-fab" onclick="event.stopPropagation(); location.href='fc_card_edit.php?<?php echo sec_h($edit_param . $fc_qs_corso); ?>&return_to_game=1&game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>';" title="<?php te('comune.modifica'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                    <button type="button" class="btn-edit-fab" data-on-click="event.stopPropagation(); location.href='fc_card_edit.php?<?php echo sec_h($edit_param . $fc_qs_corso); ?>&return_to_game=1&game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>';" title="<?php te('comune.modifica'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
 
-                    <button type="button" class="btn-fav-fab<?php echo $c['is_favorite'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); toggleFavorite(this)" aria-label="<?php te('fc.gm_preferiti'); ?>" aria-pressed="<?php echo $c['is_favorite'] ? 'true' : 'false'; ?>" title="<?php te('fc.gm_preferiti'); ?>"><svg viewBox="0 0 24 24" fill="<?php echo $c['is_favorite'] ? 'currentColor' : 'none'; ?>" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2.5 3 6.6 7.2.8-5.4 4.9 1.5 7.2L12 18.2l-6.3 3.8 1.5-7.2-5.4-4.9 7.2-.8Z"/></svg></button>
+                    <button type="button" class="btn-fav-fab<?php echo $c['is_favorite'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-on-click="event.stopPropagation(); toggleFavorite(this)" aria-label="<?php te('fc.gm_preferiti'); ?>" aria-pressed="<?php echo $c['is_favorite'] ? 'true' : 'false'; ?>" title="<?php te('fc.gm_preferiti'); ?>"><svg viewBox="0 0 24 24" fill="<?php echo $c['is_favorite'] ? 'currentColor' : 'none'; ?>" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2.5 3 6.6 7.2.8-5.4 4.9 1.5 7.2L12 18.2l-6.3 3.8 1.5-7.2-5.4-4.9 7.2-.8Z"/></svg></button>
 
 
 
@@ -2012,13 +2012,13 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
 
 
-                    <div class="q-section" id="q-section-<?php echo sec_h($index); ?>" onclick="playAudioFC(<?php echo sec_h($index); ?>, 'Q')" style="cursor: pointer;">
+                    <div class="q-section" id="q-section-<?php echo sec_h($index); ?>" data-on-click="playAudioFC(<?php echo sec_h($index); ?>, 'Q')" style="cursor: pointer;">
 
                         <div class="section-title"><?php echo fc_gioco_etichetta($c, 'q'); ?></div>
 
                         <?php if (!empty($c['question_audio'])): ?>
 
-                            <audio id="player_q_<?php echo sec_h($index); ?>" src="../media/flashcard_audio/<?php echo sec_h($c['question_audio']); ?>" controls onclick="event.stopPropagation();"></audio>
+                            <audio id="player_q_<?php echo sec_h($index); ?>" src="../media/flashcard_audio/<?php echo sec_h($c['question_audio']); ?>" controls data-on-click="event.stopPropagation();"></audio>
 
                         <?php endif; ?>
 
@@ -2049,7 +2049,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                              la modalita' vocale e l'anteprima della carta dopo. */ ?>
                     <div class="fcv-slot">
                         <?php if (!$is_graded): ?>
-                        <button id="btn-show-<?php echo sec_h($index); ?>" type="button" class="fcv-reveal" onclick="revealCard(<?php echo sec_h($index); ?>)" aria-label="<?php te('fc.gm_mostra_risposta'); ?>">
+                        <button id="btn-show-<?php echo sec_h($index); ?>" type="button" class="fcv-reveal" data-on-click="revealCard(<?php echo sec_h($index); ?>)" aria-label="<?php te('fc.gm_mostra_risposta'); ?>">
                             <span class="fcv-reveal-lab"><?php echo fc_gioco_etichetta($c, 'a'); ?></span>
                             <span class="fcv-reveal-velo" aria-hidden="true"></span>
                             <span class="fcv-reveal-txt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z"/><circle cx="12" cy="12" r="3"/></svg><?php te('fc.gm_tocca_rivela'); ?></span>
@@ -2068,7 +2068,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                                 <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=wrong&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn gc-wrong action-btn" aria-label="<?php te('fc.vg_sbagliato'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
 
-                                <button type="button" class="btn gc-learnt<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); premiImparato(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
+                                <button type="button" class="btn gc-learnt<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-on-click="event.stopPropagation(); premiImparato(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
 
                                 <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=correct&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn gc-correct action-btn" aria-label="<?php te('fc.res_corretto'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></a>
 
@@ -2077,7 +2077,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                     <div class="graded-head fcv-graded-head">
                         <div class="vd-gruppo">
                             <button type="button" class="status-pill vd-btn <?php echo $vd_ok ? 'ok' : 'ko'; ?>" aria-haspopup="menu" aria-label="<?php te('fc.gm_cambia_verdetto'); ?>"><span class="gi"><?php echo $vd_ok ? '&#10003;' : '&#10005;'; ?></span> <span class="vd-txt"><?php echo sec_h(t($vd_ok ? 'fc.lbl_corretto' : 'fc.lbl_errato')); ?></span><svg class="vd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button>
-                            <button type="button" class="btn gc-learnt gc-learnt-mini<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"<?php echo $vd_ok ? '' : ' hidden'; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
+                            <button type="button" class="btn gc-learnt gc-learnt-mini<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-on-click="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"<?php echo $vd_ok ? '' : ' hidden'; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
                         </div>
                     </div>
                     <?php endif; ?>
@@ -2103,14 +2103,14 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                     <?php if (!$is_graded): ?>
                     <div class="tool-row">
 
-                        <button type="button" class="chip-shatter" onclick="shatterCard(<?php echo sec_h($index); ?>, <?php echo sec_h($cid_s); ?>, this)"><?php te('fc.gm_frantuma'); ?></button>
+                        <button type="button" class="chip-shatter" data-on-click="shatterCard(<?php echo sec_h($index); ?>, <?php echo sec_h($cid_s); ?>, this)"><?php te('fc.gm_frantuma'); ?></button>
 
                     </div>
                     <?php endif; ?>
 
                     <div class="fcv-slot">
                         <?php if (!$is_graded): ?>
-                        <button id="btn-show-<?php echo sec_h($index); ?>" type="button" class="fcv-reveal" onclick="revealCard(<?php echo sec_h($index); ?>)" aria-label="<?php te('fc.gm_mostra_risposta'); ?>">
+                        <button id="btn-show-<?php echo sec_h($index); ?>" type="button" class="fcv-reveal" data-on-click="revealCard(<?php echo sec_h($index); ?>)" aria-label="<?php te('fc.gm_mostra_risposta'); ?>">
                             <span class="fcv-reveal-lab"><?php echo fc_gioco_etichetta($c, 'a'); ?></span>
                             <span class="fcv-reveal-velo" aria-hidden="true"></span>
                             <span class="fcv-reveal-txt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z"/><circle cx="12" cy="12" r="3"/></svg><?php te('fc.gm_tocca_rivela'); ?></span>
@@ -2138,10 +2138,10 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                             </div>
 
                             <div class="fcs-tools">
-                                <button id="btn-ex-<?php echo sec_h($chiave_s); ?>" type="button" class="fcs-chip fcs-add-ex" data-ex-btn="1"<?php echo $c['examples_count'] > 0 ? ' hidden' : ''; ?> onclick="event.stopPropagation(); openExamplesModal(<?php echo sec_h($cid_s); ?>, '<?php echo sec_h($tipo_s); ?>', <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span><?php te('fc.gm_aggiungi_esempio'); ?></span></button>
+                                <button id="btn-ex-<?php echo sec_h($chiave_s); ?>" type="button" class="fcs-chip fcs-add-ex" data-ex-btn="1"<?php echo $c['examples_count'] > 0 ? ' hidden' : ''; ?> data-on-click="event.stopPropagation(); openExamplesModal(<?php echo sec_h($cid_s); ?>, '<?php echo sec_h($tipo_s); ?>', <?php echo sec_h($qTextJs); ?>, <?php echo sec_h($aTextJs); ?>)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span><?php te('fc.gm_aggiungi_esempio'); ?></span></button>
                                 <?php if ($ha_testo_s): ?>
                                 <?php foreach (['explain' => ['fc.gm_spiega', 'explain'], 'metaphor' => ['fc.gm_metafora', 'metaphor']] as $modo_s => [$k_s, $_]): $salvato_s = !empty($c['ai_saved'][$modo_s]); ?>
-                                <button type="button" class="chip-ai fcs-chip<?php echo $salvato_s ? ' is-saved' : ''; ?>" data-ai-mode="<?php echo $modo_s; ?>" onclick="playAI('<?php echo $modo_s; ?>', <?php echo sec_h($index); ?>, <?php echo sec_h($cid_s); ?>, this)"><span class="fcs-chip-lab"><?php te($k_s); ?></span><span class="fcs-chip-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg><?php te('fc.gm_salvato'); ?></span></button>
+                                <button type="button" class="chip-ai fcs-chip<?php echo $salvato_s ? ' is-saved' : ''; ?>" data-ai-mode="<?php echo $modo_s; ?>" data-on-click="playAI('<?php echo $modo_s; ?>', <?php echo sec_h($index); ?>, <?php echo sec_h($cid_s); ?>, this)"><span class="fcs-chip-lab"><?php te($k_s); ?></span><span class="fcs-chip-tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg><?php te('fc.gm_salvato'); ?></span></button>
                                 <?php endforeach; ?>
                                 <?php endif; ?>
                             </div>
@@ -2154,7 +2154,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                                 <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=wrong&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn gc-wrong action-btn" aria-label="<?php te('fc.vg_sbagliato'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
 
-                                <button type="button" class="btn gc-learnt<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); premiImparato(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
+                                <button type="button" class="btn gc-learnt<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-on-click="event.stopPropagation(); premiImparato(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
 
                                 <a href="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position); ?>&action=grade&img_id=<?php echo sec_h($c['gameplay_idimmagine']); ?>&is_child=<?php echo $c['is_child'] ? 1 : 0; ?>&result=correct&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>" class="btn gc-correct action-btn" aria-label="<?php te('fc.res_corretto'); ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></a>
 
@@ -2165,7 +2165,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                     <div class="graded-head fcv-graded-head">
                         <div class="vd-gruppo">
                             <button type="button" class="status-pill vd-btn <?php echo $vd_ok ? 'ok' : 'ko'; ?>" aria-haspopup="menu" aria-label="<?php te('fc.gm_cambia_verdetto'); ?>"><span class="gi"><?php echo $vd_ok ? '&#10003;' : '&#10005;'; ?></span> <span class="vd-txt"><?php echo sec_h(t($vd_ok ? 'fc.lbl_corretto' : 'fc.lbl_errato')); ?></span><svg class="vd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg></button>
-                            <button type="button" class="btn gc-learnt gc-learnt-mini<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" onclick="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"<?php echo $vd_ok ? '' : ' hidden'; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
+                            <button type="button" class="btn gc-learnt gc-learnt-mini<?php echo $c['is_learnt'] ? ' is-active' : ''; ?>" data-learnt-id="<?php echo sec_h($c['gameplay_idimmagine']); ?>" data-is-child="<?php echo $c['is_child'] ? '1' : '0'; ?>" data-on-click="event.stopPropagation(); toggleLearnt(this)" aria-label="<?php te('fc.gm_imparato'); ?>" aria-pressed="<?php echo $c['is_learnt'] ? 'true' : 'false'; ?>"<?php echo $vd_ok ? '' : ' hidden'; ?>><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1 2.7 3 6 3s6-2 6-3v-5.5"/><path d="M22 8v6"/></svg></button>
                         </div>
                     </div>
                     <?php endif; ?>
@@ -2207,16 +2207,16 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 <div id="end-game-section">
 
-                    <button type="button" id="btn-concludi-1" class="btn btn-ghost end-btn" onclick="mostraConfermaFinale()"><?php te('fc.gm_concludi'); ?></button>
+                    <button type="button" id="btn-concludi-1" class="btn btn-ghost end-btn" data-on-click="mostraConfermaFinale()"><?php te('fc.gm_concludi'); ?></button>
 
                     <div id="conferma-finale-box" class="card-warn" style="display: none;">
 
                         <p><?php te('fc.gm_conferma_concludi'); ?></p>
 
                         <button type="button" class="btn btn-red end-link"
-                                onclick="standoutAzione('fc_game.php?game_id=<?php echo (int)($game_id); ?>', {action: 'concludi', game_id: <?php echo (int)($game_id); ?>})"><?php te('fc.gm_si_risultati'); ?></button>
+                                data-on-click="standoutAzione('fc_game.php?game_id=<?php echo (int)($game_id); ?>', {action: 'concludi', game_id: <?php echo (int)($game_id); ?>})"><?php te('fc.gm_si_risultati'); ?></button>
 
-                        <button type="button" class="nav-btn" onclick="annullaChiusura()"><?php te('fc.gm_no_continua'); ?></button>
+                        <button type="button" class="nav-btn" data-on-click="annullaChiusura()"><?php te('fc.gm_no_continua'); ?></button>
 
                     </div>
 
@@ -2232,7 +2232,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
 
 
-    <script>
+    <script nonce="<?php echo sec_nonce(); ?>">
 
         // ==========================================
 
@@ -2856,7 +2856,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
         // quindi la funzione usciva subito e non toccava la costante), mentre Safari
         // restituisce le voci all'istante: la costante veniva letta prima di essere
         // inizializzata -> "ReferenceError: Cannot access uninitialized variable" ->
-        // l'INTERO blocco <script> moriva e su iPhone non funzionava più nulla.
+        // l'INTERO blocco <script nonce="<?php echo sec_nonce(); ?>"> moriva e su iPhone non funzionava più nulla.
         // Tenendo la regex DENTRO la funzione il problema non può più ripetersi:
         // le dichiarazioni di funzione sono hoistate insieme al loro corpo.
         function voiceIsPoor(v) {
@@ -3885,7 +3885,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                             // Se il browser blocca lo stesso l'audio, mettiamo un bottone di emergenza
                             console.log("Autoplay bloccato", e);
                             document.getElementById('ai-audio-status').style.display = 'block';
-                            document.getElementById('ai-audio-status').innerHTML = T('fc.gm_audio_pronto') + ' <button onclick="currentAiAudio.play()" style="padding:4px 8px; border-radius:4px; cursor:pointer;">' + T('fc.gm_ascolta') + '</button>';
+                            document.getElementById('ai-audio-status').innerHTML = T('fc.gm_audio_pronto') + ' <button data-on-click="currentAiAudio.play()" style="padding:4px 8px; border-radius:4px; cursor:pointer;">' + T('fc.gm_ascolta') + '</button>';
                         });
                     }
                 } else {
@@ -4083,7 +4083,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                             <div class="raw-text mini-q" id="shatter-qraw-${i}" data-raw="${esc(mini.q)}">${parseTextForPreview(mini.q)}</div>
 
-                            <button id="shatter-btn-${i}" class="btn btn-primary btn-sm" onclick="revealShatterCard(${i})">${T('fc.gm_mostra_risposta')}</button>
+                            <button id="shatter-btn-${i}" class="btn btn-primary btn-sm" data-on-click="revealShatterCard(${i})">${T('fc.gm_mostra_risposta')}</button>
 
                             <div id="shatter-ans-${i}" class="mini-ans" style="display:none;">
 
@@ -5438,7 +5438,7 @@ function toggleLearnt (btn) {
 }
 
 /* Gli onclick scritti nell'HTML cercano queste funzioni su window: qui non
-   erano globali (stanno dentro lo scope del blocco <script>), da cui
+   erano globali (stanno dentro lo scope del blocco <script nonce="<?php echo sec_nonce(); ?>">), da cui
    "toggleFavorite is not defined" al primo clic sulla stella. */
 window.toggleLearnt = toggleLearnt;
 
@@ -5473,7 +5473,7 @@ function testaVerdettoHTML (card, ok, imparata) {
         + '<span class="gi">' + (ok ? '✓' : '✕') + '</span> <span class="vd-txt">'
         + fcEscapeHtmlLocale(ok ? T('fc.lbl_corretto') : T('fc.lbl_errato')) + '</span>' + VD_TOCCO + '</button>'
         + '<button type="button" class="btn gc-learnt gc-learnt-mini' + (imparata ? ' is-active' : '') + '" data-learnt-id="' + fcEscapeHtmlLocale(id) + '" data-is-child="' + figlio + '"'
-        + ' onclick="event.stopPropagation(); toggleLearnt(this)" aria-label="' + fcEscapeHtmlLocale(T('fc.gm_imparato')) + '" aria-pressed="' + (imparata ? 'true' : 'false') + '"' + (ok ? '' : ' hidden') + '>'
+        + ' data-on-click="event.stopPropagation(); toggleLearnt(this)" aria-label="' + fcEscapeHtmlLocale(T('fc.gm_imparato')) + '" aria-pressed="' + (imparata ? 'true' : 'false') + '"' + (ok ? '' : ' hidden') + '>'
         + VD_CAPPELLO + '</button>'
         + '</div>';
 }

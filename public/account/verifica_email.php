@@ -27,7 +27,7 @@ header('Referrer-Policy: no-referrer');   // il token e' nell'indirizzo: non dev
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title><?php echo sec_h(t($ok ? 'verifica_email.titolo_ok' : 'verifica_email.titolo_ko')); ?></title>
-<style>
+<style nonce="<?php echo sec_nonce(); ?>">
 body{margin:0;min-height:100vh;display:grid;place-items:center;background:#FBF9F6;color:#4C463F;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;padding:28px;text-align:center}
 main{max-width:420px}
 h1{font-weight:500;font-size:24px;margin:0 0 10px}

@@ -74,7 +74,7 @@ include __DIR__ . '/todo_widget.php';
 <?php include __DIR__ . '/../partials/sidebar.php'; ?>
 <?php echo standout_i18n_json(['comune', 'todo']); ?>
 <script src="<?php echo PWA_BASE; ?>planner/todo_nota.js?v=<?php echo @filemtime(__DIR__ . '/todo_nota.js') ?: 1; ?>"></script>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 standoutTodo.mount(document.getElementById('tpList'), {
     scope: 'all',
     selectable: true,

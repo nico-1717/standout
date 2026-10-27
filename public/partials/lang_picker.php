@@ -27,7 +27,7 @@ function standout_lang_picker(string $forma = 'pill'): void
         $risorse = true;
 
         ?>
-<style>
+<style nonce="<?php echo sec_nonce(); ?>">
 .slp{ position:relative; font-family:inherit; -webkit-tap-highlight-color:transparent; }
 .slp-flag{ width:20px; height:15px; border-radius:3px; object-fit:cover; flex-shrink:0;
     box-shadow:0 0 0 .5px rgba(0,0,0,.18); }
@@ -97,7 +97,7 @@ function standout_lang_picker(string $forma = 'pill'): void
 .slp-nota{ display:block; padding:2px 12px 6px 42px; font-size:12px; font-weight:500; color:var(--fnw-t2, #8A8A8E); }
 @media (prefers-reduced-motion: reduce){ .slp *, .slp-menu{ transition:none !important; } }
 </style>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function () {
     'use strict';
     function chiudiTutti(tranne) {

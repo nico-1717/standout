@@ -164,7 +164,7 @@ date_default_timezone_set('Europe/Rome');
 echo standout_i18n_json(['comune', 'todo', 'planner']);
 ?>
 <script src="<?php echo PWA_BASE; ?>planner/to_study.js?v=<?php echo @filemtime(__DIR__ . '/to_study.js') ?: 1; ?>" defer></script>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 /* Rete di sicurezza: se to_study.js non parte (non caricato sul server, un
    404, la pagina troncata da un errore piu' su) il calendario resta vuoto e
    basta, senza che nulla lo spieghi. Dopo un secondo, se nessuna casella e'

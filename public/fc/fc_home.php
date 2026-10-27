@@ -496,7 +496,7 @@ $impLingue = (int)$R['vocab']['imparate'];   $unitaLingue = (int)$R['vocab']['pa
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 ?></script>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function () {
     'use strict';
     var $ = function (id) { return document.getElementById(id); };

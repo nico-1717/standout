@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <style>
+    <style nonce="<?php echo sec_nonce(); ?>">
         :root {
             --sb-bg: rgba(23, 23, 27, .88);
             --sb-hover: rgba(255, 255, 255, .07);
@@ -349,7 +349,7 @@
         <span class="sb-burger"><span></span><span></span><span></span></span>
     </button>
 
-    <script>
+    <script nonce="<?php echo sec_nonce(); ?>">
     (function () {
         'use strict';
 

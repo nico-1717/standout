@@ -398,7 +398,6 @@ function standout_i18n_json(array $spazi): string
     }
 
     $minima = <<<'JS'
-<script>
 if (typeof window.T !== 'function') {
     window.T = function (chiave, sostituzioni) {
         var dati = {};
@@ -425,8 +424,9 @@ if (typeof window.T !== 'function') {
         return nodo;
     };
 }
-</script>
 JS;
+    /* nonce: la CSP non ammette script inline senza (vedi sec_nonce in security_core.php) */
+    $minima = '<script nonce="' . (function_exists('sec_nonce') ? sec_nonce() : '') . '">' . "\n" . $minima . "\n</script>";
 
     return '<script type="application/json" id="i18n-dati">'
         . $json

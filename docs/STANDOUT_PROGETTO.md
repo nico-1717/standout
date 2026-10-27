@@ -211,7 +211,7 @@ $boot = [ 'events' => ..., 'settings' => ..., 'map_key' => ... ];
 ?>
 <!DOCTYPE html>
 ... HTML ...
-<script>window.PL_BOOT = <?php echo json_encode($boot, ...); ?>;</script>
+<script nonce="<?php echo sec_nonce(); ?>">window.PL_BOOT = <?php echo json_encode($boot, ...); ?>;</script>
 <script src="planner.js"></script>
 ```
 
@@ -499,10 +499,28 @@ Permissions-Policy: geolocation=(self), camera=(), microphone=()
 X-Frame-Options: SAMEORIGIN
 ```
 
-Nota: la CSP richiede di togliere il JavaScript scritto dentro gli attributi
-`onclick` e di usare i *nonce* per i blocchi `<script>` in pagina. È un lavoro
-di pulizia da fare gradualmente, ma è la difesa più efficace contro l'iniezione
-di script.
+**Fatto il 27/10/2026:** la CSP non ha più `'unsafe-inline'` per gli script.
+Il codice scritto dentro la pagina parte solo se porta il *nonce* della richiesta, e
+gli attributi `onclick="…"` non esistono più. Come si scrive ora:
+
+- blocco `<script>` o `<style>` in un template PHP:
+  `<script nonce="<?php echo sec_nonce(); ?>">` (il nonce cambia a ogni richiesta;
+  non si può aggiungere «da fuori» a tutta la pagina, o servirebbe anche
+  all'attaccante);
+- gestore di un evento: **`data-on-click="salva(5)"`** al posto di `onclick="salva(5)"`
+  (così per `change`, `input`, `submit`, `keydown`, `focus`…). Lo esegue
+  `public/_assets/js/standout_events.js`, caricato in ogni `<head>` da `pwa_head_html()`.
+  Capisce solo chiamate di funzione, `this`, `event`, letterali, `!`/`&&`/`||`/confronti,
+  `if (…) …;`, `return` e poche assegnazioni sicure (`value`, `checked`, `style.x`,
+  `location.href`…). Niente `eval`, niente funzioni scritte al volo: se serve di più si
+  scrive una funzione vera in un file `.js` e dall'attributo si chiama quella;
+- `style="…"` negli attributi resta ammesso (`style-src-attr`): cambia l'aspetto, non
+  esegue codice;
+- un `<style>` creato da JavaScript riceve il nonce da solo (lo fa `standout_events.js`);
+- `javascript:` negli indirizzi non funziona più.
+
+`tools/audit_sicurezza.py` segnala (ALTA) ogni `onclick="…"` e ogni `<script>`/`<style>`
+senza nonce, così non tornano per sbaglio.
 
 ### 7.7 Chiavi e segreti
 
@@ -1484,7 +1502,7 @@ Ogni passo ha un criterio di "fatto": senza, si va avanti a metà.
 | # | Stato | Note |
 |---|---|---|
 | 1 | **fatto (27/10/2026)** | giro su tutto `public/` e `lib/` con `tools/audit_sicurezza.py` + lettura del codice; l'elenco ordinato per gravità e per file è in `docs/SICUREZZA_ELENCO.md`. Resta fuori un test dal vivo contro il sito |
-| 2 | **fatto (27/10/2026), tranne la CSP** | corretti tutti i punti ALTA e MEDIA dell'elenco: scritture via GET senza token, «ricordami» di account disattivati, TLS, errori a schermo, importazioni, `media/.htaccess`, deploy in ftps, password a 10 caratteri + verifica email, controllo d'uso prima di cancellare un file (prerequisito del negozio), blocco login anti-DoS. **Aperto: togliere `'unsafe-inline'` dalla CSP** (~500 gestori inline in 61 file; piano a tappe in `docs/SICUREZZA_ELENCO.md` §C) — vedi quel file |
+| 2 | **fatto (27/10/2026)** | corretti tutti i punti dell'elenco, **CSP senza `'unsafe-inline'` compresa** (§7.6): scritture via GET senza token, «ricordami» di account disattivati, TLS, errori a schermo, importazioni, `media/.htaccess`, deploy in ftps, password a 10 caratteri + verifica email, controllo d'uso prima di cancellare un file (prerequisito del negozio), blocco login anti-DoS. Vedi `docs/SICUREZZA_ELENCO.md` |
 | 3 | **in parte** | `lib/`, `sql/`, `data/` stanno fuori da `public/`; **manca `bootstrap.php`** (ogni pagina include ancora `config.php` per conto suo) |
 | 4 | **fatto** | tutte le migrazioni di §8.2 sono in produzione |
 | 5 | non fatto | il sito è ancora su Altervista |

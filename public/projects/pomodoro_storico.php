@@ -553,47 +553,47 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
         <div class="ph-head">
             <div class="ph-title" id="phTitle"><?php te('progetti.pomodori'); ?></div>
             <div class="ph-head-btns">
-                <button type="button" class="ph-icon-btn" id="phSelectBtn" onclick="phToggleSelectMode()" aria-label="<?php te('pomodoro.ph_seleziona'); ?>">
+                <button type="button" class="ph-icon-btn" id="phSelectBtn" data-on-click="phToggleSelectMode()" aria-label="<?php te('pomodoro.ph_seleziona'); ?>">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 </button>
-                <button type="button" class="ph-icon-btn" onclick="phToggleManual()" aria-label="<?php te('pomodoro.ph_aggiungi_manuale'); ?>">
+                <button type="button" class="ph-icon-btn" data-on-click="phToggleManual()" aria-label="<?php te('pomodoro.ph_aggiungi_manuale'); ?>">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
                 </button>
-                <button type="button" class="ph-icon-btn" onclick="openPomodoroImport()" aria-label="<?php te('pomodoro.ph_importa'); ?>">
+                <button type="button" class="ph-icon-btn" data-on-click="openPomodoroImport()" aria-label="<?php te('pomodoro.ph_importa'); ?>">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
                 </button>
-                <button type="button" class="ph-icon-btn" onclick="exportPomodoroFile()" aria-label="<?php te('pomodoro.ph_esporta'); ?>">
+                <button type="button" class="ph-icon-btn" data-on-click="exportPomodoroFile()" aria-label="<?php te('pomodoro.ph_esporta'); ?>">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 9l5-5 5 5"/><path d="M12 4v12"/></svg>
                 </button>
-                <button type="button" class="ph-icon-btn" onclick="closePomodoroStorico()" aria-label="<?php te('comune.chiudi'); ?>">
+                <button type="button" class="ph-icon-btn" data-on-click="closePomodoroStorico()" aria-label="<?php te('comune.chiudi'); ?>">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
                 </button>
             </div>
         </div>
 
         <div class="ph-filters">
-            <button type="button" class="ph-filter-chip active" data-sort="recent" onclick="phSetSort('recent')"><?php te('pomodoro.storico_recenti'); ?></button>
-            <button type="button" class="ph-filter-chip" data-sort="oldest" onclick="phSetSort('oldest')"><?php te('pomodoro.storico_vecchi'); ?></button>
-            <button type="button" class="ph-filter-chip" data-sort="duration" onclick="phSetSort('duration')"><?php te('pomodoro.durata'); ?></button>
-            <button type="button" class="ph-filter-chip" id="phDateFilterChip" onclick="phToggleDateFilter()"><?php te('pomodoro.storico_periodo'); ?></button>
-            <button type="button" class="ph-filter-chip" id="phProjectFilterChip" onclick="phOpenProjectFilter()"><?php te('pomodoro.ph_progetto_tutti'); ?></button>
+            <button type="button" class="ph-filter-chip active" data-sort="recent" data-on-click="phSetSort('recent')"><?php te('pomodoro.storico_recenti'); ?></button>
+            <button type="button" class="ph-filter-chip" data-sort="oldest" data-on-click="phSetSort('oldest')"><?php te('pomodoro.storico_vecchi'); ?></button>
+            <button type="button" class="ph-filter-chip" data-sort="duration" data-on-click="phSetSort('duration')"><?php te('pomodoro.durata'); ?></button>
+            <button type="button" class="ph-filter-chip" id="phDateFilterChip" data-on-click="phToggleDateFilter()"><?php te('pomodoro.storico_periodo'); ?></button>
+            <button type="button" class="ph-filter-chip" id="phProjectFilterChip" data-on-click="phOpenProjectFilter()"><?php te('pomodoro.ph_progetto_tutti'); ?></button>
         </div>
         <div class="ph-date-range" id="phDateRange">
-            <div class="ph-date-field"><label><?php te('pomodoro.storico_dal'); ?></label><input type="date" id="phDateFrom" onchange="phApplyDateFilter()"></div>
-            <div class="ph-date-field"><label>Al</label><input type="date" id="phDateTo" onchange="phApplyDateFilter()"></div>
-            <button type="button" class="ph-date-clear" onclick="phClearDateFilter()" aria-label="<?php te('pomodoro.ph_azzera_periodo'); ?>"><?php te('pomodoro.storico_azzera'); ?></button>
+            <div class="ph-date-field"><label><?php te('pomodoro.storico_dal'); ?></label><input type="date" id="phDateFrom" data-on-change="phApplyDateFilter()"></div>
+            <div class="ph-date-field"><label>Al</label><input type="date" id="phDateTo" data-on-change="phApplyDateFilter()"></div>
+            <button type="button" class="ph-date-clear" data-on-click="phClearDateFilter()" aria-label="<?php te('pomodoro.ph_azzera_periodo'); ?>"><?php te('pomodoro.storico_azzera'); ?></button>
         </div>
 
         <div class="ph-bulkbar" id="phBulkbar">
             <span id="phBulkCount"><?php te('pomodoro.storico_n_selezionati', ['n' => 0]); ?></span>
-            <button type="button" class="ph-bulk-btn accent" id="phSelectAllBtn" onclick="phSelectAll()"><?php te('pomodoro.storico_seleziona_tutti'); ?></button>
-            <button type="button" class="ph-bulk-btn" onclick="phBulkAction('unlink')"><?php te('pomodoro.storico_scollega'); ?></button>
-            <button type="button" class="ph-bulk-btn" onclick="phOpenBulkProjectPicker()"><?php te('pomodoro.storico_assegna'); ?></button>
+            <button type="button" class="ph-bulk-btn accent" id="phSelectAllBtn" data-on-click="phSelectAll()"><?php te('pomodoro.storico_seleziona_tutti'); ?></button>
+            <button type="button" class="ph-bulk-btn" data-on-click="phBulkAction('unlink')"><?php te('pomodoro.storico_scollega'); ?></button>
+            <button type="button" class="ph-bulk-btn" data-on-click="phOpenBulkProjectPicker()"><?php te('pomodoro.storico_assegna'); ?></button>
             <!-- Era scritto con la sintassi dei template JavaScript dentro
                  all'HTML generato da PHP: li' nessuno la interpreta, quindi
                  sul tasto compariva la riga di codice. Qui il testo lo mette
                  PHP, come su tutti gli altri tasti di questa barra. -->
-            <button type="button" class="ph-bulk-btn danger" onclick="phBulkAction('delete')"><?php te('comune.elimina'); ?></button>
+            <button type="button" class="ph-bulk-btn danger" data-on-click="phBulkAction('delete')"><?php te('comune.elimina'); ?></button>
         </div>
 
         <!-- Lo stesso pannello serve per inserire e per modificare: sono gli
@@ -605,11 +605,11 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
                 <div><label><?php te('comune.data'); ?></label><input type="date" id="phManualData"></div>
             </div>
             <div class="ph-manual-row">
-                <div><label><?php te('pomodoro.storico_inizio'); ?></label><input type="time" id="phManualInizio" oninput="phManualCalc('inizio')"></div>
-                <div><label><?php te('pomodoro.storico_fine'); ?></label><input type="time" id="phManualFine" oninput="phManualCalc('fine')"></div>
+                <div><label><?php te('pomodoro.storico_inizio'); ?></label><input type="time" id="phManualInizio" data-on-input="phManualCalc('inizio')"></div>
+                <div><label><?php te('pomodoro.storico_fine'); ?></label><input type="time" id="phManualFine" data-on-input="phManualCalc('fine')"></div>
             </div>
             <div class="ph-manual-row ph-manual-row-durata">
-                <div><label><?php te('pomodoro.durata'); ?></label><input type="time" id="phManualDurata" onfocus="if(!this.value) this.value='00:00';" onblur="window.phDurataTarget=null;" oninput="phManualCalc('durata')"></div>
+                <div><label><?php te('pomodoro.durata'); ?></label><input type="time" id="phManualDurata" data-on-focus="if(!this.value) this.value='00:00';" data-on-blur="window.phDurataTarget=null;" data-on-input="phManualCalc('durata')"></div>
             </div>
             <div><label><?php te('pomodoro.storico_progetto_opz'); ?></label>
                 <?php
@@ -622,8 +622,8 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
                 ?>
             </div>
             <div class="ph-manual-btns">
-                <button type="button" class="ph-manual-cancel" id="phManualCancel" style="display:none;" onclick="phCancelEdit()"><?php te('comune.annulla'); ?></button>
-                <button type="button" class="ph-manual-save" id="phManualSave" onclick="phSubmitManual()"><?php te('pomodoro.storico_salva_sessione'); ?></button>
+                <button type="button" class="ph-manual-cancel" id="phManualCancel" style="display:none;" data-on-click="phCancelEdit()"><?php te('comune.annulla'); ?></button>
+                <button type="button" class="ph-manual-save" id="phManualSave" data-on-click="phSubmitManual()"><?php te('pomodoro.storico_salva_sessione'); ?></button>
             </div>
         </div>
 
@@ -652,7 +652,7 @@ $ph_uid = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$ph_id);
 ?>
 
 <?php if (!defined('PH_SCRIPT_EMITTED')): define('PH_SCRIPT_EMITTED', true); ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function () {
     'use strict';
 

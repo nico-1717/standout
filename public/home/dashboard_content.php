@@ -96,4 +96,4 @@ $ho_v = function (string $f): int { return @filemtime(__DIR__ . '/' . $f) ?: 1; 
 <script src="<?php echo PWA_BASE; ?>home/home_w_plan.js?v=<?php echo $ho_v('home_w_plan.js'); ?>"></script>
 <script src="<?php echo PWA_BASE; ?>home/home_w_tasks.js?v=<?php echo $ho_v('home_w_tasks.js'); ?>"></script>
 <script src="<?php echo PWA_BASE; ?>home/home_w_study.js?v=<?php echo $ho_v('home_w_study.js'); ?>"></script>
-<script>Home.start();</script>
+<script nonce="<?php echo sec_nonce(); ?>">Home.start();</script>

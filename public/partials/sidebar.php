@@ -27,7 +27,7 @@ if (is_readable($sbFile)):
 
     /* --- gli stili --- */
     if (preg_match_all('#<style[^>]*>(.*?)</style>#is', $sbHtml, $m)) {
-        echo '<style>' . implode("\n", $m[1]) . '</style>';
+        echo '<style nonce="' . sec_nonce() . '">' . implode("\n", $m[1]) . '</style>';
     }
 
     /* --- il contenuto del body, senza gli script che prendiamo dopo --- */
@@ -39,11 +39,11 @@ if (is_readable($sbFile)):
 
     /* --- e infine gli script, dopo il markup a cui si agganciano --- */
     if (preg_match_all('#<script[^>]*>(.*?)</script>#is', $sbHtml, $ms)) {
-        echo '<script>' . implode("\n", $ms[1]) . '</script>';
+        echo '<script nonce="' . sec_nonce() . '">' . implode("\n", $ms[1]) . '</script>';
     }
 endif;
 ?>
-<style>
+<style nonce="<?php echo sec_nonce(); ?>">
 /* Il pulsante di apertura: com'era copriva un angolo intero e non si
    vedeva cosa c'era sotto. Qui diventa più piccolo e quasi trasparente,
    e torna leggibile solo quando lo si tocca o ci si passa sopra. */

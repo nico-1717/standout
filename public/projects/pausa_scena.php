@@ -28,7 +28,7 @@
 if (!defined('PAUSA_SCENA_EMESSA')):
 define('PAUSA_SCENA_EMESSA', true);
 ?>
-<style>
+<style nonce="<?php echo sec_nonce(); ?>">
 /* --------------------------------------------------------------------
    La scena c'e' solo in pausa. display:none e non opacita': cosi' non
    occupa spazio quando non serve, e soprattutto il browser smette

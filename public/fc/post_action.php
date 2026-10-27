@@ -33,7 +33,7 @@
  *
  *     <?php require_once __DIR__ . '/post_action.php'; standout_azione_form(); ?>
  *
- *     <button type="button" onclick="standoutAzione('fc_game.php', {action:'concludi', game_id:5})">
+ *     <button type="button" data-on-click="standoutAzione('fc_game.php', {action:'concludi', game_id:5})">
  *
  * Per chi ha bisogno del solo token (le chiamate fatte con fetch):
  *
@@ -59,11 +59,12 @@ function standout_azione_form(): void {
     define('STANDOUT_AZIONE_FORM', 1);
 
     $token = sec_h(sec_csrf_token());
+    $nonce = sec_nonce();
     echo <<<HTML
 <form id="standoutAzioneForm" method="post" action="" style="display:none" aria-hidden="true">
     <input type="hidden" name="csrf_token" value="$token">
 </form>
-<script>
+<script nonce="$nonce">
 /* Il token serve anche alle chiamate fatte con fetch. */
 var STANDOUT_CSRF = "$token";
 

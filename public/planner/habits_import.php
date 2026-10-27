@@ -1315,7 +1315,7 @@ if (!defined('HI_CSS')) {
                 <div class="hi-title"><?php te('import.importa'); ?></div>
                 <div class="hi-sub" id="hiHeadSub"><?php te('import.sub_abitudini'); ?></div>
             </div>
-            <button type="button" class="hi-icon-btn" onclick="closeHabitsImport()" aria-label="<?php te('comune.chiudi'); ?>">
+            <button type="button" class="hi-icon-btn" data-on-click="closeHabitsImport()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
         </div>
@@ -1324,8 +1324,8 @@ if (!defined('HI_CSS')) {
 
         <div class="hi-foot" id="hiFoot">
             <div class="hi-foot-info" id="hiFootInfo"></div>
-            <button type="button" class="hi-btn-ghost" onclick="hiReset()"><?php te('import.cambia_file'); ?></button>
-            <button type="button" class="hi-btn-save" id="hiSaveBtn" onclick="hiSave()"><?php te('comune.salva'); ?></button>
+            <button type="button" class="hi-btn-ghost" data-on-click="hiReset()"><?php te('import.cambia_file'); ?></button>
+            <button type="button" class="hi-btn-save" id="hiSaveBtn" data-on-click="hiSave()"><?php te('comune.salva'); ?></button>
         </div>
     </div>
 </div>
@@ -1337,16 +1337,16 @@ if (!defined('HI_CSS')) {
     <div class="hi-pick-sheet">
         <div class="hi-pick-head">
             <div class="hi-pick-title"><?php te('import.collega_esistente'); ?></div>
-            <button type="button" class="hi-icon-btn" onclick="hiClosePicker()" aria-label="<?php te('comune.chiudi'); ?>">
+            <button type="button" class="hi-icon-btn" data-on-click="hiClosePicker()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
         </div>
-        <input type="text" class="hi-pick-search" id="hiPickSearch" placeholder="<?php te('import.cerca_abitudine'); ?>" oninput="hiFilterPicker()">
+        <input type="text" class="hi-pick-search" id="hiPickSearch" placeholder="<?php te('import.cerca_abitudine'); ?>" data-on-input="hiFilterPicker()">
         <div class="hi-pick-list" id="hiPickList"></div>
     </div>
 </div>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function () {
     'use strict';
 
@@ -1427,7 +1427,7 @@ if (!defined('HI_CSS')) {
                 '<div class="hi-drop-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v13"/></svg></div>' +
                 '<div class="hi-drop-title">' + T('import.scegli_file') + '</div>' +
                 '<div class="hi-drop-text">' + T('import.trascina') + '<br>' + T('import.formati') + '</div>' +
-                '<button type="button" class="hi-drop-btn" onclick="hiBrowse()">' + T('import.sfoglia') + '</button>' +
+                '<button type="button" class="hi-drop-btn" data-on-click="hiBrowse()">' + T('import.sfoglia') + '</button>' +
             '</div>' +
             '<div class="hi-hint">' + T('import.spiegazione') + '</div>';
         hiBindDrop();
@@ -1444,7 +1444,7 @@ if (!defined('HI_CSS')) {
             '<div class="hi-error">' +
                 '<div class="hi-error-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>' +
                 '<div class="hi-error-text">' + esc(msg) + '</div>' +
-                '<button type="button" class="hi-drop-btn" onclick="hiReset()">' + T('import.riprova') + '</button>' +
+                '<button type="button" class="hi-drop-btn" data-on-click="hiReset()">' + T('import.riprova') + '</button>' +
             '</div>';
     }
 
@@ -1512,7 +1512,7 @@ if (!defined('HI_CSS')) {
                 (s.skipped ? hiStat(s.skipped, T('import.ignorati')) : '') +
             '</div>' + warn + hiMapSectionHTML() +
             '<div class="hi-section" id="hiSec1">' +
-                '<div class="hi-sec-head" onclick="hiToggleSec(\'hiSec1\')">' +
+                '<div class="hi-sec-head" data-on-click="hiToggleSec(\'hiSec1\')">' +
                     '<span class="hi-sec-num">1</span><span class="hi-sec-title">' + T('import.abitudini_l') + '</span>' +
                     '<span class="hi-sec-count" id="hiSec1Count"></span>' +
                     '<svg class="hi-sec-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>' +
@@ -1520,7 +1520,7 @@ if (!defined('HI_CSS')) {
                 '<div class="hi-sec-body" id="hiHabits"></div>' +
             '</div>' +
             '<div class="hi-section" id="hiSec2">' +
-                '<div class="hi-sec-head" onclick="hiToggleSec(\'hiSec2\')">' +
+                '<div class="hi-sec-head" data-on-click="hiToggleSec(\'hiSec2\')">' +
                     '<span class="hi-sec-num">2</span><span class="hi-sec-title">' + T('import.checkin_l') + '</span>' +
                     '<span class="hi-sec-count" id="hiSec2Count"></span>' +
                     '<svg class="hi-sec-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>' +
@@ -1547,7 +1547,7 @@ if (!defined('HI_CSS')) {
         if (!HI.mappe || !HI.mappe.length) return '';
         var chiuso = HI.gettone ? '' : ' collapsed';
         var h = '<div class="hi-section hi-map' + chiuso + '" id="hiSecMap">' +
-            '<div class="hi-sec-head" onclick="hiToggleSec(\'hiSecMap\')">' +
+            '<div class="hi-sec-head" data-on-click="hiToggleSec(\'hiSecMap\')">' +
                 '<span class="hi-sec-num">✓</span><span class="hi-sec-title">' + T('import.come_ho_letto') + '</span>' +
                 '<span class="hi-sec-count">' + HI.mappe.length + '</span>' +
             '</div><div class="hi-sec-body">';
@@ -1558,7 +1558,7 @@ if (!defined('HI_CSS')) {
         HI.mappe.forEach(function (m, i) { h += hiMapSheetHTML(m, i); });
         if (HI.gettone) {
             h += '<div class="hi-map-actions">' +
-                 '<button type="button" class="hi-btn" onclick="hiRemap()">' + T('import.rileggi') + '</button>' +
+                 '<button type="button" class="hi-btn" data-on-click="hiRemap()">' + T('import.rileggi') + '</button>' +
                  '</div>';
         }
         return h + '</div></div>';
@@ -1682,14 +1682,14 @@ if (!defined('HI_CSS')) {
         var color = m ? m.color : GREY;
         var icon = m ? (m.icon || '⭐️') : '＋';
         var name = m ? m.name : h.name;
-        var row = '<div class="hi-row" style="--row-color:' + esc(color) + ';" data-row="' + h.key + '" onclick="hiPick(\'' + h.key + '\')">' +
+        var row = '<div class="hi-row" style="--row-color:' + esc(color) + ';" data-row="' + h.key + '" data-on-click="hiPick(\'' + h.key + '\')">' +
             '<span class="hi-dot">' + esc(icon) + '</span>' +
             '<div class="hi-names">' +
                 '<div class="hi-name">' + esc(name) + '</div>' +
                 (m ? '<div class="hi-from">' + esc(T('import.dal_file', { nome: h.name })) + '</div>' : '') +
             '</div>';
         if (!m) row += '<span class="hi-tag">' + T('import.nuova') + '</span>';
-        else row += '<button type="button" class="hi-restore" aria-label="' + esc(T('comune.ripristina')) + '" onclick="event.stopPropagation();hiRestore(\'' + h.key + '\')">' +
+        else row += '<button type="button" class="hi-restore" aria-label="' + esc(T('comune.ripristina')) + '" data-on-click="event.stopPropagation();hiRestore(\'' + h.key + '\')">' +
                 '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>';
         return row + '</div>';
     }
@@ -1735,7 +1735,7 @@ if (!defined('HI_CSS')) {
             '</div>';
         }
         if (n < list.length) {
-            html += '<button type="button" class="hi-more" onclick="hiMore()">' + T('import.mostra_altri', { n: Math.min(PAGE, list.length - n), di: list.length - n }) + '</button>';
+            html += '<button type="button" class="hi-more" data-on-click="hiMore()">' + T('import.mostra_altri', { n: Math.min(PAGE, list.length - n), di: list.length - n }) + '</button>';
         }
         byId('hiLogs').innerHTML = html;
         byId('hiSec2Count').textContent = list.length + (list.length === 1 ? ' check-in' : ' check-in');
@@ -1774,7 +1774,7 @@ if (!defined('HI_CSS')) {
         if (!list.length) { byId('hiPickList').innerHTML = '<div class="hi-pick-empty">' + T('import.nessuna_trovata') + '</div>'; return; }
         var html = '';
         list.forEach(function (h) {
-            html += '<div class="hi-pick-row" style="--pick-color:' + esc(h.color || GREY) + ';" onclick="hiChoose(' + h.id + ')">' +
+            html += '<div class="hi-pick-row" style="--pick-color:' + esc(h.color || GREY) + ';" data-on-click="hiChoose(' + h.id + ')">' +
                 '<span class="hi-pick-icon" style="color:' + esc(h.color || GREY) + ';">' + esc(h.icon || '⭐️') + '</span>' +
                 '<span class="hi-pick-name">' + esc(h.name) + '</span>' +
                 (h.is_archived ? '<span class="hi-pick-arch">' + T('import.archiviata') + '</span>' : '') +
@@ -1850,7 +1850,7 @@ if (!defined('HI_CSS')) {
                     '<div class="hi-drop-title">' + T('import.fatto') + '</div>' +
                     '<div class="hi-error-text">' + T('import.esito_abitudini', {n: d.habits}) + '<br>' +
                         T('import.esito_giorni', {n: d.days}) + '<br>' + T('import.esito_checkin', {n: d.events}) + '</div>' +
-                    '<button type="button" class="hi-drop-btn" onclick="location.reload()">' + T('import.chiudi_aggiorna') + '</button>' +
+                    '<button type="button" class="hi-drop-btn" data-on-click="location.reload()">' + T('import.chiudi_aggiorna') + '</button>' +
                 '</div>';
             setTimeout(function () { location.reload(); }, 1800);
         })

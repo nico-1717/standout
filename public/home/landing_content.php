@@ -205,7 +205,7 @@ $lp_card = function (string $k, string $colore) use ($lp_ico) {
 </footer>
 </div>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 /* Dopo il primo disegno: i pulsanti aprono il popup (che è già pronto,
    sta più in alto nella pagina) e le sezioni compaiono scorrendo. Niente
    librerie: un osservatore e una classe. */

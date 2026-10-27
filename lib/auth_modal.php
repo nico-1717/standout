@@ -6,8 +6,8 @@ $standout_csrf = standout_csrf_token();
 <?php /* i caratteri senza bloccare il disegno: finche' non arrivano si usa
    quello di sistema. Un <link> normale qui, in mezzo al body, fermava tutto
    quello che veniva dopo, compreso il pulsante Accedi. */ ?>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'">
-<style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" media="print" data-on-load="this.media='all'">
+<style nonce="<?php echo sec_nonce(); ?>">
 /*
   IMPORTANTE: queste variabili sono su :root (globali) e non su
   #standout-auth-root. Il popup viene clonato da un <template> dentro
@@ -272,7 +272,7 @@ button.standout-fab--login:active{ transform:scale(.96); }
 </div>
 
 <?php if (!$standout_utente_fab): ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function(){
   const STANDOUT_CSRF = "<?php echo htmlspecialchars($standout_csrf, ENT_QUOTES); ?>";
   const TXT = <?php echo json_encode(['generico' => t('auth.err_generico'), 'rete' => t('auth.err_rete'), 'password_diverse' => t('auth.err_password_diverse')], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>;
@@ -456,7 +456,7 @@ button.standout-fab--login:active{ transform:scale(.96); }
 })();
 </script>
 <?php else: ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function(){
   const userBtn = document.getElementById('standoutUserBtn');
   if (userBtn) {

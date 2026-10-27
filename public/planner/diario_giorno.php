@@ -84,7 +84,7 @@ echo standout_i18n_json(['comune', 'diario']);
     </div>
 </div>
 
-<style>
+<style nonce="<?php echo sec_nonce(); ?>">
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;500&display=swap');
 /* ---------- token: due vestiti per lo stesso popup ---------- */
 .dg-ov{
@@ -247,7 +247,7 @@ echo standout_i18n_json(['comune', 'diario']);
 }
 </style>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function () {
     if (window.standoutOpenDiary) return;
 

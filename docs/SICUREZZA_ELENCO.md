@@ -33,8 +33,8 @@ mostrati all'utente**.
 **Aggiornamento 27/10/2026 (sera):** chiusi anche M10, M13 e B1–B5 (password a 10
 caratteri + verifica email, cancellazione file sicura per il negozio, blocco login che
 non si lascia sfruttare, input a prova di array, ultime query ex-mysqli, errori curl
-generici). **Resta aperto solo M11**, la CSP con `'unsafe-inline'`: è un lavoro grosso
-(~500 gestori inline) che non si fa alla cieca; il piano a tappe è nella sezione C.
+generici). **M11 (la CSP con `'unsafe-inline'`) è chiuso lo stesso giorno**: nonce per gli
+script e gli stili, `data-on-click` al posto degli `onclick`; dettagli nella sezione C.
 
 ---
 
@@ -61,7 +61,7 @@ generici). **Resta aperto solo M11**, la CSP con `'unsafe-inline'`: è un lavoro
 | M8 | `media/` (file caricati dagli utenti) | Nessuna difesa a livello server contro un `.php` finito lì dentro; il codice controlla tipo ed estensione, ma è una difesa sola. | **corretto** — nuovo `media/.htaccess` nel repository (nega `.php`, `.phtml`, `.phar` ecc., nasconde i file `.`, `nosniff` e CSP chiusa se un file si apre da solo). Provato con Apache 2.4: `.php` e `.PHP5` → 403, immagini e audio → 200. Parte da solo col prossimo deploy. |
 | M9 | `.github/workflows/deploy.yml` | Deploy in FTP semplice: password e codice viaggiano in chiaro. | **corretto (27/10/2026)** — `protocol: ftps`; la prima esecuzione è andata a buon fine. |
 | M10 | `register.php`, `lib/auth_core.php` | La regola password è più debole di §7.1: 8 caratteri con lettera e cifra (la guida chiede 10, elenco di password comuni, verifica email). | **corretto (27/10/2026)** — minimo 10 e massimo 128 caratteri, elenco di password comuni (anche con cifra o simbolo in coda), niente password uguale a username/email (`lib/password_policy.php`). **Verifica email** morbida (`lib/email_verifica.php`): mail con link a 24 ore (nel database c'è solo l'hash del token), reinvio limitato, avviso nel widget finché non è confermata; senza la migrazione tutto resta com'era. Provata contro un database vero (token scaduto, riusato, email cambiata, limite giornaliero). **Da fare da te: T4 e T5.** |
-| M11 | tutte le pagine | La CSP ha ancora `'unsafe-inline'` per script e stile: restano ~500 gestori inline (`onclick=…`), ~110 blocchi `<script>` e ~600 attributi `style=""` in 61 file (misura del 27/10/2026). È il passo 10 (CSS/JS esterni). | **aperto, deciso di non farlo alla cieca** — senza poter provare ogni schermata nel browser, un cambio così romperebbe pulsanti in silenzio. Il resto della policy è già stretto (`object-src 'none'`, `base-uri`, `frame-ancestors`, `form-action`, script solo da noi e jsdelivr). Piano a tappe qui sotto (**C**). |
+| M11 | tutte le pagine | La CSP aveva `'unsafe-inline'` per script e stile: ~500 gestori `onclick=…`, ~110 blocchi `<script>`/`<style>`. | **corretto (27/10/2026)** — nonce + `data-on-click`, vedi sezione C. Gli `style=""` negli attributi restano ammessi di proposito. |
 | M12 | `public/social/friends_api.php` | La ricerca utenti non ha limite di frequenza: si possono raccogliere gli username a tappeto. | **chiuso (27/10/2026)** — la parte social è spenta sul sito (`lib/social_gate.php`, 404). Il limite di frequenza va aggiunto quando le pagine diventeranno l'API dell'app. |
 | M13 | `public/fc/fc_card_edit.php` — `mfc_togli()` | Cancella il file dal disco senza controllare se un'altra carta lo usa. Oggi ogni file è di una carta sola; con il negozio no. | **corretto (27/10/2026)** — nuova `lib/fc/fc_files.php` (`fc_file_in_uso`, `fc_file_togli`, `fc_file_togli_dopo`): un file si cancella solo se nessun'altra carta lo usa, e la cancellazione avviene dopo il commit. Usata da `fc_card_edit.php` e da `ai_shatter_save.php`. Provata con carte che condividono lo stesso file. Prerequisito del negozio: **soddisfatto**. |
 
@@ -89,15 +89,32 @@ generici). **Resta aperto solo M11**, la CSP con `'unsafe-inline'`: è un lavoro
 
 ---
 
-## C. Piano a tappe per togliere `'unsafe-inline'` (non ancora fatto)
+## C. CSP senza `'unsafe-inline'` — come funziona e cosa resta
 
-Ordine che non rompe niente per strada, una pagina alla volta, ognuna provata nel browser:
-1. **Stili**: spostare i `<style>` in file `.css` (20 blocchi, facile). Gli `style=""` (~600) si possono togliere per ultimi o tenere con `style-src-attr 'unsafe-inline'`, che è molto meno rischioso di quello sugli script.
-2. **Gestori** `onclick=…` → `addEventListener` con `data-azione="…"` e un piccolo delegatore per pagina (~500, il grosso: `fc_view`, `voti`, `progetti`, `fc_decks`, `fc_game`).
-3. **Blocchi `<script>` inline** (~110) → file `.js` che leggono i dati da `data-*` o da un `<script type="application/json">`.
-4. Solo alla fine togliere `'unsafe-inline'` da `script-src`. Prima, per vedere cosa si rompe senza rischio, si può pubblicare la regola in `Content-Security-Policy-Report-Only`.
+Fatto il 27/10/2026 (era M11). La regola ora è: script e stili inline **solo con il nonce**
+della richiesta (`sec_nonce()`), `script-src-attr 'none'` (nessun `onclick=` può partire),
+`style-src-attr 'unsafe-inline'` (gli `style=""` restano, non eseguono codice).
 
-Da fare solo con la possibilità di provare ogni schermata dal vivo.
+- ~500 gestori `onclick=…` → `data-on-click=…`, eseguiti da `public/_assets/js/standout_events.js`
+  (interprete minimo, niente `eval`).
+- ~90 blocchi `<script>`/`<style>` → `nonce="<?php echo sec_nonce(); ?>"` (compresi quelli
+  dentro stringhe PHP, `sidebar.html`, `i18n.php`, `fc_type.php`, `pomodoro_barra.php`).
+- `javascript:history.back()` della pagina d'errore CSRF → `data-on-click`.
+- `onerror` della miniatura in `fc_stats.php` → ascoltatore in JS; `onload` dei font → `data-on-load`.
+- Gli `<style>` creati da JavaScript (MathJax ne crea uno suo) ricevono il nonce da
+  `standout_events.js`. Provato con MathJax 3.2.2 vero sotto la CSP: nessuna violazione.
+
+**Come è stato provato:** un browser vero (Chromium) con la CSP in vigore su 23 pagine
+(zero violazioni), e una prova *differenziale*: ogni elemento con un gestore è stato
+attivato sia nella versione vecchia (`onclick`) sia nella nuova (`data-on-click`), con le
+scritture bloccate, e si sono confrontati errori, finestre di dialogo, richieste e stato
+della pagina. Vedi il riepilogo nel messaggio di commit.
+
+**Limite onesto:** se un giorno manca un `sec_h()` e qualcuno fa stampare del suo HTML, può
+scrivere un `data-on-click` che chiama una funzione GIÀ esistente del sito. Non può eseguire
+codice suo, caricare script da altri siti né usare `eval`, ma l'escape resta la prima
+difesa: la CSP è la seconda. Chi aggiunge una pagina deve usare `data-on-click` e il nonce
+(lo scanner lo segnala).
 
 ---
 

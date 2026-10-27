@@ -166,7 +166,7 @@ function pomo_barra_html(): array
        bisogno.
        In cima al <head>, prima del foglio di stile: la classe dev'esserci
        quando il browser calcola la prima impaginazione, non dopo. */
-    $head = "\n" . '<script>document.documentElement.classList.add("pomo-bar-attiva");'
+    $head = "\n" . '<script nonce="' . sec_nonce() . '">document.documentElement.classList.add("pomo-bar-attiva");'
                   . 'document.documentElement.dataset.pomoPreacceso="1";</script>'
           . "\n" . '<link rel="stylesheet" href="' . htmlspecialchars($ver('pomodoro_barra.css'), ENT_QUOTES, 'UTF-8') . '">'
           . "\n" . '<script defer src="' . htmlspecialchars($ver('pomodoro_core.js'), ENT_QUOTES, 'UTF-8') . '"></script>'

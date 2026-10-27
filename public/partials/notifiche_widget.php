@@ -30,7 +30,7 @@ $fw_inline = !empty($fr_widget_inline);
 require_once __DIR__ . '/../../lib/email_verifica.php';
 $fw_da_verificare = !ev_verificata($fw_uid);
 ?>
-<style>
+<style nonce="<?php echo sec_nonce(); ?>">
 /* ---------- token isolati: il widget funziona su qualsiasi pagina ---------- */
 .fnw-scope{
     --nis-accent: #5B8DEF;
@@ -284,7 +284,7 @@ button.standout-fab--login:active{ transform:scale(.96); }
     </div>
 </div>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function () {
     'use strict';
     var btn   = document.getElementById('fnwBtn');

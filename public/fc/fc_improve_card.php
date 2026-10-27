@@ -39,7 +39,7 @@ function fc_migliora_carta_blocco() {
 
         <div class="fcm-overlay" id="fcMiglioraOverlay" hidden>
         <div class="exm-ai-box fcm-box" id="fcMiglioraBox">
-            <button type="button" class="fcm-collapse" onclick="fcMigliora.chiudi()" aria-label="<?php echo sec_h(t('fc.ibfai_annulla')); ?>">
+            <button type="button" class="fcm-collapse" data-on-click="fcMigliora.chiudi()" aria-label="<?php echo sec_h(t('fc.ibfai_annulla')); ?>">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
 

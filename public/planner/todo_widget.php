@@ -36,7 +36,7 @@ if (!defined('TODO_WIDGET_CSS')) {
 }
 ?>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function () {
     if (window.standoutTodo) return;
 

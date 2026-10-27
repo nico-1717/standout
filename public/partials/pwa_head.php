@@ -23,7 +23,18 @@ if (!function_exists('pwa_head_html')) {
         // sbagliato ma prevedibile che un errore fatale a meta' pagina
         $base = defined('PWA_BASE') ? PWA_BASE : '/';
 
+        /* Il nonce della CSP, per gli script/stili che una pagina crea da JavaScript
+           (es. fc_parser.js). I template PHP usano sec_nonce() direttamente.
+           standout_events.js fa funzionare i data-on-click="..." che hanno preso il
+           posto degli onclick="..." (vedi quel file): sta qui, in ogni <head>,
+           perche' ogni pagina passa da questa funzione. Senza defer: deve essere
+           pronto prima che la pagina si costruisca, cosi' lega i pulsanti man mano. */
+        $nonce = function_exists('sec_nonce') ? sec_nonce() : '';
+        $ver = @filemtime(__DIR__ . '/../_assets/js/standout_events.js') ?: 1;
+
         return ''
+            . ($nonce !== '' ? '<meta name="csp-nonce" content="' . $nonce . '">' . "\n" : '')
+            . '<script src="' . $base . '_assets/js/standout_events.js?v=' . $ver . '"></script>' . "\n"
             . '<link rel="manifest" href="' . $base . 'manifest.webmanifest">' . "\n"
             . '<meta name="theme-color" content="#EFE0AE">' . "\n"
 

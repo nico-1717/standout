@@ -12,7 +12,7 @@
 
         <div id="fp-skips" class="fp-skip-wrap">
 
-            <button class="fp-skip" onclick="fpSkip(-10)" aria-label="<?php te('fc.fp_indietro_10'); ?>">
+            <button class="fp-skip" data-on-click="fpSkip(-10)" aria-label="<?php te('fc.fp_indietro_10'); ?>">
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg>
 
@@ -22,7 +22,7 @@
 
 
 
-        <button id="fp-playpause" onclick="fpTogglePlay()" aria-label="<?php te('fc.fp_play_pausa'); ?>">
+        <button id="fp-playpause" data-on-click="fpTogglePlay()" aria-label="<?php te('fc.fp_play_pausa'); ?>">
             <svg class="fp-icon fp-icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.3" y="4.8" width="4.1" height="14.4" rx="1.3"/><rect x="13.6" y="4.8" width="4.1" height="14.4" rx="1.3"/></svg>
             <svg class="fp-icon fp-icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="display:none;"><path d="M8.3 5.06v13.88a1 1 0 0 0 1.53.85l11.14-6.94a1 1 0 0 0 0-1.7L9.83 4.21a1 1 0 0 0-1.53.85z"/></svg>
         </button>
@@ -31,7 +31,7 @@
 
         <div id="fp-skips-right" class="fp-skip-wrap">
 
-            <button class="fp-skip" onclick="fpSkip(10)" aria-label="<?php te('fc.fp_avanti_10'); ?>">
+            <button class="fp-skip" data-on-click="fpSkip(10)" aria-label="<?php te('fc.fp_avanti_10'); ?>">
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 17l5-5-5-5"/><path d="M6 17l5-5-5-5"/></svg>
 
@@ -41,7 +41,7 @@
 
 
 
-        <select id="fp-speed" onchange="fpChangeSpeed(this.value)" aria-label="<?php te('fc.fp_velocita'); ?>">
+        <select id="fp-speed" data-on-change="fpChangeSpeed(this.value)" aria-label="<?php te('fc.fp_velocita'); ?>">
 
             <option value="0.8">0.8&times;</option>
 
@@ -63,7 +63,7 @@
 
         <span id="fp-time">0:00</span>
 
-        <input type="range" id="fp-progress" value="0" min="0" max="100" oninput="fpSeek(this.value)">
+        <input type="range" id="fp-progress" value="0" min="0" max="100" data-on-input="fpSeek(this.value)">
 
         <span id="fp-duration">0:00</span>
 
@@ -86,7 +86,7 @@ if (!defined('FP_CSS')) {
 
 
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 // ==========================================
 

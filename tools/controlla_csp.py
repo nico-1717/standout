@@ -27,12 +27,14 @@ def domini_consentiti(percorso_csp):
     for direttiva in ('script-src', 'style-src', 'font-src'):
         # ci si ferma al punto e virgola, non al primo apice: la direttiva
         # contiene 'self' e 'unsafe-inline', che di apici ne hanno parecchi
-        m = re.search(direttiva + r"([^;]*)", t)
+        # la direttiva va cercata dentro una stringa ("script-src ..."), non nei commenti
+        # che la citano; e "style-src" non deve prendere "style-src-attr"
+        m = re.search(r'["\']' + direttiva + r"\s([^;]*)", t)
         domini = set()
         if m:
             for pezzo in m.group(1).split():
-                if pezzo.startswith("'"):
-                    continue          # 'self', 'unsafe-inline'...
+                if not re.match(r'^(https?://)?[A-Za-z0-9.-]+\.[A-Za-z]{2,}', pezzo):
+                    continue          # 'self', 'nonce-..', ". $nonce .", 'unsafe-inline'...
                 domini.add(pezzo.replace('https://', '').replace('http://', '').strip())
         ok[direttiva] = domini
     return ok if any(ok.values()) else None

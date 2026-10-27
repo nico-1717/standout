@@ -153,7 +153,7 @@ function fcNavEsempiHtml(box) {
     var i = box._fcIndex || 0;
     var html = '<div class="qa-ex-nav">';
     if (i > 0) {
-        html += '<button type="button" class="qa-ex-arrow qa-ex-prev" onclick="event.stopPropagation(); fcEsempioFreccia(this,-1)" aria-label="' + fcEscapeHtml(T('fc.vis_esempio_prec')) + '">'
+        html += '<button type="button" class="qa-ex-arrow qa-ex-prev" data-on-click="event.stopPropagation(); fcEsempioFreccia(this,-1)" aria-label="' + fcEscapeHtml(T('fc.vis_esempio_prec')) + '">'
               + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>';
     } else {
         html += '<span class="qa-ex-arrow-spacer"></span>';
@@ -162,7 +162,7 @@ function fcNavEsempiHtml(box) {
     for (var d = 0; d < n; d++) html += '<span class="qa-ex-dot' + (d === i ? ' active' : '') + '"></span>';
     html += '</span>';
     if (i < n - 1) {
-        html += '<button type="button" class="qa-ex-arrow qa-ex-next" onclick="event.stopPropagation(); fcEsempioFreccia(this,1)" aria-label="' + fcEscapeHtml(T('fc.vis_esempio_succ')) + '">'
+        html += '<button type="button" class="qa-ex-arrow qa-ex-next" data-on-click="event.stopPropagation(); fcEsempioFreccia(this,1)" aria-label="' + fcEscapeHtml(T('fc.vis_esempio_succ')) + '">'
               + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>';
     } else {
         html += '<span class="qa-ex-arrow-spacer"></span>';

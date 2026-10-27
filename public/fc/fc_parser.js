@@ -1820,10 +1820,20 @@ function fcdSetSel(root, sel) {
            non fa ancora parte del documento. */
         '.fc-dict{ opacity:.5; font-style:italic; }';
 
-    var el = document.createElement('style');
-    el.id = 'fc-doc-styles';
-    el.textContent = css;
-    document.head.appendChild(el);
+    /* Un <style> creato da JavaScript e' accettato dalla CSP solo col nonce della
+       pagina; lo porta il <meta name="csp-nonce"> messo da pwa_head_html().
+       Quel meta finisce in fondo al <head>, DOPO gli script che stanno nel <head>:
+       se questo file gira prima, si aspetta la fine del caricamento. */
+    function inietta() {
+        var el = document.createElement('style');
+        el.id = 'fc-doc-styles';
+        var metaNonce = document.querySelector('meta[name="csp-nonce"]');
+        if (metaNonce && metaNonce.content) el.setAttribute('nonce', metaNonce.content);
+        el.textContent = css;
+        document.head.appendChild(el);
+    }
+    if (document.querySelector('meta[name="csp-nonce"]') || document.readyState !== 'loading') inietta();
+    else document.addEventListener('DOMContentLoaded', inietta);
 })();
 
 // ================================================================

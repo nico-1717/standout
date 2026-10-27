@@ -378,7 +378,7 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
 
 <div class="app-header">
     <div class="hdr-title">Pomodoro</div>
-    <button type="button" class="hdr-history-btn" onclick="window.openPomodoroStorico({scope:'all'})">
+    <button type="button" class="hdr-history-btn" data-on-click="window.openPomodoroStorico({scope:'all'})">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v6l4 2"/><circle cx="12" cy="13" r="8"/></svg>
         <?php te('pomodoro.storico'); ?>
     </button>
@@ -387,14 +387,14 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
 
 <?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
-<button type="button" class="display-switch" id="displaySwitchBtn" onclick="toggleDisplayStyle()" aria-label="<?php te('pomodoro.cambia_vista'); ?>">
+<button type="button" class="display-switch" id="displaySwitchBtn" data-on-click="toggleDisplayStyle()" aria-label="<?php te('pomodoro.cambia_vista'); ?>">
     <svg id="displaySwitchIcon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12"/><path d="M6 22h12"/><path d="M6 2v3.3c0 .6.24 1.2.66 1.6L12 12l5.34-5.1c.42-.4.66-1 .66-1.6V2"/><path d="M18 22v-3.3c0-.6-.24-1.2-.66-1.6L12 12l-5.34 5.1c-.42.4-.66 1-.66 1.6V22"/></svg>
 </button>
 
 <div class="page">
     <div class="mode-switch" id="modeSwitch">
-        <button type="button" data-mode="0" onclick="setMode(0)"><?php te('pomodoro.timer'); ?></button>
-        <button type="button" data-mode="1" onclick="setMode(1)"><?php te('pomodoro.cronometro'); ?></button>
+        <button type="button" data-mode="0" data-on-click="setMode(0)"><?php te('pomodoro.timer'); ?></button>
+        <button type="button" data-mode="1" data-on-click="setMode(1)"><?php te('pomodoro.cronometro'); ?></button>
     </div>
 
     <div class="pomo-project-row">
@@ -425,7 +425,7 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
              resterebbero appiccicate, mentre devono essere lasciate indietro.
              Il gruppo delle scintille lo riempie il JS all'avvio. -->
         <svg viewBox="0 0 220 220"><circle class="ring-track" cx="110" cy="110" r="100"/><circle class="ring-progress" id="ringProgress" cx="110" cy="110" r="100" stroke-dasharray="628.3" stroke-dashoffset="628.3"/><g class="ring-sparks" id="ringSparks"></g><g class="ring-spark is-off" id="ringSpark" transform="rotate(0 110 110)"><circle class="ring-spark-halo" cx="210" cy="110" r="11"/><circle class="ring-spark-core" cx="210" cy="110" r="6.4"/></g></svg>
-        <div class="ring-center" onclick="onDisplayClick()">
+        <div class="ring-center" data-on-click="onDisplayClick()">
             <?php /* Scritto dal server e non lasciato a "25:00" fisso: se per
                      qualsiasi motivo l'idratazione non arriva in fondo, il
                      quadrante mostra comunque la durata vera invece di una
@@ -435,7 +435,7 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
         </div>
     </div>
 
-    <div class="glass-wrap is-hidden" id="glassWrap" onclick="onDisplayClick()">
+    <div class="glass-wrap is-hidden" id="glassWrap" data-on-click="onDisplayClick()">
         <?php include __DIR__ . '/clessidra.php'; ?>
     </div>
 
@@ -444,7 +444,7 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
              quindi non c'e' niente che possa restare acceso per sbaglio. */ ?>
     <?php include __DIR__ . '/pausa_scena.php'; ?>
 
-    <div class="overtime-chip" id="overtimeChip" style="display:none;" onclick="onExtendClick()">
+    <div class="overtime-chip" id="overtimeChip" style="display:none;" data-on-click="onExtendClick()">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         <span id="overtimeValue">00:00:00</span>
     </div>
@@ -461,47 +461,47 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
          La parola resta nell'aria-label e nel title, per chi usa il lettore di
          schermo e per chi si ferma un attimo sopra al tasto. -->
     <div class="pomo-actions" id="actionsIdle">
-        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-start pomo-btn-xl" id="startBtn" onclick="onStartClick()"
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-start pomo-btn-xl" id="startBtn" data-on-click="onStartClick()"
                 aria-label="<?php te('pomodoro.start'); ?>" title="<?php te('pomodoro.start'); ?>">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.4 5.2a1 1 0 0 1 1.53-.85l8.2 5.15a1 1 0 0 1 0 1.7l-8.2 5.15a1 1 0 0 1-1.53-.85z" transform="translate(-1.2 1)"/></svg>
         </button>
     </div>
     <div class="pomo-actions" id="actionsRunning" style="display:none;">
-        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-pausa" id="midPauseBtn" onclick="onMidPauseClick()"
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-pausa" id="midPauseBtn" data-on-click="onMidPauseClick()"
                 aria-label="<?php te('pomodoro.stop'); ?>" title="<?php te('pomodoro.stop'); ?>">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1.6"/><rect x="13.5" y="5" width="4" height="14" rx="1.6"/></svg>
         </button>
-        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" onclick="onInterrompiClick()"
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" data-on-click="onInterrompiClick()"
                 aria-label="<?php te('pomodoro.interrompi'); ?>" title="<?php te('pomodoro.interrompi'); ?>">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.4"/></svg>
         </button>
     </div>
     <div class="pomo-actions" id="actionsCompleted" style="display:none;">
-        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" onclick="onChiudiCompletato()"
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" data-on-click="onChiudiCompletato()"
                 aria-label="<?php te('comune.chiudi'); ?>" title="<?php te('comune.chiudi'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
         </button>
-        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-teal" onclick="onAvviaPausaClick()"
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-teal" data-on-click="onAvviaPausaClick()"
                 aria-label="<?php te('pomodoro.pausa'); ?>" title="<?php te('pomodoro.pausa'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 10.5h2.2a2.4 2.4 0 0 1 0 4.8H16"/><path d="M8 2.5v2.6M12 2.5v2.6"/></svg>
         </button>
     </div>
     <div class="pomo-actions" id="actionsPausaRunning" style="display:none;">
-        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" onclick="onFinePausaClick('stop')"
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" data-on-click="onFinePausaClick('stop')"
                 aria-label="<?php te('pomodoro.interrompi'); ?>" title="<?php te('pomodoro.interrompi'); ?>">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.4"/></svg>
         </button>
-        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-pomodoro" onclick="onFinePausaClick('nuovo_pomodoro')"
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-pomodoro" data-on-click="onFinePausaClick('nuovo_pomodoro')"
                 aria-label="<?php te('pomodoro.nuovo_pomodoro'); ?>" title="<?php te('pomodoro.nuovo_pomodoro'); ?>">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.4 5.2a1 1 0 0 1 1.53-.85l8.2 5.15a1 1 0 0 1 0 1.7l-8.2 5.15a1 1 0 0 1-1.53-.85z" transform="translate(-1.2 1)"/></svg>
         </button>
     </div>
     <div class="pomo-actions" id="actionsPausaDone" style="display:none;">
-        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" onclick="onFinePausaClick('stop')"
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" data-on-click="onFinePausaClick('stop')"
                 aria-label="<?php te('pomodoro.interrompi'); ?>" title="<?php te('pomodoro.interrompi'); ?>">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.4"/></svg>
         </button>
-        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-pomodoro" onclick="onFinePausaClick('nuovo_pomodoro')"
+        <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-pomodoro" data-on-click="onFinePausaClick('nuovo_pomodoro')"
                 aria-label="<?php te('pomodoro.nuovo_pomodoro'); ?>" title="<?php te('pomodoro.nuovo_pomodoro'); ?>">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.4 5.2a1 1 0 0 1 1.53-.85l8.2 5.15a1 1 0 0 1 0 1.7l-8.2 5.15a1 1 0 0 1-1.53-.85z" transform="translate(-1.2 1)"/></svg>
         </button>
@@ -509,11 +509,11 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
     <div class="pomo-actions" id="actionsPausedTask" style="display:none; flex-direction:column; align-items:center;">
         <span class="paused-badge"><span class="dot"></span><?php te('pomodoro.sessione_in_pausa'); ?></span>
         <div style="display:flex; gap:12px;">
-            <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-resume" onclick="onResumeTaskClick()"
+            <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-resume" data-on-click="onResumeTaskClick()"
                     aria-label="<?php te('pomodoro.riprendi'); ?>" title="<?php te('pomodoro.riprendi'); ?>">
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.4 5.2a1 1 0 0 1 1.53-.85l8.2 5.15a1 1 0 0 1 0 1.7l-8.2 5.15a1 1 0 0 1-1.53-.85z" transform="translate(-1.2 1)"/></svg>
             </button>
-            <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" onclick="onInterrompiClick()"
+            <button type="button" class="pomo-btn pomo-btn-icon pomo-btn-interrompi" data-on-click="onInterrompiClick()"
                     aria-label="<?php te('pomodoro.interrompi'); ?>" title="<?php te('pomodoro.interrompi'); ?>">
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.4"/></svg>
             </button>
@@ -522,11 +522,11 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
 </div>
 
 <!-- ================= POPUP DURATA (pomodoro + pausa) ================= -->
-<div class="dur-overlay" id="durOverlay" onclick="if(event.target===this) closeDurPopup();">
+<div class="dur-overlay" id="durOverlay" data-on-click="if(event.target===this) closeDurPopup();">
     <div class="dur-sheet">
         <div class="dur-grabber"></div>
         <div class="dur-head"><b><?php te('pomodoro.durata'); ?></b>
-            <button type="button" class="sheet-close" onclick="closeDurPopup()" aria-label="<?php te('comune.chiudi'); ?>">
+            <button type="button" class="sheet-close" data-on-click="closeDurPopup()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
         </div>
@@ -539,24 +539,24 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
             <div class="dur-half-title dur-pausa-title"><span class="dot"></span><?php te('pomodoro.pausa'); ?></div>
             <div class="dur-pills" id="durPausaPills"></div>
         </div>
-        <button type="button" class="dur-confirm" onclick="confirmDurPopup()"><?php te('comune.conferma'); ?></button>
+        <button type="button" class="dur-confirm" data-on-click="confirmDurPopup()"><?php te('comune.conferma'); ?></button>
     </div>
 </div>
 
 <!-- ================= POPUP GESTIONE DURATE ================= -->
-<div class="dur-overlay" id="customDurOverlay" style="z-index:9710;" onclick="if(event.target===this) closeCustomDur();">
+<div class="dur-overlay" id="customDurOverlay" style="z-index:9710;" data-on-click="if(event.target===this) closeCustomDur();">
     <div class="dur-sheet">
         <div class="dur-grabber"></div>
         <div class="dur-head"><b><?php te('pomodoro.gestisci'); ?> <span id="cdurTipoTit"></span></b>
-            <button type="button" class="sheet-close" onclick="closeCustomDur()" aria-label="<?php te('comune.chiudi'); ?>">
+            <button type="button" class="sheet-close" data-on-click="closeCustomDur()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
         </div>
         <div class="cdur-body">
             <div class="dur-half-title"><?php te('pomodoro.aggiungi_durata'); ?></div>
             <div class="cdur-add-row">
-                <input type="time" class="cdur-time-input" id="cdurTime" onfocus="if(!this.value) this.value='00:00';" value="00:00">
-                <button type="button" class="cdur-add-btn" onclick="saveCustomDur()"><?php te('comune.aggiungi'); ?></button>
+                <input type="time" class="cdur-time-input" id="cdurTime" data-on-focus="if(!this.value) this.value='00:00';" value="00:00">
+                <button type="button" class="cdur-add-btn" data-on-click="saveCustomDur()"><?php te('comune.aggiungi'); ?></button>
             </div>
 
             <div class="dur-half-title" style="margin-top:24px;"><?php te('pomodoro.create_da_te'); ?></div>
@@ -572,8 +572,8 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
         <div class="confirm-title" id="confirmTitle"><?php te('pomodoro.salvare_sessione'); ?></div>
         <div class="confirm-msg" id="confirmMsg"></div>
         <div class="confirm-actions">
-            <button type="button" class="confirm-btn" onclick="closeConfirm(false)"><?php te('comune.no'); ?></button>
-            <button type="button" class="confirm-btn confirm-btn-primary" onclick="closeConfirm(true)"><?php te('pomodoro.si_salva'); ?></button>
+            <button type="button" class="confirm-btn" data-on-click="closeConfirm(false)"><?php te('comune.no'); ?></button>
+            <button type="button" class="confirm-btn confirm-btn-primary" data-on-click="closeConfirm(true)"><?php te('pomodoro.si_salva'); ?></button>
         </div>
     </div>
 </div>
@@ -633,10 +633,10 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
     include __DIR__ . '/pomodoro_storico.php';
 ?>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 const STATE0 = <?php echo json_encode($jsState, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
 </script>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function(){
 'use strict';
 
@@ -986,7 +986,7 @@ window.renderCustomList = function() {
         row.innerHTML = '<span class="cdur-row-label">' +
                         '<svg class="cdur-row-check" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>' +
                         '<span>' + label + '</span></span>' +
-                        '<button type="button" class="cdur-row-del" onclick="deleteCustomDur('+m+')" aria-label="' + T('comune.elimina') + '">' +
+                        '<button type="button" class="cdur-row-del" data-on-click="deleteCustomDur('+m+')" aria-label="' + T('comune.elimina') + '">' +
                         '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>' +
                         '</button>';
         container.appendChild(row);
@@ -1983,7 +1983,7 @@ function fmtDurataBreve(sec){
 })();
 </script>
 <?php include __DIR__ . '/../planner/todo_widget.php'; ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 /* Attività del pomodoro: il post-it con il timer in alto e l'elenco di cosa
    fare. Le attività ereditano orario di inizio e progetto del pomodoro, quindi
    nel post-it non ci sono i campi data, ora, durata e progetto. */

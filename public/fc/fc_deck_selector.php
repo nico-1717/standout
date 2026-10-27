@@ -653,7 +653,7 @@ if ($cs_selected_color === null) $cs_selected_color = '#007AFF';
 
 <?php if (!defined('CS_SCRIPT_EMITTED')): define('CS_SCRIPT_EMITTED', true); ?>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 /* ----------------------------------------------------------------------
    Blocco dello scorrimento sotto ai popup.

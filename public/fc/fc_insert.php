@@ -274,7 +274,7 @@ if ($modo === 'edit') {
     <?php echo fc_boot_json(); ?>
 
 <?php if (!$fc_vocab): /* le parole sono testo semplice: niente formule, niente MathJax */ ?>
-    <script>
+    <script nonce="<?php echo sec_nonce(); ?>">
 
 
 
@@ -408,7 +408,7 @@ if ($modo === 'edit') {
 <div class="big-loading" id="bigLoading" aria-hidden="true">
     <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></svg>
 </div>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function(){
     var velo = document.getElementById('bigLoading');
     if (!velo) return;
@@ -477,7 +477,7 @@ if ($modo === 'edit') {
 
 
 
-    <button type="button" onclick="cancelChildSelection()"><?php te('fc.ibfc_annulla_x'); ?></button>
+    <button type="button" data-on-click="cancelChildSelection()"><?php te('fc.ibfc_annulla_x'); ?></button>
 
 
 
@@ -562,7 +562,7 @@ if ($modo === 'edit') {
              Subito a sinistra del pulsante di salvataggio: sta con le altre
              azioni della pagina, non con la navigazione a sinistra. */ ?>
     <button type="button" class="hdr-icon-btn" id="btnModalitaCompatta"
-            onclick="document.body.classList.toggle('is-compact'); this.classList.toggle('is-on', document.body.classList.contains('is-compact')); aggiornaAnteprimeCompatte();"
+            data-on-click="document.body.classList.toggle('is-compact'); this.classList.toggle('is-on', document.body.classList.contains('is-compact')); aggiornaAnteprimeCompatte();"
             aria-label="<?php echo sec_h(t('fc.ibf_modalita_compatta')); ?>"
             title="<?php echo sec_h(t('fc.ibf_modalita_compatta')); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -903,7 +903,7 @@ if ($modo === 'edit') {
                  qui si chiedono le successive. Nasce nascosto e lo accende
                  renderNextBatch() quando ne restano davvero. */ ?>
         <div id="loadMoreContainer" style="display:none; text-align:center; padding: 10px 14px 20px;">
-            <button type="button" class="btn btn-ghost" style="width:auto; display:inline-flex; border:1.5px solid var(--hairline-2); font-size:14px; padding:10px 20px; box-shadow:var(--raise-sm);" onclick="renderNextBatch(20)">
+            <button type="button" class="btn btn-ghost" style="width:auto; display:inline-flex; border:1.5px solid var(--hairline-2); font-size:14px; padding:10px 20px; box-shadow:var(--raise-sm);" data-on-click="renderNextBatch(20)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;margin-right:6px;"><path d="M6 9l6 6 6-6"/></svg>
                 <?php te('fc.befc_carica_altre'); ?>
             </button>
@@ -917,7 +917,7 @@ if ($modo === 'edit') {
 
 
 
-            <button type="button" class="btn btn-primary" onclick="addSingleRow()">
+            <button type="button" class="btn btn-primary" data-on-click="addSingleRow()">
 
 
 
@@ -1073,7 +1073,7 @@ if ($modo === 'edit') {
 
 
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 
 
@@ -1559,7 +1559,7 @@ if ($modo === 'edit') {
 
             return `<button type="button" class="ex-chip ex-disabled" style="background:var(--surface-3); color:var(--text-3); border:1.5px solid transparent;"
 
-                onclick="showToast(T('fc.ifc_salva_prima'))"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> ${T('fc.befc_esempi')}</button>`;
+                data-on-click="showToast(T('fc.ifc_salva_prima'))"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> ${T('fc.befc_esempi')}</button>`;
 
         }
 
@@ -1583,7 +1583,7 @@ if ($modo === 'edit') {
         // e' sempre l'id vero e positivo della riga).
         return `<button type="button" id="btn-ex-${tipo[0]}${dbId}" class="ex-chip" style="background:${bg}; color:${color}; border:1.5px solid ${border};"
 
-            onclick="openExamplesModal(${dbId}, '${tipo}', document.getElementById('q-desc-${domId}').value, document.getElementById('a-desc-${domId}').value)">${label}</button>`;
+            data-on-click="openExamplesModal(${dbId}, '${tipo}', document.getElementById('q-desc-${domId}').value, document.getElementById('a-desc-${domId}').value)">${label}</button>`;
 
     }
 
@@ -3027,8 +3027,8 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
                         aria-label="${escAttr(T('fcv.ascolta'))}" title="${escAttr(T('fcv.ascolta'))}">${ICON_SPEAK}</button>
             </div>
             <div class="media-row">
-                <label class="media-chip img-chip ${imgUrl ? 'has-img' : ''}" id="q-chip-${rid}" onclick="return apriChipImmagine(event, this)">
-                    <input type="file" accept="image/*" onchange="previewRowImage(this, 'q', '${rid}')">
+                <label class="media-chip img-chip ${imgUrl ? 'has-img' : ''}" id="q-chip-${rid}" data-on-click="return apriChipImmagine(event, this)">
+                    <input type="file" accept="image/*" data-on-change="previewRowImage(this, 'q', '${rid}')">
                     <span class="chip-thumb" id="q-img-preview-${rid}">${thumb}</span>
                     <span class="img-name-tag">${imgName ? escAttr(imgName) : T('vocab.immagine')}</span>
                 </label>
@@ -3301,9 +3301,9 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
 
             <div class="media-row">
 
-                <label class="media-chip img-chip ${imgUrl ? 'has-img' : ''}" id="${prefix}-chip-${id}" onclick="return apriChipImmagine(event, this)">
+                <label class="media-chip img-chip ${imgUrl ? 'has-img' : ''}" id="${prefix}-chip-${id}" data-on-click="return apriChipImmagine(event, this)">
 
-                    <input type="file" accept="image/*" onchange="previewRowImage(this, '${prefix}', '${id}')">
+                    <input type="file" accept="image/*" data-on-change="previewRowImage(this, '${prefix}', '${id}')">
 
                     <span class="chip-thumb" id="${imgPrevId}">${thumb}</span>
 
@@ -3311,7 +3311,7 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
 
                 </label>
 
-                <button type="button" class="media-chip btn-rec" onclick="toggleRowRecord(this, '${prefix}')">
+                <button type="button" class="media-chip btn-rec" data-on-click="toggleRowRecord(this, '${prefix}')">
 
                     <span class="chip-thumb"><span class="rec-dot"></span></span>
 
@@ -3321,7 +3321,7 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
 
                 <audio class="${audioClass} audio-player-${prefix}" controls${audioSrc}></audio>
                 <button type="button" class="media-chip btn-del-audio" data-tipo="${prefix}"
-                        onclick="eliminaAudioRiga(this, '${prefix}')"
+                        data-on-click="eliminaAudioRiga(this, '${prefix}')"
                         title="${escAttr(T('fc.ibf_elimina_audio'))}"
                         aria-label="${escAttr(T('fc.ibf_elimina_audio'))}"
                         ${audioUrl ? '' : 'hidden'}>${ICON_AUDIO_X}</button>
@@ -3396,9 +3396,9 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
         wrap.dataset.origType = isChild ? 'child' : 'parent';
         wrap.innerHTML = `
             <div class="swipe-actions">
-                <button type="button" class="swipe-btn swipe-btn-delete" onclick="swipeDeleteRow(this)">${ICON_TRASH}<span>${T('comune.elimina')}</span></button>
-                <button type="button" class="swipe-btn swipe-btn-join" onclick="swipeJoinRow(this)">${ICON_LINK}<span>${T('fc.ibf_figlio')}</span></button>
-                <button type="button" class="swipe-btn swipe-btn-unjoin" onclick="swipeUnjoinRow(this)">${ICON_UNLINK}<span>${T('fc.ibf_sgancia')}</span></button>
+                <button type="button" class="swipe-btn swipe-btn-delete" data-on-click="swipeDeleteRow(this)">${ICON_TRASH}<span>${T('comune.elimina')}</span></button>
+                <button type="button" class="swipe-btn swipe-btn-join" data-on-click="swipeJoinRow(this)">${ICON_LINK}<span>${T('fc.ibf_figlio')}</span></button>
+                <button type="button" class="swipe-btn swipe-btn-unjoin" data-on-click="swipeUnjoinRow(this)">${ICON_UNLINK}<span>${T('fc.ibf_sgancia')}</span></button>
             </div>
             <div class="deleted-stub">
                 <span class="stub-icon">${ICON_TRASH_SM}</span>
@@ -3406,13 +3406,13 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
                     <span class="stub-text stub-q"></span>
                     <span class="stub-text stub-a" hidden></span>
                 </span>
-                <button type="button" class="btn-restore" onclick="onRestoreClick(this)">${ICON_UNDO}<span>${T('fc.befc_ripristina')}</span></button>
+                <button type="button" class="btn-restore" data-on-click="onRestoreClick(this)">${ICON_UNDO}<span>${T('fc.befc_ripristina')}</span></button>
             </div>
             <div class="fc-row-content">
                 <div class="fc-row-strip">
                     <span class="grip">${ICON_GRIP}</span>
-                    <button type="button" class="btn-move-up" onclick="spostaRiga(this, -1)" aria-label="${escAttr(T('fc.ibf_sposta_su'))}" title="${escAttr(T('fc.ibf_sposta_su'))}">${ICON_MOVE_UP}</button>
-                    <button type="button" class="btn-move-down" onclick="spostaRiga(this, 1)" aria-label="${escAttr(T('fc.ibf_sposta_giu'))}" title="${escAttr(T('fc.ibf_sposta_giu'))}">${ICON_MOVE_DOWN}</button>
+                    <button type="button" class="btn-move-up" data-on-click="spostaRiga(this, -1)" aria-label="${escAttr(T('fc.ibf_sposta_su'))}" title="${escAttr(T('fc.ibf_sposta_su'))}">${ICON_MOVE_UP}</button>
+                    <button type="button" class="btn-move-down" data-on-click="spostaRiga(this, 1)" aria-label="${escAttr(T('fc.ibf_sposta_giu'))}" title="${escAttr(T('fc.ibf_sposta_giu'))}">${ICON_MOVE_DOWN}</button>
                     <span class="row-badge">${isChild ? T('vocab.figlio') : T('fc.ibf_concetto')}</span>
                     <span class="status-badge sb-new">${T('vocab.mi_nuova')}</span>
                     <span class="status-badge sb-edited">${T('fc.befc_modificata')}</span>
@@ -3430,10 +3430,10 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
                     ${fieldTemplate('a', rid, aText, T('fc.ifc_risposta'), c.aImgUrl || '', c.aImgName || '', c.aAudioUrl || '', isChild)}`}
                 </div>
                 <div class="ns-row-foot">
-                    <button type="button" class="ns-add-kid" onclick="addKidFrom(this)">
+                    <button type="button" class="ns-add-kid" data-on-click="addKidFrom(this)">
                         ${isChild ? ICON_SIBLING + T('fc.ifc_aggiungi_fratello') : ICON_KID + T('fc.ifc_aggiungi_figlio')}
                     </button>
-                    ${FCV ? '' : `<button type="button" class="ns-add-kid btn-ia-riga" onclick="if(window.FCAIP) FCAIP.apriMigliora(this)">
+                    ${FCV ? '' : `<button type="button" class="ns-add-kid btn-ia-riga" data-on-click="if(window.FCAIP) FCAIP.apriMigliora(this)">
                         ${ICON_MAGIC}<span class="btn-ia-riga-testo">${aVuotaAllaNascita ? T('fc.ibfai_sec_ia_titolo') : T('fc.ibfai_migliora_con_ia_btn')}</span>
                     </button>`}
                 </div>
@@ -3737,7 +3737,7 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
 
 
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 
 

@@ -606,7 +606,7 @@ function fcm_chip_esame(?string $data, string $classe = 'cs-esame'): string {
 function fcm_badge_ripasso(int $id): string {
     $diff = (int)fcm_numeri($id)['r'];
     if ($diff < 2) return '';
-    return '<a class="cs-badge-rip" href="' . sec_h(fcm_url_difficili($id)) . '" onclick="event.stopPropagation()"'
+    return '<a class="cs-badge-rip" href="' . sec_h(fcm_url_difficili($id)) . '" data-on-click="event.stopPropagation()"'
          . ' title="' . sec_h(t('fc.dk_gioca_difficili')) . '" aria-label="' . sec_h(t('fc.dk_da_ripassare', ['n' => $diff])) . '">'
          . $diff . '</a>';
 }
@@ -1097,16 +1097,16 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
     <!-- TASTI SWIPE VERSO DESTRA (Nascosti sotto, a sinistra) -->
     <div class="cat-swipe-actions">
         <button type="button" class="swipe-btn swipe-edit" aria-label="<?php te('comune.modifica'); ?>"
-                        onclick="chiudiTuttiSwipe(); apriModalSalvaDaRiga(this)">
+                        data-on-click="chiudiTuttiSwipe(); apriModalSalvaDaRiga(this)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
         </button>
         <button type="button" class="swipe-btn swipe-move" aria-label="<?php te('vocab.cat_sposta_attr'); ?>"
-                        onclick="avviaSpostaDaRiga(this)">
+                        data-on-click="avviaSpostaDaRiga(this)">
             <?php echo FC_ICON_LINK; ?>
         </button>
         <?php if ($can_delete): ?>
         <button type="button" class="swipe-btn swipe-delete" aria-label="<?php te('comune.elimina'); ?>"
-                        onclick="chiudiTuttiSwipe(); apriConfermaEliminaDaRiga(this)">
+                        data-on-click="chiudiTuttiSwipe(); apriConfermaEliminaDaRiga(this)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
         </button>
         <?php endif; ?>
@@ -1116,7 +1116,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
     <!-- TASTO SWIPE VERSO SINISTRA (Nascosto sotto, a destra): archivia -->
     <div class="cat-swipe-arch">
         <button type="button" class="swipe-btn swipe-archive<?php echo $archPane ? ' is-restore' : ''; ?>"
-                onclick="archiviaDaRiga(this)"
+                data-on-click="archiviaDaRiga(this)"
                 aria-label="<?php echo $archPane ? T('fc.cfc_ripristina') : T('fc.cfc_archivia'); ?>">
             <?php echo $archPane ? FC_ICON_UNARCHIVE : FC_ICON_ARCHIVE; ?>
             <span><?php echo sec_h($archPane ? T('fc.cfc_ripristina') : T('fc.cfc_archivia')); ?></span>
@@ -1125,13 +1125,13 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
     <?php endif; ?>
 
     <!-- RIGA PRINCIPALE (In primo piano) -->
-    <div class="cat-row-main" style="padding-left:<?php echo (int)$pad; ?>px;" data-cat-link="<?php echo sec_h(fc_url('fc_view.php', ['category_id' => (int)$id])); ?>" onclick="fcCatRowNavigate(event, this)">
+    <div class="cat-row-main" style="padding-left:<?php echo (int)$pad; ?>px;" data-cat-link="<?php echo sec_h(fc_url('fc_view.php', ['category_id' => (int)$id])); ?>" data-on-click="fcCatRowNavigate(event, this)">
         <span class="cat-check" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
         </span>
 
         <?php if ($has_children): ?>
-        <button type="button" class="cat-arrow" onclick="event.stopPropagation(); toggleBranch(<?php echo (int)$id; ?>)" aria-label="<?php te('vocab.cat_espandi'); ?>">
+        <button type="button" class="cat-arrow" data-on-click="event.stopPropagation(); toggleBranch(<?php echo (int)$id; ?>)" aria-label="<?php te('vocab.cat_espandi'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
         </button>
         <?php else: ?>
@@ -1146,7 +1146,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
         <div class="cat-name-wrap">
         <span class="cat-name"><?php if (!empty($cat['pinned'])): ?><span class="cat-pin" title="<?php te('fc.dk_fissato'); ?>"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.5 2.5a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4l-1.6 1.6a1 1 0 0 1-1 .25l-2.2 2.2.4 4.2a1 1 0 0 1-.3.8l-1 1a1 1 0 0 1-1.4 0L10 15.1l-5.3 5.3a1 1 0 0 1-1.4-1.4L8.6 13.7 4.2 9.3a1 1 0 0 1 0-1.4l1-1a1 1 0 0 1 .8-.3l4.2.4 2.2-2.2a1 1 0 0 1 .25-1Z"/></svg></span><?php endif; ?><?php echo sec_h($nameEsc); ?></span>
         <?php $catProj = $cat_project_links[$id] ?? null; if ($catProj): ?>
-        <a class="cat-proj-tag" href="../projects/progetti.php?id=<?php echo (int)$catProj['id']; ?>" style="--cp-color:<?php echo sec_h($catProj['color']); ?>;" onclick="event.stopPropagation();">
+        <a class="cat-proj-tag" href="../projects/progetti.php?id=<?php echo (int)$catProj['id']; ?>" style="--cp-color:<?php echo sec_h($catProj['color']); ?>;" data-on-click="event.stopPropagation();">
             <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
             <?php if (!empty($catProj['parent_name'])): ?><span class="cat-proj-anc"><?php echo sec_h($catProj['parent_name']); ?></span><span class="cat-proj-sep">•</span><?php endif; ?>
             <span class="cat-proj-leaf"><?php echo sec_h($catProj['name']); ?></span>
@@ -1170,7 +1170,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
             data-icon-auto="<?php echo sec_h(fc_icona_da_nome((string)$cat['name'])); ?>"
             data-pinned="<?php echo (int)($cat['pinned'] ?? 0); ?>"
             data-exam="<?php echo sec_h((string)($cat['exam_date'] ?? '')); ?>"
-            onclick="event.stopPropagation(); apriAzioni(this);">
+            data-on-click="event.stopPropagation(); apriAzioni(this);">
             <svg viewBox="0 0 24 24" fill="currentColor">
                 <circle cx="5" cy="12" r="1.7"/>
                 <circle cx="12" cy="12" r="1.7"/>
@@ -1193,7 +1193,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 <div class="cat-add-here" data-parent="<?php echo (int)$id; ?>" style="display:none; padding-left:<?php echo (int)($pad + 24); ?>px;">
     <button type="button" class="cat-add-btn" style="--row-color:<?php echo sec_h($color); ?>;"
             data-id="<?php echo (int)$id; ?>" data-name="<?php echo sec_h($nameEsc); ?>" data-color="<?php echo sec_h($color); ?>"
-            onclick="aggiungiFiglioDaTastino(this)">
+            data-on-click="aggiungiFiglioDaTastino(this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         <span><?php te('fc.cfc_sotto_categoria'); ?></span>
     </button>
@@ -1274,9 +1274,9 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
 
-        <input type="text" id="searchInput" placeholder="<?php te('vocab.cat_cerca'); ?>" oninput="avviaRicerca(this.value)" autocomplete="off">
+        <input type="text" id="searchInput" placeholder="<?php te('vocab.cat_cerca'); ?>" data-on-input="avviaRicerca(this.value)" autocomplete="off">
 
-        <button type="button" class="search-clear" id="searchClear" onclick="clearSearch()" aria-label="<?php te('vocab.cat_cancella_ricerca'); ?>">
+        <button type="button" class="search-clear" id="searchClear" data-on-click="clearSearch()" aria-label="<?php te('vocab.cat_cancella_ricerca'); ?>">
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
 
@@ -1311,7 +1311,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
          decisione piu' grossa delle tre (cambia proprio come si legge la
          pagina), e le altre due valgono dentro la vista che ha scelto lei. -->
     <div class="cat-toolbar">
-        <button type="button" class="tool-btn tool-btn-view" id="btnView" onclick="cambiaVista()" aria-label="<?php te('fc.cfc_cambia_vista'); ?>" title="<?php te('fc.cfc_elenco_griglia'); ?>">
+        <button type="button" class="tool-btn tool-btn-view" id="btnView" data-on-click="cambiaVista()" aria-label="<?php te('fc.cfc_cambia_vista'); ?>" title="<?php te('fc.cfc_elenco_griglia'); ?>">
             <span class="tb-list"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></span>
             <span class="tb-grid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg></span>
         </button>
@@ -1324,10 +1324,10 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
             </button>
         </div>
         <div class="tool-btns">
-            <button type="button" class="tool-btn" id="btnCollapse" onclick="comprimiTutto()" aria-label="<?php te('fc.cfc_comprimi_tutto'); ?>" title="<?php te('fc.cfc_comprimi_tutto'); ?>">
+            <button type="button" class="tool-btn" id="btnCollapse" data-on-click="comprimiTutto()" aria-label="<?php te('fc.cfc_comprimi_tutto'); ?>" title="<?php te('fc.cfc_comprimi_tutto'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5-5 5 5M7 14l5 5 5-5"/></svg>
             </button>
-            <button type="button" class="tool-btn" id="btnSelect" onclick="toggleModalitaSelezione()" aria-label="<?php te('fc.cfc_seleziona'); ?>" title="<?php te('fc.cfc_selezione_multipla'); ?>">
+            <button type="button" class="tool-btn" id="btnSelect" data-on-click="toggleModalitaSelezione()" aria-label="<?php te('fc.cfc_seleziona'); ?>" title="<?php te('fc.cfc_selezione_multipla'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
             </button>
         </div>
@@ -1363,7 +1363,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
             <div class="empty-sub"><?php te('fc.cfc_nessuna_txt'); ?></div>
 
-            <button type="button" class="btn-create-first" onclick="apriModalSalva({id:0,name:'',parentId:0,parentName:'',parentColor:'#A0A0A0',color:'#A0A0A0',colorEdited:false})">
+            <button type="button" class="btn-create-first" data-on-click="apriModalSalva({id:0,name:'',parentId:0,parentName:'',parentColor:'#A0A0A0',color:'#A0A0A0',colorEdited:false})">
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
 
@@ -1467,7 +1467,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
 
 
-<button type="button" class="fab" onclick="apriNuovaDaFab()" aria-label="<?php te('vocab.cat_aggiungi'); ?>">
+<button type="button" class="fab" data-on-click="apriNuovaDaFab()" aria-label="<?php te('vocab.cat_aggiungi'); ?>">
 
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
 
@@ -1478,22 +1478,22 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 <div class="selbar" id="selBar">
     <div class="selbar-head">
         <span class="selbar-n" id="selCount"><?php te('fc.cfc_selezionate', ['n' => 0]); ?></span>
-        <button type="button" class="selbar-close" onclick="toggleModalitaSelezione(false)"><?php te('fc.cfc_fine'); ?></button>
+        <button type="button" class="selbar-close" data-on-click="toggleModalitaSelezione(false)"><?php te('fc.cfc_fine'); ?></button>
     </div>
     <div class="selbar-acts">
-        <button type="button" class="selact" onclick="bulkSposta()">
+        <button type="button" class="selact" data-on-click="bulkSposta()">
             <?php echo FC_ICON_LINK; ?><span><?php te('vocab.cat_sposta_attr'); ?></span>
         </button>
-        <button type="button" class="selact" onclick="bulkColore()">
+        <button type="button" class="selact" data-on-click="bulkColore()">
             <span class="selact-wheel"></span><span><?php te('vocab.cat_colore'); ?></span>
         </button>
-        <button type="button" class="selact" id="selActArchive" onclick="bulkArchivia(1)">
+        <button type="button" class="selact" id="selActArchive" data-on-click="bulkArchivia(1)">
             <?php echo FC_ICON_ARCHIVE; ?><span><?php te('fc.cfc_archivia'); ?></span>
         </button>
-        <button type="button" class="selact" id="selActUnarchive" onclick="bulkArchivia(0)" style="display:none;">
+        <button type="button" class="selact" id="selActUnarchive" data-on-click="bulkArchivia(0)" style="display:none;">
             <?php echo FC_ICON_UNARCHIVE; ?><span><?php te('fc.cfc_ripristina'); ?></span>
         </button>
-        <button type="button" class="selact danger" onclick="bulkElimina()">
+        <button type="button" class="selact danger" data-on-click="bulkElimina()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg><span><?php te('comune.elimina'); ?></span>
         </button>
     </div>
@@ -1580,7 +1580,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
                 <div class="color-grid" id="formColorGrid">
 
-                    <button type="button" class="color-swatch color-swatch-auto selected" data-auto="1" onclick="setFormColorAuto()" title="<?php te('comune.automatico'); ?>">
+                    <button type="button" class="color-swatch color-swatch-auto selected" data-auto="1" data-on-click="setFormColorAuto()" title="<?php te('comune.automatico'); ?>">
 
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v8h8"/></svg>
 
@@ -1588,7 +1588,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
                     <?php foreach ($colorPalette as $ci => $hex): ?>
 
-                    <button type="button" class="color-swatch" style="--sw:<?php echo sec_h($hex); ?>; animation-delay:<?php echo (int)($ci * 22); ?>ms;" data-hex="<?php echo sec_h($hex); ?>" onclick="setFormColorManual('<?php echo sec_h($hex); ?>')">
+                    <button type="button" class="color-swatch" style="--sw:<?php echo sec_h($hex); ?>; animation-delay:<?php echo (int)($ci * 22); ?>ms;" data-hex="<?php echo sec_h($hex); ?>" data-on-click="setFormColorManual('<?php echo sec_h($hex); ?>')">
 
                         <svg class="check-ic" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
 
@@ -1602,7 +1602,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
                 <div class="custom-color-row">
 
-                    <input type="color" id="formCustomColorInput" value="#007AFF" oninput="setFormColorManual(this.value)">
+                    <input type="color" id="formCustomColorInput" value="#007AFF" data-on-input="setFormColorManual(this.value)">
 
                     <span class="cc-label"><?php te('vocab.cat_colore_pers'); ?></span>
 
@@ -1621,14 +1621,14 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
                 <div class="icon-grid" id="formIconGrid" role="radiogroup" aria-label="<?php te('fc.dk_icona'); ?>">
                     <?php /* La prima: automatica, cioe' indovinata dal nome del mazzo. */ ?>
                     <button type="button" class="icon-swatch icon-swatch-auto selected" data-icon="" role="radio" aria-checked="true"
-                            title="<?php te('fc.dk_icona_auto'); ?>" aria-label="<?php te('fc.dk_icona_auto'); ?>" onclick="setFormIcon('')">
+                            title="<?php te('fc.dk_icona_auto'); ?>" aria-label="<?php te('fc.dk_icona_auto'); ?>" data-on-click="setFormIcon('')">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9Z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9Z"/></svg>
                     </button>
                     <?php $ii = 1; foreach (fc_icone_mazzo() as $ik => $_): ?>
                     <button type="button" class="icon-swatch" data-icon="<?php echo sec_h($ik); ?>"
                             role="radio" aria-checked="false"
                             title="<?php te('fc.ico_' . $ik); ?>" aria-label="<?php te('fc.ico_' . $ik); ?>"
-                            style="animation-delay:<?php echo (int)($ii++ * 14); ?>ms;" onclick="setFormIcon('<?php echo sec_h($ik); ?>')">
+                            style="animation-delay:<?php echo (int)($ii++ * 14); ?>ms;" data-on-click="setFormIcon('<?php echo sec_h($ik); ?>')">
                         <?php echo fc_icona_svg($ik); ?>
                     </button>
                     <?php endforeach; ?>
@@ -1641,7 +1641,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
                 <label for="form_exam"><?php te('fc.dk_data_esame'); ?> <span class="field-opt"><?php te('fcv.facoltativo'); ?></span></label>
                 <div class="exam-row">
                     <input type="date" name="exam_date" id="form_exam" class="exam-input">
-                    <button type="button" class="exam-clear" id="formExamClear" onclick="document.getElementById('form_exam').value=''; this.hidden=true;" hidden aria-label="<?php te('fc.dk_togli_data'); ?>" title="<?php te('fc.dk_togli_data'); ?>">
+                    <button type="button" class="exam-clear" id="formExamClear" data-on-click="document.getElementById('form_exam').value=''; this.hidden=true;" hidden aria-label="<?php te('fc.dk_togli_data'); ?>" title="<?php te('fc.dk_togli_data'); ?>">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
                     </button>
                 </div>
@@ -1655,11 +1655,11 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
                      via per dargliene una anche da telefono. */ ?>
             <div class="field form-extra" id="formExtra" style="display:none;">
                 <label><?php te('fc.cfc_altro'); ?></label>
-                <button type="button" class="row-action" id="formArchiveBtn" onclick="archiviaDalForm()">
+                <button type="button" class="row-action" id="formArchiveBtn" data-on-click="archiviaDalForm()">
                     <span class="ra-ic" id="formArchiveIc"><?php echo FC_ICON_ARCHIVE; ?></span>
                     <span id="formArchiveTxt"><?php te('fc.cfc_archivia_questa'); ?></span>
                 </button>
-                <button type="button" class="row-action" onclick="aggiungiFiglioDalForm()">
+                <button type="button" class="row-action" data-on-click="aggiungiFiglioDalForm()">
                     <span class="ra-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M12 11v5M9.5 13.5h5"/></svg></span>
                     <span><?php te('fc.cfc_aggiungi_sottocategoria'); ?></span>
                 </button>
@@ -1668,7 +1668,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
             <div class="sheet-actions">
 
-                <button type="button" class="btn btn-cancel" onclick="chiudiModals()"><?php te('comune.annulla'); ?></button>
+                <button type="button" class="btn btn-cancel" data-on-click="chiudiModals()"><?php te('comune.annulla'); ?></button>
 
                 <button type="submit" class="btn btn-primary"><?php te('comune.salva'); ?></button>
 
@@ -1799,7 +1799,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
         </div>
 
-        <button type="button" class="btn btn-cancel" style="width:100%;" onclick="chiudiModals()"><?php te('comune.chiudi'); ?></button>
+        <button type="button" class="btn btn-cancel" style="width:100%;" data-on-click="chiudiModals()"><?php te('comune.chiudi'); ?></button>
 
     </div>
 
@@ -1837,7 +1837,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
                      questa il popup poteva solo IMPORRE un colore, mai
                      toglierlo per tornare a quello del padre. */ ?>
 
-            <button type="button" class="color-swatch color-swatch-auto" id="colorSwatchAuto" data-auto="1" onclick="selectColorAuto()" title="<?php te('vocab.cat_auto_eredita'); ?>">
+            <button type="button" class="color-swatch color-swatch-auto" id="colorSwatchAuto" data-auto="1" data-on-click="selectColorAuto()" title="<?php te('vocab.cat_auto_eredita'); ?>">
 
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v8h8"/></svg>
 
@@ -1845,7 +1845,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
             <?php foreach ($colorPalette as $ci => $hex): ?>
 
-            <button type="button" class="color-swatch" style="--sw:<?php echo sec_h($hex); ?>; animation-delay:<?php echo (int)($ci * 22); ?>ms;" data-hex="<?php echo sec_h($hex); ?>" onclick="selectColor('<?php echo sec_h($hex); ?>')">
+            <button type="button" class="color-swatch" style="--sw:<?php echo sec_h($hex); ?>; animation-delay:<?php echo (int)($ci * 22); ?>ms;" data-hex="<?php echo sec_h($hex); ?>" data-on-click="selectColor('<?php echo sec_h($hex); ?>')">
 
                 <svg class="check-ic" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
 
@@ -1859,7 +1859,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
         <div class="custom-color-row">
 
-            <input type="color" id="customColorInput" value="#007AFF" oninput="selectColor(this.value)">
+            <input type="color" id="customColorInput" value="#007AFF" data-on-input="selectColor(this.value)">
 
             <span class="cc-label"><?php te('vocab.cat_colore_pers'); ?></span>
 
@@ -1887,9 +1887,9 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
         <div class="sheet-actions">
 
-            <button type="button" class="btn btn-cancel" onclick="annullaColore()"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="btn btn-cancel" data-on-click="annullaColore()"><?php te('comune.annulla'); ?></button>
 
-            <button type="button" class="btn btn-primary" onclick="salvaColore()"><?php te('comune.salva'); ?></button>
+            <button type="button" class="btn btn-primary" data-on-click="salvaColore()"><?php te('comune.salva'); ?></button>
 
         </div>
 
@@ -1917,9 +1917,9 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
         <div class="sheet-actions">
 
-            <button type="button" class="btn btn-cancel" onclick="chiudiModals()"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="btn btn-cancel" data-on-click="chiudiModals()"><?php te('comune.annulla'); ?></button>
 
-            <button type="button" class="btn btn-danger" id="btnConfermaElimina" onclick="confermaEliminaSubmit()"><?php te('comune.elimina'); ?></button>
+            <button type="button" class="btn btn-danger" id="btnConfermaElimina" data-on-click="confermaEliminaSubmit()"><?php te('comune.elimina'); ?></button>
 
         </div>
 
@@ -1942,12 +1942,12 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
 
 <?php echo standout_i18n_json(['comune', 'fc', 'vocab']); ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 var CAT_DATA = <?php echo json_encode($catJs, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 /* Il disegno di ogni icona dei mazzi (fc_icone.php), per la griglia e il foglio. */
 var ICONE_MAZZO = <?php $icJs = []; foreach (array_keys(fc_icone_mazzo()) as $ik) $icJs[$ik] = fc_icona_svg($ik); echo json_encode($icJs, JSON_UNESCAPED_SLASHES); ?>;
 </script>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 /* ======================================================================
    Il nome della materia non entra piu' dentro onclick.

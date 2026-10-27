@@ -66,9 +66,9 @@ function renderGameCatRow($node, $level = 0) {
     $color = (!empty($node['color']) && preg_match('/^#[0-9A-Fa-f]{6}$/', $node['color'])) ? $node['color'] : '#007AFF';
 ?>
 <div class="cat-row" id="row-<?php echo (int)$node['id']; ?>" data-level="<?php echo (int)$level; ?>" style="--row-color:<?php echo sec_h($color); ?>;">
-    <div class="cat-row-main" style="padding-left:<?php echo (int)$pad; ?>px;"<?php echo $hasChildren ? " onclick=\"toggleFolder('{$node['id']}')\"" : ""; ?>>
+    <div class="cat-row-main" style="padding-left:<?php echo (int)$pad; ?>px;"<?php echo $hasChildren ? " data-on-click=\"toggleFolder('{$node['id']}')\"" : ""; ?>>
         <?php if ($hasChildren): ?>
-        <button type="button" class="cat-arrow" id="arrow-<?php echo (int)$node['id']; ?>" onclick="event.stopPropagation(); toggleFolder('<?php echo (int)$node['id']; ?>')" aria-label="<?php te('fc.cs_espandi'); ?>">
+        <button type="button" class="cat-arrow" id="arrow-<?php echo (int)$node['id']; ?>" data-on-click="event.stopPropagation(); toggleFolder('<?php echo (int)$node['id']; ?>')" aria-label="<?php te('fc.cs_espandi'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
         </button>
         <?php else: ?>
@@ -82,11 +82,11 @@ function renderGameCatRow($node, $level = 0) {
         <span class="cat-name"><?php echo $nameEsc; ?></span>
         <span class="cat-badge count-badge" data-ids="<?php echo sec_h($idsStr); ?>" id="count-<?php echo (int)$node['id']; ?>">···</span>
 
-        <div class="row-action" onclick="event.stopPropagation();">
+        <div class="row-action" data-on-click="event.stopPropagation();">
             <a class="play-pill play-btn" data-catid="<?php echo sec_h($idsStr); ?>" data-catname="<?php echo urlencode($node['name']); ?>" aria-label="<?php te('fc.cg_gioca'); ?>">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             </a>
-            <input type="checkbox" class="cat-checkbox" value="<?php echo sec_h($idsStr); ?>" data-name="<?php echo $nameEsc; ?>" style="display:none;" onchange="updateMultiCount()" aria-label="<?php te('fc.cg_seleziona_nome', ['nome' => $node['name']]); ?>">
+            <input type="checkbox" class="cat-checkbox" value="<?php echo sec_h($idsStr); ?>" data-name="<?php echo $nameEsc; ?>" style="display:none;" data-on-change="updateMultiCount()" aria-label="<?php te('fc.cg_seleziona_nome', ['nome' => $node['name']]); ?>">
         </div>
     </div>
 
@@ -142,11 +142,11 @@ function renderGameCatRow($node, $level = 0) {
         <div class="opt-section">
             <div class="opt-label"><?php te('fcv.verso'); ?></div>
             <div class="segmented seg-dir">
-                <input type="radio" id="gd_w2t" name="game_dir" value="w2t" onchange="updateLinks()">
+                <input type="radio" id="gd_w2t" name="game_dir" value="w2t" data-on-change="updateLinks()">
                 <label for="gd_w2t" title="<?php echo sec_h(t('fcv.verso_w2t')); ?>"><span class="sr-only"><?php te('fcv.verso_w2t'); ?></span><span class="dir-flags" aria-hidden="true"><?php echo $fcBi . $fcFr . $fcBk; ?></span></label>
-                <input type="radio" id="gd_t2w" name="game_dir" value="t2w" checked onchange="updateLinks()">
+                <input type="radio" id="gd_t2w" name="game_dir" value="t2w" checked data-on-change="updateLinks()">
                 <label for="gd_t2w" title="<?php echo sec_h(t('fcv.verso_t2w')); ?>"><span class="sr-only"><?php te('fcv.verso_t2w'); ?></span><span class="dir-flags" aria-hidden="true"><?php echo $fcBk . $fcFr . $fcBi; ?></span></label>
-                <input type="radio" id="gd_mix" name="game_dir" value="mix" onchange="updateLinks()">
+                <input type="radio" id="gd_mix" name="game_dir" value="mix" data-on-change="updateLinks()">
                 <label for="gd_mix"><?php te('fcv.verso_mix'); ?></label>
                 <span class="segmented-thumb"></span>
             </div>
@@ -171,7 +171,7 @@ function renderGameCatRow($node, $level = 0) {
                 </label>
             </div>
         </div>
-        <script>
+        <script nonce="<?php echo sec_nonce(); ?>">
         (function () {
             /* Acceso = tutti e due visibili, spento = tutti e due al tocco. Nel
                gioco si possono poi regolare uno per uno, anche "con la risposta". */
@@ -196,9 +196,9 @@ function renderGameCatRow($node, $level = 0) {
                 <?php /* Lingue: si parte da "casuale". Le parole in ordine si imparano
                          anche dall'ordine (la terza e' sempre dopo la seconda), e il
                          ripasso vero e' quello mescolato. Lo studio resta in ordine. */ ?>
-                <input type="radio" id="go_order" name="game_order" value="in_order"<?php echo $fc_vocab ? '' : ' checked'; ?> onchange="updateLinks(); updateOrderVisibility();">
+                <input type="radio" id="go_order" name="game_order" value="in_order"<?php echo $fc_vocab ? '' : ' checked'; ?> data-on-change="updateLinks(); updateOrderVisibility();">
                 <label for="go_order"><?php te('fc.cg_in_ordine'); ?></label>
-                <input type="radio" id="go_random" name="game_order" value="random"<?php echo $fc_vocab ? ' checked' : ''; ?> onchange="updateLinks(); updateOrderVisibility();">
+                <input type="radio" id="go_random" name="game_order" value="random"<?php echo $fc_vocab ? ' checked' : ''; ?> data-on-change="updateLinks(); updateOrderVisibility();">
                 <label for="go_random"><?php te('fc.cg_random'); ?></label>
                 <span class="segmented-thumb"></span>
             </div>
@@ -210,11 +210,11 @@ function renderGameCatRow($node, $level = 0) {
         <div class="opt-section">
             <div class="opt-label"><?php te('fc.cg_stato_carte'); ?></div>
             <div class="segmented seg-status">
-                <input type="radio" id="gs_tolearn" name="game_status" value="0" checked onchange="updateCounts()">
+                <input type="radio" id="gs_tolearn" name="game_status" value="0" checked data-on-change="updateCounts()">
                 <label for="gs_tolearn"><?php te('fc.cg_to_learn'); ?></label>
-                <input type="radio" id="gs_learnt" name="game_status" value="1" onchange="updateCounts()">
+                <input type="radio" id="gs_learnt" name="game_status" value="1" data-on-change="updateCounts()">
                 <label for="gs_learnt"><?php te('fc.cg_learnt'); ?></label>
-                <input type="radio" id="gs_all" name="game_status" value="all" onchange="updateCounts()">
+                <input type="radio" id="gs_all" name="game_status" value="all" data-on-change="updateCounts()">
                 <label for="gs_all"><?php te('fc.cg_tutti_stati'); ?></label>
                 <span class="segmented-thumb"></span>
             </div>
@@ -230,7 +230,7 @@ function renderGameCatRow($node, $level = 0) {
                     <div class="toggle-row-sub"><?php te('fc.cg_combina'); ?></div>
                 </div>
                 <label class="ios-switch">
-                    <input type="checkbox" id="multi_cat_toggle" onchange="toggleMulti()">
+                    <input type="checkbox" id="multi_cat_toggle" data-on-change="toggleMulti()">
                     <span class="switch-track"><span class="switch-thumb"></span></span>
                 </label>
             </div>
@@ -269,14 +269,14 @@ function renderGameCatRow($node, $level = 0) {
         <span class="play-bar-count"><span id="multi_count">0</span> <?php te('fc.cg_carte'); ?></span>
         <span class="play-bar-label"><?php te('fc.cg_selezionate'); ?></span>
     </div>
-    <a id="global_play_btn" class="play-bar-btn" style="opacity:0.4; pointer-events:none;" onclick="startMultiGame()">
+    <a id="global_play_btn" class="play-bar-btn" style="opacity:0.4; pointer-events:none;" data-on-click="startMultiGame()">
         <?php te('fc.cg_gioca'); ?>
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
     </a>
 </div>
 
 <?php echo standout_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
     // Inietto l'ID dell'utente loggato in modo sicuro tramite PHP
     const STANDOUT_CURRENT_USER_ID = <?php echo (int)$current_user_id; ?>;
     // Categoria da pre-selezionare in automatico (0 = nessuna)
@@ -384,10 +384,10 @@ function renderGameCatRow($node, $level = 0) {
                 <span class="order-num">${index + 1}</span>
                 <div class="order-name">${cat.name}</div>
                 <div class="order-controls">
-                    <button type="button" onclick="moveOrderItem(${index}, -1)" aria-label="${T('fc.cg_sposta_su')}">
+                    <button type="button" data-on-click="moveOrderItem(${index}, -1)" aria-label="${T('fc.cg_sposta_su')}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
                     </button>
-                    <button type="button" onclick="moveOrderItem(${index}, 1)" aria-label="${T('fc.cg_sposta_giu')}">
+                    <button type="button" data-on-click="moveOrderItem(${index}, 1)" aria-label="${T('fc.cg_sposta_giu')}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                     </button>
                 </div>

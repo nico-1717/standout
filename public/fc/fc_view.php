@@ -46,7 +46,7 @@ function fc_vis_stella(int $id, bool $figlio, int $uid): string {
     $pref = fc_vis_preferite($uid);
     $on = isset($pref[$figlio ? 'c' : 'p'][$id]);
     return '<button type="button" class="fav-btn' . ($on ? ' is-on' : '') . '" data-fav-id="' . $id . '" data-fav-child="' . ($figlio ? 1 : 0) . '"'
-         . ' onclick="event.stopPropagation(); fcStellaCarta(this)" aria-pressed="' . ($on ? 'true' : 'false') . '"'
+         . ' data-on-click="event.stopPropagation(); fcStellaCarta(this)" aria-pressed="' . ($on ? 'true' : 'false') . '"'
          . ' aria-label="' . sec_h(t('fc.gm_preferiti')) . '" title="' . sec_h(t('fc.gm_preferiti')) . '">'
          . '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2.5 3 6.6 7.2.8-5.4 4.9 1.5 7.2L12 18.2l-6.3 3.8 1.5-7.2-5.4-4.9 7.2-.8Z"/></svg>'
          . '</button>';
@@ -720,7 +720,7 @@ if (isset($_GET['fc_deep_search'])) {
 ?>
 <section class="fc-deep-group" data-cat-id="<?= (int)$__cid ?>" style="--row-color:<?= sec_h($__col) ?>;">
     <div class="fc-deep-head">
-        <button type="button" class="fdh-main" onclick="fcDeepToggle(this)" aria-expanded="true">
+        <button type="button" class="fdh-main" data-on-click="fcDeepToggle(this)" aria-expanded="true">
             <span class="fdh-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
             <span class="fdh-path">
                 <?php foreach (($fcPercorso[$__cid] ?? []) as $__i => $__seg): ?>
@@ -745,11 +745,11 @@ if (isset($_GET['fc_deep_search'])) {
                  data-edit-url="<?= sec_h(fc_url('fc_card_edit.php', ['fc_id' => (int)$__row['id'], 'previous_catid' => (int)$__cid])) ?>"
                  data-child-count="0">
                 <div class="swipe-actions">
-                    <button type="button" class="swipe-act act-edit" onclick="goEditCard(this)">
+                    <button type="button" class="swipe-act act-edit" data-on-click="goEditCard(this)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                         <?php te('comune.modifica'); ?>
                     </button>
-                    <button type="button" class="swipe-act act-delete" onclick="askDeleteCard(this)">
+                    <button type="button" class="swipe-act act-delete" data-on-click="askDeleteCard(this)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
                         <?php te('comune.elimina'); ?>
                     </button>
@@ -760,7 +760,7 @@ if (isset($_GET['fc_deep_search'])) {
                             <div class="learnt-disabled">&ndash;</div>
                         <?php else: ?>
                             <label class="learnt-wrapper">
-                                <input type="checkbox" class="learnt-cb" <?= $__learnt ? 'checked' : '' ?> onclick="toggleLearnt(<?= (int)$__row['id'] ?>, this)">
+                                <input type="checkbox" class="learnt-cb" <?= $__learnt ? 'checked' : '' ?> data-on-click="toggleLearnt(<?= (int)$__row['id'] ?>, this)">
                                 <div class="learnt-emoji">🧐</div>
                                 <div class="learnt-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
                             </label>
@@ -785,11 +785,11 @@ if (isset($_GET['fc_deep_search'])) {
                      data-duplicate="false" data-reorderable="0"
                      data-edit-url="<?= sec_h(fc_url('fc_card_edit.php', ['child_id' => (int)$__row['id'], 'previous_catid' => (int)$__cid])) ?>">
                     <div class="swipe-actions">
-                        <button type="button" class="swipe-act act-edit" onclick="goEditCard(this)">
+                        <button type="button" class="swipe-act act-edit" data-on-click="goEditCard(this)">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                             <?php te('vocab.cat_modifica_attr'); ?>
                         </button>
-                        <button type="button" class="swipe-act act-delete" onclick="askDeleteCard(this)">
+                        <button type="button" class="swipe-act act-delete" data-on-click="askDeleteCard(this)">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
                             <?php te('comune.elimina'); ?>
                         </button>
@@ -1819,7 +1819,7 @@ function render_qa_side($label, $text, $image, $audio, $lato = '', array $extra 
                          Se la misura non si sa (immagine di prima della
                          migrazione, non ancora recuperata) non esce niente e
                          quell'immagine si comporta come prima. */ ?>
-                <img class="qa-image" src="<?= sec_h(fc_cartella_immagini() . $image) ?>"<?= function_exists('fc_misura_attr') ? fc_misura_attr($image) : '' ?> alt="" loading="lazy" onclick="event.stopPropagation(); openImageZoom(this.src);">
+                <img class="qa-image" src="<?= sec_h(fc_cartella_immagini() . $image) ?>"<?= function_exists('fc_misura_attr') ? fc_misura_attr($image) : '' ?> alt="" loading="lazy" data-on-click="event.stopPropagation(); openImageZoom(this.src);">
 
             <?php endif; ?>
 
@@ -1855,7 +1855,7 @@ function render_audio_player($src) {
 
     <div class="audio-player" data-src="<?= sec_h($src) ?>">
 
-        <button type="button" class="ap-btn" aria-label="<?php te('fc.vis_riproduci'); ?>" onclick="event.stopPropagation(); toggleAudioPlayer(this);">
+        <button type="button" class="ap-btn" aria-label="<?php te('fc.vis_riproduci'); ?>" data-on-click="event.stopPropagation(); toggleAudioPlayer(this);">
 
             <svg class="ap-ic ap-ic-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72c0 .84.91 1.36 1.63.93l11.32-6.86a1.08 1.08 0 0 0 0-1.86L9.63 4.21A1.08 1.08 0 0 0 8 5.14Z"/></svg>
 
@@ -1863,7 +1863,7 @@ function render_audio_player($src) {
 
         </button>
 
-        <div class="ap-track" onclick="event.stopPropagation(); seekAudioPlayer(event, this);">
+        <div class="ap-track" data-on-click="event.stopPropagation(); seekAudioPlayer(event, this);">
 
             <div class="ap-fill"></div>
 
@@ -1970,7 +1970,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                         <div class="swipe-actions">
 
-                            <button type="button" class="swipe-act act-edit" onclick="goEditCard(this)">
+                            <button type="button" class="swipe-act act-edit" data-on-click="goEditCard(this)">
 
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
 
@@ -1978,7 +1978,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                             </button>
 
-                            <button type="button" class="swipe-act act-delete" onclick="askDeleteCard(this)">
+                            <button type="button" class="swipe-act act-delete" data-on-click="askDeleteCard(this)">
 
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
 
@@ -2002,7 +2002,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                                     <label class="learnt-wrapper">
 
-                                        <input type="checkbox" class="learnt-cb" <?= $isLearnt ? 'checked' : '' ?> onclick="toggleLearnt(<?= (int)$row['id'] ?>, this)">
+                                        <input type="checkbox" class="learnt-cb" <?= $isLearnt ? 'checked' : '' ?> data-on-click="toggleLearnt(<?= (int)$row['id'] ?>, this)">
 
                                         <div class="learnt-emoji">🧐</div>
 
@@ -2016,7 +2016,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                                 <label class="select-circle">
 
-                                    <input type="checkbox" name="selected_ids[]" value="<?= (int)$row['id'] ?>" class="bulk-checkbox standalone-cb record-cb" onchange="onRecordCbChange(this)">
+                                    <input type="checkbox" name="selected_ids[]" value="<?= (int)$row['id'] ?>" class="bulk-checkbox standalone-cb record-cb" data-on-change="onRecordCbChange(this)">
 
                                     <span class="cc-visual"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
 
@@ -2081,11 +2081,11 @@ function fc_stampa_gruppi($da, $quanti) {
                                      riordinare non si puo' (ordinamento diverso da
                                      "Posizione", o "Tutte le materie"). */ ?>
                             <div class="fc-compact-tools" aria-hidden="false">
-                                <button type="button" class="ct-btn ct-up" onclick="moveCardBy(this, -1)"
+                                <button type="button" class="ct-btn ct-up" data-on-click="moveCardBy(this, -1)"
                                         aria-label="<?php te('fc.vis_su'); ?>" title="<?php te('fc.vis_su'); ?>">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
                                 </button>
-                                <button type="button" class="ct-btn ct-down" onclick="moveCardBy(this, 1)"
+                                <button type="button" class="ct-btn ct-down" data-on-click="moveCardBy(this, 1)"
                                         aria-label="<?php te('fc.vis_giu'); ?>" title="<?php te('fc.vis_giu'); ?>">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m6 13 6 6 6-6"/></svg>
                                 </button>
@@ -2097,7 +2097,7 @@ function fc_stampa_gruppi($da, $quanti) {
                                      serve poter sbirciare cosa c'e' gia' dentro. Lo
                                      stesso tocco le richiude. */ ?>
                             <?php if ($childCount > 0): ?>
-                            <button type="button" class="fc-kids-toggle" onclick="toggleKids(this)">
+                            <button type="button" class="fc-kids-toggle" data-on-click="toggleKids(this)">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                                 <span><?php echo sec_h(T('fc.vis_n_sottocarte', ['n' => (int)$childCount])); ?></span>
                             </button>
@@ -2129,7 +2129,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                             <div class="swipe-actions">
 
-                                <button type="button" class="swipe-act act-edit" onclick="goEditCard(this)">
+                                <button type="button" class="swipe-act act-edit" data-on-click="goEditCard(this)">
 
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
 
@@ -2137,7 +2137,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                                 </button>
 
-                                <button type="button" class="swipe-act act-delete" onclick="askDeleteCard(this)">
+                                <button type="button" class="swipe-act act-delete" data-on-click="askDeleteCard(this)">
 
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
 
@@ -2159,7 +2159,7 @@ function fc_stampa_gruppi($da, $quanti) {
 
                                     <label class="select-circle">
 
-                                        <input type="checkbox" name="selected_child_ids[]" value="<?= (int)$child['id'] ?>" class="bulk-checkbox child-cb record-cb" onchange="onRecordCbChange(this)">
+                                        <input type="checkbox" name="selected_child_ids[]" value="<?= (int)$child['id'] ?>" class="bulk-checkbox child-cb record-cb" data-on-change="onRecordCbChange(this)">
 
                                         <span class="cc-visual"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
 
@@ -2180,11 +2180,11 @@ function fc_stampa_gruppi($da, $quanti) {
                                 <?php /* Gli stessi attrezzi della carta padre: qui su e giu'
                                          riordinano le sottocarte dentro il loro padre. */ ?>
                                 <div class="fc-compact-tools">
-                                    <button type="button" class="ct-btn ct-up" onclick="moveCardBy(this, -1)"
+                                    <button type="button" class="ct-btn ct-up" data-on-click="moveCardBy(this, -1)"
                                             aria-label="<?php te('fc.vis_su'); ?>" title="<?php te('fc.vis_su'); ?>">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
                                     </button>
-                                    <button type="button" class="ct-btn ct-down" onclick="moveCardBy(this, 1)"
+                                    <button type="button" class="ct-btn ct-down" data-on-click="moveCardBy(this, 1)"
                                             aria-label="<?php te('fc.vis_giu'); ?>" title="<?php te('fc.vis_giu'); ?>">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                                     </button>
@@ -2288,7 +2288,7 @@ if (isset($_GET['fc_feed_page'])) {
 <?php if (fc_is_vocab()): ?>
 <script src="<?php echo PWA_BASE; ?>fc/fc_speak.js?v=<?php echo @filemtime(__DIR__ . '/fc_speak.js') ?: 1; ?>"></script>
 <?php else: ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
     window.MathJax = {
 
@@ -2349,7 +2349,7 @@ if (isset($_GET['fc_feed_page'])) {
 $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 ?>
 <body class="<?= fc_is_vocab() ? 'fc-vocab' : 'fc-study' ?><?= $fcPigra ? ' fc-pigra' : '' ?>">
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 /* LE PREFERENZE DI VISTA, APPLICATE PRIMA CHE LA PAGINA SI DISEGNI.
    "Carte intere" toglie il ritaglio a 190px di .qa-text, e "esempi interi" fa
    lo stesso con i riquadri degli esempi: due classi sul <body> che finora
@@ -2376,7 +2376,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
 <div id="image-overlay">
 
-    <div id="close-overlay" onclick="closeImageZoom()">&#10005;</div>
+    <div id="close-overlay" data-on-click="closeImageZoom()">&#10005;</div>
 
     <img id="overlay-img" src="" alt="">
 
@@ -2388,7 +2388,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
     <div class="header-top">
 
-        <div class="cat-pill<?= $categoryID != 0 ? ' editable' : '' ?>" id="catPill" onclick="fcToccaPastiglia(event)">
+        <div class="cat-pill<?= $categoryID != 0 ? ' editable' : '' ?>" id="catPill" data-on-click="fcToccaPastiglia(event)">
 
             <?php if ($current_cat_icon !== '' && $current_cat_icon !== 'cartella'): ?>
             <span class="cat-pill-ico"><?= fc_icona_svg($current_cat_icon, 2.2) ?></span>
@@ -2400,7 +2400,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
                 <div class="cat-pill-label"><?php te('vocab.cat_categoria'); ?></div>
 
-                <div class="cat-pill-name" id="catPillName"<?php if ($categoryID != 0): ?> onclick="fcApriRinomina(event)" title="<?php te('fc.vis_rinomina'); ?>"<?php endif; ?>><?= sec_h($current_cat_name) ?></div>
+                <div class="cat-pill-name" id="catPillName"<?php if ($categoryID != 0): ?> data-on-click="fcApriRinomina(event)" title="<?php te('fc.vis_rinomina'); ?>"<?php endif; ?>><?= sec_h($current_cat_name) ?></div>
                 <?php if ($categoryID != 0): ?>
                 <input type="text" class="cat-pill-name-input" id="catPillNameInput" maxlength="120" style="display:none;" aria-label="<?php te('fc.vis_rinomina'); ?>">
                 <?php endif; ?>
@@ -2408,12 +2408,12 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
                     <?php if ($fc_linked_project): ?>
                     <button type="button" class="cat-proj-chip<?= !empty($fc_linked_project['via_ancestor']) ? ' via-ancestor' : '' ?>"
                             style="--cp-color:<?= sec_h($fc_linked_project['color']) ?>;"
-                            onclick="event.stopPropagation(); fcApriProgetto(<?= (int)$fc_linked_project['id'] ?>);">
+                            data-on-click="event.stopPropagation(); fcApriProgetto(<?= (int)$fc_linked_project['id'] ?>);">
                         <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></svg>
                         <?php if (!empty($fc_linked_project['parent_name'])): ?><span class="cp-anc"><?= sec_h($fc_linked_project['parent_name']) ?></span><span class="cp-sep">•</span><?php endif; ?><span class="cp-leaf"><?= sec_h($fc_linked_project['name']) ?></span>
                     </button>
                     <?php else: ?>
-                    <button type="button" class="cat-proj-chip cat-proj-link" onclick="event.stopPropagation(); fcOpenLinkProject();">
+                    <button type="button" class="cat-proj-chip cat-proj-link" data-on-click="event.stopPropagation(); fcOpenLinkProject();">
                         <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                         <?php te('fc.vis_collega_progetto'); ?>
                     </button>
@@ -2429,12 +2429,12 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
                          mazzo apre il foglio delle sue partite; in "tutte le
                          categorie" porta allo Storico. */ ?>
                 <?php if ($categoryID != 0): ?>
-                <button type="button" class="hdr-partite" onclick="event.stopPropagation(); fcApriPartiteMazzo()" aria-label="<?php te('fc.vis_partite_mazzo'); ?>" title="<?php te('fc.vis_partite_mazzo'); ?>">
+                <button type="button" class="hdr-partite" data-on-click="event.stopPropagation(); fcApriPartiteMazzo()" aria-label="<?php te('fc.vis_partite_mazzo'); ?>" title="<?php te('fc.vis_partite_mazzo'); ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
                     <?php if ($fcg_n_partite > 0): ?><b><?= $fcg_n_partite > 99 ? '99+' : (int)$fcg_n_partite ?></b><?php endif; ?>
                 </button>
                 <?php else: ?>
-                <a class="hdr-partite" href="<?= sec_h(fc_url('fc_history.php')) ?>" onclick="event.stopPropagation()" aria-label="<?php te('fc.vis_apri_storico'); ?>" title="<?php te('fc.vis_apri_storico'); ?>">
+                <a class="hdr-partite" href="<?= sec_h(fc_url('fc_history.php')) ?>" data-on-click="event.stopPropagation()" aria-label="<?php te('fc.vis_apri_storico'); ?>" title="<?php te('fc.vis_apri_storico'); ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
                 </a>
                 <?php endif; ?>
@@ -2480,14 +2480,14 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
             <?php endif; ?>
         </nav>
 
-        <button type="button" class="tb-icon-btn hdr-gear" id="settingsBtn" onclick="fcApriImpostazioni()"
+        <button type="button" class="tb-icon-btn hdr-gear" id="settingsBtn" data-on-click="fcApriImpostazioni()"
                 aria-label="<?php te('fc.vis_impostazioni'); ?>" title="<?php te('fc.vis_impostazioni'); ?>">
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.6 1.6 0 0 0 .32 1.77l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-1 1.47V21a2 2 0 1 1-4 0v-.11a1.6 1.6 0 0 0-1.05-1.46 1.6 1.6 0 0 0-1.77.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.47-1H3a2 2 0 1 1 0-4h.11A1.6 1.6 0 0 0 4.57 9a1.6 1.6 0 0 0-.32-1.77l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.6 1.6 0 0 0 1.77.32H9a1.6 1.6 0 0 0 1-1.47V3a2 2 0 1 1 4 0v.11a1.6 1.6 0 0 0 1 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.32 1.77V9a1.6 1.6 0 0 0 1.47 1H21a2 2 0 1 1 0 4h-.11a1.6 1.6 0 0 0-1.47 1Z"/></svg>
 
         </button>
 
-        <button type="button" class="icon-btn quick-add-btn" onclick="fcApriAggiungi()" aria-label="<?php te('fc.vis_aggiungi_fc'); ?>" title="<?php te('fc.vis_aggiungi_in_cat'); ?>">
+        <button type="button" class="icon-btn quick-add-btn" data-on-click="fcApriAggiungi()" aria-label="<?php te('fc.vis_aggiungi_fc'); ?>" title="<?php te('fc.vis_aggiungi_in_cat'); ?>">
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
 
@@ -2497,7 +2497,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
         <?php /* Il tasto play apre il foglio "Gioca" (qui sotto, #playSheet):
                  tutto il mazzo o solo le carte difficili. Big Edit, che prima
                  aveva un tasto verde suo, sta nel foglio delle impostazioni. */ ?>
-        <button type="button" class="icon-btn play-cat-btn" onclick="fcApriGioca()" aria-label="<?php te('vocab.vi_gioca'); ?>" title="<?php te('fc.vis_gioca_categoria'); ?>">
+        <button type="button" class="icon-btn play-cat-btn" data-on-click="fcApriGioca()" aria-label="<?php te('vocab.vi_gioca'); ?>" title="<?php te('fc.vis_gioca_categoria'); ?>">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v13.72a1 1 0 0 0 1.53.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14Z"/></svg>
         </button>
         <?php endif; ?>
@@ -2512,7 +2512,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
 
-            <input id="filterText" class="search-input" type="text" placeholder="<?php te('fc.vis_cerca'); ?>" oninput="fcOnSearchInput()">
+            <input id="filterText" class="search-input" type="text" placeholder="<?php te('fc.vis_cerca'); ?>" data-on-input="fcOnSearchInput()">
 
         </div>
 
@@ -2538,7 +2538,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
         <div class="tb-select-wrap tb-sort-ico<?= $sort !== 'custom_asc' ? ' has-dot' : '' ?>" title="<?php te('fc.vis_ordina'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M17 20V4M13.5 7.5 17 4l3.5 3.5"/></svg>
 
-            <select id="filterSort" class="tb-select" onchange="changeSort()" aria-label="<?php te('fc.vis_ordina'); ?>">
+            <select id="filterSort" class="tb-select" data-on-change="changeSort()" aria-label="<?php te('fc.vis_ordina'); ?>">
 
                 <option value="custom_asc" <?= $sort == 'custom_asc' ? 'selected' : '' ?>><?php te('fc.vis_posizione'); ?></option>
 
@@ -2554,7 +2554,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
         </div>
 
 
-        <button type="button" class="tb-icon-btn select-mode-neutro" id="selectModeBtn" onclick="enterSelectMode()"
+        <button type="button" class="tb-icon-btn select-mode-neutro" id="selectModeBtn" data-on-click="enterSelectMode()"
                 aria-label="<?php te('vocab.vi_seleziona'); ?>" title="<?php te('vocab.vi_seleziona'); ?>">
 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="6"/></svg>
@@ -2578,11 +2578,11 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
              cosi' non restano due stanghette appiccicate. */ ?>
     <div class="select-toolbar" id="selectToolbar" style="display:none;">
 
-        <button type="button" class="st-cancel" onclick="onSelectCancel()" aria-label="<?php te('fc.vis_annulla_sel'); ?>">
+        <button type="button" class="st-cancel" data-on-click="onSelectCancel()" aria-label="<?php te('fc.vis_annulla_sel'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
 
-        <button type="button" class="st-selectall" id="selectAllBtn" onclick="toggleSelectAll()"><?php te('vocab.vi_tutte'); ?></button>
+        <button type="button" class="st-selectall" id="selectAllBtn" data-on-click="toggleSelectAll()"><?php te('vocab.vi_tutte'); ?></button>
 
         <?php /* La vista compatta e' lo stesso interruttore di
                  fc_insert.php, con le stesse tre righine: una carta
@@ -2590,7 +2590,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
                  Sta qui e non nella barra normale perche' e' una vista di
                  LAVORO — serve a vedere venti carte insieme mentre se ne
                  scelgono alcune, non a leggerle. */ ?>
-        <button type="button" class="st-compact" id="compactBtn" onclick="toggleCompactMode()"
+        <button type="button" class="st-compact" id="compactBtn" data-on-click="toggleCompactMode()"
                 aria-label="<?php te('fc.vis_compatta'); ?>" title="<?php te('fc.vis_compatta'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 7h16M4 12h16M4 17h16"/>
@@ -2616,12 +2616,12 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
             <span class="st-sep" aria-hidden="true"></span>
 
             <span class="st-group" id="stGruppoStruttura">
-                <button type="button" class="st-action" data-action="join" id="btnUnisci" onclick="onBulkActionPick('join')">
+                <button type="button" class="st-action" data-action="join" id="btnUnisci" data-on-click="onBulkActionPick('join')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="12" r="3"/><circle cx="17" cy="6" r="3"/><circle cx="17" cy="18" r="3"/><path d="M9.6 10.5 14.5 7.7M9.6 13.5l4.9 2.8"/></svg>
                     <?php te('vocab.vi_unisci'); ?>
                 </button>
 
-                <button type="button" class="st-action" data-action="unjoin" id="btnSepara" onclick="onBulkActionPick('unjoin')">
+                <button type="button" class="st-action" data-action="unjoin" id="btnSepara" data-on-click="onBulkActionPick('unjoin')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12"/></svg>
                     <?php te('vocab.vi_separa'); ?>
                 </button>
@@ -2630,12 +2630,12 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
             <span class="st-sep" id="stSepScelte" aria-hidden="true"></span>
 
             <span class="st-group" id="stGruppoScelte">
-                <button type="button" class="st-action" data-action="move" onclick="onBulkActionPick('move')">
+                <button type="button" class="st-action" data-action="move" data-on-click="onBulkActionPick('move')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/><path d="M17 22v-6M14 19h6"/></svg>
                     <?php te('vocab.cat_sposta_attr'); ?>
                 </button>
 
-                <button type="button" class="st-action danger" data-action="delete" onclick="onBulkActionPick('delete')">
+                <button type="button" class="st-action danger" data-action="delete" data-on-click="onBulkActionPick('delete')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>
                     <?php te('comune.elimina'); ?>
                 </button>
@@ -2663,7 +2663,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
     <div class="toolbar-row sel-search-row" id="selSearchRow" style="display:none;">
         <div class="search-wrap">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-            <input id="selSearch" class="search-input" type="text" enterkeyhint="search" autocomplete="off" placeholder="<?php te('fc.vis_cerca'); ?>" oninput="fcCercaInSelezione(this.value)">
+            <input id="selSearch" class="search-input" type="text" enterkeyhint="search" autocomplete="off" placeholder="<?php te('fc.vis_cerca'); ?>" data-on-input="fcCercaInSelezione(this.value)">
         </div>
         <?php /* L'ordine accanto alla ricerca: nella selezione si riordina e si
                  sposta, e scegliere in che ordine vedere le carte serve li'.
@@ -2671,7 +2671,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
                  pagina si ricarica, ma resta nella selezione (changeSort). */ ?>
         <div class="tb-select-wrap sel-sort-wrap">
             <select id="selSort" class="tb-select" aria-label="<?php te('fc.vis_ordina'); ?>"
-                    onchange="document.getElementById('filterSort').value = this.value; changeSort();">
+                    data-on-change="document.getElementById('filterSort').value = this.value; changeSort();">
                 <option value="custom_asc" <?= $sort == 'custom_asc' ? 'selected' : '' ?>><?php te('fc.vis_posizione'); ?></option>
                 <option value="id_desc" <?= $sort == 'id_desc' ? 'selected' : '' ?>><?php te('fc.vis_id_recenti'); ?></option>
                 <option value="id_asc" <?= $sort == 'id_asc' ? 'selected' : '' ?>><?php te('fc.vis_id_meno_recenti'); ?></option>
@@ -2683,7 +2683,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
 </header>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 /* L'ALTEZZA DELL'INTESTAZIONE, MISURATA SUBITO.
    .feed si stacca dall'alto di --header-h, che in CSS parte da un valore di
    riserva (150px) e veniva corretto solo a pagina caricata, dentro initPage().
@@ -2737,7 +2737,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
                  tocco e si salva senza ricaricare (fc_deck_notes, piu' su).
                  Senza note resta solo un invito discreto ad aggiungerne. */ ?>
         <section class="deck-note<?= $current_cat_notes === '' ? ' is-vuota' : '' ?>" id="deckNote">
-            <button type="button" class="dn-add" onclick="fcNoteMazzoApri()">
+            <button type="button" class="dn-add" data-on-click="fcNoteMazzoApri()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M12 12v6M9 15h6"/></svg>
                 <span><?php te('fc.dn_aggiungi'); ?></span>
             </button>
@@ -2745,18 +2745,18 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
                 <div class="dn-head">
                     <span class="dn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg></span>
                     <span class="dn-title"><?php te('fc.dn_titolo'); ?></span>
-                    <button type="button" class="dn-edit" onclick="fcNoteMazzoApri()" aria-label="<?php te('comune.modifica'); ?>" title="<?php te('comune.modifica'); ?>">
+                    <button type="button" class="dn-edit" data-on-click="fcNoteMazzoApri()" aria-label="<?php te('comune.modifica'); ?>" title="<?php te('comune.modifica'); ?>">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                     </button>
                 </div>
                 <div class="dn-testo" id="deckNoteText"><?= sec_h($current_cat_notes) ?></div>
-                <button type="button" class="dn-altro" id="deckNoteMore" onclick="fcNoteMazzoEspandi()"><?php te('fc.dn_mostra_tutto'); ?></button>
+                <button type="button" class="dn-altro" id="deckNoteMore" data-on-click="fcNoteMazzoEspandi()"><?php te('fc.dn_mostra_tutto'); ?></button>
                 <div class="dn-form">
                     <textarea id="deckNoteInput" maxlength="5000" rows="4" placeholder="<?php te('fc.dn_placeholder'); ?>"></textarea>
                     <div class="dn-azioni">
                         <span class="dn-conta" id="deckNoteCount"></span>
-                        <button type="button" class="dn-btn" onclick="fcNoteMazzoChiudi()"><?php te('comune.annulla'); ?></button>
-                        <button type="button" class="dn-btn primario" onclick="fcNoteMazzoSalva()"><?php te('comune.salva'); ?></button>
+                        <button type="button" class="dn-btn" data-on-click="fcNoteMazzoChiudi()"><?php te('comune.annulla'); ?></button>
+                        <button type="button" class="dn-btn primario" data-on-click="fcNoteMazzoSalva()"><?php te('comune.salva'); ?></button>
                     </div>
                 </div>
             </div>
@@ -2890,7 +2890,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
             </div>
             
             <?php if ($categoryID == 0): ?>
-                <button type="button" id="loadMoreBtn" style="display: none; width: calc(100% - 24px); margin: 0 auto 20px auto; padding: 14px; background: var(--surface); color: var(--blue); border: none; border-radius: var(--r-btn); font-size: 15.5px; font-weight: 800; cursor: pointer; box-shadow: var(--shadow-card), inset 0 0 0 .5px var(--hairline); transition: transform .15s var(--spring); text-align: center;" onclick="loadMoreCards()" onmousedown="this.style.transform='scale(.97)'" onmouseup="this.style.transform='scale(1)'" onmouseleave="this.style.transform='scale(1)'">
+                <button type="button" id="loadMoreBtn" style="display: none; width: calc(100% - 24px); margin: 0 auto 20px auto; padding: 14px; background: var(--surface); color: var(--blue); border: none; border-radius: var(--r-btn); font-size: 15.5px; font-weight: 800; cursor: pointer; box-shadow: var(--shadow-card), inset 0 0 0 .5px var(--hairline); transition: transform .15s var(--spring); text-align: center;" data-on-click="loadMoreCards()" data-on-mousedown="this.style.transform='scale(.97)'" data-on-mouseup="this.style.transform='scale(1)'" data-on-mouseleave="this.style.transform='scale(1)'">
                     <?php te('fc.vis_carica_altre'); ?>
                 </button>
             <?php endif; ?>
@@ -2939,7 +2939,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
 
         <div class="sheet-actions">
 
-            <button type="button" class="sheet-btn" onclick="closeSheet('deleteSheet')"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="sheet-btn" data-on-click="closeSheet('deleteSheet')"><?php te('comune.annulla'); ?></button>
 
             <button type="button" class="sheet-btn danger" id="deleteSheetConfirm"><?php te('comune.elimina'); ?></button>
 
@@ -2966,7 +2966,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
         </div>
         <div class="sheet-warn" id="moveSheetWarn"></div>
         <div class="sheet-actions">
-            <button type="button" class="sheet-btn" onclick="closeSheet('moveSheet')"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="sheet-btn" data-on-click="closeSheet('moveSheet')"><?php te('comune.annulla'); ?></button>
             <button type="button" class="sheet-btn primary" id="moveSheetConfirm"><?php te('fc.vis_sposta_ok'); ?></button>
         </div>
     </div>
@@ -2982,7 +2982,7 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
           if ($sp_row):
               $sp_msg = $sp_n === 1 ? t('fc.vis_spostate_1', ['cat' => $sp_row['name']])
                                     : t('fc.vis_spostate_n', ['n' => $sp_n, 'cat' => $sp_row['name']]); ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 window.addEventListener('load', function(){
     setTimeout(function(){ showToast(<?php echo json_encode($sp_msg, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>); }, 250);
     /* L'indirizzo torna pulito: ricaricando a mano l'avviso non si ripete. */
@@ -3072,7 +3072,7 @@ window.addEventListener('load', function(){
                     <div class="opt-title"><?php te('fc.vis_filtro'); ?></div>
                 </div>
                 <div class="opt-select-wrap">
-                    <select id="filterStatus" class="opt-select" onchange="fcSalvaImpostazioni(); visibleLimit=30; filterList();">
+                    <select id="filterStatus" class="opt-select" data-on-change="fcSalvaImpostazioni(); visibleLimit=30; filterList();">
                         <option value="all"><?php te('fc.vis_tutte_carte'); ?></option>
                         <option value="not_learnt"><?php te('vocab.vi_da_imparare'); ?></option>
                         <option value="learnt"><?php te('vocab.vi_imparate'); ?></option>
@@ -3090,7 +3090,7 @@ window.addEventListener('load', function(){
                     <div class="opt-sub"><?php te('fc.vis_carte_intere_txt'); ?></div>
                 </div>
                 <label class="opt-switch">
-                    <input type="checkbox" id="optFullCards" onchange="fcSalvaImpostazioni()">
+                    <input type="checkbox" id="optFullCards" data-on-change="fcSalvaImpostazioni()">
                     <span class="opt-track"><span class="opt-knob"></span></span>
                 </label>
             </div>
@@ -3100,7 +3100,7 @@ window.addEventListener('load', function(){
                     <div class="opt-sub"><?php te('fc.vis_esempi_interi_txt'); ?></div>
                 </div>
                 <label class="opt-switch">
-                    <input type="checkbox" id="optFullExamples" onchange="fcSalvaImpostazioni()">
+                    <input type="checkbox" id="optFullExamples" data-on-change="fcSalvaImpostazioni()">
                     <span class="opt-track"><span class="opt-knob"></span></span>
                 </label>
             </div>
@@ -3121,7 +3121,7 @@ window.addEventListener('load', function(){
         <?php endif; ?>
 
         <div class="sheet-actions">
-            <button type="button" class="sheet-btn" onclick="closeSheet('settingsSheet')"><?php te('comune.chiudi'); ?></button>
+            <button type="button" class="sheet-btn" data-on-click="closeSheet('settingsSheet')"><?php te('comune.chiudi'); ?></button>
         </div>
     </div>
 </div>
@@ -3153,7 +3153,7 @@ window.addEventListener('load', function(){
                 <svg class="po-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
             </a>
             <?php endif; ?>
-            <button type="button" class="play-opt" onclick="closeSheet('playSheet'); fcApriPartiteMazzo();">
+            <button type="button" class="play-opt" data-on-click="closeSheet('playSheet'); fcApriPartiteMazzo();">
                 <span class="po-ic po-storico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
                 <span class="po-txt">
                     <span class="po-tit"><?php te('fc.vis_partite_mazzo'); ?></span>
@@ -3163,7 +3163,7 @@ window.addEventListener('load', function(){
             </button>
         </div>
         <div class="sheet-actions">
-            <button type="button" class="sheet-btn" onclick="closeSheet('playSheet')"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="sheet-btn" data-on-click="closeSheet('playSheet')"><?php te('comune.annulla'); ?></button>
         </div>
     </div>
 </div>
@@ -3175,14 +3175,14 @@ window.addEventListener('load', function(){
         <h3><?php te('fc.vis_cosa_aggiungere'); ?></h3>
         <p class="sheet-sub"><?php te('fc.vis_cosa_aggiungere_txt'); ?></p>
         <div class="pick-grid">
-            <button type="button" class="pick-tile" onclick="fcAggiungiCarta()">
+            <button type="button" class="pick-tile" data-on-click="fcAggiungiCarta()">
                 <span class="pt-ic">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="2.2"/><path d="M7.5 7V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/></svg>
                 </span>
                 <span class="pt-lab"><?php te('fc.vis_una_carta'); ?></span>
                 <span class="pt-sub"><?php te('fc.vis_una_carta_txt'); ?></span>
             </button>
-            <button type="button" class="pick-tile" onclick="fcApriNuovaCartella()">
+            <button type="button" class="pick-tile" data-on-click="fcApriNuovaCartella()">
                 <span class="pt-ic">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M12 11v5M9.5 13.5h5"/></svg>
                 </span>
@@ -3191,7 +3191,7 @@ window.addEventListener('load', function(){
             </button>
         </div>
         <div class="sheet-actions">
-            <button type="button" class="sheet-btn" onclick="closeSheet('addSheet')"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="sheet-btn" data-on-click="closeSheet('addSheet')"><?php te('comune.annulla'); ?></button>
         </div>
     </div>
 </div>
@@ -3214,27 +3214,27 @@ window.addEventListener('load', function(){
             <?php /* Prima opzione sempre il colore ereditato dal padre: e' il
                      comportamento normale delle categorie, quello scelto a mano
                      e' l'eccezione. */ ?>
-            <button type="button" class="nf-sw nf-sw-auto selected" data-auto="1" onclick="fcPickerAuto('cartella')"
+            <button type="button" class="nf-sw nf-sw-auto selected" data-auto="1" data-on-click="fcPickerAuto('cartella')"
                     title="<?php te('fc.vis_colore_default'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v8h8"/></svg>
             </button>
             <?php foreach ($colorPalette as $__ci => $__hex): ?>
             <button type="button" class="nf-sw" style="--sw:<?= sec_h($__hex) ?>;" data-hex="<?= sec_h($__hex) ?>"
-                    onclick="fcPickerManuale('cartella', '<?= sec_h($__hex) ?>')">
+                    data-on-click="fcPickerManuale('cartella', '<?= sec_h($__hex) ?>')">
                 <svg class="nf-check" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
             </button>
             <?php endforeach; ?>
         </div>
 
         <div class="nf-custom">
-            <input type="color" id="newFolderCustom" value="#007AFF" oninput="fcPickerManuale('cartella', this.value)">
+            <input type="color" id="newFolderCustom" value="#007AFF" data-on-input="fcPickerManuale('cartella', this.value)">
             <span class="nf-custom-lab"><?php te('vocab.cat_colore_pers'); ?></span>
             <span class="nf-custom-hex" id="newFolderHex">#A0A0A0</span>
         </div>
 
         <div class="sheet-actions">
-            <button type="button" class="sheet-btn" onclick="closeSheet('newFolderSheet')"><?php te('comune.annulla'); ?></button>
-            <button type="button" class="sheet-btn primary" id="newFolderSave" onclick="fcCreaCartella()"><?php te('comune.salva'); ?></button>
+            <button type="button" class="sheet-btn" data-on-click="closeSheet('newFolderSheet')"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="sheet-btn primary" id="newFolderSave" data-on-click="fcCreaCartella()"><?php te('comune.salva'); ?></button>
         </div>
     </div>
 </div>
@@ -3253,27 +3253,27 @@ window.addEventListener('load', function(){
         </div>
 
         <div class="nf-grid" id="catColorGrid">
-            <button type="button" class="nf-sw nf-sw-auto selected" data-auto="1" onclick="fcPickerAuto('categoria')"
+            <button type="button" class="nf-sw nf-sw-auto selected" data-auto="1" data-on-click="fcPickerAuto('categoria')"
                     title="<?php te('fc.vis_colore_default'); ?>">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v8h8"/></svg>
             </button>
             <?php foreach ($colorPalette as $__ci2 => $__hex2): ?>
             <button type="button" class="nf-sw" style="--sw:<?= sec_h($__hex2) ?>;" data-hex="<?= sec_h($__hex2) ?>"
-                    onclick="fcPickerManuale('categoria', '<?= sec_h($__hex2) ?>')">
+                    data-on-click="fcPickerManuale('categoria', '<?= sec_h($__hex2) ?>')">
                 <svg class="nf-check" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
             </button>
             <?php endforeach; ?>
         </div>
 
         <div class="nf-custom">
-            <input type="color" id="catColorCustom" value="#007AFF" oninput="fcPickerManuale('categoria', this.value)">
+            <input type="color" id="catColorCustom" value="#007AFF" data-on-input="fcPickerManuale('categoria', this.value)">
             <span class="nf-custom-lab"><?php te('vocab.cat_colore_pers'); ?></span>
             <span class="nf-custom-hex" id="catColorHex">#A0A0A0</span>
         </div>
 
         <div class="sheet-actions">
-            <button type="button" class="sheet-btn" onclick="closeSheet('catColorSheet')"><?php te('comune.annulla'); ?></button>
-            <button type="button" class="sheet-btn primary" id="catColorSave" onclick="fcSalvaColoreCategoria()"><?php te('comune.salva'); ?></button>
+            <button type="button" class="sheet-btn" data-on-click="closeSheet('catColorSheet')"><?php te('comune.annulla'); ?></button>
+            <button type="button" class="sheet-btn primary" id="catColorSave" data-on-click="fcSalvaColoreCategoria()"><?php te('comune.salva'); ?></button>
         </div>
     </div>
 </div>
@@ -3283,7 +3283,7 @@ window.addEventListener('load', function(){
     <div class="sheet-panel prj-panel">
         <div class="prj-body" id="prjBody"></div>
         <div class="sheet-actions">
-            <button type="button" class="sheet-btn" onclick="closeSheet('projectSheet')"><?php te('comune.chiudi'); ?></button>
+            <button type="button" class="sheet-btn" data-on-click="closeSheet('projectSheet')"><?php te('comune.chiudi'); ?></button>
             <a class="sheet-btn primary prj-go" id="prjGo" href="../projects/progetti.php"><?php te('fc.vis_prj_apri'); ?></a>
         </div>
     </div>
@@ -3292,7 +3292,7 @@ window.addEventListener('load', function(){
 
 
 <!-- ============ VISTA A FLASHCARD (una carta per volta) ============ -->
-<button type="button" class="fcv-fab" id="fcvFab" onclick="fcvApri()"
+<button type="button" class="fcv-fab" id="fcvFab" data-on-click="fcvApri()"
         aria-label="<?php te('fc.vis_fcv_apri'); ?>" title="<?php te('fc.vis_fcv_apri'); ?>">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="3"/><path d="M8.5 4H19a2 2 0 0 1 2 2v10.5"/></svg>
 </button>
@@ -3467,7 +3467,7 @@ window.addEventListener('load', function(){
 
 
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 const STANDOUT_CURRENT_USER_ID = <?php echo (int)$current_user_id; ?>;
 
@@ -4246,7 +4246,7 @@ function filterList(){
 }
 
 </script>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 /* ================================================================
 
@@ -4803,7 +4803,7 @@ function fcVaiAllaCartaDelFocus(){
 }
 </script>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 /* ================================================================
 
@@ -5203,7 +5203,7 @@ document.getElementById('newFolderName').addEventListener('keydown', function(e)
 
 </script>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 /* ================================================================
 
@@ -5843,7 +5843,7 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
 
 </script>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 /* ================================================================
 
@@ -7067,7 +7067,7 @@ document.getElementById('projectSheet').addEventListener('click', function(e){ i
 
 
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 /* ================================================================
 
@@ -8042,7 +8042,7 @@ function animateCardOut(el){
 
 
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 /* ================================================================
 
@@ -8672,7 +8672,7 @@ function animateCardOut(el){
 
 
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 /* ================================================================
 

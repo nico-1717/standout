@@ -109,11 +109,11 @@ function ft_testo_piano($raw): string {
 
 if (!defined('FC_PARSER_JS_INCLUDED')) {
     define('FC_PARSER_JS_INCLUDED', true);
-    echo "<script>
+    echo "<script nonce=\"" . sec_nonce() . "\">
         // Controllo intelligente: inietta lo script solo se non esiste già nel DOM
         if (!document.querySelector('script[src*=\"fc_parser.js\"]')) {
             var script = document.createElement('script');
-            script.src = '" . PWA_BASE . "fc/fc_parser.js';
+            script.src = '" . PWA_BASE . "fc/fc_parser.js?v=" . (@filemtime(__DIR__ . '/../fc/fc_parser.js') ?: 1) . "';
             document.head.appendChild(script);
         }
         /* MathQuill: la modifica interattiva delle formule a blocco (lo stesso
@@ -429,7 +429,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 
 <?php define('FT_ASSETS_EMITTED', true); echo standout_i18n_json(['editor']); ?>
 
-<style>
+<style nonce="<?php echo sec_nonce(); ?>">
 /* ================================================================
    TOOLBAR DI FORMATTAZIONE + EDITOR WYSIWYG — componente condiviso.
 
@@ -937,7 +937,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 
 
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 // ================================================================
 // IL CASSETTO: la seconda sezione della barra
 // ================================================================

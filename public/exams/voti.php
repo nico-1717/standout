@@ -543,10 +543,10 @@ echo standout_i18n_json(['comune', 'voti']);
 
 <header class="app-header">
     <div class="hdr-title"><?php te('voti.voti'); ?></div>
-    <button class="hdr-degree" id="hdrDegree" onclick="uniOpenProgram()" style="<?php echo $UNI_HAS_DATA ? '' : 'display:none'; ?>">
+    <button class="hdr-degree" id="hdrDegree" data-on-click="uniOpenProgram()" style="<?php echo $UNI_HAS_DATA ? '' : 'display:none'; ?>">
         <span class="dot"></span><span id="hdrDegreeName"><?php echo htmlspecialchars($UNI_SETTINGS['program_label'] ?: t('voti.imposta_corso'), ENT_QUOTES); ?></span>
     </button>
-    <button class="hdr-icon-btn" onclick="uniOpenSettings()" aria-label="<?php te('voti.impostazioni'); ?>">
+    <button class="hdr-icon-btn" data-on-click="uniOpenSettings()" aria-label="<?php te('voti.impostazioni'); ?>">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
 </header>
@@ -561,9 +561,9 @@ echo standout_i18n_json(['comune', 'voti']);
             <div class="em-ic">🎓</div>
             <h2><?php te('voti.la_tua_carriera_in_chiaro'); ?></h2>
             <p><?php te('voti.aggiungi_i_tuoi_esami_e'); ?></p>
-            <button class="pill-btn accent" onclick="uniOpenProgram()"><?php te('voti.parti_dal_tuo_corso'); ?></button>
+            <button class="pill-btn accent" data-on-click="uniOpenProgram()"><?php te('voti.parti_dal_tuo_corso'); ?></button>
             <div class="mini-row" style="justify-content:center; border:none; margin-top:6px;">
-                <button class="pill-btn ghost" onclick="uniOpenExam()"><?php te('voti.aggiungi_un_esame_a_mano'); ?></button>
+                <button class="pill-btn ghost" data-on-click="uniOpenExam()"><?php te('voti.aggiungi_un_esame_a_mano'); ?></button>
             </div>
         </div>
     </div>
@@ -630,24 +630,24 @@ echo standout_i18n_json(['comune', 'voti']);
             </div>
             <div class="chart-box" id="chartBox"></div>
             <div class="chart-tip" id="chartTip"></div>
-            <label class="chart-toggle"><span class="sw-toggle" style="transform:scale(.82)"><input type="checkbox" id="projToggle" checked onchange="uniToggleProjection(this.checked)"><span class="track"></span><span class="thumb"></span></span> <?php te('voti.mostra_proiezione_sui_voti_previsti'); ?></label>
+            <label class="chart-toggle"><span class="sw-toggle" style="transform:scale(.82)"><input type="checkbox" id="projToggle" checked data-on-change="uniToggleProjection(this.checked)"><span class="track"></span><span class="thumb"></span></span> <?php te('voti.mostra_proiezione_sui_voti_previsti'); ?></label>
         </section>
 
         <!-- ESAMI (+ SIMULATORE come terza scheda) -->
         <section class="uni-card pop" id="secExams" style="animation-delay:.14s">
             <div class="sec-head"><span class="sec-ic" style="background:var(--blue)">📚</span><h2><?php te('voti.esami'); ?></h2>
-                <button class="sec-act" id="examSelBtn" onclick="uniToggleSelect()" style="background:var(--surface-2); color:var(--uni-accent); box-shadow:none"><?php te('voti.seleziona'); ?></button>
-                <button class="sec-act" id="simSaveBtn" style="display:none" onclick="uniSaveSimAsTarget()"><?php te('voti.salva_come_obiettivo'); ?></button>
+                <button class="sec-act" id="examSelBtn" data-on-click="uniToggleSelect()" style="background:var(--surface-2); color:var(--uni-accent); box-shadow:none"><?php te('voti.seleziona'); ?></button>
+                <button class="sec-act" id="simSaveBtn" style="display:none" data-on-click="uniSaveSimAsTarget()"><?php te('voti.salva_come_obiettivo'); ?></button>
             </div>
             <div class="seg" id="examSeg">
                 <div class="seg-thumb" id="segThumb"></div>
-                <button type="button" data-tab="done" onclick="uniSetTab('done')"><?php te('voti.sostenuti'); ?><span class="cnt" id="cntDone">0</span></button>
-                <button type="button" class="on" data-tab="todo" onclick="uniSetTab('todo')"><?php te('voti.da_sostenere'); ?><span class="cnt" id="cntTodo">0</span></button>
-                <button type="button" data-tab="sim" onclick="uniSetTab('sim')"><?php te('voti.simulatore'); ?></button>
+                <button type="button" data-tab="done" data-on-click="uniSetTab('done')"><?php te('voti.sostenuti'); ?><span class="cnt" id="cntDone">0</span></button>
+                <button type="button" class="on" data-tab="todo" data-on-click="uniSetTab('todo')"><?php te('voti.da_sostenere'); ?><span class="cnt" id="cntTodo">0</span></button>
+                <button type="button" data-tab="sim" data-on-click="uniSetTab('sim')"><?php te('voti.simulatore'); ?></button>
                 <!-- Quanto ti costano davvero. Il simulatore dice che voto
                      prenderesti; questo dice quanto lavoro serve per arrivarci,
                      ed e' l'altra meta' della stessa domanda. -->
-                <button type="button" data-tab="costo" onclick="uniSetTab('costo')"><?php te('voti.costo'); ?></button>
+                <button type="button" data-tab="costo" data-on-click="uniSetTab('costo')"><?php te('voti.costo'); ?></button>
             </div>
 
             <!-- pannello costo: quanto e' costato quello che hai gia' fatto,
@@ -672,11 +672,11 @@ echo standout_i18n_json(['comune', 'voti']);
             <ul class="exam-list" id="examList"></ul>
             <div class="sel-bar" id="examSelBar" style="display:none">
                 <span class="n" id="selCount"><?php te('voti.0_selezionati'); ?></span>
-                <button type="button" class="b-grp" id="selCreateBtn" onclick="uniOpenGroupSheet(null)"><?php te('voti.crea_gruppo'); ?></button>
-                <button type="button" class="b-ungrp" id="selUngroupBtn" onclick="uniDissolveSelectedGroups()" style="display:none"><?php te('voti.sciogli_gruppo'); ?></button>
-                <button type="button" class="b-del" onclick="uniDeleteSelected()"><?php te('voti.elimina'); ?></button>
+                <button type="button" class="b-grp" id="selCreateBtn" data-on-click="uniOpenGroupSheet(null)"><?php te('voti.crea_gruppo'); ?></button>
+                <button type="button" class="b-ungrp" id="selUngroupBtn" data-on-click="uniDissolveSelectedGroups()" style="display:none"><?php te('voti.sciogli_gruppo'); ?></button>
+                <button type="button" class="b-del" data-on-click="uniDeleteSelected()"><?php te('voti.elimina'); ?></button>
             </div>
-            <button class="exam-add" id="examAddBtn" onclick="uniOpenExam()"><?php te('voti.aggiungi_esame'); ?></button>
+            <button class="exam-add" id="examAddBtn" data-on-click="uniOpenExam()"><?php te('voti.aggiungi_esame'); ?></button>
         </section>
 
         <!-- STATISTICHE -->
@@ -688,7 +688,7 @@ echo standout_i18n_json(['comune', 'voti']);
         <!-- TESI & BONUS -->
         <section class="uni-card pop" id="secBonus" style="animation-delay:.26s">
             <div class="sec-head"><span class="sec-ic" style="background:var(--gold)">🎓</span><h2><?php te('voti.tesi_bonus'); ?></h2>
-                <button class="sec-act" onclick="uniOpenBonus()"><?php te('voti.bonus'); ?></button>
+                <button class="sec-act" data-on-click="uniOpenBonus()"><?php te('voti.bonus'); ?></button>
             </div>
             <div id="thesisBody"></div>
             <div style="height:8px"></div>
@@ -699,7 +699,7 @@ echo standout_i18n_json(['comune', 'voti']);
 </main>
 
 <!-- ==================== SHEETS ==================== -->
-<div class="sheet-backdrop" id="sheetBackdrop" onclick="uniCloseSheets()"></div>
+<div class="sheet-backdrop" id="sheetBackdrop" data-on-click="uniCloseSheets()"></div>
 
 <!-- Exam editor -->
 <div class="sheet" id="examSheet">
@@ -712,23 +712,23 @@ echo standout_i18n_json(['comune', 'voti']);
         <div><label><?php te('voti.anno'); ?></label><select id="exYear"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
     </div></div>
     <div class="field"><label><?php te('voti.stato'); ?></label><div class="chip-row">
-        <button type="button" class="chip-tog on" id="chipTodo" onclick="uniExamSetStatus('todo')"><?php te('voti.da_sostenere'); ?></button>
-        <button type="button" class="chip-tog" id="chipDone" onclick="uniExamSetStatus('done')"><?php te('voti.sostenuto'); ?></button>
+        <button type="button" class="chip-tog on" id="chipTodo" data-on-click="uniExamSetStatus('todo')"><?php te('voti.da_sostenere'); ?></button>
+        <button type="button" class="chip-tog" id="chipDone" data-on-click="uniExamSetStatus('done')"><?php te('voti.sostenuto'); ?></button>
     </div></div>
     <div class="field"><label><?php te('voti.tipologia'); ?></label><div class="chip-row">
-        <button type="button" class="chip-tog on" id="chipGraded" onclick="uniExamSetPF(false)"><?php te('voti.con_voto'); ?></button>
-        <button type="button" class="chip-tog" id="chipIdo" onclick="uniExamSetPF(true)"><?php te('voti.idoneita'); ?></button>
+        <button type="button" class="chip-tog on" id="chipGraded" data-on-click="uniExamSetPF(false)"><?php te('voti.con_voto'); ?></button>
+        <button type="button" class="chip-tog" id="chipIdo" data-on-click="uniExamSetPF(true)"><?php te('voti.idoneita'); ?></button>
     </div></div>
     <div class="field" id="exGradeBlock">
         <label id="exGradeHint"><?php te('voti.voto'); ?></label>
         <div class="grade-picker">
-            <button type="button" onclick="uniExamGrade(-1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">−</button>
+            <button type="button" data-on-click="uniExamGrade(-1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">−</button>
             <div class="gbig tabular" id="exGradeBig">26</div>
-            <button type="button" onclick="uniExamGrade(1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">＋</button>
+            <button type="button" data-on-click="uniExamGrade(1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">＋</button>
         </div>
         <div class="chip-row" style="justify-content:center;margin-top:8px">
-            <button type="button" class="chip-tog gold" id="exLodeChip" style="display:none" onclick="uniExamToggleLode()"><?php te('voti.30_e_lode'); ?></button>
-            <button type="button" class="chip-tog" id="exClearGradeChip" style="display:none" onclick="uniExamClearGrade()"><?php te('voti.pulisci_voto_previsto'); ?></button>
+            <button type="button" class="chip-tog gold" id="exLodeChip" style="display:none" data-on-click="uniExamToggleLode()"><?php te('voti.30_e_lode'); ?></button>
+            <button type="button" class="chip-tog" id="exClearGradeChip" style="display:none" data-on-click="uniExamClearGrade()"><?php te('voti.pulisci_voto_previsto'); ?></button>
         </div>
     </div>
     <div class="field" id="exDateBlock" style="display:none"><label><?php te('voti.data'); ?></label><input type="date" id="exDate"></div>
@@ -740,14 +740,14 @@ echo standout_i18n_json(['comune', 'voti']);
         <label><?php te('voti.gruppo'); ?></label>
         <div class="mini-row" style="border:none; padding:0">
             <span id="exGroupName" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; font-size:.88rem"></span>
-            <button type="button" class="pill-btn ghost" style="flex-shrink:0; padding:9px 12px" onclick="uniEditExamGroup()"><?php te('voti.modifica'); ?></button>
-            <button type="button" class="pill-btn ghost" style="flex-shrink:0; padding:9px 12px" onclick="uniDissolveGroup()"><?php te('voti.sciogli'); ?></button>
+            <button type="button" class="pill-btn ghost" style="flex-shrink:0; padding:9px 12px" data-on-click="uniEditExamGroup()"><?php te('voti.modifica'); ?></button>
+            <button type="button" class="pill-btn ghost" style="flex-shrink:0; padding:9px 12px" data-on-click="uniDissolveGroup()"><?php te('voti.sciogli'); ?></button>
         </div>
     </div>
     <div class="sheet-actions">
-        <button type="button" class="btn-danger" id="exDeleteBtn" onclick="uniDeleteExam()" style="display:none">🗑</button>
-        <button type="button" class="btn-secondary" onclick="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
-        <button type="button" class="btn-primary" onclick="uniSaveExam()"><?php te('voti.salva'); ?></button>
+        <button type="button" class="btn-danger" id="exDeleteBtn" data-on-click="uniDeleteExam()" style="display:none">🗑</button>
+        <button type="button" class="btn-secondary" data-on-click="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
+        <button type="button" class="btn-primary" data-on-click="uniSaveExam()"><?php te('voti.salva'); ?></button>
     </div>
 </div>
 
@@ -758,8 +758,8 @@ echo standout_i18n_json(['comune', 'voti']);
     <p class="sub"><?php te('voti.compatta_piu_esami_insieme'); ?></p>
     <div class="field"><label><?php te('voti.nome_gruppo'); ?></label><input type="text" id="grpName" placeholder="<?php te('voti.es_esame_a_scelta'); ?>"></div>
     <div class="field"><label><?php te('voti.tipologia_gruppo'); ?></label><div class="chip-row">
-        <button type="button" class="chip-tog on" id="grpTypeChoice" onclick="uniGroupSetType('choice')"><?php te('voti.1_esami_a_scelta'); ?></button>
-        <button type="button" class="chip-tog" id="grpTypeSplit" onclick="uniGroupSetType('split')"><?php te('voti.2_esame_suddiviso'); ?></button>
+        <button type="button" class="chip-tog on" id="grpTypeChoice" data-on-click="uniGroupSetType('choice')"><?php te('voti.1_esami_a_scelta'); ?></button>
+        <button type="button" class="chip-tog" id="grpTypeSplit" data-on-click="uniGroupSetType('split')"><?php te('voti.2_esame_suddiviso'); ?></button>
     </div></div>
     <p class="grp-type-hint" id="grpTypeHint"></p>
     <div class="field" id="grpQuotaWrap">
@@ -771,9 +771,9 @@ echo standout_i18n_json(['comune', 'voti']);
         <ul class="grp-pick-list" id="grpPickList"></ul>
     </div>
     <div class="sheet-actions">
-        <button type="button" class="btn-danger" id="grpDeleteBtn" onclick="uniDissolveGroupFromSheet()" style="display:none">🗑</button>
-        <button type="button" class="btn-secondary" onclick="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
-        <button type="button" class="btn-primary" onclick="uniSaveGroup()"><?php te('voti.salva'); ?></button>
+        <button type="button" class="btn-danger" id="grpDeleteBtn" data-on-click="uniDissolveGroupFromSheet()" style="display:none">🗑</button>
+        <button type="button" class="btn-secondary" data-on-click="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
+        <button type="button" class="btn-primary" data-on-click="uniSaveGroup()"><?php te('voti.salva'); ?></button>
     </div>
 </div>
 
@@ -783,17 +783,17 @@ echo standout_i18n_json(['comune', 'voti']);
     <h3><?php te('voti.registra_voto'); ?></h3>
     <p class="sub" id="gradeSheetName"><?php te('voti.esame'); ?></p>
     <div class="grade-picker">
-        <button type="button" onclick="uniQuickGrade(-1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">−</button>
+        <button type="button" data-on-click="uniQuickGrade(-1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">−</button>
         <div class="gbig tabular" id="qgBig">26</div>
-        <button type="button" onclick="uniQuickGrade(1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">＋</button>
+        <button type="button" data-on-click="uniQuickGrade(1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">＋</button>
     </div>
     <div class="chip-row" style="justify-content:center;margin-top:10px">
-        <button type="button" class="chip-tog gold" id="qgLode" style="display:none" onclick="uniQuickLode()"><?php te('voti.30_e_lode'); ?></button>
-        <button type="button" class="chip-tog" id="qgIdo" onclick="uniQuickIdo()"><?php te('voti.idoneita'); ?></button>
+        <button type="button" class="chip-tog gold" id="qgLode" style="display:none" data-on-click="uniQuickLode()"><?php te('voti.30_e_lode'); ?></button>
+        <button type="button" class="chip-tog" id="qgIdo" data-on-click="uniQuickIdo()"><?php te('voti.idoneita'); ?></button>
     </div>
     <div class="sheet-actions" style="margin-top:16px">
-        <button type="button" class="btn-secondary" onclick="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
-        <button type="button" class="btn-primary" onclick="uniQuickSave()"><?php te('voti.registra'); ?></button>
+        <button type="button" class="btn-secondary" data-on-click="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
+        <button type="button" class="btn-primary" data-on-click="uniQuickSave()"><?php te('voti.registra'); ?></button>
     </div>
 </div>
 
@@ -803,18 +803,18 @@ echo standout_i18n_json(['comune', 'voti']);
     <h3><?php te('voti.il_tuo_obiettivo'); ?></h3>
     <p class="sub"><?php te('voti.quale_media_vuoi_raggiungere'); ?></p>
     <div class="grade-picker">
-        <button type="button" onclick="uniTargetStep(-1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">−</button>
+        <button type="button" data-on-click="uniTargetStep(-1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">−</button>
         <div class="gbig tabular" id="tgtBig">28.00</div>
-        <button type="button" onclick="uniTargetStep(1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">＋</button>
+        <button type="button" data-on-click="uniTargetStep(1)" style="width:48px;height:48px;border-radius:50%;border:none;background:var(--surface-3);color:var(--uni-accent);font-size:1.7rem;font-weight:700;cursor:pointer;line-height:1">＋</button>
     </div>
     <p class="sub" id="tgtHint" style="margin-top:12px"></p>
 
     <div id="tgtVis" style="opacity:0.65; margin-bottom:20px;"></div>
     
     <div class="sheet-actions">
-        <button type="button" class="btn-danger" onclick="uniClearTarget()" style="width:auto;padding:15px 16px;font-size:.9rem"><?php te('voti.rimuovi'); ?></button>
-        <button type="button" class="btn-secondary" onclick="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
-        <button type="button" class="btn-primary" onclick="uniSaveTarget()"><?php te('voti.salva'); ?></button>
+        <button type="button" class="btn-danger" data-on-click="uniClearTarget()" style="width:auto;padding:15px 16px;font-size:.9rem"><?php te('voti.rimuovi'); ?></button>
+        <button type="button" class="btn-secondary" data-on-click="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
+        <button type="button" class="btn-primary" data-on-click="uniSaveTarget()"><?php te('voti.salva'); ?></button>
     </div>
 </div>
 
@@ -824,7 +824,7 @@ echo standout_i18n_json(['comune', 'voti']);
     <h3><?php te('voti.bonus_punti'); ?></h3>
     <p class="sub"><?php te('voti.punti_extra_sul_voto_di'); ?></p>
     <div class="field"><label><?php te('voti.nome'); ?></label><input type="text" id="bnName" placeholder="<?php te('voti.es_laurea_in_corso'); ?>"></div>
-    <div class="field"><label><?php te('voti.tipo'); ?></label><select id="bnType" onchange="uniBonusTypeChange()">
+    <div class="field"><label><?php te('voti.tipo'); ?></label><select id="bnType" data-on-change="uniBonusTypeChange()">
         <option value="on_time"><?php te('voti.laurea_in_corso'); ?></option>
         <option value="honors_each"><?php te('voti.punti_per_ogni_lode'); ?></option>
         <option value="honors_threshold"><?php te('voti.soglia_di_lodi'); ?></option>
@@ -836,9 +836,9 @@ echo standout_i18n_json(['comune', 'voti']);
     <div class="field" id="bnCapWrap" style="display:none"><label><?php te('voti.massimo_punti_0_nessun_limite'); ?></label><input type="number" id="bnCap" min="0" max="40" step="0.5" placeholder="<?php te('voti.nessun_limite'); ?>"></div>
     <p class="sub" id="bnPreview" style="text-align:left;background:var(--surface-2);padding:12px;border-radius:12px"></p>
     <div class="sheet-actions">
-        <button type="button" class="btn-danger" id="bnDeleteBtn" onclick="uniDeleteBonus()" style="display:none">🗑</button>
-        <button type="button" class="btn-secondary" onclick="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
-        <button type="button" class="btn-primary" onclick="uniSaveBonus()"><?php te('voti.salva'); ?></button>
+        <button type="button" class="btn-danger" id="bnDeleteBtn" data-on-click="uniDeleteBonus()" style="display:none">🗑</button>
+        <button type="button" class="btn-secondary" data-on-click="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
+        <button type="button" class="btn-primary" data-on-click="uniSaveBonus()"><?php te('voti.salva'); ?></button>
     </div>
 </div>
 
@@ -848,7 +848,7 @@ echo standout_i18n_json(['comune', 'voti']);
     <h3><?php te('voti.impostazioni'); ?></h3>
     <p class="sub"><?php te('voti.corso_colori_e_regole_di'); ?></p>
     <div class="field"><label><?php te('voti.corso_di_laurea'); ?></label>
-        <div class="prog-opt" onclick="uniOpenProgram()">
+        <div class="prog-opt" data-on-click="uniOpenProgram()">
             <div class="pi" id="setProgIcon" style="background:var(--uni-grad)">🎓</div>
             <div class="pt"><div class="pn" id="setProgName"><?php te('voti.nessun_corso'); ?></div><div class="pd" id="setProgDesc"><?php te('voti.tocca_per_scegliere'); ?></div></div>
             <div class="chev">›</div>
@@ -861,10 +861,10 @@ echo standout_i18n_json(['comune', 'voti']);
         <div><label><?php te('voti.base_es_110'); ?></label><input type="number" id="setBase" min="30" max="200" step="1" value="110"></div>
     </div></div>
     <div class="field"><label><?php te('voti.valore_della_lode_nella_media'); ?></label><div class="chip-row" id="setLodeVal">
-        <button type="button" class="chip-tog" data-val="30" onclick="uniSetLodeVal(30)">30</button>
-        <button type="button" class="chip-tog" data-val="30.5" onclick="uniSetLodeVal(30.5)">30,5</button>
-        <button type="button" class="chip-tog" data-val="31" onclick="uniSetLodeVal(31)">31</button>
-        <button type="button" class="chip-tog" data-val="32" onclick="uniSetLodeVal(32)">32</button>
+        <button type="button" class="chip-tog" data-val="30" data-on-click="uniSetLodeVal(30)">30</button>
+        <button type="button" class="chip-tog" data-val="30.5" data-on-click="uniSetLodeVal(30.5)">30,5</button>
+        <button type="button" class="chip-tog" data-val="31" data-on-click="uniSetLodeVal(31)">31</button>
+        <button type="button" class="chip-tog" data-val="32" data-on-click="uniSetLodeVal(32)">32</button>
     </div></div>
     <div class="field"><div class="row2">
         <div><label><?php te('voti.tesi_min'); ?></label><input type="number" id="setThMin" min="0" max="30" step="0.5" value="0"></div>
@@ -874,8 +874,8 @@ echo standout_i18n_json(['comune', 'voti']);
         <label class="sw-toggle"><input type="checkbox" id="setRound"><span class="track"></span><span class="thumb"></span></label>
     </div>
     <div class="sheet-actions" style="margin-top:14px">
-        <button type="button" class="btn-secondary" onclick="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
-        <button type="button" class="btn-primary" onclick="uniSaveSettings()"><?php te('voti.salva'); ?></button>
+        <button type="button" class="btn-secondary" data-on-click="uniCloseSheets()"><?php te('voti.annulla'); ?></button>
+        <button type="button" class="btn-primary" data-on-click="uniSaveSettings()"><?php te('voti.salva'); ?></button>
     </div>
 </div>
 
@@ -885,7 +885,7 @@ echo standout_i18n_json(['comune', 'voti']);
     <h3><?php te('voti.scegli_il_tuo_corso'); ?></h3>
     <p class="sub"><?php te('voti.precompiliamo_esami_cfu_e_colori'); ?></p>
     <div class="field">
-        <input type="text" id="progSearch" placeholder="<?php te('voti.cerca_corso_o_facolta'); ?>" autocomplete="off" oninput="uniFilterPrograms()">
+        <input type="text" id="progSearch" placeholder="<?php te('voti.cerca_corso_o_facolta'); ?>" autocomplete="off" data-on-input="uniFilterPrograms()">
     </div>
     <ul class="prog-list" id="progList"></ul>
 </div>
@@ -893,7 +893,7 @@ echo standout_i18n_json(['comune', 'voti']);
 <div id="uniToast"></div>
 <canvas id="uniConfetti"></canvas>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 /* ============================================================
    VOTI — logica client. Funzioni globali (gli onclick le usano).
    ============================================================ */
@@ -1198,7 +1198,7 @@ function renderObjective(){
   var tgt=S().target_average!=null?parseFloat(S().target_average):null, avg=weighted(STATE.exams).avg;
   if(tgt==null){ body.innerHTML='<div class="empty" style="padding:10px 10px 4px"><div class="em-ic" style="width:60px;height:60px;font-size:26px">🎯</div>'+
     '<p>'+T('voti.fissa_un_traguardo')+'</p>'+
-    '<button class="pill-btn accent" onclick="uniOpenTarget()">'+T('voti.imposta_obiettivo')+'</button></div>'; return; }
+    '<button class="pill-btn accent" data-on-click="uniOpenTarget()">'+T('voti.imposta_obiettivo')+'</button></div>'; return; }
   var d=avg-tgt, reached=avg>=tgt-0.0001, src=S().target_source==='simulation'?T('voti.origine_simulazione'):T('voti.origine_manuale');
   var h='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'+
     '<div><div style="font-size:2.2rem;font-weight:800;letter-spacing:-.02em" class="tabular">'+fmt2(tgt)+'</div>'+
@@ -1220,7 +1220,7 @@ function renderObjective(){
   h += '<div class="thesis-vis" style="margin-top:0">'+thesisVisHTML(frTgt.min, frTgt.max)+'</div>';
   h += '</div>';
 
-  h+='<div class="mini-row" style="margin-top:6px;justify-content:flex-end"><button class="pill-btn ghost" onclick="uniOpenTarget()">'+T('voti.modifica')+'</button></div>';
+  h+='<div class="mini-row" style="margin-top:6px;justify-content:flex-end"><button class="pill-btn ghost" data-on-click="uniOpenTarget()">'+T('voti.modifica')+'</button></div>';
   body.innerHTML=h;
 }
 function renderChart(){
@@ -1314,18 +1314,18 @@ function simRow(e){
   var val=has?(toBool(e.predicted_honors)?'30L':Math.round(e.predicted_grade)):'–';
   return '<li class="sim-item" data-id="'+id+'">'+
     '<div class="nm">'+esc(shortName(e.name,22))+'<small style="display:block;font-size:.72rem;font-weight:600">'+trimNum(e.cfu)+' CFU</small></div>'+
-    '<div class="stepper"><button type="button" onclick="uniSimStep(\''+id+'\',-1)">\u2212</button>'+
+    '<div class="stepper"><button type="button" data-on-click="uniSimStep(\''+id+'\',-1)">\u2212</button>'+
     '<span class="val'+(toBool(e.predicted_honors)?' lode':'')+'">'+val+'</span>'+
-    '<button type="button" onclick="uniSimStep(\''+id+'\',1)">+</button></div>'+
-    '<button type="button" class="chip-tog'+(toBool(e.predicted_honors)?' gold on':'')+'" style="margin-left:6px;padding:9px 12px" onclick="uniSimLode(\''+id+'\')">L</button>'+
-    (has?'<button type="button" style="margin-left:2px;background:none;border:none;color:var(--text-3);font-size:1.3rem;cursor:pointer;line-height:1" onclick="uniSimClear(\''+id+'\')">\u00d7</button>':'')+
+    '<button type="button" data-on-click="uniSimStep(\''+id+'\',1)">+</button></div>'+
+    '<button type="button" class="chip-tog'+(toBool(e.predicted_honors)?' gold on':'')+'" style="margin-left:6px;padding:9px 12px" data-on-click="uniSimLode(\''+id+'\')">L</button>'+
+    (has?'<button type="button" style="margin-left:2px;background:none;border:none;color:var(--text-3);font-size:1.3rem;cursor:pointer;line-height:1" data-on-click="uniSimClear(\''+id+'\')">\u00d7</button>':'')+
   '</li>';
 }
 function simGroupBlock(gid,items){
   var g=findGroup(gid); if(!g){ var raw=''; for(var i0=0;i0<items.length;i0++) raw+=simRow(items[i0]); return raw; }
   var isSplit=isSplitGroup(g), gidA=escAttr(gid);
   var h='<li class="sim-group" data-id="'+gidA+'"><div class="sim-group-inner">'+
-    '<div class="sim-group-head"><span class="gt-name" style="flex:1;font-weight:800;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="uniOpenGroupSheet(\''+gidA+'\')">'+esc(g.name)+'</span>'+
+    '<div class="sim-group-head"><span class="gt-name" style="flex:1;font-weight:800;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" data-on-click="uniOpenGroupSheet(\''+gidA+'\')">'+esc(g.name)+'</span>'+
     '<span class="gt-badge'+(isSplit?' split':'')+'">'+(isSplit?T('voti.suddiviso'):T('voti.a_scelta_maiusc'))+'</span></div>';
   if(!isSplit){
     var qp=groupQuotaProgress(gid);
@@ -1342,11 +1342,11 @@ function simGroupBlock(gid,items){
     var curHon=hasOverride?toBool(g.overall_predicted_honors):false;
     var val=cur!=null?(curHon?'30L':cur):'–';
     h+='<div class="grp-overall"><span class="go-lbl">'+T('voti.voto_complessivo_gruppo')+(prop!=null&&!hasOverride?(' '+T('voti.proposto_par')):'')+'</span>'+
-      '<div class="stepper"><button type="button" onclick="uniGroupPredStep(\''+gidA+'\',-1)">\u2212</button>'+
+      '<div class="stepper"><button type="button" data-on-click="uniGroupPredStep(\''+gidA+'\',-1)">\u2212</button>'+
       '<span class="val'+(curHon?' lode':'')+'">'+val+'</span>'+
-      '<button type="button" onclick="uniGroupPredStep(\''+gidA+'\',1)">+</button></div>'+
-      '<button type="button" class="chip-tog'+(curHon?' gold on':'')+'" style="padding:9px 12px; flex-shrink:0;" onclick="uniGroupPredLode(\''+gidA+'\')">L</button>'+
-      (hasOverride?'<button type="button" style="margin-left:2px;background:none;border:none;color:var(--text-3);font-size:1.3rem;cursor:pointer;line-height:1; flex-shrink:0; padding:0 4px;" onclick="uniGroupPredClear(\''+gidA+'\')">\u00d7</button>':'')+
+      '<button type="button" data-on-click="uniGroupPredStep(\''+gidA+'\',1)">+</button></div>'+
+      '<button type="button" class="chip-tog'+(curHon?' gold on':'')+'" style="padding:9px 12px; flex-shrink:0;" data-on-click="uniGroupPredLode(\''+gidA+'\')">L</button>'+
+      (hasOverride?'<button type="button" style="margin-left:2px;background:none;border:none;color:var(--text-3);font-size:1.3rem;cursor:pointer;line-height:1; flex-shrink:0; padding:0 4px;" data-on-click="uniGroupPredClear(\''+gidA+'\')">\u00d7</button>':'')+
     '</div>'; }
   h+='</div></li>';
   return h;
@@ -1493,7 +1493,7 @@ function groupSelectRow(gid,items){
   var allM=groupExams(gid);
   var meta='<span>'+trimNum(parseFloat(g.cfu)||0)+' CFU</span><span>\u00b7 '+allM.length+' esami</span>'+
     '<span class="gt-badge'+(isSplit?' split':'')+'" style="margin-left:2px">'+(isSplit?T('voti.suddiviso'):T('voti.a_scelta_maiusc'))+'</span>';
-  return '<li class="exam-item sel-on'+(picked?' picked':'')+'" data-id="grp-'+gidA+'" onclick="uniPickGroup(\''+gidA+'\')">'+
+  return '<li class="exam-item sel-on'+(picked?' picked':'')+'" data-id="grp-'+gidA+'" data-on-click="uniPickGroup(\''+gidA+'\')">'+
     '<span class="sel-dot">'+(picked?'\u2713':'')+'</span>'+
     '<div class="exam-body"><div class="exam-name">'+esc(g.name)+'</div><div class="exam-meta">'+meta+'</div></div>'+
   '</li>';
@@ -1508,19 +1508,19 @@ function examRow(e,selMode,inGroup){
   else if(e.national_avg!=null){ meta+='<span class="nat">media '+fmt2(parseFloat(e.national_avg))+'</span>'; }
   if(selMode){
     var picked=!!STATE.selected[e.id];
-    return '<li class="exam-item sel-on'+(picked?' picked':'')+'" data-id="'+id+'" onclick="uniPickRow(\''+id+'\')">'+
+    return '<li class="exam-item sel-on'+(picked?' picked':'')+'" data-id="'+id+'" data-on-click="uniPickRow(\''+id+'\')">'+
       '<span class="sel-dot">'+(picked?'\u2713':'')+'</span>'+
       '<div class="exam-body"><div class="exam-name">'+esc(e.name)+'</div><div class="exam-meta">'+meta+'</div></div>'+
       '<div class="exam-trail">'+gradeBadge(e)+'</div></li>';
   }
   var inner=(inGroup?'':'<span class="exam-drag" data-drag="1">'+DRAG_SVG+'</span>')+
-    '<div class="exam-body" onclick="uniOpenExam(\''+id+'\')"><div class="exam-name">'+esc(e.name)+'</div><div class="exam-meta">'+meta+'</div></div>'+
+    '<div class="exam-body" data-on-click="uniOpenExam(\''+id+'\')"><div class="exam-name">'+esc(e.name)+'</div><div class="exam-meta">'+meta+'</div></div>'+
     '<div class="exam-trail">'+gradeBadge(e)+
-    '<div class="'+(e.status==='done'?'exam-check done':'exam-check')+'" onclick="uniCheckTap(\''+id+'\',event)">'+CHECK_SVG+'</div></div>';
+    '<div class="'+(e.status==='done'?'exam-check done':'exam-check')+'" data-on-click="uniCheckTap(\''+id+'\',event)">'+CHECK_SVG+'</div></div>';
   if(STATE.tab==='todo'){
     /* swipe verso destra per rivelare "elimina": il tasto sta sotto al contenuto, invisibile a riposo */
     return '<li class="exam-item swipeable" data-id="'+id+'">'+
-      '<button type="button" class="swipe-del" onclick="uniSwipeDelete(\''+id+'\',event)">'+TRASH_SVG+'</button>'+
+      '<button type="button" class="swipe-del" data-on-click="uniSwipeDelete(\''+id+'\',event)">'+TRASH_SVG+'</button>'+
       '<div class="swipe-content">'+inner+'</div>'+
     '</li>';
   }
@@ -1536,7 +1536,7 @@ function groupBlockHTML(gid,items){
   else { var qp=groupQuotaProgress(gid); quotaLabel=trimNum(qp.done)+(qp.pred>0?('+'+trimNum(qp.pred)):'')+'/'+trimNum(qp.quota)+' CFU'; }
   var h='<li class="exam-group" data-id="grp-'+gidA+'"><div class="exam-group-inner">'+
     '<div class="exam-group-head"><span class="exam-drag" data-drag="1">'+DRAG_SVG+'</span>'+
-    '<span class="gt-name" onclick="uniOpenGroupSheet(\''+gidA+'\')">'+esc(g.name)+'</span>'+
+    '<span class="gt-name" data-on-click="uniOpenGroupSheet(\''+gidA+'\')">'+esc(g.name)+'</span>'+
     '<span class="gt-badge'+(isSplit?' split':'')+'">'+(isSplit?T('voti.suddiviso'):T('voti.a_scelta_maiusc'))+'</span>'+
     '<span class="gt-quota">'+quotaLabel+'</span>'+
     '</div><ul class="exam-list" style="margin:0;padding:0">';
@@ -1547,10 +1547,10 @@ function groupBlockHTML(gid,items){
       var prop=g.overall_grade!=null?g.overall_grade:proposedOverallGrade(groupExams(gid),false);
       var curHon=toBool(g.overall_honors), val=prop!=null?(curHon?'30L':prop):'–';
       h+='<div class="grp-overall"><span class="go-lbl">'+T('voti.voto_complessivo')+'</span>'+
-        '<div class="stepper"><button type="button" onclick="uniGroupFinalStep(\''+gidA+'\',-1)">\u2212</button>'+
+        '<div class="stepper"><button type="button" data-on-click="uniGroupFinalStep(\''+gidA+'\',-1)">\u2212</button>'+
         '<span class="val'+(curHon?' lode':'')+'">'+val+'</span>'+
-        '<button type="button" onclick="uniGroupFinalStep(\''+gidA+'\',1)">+</button></div>'+
-        '<button type="button" class="chip-tog'+(curHon?' gold on':'')+'" style="padding:9px 12px" onclick="uniGroupFinalLode(\''+gidA+'\')">L</button>'+
+        '<button type="button" data-on-click="uniGroupFinalStep(\''+gidA+'\',1)">+</button></div>'+
+        '<button type="button" class="chip-tog'+(curHon?' gold on':'')+'" style="padding:9px 12px" data-on-click="uniGroupFinalLode(\''+gidA+'\')">L</button>'+
       '</div>';
     } else {
       var allM=groupExams(gid), doneN=allM.filter(function(x){ return x.status==='done'; }).length;
@@ -1783,7 +1783,7 @@ function renderGroupPicker(){
   var h='', n=0;
   for(var i=0;i<pool.length;i++){ var e=pool[i], id=escAttr(e.id), picked=!!GRP.picked[String(e.id)]; if(picked) n++;
     var meta='<span>'+trimNum(e.cfu)+' CFU</span>'+(e.study_year?('<span>\u00b7 '+T('voti.anno_n',{n:e.study_year})+'</span>'):'')+(e.status==='done'?('<span>\u00b7 '+T('voti.sostenuto_min')+'</span>'):'');
-    h+='<li class="exam-item sel-on'+(picked?' picked':'')+'" data-id="'+id+'" onclick="uniGroupPickToggle(\''+id+'\')">'+
+    h+='<li class="exam-item sel-on'+(picked?' picked':'')+'" data-id="'+id+'" data-on-click="uniGroupPickToggle(\''+id+'\')">'+
       '<span class="sel-dot">'+(picked?'\u2713':'')+'</span>'+
       '<div class="exam-body"><div class="exam-name">'+esc(e.name)+'</div><div class="exam-meta">'+meta+'</div></div>'+
       gradeBadge(e)+'</li>'; }
@@ -1800,7 +1800,7 @@ function renderQuotaOptions(){
   if(!sums.length){ wrap.innerHTML='<span class="grp-note">'+T('voti.seleziona_almeno_un_esame')+'</span>'; return; }
   if(GRP.quota==null || sums.indexOf(GRP.quota)===-1) GRP.quota=sums[sums.length-1];
   var h=''; for(var j=0;j<sums.length;j++){ var v=sums[j];
-    h+='<button type="button" class="chip-tog'+(Math.abs(v-GRP.quota)<0.001?' on':'')+'" onclick="uniGroupSetQuota('+v+')">'+trimNum(v)+' CFU</button>'; }
+    h+='<button type="button" class="chip-tog'+(Math.abs(v-GRP.quota)<0.001?' on':'')+'" data-on-click="uniGroupSetQuota('+v+')">'+trimNum(v)+' CFU</button>'; }
   wrap.innerHTML=h;
 }
 function uniGroupSetQuota(v){ GRP.quota=parseFloat(v); renderQuotaOptions(); }
@@ -2009,9 +2009,9 @@ function bonusRow(b,lodi){
   var applied=bonusApplied(b,lodi), on=toBool(b.is_enabled), id=escAttr(b.id);
   return '<li class="bonus-item" data-id="'+id+'">'+
     '<div class="bic">'+bonusIcon(b.bonus_type)+'</div>'+
-    '<div class="bd" onclick="uniOpenBonus(\''+id+'\')"><div class="bn">'+esc(b.name)+'</div><div class="bs">'+esc(bonusDesc(b))+'</div></div>'+
+    '<div class="bd" data-on-click="uniOpenBonus(\''+id+'\')"><div class="bn">'+esc(b.name)+'</div><div class="bs">'+esc(bonusDesc(b))+'</div></div>'+
     '<div class="bp'+(applied>0?'':' zero')+'">'+(applied>0?'+'+trimNum(applied):'\u2014')+'</div>'+
-    '<label class="sw-toggle"><input type="checkbox" '+(on?'checked':'')+' onchange="uniToggleBonus(\''+id+'\',this.checked)"><span class="track"></span><span class="thumb"></span></label>'+
+    '<label class="sw-toggle"><input type="checkbox" '+(on?'checked':'')+' data-on-change="uniToggleBonus(\''+id+'\',this.checked)"><span class="track"></span><span class="thumb"></span></label>'+
   '</li>';
 }
 function uniToggleBonus(id,on){ var b=findBonus(id); if(!b) return; b.is_enabled=on;
@@ -2222,7 +2222,7 @@ function renderColorSwatches(){ var wrap=$('setColors'); if(!wrap) return; var p
   if(STATE.catalog&&STATE.catalog.faculties){ for(var k in STATE.catalog.faculties){ if(STATE.catalog.faculties.hasOwnProperty(k)){ palette.push({color:STATE.catalog.faculties[k].color,label:STATE.catalog.faculties[k].label}); } } }
   if(!palette.length) palette=[{color:'#0A84FF'},{color:'#34C759'},{color:'#FF375F'},{color:'#FF9F0A'},{color:'#BF5AF2'},{color:'#5AC8FA'},{color:'#FF2D55'},{color:'#5E5CE6'}];
   var h=''; for(var i=0;i<palette.length;i++){ var c=palette[i].color, on=String(c).toLowerCase()===String(SET.accent).toLowerCase();
-    h+='<div class="color-dot'+(on?' on':'')+'" style="background:'+c+'" title="'+escAttr(palette[i].label||'')+'" data-color="'+escAttr(c)+'" onclick="uniPickColor(this)"></div>'; }
+    h+='<div class="color-dot'+(on?' on':'')+'" style="background:'+c+'" title="'+escAttr(palette[i].label||'')+'" data-color="'+escAttr(c)+'" data-on-click="uniPickColor(this)"></div>'; }
   wrap.innerHTML=h; }
 function uniPickColor(el){ var c=el.getAttribute('data-color'); SET.accent=c;
   var sib=el.parentNode.querySelectorAll('.color-dot'); for(var i=0;i<sib.length;i++) sib[i].classList.remove('on'); el.classList.add('on');
@@ -2254,7 +2254,7 @@ function renderProgList(filter){
     items=items.filter(function(p){ return p.label.toLowerCase().indexOf(f)>-1 || p.facLabel.toLowerCase().indexOf(f)>-1; }); }
   if(!items.length){ list.innerHTML='<div class="empty" style="padding:22px 10px"><p style="margin:0">'+T('voti.nessun_corso_trovato')+'</p></div>'; return; }
   var h=''; for(var i=0;i<items.length;i++){ var p=items[i];
-    h+='<li class="prog-opt" onclick="uniPickProgram(\''+escAttr(p.key)+'\')">'+
+    h+='<li class="prog-opt" data-on-click="uniPickProgram(\''+escAttr(p.key)+'\')">'+
        '<div class="pi" style="background:'+p.facColor+'">'+p.facEmoji+'</div>'+
        '<div class="pt"><div class="pn">'+esc(p.label)+'</div><div class="pd">'+(p.facLabel?esc(p.facLabel)+' \u00b7 ':'')+trimNum(p.cfu)+' CFU \u00b7 '+p.examCount+' esami</div></div>'+
        '<div class="chev">\u203a</div></li>'; }

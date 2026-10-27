@@ -473,7 +473,7 @@ function mfc_parola_esempio(): string {
          del popup — la cosa che dava piu' fastidio nella registrazione.
          color-scheme glielo dice prima ancora di leggere il foglio di stile. */ ?>
     <meta name="color-scheme" content="light dark">
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 /* 'unload' NON SI USA PIU', E IL BROWSER LO DICE
    ------------------------------------------------------------------
    E' l'errore rosso nello screenshot: "Permissions policy violation:
@@ -611,7 +611,7 @@ function mfc_parola_esempio(): string {
         ?>
         <div class="audio-card">
             <div class="audio-row">
-                <button type="button" class="rec-btn" id="btn_rec_<?php echo sec_h($p); ?>" onclick="toggleRecord('<?php echo sec_h($p); ?>')" aria-label="<?php te('fc.ifc_registra'); ?>">
+                <button type="button" class="rec-btn" id="btn_rec_<?php echo sec_h($p); ?>" data-on-click="toggleRecord('<?php echo sec_h($p); ?>')" aria-label="<?php te('fc.ifc_registra'); ?>">
                     <svg class="ic-mic" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
                     <svg class="ic-stop" viewBox="0 0 24 24" width="18" height="18" style="display:none;"><rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor"/></svg>
                 </button>
@@ -784,7 +784,7 @@ function mfc_parola_esempio(): string {
                           ? t($fc_modo === 'insert' ? (!empty($padre_nuovo) ? 'fcv.tb_nuova_sotto' : 'fcv.tb_nuova') : 'fcv.tb_modifica')
                           : t($fc_modo === 'insert' ? (!empty($padre_nuovo) ? 'fc.mfc_tb_nuova_sotto' : 'fc.mfc_tb_nuova') : 'fc.mfc_tb_modifica'); ?>
                 <div class="exm-form-topbar fc-tb">
-                    <button type="button" class="exm-icon-btn exm-close-inline fc-tb-chiudi" onclick="fcAnnullaModifica('<?php echo sec_h($cancel_url); ?>')" aria-label="<?php te('comune.chiudi'); ?>">
+                    <button type="button" class="exm-icon-btn exm-close-inline fc-tb-chiudi" data-on-click="fcAnnullaModifica('<?php echo sec_h($cancel_url); ?>')" aria-label="<?php te('comune.chiudi'); ?>">
                         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
                     </button>
                     <span class="exm-form-title fc-tb-testo">
@@ -801,7 +801,7 @@ function mfc_parola_esempio(): string {
                     </span>
                     <div class="exm-form-actions fc-tb-azioni">
                         <?php if ($fc_modo === 'edit'): ?>
-                        <button type="submit" name="delete" value="1" class="exm-icon-btn exm-icon-btn-danger fc-tb-elimina" onclick="return confirm('<?php echo sec_h(t('vocab.mi_elimina_def')); ?>?');" aria-label="<?php te('vocab.mi_elimina_def'); ?>">
+                        <button type="submit" name="delete" value="1" class="exm-icon-btn exm-icon-btn-danger fc-tb-elimina" data-on-click="return confirm('<?php echo sec_h(t('vocab.mi_elimina_def')); ?>?');" aria-label="<?php te('vocab.mi_elimina_def'); ?>">
                             <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m2 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7"/><path d="M10 11v6M14 11v6"/></svg>
                         </button>
                         <?php endif; ?>
@@ -810,7 +810,7 @@ function mfc_parola_esempio(): string {
                                  (fcRicontaEsempi): il tasto apre l'elenco degli
                                  esempi, e senza numero direbbe la stessa cosa a
                                  una carta nuda e a una che ne ha gia' quattro. */ ?>
-                        <button type="button" class="fc-btn-esempio" id="fcAddEsempio" onclick="fcApriEsempi()"
+                        <button type="button" class="fc-btn-esempio" id="fcAddEsempio" data-on-click="fcApriEsempi()"
                                 <?php echo $fc_modo === 'insert' ? 'disabled' : ''; ?>
                                 aria-label="<?php te('fc.mfc_aggiungi_esempio'); ?>" title="<?php te('fc.mfc_aggiungi_esempio'); ?>">
                             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -1047,7 +1047,7 @@ function mfc_parola_esempio(): string {
                 <section class="fc-card fc-card-q">
                     <div class="fc-card-head">
                         <span class="fc-card-title"><?php te('fc.ifc_domanda'); ?></span>
-                        <button type="button" class="pill-help" onclick="openAgenda()">
+                        <button type="button" class="pill-help" data-on-click="openAgenda()">
                             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.6" r="1" fill="currentColor" stroke="none"/></svg>
                             <?php te('fc.ifc_guida'); ?>
                         </button>
@@ -1074,7 +1074,7 @@ function mfc_parola_esempio(): string {
                 <section class="fc-card fc-card-a">
                     <div class="fc-card-head">
                         <span class="fc-card-title"><?php te('fc.ifc_risposta'); ?></span>
-                        <button type="button" class="pill-help" onclick="openAgenda()">
+                        <button type="button" class="pill-help" data-on-click="openAgenda()">
                             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.6" r="1" fill="currentColor" stroke="none"/></svg>
                             <?php te('fc.ifc_guida'); ?>
                         </button>
@@ -1138,7 +1138,7 @@ function mfc_parola_esempio(): string {
                          già, e crearne una voleva dire passare dall'elenco
                          (crea una carta, poi «unisci»). */ ?>
                 <section class="fc-card fc-figli is-aperta" id="fcFigli">
-                    <button type="button" class="fc-figli-testa" onclick="fcApriChiudiFigli(this)" aria-expanded="true">
+                    <button type="button" class="fc-figli-testa" data-on-click="fcApriChiudiFigli(this)" aria-expanded="true">
                         <svg class="fc-figli-freccia" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                         <span class="fc-figli-tit"><?php echo $figli ? sec_h(count($figli) === 1 ? t('fc.mfc_una_sottocarta') : t('fc.vis_n_sottocarte', ['n' => count($figli)])) : sec_h(t('fc.mfc_sottocarte')); ?></span>
                     </button>
@@ -1150,7 +1150,7 @@ function mfc_parola_esempio(): string {
                             $url = fc_url('fc_card_edit.php', ['child_id' => (int)$f['id_child'], 'previous_catid' => (int)$category_id, 'torna_a' => (int)$id])
                                  . (!empty($_GET['fc_popup']) ? '&fc_popup=1' : '');
                         ?>
-                        <a class="fc-figlio" href="<?php echo sec_h($url); ?>" onclick="return fcVaiSalvando(this.href)">
+                        <a class="fc-figlio" href="<?php echo sec_h($url); ?>" data-on-click="return fcVaiSalvando(this.href)">
                             <span class="fc-figlio-n"><?php echo (int)$i + 1; ?></span>
                             <span class="fc-figlio-testi">
                                 <span class="fc-figlio-q"><?php echo sec_h($fq !== '' ? $fq : '—'); ?></span>
@@ -1161,7 +1161,7 @@ function mfc_parola_esempio(): string {
                         <?php endforeach; ?>
                         <?php $urlNuovo = fc_url('fc_card_edit.php', ['modo' => 'insert', 'parent_id' => (int)$id, 'previous_catid' => (int)$category_id])
                                         . (!empty($_GET['fc_popup']) ? '&fc_popup=1' : ''); ?>
-                        <a class="fc-figlio fc-figlio-nuovo" href="<?php echo sec_h($urlNuovo); ?>" onclick="return fcVaiSalvando(this.href)">
+                        <a class="fc-figlio fc-figlio-nuovo" href="<?php echo sec_h($urlNuovo); ?>" data-on-click="return fcVaiSalvando(this.href)">
                             <span class="fc-figlio-n">+</span>
                             <span class="fc-figlio-testi"><span class="fc-figlio-q"><?php te('fc.mfc_aggiungi_sottocarta'); ?></span></span>
                         </a>
@@ -1179,13 +1179,13 @@ function mfc_parola_esempio(): string {
                     $pq = mfc_testo_piano($fc_padre['question_desc']);
                     $pa = mfc_testo_piano($fc_padre['answer_desc'], 70); ?>
                 <section class="fc-card fc-figli fc-famiglia is-aperta" id="fcFamiglia">
-                    <button type="button" class="fc-figli-testa" onclick="fcApriChiudiFigli(this)" aria-expanded="true">
+                    <button type="button" class="fc-figli-testa" data-on-click="fcApriChiudiFigli(this)" aria-expanded="true">
                         <svg class="fc-figli-freccia" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                         <span class="fc-figli-tit"><?php te('fc.mfc_famiglia'); ?></span>
                         <span class="fc-fam-conta"><?php te(count($fc_sorelle) === 1 ? 'fc.mfc_una_sottocarta' : 'fc.vis_n_sottocarte', ['n' => count($fc_sorelle)]); ?></span>
                     </button>
                     <div class="fc-figli-corpo">
-                        <a class="fc-figlio fc-fam-padre" href="<?php echo sec_h(fc_url('fc_card_edit.php', ['fc_id' => $fc_padre_id, 'previous_catid' => (int)$fc_padre['category_id']]) . $fcPop); ?>" onclick="return fcVaiSalvando(this.href)">
+                        <a class="fc-figlio fc-fam-padre" href="<?php echo sec_h(fc_url('fc_card_edit.php', ['fc_id' => $fc_padre_id, 'previous_catid' => (int)$fc_padre['category_id']]) . $fcPop); ?>" data-on-click="return fcVaiSalvando(this.href)">
                             <span class="fc-fam-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="2.2"/><path d="M7.5 7V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/></svg></span>
                             <span class="fc-figlio-testi">
                                 <span class="fc-fam-etichetta"><?php te('fc.vis_fcv_carta_padre'); ?></span>
@@ -1210,7 +1210,7 @@ function mfc_parola_esempio(): string {
                                 <span class="fc-fam-qui"><?php te('fc.mfc_questa'); ?></span>
                             </div>
                             <?php else: ?>
-                            <a class="fc-figlio" href="<?php echo sec_h($url); ?>" onclick="return fcVaiSalvando(this.href)">
+                            <a class="fc-figlio" href="<?php echo sec_h($url); ?>" data-on-click="return fcVaiSalvando(this.href)">
                                 <span class="fc-figlio-n"><?php echo (int)$i + 1; ?></span>
                                 <span class="fc-figlio-testi">
                                     <span class="fc-figlio-q"><?php echo sec_h($fq !== '' ? $fq : '—'); ?></span>
@@ -1248,14 +1248,14 @@ function mfc_parola_esempio(): string {
                              Se c'e' qualcosa da salvare si salva prima di uscire
                              (fcVaiSalvando). */ ?>
                     <div class="fc-aggiungi" id="fcAggiungi"<?php echo $fc_modo === 'insert' ? ' hidden' : ''; ?>>
-                        <a class="fc-agg-btn" id="fcAggSorella" href="#" onclick="return fcVaiSalvando(this.href)">
+                        <a class="fc-agg-btn" id="fcAggSorella" href="#" data-on-click="return fcVaiSalvando(this.href)">
                             <span class="fc-agg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="9" height="12" rx="2"/><rect x="12.5" y="6" width="9" height="12" rx="2" stroke-dasharray="3 2.4"/><path d="M17 10.5v3M15.5 12h3"/></svg></span>
                             <span class="fc-agg-testi">
                                 <span class="fc-agg-tit"><?php te($is_child ? 'fc.mfc_agg_sorella_figlia' : 'fc.mfc_agg_sorella'); ?></span>
                                 <span class="fc-agg-sub"><?php te($is_child ? 'fc.mfc_agg_sorella_figlia_sub' : 'fc.mfc_agg_sorella_sub'); ?></span>
                             </span>
                         </a>
-                        <a class="fc-agg-btn" id="fcAggAltro" href="#" onclick="return fcVaiSalvando(this.href)">
+                        <a class="fc-agg-btn" id="fcAggAltro" href="#" data-on-click="return fcVaiSalvando(this.href)">
                             <span class="fc-agg-ic"><?php if ($is_child): ?><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8.5v7M8.5 12h7"/></svg><?php else: ?><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="13" height="10" rx="2"/><path d="M7 13v4a2 2 0 0 0 2 2h4"/><rect x="13" y="15" width="8" height="6" rx="1.6" stroke-dasharray="2.6 2"/></svg><?php endif; ?></span>
                             <span class="fc-agg-testi">
                                 <span class="fc-agg-tit"><?php te($is_child ? 'fc.mfc_agg_nel_mazzo' : 'fc.mfc_agg_figlia'); ?></span>
@@ -1279,7 +1279,7 @@ function mfc_parola_esempio(): string {
 
     <div id="agendaModal" class="modal-overlay">
         <div class="modal-content">
-            <button class="close-btn" onclick="closeAgenda()">&times;</button>
+            <button class="close-btn" data-on-click="closeAgenda()">&times;</button>
             <h3 class="modal-title"><?php te('fc.ifc_guida_rapida'); ?></h3>
             <p class="modal-sub"><?php te('fc.ifc_guida_intro'); ?></p>
 
@@ -1347,7 +1347,7 @@ function mfc_parola_esempio(): string {
         </div>
     </div>
 
-    <script>
+    <script nonce="<?php echo sec_nonce(); ?>">
     // ============================================================
     // MOTORE TESTO-TAG <-> AST, TOOLBAR ED EDITOR: ora vivono in
     // fc_parser.js e format_toolbar.php (riutilizzabili altrove).
@@ -1591,7 +1591,7 @@ function mfc_parola_esempio(): string {
            non e' invisibile, e' peggio: si vede, si preme, e il tocco lo prende
            quello sopra. */
         if (fab.parentElement !== document.body) document.body.appendChild(fab);
-        fab.removeAttribute('onclick');
+        fab.removeAttribute('data-on-click');   /* era onclick: ora e' il data-on-click di standout_events.js */
 
         /* E IL RIQUADRO CON LUI.
            Il pulsante l'avevo gia' portato sul <body>; il riquadro che deve
@@ -1905,7 +1905,7 @@ function mfc_parola_esempio(): string {
     });
 
     /* IL PULSANTE DELL'IA, RIAGGANCIATO A MANO
-       Il cerchio nasce con onclick="fcMigliora.apri()" scritto nell'attributo
+       Il cerchio nasce con data-on-click="fcMigliora.apri()" scritto nell'attributo
        (fc_ai_fab.php). Un attributo del genere fallisce in silenzio: se
        fcMigliora non c'e' — il file non caricato, un errore prima — il browser
        scrive una riga in console e il pulsante sembra semplicemente morto. Ed

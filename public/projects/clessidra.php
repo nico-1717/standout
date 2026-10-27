@@ -21,7 +21,7 @@
 if (!defined('CLESSIDRA_ASSETS_EMITTED')):
 define('CLESSIDRA_ASSETS_EMITTED', true);
 ?>
-<style>
+<style nonce="<?php echo sec_nonce(); ?>">
 .clessidra-wrap{
     --cl-glass: color-mix(in srgb, var(--text-3) 65%, var(--surface));
     --cl-sand: var(--pomo-live, var(--pomo-accent));
@@ -65,7 +65,7 @@ define('CLESSIDRA_ASSETS_EMITTED', true);
 </div>
 
 <?php if (!defined('CLESSIDRA_SCRIPT_EMITTED')): define('CLESSIDRA_SCRIPT_EMITTED', true); ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function(){
     'use strict';
     var wrapper = document.getElementById('clessidraFlip');

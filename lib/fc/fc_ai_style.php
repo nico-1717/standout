@@ -115,7 +115,7 @@ function fc_ai_tendina_impegno(string $id, string $scelto = 'medio'): void {
              la scelta resta possibile, e chi la usa non si accorge di stare
              usando un ripiego. Il controllo e' su __nsTendina, cioe' sul
              risultato vero dell'aggancio, non sull'esistenza di NS. */ ?>
-    <script>
+    <script nonce="<?php echo sec_nonce(); ?>">
     (function () {
         var id = <?php echo json_encode($id); ?>;
         function ripiego() {

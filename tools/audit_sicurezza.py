@@ -171,7 +171,7 @@ def analizza(p):
     # ---- 3. OUTPUT SENZA ESCAPE ----
     for m in re.finditer(r'<\?(?:php\s+echo|=)\s+([^;?]{1,160})[;\s]*\?>', nudo):
         e = m.group(1).strip()
-        if re.match(r'^(?:sec_h|te|th|t|json_encode|standout_i18n_json|\(int\)|\(float\)|intval|number_format|count|date|time|pwa_head_html|urlencode|rawurlencode|sec_csrf_token|@filemtime|filemtime|htmlspecialchars|round|floor|ceil|implode|max|min|abs|PWA_BASE|[A-Z][A-Z0-9_]*\b)', e):
+        if re.match(r'^(?:sec_h|te|th|t|json_encode|standout_i18n_json|\(int\)|\(float\)|intval|number_format|count|date|time|pwa_head_html|urlencode|rawurlencode|sec_csrf_token|sec_nonce|@filemtime|filemtime|htmlspecialchars|round|floor|ceil|implode|max|min|abs|PWA_BASE|[A-Z][A-Z0-9_]*\b)', e):
             continue
         if e.startswith('$') or re.match(r'^[a-z_]\w*\(', e):
             # una variabile o una funzione nostra: puo' essere gia' escapata a monte
@@ -180,7 +180,7 @@ def analizza(p):
     for m in re.finditer(r'\becho\s+([^;\n]{1,200});', nudo):
         e = m.group(1).strip()
         if not re.search(r'\$\w', e): continue
-        if re.search(r'sec_h\(|htmlspecialchars|json_encode|\(int\)|\(float\)|intval|number_format|sec_json|sec_csrf_token|\bt\(|\bte\(|round\(|count\(|date\(|PWA_BASE', e):
+        if re.search(r'sec_h\(|htmlspecialchars|json_encode|\(int\)|\(float\)|intval|number_format|sec_json|sec_csrf_token|sec_nonce|\bt\(|\bte\(|round\(|count\(|date\(|PWA_BASE', e):
             # se ci sono anche variabili nude fuori dalle funzioni sicure, e' da guardare
             resto = re.sub(r'(?:sec_h|htmlspecialchars|json_encode|intval|number_format|t|te|round|count|date)\((?:[^()]|\([^()]*\))*\)|\(int\)\s*\$\w+(?:\[[^\]]*\])*|\(float\)\s*\$\w+(?:\[[^\]]*\])*', '', e)
             if not re.search(r'\$\w', resto): continue
@@ -294,9 +294,21 @@ def analizza(p):
         segnala('MEDIA', 'La sessione viene impostata fuori da auth_core.php', nudo.find("['user_id']"), '')
 
     # ---- 14. CSP: JavaScript e stile dentro le pagine ----
-    inline_on = len(re.findall(r'\son(?:click|change|input|submit|load|error|keydown|keyup|focus|blur|mouseover)\s*=\s*["\']', nudo))
-    if inline_on:
-        segnala('BASSA', 'JavaScript negli attributi (onclick...): blocca la CSP senza unsafe-inline', 1, f'{inline_on} attributi')
+    # Dal 27/10/2026 la CSP NON ha piu' 'unsafe-inline' per gli script: un onclick="..."
+    # o un <script> senza nonce non parte, e il pulsante resta morto senza un errore.
+    # Si scrive data-on-click="..." (standout_events.js) e <script nonce="<?php echo sec_nonce(); ?>">.
+    if not p.endswith('standout_events.js'):
+        inline_on = len(re.findall(r'(?<![\w.$-])on(?:click|change|input|submit|load|error|keydown|keyup|keypress|focus|blur|mouse\w+|dblclick|contextmenu|paste|drag\w+|drop)\s*=\s*\\?["\']', nudo))
+        if inline_on:
+            segnala('ALTA', 'onclick="..." negli attributi: la CSP lo blocca (usare data-on-click, vedi standout_events.js)', 1, f'{inline_on} attributi')
+        for m in re.finditer(r'<(script|style)\b((?:[^>"\']|"[^"]*"|\'[^\']*\')*)>', nudo, re.I):
+            att = m.group(2)
+            if '[' in m.group(0) or '\\' in m.group(0): continue   # e' una regex dentro il codice, non un tag
+            if re.search(r'\bnonce\b', att, re.I): continue
+            if m.group(1).lower() == 'script' and (re.search(r'\bsrc\s*=', att, re.I) or re.search(r'type\s*=\s*["\']?(application/(json|ld\+json)|text/template|text/html|importmap)', att, re.I)): continue
+            segnala('ALTA', f'<{m.group(1).lower()}> inline senza nonce: la CSP lo blocca (aggiungere nonce="<?php echo sec_nonce(); ?>")', m.start(), m.group(0)[:60])
+        if re.search(r'["\']javascript:', nudo, re.I):
+            segnala('ALTA', 'indirizzo javascript: bloccato dalla CSP', 1, '')
     return trovati
 
 def elenco_file():

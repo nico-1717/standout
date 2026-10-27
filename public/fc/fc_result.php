@@ -477,7 +477,7 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
     <?php echo standout_i18n_json(['comune', 'fc', 'vocab', 'fcv']); ?>
     <?php echo fc_boot_json(); ?>
 <?php if (!$fc_vocab): ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 
 
 
@@ -519,7 +519,7 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
     <?php if ($fc_vocab): /* parole: testo semplice. Il riepilogo disegna i testi con
              parseTextForPreview: qui basta che li scriva cosi' come sono. */ ?>
-    <script>window.parseTextForPreview = function (s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };</script>
+    <script nonce="<?php echo sec_nonce(); ?>">window.parseTextForPreview = function (s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };</script>
     <?php else: ?>
     <script src="fc_parser.js"></script>
     <?php endif; ?>
@@ -819,7 +819,7 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 
-                <button type="button" class="act-tile t-purple" onclick="fcvOpen(0)">
+                <button type="button" class="act-tile t-purple" data-on-click="fcvOpen(0)">
 
 
 
@@ -1219,10 +1219,10 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
     <!-- Filtro "solo sbagliate" e apertura del visore dalla carta in vista -->
     <div class="res-fabs">
-        <button type="button" id="fabSoloErrori" class="res-fab" onclick="toggleSoloErrori()" title="<?php te('fc.res_solo_errate'); ?>" aria-pressed="false">
+        <button type="button" id="fabSoloErrori" class="res-fab" data-on-click="toggleSoloErrori()" title="<?php te('fc.res_solo_errate'); ?>" aria-pressed="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8Z"/></svg>
         </button>
-        <button type="button" class="res-fab res-fab-primary" onclick="apriVisoreDaCartaCorrente()" title="<?php te('fc.flashcard'); ?>">
+        <button type="button" class="res-fab res-fab-primary" data-on-click="apriVisoreDaCartaCorrente()" title="<?php te('fc.flashcard'); ?>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="3"/><path d="M8.5 4H19a2 2 0 0 1 2 2v10.5"/></svg>
         </button>
     </div>
@@ -1348,7 +1348,7 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 
-    <script>
+    <script nonce="<?php echo sec_nonce(); ?>">
 
 
 
@@ -3337,7 +3337,7 @@ if ($fcr_pop !== ''): $fcr_primo = $fcr_strada[0]['pct'] ?? null; ?>
         <?php endif; ?>
     </div>
 </div>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function () {
     var pop = document.getElementById('roadPop');
     if (!pop) return;

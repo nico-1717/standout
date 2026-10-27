@@ -46,7 +46,7 @@ if (!defined('STANDOUT_UI')) {
        . (@filemtime(__DIR__ . '/../_assets/ui/standout_ui.js') ?: 1) . '"></script>' . "\n";
 }
 ?>
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 /* Indirizzo di fc_examples_api.php con il tipo dentro (?course=N per le
    lingue): l'API deve sapere in quali tabelle cercare la carta. */
 if (typeof window.fcExApi !== 'function') {
@@ -79,7 +79,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
     <div class="exm-panel exm-panel-list">
 
-        <button class="exm-close" onclick="chiudiElencoEsempi()" aria-label="<?php te('comune.chiudi'); ?>">
+        <button class="exm-close" data-on-click="chiudiElencoEsempi()" aria-label="<?php te('comune.chiudi'); ?>">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
 
@@ -89,7 +89,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
         <div id="ex-list-content" class="exm-list-content"></div>
 
-        <button class="exm-fab" onclick="openExampleForm(currentFcId, currentFcType, 0)" aria-label="<?php te('fc.exm_aggiungi_nuovo'); ?>">
+        <button class="exm-fab" data-on-click="openExampleForm(currentFcId, currentFcType, 0)" aria-label="<?php te('fc.exm_aggiungi_nuovo'); ?>">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         </button>
 
@@ -111,7 +111,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
             <div class="exm-form-actions">
 
-                <button id="ex-delete-btn" class="exm-icon-btn exm-icon-btn-danger" style="display:none;" onclick="deleteExample()" aria-label="<?php te('comune.elimina'); ?>">
+                <button id="ex-delete-btn" class="exm-icon-btn exm-icon-btn-danger" style="display:none;" data-on-click="deleteExample()" aria-label="<?php te('comune.elimina'); ?>">
                     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m2 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7"/></svg>
                 </button>
 
@@ -119,7 +119,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
             </div>
 
-            <button class="exm-icon-btn exm-close-inline" onclick="closeExampleForm()" aria-label="<?php te('comune.chiudi'); ?>">
+            <button class="exm-icon-btn exm-close-inline" data-on-click="closeExampleForm()" aria-label="<?php te('comune.chiudi'); ?>">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
 
@@ -132,7 +132,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
             <?php if ($exmVocab): ?>
             <?php /* Un campo semplice: getExHiddenInput() lo trova per id
                      (ex_text) quando l'editor ricco non c'e'. */ ?>
-            <textarea id="ex_text" class="exm-plain" rows="3" oninput="markExDirty()"
+            <textarea id="ex_text" class="exm-plain" rows="3" data-on-input="markExDirty()"
                       placeholder="<?php te('fcv.esempio_ph'); ?>"></textarea>
             <?php else: ?>
             <?php
@@ -195,13 +195,13 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
                     <span class="img-tag"><?php te('vocab.mi_attuale'); ?></span>
                     <img id="ex-img-attuale-src" src="" alt="">
                     <label class="img-remove-row">
-                        <input type="checkbox" id="ex-img-rimuovi" onchange="exSegnaRimozione(this)">
+                        <input type="checkbox" id="ex-img-rimuovi" data-on-change="exSegnaRimozione(this)">
                         <span><?php te('vocab.mi_rimuovi_immagine'); ?></span>
                     </label>
                 </div>
 
                 <label for="ex-image-file" class="img-box img-pick-box" id="ex_img_wrap">
-                    <input type="file" id="ex-image-file" accept="image/*" style="display:none;" onchange="previewExImage(this)">
+                    <input type="file" id="ex-image-file" accept="image/*" style="display:none;" data-on-change="previewExImage(this)">
                     <span class="img-tag img-tag-new"><?php te('vocab.mi_nuova'); ?></span>
                     <span class="img-pick-empty img-pick-empty-sm">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.2h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.2" r="3.3"/></svg>
@@ -219,7 +219,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
             <div class="audio-card"<?php echo $exmVocab ? ' hidden' : ''; ?>>
                 <div class="audio-row">
-                    <button type="button" class="rec-btn" id="ex-rec-btn" onclick="toggleExampleRecord()" aria-label="<?php te('fc.exm_vocale'); ?>">
+                    <button type="button" class="rec-btn" id="ex-rec-btn" data-on-click="toggleExampleRecord()" aria-label="<?php te('fc.exm_vocale'); ?>">
                         <svg class="ic-mic" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
                         <svg class="ic-stop" viewBox="0 0 24 24" width="18" height="18" style="display:none;"><rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor"/></svg>
                     </button>
@@ -277,7 +277,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
             <div class="exm-ai-overlay" id="ex-ai-overlay" hidden>
                 <div class="exm-ai-box" id="ex-ai-box">
 
-                    <button type="button" class="exm-ai-collapse" onclick="toggleAiBox(false)" aria-label="<?php te('comune.chiudi'); ?>">
+                    <button type="button" class="exm-ai-collapse" data-on-click="toggleAiBox(false)" aria-label="<?php te('comune.chiudi'); ?>">
                         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
                     </button>
 
@@ -312,7 +312,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
                              all'IA come "indicazione aggiuntiva" a ogni richiesta. */ ?>
                     <textarea id="ex-ai-prompt" rows="2" placeholder="<?php echo sec_h(t('fc.exm_genera_ph')); ?>"></textarea>
 
-                    <button id="ex-ai-btn" class="exm-ai-generate" onclick="onGenerateAiClick()"><?php te('fc.exm_genera_btn'); ?></button>
+                    <button id="ex-ai-btn" class="exm-ai-generate" data-on-click="onGenerateAiClick()"><?php te('fc.exm_genera_btn'); ?></button>
 
                 </div>
             </div>
@@ -328,7 +328,7 @@ if (!document.querySelector('script[src*="fc_audio_recorder.js"]')) {
 
 
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 if (!window.__examplesModalCaricato) {
 window.__examplesModalCaricato = true;
 
@@ -638,7 +638,7 @@ function exDisegnaElenco(fc_id, fc_type, esempi) {
                 ${exTestoSiVede(ex.example_text) ? `<div class="raw-text exm-example-text">${(window.FC && FC.tipo === 'vocab' && typeof fcEsempioTestoLingua === 'function') ? fcEsempioTestoLingua(ex.example_text, ex._parola, ex.gap_text) : (typeof parseTextForPreview === 'function' ? parseTextForPreview(ex.example_text) : fcEscapeHtml(ex.example_text))}</div>` : ''}
                 ${ex.example_audio ? `<audio src="../media/flashcard_audio/${ex.example_audio}" controls class="exm-example-audio"></audio>` : ''}
                 ${ex.example_image ? `<img src="../media/example_images/${ex.example_image}" class="exm-example-image">` : ''}
-                <button type="button" class="exm-example-edit-btn" onclick="openExampleForm(${fc_id}, '${fc_type}', ${ex.id})">${T('fc.exm_modifica')}</button>
+                <button type="button" class="exm-example-edit-btn" data-on-click="openExampleForm(${fc_id}, '${fc_type}', ${ex.id})">${T('fc.exm_modifica')}</button>
             </div>`;
     });
     document.getElementById('ex-list-content').innerHTML = html;

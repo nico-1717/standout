@@ -58,7 +58,7 @@ $FRJS = [
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <title><?php te('amici.titolo_pagina'); ?></title>
 <?php echo standout_i18n_json(['comune', 'amici']); ?>
-<style>
+<style nonce="<?php echo sec_nonce(); ?>">
 /* =================================================================
    DESIGN SYSTEM — identico a stats_fc.php, più l'accento "social"
    ================================================================= */
@@ -748,7 +748,7 @@ a{ color:inherit; text-decoration:none; }
 
 <?php include __DIR__ . '/../partials/sidebar.html'; ?>
 
-<script>
+<script nonce="<?php echo sec_nonce(); ?>">
 (function () {
 'use strict';
 var FR = <?php echo json_encode($FRJS, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
