@@ -18,6 +18,9 @@ Dopo ogni modifica: `php -l`, `controlla_colonne.py`, `controlla_csp.py`, scanne
 Legenda stato: **corretto** (in questo giro) · **aperto** (da fare) · **deciso**
 (scelta consapevole) · **tuo** (serve un'azione fuori dal codice).
 
+- **T8.** Le copie del database sono manuali: farne una a scadenza fissa (per esempio ogni domenica) da phpMyAdmin → Esporta, e tenerla fuori dal repository e in un posto privato. Una copia mai provata e' solo una speranza: una volta va importata in un database di prova.
+- **T9.** Non ancora provato dal vivo: il blocco del login (6 errori in 15 minuti → 15 minuti di attesa).
+
 ---
 
 ## Esito in una riga
@@ -94,14 +97,16 @@ Fatta sul sito vero con il browser, solo letture e richieste che devono essere r
 | **trovato e corretto** | Registrazione bloccata da «Troppe richieste» dopo 2 tentativi per rete (limite troppo stretto e contava anche i tentativi rifiutati): ora 30 tentativi/ora e 5 account creati/ora per IP. Verificato che l'IP visto dal server è quello vero, non del proxy. |
 | **trovato e corretto** | Nome mazzo con `& " ' <` mostrato come entità (doppio escape in `fc_decks.php`). |
 | **ok (verificato)** | Cookie `nisama_lingua` e `pr_last_project` ora `Secure`. |
+| **aggiunto** | `public/.well-known/security.txt` (RFC 9116) e `SECURITY.md`: le segnalazioni passano dalle segnalazioni private di GitHub (attivate), senza pubblicare email. Verificato che il file si apre dal sito. |
+| **ok** | Copia del database fatta a mano da phpMyAdmin (27/10/2026, 22:30): dump completo, 103 tabelle, comprese le colonne nuove. Non si mette mai nel repository (contiene dati e hash delle password). |
 
 ## Cosa va fatto da te (fuori dal codice)
 
 - **T1.** Frantuma ha mostrato «Gemini API error»: ora ritenta una volta e scrive nell'errore il codice di Google (es. «503 UNAVAILABLE»). Se compare ancora, quel codice dice se è Google sovraccarico, la chiave, o il testo bloccato. Da provare anche **l'audio del tutor** (A4).
 - **T2.** Provare di aprire un'immagine e un audio da `media/`: devono funzionare come prima (il nuovo `.htaccess` non tocca immagini/audio).
 - **T3.** Ricordarsi la migrazione `2026-10-27_piano_chiavi.sql` (non c'entra con la sicurezza del codice, ma è in sospeso).
-- **T4.** Eseguire `sql/migrations/2026-10-27_verifica_email.sql` su MySQL (phpMyAdmin di Altervista). Finché non lo fai la verifica email è spenta e nessuno vede l'avviso. Gli utenti già esistenti risultano già verificati.
-- **T5.** Provare una registrazione vera con un'email tua: deve arrivare la mail «Conferma la tua email su Standout» (controlla anche lo spam: `mail()` di Altervista non è garantito). Se non arriva, il sito funziona lo stesso; il motivo sta nel log errori del server. Se dovesse servire, in `config.php` si può fissare il nome del sito con `define('STANDOUT_HOST', 'nisama.altervista.org');`.
+- **T4.** ~~Eseguire `sql/migrations/2026-10-27_verifica_email.sql`~~ **fatto**: la verifica email funziona (e-mail arrivata). Gli utenti già esistenti risultano già verificati.
+- **T5.** (fatto, la mail e' arrivata) Provare una registrazione vera con un'email tua: deve arrivare la mail «Conferma la tua email su Standout» (controlla anche lo spam: `mail()` di Altervista non è garantito). Se non arriva, il sito funziona lo stesso; il motivo sta nel log errori del server. Se dovesse servire, in `config.php` si può fissare il nome del sito con `define('STANDOUT_HOST', 'nisama.altervista.org');`.
 - **T6.** Frantuma non funziona per **credito/quota Gemini esaurita** (errore 402 `RESOURCE_EXHAUSTED`), non per il codice: va ricaricato in Google AI Studio / Cloud.
 - **T7.** Costanti opzionali di `lib/config.php`: `STANDOUT_HOST` (nome del sito per link e redirect), `STANDOUT_SOCIAL_SITO` (`true` riaccende il social), `STANDOUT_DEBUG` (`true` mostra gli errori PHP: solo in sviluppo).
 

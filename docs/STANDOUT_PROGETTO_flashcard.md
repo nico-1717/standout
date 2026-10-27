@@ -130,5 +130,16 @@ Nuove: `fc_vocab_courses`, `fc_vocab_examples`, `fc_vocab_favorites`, `fc_vocab_
 - **Mazzi archiviati = carte imparate.** `fcv_conosciute()` (`lib/fc/fc_vocab_gioco.php`, usata da `fc_home` e `fc_stats`) conta come imparate le carte di un mazzo archiviato o dentro un ramo archiviato. Non c'è una data di archiviazione, quindi queste carte stanno nel totale e nella percentuale ma non nei conteggi "oggi / settimana / mese" né nel grafico per giorno.
 - **Terzo giro di nomi:** colonne strutturali ancora in italiano/vecchio stile (`category_id` → `deck_id`, `fc_image_id` → `card_id`, `fc_child_id`, `id_child`, `fc_category_id`, `is_father`…), in entrambe le famiglie di tabelle insieme.
 - **Vecchie partite di vocabolario:** le posizioni partono da 0 e non hanno sequenza; si vedono nello storico e si possono ripassare (il ripasso crea una partita nuova normale), ma non si "riprendono".
-- **Cruscotto:** la percentuale "padroneggiate" confronta carte imparate (padri) con carte totali (figlie e carte singole), come faceva prima.
+- **Cruscotto:** la percentuale "padroneggiate" confronta carte imparate con carte totali (padri e figlie contate separate, ognuna col suo stato: vedi sotto).
 - Chiavi di traduzione già mancanti prima di questo lavoro: `fc.cred_apri_pagina`, `fc.cred_non_caricato`, `fc.ibfai_job_fase_carte_avvio`, `fc.ibfai_job_fase_concetti_avvio`, `fc.ibfai_job_pillola_avvio`.
+
+## "Imparata" separata per padre e figlio (27/10/2026)
+
+Vale per studio e lingue (`fc_study_learnt`, `fc_vocab_learnt`).
+
+- **Dati:** una riga per carta, chiave `(user_id, fc_image_id, is_child)`. `is_child = 0` e' un padre (`fc_*_cards.id`), `1` una figlia (`fc_*_subcards.id_child`). Un padre puo' essere imparato e il figlio no, e viceversa. Migrazione: `sql/migrations/2026-10-27_learnt_padre_figlio.sql` (ai figli dei padri gia' imparati si e' dato "imparato", cosi' nessun blocco e' tornato da imparare).
+- **Elenco:** ogni sottocarta ha la sua casella (`fc_learnt.php` riceve `is_child`).
+- **Filtri della partita** (`fc_sql_stato_imparata()` in `lib/fc/fc_type.php`, usata da `fc_game_start`, `fc_api_counts`, `fc_game`): una carta entra in "da imparare" se ALMENO UNA delle sue parti e' da imparare, in "imparate" se almeno una e' imparata. Il titolo di un gruppo (studio) non e' una parte: non si impara.
+- **Parti solo da guardare:** quando la riga di gioco nasce, la parte che non corrisponde al filtro riceve `user_answer = 'Visione'` (come `'Titolo'`, e' chiusa senza voto: `fc_senza_voto()`). La pagina la mostra con la risposta aperta e la pastiglia "Solo da vedere", senza pulsanti di voto; non conta nei totali ("Card n/m") ne' nei risultati. Un ripasso degli errori non usa `'Visione'`.
+- **Voto "imparata"** e "da sbagliata a non imparata" agiscono sulla carta votata, non sull'altra parte.
+
