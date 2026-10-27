@@ -218,16 +218,10 @@
             + (liv === 'la_sai' ? IC.stella : '<i></i>')
             + '<b>' + esc(tr('fcv.liv_' + liv)) + '</b></span>';
     }
-    function disegnaLivelli(cont) {
-        $$('.card-box[data-fcv-stats]', cont).forEach(function (card) {
-            var s = statsDi(card); if (!s) return;
-            var tit = card.querySelector('.q-section .section-title');
-            if (!tit || tit.querySelector('.fcg-liv')) return;
-            /* una carta gia' valutata in questa partita mostra il livello di prima
-               della risposta: e' quello che si e' "giocato" */
-            tit.insertAdjacentHTML('beforeend', badgeHtml(livello(s.c, s.w, s.u)));
-        });
-    }
+    /* Il livello NON si scrive piu' nel titolo della carta: dirti "difficile"
+       prima ancora di rispondere ti suggerisce com'e' andata le altre volte e
+       falsa il ripasso. Si vede solo nel messaggio a comparsa dopo il voto
+       (sezione 5) e nell'elenco delle carte. */
 
     /* ============================================================
        5. I MESSAGGI A COMPARSA (in alto, uno alla volta)
@@ -658,7 +652,6 @@
         semina(d, prima);
         prima = false;
         root.classList.add('fcg-on');
-        disegnaLivelli(cont);
         disegnaSerie(false);
         progresso(d);
         /* il checkpoint: si e' appena superata la soglia di un tratto */

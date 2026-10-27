@@ -17,9 +17,8 @@ html.fcg-finale .fill-pages{
 @keyframes fcgLuccica{ from{ background-position:120% 0; } to{ background-position:-120% 0; } }
 
 /* ================================================================
-   IL LIVELLO DELLA PAROLA, IN CIMA ALLA CARTA
+   IL LIVELLO DELLA PAROLA (solo nel messaggio dopo il voto, non nel titolo)
    ================================================================ */
-.q-section .section-title:has(.fcg-liv)::after{ order:1; }
 .fcg-liv{
     order:2; flex-shrink:0; display:inline-flex; align-items:center; gap:5px;
     height:22px; padding:0 9px 0 7px; border-radius:99px;
