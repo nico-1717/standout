@@ -74,6 +74,20 @@ function ho_tabelle(): void {
     $fatto = true;
 }
 
+/* L'ordine dei tasti dell'accesso rapido (gli href delle pagine), salvato dentro la
+   voce «shortcuts» del layout. Si tengono solo stringhe corte e sicure: l'elenco
+   vero dei tasti e' del codice (dashboard_content.php), qui si salva solo l'ordine. */
+function ho_ordine_scorciatoie($v): array {
+    $o = [];
+    if (is_array($v)) {
+        foreach ($v as $h) {
+            if (is_string($h) && preg_match('~^[A-Za-z0-9_/.\-]{1,60}$~', $h) && !in_array($h, $o, true)) $o[] = $h;
+            if (count($o) >= 20) break;
+        }
+    }
+    return $o;
+}
+
 /** Il layout salvato, ripulito e completato: ogni riquadro noto compare una volta sola. */
 function ho_layout(int $uid): array {
     $r = sec_one("SELECT layout FROM home_layout WHERE user_id = ?", [$uid], 'i');
@@ -84,7 +98,9 @@ function ho_layout(int $uid): array {
             $id = is_array($v) ? (string)($v['id'] ?? '') : '';
             if (!in_array($id, HO_RIQUADRI, true) || isset($visti[$id])) continue;
             $visti[$id] = true;
-            $out[] = ['id' => $id, 'on' => !empty($v['on'])];
+            $voce = ['id' => $id, 'on' => !empty($v['on'])];
+            if ($id === 'shortcuts') { $ord = ho_ordine_scorciatoie($v['order'] ?? null); if ($ord) $voce['order'] = $ord; }
+            $out[] = $voce;
         }
     }
     /* un riquadro aggiunto da un aggiornamento compare in fondo, acceso:
@@ -361,7 +377,7 @@ if ($ajax === 'summary') {
                           LIMIT 40", [$uid], 'i');
         $nTodo = (int)(sec_one("SELECT COUNT(*) AS n FROM todos WHERE user_id = ? AND list_type = 'todo' AND is_done = 0 AND parent_id IS NULL", [$uid], 'i')['n'] ?? 0);
         $fattiOggi = (int)(sec_one("SELECT COUNT(*) AS n FROM todos WHERE user_id = ? AND list_type = 'todo' AND is_done = 1 AND DATE(done_at) = ?", [$uid, $oggi], 'is')['n'] ?? 0);
-        $buy = sec_all("SELECT t.id, t.title, t.buy_priority, c.name AS cat, c.color AS cat_color
+        $buy = sec_all("SELECT t.id, t.title, t.buy_priority, t.due_date, c.name AS cat, c.color AS cat_color
                           FROM todos t LEFT JOIN todo_buy_categories c ON c.id = t.buy_category_id AND c.user_id = t.user_id
                          WHERE t.user_id = ? AND t.list_type = 'buy' AND t.is_done = 0 AND t.parent_id IS NULL
                          ORDER BY t.buy_priority ASC, t.sort_order ASC, t.id ASC LIMIT 40", [$uid], 'i');
@@ -373,7 +389,7 @@ if ($ajax === 'summary') {
         $out['todo_open'] = $nTodo;
         $out['todo_done_today'] = $fattiOggi;
         $out['buy'] = array_map(function ($t) {
-            return ['id' => (int)$t['id'], 'title' => $t['title'], 'priority' => (int)$t['buy_priority'], 'cat' => $t['cat'], 'color' => $t['cat_color']];
+            return ['id' => (int)$t['id'], 'title' => $t['title'], 'priority' => (int)$t['buy_priority'], 'date' => $t['due_date'], 'cat' => $t['cat'], 'color' => $t['cat_color']];
         }, $buy);
         $out['buy_open'] = $nBuy;
     }
@@ -406,7 +422,9 @@ if ($ajax === 'layout_save') {
         $id = is_array($v) ? (string)($v['id'] ?? '') : '';
         if (!in_array($id, HO_RIQUADRI, true) || isset($visti[$id])) continue;
         $visti[$id] = true;
-        $pulito[] = ['id' => $id, 'on' => !empty($v['on'])];
+        $voce = ['id' => $id, 'on' => !empty($v['on'])];
+        if ($id === 'shortcuts') { $ord = ho_ordine_scorciatoie($v['order'] ?? null); if ($ord) $voce['order'] = $ord; }
+        $pulito[] = $voce;
     }
     foreach (HO_RIQUADRI as $id) { if (!isset($visti[$id])) $pulito[] = ['id' => $id, 'on' => true]; }
     sec_q("INSERT INTO home_layout (user_id, layout) VALUES (?, ?) ON DUPLICATE KEY UPDATE layout = VALUES(layout)",

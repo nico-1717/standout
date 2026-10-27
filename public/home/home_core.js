@@ -278,7 +278,15 @@
     function cleanLayout(l) {
         var out = [], seen = {};
         (l || []).forEach(function (v) {
-            if (v && H.widgets[v.id] && !seen[v.id]) { seen[v.id] = 1; out.push({ id: v.id, on: !!v.on }); }
+            if (v && H.widgets[v.id] && !seen[v.id]) {
+                seen[v.id] = 1;
+                var e = { id: v.id, on: !!v.on };
+                /* l'accesso rapido porta con se' anche l'ordine dei suoi tasti */
+                if (v.id === 'shortcuts' && Array.isArray(v.order)) {
+                    e.order = v.order.filter(function (h) { return typeof h === 'string'; }).slice(0, 20);
+                }
+                out.push(e);
+            }
         });
         inOrdine(Object.keys(H.widgets)).forEach(function (id) { if (!seen[id]) out.push({ id: id, on: true }); });
         return out;
@@ -298,6 +306,8 @@
             w.eye.classList.toggle('is-off', !v.on);
             var lab = T(v.on ? 'home.nascondi' : 'home.mostra');
             w.eye.setAttribute('aria-label', lab); w.eye.title = lab;
+            /* un riquadro puo' reagire al suo pezzo di layout (l'ordine dei tasti) */
+            if (w.def.onLayout) safe(function () { w.def.onLayout(w, v); }, w);
         });
         H.layout.forEach(function (v, i) {
             var w = H.nodes[v.id]; if (!w) return;
@@ -316,6 +326,7 @@
             });
         }, 500);
     }
+    H.saveLayout = saveLayout;
     function move(id, dir) {
         var i = H.layout.findIndex(function (v) { return v.id === id; });
         var j = i + dir;

@@ -16,22 +16,73 @@
     /* ------------------------------------------------------------------
        accesso rapido
        ------------------------------------------------------------------ */
+    H.IC.left = '<path d="M15 6l-6 6 6 6"/>';
+    H.IC.right = '<path d="M9 6l6 6-6 6"/>';
+
+    /* L'ordine dei tasti sta nel layout (voce «shortcuts», campo `order`: gli
+       href), cosi' viaggia sul server insieme all'ordine dei riquadri. Un tasto
+       nuovo, non ancora nell'ordine salvato, va in fondo. In «Personalizza»
+       ogni tasto ha due frecce per spostarlo. */
+    function ordineTasti(lista) {
+        var v = H.layout && H.layout.filter(function (x) { return x.id === 'shortcuts'; })[0];
+        var ord = (v && v.order) || [];
+        return lista.slice().sort(function (a, b) {
+            var x = ord.indexOf(a.href), y = ord.indexOf(b.href);
+            return (x < 0 ? 99 : x) - (y < 0 ? 99 : y);
+        });
+    }
+    function sposta(w, href, dir) {
+        var v = H.layout.filter(function (x) { return x.id === 'shortcuts'; })[0];
+        if (!v) return;
+        var ord = ordineTasti(w.lista).map(function (s) { return s.href; });
+        var i = ord.indexOf(href), j = i + dir;
+        if (i < 0 || j < 0 || j >= ord.length) return;
+        var t = ord[i]; ord[i] = ord[j]; ord[j] = t;
+        v.order = ord;
+        H.saveLayout();
+        disegnaTasti(w);
+    }
+    function disegnaTasti(w) {
+        var ord = ordineTasti(w.lista);
+        var firma = ord.map(function (s) { return s.href; }).join(',');
+        if (w.firmaTasti === firma) return;       // niente da ridisegnare: non si sfarfalla
+        w.firmaTasti = firma;
+        w.box.innerHTML = '';
+        ord.forEach(function (s, k) {
+            var a = el('a', 'ho-qa'); a.href = H.base + s.href; a.style.setProperty('--c', s.color);
+            var ic = el('span', 'ic'); ic.appendChild(H.svg(s.icon, 22, 1.9)); a.appendChild(ic);
+            a.appendChild(el('span', 'nm', s.label));
+            if (s.badge) a.appendChild(el('span', 'bdg', String(s.badge)));
+            /* le frecce si vedono solo in «Personalizza» (vedi .ho-edit in dashboard.css) */
+            var mv = el('span', 'ho-qmv');
+            [['left', -1, T('home.sposta_sinistra')], ['right', 1, T('home.sposta_destra')]].forEach(function (m) {
+                var b = el('button', null); b.type = 'button'; b.setAttribute('aria-label', m[2]); b.title = m[2];
+                b.appendChild(H.svg(m[0], 14, 2.6));
+                b.disabled = (m[1] < 0 && k === 0) || (m[1] > 0 && k === ord.length - 1);
+                b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); sposta(w, s.href, m[1]); });
+                mv.appendChild(b);
+            });
+            a.appendChild(mv);
+            /* in «Personalizza» un tocco sul tasto non deve portare via dalla pagina */
+            a.addEventListener('click', function (e) {
+                var wrap = document.getElementById('hoWrap');
+                if (wrap && wrap.classList.contains('ho-edit')) e.preventDefault();
+            });
+            w.box.appendChild(a);
+        });
+    }
     H.register('shortcuts', {
         title: 'home.w_accesso', bare: true, full: true,
         build: function (w) {
-            var box = el('nav', 'ho-quick');
-            box.setAttribute('aria-label', T('home.w_accesso'));
-            var list = [];
-            try { list = JSON.parse(document.getElementById('hoShortcuts').textContent) || []; } catch (e) {}
-            list.forEach(function (s) {
-                var a = el('a', 'ho-qa'); a.href = H.base + s.href; a.style.setProperty('--c', s.color);
-                var ic = el('span', 'ic'); ic.appendChild(H.svg(s.icon, 22, 1.9)); a.appendChild(ic);
-                a.appendChild(el('span', 'nm', s.label));
-                if (s.badge) a.appendChild(el('span', 'bdg', String(s.badge)));
-                box.appendChild(a);
-            });
-            w.body.appendChild(box);
-        }
+            w.box = el('nav', 'ho-quick');
+            w.box.setAttribute('aria-label', T('home.w_accesso'));
+            w.lista = [];
+            try { w.lista = JSON.parse(document.getElementById('hoShortcuts').textContent) || []; } catch (e) {}
+            w.body.appendChild(w.box);
+            disegnaTasti(w);
+        },
+        /* il layout del server puo' arrivare dopo il primo disegno */
+        onLayout: function (w) { disegnaTasti(w); }
     });
 
     /* ------------------------------------------------------------------
@@ -189,46 +240,66 @@
     /* ------------------------------------------------------------------
        pezzi di «Oggi»
        ------------------------------------------------------------------ */
-    /* L'anello delle abitudini: UNO solo, che dice quante abitudini di oggi
-       sono fatte (le stesse che si vedono nel popup). Nel Planner gli anelli
-       sono uno per ritmo, ma qui un colpo d'occhio vale piu' del dettaglio:
-       il dettaglio sta nel popup. Il disegno si crea una volta; dopo si
-       aggiorna solo il riempimento, cosi' il ridisegno di ogni minuto non lo
-       fa ripartire da zero. */
-    var RING_R = 20, RING_C = 2 * Math.PI * RING_R;
-    function contaAbitudini(d) {
-        var fatte = 0, tot = 0;
-        (d.habit_groups || []).forEach(function (g) {
-            var weekly = g.key === 'weekly' || g.key === 'monthly';
-            g.items.forEach(function (h) { tot++; if (weekly ? h.n >= h.target : h.done) fatte++; });
+    /* L'anello delle abitudini: cerchi concentrici come nel Planner, uno per
+       ritmo e solo per i ritmi che l'utente ha davvero (giornaliere,
+       settimanali, mensili, ogni N giorni; il piu' interno e' il primo). Il
+       conto e' quello del Planner (pl_rings): giornaliere e a intervallo
+       «fatte su previste», settimanali e mensili «volte fatte su volte
+       volute», senza gonfiare oltre l'obiettivo. Il disegno si ricrea solo se
+       cambia l'insieme dei ritmi; per il resto si aggiorna il riempimento,
+       cosi' il ridisegno di ogni minuto non lo fa ripartire da zero. */
+    var RING_ORDINE = ['daily', 'weekly', 'monthly', 'interval'];
+    var RING_LARG = 3.4, RING_STACCO = 0.9, RING_EXT = 21;
+    function anelliAbitudini(d) {
+        var out = [];
+        RING_ORDINE.forEach(function (k) {
+            var g = (d.habit_groups || []).filter(function (x) { return x.key === k; })[0];
+            if (!g || !g.items.length) return;
+            var weekly = k === 'weekly' || k === 'monthly', fatte = 0, tot = 0;
+            g.items.forEach(function (h) {
+                if (weekly) { tot += h.target; fatte += Math.min(h.n, h.target); }
+                else { tot++; if (h.done) fatte++; }
+            });
+            out.push({ key: k, label: T(GRUPPI_LAB[k]), done: fatte, total: tot });
         });
-        return { fatte: fatte, tot: tot };
+        return out;
     }
+    var GRUPPI_LAB = { daily: 'home.hab_giornaliere', weekly: 'home.hab_settimanali', monthly: 'home.hab_mensili', interval: 'home.hab_intervallo' };
     function drawRing(w, d) {
-        var btn = w.ring, c = contaAbitudini(d);
-        if (!btn.firstChild) {
-            /* il cerchio parte a ore 12 con rotate(-90) SOLO sul disegno
-               dell'anello: la regola vale per `.ho-ring-svg`, non per le icone
-               che stanno dentro il bottone */
+        var btn = w.ring, rings = anelliAbitudini(d);
+        var sig = rings.map(function (r) { return r.key; }).join(',');
+        if (!btn.firstChild || btn.getAttribute('data-sig') !== sig) {
+            btn.innerHTML = '';
+            /* rotate(-90) SOLO sul disegno degli anelli (`.ho-ring-svg`): cosi' partono
+               da ore 12 e l'icona al centro resta dritta */
             var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
             svg.setAttribute('viewBox', '0 0 46 46'); svg.setAttribute('class', 'ho-ring-svg');
-            svg.innerHTML = '<circle class="ho-ring-track" cx="23" cy="23" r="' + RING_R + '"/>' +
-                '<circle class="ho-ring-fill" cx="23" cy="23" r="' + RING_R + '" stroke-dasharray="' + RING_C.toFixed(1) +
-                '" stroke-dashoffset="' + RING_C.toFixed(1) + '"/>';
+            var n = Math.max(1, rings.length), pezzi = '';
+            for (var i = 0; i < n; i++) {
+                var r = RING_EXT - (n - 1 - i) * (RING_LARG + RING_STACCO);
+                if (r < 3) break;
+                var C = 2 * Math.PI * r;
+                pezzi += '<circle class="ho-ring-track" cx="23" cy="23" r="' + r.toFixed(2) + '" stroke-width="' + RING_LARG + '"/>' +
+                    (rings[i] ? '<circle class="ho-ring-fill ho-ring-' + rings[i].key + '" cx="23" cy="23" r="' + r.toFixed(2) +
+                        '" stroke-width="' + RING_LARG + '" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + C.toFixed(1) +
+                        '" data-c="' + C.toFixed(1) + '"/>' : '');
+            }
+            svg.innerHTML = pezzi;
             btn.appendChild(svg);
-            w.ringTx = el('span', 'ho-ring-face');
+            w.ringTx = el('span', 'ho-ring-face'); w.ringTx.appendChild(H.svg('check', 16, 2.4));
             btn.appendChild(w.ringTx);
+            btn.setAttribute('data-sig', sig);
         }
-        var fill = btn.querySelector('.ho-ring-fill');
-        var frac = c.tot ? c.fatte / c.tot : 0;
-        requestAnimationFrame(function () { fill.style.strokeDashoffset = (RING_C * (1 - frac)).toFixed(1); });
-        var pieno = c.tot > 0 && c.fatte >= c.tot;
-        btn.classList.toggle('is-full', pieno);
-        w.ringTx.innerHTML = '';
-        if (pieno) w.ringTx.appendChild(H.svg('check', 20, 2.6));
-        else w.ringTx.textContent = c.tot ? c.fatte + '/' + c.tot : '';
+        Array.prototype.forEach.call(btn.querySelectorAll('.ho-ring-fill'), function (c, i) {
+            var rg = rings[i]; if (!rg) return;
+            var C = parseFloat(c.getAttribute('data-c'));
+            var frac = rg.total > 0 ? Math.min(1, rg.done / rg.total) : 0;
+            requestAnimationFrame(function () { c.style.strokeDashoffset = (C * (1 - frac)).toFixed(1); });
+        });
+        btn.classList.toggle('is-full', rings.length > 0 && rings.every(function (r) { return r.total > 0 && r.done >= r.total; }));
+        var descr = rings.map(function (r) { return r.label + ' ' + r.done + '/' + r.total; }).join(', ');
         btn.title = T('home.w_abitudini');
-        btn.setAttribute('aria-label', T('home.w_abitudini') + (c.tot ? ': ' + c.fatte + '/' + c.tot : ''));
+        btn.setAttribute('aria-label', T('home.w_abitudini') + (descr ? ': ' + descr : ''));
     }
 
     /* la prossima data importante, in piccolo */
@@ -243,16 +314,25 @@
         w.imp.appendChild(cap); w.imp.appendChild(card);
     }
 
-    /* intestazione di una sezione: titolo, quante, e (a destra) un conto */
-    function secHead(box, titolo, n) {
-        var h = el('div', 'ho-hg-h');
-        h.appendChild(el('span', 'ho-cap', titolo));
-        if (n > 0) h.appendChild(el('span', 'ho-chip', String(n)));
-        box.appendChild(h);
-    }
-    function openBtn(href, testo) {
-        var a = el('a', 'ho-btn ho-btn--soft ho-btn--sm ho-tsec-open', testo); a.href = H.base + href;
+    /* Il tastino «Apri …»: una pillola col colore della sezione e una freccia
+       dentro un cerchietto. Sta sulla riga del titolo (risparmia una riga
+       intera), oppure da solo in fondo a un popup. */
+    function openBtn(href, testo, colore) {
+        var a = el('a', 'ho-sec-open'); a.href = H.base + href;
+        if (colore) a.style.setProperty('--c', colore);
+        a.appendChild(el('span', 'tx', testo));
+        var ar = el('span', 'ar'); ar.appendChild(H.svg('right', 12, 2.8)); a.appendChild(ar);
         return a;
+    }
+    /* intestazione di una sezione: titolo e conto a sinistra, «Apri» a destra */
+    function secHead(box, titolo, n, href, testo, colore) {
+        var h = el('div', 'ho-hg-h');
+        var sx = el('span', 'ho-sec-t');
+        sx.appendChild(el('span', 'ho-cap', titolo));
+        if (n > 0) sx.appendChild(el('span', 'ho-chip', String(n)));
+        h.appendChild(sx);
+        if (href) h.appendChild(openBtn(href, testo, colore));
+        box.appendChild(h);
     }
 
     /* Le pillole sono un popup, e solo quelle IN RITARDO: arretrate dei giorni
@@ -268,14 +348,47 @@
         return { has: !!((pills.plans || []).length || tardi.length || ora.length), list: tardi.concat(ora) };
     }
     var pillsSheet = null;
+    /* Una riga come l'avviso delle pastiglie nel Planner: una pillola con un
+       filo del colore della terapia, la spunta tonda, la domanda con il nome in
+       grassetto e «Saltata» sottolineato. La spunta scrive nel registro delle
+       prese, quindi risulta presa ovunque. */
+    function avvisoPill(w, p, late) {
+        var riga = el('div', 'ho-av');
+        riga.style.setProperty('--ev', p.color || 'var(--purple)');
+        function rispondi(stato) {
+            riga.classList.add('ho-av-via');
+            H.api('planner/todo_api.php', 'pill_mark', { id: p.id, status: stato }).then(function () {
+                p.status = stato;
+                setTimeout(function () { H.repaint(['agenda']); }, 260);
+            }).catch(function (e) { riga.classList.remove('ho-av-via'); H.fail(e); });
+        }
+        var ok = el('button', 'ho-av-ok'); ok.type = 'button'; ok.setAttribute('aria-label', T('home.presa'));
+        ok.appendChild(H.svg('check', 13, 3));
+        ok.addEventListener('click', function () { rispondi('taken'); });
+        riga.appendChild(ok);
+        var quando = late && p.date
+            ? T('home.hp_giorno_alle', { giorno: H.fmtDate(p.date, { weekday: 'short' }).toLowerCase(), ora: p.time })
+            : T('home.hp_alle', { ora: p.time });
+        var t = el('span', 'ho-av-t');
+        t.appendChild(document.createTextNode(p.dose ? T('home.hp_hai_preso_dose', { dose: p.dose }) : T('home.hp_hai_preso')));
+        t.appendChild(el('b', null, p.name));
+        t.appendChild(document.createTextNode(' ' + quando + '?'));
+        riga.appendChild(t);
+        var sk = el('button', 'ho-av-salta', T('home.hp_saltato')); sk.type = 'button';
+        sk.addEventListener('click', function () { rispondi('skipped'); });
+        riga.appendChild(sk);
+        return riga;
+    }
     function fillPills(body, w, d) {
         body.innerHTML = '';
         var due = pillsInRitardo(d).list;
-        var list = el('div');
+        var list = el('div', 'ho-avs');
         if (!due.length) list.appendChild(el('div', 'ho-empty', T('home.nessuna_pillola')));
-        due.forEach(function (x) { list.appendChild(H.ui.rowPill(w, x.p, d, x.late)); });
+        due.forEach(function (x) { list.appendChild(avvisoPill(w, x.p, x.late)); });
         body.appendChild(list);
-        body.appendChild(openBtn('planner/todo.php?tab=pills', T('home.apri_pillole')));
+        var piede = el('div', 'ho-av-foot');
+        piede.appendChild(openBtn('planner/todo.php?tab=pills', T('home.apri_pillole'), 'var(--purple)'));
+        body.appendChild(piede);
     }
     function openPills(w) {
         if (pillsSheet) return;
@@ -298,32 +411,27 @@
         /* «di oggi»: quelle con scadenza oggi o gia' passata; le altre restano
            nella pagina To do (e il conto lo dice) */
         var oggi = (d.todo || []).filter(function (t) { return t.date && t.date <= d.today; });
-        secHead(box, T('home.tab_todo'), oggi.length);
+        secHead(box, T('home.tab_todo'), oggi.length, 'planner/todo.php', T('home.apri_todo'), 'var(--green)');
         var list = el('div');
         if (!oggi.length) list.appendChild(el('div', 'ho-empty', d.todo_done_today > 0 ? T('home.tutto_fatto') : T('home.nessuna_attivita_oggi')));
         oggi.slice(0, 5).forEach(function (t) { list.appendChild(H.ui.rowTodo(w, t, d)); });
         box.appendChild(list);
-        var altre = d.todo_open - Math.min(oggi.length, 5);
-        if (altre > 0) {
-            var m = el('a', 'ho-more', T('home.altre_n', { n: altre })); m.href = H.base + 'planner/todo.php';
-            box.appendChild(m);
-        }
-        box.appendChild(openBtn('planner/todo.php', T('home.apri_todo')));
     }
 
     function drawBuy(w, d) {
         var box = w.buy; box.innerHTML = '';
         var buy = d.buy || [];
-        secHead(box, T('home.tab_buy'), d.buy_open);
+        /* Pochi, di proposito: prima quelli con la data gia' arrivata (o passata);
+           se non ce ne sono, quelli con la priorita' piu' alta; se nemmeno
+           quelli, solo il primo della lista. La lista intera sta nella pagina. */
+        var scaduti = buy.filter(function (t) { return t.date && t.date <= d.today; });
+        var urgenti = buy.filter(function (t) { return t.priority === 1; });
+        var scelti = scaduti.length ? scaduti : (urgenti.length ? urgenti : buy.slice(0, 1));
+        secHead(box, T('home.tab_buy'), d.buy_open, 'planner/todo.php?tab=buy', T('home.apri_acquisti'), 'var(--orange)');
         var list = el('div');
         if (!buy.length) list.appendChild(el('div', 'ho-empty', T('home.niente_da_comprare')));
-        buy.slice(0, 4).forEach(function (t) { list.appendChild(H.ui.rowBuy(w, t, d)); });
+        scelti.slice(0, 4).forEach(function (t) { list.appendChild(H.ui.rowBuy(w, t, d)); });
         box.appendChild(list);
-        if (d.buy_open > 4) {
-            var m = el('a', 'ho-more', T('home.altre_n', { n: d.buy_open - 4 })); m.href = H.base + 'planner/todo.php?tab=buy';
-            box.appendChild(m);
-        }
-        box.appendChild(openBtn('planner/todo.php?tab=buy', T('home.apri_acquisti')));
     }
 
     /* ------------------------------------------------------------------

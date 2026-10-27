@@ -333,19 +333,30 @@ select.ho-in{ appearance:none; background-image:linear-gradient(45deg,transparen
 }
 .ho-tsec{ display:flex; flex-direction:column; gap:6px; }
 .ho-tsec .ho-hg-h{ margin-bottom:2px; }
-.ho-tsec-open{ align-self:flex-start; margin-top:4px; text-decoration:none; }
+.ho-tsec .ho-hg-h{ padding-bottom:8px; }
+.ho-sec-t{ display:flex; align-items:center; gap:8px; min-width:0; }
 
-/* l'anello: uno solo, con il conto al centro */
-.ho-ring{ position:relative; flex:none; width:64px; aspect-ratio:1; padding:0; border:0; border-radius:50%; background:none; cursor:pointer; color:var(--text); -webkit-tap-highlight-color:transparent; transition:transform .2s var(--spring); }
+/* «Apri …»: una pillola del colore della sezione con una freccia in un cerchietto */
+.ho-sec-open{ --c:var(--blue); flex:none; display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 4px 0 11px; border-radius:999px; text-decoration:none; font-size:12.5px; font-weight:700; letter-spacing:.005em; color:var(--text); background:color-mix(in srgb, var(--c) 12%, var(--surface)); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--c) 28%, transparent); transition:transform .18s var(--spring), background .2s; -webkit-tap-highlight-color:transparent; white-space:nowrap; }
+.ho-sec-open .ar{ width:20px; height:20px; border-radius:50%; display:grid; place-items:center; color:#fff; background:var(--c); }
+.ho-sec-open .ar svg{ width:11px; height:11px; }
+.ho-sec-open:active{ transform:scale(.95); }
+
+/* l'anello delle abitudini: cerchi concentrici, uno per ritmo */
+.ho-ring{ position:relative; flex:none; width:68px; aspect-ratio:1; padding:0; border:0; border-radius:50%; background:none; cursor:pointer; color:var(--text-3); -webkit-tap-highlight-color:transparent; transition:transform .2s var(--spring); }
 .ho-ring:active{ transform:scale(.93); }
-/* la rotazione solo sul disegno dell'anello (non sull'icona al centro) */
+/* la rotazione solo sul disegno degli anelli (non sull'icona al centro) */
 .ho-ring-svg{ display:block; width:100%; height:100%; transform:rotate(-90deg); }
-.ho-ring-svg circle{ fill:none; stroke-width:4.4; }
-.ho-ring-track{ stroke:color-mix(in srgb, var(--pink) 16%, transparent); }
-.ho-ring-fill{ stroke:var(--pink); stroke-linecap:round; transition:stroke-dashoffset .9s cubic-bezier(.22,1,.36,1); }
-.ho-ring-face{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
-.ho-ring.is-full .ho-ring-fill{ stroke:var(--green); }
-.ho-ring.is-full .ho-ring-face{ color:var(--green); }
+.ho-ring-svg circle{ fill:none; }
+.ho-ring-track{ stroke:color-mix(in srgb, var(--text) 11%, transparent); }
+.ho-ring-fill{ stroke-linecap:round; transition:stroke-dashoffset .9s cubic-bezier(.22,1,.36,1); }
+.ho-ring-daily{ stroke:var(--pink); }
+.ho-ring-weekly{ stroke:var(--orange); }
+.ho-ring-monthly{ stroke:var(--purple); }
+.ho-ring-interval{ stroke:var(--teal); }
+.ho-ring-face{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; opacity:.5; transition:opacity .3s, color .3s; }
+.ho-ring-face svg{ width:16px; height:16px; }
+.ho-ring.is-full .ho-ring-face{ opacity:1; color:var(--green); }
 @media (prefers-reduced-motion: reduce){ .ho-ring-fill{ transition:none; } }
 
 .ho-today-side{ flex:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; }
@@ -356,3 +367,27 @@ select.ho-in{ appearance:none; background-image:linear-gradient(45deg,transparen
 .ho-pillbtn.is-late{ background:var(--purple-soft); color:var(--purple); }
 .ho-pillbtn-n{ position:absolute; top:-3px; right:-3px; min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:var(--purple); color:#fff; font-size:11px; font-weight:800; line-height:18px; text-align:center; font-variant-numeric:tabular-nums; }
 .ho-pillbtn-n[hidden]{ display:none; }
+
+/* le pillole in ritardo, nel popup: come l'avviso del Planner, una pillola per
+   presa con un filo del colore della terapia (viola se non ne ha uno) */
+.ho-avs{ display:flex; flex-direction:column; gap:8px; }
+.ho-av{ --ev:var(--purple); display:flex; align-items:center; gap:10px; padding:9px 12px 9px 9px; border-radius:22px; background:var(--surface); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ev) 42%, transparent), 0 12px 26px -18px color-mix(in srgb, var(--ev) 55%, #000); animation:ho-av-in .3s var(--spring) both; transition:opacity .24s, transform .24s; }
+@keyframes ho-av-in{ from{ opacity:0; transform:translateY(8px) scale(.97); } }
+.ho-av.ho-av-via{ opacity:0; transform:translateX(-14px); }
+.ho-av-ok{ flex:none; width:34px; height:34px; padding:0; border:0; border-radius:50%; display:grid; place-items:center; cursor:pointer; background:color-mix(in srgb, var(--ev) 18%, var(--surface)); color:var(--ev); transition:transform .18s var(--spring); }
+.ho-av-ok:active{ transform:scale(.88); }
+.ho-av-t{ flex:1; min-width:0; font-size:13.5px; line-height:1.3; color:var(--text-2); overflow-wrap:anywhere; }
+.ho-av-t b{ font-weight:700; color:var(--text); }
+.ho-av-salta{ flex:none; border:0; background:none; padding:4px 2px; font-size:12px; font-weight:600; color:var(--text-3); text-decoration:underline; text-decoration-thickness:.5px; text-underline-offset:3px; cursor:pointer; }
+.ho-av-foot{ display:flex; justify-content:flex-end; margin-top:2px; }
+@media (prefers-reduced-motion: reduce){ .ho-av{ animation:none; } }
+
+/* «Personalizza»: le frecce per spostare i tasti dell'accesso rapido */
+.ho-qmv{ display:none; position:absolute; left:0; right:0; bottom:-14px; justify-content:center; gap:6px; }
+.ho-qmv button{ width:28px; height:28px; padding:0; border:0; border-radius:50%; display:grid; place-items:center; background:var(--surface); color:var(--text); box-shadow:0 1px 4px rgba(0,0,0,.22); cursor:pointer; }
+.ho-qmv button[disabled]{ opacity:.3; cursor:default; }
+.ho-edit .ho-qmv{ display:flex; }
+.ho-edit .ho-quick{ padding-bottom:20px; }
+/* in «Personalizza» il contenuto dei riquadri e' spento (si possono solo spostare),
+   tranne le frecce dei tasti */
+.ho-edit .ho-w[data-id="shortcuts"] > .ho-wb{ pointer-events:auto; }
