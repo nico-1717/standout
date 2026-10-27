@@ -56,9 +56,7 @@ if (isset($_GET['ps_ajax']) && $_GET['ps_ajax'] === 'create_project') {
 
                 $guard++;
 
-                $res = mysqli_query($conn, "SELECT parent_id, color, color_edited FROM projects WHERE id = " . $parentId . " AND user_id = " . intval($userId));
-
-                $row = $res ? mysqli_fetch_assoc($res) : null;
+                $row = sec_one("SELECT parent_id, color, color_edited FROM projects WHERE id = ? AND user_id = ?", [(int)$parentId, (int)$userId], 'ii');
 
                 if (!$row) break;
 
@@ -108,9 +106,9 @@ if (isset($_GET['ps_ajax']) && $_GET['ps_ajax'] === 'create_project') {
 
     if ($parentId > 0) {
 
-        $chk = mysqli_query($conn, "SELECT id FROM projects WHERE id = $parentId AND user_id = " . intval($current_user_id));
+        $chk = sec_one("SELECT id FROM projects WHERE id = ? AND user_id = ?", [(int)$parentId, (int)$current_user_id], 'ii');
 
-        if (!$chk || mysqli_num_rows($chk) === 0) { $parentId = 0; }
+        if (!$chk) { $parentId = 0; }
 
     }
 
@@ -118,25 +116,15 @@ if (isset($_GET['ps_ajax']) && $_GET['ps_ajax'] === 'create_project') {
 
     $resolvedColor = ps_resolve_color($conn, $parentId, $current_user_id);
 
-    $nameEsc = mysqli_real_escape_string($conn, $name);
+    /* Query preparate: nome e colore arrivano dal client e non finiscono mai dentro il testo SQL. */
+    $ordRow = sec_one("SELECT COALESCE(MAX(custom_order), -1) + 1 AS next_order FROM projects WHERE user_id = ? AND " . ($parentId > 0 ? "parent_id = ?" : "parent_id IS NULL"),
+        $parentId > 0 ? [(int)$current_user_id, (int)$parentId] : [(int)$current_user_id], $parentId > 0 ? 'ii' : 'i');
+    $nextOrder = $ordRow ? (int)$ordRow['next_order'] : 0;
 
-    $colorEsc = mysqli_real_escape_string($conn, $resolvedColor);
-
-    $parentSql = $parentId > 0 ? $parentId : 'NULL';
-
-
-
-    $ordRes = mysqli_query($conn, "SELECT COALESCE(MAX(custom_order), -1) + 1 AS next_order FROM projects WHERE user_id = " . intval($current_user_id) . " AND " . ($parentId > 0 ? "parent_id = $parentId" : "parent_id IS NULL"));
-
-    $nextOrder = $ordRes ? intval(mysqli_fetch_assoc($ordRes)['next_order']) : 0;
-
-
-
-    mysqli_query($conn, "INSERT INTO projects (user_id, parent_id, name, color, color_edited, status, custom_order, created_at)
-
-                          VALUES (" . intval($current_user_id) . ", $parentSql, '$nameEsc', '$colorEsc', 0, 'in_progress', $nextOrder, NOW())");
-
-    $newId = mysqli_insert_id($conn);
+    sec_q("INSERT INTO projects (user_id, parent_id, name, color, color_edited, status, custom_order, created_at)
+           VALUES (?, ?, ?, ?, 0, 'in_progress', ?, NOW())",
+        [(int)$current_user_id, $parentId > 0 ? (int)$parentId : null, $name, $resolvedColor, $nextOrder], 'iissi');
+    $newId = sec_insert_id();
 
     if ($newId > 0) {
 
@@ -369,9 +357,7 @@ if (!function_exists('ps_resolve_color')) {
 
             $guard++;
 
-            $res = mysqli_query($conn, "SELECT parent_id, color, color_edited FROM projects WHERE id = " . $parentId . " AND user_id = " . intval($userId));
-
-            $row = $res ? mysqli_fetch_assoc($res) : null;
+            $row = sec_one("SELECT parent_id, color, color_edited FROM projects WHERE id = ? AND user_id = ?", [(int)$parentId, (int)$userId], 'ii');
 
             if (!$row) break;
 
@@ -431,9 +417,9 @@ if (!function_exists('ps_get_project_tree')) {
 
         $childrenOf = [];
 
-        $res = mysqli_query($conn, "SELECT id, parent_id, name, color, color_edited, status AS stato FROM projects WHERE user_id = " . intval($userId) . " ORDER BY custom_order ASC, id ASC");
+        $treeRows = sec_all("SELECT id, parent_id, name, color, color_edited, status AS stato FROM projects WHERE user_id = ? ORDER BY custom_order ASC, id ASC", [(int)$userId], 'i');
 
-        while ($res && ($row = mysqli_fetch_assoc($res))) {
+        foreach ($treeRows as $row) {
 
             $row['children'] = [];
 
@@ -997,11 +983,7 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
                 $ps_favs = [];
 
-                $psFavRes = mysqli_query($conn, "SELECT id, name, color, parent_id FROM projects
-
-                    WHERE user_id = " . intval($current_user_id) . " AND is_favorite = 1 ORDER BY name");
-
-                if ($psFavRes) { while ($fr = mysqli_fetch_assoc($psFavRes)) $ps_favs[] = $fr; }
+                $ps_favs = sec_all("SELECT id, name, color, parent_id FROM projects WHERE user_id = ? AND is_favorite = 1 ORDER BY name", [(int)$current_user_id], 'i');
 
 
 
@@ -1013,11 +995,9 @@ if (!empty($ps_selected_id) && $ps_has_value === false) {
 
                     $psParents = [];
 
-                    $psAllRes = mysqli_query($conn, "SELECT id, name, parent_id FROM projects WHERE user_id = " . intval($current_user_id));
-
-                    if ($psAllRes) {
-
-                        while ($ar = mysqli_fetch_assoc($psAllRes)) {
+                    $psAllRows = sec_all("SELECT id, name, parent_id FROM projects WHERE user_id = ?", [(int)$current_user_id], 'i');
+                    if ($psAllRows) {
+                        foreach ($psAllRows as $ar) {
 
                             $psNames[(int)$ar['id']] = $ar['name'];
 

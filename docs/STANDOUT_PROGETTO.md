@@ -1484,7 +1484,7 @@ Ogni passo ha un criterio di "fatto": senza, si va avanti a metà.
 | # | Stato | Note |
 |---|---|---|
 | 1 | **fatto (27/10/2026)** | giro su tutto `public/` e `lib/` con `tools/audit_sicurezza.py` + lettura del codice; l'elenco ordinato per gravità e per file è in `docs/SICUREZZA_ELENCO.md`. Resta fuori un test dal vivo contro il sito |
-| 2 | **in parte (27/10/2026)** | corretti i difetti ALTA e quasi tutti i MEDIA (scritture via GET senza token, «ricordami» di account disattivati, certificato TLS, errori a schermo, importazioni senza CSRF, `media/.htaccess`). Aperti: password più forti + verifica email, ftps nel deploy, limite alla ricerca amici, controllo d'uso prima di cancellare un file (serve al negozio) — vedi `docs/SICUREZZA_ELENCO.md` |
+| 2 | **fatto (27/10/2026), tranne la CSP** | corretti tutti i punti ALTA e MEDIA dell'elenco: scritture via GET senza token, «ricordami» di account disattivati, TLS, errori a schermo, importazioni, `media/.htaccess`, deploy in ftps, password a 10 caratteri + verifica email, controllo d'uso prima di cancellare un file (prerequisito del negozio), blocco login anti-DoS. **Aperto: togliere `'unsafe-inline'` dalla CSP** (~500 gestori inline in 61 file; piano a tappe in `docs/SICUREZZA_ELENCO.md` §C) — vedi quel file |
 | 3 | **in parte** | `lib/`, `sql/`, `data/` stanno fuori da `public/`; **manca `bootstrap.php`** (ogni pagina include ancora `config.php` per conto suo) |
 | 4 | **fatto** | tutte le migrazioni di §8.2 sono in produzione |
 | 5 | non fatto | il sito è ancora su Altervista |

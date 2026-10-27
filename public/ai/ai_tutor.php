@@ -142,9 +142,12 @@ if (!file_exists($audio_path)) {
 
         if (curl_errno($ch2)) {
              $err = curl_error($ch2);
+             $errnoTts = curl_errno($ch2);   // da leggere prima di curl_close
              curl_close($ch2);
              ob_clean();
-             die(json_encode(['success' => false, 'error' => t('ai.tts_blocco', ['n' => $index + 1, 'errno' => curl_errno($ch2), 'errore' => $err])]));
+             /* Il testo di curl resta nel log del server; al browser va solo il codice. */
+             sec_log_error('tts_curl', $errnoTts . ': ' . $err);
+             die(json_encode(['success' => false, 'error' => t('ai.tts_blocco', ['n' => $index + 1, 'errno' => $errnoTts])]));
         }
         curl_close($ch2);
 

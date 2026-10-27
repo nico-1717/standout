@@ -95,6 +95,12 @@ function sec_boot_headers(): void {
     // Content Security Policy.
     // 'unsafe-inline' su style e script resta necessario finche' le pagine
     // hanno <style>/<script> inline: e' documentato qui per non dimenticarlo.
+    // Misura del 2026-10-27: ~500 gestori onclick/onchange nell'HTML, ~110 blocchi
+    // <script> inline e ~600 attributi style="" in 61 file. Toglierlo a mmano senza
+    // poter provare ogni schermata nel browser romperebbe pulsanti in silenzio;
+    // il piano a tappe e' in docs/SICUREZZA_ELENCO.md. Il resto della policy
+    // (object-src, base-uri, frame-ancestors, form-action) e' gia' stretto, quindi
+    // anche con questa riga un XSS non puo' caricare script da altri siti.
     $csp = "default-src 'self'; "
          . "base-uri 'self'; "
          . "object-src 'none'; "

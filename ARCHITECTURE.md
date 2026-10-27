@@ -30,7 +30,7 @@ Read this first; open `docs/STANDOUT_PROGETTO.md` only for conventions detail, `
 - **Other**: `university_exams(id, user_id)`, `university_settings(user_id)`, `friends`, `friends_notifications(id)`, `study_templates(id)`, `push_subscriptions(id)`, `weather_cache`, `place_cache`.
 
 ## 3. File map
-- `lib/` — shared PHP: `config.php` (DB, secrets), `security_core.php` (sec_* helpers), `auth_*.php` (session/login guard; `_api` variant returns JSON), `i18n.php`, `stile.php` (UI style).
+- `lib/` — shared PHP: `config.php` (DB, secrets), `security_core.php` (sec_* helpers), `auth_*.php` (session/login guard; `_api` variant returns JSON), `password_policy.php` (min 10 chars + common-password list), `email_verifica.php` (soft email verification), `fc/fc_files.php` (delete a media file only if no other card uses it), `i18n.php`, `stile.php` (UI style).
 - `lib/fc/` — flashcard domain: `fc_type.php` (study vs vocabulary switch, URLs), `fc_ripresa.php` (where an unfinished game resumes, shared by Result, History, Home and the Flashcards page), `fc_impostazioni.php` (per-user game settings), `fc_vocab_gap.php` (example gap selection), `fc_ai_*.php` (AI prompts and formatting; `fc_ai_saved.php` tells which cards already have a saved Explain / Metaphor; `fc_frantuma.php` holds the pure helpers of Break up: card document to plain text, validation of the attachment assignments).
 - `lib/planner/` — planner domain logic split by topic (events, places, categories, day view).
 - `lang/` — Italian and English dictionaries.

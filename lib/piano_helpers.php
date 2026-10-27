@@ -150,14 +150,10 @@ function standout_stima_token_per_chiamata(int $user_id, int $fallback = 300, ?a
     }
 
     // 2) Media di tutti gli utenti con >5 chiamate questo mese
-    $conn = standout_db();
-    $res = mysqli_query($conn, "SELECT AVG(monthly_text_tokens / monthly_text_tokens_calls) AS media
+    $row = sec_one("SELECT AVG(monthly_text_tokens / monthly_text_tokens_calls) AS media
         FROM user_plans WHERE monthly_text_tokens_calls > 5");
-    if ($res) {
-        $row = mysqli_fetch_assoc($res);
-        if ($row && $row['media'] !== null) {
-            return (float)$row['media'];
-        }
+    if ($row && $row['media'] !== null) {
+        return (float)$row['media'];
     }
 
     // 3) Media storica personale (salvata l'ultima volta che i contatori si sono azzerati)
@@ -200,10 +196,7 @@ function standout_verifica_limite_stimato(int $user_id, int $fallback = 300): ar
  * di lanciare la chiamata a Gemini e per avvisare se le API sembrano intasate.
  */
 function standout_get_stima_tempo_ia(string $mode): array {
-    $conn = standout_db();
-    $mode_safe = mysqli_real_escape_string($conn, $mode);
-    $res = mysqli_query($conn, "SELECT avg_duration_ms, samples, last_duration_ms FROM ai_perf_stats WHERE mode = '$mode_safe'");
-    $row = $res ? mysqli_fetch_assoc($res) : null;
+    $row = sec_one("SELECT avg_duration_ms, samples, last_duration_ms FROM ai_perf_stats WHERE mode = ?", [$mode], 's');
 
     if (!$row || (int)$row['samples'] === 0) {
         return ['avg_seconds' => null, 'slower_than_usual' => false];
@@ -220,20 +213,18 @@ function standout_get_stima_tempo_ia(string $mode): array {
 /** Registra la durata (ms) di una chiamata IA appena completata, aggiornando la media storica di quella modalità. */
 function standout_registra_tempo_ia(string $mode, int $duration_ms): void {
     $conn = standout_db();
-    $mode_safe = mysqli_real_escape_string($conn, $mode);
-    $res = mysqli_query($conn, "SELECT avg_duration_ms, samples FROM ai_perf_stats WHERE mode = '$mode_safe'");
-    $row = $res ? mysqli_fetch_assoc($res) : null;
+    $row = sec_one("SELECT avg_duration_ms, samples FROM ai_perf_stats WHERE mode = ?", [$mode], 's');
 
     if ($row) {
         $samples = (int)$row['samples'];
         $nuova_media = (int)round((((int)$row['avg_duration_ms']) * $samples + $duration_ms) / ($samples + 1));
         $stmt = mysqli_prepare($conn, "UPDATE ai_perf_stats SET avg_duration_ms = ?, samples = samples + 1, last_duration_ms = ?, last_measured_at = NOW() WHERE mode = ?");
-        mysqli_stmt_bind_param($stmt, 'iis', $nuova_media, $duration_ms, $mode_safe);
+        mysqli_stmt_bind_param($stmt, 'iis', $nuova_media, $duration_ms, $mode);
         mysqli_stmt_execute($stmt);
         mysqli_stmt_close($stmt);
     } else {
         $stmt = mysqli_prepare($conn, "INSERT INTO ai_perf_stats (mode, avg_duration_ms, samples, last_duration_ms, last_measured_at) VALUES (?, ?, 1, ?, NOW())");
-        mysqli_stmt_bind_param($stmt, 'sii', $mode_safe, $duration_ms, $duration_ms);
+        mysqli_stmt_bind_param($stmt, 'sii', $mode, $duration_ms, $duration_ms);
         mysqli_stmt_execute($stmt);
         mysqli_stmt_close($stmt);
     }

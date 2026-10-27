@@ -30,6 +30,12 @@ CSRF via GET**, **un account disattivato che rientrava col "ricordami"**,
 **certificato TLS non verificato** nelle chiamate a Google, e **messaggi tecnici
 mostrati all'utente**.
 
+**Aggiornamento 27/10/2026 (sera):** chiusi anche M10, M13 e B1–B5 (password a 10
+caratteri + verifica email, cancellazione file sicura per il negozio, blocco login che
+non si lascia sfruttare, input a prova di array, ultime query ex-mysqli, errori curl
+generici). **Resta aperto solo M11**, la CSP con `'unsafe-inline'`: è un lavoro grosso
+(~500 gestori inline) che non si fa alla cieca; il piano a tappe è nella sezione C.
+
 ---
 
 ## ALTA
@@ -54,20 +60,20 @@ mostrati all'utente**.
 | M7 | `lib/auth_core.php` | `session.use_strict_mode` non impostato (lo chiede SICUREZZA.md §7.1): un id di sessione scelto da un attaccante veniva accettato. | **corretto** — strict mode + solo cookie |
 | M8 | `media/` (file caricati dagli utenti) | Nessuna difesa a livello server contro un `.php` finito lì dentro; il codice controlla tipo ed estensione, ma è una difesa sola. | **corretto** — nuovo `media/.htaccess` nel repository (nega `.php`, `.phtml`, `.phar` ecc., nasconde i file `.`, `nosniff` e CSP chiusa se un file si apre da solo). Provato con Apache 2.4: `.php` e `.PHP5` → 403, immagini e audio → 200. Parte da solo col prossimo deploy. |
 | M9 | `.github/workflows/deploy.yml` | Deploy in FTP semplice: password e codice viaggiano in chiaro. | **corretto (27/10/2026)** — `protocol: ftps`; la prima esecuzione è andata a buon fine. |
-| M10 | `register.php`, `lib/auth_core.php` | La regola password è più debole di §7.1: 8 caratteri con lettera e cifra (la guida chiede 10, elenco di password comuni, verifica email). | **aperto** — è una funzione da costruire (verifica email), non una correzione |
-| M11 | tutte le pagine | La CSP ha ancora `'unsafe-inline'` per script e stile: restano 23 gestori inline (`onclick=…`) e i blocchi `<style>`. È il passo 10 (CSS esterno). | **deciso / aperto** — noto e documentato |
+| M10 | `register.php`, `lib/auth_core.php` | La regola password è più debole di §7.1: 8 caratteri con lettera e cifra (la guida chiede 10, elenco di password comuni, verifica email). | **corretto (27/10/2026)** — minimo 10 e massimo 128 caratteri, elenco di password comuni (anche con cifra o simbolo in coda), niente password uguale a username/email (`lib/password_policy.php`). **Verifica email** morbida (`lib/email_verifica.php`): mail con link a 24 ore (nel database c'è solo l'hash del token), reinvio limitato, avviso nel widget finché non è confermata; senza la migrazione tutto resta com'era. Provata contro un database vero (token scaduto, riusato, email cambiata, limite giornaliero). **Da fare da te: T4 e T5.** |
+| M11 | tutte le pagine | La CSP ha ancora `'unsafe-inline'` per script e stile: restano ~500 gestori inline (`onclick=…`), ~110 blocchi `<script>` e ~600 attributi `style=""` in 61 file (misura del 27/10/2026). È il passo 10 (CSS/JS esterni). | **aperto, deciso di non farlo alla cieca** — senza poter provare ogni schermata nel browser, un cambio così romperebbe pulsanti in silenzio. Il resto della policy è già stretto (`object-src 'none'`, `base-uri`, `frame-ancestors`, `form-action`, script solo da noi e jsdelivr). Piano a tappe qui sotto (**C**). |
 | M12 | `public/social/friends_api.php` | La ricerca utenti non ha limite di frequenza: si possono raccogliere gli username a tappeto. | **chiuso (27/10/2026)** — la parte social è spenta sul sito (`lib/social_gate.php`, 404). Il limite di frequenza va aggiunto quando le pagine diventeranno l'API dell'app. |
-| M13 | `public/fc/fc_card_edit.php` — `mfc_togli()` | Cancella il file dal disco senza controllare se un'altra carta lo usa. Oggi ogni file è di una carta sola; con il negozio no. | **aperto** — da fare **prima** del negozio (esiste già `fc_frantuma_file_usato()` in `ai_shatter_save.php`: va generalizzata) |
+| M13 | `public/fc/fc_card_edit.php` — `mfc_togli()` | Cancella il file dal disco senza controllare se un'altra carta lo usa. Oggi ogni file è di una carta sola; con il negozio no. | **corretto (27/10/2026)** — nuova `lib/fc/fc_files.php` (`fc_file_in_uso`, `fc_file_togli`, `fc_file_togli_dopo`): un file si cancella solo se nessun'altra carta lo usa, e la cancellazione avviene dopo il commit. Usata da `fc_card_edit.php` e da `ai_shatter_save.php`. Provata con carte che condividono lo stesso file. Prerequisito del negozio: **soddisfatto**. |
 
 ## BASSA
 
 | # | Dove | Problema | Stato |
 |---|------|----------|-------|
-| B1 | `lib/security_core.php` — redirect a HTTPS | L'indirizzo si costruisce da `HTTP_HOST` (header scelto dal client). | aperto — usare un nome di sito fisso da `config.php` |
-| B2 | `lib/auth_core.php` — blocco login | Il blocco per identificativo permette di bloccare l'account altrui a forza di tentativi (6 in 15 min). | aperto — decidere: blocco per IP+identificativo insieme |
-| B3 | `login.php`, `register.php` | `trim($input['x'])` con un array al posto di una stringa lancia un errore PHP (500, nessun danno). | aperto |
-| B4 | `friends_api.php`, `friends_core.php`, `project_selector.php`, `pomodoro_import.php`, `lib/piano_helpers.php` | Usano ancora `mysqli_query` con valori già castati a intero o con `real_escape_string`: oggi non iniettabili, ma da portare a `sec_*` perché un domani nessuno si ricordi come. | aperto — pulizia |
-| B5 | `ai_generate_text.php`, `ai_shatter.php`, `ai_tutor.php` | Per gli errori di rete mostrano il messaggio di curl (es. «Could not resolve host»). Senza più la chiave nell'indirizzo non rivela segreti. | aperto — messaggio generico se si vuole |
+| B1 | `lib/security_core.php` — redirect a HTTPS | L'indirizzo si costruisce da `HTTP_HOST` (header scelto dal client). | **corretto** — usa `STANDOUT_HOST` (opzionale in `config.php`) o `SERVER_NAME`, mai `HTTP_HOST`; il nome è validato |
+| B2 | `lib/auth_core.php` — blocco login | Il blocco per identificativo permette di bloccare l'account altrui a forza di tentativi (6 in 15 min). | **corretto** — soglie per coppia identificativo+IP, per IP e (più alta) per account, con attese crescenti: chi sbaglia da un altro IP non blocca il proprietario. Provato 10/10. |
+| B3 | `login.php`, `register.php` | `trim($input['x'])` con un array al posto di una stringa lancia un errore PHP (500, nessun danno). | **corretto** — solo testo accettato, un array dà «dati mancanti» invece di un 500 |
+| B4 | `friends_api.php`, `friends_core.php`, `project_selector.php`, `pomodoro_import.php`, `lib/piano_helpers.php` | Usano ancora `mysqli_query` con valori già castati a intero o con `real_escape_string`: oggi non iniettabili, ma da portare a `sec_*` perché un domani nessuno si ricordi come. | **corretto** per `project_selector.php`, `pomodoro_import.php` (provato con nomi ostili tipo `x'); DROP TABLE users; --`, progetto di un altro utente, 454 sessioni a blocchi) e `piano_helpers.php`. `friends_*` lasciati com'erano: il social è spento sul sito e verranno riscritti per l'app. |
+| B5 | `ai_generate_text.php`, `ai_shatter.php`, `ai_tutor.php` | Per gli errori di rete mostrano il messaggio di curl (es. «Could not resolve host»). Senza più la chiave nell'indirizzo non rivela segreti. | **corretto** — il testo di curl va nel log, al browser solo il codice (`curl errno N`). Sistemato anche un difetto in `ai_tutor.php`: il codice si leggeva dopo `curl_close`. |
 
 ---
 
@@ -76,13 +82,29 @@ mostrati all'utente**.
 - **T1.** Frantuma ha mostrato «Gemini API error»: ora ritenta una volta e scrive nell'errore il codice di Google (es. «503 UNAVAILABLE»). Se compare ancora, quel codice dice se è Google sovraccarico, la chiave, o il testo bloccato. Da provare anche **l'audio del tutor** (A4).
 - **T2.** Provare di aprire un'immagine e un audio da `media/`: devono funzionare come prima (il nuovo `.htaccess` non tocca immagini/audio).
 - **T3.** Ricordarsi la migrazione `2026-10-27_piano_chiavi.sql` (non c'entra con la sicurezza del codice, ma è in sospeso).
+- **T4.** Eseguire `sql/migrations/2026-10-27_verifica_email.sql` su MySQL (phpMyAdmin di Altervista). Finché non lo fai la verifica email è spenta e nessuno vede l'avviso. Gli utenti già esistenti risultano già verificati.
+- **T5.** Provare una registrazione vera con un'email tua: deve arrivare la mail «Conferma la tua email su Standout» (controlla anche lo spam: `mail()` di Altervista non è garantito). Se non arriva, il sito funziona lo stesso; il motivo sta nel log errori del server. Se dovesse servire, in `config.php` si può fissare il nome del sito con `define('STANDOUT_HOST', 'nisama.altervista.org');`.
+- **T6.** Frantuma non funziona per **credito/quota Gemini esaurita** (errore 402 `RESOURCE_EXHAUSTED`), non per il codice: va ricaricato in Google AI Studio / Cloud.
+- **T7.** Costanti opzionali di `lib/config.php`: `STANDOUT_HOST` (nome del sito per link e redirect), `STANDOUT_SOCIAL_SITO` (`true` riaccende il social), `STANDOUT_DEBUG` (`true` mostra gli errori PHP: solo in sviluppo).
+
+---
+
+## C. Piano a tappe per togliere `'unsafe-inline'` (non ancora fatto)
+
+Ordine che non rompe niente per strada, una pagina alla volta, ognuna provata nel browser:
+1. **Stili**: spostare i `<style>` in file `.css` (20 blocchi, facile). Gli `style=""` (~600) si possono togliere per ultimi o tenere con `style-src-attr 'unsafe-inline'`, che è molto meno rischioso di quello sugli script.
+2. **Gestori** `onclick=…` → `addEventListener` con `data-azione="…"` e un piccolo delegatore per pagina (~500, il grosso: `fc_view`, `voti`, `progetti`, `fc_decks`, `fc_game`).
+3. **Blocchi `<script>` inline** (~110) → file `.js` che leggono i dati da `data-*` o da un `<script type="application/json">`.
+4. Solo alla fine togliere `'unsafe-inline'` da `script-src`. Prima, per vedere cosa si rompe senza rischio, si può pubblicare la regola in `Content-Security-Policy-Report-Only`.
+
+Da fare solo con la possibilità di provare ogni schermata dal vivo.
 
 ---
 
 ## Cosa lo scanner segnala e NON è un problema (verificato a mano)
 
 - **«SQL: valore incollato» (CRITICA, 3):** `study_api.php:133` (`$t` viene da due valori fissi), `progetti.php:303` (`$campo` da un elenco chiuso), `friends_api.php:48` (valori castati a intero / `real_escape_string`).
-- **«Nessun controllo di accesso» (23):** sono frammenti inclusi da pagine che l'accesso lo controllano, o librerie di sole funzioni. `ai_worker.php` risponde 404 se non è chiamato da riga di comando.
+- **«Nessun controllo di accesso» (24):** `verifica_email.php` è pubblica per scelta (si apre dal link nella mail: l'accesso è il token a 64 caratteri, usabile una volta sola, valido 24 ore); gli altri sono frammenti inclusi da pagine che l'accesso lo controllano, o librerie di sole funzioni. `ai_worker.php` risponde 404 se non è chiamato da riga di comando.
 - **«Scrive senza CSRF» (5):** gli stessi frammenti/librerie, più `friends_api.php` (intestazione `X-Standout`, vedi M12).
 - **«XSS riflesso» (4):** `echo isset($_GET[…]) ? 1 : 0` — stampa un numero, non l'ingresso.
 - **«UPDATE/DELETE senza user_id» (116):** controllati i gruppi senza una verifica evidente a poca distanza (`ai_shatter_save`, `fc_card_edit`, `fc_view`, `fc_insert_save`, `fc_examples_api`, `fc_game`): la proprietà passa da JOIN sul mazzo, da `fc_solo_mie`/`fc_figli_miei`, da `AND category_id = ?` con categoria verificata o dalla partita verificata in cima al file. Le altre sono lavori interni (`ai_jobs`, cache, pulizie).

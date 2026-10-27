@@ -816,26 +816,24 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'save') {
     /* id dei progetti dell'utente: serve a validare le mappature che arrivano
        dal client, che non e' mai da credere sulla parola */
     $ownIds = [];
-    $res = mysqli_query($conn, "SELECT id FROM projects WHERE user_id = $uid");
-    while ($res && ($row = mysqli_fetch_assoc($res))) { $ownIds[(int)$row['id']] = true; }
+    foreach (sec_all("SELECT id FROM projects WHERE user_id = ?", [$uid], 'i') as $row) { $ownIds[(int)$row['id']] = true; }
 
     if (!function_exists('ie_next_order')) {
         function ie_next_order($conn, $uid, $parentId) {
-            $where = $parentId > 0 ? "parent_id = " . intval($parentId) : "parent_id IS NULL";
-            $r = mysqli_query($conn, "SELECT COALESCE(MAX(custom_order), -1) + 1 AS n FROM projects WHERE user_id = " . intval($uid) . " AND $where");
-            return $r ? intval(mysqli_fetch_assoc($r)['n']) : 0;
+            $r = sec_one("SELECT COALESCE(MAX(custom_order), -1) + 1 AS n FROM projects WHERE user_id = ? AND " . ($parentId > 0 ? "parent_id = ?" : "parent_id IS NULL"),
+                $parentId > 0 ? [(int)$uid, (int)$parentId] : [(int)$uid], $parentId > 0 ? 'ii' : 'i');
+            return $r ? (int)$r['n'] : 0;
         }
     }
     if (!function_exists('ie_create_project')) {
         function ie_create_project($conn, $uid, $name, $parentId) {
             $color = ps_resolve_color($conn, $parentId, $uid);
-            $nameEsc = mysqli_real_escape_string($conn, $name);
-            $colorEsc = mysqli_real_escape_string($conn, $color);
-            $parentSql = $parentId > 0 ? intval($parentId) : 'NULL';
             $ord = ie_next_order($conn, $uid, $parentId);
-            $ok = mysqli_query($conn, "INSERT INTO projects (user_id, parent_id, name, color, color_edited, status, custom_order, created_at)
-                                        VALUES (" . intval($uid) . ", $parentSql, '$nameEsc', '$colorEsc', 0, 'in_progress', $ord, NOW())");
-            return $ok ? mysqli_insert_id($conn) : 0;
+            /* Query preparata: il nome viene dal file importato e non entra mai nel testo SQL. */
+            sec_q("INSERT INTO projects (user_id, parent_id, name, color, color_edited, status, custom_order, created_at)
+                   VALUES (?, ?, ?, ?, 0, 'in_progress', ?, NOW())",
+                [(int)$uid, $parentId > 0 ? (int)$parentId : null, $name, $color, $ord], 'iissi');
+            return sec_insert_id();
         }
     }
     if (!function_exists('ps_resolve_color')) {
@@ -843,8 +841,7 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'save') {
             $parentId = intval($parentId); $guard = 0;
             while ($parentId > 0 && $guard < 50) {
                 $guard++;
-                $res = mysqli_query($conn, "SELECT parent_id, color, color_edited FROM projects WHERE id = $parentId AND user_id = " . intval($userId));
-                $row = $res ? mysqli_fetch_assoc($res) : null;
+                $row = sec_one("SELECT parent_id, color, color_edited FROM projects WHERE id = ? AND user_id = ?", [(int)$parentId, (int)$userId], 'ii');
                 if (!$row) break;
                 if (intval($row['color_edited']) === 1 && !empty($row['color'])) return $row['color'];
                 $parentId = intval($row['parent_id']);
@@ -853,6 +850,8 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'save') {
         }
     }
 
+    /* La transazione deve stare sulla stessa connessione che usano le query preparate (sec_db). */
+    $conn = sec_db();
     mysqli_begin_transaction($conn);
     $createdProjects = 0;
     $insertedSessions = 0;
@@ -906,16 +905,16 @@ if ($ie_direct && isset($_GET['ie_ajax']) && $_GET['ie_ajax'] === 'save') {
             if ($tk !== '' && isset($titleIds[$tk])) $projId = $titleIds[$tk];
             elseif ($lk !== '' && isset($listIds[$lk])) $projId = $listIds[$lk];
 
-            $startEsc = mysqli_real_escape_string($conn, date('Y-m-d H:i:s', $startTs));
-            $endEsc = mysqli_real_escape_string($conn, date('Y-m-d H:i:s', $startTs + $dur));
-            $projSql = $projId > 0 ? $projId : 'NULL';
-            $values[] = "($uid, $mode, '$startEsc', '$endEsc', $dur, " . intval(round($dur / 60)) . ", 'archiviato', $projSql, 1)";
+            $values[] = [$uid, $mode, date('Y-m-d H:i:s', $startTs), date('Y-m-d H:i:s', $startTs + $dur), $dur, (int)round($dur / 60), $projId > 0 ? $projId : null];
         }
 
         /* insert a blocchi: un file da 3000 pomodori non deve fare 3000 query */
         foreach (array_chunk($values, 200) as $chunk) {
-            $sql = "INSERT INTO pomodoro_sessions (user_id, `mode`, start_time, end_time, duration_seconds, planned_duration_min, status, project_id, is_manual) VALUES " . implode(',', $chunk);
-            if (!mysqli_query($conn, $sql)) throw new Exception(mysqli_error($conn));
+            $segnaposto = implode(',', array_fill(0, count($chunk), "(?, ?, ?, ?, ?, ?, 'archiviato', ?, 1)"));
+            $params = [];
+            foreach ($chunk as $riga) { foreach ($riga as $v) $params[] = $v; }
+            sec_q("INSERT INTO pomodoro_sessions (user_id, `mode`, start_time, end_time, duration_seconds, planned_duration_min, status, project_id, is_manual) VALUES " . $segnaposto,
+                $params, str_repeat('iissiii', count($chunk)));
             $insertedSessions += count($chunk);
         }
 
@@ -952,11 +951,10 @@ if (!function_exists('ie_export_rows')) {
                   FROM pomodoro_sessions s
                   LEFT JOIN projects p ON p.id = s.project_id AND p.user_id = s.user_id
                   LEFT JOIN projects pp ON pp.id = p.parent_id AND pp.user_id = s.user_id
-                 WHERE s.user_id = " . intval($uid) . "
+                 WHERE s.user_id = ?
                  ORDER BY s.start_time ASC";
-        $res = mysqli_query($conn, $sql);
         $rows = [];
-        while ($res && ($r = mysqli_fetch_assoc($res))) {
+        foreach (sec_all($sql, [(int)$uid], 'i') as $r) {
             $startTs = strtotime((string)$r['start_time']);
             if ($startTs === false || empty($r['start_time'])) continue;
 

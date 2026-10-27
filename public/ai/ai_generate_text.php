@@ -132,9 +132,11 @@ if (curl_errno($ch)) {
     $errno = curl_errno($ch);
     $errstr = curl_error($ch);
     ob_clean();
+    /* Il testo di curl (indirizzi, dettagli di rete) resta nel log del server; al browser va solo il codice. */
+    sec_log_error('gemini_curl', $errno . ': ' . $errstr);
     $msg_errore = ($errno === CURLE_OPERATION_TIMEOUTED || strpos($errstr, 'timed out') !== false)
         ? t('ai.gemini_lento')
-        : t('ai.gemini_connessione', ['n' => $errno, 'errore' => $errstr]);
+        : t('ai.gemini_connessione', ['n' => $errno]);
     die(json_encode(['success' => false, 'error' => $msg_errore]));
 }
 curl_close($ch);
