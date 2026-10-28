@@ -18,10 +18,11 @@
    solo quando il contenuto cambia in modo che conta. */
 const STANDOUT_LEGALE_VERSIONE = '2026-10-27';
 
-/* Chi risponde dei dati e come lo si contatta. DA COMPLETARE prima di aprire
-   la registrazione al pubblico: un indirizzo vero, letto da una persona. */
-const STANDOUT_LEGALE_TITOLARE = 'DA COMPLETARE';
-const STANDOUT_LEGALE_EMAIL    = 'da-completare@example.invalid';
+/* Chi risponde dei dati e come lo si contatta. Per ora e' l'indirizzo personale
+   del titolare; quando ci sara' un indirizzo dedicato si cambia SOLO qui e le
+   pagine si aggiornano da sole. */
+const STANDOUT_LEGALE_TITOLARE = 'Nicolò Valtulini';
+const STANDOUT_LEGALE_EMAIL    = 'valtulinin@gmail.com';
 
 /** Vero se titolare e contatto sono ancora quelli segnaposto. */
 function standout_legale_incompleto(): bool {
