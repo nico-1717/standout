@@ -44,13 +44,14 @@ if (is_readable($sbFile)):
 endif;
 ?>
 <style nonce="<?php echo sec_nonce(); ?>">
-/* Il pulsante di apertura: com'era copriva un angolo intero e non si
-   vedeva cosa c'era sotto. Qui diventa più piccolo e quasi trasparente,
-   e torna leggibile solo quando lo si tocca o ci si passa sopra. */
+/* Il pulsante di apertura: quasi trasparente, cosi' non copre quello che c'e'
+   sotto, e leggibile solo quando lo si tocca o ci si passa sopra.
+   LA MISURA NON SI TOCCA QUI. Prima questo file lo rimpiccioliva (40px, a 12px
+   dal bordo) e le pagine che includono sidebar.html direttamente — la home fra
+   queste — lo avevano da 56px a 16px: due misure diverse a seconda della
+   pagina. Adesso dimensione, posizione e icona sono solo quelle di
+   sidebar.html, uguali ovunque; qui resta soltanto l'aspetto discreto. */
 .sb-fab{
-    width:40px !important; height:40px !important;
-    left:12px !important;
-    bottom:calc(env(safe-area-inset-bottom, 0px) + 14px) !important;
     background:rgba(27,27,32,.22) !important;
     border-color:rgba(255,255,255,.10) !important;
     box-shadow:0 4px 14px rgba(0,0,0,.16) !important;
@@ -65,7 +66,6 @@ endif;
     background:rgba(27,27,32,.78) !important;
 }
 .sb-fab:active{ opacity:1; }
-.sb-fab .sb-burger{ transform:scale(.82); }
 
 /* sulle pagine chiare (planner, diario, attività) il pulsante scuro
    stonerebbe: qui diventa chiaro e altrettanto discreto */
