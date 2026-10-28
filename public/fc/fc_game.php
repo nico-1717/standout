@@ -1428,6 +1428,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
 
 
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>_assets/ui/base.css?v=<?php echo @filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_game.css?v=<?php echo @filemtime(__DIR__ . '/fc_game.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_examples_box.css?v=<?php echo @filemtime(__DIR__ . '/fc_examples_box.css') ?: 1; ?>">
 <script src="<?php echo PWA_BASE; ?>fc/fc_vocab_gap.js?v=<?php echo @filemtime(__DIR__ . '/fc_vocab_gap.js') ?: 1; ?>"></script>
