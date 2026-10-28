@@ -45,6 +45,17 @@
      DELETE /api/v1/habits/{id}           elimina l'abitudine e i suoi check-in
      POST   /api/v1/habits/{id}/log       check-in {date?, mode?, value?, note?} -> stato, serie, traguardi
      POST   /api/v1/habits/{id}/note      nota e umore di un giorno {date?, note?, mood?}
+
+   To buy, passo 9 fetta 4 — la logica sta in lib/shopping_api.php (e nelle td_* di lib/todo_core.php):
+     GET    /api/v1/shopping              gli articoli (ordine della pagina) e le categorie
+     POST   /api/v1/shopping              crea {title, category_id?, priority? 1-3, price_cents?, url?, project_id?, date?, time?, minutes?, done?}
+     PATCH  /api/v1/shopping/{id}         cambia SOLO i campi inviati (anche done: comprato)
+     DELETE /api/v1/shopping/{id}
+     GET    /api/v1/shopping/history      gli articoli comprati in passato (suggerimenti)
+     GET    /api/v1/shopping/categories   le categorie
+     POST   /api/v1/shopping/categories   crea {name, color?}
+     PATCH  /api/v1/shopping/categories/{id}   {name?, color?}
+     DELETE /api/v1/shopping/categories/{id}   gli articoli restano, senza categoria
    ===================================================================== */
 
 /* Dice a auth_core.php che questa e' l'API: niente sessione PHP (e niente cookie
@@ -57,6 +68,7 @@ require_once __DIR__ . '/../../../lib/api_v1.php';
 require_once __DIR__ . '/../../../lib/todo_core.php';
 require_once __DIR__ . '/../../../lib/planner/planner_lib.php';
 require_once __DIR__ . '/../../../lib/habits_api.php';
+require_once __DIR__ . '/../../../lib/shopping_api.php';
 
 /* ---------------- Accesso ---------------- */
 
@@ -288,6 +300,68 @@ function api_h_abitudini_nota(array $ctx): void {
     api_ok($esito);
 }
 
+/* ---------------- To buy ---------------- */
+
+/** Un errore di sp_* diventa la risposta dell'API (con il nome del campo sbagliato). */
+function api_h_shopping_errore(array $esito): void {
+    if (!isset($esito['errore'])) return;
+    $e = $esito['errore'];
+    api_errore($e['codice'], $e['testo'], null, ['field' => $e['campo']]);
+}
+
+function api_h_shopping_elenco(array $ctx): void {
+    api_ok(sp_elenco((int)$ctx['utente']['id']));
+}
+
+function api_h_shopping_storia(array $ctx): void {
+    api_ok(['history' => sp_storia((int)$ctx['utente']['id'])]);
+}
+
+function api_h_shopping_crea(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_shopping_write');
+    $esito = sp_crea((int)$ctx['utente']['id'], api_corpo());
+    api_h_shopping_errore($esito);
+    api_ok(['item' => $esito['item']], 201);
+}
+
+function api_h_shopping_modifica(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_shopping_write');
+    $esito = sp_modifica((int)$ctx['utente']['id'], (int)$ctx['id'], api_corpo());
+    api_h_shopping_errore($esito);
+    api_ok(['item' => $esito['item']]);
+}
+
+function api_h_shopping_togli(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_shopping_write');
+    if (!sp_elimina((int)$ctx['utente']['id'], (int)$ctx['id'])) api_errore('not_found', 'Item not found');
+    api_ok();
+}
+
+function api_h_shopping_categorie(array $ctx): void {
+    td_seed_categories((int)$ctx['utente']['id']);
+    api_ok(['categories' => td_categories((int)$ctx['utente']['id'])]);
+}
+
+function api_h_shopping_cat_crea(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_shopping_write');
+    $esito = sp_cat_crea((int)$ctx['utente']['id'], api_corpo());
+    api_h_shopping_errore($esito);
+    api_ok(['category' => $esito['category']], 201);
+}
+
+function api_h_shopping_cat_modifica(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_shopping_write');
+    $esito = sp_cat_modifica((int)$ctx['utente']['id'], (int)$ctx['id'], api_corpo());
+    api_h_shopping_errore($esito);
+    api_ok(['category' => $esito['category']]);
+}
+
+function api_h_shopping_cat_togli(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_shopping_write');
+    if (!sp_cat_elimina((int)$ctx['utente']['id'], (int)$ctx['id'])) api_errore('not_found', 'Category not found');
+    api_ok();
+}
+
 /* ---------------- L'elenco delle rotte ---------------- */
 
 $tokenECookie = ['token', 'cookie'];
@@ -318,4 +392,13 @@ api_v1_esegui([
     ['DELETE', 'habits/{id}',       'api_h_abitudini_togli',  ['accetta' => $tokenECookie]],
     ['POST',   'habits/{id}/log',   'api_h_abitudini_checkin', ['accetta' => $tokenECookie]],
     ['POST',   'habits/{id}/note',  'api_h_abitudini_nota',   ['accetta' => $tokenECookie]],
+    ['GET',    'shopping',          'api_h_shopping_elenco',  ['accetta' => $tokenECookie]],
+    ['POST',   'shopping',          'api_h_shopping_crea',    ['accetta' => $tokenECookie]],
+    ['GET',    'shopping/history',  'api_h_shopping_storia',  ['accetta' => $tokenECookie]],
+    ['GET',    'shopping/categories', 'api_h_shopping_categorie', ['accetta' => $tokenECookie]],
+    ['POST',   'shopping/categories', 'api_h_shopping_cat_crea', ['accetta' => $tokenECookie]],
+    ['PATCH',  'shopping/categories/{id}', 'api_h_shopping_cat_modifica', ['accetta' => $tokenECookie]],
+    ['DELETE', 'shopping/categories/{id}', 'api_h_shopping_cat_togli', ['accetta' => $tokenECookie]],
+    ['PATCH',  'shopping/{id}',     'api_h_shopping_modifica', ['accetta' => $tokenECookie]],
+    ['DELETE', 'shopping/{id}',     'api_h_shopping_togli',   ['accetta' => $tokenECookie]],
 ]);
