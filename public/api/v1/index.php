@@ -67,6 +67,17 @@
      POST   /api/v1/habits/categories     crea {name, icon?, color?}
      PATCH  /api/v1/habits/categories/{id}   solo le proprie
      DELETE /api/v1/habits/categories/{id}   le abitudini restano, senza categoria
+
+   Pastiglie e integratori, fetta 6 — la logica sta in lib/pills_core.php e lib/pills_api.php:
+     GET    /api/v1/pills[?date=]         il giorno: terapie, prese, arretrate, numeri dell'ultimo mese
+     GET    /api/v1/pills/plans           le terapie
+     POST   /api/v1/pills/plans           crea {name, dose?, notes?, color?, freq_type?, weekdays?, month_days?, interval_days?, times?, start_date?, end_date?, active?}
+     PATCH  /api/v1/pills/plans/{id}      cambia SOLO i campi inviati (cambiare il ritmo non tocca le prese passate)
+     DELETE /api/v1/pills/plans/{id}      toglie la terapia e le sue prese
+     POST   /api/v1/pills/plans/{id}/day  il calendario {date, taken: quante prese quel giorno}
+     GET    /api/v1/pills/plans/{id}/history?month=AAAA-MM | days=N
+     PATCH  /api/v1/pills/doses/{id}      {status: pending|taken|skipped, taken_at?}
+     POST   /api/v1/pills/doses/bulk      «prese tutte» {ids, mode: on_time|now}
    ===================================================================== */
 
 /* Dice a auth_core.php che questa e' l'API: niente sessione PHP (e niente cookie
@@ -81,6 +92,7 @@ require_once __DIR__ . '/../../../lib/planner/planner_lib.php';
 require_once __DIR__ . '/../../../lib/habits_api.php';
 require_once __DIR__ . '/../../../lib/shopping_api.php';
 require_once __DIR__ . '/../../../lib/todo_bulk_api.php';
+require_once __DIR__ . '/../../../lib/pills_api.php';
 
 /* ---------------- Accesso ---------------- */
 
@@ -434,6 +446,77 @@ function api_h_abitudini_cat_togli(array $ctx): void {
     api_ok();
 }
 
+/* ---------------- Pastiglie ---------------- */
+
+/** Senza la tabella (migrazione non eseguita) le scritture dicono chiaro che la sezione manca. */
+function api_h_pillole_serve(): void {
+    if (!td_pills_c_e()) api_errore('not_found', 'Pills are not installed on this server');
+}
+
+function api_h_pillole_giorno(array $ctx): void {
+    $d = api_h_param('date');
+    if ($d !== null && sec_date($d, null) === null) api_errore('validation', 'date must be YYYY-MM-DD', null, ['field' => 'date']);
+    api_ok(pl_pillole_giorno((int)$ctx['utente']['id'], $d));
+}
+
+function api_h_pillole_terapie(array $ctx): void {
+    api_ok(['plans' => td_pill_plans((int)$ctx['utente']['id'])]);
+}
+
+function api_h_pillole_crea(array $ctx): void {
+    api_h_pillole_serve();
+    api_h_limite_scritture($ctx, 'api_pills_write');
+    $e = pl_pillole_crea((int)$ctx['utente']['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok(['plan' => $e['plan']], 201);
+}
+
+function api_h_pillole_modifica(array $ctx): void {
+    api_h_pillole_serve();
+    api_h_limite_scritture($ctx, 'api_pills_write');
+    $e = pl_pillole_modifica((int)$ctx['utente']['id'], (int)$ctx['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok(['plan' => $e['plan']]);
+}
+
+function api_h_pillole_togli(array $ctx): void {
+    api_h_pillole_serve();
+    api_h_limite_scritture($ctx, 'api_pills_write');
+    if (!td_pill_elimina((int)$ctx['utente']['id'], (int)$ctx['id'])) api_errore('not_found', 'Therapy not found');
+    api_ok();
+}
+
+function api_h_pillole_calendario(array $ctx): void {
+    api_h_pillole_serve();
+    api_h_limite_scritture($ctx, 'api_pills_write');
+    $e = pl_pillole_calendario((int)$ctx['utente']['id'], (int)$ctx['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+
+function api_h_pillole_storia(array $ctx): void {
+    api_h_pillole_serve();
+    $e = pl_pillole_storia((int)$ctx['utente']['id'], (int)$ctx['id'], api_h_param('month'), api_h_param('days'));
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+
+function api_h_pillole_presa(array $ctx): void {
+    api_h_pillole_serve();
+    api_h_limite_scritture($ctx, 'api_pills_write');
+    $e = pl_pillole_spunta((int)$ctx['utente']['id'], (int)$ctx['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+
+function api_h_pillole_tutte(array $ctx): void {
+    api_h_pillole_serve();
+    api_h_limite_scritture($ctx, 'api_pills_write');
+    $e = pl_pillole_tutte((int)$ctx['utente']['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+
 /* ---------------- L'elenco delle rotte ---------------- */
 
 $tokenECookie = ['token', 'cookie'];
@@ -482,4 +565,13 @@ api_v1_esegui([
     ['POST',   'habits/categories', 'api_h_abitudini_cat_crea', ['accetta' => $tokenECookie]],
     ['PATCH',  'habits/categories/{id}', 'api_h_abitudini_cat_modifica', ['accetta' => $tokenECookie]],
     ['DELETE', 'habits/categories/{id}', 'api_h_abitudini_cat_togli', ['accetta' => $tokenECookie]],
+    ['GET',    'pills',             'api_h_pillole_giorno',   ['accetta' => $tokenECookie]],
+    ['GET',    'pills/plans',       'api_h_pillole_terapie',  ['accetta' => $tokenECookie]],
+    ['POST',   'pills/plans',       'api_h_pillole_crea',     ['accetta' => $tokenECookie]],
+    ['PATCH',  'pills/plans/{id}',  'api_h_pillole_modifica', ['accetta' => $tokenECookie]],
+    ['DELETE', 'pills/plans/{id}',  'api_h_pillole_togli',    ['accetta' => $tokenECookie]],
+    ['POST',   'pills/plans/{id}/day', 'api_h_pillole_calendario', ['accetta' => $tokenECookie]],
+    ['GET',    'pills/plans/{id}/history', 'api_h_pillole_storia', ['accetta' => $tokenECookie]],
+    ['PATCH',  'pills/doses/{id}',  'api_h_pillole_presa',    ['accetta' => $tokenECookie]],
+    ['POST',   'pills/doses/bulk',  'api_h_pillole_tutte',    ['accetta' => $tokenECookie]],
 ]);
