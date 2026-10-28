@@ -23,15 +23,10 @@ if (!$standout_utente) { return; } // index.php dovrebbe già garantirlo, ma per
 
 $nd_notifiche = standout_social_attivo() ? fr_conta_notifiche(fr_conn(), (int)$standout_utente['id']) : 0;
 
-/* Il colore del riquadro Voti e' quello scelto dall'utente nella pagina Voti
-   (university_settings.accent_color). #0A84FF e' il valore di partenza della colonna,
-   cioe' "mai scelto": in quel caso resta il verde acqua di sempre. */
-$ho_colore_voti = '#0FB5AE';
-try {
-    $ho_r = sec_one("SELECT accent_color FROM university_settings WHERE user_id = ?", [(int)$standout_utente['id']], 'i');
-    $ho_c = $ho_r ? sec_color($ho_r['accent_color'] ?? '', '') : '';
-    if ($ho_c !== '' && $ho_c !== '#0A84FF') $ho_colore_voti = $ho_c;
-} catch (Throwable $e) { /* senza la tabella impostazioni resta il colore di sempre */ }
+/* Il colore della scorciatoia Voti e' quello scelto dall'utente nella pagina Voti
+   (lib/colore_voti.php); se non ne ha scelto uno resta il verde acqua di sempre. */
+require_once __DIR__ . '/../../lib/colore_voti.php';
+$ho_colore_voti = standout_colore_voti() ?: '#0FB5AE';
 
 /* Le pagine del sito a un tocco. Etichette dal dizionario della barra
    laterale: un nome solo per pagina in tutta l'app. */

@@ -313,7 +313,7 @@
                         <div class="sb-pick-msg" id="sbFcMsg" data-vuoto="<?php echo sec_h(t('sidebar.ins_nessuna')); ?>" hidden></div>
                     </div>
                 </li>
-                <li><a href="<?php echo PWA_BASE; ?>exams/voti.php" id="link-voti" style="--sb-c:#0FB5AE"><span class="sb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="5.6"/><path d="m8.6 13.6-1.4 7 4.8-2.4 4.8 2.4-1.4-7"/><path d="m10 9.1 1.4 1.4 2.8-2.9"/></svg></span><span><?php te('sidebar.voti'); ?></span></a></li>
+                <li><a href="<?php echo PWA_BASE; ?>exams/voti.php" id="link-voti" style="--sb-c:<?php require_once __DIR__ . '/../../lib/colore_voti.php'; echo sec_h(standout_colore_voti() ?: '#0FB5AE'); ?>"><span class="sb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="5.6"/><path d="m8.6 13.6-1.4 7 4.8-2.4 4.8 2.4-1.4-7"/><path d="m10 9.1 1.4 1.4 2.8-2.9"/></svg></span><span><?php te('sidebar.voti'); ?></span></a></li>
             </ul>
 
             <hr class="sidebar-divider">
