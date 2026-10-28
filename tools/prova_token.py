@@ -9,6 +9,9 @@ Fa, nell'ordine, quello che fara' l'app:
   5. il vecchio refresh token NON deve piu' funzionare (e chiude la sessione)
   6. di nuovo login, poi logout             -> l'access token smette di funzionare
   7. (con --tasks) crea, legge, spunta e toglie un'attivita' di prova: /api/v1/tasks
+  8. (con --all) lo stesso per un evento del planner: /api/v1/events
+  9. (con --all) un'abitudine di prova col suo check-in: /api/v1/habits
+ 10. (con --all) un articolo e una categoria del to buy: /api/v1/shopping
 
 Serve a due cose: provare il server locale prima del push, e provare il sito vero
 dopo il deploy (soprattutto che Apache lasci passare l'intestazione Authorization).
@@ -20,9 +23,14 @@ Anche i token non vengono mai stampati per intero.
     STANDOUT_URL=https://nisama.altervista.org STANDOUT_USER=nome python3 tools/prova_token.py
     python3 tools/prova_token.py --url http://127.0.0.1:8099 --user ana --xtoken
     python3 tools/prova_token.py --url https://nisama.altervista.org --user nome --tasks
+    python3 tools/prova_token.py --url https://nisama.altervista.org --user nome --all
 
 Con --tasks scrive nel tuo account UNA attivita' chiamata «prova API (si cancella da sola)»
-e la toglie alla fine, anche se qualcosa va storto a meta'.
+e la toglie alla fine, anche se qualcosa va storto a meta'. Con --all fa lo stesso per
+un evento, un'abitudine (col suo check-in) e un articolo con la sua categoria: ognuno si
+chiama «prova API (si cancella da sola)» e si toglie alla fine, anche se qualcosa va storto.
+Gli articoli di prova non vengono mai spuntati: spuntarli li metterebbe nei suggerimenti
+del to buy, e dall'API non si possono togliere di li'.
 
 Usa solo la libreria standard di Python: niente da installare.
 """
@@ -102,12 +110,119 @@ def prova_attivita(base, utente, password):
         chiama(base, 'POST', 'auth/logout', intestazioni=h)
 
 
+NOME_PROVA = 'prova API (si cancella da sola)'
+
+
+def accesso_prova(base, utente, password, etichetta):
+    """Login per una prova. Ritorna le intestazioni col token, o None (e dice perche')."""
+    s, j, _ = chiama(base, 'POST', 'auth/login', {'identifier': utente, 'password': password, 'device_name': 'prova_token.py (%s)' % etichetta})
+    if not esito(s == 200 and j and j.get('ok'), 'login per la prova: ' + etichetta):
+        return None
+    if j.get('terms_required'):
+        print('  NOTA    Accetta prima le condizioni dal sito: senza, queste rotte rispondono 403.')
+        return None
+    return bearer(j['access_token'])
+
+
+def prova_eventi(base, utente, password):
+    """Il giro del planner: crea, legge, spunta, toglie. Toglie sempre quello di prova."""
+    print('\n8) Planner (/api/v1/events)')
+    h = accesso_prova(base, utente, password, 'eventi')
+    if not h:
+        return
+    nuovo = None
+    try:
+        s, c, _ = chiama(base, 'POST', 'events', {'title': NOME_PROVA, 'date': '2099-01-01', 'start': '10:00'}, h)
+        if not esito(s == 201 and c and c.get('ok'), 'POST /events crea (201)', f'stato {s}, {c}'):
+            return
+        nuovo = c['event']['id']
+        esito(c['event']['title'] == NOME_PROVA and c['event']['date'] == '2099-01-01', 'la risposta ha titolo e data')
+        s, e, _ = chiama(base, 'GET', 'events?from=2099-01-01&to=2099-01-02', intestazioni=h)
+        esito(s == 200 and any(x['id'] == nuovo for x in e.get('events', [])), 'GET /events lo mostra nel suo giorno', f'stato {s}')
+        s, p, _ = chiama(base, 'PATCH', f'events/{nuovo}', {'done': True}, h)
+        esito(s == 200 and p['event']['done'] is True, 'PATCH {done:true} lo spunta', f'stato {s}, {p}')
+        s, v, _ = chiama(base, 'POST', 'events', {'title': ''}, h)
+        esito(s == 422 and v.get('code') == 'validation', 'un titolo vuoto e\' rifiutato (422)', f'stato {s}')
+        s, x, _ = chiama(base, 'GET', 'events?from=2099-01-01&to=2099-01-02')
+        esito(s == 401, 'senza token /events risponde 401', f'stato {s}')
+    finally:
+        if nuovo is not None:
+            s, d, _ = chiama(base, 'DELETE', f'events/{nuovo}', intestazioni=h)
+            esito(s == 200, 'DELETE toglie l\'evento di prova', f'stato {s}')
+        chiama(base, 'POST', 'auth/logout', intestazioni=h)
+
+
+def prova_abitudini(base, utente, password):
+    """Il giro delle abitudini: crea, check-in, annulla, toglie. Toglierla toglie anche il suo check-in."""
+    print('\n9) Abitudini (/api/v1/habits)')
+    h = accesso_prova(base, utente, password, 'abitudini')
+    if not h:
+        return
+    nuovo = None
+    try:
+        s, c, _ = chiama(base, 'POST', 'habits', {'name': NOME_PROVA}, h)
+        if not esito(s == 201 and c and c.get('ok'), 'POST /habits crea (201)', f'stato {s}, {c}'):
+            return
+        nuovo = c['habit']['id']
+        s, e, _ = chiama(base, 'GET', 'habits', intestazioni=h)
+        esito(s == 200 and any(x['id'] == nuovo for x in e.get('habits', [])), 'GET /habits la mostra', f'stato {s}')
+        s, k, _ = chiama(base, 'POST', f'habits/{nuovo}/log', {}, h)
+        esito(s == 200 and k['checkin']['status'] == 'done' and k['checkin']['streak'] == 1, 'POST /log: fatto oggi, serie 1', f'stato {s}, {k}')
+        s, k, _ = chiama(base, 'POST', f'habits/{nuovo}/log', {'mode': 'toggle'}, h)
+        esito(s == 200 and k['checkin']['removed'] is True, 'di nuovo: il check-in si annulla', f'stato {s}, {k}')
+        s, v, _ = chiama(base, 'POST', f'habits/{nuovo}/log', {'date': '2099-01-01'}, h)
+        esito(s == 422 and v.get('field') == 'date', 'un giorno futuro e\' rifiutato (422)', f'stato {s}')
+        s, x, _ = chiama(base, 'GET', 'habits')
+        esito(s == 401, 'senza token /habits risponde 401', f'stato {s}')
+    finally:
+        if nuovo is not None:
+            s, d, _ = chiama(base, 'DELETE', f'habits/{nuovo}', intestazioni=h)
+            esito(s == 200, 'DELETE toglie l\'abitudine di prova', f'stato {s}')
+        chiama(base, 'POST', 'auth/logout', intestazioni=h)
+
+
+def prova_acquisti(base, utente, password):
+    """Il giro del to buy: una categoria e un articolo. Non si spunta (finirebbe nei suggerimenti)."""
+    print('\n10) To buy (/api/v1/shopping)')
+    h = accesso_prova(base, utente, password, 'to buy')
+    if not h:
+        return
+    cat = art = None
+    try:
+        s, c, _ = chiama(base, 'POST', 'shopping/categories', {'name': NOME_PROVA, 'color': '#336699'}, h)
+        if not esito(s == 201 and c and c.get('ok'), 'POST /shopping/categories crea (201)', f'stato {s}, {c}'):
+            return
+        cat = c['category']['id']
+        s, c, _ = chiama(base, 'POST', 'shopping', {'title': NOME_PROVA, 'category_id': cat, 'price_cents': 199, 'priority': 1}, h)
+        if not esito(s == 201 and c and c.get('ok'), 'POST /shopping crea l\'articolo (201)', f'stato {s}, {c}'):
+            return
+        art = c['item']['id']
+        esito(c['item']['category_id'] == cat and c['item']['price_cents'] == 199, 'la risposta ha categoria e prezzo in centesimi')
+        s, e, _ = chiama(base, 'GET', 'shopping', intestazioni=h)
+        esito(s == 200 and any(x['id'] == art for x in e.get('items', [])) and any(x['id'] == cat for x in e.get('categories', [])), 'GET /shopping mostra articolo e categoria', f'stato {s}')
+        s, p, _ = chiama(base, 'PATCH', f'shopping/{art}', {'priority': 2}, h)
+        esito(s == 200 and p['item']['priority'] == 2, 'PATCH cambia solo la priorita\'', f'stato {s}, {p}')
+        s, v, _ = chiama(base, 'POST', 'shopping', {'title': 'x', 'url': 'javascript:alert(1)'}, h)
+        esito(s == 422 and v.get('field') == 'url', 'un indirizzo che non e\' http/https e\' rifiutato (422)', f'stato {s}')
+        s, x, _ = chiama(base, 'GET', 'shopping')
+        esito(s == 401, 'senza token /shopping risponde 401', f'stato {s}')
+    finally:
+        if art is not None:
+            s, d, _ = chiama(base, 'DELETE', f'shopping/{art}', intestazioni=h)
+            esito(s == 200, 'DELETE toglie l\'articolo di prova', f'stato {s}')
+        if cat is not None:
+            s, d, _ = chiama(base, 'DELETE', f'shopping/categories/{cat}', intestazioni=h)
+            esito(s == 200, 'DELETE toglie la categoria di prova', f'stato {s}')
+        chiama(base, 'POST', 'auth/logout', intestazioni=h)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Prova l'accesso con token di Standout.")
     ap.add_argument('--url', default=os.environ.get('STANDOUT_URL', ''), help='indirizzo del sito, senza /api/v1')
     ap.add_argument('--user', default=os.environ.get('STANDOUT_USER', ''), help='nome utente o email')
     ap.add_argument('--xtoken', action='store_true', help="prova anche l'intestazione X-Standout-Token")
     ap.add_argument('--tasks', action='store_true', help="prova anche /api/v1/tasks (crea e toglie un'attivita' di prova)")
+    ap.add_argument('--all', action='store_true', help="prova anche attivita', planner, abitudini e to buy (ognuno con una cosa di prova che si toglie da sola)")
     a = ap.parse_args()
 
     if not a.url:
@@ -179,8 +294,12 @@ def main():
     s, _, _ = chiama(base, 'GET', 'me', intestazioni=bearer(acc3))
     esito(s == 401, "dopo il logout l'access token non funziona piu'", f'stato {s}')
 
-    if a.tasks:
+    if a.tasks or a.all:
         prova_attivita(base, utente, password)
+    if a.all:
+        prova_eventi(base, utente, password)
+        prova_abitudini(base, utente, password)
+        prova_acquisti(base, utente, password)
 
     print('\nRisultato: %d ok, %d falliti' % (verdi, rossi))
     sys.exit(1 if rossi else 0)
