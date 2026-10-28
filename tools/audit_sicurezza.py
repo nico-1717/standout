@@ -193,12 +193,12 @@ def analizza(p):
         include_da_altri = bool(re.search(r'^public/(?:partials)/', p))
         if not usa_auth and not include_da_altri:
             segnala('ALTA', 'Nessun controllo di accesso (non include auth_check/auth_core)', 1, 'verificare se la pagina e\' pubblica per scelta')
-        elif usa_auth and re.search(r'auth_core\.php', nudo) and not re.search(r'auth_check(?:_api)?\.php', nudo) and not re.search(r'standout_utente_corrente\(|fr_utente_corrente\(|\$_SESSION\[\s*[\'"]user_id', nudo):
+        elif usa_auth and re.search(r'auth_core\.php', nudo) and not re.search(r'auth_check(?:_api)?\.php', nudo) and not re.search(r'standout_utente_corrente\(|fr_utente_corrente\(|api_v1_esegui\(|\$_SESSION\[\s*[\'"]user_id', nudo):
             segnala('MEDIA', 'Include solo auth_core.php e non controlla mai chi e\' l\'utente', 1, '')
 
     # ---- 5. SCRITTURE ----
     scrive = bool(re.search(r'\b(?:INSERT\s+(?:IGNORE\s+)?INTO|UPDATE\s+`?\w+`?\s+SET|DELETE\s+FROM|REPLACE\s+INTO)\b', nudo, re.I))
-    ha_guardia = bool(re.search(r'sec_guard_write\(|sec_require_csrf\(|standout_csrf_verifica\(|sec_csrf_ok\(', nudo))
+    ha_guardia = bool(re.search(r'sec_guard_write\(|sec_require_csrf\(|standout_csrf_verifica\(|sec_csrf_ok\(|api_v1_esegui\(', nudo))
     if scrive and not ha_guardia and not e_libreria(p):
         segnala('ALTA', 'Scrive nel database senza CSRF (sec_guard_write/sec_require_csrf)', 1, 'cercare chi chiama questo file')
     # scritture raggiungibili con GET: il controllo CSRF salta i GET
@@ -211,7 +211,7 @@ def analizza(p):
     # ---- 6. UPDATE / DELETE SENZA user_id ----
     for m in re.finditer(r'(?:sec_q|mysqli_query|mysqli_prepare)\s*\(\s*(?:\$\w+\s*,\s*)?("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')', nudo, re.S):
         q = re.sub(r'\s+', ' ', m.group(1)).strip('"\'')
-        if re.match(r'\s*(?:UPDATE|DELETE)\b', q, re.I) and not re.search(r'user_id|owner_id|u\.id|\bfrom_user_id\b|\bto_user_id\b|\buser_id_a\b|login_attempts|rate_limits|remember_tokens|WHERE\s+id\s*=\s*\?\s*$', q, re.I):
+        if re.match(r'\s*(?:UPDATE|DELETE)\b', q, re.I) and not re.search(r'user_id|owner_id|u\.id|\bfrom_user_id\b|\bto_user_id\b|\buser_id_a\b|login_attempts|rate_limits|remember_tokens|FROM api_sessions WHERE revoked_at IS NOT NULL OR|WHERE\s+id\s*=\s*\?\s*$', q, re.I):
             segnala('MEDIA', 'UPDATE/DELETE senza user_id nella WHERE (serve un controllo di proprieta\' prima)', m.start(), q[:110])
 
     # ---- 7. FILE CARICATI ----
