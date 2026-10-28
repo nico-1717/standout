@@ -28,7 +28,22 @@ if (!defined('LOGIN_MAX_TENTATIVI'))       define('LOGIN_MAX_TENTATIVI', 6);
 if (!defined('LOGIN_BLOCCO_MINUTI'))       define('LOGIN_BLOCCO_MINUTI', 15);
 
 // ---- Sessione sicura (una sola volta per richiesta) ----
-if (session_status() === PHP_SESSION_NONE) {
+/* Una richiesta con un TOKEN (l'app) non apre la sessione PHP: session_start()
+   manderebbe un cookie e renderebbe l'API "a stato" senza che nessuno l'abbia
+   deciso, e il cookie non deve poter fare da ripiego a un token sbagliato.
+   La decisione si prende qui, PRIMA di avviare la sessione, guardando solo se
+   l'intestazione c'e' (standout_token_intestazione, piu' sotto).
+
+   Stessa cosa per una chiamata a /api/v1/ che non porta ancora nessun cookie
+   (il login dell'app, per esempio: non ha un token e non ha una sessione):
+   senza questa riga la risposta riceverebbe un cookie di sessione che l'app non
+   usa. Se invece il cookie c'e' (il sito che chiama la sua stessa API dal
+   browser) la sessione parte come sempre, e il CSRF resta obbligatorio.
+   STANDOUT_API la definisce public/api/v1/index.php prima di tutto il resto;
+   per le pagine del sito non cambia niente. */
+if (session_status() === PHP_SESSION_NONE
+    && standout_token_intestazione() === null
+    && !(defined('STANDOUT_API') && empty($_COOKIE['nisama_sess']) && empty($_COOKIE['nisama_remember']))) {
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
 
@@ -276,17 +291,113 @@ function standout_effettua_logout(): void {
     session_destroy();
 }
 
+/* ============ Accesso con token (l'app) ============ */
+
+/**
+ * Il token mandato dal client, oppure null se la richiesta non ne porta.
+ *
+ * DOVE SI CERCA. Su un hosting condiviso Apache spesso NON passa a PHP
+ * l'intestazione Authorization (il .htaccess della radice prova a rimetterla in
+ * HTTP_AUTHORIZATION). A seconda di come gira PHP la si puo' trovare in tre
+ * posti: HTTP_AUTHORIZATION, REDIRECT_HTTP_AUTHORIZATION (dopo una riscrittura)
+ * o getallheaders(). Se non c'e' in nessuno, esiste un'intestazione di ripiego
+ * che nessun server tocca: X-Standout-Token.
+ *
+ * Conta solo lo schema «Bearer»: un «Authorization: Basic …» (per esempio una
+ * cartella protetta da password del server) non e' un token nostro e non cambia
+ * il modo di entrare del sito.
+ * Mai dall'indirizzo (?token=): finirebbe nei log del server.
+ */
+function standout_token_intestazione(): ?string {
+    static $letto = false;
+    static $token = null;
+    if ($letto) return $token;
+    $letto = true;
+
+    $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+    if ($auth === '' && function_exists('getallheaders')) {
+        foreach ((array)getallheaders() as $nome => $valore) {
+            if (strcasecmp((string)$nome, 'Authorization') === 0) { $auth = $valore; break; }
+        }
+    }
+    if (is_string($auth) && preg_match('/^Bearer[ \t]+(\S+)[ \t]*$/i', $auth, $m)) {
+        return $token = $m[1];
+    }
+    $alt = $_SERVER['HTTP_X_STANDOUT_TOKEN'] ?? '';
+    if (is_string($alt) && trim($alt) !== '') {
+        return $token = trim($alt);
+    }
+    return $token = null;
+}
+
+/**
+ * Vero SOLO se questa richiesta e' stata autenticata da un token di accesso
+ * VALIDO. E' la condizione per saltare il controllo CSRF (sec_require_csrf):
+ * il CSRF difende le richieste che il browser autentica DA SOLO con il cookie;
+ * un token invece il browser non lo aggiunge mai a una richiesta di un altro
+ * sito. Un'intestazione Bearer finta o scaduta non basta: in quel caso qui
+ * esce false e il CSRF resta obbligatorio.
+ * Senza intestazione non si fa nessun lavoro (e' il caso di ogni richiesta del
+ * sito): si risponde false subito.
+ */
+function standout_accesso_via_token(): bool {
+    if (standout_token_intestazione() === null) return false;
+    standout_utente_corrente();
+    return !empty($GLOBALS['STANDOUT_SESSIONE_API']);
+}
+
+/** L'id della riga api_sessions (il «dispositivo») di questa richiesta, 0 se non e' una richiesta con token valido. */
+function standout_sessione_api_corrente(): int {
+    standout_accesso_via_token();
+    return (int)($GLOBALS['STANDOUT_SESSIONE_API'] ?? 0);
+}
+
+/** Perche' il token e' stato rifiutato: 'invalid_token' | 'token_expired', o null se non c'e' stato nessun rifiuto. */
+function standout_errore_token(): ?string {
+    if (standout_token_intestazione() === null) return null;
+    standout_utente_corrente();
+    return $GLOBALS['STANDOUT_ERRORE_TOKEN'] ?? null;
+}
+
 /* ============ Utente corrente ============ */
 
 /**
  * Ritorna ['id' => ..., 'username' => ..., 'email' => ...] se loggato,
- * altrimenti null. Prova prima la sessione, poi il cookie "ricordami".
+ * altrimenti null. Prova prima il TOKEN (intestazione Authorization: Bearer),
+ * poi la sessione, poi il cookie "ricordami".
+ *
+ * E' l'UNICO posto che risponde alla domanda «chi e' l'utente di questa
+ * richiesta» (PROGETTO §7.3): se i controlli diventassero due, prima o poi
+ * divergerebbero. Per questo ogni endpoint, vecchio e nuovo, funziona con
+ * entrambi i modi senza essere riscritto.
  */
 function standout_utente_corrente(): ?array {
     static $cache = null;
     static $verificato = false;
     if ($verificato) return $cache;
     $verificato = true;
+
+    /* 1. TOKEN. Se la richiesta ne porta uno, decide solo lui: se non e' valido
+       NON si ripiega sul cookie (la sessione non e' nemmeno partita, vedi in
+       cima a questo file) e la risposta e' «non autenticato». Le tabelle del
+       token si caricano solo qui: il sito normale non le tocca. */
+    $tokenRicevuto = standout_token_intestazione();
+    if ($tokenRicevuto !== null) {
+        require_once __DIR__ . '/api_sessioni.php';
+        $esito = api_sessione_da_access_token($tokenRicevuto);
+        if ($esito['ok']) {
+            $GLOBALS['STANDOUT_SESSIONE_API'] = $esito['sessione_id'];
+            /* Parecchio codice del sito legge $_SESSION['user_id'] (lingua, ruoli,
+               registro di sicurezza, barra del pomodoro). Per non riscriverlo si
+               riempie $_SESSION SOLO IN MEMORIA, per questa richiesta: la sessione
+               PHP non e' avviata, quindi non viene salvata da nessuna parte e non
+               parte nessun cookie. */
+            $_SESSION = ['user_id' => $esito['utente']['id']];
+            return $cache = $esito['utente'];
+        }
+        $GLOBALS['STANDOUT_ERRORE_TOKEN'] = $esito['codice'];
+        return $cache = null;
+    }
 
     $conn = standout_db();
 

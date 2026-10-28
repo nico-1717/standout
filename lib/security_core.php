@@ -449,6 +449,10 @@ function sec_safe_filename(string $ext): string {
 
 function sec_csrf_token(): string {
     if (session_status() === PHP_SESSION_NONE) {
+        /* Richiesta con token (l'app): la sessione non e' partita apposta (vedi
+           auth_core.php) e qui non deve partire per sbaglio, o l'API diventerebbe
+           "a stato" e manderebbe un cookie. Un token CSRF non ha senso senza sessione. */
+        if (function_exists('standout_token_intestazione') && standout_token_intestazione() !== null) return '';
         // auth_core.php avvia la sessione; qui e' solo una rete di sicurezza
         session_start();
     }
@@ -472,6 +476,18 @@ function sec_csrf_ok(?string $token): bool {
 function sec_require_csrf(): void {
     $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
     if ($method === 'GET' || $method === 'HEAD' || $method === 'OPTIONS') return;
+
+    /* Il CSRF difende le richieste che il browser autentica DA SOLO, col cookie:
+       un altro sito puo' far partire una richiesta e il browser ci attacca il
+       cookie. Un token di accesso invece lo manda solo chi lo possiede, e un
+       browser non lo aggiunge mai a una richiesta partita da un altro sito.
+       Quindi una richiesta autenticata da un token VALIDO non ha bisogno del
+       token CSRF (l'app non ha una sessione che lo contenga).
+       Occhio a cosa NON basta: un'intestazione Authorization qualunque. Conta
+       solo se standout_accesso_via_token() dice che il token e' stato verificato
+       nel database in questa richiesta; con un Bearer finto o scaduto la risposta
+       e' false e si prosegue con tutti i controlli di sempre. */
+    if (function_exists('standout_accesso_via_token') && standout_accesso_via_token()) return;
 
     $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
     $origin = $_SERVER['HTTP_ORIGIN'] ?? $_SERVER['HTTP_REFERER'] ?? '';
