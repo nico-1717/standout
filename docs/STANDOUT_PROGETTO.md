@@ -1508,7 +1508,7 @@ Ogni passo ha un criterio di "fatto": senza, si va avanti a metà.
 | 6 | **Archivio R2 e trasloco dei file** (§9) | nessun file utente più sul disco del server |
 | 7 | **Accesso a doppio binario cookie/token** (§7.3) | un client di prova entra con il token e legge i propri dati |
 | 8 | **PWA minima** (§14.1) | l'app si installa e si apre senza barra del browser |
-| 9 | **Estrazione dell'API `/api/v1/`** (§5) | planner, attività e abitudini hanno endpoint JSON separati dalle pagine |
+| 9 | **Estrazione dell'API `/api/v1/`** (§5) | planner, attività e abitudini hanno endpoint JSON separati dalle pagine. **Stato 28/10/2026:** attività (to do) fatte: `/api/v1/tasks`, logica in `lib/todo_core.php`; mancano to buy, planner, abitudini |
 | 10 | **CSS unificato a uno stile solo** (§13.1) | `base.css` esiste e almeno tre pagine ci si appoggiano |
 | 11 | **Lingua in JSON** (§12) | il sito si vede tutto in inglese cambiando un'impostazione |
 | 12 | **App React Native** | l'app fa quello che fa il sito, riusando l'API |
