@@ -35,6 +35,16 @@
      POST   /api/v1/events                crea (title e date obbligatori; ripetizione, invitati, luogo...)
      PATCH  /api/v1/events/{id}           cambia SOLO i campi inviati (anche done); edit_mode+original_date per una sola occorrenza
      DELETE /api/v1/events/{id}?scope=one|series|routine&original_date=
+
+   Abitudini, passo 9 fetta 3 — la logica sta in lib/habits_core.php e lib/habits_api.php:
+     GET    /api/v1/habits                le abitudini (iniziate e future), con la serie migliore
+     GET    /api/v1/habits/logs?days=N    i check-in degli ultimi N giorni (max 420)
+     GET    /api/v1/habits/{id}           un'abitudine
+     POST   /api/v1/habits                crea (name obbligatorio)
+     PATCH  /api/v1/habits/{id}           cambia SOLO i campi inviati (anche archived: true|false)
+     DELETE /api/v1/habits/{id}           elimina l'abitudine e i suoi check-in
+     POST   /api/v1/habits/{id}/log       check-in {date?, mode?, value?, note?} -> stato, serie, traguardi
+     POST   /api/v1/habits/{id}/note      nota e umore di un giorno {date?, note?, mood?}
    ===================================================================== */
 
 /* Dice a auth_core.php che questa e' l'API: niente sessione PHP (e niente cookie
@@ -46,6 +56,7 @@ require_once __DIR__ . '/../../../lib/auth_core.php';
 require_once __DIR__ . '/../../../lib/api_v1.php';
 require_once __DIR__ . '/../../../lib/todo_core.php';
 require_once __DIR__ . '/../../../lib/planner/planner_lib.php';
+require_once __DIR__ . '/../../../lib/habits_api.php';
 
 /* ---------------- Accesso ---------------- */
 
@@ -122,9 +133,9 @@ function api_h_tasks_limite(array $ctx): void {
     api_h_limite_scritture($ctx, 'api_tasks_write');
 }
 
-/** 400 scritture al minuto per utente e per area (come le pagine). */
-function api_h_limite_scritture(array $ctx, string $secchio): void {
-    if (!sec_rate_limit($secchio, (int)$ctx['utente']['id'], 400, 60)) api_errore('rate_limited');
+/** Scritture al minuto per utente e per area: lo stesso tetto della pagina (400, le abitudini 600). */
+function api_h_limite_scritture(array $ctx, string $secchio, int $massimo = 400): void {
+    if (!sec_rate_limit($secchio, (int)$ctx['utente']['id'], $massimo, 60)) api_errore('rate_limited');
 }
 
 /** Un errore di td_api_* diventa la risposta dell'API (con il nome del campo sbagliato). */
@@ -218,6 +229,65 @@ function api_h_eventi_togli(array $ctx): void {
     api_ok();
 }
 
+/* ---------------- Abitudini ---------------- */
+
+/** Un errore di hb_api_* diventa la risposta dell'API (con il nome del campo sbagliato). */
+function api_h_abitudini_errore(array $esito): void {
+    if (!isset($esito['errore'])) return;
+    $e = $esito['errore'];
+    api_errore($e['codice'], $e['testo'], null, ['field' => $e['campo']]);
+}
+
+function api_h_abitudini_elenco(array $ctx): void {
+    api_ok(hb_api_elenco((int)$ctx['utente']['id']));
+}
+
+function api_h_abitudini_log(array $ctx): void {
+    $g = isset($_GET['days']) ? sec_str($_GET['days'], 6) : '30';
+    if (!preg_match('/^[0-9]{1,4}$/', $g) || (int)$g < 1) api_errore('validation', 'days must be a number from 1 to ' . HB_HISTORY_DAYS, null, ['field' => 'days']);
+    api_ok(hb_api_log((int)$ctx['utente']['id'], (int)$g));
+}
+
+function api_h_abitudine_una(array $ctx): void {
+    $h = hb_api_una((int)$ctx['utente']['id'], (int)$ctx['id']);
+    if (!$h) api_errore('not_found', 'Habit not found');
+    api_ok(['habit' => $h]);
+}
+
+function api_h_abitudini_crea(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_habits_write', 600);
+    $esito = hb_api_crea((int)$ctx['utente']['id'], api_corpo());
+    api_h_abitudini_errore($esito);
+    api_ok(['habit' => $esito['habit']], 201);
+}
+
+function api_h_abitudini_modifica(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_habits_write', 600);
+    $esito = hb_api_modifica((int)$ctx['utente']['id'], (int)$ctx['id'], api_corpo());
+    api_h_abitudini_errore($esito);
+    api_ok(['habit' => $esito['habit']]);
+}
+
+function api_h_abitudini_togli(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_habits_write', 600);
+    if (!hb_abitudine_elimina((int)$ctx['utente']['id'], (int)$ctx['id'])) api_errore('not_found', 'Habit not found');
+    api_ok();
+}
+
+function api_h_abitudini_checkin(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_habits_write', 600);
+    $esito = hb_api_checkin((int)$ctx['utente']['id'], (int)$ctx['id'], api_corpo());
+    api_h_abitudini_errore($esito);
+    api_ok($esito);
+}
+
+function api_h_abitudini_nota(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_habits_write', 600);
+    $esito = hb_api_nota((int)$ctx['utente']['id'], (int)$ctx['id'], api_corpo());
+    api_h_abitudini_errore($esito);
+    api_ok($esito);
+}
+
 /* ---------------- L'elenco delle rotte ---------------- */
 
 $tokenECookie = ['token', 'cookie'];
@@ -240,4 +310,12 @@ api_v1_esegui([
     ['POST',   'events',            'api_h_eventi_crea',      ['accetta' => $tokenECookie]],
     ['PATCH',  'events/{id}',       'api_h_eventi_modifica',  ['accetta' => $tokenECookie]],
     ['DELETE', 'events/{id}',       'api_h_eventi_togli',     ['accetta' => $tokenECookie]],
+    ['GET',    'habits',            'api_h_abitudini_elenco', ['accetta' => $tokenECookie]],
+    ['GET',    'habits/logs',       'api_h_abitudini_log',    ['accetta' => $tokenECookie]],
+    ['GET',    'habits/{id}',       'api_h_abitudine_una',    ['accetta' => $tokenECookie]],
+    ['POST',   'habits',            'api_h_abitudini_crea',   ['accetta' => $tokenECookie]],
+    ['PATCH',  'habits/{id}',       'api_h_abitudini_modifica', ['accetta' => $tokenECookie]],
+    ['DELETE', 'habits/{id}',       'api_h_abitudini_togli',  ['accetta' => $tokenECookie]],
+    ['POST',   'habits/{id}/log',   'api_h_abitudini_checkin', ['accetta' => $tokenECookie]],
+    ['POST',   'habits/{id}/note',  'api_h_abitudini_nota',   ['accetta' => $tokenECookie]],
 ]);
