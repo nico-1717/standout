@@ -4557,7 +4557,14 @@
     "titolo": "Stile",
     "standard": "Standard",
     "paper": "Carta",
-    "nota": "Per Diario, Planner, To do e To study"
+    "nota": "Per Diario, Planner, To do e To study",
+    "colore": "Colore",
+    "colore_blue": "Blu",
+    "colore_indigo": "Indaco",
+    "colore_violet": "Viola",
+    "colore_teal": "Verde acqua",
+    "colore_coral": "Corallo",
+    "colore_rose": "Rosa"
   },
   "api": {
     "categoria_non_trovata": "Categoria non trovata.",

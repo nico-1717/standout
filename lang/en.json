@@ -4557,7 +4557,14 @@
     "titolo": "Style",
     "standard": "Standard",
     "paper": "Paper",
-    "nota": "For Journal, Planner, To do and To study"
+    "nota": "For Journal, Planner, To do and To study",
+    "colore": "Color",
+    "colore_blue": "Blue",
+    "colore_indigo": "Indigo",
+    "colore_violet": "Violet",
+    "colore_teal": "Teal",
+    "colore_coral": "Coral",
+    "colore_rose": "Rose"
   },
   "api": {
     "categoria_non_trovata": "Category not found.",

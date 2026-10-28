@@ -1682,6 +1682,7 @@ CREATE TABLE `users` (
   `email_verified_at` datetime DEFAULT NULL COMMENT 'Quando ha confermato l''email dal link ricevuto (NULL = non ancora)',
   `lang` varchar(5) DEFAULT NULL,
   `ui_style` varchar(10) DEFAULT NULL COMMENT 'Stile delle pagine planner/diario/to do/to study: standard | paper (NULL = standard)',
+  `ui_accent` varchar(10) DEFAULT NULL COMMENT 'Colore del sito: indigo | violet | teal | coral | rose (NULL = blu)',
   `password_hash` varchar(255) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `last_login_at` datetime DEFAULT NULL,

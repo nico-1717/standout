@@ -37,7 +37,7 @@ $fw_da_verificare = !ev_verificata($fw_uid);
     --fnw-glass:rgba(252,252,254,.86); --fnw-solid:#FFFFFF; --fnw-bg2:#F2F2F7;
     --fnw-text:#1C1C1E; --fnw-t2:#8A8A8E; --fnw-t3:#AEAEB2;
     --fnw-line:rgba(60,60,67,.13);
-    --fnw-blue:#007AFF; --fnw-green:#34C759; --fnw-red:#FF3B30;
+    --fnw-blue:var(--blue, #007AFF); --fnw-green:#34C759; --fnw-red:#FF3B30;
     --fnw-shadow:0 2px 6px rgba(0,0,0,.07), 0 24px 60px -14px rgba(0,0,0,.3);
     --fnw-spring:cubic-bezier(.32,.72,0,1);
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,"Segoe UI",Roboto,sans-serif;
@@ -48,7 +48,7 @@ $fw_da_verificare = !ev_verificata($fw_uid);
         --fnw-glass:rgba(30,30,32,.88); --fnw-solid:#1C1C1E; --fnw-bg2:#2C2C2E;
         --fnw-text:#F5F5F7; --fnw-t2:#98989F; --fnw-t3:#636366;
         --fnw-line:rgba(84,84,88,.45);
-        --fnw-blue:#0A84FF; --fnw-green:#30D158; --fnw-red:#FF453A;
+        --fnw-blue:var(--blue, #0A84FF); --fnw-green:#30D158; --fnw-red:#FF453A;
         --fnw-shadow:0 2px 6px rgba(0,0,0,.5), 0 24px 60px -14px rgba(0,0,0,.7);
     }
 }
@@ -134,8 +134,8 @@ button.standout-fab--login:active{ transform:scale(.96); }
 }
 @keyframes fnwIn{ from{ opacity:0; transform:translateY(-7px); } to{ opacity:1; transform:none; } }
 .fnw-item.fnw-out{ opacity:0; transform:translateX(30px); max-height:0; padding-top:0; padding-bottom:0; overflow:hidden; }
-.fnw-item.fnw-new{ background:rgba(0,122,255,.07); }
-@media (prefers-color-scheme: dark){ .fnw-item.fnw-new{ background:rgba(10,132,255,.14); } }
+.fnw-item.fnw-new{ background:color-mix(in srgb, var(--fnw-blue) 7%, transparent); }
+@media (prefers-color-scheme: dark){ .fnw-item.fnw-new{ background:color-mix(in srgb, var(--fnw-blue) 14%, transparent); } }
 
 .fnw-ava{
     width:40px; height:40px; border-radius:50%; flex-shrink:0;
@@ -155,7 +155,7 @@ button.standout-fab--login:active{ transform:scale(.96); }
 }
 .fnw-b:active{ transform:scale(.92); }
 .fnw-b[disabled]{ opacity:.5; pointer-events:none; }
-.fnw-b-ok{ background:var(--fnw-blue); color:#fff; box-shadow:0 4px 12px -3px rgba(0,122,255,.6); }
+.fnw-b-ok{ background:var(--fnw-blue); color:#fff; box-shadow:0 4px 12px -3px color-mix(in srgb, var(--fnw-blue) 60%, transparent); }
 .fnw-b-no{ background:var(--fnw-bg2); color:var(--fnw-t2); }
 .fnw-b-go{ background:var(--fnw-bg2); color:var(--fnw-blue); }
 

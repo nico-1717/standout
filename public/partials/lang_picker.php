@@ -48,7 +48,7 @@ function standout_lang_picker(string $forma = 'pill'): void
 .slp-opt:hover, .slp-opt:focus-visible{ background:var(--slp-hover, rgba(255,255,255,.08)); outline:none; }
 .slp-opt .slp-check{ margin-left:auto; width:17px; height:17px; color:var(--slp-accent, #0A84FF); visibility:hidden; }
 .slp-opt[aria-checked="true"] .slp-check{ visibility:visible; }
-.slp.slp-busy{ opacity:.6; pointer-events:none; }
+.slp.slp-busy, .slp-colori.slp-busy{ opacity:.6; pointer-events:none; }
 
 /* --- forma "pill": pagina d'ingresso, sfondo scuro --- */
 .slp--pill .slp-btn{
@@ -91,10 +91,28 @@ function standout_lang_picker(string $forma = 'pill'): void
     box-shadow:0 0 0 .5px rgba(0,0,0,.22); }
 .slp-swatch::after{ content:""; position:absolute; right:3px; bottom:3px; width:5px; height:5px; border-radius:50%; }
 .slp-swatch--standard{ background:#F2F2F7; }
-.slp-swatch--standard::after{ background:#007AFF; }
+.slp-swatch--standard::after{ background:var(--blue, #007AFF); }
 .slp-swatch--paper{ background:#F5F1EA; }
 .slp-swatch--paper::after{ background:#A9C3AE; }
 .slp-nota{ display:block; padding:2px 12px 6px 42px; font-size:12px; font-weight:500; color:var(--fnw-t2, #8A8A8E); }
+/* i colori del sito (api/accento.php, lib/accent.php): una riga di pallini sotto gli stili.
+   --dot-l / --dot-d arrivano dal PHP, uno per tema. Il pulsante e' 38px per il dito,
+   il pallino 26px per l'occhio. */
+.slp-colori{ padding:6px 12px 8px 42px; }
+.slp-colori-t{ display:block; font-size:12px; font-weight:600; color:var(--fnw-t2, #8A8A8E); margin:0 0 2px; }
+.slp-dots{ display:flex; flex-wrap:wrap; gap:0; margin-left:-6px; }
+.slp-dot{ appearance:none; border:0; background:none; padding:0; width:38px; height:38px; display:grid; place-items:center; cursor:pointer; border-radius:50%; }
+.slp-dot i{ width:26px; height:26px; border-radius:50%; background:var(--dot-l); display:grid; place-items:center;
+    box-shadow:inset 0 0 0 .5px rgba(0,0,0,.2); transition:transform .2s cubic-bezier(.34,1.4,.64,1), box-shadow .2s; }
+.slp-dot:active i{ transform:scale(.9); }
+.slp-dot svg{ width:14px; height:14px; color:#fff; opacity:0; transition:opacity .15s; }
+.slp-dot[aria-checked="true"] svg{ opacity:1; }
+.slp-dot[aria-checked="true"] i{ box-shadow:0 0 0 2px var(--fnw-solid, #fff), 0 0 0 3.5px var(--dot-l); }
+.slp-dot:focus-visible{ outline:2px solid var(--fnw-text, #1C1C1E); outline-offset:-2px; }
+@media (prefers-color-scheme: dark){
+    .slp-dot i{ background:var(--dot-d); }
+    .slp-dot[aria-checked="true"] i{ box-shadow:0 0 0 2px var(--fnw-solid, #1C1C1E), 0 0 0 3.5px var(--dot-d); }
+}
 @media (prefers-reduced-motion: reduce){ .slp *, .slp-menu{ transition:none !important; } }
 </style>
 <script nonce="<?php echo sec_nonce(); ?>">
@@ -105,6 +123,21 @@ function standout_lang_picker(string $forma = 'pill'): void
             if (p !== tranne) { p.classList.remove('slp-on'); var b = p.querySelector('.slp-btn'); if (b) b.setAttribute('aria-expanded', 'false'); }
         });
     }
+    /* Il blocco <style id="so-accento"> messo dal server (lib/accent.php) si
+       sostituisce; se non c'e' (blu) lo si crea, con il nonce della CSP che
+       questo stesso script porta. */
+    var NONCE = (document.currentScript && document.currentScript.nonce) || '';
+    function applicaAccento(css) {
+        var el = document.getElementById('so-accento');
+        if (!css) { if (el) el.remove(); return; }
+        if (!el) {
+            el = document.createElement('style');
+            el.id = 'so-accento';
+            if (NONCE) el.setAttribute('nonce', NONCE);
+            document.head.appendChild(el);
+        }
+        el.textContent = css;
+    }
     document.addEventListener('click', function (e) {
         var btn = e.target.closest && e.target.closest('.slp-btn');
         if (btn) {
@@ -114,6 +147,30 @@ function standout_lang_picker(string $forma = 'pill'): void
             chiudiTutti(p);
             p.classList.toggle('slp-on', on);
             btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+            return;
+        }
+        /* Un pallino colore: salva e applica SUBITO, senza ricaricare la pagina
+           (potrebbe essere a meta' di una partita o di una modifica). L'API
+           risponde con il CSS gia' pronto; per il blu e' vuoto e il blocco sparisce. */
+        var dot = e.target.closest && e.target.closest('.slp-dot');
+        if (dot) {
+            e.preventDefault(); e.stopPropagation();
+            if (dot.getAttribute('aria-checked') === 'true') return;
+            var gruppo = dot.closest('.slp-colori');
+            gruppo.classList.add('slp-busy');
+            fetch(gruppo.getAttribute('data-api'), {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': gruppo.getAttribute('data-token') || '' },
+                body: JSON.stringify({ accento: dot.getAttribute('data-accento') })
+            }).then(function (r) { return r.json(); }).then(function (r) {
+                if (!r || !r.ok) throw new Error('ko');
+                applicaAccento(r.css || '');
+                gruppo.querySelectorAll('.slp-dot').forEach(function (d) {
+                    d.setAttribute('aria-checked', d === dot ? 'true' : 'false');
+                });
+            }).catch(function () {
+                try { gruppo.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 }); } catch (e) {}
+            }).then(function () { gruppo.classList.remove('slp-busy'); });
             return;
         }
         var opt = e.target.closest && e.target.closest('.slp-opt');
@@ -228,6 +285,22 @@ function standout_stile_picker(): void
             </button>
         <?php endforeach; ?>
         <span class="slp-nota"><?php te('stile.nota'); ?></span>
+        <?php /* il colore del sito: lib/accent.php. Sta sotto gli stili, nella stessa riga del pannello. */
+        require_once __DIR__ . '/../../lib/accent.php';
+        $accAttuale = standout_accento(); ?>
+        <div class="slp-colori" role="radiogroup" aria-label="<?php te('stile.colore'); ?>"
+             data-api="<?php echo htmlspecialchars(PWA_BASE . 'api/accento.php', ENT_QUOTES); ?>"
+             data-token="<?php echo htmlspecialchars($token, ENT_QUOTES); ?>">
+            <span class="slp-colori-t"><?php te('stile.colore'); ?></span>
+            <div class="slp-dots">
+            <?php foreach (STANDOUT_ACCENTI as $id => $col): $nomeCol = t('stile.colore_' . $id); ?>
+                <button type="button" class="slp-dot" role="radio" data-accento="<?php echo $id; ?>"
+                        aria-checked="<?php echo $id === $accAttuale ? 'true' : 'false'; ?>"
+                        aria-label="<?php echo htmlspecialchars($nomeCol, ENT_QUOTES); ?>" title="<?php echo htmlspecialchars($nomeCol, ENT_QUOTES); ?>"
+                        style="--dot-l:<?php echo $col['l']; ?>;--dot-d:<?php echo $col['d']; ?>"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg></i></button>
+            <?php endforeach; ?>
+            </div>
+        </div>
     </div></div>
 </div>
     <?php

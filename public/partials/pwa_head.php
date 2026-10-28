@@ -32,8 +32,19 @@ if (!function_exists('pwa_head_html')) {
         $nonce = function_exists('sec_nonce') ? sec_nonce() : '';
         $ver = @filemtime(__DIR__ . '/../_assets/js/standout_events.js') ?: 1;
 
+        /* Il colore scelto dall'utente connesso (lib/accent.php). Per chi non ha
+           scelto niente, e per chi non e' connesso, e' una stringa vuota: la
+           pagina non riceve un byte in piu'. */
+        $accento = '';
+        $fileAccento = __DIR__ . '/../../lib/accent.php';
+        if (is_readable($fileAccento)) {
+            require_once $fileAccento;
+            $accento = standout_accento_head();
+        }
+
         return ''
             . ($nonce !== '' ? '<meta name="csp-nonce" content="' . $nonce . '">' . "\n" : '')
+            . $accento
             . '<script src="' . $base . '_assets/js/standout_events.js?v=' . $ver . '"></script>' . "\n"
             . '<link rel="manifest" href="' . $base . 'manifest.webmanifest">' . "\n"
             . '<meta name="theme-color" content="#EFE0AE">' . "\n"
