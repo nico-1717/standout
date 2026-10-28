@@ -12,47 +12,42 @@
    ========================================================================== */
 :root{
     color-scheme: light dark;
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7; --surface-3:#E7E7EC;
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#6E6E73; --purple:#AF52DE; --teal:#30B0C7;
+    /* base.css definisce anche questi token; questa pagina (e le finestre che include) non li ha mai
+       avuti e usa var(--x, valore) con il valore di riserva: 'initial' li rende di nuovo "non definiti",
+       cosi' il valore di riserva vale come prima. --btn-hl: la pagina usava anche nel tema scuro quello
+       chiaro (base.css ne ha uno scuro): si tiene quello di prima. */
+    --blue-soft:initial; --green-soft:initial; --raise-sm:initial;
+    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
+    --surface-3:#E7E7EC;
+    --orange:#6E6E73;
     /* --orange è ora il grigio "neutro" di default (nessun progetto collegato): nome storico, valore cambiato su richiesta */
     --red-soft:rgba(255,59,48,.1);
     --header-glass:rgba(249,249,251,.72);
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-    --shadow-sheet:0 -14px 60px rgba(0,0,0,.18);
     --shadow-pop:0 30px 70px -22px rgba(0,0,0,.45);
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
     --track:rgba(120,120,128,.14);
-    --r-card:22px; --r-btn:15px;
-    --spring:cubic-bezier(.32,.72,0,1);
-    --pop:cubic-bezier(.34,1.4,.64,1);
     --ease-out:cubic-bezier(.16,1,.3,1);
-    --safe-top:env(safe-area-inset-top, 0px); --safe-bottom:env(safe-area-inset-bottom, 0px);
     --pomo-accent: var(--orange); --pausa-accent: var(--teal);
 }
 @media (prefers-color-scheme: dark){ :root{
-    --bg:#000; --surface:#1C1C1E; --surface-2:#2C2C2E; --surface-3:#3A3A3C;
-    --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-    --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-    --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#7A7A81; --purple:#BF5AF2; --teal:#40C8E0;
+    --bg:#000; --surface-3:#3A3A3C;
+    --orange:#7A7A81;
     --red-soft:rgba(255,69,58,.16);
     --header-glass:rgba(16,16,18,.7);
-    --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-    --shadow-sheet:0 -14px 60px rgba(0,0,0,.6);
     --track:rgba(120,120,128,.26);
 }}
-
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+/* Il reset (*{box-sizing...}) ora viene da base.css. Qui sotto si riportano al comportamento di prima
+   le poche regole di base.css che questa pagina non aveva (nessun cambiamento visibile). */
+a{ color:revert; }
+:focus-visible{ outline:revert; outline-offset:revert; border-radius:revert; }
 .is-hidden{ display:none !important; }
 /* La pagina del pomodoro non scorre: ci deve stare tutta in una schermata.
    Prima scorreva per un motivo banale — lo spazio in fondo era contato due
    volte, 90px qui sul body piu' altri 30 sulla .page, e quei 120px di vuoto
    bastavano a far sforare la schermata su un telefono. Ora l'allowance per la
    barra in basso sta in un posto solo, dentro .page. */
-html{ height:100%; }
+html{ height:100%; -webkit-text-size-adjust:auto; }
 body{
-    margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--text);
+    margin:0; height:100%; min-height:0; line-height:normal; overflow:hidden; background:var(--bg); color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,Roboto,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
     overscroll-behavior:none;
