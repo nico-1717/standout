@@ -8,6 +8,7 @@ Fa, nell'ordine, quello che fara' l'app:
   4. rinnovo con il refresh token           -> coppia nuova
   5. il vecchio refresh token NON deve piu' funzionare (e chiude la sessione)
   6. di nuovo login, poi logout             -> l'access token smette di funzionare
+  7. (con --tasks) crea, legge, spunta e toglie un'attivita' di prova: /api/v1/tasks
 
 Serve a due cose: provare il server locale prima del push, e provare il sito vero
 dopo il deploy (soprattutto che Apache lasci passare l'intestazione Authorization).
@@ -18,6 +19,10 @@ Anche i token non vengono mai stampati per intero.
 
     STANDOUT_URL=https://nisama.altervista.org STANDOUT_USER=nome python3 tools/prova_token.py
     python3 tools/prova_token.py --url http://127.0.0.1:8099 --user ana --xtoken
+    python3 tools/prova_token.py --url https://nisama.altervista.org --user nome --tasks
+
+Con --tasks scrive nel tuo account UNA attivita' chiamata «prova API (si cancella da sola)»
+e la toglie alla fine, anche se qualcosa va storto a meta'.
 
 Usa solo la libreria standard di Python: niente da installare.
 """
@@ -65,11 +70,44 @@ def breve(token):
     return token[:7] + '…' if token else '(vuoto)'
 
 
+def prova_attivita(base, utente, password):
+    """Il giro delle attivita': crea, legge, spunta, toglie. Toglie sempre quella di prova."""
+    print('\n7) Attivita\' (/api/v1/tasks)')
+    s, j, _ = chiama(base, 'POST', 'auth/login', {'identifier': utente, 'password': password, 'device_name': 'prova_token.py (attivita)'})
+    if not esito(s == 200 and j and j.get('ok'), 'login per la prova delle attivita\''):
+        return
+    h = bearer(j['access_token'])
+    if j.get('terms_required'):
+        print('  NOTA    Accetta prima le condizioni dal sito: senza, le attivita\' rispondono 403.')
+        return
+    nuovo = None
+    try:
+        s, c, _ = chiama(base, 'POST', 'tasks', {'title': 'prova API (si cancella da sola)', 'date': '2099-01-01', 'time': '10:00'}, h)
+        if not esito(s == 201 and c and c.get('ok'), 'POST /tasks crea (201)', f'stato {s}, {c}'):
+            return
+        nuovo = c['task']['id']
+        esito(c['task']['title'] == 'prova API (si cancella da sola)' and c['task']['done'] is False, 'la risposta ha titolo e done=false')
+        s, e, _ = chiama(base, 'GET', 'tasks', intestazioni=h)
+        esito(s == 200 and any(t['id'] == nuovo for t in e.get('tasks', [])), 'GET /tasks la mostra', f'stato {s}')
+        s, p, _ = chiama(base, 'PATCH', f'tasks/{nuovo}', {'done': True}, h)
+        esito(s == 200 and p['task']['done'] is True, 'PATCH {done:true} la spunta (se qui c\'e\' 405 o 403: il server blocca PATCH)', f'stato {s}, {p}')
+        s, v, _ = chiama(base, 'PATCH', f'tasks/{nuovo}', {'title': ''}, h)
+        esito(s == 422 and v.get('code') == 'validation', 'un titolo vuoto e\' rifiutato (422)', f'stato {s}')
+        s, x, _ = chiama(base, 'GET', 'tasks')
+        esito(s == 401, 'senza token /tasks risponde 401', f'stato {s}')
+    finally:
+        if nuovo is not None:
+            s, d, _ = chiama(base, 'DELETE', f'tasks/{nuovo}', intestazioni=h)
+            esito(s == 200, 'DELETE toglie l\'attivita\' di prova', f'stato {s}')
+        chiama(base, 'POST', 'auth/logout', intestazioni=h)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Prova l'accesso con token di Standout.")
     ap.add_argument('--url', default=os.environ.get('STANDOUT_URL', ''), help='indirizzo del sito, senza /api/v1')
     ap.add_argument('--user', default=os.environ.get('STANDOUT_USER', ''), help='nome utente o email')
     ap.add_argument('--xtoken', action='store_true', help="prova anche l'intestazione X-Standout-Token")
+    ap.add_argument('--tasks', action='store_true', help="prova anche /api/v1/tasks (crea e toglie un'attivita' di prova)")
     a = ap.parse_args()
 
     if not a.url:
@@ -140,6 +178,9 @@ def main():
     esito(s == 200 and o.get('ok'), 'logout', f'stato {s}, {o}')
     s, _, _ = chiama(base, 'GET', 'me', intestazioni=bearer(acc3))
     esito(s == 401, "dopo il logout l'access token non funziona piu'", f'stato {s}')
+
+    if a.tasks:
+        prova_attivita(base, utente, password)
 
     print('\nRisultato: %d ok, %d falliti' % (verdi, rossi))
     sys.exit(1 if rossi else 0)

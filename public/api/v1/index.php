@@ -22,6 +22,12 @@
      GET    /api/v1/auth/devices          dispositivi collegati
      DELETE /api/v1/auth/devices/{id}     esce da un dispositivo
      GET    /api/v1/me                    i dati dell'utente (prova del token)
+
+   Attivita' (to do), passo 9 fetta 1 — la logica sta in lib/todo_core.php:
+     GET    /api/v1/tasks[?project_id=N]  l'elenco (come nella pagina)
+     POST   /api/v1/tasks                 crea {title, project_id?, parent_id?, date?, time?, minutes?, done?}
+     PATCH  /api/v1/tasks/{id}            cambia SOLO i campi inviati (anche done: true|false)
+     DELETE /api/v1/tasks/{id}            toglie l'attivita' e le sue sotto-attivita'
    ===================================================================== */
 
 /* Dice a auth_core.php che questa e' l'API: niente sessione PHP (e niente cookie
@@ -31,6 +37,7 @@ define('STANDOUT_API', true);
 require_once __DIR__ . '/../../../lib/bootstrap.php';
 require_once __DIR__ . '/../../../lib/auth_core.php';
 require_once __DIR__ . '/../../../lib/api_v1.php';
+require_once __DIR__ . '/../../../lib/todo_core.php';
 
 /* ---------------- Accesso ---------------- */
 
@@ -99,6 +106,55 @@ function api_h_me(array $ctx): void {
     api_ok(['user' => $utente]);
 }
 
+/* ---------------- Attivita' (to do) ---------------- */
+
+/* Stesso tetto della pagina (400 scritture al minuto, todo_api.php), contato per
+   utente. Il token non sposta il limite: cambia solo come si prova chi sei. */
+function api_h_tasks_limite(array $ctx): void {
+    if (!sec_rate_limit('api_tasks_write', (int)$ctx['utente']['id'], 400, 60)) api_errore('rate_limited');
+}
+
+/** Un errore di td_api_* diventa la risposta dell'API (con il nome del campo sbagliato). */
+function api_h_tasks_errore(array $esito): void {
+    if (!isset($esito['errore'])) return;
+    $e = $esito['errore'];
+    api_errore($e['codice'], $e['testo'], null, ['field' => $e['campo']]);
+}
+
+function api_h_tasks_elenco(array $ctx): void {
+    $p = isset($_GET['project_id']) ? sec_str($_GET['project_id'], 12) : null;   // sec_str: anche un array diventa testo vuoto
+    if ($p !== null && !preg_match('/^[0-9]{1,10}$/', $p)) {
+        api_errore('validation', 'project_id must be a number', null, ['field' => 'project_id']);
+    }
+    $uid = (int)$ctx['utente']['id'];
+    $lista = td_api_elenco($uid, $p !== null ? (int)$p : null);
+    if ($lista === null) api_errore('not_found', 'Project not found', null, ['field' => 'project_id']);
+    // today/now: il «oggi» del sito (Europe/Rome), per sapere cosa e' in ritardo senza indovinare il fuso
+    date_default_timezone_set('Europe/Rome');
+    api_ok(['tasks' => $lista, 'today' => date('Y-m-d'), 'now' => date('H:i')]);
+}
+
+function api_h_tasks_crea(array $ctx): void {
+    api_h_tasks_limite($ctx);
+    $esito = td_api_crea((int)$ctx['utente']['id'], api_corpo());
+    api_h_tasks_errore($esito);
+    api_ok(['task' => $esito['task']], 201);
+}
+
+function api_h_tasks_modifica(array $ctx): void {
+    api_h_tasks_limite($ctx);
+    $esito = td_api_modifica((int)$ctx['utente']['id'], (int)$ctx['id'], api_corpo());
+    api_h_tasks_errore($esito);
+    api_ok(['task' => $esito['task']]);
+}
+
+function api_h_tasks_togli(array $ctx): void {
+    api_h_tasks_limite($ctx);
+    // di un altro utente = "non trovato", come per i dispositivi (non si rivela cosa esiste)
+    if (!td_api_elimina((int)$ctx['utente']['id'], (int)$ctx['id'])) api_errore('not_found', 'Task not found');
+    api_ok();
+}
+
 /* ---------------- L'elenco delle rotte ---------------- */
 
 $tokenECookie = ['token', 'cookie'];
@@ -112,4 +168,8 @@ api_v1_esegui([
     ['GET',    'auth/devices',      'api_h_dispositivi',      ['accetta' => $tokenECookie]],
     ['DELETE', 'auth/devices/{id}', 'api_h_dispositivo_togli', ['accetta' => $tokenECookie]],
     ['GET',    'me',                'api_h_me',               ['accetta' => $tokenECookie]],
+    ['GET',    'tasks',             'api_h_tasks_elenco',     ['accetta' => $tokenECookie]],
+    ['POST',   'tasks',             'api_h_tasks_crea',       ['accetta' => $tokenECookie]],
+    ['PATCH',  'tasks/{id}',        'api_h_tasks_modifica',   ['accetta' => $tokenECookie]],
+    ['DELETE', 'tasks/{id}',        'api_h_tasks_togli',      ['accetta' => $tokenECookie]],
 ]);
