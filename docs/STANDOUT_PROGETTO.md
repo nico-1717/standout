@@ -1530,7 +1530,7 @@ Ogni passo ha un criterio di "fatto": senza, si va avanti a metà.
 | 5d | **fatto, in forma diversa** | `word`/`translation` ci sono in `fc_vocab_cards`; la coppia di lingue sta sul **corso** (`fc_vocab_courses.known_lang` / `learn_lang`), non sul mazzo: §8.3.4 è superato |
 | 5e | **fatto in un'altra forma** | le descrizioni sono i `COMMENT` dentro `sql/schema.sql`, non un file `commenti.sql` |
 | 6 | non fatto | i file stanno ancora in `media/` |
-| 7 | non fatto | nessun accesso a token |
+| 7 | **fatto (28/10/2026)** | accesso a token (30 min + rinnovo di 60 giorni ruotato, riuso = sessione chiusa, fino a 10 dispositivi) e `/api/v1/` con `auth/login`, `refresh`, `logout`, `logout_all`, `accept_terms`, `devices` e `me`; client di prova `tools/prova_token.py`. Tabella `api_sessions` (migrazione `2026-10-28_api_sessioni.sql`). Versione dei testi legali 2026-10-28: tutti riaccettano. **Da provare dal vivo:** che Altervista lasci passare `Authorization` (altrimenti l'app usa `X-Standout-Token`). Ogni futuro cambio/reimpostazione password deve chiamare `api_sessioni_revoca_tutte()` |
 | 8 | **fatto** | `manifest.webmanifest`, `sw.js`, `pwa_head.php` |
 | 9 | non fatto | `public/api/` ha solo `csrf_token`, `lingua`, `stile` |
 | 10 | **avviato (28/10/2026)** | `public/_assets/ui/base.css` (token standard chiaro/scuro in `@layer base`, reset, testata) è caricato da `fc_game_setup`, `fc_stats`, `fc_history` (identiche a prima) e dalle 4 pagine legali (restyle approvato da Nico: stesso stile del sito, `--brand` = indaco). Restano le altre pagine, una alla volta; `planner.css` per ultimo. La landing resta com'è per scelta |
