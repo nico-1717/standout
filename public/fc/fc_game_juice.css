@@ -236,7 +236,7 @@ html.fcg-finale .fill-pages{
 }
 .fcg-btn:active{ transform:scale(.97); }
 .fcg-btn svg{ width:20px; height:20px; }
-.fcg-btn-primo{ color:#fff; background:var(--blue, #0A84FF); box-shadow:0 8px 22px -10px rgba(10,132,255,.8); }
+.fcg-btn-primo{ color:#fff; background:var(--blue, #0A84FF); box-shadow:0 8px 22px -10px color-mix(in srgb, var(--blue,#0A84FF) 80%, transparent); }
 .fcg-btn-boss{
     color:#fff; background:linear-gradient(135deg, #BF5AF2, #FF375F);
     box-shadow:0 10px 26px -10px rgba(191,90,242,.85);

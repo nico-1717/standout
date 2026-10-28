@@ -114,7 +114,7 @@
 .fc-topbar-save {
     color: #fff;
     background: linear-gradient(180deg, color-mix(in srgb, var(--blue, #007AFF), #fff 16%), var(--blue, #007AFF) 52%, color-mix(in srgb, var(--blue, #007AFF), #000 10%));
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 6px 16px -6px rgba(0,122,255,.5);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 6px 16px -6px color-mix(in srgb, var(--blue,#007AFF) 50%, transparent);
 }
 .fc-topbar-save:disabled { opacity: .65; cursor: default; }
 

@@ -129,7 +129,7 @@ body{ padding-bottom:calc(24px + var(--safe-bottom)); }
     padding:20px; border-radius:var(--r-card); margin-bottom:18px;
     background:linear-gradient(135deg, var(--blue), var(--indigo));
     color:#fff; text-decoration:none;
-    box-shadow:0 1px 1px rgba(0,0,0,.05), 0 16px 34px -12px rgba(10,132,255,.5);
+    box-shadow:0 1px 1px rgba(0,0,0,.05), 0 16px 34px -12px color-mix(in srgb, var(--blue,#0A84FF) 50%, transparent);
     animation:cardIn .5s var(--spring) .05s both;
     transition:transform .16s var(--spring);
 }
@@ -205,7 +205,7 @@ body{ padding-bottom:calc(24px + var(--safe-bottom)); }
     display:flex; align-items:center; justify-content:center;
     background:linear-gradient(180deg, color-mix(in srgb, var(--blue), #fff 16%), var(--blue) 52%, color-mix(in srgb, var(--blue), #000 10%));
     color:#fff; text-decoration:none;
-    box-shadow:var(--btn-hl), 0 6px 14px -4px rgba(10,132,255,.5);
+    box-shadow:var(--btn-hl), 0 6px 14px -4px color-mix(in srgb, var(--blue,#0A84FF) 50%, transparent);
     transition:transform .16s var(--spring);
 }
 .play-pill svg{ width:14px; height:14px; margin-left:2px; }

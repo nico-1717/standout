@@ -573,7 +573,7 @@ html[data-stile="standard"] .dy-write textarea::placeholder{ color:var(--so-text
 /* il microfono dentro la scheda, in basso a destra */
 html[data-stile="standard"] .dy-mic{
     right:12px; bottom:12px; width:42px; height:42px;
-    background:var(--so-blue); color:#fff; box-shadow:0 6px 16px -8px rgba(0,122,255,.8);
+    background:var(--so-blue); color:#fff; box-shadow:0 6px 16px -8px color-mix(in srgb, var(--so-blue,#007AFF) 80%, transparent);
 }
 html[data-stile="standard"] .dy-mic svg{ width:20px; height:20px; stroke-width:2; }
 html[data-stile="standard"] .dy-mic.dy-rec{ background:var(--so-red); color:#fff; box-shadow:0 0 0 6px var(--so-red-soft); }
@@ -837,7 +837,7 @@ html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-foot{ gap:12px; padd
 html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-saved{ font-size:13px; font-weight:650; color:#1E9E46; }
 html[data-stile="standard"] .dg-ov[data-skin="planner"] .dg-link{
     margin-left:auto; padding:11px 18px; border-radius:14px; font-size:15px; font-weight:700;
-    color:#fff; background:var(--so-blue); box-shadow:0 8px 18px -10px rgba(0,122,255,.8);
+    color:#fff; background:var(--so-blue); box-shadow:0 8px 18px -10px color-mix(in srgb, var(--so-blue,#007AFF) 80%, transparent);
 }
 
 /* il foglio da leggere (sola lettura) */

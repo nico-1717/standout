@@ -267,7 +267,7 @@
         pointer-events:none;
     }
     .vg-caption.vg-show{ opacity:1; transform:none; }
-    .vg-caption.vg-recognized{ background:rgba(10,132,255,.94); }
+    .vg-caption.vg-recognized{ background:color-mix(in srgb, var(--blue,#0A84FF) 94%, transparent); }
     .vg-caption.vg-hint{ background:rgba(255,159,10,.94); }
 
 /* ---- cosa legge (solo parole) ---- */

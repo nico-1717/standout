@@ -80,7 +80,7 @@
 
         background:linear-gradient(180deg,#3D96FF,#007AFF 60%,#0069DE);
 
-        box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 6px 16px -3px rgba(0,122,255,.55);
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 6px 16px -3px color-mix(in srgb, var(--blue,#007AFF) 55%, transparent);
 
         display:flex; align-items:center; justify-content:center;
 

@@ -73,7 +73,7 @@ input{ font-family:inherit; }
     display:flex; align-items:center; justify-content:center;
     background:linear-gradient(135deg, var(--indigo), var(--blue));
     color:#fff; text-decoration:none;
-    box-shadow:0 2px 6px rgba(10,132,255,.28), 0 10px 22px -8px rgba(88,86,214,.55);
+    box-shadow:0 2px 6px color-mix(in srgb, var(--blue,#0A84FF) 28%, transparent), 0 10px 22px -8px rgba(88,86,214,.55);
     animation:hdrPlayIn .5s var(--spring) both;
     transition:transform .18s var(--spring), box-shadow .18s;
 }
@@ -98,7 +98,7 @@ input{ font-family:inherit; }
     animation:chipIn .3s var(--spring) both;
 }
 .sfc-chip button{ display:flex; align-items:center; justify-content:center; width:18px; height:18px; padding:0; border:none; border-radius:50%;
-    background:rgba(10,132,255,.18); color:inherit; cursor:pointer; }
+    background:color-mix(in srgb, var(--blue,#0A84FF) 18%, transparent); color:inherit; cursor:pointer; }
 .sfc-chip button svg{ width:9px; height:9px; }
 @keyframes chipIn{ from{ opacity:0; transform:scale(.8); } }
 
@@ -290,7 +290,7 @@ input{ font-family:inherit; }
 }
 .sfc-btn svg{ width:14px; height:14px; }
 .sfc-btn:active{ transform:scale(.95); }
-.sfc-btn.primario{ background:var(--blue); color:#fff; box-shadow:0 6px 16px -6px rgba(10,132,255,.6); }
+.sfc-btn.primario{ background:var(--blue); color:#fff; box-shadow:0 6px 16px -6px color-mix(in srgb, var(--blue,#0A84FF) 60%, transparent); }
 .sfc-btn.primario svg{ width:11px; height:11px; }
 .sfc-btn.icona{ padding:8px 10px; margin-left:auto; }
 .sfc-btn.pericolo{ color:var(--red); }

@@ -100,7 +100,7 @@
         }
         .img-pick-box:active{ transform:scale(.98); }
         .img-pick-box.has-img{
-            border-style:solid; border-color:rgba(0,122,255,.4); background:var(--blue-soft);
+            border-style:solid; border-color:color-mix(in srgb, var(--blue,#007AFF) 40%, transparent); background:var(--blue-soft);
         }
         .img-pick-empty{
             display:flex; flex-direction:column; align-items:center; gap:6px;

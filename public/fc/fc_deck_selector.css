@@ -376,7 +376,7 @@
 
     display:flex; align-items:center; justify-content:center;
 
-    box-shadow:var(--btn-hl), 0 2px 6px rgba(0,0,0,.18), 0 12px 26px -8px rgba(10,132,255,.6);
+    box-shadow:var(--btn-hl), 0 2px 6px rgba(0,0,0,.18), 0 12px 26px -8px color-mix(in srgb, var(--blue,#0A84FF) 60%, transparent);
 
     transition:transform .16s var(--spring);
 

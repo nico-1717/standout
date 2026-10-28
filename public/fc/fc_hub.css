@@ -75,7 +75,7 @@ button{ font-family:inherit; }
     transition:transform .16s var(--spring);
 }
 .hdr-back{ margin-left:-4px; }
-.hdr-add{ background:var(--blue); color:#fff; box-shadow:var(--btn-hl), 0 6px 16px -6px rgba(0,122,255,.6); }
+.hdr-add{ background:var(--blue); color:#fff; box-shadow:var(--btn-hl), 0 6px 16px -6px color-mix(in srgb, var(--blue,#007AFF) 60%, transparent); }
 .hdr-back svg, .hdr-icon svg, .hdr-add svg{ width:20px; height:20px; }
 .hdr-back:active, .hdr-icon:active, .hdr-add:active{ transform:scale(.9); }
 
