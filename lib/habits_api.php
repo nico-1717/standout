@@ -266,3 +266,106 @@ function hb_api_nota(int $uid, int $id, array $c): array {
     if (($r['errore'] ?? '') === 'non_trovata') return hb_api_errore('not_found', 'id', 'Habit not found');
     return ['entry' => ['date' => $date] + $r];
 }
+
+/* ===================== Riordino e categorie (fetta 5) ===================== */
+
+/**
+ * Il nuovo ordine delle abitudini: gli id nell'ordine in cui devono comparire (come la
+ * pagina: 10, 20, 30...). Ritorna ['count' => n, 'skipped' => [...]] oppure un errore.
+ */
+function hb_api_riordina(int $uid, array $c): array {
+    $ids = $c['ids'] ?? null;
+    if (!is_array($ids) || !$ids || !array_is_list($ids)) return hb_api_errore('validation', 'ids', 'ids must be a non-empty list of habit ids');
+    if (count($ids) > 300) return hb_api_errore('validation', 'ids', 'ids can have at most 300 entries');
+    foreach ($ids as $i) if (!is_int($i) || $i < 1) return hb_api_errore('validation', 'ids', 'ids must be whole numbers');
+    $ids = array_values(array_unique($ids));
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $righe = sec_all("SELECT id FROM habits WHERE user_id = ? AND id IN ($ph)", array_merge([$uid], $ids));
+    $mie = array_map(fn($r) => (int)$r['id'], $righe);
+    $ordine = 10;
+    foreach ($ids as $id) {
+        if (!in_array($id, $mie, true)) continue;
+        sec_q("UPDATE habits SET sort_order = ? WHERE id = ? AND user_id = ?", [$ordine, $id, $uid]);
+        $ordine += 10;
+    }
+    return ['count' => count($mie), 'skipped' => array_values(array_diff($ids, $mie))];
+}
+
+/** Una categoria dell'utente (solo le sue: quelle di sistema non si toccano), o null. */
+function hb_api_cat_propria(int $uid, int $id): ?array {
+    return sec_one("SELECT * FROM habit_categories WHERE id = ? AND user_id = ?", [$id, $uid], 'ii');
+}
+
+/** Una categoria come la vede l'app (stessa forma di hb_load_categories). */
+function hb_api_cat_out(int $uid, int $id): ?array {
+    foreach (hb_load_categories(sec_db(), $uid) as $c) if ($c['id'] === $id) return $c;
+    return null;
+}
+
+/** Nome (1-60), icona (fino a 8 caratteri) e colore (#RRGGBB). Chiavi presenti = si cambiano. */
+function hb_api_cat_leggi(int $uid, array $c, bool $creazione, ?int $id): array {
+    $campi = [];
+    if (array_key_exists('name', $c)) {
+        if (!is_string($c['name'])) return hb_api_errore('validation', 'name', 'name must be text');
+        $n = trim($c['name']);
+        if ($n === '' || mb_strlen($n) > 60) return hb_api_errore('validation', 'name', 'name must be 1 to 60 characters');
+        $n = sec_str($n, 60);
+        // la collazione del database non distingue le maiuscole: «Studio» e «studio» sono la stessa categoria
+        $doppia = sec_one("SELECT id FROM habit_categories WHERE (user_id = 0 OR user_id = ?) AND name = ? AND id <> ?", [$uid, $n, (int)$id], 'isi');
+        if ($doppia) return hb_api_errore('validation', 'name', 'A category with this name already exists');
+        $campi['name'] = $n;
+    } elseif ($creazione) {
+        return hb_api_errore('validation', 'name', 'name is required');
+    }
+    if (array_key_exists('icon', $c)) {
+        if (!is_string($c['icon']) || mb_strlen($c['icon']) > 8) return hb_api_errore('validation', 'icon', 'icon must be text of at most 8 characters');
+        $campi['icon'] = $c['icon'];
+    }
+    if (array_key_exists('color', $c)) {
+        if (!is_string($c['color']) || !preg_match('/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/', $c['color'])) return hb_api_errore('validation', 'color', 'color must look like #RRGGBB');
+        $campi['color'] = hb_color($c['color'], '#8E8E93');
+    }
+    return ['campi' => $campi];
+}
+
+function hb_api_cat_crea(int $uid, array $c): array {
+    $v = hb_api_cat_leggi($uid, $c, true, null);
+    if (isset($v['errore'])) return $v;
+    $f = $v['campi'];
+    $n = sec_one("SELECT COUNT(*) AS n FROM habit_categories WHERE user_id = ?", [$uid], 'i');
+    if ((int)($n['n'] ?? 0) >= 100) return hb_api_errore('validation', 'name', 'Too many categories (at most 100)');
+    /* La chiave stabile (slug) la fa la pagina dal nome; qui un nome senza lettere latine
+       darebbe sempre «_<id>» e due categorie si pesterebbero: in quel caso si usa un'impronta del nome.
+       Lo slug sta in 40 caratteri. */
+    $base = strtolower(trim(preg_replace('/[^a-z0-9]+/i', '_', $f['name']), '_'));
+    if ($base === '') $base = 'c' . substr(md5($f['name']), 0, 8);
+    $slug = mb_substr($base, 0, 28) . '_' . $uid;
+    if (sec_one("SELECT id FROM habit_categories WHERE user_id = ? AND slug = ?", [$uid, $slug], 'is')) {
+        $slug = mb_substr($base, 0, 18) . '_' . substr(md5($f['name'] . microtime()), 0, 6) . '_' . $uid;
+    }
+    $ordine = (int)sec_one("SELECT COALESCE(MAX(sort_order),0)+10 AS o FROM habit_categories WHERE user_id = ?", [$uid], 'i')['o'];
+    sec_q("INSERT INTO habit_categories (user_id, slug, name, icon, color, sort_order) VALUES (?,?,?,?,?,?)",
+          [$uid, mb_substr($slug, 0, 40), $f['name'], $f['icon'] ?? '🏷️', $f['color'] ?? '#8E8E93', $ordine]);
+    return ['category' => hb_api_cat_out($uid, sec_insert_id())];
+}
+
+function hb_api_cat_modifica(int $uid, int $id, array $c): array {
+    if (!hb_api_cat_propria($uid, $id)) return hb_api_errore('not_found', 'id', 'Category not found');
+    $v = hb_api_cat_leggi($uid, $c, false, $id);
+    if (isset($v['errore'])) return $v;
+    if (!$v['campi']) return hb_api_errore('validation', 'body', 'Nothing to update');
+    /* I nomi delle colonne vengono SOLO da hb_api_cat_leggi (elenco fisso), mai dal client. */
+    $set = []; $par = [];
+    foreach ($v['campi'] as $col => $val) { $set[] = "`$col` = ?"; $par[] = $val; }
+    $par[] = $id; $par[] = $uid;
+    sec_q("UPDATE habit_categories SET " . implode(', ', $set) . " WHERE id = ? AND user_id = ?", $par);
+    return ['category' => hb_api_cat_out($uid, $id)];
+}
+
+/** Le abitudini di quella categoria restano, senza categoria (la chiave esterna lo fa da sola). */
+function hb_api_cat_elimina(int $uid, int $id): bool {
+    if (!hb_api_cat_propria($uid, $id)) return false;
+    sec_q("UPDATE habits SET category_id = NULL WHERE user_id = ? AND category_id = ?", [$uid, $id], 'ii');
+    sec_q("DELETE FROM habit_categories WHERE id = ? AND user_id = ?", [$id, $uid], 'ii');
+    return true;
+}

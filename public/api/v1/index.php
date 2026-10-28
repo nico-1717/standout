@@ -56,6 +56,17 @@
      POST   /api/v1/shopping/categories   crea {name, color?}
      PATCH  /api/v1/shopping/categories/{id}   {name?, color?}
      DELETE /api/v1/shopping/categories/{id}   gli articoli restano, senza categoria
+
+   Fetta 5 — riordino, azioni su piu' voci, categorie delle abitudini (lib/todo_bulk_api.php, habits_api.php):
+     POST   /api/v1/tasks/bulk            {ids, action: delete|schedule|project|move, ...}  (move = nel to buy)
+     POST   /api/v1/tasks/reorder         {ids} nell'ordine voluto
+     POST   /api/v1/shopping/bulk         {ids, action: delete|schedule|project|set|move, ...}  (set = category_id/priority)
+     POST   /api/v1/shopping/reorder      {ids}
+     POST   /api/v1/habits/reorder        {ids}
+     GET    /api/v1/habits/categories     le categorie (di sistema e proprie)
+     POST   /api/v1/habits/categories     crea {name, icon?, color?}
+     PATCH  /api/v1/habits/categories/{id}   solo le proprie
+     DELETE /api/v1/habits/categories/{id}   le abitudini restano, senza categoria
    ===================================================================== */
 
 /* Dice a auth_core.php che questa e' l'API: niente sessione PHP (e niente cookie
@@ -69,6 +80,7 @@ require_once __DIR__ . '/../../../lib/todo_core.php';
 require_once __DIR__ . '/../../../lib/planner/planner_lib.php';
 require_once __DIR__ . '/../../../lib/habits_api.php';
 require_once __DIR__ . '/../../../lib/shopping_api.php';
+require_once __DIR__ . '/../../../lib/todo_bulk_api.php';
 
 /* ---------------- Accesso ---------------- */
 
@@ -362,6 +374,66 @@ function api_h_shopping_cat_togli(array $ctx): void {
     api_ok();
 }
 
+/* ---------------- Fetta 5: azioni su piu' voci, riordino, categorie delle abitudini ---------------- */
+
+/** Un errore (di td_*, sp_* o hb_api_*) diventa la risposta dell'API, con il nome del campo sbagliato. */
+function api_h_fetta5_errore(array $esito): void {
+    if (!isset($esito['errore'])) return;
+    $e = $esito['errore'];
+    api_errore($e['codice'], $e['testo'], null, ['field' => $e['campo']]);
+}
+
+function api_h_tasks_bulk(array $ctx): void {
+    api_h_tasks_limite($ctx);
+    $e = td_bulk((int)$ctx['utente']['id'], 'todo', api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+function api_h_tasks_riordina(array $ctx): void {
+    api_h_tasks_limite($ctx);
+    $e = td_riordina((int)$ctx['utente']['id'], 'todo', api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+function api_h_shopping_bulk(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_shopping_write');
+    $e = td_bulk((int)$ctx['utente']['id'], 'buy', api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+function api_h_shopping_riordina(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_shopping_write');
+    $e = td_riordina((int)$ctx['utente']['id'], 'buy', api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+function api_h_abitudini_riordina(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_habits_write', 600);
+    $e = hb_api_riordina((int)$ctx['utente']['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+function api_h_abitudini_categorie(array $ctx): void {
+    api_ok(['categories' => hb_load_categories(sec_db(), (int)$ctx['utente']['id'])]);
+}
+function api_h_abitudini_cat_crea(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_habits_write', 600);
+    $e = hb_api_cat_crea((int)$ctx['utente']['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok(['category' => $e['category']], 201);
+}
+function api_h_abitudini_cat_modifica(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_habits_write', 600);
+    $e = hb_api_cat_modifica((int)$ctx['utente']['id'], (int)$ctx['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok(['category' => $e['category']]);
+}
+function api_h_abitudini_cat_togli(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_habits_write', 600);
+    if (!hb_api_cat_elimina((int)$ctx['utente']['id'], (int)$ctx['id'])) api_errore('not_found', 'Category not found');
+    api_ok();
+}
+
 /* ---------------- L'elenco delle rotte ---------------- */
 
 $tokenECookie = ['token', 'cookie'];
@@ -401,4 +473,13 @@ api_v1_esegui([
     ['DELETE', 'shopping/categories/{id}', 'api_h_shopping_cat_togli', ['accetta' => $tokenECookie]],
     ['PATCH',  'shopping/{id}',     'api_h_shopping_modifica', ['accetta' => $tokenECookie]],
     ['DELETE', 'shopping/{id}',     'api_h_shopping_togli',   ['accetta' => $tokenECookie]],
+    ['POST',   'tasks/bulk',        'api_h_tasks_bulk',       ['accetta' => $tokenECookie]],
+    ['POST',   'tasks/reorder',     'api_h_tasks_riordina',   ['accetta' => $tokenECookie]],
+    ['POST',   'shopping/bulk',     'api_h_shopping_bulk',    ['accetta' => $tokenECookie]],
+    ['POST',   'shopping/reorder',  'api_h_shopping_riordina', ['accetta' => $tokenECookie]],
+    ['POST',   'habits/reorder',    'api_h_abitudini_riordina', ['accetta' => $tokenECookie]],
+    ['GET',    'habits/categories', 'api_h_abitudini_categorie', ['accetta' => $tokenECookie]],
+    ['POST',   'habits/categories', 'api_h_abitudini_cat_crea', ['accetta' => $tokenECookie]],
+    ['PATCH',  'habits/categories/{id}', 'api_h_abitudini_cat_modifica', ['accetta' => $tokenECookie]],
+    ['DELETE', 'habits/categories/{id}', 'api_h_abitudini_cat_togli', ['accetta' => $tokenECookie]],
 ]);
