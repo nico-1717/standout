@@ -1,9 +1,9 @@
 <?php
 /**
  * Includi questo file in cima a OGNI pagina HTML che richiede il login,
- * SUBITO dopo require_once __DIR__ . '/config.php':
+ * SUBITO dopo require_once __DIR__ . '/bootstrap.php':
  *
- *   require_once __DIR__ . '/config.php';
+ *   require_once __DIR__ . '/bootstrap.php';
  *   require_once __DIR__ . '/auth_check.php';
  *
  * Se l'utente non è autenticato, viene rimandato alla home, che aprirà

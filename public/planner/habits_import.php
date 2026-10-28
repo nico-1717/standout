@@ -33,7 +33,7 @@ $hi_files = get_included_files();
 $hi_direct = (!empty($hi_files) && realpath($hi_files[0]) === realpath(__FILE__));
 
 if (!isset($conn) || !$conn) {
-    require_once __DIR__ . '/../../lib/config.php';
+    require_once __DIR__ . '/../../lib/bootstrap.php';
     require_once __DIR__ . '/../../lib/security_core.php';
     /* sec_db() riusa la connessione gia' aperta e la configura da sola. */
     $conn = sec_db();

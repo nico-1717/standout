@@ -7,7 +7,7 @@
      lo stile   -> planner.css (+ _assets/ui/stile_standard.css)
      il JS      -> js/ (13 parti, unite da planner_js.php)
    ===================================================================== */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 
 /* Le schede aperte prima della divisione chiamano ancora planner.php?ajax=:

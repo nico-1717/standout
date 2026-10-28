@@ -26,7 +26,7 @@
  * si passa da ~180.000 caratteri inviati a ~25.000.
  */
 
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php'; // versione API: se manca il login risponde JSON, non reindirizza
 require_once __DIR__ . '/../../lib/fc/fc_ai_lib.php';

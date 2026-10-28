@@ -19,7 +19,7 @@
  * Resta l'ob_start() dell'originale: serve a impedire che un avviso di PHP
  * stampato prima del JSON lo renda illeggibile al browser.
  */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 
 ob_start();

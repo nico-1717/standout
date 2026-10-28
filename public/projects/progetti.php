@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 if (!$conn) { error_log('[standout:db] ' . mysqli_connect_error()); die(t('comune.errore_generico')); } /* il motivo nel log, non a schermo */

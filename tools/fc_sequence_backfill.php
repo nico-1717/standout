@@ -24,7 +24,7 @@
  * saltate, quindi una seconda esecuzione non duplica nulla.
  * A lavoro finito il file si puo' cancellare dal sito.
  */
-require_once 'config.php';
+require_once __DIR__ . '/../lib/bootstrap.php';
 require_once 'auth_check.php';
 
 $current_user_id = (int)$utente_corrente['id'];

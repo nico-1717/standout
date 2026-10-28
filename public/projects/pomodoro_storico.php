@@ -12,7 +12,7 @@
    ========================================================================== */
 
 if (!isset($conn) || !$conn) {
-    require_once __DIR__ . '/../../lib/config.php';
+    require_once __DIR__ . '/../../lib/bootstrap.php';
     /* auth_check PRIMA di sec_db(): e' quello a caricare security_core.php. */
     require_once __DIR__ . '/../../lib/auth_check.php';
     $current_user_id = (int)$utente_corrente['id'];

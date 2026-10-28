@@ -29,7 +29,7 @@ $ie_files = get_included_files();
 $ie_direct = (!empty($ie_files) && realpath($ie_files[0]) === realpath(__FILE__));
 
 if (!isset($conn) || !$conn) {
-    require_once __DIR__ . '/../../lib/config.php';
+    require_once __DIR__ . '/../../lib/bootstrap.php';
     $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
     if ($ie_direct && isset($_GET['ie_ajax'])) { require_once __DIR__ . '/../../lib/auth_check_api.php'; }
     else { require_once __DIR__ . '/../../lib/auth_check.php'; }

@@ -3,7 +3,7 @@
    condizioni d'uso e l'informativa (registrato prima che esistessero, o testi
    cambiati dopo). Finche' non accetta, auth_check.php lo rimanda qui. */
 define('STANDOUT_SENZA_TERMINI', true); // questa pagina non puo' rimandare a se stessa
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_check.php';
 require_once __DIR__ . '/../../lib/legale.php';
 

@@ -5,7 +5,7 @@
    Non serve essere collegati: il token, che solo chi legge quella posta ha,
    e' la prova. Cosa succede si decide in lib/email_verifica.php.
    ========================================================================= */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/email_verifica.php';
 

@@ -8,7 +8,7 @@
  *
  * Solo lettura, solo i corsi dell'utente connesso.
  */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_check.php';
 require_once __DIR__ . '/../../lib/fc/fc_type.php';
 

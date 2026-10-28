@@ -18,7 +18,7 @@
  * dove si era interrotto: le righe gia' scritte vengono saltate, quindi anche
  * rilanciarlo dall'inizio non fa danni.
  */
-require_once 'config.php';
+require_once __DIR__ . '/../lib/bootstrap.php';
 require_once 'auth_check.php';
 
 @set_time_limit(0);

@@ -1,12 +1,12 @@
 <?php
 /* Standout - motore delle lingue.
  *
- * Incluso da config.php, quindi disponibile ovunque senza che nessuna pagina
+ * Incluso da bootstrap.php, quindi disponibile ovunque senza che nessuna pagina
  * debba ricordarsi di richiamarlo: la stessa logica per cui le difese stanno
  * tutte in security_core.php.
  *
  * IL VINCOLO DA TENERE A MENTE, che ha gia' causato un errore:
- * config.php gira PRIMA di security_core.php, cioe' prima di session_start().
+ * bootstrap.php gira PRIMA di security_core.php, cioe' prima di session_start().
  * Tutto quello che si scrive in $_SESSION mentre questo file viene incluso
  * viene buttato via appena la sessione parte davvero. Percio' qui non si tocca
  * la sessione: si registra soltanto cosa e' stato chiesto, e la si scrive alla
@@ -170,7 +170,7 @@ function standout_lingua_dal_browser(): ?string
    ============================================================ */
 
 /* Il cookie e basta. Separata perche' e' l'unica parte che si puo' fare mentre
-   config.php viene incluso: richiede le intestazioni ancora aperte, e a quel
+   bootstrap.php viene incluso: richiede le intestazioni ancora aperte, e a quel
    punto lo sono. */
 function standout_scrivi_cookie_lingua(string $codice): void
 {

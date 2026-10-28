@@ -15,7 +15,7 @@
               diary_api.php?ajax=list_delete ...              (POST)
               diary_api.php?ajax=settings_save ...            (POST)
    ===================================================================== */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 

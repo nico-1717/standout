@@ -12,7 +12,7 @@
    POST e token apposta: e' una scrittura sul profilo, e una GET la
    potrebbe far partire un collegamento preparato da qualcun altro.
    ===================================================================== */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_core.php';
 
 header('Content-Type: application/json; charset=utf-8');

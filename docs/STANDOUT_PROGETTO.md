@@ -1522,7 +1522,7 @@ Ogni passo ha un criterio di "fatto": senza, si va avanti a metà.
 |---|---|---|
 | 1 | **fatto (27/10/2026)** | giro su tutto `public/` e `lib/` con `tools/audit_sicurezza.py` + lettura del codice; l'elenco ordinato per gravità e per file è in `docs/SICUREZZA_ELENCO.md`. Resta fuori un test dal vivo contro il sito |
 | 2 | **fatto (27/10/2026)** | corretti tutti i punti dell'elenco, **CSP senza `'unsafe-inline'` compresa** (§7.6): scritture via GET senza token, «ricordami» di account disattivati, TLS, errori a schermo, importazioni, `media/.htaccess`, deploy in ftps, password a 10 caratteri + verifica email, controllo d'uso prima di cancellare un file (prerequisito del negozio), blocco login anti-DoS. Vedi `docs/SICUREZZA_ELENCO.md` |
-| 3 | **in parte** | `lib/`, `sql/`, `data/` stanno fuori da `public/`; **manca `bootstrap.php`** (ogni pagina include ancora `config.php` per conto suo) |
+| 3 | **fatto (28/10/2026)** | `lib/`, `sql/`, `data/` stanno fuori da `public/`; `lib/bootstrap.php` è l'unico punto d'ingresso (86 file lo includono; `tools/controlla_bootstrap.py` fallisce se qualcuno include ancora `config.php`). `config.php` resta solo per chiavi, database e `PWA_BASE`; il codice comune (lingua, meta PWA, barra del pomodoro) ora viaggia con il deploy. Compatibile col vecchio `config.php` del server |
 | 4 | **fatto** | tutte le migrazioni di §8.2 sono in produzione |
 | 5 | non fatto | il sito è ancora su Altervista |
 | 5b | **fatto, con nomi diversi** | `fc_study_*` e `fc_vocab_*` al posto di `study_*` / `vocab_*`; restano col nome vecchio `roles`, `user_roles`, `login_attempts`, `remember_tokens`, `rate_limits`, `security_audit_log`, `push_subscriptions`, `plans`, `user_plans`, `contacts` (rinomino facoltativo, da fare al trasloco) |

@@ -13,7 +13,7 @@
    semplice se il disegno sta in un posto solo.
    ===================================================================== */
 
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_core.php';
 require_once __DIR__ . '/../../lib/social_gate.php';
 require_once __DIR__ . '/../social/friends_core.php';   // pallino delle richieste di amicizia (solo se il social e' acceso)

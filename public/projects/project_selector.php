@@ -26,7 +26,7 @@ if (isset($_GET['ps_ajax']) && $_GET['ps_ajax'] === 'create_project') {
 
     if (!isset($conn) || !$conn) {
 
-        require_once __DIR__ . '/../../lib/config.php';
+        require_once __DIR__ . '/../../lib/bootstrap.php';
 
         $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 
@@ -171,7 +171,7 @@ if (isset($_GET['ps_render'])) {
 
     if (!isset($conn) || !$conn) {
 
-        require_once __DIR__ . '/../../lib/config.php';
+        require_once __DIR__ . '/../../lib/bootstrap.php';
 
         $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 

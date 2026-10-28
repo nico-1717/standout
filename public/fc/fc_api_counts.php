@@ -11,7 +11,7 @@
  * 2. I conteggi non erano filtrati per utente: "SELECT COUNT(*) FROM fc_study_cards"
  *    contava le schede di tutti, e l'elenco per categoria le esponeva una a una.
  */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 
 header('Content-Type: application/json');

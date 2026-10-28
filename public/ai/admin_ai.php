@@ -30,7 +30,7 @@
  * quaranta chiavi di dizionario per una pagina interna sarebbero peso morto.
  */
 
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_check.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/ai_credits.php';

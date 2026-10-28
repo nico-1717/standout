@@ -3,7 +3,7 @@
    STANDOUT · REINVIO DELL'EMAIL DI VERIFICA (POST, serve essere collegati)
    Risposta: {ok, stato} con stato = inviata | gia_verificata | attendi | errore
    ========================================================================= */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 require_once __DIR__ . '/../../lib/email_verifica.php';

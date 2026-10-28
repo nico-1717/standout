@@ -7,3 +7,12 @@ docs/private/
 .DS_Store
 Thumbs.db
 *.log
+# Copie del database e dei file: contengono i dati degli utenti (anche le
+# password cifrate). Non devono MAI finire nel repository (docs/BACKUP.md).
+my_nisama*.sql
+*_dump*.sql
+*backup*.sql
+backup/
+backups/
+*.sql.gz
+*.zip

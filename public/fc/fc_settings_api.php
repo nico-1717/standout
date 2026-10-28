@@ -8,7 +8,7 @@
  * Le usa l'ingranaggio del gioco delle lingue (fc_game.php) e l'opzione
  * "indizi gia' aperti" nell'avvio della partita (fc_game_setup.php).
  */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 require_once __DIR__ . '/../../lib/fc/fc_impostazioni.php';
 

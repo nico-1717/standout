@@ -6,7 +6,7 @@
    dati del popup "diario del giorno" (habits e planner): dove scrivi non
    importa. Tutto passa da diary_api.php.
    ===================================================================== */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/auth_check.php';
 require_once __DIR__ . '/../../lib/stile.php';   // standard | paper (Diario, Planner, To do, To study)

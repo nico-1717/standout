@@ -16,7 +16,7 @@
  * "nessun riferimento", i vecchi file si possono cancellare, e anche questa
  * pagina.
  */
-require_once 'config.php';
+require_once __DIR__ . '/../lib/bootstrap.php';
 require_once 'auth_check.php';
 require_once 'security_core.php';
 

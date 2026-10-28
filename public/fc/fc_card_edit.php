@@ -1,5 +1,5 @@
 <?php
-    require_once __DIR__ . '/../../lib/config.php';
+    require_once __DIR__ . '/../../lib/bootstrap.php';
     require_once __DIR__ . '/../../lib/auth_check.php';
     require_once __DIR__ . '/fc_examples_box.php'; // render_examples_section(), condivisa con fc_view.php
     $current_user_id = (int)$utente_corrente['id'];

@@ -5,7 +5,7 @@
    Pagina da leggere, non da usare: un solo carattere grande, una colonna
    stretta, e la stampa (o "salva come PDF") che esce pulita.
    ===================================================================== */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/auth_check.php';
 require_once __DIR__ . '/../../lib/stile.php';

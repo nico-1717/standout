@@ -21,7 +21,7 @@
    (AES-256-GCM). Se cambi quella chiave, gli utenti devono ricollegare
    l'account: è il comportamento giusto, non un errore.
    ===================================================================== */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 /* Le chiamate del planner vogliono JSON anche quando la sessione è scaduta;
    il collegamento con Google invece è una navigazione normale. */

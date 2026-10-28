@@ -4,7 +4,7 @@
    Usata da: friends.php, friends_api.php, notifiche_widget.php
    ========================================================================= */
 
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 // FC_TABELLE: i nomi delle tabelle delle flashcard (studio e lingue), elenco chiuso
 require_once __DIR__ . '/../../lib/fc/fc_type.php';
 

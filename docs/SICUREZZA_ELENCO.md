@@ -18,7 +18,7 @@ Dopo ogni modifica: `php -l`, `controlla_colonne.py`, `controlla_csp.py`, scanne
 Legenda stato: **corretto** (in questo giro) · **aperto** (da fare) · **deciso**
 (scelta consapevole) · **tuo** (serve un'azione fuori dal codice).
 
-- **T8.** Le copie del database sono manuali: farne una a scadenza fissa (per esempio ogni domenica) da phpMyAdmin → Esporta, e tenerla fuori dal repository e in un posto privato. Una copia mai provata e' solo una speranza: una volta va importata in un database di prova.
+- **T8.** Le copie del database sono manuali: farne una a scadenza fissa (per esempio ogni domenica) da phpMyAdmin → Esporta, e tenerla fuori dal repository e in un posto privato. Una copia mai provata e' solo una speranza: una volta va importata in un database di prova. La routine completa (cosa, quando, dove, quanto tenere, come provare e ripristinare) e' in `docs/BACKUP.md`.
 - **T9.** Non ancora provato dal vivo: il blocco del login (6 errori in 15 minuti → 15 minuti di attesa).
 
 ---

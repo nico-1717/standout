@@ -30,7 +30,7 @@
 // Il corpo si legge SUBITO, prima dei require (vedi ai_example.php).
 $__raw_input = file_get_contents('php://input');
 
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 require_once __DIR__ . '/../../lib/fc/fc_ai_saved.php';
 require_once __DIR__ . '/../../lib/fc/fc_frantuma.php';

@@ -8,7 +8,7 @@ $__raw_input = file_get_contents('php://input');
 // si definisce STANDOUT_DEBUG in config.php (security_core.php lo rispetta).
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 require_once __DIR__ . '/../../lib/piano_helpers.php';
 

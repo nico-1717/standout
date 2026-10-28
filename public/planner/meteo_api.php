@@ -20,7 +20,7 @@
      meteo_api.php?ajax=preview      (POST)  lat, lon → previsione per quel
                                              punto SENZA toccare le impostazioni
    ===================================================================== */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 

@@ -4,9 +4,9 @@
  *  STANDOUT — NUCLEO DI SICUREZZA
  * ============================================================
  * Da includere in cima a OGNI pagina e a OGNI endpoint, subito
- * dopo config.php:
+ * dopo bootstrap.php:
  *
- *   require_once __DIR__ . '/config.php';
+ *   require_once __DIR__ . '/bootstrap.php';
  *   require_once __DIR__ . '/security_core.php';   // header + utility
  *   require_once __DIR__ . '/auth_check.php';      // oppure auth_check_api.php
  *
@@ -25,7 +25,7 @@
  * ============================================================
  */
 
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/bootstrap.php';
 
 /* Errori PHP: nel log del server, mai a schermo. Un avviso mostra il percorso
    delle cartelle e a volte pezzi di query (SICUREZZA.md §7). Se un giorno serve

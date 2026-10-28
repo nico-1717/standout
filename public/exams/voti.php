@@ -5,7 +5,7 @@
    Tutta la matematica "viva" (simulatore, grafici, proiezione) è lato client;
    il PHP fa da router AJAX per la persistenza e da bootstrap dei dati.
    ============================================================================ */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 if (!$conn) { error_log('[standout:db] ' . mysqli_connect_error()); die(t('comune.errore_generico')); } /* il motivo nel log, non a schermo */
 mysqli_set_charset($conn, 'utf8mb4');

@@ -24,7 +24,7 @@
  * I ripassi (partite con parent_id) non sono righe a se': stanno dentro la
  * partita da cui discendono, anche quando sono ripassi di un ripasso.
  */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_check.php';
 
 $current_user_id = (int)$utente_corrente['id'];

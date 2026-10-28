@@ -1,7 +1,7 @@
 <?php
 /* "Scarica i tuoi dati": un file ZIP con tutto quello che l'utente ha inserito.
    Si arriva da un modulo (POST con token) e si risponde con il file. */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 /* deve funzionare anche prima di aver accettato i testi (vedi auth_check.php) */
 define('STANDOUT_SENZA_TERMINI', true);
 require_once __DIR__ . '/../../lib/auth_check_api.php';

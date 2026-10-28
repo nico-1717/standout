@@ -1,9 +1,9 @@
 <?php
 /**
  * Includi questo file in cima a OGNI endpoint AJAX/JSON che richiede il
- * login, SUBITO dopo require_once __DIR__ . '/config.php':
+ * login, SUBITO dopo require_once __DIR__ . '/bootstrap.php':
  *
- *   require_once __DIR__ . '/config.php';
+ *   require_once __DIR__ . '/bootstrap.php';
  *   require_once __DIR__ . '/auth_check_api.php';
  *
  * A differenza di auth_check.php, qui NON facciamo un redirect (avrebbe

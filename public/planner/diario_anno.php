@@ -7,7 +7,7 @@
    resoconto scritto dall'IA e il libro dei propri pensieri.
    I dati arrivano da diary_api.php?ajax=insights; l'IA sta in diario_ai.php.
    ===================================================================== */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/auth_check.php';
 require_once __DIR__ . '/../../lib/stile.php';

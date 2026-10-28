@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_core.php';
 header('Content-Type: application/json');
 

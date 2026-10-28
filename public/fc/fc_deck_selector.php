@@ -30,7 +30,7 @@ if (isset($_GET['cs_ajax']) && $_GET['cs_ajax'] === 'create_category') {
     header('Content-Type: application/json');
 
         if (!isset($conn) || !$conn) {
-        require_once __DIR__ . '/../../lib/config.php';
+        require_once __DIR__ . '/../../lib/bootstrap.php';
         /* auth_check_api.php PRIMA di sec_db(): e' quello a caricare
            security_core.php, dove sec_db e le altre sec_* sono definite. */
         require_once __DIR__ . '/../../lib/auth_check_api.php';

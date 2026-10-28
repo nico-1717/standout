@@ -14,7 +14,7 @@
  *
  * 3. Nessuna verifica che la scheda fosse sua, e query per concatenazione.
  */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 
 header('Content-Type: application/json');

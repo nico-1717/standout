@@ -4,7 +4,7 @@
    Stessa impostazione di progetti.php: config -> connessione -> auth_check,
    endpoint JSON sotto ?ajax=..., HTML/CSS/JS mobile first.
    ===================================================================== */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 /* sec_db() riusa la connessione gia' aperta e la configura (utf8mb4, errori
    come eccezioni) invece di aprirne una seconda. */

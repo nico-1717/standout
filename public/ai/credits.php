@@ -25,7 +25,7 @@
        lavoro in corso.
    Cambia anche il controllo del login: da una fetch un reindirizzo alla home
    finirebbe DENTRO il popup, e si vedrebbe la home dentro un riquadro. */
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 $cred_riquadro = isset($_GET['riquadro']);
 if ($cred_riquadro) require_once __DIR__ . '/../../lib/auth_check_api.php';   // risponde JSON, non reindirizza
 else                require_once __DIR__ . '/../../lib/auth_check.php';

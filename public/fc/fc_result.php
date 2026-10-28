@@ -2,7 +2,7 @@
 
 
 
-require_once __DIR__ . '/../../lib/config.php';
+require_once __DIR__ . '/../../lib/bootstrap.php';
 
 require_once __DIR__ . '/../../lib/auth_check.php'; // 1. Protezione della pagina con login obbligatorio
 
