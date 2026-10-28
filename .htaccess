@@ -11,8 +11,28 @@
 # media/ si serve con un Alias (o si sposta in public/media/).
 # =====================================================================
 
+# --- API: l'intestazione Authorization -------------------------------------
+# Su molti hosting condivisi Apache NON passa a PHP l'intestazione
+# "Authorization: Bearer ..." (l'accesso con token dell'app, PROGETTO §7.3).
+# Qui la si copia in una variabile d'ambiente che PHP legge (lib/auth_core.php,
+# standout_token_intestazione). Due metodi, perche' dipende da come gira PHP: se
+# uno dei moduli manca, Apache salta il blocco senza dare errore. Se non
+# funziona nessuno dei due, l'app puo' usare l'intestazione X-Standout-Token.
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.+)" HTTP_AUTHORIZATION=$1
+</IfModule>
+
 RewriteEngine On
 RewriteBase /
+
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# --- API: un solo ingresso per tutto /api/v1/ ------------------------------
+# /api/v1/auth/login, /api/v1/me ... arrivano tutti a public/api/v1/index.php,
+# che sceglie la rotta (guarda REQUEST_URI, che qui non cambia). Il file non
+# esiste per ogni rotta: senza questa regola Apache risponderebbe 404.
+RewriteRule ^api/v1(?:/.*)?$ public/api/v1/index.php [L,QSA]
 
 # --- 0. Il vecchio indirizzo /Vocabolary/... ------------------------------
 # Il sito stava in una sottocartella. Ora e' nella radice: ogni indirizzo
