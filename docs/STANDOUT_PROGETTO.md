@@ -1533,7 +1533,7 @@ Ogni passo ha un criterio di "fatto": senza, si va avanti a metà.
 | 7 | non fatto | nessun accesso a token |
 | 8 | **fatto** | `manifest.webmanifest`, `sw.js`, `pwa_head.php` |
 | 9 | non fatto | `public/api/` ha solo `csrf_token`, `lingua`, `stile` |
-| 10 | non fatto | non esiste `base.css` |
+| 10 | **avviato (28/10/2026)** | `public/_assets/ui/base.css` (token standard chiaro/scuro in `@layer base`, reset, testata) è caricato da `fc_game_setup`, `fc_stats`, `fc_history` (identiche a prima) e dalle 4 pagine legali (restyle approvato da Nico: stesso stile del sito, `--brand` = indaco). Restano le altre pagine, una alla volta; `planner.css` per ultimo. La landing resta com'è per scelta |
 | 11 | **fatto** | `lang/it.json`, `lang/en.json`, `t()` |
 | 12-15 | non fatti | |
 
