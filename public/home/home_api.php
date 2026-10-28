@@ -134,7 +134,7 @@ function ho_mazzi(int $uid): array {
    --------------------------------------------------------------------- */
 function ho_voti(int $uid, string $oggi): array {
     try {
-        $imp = sec_one("SELECT total_cfu, honors_value, target_average, program_label FROM university_settings WHERE user_id = ?", [$uid], 'i');
+        $imp = sec_one("SELECT total_cfu, honors_value, target_average, program_label, accent_color FROM university_settings WHERE user_id = ?", [$uid], 'i');
         $esami = sec_all("SELECT id, name, cfu, status, grade, has_honors, is_pass_fail, counts_for_graduation, exam_date
                             FROM university_exams WHERE user_id = ? ORDER BY exam_date ASC, id ASC", [$uid], 'i');
     } catch (Throwable $e) {
@@ -172,6 +172,11 @@ function ho_voti(int $uid, string $oggi): array {
         'last' => array_slice($ultimi, -6),
         'next' => $prossimo,
         'program' => $imp['program_label'] ?? null,
+        /* Il colore che l'utente ha scelto nella pagina Voti: il riquadro della home
+           lo usa per icona, barra dei CFU e prossimo esame. sec_color lo accetta solo
+           se e' un esadecimale valido. #0A84FF e' il valore di partenza della colonna (mai
+           scelto): vale come "nessuno", e la home usa il suo verde acqua di sempre. */
+        'accent' => ($imp && sec_color($imp['accent_color'] ?? '', '') !== '#0A84FF') ? sec_color($imp['accent_color'] ?? '', '') : '',
     ];
 }
 

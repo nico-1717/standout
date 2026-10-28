@@ -372,6 +372,10 @@
                 var a = el('a', null, T('home.voti_aggiungi')); a.href = H.base + 'exams/voti.php'; e.appendChild(a);
                 w.body.appendChild(e); return;
             }
+            /* Il colore scelto nella pagina Voti (g.accent, gia' validato dal server):
+               icona del riquadro, barra dei CFU e prossimo esame. Senza, il verde acqua di prima. */
+            var col = g.accent || 'var(--teal)';
+            var wi = w.head && w.head.querySelector('.ho-wi'); if (wi) wi.style.setProperty('--c', col);
             var top = el('div', 'ho-avg');
             top.appendChild(el('b', null, g.avg !== null ? g.avg.toFixed(2) : '–'));
             top.appendChild(el('span', 'ho-muted', T('home.media_ponderata')));
@@ -384,7 +388,7 @@
             }
             var pr = el('div');
             var cap = el('div', 'ho-muted', T('home.cfu_fatti', { fatti: g.cfu_done, tot: g.cfu_total }));
-            var bar = el('div', 'ho-bar'); bar.style.setProperty('--c', 'var(--teal)'); bar.style.marginTop = '6px';
+            var bar = el('div', 'ho-bar'); bar.style.setProperty('--c', col); bar.style.marginTop = '6px';
             var i = el('i'); i.style.width = Math.min(100, g.cfu_total ? Math.round(g.cfu_done / g.cfu_total * 100) : 0) + '%'; bar.appendChild(i);
             pr.appendChild(cap); pr.appendChild(bar); w.body.appendChild(pr);
             if (g.last && g.last.length) {
@@ -398,7 +402,7 @@
                 w.body.appendChild(bars);
             }
             if (g.next) {
-                var nx = el('div', 'ho-date-card'); nx.style.setProperty('--c', 'var(--teal)');
+                var nx = el('div', 'ho-date-card'); nx.style.setProperty('--c', col);
                 var big = el('div', 'big'); big.appendChild(el('b', null, String(g.next.days))); big.appendChild(el('span', null, T(g.next.days === 1 ? 'home.giorno' : 'home.giorni')));
                 var tx = el('div', 'tx'); tx.appendChild(el('b', null, g.next.name)); tx.appendChild(el('span', null, T('home.prossimo_esame') + ' · ' + H.fmtDate(g.next.date)));
                 nx.appendChild(big); nx.appendChild(tx); w.body.appendChild(nx);

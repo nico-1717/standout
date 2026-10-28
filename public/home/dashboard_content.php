@@ -23,6 +23,16 @@ if (!$standout_utente) { return; } // index.php dovrebbe già garantirlo, ma per
 
 $nd_notifiche = standout_social_attivo() ? fr_conta_notifiche(fr_conn(), (int)$standout_utente['id']) : 0;
 
+/* Il colore del riquadro Voti e' quello scelto dall'utente nella pagina Voti
+   (university_settings.accent_color). #0A84FF e' il valore di partenza della colonna,
+   cioe' "mai scelto": in quel caso resta il verde acqua di sempre. */
+$ho_colore_voti = '#0FB5AE';
+try {
+    $ho_r = sec_one("SELECT accent_color FROM university_settings WHERE user_id = ?", [(int)$standout_utente['id']], 'i');
+    $ho_c = $ho_r ? sec_color($ho_r['accent_color'] ?? '', '') : '';
+    if ($ho_c !== '' && $ho_c !== '#0A84FF') $ho_colore_voti = $ho_c;
+} catch (Throwable $e) { /* senza la tabella impostazioni resta il colore di sempre */ }
+
 /* Le pagine del sito a un tocco. Etichette dal dizionario della barra
    laterale: un nome solo per pagina in tutta l'app. */
 $ho_scorciatoie = [
@@ -31,7 +41,7 @@ $ho_scorciatoie = [
     ['href' => 'projects/progetti.php', 'label' => t('sidebar.progetti'),   'icon' => 'folder',   'color' => '#5E5CE6'],
     ['href' => 'projects/pomodoro.php', 'label' => t('sidebar.pomodoro'),   'icon' => 'timer',    'color' => '#FF6B3D'],
     ['href' => 'fc/fc_home.php',        'label' => t('sidebar.flashcards'), 'icon' => 'cards',    'color' => '#BF5AF2'],
-    ['href' => 'exams/voti.php',        'label' => t('sidebar.voti'),       'icon' => 'cap',      'color' => '#0FB5AE'],
+    ['href' => 'exams/voti.php',        'label' => t('sidebar.voti'),       'icon' => 'cap',      'color' => $ho_colore_voti],
     ['href' => 'planner/habits.php',    'label' => t('sidebar.abitudini'),  'icon' => 'heart',    'color' => '#FF375F'],
     ['href' => 'planner/diario.php',    'label' => t('sidebar.diario'),     'icon' => 'book',     'color' => '#AC8E68'],
 ];
