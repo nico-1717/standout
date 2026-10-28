@@ -2,6 +2,8 @@
 /* "Privacy e dati": dove l'utente legge le informative, scarica i suoi dati
    ed elimina l'account. Raggiungibile dal menu dell'account (avatar). */
 require_once __DIR__ . '/../../lib/config.php';
+/* deve funzionare anche prima di aver accettato i testi (vedi auth_check.php) */
+define('STANDOUT_SENZA_TERMINI', true);
 require_once __DIR__ . '/../../lib/auth_check.php';
 require_once __DIR__ . '/../../lib/legale.php';
 

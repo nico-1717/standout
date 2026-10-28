@@ -3,6 +3,11 @@ require_once __DIR__ . '/../lib/config.php';
 require_once __DIR__ . '/../lib/auth_core.php';
 
 $utente_corrente = standout_utente_corrente();
+/* Chi non ha ancora accettato le condizioni d'uso le vede prima della home. */
+if ($utente_corrente) {
+    require_once __DIR__ . '/../lib/legale.php';
+    if (standout_termini_da_accettare((int)$utente_corrente['id'])) standout_termini_vai();
+}
 /* Dice al service worker che questa e' la home di chi e' connesso (uno scheletro
    senza dati): senza rete la puo' riaprire dalla copia. Vedi sw.js, regola 1. */
 if ($utente_corrente) header('X-Standout-Shell: home');

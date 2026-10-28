@@ -22,3 +22,16 @@ if (!$utente_corrente) {
     echo json_encode(['success' => false, 'error' => 'not_authenticated', 'message' => t('api.devi_login')]);
     exit;
 }
+
+/* Stesso controllo di auth_check.php, ma per le chiamate in background: 403 con
+   un codice che il Javascript puo' riconoscere. Gli endpoint che devono
+   funzionare comunque definiscono STANDOUT_SENZA_TERMINI. */
+if (!defined('STANDOUT_SENZA_TERMINI')) {
+    require_once __DIR__ . '/legale.php';
+    if (standout_termini_da_accettare((int)$utente_corrente['id'])) {
+        http_response_code(403);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'terms_required', 'message' => t('accettatermini.err_api')]);
+        exit;
+    }
+}

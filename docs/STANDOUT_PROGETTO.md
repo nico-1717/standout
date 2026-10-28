@@ -544,7 +544,7 @@ senza nonce, così non tornano per sbaglio.
 > una tabella nuova non è coperta. Scadenze promesse nell'informativa: registro di
 > sicurezza 12 mesi e tentativi di accesso 30 giorni (pulizia automatica in
 > `sec_rate_limit`); **i backup contengono i dati cancellati: vanno eliminati entro
-> 12 mesi**. Da fare: gli utenti già registrati non hanno `terms_accepted_at`.
+> 12 mesi**. Chi era già registrato (o chi ha accettato una versione vecchia) vede `account/accetta_termini.php` al primo accesso: `auth_check.php`/`auth_check_api.php` lo rimandano lì finché non accetta; le pagine «Privacy e dati» restano raggiungibili (`STANDOUT_SENZA_TERMINI`). Cambiare `STANDOUT_LEGALE_VERSIONE` in `lib/legale.php` fa riaccettare tutti.
 
 Con utenti veri e contenuti loro:
 

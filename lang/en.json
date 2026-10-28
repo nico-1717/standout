@@ -5243,6 +5243,15 @@
     "torna": "← Back to Standout",
     "versione": "Version {v}"
   },
+  "accettatermini": {
+    "titolo": "Terms of use and privacy",
+    "intro": "We have added terms of use and a privacy policy. To keep using Standout, please read them and confirm: it only takes a moment.",
+    "btn": "I accept and continue",
+    "err": "To continue you must accept the terms of use and the privacy policy.",
+    "esci": "Log out",
+    "dati": "Download my data or delete my account",
+    "err_api": "Before continuing you must accept the terms of use: reload the page."
+  },
   "privacydati": {
     "titolo": "Privacy and data",
     "intro": "Here you can read how we handle your data, download it or delete your account.",

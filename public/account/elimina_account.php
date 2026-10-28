@@ -3,6 +3,8 @@
    Si risponde con JSON. Serve la password: una sessione lasciata aperta su un
    computer non basta a distruggere un account. */
 require_once __DIR__ . '/../../lib/config.php';
+/* deve funzionare anche prima di aver accettato i testi (vedi auth_check.php) */
+define('STANDOUT_SENZA_TERMINI', true);
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 require_once __DIR__ . '/../../lib/account_dati.php';
 

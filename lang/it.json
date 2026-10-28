@@ -5243,6 +5243,15 @@
     "torna": "← Torna a Standout",
     "versione": "Versione {v}"
   },
+  "accettatermini": {
+    "titolo": "Condizioni d'uso e privacy",
+    "intro": "Abbiamo aggiunto le condizioni d'uso e l'informativa sulla privacy. Per continuare a usare Standout leggile e conferma: ci vuole un attimo.",
+    "btn": "Accetto e continuo",
+    "err": "Per continuare devi accettare le condizioni d'uso e l'informativa sulla privacy.",
+    "esci": "Esci",
+    "dati": "Scarica i miei dati o elimina l'account",
+    "err_api": "Prima di continuare devi accettare le condizioni d'uso: ricarica la pagina."
+  },
   "privacydati": {
     "titolo": "Privacy e dati",
     "intro": "Qui puoi leggere come trattiamo i tuoi dati, scaricarli o eliminare il tuo account.",

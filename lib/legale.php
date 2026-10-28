@@ -107,3 +107,30 @@ function standout_legale_pagina(string $doc): void {
 </html>
 <?php
 }
+
+/**
+ * true se questo utente deve ancora accettare i testi attuali: o non li ha mai
+ * accettati (chi si e' registrato prima che esistessero) o ha accettato una
+ * versione vecchia (cambiata STANDOUT_LEGALE_VERSIONE). WHY il controllo qui e
+ * non nel login: l'accesso puo' avvenire anche col cookie "ricordami", e una
+ * sessione aperta da giorni non passa piu' dal login.
+ */
+function standout_termini_da_accettare(int $uid): bool {
+    static $cache = [];
+    if (!isset($cache[$uid])) {
+        $r = sec_one("SELECT terms_version FROM users WHERE id = ?", [$uid], 'i');
+        $cache[$uid] = !$r || (string)$r['terms_version'] !== STANDOUT_LEGALE_VERSIONE;
+    }
+    return $cache[$uid];
+}
+
+/** Rimanda alla pagina di accettazione (solo percorsi interni: niente redirect aperti). */
+function standout_termini_vai(string $next = ''): void {
+    $base = defined('PWA_BASE') ? PWA_BASE : '/';
+    $q = '';
+    if ($next !== '' && $next[0] === '/' && strncmp($next, '//', 2) !== 0 && strpos($next, "\\") === false) {
+        $q = '?next=' . rawurlencode($next);
+    }
+    header('Location: ' . $base . 'account/accetta_termini.php' . $q);
+    exit;
+}
