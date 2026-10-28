@@ -10,6 +10,7 @@ $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 if (!$conn) { error_log('[standout:db] ' . mysqli_connect_error()); die(t('comune.errore_generico')); } /* il motivo nel log, non a schermo */
 mysqli_set_charset($conn, 'utf8mb4');
 require_once __DIR__ . '/../../lib/auth_check.php';
+require_once __DIR__ . '/../../lib/colore_voti.php';
 $current_user_id = (int)$utente_corrente['id'];
 
 /* -------------------------------------------------------------------------- */
@@ -106,7 +107,7 @@ function uni_settings_out($s) {
         'program_key'       => $s['program_key'],
         'program_label'     => $s['program_label'],
         'faculty_key'       => $s['faculty_key'],
-        'accent_color'      => uni_color($s['accent_color']),
+        'accent_color'      => standout_colore_voti_effettivo($s['accent_color']),
         'total_cfu'         => (int)$s['total_cfu'],
         'grade_base'        => (int)$s['grade_base'],
         'honors_value'      => (float)$s['honors_value'],
@@ -215,6 +216,9 @@ if (isset($_GET['ajax'])) {
         $programLabel = uni_str_or_null($_POST['program_label'] ?? null, 160);
         $facultyKey   = uni_str_or_null($_POST['faculty_key'] ?? null, 60);
         $accent       = uni_color($_POST['accent_color'] ?? null);
+        /* Se arriva il colore che la pagina mostrava solo perche' segue quello del sito,
+           non e' una scelta dell'utente: si rimette il valore di partenza. */
+        if ($accent === standout_colore_voti_effettivo('#0A84FF')) $accent = '#0A84FF';
         $totalCfu     = sec_int($_POST['total_cfu'] ?? 180, 1, 600, 180);
         $gradeBase    = sec_int($_POST['grade_base'] ?? 110, 30, 200, 110);
         $honorsValue  = sec_float($_POST['honors_value'] ?? 30, 30, 40, 30);
@@ -444,7 +448,7 @@ if (isset($_GET['ajax'])) {
         if (isset($_POST['program_key']))        { $sets[] = "program_key=?";       $vals[] = uni_str_or_null($_POST['program_key'], 80); }
         if (isset($_POST['program_label']))      { $sets[] = "program_label=?";     $vals[] = uni_str_or_null($_POST['program_label'], 160); }
         if (isset($_POST['faculty_key']))        { $sets[] = "faculty_key=?";       $vals[] = uni_str_or_null($_POST['faculty_key'], 60); }
-        if (isset($_POST['accent_color']))       { $sets[] = "accent_color=?";      $vals[] = uni_color($_POST['accent_color']); }
+        if (isset($_POST['accent_color']))       { $sets[] = "accent_color=?";      $vals[] = (uni_color($_POST['accent_color']) === standout_colore_voti_effettivo('#0A84FF')) ? '#0A84FF' : uni_color($_POST['accent_color']); }
         if (isset($_POST['total_cfu']))          { $sets[] = "total_cfu=?";         $vals[] = sec_int($_POST['total_cfu'], 1, 600, 180); }
         if (isset($_POST['grade_base']))         { $sets[] = "grade_base=?";        $vals[] = sec_int($_POST['grade_base'], 30, 200, 110); }
         if (isset($_POST['thesis_min_points']))  { $sets[] = "thesis_min_points=?"; $vals[] = sec_float($_POST['thesis_min_points'], 0, 30, 0); }
@@ -539,7 +543,7 @@ $UNI_HAS_DATA = count($UNI_EXAMS) > 0;
 echo standout_i18n_json(['comune', 'voti']);
 ?>
 </head>
-<body style="--uni-accent:<?php echo sec_h(sec_color($UNI_SETTINGS['accent_color'])); ?>; --uni-accent-2:<?php echo sec_h(sec_color($UNI_SETTINGS['accent_color'])); ?>;">
+<body style="--uni-accent:<?php echo sec_h(standout_colore_voti_effettivo($UNI_SETTINGS['accent_color'])); ?>; --uni-accent-2:<?php echo sec_h(standout_colore_voti_effettivo($UNI_SETTINGS['accent_color'])); ?>;">
 
 <header class="app-header">
     <div class="hdr-title"><?php te('voti.voti'); ?></div>

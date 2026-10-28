@@ -26,3 +26,24 @@ if (!function_exists('standout_colore_voti')) {
         return $colore;
     }
 }
+
+/* Il colore con cui la pagina Voti si disegna. Se l'utente ne ha scelto uno nella
+   pagina (diverso dal #0A84FF di partenza) vale quello; altrimenti la pagina
+   segue il colore del sito (lib/accent.php, scelto dal pannello del profilo),
+   cosi' chi sceglie un colore non si ritrova Voti ancora tutta blu.
+   Si usa il valore "scuro" della tavolozza (come il #0A84FF di prima, uguale in
+   chiaro e scuro). Per il blu del sito torna #0A84FF: nessun cambiamento. */
+if (!function_exists('standout_colore_voti_effettivo')) {
+    function standout_colore_voti_effettivo($salvato): string
+    {
+        $c = function_exists('sec_color') ? sec_color($salvato, '#0A84FF') : '#0A84FF';
+        if ($c !== '#0A84FF') return $c;
+        $f = __DIR__ . '/accent.php';
+        if (is_readable($f)) {
+            require_once $f;
+            $a = standout_accento();
+            if ($a !== STANDOUT_ACCENTO_BASE && isset(STANDOUT_ACCENTI[$a])) return STANDOUT_ACCENTI[$a]['d'];
+        }
+        return '#0A84FF';
+    }
+}
