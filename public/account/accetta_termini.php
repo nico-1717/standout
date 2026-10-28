@@ -29,6 +29,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 }
 
 $css = PWA_BASE . 'legal/legale.css?v=' . (@filemtime(__DIR__ . '/../legal/legale.css') ?: 1);
+$cssBase = PWA_BASE . '_assets/ui/base.css?v=' . (@filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1);
 ?><!DOCTYPE html>
 <html lang="<?php echo $h(standout_lingua()); ?>">
 <head>
@@ -36,6 +37,7 @@ $css = PWA_BASE . 'legal/legale.css?v=' . (@filemtime(__DIR__ . '/../legal/legal
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title><?php te('accettatermini.titolo'); ?> · Standout</title>
+<link rel="stylesheet" href="<?php echo $h($cssBase); ?>">
 <link rel="stylesheet" href="<?php echo $h($css); ?>">
 </head>
 <body>

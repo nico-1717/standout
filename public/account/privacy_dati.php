@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../lib/legale.php';
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $v = fn($f) => @filemtime(__DIR__ . '/' . $f) ?: 1;
 $css = PWA_BASE . 'legal/legale.css?v=' . (@filemtime(__DIR__ . '/../legal/legale.css') ?: 1);
+$cssBase = PWA_BASE . '_assets/ui/base.css?v=' . (@filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1);
 ?><!DOCTYPE html>
 <html lang="<?php echo $h(standout_lingua()); ?>">
 <head>
@@ -18,6 +19,7 @@ $css = PWA_BASE . 'legal/legale.css?v=' . (@filemtime(__DIR__ . '/../legal/legal
 <meta name="robots" content="noindex">
 <meta name="csrf-token" content="<?php echo $h(sec_csrf_token()); ?>">
 <title><?php te('privacydati.titolo'); ?> · Standout</title>
+<link rel="stylesheet" href="<?php echo $h($cssBase); ?>">
 <link rel="stylesheet" href="<?php echo $h($css); ?>">
 <script src="<?php echo PWA_BASE; ?>_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: 1; ?>"></script>
 </head>

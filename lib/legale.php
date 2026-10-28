@@ -63,6 +63,7 @@ function standout_legale_pagina(string $doc): void {
     $sezioni = standout_legale_sezioni($doc, $lingua);
     $titolo = t('legale.' . ($doc === 'privacy' ? 'titolo_privacy' : 'titolo_termini'));
     $css = PWA_BASE . 'legal/legale.css?v=' . (@filemtime(__DIR__ . '/../public/legal/legale.css') ?: 1);
+    $cssBase = PWA_BASE . '_assets/ui/base.css?v=' . (@filemtime(__DIR__ . '/../public/_assets/ui/base.css') ?: 1);
     $altro = $doc === 'privacy' ? 'termini' : 'privacy';
     $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     ?><!DOCTYPE html>
@@ -72,6 +73,7 @@ function standout_legale_pagina(string $doc): void {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title><?php echo $h($titolo); ?> · Standout</title>
+<link rel="stylesheet" href="<?php echo $h($cssBase); ?>">
 <link rel="stylesheet" href="<?php echo $h($css); ?>">
 </head>
 <body>
