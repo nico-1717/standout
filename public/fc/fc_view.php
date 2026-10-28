@@ -2351,6 +2351,7 @@ if (isset($_GET['fc_feed_page'])) {
 
 
 
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>_assets/ui/base.css?v=<?php echo @filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_edit_popup.css?v=<?php echo @filemtime(__DIR__ . '/fc_edit_popup.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_examples_box.css?v=<?php echo @filemtime(__DIR__ . '/fc_examples_box.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_view.css?v=<?php echo @filemtime(__DIR__ . '/fc_view.css') ?: 1; ?>">

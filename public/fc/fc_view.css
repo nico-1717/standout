@@ -12,27 +12,27 @@
 
     color-scheme: light dark;
 
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7; --surface-3:#FAFAFC;
+   --surface-3:#FAFAFC;
 
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
+   
 
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
+  
 
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
+     
 
-    --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12); --orange-soft:rgba(255,149,0,.14);
+    
 
-    --header-glass:rgba(249,249,251,.82);
+ 
 
     --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 26px rgba(0,0,0,.07);
 
-    --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
+ 
 
     --pill-hl:inset 0 0 0 .5px var(--hairline);
 
-    --r-card:20px; --r-btn:14px; --r-chip:100px;
+    --r-card:20px; --r-btn:14px;  
 
-    --spring:cubic-bezier(.32,.72,0,1);
+ 
 
     --bounce:cubic-bezier(.34,1.56,.64,1);
 
@@ -60,21 +60,22 @@
 
     :root{
 
-        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E; --surface-3:#242426;
+   --surface-3:#242426;
+        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5); /* come base.css scuro, ma serve qui: il :root chiaro della pagina ne tiene uno suo */
 
-        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
+   
 
-        --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
+  
 
-        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
+     
 
-        --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17); --orange-soft:rgba(255,159,10,.18);
+    
 
-        --header-glass:rgba(16,16,18,.78);
+ 
 
-        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
+ 
 
-        --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
+ 
 
         --pill-hl:inset 0 0 0 .5px var(--hairline);
 
@@ -84,15 +85,14 @@
 
 
 
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+/* Reset, html{text-size-adjust}, :focus-visible, a e button: uguali a base.css, tolti da qui. */
 
 html,body{ height:100%; }
 
-html{ -webkit-text-size-adjust:100%; }
 
 body{
 
-    margin:0; background:var(--bg); color:var(--text);
+    margin:0; min-height:0; background:var(--bg); color:var(--text);
 
     font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
@@ -104,11 +104,8 @@ body{
 
 body.no-select, body.no-select *{ -webkit-user-select:none !important; user-select:none !important; }
 
-:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
 
-a{ color:inherit; }
 
-button{ font-family:inherit; }
 
 img{ -webkit-touch-callout:none; }
 
@@ -124,6 +121,7 @@ img{ -webkit-touch-callout:none; }
 
     position:fixed; top:0; left:0; right:0; z-index:200;
 
+    padding:0; /* base.css dà alla testata un padding suo: qui non c'era */
     padding-top:var(--safe-top);
 
     background:var(--header-glass);
