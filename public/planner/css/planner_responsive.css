@@ -149,6 +149,17 @@
         width: 100vw !important;
         border-left: none !important;
         padding-left: 12px !important;
+        /* LA BARRA DI TUTTO IL GIORNO DEVE FINIRE, non uscire dallo schermo.
+           La colonna e' larga uno schermo intero (la striscia scorre di una
+           pagina per volta, vedi setTrackX), ma la fascia che la ritaglia e'
+           piu' stretta di 24px: il padding della barra in alto, 12 per lato.
+           Con il solo padding di 6px della regola base la barra finiva 18px
+           oltre il ritaglio e si vedeva tagliata di netto a destra, come se
+           continuasse nei giorni dopo. In piu' i tastini a destra (anello,
+           chevron) le stanno sopra apposta: la barra si ferma prima di loro,
+           cosi' ha un'estremita' arrotondata visibile come ce l'ha a sinistra.
+           74 = 12 di margine del ritaglio + 62 di colonna dei tastini. */
+        padding-right: 74px !important;
     }
 }
 /* Nasconde il contenuto degli eventi tutto il giorno per i giorni non a fuoco,
