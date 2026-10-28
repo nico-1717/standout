@@ -705,6 +705,7 @@ $lingua_html = substr((string)T('fc.sfc_locale'), 0, 2) ?: 'it';
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <title><?php te('fc.sfc_titolo_pagina'); ?></title>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>_assets/ui/base.css?v=<?php echo @filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_history.css?v=<?php echo @filemtime(__DIR__ . '/fc_history.css') ?: 1; ?>">
 </head>
 <body>
