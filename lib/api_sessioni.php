@@ -55,11 +55,6 @@ if (!defined('API_POTATURA_UNA_SU'))          define('API_POTATURA_UNA_SU', 150)
 const API_TIPO_ACCESSO = 'sta';
 const API_TIPO_RINNOVO = 'str';
 
-/* Un hash vero di una password che nessuno ha: se l'utente non esiste si fa lo
-   stesso password_verify(), cosi' una risposta rapida non rivela che quel nome
-   utente non c'e'. Stesso costo (10) dell'algoritmo predefinito di oggi. */
-const API_HASH_FINTO = '$2y$10$0HAmWNeaGlRgXV2.q0v2guoK0O0XLOsq314jAY52o0yJgKURs994i';
-
 /* ================= Token ================= */
 
 /** Un token nuovo: ['token' => da mandare al client, 'selector' => , 'hash' => da salvare]. */
@@ -379,14 +374,13 @@ function api_sessioni_pota_a_caso(): void {
 /**
  * Entra con nome utente (o email) e password e apre la sessione di un dispositivo.
  *
- * Passa dagli STESSI controlli del login del sito (public/account/login.php):
- * stesso blocco dopo troppi errori (standout_login_bloccato /
- * standout_registra_tentativo), stessa query, stesso password_verify, stesso
- * «account attivo», nessun altro limite inventato (un tetto per IP chiuderebbe
- * fuori una scuola o un operatore telefonico intero). L'unica differenza va nel
- * senso piu' severo: il password_verify si fa anche quando l'utente non esiste
- * (stesso tempo di risposta). L'email non verificata NON blocca, come sul sito:
- * serve solo per le cose che coinvolgono altre persone.
+ * Passa dagli STESSI controlli del login del sito (public/account/login.php),
+ * perche' usa lo stesso codice: standout_verifica_credenziali() in auth_core.php
+ * (blocco dopo troppi errori, «account attivo», password_verify anche se
+ * l'utente non esiste). Nessun altro limite inventato: un tetto per IP
+ * chiuderebbe fuori una scuola o un operatore telefonico intero. L'email non
+ * verificata NON blocca, come sul sito: serve solo per le cose che coinvolgono
+ * altre persone.
  *
  * Ritorna ['ok' => true, 'tokens' => [...], 'user_id' => N]
  * oppure ['ok' => false, 'codice' => 'validation' | 'too_many_attempts' | 'invalid_credentials'].
@@ -395,28 +389,13 @@ function api_login(string $identifier, string $password, string $nomeDispositivo
     $identifier = trim($identifier);
     if ($identifier === '' || $password === '') return ['ok' => false, 'codice' => 'validation'];
 
-    if (standout_login_bloccato($identifier)) {
-        return ['ok' => false, 'codice' => 'too_many_attempts'];
+    // Blocco, ricerca, password_verify e registro dei tentativi: stesso codice del sito
+    $v = standout_verifica_credenziali($identifier, $password);
+    if (!$v['ok']) {
+        return ['ok' => false, 'codice' => $v['codice'] === 'bloccato' ? 'too_many_attempts' : 'invalid_credentials'];
     }
 
-    $u = sec_one("SELECT id, username, email, password_hash FROM users WHERE (username = ? OR email = ?) AND is_active = 1 LIMIT 1",
-                 [$identifier, $identifier], 'ss');
-    $hash = ($u && !empty($u['password_hash'])) ? (string)$u['password_hash'] : API_HASH_FINTO;
-    $passwordGiusta = password_verify($password, $hash);
-
-    // Risposta volutamente generica: non si rivela se e' il nome o la password a non andare
-    if (!$u || empty($u['password_hash']) || !$passwordGiusta) {
-        standout_registra_tentativo($identifier, false);
-        return ['ok' => false, 'codice' => 'invalid_credentials'];
-    }
-
-    // Se un giorno cambia l'algoritmo predefinito di PHP, si aggiorna da solo (come sul sito)
-    if (password_needs_rehash($u['password_hash'], PASSWORD_DEFAULT)) {
-        sec_q("UPDATE users SET password_hash = ? WHERE id = ?", [password_hash($password, PASSWORD_DEFAULT), (int)$u['id']], 'si');
-    }
-
-    standout_registra_tentativo($identifier, true);
-    $uid = (int)$u['id'];
+    $uid = (int)$v['utente']['id'];
     sec_q("UPDATE users SET last_login_at = NOW() WHERE id = ?", [$uid], 'i');
 
     api_sessioni_pota_a_caso();

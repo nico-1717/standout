@@ -23,36 +23,20 @@ if ($identifier === '' || $password === '') {
     die(json_encode(['success' => false, 'error' => 'validazione', 'message' => t('auth.err_campi_login')]));
 }
 
-if (standout_login_bloccato($identifier)) {
+/* Blocco dopo troppi errori, ricerca, password_verify, registro dei tentativi e
+   aggiornamento dell'hash: stesso codice dell'accesso dell'app (auth_core.php). */
+$v = standout_verifica_credenziali($identifier, $password);
+if (!$v['ok'] && $v['codice'] === 'bloccato') {
     http_response_code(429);
     die(json_encode(['success' => false, 'error' => 'troppi_tentativi', 'message' => t('auth.err_troppi_tentativi')]));
 }
-
-$conn = standout_db();
-$stmt = mysqli_prepare($conn, "SELECT id, username, email, password_hash FROM users WHERE (username = ? OR email = ?) AND is_active = 1 LIMIT 1");
-mysqli_stmt_bind_param($stmt, 'ss', $identifier, $identifier);
-mysqli_stmt_execute($stmt);
-$res = mysqli_stmt_get_result($stmt);
-$utente = $res ? mysqli_fetch_assoc($res) : null;
-mysqli_stmt_close($stmt);
-
 // Messaggio volutamente generico: non riveliamo se è l'email/username o la password ad essere sbagliati
-if (!$utente || empty($utente['password_hash']) || !password_verify($password, $utente['password_hash'])) {
-    standout_registra_tentativo($identifier, false);
+if (!$v['ok']) {
     http_response_code(401);
     die(json_encode(['success' => false, 'error' => 'credenziali_invalide', 'message' => t('auth.err_credenziali')]));
 }
+$utente = $v['utente'];
 
-// Se in futuro cambi l'algoritmo di hashing di default di PHP, qui lo aggiorniamo in automatico
-if (password_needs_rehash($utente['password_hash'], PASSWORD_DEFAULT)) {
-    $nuovoHash = password_hash($password, PASSWORD_DEFAULT);
-    $stmtU = mysqli_prepare($conn, "UPDATE users SET password_hash = ? WHERE id = ?");
-    mysqli_stmt_bind_param($stmtU, 'si', $nuovoHash, $utente['id']);
-    mysqli_stmt_execute($stmtU);
-    mysqli_stmt_close($stmtU);
-}
-
-standout_registra_tentativo($identifier, true);
 standout_effettua_login((int)$utente['id'], true);
 
 echo json_encode(['success' => true, 'user' => ['id' => (int)$utente['id'], 'username' => $utente['username'], 'email' => $utente['email']]]);

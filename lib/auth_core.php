@@ -167,6 +167,50 @@ function standout_registra_tentativo(string $identifier, bool $success): void {
     mysqli_stmt_close($stmt);
 }
 
+/* Un hash vero di una password che nessuno ha: se l'utente non esiste si fa lo
+   stesso password_verify(), cosi' una risposta rapida non rivela che quel nome
+   utente non c'e'. Stesso costo (10) dell'algoritmo predefinito di oggi. */
+const STANDOUT_HASH_FINTO = '$2y$10$0HAmWNeaGlRgXV2.q0v2guoK0O0XLOsq314jAY52o0yJgKURs994i';
+
+/**
+ * Controlla nome utente (o email) + password. E' l'UNICO posto dove si fa, usato
+ * dal login del sito (public/account/login.php) e da quello dell'app (api_login):
+ * cosi' le due porte d'ingresso non possono piu' divergere in silenzio.
+ *
+ * Nell'ordine: blocco dopo troppi errori, ricerca dell'utente attivo,
+ * password_verify (anche se l'utente non c'e', per avere lo stesso tempo di
+ * risposta), registro del tentativo, aggiornamento dell'hash se l'algoritmo
+ * predefinito e' cambiato. NON apre nessuna sessione e non scrive last_login_at:
+ * lo fa chi chiama, perche' il sito e l'app lo fanno in modo diverso.
+ *
+ * Ritorna ['ok' => true, 'utente' => riga]
+ * oppure  ['ok' => false, 'codice' => 'bloccato' | 'credenziali'].
+ * Il messaggio e' volutamente lo stesso per nome sbagliato e password sbagliata.
+ */
+function standout_verifica_credenziali(string $identifier, string $password): array {
+    if (standout_login_bloccato($identifier)) {
+        return ['ok' => false, 'codice' => 'bloccato'];
+    }
+
+    $u = sec_one("SELECT id, username, email, password_hash FROM users WHERE (username = ? OR email = ?) AND is_active = 1 LIMIT 1",
+                 [$identifier, $identifier], 'ss');
+    $hash = ($u && !empty($u['password_hash'])) ? (string)$u['password_hash'] : STANDOUT_HASH_FINTO;
+    $giusta = password_verify($password, $hash);
+
+    if (!$u || empty($u['password_hash']) || !$giusta) {
+        standout_registra_tentativo($identifier, false);
+        return ['ok' => false, 'codice' => 'credenziali'];
+    }
+
+    // Se in futuro cambia l'algoritmo predefinito di PHP, si aggiorna da solo
+    if (password_needs_rehash($u['password_hash'], PASSWORD_DEFAULT)) {
+        sec_q("UPDATE users SET password_hash = ? WHERE id = ?", [password_hash($password, PASSWORD_DEFAULT), (int)$u['id']], 'si');
+    }
+
+    standout_registra_tentativo($identifier, true);
+    return ['ok' => true, 'utente' => $u];
+}
+
 /* ============ "Ricordami" — pattern selector/validator ============ */
 
 function standout_imposta_remember_cookie(int $user_id): void {
