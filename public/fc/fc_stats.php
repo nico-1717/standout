@@ -527,6 +527,7 @@ if ($debugMode) {
          "Chart is not defined" al primo grafico e restava vuota. */ ?>
 <script src="<?php echo PWA_BASE; ?>_assets/vendor/chart.umd.js"></script>
 <script src="fc_parser.js"></script>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>_assets/ui/base.css?v=<?php echo @filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_stats.css?v=<?php echo @filemtime(__DIR__ . '/fc_stats.css') ?: 1; ?>">
 </head>
 <body>

@@ -2,70 +2,21 @@
    Estratto dal blocco <style> della pagina: serve per togliere 'unsafe-inline'
    dalla CSP. */
 
-/* ================================================================
-   DESIGN SYSTEM — coerente con fc_decks.php / fc_game.php
-   ================================================================ */
-:root{
-    color-scheme: light dark;
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-    --teal:#30B0C7; --pink:#FF2D55; --indigo:#5856D6; --yellow:#FFCC00;
-    --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
-    --orange-soft:rgba(255,149,0,.14); --purple-soft:rgba(175,82,222,.12);
-    --teal-soft:rgba(48,176,199,.14); --indigo-soft:rgba(88,86,214,.12);
-    --header-glass:rgba(249,249,251,.82);
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-    --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
-    --r-card:22px; --r-btn:15px;
-    --spring:cubic-bezier(.32,.72,0,1);
-    --safe-top:env(safe-area-inset-top, 0px);
-    --safe-bottom:env(safe-area-inset-bottom, 0px);
-}
+/* I token, il reset, il corpo e la testata stanno in _assets/ui/base.css,
+   caricato prima di questo foglio. Qui restano i due token che la base non
+   ha (--yellow, --teal-soft) e cio' che e' di questa pagina. */
+:root{ --yellow:#FFCC00; --teal-soft:rgba(48,176,199,.14); }
 @media (prefers-color-scheme: dark){
-    :root{
-        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-        --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-        --teal:#40C8E0; --pink:#FF375F; --indigo:#5E5CE6; --yellow:#FFD60A;
-        --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17);
-        --orange-soft:rgba(255,159,10,.18); --purple-soft:rgba(191,90,242,.18);
-        --teal-soft:rgba(64,200,224,.18); --indigo-soft:rgba(94,92,230,.18);
-        --header-glass:rgba(16,16,18,.78);
-        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-        --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-        --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
-    }
+    :root{ --yellow:#FFD60A; --teal-soft:rgba(64,200,224,.18); }
 }
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html{ -webkit-text-size-adjust:100%; }
-body{
-    margin:0; min-height:100vh;
-    background:var(--bg); color:var(--text);
-    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size:16px; line-height:1.4; -webkit-font-smoothing:antialiased;
-    padding-bottom:calc(24px + var(--safe-bottom));
-}
-a{ color:inherit; } button{ font-family:inherit; }
-:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
+body{ padding-bottom:calc(24px + var(--safe-bottom)); }
 
 @keyframes cardIn{ from{ opacity:0; transform:translateY(14px) scale(.985); } to{ opacity:1; transform:none; } }
 @keyframes rowIn{ from{ opacity:0; transform:translateY(-6px); } to{ opacity:1; transform:none; } }
 @keyframes popIn{ from{ opacity:0; transform:scale(.7); } to{ opacity:1; transform:scale(1); } }
 
 /* ---------- Header ---------- */
-.app-header{
-    position:sticky; top:0; z-index:100;
-    padding:calc(var(--safe-top) + 12px) 16px 12px;
-    background:var(--header-glass);
-    -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px);
-    border-bottom:.5px solid var(--hairline);
-}
 .hdr-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.hdr-title{ font-size:28px; font-weight:800; letter-spacing:-.02em; }
 .user-pills{ display:flex; gap:6px; }
 .user-pill{
     width:38px; height:38px; border-radius:50%; border:none; cursor:pointer;
