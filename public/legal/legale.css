@@ -21,7 +21,7 @@ body{ font-size:16px; line-height:1.65; padding-bottom:calc(24px + var(--safe-bo
 .lg-nav a{ color:var(--brand); text-decoration:none; font-weight:600; }
 .lg-nav-r{ display:flex; gap:14px; flex-wrap:wrap; }
 .lg-nav a[aria-current]{ color:var(--text); font-weight:700; }
-h1{ font-size:28px; line-height:1.2; margin:0 0 4px; font-weight:800; letter-spacing:-.02em; }
+h1{ font-size:21px; line-height:1.2; margin:0 0 4px; font-weight:800; letter-spacing:-.02em; }
 .lg-ver{ color:var(--text-2); font-size:14px; margin:0 0 24px; }
 h2{ font-size:18px; margin:28px 0 8px; font-weight:700; letter-spacing:-.01em; }
 p{ margin:0 0 12px; }
