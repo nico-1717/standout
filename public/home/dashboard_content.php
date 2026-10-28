@@ -24,9 +24,9 @@ if (!$standout_utente) { return; } // index.php dovrebbe già garantirlo, ma per
 $nd_notifiche = standout_social_attivo() ? fr_conta_notifiche(fr_conn(), (int)$standout_utente['id']) : 0;
 
 /* Il colore della scorciatoia Voti e' quello scelto dall'utente nella pagina Voti
-   (lib/colore_voti.php); se non ne ha scelto uno resta il verde acqua di sempre. */
+   (lib/colore_voti.php); se non ne ha scelto uno resta l'oro delle barre dei voti (era verde acqua; scelto da Nico). */
 require_once __DIR__ . '/../../lib/colore_voti.php';
-$ho_colore_voti = standout_colore_voti() ?: '#0FB5AE';
+$ho_colore_voti = standout_colore_voti() ?: '#E8A600';
 
 /* Le pagine del sito a un tocco. Etichette dal dizionario della barra
    laterale: un nome solo per pagina in tutta l'app. */
