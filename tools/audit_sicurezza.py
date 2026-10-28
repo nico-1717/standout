@@ -211,7 +211,7 @@ def analizza(p):
     # ---- 6. UPDATE / DELETE SENZA user_id ----
     for m in re.finditer(r'(?:sec_q|mysqli_query|mysqli_prepare)\s*\(\s*(?:\$\w+\s*,\s*)?("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')', nudo, re.S):
         q = re.sub(r'\s+', ' ', m.group(1)).strip('"\'')
-        if re.match(r'\s*(?:UPDATE|DELETE)\b', q, re.I) and not re.search(r'user_id|owner_id|u\.id|\bfrom_user_id\b|\bto_user_id\b|\buser_id_a\b|login_attempts|rate_limits|remember_tokens|FROM api_sessions WHERE revoked_at IS NOT NULL OR|WHERE\s+id\s*=\s*\?\s*$', q, re.I):
+        if re.match(r'\s*(?:UPDATE|DELETE)\b', q, re.I) and not re.search(r'user_id|owner_id|u\.id|\bfrom_user_id\b|\bto_user_id\b|\buser_id_a\b|login_attempts|rate_limits|remember_tokens|FROM api_sessions WHERE revoked_at IS NOT NULL OR|FROM password_resets WHERE expires_at|WHERE\s+id\s*=\s*\?\s*$', q, re.I):
             segnala('MEDIA', 'UPDATE/DELETE senza user_id nella WHERE (serve un controllo di proprieta\' prima)', m.start(), q[:110])
 
     # ---- 7. FILE CARICATI ----

@@ -230,6 +230,7 @@ button.standout-fab--login:active{ transform:scale(.96); }
                   </button>
 
                   <p class="standout-switch"><?php te('auth.no_account'); ?> <a href="#" data-switch="registrati"><?php te('auth.registrati'); ?></a></p>
+                  <p class="standout-switch"><a href="<?php echo htmlspecialchars(defined('PWA_BASE') ? PWA_BASE : '/', ENT_QUOTES, 'UTF-8'); ?>account/password_dimenticata.php"><?php te('auth.dimenticata'); ?></a></p>
                 </form>
               </div>
 
