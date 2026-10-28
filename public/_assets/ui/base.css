@@ -116,6 +116,7 @@ button{ font-family:inherit; }
     -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px);
     border-bottom:.5px solid var(--hairline);
 }
-.hdr-title{ font-size:28px; font-weight:800; letter-spacing:-.02em; }
+/* 21px: dimensione del titolo di pagina scelta da Nico il 28/10/2026 (prima 28px). */
+.hdr-title{ font-size:21px; font-weight:800; letter-spacing:-.02em; }
 
 } /* fine @layer base */

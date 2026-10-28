@@ -20,7 +20,7 @@ a{ text-decoration:none; }
 /* ---------------------------------------------------------------- testata (la barra e' in base.css) */
 .hdr-top{ display:flex; align-items:center; gap:10px; max-width:980px; margin:0 auto; }
 .hdr-titles{ flex:1; min-width:0; }
-.hdr-title{ margin:0; font-size:28px; font-weight:800; letter-spacing:-.02em; line-height:1.15; }
+.hdr-title{ margin:0; font-size:21px; font-weight:800; letter-spacing:-.02em; line-height:1.15; }
 .hdr-sub{ margin-top:2px; font-size:13px; color:var(--text-2); font-weight:500; font-variant-numeric:tabular-nums;
           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hdr-back, .hdr-icon, .hdr-add{

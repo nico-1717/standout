@@ -714,7 +714,7 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 
 /* ---- intestazione ---- */
 .app-header{ padding:calc(var(--safe-top) + 10px) 16px 8px; }
-.hdr-title{ font-size:28px; font-weight:800; letter-spacing:-.025em; }
+.hdr-title{ font-size:21px; font-weight:800; letter-spacing:-.025em; }
 .hdr-tools{ gap:0; }
 .hdr-tool{ width:38px; height:38px; border-radius:50%; background:none; box-shadow:none; color:var(--text-2); }
 .hdr-tool:active{ background:var(--surface-2); transform:none; }
