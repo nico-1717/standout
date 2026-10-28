@@ -28,6 +28,13 @@
      POST   /api/v1/tasks                 crea {title, project_id?, parent_id?, date?, time?, minutes?, done?}
      PATCH  /api/v1/tasks/{id}            cambia SOLO i campi inviati (anche done: true|false)
      DELETE /api/v1/tasks/{id}            toglie l'attivita' e le sue sotto-attivita'
+
+   Planner (eventi), passo 9 fetta 2 — la logica sta in lib/planner/pl_api.php e pl_scrivi.php:
+     GET    /api/v1/events?from=&to=      eventi di un intervallo (max 70 giorni), serie gia' espanse
+     GET    /api/v1/events/{id}           un evento
+     POST   /api/v1/events                crea (title e date obbligatori; ripetizione, invitati, luogo...)
+     PATCH  /api/v1/events/{id}           cambia SOLO i campi inviati (anche done); edit_mode+original_date per una sola occorrenza
+     DELETE /api/v1/events/{id}?scope=one|series|routine&original_date=
    ===================================================================== */
 
 /* Dice a auth_core.php che questa e' l'API: niente sessione PHP (e niente cookie
@@ -38,6 +45,7 @@ require_once __DIR__ . '/../../../lib/bootstrap.php';
 require_once __DIR__ . '/../../../lib/auth_core.php';
 require_once __DIR__ . '/../../../lib/api_v1.php';
 require_once __DIR__ . '/../../../lib/todo_core.php';
+require_once __DIR__ . '/../../../lib/planner/planner_lib.php';
 
 /* ---------------- Accesso ---------------- */
 
@@ -111,7 +119,12 @@ function api_h_me(array $ctx): void {
 /* Stesso tetto della pagina (400 scritture al minuto, todo_api.php), contato per
    utente. Il token non sposta il limite: cambia solo come si prova chi sei. */
 function api_h_tasks_limite(array $ctx): void {
-    if (!sec_rate_limit('api_tasks_write', (int)$ctx['utente']['id'], 400, 60)) api_errore('rate_limited');
+    api_h_limite_scritture($ctx, 'api_tasks_write');
+}
+
+/** 400 scritture al minuto per utente e per area (come le pagine). */
+function api_h_limite_scritture(array $ctx, string $secchio): void {
+    if (!sec_rate_limit($secchio, (int)$ctx['utente']['id'], 400, 60)) api_errore('rate_limited');
 }
 
 /** Un errore di td_api_* diventa la risposta dell'API (con il nome del campo sbagliato). */
@@ -155,6 +168,56 @@ function api_h_tasks_togli(array $ctx): void {
     api_ok();
 }
 
+/* ---------------- Planner (eventi) ---------------- */
+
+/** Un errore di pl_api_* diventa la risposta dell'API (con il nome del campo sbagliato). */
+function api_h_eventi_errore(array $esito): void {
+    if (!isset($esito['errore'])) return;
+    $e = $esito['errore'];
+    api_errore($e['codice'], $e['testo'], null, ['field' => $e['campo']]);
+}
+
+/** Un parametro dell'indirizzo come testo, mai array (?from[]=x darebbe un errore PHP). */
+function api_h_param(string $nome): ?string {
+    return isset($_GET[$nome]) ? sec_str($_GET[$nome], 40) : null;
+}
+
+function api_h_eventi_elenco(array $ctx): void {
+    $esito = pl_api_elenco((int)$ctx['utente']['id'], api_h_param('from'), api_h_param('to'));
+    api_h_eventi_errore($esito);
+    api_ok($esito);
+}
+
+function api_h_evento_uno(array $ctx): void {
+    $e = pl_api_evento((int)$ctx['utente']['id'], (int)$ctx['id']);
+    if (!$e) api_errore('not_found', 'Event not found');
+    api_ok(['event' => $e]);
+}
+
+function api_h_eventi_crea(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_planner_write');
+    $esito = pl_api_crea((int)$ctx['utente']['id'], api_corpo());
+    api_h_eventi_errore($esito);
+    api_ok(['event' => $esito['event']], 201);
+}
+
+function api_h_eventi_modifica(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_planner_write');
+    $esito = pl_api_modifica((int)$ctx['utente']['id'], (int)$ctx['id'], api_corpo());
+    api_h_eventi_errore($esito);
+    api_ok(['event' => $esito['event']]);
+}
+
+function api_h_eventi_togli(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_planner_write');
+    $scope = api_h_param('scope') ?? 'one';
+    if (!in_array($scope, ['one', 'series', 'routine'], true)) api_errore('validation', 'scope must be one, series or routine', null, ['field' => 'scope']);
+    $orig = api_h_param('original_date');
+    if ($orig !== null && sec_date($orig, null) === null) api_errore('validation', 'original_date must be YYYY-MM-DD', null, ['field' => 'original_date']);
+    api_h_eventi_errore(pl_api_elimina((int)$ctx['utente']['id'], (int)$ctx['id'], $scope, $orig));
+    api_ok();
+}
+
 /* ---------------- L'elenco delle rotte ---------------- */
 
 $tokenECookie = ['token', 'cookie'];
@@ -172,4 +235,9 @@ api_v1_esegui([
     ['POST',   'tasks',             'api_h_tasks_crea',       ['accetta' => $tokenECookie]],
     ['PATCH',  'tasks/{id}',        'api_h_tasks_modifica',   ['accetta' => $tokenECookie]],
     ['DELETE', 'tasks/{id}',        'api_h_tasks_togli',      ['accetta' => $tokenECookie]],
+    ['GET',    'events',            'api_h_eventi_elenco',    ['accetta' => $tokenECookie]],
+    ['GET',    'events/{id}',       'api_h_evento_uno',       ['accetta' => $tokenECookie]],
+    ['POST',   'events',            'api_h_eventi_crea',      ['accetta' => $tokenECookie]],
+    ['PATCH',  'events/{id}',       'api_h_eventi_modifica',  ['accetta' => $tokenECookie]],
+    ['DELETE', 'events/{id}',       'api_h_eventi_togli',     ['accetta' => $tokenECookie]],
 ]);

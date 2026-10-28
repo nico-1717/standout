@@ -12,6 +12,8 @@
      pl_giornata.php    pastiglie, priorita', liste, abitudini, diario
      pl_luoghi.php      ricerca dei luoghi e rubrica
      pl_azioni.php      supporto alle scritture (ricorrenze, Google, todo)
+     pl_scrivi.php      salvare, spuntare e cancellare un evento (pagina e API)
+     pl_api.php         controlli e modifica «a campi» per /api/v1/events
 
    Le funzioni usano sec_* (security_core.php): va caricato prima.
    ===================================================================== */
@@ -29,3 +31,5 @@ require_once __DIR__ . '/pl_eventi.php';
 require_once __DIR__ . '/pl_giornata.php';
 require_once __DIR__ . '/pl_luoghi.php';
 require_once __DIR__ . '/pl_azioni.php';
+require_once __DIR__ . '/pl_scrivi.php';
+require_once __DIR__ . '/pl_api.php';
