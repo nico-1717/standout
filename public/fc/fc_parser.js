@@ -1710,7 +1710,7 @@ function fcdSetSel(root, sel) {
            contenere tutta la formula, ed e' quello che si vedeva. */
         '.fc-fx.fc-resa mjx-container{ max-width:none; }' +
         '.fc-fx::-webkit-scrollbar{ height:5px; }' +
-        '.fc-fx::-webkit-scrollbar-thumb{ background:rgba(0,122,255,.3); border-radius:3px; }' +
+        '.fc-fx::-webkit-scrollbar-thumb{ background:color-mix(in srgb, var(--blue,#007AFF) 30%, transparent); border-radius:3px; }' +
         /* Formula dentro un elenco: rientra come il punto e tiene il pallino
            alla sua sinistra. */
         /* Il pallino di una formula a blocco sta FUORI dal suo riquadro, non
@@ -1812,8 +1812,8 @@ function fcdSetSel(root, sel) {
            se ne occupa ftMarcaFormuleSelezionate.) */
         '.fc-x.fc-sel, .fc-fx.fc-sel,' +
         '.fc-x.fc-resa.fc-sel, .fc-fx.fc-resa.fc-sel{' +
-        '  background:rgba(0,122,255,.30); border-radius:4px;' +
-        '  box-shadow:0 0 0 1px rgba(0,122,255,.30);' +
+        '  background:color-mix(in srgb, var(--blue,#007AFF) 30%, transparent); border-radius:4px;' +
+        '  box-shadow:0 0 0 1px color-mix(in srgb, var(--blue,#007AFF) 30%, transparent);' +
         '}' +
         '.fc-fx.fc-resa{ padding:6px 12px; }' +
         /* Il testo mentre lo si detta: si vede che e' provvisorio, e infatti

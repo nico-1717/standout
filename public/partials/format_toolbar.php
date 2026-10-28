@@ -816,7 +816,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 .fc-x.fc-mq{
     display:inline-block; vertical-align:middle; cursor:text;
     background:var(--blue-soft,rgba(0,122,255,.09)); border-radius:6px; padding:0 3px;
-    box-shadow:inset 0 0 0 1px rgba(0,122,255,.22);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--blue,#007AFF) 22%, transparent);
     /* .fc-x (la regola base, qualche riga sopra) porta overflow-wrap:anywhere
        e word-break:break-word, pensati per un LaTeX grezzo lungo che non deve
        sfondare il contenitore. Applicati al contenuto di MathQuill — il "$"

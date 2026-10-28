@@ -60,7 +60,7 @@
         }
         .sidebar-brand .sb-brand-icon {
             width: 22px; height: 22px; flex-shrink: 0; color: var(--sb-accent);
-            filter: drop-shadow(0 2px 8px rgba(10, 132, 255, .45));
+            filter: drop-shadow(0 2px 8px color-mix(in srgb, var(--sb-accent) 45%, transparent));
         }
         .sidebar-brand .sb-brand-icon svg { width: 100%; height: 100%; display: block; }
 
@@ -251,8 +251,8 @@
             animation: sbFabPulse 1.7s var(--sb-ease) 2;
         }
         @keyframes sbFabPulse {
-            0%   { box-shadow: 0 0 0 0 rgba(10, 132, 255, .5); }
-            100% { box-shadow: 0 0 0 18px rgba(10, 132, 255, 0); }
+            0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--sb-accent) 50%, transparent); }
+            100% { box-shadow: 0 0 0 18px color-mix(in srgb, var(--sb-accent) 0%, transparent); }
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -277,7 +277,7 @@
 
         <div class="sidebar-content">
             <ul class="sidebar-links">
-                <li><a href="<?php echo PWA_BASE; ?>index.php" id="link-index" style="--sb-c:#0A84FF"><span class="sb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10.6 12 3.8l8.5 6.8"/><path d="M5.8 9v10.2c0 .5.4.8.8.8h3.6v-5.5h3.6V20h3.6c.4 0 .8-.3.8-.8V9"/></svg></span><span><?php te('sidebar.home'); ?></span></a></li>
+                <li><a href="<?php echo PWA_BASE; ?>index.php" id="link-index" style="--sb-c:var(--sb-accent)"><span class="sb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10.6 12 3.8l8.5 6.8"/><path d="M5.8 9v10.2c0 .5.4.8.8.8h3.6v-5.5h3.6V20h3.6c.4 0 .8-.3.8-.8V9"/></svg></span><span><?php te('sidebar.home'); ?></span></a></li>
             </ul>
 
             <hr class="sidebar-divider">
@@ -297,7 +297,7 @@
                         <div class="sb-pick-step" data-step="tipo">
                             <div class="sb-pick-t"><?php te('sidebar.ins_dove'); ?></div>
                             <button type="button" class="sb-pick-opt" data-tipo="study">
-                                <span class="sb-pick-ic" style="--sb-c:#0A84FF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11.4V17c0 1.1 2.7 3 6 3s6-1.9 6-3v-5.6"/></svg></span>
+                                <span class="sb-pick-ic" style="--sb-c:var(--sb-accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11.4V17c0 1.1 2.7 3 6 3s6-1.9 6-3v-5.6"/></svg></span>
                                 <span><?php te('sidebar.ins_uni'); ?></span>
                             </button>
                             <button type="button" class="sb-pick-opt" data-tipo="vocab">

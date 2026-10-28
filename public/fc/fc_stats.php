@@ -1086,7 +1086,13 @@ function isDarkMode(){ return window.matchMedia && window.matchMedia('(prefers-c
 function cText(){ return isDarkMode() ? '#F5F5F7' : '#1C1C1E'; }
 function cText2(){ return isDarkMode() ? '#98989F' : '#8A8A8E'; }
 function cGrid(){ return isDarkMode() ? 'rgba(84,84,88,.35)' : 'rgba(60,60,67,.08)'; }
-function cBlue(){ return isDarkMode() ? '#0A84FF' : '#007AFF'; }
+/* Il blu dei grafici segue il colore scelto dall'utente (--blue, vedi lib/accent.php).
+   Deve restare un esadecimale perche' hexToRgba() lo scompone; se la variabile non
+   lo e', si usa il blu di sempre. */
+function cBlue(){
+    var v = getComputedStyle(document.documentElement).getPropertyValue('--blue').trim();
+    return /^#[0-9a-f]{6}$/i.test(v) ? v : (isDarkMode() ? '#0A84FF' : '#007AFF');
+}
 function cGreen(){ return isDarkMode() ? '#30D158' : '#34C759'; }
 function cRed(){ return isDarkMode() ? '#FF453A' : '#FF3B30'; }
 function cOrange(){ return isDarkMode() ? '#FF9F0A' : '#FF9500'; }
