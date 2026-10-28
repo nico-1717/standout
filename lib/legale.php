@@ -16,7 +16,7 @@
 /* La data della versione dei testi. Si salva accanto all'accettazione
    (users.terms_version): cosi' si sa QUALE testo ha accettato ognuno. Si cambia
    solo quando il contenuto cambia in modo che conta. */
-const STANDOUT_LEGALE_VERSIONE = '2026-10-27';
+const STANDOUT_LEGALE_VERSIONE = '2026-10-28';
 
 /* Chi risponde dei dati e come lo si contatta. Per ora e' l'indirizzo personale
    del titolare; quando ci sara' un indirizzo dedicato si cambia SOLO qui e le

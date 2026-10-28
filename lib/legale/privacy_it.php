@@ -9,6 +9,7 @@ return [
     ['h' => 'Quali dati trattiamo', 'b' => [
         ['Dati dell’account: nome utente, indirizzo email, password (conservata solo in forma cifrata, mai in chiaro), lingua e stile scelti, data di registrazione e dell’ultimo accesso, data e versione di queste condizioni accettate.',
          'Contenuti che inserisci tu: flashcard con le loro immagini e audio, attività, planner, abitudini, diario, sessioni Pomodoro, progetti, esami e voti, impostazioni.',
+         'Dispositivi collegati all’app: per ogni dispositivo con cui accedi dall’app conserviamo il nome del dispositivo, il tipo di app o browser (user agent), la data del collegamento e dell’ultimo utilizzo. I codici di accesso dell’app sono conservati solo in forma cifrata (hash), mai in chiaro.',
          'Dati d’uso: partite di flashcard, risposte, statistiche e cronologia necessarie a farti vedere i tuoi progressi.',
          'Dati tecnici: indirizzo IP e tipo di browser nei registri di sicurezza e nei contatori anti-abuso (tentativi di accesso, numero di richieste).'],
     ]],
@@ -27,10 +28,11 @@ return [
         'Alcuni di questi fornitori, in particolare Google, possono trattare i dati anche fuori dallo Spazio economico europeo, con le garanzie previste dal GDPR (clausole contrattuali standard o decisione di adeguatezza). Non c’è altra condivisione con terzi, salvo obbligo di legge.',
     ]],
     ['h' => 'Cookie e archiviazione nel browser', 'b' => [
-        'Usiamo soltanto cookie tecnici, necessari al funzionamento, e per questo non serve un banner di consenso: la sessione di accesso, il cookie «ricordami» (60 giorni, se lo scegli), la lingua e l’ultimo progetto aperto. Il browser conserva inoltre alcune preferenze dell’interfaccia e una copia per l’uso senza rete. Nessun cookie di terze parti per pubblicità o analisi.',
+        'Usiamo soltanto cookie tecnici, necessari al funzionamento, e per questo non serve un banner di consenso: la sessione di accesso, il cookie «ricordami» (60 giorni, se lo scegli), la lingua e l’ultimo progetto aperto. Il browser conserva inoltre alcune preferenze dell’interfaccia e una copia per l’uso senza rete. Nessun cookie di terze parti per pubblicità o analisi. L’app per telefono non usa cookie: si riconosce con un codice di accesso temporaneo.',
     ]],
     ['h' => 'Per quanto tempo li conserviamo', 'b' => [
         ['Account e contenuti: finché il tuo account esiste. Quando lo elimini, vengono cancellati subito dal sito e dal database, file compresi.',
+         'Dispositivi collegati all’app: fino a quando esci da quel dispositivo, lo scolleghi dall’elenco dei dispositivi o elimini l’account; un dispositivo che non viene usato per 60 giorni si scollega da solo.',
          'Registro di sicurezza (azioni sensibili con indirizzo IP): fino a 12 mesi. Tentativi di accesso: fino a 30 giorni. Contatori anti-abuso: 24 ore.',
          'Copie di sicurezza del database, conservate in privato dal titolare: i dati eliminati possono restarvi per un periodo limitato, in ogni caso non oltre 12 mesi.'],
     ]],
