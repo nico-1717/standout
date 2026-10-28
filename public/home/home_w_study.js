@@ -389,8 +389,9 @@
                 w.body.appendChild(e); return;
             }
             /* Il colore scelto nella pagina Voti (g.accent, gia' validato dal server):
-               icona del riquadro, barra dei CFU e prossimo esame. Senza, il verde acqua di prima. */
-            var col = g.accent || 'var(--teal)';
+               icona del riquadro, barra dei CFU e prossimo esame. Senza, l'oro delle barre dei voti
+               (approvato da Nico: stesso oro della pagina Voti, al posto del verde acqua). */
+            var col = g.accent || 'var(--gold)';
             var wi = w.head && w.head.querySelector('.ho-wi'); if (wi) wi.style.setProperty('--c', col);
             var top = el('div', 'ho-avg');
             top.appendChild(el('b', null, g.avg !== null ? g.avg.toFixed(2) : '–'));
