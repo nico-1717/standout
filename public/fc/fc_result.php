@@ -513,6 +513,7 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>_assets/ui/base.css?v=<?php echo @filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_result.css?v=<?php echo @filemtime(__DIR__ . '/fc_result.css') ?: 1; ?>">
 
 
