@@ -1210,6 +1210,7 @@ function renderCatRow($id, $level, $all_cats, $cats_by_parent, $archPane = false
 
 <title><?php te('fc.cfc_titolo'); ?></title>
 
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>_assets/ui/base.css?v=<?php echo @filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_decks.css?v=<?php echo @filemtime(__DIR__ . '/fc_decks.css') ?: 1; ?>">
 
 <?php /* Lo stesso disegnatore delle carte vere: i risultati della ricerca sul

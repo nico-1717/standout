@@ -9,128 +9,25 @@
    ================================================================ */
 
 :root{
-
     color-scheme: light dark;
-
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-
-    --teal:#30B0C7; --pink:#FF2D55; --indigo:#5856D6;
-
-    --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
-
-    --orange-soft:rgba(255,149,0,.14); --purple-soft:rgba(175,82,222,.12);
-
-    --teal-soft:rgba(48,176,199,.13); --pink-soft:rgba(255,45,85,.12); --indigo-soft:rgba(88,86,214,.12);
-
-    --header-glass:rgba(249,249,251,.82);
-
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-
-    --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
-
-    --r-card:22px; --r-btn:15px;
-
-    --spring:cubic-bezier(.32,.72,0,1);
-
-    --safe-top:env(safe-area-inset-top, 0px);
-
-    --safe-bottom:env(safe-area-inset-bottom, 0px);
-
+    --teal-soft:rgba(48,176,199,.13); --pink-soft:rgba(255,45,85,.12);
 }
 
 @media (prefers-color-scheme: dark){
 
     :root{
-
-        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-
-        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-
-        --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-
-        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-
-        --teal:#40C8E0; --pink:#FF375F; --indigo:#5E5CE6;
-
-        --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17);
-
-        --orange-soft:rgba(255,159,10,.18); --purple-soft:rgba(191,90,242,.18);
-
-        --teal-soft:rgba(64,200,224,.18); --pink-soft:rgba(255,55,95,.18); --indigo-soft:rgba(94,92,230,.18);
-
-        --header-glass:rgba(16,16,18,.78);
-
-        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-
-        --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-
-        --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
-
-    }
+        --teal-soft:rgba(64,200,224,.18); --pink-soft:rgba(255,55,95,.18);
+}
 
 }
 
-
-
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-
-html{ -webkit-text-size-adjust:100%; }
-
-body{
-
-    margin:0; min-height:100vh;
-
-    background:var(--bg); color:var(--text);
-
-    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-
-    font-size:16px; line-height:1.4;
-
-    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-
-    padding-bottom:calc(24px + var(--safe-bottom));
-
-    overscroll-behavior-y:none;
-
-}
-
-a{ color:inherit; }
-
-button{ font-family:inherit; }
-
-:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
-
-
-
+/* Reset, corpo, link, anello di focus e testata: _assets/ui/base.css. Qui solo cio' che e' della pagina. */
+body{ text-rendering:optimizeLegibility; padding-bottom:calc(24px + var(--safe-bottom)); overscroll-behavior-y:none; }
 /* ================================================================
 
    HEADER — vetro smerigliato + ricerca
 
    ================================================================ */
-
-.app-header{
-
-    position:sticky; top:0; z-index:100;
-
-    padding:calc(var(--safe-top) + 12px) 16px 12px;
-
-    background:var(--header-glass);
-
-    -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px);
-
-    border-bottom:.5px solid var(--hairline);
-
-}
-
-.hdr-title{ font-size:28px; font-weight:800; letter-spacing:-.02em; }
 
 .hdr-sub{ margin-top:2px; font-size:13px; color:var(--text-2); font-weight:500; font-variant-numeric:tabular-nums; }
 
@@ -168,8 +65,6 @@ button{ font-family:inherit; }
 
 .search-clear svg{ width:10px; height:10px; }
 
-
-
 /* ================================================================
 
    LAYOUT
@@ -178,11 +73,7 @@ button{ font-family:inherit; }
 
 .page{ max-width:640px; margin:0 auto; padding:16px 14px calc(112px + var(--safe-bottom)); }
 
-
-
 @keyframes cardIn{ from{ opacity:0; transform:translateY(14px) scale(.985); } to{ opacity:1; transform:none; } }
-
-
 
 /* Hero: Tutte le materie — una riga sola.
    Prima era un riquadro alto con il numerone: occupava il primo schermo intero
@@ -216,8 +107,6 @@ button{ font-family:inherit; }
    si viene davvero a vedere. */
 .hero-fondo{ margin-bottom:0; margin-top:18px; }
 
-
-
 /* Card di ogni materia (radice + figli) */
 
 .materia-card{
@@ -232,8 +121,6 @@ button{ font-family:inherit; }
 
 }
 
-
-
 .cat-row-main{
 
     display:flex; align-items:center; gap:10px; padding:15px 12px 15px 0;
@@ -246,13 +133,9 @@ button{ font-family:inherit; }
 
 .cat-row-main:active{ background:var(--surface-2); }
 
-
-
 @keyframes rowIn{ from{ opacity:0; transform:translateY(-6px); } to{ opacity:1; transform:none; } }
 
 .cat-row.row-anim{ animation:rowIn .3s var(--spring) both; }
-
-
 
 .cat-arrow, .cat-arrow-spacer{ width:22px; height:22px; flex-shrink:0; }
 
@@ -274,8 +157,6 @@ button{ font-family:inherit; }
 
 .cat-arrow:active{ background:var(--surface-2); }
 
-
-
 .cat-icon{
 
     width:32px; height:32px; border-radius:9px; flex-shrink:0;
@@ -292,8 +173,6 @@ button{ font-family:inherit; }
 
 .cat-icon.lvln{ background:var(--row-color, var(--text-2)); color:#fff; width:34px; height:34px; border-radius:10px; transition:background .3s, color .3s; }
 .cat-icon.lvln svg{ width:17px; height:17px; }
-
-
 
 .cat-name{
 
@@ -323,8 +202,6 @@ button{ font-family:inherit; }
 
 .cat-row[data-level="0"] .cat-name{ font-size:17px; font-weight:800; }
 
-
-
 .cat-badge{
 
     flex-shrink:0; background:var(--surface-2); color:var(--text-2);
@@ -334,8 +211,6 @@ button{ font-family:inherit; }
     box-shadow:inset 0 0 0 .5px var(--hairline); font-variant-numeric:tabular-nums;
 
 }
-
-
 
 .cat-kebab{
 
@@ -439,8 +314,6 @@ body.touch-device .cat-kebab{
     display:none;
 }
 
-
-
 /* ================================================================
 
    FAB
@@ -472,8 +345,6 @@ body.touch-device .cat-kebab{
 .fab:active{ transform:scale(.9); }
 
 @keyframes fabIn{ from{ opacity:0; transform:scale(.4) rotate(-25deg); } to{ opacity:1; transform:none; } }
-
-
 
 /* ================================================================
 
@@ -516,8 +387,6 @@ body.touch-device .cat-kebab{
 }
 
 .btn-create-first:active{ transform:scale(.96); }
-
-
 
 /* ================================================================
 
@@ -585,8 +454,6 @@ body.touch-device .cat-kebab{
 
 }
 
-
-
 /* Campi form */
 
 .field{ margin-bottom:16px; }
@@ -620,8 +487,6 @@ body.touch-device .cat-kebab{
 }
 
 .field input:focus, .field select:focus{ outline:none; box-shadow:0 0 0 2.5px var(--blue-soft), inset 0 0 0 1.5px var(--blue); }
-
-
 
 .sheet-actions{ display:flex; gap:10px; margin-top:6px; }
 
@@ -661,8 +526,6 @@ body.touch-device .cat-kebab{
 
 }
 
-
-
 /* Elenco azioni (action sheet) */
 
 .action-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
@@ -699,8 +562,6 @@ body.touch-device .cat-kebab{
 
 .action-item.danger .a-ic{ background:var(--red-soft); color:var(--red); }
 
-
-
 /* Conferma eliminazione */
 
 .confirm-icon{
@@ -718,9 +579,6 @@ body.touch-device .cat-kebab{
 .confirm-text{ text-align:center; font-size:15px; color:var(--text-2); margin-bottom:18px; line-height:1.5; }
 
 .confirm-text b{ color:var(--text); }
-
-
-
 
 /* ================================================================
 
@@ -753,8 +611,6 @@ body.touch-device .cat-kebab{
 .color-preview-icon svg{ width:22px; height:22px; }
 
 .color-preview-name{ font-size:16px; font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-
 
 .color-grid{ display:grid; grid-template-columns:repeat(6, 1fr); gap:10px; margin-bottom:18px; }
 
@@ -790,8 +646,6 @@ body.touch-device .cat-kebab{
 
 .color-swatch.selected .check-ic{ opacity:1; transform:scale(1); }
 
-
-
 .color-swatch-auto{
 
     background:var(--surface); border:1.6px dashed var(--text-3); box-shadow:none;
@@ -809,8 +663,6 @@ body.touch-device .cat-kebab{
     box-shadow:0 0 0 3px var(--surface), 0 0 0 5.5px var(--blue);
 
 }
-
-
 
 .custom-color-row{ display:flex; align-items:center; gap:12px; padding:10px 2px 4px; margin-bottom:6px; }
 
@@ -832,15 +684,11 @@ body.touch-device .cat-kebab{
 
 .custom-color-row .cc-hex{ margin-left:auto; font-size:14px; font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums; letter-spacing:.02em; }
 
-
-
 .a-ic.color-wheel{
 
     background:conic-gradient(from 180deg, #FF3B30, #FF9500, #FFCC00, #34C759, #00C7BE, #30B0C7, #32ADE6, #007AFF, #5856D6, #AF52DE, #FF2D55, #FF3B30);
 
 }
-
-
 
 /* ================================================================
 
@@ -872,14 +720,11 @@ body.touch-device .cat-kebab{
 
 .toast svg{ width:16px; height:16px; flex-shrink:0; }
 
-
-
 @media (prefers-reduced-motion: reduce){
 
     *, *::before, *::after{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
 
 }
-
 
 /* ================================================================
    CHIP DEI FILTRI DI RICERCA
@@ -898,7 +743,6 @@ body.sta-cercando .search-filters{ display:flex; }
 }
 .sf-chip:active{ transform:scale(.94); }
 .sf-chip.on{ background:var(--blue); color:#fff; box-shadow:var(--btn-hl); }
-
 
 /* ================================================================
    BARRA STRUMENTI — ambito (attive/archiviate) + vista + comprimi + selezione
@@ -947,7 +791,6 @@ body.sta-cercando .search-filters{ display:flex; }
 body.vista-griglia .tb-grid{ display:none; }
 body.vista-griglia .tb-list{ display:flex; }
 .tb-grid, .tb-list{ align-items:center; justify-content:center; }
-
 
 /* ================================================================
    VISTA A GRIGLIA
@@ -1028,7 +871,6 @@ body.sel-mode .fc-subcat-go{ display:none; }
 
 .grid-empty{ text-align:center; padding:40px 20px; color:var(--text-2); font-size:14.5px; }
 
-
 /* ================================================================
    RISULTATI DELLA RICERCA
    ================================================================ */
@@ -1091,7 +933,6 @@ body.sel-mode .fc-subcat-go{ display:none; }
 .sr-empty{ text-align:center; padding:40px 20px; color:var(--text-2); font-size:14.5px; }
 .sr-hint{ margin-top:8px; font-size:13px; color:var(--text-3); }
 
-
 /* ================================================================
    ARCHIVIO
    ================================================================ */
@@ -1129,7 +970,6 @@ body.touch-device .cat-swipe-arch.revealing{ display:flex; }
 }
 .cat-swipe-arch.pronta .swipe-archive.is-restore{ background:color-mix(in srgb, var(--green), #000 22%); }
 
-
 /* ================================================================
    TASTINO "+" IN CODA A UN RAMO ESPLOSO
    ================================================================ */
@@ -1151,7 +991,6 @@ body.touch-device .cat-swipe-arch.revealing{ display:flex; }
 }
 .cat-add-btn svg{ width:13px; height:13px; }
 .cat-add-btn:active{ transform:scale(.93); }
-
 
 /* ================================================================
    MODALITA' SELEZIONE
@@ -1208,7 +1047,6 @@ body.sel-mode .cat-add-here{ display:none !important; }
    sotto ci finirebbe sopra. */
 body.sel-mode .fab{ display:none; }
 
-
 /* ================================================================
    RIGHE-AZIONE DENTRO IL FOGLIO DI MODIFICA
    ================================================================ */
@@ -1229,14 +1067,12 @@ body.sel-mode .fab{ display:none; }
 .row-action .ra-ic svg{ width:16px; height:16px; }
 #formArchiveBtn .ra-ic{ background:var(--orange-soft); color:var(--orange); }
 
-
 /* ================================================================
    PAGINA FERMA SOTTO AI POPUP
    Il corpo pagina passa a position:fixed (lo fa nsScrollLock): qui si evita
    che nel frattempo compaia una barra di scorrimento fantasma sul desktop.
    ================================================================ */
 body.ns-locked{ overflow:hidden; }
-
 
 /* ================================================================
    PEZZI DI CARTA DENTRO I RISULTATI
@@ -1254,7 +1090,6 @@ body.ns-locked{ overflow:hidden; }
 /* Le immagini non arrivano mai qui (l'estratto e' solo testo), ma se un
    documento ne portasse una resterebbe nei limiti della riga. */
 .fc-snip img{ max-width:100%; height:auto; }
-
 
 /* ================================================================
    IL TASTO PER GIOCARE, IN CIMA A DESTRA
@@ -1298,7 +1133,6 @@ body.ns-locked{ overflow:hidden; }
     .hdr-play-ring{ animation: hdrPlayPulseSoft 2.6s ease-in-out infinite !important; }
 }
 @keyframes hdrPlayPulseSoft{ 50%{ opacity:.25; } }
-
 
 /* ================================================================
    TIPO DI FLASHCARD: indietro, bandiera del corso, colore delle lingue

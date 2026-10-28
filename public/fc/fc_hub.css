@@ -2,67 +2,22 @@
    compresi i fogli delle lingue (aggiungi, opzioni del corso, elimina).
    Le classi .lng-* sono rimaste dai tempi della pagina fc_languages.php.
 
-   Stesso sistema di fc_decks.css e fc_game.css (iOS nativo, chiaro e scuro):
-   gli stessi colori, raggi e curve, cosi' passando da qui ai mazzi non si ha
-   l'impressione di aver cambiato sito. I token sono ripetuti qui e non presi
-   da quel file perche' ogni pagina delle flashcard porta il suo foglio
-   completo; quando esistera' base.css (STANDOUT_PROGETTO.md §13) questo blocco
-   e' il primo da togliere. */
+   Dal 28/10/2026 i token comuni (colori, raggi, ombre, curve), il reset, la
+   testata e il corpo vengono da _assets/ui/base.css: qui restano solo le
+   cose di questa pagina. */
 
 :root{
     color-scheme: light dark;
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-    --teal:#30B0C7; --pink:#FF2D55; --indigo:#5856D6;
-    --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
-    --orange-soft:rgba(255,149,0,.14); --indigo-soft:rgba(88,86,214,.12);
-    --header-glass:rgba(249,249,251,.82);
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-    --r-card:22px; --r-btn:15px;
-    --spring:cubic-bezier(.32,.72,0,1);
-    --safe-top:env(safe-area-inset-top, 0px);
-    --safe-bottom:env(safe-area-inset-bottom, 0px);
 }
-@media (prefers-color-scheme: dark){
-    :root{
-        --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-        --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-        --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-        --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-        --teal:#40C8E0; --pink:#FF375F; --indigo:#5E5CE6;
-        --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17);
-        --orange-soft:rgba(255,159,10,.18); --indigo-soft:rgba(94,92,230,.18);
-        --header-glass:rgba(16,16,18,.78);
-        --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-        --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-    }
-}
-
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html{ -webkit-text-size-adjust:100%; }
 html.hub-locked, html.hub-locked body{ overflow:hidden; }
-body{
-    margin:0; min-height:100vh;
-    background:var(--bg); color:var(--text);
-    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size:16px; line-height:1.4;
-    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-    padding-bottom:calc(90px + var(--safe-bottom));
-}
-a{ color:inherit; text-decoration:none; }
-button{ font-family:inherit; }
+/* Il resto del corpo (sfondo, carattere, reset) viene da _assets/ui/base.css. */
+body{ text-rendering:optimizeLegibility; padding-bottom:calc(90px + var(--safe-bottom)); }
+a{ text-decoration:none; }
+/* base.css disegna l'anello di focus blu; questa pagina non l'ha mai avuto:
+   si torna a quello del browser, cosi' per chi usa la tastiera non cambia nulla. */
+:focus-visible{ outline:revert; outline-offset:revert; border-radius:revert; }
 
-/* ---------------------------------------------------------------- testata */
-.app-header{
-    position:sticky; top:0; z-index:100;
-    padding:calc(var(--safe-top) + 12px) 16px 12px;
-    background:var(--header-glass);
-    -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px);
-    border-bottom:.5px solid var(--hairline);
-}
+/* ---------------------------------------------------------------- testata (la barra e' in base.css) */
 .hdr-top{ display:flex; align-items:center; gap:10px; max-width:980px; margin:0 auto; }
 .hdr-titles{ flex:1; min-width:0; }
 .hdr-title{ margin:0; font-size:28px; font-weight:800; letter-spacing:-.02em; line-height:1.15; }
