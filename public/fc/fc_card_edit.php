@@ -577,6 +577,7 @@ function mfc_parola_esempio(): string {
          era sbagliata o solo non arrivata. Con la data del file nell'indirizzo,
          una modifica al foglio e' un indirizzo nuovo. Stesso schema gia' usato
          qui sotto per fc_card_edit.css. */ ?>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>_assets/ui/base.css?v=<?php echo @filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_ai_fab.css?v=<?php echo @filemtime(__DIR__ . '/fc_ai_fab.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_autosave_bar.css?v=<?php echo @filemtime(__DIR__ . '/fc_autosave_bar.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_examples_box.css?v=<?php echo @filemtime(__DIR__ . '/fc_examples_box.css') ?: 1; ?>">

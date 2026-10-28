@@ -7,50 +7,53 @@
            ================================================================ */
         :root{
             color-scheme: light dark;
-            --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-            --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-            --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-            --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE; --teal:#30B0C7;
-            --blue-soft:rgba(0,122,255,.09);
+   
+   
+  
+      
+ 
             --g-fill:#E7F8ED; --g-ink:#1E8A44; --g-line:rgba(52,199,89,.85); --g-sh:rgba(52,199,89,.34);
             --r-fill:#FDECEC; --r-ink:#D70015; --r-line:rgba(255,59,48,.8);  --r-sh:rgba(255,59,48,.3);
             --w-fill:#FFF3E0; --w-ink:#C77700; --w-line:rgba(255,149,0,.7);  --w-sh:rgba(255,149,0,.28);
             --p-fill:#F5E9FB; --p-ink:#8E24AA; --p-line:rgba(175,82,222,.55);
             --chip-bg:#FFFFFF;
-            --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
-            --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
+ 
+ 
             --pill-hl:inset 0 0 0 .5px var(--hairline);
-            --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-            --header-glass:rgba(249,249,251,.82);
-            --spring:cubic-bezier(.32,.72,0,1);
+ 
+ 
+ 
             --r-card:20px; --r-field:13px;
-            --safe-top:env(safe-area-inset-top, 0px);
-            --safe-bottom:env(safe-area-inset-bottom, 0px);
+ 
+ 
         }
         @media (prefers-color-scheme: dark){
             :root{
-                --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-                --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-                --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-                --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2; --teal:#40C8E0;
-                --blue-soft:rgba(10,132,255,.16);
+   
+   
+  
+      
+ 
                 --g-fill:rgba(48,209,88,.15); --g-ink:#4CE07E; --g-line:rgba(48,209,88,.75); --g-sh:rgba(48,209,88,.5);
                 --r-fill:rgba(255,69,58,.16); --r-ink:#FF6F68; --r-line:rgba(255,69,58,.75); --r-sh:rgba(255,69,58,.45);
                 --w-fill:rgba(255,159,10,.16); --w-ink:#FFB340; --w-line:rgba(255,159,10,.65); --w-sh:rgba(255,159,10,.4);
                 --p-fill:rgba(191,90,242,.16); --p-ink:#D68CFF; --p-line:rgba(191,90,242,.55);
                 --chip-bg:#3A3A3C;
-                --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
-                --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
+ 
+ 
                 --pill-hl:inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 .5px var(--hairline);
-                --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-                --header-glass:rgba(16,16,18,.78);
+ 
+ 
             }
         }
 
-        *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-        html{ -webkit-text-size-adjust:100%; }
+        /* Il reset (*{box-sizing...}) e html{text-size-adjust} ora vengono da base.css. Le regole di base.css
+           che questa pagina non aveva si riportano a com'erano (nessun cambiamento visibile). */
+        a{ color:revert; }
+        button{ font-family:revert; }
+        :where(:focus-visible){ outline:revert; outline-offset:revert; border-radius:revert; } /* peso 0 */
         body{
-            margin:0; background:var(--bg); color:var(--text);
+            margin:0; min-height:0; background:var(--bg); color:var(--text);
             font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
             font-size:16px; line-height:1.45; -webkit-font-smoothing:antialiased;
         }

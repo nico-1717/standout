@@ -38,7 +38,7 @@
 /* Il reset (*{box-sizing...}) ora viene da base.css. Qui sotto si riportano al comportamento di prima
    le poche regole di base.css che questa pagina non aveva (nessun cambiamento visibile). */
 a{ color:revert; }
-:focus-visible{ outline:revert; outline-offset:revert; border-radius:revert; }
+:where(:focus-visible){ outline:revert; outline-offset:revert; border-radius:revert; } /* :where = peso 0: non batte mai le regole della pagina */
 .is-hidden{ display:none !important; }
 /* La pagina del pomodoro non scorre: ci deve stare tutta in una schermata.
    Prima scorreva per un motivo banale — lo spazio in fondo era contato due

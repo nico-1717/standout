@@ -17,7 +17,7 @@
 /* base.css aggiunge a{color:inherit} e un anello di focus: questa pagina non li aveva, quindi li
    si riporta al comportamento di prima (nessun cambiamento visibile). */
 a{ color:revert; }
-:focus-visible{ outline:revert; outline-offset:revert; border-radius:revert; }
+:where(:focus-visible){ outline:revert; outline-offset:revert; border-radius:revert; } /* :where = peso 0: non batte mai le regole della pagina */
 /* Safari su iPhone ingrandisce da sé il testo dei blocchi che considera
    "contenuto principale", e lo fa solo su alcune righe: era questo a rendere
    il nome di certi sottoprogetti più grande degli altri, senza che nel CSS
