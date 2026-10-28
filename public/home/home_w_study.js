@@ -361,6 +361,22 @@
     /* ------------------------------------------------------------------
        voti
        ------------------------------------------------------------------ */
+    /* Le barre dei voti hanno gli stessi colori dei voti nella pagina Voti
+       (exams/voti.css e gradeDynamicStyle): 30 e 30L oro, 29 oro pieno, 28 argento,
+       sotto il 28 la tinta scelta in Voti, piu' piena quanto piu' il voto e' sopra la media. */
+    function votoBarra(bi, x, g) {
+        if (x.honors || x.grade >= 30) { bi.className = 'g30'; return; }
+        if (x.grade === 29) { bi.className = 'g29'; return; }
+        if (x.grade === 28) { bi.className = 'g28'; return; }
+        var hex = String(g.badge_accent || '#0A84FF').replace('#', '');
+        if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        var avg = g.avg || 0, alpha;
+        if (!avg || x.grade <= 18) alpha = 0.15;
+        else if (x.grade >= avg + 1) { var maxG = Math.max(27, avg + 2); alpha = 0.85 + 0.15 * Math.min(1, (x.grade - avg) / (maxG - avg)); }
+        else alpha = 0.15 + 0.70 * ((x.grade - 18) / Math.max(1, avg - 18));
+        bi.style.background = 'rgba(' + parseInt(hex.substr(0, 2), 16) + ',' + parseInt(hex.substr(2, 2), 16) + ',' + parseInt(hex.substr(4, 2), 16) + ',' + alpha.toFixed(2) + ')';
+    }
+
     H.register('grades', {
         title: 'home.w_voti', icon: 'cap', color: 'var(--teal)', link: 'exams/voti.php',
         needs: ['grades'],
@@ -395,7 +411,7 @@
                 var bars = el('div', 'ho-bars');
                 g.last.forEach(function (x) {
                     var col = el('div'); col.title = x.name;
-                    var bi = el('i'); bi.style.height = Math.max(8, Math.round((Math.max(18, x.grade) - 17) / 13 * 44)) + 'px'; bi.style.setProperty('--c', x.grade >= 27 ? 'var(--green)' : x.grade >= 24 ? 'var(--teal)' : 'var(--orange)');
+                    var bi = el('i'); bi.style.height = Math.max(8, Math.round((Math.max(18, x.grade) - 17) / 13 * 44)) + 'px'; votoBarra(bi, x, g);
                     col.appendChild(bi); col.appendChild(document.createTextNode(x.grade + (x.honors ? 'L' : '')));
                     bars.appendChild(col);
                 });

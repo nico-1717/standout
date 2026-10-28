@@ -27,6 +27,7 @@
    per una riga orfana bloccherebbe l'intera home.
    ===================================================================== */
 require_once __DIR__ . '/../../lib/bootstrap.php';
+require_once __DIR__ . '/../../lib/colore_voti.php';
 require_once __DIR__ . '/../../lib/security_core.php';
 require_once __DIR__ . '/../../lib/auth_check_api.php';
 require_once __DIR__ . '/../../lib/planner/planner_lib.php';
@@ -176,6 +177,9 @@ function ho_voti(int $uid, string $oggi): array {
            lo usa per icona, barra dei CFU e prossimo esame. sec_color lo accetta solo
            se e' un esadecimale valido. #0A84FF e' il valore di partenza della colonna (mai
            scelto): vale come "nessuno", e la home usa il suo verde acqua di sempre. */
+        /* Il colore con cui la pagina Voti disegna i voti (quello scelto li', oppure quello
+           del sito): le barre dei voti della home usano la stessa scala (oro, argento, tinta). */
+        'badge_accent' => standout_colore_voti_effettivo($imp['accent_color'] ?? ''),
         'accent' => ($imp && sec_color($imp['accent_color'] ?? '', '') !== '#0A84FF') ? sec_color($imp['accent_color'] ?? '', '') : '',
     ];
 }
