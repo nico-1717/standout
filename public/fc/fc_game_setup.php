@@ -106,6 +106,7 @@ function renderGameCatRow($node, $level = 0) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
 <title><?php te('fc.cg_titolo'); ?></title>
 <?php echo fc_boot_json(); ?>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>_assets/ui/base.css?v=<?php echo @filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_game_setup.css?v=<?php echo @filemtime(__DIR__ . '/fc_game_setup.css') ?: 1; ?>">
 </head>
 <body>
