@@ -5,36 +5,19 @@
 
 :root{
     color-scheme: light dark;
-    --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7;
-    --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
-    --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
-    --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE;
-    --teal:#30B0C7; --pink:#FF2D55; --indigo:#5856D6;
-    --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
-    --header-glass:rgba(249,249,251,.82);
-    --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
     --surface-3:#E7E7EC;
-    --shadow-sheet:0 -14px 60px rgba(0,0,0,.18);
     --shadow-pop:0 30px 70px -22px rgba(0,0,0,.45);
-    --r-card:22px; --r-btn:15px;
-    --spring:cubic-bezier(.32,.72,0,1);
-    --pop:cubic-bezier(.34,1.4,.64,1);
     --ease-out:cubic-bezier(.16,1,.3,1);
-    --safe-top:env(safe-area-inset-top, 0px); --safe-bottom:env(safe-area-inset-bottom, 0px);
 }
 @media (prefers-color-scheme: dark){ :root{
-    --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
-    --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
-    --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
-    --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
-    --header-glass:rgba(16,16,18,.78);
-    --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
-    --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
     --surface-3:#3A3A3C;
-    --shadow-sheet:0 -14px 60px rgba(0,0,0,.6);
 }}
-*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+/* Reset (*{box-sizing...}) e button{font-family} ora vengono da base.css. Qui restano solo le cose
+   che base.css non dice, o dice in modo diverso. */
+/* base.css aggiunge a{color:inherit} e un anello di focus: questa pagina non li aveva, quindi li
+   si riporta al comportamento di prima (nessun cambiamento visibile). */
+a{ color:revert; }
+:focus-visible{ outline:revert; outline-offset:revert; border-radius:revert; }
 /* Safari su iPhone ingrandisce da sé il testo dei blocchi che considera
    "contenuto principale", e lo fa solo su alcune righe: era questo a rendere
    il nome di certi sottoprogetti più grande degli altri, senza che nel CSS
@@ -43,7 +26,6 @@ html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 body{ margin:0; min-height:100vh; background:var(--bg); color:var(--text);
     font-family:-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, Roboto, Arial, sans-serif;
     font-size:16px; line-height:1.4; -webkit-font-smoothing:antialiased; padding-bottom:calc(90px + var(--safe-bottom)); overscroll-behavior-y:none; }
-button{ font-family:inherit; }
 
 .app-header{ position:sticky; top:0; z-index:100; padding:calc(var(--safe-top) + 12px) 16px 12px; background:var(--header-glass);
     -webkit-backdrop-filter:saturate(1.8) blur(20px); backdrop-filter:saturate(1.8) blur(20px); border-bottom:.5px solid var(--hairline);

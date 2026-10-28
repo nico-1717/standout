@@ -1266,6 +1266,7 @@ function prog_render_row($node, &$childrenOf, &$totalMemo, $depth = 0, $pomoInCo
 <title><?php te('progetti.titolo_pagina'); ?></title>
 <meta name="csrf-token" content="<?php echo sec_h(sec_csrf_token()); ?>">
 <script src="../_assets/js/standout_fetch.js?v=<?php echo @filemtime(__DIR__ . '/../_assets/js/standout_fetch.js') ?: time(); ?>"></script>
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>_assets/ui/base.css?v=<?php echo @filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>projects/progetti.css?v=<?php echo @filemtime(__DIR__ . '/progetti.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>projects/piano.css?v=<?php echo @filemtime(__DIR__ . '/piano.css') ?: 1; ?>">
 <?php
