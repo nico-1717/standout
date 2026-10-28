@@ -30,6 +30,26 @@ $weekStart = pl_monday($today);
 $rangeFrom = pl_add_days($weekStart, -7);
 $rangeTo   = pl_add_days($weekStart, 20);
 
+/* La riga della settimana si legge UNA volta e serve a due cose: ai dati del
+   motore (qui sotto) e al numero stampato nella barra in alto. */
+$weekRow = pl_week_row($current_user_id, $weekStart, $settings);
+
+/* LA BARRA IN ALTO ARRIVA GIA' GIUSTA.
+   Prima il markup aveva segnaposto fissi (giorno 1, «lunedi», «luglio», 2026,
+   settimana 1) e la data vera la scriveva il JavaScript appena partiva: per un
+   attimo si vedeva «1 lunedi luglio» e poi la pagina si correggeva sotto gli
+   occhi. I valori ci sono gia' qui, nello stesso istante in cui si decide
+   `$today`, quindi li stampa il server: il JS di renderWeekBits() riscrive gli
+   stessi testi e non cambia niente di visibile.
+   Stessa data del motore ($boot['today']): e' l'unica fonte, cosi' barra e
+   griglia non possono dirsi due giorni diversi. */
+$tsOggi     = strtotime($today . ' 12:00:00');
+$barGiorno  = (int)date('j', $tsOggi);
+$barMese    = t('planner.mese_' . (int)date('n', $tsOggi));
+$barGiornoS = t('planner.gg_' . (int)date('N', $tsOggi));
+$barAnno    = (int)date('Y', $tsOggi);
+$barSett    = (int)($weekRow['number'] ?? 1) ?: 1;
+
 $boot = [
     'csrf'       => sec_csrf_token(),
     'today'      => $today,
@@ -39,7 +59,7 @@ $boot = [
     'calendars'  => pl_calendars($current_user_id),
     'routines'   => pl_routines($current_user_id),
     'favorites'  => pl_favorites($current_user_id),
-    'week'       => pl_week_row($current_user_id, $weekStart, $settings),
+    'week'       => $weekRow,
     'events'     => pl_events_range($current_user_id, $rangeFrom, $rangeTo),
     'priorities' => pl_priorities_range($current_user_id, $rangeFrom, $rangeTo),
     'pills_due'  => pl_pills_due($current_user_id, date('Y-m-d'), date('H:i:s')),
@@ -87,14 +107,14 @@ foreach (['base', 'griglia', 'liste', 'fogli', 'extra', 'responsive'] as $plCss)
         <?php /* La spunta "settimana completata" dentro la pastiglia non c'e'
                  piu': non la si usava, e rubava spazio e un tocco sbagliato. */ ?>
         <button type="button" class="pl-week" id="plWeekBtn">
-            <span class="pl-week-n pl-serif" id="plWeekN">1</span>
+            <span class="pl-week-n pl-serif" id="plWeekN"><?php echo $barSett; ?></span>
             <span class="pl-week-k"><?php te('planner.settimana_breve'); ?></span>
         </button>
         <?php /* "Vai a oggi" come un foglietto di calendario (mese in alto, numero
                  sotto): il numero da solo non diceva cosa faceva il tasto. */ ?>
         <button type="button" class="pl-today" id="plTodayBtn" aria-label="<?php te('planner.vai_a_oggi'); ?>">
-            <span class="pl-today-m" id="plTodayM"></span>
-            <span class="pl-today-d" id="plTodayD">1</span>
+            <span class="pl-today-m" id="plTodayM"><?php echo sec_h(mb_substr($barMese, 0, 3, 'UTF-8')); ?></span>
+            <span class="pl-today-d" id="plTodayD"><?php echo $barGiorno; ?></span>
         </button>
         <?php /* Il selettore delle viste, accanto a "oggi": tutti e due dicono
                  quale pezzo di calendario si sta guardando. Piu' grande di un
@@ -138,12 +158,12 @@ foreach (['base', 'griglia', 'liste', 'fogli', 'extra', 'responsive'] as $plCss)
             </button>
         </div>
         <button type="button" class="pl-day-btn" id="plDayBtn">
-            <span class="pl-day-num pl-serif" id="plDayNum">1</span>
-            <span class="pl-day-wd" id="plDayWd"><?php te('planner.lunedi'); ?></span>
+            <span class="pl-day-num pl-serif" id="plDayNum"><?php echo $barGiorno; ?></span>
+            <span class="pl-day-wd" id="plDayWd"><?php echo sec_h($barGiornoS); ?></span>
         </button>
         <button type="button" class="pl-month-btn" id="plMonthBtn">
-            <span class="pl-month-name pl-serif" id="plMonthName"><?php te('planner.luglio'); ?></span>
-            <span class="pl-month-year" id="plMonthYear">2026</span>
+            <span class="pl-month-name pl-serif" id="plMonthName"><?php echo sec_h($barMese); ?></span>
+            <span class="pl-month-year" id="plMonthYear"><?php echo $barAnno; ?></span>
         </button>
         <button type="button" class="pl-mini-static" id="plMiniStatic" aria-label="<?php te('planner.calendario_del_mese'); ?>"></button>
     </div>
