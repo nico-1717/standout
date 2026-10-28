@@ -19,7 +19,8 @@ Legenda stato: **corretto** (in questo giro) · **aperto** (da fare) · **deciso
 (scelta consapevole) · **tuo** (serve un'azione fuori dal codice).
 
 - **T8.** Le copie del database sono manuali: farne una a scadenza fissa (per esempio ogni domenica) da phpMyAdmin → Esporta, e tenerla fuori dal repository e in un posto privato. Una copia mai provata e' solo una speranza: una volta va importata in un database di prova. La routine completa (cosa, quando, dove, quanto tenere, come provare e ripristinare) e' in `docs/BACKUP.md`.
-- **T9.** Non ancora provato dal vivo: il blocco del login (6 errori in 15 minuti → 15 minuti di attesa).
+- **T9.** Il blocco del login (6 errori in 15 minuti → 15 minuti di attesa) e' provato in locale (28/10/2026: 6 password sbagliate, la 7ª bloccata anche con la password giusta, altri conti non toccati). Resta da provare dal vivo, per una sola ragione: controllare che sul sito vero `REMOTE_ADDR` sia l'indirizzo del visitatore e non quello di un proxy (altrimenti il tetto «30 errori da uno stesso IP» bloccherebbe tutti insieme). Vedi la procedura qui sotto.
+  *Procedura (2 minuti, con un account di prova):* 1) dalla finestra di accesso scrivi 6 volte una password sbagliata per l'account di prova; 2) alla settima prova con la password GIUSTA deve comparire il messaggio di troppi tentativi; 3) in phpMyAdmin: `SELECT identifier, ip_address, success, attempted_at FROM login_attempts ORDER BY id DESC LIMIT 8;` — `ip_address` deve essere il tuo IP (cercalo su un sito «what is my IP»), non lo stesso valore per tutti e non un indirizzo interno; 4) per sbloccare subito: `DELETE FROM login_attempts WHERE identifier = 'nome-account-prova';`.
 
 ---
 
