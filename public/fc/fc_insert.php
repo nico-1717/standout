@@ -359,6 +359,7 @@ if ($modo === 'edit') {
 
 
 
+<link rel="stylesheet" href="<?php echo PWA_BASE; ?>_assets/ui/base.css?v=<?php echo @filemtime(__DIR__ . '/../_assets/ui/base.css') ?: 1; ?>">
 <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_insert.css?v=<?php echo @filemtime(__DIR__ . '/fc_insert.css') ?: 1; ?>">
 
     <link rel="stylesheet" href="<?php echo PWA_BASE; ?>fc/fc_autosave_bar.css?v=<?php echo @filemtime(__DIR__ . '/fc_autosave_bar.css') ?: 1; ?>">

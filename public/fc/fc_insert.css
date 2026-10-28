@@ -26,35 +26,35 @@
 
 
 
-            --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#F2F2F7; --surface-3:#EDEDF2;
+   --surface-3:#EDEDF2;
 
 
 
-            --text:#1C1C1E; --text-2:#8A8A8E; --text-3:#AEAEB2;
+   
 
 
 
-            --hairline:rgba(60,60,67,.12); --hairline-2:rgba(60,60,67,.22);
+  
 
 
 
-            --blue:#007AFF; --green:#34C759; --red:#FF3B30; --orange:#FF9500; --purple:#AF52DE; --pink:#FF2D55; --gray:#8E8E93;
+      --gray:#8E8E93;
 
 
 
-            --blue-soft:rgba(0,122,255,.09); --green-soft:rgba(52,199,89,.13); --red-soft:rgba(255,59,48,.12);
+   
 
 
 
-            --orange-soft:rgba(255,149,0,.14); --purple-soft:rgba(175,82,222,.12); --pink-soft:rgba(255,45,85,.12); --gray-soft:rgba(142,142,147,.14);
+  --pink-soft:rgba(255,45,85,.12); --gray-soft:rgba(142,142,147,.14);
 
 
 
-            --header-glass:rgba(249,249,251,.82);
+ 
 
 
 
-            --shadow-card:0 1px 1px rgba(0,0,0,.04), 0 10px 30px rgba(0,0,0,.07);
+ 
 
 
 
@@ -62,7 +62,7 @@
 
 
 
-            --btn-hl:inset 0 1px 0 rgba(255,255,255,.25), inset 0 -1px 0 rgba(0,0,0,.16);
+ 
 
 
 
@@ -70,7 +70,7 @@
 
 
 
-            --raise-sm:0 1px 1.5px rgba(0,0,0,.08), 0 5px 12px -4px rgba(0,0,0,.13);
+ 
 
 
 
@@ -78,11 +78,11 @@
 
 
 
-            --r-card:22px; --r-btn:15px; --r-chip:100px; --r-tile:16px;
+   --r-tile:16px;
 
 
 
-            --spring:cubic-bezier(.32,.72,0,1);
+ 
 
 
 
@@ -94,11 +94,11 @@
 
 
 
-            --safe-top:env(safe-area-inset-top, 0px);
+ 
 
 
 
-            --safe-bottom:env(safe-area-inset-bottom, 0px);
+ 
 
 
 
@@ -114,35 +114,35 @@
 
 
 
-                --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E; --surface-3:#333336;
+   --surface-3:#333336;
 
 
 
-                --text:#F5F5F7; --text-2:#98989F; --text-3:#636366;
+   
 
 
 
-                --hairline:rgba(84,84,88,.42); --hairline-2:rgba(84,84,88,.62);
+  
 
 
 
-                --blue:#0A84FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2; --pink:#FF375F; --gray:#98989F;
+      --gray:#98989F;
 
 
 
-                --blue-soft:rgba(10,132,255,.16); --green-soft:rgba(48,209,88,.17); --red-soft:rgba(255,69,58,.17);
+   
 
 
 
-                --orange-soft:rgba(255,159,10,.18); --purple-soft:rgba(191,90,242,.18); --pink-soft:rgba(255,55,95,.18); --gray-soft:rgba(152,152,159,.18);
+  --pink-soft:rgba(255,55,95,.18); --gray-soft:rgba(152,152,159,.18);
 
 
 
-                --header-glass:rgba(16,16,18,.78);
+ 
 
 
 
-                --shadow-card:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
+ 
 
 
 
@@ -150,7 +150,7 @@
 
 
 
-                --btn-hl:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.3);
+ 
 
 
 
@@ -158,7 +158,7 @@
 
 
 
-                --raise-sm:0 1px 1.5px rgba(0,0,0,.45), 0 5px 12px -4px rgba(0,0,0,.55);
+ 
 
 
 
@@ -178,11 +178,13 @@
 
 
 
-        *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+        /* (regola uguale a base.css, tolta) */
+        /* base.css dice button{font-family:inherit}: questa pagina non lo diceva (i pulsanti senza font
+           proprio restavano con quello del browser). Si riporta com'era. */
+        button{ font-family:revert; }
 
 
 
-        html{ -webkit-text-size-adjust:100%; }
 
 
 
@@ -222,7 +224,6 @@
 
 
 
-        :focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:8px; }
 
 
 
