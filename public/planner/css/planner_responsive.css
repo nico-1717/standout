@@ -148,7 +148,7 @@
     .pl-hcol {
         width: 100vw !important;
         border-left: none !important;
-        padding-left: 12px !important;
+        padding-left: 24px !important;
         /* LA BARRA DI TUTTO IL GIORNO DEVE FINIRE, non uscire dallo schermo.
            La colonna e' larga uno schermo intero (la striscia scorre di una
            pagina per volta, vedi setTrackX), ma la fascia che la ritaglia e'
@@ -158,9 +158,17 @@
            continuasse nei giorni dopo. In piu' i tastini a destra (anello,
            chevron) le stanno sopra apposta: la barra si ferma prima di loro,
            cosi' ha un'estremita' arrotondata visibile come ce l'ha a sinistra.
-           74 = 12 di margine del ritaglio + 62 di colonna dei tastini. */
-        padding-right: 74px !important;
+           62 = la colonna dei tastini (12 di margine + 46 dell'anello + aria). */
+        padding-right: 62px !important;
     }
+    /* Il ritaglio arriva fino al bordo dello schermo (annulla il padding di
+       12 per lato della barra in alto): serve alle barre che CONTINUANO in un
+       altro giorno, che devono correre fino al bordo senza fermarsi 12px
+       prima. Il padding della colonna (24 a sinistra) tiene le altre barre
+       dov'erano. */
+    .pl-headclip { margin: 0 -12px; }
+    .pl-hcol-ad .pl-ev.pl-ev-da-prima { margin-left: -24px; padding-left: 31px; }
+    .pl-hcol-ad .pl-ev.pl-ev-continua { margin-right: -62px; padding-right: 69px; }
 }
 /* Nasconde il contenuto degli eventi tutto il giorno per i giorni non a fuoco,
    evitando che dilatino la riga creando spazi bianchi inutili */

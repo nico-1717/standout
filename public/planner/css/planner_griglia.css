@@ -100,6 +100,23 @@
 .pl-headrow.pl-noad .pl-hcol{ padding-bottom:2px; }
 .pl-hcol-ad .pl-ev{ position:static; left:auto; right:auto; min-height:0; padding:3px 7px; }
 .pl-hcol-ad .pl-ev-t{ font-size:11.5px; }
+/* UNA BARRA CHE CONTINUA NON FINISCE.
+   Un evento di piu' giorni, nella fascia di tutto il giorno, ha un'estremita'
+   chiusa e arrotondata solo dove comincia (il primo giorno) e dove finisce
+   (l'ultimo). Il giorno dopo l'inizio non comincia qui: niente angoli
+   arrotondati ne' filo colorato a sinistra, e la barra si allunga fino al
+   bordo della colonna, cosi' si legge come lo stesso blocco che arriva da
+   ieri. Lo stesso a destra, se continua domani. I margini negativi
+   annullano il padding della colonna (12 a sinistra, 6 a destra). */
+.pl-hcol-ad .pl-ev.pl-ev-da-prima{
+    border-top-left-radius:0; border-bottom-left-radius:0;
+    margin-left:-12px; padding-left:19px;
+}
+.pl-hcol-ad .pl-ev.pl-ev-da-prima::before{ display:none; }
+.pl-hcol-ad .pl-ev.pl-ev-continua{
+    border-top-right-radius:0; border-bottom-right-radius:0;
+    margin-right:-6px; padding-right:13px;
+}
 .pl-hcol.pl-is-today .pl-col-num,
 .pl-hcol.pl-is-today .pl-col-wd{ color:var(--accent-ink); }
 .pl-hcol.pl-is-past{ opacity:.5; }

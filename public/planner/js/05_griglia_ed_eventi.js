@@ -1093,6 +1093,15 @@ function buildEvent(ev, flow) {
     node.dataset.date = ev.date || S.focusDate;
     if (ev.count) node.dataset.routineMerged = '1';   // il blocco compatto di una routine
     if (ev.giorno_tot > 1 && !ev.all_day) node.dataset.multi = '1';   // a cavallo di più giorni: non si trascina
+    /* Una barra di tutto il giorno che viene da ieri o va a domani non deve
+       finire come una che comincia e finisce oggi: dal lato in cui continua
+       resta squadrata e arriva fino al bordo (vedi .pl-ev-da-prima e
+       .pl-ev-continua in planner_griglia.css). Solo nella fascia (flow): nella
+       griglia degli orari un blocco a cavallo di piu' giorni e' un'altra cosa. */
+    if (flow && ev.giorno_tot > 1) {
+        if (ev.giorno_num > 1) node.classList.add('pl-ev-da-prima');
+        if (ev.giorno_num < ev.giorno_tot) node.classList.add('pl-ev-continua');
+    }
 
     var row = el('div', 'pl-ev-row');
     if (S.shift.on) {
