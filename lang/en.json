@@ -5267,7 +5267,7 @@
     "scarica_btn": "Download",
     "scarica_attesa": "Preparing the file…",
     "cambia_t": "Change password",
-    "cambia_p": "Choose a new password. After the change, the app's devices and the “remember me” sign-ins of other browsers are signed out; this browser stays signed in.",
+    "cambia_p": "Choose a new password. After the change, all your other devices are signed out (the app and other browsers); this browser stays signed in.",
     "cambia_attuale": "Current password",
     "cambia_nuova": "New password (at least 10 characters)",
     "cambia_conferma": "Type the new password again",

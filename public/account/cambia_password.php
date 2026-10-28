@@ -54,10 +54,11 @@ if ($errori) {
 try {
     sec_q("UPDATE users SET password_hash = ? WHERE id = ?", [password_hash($nuova, PASSWORD_DEFAULT), $uid], 'si');
     /* Chi aveva la vecchia password (un telefono perso, un computer prestato) non
-       deve restare dentro: si chiudono tutti i dispositivi dell'app e tutti i
-       «ricordami» del sito (PROGETTO §7.3). Questo browser resta connesso: la sua
-       sessione PHP non dipende dai «ricordami». */
+       deve restare dentro: si chiudono i dispositivi dell'app, i «ricordami» e le
+       sessioni aperte negli altri browser (PROGETTO §7.3). Questo browser resta
+       connesso: rilegge il numero di sessione nuovo. */
     $chiusi = api_sessioni_revoca_tutte($uid, true);
+    if (session_status() === PHP_SESSION_ACTIVE) $_SESSION['sv'] = standout_sessione_versione($uid);
 } catch (Throwable $e) {
     sec_log_error('password_cambia', get_class($e));
     sec_die_json(t('privacydati.err_generico'), 500, 'server');

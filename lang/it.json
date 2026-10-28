@@ -5267,7 +5267,7 @@
     "scarica_btn": "Scarica",
     "scarica_attesa": "Preparo il file…",
     "cambia_t": "Cambia password",
-    "cambia_p": "Scegli una password nuova. Dopo il cambio i dispositivi dell'app e i «ricordami» degli altri browser vengono scollegati; questo browser resta connesso.",
+    "cambia_p": "Scegli una password nuova. Dopo il cambio tutti gli altri dispositivi vengono scollegati (l'app e gli altri browser); questo browser resta connesso.",
     "cambia_attuale": "Password attuale",
     "cambia_nuova": "Password nuova (almeno 10 caratteri)",
     "cambia_conferma": "Scrivi di nuovo la password nuova",

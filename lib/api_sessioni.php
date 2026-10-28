@@ -306,8 +306,8 @@ function api_sessione_revoca(int $sessioneId, int $uid): bool {
 
 /**
  * Esce da TUTTI i dispositivi dell'utente (PROGETTO §7.3). Con $ancheRicordami
- * si cancellano anche i «ricordami» del sito: «tutti i dispositivi» comprende
- * i browser che restano collegati col cookie di 60 giorni.
+ * si cancellano anche i «ricordami» del sito e si chiudono le sessioni aperte nei
+ * browser: «tutti i dispositivi» comprende anche loro.
  * Ritorna quante sessioni a token erano aperte.
  */
 function api_sessioni_revoca_tutte(int $uid, bool $ancheRicordami = false): int {
@@ -316,6 +316,11 @@ function api_sessioni_revoca_tutte(int $uid, bool $ancheRicordami = false): int 
     $n = sec_affected();
     if ($ancheRicordami) {
         sec_q("DELETE FROM remember_tokens WHERE user_id = ?", [$uid], 'i');
+        /* Anche le sessioni PHP gia' aperte nei browser: il contatore sale e quelle
+           che portano il numero vecchio escono (lib/auth_core.php). Chi vuole restare
+           connesso, come chi cambia la password, rilegge il numero nuovo
+           (standout_sessione_versione). */
+        sec_q("UPDATE users SET session_version = session_version + 1 WHERE id = ?", [$uid], 'i');
     }
     return $n;
 }

@@ -262,9 +262,25 @@ function standout_verifica_remember_cookie(): ?array {
 
 /* ============ Login / Logout ============ */
 
+/**
+ * Il contatore di sessione dell'utente (users.session_version). Sale di uno
+ * quando cambia la password o esce da tutti i dispositivi: una sessione del
+ * browser che porta un numero diverso e' di prima e non vale piu'.
+ */
+function standout_sessione_versione(int $user_id): int {
+    $stmt = mysqli_prepare(standout_db(), "SELECT session_version FROM users WHERE id = ?");
+    mysqli_stmt_bind_param($stmt, 'i', $user_id);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    $row = $res ? mysqli_fetch_assoc($res) : null;
+    mysqli_stmt_close($stmt);
+    return (int)($row['session_version'] ?? 0);
+}
+
 function standout_effettua_login(int $user_id, bool $ricordami = true): void {
     session_regenerate_id(true);
     $_SESSION['user_id'] = $user_id;
+    $_SESSION['sv'] = standout_sessione_versione($user_id);
     unset($_SESSION['csrf_token']); // un nuovo login = nuovo token CSRF
 
     $conn = standout_db();
@@ -403,24 +419,28 @@ function standout_utente_corrente(): ?array {
 
     if (!empty($_SESSION['user_id'])) {
         $uid = (int)$_SESSION['user_id'];
-        $stmt = mysqli_prepare($conn, "SELECT id, username, email, is_active FROM users WHERE id = ?");
+        $stmt = mysqli_prepare($conn, "SELECT id, username, email, is_active, session_version FROM users WHERE id = ?");
         mysqli_stmt_bind_param($stmt, 'i', $uid);
         mysqli_stmt_execute($stmt);
         $res = mysqli_stmt_get_result($stmt);
         $row = $res ? mysqli_fetch_assoc($res) : null;
         mysqli_stmt_close($stmt);
 
-        if ($row && (int)$row['is_active'] === 1) {
+        /* Una sessione nata PRIMA di un cambio password (o di «esci da tutti i
+           dispositivi») porta un numero piu' basso: non vale piu'. Senza numero
+           (sessione di prima della migrazione) vale 0. */
+        if ($row && (int)$row['is_active'] === 1 && (int)($_SESSION['sv'] ?? 0) === (int)$row['session_version']) {
             $cache = ['id' => (int)$row['id'], 'username' => $row['username'], 'email' => $row['email']];
             return $cache;
         }
-        unset($_SESSION['user_id']); // utente non più valido: puliamo la sessione
+        unset($_SESSION['user_id'], $_SESSION['sv']); // utente non più valido, o sessione chiusa da fuori: puliamo
     }
 
     $utente = standout_verifica_remember_cookie();
     if ($utente) {
         session_regenerate_id(true);
         $_SESSION['user_id'] = $utente['id'];
+        $_SESSION['sv'] = standout_sessione_versione((int)$utente['id']);
         $cache = $utente;
         return $cache;
     }
