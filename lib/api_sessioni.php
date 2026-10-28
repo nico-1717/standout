@@ -32,9 +32,9 @@
      - Una richiesta con token non apre la sessione PHP e non imposta cookie
        (lo decide lib/auth_core.php, che e' l'UNICO posto che risponde alla
        domanda «chi e' l'utente di questa richiesta»).
-     - Se un giorno si aggiunge il cambio o il ripristino della password,
-       DEVE chiamare api_sessioni_revoca_tutte($uid, true): oggi non esiste
-       ancora quella funzione nel sito.
+     - Il cambio password (public/account/cambia_password.php) chiama
+       api_sessioni_revoca_tutte($uid, true); lo stesso DEVE fare il futuro
+       ripristino della password (quello «dimenticata»).
    ===================================================================== */
 
 require_once __DIR__ . '/security_core.php';

@@ -45,6 +45,27 @@ $cssBase = PWA_BASE . '_assets/ui/base.css?v=' . (@filemtime(__DIR__ . '/../_ass
     </form>
   </section>
 
+  <section class="lg-box">
+    <h2><?php te('privacydati.cambia_t'); ?></h2>
+    <p><?php te('privacydati.cambia_p'); ?></p>
+    <form id="pdPass" autocomplete="off">
+      <label class="lg-field">
+        <span><?php te('privacydati.cambia_attuale'); ?></span>
+        <input type="password" id="pdPwOld" autocomplete="current-password" maxlength="128">
+      </label>
+      <label class="lg-field">
+        <span><?php te('privacydati.cambia_nuova'); ?></span>
+        <input type="password" id="pdPwNew" autocomplete="new-password" maxlength="128">
+      </label>
+      <label class="lg-field">
+        <span><?php te('privacydati.cambia_conferma'); ?></span>
+        <input type="password" id="pdPwNew2" autocomplete="new-password" maxlength="128">
+      </label>
+      <p class="lg-msg" id="pdPassMsg" role="alert" hidden></p>
+      <button type="submit" class="lg-btn" id="pdPassBtn" disabled><?php te('privacydati.cambia_btn'); ?></button>
+    </form>
+  </section>
+
   <section class="lg-box lg-danger">
     <h2><?php te('privacydati.elimina_t'); ?></h2>
     <p><?php te('privacydati.elimina_p'); ?></p>
@@ -61,6 +82,7 @@ $cssBase = PWA_BASE . '_assets/ui/base.css?v=' . (@filemtime(__DIR__ . '/../_ass
 </main>
 <?php
 $pd_txt = ['attesa' => t('privacydati.elimina_attesa'), 'btn' => t('privacydati.elimina_btn'), 'ok' => t('privacydati.elimina_ok'),
+           'cambia_attesa' => t('privacydati.cambia_attesa'), 'cambia_btn' => t('privacydati.cambia_btn'), 'cambia_ok' => t('privacydati.cambia_ok'),
            'err_pw' => t('privacydati.err_password'), 'err_troppe' => t('privacydati.err_troppe'), 'err' => t('privacydati.err_generico')];
 ?>
 <script type="application/json" id="pdTxt"><?php echo json_encode($pd_txt, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?></script>
