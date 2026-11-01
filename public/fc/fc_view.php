@@ -1663,6 +1663,7 @@ function fcd_php_block_html($b): string {
     if ($t === 'li') {
         $attr = ' data-lvl="' . (((int)($b['lvl'] ?? 0)) ?: 1) . '"';
         if (!empty($b['c'])) $attr .= ' data-c="' . fcd_php_escape($b['c']) . '"';
+        if (isset($b['ck']) && ($b['ck'] === 0 || $b['ck'] === 1)) $attr .= ' data-ck="' . (int)$b['ck'] . '"';   // checklist
         return '<div class="fc-li"' . $attr . '>' . $inner . '</div>';
     }
     if (!empty($b['lvl'])) {
@@ -1678,9 +1679,10 @@ function fcd_php_block_html($b): string {
         $cod = (string)$b['code'];
         if ($cod === 'auto' || isset($lingue[$cod])) {
             return '<div class="fc-p fc-code" data-code="' . fcd_php_escape($cod) . '" data-lang="'
-                 . fcd_php_escape($lingue[$cod] ?? 'Code') . '">' . $inner . '</div>';
+                 . fcd_php_escape($lingue[$cod] ?? 'Code') . '"' . (!empty($b['hl']) ? ' data-hl="1"' : '') . '>' . $inner . '</div>';
         }
     }
+    if (!empty($b['q'])) return '<div class="fc-p fc-q">' . $inner . '</div>';   // citazione
     return '<div class="fc-p">' . $inner . '</div>';
 }
 

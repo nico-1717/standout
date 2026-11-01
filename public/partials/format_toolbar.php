@@ -263,6 +263,27 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 
                 <span class="fmt-sep"></span>
 
+                <!-- Pulisci formattazione, checklist, citazione. -->
+                <div class="fmt-group">
+                    <button type="button" class="fmt-btn" data-cmd="clear-format" title="<?php te('editor.cancella_formato'); ?>">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 5.5h10"/><path d="M9 5.5v11"/><path d="M15.5 14.5l5 5"/><path d="M20.5 14.5l-5 5"/>
+                        </svg>
+                    </button>
+                    <button type="button" class="fmt-btn" data-cmd="checklist" title="<?php te('editor.checklist'); ?>">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="8.2"/><path d="M8.3 12.2l2.6 2.6 4.9-5.4"/>
+                        </svg>
+                    </button>
+                    <button type="button" class="fmt-btn" data-cmd="quote" title="<?php te('editor.citazione'); ?>">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" stroke="none">
+                            <path d="M5 17.5V12c0-3.2 1.7-5.2 4.6-5.8l.6 1.5C8.6 8.3 8 9.3 8 10.6h2.6v6.9zM13.6 17.5V12c0-3.2 1.7-5.2 4.6-5.8l.6 1.5c-1.6.6-2.2 1.6-2.2 2.9H19v6.9z"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <span class="fmt-sep"></span>
+
                 <!-- I colori scorrono: ce ne stanno quanti se ne vuole senza
                      che la barra vada a capo o si stringa. -->
                 <div class="fmt-swatches" role="group" aria-label="<?php te('editor.colore_testo'); ?>">
@@ -378,6 +399,11 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                     <button type="button" class="fmt-btn fmt-btn-wide" data-cmd="code" title="<?php te('editor.blocco_codice'); ?>">
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 7L3.5 12l5 5"/><path d="M15.5 7l5 5-5 5"/></svg>
                         <span class="fmt-btn-lab"><?php te('editor.blocco_codice'); ?></span>
+                    </button>
+                    <button type="button" class="fmt-btn" data-cmd="code-hl" title="<?php te('editor.evidenzia_riga'); ?>">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3.5" y="9" width="17" height="6" rx="1.5" fill="var(--yellow,#FFCC00)" fill-opacity=".35"/><path d="M3.5 9v6" stroke="var(--yellow,#FFCC00)" stroke-width="3"/>
+                        </svg>
                     </button>
                 </div>
                 <span class="fmt-sep"></span>
@@ -2953,6 +2979,9 @@ function ftRefreshState(wrap) {
     if (listPanel && listPanel.classList.contains('is-open') && sel && (!blocco || blocco.t !== 'li')) {
         fcClosePanel(bar);
     }
+    bar.querySelectorAll('.fmt-btn[data-cmd="checklist"]').forEach(function (b) { b.classList.toggle('is-active', !!(blocco && blocco.t === 'li' && (blocco.ck === 0 || blocco.ck === 1))); });
+    bar.querySelectorAll('.fmt-btn[data-cmd="quote"]').forEach(function (b) { b.classList.toggle('is-active', !!(blocco && blocco.q)); });
+    bar.querySelectorAll('.fmt-btn[data-cmd="code-hl"]').forEach(function (b) { b.classList.toggle('is-active', !!(blocco && blocco.hl)); });
     var gruppoCodice = sel ? fcdCodeGroup(doc, sel.a.b) : null;
     bar.querySelectorAll('.fmt-btn[data-cmd="code"]').forEach(function (b) { b.classList.toggle('is-active', !!gruppoCodice); });
     bar.querySelectorAll('.fmt-pill[data-cmd="code-lang"]').forEach(function (b) { b.classList.toggle('is-active', !!gruppoCodice && gruppoCodice.code === b.dataset.lang); });
@@ -5320,6 +5349,21 @@ function ftSetupEditor(wrap) {
         document.execCommand('insertText', false, t);
     });
 
+    /* Tocco sul cerchio di un punto della checklist: spunta o toglie la spunta.
+       Il cerchio e' disegnato dal CSS (::before), quindi il tocco arriva sul
+       punto stesso: si guarda se cade nella fascia del cerchio. */
+    ed.addEventListener('mousedown', function (e) {
+        var li = e.target.closest ? e.target.closest('.fc-li[data-ck]') : null;
+        if (!li || !ed.contains(li) || e.target !== li) return;
+        var r = li.getBoundingClientRect(), fs = parseFloat(getComputedStyle(li).fontSize) || 16;
+        var x = e.clientX - r.left, da = (parseInt(li.dataset.lvl, 10) || 1) * 1.15 * fs;
+        if (x < da - 6 || x > da + 1.15 * fs + 10) return;
+        e.preventDefault();
+        var idx = fcdBlockEls(ed).indexOf(li);
+        if (idx < 0) return;
+        ftCmd(wrap, function (d, s2) { return { doc: fcdFlipCheck(d, idx), sel: s2 }; });
+    });
+
     /* Clic su una formula disegnata: torna codice, col cursore in fondo,
        pronta da correggere. Senza questo, l'unico modo di rimetterci mano
        sarebbe cancellarla e riscriverla. */
@@ -5835,6 +5879,10 @@ function ftSetupToolbar(wrap) {
         else if (cmd === 'indent')      ftCmd(wrap, function (d, s) { return { doc: fcdIndent(d, s, 1), sel: s }; });
         else if (cmd === 'outdent')     ftCmd(wrap, function (d, s) { return { doc: fcdIndent(d, s, -1), sel: s }; });
         else if (cmd === 'undo')        { ftUndo(wrap); return; }
+        else if (cmd === 'clear-format') ftCmd(wrap, function (d, s) { return { doc: fcdClearMarks(d, s), sel: s }; });
+        else if (cmd === 'checklist')   ftCmd(wrap, function (d, s) { return { doc: fcdToggleChecklist(d, s), sel: s }; });
+        else if (cmd === 'quote')       ftCmd(wrap, function (d, s) { return { doc: fcdToggleQuote(d, s), sel: s }; });
+        else if (cmd === 'code-hl')     ftCmd(wrap, function (d, s) { return { doc: fcdToggleCodeHl(d, s), sel: s }; });
         else if (cmd === 'code')        ftCmd(wrap, function (d, s) { return fcdToggleCode(d, s); });
         else if (cmd === 'code-lang')   { var lg = btn.dataset.lang; ftCmd(wrap, function (d, s) { return fcdSetCodeLang(d, s, lg); }); }
         else if (cmd === 'soft-break')  ftCmd(wrap, function (d, s) { return fcdInsertSoftBreak(d, s); });

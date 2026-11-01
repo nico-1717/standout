@@ -212,6 +212,9 @@ function fcdNorm(doc) {
             var col = (FCD_LIST_COLORS.indexOf(b.c) !== -1) ? b.c : null;
             var li = { t: 'li', lvl: lvl, runs: runs };
             if (col) li.c = col;
+            /* punto di una checklist: 0 da fare, 1 fatto */
+            var ck = parseInt(b.ck, 10);
+            if (ck === 0 || ck === 1) li.ck = ck;
             out.push(li);
         } else {
             /* Le righe vuote salvate dalla versione che contava il <br> segnaposto
@@ -227,7 +230,10 @@ function fcdNorm(doc) {
             var lvp = parseInt(b.lvl, 10);
             if (lvp >= 1) p.lvl = Math.min(lvp, 12);
             /* riga di codice: niente rientro da elenco, la lingua dev'essere nota */
-            if (b.code && fcdCodeOk(b.code)) { p.code = b.code; delete p.lvl; }
+            if (b.code && fcdCodeOk(b.code)) {
+                p.code = b.code; delete p.lvl;
+                if (b.hl) p.hl = 1;            // riga evidenziata (striscia gialla a sinistra)
+            } else if (b.q) p.q = 1;           // citazione
             out.push(p);
         }
     });
@@ -539,7 +545,7 @@ function fcdToggleCode(doc, sel, lang) {
     fcdEachBlockInSel(doc, sel, function (b) {
         if (b.t === 'fx') return;
         if (tutti && !lang) { delete b.code; return; }
-        b.t = 'p'; delete b.lvl; delete b.c;
+        b.t = 'p'; delete b.lvl; delete b.c; delete b.ck; delete b.q;
         b.code = lang || 'auto';
         b.runs = [{ s: (b.runs || []).map(function (r) { return typeof r.x === 'string' ? r.x : r.s; }).join('') }];
     });
@@ -554,6 +560,75 @@ function fcdSetCodeLang(doc, sel, lang) {
     if (!g) return fcdToggleCode(doc, sel, lang);
     for (var i = g.a; i <= g.z; i++) doc.blocks[i].code = lang;
     return { doc: fcdNorm(doc), sel: sel };
+}
+
+/* Evidenzia (o toglie l'evidenziazione) alle righe di codice toccate dalla
+   selezione: una striscia gialla a sinistra, come nei diff. */
+function fcdToggleCodeHl(doc, sel) {
+    var tutti = true, n = 0;
+    fcdEachBlockInSel(doc, sel, function (b) { if (!fcdIsCode(b)) return; n++; if (!b.hl) tutti = false; });
+    if (!n) return doc;
+    fcdEachBlockInSel(doc, sel, function (b) {
+        if (!fcdIsCode(b)) return;
+        if (tutti) delete b.hl; else b.hl = 1;
+    });
+    return fcdNorm(doc);
+}
+
+/* La checklist e' un punto elenco con un "fatto / da fare" (ck 0 o 1): resta
+   un punto, quindi rientri, Invio e cancella funzionano come per gli elenchi. */
+function fcdToggleChecklist(doc, sel) {
+    var tutti = true, n = 0;
+    fcdEachBlockInSel(doc, sel, function (b) {
+        if (b.t === 'fx' || fcdIsCode(b)) return;
+        n++; if (!(b.t === 'li' && (b.ck === 0 || b.ck === 1))) tutti = false;
+    });
+    if (!n) return doc;
+    fcdEachBlockInSel(doc, sel, function (b) {
+        if (b.t === 'fx' || fcdIsCode(b)) return;
+        if (tutti) { b.t = 'p'; delete b.lvl; delete b.c; delete b.ck; return; }
+        if (b.t !== 'li') { b.t = 'li'; b.lvl = 1; delete b.q; }
+        if (b.ck !== 1) b.ck = 0;
+    });
+    return fcdNorm(doc);
+}
+
+/* Spunta / toglie la spunta a un punto della checklist (tocco sul cerchio). */
+function fcdFlipCheck(doc, bi) {
+    var b = doc.blocks[bi];
+    if (!b || b.t !== 'li' || !(b.ck === 0 || b.ck === 1)) return doc;
+    b.ck = b.ck ? 0 : 1;
+    return fcdNorm(doc);
+}
+
+/* Citazione: un paragrafo con la barra blu a sinistra. Come gli altri
+   interruttori: se sono tutte citazioni tornano testo. */
+function fcdToggleQuote(doc, sel) {
+    var tutti = true, n = 0;
+    fcdEachBlockInSel(doc, sel, function (b) {
+        if (b.t === 'fx' || fcdIsCode(b)) return;
+        n++; if (!(b.t === 'p' && b.q)) tutti = false;
+    });
+    if (!n) return doc;
+    fcdEachBlockInSel(doc, sel, function (b) {
+        if (b.t === 'fx' || fcdIsCode(b)) return;
+        if (tutti) { delete b.q; return; }
+        b.t = 'p'; delete b.lvl; delete b.c; delete b.ck; b.q = 1;
+    });
+    return fcdNorm(doc);
+}
+
+/* Toglie ogni formattazione del testo (grassetto, corsivo, sottolineato,
+   evidenziatore, colore) dalla selezione; senza selezione, dalla riga intera.
+   Il tipo di blocco (elenco, citazione, codice) non si tocca. */
+function fcdClearMarks(doc, sel) {
+    var s = fcdOrder(sel);
+    if (s.a.b === s.f.b && s.a.o === s.f.o) {
+        var b = doc.blocks[s.a.b];
+        s = { a: { b: s.a.b, o: 0 }, f: { b: s.a.b, o: b ? fcdBlockLen(b) : 0 } };
+    }
+    FCD_FLAGS.concat(['c']).forEach(function (k) { doc = fcdSetMark(doc, s, k, null); });
+    return fcdNorm(doc);
 }
 
 /* Il testo incollato "sembra Markdown"? Bastano un titolo (#), un punto di
@@ -650,8 +725,8 @@ function fcdToggleList(doc, sel) {
             else if (!b.lvl) b.lvl = 1;
             return;
         }
-        if (tutti) { b.t = 'p'; delete b.lvl; delete b.c; }
-        else if (b.t !== 'li') { b.t = 'li'; b.lvl = 1; }
+        if (tutti) { b.t = 'p'; delete b.lvl; delete b.c; delete b.ck; }
+        else if (b.t !== 'li') { b.t = 'li'; b.lvl = 1; delete b.q; }
     });
     return fcdNorm(doc);
 }
@@ -904,6 +979,12 @@ function fcdSplitBlock(doc, sel) {
         return { doc: fcdNorm(doc), caret: { b: bi, o: 0 } };
     }
 
+    /* Stessa cosa per una citazione vuota: Invio la chiude. */
+    if (block.q && !block.code && block.t === 'p' && fcdBlockLen(block) === 0) {
+        delete block.q;
+        return { doc: fcdNorm(doc), caret: { b: bi, o: 0 } };
+    }
+
     /* Invio su una riga di codice vuota: si esce dal blocco, la riga torna testo
        (come uscire da un elenco). */
     if (fcdIsCode(block) && fcdBlockLen(block) === 0) {
@@ -919,7 +1000,8 @@ function fcdSplitBlock(doc, sel) {
     var coda = block.runs.splice(idx);
     var nuovo = { t: block.t, runs: coda };
     if (block.code) nuovo.code = block.code;
-    if (block.t === 'li') { nuovo.lvl = block.lvl; if (block.c) nuovo.c = block.c; }
+    if (block.t === 'li') { nuovo.lvl = block.lvl; if (block.c) nuovo.c = block.c; if (block.ck === 0 || block.ck === 1) nuovo.ck = 0; }
+    if (block.q && block.t === 'p') nuovo.q = 1;
     doc.blocks.splice(bi + 1, 0, nuovo);
     return { doc: fcdNorm(doc), caret: { b: bi + 1, o: 0 } };
 }
@@ -1418,6 +1500,7 @@ function fcdBlockHTML(b) {
     if (b.t === 'li') {
         var attr = ' data-lvl="' + ((b.lvl | 0) || 1) + '"';
         if (b.c) attr += ' data-c="' + fcdEscape(b.c) + '"';
+        if (b.ck === 0 || b.ck === 1) attr += ' data-ck="' + b.ck + '"';
         return '<div class="fc-li"' + attr + '>' + inner + '</div>';
     }
     /* Un paragrafo normale puo' avere un .lvl senza per questo diventare un
@@ -1425,7 +1508,40 @@ function fcdBlockHTML(b) {
        rientranza, nessun pallino proprio. Non e' un punto elenco a meta',
        e' un a capo che sta all'altezza giusta. */
     if (b.lvl) return '<div class="fc-p fc-p-lvl" data-lvl="' + (b.lvl | 0) + '">' + inner + '</div>';
+    if (b.q) return '<div class="fc-p fc-q">' + inner + '</div>';
     return '<div class="fc-p">' + inner + '</div>';
+}
+
+/* Gli stessi marchi del testo (grassetto, evidenziatore...) dentro una riga di
+   codice gia' colorata: si guarda carattere per carattere quale marchio vale e
+   si avvolge ogni tratto. I colori delle parole restano sotto. Se i conti non
+   tornano (a-capo dentro la riga) si lascia la riga com'e': meglio senza
+   marchi che con l'HTML rotto. */
+function fcdCodiceConMarchi(colorata, runs) {
+    var per = [];
+    var ha = false;
+    (runs || []).forEach(function (r) {
+        var t = fcdRunText(r);
+        for (var i = 0; i < t.length; i++) per.push(r.m || null);
+        if (r.m) ha = true;
+    });
+    if (!ha) return colorata;
+    var pezzi = colorata.split(/(<[^>]+>)/), pos = 0, out = '', ok = true;
+    var chiave = function (m) { return m ? fcdMarkAttrs(m) : ''; };
+    pezzi.forEach(function (pz) {
+        if (!pz) return;
+        if (pz.charAt(0) === '<') { out += pz; return; }
+        var chars = pz.match(/&(?:amp|lt|gt|quot|#39);|[\s\S]/g) || [];
+        var i = 0;
+        while (i < chars.length) {
+            var k = chiave(per[pos]), j = i, seg = '';
+            while (j < chars.length && chiave(per[pos + (j - i)]) === k) { seg += chars[j]; j++; }
+            out += k ? '<span class="fc-t"' + k + '>' + seg + '</span>' : seg;
+            pos += j - i; i = j;
+        }
+    });
+    if (pos !== per.length) ok = false;
+    return ok ? out : colorata;
 }
 
 function fcdToHTML(doc) {
@@ -1443,8 +1559,8 @@ function fcdToHTML(doc) {
         var colorate = fcdHlGroup(testi, lingua);
         for (var r = 0; r <= z - i; r++) {
             var b = blocks[i + r];
-            out.push('<div class="fc-p fc-code" data-code="' + fcdEscape(b.code) + '" data-lang="' + fcdEscape(FCD_CODE_LANGS[lingua] || 'Code') + '">' +
-                     (colorate[r] || '<br data-fill="1">') + '</div>');
+            out.push('<div class="fc-p fc-code" data-code="' + fcdEscape(b.code) + '" data-lang="' + fcdEscape(FCD_CODE_LANGS[lingua] || 'Code') + '"' + (b.hl ? ' data-hl="1"' : '') + '>' +
+                     (colorate[r] ? fcdCodiceConMarchi(colorate[r], b.runs) : '<br data-fill="1">') + '</div>');
         }
         i = z + 1;
     }
@@ -1534,6 +1650,10 @@ function fcdFromDom(root) {
             b.t = 'li';
             b.lvl = parseInt(el.dataset.lvl, 10) || 1;
             if (el.dataset.c && FCD_LIST_COLORS.indexOf(el.dataset.c) !== -1) b.c = el.dataset.c;
+            var ckd = parseInt(el.dataset.ck, 10);
+            if (ckd === 0 || ckd === 1) b.ck = ckd;
+        } else if (el.classList && el.classList.contains('fc-q')) {
+            b.q = 1;
         } else if (el.classList && el.classList.contains('fc-p-lvl')) {
             /* Un paragrafo comune, solo rientrato: nessun pallino, quindi
                nessun colore da rileggere — quello vive solo sui punti
@@ -1541,7 +1661,7 @@ function fcdFromDom(root) {
             var lvp = parseInt(el.dataset.lvl, 10);
             if (lvp >= 1) b.lvl = lvp;
         }
-        if (b.t === 'p' && el.classList && el.classList.contains('fc-code') && el.dataset && fcdCodeOk(el.dataset.code)) b.code = el.dataset.code;
+        if (b.t === 'p' && el.classList && el.classList.contains('fc-code') && el.dataset && fcdCodeOk(el.dataset.code)) { b.code = el.dataset.code; if (el.dataset.hl) b.hl = 1; }
         inline(el, null, b.runs, null);
         /* Una riga vuota fatta dal browser (incollando, o premendo Invio) e' un
            blocco con dentro il solo <br> segnaposto: non e' un a-capo scritto da
@@ -1869,6 +1989,18 @@ function fcdSetSel(root, sel) {
             ' background:rgba(255,255,255,.07); color:#9a9aa3; font:700 11.5px/1.2 -apple-system,system-ui,sans-serif; letter-spacing:.05em; text-transform:uppercase; pointer-events:none; user-select:none; }' +
         '.fc-p.fc-code:not(:has(+ .fc-code)){ border-radius:0 0 12px 12px; padding-bottom:12px; margin-bottom:8px; }' +
         '.fc-p.fc-code:not(.fc-code + .fc-code):not(:has(+ .fc-code)){ border-radius:12px; }' +
+        /* riga evidenziata e marchi dentro il codice */
+        '.fc-p.fc-code[data-hl]{ background-image:linear-gradient(rgba(255,214,10,.16),rgba(255,214,10,.16)); box-shadow:inset 3px 0 0 #FFD60A; }' +
+        '.fc-code .fc-t[data-h="1"]{ background:rgba(255,224,102,.38); color:inherit; }' +
+        '.fc-code .fc-t[data-b="1"]{ font-weight:800; }' +
+        /* citazione: barra blu a sinistra e fondo leggero; piu' righe di fila fanno un riquadro solo */
+        '.fc-p.fc-q{ border-left:4px solid var(--blue,#007AFF); background:color-mix(in srgb, var(--blue,#007AFF) 8%, transparent); padding:5px 14px; margin:0; font-style:italic; color:var(--text-2,#3a3a3c); border-radius:0 10px 10px 0; }' +
+        '.fc-p.fc-q:not(.fc-q + .fc-q){ margin-top:6px; } .fc-p.fc-q:not(:has(+ .fc-q)){ margin-bottom:6px; }' +
+        '.fc-p.fc-q + .fc-q{ border-top-right-radius:0; } .fc-p.fc-q:has(+ .fc-q){ border-bottom-right-radius:0; }' +
+        /* checklist: cerchio da toccare, verde con la spunta quando e' fatto */
+        '.fc-li[data-ck][data-lvl]::before{ content:""; width:1.15em; height:1.15em; border-radius:50%; border:2px solid var(--text-3,#B5B5BA); box-sizing:border-box; top:.3em; cursor:pointer; background:transparent; }' +
+        '.fc-li[data-ck="1"][data-lvl]::before{ background:var(--green,#34C759) url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22white%22 stroke-width=%223.6%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M5 12.5 10 17l9-10%22/%3E%3C/svg%3E") center/72% no-repeat; border-color:var(--green,#34C759); }' +
+        '.fc-li[data-ck="1"]{ color:var(--text-2,#8A8A8E); text-decoration:line-through; }' +
         '.fc-tk-k{ color:#ff7ab2; } .fc-tk-s{ color:#fc6a5d; } .fc-tk-c{ color:#7f8c98; font-style:italic; } .fc-tk-n{ color:#d9c97c; } .fc-tk-f{ color:#67b7a4; } .fc-tk-t{ color:#9ecbff; }' +
         '.fc-p, .fc-li{ overflow-wrap:anywhere; min-width:0; }' +
         /* La regola che tiene insieme tutto: l'editor non cresce mai oltre il
