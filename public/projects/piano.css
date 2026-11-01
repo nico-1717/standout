@@ -278,3 +278,30 @@ body[data-pp="cal"] #ppHost, body[data-pp="plan"] #ppHost{ display:block; }
 .pp-evrow.top .pp-evi{ background:color-mix(in srgb, #FF453A 20%, transparent); color:#FF453A; }
 /* sul computer e sull'iPad largo la sidebar occupa i primi 280px: il comando in basso parte dopo */
 @media (min-width:1024px){ .pp-dock{ left:300px; } }
+
+/* ---- linea del tempo (scheda «Linea del tempo» del calendario generale) ---- */
+.pp-tl{ --nm:132px; }
+.pp-tl-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.pp-tl-title{ font-size:19px; font-weight:700; }
+.pp-tl-pill{ display:inline-flex; padding:2px; border-radius:99px; background:color-mix(in srgb, var(--text) 8%, transparent); margin-left:6px; }
+.pp-tl-pi{ border:0; background:none; padding:6px 12px; border-radius:99px; font-size:13px; font-weight:600; color:var(--text-2); }
+.pp-tl-pi.on{ background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.18); }
+.pp-tl-body{ position:relative; }
+.pp-tl-hd, .pp-tl-row{ display:flex; align-items:center; }
+.pp-tl-hd{ height:24px; }
+.pp-tl-row{ min-height:40px; border-top:.5px solid var(--hairline); }
+.pp-tl-nm{ width:var(--nm); flex-shrink:0; padding-right:8px; font-size:13.5px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pp-tl-nm small{ display:block; font-size:11px; color:var(--text-2); }
+.pp-tl-lane{ position:relative; flex:1; min-width:0; align-self:stretch; min-height:38px; }
+.pp-tl-hd .pp-tl-lane{ min-height:0; }
+.pp-tl-dl{ position:absolute; top:4px; text-align:center; font-size:11.5px; color:var(--text-2); white-space:nowrap; }
+.pp-tl-dl.today{ color:var(--red, #FF453A); font-weight:700; }
+.pp-tl-bar{ position:absolute; top:7px; height:26px; min-width:6px; border:0; border-radius:8px; padding:0 8px; text-align:left; font:inherit; font-size:12px; font-weight:600;
+    line-height:26px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:var(--c); color:var(--ink, #fff); }
+.pp-tl-bar.soft{ opacity:.55; }
+.pp-tl-bar.ev{ height:22px; line-height:22px; background:color-mix(in srgb, var(--c) 22%, transparent); color:var(--c); cursor:default; }
+.pp-tl-evrow .pp-tl-nm{ color:#B38F00; }
+.pp-tl-cols{ position:absolute; top:24px; bottom:0; left:var(--nm); right:0; pointer-events:none; }
+.pp-tl-vl{ position:absolute; top:0; bottom:0; border-left:.5px solid var(--hairline); }
+.pp-tl-today{ position:absolute; top:0; bottom:0; border-left:2px solid var(--red, #FF453A); }
+@media (max-width:600px){ .pp-tl{ --nm:84px; } .pp-tl-nm{ font-size:12px; } .pp-tl-dl{ font-size:10px; } }

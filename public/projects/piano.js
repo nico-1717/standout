@@ -203,8 +203,8 @@
         return { from: from, to: add(from, 41) };
     }
 
-    function load() {
-        var r = gridRange(S.month);
+    function load(rr) {
+        var r = rr || gridRange(S.month);
         return get('tree', 'project=' + S.pid + '&from=' + r.from + '&to=' + r.to).then(function (d) {
             S.data = d; S.today = d.today || S.today; S.settings = d.settings;
             S.nodes = {}; S.kids = {}; S.paint = {}; S.plan = {}; S.done = {}; S.cap = d.cap || {};
@@ -280,11 +280,12 @@
         S.body = body;
         if (S.tab === 'today') renderToday(body);
         else if (S.tab === 'cal') renderCalendar(body);
+        else if (S.tab === 'line' && S.mode === 'master') renderLine(body);
         else renderPlan(body);
     }
     function masterTabs() {
         var seg = h('nav', 'pp-seg');
-        [['today', t('tab_oggi')], ['cal', t('tab_calendario')], ['plan', t('tab_piano')]].forEach(function (x) {
+        [['today', t('tab_oggi')], ['cal', t('tab_calendario')], ['line', t('tab_linea')], ['plan', t('tab_piano')]].forEach(function (x) {
             var b = btn('pp-seg-it' + (S.tab === x[0] ? ' on' : ''), x[1], function () { S.tab = x[0]; store('mtab', x[0]); refresh(); });
             seg.appendChild(b);
         });
@@ -293,7 +294,7 @@
     function refresh() {
         var y = window.scrollY;
         var p;
-        if (S.mode === 'master') p = S.tab === 'today' ? loadToday() : (S.tab === 'plan' ? loadMaster() : load());
+        if (S.mode === 'master') p = S.tab === 'today' ? loadToday() : (S.tab === 'plan' ? loadMaster() : (S.tab === 'line' ? loadLine() : load()));
         else p = load();
         return p.then(function () { paintAll(); window.scrollTo(0, y); }).catch(fail);
     }
@@ -450,6 +451,164 @@
         var fn = S.undo.pop();
         if (!fn) return;
         fn().then(function () { return refresh(); }).catch(function (e) { fail(e); refresh(); });
+    }
+
+    /* =================================================================
+       LINEA DEL TEMPO — una riga per progetto, una barra per ogni tratto
+       di giorni di fila in cui c'è qualcosa (pianificato o evidenziato).
+       Settimana o mese; sotto, gli eventi importanti del planner.
+       ================================================================= */
+    function tlRange() {
+        if (S.tlMode === 'month') {
+            var first = S.tlDate.slice(0, 7) + '-01', n = 0, d = first;
+            while (d.slice(0, 7) === first.slice(0, 7)) { n++; d = add(d, 1); }
+            return { from: first, to: add(first, n - 1), n: n };
+        }
+        var mon = add(S.tlDate, -(dow(S.tlDate) - 1));
+        return { from: mon, to: add(mon, 6), n: 7 };
+    }
+    function tlInit() { if (!S.tlMode) { S.tlMode = store('tlm') === 'month' ? 'month' : 'week'; S.tlDate = S.today; } }
+    function loadLine() {
+        tlInit();
+        var r = tlRange(), keep = S.showEv;
+        S.showEv = true;                                   // gli eventi importanti qui si vedono sempre
+        return load(r).then(function (d) { S.showEv = keep; return d; }, function (e) { S.showEv = keep; throw e; });
+    }
+    function tlMove(dir) {
+        if (S.tlMode === 'month') { var m = S.tlDate.slice(0, 7) + '-15'; S.tlDate = add(m, dir * 30).slice(0, 7) + '-01'; }
+        else S.tlDate = add(S.tlDate, dir * 7);
+        refresh();
+    }
+    function renderLine(root) {
+        tlInit();
+        var r = tlRange(), days = [];
+        for (var i = 0; i < r.n; i++) days.push(add(r.from, i));
+        var month = S.tlMode === 'month';
+
+        var card = h('div', 'pp-card pp-tl');
+        var title = month ? monthTitle(r.from) : fmtDate(r.from, { day: 'numeric', month: 'short' }) + ' – ' + fmtDate(r.to, { day: 'numeric', month: 'short' });
+        var pill = h('span', 'pp-tl-pill');
+        [['week', t('tl_settimana')], ['month', t('tl_mese')]].forEach(function (x) {
+            pill.appendChild(btn('pp-tl-pi' + (S.tlMode === x[0] ? ' on' : ''), x[1], function () {
+                S.tlMode = x[0]; store('tlm', x[0]);
+                if (x[0] === 'week' && S.tlDate.slice(0, 7) === S.today.slice(0, 7)) S.tlDate = S.today;
+                refresh();
+            }));
+        });
+        card.appendChild(h('div', 'pp-tl-top', [
+            h('div', 'pp-tl-title', title),
+            h('div', 'pp-cal-nav', [
+                btn('pp-ic', svg(IC.left), function () { tlMove(-1); }, t('mese_prima')),
+                btn('pp-today', t('oggi'), function () { S.tlDate = S.today; refresh(); }),
+                btn('pp-ic', svg(IC.right), function () { tlMove(1); }, t('mese_dopo')),
+                pill
+            ])
+        ]));
+
+        /* i tratti di ogni progetto */
+        var rows = [];
+        function walk(id) {
+            var n = S.nodes[id]; if (!n) return;
+            var act = days.map(function (d) {
+                var pl = S.plan[d] && S.plan[d][id] ? (S.plan[d][id].study || 0) + (S.plan[d][id].review || 0) : 0;
+                var pa = !!(S.paint[id] && S.paint[id][d]);
+                return pl > 0 || pa ? { m: pl, painted: pa } : null;
+            });
+            if (act.some(Boolean)) rows.push({ id: id, n: n, act: act });
+            (S.kids[id] || []).forEach(walk);
+        }
+        (S.kids[0] || []).forEach(walk);
+
+        var body = h('div', 'pp-tl-body');
+        var hd = h('div', 'pp-tl-hd');
+        hd.appendChild(h('span', 'pp-tl-nm'));
+        var hl = h('div', 'pp-tl-lane');
+        days.forEach(function (d, i) {
+            var lab = month ? ((i === 0 || (parse(d).getUTCDate() % 5 === 0 && r.n - i > 2)) ? parse(d).getUTCDate() : '')
+                            : fmtDate(d, { weekday: 'short', day: 'numeric' });
+            var c = h('span', 'pp-tl-dl' + (d === S.today ? ' today' : ''), lab);
+            c.style.left = (i * 100 / r.n) + '%'; c.style.width = (100 / r.n) + '%';
+            hl.appendChild(c);
+        });
+        hd.appendChild(hl);
+        body.appendChild(hd);
+
+        function segments(act) {
+            var out = [], cur = null;
+            act.forEach(function (a, i) {
+                if (a) { if (!cur) { cur = { from: i, to: i, ms: [] }; out.push(cur); } cur.to = i; if (a.m) cur.ms.push(a.m); }
+                else cur = null;
+            });
+            return out;
+        }
+        function minText(ms) {
+            if (!ms.length) return '';
+            var lo = Math.min.apply(null, ms), hi = Math.max.apply(null, ms);
+            return lo === hi ? fmtShort(lo) : fmtShort(lo) + '–' + fmtShort(hi);
+        }
+        function bar(seg, color, text, soft, go) {
+            var b = h('button', 'pp-tl-bar' + (soft ? ' soft' : ''), text);
+            b.type = 'button';
+            b.style.left = (seg.from * 100 / r.n) + '%'; b.style.width = ((seg.to - seg.from + 1) * 100 / r.n) + '%';
+            b.style.setProperty('--c', color); b.style.setProperty('--ink', ink(color));
+            if (go) b.addEventListener('click', go);
+            return b;
+        }
+        rows.forEach(function (row) {
+            var par = S.nodes[row.n.parent];
+            var line = h('div', 'pp-tl-row');
+            line.appendChild(h('span', 'pp-tl-nm', par ? [h('small', '', par.name), row.n.name] : [row.n.name]));
+            var lane = h('div', 'pp-tl-lane');
+            segments(row.act).forEach(function (sg) {
+                var mt = minText(sg.ms);
+                var text = month ? mt : (row.n.name + (mt ? ' · ' + mt : ''));
+                var b = bar(sg, row.n.color, text, !sg.ms.length, function () { window.location.href = 'progetti.php?id=' + rootId(row.id) + '&pp=cal'; });
+                b.title = row.n.name + ' · ' + fmtDate(days[sg.from]) + (sg.to > sg.from ? ' → ' + fmtDate(days[sg.to]) : '') + (mt ? ' · ' + mt : '');
+                lane.appendChild(b);
+            });
+            line.appendChild(lane);
+            body.appendChild(line);
+        });
+
+        /* gli eventi importanti del planner */
+        var evs = {};
+        days.forEach(function (d, i) {
+            (S.ev[d] || []).forEach(function (x) {
+                var k = x.title + '|' + x.imp, e = evs[k] = evs[k] || { title: x.title, imp: x.imp, act: days.map(function () { return null; }) };
+                e.act[i] = { m: 0 };
+            });
+        });
+        var evKeys = Object.keys(evs);
+        if (evKeys.length) {
+            var eline = h('div', 'pp-tl-row pp-tl-evrow');
+            eline.appendChild(h('span', 'pp-tl-nm', t('eventi_titolo')));
+            var elane = h('div', 'pp-tl-lane');
+            var stack = [];                                   // più eventi nello stesso giorno vanno su righe diverse
+            evKeys.forEach(function (k) {
+                segments(evs[k].act).forEach(function (sg) {
+                    var lv = 0;
+                    while (stack[lv] !== undefined && stack[lv] >= sg.from) lv++;
+                    stack[lv] = sg.to;
+                    var b = bar(sg, evs[k].imp === 'highest' ? '#FF453A' : '#FFD60A', evs[k].title, false);
+                    b.classList.add('ev'); b.title = evs[k].title + ' · ' + fmtDate(days[sg.from]) + (sg.to > sg.from ? ' → ' + fmtDate(days[sg.to]) : ''); b.style.top = (4 + lv * 26) + 'px';
+                    elane.appendChild(b);
+                });
+            });
+            elane.style.minHeight = (8 + Math.max(1, stack.length) * 26) + 'px';
+            eline.appendChild(elane);
+            body.appendChild(eline);
+        }
+
+        /* righe verticali dei giorni (settimana) o dei lunedì (mese) e il segno di oggi */
+        var cols = h('div', 'pp-tl-cols');
+        days.forEach(function (d, i) { if (i > 0 && (!month || dow(d) === 1)) { var l = h('i', 'pp-tl-vl'); l.style.left = (i * 100 / r.n) + '%'; cols.appendChild(l); } });
+        var ti = days.indexOf(S.today);
+        if (ti >= 0) { var tl = h('i', 'pp-tl-today'); tl.style.left = ((ti + 0.5) * 100 / r.n) + '%'; cols.appendChild(tl); }
+        body.appendChild(cols);
+
+        if (!rows.length && !evKeys.length) card.appendChild(h('div', 'pp-sub', t('tl_nulla')));
+        else card.appendChild(body);
+        root.appendChild(card);
     }
 
     /* l'elenco degli eventi importanti del mese mostrato */
@@ -1268,7 +1427,7 @@
         master: function (host, tab) {
             S = newState(host, 'master', 0);
             S.tab = tab || store('mtab') || 'today';
-            return Promise.all([get('today'), get('master'), load()]).then(function (a) {
+            return Promise.all([get('today'), get('master'), S.tab === 'line' ? loadLine() : load()]).then(function (a) {
                 tdata = a[0]; mdata = a[1]; S.settings = a[1].settings;
                 if (S.tab === 'today' && !tdata.blocks.length && !tdata.skipped.length && a[1].units === 0) S.tab = 'plan';
                 paintAll();
