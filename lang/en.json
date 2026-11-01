@@ -5377,5 +5377,21 @@
     "err_password": "Wrong password.",
     "err_troppe": "Too many attempts. Try again shortly.",
     "err_generico": "Something went wrong. Please try again."
+  },
+  "app": {
+    "sync_ok": "Synced",
+    "sync_in_corso": "Syncing…",
+    "sync_offline": "Offline",
+    "sync_errore": "Sync problem",
+    "sync_in_attesa": "{n} waiting to sync",
+    "sessione_chiusa": "This device was signed out. Log in again.",
+    "db_non_cifrato": "Secure storage is not available on this version of the app.",
+    "logout_perdita": "{n} changes are not synced yet. If you log out now they will be lost.",
+    "logout_comunque": "Log out anyway",
+    "problemi_titolo": "Sync problems",
+    "attivita_ripristinata": "The server rejected a change: the task went back to how it was.",
+    "attivita_cancellata_altrove": "This task was deleted on another device.",
+    "sotto_attivita": "{n} sub-tasks",
+    "versione_vecchia": "This version of the app is too old. Update it to continue."
   }
 }

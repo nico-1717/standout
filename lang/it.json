@@ -5377,5 +5377,21 @@
     "err_password": "Password errata.",
     "err_troppe": "Troppi tentativi. Riprova tra poco.",
     "err_generico": "Qualcosa non ha funzionato. Riprova."
+  },
+  "app": {
+    "sync_ok": "Sincronizzato",
+    "sync_in_corso": "Sincronizzo…",
+    "sync_offline": "Offline",
+    "sync_errore": "Problema di sincronizzazione",
+    "sync_in_attesa": "{n} in attesa di sincronizzazione",
+    "sessione_chiusa": "Questo dispositivo è stato disconnesso. Accedi di nuovo.",
+    "db_non_cifrato": "L'archivio sicuro non è disponibile su questa versione dell'app.",
+    "logout_perdita": "{n} modifiche non sono ancora sincronizzate. Se esci adesso andranno perse.",
+    "logout_comunque": "Esci comunque",
+    "problemi_titolo": "Problemi di sincronizzazione",
+    "attivita_ripristinata": "Il server ha rifiutato una modifica: l'attività è tornata com'era.",
+    "attivita_cancellata_altrove": "Questa attività è stata eliminata da un altro dispositivo.",
+    "sotto_attivita": "{n} sotto-attività",
+    "versione_vecchia": "Questa versione dell'app è troppo vecchia. Aggiornala per continuare."
   }
 }
