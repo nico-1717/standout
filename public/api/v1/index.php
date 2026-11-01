@@ -78,6 +78,17 @@
      GET    /api/v1/pills/plans/{id}/history?month=AAAA-MM | days=N
      PATCH  /api/v1/pills/doses/{id}      {status: pending|taken|skipped, taken_at?}
      POST   /api/v1/pills/doses/bulk      «prese tutte» {ids, mode: on_time|now}
+
+   Diario, fetta 7 — la logica sta in lib/diary_core.php e lib/diary_api.php:
+     GET    /api/v1/diary/day[?date=]     il giorno: umore, energia, testo, due elenchi, abitudini, anelli (+ impostazioni)
+     PATCH  /api/v1/diary/day             {date?, note?, mood?, energy?} cambia SOLO i campi inviati (null = toglie)
+     GET    /api/v1/diary/month[?month=AAAA-MM]   i giorni scritti, le medie, le cose imparate
+     GET    /api/v1/diary/insights[?year=]        il diario in numeri
+     POST   /api/v1/diary/items           aggiunge {date?, list_type: good|learned, content}
+     PATCH  /api/v1/diary/items/{id}      {content}
+     DELETE /api/v1/diary/items/{id}
+     GET    /api/v1/diary/settings        carattere, grandezza, carta
+     PATCH  /api/v1/diary/settings        {font?, size?, paper?}
    ===================================================================== */
 
 /* Dice a auth_core.php che questa e' l'API: niente sessione PHP (e niente cookie
@@ -93,6 +104,7 @@ require_once __DIR__ . '/../../../lib/habits_api.php';
 require_once __DIR__ . '/../../../lib/shopping_api.php';
 require_once __DIR__ . '/../../../lib/todo_bulk_api.php';
 require_once __DIR__ . '/../../../lib/pills_api.php';
+require_once __DIR__ . '/../../../lib/diary_api.php';
 
 /* ---------------- Accesso ---------------- */
 
@@ -517,6 +529,56 @@ function api_h_pillole_tutte(array $ctx): void {
     api_ok($e);
 }
 
+/* ---------------- Diario ---------------- */
+
+function api_h_diario_giorno(array $ctx): void {
+    $e = dg_api_giorno((int)$ctx['utente']['id'], api_h_param('date'));
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+function api_h_diario_giorno_salva(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_diary_write');
+    $e = dg_api_giorno_salva((int)$ctx['utente']['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+function api_h_diario_mese(array $ctx): void {
+    $e = dg_api_mese((int)$ctx['utente']['id'], api_h_param('month'));
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+function api_h_diario_numeri(array $ctx): void {
+    $e = dg_api_numeri((int)$ctx['utente']['id'], api_h_param('year'));
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+function api_h_diario_voce_crea(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_diary_write');
+    $e = dg_api_voce_crea((int)$ctx['utente']['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok($e, 201);
+}
+function api_h_diario_voce_modifica(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_diary_write');
+    $e = dg_api_voce_modifica((int)$ctx['utente']['id'], (int)$ctx['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+function api_h_diario_voce_togli(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_diary_write');
+    if (!dg_api_voce_elimina((int)$ctx['utente']['id'], (int)$ctx['id'])) api_errore('not_found', 'Item not found');
+    api_ok();
+}
+function api_h_diario_impostazioni(array $ctx): void {
+    api_ok(['settings' => dg_settings((int)$ctx['utente']['id'])]);
+}
+function api_h_diario_impostazioni_salva(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_diary_write');
+    $e = dg_api_impostazioni_salva((int)$ctx['utente']['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+
 /* ---------------- L'elenco delle rotte ---------------- */
 
 $tokenECookie = ['token', 'cookie'];
@@ -574,4 +636,13 @@ api_v1_esegui([
     ['GET',    'pills/plans/{id}/history', 'api_h_pillole_storia', ['accetta' => $tokenECookie]],
     ['PATCH',  'pills/doses/{id}',  'api_h_pillole_presa',    ['accetta' => $tokenECookie]],
     ['POST',   'pills/doses/bulk',  'api_h_pillole_tutte',    ['accetta' => $tokenECookie]],
+    ['GET',    'diary/day',         'api_h_diario_giorno',    ['accetta' => $tokenECookie]],
+    ['PATCH',  'diary/day',         'api_h_diario_giorno_salva', ['accetta' => $tokenECookie]],
+    ['GET',    'diary/month',       'api_h_diario_mese',      ['accetta' => $tokenECookie]],
+    ['GET',    'diary/insights',    'api_h_diario_numeri',    ['accetta' => $tokenECookie]],
+    ['POST',   'diary/items',       'api_h_diario_voce_crea', ['accetta' => $tokenECookie]],
+    ['PATCH',  'diary/items/{id}',  'api_h_diario_voce_modifica', ['accetta' => $tokenECookie]],
+    ['DELETE', 'diary/items/{id}',  'api_h_diario_voce_togli', ['accetta' => $tokenECookie]],
+    ['GET',    'diary/settings',    'api_h_diario_impostazioni', ['accetta' => $tokenECookie]],
+    ['PATCH',  'diary/settings',    'api_h_diario_impostazioni_salva', ['accetta' => $tokenECookie]],
 ]);
