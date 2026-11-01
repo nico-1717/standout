@@ -231,6 +231,23 @@
         var ids = (S.kids[scope] || []).filter(function (id) { return S.nodes[id] && S.nodes[id].status !== 'completed'; });
         return ids;
     }
+    /* Calendario generale: una fila di pastiglie per ogni livello del percorso.
+       Si parte dai progetti principali; il progetto scelto (e ognuno dei suoi
+       antenati) apre sotto di sé la fila dei propri sotto-progetti. Toccandone
+       un altro dello stesso livello la fila sotto cambia, e così via fino in
+       fondo: si pianifica sempre sul sotto-progetto giusto. */
+    function masterRows() {
+        var rows = [{ parent: 0, ids: chipsOf(0) }];
+        var chain = [], x = S.sel, g = 0;
+        while (x && S.nodes[x] && g++ < 30) { chain.unshift(x); x = S.nodes[x].parent; }
+        chain.forEach(function (id) { var k = chipsOf(id); if (k.length) rows.push({ parent: id, ids: k }); });
+        return rows;
+    }
+    function isAncestorOfSel(id) {
+        var x = S.sel, g = 0;
+        while (x && S.nodes[x] && g++ < 30) { x = S.nodes[x].parent; if (x === id) return true; }
+        return false;
+    }
     function goalMin(id) { var n = S.nodes[id]; return n && n.goal && n.goal.minutes ? n.goal.minutes : 0; }
     function rootId(id) { var g = 0; while (S.nodes[id] && S.nodes[id].parent !== null && S.nodes[S.nodes[id].parent] && g++ < 30) id = S.nodes[id].parent; return id; }
     /* testo scuro o chiaro sopra il colore del sotto-progetto, a seconda di quanto è chiaro */
@@ -285,8 +302,23 @@
             }));
         }
         if (S.mode === 'project') bar.appendChild(chip(S.scope, true));
-        chipsOf(S.scope).forEach(function (id) { bar.appendChild(chip(id, false)); });
-        root.appendChild(bar);
+        if (S.mode === 'master') {
+            masterRows().forEach(function (row, i) {
+                if (i === 0) { row.ids.forEach(function (id) { bar.appendChild(chip(id, false)); }); return; }
+                if (i === 1) root.appendChild(bar);
+                var sec = h('div', 'pp-chips-sec');
+                sec.style.setProperty('--c', S.nodes[row.parent].color);
+                sec.appendChild(h('div', 'pp-chips-lab', [h('i', 'pp-chip-dot'), S.nodes[row.parent].name]));
+                var rb = h('div', 'pp-chips');
+                row.ids.forEach(function (id) { rb.appendChild(chip(id, false)); });
+                sec.appendChild(rb);
+                root.appendChild(sec);
+            });
+            if (masterRows().length === 1) root.appendChild(bar);
+        } else {
+            chipsOf(S.scope).forEach(function (id) { bar.appendChild(chip(id, false)); });
+            root.appendChild(bar);
+        }
         if (S.mode === 'project' && !chipsOf(S.scope).length && S.scope === S.pid) {
             root.appendChild(h('div', 'pp-hint', t('senza_figli')));
         }
@@ -306,7 +338,11 @@
         var grid = h('div', 'pp-grid pp-tool-' + S.tool);
         S.grid = grid;
         var r = gridRange(S.month);
-        var chips = chipsOf(S.scope);
+        /* i pallini degli altri progetti: quelli visibili nelle righe, tranne il
+           progetto scelto e i suoi antenati (il loro colore conterrebbe già il suo) */
+        var chips = S.mode === 'master'
+            ? masterRows().reduce(function (a, r) { return a.concat(r.ids); }, []).filter(function (x) { return !isAncestorOfSel(x); })
+            : chipsOf(S.scope);
         var selC = S.sel && S.nodes[S.sel] ? S.nodes[S.sel].color : '#007AFF';
         var estimate = estimatePerDay(S.sel);
         for (var i = 0; i < 42; i++) {
@@ -385,9 +421,10 @@
     function chip(id, isScope) {
         var n = S.nodes[id]; if (!n) return h('span');
         var on = S.sel === id;
+        var trail = !on && isAncestorOfSel(id);     // sta sul percorso del progetto scelto: resta acceso ma più piano
         var kids = (S.kids[id] || []).length;
         var inPlan = subtree(id).some(function (x) { return goalMin(x) > 0; });
-        var b = h('button', 'pp-chip' + (on ? ' on' : '') + (inPlan ? '' : ' off'));
+        var b = h('button', 'pp-chip' + (on ? ' on' : '') + (trail ? ' trail' : '') + (inPlan ? '' : ' off'));
         b.type = 'button';
         b.style.setProperty('--c', n.color);
         b.appendChild(h('i', 'pp-chip-dot'));
@@ -533,7 +570,7 @@
             box.appendChild(list);
             /* aggiungere un blocco a mano */
             var sel = h('select', 'pp-inp');
-            var chips = (S.mode === 'project' ? [S.scope].concat(chipsOf(S.scope)) : chipsOf(0));
+            var chips = (S.mode === 'project' ? [S.scope].concat(chipsOf(S.scope)) : masterRows().reduce(function (a, r) { return a.concat(r.ids); }, []));
             chips.forEach(function (id) { var o = h('option', '', S.nodes[id].name); o.value = id; if (id === S.sel) o.selected = true; sel.appendChild(o); });
             var add = btn('pp-btn', [svg(IC.plus, 16, 2.4), t('aggiungi_blocco')], function () { setMin(+sel.value, 30, true); });
             box.appendChild(h('div', 'pp-day-add', [sel, add]));

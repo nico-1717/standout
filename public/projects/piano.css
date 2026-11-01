@@ -36,6 +36,12 @@ body[data-pp="cal"] #ppHost, body[data-pp="plan"] #ppHost{ display:block; }
 .pp-chip-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; background:var(--c, var(--blue)); display:inline-block; }
 .pp-chip.on{ background:color-mix(in srgb, var(--c, var(--blue)) 20%, var(--surface)); box-shadow:inset 0 0 0 1.5px var(--c, var(--blue)); font-weight:600; }
 .pp-chip.off{ color:var(--text-2); }
+/* il progetto sul percorso (il genitore di quello scelto): un contorno leggero */
+.pp-chip.trail{ box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--c, var(--blue)) 55%, transparent); font-weight:600; }
+/* ogni livello sotto il primo: titolo col nome del genitore e le sue pastiglie */
+.pp-chips-sec{ margin-top:6px; padding-left:10px; border-left:2px solid color-mix(in srgb, var(--c, var(--blue)) 55%, transparent); }
+.pp-chips-lab{ display:flex; align-items:center; gap:6px; margin:2px 0 4px; font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--text-2); }
+.pp-chips-lab .pp-chip-dot{ background:var(--c, var(--blue)); }
 .pp-chip.off .pp-chip-dot{ background:none; box-shadow:inset 0 0 0 1.5px var(--c, var(--text-3)); }
 .pp-chip-h{ font-weight:400; color:var(--text-2); font-size:12px; }
 .pp-chip-up{ color:var(--text-2); padding:0 10px 0 6px; gap:2px; }
