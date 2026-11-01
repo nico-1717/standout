@@ -275,6 +275,66 @@ if ($azione === 'setorder' || isset($_GET['order'])) {
     if ($azione === 'setorder') {
         sec_q("UPDATE fc_games SET game_order = ? WHERE id = ? AND user_id = ?",
               [$order_param, $game_id, $current_user_id]);
+
+        /* Cambiare ordine A PARTITA INIZIATA: la sequenza e' scritta una volta
+           sola all'avvio (fc_game_start.php), quindi aggiornare solo game_order
+           non cambierebbe nulla. Si rimescolano soltanto le posizioni DOPO
+           quella corrente e senza risposte date: le carte gia' giocate (e quella
+           aperta ora) restano dove sono, altrimenti punteggio e storico
+           perderebbero il filo. */
+        $pos_corrente = max(0, (int)($_POST['position'] ?? 0));
+        $t_seq = fc_t('sequence'); $t_plays = fc_t('plays');
+        $risposte = [];
+        foreach (sec_all("SELECT DISTINCT position FROM $t_plays WHERE game_id = ? AND user_answer IN ('Correct','Wrong')", [$game_id]) as $r) {
+            $risposte[(int)$r['position']] = true;
+        }
+        $libere = []; // position => fc_image_id
+        foreach (sec_all("SELECT position, fc_image_id FROM $t_seq WHERE game_id = ? AND position > ? ORDER BY position", [$game_id, $pos_corrente]) as $r) {
+            if (!isset($risposte[(int)$r['position']])) $libere[(int)$r['position']] = (int)$r['fc_image_id'];
+        }
+        if (count($libere) > 1) {
+            $posizioni = array_keys($libere);
+            $ids = array_values($libere);
+            if ($order_param === 'random') {
+                shuffle($ids);
+            } else {
+                // Stessa regola di fc_game_start.php: prima il mazzo scelto, poi custom_order.
+                $ph = implode(',', array_fill(0, count($ids), '?'));
+                $info = [];
+                foreach (sec_all("SELECT id, category_id, custom_order FROM " . fc_t('cards') . " WHERE id IN ($ph)", $ids) as $r) {
+                    $info[(int)$r['id']] = [(int)$r['category_id'], (int)$r['custom_order']];
+                }
+                $ord_cat = [];
+                foreach (sec_all("SELECT fc_category_id, category_order FROM " . fc_t('game_decks') . " WHERE game_id = ?", [$game_id]) as $r) {
+                    $ord_cat[(int)$r['fc_category_id']] = (int)$r['category_order'];
+                }
+                usort($ids, function ($a, $b) use ($info, $ord_cat) {
+                    $ca = $ord_cat[$info[$a][0] ?? 0] ?? PHP_INT_MAX;
+                    $cb = $ord_cat[$info[$b][0] ?? 0] ?? PHP_INT_MAX;
+                    if ($ca !== $cb) return $ca <=> $cb;
+                    return ($info[$a][1] ?? 0) <=> ($info[$b][1] ?? 0);
+                });
+            }
+            foreach (array_chunk(array_keys($posizioni), 200) as $blocco) {
+                $case = ''; $par = []; $in = [];
+                foreach ($blocco as $k) {
+                    $case .= ' WHEN ? THEN ?';
+                    $par[] = $posizioni[$k]; $par[] = $ids[$k];
+                    $in[] = $posizioni[$k];
+                }
+                $par[] = $game_id;
+                sec_q("UPDATE $t_seq SET fc_image_id = CASE position$case END WHERE game_id = ? AND position IN (" . implode(',', array_fill(0, count($in), '?')) . ")",
+                      array_merge($par, $in));
+            }
+            /* Le righe di gioco gia' preparate in anticipo (fino a ~10 posizioni
+               avanti) puntano alle carte vecchie: si buttano, vengono rigenerate
+               alla prima lettura della posizione. */
+            foreach (array_chunk($posizioni, 200) as $blocco) {
+                $ph = implode(',', array_fill(0, count($blocco), '?'));
+                sec_q("DELETE FROM $t_plays WHERE game_id = ? AND position IN ($ph)", array_merge([$game_id], $blocco));
+            }
+        }
+        sec_json(['ok' => true, 'order' => $order_param]);
     }
 } else {
 
@@ -283,6 +343,23 @@ if ($azione === 'setorder' || isset($_GET['order'])) {
     $order_param = isset($game_info['game_order']) ? $game_info['game_order'] : 'random';
 
 }
+
+/* La riga "ordine di gioco" dei due fogli di impostazioni (lingue e studio):
+   un solo punto, cosi' le due versioni non si scostano. La logica e' in
+   fc_game_juice.js (data-fcg="ordine"). */
+function fc_riga_ordine(string $ordine): void { ?>
+                <div class="fcv-gs-riga" data-fcg="ordine" data-ordine="<?php echo sec_h($ordine); ?>">
+                    <div class="fcv-gs-testa">
+                        <span class="fcv-gs-ic fcv-gs-ic-ord"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg></span>
+                        <span class="fcv-gs-nome"><?php te('fcv.gs_ordine'); ?></span>
+                    </div>
+                    <div class="fcv-gs-seg fcv-gs-seg-2" role="radiogroup" aria-label="<?php te('fcv.gs_ordine'); ?>" style="--fcv-i:<?php echo $ordine === 'in_order' ? 1 : 0; ?>">
+                        <button type="button" role="radio" aria-checked="<?php echo $ordine === 'random' ? 'true' : 'false'; ?>" class="<?php echo $ordine === 'random' ? 'is-on' : ''; ?>" data-v="random"><?php te('fcv.gs_ordine_random'); ?></button>
+                        <button type="button" role="radio" aria-checked="<?php echo $ordine === 'in_order' ? 'true' : 'false'; ?>" class="<?php echo $ordine === 'in_order' ? 'is-on' : ''; ?>" data-v="in_order"><?php te('fcv.gs_ordine_in_ordine'); ?></button>
+                    </div>
+                    <p class="fcv-gs-spiega"><?php te('fcv.gs_ordine_sub'); ?></p>
+                </div>
+<?php }
 
 
 
@@ -314,6 +391,21 @@ if ($azione === 'concludi') {
 }
 
 
+
+/* CARTE AGGIUNTE AL MAZZO DURANTE LA PARTITA: alla ripresa, o tornando da una
+   modifica, si chiede se giocare anche quelle. Solo per un caricamento vero
+   della pagina (Sec-Fetch-Dest: document): il cambio carta e il precaricamento
+   leggono questa stessa pagina con fetch(), e per loro una domanda a mezza
+   strada romperebbe il gioco. nc=1 e' la risposta gia' data. */
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_GET['nc']) && !isset($_GET['prefetch'])
+    && ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? '') === 'document') {
+    require_once __DIR__ . '/../../lib/fc/fc_nuove_carte.php';
+    if (fc_nuove_carte_trova($game_info, $current_user_id)) {
+        header('Location: fc_game_nuove.php?game_id=' . (int)$game_id . '&position=' . (int)$position
+               . '&status=' . urlencode($status) . '&order=' . urlencode($order_param));
+        exit();
+    }
+}
 
 $row_unanswered = sec_one("SELECT MIN(position) AS min_p FROM " . fc_t('plays') . " WHERE game_id = ? AND user_answer = ''", [$game_id]);
 $first_unanswered = $row_unanswered ? $row_unanswered['min_p'] : null;
@@ -1468,6 +1560,8 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
     <div class="container" id="game-container"
 
+         data-game-id="<?php echo (int)$game_id; ?>"
+
          data-pos="<?php echo (int)($position); ?>"
 
          data-can-back="<?php echo ($position > 1) ? '1' : '0'; ?>"
@@ -1577,6 +1671,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                     <p class="fcv-gs-spiega" aria-live="polite"></p>
                 </div>
                 <?php endforeach; ?>
+                <?php fc_riga_ordine($order_param); ?>
                 <?php /* Checkpoint e suoni: li gestisce fc_game_juice.js */ ?>
                 <div class="fcv-gs-riga" data-fcg="checkpoint">
                     <div class="fcv-gs-testa">
@@ -1698,6 +1793,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
                 <?php /* STUDIO: checkpoint e suoni del gioco (fc_game_juice.js),
                          gli stessi dell'ingranaggio delle lingue. */ ?>
+                <?php fc_riga_ordine($order_param); ?>
                 <div class="fcv-gs-riga" data-fcg="checkpoint">
                     <div class="fcv-gs-testa">
                         <span class="fcv-gs-ic fcv-gs-ic-ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></span>

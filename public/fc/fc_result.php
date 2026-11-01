@@ -779,12 +779,13 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
             <?php
-                /* «Gioca ancora» solo a partita FINITA e CONCLUSA: niente da riprendere e
-                   nessun errore ancora da sistemare (tutti ripassati fino a essere giusti,
-                   stato «perfetta» o «conquistata»). Prima compariva sempre, anche a meta'
-                   partita, e portava a iniziarne un'altra lasciando questa in sospeso. */
-                $fcr_mostra_ancora = $fcr_ancora !== '' && $resume_position === null && in_array($fcr_stato, ['perfetta', 'conquistata'], true);
-                $fcr_n_tasti = ($fcr_mostra_ancora ? 1 : 0) + ($error_count > 0 ? 1 : 0) + 1; ?>
+                /* «Gioca ancora» solo a partita FINITA: niente da riprendere. Prima
+                   compariva sempre, anche a meta' partita, e portava a iniziarne un'altra
+                   lasciando questa in sospeso. Non si richiede piu' che gli errori siano
+                   sistemati: finita l'ultima pagina con errori non restava nessuna strada
+                   per andare avanti se non dalla Home. */
+                $fcr_mostra_ancora = $fcr_ancora !== '' && $resume_position === null;
+                $fcr_n_tasti = ($fcr_mostra_ancora ? 1 : 0) + ($error_count > 0 ? 1 : 0) + 1 + ($fcr_mazzi ? 1 : 0); ?>
             <div class="act-grid cols-<?php echo (int)$fcr_n_tasti; ?>">
                 <?php if ($fcr_mostra_ancora): ?>
                 <a href="<?php echo sec_h($fcr_ancora); ?>" class="act-tile t-blue">
@@ -820,6 +821,13 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 
+                <?php /* Dal risultato al mazzo: prima c'era solo la piccola etichetta in alto. */
+                      if ($fcr_mazzi): ?>
+                <a href="<?php echo sec_h(fc_url('fc_view.php', ['category_id' => (int)$fcr_mazzi[0]['id']])); ?>" class="act-tile t-teal">
+                    <span class="t-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="14" height="13" rx="3"/><path d="M8.5 4H19a2 2 0 0 1 2 2v10.5"/></svg></span>
+                    <span class="t-lab"><?php te('fc.res_apri_mazzo'); ?></span>
+                </a>
+                <?php endif; ?>
                 <button type="button" class="act-tile t-purple" data-on-click="fcvOpen(0)">
 
 
@@ -3311,7 +3319,9 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 $fcr_qui_ultima = (int)$fcr_ultimo['id'] === $game_id;
 $fcr_pop = '';
 if ($fcr_fresca && $fcr_qui_ultima) {
-    if ($fcr_stato === 'aperta' && $error_count > 0) $fcr_pop = 'spiega';
+    /* «Sistema gli errori» ha senso solo a partita finita: con carte ancora da
+       giocare il passo giusto e' «Continua», non ripassare gli errori a meta'. */
+    if ($fcr_stato === 'aperta' && $error_count > 0 && $resume_position === null) $fcr_pop = 'spiega';
     elseif ($fcr_stato === 'conquistata' || $fcr_stato === 'perfetta') $fcr_pop = 'festa';
 }
 if ($fcr_pop !== ''): $fcr_primo = $fcr_strada[0]['pct'] ?? null; ?>

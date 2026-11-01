@@ -638,6 +638,26 @@ function mfc_parola_esempio(): string {
        funziona identico nelle due modalita' senza doppioni di if. */
     $fc_modo = (($_GET['modo'] ?? '') === 'insert') ? 'insert' : 'edit';
 
+    /* Il contesto di provenienza (partita o riepilogo) deve seguire ogni link
+       interno della pagina: «aggiungi sorella/sottocarta» apriva una pagina
+       nuova che non sapeva piu' di arrivare dal gioco, e chiudendola si finiva
+       nella vista del mazzo invece che nella partita. I valori arrivano
+       dall'indirizzo, quindi si validano come negli altri punti. */
+    $fc_gioco_qs = ''; $fc_gioco_url = '';
+    if (isset($_GET['return_to_game'])) {
+        $gq = ['return_to_game' => 1, 'game_id' => sec_int($_GET['game_id'] ?? 0, 1),
+               'position' => sec_int($_GET['position'] ?? 1, 1),
+               'status' => sec_enum($_GET['status'] ?? null, ['all', '1', '0'], '0'),
+               'order' => sec_enum($_GET['order'] ?? null, ['in_order', 'random'], 'random')];
+        $fc_gioco_qs = '&' . http_build_query($gq);
+        $fc_gioco_url = 'fc_game.php?game_id=' . $gq['game_id'] . '&position=' . $gq['position']
+                      . '&status=' . urlencode($gq['status']) . '&order=' . urlencode($gq['order']);
+    } elseif (isset($_GET['return_to_result'])) {
+        $gq = ['return_to_result' => 1, 'game_id' => sec_int($_GET['game_id'] ?? 0, 1)];
+        $fc_gioco_qs = '&' . http_build_query($gq);
+        $fc_gioco_url = fc_url('fc_result.php', ['game_id' => $gq['game_id']]);
+    }
+
     if ($fc_modo === 'insert') {
         $is_child = false;
         $id = 0;
@@ -652,6 +672,7 @@ function mfc_parola_esempio(): string {
             'category_id' => $prev_cat,
         ];
         $cancel_url = fc_url('fc_view.php', $prev_cat > 0 ? ['category_id' => $prev_cat] : []);
+        if ($fc_gioco_url !== '') $cancel_url = $fc_gioco_url;   // arrivati dalla partita: si torna alla partita
 
         /* Una sottocarta nuova, dalla sezione «sottocarte» di un padre: nasce
            dentro quella carta, con la sua categoria. Si torna al padre sia
@@ -667,7 +688,7 @@ function mfc_parola_esempio(): string {
                 $row['category_id'] = $category_id;
                 $_GET['torna_a'] = $padre_nuovo;
                 $cancel_url = fc_url('fc_card_edit.php', ['fc_id' => $padre_nuovo, 'previous_catid' => $category_id])
-                            . (!empty($_GET['fc_popup']) ? '&fc_popup=1' : '');
+                            . (!empty($_GET['fc_popup']) ? '&fc_popup=1' : '') . $fc_gioco_qs;
             } else {
                 $padre_nuovo = 0;
             }
@@ -843,7 +864,7 @@ function mfc_parola_esempio(): string {
                          il ritorno deve esserci, altrimenti l'unica uscita e' la
                          X, che chiude tutto e riporta all'elenco — cioe' fa
                          perdere il punto in cui si stava lavorando. */ ?>
-                <a class="fc-torna-padre" href="<?php echo sec_h(fc_url('fc_card_edit.php', ['fc_id' => (int)$_GET['torna_a'], 'previous_catid' => (int)$category_id])); ?><?php echo !empty($_GET['fc_popup']) ? '&fc_popup=1' : ''; ?>">
+                <a class="fc-torna-padre" href="<?php echo sec_h(fc_url('fc_card_edit.php', ['fc_id' => (int)$_GET['torna_a'], 'previous_catid' => (int)$category_id])); ?><?php echo sec_h((!empty($_GET['fc_popup']) ? '&fc_popup=1' : '') . $fc_gioco_qs); ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                     <?php te('fc.vis_fcv_carta_padre'); ?>
                 </a>
@@ -1149,7 +1170,7 @@ function mfc_parola_esempio(): string {
                             $fq = mfc_testo_piano($f['question_desc']);
                             $fa = mfc_testo_piano($f['answer_desc'], 70);
                             $url = fc_url('fc_card_edit.php', ['child_id' => (int)$f['id_child'], 'previous_catid' => (int)$category_id, 'torna_a' => (int)$id])
-                                 . (!empty($_GET['fc_popup']) ? '&fc_popup=1' : '');
+                                 . (!empty($_GET['fc_popup']) ? '&fc_popup=1' : '') . $fc_gioco_qs;
                         ?>
                         <a class="fc-figlio" href="<?php echo sec_h($url); ?>" data-on-click="return fcVaiSalvando(this.href)">
                             <span class="fc-figlio-n"><?php echo (int)$i + 1; ?></span>
@@ -1161,7 +1182,7 @@ function mfc_parola_esempio(): string {
                         </a>
                         <?php endforeach; ?>
                         <?php $urlNuovo = fc_url('fc_card_edit.php', ['modo' => 'insert', 'parent_id' => (int)$id, 'previous_catid' => (int)$category_id])
-                                        . (!empty($_GET['fc_popup']) ? '&fc_popup=1' : ''); ?>
+                                        . (!empty($_GET['fc_popup']) ? '&fc_popup=1' : '') . $fc_gioco_qs; ?>
                         <a class="fc-figlio fc-figlio-nuovo" href="<?php echo sec_h($urlNuovo); ?>" data-on-click="return fcVaiSalvando(this.href)">
                             <span class="fc-figlio-n">+</span>
                             <span class="fc-figlio-testi"><span class="fc-figlio-q"><?php te('fc.mfc_aggiungi_sottocarta'); ?></span></span>
@@ -1176,7 +1197,7 @@ function mfc_parola_esempio(): string {
                        ordine, con questa evidenziata: si salta dall'una
                        all'altra senza tornare all'elenco, e si vede subito
                        dove sta la carta che si sta scrivendo. */
-                    $fcPop = !empty($_GET['fc_popup']) ? '&fc_popup=1' : '';
+                    $fcPop = (!empty($_GET['fc_popup']) ? '&fc_popup=1' : '') . $fc_gioco_qs;
                     $pq = mfc_testo_piano($fc_padre['question_desc']);
                     $pa = mfc_testo_piano($fc_padre['answer_desc'], 70); ?>
                 <section class="fc-card fc-figli fc-famiglia is-aperta" id="fcFamiglia">
@@ -1766,6 +1787,7 @@ function mfc_parola_esempio(): string {
     var FC_PADRE = <?php echo (int)($fc_padre_id ?? 0); ?>;
     var FC_CAT = <?php echo (int)($category_id ?? 0); ?>;
     var FC_POPUP = <?php echo !empty($_GET['fc_popup']) ? 'true' : 'false'; ?>;
+    var FC_GIOCO = <?php echo json_encode($fc_gioco_qs); ?>;   // contesto partita da portarsi dietro nei link «aggiungi»
 
     /* Gli indirizzi dei due tasti "aggiungi" in fondo (vedi .fc-aggiungi):
        dipendono dall'id della carta, che per una carta appena creata si
@@ -1776,7 +1798,7 @@ function mfc_parola_esempio(): string {
         function url(p) {
             var q = new URLSearchParams(p);
             if (FC_POPUP) q.set('fc_popup', '1');
-            return fcUrl('fc_card_edit.php?' + q.toString());
+            return fcUrl('fc_card_edit.php?' + q.toString()) + FC_GIOCO;
         }
         var mazzo = { modo: 'insert', category_id: FC_CAT };
         var sorella = document.getElementById('fcAggSorella');

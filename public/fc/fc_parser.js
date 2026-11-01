@@ -108,9 +108,23 @@ var FCD_PALETTE = {
     green:  'var(--green, #34C759)',
     purple: 'var(--purple, #AF52DE)',
     orange: 'var(--orange, #FF9500)',
-    gray:   'var(--text-2, #8A8A8E)'
+    gray:   'var(--text-2, #8A8A8E)',
+    /* Colori in piu' per il testo (non per i pallini degli elenchi, che
+       restano i sei di FCD_LIST_COLORS). Chi rilegge un documento accetta
+       qualunque chiave di questa tabella: aggiungere un colore qui basta. */
+    gold:   'var(--yellow-text, #D99A00)',
+    teal:   'var(--teal, #1FA9A0)',
+    indigo: 'var(--indigo, #5856D6)',
+    pink:   'var(--pink, #E8387A)',
+    brown:  'var(--brown, #A2845E)'
 };
-var FCD_COLORS = ['red', 'orange', 'green', 'blue', 'purple'];
+var FCD_COLORS = ['red', 'orange', 'gold', 'green', 'teal', 'blue', 'indigo', 'purple', 'pink', 'brown', 'gray'];
+
+/* Un colore del TESTO e' valido se sta nella tavolozza. Non si usa
+   FCD_LIST_COLORS: quella e' la lista dei colori dei pallini. */
+function fcdColoreTestoValido(c) {
+    return typeof c === 'string' && Object.prototype.hasOwnProperty.call(FCD_PALETTE, c);
+}
 var FCD_LIST_COLORS = ['red', 'orange', 'green', 'blue', 'purple', 'gray'];
 var FCD_FLAGS = ['b', 'i', 'u', 'h'];
 
@@ -692,8 +706,13 @@ function fcdEstraiSelezione(doc, sel) {
             acc += len;
         });
 
-        var nuovoBlocco = { t: b.t === 'li' ? 'li' : 'p', runs: runsNuovi };
-        if (b.t === 'li') { nuovoBlocco.lvl = b.lvl; if (b.c) nuovoBlocco.c = b.c; }
+        /* Il pallino e' un pezzo della riga, non del testo: si copia solo se la
+           selezione parte dall'inizio della riga (cioe' include anche il
+           pallino). Partendo a meta' riga si copia solo testo, che incollato
+           altrove non deve portarsi dietro un elenco. */
+        var conPallino = b.t === 'li' && !(bi === s.a.b && da > 0);
+        var nuovoBlocco = { t: conPallino ? 'li' : 'p', runs: runsNuovi };
+        if (conPallino) { nuovoBlocco.lvl = b.lvl; if (b.c) nuovoBlocco.c = b.c; }
         blocchi.push(nuovoBlocco);
     }
 
@@ -1177,7 +1196,7 @@ function fcdFromDom(root) {
             if (el.dataset.i) m.i = 1;
             if (el.dataset.u) m.u = 1;
             if (el.dataset.h) m.h = 1;
-            if (el.dataset.c && FCD_LIST_COLORS.indexOf(el.dataset.c) !== -1) m.c = el.dataset.c;
+            if (el.dataset.c && fcdColoreTestoValido(el.dataset.c)) m.c = el.dataset.c;
         }
         return fcdCloneMarks(m);
     }
@@ -1225,7 +1244,7 @@ function fcdFromDom(root) {
             if (el.dataset.i) mFx.i = 1;
             if (el.dataset.u) mFx.u = 1;
             if (el.dataset.h) mFx.h = 1;
-            if (el.dataset.mc && FCD_LIST_COLORS.indexOf(el.dataset.mc) !== -1) mFx.c = el.dataset.mc;
+            if (el.dataset.mc && fcdColoreTestoValido(el.dataset.mc)) mFx.c = el.dataset.mc;
             var mFxPulito = fcdCloneMarks(mFx);
             if (mFxPulito) bfx.m = mFxPulito;
             return bfx;

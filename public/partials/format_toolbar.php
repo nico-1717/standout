@@ -254,9 +254,15 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                     </button>
                     <button type="button" class="fmt-pop-dot" data-color="red"    style="background:var(--red,#FF3B30)"      title="<?php te('editor.rosso'); ?>"></button>
                     <button type="button" class="fmt-pop-dot" data-color="orange" style="background:var(--orange,#FF9500)"   title="<?php te('editor.arancione'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-color="gold"   style="background:var(--yellow-text,#D99A00)" title="<?php te('editor.oro'); ?>"></button>
                     <button type="button" class="fmt-pop-dot" data-color="green"  style="background:var(--green,#34C759)"    title="<?php te('editor.verde'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-color="teal"   style="background:var(--teal,#1FA9A0)"      title="<?php te('editor.turchese'); ?>"></button>
                     <button type="button" class="fmt-pop-dot" data-color="blue"   style="background:var(--blue,#007AFF)"     title="<?php te('editor.blu'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-color="indigo" style="background:var(--indigo,#5856D6)"   title="<?php te('editor.indaco'); ?>"></button>
                     <button type="button" class="fmt-pop-dot" data-color="purple" style="background:var(--purple,#AF52DE)"   title="<?php te('editor.viola'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-color="pink"   style="background:var(--pink,#E8387A)"      title="<?php te('editor.rosa'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-color="brown"  style="background:var(--brown,#A2845E)"     title="<?php te('editor.marrone'); ?>"></button>
+                    <button type="button" class="fmt-pop-dot" data-color="gray"   style="background:var(--text-2,#8A8A8E)"    title="<?php te('editor.grigio'); ?>"></button>
                 </div>
             </div>
 
@@ -2706,6 +2712,23 @@ function ftInsertMarked(ed, marks) {
     var r = s.getRangeAt(0);
     r.deleteContents();
 
+    /* Riga vuota: dentro c'e' solo il <br data-fill> che le da' altezza. Se il
+       pezzo colorato finisse DOPO quel <br>, il browser lo scriverebbe sulla
+       riga sotto (un <br> seguito da testo e' un a capo vero). Il pezzo col
+       carattere invisibile da' gia' altezza alla riga, quindi il riempitivo si
+       toglie e il cursore riparte dall'inizio del blocco. */
+    var contenitore = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode;
+    var bloccoVuoto = contenitore && contenitore.closest ? contenitore.closest('.fc-p, .fc-li') : null;
+    if (bloccoVuoto && ed.contains(bloccoVuoto)) {
+        var riempitivi = bloccoVuoto.querySelectorAll(':scope > br[data-fill]');
+        if (riempitivi.length) {
+            Array.prototype.forEach.call(riempitivi, function (br) { br.parentNode.removeChild(br); });
+            r = document.createRange();
+            r.setStart(bloccoVuoto, 0);
+            r.collapse(true);
+        }
+    }
+
     var nodo;
     if (marks && Object.keys(marks).length) {
         nodo = document.createElement('span');
@@ -3338,6 +3361,13 @@ function ftMQFuoco(el, dove) {
     setTimeout(mettiA, 0);
     if (window.requestAnimationFrame) window.requestAnimationFrame(controlla);
     else setTimeout(controlla, 16);
+    /* Due controlli piu' tardi, sempre "prima guarda, poi agisci". Appena
+       creata una formula dal tasto, la barra apre il secondo cassetto
+       (suggerimenti) e il browser puo' rimettere il fuoco altrove a
+       transizione finita: succede dopo il fotogramma di sopra, e la formula
+       restava aperta ma senza nessuno dentro. */
+    setTimeout(controlla, 120);
+    setTimeout(controlla, 400);
 }
 
 /* Smonta l'editor interattivo e restituisce il LaTeX finale. Da qui in poi
@@ -4149,14 +4179,28 @@ function ftSogliaDalloSchermo(toolbar) {
     return soglia;
 }
 
+/* La parte di pagina che si VEDE davvero. Su iPhone, con la tastiera aperta,
+   Safari non rimpicciolisce la finestra: sposta il riquadro visibile
+   (visualViewport) dentro la finestra piu' grande, e il bordo alto di cio'
+   che si vede non e' piu' 0. Un elemento position:fixed si misura dalla
+   finestra grande, non da quello che si vede: con top:6px la copia della barra
+   finiva sopra il bordo visibile, cioe' c'era ma non si vedeva. Su PC i due
+   riquadri coincidono e il risultato e' quello di sempre (top 0). */
+function ftViewportVisibile() {
+    var vv = window.visualViewport;
+    if (!vv) return { top: 0, bottom: window.innerHeight };
+    return { top: Math.max(0, vv.offsetTop), bottom: Math.max(0, vv.offsetTop) + vv.height };
+}
+
 function ftAggancioMisure(a) {
-    var soglia = 0, limite = window.innerHeight;
+    var vis = ftViewportVisibile();
+    var soglia = vis.top, limite = vis.bottom;
 
     var c = a.contenitori || [];
     if (!c.length) {
         /* Pagina piena, nessun pannello di mezzo: si guarda cosa occupa la
            cima dello schermo. */
-        return { soglia: ftSogliaDalloSchermo(a.toolbar) + 6, limite: limite };
+        return { soglia: Math.max(ftSogliaDalloSchermo(a.toolbar), vis.top) + 6, limite: limite };
     }
     for (var i = 0; i < c.length; i++) {
         var rc = c[i].getBoundingClientRect();
@@ -4447,6 +4491,12 @@ function ftAggancioAggiorna() {
     });
     window.addEventListener('scroll', ftAggancioAggiorna, { passive: true, capture: true });
     window.addEventListener('resize', ftAggancioAggiorna);
+    /* iPhone: aprire la tastiera o scorrere con lei aperta muove il riquadro
+       visibile senza generare ne' scroll ne' resize della finestra. */
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('scroll', ftAggancioAggiorna);
+        window.visualViewport.addEventListener('resize', ftAggancioAggiorna);
+    }
 })();
 
 function ftSetupEditor(wrap) {
@@ -5078,7 +5128,9 @@ function ftSetupEditor(wrap) {
                     }
                     acc += t.length;
                 });
-                pezzi.push((b.t === 'li' ? '- ' : '') + riga);
+                /* Stessa regola di fcdEstraiSelezione: "- " (il pallino) solo se
+                   la selezione parte dall'inizio della riga. */
+                pezzi.push((b.t === 'li' && !(bi === s0.a.b && da > 0) ? '- ' : '') + riga);
             }
             var testo = pezzi.join('\n');
             if (!testo) return;

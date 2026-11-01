@@ -224,6 +224,28 @@ function renderGameCatRow($node, $level = 0) {
 
         <hr class="opt-divider">
 
+        <?php /* I LIVELLI DA GIOCARE
+                 Niente di spuntato = tutti i livelli (la partita di sempre).
+                 Con una o piu' scelte restano solo le carte che hanno almeno
+                 una parte a quel livello: la regola e' la stessa di "solo le
+                 difficili" in fc_game_start.php, che qui si estende a ogni
+                 livello. Vale per studio e lingue. */
+              $fc_livelli_scelta = ['nuova', 'da_imparare', 'insidiosa', 'difficile', 'difficilissima', 'in_ripresa', 'quasi', 'sembra_facile', 'facile', 'la_sai']; ?>
+        <div class="opt-section">
+            <div class="opt-label"><?php te('fc.cg_livelli'); ?></div>
+            <div class="lv-chips" id="lvChips" role="group" aria-label="<?php te('fc.cg_livelli'); ?>">
+                <?php foreach ($fc_livelli_scelta as $lv): ?>
+                <label class="lv-chip lv-chip-<?php echo $lv; ?>">
+                    <input type="checkbox" name="game_level" value="<?php echo $lv; ?>" data-on-change="updateLinks()">
+                    <span><i></i><?php te('fcv.liv_' . $lv); ?></span>
+                </label>
+                <?php endforeach; ?>
+            </div>
+            <div class="toggle-row-sub" style="margin-top:8px;"><?php te('fc.cg_livelli_sub'); ?></div>
+        </div>
+
+        <hr class="opt-divider">
+
         <div class="opt-section" style="margin-bottom:0;">
             <div class="toggle-row">
                 <div>
@@ -286,7 +308,11 @@ function renderGameCatRow($node, $level = 0) {
     /* Il verso scelto (solo lingue) viaggia con ogni avvio, come il corso. */
     function extraAvvio(){
         const d = document.querySelector('input[name="game_dir"]:checked');
-        return d ? '&dir=' + encodeURIComponent(d.value) : '';
+        let extra = d ? '&dir=' + encodeURIComponent(d.value) : '';
+        /* I livelli scelti (nessuno = tutti) viaggiano con ogni avvio. */
+        const lv = Array.from(document.querySelectorAll('input[name="game_level"]:checked')).map(x => x.value);
+        if (lv.length) extra += '&livelli=' + encodeURIComponent(lv.join(','));
+        return extra;
     }
 
     /* ---------- Espandi / comprimi cartelle (nidificazione reale nel DOM) ---------- */

@@ -127,13 +127,22 @@ $figli = (int)(sec_one("SELECT COUNT(*) AS n FROM " . fc_t('subcards') . " ch
                        $par_sel)['n'] ?? 0);
 
 /* SOLO LE DIFFICILI (?solo=difficili, dal badge "da ripassare" dell'elenco
-   dei mazzi e dal tasto nel mazzo): restano le carte che sono, o hanno una
-   sottocarta che e', da ripassare: da imparare, difficile o difficilissima
-   (fcv_da_ripassare). Lo stato delle
-   carte e' sempre "tutte": una carta difficile segnata come imparata va
-   ripassata lo stesso. */
-if (($_GET['solo'] ?? '') === 'difficili') {
-    require_once __DIR__ . '/../../lib/fc/fc_vocab_gioco.php';
+   dei mazzi e dal tasto nel mazzo) e LIVELLI SCELTI (?livelli=a,b,c, dalla
+   pagina di scelta della partita): restano le carte che sono, o hanno una
+   sottocarta che e', a un livello ammesso. "Solo le difficili" ammette da
+   imparare, difficile e difficilissima (fcv_da_ripassare); i livelli scelti
+   ammettono esattamente quelli. Se si danno entrambi vale l'intersezione.
+   Con "solo difficili" lo stato delle carte e' sempre "tutte": una carta
+   difficile segnata come imparata va ripassata lo stesso. */
+require_once __DIR__ . '/../../lib/fc/fc_vocab_gioco.php';
+$solo_difficili = (($_GET['solo'] ?? '') === 'difficili');
+$livelli_scelti = [];
+foreach (explode(',', (string)($_GET['livelli'] ?? '')) as $lv) {
+    $lv = trim($lv);
+    if (in_array($lv, FCV_LIVELLI, true)) $livelli_scelti[$lv] = true;
+}
+
+if ($solo_difficili || $livelli_scelti) {
     $idsP = array_map(function ($s) { return (int)$s['id']; }, $schede);
     $figliDi = [];
     if ($idsP) {
@@ -144,21 +153,27 @@ if (($_GET['solo'] ?? '') === 'difficili') {
     }
     $st = fcv_stats_carte($idsP, array_merge([], ...array_values($figliDi ?: [[]])));
     $titoli = fc_is_vocab() ? [] : fcv_titoli_studio((int)$current_user_id);
-    $schede = array_values(array_filter($schede, function ($s) use ($st, $figliDi, $titoli) {
+    $ammesso = function (string $liv) use ($solo_difficili, $livelli_scelti): bool {
+        if ($solo_difficili && !fcv_da_ripassare($liv)) return false;
+        if ($livelli_scelti && !isset($livelli_scelti[$liv])) return false;
+        return true;
+    };
+    $schede = array_values(array_filter($schede, function ($s) use ($st, $figliDi, $titoli, $ammesso) {
         /* un titolo non ha livello: conta solo per le sue sottocarte */
         $chiavi = isset($titoli['p' . (int)$s['id']]) ? [] : ['p' . (int)$s['id']];
         foreach ($figliDi[(int)$s['id']] ?? [] as $f) $chiavi[] = 'c' . $f;
         foreach ($chiavi as $k) {
             $x = $st[$k] ?? ['c' => 0, 'w' => 0, 'u' => ''];
-            if (fcv_da_ripassare(fcv_livello($x['c'], $x['w'], $x['u']))) return true;
+            if ($ammesso(fcv_livello($x['c'], $x['w'], $x['u']))) return true;
         }
         return false;
     }));
     if (empty($schede)) {
-        header('Location: ' . fc_url('fc_decks.php', ['nessuna_difficile' => 1]));
+        if ($solo_difficili) header('Location: ' . fc_url('fc_decks.php', ['nessuna_difficile' => 1]));
+        else header('Location: ' . fc_url('fc_game_setup.php', ['vuota' => 1]));
         exit();
     }
-    $order = 'random';
+    if ($solo_difficili) $order = 'random';
     /* i figli si ricontano sulle sole carte rimaste */
     $figli = 0;
     foreach ($schede as $s) $figli += count($figliDi[(int)$s['id']] ?? []);
@@ -173,6 +188,10 @@ sec_q("INSERT INTO fc_games (game_date, score, type, kind, course_id, card_statu
        VALUES (NOW(), 0, ?, ?, ?, ?, ?, ?, ?, ?)",
       [$game_type, fc_tipo(), fc_is_vocab() ? fc_corso_id() : null, $status, $order, $current_user_id, $tot_padri, $tot_padri + $figli]);
 $new_game_id = sec_insert_id();
+
+/* Riferimento per «carte aggiunte durante la partita» (fc_nuove_carte.php). */
+require_once __DIR__ . '/../../lib/fc/fc_nuove_carte.php';
+fc_nuove_carte_segna_base($new_game_id);
 
 sec_q("INSERT INTO fc_game_durations (game_id, start_time, duration_seconds, updated_at)
        VALUES (?, NOW(), 0, NOW())", [$new_game_id]);

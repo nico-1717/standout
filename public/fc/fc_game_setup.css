@@ -289,3 +289,24 @@ input.cat-checkbox:checked::after{
 .seg-dir .dir-flags img{ width:18px; height:18px; border-radius:5px; object-fit:cover; box-shadow:0 0 0 .5px rgba(0,0,0,.12); }
 .seg-dir .dir-flags svg{ width:14px; height:14px; opacity:.55; }
 .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+
+/* ---- Livelli da giocare: pastiglie spuntabili, stesso colore dei livelli
+   che si vedono nel mazzo (fc_view.css). Niente di spuntato = tutti. ---- */
+.lv-chips{ display:flex; flex-wrap:wrap; gap:7px; }
+.lv-chip{ position:relative; cursor:pointer; }
+.lv-chip input{ position:absolute; opacity:0; width:0; height:0; pointer-events:none; }
+.lv-chip span{
+    display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border-radius:999px;
+    background:var(--surface-2); color:var(--text-2); font-size:13.5px; font-weight:600;
+    box-shadow:inset 0 0 0 1.5px transparent; transition:background .15s, color .15s, box-shadow .15s;
+}
+.lv-chip i{ width:8px; height:8px; border-radius:50%; background:var(--c); }
+.lv-chip input:checked + span{
+    color:var(--text); background:color-mix(in srgb, var(--c) 14%, var(--surface));
+    box-shadow:inset 0 0 0 1.5px var(--c);
+}
+.lv-chip input:focus-visible + span{ outline:2px solid var(--blue); outline-offset:2px; }
+.lv-chip-nuova{ --c:#32ADE6; } .lv-chip-da_imparare{ --c:#5E5CE6; } .lv-chip-sembra_facile{ --c:#00C7BE; }
+.lv-chip-facile{ --c:#2FD39B; } .lv-chip-insidiosa{ --c:var(--orange,#FF9500); } .lv-chip-difficile{ --c:var(--red,#FF3B30); }
+.lv-chip-difficilissima{ --c:#C9003B; } .lv-chip-in_ripresa{ --c:var(--purple,#AF52DE); }
+.lv-chip-quasi{ --c:var(--green,#34C759); } .lv-chip-la_sai{ --c:#E0A800; }

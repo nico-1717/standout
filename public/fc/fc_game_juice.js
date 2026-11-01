@@ -709,6 +709,36 @@
             segnaImpostazioni();
         }
     });
+    /* Ordine di gioco (casuale / in ordine) cambiato a partita iniziata: il
+       server rimescola solo le carte non ancora giocate (action=setorder in
+       fc_game.php). Poi si ricarica la posizione corrente, perche' la pagina
+       mostrata e quelle gia' preparate avevano ancora l'ordine vecchio. */
+    var cambiandoOrdine = false;
+    document.addEventListener('click', function (e) {
+        var b = e.target.closest && e.target.closest('.fcv-gs-riga[data-fcg="ordine"] [data-v]');
+        if (!b || cambiandoOrdine) return;
+        var riga = b.closest('.fcv-gs-riga');
+        var nuovo = b.getAttribute('data-v');
+        if (nuovo === riga.getAttribute('data-ordine')) return;
+        var cont = $('#game-container');
+        if (!cont) return;
+        cambiandoOrdine = true;
+        var pos = cont.getAttribute('data-pos') || '1';
+        var gid = cont.getAttribute('data-game-id');
+        var st = cont.getAttribute('data-status') || 'all';
+        var fd = new FormData();
+        fd.append('action', 'setorder'); fd.append('order', nuovo); fd.append('position', pos);
+        fd.append('csrf_token', window.STANDOUT_CSRF || '');
+        fetch('fc_game.php?game_id=' + encodeURIComponent(gid) + '&position=' + encodeURIComponent(pos) + '&status=' + encodeURIComponent(st),
+              { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-CSRF-Token': window.STANDOUT_CSRF || '' } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (!d || !d.ok) throw new Error('setorder');
+                location.href = 'fc_game.php?game_id=' + encodeURIComponent(gid) + '&position=' + encodeURIComponent(pos)
+                    + '&status=' + encodeURIComponent(st) + '&order=' + encodeURIComponent(nuovo);
+            })
+            .catch(function () { cambiandoOrdine = false; });
+    });
     document.addEventListener('fcv-impostazioni', segnaImpostazioni);
     /* studio: le impostazioni sono quelle della lettura (#ttsSettingsBtn) */
     document.addEventListener('click', function (e) {

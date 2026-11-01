@@ -184,7 +184,8 @@ CREATE TABLE `fc_games` (
   `parent_id` int DEFAULT NULL,
   `total_father_words` int DEFAULT '0',
   `game_order` varchar(20) DEFAULT 'random',
-  `total_words_with_children` int NOT NULL DEFAULT '1'
+  `total_words_with_children` int NOT NULL DEFAULT '1',
+  `max_card_id` bigint DEFAULT NULL COMMENT 'Id piu alto tra le carte quando la partita e partita (o quando si e risposto "no" alle carte nuove): le carte con id maggiore sono nuove'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Partite di flashcard, di entrambi i tipi (colonna kind)';
 
 -- --------------------------------------------------------
