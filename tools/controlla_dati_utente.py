@@ -15,7 +15,7 @@ def main():
     schema = sys.argv[1] if len(sys.argv) > 1 else 'sql/schema.sql'
     t = io.open(schema, encoding='utf-8', errors='replace').read()
     tabelle = {m.group(1): set(re.findall(r'^\s*`(\w+)`', m.group(2), re.M))
-               for m in re.finditer(r'CREATE TABLE `(\w+)` \(([\s\S]*?)\n\)', t)}
+               for m in re.finditer(r'CREATE TABLE (?:IF NOT EXISTS )?`(\w+)` \(([\s\S]*?)\n\)', t)}
     php = io.open('lib/account_dati.php', encoding='utf-8').read()
     catene_blocco = re.search(r'const ACCOUNT_CATENE = \[([\s\S]*?)\n\];', php).group(1)
     catene = set(re.findall(r"^\s*'(\w+)'\s*=>", catene_blocco, re.M))

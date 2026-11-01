@@ -48,7 +48,17 @@ const ACCOUNT_CATENE = [
 const ACCOUNT_TABELLE_GLOBALI = [
     'ai_perf_stats', 'fc_image_meta', 'habit_achievements', 'login_attempts',
     'place_cache', 'plans', 'rate_limits', 'roles', 'weather_cache', 'users',
+    'sync_meta',
 ];
+
+/* Tabelle di servizio della sincronizzazione con l'app: hanno user_id (quindi
+   si CANCELLANO con l'account) ma NON si esportano. Il registro dei
+   cambiamenti ha centinaia di migliaia di righe senza contenuto (solo
+   tabella, uuid, operazione): nel file di esportazione sarebbero rumore e
+   rischio di memoria (limite 384 MB). Non e' un "dato dell'utente": i dati
+   veri sono gia' nelle loro tabelle. sync_conflicts invece si esporta:
+   contiene testi scritti dall'utente. */
+const ACCOUNT_TABELLE_NON_ESPORTATE = ['sync_changes', 'sync_mutations'];
 
 /* Una colonna con uno di questi nomi non esce mai nell'esportazione: sono
    segreti o chiavi, non "dati dell'utente" (la password cifrata, i token del
@@ -153,6 +163,7 @@ function account_esporta(int $uid): string {
 
     /* le tabelle con user_id */
     foreach (account_tabelle_con_utente() as $tab) {
+        if (in_array($tab, ACCOUNT_TABELLE_NON_ESPORTATE, true)) continue;
         $cols = account_colonne_esportabili($tab);
         if (!$cols) continue;
         $righe = sec_all("SELECT `" . implode('`, `', $cols) . "` FROM `$tab` WHERE user_id = ?", [$uid]);

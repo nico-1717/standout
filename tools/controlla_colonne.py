@@ -15,7 +15,7 @@ import io, re, sys
 def schema(percorso):
     t = io.open(percorso, encoding='utf-8', errors='replace').read()
     tabelle = {}
-    for m in re.finditer(r'CREATE TABLE `(\w+)` \(([\s\S]*?)\n\)', t):
+    for m in re.finditer(r'CREATE TABLE (?:IF NOT EXISTS )?`(\w+)` \(([\s\S]*?)\n\)', t):
         cols = set(re.findall(r'^\s*`(\w+)`', m.group(2), re.M))
         tabelle[m.group(1)] = cols
     return tabelle
