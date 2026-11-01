@@ -166,13 +166,27 @@
         if (o.flag) { var im = el('img'); im.src = o.flag; im.alt = ''; ic.appendChild(im); } else ic.appendChild(H.svg(o.icon, 20, 2));
         row.appendChild(ic);
         var tx = el('div', 'tx');
-        tx.appendChild(el('b', null, o.title));
+        /* Il titolo porta alla propria sezione (studio -> i mazzi, lingue -> i mazzi
+           di quel corso): un tocco sulla riga deve avere un senso, non solo i tasti. */
+        var tb = el('b');
+        if (o.titleHref) { var ta = el('a', 'ho-lk', o.title); ta.href = H.base + o.titleHref; tb.appendChild(ta); }
+        else tb.appendChild(document.createTextNode(o.title));
+        tx.appendChild(tb);
         if (g) {
             var sub = (g.lang ? o.langName + ' · ' : '') + (g.label ? g.label + ' · ' : '') + T('home.fc_fatte', { n: g.closed, tot: g.total });
             tx.appendChild(el('span', null, sub));
             var pb = el('div', 'ho-bar'); pb.style.setProperty('--c', o.color);
             var pi = el('i'); pi.style.width = Math.round(g.closed / Math.max(1, g.total) * 100) + '%'; pb.appendChild(pi); tx.appendChild(pb);
-        } else tx.appendChild(el('span', null, o.idle));
+        } else {
+            var idleSp = el('span');
+            /* il nome del mazzo porta al mazzo stesso */
+            if (o.deckHref && o.deckName) {
+                var da = el('a', 'ho-lk', o.deckName); da.href = H.base + o.deckHref;
+                idleSp.appendChild(da);
+                idleSp.appendChild(document.createTextNode(o.idleRest || ''));
+            } else idleSp.appendChild(document.createTextNode(o.idle));
+            tx.appendChild(idleSp);
+        }
         row.appendChild(tx);
         var acts = el('div', 'acts');
         if (g) {
@@ -249,6 +263,10 @@
                 icon: 'cap', color: 'var(--purple)', title: T('home.fc_studio'),
                 game: un.study,
                 idle: fc.next ? (fc.next.name + ' · ' + (fc.next.exam_days !== null ? T('home.esame_tra', { n: fc.next.exam_days }) : (fc.next.days_ago === null ? T('home.mai_giocato') : T('home.giocato_giorni_fa', { n: fc.next.days_ago })))) : T('home.nessun_mazzo'),
+                titleHref: 'fc/fc_decks.php',
+                deckName: fc.next ? fc.next.name : null,
+                deckHref: fc.next ? 'fc/fc_view.php?category_id=' + fc.next.id : null,
+                idleRest: fc.next ? ' · ' + (fc.next.exam_days !== null ? T('home.esame_tra', { n: fc.next.exam_days }) : (fc.next.days_ago === null ? T('home.mai_giocato') : T('home.giocato_giorni_fa', { n: fc.next.days_ago }))) : '',
                 play: 'fc/fc_game_setup.php' + (fc.next ? '?preselect_category=' + fc.next.id : '')
             }));
             var co = fc.course;
@@ -256,6 +274,7 @@
                 icon: 'globe', color: 'var(--teal)', title: T('home.fc_lingue'), flag: co ? co.flag : null,
                 game: un.vocab,
                 langName: co ? co.name : '',
+                titleHref: co ? 'fc/fc_decks.php?course=' + co.id : 'fc/fc_home.php',
                 idle: co ? co.name : T('home.nessuna_lingua'),
                 play: co ? 'fc/fc_game_setup.php?course=' + co.id : 'fc/fc_home.php#add',
                 playLabel: co ? null : T('home.aggiungi_lingua')

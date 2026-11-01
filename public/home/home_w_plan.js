@@ -108,6 +108,19 @@
         if (!allDay && !multi) sub.push(e.start + '–' + e.end);
         if (sub.length) mid.appendChild(el('div', 'sb', sub.join(' · ')));
         row.appendChild(mid);
+        /* Un tocco sull'evento porta al Planner, in quel giorno, con l'evento
+           aperto. stopPropagation: altrimenti subito dopo scatta il tocco
+           sull'intero riquadro, che porta al Planner "generico" e vince. */
+        if (e.id && e.date) {
+            row.classList.add('ho-ev--go');
+            row.addEventListener('click', function (ev) {
+                if (ev.target.closest('button, a')) return;
+                var wrap = document.getElementById('hoWrap');
+                if (wrap && wrap.classList.contains('ho-edit')) return;
+                ev.stopPropagation();
+                window.location.href = H.base + 'planner/planner.php?date=' + encodeURIComponent(e.date) + '&event=' + encodeURIComponent(e.id);
+            });
+        }
         /* si spunta solo un'attivita' vera: le occorrenze di una serie dividono
            lo stesso id del master e spuntarne una le spunterebbe tutte */
         if (e.type === 'task' && !e.occurrence && e.date === today) {

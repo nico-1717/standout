@@ -630,6 +630,23 @@ function boot() {
 
     if (S.settings.default_view === 'month') setView('month');
 
+    /* Link dalla Home: planner.php?date=AAAA-MM-GG&event=ID porta in quel
+       giorno e apre l'evento. I dati della settimana possono non esserci
+       ancora, quindi l'evento si cerca solo a caricamento finito. */
+    (function () {
+        var q;
+        try { q = new URLSearchParams(window.location.search); } catch (e) { return; }
+        var d = q.get('date'), id = q.get('event');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d || '')) return;
+        if (S.view !== 'day') setView('day');
+        goToDate(d, false);
+        if (!id) return;
+        loadWeek(monday(d)).then(function () {
+            var trovato = (S.events[d] || []).filter(function (x) { return String(x.id) === String(id); })[0];
+            if (trovato) openEventSheet(trovato, null);
+        });
+    })();
+
     // la linea dell'ora si aggiorna da sola
     setInterval(function () {
         if (S.view === 'day') renderDays();
