@@ -506,25 +506,41 @@
             }
         }
         /* Guarda: si apre il giorno solo col «click», che il browser non
-           genera quando il dito sta scorrendo la pagina. */
+           genera quando il dito sta scorrendo la pagina.
+           Col dito la griglia non può rubare ogni gesto (prima non si riusciva
+           più a scorrere la pagina): un tocco fermo accende il giorno, un
+           trascinamento ORIZZONTALE lo prolunga, uno verticale lascia scorrere
+           la pagina. Per questo il primo giorno col dito si decide solo dopo. */
+        var pending = null;   // dito appoggiato, non ancora capito se tocca o scorre
+        function begin(cell, pointerId) {
+            active = true; touched = {}; changed = [];
+            var painted = S.paint[S.sel] && S.paint[S.sel][cell.dataset.d];
+            mode = S.tool === 'erase' ? 'remove' : (painted ? 'remove' : 'add');
+            apply(cell);
+            try { grid.setPointerCapture(pointerId); } catch (x) { }
+        }
         grid.addEventListener('pointerdown', function (e) {
             if (S.tool === 'look') return;
             var cell = e.target.closest ? e.target.closest('.pp-day') : null;
             if (!cell) return;
             if (!S.sel || !S.nodes[S.sel]) { toast(t('scegli_figlio')); return; }
-            active = true; touched = {}; changed = [];
-            var painted = S.paint[S.sel] && S.paint[S.sel][cell.dataset.d];
-            mode = S.tool === 'erase' ? 'remove' : (painted ? 'remove' : 'add');
-            apply(cell);
-            try { grid.setPointerCapture(e.pointerId); } catch (x) { }
+            if (e.pointerType === 'touch') { pending = { cell: cell, x: e.clientX, y: e.clientY, id: e.pointerId }; return; }
+            begin(cell, e.pointerId);
             e.preventDefault();
         });
         grid.addEventListener('pointermove', function (e) {
+            if (pending) {
+                var dx = Math.abs(e.clientX - pending.x), dy = Math.abs(e.clientY - pending.y);
+                if (dx > 8 && dx > dy) { var pc = pending; pending = null; begin(pc.cell, pc.id); }
+                else if (dy > 8) pending = null;          // sta scorrendo la pagina
+                return;
+            }
             if (!active) return;
             var c = cellAt(e.clientX, e.clientY);
             if (c) apply(c);
         });
         function end() {
+            if (pending) { var pc = pending; pending = null; begin(pc.cell, pc.id); }   // un semplice tocco
             if (!active) return;
             active = false;
             if (!changed.length) return;
@@ -533,7 +549,7 @@
             api('paint', { project: id, mode: m, days: days }).then(function () { return load(); }).then(function () { paintAll(); }).catch(function (e) { S.undo.pop(); fail(e); refresh(); });
         }
         grid.addEventListener('pointerup', end);
-        grid.addEventListener('pointercancel', end);
+        grid.addEventListener('pointercancel', function () { pending = null; end(); });
         grid.addEventListener('contextmenu', function (e) { if (S.tool !== 'look') e.preventDefault(); });
     }
 
