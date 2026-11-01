@@ -1291,6 +1291,8 @@ function setGlassFraction(frac, isPausaColor, flipped){
     // il capovolgimento "silenzioso" serve solo al cronometro (si rigira ogni ora):
     // per l'inizio di una sessione vera e propria ci pensa playStartFlip(), chiamato altrove
     if (flipped !== lastGlassFlipped) { lastGlassFlipped = flipped; window.Clessidra.playStartFlip(); }
+    /* con il cerchio come vista la clessidra non si vede: niente aggiornamenti ogni 250ms */
+    if (displayStyle !== 'clessidra') return;
     window.Clessidra.setFraction(Math.max(0, Math.min(1, frac)));
 }
 function stopGrainFlow(){ if (window.Clessidra) window.Clessidra.setRunning(false); }

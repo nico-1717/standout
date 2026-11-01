@@ -1576,6 +1576,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
          data-forward-url="fc_game.php?game_id=<?php echo (int)($game_id); ?>&position=<?php echo (int)($position+1); ?>&status=<?php echo sec_h($status); ?>&order=<?php echo sec_h($order_param); ?>"
 
          data-ripasso-salta="<?php echo $fc_padre_saltato_id > 0 ? '1' : '0'; ?>"
+         data-ripasso="<?php echo (int)($game_info['parent_id'] ?? 0) > 0 ? '1' : '0'; ?>"
 
          data-chrono-base="<?php echo (int)($chrono_base_seconds); ?>"
 
@@ -1632,7 +1633,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
                     </button>
                     <?php else: ?>
                     <button id="ttsSettingsBtn" class="icon-btn" type="button" title="<?php te('fc.gm_impostazioni'); ?>" aria-label="<?php te('fc.gm_impostazioni'); ?>">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
                     </button>
                     <?php endif; ?>
                     <button id="voiceGameBtn" class="icon-btn" type="button" title="<?php te('fc.gm_gioca_audio'); ?>" aria-label="<?php te('fc.gm_gioca_audio'); ?>" data-on-click="if(window.VoiceGameMode) VoiceGameMode.handleHeaderButton();">
@@ -7223,19 +7224,34 @@ function navigateTo (url, opts) {
 
             /* ---------- Avvio ---------- */
 
-            /* Ripasso degli errori: se il padre e' stato saltato (nascosto), la
-               pagina parte dalla prima sottocarta ancora da fare invece che dal
-               fondo di un padre che non si vede. Non fa niente in tutti gli altri
-               casi. */
+            /* Ripasso degli errori: la pagina parte dalla prima carta ancora da fare
+               (se il padre e' saltato e nascosto, dalla prima sottocarta invece che
+               dal fondo di un padre che non si vede). Fuori dai ripassi non fa niente. */
             function scorriAlPrimoDaFare (cont) {
                 try {
-                    if (!cont || cont.getAttribute('data-ripasso-salta') !== '1') return;
+                    /* in un ripasso degli errori la pagina parte SEMPRE dalla prima carta ancora
+                       da rispondere, anche quando il padre si vede: i figli da rifare possono
+                       stare molto piu' in basso */
+                    if (!cont || (cont.getAttribute('data-ripasso-salta') !== '1' && cont.getAttribute('data-ripasso') !== '1')) return;
                     var feed = cont.querySelector('.feed');
                     var el = cont.querySelector('.card-box:not(.graded):not(.anteprima-card)');
                     if (!feed || !el) return;
                     var pad = parseInt(getComputedStyle(feed).paddingTop, 10) || 0;
                     var top = el.getBoundingClientRect().top - feed.getBoundingClientRect().top + feed.scrollTop - pad;
                     feed.scrollTop = Math.max(0, top - 4);
+                    /* immagini, formule e testi finiscono di caricarsi dopo e spostano
+                       le carte: si ricontrolla una volta, ma solo se nel frattempo
+                       non si e' scorso a mano */
+                    var messo = feed.scrollTop;
+                    setTimeout(function () {
+                        try {
+                            if (!cont.isConnected || Math.abs(feed.scrollTop - messo) > 40) return;
+                            var el2 = cont.querySelector('.card-box:not(.graded):not(.anteprima-card)');
+                            if (!el2) return;
+                            var t2 = el2.getBoundingClientRect().top - feed.getBoundingClientRect().top + feed.scrollTop - pad;
+                            feed.scrollTop = Math.max(0, t2 - 4);
+                        } catch (e) {}
+                    }, 450);
                 } catch (e) {}
             }
             function initApp () {

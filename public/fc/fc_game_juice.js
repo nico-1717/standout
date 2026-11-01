@@ -734,6 +734,79 @@
         if (S.comboDaSalvare && S.comboDaSalvare >= 3 && S.serie === 0) salvaCombo();
     }
 
+    /* ============================================================
+       15. LA BARRETTA LATERALE DELLE CARTE DA FARE
+       ============================================================ */
+    /* Quando la pagina ha piu' carte (un padre e i suoi figli), un filo sottile
+       sul bordo destro mostra un pallino per ogni carta ancora da rispondere:
+       quello lungo e' la carta in vista, un tocco su un altro porta li'. Finite
+       le carte la barretta si accorcia e, con una sola rimasta, sparisce. */
+    var barraCarte = null, barraRaf = 0;
+    function barraDaFare() {
+        var cont = $('#game-container');
+        if (!cont) return null;
+        var tutte = cont.querySelectorAll('.card-box:not(.anteprima-card)');
+        var daFare = Array.prototype.slice.call(cont.querySelectorAll('.card-box:not(.graded):not(.anteprima-card)'));
+        if (tutte.length < 2 || daFare.length < 2) return null;
+        return { cont: cont, carte: daFare };
+    }
+    function carteInVista(info) {
+        var feed = info.cont.querySelector('.feed');
+        if (!feed) return 0;
+        var fr = feed.getBoundingClientRect(), centro = fr.top + fr.height / 2, best = 0, dist = 1e9;
+        info.carte.forEach(function (c, i) {
+            var r = c.getBoundingClientRect();
+            var d = (centro >= r.top && centro <= r.bottom) ? 0 : Math.min(Math.abs(r.top - centro), Math.abs(r.bottom - centro));
+            if (d < dist) { dist = d; best = i; }
+        });
+        return best;
+    }
+    function aggiornaBarraCarte() {
+        var info = barraDaFare();
+        if (!info) { if (barraCarte) barraCarte.classList.remove('is-on'); return; }
+        if (!barraCarte) {
+            barraCarte = el('div', 'fcg-figli');
+            barraCarte.setAttribute('role', 'navigation');
+            barraCarte.addEventListener('click', function (e) {
+                var b = e.target.closest('.fcg-figli-p'); if (!b) return;
+                var i = parseInt(b.getAttribute('data-i'), 10);
+                var inf = barraDaFare();
+                if (!inf || !inf.carte[i]) return;
+                /* istantaneo, non fluido: un tocco subito dopo un salto animato su iPhone
+                   viene preso come "ferma lo scorrimento" (vedi gradeAndAdvance) */
+                try { inf.carte[i].scrollIntoView({ block: 'center', behavior: 'auto' }); }
+                catch (er) { inf.carte[i].scrollIntoView(); }
+                aggiornaBarraCarte();
+            });
+            document.body.appendChild(barraCarte);
+        }
+        var ora = carteInVista(info);
+        var firma = info.carte.length + ':' + ora;
+        if (barraCarte.getAttribute('data-firma') !== firma) {
+            barraCarte.setAttribute('data-firma', firma);
+            barraCarte.innerHTML = '';
+            info.carte.forEach(function (c, i) {
+                var b = el('button', 'fcg-figli-p' + (i === ora ? ' is-ora' : ''));
+                b.type = 'button'; b.setAttribute('data-i', String(i));
+                b.setAttribute('aria-label', tr('fc.gm_vai_alla_carta', { n: i + 1 }, 'Go to card ' + (i + 1)));
+                if (i === ora) b.setAttribute('aria-current', 'true');
+                barraCarte.appendChild(b);
+            });
+        }
+        barraCarte.classList.add('is-on');
+    }
+    function programmaBarraCarte() {
+        if (barraRaf) return;
+        barraRaf = requestAnimationFrame(function () { barraRaf = 0; aggiornaBarraCarte(); });
+    }
+    document.addEventListener('scroll', function (e) {
+        if (e.target && e.target.classList && e.target.classList.contains('feed')) programmaBarraCarte();
+    }, true);
+    window.addEventListener('resize', programmaBarraCarte);
+    /* dopo un voto la carta diventa "valutata" un attimo dopo: si aspetta */
+    document.addEventListener('fc-voto', function () { setTimeout(programmaBarraCarte, 450); });
+    document.addEventListener('fc-pagina', function () { setTimeout(programmaBarraCarte, 60); setTimeout(programmaBarraCarte, 700); });
+
     document.addEventListener('fc-pagina', function (e) { pagina(e.detail && e.detail.container); });
     window.addEventListener('resize', function () { if (pill) pill.style.top = (sottoTesta() - 17) + 'px'; });
     document.addEventListener('keydown', function (e) {
