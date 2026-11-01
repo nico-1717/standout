@@ -244,7 +244,10 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
         <div class="fmt-drawer">
 
             <!-- ---------- TESTO ---------- -->
-            <div class="fmt-panel" data-panel="font" hidden>
+            <div class="fmt-panel fmt-panel-doppio" data-panel="font" hidden>
+              <?php /* DUE RIGHE: sopra i tasti (grassetto... citazione), sotto tutti i colori
+                       con lo spazio per ognuno. Su una riga sola i colori venivano stretti. */ ?>
+              <div class="fmt-riga">
                 <div class="fmt-group">
                     <button type="button" class="fmt-btn" data-cmd="bold" title="<?php te('editor.grassetto'); ?>"><b>B</b></button>
                     <button type="button" class="fmt-btn" data-cmd="italic" title="<?php te('editor.corsivo'); ?>"><i>I</i></button>
@@ -281,8 +284,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                         </svg>
                     </button>
                 </div>
-
-                <span class="fmt-sep"></span>
+              </div>
 
                 <!-- I colori scorrono: ce ne stanno quanti se ne vuole senza
                      che la barra vada a capo o si stringa. -->
@@ -747,6 +749,10 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 .fmt-panel[hidden]{ display:none; }
 
 .fmt-group{ display:flex; align-items:center; gap:2px; flex-shrink:0; }
+/* Pannello Testo a due righe: tasti sopra, colori sotto */
+.fmt-panel-doppio{ flex-direction:column; align-items:stretch; gap:2px; }
+.fmt-panel-doppio .fmt-riga{ display:flex; align-items:center; gap:2px; }
+.fmt-panel-doppio .fmt-swatches{ padding-left:8px; }
 
 /* ---------------- i colori, scorribili ----------------
    Stanno su una riga che scorre col dito: aggiungerne uno non stringe i
