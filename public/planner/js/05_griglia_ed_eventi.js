@@ -938,7 +938,10 @@ function buildMiniGroup(items, startMin, endMin) {
        inizio all'ultima fine: allungare il blocco fino a coprire i buchi
        direbbe che quel tempo è occupato quando non lo è. */
     var h = Math.max(5, minutiUnione(items) * pxMin());
-    node.style.height = h + 'px';
+    /* In calc sulla densita' come tutti gli altri blocchi: scritta in pixel
+       fissi, restava quella dello zoom precedente finche' non si ridisegnava,
+       e il gruppo non rispettava piu' i suoi orari rimpicciolendo la griglia. */
+    node.style.height = 'max(5px, calc(var(--pxm) * ' + minutiUnione(items) + '))';
 
     /* Se non ci sta nemmeno una riga di testo, il testo non ci va: si fa come
        con l'evento isolato, un tastino che apre l'elenco. Una scritta che

@@ -145,10 +145,16 @@ if (isset($_GET['ajax'])) {
         /* 0..24 ore in secondi: oltre e' un errore del client, non un dato */
         $tempoEsatto = sec_float($_POST['tempo_esatto'] ?? 0, 0, 86400, 0);
         
+        /* resume_time resta valorizzato: da in pausa non serve piu' a contare il
+           segmento (il tempo e' fermo, lo ignorano sia il client sia lo stato), e
+           diventa il MOMENTO DELLA PAUSA. Serve a «interrompi»: finire un
+           pomodoro dopo una lunga pausa deve chiuderlo a quando e' stato messo
+           in pausa, non all'ora in cui si preme Fine (con quella la durata era
+           giusta ma l'orario di fine no, e modificandola si ricalcolava male). */
         sec_q("UPDATE pomodoro_sessions
-               SET duration_seconds = ?, status = 'pausa', resume_time = NULL
+               SET duration_seconds = ?, status = 'pausa', resume_time = NOW() - INTERVAL ? SECOND
                WHERE id=? AND user_id=? AND end_time IS NULL",
-              [$tempoEsatto, $sid, (int)$current_user_id]);
+              [$tempoEsatto, pomo_ritardo(), $sid, (int)$current_user_id]);
 
         $row = sec_one("SELECT duration_seconds FROM pomodoro_sessions WHERE id=?", [$sid]);
         pomo_json(['success' => true, 'durata_secondi' => $row ? (int)$row['duration_seconds'] : 0]);
@@ -177,7 +183,9 @@ if (isset($_GET['ajax'])) {
             $rit = pomo_ritardo();
             sec_q("UPDATE pomodoro_sessions
                    SET duration_seconds = COALESCE(duration_seconds,0) + CASE WHEN status='pausa' THEN 0 ELSE GREATEST(0, TIMESTAMPDIFF(SECOND, COALESCE(resume_time, start_time), NOW() - INTERVAL ? SECOND)) END,
-                       end_time = NOW() - INTERVAL ? SECOND,
+                       end_time = CASE WHEN status='pausa'
+                                       THEN COALESCE(resume_time, DATE_ADD(start_time, INTERVAL COALESCE(duration_seconds,0) SECOND))
+                                       ELSE NOW() - INTERVAL ? SECOND END,
                        status='interrotto',
                        resume_time = NULL
                    WHERE id=? AND user_id=? AND end_time IS NULL", [$rit, $rit, $sid, (int)$current_user_id]);

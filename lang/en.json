@@ -5195,6 +5195,7 @@
     "hp_alle": "at {ora}",
     "hp_giorno_alle": "{giorno} at {ora}",
     "hp_saltato": "Skipped",
+    "tutte_prese": "All taken",
     "sposta_sinistra": "Move left",
     "sposta_destra": "Move right",
     "apri_todo": "Open to do",

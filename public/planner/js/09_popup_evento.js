@@ -118,6 +118,15 @@ function renderEventSheet() {
     trow2.appendChild(seg([['event', T('planner.evento')], ['task', T('planner.task')]], d.type, function (v) {
         d.type = v; S.draft.dirty = true; renderEventSheet();
     }));
+    /* La priorità sta sulla stessa riga, a destra: e' lo stesso tipo di scelta
+       (tre parole in un selettore), e prima occupava un campo intero piu' in
+       basso. Su schermi stretti va a capo ma resta allineata a destra. */
+    var prio = seg([['normal', T('planner.normale')], ['high', T('planner.importante')], ['highest', T('planner.importantissimo')]], d.importance, function (v) {
+        d.importance = v; S.draft.dirty = true; renderEventSheet();
+    });
+    prio.classList.add('pl-prio-seg');
+    prio.setAttribute('title', T('planner.importanza'));
+    trow2.appendChild(prio);
     f1.appendChild(trow2);
     body.appendChild(f1);
 
@@ -438,13 +447,7 @@ function renderEventSheet() {
     fc.appendChild(tags);
     body.appendChild(fc);
 
-    /* importanza */
-    var fi = el('div', 'pl-field');
-    fi.appendChild(el('label', 'pl-label', T('planner.importanza')));
-    fi.appendChild(seg([['normal', T('planner.normale')], ['high', T('planner.importante')], ['highest', T('planner.importantissimo')]], d.importance, function (v) {
-        d.importance = v; S.draft.dirty = true; renderEventSheet();
-    }));
-    body.appendChild(fi);
+    /* l'importanza e' ora sulla riga del tipo, in alto (vedi .pl-prio-seg) */
 
     /* notifica */
     var fn = el('div', 'pl-field');

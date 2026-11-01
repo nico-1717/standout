@@ -5683,6 +5683,7 @@ function vdCambia (pill, esito) {
         .then(function (d) {
             if (!d || !d.success) throw new Error('rifiutato');
             var giusta = d.answer === 'Correct';
+            try { if (window.FcGioco && FcGioco.cambiaVoto) FcGioco.cambiaVoto(giusta, card); } catch (e) {}
             pill.classList.toggle('ok', giusta);
             pill.classList.toggle('ko', !giusta);
             pill.querySelector('.gi').textContent = giusta ? '✓' : '✕';

@@ -4343,10 +4343,21 @@ document.addEventListener('click', function () {
    Il campo data nativo: sul telefono apre la rotella del sistema, che è quella
    che l'utente sa già usare. Il tasto lo apre e resta invisibile sotto. */
 window.prScegliData = function (id, campo, btn) {
+    /* Il campo resta nella pagina finche' non arriva la scelta (o ne serve un
+       altro). Prima si toglieva 300 ms dopo il blur: su telefono il selettore
+       di sistema fa perdere il fuoco al campo appena si apre, quindi il campo
+       spariva prima che la data venisse scelta e il cambio non arrivava mai.
+       Era anche fuori schermo (left:-9999px), cosa che Safari su iPhone non
+       sempre accetta per aprire il selettore: ora sta in un angolo, invisibile. */
+    var vecchio = document.getElementById('prDataNativa');
+    if (vecchio) vecchio.remove();
     var inp = document.createElement('input');
     inp.type = 'date';
+    inp.id = 'prDataNativa';
     inp.value = btn.dataset.valore || '';
-    inp.style.cssText = 'position:fixed;opacity:0;pointer-events:none;left:-9999px';
+    inp.setAttribute('aria-hidden', 'true');
+    inp.tabIndex = -1;
+    inp.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;border:0;padding:0;z-index:-1';
     document.body.appendChild(inp);
     inp.addEventListener('change', function () {
         var body = new URLSearchParams();
@@ -4354,13 +4365,15 @@ window.prScegliData = function (id, campo, btn) {
         body.set('campo', campo);
         body.set('valore', inp.value);
         fetch('progetti.php?ajax=salva_data', {
-            method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
-        }).then(function () { location.reload(); });
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
+        }).then(function (r) {
+            if (!r.ok) throw new Error('http ' + r.status);
+            location.reload();
+        }).catch(function () { toast(T('progetti.non_salvato')); });
     });
-    inp.addEventListener('blur', function () { setTimeout(function () { inp.remove(); }, 300); });
+    inp.focus({ preventScroll: true });
     if (inp.showPicker) { try { inp.showPicker(); return; } catch (err) {} }
-    inp.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999';
-    inp.focus();
     inp.click();
 };
 </script>

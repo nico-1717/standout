@@ -455,7 +455,9 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
    al suo contenuto non tocca mai l'altezza della barra sopra, quindi non
    può mai spingere via orari e priorità, nemmeno per errore. */
 .pl-mini{
-    position:fixed; left:12px; right:12px; z-index:59;
+    /* Sopra i tastini flottanti (anello abitudini, z-index 61): il calendario
+       aperto con 59 finiva sotto l'anello e lo lasciava in primo piano. */
+    position:fixed; left:12px; right:12px; z-index:62;
     top:calc(var(--topbar-h) + 6px);
     max-height:min(320px, calc(100dvh - var(--topbar-h) - 18px));
     padding:10px 9px 11px; border-radius:var(--r-lg);

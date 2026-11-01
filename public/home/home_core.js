@@ -243,6 +243,22 @@
         w.body = el('div', 'ho-wb'); w.body.style.display = 'flex'; w.body.style.flexDirection = 'column'; w.body.style.gap = '12px';
         if (def.bare) w.body.style.gap = '0';
         sec.appendChild(w.body);
+        /* Tutto il riquadro apre la sua pagina, non solo il tastino «Apri».
+           Si ignora quello che ha un gesto suo (tasti, link, campi, spunte), il
+           testo che si sta selezionando e la modalita' «Personalizza». La nota
+           resta fuori: ci si scrive e si tocca per mettere il cursore. */
+        if (def.link && !def.bare && id !== 'note') {
+            sec.classList.add('ho-w--link');
+            sec.addEventListener('click', function (e) {
+                if (e.defaultPrevented || e.button) return;
+                if (e.target.closest('a, button, input, textarea, select, label, form, summary, [role="button"], [contenteditable], .ho-ebar, .ho-ov')) return;
+                var host = sec.parentNode;
+                if (host && host.closest && host.closest('.ho-edit')) return;
+                var sel = window.getSelection && window.getSelection();
+                if (sel && !sel.isCollapsed) return;
+                window.location.href = H.base + def.link;
+            });
+        }
         if (def.build) def.build(w);
         /* Finche' i suoi dati non sono arrivati il riquadro mostra uno scheletro
            (testata e titolo restano): niente corpo vuoto che poi si riempie e

@@ -363,6 +363,34 @@
         salva();
     }
 
+    /* Il verdetto di una carta GIA' giocata e' stato cambiato (menu della
+       pastiglia in fc_game.php): la serie va aggiornata, altrimenti la fiamma
+       continuava a contare una risposta ora sbagliata. Non si conosce l'ordine
+       di tutte le risposte, ma quelle dopo questa carta si leggono nella pagina:
+       la serie non puo' superare le giuste di fila che vengono dopo di lei. */
+    function cambiaVoto(giusta, card) {
+        if (!S) return;
+        var dopo = 0;
+        var tutte = card ? $$('.card-box.graded:not(.anteprima-card)', card.parentNode || document) : [];
+        var i = tutte.indexOf(card);
+        if (i >= 0) {
+            for (var k = i + 1; k < tutte.length; k++) {
+                if (tutte[k].classList.contains('res-correct')) dopo++; else break;
+            }
+        }
+        var ultima = i >= 0 && i === tutte.length - 1;
+        if (giusta) {
+            S.blocco.giuste++; if (S.blocco.sbagliate > 0) S.blocco.sbagliate--;
+            if (ultima) S.serie = S.serie + 1;          // era sbagliata e chiudeva la serie: ora la riapre
+            if (S.serie > S.migliore) S.migliore = S.serie;
+        } else {
+            if (S.blocco.giuste > 0) S.blocco.giuste--; S.blocco.sbagliate++;
+            S.serie = Math.min(S.serie, dopo);
+        }
+        disegnaSerie(true);
+        salva();
+    }
+
     function livelloDopoVoto(card, giusta) {
         var s = card && statsDi(card);
         if (!s) return;
@@ -751,5 +779,5 @@
         }
     });
 
-    window.FcGioco = { voto: voto, pagina: pagina, _livello: livello, _checkpoint: function (k) { checkpoint(k || 1, 1, DATI ? DATI.fronte : 1, DATI ? DATI.totale : 10, false); } };
+    window.FcGioco = { voto: voto, cambiaVoto: cambiaVoto, pagina: pagina, _livello: livello, _checkpoint: function (k) { checkpoint(k || 1, 1, DATI ? DATI.fronte : 1, DATI ? DATI.totale : 10, false); } };
 })();

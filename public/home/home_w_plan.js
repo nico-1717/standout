@@ -362,10 +362,11 @@
                 setTimeout(function () { H.repaint(['agenda']); }, 260);
             }).catch(function (e) { riga.classList.remove('ho-av-via'); H.fail(e); });
         }
-        var ok = el('button', 'ho-av-ok'); ok.type = 'button'; ok.setAttribute('aria-label', T('home.presa'));
-        ok.appendChild(H.svg('check', 13, 3));
-        ok.addEventListener('click', function () { rispondi('taken'); });
-        riga.appendChild(ok);
+        /* Saltata a sinistra, presa a destra: il gesto «fatto» sta dove cade il
+           pollice, e il tasto che si preme di rado e' lontano da quello usuale. */
+        var sk = el('button', 'ho-av-salta', T('home.hp_saltato')); sk.type = 'button';
+        sk.addEventListener('click', function () { rispondi('skipped'); });
+        riga.appendChild(sk);
         var quando = late && p.date
             ? T('home.hp_giorno_alle', { giorno: H.fmtDate(p.date, { weekday: 'short' }).toLowerCase(), ora: p.time })
             : T('home.hp_alle', { ora: p.time });
@@ -374,9 +375,10 @@
         t.appendChild(el('b', null, p.name));
         t.appendChild(document.createTextNode(' ' + quando + '?'));
         riga.appendChild(t);
-        var sk = el('button', 'ho-av-salta', T('home.hp_saltato')); sk.type = 'button';
-        sk.addEventListener('click', function () { rispondi('skipped'); });
-        riga.appendChild(sk);
+        var ok = el('button', 'ho-av-ok'); ok.type = 'button'; ok.setAttribute('aria-label', T('home.presa'));
+        ok.appendChild(H.svg('check', 13, 3));
+        ok.addEventListener('click', function () { rispondi('taken'); });
+        riga.appendChild(ok);
         return riga;
     }
     function fillPills(body, w, d) {
@@ -385,6 +387,18 @@
         var list = el('div', 'ho-avs');
         if (!due.length) list.appendChild(el('div', 'ho-empty', T('home.nessuna_pillola')));
         due.forEach(function (x) { list.appendChild(avvisoPill(w, x.p, x.late)); });
+        /* «Tutte prese»: una sola mossa per chi ha dimenticato di segnare piu'
+           dosi. Ognuna risulta presa all'orario previsto (pill_mark_all). */
+        if (due.length > 1) {
+            var tutte = el('button', 'ho-av-tutte', T('home.tutte_prese')); tutte.type = 'button';
+            tutte.addEventListener('click', function () {
+                tutte.disabled = true;
+                H.api('planner/todo_api.php', 'pill_mark_all', { ids: due.map(function (x) { return x.p.id; }).join(','), mode: 'on_time' })
+                    .then(function () { due.forEach(function (x) { x.p.status = 'taken'; }); H.repaint(['agenda']); if (pillsSheet && pillsSheet.close) pillsSheet.close(); })
+                    .catch(function (e) { tutte.disabled = false; H.fail(e); });
+            });
+            body.appendChild(tutte);
+        }
         body.appendChild(list);
         var piede = el('div', 'ho-av-foot');
         piede.appendChild(openBtn('planner/todo.php?tab=pills', T('home.apri_pillole'), 'var(--purple)'));

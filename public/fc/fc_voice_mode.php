@@ -43,14 +43,6 @@
                 <span class="vg-cmd-badge vg-tint-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg></span>
                 <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_ripeti'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_ripeti'); ?></span></span>
             </div>
-            <div class="vg-cmd-row">
-                <span class="vg-cmd-badge vg-tint-blue"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.3" y="4.5" width="4" height="15" rx="1.3"/><rect x="13.7" y="4.5" width="4" height="15" rx="1.3"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_pausa'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_pausa'); ?></span></span>
-            </div>
-            <div class="vg-cmd-row">
-                <span class="vg-cmd-badge vg-tint-blue"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.3 5.06v13.88a1 1 0 0 0 1.53.85l11.14-6.94a1 1 0 0 0 0-1.7L9.83 4.21a1 1 0 0 0-1.53.85z"/></svg></span>
-                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_riprendi'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_riprendi'); ?></span></span>
-            </div>
 
             <div class="vg-group-label"><?php te('fc.vg_per_rispondere'); ?></div>
             <div class="vg-cmd-row">
@@ -180,7 +172,10 @@
    studia inglese con il sito in italiano spesso risponde «correct». Le
    etichette sullo schermo restano quelle della lingua del sito; qui ci sono
    solo le frasi che il microfono confronta. */
-$vg_intenti = ['ripeti', 'pausa', 'riprendi', 'risposta', 'leggi', 'spiega', 'metafora', 'corretto', 'errato', 'frantuma', 'chiudi'];
+/* «pausa» e «riprendi» tolti di proposito: in modalita' microfono non servono
+   piu' e si confondevano con altre frasi. doPausa/doRiprendi restano come codice
+   inutilizzato solo se servono in futuro, ma nessun comando le richiama. */
+$vg_intenti = ['ripeti', 'risposta', 'leggi', 'spiega', 'metafora', 'corretto', 'errato', 'frantuma', 'chiudi'];
 $vg_comandi = [];
 foreach (['it', 'en'] as $vg_l) {
     $vg_diz = standout_dizionario($vg_l);
@@ -457,8 +452,8 @@ foreach (['it', 'en'] as $vg_l) {
     /* Nelle parole non ci sono l'IA ne' "frantuma": comandi che non possono
        fare niente sono solo occasioni per capire male una frase. */
     var INTENTI = VG_DATI.vocab
-        ? ['ripeti', 'pausa', 'riprendi', 'risposta', 'corretto', 'errato']
-        : ['ripeti', 'pausa', 'riprendi', 'risposta', 'leggi', 'spiega', 'metafora', 'corretto', 'errato', 'frantuma', 'chiudi'];
+        ? ['ripeti', 'risposta', 'corretto', 'errato']
+        : ['ripeti', 'risposta', 'leggi', 'spiega', 'metafora', 'corretto', 'errato', 'frantuma', 'chiudi'];
     INTENTI.forEach(function (intento) {
         var frasi = [];
         LINGUE_CMD.forEach(function (l) { frasi = frasi.concat(elencoVirgole((VG_DATI.comandi[l] || {})[intento])); });
@@ -1355,8 +1350,6 @@ foreach (['it', 'en'] as $vg_l) {
 
     var HANDLERS = {
         ripeti: doRipeti,
-        pausa: doPausa,
-        riprendi: doRiprendi,
         risposta: doRisposta,
         /* «Leggi» non e' piu' un pulsante dell'IA: la lettura ad alta voce e'
            quella nativa, la stessa di «ripeti» nella fase della risposta. */
