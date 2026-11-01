@@ -12,6 +12,9 @@ Fa, nell'ordine, quello che fara' l'app:
   8. (con --all) lo stesso per un evento del planner: /api/v1/events
   9. (con --all) un'abitudine di prova col suo check-in: /api/v1/habits
  10. (con --all) un articolo e una categoria del to buy: /api/v1/shopping
+ 11. (con --all) l'immagine di un articolo (carica, rileggi, file sbagliato, togli)
+ 12. (con --all) una terapia di prova tra le pastiglie: /api/v1/pills
+ 13. (con --all) il diario: letture, una voce di elenco, errori di controllo
 
 Serve a due cose: provare il server locale prima del push, e provare il sito vero
 dopo il deploy (soprattutto che Apache lasci passare l'intestazione Authorization).
@@ -31,10 +34,13 @@ un evento, un'abitudine (col suo check-in) e un articolo con la sua categoria: o
 chiama «prova API (si cancella da sola)» e si toglie alla fine, anche se qualcosa va storto.
 Gli articoli di prova non vengono mai spuntati: spuntarli li metterebbe nei suggerimenti
 del to buy, e dall'API non si possono togliere di li'.
+La terapia di prova parte nel 2099 (nessuna presa di oggi) e non si segna mai come presa.
+Il diario non viene riscritto: la prova legge soltanto e aggiunge UNA voce di elenco
+al 1 gennaio 2000, che toglie alla fine; il testo e l'umore dei tuoi giorni non si toccano.
 
 Usa solo la libreria standard di Python: niente da installare.
 """
-import argparse, getpass, json, os, sys
+import argparse, base64, getpass, json, os, sys
 import urllib.request, urllib.error
 
 verdi = rossi = 0
@@ -216,13 +222,152 @@ def prova_acquisti(base, utente, password):
         chiama(base, 'POST', 'auth/logout', intestazioni=h)
 
 
+# Un PNG di 2x2 pixel (75 byte): basta per far passare i controlli sul contenuto.
+PNG_PROVA = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4XmM8ISfHwMDAxAAGAA0EAQiQ5XCBAAAAAElFTkSuQmCC')
+
+
+def chiama_file(base, metodo, percorso, contenuto, nome_file, intestazioni):
+    """Carica un file come multipart/form-data (campo «file»). Ritorna (stato, JSON o None)."""
+    conf = '----prova' + os.urandom(6).hex()
+    corpo = (('--%s\r\nContent-Disposition: form-data; name="file"; filename="%s"\r\nContent-Type: application/octet-stream\r\n\r\n'
+              % (conf, nome_file)).encode() + contenuto + ('\r\n--%s--\r\n' % conf).encode())
+    h = {'Accept': 'application/json', 'User-Agent': 'standout-prova-token/1', 'Content-Type': 'multipart/form-data; boundary=' + conf}
+    h.update(intestazioni)
+    req = urllib.request.Request(base.rstrip('/') + '/api/v1/' + percorso, data=corpo, headers=h, method=metodo)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            stato, testo = r.status, r.read().decode('utf-8', 'replace')
+    except urllib.error.HTTPError as e:
+        stato, testo = e.code, e.read().decode('utf-8', 'replace')
+    try:
+        return stato, json.loads(testo)
+    except ValueError:
+        return stato, None
+
+
+def leggi_file(base, percorso, intestazioni):
+    """GET che torna il file: (stato, tipo, byte)."""
+    h = {'User-Agent': 'standout-prova-token/1'}
+    h.update(intestazioni)
+    req = urllib.request.Request(base.rstrip('/') + '/api/v1/' + percorso, headers=h)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status, r.headers.get('Content-Type', ''), r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.headers.get('Content-Type', ''), e.read()
+
+
+def prova_immagine(base, utente, password):
+    """L'immagine di un articolo: carica, rileggi gli stessi byte, un file finto e' rifiutato, togli."""
+    print('\n11) Immagine di un articolo (/api/v1/shopping/{id}/image)')
+    h = accesso_prova(base, utente, password, 'immagine')
+    if not h:
+        return
+    art = None
+    try:
+        s, c, _ = chiama(base, 'POST', 'shopping', {'title': NOME_PROVA}, h)
+        if not esito(s == 201 and c and c.get('ok'), 'POST /shopping crea l\'articolo di prova (201)', f'stato {s}, {c}'):
+            return
+        art = c['item']['id']
+        s, r = chiama_file(base, 'POST', f'shopping/{art}/image', PNG_PROVA, 'prova.png', h)
+        esito(s == 200 and r and r.get('has_image') is True, 'POST /image carica il png (se qui c\'e\' 413 o 400: il server limita i caricamenti)', f'stato {s}, {r}')
+        s, tipo, byte = leggi_file(base, f'shopping/{art}/image', h)
+        esito(s == 200 and tipo.startswith('image/png') and byte == PNG_PROVA, 'GET /image da gli stessi byte, tipo image/png', f'stato {s}, tipo {tipo}, {len(byte)} byte')
+        s, e, _ = chiama(base, 'GET', 'shopping', intestazioni=h)
+        esito(s == 200 and any(x['id'] == art and x.get('has_image') is True for x in e.get('items', [])), 'l\'elenco segna has_image=true', f'stato {s}')
+        s, r = chiama_file(base, 'POST', f'shopping/{art}/image', b'questo non e\' un\'immagine\n', 'finto.png', h)
+        esito(s == 422 and r and r.get('field') == 'file', 'un testo con nome .png e\' rifiutato (422)', f'stato {s}, {r}')
+        s, tipo, byte = leggi_file(base, f'shopping/{art}/image', {})
+        esito(s == 401, 'senza token l\'immagine non si legge (401)', f'stato {s}')
+        s, d, _ = chiama(base, 'DELETE', f'shopping/{art}/image', intestazioni=h)
+        esito(s == 200, 'DELETE /image la toglie', f'stato {s}')
+        s, tipo, byte = leggi_file(base, f'shopping/{art}/image', h)
+        esito(s == 404, 'dopo, GET /image risponde 404', f'stato {s}')
+    finally:
+        if art is not None:
+            s, d, _ = chiama(base, 'DELETE', f'shopping/{art}', intestazioni=h)
+            esito(s == 200, 'DELETE toglie l\'articolo di prova', f'stato {s}')
+        chiama(base, 'POST', 'auth/logout', intestazioni=h)
+
+
+def prova_pillole(base, utente, password):
+    """Le pastiglie: una terapia che parte nel 2099 (nessuna presa oggi). Non si segna mai come presa."""
+    print('\n12) Pastiglie (/api/v1/pills)')
+    h = accesso_prova(base, utente, password, 'pastiglie')
+    if not h:
+        return
+    piano = None
+    try:
+        s, c, _ = chiama(base, 'POST', 'pills/plans', {'name': NOME_PROVA, 'times': '08:00', 'start_date': '2099-01-01'}, h)
+        if not esito(s == 201 and c and c.get('ok'), 'POST /pills/plans crea (201)', f'stato {s}, {c}'):
+            return
+        piano = c['plan']['id']
+        esito(c['plan']['times'] == '08:00x1' and c['plan']['active'] is True, 'la risposta ha l\'orario («08:00x1») e active=true', str(c['plan']))
+        s, e, _ = chiama(base, 'GET', 'pills/plans', intestazioni=h)
+        esito(s == 200 and any(x['id'] == piano for x in e.get('plans', [])), 'GET /pills/plans la mostra', f'stato {s}')
+        s, e, _ = chiama(base, 'GET', 'pills', intestazioni=h)
+        esito(s == 200 and e.get('installed') is True and not any(d['plan_id'] == piano for d in e.get('doses', [])), 'GET /pills: la giornata c\'e\' e la terapia del 2099 non ha prese oggi', f'stato {s}')
+        s, p, _ = chiama(base, 'PATCH', f'pills/plans/{piano}', {'dose': '1 cp'}, h)
+        esito(s == 200 and p['plan']['dose'] == '1 cp' and p['plan']['times'] == '08:00x1', 'PATCH cambia solo la dose', f'stato {s}, {p}')
+        s, v, _ = chiama(base, 'PATCH', f'pills/plans/{piano}', {'times': '25:99'}, h)
+        esito(s == 422 and v.get('field') == 'times', 'un orario sbagliato e\' rifiutato (422)', f'stato {s}')
+        s, x, _ = chiama(base, 'GET', 'pills')
+        esito(s == 401, 'senza token /pills risponde 401', f'stato {s}')
+    finally:
+        if piano is not None:
+            s, d, _ = chiama(base, 'DELETE', f'pills/plans/{piano}', intestazioni=h)
+            esito(s == 200, 'DELETE toglie la terapia di prova', f'stato {s}')
+            s, e, _ = chiama(base, 'GET', 'pills/plans', intestazioni=h)
+            esito(s == 200 and not any(x['id'] == piano for x in e.get('plans', [])), 'e non c\'e\' piu\' nell\'elenco', f'stato {s}')
+        chiama(base, 'POST', 'auth/logout', intestazioni=h)
+
+
+def prova_diario(base, utente, password):
+    """Il diario. Il testo e l'umore dei tuoi giorni NON si toccano: si legge, si controllano gli errori
+    e si aggiunge una voce di elenco al 2000-01-01 (poi tolta)."""
+    print('\n13) Diario (/api/v1/diary)')
+    h = accesso_prova(base, utente, password, 'diario')
+    if not h:
+        return
+    voce = None
+    GIORNO = '2000-01-01'
+    try:
+        s, g, _ = chiama(base, 'GET', 'diary/day', intestazioni=h)
+        esito(s == 200 and g.get('ok') and 'mood' in g['day'] and 'good' in g['day'] and 'settings' in g, 'GET /diary/day risponde con il giorno e le impostazioni', f'stato {s}')
+        s, m, _ = chiama(base, 'GET', 'diary/month', intestazioni=h)
+        esito(s == 200 and m.get('ok') and 'days' in m, 'GET /diary/month', f'stato {s}')
+        s, n, _ = chiama(base, 'GET', 'diary/insights', intestazioni=h)
+        esito(s == 200 and n.get('ok'), 'GET /diary/insights', f'stato {s}')
+        s, i, _ = chiama(base, 'GET', 'diary/settings', intestazioni=h)
+        esito(s == 200 and i['settings']['font'] and 14 <= i['settings']['size'] <= 26, 'GET /diary/settings', f'stato {s}, {i}')
+        s, v, _ = chiama(base, 'PATCH', 'diary/day', {'mood': 9}, h)
+        esito(s == 422 and v.get('field') == 'mood', 'un umore fuori da 1-5 e\' rifiutato (422), niente cambia', f'stato {s}')
+        s, v, _ = chiama(base, 'PATCH', 'diary/day', {}, h)
+        esito(s == 422 and v.get('field') == 'body', 'una PATCH vuota e\' rifiutata (422)', f'stato {s}')
+        s, c, _ = chiama(base, 'POST', 'diary/items', {'date': GIORNO, 'list_type': 'good', 'content': NOME_PROVA}, h)
+        if not esito(s == 201 and c and c.get('ok'), 'POST /diary/items aggiunge una voce al 2000-01-01 (201)', f'stato {s}, {c}'):
+            return
+        voce = c['item']['id']
+        s, g, _ = chiama(base, 'GET', f'diary/day?date={GIORNO}', intestazioni=h)
+        esito(s == 200 and any(x['id'] == voce for x in g['day']['good']), 'GET /diary/day?date= la mostra', f'stato {s}')
+        s, p, _ = chiama(base, 'PATCH', f'diary/items/{voce}', {'content': NOME_PROVA + ' 2'}, h)
+        esito(s == 200 and p['item']['content'].endswith(' 2'), 'PATCH cambia il testo della voce', f'stato {s}, {p}')
+        s, x, _ = chiama(base, 'GET', 'diary/day')
+        esito(s == 401, 'senza token /diary risponde 401', f'stato {s}')
+    finally:
+        if voce is not None:
+            s, d, _ = chiama(base, 'DELETE', f'diary/items/{voce}', intestazioni=h)
+            esito(s == 200, 'DELETE toglie la voce di prova', f'stato {s}')
+        chiama(base, 'POST', 'auth/logout', intestazioni=h)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Prova l'accesso con token di Standout.")
     ap.add_argument('--url', default=os.environ.get('STANDOUT_URL', ''), help='indirizzo del sito, senza /api/v1')
     ap.add_argument('--user', default=os.environ.get('STANDOUT_USER', ''), help='nome utente o email')
     ap.add_argument('--xtoken', action='store_true', help="prova anche l'intestazione X-Standout-Token")
     ap.add_argument('--tasks', action='store_true', help="prova anche /api/v1/tasks (crea e toglie un'attivita' di prova)")
-    ap.add_argument('--all', action='store_true', help="prova anche attivita', planner, abitudini e to buy (ognuno con una cosa di prova che si toglie da sola)")
+    ap.add_argument('--all', action='store_true', help="prova anche attivita', planner, abitudini, to buy (con immagine), pastiglie e diario (ognuno con una cosa di prova che si toglie da sola)")
     a = ap.parse_args()
 
     if not a.url:
@@ -300,6 +445,9 @@ def main():
         prova_eventi(base, utente, password)
         prova_abitudini(base, utente, password)
         prova_acquisti(base, utente, password)
+        prova_immagine(base, utente, password)
+        prova_pillole(base, utente, password)
+        prova_diario(base, utente, password)
 
     print('\nRisultato: %d ok, %d falliti' % (verdi, rossi))
     sys.exit(1 if rossi else 0)
