@@ -3346,3 +3346,269 @@ CREATE TABLE IF NOT EXISTS `password_resets` (
   KEY `utente_data` (`user_id`, `created_at`),
   CONSTRAINT `fk_password_resets_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+-- ===== SINCRONIZZAZIONE APP (generato da tools/genera_migrazioni_sync.py; stesse modifiche delle migrazioni 2026-11-01_sync_*) =====
+CREATE TABLE IF NOT EXISTS `sync_changes` (
+  `seq` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` INT NOT NULL,
+  `tbl` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT 'Nome della tabella sincronizzata',
+  `row_uuid` CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `op` ENUM('upsert','delete') CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `changed_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `device_id` INT NULL DEFAULT NULL COMMENT 'api_sessions.id di chi ha scritto (NULL = il sito): quel telefono non riscarica il proprio cambio',
+  PRIMARY KEY (`seq`),
+  KEY `idx_sync_utente_seq` (`user_id`, `seq`),
+  KEY `idx_sync_riga` (`user_id`, `tbl`, `row_uuid`, `seq`),
+  KEY `idx_sync_data` (`changed_at`),
+  CONSTRAINT `fk_sync_changes_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `sync_mutations` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` INT NOT NULL,
+  `mutation_id` CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `result` VARCHAR(255) NOT NULL COMMENT 'Esito salvato: applied | conflict_resolved | rejected:<codice>',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_sync_mutazione` (`user_id`, `mutation_id`),
+  KEY `idx_sync_mut_data` (`created_at`),
+  CONSTRAINT `fk_sync_mutations_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `sync_conflicts` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` INT NOT NULL,
+  `tbl` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `row_uuid` CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `field` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `other_value` MEDIUMTEXT NOT NULL COMMENT 'La versione che NON e'' rimasta come testo principale',
+  `device_id` INT NULL DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `resolved_at` DATETIME NULL DEFAULT NULL COMMENT 'L''utente l''ha guardata (o l''ha tenuta)',
+  PRIMARY KEY (`id`),
+  KEY `idx_sync_conf_utente` (`user_id`, `resolved_at`),
+  CONSTRAINT `fk_sync_conflicts_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `sync_meta` (
+  `k` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `v` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`k`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- il pavimento parte da 0: nessun telefono e' ancora fuori sincrono
+INSERT IGNORE INTO `sync_meta` (`k`, `v`) VALUES ('purged_up_to_seq', 0);
+ALTER TABLE `todos` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `todos` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `todos` ADD UNIQUE KEY `uq_todos_uuid` (`uuid`);
+ALTER TABLE `todos` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `todo_buy_categories` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `todo_buy_categories` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `todo_buy_categories` ADD UNIQUE KEY `uq_todo_buy_categories_uuid` (`uuid`);
+ALTER TABLE `todo_buy_categories` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `todo_buy_categories` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `habit_categories` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `habit_categories` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `habit_categories` ADD UNIQUE KEY `uq_habit_categories_uuid` (`uuid`);
+ALTER TABLE `habit_categories` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `habit_categories` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `habits` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `habits` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `habits` ADD UNIQUE KEY `uq_habits_uuid` (`uuid`);
+ALTER TABLE `habits` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `habit_logs` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `habit_logs` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `habit_logs` ADD UNIQUE KEY `uq_habit_logs_uuid` (`uuid`);
+ALTER TABLE `habit_log_events` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `habit_log_events` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `habit_log_events` ADD UNIQUE KEY `uq_habit_log_events_uuid` (`uuid`);
+ALTER TABLE `habit_daily_journal` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `habit_daily_journal` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `habit_daily_journal` ADD UNIQUE KEY `uq_habit_daily_journal_uuid` (`uuid`);
+ALTER TABLE `habit_user_achievements` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `habit_user_achievements` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `habit_user_achievements` ADD UNIQUE KEY `uq_habit_user_achievements_uuid` (`uuid`);
+ALTER TABLE `habit_reminders` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `habit_reminders` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `habit_reminders` ADD UNIQUE KEY `uq_habit_reminders_uuid` (`uuid`);
+ALTER TABLE `habit_reminders` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `pill_plans` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `pill_plans` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `pill_plans` ADD UNIQUE KEY `uq_pill_plans_uuid` (`uuid`);
+ALTER TABLE `pill_plans` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `pill_doses` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `pill_doses` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `pill_doses` ADD UNIQUE KEY `uq_pill_doses_uuid` (`uuid`);
+ALTER TABLE `pill_doses` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `diary_list_items` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `diary_list_items` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `diary_list_items` ADD UNIQUE KEY `uq_diary_list_items_uuid` (`uuid`);
+ALTER TABLE `diary_list_items` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `diary_ai_books` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `diary_ai_books` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `diary_ai_books` ADD UNIQUE KEY `uq_diary_ai_books_uuid` (`uuid`);
+ALTER TABLE `diary_ai_reports` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `diary_ai_reports` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `diary_ai_reports` ADD UNIQUE KEY `uq_diary_ai_reports_uuid` (`uuid`);
+ALTER TABLE `diary_ai_reports` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_quick_drafts` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_quick_drafts` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_quick_drafts` ADD UNIQUE KEY `uq_fc_quick_drafts_uuid` (`uuid`);
+ALTER TABLE `fc_quick_drafts` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `planner_calendars` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `planner_calendars` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `planner_calendars` ADD UNIQUE KEY `uq_planner_calendars_uuid` (`uuid`);
+ALTER TABLE `planner_calendars` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `planner_calendars` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `planner_categories` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `planner_categories` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `planner_categories` ADD UNIQUE KEY `uq_planner_categories_uuid` (`uuid`);
+ALTER TABLE `planner_categories` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `planner_categories` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `planner_category_keywords` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `planner_category_keywords` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `planner_category_keywords` ADD UNIQUE KEY `uq_planner_category_keywords_uuid` (`uuid`);
+ALTER TABLE `planner_category_keywords` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `planner_places` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `planner_places` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `planner_places` ADD UNIQUE KEY `uq_planner_places_uuid` (`uuid`);
+ALTER TABLE `planner_places` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `planner_places` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `planner_priorities` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `planner_priorities` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `planner_priorities` ADD UNIQUE KEY `uq_planner_priorities_uuid` (`uuid`);
+ALTER TABLE `planner_priorities` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `planner_routines` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `planner_routines` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `planner_routines` ADD UNIQUE KEY `uq_planner_routines_uuid` (`uuid`);
+ALTER TABLE `planner_routines` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `planner_routines` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `planner_routine_items` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `planner_routine_items` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `planner_routine_items` ADD UNIQUE KEY `uq_planner_routine_items_uuid` (`uuid`);
+ALTER TABLE `planner_routine_items` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `planner_routine_items` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `planner_events` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `planner_events` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `planner_events` ADD UNIQUE KEY `uq_planner_events_uuid` (`uuid`);
+ALTER TABLE `planner_events` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `planner_weeks` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `planner_weeks` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `planner_weeks` ADD UNIQUE KEY `uq_planner_weeks_uuid` (`uuid`);
+ALTER TABLE `planner_week_lists` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `planner_week_lists` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `planner_week_lists` ADD UNIQUE KEY `uq_planner_week_lists_uuid` (`uuid`);
+ALTER TABLE `planner_week_lists` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `planner_week_lists` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `planner_week_list_items` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `planner_week_list_items` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `planner_week_list_items` ADD UNIQUE KEY `uq_planner_week_list_items_uuid` (`uuid`);
+ALTER TABLE `planner_week_list_items` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `planner_week_list_items` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `event_guests` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `event_guests` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `event_guests` ADD UNIQUE KEY `uq_event_guests_uuid` (`uuid`);
+ALTER TABLE `event_guests` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `contacts` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `contacts` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `contacts` ADD UNIQUE KEY `uq_contacts_uuid` (`uuid`);
+ALTER TABLE `contacts` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `projects` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `projects` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `projects` ADD UNIQUE KEY `uq_projects_uuid` (`uuid`);
+ALTER TABLE `projects` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `pomodoro_sessions` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `pomodoro_sessions` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `pomodoro_sessions` ADD UNIQUE KEY `uq_pomodoro_sessions_uuid` (`uuid`);
+ALTER TABLE `pomodoro_sessions` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `pomodoro_custom_durations` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `pomodoro_custom_durations` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `pomodoro_custom_durations` ADD UNIQUE KEY `uq_pomodoro_custom_durations_uuid` (`uuid`);
+ALTER TABLE `pomodoro_custom_durations` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `pomodoro_settings` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `pomodoro_current_breaks` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `plan_templates` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `plan_templates` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `plan_templates` ADD UNIQUE KEY `uq_plan_templates_uuid` (`uuid`);
+ALTER TABLE `plan_templates` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `study_templates` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `study_templates` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `study_templates` ADD UNIQUE KEY `uq_study_templates_uuid` (`uuid`);
+ALTER TABLE `study_templates` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `university_exams` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `university_exams` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `university_exams` ADD UNIQUE KEY `uq_university_exams_uuid` (`uuid`);
+ALTER TABLE `university_exams` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `university_exam_groups` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `university_exam_groups` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `university_exam_groups` ADD UNIQUE KEY `uq_university_exam_groups_uuid` (`uuid`);
+ALTER TABLE `university_exam_groups` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `university_exam_groups` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `university_bonuses` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `university_bonuses` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `university_bonuses` ADD UNIQUE KEY `uq_university_bonuses_uuid` (`uuid`);
+ALTER TABLE `university_bonuses` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `university_bonuses` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `fc_study_decks` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_study_decks` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_study_decks` ADD UNIQUE KEY `uq_fc_study_decks_uuid` (`uuid`);
+ALTER TABLE `fc_study_decks` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_study_cards` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_study_cards` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_study_cards` ADD UNIQUE KEY `uq_fc_study_cards_uuid` (`uuid`);
+ALTER TABLE `fc_study_cards` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_study_cards` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `fc_study_subcards` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_study_subcards` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_study_subcards` ADD UNIQUE KEY `uq_fc_study_subcards_uuid` (`uuid`);
+ALTER TABLE `fc_study_subcards` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_study_subcards` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `fc_study_examples` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_study_examples` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_study_examples` ADD UNIQUE KEY `uq_fc_study_examples_uuid` (`uuid`);
+ALTER TABLE `fc_study_examples` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_study_favorites` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_study_favorites` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_study_favorites` ADD UNIQUE KEY `uq_fc_study_favorites_uuid` (`uuid`);
+ALTER TABLE `fc_study_favorites` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_games` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_games` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_games` ADD UNIQUE KEY `uq_fc_games_uuid` (`uuid`);
+ALTER TABLE `fc_games` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_game_durations` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_game_durations` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_game_durations` ADD UNIQUE KEY `uq_fc_game_durations_uuid` (`uuid`);
+ALTER TABLE `fc_study_plays` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_study_plays` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_study_plays` ADD UNIQUE KEY `uq_fc_study_plays_uuid` (`uuid`);
+ALTER TABLE `fc_vocab_courses` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_vocab_courses` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_vocab_courses` ADD UNIQUE KEY `uq_fc_vocab_courses_uuid` (`uuid`);
+ALTER TABLE `fc_vocab_courses` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_vocab_courses` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `fc_vocab_decks` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_vocab_decks` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_vocab_decks` ADD UNIQUE KEY `uq_fc_vocab_decks_uuid` (`uuid`);
+ALTER TABLE `fc_vocab_decks` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_vocab_cards` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_vocab_cards` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_vocab_cards` ADD UNIQUE KEY `uq_fc_vocab_cards_uuid` (`uuid`);
+ALTER TABLE `fc_vocab_cards` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_vocab_cards` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `fc_vocab_subcards` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_vocab_subcards` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_vocab_subcards` ADD UNIQUE KEY `uq_fc_vocab_subcards_uuid` (`uuid`);
+ALTER TABLE `fc_vocab_subcards` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_vocab_subcards` ADD COLUMN `sort_key` VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL COMMENT 'Posizione nella lista: stringa di fractional-indexing (si ordina come testo binario)';
+ALTER TABLE `fc_vocab_examples` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_vocab_examples` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_vocab_examples` ADD UNIQUE KEY `uq_fc_vocab_examples_uuid` (`uuid`);
+ALTER TABLE `fc_vocab_examples` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_vocab_favorites` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_vocab_favorites` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_vocab_favorites` ADD UNIQUE KEY `uq_fc_vocab_favorites_uuid` (`uuid`);
+ALTER TABLE `fc_vocab_favorites` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE `fc_vocab_plays` ADD COLUMN `uuid` CHAR(36) NULL COMMENT 'Identita'' della riga per l''app (UUID); l''id numerico resta quello del sito';
+ALTER TABLE `fc_vocab_plays` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUID());
+ALTER TABLE `fc_vocab_plays` ADD UNIQUE KEY `uq_fc_vocab_plays_uuid` (`uuid`);
