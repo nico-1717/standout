@@ -459,8 +459,8 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 .fmt-switch{
     display:inline-flex; align-items:center; justify-content:center;
     position:relative; flex:0 0 auto;
-    background:transparent; border:none; border-radius:11px; cursor:pointer;
-    width:40px; height:38px; padding:0; color:var(--text-2,#8A8A8E);
+    background:transparent; border:none; border-radius:999px; cursor:pointer;
+    width:36px; height:32px; padding:0; color:var(--text-2,#8A8A8E);
     transition:transform .14s var(--spring,cubic-bezier(.32,.72,0,1)), color .18s, background .18s;
 }
 .fmt-switch:active{ transform:scale(.88); }
@@ -499,7 +499,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 /* ---------------- la barra ---------------- */
 .fmt-toolbar{
     background:var(--surface-2,#EFEFF4);
-    border-radius:16px;
+    border-radius:22px;
     box-shadow:inset 0 0 0 .5px var(--hairline,rgba(60,60,67,.12));
     overflow:hidden;
     /* Chiusa si stringe sul tastino; aperta prende tutta la larghezza.
@@ -547,8 +547,8 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
    vedersi, quindi e' sempre visibile. */
 .fmt-portale .fmt-toolbar{ margin-bottom:0; max-height:none; opacity:1; }
 .fmt-portale.fmt-chiusa .fmt-toolbar{ border-radius:999px; }
-.fmt-portale.fmt-chiusa .fmt-row{ border-radius:999px; padding:5px; }
-.fmt-portale.fmt-chiusa .fmt-switch{ border-radius:999px; width:38px; }
+.fmt-portale.fmt-chiusa .fmt-row{ border-radius:999px; padding:3px; }
+.fmt-portale.fmt-chiusa .fmt-switch{ border-radius:999px; width:34px; }
 .fmt-portale.fmt-chiusa .fmt-tools{ max-width:0; opacity:0; margin-left:-4px; }
 .fmt-portale.fmt-chiusa .fmt-switch-pallino{ opacity:1; transform:scale(1); }
 
@@ -580,8 +580,8 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 /* Chiusa la barra e' un solo tasto: e allora che sia un tasto tondo, non un
    rettangolo con dentro una cosa sola. */
 .fmt-editor-wrap.fmt-chiusa .fmt-toolbar{ border-radius:999px; }
-.fmt-editor-wrap.fmt-chiusa .fmt-row{ border-radius:999px; padding:5px; }
-.fmt-editor-wrap.fmt-chiusa .fmt-switch{ border-radius:999px; width:38px; }
+.fmt-editor-wrap.fmt-chiusa .fmt-row{ border-radius:999px; padding:3px; }
+.fmt-editor-wrap.fmt-chiusa .fmt-switch{ border-radius:999px; width:34px; }
 /* La larghezza la decide la riga di SOPRA, e nessun altro. Il cassetto e i
    suoi pannelli non devono poter allargare la barra: se lo facessero, aprire
    i colori la farebbe crescere di colpo, e le righe di colori non avrebbero
@@ -595,16 +595,16 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 /* sezione di sopra: le famiglie */
 .fmt-row{
     display:flex; align-items:center; gap:2px;
-    padding:6px 8px;
+    padding:3px 5px;
     position:relative; z-index:2;                 /* sta SOPRA il cassetto */
     background:var(--surface-2,#EFEFF4);          /* copre il pannello che rientra */
-    border-radius:16px 16px 0 0;
+    border-radius:22px 22px 0 0;
 }
 
 /* ---------------- i tasti ---------------- */
 .fmt-btn{
-    background:transparent; border:none; border-radius:11px; cursor:pointer;
-    min-width:40px; height:38px; padding:0 8px;
+    background:transparent; border:none; border-radius:999px; cursor:pointer;
+    min-width:36px; height:32px; padding:0 6px;
     font-size:15px; font-weight:650; font-family:inherit;
     color:var(--text,#1C1C1E);
     display:flex; align-items:center; justify-content:center; gap:6px;
@@ -632,10 +632,10 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 /* Dentro i pannelli i tasti sono un po' piu' stretti della riga di sopra: la
    larghezza totale e' fissa, quindi ogni pixel tolto qui e' un pixel in piu'
    per i colori, che sono la parte che deve scorrere. */
-.fmt-panel .fmt-btn{ min-width:36px; padding:0 5px; }
+.fmt-panel .fmt-btn{ min-width:32px; height:30px; padding:0 5px; }
 .fmt-panel .fmt-sep{ margin:0 4px; }
 
-.fmt-sep{ width:1px; height:22px; background:var(--hairline-2,rgba(60,60,67,.18)); margin:0 6px; flex-shrink:0; }
+.fmt-sep{ width:1px; height:18px; background:var(--hairline-2,rgba(60,60,67,.18)); margin:0 6px; flex-shrink:0; }
 
 .fmt-ix{ font-style:italic; font-family:Georgia,"Times New Roman",serif; font-size:17px; color:var(--blue,#007AFF); }
 
@@ -663,7 +663,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 }
 .fmt-panel{
     display:flex; align-items:center; gap:2px;
-    padding:6px 8px 8px;
+    padding:3px 6px 5px;
     transform:translateY(-100%);
     transition:transform .34s var(--spring,cubic-bezier(.32,.72,0,1));
 }
@@ -696,7 +696,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 .fmt-lingue{ gap:6px; }
 
 .fmt-pop-dot{
-    width:24px; height:24px; border-radius:50%; border:none; cursor:pointer;
+    width:22px; height:22px; border-radius:50%; border:none; cursor:pointer;
     padding:0; flex-shrink:0; scroll-snap-align:center;
     box-shadow:inset 0 0 0 1px rgba(0,0,0,.07);
     transition:transform .14s var(--spring,cubic-bezier(.32,.72,0,1));
@@ -757,7 +757,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 }
 .fmt-panel-2{
     display:flex; align-items:center;
-    padding:2px 8px 8px;
+    padding:2px 6px 5px;
     transform:translateY(-100%);
     transition:transform .32s var(--spring,cubic-bezier(.32,.72,0,1));
 }
