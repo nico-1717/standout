@@ -5288,7 +5288,7 @@ function ftSetupEditor(wrap) {
         if (!t) return;
         /* Testo copiato da una chat o da un file Markdown: i blocchi ```python ... ```
            diventano blocchi di codice veri, con la lingua giusta. */
-        if (/^```/m.test(t)) {
+        if (fcdHaMarkdown(t)) {
             ftCmd(wrap, function (d, s2) {
                 var nuovi = fcdFromFences(t);
                 var b = d.blocks[s2.a.b];

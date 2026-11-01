@@ -556,15 +556,66 @@ function fcdSetCodeLang(doc, sel, lang) {
     return { doc: fcdNorm(doc), sel: sel };
 }
 
+/* Il testo incollato "sembra Markdown"? Bastano un titolo (#), un punto di
+   elenco, un **grassetto** o un blocco ```: cosi' il testo normale con un
+   asterisco o un trattino in mezzo non viene toccato. */
+function fcdHaMarkdown(t) {
+    return /^```/m.test(t) || /^\s{0,3}#{1,6}\s+\S/m.test(t) || /^\s*(?:[-*+]|\d+[.)])\s+\S/m.test(t) || /\*\*[^*\s][^*\n]*[^*\s]\*\*/.test(t);
+}
+
+/* Il testo di una riga Markdown, con **grassetto**, *corsivo* e `codice` in
+   linea e le formule $...$, diventa i pezzi (run) del modello. I marchi sono
+   quelli di sempre (b, i): nessun carattere speciale resta nel testo. */
+function fcdMdRuns(t, base) {
+    var runs = [];
+    function conMarchio(b, k) { var o = {}; for (var x in (b || {})) o[x] = b[x]; o[k] = 1; return o; }
+    function formule(txt, m) {
+        txt.split(/(\$[^$\n]+\$)/).forEach(function (pz) {
+            if (!pz) return;
+            var f = /^\$([^$\n]+)\$$/.exec(pz);
+            if (f) { var r = { x: f[1] }; if (m) r.m = fcdCloneMarks(m); runs.push(r); }
+            else { var r2 = { s: pz }; if (m) r2.m = fcdCloneMarks(m); runs.push(r2); }
+        });
+    }
+    var re = /\*\*(?=\S)([^\n]+?)(?<=\S)\*\*|(?<![\w*])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![\w*])|`([^`\n]+)`/g, last = 0, m;
+    while ((m = re.exec(t))) {
+        if (m.index > last) formule(t.slice(last, m.index), base);
+        if (m[1] != null) { formule(m[1], conMarchio(base, 'b')); }
+        else if (m[2] != null) { formule(m[2], conMarchio(base, 'i')); }
+        else formule(m[3], base);            // `codice` in linea: resta testo, senza i apici
+        last = re.lastIndex;
+    }
+    if (last < t.length) formule(t.slice(last), base);
+    return runs;
+}
+
+/* Una riga Markdown -> un blocco: «- voce» e «1. voce» diventano punti (con il
+   livello dato dal rientro), «# Titolo» una riga in grassetto, «> citazione»
+   perde il segno. */
+function fcdMdLine(l) {
+    var m = /^(\s*)(?:[-*+]|\d+[.)])\s+(.*)$/.exec(l);
+    if (m) {
+        var rientro = m[1].replace(/\t/g, '    ').length;
+        return { t: 'li', lvl: Math.min(6, 1 + Math.ceil(rientro / 4)), runs: fcdMdRuns(m[2]) };
+    }
+    m = /^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/.exec(l);
+    if (m) return { t: 'p', runs: fcdMdRuns(m[1], { b: 1 }) };
+    m = /^\s{0,3}>\s?(.*)$/.exec(l);
+    if (m) l = m[1];
+    if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(l)) return { t: 'p', runs: [] };   // la riga ---
+    return { t: 'p', runs: l ? fcdMdRuns(l) : [] };
+}
+
 /* Il testo con i blocchi ```lingua ... ``` (come lo scrivono le chat e Markdown)
-   diventa blocchi di codice. Il resto resta testo, una riga per paragrafo. */
+   diventa blocchi di codice. Il resto e' Markdown letto riga per riga. */
 function fcdFromFences(text) {
     var out = [], re = /```([\w+#-]*)[ \t]*\n([\s\S]*?)(?:\n```|$)/g, last = 0, m;
     var MAP = { py: 'python', python: 'python', 'c++': 'cpp', cpp: 'cpp', c: 'c', java: 'java', javascript: 'js', js: 'js', typescript: 'ts', ts: 'ts', sql: 'sql', html: 'html', css: 'css', bash: 'bash', sh: 'bash', shell: 'bash', json: 'json', 'c#': 'csharp', csharp: 'csharp', php: 'php' };
     function righe(t, code) {
         t.split('\n').forEach(function (l) {
+            if (!code) { out.push(fcdMdLine(l)); return; }
             var b = { t: 'p', runs: l ? [{ s: l }] : [] };
-            if (code) b.code = code;
+            b.code = code;
             out.push(b);
         });
     }
