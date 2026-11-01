@@ -445,6 +445,9 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
 
 
 <head>
+    <?php /* fc_parser.js inietta il proprio <style> solo col nonce della CSP, che legge da questo meta:
+             senza, il browser scarta quello stile e colori, elenchi ecc. delle flashcard non si vedono. */ ?>
+    <meta name="csp-nonce" content="<?php echo sec_nonce(); ?>">
 
 
 
@@ -522,7 +525,7 @@ $resume_position = fc_ripresa_posizione((int)$game_id, fc_is_vocab() ? 'vocab' :
              parseTextForPreview: qui basta che li scriva cosi' come sono. */ ?>
     <script nonce="<?php echo sec_nonce(); ?>">window.parseTextForPreview = function (s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };</script>
     <?php else: ?>
-    <script src="fc_parser.js"></script>
+    <script src="fc_parser.js?v=<?php echo @filemtime(__DIR__ . '/fc_parser.js') ?: 1; ?>"></script>
     <?php endif; ?>
     <?php /* Il riquadro "N esempi" e' un componente condiviso, non codice di
              questa pagina: lo stesso usato da fc_view.php e

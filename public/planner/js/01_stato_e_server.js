@@ -578,7 +578,11 @@ function togliDaGiorni(id) {
     for (var g in S.events) if (S.events.hasOwnProperty(g)) {
         var l = S.events[g];
         if (!l || !l.length) continue;
-        var f = l.filter(function (x) { return x.id !== id; });
+        /* confronto fra stringhe: l'id arriva a volte come numero (dal server) e a
+           volte come testo (dal modulo), e con !== le due copie dello stesso
+           evento non si riconoscevano: ne restavano due sullo schermo finche' non
+           si ricaricava la pagina */
+        var f = l.filter(function (x) { return String(x.id) !== String(id); });
         if (f.length !== l.length) S.events[g] = f;
     }
 }
@@ -834,7 +838,7 @@ function indexEvents(list, clearRange, senzaLocali) {
     }
     function posa(giorno, ev) {
         if (!S.events[giorno]) S.events[giorno] = [];
-        S.events[giorno] = S.events[giorno].filter(function (x) { return x.id !== ev.id; });
+        S.events[giorno] = S.events[giorno].filter(function (x) { return String(x.id) !== String(ev.id); });
         S.events[giorno].push(ev);
     }
     (list || []).forEach(function (ev) {

@@ -1408,6 +1408,9 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 <html lang="<?php echo htmlspecialchars(standout_lingua(), ENT_QUOTES); ?>" class="fcv-sig-<?php echo sec_h($fc_imp['significato']); ?> fcv-es-<?php echo sec_h($fc_imp['esempi']); ?>">
 
 <head>
+    <?php /* fc_parser.js inietta il proprio <style> solo col nonce della CSP, che legge da questo meta:
+             senza, il browser scarta quello stile e colori, elenchi ecc. delle flashcard non si vedono. */ ?>
+    <meta name="csp-nonce" content="<?php echo sec_nonce(); ?>">
 
     <meta charset="UTF-8">
 
@@ -1534,7 +1537,7 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
     <?php if ($fc_vocab): /* fc_parser vive solo nelle flashcard di studio */ ?>
     <script src="<?php echo PWA_BASE; ?>fc/fc_speak.js?v=<?php echo @filemtime(__DIR__ . '/fc_speak.js') ?: 1; ?>"></script>
     <?php else: ?>
-    <script src="fc_parser.js"></script>
+    <script src="fc_parser.js?v=<?php echo @filemtime(__DIR__ . '/fc_parser.js') ?: 1; ?>"></script>
     <?php endif; ?>
 </head>
 
@@ -5787,6 +5790,26 @@ function segnaCartaValutataInPagina (card, esito) {
     card.classList.add('graded');
     card.classList.add(esito === 'correct' ? 'res-correct' : 'res-wrong');
     card.setAttribute('data-swipe', '0');
+
+    /* Rete di sicurezza contro il "buco nero" sotto una carta sbagliata: se due
+       voti ravvicinati si accavallano, un'altra carta della pagina puo' essere
+       rimasta con l'uscita dello swipe addosso (opacita' 0 / fuori schermo) e
+       occupa spazio senza vedersi. Le carte NON ancora valutate non devono mai
+       essere invisibili, quindi qui si rimettono a posto. */
+    var contRete = card.closest ? card.closest('.container') : null;
+    if (contRete) {
+        contRete.querySelectorAll('.card-box:not(.anteprima-card)').forEach(function (c) {
+            if (c === card) return;
+            if (c.style.opacity === '0' && !c.classList.contains('graded')) {
+                c.style.transition = 'none';
+                c.style.transform = '';
+                c.style.opacity = '';
+                c.style.zIndex = '';
+            }
+        });
+    }
+    /* un'anteprima rimasta appesa sopra la pagina viene tolta, non deve mai restare */
+    try { if (window.togliAnteprima) window.togliAnteprima(true); } catch (e) {}
 
     avanzaBarraCarte(esito);
 

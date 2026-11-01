@@ -432,6 +432,19 @@ function renderDays(soloVisibile) {
     if (S.interacting) { S.renderPending = true; return; }
     S.renderPending = false;
     var z = zoomCfg(S.zoom);
+    /* Fuori da uno swipe fra giorni le colonne non devono avere nessun margine
+       in alto. Lo swipe ne scrive uno temporaneo (07_navigazione.js, per
+       allineare gli orari fra giorni con la fascia in alto piu' o meno alta) e
+       lo toglie alla fine: se lo swipe viene annullato o interrotto resta li',
+       e la griglia scivola in basso rispetto al righello degli orari - dopo lo
+       zoom i blocchi comparivano a un'ora sbagliata (19:00 disegnato verso le
+       22:00). Cosi' ogni ridisegno lo ripulisce. */
+    if (typeof PS !== 'undefined' && !PS.on && !Object.keys(PS.panes || {}).length) {
+        var colTutte = document.querySelectorAll('#plTrack .pl-col');
+        for (var ci = 0; ci < colTutte.length; ci++) { if (colTutte[ci].style.marginTop) colTutte[ci].style.marginTop = ''; }
+        var scrl = $('plScroller');
+        if (scrl && scrl.style.top) scrl.style.top = '';
+    }
     /* Durante il pizzico si ridisegna SOLO il giorno che si sta guardando.
        La striscia ne tiene pronti ventuno: rifarli tutti a ogni fotogramma
        era il lavoro che faceva cadere la pagina, e diciannove di quelli non
