@@ -1087,9 +1087,11 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 
 /* la vista Calendario: la cornice arriva fino in fondo allo schermo, senza
    il margine che le altre viste lasciano sotto (era la striscia nera) */
-body.pr-vista-cal{ padding-bottom:0; overflow:hidden; }
+body.pr-vista-cal{ padding-bottom:0; }
 body.pr-vista-cal .page{ padding-bottom:0; }
-html:has(body.pr-vista-cal){ overflow:hidden; }
+/* Prima qui c'era overflow:hidden su pagina e corpo (quando il calendario
+   stava in una cornice a sé): ora è dentro la pagina e bloccava lo scorrimento
+   e spingeva giù tutto. Il calendario deve poter scorrere come le altre viste. */
 
 /* ================================================================
    TRASCINARE DENTRO UN ALTRO PROGETTO (progetti.php, DRAG REORDER)
