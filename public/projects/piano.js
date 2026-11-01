@@ -192,7 +192,7 @@
         var today = new Date(); var td = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
         return {
             host: host, mode: mode, pid: pid || 0, tab: 'cal', data: null, today: td,
-            month: td.slice(0, 7) + '-01', scope: pid || 0, sel: null, tool: store('tool') || 'paint',
+            month: td.slice(0, 7) + '-01', scope: pid || 0, sel: null, tool: store('tool') || 'paint', showEv: store('ev') === '1', ev: {},
             nodes: {}, kids: {}, paint: {}, plan: {}, done: {}, cap: {}, openRows: {}, cascadeBusy: false, undo: []
         };
     }
@@ -218,8 +218,17 @@
             (d.done || []).forEach(function (x) { (S.done[x.d] = S.done[x.d] || {})[x.p] = x.m; });
             if (S.mode === 'project' && !S.nodes[S.scope]) S.scope = S.pid;
             if (S.sel === null || !S.nodes[S.sel]) S.sel = S.mode === 'project' ? S.scope : (chipsOf(0).filter(function (x) { return subtree(x).some(function (y) { return goalMin(y) > 0; }); })[0] || chipsOf(0)[0] || null);
-            return d;
+            return evLoad(r).then(function () { return d; });
         });
+    }
+
+    /* gli eventi importanti del planner, solo se l'interruttore è acceso */
+    function evLoad(r) {
+        S.ev = {};
+        if (!S.showEv) return Promise.resolve();
+        return get('events', 'from=' + r.from + '&to=' + r.to).then(function (d) {
+            (d.events || []).forEach(function (x) { (S.ev[x.d] = S.ev[x.d] || []).push(x); });
+        }).catch(function () { });
     }
 
     function subtree(id) {
@@ -366,6 +375,12 @@
                 if (painted || planned) { var dot = h('i', 'pp-dot' + (painted ? '' : ' soft')); dot.style.background = S.nodes[cid].color; dots.appendChild(dot); }
             });
             cell.appendChild(dots);
+            var evs = S.showEv && S.ev[d];
+            if (evs && evs.length) {
+                var evm = h('span', 'pp-evm' + (evs.some(function (x) { return x.imp === 'highest'; }) ? ' top' : ''));
+                evm.title = evs.map(function (x) { return x.title; }).join(', ');
+                cell.appendChild(evm);
+            }
             var m = dayPlanned(d, subtree(S.sel || S.scope));
             var lab = h('span', 'pp-dm');
             if (m > 0) lab.textContent = fmtShort(m);
@@ -390,6 +405,7 @@
         root.appendChild(card);
 
         root.appendChild(summaryCard());
+        if (S.showEv) root.appendChild(evCard());
 
         card.appendChild(h('div', 'pp-tip', t('tip_' + S.tool)));
 
@@ -401,6 +417,10 @@
             b.title = x[2]; seg.appendChild(b);
         });
         dock.appendChild(seg);
+        var evb = btn('pp-undo pp-evbtn' + (S.showEv ? ' on' : ''), svg('M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1zM12 12.5l1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5 2.2-.3z', 18, 1.8),
+            function () { S.showEv = !S.showEv; store('ev', S.showEv ? '1' : '0'); refresh(); }, t('eventi_btn'));
+        evb.title = t('eventi_btn');
+        dock.appendChild(evb);
         var un = btn('pp-undo', svg(IC.undo, 18, 2), function () { undo(); }, t('annulla'));
         un.title = t('annulla'); un.disabled = !S.undo.length;
         dock.appendChild(un);
@@ -416,6 +436,27 @@
         var fn = S.undo.pop();
         if (!fn) return;
         fn().then(function () { return refresh(); }).catch(function (e) { fail(e); refresh(); });
+    }
+
+    /* l'elenco degli eventi importanti del mese mostrato */
+    function evCard() {
+        var card = h('div', 'pp-card pp-evcard');
+        card.appendChild(h('div', 'pp-sum-t', t('eventi_titolo')));
+        var mese = S.month.slice(0, 7), n = 0;
+        Object.keys(S.ev).sort().forEach(function (d) {
+            if (d.slice(0, 7) !== mese) return;
+            S.ev[d].forEach(function (x) {
+                n++;
+                var row = h('div', 'pp-evrow' + (x.imp === 'highest' ? ' top' : ''));
+                row.appendChild(h('span', 'pp-evd', parse(d).getUTCDate()));
+                row.appendChild(h('span', 'pp-evt', x.title || '—'));
+                row.appendChild(h('span', 'pp-evh', x.all ? t('tutto_giorno') : x.time));
+                row.appendChild(h('span', 'pp-evi', t(x.imp === 'highest' ? 'imp_highest' : 'imp_high')));
+                card.appendChild(row);
+            });
+        });
+        if (!n) card.appendChild(h('div', 'pp-sub', t('eventi_nessuno')));
+        return card;
     }
 
     function chip(id, isScope) {

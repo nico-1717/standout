@@ -263,3 +263,18 @@ body[data-pp="cal"] #ppHost, body[data-pp="plan"] #ppHost{ display:block; }
 
 /* spazio in fondo perché la barra fissa non copra l'ultima riga */
 .pp-has-dock{ padding-bottom:84px; }
+
+/* eventi importanti del planner sul calendario dei progetti */
+.pp-evbtn.on{ background:color-mix(in srgb, #FF9F0A 24%, transparent); color:#FF9F0A; }
+.pp-day{ position:relative; }
+.pp-evm{ position:absolute; top:3px; right:5px; width:7px; height:7px; border-radius:2px; background:#FFD60A; }
+.pp-evm.top{ background:#FF453A; }
+.pp-evcard{ margin-top:12px; }
+.pp-evrow{ display:flex; align-items:baseline; gap:10px; padding:8px 0; border-top:.5px solid var(--hairline); font-size:14px; }
+.pp-evd{ width:24px; flex-shrink:0; font-weight:700; font-variant-numeric:tabular-nums; }
+.pp-evt{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pp-evh{ color:var(--text-2); font-size:12.5px; flex-shrink:0; }
+.pp-evi{ flex-shrink:0; font-size:11px; font-weight:600; padding:2px 7px; border-radius:99px; background:color-mix(in srgb, #FFD60A 22%, transparent); color:#B38F00; }
+.pp-evrow.top .pp-evi{ background:color-mix(in srgb, #FF453A 20%, transparent); color:#FF453A; }
+/* sul computer e sull'iPad largo la sidebar occupa i primi 280px: il comando in basso parte dopo */
+@media (min-width:1024px){ .pp-dock{ left:300px; } }

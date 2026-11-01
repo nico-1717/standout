@@ -38,7 +38,7 @@ if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
 /* Solo le letture possono arrivare con GET: il resto è POST, dove il token CSRF
    viene davvero controllato (vedi sec_solo_post_se_scrive in security_core.php). */
-sec_solo_post_se_scrive($ajax, ['tree', 'master', 'today', 'settings_get', 'tpl_list']);
+sec_solo_post_se_scrive($ajax, ['tree', 'master', 'today', 'settings_get', 'tpl_list', 'events']);
 
 const PN_KINDS = ['plain', 'exam', 'steady', 'course', 'count', 'daily'];
 const PN_PRIO  = ['must', 'should', 'nice'];
@@ -774,6 +774,29 @@ if ($ajax === 'day_set') {
     else sec_q("INSERT INTO plan_days (user_id, day, project_id, kind, minutes, source) VALUES (?,?,?,'study',?, 'manual')
                 ON DUPLICATE KEY UPDATE minutes=VALUES(minutes), source='manual'", [$uid, $d, $id, $m], 'isii');
     sec_json(['ok' => true]);
+}
+
+/* ---------------------------------------------------------------------
+   events: gli eventi importanti e importantissimi del planner dentro un
+   intervallo, per vederli sul calendario dei progetti (le vacanze, un
+   viaggio…) mentre si decide dove mettere lo studio. Solo lettura.
+   --------------------------------------------------------------------- */
+if ($ajax === 'events') {
+    $da = sec_date(sec_in('from')); $a = sec_date(sec_in('to'));
+    if (!$da || !$a || $a < $da || pn_diff($da, $a) > 120) sec_die_json(t('piano.api_dati_non_validi'), 400, 'bad_request');
+    $out = [];
+    foreach (sec_all("SELECT title, importance, is_all_day, start_time, event_date, COALESCE(end_date, event_date) AS fine, color
+                      FROM planner_events
+                      WHERE user_id = ? AND importance <> 'normal' AND item_type = 'event' AND COALESCE(is_cancelled,0) = 0
+                        AND event_date <= ? AND COALESCE(end_date, event_date) >= ?
+                      ORDER BY event_date, start_time LIMIT 400", [$uid, $a, $da], 'iss') as $r) {
+        // un evento su più giorni compare in ognuno dei giorni dell'intervallo
+        $g = max((string)$r['event_date'], $da); $fine = min((string)$r['fine'], $a); $n = 0;
+        for (; $g <= $fine && $n < 60; $g = pn_piu($g, 1), $n++)
+            $out[] = ['d' => $g, 'title' => (string)$r['title'], 'imp' => (string)$r['importance'], 'all' => (int)$r['is_all_day'] === 1,
+                      'time' => substr((string)$r['start_time'], 0, 5), 'color' => (string)($r['color'] ?? '')];
+    }
+    sec_json(['ok' => true, 'events' => $out]);
 }
 
 /* ---------------------------------------------------------------------
