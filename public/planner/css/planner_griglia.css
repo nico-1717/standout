@@ -25,6 +25,12 @@
    muove insieme; l'orizzontale non tocca mai il righello, perché il
    righello non fa più parte della parte che si sposta lateralmente. */
 .pl-row{ display:flex; align-items:flex-start; width:100%; min-height:100%; }
+/* Specificita' in piu' apposta: planner_fogli.css (caricato dopo) ha un .pl-row
+   generico per le righe dei popup, con align-items:center, che vinceva su questa
+   regola. Con la giornata piu' corta dello schermo (scatto da 3 ore) la riga e'
+   alta quanto lo schermo e la griglia veniva centrata in verticale: i blocchi
+   scendevano di meta' dello spazio avanzato rispetto agli orari. */
+.pl-body-scroll > .pl-row{ align-items:flex-start; }
 
 .pl-gutter{
     flex-shrink:0; width:var(--gutter-w); align-self:stretch;
