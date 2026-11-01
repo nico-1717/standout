@@ -548,6 +548,9 @@
             pushUndo(function () { return api('paint', { project: id, mode: m === 'add' ? 'remove' : 'add', days: days }); });
             api('paint', { project: id, mode: m, days: days }).then(function () { return load(); }).then(function () { paintAll(); }).catch(function (e) { S.undo.pop(); fail(e); refresh(); });
         }
+        /* Mentre si sta disegnando la pagina non scorre: se il dito scivola in
+           verticale durante il trascinamento, il gesto resta dell'evidenziatore. */
+        grid.addEventListener('touchmove', function (e) { if (active && e.cancelable) e.preventDefault(); }, { passive: false });
         grid.addEventListener('pointerup', end);
         grid.addEventListener('pointercancel', function () { pending = null; end(); });
         grid.addEventListener('contextmenu', function (e) { if (S.tool !== 'look') e.preventDefault(); });
