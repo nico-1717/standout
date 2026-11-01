@@ -1668,6 +1668,19 @@ function fcd_php_block_html($b): string {
     if (!empty($b['lvl'])) {
         return '<div class="fc-p fc-p-lvl" data-lvl="' . (int)$b['lvl'] . '">' . $inner . '</div>';
     }
+    /* Riga di codice: stesso aspetto scuro dell'editor (lo stile arriva da
+       fc_parser.js). Qui il colore delle parole non si calcola: lo fa il JavaScript
+       quando ridisegna, il server mette solo il testo e l'etichetta della lingua. */
+    if (!empty($b['code'])) {
+        static $lingue = ['python' => 'Python', 'cpp' => 'C++', 'c' => 'C', 'java' => 'Java', 'js' => 'JavaScript',
+            'ts' => 'TypeScript', 'sql' => 'SQL', 'html' => 'HTML', 'css' => 'CSS', 'bash' => 'Bash',
+            'json' => 'JSON', 'csharp' => 'C#', 'php' => 'PHP'];
+        $cod = (string)$b['code'];
+        if ($cod === 'auto' || isset($lingue[$cod])) {
+            return '<div class="fc-p fc-code" data-code="' . fcd_php_escape($cod) . '" data-lang="'
+                 . fcd_php_escape($lingue[$cod] ?? 'Code') . '">' . $inner . '</div>';
+        }
+    }
     return '<div class="fc-p">' . $inner . '</div>';
 }
 

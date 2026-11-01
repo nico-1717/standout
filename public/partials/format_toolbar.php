@@ -208,6 +208,13 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                 </svg>
             </button>
 
+            <!-- CODICE — apre il tasto del blocco di codice e la scelta della lingua -->
+            <button type="button" class="fmt-btn fmt-tab" data-panel="code" title="<?php te('editor.codice'); ?>" aria-expanded="false">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8.5 7L3.5 12l5 5"/><path d="M15.5 7l5 5-5 5"/><path d="M13.2 5.5l-2.4 13" opacity=".7"/>
+                </svg>
+            </button>
+
             <span class="fmt-sep"></span>
 
             <!-- ANNULLA: l'ultima modifica, a blocchi (una frase scritta, un comando).
@@ -363,6 +370,34 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                         <path d="M4 8.5v7"/><path d="M8 5.5v13"/><path d="M12 9.5v5"/><path d="M16 4.5v15"/><path d="M20 8.5v7"/>
                     </svg>
                 </button>
+            </div>
+
+            <!-- ---------- CODICE ---------- -->
+            <div class="fmt-panel" data-panel="code" hidden>
+                <div class="fmt-group">
+                    <button type="button" class="fmt-btn fmt-btn-wide" data-cmd="code" title="<?php te('editor.blocco_codice'); ?>">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 7L3.5 12l5 5"/><path d="M15.5 7l5 5-5 5"/></svg>
+                        <span class="fmt-btn-lab"><?php te('editor.blocco_codice'); ?></span>
+                    </button>
+                </div>
+                <span class="fmt-sep"></span>
+                <div class="fmt-code-langs">
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="auto"><?php te('editor.codice_auto'); ?></button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="python">Python</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="cpp">C++</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="c">C</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="java">Java</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="js">JavaScript</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="ts">TypeScript</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="sql">SQL</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="html">HTML</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="css">CSS</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="bash">Bash</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="json">JSON</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="csharp">C#</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="php">PHP</button>
+                    <button type="button" class="fmt-btn fmt-pill" data-cmd="code-lang" data-lang="other"><?php te('editor.codice_altro'); ?></button>
+                </div>
             </div>
 
             <!-- ---------- FORMULA ---------- -->
@@ -637,6 +672,10 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 @media (hover:hover){ .fmt-btn:hover{ background:rgba(120,120,128,.10); } }
 
 .fmt-btn-wide{ padding:0 12px; }
+.fmt-code-langs{ display:flex; gap:6px; overflow-x:auto; min-width:0; flex:1; scrollbar-width:none; -webkit-overflow-scrolling:touch; padding:2px; }
+.fmt-code-langs::-webkit-scrollbar{ display:none; }
+.fmt-btn.fmt-pill{ flex-shrink:0; width:auto; height:32px; padding:0 12px; border-radius:99px; font-size:13px; font-weight:600; font-family:inherit; white-space:nowrap; background:color-mix(in srgb, currentColor 9%, transparent); }
+.fmt-btn.fmt-pill.is-active{ background:var(--blue,#007AFF); color:#fff; }
 .fmt-btn-lab{ font-size:12.5px; font-weight:600; color:var(--text-2,#8A8A8E); }
 .fmt-btn.is-active .fmt-btn-lab{ color:inherit; }
 
@@ -2914,6 +2953,9 @@ function ftRefreshState(wrap) {
     if (listPanel && listPanel.classList.contains('is-open') && sel && (!blocco || blocco.t !== 'li')) {
         fcClosePanel(bar);
     }
+    var gruppoCodice = sel ? fcdCodeGroup(doc, sel.a.b) : null;
+    bar.querySelectorAll('.fmt-btn[data-cmd="code"]').forEach(function (b) { b.classList.toggle('is-active', !!gruppoCodice); });
+    bar.querySelectorAll('.fmt-pill[data-cmd="code-lang"]').forEach(function (b) { b.classList.toggle('is-active', !!gruppoCodice && gruppoCodice.code === b.dataset.lang); });
     bar.querySelectorAll('.fmt-btn[data-cmd="math-display"]').forEach(function (b) {
         b.classList.toggle('is-active', !!(blocco && blocco.t === 'fx'));
     });
@@ -5244,6 +5286,18 @@ function ftSetupEditor(wrap) {
            deve aprire una riga vuota in piu' dopo il testo incollato. */
         t = t.replace(/\r\n?/g, '\n').replace(/\n$/, '');
         if (!t) return;
+        /* Testo copiato da una chat o da un file Markdown: i blocchi ```python ... ```
+           diventano blocchi di codice veri, con la lingua giusta. */
+        if (/^```/m.test(t)) {
+            ftCmd(wrap, function (d, s2) {
+                var nuovi = fcdFromFences(t);
+                var b = d.blocks[s2.a.b];
+                if (b && b.t === 'p' && !b.code && fcdBlockLen(b) === 0) d.blocks.splice.apply(d.blocks, [s2.a.b, 1].concat(nuovi));
+                else d.blocks.splice.apply(d.blocks, [s2.a.b + 1, 0].concat(nuovi));
+                return { doc: fcdNorm(d), caret: { b: Math.min(d.blocks.length - 1, s2.a.b + nuovi.length), o: 0 } };
+            });
+            return;
+        }
         /* Se quello che si incolla contiene formule scritte con i dollari, le
            si rimette come formule invece che come testo: e' il gesto piu'
            comune, copiare da una scheda all'altra. */
@@ -5781,6 +5835,8 @@ function ftSetupToolbar(wrap) {
         else if (cmd === 'indent')      ftCmd(wrap, function (d, s) { return { doc: fcdIndent(d, s, 1), sel: s }; });
         else if (cmd === 'outdent')     ftCmd(wrap, function (d, s) { return { doc: fcdIndent(d, s, -1), sel: s }; });
         else if (cmd === 'undo')        { ftUndo(wrap); return; }
+        else if (cmd === 'code')        ftCmd(wrap, function (d, s) { return fcdToggleCode(d, s); });
+        else if (cmd === 'code-lang')   { var lg = btn.dataset.lang; ftCmd(wrap, function (d, s) { return fcdSetCodeLang(d, s, lg); }); }
         else if (cmd === 'soft-break')  ftCmd(wrap, function (d, s) { return fcdInsertSoftBreak(d, s); });
         else if (cmd === 'math-inline') { ftCmd(wrap, function (d, s) { return fcdToggleInlineMath(d, s); }); ftSuggerisciFormula(wrap, bar); }
         else if (cmd === 'math-display') { ftCmd(wrap, function (d, s) { return fcdToggleBlockMath(d, s); }); ftSuggerisciFormula(wrap, bar); }
@@ -5915,6 +5971,43 @@ function ftInit(wrap) {
         var k = (e.key || '').toLowerCase();
         if (k === 'z') { e.preventDefault(); if (e.shiftKey) ftRedo(wrap); else ftUndo(wrap); }
         else if (k === 'y') { e.preventDefault(); ftRedo(wrap); }
+    });
+
+    /* Dentro il codice il Tab mette quattro spazi (non rientra un elenco ne' cambia
+       campo), e Maiusc+Tab toglie fino a quattro spazi davanti alla riga. */
+    ed.addEventListener('keydown', function (e) {
+        if (e.key !== 'Tab' || e.ctrlKey || e.metaKey || e.altKey || ftMQFuocoQui(ed)) return;
+        var sel = fcdGetSel(ed);
+        if (!sel) return;
+        var el = fcdBlockEls(ed)[sel.a.b];
+        if (!el || !el.classList.contains('fc-code')) return;
+        e.preventDefault(); e.stopImmediatePropagation();
+        if (!e.shiftKey) { document.execCommand('insertText', false, '    '); return; }
+        ftCmd(wrap, function (d, s2) {
+            var b = d.blocks[s2.a.b], t = fcdBlockText(b), m = /^ {1,4}/.exec(t);
+            if (!m) return null;
+            b.runs = [{ s: t.slice(m[0].length) }];
+            return { doc: fcdNorm(d), caret: { b: s2.a.b, o: Math.max(0, s2.a.o - m[0].length) } };
+        });
+    }, true);
+
+    /* Il colore del codice si rifa' quando chi scrive si ferma: durante la
+       digitazione le parole nuove restano del colore del testo, poi il blocco si
+       ridisegna da solo, tenendo il cursore dov'era. */
+    var timerCodice = null;
+    ed.addEventListener('input', function (e) {
+        if (e.isComposing) return;
+        clearTimeout(timerCodice);
+        timerCodice = setTimeout(function () {
+            var sel = fcdGetSel(ed);
+            if (!sel || ftMQFuocoQui(ed)) return;
+            var el = fcdBlockEls(ed)[sel.a.b];
+            if (!el || !el.classList.contains('fc-code')) return;
+            var doc = fcdFromDom(ed);
+            ed.innerHTML = fcdToHTML(doc);
+            fcdSetSel(ed, sel);
+            ftSync(wrap, doc);
+        }, 700);
     });
 
     ftSetupToolbar(wrap);

@@ -226,6 +226,8 @@ function fcdNorm(doc) {
                un pallino non lo disegna nemmeno. */
             var lvp = parseInt(b.lvl, 10);
             if (lvp >= 1) p.lvl = Math.min(lvp, 12);
+            /* riga di codice: niente rientro da elenco, la lingua dev'essere nota */
+            if (b.code && fcdCodeOk(b.code)) { p.code = b.code; delete p.lvl; }
             out.push(p);
         }
     });
@@ -381,6 +383,200 @@ function fcdOrder(sel) {
 function fcdEachBlockInSel(doc, sel, fn) {
     var s = fcdOrder(sel);
     for (var i = s.a.b; i <= s.f.b; i++) if (doc.blocks[i]) fn(doc.blocks[i], i);
+}
+
+// ================================================================
+// BLOCCHI DI CODICE
+// ================================================================
+// Un blocco di codice NON e' un tipo nuovo di blocco: e' una serie di
+// paragrafi di fila con la proprieta' code ("auto", "python", "cpp"...), uno
+// per riga. Cosi' tutto quello che gia' funziona per i paragrafi — cursore,
+// Invio, incolla, annulla, salvataggio — funziona senza una riga di codice in
+// piu': premere Invio in una riga di codice ne apre un'altra, e l'altra e'
+// ancora codice (vedi fcdSplitBlock). La lingua vale per tutto il gruppo ed e'
+// quella della PRIMA riga.
+// ================================================================
+var FCD_CODE_LANGS = {
+    python: 'Python', cpp: 'C++', c: 'C', java: 'Java', js: 'JavaScript', ts: 'TypeScript',
+    sql: 'SQL', html: 'HTML', css: 'CSS', bash: 'Bash', json: 'JSON', csharp: 'C#', php: 'PHP', other: 'Code'
+};
+function fcdCodeOk(v) { return v === 'auto' || Object.prototype.hasOwnProperty.call(FCD_CODE_LANGS, v); }
+
+var FCD_KW = (function () {
+    function s(x) { var o = {}; x.split(' ').forEach(function (k) { o[k] = 1; }); return o; }
+    var cLike = 'if else for while do switch case break continue return goto sizeof typedef struct union enum static const extern void int char float double long short unsigned signed auto register volatile';
+    var cpp = cLike + ' class public private protected virtual override namespace using template typename new delete this try catch throw bool true false nullptr inline operator friend explicit constexpr include define string vector std cout cin endl';
+    var java = 'abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for if implements import instanceof int interface long new package private protected public return short static super switch synchronized this throw throws try void volatile while true false null var String';
+    var js = 'async await break case catch class const continue debugger default delete do else export extends finally for function if import in instanceof let new return super switch this throw try typeof var void while with yield true false null undefined of from';
+    return {
+        python: s('and as assert async await break class continue def del elif else except finally for from global if import in is lambda None nonlocal not or pass raise return try while with yield True False self print'),
+        cpp: s(cpp), c: s(cLike + ' include define'), java: s(java), csharp: s(java + ' namespace using foreach var string bool object partial readonly override virtual abstract async await'),
+        js: s(js), ts: s(js + ' interface type enum implements readonly private public protected number string boolean any unknown never'),
+        sql: s('select from where and or not in is null insert into values update set delete create table drop alter add join inner left right outer on group by order having limit offset as distinct union all primary key foreign references index view like between exists case when then else end asc desc count sum avg min max'),
+        bash: s('if then else elif fi for while do done case esac function in echo cd ls sudo export source return exit pip npm git mkdir rm cp mv cat grep'),
+        php: s('function class public private protected static return if else elseif foreach for while echo new use namespace try catch throw null true false array'),
+        css: {}, html: {}, json: { true: 1, false: 1, null: 1 }, other: {}
+    };
+})();
+
+/* Riconosce la lingua dal testo: ogni lingua guadagna un punto per ogni indizio
+   che il codice mostra. Pochi indizi netti battono tanti vaghi; senza indizi
+   resta "other" (colorato in modo generico). */
+function fcdDetectLang(text) {
+    var t = String(text || '');
+    var P = {
+        python: [/^\s*def\s+\w+\s*\(.*\)\s*(->\s*[\w\[\], .]+)?\s*:/m, /^\s*(from\s+[\w.]+\s+import|import\s+\w+)/m, /\bprint\s*\(/, /\belif\b|\bself\b|\bNone\b|\bTrue\b|\bFalse\b/, /^\s*(if|for|while|class|else|try|with)\b.*:\s*$/m, /\brange\(|\blen\(/],
+        cpp: [/#include\s*[<"]/, /\bstd::/, /\b(cout|cin|endl)\b/, /\bint\s+main\s*\(/, /\busing\s+namespace\b/, /\b(vector|unique_ptr|nullptr)\b/],
+        c: [/#include\s*<std(io|lib)\.h>/, /\bprintf\s*\(/, /\bint\s+main\s*\(/],
+        java: [/\bpublic\s+(static\s+)?(class|void|int)\b/, /System\.out\.print/, /\bString\[\]\s+args\b/, /\bimport\s+java\./],
+        csharp: [/\busing\s+System/, /Console\.Write/, /\bnamespace\s+\w+/, /\bstatic\s+void\s+Main/],
+        js: [/\b(const|let)\s+\w+\s*=/, /=>/, /console\.log/, /\bfunction\s*\w*\s*\(/, /\brequire\(|\bmodule\.exports|\bdocument\./],
+        ts: [/:\s*(string|number|boolean|any)\b/, /\binterface\s+\w+/, /\btype\s+\w+\s*=/, /<[A-Z]\w*>/],
+        sql: [/\bselect\b[\s\S]*\bfrom\b/i, /\binsert\s+into\b/i, /\bcreate\s+table\b/i, /\bwhere\b[\s\S]*=/i, /\bgroup\s+by\b|\border\s+by\b/i],
+        html: [/<\/?(div|html|body|span|head|script|ul|li|p|a|h[1-6])[\s>]/i, /<!doctype/i],
+        css: [/[.#]?[\w-]+\s*\{[^}]*:[^}]*;/],
+        bash: [/^#!\/bin\/(ba)?sh/m, /^\s*\$\s+\w+/m, /^\s*(sudo|pip|npm|git|cd|ls|echo|mkdir)\s+/m],
+        json: [/^\s*[\{\[]\s*$/m, /"[\w-]+"\s*:\s*("|\d|\{|\[|true|false|null)/],
+        php: [/<\?php/, /\$\w+\s*=/]
+    };
+    var best = 'other', bestN = 0;
+    Object.keys(P).forEach(function (lang) {
+        var n = 0;
+        P[lang].forEach(function (re) { if (re.test(t)) n++; });
+        if (n > bestN || (n === bestN && n > 0 && lang === 'cpp' && best === 'c')) { best = lang; bestN = n; }
+    });
+    return bestN ? best : 'other';
+}
+
+/* Colora una riga alla volta, portandosi dietro lo stato per i commenti e le
+   stringhe che continuano sulla riga dopo (st.m). Niente di sofisticato di
+   proposito: parole chiave, stringhe, commenti, numeri e nomi di funzione bastano
+   a far leggere il codice; una grammatica vera peserebbe di piu' del resto. */
+function fcdHlLine(line, lang, st) {
+    var kw = FCD_KW[lang] || {};
+    var lineC = (lang === 'python' || lang === 'bash') ? ['#'] : (lang === 'sql' ? ['--'] : (lang === 'html' || lang === 'json' ? [] : ['//']));
+    if (lang === 'php') lineC = ['//', '#'];
+    var blockC = (lang === 'python' || lang === 'bash' || lang === 'json') ? null : (lang === 'html' ? ['<!--', '-->'] : ['/*', '*/']);
+    var out = '', i = 0, n = line.length;
+    function sp(cls, txt) { return '<span class="fc-tk fc-tk-' + cls + '">' + fcdEscape(txt) + '</span>'; }
+    function plain(txt) { return fcdEscape(txt); }
+
+    while (i < n) {
+        if (st.m) {                                       // dentro un commento/stringa che veniva da sopra
+            var fine = st.m === 'tq' ? st.q : blockC[1];
+            var k = line.indexOf(fine, i);
+            var cls = st.m === 'tq' ? 's' : 'c';
+            if (k === -1) { out += sp(cls, line.slice(i)); i = n; }
+            else { out += sp(cls, line.slice(i, k + fine.length)); i = k + fine.length; st.m = null; }
+            continue;
+        }
+        var rest = line.slice(i);
+        var lc = null;
+        for (var a = 0; a < lineC.length; a++) if (rest.indexOf(lineC[a]) === 0) { lc = lineC[a]; break; }
+        if (lc && !(lang === 'css' && false)) { out += sp('c', rest); i = n; break; }
+        if (blockC && rest.indexOf(blockC[0]) === 0) {
+            var kk = line.indexOf(blockC[1], i + blockC[0].length);
+            if (kk === -1) { out += sp('c', rest); st.m = 'bc'; i = n; }
+            else { out += sp('c', line.slice(i, kk + blockC[1].length)); i = kk + blockC[1].length; }
+            continue;
+        }
+        if (lang === 'python' && (rest.indexOf('"""') === 0 || rest.indexOf("'''") === 0)) {
+            var q3 = rest.slice(0, 3), k3 = line.indexOf(q3, i + 3);
+            if (k3 === -1) { out += sp('s', rest); st.m = 'tq'; st.q = q3; i = n; }
+            else { out += sp('s', line.slice(i, k3 + 3)); i = k3 + 3; }
+            continue;
+        }
+        var ch = line.charAt(i);
+        if (ch === '"' || ch === "'" || (ch === '`' && lang !== 'python' && lang !== 'sql')) {
+            var j = i + 1;
+            while (j < n && line.charAt(j) !== ch) { if (line.charAt(j) === '\\') j++; j++; }
+            out += sp('s', line.slice(i, Math.min(j + 1, n))); i = Math.min(j + 1, n);
+            continue;
+        }
+        var mNum = /^(0[xX][0-9a-fA-F_]+|\d[\d_]*\.?\d*([eE][+-]?\d+)?)/.exec(rest);
+        if (mNum && !/[\w$]/.test(i ? line.charAt(i - 1) : ' ')) { out += sp('n', mNum[0]); i += mNum[0].length; continue; }
+        var mId = /^[A-Za-z_$][\w$]*/.exec(rest);
+        if (mId) {
+            var w = mId[0], key = (lang === 'sql') ? w.toLowerCase() : w;
+            var next = line.charAt(i + w.length);
+            if (kw[key]) out += sp('k', w);
+            else if (next === '(' && lang !== 'json') out += sp('f', w);
+            else if (/^[A-Z][a-z]/.test(w) && lang !== 'sql' && lang !== 'css' && lang !== 'html') out += sp('t', w);
+            else out += plain(w);
+            i += w.length; continue;
+        }
+        out += plain(ch); i++;
+    }
+    return out;
+}
+
+/* Colora un gruppo di righe, ognuna col suo HTML. */
+function fcdHlGroup(lines, lang) {
+    var st = { m: null, q: null };
+    return lines.map(function (l) { return fcdHlLine(l, lang, st); });
+}
+
+/* Una proprieta' "code" su un blocco ne fa una riga di codice. */
+function fcdIsCode(b) { return !!(b && b.t === 'p' && b.code); }
+
+/* Lingua del gruppo che contiene il blocco i (quella della prima riga del gruppo). */
+function fcdCodeGroup(doc, i) {
+    if (!fcdIsCode(doc.blocks[i])) return null;
+    var a = i, z = i;
+    while (a > 0 && fcdIsCode(doc.blocks[a - 1])) a--;
+    while (z < doc.blocks.length - 1 && fcdIsCode(doc.blocks[z + 1])) z++;
+    return { a: a, z: z, code: doc.blocks[a].code };
+}
+
+/* Il tasto del codice. Come per l'elenco: se tutte le righe toccate sono gia'
+   codice tornano testo; altrimenti diventano codice (lingua "auto" se non se ne
+   sceglie una). I marchi (grassetto, colore) si tolgono: dentro il codice non
+   hanno senso, e il colore lo danno le parole. */
+function fcdToggleCode(doc, sel, lang) {
+    var tutti = true, n = 0;
+    fcdEachBlockInSel(doc, sel, function (b) { if (b.t === 'fx') return; n++; if (!fcdIsCode(b)) tutti = false; });
+    if (!n) return { doc: fcdNorm(doc), sel: sel };
+    fcdEachBlockInSel(doc, sel, function (b) {
+        if (b.t === 'fx') return;
+        if (tutti && !lang) { delete b.code; return; }
+        b.t = 'p'; delete b.lvl; delete b.c;
+        b.code = lang || 'auto';
+        b.runs = [{ s: (b.runs || []).map(function (r) { return typeof r.x === 'string' ? r.x : r.s; }).join('') }];
+    });
+    return { doc: fcdNorm(doc), sel: sel };
+}
+
+/* Cambia la lingua del gruppo sotto il cursore. Se il cursore non e' su una riga
+   di codice, la riga diventa codice con quella lingua. */
+function fcdSetCodeLang(doc, sel, lang) {
+    var s = fcdOrder(sel);
+    var g = fcdCodeGroup(doc, s.a.b);
+    if (!g) return fcdToggleCode(doc, sel, lang);
+    for (var i = g.a; i <= g.z; i++) doc.blocks[i].code = lang;
+    return { doc: fcdNorm(doc), sel: sel };
+}
+
+/* Il testo con i blocchi ```lingua ... ``` (come lo scrivono le chat e Markdown)
+   diventa blocchi di codice. Il resto resta testo, una riga per paragrafo. */
+function fcdFromFences(text) {
+    var out = [], re = /```([\w+#-]*)[ \t]*\n([\s\S]*?)(?:\n```|$)/g, last = 0, m;
+    var MAP = { py: 'python', python: 'python', 'c++': 'cpp', cpp: 'cpp', c: 'c', java: 'java', javascript: 'js', js: 'js', typescript: 'ts', ts: 'ts', sql: 'sql', html: 'html', css: 'css', bash: 'bash', sh: 'bash', shell: 'bash', json: 'json', 'c#': 'csharp', csharp: 'csharp', php: 'php' };
+    function righe(t, code) {
+        t.split('\n').forEach(function (l) {
+            var b = { t: 'p', runs: l ? [{ s: l }] : [] };
+            if (code) b.code = code;
+            out.push(b);
+        });
+    }
+    while ((m = re.exec(text))) {
+        var prima = text.slice(last, m.index).replace(/\n$/, '');
+        if (prima || m.index > last) righe(prima, null);
+        righe(m[2].replace(/\n$/, ''), MAP[(m[1] || '').toLowerCase()] || 'auto');
+        last = re.lastIndex;
+    }
+    var dopo = text.slice(last).replace(/^\n/, '');
+    if (dopo) righe(dopo, null);
+    return out;
 }
 
 /* Un solo tasto per l'elenco: se i blocchi toccati sono gia' tutti punti,
@@ -657,6 +853,13 @@ function fcdSplitBlock(doc, sel) {
         return { doc: fcdNorm(doc), caret: { b: bi, o: 0 } };
     }
 
+    /* Invio su una riga di codice vuota: si esce dal blocco, la riga torna testo
+       (come uscire da un elenco). */
+    if (fcdIsCode(block) && fcdBlockLen(block) === 0) {
+        delete block.code;
+        return { doc: fcdNorm(doc), caret: { b: bi, o: 0 } };
+    }
+
     // cancella prima l'eventuale testo selezionato, poi spezza
     if (!(s.a.b === s.f.b && s.a.o === s.f.o)) doc = fcdDeleteRange(doc, s).doc;
     block = doc.blocks[bi];
@@ -664,6 +867,7 @@ function fcdSplitBlock(doc, sel) {
     var idx = fcdSplitAt(block, s.a.o);
     var coda = block.runs.splice(idx);
     var nuovo = { t: block.t, runs: coda };
+    if (block.code) nuovo.code = block.code;
     if (block.t === 'li') { nuovo.lvl = block.lvl; if (block.c) nuovo.c = block.c; }
     doc.blocks.splice(bi + 1, 0, nuovo);
     return { doc: fcdNorm(doc), caret: { b: bi + 1, o: 0 } };
@@ -717,6 +921,7 @@ function fcdEstraiSelezione(doc, sel) {
         var conPallino = b.t === 'li' && !(bi === s.a.b && da > 0);
         var nuovoBlocco = { t: conPallino ? 'li' : 'p', runs: runsNuovi };
         if (conPallino) { nuovoBlocco.lvl = b.lvl; if (b.c) nuovoBlocco.c = b.c; }
+        if (b.code) nuovoBlocco.code = b.code;      // una riga di codice copiata resta codice
         blocchi.push(nuovoBlocco);
     }
 
@@ -745,6 +950,7 @@ function fcdIncollaSottodocumento(doc, pos, sotto) {
         });
         var nuovo = { t: bl.t === 'li' ? 'li' : 'p', runs: runs };
         if (bl.t === 'li') { nuovo.lvl = bl.lvl; if (bl.c) nuovo.c = bl.c; }
+        if (bl.code) nuovo.code = bl.code;
         return nuovo;
     });
     if (!blocchiIncollati.length) return { doc: fcdNorm(doc), caret: pos };
@@ -1172,7 +1378,26 @@ function fcdBlockHTML(b) {
 }
 
 function fcdToHTML(doc) {
-    return fcdNorm(doc).blocks.map(fcdBlockHTML).join('');
+    var blocks = fcdNorm(doc).blocks, out = [], i = 0;
+    while (i < blocks.length) {
+        if (!fcdIsCode(blocks[i])) { out.push(fcdBlockHTML(blocks[i])); i++; continue; }
+        /* un gruppo di righe di codice: si colora tutto insieme (i commenti e le
+           stringhe su piu' righe) e la lingua e' quella della prima riga */
+        var z = i;
+        while (z + 1 < blocks.length && fcdIsCode(blocks[z + 1])) z++;
+        var testi = [];
+        for (var k = i; k <= z; k++) testi.push(fcdBlockText(blocks[k]).replace(/\u200B/g, ''));
+        var scelta = blocks[i].code;
+        var lingua = scelta === 'auto' ? fcdDetectLang(testi.join('\n')) : scelta;
+        var colorate = fcdHlGroup(testi, lingua);
+        for (var r = 0; r <= z - i; r++) {
+            var b = blocks[i + r];
+            out.push('<div class="fc-p fc-code" data-code="' + fcdEscape(b.code) + '" data-lang="' + fcdEscape(FCD_CODE_LANGS[lingua] || 'Code') + '">' +
+                     (colorate[r] || '<br data-fill="1">') + '</div>');
+        }
+        i = z + 1;
+    }
+    return out.join('');
 }
 
 /* Punto d'ingresso storico, stesso nome di sempre: le pagine di sola lettura
@@ -1265,6 +1490,7 @@ function fcdFromDom(root) {
             var lvp = parseInt(el.dataset.lvl, 10);
             if (lvp >= 1) b.lvl = lvp;
         }
+        if (b.t === 'p' && el.classList && el.classList.contains('fc-code') && el.dataset && fcdCodeOk(el.dataset.code)) b.code = el.dataset.code;
         inline(el, null, b.runs, null);
         /* Una riga vuota fatta dal browser (incollando, o premendo Invio) e' un
            blocco con dentro il solo <br> segnaposto: non e' un a-capo scritto da
@@ -1581,6 +1807,18 @@ function fcdSetSel(root, sel) {
         '.fc-t[data-h="1"]{ background:#FFE066; color:#1C1C1E; border-radius:3px; padding:0 2px; box-decoration-break:clone; -webkit-box-decoration-break:clone; }' +
         col +
         '.fc-p{ min-height:1.65em; }' +
+        /* le righe di codice di fila formano un riquadro scuro: la prima porta
+           il nome della lingua, l'ultima chiude gli angoli. Si riconoscono dai
+           vicini (non da classi scritte nel DOM) cosi' anche una riga aperta
+           premendo Invio si compone da sola nel gruppo. */
+        '.fc-p.fc-code{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.88em; line-height:1.55; white-space:pre-wrap; tab-size:4;' +
+            ' background:var(--fc-code-bg,#14161b); color:var(--fc-code-fg,#e6e6ea); padding:0 14px; margin:0; min-height:1.55em; caret-color:#fff; }' +
+        '.fc-p.fc-code:not(.fc-code + .fc-code){ border-radius:12px 12px 0 0; margin-top:8px; padding-top:34px; position:relative; }' +
+        '.fc-p.fc-code:not(.fc-code + .fc-code)::before{ content:attr(data-lang); position:absolute; left:0; right:0; top:0; padding:7px 14px; border-radius:12px 12px 0 0;' +
+            ' background:rgba(255,255,255,.07); color:#9a9aa3; font:700 11.5px/1.2 -apple-system,system-ui,sans-serif; letter-spacing:.05em; text-transform:uppercase; pointer-events:none; user-select:none; }' +
+        '.fc-p.fc-code:not(:has(+ .fc-code)){ border-radius:0 0 12px 12px; padding-bottom:12px; margin-bottom:8px; }' +
+        '.fc-p.fc-code:not(.fc-code + .fc-code):not(:has(+ .fc-code)){ border-radius:12px; }' +
+        '.fc-tk-k{ color:#ff7ab2; } .fc-tk-s{ color:#fc6a5d; } .fc-tk-c{ color:#7f8c98; font-style:italic; } .fc-tk-n{ color:#d9c97c; } .fc-tk-f{ color:#67b7a4; } .fc-tk-t{ color:#9ecbff; }' +
         '.fc-p, .fc-li{ overflow-wrap:anywhere; min-width:0; }' +
         /* La regola che tiene insieme tutto: l'editor non cresce mai oltre il
            suo contenitore, qualunque cosa ci sia dentro. */
