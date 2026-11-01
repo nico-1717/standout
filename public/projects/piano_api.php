@@ -577,7 +577,9 @@ function pn_pianifica(int $uid, int $radice, array $imp): array {
     foreach ($info as $id => $u) if ($u['resta'] > 0) $deficit[$id] = $u['resta'];
 
     return ['righe' => $righe, 'deficit' => $deficit, 'info' => $info, 'giorni' => $giorni,
-            'occ' => $occ, 'p' => $p, 'g' => $g, 'fine' => $orizzonteFine];
+            'occ' => $occ, 'p' => $p, 'g' => $g, 'fine' => $orizzonteFine,
+            // le attività «ogni giorno» non stanno in info, ma sono lavoro da pianificare: contano
+            'n_giornalieri' => count($giornalieri)];
 }
 
 /* ---------------------------------------------------------------------
@@ -824,7 +826,7 @@ if ($ajax === 'autoplan') {
     }
     ksort($settimane);
     sec_json(['ok' => true, 'applied' => $apply, 'total_min' => $tot, 'missing_min' => $mancano, 'warnings' => $avvisi,
-              'first' => $primo, 'last' => $ultimo, 'weeks' => $settimane, 'units' => count($r['info']),
+              'first' => $primo, 'last' => $ultimo, 'weeks' => $settimane, 'units' => count($r['info']) + (int)($r['n_giornalieri'] ?? 0),
               'fits' => $mancano === 0]);
 }
 
@@ -891,7 +893,7 @@ if ($ajax === 'master') {
     $out = []; foreach ($settimane as $s) { $s['parts'] = (object)$s['parts']; $out[] = $s; }
     sec_json(['ok' => true, 'goals' => $obiettivi, 'weeks' => $out, 'needed_min' => $serve, 'free_min' => $capTot,
               'missing_min' => $mancano, 'fits' => $mancano === 0, 'end' => $fine, 'settings' => $imp,
-              'units' => count($r['info'])]);
+              'units' => count($r['info']) + (int)($r['n_giornalieri'] ?? 0)]);
 }
 
 /* ---------------------------------------------------------------------
