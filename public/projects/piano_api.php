@@ -777,6 +777,28 @@ if ($ajax === 'day_set') {
 }
 
 /* ---------------------------------------------------------------------
+   daily_log: «l'ho già fatto». Per un'attività «ogni giorno» (30 minuti di
+   Netflix) si può dire a che ora è stata fatta senza avviare il timer: nasce
+   una sessione a mano della durata del suo obiettivo, e da lì in poi vale
+   come ogni altro pomodoro (il blocco di oggi diventa verde da solo, perché
+   il «fatto» si calcola dalle sessioni).
+   --------------------------------------------------------------------- */
+if ($ajax === 'daily_log') {
+    $id = sec_int(sec_in('project'), 0, PHP_INT_MAX, 0);
+    if (!pn_posseduto($uid, $id)) sec_die_json(t('piano.api_progetto_non_trovato'), 404, 'not_found');
+    $ora = sec_str(sec_in('start'), 5);
+    if (!preg_match('/^([01][0-9]|2[0-3]):[0-5][0-9]$/', $ora)) sec_die_json(t('piano.api_dati_non_validi'), 400, 'bad_request');
+    $g = sec_one("SELECT minutes FROM plan_goals WHERE user_id = ? AND project_id = ? AND kind = 'daily' AND active = 1", [$uid, $id], 'ii');
+    $min = (int)($g['minutes'] ?? 0);
+    if ($min <= 0) sec_die_json(t('piano.api_dati_non_validi'), 400, 'bad_request');
+    $inizio = pn_oggi() . ' ' . $ora . ':00';
+    $fine = date('Y-m-d H:i:s', strtotime($inizio . ' +' . $min . ' minutes'));
+    sec_q("INSERT INTO pomodoro_sessions (user_id, `mode`, start_time, end_time, duration_seconds, planned_duration_min, status, project_id, is_manual)
+           VALUES (?, 0, ?, ?, ?, ?, 'archiviato', ?, 1)", [$uid, $inizio, $fine, $min * 60, $min, $id], 'issiii');
+    sec_json(['ok' => true, 'minutes' => $min]);
+}
+
+/* ---------------------------------------------------------------------
    autoplan: anteprima o applica
    --------------------------------------------------------------------- */
 if ($ajax === 'autoplan') {

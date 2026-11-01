@@ -772,6 +772,8 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 .pr-focus:active{ transform:scale(.92); }
 .pr-focus.is-live{ padding:0 12px; }
 .pr-focus [data-pomo-live]{ font-variant-numeric:tabular-nums; }
+/* «ogni giorno» fatto oggi: il tondo diventa verde con la spunta */
+.pr-focus.is-done{ background:var(--green, #34C759); color:#fff; }
 .pr-act-live{ width:8px; height:8px; border-radius:50%; background:currentColor; animation:prPulse 1.6s ease-in-out infinite; }
 @keyframes prPulse{ 50%{ opacity:.35; } }
 

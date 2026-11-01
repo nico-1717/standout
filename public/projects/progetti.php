@@ -1529,6 +1529,18 @@ if ($deckProprio) {
     $totDur = prog_fmt_duration($totalMemo[$selId] ?? 0);
     $statsHero = ' data-stats-id="' . $selId . '" data-stats-nome="' . sec_h($selectedProject['name']) . '" data-stats-colore="' . sec_h($accent) . '"'
                . ' data-on-click="prOpenStats(+this.dataset.statsId, this.dataset.statsNome, this.dataset.statsColore)"';
+    /* «Ogni giorno»: se questo progetto è un'attività da N minuti al giorno, il
+       tondo non apre lo storico ma un timer da N minuti (o «l'ho già fatto»).
+       Il verde di oggi viene dalle sessioni, come il «fatto» del piano. */
+    $dailyMin = 0; $dailyFatto = false;
+    if (sec_one("SHOW TABLES LIKE 'plan_goals'")) {
+        $gd = sec_one("SELECT minutes FROM plan_goals WHERE user_id = ? AND project_id = ? AND kind = 'daily' AND active = 1 AND minutes > 0", [(int)$current_user_id, $selId], 'ii');
+        $dailyMin = (int)($gd['minutes'] ?? 0);
+        if ($dailyMin > 0) {
+            $dd = sec_one("SELECT COALESCE(SUM(duration_seconds),0) AS s FROM pomodoro_sessions WHERE user_id = ? AND project_id = ? AND DATE(start_time) = ?", [(int)$current_user_id, $selId, date('Y-m-d')], 'iis');
+            $dailyFatto = (int)($dd['s'] ?? 0) >= $dailyMin * 60 * 0.9;
+        }
+    }
     $vuoiFigliAperti = false;
     foreach ($selectedTree['children'] ?? [] as $fc) { if (!empty($fc['children'])) { $vuoiFigliAperti = true; break; } }
 
@@ -1565,9 +1577,14 @@ if ($deckProprio) {
             <?php /* Concentrati: un tondo del colore del progetto accanto al ⋯, come
                      il play di un lettore. Quando il pomodoro di questo progetto è
                      in corso diventa una pastiglia col tempo che scorre. */ ?>
-            <button type="button" class="pr-focus<?php echo isset($pomoRamo[$selId]) ? ' is-live' : ''; ?>"<?php echo $statsHero; ?> aria-label="<?php te('progetti.concentrati'); ?>" title="<?php te('progetti.concentrati'); ?>">
+            <button type="button" class="pr-focus<?php echo isset($pomoRamo[$selId]) ? ' is-live' : ''; ?><?php echo $dailyMin > 0 ? ' is-daily' . ($dailyFatto ? ' is-done' : '') : ''; ?>"<?php
+                echo $dailyMin > 0
+                    ? ' data-daily-min="' . $dailyMin . '" data-daily-id="' . $selId . '" data-on-click="prDailyApri()"'
+                    : $statsHero; ?> aria-label="<?php te('progetti.concentrati'); ?>" title="<?php te('progetti.concentrati'); ?>">
                 <?php if (isset($pomoRamo[$selId])): ?>
                 <i class="pr-act-live"></i><span data-pomo-live><?php echo sec_h(prog_tempo_vivo($pomoAttivo)); ?></span>
+                <?php elseif ($dailyMin > 0 && $dailyFatto): ?>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
                 <?php else: ?>
                 <?php echo prog_timer_svg(); ?>
                 <?php endif; ?>
@@ -3040,6 +3057,61 @@ window.prDatesSetFilter = function(filter){
 window.prDatesToggleSort = function(){
     prDatesState.sortDir = (prDatesState.sortDir === 'asc') ? 'desc' : 'asc';
     prDatesRender();
+};
+
+/* ---------------- «ogni giorno»: timer da N minuti o «l'ho già fatto» ----------------
+   Si riusa la finestrella di conferma (stesso aspetto degli altri avvisi).
+   Il timer è il pomodoro di sempre: la pagina del pomodoro parte da sola con
+   la durata dell'attività e a fine tempo manda la notifica che già manda. */
+window.prDailyApri = function(){
+    var b = document.querySelector('.pr-focus[data-daily-id]');
+    if (!b) return;
+    // pomodoro di questo progetto già in corso: si va a vederlo, non se ne apre un altro
+    if (b.classList.contains('is-live')) { location.href = 'pomodoro.php'; return; }
+    var m = +b.dataset.dailyMin;
+    document.getElementById('prConfirmTitle').textContent = T('progetti.daily_titolo', {m: m});
+    document.getElementById('prConfirmMsg').textContent = T('progetti.daily_sub');
+    document.getElementById('prConfirmActions').innerHTML =
+        '<button type="button" class="pr-btn pr-btn-neutral" data-on-click="prDailyAvvia()">'+T('progetti.daily_avvia', {m: m})+'</button>' +
+        '<button type="button" class="pr-btn pr-btn-neutral" data-on-click="prDailyOra()">'+T('progetti.daily_gia_fatto')+'</button>' +
+        '<button type="button" class="pr-btn pr-btn-cancel" data-on-click="prCloseConfirm()">'+T('comune.annulla')+'</button>';
+    document.getElementById('prConfirmOverlay').classList.add('show');
+};
+window.prDailyAvvia = function(){
+    var b = document.querySelector('.pr-focus[data-daily-id]');
+    if (!b) return;
+    // il permesso per le notifiche si chiede qui, dove c'è un tocco dell'utente:
+    // la pagina del pomodoro parte da sola e non potrebbe chiederlo
+    try { if (window.Notification && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {}
+    location.href = 'pomodoro.php?project_id=' + b.dataset.dailyId + '&min=' + b.dataset.dailyMin + '&auto=1';
+};
+window.prDailyOra = function(){
+    var b = document.querySelector('.pr-focus[data-daily-id]');
+    if (!b) return;
+    var m = +b.dataset.dailyMin;
+    var d = new Date(Date.now() - m * 60000);   // proposta: l'ho finito adesso, quindi ho cominciato m minuti fa
+    var hm = ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+    if (d.getDate() !== new Date().getDate()) hm = '00:00';   // a cavallo della mezzanotte si resta nella giornata di oggi
+    document.getElementById('prConfirmTitle').textContent = T('progetti.daily_a_che_ora');
+    document.getElementById('prConfirmMsg').textContent = '';
+    document.getElementById('prConfirmActions').innerHTML =
+        '<input type="time" id="prDailyOraIn" class="pr-inp" value="'+hm+'" style="font-size:20px;text-align:center;padding:10px;border-radius:12px;border:1px solid var(--hairline-2);background:var(--surface-2);color:var(--text)">' +
+        '<button type="button" class="pr-btn pr-btn-neutral" data-on-click="prDailySalva()">'+T('progetti.daily_salva', {m: m})+'</button>' +
+        '<button type="button" class="pr-btn pr-btn-cancel" data-on-click="prCloseConfirm()">'+T('comune.annulla')+'</button>';
+};
+window.prDailySalva = function(){
+    var b = document.querySelector('.pr-focus[data-daily-id]');
+    var inp = document.getElementById('prDailyOraIn');
+    if (!b || !inp || !inp.value) return;
+    fetch('piano_api.php?ajax=daily_log', {
+        method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({project: +b.dataset.dailyId, start: inp.value})
+    }).then(function(r){ return r.json(); }).then(function(d){
+        if (!d || d.ok === false) throw new Error('x');
+        prCloseConfirm();
+        toast(T('progetti.daily_registrata', {m: d.minutes}));
+        setTimeout(function(){ location.reload(); }, 600);   // il tondo diventa verde con la pagina nuova
+    }).catch(function(){ toast(T('progetti.daily_errore')); });
 };
 
 /* ---------------- popup pomodori (esternalizzato) ---------------- */

@@ -1780,6 +1780,26 @@ function bootstrap(){
 }
 bootstrap();
 
+/* Arrivo da un'attività «ogni giorno» (?min=30&auto=1): si prepara un timer di
+   quella durata e, se richiesto, parte da solo. Niente se un pomodoro è già in
+   corso (non se ne apre un secondo), e l'indirizzo viene ripulito perché un
+   ricaricamento della pagina non faccia ripartire un'altra sessione. */
+(function(){
+    var q = new URLSearchParams(location.search);
+    var min = parseInt(q.get('min'), 10);
+    if (!(min > 0 && min <= 600) || STATE0.active) return;
+    mode = 0;
+    document.querySelectorAll('#modeSwitch button').forEach(function(b){ b.classList.toggle('active', parseInt(b.getAttribute('data-mode'),10) === 0); });
+    selDurataPomo = min;
+    buildPills(document.getElementById('durPomoPills'), STATE0.presets_pomodoro, min, 'pomo');
+    renderIdleDisplay();
+    var auto = q.get('auto') === '1';
+    q.delete('min'); q.delete('auto');
+    var resto = q.toString();
+    history.replaceState(null, '', location.pathname + (resto ? '?' + resto : ''));
+    if (auto) doStart();
+})();
+
 /* ---------------- lo stesso pomodoro su piu' dispositivi ----------------
    Il pomodoro si mette in pausa dal telefono e si continua a guardarlo dal
    computer: senza questo, la seconda pagina resta a raccontare una sessione
