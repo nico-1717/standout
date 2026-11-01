@@ -210,6 +210,16 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 
             <span class="fmt-sep"></span>
 
+            <!-- ANNULLA: l'ultima modifica, a blocchi (una frase scritta, un comando).
+                 Il browser da solo non puo': l'editor ridisegna il testo a ogni comando
+                 e cosi' perde la sua cronologia. -->
+            <button type="button" class="fmt-btn fmt-undo" data-cmd="undo" title="<?php te('editor.annulla'); ?>" disabled>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 6.5L4.5 11 9 15.5"/>
+                    <path d="M5 11h9a5.5 5.5 0 010 11h-3.5"/>
+                </svg>
+            </button>
+
             <!-- DETTATURA. Nascosta dove il riconoscimento vocale non esiste:
                  un tasto che non puo' funzionare e' peggio di nessun tasto. -->
             <button type="button" class="fmt-btn fmt-mic fmt-tab" data-panel="mic" data-cmd="dictate" title="<?php te('editor.detta'); ?>" aria-expanded="false" hidden>
@@ -602,6 +612,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
 }
 
 /* ---------------- i tasti ---------------- */
+.fmt-btn:disabled{ opacity:.32; cursor:default; }
 .fmt-btn{
     background:transparent; border:none; border-radius:999px; cursor:pointer;
     min-width:36px; height:32px; padding:0 6px;
@@ -2549,8 +2560,65 @@ function ftSync(wrap, doc) {
     if (h) h.value = fcdStringify(doc);
     var vuoto = doc.blocks.length === 1 && doc.blocks[0].t === 'p' && fcdBlockText(doc.blocks[0]) === '';
     ed.dataset.vuoto = vuoto ? '1' : '0';
+    ftStoriaPianifica(wrap);
     return doc;
 }
+
+/* ---------------- ANNULLA / RIPETI ----------------
+   Il browser tiene la sua cronologia solo per quello che scrive lui; qui il
+   testo viene ridisegnato a ogni comando (ftRender), e a ogni ridisegno la
+   cronologia nativa si perde. Percio' ce ne teniamo una nostra: una pila di
+   fotografie del documento (testo + posizione del cursore). Si scatta una
+   fotografia quando chi scrive si ferma (350 ms) e subito prima di ogni
+   comando, cosi' un passo di annulla toglie "una frase" o "un comando", non
+   una lettera. */
+function ftStoria(wrap) {
+    return wrap._storia || (wrap._storia = { lista: [], i: -1, timer: null });
+}
+function ftStoriaAggiorna(wrap) {
+    var st = ftStoria(wrap);
+    var b = wrap.querySelector('[data-cmd="undo"]');
+    if (b) b.disabled = !(st.i > 0 || st.timer);
+}
+function ftStoriaCommit(wrap) {
+    var st = ftStoria(wrap);
+    if (st.timer) { clearTimeout(st.timer); st.timer = null; }
+    var ed = ftEditor(wrap);
+    if (!ed) return;
+    var h = ftHidden(wrap);
+    var json = h ? h.value : fcdStringify(fcdFromDom(ed));
+    if (st.i >= 0 && st.lista[st.i].j === json) { ftStoriaAggiorna(wrap); return; }
+    var sel = null;
+    try { sel = fcdGetSel(ed); } catch (e) { }
+    st.lista.splice(st.i + 1);
+    st.lista.push({ j: json, sel: sel });
+    if (st.lista.length > 100) st.lista.shift();
+    st.i = st.lista.length - 1;
+    ftStoriaAggiorna(wrap);
+}
+function ftStoriaPianifica(wrap) {
+    var st = ftStoria(wrap);
+    if (st.i < 0) return;                       // prima fotografia: la scatta ftInit
+    if (st.timer) clearTimeout(st.timer);
+    st.timer = setTimeout(function () { st.timer = null; ftStoriaCommit(wrap); }, 350);
+    ftStoriaAggiorna(wrap);
+}
+function ftStoriaVai(wrap, passo) {
+    var st = ftStoria(wrap);
+    ftStoriaCommit(wrap);                       // quello che si sta scrivendo ora entra nella pila
+    var n = st.i + passo;
+    if (n < 0 || n >= st.lista.length) return;
+    st.i = n;
+    var f = st.lista[n];
+    var ed = ftEditor(wrap);
+    ed.focus();
+    ftRender(wrap, fcdParse(f.j), f.sel);
+    ftMathRefresh(wrap);
+    ed.dispatchEvent(new Event('input', { bubbles: true }));
+    ftStoriaAggiorna(wrap);
+}
+function ftUndo(wrap) { ftStoriaVai(wrap, -1); }
+function ftRedo(wrap) { ftStoriaVai(wrap, 1); }
 
 function ftRender(wrap, doc, caret) {
     var ed = ftEditor(wrap);
@@ -2565,6 +2633,7 @@ function ftRender(wrap, doc, caret) {
    saltasse, salterebbe qui e in nessun altro punto. */
 function ftCmd(wrap, fn) {
     var ed = ftEditor(wrap);
+    ftStoriaCommit(wrap);        // prima del comando: quello che c'e' adesso si puo' riavere con Annulla
 
     /* Se si sta scrivendo dentro MathQuill, il blocco su cui il comando deve
        agire e' LA FORMULA — ma la selezione del documento non lo sa: sta
@@ -5171,6 +5240,10 @@ function ftSetupEditor(wrap) {
         }
         var t = cd.getData('text/plain') || '';
         if (!t) return;
+        /* A-capo uniformi, e l'ultimo a-capo di chi copia una riga intera non
+           deve aprire una riga vuota in piu' dopo il testo incollato. */
+        t = t.replace(/\r\n?/g, '\n').replace(/\n$/, '');
+        if (!t) return;
         /* Se quello che si incolla contiene formule scritte con i dollari, le
            si rimette come formule invece che come testo: e' il gesto piu'
            comune, copiare da una scheda all'altra. */
@@ -5707,6 +5780,7 @@ function ftSetupToolbar(wrap) {
         else if (cmd === 'list')        ftCmd(wrap, function (d, s) { return { doc: fcdToggleList(d, s), sel: s }; });
         else if (cmd === 'indent')      ftCmd(wrap, function (d, s) { return { doc: fcdIndent(d, s, 1), sel: s }; });
         else if (cmd === 'outdent')     ftCmd(wrap, function (d, s) { return { doc: fcdIndent(d, s, -1), sel: s }; });
+        else if (cmd === 'undo')        { ftUndo(wrap); return; }
         else if (cmd === 'soft-break')  ftCmd(wrap, function (d, s) { return fcdInsertSoftBreak(d, s); });
         else if (cmd === 'math-inline') { ftCmd(wrap, function (d, s) { return fcdToggleInlineMath(d, s); }); ftSuggerisciFormula(wrap, bar); }
         else if (cmd === 'math-display') { ftCmd(wrap, function (d, s) { return fcdToggleBlockMath(d, s); }); ftSuggerisciFormula(wrap, bar); }
@@ -5831,6 +5905,17 @@ function ftInit(wrap) {
     var doc = fcdParse(wrap.dataset.raw || '');
     ed.innerHTML = fcdToHTML(doc);
     ftSync(wrap, doc);
+    ftStoriaCommit(wrap);        // la fotografia di partenza: Annulla non va mai prima di questa
+
+    /* Ctrl/Cmd+Z annulla, Ctrl/Cmd+Maiusc+Z o Ctrl+Y ripete: con la nostra pila, perche'
+       quella del browser non vede i comandi della barra. Dentro una formula resta
+       quella di MathQuill. */
+    ed.addEventListener('keydown', function (e) {
+        if (!(e.ctrlKey || e.metaKey) || e.altKey || ftMQFuocoQui(ed)) return;
+        var k = (e.key || '').toLowerCase();
+        if (k === 'z') { e.preventDefault(); if (e.shiftKey) ftRedo(wrap); else ftUndo(wrap); }
+        else if (k === 'y') { e.preventDefault(); ftRedo(wrap); }
+    });
 
     ftSetupToolbar(wrap);
     ftSetupSwitch(wrap);

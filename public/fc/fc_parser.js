@@ -214,6 +214,10 @@ function fcdNorm(doc) {
             if (col) li.c = col;
             out.push(li);
         } else {
+            /* Le righe vuote salvate dalla versione che contava il <br> segnaposto
+               come a-capo (un blocco col solo "\n"): si leggono come righe vuote vere,
+               cosi' i testi gia' incollati tornano a misura senza doverli rifare. */
+            if (runs.length === 1 && runs[0].s === '\n' && !runs[0].m) runs = [];
             var p = { t: 'p', runs: runs };
             /* Un paragrafo normale puo' portare un .lvl senza diventare un
                punto elenco: e' la riga di continuo dentro una lista, stessa
@@ -1262,6 +1266,13 @@ function fcdFromDom(root) {
             if (lvp >= 1) b.lvl = lvp;
         }
         inline(el, null, b.runs, null);
+        /* Una riga vuota fatta dal browser (incollando, o premendo Invio) e' un
+           blocco con dentro il solo <br> segnaposto: non e' un a-capo scritto da
+           chi usa l'editor. Contarlo come "\n" faceva diventare doppia ogni riga
+           vuota (e il testo cresceva a ogni salvataggio). Un a-capo vero
+           (Maiusc+Invio) sta in mezzo al testo, o ha comunque altro intorno. */
+        if (b.runs.length === 1 && b.runs[0].s === '\n' && el.childNodes.length === 1 && el.firstChild.nodeType === 1
+            && el.firstChild.tagName.toLowerCase() === 'br' && !(el.firstChild.dataset && el.firstChild.dataset.fill)) b.runs = [];
         return b;
     }
 
