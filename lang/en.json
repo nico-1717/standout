@@ -5012,6 +5012,7 @@
     "entra": "Open the sub-projects of {n}",
     "senza_figli": "This project has no sub-projects yet: you can highlight days for the whole project. Add some from the List view to split it up.",
     "evidenzia": "Paint",
+    "nessuna_scelta": "Nothing selected: you see everything planned. Tap a project to highlight days for it.",
     "eventi_btn": "Important planner events",
     "eventi_titolo": "Important events",
     "eventi_nessuno": "No important events this month.",

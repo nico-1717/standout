@@ -5012,6 +5012,7 @@
     "entra": "Apri i sotto-progetti di {n}",
     "senza_figli": "Questo progetto non ha sotto-progetti: puoi evidenziare i giorni per tutto il progetto. Aggiungine alcuni dalla vista Elenco per dividerlo.",
     "evidenzia": "Evidenzia",
+    "nessuna_scelta": "Nessun progetto scelto: vedi tutto il pianificato. Tocca un progetto per evidenziargli dei giorni.",
     "eventi_btn": "Eventi importanti del planner",
     "eventi_titolo": "Eventi importanti",
     "eventi_nessuno": "Nessun evento importante questo mese.",

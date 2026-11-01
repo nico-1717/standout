@@ -217,7 +217,7 @@
             (d.plan || []).forEach(function (x) { var o = (S.plan[x.d] = S.plan[x.d] || {}); var e = (o[x.p] = o[x.p] || { study: 0, review: 0, manual: false }); e[x.k] = x.m; if (x.s === 'manual') e.manual = true; });
             (d.done || []).forEach(function (x) { (S.done[x.d] = S.done[x.d] || {})[x.p] = x.m; });
             if (S.mode === 'project' && !S.nodes[S.scope]) S.scope = S.pid;
-            if (S.sel === null || !S.nodes[S.sel]) S.sel = S.mode === 'project' ? S.scope : (chipsOf(0).filter(function (x) { return subtree(x).some(function (y) { return goalMin(y) > 0; }); })[0] || chipsOf(0)[0] || null);
+            if (S.sel === null || (S.sel !== 0 && !S.nodes[S.sel])) S.sel = S.mode === 'project' ? S.scope : (chipsOf(0).filter(function (x) { return subtree(x).some(function (y) { return goalMin(y) > 0; }); })[0] || chipsOf(0)[0] || null);
             return evLoad(r).then(function () { return d; });
         });
     }
@@ -368,6 +368,20 @@
             if (isSel) { cell.classList.add('sel'); cell.style.setProperty('--c', selC); cell.style.setProperty('--sel-ink', ink(selC)); }
             cell.appendChild(h('span', 'pp-dn', parse(d).getUTCDate()));
             var dots = h('span', 'pp-dots');
+            if (!S.sel) {
+                /* nessun progetto scelto: tutto quello che c'è quel giorno, ognuno col suo colore */
+                var seen = {};
+                Object.keys(S.nodes).forEach(function (nid) {
+                    var painted = S.paint[nid] && S.paint[nid][d];
+                    var planned = S.plan[d] && S.plan[d][nid] && (S.plan[d][nid].study || 0) > 0;
+                    if (!painted && !planned) return;
+                    var col = S.nodes[nid].color;
+                    if (seen[col] && (seen[col] === 2 || !painted)) return;
+                    if (Object.keys(seen).length >= 6 && !seen[col]) return;
+                    seen[col] = painted ? 2 : 1;
+                    var dot = h('i', 'pp-dot' + (painted ? '' : ' soft')); dot.style.background = col; dots.appendChild(dot);
+                });
+            } else
             chips.forEach(function (cid) {
                 if (cid === S.sel) return;
                 var painted = S.paint[cid] && S.paint[cid][d];
@@ -390,7 +404,7 @@
             if (dn > 0) cell.appendChild(h('span', 'pp-tick', svg(IC.check, 9, 3.4)));
             (function (day) {
                 cell.addEventListener('click', function (e) {
-                    if (S.tool === 'look') { openDay(day); return; }
+                    if (S.tool === 'look' || !S.sel) { openDay(day); return; }
                     if (e.detail !== 0) return;                              // il mouse e il dito passano dall'evidenziatore
                     if (!S.sel || day < S.today) return;                     // da tastiera: Invio accende e spegne
                     var on = S.paint[S.sel] && S.paint[S.sel][day], id = S.sel, m = on ? 'remove' : 'add';
@@ -472,7 +486,8 @@
         b.appendChild(h('span', 'pp-chip-name', isScope ? t('tutto', { n: n.name }) : n.name));
         var g = goalMin(id);
         if (g > 0) b.appendChild(h('span', 'pp-chip-h', fmtMin(g)));
-        b.addEventListener('click', function () { S.sel = id; paintAll(); });
+        /* toccare quello già scelto lo toglie: sel = 0 vuol dire «nessuno», si vede tutto il pianificato */
+        b.addEventListener('click', function () { S.sel = (S.sel === id) ? 0 : id; paintAll(); });
         if (!isScope && kids && S.mode === 'project') {
             var wrap = h('span', 'pp-chip-wrap'); wrap.style.setProperty('--c', n.color);
             var dr = btn('pp-chip-drill', svg(IC.chev, 14, 2.6), function (e) { e.stopPropagation(); S.scope = id; S.sel = id; paintAll(); }, t('entra', { n: n.name }));
@@ -492,7 +507,7 @@
     function summaryCard() {
         var id = S.sel, n = S.nodes[id];
         var card = h('div', 'pp-card pp-sum');
-        if (!n) { card.appendChild(h('div', 'pp-sum-t', t('scegli_figlio'))); return card; }
+        if (!n) { card.appendChild(h('div', 'pp-sum-t', t('nessuna_scelta'))); return card; }
         var days = 0; Object.keys(S.paint[id] || {}).forEach(function (d) { if (d >= S.today) days++; });
         var main = h('div', 'pp-sum-main');
         main.appendChild(h('div', 'pp-sum-t', n.name + (days ? ' · ' + t('n_giorni', { n: days }) : '')));
@@ -564,7 +579,7 @@
             if (S.tool === 'look') return;
             var cell = e.target.closest ? e.target.closest('.pp-day') : null;
             if (!cell) return;
-            if (!S.sel || !S.nodes[S.sel]) { toast(t('scegli_figlio')); return; }
+            if (!S.sel || !S.nodes[S.sel]) return;      // nessuno scelto: il giorno si apre col «click», non si disegna
             if (e.pointerType === 'touch') { pending = { cell: cell, x: e.clientX, y: e.clientY, id: e.pointerId }; return; }
             begin(cell, e.pointerId);
             e.preventDefault();
