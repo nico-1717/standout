@@ -977,7 +977,8 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
     .pr-hero > *{ grid-column:1 / -1; }
     .pr-hero > .pr-hero-top{ grid-column:1; grid-row:1; padding-right:0; }
     .pr-hero > .pr-hero-actions{ grid-column:2; grid-row:1; margin:0 44px 0 0; align-self:center; }
-    .pr-more-btn{ position:absolute; top:24px; right:22px; }
+    /* il ⋯ resta nella riga del titolo, accanto al tondo Concentrati: prima era
+       posato in assoluto in alto a destra e ci finiva sopra */
     .pr-act{ height:38px; }
     .pr-act-focus{ flex:0 0 auto; padding:0 18px; }
     .pr-hero-title{ font-size:28px; }

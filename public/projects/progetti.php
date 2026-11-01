@@ -1324,7 +1324,7 @@ echo standout_i18n_json(['comune', 'progetti', 'pomodoro', 'todo', 'piano']);
    pagina «Tutti».
    ========================================================================== */
 ?>
-<aside class="pr-side" aria-label="<?php te('progetti.i_tuoi_progetti'); ?>">
+<aside class="pr-side sb-not-overlay" aria-label="<?php te('progetti.i_tuoi_progetti'); ?>">
     <a class="pr-side-it<?php echo $viewAll ? ' on' : ''; ?>" href="progetti.php?view=all">
         <svg class="pr-side-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         <span class="pr-side-n"><?php te('progetti.tutti_i_progetti'); ?></span>
