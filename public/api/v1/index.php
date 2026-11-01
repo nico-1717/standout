@@ -57,6 +57,11 @@
      PATCH  /api/v1/shopping/categories/{id}   {name?, color?}
      DELETE /api/v1/shopping/categories/{id}   gli articoli restano, senza categoria
 
+   Sincronizzazione con l'app (lib/sync_api.php), solo con il token:
+     POST   /api/v1/sync/push             {mutations:[{mutation_id, table, op, uuid, patch}]} (max 200)
+     GET    /api/v1/sync/pull?cursor=&limit=   cosa e' cambiato dopo il cursore (cursore snapshot = copia completa)
+     GET    /api/v1/sync/state            testa del registro e tabelle
+
    Fetta 5 — riordino, azioni su piu' voci, categorie delle abitudini (lib/todo_bulk_api.php, habits_api.php):
      POST   /api/v1/tasks/bulk            {ids, action: delete|schedule|project|move, ...}  (move = nel to buy)
      POST   /api/v1/tasks/reorder         {ids} nell'ordine voluto
@@ -111,6 +116,7 @@ require_once __DIR__ . '/../../../lib/todo_bulk_api.php';
 require_once __DIR__ . '/../../../lib/pills_api.php';
 require_once __DIR__ . '/../../../lib/diary_api.php';
 require_once __DIR__ . '/../../../lib/shopping_img_api.php';
+require_once __DIR__ . '/../../../lib/sync_api.php';
 
 /* ---------------- Accesso ---------------- */
 
@@ -680,4 +686,8 @@ api_v1_esegui([
     ['DELETE', 'diary/items/{id}',  'api_h_diario_voce_togli', ['accetta' => $tokenECookie]],
     ['GET',    'diary/settings',    'api_h_diario_impostazioni', ['accetta' => $tokenECookie]],
     ['PATCH',  'diary/settings',    'api_h_diario_impostazioni_salva', ['accetta' => $tokenECookie]],
+    /* Sincronizzazione con l'app (docs/ARCHITETTURA_APP.md §3.3): SOLO con il token, sono le rotte dell'app */
+    ['POST',   'sync/push',         'api_h_sync_push',        ['accetta' => ['token']]],
+    ['GET',    'sync/pull',         'api_h_sync_pull',        ['accetta' => ['token']]],
+    ['GET',    'sync/state',        'api_h_sync_stato',       ['accetta' => ['token']]],
 ]);

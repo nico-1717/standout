@@ -203,6 +203,9 @@ function sec_q(string $sql, array $params = [], ?string $types = null) {
         }
         mysqli_stmt_bind_param($stmt, $types, ...$params);
     }
+    /* Registro dei cambiamenti per l'app (lib/sync.php): per le scritture sulle tabelle
+       sincronizzate legge PRIMA quali righe verranno toccate. Per tutto il resto e' un nulla. */
+    $sync = sync_osserva_prima($sql, $params);
     try {
         mysqli_stmt_execute($stmt);
     } catch (Throwable $e) {
@@ -221,6 +224,7 @@ function sec_q(string $sql, array $params = [], ?string $types = null) {
     $GLOBALS['SEC_LAST_INSERT_ID'] = mysqli_insert_id($conn);
     $GLOBALS['SEC_LAST_AFFECTED']  = mysqli_stmt_affected_rows($stmt);
     mysqli_stmt_close($stmt);
+    if ($sync !== null) sync_osserva_dopo($sync, (int)$GLOBALS['SEC_LAST_AFFECTED'], (int)$GLOBALS['SEC_LAST_INSERT_ID']);
     return true;
 }
 
@@ -701,3 +705,6 @@ function sec_guard_write(int $userId, string $action, int $minLevel = 0, int $ma
     if ($minLevel > 0) sec_require_level($minLevel);
     sec_require_rate($action . '_write', $userId, $max, $seconds);
 }
+
+/* Registro dei cambiamenti per l'app: il gancio che sec_q() richiama (lib/sync.php) */
+require_once __DIR__ . '/sync.php';
