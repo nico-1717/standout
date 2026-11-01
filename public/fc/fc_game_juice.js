@@ -401,6 +401,7 @@
         var n = { c: s.c + (giusta ? 1 : 0), w: s.w + (giusta ? 0 : 1), u: (String(s.u || '') + lettera).slice(-STORIA), k: s.k };
         var dopo = livello(n.c, n.w, n.u);
         card.setAttribute('data-fcv-stats', JSON.stringify(n));
+        livelloSullaCarta(card);   // il chip sulla carta segue subito il nuovo livello
         if (dopo === prima) return;
         var giu = dopo === 'difficile' || dopo === 'difficilissima';
         var su = !giu && rango(dopo) > rango(prima);
@@ -679,9 +680,33 @@
        13. A OGNI PAGINA NUOVA
        ============================================================ */
     var prima = true;
+    /* Il livello della carta sul gioco di STUDIO, sempre in vista mentre si gioca.
+       Per le parole resta nascosto prima della risposta (vedi sopra: suggerirebbe
+       com'e' andata le altre volte e falserebbe il ripasso), ma chi studia lo ha
+       chiesto di proposito. Usa lo stesso chip del messaggio dopo il voto. */
+    function livelloSullaCarta(card) {
+        if (VOCAB || !card || card.classList.contains('anteprima-card')) return;
+        var st = statsDi(card);
+        if (!st) return;
+        var liv = livello(st.c, st.w, st.u);
+        var riga = card.querySelector(':scope > .fcg-liv-riga');
+        if (!riga) {
+            riga = el('div', 'fcg-liv-riga');
+            var titolo = card.querySelector(':scope > .card-title');
+            if (titolo) titolo.insertAdjacentElement('afterend', riga);
+            else card.insertBefore(riga, card.firstChild);
+        }
+        riga.innerHTML = badgeHtml(liv);
+    }
+    function livelliSulleCarte(cont) {
+        if (VOCAB || !cont) return;
+        cont.querySelectorAll('.card-box[data-fcv-stats]').forEach(livelloSullaCarta);
+    }
+
     function pagina(cont) {
         var d = leggiDati(cont);
         if (!d) return;
+        livelliSulleCarte(cont);
         semina(d, prima);
         prima = false;
         root.classList.add('fcg-on');
@@ -696,7 +721,14 @@
             if (k > S.ckFatti) {
                 var da = S.ckFatti * n + 1, a = Math.min(d.fronte, k * n);
                 S.ckFatti = k; salva();
-                setTimeout(function () { checkpoint(k, da, a, d.totale, fine); }, 450);
+                /* Nessuna risposta data in questo tratto (per esempio si e' solo
+                   modificata una carta e si e' tornati al gioco, magari in un
+                   ripasso degli errori): il traguardo si registra ma non si
+                   festeggia, altrimenti compariva un checkpoint "perfetto"
+                   costruito sulle risposte di partite precedenti. */
+                var bl = S.blocco || {};
+                if (!((bl.giuste || 0) + (bl.sbagliate || 0))) { salva(); }
+                else setTimeout(function () { checkpoint(k, da, a, d.totale, fine); }, 450);
             }
         }
         if (S.comboDaSalvare && S.comboDaSalvare >= 3 && S.serie === 0) salvaCombo();
