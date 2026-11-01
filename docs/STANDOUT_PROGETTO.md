@@ -1535,7 +1535,8 @@ Ogni passo ha un criterio di "fatto": senza, si va avanti a metà.
 | 9 | **fatto (01/11/2026)** per planner, attività, abitudini, to buy (con immagini), pillole e diario; provato dal vivo (83 controlli). Mancano flashcard, Pomodoro, progetti, voti, social e AI: da fare solo quando l'app li richiede. Prima di pubblicare l'app negli store servono anche cancellazione dell'account, esportazione dei dati e cambio password via API (oggi esistono solo come pagine del sito) |
 | 10 | **avviato (28/10/2026)** | `public/_assets/ui/base.css` (token standard chiaro/scuro in `@layer base`, reset, testata) è caricato da `fc_game_setup`, `fc_stats`, `fc_history`, `fc_hub`, `fc_decks`, `progetti`, `pomodoro`, `fc_insert`, `fc_card_edit`, `fc_view`, `fc_result`, `fc_game` (identiche a prima, 0 pixel diversi e 0 differenze negli stili calcolati) e dalle 4 pagine legali (restyle approvato da Nico: stesso stile del sito, `--brand` = indaco). Restano le altre pagine, una alla volta; `planner.css` per ultimo. La landing resta com'è per scelta. Colore scelto dall'utente (avatar › Stile › Colore): cookie + copia in `users.ui_accent`, il blu resta il predefinito (`lib/accent.php`) |
 | 11 | **fatto** | `lang/it.json`, `lang/en.json`, `t()` |
-| 12-15 | non fatti | |
+| 12 | **da iniziare** | app React Native con tutte le funzioni del sito, database sul telefono e sincronizzazione (decisioni in §16.1, 01/11/2026) |
+| 13-15 | non fatti | |
 
 > **Nota (aggiornata il 27/10/2026):** il 26/10 si era deciso di fare il passo 13
 > (condivisione gratuita) **sul sito prima del passo 12**; il 27/10 il proprietario
@@ -1600,6 +1601,20 @@ chieste al proprietario.
 - Il mercato usa la **copia con genealogia**, si vende un'**edizione congelata**,
   i **file non si duplicano** e i contenuti pubblicati vivono sotto `pub/`.
 - I **prezzi esistono nello schema da subito, ma partono tutti a 0 €**.
+- **Decisioni sull'app, 01/11/2026 (proprietario):**
+  - **React Native + Expo + TypeScript**, per iOS e Android. L'interfaccia si
+    **rifà da zero**: niente WebView né sito dentro l'app.
+  - **Tutto quello che c'è sul sito deve esserci nell'app**, non solo le pagine
+    più importanti: ogni pagina del sito ha la sua schermata (tabella di
+    corrispondenza da tenere aggiornata e firmata modulo per modulo).
+  - **Database sul telefono** (funziona senza rete) con **sincronizzazione sul
+    nostro server per tutti**. **Al lancio tutto è gratis.** Il **testo è
+    illimitato**; si limitano solo **immagini e audio** (quota per utente).
+    Il piano a pagamento viene dopo; lo schema (`plans`, `user_plans`) c'è già.
+  - La commissione di Apple e Google (15-30%) **non è un problema** per il
+    proprietario (vale per abbonamenti e per il mercato dei mazzi).
+  - Social, forum e negozio di mazzi vengono **dopo** l'app che replica il sito;
+    la base dati dell'app non deve impedirli (moduli solo online con cache).
 
 ---
 
