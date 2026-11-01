@@ -455,6 +455,13 @@
        10. IL CHECKPOINT
        ============================================================ */
     var foglio = null;
+    /* La modalita' a voce (fc_voice_mode.php) non guarda lo schermo: ascolta
+       questi eventi per sapere quando il checkpoint e' in arrivo, quando e'
+       pronto da leggere e quando si chiude, e cosi' puo' leggerlo e rispondere
+       a voce senza che la domanda successiva le parta sopra. */
+    function evento(nome, det) {
+        try { window.dispatchEvent(new CustomEvent(nome, { detail: det || {} })); } catch (e) {}
+    }
     function apriFoglio(classe) {
         chiudiFoglio(true);
         foglio = el('div', 'fcg-foglio ' + (classe || ''));
@@ -470,6 +477,9 @@
         var f = foglio; foglio = null;
         window.__standoutModaleAperto = false;
         if (subito) { f.remove(); return; }
+        /* chiusura vera (non il cambio da checkpoint a boss, che passa da subito) */
+        window.__fcCheckpointInArrivo = false;
+        evento('fc-foglio', { fase: 'chiuso' });
         f.classList.remove('is-on'); f.classList.add('is-via');
         setTimeout(function () { f.remove(); }, 280);
     }
@@ -522,6 +532,8 @@
             + '<div class="fcg-ck-presi" hidden><span class="fcg-sottotit">' + esc(tr('fcv.ck_presi', null, 'Nailed it')) + '</span><div class="fcg-chips"></div></div>'
             + '<div class="fcg-azioni"><button type="button" class="fcg-btn fcg-btn-primo" data-az="continua">' + esc(tr('fcv.ck_continua', null, 'Continue')) + '</button></div>';
         Audio.checkpoint(); vibra([10, 40, 10]);
+        window.__fcCheckpointInArrivo = false;
+        evento('fc-foglio', { fase: 'checkpoint-apre', k: k, fine: !!fine });
 
         p.addEventListener('click', function (e) {
             var b = e.target.closest('[data-az]'); if (!b) return;
@@ -583,6 +595,8 @@
         }
         if (prec >= 80 || rec.length) coriandoli(prec === 100 ? 150 : 90);
         salvaCombo();
+        evento('fc-foglio', { fase: 'checkpoint-pronto', prec: prec, giuste: g, sbagliate: s, nSbagliate: (sb || []).length,
+                              serie: blocco.serieMax || 0, fine: !!fine });
     }
 
     /* ============================================================
@@ -605,6 +619,7 @@
                 + '</div>'
                 + '<div class="fcg-azioni"><button type="button" class="fcg-btn fcg-btn-primo" data-az="mostra">' + esc(tr('fcv.boss_mostra', null, 'Show')) + '</button></div>';
             disegnaTesto($('.fcg-boss-q', p), w.domanda);
+            evento('fc-foglio', { fase: 'boss-carta', i: i, n: lista.length, attesa: '' });
         }
         function carta() {
             if (!VOCAB) { cartaStudio(); return; }
@@ -619,6 +634,8 @@
                 +   '<div class="fcg-boss-parola" aria-live="polite"></div>'
                 + '</div>'
                 + '<div class="fcg-azioni"><button type="button" class="fcg-btn fcg-btn-primo" data-az="mostra">' + esc(tr('fcv.boss_mostra', null, 'Show')) + '</button></div>';
+            /* la parola da dire, perche' la voce possa riconoscerla senza aprirla */
+            evento('fc-foglio', { fase: 'boss-carta', i: i, n: lista.length, attesa: w.parola || '' });
         }
         function mostra() {
             var w = lista[i];
@@ -633,6 +650,7 @@
                   '<button type="button" class="fcg-btn fcg-btn-no" data-az="no">' + esc(tr('fcv.boss_mancato', null, 'Missed it')) + '</button>'
                 + '<button type="button" class="fcg-btn fcg-btn-si" data-az="si">' + esc(tr('fcv.boss_preso', null, 'Got it')) + '</button>';
             Audio.tocco();
+            evento('fc-foglio', { fase: 'boss-risposta' });
         }
         function fine() {
             var tutto = prese === lista.length;
@@ -645,6 +663,7 @@
                 + '<div class="fcg-azioni"><button type="button" class="fcg-btn fcg-btn-primo" data-az="fine">' + esc(tr('fcv.ck_continua', null, 'Continue')) + '</button></div>';
             if (tutto) { Audio.boss(); coriandoli(170); vibra([10, 40, 10, 40, 20]); }
             else Audio.checkpoint();
+            evento('fc-foglio', { fase: 'boss-fine', prese: prese, n: lista.length, tutto: tutto });
         }
         p.addEventListener('click', function (e) {
             var b = e.target.closest('[data-az]'); if (!b) return;
@@ -728,7 +747,12 @@
                    costruito sulle risposte di partite precedenti. */
                 var bl = S.blocco || {};
                 if (!((bl.giuste || 0) + (bl.sbagliate || 0))) { salva(); }
-                else setTimeout(function () { checkpoint(k, da, a, d.totale, fine); }, 450);
+                else {
+                    /* avvisa subito la voce: la domanda dopo non deve partire sotto il foglio */
+                    window.__fcCheckpointInArrivo = true;
+                    evento('fc-foglio', { fase: 'checkpoint-in-arrivo' });
+                    setTimeout(function () { checkpoint(k, da, a, d.totale, fine); }, 450);
+                }
             }
         }
         if (S.comboDaSalvare && S.comboDaSalvare >= 3 && S.serie === 0) salvaCombo();

@@ -73,6 +73,16 @@
             <p class="vg-auto-note vg-auto-parole"><?php te('fc.vg_parole_nota'); ?></p>
             <?php endif; ?>
 
+            <div class="vg-group-label"><?php te('fc.vg_ck_titolo'); ?></div>
+            <div class="vg-cmd-row">
+                <span class="vg-cmd-badge vg-tint-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_continua'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_continua'); ?></span></span>
+            </div>
+            <div class="vg-cmd-row">
+                <span class="vg-cmd-badge vg-tint-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z"/></svg></span>
+                <span class="vg-cmd-txt"><span class="vg-cmd-word">«<?php te('fc.lbl_boss'); ?>»</span><span class="vg-cmd-desc"><?php te('fc.vg_d_boss'); ?></span></span>
+            </div>
+
             <?php if (!fc_is_vocab()): ?>
             <div class="vg-group-label"><?php te('fc.vg_frantuma_titolo'); ?></div>
             <div class="vg-cmd-row">
@@ -175,7 +185,7 @@
 /* «pausa» e «riprendi» tolti di proposito: in modalita' microfono non servono
    piu' e si confondevano con altre frasi. doPausa/doRiprendi restano come codice
    inutilizzato solo se servono in futuro, ma nessun comando le richiama. */
-$vg_intenti = ['ripeti', 'risposta', 'leggi', 'spiega', 'metafora', 'corretto', 'errato', 'frantuma', 'chiudi'];
+$vg_intenti = ['ripeti', 'risposta', 'leggi', 'spiega', 'metafora', 'corretto', 'errato', 'frantuma', 'chiudi', 'continua', 'boss'];
 $vg_comandi = [];
 foreach (['it', 'en'] as $vg_l) {
     $vg_diz = standout_dizionario($vg_l);
@@ -452,8 +462,8 @@ foreach (['it', 'en'] as $vg_l) {
     /* Nelle parole non ci sono l'IA ne' "frantuma": comandi che non possono
        fare niente sono solo occasioni per capire male una frase. */
     var INTENTI = VG_DATI.vocab
-        ? ['ripeti', 'risposta', 'corretto', 'errato']
-        : ['ripeti', 'risposta', 'leggi', 'spiega', 'metafora', 'corretto', 'errato', 'frantuma', 'chiudi'];
+        ? ['ripeti', 'risposta', 'corretto', 'errato', 'continua', 'boss']
+        : ['ripeti', 'risposta', 'leggi', 'spiega', 'metafora', 'corretto', 'errato', 'frantuma', 'chiudi', 'continua', 'boss'];
     INTENTI.forEach(function (intento) {
         var frasi = [];
         LINGUE_CMD.forEach(function (l) { frasi = frasi.concat(elencoVirgole((VG_DATI.comandi[l] || {})[intento])); });
@@ -467,6 +477,9 @@ foreach (['it', 'en'] as $vg_l) {
     Object.keys(COMMANDS).forEach(function (intento) {
         INTENT_LABELS[intento] = T('fc.lbl_' + intento);
     });
+
+    var CK_INTENTI = { continua: 1, boss: 1 };
+    function inFoglio() { return VG.phase.indexOf('ck') === 0 || VG.phase.indexOf('boss') === 0; }
 
     var COMMAND_INDEX = Object.keys(COMMANDS).map(function (intent) {
         return {
@@ -494,6 +507,9 @@ foreach (['it', 'en'] as $vg_l) {
         var best = null;
 
         COMMAND_INDEX.forEach(function (entry) {
+            /* «continua» e «boss» esistono solo davanti al checkpoint: fuori da
+               li' una parola come "continue" potrebbe essere la risposta. */
+            if (CK_INTENTI[entry.intent] && !inFoglio()) return;
             entry.phrases.forEach(function (ph) {
                 var score = similarity(cleaned, ph.text);
                 if (uCount >= ph.words) {
@@ -878,6 +894,7 @@ foreach (['it', 'en'] as $vg_l) {
     /* Una trascrizione (provvisoria o finale, con le sue alternative): se e'
        la risposta giusta, la carta va avanti da sola. */
     function provaRispostaParola(res) {
+        if (VOC && VG.phase === 'boss-q') return provaBoss(res);
         if (!VOC || VG.phase !== 'question' || autoVotoTimer) return false;
         for (var a = 0; a < res.length; a++) {
             if (eEco(res[a].transcript)) continue;
@@ -890,6 +907,12 @@ foreach (['it', 'en'] as $vg_l) {
        4. FLUSSO PRINCIPALE: DOMANDA / RISPOSTA / VALUTAZIONE
        ============================================================ */
     function readQuestion(forza) {
+        /* C'e' un checkpoint in arrivo o aperto: la domanda dopo aspetta che si
+           chiuda (la leggera' onFoglio quando succede). */
+        if (window.__fcCheckpointInArrivo || document.querySelector('.fcg-foglio')) {
+            if (!inFoglio()) { VG.phase = 'ck-wait'; setOrbState('waiting'); }
+            return;
+        }
         var card = currentCardBox();
         if (!card) { setOrbState('listening'); return; }
         var idx = cardIndex(card);
@@ -1235,6 +1258,201 @@ foreach (['it', 'en'] as $vg_l) {
         }
     }
 
+
+    /* ============================================================
+       6-bis. CHECKPOINT E BOSS A VOCE
+       ------------------------------------------------------------
+       Il foglio del checkpoint (fc_game_juice.js) avvisa con l'evento
+       'fc-foglio'. Qui lo si legge ad alta voce e si risponde a voce:
+       «continua» lo chiude, «boss» ripassa subito le carte sbagliate, e nel
+       boss «risposta» / «corretto» / «sbagliato» come nel gioco. Per le
+       parole basta anche dire la parola giusta.
+       Fasi: ck-wait (in arrivo) -> ck (letto, aspetta) -> boss-q / boss-a
+       -> boss-fine. Finche' il foglio c'e', la domanda dopo non si legge.
+       ============================================================ */
+    var ckDati = null;       // l'ultimo riepilogo del checkpoint, per «ripeti»
+    var bossAutoTok = 0;     // annulla il voto automatico se si parla prima
+
+    /* Il testo di un pezzo di schermo, senza le formule (rese da MathJax
+       sarebbero lette due volte). */
+    function testoPulito(el) {
+        if (!el) return '';
+        var c = el.cloneNode(true);
+        c.querySelectorAll('mjx-container, mjx-assistive-mml, .MJX_Assistive_MathML, script, style').forEach(function (n) { n.remove(); });
+        return (c.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+
+    /* Parla una frase dell'interfaccia (nella lingua del sito nelle parole,
+       con la voce delle carte altrimenti) e poi chiama fine. */
+    function parlaFoglio(testo, lingua, fine) {
+        if (!testo) { if (fine) setTimeout(fine, 0); return; }
+        setOrbState('speaking');
+        if (VOC) leggiSequenza([{ testo: testo, lingua: lingua || T('fc.voice_lang'), volte: 1 }], fine);
+        else speakText(testo, fine);
+    }
+
+    /* Il microfono torna a capire i comandi nella lingua scelta (nel boss
+       delle parole ascoltava la lingua della parola da dire). */
+    function micAiComandi() {
+        if (!recognition) return;
+        var l = linguaComandi();
+        if (recognition.lang !== l) {
+            recognition.lang = l;
+            if (isRecognizing) { try { recognition.abort(); } catch (e) {} }
+        }
+        applicaFrasiAttese();
+    }
+
+    function suggerimentoCk(conBoss) {
+        return conBoss
+            ? T('fc.vg_di_continua_boss', { continua: T('fc.lbl_continua'), boss: T('fc.lbl_boss') })
+            : T('fc.vg_di_continua', { continua: T('fc.lbl_continua') });
+    }
+
+    function leggiCheckpoint() {
+        var d = ckDati;
+        if (!d) return;
+        var conBoss = d.nSbagliate > 0 && !!document.querySelector('.fcg-foglio [data-az="boss"]');
+        var chiave = d.fine ? (conBoss ? 'fc.vg_ck_fine_errori' : 'fc.vg_ck_fine') : (conBoss ? 'fc.vg_ck_errori' : 'fc.vg_ck_perfetto');
+        var testo = T(chiave, { k: d.k || '', prec: d.prec, n: d.nSbagliate, serie: d.serie });
+        VG.phase = 'ck';
+        parlaFoglio(testo, null, function () {
+            if (VG.active && VG.phase === 'ck') {
+                setOrbState('listening');
+                showCaption(suggerimentoCk(conBoss), 'hint');
+            }
+        });
+    }
+
+    function leggiBoss() {
+        var foglio = document.querySelector('.fcg-foglio');
+        if (!foglio) return;
+        var fase = VG.phase;
+        var testo, lingua;
+        if (fase === 'boss-q') {
+            testo = VOC ? testoPulito(foglio.querySelector('.fcg-boss-trad')) : testoPulito(foglio.querySelector('.fcg-boss-q'));
+            lingua = voceLato('known');
+        } else {
+            testo = VOC ? testoPulito(foglio.querySelector('.fcg-boss-parola span')) : testoPulito(foglio.querySelector('.fcg-boss-a'));
+            lingua = voceLato('learn');
+        }
+        parlaFoglio(testo, lingua, function () {
+            if (VG.active && VG.phase === fase) {
+                setOrbState('listening');
+                showCaption(fase === 'boss-q'
+                    ? T('fc.vg_di_risposta', { risposta: T('fc.lbl_risposta') })
+                    : T('fc.vg_di_corretta_sbagliata', { corretta: T('fc.lbl_corretto'), sbagliata: T('fc.lbl_errato') }), 'hint');
+            }
+        });
+    }
+
+    function cliccaFoglio(sel) {
+        var b = document.querySelector('.fcg-foglio ' + sel);
+        if (!b) return false;
+        b.click();
+        return true;
+    }
+    function doContinua() {
+        if (VG.phase === 'ck') { stopTuttoIlParlato(); cliccaFoglio('[data-az="continua"], [data-az="salta"]'); }
+        else if (VG.phase === 'boss-fine') { stopTuttoIlParlato(); cliccaFoglio('[data-az="fine"]'); }
+    }
+    function doBoss() {
+        if (VG.phase !== 'ck') return;
+        stopTuttoIlParlato();
+        cliccaFoglio('[data-az="boss"]');     // l'evento 'boss-carta' fa partire la prima carta
+    }
+    function bossMostra() {
+        bossAutoTok++;
+        stopTuttoIlParlato();
+        cliccaFoglio('[data-az="mostra"]');   // l'evento 'boss-risposta' legge la risposta
+    }
+    /* Il voto vale anche senza aver chiesto la risposta, come nel gioco: la
+       si apre (e si smette subito di leggerla) e si passa alla carta dopo. */
+    function bossVota(si) {
+        bossAutoTok++;
+        cliccaFoglio('[data-az="mostra"]');
+        stopTuttoIlParlato();
+        cliccaFoglio('[data-az="' + (si ? 'si' : 'no') + '"]');
+    }
+    /* Nelle parole, la parola giusta detta davanti al boss vale «risposta» +
+       «corretto»: si apre, si lascia un attimo per vederla e si va avanti. */
+    function provaBoss(res) {
+        if (!risposteAttese.length) return false;
+        for (var a = 0; a < res.length; a++) {
+            if (eEco(res[a].transcript)) continue;
+            if (!eRispostaGiusta(res[a].transcript)) continue;
+            var mio = ++bossAutoTok;
+            showCaption('✓ ' + res[a].transcript, 'recognized');
+            cliccaFoglio('[data-az="mostra"]');
+            setTimeout(function () {
+                if (mio === bossAutoTok && VG.active && VG.phase === 'boss-a') bossVota(true);
+            }, 2200);
+            return true;
+        }
+        return false;
+    }
+
+    window.addEventListener('fc-foglio', function (e) {
+        if (!VG.active) return;
+        var d = e.detail || {};
+        switch (d.fase) {
+            case 'checkpoint-in-arrivo':
+            case 'checkpoint-apre':
+                fermaAttesaVoto(); annullaAutoVoto(); stopTuttoIlParlato();
+                VG.pendingGrade = false;
+                if (VG.phase.indexOf('ck') !== 0) VG.phase = 'ck-wait';
+                ckDati = d.fase === 'checkpoint-apre' ? { k: d.k, fine: d.fine } : null;
+                setOrbState('waiting');
+                break;
+            case 'checkpoint-pronto':
+                ckDati = { k: (ckDati && ckDati.k) || '', fine: d.fine, prec: d.prec, nSbagliate: d.nSbagliate, serie: d.serie };
+                micAiComandi();
+                leggiCheckpoint();
+                break;
+            case 'boss-carta':
+                bossAutoTok++;
+                VG.phase = 'boss-q';
+                stopTuttoIlParlato();
+                risposteAttese = VOC ? variantiRisposta(d.attesa) : [];
+                if (VOC && recognition) {
+                    var vl = voceLato('learn');
+                    if (recognition.lang !== vl) { recognition.lang = vl; if (isRecognizing) { try { recognition.abort(); } catch (er) {} } }
+                    applicaFrasiAttese();
+                }
+                leggiBoss();
+                break;
+            case 'boss-risposta':
+                VG.phase = 'boss-a';
+                stopTuttoIlParlato();
+                leggiBoss();
+                break;
+            case 'boss-fine':
+                bossAutoTok++;
+                VG.phase = 'boss-fine';
+                risposteAttese = [];
+                micAiComandi();
+                stopTuttoIlParlato();
+                parlaFoglio(d.tutto ? T('fc.vg_boss_vinto') : T('fc.vg_boss_parziale', { g: d.prese, n: d.n }), null, function () {
+                    if (VG.active && VG.phase === 'boss-fine') {
+                        setOrbState('listening');
+                        showCaption(suggerimentoCk(false), 'hint');
+                    }
+                });
+                break;
+            case 'chiuso':
+                /* Il foglio e' chiuso: il gioco riprende dalla carta che c'era
+                   sotto, che si legge come dopo un voto. */
+                if (!(inFoglio())) break;
+                bossAutoTok++;
+                stopTuttoIlParlato();
+                risposteAttese = [];
+                micAiComandi();
+                VG.phase = 'idle';
+                setTimeout(function () { if (VG.active && VG.phase === 'idle') readQuestion(); }, 500);
+                break;
+        }
+    });
+
     /* ============================================================
        7. RIPETI / PAUSA / RIPRENDI (dipendono dalla fase corrente)
        ============================================================ */
@@ -1262,6 +1480,12 @@ foreach (['it', 'en'] as $vg_l) {
                     if (aEl2) { try { aEl2.currentTime = 0; aEl2.play(); } catch (e) {} }
                     if (VG.active && VG.phase === 'answer') setOrbState('listening');
                 });
+                break;
+            case 'ck':
+                leggiCheckpoint();
+                break;
+            case 'boss-q': case 'boss-a':
+                leggiBoss();
                 break;
             case 'shatter-q':
                 readShatterQuestion(VG.shatterIndex);
@@ -1322,10 +1546,12 @@ foreach (['it', 'en'] as $vg_l) {
        8. DISPATCH COMANDI
        ============================================================ */
     function doRisposta() {
+        if (VG.phase === 'boss-q') { bossMostra(); return; }
         if (VG.phase === 'question') showAndReadAnswer();
         else if (VG.phase === 'shatter-q') readShatterAnswer();
     }
     function doCorretto() {
+        if (VG.phase === 'boss-q' || VG.phase === 'boss-a') { bossVota(true); return; }
         if (VG.phase === 'question' || VG.phase === 'answer' || VG.phase === 'ai-audio' || VG.phase === 'auto-ok') markCard('correct');
         else if (VG.phase === 'shatter-finished') judgeShatter('correct');
         // "corretto" solo dall'ultima mini-card: per essere sicuri di aver
@@ -1337,6 +1563,7 @@ foreach (['it', 'en'] as $vg_l) {
     }
 
     function doErrato() {
+        if (VG.phase === 'boss-q' || VG.phase === 'boss-a') { bossVota(false); return; }
         if (VG.phase === 'question' || VG.phase === 'answer' || VG.phase === 'ai-audio' || VG.phase === 'auto-ok') markCard('wrong');
         else if (VG.phase === 'shatter-finished') judgeShatter('wrong');
         // "errato" invece da QUALSIASI mini-card: basta sbagliarne una per
@@ -1359,7 +1586,9 @@ foreach (['it', 'en'] as $vg_l) {
         corretto: doCorretto,
         errato: doErrato,
         frantuma: startFrantuma,
-        chiudi: closeFrantuma
+        chiudi: closeFrantuma,
+        continua: doContinua,
+        boss: doBoss
     };
 
     /* ============================================================
@@ -1371,7 +1600,7 @@ foreach (['it', 'en'] as $vg_l) {
        dice «corretto» era ancora in fase 'question'. Prima di ogni comando la
        fase si riallinea a quello che c'e' davvero sullo schermo. */
     function sincronizzaFase() {
-        if (VG.phase === 'grading' || VG.phase === 'ai-audio' || VG.phase === 'auto-ok' || VG.phase.indexOf('shatter') === 0) return;
+        if (VG.phase === 'grading' || VG.phase === 'ai-audio' || VG.phase === 'auto-ok' || VG.phase.indexOf('shatter') === 0 || inFoglio()) return;
         var card = currentCardBox();
         if (!card) return;
         if (card.classList.contains('risposta-mostrata')) {
@@ -1420,6 +1649,8 @@ foreach (['it', 'en'] as $vg_l) {
         switch (VG.phase) {
             case 'question': return VOC ? [] : ['risposta'];
             case 'shatter-q': return ['risposta'];
+            case 'boss-q': return VOC ? [] : ['risposta'];
+            case 'boss-a': return ['corretto', 'errato'];
             case 'answer': case 'auto-ok': case 'ai-audio':
             case 'shatter-a': case 'shatter-finished':
                 return ['corretto', 'errato'];
@@ -1879,6 +2110,9 @@ foreach (['it', 'en'] as $vg_l) {
         if (!VG.active) return;
         fermaAttesaVoto();
         annullaAutoVoto();
+        /* Pagina nuova mentre il checkpoint e' aperto o sta per aprirsi: non si
+           interrompe la sua lettura. */
+        if (window.__fcCheckpointInArrivo || document.querySelector('.fcg-foglio')) return;
         stopTuttoIlParlato();
         VG.pendingGrade = false;
         VG.phase = 'idle';

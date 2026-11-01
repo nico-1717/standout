@@ -279,3 +279,8 @@
 .vg-lettura-riga .vg-seg-n3{ grid-template-columns:repeat(3,1fr); }
 .vg-lettura-nota{ margin:6px 2px 0; font-size:11.5px; line-height:1.4; color:#8A8A8E; }
 .vg-auto-parole{ margin-top:6px; font-weight:650; }
+
+/* Il checkpoint e il boss (z-index 10040) coprirebbero il microfono: con la voce
+   accesa il pallino e la didascalia devono restare sopra, per vedere cosa si
+   sente e dire «continua» o «boss». */
+body:has(.fcg-foglio) #vg-orb-wrap{ z-index:10045; }
