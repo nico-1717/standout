@@ -342,7 +342,16 @@ function api_h_sync_push(array $ctx): void {
 
         // già vista: la stessa risposta di allora, niente di nuovo
         $vista = sec_one("SELECT result FROM sync_mutations WHERE user_id = ? AND mutation_id = ?", [$uid, $mid]);
-        if ($vista) { $esiti[] = ['mutation_id' => $mid, 'replayed' => true] + (json_decode($vista['result'], true) ?: ['status' => 'applied']); continue; }
+        if ($vista) {
+            $ricordato = json_decode($vista['result'], true) ?: ['status' => 'applied'];
+            $tb = $m['table'] ?? null; $ug = $m['uuid'] ?? null;
+            if (($ricordato['status'] ?? '') === 'rejected' && ($m['op'] ?? '') === 'upsert' && is_string($tb) && isset(SYNC_MANIFESTO[$tb]) && sync_uuid_valido($ug)) {
+                $att = sync_leggi_righe($tb, $uid, [$ug]);
+                if ($att) { unset($att[0]['_id']); $ricordato['current'] = $att[0]; } else { $ricordato['current'] = null; }
+            }
+            $esiti[] = ['mutation_id' => $mid, 'replayed' => true] + $ricordato;
+            continue;
+        }
 
         $tbl = $m['table'] ?? null; $op = $m['op'] ?? null; $uuid = $m['uuid'] ?? null; $patch = $m['patch'] ?? [];
         if (!is_string($tbl) || !isset(SYNC_MANIFESTO[$tbl])) $esito = sync_rifiuto('validation', 'table', 'Unknown table');
@@ -360,6 +369,12 @@ function api_h_sync_push(array $ctx): void {
             }
         }
         sec_q("INSERT IGNORE INTO sync_mutations (user_id, mutation_id, result) VALUES (?, ?, ?)", [$uid, $mid, substr(json_encode($esito), 0, 255)]);
+        // una modifica rifiutata dice al telefono com'e' la riga SUL SERVER (null = non esiste): il telefono si rimette a posto.
+        // Non si salva in sync_mutations (potrebbe cambiare): se la modifica viene rimandata, il telefono riceve lo stato di allora.
+        if ($esito['status'] === 'rejected' && ($op === 'upsert') && is_string($tbl) && isset(SYNC_MANIFESTO[$tbl]) && sync_uuid_valido($uuid)) {
+            $att = sync_leggi_righe($tbl, $uid, [$uuid]);
+            if ($att) { unset($att[0]['_id']); $esito['current'] = $att[0]; } else { $esito['current'] = null; }
+        }
         $esiti[] = ['mutation_id' => $mid] + $esito;
     }
 

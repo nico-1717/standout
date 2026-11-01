@@ -175,6 +175,8 @@ def main():
         riv = [t for t in api('GET', 'tasks')['tasks'] if t['title'] == NOME + ' dal telefono']; ok(len(riv) == 1 and riv[0]['date'] == '2099-03-04', 'il sito la vede (una sola volta)')
         r = A.push([mut('todos', nu, {'is_done': True, 'title': NOME + ' dal telefono fatta'})]); ok(r['results'][0]['status'] == 'applied', 'spunta + titolo')
         r = A.push([mut('todos', nu, {'colore_strano': 1})]); ok(r['results'][0]['status'] == 'rejected' and r['results'][0]['field'] == 'colore_strano', 'campo sconosciuto: rifiutato')
+        cur = r['results'][0].get('current'); ok(cur and cur['uuid'] == nu and cur['title'] == NOME + ' dal telefono fatta', 'il rifiuto dice com\'e la riga sul server (current)')
+        r = A.push([mut('todos', str(uuid.uuid4()), {'colore_strano': 1})]); ok(r['results'][0]['status'] == 'rejected' and r['results'][0]['current'] is None, 'rifiuto su riga che non esiste: current null')
         r = A.push([mut('todos', nu, {'title': ''})]); ok(r['results'][0]['status'] == 'rejected' and r['results'][0]['field'] == 'title', 'titolo vuoto: rifiutato con il campo')
         r = A.push([mut('todos', nu, {'buy_category_uuid': str(uuid.uuid4())})]); ok(r['results'][0]['code'] == 'not_found', 'categoria che non esiste: not_found')
         art_u = str(uuid.uuid4())
