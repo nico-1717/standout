@@ -49,6 +49,65 @@ function td_drop_image(?string $name): void {
 }
 
 /* ---------------------------------------------------------------------
+   Immagine di un articolo (to buy). Spostata qui dalla pagina todo_api.php
+   perche' la usa anche /api/v1/shopping: due strade, un solo codice.
+   Il tipo si legge dal contenuto con finfo, non dall'estensione dichiarata,
+   che e' banale da falsificare; il nome del file lo genera il server, cosi'
+   non si possono costruire percorsi come ../../qualcosa.php.
+   Chi chiama controlla prima che la riga sia dell'utente.
+   $file = la voce di $_FILES (o null). Ritorna ['image' => nome] oppure
+   ['errore' => [chiave della frase, stato HTTP, codice]].
+   --------------------------------------------------------------------- */
+function td_img_salva(int $uid, int $id, $file): array {
+    if (!is_array($file) || ($file['error'] ?? 1) !== UPLOAD_ERR_OK) {
+        return ['errore' => ['api.immagine_non_ricevuta', 422, 'invalid']];
+    }
+    $tmp = $file['tmp_name'];
+    if (!is_uploaded_file($tmp)) return ['errore' => ['api.immagine_non_valida', 422, 'invalid']];
+    if (filesize($tmp) > 4 * 1024 * 1024) return ['errore' => ['api.immagine_troppo_grande_4', 422, 'too_big']];
+
+    $ammessi = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+    $mime = '';
+    if (function_exists('finfo_open')) {
+        $fi = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = (string)finfo_file($fi, $tmp);
+        finfo_close($fi);
+    }
+    if (!isset($ammessi[$mime])) return ['errore' => ['api.servono_immagini', 422, 'bad_type']];
+    /* doppia verifica: un file puo' dichiarare un tipo immagine e non essere
+       leggibile come tale */
+    $dim = @getimagesize($tmp);
+    if ($dim === false) return ['errore' => ['api.immagine_non_leggibile', 422, 'bad_type']];
+
+    $dir = td_img_dir();
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    if (!is_dir($dir) || !is_writable($dir)) return ['errore' => ['api.cartella_non_scrivibile', 500, 'server']];
+    /* la cartella non deve poter eseguire niente: se un giorno ci finisse
+       dentro un file interpretabile, resta un file e basta */
+    if (!is_file($dir . '/.htaccess')) {
+        @file_put_contents($dir . '/.htaccess', "php_flag engine off\nOptions -ExecCGI\nAddType text/plain .php .phtml .phar\n");
+    }
+
+    $nome = 'b' . $uid . '_' . bin2hex(random_bytes(10)) . '.' . $ammessi[$mime];
+    if (!move_uploaded_file($tmp, $dir . '/' . $nome)) return ['errore' => ['api.immagine_non_salvata', 500, 'server']];
+    @chmod($dir . '/' . $nome, 0644);
+
+    // la vecchia immagine non serve piu': una riga, una immagine
+    $old = sec_one("SELECT buy_image FROM todos WHERE id=? AND user_id=?", [$id, $uid], 'ii');
+    if ($old) td_drop_image($old['buy_image'] ?? null);
+
+    sec_q("UPDATE todos SET buy_image=? WHERE id=? AND user_id=?", [$nome, $id, $uid], 'sii');
+    return ['image' => $nome];
+}
+
+/** Toglie l'immagine di un articolo (il file e il riferimento). Non fa errori se non c'e'. */
+function td_img_togli(int $uid, int $id): void {
+    $t = sec_one("SELECT buy_image FROM todos WHERE id=? AND user_id=?", [$id, $uid], 'ii');
+    if ($t) td_drop_image($t['buy_image'] ?? null);
+    sec_q("UPDATE todos SET buy_image=NULL WHERE id=? AND user_id=?", [$id, $uid], 'ii');
+}
+
+/* ---------------------------------------------------------------------
    L'attività nel planner: creata, aggiornata o tolta secondo la data.
    --------------------------------------------------------------------- */
 function td_sync_planner(int $uid, int $todoId): void {

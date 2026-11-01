@@ -89,6 +89,11 @@
      DELETE /api/v1/diary/items/{id}
      GET    /api/v1/diary/settings        carattere, grandezza, carta
      PATCH  /api/v1/diary/settings        {font?, size?, paper?}
+
+   Immagine di un articolo del to buy, fetta 8 — lib/shopping_img_api.php:
+     POST   /api/v1/shopping/{id}/image   carica o sostituisce: multipart, campo «file» (jpg, png, webp, gif; max 4 MB)
+     GET    /api/v1/shopping/{id}/image   il file (serve la sessione: non c'e' un indirizzo pubblico)
+     DELETE /api/v1/shopping/{id}/image   toglie l'immagine (va bene anche se non c'e')
    ===================================================================== */
 
 /* Dice a auth_core.php che questa e' l'API: niente sessione PHP (e niente cookie
@@ -105,6 +110,7 @@ require_once __DIR__ . '/../../../lib/shopping_api.php';
 require_once __DIR__ . '/../../../lib/todo_bulk_api.php';
 require_once __DIR__ . '/../../../lib/pills_api.php';
 require_once __DIR__ . '/../../../lib/diary_api.php';
+require_once __DIR__ . '/../../../lib/shopping_img_api.php';
 
 /* ---------------- Accesso ---------------- */
 
@@ -579,6 +585,32 @@ function api_h_diario_impostazioni_salva(array $ctx): void {
     api_ok($e);
 }
 
+/* ---------------- Immagine di un articolo ---------------- */
+
+function api_h_shopping_img_carica(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_shopping_write');
+    $e = sp_img_carica((int)$ctx['utente']['id'], (int)$ctx['id']);
+    api_h_fetta5_errore($e);
+    api_ok($e);
+}
+function api_h_shopping_img_togli(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_shopping_write');
+    if (!sp_img_togli((int)$ctx['utente']['id'], (int)$ctx['id'])) api_errore('not_found', 'Item not found');
+    api_ok();
+}
+/* Qui la risposta non e' JSON ma il file. Il tipo lo decide il server dall'estensione che ha scelto
+   lui stesso; «nosniff» impedisce al browser di indovinarne un altro. */
+function api_h_shopping_img_leggi(array $ctx): void {
+    $f = sp_img_file((int)$ctx['utente']['id'], (int)$ctx['id']);
+    if (!$f) api_errore('not_found', 'Image not found');
+    header('Content-Type: ' . $f['mime']);
+    header('Content-Length: ' . filesize($f['path']));
+    header('Cache-Control: private, max-age=3600');
+    header('X-Content-Type-Options: nosniff');
+    readfile($f['path']);
+    exit;
+}
+
 /* ---------------- L'elenco delle rotte ---------------- */
 
 $tokenECookie = ['token', 'cookie'];
@@ -618,6 +650,9 @@ api_v1_esegui([
     ['DELETE', 'shopping/categories/{id}', 'api_h_shopping_cat_togli', ['accetta' => $tokenECookie]],
     ['PATCH',  'shopping/{id}',     'api_h_shopping_modifica', ['accetta' => $tokenECookie]],
     ['DELETE', 'shopping/{id}',     'api_h_shopping_togli',   ['accetta' => $tokenECookie]],
+    ['POST',   'shopping/{id}/image', 'api_h_shopping_img_carica', ['accetta' => $tokenECookie]],
+    ['GET',    'shopping/{id}/image', 'api_h_shopping_img_leggi',  ['accetta' => $tokenECookie]],
+    ['DELETE', 'shopping/{id}/image', 'api_h_shopping_img_togli',  ['accetta' => $tokenECookie]],
     ['POST',   'tasks/bulk',        'api_h_tasks_bulk',       ['accetta' => $tokenECookie]],
     ['POST',   'tasks/reorder',     'api_h_tasks_riordina',   ['accetta' => $tokenECookie]],
     ['POST',   'shopping/bulk',     'api_h_shopping_bulk',    ['accetta' => $tokenECookie]],

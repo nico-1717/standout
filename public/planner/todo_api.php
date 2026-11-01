@@ -515,60 +515,21 @@ if ($ajax === 'cat_delete') {
 }
 
 /* ---------------- immagine di un articolo ----------------
-   Il tipo si legge dal contenuto con finfo, non dall'estensione dichiarata,
-   che è banale da falsificare; il nome del file lo genera il server, così
-   non si possono costruire percorsi come ../../qualcosa.php. */
+   Il lavoro vero (controllo del tipo dal contenuto, nome generato dal server,
+   cartella che non esegue niente) sta in lib/todo_core.php: lo usa anche l'API. */
 
 if ($ajax === 'image') {
     $id = sec_int($_POST['id'] ?? 0, 1, PHP_INT_MAX, 0);
     if (!sec_owns('todos', $id, $uid)) sec_die_json(t('api.attivita_non_trovata'), 404, 'not_found');
-    if (!isset($_FILES['file']) || !is_array($_FILES['file']) || ($_FILES['file']['error'] ?? 1) !== UPLOAD_ERR_OK) {
-        sec_die_json(t('api.immagine_non_ricevuta'), 422, 'invalid');
-    }
-    $tmp = $_FILES['file']['tmp_name'];
-    if (!is_uploaded_file($tmp)) sec_die_json(t('api.immagine_non_valida'), 422, 'invalid');
-    if (filesize($tmp) > 4 * 1024 * 1024) sec_die_json(t('api.immagine_troppo_grande_4'), 422, 'too_big');
-
-    $ammessi = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
-    $mime = '';
-    if (function_exists('finfo_open')) {
-        $fi = finfo_open(FILEINFO_MIME_TYPE);
-        $mime = (string)finfo_file($fi, $tmp);
-        finfo_close($fi);
-    }
-    if (!isset($ammessi[$mime])) sec_die_json(t('api.servono_immagini'), 422, 'bad_type');
-    /* doppia verifica: un file può dichiarare un tipo immagine e non essere
-       leggibile come tale */
-    $dim = @getimagesize($tmp);
-    if ($dim === false) sec_die_json(t('api.immagine_non_leggibile'), 422, 'bad_type');
-
-    $dir = td_img_dir();
-    if (!is_dir($dir)) @mkdir($dir, 0755, true);
-    if (!is_dir($dir) || !is_writable($dir)) sec_die_json(t('api.cartella_non_scrivibile'), 500, 'server');
-    /* la cartella non deve poter eseguire niente: se un giorno ci finisse
-       dentro un file interpretabile, resta un file e basta */
-    if (!is_file($dir . '/.htaccess')) {
-        @file_put_contents($dir . '/.htaccess', "php_flag engine off\nOptions -ExecCGI\nAddType text/plain .php .phtml .phar\n");
-    }
-
-    $nome = 'b' . $uid . '_' . bin2hex(random_bytes(10)) . '.' . $ammessi[$mime];
-    if (!move_uploaded_file($tmp, $dir . '/' . $nome)) sec_die_json(t('api.immagine_non_salvata'), 500, 'server');
-    @chmod($dir . '/' . $nome, 0644);
-
-    // la vecchia immagine non serve più: una riga, una immagine
-    $old = sec_one("SELECT buy_image FROM todos WHERE id=? AND user_id=?", [$id, $uid], 'ii');
-    if ($old) td_drop_image($old['buy_image'] ?? null);
-
-    sec_q("UPDATE todos SET buy_image=? WHERE id=? AND user_id=?", [$nome, $id, $uid], 'sii');
-    sec_json(['ok' => true, 'image' => $nome]);
+    $r = td_img_salva($uid, $id, $_FILES['file'] ?? null);
+    if (isset($r['errore'])) sec_die_json(t($r['errore'][0]), $r['errore'][1], $r['errore'][2]);
+    sec_json(['ok' => true, 'image' => $r['image']]);
 }
 
 if ($ajax === 'image_del') {
     $id = sec_int(sec_in('id'), 1, PHP_INT_MAX, 0);
     if (!sec_owns('todos', $id, $uid)) sec_die_json(t('api.attivita_non_trovata'), 404, 'not_found');
-    $t = sec_one("SELECT buy_image FROM todos WHERE id=? AND user_id=?", [$id, $uid], 'ii');
-    if ($t) td_drop_image($t['buy_image'] ?? null);
-    sec_q("UPDATE todos SET buy_image=NULL WHERE id=? AND user_id=?", [$id, $uid], 'ii');
+    td_img_togli($uid, $id);
     sec_json(['ok' => true]);
 }
 
