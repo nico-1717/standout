@@ -111,22 +111,35 @@ define('CLESSIDRA_ASSETS_EMITTED', true);
         lastBottomY = bottomY; lastActiveMound = activeMound;
     }
 
+    /* I granelli si riciclano invece di crearli e distruggerli a ogni fotogramma:
+       2-4 nodi SVG nuovi sessanta volte al secondo, e altrettanti da togliere,
+       facevano scattare la pagina (soprattutto su iPhone). Un granello che
+       tocca il mucchio torna nella riserva e riparte dalla strozzatura. */
+    var riserva = [];
+    var MAX_GRANELLI = 90;     // tetto: oltre non si vede nessuna differenza, pesa soltanto
     function spawnParticle(){
-        var circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        var circle = riserva.pop();
+        if (!circle) {
+            circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('fill', 'var(--cl-sand)'); circle.setAttribute('class', 'clessidra-grain');
+        }
         var r = 1.0 + Math.random() * 2.0;
         var x = NECK_X + (Math.random() - 0.5) * 4;
         var y = NECK_Y;
         circle.setAttribute('cx', x); circle.setAttribute('cy', y); circle.setAttribute('r', r);
-        circle.setAttribute('fill', 'var(--cl-sand)'); circle.setAttribute('class', 'clessidra-grain');
-        particlesHost.appendChild(circle);
+        if (!circle.parentNode) particlesHost.appendChild(circle);
         return { el: circle, x: x, y: y, vx: (Math.random() - 0.5) * 0.8, vy: 2 + Math.random() * 2, gravity: 0.25 };
+    }
+    function liberaGranello(p){
+        if (p.el.parentNode) p.el.parentNode.removeChild(p.el);
+        if (riserva.length < MAX_GRANELLI) riserva.push(p.el);
     }
 
     function particleLoop(){
         if (!running && particles.length === 0) { particleRafId = null; return; }
         if (running) {
             var spawnCount = Math.floor(Math.random() * 3) + 2;
-            for (var i = 0; i < spawnCount; i++) particles.push(spawnParticle());
+            for (var i = 0; i < spawnCount && particles.length < MAX_GRANELLI; i++) particles.push(spawnParticle());
         }
         for (var j = particles.length - 1; j >= 0; j--) {
             var p = particles[j];
@@ -138,7 +151,7 @@ define('CLESSIDRA_ASSETS_EMITTED', true);
                 var visualDunaHeight = lastActiveMound * (1 - (distFromCenter / 90));
                 collisionY = lastBottomY - visualDunaHeight + 8;
             }
-            if (p.y >= collisionY) { p.el.remove(); particles.splice(j, 1); }
+            if (p.y >= collisionY) { liberaGranello(p); particles.splice(j, 1); }
         }
         particleRafId = requestAnimationFrame(particleLoop);
     }
@@ -150,7 +163,7 @@ define('CLESSIDRA_ASSETS_EMITTED', true);
         idle: function(){
             if (flipRafId) { cancelAnimationFrame(flipRafId); flipRafId = null; }
             running = false; flipping = false;
-            particles.forEach(function(p){ p.el.remove(); }); particles = [];
+            particles.forEach(liberaGranello); particles = [];
             wrapper.style.transition = 'none';
             wrapper.style.transform = 'rotate(0deg)';
             bottomSand.removeAttribute('transform');
@@ -180,7 +193,7 @@ define('CLESSIDRA_ASSETS_EMITTED', true);
         playStartFlip: function(){
             running = false;
             flipping = true;
-            particles.forEach(function(p){ p.el.remove(); }); particles = [];
+            particles.forEach(liberaGranello); particles = [];
 
             var flipDuration = 800;
             var flipStartTime = Date.now();

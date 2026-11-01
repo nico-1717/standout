@@ -259,7 +259,8 @@ function ho_importanti(int $uid, string $oggi): array {
         if (($e['importance'] ?? 'normal') === 'normal') continue;
         if ($e['date'] < $oggi) continue;
         $lista[] = ['kind' => 'event', 'title' => $e['title'], 'date' => $e['date'], 'time' => $e['all_day'] ? '' : $e['start'],
-                    'days' => $giorni($e['date']), 'color' => $e['color'] ?: ($e['project_color'] ?: null), 'strong' => $e['importance'] === 'highest'];
+                    'days' => $giorni($e['date']), 'color' => $e['color'] ?: ($e['project_color'] ?: null), 'strong' => $e['importance'] === 'highest',
+                    'project' => !empty($e['project_name']) ? $e['project_name'] : null];
     }
     foreach (sec_all("SELECT g.deadline, p.name, p.color FROM plan_goals g
                         JOIN projects p ON p.id = g.project_id AND p.user_id = g.user_id

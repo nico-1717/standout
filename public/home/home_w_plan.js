@@ -493,7 +493,10 @@
             /* la prossima data importante ora sta in «Oggi»; qui restano le
                successive, in elenco corto */
             w.date.innerHTML = ''; w.next.innerHTML = '';
-            var imp = (d.important || []).slice(1);
+            /* In «Progetti» solo le date che c'entrano coi progetti: un esame del
+               piano, o un evento collegato a un progetto. Gli altri eventi
+               importanti del planner restano in «Oggi», non qui. */
+            var imp = (d.important || []).slice(1).filter(function (x) { return x.kind === 'exam' || (x.kind === 'event' && x.project); });
             if (imp.length) {
                 w.date.appendChild(el('div', 'ho-cap', T('home.date_successive')));
                 imp.slice(0, 3).forEach(function (x) {

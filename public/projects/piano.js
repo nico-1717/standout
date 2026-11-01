@@ -711,16 +711,19 @@
         top.appendChild(h('div', 'pp-lab', t('tempo_progetto')));
         var big = h('div', 'pp-big');
         var inp = h('input', 'pp-big-inp'); inp.type = 'text'; inp.inputMode = 'decimal'; inp.autocomplete = 'off';
-        function showVal() { inp.value = g.minutes ? (unit === 'hours' ? hoursNum(g.minutes) : Math.round(g.minutes / dayLen * 10) / 10) : ''; inp.placeholder = '0'; }
+        /* «Ogni giorno»: il numero sono i minuti AL GIORNO, non un totale in ore o giorni */
+        var ogniGiorno = g.kind === 'daily';
+        function showVal() { inp.value = g.minutes ? (ogniGiorno ? g.minutes : (unit === 'hours' ? hoursNum(g.minutes) : Math.round(g.minutes / dayLen * 10) / 10)) : ''; inp.placeholder = '0'; }
         showVal();
         big.appendChild(inp);
         var seg = h('div', 'pp-unit-seg');
-        ['hours', 'days'].forEach(function (u) {
+        if (ogniGiorno) seg.appendChild(h('span', 'pp-unit-b on', t('min_al_giorno')));
+        else ['hours', 'days'].forEach(function (u) {
             seg.appendChild(btn('pp-unit-b' + (unit === u ? ' on' : ''), t(u === 'hours' ? 'ore' : 'giorni'), function () { store('unit', u); paintAll(); }));
         });
         big.appendChild(seg);
         top.appendChild(big);
-        if (unit === 'days') top.appendChild(h('div', 'pp-sub', t('giorno_vale', { h: fmtMin(dayLen) })));
+        if (unit === 'days' && !ogniGiorno) top.appendChild(h('div', 'pp-sub', t('giorno_vale', { h: fmtMin(dayLen) })));
         card.appendChild(top);
 
         var save = debounce(function (extra) {
@@ -733,12 +736,13 @@
         }, 500);
         inp.addEventListener('input', function () {
             var v = parseFloat(String(inp.value).replace(',', '.')) || 0;
+            if (ogniGiorno) { g.minutes = Math.max(0, Math.round(v)); n.goal = g; save(); return; }
             g.minutes = Math.round((unit === 'hours' ? v * 60 : v * dayLen) / 5) * 5;
             n.goal = g; save({ resplit: 1 });
         });
 
         /* quanto è fatto */
-        if (g.minutes > 0) {
+        if (g.minutes > 0 && !ogniGiorno) {
             var pct = Math.min(100, Math.round(n.done_min * 100 / g.minutes));
             var bar = h('div', 'pp-bar'); var fill = h('i'); fill.style.width = pct + '%'; fill.style.background = n.color; bar.appendChild(fill);
             card.appendChild(bar);
@@ -748,8 +752,15 @@
         /* tipo */
         card.appendChild(h('div', 'pp-lab', t('tipo')));
         var kinds = h('div', 'pp-pills');
-        ['plain', 'exam', 'steady', 'course', 'count'].forEach(function (k) {
-            kinds.appendChild(btn('pp-pill' + (g.kind === k ? ' on' : ''), t('tipo_' + k), function () { g.kind = k; n.goal = g; save(); }));
+        ['plain', 'exam', 'steady', 'daily', 'course', 'count'].forEach(function (k) {
+            kinds.appendChild(btn('pp-pill' + (g.kind === k ? ' on' : ''), t('tipo_' + k), function () {
+                /* passando a «ogni giorno» i minuti cambiano significato (da totale a
+                   per-giorno): si riparte da un valore sensato invece di moltiplicare
+                   un totale da ore per ogni giorno del calendario */
+                if (k === 'daily' && g.kind !== 'daily') g.minutes = 15;
+                else if (k !== 'daily' && g.kind === 'daily') g.minutes = 0;
+                g.kind = k; n.goal = g; save(); paintAll();
+            }));
         });
         card.appendChild(kinds);
         card.appendChild(h('div', 'pp-sub', t('tipo_' + g.kind + '_h')));

@@ -40,7 +40,7 @@ $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
    viene davvero controllato (vedi sec_solo_post_se_scrive in security_core.php). */
 sec_solo_post_se_scrive($ajax, ['tree', 'master', 'today', 'settings_get', 'tpl_list']);
 
-const PN_KINDS = ['plain', 'exam', 'steady', 'course', 'count'];
+const PN_KINDS = ['plain', 'exam', 'steady', 'course', 'count', 'daily'];
 const PN_PRIO  = ['must', 'should', 'nice'];
 
 /* ---------------------------------------------------------------------
@@ -301,6 +301,7 @@ function pn_pianifica(int $uid, int $radice, array $imp): array {
 
     /* le unità */
     $unita = [];
+    $giornalieri = [];           // [progetto] => obiettivo, solo kind=daily
     foreach ($ambito as $id) {
         $o = $g[$id] ?? null;
         if (!$o || !$o['active'] || $o['minutes'] <= 0) continue;
@@ -313,6 +314,11 @@ function pn_pianifica(int $uid, int $radice, array $imp): array {
             $a = $p[$a]['parent'];
         }
         if (!$ok) continue;
+        /* «ogni giorno»: i minuti sono PER GIORNO e non si dividono né si
+           accumulano (un podcast da 10 minuti ogni giorno). Non entra nel
+           calcolo del bisogno: si appoggia prima, sui giorni, e toglie la
+           sua parte alla capienza degli altri. */
+        if ($o['kind'] === 'daily') { $giornalieri[$id] = $o; continue; }
         // se un figlio ha il suo tempo, è il figlio l'unità
         $figlio = false;
         foreach ($p[$id]['kids'] as $k) if (!empty($g[$k]['active']) && ($g[$k]['minutes'] ?? 0) > 0) { $figlio = true; break; }
@@ -364,6 +370,27 @@ function pn_pianifica(int $uid, int $radice, array $imp): array {
         $capGiorno[$d] = $c;
     }
 
+    /* le attività «ogni giorno»: i loro minuti si mettono per primi, ogni giorno
+       con posto, dentro le loro date (e sui giorni dipinti, se ce ne sono).
+       Tolgono tempo alla capienza degli altri, perché ci sono comunque. */
+    $righeGiornaliere = [];
+    foreach ($giornalieri as $id => $o) {
+        $ini = pn_eredita($p, $g, $id, 'start');
+        $scad = pn_eredita($p, $g, $id, 'deadline');
+        $dip = null; $a = $id; $guard = 0;
+        while ($a !== null && $guard++ < 30) { if (!empty($dipinti[$a])) { $dip = $dipinti[$a]; break; } $a = $p[$a]['parent'] ?? null; }
+        foreach ($giorni as $d) {
+            if ($ini && $d < $ini) continue;
+            if ($scad && $d > $scad) continue;
+            if ($dip !== null && empty($dip[$d])) continue;
+            if ($capGiorno[$d] <= 0) continue;
+            $m = min((int)$o['minutes'], (int)$capGiorno[$d]);
+            if ($m <= 0) continue;
+            $righeGiornaliere[$d][$id]['study'] = $m;
+            $capGiorno[$d] -= $m;
+        }
+    }
+
     /* i giorni utili di ogni unità: dentro le sue date, sui giorni dipinti
        se ce ne sono, e solo dove c'è posto */
     $buffer = $imp['buffer_days'];
@@ -395,7 +422,7 @@ function pn_pianifica(int $uid, int $radice, array $imp): array {
     $rango = ['must' => 0, 'should' => 1, 'nice' => 2];
     $peso = ['must' => 3, 'should' => 2, 'nice' => 1];
     $ultimoGiorno = [];
-    $righe = [];                 // [giorno][progetto][kind] => minuti
+    $righe = $righeGiornaliere;  // [giorno][progetto][kind] => minuti (si parte dalle attività «ogni giorno»)
     $ultimoStudio = [];          // [progetto][giorno] => minuti, per i ripassi
     /* Quanto è piena la strada: bisogno totale diviso tempo totale. Se è
        comoda, ogni giorno prende solo la sua parte e resta tempo libero. Se è
@@ -935,6 +962,9 @@ if ($ajax === 'skip_fix') {
     if (!pn_posseduto($uid, $id)) sec_die_json(t('piano.api_progetto_non_trovato'), 404, 'not_found');
     $ieri = pn_piu(pn_oggi(), -1);
     $mode = sec_enum(sec_in('mode'), ['move', 'leave'], 'leave');
+    /* un'attività «ogni giorno» non si recupera: domani c'è comunque la sua parte */
+    $og = sec_one("SELECT kind FROM plan_goals WHERE user_id = ? AND project_id = ?", [$uid, $id], 'ii');
+    if ($og && $og['kind'] === 'daily') $mode = 'leave';
     $riga = sec_one("SELECT minutes FROM plan_days WHERE user_id = ? AND day = ? AND project_id = ? AND kind = 'study'", [$uid, $ieri, $id], 'isi');
     if ($riga) {
         $fatto = pn_fatto($uid, $ieri);
