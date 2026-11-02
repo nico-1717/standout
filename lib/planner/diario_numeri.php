@@ -31,7 +31,8 @@ function dn_prevista(array $h, string $d): float {
             return substr($mask, (int)date('N', strtotime($d)) - 1, 1) === '1' ? 1.0 : 0.0;
         case 'interval':
             $n = max(1, (int)$h['interval_days']);
-            $g = (int)floor((strtotime($d) - strtotime($h['start_date'])) / 86400);
+            /* round e non floor: col fuso Europe/Rome fra il 29 marzo e il 25 ottobre due mezzanotti distano N giorni MENO un'ora, e floor contava un giorno in meno ("ogni 2 giorni" saltava al giorno dopo per tutta l'estate) */
+            $g = (int)round((strtotime($d) - strtotime($h['start_date'])) / 86400);
             return ($g >= 0 && $g % $n === 0) ? 1.0 : 0.0;
         case 'weekly':
             return min(7, max(1, (int)$h['times_per_week'])) / 7;

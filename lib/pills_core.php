@@ -80,7 +80,8 @@ function td_pill_due(array $p, string $date): bool {
 
     if ($p['freq_type'] === 'interval') {
         $n = max(1, (int)$p['interval_days']);
-        $giorni = (int)floor((strtotime($date) - strtotime($p['start_date'])) / 86400);
+        /* round e non floor: col fuso Europe/Rome fra il 29 marzo e il 25 ottobre due mezzanotti distano N giorni MENO un'ora, e floor contava un giorno in meno ("ogni 2 giorni" saltava al giorno dopo per tutta l'estate) */
+        $giorni = (int)round((strtotime($date) - strtotime($p['start_date'])) / 86400);
         return $giorni >= 0 && ($giorni % $n) === 0;
     }
 
