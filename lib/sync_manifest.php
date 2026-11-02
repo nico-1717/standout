@@ -215,6 +215,100 @@ const SYNC_MANIFESTO = [
             'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
+
+    /* ---- planner ---- */
+    // I calendari. Il «principale» (is_default) lo crea il server e non si cancella; i campi di Google non viaggiano.
+    'planner_calendars' => [
+        'ordine'       => 100,
+        'proprietario' => 'user_id',
+        'gruppo'       => ['user_id'],
+        'campi' => [
+            'name'       => ['tipo' => 's'],
+            'color'      => ['tipo' => 's'],
+            'is_visible' => ['tipo' => 'b'],
+            'is_default' => ['tipo' => 'b', 'solo_lettura' => true],
+            'role'       => ['tipo' => 's', 'solo_lettura' => true],      // study = ci vivono i blocchi del to study
+            'keywords'   => ['tipo' => 's'],
+            'def_repeat' => ['tipo' => 'e'],
+            'def_notify' => ['tipo' => 'e'],
+            'sort_key'   => ['tipo' => 'k'],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    'planner_categories' => [
+        'ordine'       => 110,
+        'proprietario' => 'user_id',
+        'gruppo'       => ['user_id'],
+        'campi' => [
+            'name'       => ['tipo' => 's'],
+            'color'      => ['tipo' => 's'],
+            'is_hidden'  => ['tipo' => 'b'],
+            'role'       => ['tipo' => 's', 'solo_lettura' => true],
+            'sort_key'   => ['tipo' => 'k'],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Le parole che agganciano da sole una categoria al titolo di un evento. Una parola e' di UNA categoria sola.
+    'planner_category_keywords' => [
+        'ordine'       => 120,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'category_uuid' => ['tipo' => 'fk', 'col' => 'category_id', 'tabella' => 'planner_categories', 'solo_creazione' => true],
+            'keyword'       => ['tipo' => 's', 'solo_creazione' => true],
+            'created_at'    => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at'    => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Gli eventi: la riga com'e' sul sito. Una serie e' un capostipite con `rrule`; ogni eccezione («solo questa volta»
+    // o «questa volta no») e' una riga con series_uuid + original_date (e is_cancelled se la volta e' tolta). Le
+    // occorrenze NON sono righe: le calcola chi legge (il telefono ha lo stesso motore del sito). `rrule` lo scrive
+    // il server dai campi repeat_*. I collegamenti a progetti e routine arrivano con le loro tabelle.
+    'planner_events' => [
+        'ordine'       => 130,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'title'            => ['tipo' => 's'],
+            'notes'            => ['tipo' => 's'],
+            'location'         => ['tipo' => 's'],
+            'place_name'       => ['tipo' => 's'],
+            'place_lat'        => ['tipo' => 'n'],
+            'place_lon'        => ['tipo' => 'n'],
+            'place_ref'        => ['tipo' => 's'],
+            'duration_locked'  => ['tipo' => 'b'],
+            'event_date'       => ['tipo' => 'd'],
+            'end_date'         => ['tipo' => 'd'],
+            'start_time'       => ['tipo' => 'o'],
+            'end_time'         => ['tipo' => 'o'],
+            'is_all_day'       => ['tipo' => 'b'],
+            'category_uuid'    => ['tipo' => 'fk', 'col' => 'category_id', 'tabella' => 'planner_categories'],
+            'calendar_uuid'    => ['tipo' => 'fk', 'col' => 'calendar_id', 'tabella' => 'planner_calendars'],
+            'habit_uuid'       => ['tipo' => 'fk', 'col' => 'habit_id', 'tabella' => 'habits', 'solo_creazione' => true],
+            'importance'       => ['tipo' => 'e'],
+            'color'            => ['tipo' => 's'],
+            'item_type'        => ['tipo' => 'e'],
+            'is_completed'     => ['tipo' => 'b'],
+            'completed_at'     => ['tipo' => 's', 'solo_lettura' => true],
+            'notify_type'      => ['tipo' => 'e'],
+            'notify_minutes'   => ['tipo' => 'i'],
+            'repeat_type'      => ['tipo' => 'e'],
+            'repeat_interval'  => ['tipo' => 'i'],
+            'repeat_unit'      => ['tipo' => 'e'],
+            'repeat_until'     => ['tipo' => 'd'],
+            'rrule'            => ['tipo' => 's', 'solo_lettura' => true],
+            'series_uuid'      => ['tipo' => 'fk', 'col' => 'series_id', 'tabella' => 'planner_events', 'solo_creazione' => true],
+            'original_date'    => ['tipo' => 'd', 'solo_creazione' => true],
+            'is_cancelled'     => ['tipo' => 'b'],
+            'routine_group'    => ['tipo' => 's', 'solo_lettura' => true],
+            'routine_collapsed'=> ['tipo' => 'b', 'solo_lettura' => true],
+            'sort_order'       => ['tipo' => 'i', 'solo_lettura' => true],
+            'created_at'       => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at'       => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
 ];
 
 /** UUIDv5: namespace fisso dell'app (lo stesso nell'app, vedi src/core/sync/uuid5). */

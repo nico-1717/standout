@@ -123,7 +123,7 @@ def main():
         for p_ in A.chiama('GET', '/api/v1/pills/plans').get('plans', []):
             if p_['name'].startswith(NOME): A.chiama('DELETE', f"/api/v1/pills/plans/{p_['id']}")
         print('1. stato e copia completa')
-        st = A.chiama('GET', '/api/v1/sync/state'); ok(st.get('ok') and st['tables'] == ['todo_buy_categories', 'todos', 'habit_categories', 'habits', 'habit_logs', 'pill_plans', 'pill_doses', 'habit_daily_journal', 'diary_list_items'], f"stato: tabelle {st.get('tables')}")
+        st = A.chiama('GET', '/api/v1/sync/state'); ok(st.get('ok') and st['tables'] == ['todo_buy_categories', 'todos', 'habit_categories', 'habits', 'habit_logs', 'pill_plans', 'pill_doses', 'habit_daily_journal', 'diary_list_items', 'planner_calendars', 'planner_categories', 'planner_category_keywords', 'planner_events'], f"stato: tabelle {st.get('tables')}")
         pagine = A.copia_completa(limite=50)
         ok(pagine >= 1, f'copia completa a pagine da 50 ({pagine} pagine, {len(A.copia)} righe)')
         ok(all(r['sort_key'] for r in A.copia.values() if 'sort_key' in r), 'ogni riga che ha una sort_key la ha piena')

@@ -23,6 +23,7 @@ require_once __DIR__ . '/shopping_api.php';
 require_once __DIR__ . '/sync.php';
 require_once __DIR__ . '/habits_api.php';
 require_once __DIR__ . '/pills_api.php';
+require_once __DIR__ . '/planner/planner_lib.php';
 
 const SYNC_PUSH_MAX = 200;
 const SYNC_PULL_MAX = 1000;
@@ -352,6 +353,10 @@ function sync_applica(int $uid, array $m): array {
             case 'pill_doses':        $esito = sync_pdoses_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'habit_daily_journal': $esito = sync_hjournal_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'diary_list_items':  $esito = sync_dlist_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'planner_calendars': $esito = sync_pcal_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'planner_categories': $esito = sync_pcat_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'planner_category_keywords': $esito = sync_pkey_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'planner_events':    $esito = sync_pevents_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             default:                  $esito = sync_rifiuto('validation', 'table', 'Unknown table');
         }
         // una modifica rifiutata non deve lasciare mezze scritture
@@ -425,3 +430,4 @@ function api_h_sync_push(array $ctx): void {
 require_once __DIR__ . '/sync_abitudini.php';
 require_once __DIR__ . '/sync_diario.php';
 require_once __DIR__ . '/sync_pastiglie.php';   // dopo le funzioni di base che usa (sync_rifiuto, sync_id_da_uuid...)
+require_once __DIR__ . '/sync_planner.php';
