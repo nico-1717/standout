@@ -15,6 +15,7 @@ Fa, nell'ordine, quello che fara' l'app:
  11. (con --all) l'immagine di un articolo (carica, rileggi, file sbagliato, togli)
  12. (con --all) una terapia di prova tra le pastiglie: /api/v1/pills
  13. (con --all) il diario: letture, una voce di elenco, errori di controllo
+ 14. (con --all) registrazione (solo i rifiuti: nessun account si crea) e «password dimenticata»
 
 Serve a due cose: provare il server locale prima del push, e provare il sito vero
 dopo il deploy (soprattutto che Apache lasci passare l'intestazione Authorization).
@@ -370,6 +371,21 @@ def prova_diario(base, utente, password):
         chiama(base, 'POST', 'auth/logout', intestazioni=h)
 
 
+def prova_account(base):
+    """Registrazione e password dimenticata. NON si crea nessun account: si provano solo i rifiuti
+    (campi sbagliati, nome gia' usato) e la risposta sempre uguale di «password dimenticata»."""
+    print('\n14) Registrazione e password dimenticata (/api/v1/auth/register, /auth/forgot)')
+    s, r, _ = chiama(base, 'POST', 'auth/register', {'username': 'x', 'email': 'no', 'password': 'corta', 'password_confirm': 'altra'})
+    esito(s == 422 and r and set(r.get('fields', {})) >= {'accetto', 'username', 'email', 'password', 'password_confirm'},
+          'una registrazione sbagliata e\' rifiutata (422) e dice QUALI campi', f'stato {s}, {r}')
+    s, r, _ = chiama(base, 'POST', 'auth/register', {'username': 'x_prova_qualunque', 'email': 'a@b.it', 'password': 'Tr0ub4dor&3xyz!', 'password_confirm': 'Tr0ub4dor&3xyz!', 'accetto': 'true'})
+    esito(s == 422 and 'accetto' in r.get('fields', {}), 'il consenso vale solo con true (non con il testo "true")', f'stato {s}')
+    s1, a, _ = chiama(base, 'POST', 'auth/forgot', {'identifier': 'nessuno_' + str(os.getpid())})
+    esito(s1 == 200 and a == {'ok': True}, 'password dimenticata risponde ok anche se l\'account non esiste', f'stato {s1}, {a}')
+    s, v, _ = chiama(base, 'POST', 'auth/forgot', {'identifier': ''})
+    esito(s == 422, 'password dimenticata con il campo vuoto: 422', f'stato {s}')
+
+
 def main():
     ap = argparse.ArgumentParser(description="Prova l'accesso con token di Standout.")
     ap.add_argument('--url', default=os.environ.get('STANDOUT_URL', ''), help='indirizzo del sito, senza /api/v1')
@@ -457,6 +473,7 @@ def main():
         prova_immagine(base, utente, password)
         prova_pillole(base, utente, password)
         prova_diario(base, utente, password)
+        prova_account(base)
 
     print('\nRisultato: %d ok, %d falliti' % (verdi, rossi))
     sys.exit(1 if rossi else 0)

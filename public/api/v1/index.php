@@ -16,6 +16,8 @@
    Rotte di questo passo (accesso con token, §7.3):
      POST   /api/v1/auth/login            nome utente + password -> due token
      POST   /api/v1/auth/refresh          token di rinnovo -> coppia nuova
+     POST   /api/v1/auth/register         crea l'account {username, email, password, password_confirm, accetto: true, device_name?} -> due token
+     POST   /api/v1/auth/forgot           chiede il link per la password nuova {identifier}: la risposta e' sempre la stessa
      POST   /api/v1/auth/logout           esce da QUESTO dispositivo
      POST   /api/v1/auth/logout_all       esce da TUTTI i dispositivi
      POST   /api/v1/auth/accept_terms     accetta condizioni e privacy attuali
@@ -123,6 +125,8 @@ require_once __DIR__ . '/../../../lib/pills_api.php';
 require_once __DIR__ . '/../../../lib/diary_api.php';
 require_once __DIR__ . '/../../../lib/shopping_img_api.php';
 require_once __DIR__ . '/../../../lib/sync_api.php';
+require_once __DIR__ . '/../../../lib/registrazione.php';
+require_once __DIR__ . '/../../../lib/password_reset.php';
 require_once __DIR__ . '/../../../lib/api_settings.php';
 
 /* ---------------- Accesso ---------------- */
@@ -155,6 +159,43 @@ function api_h_logout_tutti(array $ctx): void {
        browser rimasti collegati col cookie di 60 giorni (PROGETTO §7.3). */
     $n = api_sessioni_revoca_tutte((int)$ctx['utente']['id'], true);
     api_ok(['revoked' => $n]);
+}
+
+
+/* ---------------- Registrazione e password dimenticata (rotte pubbliche) ---------------- */
+
+function api_h_registra(array $ctx): void {
+    /* un limite largo sui tentativi (ferma chi martella) e uno stretto sugli account davvero creati:
+       lo stesso schema del sito, il secondo sta dentro reg_esegui() */
+    sec_require_rate('register', sec_ip(), 30, 3600);
+    $c = api_corpo();
+    $esito = reg_esegui($c);
+    if (!$esito['ok']) {
+        if ($esito['http'] === 500) api_errore('server_error');
+        // 409 = nome o email gia' usati: si dice quale campo, come sul sito (in registrazione e' normale)
+        api_errore('validation', null, $esito['http'], ['fields' => $esito['errori'] ?? [], 'reason' => $esito['error']]);
+    }
+    $uid = (int)$esito['uid'];
+    $tokens = api_sessione_crea($uid, mb_substr(api_testo($c['device_name'] ?? ''), 0, 80), (string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
+    /* si risponde e POI si manda l'email di verifica: mail() puo' essere lenta */
+    http_response_code(201);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store, private');
+    echo json_encode(['ok' => true] + api_pacchetto_accesso($uid, $tokens), JSON_UNESCAPED_UNICODE);
+    reg_invia_verifica_poi($uid);
+    exit;
+}
+
+function api_h_password_dimenticata(array $ctx): void {
+    /* 10 richieste all'ora per indirizzo: e' il freno sulla rete, non rivela niente sull'account */
+    sec_require_rate('pw_reset_ip', sec_ip(), 10, 3600);
+    $c = api_corpo();
+    $identifier = api_testo($c['identifier'] ?? '');
+    if (trim($identifier) === '') api_errore('validation', null, null, ['field' => 'identifier']);
+    /* la risposta e' SEMPRE la stessa, esista l'account o no, e parte prima del lavoro (come sul sito) */
+    pr_rispondi_poi_lavora(['ok' => true]);
+    pr_richiedi($identifier);
+    exit;
 }
 
 /* ---------------- Condizioni d'uso ---------------- */
@@ -639,6 +680,8 @@ $tokenECookie = ['token', 'cookie'];
 
 api_v1_esegui([
     ['POST',   'auth/login',        'api_h_login',            []],
+    ['POST',   'auth/register',     'api_h_registra',         []],
+    ['POST',   'auth/forgot',       'api_h_password_dimenticata', []],
     ['POST',   'auth/refresh',      'api_h_rinnova',          []],
     ['POST',   'auth/logout',       'api_h_logout',           ['accetta' => ['token'], 'termini' => false]],
     ['POST',   'auth/logout_all',   'api_h_logout_tutti',     ['accetta' => $tokenECookie, 'termini' => false]],
