@@ -25,6 +25,8 @@ function sync_diario_unisci(string $server, string $telefono): string {
     if ($server === $telefono || trim($telefono) === '') return $server;
     if (trim($server) === '') return $telefono;
     if (mb_strpos($server, $telefono) !== false) return $server;
+    // il telefono ha continuato a scrivere sopra il testo che il server ha gia' (scritto durante l'invio): vale il suo
+    if (mb_strpos($telefono, $server) === 0) return $telefono;
     return mb_substr($server . SYNC_DIARIO_DIVISORE . $telefono, 0, SYNC_DIARIO_NOTA_MAX);
 }
 

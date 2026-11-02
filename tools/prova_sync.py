@@ -443,6 +443,10 @@ def main():
         api('PATCH', 'diary/day', {'date': gg, 'note': 'solo sito'})
         r = B.push([mut('habit_daily_journal', gu, {'note': 'solo sito', 'note_rev': rev})])
         ok(api('GET', 'diary/day?date=' + gg)['day']['note'] == 'solo sito', 'stesso testo scritto da due parti: resta uno solo')
+        # (d2) il telefono continua a scrivere sopra il testo che il server gia ha (durante l'invio): vale il suo, senza doppioni
+        api('PATCH', 'diary/day', {'date': gg, 'note': 'riga uno'})
+        r = B.push([mut('habit_daily_journal', gu, {'note': 'riga uno\nriga due', 'note_rev': 'impronta-vecchia'})])
+        ok(api('GET', 'diary/day?date=' + gg)['day']['note'] == 'riga uno\nriga due', 'testo che continua quello del server: nessun doppione')
         # (e) elenchi
         iu = str(uuid.uuid4())
         r = A.push([mut('diary_list_items', iu, {'entry_date': gg, 'list_type': 'good', 'content': 'un caffe con Anna'})])
