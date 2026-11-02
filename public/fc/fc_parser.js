@@ -650,7 +650,32 @@ function fcdClearMarks(doc, sel) {
 /* Il testo incollato "sembra Markdown"? Bastano un titolo (#), un punto di
    elenco, un **grassetto** o un blocco ```: cosi' il testo normale con un
    asterisco o un trattino in mezzo non viene toccato. */
+/* Il testo incollato e' CODICE (Python, C, JS...) e non Markdown? In codice una
+   riga «# commento» non e' un titolo: leggerla come tale la rendeva grassetto e
+   ne toglieva il «#», e dopo, col tasto del codice, non era piu' un commento.
+   Si guardano le righe che NON sono commenti: se almeno due e piu' della meta'
+   hanno la forma del codice (def/if/for... con i due punti, import, assegnazioni,
+   chiamate di funzione, righe che finiscono con ; { }), e' codice. Le righe
+   «#» non contano ne' a favore ne' contro: possono essere sia commenti sia titoli. */
+function fcdSembraCodice(t) {
+    if (/^```/m.test(t)) return false;             // con i recinti e' Markdown, ci pensa fcdFromFences
+    var righe = t.split('\n').filter(function (l) { return l.trim() !== '' && !/^\s*#/.test(l); });
+    if (righe.length < 2) return false;
+    var codice = 0;
+    righe.forEach(function (l) {
+        if (/^\s*(def|class|if|elif|else|for|while|try|except|finally|with|async\s+def)\b.*:\s*(#.*)?$/.test(l)
+            || /^\s*(import\s+\S+|from\s+\S+\s+import\s+\S+)/.test(l)
+            || /^\s*(return|print|raise|yield|assert|del|pass|break|continue)\b/.test(l)
+            || /^\s*[A-Za-z_][\w.\[\]'"]*\s*([-+*\/%|&^]|\/\/|\*\*)?=\s*\S/.test(l)       // x = ..., x += ...
+            || /^\s*[A-Za-z_][\w.]*\(.*\)\s*(#.*)?$/.test(l)                                 // chiamata
+            || /[;{}]\s*$/.test(l)
+            || /^\s*(#include|using\s+namespace|public\s|private\s|int\s|void\s|const\s|let\s|var\s|function\s)/.test(l)) codice++;
+    });
+    return codice >= 2 && codice / righe.length > 0.5;
+}
+
 function fcdHaMarkdown(t) {
+    if (fcdSembraCodice(t)) return false;
     return /^```/m.test(t) || /^\s{0,3}#{1,6}\s+\S/m.test(t) || /^\s*(?:[-*+]|\d+[.)])\s+\S/m.test(t) || /\*\*[^*\s][^*\n]*[^*\s]\*\*/.test(t);
 }
 
@@ -2380,7 +2405,7 @@ function fcTypesetMath(elements) { return fcdTypesetMath(elements); }
 var FC_PALETTE = FCD_PALETTE;
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { fcdParse: fcdParse, fcdStringify: fcdStringify, fcdNorm: fcdNorm,
+    module.exports = { fcdSembraCodice: fcdSembraCodice, fcdParse: fcdParse, fcdStringify: fcdStringify, fcdNorm: fcdNorm,
         fcdTrim: fcdTrim, fcdTrimText: fcdTrimText,
         fcdToggleMark: fcdToggleMark, fcdSetMark: fcdSetMark, fcdRangeHas: fcdRangeHas,
         fcdToggleList: fcdToggleList, fcdIndent: fcdIndent, fcdSetListColor: fcdSetListColor,

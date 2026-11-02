@@ -76,4 +76,5 @@ Read this first; open `docs/STANDOUT_PROGETTO.md` only for conventions detail, `
 ### Titoli: padre con risposta vuota (02/11/2026)
 - Una carta padre con la domanda scritta, la risposta completamente vuota e **almeno UNA** sottocarta (prima due) e' un titolo. La regola vive in tre punti che vanno tenuti uguali: `$isTitolo` in `fc_view.php`, `fc_e_titolo()` in `fc_game.php` (le partite GIA' create tengono quello che avevano) e `fcv_titoli_studio()` in `lib/fc/fc_vocab_gioco.php` (SQL).
 - "Vuoto" ora ignora anche lo spazio non separabile (U+00A0) e i caratteri invisibili (U+200B-200D, U+FEFF): `fc_spazi_via()` / `fc_campo_e_vuoto()` / `fcv_testo_vuoto()`.
+- Incolla: `fcdSembraCodice(t)` (fc_parser.js) riconosce il testo che e' codice (def/if/for con `:`, import, assegnazioni, chiamate, righe che finiscono con `; { }`; le righe `#` non contano) e in quel caso `fcdHaMarkdown` risponde no: niente titoli/elenchi Markdown, quindi «# commento» resta con il suo `#` e non diventa grassetto. Con i recinti ``` resta Markdown.
 
