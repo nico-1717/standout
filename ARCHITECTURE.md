@@ -63,3 +63,6 @@ Read this first; open `docs/STANDOUT_PROGETTO.md` only for conventions detail, `
 - `fc_insert.php`: `?ids=` restringe `$cards` (un padre entra anche solo perche' ha un figlio scelto). La costante JS `SOTTOINSIEME` spegne frecce e riordino a pressione prolungata e invia `subset=1`.
 - `fc_insert_save.php`: con `subset=1` le carte gia' esistenti NON vengono rinumerate (niente `custom_order` negli UPDATE), le nuove si accodano dopo l'ultima (padri: MAX della categoria; figli: MAX del padre). Le carte fuori dal sottoinsieme non si toccano: si cancella solo cio' che arriva con status `deleted`.
 
+### Colore del testo e dell'evidenziatore separati (02/11/2026)
+- Nel pannello Testo, all'inizio della fila dei colori, l'interruttore `.fmt-target` (`A` / pennarello) imposta `bar.dataset.target` (`c` o `h`): i pallini colorano il testo oppure solo lo sfondo evidenziato (`h` = nome del colore). Il tasto del pennarello mette sempre il giallo (`h:1`); `fcdSetColor`/`fcdToggleHighlight` non si influenzano piu' (rimossa `fcdRecolorHighlight`). Funziona uguale nelle righe di codice. L'anello `is-scelto` segue l'interruttore. Lo stato sta nelle classi `is-on`, cosi' la copia agganciata della barra (che rigira i click per posizione) lo rispecchia.
+

@@ -4719,6 +4719,8 @@
     "sottolineato": "Underline",
     "evidenziatore": "Highlighter",
     "colore_testo": "Text colour",
+    "colora_testo": "Colour the text",
+    "colora_evidenziatore": "Colour the highlighter",
     "predefinito": "Default",
     "rosso": "Red",
     "arancione": "Orange",

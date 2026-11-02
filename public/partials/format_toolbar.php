@@ -289,6 +289,14 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                 <!-- I colori scorrono: ce ne stanno quanti se ne vuole senza
                      che la barra vada a capo o si stringa. -->
                 <div class="fmt-swatches" role="group" aria-label="<?php te('editor.colore_testo'); ?>">
+                    <?php /* INTERRUTTORE TESTO / EVIDENZIATORE (02/11/2026): decide su cosa
+                             agiscono i pallini. Sono due bottoni veri perche' la copia della
+                             barra rigira i click per posizione fra i bottoni (vedi
+                             ftAggancioInoltra); lo stato sta nelle classi, che la copia rifa'. */ ?>
+                    <span class="fmt-target" role="group">
+                        <button type="button" class="fmt-target-btn is-on" data-target="c" title="<?php te('editor.colora_testo'); ?>" aria-label="<?php te('editor.colora_testo'); ?>">A</button>
+                        <button type="button" class="fmt-target-btn" data-target="h" title="<?php te('editor.colora_evidenziatore'); ?>" aria-label="<?php te('editor.colora_evidenziatore'); ?>"><span class="fmt-target-mk">a</span></button>
+                    </span>
                     <button type="button" class="fmt-pop-dot fmt-pop-dot-default" data-color="" title="<?php te('editor.predefinito'); ?>">
                         <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
                     </button>
@@ -775,6 +783,20 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
             mask-image:linear-gradient(90deg,transparent 0,#000 10px,#000 calc(100% - 14px),transparent 100%);
 }
 .fmt-swatches::-webkit-scrollbar, .fmt-lingue::-webkit-scrollbar{ display:none; }
+
+/* Interruttore "colore del testo / colore dell'evidenziatore", all'inizio della fila dei colori. */
+.fmt-target{
+    display:inline-flex; flex:none; gap:2px; padding:3px; margin-right:4px; border-radius:999px;
+    background:color-mix(in srgb, var(--text-2,#8A8A8E), transparent 84%);
+}
+.fmt-target-btn{
+    width:32px; height:26px; border:0; border-radius:999px; padding:0; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    background:transparent; color:var(--text-2,#8A8A8E); font-family:inherit; font-size:14px; font-weight:800; line-height:1;
+    -webkit-tap-highlight-color:transparent;
+}
+.fmt-target-btn.is-on{ background:var(--surface,#fff); color:var(--text,#1c1c1e); box-shadow:0 1px 3px rgba(0,0,0,.18); }
+.fmt-target-mk{ padding:0 6px; border-radius:4px; background:var(--yellow,#FFCC00); color:#1c1c1e; font-weight:700; }
 .fmt-lingue{ gap:6px; }
 
 .fmt-pop-dot{
@@ -2920,12 +2942,13 @@ function ftMark(wrap, key, val) {
        E' successo davvero, con "seleziona tutto" e poi grassetto. */
     var s = window.getSelection();
     var collassata = !s || !s.rangeCount || s.getRangeAt(0).collapsed || !ed.contains(s.anchorNode);
-    /* L'evidenziatore prende il colore del testo (o resta giallo senza colore). */
+    /* Il tasto del pennarello e' sempre giallo: il colore dell'evidenziatore
+       si sceglie con l'interruttore e i pallini, separato da quello del testo. */
     if (key === 'h' && val === undefined) {
         if (collassata) {
             ed.focus();
             var mc = ftMarksAtCaret(ed);
-            ftToggleMarkCaret(wrap, 'h', mc.h ? mc.h : (mc.c || 1));
+            ftToggleMarkCaret(wrap, 'h', mc.h ? mc.h : 1);
             return;
         }
         ftCmd(wrap, function (doc, sl) { return { doc: fcdToggleHighlight(doc, sl), sel: sl }; });
@@ -2952,7 +2975,6 @@ function ftMarkImposta(wrap, key, val) {
         ed.focus();
         var m = ftMarksAtCaret(ed);
         if (val === null || val === undefined) delete m[key]; else m[key] = val;
-        if (key === 'c' && m.h) m.h = val || 1;      // l'evidenziatore segue il colore scelto
         ftInsertMarked(ed, m);
         ftSync(wrap);
         return;
@@ -3028,13 +3050,22 @@ function ftRefreshState(wrap) {
        anche selezionando del testo tutto rosso. Se il tratto scelto e' di un
        colore solo, e' quello ad accendersi; se ne mescola piu' d'uno non si
        accende niente, perche' non c'e' una risposta giusta da dare. */
+    /* L'anello segue l'interruttore: con "evidenziatore" mostra il colore del
+       pennarello (il giallo di default non accende nessun pallino), con "testo"
+       quello delle lettere. */
+    var chiaveColore = bar.dataset.target === 'h' ? 'h' : 'c';
+    var valoreColore = function (m) {
+        var v = m && m[chiaveColore];
+        if (chiaveColore === 'h') return typeof v === 'string' ? v : (v ? '1' : '');
+        return v || '';
+    };
     var colore;
     if (collassata) {
-        colore = marks.c || '';
+        colore = valoreColore(marks);
     } else {
         var visti = {}, quanti = 0;
         fcdEachRunInRange(doc, sel, function (run) {
-            var c = (run.m && run.m.c) || '';
+            var c = valoreColore(run.m);
             if (!Object.prototype.hasOwnProperty.call(visti, c)) { visti[c] = 1; quanti++; }
         });
         var chiavi = Object.keys(visti);
@@ -5799,6 +5830,18 @@ function ftSetupToolbar(wrap) {
 
     bar.addEventListener('click', function (e) {
 
+        /* L'interruttore testo / evidenziatore: cambia solo cosa dipingono i
+           pallini, non tocca il testo. */
+        var interr = e.target.closest ? e.target.closest('.fmt-target-btn') : null;
+        if (interr) {
+            bar.dataset.target = interr.dataset.target === 'h' ? 'h' : 'c';
+            bar.querySelectorAll('.fmt-target-btn').forEach(function (b) {
+                b.classList.toggle('is-on', b === interr);
+            });
+            ftRefreshState(wrap);
+            return;
+        }
+
         var dot = e.target.closest('.fmt-pop-dot');
         /* Preso di poco fuori? Vale lo stesso. I pallini sono piccoli e
            distanziati, e un dito che cade nel vuoto fra due — o appena sopra
@@ -5830,7 +5873,7 @@ function ftSetupToolbar(wrap) {
             }
         }
         if (dot) {
-            if (dot.hasAttribute('data-color')) ftMarkImposta(wrap, 'c', dot.dataset.color || undefined);
+            if (dot.hasAttribute('data-color')) ftMarkImposta(wrap, bar.dataset.target === 'h' ? 'h' : 'c', dot.dataset.color || undefined);
             else ftCmd(wrap, function (doc, sel) { return { doc: fcdSetListColor(doc, sel, dot.dataset.listColor || null), sel: sel }; });
             ftRefreshState(wrap);
             return;

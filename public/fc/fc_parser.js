@@ -379,22 +379,17 @@ function fcdToggleMark(doc, sel, key, val) {
 /* L'EVIDENZIATORE SEGUE IL COLORE. Il marchio h vale 1 (giallo) oppure il nome di
    un colore della tavolozza. Acceso, prende il colore del testo che evidenzia;
    cambiando il colore a un testo gia' evidenziato, cambia anche l'evidenziatore. */
-function fcdRecolorHighlight(doc, sel, colore) {
-    fcdEachRunInRange(doc, sel, function (r, block) {
-        var m = (block && block.t === 'fx') ? block.m : r.m;
-        if (!m || !m.h) return;
-        m.h = colore !== undefined ? (colore || 1) : (m.c || 1);
-    });
-    return fcdNorm(doc);
-}
+/* Colore del testo e colore dell'evidenziatore sono DUE scelte separate
+   (02/11/2026): prima l'evidenziatore copiava il colore del testo, e metterlo
+   rosso colorava di rosso anche le lettere. Ora l'interruttore della barra
+   (testo / evidenziatore) decide su quale dei due agiscono i pallini; il tasto
+   del pennarello mette sempre il giallo. */
 function fcdToggleHighlight(doc, sel) {
     if (fcdRangeHas(doc, sel, 'h')) return fcdSetMark(doc, sel, 'h', null);
-    doc = fcdSetMark(doc, sel, 'h', 1);
-    return fcdRecolorHighlight(doc, sel);      // ogni pezzo prende il colore del proprio testo
+    return fcdSetMark(doc, sel, 'h', 1);
 }
 function fcdSetColor(doc, sel, colore) {
-    doc = fcdSetMark(doc, sel, 'c', colore || null);
-    return fcdRecolorHighlight(doc, sel, colore || null);
+    return fcdSetMark(doc, sel, 'c', colore || null);
 }
 
 function fcdOrder(sel) {
