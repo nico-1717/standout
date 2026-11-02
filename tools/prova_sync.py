@@ -25,6 +25,7 @@ from zoneinfo import ZoneInfo
 # lo stesso namespace di lib/sync_manifest.php (SYNC_NS_UUID5)
 NS_UUID5 = uuid.UUID('7d4f1b0e-3c52-4e8a-9a61-5b2c8d0f6e13')
 def uuid_check_in(habit_uuid, giorno): return str(uuid.uuid5(NS_UUID5, f'habit_logs|{habit_uuid}|{giorno}'))
+def uuid_presa(plan_uuid, giorno, ora, seq): return str(uuid.uuid5(NS_UUID5, f'pill_doses|{plan_uuid}|{giorno}|{ora[:5]}|{seq}'))
 
 NOME = 'prova sync (si cancella da sola)'
 errori = []
@@ -115,8 +116,14 @@ def main():
             if t['title'].startswith(NOME): A.chiama('DELETE', f"/api/v1/shopping/{t['id']}")
         for c in lista.get('categories', []):
             if c['name'].startswith(NOME): A.chiama('DELETE', f"/api/v1/shopping/categories/{c['id']}")
+        for h in A.chiama('GET', '/api/v1/habits').get('habits', []):
+            if h['name'].startswith(NOME): A.chiama('DELETE', f"/api/v1/habits/{h['id']}")
+        for c in A.chiama('GET', '/api/v1/habits/categories').get('categories', []):
+            if str(c.get('name', '')).startswith(NOME) and not c.get('is_system'): A.chiama('DELETE', f"/api/v1/habits/categories/{c['id']}")
+        for p_ in A.chiama('GET', '/api/v1/pills/plans').get('plans', []):
+            if p_['name'].startswith(NOME): A.chiama('DELETE', f"/api/v1/pills/plans/{p_['id']}")
         print('1. stato e copia completa')
-        st = A.chiama('GET', '/api/v1/sync/state'); ok(st.get('ok') and st['tables'] == ['todo_buy_categories', 'todos', 'habit_categories', 'habits', 'habit_logs'], f"stato: tabelle {st.get('tables')}")
+        st = A.chiama('GET', '/api/v1/sync/state'); ok(st.get('ok') and st['tables'] == ['todo_buy_categories', 'todos', 'habit_categories', 'habits', 'habit_logs', 'pill_plans', 'pill_doses'], f"stato: tabelle {st.get('tables')}")
         pagine = A.copia_completa(limite=50)
         ok(pagine >= 1, f'copia completa a pagine da 50 ({pagine} pagine, {len(A.copia)} righe)')
         ok(all(r['sort_key'] for r in A.copia.values() if 'sort_key' in r), 'ogni riga che ha una sort_key la ha piena')
@@ -196,7 +203,7 @@ def main():
         ok(not differenze(A.copia, B.copia), 'dopo l\'invio A e B hanno la stessa copia')
         elenco = [t['title'] for t in api('GET', 'tasks')['tasks'] if t['title'].startswith(NOME)]
         ordine_app = [r['title'] for r in sorted([r for r in A.copia.values() if r.get('list_type') == 'todo' and r['title'].startswith(NOME) and not r['is_done'] and not r.get('parent_uuid')], key=lambda r: r['sort_key'])]
-        ordine_sito = [t['title'] for t in api('GET', 'tasks')['tasks'] if t['title'].startswith(NOME) and not t['done']]
+        ordine_sito = [t['title'] for t in api('GET', 'tasks')['tasks'] if t['title'].startswith(NOME) and not t['done'] and not t.get('parent_id')]
         ok(set(ordine_app) == set(ordine_sito), 'le attivita non fatte sono le stesse sul sito e nell\'app')
         # solo la sort_key cambia (il sito non ha niente da riallineare): l'altro telefono la deve comunque vedere
         k0 = A.copia[('todos', altro)]['sort_key']
@@ -319,6 +326,91 @@ def main():
         resti = [r for r in fresca.copia.values() if str(r.get('name', '')).startswith(NOME)]
         ok(not resti, 'non e rimasto niente delle abitudini' + ('' if not resti else f' ({len(resti)})'))
         ok(not [k for k in fresca.copia if k[0] == 'habit_logs' and fresca.copia[k]['habit_uuid'] in (hab1['uuid'], hab2['uuid'])], 'i check-in sono spariti con le abitudini')
+        print('7. pastiglie')
+        creati_p = []
+        def prese_di(plan_uuid, copia): return {k[1]: r for k, r in copia.items() if k[0] == 'pill_doses' and r['plan_uuid'] == plan_uuid}
+        pp = api('POST', 'pills/plans', {'name': NOME + ' vitamina', 'times': '08:00x1,20:00x2', 'start_date': ieri, 'color': '#B7A6D6'})
+        ok(pp['_http'] == 201, 'il sito crea una terapia'); ppid = pp['plan']['id']; creati_p.append(ppid)
+        A.aggiorna(); B.aggiorna()
+        plan = next((r for k, r in A.copia.items() if k[0] == 'pill_plans' and r['name'] == NOME + ' vitamina'), None)
+        ok(plan is not None and plan['times'] == '08:00x1,20:00x2' and plan['is_active'] is True and plan['schedule_from'] == ieri and plan['start_date'] == ieri, 'la terapia e arrivata, con orari, attiva e «vale da»')
+        dosi = prese_di(plan['uuid'], A.copia)
+        ok(len(dosi) == 3 and all(d['status'] == 'pending' and d['due_date'] == oggi for d in dosi.values()), 'le tre prese di oggi (08:00 e 20:00 x2) sono arrivate da prendere')
+        ok(all(u == uuid_presa(plan['uuid'], d['due_date'], d['due_time'], d['seq']) for u, d in dosi.items()), 'ogni presa ha l\'uuid atteso (UUIDv5 di terapia, giorno, orario, n.)')
+        ok(uguali(A.copia, B.copia), 'A e B coincidono')
+        # la presa di oggi alle 08:00, fatta dal sito
+        sito = next(x for x in api('GET', 'pills?date=' + oggi)['doses'] if x['time'] == '08:00')
+        api('PATCH', f"pills/doses/{sito['id']}", {'status': 'taken'}); A.aggiorna()
+        u8 = uuid_presa(plan['uuid'], oggi, '08:00', 1)
+        ok(A.copia[('pill_doses', u8)]['status'] == 'taken' and A.copia[('pill_doses', u8)]['taken_at'], 'la spunta fatta dal sito arriva (con l\'ora vera)')
+
+        # dal telefono: spunta una presa che il sito NON ha ancora scritto (ieri, dopo la creazione la sera di ieri esiste solo se il sito l\'ha generata)
+        u20 = uuid_presa(plan['uuid'], oggi, '20:00', 2)
+        quando = datetime.datetime.now(ZoneInfo('Europe/Rome')).strftime('%Y-%m-%d %H:%M')
+        r = A.push([mut('pill_doses', u20, {'status': 'taken', 'taken_at': quando})]); ok(r['results'][0]['status'] == 'applied', 'presa spuntata dal telefono, con l\'ora vera')
+        x = [d for d in api('GET', 'pills?date=' + oggi)['doses'] if d['time'] == '20:00' and d['seq'] == 2]
+        ok(x and x[0]['status'] == 'taken' and (x[0]['taken_at'] or '').startswith(quando[:10]), 'il sito la vede presa')
+        r = A.push([mut('pill_doses', u20, {'status': 'taken', 'taken_at': quando})]); ok(r['results'][0]['status'] == 'applied', 'rimandata: nessun errore')
+        r = A.push([mut('pill_doses', u20, {'status': 'skipped'})]); ok(r['results'][0]['status'] == 'applied', 'da presa a saltata')
+        x = [d for d in api('GET', 'pills?date=' + oggi)['doses'] if d['time'] == '20:00' and d['seq'] == 2]
+        ok(x and x[0]['status'] == 'skipped' and x[0]['taken_at'] is None, 'saltata: niente ora vera')
+        r = A.push([mut('pill_doses', u20, {'status': 'pending'})]); ok(r['results'][0]['status'] == 'applied', 'di nuovo da prendere')
+        # una presa di IERI creata dal telefono (il sito non l\'aveva): stessa riga, uuid atteso
+        ui = uuid_presa(plan['uuid'], ieri, '20:00', 1)
+        r = A.push([mut('pill_doses', ui, {'plan_uuid': plan['uuid'], 'due_date': ieri, 'due_time': '20:00', 'seq': 1, 'status': 'taken', 'taken_at': ieri + ' 21:10'})])
+        ok(r['results'][0]['status'] == 'applied', 'presa di ieri creata dal telefono')
+        A.aggiorna(); ok(A.copia.get(('pill_doses', ui), {}).get('status') == 'taken' and A.copia[('pill_doses', ui)]['taken_at'].startswith(ieri + ' 21:10'), 'la presa di ieri e nella copia, con l\'ora dettata')
+        # rifiuti
+        r = A.push([mut('pill_doses', str(uuid.uuid4()), {'plan_uuid': plan['uuid'], 'due_date': ieri, 'due_time': '20:00', 'seq': 1, 'status': 'taken'})]); x = r['results'][0]
+        ok(x['status'] == 'rejected' and x['field'] == 'uuid', 'uuid che non e quello atteso: rifiutato')
+        ud = uuid_presa(plan['uuid'], domani, '08:00', 1)
+        r = A.push([mut('pill_doses', ud, {'plan_uuid': plan['uuid'], 'due_date': domani, 'due_time': '08:00', 'seq': 1, 'status': 'taken'})]); x = r['results'][0]
+        ok(x['status'] == 'rejected' and x['field'] == 'due_date', 'giorno futuro: rifiutato')
+        r = A.push([mut('pill_doses', u20, {'status': 'dimenticata'})]); x = r['results'][0]; ok(x['status'] == 'rejected' and x['field'] == 'status', 'stato sbagliato: rifiutato')
+        r = A.push([mut('pill_doses', u20, {'due_date': ieri})]); x = r['results'][0]; ok(x['status'] == 'rejected' and x['field'] == 'due_date', 'il giorno di una presa non cambia')
+        r = A.push([mut('pill_doses', u20, {}, 'delete')]); x = r['results'][0]; ok(x['status'] == 'rejected', 'una presa non si cancella da sola')
+        r = A.push([mut('pill_doses', uuid_presa(str(uuid.uuid4()), oggi, '08:00', 1), {'plan_uuid': str(uuid.uuid4()), 'due_date': oggi, 'due_time': '08:00', 'seq': 1, 'status': 'taken'})]); x = r['results'][0]
+        ok(x['status'] == 'rejected' and x['field'] in ('plan_uuid', 'uuid'), 'terapia che non esiste: rifiutato')
+        # l\'ora vera nel futuro (telefono con l\'orologio avanti): la porta a «adesso», non rifiuta
+        futuro = (datetime.datetime.now(ZoneInfo('Europe/Rome')) + datetime.timedelta(minutes=5)).strftime('%Y-%m-%d %H:%M')
+        r = A.push([mut('pill_doses', u20, {'status': 'taken', 'taken_at': futuro})]); ok(r['results'][0]['status'] == 'applied', 'ora vera avanti di 5 minuti: accettata e riportata a adesso')
+        x = [d for d in api('GET', 'pills?date=' + oggi)['doses'] if d['time'] == '20:00' and d['seq'] == 2]
+        ok(x and (x[0]['taken_at'] or '')[:16] <= datetime.datetime.now(ZoneInfo('Europe/Rome')).strftime('%Y-%m-%d %H:%M'), 'l\'ora salvata non e nel futuro')
+
+        # terapie dal telefono
+        np_ = str(uuid.uuid4())
+        r = A.push([mut('pill_plans', np_, {'name': NOME + ' dal telefono', 'dose': '2 gocce', 'notes': '', 'color': '#112233', 'freq_type': 'interval', 'weekdays': '1111111', 'month_days': '', 'interval_days': 2, 'times': '09:30x1', 'start_date': ieri, 'end_date': None, 'is_active': True})])
+        ok(r['results'][0]['status'] == 'applied', 'terapia creata dal telefono (ogni 2 giorni)')
+        mia = next((x for x in api('GET', 'pills/plans')['plans'] if x['name'] == NOME + ' dal telefono'), None)
+        ok(mia is not None and mia['freq_type'] == 'interval' and mia['interval_days'] == 2 and mia['times'] == '09:30x1' and mia['active'] is True, 'il sito la vede coi valori giusti')
+        if mia: creati_p.append(mia['id'])
+        A.aggiorna(); ok(A.copia.get(('pill_plans', np_), {}).get('schedule_from') == ieri, 'schedule_from lo ha deciso il server')
+        r = A.push([mut('pill_plans', np_, {'times': '10:00x1', 'is_active': False})]); ok(r['results'][0]['status'] == 'applied', 'cambio orario e sospesa')
+        mia = next((x for x in api('GET', 'pills/plans')['plans'] if x['name'] == NOME + ' dal telefono'), None)
+        ok(mia is not None and mia['times'] == '10:00x1' and mia['active'] is False, 'il sito vede orario e stato nuovi')
+        A.aggiorna(); ok(A.copia[('pill_plans', np_)]['schedule_from'] == oggi, 'cambiato il ritmo: vale da oggi (lo decide il server)')
+        r = A.push([mut('pill_plans', np_, {'name': ''})]); x = r['results'][0]; ok(x['status'] == 'rejected' and x['field'] == 'name' and x.get('current') is not None, 'nome vuoto: rifiutato, con la riga com\'e sul server')
+        r = A.push([mut('pill_plans', np_, {'times': '25:00x1'})]); x = r['results'][0]; ok(x['status'] == 'rejected' and x['field'] == 'times', 'orario sbagliato: rifiutato')
+        r = A.push([mut('pill_plans', np_, {'freq_type': 'monthly'})]); x = r['results'][0]; ok(x['status'] == 'rejected' and x['field'] == 'month_days', 'mensile senza giorni: rifiutato')
+        r = A.push([mut('pill_plans', np_, {'schedule_from': ieri})]); A.aggiorna(); ok(r['results'][0]['status'] == 'applied' and A.copia[('pill_plans', np_)]['schedule_from'] == oggi, 'schedule_from e solo del server: se il telefono lo manda, e ignorato')
+        r = A.push([mut('pill_plans', np_, {'colore': 'x'})]); x = r['results'][0]; ok(x['status'] == 'rejected', 'campo che non esiste: rifiutato')
+        # cambiare l\'orario della terapia 1 non fa tornare le prese di ieri (il bug del sito, gia corretto)
+        r = A.push([mut('pill_plans', plan['uuid'], {'times': '12:00x1'})]); ok(r['results'][0]['status'] == 'applied', 'orario cambiato su una terapia con prese gia spuntate')
+        A.aggiorna()
+        ok(A.copia.get(('pill_doses', ui), {}).get('status') == 'taken', 'la presa di ieri, gia spuntata, resta com\'era')
+        ok(not any(d['status'] == 'pending' and d['due_time'] in ('08:00', '20:00') and d['due_date'] > oggi for d in prese_di(plan['uuid'], A.copia).values()), 'niente prese in sospeso con i vecchi orari nei giorni che vengono')
+        A.aggiorna(); B.aggiorna(); fresca.copia_completa()
+        def solo_pastiglie(m): return {k: r for k, r in m.items() if k[0] in ('pill_plans', 'pill_doses')}
+        ok(not differenze(solo_pastiglie(A.copia), solo_pastiglie(fresca.copia)) and not differenze(solo_pastiglie(B.copia), solo_pastiglie(fresca.copia)), 'A, B e una copia nuova coincidono anche per le pastiglie')
+        # cancellazioni
+        r = A.push([mut('pill_plans', np_, {}, 'delete')]); ok(r['results'][0]['status'] == 'applied', 'cancella la terapia del telefono')
+        r = A.push([mut('pill_plans', np_, {}, 'delete')]); ok(r['results'][0]['status'] == 'applied', 'cancellare di nuovo: non e un errore')
+        A.aggiorna(); ok(('pill_plans', np_) not in A.copia, 'sparita dalla copia')
+        print('8. pulizia delle pastiglie')
+        for i in creati_p: api('DELETE', f'pills/plans/{i}')
+        A.aggiorna(); fresca.copia_completa()
+        ok(not [r for r in fresca.copia.values() if str(r.get('name', '')).startswith(NOME)], 'non e rimasta nessuna terapia di prova')
+        ok(not prese_di(plan['uuid'], A.copia) and not prese_di(plan['uuid'], fresca.copia), 'le prese sono sparite con la terapia')
     finally:
         for t in (A, B):
             try: t.chiama('POST', '/api/v1/auth/logout')

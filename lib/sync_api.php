@@ -22,6 +22,7 @@ require_once __DIR__ . '/todo_core.php';
 require_once __DIR__ . '/shopping_api.php';
 require_once __DIR__ . '/sync.php';
 require_once __DIR__ . '/habits_api.php';
+require_once __DIR__ . '/pills_api.php';
 
 const SYNC_PUSH_MAX = 200;
 const SYNC_PULL_MAX = 1000;
@@ -80,7 +81,8 @@ function sync_leggi_righe(string $tbl, int $uid, ?array $uuids, int $dopoId = 0,
     if (!empty($man['chiave_naturale'])) {
         foreach ($righe as &$r) {
             // l'uuid atteso si ricava dalla riga stessa (niente query per riga: una copia completa ha migliaia di check-in)
-            $atteso = $tbl === 'habit_logs' ? sync_uuid_check_in((string)$r['habit_uuid'], (string)$r['log_date']) : null;
+            $atteso = $tbl === 'habit_logs' ? sync_uuid_check_in((string)$r['habit_uuid'], (string)$r['log_date'])
+                : ($tbl === 'pill_doses' && $r['plan_uuid'] !== null ? sync_uuid_presa((string)$r['plan_uuid'], (string)$r['due_date'], (string)$r['due_time'], (int)$r['seq']) : null);
             if ($atteso !== null && $atteso !== $r['uuid']) {
                 mysqli_query(sec_db(), "UPDATE `$tbl` SET uuid = '" . mysqli_real_escape_string(sec_db(), $atteso) . "' WHERE id = " . (int)$r['_id']);
                 $r['uuid'] = $atteso;
@@ -345,6 +347,8 @@ function sync_applica(int $uid, array $m): array {
             case 'habit_categories':  $esito = sync_hcat_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'habits':            $esito = sync_habits_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'habit_logs':        $esito = sync_hlogs_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'pill_plans':        $esito = sync_pplans_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'pill_doses':        $esito = sync_pdoses_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             default:                  $esito = sync_rifiuto('validation', 'table', 'Unknown table');
         }
         // una modifica rifiutata non deve lasciare mezze scritture
@@ -415,4 +419,5 @@ function api_h_sync_push(array $ctx): void {
     api_ok(['results' => $esiti, 'head' => $testa]);
 }
 
-require_once __DIR__ . '/sync_abitudini.php';   // dopo le funzioni di base che usa (sync_rifiuto, sync_id_da_uuid...)
+require_once __DIR__ . '/sync_abitudini.php';
+require_once __DIR__ . '/sync_pastiglie.php';   // dopo le funzioni di base che usa (sync_rifiuto, sync_id_da_uuid...)

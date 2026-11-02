@@ -21,7 +21,7 @@
      'chiave_naturale' => [...]  la riga e' unica per queste colonne (es. un'abitudine + un giorno): la sua
                                  identita' sul filo e' un UUIDv5 calcolato da quella chiave (decisione D4),
                                  cosi' sito e telefono, offline, creano LA STESSA riga e non due.
-   Fase 1: to do e to buy. Fase 2: abitudini. Le altre tabelle si aggiungono area per area.
+   Fase 1: to do e to buy. Fase 2: abitudini e pastiglie. Le altre tabelle si aggiungono area per area.
    ===================================================================== */
 
 const SYNC_MANIFESTO = [
@@ -135,6 +135,50 @@ const SYNC_MANIFESTO = [
             'updated_at'      => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
+
+    /* ---- pastiglie ---- */
+    // La terapia: il ritmo (orari, giorni) viaggia come testo, esattamente come sta sul sito. schedule_from lo decide il server
+    // (td_pill_scrivi): il telefono lo ricalcola per mostrarlo subito, poi vince il valore del server.
+    'pill_plans' => [
+        'ordine'       => 60,
+        'proprietario' => 'user_id',
+        'gruppo'       => ['user_id'],
+        'campi' => [
+            'name'          => ['tipo' => 's'],
+            'dose'          => ['tipo' => 's'],
+            'notes'         => ['tipo' => 's'],
+            'color'         => ['tipo' => 's'],
+            'freq_type'     => ['tipo' => 'e'],
+            'weekdays'      => ['tipo' => 's'],
+            'month_days'    => ['tipo' => 's'],
+            'interval_days' => ['tipo' => 'i'],
+            'times'         => ['tipo' => 's'],
+            'start_date'    => ['tipo' => 'd'],
+            'end_date'      => ['tipo' => 'd'],
+            'is_active'     => ['tipo' => 'b'],
+            'schedule_from' => ['tipo' => 'd', 'solo_lettura' => true],
+            'created_at'    => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at'    => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Una presa = una riga per (terapia, giorno, orario, n.). Le prese NASCONO da una regola (td_pills_ensure_giorni): due
+    // telefoni offline ne creano di identiche, quindi l'identita' e' un UUIDv5 della chiave (decisione D4). Sul filo
+    // viaggia solo lo stato (presa / saltata / da prendere) e l'ora vera della spunta.
+    'pill_doses' => [
+        'ordine'          => 70,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['plan_id', 'due_date', 'due_time', 'seq'],
+        'campi' => [
+            'plan_uuid'  => ['tipo' => 'fk', 'col' => 'plan_id', 'tabella' => 'pill_plans', 'solo_creazione' => true],
+            'due_date'   => ['tipo' => 'd', 'solo_creazione' => true],
+            'due_time'   => ['tipo' => 'o', 'solo_creazione' => true],
+            'seq'        => ['tipo' => 'i', 'solo_creazione' => true],
+            'status'     => ['tipo' => 'e'],
+            'taken_at'   => ['tipo' => 's'],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
 ];
 
 /** UUIDv5: namespace fisso dell'app (lo stesso nell'app, vedi src/core/sync/uuid5). */
@@ -151,6 +195,11 @@ function sync_uuid5(string $nome, string $ns = SYNC_NS_UUID5): string {
 /** L'identita' di un check-in: da abitudine (uuid) + giorno. */
 function sync_uuid_check_in(string $habitUuid, string $giorno): string {
     return sync_uuid5('habit_logs|' . $habitUuid . '|' . $giorno);
+}
+
+/** L'identita' di una presa: da terapia (uuid) + giorno + orario (HH:MM) + n. */
+function sync_uuid_presa(string $planUuid, string $giorno, string $ora, int $seq): string {
+    return sync_uuid5('pill_doses|' . $planUuid . '|' . $giorno . '|' . substr($ora, 0, 5) . '|' . $seq);
 }
 
 /** Le tabelle sincronizzate, nell'ordine di dipendenza. */
