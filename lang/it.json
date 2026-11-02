@@ -5406,6 +5406,15 @@
     "esci_ovunque_p": "Tutti i dispositivi, anche questo, verranno scollegati. Le modifiche non ancora sincronizzate su questo telefono andranno perse.",
     "ultimo_uso": "Ultimo uso {quando}",
     "scarica_errore": "Non sono riuscito a preparare il file. Riprova.",
-    "password_cambiata_qui": "Password cambiata. Gli altri dispositivi sono stati scollegati."
+    "password_cambiata_qui": "Password cambiata. Gli altri dispositivi sono stati scollegati.",
+    "promemoria_t": "Promemoria",
+    "promemoria_p": "Notifiche sul telefono. Funzionano anche senza rete e restano solo su questo telefono.",
+    "promemoria_pastiglie": "Promemoria delle pastiglie",
+    "promemoria_abitudini": "Promemoria delle abitudini",
+    "promemoria_ora": "Ora del promemoria delle abitudini (HH:MM)",
+    "promemoria_ora_errore": "Scrivi l'ora così: 20:00",
+    "promemoria_negato": "Le notifiche sono spente per Standout. Accendile dalle impostazioni del telefono.",
+    "notifica_pastiglie": "È ora delle pastiglie",
+    "notifica_abitudini": "Le abitudini di oggi"
   }
 }

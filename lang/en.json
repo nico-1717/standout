@@ -5406,6 +5406,15 @@
     "esci_ovunque_p": "All devices, including this one, will be signed out. Changes on this phone that are not synced yet will be lost.",
     "ultimo_uso": "Last used {quando}",
     "scarica_errore": "I couldn't prepare the file. Please try again.",
-    "password_cambiata_qui": "Password changed. Your other devices have been signed out."
+    "password_cambiata_qui": "Password changed. Your other devices have been signed out.",
+    "promemoria_t": "Reminders",
+    "promemoria_p": "Notifications on this phone. They work offline and stay only on this phone.",
+    "promemoria_pastiglie": "Pill reminders",
+    "promemoria_abitudini": "Habit reminders",
+    "promemoria_ora": "Habit reminder time (HH:MM)",
+    "promemoria_ora_errore": "Write the time like this: 20:00",
+    "promemoria_negato": "Notifications are off for Standout. Turn them on in your phone settings.",
+    "notifica_pastiglie": "Time for your pills",
+    "notifica_abitudini": "Today's habits"
   }
 }
