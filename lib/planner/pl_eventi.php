@@ -20,7 +20,9 @@ function pl_giorni_evento(array $r): int {
     $inizio = strtotime((string)$r['event_date']);
     $fine   = strtotime(pl_fine_evento($r));
     if ($inizio === false || $fine === false || $fine < $inizio) return 1;
-    return (int)floor(($fine - $inizio) / 86400) + 1;
+    /* round e non floor: con il cambio all'ora legale (marzo) fra i due giorni passano 23 ore in meno e floor
+       contava un giorno di meno (un evento dal 28 al 30 marzo risultava di 2 giorni). */
+    return (int)round(($fine - $inizio) / 86400) + 1;
 }
 
 /* Il massimo numero di giorni che un evento può coprire. Non è una regola di
