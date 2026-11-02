@@ -58,6 +58,8 @@
      DELETE /api/v1/shopping/categories/{id}   gli articoli restano, senza categoria
 
    Sincronizzazione con l'app (lib/sync_api.php), solo con il token:
+     GET    /api/v1/settings              stile, colore del sito e lingua (solo token)
+     PUT    /api/v1/settings              li cambia: {ui_style?, accent?, lang?}
      POST   /api/v1/sync/push             {mutations:[{mutation_id, table, op, uuid, patch}]} (max 200)
      GET    /api/v1/sync/pull?cursor=&limit=   cosa e' cambiato dopo il cursore (cursore snapshot = copia completa)
      GET    /api/v1/sync/state            testa del registro e tabelle
@@ -117,6 +119,7 @@ require_once __DIR__ . '/../../../lib/pills_api.php';
 require_once __DIR__ . '/../../../lib/diary_api.php';
 require_once __DIR__ . '/../../../lib/shopping_img_api.php';
 require_once __DIR__ . '/../../../lib/sync_api.php';
+require_once __DIR__ . '/../../../lib/api_settings.php';
 
 /* ---------------- Accesso ---------------- */
 
@@ -630,6 +633,8 @@ api_v1_esegui([
     ['GET',    'auth/devices',      'api_h_dispositivi',      ['accetta' => $tokenECookie]],
     ['DELETE', 'auth/devices/{id}', 'api_h_dispositivo_togli', ['accetta' => $tokenECookie]],
     ['GET',    'me',                'api_h_me',               ['accetta' => $tokenECookie]],
+    ['GET',    'settings',          'api_h_settings_leggi',   ['accetta' => ['token']]],
+    ['PUT',    'settings',          'api_h_settings_scrivi',  ['accetta' => ['token']]],
     ['GET',    'tasks',             'api_h_tasks_elenco',     ['accetta' => $tokenECookie]],
     ['POST',   'tasks',             'api_h_tasks_crea',       ['accetta' => $tokenECookie]],
     ['PATCH',  'tasks/{id}',        'api_h_tasks_modifica',   ['accetta' => $tokenECookie]],
