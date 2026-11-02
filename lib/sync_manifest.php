@@ -179,6 +179,42 @@ const SYNC_MANIFESTO = [
             'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
+
+    /* ---- diario ---- */
+    // Il giorno del diario: una riga per (utente, giorno). Nata dal sito o da un telefono offline e' LA STESSA riga:
+    // identita' = UUIDv5 di (utente, giorno). `note_rev` e' l'impronta del testo sul server: il telefono la rimanda
+    // con la sua modifica (campo «solo_lettura»: non si scrive mai, serve solo a capire se il testo e' cambiato
+    // nel frattempo; se si', il server tiene TUTTE E DUE le versioni, vedi sync_diario.php).
+    'habit_daily_journal' => [
+        'ordine'          => 80,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id', 'entry_date'],
+        'campi' => [
+            'entry_date' => ['tipo' => 'd', 'solo_creazione' => true],
+            'mood'       => ['tipo' => 'i'],
+            'energy'     => ['tipo' => 'i'],
+            'note'       => ['tipo' => 's'],
+            'note_rev'   => ['tipo' => 's', 'solo_lettura' => true, 'sql' => "SHA1(COALESCE(t.note, ''))"],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Le «cose belle» e «cose imparate» di un giorno. L'ordine e' quello del sito (sort_order, solo lettura): le voci
+    // nascono in fondo all'elenco e non si riordinano, quindi non serve una sort_key.
+    'diary_list_items' => [
+        'ordine'       => 90,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'entry_date' => ['tipo' => 'd', 'solo_creazione' => true],
+            'list_type'  => ['tipo' => 'e', 'solo_creazione' => true],
+            'content'    => ['tipo' => 's'],
+            'sort_order' => ['tipo' => 'i', 'solo_lettura' => true],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
 ];
 
 /** UUIDv5: namespace fisso dell'app (lo stesso nell'app, vedi src/core/sync/uuid5). */
@@ -200,6 +236,11 @@ function sync_uuid_check_in(string $habitUuid, string $giorno): string {
 /** L'identita' di una presa: da terapia (uuid) + giorno + orario (HH:MM) + n. */
 function sync_uuid_presa(string $planUuid, string $giorno, string $ora, int $seq): string {
     return sync_uuid5('pill_doses|' . $planUuid . '|' . $giorno . '|' . substr($ora, 0, 5) . '|' . $seq);
+}
+
+/** L'identita' del diario di un giorno: da utente + giorno. */
+function sync_uuid_diario(int $uid, string $giorno): string {
+    return sync_uuid5('habit_daily_journal|' . $uid . '|' . $giorno);
 }
 
 /** Le tabelle sincronizzate, nell'ordine di dipendenza. */

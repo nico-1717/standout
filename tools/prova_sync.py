@@ -123,7 +123,7 @@ def main():
         for p_ in A.chiama('GET', '/api/v1/pills/plans').get('plans', []):
             if p_['name'].startswith(NOME): A.chiama('DELETE', f"/api/v1/pills/plans/{p_['id']}")
         print('1. stato e copia completa')
-        st = A.chiama('GET', '/api/v1/sync/state'); ok(st.get('ok') and st['tables'] == ['todo_buy_categories', 'todos', 'habit_categories', 'habits', 'habit_logs', 'pill_plans', 'pill_doses'], f"stato: tabelle {st.get('tables')}")
+        st = A.chiama('GET', '/api/v1/sync/state'); ok(st.get('ok') and st['tables'] == ['todo_buy_categories', 'todos', 'habit_categories', 'habits', 'habit_logs', 'pill_plans', 'pill_doses', 'habit_daily_journal', 'diary_list_items'], f"stato: tabelle {st.get('tables')}")
         pagine = A.copia_completa(limite=50)
         ok(pagine >= 1, f'copia completa a pagine da 50 ({pagine} pagine, {len(A.copia)} righe)')
         ok(all(r['sort_key'] for r in A.copia.values() if 'sort_key' in r), 'ogni riga che ha una sort_key la ha piena')
@@ -411,6 +411,65 @@ def main():
         A.aggiorna(); fresca.copia_completa()
         ok(not [r for r in fresca.copia.values() if str(r.get('name', '')).startswith(NOME)], 'non e rimasta nessuna terapia di prova')
         ok(not prese_di(plan['uuid'], A.copia) and not prese_di(plan['uuid'], fresca.copia), 'le prese sono sparite con la terapia')
+
+        print('9. diario: il giorno, i due elenchi, e il testo che non si perde')
+        mio_id = A.chiama('GET', '/api/v1/me')['user']['id']
+        def uuid_diario(giorno): return str(uuid.uuid5(NS_UUID5, f'habit_daily_journal|{mio_id}|{giorno}'))
+        gg = '2099-03-04'          # un giorno lontano: non tocca il diario vero
+        gu = uuid_diario(gg)
+        # (a) il telefono scrive un giorno nuovo, con l\'uuid atteso
+        r = A.push([mut('habit_daily_journal', gu, {'entry_date': gg, 'mood': 4, 'energy': 2, 'note': 'dal telefono A', 'note_rev': ''})])
+        ok(r['results'][0]['status'] == 'applied', 'il giorno del diario scritto dal telefono')
+        g = api('GET', 'diary/day?date=' + gg)
+        ok(g['day']['note'] == 'dal telefono A' and g['day']['mood'] == 4 and g['day']['energy'] == 2, 'il sito lo vede com\'e')
+        A.aggiorna(); B.aggiorna()
+        riga = A.copia.get(('habit_daily_journal', gu))
+        ok(riga is not None and riga['note'] == 'dal telefono A' and riga['note_rev'], 'l\'altro telefono lo riceve con l\'impronta del testo')
+        ok(B.copia.get(('habit_daily_journal', gu), {}).get('note') == 'dal telefono A', 'anche B')
+        # (b) uuid sbagliato: rifiutato
+        r = A.push([mut('habit_daily_journal', str(uuid.uuid4()), {'entry_date': '2099-03-05', 'mood': 3})])
+        ok(r['results'][0]['status'] == 'rejected' and r['results'][0]['field'] == 'uuid', 'uuid che non e quello del giorno: rifiutato')
+        r = A.push([mut('habit_daily_journal', gu, {'mood': 9})]); x = r['results'][0]
+        ok(x['status'] == 'rejected' and x['field'] == 'mood', 'umore 9: rifiutato')
+        # (c) due telefoni scrivono lo stesso testo partendo dalla stessa versione: si tengono TUTTE E DUE
+        rev = riga['note_rev']
+        r = A.push([mut('habit_daily_journal', gu, {'note': 'dal telefono A, riga in piu', 'note_rev': rev})]); ok(r['results'][0]['status'] == 'applied', 'A scrive sopra la versione che conosce: nessun conflitto')
+        r = B.push([mut('habit_daily_journal', gu, {'note': 'dal telefono B', 'note_rev': rev})]); ok(r['results'][0]['status'] == 'applied', 'B scrive partendo da una versione vecchia: accettato')
+        testo = api('GET', 'diary/day?date=' + gg)['day']['note']
+        ok(testo == 'dal telefono A, riga in piu\n\n———\n\ndal telefono B', 'il sito ha TUTTE E DUE le versioni: ' + repr(testo))
+        B.aggiorna(); ok(B.copia[('habit_daily_journal', gu)]['note'] == testo, 'B riceve il testo unito')
+        # (d) il sito scrive, il telefono (che non lo sa) scrive la stessa cosa: non si raddoppia
+        rev = B.copia[('habit_daily_journal', gu)]['note_rev']
+        api('PATCH', 'diary/day', {'date': gg, 'note': 'solo sito'})
+        r = B.push([mut('habit_daily_journal', gu, {'note': 'solo sito', 'note_rev': rev})])
+        ok(api('GET', 'diary/day?date=' + gg)['day']['note'] == 'solo sito', 'stesso testo scritto da due parti: resta uno solo')
+        # (e) elenchi
+        iu = str(uuid.uuid4())
+        r = A.push([mut('diary_list_items', iu, {'entry_date': gg, 'list_type': 'good', 'content': 'un caffe con Anna'})])
+        ok(r['results'][0]['status'] == 'applied', 'cosa bella creata dal telefono')
+        voci = api('GET', 'diary/day?date=' + gg)['day']['good']
+        ok(any(v['content'] == 'un caffe con Anna' for v in voci), 'il sito la vede')
+        r = A.push([mut('diary_list_items', iu, {'content': 'un caffe con Anna e Luca'})]); ok(r['results'][0]['status'] == 'applied', 'modifica del testo')
+        r = A.push([mut('diary_list_items', iu, {'list_type': 'learned'})]); ok(r['results'][0]['status'] == 'rejected' and r['results'][0]['field'] == 'list_type', 'l\'elenco non si cambia')
+        r = A.push([mut('diary_list_items', str(uuid.uuid4()), {'entry_date': gg, 'list_type': 'good', 'content': ''})]); ok(r['results'][0]['status'] == 'rejected' and r['results'][0]['field'] == 'content', 'testo vuoto: rifiutato')
+        r = A.push([mut('diary_list_items', str(uuid.uuid4()), {'list_type': 'good', 'content': 'x'})]); ok(r['results'][0]['status'] == 'rejected', 'senza giorno: rifiutato')
+        A.aggiorna(); ok(A.copia.get(('diary_list_items', iu), {}).get('sort_order') is not None, 'l\'ordine lo decide il server (sort_order)')
+        # (f) la copia completa coincide con quella che si e aggiornata a pezzi
+        A.aggiorna(); B.aggiorna(); fresca.copia_completa()
+        def solo_diario(m): return {k: r for k, r in m.items() if k[0] in ('habit_daily_journal', 'diary_list_items') and str(r.get('entry_date')) == gg}
+        ok(not differenze(solo_diario(A.copia), solo_diario(fresca.copia)) and not differenze(solo_diario(B.copia), solo_diario(fresca.copia)), 'A, B e una copia nuova coincidono anche per il diario')
+        # (g) il sito scrive un giorno nuovo: nasce LA riga con l\'uuid atteso
+        g2 = '2099-03-06'
+        api('PATCH', 'diary/day', {'date': g2, 'note': 'nato sul sito', 'mood': 5})
+        A.aggiorna(); ok(A.copia.get(('habit_daily_journal', uuid_diario(g2)), {}).get('note') == 'nato sul sito', 'un giorno nato sul sito arriva con l\'uuid del giorno')
+        # (h) cancellazioni
+        r = A.push([mut('diary_list_items', iu, {}, 'delete')]); ok(r['results'][0]['status'] == 'applied', 'cancella la cosa bella')
+        r = A.push([mut('habit_daily_journal', gu, {}, 'delete'), mut('habit_daily_journal', uuid_diario(g2), {}, 'delete')]); ok(all(x['status'] == 'applied' for x in r['results']), 'cancella i due giorni di prova')
+        r = A.push([mut('habit_daily_journal', gu, {}, 'delete')]); ok(r['results'][0]['status'] == 'applied', 'cancellare di nuovo: non e un errore')
+        A.aggiorna(); ok(('habit_daily_journal', gu) not in A.copia and ('diary_list_items', iu) not in A.copia, 'sparito dalla copia')
+        print('10. pulizia del diario')
+        fresca.copia_completa()
+        ok(not [r for r in fresca.copia.values() if str(r.get('entry_date', '')).startswith('2099-03')], 'non e rimasto nessun giorno di prova')
     finally:
         for t in (A, B):
             try: t.chiama('POST', '/api/v1/auth/logout')

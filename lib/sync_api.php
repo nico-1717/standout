@@ -82,7 +82,8 @@ function sync_leggi_righe(string $tbl, int $uid, ?array $uuids, int $dopoId = 0,
         foreach ($righe as &$r) {
             // l'uuid atteso si ricava dalla riga stessa (niente query per riga: una copia completa ha migliaia di check-in)
             $atteso = $tbl === 'habit_logs' ? sync_uuid_check_in((string)$r['habit_uuid'], (string)$r['log_date'])
-                : ($tbl === 'pill_doses' && $r['plan_uuid'] !== null ? sync_uuid_presa((string)$r['plan_uuid'], (string)$r['due_date'], (string)$r['due_time'], (int)$r['seq']) : null);
+                : ($tbl === 'habit_daily_journal' ? sync_uuid_diario($uid, (string)$r['entry_date'])
+                : ($tbl === 'pill_doses' && $r['plan_uuid'] !== null ? sync_uuid_presa((string)$r['plan_uuid'], (string)$r['due_date'], (string)$r['due_time'], (int)$r['seq']) : null));
             if ($atteso !== null && $atteso !== $r['uuid']) {
                 mysqli_query(sec_db(), "UPDATE `$tbl` SET uuid = '" . mysqli_real_escape_string(sec_db(), $atteso) . "' WHERE id = " . (int)$r['_id']);
                 $r['uuid'] = $atteso;
@@ -349,6 +350,8 @@ function sync_applica(int $uid, array $m): array {
             case 'habit_logs':        $esito = sync_hlogs_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'pill_plans':        $esito = sync_pplans_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'pill_doses':        $esito = sync_pdoses_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'habit_daily_journal': $esito = sync_hjournal_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'diary_list_items':  $esito = sync_dlist_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             default:                  $esito = sync_rifiuto('validation', 'table', 'Unknown table');
         }
         // una modifica rifiutata non deve lasciare mezze scritture
@@ -420,4 +423,5 @@ function api_h_sync_push(array $ctx): void {
 }
 
 require_once __DIR__ . '/sync_abitudini.php';
+require_once __DIR__ . '/sync_diario.php';
 require_once __DIR__ . '/sync_pastiglie.php';   // dopo le funzioni di base che usa (sync_rifiuto, sync_id_da_uuid...)

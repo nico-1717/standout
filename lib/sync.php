@@ -246,6 +246,10 @@ function sync_uuid_atteso(string $tbl, int $id): ?string {
         $r = sec_one("SELECT d.due_date, d.due_time, d.seq, p.uuid AS pu FROM pill_doses d JOIN pill_plans p ON p.id = d.plan_id WHERE d.id = ?", [$id]);
         return $r ? sync_uuid_presa((string)$r['pu'], (string)$r['due_date'], (string)$r['due_time'], (int)$r['seq']) : null;
     }
+    if ($tbl === 'habit_daily_journal') {
+        $r = sec_one("SELECT user_id, entry_date FROM habit_daily_journal WHERE id = ?", [$id]);
+        return $r ? sync_uuid_diario((int)$r['user_id'], (string)$r['entry_date']) : null;
+    }
     return null;
 }
 
