@@ -180,6 +180,15 @@ def prova_abitudini(base, utente, password):
         esito(s == 422 and v.get('field') == 'date', 'un giorno futuro e\' rifiutato (422)', f'stato {s}')
         s, x, _ = chiama(base, 'GET', 'habits')
         esito(s == 401, 'senza token /habits risponde 401', f'stato {s}')
+        # preferenze della pagina: si cambia UN valore, si controlla, si rimette com'era
+        s, p0, _ = chiama(base, 'GET', 'habits/settings', intestazioni=h)
+        if esito(s == 200 and 'visible_days' in p0.get('settings', {}), 'GET /habits/settings risponde', f'stato {s}'):
+            prima = p0['settings']['visible_days']
+            s, p1, _ = chiama(base, 'PATCH', 'habits/settings', {'visible_days': 12 if prima != 12 else 13}, h)
+            esito(s == 200 and p1['settings']['visible_days'] != prima, 'PATCH cambia solo il campo inviato', f'stato {s}')
+            s, p2, _ = chiama(base, 'PATCH', 'habits/settings', {'visible_days': 99}, h)
+            esito(s == 422 and p2.get('field') == 'visible_days', 'un valore fuori scala e\' rifiutato (422)', f'stato {s}')
+            chiama(base, 'PATCH', 'habits/settings', {'visible_days': prima}, h)
     finally:
         if nuovo is not None:
             s, d, _ = chiama(base, 'DELETE', f'habits/{nuovo}', intestazioni=h)

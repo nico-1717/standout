@@ -64,6 +64,10 @@
      GET    /api/v1/sync/pull?cursor=&limit=   cosa e' cambiato dopo il cursore (cursore snapshot = copia completa)
      GET    /api/v1/sync/state            testa del registro e tabelle
 
+   Impostazioni abitudini (fetta 6 dell'app):
+     GET    /api/v1/habits/settings       le preferenze della pagina Abitudini
+     PATCH  /api/v1/habits/settings       cambia SOLO i campi inviati (valori fuori scala = errore)
+
    Fetta 5 — riordino, azioni su piu' voci, categorie delle abitudini (lib/todo_bulk_api.php, habits_api.php):
      POST   /api/v1/tasks/bulk            {ids, action: delete|schedule|project|move, ...}  (move = nel to buy)
      POST   /api/v1/tasks/reorder         {ids} nell'ordine voluto
@@ -455,6 +459,15 @@ function api_h_abitudini_riordina(array $ctx): void {
 function api_h_abitudini_categorie(array $ctx): void {
     api_ok(['categories' => hb_load_categories(sec_db(), (int)$ctx['utente']['id'])]);
 }
+function api_h_abitudini_impostazioni(array $ctx): void {
+    api_ok(['settings' => hb_settings(sec_db(), (int)$ctx['utente']['id'])]);
+}
+function api_h_abitudini_impostazioni_salva(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_habits_write', 600);
+    $e = hb_api_impostazioni_salva((int)$ctx['utente']['id'], api_corpo());
+    api_h_fetta5_errore($e);
+    api_ok(['settings' => $e['settings']]);
+}
 function api_h_abitudini_cat_crea(array $ctx): void {
     api_h_limite_scritture($ctx, 'api_habits_write', 600);
     $e = hb_api_cat_crea((int)$ctx['utente']['id'], api_corpo());
@@ -671,6 +684,8 @@ api_v1_esegui([
     ['POST',   'habits/reorder',    'api_h_abitudini_riordina', ['accetta' => $tokenECookie]],
     ['GET',    'habits/categories', 'api_h_abitudini_categorie', ['accetta' => $tokenECookie]],
     ['POST',   'habits/categories', 'api_h_abitudini_cat_crea', ['accetta' => $tokenECookie]],
+    ['GET',    'habits/settings',   'api_h_abitudini_impostazioni', ['accetta' => $tokenECookie]],
+    ['PATCH',  'habits/settings',   'api_h_abitudini_impostazioni_salva', ['accetta' => $tokenECookie]],
     ['PATCH',  'habits/categories/{id}', 'api_h_abitudini_cat_modifica', ['accetta' => $tokenECookie]],
     ['DELETE', 'habits/categories/{id}', 'api_h_abitudini_cat_togli', ['accetta' => $tokenECookie]],
     ['GET',    'pills',             'api_h_pillole_giorno',   ['accetta' => $tokenECookie]],

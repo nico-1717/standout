@@ -362,6 +362,51 @@ function hb_api_cat_modifica(int $uid, int $id, array $c): array {
     return ['category' => hb_api_cat_out($uid, $id)];
 }
 
+/* ---------------------------------------------------------------------
+   Impostazioni della pagina Abitudini (habit_settings): le legge/scrive l'app.
+   Stessi limiti di settings_save in public/planner/habits.php. A differenza del sito
+   (che "stringe" i numeri fuori scala) qui un valore sbagliato e' un errore chiaro.
+   I nomi delle colonne vengono SOLO da questo elenco fisso, mai dal client.
+   --------------------------------------------------------------------- */
+function hb_api_impostazioni_salva(int $uid, array $c): array {
+    $interi = ['week_start' => [1, 7], 'visible_days' => [5, 31], 'carousel_interval_s' => [3, 30], 'chart_range_days' => [7, 365]];
+    $booleani = ['show_archived', 'group_by_day_part', 'haptics_enabled', 'sound_enabled', 'confetti_enabled', 'carousel_autoplay'];
+    $campi = [];
+    foreach ($interi as $col => $lim) {
+        if (!array_key_exists($col, $c)) continue;
+        if (!is_int($c[$col]) || $c[$col] < $lim[0] || $c[$col] > $lim[1]) {
+            return hb_api_errore('validation', $col, "$col must be an integer from {$lim[0]} to {$lim[1]}");
+        }
+        $campi[$col] = $c[$col];
+    }
+    foreach ($booleani as $col) {
+        if (!array_key_exists($col, $c)) continue;
+        if (!is_bool($c[$col])) return hb_api_errore('validation', $col, "$col must be true or false");
+        $campi[$col] = $c[$col] ? 1 : 0;
+    }
+    foreach (['default_view' => ['list', 'table', 'stats'], 'theme_mode' => ['auto', 'light', 'dark']] as $col => $ammessi) {
+        if (!array_key_exists($col, $c)) continue;
+        if (!is_string($c[$col]) || !in_array($c[$col], $ammessi, true)) {
+            return hb_api_errore('validation', $col, "$col must be one of: " . implode(', ', $ammessi));
+        }
+        $campi[$col] = $c[$col];
+    }
+    if (array_key_exists('accent_color', $c)) {
+        if (!is_string($c['accent_color']) || !preg_match('/^#[0-9A-Fa-f]{6}$/', $c['accent_color'])) {
+            return hb_api_errore('validation', 'accent_color', 'accent_color must look like #7C5CFF');
+        }
+        $campi['accent_color'] = strtoupper($c['accent_color']);
+    }
+    if (!$campi) return hb_api_errore('validation', 'body', 'Nothing to update');
+    /* la riga si crea al volo se manca (come hb_settings), poi si cambiano solo i campi inviati */
+    sec_q("INSERT IGNORE INTO habit_settings (user_id) VALUES (?)", [$uid]);
+    $set = []; $par = [];
+    foreach ($campi as $col => $val) { $set[] = "`$col` = ?"; $par[] = $val; }
+    $par[] = $uid;
+    sec_q("UPDATE habit_settings SET " . implode(', ', $set) . " WHERE user_id = ?", $par);
+    return ['settings' => hb_settings(sec_db(), $uid)];
+}
+
 /** Le abitudini di quella categoria restano, senza categoria (la chiave esterna lo fa da sola). */
 function hb_api_cat_elimina(int $uid, int $id): bool {
     if (!hb_api_cat_propria($uid, $id)) return false;
