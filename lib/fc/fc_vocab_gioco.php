@@ -62,17 +62,20 @@ function fcv_da_ripassare(string $l): bool { return in_array($l, ['difficilissim
 function fcv_testo_vuoto($raw): bool {
     $raw = trim((string)$raw);
     if ($raw === '') return true;
+    /* trim() non toglie lo spazio non separabile (U+00A0) ne' i caratteri
+       invisibili (U+200B-200D, U+FEFF): un campo con dentro solo quelli e' vuoto. */
+    $senza = function (string $s): string { return (string)preg_replace('/[\s\x{00A0}\x{200B}-\x{200D}\x{FEFF}]+/u', '', $s); };
     $doc = json_decode($raw, true);
     if (!is_array($doc) || !isset($doc['blocks']) || !is_array($doc['blocks'])) {
-        return trim(strip_tags($raw)) === '';
+        return $senza(strip_tags($raw)) === '';
     }
     foreach ($doc['blocks'] as $b) {
         if (!is_array($b)) continue;
         $tipo = (string)($b['t'] ?? 'p');
         if ($tipo !== 'p' && $tipo !== 'li') return false;
         foreach (($b['runs'] ?? []) as $r) {
-            if (is_array($r) && trim((string)($r['s'] ?? '')) !== '') return false;
-            if (is_string($r) && trim($r) !== '') return false;
+            if (is_array($r) && $senza((string)($r['s'] ?? '')) !== '') return false;
+            if (is_string($r) && $senza($r) !== '') return false;
         }
     }
     return true;
@@ -80,7 +83,7 @@ function fcv_testo_vuoto($raw): bool {
 
 /**
  * I TITOLI di un utente (solo flashcard di studio): le carte padre con almeno
- * due sottocarte, la domanda scritta e la risposta completamente vuota. Non
+ * una sottocarta, la domanda scritta e la risposta completamente vuota. Non
  * sono una domanda a cui si risponde ma il titolo del gruppo, quindi non hanno
  * un livello ("nuova", "difficile"...): non si mostra, non si conta, non conta
  * per "da ripassare". E' la stessa regola con cui l'elenco (is-titolo) e il
@@ -97,7 +100,7 @@ function fcv_titoli_studio(int $uid): array {
                         JOIN fc_study_decks d ON d.id = i.category_id AND d.user_id = ?
                        WHERE i.is_father = 1
                          AND TRIM(IFNULL(i.answer_image, '')) = '' AND TRIM(IFNULL(i.answer_audio, '')) = ''
-                         AND (SELECT COUNT(*) FROM fc_study_subcards s WHERE s.parent_id = i.id) >= 2", [$uid]) as $r) {
+                         AND (SELECT COUNT(*) FROM fc_study_subcards s WHERE s.parent_id = i.id) >= 1", [$uid]) as $r) {
         if (!fcv_testo_vuoto($r['question_desc']) && fcv_testo_vuoto($r['answer_desc'])) $out['p' . (int)$r['id']] = true;
     }
     return $cache[$uid] = $out;

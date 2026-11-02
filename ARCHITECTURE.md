@@ -72,3 +72,8 @@ Read this first; open `docs/STANDOUT_PROGETTO.md` only for conventions detail, `
 - `fc_game.php` scrive il chip `.fcg-liv-riga` (livello da `fcv_livello`) dentro ogni `.card-box` non-titolo, subito dopo la stella: cosi' esiste gia' alla comparsa della carta e nella sua anteprima (`creaAnteprima` clona l'HTML del server). Il CSS lo mette fuori dal flusso, centrato fra la stella e la modifica (`top:14px; left/right:58px; height:36px`).
 - `fc_game_juice.js` (`livelloSullaCarta`) lo aggiorna dopo ogni voto solo se il livello e' cambiato; lo crea (nello stesso posto) solo se manca.
 - Pagina delle carte (`fc_view.php`): le righe di codice del markup del server portano `data-fc-pre="1"`, cosi' `rifinisciTestiRimasti()` / `disegnaTestiGrezzi()` / `renderAllRawTexts()` ridisegnano il riquadro da `data-raw` e il JavaScript lo colora (prima restava tutto bianco: il server non colora e nessuno ridisegnava).
+
+### Titoli: padre con risposta vuota (02/11/2026)
+- Una carta padre con la domanda scritta, la risposta completamente vuota e **almeno UNA** sottocarta (prima due) e' un titolo. La regola vive in tre punti che vanno tenuti uguali: `$isTitolo` in `fc_view.php`, `fc_e_titolo()` in `fc_game.php` (le partite GIA' create tengono quello che avevano) e `fcv_titoli_studio()` in `lib/fc/fc_vocab_gioco.php` (SQL).
+- "Vuoto" ora ignora anche lo spazio non separabile (U+00A0) e i caratteri invisibili (U+200B-200D, U+FEFF): `fc_spazi_via()` / `fc_campo_e_vuoto()` / `fcv_testo_vuoto()`.
+

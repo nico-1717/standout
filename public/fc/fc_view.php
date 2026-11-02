@@ -1543,13 +1543,21 @@ function fc_color_or_default($color) {
    una formula, una tabella: cose che si vedono anche senza parole). Un formato
    che non si riesce a leggere come JSON viene dal vecchio testo semplice, e li'
    basta il trim di sempre. */
+/* Toglie ogni tipo di spazio, anche quelli che trim() non conosce: lo spazio
+   non separabile (U+00A0), che il browser lascia quando si cancella del testo,
+   e i caratteri invisibili (U+200B-200D, U+FEFF). Una carta con dentro solo
+   quelli e' vuota, anche se a trim() sembra piena. */
+function fc_spazi_via(string $s): string {
+    return (string)preg_replace('/[\s\x{00A0}\x{200B}-\x{200D}\x{FEFF}]+/u', '', $s);
+}
+
 function fc_testo_vuoto($raw): bool {
     $raw = trim((string)$raw);
     if ($raw === '') return true;
 
     $doc = json_decode($raw, true);
     if (!is_array($doc) || !isset($doc['blocks']) || !is_array($doc['blocks'])) {
-        return trim(strip_tags($raw)) === '';
+        return fc_spazi_via(strip_tags($raw)) === '';
     }
 
     foreach ($doc['blocks'] as $b) {
@@ -1560,8 +1568,8 @@ function fc_testo_vuoto($raw): bool {
            dichiarare vuota una carta che vuota non e'. */
         if ($tipo !== 'p' && $tipo !== 'li') return false;
         foreach (($b['runs'] ?? []) as $r) {
-            if (is_array($r) && trim((string)($r['s'] ?? '')) !== '') return false;
-            if (is_string($r) && trim($r) !== '') return false;
+            if (is_array($r) && fc_spazi_via((string)($r['s'] ?? '')) !== '') return false;
+            if (is_string($r) && fc_spazi_via($r) !== '') return false;
         }
     }
     return true;
@@ -1978,12 +1986,14 @@ function fc_stampa_gruppi($da, $quanti) {
                        sottocarte. Chi l'ha scritta lo sapeva; la pagina no, e la
                        mostrava come una carta rotta — un riquadro "Risposta" con
                        dentro un trattino, ripetuto per ogni gruppo.
-                       Due sottocarte e non una: con una sola figlia il dubbio
-                       resta (puo' essere una carta a cui manca la risposta), con
-                       due l'intenzione e' chiara. */
+                       Prima servivano DUE sottocarte ("con una sola figlia il dubbio
+                       resta"), ma chi svuota la risposta di un padre che ha figli lo
+                       fa di proposito: ne basta UNA (02/11/2026). Un padre senza
+                       figli e senza risposta resta una carta come le altre, a cui
+                       manca la risposta. */
                     /* Le parole padre non sono titoli: "run" con dentro
                        "run out" e' una parola anche lei. */
-                    $isTitolo = !fc_is_vocab() && $childCount >= 2
+                    $isTitolo = !fc_is_vocab() && $childCount >= 1
                              && fc_lato_vuoto($row['answer_desc'], $row['answer_image'], $row['answer_audio'])
                              && !fc_testo_vuoto($row['question_desc']);
                     

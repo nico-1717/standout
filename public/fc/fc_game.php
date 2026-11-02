@@ -34,6 +34,8 @@ function fc_campo_e_vuoto(?string $raw): bool {
     if ($raw === null) return true;
     $raw = trim($raw);
     if ($raw === '') return true;
+    /* U+00A0 e caratteri invisibili: trim() non li toglie (vedi fc_spazi_via in fc_view.php). */
+    $vuoti = '/[\s\x{00A0}\x{200B}-\x{200D}\x{FEFF}]+/u';
 
     // Formato nuovo (JSON a blocchi): si guarda dentro ogni blocco, non la
     // stringa nel suo insieme.
@@ -42,13 +44,13 @@ function fc_campo_e_vuoto(?string $raw): bool {
         foreach ($decoded['blocks'] as $block) {
             if (!is_array($block)) continue;
             if (($block['t'] ?? '') === 'fx') {                      // formula a blocco intero
-                if (trim((string)($block['tex'] ?? '')) !== '') return false;
+                if (preg_replace($vuoti, '', (string)($block['tex'] ?? '')) !== '') return false;
                 continue;
             }
             foreach ((array)($block['runs'] ?? []) as $run) {
                 if (!is_array($run)) continue;
-                if (isset($run['x']) && trim((string)$run['x']) !== '') return false;  // formula in linea
-                if (isset($run['s']) && trim((string)$run['s']) !== '') return false;  // testo
+                if (isset($run['x']) && preg_replace($vuoti, '', (string)$run['x']) !== '') return false;  // formula in linea
+                if (isset($run['s']) && preg_replace($vuoti, '', (string)$run['s']) !== '') return false;  // testo
             }
         }
         return true; // JSON valido ma ogni blocco e' vuoto
@@ -96,7 +98,8 @@ function fc_anteprima_testo(?string $raw, int $max = 70): string {
 
 /** Vero se questa riga di fc_study_cards va trattata come titolo, non come domanda. */
 function fc_e_titolo(array $padre, int $numero_figli): bool {
-    return $numero_figli >= 2
+    /* Basta UNA sottocarta (prima due): vedi fc_view.php, $isTitolo. */
+    return $numero_figli >= 1
         && fc_campo_e_vuoto($padre['answer_desc'] ?? null)
         && empty($padre['answer_image'])
         && empty($padre['answer_audio']);
