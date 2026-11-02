@@ -62,6 +62,8 @@
    Sincronizzazione con l'app (lib/sync_api.php), solo con il token:
      GET    /api/v1/settings              stile, colore del sito e lingua (solo token)
      PUT    /api/v1/settings              li cambia: {ui_style?, accent?, lang?}
+     GET    /api/v1/notes/quick           la nota veloce del To do: {note:{body, updated_at}}
+     PUT    /api/v1/notes/quick           {body, base_updated_at}: 409 + la versione del server se e' cambiata nel frattempo
      POST   /api/v1/sync/push             {mutations:[{mutation_id, table, op, uuid, patch}]} (max 200)
      GET    /api/v1/sync/pull?cursor=&limit=   cosa e' cambiato dopo il cursore (cursore snapshot = copia completa)
      GET    /api/v1/sync/state            testa del registro e tabelle
@@ -128,6 +130,7 @@ require_once __DIR__ . '/../../../lib/sync_api.php';
 require_once __DIR__ . '/../../../lib/registrazione.php';
 require_once __DIR__ . '/../../../lib/password_reset.php';
 require_once __DIR__ . '/../../../lib/api_settings.php';
+require_once __DIR__ . '/../../../lib/api_nota.php';
 
 /* ---------------- Accesso ---------------- */
 
@@ -691,6 +694,8 @@ api_v1_esegui([
     ['GET',    'me',                'api_h_me',               ['accetta' => $tokenECookie]],
     ['GET',    'settings',          'api_h_settings_leggi',   ['accetta' => ['token']]],
     ['PUT',    'settings',          'api_h_settings_scrivi',  ['accetta' => ['token']]],
+    ['GET',    'notes/quick',       'api_h_nota_leggi',       ['accetta' => $tokenECookie]],
+    ['PUT',    'notes/quick',       'api_h_nota_scrivi',      ['accetta' => $tokenECookie]],
     ['GET',    'tasks',             'api_h_tasks_elenco',     ['accetta' => $tokenECookie]],
     ['POST',   'tasks',             'api_h_tasks_crea',       ['accetta' => $tokenECookie]],
     ['PATCH',  'tasks/{id}',        'api_h_tasks_modifica',   ['accetta' => $tokenECookie]],

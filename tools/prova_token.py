@@ -386,6 +386,32 @@ def prova_account(base):
     esito(s == 422, 'password dimenticata con il campo vuoto: 422', f'stato {s}')
 
 
+def prova_nota(base, utente, password):
+    """La nota veloce del To do: si legge, si scrive sulla versione giusta, e una versione vecchia e' RIFIUTATA (409)
+    con il testo del server (cosi' l'app non perde niente). La nota torna com'era alla fine."""
+    print('\n15) Nota veloce (/api/v1/notes/quick)')
+    s, j, _ = chiama(base, 'POST', 'auth/login', {'identifier': utente, 'password': password, 'device_name': 'prova_nota'})
+    if s != 200:
+        return esito(False, 'login per la prova della nota', f'stato {s}')
+    h = bearer(j['access_token'])
+    s, r, _ = chiama(base, 'GET', 'notes/quick', intestazioni=h)
+    esito(s == 200 and 'body' in r.get('note', {}), 'si legge la nota', f'stato {s}, {r}')
+    originale = r['note']['body']
+    ver = r['note']['updated_at']
+    s, r, _ = chiama(base, 'PUT', 'notes/quick', {'body': 'prova ' + str(os.getpid()), 'base_updated_at': ver}, intestazioni=h)
+    esito(s == 200 and r['note']['body'].startswith('prova '), 'si scrive sulla versione che si conosce', f'stato {s}, {r}')
+    nuova = r['note']['updated_at']
+    s, r, _ = chiama(base, 'PUT', 'notes/quick', {'body': 'da un telefono vecchio', 'base_updated_at': '2000-01-01 00:00:00'}, intestazioni=h)
+    esito(s == 409 and r.get('code') == 'conflict' and r['note']['body'].startswith('prova '),
+          'una versione vecchia e\' rifiutata (409) e il server manda la sua', f'stato {s}, {r}')
+    s, r, _ = chiama(base, 'PUT', 'notes/quick', {'body': 5}, intestazioni=h)
+    esito(s == 422, 'un testo che non e\' testo: 422', f'stato {s}')
+    s, r, _ = chiama(base, 'PUT', 'notes/quick', {'body': 'x' * 20001, 'base_updated_at': nuova}, intestazioni=h)
+    esito(s == 422, 'oltre 20000 caratteri: 422', f'stato {s}')
+    s, r, _ = chiama(base, 'PUT', 'notes/quick', {'body': originale, 'base_updated_at': nuova}, intestazioni=h)
+    esito(s == 200 and r['note']['body'] == originale, 'la nota torna com\'era', f'stato {s}')
+
+
 def main():
     ap = argparse.ArgumentParser(description="Prova l'accesso con token di Standout.")
     ap.add_argument('--url', default=os.environ.get('STANDOUT_URL', ''), help='indirizzo del sito, senza /api/v1')
@@ -474,6 +500,7 @@ def main():
         prova_pillole(base, utente, password)
         prova_diario(base, utente, password)
         prova_account(base)
+        prova_nota(base, utente, password)
 
     print('\nRisultato: %d ok, %d falliti' % (verdi, rossi))
     sys.exit(1 if rossi else 0)

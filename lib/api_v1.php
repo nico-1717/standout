@@ -42,6 +42,7 @@ const API_ERRORI = [
     'forbidden'           => [403, 'Forbidden'],
     'not_found'           => [404, 'Not found'],
     'method_not_allowed'  => [405, 'Method not allowed'],
+    'conflict'            => [409, 'Conflict'],
     'too_many_attempts'   => [429, 'Too many failed attempts: try again later'],
     'rate_limited'        => [429, 'Too many requests'],
     'server_error'        => [500, 'Server error'],
