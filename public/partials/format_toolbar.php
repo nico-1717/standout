@@ -2654,6 +2654,11 @@ function ftSync(wrap, doc) {
     if (!doc) doc = fcdFromDom(ed);
     var h = ftHidden(wrap);
     if (h) h.value = fcdStringify(doc);
+    /* Un pezzo in attesa in cui si e' scritto non e' piu' "vuoto": riprende il
+       suo aspetto normale (sfondo con margine). */
+    Array.prototype.forEach.call(ed.querySelectorAll('.fc-t[data-zw]'), function (t) {
+        if (t.textContent.replace(/\u200B/g, '') !== '') delete t.dataset.zw;
+    });
     var vuoto = doc.blocks.length === 1 && doc.blocks[0].t === 'p' && fcdBlockText(doc.blocks[0]) === '';
     ed.dataset.vuoto = vuoto ? '1' : '0';
     ftStoriaPianifica(wrap);
@@ -2895,10 +2900,33 @@ function ftInsertMarked(ed, marks) {
         }
     }
 
+    /* UN SOLO PEZZO IN ATTESA: se il cursore sta gia' dentro un pezzo che
+       contiene solo il carattere invisibile (cioe' lo abbiamo creato noi un
+       attimo fa e non ci si e' ancora scritto), i nuovi marchi si mettono LI'.
+       Prima ogni click su un colore ne apriva un altro accanto: con
+       l'evidenziatore ognuno ha il suo sfondo e il suo margine, e il testo si
+       allungava di uno spazio a ogni click (spariva solo al ridisegno). */
+    var pendente = (r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentNode);
+    pendente = pendente && pendente.closest ? pendente.closest('.fc-t[data-zw]') : null;
+    if (pendente && ed.contains(pendente) && pendente.textContent.replace(/\u200B/g, '') === '') {
+        ['b', 'i', 'u', 'h', 'c'].forEach(function (k) { delete pendente.dataset[k]; });
+        ['b', 'i', 'u'].forEach(function (k) { if (marks && marks[k]) pendente.dataset[k] = '1'; });
+        if (marks && marks.h) pendente.dataset.h = (marks.h !== 1 && /^[a-z]+$/.test(String(marks.h))) ? String(marks.h) : '1';
+        if (marks && marks.c) pendente.dataset.c = marks.c;
+        var rp = document.createRange();
+        var tp = pendente.firstChild;
+        rp.setStart(tp, tp.length);
+        rp.collapse(true);
+        s.removeAllRanges();
+        s.addRange(rp);
+        return;
+    }
+
     var nodo;
     if (marks && Object.keys(marks).length) {
         nodo = document.createElement('span');
         nodo.className = 'fc-t';
+        nodo.dataset.zw = '1';   // pezzo in attesa: senza margine finche' non ci si scrive dentro (vedi ftSync)
         ['b', 'i', 'u'].forEach(function (k) { if (marks[k]) nodo.dataset[k] = '1'; });
         if (marks.h) nodo.dataset.h = (marks.h !== 1 && /^[a-z]+$/.test(String(marks.h))) ? String(marks.h) : '1';
         if (marks.c) nodo.dataset.c = marks.c;

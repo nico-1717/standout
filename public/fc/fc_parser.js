@@ -2012,6 +2012,8 @@ function fcdSetSel(root, sel) {
         /* riga evidenziata e marchi dentro il codice */
         '.fc-p.fc-code[data-hl]{ background-image:linear-gradient(rgba(255,214,10,.16),rgba(255,214,10,.16)); box-shadow:inset 3px 0 0 #FFD60A; }' +
         '.fc-code .fc-t[data-h]{ background:rgba(255,224,102,.38); color:inherit; }' +
+        /* Pezzo in attesa (solo il carattere invisibile): niente margine, o uno vuoto si vede come uno spazio. */
+        '.fc-t[data-zw]{ padding:0 !important; }' +
         '.fc-code .fc-t[data-b="1"]{ font-weight:900; color:#fff; -webkit-text-stroke:.7px #fff; background:rgba(255,255,255,.16); border-radius:4px; padding:0 3px; }' +
         /* citazione: barra blu a sinistra e fondo leggero; piu' righe di fila fanno un riquadro solo */
         '.fc-p.fc-q{ border-left:4px solid var(--blue,#007AFF); background:color-mix(in srgb, var(--blue,#007AFF) 8%, transparent); padding:5px 14px; margin:0; font-style:italic; color:var(--text-2,#3a3a3c); border-radius:0 10px 10px 0; }' +
