@@ -2128,6 +2128,21 @@ $fc_imp = fc_impostazioni((int)$current_user_id);
 
 
 
+                    <?php /* IL LIVELLO, NELLO SPAZIO FRA LA STELLA E LA MODIFICA (02/11/2026)
+                             Lo scrive il server dentro la carta, non lo disegna il JavaScript
+                             dopo: cosi' c'e' gia' quando la carta compare, e c'e' anche
+                             nell'anteprima della carta successiva (che e' una copia di questo
+                             HTML). fc_game_juice.js lo aggiorna dopo ogni voto. Stessa
+                             struttura di badgeHtml() la'. */ ?>
+                    <?php if (empty($c['is_titolo'])):
+                        $__ls  = $fcg_stats[$fcg_k] ?? ['c' => 0, 'w' => 0, 'u' => ''];
+                        $__liv = fcv_livello((int)$__ls['c'], (int)$__ls['w'], (string)$__ls['u']);
+                        $__lt  = sec_h(t('fcv.liv_' . $__liv)); ?>
+                    <div class="fcg-liv-riga"><span class="fcg-liv fcg-liv-<?php echo sec_h($__liv); ?>" title="<?php echo $__lt; ?>"><?php
+                        echo $__liv === 'la_sai' ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.5 2.9 6.2 6.8.8-5 4.7 1.3 6.7L12 17.6l-6 3.3 1.3-6.7-5-4.7 6.8-.8Z"/></svg>' : '<i></i>';
+                    ?><b><?php echo $__lt; ?></b></span></div>
+                    <?php endif; ?>
+
                     <?php if(count($cards_to_show) > 1): ?>
 
                         <div class="card-title <?php echo $c['is_child'] ? 'is-child' : ''; ?>"><?php echo $c['is_child'] ? '&#8627; ' . sec_h(t('fc.gm_sottoconcetto')) : sec_h(t('fc.gm_concetto_principale')); ?></div>

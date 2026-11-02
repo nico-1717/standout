@@ -28,8 +28,13 @@ html.fcg-finale .fill-pages{
 }
 .fcg-liv i{ width:7px; height:7px; border-radius:50%; background:var(--c); box-shadow:0 0 0 2px color-mix(in srgb, var(--c) 25%, transparent); }
 .fcg-liv svg{ width:12px; height:12px; }
-/* il chip del livello sulla carta di studio: centrato sotto l'etichetta */
-.fcg-liv-riga{ display:flex; justify-content:center; margin:2px 0 10px; }
+/* il chip del livello sulla carta di studio: sulla riga della stella e della
+   modifica (36px a 14px dal bordo, vedi fc_game.css), nello spazio fra i due.
+   Fuori dal flusso: non occupa altezza e non sposta niente. */
+.fcg-liv-riga{
+    position:absolute; top:14px; left:58px; right:58px; height:36px; z-index:4;
+    display:flex; align-items:center; justify-content:center; pointer-events:none;
+}
 .fcg-liv-riga .fcg-liv{ order:0; }
 .fcg-liv b{ font-weight:800; }
 .fcg-liv-nuova{ --c:#64D2FF; }

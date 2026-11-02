@@ -709,11 +709,16 @@
         var liv = livello(st.c, st.w, st.u);
         var riga = card.querySelector(':scope > .fcg-liv-riga');
         if (!riga) {
+            /* Di norma il chip lo scrive gia' il server (fc_game.php), fra la
+               stella e la modifica: qui si crea solo se manca, nello stesso posto. */
             riga = el('div', 'fcg-liv-riga');
-            var titolo = card.querySelector(':scope > .card-title');
-            if (titolo) titolo.insertAdjacentElement('afterend', riga);
+            var stella = card.querySelector(':scope > .btn-fav-fab');
+            if (stella) stella.insertAdjacentElement('afterend', riga);
             else card.insertBefore(riga, card.firstChild);
         }
+        /* Se il livello non e' cambiato non si tocca niente: riscriverlo
+           rifarebbe il chip da capo e si vedrebbe un battito. */
+        if (riga.querySelector('.fcg-liv-' + liv)) return;
         riga.innerHTML = badgeHtml(liv);
     }
     function livelliSulleCarte(cont) {
