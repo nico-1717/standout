@@ -1550,7 +1550,19 @@ foreach (['it', 'en'] as $vg_l) {
         if (VG.phase === 'question') showAndReadAnswer();
         else if (VG.phase === 'shatter-q') readShatterAnswer();
     }
+    /* Nelle parole, «corretto» o «sbagliato» detti PRIMA di aver visto la risposta
+       non votano piu': aprono la risposta e la leggono, e si vota dopo. Il
+       microfono (con le frasi attese) a volte sente «right» in qualunque cosa si
+       dica, e la carta si segnava giusta da sola senza che la risposta fosse mai
+       letta. Il voto vero si da' guardando la risposta; se la si e' detta giusta,
+       ci pensa gia' il riconoscimento della parola. */
+    function votoPrimaDellaRisposta() {
+        if (!VOC || VG.phase !== 'question') return false;
+        showAndReadAnswer();
+        return true;
+    }
     function doCorretto() {
+        if (votoPrimaDellaRisposta()) return;
         if (VG.phase === 'boss-q' || VG.phase === 'boss-a') { bossVota(true); return; }
         if (VG.phase === 'question' || VG.phase === 'answer' || VG.phase === 'ai-audio' || VG.phase === 'auto-ok') markCard('correct');
         else if (VG.phase === 'shatter-finished') judgeShatter('correct');
@@ -1563,6 +1575,7 @@ foreach (['it', 'en'] as $vg_l) {
     }
 
     function doErrato() {
+        if (votoPrimaDellaRisposta()) return;
         if (VG.phase === 'boss-q' || VG.phase === 'boss-a') { bossVota(false); return; }
         if (VG.phase === 'question' || VG.phase === 'answer' || VG.phase === 'ai-audio' || VG.phase === 'auto-ok') markCard('wrong');
         else if (VG.phase === 'shatter-finished') judgeShatter('wrong');

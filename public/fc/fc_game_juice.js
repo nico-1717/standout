@@ -699,12 +699,11 @@
        13. A OGNI PAGINA NUOVA
        ============================================================ */
     var prima = true;
-    /* Il livello della carta sul gioco di STUDIO, sempre in vista mentre si gioca.
-       Per le parole resta nascosto prima della risposta (vedi sopra: suggerirebbe
-       com'e' andata le altre volte e falserebbe il ripasso), ma chi studia lo ha
-       chiesto di proposito. Usa lo stesso chip del messaggio dopo il voto. */
+    /* Il livello della carta, sempre in vista mentre si gioca: sia nello STUDIO
+       sia nelle PAROLE (prima nelle parole restava nascosto; chi gioca ha chiesto
+       di vederlo in entrambi). Usa lo stesso chip del messaggio dopo il voto. */
     function livelloSullaCarta(card) {
-        if (VOCAB || !card || card.classList.contains('anteprima-card')) return;
+        if (!card || card.classList.contains('anteprima-card')) return;
         var st = statsDi(card);
         if (!st) return;
         var liv = livello(st.c, st.w, st.u);
@@ -718,7 +717,7 @@
         riga.innerHTML = badgeHtml(liv);
     }
     function livelliSulleCarte(cont) {
-        if (VOCAB || !cont) return;
+        if (!cont) return;
         cont.querySelectorAll('.card-box[data-fcv-stats]').forEach(livelloSullaCarta);
     }
 
