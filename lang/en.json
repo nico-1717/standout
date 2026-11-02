@@ -5397,6 +5397,15 @@
     "attivita_ripristinata": "The server rejected a change: the task went back to how it was.",
     "attivita_cancellata_altrove": "This task was deleted on another device.",
     "sotto_attivita": "{n} sub-tasks",
-    "versione_vecchia": "This version of the app is too old. Update it to continue."
+    "versione_vecchia": "This version of the app is too old. Update it to continue.",
+    "account": "Account",
+    "dispositivi": "Connected devices",
+    "questo_dispositivo": "This device",
+    "esci_dispositivo": "Sign out",
+    "esci_ovunque": "Sign out everywhere",
+    "esci_ovunque_p": "All devices, including this one, will be signed out. Changes on this phone that are not synced yet will be lost.",
+    "ultimo_uso": "Last used {quando}",
+    "scarica_errore": "I couldn't prepare the file. Please try again.",
+    "password_cambiata_qui": "Password changed. Your other devices have been signed out."
   }
 }

@@ -5397,6 +5397,15 @@
     "attivita_ripristinata": "Il server ha rifiutato una modifica: l'attività è tornata com'era.",
     "attivita_cancellata_altrove": "Questa attività è stata eliminata da un altro dispositivo.",
     "sotto_attivita": "{n} sotto-attività",
-    "versione_vecchia": "Questa versione dell'app è troppo vecchia. Aggiornala per continuare."
+    "versione_vecchia": "Questa versione dell'app è troppo vecchia. Aggiornala per continuare.",
+    "account": "Account",
+    "dispositivi": "Dispositivi collegati",
+    "questo_dispositivo": "Questo dispositivo",
+    "esci_dispositivo": "Esci",
+    "esci_ovunque": "Esci da tutti i dispositivi",
+    "esci_ovunque_p": "Tutti i dispositivi, anche questo, verranno scollegati. Le modifiche non ancora sincronizzate su questo telefono andranno perse.",
+    "ultimo_uso": "Ultimo uso {quando}",
+    "scarica_errore": "Non sono riuscito a preparare il file. Riprova.",
+    "password_cambiata_qui": "Password cambiata. Gli altri dispositivi sono stati scollegati."
   }
 }
