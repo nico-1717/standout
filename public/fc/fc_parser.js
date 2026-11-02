@@ -376,6 +376,27 @@ function fcdToggleMark(doc, sel, key, val) {
     return fcdSetMark(doc, sel, key, acceso ? null : (val === undefined ? 1 : val));
 }
 
+/* L'EVIDENZIATORE SEGUE IL COLORE. Il marchio h vale 1 (giallo) oppure il nome di
+   un colore della tavolozza. Acceso, prende il colore del testo che evidenzia;
+   cambiando il colore a un testo gia' evidenziato, cambia anche l'evidenziatore. */
+function fcdRecolorHighlight(doc, sel, colore) {
+    fcdEachRunInRange(doc, sel, function (r, block) {
+        var m = (block && block.t === 'fx') ? block.m : r.m;
+        if (!m || !m.h) return;
+        m.h = colore !== undefined ? (colore || 1) : (m.c || 1);
+    });
+    return fcdNorm(doc);
+}
+function fcdToggleHighlight(doc, sel) {
+    if (fcdRangeHas(doc, sel, 'h')) return fcdSetMark(doc, sel, 'h', null);
+    doc = fcdSetMark(doc, sel, 'h', 1);
+    return fcdRecolorHighlight(doc, sel);      // ogni pezzo prende il colore del proprio testo
+}
+function fcdSetColor(doc, sel, colore) {
+    doc = fcdSetMark(doc, sel, 'c', colore || null);
+    return fcdRecolorHighlight(doc, sel, colore || null);
+}
+
 function fcdOrder(sel) {
     var a = sel.a, f = sel.f;
     if (a.b > f.b || (a.b === f.b && a.o > f.o)) return { a: f, f: a };
@@ -1434,7 +1455,11 @@ function fcdEscape(s) {
 function fcdMarkAttrs(m) {
     var out = '';
     if (!m) return out;
-    FCD_FLAGS.forEach(function (k) { if (m[k]) out += ' data-' + k + '="1"'; });
+    FCD_FLAGS.forEach(function (k) {
+        if (!m[k]) return;
+        /* l'evidenziatore porta il suo colore ("red", "blue"...); 1 = giallo */
+        out += ' data-' + k + '="' + (k === 'h' && fcdColoreTestoValido(m.h) ? m.h : '1') + '"';
+    });
     if (m.c) out += ' data-c="' + fcdEscape(m.c) + '"';
     return out;
 }
@@ -1591,7 +1616,7 @@ function fcdFromDom(root) {
             if (el.dataset.b) m.b = 1;
             if (el.dataset.i) m.i = 1;
             if (el.dataset.u) m.u = 1;
-            if (el.dataset.h) m.h = 1;
+            if (el.dataset.h) m.h = fcdColoreTestoValido(el.dataset.h) ? el.dataset.h : 1;
             if (el.dataset.c && fcdColoreTestoValido(el.dataset.c)) m.c = el.dataset.c;
         }
         return fcdCloneMarks(m);
@@ -1639,7 +1664,7 @@ function fcdFromDom(root) {
             if (el.dataset.b) mFx.b = 1;
             if (el.dataset.i) mFx.i = 1;
             if (el.dataset.u) mFx.u = 1;
-            if (el.dataset.h) mFx.h = 1;
+            if (el.dataset.h) mFx.h = fcdColoreTestoValido(el.dataset.h) ? el.dataset.h : 1;
             if (el.dataset.mc && fcdColoreTestoValido(el.dataset.mc)) mFx.c = el.dataset.mc;
             var mFxPulito = fcdCloneMarks(mFx);
             if (mFxPulito) bfx.m = mFxPulito;
@@ -1975,7 +2000,7 @@ function fcdSetSel(root, sel) {
         '.fc-t[data-b="1"]{ font-weight:700; }' +
         '.fc-t[data-i="1"]{ font-style:italic; }' +
         '.fc-t[data-u="1"]{ text-decoration:underline; text-underline-offset:2px; }' +
-        '.fc-t[data-h="1"]{ background:#FFE066; color:#1C1C1E; border-radius:3px; padding:0 2px; box-decoration-break:clone; -webkit-box-decoration-break:clone; }' +
+        '.fc-t[data-h]{ background:#FFE066; color:#1C1C1E; border-radius:3px; padding:0 2px; box-decoration-break:clone; -webkit-box-decoration-break:clone; }' +
         col +
         '.fc-p{ min-height:1.65em; }' +
         /* le righe di codice di fila formano un riquadro scuro: la prima porta
@@ -1991,7 +2016,7 @@ function fcdSetSel(root, sel) {
         '.fc-p.fc-code:not(.fc-code + .fc-code):not(:has(+ .fc-code)){ border-radius:12px; }' +
         /* riga evidenziata e marchi dentro il codice */
         '.fc-p.fc-code[data-hl]{ background-image:linear-gradient(rgba(255,214,10,.16),rgba(255,214,10,.16)); box-shadow:inset 3px 0 0 #FFD60A; }' +
-        '.fc-code .fc-t[data-h="1"]{ background:rgba(255,224,102,.38); color:inherit; }' +
+        '.fc-code .fc-t[data-h]{ background:rgba(255,224,102,.38); color:inherit; }' +
         '.fc-code .fc-t[data-b="1"]{ font-weight:900; color:#fff; -webkit-text-stroke:.7px #fff; background:rgba(255,255,255,.16); border-radius:4px; padding:0 3px; }' +
         /* citazione: barra blu a sinistra e fondo leggero; piu' righe di fila fanno un riquadro solo */
         '.fc-p.fc-q{ border-left:4px solid var(--blue,#007AFF); background:color-mix(in srgb, var(--blue,#007AFF) 8%, transparent); padding:5px 14px; margin:0; font-style:italic; color:var(--text-2,#3a3a3c); border-radius:0 10px 10px 0; }' +
@@ -2243,14 +2268,22 @@ function fcdSetSel(root, sel) {
            I simboli disegnati da MathJax hanno un colore loro, quindi non
            basta dirlo al contenitore: va detto anche a mjx-container e al
            blocco di MathQuill, esattamente come per il colore. */
-        '.fc-x.fc-t[data-h="1"], .fc-x.fc-resa.fc-t[data-h="1"]{ background:#FFE066; color:#1C1C1E; box-shadow:none; }' +
-        '.fc-x.fc-t[data-h="1"] .mq-root-block, .fc-x.fc-t[data-h="1"] mjx-container{ color:#1C1C1E; }' +
+        '.fc-x.fc-t[data-h], .fc-x.fc-resa.fc-t[data-h]{ background:#FFE066; color:#1C1C1E; box-shadow:none; }' +
+        '.fc-x.fc-t[data-h] .mq-root-block, .fc-x.fc-t[data-h] mjx-container{ color:#1C1C1E; }' +
         /* Per la formula a blocco vale il discorso di data-mc fatto sopra: il
            colore del pallino usa data-c, quindi il marchio del testo viaggia
            su data-mc. L'evidenziatore invece non si scontra con niente e
            resta data-h. */
-        '.fc-fx.fc-t[data-h="1"], .fc-fx.fc-resa.fc-t[data-h="1"]{ background:#FFE066; color:#1C1C1E; box-shadow:none; }' +
-        '.fc-fx.fc-t[data-h="1"] .mq-root-block, .fc-fx.fc-t[data-h="1"] mjx-container{ color:#1C1C1E; }' +
+        '.fc-fx.fc-t[data-h], .fc-fx.fc-resa.fc-t[data-h]{ background:#FFE066; color:#1C1C1E; box-shadow:none; }' +
+        '.fc-fx.fc-t[data-h] .mq-root-block, .fc-fx.fc-t[data-h] mjx-container{ color:#1C1C1E; }' +
+        /* evidenziatore colorato: un tono chiaro del colore scelto, con testo scuro
+           (come il giallo); dentro il codice e' piu' trasparente, per lasciar
+           vedere i colori delle parole */
+        FCD_COLORS.map(function (k) {
+            var pal = FCD_PALETTE[k];
+            return '.fc-t[data-h="' + k + '"], .fc-x.fc-t[data-h="' + k + '"], .fc-x.fc-resa.fc-t[data-h="' + k + '"], .fc-fx.fc-t[data-h="' + k + '"], .fc-fx.fc-resa.fc-t[data-h="' + k + '"]{ background:color-mix(in srgb, ' + pal + ' 38%, #fff); }' +
+                   '.fc-code .fc-t[data-h="' + k + '"]{ background:color-mix(in srgb, ' + pal + ' 46%, transparent); }';
+        }).join('') +
         /* L'EVIDENZIAZIONE della formula quando la selezione la attraversa.
            Sta qui in fondo, e nomina anche .fc-resa, per un motivo preciso:
            due righe piu' su c'e' ".fc-x.fc-resa{ background:transparent }",

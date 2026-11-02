@@ -2841,7 +2841,8 @@ function ftMarksAtCaret(ed) {
     var t = el && el.closest ? el.closest('.fc-t') : null;
     if (!t || !ed.contains(t)) return {};
     var m = {};
-    ['b', 'i', 'u', 'h'].forEach(function (k) { if (t.dataset[k]) m[k] = 1; });
+    ['b', 'i', 'u'].forEach(function (k) { if (t.dataset[k]) m[k] = 1; });
+    if (t.dataset.h) m.h = (t.dataset.h !== '1' && /^[a-z]+$/.test(t.dataset.h)) ? t.dataset.h : 1;   // evidenziatore: 1 = giallo o il nome del colore
     if (t.dataset.c) m.c = t.dataset.c;
     return m;
 }
@@ -2873,7 +2874,8 @@ function ftInsertMarked(ed, marks) {
     if (marks && Object.keys(marks).length) {
         nodo = document.createElement('span');
         nodo.className = 'fc-t';
-        ['b', 'i', 'u', 'h'].forEach(function (k) { if (marks[k]) nodo.dataset[k] = '1'; });
+        ['b', 'i', 'u'].forEach(function (k) { if (marks[k]) nodo.dataset[k] = '1'; });
+        if (marks.h) nodo.dataset.h = (marks.h !== 1 && /^[a-z]+$/.test(String(marks.h))) ? String(marks.h) : '1';
         if (marks.c) nodo.dataset.c = marks.c;
         nodo.textContent = FT_ZW;
     } else {
@@ -2918,6 +2920,17 @@ function ftMark(wrap, key, val) {
        E' successo davvero, con "seleziona tutto" e poi grassetto. */
     var s = window.getSelection();
     var collassata = !s || !s.rangeCount || s.getRangeAt(0).collapsed || !ed.contains(s.anchorNode);
+    /* L'evidenziatore prende il colore del testo (o resta giallo senza colore). */
+    if (key === 'h' && val === undefined) {
+        if (collassata) {
+            ed.focus();
+            var mc = ftMarksAtCaret(ed);
+            ftToggleMarkCaret(wrap, 'h', mc.h ? mc.h : (mc.c || 1));
+            return;
+        }
+        ftCmd(wrap, function (doc, sl) { return { doc: fcdToggleHighlight(doc, sl), sel: sl }; });
+        return;
+    }
     if (collassata) { ed.focus(); ftToggleMarkCaret(wrap, key, val); return; }
     ftCmd(wrap, function (doc, sl) { return { doc: fcdToggleMark(doc, sl, key, val), sel: sl }; });
 }
@@ -2939,8 +2952,13 @@ function ftMarkImposta(wrap, key, val) {
         ed.focus();
         var m = ftMarksAtCaret(ed);
         if (val === null || val === undefined) delete m[key]; else m[key] = val;
+        if (key === 'c' && m.h) m.h = val || 1;      // l'evidenziatore segue il colore scelto
         ftInsertMarked(ed, m);
         ftSync(wrap);
+        return;
+    }
+    if (key === 'c') {
+        ftCmd(wrap, function (doc, sl) { return { doc: fcdSetColor(doc, sl, val === undefined ? null : val), sel: sl }; });
         return;
     }
     ftCmd(wrap, function (doc, sl) { return { doc: fcdSetMark(doc, sl, key, val === undefined ? null : val), sel: sl }; });

@@ -1600,7 +1600,10 @@ function fcd_php_mark_attrs($m): string {
     $out = '';
     if (!is_array($m)) return $out;
     foreach (['b', 'i', 'u', 'h'] as $k) {
-        if (!empty($m[$k])) $out .= ' data-' . $k . '="1"';
+        if (empty($m[$k])) continue;
+        /* l'evidenziatore puo' avere un colore (nome nella tavolozza), altrimenti giallo */
+        $val = ($k === 'h' && is_string($m[$k]) && preg_match('/^[a-z]+$/', $m[$k])) ? $m[$k] : '1';
+        $out .= ' data-' . $k . '="' . $val . '"';
     }
     if (!empty($m['c'])) $out .= ' data-c="' . fcd_php_escape($m['c']) . '"';
     return $out;
