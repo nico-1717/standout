@@ -65,4 +65,4 @@ Read this first; open `docs/STANDOUT_PROGETTO.md` only for conventions detail, `
 
 ### Colore del testo e dell'evidenziatore separati (02/11/2026)
 - Nel pannello Testo, all'inizio della fila dei colori, l'interruttore `.fmt-target` (`A` / pennarello) imposta `bar.dataset.target` (`c` o `h`): i pallini colorano il testo oppure solo lo sfondo evidenziato (`h` = nome del colore). Il tasto del pennarello mette sempre il giallo (`h:1`); `fcdSetColor`/`fcdToggleHighlight` non si influenzano piu' (rimossa `fcdRecolorHighlight`). Funziona uguale nelle righe di codice. L'anello `is-scelto` segue l'interruttore. Lo stato sta nelle classi `is-on`, cosi' la copia agganciata della barra (che rigira i click per posizione) lo rispecchia.
-
+- L'anello `is-scelto` dei pallini mostra il colore ATTIVO del testo selezionato per la modalita' scelta: nessun colore (testo nero / niente evidenziatore) = non si accende niente, nemmeno la x. In modalita' evidenziatore compare un pallino giallo (`data-color="yellow"`, salvato come `h:1`), nascosto in modalita' testo (`.fmt-swatches.is-marker`, classe in innerHTML cosi' la copia agganciata la rispecchia).

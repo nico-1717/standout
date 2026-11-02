@@ -300,6 +300,8 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                     <button type="button" class="fmt-pop-dot fmt-pop-dot-default" data-color="" title="<?php te('editor.predefinito'); ?>">
                         <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
                     </button>
+                    <?php /* Il giallo dell'evidenziatore (h:1) compare solo in modalita' evidenziatore: come colore del testo sarebbe illeggibile, e c'e' gia' l'oro. */ ?>
+                    <button type="button" class="fmt-pop-dot fmt-pop-dot-giallo" data-color="yellow" style="background:var(--yellow,#FFCC00)" title="<?php te('editor.giallo'); ?>"></button>
                     <button type="button" class="fmt-pop-dot" data-color="red"    style="background:var(--red,#FF3B30)"      title="<?php te('editor.rosso'); ?>"></button>
                     <button type="button" class="fmt-pop-dot" data-color="orange" style="background:var(--orange,#FF9500)"   title="<?php te('editor.arancione'); ?>"></button>
                     <button type="button" class="fmt-pop-dot" data-color="gold"   style="background:var(--yellow-text,#D99A00)" title="<?php te('editor.oro'); ?>"></button>
@@ -796,6 +798,7 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
     -webkit-tap-highlight-color:transparent;
 }
 .fmt-target-btn.is-on{ background:var(--surface,#fff); color:var(--text,#1c1c1e); box-shadow:0 1px 3px rgba(0,0,0,.18); }
+.fmt-swatches:not(.is-marker) .fmt-pop-dot-giallo{ display:none; }
 .fmt-target-mk{ padding:0 6px; border-radius:4px; background:var(--yellow,#FFCC00); color:#1c1c1e; font-weight:700; }
 .fmt-lingue{ gap:6px; }
 
@@ -3056,7 +3059,7 @@ function ftRefreshState(wrap) {
     var chiaveColore = bar.dataset.target === 'h' ? 'h' : 'c';
     var valoreColore = function (m) {
         var v = m && m[chiaveColore];
-        if (chiaveColore === 'h') return typeof v === 'string' ? v : (v ? '1' : '');
+        if (chiaveColore === 'h') return typeof v === 'string' ? v : (v ? 'yellow' : '');
         return v || '';
     };
     var colore;
@@ -3071,7 +3074,9 @@ function ftRefreshState(wrap) {
         var chiavi = Object.keys(visti);
         colore = (quanti === 1) ? chiavi[0] : null;   // null = misto, nessuno acceso
     }
-    pallini.forEach(function (d) { d.classList.toggle('is-scelto', colore !== null && (d.dataset.color || '') === colore); });
+    /* Nessun colore (nero per il testo, niente evidenziatore) = non si accende
+       niente, nemmeno la x: l'anello dice solo "questo colore e' attivo". */
+    pallini.forEach(function (d) { d.classList.toggle('is-scelto', !!colore && (d.dataset.color || '') === colore); });
 
     /* Se in questo momento c'e' anche una copia in sovraimpressione, va
        rifatta: tutto quello che si e' appena aggiornato qui sopra (tasti
@@ -5838,6 +5843,9 @@ function ftSetupToolbar(wrap) {
             bar.querySelectorAll('.fmt-target-btn').forEach(function (b) {
                 b.classList.toggle('is-on', b === interr);
             });
+            bar.querySelectorAll('.fmt-swatches').forEach(function (f) {
+                f.classList.toggle('is-marker', bar.dataset.target === 'h');
+            });
             ftRefreshState(wrap);
             return;
         }
@@ -5873,7 +5881,14 @@ function ftSetupToolbar(wrap) {
             }
         }
         if (dot) {
-            if (dot.hasAttribute('data-color')) ftMarkImposta(wrap, bar.dataset.target === 'h' ? 'h' : 'c', dot.dataset.color || undefined);
+            if (dot.hasAttribute('data-color')) {
+                if (bar.dataset.target === 'h') {
+                    /* Il giallo dell'evidenziatore si salva come 1, non come nome. */
+                    ftMarkImposta(wrap, 'h', dot.dataset.color === 'yellow' ? 1 : (dot.dataset.color || undefined));
+                } else {
+                    ftMarkImposta(wrap, 'c', dot.dataset.color || undefined);
+                }
+            }
             else ftCmd(wrap, function (doc, sel) { return { doc: fcdSetListColor(doc, sel, dot.dataset.listColor || null), sel: sel }; });
             ftRefreshState(wrap);
             return;
