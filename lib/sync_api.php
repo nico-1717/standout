@@ -21,6 +21,7 @@ require_once __DIR__ . '/api_v1.php';
 require_once __DIR__ . '/todo_core.php';
 require_once __DIR__ . '/shopping_api.php';
 require_once __DIR__ . '/sync.php';
+require_once __DIR__ . '/habits_api.php';
 
 const SYNC_PUSH_MAX = 200;
 const SYNC_PULL_MAX = 1000;
@@ -29,48 +30,74 @@ const SYNC_PULL_MAX = 1000;
    PULL: dalla riga del database alla riga sul filo
    --------------------------------------------------------------------- */
 
+/**
+ * La SELECT di lettura di una tabella, costruita dal manifest: i campi sul filo, e per ogni chiave esterna
+ * l'uuid della riga puntata (mai il suo id numerico). Una sola fonte: aggiungere una tabella = il manifest.
+ */
+function sync_select_righe(string $tbl): string {
+    $sel = ['t.id AS _id', 't.uuid']; $join = []; $i = 0;
+    foreach (SYNC_MANIFESTO[$tbl]['campi'] as $nome => $def) {
+        if (isset($def['sql'])) { $sel[] = $def['sql'] . " AS `$nome`"; continue; }
+        $col = $def['col'] ?? $nome;
+        if ($def['tipo'] === 'fk') {
+            $a = 'j' . (++$i);
+            // la riga puntata dev'essere dello stesso utente (o, se ammesso, di sistema): niente uuid di righe altrui
+            $chi = !empty($def['sistema']) ? "($a.user_id = t.user_id OR $a.user_id = 0)" : "$a.user_id = t.user_id";
+            $join[] = "LEFT JOIN `{$def['tabella']}` $a ON $a.id = t.`$col` AND $chi";
+            $sel[] = "$a.uuid AS `$nome`";
+        } else {
+            $sel[] = "t.`$col` AS `$nome`";
+        }
+    }
+    return 'SELECT ' . implode(', ', $sel) . ' FROM `' . $tbl . '` t ' . implode(' ', $join);
+}
+
 /** Le righe di una tabella, gia' nella forma del filo. $uuids = solo queste; $dopoId/$limite = pagina per id (copia completa). */
 function sync_leggi_righe(string $tbl, int $uid, ?array $uuids, int $dopoId = 0, int $limite = 0): array {
     if ($uuids !== null && !$uuids) return [];
-    $dove = 't.user_id = ?'; $par = [$uid];
-    if (!empty(SYNC_MANIFESTO[$tbl]['filtro'])) $dove .= ' AND t.' . SYNC_MANIFESTO[$tbl]['filtro'];
+    $man = SYNC_MANIFESTO[$tbl];
+    $dove = !empty($man['sistema']) ? 't.user_id IN (0, ?)' : 't.user_id = ?'; $par = [$uid];
+    if (!empty($man['filtro'])) $dove .= ' AND t.' . $man['filtro'];
     if ($uuids !== null) { $dove .= ' AND t.uuid IN (' . implode(',', array_fill(0, count($uuids), '?')) . ')'; $par = array_merge($par, $uuids); }
     if ($dopoId > 0) { $dove .= ' AND t.id > ?'; $par[] = $dopoId; }
     $coda = ($limite > 0 ? ' ORDER BY t.id LIMIT ' . (int)$limite : '');
 
-    if ($tbl === 'todo_buy_categories') {
-        $righe = sec_all("SELECT t.id AS _id, t.uuid, t.name, t.color, t.sort_key, t.created_at, t.updated_at
-                          FROM todo_buy_categories t WHERE $dove$coda", $par);
-    } elseif ($tbl === 'todos') {
-        $righe = sec_all("SELECT t.id AS _id, t.uuid, t.list_type, pt.uuid AS parent_uuid, c.uuid AS buy_category_uuid,
-                                 t.buy_priority, t.buy_price_cents, t.buy_url, t.buy_image, t.title, t.is_done, t.done_at,
-                                 t.due_date, t.due_time, t.duration_minutes, t.sort_key, t.created_at, t.updated_at
-                          FROM todos t
-                          LEFT JOIN todos pt ON pt.id = t.parent_id AND pt.user_id = t.user_id
-                          LEFT JOIN todo_buy_categories c ON c.id = t.buy_category_id AND c.user_id = t.user_id
-                          WHERE $dove$coda", $par);
-    } else {
-        return [];
-    }
+    $righe = sec_all(sync_select_righe($tbl) . " WHERE $dove$coda", $par);
 
     // una voce senza sort_key (appena creata dal sito: il riallineamento parte a fine richiesta) la sistemiamo ora
     static $riprovato = false;
-    foreach ($righe as $r) {
-        if ($r['sort_key'] === null && !$riprovato) {
-            $riprovato = true;
-            foreach (array_unique(array_column($righe, 'list_type') ?: ['']) as $l) sync_riallinea_gruppo($tbl, $uid, (string)$l);
-            return sync_leggi_righe($tbl, $uid, $uuids, $dopoId, $limite);
+    if (!empty($man['campi']['sort_key'])) {
+        foreach ($righe as $r) {
+            if ($r['sort_key'] === null && !$riprovato) {
+                $riprovato = true;
+                foreach (array_unique(array_column($righe, 'list_type') ?: ['']) as $l) sync_riallinea_gruppo($tbl, $uid, (string)$l);
+                return sync_leggi_righe($tbl, $uid, $uuids, $dopoId, $limite);
+            }
         }
+    }
+
+    // righe a chiave naturale nate col default casuale (prima della migrazione, o dal sito): l'uuid vero e' quello calcolato
+    if (!empty($man['chiave_naturale'])) {
+        foreach ($righe as &$r) {
+            // l'uuid atteso si ricava dalla riga stessa (niente query per riga: una copia completa ha migliaia di check-in)
+            $atteso = $tbl === 'habit_logs' ? sync_uuid_check_in((string)$r['habit_uuid'], (string)$r['log_date']) : null;
+            if ($atteso !== null && $atteso !== $r['uuid']) {
+                mysqli_query(sec_db(), "UPDATE `$tbl` SET uuid = '" . mysqli_real_escape_string(sec_db(), $atteso) . "' WHERE id = " . (int)$r['_id']);
+                $r['uuid'] = $atteso;
+            }
+        }
+        unset($r);
     }
 
     $fuori = [];
     foreach ($righe as $r) {
         $o = ['_id' => (int)$r['_id']];
-        foreach (SYNC_MANIFESTO[$tbl]['campi'] as $nome => $def) {
+        foreach ($man['campi'] as $nome => $def) {
             $v = $r[$nome] ?? null;
             if ($v !== null) {
                 switch ($def['tipo']) {
                     case 'i': $v = (int)$v; break;
+                    case 'n': $v = (float)$v; break;
                     case 'b': $v = ((int)$v) === 1; break;
                     case 'o': $v = substr((string)$v, 0, 5); break;
                     default:  $v = (string)$v;
@@ -312,9 +339,14 @@ function sync_applica(int $uid, array $m): array {
     $conn = sec_db();
     mysqli_begin_transaction($conn);
     try {
-        $esito = $tbl === 'todos'
-            ? sync_todos_applica($uid, $m['uuid'], $m['op'], $m['patch'])
-            : sync_cat_applica($uid, $m['uuid'], $m['op'], $m['patch']);
+        switch ($tbl) {
+            case 'todos':             $esito = sync_todos_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'todo_buy_categories': $esito = sync_cat_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'habit_categories':  $esito = sync_hcat_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'habits':            $esito = sync_habits_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'habit_logs':        $esito = sync_hlogs_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            default:                  $esito = sync_rifiuto('validation', 'table', 'Unknown table');
+        }
         // una modifica rifiutata non deve lasciare mezze scritture
         if ($esito['status'] === 'applied') mysqli_commit($conn); else mysqli_rollback($conn);
         return $esito;
@@ -382,3 +414,5 @@ function api_h_sync_push(array $ctx): void {
     $testa = (int)(sec_one("SELECT COALESCE(MAX(seq), 0) AS s FROM sync_changes")['s'] ?? 0);
     api_ok(['results' => $esiti, 'head' => $testa]);
 }
+
+require_once __DIR__ . '/sync_abitudini.php';   // dopo le funzioni di base che usa (sync_rifiuto, sync_id_da_uuid...)

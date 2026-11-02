@@ -65,6 +65,9 @@ foreach (array_merge(file_php($radice . '/lib'), file_php($radice . '/public')) 
         try { $esito = sync_analizza($sqlPulito, array_fill(0, $nq, 1)); }
         catch (Throwable $e) { $problemi[] = "$rel  eccezione: " . $e->getMessage(); continue; }
         if ($esito === null) { $problemi[] = "$rel  non riconosciuta: " . substr($sqlPulito, 0, 100); continue; }
+        if ($esito['verbo'] === 'ins' && !empty(SYNC_MANIFESTO[$esito['tbl']]['chiave_naturale']) && count($esito['nat'] ?? []) !== count(SYNC_MANIFESTO[$esito['tbl']]['chiave_naturale'])) {
+            $problemi[] = "$rel  tabella a chiave naturale: la chiave non si ricava dalla query"; continue;
+        }
         if ($esito['verbo'] !== 'ins') {
             if ($esito['select'] === null) { $problemi[] = "$rel  nessuna SELECT per gli uuid"; continue; }
             if ($db) {

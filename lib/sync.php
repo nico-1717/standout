@@ -86,6 +86,40 @@ function sync_trova_parola(string $sql, string $parola): int {
 function sync_segnaposto(string $testo): int { return substr_count($testo, '?'); }
 
 /**
+ * Da «INSERT INTO t (a, b, c) VALUES (?, 'x', ?)» ricava i valori delle colonne $colonne (col => valore).
+ * Solo segnaposto «?» (il valore e' nei parametri); se una colonna non c'e' o e' scritta in chiaro la query
+ * e' di una forma che non sappiamo seguire: si lancia un errore (nelle prove diventa un errore vero,
+ * in produzione spegne il registro per la richiesta e lo scrive nel log, come ogni analisi fallita).
+ */
+function sync_valori_insert(string $sql, array $params, array $colonne): array {
+    if (!preg_match('/^\s*(?:INSERT|REPLACE)\s+(?:IGNORE\s+)?(?:INTO\s+)?`?\w+`?\s*\(([^)]*)\)\s*VALUES\s*\(/i', $sql, $m)) {
+        throw new RuntimeException('INSERT senza elenco di colonne: non so ricavare la chiave');
+    }
+    $nomi = array_map(fn($c) => strtolower(trim($c, " `\n\t")), explode(',', $m[1]));
+    // gli elementi della prima serie di VALUES, spezzati sulle virgole fuori da apici e parentesi
+    $resto = substr($sql, strlen($m[0]));
+    $voci = []; $corr = ''; $prof = 0; $apice = ''; $n = strlen($resto);
+    for ($i = 0; $i < $n; $i++) {
+        $c = $resto[$i];
+        if ($apice !== '') { $corr .= $c; if ($c === '\\') { $corr .= $resto[++$i] ?? ''; } elseif ($c === $apice) $apice = ''; continue; }
+        if ($c === "'" || $c === '"') { $apice = $c; $corr .= $c; continue; }
+        if ($c === '(') { $prof++; $corr .= $c; continue; }
+        if ($c === ')') { if ($prof === 0) { $voci[] = trim($corr); break; } $prof--; $corr .= $c; continue; }
+        if ($c === ',' && $prof === 0) { $voci[] = trim($corr); $corr = ''; continue; }
+        $corr .= $c;
+    }
+    if (count($voci) !== count($nomi)) throw new RuntimeException('INSERT: colonne e valori non coincidono');
+    $posParam = []; $k = 0;
+    foreach ($voci as $i => $v) { if ($v === '?') $posParam[$nomi[$i]] = $k++; else $k += sync_segnaposto($v); }
+    $out = [];
+    foreach ($colonne as $col) {
+        if (!isset($posParam[$col]) || !array_key_exists($posParam[$col], $params)) throw new RuntimeException("INSERT: manca il valore di $col");
+        $out[$col] = $params[$posParam[$col]];
+    }
+    return $out;
+}
+
+/**
  * Legge una query di scrittura e dice cosa serve per annotarla: il verbo (ins/upd/del),
  * la tabella e, per UPDATE e DELETE, la SELECT che legge gli uuid PRIMA della scrittura
  * (con i suoi parametri). null = la query non riguarda una tabella sincronizzata.
@@ -105,7 +139,12 @@ function sync_analizza(string $sql, array $params): ?array {
     $tbl = strtolower($m[1]);
     if (!isset(SYNC_MANIFESTO[$tbl])) return null;
     $pro = ['verbo' => $verbo, 'tbl' => $tbl, 'select' => null, 'par' => [], 'set' => ''];
-    if ($verbo === 'ins') return $pro;
+    if ($verbo === 'ins') {
+        // tabelle a chiave naturale (es. un check-in): spesso scritte con «ON DUPLICATE KEY UPDATE», dove insert_id
+        // non dice quale riga e' stata toccata. Si ricava la riga dalla chiave, letta dai valori della query.
+        if (!empty(SYNC_MANIFESTO[$tbl]['chiave_naturale'])) $pro['nat'] = sync_valori_insert($s, $params, SYNC_MANIFESTO[$tbl]['chiave_naturale']);
+        return $pro;
+    }
 
     if ($verbo === 'del') {
         // DELETE FROM tabella [alias] WHERE ...
@@ -163,7 +202,11 @@ function sync_osserva_dopo(array $pro, int $righeToccate, int $idInserito): void
     try {
         $tbl = $pro['tbl'];
         $voci = [];
-        if ($pro['verbo'] === 'ins') {
+        if ($pro['verbo'] === 'ins' && isset($pro['nat'])) {
+            // riga a chiave naturale: nulla e' cambiato (ON DUPLICATE con gli stessi valori) = niente da annotare
+            if ($righeToccate <= 0) return;
+            $voci = sync_dopo_insert_naturale($tbl, $pro['nat']);
+        } elseif ($pro['verbo'] === 'ins') {
             if ($righeToccate <= 0 || $idInserito <= 0) return;
             $a = $idInserito; $b = $idInserito + $righeToccate - 1;
             $col = SYNC_MANIFESTO[$tbl]['proprietario'];
@@ -188,6 +231,36 @@ function sync_osserva_dopo(array $pro, int $righeToccate, int $idInserito): void
     } catch (Throwable $e) {
         sec_log_error('sync', 'annotazione fallita: ' . $e->getMessage());
     }
+}
+
+/**
+ * L'uuid che una riga a chiave naturale DEVE avere (UUIDv5 della sua chiave), o null se la riga non c'e'.
+ * Lo stesso calcolo lo fa l'app: cosi' sito e telefono, anche offline, parlano della stessa riga.
+ */
+function sync_uuid_atteso(string $tbl, int $id): ?string {
+    if ($tbl === 'habit_logs') {
+        $r = sec_one("SELECT l.log_date, h.uuid AS hu FROM habit_logs l JOIN habits h ON h.id = l.habit_id WHERE l.id = ?", [$id]);
+        return $r ? sync_uuid_check_in((string)$r['hu'], (string)$r['log_date']) : null;
+    }
+    return null;
+}
+
+/**
+ * Dopo un INSERT (anche «ON DUPLICATE KEY UPDATE») su una tabella a chiave naturale: trova la riga dalla
+ * chiave, le da' l'uuid atteso se ne ha un altro (righe nate prima della migrazione, o col default casuale)
+ * e ritorna la voce per il registro. $nat = [colonna => valore] letto dalla query.
+ */
+function sync_dopo_insert_naturale(string $tbl, array $nat): array {
+    $col = SYNC_MANIFESTO[$tbl]['proprietario'];
+    $dove = implode(' AND ', array_map(fn($c) => "`$c` = ?", array_keys($nat)));
+    $r = sec_one("SELECT id, `$col` AS u, uuid AS g FROM `$tbl` WHERE $dove", array_values($nat));
+    if (!$r) return [];
+    $atteso = sync_uuid_atteso($tbl, (int)$r['id']);
+    if ($atteso !== null && $atteso !== $r['g']) {
+        mysqli_query(sec_db(), "UPDATE `$tbl` SET uuid = '" . mysqli_real_escape_string(sec_db(), $atteso) . "' WHERE id = " . (int)$r['id']);
+        $r['g'] = $atteso;
+    }
+    return [[(int)$r['u'], $tbl, $r['g'], 'upsert']];
 }
 
 /** Scrive le voci nel registro, a blocchi. $voci: [[user_id, tabella, uuid, op], ...] */

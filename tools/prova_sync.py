@@ -19,7 +19,12 @@ Scrive nell'account indicato roba chiamata «prova sync (si cancella da sola)».
 Non si deve mai usare con la password vera sul sito vero senza saperlo: per default
 rifiuta gli indirizzi diversi da 127.0.0.1 / localhost (serve --live per il sito vero).
 """
-import argparse, getpass, json, os, sys, uuid, urllib.request, urllib.error
+import argparse, datetime, getpass, json, os, sys, uuid, urllib.request, urllib.error
+from zoneinfo import ZoneInfo
+
+# lo stesso namespace di lib/sync_manifest.php (SYNC_NS_UUID5)
+NS_UUID5 = uuid.UUID('7d4f1b0e-3c52-4e8a-9a61-5b2c8d0f6e13')
+def uuid_check_in(habit_uuid, giorno): return str(uuid.uuid5(NS_UUID5, f'habit_logs|{habit_uuid}|{giorno}'))
 
 NOME = 'prova sync (si cancella da sola)'
 errori = []
@@ -111,10 +116,10 @@ def main():
         for c in lista.get('categories', []):
             if c['name'].startswith(NOME): A.chiama('DELETE', f"/api/v1/shopping/categories/{c['id']}")
         print('1. stato e copia completa')
-        st = A.chiama('GET', '/api/v1/sync/state'); ok(st.get('ok') and st['tables'] == ['todo_buy_categories', 'todos'], f"stato: tabelle {st.get('tables')}")
+        st = A.chiama('GET', '/api/v1/sync/state'); ok(st.get('ok') and st['tables'] == ['todo_buy_categories', 'todos', 'habit_categories', 'habits', 'habit_logs'], f"stato: tabelle {st.get('tables')}")
         pagine = A.copia_completa(limite=50)
         ok(pagine >= 1, f'copia completa a pagine da 50 ({pagine} pagine, {len(A.copia)} righe)')
-        ok(all(r['sort_key'] for r in A.copia.values()), 'ogni riga ha una sort_key')
+        ok(all(r['sort_key'] for r in A.copia.values() if 'sort_key' in r), 'ogni riga che ha una sort_key la ha piena')
         tutte = {k[1] for k in A.copia}
         ok(len(tutte) == len(A.copia), 'nessun uuid doppio')
         B.copia_completa(limite=500)
@@ -190,7 +195,7 @@ def main():
         A.aggiorna(); B.aggiorna()
         ok(not differenze(A.copia, B.copia), 'dopo l\'invio A e B hanno la stessa copia')
         elenco = [t['title'] for t in api('GET', 'tasks')['tasks'] if t['title'].startswith(NOME)]
-        ordine_app = [r['title'] for r in sorted([r for r in A.copia.values() if r.get('list_type') == 'todo' and r['title'].startswith(NOME) and not r['is_done']], key=lambda r: r['sort_key'])]
+        ordine_app = [r['title'] for r in sorted([r for r in A.copia.values() if r.get('list_type') == 'todo' and r['title'].startswith(NOME) and not r['is_done'] and not r.get('parent_uuid')], key=lambda r: r['sort_key'])]
         ordine_sito = [t['title'] for t in api('GET', 'tasks')['tasks'] if t['title'].startswith(NOME) and not t['done']]
         ok(set(ordine_app) == set(ordine_sito), 'le attivita non fatte sono le stesse sul sito e nell\'app')
         # solo la sort_key cambia (il sito non ha niente da riallineare): l'altro telefono la deve comunque vedere
@@ -215,6 +220,105 @@ def main():
         ok(not differenze(A.copia, fresca.copia) and not differenze(B.copia, fresca.copia), 'dopo le cancellazioni A, B e una copia nuova coincidono')
         resti = [r for r in fresca.copia.values() if str(r.get('title', r.get('name', ''))).startswith(NOME)]
         ok(not resti, 'non e rimasto niente di quello che la prova ha creato' + ('' if not resti else f' ({len(resti)})'))
+
+        print('5. abitudini: categorie, abitudini e check-in')
+        oggi = datetime.datetime.now(ZoneInfo('Europe/Rome')).strftime('%Y-%m-%d')
+        ieri = (datetime.datetime.now(ZoneInfo('Europe/Rome')) - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+        domani = (datetime.datetime.now(ZoneInfo('Europe/Rome')) + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+        creati_h = {'habits': [], 'cats': []}
+        A.aggiorna(); B.aggiorna()
+        hc = api('POST', 'habits/categories', {'name': NOME + ' hcat', 'icon': '🧪', 'color': '#112233'}); ok(hc['_http'] == 201, 'il sito crea una categoria'); hcid = hc['category']['id']; creati_h['cats'].append(hcid)
+        h1 = api('POST', 'habits', {'name': NOME + ' bicchieri', 'goal_type': 'quantity', 'target_amount': 8, 'step_amount': 1, 'unit': 'bicchieri', 'category_id': hcid, 'start_date': ieri})
+        ok(h1['_http'] == 201, 'il sito crea un\'abitudine a quantita'); h1id = h1['habit']['id']; creati_h['habits'].append(h1id)
+        h2 = api('POST', 'habits', {'name': NOME + ' lettura', 'start_date': ieri}); h2id = h2['habit']['id']; creati_h['habits'].append(h2id)
+        for _ in range(3): api('POST', f'habits/{h1id}/log', {'mode': 'increment'})
+        api('POST', f'habits/{h2id}/note', {'note': 'ottima', 'mood': 5})
+        A.aggiorna(); B.aggiorna()
+        cat = next((r for k, r in A.copia.items() if k[0] == 'habit_categories' and r['name'] == NOME + ' hcat'), None)
+        ok(cat is not None and cat['is_system'] is False and cat['slug'], 'la categoria e arrivata (uuid, slug, non di sistema)')
+        hab1 = next((r for k, r in A.copia.items() if k[0] == 'habits' and r['name'] == NOME + ' bicchieri'), None)
+        hab2 = next((r for k, r in A.copia.items() if k[0] == 'habits' and r['name'] == NOME + ' lettura'), None)
+        ok(hab1 and hab1['category_uuid'] == cat['uuid'] and hab1['target_amount'] == 8 and hab1['kind'] == 'build' and hab1['sort_key'], 'l\'abitudine punta alla categoria per uuid, con la sua sort_key')
+        l1 = A.copia.get(('habit_logs', uuid_check_in(hab1['uuid'], oggi)))
+        ok(l1 is not None and l1['amount'] == 3 and l1['habit_uuid'] == hab1['uuid'] and l1['log_date'] == oggi, 'il check-in (3 spunte, ON DUPLICATE) e arrivato con l\'uuid atteso (UUIDv5)')
+        l2 = A.copia.get(('habit_logs', uuid_check_in(hab2['uuid'], oggi)))
+        ok(l2 is not None and l2['note'] == 'ottima' and l2['mood'] == 5 and l2['amount'] == 0, 'nota e umore senza spunte: arrivano')
+        ok(uguali(A.copia, B.copia), 'A (pagine di registro) e B coincidono')
+        fresca.copia_completa()
+        ok(not differenze(A.copia, fresca.copia), 'copia + registro = copia completa nuova (anche per le abitudini)')
+
+        # ---- dal telefono ----
+        lg = uuid_check_in(hab2['uuid'], oggi)
+        r = A.push([mut('habit_logs', lg, {'status': 'done', 'amount': 1})]); ok(r['results'][0]['status'] == 'applied', 'check-in dal telefono su una riga che il sito ha gia (nota): stessa riga')
+        mio = [x for x in api('GET', 'habits/logs?days=3')['logs'] if x['habit_id'] == h2id and x['date'] == oggi]
+        ok(len(mio) == 1 and mio[0]['status'] == 'done' and mio[0]['note'] == 'ottima', 'il sito vede il fatto, la nota e rimasta')
+        r = A.push([mut('habit_logs', uuid_check_in(hab1['uuid'], ieri), {'habit_uuid': hab1['uuid'], 'log_date': ieri, 'status': 'partial', 'amount': 5})])
+        ok(r['results'][0]['status'] == 'applied', 'check-in nuovo di ieri, creato dal telefono')
+        mio = [x for x in api('GET', 'habits/logs?days=3')['logs'] if x['habit_id'] == h1id and x['date'] == ieri]
+        ok(len(mio) == 1 and mio[0]['amount'] == 5, 'il sito lo vede (5)')
+        r2 = A.push([mut('habit_logs', uuid_check_in(hab1['uuid'], ieri), {'habit_uuid': hab1['uuid'], 'log_date': ieri, 'status': 'partial', 'amount': 5})]); 
+        ok(r2['results'][0]['status'] == 'applied' and len([x for x in api('GET', 'habits/logs?days=3')['logs'] if x['habit_id'] == h1id and x['date'] == ieri]) == 1, 'rimandato: nessun doppione')
+        r = A.push([mut('habit_logs', uuid_check_in(hab1['uuid'], ieri), {'amount': 8})]); ok(r['results'][0]['status'] == 'applied', 'cambio di sola quantita (8)')
+        A.aggiorna(); ok(A.copia[('habit_logs', uuid_check_in(hab1['uuid'], ieri))]['status'] == 'done', 'a 8 su 8 il server ha messo «fatto» da solo')
+        r = A.push([mut('habit_logs', uuid_check_in(hab1['uuid'], ieri), {'status': 'skipped'})]); ok(r['results'][0]['status'] == 'applied', 'saltata')
+        mio = [x for x in api('GET', 'habits/logs?days=3')['logs'] if x['habit_id'] == h1id and x['date'] == ieri]
+        ok(mio and mio[0]['status'] == 'skipped', 'il sito la vede saltata')
+        r = A.push([mut('habit_logs', uuid_check_in(hab1['uuid'], ieri), {'status': 'partial', 'amount': 2, 'note': 'ok', 'mood': 3})])
+        mio = [x for x in api('GET', 'habits/logs?days=3')['logs'] if x['habit_id'] == h1id and x['date'] == ieri]
+        ok(mio and mio[0]['status'] == 'partial' and mio[0]['amount'] == 2 and mio[0]['note'] == 'ok' and mio[0]['mood'] == 3, 'da saltata a 2 con nota e umore')
+        r = A.push([mut('habit_logs', uuid_check_in(hab1['uuid'], ieri), {'note': None, 'mood': None})]); A.aggiorna()
+        ok(A.copia[('habit_logs', uuid_check_in(hab1['uuid'], ieri))]['note'] in (None, ''), 'nota tolta')
+        r = A.push([mut('habit_logs', str(uuid.uuid4()), {'habit_uuid': hab1['uuid'], 'log_date': ieri, 'amount': 1})]); x = r['results'][0]
+        ok(x['status'] == 'rejected' and x['field'] == 'uuid', 'uuid che non e quello atteso: rifiutato')
+        r = A.push([mut('habit_logs', uuid_check_in(hab1['uuid'], domani), {'habit_uuid': hab1['uuid'], 'log_date': domani, 'amount': 1})]); x = r['results'][0]
+        ok(x['status'] == 'rejected' and x['field'] == 'log_date', 'giorno futuro: rifiutato')
+        r = A.push([mut('habit_logs', uuid_check_in(str(uuid.uuid4()), oggi), {'habit_uuid': str(uuid.uuid4()), 'log_date': oggi, 'amount': 1})]); x = r['results'][0]
+        ok(x['status'] == 'rejected' and x['field'] in ('habit_uuid', 'uuid'), 'abitudine che non esiste: rifiutato')
+        r = A.push([mut('habit_logs', uuid_check_in(hab1['uuid'], oggi), {'amount': -1})]); ok(r['results'][0]['status'] == 'rejected' and r['results'][0]['field'] == 'amount', 'quantita negativa: rifiutata')
+        r = A.push([mut('habit_logs', uuid_check_in(hab1['uuid'], oggi), {}, 'delete')]); ok(r['results'][0]['status'] == 'applied', 'annulla il check-in di oggi')
+        A.aggiorna(); ok(('habit_logs', uuid_check_in(hab1['uuid'], oggi)) not in A.copia, 'sparito dalla copia')
+        r = A.push([mut('habit_logs', uuid_check_in(hab1['uuid'], oggi), {}, 'delete')]); ok(r['results'][0]['status'] == 'applied', 'annullare di nuovo: non e un errore')
+
+        # abitudini dal telefono
+        nh = str(uuid.uuid4()); nc2 = str(uuid.uuid4())
+        r = A.push([mut('habit_categories', nc2, {'name': NOME + ' hcat2', 'icon': '🧪', 'color': '#445566'}),
+                    mut('habits', nh, {'name': NOME + ' dal telefono', 'category_uuid': nc2, 'kind': 'quit', 'goal_type': 'completion', 'frequency_type': 'weekly', 'times_per_week': 3, 'start_date': ieri, 'sort_key': 'a0'})])
+        ok([x['status'] for x in r['results']] == ['applied', 'applied'], 'categoria e abitudine create dal telefono (con uuid scelti da lui)')
+        lista = api('GET', 'habits')['habits']; mia = next((x for x in lista if x['name'] == NOME + ' dal telefono'), None)
+        ok(mia is not None and mia['kind'] == 'quit' and mia['times_per_week'] == 3, 'il sito la vede, con i valori giusti')
+        if mia: creati_h['habits'].append(mia['id'])
+        cats = api('GET', 'habits/categories').get('categories', []); c2 = next((x for x in cats if x['name'] == NOME + ' hcat2'), None)
+        if c2: creati_h['cats'].append(c2['id'])
+        ok(mia is not None and c2 is not None and mia.get('category_id') == c2['id'], 'la categoria nuova e quella dell\'abitudine')
+        r = A.push([mut('habits', nh, {'name': NOME + ' dal telefono 2', 'is_archived': True, 'color': '#ABCDEF'})]); ok(r['results'][0]['status'] == 'applied', 'modifica e archivia')
+        mia = next((x for x in api('GET', 'habits')['habits'] if x['id'] == (mia or {}).get('id')), None)
+        ok(mia is not None and mia['name'] == NOME + ' dal telefono 2' and mia.get('is_archived') is True, 'il sito la vede archiviata e rinominata')
+        r = A.push([mut('habits', nh, {'name': ''})]); x = r['results'][0]; ok(x['status'] == 'rejected' and x['field'] == 'name' and x.get('current') is not None, 'nome vuoto: rifiutato, con la riga com\'e sul server')
+        r = A.push([mut('habits', nh, {'category_uuid': str(uuid.uuid4())})]); ok(r['results'][0]['status'] == 'rejected' and r['results'][0]['code'] == 'not_found', 'categoria che non esiste: not_found')
+        r = A.push([mut('habits', nh, {'frequency_type': 'ogni_tanto'})]); ok(r['results'][0]['status'] == 'rejected' and r['results'][0]['field'] == 'frequency_type', 'frequenza sbagliata: rifiutata')
+        r = A.push([mut('habits', nh, {'sort_key': 'a0'}), mut('habits', hab1['uuid'], {'sort_key': 'a1'}), mut('habits', hab2['uuid'], {'sort_key': 'a2'})])
+        ok([x['status'] for x in r['results']] == ['applied'] * 3, 'riordino con sort_key')
+        r = A.push([mut('habit_categories', nc2, {'name': NOME + ' hcat2 bis'})]); ok(r['results'][0]['status'] == 'applied', 'rinomina categoria')
+        A.aggiorna(); B.aggiorna(); fresca.copia_completa()
+        ok(not differenze(A.copia, fresca.copia) and not differenze(B.copia, fresca.copia), 'dopo tutto questo A, B e una copia nuova coincidono')
+        # una categoria di un altro utente o di sistema non si tocca
+        altra = next((r for k, r in fresca.copia.items() if k[0] == 'habit_categories' and r['is_system']), None)
+        if altra:
+            r = A.push([mut('habit_categories', altra['uuid'], {'name': 'hacked'})]); ok(r['results'][0]['status'] == 'rejected' and r['results'][0]['code'] == 'forbidden', 'categoria di sistema: non si cambia')
+            r = A.push([mut('habit_categories', altra['uuid'], {}, 'delete')]); ok(r['results'][0]['status'] == 'rejected', 'categoria di sistema: non si cancella')
+        # cancellazioni
+        r = A.push([mut('habits', nh, {}, 'delete')]); ok(r['results'][0]['status'] == 'applied', 'cancella l\'abitudine del telefono')
+        r = A.push([mut('habit_categories', nc2, {}, 'delete')]); ok(r['results'][0]['status'] == 'applied', 'cancella la categoria del telefono')
+        A.aggiorna()
+        ok(('habits', nh) not in A.copia and ('habit_categories', nc2) not in A.copia, 'spariti dalla copia')
+
+        print('6. pulizia delle abitudini')
+        for i in creati_h['habits']: api('DELETE', f'habits/{i}')
+        for i in creati_h['cats']: api('DELETE', f'habits/categories/{i}')
+        A.aggiorna(); fresca.copia_completa()
+        resti = [r for r in fresca.copia.values() if str(r.get('name', '')).startswith(NOME)]
+        ok(not resti, 'non e rimasto niente delle abitudini' + ('' if not resti else f' ({len(resti)})'))
+        ok(not [k for k in fresca.copia if k[0] == 'habit_logs' and fresca.copia[k]['habit_uuid'] in (hab1['uuid'], hab2['uuid'])], 'i check-in sono spariti con le abitudini')
     finally:
         for t in (A, B):
             try: t.chiama('POST', '/api/v1/auth/logout')
