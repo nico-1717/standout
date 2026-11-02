@@ -69,7 +69,12 @@ function sync_habits_applica(int $uid, string $uuid, string $op, array $patch): 
               'duration_days', 'start_date', 'end_date', 'planner_minutes'] as $k) {
         if (array_key_exists($k, $patch)) $api[$k] = $patch[$k];
     }
-    if (array_key_exists('is_archived', $patch)) $api['archived'] = $patch['is_archived'];
+    if (array_key_exists('is_archived', $patch)) {
+        // sul filo i booleani sono true/false; si accetta anche 0/1 (come li scrive il database)
+        $v = $patch['is_archived'];
+        if ($v === 0 || $v === 1) $v = ($v === 1);
+        $api['archived'] = $v;
+    }
     if (array_key_exists('category_uuid', $patch)) {
         $cu = $patch['category_uuid'];
         if ($cu === null) $api['category_id'] = null;
