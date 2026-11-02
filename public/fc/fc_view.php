@@ -2882,6 +2882,11 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
                  Il conto qui e' quello di tutte le carte della materia, che e'
                  anche quello vero all'apertura: i filtri partono tutti aperti,
                  e appena qualcuno li tocca ci pensa filterList(). */ ?>
+        <?php /* LA RIGA DEL CONTATORE (02/11/2026): il contatore si riscrive da
+                 solo (fcEtichettaContatore svuota il suo contenitore), quindi il
+                 tasto "Modifica queste" non puo' stare dentro: vive accanto, nella
+                 stessa riga. Compare solo con un filtro acceso. */ ?>
+        <div class="item-counter-row">
         <div class="item-counter" id="itemCounter"><span class="ic-dot"></span> <?php
             $__mostrate = 0; $__visti = 0;
             foreach ($images_data as $__r) {
@@ -2896,6 +2901,13 @@ $fcPigra = (!$parent_reorder_enabled && count($images_data) > 60);
             }
             th($__mostrate === 1 ? 'fc.vis_una_carta_mostrata' : 'fc.vis_n_carte_mostrate', ['n' => '<b id="itemCounterNum">' . (int)$__mostrate . '</b>']);
         ?></div>
+        <?php if ($categoryID != 0): ?>
+        <button type="button" class="edit-filtrate" id="editFiltrate" hidden data-on-click="fcModificaFiltrate()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <span id="editFiltrateTesto"></span>
+        </button>
+        <?php endif; ?>
+        </div>
 
 
 
@@ -4109,6 +4121,48 @@ function fcEtichettaContatore(n){
     box.appendChild(document.createTextNode(parti[1] || ''));
 }
 
+/* MODIFICA DELLE SOLE CARTE FILTRATE (02/11/2026)
+   Il tasto accanto al contatore compare quando un filtro (ricerca, livello,
+   stato) e' acceso e c'e' almeno una carta in elenco. Durante la selezione
+   multipla sparisce: li' le carte si scelgono a mano e il contatore parla d'altro. */
+function fcAggiornaTastoFiltrate(n, filtroAcceso){
+    var b = document.getElementById('editFiltrate');
+    if (!b) return;
+    var inSelezione = document.body.classList.contains('select-mode');
+    var mostra = filtroAcceso && n > 0 && !inSelezione;
+    b.hidden = !mostra;
+    if (mostra) {
+        var t = document.getElementById('editFiltrateTesto');
+        if (t) t.textContent = T('fc.vis_modifica_filtrate', { n: n });
+    }
+}
+
+/* Raccoglie gli id delle carte che il filtro lascia in vista: i padri dei
+   gruppi visibili (un padre resta in vista anche se passa solo un figlio) e i
+   figli non nascosti. Le carte non ancora scaricate si chiedono PRIMA: un
+   elenco a meta' modificherebbe solo una parte delle carte che si vedono. */
+function fcModificaFiltrate(){
+    var vai = function(){
+        filterList();
+        var ids = [];
+        $all('#fcList > .fc-group').forEach(function(g){
+            if (g.style.display === 'none') return;
+            var p = g.querySelector(':scope > .fc-card.fc-parent');
+            if (p && p.style.display !== 'none') ids.push('p' + p.getAttribute('data-id'));
+            $all('.fc-children > .fc-card.fc-child', g).forEach(function(c){
+                if (c.style.display !== 'none') ids.push('c' + c.getAttribute('data-id'));
+            });
+        });
+        if (!ids.length) return;
+        var url = fcUrl('fc_insert.php?category_id=' + FC_CAT_ID + '&modo=edit&ids=' + ids.join(','));
+        /* Un indirizzo troppo lungo verrebbe rifiutato dal server con un errore
+           poco chiaro: meglio dirlo, e far restringere il filtro. */
+        if (url.length > 6000) { showToast(T('fc.vis_filtrate_troppe')); return; }
+        window.location.href = url;
+    };
+    if (!fcTutteCaricate) fcCaricaAltreCarte(true).then(vai); else vai();
+}
+
 function animateCounter(target){
     const el = document.getElementById('itemCounterNum');
     if (!el) return;
@@ -4243,6 +4297,7 @@ function filterList(){
     });
 
     animateCounter(visibleCards);
+    fcAggiornaTastoFiltrate(visibleCards, textFilter !== '' || statusFilter !== 'all' || !!fcvLivelloScelto);
     
     const loadMoreBtn = document.getElementById('loadMoreBtn');
     if (loadMoreBtn) {

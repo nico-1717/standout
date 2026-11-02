@@ -440,6 +440,22 @@ select.tb-select{
 
 .item-counter .ic-dot{ width:6px; height:6px; border-radius:50%; background:var(--cat-color); }
 
+/* Riga contatore + tasto "Modifica queste N" (visibile solo con un filtro).
+   Il margine negativo del tasto tiene la riga alta come prima: comparendo non
+   spinge in giu' le carte. */
+.item-counter-row{ display:flex; align-items:center; gap:8px; padding-bottom:12px; }
+.item-counter-row .item-counter{ flex:1; padding-bottom:0; }
+.edit-filtrate{
+    margin:-6px 0 -6px auto; display:inline-flex; align-items:center; gap:6px;
+    border:0; border-radius:999px; padding:6px 12px 6px 10px; cursor:pointer;
+    font-family:inherit; font-size:12.5px; font-weight:700; line-height:1; color:var(--cat-dark);
+    background:var(--cat-soft); box-shadow:inset 0 0 0 1px var(--cat-line);
+    -webkit-tap-highlight-color:transparent;
+}
+.edit-filtrate[hidden]{ display:none; }
+.edit-filtrate svg{ width:14px; height:14px; }
+.edit-filtrate:active{ transform:scale(.96); }
+
 
 
 /* ================================================================

@@ -137,6 +137,26 @@ if ($modo === 'edit' && $preselected_cat_id <= 0) {
    vuoto: la pagina parte senza righe e il JavaScript non ha niente da
    disegnare. */
 $cards = [];
+
+/* MODIFICA DELLE SOLE CARTE FILTRATE (02/11/2026): dalla pagina delle carte,
+   con un filtro acceso, ?ids=p12,c34,... porta qui solo quelle carte (p =
+   padre, c = figlio). Ogni numero passa da (int): niente di quello che arriva
+   finisce in una query come testo. Un padre presente solo perche' ha un figlio
+   che passa il filtro entra comunque, perche' il salvataggio aggancia i figli
+   al padre della stessa richiesta. */
+$sottoPadri = [];
+$sottoFigli = [];
+$sottoinsieme = false;
+if ($modo === 'edit' && isset($_GET['ids']) && is_string($_GET['ids']) && $_GET['ids'] !== '') {
+    foreach (explode(',', $_GET['ids']) as $__tok) {
+        if (preg_match('/^([pc])(\d{1,12})$/', trim($__tok), $__m)) {
+            if ($__m[1] === 'p') $sottoPadri[(int)$__m[2]] = true;
+            else                 $sottoFigli[(int)$__m[2]] = true;
+        }
+    }
+    $sottoinsieme = !empty($sottoPadri) || !empty($sottoFigli);
+}
+
 if ($modo === 'edit') {
     // Le carte principali (padri o indipendenti)
     $padri = sec_all("SELECT " . fc_colonne_carta('i') . ", (SELECT COUNT(*) FROM " . fc_t('examples') . " e WHERE e.parent_id = i.id) AS ex_count,
@@ -159,9 +179,17 @@ if ($modo === 'edit') {
     }
 
     foreach ($padri as $row) {
+        $idPadre = (int)$row['id'];
+        /* Nel sottoinsieme si tiene il padre scelto, oppure quello che ha
+           almeno un figlio scelto; dei figli, solo quelli scelti. */
+        $figliScelti = [];
+        foreach ($figliPer[$idPadre] ?? [] as $child) {
+            if (!$sottoinsieme || isset($sottoFigli[(int)$child['id']])) $figliScelti[] = $child;
+        }
+        if ($sottoinsieme && !isset($sottoPadri[$idPadre]) && empty($figliScelti)) continue;
         $row['id_fcimg'] = $row['id'];
         $cards[] = $row;
-        foreach ($figliPer[(int)$row['id']] ?? [] as $child) {
+        foreach ($figliScelti as $child) {
             $child['id_fcimg'] = $child['id'];
             $cards[] = $child;
         }
@@ -1240,6 +1268,10 @@ if ($modo === 'edit') {
     /* La modalita' decide il comportamento della pagina: 'insert' parte
        vuota, 'edit' carica le carte gia' nella categoria. */
     const MODO = <?php echo json_encode($modo); ?>;
+    /* Vero quando si modificano solo le carte filtrate: il salvataggio non
+       deve rinumerare l'ordine (le altre carte della categoria non sono in
+       pagina) e quindi il riordino e' spento. */
+    const SOTTOINSIEME = <?php echo json_encode($sottoinsieme); ?>;
 
     /* Le carte gia' esistenti, vuote in inserimento. JSON_HEX_* le rende
        sicure da incollare dentro un blocco di script: senza, un titolo che
@@ -1784,6 +1816,8 @@ if ($modo === 'edit') {
             const su = row.querySelector('.btn-move-up');
             const giu = row.querySelector('.btn-move-down');
             if (!su || !giu) return;
+            /* Sottoinsieme: l'ordine non si tocca, il server non lo rinumera. */
+            if (SOTTOINSIEME) { su.hidden = true; giu.hidden = true; return; }
             if (isChildRow(row)) {
                 su.hidden = !(row.previousElementSibling && isChildRow(row.previousElementSibling));
                 giu.hidden = !(row.nextElementSibling && isChildRow(row.nextElementSibling));
@@ -5893,6 +5927,7 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
 
 
         function activateReorder(ctx){
+            if (SOTTOINSIEME) return;   // riordino spento nel sottoinsieme
 
             ctx.reordering = true;
 
@@ -7687,6 +7722,9 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
            categoria (append=1). In modifica la pagina ha in mano tutte le
            carte e le puo' rinumerare da capo, quindi append=0. */
         fd.append('append', MODO === 'edit' ? '0' : '1');
+        /* Sottoinsieme: il server non rinumera l'ordine delle carte che
+           esistono gia' e accoda le nuove dopo l'ultima della categoria. */
+        if (SOTTOINSIEME) fd.append('subset', '1');
 
 
 

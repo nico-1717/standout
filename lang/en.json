@@ -3248,6 +3248,8 @@
     "vis_sposta_dove": "Move to which category?",
     "vis_sposta_txt": "The selected cards will be moved.",
     "vis_n_carte_mostrate": "{n} cards shown",
+    "vis_modifica_filtrate": "Edit these {n}",
+    "vis_filtrate_troppe": "Too many filtered cards to open together: narrow the filter.",
     "vis_aggiungi_fc": "Add flashcard",
     "vis_aggiungi_in_cat": "Add a flashcard to this category",
     "vis_cerca": "Search question or answer…",

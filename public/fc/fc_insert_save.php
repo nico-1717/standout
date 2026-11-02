@@ -88,6 +88,9 @@ if (!fc_mazzo_mio($categoryId, $current_user_id)) {
 $cards     = (isset($_POST['cards']) && is_array($_POST['cards'])) ? $_POST['cards'] : [];
 $reordered = sec_int($_POST['reordered'] ?? 1, 0, 1, 1);
 $append    = sec_int($_POST['append'] ?? 0, 0, 1, 0);
+/* Modifica delle sole carte filtrate: in pagina c'e' solo una parte della
+   categoria, quindi l'ordine delle carte esistenti non va toccato. */
+$subset    = sec_int($_POST['subset'] ?? 0, 0, 1, 0);
 
 /* CORREZIONE — bug grave: agganciare una carta come figlia (o l'inverso,
    scollegarla) sembrava salvarsi ma non cambiava niente nel database.
@@ -519,7 +522,7 @@ $parent_real_ids = [];
    dal primo numero libero, altrimenti le carte gia' esistenti si ritroverebbero
    lo stesso ordine di quelle appena inserite. */
 $custom_order_parent = 1;
-if ($append) {
+if ($append || $subset) {
     $custom_order_parent = (int)(sec_one("SELECT MAX(custom_order) AS m FROM " . fc_t('cards') . " WHERE category_id = ?",
                                          [$categoryId])['m'] ?? 0) + 1;
 }
@@ -577,8 +580,10 @@ foreach ($cards as $i => $c) {
         }
     } else {
         [$sets, $vals] = fc_set_contenuto($testi, $all, $c);
-        $clausole = array_merge(['custom_order = ?'], $sets);
-        $valori   = array_merge([$custom_order_parent], $vals);
+        /* Nel sottoinsieme la posizione resta quella che era: rinumerare da
+           1 solo le carte in pagina le farebbe finire in mezzo alle altre. */
+        $clausole = $subset ? $sets : array_merge(['custom_order = ?'], $sets);
+        $valori   = $subset ? $vals : array_merge([$custom_order_parent], $vals);
         sec_q("UPDATE " . fc_t('cards') . " SET " . implode(', ', $clausole) . " WHERE id = ? AND category_id = ?",
               array_merge($valori, [$id, $categoryId]));
         $real_parent_id = $id;
@@ -615,7 +620,13 @@ foreach ($cards as $i => $c) {
     $real_parent_id = $parent_real_ids[$idx] ?? 0;
     if ($real_parent_id <= 0) continue;
 
-    if (!isset($custom_order_child[$real_parent_id])) $custom_order_child[$real_parent_id] = 1;
+    if (!isset($custom_order_child[$real_parent_id])) {
+        /* Nel sottoinsieme i fratelli non in pagina hanno gia' le loro
+           posizioni: i figli nuovi si accodano dopo l'ultima. */
+        $custom_order_child[$real_parent_id] = $subset
+            ? (int)(sec_one("SELECT MAX(custom_order) AS m FROM " . fc_t('subcards') . " WHERE parent_id = ?", [$real_parent_id])['m'] ?? 0) + 1
+            : 1;
+    }
     $ordine = $custom_order_child[$real_parent_id];
 
     [$testi, $all] = fc_contenuto($c, (int)$i, true);
@@ -656,8 +667,8 @@ foreach ($cards as $i => $c) {
         $vecchio_padre_id = (int)(sec_one("SELECT parent_id FROM " . fc_t('subcards') . " WHERE id_child = ?", [$id])['parent_id'] ?? 0);
 
         [$sets, $vals] = fc_set_contenuto($testi, $all, $c);
-        $clausole = array_merge(['parent_id = ?', 'custom_order = ?'], $sets);
-        $valori   = array_merge([$real_parent_id, $ordine], $vals);
+        $clausole = $subset ? array_merge(['parent_id = ?'], $sets) : array_merge(['parent_id = ?', 'custom_order = ?'], $sets);
+        $valori   = $subset ? array_merge([$real_parent_id], $vals) : array_merge([$real_parent_id, $ordine], $vals);
         sec_q("UPDATE " . fc_t('subcards') . " SET " . implode(', ', $clausole) . "
                 WHERE id_child = ? AND parent_id IN (SELECT id FROM " . fc_t('cards') . " WHERE category_id = ?)",
               array_merge($valori, [$id, $categoryId]));

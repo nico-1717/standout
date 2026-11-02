@@ -3248,6 +3248,8 @@
     "vis_sposta_dove": "Sposta in quale categoria?",
     "vis_sposta_txt": "Le carte selezionate verranno spostate.",
     "vis_n_carte_mostrate": "{n} carte mostrate",
+    "vis_modifica_filtrate": "Modifica queste {n}",
+    "vis_filtrate_troppe": "Troppe carte filtrate per aprirle insieme: restringi il filtro.",
     "vis_aggiungi_fc": "Aggiungi flashcard",
     "vis_aggiungi_in_cat": "Aggiungi flashcard in questa categoria",
     "vis_cerca": "Cerca in domanda o risposta...",
