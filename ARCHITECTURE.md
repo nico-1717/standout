@@ -71,4 +71,4 @@ Read this first; open `docs/STANDOUT_PROGETTO.md` only for conventions detail, `
 ### Chip del livello nella riga stella / modifica (02/11/2026)
 - `fc_game.php` scrive il chip `.fcg-liv-riga` (livello da `fcv_livello`) dentro ogni `.card-box` non-titolo, subito dopo la stella: cosi' esiste gia' alla comparsa della carta e nella sua anteprima (`creaAnteprima` clona l'HTML del server). Il CSS lo mette fuori dal flusso, centrato fra la stella e la modifica (`top:14px; left/right:58px; height:36px`).
 - `fc_game_juice.js` (`livelloSullaCarta`) lo aggiorna dopo ogni voto solo se il livello e' cambiato; lo crea (nello stesso posto) solo se manca.
-
+- Pagina delle carte (`fc_view.php`): le righe di codice del markup del server portano `data-fc-pre="1"`, cosi' `rifinisciTestiRimasti()` / `disegnaTestiGrezzi()` / `renderAllRawTexts()` ridisegnano il riquadro da `data-raw` e il JavaScript lo colora (prima restava tutto bianco: il server non colora e nessuno ridisegnava).
