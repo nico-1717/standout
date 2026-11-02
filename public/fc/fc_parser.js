@@ -660,17 +660,22 @@ function fcdClearMarks(doc, sel) {
 function fcdSembraCodice(t) {
     if (/^```/m.test(t)) return false;             // con i recinti e' Markdown, ci pensa fcdFromFences
     var righe = t.split('\n').filter(function (l) { return l.trim() !== '' && !/^\s*#/.test(l); });
-    if (righe.length < 2) return false;
-    var codice = 0;
+    if (righe.length < 1) return false;            // solo righe «#»: puo' essere un titolo, si lascia Markdown
+    var codice = 0, forti = 0;
     righe.forEach(function (l) {
-        if (/^\s*(def|class|if|elif|else|for|while|try|except|finally|with|async\s+def)\b.*:\s*(#.*)?$/.test(l)
+        var forte = /^\s*(def|class|if|elif|else|for|while|try|except|finally|with|async\s+def)\b.*:\s*(#.*)?$/.test(l)
             || /^\s*(import\s+\S+|from\s+\S+\s+import\s+\S+)/.test(l)
             || /^\s*(return|print|raise|yield|assert|del|pass|break|continue)\b/.test(l)
             || /^\s*[A-Za-z_][\w.\[\]'"]*\s*([-+*\/%|&^]|\/\/|\*\*)?=\s*\S/.test(l)       // x = ..., x += ...
             || /^\s*[A-Za-z_][\w.]*\(.*\)\s*(#.*)?$/.test(l)                                 // chiamata
-            || /[;{}]\s*$/.test(l)
-            || /^\s*(#include|using\s+namespace|public\s|private\s|int\s|void\s|const\s|let\s|var\s|function\s)/.test(l)) codice++;
+            || /^\s*(#include|using\s+namespace|public\s|private\s|int\s|void\s|const\s|let\s|var\s|function\s)/.test(l);
+        if (forte) { codice++; forti++; }
+        else if (/[;{}]\s*$/.test(l)) codice++;   // segno debole: conta solo insieme ad altre righe
     });
+    /* Una sola riga di codice basta se e' chiaramente codice e tutto il resto
+       sono commenti (il caso «# ... / # ... / print(5 | 3)  # ...»): prima ne
+       servivano due, e quei pezzi diventavano titoli in grassetto. */
+    if (righe.length === 1) return forti === 1;
     return codice >= 2 && codice / righe.length > 0.5;
 }
 
