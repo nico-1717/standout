@@ -108,6 +108,8 @@
      PATCH  /api/v1/planner/settings      solo i campi inviati (gli stessi del sito, con errore 422 se sbagliati)
      GET    /api/v1/pomodoro/settings     ultime durate scelte, stile del quadrante, pausa in corso
      PATCH  /api/v1/pomodoro/settings     solo i campi inviati (current_break: null = pausa finita)
+     GET    /api/v1/home/layout           i riquadri della Home: [{id, on, order?}] nell'ordine scelto
+     PUT    /api/v1/home/layout           {layout: [...]}: salva, scarta id sconosciuti, aggiunge in fondo i mancanti
 
    Immagine di un articolo del to buy, fetta 8 — lib/shopping_img_api.php:
      POST   /api/v1/shopping/{id}/image   carica o sostituisce: multipart, campo «file» (jpg, png, webp, gif; max 4 MB)
@@ -131,6 +133,7 @@ require_once __DIR__ . '/../../../lib/pills_api.php';
 require_once __DIR__ . '/../../../lib/diary_api.php';
 require_once __DIR__ . '/../../../lib/shopping_img_api.php';
 require_once __DIR__ . '/../../../lib/sync_api.php';
+require_once __DIR__ . '/../../../lib/home_layout.php';
 require_once __DIR__ . '/../../../lib/registrazione.php';
 require_once __DIR__ . '/../../../lib/password_reset.php';
 require_once __DIR__ . '/../../../lib/api_settings.php';
@@ -776,6 +779,8 @@ api_v1_esegui([
     ['PATCH',  'planner/settings',  'api_h_planner_impostazioni_salva', ['accetta' => $tokenECookie]],
     ['GET',    'pomodoro/settings', 'api_h_pomodoro_impostazioni',       ['accetta' => $tokenECookie]],
     ['PATCH',  'pomodoro/settings', 'api_h_pomodoro_impostazioni_salva', ['accetta' => $tokenECookie]],
+    ['GET',    'home/layout',       'api_h_home_layout',                 ['accetta' => $tokenECookie]],
+    ['PUT',    'home/layout',       'api_h_home_layout_salva',           ['accetta' => $tokenECookie]],
     /* Sincronizzazione con l'app (docs/ARCHITETTURA_APP.md §3.3): SOLO con il token, sono le rotte dell'app */
     ['POST',   'sync/push',         'api_h_sync_push',        ['accetta' => ['token']]],
     ['GET',    'sync/pull',         'api_h_sync_pull',        ['accetta' => ['token']]],

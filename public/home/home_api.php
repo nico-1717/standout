@@ -34,6 +34,7 @@ require_once __DIR__ . '/../../lib/planner/planner_lib.php';
 require_once __DIR__ . '/../../lib/fc/fc_summary.php';
 require_once __DIR__ . '/../../lib/fc/fc_ripresa.php';
 require_once __DIR__ . '/../../lib/piano_helpers.php';
+require_once __DIR__ . '/../../lib/home_layout.php';
 
 $uid = (int)$utente_corrente['id'];
 date_default_timezone_set('Europe/Rome');
@@ -45,73 +46,6 @@ $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 20) : '';
 /* Solo le letture possono arrivare con GET: il resto è POST, dove il token CSRF
    viene davvero controllato (vedi sec_solo_post_se_scrive in security_core.php). */
 sec_solo_post_se_scrive($ajax, ['summary', 'ai_usage']);
-
-/* I riquadri che esistono, nell'ordine in cui compaiono la prima volta.
-   Un id sconosciuto arrivato dal client si scarta: il layout e' dell'utente
-   ma l'elenco dei riquadri e' del codice. */
-/* «tasks» e «habits» non sono piu' riquadri: attivita', acquisti, pastiglie e l'anello
-   delle abitudini vivono dentro «agenda» (Oggi); le abitudini complete si aprono in un
-   popup. I gruppi di dati con quei nomi esistono ancora (li chiede «agenda»), e un
-   layout salvato che li nomina ancora li perde da solo (vedi ho_layout). */
-/* L'ordine qui e' quello standard (lo stesso di ORDINE in home_core.js). */
-const HO_RIQUADRI = ['shortcuts', 'agenda', 'note', 'cards', 'projects', 'grades', 'trivia', 'stats'];
-
-function ho_tabelle(): void {
-    static $fatto = false;
-    if ($fatto) return;
-    sec_q("CREATE TABLE IF NOT EXISTS home_layout (
-             user_id INT NOT NULL,
-             layout TEXT NOT NULL,
-             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-             PRIMARY KEY (user_id)
-           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-    sec_q("CREATE TABLE IF NOT EXISTS fc_quick_drafts (
-             id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-             user_id INT NOT NULL,
-             front VARCHAR(500) NOT NULL,
-             back VARCHAR(2000) NOT NULL DEFAULT '',
-             deck_id INT UNSIGNED DEFAULT NULL,
-             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-             PRIMARY KEY (id),
-             KEY idx_user (user_id, created_at)
-           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-    $fatto = true;
-}
-
-/* L'ordine dei tasti dell'accesso rapido (gli href delle pagine), salvato dentro la
-   voce «shortcuts» del layout. Si tengono solo stringhe corte e sicure: l'elenco
-   vero dei tasti e' del codice (dashboard_content.php), qui si salva solo l'ordine. */
-function ho_ordine_scorciatoie($v): array {
-    $o = [];
-    if (is_array($v)) {
-        foreach ($v as $h) {
-            if (is_string($h) && preg_match('~^[A-Za-z0-9_/.\-]{1,60}$~', $h) && !in_array($h, $o, true)) $o[] = $h;
-            if (count($o) >= 20) break;
-        }
-    }
-    return $o;
-}
-
-/** Il layout salvato, ripulito e completato: ogni riquadro noto compare una volta sola. */
-function ho_layout(int $uid): array {
-    $r = sec_one("SELECT layout FROM home_layout WHERE user_id = ?", [$uid], 'i');
-    $salvato = $r ? json_decode((string)$r['layout'], true) : null;
-    $out = []; $visti = [];
-    if (is_array($salvato)) {
-        foreach ($salvato as $v) {
-            $id = is_array($v) ? (string)($v['id'] ?? '') : '';
-            if (!in_array($id, HO_RIQUADRI, true) || isset($visti[$id])) continue;
-            $visti[$id] = true;
-            $voce = ['id' => $id, 'on' => !empty($v['on'])];
-            if ($id === 'shortcuts') { $ord = ho_ordine_scorciatoie($v['order'] ?? null); if ($ord) $voce['order'] = $ord; }
-            $out[] = $voce;
-        }
-    }
-    /* un riquadro aggiunto da un aggiornamento compare in fondo, acceso:
-       chi ha gia' personalizzato la home non lo trova nascosto a sua insaputa */
-    foreach (HO_RIQUADRI as $id) { if (!isset($visti[$id])) $out[] = ['id' => $id, 'on' => true]; }
-    return $out;
-}
 
 /* ---------------------------------------------------------------------
    Mazzi di studio come elenco piatto con il percorso («Anatomia › Cuore»)
@@ -430,18 +364,7 @@ if ($ajax === 'layout_save') {
     ho_tabelle();
     $in = sec_in('layout');
     if (!is_array($in)) sec_die_json(t('home.api_dati_non_validi'), 400, 'bad_request');
-    $pulito = []; $visti = [];
-    foreach ($in as $v) {
-        $id = is_array($v) ? (string)($v['id'] ?? '') : '';
-        if (!in_array($id, HO_RIQUADRI, true) || isset($visti[$id])) continue;
-        $visti[$id] = true;
-        $voce = ['id' => $id, 'on' => !empty($v['on'])];
-        if ($id === 'shortcuts') { $ord = ho_ordine_scorciatoie($v['order'] ?? null); if ($ord) $voce['order'] = $ord; }
-        $pulito[] = $voce;
-    }
-    foreach (HO_RIQUADRI as $id) { if (!isset($visti[$id])) $pulito[] = ['id' => $id, 'on' => true]; }
-    sec_q("INSERT INTO home_layout (user_id, layout) VALUES (?, ?) ON DUPLICATE KEY UPDATE layout = VALUES(layout)",
-          [$uid, json_encode($pulito)], 'is');
+    $pulito = ho_layout_salva($uid, $in);
     sec_json(['ok' => true, 'layout' => $pulito]);
 }
 
