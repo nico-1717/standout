@@ -670,7 +670,8 @@
     "offline": "You're offline",
     "nota_offline_n": "You're offline · {n} waiting to sync",
     "nota_sincronizzo": "Syncing…",
-    "nota_annulla": "Undo"
+    "nota_annulla": "Undo",
+    "nota_formattata": "This note has formatting: to keep it, edit it on the website."
   },
   "dashboard": {
     "pronto_a_ripassare_qualcosa_oggi": "Ready to review something today?",

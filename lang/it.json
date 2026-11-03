@@ -670,7 +670,8 @@
     "offline": "Sei offline",
     "nota_offline_n": "Sei offline · {n} da sincronizzare",
     "nota_sincronizzo": "Sincronizzo…",
-    "nota_annulla": "Annulla"
+    "nota_annulla": "Annulla",
+    "nota_formattata": "Questa nota ha una formattazione: per non perderla, modificala dal sito."
   },
   "dashboard": {
     "pronto_a_ripassare_qualcosa_oggi": "Pronto a ripassare qualcosa oggi?",
