@@ -298,3 +298,48 @@ function pl_api_elimina(int $uid, int $id, string $scope, ?string $orig): array 
     pl_evento_elimina($uid, $id, $scope, $orig);
     return [];
 }
+
+
+/**
+ * Cambia le impostazioni del planner a campi (PATCH). Stessi campi e stessi valori ammessi della pagina
+ * (settings_save in planner_api.php); qui un valore sbagliato e' un errore col nome del campo, non una correzione
+ * silenziosa. Le scelte su Google Calendar restano della pagina. Ritorna [] oppure ['errore' => [codice, campo, testo]].
+ */
+function pl_api_impostazioni_salva(int $uid, array $c): array {
+    $map = [
+        'palette'           => ['palette_key', 'enum', ['sage','mint','blush','lavender','butter','sky','clay','rose','sea','olive','plum','sand']],
+        'zoom'              => ['default_zoom', 'enum', ['agenda','h3','h1','m30','m15','m5']],
+        'day_start_hour'    => ['day_start_hour', 'int', 0, 23],
+        'show_motivational' => ['show_motivational', 'bool'],
+        'show_affirmations' => ['show_affirmations', 'bool'],
+        'default_view'      => ['default_view', 'enum', ['day','month']],
+        'ambient_enabled'   => ['ambient_enabled', 'bool'],
+        'ambient_opacity'   => ['ambient_opacity', 'int', 0, 10],
+        'fabs_open'         => ['fabs_open', 'bool'],
+        'contrast_level'    => ['contrast_level', 'int', 1, 5],
+        'days_visible'      => ['days_visible', 'int', 1, 7],
+        'first_week_number' => ['first_week_number', 'int', 1, 9999],
+    ];
+    foreach ($c as $k => $v) {
+        if (!is_string($k) || !isset($map[$k])) return ['errore' => ['codice' => 'validation', 'campo' => (string)$k, 'testo' => 'Unknown field']];
+    }
+    $set = []; $par = [];
+    foreach ($map as $k => $cfg) {
+        if (!array_key_exists($k, $c)) continue;
+        $v = $c[$k];
+        if ($cfg[1] === 'enum') {
+            if (!is_string($v) || !in_array($v, $cfg[2], true)) return ['errore' => ['codice' => 'validation', 'campo' => $k, 'testo' => "$k must be one of: " . implode(', ', $cfg[2])]];
+        } elseif ($cfg[1] === 'int') {
+            if (!is_int($v) || $v < $cfg[2] || $v > $cfg[3]) return ['errore' => ['codice' => 'validation', 'campo' => $k, 'testo' => "$k must be a number from {$cfg[2]} to {$cfg[3]}"]];
+        } else {
+            if (!is_bool($v)) return ['errore' => ['codice' => 'validation', 'campo' => $k, 'testo' => "$k must be true or false"]];
+            $v = $v ? 1 : 0;
+        }
+        $set[] = '`' . $cfg[0] . '` = ?'; $par[] = $v;
+    }
+    if ($set) {
+        $par[] = $uid;
+        sec_q("UPDATE planner_settings SET " . implode(', ', $set) . " WHERE user_id = ?", $par);
+    }
+    return [];
+}

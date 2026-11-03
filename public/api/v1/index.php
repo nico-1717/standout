@@ -104,6 +104,8 @@
      DELETE /api/v1/diary/items/{id}
      GET    /api/v1/diary/settings        carattere, grandezza, carta
      PATCH  /api/v1/diary/settings        {font?, size?, paper?}
+     GET    /api/v1/planner/settings      palette, zoom, ora d'inizio, viste, numero della prima settimana...
+     PATCH  /api/v1/planner/settings      solo i campi inviati (gli stessi del sito, con errore 422 se sbagliati)
 
    Immagine di un articolo del to buy, fetta 8 — lib/shopping_img_api.php:
      POST   /api/v1/shopping/{id}/image   carica o sostituisce: multipart, campo «file» (jpg, png, webp, gif; max 4 MB)
@@ -651,6 +653,20 @@ function api_h_diario_impostazioni_salva(array $ctx): void {
     api_ok($e);
 }
 
+/* ---------------- Planner: impostazioni ---------------- */
+
+function api_h_planner_impostazioni(array $ctx): void {
+    api_ok(['settings' => pl_settings((int)$ctx['utente']['id'])]);
+}
+function api_h_planner_impostazioni_salva(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_planner_write');
+    $uid = (int)$ctx['utente']['id'];
+    pl_settings($uid);   // la riga deve esistere
+    $r = pl_api_impostazioni_salva($uid, api_corpo());
+    if (isset($r['errore'])) api_errore($r['errore']['codice'], $r['errore']['testo'], 422, ['field' => $r['errore']['campo']]);
+    api_ok(['settings' => pl_settings($uid)]);
+}
+
 /* ---------------- Immagine di un articolo ---------------- */
 
 function api_h_shopping_img_carica(array $ctx): void {
@@ -754,6 +770,8 @@ api_v1_esegui([
     ['DELETE', 'diary/items/{id}',  'api_h_diario_voce_togli', ['accetta' => $tokenECookie]],
     ['GET',    'diary/settings',    'api_h_diario_impostazioni', ['accetta' => $tokenECookie]],
     ['PATCH',  'diary/settings',    'api_h_diario_impostazioni_salva', ['accetta' => $tokenECookie]],
+    ['GET',    'planner/settings',  'api_h_planner_impostazioni',       ['accetta' => $tokenECookie]],
+    ['PATCH',  'planner/settings',  'api_h_planner_impostazioni_salva', ['accetta' => $tokenECookie]],
     /* Sincronizzazione con l'app (docs/ARCHITETTURA_APP.md §3.3): SOLO con il token, sono le rotte dell'app */
     ['POST',   'sync/push',         'api_h_sync_push',        ['accetta' => ['token']]],
     ['GET',    'sync/pull',         'api_h_sync_pull',        ['accetta' => ['token']]],

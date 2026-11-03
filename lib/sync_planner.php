@@ -432,3 +432,127 @@ function sync_pritem_applica(int $uid, string $uuid, string $op, array $patch): 
     if ($id !== null && isset($patch['sort_key'])) sync_applica_sort_key('planner_routine_items', $uid, $id, $patch['sort_key']);
     return ['status' => 'applied'];
 }
+
+
+/* ---- la settimana del planner ---- */
+function sync_pweek_applica(int $uid, string $uuid, string $op, array $patch): array {
+    $riga = sec_one("SELECT id, week_start, week_number, number_edited, is_completed, learned_note FROM planner_weeks WHERE user_id = ? AND uuid = ?", [$uid, $uuid]);
+    if ($op === 'delete') {
+        if ($riga) sec_q("DELETE FROM planner_weeks WHERE id = ? AND user_id = ?", [(int)$riga['id'], $uid], 'ii');
+        return ['status' => 'applied'];
+    }
+    if ($er = sync_controlla_chiavi('planner_weeks', $patch, $riga === null)) return $er;
+
+    if ($riga) {
+        $lunedi = (string)$riga['week_start'];
+        if (isset($patch['week_start']) && $patch['week_start'] !== $lunedi) return sync_rifiuto('validation', 'week_start', 'week_start cannot change');
+    } else {
+        $lunedi = is_string($patch['week_start'] ?? null) ? sec_date($patch['week_start'], null) : null;
+        if ($lunedi === null) return sync_rifiuto('validation', 'week_start', 'week_start must be YYYY-MM-DD');
+        if (pl_monday($lunedi) !== $lunedi) return sync_rifiuto('validation', 'week_start', 'week_start must be a Monday');
+        // la settimana puo' esistere gia' (scritta dal sito): e' LA STESSA riga
+        $riga = sec_one("SELECT id, week_start, week_number, number_edited, is_completed, learned_note FROM planner_weeks WHERE user_id = ? AND week_start = ?", [$uid, $lunedi]);
+    }
+    if ($uuid !== sync_uuid_settimana($uid, $lunedi)) return sync_rifiuto('validation', 'uuid', 'uuid must be the UUIDv5 of the user and the Monday');
+
+    $settings = pl_settings($uid);
+    $numero = $riga ? (int)$riga['week_number'] : pl_week_number($uid, $lunedi, $settings);
+    $mano = $riga ? (int)$riga['number_edited'] : 0;
+    $fatta = $riga ? (int)$riga['is_completed'] : 0;
+    $nota = $riga ? (string)($riga['learned_note'] ?? '') : '';
+    if (array_key_exists('week_number', $patch)) {
+        if (!is_int($patch['week_number']) || $patch['week_number'] < 1 || $patch['week_number'] > 9999) return sync_rifiuto('validation', 'week_number', 'week_number must be a number from 1 to 9999');
+        $numero = $patch['week_number']; $mano = 1;
+    }
+    if (array_key_exists('is_completed', $patch)) {
+        if (!is_bool($patch['is_completed'])) return sync_rifiuto('validation', 'is_completed', 'is_completed must be true or false');
+        $fatta = $patch['is_completed'] ? 1 : 0;
+    }
+    if (array_key_exists('learned_note', $patch)) {
+        if ($patch['learned_note'] !== null && !is_string($patch['learned_note'])) return sync_rifiuto('validation', 'learned_note', 'learned_note must be text');
+        $nota = sec_text((string)$patch['learned_note'], 4000);
+    }
+    sec_q("INSERT INTO planner_weeks (user_id, week_start, week_number, number_edited, is_completed, learned_note)
+           VALUES (?,?,?,?,?,?)
+           ON DUPLICATE KEY UPDATE week_number=VALUES(week_number), number_edited=VALUES(number_edited),
+                                   is_completed=VALUES(is_completed), learned_note=VALUES(learned_note)",
+          [$uid, $lunedi, $numero, $mano, $fatta, $nota], 'isiiis');
+    return ['status' => 'applied'];
+}
+
+/* ---- le liste della settimana (una per tipo) ---- */
+function sync_pwlist_applica(int $uid, string $uuid, string $op, array $patch): array {
+    $riga = sec_one("SELECT id, week_start, list_type FROM planner_week_lists WHERE user_id = ? AND uuid = ?", [$uid, $uuid]);
+    if ($op === 'delete') {
+        if ($riga) {
+            sec_q("DELETE FROM planner_week_list_items WHERE list_id = ? AND user_id = ?", [(int)$riga['id'], $uid], 'ii');
+            sec_q("DELETE FROM planner_week_lists WHERE id = ? AND user_id = ?", [(int)$riga['id'], $uid], 'ii');
+        }
+        return ['status' => 'applied'];
+    }
+    if ($er = sync_controlla_chiavi('planner_week_lists', $patch, $riga === null)) return $er;
+    if ($riga) {
+        foreach (['week_start', 'list_type'] as $k) if (isset($patch[$k]) && $patch[$k] !== (string)$riga[$k]) return sync_rifiuto('validation', $k, "$k cannot change");
+        return ['status' => 'applied'];
+    }
+    $lunedi = is_string($patch['week_start'] ?? null) ? sec_date($patch['week_start'], null) : null;
+    if ($lunedi === null) return sync_rifiuto('validation', 'week_start', 'week_start must be YYYY-MM-DD');
+    if (pl_monday($lunedi) !== $lunedi) return sync_rifiuto('validation', 'week_start', 'week_start must be a Monday');
+    $tipo = $patch['list_type'] ?? null;
+    if (!is_string($tipo) || !in_array($tipo, ['todo', 'buy', 'study'], true)) return sync_rifiuto('validation', 'list_type', 'list_type must be one of: todo, buy, study');
+    if ($uuid !== sync_uuid_lista_sett($uid, $lunedi, $tipo)) return sync_rifiuto('validation', 'uuid', 'uuid must be the UUIDv5 of the user, the Monday and the type');
+    // come sul sito: INSERT IGNORE (c'e' gia' = e' la stessa riga)
+    sec_q("INSERT IGNORE INTO planner_week_lists (user_id, week_start, list_type, sort_order)
+           VALUES (?,?,?,(SELECT COALESCE(MAX(x.sort_order),0)+1 FROM (SELECT sort_order FROM planner_week_lists WHERE user_id=? AND week_start=?) x))",
+          [$uid, $lunedi, $tipo, $uid, $lunedi], 'issis');
+    return ['status' => 'applied'];
+}
+
+/* ---- le voci di una lista della settimana ---- */
+function sync_pwitem_applica(int $uid, string $uuid, string $op, array $patch): array {
+    $riga = sec_one("SELECT i.id, l.uuid AS lu FROM planner_week_list_items i JOIN planner_week_lists l ON l.id = i.list_id WHERE i.user_id = ? AND i.uuid = ?", [$uid, $uuid]);
+    $id = $riga ? (int)$riga['id'] : null;
+    if ($op === 'delete') {
+        if ($id !== null) sec_q("DELETE FROM planner_week_list_items WHERE id = ? AND user_id = ?", [$id, $uid], 'ii');
+        return ['status' => 'applied'];
+    }
+    if ($er = sync_controlla_chiavi('planner_week_list_items', $patch, $id === null)) return $er;
+    if (isset($patch['sort_key']) && !sync_chiave_valida($patch['sort_key'])) return sync_rifiuto('validation', 'sort_key', 'Invalid sort_key');
+    if ($id !== null && array_key_exists('list_uuid', $patch) && $patch['list_uuid'] !== $riga['lu']) return sync_rifiuto('validation', 'list_uuid', 'list_uuid cannot change');
+
+    $set = [];
+    if (array_key_exists('content', $patch)) {
+        if (!is_string($patch['content'])) return sync_rifiuto('validation', 'content', 'content must be text');
+        $set['content'] = sec_str($patch['content'], 200);
+    }
+    if (array_key_exists('is_done', $patch)) {
+        if (!is_bool($patch['is_done'])) return sync_rifiuto('validation', 'is_done', 'is_done must be true or false');
+        $set['is_done'] = $patch['is_done'] ? 1 : 0;
+    }
+    // come sul sito: una voce senza testo non esiste
+    if (isset($set['content']) && $set['content'] === '') {
+        if ($id !== null) sec_q("DELETE FROM planner_week_list_items WHERE id = ? AND user_id = ?", [$id, $uid], 'ii');
+        return ['status' => 'applied'];
+    }
+    if ($id === null) {
+        if (sec_one("SELECT id FROM planner_week_list_items WHERE uuid = ?", [$uuid])) return sync_rifiuto('forbidden', 'uuid', 'This id is already used');
+        $lu = $patch['list_uuid'] ?? null;
+        if (!sync_uuid_valido($lu)) return sync_rifiuto('validation', 'list_uuid', 'list_uuid is required');
+        $lid = sync_id_da_uuid('planner_week_lists', $uid, $lu);
+        if ($lid === null) return sync_rifiuto('not_found', 'list_uuid', 'List not found');
+        if (!isset($set['content'])) return sync_rifiuto('validation', 'content', 'content is required');
+        $GLOBALS['SYNC_UUID_NUOVO'] = ['tbl' => 'planner_week_list_items', 'uuid' => $uuid];
+        sec_q("INSERT INTO planner_week_list_items (list_id, user_id, content, is_done, sort_order)
+               VALUES (?,?,?,?,(SELECT COALESCE(MAX(x.so),0)+1 FROM (SELECT sort_order AS so FROM planner_week_list_items WHERE list_id=?) x))",
+              [$lid, $uid, $set['content'], $set['is_done'] ?? 0, $lid], 'iisii');
+        unset($GLOBALS['SYNC_UUID_NUOVO']);
+        $id = sync_id_da_uuid('planner_week_list_items', $uid, $uuid);
+        unset($set['content'], $set['is_done']);
+    }
+    if ($set && $id !== null) {
+        $par = array_values($set); $par[] = $id; $par[] = $uid;
+        sec_q("UPDATE planner_week_list_items SET " . implode(', ', array_map(fn($c) => "`$c` = ?", array_keys($set))) . " WHERE id = ? AND user_id = ?", $par);
+    }
+    if ($id !== null && isset($patch['sort_key'])) sync_applica_sort_key('planner_week_list_items', $uid, $id, $patch['sort_key']);
+    return ['status' => 'applied'];
+}

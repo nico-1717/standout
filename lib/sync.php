@@ -246,6 +246,14 @@ function sync_uuid_atteso(string $tbl, int $id): ?string {
         $r = sec_one("SELECT d.due_date, d.due_time, d.seq, p.uuid AS pu FROM pill_doses d JOIN pill_plans p ON p.id = d.plan_id WHERE d.id = ?", [$id]);
         return $r ? sync_uuid_presa((string)$r['pu'], (string)$r['due_date'], (string)$r['due_time'], (int)$r['seq']) : null;
     }
+    if ($tbl === 'planner_weeks') {
+        $r = sec_one("SELECT user_id, week_start FROM planner_weeks WHERE id = ?", [$id]);
+        return $r ? sync_uuid_settimana((int)$r['user_id'], (string)$r['week_start']) : null;
+    }
+    if ($tbl === 'planner_week_lists') {
+        $r = sec_one("SELECT user_id, week_start, list_type FROM planner_week_lists WHERE id = ?", [$id]);
+        return $r ? sync_uuid_lista_sett((int)$r['user_id'], (string)$r['week_start'], (string)$r['list_type']) : null;
+    }
     if ($tbl === 'planner_priorities') {
         $r = sec_one("SELECT user_id, priority_date, position FROM planner_priorities WHERE id = ?", [$id]);
         return $r ? sync_uuid_priorita((int)$r['user_id'], (string)$r['priority_date'], (int)$r['position']) : null;
@@ -372,9 +380,15 @@ function sync_riallinea_gruppo(string $tbl, int $uid, string $lista): void {
  * ordina ancora con quello: sort_order = posizione per (sort_key, id) nel gruppo.
  * Si annotano solo le voci il cui sort_order cambia davvero.
  */
-function sync_ordine_dal_sort_key(string $tbl, int $uid, string $lista): void {
+function sync_ordine_dal_sort_key(string $tbl, int $uid, string $lista, ?int $idRiga = null): void {
     $dove = 'user_id = ?'; $par = [$uid];
     if ($lista !== '') { $dove .= ' AND list_type = ?'; $par[] = $lista; }
+    // le voci che si ordinano dentro un padre (i passaggi di una routine, le voci di una lista): solo quel padre
+    foreach (SYNC_MANIFESTO[$tbl]['gruppo'] as $c) {
+        if ($c === 'user_id' || $c === 'list_type' || $idRiga === null) continue;
+        $r = sec_one("SELECT `$c` AS v FROM `$tbl` WHERE id = ?", [$idRiga]);
+        if ($r) { $dove .= " AND `$c` = ?"; $par[] = $r['v']; }
+    }
     $righe = sec_all("SELECT id, uuid, sort_order FROM `$tbl` WHERE $dove ORDER BY sort_key, id", $par);
     $conn = sec_db(); $voci = []; $n = 1;
     foreach ($righe as $r) {

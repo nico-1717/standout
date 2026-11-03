@@ -218,6 +218,44 @@ def main():
         ok(B.copia[('planner_events', e1)]['routine_uuid'] is None or True, 'i pezzi gia\' inseriti restano')
         for e in (e1, e2): A.push([mut('planner_events', e, {}, op='delete')])
 
+        print('4d. settimana, liste e voci')
+        uw = lambda g: str(uuid.uuid5(NS_UUID5, f'planner_weeks|{mio}|{g}'))
+        ul = lambda g, t: str(uuid.uuid5(NS_UUID5, f'planner_week_lists|{mio}|{g}|{t}'))
+        lun = '2030-02-04'
+        A.copia_completa()
+        for (t, u), x in list(A.copia.items()):
+            if t in ('planner_weeks', 'planner_week_lists') and x['week_start'] == lun: A.push([mut(t, u, {}, op='delete')])
+        w = uw(lun)
+        r = A.push([mut('planner_weeks', w, {'week_start': lun, 'learned_note': NOME + ' imparato', 'is_completed': True})])
+        ok(esito(r)['status'] == 'applied', f'settimana creata {esito(r)}')
+        B.aggiorna(); x = B.copia.get(('planner_weeks', w))
+        ok(x and x['learned_note'] == NOME + ' imparato' and x['is_completed'] is True and x['number_edited'] is False and x['week_number'] >= 1, f'arriva con numero calcolato {x and x["week_number"]}')
+        r = A.push([mut('planner_weeks', w, {'week_number': 42})]); B.aggiorna()
+        ok(B.copia[('planner_weeks', w)]['week_number'] == 42 and B.copia[('planner_weeks', w)]['number_edited'] is True, 'numero a mano: number_edited lo mette il server')
+        r = A.push([mut('planner_weeks', w, {'week_number': 0})]); ok(esito(r)['status'] == 'rejected', 'numero 0: rifiutato')
+        r = A.push([mut('planner_weeks', uw('2030-02-05'), {'week_start': '2030-02-05'})]); ok(esito(r)['status'] == 'rejected', 'non e\' un lunedi: rifiutato')
+        r = A.push([mut('planner_weeks', nuovo(), {'week_start': lun})]); ok(esito(r)['status'] == 'rejected', 'uuid sbagliato: rifiutato')
+
+        lt = ul(lun, 'todo'); li1, li2 = nuovo(), nuovo()
+        r = A.push([mut('planner_week_lists', lt, {'week_start': lun, 'list_type': 'todo'}),
+                    mut('planner_week_list_items', li1, {'list_uuid': lt, 'content': NOME + ' voce uno', 'sort_key': 'a0'}),
+                    mut('planner_week_list_items', li2, {'list_uuid': lt, 'content': NOME + ' voce due', 'sort_key': 'a1', 'is_done': True})])
+        ok(all(x['status'] == 'applied' for x in r['results']), f"lista e voci create {[x['status'] for x in r['results']]}")
+        B.aggiorna()
+        ok(B.copia[('planner_week_list_items', li2)]['list_uuid'] == lt and B.copia[('planner_week_list_items', li2)]['is_done'] is True, 'le voci arrivano con la lista (uuid)')
+        r = A.push([mut('planner_week_lists', ul(lun, 'sbagliato'), {'week_start': lun, 'list_type': 'sbagliato'})]); ok(esito(r)['status'] == 'rejected', 'tipo di lista sconosciuto: rifiutato')
+        r = A.push([mut('planner_week_list_items', li1, {'is_done': True, 'sort_key': 'a2'})]); B.aggiorna()
+        ok(B.copia[('planner_week_list_items', li1)]['is_done'] is True and B.copia[('planner_week_list_items', li1)]['sort_key'] == 'a2', 'spunta e posizione')
+        r = A.push([mut('planner_week_list_items', li2, {'content': ''})]); B.aggiorna()
+        ok(('planner_week_list_items', li2) not in B.copia, 'testo vuoto: la voce sparisce, come sul sito')
+        r = A.push([mut('planner_week_list_items', nuovo(), {'list_uuid': nuovo(), 'content': 'x'})]); ok(esito(r)['status'] == 'rejected', 'voce di una lista che non c\'e\': rifiutata')
+        # la stessa lista creata due volte = la stessa riga
+        r = A.push([mut('planner_week_lists', lt, {'week_start': lun, 'list_type': 'todo'})]); ok(esito(r)['status'] == 'applied', 'ricreare la stessa lista non fa danni')
+        r = A.push([mut('planner_week_lists', lt, {}, op='delete')]); B.aggiorna()
+        ok(('planner_week_list_items', li1) not in B.copia and ('planner_week_lists', lt) not in B.copia, 'lista cancellata: via anche le voci')
+        r = A.push([mut('planner_weeks', w, {}, op='delete')]); B.aggiorna()
+        ok(('planner_weeks', w) not in B.copia, 'settimana cancellata')
+
         print('5. coerenza: telefono aggiornato = copia nuova')
         r = A.push([mut('planner_events', ev, {}, op='delete')])
         B.aggiorna(); C = Tel(a.url, a.user, pw, 'prova planner C'); C.copia_completa()

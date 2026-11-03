@@ -262,6 +262,47 @@ const SYNC_MANIFESTO = [
             'updated_at'    => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
+    // La settimana del planner: una riga per (utente, lunedi). Il numero della settimana si scrive a mano (number_edited
+    // lo mette il server quando arriva un week_number); da lì in poi si ricalcola.
+    'planner_weeks' => [
+        'ordine'          => 108,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id', 'week_start'],
+        'campi' => [
+            'week_start'    => ['tipo' => 'd', 'solo_creazione' => true],
+            'week_number'   => ['tipo' => 'i'],
+            'number_edited' => ['tipo' => 'b', 'solo_lettura' => true],
+            'is_completed'  => ['tipo' => 'b'],
+            'learned_note'  => ['tipo' => 's'],
+            'created_at'    => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at'    => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Le liste della settimana: una per tipo (todo, buy, study) in ogni settimana.
+    'planner_week_lists' => [
+        'ordine'          => 109,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id', 'week_start', 'list_type'],
+        'campi' => [
+            'week_start' => ['tipo' => 'd', 'solo_creazione' => true],
+            'list_type'  => ['tipo' => 'e', 'solo_creazione' => true],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    'planner_week_list_items' => [
+        'ordine'       => 111,
+        'proprietario' => 'user_id',
+        'gruppo'       => ['list_id'],
+        'campi' => [
+            'list_uuid'  => ['tipo' => 'fk', 'col' => 'list_id', 'tabella' => 'planner_week_lists', 'solo_creazione' => true],
+            'content'    => ['tipo' => 's'],
+            'is_done'    => ['tipo' => 'b'],
+            'sort_key'   => ['tipo' => 'k'],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
     // Le priorita' del giorno: fino a 6 righe per giorno. Una riga = (giorno, posto): identita' UUIDv5 (come un check-in).
     'planner_priorities' => [
         'ordine'          => 105,
@@ -374,6 +415,16 @@ function sync_uuid_presa(string $planUuid, string $giorno, string $ora, int $seq
 /** L'identita' di una priorita' del giorno: da utente + giorno + posto (1..6). */
 function sync_uuid_priorita(int $uid, string $giorno, int $posto): string {
     return sync_uuid5('planner_priorities|' . $uid . '|' . $giorno . '|' . $posto);
+}
+
+/** L'identita' di una settimana del planner: da utente + lunedi. */
+function sync_uuid_settimana(int $uid, string $lunedi): string {
+    return sync_uuid5('planner_weeks|' . $uid . '|' . $lunedi);
+}
+
+/** L'identita' di una lista della settimana: da utente + lunedi + tipo. */
+function sync_uuid_lista_sett(int $uid, string $lunedi, string $tipo): string {
+    return sync_uuid5('planner_week_lists|' . $uid . '|' . $lunedi . '|' . $tipo);
 }
 
 /** L'identita' del diario di un giorno: da utente + giorno. */
