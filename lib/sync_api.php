@@ -373,6 +373,9 @@ function sync_applica(int $uid, array $m): array {
             case 'planner_events':    $esito = sync_pevents_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'projects':          $esito = sync_prog_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'pomodoro_sessions': $esito = sync_pomo_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'university_exam_groups': $esito = sync_uni_gruppi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'university_exams':  $esito = sync_uni_esami_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'university_bonuses': $esito = sync_uni_bonus_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'pomodoro_custom_durations': $esito = sync_pomo_preset_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             default:                  $esito = sync_rifiuto('validation', 'table', 'Unknown table');
         }
@@ -449,3 +452,4 @@ require_once __DIR__ . '/sync_diario.php';
 require_once __DIR__ . '/sync_pastiglie.php';   // dopo le funzioni di base che usa (sync_rifiuto, sync_id_da_uuid...)
 require_once __DIR__ . '/sync_planner.php';
 require_once __DIR__ . '/sync_progetti.php';
+require_once __DIR__ . '/sync_voti.php';

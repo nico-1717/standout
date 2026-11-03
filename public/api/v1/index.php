@@ -779,6 +779,8 @@ api_v1_esegui([
     ['PATCH',  'planner/settings',  'api_h_planner_impostazioni_salva', ['accetta' => $tokenECookie]],
     ['GET',    'pomodoro/settings', 'api_h_pomodoro_impostazioni',       ['accetta' => $tokenECookie]],
     ['PATCH',  'pomodoro/settings', 'api_h_pomodoro_impostazioni_salva', ['accetta' => $tokenECookie]],
+    ['GET',    'university/settings', 'api_h_voti_impostazioni',       ['accetta' => $tokenECookie]],
+    ['PATCH',  'university/settings', 'api_h_voti_impostazioni_salva', ['accetta' => $tokenECookie]],
     ['GET',    'home/layout',       'api_h_home_layout',                 ['accetta' => $tokenECookie]],
     ['PUT',    'home/layout',       'api_h_home_layout_salva',           ['accetta' => $tokenECookie]],
     /* Sincronizzazione con l'app (docs/ARCHITETTURA_APP.md §3.3): SOLO con il token, sono le rotte dell'app */
