@@ -509,6 +509,63 @@ const SYNC_MANIFESTO = [
             'updated_at'       => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
+    /* ---- flashcard di studio ---- */
+    // Il sito cancella un mazzo lasciando in giro le sue carte (non c'e' nessuna chiave esterna): qui chi cancella dall'app
+    // toglie tutto il ramo, e il telefono toglie il ramo anche quando e' il sito a cancellare. Le carte non hanno user_id:
+    // appartengono all'utente del loro mazzo ('proprietario_sql').
+    'fc_study_decks' => [
+        'ordine'       => 200,
+        'proprietario' => 'user_id',
+        'gruppo'       => ['user_id'],
+        'campi' => [
+            'name'         => ['tipo' => 's'],
+            'parent_uuid'  => ['tipo' => 'fk', 'col' => 'parent_id', 'tabella' => 'fc_study_decks'],   // 0 = radice = null
+            'color'        => ['tipo' => 's'],
+            'color_edited' => ['tipo' => 'b'],
+            'archived'     => ['tipo' => 'b'],
+            'icon'         => ['tipo' => 's'],
+            'notes'        => ['tipo' => 's'],
+            'pinned'       => ['tipo' => 'b'],
+            'exam_date'    => ['tipo' => 'd'],
+            'updated_at'   => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    'fc_study_cards' => [
+        'ordine'           => 201,
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => 'SELECT d.user_id FROM fc_study_decks d WHERE d.id = {t}.category_id',
+        'gruppo'           => ['user_id'],
+        'campi' => [
+            'category_uuid'  => ['tipo' => 'fk', 'col' => 'category_id', 'tabella' => 'fc_study_decks'],
+            'question_desc'  => ['tipo' => 's'],
+            'answer_desc'    => ['tipo' => 's'],
+            'question_image' => ['tipo' => 's', 'solo_lettura' => true],   // i file viaggiano nella coda dei media, non qui
+            'answer_image'   => ['tipo' => 's', 'solo_lettura' => true],
+            'question_audio' => ['tipo' => 's', 'solo_lettura' => true],
+            'answer_audio'   => ['tipo' => 's', 'solo_lettura' => true],
+            'is_father'      => ['tipo' => 'b', 'solo_lettura' => true],   // lo decide il server: 1 se ha carte figlie
+            'custom_order'   => ['tipo' => 'i', 'solo_lettura' => true],   // il server mette le carte nuove in fondo
+            'updated_at'     => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    'fc_study_subcards' => [
+        'ordine'           => 202,
+        'pk'               => 'id_child',
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => 'SELECT d.user_id FROM fc_study_cards c JOIN fc_study_decks d ON d.id = c.category_id WHERE c.id = {t}.parent_id',
+        'gruppo'           => ['user_id'],
+        'campi' => [
+            'parent_uuid'    => ['tipo' => 'fk', 'col' => 'parent_id', 'tabella' => 'fc_study_cards', 'solo_creazione' => true],
+            'question_desc'  => ['tipo' => 's'],
+            'answer_desc'    => ['tipo' => 's'],
+            'question_image' => ['tipo' => 's', 'solo_lettura' => true],
+            'answer_image'   => ['tipo' => 's', 'solo_lettura' => true],
+            'question_audio' => ['tipo' => 's', 'solo_lettura' => true],
+            'answer_audio'   => ['tipo' => 's', 'solo_lettura' => true],
+            'custom_order'   => ['tipo' => 'i', 'solo_lettura' => true],
+            'updated_at'     => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
 ];
 
 /** UUIDv5: namespace fisso dell'app (lo stesso nell'app, vedi src/core/sync/uuid5). */

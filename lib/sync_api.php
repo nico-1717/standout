@@ -37,15 +37,16 @@ const SYNC_PULL_MAX = 1000;
  * l'uuid della riga puntata (mai il suo id numerico). Una sola fonte: aggiungere una tabella = il manifest.
  */
 function sync_select_righe(string $tbl): string {
-    $sel = ['t.id AS _id', 't.uuid']; $join = []; $i = 0;
+    $sel = ['t.`' . sync_pk($tbl) . '` AS _id', 't.uuid']; $join = []; $i = 0;
     foreach (SYNC_MANIFESTO[$tbl]['campi'] as $nome => $def) {
         if (isset($def['sql'])) { $sel[] = $def['sql'] . " AS `$nome`"; continue; }
         $col = $def['col'] ?? $nome;
         if ($def['tipo'] === 'fk') {
             $a = 'j' . (++$i);
             // la riga puntata dev'essere dello stesso utente (o, se ammesso, di sistema): niente uuid di righe altrui
-            $chi = !empty($def['sistema']) ? "($a.user_id = t.user_id OR $a.user_id = 0)" : "$a.user_id = t.user_id";
-            $join[] = "LEFT JOIN `{$def['tabella']}` $a ON $a.id = t.`$col` AND $chi";
+            $pa = sync_prop($def['tabella'], $a); $pt = sync_prop($tbl, 't');
+            $chi = !empty($def['sistema']) ? "($pa = $pt OR $pa = 0)" : "$pa = $pt";
+            $join[] = "LEFT JOIN `{$def['tabella']}` $a ON $a.`" . sync_pk($def['tabella']) . "` = t.`$col` AND $chi";
             $sel[] = "$a.uuid AS `$nome`";
         } else {
             $sel[] = "t.`$col` AS `$nome`";
@@ -58,11 +59,13 @@ function sync_select_righe(string $tbl): string {
 function sync_leggi_righe(string $tbl, int $uid, ?array $uuids, int $dopoId = 0, int $limite = 0): array {
     if ($uuids !== null && !$uuids) return [];
     $man = SYNC_MANIFESTO[$tbl];
-    $dove = !empty($man['sistema']) ? 't.user_id IN (0, ?)' : 't.user_id = ?'; $par = [$uid];
+    $pt = sync_prop($tbl, 't');
+    $dove = !empty($man['sistema']) ? "$pt IN (0, ?)" : "$pt = ?"; $par = [$uid];
     if (!empty($man['filtro'])) $dove .= ' AND t.' . $man['filtro'];
     if ($uuids !== null) { $dove .= ' AND t.uuid IN (' . implode(',', array_fill(0, count($uuids), '?')) . ')'; $par = array_merge($par, $uuids); }
-    if ($dopoId > 0) { $dove .= ' AND t.id > ?'; $par[] = $dopoId; }
-    $coda = ($limite > 0 ? ' ORDER BY t.id LIMIT ' . (int)$limite : '');
+    $pk = sync_pk($tbl);
+    if ($dopoId > 0) { $dove .= " AND t.`$pk` > ?"; $par[] = $dopoId; }
+    $coda = ($limite > 0 ? " ORDER BY t.`$pk` LIMIT " . (int)$limite : '');
 
     $righe = sec_all(sync_select_righe($tbl) . " WHERE $dove$coda", $par);
 
@@ -228,7 +231,7 @@ function sync_da_errore(array $esito, array $nomi): array {
 
 /** L'id numerico di una riga dell'utente a partire dall'uuid, o null. */
 function sync_id_da_uuid(string $tbl, int $uid, string $uuid): ?int {
-    $r = sec_one("SELECT id FROM `$tbl` WHERE user_id = ? AND uuid = ?", [$uid, $uuid]);
+    $r = sec_one("SELECT t.`" . sync_pk($tbl) . "` AS id FROM `$tbl` t WHERE " . sync_prop($tbl, 't') . " = ? AND t.uuid = ?", [$uid, $uuid]);
     return $r ? (int)$r['id'] : null;
 }
 
@@ -376,6 +379,9 @@ function sync_applica(int $uid, array $m): array {
             case 'university_exam_groups': $esito = sync_uni_gruppi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'university_exams':  $esito = sync_uni_esami_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'university_bonuses': $esito = sync_uni_bonus_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_study_decks':    $esito = sync_fc_mazzi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_study_cards':    $esito = sync_fc_carte_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_study_subcards': $esito = sync_fc_figlie_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'pomodoro_custom_durations': $esito = sync_pomo_preset_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             default:                  $esito = sync_rifiuto('validation', 'table', 'Unknown table');
         }
@@ -453,3 +459,4 @@ require_once __DIR__ . '/sync_pastiglie.php';   // dopo le funzioni di base che 
 require_once __DIR__ . '/sync_planner.php';
 require_once __DIR__ . '/sync_progetti.php';
 require_once __DIR__ . '/sync_voti.php';
+require_once __DIR__ . '/sync_flashcard.php';

@@ -120,6 +120,25 @@ function sync_valori_insert(string $sql, array $params, array $colonne): array {
 }
 
 /**
+ * La colonna chiave primaria numerica di una tabella sincronizzata («id», salvo diversa indicazione nel manifest:
+ * le sotto-carte delle flashcard usano id_child).
+ */
+function sync_pk(string $tbl): string {
+    return SYNC_MANIFESTO[$tbl]['pk'] ?? 'id';
+}
+
+/**
+ * L'espressione SQL che da' l'utente proprietario di una riga della tabella, con l'alias dato.
+ * Di solito e' la colonna user_id; le tabelle che appartengono a un utente solo tramite il padre (le carte
+ * di un mazzo) la ricavano con 'proprietario_sql', dove {t} e' l'alias della riga.
+ */
+function sync_prop(string $tbl, string $alias): string {
+    $m = SYNC_MANIFESTO[$tbl];
+    if (!empty($m['proprietario_sql'])) return '(' . str_replace('{t}', "`$alias`", $m['proprietario_sql']) . ')';
+    return "`$alias`.`" . $m['proprietario'] . '`';
+}
+
+/**
  * Legge una query di scrittura e dice cosa serve per annotarla: il verbo (ins/upd/del),
  * la tabella e, per UPDATE e DELETE, la SELECT che legge gli uuid PRIMA della scrittura
  * (con i suoi parametri). null = la query non riguarda una tabella sincronizzata.
@@ -171,10 +190,9 @@ function sync_analizza(string $sql, array $params): ?array {
         $par = $w >= 0 ? array_slice($params, sync_segnaposto($da) + sync_segnaposto($setTesto)) : [];
         $pro['set'] = $setTesto;
     }
-    $col = SYNC_MANIFESTO[$tbl]['proprietario'];
     // se la query ha gia' un suo LIMIT (es. UPDATE ... LIMIT 1) vale quello; altrimenti un tetto di sicurezza
     $coda = preg_match('/\sLIMIT\s/i', $where) ? '' : ' LIMIT 20000';
-    $pro['select'] = "SELECT `$alias`.`$col` AS u, `$alias`.uuid AS g FROM " . $da . " WHERE " . $where . $coda;
+    $pro['select'] = "SELECT " . sync_prop($tbl, $alias) . " AS u, `$alias`.uuid AS g FROM " . $da . " WHERE " . $where . $coda;
     $pro['par'] = $par;
     return $pro;
 }
@@ -209,12 +227,12 @@ function sync_osserva_dopo(array $pro, int $righeToccate, int $idInserito): void
         } elseif ($pro['verbo'] === 'ins') {
             if ($righeToccate <= 0 || $idInserito <= 0) return;
             $a = $idInserito; $b = $idInserito + $righeToccate - 1;
-            $col = SYNC_MANIFESTO[$tbl]['proprietario'];
-            $nuove = sec_all("SELECT `$col` AS u, uuid AS g, id FROM `$tbl` WHERE id BETWEEN ? AND ?", [$a, $b]);
+            $pk = sync_pk($tbl);
+            $nuove = sec_all("SELECT " . sync_prop($tbl, 't') . " AS u, t.uuid AS g, t.`$pk` AS id FROM `$tbl` t WHERE t.`$pk` BETWEEN ? AND ?", [$a, $b]);
             // l'app ha scelto lei l'uuid di una riga nuova: lo si applica PRIMA di annotare
             $voluto = $GLOBALS['SYNC_UUID_NUOVO'] ?? null;
             if ($voluto && $voluto['tbl'] === $tbl && count($nuove) === 1) {
-                mysqli_query(sec_db(), "UPDATE `$tbl` SET uuid = '" . mysqli_real_escape_string(sec_db(), $voluto['uuid']) . "' WHERE id = " . (int)$nuove[0]['id']);
+                mysqli_query(sec_db(), "UPDATE `$tbl` SET uuid = '" . mysqli_real_escape_string(sec_db(), $voluto['uuid']) . "' WHERE `$pk` = " . (int)$nuove[0]['id']);
                 $nuove[0]['g'] = $voluto['uuid'];
                 unset($GLOBALS['SYNC_UUID_NUOVO']);
             }
