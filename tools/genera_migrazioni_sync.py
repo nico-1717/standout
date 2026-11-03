@@ -36,6 +36,7 @@ AREE = {
     'planner':    ('04', 'planner',    "planner"),
     'progetti':   ('05', 'progetti',   "progetti, Pomodoro, piano, voti"),
     'flashcard':  ('06', 'flashcard',  "flashcard di studio e di vocabolario"),
+    'flashcard2': ('07', 'flashcard2', "flashcard: imparate, record, sequenze delle partite, preferenze, obiettivi (le tabelle senza id)"),
 }
 
 TABELLE = {
@@ -98,15 +99,15 @@ TABELLE = {
     'fc_study_subcards':    ('riga', 'flashcard', ('custom_order', ['parent_id'])),
     'fc_study_examples':    ('riga', 'flashcard', None),
     'fc_study_favorites':   ('riga', 'flashcard', None),
-    'fc_study_learnt':      ('naturale', 'flashcard', None),
-    'fc_study_records':     ('naturale', 'flashcard', None),
-    'fc_study_deck_projects': ('naturale', 'flashcard', None),
-    'fc_study_ai':          ('naturale', 'flashcard', None),
-    'fc_study_ai_child':    ('naturale', 'flashcard', None),
+    'fc_study_learnt':       ('nat_id_u', 'flashcard2', None),
+    'fc_study_records':      ('nat_id_u', 'flashcard2', None),
+    'fc_study_deck_projects': ('nat_id', 'flashcard2', None),
+    'fc_study_ai':           ('uuid_u', 'flashcard2', None),
+    'fc_study_ai_child':     ('uuid_u', 'flashcard2', None),
     'fc_games':             ('riga', 'flashcard', None),
     'fc_game_durations':    ('append', 'flashcard', None),
-    'fc_study_game_decks':  ('naturale', 'flashcard', None),
-    'fc_study_sequence':    ('naturale', 'flashcard', None),
+    'fc_study_game_decks':   ('nat_id', 'flashcard2', None),
+    'fc_study_sequence':     ('nat_id', 'flashcard2', None),
     'fc_study_plays':       ('append', 'flashcard', None),
     # --- flashcard (vocabolario)
     'fc_vocab_courses':     ('riga', 'flashcard', ('custom_order', ['user_id'])),
@@ -115,17 +116,18 @@ TABELLE = {
     'fc_vocab_subcards':    ('riga', 'flashcard', ('custom_order', ['parent_id'])),
     'fc_vocab_examples':    ('riga', 'flashcard', None),
     'fc_vocab_favorites':   ('riga', 'flashcard', None),
-    'fc_vocab_learnt':      ('naturale', 'flashcard', None),
-    'fc_vocab_records':     ('naturale', 'flashcard', None),
-    'fc_vocab_game_decks':  ('naturale', 'flashcard', None),
-    'fc_vocab_sequence':    ('naturale', 'flashcard', None),
+    'fc_vocab_learnt':       ('nat_id_u', 'flashcard2', None),
+    'fc_vocab_records':      ('nat_id_u', 'flashcard2', None),
+    'fc_vocab_game_decks':   ('nat_id', 'flashcard2', None),
+    'fc_vocab_sequence':     ('nat_id', 'flashcard2', None),
     'fc_vocab_plays':       ('append', 'flashcard', None),
-    'fc_settings':          ('singola', 'flashcard', None),
-    'fc_goals':             ('singola', 'flashcard', None),
+    'fc_settings':           ('uuid_u', 'flashcard2', None),
+    'fc_goals':              ('uuid_u', 'flashcard2', None),
 }
 
-TIPI_CON_UUID = ('riga', 'append', 'solo_server')
-TIPI_CON_UPDATED_AT = ('riga', 'solo_server', 'singola')   # append e naturale non si modificano (o non servono)
+TIPI_CON_UUID = ('riga', 'append', 'solo_server', 'nat_id', 'nat_id_u', 'uuid_u')
+TIPI_CON_ID = ('nat_id', 'nat_id_u')   # tabelle a chiave composta senza id: ne ricevono uno (serve a scorrerle a pagine)
+TIPI_CON_UPDATED_AT = ('riga', 'solo_server', 'singola', 'nat_id_u', 'uuid_u')   # append e naturale non si modificano (o non servono)
 
 ALFABETO = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 
@@ -198,6 +200,10 @@ def sql_tabella(t, tipo, ordine, colonne, per_schema=False):
             return ist + ";\n"
         return passo(t, manca_indice(t, nome), ist)
 
+    if tipo in TIPI_CON_ID and not ha('id'):
+        # una colonna auto-incrementale deve avere un indice: nello stesso ALTER. Le righe esistenti ricevono 1, 2, 3...
+        ist = f"ALTER TABLE `{t}` ADD COLUMN `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Solo per scorrere la tabella a pagine (l''identita'' e'' uuid)', ADD UNIQUE KEY `uq_{t}_id` (`id`)"
+        blocchi.append(ist + ";\n" if per_schema else passo(t, manca_colonna(t, 'id'), ist))
     if tipo in TIPI_CON_UUID and not ha('uuid'):
         # 3 passi (colonna vuota -> riempita riga per riga -> obbligatoria con valore automatico):
         # un ADD COLUMN ... DEFAULT (UUID()) in un colpo solo puo' dare lo stesso valore a tutte le righe esistenti.

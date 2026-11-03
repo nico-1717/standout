@@ -86,16 +86,6 @@ SET @ok := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA =
 SET @sql := IF(@ok = 0, 'ALTER TABLE `fc_study_favorites` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
 PREPARE st FROM @sql; EXECUTE st; DEALLOCATE PREPARE st;
 
--- fc_study_learnt (naturale): niente da cambiare
-
--- fc_study_records (naturale): niente da cambiare
-
--- fc_study_deck_projects (naturale): niente da cambiare
-
--- fc_study_ai (naturale): niente da cambiare
-
--- fc_study_ai_child (naturale): niente da cambiare
-
 -- ---------- fc_games (riga)
 SET @ok := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fc_games' AND COLUMN_NAME = 'uuid');
 SET @sql := IF(@ok = 0, 'ALTER TABLE `fc_games` ADD COLUMN `uuid` CHAR(36) NULL COMMENT ''Identita'''' della riga per l''''app (UUID); l''''id numerico resta quello del sito''', 'SELECT 1');
@@ -118,10 +108,6 @@ ALTER TABLE `fc_game_durations` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (
 SET @ok := (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fc_game_durations' AND INDEX_NAME = 'uq_fc_game_durations_uuid');
 SET @sql := IF(@ok = 0, 'ALTER TABLE `fc_game_durations` ADD UNIQUE KEY `uq_fc_game_durations_uuid` (`uuid`)', 'SELECT 1');
 PREPARE st FROM @sql; EXECUTE st; DEALLOCATE PREPARE st;
-
--- fc_study_game_decks (naturale): niente da cambiare
-
--- fc_study_sequence (naturale): niente da cambiare
 
 -- ---------- fc_study_plays (append)
 SET @ok := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fc_study_plays' AND COLUMN_NAME = 'uuid');
@@ -223,14 +209,6 @@ SET @ok := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA =
 SET @sql := IF(@ok = 0, 'ALTER TABLE `fc_vocab_favorites` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
 PREPARE st FROM @sql; EXECUTE st; DEALLOCATE PREPARE st;
 
--- fc_vocab_learnt (naturale): niente da cambiare
-
--- fc_vocab_records (naturale): niente da cambiare
-
--- fc_vocab_game_decks (naturale): niente da cambiare
-
--- fc_vocab_sequence (naturale): niente da cambiare
-
 -- ---------- fc_vocab_plays (append)
 SET @ok := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fc_vocab_plays' AND COLUMN_NAME = 'uuid');
 SET @sql := IF(@ok = 0, 'ALTER TABLE `fc_vocab_plays` ADD COLUMN `uuid` CHAR(36) NULL COMMENT ''Identita'''' della riga per l''''app (UUID); l''''id numerico resta quello del sito''', 'SELECT 1');
@@ -240,8 +218,4 @@ ALTER TABLE `fc_vocab_plays` MODIFY COLUMN `uuid` CHAR(36) NOT NULL DEFAULT (UUI
 SET @ok := (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fc_vocab_plays' AND INDEX_NAME = 'uq_fc_vocab_plays_uuid');
 SET @sql := IF(@ok = 0, 'ALTER TABLE `fc_vocab_plays` ADD UNIQUE KEY `uq_fc_vocab_plays_uuid` (`uuid`)', 'SELECT 1');
 PREPARE st FROM @sql; EXECUTE st; DEALLOCATE PREPARE st;
-
--- fc_settings (singola): niente da cambiare
-
--- fc_goals (singola): niente da cambiare
 
