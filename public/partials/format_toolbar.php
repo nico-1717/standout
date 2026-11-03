@@ -4428,7 +4428,20 @@ function ftAggancioMisure(a) {
     if (!c.length) {
         /* Pagina piena, nessun pannello di mezzo: si guarda cosa occupa la
            cima dello schermo. */
-        return { soglia: Math.max(ftSogliaDalloSchermo(a.toolbar), vis.top) + 6, limite: limite };
+        /* La scansione con elementFromPoint costa (decine di chiamate): ora che
+           l'aggancio si ricalcola a ogni fotogramma (ftAggancioSegui) non puo'
+           rifarla ogni volta. Un'intestazione fissa non cambia altezza mentre
+           si scorre, quindi il risultato vale per qualche istante; un ricontrollo
+           a scorrimento fermo prende anche le intestazioni che si nascondono. */
+        var ora = Date.now();
+        if (!a._scan || ora - a._scan.t > 300) a._scan = { v: ftSogliaDalloSchermo(a.toolbar), t: ora };
+        else if (!a._ricontrollo) {
+            a._ricontrollo = setTimeout(function () {
+                a._ricontrollo = null;
+                if (FT_AGGANCIO === a) { a._scan = null; ftAggancioAggiorna(); }
+            }, 350);
+        }
+        return { soglia: Math.max(a._scan.v, vis.top) + 6, limite: limite };
     }
     for (var i = 0; i < c.length; i++) {
         var rc = c[i].getBoundingClientRect();
@@ -4577,7 +4590,28 @@ function ftAggancioStacca() {
         vecchi[i].removeEventListener('scroll', ftAggancioAggiorna);
     }
     ftAggancioTogliClone(FT_AGGANCIO);
+    if (FT_AGGANCIO._ricontrollo) clearTimeout(FT_AGGANCIO._ricontrollo);
     FT_AGGANCIO = { wrap: null, toolbar: null, portale: null, clone: null };
+}
+
+/* SEGUIRE LO SCHERMO A OGNI FOTOGRAMMA (iPhone)
+   Con la tastiera aperta Safari muove il riquadro visibile dentro la pagina, e
+   gli eventi che lo annunciano (scroll della finestra, scroll e resize del
+   visualViewport) arrivano in ritardo o solo a fine trascinamento: mentre il
+   dito scorre la copia restava dov'era, fuori dallo schermo, e riappariva
+   (se riappariva) a gesto finito — cioe' "la barra non resta ferma e devo
+   tornare su". requestAnimationFrame invece gira a ogni fotogramma anche
+   durante il trascinamento: qui si guarda solo se il riquadro visibile o lo
+   scorrimento sono cambiati (letture quasi gratuite) e solo allora si
+   ricalcola. Il giro si ferma da solo quando nessuna casella e' agganciata. */
+var FT_SEGUE = false, FT_SEGUE_CHIAVE = '';
+function ftAggancioSegui() {
+    if (!FT_AGGANCIO.wrap) { FT_SEGUE = false; return; }
+    var vv = window.visualViewport;
+    var k = (vv ? vv.offsetTop + '|' + vv.offsetLeft + '|' + vv.height + '|' + vv.scale : '') +
+            '|' + window.pageYOffset + '|' + window.innerHeight;
+    if (k !== FT_SEGUE_CHIAVE) { FT_SEGUE_CHIAVE = k; ftAggancioAggiorna(); }
+    requestAnimationFrame(ftAggancioSegui);
 }
 
 function ftAggancioSuCasella(wrap) {
@@ -4606,6 +4640,7 @@ function ftAggancioSuCasella(wrap) {
         ctx.contenitori[ci].addEventListener('scroll', ftAggancioAggiorna, { passive: true });
     }
     ftAggancioAggiorna();
+    if (!FT_SEGUE) { FT_SEGUE = true; FT_SEGUE_CHIAVE = ''; requestAnimationFrame(ftAggancioSegui); }
 
     /* Toccare una casella fa comparire la barra (fmt-attiva) partendo da
        altezza zero e crescendo con una transizione — e sul telefono lo stesso
@@ -4719,6 +4754,11 @@ function ftAggancioAggiorna() {
     });
     window.addEventListener('scroll', ftAggancioAggiorna, { passive: true, capture: true });
     window.addEventListener('resize', ftAggancioAggiorna);
+    /* Selezionando del testo, iPhone fa scorrere da solo la pagina per tenere
+       visibile il bordo della selezione: la barra va riallineata subito. */
+    document.addEventListener('selectionchange', function () {
+        if (FT_AGGANCIO.wrap) ftAggancioAggiorna();
+    });
     /* iPhone: aprire la tastiera o scorrere con lei aperta muove il riquadro
        visibile senza generare ne' scroll ne' resize della finestra. */
     if (window.visualViewport) {
