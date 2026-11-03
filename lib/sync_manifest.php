@@ -262,6 +262,44 @@ const SYNC_MANIFESTO = [
             'updated_at'    => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
+    // Le priorita' del giorno: fino a 6 righe per giorno. Una riga = (giorno, posto): identita' UUIDv5 (come un check-in).
+    'planner_priorities' => [
+        'ordine'          => 105,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id', 'priority_date', 'position'],
+        'campi' => [
+            'priority_date' => ['tipo' => 'd', 'solo_creazione' => true],
+            'position'      => ['tipo' => 'i', 'solo_creazione' => true],
+            'content'       => ['tipo' => 's'],
+            'is_done'       => ['tipo' => 'b'],
+            'created_at'    => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at'    => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Le routine: una serie di passaggi con la durata, da inserire in un giorno.
+    'planner_routines' => [
+        'ordine'       => 106,
+        'proprietario' => 'user_id',
+        'gruppo'       => ['user_id'],
+        'campi' => [
+            'name'       => ['tipo' => 's'],
+            'color'      => ['tipo' => 's'],
+            'sort_key'   => ['tipo' => 'k'],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    'planner_routine_items' => [
+        'ordine'       => 107,
+        'proprietario' => 'user_id',
+        'gruppo'       => ['routine_id'],
+        'campi' => [
+            'routine_uuid'     => ['tipo' => 'fk', 'col' => 'routine_id', 'tabella' => 'planner_routines', 'solo_creazione' => true],
+            'name'             => ['tipo' => 's'],
+            'duration_minutes' => ['tipo' => 'i'],
+            'sort_key'         => ['tipo' => 'k'],
+        ],
+    ],
     // Gli eventi: la riga com'e' sul sito. Una serie e' un capostipite con `rrule`; ogni eccezione («solo questa volta»
     // o «questa volta no») e' una riga con series_uuid + original_date (e is_cancelled se la volta e' tolta). Le
     // occorrenze NON sono righe: le calcola chi legge (il telefono ha lo stesso motore del sito). `rrule` lo scrive
@@ -302,8 +340,9 @@ const SYNC_MANIFESTO = [
             'series_uuid'      => ['tipo' => 'fk', 'col' => 'series_id', 'tabella' => 'planner_events', 'solo_creazione' => true],
             'original_date'    => ['tipo' => 'd', 'solo_creazione' => true],
             'is_cancelled'     => ['tipo' => 'b'],
-            'routine_group'    => ['tipo' => 's', 'solo_lettura' => true],
-            'routine_collapsed'=> ['tipo' => 'b', 'solo_lettura' => true],
+            'routine_uuid'     => ['tipo' => 'fk', 'col' => 'routine_id', 'tabella' => 'planner_routines', 'solo_creazione' => true],
+            'routine_group'    => ['tipo' => 's', 'solo_creazione' => true],   // i pezzi di una routine inserita hanno lo stesso gruppo
+            'routine_collapsed'=> ['tipo' => 'b'],
             'sort_order'       => ['tipo' => 'i', 'solo_lettura' => true],
             'created_at'       => ['tipo' => 's', 'solo_lettura' => true],
             'updated_at'       => ['tipo' => 's', 'solo_lettura' => true],
@@ -330,6 +369,11 @@ function sync_uuid_check_in(string $habitUuid, string $giorno): string {
 /** L'identita' di una presa: da terapia (uuid) + giorno + orario (HH:MM) + n. */
 function sync_uuid_presa(string $planUuid, string $giorno, string $ora, int $seq): string {
     return sync_uuid5('pill_doses|' . $planUuid . '|' . $giorno . '|' . substr($ora, 0, 5) . '|' . $seq);
+}
+
+/** L'identita' di una priorita' del giorno: da utente + giorno + posto (1..6). */
+function sync_uuid_priorita(int $uid, string $giorno, int $posto): string {
+    return sync_uuid5('planner_priorities|' . $uid . '|' . $giorno . '|' . $posto);
 }
 
 /** L'identita' del diario di un giorno: da utente + giorno. */

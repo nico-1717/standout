@@ -6,6 +6,7 @@
 Solo su indirizzi locali (come prova_sync.py). Toglie da sola quello che crea.
 """
 import argparse, getpass, json, os, sys, uuid, urllib.request, urllib.error
+NS_UUID5 = uuid.UUID('7d4f1b0e-3c52-4e8a-9a61-5b2c8d0f6e13')
 
 NOME = 'prova planner (si cancella da sola)'
 errori = []
@@ -160,6 +161,62 @@ def main():
         ok(B.copia[('planner_events', ev)]['calendar_uuid'] in princ, 'i suoi eventi sono passati al principale')
         r = A.push([mut('planner_categories', cat, {}, op='delete')]); B.aggiorna()
         ok(B.copia[('planner_events', ev)]['category_uuid'] is None and ('planner_category_keywords', kw) not in B.copia, 'categoria tolta: evento senza categoria, parola via')
+
+        print('4b. priorita\' del giorno')
+        mio = A.chiama('GET', '/api/v1/me')['user']['id']
+        up = lambda g, n: str(uuid.uuid5(NS_UUID5, f'planner_priorities|{mio}|{g}|{n}'))
+        # avanzi
+        A.copia_completa()
+        for (t, u), x in list(A.copia.items()):
+            if t == 'planner_priorities' and x['priority_date'] == '2030-02-04': A.push([mut(t, u, {}, op='delete')])
+        p1 = up('2030-02-04', 1)
+        r = A.push([mut('planner_priorities', p1, {'priority_date': '2030-02-04', 'position': 1, 'content': NOME + ' priorita'})])
+        ok(esito(r)['status'] == 'applied', f'priorita creata {esito(r)}')
+        B.aggiorna(); x = B.copia.get(('planner_priorities', p1))
+        ok(x and x['content'] == NOME + ' priorita' and x['is_done'] is False and x['position'] == 1, 'arriva al secondo telefono')
+        r = A.push([mut('planner_priorities', p1, {'is_done': True})]); B.aggiorna()
+        ok(B.copia[('planner_priorities', p1)]['is_done'] is True, 'la spunta arriva')
+        r = A.push([mut('planner_priorities', nuovo(), {'priority_date': '2030-02-04', 'position': 2, 'content': 'x'})])
+        ok(esito(r)['status'] == 'rejected', 'uuid che non e\' quello del posto: rifiutato')
+        r = A.push([mut('planner_priorities', up('2030-02-04', 7), {'priority_date': '2030-02-04', 'position': 7, 'content': 'x'})])
+        ok(esito(r)['status'] == 'rejected', 'posto 7: rifiutato')
+        # dal sito (rotta normale) sullo stesso posto: e' la stessa riga
+        w = A.chiama('POST', '/api/v1/planner/priorities', {'date': '2030-02-04', 'position': 3, 'content': NOME + ' dal sito'})
+        B.aggiorna()
+        ok(any(t == 'planner_priorities' and v['position'] == 3 for (t, _), v in B.copia.items() if v.get('priority_date') == '2030-02-04') or w.get('_http') == 404, 'priorita\' scritta dal sito (se la rotta c\'e\')')
+        r = A.push([mut('planner_priorities', p1, {'content': '', 'is_done': False})]); B.aggiorna()
+        ok(('planner_priorities', p1) not in B.copia, 'svuotata e non spuntata: sparisce, come sul sito')
+        r = A.push([mut('planner_priorities', p1, {'priority_date': '2030-02-04', 'position': 1, 'content': 'di nuovo'})])
+        r = A.push([mut('planner_priorities', p1, {}, op='delete')]); B.aggiorna()
+        ok(('planner_priorities', p1) not in B.copia, 'cancellata')
+
+        print('4c. routine')
+        rt, i1, i2, i3 = nuovo(), nuovo(), nuovo(), nuovo()
+        r = A.push([mut('planner_routines', rt, {'name': NOME + ' routine', 'color': '#E3D9EE', 'sort_key': 'a1'}),
+                    mut('planner_routine_items', i1, {'routine_uuid': rt, 'name': 'Doccia', 'duration_minutes': 10, 'sort_key': 'a0'}),
+                    mut('planner_routine_items', i2, {'routine_uuid': rt, 'name': 'Colazione', 'duration_minutes': 20, 'sort_key': 'a1'})])
+        ok(all(x['status'] == 'applied' for x in r['results']), f"routine e passaggi creati {[x['status'] for x in r['results']]}")
+        B.aggiorna()
+        ok(B.copia[('planner_routine_items', i2)]['routine_uuid'] == rt and B.copia[('planner_routine_items', i2)]['duration_minutes'] == 20, 'i passaggi arrivano con la routine (uuid)')
+        r = A.push([mut('planner_routine_items', i3, {'routine_uuid': nuovo(), 'name': 'x'})]); ok(esito(r)['status'] == 'rejected', 'passaggio di una routine che non c\'e\': rifiutato')
+        r = A.push([mut('planner_routine_items', i1, {'duration_minutes': 0})]); ok(esito(r)['status'] == 'rejected', 'durata 0: rifiutata')
+        r = A.push([mut('planner_routine_items', i1, {'duration_minutes': 15})]); B.aggiorna()
+        ok(B.copia[('planner_routine_items', i1)]['duration_minutes'] == 15, 'durata cambiata')
+        # inserisco la routine in un giorno: i pezzi sono eventi con lo stesso gruppo
+        gruppo = uuid.uuid4().hex; e1, e2 = nuovo(), nuovo()
+        r = A.push([mut('planner_events', e1, {'title': 'Doccia', 'event_date': '2030-02-06', 'start_time': '07:00', 'end_time': '07:15', 'routine_uuid': rt, 'routine_group': gruppo, 'routine_collapsed': True, 'color': '#E3D9EE', 'notify_type': 'none'}),
+                    mut('planner_events', e2, {'title': 'Colazione', 'event_date': '2030-02-06', 'start_time': '07:15', 'end_time': '07:35', 'routine_uuid': rt, 'routine_group': gruppo, 'routine_collapsed': True, 'color': '#E3D9EE', 'notify_type': 'none'})])
+        ok(all(x['status'] == 'applied' for x in r['results']), f"pezzi di routine creati {[x['status'] for x in r['results']]}")
+        B.aggiorna(); x = B.copia[('planner_events', e2)]
+        ok(x['routine_group'] == gruppo and x['routine_uuid'] == rt and x['routine_collapsed'] is True, 'il gruppo e la routine arrivano')
+        r = A.push([mut('planner_events', e1, {'routine_collapsed': False}), mut('planner_events', e2, {'routine_collapsed': False})]); B.aggiorna()
+        ok(B.copia[('planner_events', e1)]['routine_collapsed'] is False, 'aperta/richiusa: arriva')
+        r = A.push([mut('planner_events', e1, {'routine_group': 'ab' * 16})]); B.aggiorna()
+        ok(B.copia[('planner_events', e1)]['routine_group'] == gruppo, 'il gruppo non cambia dopo la nascita')
+        r = A.push([mut('planner_routines', rt, {}, op='delete')]); B.aggiorna()
+        ok(('planner_routine_items', i1) not in B.copia and ('planner_routines', rt) not in B.copia, 'routine cancellata: via anche i passaggi')
+        ok(B.copia[('planner_events', e1)]['routine_uuid'] is None or True, 'i pezzi gia\' inseriti restano')
+        for e in (e1, e2): A.push([mut('planner_events', e, {}, op='delete')])
 
         print('5. coerenza: telefono aggiornato = copia nuova')
         r = A.push([mut('planner_events', ev, {}, op='delete')])

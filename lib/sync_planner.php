@@ -228,7 +228,7 @@ function sync_pevents_applica(int $uid, string $uuid, string $op, array $patch):
             $r = pl_api_modifica($uid, $id, $c);
             if (isset($r['errore'])) return sync_pev_errore($r);
         }
-        return ['status' => 'applied'];
+        return sync_pev_routine($uid, $uuid, $patch) ?? ['status' => 'applied'];
     }
 
     // ---------- una riga nuova ----------
@@ -273,5 +273,162 @@ function sync_pevents_applica(int $uid, string $uuid, string $op, array $patch):
         $nuovo = sync_id_da_uuid('planner_events', $uid, $uuid);
         if ($nuovo !== null) pl_evento_spunta($uid, $nuovo, true);
     }
+    return sync_pev_routine($uid, $uuid, $patch) ?? ['status' => 'applied'];
+}
+
+/** Un pezzo di routine: il gruppo (lo stesso per tutti i pezzi inseriti insieme) e la routine d'origine. Ritorna un rifiuto, o null. */
+function sync_pev_routine(int $uid, string $uuid, array $patch): ?array {
+    $id = sync_id_da_uuid('planner_events', $uid, $uuid);
+    if ($id === null) return null;
+    if (array_key_exists('routine_group', $patch) || array_key_exists('routine_uuid', $patch)) {
+        $att = sec_one("SELECT routine_group, routine_id FROM planner_events WHERE id = ? AND user_id = ?", [$id, $uid], 'ii');
+        if ($att && ($att['routine_group'] !== null || $att['routine_id'] !== null)) return null;   // si scrive solo alla nascita
+        $g = $patch['routine_group'] ?? null;
+        if ($g !== null && (!is_string($g) || !preg_match('/^[0-9a-f]{32}$/', $g))) return sync_rifiuto('validation', 'routine_group', 'routine_group must be 32 hex characters');
+        $rid = null;
+        if (($patch['routine_uuid'] ?? null) !== null) {
+            if (!sync_uuid_valido($patch['routine_uuid'])) return sync_rifiuto('validation', 'routine_uuid', 'Invalid uuid');
+            $rid = sync_id_da_uuid('planner_routines', $uid, $patch['routine_uuid']);
+            if ($rid === null) return sync_rifiuto('not_found', 'routine_uuid', 'Routine not found');
+        }
+        sec_q("UPDATE planner_events SET routine_group = ?, routine_id = ? WHERE id = ? AND user_id = ?", [$g, $rid, $id, $uid], 'sii' . 'i');
+    }
+    if (array_key_exists('routine_collapsed', $patch)) {
+        if (!is_bool($patch['routine_collapsed'])) return sync_rifiuto('validation', 'routine_collapsed', 'routine_collapsed must be true or false');
+        sec_q("UPDATE planner_events SET routine_collapsed = ? WHERE id = ? AND user_id = ?", [$patch['routine_collapsed'] ? 1 : 0, $id, $uid], 'iii');
+    }
+    return null;
+}
+
+
+/* ---- priorita' del giorno ---- */
+function sync_pprio_applica(int $uid, string $uuid, string $op, array $patch): array {
+    $riga = sec_one("SELECT id, priority_date, position, content, is_done FROM planner_priorities WHERE user_id = ? AND uuid = ?", [$uid, $uuid]);
+    if ($op === 'delete') {
+        if ($riga) sec_q("DELETE FROM planner_priorities WHERE id = ? AND user_id = ?", [(int)$riga['id'], $uid], 'ii');
+        return ['status' => 'applied'];
+    }
+    if ($er = sync_controlla_chiavi('planner_priorities', $patch, $riga === null)) return $er;
+
+    // ---- il posto: giorno + numero (1..6) ----
+    if ($riga) {
+        $giorno = (string)$riga['priority_date']; $posto = (int)$riga['position'];
+        if (isset($patch['priority_date']) && $patch['priority_date'] !== $giorno) return sync_rifiuto('validation', 'priority_date', 'priority_date cannot change');
+        if (isset($patch['position']) && (int)$patch['position'] !== $posto) return sync_rifiuto('validation', 'position', 'position cannot change');
+    } else {
+        $giorno = is_string($patch['priority_date'] ?? null) ? sec_date($patch['priority_date'], null) : null;
+        if ($giorno === null) return sync_rifiuto('validation', 'priority_date', 'priority_date must be YYYY-MM-DD');
+        $posto = $patch['position'] ?? null;
+        if (!is_int($posto) || $posto < 1 || $posto > 6) return sync_rifiuto('validation', 'position', 'position must be a number from 1 to 6');
+        // quel posto puo' esistere gia' (scritto dal sito): e' LA STESSA riga
+        $riga = sec_one("SELECT id, priority_date, position, content, is_done FROM planner_priorities WHERE user_id = ? AND priority_date = ? AND position = ?", [$uid, $giorno, $posto]);
+    }
+    if ($uuid !== sync_uuid_priorita($uid, $giorno, $posto)) return sync_rifiuto('validation', 'uuid', 'uuid must be the UUIDv5 of the user, the day and the position');
+
+    $testo = $riga ? (string)$riga['content'] : '';
+    $fatto = $riga ? (int)$riga['is_done'] : 0;
+    if (array_key_exists('content', $patch)) {
+        if (!is_string($patch['content'])) return sync_rifiuto('validation', 'content', 'content must be text');
+        $testo = sec_str($patch['content'], 200);
+    }
+    if (array_key_exists('is_done', $patch)) {
+        if (!is_bool($patch['is_done'])) return sync_rifiuto('validation', 'is_done', 'is_done must be true or false');
+        $fatto = $patch['is_done'] ? 1 : 0;
+    }
+    // come sul sito: una riga vuota e non spuntata non esiste
+    if ($testo === '' && $fatto === 0) {
+        if ($riga) sec_q("DELETE FROM planner_priorities WHERE id = ? AND user_id = ?", [(int)$riga['id'], $uid], 'ii');
+        return ['status' => 'applied'];
+    }
+    sec_q("INSERT INTO planner_priorities (user_id, priority_date, position, content, is_done)
+           VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE content=VALUES(content), is_done=VALUES(is_done)",
+          [$uid, $giorno, $posto, $testo, $fatto], 'isisi');
+    return ['status' => 'applied'];
+}
+
+/* ---- routine ---- */
+function sync_prout_applica(int $uid, string $uuid, string $op, array $patch): array {
+    $id = sync_id_da_uuid('planner_routines', $uid, $uuid);
+    if ($op === 'delete') {
+        if ($id === null) return ['status' => 'applied'];
+        sec_q("DELETE FROM planner_routine_items WHERE routine_id = ? AND user_id = ?", [$id, $uid], 'ii');
+        sec_q("DELETE FROM planner_routines WHERE id = ? AND user_id = ?", [$id, $uid], 'ii');
+        return ['status' => 'applied'];
+    }
+    if ($er = sync_controlla_chiavi('planner_routines', $patch, $id === null)) return $er;
+    if (isset($patch['sort_key']) && !sync_chiave_valida($patch['sort_key'])) return sync_rifiuto('validation', 'sort_key', 'Invalid sort_key');
+    $set = [];
+    if (array_key_exists('name', $patch)) {
+        $n = is_string($patch['name']) ? sec_str($patch['name'], 80) : '';
+        if ($n === '') return sync_rifiuto('validation', 'name', 'name cannot be empty');
+        $set['name'] = $n;
+    }
+    if (array_key_exists('color', $patch)) $set['color'] = sec_color($patch['color'], '#E3D9EE');
+
+    if ($id === null) {
+        if (sec_one("SELECT id FROM planner_routines WHERE uuid = ?", [$uuid])) return sync_rifiuto('forbidden', 'uuid', 'This id is already used');
+        if (!isset($set['name'])) return sync_rifiuto('validation', 'name', 'name is required');
+        $GLOBALS['SYNC_UUID_NUOVO'] = ['tbl' => 'planner_routines', 'uuid' => $uuid];
+        sec_q("INSERT INTO planner_routines (user_id, name, color, sort_order)
+               VALUES (?,?,?,(SELECT COALESCE(MAX(x.so),0)+1 FROM (SELECT sort_order AS so FROM planner_routines WHERE user_id=?) x))",
+              [$uid, $set['name'], $set['color'] ?? '#E3D9EE', $uid], 'issi');
+        unset($GLOBALS['SYNC_UUID_NUOVO']);
+        $id = sync_id_da_uuid('planner_routines', $uid, $uuid);
+        unset($set['name'], $set['color']);
+    }
+    if ($set && $id !== null) {
+        $par = array_values($set); $par[] = $id; $par[] = $uid;
+        sec_q("UPDATE planner_routines SET " . implode(', ', array_map(fn($c) => "`$c` = ?", array_keys($set))) . " WHERE id = ? AND user_id = ?", $par);
+    }
+    if ($id !== null && isset($patch['sort_key'])) sync_applica_sort_key('planner_routines', $uid, $id, $patch['sort_key']);
+    return ['status' => 'applied'];
+}
+
+/* ---- i passaggi di una routine ---- */
+function sync_pritem_applica(int $uid, string $uuid, string $op, array $patch): array {
+    $riga = sec_one("SELECT i.id, r.uuid AS ru FROM planner_routine_items i JOIN planner_routines r ON r.id = i.routine_id WHERE i.user_id = ? AND i.uuid = ?", [$uid, $uuid]);
+    $id = $riga ? (int)$riga['id'] : null;
+    if ($op === 'delete') {
+        if ($id !== null) sec_q("DELETE FROM planner_routine_items WHERE id = ? AND user_id = ?", [$id, $uid], 'ii');
+        return ['status' => 'applied'];
+    }
+    if ($er = sync_controlla_chiavi('planner_routine_items', $patch, $id === null)) return $er;
+    if (isset($patch['sort_key']) && !sync_chiave_valida($patch['sort_key'])) return sync_rifiuto('validation', 'sort_key', 'Invalid sort_key');
+    if ($id !== null && array_key_exists('routine_uuid', $patch) && $patch['routine_uuid'] !== $riga['ru']) return sync_rifiuto('validation', 'routine_uuid', 'routine_uuid cannot change');
+
+    $set = [];
+    if (array_key_exists('name', $patch)) {
+        $n = is_string($patch['name']) ? sec_str($patch['name'], 120) : '';
+        if ($n === '') return sync_rifiuto('validation', 'name', 'name cannot be empty');
+        $set['name'] = $n;
+    }
+    if (array_key_exists('duration_minutes', $patch)) {
+        $m = $patch['duration_minutes'];
+        if (!is_int($m) || $m < 1 || $m > 1440) return sync_rifiuto('validation', 'duration_minutes', 'duration_minutes must be a number from 1 to 1440');
+        $set['duration_minutes'] = $m;
+    }
+    if ($id === null) {
+        if (sec_one("SELECT id FROM planner_routine_items WHERE uuid = ?", [$uuid])) return sync_rifiuto('forbidden', 'uuid', 'This id is already used');
+        $ru = $patch['routine_uuid'] ?? null;
+        if (!sync_uuid_valido($ru)) return sync_rifiuto('validation', 'routine_uuid', 'routine_uuid is required');
+        $rid = sync_id_da_uuid('planner_routines', $uid, $ru);
+        if ($rid === null) return sync_rifiuto('not_found', 'routine_uuid', 'Routine not found');
+        if (!isset($set['name'])) return sync_rifiuto('validation', 'name', 'name is required');
+        if ((int)sec_one("SELECT COUNT(*) AS n FROM planner_routine_items WHERE routine_id = ? AND user_id = ?", [$rid, $uid], 'ii')['n'] >= 40) {
+            return sync_rifiuto('validation', 'routine_uuid', 'A routine can have at most 40 steps');
+        }
+        $GLOBALS['SYNC_UUID_NUOVO'] = ['tbl' => 'planner_routine_items', 'uuid' => $uuid];
+        sec_q("INSERT INTO planner_routine_items (routine_id, user_id, name, duration_minutes, sort_order)
+               VALUES (?,?,?,?,(SELECT COALESCE(MAX(x.so),0)+1 FROM (SELECT sort_order AS so FROM planner_routine_items WHERE routine_id=?) x))",
+              [$rid, $uid, $set['name'], $set['duration_minutes'] ?? 5, $rid], 'iisii');
+        unset($GLOBALS['SYNC_UUID_NUOVO']);
+        $id = sync_id_da_uuid('planner_routine_items', $uid, $uuid);
+        unset($set['name'], $set['duration_minutes']);
+    }
+    if ($set && $id !== null) {
+        $par = array_values($set); $par[] = $id; $par[] = $uid;
+        sec_q("UPDATE planner_routine_items SET " . implode(', ', array_map(fn($c) => "`$c` = ?", array_keys($set))) . " WHERE id = ? AND user_id = ?", $par);
+    }
+    if ($id !== null && isset($patch['sort_key'])) sync_applica_sort_key('planner_routine_items', $uid, $id, $patch['sort_key']);
     return ['status' => 'applied'];
 }

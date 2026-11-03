@@ -83,8 +83,9 @@ function sync_leggi_righe(string $tbl, int $uid, ?array $uuids, int $dopoId = 0,
         foreach ($righe as &$r) {
             // l'uuid atteso si ricava dalla riga stessa (niente query per riga: una copia completa ha migliaia di check-in)
             $atteso = $tbl === 'habit_logs' ? sync_uuid_check_in((string)$r['habit_uuid'], (string)$r['log_date'])
+                : ($tbl === 'planner_priorities' ? sync_uuid_priorita($uid, (string)$r['priority_date'], (int)$r['position'])
                 : ($tbl === 'habit_daily_journal' ? sync_uuid_diario($uid, (string)$r['entry_date'])
-                : ($tbl === 'pill_doses' && $r['plan_uuid'] !== null ? sync_uuid_presa((string)$r['plan_uuid'], (string)$r['due_date'], (string)$r['due_time'], (int)$r['seq']) : null));
+                : ($tbl === 'pill_doses' && $r['plan_uuid'] !== null ? sync_uuid_presa((string)$r['plan_uuid'], (string)$r['due_date'], (string)$r['due_time'], (int)$r['seq']) : null)));
             if ($atteso !== null && $atteso !== $r['uuid']) {
                 mysqli_query(sec_db(), "UPDATE `$tbl` SET uuid = '" . mysqli_real_escape_string(sec_db(), $atteso) . "' WHERE id = " . (int)$r['_id']);
                 $r['uuid'] = $atteso;
@@ -356,6 +357,9 @@ function sync_applica(int $uid, array $m): array {
             case 'planner_calendars': $esito = sync_pcal_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'planner_categories': $esito = sync_pcat_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'planner_category_keywords': $esito = sync_pkey_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'planner_priorities': $esito = sync_pprio_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'planner_routines':  $esito = sync_prout_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'planner_routine_items': $esito = sync_pritem_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'planner_events':    $esito = sync_pevents_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             default:                  $esito = sync_rifiuto('validation', 'table', 'Unknown table');
         }
