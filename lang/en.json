@@ -4286,7 +4286,10 @@
     "gm_gia_imparata": "Already learnt",
     "gm_nessuna_partita": "No game to resume.",
     "gm_partita_finita": "Game finished",
-    "app_audio_sul_sito": "The sounds of this card can only be played on the website for now."
+    "app_audio_sul_sito": "The sounds of this card can only be played on the website for now.",
+    "st_tentativi_prec": "{played} attempts · {acc}% accuracy",
+    "st_dopo_errore": "When you get a card wrong, you get it right the next time {pct}% of the time (out of {n} cases seen).",
+    "app_filtra_materia": "Subject"
   },
   "fchub": {
     "home_titolo": "Flashcards",

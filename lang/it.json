@@ -4286,7 +4286,10 @@
     "gm_gia_imparata": "Già imparata",
     "gm_nessuna_partita": "Nessuna partita da riprendere.",
     "gm_partita_finita": "Partita conclusa",
-    "app_audio_sul_sito": "I suoni di questa carta per ora si sentono sul sito."
+    "app_audio_sul_sito": "I suoni di questa carta per ora si sentono sul sito.",
+    "st_tentativi_prec": "{played} tentativi · {acc}% precisione",
+    "st_dopo_errore": "Quando sbagli una carta, la volta dopo la indovini nel {pct}% dei casi (su {n} occasioni osservate).",
+    "app_filtra_materia": "Materia"
   },
   "fchub": {
     "home_titolo": "Flashcard",
