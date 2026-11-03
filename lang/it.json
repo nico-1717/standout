@@ -4280,7 +4280,12 @@
     "app_note_ricche": "Le note hanno una formattazione: per ora si leggono e si modificano dal sito.",
     "app_fissato": "Fissato in cima",
     "app_icona_auto_sub": "Dal nome",
-    "app_media_sul_sito": "Le immagini e i suoni di questa carta per ora si vedono sul sito."
+    "app_media_sul_sito": "Le immagini e i suoni di questa carta per ora si vedono sul sito.",
+    "cg_nessuna_carta": "Nessuna carta da giocare con queste scelte.",
+    "gm_posizione": "Concetto {n} di {tot}",
+    "gm_gia_imparata": "Già imparata",
+    "gm_nessuna_partita": "Nessuna partita da riprendere.",
+    "gm_partita_finita": "Partita conclusa"
   },
   "fchub": {
     "home_titolo": "Flashcard",

@@ -4280,7 +4280,12 @@
     "app_note_ricche": "These notes have formatting: for now you read and edit them on the website.",
     "app_fissato": "Pinned",
     "app_icona_auto_sub": "From the name",
-    "app_media_sul_sito": "The pictures and sounds on this card show on the website for now."
+    "app_media_sul_sito": "The pictures and sounds on this card show on the website for now.",
+    "cg_nessuna_carta": "No cards to play with these choices.",
+    "gm_posizione": "Concept {n} of {tot}",
+    "gm_gia_imparata": "Already learnt",
+    "gm_nessuna_partita": "No game to resume.",
+    "gm_partita_finita": "Game finished"
   },
   "fchub": {
     "home_titolo": "Flashcards",

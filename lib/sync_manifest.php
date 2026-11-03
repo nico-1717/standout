@@ -14,7 +14,7 @@
      'tipo'  s=testo, i=intero, b=booleano, d=data, o=ora, e=enum, fk=chiave esterna, k=sort_key
      'solo_lettura' => true   il telefono lo riceve ma non lo scrive (lo decide il server)
      'solo_creazione' => true si scrive solo quando la riga nasce
-     'sql'   espressione calcolata (solo lettura): finisce nella SELECT cosi' com'e', alias «t» = la tabella
+     'sql'   espressione calcolata: finisce nella SELECT cosi' com'e', alias «t» = la tabella (si legge soltanto; scriverla spetta all'applier della tabella, che la traduce: es. max_card_uuid, target_uuid)
      'sistema' => true  (su un fk) la riga puntata puo' essere di sistema (user_id 0): vale per tutti
    Di una tabella:
      'sistema' => true          le righe con user_id 0 sono di tutti: arrivano a ogni utente, ma sola lettura
