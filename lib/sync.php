@@ -284,6 +284,21 @@ function sync_uuid_atteso(string $tbl, int $id): ?string {
         $r = sec_one("SELECT user_id, entry_date FROM habit_daily_journal WHERE id = ?", [$id]);
         return $r ? sync_uuid_diario((int)$r['user_id'], (string)$r['entry_date']) : null;
     }
+    if ($tbl === 'fc_study_learnt') {
+        // una imparata di una carta cancellata non ha un uuid da calcolare (e non viaggia)
+        $r = sec_one("SELECT l.user_id, l.is_child, COALESCE(c.uuid, s.uuid) AS tu FROM fc_study_learnt l
+                      LEFT JOIN fc_study_cards c ON l.is_child = 0 AND c.id = l.fc_image_id
+                      LEFT JOIN fc_study_subcards s ON l.is_child = 1 AND s.id_child = l.fc_image_id WHERE l.id = ?", [$id]);
+        return ($r && $r['tu'] !== null) ? sync_uuid_imparata((int)$r['user_id'], (string)$r['tu'], (int)$r['is_child']) : null;
+    }
+    if ($tbl === 'fc_study_records') {
+        $r = sec_one("SELECT user_id, kind FROM fc_study_records WHERE id = ?", [$id]);
+        return $r ? sync_uuid_record((int)$r['user_id'], (string)$r['kind']) : null;
+    }
+    if ($tbl === 'fc_settings' || $tbl === 'fc_goals') {
+        // la chiave primaria e' l'utente stesso
+        return sync_uuid_per_utente($tbl, $id);
+    }
     return null;
 }
 
@@ -295,11 +310,12 @@ function sync_uuid_atteso(string $tbl, int $id): ?string {
 function sync_dopo_insert_naturale(string $tbl, array $nat): array {
     $col = SYNC_MANIFESTO[$tbl]['proprietario'];
     $dove = implode(' AND ', array_map(fn($c) => "`$c` = ?", array_keys($nat)));
-    $r = sec_one("SELECT id, `$col` AS u, uuid AS g FROM `$tbl` WHERE $dove", array_values($nat));
+    $pk = sync_pk($tbl);
+    $r = sec_one("SELECT `$pk` AS id, `$col` AS u, uuid AS g FROM `$tbl` WHERE $dove", array_values($nat));
     if (!$r) return [];
     $atteso = sync_uuid_atteso($tbl, (int)$r['id']);
     if ($atteso !== null && $atteso !== $r['g']) {
-        mysqli_query(sec_db(), "UPDATE `$tbl` SET uuid = '" . mysqli_real_escape_string(sec_db(), $atteso) . "' WHERE id = " . (int)$r['id']);
+        mysqli_query(sec_db(), "UPDATE `$tbl` SET uuid = '" . mysqli_real_escape_string(sec_db(), $atteso) . "' WHERE `$pk` = " . (int)$r['id']);
         $r['g'] = $atteso;
     }
     return [[(int)$r['u'], $tbl, $r['g'], 'upsert']];

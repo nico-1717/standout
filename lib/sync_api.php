@@ -55,6 +55,24 @@ function sync_select_righe(string $tbl): string {
     return 'SELECT ' . implode(', ', $sel) . ' FROM `' . $tbl . '` t ' . implode(' ', $join);
 }
 
+/** L'uuid che una riga a chiave naturale, letta con sync_select_righe(), deve avere (UUIDv5 della sua chiave); null = non lo so dire. */
+function sync_uuid_atteso_riga(string $tbl, int $uid, array $r): ?string {
+    switch ($tbl) {
+        case 'habit_logs':                return sync_uuid_check_in((string)$r['habit_uuid'], (string)$r['log_date']);
+        case 'planner_weeks':             return sync_uuid_settimana($uid, (string)$r['week_start']);
+        case 'planner_week_lists':        return sync_uuid_lista_sett($uid, (string)$r['week_start'], (string)$r['list_type']);
+        case 'pomodoro_custom_durations': return sync_uuid_preset($uid, (string)$r['type'], (int)$r['minutes']);
+        case 'planner_priorities':        return sync_uuid_priorita($uid, (string)$r['priority_date'], (int)$r['position']);
+        case 'habit_daily_journal':       return sync_uuid_diario($uid, (string)$r['entry_date']);
+        case 'pill_doses':                return $r['plan_uuid'] !== null ? sync_uuid_presa((string)$r['plan_uuid'], (string)$r['due_date'], (string)$r['due_time'], (int)$r['seq']) : null;
+        case 'fc_study_learnt':           return $r['target_uuid'] !== null ? sync_uuid_imparata($uid, (string)$r['target_uuid'], (int)$r['is_child']) : null;
+        case 'fc_study_records':          return sync_uuid_record($uid, (string)$r['kind']);
+        case 'fc_settings':
+        case 'fc_goals':                  return sync_uuid_per_utente($tbl, $uid);
+    }
+    return null;
+}
+
 /** Le righe di una tabella, gia' nella forma del filo. $uuids = solo queste; $dopoId/$limite = pagina per id (copia completa). */
 function sync_leggi_righe(string $tbl, int $uid, ?array $uuids, int $dopoId = 0, int $limite = 0): array {
     if ($uuids !== null && !$uuids) return [];
@@ -85,15 +103,9 @@ function sync_leggi_righe(string $tbl, int $uid, ?array $uuids, int $dopoId = 0,
     if (!empty($man['chiave_naturale'])) {
         foreach ($righe as &$r) {
             // l'uuid atteso si ricava dalla riga stessa (niente query per riga: una copia completa ha migliaia di check-in)
-            $atteso = $tbl === 'habit_logs' ? sync_uuid_check_in((string)$r['habit_uuid'], (string)$r['log_date'])
-                : ($tbl === 'planner_weeks' ? sync_uuid_settimana($uid, (string)$r['week_start'])
-                : ($tbl === 'planner_week_lists' ? sync_uuid_lista_sett($uid, (string)$r['week_start'], (string)$r['list_type'])
-                : ($tbl === 'pomodoro_custom_durations' ? sync_uuid_preset($uid, (string)$r['type'], (int)$r['minutes'])
-                : ($tbl === 'planner_priorities' ? sync_uuid_priorita($uid, (string)$r['priority_date'], (int)$r['position'])
-                : ($tbl === 'habit_daily_journal' ? sync_uuid_diario($uid, (string)$r['entry_date'])
-                : ($tbl === 'pill_doses' && $r['plan_uuid'] !== null ? sync_uuid_presa((string)$r['plan_uuid'], (string)$r['due_date'], (string)$r['due_time'], (int)$r['seq']) : null))))));
+            $atteso = sync_uuid_atteso_riga($tbl, $uid, $r);
             if ($atteso !== null && $atteso !== $r['uuid']) {
-                mysqli_query(sec_db(), "UPDATE `$tbl` SET uuid = '" . mysqli_real_escape_string(sec_db(), $atteso) . "' WHERE id = " . (int)$r['_id']);
+                mysqli_query(sec_db(), "UPDATE `$tbl` SET uuid = '" . mysqli_real_escape_string(sec_db(), $atteso) . "' WHERE `" . sync_pk($tbl) . "` = " . (int)$r['_id']);
                 $r['uuid'] = $atteso;
             }
         }
@@ -382,6 +394,17 @@ function sync_applica(int $uid, array $m): array {
             case 'fc_study_decks':    $esito = sync_fc_mazzi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_study_cards':    $esito = sync_fc_carte_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_study_subcards': $esito = sync_fc_figlie_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_study_favorites': $esito = sync_fc_preferiti_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_study_learnt':   $esito = sync_fc_imparate_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_study_examples': $esito = sync_fc_esempi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_games':          $esito = sync_fc_partite_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_game_durations': $esito = sync_fc_durate_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_study_plays':    $esito = sync_fc_risposte_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_study_game_decks': $esito = sync_fc_mazzi_partita_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_study_sequence': $esito = sync_fc_sequenza_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_study_records':  $esito = sync_fc_record_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_settings':       $esito = sync_fc_impostazioni_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_goals':          $esito = sync_fc_obiettivo_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'pomodoro_custom_durations': $esito = sync_pomo_preset_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             default:                  $esito = sync_rifiuto('validation', 'table', 'Unknown table');
         }
@@ -460,3 +483,4 @@ require_once __DIR__ . '/sync_planner.php';
 require_once __DIR__ . '/sync_progetti.php';
 require_once __DIR__ . '/sync_voti.php';
 require_once __DIR__ . '/sync_flashcard.php';
+require_once __DIR__ . '/sync_flashcard2.php';

@@ -566,6 +566,164 @@ const SYNC_MANIFESTO = [
             'updated_at'     => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
+
+    // ---- flashcard di studio: preferiti, imparate, esempi, partite ----
+    // I preferiti: una carta (card_uuid) o una carta figlia (child_uuid) per riga. L'uuid e' casuale (il sito li scrive con
+    // «INSERT IGNORE» su una colonna o sull'altra): se telefono e sito preferiscono la stessa carta, vince l'uuid del telefono.
+    'fc_study_favorites' => [
+        'ordine'       => 210,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'card_uuid'      => ['tipo' => 'fk', 'col' => 'fc_image_id', 'tabella' => 'fc_study_cards', 'solo_creazione' => true],
+            'child_uuid'     => ['tipo' => 'fk', 'col' => 'fc_child_id', 'tabella' => 'fc_study_subcards', 'solo_creazione' => true],
+            'favorited_date' => ['tipo' => 'd', 'solo_creazione' => true],
+        ],
+    ],
+    // Le carte imparate: una per (utente, carta o carta figlia). La colonna fc_image_id vale per l'una o per l'altra
+    // secondo is_child: sul filo c'e' un solo uuid (target_uuid) piu' il flag. L'uuid e' UUIDv5 di utente + target + flag.
+    'fc_study_learnt' => [
+        'ordine'          => 211,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id', 'fc_image_id', 'is_child'],
+        // le imparate di carte cancellate (il sito le lascia) non servono a nessuno
+        'filtro'          => "is_child IN (0, 1) AND EXISTS (SELECT 1 FROM fc_study_cards xc WHERE t.is_child = 0 AND xc.id = t.fc_image_id UNION ALL SELECT 1 FROM fc_study_subcards xs WHERE t.is_child = 1 AND xs.id_child = t.fc_image_id)",
+        'campi' => [
+            'target_uuid'  => ['tipo' => 's', 'solo_creazione' => true, 'sql' => "COALESCE((SELECT xc.uuid FROM fc_study_cards xc WHERE t.is_child = 0 AND xc.id = t.fc_image_id), (SELECT xs.uuid FROM fc_study_subcards xs WHERE t.is_child = 1 AND xs.id_child = t.fc_image_id))"],
+            'is_child'     => ['tipo' => 'b', 'solo_creazione' => true],
+            'learnt_date'  => ['tipo' => 'd'],
+            'updated_at'   => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Gli esempi di una carta o di una carta figlia (le immagini e gli audio viaggiano nella coda dei media).
+    'fc_study_examples' => [
+        'ordine'           => 212,
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => "SELECT COALESCE((SELECT d.user_id FROM fc_study_cards c JOIN fc_study_decks d ON d.id = c.category_id WHERE c.id = {t}.parent_id), (SELECT d.user_id FROM fc_study_subcards s JOIN fc_study_cards c ON c.id = s.parent_id JOIN fc_study_decks d ON d.id = c.category_id WHERE s.id_child = {t}.child_id))",
+        'gruppo'           => [],
+        'campi' => [
+            'card_uuid'     => ['tipo' => 'fk', 'col' => 'parent_id', 'tabella' => 'fc_study_cards', 'solo_creazione' => true],
+            'child_uuid'    => ['tipo' => 'fk', 'col' => 'child_id', 'tabella' => 'fc_study_subcards', 'solo_creazione' => true],
+            'example_text'  => ['tipo' => 's'],
+            'example_image' => ['tipo' => 's', 'solo_lettura' => true],
+            'example_audio' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Le partite di studio (quelle di vocabolario entrano con le lingue). Una partita di ripasso (parent_uuid) ripete gli errori
+    // di un'altra. max_card_uuid e' la carta piu' nuova quando la partita e' partita: le carte create dopo sono «nuove».
+    'fc_games' => [
+        'ordine'       => 220,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'filtro'       => "kind = 'study'",
+        'campi' => [
+            'game_date'                 => ['tipo' => 's', 'solo_creazione' => true],
+            'score'                     => ['tipo' => 'n'],
+            'type'                      => ['tipo' => 's', 'solo_creazione' => true],
+            'card_status'               => ['tipo' => 's', 'solo_creazione' => true],
+            'parent_uuid'               => ['tipo' => 'fk', 'col' => 'parent_id', 'tabella' => 'fc_games', 'solo_creazione' => true],
+            'total_father_words'        => ['tipo' => 'i'],
+            'game_order'                => ['tipo' => 's'],
+            'total_words_with_children' => ['tipo' => 'i'],
+            'max_card_uuid'             => ['tipo' => 's', 'sql' => "(SELECT xc.uuid FROM fc_study_cards xc WHERE xc.id = t.max_card_id)"],
+        ],
+    ],
+    // Il tempo di gioco: una riga per ogni «sessione» della partita (si riprende dopo una pausa).
+    'fc_game_durations' => [
+        'ordine'           => 221,
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => 'SELECT g.user_id FROM fc_games g WHERE g.id = {t}.game_id',
+        'gruppo'           => [],
+        'filtro'           => "game_id IN (SELECT xg.id FROM fc_games xg WHERE xg.kind = 'study')",
+        'campi' => [
+            'game_uuid'        => ['tipo' => 'fk', 'col' => 'game_id', 'tabella' => 'fc_games', 'solo_creazione' => true],
+            'start_time'       => ['tipo' => 's', 'solo_creazione' => true],
+            'duration_seconds' => ['tipo' => 'i'],
+            'updated_at'       => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Le risposte: una per carta (o carta figlia) e posizione della partita. user_answer: Correct | Wrong | Titolo | NULL.
+    'fc_study_plays' => [
+        'ordine'           => 222,
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => 'SELECT g.user_id FROM fc_games g WHERE g.id = {t}.game_id',
+        'gruppo'           => [],
+        'filtro'           => "game_id IN (SELECT xg.id FROM fc_games xg WHERE xg.kind = 'study')",
+        'campi' => [
+            'game_uuid'      => ['tipo' => 'fk', 'col' => 'game_id', 'tabella' => 'fc_games', 'solo_creazione' => true],
+            'card_uuid'      => ['tipo' => 'fk', 'col' => 'fc_image_id', 'tabella' => 'fc_study_cards', 'solo_creazione' => true],
+            'child_uuid'     => ['tipo' => 'fk', 'col' => 'fc_child_id', 'tabella' => 'fc_study_subcards', 'solo_creazione' => true],
+            'correct_answer' => ['tipo' => 's'],
+            'user_answer'    => ['tipo' => 's'],
+            'position'       => ['tipo' => 'i', 'solo_creazione' => true],
+            'play_date'      => ['tipo' => 's'],
+        ],
+    ],
+    // I mazzi scelti per la partita e la sequenza delle carte (solo i padri: i figli seguono il padre).
+    'fc_study_game_decks' => [
+        'ordine'           => 223,
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => 'SELECT g.user_id FROM fc_games g WHERE g.id = {t}.game_id',
+        'gruppo'           => [],
+        'filtro'           => "game_id IN (SELECT xg.id FROM fc_games xg WHERE xg.kind = 'study')",
+        'campi' => [
+            'game_uuid'      => ['tipo' => 'fk', 'col' => 'game_id', 'tabella' => 'fc_games', 'solo_creazione' => true],
+            'deck_uuid'      => ['tipo' => 'fk', 'col' => 'fc_category_id', 'tabella' => 'fc_study_decks', 'solo_creazione' => true],
+            'category_order' => ['tipo' => 'i', 'solo_creazione' => true],
+        ],
+    ],
+    'fc_study_sequence' => [
+        'ordine'           => 224,
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => 'SELECT g.user_id FROM fc_games g WHERE g.id = {t}.game_id',
+        'gruppo'           => [],
+        'filtro'           => "game_id IN (SELECT xg.id FROM fc_games xg WHERE xg.kind = 'study')",
+        'campi' => [
+            'game_uuid' => ['tipo' => 'fk', 'col' => 'game_id', 'tabella' => 'fc_games', 'solo_creazione' => true],
+            'position'  => ['tipo' => 'i', 'solo_creazione' => true],
+            'card_uuid' => ['tipo' => 'fk', 'col' => 'fc_image_id', 'tabella' => 'fc_study_cards', 'solo_creazione' => true],
+        ],
+    ],
+    // I record (serie piu' lunga, ...): uno per (utente, tipo). UUIDv5 di utente + tipo.
+    'fc_study_records' => [
+        'ordine'          => 230,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id', 'kind'],
+        'campi' => [
+            'kind'        => ['tipo' => 's', 'solo_creazione' => true],
+            'value'       => ['tipo' => 'n'],
+            'game_uuid'   => ['tipo' => 'fk', 'col' => 'game_id', 'tabella' => 'fc_games'],
+            'achieved_at' => ['tipo' => 's'],
+            'updated_at'  => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Le impostazioni di studio e l'obiettivo giornaliero: una riga per utente (chiave primaria user_id), UUIDv5 di tabella + utente.
+    'fc_settings' => [
+        'ordine'          => 240,
+        'pk'              => 'user_id',
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id'],
+        'campi' => [
+            'vocab_meaning'  => ['tipo' => 'e'],
+            'vocab_examples' => ['tipo' => 'e'],
+            'voice_read'     => ['tipo' => 's'],
+            'updated_at'     => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    'fc_goals' => [
+        'ordine'          => 241,
+        'pk'              => 'user_id',
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id'],
+        'campi' => [
+            'daily_goal' => ['tipo' => 'i'],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
 ];
 
 /** UUIDv5: namespace fisso dell'app (lo stesso nell'app, vedi src/core/sync/uuid5). */
@@ -612,6 +770,21 @@ function sync_uuid_preset(int $uid, string $tipo, int $minuti): string {
 /** L'identita' del diario di un giorno: da utente + giorno. */
 function sync_uuid_diario(int $uid, string $giorno): string {
     return sync_uuid5('habit_daily_journal|' . $uid . '|' . $giorno);
+}
+
+/** L'identita' di una carta imparata: da utente + carta (o carta figlia) + flag. */
+function sync_uuid_imparata(int $uid, string $targetUuid, int $figlia): string {
+    return sync_uuid5('fc_study_learnt|' . $uid . '|' . $targetUuid . '|' . $figlia);
+}
+
+/** L'identita' di un record: da utente + tipo. */
+function sync_uuid_record(int $uid, string $tipo): string {
+    return sync_uuid5('fc_study_records|' . $uid . '|' . $tipo);
+}
+
+/** L'identita' di una riga per utente (impostazioni, obiettivo): da tabella + utente. */
+function sync_uuid_per_utente(string $tabella, int $uid): string {
+    return sync_uuid5($tabella . '|' . $uid);
 }
 
 /** Le tabelle sincronizzate, nell'ordine di dipendenza. */
