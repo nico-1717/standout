@@ -106,6 +106,8 @@
      PATCH  /api/v1/diary/settings        {font?, size?, paper?}
      GET    /api/v1/planner/settings      palette, zoom, ora d'inizio, viste, numero della prima settimana...
      PATCH  /api/v1/planner/settings      solo i campi inviati (gli stessi del sito, con errore 422 se sbagliati)
+     GET    /api/v1/pomodoro/settings     ultime durate scelte, stile del quadrante, pausa in corso
+     PATCH  /api/v1/pomodoro/settings     solo i campi inviati (current_break: null = pausa finita)
 
    Immagine di un articolo del to buy, fetta 8 — lib/shopping_img_api.php:
      POST   /api/v1/shopping/{id}/image   carica o sostituisce: multipart, campo «file» (jpg, png, webp, gif; max 4 MB)
@@ -772,6 +774,8 @@ api_v1_esegui([
     ['PATCH',  'diary/settings',    'api_h_diario_impostazioni_salva', ['accetta' => $tokenECookie]],
     ['GET',    'planner/settings',  'api_h_planner_impostazioni',       ['accetta' => $tokenECookie]],
     ['PATCH',  'planner/settings',  'api_h_planner_impostazioni_salva', ['accetta' => $tokenECookie]],
+    ['GET',    'pomodoro/settings', 'api_h_pomodoro_impostazioni',       ['accetta' => $tokenECookie]],
+    ['PATCH',  'pomodoro/settings', 'api_h_pomodoro_impostazioni_salva', ['accetta' => $tokenECookie]],
     /* Sincronizzazione con l'app (docs/ARCHITETTURA_APP.md §3.3): SOLO con il token, sono le rotte dell'app */
     ['POST',   'sync/push',         'api_h_sync_push',        ['accetta' => ['token']]],
     ['GET',    'sync/pull',         'api_h_sync_pull',        ['accetta' => ['token']]],

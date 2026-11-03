@@ -72,7 +72,7 @@ function sync_leggi_righe(string $tbl, int $uid, ?array $uuids, int $dopoId = 0,
         foreach ($righe as $r) {
             if ($r['sort_key'] === null && !$riprovato) {
                 $riprovato = true;
-                foreach (array_unique(array_column($righe, 'list_type') ?: ['']) as $l) sync_riallinea_gruppo($tbl, $uid, (string)$l);
+                foreach (sync_gruppi_toccati($tbl, $uid, null) as $l) sync_riallinea_gruppo($tbl, $uid, (string)$l);
                 return sync_leggi_righe($tbl, $uid, $uuids, $dopoId, $limite);
             }
         }
@@ -85,9 +85,10 @@ function sync_leggi_righe(string $tbl, int $uid, ?array $uuids, int $dopoId = 0,
             $atteso = $tbl === 'habit_logs' ? sync_uuid_check_in((string)$r['habit_uuid'], (string)$r['log_date'])
                 : ($tbl === 'planner_weeks' ? sync_uuid_settimana($uid, (string)$r['week_start'])
                 : ($tbl === 'planner_week_lists' ? sync_uuid_lista_sett($uid, (string)$r['week_start'], (string)$r['list_type'])
+                : ($tbl === 'pomodoro_custom_durations' ? sync_uuid_preset($uid, (string)$r['type'], (int)$r['minutes'])
                 : ($tbl === 'planner_priorities' ? sync_uuid_priorita($uid, (string)$r['priority_date'], (int)$r['position'])
                 : ($tbl === 'habit_daily_journal' ? sync_uuid_diario($uid, (string)$r['entry_date'])
-                : ($tbl === 'pill_doses' && $r['plan_uuid'] !== null ? sync_uuid_presa((string)$r['plan_uuid'], (string)$r['due_date'], (string)$r['due_time'], (int)$r['seq']) : null)))));
+                : ($tbl === 'pill_doses' && $r['plan_uuid'] !== null ? sync_uuid_presa((string)$r['plan_uuid'], (string)$r['due_date'], (string)$r['due_time'], (int)$r['seq']) : null))))));
             if ($atteso !== null && $atteso !== $r['uuid']) {
                 mysqli_query(sec_db(), "UPDATE `$tbl` SET uuid = '" . mysqli_real_escape_string(sec_db(), $atteso) . "' WHERE id = " . (int)$r['_id']);
                 $r['uuid'] = $atteso;
@@ -235,7 +236,11 @@ function sync_id_da_uuid(string $tbl, int $uid, string $uuid): ?int {
 function sync_applica_sort_key(string $tbl, int $uid, int $id, string $chiave): void {
     sec_q("UPDATE `$tbl` SET sort_key = ? WHERE id = ? AND user_id = ?", [$chiave, $id, $uid]);
     $lista = '';
-    if (in_array('list_type', SYNC_MANIFESTO[$tbl]['gruppo'], true)) {
+    if (!empty(SYNC_MANIFESTO[$tbl]['gruppo_padre'])) {
+        $c = SYNC_MANIFESTO[$tbl]['gruppo_padre'];
+        $r = sec_one("SELECT `$c` AS g FROM `$tbl` WHERE id = ?", [$id]) ?: [];
+        $lista = 'p:' . ($r['g'] ?? '');
+    } elseif (in_array('list_type', SYNC_MANIFESTO[$tbl]['gruppo'], true)) {
         $r = sec_one("SELECT list_type FROM `$tbl` WHERE id = ?", [$id]) ?: [];
         $lista = (string)($r['list_type'] ?? '');
     }
@@ -366,6 +371,9 @@ function sync_applica(int $uid, array $m): array {
             case 'planner_routines':  $esito = sync_prout_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'planner_routine_items': $esito = sync_pritem_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'planner_events':    $esito = sync_pevents_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'projects':          $esito = sync_prog_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'pomodoro_sessions': $esito = sync_pomo_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'pomodoro_custom_durations': $esito = sync_pomo_preset_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             default:                  $esito = sync_rifiuto('validation', 'table', 'Unknown table');
         }
         // una modifica rifiutata non deve lasciare mezze scritture
@@ -440,3 +448,4 @@ require_once __DIR__ . '/sync_abitudini.php';
 require_once __DIR__ . '/sync_diario.php';
 require_once __DIR__ . '/sync_pastiglie.php';   // dopo le funzioni di base che usa (sync_rifiuto, sync_id_da_uuid...)
 require_once __DIR__ . '/sync_planner.php';
+require_once __DIR__ . '/sync_progetti.php';

@@ -303,6 +303,66 @@ const SYNC_MANIFESTO = [
             'created_at' => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
+    // I progetti: un albero. Il colore si eredita dal padre finche' non e' scelto a mano (color_edited).
+    // I campi study_* li scrive il piano di studio del sito: il telefono li legge e basta (tranne la stima dei pomodori).
+    'projects' => [
+        'ordine'        => 140,
+        'proprietario'  => 'user_id',
+        'gruppo'        => ['user_id', 'parent_id'],
+        'gruppo_padre'  => 'parent_id',
+        'colonna_ordine' => 'custom_order',
+        'campi' => [
+            'parent_uuid'            => ['tipo' => 'fk', 'col' => 'parent_id', 'tabella' => 'projects'],
+            'name'                   => ['tipo' => 's'],
+            'notes'                  => ['tipo' => 's'],
+            'status'                 => ['tipo' => 'e'],
+            'color'                  => ['tipo' => 's'],
+            'color_edited'           => ['tipo' => 'b'],
+            'target_date'            => ['tipo' => 'd'],
+            'due_date'               => ['tipo' => 'd'],
+            'todo_enabled'           => ['tipo' => 'b'],
+            'is_favorite'            => ['tipo' => 'b'],
+            'sort_key'               => ['tipo' => 'k'],
+            'study_event_uuid'       => ['tipo' => 'fk', 'col' => 'study_event_id', 'tabella' => 'planner_events', 'solo_lettura' => true],
+            'study_start'            => ['tipo' => 'd', 'solo_lettura' => true],
+            'study_end'              => ['tipo' => 'd', 'solo_lettura' => true],
+            'study_pomodori_stimati' => ['tipo' => 'i'],
+            'study_ripasso_di_uuid'  => ['tipo' => 'fk', 'col' => 'study_ripasso_di', 'tabella' => 'projects', 'solo_lettura' => true],
+            'study_ripasso_n'        => ['tipo' => 'i', 'solo_lettura' => true],
+            'created_at'             => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at'             => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Le sessioni del Pomodoro (e del cronometro). Date e ore come le scrive il sito: 'AAAA-MM-GG HH:MM:SS'.
+    'pomodoro_sessions' => [
+        'ordine'       => 150,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'mode'                 => ['tipo' => 'i', 'solo_creazione' => true],
+            'start_time'           => ['tipo' => 's'],
+            'end_time'             => ['tipo' => 's'],
+            'status'               => ['tipo' => 's'],
+            'resume_time'          => ['tipo' => 's'],
+            'duration_seconds'     => ['tipo' => 'i'],
+            'planned_duration_min' => ['tipo' => 'i'],
+            'project_uuid'         => ['tipo' => 'fk', 'col' => 'project_id', 'tabella' => 'projects'],
+            'is_manual'            => ['tipo' => 'i'],
+            'updated_at'           => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Le durate che l'utente si e' salvato (25, 50, 90...): una riga per (tipo, minuti), identita' UUIDv5.
+    'pomodoro_custom_durations' => [
+        'ordine'          => 160,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id', 'type', 'minutes'],
+        'campi' => [
+            'type'       => ['tipo' => 'e', 'solo_creazione' => true],
+            'minutes'    => ['tipo' => 'i', 'solo_creazione' => true],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
     // Le priorita' del giorno: fino a 6 righe per giorno. Una riga = (giorno, posto): identita' UUIDv5 (come un check-in).
     'planner_priorities' => [
         'ordine'          => 105,
@@ -425,6 +485,11 @@ function sync_uuid_settimana(int $uid, string $lunedi): string {
 /** L'identita' di una lista della settimana: da utente + lunedi + tipo. */
 function sync_uuid_lista_sett(int $uid, string $lunedi, string $tipo): string {
     return sync_uuid5('planner_week_lists|' . $uid . '|' . $lunedi . '|' . $tipo);
+}
+
+/** L'identita' di una durata salvata del Pomodoro: da utente + tipo + minuti. */
+function sync_uuid_preset(int $uid, string $tipo, int $minuti): string {
+    return sync_uuid5('pomodoro_custom_durations|' . $uid . '|' . $tipo . '|' . $minuti);
 }
 
 /** L'identita' del diario di un giorno: da utente + giorno. */

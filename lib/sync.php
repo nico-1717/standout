@@ -223,7 +223,7 @@ function sync_osserva_dopo(array $pro, int $righeToccate, int $idInserito): void
         } else {
             $op = $pro['verbo'] === 'del' ? 'delete' : 'upsert';
             foreach ($pro['righe'] as $r) $voci[] = [(int)$r['u'], $tbl, $r['g'], $op];
-            if ($pro['verbo'] === 'upd' && preg_match('/\bsort_order\b/i', $pro['set'] ?? '')) {
+            if ($pro['verbo'] === 'upd' && preg_match('/\b' . sync_col_ordine($tbl) . '\b/i', $pro['set'] ?? '')) {
                 sync_ordine_da_riallineare($tbl, $pro['righe']);
             }
         }
@@ -257,6 +257,10 @@ function sync_uuid_atteso(string $tbl, int $id): ?string {
     if ($tbl === 'planner_priorities') {
         $r = sec_one("SELECT user_id, priority_date, position FROM planner_priorities WHERE id = ?", [$id]);
         return $r ? sync_uuid_priorita((int)$r['user_id'], (string)$r['priority_date'], (int)$r['position']) : null;
+    }
+    if ($tbl === 'pomodoro_custom_durations') {
+        $r = sec_one("SELECT user_id, type, minutes FROM pomodoro_custom_durations WHERE id = ?", [$id]);
+        return $r ? sync_uuid_preset((int)$r['user_id'], (string)$r['type'], (int)$r['minutes']) : null;
     }
     if ($tbl === 'habit_daily_journal') {
         $r = sec_one("SELECT user_id, entry_date FROM habit_daily_journal WHERE id = ?", [$id]);
@@ -334,13 +338,8 @@ function sync_riallinea_ordine(): void {
         foreach ($lavoro as $tbl => $perUtente) {
             $man = SYNC_MANIFESTO[$tbl];
             foreach ($perUtente as $uid => $uuids) {
-                // i gruppi toccati: per todos = lista (todo/buy) delle righe nominate
-                $gruppi = [''];
-                if (in_array('list_type', $man['gruppo'], true)) {
-                    $ph = implode(',', array_fill(0, count($uuids), '?'));
-                    $gruppi = array_column(sec_all("SELECT DISTINCT list_type AS l FROM `$tbl` WHERE user_id = ? AND uuid IN ($ph)",
-                                                   array_merge([$uid], array_keys($uuids))), 'l');
-                }
+                // i gruppi toccati: per todos = lista (todo/buy) delle righe nominate; per i progetti = il padre
+                $gruppi = sync_gruppi_toccati($tbl, (int)$uid, array_keys($uuids));
                 foreach ($gruppi as $g) sync_riallinea_gruppo($tbl, (int)$uid, $g);
             }
         }
@@ -351,10 +350,11 @@ function sync_riallinea_ordine(): void {
 
 /** Dentro un gruppo: se l'ordine per sort_key non e' quello per sort_order, si rifanno le chiavi (e si annota). */
 function sync_riallinea_gruppo(string $tbl, int $uid, string $lista): void {
-    $dove = 'user_id = ?'; $par = [$uid];
-    if ($lista !== '') { $dove .= ' AND list_type = ?'; $par[] = $lista; }
+    $par = [];
+    $dove = sync_gruppo_dove($tbl, $uid, $lista, $par);
     if (!empty(SYNC_MANIFESTO[$tbl]['filtro'])) $dove .= ' AND ' . SYNC_MANIFESTO[$tbl]['filtro'];
-    $righe = sec_all("SELECT id, uuid, sort_key FROM `$tbl` WHERE $dove ORDER BY sort_order, id", $par);
+    $oc = sync_col_ordine($tbl);
+    $righe = sec_all("SELECT id, uuid, sort_key FROM `$tbl` WHERE $dove ORDER BY `$oc`, id", $par);
     $voci = []; $ultima = null; $nuove = [];
     // 1) le voci senza chiave (create dal sito) e quelle fuori ordine
     $ok = true;
@@ -381,24 +381,68 @@ function sync_riallinea_gruppo(string $tbl, int $uid, string $lista): void {
  * Si annotano solo le voci il cui sort_order cambia davvero.
  */
 function sync_ordine_dal_sort_key(string $tbl, int $uid, string $lista, ?int $idRiga = null): void {
-    $dove = 'user_id = ?'; $par = [$uid];
-    if ($lista !== '') { $dove .= ' AND list_type = ?'; $par[] = $lista; }
+    $par = [];
+    $dove = sync_gruppo_dove($tbl, $uid, $lista, $par);
     // le voci che si ordinano dentro un padre (i passaggi di una routine, le voci di una lista): solo quel padre
-    foreach (SYNC_MANIFESTO[$tbl]['gruppo'] as $c) {
-        if ($c === 'user_id' || $c === 'list_type' || $idRiga === null) continue;
-        $r = sec_one("SELECT `$c` AS v FROM `$tbl` WHERE id = ?", [$idRiga]);
-        if ($r) { $dove .= " AND `$c` = ?"; $par[] = $r['v']; }
+    if (empty(SYNC_MANIFESTO[$tbl]['gruppo_padre'])) {
+        foreach (SYNC_MANIFESTO[$tbl]['gruppo'] as $c) {
+            if ($c === 'user_id' || $c === 'list_type' || $idRiga === null) continue;
+            $r = sec_one("SELECT `$c` AS v FROM `$tbl` WHERE id = ?", [$idRiga]);
+            if ($r) { $dove .= " AND `$c` = ?"; $par[] = $r['v']; }
+        }
     }
-    $righe = sec_all("SELECT id, uuid, sort_order FROM `$tbl` WHERE $dove ORDER BY sort_key, id", $par);
+    $oc = sync_col_ordine($tbl);
+    $righe = sec_all("SELECT id, uuid, `$oc` AS ord FROM `$tbl` WHERE $dove ORDER BY sort_key, id", $par);
     $conn = sec_db(); $voci = []; $n = 1;
     foreach ($righe as $r) {
-        if ((int)$r['sort_order'] !== $n) {
-            mysqli_query($conn, "UPDATE `$tbl` SET sort_order = " . $n . " WHERE id = " . (int)$r['id']);
+        if ((int)$r['ord'] !== $n) {
+            mysqli_query($conn, "UPDATE `$tbl` SET `$oc` = " . $n . " WHERE id = " . (int)$r['id']);
             $voci[] = [$uid, $tbl, $r['uuid'], 'upsert'];
         }
         $n++;
     }
     sync_scrivi_registro($voci);
+}
+
+/** La colonna con cui il SITO ordina questa tabella (sort_order, salvo diversa indicazione nel manifest). */
+function sync_col_ordine(string $tbl): string {
+    return SYNC_MANIFESTO[$tbl]['colonna_ordine'] ?? 'sort_order';
+}
+
+/**
+ * Il WHERE del gruppo che si ordina insieme. $lista: '' = tutto l'utente; per le tabelle con le liste (todo/buy) il
+ * list_type; per le tabelle ad albero ('gruppo_padre') «p:ID» = i figli di quel padre e «p:» = le radici.
+ */
+function sync_gruppo_dove(string $tbl, int $uid, string $lista, array &$par): string {
+    $dove = 'user_id = ?'; $par = [$uid];
+    $padre = SYNC_MANIFESTO[$tbl]['gruppo_padre'] ?? null;
+    if ($padre !== null) {
+        if ($lista === 'p:') $dove .= " AND `$padre` IS NULL";
+        elseif (strncmp($lista, 'p:', 2) === 0) { $dove .= " AND `$padre` = ?"; $par[] = (int)substr($lista, 2); }
+    } elseif ($lista !== '') { $dove .= ' AND list_type = ?'; $par[] = $lista; }
+    return $dove;
+}
+
+/** I gruppi (liste o padri) a cui appartengono le righe nominate, o tutti se $uuids e' null. */
+function sync_gruppi_toccati(string $tbl, int $uid, ?array $uuids): array {
+    $man = SYNC_MANIFESTO[$tbl];
+    $filtro = '';
+    $par = [$uid];
+    if ($uuids !== null) {
+        if (!$uuids) return [];
+        $filtro = ' AND uuid IN (' . implode(',', array_fill(0, count($uuids), '?')) . ')';
+        $par = array_merge($par, array_values($uuids));
+    }
+    if (!empty($man['gruppo_padre'])) {
+        $c = $man['gruppo_padre'];
+        $out = [];
+        foreach (sec_all("SELECT DISTINCT `$c` AS g FROM `$tbl` WHERE user_id = ?$filtro", $par) as $r) $out[] = 'p:' . ($r['g'] ?? '');
+        return $out ?: ['p:'];
+    }
+    if (in_array('list_type', $man['gruppo'], true)) {
+        return array_column(sec_all("SELECT DISTINCT list_type AS l FROM `$tbl` WHERE user_id = ?$filtro", $par), 'l');
+    }
+    return [''];
 }
 
 /* ---------- pulizia (a caso dentro push: l'hosting condiviso non e' detto abbia il cron) ---------- */
