@@ -4285,7 +4285,8 @@
     "gm_posizione": "Concetto {n} di {tot}",
     "gm_gia_imparata": "Già imparata",
     "gm_nessuna_partita": "Nessuna partita da riprendere.",
-    "gm_partita_finita": "Partita conclusa"
+    "gm_partita_finita": "Partita conclusa",
+    "app_audio_sul_sito": "I suoni di questa carta per ora si sentono sul sito."
   },
   "fchub": {
     "home_titolo": "Flashcard",

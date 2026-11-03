@@ -4285,7 +4285,8 @@
     "gm_posizione": "Concept {n} of {tot}",
     "gm_gia_imparata": "Already learnt",
     "gm_nessuna_partita": "No game to resume.",
-    "gm_partita_finita": "Game finished"
+    "gm_partita_finita": "Game finished",
+    "app_audio_sul_sito": "The sounds of this card can only be played on the website for now."
   },
   "fchub": {
     "home_titolo": "Flashcards",
