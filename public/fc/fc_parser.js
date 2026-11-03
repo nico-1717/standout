@@ -751,6 +751,145 @@ function fcdFromFences(text) {
     return out;
 }
 
+/* ================================================================
+   IMPORT DI TESTO RICCO (fc_insert.php, "importa JSON" / separatori)
+   ================================================================
+   Chi genera le schede con un'IA riceve testo che mescola tre cose:
+   - i comandi del sito: /bold{} /italic{} /underline{} /yellow{} /red{} ...
+     /mark-red{} (evidenziatore colorato) /list-blue{ - voce };
+   - blocchi di codice recintati: ```python ... ```;
+   - HTML e Markdown che le IA scrivono d'istinto: <u>, <mark>, <b>, <i>,
+     <span style="color:red">, **grassetto**, *corsivo*.
+   fcdImportaTesto() porta tutto nel documento nuovo. Ritorna la stringa JSON
+   del documento, oppure null quando non c'e' niente da convertire: in quel
+   caso chi chiama tiene il testo com'e', e l'import si comporta ESATTAMENTE
+   come prima per le schede che usano solo i comandi del sito. */
+
+/* I colori CSS (nome, #hex, rgb()) -> la chiave della tavolozza piu' vicina.
+   Nero, bianco e quasi-grigi molto scuri o chiari non sono "un colore": null. */
+var FCD_CSS_NOMI = { red: 'red', crimson: 'red', orange: 'orange', gold: 'gold', yellow: 'gold', green: 'green', lime: 'green',
+    teal: 'teal', cyan: 'teal', aqua: 'teal', turquoise: 'teal', blue: 'blue', navy: 'indigo', indigo: 'indigo',
+    purple: 'purple', violet: 'purple', magenta: 'pink', fuchsia: 'pink', pink: 'pink', brown: 'brown',
+    gray: 'gray', grey: 'gray', black: null, white: null };
+var FCD_CSS_RGB = { red: [255, 59, 48], orange: [255, 149, 0], gold: [217, 154, 0], green: [52, 199, 89], teal: [31, 169, 160],
+    blue: [0, 122, 255], indigo: [88, 86, 214], purple: [175, 82, 222], pink: [232, 56, 122], brown: [162, 132, 94], gray: [138, 138, 142] };
+function fcdColoreCss(v) {
+    v = String(v || '').trim().toLowerCase();
+    if (!v) return null;
+    if (Object.prototype.hasOwnProperty.call(FCD_CSS_NOMI, v)) return FCD_CSS_NOMI[v];
+    var r, g, b, m;
+    if ((m = /^#([0-9a-f]{3})$/.exec(v))) { r = parseInt(m[1][0] + m[1][0], 16); g = parseInt(m[1][1] + m[1][1], 16); b = parseInt(m[1][2] + m[1][2], 16); }
+    else if ((m = /^#([0-9a-f]{6})/.exec(v))) { r = parseInt(m[1].slice(0, 2), 16); g = parseInt(m[1].slice(2, 4), 16); b = parseInt(m[1].slice(4, 6), 16); }
+    else if ((m = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/.exec(v))) { r = +m[1]; g = +m[2]; b = +m[3]; }
+    else return null;
+    if (Math.max(r, g, b) < 60 || Math.min(r, g, b) > 215) return null;                 // nero / bianco
+    var migliore = null, minima = Infinity;
+    Object.keys(FCD_CSS_RGB).forEach(function (k) {
+        var c = FCD_CSS_RGB[k], d = (c[0] - r) * (c[0] - r) + (c[1] - g) * (c[1] - g) + (c[2] - b) * (c[2] - b);
+        if (d < minima) { minima = d; migliore = k; }
+    });
+    return migliore;
+}
+
+/* Lo sfondo di un <mark> o di uno <span>: il giallo (anche pallido) e' il
+   pennarello di sempre, qualunque altro colore e' quello piu' vicino. */
+function fcdColoreSfondo(v) {
+    var x = String(v || '').trim().toLowerCase(), m, r, g, b;
+    if (x === 'yellow') return 'yellow';
+    if ((m = /^#([0-9a-f]{6})/.exec(x))) { r = parseInt(m[1].slice(0, 2), 16); g = parseInt(m[1].slice(2, 4), 16); b = parseInt(m[1].slice(4, 6), 16); }
+    else if ((m = /^#([0-9a-f]{3})$/.exec(x))) { r = parseInt(m[1][0] + m[1][0], 16); g = parseInt(m[1][1] + m[1][1], 16); b = parseInt(m[1][2] + m[1][2], 16); }
+    else if ((m = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/.exec(x))) { r = +m[1]; g = +m[2]; b = +m[3]; }
+    if (r !== undefined && r > 200 && g > 170 && b < 170 && Math.abs(r - g) < 90) return 'yellow';
+    return fcdColoreCss(v);
+}
+
+/* L'HTML che le IA mettono nel testo -> i comandi del sito (che poi li legge
+   fcdFromLegacy). Solo i nomi di tag che si conoscono: un «a < b» in una
+   formula o in una frase non e' un tag e resta com'e'. Una pila ricorda
+   quante graffe aprire per ogni <span>/<font>/<mark>, cosi' ogni chiusura
+   ne chiude altrettante. */
+var FCD_HTML_RE = /<\/?(?:span|font|div|p|mark|u|ins|b|strong|i|em|br|ul|ol|li|code|pre|h[1-6])\b[^>]*>/gi;
+function fcdHaHtml(t) { FCD_HTML_RE.lastIndex = 0; return FCD_HTML_RE.test(t); }
+function fcdHtmlInComandi(t) {
+    var pila = [];
+    t = String(t).replace(/<\/?(?:span|font|div|p|mark|u|ins|b|strong|i|em|br|ul|ol|li|code|pre|h[1-6])\b[^>]*>/gi, function (tag) {
+        var chiusura = tag.charAt(1) === '/';
+        var nome = /^<\/?([a-z0-9]+)/i.exec(tag)[1].toLowerCase();
+        var ms = /style\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(tag);
+        var stile = ms ? (ms[1] != null ? ms[1] : ms[2]) : '';
+        function prop(nomeProp) { var mm = new RegExp('(?:^|;)\\s*' + nomeProp + '\\s*:\\s*([^;]+)', 'i').exec(stile); return mm ? mm[1].trim() : ''; }
+        if (nome === 'br') return '\n';
+        if (nome === 'p' || nome === 'div' || /^h[1-6]$/.test(nome) || nome === 'ul' || nome === 'ol') return chiusura ? '\n' : '';
+        if (nome === 'li') return chiusura ? '\n' : '\n- ';
+        if (nome === 'code' || nome === 'pre') return '';
+        if (chiusura) { var n = pila.pop(); return n ? new Array(n + 1).join('}') : ''; }
+        var apri = [];
+        if (nome === 'u' || nome === 'ins') apri.push('/underline{');
+        else if (nome === 'b' || nome === 'strong') apri.push('/bold{');
+        else if (nome === 'i' || nome === 'em') apri.push('/italic{');
+        else if (nome === 'mark') {
+            var sfondo = fcdColoreSfondo(prop('background-color') || prop('background'));
+            apri.push(sfondo ? '/mark-' + sfondo + '{' : '/mark{');
+        } else {   // span, font
+            var col = fcdColoreCss(prop('color') || (/color\s*=\s*"([^"]*)"/i.exec(tag) || [])[1] || '');
+            var bg = fcdColoreSfondo(prop('background-color') || prop('background'));
+            if (/font-weight\s*:\s*(bold|[6-9]00)/i.test(stile)) apri.push('/bold{');
+            if (/font-style\s*:\s*italic/i.test(stile)) apri.push('/italic{');
+            if (/text-decoration[^;]*underline/i.test(stile)) apri.push('/underline{');
+            if (col) apri.push('/' + col + '{');
+            if (bg) apri.push('/mark-' + bg + '{');
+        }
+        pila.push(apri.length);
+        return apri.join('');
+    });
+    while (pila.length && pila[pila.length - 1] === 0) pila.pop();
+    return t;
+}
+
+/* Il testo fuori dai recinti di codice. Se usa i comandi del sito il resto si
+   legge con il lettore dei comandi (i **grassetto** si trasformano in
+   comandi); se no, e' Markdown riga per riga, come l'incolla. */
+function fcdBlocchiDaTesto(t) {
+    t = fcdHtmlInComandi(t);
+    if (/\/(?:bold|italic|underline|yellow|mark|red|orange|gold|green|teal|blue|indigo|purple|pink|brown|gray|list)(?:-[a-zA-Z]+)?\{/.test(t)) {
+        var s = t.replace(/\*\*(?=\S)([^\n]+?)(?<=\S)\*\*/g, '/bold{$1}')
+                 .replace(/(?<![\w*])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![\w*])/g, '/italic{$1}');
+        return fcdFromLegacy(s).blocks;
+    }
+    return t.split('\n').map(fcdMdLine);
+}
+
+function fcdImportaTesto(testo) {
+    var t = String(testo == null ? '' : testo);
+    if (!t.trim()) return null;
+    if (t.charAt(0) === '{' && t.indexOf('"blocks"') !== -1) return null;          // e' gia' un documento
+    var haRecinti = /```/.test(t);
+    if (!haRecinti && !fcdHaHtml(t) && !/\*\*[^*\s][^*\n]*[^*\s]\*\*/.test(t)) return null;
+
+    var blocchi = [], re = /```([\w+#-]*)[ \t]*\n([\s\S]*?)(?:\n```|$)/g, last = 0, m;
+    var MAP = { py: 'python', python: 'python', python3: 'python', 'c++': 'cpp', cpp: 'cpp', c: 'c', java: 'java', javascript: 'js', js: 'js',
+        typescript: 'ts', ts: 'ts', sql: 'sql', html: 'html', css: 'css', bash: 'bash', sh: 'bash', shell: 'bash', json: 'json',
+        'c#': 'csharp', csharp: 'csharp', php: 'php' };
+    function testoLibero(x) {
+        x = x.replace(/^\n/, '').replace(/\n$/, '');
+        if (x.trim() === '') return;
+        fcdBlocchiDaTesto(x).forEach(function (b) { blocchi.push(b); });
+    }
+    while ((m = re.exec(t))) {
+        testoLibero(t.slice(last, m.index));
+        var lingua = MAP[(m[1] || '').toLowerCase()] || 'auto';
+        m[2].replace(/\n$/, '').split('\n').forEach(function (riga) {
+            var b = { t: 'p', runs: riga ? [{ s: riga }] : [] };
+            b.code = lingua;
+            blocchi.push(b);
+        });
+        last = re.lastIndex;
+    }
+    testoLibero(t.slice(last));
+    if (!blocchi.length) return null;
+    return fcdStringify({ v: 2, blocks: blocchi });
+}
+
 /* Un solo tasto per l'elenco: se i blocchi toccati sono gia' tutti punti,
    tornano paragrafi; altrimenti diventano punti. Come per il grassetto, non
    esiste un modo di "applicarlo due volte". */
@@ -1340,7 +1479,8 @@ function fcdParse(text) {
    qualcosa qui sbagliasse, il dato originale sarebbe ancora al suo posto. */
 function fcdFromLegacy(str) {
     var LEG_SIMPLE = { bold: 'b', italic: 'i', underline: 'u', yellow: 'h' };
-    var LEG_COLORS = ['red', 'blue', 'green', 'purple', 'orange', 'gray'];
+    var LEG_COLORS = ['red', 'blue', 'green', 'purple', 'orange', 'gray'];      // i sei dei pallini degli elenchi
+    var LEG_TEXT_COLORS = FCD_COLORS;                                         // per il testo: tutta la tavolozza (/teal{}, /pink{}...)
 
     var blocks = [];
     var cur = { t: 'p', runs: [] };
@@ -1399,11 +1539,26 @@ function fcdFromLegacy(str) {
                     i = k + 1;
                     continue;
                 }
+                /* /mark{...} = evidenziatore giallo, /mark-red{...} = evidenziatore
+                   colorato (solo import: il testo si legge e si riscrive nel
+                   formato nuovo, che sa gia' l'evidenziatore a colori). */
+                var mM = /^\/mark(-[a-zA-Z]+)?\{/.exec(s.slice(i));
+                if (mM) {
+                    var colM = mM[1] ? mM[1].slice(1).toLowerCase() : '';
+                    var cM = i + mM[0].length, dM = 1, kM = cM;
+                    while (kM < n && dM > 0) { if (s[kM] === '{') dM++; else if (s[kM] === '}') { dM--; if (!dM) break; } kM++; }
+                    flush();
+                    var sottoM = fcdCloneMarks(marks) || {};
+                    sottoM.h = (colM && FCD_COLORS.indexOf(colM) !== -1) ? colM : 1;
+                    walk(s.substring(cM, kM), sottoM, inLista);
+                    i = kM + 1;
+                    continue;
+                }
                 var mT = /^\/([a-zA-Z]+)\{/.exec(s.slice(i));
                 if (mT) {
                     var name = mT[1].toLowerCase();
                     var flag = LEG_SIMPLE[name];
-                    var isCol = LEG_COLORS.indexOf(name) !== -1;
+                    var isCol = LEG_TEXT_COLORS.indexOf(name) !== -1;
                     if (flag || isCol) {
                         var c1 = i + mT[0].length, d2 = 1, k2 = c1;
                         while (k2 < n && d2 > 0) { if (s[k2] === '{') d2++; else if (s[k2] === '}') { d2--; if (!d2) break; } k2++; }
@@ -2410,7 +2565,7 @@ function fcTypesetMath(elements) { return fcdTypesetMath(elements); }
 var FC_PALETTE = FCD_PALETTE;
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { fcdSembraCodice: fcdSembraCodice, fcdParse: fcdParse, fcdStringify: fcdStringify, fcdNorm: fcdNorm,
+    module.exports = { fcdImportaTesto: fcdImportaTesto, fcdHtmlInComandi: fcdHtmlInComandi, fcdSembraCodice: fcdSembraCodice, fcdParse: fcdParse, fcdStringify: fcdStringify, fcdNorm: fcdNorm,
         fcdTrim: fcdTrim, fcdTrimText: fcdTrimText,
         fcdToggleMark: fcdToggleMark, fcdSetMark: fcdSetMark, fcdRangeHas: fcdRangeHas,
         fcdToggleList: fcdToggleList, fcdIndent: fcdIndent, fcdSetListColor: fcdSetListColor,

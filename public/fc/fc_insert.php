@@ -2625,7 +2625,8 @@ if ($modo === 'edit') {
 
     if (!isCustom) {
 
-        rule4 = T('fc.ibf_regola_json');
+        // Il JSON accetta anche i blocchi di codice: la regola 5 lo dice all'IA
+        rule4 = T('fc.ibf_regola_json') + '\n' + T('fc.ibf_regola_codice');
 
                 
 
@@ -2637,7 +2638,8 @@ if ($modo === 'edit') {
 
 {"q": "${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}}", "a": "${T('fc.ibf_es_risposta1')}"},
 
-{"q": "${T('fc.ibf_es_formula_di')} $\\\\mu$?", "a": "${T('fc.ibf_es_la_risposta')}\\n$$\\\\frac{\\\\sigma}{\\\\sqrt{n}}$$\\n/red{${T('fc.ibf_es_attenzione')}}"}
+{"q": "${T('fc.ibf_es_formula_di')} $\\\\mu$?", "a": "${T('fc.ibf_es_la_risposta')}\\n$$\\\\frac{\\\\sigma}{\\\\sqrt{n}}$$\\n/red{${T('fc.ibf_es_attenzione')}}"},
+{"q": "${T('fc.ibf_es_codice_domanda')}", "a": "\`\`\`python\\nx = [1, 2, 3]\\n# ${T('fc.ibf_es_codice_commento')}\\nprint(sum(x))\\n\`\`\`\\n/bold{${T('fc.ibf_es_codice_output')}} 6"}
 
 ]`;
 
@@ -2860,6 +2862,18 @@ ${T('fc.ibf_es_domanda1')} /bold{${T('fc.ibf_es_importante')}} ${colSepVal} ${T(
         }
 
 
+
+        /* IMPORT DI TESTO RICCO (solo flashcard di studio): i blocchi di codice
+           ```python ... ``` e l'HTML o il Markdown che l'IA scrive d'istinto
+           (<u>, <mark>, <span style="color:red">, **grassetto**) diventano
+           il documento del sito. Chi usa solo i comandi /bold{} /red{}...
+           non e' toccato: fcdImportaTesto ritorna null e il testo resta com'e'. */
+        if (!FCV && typeof fcdImportaTesto === 'function') {
+            parsedData = parsedData.map(function (r) {
+                const q = fcdImportaTesto(r.q), a = fcdImportaTesto(r.a);
+                return { q: q !== null ? q : r.q, a: a !== null ? a : r.a };
+            });
+        }
 
         const maxRows = Math.max(filesQ.length, filesA.length, parsedData.length);
 
