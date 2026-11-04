@@ -4998,6 +4998,39 @@ function ftAggancioAggiorna() {
     });
     window.addEventListener('scroll', ftAggancioAggiorna, { passive: true, capture: true });
     window.addEventListener('resize', ftAggancioAggiorna);
+
+    /* RISINCRONIZZARE DOPO UNA SELEZIONE (iPhone)
+       Registro del 4 novembre: scorrendo normalmente la copia (fixed) sta al
+       suo posto; trascinando le maniglie della selezione, invece, iOS smette di
+       disegnare gli elementi fixed dove devono stare (l'intestazione scorreva
+       via con la pagina) e lo rimette a posto solo con un vero scorrimento o
+       quando la casella perde il fuoco. JS vede la copia al suo posto per
+       tutto il tempo (cl62F, mo:ok): e' il disegno che resta indietro.
+       Un vero scorrimento lo risolve, quindi a selezione finita se ne fa uno
+       minimo — un pixel giu' e subito indietro — che costringe iOS a
+       ricalcolare dove vanno i fixed. Solo su dispositivi a tocco, solo con
+       una selezione vera (non un cursore) e solo con la copia agganciata;
+       l'attesa evita di farlo mentre il dito sta ancora trascinando. */
+    var ftRisincT = null;
+    function ftRisincronizza() {
+        ftRisincT = null;
+        if (!FT_AGGANCIO.clone) return;
+        var sc = window.getSelection && window.getSelection();
+        if (!sc || sc.isCollapsed) return;
+        var y = window.pageYOffset, x = window.pageXOffset;
+        window.scrollBy(0, 1);
+        requestAnimationFrame(function () {
+            window.scrollTo(x, y);
+            ftAggancioAggiorna();
+        });
+    }
+    function ftRisincProgramma() {
+        if (!(navigator.maxTouchPoints > 0) || !FT_AGGANCIO.wrap) return;
+        if (ftRisincT) clearTimeout(ftRisincT);
+        ftRisincT = setTimeout(ftRisincronizza, 350);
+    }
+    document.addEventListener('selectionchange', ftRisincProgramma);
+    document.addEventListener('touchend', ftRisincProgramma, { passive: true, capture: true });
     /* Selezionando del testo, iPhone fa scorrere da solo la pagina per tenere
        visibile il bordo della selezione: la barra va riallineata subito. */
     document.addEventListener('selectionchange', function () {
