@@ -4424,6 +4424,24 @@ function ftViewportVisibile() {
 /* Tastiera (o zoom) aperta: il riquadro visibile e' piu' piccolo della
    finestra. Solo in quel caso la copia si posiziona nel documento invece che
    sullo schermo — vedi ftAggancioPosiziona. */
+/* MODO DOCUMENTO
+   Dal registro preso sull'iPhone (4 novembre): con la tastiera aperta Safari
+   NON dice niente a JavaScript — visualViewport.height resta uguale a
+   innerHeight, offsetTop resta 0, e ftTastieraAperta() qui sotto non scatta
+   mai. Eppure l'intestazione fissa e la copia della barra, che erano
+   position:fixed, scorrevano via INSIEME alla pagina, come se fossero
+   absolute. L'unico numero che dice la verita' e' lo scorrimento vero
+   (pageYOffset), quindi su un dispositivo a tocco, mentre si scrive in una
+   casella, la copia vive nel DOCUMENTO (absolute, a scorrimento + cima) e non
+   sullo schermo: segue la pagina per costruzione, qualunque cosa Safari
+   faccia con "fixed". */
+function ftModoDocumento() {
+    if (ftTastieraAperta()) return true;
+    if (!(navigator.maxTouchPoints > 0) || !FT_AGGANCIO || !FT_AGGANCIO.wrap) return false;
+    var att = document.activeElement;
+    return !!(att && (att.isContentEditable || /^(INPUT|TEXTAREA)$/.test(att.tagName)) && FT_AGGANCIO.wrap.contains(att));
+}
+
 function ftTastieraAperta() {
     var vv = window.visualViewport;
     if (!vv) return false;
@@ -4629,7 +4647,7 @@ function ftAggancioSegui() {
     if (!FT_AGGANCIO.wrap) { FT_SEGUE = false; return; }
     var vv = window.visualViewport;
     var k = (vv ? vv.offsetTop + '|' + vv.offsetLeft + '|' + vv.pageTop + '|' + vv.height + '|' + vv.scale : '') +
-            '|' + window.pageYOffset + '|' + window.innerHeight;
+            '|' + window.pageYOffset + '|' + window.innerHeight + '|' + (ftModoDocumento() ? 1 : 0);
     if (k !== FT_SEGUE_CHIAVE) { FT_SEGUE_CHIAVE = k; ftAggancioAggiorna(); }
     requestAnimationFrame(ftAggancioSegui);
 }
@@ -4640,7 +4658,7 @@ function ftAggancioSuCasella(wrap) {
     var toolbar = ftBarra(wrap);
     if (!toolbar) return;
     FT_AGGANCIO = { wrap: wrap, toolbar: toolbar, portale: null, clone: null,
-                    contenitori: [], barre: [], z: 1000 };
+                    contenitori: [], barre: [], z: 1000, syRef: window.pageYOffset };
     /* Contenitori, barre e z-index si raccolgono qui, a ogni casella su cui ci
        si mette: fra una e l'altra puo' essere cambiato tutto il contorno —
        una casella dentro un popup ha sopra di se' cose completamente diverse
@@ -4756,7 +4774,7 @@ function ftDebugAvvia() {
             ' sy' + Math.round(window.pageYOffset) + ' se' + Math.round(se.scrollTop) +
             ' ot' + Math.round(vv.offsetTop || 0) + ' pt' + Math.round(vv.pageTop || 0) +
             ' vh' + Math.round(vv.height || 0) + '/' + window.innerHeight +
-            ' k' + (ftTastieraAperta() ? 1 : 0) + ' w' + (a.wrap ? 1 : 0) +
+            ' k' + (ftTastieraAperta() ? 1 : 0) + ' d' + (ftModoDocumento() ? 1 : 0) + ' w' + (a.wrap ? 1 : 0) +
             ' cl' + (c ? Math.round(c.top) + (a.clone.style.position === 'absolute' ? 'A' : 'F') : '-') +
             ' mo:' + (u ? u.motivo : '-') + (u ? ' so' + Math.round(u.soglia) + ' bt' + Math.round(u.bt) : '') +
             ' sel' + sel + ' hd' + hr + ' sc:' + ultimoScroll);
@@ -4780,7 +4798,7 @@ function ftDebugAvvia() {
         box.id = 'ft-debug-log';
         box.style.cssText = 'margin:70px 4px 8px;padding:6px;font:9px/1.25 monospace;background:#fff59d;color:#000;' +
                             'border-radius:6px;white-space:pre-wrap;word-break:break-all;max-height:55vh;overflow:auto';
-        box.textContent = 'ftdebug v5 - REGISTRO PRECEDENTE (' + (prec ? prec.split('\n').length : 0) + ' righe)\n' + (prec || '(vuoto)');
+        box.textContent = 'ftdebug v6 - REGISTRO PRECEDENTE (' + (prec ? prec.split('\n').length : 0) + ' righe)\n' + (prec || '(vuoto)');
         document.body.insertBefore(box, document.body.firstChild);
     }
     mostraPrecedente();
@@ -4828,7 +4846,7 @@ if (ftDebugAttivo() && !window.__ftDebugAvviato) { window.__ftDebugAvviato = tru
    segue la pagina per un attimo prima di essere riallineata. */
 function ftAggancioPosiziona(a, r, soglia) {
     var c = a.clone;
-    if (!ftTastieraAperta()) {
+    if (!ftModoDocumento()) {
         c.style.position = '';           // torna al fixed del foglio di stile
         c.style.left = r.left + 'px';
         c.style.width = r.width + 'px';
@@ -4854,7 +4872,7 @@ function ftAggancioAggiorna() {
     var a = FT_AGGANCIO;
     if (!a.wrap || !document.body.contains(a.wrap)) { ftAggancioStacca(); return; }
 
-    var tastiera = ftTastieraAperta();
+    var tastiera = ftModoDocumento();
     var m;
     if (tastiera) {
         /* CON LA TASTIERA APERTA NIENTE REGOLE DI "SPARISCI"
@@ -4866,7 +4884,13 @@ function ftAggancioAggiorna() {
            l'originale non si vede: la cima e' il bordo del riquadro visibile
            (sotto l'intestazione, se c'e'), il fondo e' il bordo del riquadro. */
         var visT = ftViewportVisibile();
-        m = { soglia: Math.max(ftScanInCache(a), visT.top) + 6, limite: visT.bottom };
+        /* L'intestazione fissa, con la tastiera aperta, scorre via con la
+           pagina: era in cima quando la tastiera e' comparsa (scorrimento
+           a.syRef), quindi ogni pixel scorso da allora la porta un pixel piu'
+           su. La copia le sta sotto solo finche' si vede ancora. */
+        var scan = ftScanInCache(a);
+        var intestaz = Math.max(0, Math.min(scan, (a.syRef || 0) - window.pageYOffset + scan));
+        m = { soglia: Math.max(intestaz, visT.top) + 6, limite: visT.bottom };
     } else {
         m = ftAggancioMisure(a);
     }
