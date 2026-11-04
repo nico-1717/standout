@@ -17,6 +17,17 @@
 (function () {
     'use strict';
 
+    /* Interruttore della diagnostica della barra di formattazione (riquadro
+       giallo, vedi ftDebugAvvia in format_toolbar.php). Su iPhone non c'e' una
+       console e la pagina dove serve (la modifica di una carta) ha un indirizzo
+       diverso da quella da cui si arriva: scrivere ?ftdebug=1 in una pagina
+       qualunque lo ricorda nel browser; ?ftdebug=0 lo spegne. Sta qui perche'
+       questo file e' caricato da tutte le pagine delle flashcard. */
+    try {
+        var _fd = /[?&]ftdebug=([01])/.exec(location.search);
+        if (_fd) { if (_fd[1] === '1') localStorage.setItem('ftdebug', '1'); else localStorage.removeItem('ftdebug'); }
+    } catch (e) { /* storage non disponibile: resta valido solo ?ftdebug=1 nella pagina stessa */ }
+
     /* Cartella pubblica del sito, ricavata dall'indirizzo di questo file
        (_assets/js/standout_fetch.js): vale uguale da qualunque pagina. */
     var BASE = (function () {
