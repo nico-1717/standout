@@ -604,6 +604,28 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
     position:fixed; top:6px; z-index:1000;
 }
 
+/* FINESTRA SCORREVOLE (04/11/2026, solo dispositivi a tocco, proposta approvata)
+   Su iPhone, con la tastiera aperta e il dito sulle maniglie di una
+   selezione, iOS non disegna piu' gli elementi fixed dove devono stare, e la
+   barra agganciata allo schermo spariva (vedi ftAggancioAvvia). Qui la
+   casella attiva diventa una finestra di altezza limitata che scorre DENTRO
+   se stessa, con la barra incollata (sticky) in cima: la barra e' parte della
+   finestra, quindi non puo' uscire dallo schermo, e lo scorrimento (anche
+   quello automatico della selezione) e' quello normale di un riquadro.
+   Per tornare a com'era: FT_FINESTRA = false piu' in basso, oppure annullare il
+   commit "Format toolbar: scrolling frame". */
+.fmt-editor-wrap.fmt-finestra{
+    max-height:var(--ft-finestra, 300px);
+    overflow-y:auto; overflow-x:hidden;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    border-radius:var(--r-field,13px);
+}
+.fmt-editor-wrap.fmt-finestra .fmt-toolbar{
+    position:sticky; top:0; z-index:5;
+    box-shadow:inset 0 0 0 .5px var(--hairline,rgba(60,60,67,.12)), 0 8px 10px -8px rgba(0,0,0,.45);
+}
+
 /* La copia in sovraimpressione vive qui, in fondo al body. Non e' un vezzo:
    position:fixed si misura dallo schermo solo finche' nessun antenato ha una
    trasformazione, un filtro o un will-change:transform — basta uno solo di
@@ -4889,9 +4911,33 @@ function ftAggancioPosiziona(a, r, soglia) {
     c.style.top = (soglia + window.pageYOffset - oy) + 'px';
 }
 
+/* INTERRUTTORE della finestra scorrevole: true = attiva (solo a tocco),
+   false = tutto come prima della modifica. */
+var FT_FINESTRA = true;
+function ftFinestraPossibile() {
+    return FT_FINESTRA && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+}
+/* Porta la finestra appena sotto l'intestazione, sopra la tastiera: la
+   tastiera e l'autoscroll di iOS si assestano in 300-600 ms, quindi si
+   riallinea due volte. */
+function ftFinestraPorta(wrap) {
+    function vai() {
+        if (!wrap.classList.contains('fmt-finestra')) return;
+        var bar = wrap.querySelector('.fmt-toolbar');
+        var alto = (bar ? ftSogliaDalloSchermo(bar) : 0) + 8;
+        var dy = wrap.getBoundingClientRect().top - alto;
+        if (Math.abs(dy) > 2) window.scrollBy(0, dy);
+    }
+    setTimeout(vai, 380);
+    setTimeout(vai, 900);
+}
+
 function ftAggancioAggiorna() {
     var a = FT_AGGANCIO;
     if (!a.wrap || !document.body.contains(a.wrap)) { ftAggancioStacca(); return; }
+    /* Nella finestra scorrevole la barra e' gia' incollata dentro la casella:
+       la copia sullo schermo non serve (e' proprio lei che iOS perdeva). */
+    if (a.wrap.classList.contains('fmt-finestra')) { ftAggancioTogliClone(a); return; }
 
     var tastiera = ftModoDocumento();
     var m;
@@ -4982,6 +5028,16 @@ function ftAggancioAggiorna() {
             if (altro !== wrap) altro.classList.remove('fmt-attiva');
         });
         wrap.classList.add('fmt-attiva');
+        if (ftFinestraPossibile()) {
+            document.querySelectorAll('.fmt-editor-wrap.fmt-finestra').forEach(function (altro) {
+                if (altro !== wrap) { altro.classList.remove('fmt-finestra'); altro.scrollTop = 0; }
+            });
+            if (!wrap.classList.contains('fmt-finestra')) {
+                wrap.style.setProperty('--ft-finestra', Math.round(Math.min((window.innerHeight || 700) * 0.46, 360)) + 'px');
+                wrap.classList.add('fmt-finestra');
+                ftFinestraPorta(wrap);
+            }
+        }
         ftAggancioSuCasella(wrap);
     });
     document.addEventListener('focusout', function (e) {
@@ -4993,7 +5049,14 @@ function ftAggancioAggiorna() {
                della barra, si passa sempre da un istante in cui non e' di
                nessuno. */
             if (FT_AGGANCIO.wrap && !ftFuocoAncoraQui(FT_AGGANCIO.wrap)) ftAggancioStacca();
-            if (wrap && !ftFuocoAncoraQui(wrap)) wrap.classList.remove('fmt-attiva');
+            if (wrap && !ftFuocoAncoraQui(wrap)) {
+                wrap.classList.remove('fmt-attiva');
+                if (wrap.classList.contains('fmt-finestra')) {
+                    wrap.classList.remove('fmt-finestra');
+                    wrap.style.removeProperty('--ft-finestra');
+                    wrap.scrollTop = 0;
+                }
+            }
         }, 0);
     });
     window.addEventListener('scroll', ftAggancioAggiorna, { passive: true, capture: true });
