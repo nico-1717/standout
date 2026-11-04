@@ -4709,9 +4709,84 @@ function ftDebugAttivo() {
     } catch (e) { return /[?&]ftdebug=1/.test(location.search); }
 }
 function ftDebugAvvia() {
-    var errori = [];
-    window.addEventListener('error', function (e) { errori.push((e.message || 'errore') + ' @' + (e.lineno || '?')); });
-    window.addEventListener('unhandledrejection', function (e) { errori.push('promise: ' + (e.reason && e.reason.message || e.reason)); });
+    /* IL REGISTRO. Il riquadro in sovraimpressione non basta: su iPhone, con la
+       selezione che fa scorrere la pagina, sparisce anche lui (si posiziona con
+       gli stessi numeri che sono sbagliati). Allora si REGISTRA cosa succede nel
+       tempo — a ogni cambiamento, con l'orologio — e lo si legge dopo, ricaricando
+       la pagina: in cima compare, in un riquadro normale (non sovrapposto, quindi
+       sempre visibile), il registro della sessione precedente. */
+    var t0 = Date.now(), righe = [], ultimaChiave = '', ultimoScroll = '-', errori = 0;
+    var prec = '';
+    try {
+        prec = localStorage.getItem('ftdebug_log') || '';
+    } catch (e) {}
+
+    function chi(n) {
+        if (!n) return '?';
+        if (n === document || n === document.documentElement) return 'doc';
+        if (n === document.body) return 'body';
+        return (n.tagName || '?').toLowerCase() + (n.id ? '#' + n.id : '') +
+               (n.className && typeof n.className === 'string' ? '.' + n.className.trim().split(/\s+/)[0] : '');
+    }
+    function aggiungi(r) {
+        righe.push(r);
+        if (righe.length > 70) righe.shift();
+        try { localStorage.setItem('ftdebug_log', righe.join('\n')); } catch (e) {}
+    }
+    window.addEventListener('error', function (e) { errori++; aggiungi('!! ERRORE ' + (e.message || '?') + ' @' + (e.lineno || '?')); });
+    window.addEventListener('unhandledrejection', function (e) { aggiungi('!! promise ' + (e.reason && e.reason.message || e.reason)); });
+    window.addEventListener('scroll', function (e) { ultimoScroll = chi(e.target); }, { capture: true, passive: true });
+
+    function istantanea(ev) {
+        var a = FT_AGGANCIO, vv = window.visualViewport || {}, u = FT_ULTIMO, sel = '-';
+        try {
+            var sc = window.getSelection();
+            if (sc && sc.rangeCount) { var rr = sc.getRangeAt(0).getBoundingClientRect(); sel = Math.round(rr.top) + '/' + Math.round(rr.bottom); }
+        } catch (e) {}
+        var c = (a.clone && a.clone.getBoundingClientRect) ? a.clone.getBoundingClientRect() : null;
+        var se = document.scrollingElement || document.documentElement;
+        var hd = document.querySelector('header, .fc-tb, .sticky-header, [class*="topbar"]');
+        var hr = hd ? Math.round(hd.getBoundingClientRect().top) : '-';
+        var chiave = [a.wrap ? 1 : 0, a.clone ? 1 : 0, ftTastieraAperta() ? 1 : 0, u ? u.motivo : '-',
+                      Math.round(window.pageYOffset / 25), Math.round((vv.offsetTop || 0) / 25), Math.round((vv.pageTop || 0) / 25),
+                      Math.round((vv.height || 0) / 25), c ? Math.round(c.top / 25) : '-'].join('|');
+        if (chiave === ultimaChiave) return;
+        ultimaChiave = chiave;
+        aggiungi(((Date.now() - t0) / 1000).toFixed(1) + ' ' + ev +
+            ' sy' + Math.round(window.pageYOffset) + ' se' + Math.round(se.scrollTop) +
+            ' ot' + Math.round(vv.offsetTop || 0) + ' pt' + Math.round(vv.pageTop || 0) +
+            ' vh' + Math.round(vv.height || 0) + '/' + window.innerHeight +
+            ' k' + (ftTastieraAperta() ? 1 : 0) + ' w' + (a.wrap ? 1 : 0) +
+            ' cl' + (c ? Math.round(c.top) + (a.clone.style.position === 'absolute' ? 'A' : 'F') : '-') +
+            ' mo:' + (u ? u.motivo : '-') + (u ? ' so' + Math.round(u.soglia) + ' bt' + Math.round(u.bt) : '') +
+            ' sel' + sel + ' hd' + hr + ' sc:' + ultimoScroll);
+    }
+    /* Due motori di campionamento: un intervallo (continua anche se i
+       fotogrammi si fermano) e gli eventi veri, per prendere l'istante giusto. */
+    setInterval(function () { try { istantanea('t'); } catch (e) { aggiungi('!! ' + e.message); } }, 200);
+    ['scroll', 'resize'].forEach(function (n) {
+        if (window.visualViewport) window.visualViewport.addEventListener(n, function () { try { istantanea('vv' + n[0]); } catch (e) {} });
+    });
+    document.addEventListener('selectionchange', function () { try { istantanea('sel'); } catch (e) {} });
+    document.addEventListener('focusin', function () { try { istantanea('fi'); } catch (e) {} });
+    document.addEventListener('focusout', function () { try { istantanea('fo'); } catch (e) {} });
+
+    /* Il registro della sessione PRECEDENTE, in cima alla pagina, nel flusso
+       normale. Dopo aver letto, basta non ricaricare di nuovo: ogni caricamento
+       sostituisce il registro vecchio con quello della sessione che finisce. */
+    function mostraPrecedente() {
+        if (!document.body) { document.addEventListener('DOMContentLoaded', mostraPrecedente); return; }
+        var box = document.createElement('pre');
+        box.id = 'ft-debug-log';
+        box.style.cssText = 'margin:70px 4px 8px;padding:6px;font:9px/1.25 monospace;background:#fff59d;color:#000;' +
+                            'border-radius:6px;white-space:pre-wrap;word-break:break-all;max-height:55vh;overflow:auto';
+        box.textContent = 'ftdebug v5 - REGISTRO PRECEDENTE (' + (prec ? prec.split('\n').length : 0) + ' righe)\n' + (prec || '(vuoto)');
+        document.body.insertBefore(box, document.body.firstChild);
+    }
+    mostraPrecedente();
+    /* La sessione nuova parte da zero (il vecchio registro e' gia' in prec). */
+    try { localStorage.setItem('ftdebug_log', ''); } catch (e) {}
+
     var d = null;
     function ciclo() {
         if (!d) {
@@ -4734,7 +4809,7 @@ function ftDebugAvvia() {
             (u ? 'soglia ' + Math.round(u.soglia) + ' limite ' + Math.round(u.limite) + ' barra top ' + Math.round(u.bt) + ' h ' + Math.round(u.bh) +
                  ' wrap ' + Math.round(u.wt) + '..' + Math.round(u.wb) + '\n' : '') +
             'clone top ' + (c ? Math.round(c.top) : '-') + ' pos ' + (a.clone ? a.clone.style.position || 'fixed' : '-') +
-            (errori.length ? '\nERRORI: ' + errori.slice(-3).join(' | ') : '');
+            (errori ? '\nERRORI: ' + errori + ' (vedi il registro)' : '');
         var pt = (typeof vv.pageTop === 'number') ? vv.pageTop : window.pageYOffset;
         d.style.top = (pt + 90) + 'px';
         requestAnimationFrame(ciclo);
