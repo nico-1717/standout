@@ -2721,6 +2721,30 @@ function ftRender(wrap, doc, caret) {
     ftSync(wrap, doc);
 }
 
+/* A capo dentro lo stesso punto elenco (senza pallino nuovo), usato sia dal
+   pulsante sia da Maiusc+Invio: un solo percorso, cosi' i due si comportano
+   identici. Dopo il <br> la riga nuova comincia con un carattere invisibile
+   (vedi fcdRunHTML); il cursore va messo DOPO quel carattere e non prima:
+   su iPad/iPhone (WebKit) la posizione "inizio del carattere invisibile
+   subito dopo un <br>" viene riportata in fondo alla riga di sopra, e il
+   cursore si disegnava a meta' dell'ultima lettera della riga precedente
+   invece che all'inizio di quella nuova. Dopo il carattere invisibile e'
+   un punto normale di una riga normale, senza ambiguita'. */
+function ftACapoNelPunto(wrap) {
+    ftCmd(wrap, function (d, s) { return fcdInsertSoftBreak(d, s); });
+    var ed = ftEditor(wrap);
+    var sel = window.getSelection ? window.getSelection() : null;
+    if (!sel || !sel.rangeCount || !sel.isCollapsed) return;
+    var n = sel.anchorNode;
+    if (n && n.nodeType === 3 && sel.anchorOffset === 0 && n.nodeValue.charAt(0) === '\u200B'
+        && n.previousSibling && n.previousSibling.nodeType === 1 && n.previousSibling.tagName === 'BR'
+        && ed.contains(n)) {
+        var r = document.createRange();
+        r.setStart(n, 1); r.collapse(true);
+        sel.removeAllRanges(); sel.addRange(r);
+    }
+}
+
 /* Ogni comando passa di qui. La funzione riceve (documento, selezione) e
    restituisce il documento nuovo, eventualmente con dove mettere il cursore.
    Un solo posto in cui si legge, si applica e si ridisegna: se il cursore
@@ -4407,7 +4431,38 @@ function ftSogliaDalloSchermo(toolbar) {
    finestra grande, non da quello che si vede: con top:6px la copia della barra
    finiva sopra il bordo visibile, cioe' c'era ma non si vedeva. Su PC i due
    riquadri coincidono e il risultato e' quello di sempre (top 0). */
+/* La finestra "vera" quando questa pagina vive dentro un iframe (il popup di
+   modifica carta e' un iframe): e' LEI che la tastiera di iOS sposta e
+   rimpicciolisce, non l'iframe. Dentro, visualViewport dice sempre "tutto
+   visibile, nessuna tastiera" (o, peggio, qualcosa di sensato solo per caso).
+   Stessa origine, quindi si puo' leggere; se non si puo' (altra origine) si
+   torna alla finestra stessa. Restituisce null quando non siamo in un iframe. */
+function ftFinestraAlta() {
+    try {
+        if (window.top && window.top !== window) {
+            void window.top.document;           // lancia se e' di un'altra origine
+            return window.top;
+        }
+    } catch (e) { /* altra origine: niente */ }
+    return null;
+}
+
 function ftViewportVisibile() {
+    var alta = ftFinestraAlta();
+    if (alta && alta.visualViewport) {
+        /* Dentro l'iframe: il riquadro visibile e' quello della finestra alta,
+           espresso nelle coordinate dell'iframe (si toglie dove comincia
+           l'iframe sulla finestra alta). Cosi' la cima e il fondo sono quelli
+           che l'occhio vede davvero, anche se la tastiera ha spostato tutto il
+           popup verso l'alto. */
+        var vvA = alta.visualViewport;
+        var ptA = (typeof vvA.pageTop === 'number') ? vvA.pageTop - alta.pageYOffset : vvA.offsetTop;
+        var fy = 0;
+        try { fy = window.frameElement ? window.frameElement.getBoundingClientRect().top : 0; } catch (e) { fy = 0; }
+        var topA = Math.max(0, ptA - fy);
+        var botA = Math.min(window.innerHeight || 800, ptA + vvA.height - fy);
+        return { top: topA, bottom: botA };
+    }
     var vv = window.visualViewport;
     if (!vv) return { top: 0, bottom: window.innerHeight };
     /* Il bordo alto si ricava da pageTop (dove sta il riquadro visibile nel
@@ -4438,14 +4493,27 @@ function ftModoDocumento() {
 }
 
 function ftTastieraAperta() {
-    var vv = window.visualViewport;
+    /* In un iframe (popup di modifica) la tastiera si misura sulla finestra
+       alta: il vv dell'iframe e' piu' basso dello schermo solo perche' il
+       popup e' piu' basso dello schermo, e scambiarlo per "tastiera aperta"
+       faceva scattare, sempre, le regole da tastiera (vedi ftAggancioAggiorna)
+       — su iPad la copia si piazzava cosi' sopra l'intestazione del popup. */
+    var w = ftFinestraAlta() || window;
+    var vv = w.visualViewport;
     if (!vv) return false;
-    if (vv.height < (window.innerHeight || 0) - 80) return true;
+    if (vv.height < (w.innerHeight || 0) - 80) return true;
     /* Nell'app installata (PWA) o in certe versioni di iOS la finestra si
        rimpicciolisce INSIEME al riquadro visibile: il confronto qui sopra non
        vede nessuna tastiera. Sui dispositivi a tocco si guarda allora anche
        quanto e' alto il riquadro rispetto allo schermo vero. */
-    var sch = Math.max(window.screen ? window.screen.width : 0, window.screen ? window.screen.height : 0);
+    /* L'altezza dello schermo va presa secondo l'orientamento: su iOS
+       screen.width/height non ruotano (sono sempre quelli in verticale), e
+       prendere il lato lungo faceva sembrare "con la tastiera" qualunque iPad
+       tenuto in orizzontale, anche senza tastiera. */
+    var sc1 = window.screen ? window.screen.width : 0, sc2 = window.screen ? window.screen.height : 0;
+    var lungo = Math.max(sc1, sc2), corto = Math.min(sc1, sc2);
+    var orizzontale = (w.innerWidth || 0) > (w.innerHeight || 0);
+    var sch = orizzontale ? corto : lungo;
     return (navigator.maxTouchPoints || 0) > 0 && sch > 0 && vv.height < sch * 0.75;
 }
 
@@ -4641,7 +4709,10 @@ var FT_SEGUE = false, FT_SEGUE_CHIAVE = '';
 function ftAggancioSegui() {
     if (!FT_AGGANCIO.wrap) { FT_SEGUE = false; return; }
     var vv = window.visualViewport;
-    var k = (vv ? vv.offsetTop + '|' + vv.offsetLeft + '|' + vv.pageTop + '|' + vv.height + '|' + vv.scale : '') +
+    var altaS = ftFinestraAlta(), vvS = altaS ? altaS.visualViewport : null, fyS = 0;
+    try { fyS = window.frameElement ? window.frameElement.getBoundingClientRect().top : 0; } catch (e) { fyS = 0; }
+    var k = (vvS ? 'A' + vvS.offsetTop + '|' + vvS.pageTop + '|' + vvS.height + '|' + altaS.pageYOffset + '|' + fyS + '|' : '') +
+            (vv ? vv.offsetTop + '|' + vv.offsetLeft + '|' + vv.pageTop + '|' + vv.height + '|' + vv.scale : '') +
             '|' + window.pageYOffset + '|' + window.innerHeight + '|' + (ftModoDocumento() ? 1 : 0);
     if (k !== FT_SEGUE_CHIAVE) { FT_SEGUE_CHIAVE = k; ftAggancioAggiorna(); }
     requestAnimationFrame(ftAggancioSegui);
@@ -4910,7 +4981,13 @@ function ftAggancioAggiorna() {
            a.syRef), quindi ogni pixel scorso da allora la porta un pixel piu'
            su. La copia le sta sotto solo finche' si vede ancora. */
         var scan = ftScanInCache(a);
-        var intestaz = Math.max(0, Math.min(scan, (a.syRef || 0) - window.pageYOffset + scan));
+        /* Dentro un iframe l'intestazione fissa appartiene all'iframe e NON
+           scorre via quando si scorre il suo contenuto: e' la finestra alta
+           a spostarsi, e di questo si occupa gia' visT. Applicare qui lo
+           scarto di scorrimento portava la copia a zero, sopra l'intestazione. */
+        var intestaz = ftFinestraAlta()
+            ? scan
+            : Math.max(0, Math.min(scan, (a.syRef || 0) - window.pageYOffset + scan));
         m = { soglia: Math.max(intestaz, visT.top) + 6, limite: visT.bottom };
     } else {
         m = ftAggancioMisure(a);
@@ -5041,6 +5118,13 @@ function ftAggancioAggiorna() {
     if (window.visualViewport) {
         window.visualViewport.addEventListener('scroll', ftAggancioAggiorna);
         window.visualViewport.addEventListener('resize', ftAggancioAggiorna);
+    }
+    /* Nel popup (iframe) a muoversi con la tastiera e' il riquadro visibile
+       della finestra alta: va ascoltato anche lui. */
+    var altaL = ftFinestraAlta();
+    if (altaL && altaL.visualViewport) {
+        altaL.visualViewport.addEventListener('scroll', ftAggancioAggiorna);
+        altaL.visualViewport.addEventListener('resize', ftAggancioAggiorna);
     }
 })();
 
@@ -5403,6 +5487,19 @@ function ftSetupEditor(wrap) {
                             return { doc: fcdNorm(d), caret: { b: biE, o: 0 } };
                         });
                     }
+                }
+            }
+            /* Maiusc+Invio dentro una lista: stesso a capo del pulsante
+               "a capo senza pallino". Lasciarlo al browser dava, su iPad,
+               un cursore disegnato nel posto sbagliato (vedi ftACapoNelPunto)
+               e un a capo diverso da quello del pulsante. */
+            if (!gestitoInvio && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                var selS = fcdGetSel(ed);
+                var bS = selS ? fcdFromDom(ed).blocks[selS.a.b] : null;
+                if (bS && (bS.t === 'li' || (bS.t === 'p' && bS.lvl))) {
+                    e.preventDefault();
+                    gestitoInvio = true;
+                    ftACapoNelPunto(wrap);
                 }
             }
             if (!gestitoInvio && !e.shiftKey) {
@@ -6312,7 +6409,7 @@ function ftSetupToolbar(wrap) {
         else if (cmd === 'code-hl')     ftCmd(wrap, function (d, s) { return { doc: fcdToggleCodeHl(d, s), sel: s }; });
         else if (cmd === 'code')        ftCmd(wrap, function (d, s) { return fcdToggleCode(d, s); });
         else if (cmd === 'code-lang')   { var lg = btn.dataset.lang; ftCmd(wrap, function (d, s) { return fcdSetCodeLang(d, s, lg); }); }
-        else if (cmd === 'soft-break')  ftCmd(wrap, function (d, s) { return fcdInsertSoftBreak(d, s); });
+        else if (cmd === 'soft-break')  ftACapoNelPunto(wrap);
         else if (cmd === 'math-inline') { ftCmd(wrap, function (d, s) { return fcdToggleInlineMath(d, s); }); ftSuggerisciFormula(wrap, bar); }
         else if (cmd === 'math-display') { ftCmd(wrap, function (d, s) { return fcdToggleBlockMath(d, s); }); ftSuggerisciFormula(wrap, bar); }
 
