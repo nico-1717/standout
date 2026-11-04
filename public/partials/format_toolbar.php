@@ -252,16 +252,9 @@ if (!defined('FC_PARSER_JS_INCLUDED')) {
                     <button type="button" class="fmt-btn" data-cmd="bold" title="<?php te('editor.grassetto'); ?>"><b>B</b></button>
                     <button type="button" class="fmt-btn" data-cmd="italic" title="<?php te('editor.corsivo'); ?>"><i>I</i></button>
                     <button type="button" class="fmt-btn" data-cmd="underline" title="<?php te('editor.sottolineato'); ?>"><u>U</u></button>
-                    <!-- L'evidenziatore di GoodNotes: pennarello inclinato, punta
-                         a scalpello, e la striscia che lascia sotto. -->
-                    <button type="button" class="fmt-btn" data-cmd="yellow" title="<?php te('editor.evidenziatore'); ?>">
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14.6 3.9l5.5 5.5-7.7 7.7-5.5-5.5z"/>
-                            <path d="M6.9 11.6l-1.6 3.1 3.9 3.9 3.2-1.5"/>
-                            <path d="M5.3 14.7l-1.4 3.6 3.6-1.4"/>
-                            <path d="M4 21.4h16" stroke="var(--yellow,#FFCC00)" stroke-width="2.6"/>
-                        </svg>
-                    </button>
+                    <?php /* Il pulsante dell'evidenziatore (04/11/2026: tolto su richiesta):
+                             il pennarello si usa dall'interruttore A / a accanto ai colori,
+                             che e' l'unico a poter scegliere il colore dello sfondo. */ ?>
                 </div>
 
                 <span class="fmt-sep"></span>
@@ -4701,34 +4694,54 @@ function ftAggancioSuCasella(wrap) {
 /* Lettura a schermo dei numeri dell'aggancio, SOLO se l'indirizzo contiene
    ftdebug=1 (o localStorage.ftdebug = '1'). Serve a capire cosa vede Safari su
    iPhone quando la barra si comporta in modo strano: sul telefono non c'e'
-   una console. Sta nel documento, in absolute alla posizione di cio' che si
-   vede, cosi' non dipende da come Safari tratta "fixed". */
+   una console. Il riquadro compare appena la pagina e' caricata (cosi' prova
+   anche che il codice nuovo e' arrivato), si ridisegna a ogni fotogramma e
+   riporta gli errori JavaScript. Sta nel documento, in absolute alla posizione
+   di cio' che si vede, cosi' non dipende da come Safari tratta "fixed". */
+var FT_ULTIMO = null;
 function ftDebugAggancio(a, m, r, rWrap) {
-    var on = false;
-    try { on = /[?&]ftdebug=1/.test(location.search) || localStorage.getItem('ftdebug') === '1'; } catch (e) {}
-    if (!on) return;
-    var d = document.getElementById('ft-debug');
-    if (!d) {
-        d = document.createElement('pre');
-        d.id = 'ft-debug';
-        d.style.cssText = 'position:absolute;left:4px;margin:0;padding:4px 6px;font:10px/1.25 monospace;' +
-                          'background:rgba(255,235,59,.92);color:#000;z-index:2147483000;pointer-events:none;' +
-                          'border-radius:6px;max-width:90vw;white-space:pre-wrap';
-        document.body.appendChild(d);
-    }
-    var vv = window.visualViewport || {};
-    var c = a.clone ? a.clone.getBoundingClientRect() : null;
-    d.textContent =
-        'motivo ' + a._motivo + ' | clone ' + (a.clone ? 'SI' : 'no') + ' kb ' + (ftTastieraAperta() ? 1 : 0) + '\n' +
-        'scrollY ' + Math.round(window.pageYOffset) + ' innerH ' + window.innerHeight + '\n' +
-        'vv.offTop ' + Math.round(vv.offsetTop) + ' vv.pageTop ' + Math.round(vv.pageTop) + ' vv.h ' + Math.round(vv.height) + '\n' +
-        'soglia ' + Math.round(m.soglia) + ' limite ' + Math.round(m.limite) + '\n' +
-        'barra top ' + Math.round(r.top) + ' h ' + Math.round(r.height) + '\n' +
-        'wrap top ' + Math.round(rWrap.top) + ' bot ' + Math.round(rWrap.bottom) + '\n' +
-        'clone top ' + (c ? Math.round(c.top) : '-') + ' pos ' + (a.clone ? a.clone.style.position || 'fixed' : '-');
-    var pt = (typeof vv.pageTop === 'number') ? vv.pageTop : window.pageYOffset;
-    d.style.top = (pt + 90) + 'px';
+    FT_ULTIMO = { motivo: a._motivo, soglia: m.soglia, limite: m.limite,
+                  bt: r.top, bh: r.height, wt: rWrap.top, wb: rWrap.bottom };
 }
+function ftDebugAttivo() {
+    try {
+        return /[?&]ftdebug=1/.test(location.search) || localStorage.getItem('ftdebug') === '1';
+    } catch (e) { return /[?&]ftdebug=1/.test(location.search); }
+}
+function ftDebugAvvia() {
+    var errori = [];
+    window.addEventListener('error', function (e) { errori.push((e.message || 'errore') + ' @' + (e.lineno || '?')); });
+    window.addEventListener('unhandledrejection', function (e) { errori.push('promise: ' + (e.reason && e.reason.message || e.reason)); });
+    var d = null;
+    function ciclo() {
+        if (!d) {
+            if (!document.body) { requestAnimationFrame(ciclo); return; }
+            d = document.createElement('pre');
+            d.id = 'ft-debug';
+            d.style.cssText = 'position:absolute;left:4px;margin:0;padding:4px 6px;font:10px/1.25 monospace;' +
+                              'background:rgba(255,235,59,.92);color:#000;z-index:2147483000;pointer-events:none;' +
+                              'border-radius:6px;max-width:90vw;white-space:pre-wrap';
+            document.body.appendChild(d);
+        }
+        var a = FT_AGGANCIO, vv = window.visualViewport || {}, u = FT_ULTIMO;
+        var c = (a.clone && a.clone.getBoundingClientRect) ? a.clone.getBoundingClientRect() : null;
+        var tipo = (navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) ? 'APP' : 'browser';
+        d.textContent =
+            'ftdebug v4 ' + tipo + ' | casella ' + (a.wrap ? 'SI' : 'no') + ' clone ' + (a.clone ? 'SI' : 'no') +
+            ' kb ' + (ftTastieraAperta() ? 1 : 0) + ' motivo ' + (u ? u.motivo : '-') + '\n' +
+            'scrollY ' + Math.round(window.pageYOffset) + ' innerH ' + window.innerHeight + ' screenH ' + (window.screen ? window.screen.height : '?') + '\n' +
+            'vv.offTop ' + Math.round(vv.offsetTop) + ' vv.pageTop ' + Math.round(vv.pageTop) + ' vv.h ' + Math.round(vv.height) + '\n' +
+            (u ? 'soglia ' + Math.round(u.soglia) + ' limite ' + Math.round(u.limite) + ' barra top ' + Math.round(u.bt) + ' h ' + Math.round(u.bh) +
+                 ' wrap ' + Math.round(u.wt) + '..' + Math.round(u.wb) + '\n' : '') +
+            'clone top ' + (c ? Math.round(c.top) : '-') + ' pos ' + (a.clone ? a.clone.style.position || 'fixed' : '-') +
+            (errori.length ? '\nERRORI: ' + errori.slice(-3).join(' | ') : '');
+        var pt = (typeof vv.pageTop === 'number') ? vv.pageTop : window.pageYOffset;
+        d.style.top = (pt + 90) + 'px';
+        requestAnimationFrame(ciclo);
+    }
+    ciclo();
+}
+if (ftDebugAttivo() && !window.__ftDebugAvviato) { window.__ftDebugAvviato = true; ftDebugAvvia(); }
 
 /* DOVE METTERE LA COPIA
    Normalmente position:fixed, che e' la cosa giusta e scorre senza scatti.
