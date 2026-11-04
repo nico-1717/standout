@@ -719,6 +719,17 @@ if (isset($_GET['fc_deep_search'])) {
         }
     }
 
+    /* Quante sottocarte ha ogni padre trovato: serve a chi lo elimina con lo
+       swipe (askDeleteCard avvisa che i figli resteranno orfani). Prima qui
+       c'era sempre 0, e l'avviso non compariva mai. */
+    $fcNFigliDi = [];
+    if (!empty($__idPadri)) {
+        $__ph = implode(',', array_fill(0, count($__idPadri), '?'));
+        foreach (sec_all("SELECT parent_id, COUNT(*) AS c FROM " . fc_t('subcards') . " WHERE parent_id IN ($__ph) GROUP BY parent_id", $__idPadri) as $__nf) {
+            $fcNFigliDi[(int)$__nf['parent_id']] = (int)$__nf['c'];
+        }
+    }
+
     $fcGruppi = [];
     foreach ($fcPadri as $__r) { $fcGruppi[(int)$__r['category_id']]['padri'][] = $__r; }
     foreach ($fcFigli as $__r) { $fcGruppi[(int)$__r['category_id']]['figli'][] = $__r; }
@@ -760,7 +771,7 @@ if (isset($_GET['fc_deep_search'])) {
                  data-id="<?= (int)$__row['id'] ?>" data-type="parent"
                  data-search="<?= $__search ?>" data-duplicate="false" data-reorderable="0"
                  data-edit-url="<?= sec_h(fc_url('fc_card_edit.php', ['fc_id' => (int)$__row['id'], 'previous_catid' => (int)$__cid])) ?>"
-                 data-child-count="0">
+                 data-child-count="<?= (int)($fcNFigliDi[(int)$__row['id']] ?? 0) ?>">
                 <div class="swipe-actions">
                     <button type="button" class="swipe-act act-edit" data-on-click="goEditCard(this)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
@@ -8330,7 +8341,11 @@ function animateCardOut(el){
 
         var card = e.target.closest('.fc-card');
 
-        if (!card || !card.closest('#fcList')) return null;
+        /* Anche i risultati trovati nelle sottocartelle (#fcDeep, quando si
+           cerca): hanno gli stessi tastini modifica/elimina sotto la carta, ma
+           prima il gesto partiva solo dentro l'elenco principale. Il
+           riordino resta escluso: le loro carte hanno data-reorderable="0". */
+        if (!card || !card.closest('#fcList, #fcDeep')) return null;
 
         return card;
 

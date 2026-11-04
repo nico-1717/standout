@@ -4424,22 +4424,17 @@ function ftViewportVisibile() {
 /* Tastiera (o zoom) aperta: il riquadro visibile e' piu' piccolo della
    finestra. Solo in quel caso la copia si posiziona nel documento invece che
    sullo schermo — vedi ftAggancioPosiziona. */
-/* MODO DOCUMENTO
-   Dal registro preso sull'iPhone (4 novembre): con la tastiera aperta Safari
-   NON dice niente a JavaScript — visualViewport.height resta uguale a
-   innerHeight, offsetTop resta 0, e ftTastieraAperta() qui sotto non scatta
-   mai. Eppure l'intestazione fissa e la copia della barra, che erano
-   position:fixed, scorrevano via INSIEME alla pagina, come se fossero
-   absolute. L'unico numero che dice la verita' e' lo scorrimento vero
-   (pageYOffset), quindi su un dispositivo a tocco, mentre si scrive in una
-   casella, la copia vive nel DOCUMENTO (absolute, a scorrimento + cima) e non
-   sullo schermo: segue la pagina per costruzione, qualunque cosa Safari
-   faccia con "fixed". */
+/* MODO DOCUMENTO (ritirato il 04/11/2026, 15:30)
+   L'idea era: su un dispositivo a tocco con una casella a fuoco, la copia
+   della barra vive nel documento (absolute) invece che sullo schermo. Sul
+   telefono ha fatto peggio: il registro e la foto del riquadro di debug
+   mostrano che, con la tastiera aperta, il punto dello schermo corrispondente
+   a pageYOffset sta circa 90px piu' in basso di quanto dica JavaScript, quindi
+   la copia finiva nascosta sotto la barra di stato. Finche' non si misura
+   quello scarto (vedi le sonde in ftDebugAvvia) il modo scatta solo quando il
+   browser stesso dichiara la tastiera, come nella versione precedente. */
 function ftModoDocumento() {
-    if (ftTastieraAperta()) return true;
-    if (!(navigator.maxTouchPoints > 0) || !FT_AGGANCIO || !FT_AGGANCIO.wrap) return false;
-    var att = document.activeElement;
-    return !!(att && (att.isContentEditable || /^(INPUT|TEXTAREA)$/.test(att.tagName)) && FT_AGGANCIO.wrap.contains(att));
+    return ftTastieraAperta();
 }
 
 function ftTastieraAperta() {
@@ -4755,7 +4750,31 @@ function ftDebugAvvia() {
     window.addEventListener('unhandledrejection', function (e) { aggiungi('!! promise ' + (e.reason && e.reason.message || e.reason)); });
     window.addEventListener('scroll', function (e) { ultimoScroll = chi(e.target); }, { capture: true, passive: true });
 
+    /* SONDE per misurare lo scarto fra cio' che dice JavaScript e cio' che
+       Safari disegna con la tastiera aperta: tre elementi invisibili alti
+       100lvh / 100svh / 100dvh (le tre "altezze della finestra" di CSS, che
+       cambiano quando la barra di Safari si ritira) e l'ultimo tocco con le
+       sue coordinate di finestra, di pagina e di SCHERMO. */
+    var sonde = null;
+    function creaSonde() {
+        if (sonde || !document.body) return;
+        sonde = {};
+        ['lvh', 'svh', 'dvh'].forEach(function (u) {
+            var e = document.createElement('div');
+            e.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:100' + u + ';visibility:hidden;pointer-events:none';
+            document.body.appendChild(e);
+            sonde[u] = e;
+        });
+    }
+    var tocco = '-';
+    function memoTocco(e) {
+        var t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+        if (t) tocco = 'cy' + Math.round(t.clientY) + ' sy' + Math.round(t.screenY) + ' py' + Math.round(t.pageY);
+    }
+    ['touchstart', 'touchmove', 'touchend'].forEach(function (n) { document.addEventListener(n, memoTocco, { capture: true, passive: true }); });
+
     function istantanea(ev) {
+        creaSonde();
         var a = FT_AGGANCIO, vv = window.visualViewport || {}, u = FT_ULTIMO, sel = '-';
         try {
             var sc = window.getSelection();
@@ -4765,7 +4784,8 @@ function ftDebugAvvia() {
         var se = document.scrollingElement || document.documentElement;
         var hd = document.querySelector('header, .fc-tb, .sticky-header, [class*="topbar"]');
         var hr = hd ? Math.round(hd.getBoundingClientRect().top) : '-';
-        var chiave = [a.wrap ? 1 : 0, a.clone ? 1 : 0, ftTastieraAperta() ? 1 : 0, u ? u.motivo : '-',
+        var altSonde = sonde ? ['lvh', 'svh', 'dvh'].map(function (u) { return Math.round(sonde[u].getBoundingClientRect().height); }).join('/') : '-';
+        var chiave = [altSonde, tocco, a.wrap ? 1 : 0, a.clone ? 1 : 0, ftTastieraAperta() ? 1 : 0, u ? u.motivo : '-',
                       Math.round(window.pageYOffset / 25), Math.round((vv.offsetTop || 0) / 25), Math.round((vv.pageTop || 0) / 25),
                       Math.round((vv.height || 0) / 25), c ? Math.round(c.top / 25) : '-'].join('|');
         if (chiave === ultimaChiave) return;
@@ -4777,7 +4797,8 @@ function ftDebugAvvia() {
             ' k' + (ftTastieraAperta() ? 1 : 0) + ' d' + (ftModoDocumento() ? 1 : 0) + ' w' + (a.wrap ? 1 : 0) +
             ' cl' + (c ? Math.round(c.top) + (a.clone.style.position === 'absolute' ? 'A' : 'F') : '-') +
             ' mo:' + (u ? u.motivo : '-') + (u ? ' so' + Math.round(u.soglia) + ' bt' + Math.round(u.bt) : '') +
-            ' sel' + sel + ' hd' + hr + ' sc:' + ultimoScroll);
+            ' sel' + sel + ' hd' + hr + ' sc:' + ultimoScroll +
+            ' H' + altSonde + ' ih' + window.innerHeight + ' sh' + (window.screen ? window.screen.height : '?') + ' T:' + tocco);
     }
     /* Due motori di campionamento: un intervallo (continua anche se i
        fotogrammi si fermano) e gli eventi veri, per prendere l'istante giusto. */
@@ -4798,7 +4819,7 @@ function ftDebugAvvia() {
         box.id = 'ft-debug-log';
         box.style.cssText = 'margin:70px 4px 8px;padding:6px;font:9px/1.25 monospace;background:#fff59d;color:#000;' +
                             'border-radius:6px;white-space:pre-wrap;word-break:break-all;max-height:55vh;overflow:auto';
-        box.textContent = 'ftdebug v6 - REGISTRO PRECEDENTE (' + (prec ? prec.split('\n').length : 0) + ' righe)\n' + (prec || '(vuoto)');
+        box.textContent = 'ftdebug v7 - REGISTRO PRECEDENTE (' + (prec ? prec.split('\n').length : 0) + ' righe)\n' + (prec || '(vuoto)');
         document.body.insertBefore(box, document.body.firstChild);
     }
     mostraPrecedente();
