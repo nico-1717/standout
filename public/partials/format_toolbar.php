@@ -4417,7 +4417,23 @@ function ftSogliaDalloSchermo(toolbar) {
 function ftViewportVisibile() {
     var vv = window.visualViewport;
     if (!vv) return { top: 0, bottom: window.innerHeight };
-    return { top: Math.max(0, vv.offsetTop), bottom: Math.max(0, vv.offsetTop) + vv.height };
+    /* Il bordo alto si ricava da pageTop (dove sta il riquadro visibile nel
+       DOCUMENTO) meno lo scorrimento della finestra, e non da vv.offsetTop:
+       su iPhone, con la tastiera aperta e il testo selezionato, offsetTop
+       puo' restare fermo a un valore vecchio mentre la pagina scorre sotto il
+       dito (nel video: la barra saliva insieme all'intestazione fissa e
+       spariva). pageTop e' la posizione di cio' che si vede davvero. */
+    var pt = (typeof vv.pageTop === 'number') ? vv.pageTop - window.pageYOffset : vv.offsetTop;
+    var top = Math.max(0, pt);
+    return { top: top, bottom: top + vv.height };
+}
+
+/* Tastiera (o zoom) aperta: il riquadro visibile e' piu' piccolo della
+   finestra. Solo in quel caso la copia si posiziona nel documento invece che
+   sullo schermo — vedi ftAggancioPosiziona. */
+function ftTastieraAperta() {
+    var vv = window.visualViewport;
+    return !!vv && vv.height < (window.innerHeight || 0) - 80;
 }
 
 function ftAggancioMisure(a) {
@@ -4608,7 +4624,7 @@ var FT_SEGUE = false, FT_SEGUE_CHIAVE = '';
 function ftAggancioSegui() {
     if (!FT_AGGANCIO.wrap) { FT_SEGUE = false; return; }
     var vv = window.visualViewport;
-    var k = (vv ? vv.offsetTop + '|' + vv.offsetLeft + '|' + vv.height + '|' + vv.scale : '') +
+    var k = (vv ? vv.offsetTop + '|' + vv.offsetLeft + '|' + vv.pageTop + '|' + vv.height + '|' + vv.scale : '') +
             '|' + window.pageYOffset + '|' + window.innerHeight;
     if (k !== FT_SEGUE_CHIAVE) { FT_SEGUE_CHIAVE = k; ftAggancioAggiorna(); }
     requestAnimationFrame(ftAggancioSegui);
@@ -4671,6 +4687,38 @@ function ftAggancioSuCasella(wrap) {
    quanto ne resta sotto. Le condizioni in piu' che avevo aggiunto prima
    ("non tenere la barra se sotto resta poco") facevano sparire tutto proprio
    mentre si stava ancora scrivendo. */
+/* DOVE METTERE LA COPIA
+   Normalmente position:fixed, che e' la cosa giusta e scorre senza scatti.
+   Con la tastiera di iPhone aperta pero' "fixed" si misura da un riquadro che
+   Safari sposta a modo suo (l'intestazione fissa spariva dallo schermo e la
+   copia con lei, anche con offsetTop corretto). Li' la copia diventa
+   position:absolute nel DOCUMENTO, alla posizione di cio' che si vede
+   (pageTop): non dipende da come Safari interpreta "fixed", e al massimo
+   segue la pagina per un attimo prima di essere riallineata. */
+function ftAggancioPosiziona(a, r, soglia) {
+    var c = a.clone;
+    if (!ftTastieraAperta()) {
+        c.style.position = '';           // torna al fixed del foglio di stile
+        c.style.left = r.left + 'px';
+        c.style.width = r.width + 'px';
+        c.style.top = soglia + 'px';
+        return;
+    }
+    c.style.position = 'absolute';
+    /* Origine dell'absolute: l'antenato posizionato piu' vicino, se c'e';
+       altrimenti la pagina stessa (origine 0,0 del documento). */
+    var ox = 0, oy = 0, op = c.offsetParent;
+    if (op && op !== document.body && op !== document.documentElement ||
+        (op === document.body && window.getComputedStyle(op).position !== 'static')) {
+        var ro = op.getBoundingClientRect();
+        ox = ro.left + window.pageXOffset + op.clientLeft;
+        oy = ro.top + window.pageYOffset + op.clientTop;
+    }
+    c.style.left = (r.left + window.pageXOffset - ox) + 'px';
+    c.style.width = r.width + 'px';
+    c.style.top = (soglia + window.pageYOffset - oy) + 'px';
+}
+
 function ftAggancioAggiorna() {
     var a = FT_AGGANCIO;
     if (!a.wrap || !document.body.contains(a.wrap)) { ftAggancioStacca(); return; }
@@ -4706,9 +4754,7 @@ function ftAggancioAggiorna() {
 
     ftAggancioCreaClone(a);
     ftAggancioAggiornaClone();
-    a.clone.style.left = r.left + 'px';
-    a.clone.style.width = r.width + 'px';
-    a.clone.style.top = soglia + 'px';
+    ftAggancioPosiziona(a, r, soglia);
     /* Sopra tutto quello che le sta attorno: i popup di questo sito arrivano a
        z-index 12500, e con il 1000 del foglio di stile la copia ci sarebbe
        finita dietro — invisibile pur essendo stata creata. */
