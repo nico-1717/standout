@@ -4433,7 +4433,26 @@ function ftViewportVisibile() {
    sullo schermo — vedi ftAggancioPosiziona. */
 function ftTastieraAperta() {
     var vv = window.visualViewport;
-    return !!vv && vv.height < (window.innerHeight || 0) - 80;
+    if (!vv) return false;
+    if (vv.height < (window.innerHeight || 0) - 80) return true;
+    /* Nell'app installata (PWA) o in certe versioni di iOS la finestra si
+       rimpicciolisce INSIEME al riquadro visibile: il confronto qui sopra non
+       vede nessuna tastiera. Sui dispositivi a tocco si guarda allora anche
+       quanto e' alto il riquadro rispetto allo schermo vero. */
+    var sch = Math.max(window.screen ? window.screen.width : 0, window.screen ? window.screen.height : 0);
+    return (navigator.maxTouchPoints || 0) > 0 && sch > 0 && vv.height < sch * 0.75;
+}
+
+function ftScanInCache(a) {
+    var ora = Date.now();
+    if (!a._scan || ora - a._scan.t > 300) a._scan = { v: ftSogliaDalloSchermo(a.toolbar), t: ora };
+    else if (!a._ricontrollo) {
+        a._ricontrollo = setTimeout(function () {
+            a._ricontrollo = null;
+            if (FT_AGGANCIO === a) { a._scan = null; ftAggancioAggiorna(); }
+        }, 350);
+    }
+    return a._scan.v;
 }
 
 function ftAggancioMisure(a) {
@@ -4449,15 +4468,7 @@ function ftAggancioMisure(a) {
            rifarla ogni volta. Un'intestazione fissa non cambia altezza mentre
            si scorre, quindi il risultato vale per qualche istante; un ricontrollo
            a scorrimento fermo prende anche le intestazioni che si nascondono. */
-        var ora = Date.now();
-        if (!a._scan || ora - a._scan.t > 300) a._scan = { v: ftSogliaDalloSchermo(a.toolbar), t: ora };
-        else if (!a._ricontrollo) {
-            a._ricontrollo = setTimeout(function () {
-                a._ricontrollo = null;
-                if (FT_AGGANCIO === a) { a._scan = null; ftAggancioAggiorna(); }
-            }, 350);
-        }
-        return { soglia: Math.max(a._scan.v, vis.top) + 6, limite: limite };
+        return { soglia: Math.max(ftScanInCache(a), vis.top) + 6, limite: limite };
     }
     for (var i = 0; i < c.length; i++) {
         var rc = c[i].getBoundingClientRect();
@@ -4687,6 +4698,38 @@ function ftAggancioSuCasella(wrap) {
    quanto ne resta sotto. Le condizioni in piu' che avevo aggiunto prima
    ("non tenere la barra se sotto resta poco") facevano sparire tutto proprio
    mentre si stava ancora scrivendo. */
+/* Lettura a schermo dei numeri dell'aggancio, SOLO se l'indirizzo contiene
+   ftdebug=1 (o localStorage.ftdebug = '1'). Serve a capire cosa vede Safari su
+   iPhone quando la barra si comporta in modo strano: sul telefono non c'e'
+   una console. Sta nel documento, in absolute alla posizione di cio' che si
+   vede, cosi' non dipende da come Safari tratta "fixed". */
+function ftDebugAggancio(a, m, r, rWrap) {
+    var on = false;
+    try { on = /[?&]ftdebug=1/.test(location.search) || localStorage.getItem('ftdebug') === '1'; } catch (e) {}
+    if (!on) return;
+    var d = document.getElementById('ft-debug');
+    if (!d) {
+        d = document.createElement('pre');
+        d.id = 'ft-debug';
+        d.style.cssText = 'position:absolute;left:4px;margin:0;padding:4px 6px;font:10px/1.25 monospace;' +
+                          'background:rgba(255,235,59,.92);color:#000;z-index:2147483000;pointer-events:none;' +
+                          'border-radius:6px;max-width:90vw;white-space:pre-wrap';
+        document.body.appendChild(d);
+    }
+    var vv = window.visualViewport || {};
+    var c = a.clone ? a.clone.getBoundingClientRect() : null;
+    d.textContent =
+        'motivo ' + a._motivo + ' | clone ' + (a.clone ? 'SI' : 'no') + ' kb ' + (ftTastieraAperta() ? 1 : 0) + '\n' +
+        'scrollY ' + Math.round(window.pageYOffset) + ' innerH ' + window.innerHeight + '\n' +
+        'vv.offTop ' + Math.round(vv.offsetTop) + ' vv.pageTop ' + Math.round(vv.pageTop) + ' vv.h ' + Math.round(vv.height) + '\n' +
+        'soglia ' + Math.round(m.soglia) + ' limite ' + Math.round(m.limite) + '\n' +
+        'barra top ' + Math.round(r.top) + ' h ' + Math.round(r.height) + '\n' +
+        'wrap top ' + Math.round(rWrap.top) + ' bot ' + Math.round(rWrap.bottom) + '\n' +
+        'clone top ' + (c ? Math.round(c.top) : '-') + ' pos ' + (a.clone ? a.clone.style.position || 'fixed' : '-');
+    var pt = (typeof vv.pageTop === 'number') ? vv.pageTop : window.pageYOffset;
+    d.style.top = (pt + 90) + 'px';
+}
+
 /* DOVE METTERE LA COPIA
    Normalmente position:fixed, che e' la cosa giusta e scorre senza scatti.
    Con la tastiera di iPhone aperta pero' "fixed" si misura da un riquadro che
@@ -4723,15 +4766,31 @@ function ftAggancioAggiorna() {
     var a = FT_AGGANCIO;
     if (!a.wrap || !document.body.contains(a.wrap)) { ftAggancioStacca(); return; }
 
-    var m = ftAggancioMisure(a);
+    var tastiera = ftTastieraAperta();
+    var m;
+    if (tastiera) {
+        /* CON LA TASTIERA APERTA NIENTE REGOLE DI "SPARISCI"
+           Qui le geometrie che Safari restituisce (rettangoli dei contenitori,
+           bordi della finestra) non sono affidabili, e ogni regola che decide
+           "la copia non serve" finiva per scattare a torto: nel video la barra
+           si cancellava del tutto appena la selezione faceva scorrere la pagina.
+           Mentre si scrive con la tastiera la copia serve sempre, finche'
+           l'originale non si vede: la cima e' il bordo del riquadro visibile
+           (sotto l'intestazione, se c'e'), il fondo e' il bordo del riquadro. */
+        var visT = ftViewportVisibile();
+        m = { soglia: Math.max(ftScanInCache(a), visT.top) + 6, limite: visT.bottom };
+    } else {
+        m = ftAggancioMisure(a);
+    }
     var soglia = m.soglia;
     var rWrap = a.wrap.getBoundingClientRect();
     var r = a.toolbar.getBoundingClientRect();
+    a._motivo = 'ok';
 
     /* Dentro un popup non c'e' spazio utile: il pannello e' chiuso o
        schiacciato. Meglio niente copia che una copia che sbuca fuori dai
        suoi bordi. */
-    if (m.limite - soglia < 24) { ftAggancioTogliClone(a); return; }
+    if (!tastiera && m.limite - soglia < 24) { a._motivo = 'limite'; ftAggancioTogliClone(a); ftDebugAggancio(a, m, r, rWrap); return; }
 
     /* "Fuori" vuol dire fuori dallo SCHERMO, non fuori da un valore calcolato:
        se la soglia risultasse per qualunque motivo sbagliata per eccesso, una
@@ -4744,17 +4803,23 @@ function ftAggancioAggiorna() {
        non una barra che gli sta sopra coprendolo. Serve quindi che sotto la
        copia ci sia ancora cella, non solo che la cella sia in qualche modo
        sullo schermo. */
-    var casellaFuori = rWrap.bottom <= soglia + r.height || rWrap.top >= m.limite;
+    var casellaFuori = tastiera
+        ? (rWrap.bottom <= soglia || rWrap.top >= m.limite)
+        : (rWrap.bottom <= soglia + r.height || rWrap.top >= m.limite);
     /* Altezza zero = la barra si sta ancora aprendo: non e' "scorsa via", e'
        solo non ancora disegnata. Trattarla come fuori schermo farebbe
        comparire una copia alta niente. */
     var barraSotto = r.height > 0 && r.top < soglia;
 
-    if (casellaFuori || !barraSotto) { ftAggancioTogliClone(a); return; }
+    if (casellaFuori || !barraSotto) {
+        a._motivo = casellaFuori ? 'fuori' : 'sotto';
+        ftAggancioTogliClone(a); ftDebugAggancio(a, m, r, rWrap); return;
+    }
 
     ftAggancioCreaClone(a);
     ftAggancioAggiornaClone();
     ftAggancioPosiziona(a, r, soglia);
+    ftDebugAggancio(a, m, r, rWrap);
     /* Sopra tutto quello che le sta attorno: i popup di questo sito arrivano a
        z-index 12500, e con il 1000 del foglio di stile la copia ci sarebbe
        finita dietro — invisibile pur essendo stata creata. */
