@@ -3667,6 +3667,40 @@ function miniConfetti(x, y){
 
 var fcZoomStato = null;
 
+/* Blocco della pagina dietro a un popup (zoom immagine, popup degli esempi).
+   NON basta body{overflow:hidden}: la pagina ha html,body{overflow-x:clip}, quindi
+   l'overflow del body non passa piu' alla finestra e il body diventa un
+   contenitore alto 100% che taglia tutto; il documento non e' piu' piu' alto
+   dello schermo e il browser porta lo scorrimento a 0. Alla chiusura
+   l'elenco ricompariva, ma dall'inizio del mazzo invece che dov'eri.
+   Come per il visore (bloccaPagina): si congela il body con position:fixed e
+   top negativo e alla chiusura si restituisce lo scorrimento identico.
+   Il contatore serve perche' lo zoom puo' aprirsi dentro il popup degli esempi:
+   si sblocca solo quando si chiude l'ultimo. Se il visore a flashcard ha gia'
+   bloccato la pagina non si fa niente (restituisce false). */
+var fcBloccoN = 0, fcBloccoY = 0;
+function fcBloccaPagina() {
+    var b = document.body;
+    if (b.classList.contains('fcv-lock')) return false;
+    if (fcBloccoN === 0) {
+        fcBloccoY = window.pageYOffset || document.documentElement.scrollTop || 0;
+        b.classList.add('fc-pag-bloccata');
+        b.style.top = (-fcBloccoY) + 'px';
+    }
+    fcBloccoN++;
+    return true;
+}
+function fcSbloccaPagina() {
+    if (fcBloccoN === 0) return;
+    fcBloccoN--;
+    if (fcBloccoN === 0) {
+        document.body.classList.remove('fc-pag-bloccata');
+        document.body.style.top = '';
+        window.scrollTo(0, fcBloccoY);
+    }
+}
+var fcZoomBloccato = false, fcExBloccato = false;
+
 function openImageZoom(src){
     var ov = document.getElementById('image-overlay');
     var img = document.getElementById('overlay-img');
@@ -3680,6 +3714,7 @@ function openImageZoom(src){
     /* La pagina dietro non deve scorrere ne' rispondere ai tocchi: qui si sta
        guardando un'immagine, ogni gesto appartiene a lei. */
     document.body.classList.add('fc-zoom-aperto');
+    if (!fcZoomBloccato) fcZoomBloccato = fcBloccaPagina();
     fcZoomStato = { scala: 1, x: 0, y: 0, distIniziale: 0, scalaIniziale: 1,
                     trascina: false, x0: 0, y0: 0, dy: 0, xPart: 0, yPart: 0 };
 }
@@ -3692,6 +3727,7 @@ function closeImageZoom(){
     img.style.transform = '';
     img.style.transition = '';
     document.body.classList.remove('fc-zoom-aperto');
+    if (fcZoomBloccato) { fcZoomBloccato = false; fcSbloccaPagina(); }
     fcZoomStato = null;
 }
 
@@ -9079,7 +9115,7 @@ function fcExApri(box) {
     modal.setAttribute('aria-hidden', 'false');
     /* Se il visore a flashcard e' gia' aperto la pagina e' bloccata da lui:
        rifarlo qui la sbloccherebbe alla chiusura del solo popup. */
-    if (!document.body.classList.contains('fcv-lock')) document.body.classList.add('ex-lock');
+    if (!fcExBloccato) fcExBloccato = fcBloccaPagina();
     if (window.buzz) buzz(8);
 }
 
@@ -9108,7 +9144,7 @@ function fcExChiudi() {
     var modal = document.getElementById('exModal');
     modal.classList.remove('on');
     modal.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('ex-lock');
+    if (fcExBloccato) { fcExBloccato = false; fcSbloccaPagina(); }
     fcExBox = null;
 }
 

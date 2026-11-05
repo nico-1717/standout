@@ -898,7 +898,9 @@ body.select-mode .learnt-wrapper, body.select-mode .learnt-disabled, body.select
 }
 
 /* Mentre si guarda un'immagine, dietro non si scorre e non si tocca niente. */
-body.fc-zoom-aperto{ overflow:hidden; }
+/* Il blocco dello scorrimento e' in .fc-pag-bloccata (JS: fcBloccaPagina): qui
+   overflow:hidden faceva perdere la posizione nell'elenco alla chiusura. */
+body.fc-zoom-aperto{ }
 
 #overlay-img{ will-change:transform; transform-origin:center center; -webkit-user-drag:none; }
 
@@ -1638,7 +1640,7 @@ body.fcv-lock{ position:fixed; left:0; right:0; width:100%; overflow:hidden; }
     align-items:center; justify-content:center; padding:0;
 }
 .ex-modal.on{ display:flex; }
-body.ex-lock{ overflow:hidden; }
+body.fc-pag-bloccata{ position:fixed; left:0; right:0; width:100%; overflow:hidden; }
 
 .ex-modal-back{
     position:absolute; inset:0; background:rgba(0,0,0,.5);
