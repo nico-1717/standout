@@ -4666,7 +4666,10 @@
     "colore_violet": "Violet",
     "colore_teal": "Teal",
     "colore_coral": "Coral",
-    "colore_rose": "Rose"
+    "colore_rose": "Rose",
+    "app_nota": "For the whole app: colors, cards and the tab bar",
+    "app_standard_desc": "Soft glass, round shapes, floating bar",
+    "app_paper_desc": "Warm paper, serif titles, thin lines"
   },
   "api": {
     "categoria_non_trovata": "Category not found.",
