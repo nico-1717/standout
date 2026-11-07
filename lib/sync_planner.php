@@ -170,7 +170,7 @@ function sync_pev_campi(int $uid, array $patch): array {
         if (!is_bool($patch['is_completed'])) return [null, sync_rifiuto('validation', 'is_completed', 'is_completed must be true or false')];
         $c['done'] = $patch['is_completed'];
     }
-    foreach (['category_uuid' => ['category_id', 'planner_categories'], 'calendar_uuid' => ['calendar_id', 'planner_calendars'], 'habit_uuid' => ['habit_id', 'habits']] as $filo => [$nome, $tab]) {
+    foreach (['category_uuid' => ['category_id', 'planner_categories'], 'calendar_uuid' => ['calendar_id', 'planner_calendars'], 'habit_uuid' => ['habit_id', 'habits'], 'project_uuid' => ['project_id', 'projects']] as $filo => [$nome, $tab]) {
         if (!array_key_exists($filo, $patch)) continue;
         if ($patch[$filo] === null) { $c[$nome] = null; continue; }
         if (!sync_uuid_valido($patch[$filo])) return [null, sync_rifiuto('validation', $filo, 'Invalid uuid')];
@@ -185,7 +185,7 @@ function sync_pev_campi(int $uid, array $patch): array {
 function sync_pev_errore(array $r): array {
     $nomi = ['date' => 'event_date', 'start' => 'start_time', 'end' => 'end_time', 'all_day' => 'is_all_day', 'type' => 'item_type',
              'notify' => 'notify_type', 'notify_min' => 'notify_minutes', 'repeat' => 'repeat_type', 'category_id' => 'category_uuid',
-             'calendar_id' => 'calendar_uuid', 'habit_id' => 'habit_uuid', 'done' => 'is_completed'];
+             'calendar_id' => 'calendar_uuid', 'habit_id' => 'habit_uuid', 'project_id' => 'project_uuid', 'done' => 'is_completed'];
     return sync_da_errore($r, $nomi);
 }
 

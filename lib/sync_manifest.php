@@ -486,6 +486,7 @@ const SYNC_MANIFESTO = [
             'category_uuid'    => ['tipo' => 'fk', 'col' => 'category_id', 'tabella' => 'planner_categories'],
             'calendar_uuid'    => ['tipo' => 'fk', 'col' => 'calendar_id', 'tabella' => 'planner_calendars'],
             'habit_uuid'       => ['tipo' => 'fk', 'col' => 'habit_id', 'tabella' => 'habits', 'solo_creazione' => true],
+            'project_uuid'     => ['tipo' => 'fk', 'col' => 'project_id', 'tabella' => 'projects', 'solo_creazione' => true],
             'importance'       => ['tipo' => 'e'],
             'color'            => ['tipo' => 's'],
             'item_type'        => ['tipo' => 'e'],
