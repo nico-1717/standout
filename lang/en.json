@@ -1912,7 +1912,12 @@
     "dp_errore": "Can't read the diary right now.",
     "app_aggiungi_in_agenda": "Add to the agenda",
     "app_nessun_preferito": "No favourite projects. Mark one with the star in Projects.",
-    "app_aggiungi_rapido": "Habits and projects"
+    "app_aggiungi_rapido": "Habits and projects",
+    "app_nessun_luogo": "No saved places yet. Add one: from then on, naming it in the title is enough.",
+    "app_indirizzo": "Address",
+    "app_max_invitati": "At most 30 guests per event.",
+    "app_email_non_valida": "That e-mail address is not valid.",
+    "app_email_gia": "That address is already in the address book."
   },
   "abitudini": {
     "abitudini": "Habits",

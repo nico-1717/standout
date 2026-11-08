@@ -1912,7 +1912,12 @@
     "dp_errore": "Non riesco a leggere il diario adesso.",
     "app_aggiungi_in_agenda": "Aggiungi in agenda",
     "app_nessun_preferito": "Nessun progetto preferito. Segnane uno con la stella nei progetti.",
-    "app_aggiungi_rapido": "Abitudini e progetti"
+    "app_aggiungi_rapido": "Abitudini e progetti",
+    "app_nessun_luogo": "Nessun luogo salvato. Aggiungine uno: da quel momento basta nominarlo nel titolo.",
+    "app_indirizzo": "Indirizzo",
+    "app_max_invitati": "Al massimo 30 invitati per evento.",
+    "app_email_non_valida": "Questo indirizzo e-mail non è valido.",
+    "app_email_gia": "Questo indirizzo c'è già nella rubrica."
   },
   "abitudini": {
     "abitudini": "Abitudini",
