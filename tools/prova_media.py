@@ -86,6 +86,11 @@ def main():
         r = carica(A, 'fc_study_cards', c1, 'answer_audio', m4a(), 'voce.m4a', 'audio/mp4'); au = r.get('name', '')
         ok(r['_http'] == 200 and au.endswith('.m4a'), f"m4a accettato: {r}")
         ok(su_disco('flashcard_audio', au), 'nella cartella degli audio')
+        # contenitore mp4 vero: finfo lo vede come video/mp4
+        d4 = tempfile.mkdtemp(); f4 = os.path.join(d4, 'a.mp4')
+        subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=0.5', '-c:a', 'aac', '-f', 'mp4', f4], check=True)
+        r = carica(A, 'fc_study_cards', c1, 'answer_audio', open(f4, 'rb').read(), 'voce.mp4', 'audio/mp4')
+        ok(r['_http'] == 200 and r.get('name', '').endswith('.m4a'), f"audio AAC in mp4 accettato: {r}")
         r = carica(A, 'fc_study_cards', c1, 'answer_audio', png(), 'finto.m4a', 'audio/mp4')
         ok(r['_http'] == 422 and r.get('code') == 'validation', 'un\'immagine nel campo audio e rifiutata')
         r = carica(A, 'fc_study_cards', c1, 'answer_image', m4a(), 'finta.png', 'image/png')

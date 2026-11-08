@@ -45,6 +45,7 @@ function media_id_articolo(int $uid, string $uuid): ?int {
 const MEDIA_AUDIO_MIME = [
     'audio/mpeg' => 'mp3', 'audio/mp3' => 'mp3', 'audio/wav' => 'wav', 'audio/x-wav' => 'wav',
     'audio/webm' => 'webm', 'audio/ogg' => 'ogg', 'audio/mp4' => 'm4a', 'audio/x-m4a' => 'm4a', 'audio/aac' => 'aac',
+    'video/mp4' => 'm4a',   // un audio AAC in contenitore mp4 (come lo registra Android) lo riconosce come video/mp4
 ];
 const MEDIA_MAX_IMMAGINE = 5242880;    //  5 MB (l'app li manda gia' ridotti a 1600 px)
 const MEDIA_MAX_AUDIO    = 10485760;   // 10 MB, come sul sito
@@ -126,7 +127,9 @@ function media_carica(int $uid, string $tbl, string $uuid, string $campo, $file)
     if (empty($ris['ok'])) return ['errore' => ['validation', 'file', 'The file is not valid (type, size or content)']];
     /* L'audio non puo' sembrare un'immagine e viceversa: sec_file guarda solo l'elenco ammesso, qui si controlla il genere. */
     $genere = $tipo === 'audio' ? 'audio/' : 'image/';
-    if (strpos((string)$ris['mime'], $genere) !== 0) return ['errore' => ['validation', 'file', 'The file is not valid (type, size or content)']];
+    $mime = (string)$ris['mime'];
+    $audioMp4 = $tipo === 'audio' && $mime === 'video/mp4';
+    if (strpos($mime, $genere) !== 0 && !$audioMp4) return ['errore' => ['validation', 'file', 'The file is not valid (type, size or content)']];
 
     $dir = STANDOUT_DATA_DIR . $cartella;
     if (!is_dir($dir) && !@mkdir($dir, 0755, true)) return ['errore' => ['server_error', 'file', 'The file could not be saved']];
