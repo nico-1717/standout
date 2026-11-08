@@ -301,6 +301,10 @@ function sync_uuid_atteso(string $tbl, int $id): ?string {
         $r = sec_one("SELECT user_id, kind FROM fc_study_records WHERE id = ?", [$id]);
         return $r ? sync_uuid_record((int)$r['user_id'], (string)$r['kind']) : null;
     }
+    if ($tbl === 'fc_vocab_records') {
+        $r = sec_one("SELECT r.user_id, r.kind, c.uuid AS cu FROM fc_vocab_records r JOIN fc_vocab_courses c ON c.id = r.course_id AND c.user_id = r.user_id WHERE r.id = ?", [$id]);
+        return $r ? sync_uuid_record_lingua((int)$r['user_id'], (string)$r['cu'], (string)$r['kind']) : null;
+    }
     if ($tbl === 'fc_settings' || $tbl === 'fc_goals') {
         // la chiave primaria e' l'utente stesso
         return sync_uuid_per_utente($tbl, $id);

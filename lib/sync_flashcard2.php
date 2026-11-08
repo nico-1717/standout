@@ -43,21 +43,23 @@ function sync_fc2_inserisci(string $tbl, string $uuid, string $sql, array $par):
 }
 
 /** Una carta o una carta figlia, indicate da due uuid (esattamente uno dei due). Ritorna [id carta|null, id figlia|null, errore|null]. */
-function sync_fc2_bersaglio(int $uid, array $patch, string $campoCarta, string $campoFiglia): array {
+function sync_fc2_bersaglio(int $uid, array $patch, string $campoCarta, string $campoFiglia, string $tCarte = 'fc_study_cards', string $tFiglie = 'fc_study_subcards'): array {
     $c = $patch[$campoCarta] ?? null; $f = $patch[$campoFiglia] ?? null;
     if (($c === null) === ($f === null)) return [null, null, sync_rifiuto('validation', $campoCarta, "Exactly one of $campoCarta and $campoFiglia is required")];
     if ($c !== null) {
-        [$id, $er] = sync_fc_risolvi('fc_study_cards', $uid, $c, $campoCarta, 'Card');
+        [$id, $er] = sync_fc_risolvi($tCarte, $uid, $c, $campoCarta, 'Card');
         return [$id, null, $er];
     }
-    [$id, $er] = sync_fc_risolvi('fc_study_subcards', $uid, $f, $campoFiglia, 'Child card');
+    [$id, $er] = sync_fc_risolvi($tFiglie, $uid, $f, $campoFiglia, 'Child card');
     return [null, $id, $er];
 }
 
-/** Una partita (di studio) dell'utente da un uuid del patch. Ritorna [id|null, errore|null]. */
-function sync_fc2_partita(int $uid, $uuid, string $campo): array {
+/** Una partita dell'utente da un uuid del patch; $kind = 'study' | 'vocab', null = di qualunque genere. Ritorna [id|null, errore|null]. */
+function sync_fc2_partita(int $uid, $uuid, string $campo, ?string $kind = 'study'): array {
     if (!sync_uuid_valido($uuid)) return [null, sync_rifiuto('validation', $campo, 'Invalid uuid')];
-    $r = sec_one("SELECT id FROM fc_games WHERE user_id = ? AND uuid = ? AND kind = 'study'", [$uid, $uuid]);
+    $r = $kind === null
+        ? sec_one("SELECT id FROM fc_games WHERE user_id = ? AND uuid = ?", [$uid, $uuid])
+        : sec_one("SELECT id FROM fc_games WHERE user_id = ? AND uuid = ? AND kind = ?", [$uid, $uuid, $kind]);
     return $r ? [(int)$r['id'], null] : [null, sync_rifiuto('not_found', $campo, 'Game not found')];
 }
 
@@ -151,12 +153,18 @@ function sync_fc_esempi_applica(int $uid, string $uuid, string $op, array $patch
 /* ---------------- partite ---------------- */
 
 function sync_fc_partite_applica(int $uid, string $uuid, string $op, array $patch): array {
-    $riga = sec_one("SELECT * FROM fc_games WHERE user_id = ? AND uuid = ? AND kind = 'study'", [$uid, $uuid]);
+    $riga = sec_one("SELECT * FROM fc_games WHERE user_id = ? AND uuid = ?", [$uid, $uuid]);
     if ($op === 'delete') {
         if ($riga) {
             $g = (int)$riga['id'];
             // dal basso: ogni riga che va via viene annotata (le chiavi esterne la toglierebbero in silenzio)
-            foreach (['fc_study_plays', 'fc_game_durations', 'fc_study_game_decks', 'fc_study_sequence'] as $t) {
+            $figlie = $riga['kind'] === 'vocab'
+                ? ['fc_vocab_plays', 'fc_game_durations', 'fc_vocab_game_decks', 'fc_vocab_sequence']
+                : ['fc_study_plays', 'fc_game_durations', 'fc_study_game_decks', 'fc_study_sequence'];
+            // un record che puntava a questa partita resta, senza il legame
+            if ($riga['kind'] === 'vocab') sec_q("UPDATE fc_vocab_records SET game_id = NULL WHERE game_id = ? AND user_id = ?", [$g, $uid]);
+            else sec_q("UPDATE fc_study_records SET game_id = NULL WHERE game_id = ? AND user_id = ?", [$g, $uid]);
+            foreach ($figlie as $t) {
                 sec_q("DELETE FROM `$t` WHERE game_id = ?", [$g]);
             }
             // i ripassi di questa partita restano: perdono solo il legame
@@ -167,7 +175,21 @@ function sync_fc_partite_applica(int $uid, string $uuid, string $op, array $patc
     }
     if ($er = sync_fc_controlla('fc_games', $patch, $riga === null)) return $er;
 
-    $r = $riga ?: ['game_date' => date('Y-m-d H:i:s'), 'score' => 0, 'type' => 'fc', 'card_status' => 'all', 'parent_id' => null,
+    // il genere e il corso si scelgono alla nascita della partita e non cambiano piu'
+    $kind = $riga ? (string)$riga['kind'] : 'study'; $corso = $riga ? ($riga['course_id'] !== null ? (int)$riga['course_id'] : null) : null;
+    if ($riga === null) {
+        if (array_key_exists('kind', $patch)) {
+            if (!in_array($patch['kind'], ['study', 'vocab'], true)) return sync_rifiuto('validation', 'kind', 'kind must be study or vocab');
+            $kind = $patch['kind'];
+        }
+        if ($kind === 'vocab') {
+            [$corso, $er] = sync_fc_risolvi('fc_vocab_courses', $uid, $patch['course_uuid'] ?? null, 'course_uuid', 'Course');
+            if ($er) return $er;
+        } elseif (($patch['course_uuid'] ?? null) !== null) {
+            return sync_rifiuto('validation', 'course_uuid', 'A study game has no course');
+        }
+    }
+    $r = $riga ?: ['game_date' => date('Y-m-d H:i:s'), 'score' => 0, 'type' => $kind === 'vocab' ? 'w2t' : 'fc', 'card_status' => 'all', 'parent_id' => null,
                    'total_father_words' => 0, 'game_order' => 'random', 'total_words_with_children' => 1, 'max_card_id' => null];
     if (array_key_exists('game_date', $patch)) {
         $v = sync_fc2_datetime($patch['game_date']);
@@ -179,7 +201,8 @@ function sync_fc_partite_applica(int $uid, string $uuid, string $op, array $patc
         $r['score'] = round((float)$patch['score'], 2);
     }
     if (array_key_exists('type', $patch)) {
-        if (!in_array($patch['type'], ['fc', 'fc_L'], true)) return sync_rifiuto('validation', 'type', 'type must be fc or fc_L');
+        $tipi = $kind === 'vocab' ? ['w2t', 't2w', 'mix', 'w2t_L', 't2w_L', 'mix_L'] : ['fc', 'fc_L'];
+        if (!in_array($patch['type'], $tipi, true)) return sync_rifiuto('validation', 'type', 'type must be ' . implode(', ', $tipi));
         $r['type'] = $patch['type'];
     }
     if (array_key_exists('card_status', $patch)) {
@@ -197,14 +220,14 @@ function sync_fc_partite_applica(int $uid, string $uuid, string $op, array $patc
         $r[$c] = $v;
     }
     if (array_key_exists('parent_uuid', $patch) && $patch['parent_uuid'] !== null) {
-        [$pid, $er] = sync_fc2_partita($uid, $patch['parent_uuid'], 'parent_uuid');
+        [$pid, $er] = sync_fc2_partita($uid, $patch['parent_uuid'], 'parent_uuid', $kind);
         if ($er) return $er;
         $r['parent_id'] = $pid;
     }
     if (array_key_exists('max_card_uuid', $patch)) {
         if ($patch['max_card_uuid'] === null) $r['max_card_id'] = null;
         else {
-            [$mid, $er] = sync_fc_risolvi('fc_study_cards', $uid, $patch['max_card_uuid'], 'max_card_uuid', 'Card');
+            [$mid, $er] = sync_fc_risolvi($kind === 'vocab' ? 'fc_vocab_cards' : 'fc_study_cards', $uid, $patch['max_card_uuid'], 'max_card_uuid', 'Card');
             if ($er) return $er;
             $r['max_card_id'] = $mid;
         }
@@ -213,8 +236,8 @@ function sync_fc_partite_applica(int $uid, string $uuid, string $op, array $patc
     if ($riga === null) {
         if ($er = sync_fc2_inserisci('fc_games', $uuid,
             "INSERT INTO fc_games (game_date, score, type, kind, course_id, card_status, game_order, user_id, parent_id, total_father_words, total_words_with_children, max_card_id)
-             VALUES (?,?,?,'study',NULL,?,?,?,?,?,?,?)",
-            [$r['game_date'], $r['score'], $r['type'], $r['card_status'], $r['game_order'], $uid, $r['parent_id'], $r['total_father_words'], $r['total_words_with_children'], $r['max_card_id']])) return $er;
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            [$r['game_date'], $r['score'], $r['type'], $kind, $corso, $r['card_status'], $r['game_order'], $uid, $r['parent_id'], $r['total_father_words'], $r['total_words_with_children'], $r['max_card_id']])) return $er;
     } else {
         sec_q("UPDATE fc_games SET game_date = ?, score = ?, game_order = ?, total_father_words = ?, total_words_with_children = ?, max_card_id = ? WHERE id = ? AND user_id = ?",
               [$r['game_date'], $r['score'], $r['game_order'], $r['total_father_words'], $r['total_words_with_children'], $r['max_card_id'], (int)$riga['id'], $uid]);
@@ -225,7 +248,7 @@ function sync_fc_partite_applica(int $uid, string $uuid, string $op, array $patc
 /* ---------------- sessioni di tempo ---------------- */
 
 function sync_fc_durate_applica(int $uid, string $uuid, string $op, array $patch): array {
-    $riga = sec_one("SELECT d.* FROM fc_game_durations d JOIN fc_games g ON g.id = d.game_id WHERE d.uuid = ? AND g.user_id = ? AND g.kind = 'study'", [$uuid, $uid]);
+    $riga = sec_one("SELECT d.* FROM fc_game_durations d JOIN fc_games g ON g.id = d.game_id WHERE d.uuid = ? AND g.user_id = ?", [$uuid, $uid]);
     if ($op === 'delete') {
         if ($riga) sec_q("DELETE FROM fc_game_durations WHERE id = ?", [(int)$riga['id']]);
         return ['status' => 'applied'];
@@ -241,7 +264,7 @@ function sync_fc_durate_applica(int $uid, string $uuid, string $op, array $patch
         sec_q("UPDATE fc_game_durations SET duration_seconds = ?, updated_at = NOW() WHERE id = ?", [$sec, (int)$riga['id']]);
         return ['status' => 'applied'];
     }
-    [$gid, $er] = sync_fc2_partita($uid, $patch['game_uuid'] ?? null, 'game_uuid');
+    [$gid, $er] = sync_fc2_partita($uid, $patch['game_uuid'] ?? null, 'game_uuid', null);
     if ($er) return $er;
     $inizio = sync_fc2_datetime($patch['start_time'] ?? null);
     if ($inizio === null) return sync_rifiuto('validation', 'start_time', 'start_time must be YYYY-MM-DD HH:MM:SS');

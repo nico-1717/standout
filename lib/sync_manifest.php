@@ -683,14 +683,16 @@ const SYNC_MANIFESTO = [
             'example_audio' => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
-    // Le partite di studio (quelle di vocabolario entrano con le lingue). Una partita di ripasso (parent_uuid) ripete gli errori
-    // di un'altra. max_card_uuid e' la carta piu' nuova quando la partita e' partita: le carte create dopo sono «nuove».
+    // Le partite, di studio e di lingua (kind). Una partita di lingua appartiene a un corso (course_uuid) e ha come tipo il verso
+    // (w2t | t2w | mix, con _L = solo parole imparate). Una partita di ripasso (parent_uuid) ripete gli errori di un'altra.
+    // max_card_uuid e' la carta piu' nuova quando la partita e' partita: le carte create dopo sono «nuove».
     'fc_games' => [
         'ordine'       => 220,
         'proprietario' => 'user_id',
         'gruppo'       => [],
-        'filtro'       => "kind = 'study'",
         'campi' => [
+            'kind'                      => ['tipo' => 's', 'solo_creazione' => true],
+            'course_uuid'               => ['tipo' => 'fk', 'col' => 'course_id', 'tabella' => 'fc_vocab_courses', 'solo_creazione' => true],
             'game_date'                 => ['tipo' => 's', 'solo_creazione' => true],
             'score'                     => ['tipo' => 'n'],
             'type'                      => ['tipo' => 's', 'solo_creazione' => true],
@@ -809,7 +811,7 @@ const SYNC_MANIFESTO = [
 
             'game_order'                => ['tipo' => 's'],
             'total_words_with_children' => ['tipo' => 'i'],
-            'max_card_uuid'             => ['tipo' => 's', 'sql' => "(SELECT xc.uuid FROM fc_study_cards xc WHERE xc.id = t.max_card_id)"],
+            'max_card_uuid'             => ['tipo' => 's', 'sql' => "CASE WHEN t.kind = 'vocab' THEN (SELECT xv.uuid FROM fc_vocab_cards xv WHERE xv.id = t.max_card_id) ELSE (SELECT xc.uuid FROM fc_study_cards xc WHERE xc.id = t.max_card_id) END"],
         ],
     ],
     // Il tempo di gioco: una riga per ogni «sessione» della partita (si riprende dopo una pausa).
@@ -818,7 +820,6 @@ const SYNC_MANIFESTO = [
         'proprietario'     => 'user_id',
         'proprietario_sql' => 'SELECT g.user_id FROM fc_games g WHERE g.id = {t}.game_id',
         'gruppo'           => [],
-        'filtro'           => "game_id IN (SELECT xg.id FROM fc_games xg WHERE xg.kind = 'study')",
         'campi' => [
             'game_uuid'        => ['tipo' => 'fk', 'col' => 'game_id', 'tabella' => 'fc_games', 'solo_creazione' => true],
             'start_time'       => ['tipo' => 's', 'solo_creazione' => true],
@@ -876,6 +877,62 @@ const SYNC_MANIFESTO = [
         'chiave_naturale' => ['user_id', 'kind'],
         'campi' => [
             'kind'        => ['tipo' => 's', 'solo_creazione' => true],
+            'value'       => ['tipo' => 'n'],
+            'game_uuid'   => ['tipo' => 'fk', 'col' => 'game_id', 'tabella' => 'fc_games'],
+            'achieved_at' => ['tipo' => 's'],
+            'updated_at'  => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Le partite di lingua: stesse regole di quelle di studio, con parole e mazzi del corso.
+    'fc_vocab_plays' => [
+        'ordine'           => 307,
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => 'SELECT g.user_id FROM fc_games g WHERE g.id = {t}.game_id',
+        'gruppo'           => [],
+        'filtro'           => "game_id IN (SELECT xg.id FROM fc_games xg WHERE xg.kind = 'vocab')",
+        'campi' => [
+            'game_uuid'      => ['tipo' => 'fk', 'col' => 'game_id', 'tabella' => 'fc_games', 'solo_creazione' => true],
+            'card_uuid'      => ['tipo' => 'fk', 'col' => 'fc_image_id', 'tabella' => 'fc_vocab_cards', 'solo_creazione' => true],
+            'child_uuid'     => ['tipo' => 'fk', 'col' => 'fc_child_id', 'tabella' => 'fc_vocab_subcards', 'solo_creazione' => true],
+            'correct_answer' => ['tipo' => 's'],
+            'user_answer'    => ['tipo' => 's'],
+            'position'       => ['tipo' => 'i', 'solo_creazione' => true],
+            'play_date'      => ['tipo' => 's'],
+        ],
+    ],
+    'fc_vocab_game_decks' => [
+        'ordine'           => 308,
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => 'SELECT g.user_id FROM fc_games g WHERE g.id = {t}.game_id',
+        'gruppo'           => [],
+        'filtro'           => "game_id IN (SELECT xg.id FROM fc_games xg WHERE xg.kind = 'vocab')",
+        'campi' => [
+            'game_uuid'      => ['tipo' => 'fk', 'col' => 'game_id', 'tabella' => 'fc_games', 'solo_creazione' => true],
+            'deck_uuid'      => ['tipo' => 'fk', 'col' => 'fc_category_id', 'tabella' => 'fc_vocab_decks', 'solo_creazione' => true],
+            'category_order' => ['tipo' => 'i', 'solo_creazione' => true],
+        ],
+    ],
+    'fc_vocab_sequence' => [
+        'ordine'           => 309,
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => 'SELECT g.user_id FROM fc_games g WHERE g.id = {t}.game_id',
+        'gruppo'           => [],
+        'filtro'           => "game_id IN (SELECT xg.id FROM fc_games xg WHERE xg.kind = 'vocab')",
+        'campi' => [
+            'game_uuid' => ['tipo' => 'fk', 'col' => 'game_id', 'tabella' => 'fc_games', 'solo_creazione' => true],
+            'position'  => ['tipo' => 'i', 'solo_creazione' => true],
+            'card_uuid' => ['tipo' => 'fk', 'col' => 'fc_image_id', 'tabella' => 'fc_vocab_cards', 'solo_creazione' => true],
+        ],
+    ],
+    // I record di un corso (serie piu' lunga, ...): uno per (utente, corso, tipo). UUIDv5 di utente + corso (uuid) + tipo.
+    'fc_vocab_records' => [
+        'ordine'          => 310,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id', 'course_id', 'kind'],
+        'campi' => [
+            'kind'        => ['tipo' => 's', 'solo_creazione' => true],
+            'course_uuid' => ['tipo' => 'fk', 'col' => 'course_id', 'tabella' => 'fc_vocab_courses', 'solo_creazione' => true],
             'value'       => ['tipo' => 'n'],
             'game_uuid'   => ['tipo' => 'fk', 'col' => 'game_id', 'tabella' => 'fc_games'],
             'achieved_at' => ['tipo' => 's'],
@@ -963,6 +1020,11 @@ function sync_uuid_imparata(int $uid, string $targetUuid, int $figlia): string {
 /** L'identita' di un record: da utente + tipo. */
 function sync_uuid_record(int $uid, string $tipo): string {
     return sync_uuid5('fc_study_records|' . $uid . '|' . $tipo);
+}
+
+/** L'identita' di un record di un corso di lingua: da utente + corso (uuid) + tipo. */
+function sync_uuid_record_lingua(int $uid, string $corsoUuid, string $tipo): string {
+    return sync_uuid5('fc_vocab_records|' . $uid . '|' . $corsoUuid . '|' . $tipo);
 }
 
 /** L'identita' di una riga per utente (impostazioni, obiettivo): da tabella + utente. */

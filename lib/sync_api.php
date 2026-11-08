@@ -68,6 +68,7 @@ function sync_uuid_atteso_riga(string $tbl, int $uid, array $r): ?string {
         case 'fc_study_learnt':
         case 'fc_vocab_learnt':           return $r['target_uuid'] !== null ? sync_uuid_imparata($uid, (string)$r['target_uuid'], (int)$r['is_child']) : null;
         case 'fc_study_records':          return sync_uuid_record($uid, (string)$r['kind']);
+        case 'fc_vocab_records':          return $r['course_uuid'] !== null ? sync_uuid_record_lingua($uid, (string)$r['course_uuid'], (string)$r['kind']) : null;
         case 'fc_settings':
         case 'fc_goals':                  return sync_uuid_per_utente($tbl, $uid);
     }
@@ -426,6 +427,10 @@ function sync_applica(int $uid, array $m): array {
             case 'fc_study_game_decks': $esito = sync_fc_mazzi_partita_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_study_sequence': $esito = sync_fc_sequenza_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_study_records':  $esito = sync_fc_record_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_vocab_plays':    $esito = sync_lg_risposte_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_vocab_game_decks': $esito = sync_lg_mazzi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_vocab_sequence': $esito = sync_lg_sequenza_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_vocab_records':  $esito = sync_lg_record_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_settings':       $esito = sync_fc_impostazioni_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_goals':          $esito = sync_fc_obiettivo_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'pomodoro_custom_durations': $esito = sync_pomo_preset_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
@@ -507,5 +512,6 @@ require_once __DIR__ . '/sync_progetti.php';
 require_once __DIR__ . '/sync_voti.php';
 require_once __DIR__ . '/sync_flashcard.php';
 require_once __DIR__ . '/sync_flashcard2.php';
+require_once __DIR__ . '/sync_lingue_gioco.php';
 require_once __DIR__ . '/sync_rubrica.php';
 require_once __DIR__ . '/sync_lingue.php';
