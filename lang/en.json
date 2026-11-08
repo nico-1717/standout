@@ -4309,7 +4309,8 @@
     "app_audio_domanda": "Question audio",
     "app_audio_risposta": "Answer audio",
     "app_unite_n": "Cards merged: {n}",
-    "app_unite_saltate": "Not merged because they already have sub-cards or files (image, audio): {n}"
+    "app_unite_saltate": "Not merged because they already have sub-cards or files (image, audio): {n}",
+    "app_n_carte_trovate": "{n} cards found"
   },
   "fchub": {
     "home_titolo": "Flashcards",

@@ -4309,7 +4309,8 @@
     "app_audio_domanda": "Audio della domanda",
     "app_audio_risposta": "Audio della risposta",
     "app_unite_n": "Carte unite: {n}",
-    "app_unite_saltate": "Non unite perché hanno già carte figlie o file (immagine, audio): {n}"
+    "app_unite_saltate": "Non unite perché hanno già carte figlie o file (immagine, audio): {n}",
+    "app_n_carte_trovate": "{n} carte trovate"
   },
   "fchub": {
     "home_titolo": "Flashcard",
