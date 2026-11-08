@@ -674,7 +674,8 @@
     "nota_offline_n": "You're offline · {n} waiting to sync",
     "nota_sincronizzo": "Syncing…",
     "nota_annulla": "Undo",
-    "nota_formattata": "This note has formatting: to keep it, edit it on the website."
+    "nota_formattata": "This note has formatting: to keep it, edit it on the website.",
+    "app_nota_troppo_lunga": "Note too long: over 8000 characters it is not saved. Shorten it."
   },
   "dashboard": {
     "pronto_a_ripassare_qualcosa_oggi": "Ready to review something today?",

@@ -674,7 +674,8 @@
     "nota_offline_n": "Sei offline · {n} da sincronizzare",
     "nota_sincronizzo": "Sincronizzo…",
     "nota_annulla": "Annulla",
-    "nota_formattata": "Questa nota ha una formattazione: per non perderla, modificala dal sito."
+    "nota_formattata": "Questa nota ha una formattazione: per non perderla, modificala dal sito.",
+    "app_nota_troppo_lunga": "Nota troppo lunga: oltre 8000 caratteri non si salva. Accorciala."
   },
   "dashboard": {
     "pronto_a_ripassare_qualcosa_oggi": "Pronto a ripassare qualcosa oggi?",
