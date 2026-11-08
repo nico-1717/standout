@@ -424,3 +424,90 @@ function sync_fc_obiettivo_applica(int $uid, string $uuid, string $op, array $pa
     sec_q("INSERT INTO fc_goals (user_id, daily_goal) VALUES (?, ?) ON DUPLICATE KEY UPDATE daily_goal = ?", [$uid, $meta, $meta]);
     return ['status' => 'applied'];
 }
+
+/* ---------------- bozze veloci e mazzo collegato a un progetto ---------------- */
+
+const SYNC_FC_BOZZE_MAX = 200;
+
+/** Le bozze della Home (home_api.php: draft_add / draft_delete / draft_finish): fronte fino a 500, retro fino a 2000. */
+function sync_fc_bozze_applica(int $uid, string $uuid, string $op, array $patch): array {
+    $riga = sec_one("SELECT * FROM fc_quick_drafts WHERE user_id = ? AND uuid = ?", [$uid, $uuid]);
+    if ($op === 'delete') {
+        if ($riga) sec_q("DELETE FROM fc_quick_drafts WHERE id = ? AND user_id = ?", [(int)$riga['id'], $uid]);
+        return ['status' => 'applied'];
+    }
+    if ($er = sync_fc_controlla('fc_quick_drafts', $patch, $riga === null)) return $er;
+
+    $set = [];
+    if (array_key_exists('front', $patch)) {
+        $f = sync_fc_testo($patch['front'], 500, false);
+        if ($f === false || $f === '') return sync_rifiuto('validation', 'front', 'front cannot be empty');
+        $set['front'] = $f;
+    }
+    if (array_key_exists('back', $patch)) {
+        $b = sync_fc_testo($patch['back'], 2000, true);
+        if ($b === false) return sync_rifiuto('validation', 'back', 'back must be text');
+        $set['back'] = $b ?? '';
+    }
+    if (array_key_exists('deck_uuid', $patch)) {
+        if ($patch['deck_uuid'] === null) $set['deck_id'] = null;
+        else {
+            [$did, $er] = sync_fc_risolvi('fc_study_decks', $uid, $patch['deck_uuid'], 'deck_uuid', 'Deck');
+            if ($er) return $er;
+            $set['deck_id'] = $did;
+        }
+    }
+    if ($riga) {
+        if ($set) {
+            $cols = []; $par = [];
+            foreach ($set as $k => $v) { $cols[] = "`$k` = ?"; $par[] = $v; }
+            $par[] = (int)$riga['id']; $par[] = $uid;
+            sec_q("UPDATE fc_quick_drafts SET " . implode(', ', $cols) . " WHERE id = ? AND user_id = ?", $par);
+        }
+        return ['status' => 'applied'];
+    }
+    if (!isset($set['front'])) return sync_rifiuto('validation', 'front', 'front is required');
+    $n = (int)(sec_one("SELECT COUNT(*) AS n FROM fc_quick_drafts WHERE user_id = ?", [$uid])['n'] ?? 0);
+    if ($n >= SYNC_FC_BOZZE_MAX) return sync_rifiuto('forbidden', 'front', 'Too many drafts');
+    if ($er = sync_fc2_inserisci('fc_quick_drafts', $uuid,
+        "INSERT INTO fc_quick_drafts (user_id, front, back, deck_id) VALUES (?,?,?,?)",
+        [$uid, $set['front'], $set['back'] ?? '', $set['deck_id'] ?? null])) return $er;
+    return ['status' => 'applied'];
+}
+
+/** Il mazzo e i suoi discendenti e antenati: se uno di loro e' gia' di un altro progetto, la materia non e' libera (progetti.php, prog_category_link_blocked). */
+function sync_fc_mazzo_occupato(int $uid, int $mazzo, int $escludiProgetto): bool {
+    $padre = []; $figli = [];
+    foreach (sec_all("SELECT id, parent_id FROM fc_study_decks WHERE user_id = ?", [$uid]) as $r) {
+        $padre[(int)$r['id']] = (int)$r['parent_id'];
+        $figli[(int)$r['parent_id']][] = (int)$r['id'];
+    }
+    $catena = [$mazzo];
+    for ($w = $padre[$mazzo] ?? 0, $g = 0; $w > 0 && $g < 100; $g++, $w = $padre[$w] ?? 0) $catena[] = $w;
+    $pila = $figli[$mazzo] ?? []; $g = 0;
+    while ($pila && $g++ < 5000) { $c = array_pop($pila); $catena[] = $c; foreach ($figli[$c] ?? [] as $x) $pila[] = $x; }
+    $catena = array_values(array_unique($catena));
+    $segn = implode(',', array_fill(0, count($catena), '?'));
+    return sec_one("SELECT 1 AS x FROM fc_study_deck_projects WHERE fc_category_id IN ($segn) AND project_id != ? LIMIT 1",
+                   array_merge($catena, [$escludiProgetto])) !== null;
+}
+
+function sync_fc_collegamenti_applica(int $uid, string $uuid, string $op, array $patch): array {
+    $riga = sec_one("SELECT l.* FROM fc_study_deck_projects l JOIN projects p ON p.id = l.project_id WHERE l.uuid = ? AND p.user_id = ?", [$uuid, $uid]);
+    if ($op === 'delete') {
+        if ($riga) sec_q("DELETE FROM fc_study_deck_projects WHERE id = ?", [(int)$riga['id']]);
+        return ['status' => 'applied'];
+    }
+    if ($er = sync_fc_controlla('fc_study_deck_projects', $patch, $riga === null)) return $er;
+    if ($riga) return ['status' => 'applied'];   // niente da cambiare: si toglie e si rifa'
+    [$pid, $er] = sync_fc_risolvi('projects', $uid, $patch['project_uuid'] ?? null, 'project_uuid', 'Project');
+    if ($er) return $er;
+    [$mid, $er] = sync_fc_risolvi('fc_study_decks', $uid, $patch['deck_uuid'] ?? null, 'deck_uuid', 'Deck');
+    if ($er) return $er;
+    if (sync_fc_mazzo_occupato($uid, $mid, $pid)) return sync_rifiuto('forbidden', 'deck_uuid', 'This subject already belongs to another project');
+    // un progetto ha un solo mazzo: quello di prima lascia il posto (il sito cancella e riscrive)
+    sec_q("DELETE FROM fc_study_deck_projects WHERE project_id = ?", [$pid]);
+    if ($er = sync_fc2_inserisci('fc_study_deck_projects', $uuid,
+        "INSERT INTO fc_study_deck_projects (project_id, fc_category_id) VALUES (?,?)", [$pid, $mid])) return $er;
+    return ['status' => 'applied'];
+}

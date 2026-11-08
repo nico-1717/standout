@@ -582,6 +582,33 @@ const SYNC_MANIFESTO = [
             'favorited_date' => ['tipo' => 'd', 'solo_creazione' => true],
         ],
     ],
+    // Le bozze veloci della Home (solo il fronte, il resto si completa dopo): la bozza diventa carta con una scrittura sulle carte
+    // e la cancellazione della bozza. Al massimo 200 per utente, come sul sito.
+    'fc_quick_drafts' => [
+        'ordine'       => 213,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'front'      => ['tipo' => 's'],
+            'back'       => ['tipo' => 's'],
+            'deck_uuid'  => ['tipo' => 'fk', 'col' => 'deck_id', 'tabella' => 'fc_study_decks'],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Il mazzo di studio collegato a un progetto (uno solo per progetto). Per cambiarlo si toglie la riga e se ne crea un'altra,
+    // come fa il sito. Non ha user_id: l'utente e' quello del progetto.
+    'fc_study_deck_projects' => [
+        'ordine'           => 214,
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => 'SELECT p.user_id FROM projects p WHERE p.id = {t}.project_id',
+        'gruppo'           => [],
+        'campi' => [
+            'project_uuid' => ['tipo' => 'fk', 'col' => 'project_id', 'tabella' => 'projects', 'solo_creazione' => true],
+            'deck_uuid'    => ['tipo' => 'fk', 'col' => 'fc_category_id', 'tabella' => 'fc_study_decks', 'solo_creazione' => true],
+            'created_at'   => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
     // Le carte imparate: una per (utente, carta o carta figlia). La colonna fc_image_id vale per l'una o per l'altra
     // secondo is_child: sul filo c'e' un solo uuid (target_uuid) piu' il flag. L'uuid e' UUIDv5 di utente + target + flag.
     'fc_study_learnt' => [

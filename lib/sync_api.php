@@ -405,6 +405,8 @@ function sync_applica(int $uid, array $m): array {
             case 'fc_study_cards':    $esito = sync_fc_carte_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_study_subcards': $esito = sync_fc_figlie_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_study_favorites': $esito = sync_fc_preferiti_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_quick_drafts':   $esito = sync_fc_bozze_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_study_deck_projects': $esito = sync_fc_collegamenti_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_study_learnt':   $esito = sync_fc_imparate_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_study_examples': $esito = sync_fc_esempi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_games':          $esito = sync_fc_partite_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
