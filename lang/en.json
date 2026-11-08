@@ -4392,7 +4392,22 @@
     "imparate_nota": "Counts the cards marked as learned and the ones you got right the last 5 times in a row.",
     "continua": "Continue",
     "carte_fatte": "{n} of {tot} cards done",
-    "partita_in_corso": "Game in progress"
+    "partita_in_corso": "Game in progress",
+    "app_nuovo_mazzo": "Name of the new deck",
+    "app_nessuna_parola_qui": "No words in this deck yet.",
+    "app_segna_imparata": "Mark as learnt",
+    "app_imparata_label": "Learnt",
+    "app_preferita": "Favourite",
+    "app_figlie": "Related forms",
+    "app_nessun_corso": "You have no language yet.",
+    "app_scegli_lingua_titolo": "Pick the language to learn",
+    "app_variante_titolo": "Pick the accent",
+    "app_cerca_parole": "Search a word",
+    "app_parole_del_corso": "Words in this language",
+    "app_traduzione_vuota": "no translation",
+    "app_sposta_su": "Move up",
+    "app_sposta_giu": "Move down",
+    "app_mazzo_non_vuoto": "A deck can only be deleted when it is empty."
   },
   "fcv": {
     "conteggio": "{categorie} categories · {carte} words",

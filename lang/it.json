@@ -4392,7 +4392,22 @@
     "imparate_nota": "Contano le carte segnate come imparate e quelle che hai indovinato le ultime 5 volte di fila.",
     "continua": "Continua",
     "carte_fatte": "{n} di {tot} carte fatte",
-    "partita_in_corso": "Partita in corso"
+    "partita_in_corso": "Partita in corso",
+    "app_nuovo_mazzo": "Nome del nuovo mazzo",
+    "app_nessuna_parola_qui": "Ancora nessuna parola in questo mazzo.",
+    "app_segna_imparata": "Segna come imparata",
+    "app_imparata_label": "Imparata",
+    "app_preferita": "Preferita",
+    "app_figlie": "Forme e modi di dire",
+    "app_nessun_corso": "Non hai ancora nessuna lingua.",
+    "app_scegli_lingua_titolo": "Scegli la lingua da imparare",
+    "app_variante_titolo": "Scegli l'accento",
+    "app_cerca_parole": "Cerca una parola",
+    "app_parole_del_corso": "Parole del corso",
+    "app_traduzione_vuota": "senza traduzione",
+    "app_sposta_su": "Sposta su",
+    "app_sposta_giu": "Sposta giù",
+    "app_mazzo_non_vuoto": "Un mazzo si può eliminare solo se è vuoto."
   },
   "fcv": {
     "conteggio": "{categorie} categorie · {carte} parole",
