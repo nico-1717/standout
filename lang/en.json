@@ -4312,7 +4312,9 @@
     "app_audio_risposta": "Answer audio",
     "app_unite_n": "Cards merged: {n}",
     "app_unite_saltate": "Not merged because they already have sub-cards or files (image, audio): {n}",
-    "app_n_carte_trovate": "{n} cards found"
+    "app_n_carte_trovate": "{n} cards found",
+    "smi_img_scarico": "Downloading pictures… {done}/{total}",
+    "smi_img_fatte": "Pictures added: {n} of {total}"
   },
   "fchub": {
     "home_titolo": "Flashcards",
