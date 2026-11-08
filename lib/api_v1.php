@@ -92,7 +92,8 @@ function api_percorso(): ?string {
     $resto = substr($p, $pos + strlen('/api/v1'));
     $resto = preg_replace('#^/?index\.php#', '', $resto);   // anche /api/v1/index.php/auth/login
     $resto = trim($resto, '/');
-    if ($resto !== '' && !preg_match('#^[a-z0-9_]+(/[a-z0-9_]+)*$#', $resto)) return null;
+    /* il trattino serve agli uuid della rotta dei file; quali indirizzi esistono lo decide poi l'elenco delle rotte */
+    if ($resto !== '' && !preg_match('#^[a-z0-9_-]+(/[a-z0-9_-]+)*$#', $resto)) return null;
     return $resto;
 }
 
@@ -146,12 +147,19 @@ function api_v1_esegui(array $rotte): void {
     $metodiPossibili = [];
     foreach ($rotte as $r) {
         [$m, $schema, $gestore, $opz] = $r + [3 => []];
-        $re = '#^' . str_replace('{id}', '(?<id>[0-9]{1,10})', $schema) . '$#';
+        /* {id}: numero. {uuid}, {tbl}, {campo}: solo per le rotte dei file (lib/media_api.php); la tabella e il campo si
+           controllano poi su un elenco chiuso, qui basta che abbiano la forma giusta. */
+        $re = '#^' . str_replace(
+            ['{id}', '{uuid}', '{tbl}', '{campo}'],
+            ['(?<id>[0-9]{1,10})', '(?<uuid>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', '(?<tbl>[a-z_]{1,40})', '(?<campo>[a-z_]{1,24})'],
+            $schema
+        ) . '$#';
         if (!preg_match($re, $percorso, $trovato)) continue;
         $metodiPossibili[] = $m;
         if ($m !== $metodo) continue;
 
-        $ctx = ['utente' => null, 'sessione_id' => 0, 'id' => isset($trovato['id']) ? (int)$trovato['id'] : null];
+        $ctx = ['utente' => null, 'sessione_id' => 0, 'id' => isset($trovato['id']) ? (int)$trovato['id'] : null,
+                'uuid' => $trovato['uuid'] ?? null, 'tbl' => $trovato['tbl'] ?? null, 'campo' => $trovato['campo'] ?? null];
         $accetta = $opz['accetta'] ?? [];
 
         if ($accetta) {

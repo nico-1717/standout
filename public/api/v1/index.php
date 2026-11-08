@@ -115,6 +115,10 @@
      POST   /api/v1/shopping/{id}/image   carica o sostituisce: multipart, campo «file» (jpg, png, webp, gif; max 4 MB)
      GET    /api/v1/shopping/{id}/image   il file (serve la sessione: non c'e' un indirizzo pubblico)
      DELETE /api/v1/shopping/{id}/image   toglie l'immagine (va bene anche se non c'e')
+
+   File delle righe sincronizzate (carte, parole, esempi, articoli del to buy), solo con il token — lib/media_api.php:
+     POST   /api/v1/media/{tabella}/{uuid}/{campo}   carica o sostituisce: multipart, campo «file» (immagini 5 MB, audio 10 MB); risponde {name}
+     DELETE /api/v1/media/{tabella}/{uuid}/{campo}   toglie il file (va bene anche se non c'e')
    ===================================================================== */
 
 /* Dice a auth_core.php che questa e' l'API: niente sessione PHP (e niente cookie
@@ -132,6 +136,7 @@ require_once __DIR__ . '/../../../lib/todo_bulk_api.php';
 require_once __DIR__ . '/../../../lib/pills_api.php';
 require_once __DIR__ . '/../../../lib/diary_api.php';
 require_once __DIR__ . '/../../../lib/shopping_img_api.php';
+require_once __DIR__ . '/../../../lib/media_api.php';
 require_once __DIR__ . '/../../../lib/sync_api.php';
 require_once __DIR__ . '/../../../lib/home_layout.php';
 require_once __DIR__ . '/../../../lib/registrazione.php';
@@ -698,6 +703,27 @@ function api_h_shopping_img_leggi(array $ctx): void {
     exit;
 }
 
+/* ---------------- Immagini e audio delle righe sincronizzate (lib/media_api.php) ---------------- */
+
+function api_h_media_errore(array $esito): void {
+    if (!isset($esito['errore'])) return;
+    [$codice, $campo, $testo] = $esito['errore'];
+    api_errore($codice, $testo, null, ['field' => $campo]);
+}
+function api_h_media_carica(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_media_write', 120);
+    $e = media_carica((int)$ctx['utente']['id'], (string)$ctx['tbl'], (string)$ctx['uuid'], (string)$ctx['campo'], $_FILES['file'] ?? null);
+    api_h_media_errore($e);
+    api_ok($e);
+}
+function api_h_media_togli(array $ctx): void {
+    api_h_limite_scritture($ctx, 'api_media_write', 120);
+    $r = media_togli((int)$ctx['utente']['id'], (string)$ctx['tbl'], (string)$ctx['uuid'], (string)$ctx['campo']);
+    if ($r === null) api_errore('validation', 'Unknown table or field', null, ['field' => 'field']);
+    if ($r === false) api_errore('not_found', 'Row not found');
+    api_ok();
+}
+
 /* ---------------- L'elenco delle rotte ---------------- */
 
 $tokenECookie = ['token', 'cookie'];
@@ -745,6 +771,8 @@ api_v1_esegui([
     ['DELETE', 'shopping/{id}',     'api_h_shopping_togli',   ['accetta' => $tokenECookie]],
     ['POST',   'shopping/{id}/image', 'api_h_shopping_img_carica', ['accetta' => $tokenECookie]],
     ['GET',    'shopping/{id}/image', 'api_h_shopping_img_leggi',  ['accetta' => $tokenECookie]],
+    ['POST',   'media/{tbl}/{uuid}/{campo}', 'api_h_media_carica', ['accetta' => ['token']]],
+    ['DELETE', 'media/{tbl}/{uuid}/{campo}', 'api_h_media_togli',  ['accetta' => ['token']]],
     ['DELETE', 'shopping/{id}/image', 'api_h_shopping_img_togli',  ['accetta' => $tokenECookie]],
     ['POST',   'tasks/bulk',        'api_h_tasks_bulk',       ['accetta' => $tokenECookie]],
     ['POST',   'tasks/reorder',     'api_h_tasks_riordina',   ['accetta' => $tokenECookie]],
