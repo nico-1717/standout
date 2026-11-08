@@ -5484,6 +5484,14 @@
     "sync_g_pomodoro": "Pomodoro",
     "sync_g_grades": "Grades",
     "sync_g_flashcards": "Flashcards",
-    "sync_g_altro": "Other"
+    "sync_g_altro": "Other",
+    "blocco_titolo": "App lock",
+    "blocco_sub": "Asks for Face ID, fingerprint or the phone code when you open the app. When you switch to other apps, the screen is covered.",
+    "blocco_motivo": "Unlock Standout",
+    "blocco_sblocca": "Unlock",
+    "blocco_bloccata": "Standout is locked",
+    "blocco_non_disponibile": "This phone has no Face ID, fingerprint or code set up. Set one in the phone settings and try again.",
+    "blocco_non_riuscito": "I could not unlock. Try again.",
+    "blocco_sicurezza": "Security"
   }
 }

@@ -5484,6 +5484,14 @@
     "sync_g_pomodoro": "Pomodoro",
     "sync_g_grades": "Voti",
     "sync_g_flashcards": "Flashcard",
-    "sync_g_altro": "Altro"
+    "sync_g_altro": "Altro",
+    "blocco_titolo": "Blocco dell'app",
+    "blocco_sub": "Chiede Face ID, impronta o il codice del telefono quando apri l'app. Quando passi ad altre app, la schermata si copre.",
+    "blocco_motivo": "Sblocca Standout",
+    "blocco_sblocca": "Sblocca",
+    "blocco_bloccata": "Standout è bloccata",
+    "blocco_non_disponibile": "Questo telefono non ha Face ID, impronta o codice impostati. Impostali nelle impostazioni del telefono e riprova.",
+    "blocco_non_riuscito": "Non sono riuscito a sbloccare. Riprova.",
+    "blocco_sicurezza": "Sicurezza"
   }
 }
