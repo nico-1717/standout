@@ -437,7 +437,8 @@
     "vs_obiettivo": "{scarto} vs target",
     "eliminati": "Deleted",
     "errore": "Error",
-    "connessione_fallita": "Connection failed: {errore}"
+    "connessione_fallita": "Connection failed: {errore}",
+    "app_grafico_alt": "Average trend: {n} exams, from average {da} to average {a}."
   },
   "progetti": {
     "0_selezionati": "0 selected",

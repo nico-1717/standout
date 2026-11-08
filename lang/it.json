@@ -437,7 +437,8 @@
     "vs_obiettivo": "{scarto} vs obiettivo",
     "eliminati": "Eliminati",
     "errore": "Errore",
-    "connessione_fallita": "Connessione fallita: {errore}"
+    "connessione_fallita": "Connessione fallita: {errore}",
+    "app_grafico_alt": "Andamento della media: {n} esami, dalla media {da} alla media {a}."
   },
   "progetti": {
     "0_selezionati": "0 selezionati",
