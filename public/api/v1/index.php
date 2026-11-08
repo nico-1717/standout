@@ -110,6 +110,7 @@
      PATCH  /api/v1/pomodoro/settings     solo i campi inviati (current_break: null = pausa finita)
      GET    /api/v1/home/layout           i riquadri della Home: [{id, on, order?}] nell'ordine scelto
      PUT    /api/v1/home/layout           {layout: [...]}: salva, scarta id sconosciuti, aggiunge in fondo i mancanti
+     GET    /api/v1/home/ai_usage         il piano e i consumi del mese: {plan: {name, resets, audio|images|tokens: {used, limit|null}} | null}
 
    Immagine di un articolo del to buy, fetta 8 — lib/shopping_img_api.php:
      POST   /api/v1/shopping/{id}/image   carica o sostituisce: multipart, campo «file» (jpg, png, webp, gif; max 4 MB)
@@ -140,6 +141,7 @@ require_once __DIR__ . '/../../../lib/shopping_img_api.php';
 require_once __DIR__ . '/../../../lib/media_api.php';
 require_once __DIR__ . '/../../../lib/sync_api.php';
 require_once __DIR__ . '/../../../lib/home_layout.php';
+require_once __DIR__ . '/../../../lib/piano_helpers.php';
 require_once __DIR__ . '/../../../lib/registrazione.php';
 require_once __DIR__ . '/../../../lib/password_reset.php';
 require_once __DIR__ . '/../../../lib/api_settings.php';
@@ -725,6 +727,20 @@ function api_h_media_togli(array $ctx): void {
     api_ok();
 }
 
+/* I consumi dell'IA del mese (le barre sotto l'avatar). Stessi numeri di home_api.php?ajax=ai_usage. */
+function api_h_home_ai_usage(array $ctx): void {
+    $p = standout_get_piano_utente((int)$ctx['utente']['id']);
+    if (!$p) api_ok(['plan' => null]);
+    $voce = function ($usato, $limite) { return ['used' => (int)$usato, 'limit' => $limite === null ? null : (int)$limite]; };
+    api_ok(['plan' => [
+        'name' => ucfirst((string)$p['name']),
+        'resets' => date('Y-m-01', strtotime('first day of next month')),
+        'audio' => $voce($p['monthly_audio_chars'], $p['audio_chars_limit']),
+        'images' => $voce($p['monthly_generated_images'], $p['images_limit']),
+        'tokens' => $voce($p['monthly_text_tokens'], $p['text_tokens_limit']),
+    ]]);
+}
+
 /* L'immagine di un articolo e' privata (uploads/tobuy): si legge solo qui, dal uuid della riga, con il token. */
 function api_h_media_leggi(array $ctx): void {
     $uid = (int)$ctx['utente']['id'];
@@ -827,6 +843,7 @@ api_v1_esegui([
     ['PATCH',  'university/settings', 'api_h_voti_impostazioni_salva', ['accetta' => $tokenECookie]],
     ['GET',    'home/layout',       'api_h_home_layout',                 ['accetta' => $tokenECookie]],
     ['PUT',    'home/layout',       'api_h_home_layout_salva',           ['accetta' => $tokenECookie]],
+    ['GET',    'home/ai_usage',     'api_h_home_ai_usage',               ['accetta' => $tokenECookie]],
     /* Sincronizzazione con l'app (docs/ARCHITETTURA_APP.md §3.3): SOLO con il token, sono le rotte dell'app */
     ['POST',   'sync/push',         'api_h_sync_push',        ['accetta' => ['token']]],
     ['GET',    'sync/pull',         'api_h_sync_pull',        ['accetta' => ['token']]],
