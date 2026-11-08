@@ -550,6 +550,36 @@ const SYNC_MANIFESTO = [
             'updated_at'     => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
+    // La rubrica degli indirizzi (per gli invitati agli eventi): una riga per indirizzo, come sul sito (uq_contact_email).
+    'contacts' => [
+        'ordine'       => 120,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'name'       => ['tipo' => 's'],
+            'email'      => ['tipo' => 's'],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // I luoghi che ti sei salvato (casa, lavoro, palestra): le parole d'aggancio riempiono da sole il luogo di un evento.
+    'planner_places' => [
+        'ordine'       => 121,
+        'proprietario' => 'user_id',
+        'gruppo'       => ['user_id'],
+        'campi' => [
+            'label'      => ['tipo' => 's'],
+            'keywords'   => ['tipo' => 's'],
+            'place_name' => ['tipo' => 's'],
+            'address'    => ['tipo' => 's'],
+            'place_lat'  => ['tipo' => 'n'],
+            'place_lon'  => ['tipo' => 'n'],
+            'place_ref'  => ['tipo' => 's'],
+            'sort_key'   => ['tipo' => 'k'],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
     'fc_study_subcards' => [
         'ordine'           => 202,
         'pk'               => 'id_child',
@@ -595,6 +625,20 @@ const SYNC_MANIFESTO = [
             'created_at' => ['tipo' => 's', 'solo_lettura' => true],
             'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
         ],
+    // Gli invitati di un evento: l'indirizzo (anche scritto a mano, senza contatto) e il nome com'era allora. Si scrivono alla nascita.
+    'event_guests' => [
+        'ordine'       => 131,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'event_uuid'   => ['tipo' => 'fk', 'col' => 'event_id', 'tabella' => 'planner_events', 'solo_creazione' => true],
+            'contact_uuid' => ['tipo' => 'fk', 'col' => 'contact_id', 'tabella' => 'contacts'],
+            'email'        => ['tipo' => 's', 'solo_creazione' => true],
+            'name'         => ['tipo' => 's'],
+            'created_at'   => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at'   => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
     ],
     // Il mazzo di studio collegato a un progetto (uno solo per progetto). Per cambiarlo si toglie la riga e se ne crea un'altra,
     // come fa il sito. Non ha user_id: l'utente e' quello del progetto.

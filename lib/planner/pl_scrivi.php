@@ -331,6 +331,9 @@ function pl_evento_elimina(int $uid, int $id, string $scope, ?string $origDate):
         $segn = implode(',', array_fill(0, count($ids), '?'));
         sec_q("DELETE FROM todos WHERE user_id = ? AND planner_event_id IN ($segn)",
               array_merge([$uid], $ids));
+        /* Gli invitati se ne vanno con l'evento: senza chiave esterna resterebbero righe orfane. */
+        sec_q("DELETE FROM event_guests WHERE user_id = ? AND event_id IN ($segn)",
+              array_merge([$uid], $ids));
 
         /* Il blocco di una routine su Google appartiene a un pezzo solo.
            Cancellando quel pezzo e non gli altri, il blocco non deve

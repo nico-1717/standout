@@ -399,6 +399,9 @@ function sync_applica(int $uid, array $m): array {
             case 'projects':          $esito = sync_prog_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'pomodoro_sessions': $esito = sync_pomo_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'university_exam_groups': $esito = sync_uni_gruppi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'contacts':          $esito = sync_contatti_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'event_guests':      $esito = sync_invitati_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'planner_places':    $esito = sync_luoghi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'university_exams':  $esito = sync_uni_esami_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'university_bonuses': $esito = sync_uni_bonus_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_study_decks':    $esito = sync_fc_mazzi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
@@ -496,3 +499,4 @@ require_once __DIR__ . '/sync_progetti.php';
 require_once __DIR__ . '/sync_voti.php';
 require_once __DIR__ . '/sync_flashcard.php';
 require_once __DIR__ . '/sync_flashcard2.php';
+require_once __DIR__ . '/sync_rubrica.php';
