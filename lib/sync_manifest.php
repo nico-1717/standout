@@ -905,7 +905,7 @@ const SYNC_MANIFESTO = [
         'proprietario'     => 'user_id',
         'proprietario_sql' => 'SELECT g.user_id FROM fc_games g WHERE g.id = {t}.game_id',
         'gruppo'           => [],
-        'filtro'           => "game_id IN (SELECT xg.id FROM fc_games xg WHERE xg.kind = 'vocab')",
+        'filtro'           => "game_id IN (SELECT xg.id FROM fc_games xg WHERE xg.kind = 'vocab') AND EXISTS (SELECT 1 FROM fc_vocab_decks xd WHERE xd.id = t.fc_category_id)",
         'campi' => [
             'game_uuid'      => ['tipo' => 'fk', 'col' => 'game_id', 'tabella' => 'fc_games', 'solo_creazione' => true],
             'deck_uuid'      => ['tipo' => 'fk', 'col' => 'fc_category_id', 'tabella' => 'fc_vocab_decks', 'solo_creazione' => true],

@@ -135,11 +135,14 @@ function sync_lingue_svuota_mazzo(int $uid, int $mazzo): void {
 function sync_lingue_togli_parola(int $uid, int $carta): void {
     $figlie = array_map(fn($r) => (int)$r['id_child'], sec_all("SELECT id_child FROM fc_vocab_subcards WHERE parent_id = ?", [$carta]));
     foreach ($figlie as $f) {
+        sec_q("DELETE FROM fc_vocab_plays WHERE fc_child_id = ?", [$f]);
         sec_q("DELETE FROM fc_vocab_examples WHERE child_id = ?", [$f]);
         sec_q("DELETE FROM fc_vocab_favorites WHERE user_id = ? AND fc_child_id = ?", [$uid, $f]);
         sec_q("DELETE FROM fc_vocab_learnt WHERE user_id = ? AND is_child = 1 AND fc_image_id = ?", [$uid, $f]);
         sec_q("DELETE FROM fc_vocab_subcards WHERE id_child = ?", [$f]);
     }
+    sec_q("DELETE FROM fc_vocab_plays WHERE fc_image_id = ?", [$carta]);
+    sec_q("DELETE FROM fc_vocab_sequence WHERE fc_image_id = ?", [$carta]);
     sec_q("DELETE FROM fc_vocab_examples WHERE parent_id = ?", [$carta]);
     sec_q("DELETE FROM fc_vocab_favorites WHERE user_id = ? AND fc_image_id = ?", [$uid, $carta]);
     sec_q("DELETE FROM fc_vocab_learnt WHERE user_id = ? AND is_child = 0 AND fc_image_id = ?", [$uid, $carta]);
@@ -152,6 +155,8 @@ function sync_lingue_mazzi_applica(int $uid, string $uuid, string $op, array $pa
         if ($riga) {
             foreach (array_reverse(sync_lingue_ramo($uid, (int)$riga['id'])) as $id) {
                 sync_lingue_svuota_mazzo($uid, $id);
+                // un mazzo scelto per una partita non ha chiave esterna sul mazzo: va tolto a mano
+                sec_q("DELETE FROM fc_vocab_game_decks WHERE fc_category_id = ? AND game_id IN (SELECT id FROM fc_games WHERE user_id = ?)", [$id, $uid]);
                 sec_q("DELETE FROM fc_vocab_decks WHERE id = ? AND user_id = ?", [$id, $uid]);
             }
         }

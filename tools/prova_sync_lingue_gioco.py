@@ -174,6 +174,17 @@ def main():
         ok(A.copia.get(('fc_games', GS), {}).get('kind') == 'study' and A.copia.get(('fc_games', G), {}).get('kind') == 'vocab', 'copia completa: i generi sono giusti')
         ok(not any(t == 'fc_study_plays' and x.get('game_uuid') == G for (t, u), x in A.copia.items()), 'nessuna riga di studio sulle partite di lingua')
 
+        print('5b. togliere parole e mazzi che hanno partite')
+        M3, W3, G5, GD5, Q5, P5 = nuovo(), nuovo(), nuovo(), nuovo(), nuovo(), nuovo()
+        r = A.push([mut('fc_vocab_decks', M3, {'course_uuid': K, 'name': NOME + ' tre'}), mut('fc_vocab_cards', W3, {'category_uuid': M3, 'word': 'tree', 'translation': 'arbre'}),
+                    mut('fc_games', G5, {'kind': 'vocab', 'course_uuid': K, 'game_date': GD, 'type': 'w2t'}), mut('fc_vocab_game_decks', GD5, {'game_uuid': G5, 'deck_uuid': M3}),
+                    mut('fc_vocab_sequence', Q5, {'game_uuid': G5, 'position': 0, 'card_uuid': W3}), mut('fc_vocab_plays', P5, {'game_uuid': G5, 'card_uuid': W3, 'position': 0})]); B.aggiorna()
+        ok(all(x['status'] == 'applied' for x in r['results']) and ('fc_vocab_plays', P5) in B.copia, 'una partita su un mazzo nuovo')
+        r = A.push([mut('fc_vocab_cards', W3, {}, op='delete')]); B.aggiorna()
+        ok(esito(r)['status'] == 'applied' and ('fc_vocab_plays', P5) not in B.copia and ('fc_vocab_sequence', Q5) not in B.copia and ('fc_games', G5) in B.copia, 'togliendo la parola se ne vanno risposte e sequenza, la partita resta')
+        r = A.push([mut('fc_vocab_decks', M3, {}, op='delete')]); B.aggiorna()
+        ok(esito(r)['status'] == 'applied' and ('fc_vocab_game_decks', GD5) not in B.copia and ('fc_games', G5) in B.copia, 'togliendo il mazzo se ne va la scelta della partita')
+
         print('6. cancellare')
         r = A.push([mut('fc_games', G, {}, op='delete')]); B.aggiorna()
         resto = [(t, u) for (t, u), x in B.copia.items() if x.get('game_uuid') == G and t != 'fc_vocab_records']
