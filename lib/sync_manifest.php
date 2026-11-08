@@ -47,6 +47,7 @@ const SYNC_MANIFESTO = [
             'list_type'           => ['tipo' => 'e', 'solo_creazione' => true],
             'parent_uuid'         => ['tipo' => 'fk', 'col' => 'parent_id', 'tabella' => 'todos', 'solo_creazione' => true],
             'buy_category_uuid'   => ['tipo' => 'fk', 'col' => 'buy_category_id', 'tabella' => 'todo_buy_categories'],
+            'project_uuid'        => ['tipo' => 'fk', 'col' => 'project_id', 'tabella' => 'projects'],   // solo i to do: l'attivita' collegata a un progetto
             'buy_priority'        => ['tipo' => 'i'],
             'buy_price_cents'     => ['tipo' => 'i'],
             'buy_url'             => ['tipo' => 's'],

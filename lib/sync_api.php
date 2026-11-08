@@ -313,7 +313,7 @@ function sync_todos_applica(int $uid, string $uuid, string $op, array $patch): a
 
     // dal nome sul filo al nome che le funzioni di sempre capiscono (e ritorno, per gli errori)
     $ritorno = ['title' => 'title', 'date' => 'due_date', 'time' => 'due_time', 'minutes' => 'duration_minutes', 'done' => 'is_done',
-                'parent_id' => 'parent_uuid', 'category_id' => 'buy_category_uuid', 'priority' => 'buy_priority',
+                'parent_id' => 'parent_uuid', 'category_id' => 'buy_category_uuid', 'project_id' => 'project_uuid', 'priority' => 'buy_priority',
                 'price_cents' => 'buy_price_cents', 'url' => 'buy_url'];
     $api = [];
     foreach (['title' => 'title', 'due_date' => 'date', 'due_time' => 'time', 'duration_minutes' => 'minutes', 'is_done' => 'done',
@@ -328,6 +328,16 @@ function sync_todos_applica(int $uid, string $uuid, string $op, array $patch): a
             $cid = sync_id_da_uuid('todo_buy_categories', $uid, $cu);
             if ($cid === null) return sync_rifiuto('not_found', 'buy_category_uuid', 'Category not found');
             $api['category_id'] = $cid;
+        }
+    }
+    if (array_key_exists('project_uuid', $patch)) {
+        $pu = $patch['project_uuid'];
+        if ($pu === null) $api['project_id'] = null;
+        elseif (!sync_uuid_valido($pu)) return sync_rifiuto('validation', 'project_uuid', 'Invalid uuid');
+        else {
+            $prid = sync_id_da_uuid('projects', $uid, $pu);
+            if ($prid === null) return sync_rifiuto('not_found', 'project_uuid', 'Project not found');
+            $api['project_id'] = $prid;
         }
     }
     $lista = $riga ? $riga['list_type'] : (($patch['list_type'] ?? 'todo'));
