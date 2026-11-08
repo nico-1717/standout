@@ -1909,7 +1909,10 @@
     "dp_belle": "Cose belle",
     "dp_imparato": "Cosa ho imparato",
     "dp_carico": "Apro il diario…",
-    "dp_errore": "Non riesco a leggere il diario adesso."
+    "dp_errore": "Non riesco a leggere il diario adesso.",
+    "app_aggiungi_in_agenda": "Aggiungi in agenda",
+    "app_nessun_preferito": "Nessun progetto preferito. Segnane uno con la stella nei progetti.",
+    "app_aggiungi_rapido": "Abitudini e progetti"
   },
   "abitudini": {
     "abitudini": "Abitudini",

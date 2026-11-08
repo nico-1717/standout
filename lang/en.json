@@ -1909,7 +1909,10 @@
     "dp_belle": "Good things",
     "dp_imparato": "What I learned",
     "dp_carico": "Opening the diary…",
-    "dp_errore": "Can't read the diary right now."
+    "dp_errore": "Can't read the diary right now.",
+    "app_aggiungi_in_agenda": "Add to the agenda",
+    "app_nessun_preferito": "No favourite projects. Mark one with the star in Projects.",
+    "app_aggiungi_rapido": "Habits and projects"
   },
   "abitudini": {
     "abitudini": "Habits",
