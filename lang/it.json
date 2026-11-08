@@ -4305,7 +4305,9 @@
     "st_tentativi_prec": "{played} tentativi · {acc}% precisione",
     "st_dopo_errore": "Quando sbagli una carta, la volta dopo la indovini nel {pct}% dei casi (su {n} occasioni osservate).",
     "app_filtra_materia": "Materia",
-    "app_ferma_registrazione": "Ferma la registrazione"
+    "app_ferma_registrazione": "Ferma la registrazione",
+    "app_audio_domanda": "Audio della domanda",
+    "app_audio_risposta": "Audio della risposta"
   },
   "fchub": {
     "home_titolo": "Flashcard",
