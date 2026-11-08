@@ -63,14 +63,6 @@ SET @ok := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA =
 SET @sql := IF(@ok = 0, 'ALTER TABLE `pomodoro_current_breaks` ADD COLUMN `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', 'SELECT 1');
 PREPARE st FROM @sql; EXECUTE st; DEALLOCATE PREPARE st;
 
--- plan_goals (naturale): niente da cambiare
-
--- plan_paint (naturale): niente da cambiare
-
--- plan_days (naturale): niente da cambiare
-
--- plan_settings (singola): niente da cambiare
-
 -- ---------- plan_templates (riga)
 SET @ok := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'plan_templates' AND COLUMN_NAME = 'uuid');
 SET @sql := IF(@ok = 0, 'ALTER TABLE `plan_templates` ADD COLUMN `uuid` CHAR(36) NULL COMMENT ''Identita'''' della riga per l''''app (UUID); l''''id numerico resta quello del sito''', 'SELECT 1');

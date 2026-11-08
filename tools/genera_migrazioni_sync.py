@@ -37,6 +37,7 @@ AREE = {
     'progetti':   ('05', 'progetti',   "progetti, Pomodoro, piano, voti"),
     'flashcard':  ('06', 'flashcard',  "flashcard di studio e di vocabolario"),
     'flashcard2': ('07', 'flashcard2', "flashcard: imparate, record, sequenze delle partite, preferenze, obiettivi (le tabelle senza id)"),
+    'piano':      ('08', 'piano',      "piano dei progetti: obiettivi, giorni evidenziati, blocchi del giorno, impostazioni (le tabelle senza id)"),
 }
 
 TABELLE = {
@@ -83,10 +84,11 @@ TABELLE = {
     'pomodoro_custom_durations': ('riga', 'progetti', None),
     'pomodoro_settings':    ('singola', 'progetti', None),
     'pomodoro_current_breaks': ('singola', 'progetti', None),
-    'plan_goals':           ('naturale', 'progetti', None),
-    'plan_paint':           ('naturale', 'progetti', None),
-    'plan_days':            ('naturale', 'progetti', None),
-    'plan_settings':        ('singola', 'progetti', None),
+    # il piano ha tabelle a chiave composta senza id: nella parte 08 ricevono id + uuid (+ updated_at dove manca)
+    'plan_goals':           ('nat_id_u', 'piano', None),
+    'plan_paint':           ('nat_id', 'piano', None),
+    'plan_days':            ('nat_id_u', 'piano', None),
+    'plan_settings':        ('uuid_u', 'piano', None),
     'plan_templates':       ('riga', 'progetti', None),
     'study_templates':      ('riga', 'progetti', None),
     'university_exams':     ('riga', 'progetti', ('sort_order', ['user_id'])),
