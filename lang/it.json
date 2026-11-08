@@ -4307,7 +4307,9 @@
     "app_filtra_materia": "Materia",
     "app_ferma_registrazione": "Ferma la registrazione",
     "app_audio_domanda": "Audio della domanda",
-    "app_audio_risposta": "Audio della risposta"
+    "app_audio_risposta": "Audio della risposta",
+    "app_unite_n": "Carte unite: {n}",
+    "app_unite_saltate": "Non unite perché hanno già carte figlie o file (immagine, audio): {n}"
   },
   "fchub": {
     "home_titolo": "Flashcard",

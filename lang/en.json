@@ -4307,7 +4307,9 @@
     "app_filtra_materia": "Subject",
     "app_ferma_registrazione": "Stop recording",
     "app_audio_domanda": "Question audio",
-    "app_audio_risposta": "Answer audio"
+    "app_audio_risposta": "Answer audio",
+    "app_unite_n": "Cards merged: {n}",
+    "app_unite_saltate": "Not merged because they already have sub-cards or files (image, audio): {n}"
   },
   "fchub": {
     "home_titolo": "Flashcards",
