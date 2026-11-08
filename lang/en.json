@@ -52,7 +52,10 @@
     "espandi": "Expand",
     "ripristina": "Restore",
     "automatico": "Automatic",
-    "errore": "Error"
+    "errore": "Error",
+    "app_foto_libreria": "Choose from library",
+    "app_foto_scatta": "Take a photo",
+    "app_foto_in_invio": "Uploads when online"
   },
   "pomodoro": {
     "aggiungi_durata": "Add a duration",
