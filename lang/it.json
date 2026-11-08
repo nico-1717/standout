@@ -4304,7 +4304,8 @@
     "app_audio_sul_sito": "I suoni di questa carta per ora si sentono sul sito.",
     "st_tentativi_prec": "{played} tentativi · {acc}% precisione",
     "st_dopo_errore": "Quando sbagli una carta, la volta dopo la indovini nel {pct}% dei casi (su {n} occasioni osservate).",
-    "app_filtra_materia": "Materia"
+    "app_filtra_materia": "Materia",
+    "app_ferma_registrazione": "Ferma la registrazione"
   },
   "fchub": {
     "home_titolo": "Flashcard",
