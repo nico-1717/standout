@@ -65,7 +65,8 @@ function sync_uuid_atteso_riga(string $tbl, int $uid, array $r): ?string {
         case 'planner_priorities':        return sync_uuid_priorita($uid, (string)$r['priority_date'], (int)$r['position']);
         case 'habit_daily_journal':       return sync_uuid_diario($uid, (string)$r['entry_date']);
         case 'pill_doses':                return $r['plan_uuid'] !== null ? sync_uuid_presa((string)$r['plan_uuid'], (string)$r['due_date'], (string)$r['due_time'], (int)$r['seq']) : null;
-        case 'fc_study_learnt':           return $r['target_uuid'] !== null ? sync_uuid_imparata($uid, (string)$r['target_uuid'], (int)$r['is_child']) : null;
+        case 'fc_study_learnt':
+        case 'fc_vocab_learnt':           return $r['target_uuid'] !== null ? sync_uuid_imparata($uid, (string)$r['target_uuid'], (int)$r['is_child']) : null;
         case 'fc_study_records':          return sync_uuid_record($uid, (string)$r['kind']);
         case 'fc_settings':
         case 'fc_goals':                  return sync_uuid_per_utente($tbl, $uid);
@@ -402,6 +403,13 @@ function sync_applica(int $uid, array $m): array {
             case 'contacts':          $esito = sync_contatti_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'event_guests':      $esito = sync_invitati_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'planner_places':    $esito = sync_luoghi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_vocab_courses':  $esito = sync_corsi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_vocab_decks':    $esito = sync_lingue_mazzi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_vocab_cards':    $esito = sync_lingue_carte_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_vocab_subcards': $esito = sync_lingue_figlie_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_vocab_favorites':$esito = sync_lingue_preferiti_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_vocab_learnt':   $esito = sync_lingue_imparate_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'fc_vocab_examples': $esito = sync_lingue_esempi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'university_exams':  $esito = sync_uni_esami_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'university_bonuses': $esito = sync_uni_bonus_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_study_decks':    $esito = sync_fc_mazzi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
@@ -500,3 +508,4 @@ require_once __DIR__ . '/sync_voti.php';
 require_once __DIR__ . '/sync_flashcard.php';
 require_once __DIR__ . '/sync_flashcard2.php';
 require_once __DIR__ . '/sync_rubrica.php';
+require_once __DIR__ . '/sync_lingue.php';

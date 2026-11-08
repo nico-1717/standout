@@ -291,6 +291,12 @@ function sync_uuid_atteso(string $tbl, int $id): ?string {
                       LEFT JOIN fc_study_subcards s ON l.is_child = 1 AND s.id_child = l.fc_image_id WHERE l.id = ?", [$id]);
         return ($r && $r['tu'] !== null) ? sync_uuid_imparata((int)$r['user_id'], (string)$r['tu'], (int)$r['is_child']) : null;
     }
+    if ($tbl === 'fc_vocab_learnt') {
+        $r = sec_one("SELECT l.user_id, l.is_child, COALESCE(c.uuid, s.uuid) AS tu FROM fc_vocab_learnt l
+                      LEFT JOIN fc_vocab_cards c ON l.is_child = 0 AND c.id = l.fc_image_id
+                      LEFT JOIN fc_vocab_subcards s ON l.is_child = 1 AND s.id_child = l.fc_image_id WHERE l.id = ?", [$id]);
+        return ($r && $r['tu'] !== null) ? sync_uuid_imparata((int)$r['user_id'], (string)$r['tu'], (int)$r['is_child']) : null;
+    }
     if ($tbl === 'fc_study_records') {
         $r = sec_one("SELECT user_id, kind FROM fc_study_records WHERE id = ?", [$id]);
         return $r ? sync_uuid_record((int)$r['user_id'], (string)$r['kind']) : null;
