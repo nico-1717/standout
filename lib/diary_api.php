@@ -151,3 +151,57 @@ function dg_api_impostazioni_salva(int $uid, array $c): array {
     sec_q("UPDATE diary_settings SET " . implode(', ', $set) . " WHERE user_id = ?", $par);
     return ['settings' => dg_settings($uid)];
 }
+
+
+/* ---------------------------------------------------------------------
+   Resoconti trimestrali e libri scritti dall'IA: solo lettura (si generano dal sito, con i crediti)
+   --------------------------------------------------------------------- */
+
+function dg_api_ai_pronto(): void {
+    if (!function_exists('dn_tabelle_ai')) require_once __DIR__ . '/planner/diario_numeri.php';
+    dn_tabelle_ai();
+}
+
+/** L'elenco, senza i testi: {reports: [...], books: [...]}, i piu' recenti per primi. */
+function dg_api_ai_elenco(int $uid): array {
+    dg_api_ai_pronto();
+    $reports = []; $books = [];
+    foreach (sec_all("SELECT id, anno, trimestre, periodo_da, periodo_a, contenuto, created_at FROM diary_ai_reports WHERE user_id = ? ORDER BY anno DESC, trimestre DESC", [$uid], 'i') as $r) {
+        $c = json_decode((string)$r['contenuto'], true) ?: [];
+        $reports[] = ['id' => (int)$r['id'], 'year' => (int)$r['anno'], 'quarter' => (int)$r['trimestre'],
+                      'from' => $r['periodo_da'], 'to' => $r['periodo_a'], 'title' => (string)($c['titolo'] ?? ''), 'created_at' => $r['created_at']];
+    }
+    foreach (sec_all("SELECT id, titolo, periodo_da, periodo_a, stato, capitoli, created_at FROM diary_ai_books WHERE user_id = ? ORDER BY created_at DESC, id DESC", [$uid], 'i') as $b) {
+        $cap = json_decode((string)$b['capitoli'], true) ?: [];
+        $scritti = 0;
+        foreach ($cap as $x) { if (trim((string)($x['testo'] ?? '')) !== '') $scritti++; }
+        $books[] = ['id' => (int)$b['id'], 'title' => (string)$b['titolo'], 'from' => $b['periodo_da'], 'to' => $b['periodo_a'],
+                    'done' => $b['stato'] === 'fatto', 'chapters' => $scritti, 'created_at' => $b['created_at']];
+    }
+    return ['reports' => $reports, 'books' => $books];
+}
+
+/** Un resoconto per intero: i testi dell'IA e i numeri con cui e' stato scritto. */
+function dg_api_ai_resoconto(int $uid, int $id): ?array {
+    dg_api_ai_pronto();
+    $r = sec_one("SELECT * FROM diary_ai_reports WHERE id = ? AND user_id = ?", [$id, $uid], 'ii');
+    if (!$r) return null;
+    return ['report' => ['id' => (int)$r['id'], 'year' => (int)$r['anno'], 'quarter' => (int)$r['trimestre'],
+                         'from' => $r['periodo_da'], 'to' => $r['periodo_a'], 'created_at' => $r['created_at'],
+                         'content' => json_decode((string)$r['contenuto'], true) ?: new stdClass(),
+                         'numbers' => json_decode((string)$r['numeri'], true) ?: new stdClass()]];
+}
+
+/** Un libro per intero: i capitoli con testo, nell'ordine. */
+function dg_api_ai_libro(int $uid, int $id): ?array {
+    dg_api_ai_pronto();
+    $b = sec_one("SELECT * FROM diary_ai_books WHERE id = ? AND user_id = ?", [$id, $uid], 'ii');
+    if (!$b) return null;
+    $cap = [];
+    foreach ((json_decode((string)$b['capitoli'], true) ?: []) as $x) {
+        if (trim((string)($x['testo'] ?? '')) === '') continue;
+        $cap[] = ['title' => (string)($x['titolo'] ?? ''), 'text' => (string)$x['testo']];
+    }
+    return ['book' => ['id' => (int)$b['id'], 'title' => (string)$b['titolo'], 'from' => $b['periodo_da'], 'to' => $b['periodo_a'],
+                       'done' => $b['stato'] === 'fatto', 'created_at' => $b['created_at'], 'chapters' => $cap]];
+}

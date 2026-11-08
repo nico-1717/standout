@@ -99,6 +99,9 @@
      PATCH  /api/v1/diary/day             {date?, note?, mood?, energy?} cambia SOLO i campi inviati (null = toglie)
      GET    /api/v1/diary/month[?month=AAAA-MM]   i giorni scritti, le medie, le cose imparate
      GET    /api/v1/diary/insights[?year=]        il diario in numeri
+     GET    /api/v1/diary/ai              resoconti trimestrali e libri scritti dall'IA (solo l'elenco; si generano dal sito)
+     GET    /api/v1/diary/ai/reports/{id} un resoconto per intero: {report: {content, numbers, ...}}
+     GET    /api/v1/diary/ai/books/{id}   un libro per intero: {book: {chapters: [{title, text}], ...}}
      POST   /api/v1/diary/items           aggiunge {date?, list_type: good|learned, content}
      PATCH  /api/v1/diary/items/{id}      {content}
      DELETE /api/v1/diary/items/{id}
@@ -639,6 +642,17 @@ function api_h_diario_numeri(array $ctx): void {
     api_h_fetta5_errore($e);
     api_ok($e);
 }
+function api_h_diario_ai_elenco(array $ctx): void { api_ok(dg_api_ai_elenco((int)$ctx['utente']['id'])); }
+function api_h_diario_ai_resoconto(array $ctx): void {
+    $r = dg_api_ai_resoconto((int)$ctx['utente']['id'], (int)$ctx['id']);
+    if ($r === null) api_errore('not_found', 'Report not found');
+    api_ok($r);
+}
+function api_h_diario_ai_libro(array $ctx): void {
+    $r = dg_api_ai_libro((int)$ctx['utente']['id'], (int)$ctx['id']);
+    if ($r === null) api_errore('not_found', 'Book not found');
+    api_ok($r);
+}
 function api_h_diario_voce_crea(array $ctx): void {
     api_h_limite_scritture($ctx, 'api_diary_write');
     $e = dg_api_voce_crea((int)$ctx['utente']['id'], api_corpo());
@@ -830,6 +844,9 @@ api_v1_esegui([
     ['PATCH',  'diary/day',         'api_h_diario_giorno_salva', ['accetta' => $tokenECookie]],
     ['GET',    'diary/month',       'api_h_diario_mese',      ['accetta' => $tokenECookie]],
     ['GET',    'diary/insights',    'api_h_diario_numeri',    ['accetta' => $tokenECookie]],
+    ['GET',    'diary/ai',          'api_h_diario_ai_elenco', ['accetta' => $tokenECookie]],
+    ['GET',    'diary/ai/reports/{id}', 'api_h_diario_ai_resoconto', ['accetta' => $tokenECookie]],
+    ['GET',    'diary/ai/books/{id}',   'api_h_diario_ai_libro',     ['accetta' => $tokenECookie]],
     ['POST',   'diary/items',       'api_h_diario_voce_crea', ['accetta' => $tokenECookie]],
     ['PATCH',  'diary/items/{id}',  'api_h_diario_voce_modifica', ['accetta' => $tokenECookie]],
     ['DELETE', 'diary/items/{id}',  'api_h_diario_voce_togli', ['accetta' => $tokenECookie]],
