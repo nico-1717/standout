@@ -119,6 +119,7 @@
    File delle righe sincronizzate (carte, parole, esempi, articoli del to buy), solo con il token — lib/media_api.php:
      POST   /api/v1/media/{tabella}/{uuid}/{campo}   carica o sostituisce: multipart, campo «file» (immagini 5 MB, audio 10 MB); risponde {name}
      DELETE /api/v1/media/{tabella}/{uuid}/{campo}   toglie il file (va bene anche se non c'e')
+     GET    /api/v1/media/todos/{uuid}/buy_image     l'immagine privata di un articolo, dal suo uuid (solo con il token)
    ===================================================================== */
 
 /* Dice a auth_core.php che questa e' l'API: niente sessione PHP (e niente cookie
@@ -724,6 +725,20 @@ function api_h_media_togli(array $ctx): void {
     api_ok();
 }
 
+/* L'immagine di un articolo e' privata (uploads/tobuy): si legge solo qui, dal uuid della riga, con il token. */
+function api_h_media_leggi(array $ctx): void {
+    $uid = (int)$ctx['utente']['id'];
+    $id = media_e_articolo((string)$ctx['tbl'], (string)$ctx['campo']) ? media_id_articolo($uid, (string)$ctx['uuid']) : null;
+    $f = $id !== null ? sp_img_file($uid, $id) : null;
+    if (!$f) api_errore('not_found', 'Image not found');
+    header('Content-Type: ' . $f['mime']);
+    header('Content-Length: ' . filesize($f['path']));
+    header('Cache-Control: private, max-age=3600');
+    header('X-Content-Type-Options: nosniff');
+    readfile($f['path']);
+    exit;
+}
+
 /* ---------------- L'elenco delle rotte ---------------- */
 
 $tokenECookie = ['token', 'cookie'];
@@ -773,6 +788,7 @@ api_v1_esegui([
     ['GET',    'shopping/{id}/image', 'api_h_shopping_img_leggi',  ['accetta' => $tokenECookie]],
     ['POST',   'media/{tbl}/{uuid}/{campo}', 'api_h_media_carica', ['accetta' => ['token']]],
     ['DELETE', 'media/{tbl}/{uuid}/{campo}', 'api_h_media_togli',  ['accetta' => ['token']]],
+    ['GET',    'media/{tbl}/{uuid}/{campo}', 'api_h_media_leggi',  ['accetta' => ['token']]],
     ['DELETE', 'shopping/{id}/image', 'api_h_shopping_img_togli',  ['accetta' => $tokenECookie]],
     ['POST',   'tasks/bulk',        'api_h_tasks_bulk',       ['accetta' => $tokenECookie]],
     ['POST',   'tasks/reorder',     'api_h_tasks_riordina',   ['accetta' => $tokenECookie]],

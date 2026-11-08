@@ -125,6 +125,16 @@ def main():
         ok(r['_http'] == 200 and nb.endswith('.png'), f"immagine dell'articolo: {r}")
         B.aggiorna(); ok(B.copia[('todos', art)]['buy_image'] == nb, 'la pull la porta')
         r = carica(A, 'todos', att, 'buy_image', png(), 'a.png', 'image/png'); ok(r['_http'] == 404, 'una attivita del to do non ha immagine')
+        def leggi(u, token=True):
+            rq = urllib.request.Request(A.base + f'/api/v1/media/todos/{u}/buy_image')
+            if token: rq.add_header('Authorization', 'Bearer ' + A.tok)
+            try:
+                with urllib.request.urlopen(rq, timeout=30) as x: return x.status, x.headers.get('Content-Type'), x.read()
+            except urllib.error.HTTPError as e: return e.code, None, b''
+        st, ct, corpo = leggi(art)
+        ok(st == 200 and ct == 'image/png' and corpo == png(), f'si legge con il token: {st} {ct}')
+        ok(leggi(art, False)[0] == 401, 'senza token no')
+        ok(leggi(att)[0] == 404, 'una attivita del to do: 404')
 
         print('8. togliere')
         r = A.chiama('DELETE', f'/api/v1/media/fc_study_cards/{c1}/question_image')
