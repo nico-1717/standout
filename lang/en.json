@@ -4705,7 +4705,9 @@
     "colore_rose": "Rose",
     "app_nota": "For the whole app: colors, cards and the tab bar",
     "app_standard_desc": "Soft glass, round shapes, floating bar",
-    "app_paper_desc": "Warm paper, serif titles, thin lines"
+    "app_paper_desc": "Warm paper, serif titles, thin lines",
+    "alto_contrasto": "High contrast",
+    "alto_contrasto_desc": "Darker text and clearly visible lines. On this phone only."
   },
   "api": {
     "categoria_non_trovata": "Category not found.",

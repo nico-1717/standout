@@ -4705,7 +4705,9 @@
     "colore_rose": "Rosa",
     "app_nota": "Per tutta l'app: colori, carte e barra delle schede",
     "app_standard_desc": "Vetro morbido, forme rotonde, barra fluttuante",
-    "app_paper_desc": "Carta calda, titoli serif, linee sottili"
+    "app_paper_desc": "Carta calda, titoli serif, linee sottili",
+    "alto_contrasto": "Alto contrasto",
+    "alto_contrasto_desc": "Testi più scuri e linee ben visibili. Solo su questo telefono."
   },
   "api": {
     "categoria_non_trovata": "Categoria non trovata.",
