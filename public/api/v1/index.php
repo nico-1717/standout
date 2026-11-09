@@ -114,6 +114,8 @@
      GET    /api/v1/home/layout           i riquadri della Home: [{id, on, order?}] nell'ordine scelto
      PUT    /api/v1/home/layout           {layout: [...]}: salva, scarta id sconosciuti, aggiunge in fondo i mancanti
      GET    /api/v1/home/ai_usage         il piano e i consumi del mese: {plan: {name, resets, audio|images|tokens: {used, limit|null}} | null}
+     GET    /api/v1/places/search?q=      i posti che corrispondono (almeno 3 lettere): {places: [{name, detail, full, ref, lat|null, lon|null}]}. Solo token. Serve rete.
+     GET    /api/v1/places/details?ref=   le coordinate del posto scelto: {place: {lat, lon, full, ref}}. Solo token. 404 not_found se non c'e'.
 
    Immagine di un articolo del to buy, fetta 8 — lib/shopping_img_api.php:
      POST   /api/v1/shopping/{id}/image   carica o sostituisce: multipart, campo «file» (jpg, png, webp, gif; max 4 MB)
@@ -747,6 +749,26 @@ function api_h_storage(array $ctx): void {
     api_ok(['used' => media_usato((int)$ctx['utente']['id']), 'quota' => media_quota()]);
 }
 
+/* La ricerca di un posto (la stessa del planner: Google Places, OpenStreetMap di scorta). Il limite per utente e' lo stesso
+   della pagina (40 al minuto): la chiave resta sul server e le risposte si tengono in cache. */
+function api_h_places_search(array $ctx): void {
+    if (!sec_rate_limit('geocode_write', (int)$ctx['utente']['id'], 40, 60)) api_errore('rate_limited');
+    $q = isset($_GET['q']) ? sec_str($_GET['q'], 120) : '';
+    $q = trim((string)preg_replace('/\s+/u', ' ', $q));
+    if (mb_strlen($q, 'UTF-8') < 3) api_ok(['places' => []]);
+    api_ok(['places' => pl_place_lookup($q)]);
+}
+
+/* Secondo passo: le coordinate del posto davvero scelto (e' la chiamata che costa). */
+function api_h_places_details(array $ctx): void {
+    if (!sec_rate_limit('geocode_write', (int)$ctx['utente']['id'], 40, 60)) api_errore('rate_limited');
+    $ref = isset($_GET['ref']) ? sec_str($_GET['ref'], 300) : '';
+    if ($ref === '') api_errore('validation', 'ref', 422);
+    $punto = pl_place_punto($ref);
+    if (!$punto) api_errore('not_found');
+    api_ok(['place' => $punto]);
+}
+
 /* I consumi dell'IA del mese (le barre sotto l'avatar). Stessi numeri di home_api.php?ajax=ai_usage. */
 function api_h_home_ai_usage(array $ctx): void {
     $p = standout_get_piano_utente((int)$ctx['utente']['id']);
@@ -868,6 +890,8 @@ api_v1_esegui([
     ['PUT',    'home/layout',       'api_h_home_layout_salva',           ['accetta' => $tokenECookie]],
     ['GET',    'home/ai_usage',     'api_h_home_ai_usage',               ['accetta' => $tokenECookie]],
     ['GET',    'storage',           'api_h_storage',                     ['accetta' => ['token']]],
+    ['GET',    'places/search',     'api_h_places_search',                ['accetta' => ['token']]],
+    ['GET',    'places/details',    'api_h_places_details',               ['accetta' => ['token']]],
     /* Sincronizzazione con l'app (docs/ARCHITETTURA_APP.md §3.3): SOLO con il token, sono le rotte dell'app */
     ['POST',   'sync/push',         'api_h_sync_push',        ['accetta' => ['token']]],
     ['GET',    'sync/pull',         'api_h_sync_pull',        ['accetta' => ['token']]],
