@@ -145,6 +145,32 @@ def main():
         r = A.chiama('DELETE', f'/api/v1/media/fc_study_cards/{c1}/question_desc'); ok(r['_http'] == 422, 'un campo di testo non si toglie cosi')
         r = A.chiama('DELETE', f'/api/v1/media/todos/{art}/buy_image'); ok(r['_http'] == 200, 'immagine dell\'articolo tolta')
 
+        print('10. spazio dell\'utente')
+        s0 = A.chiama('GET', '/api/v1/storage')
+        ok(s0['_http'] == 200 and s0.get('quota', 0) > 0 and s0.get('used', -1) >= 0, f"lo spazio: {s0}")
+        r = A.chiama('GET', '/api/v1/storage', auth=False); ok(r['_http'] == 401, 'senza token: 401')
+        dati = png(40, 40)
+        r = carica(A, 'fc_study_cards', c1, 'question_image', dati, 'u.png', 'image/png'); nu = r.get('name', '')
+        ok(r['_http'] == 200 and nu, f"caricata: {r}")
+        su_disco('flashcard_images', nu)
+        peso = os.path.getsize(os.path.join(RADICE, 'flashcard_images', nu))
+        s1_ = A.chiama('GET', '/api/v1/storage')
+        ok(s1_['used'] == s0['used'] + peso, f"lo spazio usato cresce del peso del file ({peso}): {s0['used']} -> {s1_['used']}")
+        r = carica(A, 'fc_study_cards', c1, 'question_image', dati, 'u2.png', 'image/png'); nu2 = r.get('name', '')
+        su_disco('flashcard_images', nu2)
+        ok(r['_http'] == 200, 'sostituire con un file dello stesso peso e sempre possibile')
+        s2_ = A.chiama('GET', '/api/v1/storage')
+        ok(s2_['used'] == s1_['used'], 'dopo la sostituzione lo spazio usato non cambia')
+        if s1_['quota'] - s1_['used'] < 100000:
+            grande = png(400, 400) + os.urandom(0)
+            r = carica(A, 'fc_study_cards', c1, 'answer_image', grande, 'g.png', 'image/png')
+            ok(r['_http'] == 413 and r.get('code') == 'quota_exceeded', f"oltre lo spazio: 413 quota_exceeded ({r.get('_http')} {r.get('code')})")
+            r = A.chiama('GET', '/api/v1/storage'); ok(r['used'] == s2_['used'], 'un caricamento rifiutato non occupa spazio')
+        else:
+            print('   (quota alta: la prova del rifiuto si fa definendo STANDOUT_MEDIA_QUOTA piccolo in lib/config.php)')
+        r = A.chiama('DELETE', f'/api/v1/media/fc_study_cards/{c1}/question_image'); ok(r['_http'] == 200, 'tolta')
+        s3_ = A.chiama('GET', '/api/v1/storage'); ok(s3_['used'] == s0['used'], 'tolto il file lo spazio torna com\'era')
+
         print('9. una riga cancellata: i suoi file restano finche non li ripulisce il sito (non si perde niente)')
     finally:
         for t, u in [('fc_study_subcards', s1), ('fc_study_cards', c1), ('fc_study_decks', d1), ('todos', art), ('todos', att)]:

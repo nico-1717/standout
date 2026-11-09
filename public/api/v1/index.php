@@ -123,6 +123,7 @@
    File delle righe sincronizzate (carte, parole, esempi, articoli del to buy), solo con il token — lib/media_api.php:
      POST   /api/v1/media/{tabella}/{uuid}/{campo}   carica o sostituisce: multipart, campo «file» (immagini 5 MB, audio 10 MB); risponde {name}
      DELETE /api/v1/media/{tabella}/{uuid}/{campo}   toglie il file (va bene anche se non c'e')
+     GET    /api/v1/storage                          lo spazio: {used, quota} in byte; un caricamento che lo supera risponde 413 quota_exceeded
      GET    /api/v1/media/todos/{uuid}/buy_image     l'immagine privata di un articolo, dal suo uuid (solo con il token)
    ===================================================================== */
 
@@ -741,6 +742,11 @@ function api_h_media_togli(array $ctx): void {
     api_ok();
 }
 
+/* Lo spazio usato da immagini e audio e quello a disposizione (lib/media_api.php). */
+function api_h_storage(array $ctx): void {
+    api_ok(['used' => media_usato((int)$ctx['utente']['id']), 'quota' => media_quota()]);
+}
+
 /* I consumi dell'IA del mese (le barre sotto l'avatar). Stessi numeri di home_api.php?ajax=ai_usage. */
 function api_h_home_ai_usage(array $ctx): void {
     $p = standout_get_piano_utente((int)$ctx['utente']['id']);
@@ -861,6 +867,7 @@ api_v1_esegui([
     ['GET',    'home/layout',       'api_h_home_layout',                 ['accetta' => $tokenECookie]],
     ['PUT',    'home/layout',       'api_h_home_layout_salva',           ['accetta' => $tokenECookie]],
     ['GET',    'home/ai_usage',     'api_h_home_ai_usage',               ['accetta' => $tokenECookie]],
+    ['GET',    'storage',           'api_h_storage',                     ['accetta' => ['token']]],
     /* Sincronizzazione con l'app (docs/ARCHITETTURA_APP.md §3.3): SOLO con il token, sono le rotte dell'app */
     ['POST',   'sync/push',         'api_h_sync_push',        ['accetta' => ['token']]],
     ['GET',    'sync/pull',         'api_h_sync_pull',        ['accetta' => ['token']]],

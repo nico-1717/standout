@@ -43,6 +43,7 @@ const API_ERRORI = [
     'not_found'           => [404, 'Not found'],
     'method_not_allowed'  => [405, 'Method not allowed'],
     'conflict'            => [409, 'Conflict'],
+    'quota_exceeded'      => [413, 'Storage space is full'],
     'too_many_attempts'   => [429, 'Too many failed attempts: try again later'],
     'rate_limited'        => [429, 'Too many requests'],
     'server_error'        => [500, 'Server error'],

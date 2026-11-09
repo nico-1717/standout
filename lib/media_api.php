@@ -50,6 +50,47 @@ const MEDIA_AUDIO_MIME = [
 const MEDIA_MAX_IMMAGINE = 5242880;    //  5 MB (l'app li manda gia' ridotti a 1600 px)
 const MEDIA_MAX_AUDIO    = 10485760;   // 10 MB, come sul sito
 
+/**
+ * Lo spazio per immagini e audio di ogni utente. Un solo numero, che non dipende dal servizio che ospita il sito: se un
+ * giorno il sito cambia casa, basta definire STANDOUT_MEDIA_QUOTA in config.php (in byte) senza toccare il codice.
+ */
+const MEDIA_QUOTA_PREDEFINITA = 524288000;   // 500 MB
+
+function media_quota(): int {
+    return defined('STANDOUT_MEDIA_QUOTA') ? max(0, (int)STANDOUT_MEDIA_QUOTA) : MEDIA_QUOTA_PREDEFINITA;
+}
+
+/** Quanti byte occupano sul disco i file dell'utente (immagini e audio delle carte, immagini del to buy). */
+function media_usato(int $uid): int {
+    $tot = 0;
+    $visti = [];
+    foreach (MEDIA_CAMPI as $tbl => $campi) {
+        foreach ($campi as $col => [, $dir]) {
+            $righe = sec_all(
+                "SELECT DISTINCT t.`$col` AS f FROM `$tbl` t WHERE " . sync_prop($tbl, 't') . " = ? AND t.`$col` IS NOT NULL AND t.`$col` <> ''",
+                [$uid], 'i'
+            );
+            foreach ($righe as $r) {
+                $nome = (string)$r['f'];
+                if (!media_nome_valido($nome)) continue;
+                $chiave = $dir . '/' . $nome;
+                if (isset($visti[$chiave])) continue;   // lo stesso file puo' servire a piu' carte: si conta una volta
+                $visti[$chiave] = true;
+                $path = media_percorso($dir, $nome);
+                if (is_file($path)) $tot += (int)filesize($path);
+            }
+        }
+    }
+    $articoli = sec_all("SELECT buy_image AS f FROM todos WHERE user_id = ? AND list_type = 'buy' AND buy_image IS NOT NULL AND buy_image <> ''", [$uid], 'i');
+    foreach ($articoli as $r) {
+        $nome = (string)$r['f'];
+        if (!media_nome_valido($nome)) continue;
+        $path = td_img_dir() . '/' . $nome;
+        if (is_file($path)) $tot += (int)filesize($path);
+    }
+    return $tot;
+}
+
 /** Il nome di un file di questa rotta, com'e' scritto dal server: niente altro e' un nome valido. */
 function media_nome_valido(string $nome): bool {
     return (bool)preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]*\.[A-Za-z0-9]{2,5}$/', $nome);
@@ -108,6 +149,9 @@ function media_carica(int $uid, string $tbl, string $uuid, string $campo, $file)
     if (media_e_articolo($tbl, $campo)) {
         $id = media_id_articolo($uid, $uuid);
         if ($id === null) return ['errore' => ['not_found', 'uuid', 'Row not found']];
+        if (media_usato($uid) + (int)(is_array($file) ? ($file['size'] ?? 0) : 0) > media_quota()) {
+            return ['errore' => ['quota_exceeded', 'file', 'Your storage space is full: remove some pictures or recordings']];
+        }
         $r = td_img_salva($uid, $id, is_array($file) ? $file : null);
         if (isset($r['errore'])) {
             return ['errore' => [$r['errore'][1] >= 500 ? 'server_error' : 'validation', 'file', 'The image is not valid (jpg, png, webp or gif, 4 MB at most)']];
@@ -130,6 +174,14 @@ function media_carica(int $uid, string $tbl, string $uuid, string $campo, $file)
     $mime = (string)$ris['mime'];
     $audioMp4 = $tipo === 'audio' && $mime === 'video/mp4';
     if (strpos($mime, $genere) !== 0 && !$audioMp4) return ['errore' => ['validation', 'file', 'The file is not valid (type, size or content)']];
+
+    /* Lo spazio dell'utente: il file che si sostituisce libera il suo posto. */
+    $vecchio = $riga['valore'] !== null && media_nome_valido($riga['valore']) && is_file(media_percorso($cartella, $riga['valore']))
+        ? (int)filesize(media_percorso($cartella, $riga['valore'])) : 0;
+    $nuovo = (int)($file['size'] ?? 0);
+    if (media_usato($uid) - $vecchio + $nuovo > media_quota()) {
+        return ['errore' => ['quota_exceeded', 'file', 'Your storage space is full: remove some pictures or recordings']];
+    }
 
     $dir = STANDOUT_DATA_DIR . $cartella;
     if (!is_dir($dir) && !@mkdir($dir, 0755, true)) return ['errore' => ['server_error', 'file', 'The file could not be saved']];
