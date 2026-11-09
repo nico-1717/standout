@@ -305,7 +305,19 @@ function sync_uuid_atteso(string $tbl, int $id): ?string {
         $r = sec_one("SELECT r.user_id, r.kind, c.uuid AS cu FROM fc_vocab_records r JOIN fc_vocab_courses c ON c.id = r.course_id AND c.user_id = r.user_id WHERE r.id = ?", [$id]);
         return $r ? sync_uuid_record_lingua((int)$r['user_id'], (string)$r['cu'], (string)$r['kind']) : null;
     }
-    if ($tbl === 'fc_settings' || $tbl === 'fc_goals') {
+    if ($tbl === 'plan_goals') {
+        $r = sec_one("SELECT p.uuid AS pu FROM plan_goals g JOIN projects p ON p.id = g.project_id AND p.user_id = g.user_id WHERE g.id = ?", [$id]);
+        return $r ? sync_uuid_piano_obiettivo((string)$r['pu']) : null;
+    }
+    if ($tbl === 'plan_paint') {
+        $r = sec_one("SELECT p.uuid AS pu, g.day FROM plan_paint g JOIN projects p ON p.id = g.project_id AND p.user_id = g.user_id WHERE g.id = ?", [$id]);
+        return $r ? sync_uuid_piano_giorno_evid((string)$r['pu'], (string)$r['day']) : null;
+    }
+    if ($tbl === 'plan_days') {
+        $r = sec_one("SELECT p.uuid AS pu, g.day, g.kind FROM plan_days g JOIN projects p ON p.id = g.project_id AND p.user_id = g.user_id WHERE g.id = ?", [$id]);
+        return $r ? sync_uuid_piano_blocco((string)$r['pu'], (string)$r['day'], (string)$r['kind']) : null;
+    }
+    if ($tbl === 'fc_settings' || $tbl === 'fc_goals' || $tbl === 'plan_settings') {
         // la chiave primaria e' l'utente stesso
         return sync_uuid_per_utente($tbl, $id);
     }

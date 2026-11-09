@@ -70,7 +70,11 @@ function sync_uuid_atteso_riga(string $tbl, int $uid, array $r): ?string {
         case 'fc_study_records':          return sync_uuid_record($uid, (string)$r['kind']);
         case 'fc_vocab_records':          return $r['course_uuid'] !== null ? sync_uuid_record_lingua($uid, (string)$r['course_uuid'], (string)$r['kind']) : null;
         case 'fc_settings':
-        case 'fc_goals':                  return sync_uuid_per_utente($tbl, $uid);
+        case 'fc_goals':
+        case 'plan_settings':             return sync_uuid_per_utente($tbl, $uid);
+        case 'plan_goals':                return $r['project_uuid'] !== null ? sync_uuid_piano_obiettivo((string)$r['project_uuid']) : null;
+        case 'plan_paint':                return $r['project_uuid'] !== null ? sync_uuid_piano_giorno_evid((string)$r['project_uuid'], (string)$r['day']) : null;
+        case 'plan_days':                 return $r['project_uuid'] !== null ? sync_uuid_piano_blocco((string)$r['project_uuid'], (string)$r['day'], (string)$r['kind']) : null;
     }
     return null;
 }
@@ -397,10 +401,6 @@ function sync_applica(int $uid, array $m): array {
             case 'planner_priorities': $esito = sync_pprio_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'planner_routines':  $esito = sync_prout_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'planner_routine_items': $esito = sync_pritem_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
-            case 'planner_events':    $esito = sync_pevents_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
-            case 'projects':          $esito = sync_prog_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
-            case 'pomodoro_sessions': $esito = sync_pomo_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
-            case 'university_exam_groups': $esito = sync_uni_gruppi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'contacts':          $esito = sync_contatti_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'event_guests':      $esito = sync_invitati_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'planner_places':    $esito = sync_luoghi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
@@ -411,6 +411,10 @@ function sync_applica(int $uid, array $m): array {
             case 'fc_vocab_favorites':$esito = sync_lingue_preferiti_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_vocab_learnt':   $esito = sync_lingue_imparate_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_vocab_examples': $esito = sync_lingue_esempi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'planner_events':    $esito = sync_pevents_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'projects':          $esito = sync_prog_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'pomodoro_sessions': $esito = sync_pomo_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'university_exam_groups': $esito = sync_uni_gruppi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'university_exams':  $esito = sync_uni_esami_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'university_bonuses': $esito = sync_uni_bonus_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_study_decks':    $esito = sync_fc_mazzi_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
@@ -434,6 +438,11 @@ function sync_applica(int $uid, array $m): array {
             case 'fc_settings':       $esito = sync_fc_impostazioni_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'fc_goals':          $esito = sync_fc_obiettivo_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'pomodoro_custom_durations': $esito = sync_pomo_preset_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'plan_goals':        $esito = sync_pgoal_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'plan_paint':        $esito = sync_ppaint_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'plan_days':         $esito = sync_pdays_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'plan_settings':     $esito = sync_pset_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'plan_templates':    $esito = sync_ptpl_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             default:                  $esito = sync_rifiuto('validation', 'table', 'Unknown table');
         }
         // una modifica rifiutata non deve lasciare mezze scritture
@@ -508,10 +517,11 @@ require_once __DIR__ . '/sync_abitudini.php';
 require_once __DIR__ . '/sync_diario.php';
 require_once __DIR__ . '/sync_pastiglie.php';   // dopo le funzioni di base che usa (sync_rifiuto, sync_id_da_uuid...)
 require_once __DIR__ . '/sync_planner.php';
+require_once __DIR__ . '/sync_rubrica.php';
+require_once __DIR__ . '/sync_lingue.php';
 require_once __DIR__ . '/sync_progetti.php';
 require_once __DIR__ . '/sync_voti.php';
 require_once __DIR__ . '/sync_flashcard.php';
 require_once __DIR__ . '/sync_flashcard2.php';
 require_once __DIR__ . '/sync_lingue_gioco.php';
-require_once __DIR__ . '/sync_rubrica.php';
-require_once __DIR__ . '/sync_lingue.php';
+require_once __DIR__ . '/sync_piano.php';

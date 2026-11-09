@@ -352,6 +352,90 @@ const SYNC_MANIFESTO = [
             'updated_at'           => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
+    /* ---- piano dei progetti ---- */
+    // Il piano: una riga per progetto con tempo, tipo, priorita' e date. Una riga = (utente, progetto): identita' UUIDv5 del
+    // progetto. Le righe di progetti spariti (il sito non le toglie) non viaggiano.
+    'plan_goals' => [
+        'ordine'          => 155,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id', 'project_id'],
+        'filtro'          => 'project_id > 0 AND EXISTS (SELECT 1 FROM projects xp WHERE xp.id = t.project_id AND xp.user_id = t.user_id)',
+        'campi' => [
+            'project_uuid' => ['tipo' => 'fk', 'col' => 'project_id', 'tabella' => 'projects', 'solo_creazione' => true],
+            'active'       => ['tipo' => 'b'],
+            'minutes'      => ['tipo' => 'i'],
+            'locked'       => ['tipo' => 'b'],
+            'kind'         => ['tipo' => 'e'],
+            'priority'     => ['tipo' => 'e'],
+            'start_date'   => ['tipo' => 'd'],
+            'deadline'     => ['tipo' => 'd'],
+            'since'        => ['tipo' => 'd'],
+            'items'        => ['tipo' => 'i'],
+            'unit_minutes' => ['tipo' => 'i'],
+            'updated_at'   => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // I giorni evidenziati di un progetto: una riga = (progetto, giorno), UUIDv5 di progetto + giorno. Esiste o non esiste.
+    'plan_paint' => [
+        'ordine'          => 156,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id', 'project_id', 'day'],
+        'filtro'          => 'project_id > 0 AND EXISTS (SELECT 1 FROM projects xp WHERE xp.id = t.project_id AND xp.user_id = t.user_id)',
+        'campi' => [
+            'project_uuid' => ['tipo' => 'fk', 'col' => 'project_id', 'tabella' => 'projects', 'solo_creazione' => true],
+            'day'          => ['tipo' => 'd', 'solo_creazione' => true],
+        ],
+    ],
+    // I blocchi del piano: minuti di un progetto in un giorno (studio o ripasso), fatti dal pianificatore (auto) o a mano (manual).
+    // Identita' = UUIDv5 di progetto + giorno + tipo.
+    'plan_days' => [
+        'ordine'          => 157,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id', 'day', 'project_id', 'kind'],
+        'filtro'          => 'project_id > 0 AND EXISTS (SELECT 1 FROM projects xp WHERE xp.id = t.project_id AND xp.user_id = t.user_id)',
+        'campi' => [
+            'project_uuid' => ['tipo' => 'fk', 'col' => 'project_id', 'tabella' => 'projects', 'solo_creazione' => true],
+            'day'          => ['tipo' => 'd', 'solo_creazione' => true],
+            'kind'         => ['tipo' => 'e', 'solo_creazione' => true],
+            'minutes'      => ['tipo' => 'i'],
+            'source'       => ['tipo' => 'e'],
+            'updated_at'   => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // «Il tuo tempo»: una riga per utente (chiave primaria user_id), UUIDv5 di tabella + utente. `overrides` e' un JSON data => minuti.
+    'plan_settings' => [
+        'ordine'          => 158,
+        'pk'              => 'user_id',
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id'],
+        'campi' => [
+            'weekday_min'  => ['tipo' => 'i'],
+            'weekend_min'  => ['tipo' => 'i'],
+            'rest_dow'     => ['tipo' => 'i'],
+            'buffer_days'  => ['tipo' => 'i'],
+            'floor_min'    => ['tipo' => 'i'],
+            'max_subjects' => ['tipo' => 'i'],
+            'reviews'      => ['tipo' => 'b'],
+            'overrides'    => ['tipo' => 's'],
+            'updated_at'   => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // I modelli di piano: un nome e la forma (tempo, tipo, priorita' per percorso di nome) come JSON.
+    'plan_templates' => [
+        'ordine'       => 159,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'name'       => ['tipo' => 's'],
+            'body'       => ['tipo' => 's'],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
     /* ---- voti ---- */
     // Prima i gruppi, poi gli esami che puntano a un gruppo. Le impostazioni del corso viaggiano a parte (GET/PATCH university/settings).
     'university_exam_groups' => [
@@ -466,6 +550,36 @@ const SYNC_MANIFESTO = [
     // o «questa volta no») e' una riga con series_uuid + original_date (e is_cancelled se la volta e' tolta). Le
     // occorrenze NON sono righe: le calcola chi legge (il telefono ha lo stesso motore del sito). `rrule` lo scrive
     // il server dai campi repeat_*. I collegamenti a progetti e routine arrivano con le loro tabelle.
+    // La rubrica degli indirizzi (per gli invitati agli eventi): una riga per indirizzo, come sul sito (uq_contact_email).
+    'contacts' => [
+        'ordine'       => 120,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'name'       => ['tipo' => 's'],
+            'email'      => ['tipo' => 's'],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // I luoghi che ti sei salvato (casa, lavoro, palestra): le parole d'aggancio riempiono da sole il luogo di un evento.
+    'planner_places' => [
+        'ordine'       => 121,
+        'proprietario' => 'user_id',
+        'gruppo'       => ['user_id'],
+        'campi' => [
+            'label'      => ['tipo' => 's'],
+            'keywords'   => ['tipo' => 's'],
+            'place_name' => ['tipo' => 's'],
+            'address'    => ['tipo' => 's'],
+            'place_lat'  => ['tipo' => 'n'],
+            'place_lon'  => ['tipo' => 'n'],
+            'place_ref'  => ['tipo' => 's'],
+            'sort_key'   => ['tipo' => 'k'],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
     'planner_events' => [
         'ordine'       => 130,
         'proprietario' => 'user_id',
@@ -511,6 +625,20 @@ const SYNC_MANIFESTO = [
             'updated_at'       => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
+    // Gli invitati di un evento: l'indirizzo (anche scritto a mano, senza contatto) e il nome com'era allora. Si scrivono alla nascita.
+    'event_guests' => [
+        'ordine'       => 131,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'event_uuid'   => ['tipo' => 'fk', 'col' => 'event_id', 'tabella' => 'planner_events', 'solo_creazione' => true],
+            'contact_uuid' => ['tipo' => 'fk', 'col' => 'contact_id', 'tabella' => 'contacts'],
+            'email'        => ['tipo' => 's', 'solo_creazione' => true],
+            'name'         => ['tipo' => 's'],
+            'created_at'   => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at'   => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
     /* ---- flashcard di studio ---- */
     // Il sito cancella un mazzo lasciando in giro le sue carte (non c'e' nessuna chiave esterna): qui chi cancella dall'app
     // toglie tutto il ramo, e il telefono toglie il ramo anche quando e' il sito a cancellare. Le carte non hanno user_id:
@@ -550,36 +678,6 @@ const SYNC_MANIFESTO = [
             'updated_at'     => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
-    // La rubrica degli indirizzi (per gli invitati agli eventi): una riga per indirizzo, come sul sito (uq_contact_email).
-    'contacts' => [
-        'ordine'       => 120,
-        'proprietario' => 'user_id',
-        'gruppo'       => [],
-        'campi' => [
-            'name'       => ['tipo' => 's'],
-            'email'      => ['tipo' => 's'],
-            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
-            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
-        ],
-    ],
-    // I luoghi che ti sei salvato (casa, lavoro, palestra): le parole d'aggancio riempiono da sole il luogo di un evento.
-    'planner_places' => [
-        'ordine'       => 121,
-        'proprietario' => 'user_id',
-        'gruppo'       => ['user_id'],
-        'campi' => [
-            'label'      => ['tipo' => 's'],
-            'keywords'   => ['tipo' => 's'],
-            'place_name' => ['tipo' => 's'],
-            'address'    => ['tipo' => 's'],
-            'place_lat'  => ['tipo' => 'n'],
-            'place_lon'  => ['tipo' => 'n'],
-            'place_ref'  => ['tipo' => 's'],
-            'sort_key'   => ['tipo' => 'k'],
-            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
-            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
-        ],
-    ],
     'fc_study_subcards' => [
         'ordine'           => 202,
         'pk'               => 'id_child',
@@ -599,106 +697,6 @@ const SYNC_MANIFESTO = [
         ],
     ],
 
-    // ---- flashcard di studio: preferiti, imparate, esempi, partite ----
-    // I preferiti: una carta (card_uuid) o una carta figlia (child_uuid) per riga. L'uuid e' casuale (il sito li scrive con
-    // «INSERT IGNORE» su una colonna o sull'altra): se telefono e sito preferiscono la stessa carta, vince l'uuid del telefono.
-    'fc_study_favorites' => [
-        'ordine'       => 210,
-        'proprietario' => 'user_id',
-        'gruppo'       => [],
-        'campi' => [
-            'card_uuid'      => ['tipo' => 'fk', 'col' => 'fc_image_id', 'tabella' => 'fc_study_cards', 'solo_creazione' => true],
-            'child_uuid'     => ['tipo' => 'fk', 'col' => 'fc_child_id', 'tabella' => 'fc_study_subcards', 'solo_creazione' => true],
-            'favorited_date' => ['tipo' => 'd', 'solo_creazione' => true],
-        ],
-    ],
-    // Le bozze veloci della Home (solo il fronte, il resto si completa dopo): la bozza diventa carta con una scrittura sulle carte
-    // e la cancellazione della bozza. Al massimo 200 per utente, come sul sito.
-    'fc_quick_drafts' => [
-        'ordine'       => 213,
-        'proprietario' => 'user_id',
-        'gruppo'       => [],
-        'campi' => [
-            'front'      => ['tipo' => 's'],
-            'back'       => ['tipo' => 's'],
-            'deck_uuid'  => ['tipo' => 'fk', 'col' => 'deck_id', 'tabella' => 'fc_study_decks'],
-            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
-            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
-        ],
-    // Gli invitati di un evento: l'indirizzo (anche scritto a mano, senza contatto) e il nome com'era allora. Si scrivono alla nascita.
-    'event_guests' => [
-        'ordine'       => 131,
-        'proprietario' => 'user_id',
-        'gruppo'       => [],
-        'campi' => [
-            'event_uuid'   => ['tipo' => 'fk', 'col' => 'event_id', 'tabella' => 'planner_events', 'solo_creazione' => true],
-            'contact_uuid' => ['tipo' => 'fk', 'col' => 'contact_id', 'tabella' => 'contacts'],
-            'email'        => ['tipo' => 's', 'solo_creazione' => true],
-            'name'         => ['tipo' => 's'],
-            'created_at'   => ['tipo' => 's', 'solo_lettura' => true],
-            'updated_at'   => ['tipo' => 's', 'solo_lettura' => true],
-        ],
-    ],
-    ],
-    // Il mazzo di studio collegato a un progetto (uno solo per progetto). Per cambiarlo si toglie la riga e se ne crea un'altra,
-    // come fa il sito. Non ha user_id: l'utente e' quello del progetto.
-    'fc_study_deck_projects' => [
-        'ordine'           => 214,
-        'proprietario'     => 'user_id',
-        'proprietario_sql' => 'SELECT p.user_id FROM projects p WHERE p.id = {t}.project_id',
-        'gruppo'           => [],
-        'campi' => [
-            'project_uuid' => ['tipo' => 'fk', 'col' => 'project_id', 'tabella' => 'projects', 'solo_creazione' => true],
-            'deck_uuid'    => ['tipo' => 'fk', 'col' => 'fc_category_id', 'tabella' => 'fc_study_decks', 'solo_creazione' => true],
-            'created_at'   => ['tipo' => 's', 'solo_lettura' => true],
-        ],
-    ],
-    // Le carte imparate: una per (utente, carta o carta figlia). La colonna fc_image_id vale per l'una o per l'altra
-    // secondo is_child: sul filo c'e' un solo uuid (target_uuid) piu' il flag. L'uuid e' UUIDv5 di utente + target + flag.
-    'fc_study_learnt' => [
-        'ordine'          => 211,
-        'proprietario'    => 'user_id',
-        'gruppo'          => [],
-        'chiave_naturale' => ['user_id', 'fc_image_id', 'is_child'],
-        // le imparate di carte cancellate (il sito le lascia) non servono a nessuno
-        'filtro'          => "is_child IN (0, 1) AND EXISTS (SELECT 1 FROM fc_study_cards xc WHERE t.is_child = 0 AND xc.id = t.fc_image_id UNION ALL SELECT 1 FROM fc_study_subcards xs WHERE t.is_child = 1 AND xs.id_child = t.fc_image_id)",
-        'campi' => [
-            'target_uuid'  => ['tipo' => 's', 'solo_creazione' => true, 'sql' => "COALESCE((SELECT xc.uuid FROM fc_study_cards xc WHERE t.is_child = 0 AND xc.id = t.fc_image_id), (SELECT xs.uuid FROM fc_study_subcards xs WHERE t.is_child = 1 AND xs.id_child = t.fc_image_id))"],
-            'is_child'     => ['tipo' => 'b', 'solo_creazione' => true],
-            'learnt_date'  => ['tipo' => 'd'],
-            'updated_at'   => ['tipo' => 's', 'solo_lettura' => true],
-        ],
-    ],
-    // Gli esempi di una carta o di una carta figlia (le immagini e gli audio viaggiano nella coda dei media).
-    'fc_study_examples' => [
-        'ordine'           => 212,
-        'proprietario'     => 'user_id',
-        'proprietario_sql' => "SELECT COALESCE((SELECT d.user_id FROM fc_study_cards c JOIN fc_study_decks d ON d.id = c.category_id WHERE c.id = {t}.parent_id), (SELECT d.user_id FROM fc_study_subcards s JOIN fc_study_cards c ON c.id = s.parent_id JOIN fc_study_decks d ON d.id = c.category_id WHERE s.id_child = {t}.child_id))",
-        'gruppo'           => [],
-        'campi' => [
-            'card_uuid'     => ['tipo' => 'fk', 'col' => 'parent_id', 'tabella' => 'fc_study_cards', 'solo_creazione' => true],
-            'child_uuid'    => ['tipo' => 'fk', 'col' => 'child_id', 'tabella' => 'fc_study_subcards', 'solo_creazione' => true],
-            'example_text'  => ['tipo' => 's'],
-            'example_image' => ['tipo' => 's', 'solo_lettura' => true],
-            'example_audio' => ['tipo' => 's', 'solo_lettura' => true],
-        ],
-    ],
-    // Le partite, di studio e di lingua (kind). Una partita di lingua appartiene a un corso (course_uuid) e ha come tipo il verso
-    // (w2t | t2w | mix, con _L = solo parole imparate). Una partita di ripasso (parent_uuid) ripete gli errori di un'altra.
-    // max_card_uuid e' la carta piu' nuova quando la partita e' partita: le carte create dopo sono «nuove».
-    'fc_games' => [
-        'ordine'       => 220,
-        'proprietario' => 'user_id',
-        'gruppo'       => [],
-        'campi' => [
-            'kind'                      => ['tipo' => 's', 'solo_creazione' => true],
-            'course_uuid'               => ['tipo' => 'fk', 'col' => 'course_id', 'tabella' => 'fc_vocab_courses', 'solo_creazione' => true],
-            'game_date'                 => ['tipo' => 's', 'solo_creazione' => true],
-            'score'                     => ['tipo' => 'n'],
-            'type'                      => ['tipo' => 's', 'solo_creazione' => true],
-            'card_status'               => ['tipo' => 's', 'solo_creazione' => true],
-            'parent_uuid'               => ['tipo' => 'fk', 'col' => 'parent_id', 'tabella' => 'fc_games', 'solo_creazione' => true],
-            'total_father_words'        => ['tipo' => 'i'],
     /* ---- lingue ---- */
     // I corsi di lingua: una coppia (lingua che conosci, lingua che impari) per utente. Nasce con il suo progetto (lo crea il server
     // se il telefono non ne indica uno). Si cambia solo la variante della lingua che impari.
@@ -809,6 +807,92 @@ const SYNC_MANIFESTO = [
         ],
     ],
 
+    // ---- flashcard di studio: preferiti, imparate, esempi, partite ----
+    // I preferiti: una carta (card_uuid) o una carta figlia (child_uuid) per riga. L'uuid e' casuale (il sito li scrive con
+    // «INSERT IGNORE» su una colonna o sull'altra): se telefono e sito preferiscono la stessa carta, vince l'uuid del telefono.
+    'fc_study_favorites' => [
+        'ordine'       => 210,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'card_uuid'      => ['tipo' => 'fk', 'col' => 'fc_image_id', 'tabella' => 'fc_study_cards', 'solo_creazione' => true],
+            'child_uuid'     => ['tipo' => 'fk', 'col' => 'fc_child_id', 'tabella' => 'fc_study_subcards', 'solo_creazione' => true],
+            'favorited_date' => ['tipo' => 'd', 'solo_creazione' => true],
+        ],
+    ],
+    // Le bozze veloci della Home (solo il fronte, il resto si completa dopo): la bozza diventa carta con una scrittura sulle carte
+    // e la cancellazione della bozza. Al massimo 200 per utente, come sul sito.
+    'fc_quick_drafts' => [
+        'ordine'       => 213,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'front'      => ['tipo' => 's'],
+            'back'       => ['tipo' => 's'],
+            'deck_uuid'  => ['tipo' => 'fk', 'col' => 'deck_id', 'tabella' => 'fc_study_decks'],
+            'created_at' => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Il mazzo di studio collegato a un progetto (uno solo per progetto). Per cambiarlo si toglie la riga e se ne crea un'altra,
+    // come fa il sito. Non ha user_id: l'utente e' quello del progetto.
+    'fc_study_deck_projects' => [
+        'ordine'           => 214,
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => 'SELECT p.user_id FROM projects p WHERE p.id = {t}.project_id',
+        'gruppo'           => [],
+        'campi' => [
+            'project_uuid' => ['tipo' => 'fk', 'col' => 'project_id', 'tabella' => 'projects', 'solo_creazione' => true],
+            'deck_uuid'    => ['tipo' => 'fk', 'col' => 'fc_category_id', 'tabella' => 'fc_study_decks', 'solo_creazione' => true],
+            'created_at'   => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Le carte imparate: una per (utente, carta o carta figlia). La colonna fc_image_id vale per l'una o per l'altra
+    // secondo is_child: sul filo c'e' un solo uuid (target_uuid) piu' il flag. L'uuid e' UUIDv5 di utente + target + flag.
+    'fc_study_learnt' => [
+        'ordine'          => 211,
+        'proprietario'    => 'user_id',
+        'gruppo'          => [],
+        'chiave_naturale' => ['user_id', 'fc_image_id', 'is_child'],
+        // le imparate di carte cancellate (il sito le lascia) non servono a nessuno
+        'filtro'          => "is_child IN (0, 1) AND EXISTS (SELECT 1 FROM fc_study_cards xc WHERE t.is_child = 0 AND xc.id = t.fc_image_id UNION ALL SELECT 1 FROM fc_study_subcards xs WHERE t.is_child = 1 AND xs.id_child = t.fc_image_id)",
+        'campi' => [
+            'target_uuid'  => ['tipo' => 's', 'solo_creazione' => true, 'sql' => "COALESCE((SELECT xc.uuid FROM fc_study_cards xc WHERE t.is_child = 0 AND xc.id = t.fc_image_id), (SELECT xs.uuid FROM fc_study_subcards xs WHERE t.is_child = 1 AND xs.id_child = t.fc_image_id))"],
+            'is_child'     => ['tipo' => 'b', 'solo_creazione' => true],
+            'learnt_date'  => ['tipo' => 'd'],
+            'updated_at'   => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Gli esempi di una carta o di una carta figlia (le immagini e gli audio viaggiano nella coda dei media).
+    'fc_study_examples' => [
+        'ordine'           => 212,
+        'proprietario'     => 'user_id',
+        'proprietario_sql' => "SELECT COALESCE((SELECT d.user_id FROM fc_study_cards c JOIN fc_study_decks d ON d.id = c.category_id WHERE c.id = {t}.parent_id), (SELECT d.user_id FROM fc_study_subcards s JOIN fc_study_cards c ON c.id = s.parent_id JOIN fc_study_decks d ON d.id = c.category_id WHERE s.id_child = {t}.child_id))",
+        'gruppo'           => [],
+        'campi' => [
+            'card_uuid'     => ['tipo' => 'fk', 'col' => 'parent_id', 'tabella' => 'fc_study_cards', 'solo_creazione' => true],
+            'child_uuid'    => ['tipo' => 'fk', 'col' => 'child_id', 'tabella' => 'fc_study_subcards', 'solo_creazione' => true],
+            'example_text'  => ['tipo' => 's'],
+            'example_image' => ['tipo' => 's', 'solo_lettura' => true],
+            'example_audio' => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
+    // Le partite, di studio e di lingua (kind). Una partita di lingua appartiene a un corso (course_uuid) e ha come tipo il verso
+    // (w2t | t2w | mix, con _L = solo parole imparate). Una partita di ripasso (parent_uuid) ripete gli errori di un'altra.
+    // max_card_uuid e' la carta piu' nuova quando la partita e' partita: le carte create dopo sono «nuove».
+    'fc_games' => [
+        'ordine'       => 220,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'kind'                      => ['tipo' => 's', 'solo_creazione' => true],
+            'course_uuid'               => ['tipo' => 'fk', 'col' => 'course_id', 'tabella' => 'fc_vocab_courses', 'solo_creazione' => true],
+            'game_date'                 => ['tipo' => 's', 'solo_creazione' => true],
+            'score'                     => ['tipo' => 'n'],
+            'type'                      => ['tipo' => 's', 'solo_creazione' => true],
+            'card_status'               => ['tipo' => 's', 'solo_creazione' => true],
+            'parent_uuid'               => ['tipo' => 'fk', 'col' => 'parent_id', 'tabella' => 'fc_games', 'solo_creazione' => true],
+            'total_father_words'        => ['tipo' => 'i'],
             'game_order'                => ['tipo' => 's'],
             'total_words_with_children' => ['tipo' => 'i'],
             'max_card_uuid'             => ['tipo' => 's', 'sql' => "CASE WHEN t.kind = 'vocab' THEN (SELECT xv.uuid FROM fc_vocab_cards xv WHERE xv.id = t.max_card_id) ELSE (SELECT xc.uuid FROM fc_study_cards xc WHERE xc.id = t.max_card_id) END"],
@@ -1025,6 +1109,21 @@ function sync_uuid_record(int $uid, string $tipo): string {
 /** L'identita' di un record di un corso di lingua: da utente + corso (uuid) + tipo. */
 function sync_uuid_record_lingua(int $uid, string $corsoUuid, string $tipo): string {
     return sync_uuid5('fc_vocab_records|' . $uid . '|' . $corsoUuid . '|' . $tipo);
+}
+
+/** L'identita' dell'obiettivo di un progetto nel piano: dal progetto (uuid). */
+function sync_uuid_piano_obiettivo(string $progettoUuid): string {
+    return sync_uuid5('plan_goals|' . $progettoUuid);
+}
+
+/** L'identita' di un giorno evidenziato: dal progetto (uuid) + giorno. */
+function sync_uuid_piano_giorno_evid(string $progettoUuid, string $giorno): string {
+    return sync_uuid5('plan_paint|' . $progettoUuid . '|' . $giorno);
+}
+
+/** L'identita' di un blocco del piano: dal progetto (uuid) + giorno + tipo (study | review). */
+function sync_uuid_piano_blocco(string $progettoUuid, string $giorno, string $tipo): string {
+    return sync_uuid5('plan_days|' . $progettoUuid . '|' . $giorno . '|' . $tipo);
 }
 
 /** L'identita' di una riga per utente (impostazioni, obiettivo): da tabella + utente. */

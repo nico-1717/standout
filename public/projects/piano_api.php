@@ -771,8 +771,8 @@ if ($ajax === 'day_set') {
     if (!$d) sec_die_json(t('piano.api_dati_non_validi'), 400, 'bad_request');
     $m = sec_int(sec_in('minutes'), 0, 1440, 0);
     if ($m <= 0) sec_q("DELETE FROM plan_days WHERE user_id = ? AND day = ? AND project_id = ? AND kind = 'study'", [$uid, $d, $id], 'isi');
-    else sec_q("INSERT INTO plan_days (user_id, day, project_id, kind, minutes, source) VALUES (?,?,?,'study',?, 'manual')
-                ON DUPLICATE KEY UPDATE minutes=VALUES(minutes), source='manual'", [$uid, $d, $id, $m], 'isii');
+    else sec_q("INSERT INTO plan_days (user_id, day, project_id, kind, minutes, source) VALUES (?,?,?,?,?, 'manual')
+                ON DUPLICATE KEY UPDATE minutes=VALUES(minutes), source='manual'", [$uid, $d, $id, 'study', $m], 'isisi');
     sec_json(['ok' => true]);
 }
 
@@ -1023,8 +1023,8 @@ if ($ajax === 'skip_fix') {
         if ($mode === 'move' && $manca > 0) {
             $to = sec_date(sec_in('to'), pn_oggi());
             if ($to < pn_oggi()) $to = pn_oggi();
-            sec_q("INSERT INTO plan_days (user_id, day, project_id, kind, minutes, source) VALUES (?,?,?,'study',?,'manual')
-                   ON DUPLICATE KEY UPDATE minutes = minutes + VALUES(minutes), source='manual'", [$uid, $to, $id, $manca], 'isii');
+            sec_q("INSERT INTO plan_days (user_id, day, project_id, kind, minutes, source) VALUES (?,?,?,?,?,'manual')
+                   ON DUPLICATE KEY UPDATE minutes = minutes + VALUES(minutes), source='manual'", [$uid, $to, $id, 'study', $manca], 'isisi');
         }
     }
     sec_json(['ok' => true]);
