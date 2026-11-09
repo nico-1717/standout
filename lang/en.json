@@ -202,7 +202,13 @@
     "ph_progetto_nome": "Project: {nome}",
     "coda_offline": "Offline · saves when you're back online",
     "coda_offline_breve": "Offline",
-    "coda_invio": "Saving…"
+    "coda_invio": "Saving…",
+    "pausa_consiglio_1": "Stand up and stretch your neck and shoulders.",
+    "pausa_consiglio_2": "Drink a glass of water.",
+    "pausa_consiglio_3": "Look far away, out of the window, for 20 seconds.",
+    "pausa_consiglio_4": "Take three slow breaths.",
+    "pausa_consiglio_5": "Walk a few steps: moving your legs helps your mind.",
+    "pausa_consiglio_6": "Put the phone down: a break is for resting your eyes."
   },
   "voti": {
     "0_selezionati": "0 selected",

@@ -202,7 +202,13 @@
     "ph_progetto_nome": "Progetto: {nome}",
     "coda_offline": "Senza rete · si salva quando torna",
     "coda_offline_breve": "Senza rete",
-    "coda_invio": "Sto salvando…"
+    "coda_invio": "Sto salvando…",
+    "pausa_consiglio_1": "Alzati e allunga il collo e le spalle.",
+    "pausa_consiglio_2": "Bevi un bicchiere d'acqua.",
+    "pausa_consiglio_3": "Guarda lontano, fuori dalla finestra, per 20 secondi.",
+    "pausa_consiglio_4": "Fai tre respiri lenti.",
+    "pausa_consiglio_5": "Fai due passi: muovere le gambe fa bene alla testa.",
+    "pausa_consiglio_6": "Lascia stare il telefono: la pausa è per riposare gli occhi."
   },
   "voti": {
     "0_selezionati": "0 selezionati",
