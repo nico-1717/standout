@@ -203,7 +203,7 @@ function api_h_sync_pull(array $ctx): void {
         }
         $finita = $iTab >= count($tabelle);
         api_ok(['changes' => $cambi, 'cursor' => $finita ? $testa : "s:$testa:$iTab:$ultimoId", 'more' => !$finita,
-                'snapshot' => true, 'server_time' => date('Y-m-d H:i:s')]);
+                'snapshot' => true, 'rev' => 'pull-bytes-1', 'server_time' => date('Y-m-d H:i:s')]);
     }
 
     // ---- registro: solo le voci nuove ----
@@ -243,7 +243,7 @@ function api_h_sync_pull(array $ctx): void {
             // upsert di una riga che non c'e' piu' (o fuori filtro): niente. Se e' stata tolta, la sua voce «delete» e' piu' avanti.
         }
     }
-    api_ok(['changes' => $cambi, 'cursor' => $nuovoCursore, 'more' => $piu, 'server_time' => date('Y-m-d H:i:s')]);
+    api_ok(['changes' => $cambi, 'cursor' => $nuovoCursore, 'more' => $piu, 'rev' => 'pull-bytes-1', 'server_time' => date('Y-m-d H:i:s')]);
 }
 
 /** GET /sync/state */
