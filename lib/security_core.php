@@ -27,6 +27,16 @@
 
 require_once __DIR__ . '/bootstrap.php';
 
+/* Il server di Altervista gira su PHP 8.0: array_is_list() esiste solo dalla 8.1 e, mancando, faceva dare 500 a tutta la
+   sincronizzazione dell'app (Call to undefined function array_is_list). Stessa regola della funzione vera. */
+if (!function_exists('array_is_list')) {
+    function array_is_list(array $a): bool {
+        $i = 0;
+        foreach ($a as $k => $_) { if ($k !== $i++) return false; }
+        return true;
+    }
+}
+
 /* Errori PHP: nel log del server, mai a schermo. Un avviso mostra il percorso
    delle cartelle e a volte pezzi di query (SICUREZZA.md §7). Se un giorno serve
    vederli mentre si sviluppa, in config.php basta define('STANDOUT_DEBUG', true). */
