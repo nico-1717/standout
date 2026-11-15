@@ -23,6 +23,10 @@ require_once __DIR__ . '/../../lib/habits_core.php';
 
 function hb_json($payload) {
     header('Content-Type: application/json; charset=utf-8');
+    /* Una risposta dati non deve mai essere rimessa in una scheda come se fosse la pagina
+       (cache del browser, «indietro», riapertura dell'app): sempre fresca, mai salvata. */
+    header('Cache-Control: no-store, private');
+    header('X-Content-Type-Options: nosniff');
     echo json_encode($payload, JSON_UNESCAPED_UNICODE);
     exit();
 }
