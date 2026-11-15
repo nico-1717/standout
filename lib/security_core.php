@@ -253,7 +253,9 @@ function sec_json($payload, int $code = 200): void {
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store, private');
     }
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+    // Un solo byte non valido (dati vecchi scritti con un'altra codifica) non deve svuotare la risposta intera:
+    // senza queste opzioni json_encode() restituisce false e l'app riceve un corpo vuoto (la sincronizzazione si ferma).
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR);
     exit;
 }
 
