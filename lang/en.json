@@ -1275,6 +1275,7 @@
     "cambiandolo_le_successive_si_rinumerano": "Change it and the following weeks renumber themselves.",
     "cambio_la_data": "Change the date?",
     "caricamento": "Loading…",
+    "caricamento_lento": "This is taking longer than expected. Check your connection or reload the page.",
     "categoria": "Category",
     "categoria_predefinita": "Default category",
     "categorie": "Categories",

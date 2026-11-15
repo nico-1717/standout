@@ -21,6 +21,30 @@
 }
 .pl-body-scroll::-webkit-scrollbar{ width:0; height:0; }
 
+/* Caricamento: barra sottile che scorre + "Caricamento…", al centro dell'area vuota.
+   Vive dentro #plScroller fino a quando boot() lo toglie (13_avvio.js). Usa solo i
+   token della carta, quindi segue lo stile Carta e lo Standard. */
+.pl-loading{
+    position:absolute; left:0; right:0; top:0; bottom:0; z-index:2;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    padding:0 28px calc(var(--safe-bottom) + 60px); text-align:center; pointer-events:none;
+}
+.pl-loading-bar{ width:150px; height:3px; border-radius:var(--r-pill); background:var(--hair-2); overflow:hidden; }
+.pl-loading-bar span{
+    display:block; width:40%; height:100%; border-radius:var(--r-pill); background:var(--accent);
+    animation:plLoadSlide 1.3s var(--ease-soft) infinite;
+}
+.pl-loading-txt{ font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-2); }
+.pl-loading-slow{
+    max-width:260px; font-size:13px; line-height:1.45; color:var(--ink-3); opacity:0;
+    animation:plLoadSlow .5s ease 12s forwards;
+}
+@keyframes plLoadSlide{ 0%{ transform:translateX(-100%); } 100%{ transform:translateX(250%); } }
+@keyframes plLoadSlow{ to{ opacity:1; } }
+@media (prefers-reduced-motion: reduce){
+    .pl-loading-bar span{ animation:none; width:100%; opacity:.5; }
+}
+
 /* riga di base: righello + area dei giorni. Un solo scroll verticale li
    muove insieme; l'orizzontale non tocca mai il righello, perché il
    righello non fa più parte della parte che si sposta lateralmente. */

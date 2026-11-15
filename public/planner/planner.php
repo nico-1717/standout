@@ -189,6 +189,15 @@ foreach (['base', 'griglia', 'liste', 'fogli', 'extra', 'responsive'] as $plCss)
             <div class="pl-track" id="plTrack"></div>
         </div>
     </div>
+    <!-- Barra di caricamento: il motore del planner e' un file grande, e finche'
+         non e' arrivato la griglia resta vuota. Questo blocco e' HTML puro, si
+         vede dal primo disegno della pagina; boot() lo toglie quando la griglia
+         e' pronta. Se dopo qualche secondo c'e' ancora, compare la frase lenta. -->
+    <div class="pl-loading" id="plLoading" role="status" aria-live="polite">
+        <div class="pl-loading-bar" aria-hidden="true"><span></span></div>
+        <div class="pl-loading-txt"><?php te('planner.caricamento'); ?></div>
+        <div class="pl-loading-slow"><?php te('planner.caricamento_lento'); ?></div>
+    </div>
 </main>
 
 <!-- ============ VISTA MESE ============ -->

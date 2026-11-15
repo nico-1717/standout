@@ -604,6 +604,9 @@ function boot() {
 
     buildDayBar();
     buildTrack();
+    /* la griglia c'e': la barra di caricamento (HTML puro in planner.php) ha finito */
+    var caricamento = $('plLoading');
+    if (caricamento) caricamento.remove();
     renderWeekBits();
     renderPrio();
     syncScrollerTop();
