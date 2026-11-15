@@ -47,6 +47,15 @@ if (trim((string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) === $etag) {
     exit;
 }
 
+/* Compresso: sono circa 600 KB di testo, che compressi diventano un quinto. Sul
+   telefono con poca linea e' la differenza fra «ci mette un attimo» e «sembra
+   fermo». Solo se il browser lo accetta e il server non comprime gia' per conto
+   suo (altrimenti si comprimerebbe due volte). */
+header('Vary: Accept-Encoding');
+if (!ini_get('zlib.output_compression') && function_exists('ob_gzhandler')
+    && stripos((string)($_SERVER['HTTP_ACCEPT_ENCODING'] ?? ''), 'gzip') !== false) {
+    ob_start('ob_gzhandler');
+}
 foreach ($parti as $p) {
     readfile($p);
     echo "\n";

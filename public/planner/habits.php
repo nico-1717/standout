@@ -479,7 +479,7 @@ include __DIR__ . '/habits_import.php';
 /* 'import' serve al pannello di importazione, incluso qui sotto. */
 echo standout_i18n_json(['comune', 'abitudini', 'import']);
 ?>
-<script nonce="<?php echo sec_nonce(); ?>">window.HB_BOOT = <?php echo json_encode($bootstrap, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
+<script nonce="<?php echo sec_nonce(); ?>">window.HB_BOOT = <?php echo json_encode($bootstrap, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR); ?>;</script>
 <?php
 /* Diario del giorno: componente condiviso con planner.php e diario.php,
    con in più gli elenchi "cose belle" e "cosa ho imparato". */

@@ -643,7 +643,7 @@ echo standout_i18n_json(['comune', 'pomodoro', 'todo']);
 ?>
 
 <script nonce="<?php echo sec_nonce(); ?>">
-const STATE0 = <?php echo json_encode($jsState, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
+const STATE0 = <?php echo json_encode($jsState, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR); ?>;
 </script>
 <script nonce="<?php echo sec_nonce(); ?>">
 (function(){

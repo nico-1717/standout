@@ -1276,6 +1276,8 @@
     "cambio_la_data": "Cambio la data?",
     "caricamento": "Caricamento…",
     "caricamento_lento": "Ci sta mettendo più del previsto. Controlla la connessione o ricarica la pagina.",
+    "avvio_non_riuscito": "Il planner non è partito.",
+    "ricarica": "Ricarica",
     "categoria": "Categoria",
     "categoria_predefinita": "Categoria predefinita",
     "categorie": "Categorie",

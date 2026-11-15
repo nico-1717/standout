@@ -751,7 +751,7 @@ a{ color:inherit; text-decoration:none; }
 <script nonce="<?php echo sec_nonce(); ?>">
 (function () {
 'use strict';
-var FR = <?php echo json_encode($FRJS, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var FR = <?php echo json_encode($FRJS, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR); ?>;
 var ICONE = <?php
     $ic = [];
     foreach ($metriche as $m) { $ic[$m['i']] = fr_icona($m['i']); }

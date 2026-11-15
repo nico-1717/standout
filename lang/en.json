@@ -1276,6 +1276,8 @@
     "cambio_la_data": "Change the date?",
     "caricamento": "Loading…",
     "caricamento_lento": "This is taking longer than expected. Check your connection or reload the page.",
+    "avvio_non_riuscito": "The planner could not start.",
+    "ricarica": "Reload",
     "categoria": "Category",
     "categoria_predefinita": "Default category",
     "categorie": "Categories",

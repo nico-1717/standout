@@ -415,11 +415,81 @@ include __DIR__ . '/diario_giorno.php';
 ?>
 
 <?php
+/* La sentinella del caricamento. Il motore del planner e' un file grande: se non
+   arriva, o parte e si ferma con un errore, la barra «Caricamento…» restava
+   per sempre senza dire niente. Qui si ascoltano gli errori della pagina: se il
+   file non si scarica lo si richiede una volta con un indirizzo nuovo, e se il
+   planner non parte la barra mostra l'errore vero (file e riga) con un tasto
+   Ricarica. Va PRIMA di tutti gli altri script del planner. */
+?>
+<script nonce="<?php echo sec_nonce(); ?>">
+(function () {
+    var T = <?php echo json_encode(['fail' => t('planner.avvio_non_riuscito'), 'reload' => t('planner.ricarica')], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    var errs = [], retried = false;
+    function short(u) { return String(u || '').replace(/^.*\//, '').slice(0, 60); }
+    function show() {
+        var box = document.getElementById('plLoading');
+        if (!box || !errs.length) return;
+        var e = document.getElementById('plLoadErr');
+        if (!e) {
+            e = document.createElement('div');
+            e.id = 'plLoadErr';
+            e.className = 'pl-loading-err';
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = T.reload;
+            b.onclick = function () {
+                var u = location.pathname + location.search.replace(/([?&])r=\d+&?/, '$1').replace(/[?&]$/, '');
+                location.href = u + (u.indexOf('?') < 0 ? '?' : '&') + 'r=' + Date.now();
+            };
+            var m = document.createElement('div');
+            m.className = 'pl-loading-msg';
+            e.appendChild(m);
+            e.appendChild(b);
+            box.appendChild(e);
+        }
+        e.firstChild.textContent = T.fail + '\n' + errs.slice(0, 3).join('\n');
+    }
+    window.addEventListener('error', function (ev) {
+        var t = ev.target;
+        if (t && t.tagName === 'SCRIPT' && t.src) {
+            errs.push('script: ' + short(t.src));
+            if (!retried && /planner_js\.php/.test(t.src)) {
+                retried = true;
+                var s = document.createElement('script');
+                s.src = t.src + (t.src.indexOf('?') < 0 ? '?' : '&') + 'r=' + Date.now();
+                document.body.appendChild(s);
+                errs.length = 0;   // si riprova: l'errore si mostra solo se fallisce anche questo
+                return;
+            }
+        } else {
+            if (!ev.message && !ev.filename) return;
+            errs.push((ev.message || 'error') + ' (' + short(ev.filename) + ':' + (ev.lineno || 0) + ')');
+        }
+        show();
+    }, true);
+    window.addEventListener('unhandledrejection', function (ev) {
+        var r = ev.reason;
+        errs.push('promise: ' + String((r && r.message) || r).slice(0, 120));
+        show();
+    });
+})();
+</script>
+<?php
 /* Le stringhe che servono a planner.js. Va prima di PL_BOOT e prima dello
    motore del planner (planner_js.php): T() deve esistere quando parte. */
 echo standout_i18n_json(['comune', 'planner']);
 ?>
-<script nonce="<?php echo sec_nonce(); ?>">window.PL_BOOT = <?php echo json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;</script>
+<?php
+/* I dati della pagina. Se un testo salvato ha byte che non sono UTF-8 valido (un
+   accento tagliato a meta', per esempio), json_encode() restituisce false e la
+   riga diventava «window.PL_BOOT = ;»: errore di sintassi, motore mai partito,
+   planner fermo su «Caricamento…». Qui il byte sbagliato diventa «\u{FFFD}» e il
+   resto dei dati arriva comunque. */
+$plBootJson = json_encode($boot, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+if ($plBootJson === false) $plBootJson = 'null';
+?>
+<script nonce="<?php echo sec_nonce(); ?>">window.PL_BOOT = <?php echo $plBootJson; ?>;</script>
 <?php include __DIR__ . '/../partials/sidebar.php'; ?>
 <?php /* il motore del planner: le parti in js/, unite da planner_js.php */
 $plJsV = 0; foreach (glob(__DIR__ . '/js/[0-9][0-9]_*.js') ?: [] as $plJs) $plJsV = max($plJsV, (int)filemtime($plJs)); ?>
