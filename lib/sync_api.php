@@ -27,6 +27,7 @@ require_once __DIR__ . '/planner/planner_lib.php';
 
 const SYNC_PUSH_MAX = 200;
 const SYNC_PULL_MAX = 1000;
+const SYNC_PULL_BYTE = 1000000;   // peso massimo (in byte di JSON) di una pagina della copia completa
 
 /* ---------------------------------------------------------------------
    PULL: dalla riga del database alla riga sul filo
@@ -146,6 +147,19 @@ function api_h_sync_pull(array $ctx): void {
     sec_require_rate('sync_pull', $uid, 600, 60);
     if (!sync_attivo()) api_errore('server_error', 'Sync is not set up on this server (run the sync migrations)', 503);
 
+    @ini_set('memory_limit', '256M');
+    /* DIAGNOSI TEMPORANEA: un errore fatale di PHP (memoria, tempo) non e' un'eccezione e chiudeva la connessione senza una
+       parola: qui lo si trasforma in una risposta che l'app mostra nella pagina Sync. */
+    register_shutdown_function(function () {
+        $e = error_get_last();
+        if ($e && in_array($e['type'], [E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR, E_RECOVERABLE_ERROR], true)) {
+            while (ob_get_level() > 0) @ob_end_clean();
+            if (!headers_sent()) { http_response_code(500); header('Content-Type: application/json; charset=utf-8'); }
+            echo json_encode(['ok' => false, 'code' => 'server_error',
+                'error' => 'Server error: PHP fatal ' . basename($e['file']) . ':' . $e['line'] . ' ' . mb_substr((string)$e['message'], 0, 160)],
+                JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+        }
+    });
     $limite = max(1, min(SYNC_PULL_MAX, (int)($_GET['limit'] ?? 500)));
     // «snapshot» (o niente) = copia completa; un numero = «dopo questa voce del registro» (0 e' un cursore valido: registro ancora vuoto)
     $cursore = isset($_GET['cursor']) ? trim((string)$_GET['cursor']) : 'snapshot';
@@ -164,16 +178,25 @@ function api_h_sync_pull(array $ctx): void {
             api_errore('invalid_request', 'Invalid cursor');
         }
         $restano = $limite;
-        while ($iTab < count($tabelle) && $restano > 0) {
-            $righe = sync_leggi_righe($tabelle[$iTab], $uid, null, $ultimoId, $restano);
+        /* Una pagina non supera ~1 MB di JSON e si legge a blocchi di 100 righe: le carte con testi molto lunghi (o immagini
+           incollate nel testo) facevano finire la memoria o troncavano la risposta sull'hosting, e il telefono non andava
+           oltre («network connection lost»). Il cursore dice l'ultima riga inviata: la pagina dopo riparte da li'. */
+        $byte = 0; $troncata = false;
+        while ($iTab < count($tabelle) && $restano > 0 && !$troncata) {
+            $blocco = min($restano, 100);
+            $righe = sync_leggi_righe($tabelle[$iTab], $uid, null, $ultimoId, $blocco);
             foreach ($righe as $r) {
                 $id = $r['_id']; unset($r['_id']);
-                $cambi[] = ['table' => $tabelle[$iTab], 'op' => 'upsert', 'uuid' => $r['uuid'], 'row' => $r];
+                $voce = ['table' => $tabelle[$iTab], 'op' => 'upsert', 'uuid' => $r['uuid'], 'row' => $r];
+                $peso = strlen((string)json_encode($voce, JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR));
+                if ($cambi && $byte + $peso > SYNC_PULL_BYTE) { $troncata = true; break; }
+                $byte += $peso;
+                $cambi[] = $voce;
                 $ultimoId = $id;
+                $restano--;
             }
-            $chiesti = $restano;
-            $restano -= count($righe);
-            if (count($righe) < $chiesti) {
+            if ($troncata) break;
+            if (count($righe) < $blocco) {
                 // la tabella e' finita (ne sono arrivate meno di quante ne servivano): si passa alla prossima
                 $iTab++; $ultimoId = 0;
             }
