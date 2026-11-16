@@ -888,7 +888,7 @@ function buildPills(container, presets, selected, kind){
     });
 
     var add = document.createElement('button');
-    add.type = 'button'; add.className = 'dur-pill dur-pill-add'; add.textContent = '+ personalizza';
+    add.type = 'button'; add.className = 'dur-pill dur-pill-add'; add.textContent = '+ ' + Tf('pomodoro.personalizza', 'personalizza');
     add.onclick = function(){ openCustomDur(kind); };
     container.appendChild(add);
 }
