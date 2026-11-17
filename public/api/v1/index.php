@@ -117,6 +117,12 @@
      GET    /api/v1/places/search?q=      i posti che corrispondono (almeno 3 lettere): {places: [{name, detail, full, ref, lat|null, lon|null}]}. Solo token. Serve rete.
      GET    /api/v1/places/details?ref=   le coordinate del posto scelto: {place: {lat, lon, full, ref}}. Solo token. 404 not_found se non c'e'.
 
+     GET    /api/v1/weather               il meteo: {enabled, place, lat, lon, fonte, fonte_url, giorni: {AAAA-MM-GG: ...}, adesso, nota_affidabilita}. Solo token.
+     POST   /api/v1/weather/enable        {lat, lon}: lo accende per quel punto (come il sito) e risponde come GET
+     POST   /api/v1/weather/disable       lo spegne (le coordinate restano)
+     POST   /api/v1/weather/preview       {lat, lon, place?}: la previsione di un punto SENZA salvare niente, come il popup del sito
+     GET    /api/v1/weather/places?q=     i luoghi che si chiamano cosi (almeno 3 lettere): {places: [{nome, dove, lat, lon}]}
+
    Immagine di un articolo del to buy, fetta 8 — lib/shopping_img_api.php:
      POST   /api/v1/shopping/{id}/image   carica o sostituisce: multipart, campo «file» (jpg, png, webp, gif; max 4 MB)
      GET    /api/v1/shopping/{id}/image   il file (serve la sessione: non c'e' un indirizzo pubblico)
@@ -138,6 +144,7 @@ require_once __DIR__ . '/../../../lib/auth_core.php';
 require_once __DIR__ . '/../../../lib/api_v1.php';
 require_once __DIR__ . '/../../../lib/todo_core.php';
 require_once __DIR__ . '/../../../lib/planner/planner_lib.php';
+require_once __DIR__ . '/../../../lib/planner/pl_meteo.php';
 require_once __DIR__ . '/../../../lib/habits_api.php';
 require_once __DIR__ . '/../../../lib/shopping_api.php';
 require_once __DIR__ . '/../../../lib/todo_bulk_api.php';
@@ -769,6 +776,73 @@ function api_h_places_details(array $ctx): void {
     api_ok(['place' => $punto]);
 }
 
+/* ---------------- Meteo (stessa logica di planner/meteo_api.php: le funzioni stanno in lib/planner/pl_meteo.php) ---------------- */
+function api_meteo_risposta(bool $on, ?string $place, ?float $lat, ?float $lon, bool $manuale = false): array {
+    $r = [
+        'enabled' => $on, 'place' => $place, 'lat' => $lat, 'lon' => $lon, 'manual' => $manuale,
+        'fonte' => WX_FONTE, 'fonte_url' => WX_FONTE_URL, 'giorni' => (object)[], 'adesso' => null,
+        'nota_affidabilita' => t('planner.wx_nota_affidabilita'),
+    ];
+    if ($on && $lat !== null && $lon !== null) {
+        $data = wx_fetch($lat, $lon);
+        if ($data) {
+            $r['giorni'] = (object)wx_giorni($data);
+            $r['adesso'] = wx_adesso($data);
+        } else $r['errore'] = t('planner.wx_non_raggiungibili');
+    }
+    return $r;
+}
+
+function api_h_meteo(array $ctx): void {
+    date_default_timezone_set('Europe/Rome');
+    $uid = (int)$ctx['utente']['id'];
+    $s = sec_one("SELECT weather_enabled, weather_lat, weather_lon, weather_place FROM planner_settings WHERE user_id = ?", [$uid], 'i');
+    $on = $s && (int)$s['weather_enabled'] === 1 && $s['weather_lat'] !== null;
+    $place = $s['weather_place'] ?? null;
+    if ($on && ($place === null || $place === '')) {
+        $place = wx_place_nome((float)$s['weather_lat'], (float)$s['weather_lon']);
+        if ($place !== null) sec_q("UPDATE planner_settings SET weather_place = ? WHERE user_id = ?", [$place, $uid], 'si');
+    }
+    api_ok(api_meteo_risposta($on, $place, $on ? (float)$s['weather_lat'] : null, $on ? (float)$s['weather_lon'] : null));
+}
+
+function api_h_meteo_accendi(array $ctx): void {
+    date_default_timezone_set('Europe/Rome');
+    $uid = (int)$ctx['utente']['id'];
+    $c = api_corpo();
+    $lat = sec_float($c['lat'] ?? null, -90, 90, 999);
+    $lon = sec_float($c['lon'] ?? null, -180, 180, 999);
+    if ($lat === 999.0 || $lon === 999.0) api_errore('validation', 'lat', 422);
+    $place = wx_place_nome($lat, $lon);
+    sec_q("UPDATE planner_settings SET weather_enabled = 1, weather_lat = ?, weather_lon = ?, weather_place = ? WHERE user_id = ?",
+        [$lat, $lon, $place, $uid], 'ddsi');
+    api_ok(api_meteo_risposta(true, $place, $lat, $lon));
+}
+
+function api_h_meteo_spegni(array $ctx): void {
+    sec_q("UPDATE planner_settings SET weather_enabled = 0 WHERE user_id = ?", [(int)$ctx['utente']['id']], 'i');
+    api_ok(['enabled' => false]);
+}
+
+function api_h_meteo_anteprima(array $ctx): void {
+    date_default_timezone_set('Europe/Rome');
+    $c = api_corpo();
+    $lat = sec_float($c['lat'] ?? null, -90, 90, 999);
+    $lon = sec_float($c['lon'] ?? null, -180, 180, 999);
+    if ($lat === 999.0 || $lon === 999.0) api_errore('validation', 'lat', 422);
+    $place = isset($c['place']) ? sec_str((string)$c['place'], 120) : '';
+    if ($place === '') $place = (string)wx_place_nome($lat, $lon);
+    api_ok(api_meteo_risposta(true, $place, $lat, $lon, true));
+}
+
+function api_h_meteo_luoghi(array $ctx): void {
+    if (!sec_rate_limit('meteo_cerca', (int)$ctx['utente']['id'], 40, 60)) api_errore('rate_limited');
+    $q = isset($_GET['q']) ? sec_str($_GET['q'], 120) : '';
+    $q = trim((string)preg_replace('/\s+/u', ' ', $q));
+    if (mb_strlen($q, 'UTF-8') < 3) api_ok(['places' => []]);
+    api_ok(['places' => wx_cerca($q)]);
+}
+
 /* I consumi dell'IA del mese (le barre sotto l'avatar). Stessi numeri di home_api.php?ajax=ai_usage. */
 function api_h_home_ai_usage(array $ctx): void {
     $p = standout_get_piano_utente((int)$ctx['utente']['id']);
@@ -892,6 +966,11 @@ api_v1_esegui([
     ['GET',    'storage',           'api_h_storage',                     ['accetta' => ['token']]],
     ['GET',    'places/search',     'api_h_places_search',                ['accetta' => ['token']]],
     ['GET',    'places/details',    'api_h_places_details',               ['accetta' => ['token']]],
+    ['GET',    'weather',           'api_h_meteo',                        ['accetta' => ['token']]],
+    ['POST',   'weather/enable',    'api_h_meteo_accendi',                ['accetta' => ['token']]],
+    ['POST',   'weather/disable',   'api_h_meteo_spegni',                 ['accetta' => ['token']]],
+    ['POST',   'weather/preview',   'api_h_meteo_anteprima',              ['accetta' => ['token']]],
+    ['GET',    'weather/places',    'api_h_meteo_luoghi',                 ['accetta' => ['token']]],
     /* Sincronizzazione con l'app (docs/ARCHITETTURA_APP.md §3.3): SOLO con il token, sono le rotte dell'app */
     ['POST',   'sync/push',         'api_h_sync_push',        ['accetta' => ['token']]],
     ['GET',    'sync/pull',         'api_h_sync_pull',        ['accetta' => ['token']]],
