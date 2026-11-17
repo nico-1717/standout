@@ -137,13 +137,6 @@ function api_v1_esegui(array $rotte): void {
     set_exception_handler(function (Throwable $e) {
         // nel log del server (mai a schermo), senza il corpo della richiesta: puo' contenere password o token
         sec_log_error('api_v1', get_class($e) . ' in ' . basename($e->getFile()) . ':' . $e->getLine());
-        /* DIAGNOSI TEMPORANEA: sulle sole rotte di sincronizzazione (si arriva qui solo con un'app collegata) l'errore
-           dice la classe e il punto, cosi' l'app lo mostra nella pagina Sync. Nessun corpo di richiesta, nessun segreto. */
-        $perc = api_percorso();
-        if ($perc !== null && strpos($perc, 'sync') === 0) {
-            api_errore('server_error', 'Server error: ' . get_class($e) . ' ' . basename($e->getFile()) . ':' . $e->getLine()
-                . ' ' . mb_substr(preg_replace('/\s+/', ' ', $e->getMessage()), 0, 160));
-        }
         api_errore('server_error');
     });
 
