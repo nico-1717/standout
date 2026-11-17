@@ -803,7 +803,9 @@ function api_h_meteo(array $ctx): void {
         $place = wx_place_nome((float)$s['weather_lat'], (float)$s['weather_lon']);
         if ($place !== null) sec_q("UPDATE planner_settings SET weather_place = ? WHERE user_id = ?", [$place, $uid], 'si');
     }
-    api_ok(api_meteo_risposta($on, $place, $on ? (float)$s['weather_lat'] : null, $on ? (float)$s['weather_lon'] : null));
+    /* spento, le coordinate salvate viaggiano lo stesso: riaccendendo l'app non deve chiedere di nuovo il posto */
+    $haPunto = $s && $s['weather_lat'] !== null && $s['weather_lon'] !== null;
+    api_ok(api_meteo_risposta($on, $place, $haPunto ? (float)$s['weather_lat'] : null, $haPunto ? (float)$s['weather_lon'] : null));
 }
 
 function api_h_meteo_accendi(array $ctx): void {
