@@ -602,6 +602,8 @@ const SYNC_MANIFESTO = [
             'calendar_uuid'    => ['tipo' => 'fk', 'col' => 'calendar_id', 'tabella' => 'planner_calendars'],
             'habit_uuid'       => ['tipo' => 'fk', 'col' => 'habit_id', 'tabella' => 'habits', 'solo_creazione' => true],
             'project_uuid'     => ['tipo' => 'fk', 'col' => 'project_id', 'tabella' => 'projects', 'solo_creazione' => true],
+            // l'esame a cui si riferisce un evento di studio: serve all'app per dire quanto e' costato (la pagina Voti, «Costo»)
+            'study_exam_uuid'  => ['tipo' => 'fk', 'col' => 'study_exam_id', 'tabella' => 'university_exams', 'solo_lettura' => true],
             'importance'       => ['tipo' => 'e'],
             'color'            => ['tipo' => 's'],
             'item_type'        => ['tipo' => 'e'],
