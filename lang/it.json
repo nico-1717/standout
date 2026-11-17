@@ -4314,6 +4314,8 @@
     "vg_parole_nota": "Di’ la risposta: quando la sente giusta, la mostra e dopo 3 secondi la segna corretta. Finché non la sente giusta, non fa niente. Se non la sai, di’ «risposta» e poi «sbagliato».",
     "app_nessuna_carta": "Ancora nessuna carta in questa categoria.",
     "app_aggiungi_carta": "Aggiungi una carta",
+    "app_modifica_mazzo": "Modifica questo mazzo",
+    "app_modifica_mazzo_txt": "Nome, colore, icona, data dell'esame, padre e altro.",
     "app_elimina_solo_vuota": "Una categoria si può eliminare solo quando non ha carte né sottocategorie.",
     "app_testo_formattato": "Questo testo ha una formattazione (grassetto, elenchi, formule…).",
     "app_testo_formattato_sub": "Sul telefono si legge bene, ma per ora non si modifica: usa il sito, oppure sostituiscilo con testo semplice.",

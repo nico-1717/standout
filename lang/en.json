@@ -4314,6 +4314,8 @@
     "vg_parole_nota": "Say the answer: when it hears it right, it shows it and marks it correct after 3 seconds. Until then it does nothing. If you don't know it, say “answer” and then “wrong”.",
     "app_nessuna_carta": "No cards in this category yet.",
     "app_aggiungi_carta": "Add a card",
+    "app_modifica_mazzo": "Edit this deck",
+    "app_modifica_mazzo_txt": "Name, colour, icon, exam date, parent and more.",
     "app_elimina_solo_vuota": "You can delete a category only when it has no cards and no subcategories.",
     "app_testo_formattato": "This text has formatting (bold, lists, formulas…).",
     "app_testo_formattato_sub": "You can read it here, but not edit it yet: use the website, or replace it with plain text.",
