@@ -319,6 +319,9 @@ function pl_api_impostazioni_salva(int $uid, array $c): array {
         'contrast_level'    => ['contrast_level', 'int', 1, 5],
         'days_visible'      => ['days_visible', 'int', 1, 7],
         'first_week_number' => ['first_week_number', 'int', 1, 9999],
+        /* Che cosa mandare a Google e dove (la sezione Google Calendar delle impostazioni, anche nell'app). */
+        'gc_dedicated'      => ['gc_dedicated_mode', 'enum', ['none','all','high','highest']],
+        'gc_primary'        => ['gc_primary_mode', 'enum', ['none','high','highest']],
     ];
     foreach ($c as $k => $v) {
         if (!is_string($k) || !isset($map[$k])) return ['errore' => ['codice' => 'validation', 'campo' => (string)$k, 'testo' => 'Unknown field']];
@@ -340,6 +343,13 @@ function pl_api_impostazioni_salva(int $uid, array $c): array {
     if ($set) {
         $par[] = $uid;
         sec_q("UPDATE planner_settings SET " . implode(', ', $set) . " WHERE user_id = ?", $par);
+    }
+    /* Cambiando le scelte su Google gli eventi gia' inviati vanno rivalutati (come nel sito, planner_api.php): azzerando
+       la marca, al prossimo giro vengono riesaminati tutti. */
+    if (array_key_exists('gc_dedicated', $c) || array_key_exists('gc_primary', $c)) {
+        sec_q("UPDATE planner_events SET google_synced_at = NULL
+               WHERE user_id = ? AND event_date BETWEEN (CURDATE() - INTERVAL 30 DAY) AND (CURDATE() + INTERVAL 180 DAY)",
+              [$uid], 'i');
     }
     return [];
 }
