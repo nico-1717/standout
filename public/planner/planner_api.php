@@ -25,7 +25,7 @@ $ajax = isset($_GET['ajax']) ? sec_str($_GET['ajax'], 40) : '';
 if ($ajax !== '') {
     $isWrite = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
     if ($isWrite) sec_guard_write($current_user_id, 'planner', 0, 400, 60);
-    sec_solo_post_se_scrive($ajax, ['range', 'habits_day', 'place_search', 'place_details', 'week_summary', 'contacts', 'search']);
+    sec_solo_post_se_scrive($ajax, ['range', 'habits_day', 'place_search', 'place_details', 'week_summary', 'contacts', 'search', 'category_history']);
     $settings = pl_settings($current_user_id);
 
     /* ---------------- lettura di un intervallo ---------------- */
@@ -871,6 +871,19 @@ if ($ajax !== '') {
             ];
         }
         sec_json(['ok' => true, 'results' => $out]);
+    }
+
+    /* ---------------- storico titolo → categoria (per le categorie suggerite nel popup) ----------------
+       Gli ultimi 1500 eventi con una categoria. Il conto lo fa il popup (categoryHints, in 09_popup_evento.js),
+       identico a quello dell'app: qui si dà solo la materia prima, cioè titolo, categoria e quando è nato. */
+    if ($ajax === 'category_history') {
+        $rows = sec_all("SELECT title, category_id, UNIX_TIMESTAMP(created_at) AS at
+                         FROM planner_events
+                         WHERE user_id = ? AND category_id IS NOT NULL AND is_cancelled = 0 AND title <> ''
+                         ORDER BY id DESC LIMIT 1500", [$current_user_id], 'i');
+        $out = [];
+        foreach ($rows as $r) $out[] = [$r['title'], (int)$r['category_id'], (int)$r['at']];
+        sec_json(['ok' => true, 'rows' => $out]);
     }
 
     sec_die_json(t('api.richiesta_non_riconosciuta'), 404, 'unknown_action');

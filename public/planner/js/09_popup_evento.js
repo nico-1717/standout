@@ -88,6 +88,7 @@ function renderEventSheet() {
     title.addEventListener('input', function () {
         d.title = title.value;
         S.draft.dirty = true;
+        if (S.draft.ridisegnaProposte) S.draft.ridisegnaProposte();
         /* il luogo può arrivare da solo, se il titolo nomina un posto della
            rubrica (la funzione sta più in basso, nella parte del luogo) */
         agganciaLuogo();
@@ -130,10 +131,29 @@ function renderEventSheet() {
     f1.appendChild(trow2);
     body.appendChild(f1);
 
-    /* data, orari, durata */
+    /* QUANDO: una linea dall'inizio alla fine.
+       Un punto vuoto per l'inizio, uno pieno per la fine, e sul filo che li
+       unisce una pillola con la durata, il lucchetto e «tutto il giorno».
+       Inizio e fine hanno la stessa forma (data + ora, senza righe in mezzo);
+       le durate rapide si aprono solo toccando la pillola. */
     var fd = el('div', 'pl-field');
     fd.appendChild(el('label', 'pl-label', T('planner.quando')));
-    var rDate = rowSB(T('planner.data_t'), dateInput(d.date, function (v) {
+    var when = el('div', 'pl-when');
+    var rail = el('div', 'pl-when-rail');
+    rail.appendChild(el('span', 'pl-when-filo'));
+    rail.appendChild(el('span', 'pl-when-dot'));
+    rail.appendChild(el('span', 'pl-when-dot pl-when-dot-fine'));
+    when.appendChild(rail);
+    var wrows = el('div', 'pl-when-rows');
+    when.appendChild(wrows);
+    function whenLine(label) {
+        var r = el('div', 'pl-when-line');
+        r.appendChild(el('span', 'pl-when-lab', label));
+        for (var i = 1; i < arguments.length; i++) r.appendChild(arguments[i]);
+        return r;
+    }
+
+    var dataIn = dateInput(d.date, function (v) {
         /* Spostando il giorno di inizio, la fine lo segue conservando la
            durata: un evento dal 3 al 5 spostato al 10 va dal 10 al 12. Senza,
            diventerebbe "dal 10 al 5", cioe' niente — ed e' la stessa regola che
@@ -144,17 +164,12 @@ function renderEventSheet() {
         S.draft.dirty = true;
         aggiornaFine();
         tintSheet();
-    }));
-    fd.appendChild(rDate);
+    });
 
-    /* LA DATA DI FINE, accanto all'orario di fine e non su una riga sua.
-       Sono la stessa informazione — quando finisce — e separarle avrebbe
-       voluto dire far cercare in due punti la risposta a una domanda sola.
-       Finché coincide con il giorno di inizio resta sbiadita: c'è, si legge
-       se la si cerca, ma non pretende attenzione — per la stragrande
-       maggioranza degli eventi quel valore non si tocca mai. Appena diventa
-       un giorno diverso si accende come tutto il resto, perché a quel punto
-       è un dato che cambia la sostanza dell'evento. */
+    /* La data di fine sta accanto all'orario di fine: è la stessa informazione.
+       Finché coincide con il giorno di inizio resta sbiadita; appena diventa
+       un giorno diverso si accende, perché a quel punto cambia la sostanza
+       dell'evento. */
     var fineData = dateInput(d.end_date || d.date, function (v) {
         if (!v) { fineData.value = d.date; return; }
         // prima dell'inizio non ha senso: si riporta al giorno di inizio
@@ -173,7 +188,7 @@ function renderEventSheet() {
     }
     aggiornaFine();
 
-    var allRow = rowSB(T('planner.tutto_il_giorno'), toggle(d.all_day, function (v) {
+    function impostaTuttoIlGiorno(v) {
         d.all_day = v;
         /* Togliendo la spunta restavano 00:00–23:59, cioè un evento di tutto
            il giorno con un altro nome. Gli si dà un'ora vera: la prima libera
@@ -185,14 +200,16 @@ function renderEventSheet() {
             d.end = toHM(Math.min(1439, inizio + 60));
         }
         S.draft.dirty = true; renderEventSheet();
-    }));
-    fd.appendChild(allRow);
+    }
+
+    var pill = el('div', 'pl-pill');
+    var quickBox = null;
 
     if (!d.all_day) {
         /* Gli orari si aggiornano fra loro senza ridisegnare il popup:
            ricostruirlo a ogni cambio faceva perdere il fuoco al campo e
            rimetteva il valore di partenza appena si staccava il dito. */
-        var sIn, eIn, durIn;
+        var sIn, eIn, durIn, durTxt;
         /* TRE STATI, non due.
            - 'auto' (leggerissimo, chiuso): spostando l'inizio la durata resta
              e la fine segue; spostando la fine l'inizio non si muove e la
@@ -211,9 +228,14 @@ function renderEventSheet() {
         var stato = 'auto';
         d.duration_locked = false;
         function refreshTimes(skip) {
+            var m = Math.min(1439, toMin(d.end) - toMin(d.start));
             if (sIn && skip !== 'start') sIn.value = d.start;
             if (eIn && skip !== 'end') eIn.value = d.end;
-            if (durIn && skip !== 'dur') durIn.value = toHM(Math.min(1439, toMin(d.end) - toMin(d.start)));
+            if (durIn && skip !== 'dur') durIn.value = toHM(m);
+            if (durTxt) durTxt.textContent = durLabel(m);
+            if (quickBox) Array.prototype.forEach.call(quickBox.querySelectorAll('.pl-quick-c'), function (b) {
+                b.classList.toggle('pl-on', +b.getAttribute('data-m') === m);
+            });
             tintSheet();
         }
         sIn = timeInput(d.start, function (v) {
@@ -249,23 +271,23 @@ function renderEventSheet() {
             S.draft.dirty = true;
             refreshTimes('end');
         });
-        /* Durata in mezzo, fra inizio e fine: è quello che sta fra i due,
-           e vederla altrove costringeva a ricostruire l'ordine a mente. La
-           scritta \"Durata\" sta a destra insieme al campo, in corsivo, per
-           non farsi scambiare per una terza voce alla pari delle altre. */
+        /* Cambiare la durata a mano muove sempre la fine: è l'inizio il
+           riferimento che l'utente ha già fissato. */
+        function impostaDurata(mins) {
+            if (!mins) return;
+            d.end = toHM(Math.min(1439, toMin(d.start) + mins));
+            S.draft.dirty = true;
+            refreshTimes();
+        }
         var dur = toMin(d.end) - toMin(d.start);
         durIn = el('input', 'pl-pick');
         durIn.type = 'time'; durIn.step = '300';
-        durIn.style.width = '104px'; durIn.style.textAlign = 'center';
+        durIn.style.width = '112px'; durIn.style.textAlign = 'center';
         durIn.value = toHM(Math.min(1439, dur));
         durIn.addEventListener('change', function () {
             var mins = toMin(durIn.value);
             if (!mins) { durIn.value = toHM(toMin(d.end) - toMin(d.start)); return; }
-            /* cambiare la durata a mano muove sempre la fine: è l'inizio il
-               riferimento che l'utente ha già fissato */
-            d.end = toHM(Math.min(1439, toMin(d.start) + mins));
-            S.draft.dirty = true;
-            refreshTimes('dur');
+            impostaDurata(mins);
         });
 
         var lock = el('button', 'pl-lock');
@@ -305,28 +327,62 @@ function renderEventSheet() {
             haptic(8);
         });
 
-        fd.appendChild(rowSB(T('planner.inizio_t'), sIn));
+        /* la durata nella pillola: toccandola si aprono le durate rapide */
+        var durBtn = el('button', 'pl-pill-dur');
+        durBtn.type = 'button';
+        durBtn.title = T('planner.durata');
+        durBtn.setAttribute('aria-label', T('planner.durata'));
+        durBtn.setAttribute('aria-expanded', 'false');
+        durBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+        durTxt = el('b', null, durLabel(Math.min(1439, dur)));
+        durBtn.appendChild(durTxt);
+        pill.appendChild(durBtn);
+        pill.appendChild(el('span', 'pl-pill-sep'));
+        pill.appendChild(lock);
+        pill.appendChild(el('span', 'pl-pill-sep'));
 
-        var durRow = el('div', 'pl-row-sb');
-        durRow.appendChild(el('span', 'pl-row-lab'));   // vuota: la scritta sta a destra
-        var durBox = el('div', 'pl-durbox');
-        durBox.appendChild(el('span', 'pl-dur-lab', T('planner.durata')));
-        durBox.appendChild(lock);
-        durBox.appendChild(durIn);
-        durRow.appendChild(durBox);
-        fd.appendChild(durRow);
+        quickBox = el('div', 'pl-quick');
+        quickBox.hidden = true;
+        [15, 30, 45, 60, 90, 120].forEach(function (m) {
+            var c = el('button', 'pl-quick-c' + (m === dur ? ' pl-on' : ''), durLabel(m));
+            c.type = 'button';
+            c.setAttribute('data-m', String(m));
+            c.addEventListener('click', function () { impostaDurata(m); });
+            quickBox.appendChild(c);
+        });
+        quickBox.appendChild(durIn);
+        durBtn.addEventListener('click', function () {
+            quickBox.hidden = !quickBox.hidden;
+            durBtn.classList.toggle('pl-on', !quickBox.hidden);
+            durBtn.setAttribute('aria-expanded', quickBox.hidden ? 'false' : 'true');
+        });
+    }
 
-        var boxFine = el('div', 'pl-finebox');
-        boxFine.appendChild(fineData);
-        boxFine.appendChild(eIn);
-        fd.appendChild(rowSB(T('planner.fine_t'), boxFine));
-    } else {
+    var allBtn = el('button', 'pl-pill-all' + (d.all_day ? ' pl-on' : ''));
+    allBtn.type = 'button';
+    allBtn.id = 'plAllDay';
+    allBtn.setAttribute('aria-pressed', d.all_day ? 'true' : 'false');
+    allBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>';
+    allBtn.appendChild(el('span', null, T('planner.tutto_il_giorno')));
+    allBtn.addEventListener('click', function () { impostaTuttoIlGiorno(!d.all_day); });
+    pill.appendChild(allBtn);
+
+    if (d.all_day) {
         /* Tutto il giorno: l'orario non c'è, la data di fine sì — anzi, è
            proprio qui che serve di più, perché un evento di più giorni senza
            orari (una vacanza, un blocco di studio) è tutto-il-giorno per
            definizione. */
-        fd.appendChild(rowSB(T('planner.fine_t'), fineData));
+        wrows.appendChild(whenLine(T('planner.inizio_t'), dataIn));
+    } else {
+        wrows.appendChild(whenLine(T('planner.inizio_t'), dataIn, sIn));
     }
+    var mid = el('div', 'pl-when-mid');
+    mid.appendChild(pill);
+    wrows.appendChild(mid);
+    if (quickBox) wrows.appendChild(quickBox);
+    if (d.all_day) wrows.appendChild(whenLine(T('planner.fine_t'), fineData));
+    else wrows.appendChild(whenLine(T('planner.fine_t'), fineData, eIn));
+    fd.appendChild(when);
     body.appendChild(fd);
 
     /* ripetizione */
@@ -399,56 +455,6 @@ function renderEventSheet() {
        Se l'evento che si sta modificando ci sta già dentro (lo si è aperto dal
        planner) la sua voce resta, o cambiando qualunque altro campo lo si
        sposterebbe via senza volerlo. */
-    var calScegliibili = S.calendars.filter(function (c) {
-        return c.role !== 'study' || d.calendar_id === c.id;
-    });
-    if (calScegliibili.length > 1) {
-        var fcal = el('div', 'pl-field');
-        fcal.appendChild(el('label', 'pl-label', T('planner.calendario')));
-
-        var calOptions = [];
-        var activeCalStr = '';
-
-        alpha(calScegliibili, 'name').forEach(function (c) {
-            calOptions.push([String(c.id), c.name]);
-            if (d.calendar_id ? d.calendar_id === c.id : c.is_default) {
-                activeCalStr = String(c.id);
-            }
-        });
-
-        var calSel = select(calOptions, activeCalStr, function (v) {
-            d.calendar_id = parseInt(v, 10);
-            S.draft.dirty = true;
-            renderEventSheet();
-        });
-        calSel.style.width = '100%';
-
-        fcal.appendChild(calSel);
-        body.appendChild(fcal);
-    }
-
-    /* categoria */
-    var fc = el('div', 'pl-field');
-    fc.appendChild(el('label', 'pl-label', T('planner.categoria')));
-    var tags = el('div', 'pl-tags');
-    if (d.project_id && d.project_name) {
-        tags.appendChild(tag(d.project_name, d.project_color || NEUTRAL, d.category_id === null, function () {
-            d.category_id = null; S.draft.dirty = true; renderEventSheet();
-        }));
-    }
-    alpha(S.categories, 'name').forEach(function (c) {
-        tags.appendChild(tag(c.name, c.color, d.category_id === c.id, function () {
-            d.category_id = d.category_id === c.id ? null : c.id;
-            d.color = null;
-            S.draft.dirty = true;
-            renderEventSheet();
-        }));
-    });
-    fc.appendChild(tags);
-    body.appendChild(fc);
-
-    /* l'importanza e' ora sulla riga del tipo, in alto (vedi .pl-prio-seg) */
-
     /* notifica */
     var fn = el('div', 'pl-field');
     fn.appendChild(el('label', 'pl-label', T('planner.notifica')));
@@ -477,6 +483,101 @@ function renderEventSheet() {
         fn.appendChild(rowSB(T('planner.minuti_prima'), nm));
     }
     body.appendChild(fn);
+
+    var calScegliibili = S.calendars.filter(function (c) {
+        return c.role !== 'study' || d.calendar_id === c.id;
+    });
+    if (calScegliibili.length > 1) {
+        var fcal = el('div', 'pl-field');
+        fcal.appendChild(el('label', 'pl-label', T('planner.calendario')));
+
+        var calOptions = [];
+        var activeCalStr = '';
+
+        alpha(calScegliibili, 'name').forEach(function (c) {
+            calOptions.push([String(c.id), c.name]);
+            if (d.calendar_id ? d.calendar_id === c.id : c.is_default) {
+                activeCalStr = String(c.id);
+            }
+        });
+
+        var calSel = select(calOptions, activeCalStr, function (v) {
+            d.calendar_id = parseInt(v, 10);
+            S.draft.dirty = true;
+            renderEventSheet();
+        });
+        calSel.style.width = '100%';
+
+        fcal.appendChild(calSel);
+        body.appendChild(fcal);
+    }
+
+    /* categoria: vedi sotto, dopo la notifica */
+
+    /* categoria: un menu e, accanto, l'ultima usata (orologio) e fino a 3
+       suggerite dal titolo (scintilla). Si impara dagli eventi già salvati
+       (titolo → categoria): niente da impostare. */
+    var fc = el('div', 'pl-field');
+    fc.appendChild(el('label', 'pl-label', T('planner.categoria')));
+    var crow = el('div', 'pl-cat-row');
+    var cselWrap = el('div', 'pl-cat-sel');
+    var cdot = el('span', 'pl-dot');
+    var catOpts = [['__none', T('planner.nessuna')]];
+    if (d.project_id && d.project_name) catOpts.push(['__project', d.project_name]);
+    alpha(S.categories, 'name').forEach(function (c) { catOpts.push([String(c.id), c.name]); });
+    var catSel = select(catOpts, d.category_id ? String(d.category_id) : (d.project_id && d.project_name ? '__project' : '__none'), function (v) {
+        d.category_id = (v === '__none' || v === '__project') ? null : parseInt(v, 10);
+        d.color = null;
+        S.draft.dirty = true;
+        renderEventSheet();
+    });
+    function pallinoCategoria() {
+        var cc = d.category_id ? catById(d.category_id) : null;
+        var col = cc ? cc.color : (d.project_id && d.project_name ? (d.project_color || NEUTRAL) : '');
+        cdot.style.setProperty('--ev', col || 'transparent');
+        cdot.style.visibility = col ? 'visible' : 'hidden';
+    }
+    pallinoCategoria();
+    cselWrap.appendChild(cdot);
+    cselWrap.appendChild(catSel);
+    crow.appendChild(cselWrap);
+    var sugs = el('div', 'pl-sugs');
+    crow.appendChild(sugs);
+    /* le proposte si ridisegnano a ogni lettera del titolo, senza ridisegnare il popup */
+    function disegnaProposte() {
+        sugs.innerHTML = '';
+        var h = categoryHints(S.catHist || [], d.title, d.now || Date.now());
+        var visti = {};
+        var voci = [];
+        if (h.last) voci.push([h.last, 'last']);
+        h.suggested.forEach(function (id) { voci.push([id, 'title']); });
+        voci.forEach(function (v) {
+            var c = catById(v[0]);
+            if (!c || visti[c.id]) return;
+            visti[c.id] = true;
+            var t = tag(c.name, c.color, d.category_id === c.id, function () {
+                d.category_id = d.category_id === c.id ? null : c.id;
+                d.color = null;
+                S.draft.dirty = true;
+                renderEventSheet();
+            });
+            var ico = el('span', 'pl-tag-ico');
+            ico.innerHTML = v[1] === 'last'
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8z"/></svg>';
+            t.appendChild(ico);
+            sugs.appendChild(t);
+        });
+    }
+    disegnaProposte();
+    S.draft.ridisegnaProposte = disegnaProposte;
+    if (!S.catHist) caricaStoricoCategorie().then(function () {
+        if (S.draft && S.draft.ridisegnaProposte === disegnaProposte) disegnaProposte();
+    });
+    fc.appendChild(crow);
+    body.appendChild(fc);
+
+    /* l'importanza e' ora sulla riga del tipo, in alto (vedi .pl-prio-seg) */
 
     /* colore */
     var fcol = el('div', 'pl-field');
@@ -1037,6 +1138,71 @@ function editContact(c, done) {
     ov.classList.add('pl-open');
 }
 
+/* ---------- le categorie suggerite dal titolo ----------
+   Stesso conto dell'app (src/features/planner/categoryHints.ts): ogni parola del
+   titolo (almeno 3 lettere, senza le parole vuote) pesa quanto è «pura», cioè
+   quanto punta a una sola categoria; il titolo identico a uno già visto dà un
+   bonus; le categorie usate negli ultimi 7 giorni un piccolo bonus, ma solo se
+   il titolo dà già un indizio. Al massimo 3, e solo se il punteggio è chiaro. */
+var CAT_STOP = {};
+('the and for with from into about this that del della dei degli delle con per una uno gli che nel nella alla allo agli alle dal dalla sul sulla').split(' ').forEach(function (w) { CAT_STOP[w] = 1; });
+function catFold(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+function catWords(title) {
+    var out = [];
+    catFold(title).split(/[^a-z0-9]+/).forEach(function (w) {
+        if (w.length >= 3 && !CAT_STOP[w] && out.indexOf(w) < 0) out.push(w);
+    });
+    return out;
+}
+/* righe: [{t: titolo, c: id categoria, at: millisecondi}] */
+function categoryHints(righe, title, now) {
+    var valide = {};
+    S.categories.forEach(function (c) { valide[c.id] = 1; });
+    var usate = righe.filter(function (r) { return r.c && valide[r.c]; });
+    var last = null, lastAt = -1;
+    usate.forEach(function (r) { if (r.at >= lastAt) { lastAt = r.at; last = r.c; } });
+    var words = catWords(title), whole = catFold(title).trim();
+    if (!words.length && !whole) return { last: last, suggested: [] };
+    var want = {}; words.forEach(function (w) { want[w] = 1; });
+    var per = {}, total = {}, exact = {}, recent = {};
+    usate.forEach(function (r) {
+        if (whole && catFold(r.t).trim() === whole) exact[r.c] = (exact[r.c] || 0) + 1;
+        if (now - r.at < 7 * 864e5) recent[r.c] = 1;
+        catWords(r.t).forEach(function (w) {
+            if (!want[w]) return;
+            per[w] = per[w] || {};
+            per[w][r.c] = (per[w][r.c] || 0) + 1;
+            total[w] = (total[w] || 0) + 1;
+        });
+    });
+    var score = {};
+    Object.keys(per).forEach(function (w) {
+        Object.keys(per[w]).forEach(function (c) {
+            var n = per[w][c];
+            score[c] = (score[c] || 0) + n * (n / total[w]);
+        });
+    });
+    Object.keys(exact).forEach(function (c) { score[c] = (score[c] || 0) + 3 * Math.min(exact[c], 3) / 3; });
+    Object.keys(recent).forEach(function (c) { if (score[c] !== undefined) score[c] += 0.5; });
+    var suggested = Object.keys(score).filter(function (c) { return score[c] >= 1.5; })
+        .sort(function (a, b) { return score[b] - score[a] || (a < b ? -1 : 1); })
+        .slice(0, 3).map(Number);
+    return { last: last, suggested: suggested };
+}
+/* lo storico si legge una volta sola (dal server) e poi cresce con gli eventi che si salvano */
+function caricaStoricoCategorie() {
+    if (S.catHistP) return S.catHistP;
+    S.catHistP = api('category_history').then(function (r) {
+        S.catHist = (r && r.ok && r.rows ? r.rows : []).map(function (x) { return { t: x[0], c: x[1], at: x[2] * 1000 }; });
+        return S.catHist;
+    }, function () { S.catHistP = null; S.catHist = []; return S.catHist; });
+    return S.catHistP;
+}
+function ricordaCategoria(titolo, categoriaId) {
+    if (!S.catHist || !categoriaId || !String(titolo || '').trim()) return;
+    S.catHist.push({ t: titolo, c: categoriaId, at: Date.now() });
+}
+
 /* pezzi riusabili del popup */
 function rowSB(label, control) {
     var r = el('div', 'pl-row-sb');
@@ -1206,6 +1372,7 @@ function saveEvent() {
        schermo, sbiadito finché il server non conferma. */
     function eseguiSalvataggio(dati) {
         var oldDate = S.draft.origDate;
+        ricordaCategoria(dati.title, dati.category_id);
         closeOv('plEventOv');
         S.draft = null;
 
