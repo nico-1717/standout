@@ -134,7 +134,7 @@ function renderEventSheet() {
        Un punto vuoto per l'inizio, uno pieno per la fine, e sul filo che li
        unisce una pillola con la durata, il lucchetto e «tutto il giorno».
        Inizio e fine hanno la stessa forma (data + ora, senza righe in mezzo);
-       la durata si scrive toccandola nella pillola. */
+       la durata si cambia toccandola nella pillola (un campo ora). */
     var fd = el('div', 'pl-field');
     fd.appendChild(el('label', 'pl-label', T('planner.quando')));
     var when = el('div', 'pl-when');
@@ -207,7 +207,7 @@ function renderEventSheet() {
         /* Gli orari si aggiornano fra loro senza ridisegnare il popup:
            ricostruirlo a ogni cambio faceva perdere il fuoco al campo e
            rimetteva il valore di partenza appena si staccava il dito. */
-        var sIn, eIn, durTxt;
+        var sIn, eIn, durIn, durTxt;
         /* TRE STATI, non due.
            - 'auto' (leggerissimo, chiuso): spostando l'inizio la durata resta
              e la fine segue; spostando la fine l'inizio non si muove e la
@@ -229,6 +229,7 @@ function renderEventSheet() {
             var m = Math.min(1439, toMin(d.end) - toMin(d.start));
             if (sIn && skip !== 'start') sIn.value = d.start;
             if (eIn && skip !== 'end') eIn.value = d.end;
+            if (durIn && skip !== 'dur') durIn.value = toHM(m);
             if (durTxt) durTxt.textContent = durLabel(m);
             tintSheet();
         }
@@ -311,42 +312,29 @@ function renderEventSheet() {
             haptic(8);
         });
 
-        /* la durata nella pillola: toccandola diventa un campo e si scrive
-           (45, 1:30, 1h30, 90m); invio o un tocco altrove la conferma, esc
-           la lascia com'era. Niente pannello di durate: la pillola non cresce. */
-        var durBtn = el('button', 'pl-pill-dur');
-        durBtn.type = 'button';
+        /* la durata nella pillola: è un campo ORA (ore e minuti, 01:30), non un
+           testo. Il campo vero è trasparente e copre tutta la zona dell'orologio:
+           si tocca la durata e si apre direttamente il selettore dell'ora, senza
+           pannelli di durate e senza che la pillola cresca. */
+        var durBtn = el('div', 'pl-pill-dur');
         durBtn.title = T('planner.durata');
-        durBtn.setAttribute('aria-label', T('planner.durata'));
         durBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
         durTxt = el('b', null, durLabel(Math.min(1439, dur)));
         durBtn.appendChild(durTxt);
-        durBtn.addEventListener('click', function () {
-            if (durBtn.querySelector('input')) return;
-            var edit = el('input', 'pl-dur-edit');
-            edit.type = 'text';
-            edit.inputMode = 'numeric';
-            edit.value = String(Math.max(1, toMin(d.end) - toMin(d.start)));
-            edit.setAttribute('aria-label', T('planner.durata'));
-            durTxt.hidden = true;
-            durBtn.appendChild(edit);
-            var chiuso = false;
-            function chiudi(conferma) {
-                if (chiuso) return;
-                chiuso = true;
-                var mins = conferma ? parseDurata(edit.value) : 0;
-                durBtn.removeChild(edit);
-                durTxt.hidden = false;
-                if (mins) impostaDurata(mins);
-            }
-            edit.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') { e.preventDefault(); chiudi(true); }
-                else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); chiudi(false); }
-            });
-            edit.addEventListener('blur', function () { chiudi(true); });
-            edit.focus();
-            edit.select();
+        durIn = el('input', 'pl-dur-time');
+        durIn.type = 'time'; durIn.step = '300';
+        durIn.value = toHM(Math.min(1439, dur));
+        durIn.setAttribute('aria-label', T('planner.durata'));
+        durIn.addEventListener('change', function () {
+            var mins = toMin(durIn.value);
+            /* 00:00 non è una durata: si rimette quella di prima */
+            if (!mins) { durIn.value = toHM(Math.min(1439, toMin(d.end) - toMin(d.start))); return; }
+            impostaDurata(mins);
         });
+        /* da computer un clic sul campo trasparente metterebbe il cursore su
+           un'ora senza aprire nulla: il selettore si chiama a mano */
+        durBtn.addEventListener('click', function () { try { durIn.showPicker(); } catch (e) {} });
+        durBtn.appendChild(durIn);
         pill.appendChild(durBtn);
         pill.appendChild(el('span', 'pl-pill-sep'));
         pill.appendChild(lock);
@@ -1341,18 +1329,6 @@ function durLabel(min) {
     if (min < 60) return T('planner.n_min', {n: min});
     var h = Math.floor(min / 60), m = min % 60;
     return h + 'h' + (m ? ' ' + pad(m) : '');
-}
-
-/* Quello che si scrive nel campo della durata, in minuti: «45», «1:30», «1h30»,
-   «1h», «90m», «1h 30m». Zero o un testo che non si capisce = 0, cioè niente
-   da fare (la durata resta com'era). Mai più di un giorno. */
-function parseDurata(txt) {
-    var t = String(txt || '').trim().toLowerCase().replace(/\s+/g, '');
-    var m;
-    if ((m = /^(\d+):(\d{1,2})$/.exec(t))) return Math.min(1439, parseInt(m[1], 10) * 60 + parseInt(m[2], 10));
-    if ((m = /^(\d+)h(?:(\d{1,2})m?(?:in)?)?$/.exec(t))) return Math.min(1439, parseInt(m[1], 10) * 60 + (m[2] ? parseInt(m[2], 10) : 0));
-    if ((m = /^(\d+)m(?:in)?$/.exec(t)) || (m = /^(\d+)$/.exec(t))) return Math.min(1439, parseInt(m[1], 10));
-    return 0;
 }
 
 /* L'avviso con cui parte un evento nuovo: quello scelto nelle impostazioni
