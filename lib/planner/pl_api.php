@@ -319,6 +319,8 @@ function pl_api_impostazioni_salva(int $uid, array $c): array {
         'contrast_level'    => ['contrast_level', 'int', 1, 5],
         'days_visible'      => ['days_visible', 'int', 1, 7],
         'first_week_number' => ['first_week_number', 'int', 1, 9999],
+        /* L'avviso con cui parte un evento nuovo. */
+        'default_notify'    => ['default_notify', 'enum', ['none','at_time','m30','h1','d1']],
         /* Che cosa mandare a Google e dove (la sezione Google Calendar delle impostazioni, anche nell'app). */
         'gc_dedicated'      => ['gc_dedicated_mode', 'enum', ['none','all','high','highest']],
         'gc_primary'        => ['gc_primary_mode', 'enum', ['none','high','highest']],

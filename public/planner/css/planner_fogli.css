@@ -136,7 +136,15 @@ textarea.pl-in.pl-note{ min-height:200px; }
    entrambi i temi, e un colore spento scritto a mano sul tema scuro sarebbe
    finito sotto il fondo. */
 .pl-pick-data-fine.pl-spenta{ opacity:.42; box-shadow:inset 0 0 0 .5px transparent; background:transparent; }
-.pl-pick-data-fine.pl-spenta:focus{ opacity:1; }
+.pl-pick-data-fine.pl-spenta:focus, .pl-pick-data-fine.pl-spenta:focus-within{ opacity:1; }
+/* data a testo («20 Nov 26») con il campo nativo trasparente sopra */
+.pl-datepick{ position:relative; display:inline-block; white-space:nowrap; cursor:pointer; }
+.pl-datepick input{ position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; border:0; padding:0; margin:0; }
+/* ripetizione e avviso: due scelte sulla stessa riga */
+.pl-duo{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.pl-duo-c{ display:flex; align-items:center; gap:8px; min-width:0; min-height:44px; padding:0 4px 0 12px; border-radius:var(--r-md); background:var(--paper-2); box-shadow:inset 0 0 0 .5px var(--hair); }
+.pl-duo-c svg{ width:16px; height:16px; flex:none; color:var(--ink-3); }
+.pl-duo-c select.pl-pick{ flex:1; min-width:0; width:100%; background-color:transparent; box-shadow:none; border:0; padding:10px 4px; font-weight:600; text-overflow:ellipsis; }
 /* lucchetto della durata: chiuso è lo stato normale, quindi si fa notare
    poco; aperto deve invece saltare all'occhio, perché è l'eccezione */
 .pl-lock{
@@ -590,22 +598,25 @@ textarea.pl-in.pl-note{ min-height:200px; }
 /* QUANDO: la linea dall'inizio alla fine, con la pillola (durata · lucchetto · tutto il giorno) sul filo */
 .pl-when{ display:grid; grid-template-columns:22px minmax(0,1fr); column-gap:10px; }
 .pl-when-rail{ position:relative; }
-.pl-when-filo{ position:absolute; top:23px; bottom:23px; left:10px; width:2px; border-radius:2px; background:var(--accent); opacity:.35; }
+.pl-when-filo{ position:absolute; top:23px; bottom:23px; left:10px; width:2px; border-radius:2px; background:var(--accent); opacity:.5; }
 .pl-when-dot{ position:absolute; top:17px; left:5px; width:12px; height:12px; box-sizing:border-box; border-radius:50%; border:2px solid var(--accent); background:var(--card); }
 .pl-when-dot-fine{ top:auto; bottom:17px; background:var(--accent); }
 .pl-when-rows{ min-width:0; }
 .pl-when-line{ display:flex; align-items:center; gap:8px; min-height:46px; }
 .pl-when-lab{ flex:1; font-size:14.5px; color:var(--ink-2); }
 .pl-when-line .pl-pick{ min-width:0; }
-.pl-when-mid{ min-height:40px; display:flex; align-items:center; margin-left:-30px; }
+/* la pillola è infilata sul filo: il filo (a 11px dal bordo del campo) le passa in mezzo all'orologio */
+.pl-when-mid{ min-height:40px; display:flex; align-items:center; margin-left:-45px; }
 .pl-pill{
     display:inline-flex; align-items:center; border-radius:var(--r-pill); overflow:hidden;
     border:1px dashed var(--hair-2, var(--hair)); background:var(--card);
 }
 .pl-pill > button{ background:none; color:var(--ink-2); font-size:13px; }
 .pl-pill-sep{ width:.5px; align-self:stretch; background:var(--hair); }
-.pl-pill-dur{ display:inline-flex; align-items:center; gap:6px; padding:7px 9px 7px 11px; font-variant-numeric:tabular-nums; }
-.pl-pill-dur svg{ width:13px; height:13px; color:var(--ink-3); }
+.pl-pill-dur{ display:inline-flex; align-items:center; gap:7px; padding:7px 14px 7px 16px; font-variant-numeric:tabular-nums; }
+.pl-pill-dur svg{ width:17px; height:17px; flex:none; color:var(--ink-3); }
+.pl-pill-dur b[hidden]{ display:none; }
+.pl-dur-edit{ width:5.2em; min-width:0; padding:0; border:0; outline:0; background:transparent; font:inherit; font-weight:600; color:var(--ink); text-align:left; font-variant-numeric:tabular-nums; }
 .pl-pill-dur b{ color:var(--ink); font-weight:600; }
 .pl-pill-dur.pl-on{ background:var(--accent-soft); }
 /* il lucchetto dentro la pillola: non è più un tondino a sé, ma un pezzo della pillola */
@@ -615,10 +626,6 @@ textarea.pl-in.pl-note{ min-height:200px; }
 .pl-pill-all svg{ width:14px; height:14px; color:var(--ink-3); }
 .pl-pill-all.pl-on{ background:var(--accent-soft); color:var(--accent-ink); font-weight:600; }
 .pl-pill-all.pl-on svg{ color:var(--accent-ink); }
-.pl-quick{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding-bottom:8px; }
-.pl-quick[hidden]{ display:none; }
-.pl-quick-c{ padding:6px 11px; border-radius:var(--r-pill); font-size:13px; color:var(--ink-2); background:transparent; box-shadow:inset 0 0 0 .5px var(--hair); }
-.pl-quick-c.pl-on{ background:var(--accent-soft); color:var(--accent-ink); font-weight:600; box-shadow:none; }
 
 /* CATEGORIA: un menu a un terzo della larghezza e, a destra, ultima usata e suggerite */
 .pl-cat-row{ display:flex; align-items:center; gap:8px; min-width:0; }

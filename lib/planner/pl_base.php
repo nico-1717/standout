@@ -55,6 +55,8 @@ function pl_settings(int $userId): array {
         'fabs_open'          => (int)($row['fabs_open'] ?? 1) === 1,
         'contrast_level'     => (int)($row['contrast_level'] ?? 3),
         'days_visible'       => (int)($row['days_visible'] ?? 3),
+        /* l'avviso con cui parte un evento nuovo; ?? 'h1' per lo stesso motivo di ambient_opacity */
+        'default_notify'     => (string)($row['default_notify'] ?? 'h1'),
         'google_sync'        => (int)$row['google_sync_enabled'] === 1,
         'gc_dedicated'       => $row['gc_dedicated_mode'] ?? 'all',
         'gc_primary'         => $row['gc_primary_mode'] ?? 'none',

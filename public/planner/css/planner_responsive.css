@@ -50,15 +50,10 @@
 
 /* --- riga «Tipo» nel popup dell'evento -------------------------------
    Una scelta fra due parole non merita un campo intero con l'etichetta
-   sopra: sta su una riga sola, sotto il titolo, con il selettore rimpicciolito
-   di fianco all'etichetta invece che a capo. */
+   sopra: sta su una riga sola, sotto il titolo, senza etichetta. */
 .pl-tipo-riga{
     display:flex; align-items:center; gap:10px;
     margin:8px 2px 0;
-}
-.pl-tipo-lab{
-    font-size:9px; letter-spacing:.14em; text-transform:uppercase;
-    color:var(--ink-3); flex-shrink:0;
 }
 .pl-tipo-riga .pl-seg{ flex:0 0 auto; padding:2px; }
 .pl-tipo-riga .pl-seg button{ font-size:10.5px; padding:3px 12px; }

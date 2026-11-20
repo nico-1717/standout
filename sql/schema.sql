@@ -1183,6 +1183,7 @@ CREATE TABLE `planner_settings` (
   `weather_place` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'nome della località, se lo ricaviamo',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `fabs_open` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'colonna dei tastini a destra: 1 aperta, 0 richiusa sotto le abitudini',
+  `default_notify` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'h1' COMMENT 'avviso con cui parte un evento nuovo: none | at_time | m30 | h1 | d1',
   `study_filtri` text COLLATE utf8mb4_unicode_ci COMMENT 'JSON: cosa mostrare nel to study oltre ai blocchi di studio',
   `progetti_opzioni` text COLLATE utf8mb4_unicode_ci COMMENT 'JSON: come mostrare la pagina progetti (completati, ordine, tag, rami)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

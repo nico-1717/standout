@@ -38,7 +38,7 @@ function openEventSheet(existing, seed) {
            e trascinando su piu' giorni): se mancano, un giorno solo con orario */
         date: seed.date, end_date: seed.end_date || seed.date, start: seed.start, end: seed.end,
         all_day: !!seed.all_day, category_id: S.defaultCat, project_id: null, importance: 'normal',
-        color: null, type: 'event', notify: 'h1', notify_min: 60,
+        color: null, type: 'event', notify: notificaPredefinita().notify, notify_min: notificaPredefinita().notify_min,
         repeat: 'none', repeat_interval: 1, repeat_unit: 'week', repeat_until: null
     };
     S.draft = { data: d, dirty: false, isNew: !existing, origDate: existing ? existing.date : null };
@@ -115,7 +115,6 @@ function renderEventSheet() {
        si trovava dopo aver scorso tutto il popup. Qui è la seconda cosa che si
        decide di un evento, ed è giusto che stia dove la si decide. */
     var trow2 = el('div', 'pl-tipo-riga');
-    trow2.appendChild(el('span', 'pl-tipo-lab', T('planner.tipo')));
     trow2.appendChild(seg([['event', T('planner.evento')], ['task', T('planner.task')]], d.type, function (v) {
         d.type = v; S.draft.dirty = true; renderEventSheet();
     }));
@@ -135,7 +134,7 @@ function renderEventSheet() {
        Un punto vuoto per l'inizio, uno pieno per la fine, e sul filo che li
        unisce una pillola con la durata, il lucchetto e «tutto il giorno».
        Inizio e fine hanno la stessa forma (data + ora, senza righe in mezzo);
-       le durate rapide si aprono solo toccando la pillola. */
+       la durata si scrive toccandola nella pillola. */
     var fd = el('div', 'pl-field');
     fd.appendChild(el('label', 'pl-label', T('planner.quando')));
     var when = el('div', 'pl-when');
@@ -203,13 +202,12 @@ function renderEventSheet() {
     }
 
     var pill = el('div', 'pl-pill');
-    var quickBox = null;
 
     if (!d.all_day) {
         /* Gli orari si aggiornano fra loro senza ridisegnare il popup:
            ricostruirlo a ogni cambio faceva perdere il fuoco al campo e
            rimetteva il valore di partenza appena si staccava il dito. */
-        var sIn, eIn, durIn, durTxt;
+        var sIn, eIn, durTxt;
         /* TRE STATI, non due.
            - 'auto' (leggerissimo, chiuso): spostando l'inizio la durata resta
              e la fine segue; spostando la fine l'inizio non si muove e la
@@ -231,11 +229,7 @@ function renderEventSheet() {
             var m = Math.min(1439, toMin(d.end) - toMin(d.start));
             if (sIn && skip !== 'start') sIn.value = d.start;
             if (eIn && skip !== 'end') eIn.value = d.end;
-            if (durIn && skip !== 'dur') durIn.value = toHM(m);
             if (durTxt) durTxt.textContent = durLabel(m);
-            if (quickBox) Array.prototype.forEach.call(quickBox.querySelectorAll('.pl-quick-c'), function (b) {
-                b.classList.toggle('pl-on', +b.getAttribute('data-m') === m);
-            });
             tintSheet();
         }
         sIn = timeInput(d.start, function (v) {
@@ -280,16 +274,6 @@ function renderEventSheet() {
             refreshTimes();
         }
         var dur = toMin(d.end) - toMin(d.start);
-        durIn = el('input', 'pl-pick');
-        durIn.type = 'time'; durIn.step = '300';
-        durIn.style.width = '112px'; durIn.style.textAlign = 'center';
-        durIn.value = toHM(Math.min(1439, dur));
-        durIn.addEventListener('change', function () {
-            var mins = toMin(durIn.value);
-            if (!mins) { durIn.value = toHM(toMin(d.end) - toMin(d.start)); return; }
-            impostaDurata(mins);
-        });
-
         var lock = el('button', 'pl-lock');
         lock.type = 'button';
         function drawLock() {
@@ -327,35 +311,46 @@ function renderEventSheet() {
             haptic(8);
         });
 
-        /* la durata nella pillola: toccandola si aprono le durate rapide */
+        /* la durata nella pillola: toccandola diventa un campo e si scrive
+           (45, 1:30, 1h30, 90m); invio o un tocco altrove la conferma, esc
+           la lascia com'era. Niente pannello di durate: la pillola non cresce. */
         var durBtn = el('button', 'pl-pill-dur');
         durBtn.type = 'button';
         durBtn.title = T('planner.durata');
         durBtn.setAttribute('aria-label', T('planner.durata'));
-        durBtn.setAttribute('aria-expanded', 'false');
         durBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
         durTxt = el('b', null, durLabel(Math.min(1439, dur)));
         durBtn.appendChild(durTxt);
+        durBtn.addEventListener('click', function () {
+            if (durBtn.querySelector('input')) return;
+            var edit = el('input', 'pl-dur-edit');
+            edit.type = 'text';
+            edit.inputMode = 'numeric';
+            edit.value = String(Math.max(1, toMin(d.end) - toMin(d.start)));
+            edit.setAttribute('aria-label', T('planner.durata'));
+            durTxt.hidden = true;
+            durBtn.appendChild(edit);
+            var chiuso = false;
+            function chiudi(conferma) {
+                if (chiuso) return;
+                chiuso = true;
+                var mins = conferma ? parseDurata(edit.value) : 0;
+                durBtn.removeChild(edit);
+                durTxt.hidden = false;
+                if (mins) impostaDurata(mins);
+            }
+            edit.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); chiudi(true); }
+                else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); chiudi(false); }
+            });
+            edit.addEventListener('blur', function () { chiudi(true); });
+            edit.focus();
+            edit.select();
+        });
         pill.appendChild(durBtn);
         pill.appendChild(el('span', 'pl-pill-sep'));
         pill.appendChild(lock);
         pill.appendChild(el('span', 'pl-pill-sep'));
-
-        quickBox = el('div', 'pl-quick');
-        quickBox.hidden = true;
-        [15, 30, 45, 60, 90, 120].forEach(function (m) {
-            var c = el('button', 'pl-quick-c' + (m === dur ? ' pl-on' : ''), durLabel(m));
-            c.type = 'button';
-            c.setAttribute('data-m', String(m));
-            c.addEventListener('click', function () { impostaDurata(m); });
-            quickBox.appendChild(c);
-        });
-        quickBox.appendChild(durIn);
-        durBtn.addEventListener('click', function () {
-            quickBox.hidden = !quickBox.hidden;
-            durBtn.classList.toggle('pl-on', !quickBox.hidden);
-            durBtn.setAttribute('aria-expanded', quickBox.hidden ? 'false' : 'true');
-        });
     }
 
     var allBtn = el('button', 'pl-pill-all' + (d.all_day ? ' pl-on' : ''));
@@ -379,20 +374,42 @@ function renderEventSheet() {
     var mid = el('div', 'pl-when-mid');
     mid.appendChild(pill);
     wrows.appendChild(mid);
-    if (quickBox) wrows.appendChild(quickBox);
     if (d.all_day) wrows.appendChild(whenLine(T('planner.fine_t'), fineData));
     else wrows.appendChild(whenLine(T('planner.fine_t'), fineData, eIn));
     fd.appendChild(when);
     body.appendChild(fd);
 
-    /* ripetizione */
+    /* ripetizione e avviso: una riga sola con due scelte affiancate, senza
+       titoli di sezione (si leggono dall'icona e dal valore). Solo quando
+       servono, sotto la riga compaiono i dettagli: ogni quanto, fino a quando,
+       i minuti dell'avviso. */
     var fr = el('div', 'pl-field');
-    fr.appendChild(el('label', 'pl-label', T('planner.ripeti')));
     var repSel = select([
         ['none', T('planner.mai_t')], ['daily', T('planner.ogni_giorno')], ['weekly', T('planner.ogni_settimana')],
         ['monthly', T('planner.ogni_mese')], ['yearly', T('planner.ogni_anno')], ['custom', T('planner.personalizzato')]
     ], d.repeat, function (v) { d.repeat = v; S.draft.dirty = true; renderEventSheet(); });
-    fr.appendChild(rowSB(T('planner.frequenza_t'), repSel));
+    repSel.setAttribute('aria-label', T('planner.ripeti'));
+    var notSel = select([
+        ['none', T('planner.nessuna')], ['at_time', T('planner.nel_momento')], ['m30', T('planner.30_minuti_prima')],
+        ['h1', T('planner.un_ora_prima')], ['d1', T('planner.un_giorno_prima')], ['custom', T('planner.personalizzata')]
+    ], d.notify, function (v) {
+        d.notify = v; S.draft.dirty = true;
+        /* Scegliere un avviso è il momento buono per chiedere il permesso:
+           qui la richiesta si spiega da sé, all'apertura della pagina no. */
+        if (v !== 'none') PL_NOTIFY.chiediPermesso();
+        renderEventSheet();
+    });
+    notSel.setAttribute('aria-label', T('planner.notifica'));
+    function duoCella(icona, campo) {
+        var c = el('div', 'pl-duo-c');
+        c.innerHTML = icona;
+        c.appendChild(campo);
+        return c;
+    }
+    var duo = el('div', 'pl-duo');
+    duo.appendChild(duoCella('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 013-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 01-3 3H3"/></svg>', repSel));
+    duo.appendChild(duoCella('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0112 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 004 0"/></svg>', notSel));
+    fr.appendChild(duo);
     if (d.repeat === 'custom') {
         var wrap = el('div', 'pl-row');
         var n = el('input', 'pl-pick');
@@ -444,6 +461,20 @@ function renderEventSheet() {
         }
         fr.appendChild(rowSB(T('planner.fino_al'), untilWrap));
     }
+    if (d.notify !== 'none' && 'Notification' in window && Notification.permission !== 'granted') {
+        var avviso = el('div', 'pl-row-sub');
+        avviso.style.margin = '4px 2px 0';
+        avviso.textContent = Notification.permission === 'denied'
+            ? T('planner.gli_avvisi_sono_bloccati_per')
+            : T('planner.per_ricevere_gli_avvisi_serve');
+        fr.appendChild(avviso);
+    }
+    if (d.notify === 'custom') {
+        var nm = el('input', 'pl-pick');
+        nm.type = 'number'; nm.min = '0'; nm.max = '40320'; nm.value = d.notify_min || 60; nm.style.width = '96px';
+        nm.addEventListener('change', function () { d.notify_min = Math.max(0, parseInt(nm.value, 10) || 0); S.draft.dirty = true; });
+        fr.appendChild(rowSB(T('planner.minuti_prima'), nm));
+    }
     body.appendChild(fr);
 
     /* calendario */
@@ -455,35 +486,6 @@ function renderEventSheet() {
        Se l'evento che si sta modificando ci sta già dentro (lo si è aperto dal
        planner) la sua voce resta, o cambiando qualunque altro campo lo si
        sposterebbe via senza volerlo. */
-    /* notifica */
-    var fn = el('div', 'pl-field');
-    fn.appendChild(el('label', 'pl-label', T('planner.notifica')));
-    fn.appendChild(rowSB(T('planner.avvisami'), select([
-        ['none', T('planner.nessuna')], ['at_time', T('planner.nel_momento')], ['m30', T('planner.30_minuti_prima')],
-        ['h1', T('planner.un_ora_prima')], ['d1', T('planner.un_giorno_prima')], ['custom', T('planner.personalizzata')]
-    ], d.notify, function (v) {
-        d.notify = v; S.draft.dirty = true;
-        /* Scegliere un avviso è il momento buono per chiedere il permesso:
-           qui la richiesta si spiega da sé, all'apertura della pagina no. */
-        if (v !== 'none') PL_NOTIFY.chiediPermesso();
-        renderEventSheet();
-    })));
-    if (d.notify !== 'none' && 'Notification' in window && Notification.permission !== 'granted') {
-        var avviso = el('div', 'pl-row-sub');
-        avviso.style.margin = '4px 2px 0';
-        avviso.textContent = Notification.permission === 'denied'
-            ? T('planner.gli_avvisi_sono_bloccati_per')
-            : T('planner.per_ricevere_gli_avvisi_serve');
-        fn.appendChild(avviso);
-    }
-    if (d.notify === 'custom') {
-        var nm = el('input', 'pl-pick');
-        nm.type = 'number'; nm.min = '0'; nm.max = '40320'; nm.value = d.notify_min || 60; nm.style.width = '96px';
-        nm.addEventListener('change', function () { d.notify_min = Math.max(0, parseInt(nm.value, 10) || 0); S.draft.dirty = true; });
-        fn.appendChild(rowSB(T('planner.minuti_prima'), nm));
-    }
-    body.appendChild(fn);
-
     var calScegliibili = S.calendars.filter(function (c) {
         return c.role !== 'study' || d.calendar_id === c.id;
     });
@@ -1219,11 +1221,34 @@ function toggle(on, onChange) {
     });
     return t;
 }
+/* La data si legge «20 Nov 26»: l'anno a due cifre, perché quello a quattro
+   rubava spazio alla data di fine e agli orari. Il campo nativo resta (è lui
+   che apre il calendario di sistema, anche sul telefono) ma è trasparente e
+   sta sopra al testo: si tocca il testo, si apre il suo selettore. */
+function dataBreve(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    if (!m) return '';
+    return parseInt(m[3], 10) + ' ' + T('planner.mese_' + parseInt(m[2], 10)).slice(0, 3) + ' ' + m[1].slice(2);
+}
 function dateInput(value, onChange) {
-    var i = el('input', 'pl-pick');
+    var box = el('span', 'pl-pick pl-datepick');
+    var txt = el('span', 'pl-datepick-t', dataBreve(value));
+    var i = el('input');
     i.type = 'date'; i.value = value || '';
-    i.addEventListener('change', function () { onChange(i.value); });
-    return i;
+    i.setAttribute('aria-label', T('planner.quando'));
+    i.addEventListener('change', function () { txt.textContent = dataBreve(i.value); onChange(i.value); });
+    /* da computer un clic sul campo trasparente metterebbe il cursore su un
+       giorno o un mese senza aprire nulla: il calendario si chiama a mano */
+    box.addEventListener('click', function () { try { i.showPicker(); } catch (e) {} });
+    /* chi legge e scrive `.value` (la fine che segue l'inizio) non deve sapere
+       che il campo vero sta dentro */
+    Object.defineProperty(box, 'value', {
+        get: function () { return i.value; },
+        set: function (v) { i.value = v || ''; txt.textContent = dataBreve(v); }
+    });
+    box.appendChild(txt);
+    box.appendChild(i);
+    return box;
 }
 
 /* Quanti giorni copre un evento, estremi compresi: dal 10 al 12 sono tre.
@@ -1316,6 +1341,27 @@ function durLabel(min) {
     if (min < 60) return T('planner.n_min', {n: min});
     var h = Math.floor(min / 60), m = min % 60;
     return h + 'h' + (m ? ' ' + pad(m) : '');
+}
+
+/* Quello che si scrive nel campo della durata, in minuti: «45», «1:30», «1h30»,
+   «1h», «90m», «1h 30m». Zero o un testo che non si capisce = 0, cioè niente
+   da fare (la durata resta com'era). Mai più di un giorno. */
+function parseDurata(txt) {
+    var t = String(txt || '').trim().toLowerCase().replace(/\s+/g, '');
+    var m;
+    if ((m = /^(\d+):(\d{1,2})$/.exec(t))) return Math.min(1439, parseInt(m[1], 10) * 60 + parseInt(m[2], 10));
+    if ((m = /^(\d+)h(?:(\d{1,2})m?(?:in)?)?$/.exec(t))) return Math.min(1439, parseInt(m[1], 10) * 60 + (m[2] ? parseInt(m[2], 10) : 0));
+    if ((m = /^(\d+)m(?:in)?$/.exec(t)) || (m = /^(\d+)$/.exec(t))) return Math.min(1439, parseInt(m[1], 10));
+    return 0;
+}
+
+/* L'avviso con cui parte un evento nuovo: quello scelto nelle impostazioni
+   (prima era sempre «un'ora prima»). */
+var NOTIFICA_MIN = { none: 0, at_time: 0, m30: 30, h1: 60, d1: 1440 };
+function notificaPredefinita() {
+    var v = (S.settings && S.settings.default_notify) || 'h1';
+    if (!(v in NOTIFICA_MIN)) v = 'h1';
+    return { notify: v, notify_min: NOTIFICA_MIN[v] };
 }
 function parseDur(raw) {
     var s = String(raw).toLowerCase().replace(',', '.').trim();

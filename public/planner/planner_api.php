@@ -570,6 +570,7 @@ if ($ajax !== '') {
             'gc_dedicated'      => ['gc_dedicated_mode', 'enum', ['none','all','high','highest'], 'all'],
             'gc_primary'        => ['gc_primary_mode', 'enum', ['none','high','highest'], 'none'],
             'first_week_number' => ['first_week_number', 'int', 1, 9999],
+            'default_notify'    => ['default_notify', 'enum', ['none','at_time','m30','h1','d1'], 'h1'],
         ];
         foreach ($map as $key => $cfg) {
             $raw = sec_in($key);

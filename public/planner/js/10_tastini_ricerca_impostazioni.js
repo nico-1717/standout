@@ -757,6 +757,15 @@ function openSettings(focus) {
                 debounceSave('daysv', 500, function () { api('settings_save', { days_visible: v }); });
             })));
         }
+        /* L'avviso con cui parte un evento nuovo (si cambia comunque evento per
+           evento): prima era sempre «un'ora prima». */
+        fo.appendChild(rowSB(T('planner.avviso_predefinito'), select([
+            ['none', T('planner.nessuna')], ['at_time', T('planner.nel_momento')], ['m30', T('planner.30_minuti_prima')],
+            ['h1', T('planner.un_ora_prima')], ['d1', T('planner.un_giorno_prima')]
+        ], S.settings.default_notify || 'h1', function (v) {
+            S.settings.default_notify = v;
+            api('settings_save', { default_notify: v });
+        })));
         body.appendChild(fo);
 
         /* Google Calendar ora ha la sua sezione in cima (schedaGoogle). */
