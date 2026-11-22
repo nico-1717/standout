@@ -80,6 +80,14 @@ var ZOOM = [
 ];
 var HEAD_H = 0;   // le colonne non hanno più un'intestazione propria
 var NEUTRAL = '#E4DDD3';
+/* I colori che si scelgono per un evento: pastello ma pieno, dieci tinte ben
+   distinte, ognuna col suo nome (chiave `planner.<nome>`). */
+var COLORI_EVENTO = [
+    ['col_corallo', '#F58C84'], ['col_albicocca', '#F7B267'], ['col_limone', '#F2D04F'],
+    ['col_lime', '#A9D672'], ['col_menta', '#62CDA4'], ['col_cielo', '#6DB6F2'],
+    ['col_pervinca', '#8F9DF2'], ['col_lavanda', '#B890F0'], ['col_rosa', '#F28DBB'],
+    ['col_pietra', '#A9B4BE']
+];
 var MESI = [T('planner.mese_1'),T('planner.mese_2'),T('planner.mese_3'),T('planner.mese_4'),T('planner.mese_5'),T('planner.mese_6'),T('planner.mese_7'),T('planner.mese_8'),T('planner.mese_9'),T('planner.mese_10'),T('planner.mese_11'),T('planner.mese_12')];
 var GIORNI = [T('planner.gg_1'),T('planner.gg_2'),T('planner.gg_3'),T('planner.gg_4'),T('planner.gg_5'),T('planner.gg_6'),T('planner.gg_7')];
 /* iniziali della griglia: in inglese sono M T W T F S S */

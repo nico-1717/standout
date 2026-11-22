@@ -145,6 +145,14 @@ function renderEventSheet() {
     when.appendChild(rail);
     var wrows = el('div', 'pl-when-rows');
     when.appendChild(wrows);
+    /* data e ora in un solo riquadro (un filo in mezzo, niente spazio fra i due):
+       si leggono come un valore solo e occupano meno larghezza */
+    function unisci(a, b) {
+        var u = el('span', 'pl-dt');
+        u.appendChild(a);
+        u.appendChild(b);
+        return u;
+    }
     function whenLine(label) {
         var r = el('div', 'pl-when-line');
         r.appendChild(el('span', 'pl-when-lab', label));
@@ -357,13 +365,13 @@ function renderEventSheet() {
            definizione. */
         wrows.appendChild(whenLine(T('planner.inizio_t'), dataIn));
     } else {
-        wrows.appendChild(whenLine(T('planner.inizio_t'), dataIn, sIn));
+        wrows.appendChild(whenLine(T('planner.inizio_t'), unisci(dataIn, sIn)));
     }
     var mid = el('div', 'pl-when-mid');
     mid.appendChild(pill);
     wrows.appendChild(mid);
     if (d.all_day) wrows.appendChild(whenLine(T('planner.fine_t'), fineData));
-    else wrows.appendChild(whenLine(T('planner.fine_t'), fineData, eIn));
+    else wrows.appendChild(whenLine(T('planner.fine_t'), unisci(fineData, eIn)));
     fd.appendChild(when);
     body.appendChild(fd);
 
@@ -511,7 +519,6 @@ function renderEventSheet() {
     fc.appendChild(el('label', 'pl-label', T('planner.categoria')));
     var crow = el('div', 'pl-cat-row');
     var cselWrap = el('div', 'pl-cat-sel');
-    var cdot = el('span', 'pl-dot');
     var catOpts = [['__none', T('planner.nessuna')]];
     if (d.project_id && d.project_name) catOpts.push(['__project', d.project_name]);
     alpha(S.categories, 'name').forEach(function (c) { catOpts.push([String(c.id), c.name]); });
@@ -521,16 +528,56 @@ function renderEventSheet() {
         S.draft.dirty = true;
         renderEventSheet();
     });
-    function pallinoCategoria() {
-        var cc = d.category_id ? catById(d.category_id) : null;
-        var col = cc ? cc.color : (d.project_id && d.project_name ? (d.project_color || NEUTRAL) : '');
-        cdot.style.setProperty('--ev', col || 'transparent');
-        cdot.style.visibility = col ? 'visible' : 'hidden';
+    /* Il colore sta sulla stessa riga della categoria: il cerchio (il colore di
+       adesso), il menu della categoria e le proposte. Toccando il cerchio si apre
+       un elenco di colori con il loro nome. Scegliere una categoria rimette il
+       colore di quella categoria. */
+    var colBase = d.category_id ? ((catById(d.category_id) || {}).color || NEUTRAL) : (d.project_color || NEUTRAL);
+    var colBtn = el('button', 'pl-colbtn');
+    colBtn.type = 'button';
+    colBtn.setAttribute('aria-label', T('planner.colore'));
+    colBtn.setAttribute('aria-haspopup', 'listbox');
+    colBtn.style.setProperty('--ev', d.color || colBase);
+    var colMenu = null;
+    function chiudiMenuColori() {
+        if (colMenu) { colMenu.remove(); colMenu = null; }
+        document.removeEventListener('click', fuoriMenuColori, true);
     }
-    pallinoCategoria();
-    cselWrap.appendChild(cdot);
-    cselWrap.appendChild(catSel);
+    function fuoriMenuColori(e) {
+        if (colMenu && !colMenu.contains(e.target) && !colBtn.contains(e.target)) chiudiMenuColori();
+    }
+    colBtn.addEventListener('click', function () {
+        if (colMenu) { chiudiMenuColori(); return; }
+        colMenu = el('div', 'pl-colmenu');
+        colMenu.setAttribute('role', 'listbox');
+        var cc = d.category_id ? catById(d.category_id) : null;
+        var voci = [[null, cc ? T('planner.col_categoria') + ' · ' + cc.name : T('planner.col_categoria'), colBase]];
+        COLORI_EVENTO.forEach(function (c) { voci.push([c[1], T('planner.' + c[0]), c[1]]); });
+        voci.forEach(function (v) {
+            var on = v[0] === null ? !d.color : (d.color || '').toLowerCase() === v[0].toLowerCase();
+            var it = el('button', 'pl-colmenu-it' + (on ? ' pl-on' : ''));
+            it.type = 'button';
+            it.setAttribute('role', 'option');
+            it.setAttribute('aria-selected', on ? 'true' : 'false');
+            var pt = el('span', 'pl-colmenu-dot');
+            pt.style.setProperty('--ev', v[2]);
+            it.appendChild(pt);
+            it.appendChild(el('span', 'pl-colmenu-nm', v[1]));
+            if (on) it.appendChild(el('span', 'pl-colmenu-ck', '✓'));
+            it.addEventListener('click', function () {
+                d.color = v[0];
+                S.draft.dirty = true;
+                chiudiMenuColori();
+                renderEventSheet();
+            });
+            colMenu.appendChild(it);
+        });
+        fc.appendChild(colMenu);
+        document.addEventListener('click', fuoriMenuColori, true);
+    });
+    crow.appendChild(colBtn);
     crow.appendChild(cselWrap);
+    cselWrap.appendChild(catSel);
     var sugs = el('div', 'pl-sugs');
     crow.appendChild(sugs);
     /* le proposte si ridisegnano a ogni lettera del titolo, senza ridisegnare il popup */
@@ -568,25 +615,6 @@ function renderEventSheet() {
     body.appendChild(fc);
 
     /* l'importanza e' ora sulla riga del tipo, in alto (vedi .pl-prio-seg) */
-
-    /* colore */
-    var fcol = el('div', 'pl-field');
-    fcol.appendChild(el('label', 'pl-label', T('planner.colore')));
-    var sw = el('div', 'pl-swatches');
-    var base = d.category_id ? (catById(d.category_id) || {}).color : (d.project_color || NEUTRAL);
-    [base, '#C7DED6', '#F0D3D6', '#D8D3E8', '#F3E4C0', '#CFDDEA', '#E8D5C7', '#DCE7C8'].forEach(function (c, i) {
-        var b = el('button', 'pl-sw' + ((d.color === c || (i === 0 && !d.color)) ? ' pl-on' : ''));
-        b.type = 'button';
-        b.style.setProperty('--ev', c);
-        b.addEventListener('click', function () {
-            d.color = i === 0 ? null : c;
-            S.draft.dirty = true;
-            renderEventSheet();
-        });
-        sw.appendChild(b);
-    });
-    fcol.appendChild(sw);
-    body.appendChild(fcol);
 
     /* luogo */
     var floc = el('div', 'pl-field');
@@ -1209,14 +1237,18 @@ function toggle(on, onChange) {
     });
     return t;
 }
-/* La data si legge «20 Nov 26»: l'anno a due cifre, perché quello a quattro
+/* La data si legge «Ven, 20 Nov 26»: l'anno a due cifre, perché quello a quattro
    rubava spazio alla data di fine e agli orari. Il campo nativo resta (è lui
    che apre il calendario di sistema, anche sul telefono) ma è trasparente e
    sta sopra al testo: si tocca il testo, si apre il suo selettore. */
 function dataBreve(iso) {
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
     if (!m) return '';
-    return parseInt(m[3], 10) + ' ' + T('planner.mese_' + parseInt(m[2], 10)).slice(0, 3) + ' ' + m[1].slice(2);
+    /* il giorno della settimana in tre lettere («Ven, 20 Nov 26»): si capisce
+       a colpo d'occhio se e' un sabato, senza aprire il calendario */
+    var dow = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay();
+    var gg = T('planner.gg_' + (((dow + 6) % 7) + 1)).slice(0, 3);
+    return gg + ', ' + parseInt(m[3], 10) + ' ' + T('planner.mese_' + parseInt(m[2], 10)).slice(0, 3) + ' ' + m[1].slice(2);
 }
 function dateInput(value, onChange) {
     var box = el('span', 'pl-pick pl-datepick');
