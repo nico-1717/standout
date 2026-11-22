@@ -5194,6 +5194,7 @@
     "pianifica_per_me": "Pianifica per me",
     "scegli_figlio": "Scegli un sotto-progetto qui sopra, poi evidenzia i giorni.",
     "n_giorni": "{n} giorni",
+    "n_giorno": "1 giorno",
     "senza_ore": "Nessun tempo impostato: tocca «Modifica ore».",
     "ore_in_giorni": "{h} in {n} giorni = circa {d} al giorno",
     "ore_restano": "Restano {h}",

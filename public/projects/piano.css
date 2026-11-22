@@ -62,7 +62,7 @@ body[data-pp="cal"] #ppHost, body[data-pp="plan"] #ppHost{ display:block; }
 .pp-grid{ display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:2px 0; }
 /* col dito la pagina deve poter scorrere in verticale; il trascinamento orizzontale lo gestisce piano.js */
 .pp-grid.pp-tool-paint, .pp-grid.pp-tool-erase{ touch-action:pan-y; }
-.pp-day{ position:relative; height:42px; border:0; border-radius:10px; background:none; display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+.pp-day{ position:relative; height:46px; border:0; border-radius:10px; background:none; display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
     padding:4px 0 0; font-size:13.5px; color:var(--text); -webkit-touch-callout:none; }
 .pp-day.out{ color:var(--text-3); }
 .pp-day.past{ color:var(--text-3); }
@@ -72,9 +72,20 @@ body[data-pp="cal"] #ppHost, body[data-pp="plan"] #ppHost{ display:block; }
 .pp-day.sel{ background:var(--c, var(--blue)); color:var(--sel-ink, #1C1C1E); font-weight:700; }
 .pp-day.sel.out, .pp-day.sel.past{ color:var(--sel-ink, #1C1C1E); opacity:.75; }
 .pp-day.sel.today .pp-dn{ background:#fff; color:var(--red); }
-.pp-dots{ display:flex; gap:2px; height:4px; margin-top:1px; pointer-events:none; }
-.pp-dot{ width:4px; height:4px; border-radius:50%; }
-.pp-dot.soft{ opacity:.45; }
+/* le linee dei progetti: un livello sopra la griglia che non prende i tocchi (passano alle caselle) */
+.pp-grid{ position:relative; }
+.pp-lines{ position:absolute; inset:0; pointer-events:none; }
+.pp-line{ position:absolute; height:3px; background-color:var(--c); }
+.pp-line.cl{ border-top-left-radius:2px; border-bottom-left-radius:2px; }
+.pp-line.cr{ border-top-right-radius:2px; border-bottom-right-radius:2px; }
+.pp-line.soft{ opacity:.45; }
+/* la legenda sotto il calendario */
+.pp-leg{ display:flex; flex-direction:column; margin-top:8px; border-top:1px solid var(--hairline); padding-top:6px; }
+.pp-leg:empty{ display:none; }
+.pp-leg-row{ display:flex; align-items:center; gap:10px; min-height:30px; font-size:14px; }
+.pp-leg-sw{ width:22px; height:5px; border-radius:3px; flex:none; }
+.pp-leg-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pp-leg-n{ color:var(--text-2); font-size:13px; font-variant-numeric:tabular-nums; }
 .pp-dm{ position:absolute; bottom:1px; left:0; right:0; text-align:center; font-size:8.5px; font-weight:700; line-height:1; opacity:.85; pointer-events:none; font-variant-numeric:tabular-nums; }
 .pp-dm.est{ font-style:italic; font-weight:600; opacity:.7; }
 .pp-tick{ position:absolute; top:3px; right:4px; width:11px; height:11px; border-radius:50%; background:var(--green); color:#fff; display:grid; place-items:center; pointer-events:none; }

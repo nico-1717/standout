@@ -355,6 +355,7 @@
             : chipsOf(S.scope);
         var selC = S.sel && S.nodes[S.sel] ? S.nodes[S.sel].color : '#007AFF';
         var estimate = estimatePerDay(S.sel);
+        var marks = [];
         for (var i = 0; i < 42; i++) {
             var d = add(r.from, i);
             var cell = h('button', 'pp-day');
@@ -368,7 +369,8 @@
             var isSel = S.sel && S.paint[S.sel] && S.paint[S.sel][d];
             if (isSel) { cell.classList.add('sel'); cell.style.setProperty('--c', selC); cell.style.setProperty('--sel-ink', ink(selC)); }
             cell.appendChild(h('span', 'pp-dn', parse(d).getUTCDate()));
-            var dots = h('span', 'pp-dots');
+            /* quello che c'è quel giorno: niente più pallini, le linee si disegnano dopo, sopra la griglia */
+            var mk = [];
             if (!S.sel) {
                 /* nessun progetto scelto: tutto quello che c'è quel giorno, ognuno col suo colore */
                 var seen = {};
@@ -377,19 +379,19 @@
                     var planned = S.plan[d] && S.plan[d][nid] && (S.plan[d][nid].study || 0) > 0;
                     if (!painted && !planned) return;
                     var col = S.nodes[nid].color;
-                    if (seen[col] && (seen[col] === 2 || !painted)) return;
+                    if (seen[col] && (seen[col].state === 2 || !painted)) return;
                     if (Object.keys(seen).length >= 6 && !seen[col]) return;
-                    seen[col] = painted ? 2 : 1;
-                    var dot = h('i', 'pp-dot' + (painted ? '' : ' soft')); dot.style.background = col; dots.appendChild(dot);
+                    seen[col] = { state: painted ? 2 : 1, mark: { id: nid, color: col, soft: !painted } };
                 });
+                Object.keys(seen).forEach(function (c) { mk.push(seen[c].mark); });
             } else
             chips.forEach(function (cid) {
                 if (cid === S.sel) return;
                 var painted = S.paint[cid] && S.paint[cid][d];
                 var planned = S.plan[d] && subtree(cid).some(function (x) { return S.plan[d][x] && (S.plan[d][x].study || 0) > 0; });
-                if (painted || planned) { var dot = h('i', 'pp-dot' + (painted ? '' : ' soft')); dot.style.background = S.nodes[cid].color; dots.appendChild(dot); }
+                if (painted || planned) mk.push({ id: cid, color: S.nodes[cid].color, soft: !painted });
             });
-            cell.appendChild(dots);
+            marks.push(mk);
             var evs = S.showEv && S.ev[d];
             if (evs && evs.length) {
                 var evm = h('span', 'pp-evm' + (evs.some(function (x) { return x.imp === 'highest'; }) ? ' top' : ''));
@@ -415,7 +417,9 @@
             })(d);
             grid.appendChild(cell);
         }
+        grid.appendChild(linesLayer(lineSegments(marks)));
         card.appendChild(grid);
+        card.appendChild(legendBox(marks, r.from, selC));
         bindPaint(grid);
         root.appendChild(card);
 
@@ -442,6 +446,89 @@
         dock.appendChild(btn('pp-act', [svg(IC.spark, 16, 1.9), h('span', '', t('pianifica_breve'))], function () { autoplanFlow(); }));
         root.appendChild(dock);
         root.classList.add('pp-has-dock');
+    }
+
+    /* =================================================================
+       LE LINEE DEL CALENDARIO (al posto dei pallini)
+       Un progetto dal 24 al 28 è UNA linea che va da una casella all'altra e
+       va a capo con la settimana; due progetti nello stesso giorno stanno su
+       corsie diverse. Oltre 3 corsie un tratto non si disegna: la legenda sotto
+       il calendario dice comunque tutto. Stessa logica dell'app (calendarGrid.ts).
+       ================================================================= */
+    var LINE_ROW_H = 48, LINE_TOP = 26, LINE_STEP = 5, LINE_MAX = 3;
+    function markKey(m) { return m.id + '|' + (m.soft ? 1 : 0); }
+    function lineSegments(days) {
+        var out = [];
+        function has(i, m) {
+            if (i < 0 || i >= days.length) return false;
+            return (days[i] || []).some(function (x) { return markKey(x) === markKey(m); });
+        }
+        for (var row = 0; row < 6; row++) {
+            var keys = {}, order = [];
+            for (var c0 = 0; c0 < 7; c0++) (days[row * 7 + c0] || []).forEach(function (m) {
+                if (!keys[markKey(m)]) order.push(m);
+                keys[markKey(m)] = m;
+            });
+            var segs = [];
+            order.forEach(function (m) {
+                for (var c = 0; c < 7; c++) {
+                    if (!has(row * 7 + c, m)) continue;
+                    var from = c;
+                    while (c + 1 < 7 && has(row * 7 + c + 1, m)) c++;
+                    segs.push({ id: m.id, color: m.color, soft: m.soft, row: row, from: from, to: c,
+                        capL: !has(row * 7 + from - 1, m), capR: !has(row * 7 + c + 1, m) });
+                }
+            });
+            segs.sort(function (a, b) { return a.from - b.from || a.to - b.to || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0); });
+            var laneEnd = [];
+            segs.forEach(function (sg) {
+                var lane = 0;
+                while (laneEnd[lane] !== undefined && laneEnd[lane] >= sg.from) lane++;
+                laneEnd[lane] = sg.to;
+                if (lane < LINE_MAX) { sg.lane = lane; out.push(sg); }
+            });
+        }
+        return out;
+    }
+    function linesLayer(segs) {
+        var layer = h('div', 'pp-lines');
+        layer.setAttribute('aria-hidden', 'true');
+        segs.forEach(function (sg) {
+            var ln = h('i', 'pp-line' + (sg.soft ? ' soft' : '') + (sg.capL ? ' cl' : '') + (sg.capR ? ' cr' : ''));
+            ln.style.top = (sg.row * LINE_ROW_H + LINE_TOP + sg.lane * LINE_STEP) + 'px';
+            /* un estremo vero è staccato dal bordo della casella; uno che continua nella settimana dopo/prima arriva fino al bordo */
+            var inL = sg.capL ? 6 : 0, inR = sg.capR ? 6 : 0;
+            ln.style.left = 'calc(' + (sg.from / 7 * 100) + '% + ' + inL + 'px)';
+            ln.style.width = 'calc(' + ((sg.to - sg.from + 1) / 7 * 100) + '% - ' + (inL + inR) + 'px)';
+            ln.style.setProperty('--c', sg.color);
+            layer.appendChild(ln);
+        });
+        return layer;
+    }
+    /* Sotto il calendario: ogni colore col nome del progetto e quanti giorni ha nel mese che si vede. */
+    function legendBox(marks, firstDay, selC) {
+        var ym = S.month.slice(0, 7), rows = {}, order = [];
+        function bump(id, color) {
+            if (!rows[id]) { rows[id] = { id: id, name: S.nodes[id] ? S.nodes[id].name : '', color: color, n: 0 }; order.push(id); }
+            rows[id].n++;
+        }
+        for (var i = 0; i < 42; i++) {
+            var d = add(firstDay, i);
+            if (d.slice(0, 7) !== ym) continue;
+            var seen = {};
+            (marks[i] || []).forEach(function (m) { if (!seen[m.id]) { seen[m.id] = 1; bump(m.id, m.color); } });
+        }
+        var list = order.map(function (id) { return rows[id]; });
+        if (S.sel && S.nodes[S.sel]) {
+            var mine = Object.keys(S.paint[S.sel] || {}).filter(function (d) { return d.slice(0, 7) === ym; }).length;
+            if (mine) list.unshift({ id: S.sel, name: S.nodes[S.sel].name, color: selC, n: mine });
+        }
+        var box = h('div', 'pp-leg');
+        list.forEach(function (r) {
+            var sw = h('i', 'pp-leg-sw'); sw.style.background = r.color;
+            box.appendChild(h('div', 'pp-leg-row', [sw, h('span', 'pp-leg-name', r.name), h('span', 'pp-leg-n', r.n === 1 ? t('n_giorno') : t('n_giorni', { n: r.n }))]));
+        });
+        return box;
     }
 
     /* Annulla: ogni modifica ai giorni mette nella pila il modo di tornare

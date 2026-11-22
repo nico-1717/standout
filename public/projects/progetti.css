@@ -792,7 +792,6 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 .pr-lab-btn:active{ background:color-mix(in srgb, var(--text) 8%, transparent); }
 .pr-lab-btn.active{ color:var(--accent, var(--blue)); background:color-mix(in srgb, var(--accent, var(--blue)) 13%, transparent); }
 .pr-lab-btn[hidden]{ display:none; }
-.pr-lab-n{ min-width:34px; text-align:right; font-variant-numeric:tabular-nums; }
 .page > .pr-lab:first-child{ margin-top:6px; }
 
 /* ---- l'elenco ---- */

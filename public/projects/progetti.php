@@ -1533,11 +1533,10 @@ if ($deckProprio) {
         /* La riga grigia: solo quello che c'è. Le date e il tempo si toccano
            per cambiarli o vederli; quello che manca si aggiunge dal menu ⋯,
            invece di stare qui come tre etichette tratteggiate vuote. */
-        $haMetaHero = $selTot > 0 || $dTag || $totDur !== '' || $deckStato === 'proprio' || $deckStato === 'ereditato' || $corsoHero;
+        $haMetaHero = $dTag || $totDur !== '' || $deckStato === 'proprio' || $deckStato === 'ereditato' || $corsoHero;
         ?>
         <?php if ($haMetaHero): ?>
         <div class="pr-hero-meta">
-            <?php if ($selTot > 0): ?><span class="pr-hm"><?php echo sec_h(t('progetti.n_di_m_fatti', ['n' => $selFatti, 'm' => $selTot])); ?></span><?php endif; ?>
             <?php foreach ($dTag as $dt): ?>
             <button type="button" class="pr-hm pr-hm-link pr-md-<?php echo sec_h($dt['status']); ?>"
                     data-valore="<?php echo sec_h($selectedProject[$dt['campo'] === 'scadenza' ? 'data_scadenza' : 'data_obiettivo'] ?? ''); ?>"
@@ -1620,7 +1619,6 @@ if ($deckProprio) {
                     aria-label="<?php te('progetti.chiudi_tutto'); ?>" title="<?php te('progetti.chiudi_tutto'); ?>"></button>
             <?php endif; ?>
         </span>
-        <span class="pr-lab-n"><?php echo $selFatti . ' / ' . $selTot; ?></span>
     </div>
     <?php endif; ?>
     <!-- La barra delle azioni della selezione resta in basso mentre si scorre. -->
