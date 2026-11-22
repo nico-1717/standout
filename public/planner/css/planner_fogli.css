@@ -97,7 +97,7 @@
 .pl-field{ margin-bottom:13px; }
 .pl-field > label{ display:block; margin:0 2px 5px; }
 .pl-in{
-    width:100%; border:none; border-radius:var(--r-md); background:var(--paper-2);
+    width:100%; border:none; border-radius:var(--r-md); background:var(--fill);
     padding:12px 13px; color:var(--ink); box-shadow:inset 0 0 0 .5px var(--hair);
 }
 .pl-in::placeholder{ color:var(--ink-3); }
@@ -110,9 +110,9 @@ textarea.pl-in{
     transition:height var(--t-fast) var(--ease);
 }
 textarea.pl-in.pl-note{ min-height:200px; }
-.pl-title-row{ display:flex; align-items:center; gap:8px; background:var(--paper-2); border-radius:var(--r-md); box-shadow:inset 0 0 0 .5px var(--hair); padding-right:6px; }
+.pl-title-row{ display:flex; align-items:center; gap:8px; background:var(--fill); border-radius:var(--r-md); box-shadow:inset 0 0 0 .5px var(--hair); padding-right:6px; }
 .pl-title-row .pl-in{ background:none; box-shadow:none; font-family:'Cormorant Garamond',serif; font-size:19px; }
-.pl-icon-btn{ width:32px; height:32px; border-radius:var(--r-pill); display:grid; place-items:center; color:var(--ink-2); flex-shrink:0; background:var(--card); box-shadow:inset 0 0 0 .5px var(--hair); }
+.pl-icon-btn{ width:32px; height:32px; border-radius:var(--r-pill); display:grid; place-items:center; color:var(--ink-2); flex-shrink:0; background:var(--fill-on); box-shadow:inset 0 0 0 .5px var(--hair); }
 .pl-icon-btn svg{ width:15px; height:15px; }
 
 .pl-row{ display:flex; align-items:center; gap:9px; }
@@ -121,7 +121,7 @@ textarea.pl-in.pl-note{ min-height:200px; }
 .pl-row-lab{ font-size:14.5px; color:var(--ink); }
 .pl-row-sub{ font-size:11.5px; color:var(--ink-3); }
 .pl-pick{
-    padding:8px 12px; border:0; border-radius:var(--r-md); background:var(--paper-2); font-size:14px; color:var(--ink);
+    padding:8px 12px; border:0; border-radius:var(--r-md); background:var(--fill); font-size:14px; color:var(--ink);
     box-shadow:inset 0 0 0 .5px var(--hair); font-variant-numeric:tabular-nums;
 }
 /* Data e ora di fine sullo stesso rigo: sono la stessa informazione, cioè
@@ -141,13 +141,13 @@ textarea.pl-in.pl-note{ min-height:200px; }
 .pl-datepick{ position:relative; display:inline-block; white-space:nowrap; cursor:pointer; }
 .pl-datepick input{ position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; border:0; padding:0; margin:0; }
 /* data e ora in un solo riquadro: un filo in mezzo, niente spazio fra i due */
-.pl-dt{ display:inline-flex; align-items:stretch; min-width:0; border-radius:var(--r-md); background:var(--paper-2); box-shadow:inset 0 0 0 .5px var(--hair); }
+.pl-dt{ display:inline-flex; align-items:stretch; min-width:0; border-radius:var(--r-md); background:var(--fill); box-shadow:inset 0 0 0 .5px var(--hair); }
 .pl-dt .pl-pick{ background:none; box-shadow:none; border-radius:0; }
 .pl-dt .pl-pick:first-child{ padding-right:9px; }
 .pl-dt .pl-pick + .pl-pick{ padding-left:9px; box-shadow:inset .5px 0 0 var(--hair-2); }
 /* ripetizione e avviso: due scelte sulla stessa riga */
 .pl-duo{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-.pl-duo-c{ display:flex; align-items:center; gap:8px; min-width:0; min-height:44px; padding:0 4px 0 12px; border-radius:var(--r-md); background:var(--paper-2); box-shadow:inset 0 0 0 .5px var(--hair); }
+.pl-duo-c{ display:flex; align-items:center; gap:8px; min-width:0; min-height:44px; padding:0 4px 0 12px; border-radius:var(--r-md); background:var(--fill); box-shadow:inset 0 0 0 .5px var(--hair); }
 .pl-duo-c svg{ width:16px; height:16px; flex:none; color:var(--ink-3); }
 .pl-duo-c select.pl-pick{ flex:1; min-width:0; width:100%; background-color:transparent; box-shadow:none; border:0; padding:10px 4px; font-weight:600; text-overflow:ellipsis; }
 /* lucchetto della durata: chiuso è lo stato normale, quindi si fa notare
@@ -208,7 +208,7 @@ textarea.pl-in.pl-note{ min-height:200px; }
 .pl-tags{ display:flex; flex-wrap:wrap; gap:6px; }
 .pl-tag{
     display:flex; align-items:center; gap:6px; padding:7px 12px; border-radius:var(--r-pill);
-    background:var(--paper-2); font-size:13px; color:var(--ink-2);
+    background:var(--fill); font-size:13px; color:var(--ink-2);
     box-shadow:inset 0 0 0 .5px var(--hair);
     transition:transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease), color var(--t-fast);
 }
@@ -216,12 +216,12 @@ textarea.pl-in.pl-note{ min-height:200px; }
 .pl-tag:active{ transform:scale(.95); }
 .pl-tag.pl-on{ background:color-mix(in srgb, var(--ev,var(--accent)) 30%, var(--card)); color:var(--ink); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ev,var(--accent)) 60%, transparent); }
 .pl-tag.pl-off{ opacity:.42; }
-.pl-seg{ display:flex; background:var(--paper-2); border-radius:var(--r-pill); padding:2.5px; gap:2px; }
+.pl-seg{ display:flex; background:var(--fill); border-radius:var(--r-pill); padding:2.5px; gap:2px; }
 .pl-seg button{
     flex:1; padding:8px 6px; border-radius:var(--r-pill); font-size:12.5px; color:var(--ink-2);
     transition:background var(--t) var(--ease), color var(--t) var(--ease);
 }
-.pl-seg button.pl-on{ background:var(--card); color:var(--ink); box-shadow:var(--sh-soft); font-weight:500; }
+.pl-seg button.pl-on{ background:var(--fill-on); color:var(--ink); box-shadow:var(--sh-soft); font-weight:500; }
 
 .pl-swatches{ display:flex; flex-wrap:wrap; gap:8px; }
 .pl-sw{
@@ -642,7 +642,7 @@ textarea.pl-in.pl-note{ min-height:200px; }
 .pl-field:has(.pl-colbtn){ position:relative; }
 .pl-colmenu{ position:absolute; z-index:5; left:0; top:calc(100% - 4px); width:min(280px, 100%); max-height:min(60dvh, 380px); overflow-y:auto; padding:6px; border-radius:var(--r-md); background:var(--card); box-shadow:var(--sh-soft), inset 0 0 0 .5px var(--hair-2); display:flex; flex-direction:column; gap:1px; }
 .pl-colmenu-it{ display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px; font-size:14.5px; color:var(--ink); text-align:left; }
-.pl-colmenu-it.pl-on{ background:var(--paper-2); font-weight:600; }
+.pl-colmenu-it.pl-on{ background:var(--fill); font-weight:600; }
 .pl-colmenu-dot{ width:22px; height:22px; border-radius:50%; background:var(--ev); flex:0 0 auto; }
 .pl-colmenu-nm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .pl-colmenu-ck{ color:var(--accent-ink); font-weight:700; }

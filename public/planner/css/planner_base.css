@@ -29,6 +29,8 @@
     --paper:#FBF9F6;
     --paper-2:#F5F1EA;
     --paper-3:#EDE7DE;
+    /* il fondo dei campi dei fogli e della voce scelta nei selettori: in scuro (stile standard) sono più chiari del foglio */
+    --fill:var(--paper-2); --fill-on:var(--card);
     --card:#FFFDFA;
     /* le stesse tinte in forma r,g,b, per le trasparenze: rgba(var(--ink-rgb),.4) */
     --ink-rgb:76,70,63; --card-rgb:255,253,250; --paper-rgb:251,249,246;

@@ -89,6 +89,7 @@ html[data-stile="standard"] .dy-body .td-wrap{
         --so-red:#FF453A; --so-red-soft:rgba(255,69,58,.18);
         --so-shadow:0 1px 1px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.5);
         --so-header:rgba(22,22,24,.94);
+        --fill:#3A3A3C; --fill-on:#4A4A4D;
         color-scheme:dark;
 
         --card-rgb:28,28,30; --paper-rgb:0,0,0; --dy-paper-rgb:28,28,30;
