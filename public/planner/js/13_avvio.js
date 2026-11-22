@@ -5,6 +5,20 @@
 /* ------------------------------------------------------------------ */
 /* Fascia priorità: struttura fissa sotto la barra                     */
 /* ------------------------------------------------------------------ */
+/* Trascinando il dito su un foglio (il popup di inserimento, le impostazioni…) la tastiera si chiude da sola. Si
+   ascolta il dito e non lo scroll: il browser scorre da solo per mostrare il campo appena toccato e non deve chiuderla. */
+var dragYStart = null;
+document.addEventListener('touchstart', function (e) {
+    dragYStart = e.touches.length ? e.touches[0].clientY : null;
+}, { passive: true, capture: true });
+document.addEventListener('touchmove', function (e) {
+    var a = document.activeElement;
+    if (dragYStart === null || !a || !/^(INPUT|TEXTAREA)$/.test(a.tagName) || !e.touches.length) return;
+    if (Math.abs(e.touches[0].clientY - dragYStart) < 12) return;
+    var body = a.closest('.pl-sheet-body');
+    if (body && body.contains(e.target)) a.blur();
+}, { passive: true, capture: true });
+
 function buildDayBar() {
     if ($('plDayBar')) return;
     var bar = el('div', 'pl-daybar');
