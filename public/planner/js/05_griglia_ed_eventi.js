@@ -166,7 +166,7 @@ function renderGutterMeteo(host, date) {
     for (var h = 0; h < 24; h += passo) {
         var o = perOra[h];
         if (!o) continue;
-        var gNome = wxIconaNome(o.i, date, h * 60);
+        var gNome = wxIconaNome(o.i, date, h * 60, o.t);
         var b = el('button', 'pl-wxg' + wxClasse(gNome));
         b.type = 'button';
         var ic = el('span', 'pl-wxg-ic');
@@ -218,7 +218,7 @@ function renderWeekGutMeteo(date) {
     for (var h = 0; h < 24 && h < righe.length; h++) {
         var o = perOra[h];
         if (!o) continue;
-        var nome = wxIconaNome(o.i, date, h * 60);
+        var nome = wxIconaNome(o.i, date, h * 60, o.t);
         var b = el('button', 'pl-wxg pl-wk-wxg' + wxClasse(nome));
         b.type = 'button';
         var ic = el('span', 'pl-wxg-ic');

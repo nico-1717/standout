@@ -344,6 +344,13 @@
    stampa, e lasciandola grigia come le nuvole non si sarebbe distinta da un
    cielo coperto. */
 .pl-wx-moon{ background:#E3E6F1; color:#4C5473; }
+.pl-wx-heat{ background:#FBE1DE; color:#B3261E; }
+
+/* l'icona dentro un tag colorato, nel riquadro «adesso» e nella scheda delle
+   impostazioni ha il colore del testo, tutta d'un colore: i colori propri
+   dell'icona stanno sul fondo libero (colonna delle ore, grafico, previsione) */
+.pl-wx .wf, .pl-wx-now-ic .wf, .pl-setcard-ic .wf{ fill:currentColor; }
+.pl-wx .ws, .pl-wx-now-ic .ws, .pl-setcard-ic .ws{ stroke:currentColor; }
 
 /* Il tag della previsione dentro la colonna degli orari, sotto l'ora a cui
    si riferisce. La colonna è larga 48 px: icona e gradi stanno incolonnati,
@@ -354,16 +361,20 @@
     display:flex; flex-direction:column; align-items:center;
     color:var(--ink-3); opacity:.9;
 }
-.pl-wxg-ic{ width:15px; height:15px; display:block; }
+.pl-wxg-ic{ width:18px; height:18px; display:block; }
 .pl-wxg-ic svg{ width:100%; height:100%; display:block; }
 .pl-wxg-t{ font-size:9px; font-variant-numeric:tabular-nums; margin-top:1px; letter-spacing:.02em; }
 /* la zona che risponde al tocco è più larga del disegno: il tag è minuscolo */
 .pl-wxg::after{ content:''; position:absolute; left:-4px; right:-4px; top:-7px; bottom:-7px; }
-.pl-wxg.pl-wx-rain{ color:#3E6B86; }
-.pl-wxg.pl-wx-sun{ color:#96762F; }
-.pl-wxg.pl-wx-snow{ color:#5B7284; }
-.pl-wxg.pl-wx-storm{ color:#5A4E76; }
-.pl-wxg.pl-wx-moon{ color:#4C5473; }
+/* i gradi prendono il colore dell'icona (le variabili --wx-*) */
+.pl-wxg{ color:var(--wx-cloud); }
+.pl-wxg.pl-wx-rain{ color:var(--wx-rain); }
+.pl-wxg.pl-wx-sun{ color:var(--wx-sun); }
+.pl-wxg.pl-wx-heat{ color:var(--wx-heat); }
+.pl-wxg.pl-wx-snow{ color:var(--wx-snow); }
+.pl-wxg.pl-wx-storm{ color:var(--wx-storm); }
+.pl-wxg.pl-wx-moon{ color:var(--wx-moon); }
+.pl-wxg-t{ font-weight:500; color:color-mix(in srgb, currentColor 68%, var(--ink)); }
 
 /* popup del meteo: testa con giorno e luogo, frecce ai lati */
 .pl-wx-sheet{ touch-action:pan-y; }
@@ -478,6 +489,7 @@
 .pl-wxc-ic.pl-wx-snow{ color:#5B7284; }
 .pl-wxc-ic.pl-wx-storm{ color:#5A4E76; }
 .pl-wxc-ic.pl-wx-moon{ color:#4C5473; }
+.pl-wxc-ic.pl-wx-heat{ color:#B3261E; }
 .pl-wxc-t{ font-size:13.5px; font-variant-numeric:tabular-nums; color:var(--ink); }
 .pl-wxc-p{ font-size:9.5px; color:#3E6B86; min-height:12px; font-variant-numeric:tabular-nums; }
 
@@ -517,6 +529,7 @@
 .pl-wx-now.pl-wx-snow{ background:#EAF0F6; color:#5B7284; }
 .pl-wx-now.pl-wx-storm{ background:#E7E2F0; color:#5A4E76; }
 .pl-wx-now.pl-wx-moon{ background:#E3E6F1; color:#4C5473; }
+.pl-wx-now.pl-wx-heat{ background:#FBE1DE; color:#B3261E; }
 
 /* barra intelligente: una riga in cui scrivere l'evento a parole */
 .pl-smart{

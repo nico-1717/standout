@@ -15,26 +15,76 @@
    continuano a dire dove si è davvero. */
 var WX = { on: false, giorni: {}, adesso: null, place: null, lat: null, lon: null, fonte: null, fonte_url: null, nota: null, manuale: false };
 
-var WX_ICONE = {
-    'sole':            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>',
-    'sole-nubi':       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8.5" cy="8.5" r="3"/><path d="M8.5 3.5v1.4M3.5 8.5h1.4M5 5l1 1"/><path d="M12 19h6a2.6 2.6 0 100-5.2 3.4 3.4 0 00-6.5-1A2.4 2.4 0 0012 19z"/></svg>',
-    'nubi':            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 18h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 18z"/></svg>',
-    'nebbia':          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 10h16M6 14h12M4 18h16"/></svg>',
-    'pioggia-leggera': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 15h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 15z"/><path d="M10 18.5v1.5M14 18.5v1.5"/></svg>',
-    'pioggia':         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 14h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 14z"/><path d="M9 17v3M12.5 17v3M16 17v3"/></svg>',
-    'pioggia-forte':   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 13h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 13z"/><path d="M8 16v4.5M12 16v4.5M16 16v4.5"/></svg>',
-    'neve':            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 13h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 13z"/><path d="M9.5 17.5h.01M13 19h.01M16 17.5h.01"/></svg>',
-    'temporale':       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 13h10.5a3 3 0 100-6 4 4 0 00-7.7-1.2A2.9 2.9 0 007 13z"/><path d="M13 15l-3 4h3l-1 3"/></svg>',
-    /* Le due notturne. Non arrivano mai dal server — il servizio manda solo
-       'sole' e 'sole-nubi' — ma ci arriva sopra `wxIconaNome()` quando l'ora
-       di cui si sta parlando cade fra il tramonto e l'alba. Sono qui e non in
-       WXA_SVG perché quelle sono le sagome della scena della barra, disegnate
-       piene: qui serve lo stesso tratto delle altre icone, se no la luna
-       stonerebbe accanto a una nuvola. */
-    'luna':            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.6A8.6 8.6 0 019.4 4a7.6 7.6 0 1010.6 10.6z"/></svg>',
-    'luna-nubi':       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.6 9.4A5.1 5.1 0 016.2 3a4.5 4.5 0 106.4 6.4z"/><path d="M12 19h6a2.6 2.6 0 100-5.2 3.4 3.4 0 00-6.5-1A2.4 2.4 0 0012 19z"/></svg>'
-};
+/* Le icone del tempo: forme piene e geometriche (cerchi e barre), ognuna con i
+   suoi colori — la nuvola in ardesia, il resto nel colore del tempo che dice.
+   I colori sono le variabili --wx-* (chiare e scure, in planner_base.css), e
+   dove l'icona sta dentro un tag colorato (.pl-wx, il riquadro «adesso», la
+   scheda delle impostazioni) la CSS le riporta tutte al colore del testo:
+   .wf è un pieno, .ws un tratto. Le stesse forme sono nell'app (weatherIcons.ts). */
+var WX_ICONE = (function () {
+    function svg(inner) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + inner + '</svg>'; }
+    function nuvola(tx, ty, sc) {
+        return '<g class="wf" fill="var(--wx-cloud)" transform="translate(' + tx + ' ' + ty + ') scale(' + sc + ')">'
+            + '<circle cx="9" cy="13.4" r="4"/><circle cx="14.6" cy="11.4" r="5.2"/><rect x="5" y="13.4" width="15.2" height="5.4" rx="2.7"/></g>';
+    }
+    function tinta(c) { return 'var(--wx-' + c + ')'; }
+    function sole(cx, cy, r, c) {
+        var h = '<circle class="wf" cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + tinta(c) + '"/>';
+        for (var i = 0; i < 8; i++) {
+            h += '<path class="wf ws" d="M' + (cx - 1.3) + ' ' + (cy - r - 1.5) + 'L' + cx + ' ' + (cy - r - 4.2) + 'L' + (cx + 1.3) + ' ' + (cy - r - 1.5)
+                + 'z" fill="' + tinta(c) + '" stroke="' + tinta(c) + '" stroke-width=".6" stroke-linejoin="round" transform="rotate(' + (i * 45) + ' ' + cx + ' ' + cy + ')"/>';
+        }
+        return h;
+    }
+    function goccia(x, y, len) {
+        return '<path class="ws" d="M' + (x + 0.9) + ' ' + y + 'l-1.8 ' + len + '" fill="none" stroke="var(--wx-rain)" stroke-width="2.4" stroke-linecap="round"/>';
+    }
+    function onda(y, c) {
+        return '<path class="ws" d="M4.5 ' + y + 'q1.9 -1.6 3.75 0t3.75 0t3.75 0t3.75 0" fill="none" stroke="' + tinta(c) + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>';
+    }
+    function fiocco(cx, cy, R) {
+        var h = '', b = R * 0.62, l = R * 0.34;
+        for (var i = 0; i < 3; i++) {
+            h += '<g transform="rotate(' + (i * 60) + ' ' + cx + ' ' + cy + ')"><path class="ws" d="M' + cx + ' ' + (cy - R) + 'V' + (cy + R) + '" fill="none" stroke="var(--wx-snow)" stroke-width="2" stroke-linecap="round"/>'
+                + '<path class="ws" d="M' + (cx - l).toFixed(2) + ' ' + (cy - b - l).toFixed(2) + 'L' + cx + ' ' + (cy - b).toFixed(2) + 'L' + (cx + l).toFixed(2) + ' ' + (cy - b - l).toFixed(2)
+                + 'M' + (cx - l).toFixed(2) + ' ' + (cy + b + l).toFixed(2) + 'L' + cx + ' ' + (cy + b).toFixed(2) + 'L' + (cx + l).toFixed(2) + ' ' + (cy + b + l).toFixed(2)
+                + '" fill="none" stroke="var(--wx-snow)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g>';
+        }
+        return h + '<circle class="wf" cx="' + cx + '" cy="' + cy + '" r="1.6" fill="var(--wx-snow)"/>';
+    }
+    function pieno(d, c, extra) {
+        return '<path class="wf ws" d="' + d + '" fill="' + tinta(c) + '" stroke="' + tinta(c) + '" stroke-width="' + (extra || 1) + '" stroke-linejoin="round"/>';
+    }
+    var LUNA = 'M20 14.6A8.6 8.6 0 019.4 4a7.6 7.6 0 1010.6 10.6z';
+    var LUNA_P = 'M12.2 10.2A5.6 5.6 0 015.8 2.6a5 5 0 106.4 7.6z';
+    var FULMINE = 'M13.8 12.8l-4.4 5.9h3.3l-1.4 4.6 5-6.6h-3.4z';
+    function puntini(c) {
+        var h = '';
+        [[5.6, 16.6], [12.1, 16.6], [18.6, 16.6], [8.6, 20.8], [15.1, 20.8]].forEach(function (p) {
+            h += '<circle class="wf" cx="' + p[0] + '" cy="' + p[1] + '" r="1.5" fill="' + tinta(c) + '"/>';
+        });
+        return h;
+    }
+    return {
+        'sole':            svg(sole(12, 12, 4.4, 'sun')),
+        'caldo':           svg(sole(12, 9, 3.4, 'heat') + onda(19.6, 'heat') + onda(22.4, 'heat')),
+        'sole-nubi':       svg(sole(8.4, 8.4, 3.3, 'sun') + nuvola(5.4, 7.6, 0.8)),
+        'nubi':            svg(nuvola(0, 0, 1)),
+        'nebbia':          svg(nuvola(2.3, -3.2, 0.8) + puntini('fog')),
+        'pioggia-leggera': svg(nuvola(2.3, -1.9, 0.8) + goccia(9.8, 15.6, 3.6) + goccia(14.2, 15.6, 3.6)),
+        'pioggia':         svg(nuvola(2.3, -1.9, 0.8) + goccia(8.4, 15.6, 3.6) + goccia(12.2, 15.6, 3.6) + goccia(16, 15.6, 3.6)),
+        'pioggia-forte':   svg(nuvola(2.3, -1.9, 0.8) + goccia(7.6, 15.6, 4.4) + goccia(10.6, 15.6, 4.4) + goccia(13.6, 15.6, 4.4) + goccia(16.6, 15.6, 4.4)),
+        'neve':            svg(fiocco(12, 12, 8.6)),
+        'temporale':       svg(nuvola(2.3, -2.6, 0.8) + pieno(FULMINE, 'storm')),
+        /* Le due notturne. Non arrivano mai dal server — il servizio manda solo
+           'sole' e 'sole-nubi' — ma ci arriva sopra `wxIconaNome()` quando l'ora
+           di cui si sta parlando cade fra il tramonto e l'alba. */
+        'luna':            svg(pieno(LUNA, 'moon', 0.8)),
+        'luna-nubi':       svg(pieno(LUNA_P, 'moon', 0.8) + nuvola(5.4, 7.6, 0.8))
+    };
+})();
 function wxClasse(icona) {
+    if (icona === 'caldo') return ' pl-wx-heat';
     if (icona === 'sole' || icona === 'sole-nubi') return ' pl-wx-sun';
     /* la notte ha un colore suo: il giallo del sole su una luna sembra un
        errore di stampa, e il grigio delle nuvole non distingue più niente */
@@ -59,7 +109,14 @@ function wxClasse(icona) {
    Alba e tramonto si prendono dal giorno *di cui si parla* e non da oggi: a
    dicembre il buio arriva due ore prima che a giugno, e una soglia fissa
    avrebbe sbagliato metà anno. */
-function wxIconaNome(nome, date, minuti) {
+/* Da quanti gradi il sole sereno diventa il sole rosso del gran caldo. */
+var WX_CALDO_ICONA = 32;
+function wxIconaNome(nome, date, minuti, gradi) {
+    var n = wxNomeGiornoNotte(nome, date, minuti);
+    if (n === 'sole' && gradi !== null && gradi !== undefined && gradi >= WX_CALDO_ICONA) return 'caldo';
+    return n;
+}
+function wxNomeGiornoNotte(nome, date, minuti) {
     if (nome !== 'sole' && nome !== 'sole-nubi') return nome;
     if (minuti === null || minuti === undefined) {
         if (date !== S.today) return nome;
@@ -74,8 +131,8 @@ function wxIconaNome(nome, date, minuti) {
     if (minuti >= alba && minuti < tramonto) return nome;
     return nome === 'sole' ? 'luna' : 'luna-nubi';
 }
-function wxIcona(nome, date, minuti) {
-    var n = wxIconaNome(nome, date, minuti);
+function wxIcona(nome, date, minuti, gradi) {
+    var n = wxIconaNome(nome, date, minuti, gradi);
     return WX_ICONE[n] || WX_ICONE.nubi;
 }
 
@@ -129,7 +186,7 @@ function wxTag(date) {
     if (!g) return null;
     /* niente minuti: è il riassunto del giorno, e wxIconaNome() sa già che
        su oggi vuol dire "adesso" e sugli altri giorni vuol dire "di giorno" */
-    var nome = wxIconaNome(g.icon, date, null);
+    var nome = wxIconaNome(g.icon, date, null, g.tmax);
     var b = el('button', 'pl-wx' + wxClasse(nome));
     b.type = 'button';
     b.innerHTML = WX_ICONE[nome] || WX_ICONE.nubi;
@@ -264,7 +321,7 @@ function wxGrafico(g, date) {
         c.style.width = W + 'px';
         /* qui l'ora c'è, ed è quella della casella: le colonne dopo il
            tramonto passano alla luna una per una, come nella realtà */
-        var iNome = wxIconaNome(o.i, date, parseInt(o.h, 10) * 60);
+        var iNome = wxIconaNome(o.i, date, parseInt(o.h, 10) * 60, o.t);
         var ic = el('div', 'pl-wxc-ic' + wxClasse(iNome));
         ic.innerHTML = WX_ICONE[iNome] || WX_ICONE.nubi;
         c.appendChild(ic);
@@ -538,8 +595,8 @@ function wxPopup(date) {
         var big = el('div', 'pl-row');
         big.style.margin = '10px 0 14px';
         var ico = el('div');
-        ico.style.cssText = 'width:44px;height:44px;color:var(--ink-2);flex-shrink:0';
-        ico.innerHTML = wxIcona(g.icon, date, null);
+        ico.style.cssText = 'width:44px;height:44px;flex-shrink:0';
+        ico.innerHTML = wxIcona(g.icon, date, null, g.tmax);
         big.appendChild(ico);
         var txt = el('div');
         txt.appendChild(el('div', 'pl-sheet-title pl-serif', g.label));
@@ -562,7 +619,7 @@ function wxPopup(date) {
                se no quella dell'orologio. Alle nove di sera qui ci va la luna. */
             var oMin = WX.adesso.ora ? toMin(WX.adesso.ora)
                                      : (new Date().getHours() * 60 + new Date().getMinutes());
-            var oNome = wxIconaNome(WX.adesso.icon, date, oMin);
+            var oNome = wxIconaNome(WX.adesso.icon, date, oMin, WX.adesso.temp);
             var ora = el('div', 'pl-wx-now' + wxClasse(oNome));
             var oIco = el('span', 'pl-wx-now-ic');
             oIco.innerHTML = WX_ICONE[oNome] || WX_ICONE.nubi;

@@ -53,6 +53,10 @@
     /* colore evento senza categoria */
     --neutral-ev:#E4DDD3;
 
+    /* i colori delle icone del tempo (le forme sono in 03_meteo.js, WX_ICONE) */
+    --wx-sun:#F2A100; --wx-heat:#E5322D; --wx-cloud:#64748B; --wx-fog:#7B8A9C;
+    --wx-rain:#1C6EF2; --wx-snow:#26A0D8; --wx-storm:#7A3FE0; --wx-moon:#4B57D4;
+
     /* forma */
     --r-xl:26px; --r-lg:20px; --r-md:14px; --r-sm:10px; --r-pill:999px;
 
@@ -496,3 +500,11 @@ button{ font-family:inherit; border:none; background:none; color:inherit; cursor
 }
 @keyframes pl-fade-in{ from{ opacity:0; transform:translateY(3px); } to{ opacity:1; transform:none; } }
 
+
+/* icone del tempo sul fondo scuro */
+@media (prefers-color-scheme: dark){
+    :root{
+        --wx-sun:#FFC53D; --wx-heat:#FF6B5E; --wx-cloud:#A9B6C6; --wx-fog:#9AA8B8;
+        --wx-rain:#5AA9FF; --wx-snow:#8FD6FF; --wx-storm:#B794FF; --wx-moon:#A9B2FF;
+    }
+}

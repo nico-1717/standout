@@ -573,7 +573,7 @@ function schedaMeteo() {
 
         var top = el('div', 'pl-setcard-top');
         var ic = el('span', 'pl-setcard-ic');
-        var nome = g ? wxIconaNome(g.icon, S.today, null) : 'sole-nubi';
+        var nome = g ? wxIconaNome(g.icon, S.today, null, g.tmax) : 'sole-nubi';
         ic.innerHTML = WX_ICONE[nome] || WX_ICONE['sole-nubi'];
         top.appendChild(ic);
 
