@@ -454,6 +454,7 @@ function sync_applica(int $uid, array $m): array {
             case 'plan_days':         $esito = sync_pdays_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'plan_settings':     $esito = sync_pset_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             case 'plan_templates':    $esito = sync_ptpl_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
+            case 'tracker_blocks':    $esito = sync_trk_applica($uid, $m['uuid'], $m['op'], $m['patch']); break;
             default:                  $esito = sync_rifiuto('validation', 'table', 'Unknown table');
         }
         // una modifica rifiutata non deve lasciare mezze scritture
@@ -536,3 +537,4 @@ require_once __DIR__ . '/sync_flashcard.php';
 require_once __DIR__ . '/sync_flashcard2.php';
 require_once __DIR__ . '/sync_lingue_gioco.php';
 require_once __DIR__ . '/sync_piano.php';
+require_once __DIR__ . '/sync_tracker.php';

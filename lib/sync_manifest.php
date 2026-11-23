@@ -436,6 +436,23 @@ const SYNC_MANIFESTO = [
             'updated_at' => ['tipo' => 's', 'solo_lettura' => true],
         ],
     ],
+    // Il Tracker di un progetto: un blocco per riga (tipo, titolo, config e data in JSON-testo). Vince l'ultima modifica.
+    // sort_key viaggia come testo semplice (niente riallineamento di gruppo): l'app ordina per sort_key e poi per nascita.
+    'tracker_blocks' => [
+        'ordine'       => 161,
+        'proprietario' => 'user_id',
+        'gruppo'       => [],
+        'campi' => [
+            'project_uuid' => ['tipo' => 'fk', 'col' => 'project_id', 'tabella' => 'projects', 'solo_creazione' => true],
+            'kind'         => ['tipo' => 's', 'solo_creazione' => true],
+            'title'        => ['tipo' => 's'],
+            'config'       => ['tipo' => 's'],
+            'data'         => ['tipo' => 's'],
+            'sort_key'     => ['tipo' => 's'],
+            'created_at'   => ['tipo' => 's', 'solo_lettura' => true],
+            'updated_at'   => ['tipo' => 's', 'solo_lettura' => true],
+        ],
+    ],
     /* ---- voti ---- */
     // Prima i gruppi, poi gli esami che puntano a un gruppo. Le impostazioni del corso viaggiano a parte (GET/PATCH university/settings).
     'university_exam_groups' => [
