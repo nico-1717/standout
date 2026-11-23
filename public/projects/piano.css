@@ -12,7 +12,7 @@
 /* viste della pagina progetto: Elenco · Calendario · Tracker. Dentro la scheda
    in alto, sotto la nota: solo testo, una riga sottile sopra, e la voce
    attiva si riconosce da un tratto breve sotto — niente riquadri. */
-.pp-views{ display:flex; gap:22px; margin:14px 0 0; padding:10px 0 0; border-top:.5px solid var(--hairline, rgba(0,0,0,.08)); }
+.pp-views{ display:flex; gap:22px; margin:8px 0 0; padding:6px 0 0; border-top:.5px solid var(--hairline, rgba(0,0,0,.08)); }
 .pp-views button{ position:relative; min-height:30px; padding:0 0 6px; border:0; background:none; font-size:13.5px; font-weight:600; color:var(--text-3, var(--text-2)); transition:color .2s; }
 .pp-views button::after{ content:''; position:absolute; left:0; right:0; bottom:0; height:2px; border-radius:2px; background:var(--blue,#007AFF); transform:scaleX(0); opacity:0; transition:transform .25s var(--spring, ease), opacity .2s; }
 .pp-views button.on{ color:var(--text); }

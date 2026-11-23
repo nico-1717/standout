@@ -732,13 +732,13 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
    che la riga intera sposta fuori di sé e poi taglia: così, quando una riga
    lunga va a capo, la voce che comincia la riga nuova non si porta dietro un
    puntino appeso all'inizio. */
-.pr-hero-meta{ display:flex; flex-wrap:wrap; align-items:center; row-gap:2px; margin:8px 0 0 -14px; font-size:14px; color:var(--text-2);
+.pr-hero-meta{ display:flex; flex-wrap:wrap; align-items:center; row-gap:2px; margin:8px 0 0 -14px; font-size:12.5px; color:var(--text-3);
     clip-path:inset(0 0 0 14px); }
 .pr-hm{ display:inline-flex; align-items:center; gap:5px; font:inherit; font-size:inherit; color:inherit; background:none; border:none;
     padding:0; margin:0; text-decoration:none; white-space:nowrap; }
 .pr-hm{ position:relative; padding-left:14px; }
 .pr-hm::before{ content:'·'; position:absolute; left:4px; color:var(--text-3); }
-.pr-hm-link{ cursor:pointer; color:var(--ink-soft); }
+.pr-hm-link{ cursor:pointer; color:var(--text-3); }
 .pr-hm-link:active{ opacity:.55; }
 .pr-hm-deck img{ border-radius:3px; }
 .pr-hm-eredit{ opacity:.6; }
@@ -751,7 +751,7 @@ body.pr-senza-tag .pr-grid-sub{ display:none !important; }
 .pr-hero-bar i{ display:block; height:100%; border-radius:99px; background:var(--accent); }
 .pr-hero-tags, .pr-hero-note, .pr-hero-todo{ padding-right:0; }
 .pr-hero-note{ margin-top:12px; font-size:15px; line-height:1.45; color:var(--ink-soft); }
-.pr-nota-vuota{ font-style:normal; color:var(--text-3); font-size:14.5px; padding:2px 0; }
+.pr-nota-vuota{ font-style:normal; color:var(--text-3); opacity:.7; font-size:13.5px; padding:0; margin-top:8px; }
 .pr-hero-todo{ margin-top:12px; }
 
 .pr-hero-actions{ display:flex; gap:8px; margin-top:14px; flex-wrap:nowrap; }
