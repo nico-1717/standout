@@ -501,6 +501,11 @@ function api_h_sync_push(array $ctx): void {
         elseif ($op !== 'upsert' && $op !== 'delete') $esito = sync_rifiuto('validation', 'op', 'op must be upsert or delete');
         elseif (!sync_uuid_valido($uuid)) $esito = sync_rifiuto('validation', 'uuid', 'Invalid uuid');
         elseif (!is_array($patch) || ($patch && array_is_list($patch))) $esito = sync_rifiuto('validation', 'patch', 'patch must be an object');
+        elseif (!empty(SYNC_MANIFESTO[$tbl]['opzionale']) && !sync_tabella_presente($tbl)) {
+            // vecchio telefono, tabella non ancora creata: niente 500 per tutto l'invio, solo questa modifica resta in coda
+            $esiti[] = ['mutation_id' => $mid, 'status' => 'error', 'code' => 'unavailable', 'detail' => "table $tbl does not exist on the server: run its SQL file"];
+            continue;
+        }
         else {
             try {
                 $esito = sync_applica($uid, ['table' => $tbl, 'op' => $op, 'uuid' => $uuid, 'patch' => $patch]);

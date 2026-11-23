@@ -439,6 +439,7 @@ const SYNC_MANIFESTO = [
     // Il Tracker di un progetto: un blocco per riga (tipo, titolo, config e data in JSON-testo). Vince l'ultima modifica.
     // sort_key viaggia come testo semplice (niente riallineamento di gruppo): l'app ordina per sort_key e poi per nascita.
     'tracker_blocks' => [
+        'opzionale'    => true,   // la tabella si crea a mano (sql/migrations): finche' manca, il telefono non la sincronizza
         'ordine'       => 161,
         'proprietario' => 'user_id',
         'gruppo'       => [],
@@ -1153,8 +1154,21 @@ function sync_uuid_per_utente(string $tabella, int $uid): string {
 /** Le tabelle sincronizzate, nell'ordine di dipendenza. */
 function sync_tabelle(): array {
     $t = SYNC_MANIFESTO;
+    // una tabella `opzionale` che non esiste ancora (migrazione non lanciata) non si offre al telefono:
+    // se la offrissimo, ogni invio o ricezione che la tocca morirebbe con un 500 e fermerebbe tutto il resto
+    foreach ($t as $nome => $def) if (!empty($def['opzionale']) && !sync_tabella_presente($nome)) unset($t[$nome]);
     uasort($t, fn($a, $b) => $a['ordine'] <=> $b['ordine']);
     return array_keys($t);
+}
+
+/** La tabella esiste nel database? (una domanda sola per richiesta; non muore se manca) */
+function sync_tabella_presente(string $nome): bool {
+    static $noto = [];
+    if (!isset($noto[$nome])) {
+        $r = mysqli_query(sec_db(), "SHOW TABLES LIKE '" . mysqli_real_escape_string(sec_db(), $nome) . "'");
+        $noto[$nome] = $r && mysqli_num_rows($r) > 0;
+    }
+    return $noto[$nome];
 }
 
 /** Un uuid scritto bene (qualunque versione): 36 caratteri, minuscole. */
