@@ -479,6 +479,7 @@ function api_h_sync_push(array $ctx): void {
 
     $esiti = [];
     foreach ($mut as $m) {
+      try {
         $mid = is_array($m) ? ($m['mutation_id'] ?? null) : null;
         if (!sync_uuid_valido($mid)) { $esiti[] = ['mutation_id' => is_string($mid) ? substr($mid, 0, 36) : null] + sync_rifiuto('validation', 'mutation_id', 'Invalid mutation_id'); continue; }
 
@@ -518,6 +519,15 @@ function api_h_sync_push(array $ctx): void {
             if ($att) { unset($att[0]['_id']); $esito['current'] = $att[0]; } else { $esito['current'] = null; }
         }
         $esiti[] = ['mutation_id' => $mid] + $esito;
+      } catch (Throwable $e) {
+        /* Un errore nostro su UNA modifica (per esempio leggere la riga rifiutata) non deve far cadere tutto il
+           push con un 500: le altre modifiche passano, questa si segna come errore e il telefono riprova.
+           `detail` dice dove: classe e riga, mai il corpo della richiesta. */
+        $d = get_class($e) . ' in ' . basename($e->getFile()) . ':' . $e->getLine();
+        sec_log_error('sync_push', $d . ' ' . substr($e->getMessage(), 0, 200));
+        $esiti[] = ['mutation_id' => (isset($m['mutation_id']) && is_string($m['mutation_id'])) ? substr($m['mutation_id'], 0, 36) : null,
+                    'status' => 'error', 'code' => 'server_error', 'detail' => $d . ': ' . substr($e->getMessage(), 0, 120)];
+      }
     }
 
     if (mt_rand(1, 100) === 1) sync_pota();   // pulizia a caso: l'hosting condiviso potrebbe non avere il cron
