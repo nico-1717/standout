@@ -604,18 +604,37 @@ function schedaMeteo() {
             bMano.addEventListener('click', function () { if (WX.auto) wxScegliAMano(); });
             modo.appendChild(bAuto); modo.appendChild(bMano);
             card.appendChild(modo);
-            card.appendChild(el('div', 'pl-setcard-sub pl-wx-modo-sub', WX.auto ? T('planner.wx_auto_sub') : T('planner.wx_a_mano_sub')));
+            /* Il testo del luogo e, solo a mano, il tasto piccolo «Cambia luogo» sulla stessa riga. */
+            var riga = el('div', 'pl-wx-riga');
+            riga.appendChild(el('div', 'pl-setcard-sub pl-wx-modo-sub', WX.auto ? T('planner.wx_auto_sub') : T('planner.wx_a_mano_sub')));
             if (!WX.auto) {
-                var cambia = el('button', 'pl-wx-cambia', T('planner.wx_cambia_posto'));
+                var cambia = el('button', 'pl-wx-cambia');
                 cambia.type = 'button';
+                cambia.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>';
+                cambia.appendChild(document.createTextNode(T('planner.wx_cambia_posto')));
                 cambia.addEventListener('click', function () { wxChiediLuogo(''); });
-                card.appendChild(cambia);
+                riga.appendChild(cambia);
             }
+            card.appendChild(riga);
         }
 
+        /* Il tasto grande: il tempo di oggi in anteprima, e a un tocco le previsioni. */
         if (WX.on && g) {
-            var vai = el('button', 'pl-setcard-go', T('planner.wx_previsioni'));
+            var vai = el('button', 'pl-wx-oggi');
             vai.type = 'button';
+            var vic = el('span', 'pl-wx-oggi-ic');
+            vic.innerHTML = WX_ICONE[nome] || WX_ICONE['sole-nubi'];
+            vai.appendChild(vic);
+            var vtx = el('span', 'pl-wx-oggi-tx');
+            vtx.appendChild(el('span', 'pl-wx-oggi-k', WX.place ? T('planner.wx_oggi_a', { posto: WX.place }) : T('planner.wx_previsioni')));
+            var gradi = (WX.adesso && WX.adesso.temp !== null && WX.adesso.temp !== undefined) ? WX.adesso.temp : g.tmax;
+            var vt = el('span', 'pl-wx-oggi-t', gradi !== null && gradi !== undefined ? gradi + '°' : '');
+            var anteprima = [g.label];
+            if (g.pioggia !== null && g.pioggia !== undefined && g.pioggia >= 30) anteprima.push(T('planner.wx_pioggia_pct', { n: Math.round(g.pioggia) }));
+            vt.appendChild(el('small', '', anteprima.filter(Boolean).join(' · ')));
+            vtx.appendChild(vt);
+            vtx.appendChild(el('span', 'pl-wx-oggi-cta', T('planner.wx_vedi_previsioni') + ' \u2192'));
+            vai.appendChild(vtx);
             vai.addEventListener('click', function () { wxPopup(S.today); });
             card.appendChild(vai);
         }
