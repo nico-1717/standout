@@ -1967,7 +1967,8 @@
     "wx_luogo_titolo": "Scegli il luogo",
     "wx_scrivi_luogo": "Scrivi una città o un paese. Il meteo resta lì finché non torni ad Automatico.",
     "wx_auto_negato": "Non riesco a leggere la tua posizione viva. Consenti la posizione a questo sito e riprova.",
-    "wx_a_mano_attivo": "Il meteo ora resta su questo posto."
+    "wx_a_mano_attivo": "Il meteo ora resta su questo posto.",
+    "wx_auto_sub_app": "Segue la tua posizione viva. Questo telefono potrà mandare la sua posizione solo dopo la prossima versione dell'app; fino ad allora il posto si aggiorna quando apri il planner sul sito."
   },
   "abitudini": {
     "abitudini": "Abitudini",
