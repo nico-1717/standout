@@ -192,7 +192,7 @@
         var today = new Date(); var td = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
         return {
             host: host, mode: mode, pid: pid || 0, tab: 'cal', data: null, today: td,
-            month: td.slice(0, 7) + '-01', scope: pid || 0, sel: null, tool: store('tool') || 'paint', showEv: store('ev') === '1', ev: {},
+            month: td.slice(0, 7) + '-01', scope: pid || 0, sel: null, tool: store('tool') || 'paint', showEv: store('ev') !== '0', ev: {},
             nodes: {}, kids: {}, paint: {}, plan: {}, done: {}, cap: {}, openRows: {}, cascadeBusy: false, undo: []
         };
     }
@@ -444,6 +444,7 @@
             b.title = x[2]; seg.appendChild(b);
         });
         dock.appendChild(seg);
+        dock.appendChild(h('span', 'pp-dsep'));
         var evb = btn('pp-undo pp-evbtn' + (S.showEv ? ' on' : ''), svg('M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1zM12 12.5l1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5 2.2-.3z', 18, 1.8),
             function () { S.showEv = !S.showEv; store('ev', S.showEv ? '1' : '0'); refresh(); }, t('eventi_btn'));
         evb.title = t('eventi_btn');
@@ -451,7 +452,9 @@
         var un = btn('pp-undo', svg(IC.undo, 18, 2), function () { undo(); }, t('annulla'));
         un.title = t('annulla'); un.disabled = !S.undo.length;
         dock.appendChild(un);
-        dock.appendChild(btn('pp-act', [svg(IC.spark, 16, 1.9), h('span', '', t('pianifica_breve'))], function () { autoplanFlow(); }));
+        var go = btn('pp-act pp-act-mini', svg(IC.spark, 18, 1.9), function () { autoplanFlow(); }, t('pianifica_breve'));
+        go.title = t('pianifica_breve');
+        dock.appendChild(go);
         root.appendChild(dock);
         root.classList.add('pp-has-dock');
     }
