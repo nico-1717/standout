@@ -333,6 +333,14 @@
             root.appendChild(h('div', 'pp-hint', t('senza_figli')));
         }
 
+        /* il Piano non e' piu' una scheda della pagina: si apre da qui */
+        if (S.mode === 'project') {
+            root.appendChild(btn('pp-planlink', [svg(IC.spark, 16, 1.9), h('span', 'pp-planlink-t', t('v_piano')), svg(IC.right, 15, 2.4)], function () {
+                S.scope = S.scope || S.pid;
+                if (typeof window.ppVai === 'function') window.ppVai('plan'); else { S.tab = 'plan'; paintAll(); }
+            }));
+        }
+
         /* mese */
         var card = h('div', 'pp-card pp-cal');
         var head = h('div', 'pp-cal-head', [
@@ -1027,6 +1035,10 @@
         if (S.mode === 'master') return renderOverview(root);
         var id = S.scope; var n = S.nodes[id];
         if (!n) { root.appendChild(h('div', 'pp-hint', t('errore'))); return; }
+        /* il ritorno al Calendario, da cui si arriva */
+        root.appendChild(btn('pp-chip pp-chip-up', [svg(IC.left, 14, 2.4), t('v_calendario')], function () {
+            if (typeof window.ppVai === 'function') window.ppVai('cal'); else { S.tab = 'cal'; paintAll(); }
+        }));
         if (id !== S.pid) {
             root.appendChild(btn('pp-chip pp-chip-up', [svg(IC.left, 14, 2.4), S.nodes[n.parent] ? S.nodes[n.parent].name : ''], function () { S.scope = n.parent; refresh2(); }));
         }

@@ -1586,19 +1586,20 @@ if ($deckProprio) {
                 include __DIR__ . '/../partials/format_toolbar.php';
             ?>
         </div>
+        <?php /* LE TRE VISTE DEL PROGETTO: Elenco (i sotto-progetti), Calendario e
+                 Tracker. Stanno dentro la scheda in alto, sotto la nota, in
+                 una riga quieta. Il Piano (le ore e come si dividono) non e'
+                 piu' una scheda: si apre da un tasto dentro il Calendario.
+                 Il Calendario e il Piano sono disegnati da piano.js dentro
+                 #ppHost; l'Elenco e' tutto il resto della pagina, che il CSS
+                 nasconde mentre se ne guarda un'altra. */ ?>
+        <nav class="pp-views" id="ppViews" aria-label="<?php te('piano.v_elenco'); ?>">
+            <button type="button" data-pp="list" class="on"><?php te('piano.v_elenco'); ?></button>
+            <button type="button" data-pp="cal"><?php te('piano.v_calendario'); ?></button>
+            <button type="button" data-pp="trk"><?php te('tracker.tab'); ?></button>
+        </nav>
     </div>
 
-    <?php /* LE TRE VISTE DEL PROGETTO: Elenco (i sotto-progetti), Calendario
-             (evidenziare i giorni) e Piano (le ore e come si dividono). Prende
-             il posto della vecchia scheda «Piano di studio». Le due nuove sono
-             disegnate da piano.js dentro #ppHost; l'Elenco è tutto il resto
-             della pagina, che il CSS nasconde mentre se ne guarda un'altra. */ ?>
-    <nav class="pp-views" id="ppViews" aria-label="<?php te('piano.v_elenco'); ?>">
-        <button type="button" data-pp="list" class="on"><?php te('piano.v_elenco'); ?></button>
-        <button type="button" data-pp="cal"><?php te('piano.v_calendario'); ?></button>
-        <button type="button" data-pp="plan"><?php te('piano.v_piano'); ?></button>
-        <button type="button" data-pp="trk"><?php te('tracker.tab'); ?></button>
-    </nav>
     <div id="ppHost" data-project="<?php echo $selId; ?>"></div>
     <div id="trkHost" data-project="<?php echo $selId; ?>"></div>
 
@@ -3958,7 +3959,7 @@ window.prSpostaSalva = function (ids, nuovoPadre, info) {
     var started = false;
     function marca(v){
         document.body.setAttribute('data-pp', v);
-        Array.prototype.forEach.call(bar.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-pp') === v); });
+        Array.prototype.forEach.call(bar.querySelectorAll('button'), function(b){ b.classList.toggle('on', b.getAttribute('data-pp') === (v === 'plan' ? 'cal' : v)); });
     }
     window.PR_PIANO_SEG = marca;
     window.ppVai = function(v){

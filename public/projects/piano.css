@@ -9,10 +9,20 @@
 .pp button{ font:inherit; color:inherit; cursor:pointer; }
 .pp-body{ display:flex; flex-direction:column; gap:10px; }
 
-/* viste della pagina progetto: Elenco · Calendario · Piano */
-.pp-views{ display:flex; gap:2px; padding:3px; margin:12px 0 12px; border-radius:11px; background:color-mix(in srgb, var(--text) 7%, transparent); }
-.pp-views button{ flex:1; min-height:32px; border:0; border-radius:9px; background:none; font-size:13.5px; font-weight:600; color:var(--text-2); }
-.pp-views button.on{ background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+/* viste della pagina progetto: Elenco · Calendario · Tracker. Dentro la scheda
+   in alto, sotto la nota: solo testo, una riga sottile sopra, e la voce
+   attiva si riconosce da un tratto breve sotto — niente riquadri. */
+.pp-views{ display:flex; gap:22px; margin:14px 0 0; padding:10px 0 0; border-top:.5px solid var(--hairline, rgba(0,0,0,.08)); }
+.pp-views button{ position:relative; min-height:30px; padding:0 0 6px; border:0; background:none; font-size:13.5px; font-weight:600; color:var(--text-3, var(--text-2)); transition:color .2s; }
+.pp-views button::after{ content:''; position:absolute; left:0; right:0; bottom:0; height:2px; border-radius:2px; background:var(--blue,#007AFF); transform:scaleX(0); opacity:0; transition:transform .25s var(--spring, ease), opacity .2s; }
+.pp-views button.on{ color:var(--text); }
+.pp-views button.on::after{ transform:scaleX(1); opacity:1; }
+.pp-views button:active{ opacity:.6; }
+/* il tasto Piano dentro il Calendario, e il ritorno dal Piano */
+.pp-planlink{ display:flex; align-items:center; gap:10px; width:100%; padding:12px 14px; border:0; border-radius:14px; background:var(--blue-soft, rgba(0,122,255,.12)); color:var(--blue,#007AFF); font-size:14px; font-weight:700; text-align:left; transition:transform .15s var(--spring, ease); }
+.pp-planlink:active{ transform:scale(.98); }
+.pp-planlink-t{ flex:1; }
+.pp-planlink-s{ font-size:12px; font-weight:600; opacity:.75; }
 body[data-pp="cal"] .pr-lab, body[data-pp="cal"] #prSubBulkbar, body[data-pp="cal"] #prList, body[data-pp="cal"] #prGrid,
 body[data-pp="plan"] .pr-lab, body[data-pp="plan"] #prSubBulkbar, body[data-pp="plan"] #prList, body[data-pp="plan"] #prGrid{ display:none !important; }
 #ppHost{ display:none; }
