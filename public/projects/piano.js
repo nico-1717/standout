@@ -54,14 +54,14 @@
         return s;
     }
     var IC = {
-        brush: 'M4 20l1-4L16.5 4.5a2.1 2.1 0 013 3L8 19l-4 1z',
-        erase: 'M8 20h11M5.5 14.5l7-8a2 2 0 013 0l2.5 2.5a2 2 0 010 3L12 18H8z',
-        eye: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 14.8a2.8 2.8 0 100-5.6 2.8 2.8 0 000 5.6z',
-        spark: 'M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4zM18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z',
+        brush: 'M3 21v-4a4 4 0 1 1 4 4h-4 M21 3a16 16 0 0 0 -12.8 10.2 M21 3a16 16 0 0 1 -10.2 12.8 M10.6 9a9 9 0 0 1 4.4 4.4',
+        erase: 'M19 20h-10.5l-4.21 -4.3a1 1 0 0 1 0 -1.41l10 -10a1 1 0 0 1 1.41 0l5 5a1 1 0 0 1 0 1.41l-9.2 9.3 M18 13.3l-6.3 -6.3',
+        eye: 'M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6',
+        spark: 'M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m0 -12a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2m-7 12a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6',
         left: 'M14.5 5L8 12l6.5 7', right: 'M9.5 5L16 12l-6.5 7',
         lock: 'M7 11h10a1.5 1.5 0 011.5 1.5v6A1.5 1.5 0 0117 20H7a1.5 1.5 0 01-1.5-1.5v-6A1.5 1.5 0 017 11zM8.5 11V8a3.5 3.5 0 017 0v3',
         unlock: 'M7 11h10a1.5 1.5 0 011.5 1.5v6A1.5 1.5 0 0117 20H7a1.5 1.5 0 01-1.5-1.5v-6A1.5 1.5 0 017 11zM8.5 11V8a3.5 3.5 0 016.7-1.4',
-        chev: 'M9 6l6 6-6 6', undo: 'M9 14L4 9l5-5M4 9h9.5a6 6 0 010 12H11', gear: 'M12 15.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zM19.4 13a7.5 7.5 0 000-2l2-1.5-2-3.5-2.3.9a7.4 7.4 0 00-1.7-1L15 3.5h-4l-.4 2.4a7.4 7.4 0 00-1.7 1l-2.3-.9-2 3.5 2 1.5a7.5 7.5 0 000 2l-2 1.5 2 3.5 2.3-.9c.5.4 1.1.7 1.7 1l.4 2.4h4l.4-2.4c.6-.3 1.2-.6 1.7-1l2.3.9 2-3.5z',
+        chev: 'M9 6l6 6-6 6', undo: 'M9 14l-4 -4l4 -4 M5 10h11a4 4 0 1 1 0 8h-1', gear: 'M12 15.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zM19.4 13a7.5 7.5 0 000-2l2-1.5-2-3.5-2.3.9a7.4 7.4 0 00-1.7-1L15 3.5h-4l-.4 2.4a7.4 7.4 0 00-1.7 1l-2.3-.9-2 3.5 2 1.5a7.5 7.5 0 000 2l-2 1.5 2 3.5 2.3-.9c.5.4 1.1.7 1.7 1l.4 2.4h4l.4-2.4c.6-.3 1.2-.6 1.7-1l2.3.9 2-3.5z',
         play: 'M8 5.5v13l11-6.5z', check: 'M4 12.5l5.2 5.2L20 6.6', plus: 'M12 5v14M5 12h14', x: 'M6 6l12 12M18 6L6 18'
     };
 
@@ -312,6 +312,14 @@
             }));
         }
         if (S.mode === 'project') bar.appendChild(chip(S.scope, true));
+        /* il Piano non e' piu' una scheda della pagina: si apre da qui, a destra della prima riga */
+        if (S.mode === 'project') {
+            bar.classList.add('pp-chips-plan');
+            bar.appendChild(btn('pp-planlink', [svg(IC.spark, 15, 1.9), h('span', 'pp-planlink-t', t('v_piano')), svg(IC.right, 13, 2.4)], function () {
+                S.scope = S.scope || S.pid;
+                if (typeof window.ppVai === 'function') window.ppVai('plan'); else { S.tab = 'plan'; paintAll(); }
+            }));
+        }
         if (S.mode === 'master') {
             masterRows().forEach(function (row, i) {
                 if (i === 0) { row.ids.forEach(function (id) { bar.appendChild(chip(id, false)); }); return; }
@@ -325,20 +333,20 @@
                 root.appendChild(sec);
             });
             if (masterRows().length === 1) root.appendChild(bar);
+        } else if (S.mode === 'project') {
+            root.appendChild(bar);
+            var kids = chipsOf(S.scope);
+            if (kids.length) {
+                var bar2 = h('div', 'pp-chips');
+                kids.forEach(function (id) { bar2.appendChild(chip(id, false)); });
+                root.appendChild(bar2);
+            }
         } else {
             chipsOf(S.scope).forEach(function (id) { bar.appendChild(chip(id, false)); });
             root.appendChild(bar);
         }
         if (S.mode === 'project' && !chipsOf(S.scope).length && S.scope === S.pid) {
             root.appendChild(h('div', 'pp-hint', t('senza_figli')));
-        }
-
-        /* il Piano non e' piu' una scheda della pagina: si apre da qui */
-        if (S.mode === 'project') {
-            root.appendChild(btn('pp-planlink', [svg(IC.spark, 16, 1.9), h('span', 'pp-planlink-t', t('v_piano')), svg(IC.right, 15, 2.4)], function () {
-                S.scope = S.scope || S.pid;
-                if (typeof window.ppVai === 'function') window.ppVai('plan'); else { S.tab = 'plan'; paintAll(); }
-            }));
         }
 
         /* mese */
@@ -445,7 +453,7 @@
         });
         dock.appendChild(seg);
         dock.appendChild(h('span', 'pp-dsep'));
-        var evb = btn('pp-undo pp-evbtn' + (S.showEv ? ' on' : ''), svg('M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1zM12 12.5l1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5 2.2-.3z', 18, 1.8),
+        var evb = btn('pp-undo pp-evbtn' + (S.showEv ? ' on' : ''), svg('M11 21h-5a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v3.5 M16 3v4 M8 3v4 M4 11h11 M17.8 20.817l-2.172 1.138a.392 .392 0 0 1 -.568 -.41l.415 -2.411l-1.757 -1.707a.389 .389 0 0 1 .217 -.665l2.428 -.352l1.086 -2.193a.392 .392 0 0 1 .702 0l1.086 2.193l2.428 .352a.39 .39 0 0 1 .217 .665l-1.757 1.707l.414 2.41a.39 .39 0 0 1 -.567 .411l-2.172 -1.138', 18, 1.8),
             function () { S.showEv = !S.showEv; store('ev', S.showEv ? '1' : '0'); refresh(); }, t('eventi_btn'));
         evb.title = t('eventi_btn');
         dock.appendChild(evb);

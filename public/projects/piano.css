@@ -19,7 +19,8 @@
 .pp-views button.on::after{ transform:scaleX(1); opacity:1; }
 .pp-views button:active{ opacity:.6; }
 /* il tasto Piano dentro il Calendario, e il ritorno dal Piano */
-.pp-planlink{ display:flex; align-items:center; gap:10px; width:100%; padding:12px 14px; border:0; border-radius:14px; background:var(--blue-soft, rgba(0,122,255,.12)); color:var(--blue,#007AFF); font-size:14px; font-weight:700; text-align:left; transition:transform .15s var(--spring, ease); }
+.pp-chips-plan .pp-planlink{ margin-left:auto; }
+.pp-planlink{ flex-shrink:0; display:flex; align-items:center; gap:6px; min-height:32px; padding:0 8px 0 11px; border:0; border-radius:999px; background:var(--blue-soft, rgba(0,122,255,.12)); color:var(--blue,#007AFF); font-size:13.5px; font-weight:700; text-align:left; transition:transform .15s var(--spring, ease); }
 .pp-planlink:active{ transform:scale(.98); }
 .pp-planlink-t{ flex:1; }
 .pp-planlink-s{ font-size:12px; font-weight:600; opacity:.75; }
@@ -41,9 +42,9 @@ body[data-pp="cal"] #ppHost, body[data-pp="plan"] #ppHost{ display:block; }
 /* sotto-progetti */
 .pp-chips{ display:flex; gap:6px; overflow-x:auto; padding:2px 2px 4px; margin:0 -2px; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
 .pp-chips::-webkit-scrollbar{ display:none; }
-.pp-chip{ flex-shrink:0; display:flex; align-items:center; gap:6px; min-height:36px; padding:0 12px; border:0; border-radius:999px;
-    background:var(--surface); font-size:13.5px; font-weight:500; box-shadow:var(--shadow-soft); color:var(--text); }
-.pp-chip-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; background:var(--c, var(--blue)); display:inline-block; }
+.pp-chip{ flex-shrink:0; display:flex; align-items:center; gap:6px; min-height:28px; padding:0 10px; border:0; border-radius:999px;
+    background:var(--surface); font-size:13px; font-weight:500; box-shadow:var(--shadow-soft); color:var(--text); }
+.pp-chip-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; background:var(--c, var(--blue)); display:inline-block; }
 .pp-chip.on{ background:color-mix(in srgb, var(--c, var(--blue)) 20%, var(--surface)); box-shadow:inset 0 0 0 1.5px var(--c, var(--blue)); font-weight:600; }
 .pp-chip.off{ color:var(--text-2); }
 /* il progetto sul percorso (il genitore di quello scelto): un contorno leggero */
